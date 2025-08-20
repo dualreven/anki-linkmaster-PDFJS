@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDF主页测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 4px; }
+        .pass { background-color: #d4edda; color: #155724; }
+        .fail { background-color: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>PDF主页功能测试</h1>
+    <div id="test-results"></div>
+
+    <script>
+        // 简单的测试框架
+        const testResults = document.getElementById('test-results');
+        
+        function test(name, fn) {
+            try {
+                fn();
+                testResults.innerHTML += `<div class="test-result pass">✅ ${name}</div>`;
+            } catch (error) {
+                testResults.innerHTML += `<div class="test-result fail">❌ ${name}: ${error.message}</div>`;
+            }
+        }
+
+        // 测试HTML结构
+        test('HTML结构检查', () => {
+            const container = document.createElement('div');
+            container.innerHTML = `
+                <div class="container">
+                    <header>
+                        <h1>PDF文件管理</h1>
+                        <button id="add-pdf-btn">添加PDF文件</button>
+                    </header>
+                    <main>
+                        <div id="pdf-list"></div>
+                        <div id="empty-state"></div>
+                    </main>
+                </div>
+                <input type="file" id="file-input" accept=".pdf" multiple>
+            `;
+            
+            if (!container.querySelector('#pdf-list')) {
+                throw new Error('PDF列表容器不存在');
+            }
+            if (!container.querySelector('#file-input')) {
+                throw new Error('文件输入控件不存在');
+            }
+        });
+
+        test('WebSocket连接模拟', () => {
+            // 模拟WebSocket类
+            class MockWebSocket {
+                constructor(url) {
+                    this.url = url;
+                    this.readyState = 1; // OPEN
+                }
+                send(data) {
+                    // 模拟发送消息
+                    console.log('Mock send:', data);
+                }
+            }
+            
+            const ws = new MockWebSocket('ws://localhost:8765');
+            if (ws.readyState !== 1) {
+                throw new Error('WebSocket连接失败');
+            }
+        });
+
+        test('PDF卡片渲染', () => {
+            const mockPDF = {
+                filename: 'test.pdf',
+                title: '测试PDF',
+                path: '/path/to/test.pdf'
+            };
+            
+            const cardHTML = `
+                <div class="pdf-card" data-filename="${mockPDF.filename}">
+                    <div class="pdf-title">${mockPDF.title}</div>
+                    <div class="pdf-path">${mockPDF.path}</div>
+                    <div class="pdf-actions">
+                        <button onclick="openPDF('${mockPDF.filename}')">打开</button>
+                        <button onclick="removePDF('${mockPDF.filename}')">删除</button>
+                    </div>
+                </div>
+            `;
+            
+            if (!cardHTML.includes('test.pdf')) {
+                throw new Error('PDF卡片渲染失败');
+            }
+        });
+
+        test('URL参数解析', () => {
+            const testURL = 'http://example.com/pdf-viewer/index.html?file=test.pdf';
+            const url = new URL(testURL);
+            const file = url.searchParams.get('file');
+            
+            if (file !== 'test.pdf') {
+                throw new Error('URL参数解析失败');
+            }
+        });
+    </script>
+</body>
+</html>

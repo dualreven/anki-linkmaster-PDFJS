@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF文件管理 - Anki LinkMaster</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>PDF文件管理</h1>
+            <button id="add-pdf-btn" class="btn primary">添加PDF文件</button>
+        </header>
+
+        <main>
+            <div id="pdf-list" class="pdf-grid">
+                <!-- PDF文件列表将在这里动态生成 -->
+            </div>
+            
+            <div id="empty-state" class="empty-state" style="display: none;">
+                <div class="empty-icon">📄</div>
+                <h3>暂无PDF文件</h3>
+                <p>点击"添加PDF文件"按钮开始管理您的PDF文档</p>
+            </div>
+        </main>
+    </div>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>

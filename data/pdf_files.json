@@ -1,0 +1,36 @@
+{
+  "files": {
+    "46851c4b37e2": {
+      "id": "46851c4b37e2",
+      "filename": "test.pdf",
+      "filepath": "C:\\Users\\napretep\\Desktop\\test.pdf",
+      "file_size": 497913,
+      "created_time": 1752916883.414046,
+      "modified_time": 1752917917.7136903,
+      "title": "test",
+      "author": "",
+      "subject": "",
+      "keywords": "",
+      "page_count": 0,
+      "thumbnail_path": null,
+      "tags": [],
+      "notes": ""
+    },
+    "4c3ec99efeb9": {
+      "id": "4c3ec99efeb9",
+      "filename": "tmp5ce1bzjk.pdf",
+      "filepath": "C:\\Users\\napretep\\AppData\\Local\\Temp\\tmp5ce1bzjk.pdf",
+      "file_size": 16,
+      "created_time": 1755680414.3430896,
+      "modified_time": 1755680414.3430896,
+      "title": "tmp5ce1bzjk",
+      "author": "",
+      "subject": "",
+      "keywords": "",
+      "page_count": 0,
+      "thumbnail_path": null,
+      "tags": [],
+      "notes": ""
+    }
+  }
+}
