@@ -168,6 +168,52 @@ class StandardPDFManager(QObject):
             error_response = self._build_error_response("PROCESSING_ERROR", error_msg)
             self.error_occurred.emit(error_response)
             return False, error_response
+
+    def batch_remove_files(self, file_ids: List[str]) -> Tuple[bool, Dict[str, Any]]:
+        """
+        批量删除PDF文件（标准格式）
+        
+        Args:
+            file_ids: 文件ID列表
+            
+        Returns:
+            Tuple[bool, Dict]: (是否成功, 标准格式的响应数据)
+        """
+        try:
+            if not file_ids:
+                error_response = self._build_error_response("INVALID_REQUEST", "文件ID列表不能为空")
+                self.error_occurred.emit(error_response)
+                return False, error_response
+            
+            removed_files = []
+            failed_files = {}
+            
+            for file_id in file_ids:
+                # 尝试删除每个文件
+                success, result = self.remove_file(file_id)
+                if success:
+                    removed_files.append(file_id)
+                else:
+                    failed_files[file_id] = result.get("message", "删除失败")
+            
+            # 构建批量删除响应
+            batch_response = {
+                "removed_files": removed_files,
+                "failed_files": failed_files,
+                "total_removed": len(removed_files),
+                "total_failed": len(failed_files),
+                "file_count": self.file_list.count()
+            }
+            
+            logger.info(f"批量删除完成：成功删除 {len(removed_files)} 个文件，失败 {len(failed_files)} 个文件")
+            return True, batch_response
+            
+        except Exception as e:
+            error_msg = ErrorHandler.get_error_message(e)
+            logger.error(f"批量删除文件失败: {error_msg}")
+            error_response = self._build_error_response("PROCESSING_ERROR", error_msg)
+            self.error_occurred.emit(error_response)
+            return False, error_response
     
     def get_files(self) -> List[Dict[str, Any]]:
         """

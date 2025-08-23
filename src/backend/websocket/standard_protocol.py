@@ -20,6 +20,8 @@ class MessageType(Enum):
     PDF_ADDED = "pdf_added"
     REMOVE_PDF = "remove_pdf"
     PDF_REMOVED = "pdf_removed"
+    BATCH_REMOVE_PDF = "batch_remove_pdf"
+    BATCH_PDF_REMOVED = "batch_pdf_removed"
     PDF_DETAIL_REQUEST = "pdf_detail_request"
     PDF_DETAIL_RESPONSE = "pdf_detail_response"
     
@@ -320,4 +322,27 @@ class PDFMessageBuilder:
             MessageType.PDF_DETAIL_RESPONSE,
             request_id,
             data=file_detail
+        )
+
+    @staticmethod
+    def build_batch_pdf_remove_response(
+        request_id: str,
+        removed_files: List[str],
+        failed_files: Optional[Dict[str, str]] = None
+    ) -> Dict[str, Any]:
+        """构建批量PDF删除响应"""
+        data = {
+            "removed_files": removed_files,
+            "failed_files": failed_files or {},
+            "total_removed": len(removed_files),
+            "total_failed": len(failed_files) if failed_files else 0
+        }
+
+        return StandardMessageHandler.build_response(
+            "response",
+            request_id,
+            status="success",
+            code=200,
+            message=f"批量删除完成，成功删除 {len(removed_files)} 个文件",
+            data=data
         )

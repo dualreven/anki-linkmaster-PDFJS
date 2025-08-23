@@ -155,6 +155,10 @@ class StandardWebSocketServer(QObject):
         elif message_type == "remove_pdf":
             return self.handle_pdf_remove_request(request_id, data)
         
+        # PDF批量删除请求
+        elif message_type == "batch_remove_pdf":
+            return self.handle_batch_pdf_remove_request(request_id, data)
+        
         # PDF详情请求
         elif message_type == "pdf_detail_request":
             return self.handle_pdf_detail_request(request_id, data)
@@ -265,6 +269,41 @@ class StandardWebSocketServer(QObject):
                 request_id,
                 "REMOVE_ERROR",
                 f"删除PDF失败: {str(e)}"
+            )
+    
+    def handle_batch_pdf_remove_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """处理PDF批量删除请求"""
+        try:
+            file_ids = data.get("file_ids")
+            if not file_ids or not isinstance(file_ids, list):
+                return StandardMessageHandler.build_error_response(
+                    request_id,
+                    "INVALID_REQUEST",
+                    "缺少必需的file_ids参数或参数类型错误"
+                )
+            
+            # 调用PDF管理器的批量删除方法
+            result = self.pdf_manager.batch_remove_files(file_ids)
+            success = result.get("success", False)
+            if success:
+                return PDFMessageBuilder.build_batch_pdf_remove_response(
+                    request_id,
+                    result["removed_files"],
+                    result.get("failed_files")
+                )
+            else:
+                return StandardMessageHandler.build_error_response(
+                    request_id,
+                    "BATCH_REMOVE_FAILED",
+                    result.get("message", "PDF文件批量删除失败")
+                )
+                
+        except Exception as e:
+            logger.error(f"批量删除PDF失败: {e}")
+            return StandardMessageHandler.build_error_response(
+                request_id,
+                "BATCH_REMOVE_ERROR",
+                f"批量删除PDF失败: {str(e)}"
             )
     
     def handle_pdf_detail_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:

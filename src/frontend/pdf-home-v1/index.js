@@ -1,24 +1,182 @@
 /**
- * PDF主页单文件原型 v2
+ * PDF主页单文件原型 v1
  * 实现完整功能原型，包括事件系统、PDF文件管理、WebSocket通信、UI渲染、日志系统和错误处理
  */
 
-// 导入事件总线模块
-import { EventBus } from './modules/event-bus.js';
+// ===== 事件系统 =====
+/**
+ * 事件总线类
+ * 实现事件发布和订阅功能
+ */
+class EventBus {
+  constructor() {
+    this.events = {};
+  }
 
-// 导入事件常量
-import {
-  APP_EVENTS,
-  SYSTEM_EVENTS,
-  WEBSOCKET_EVENTS,
-  PDF_MANAGEMENT_EVENTS,
-  UI_EVENTS,
-  WEBSOCKET_MESSAGE_EVENTS
-} from './modules/event-constants.js';
+  /**
+   * 订阅事件
+   * @param {string} event - 事件名称，格式为 {module}:{action}:{status}
+   * @param {Function} callback - 回调函数
+   * @returns {Function} 取消订阅的函数
+   */
+  on(event, callback) {
+    if (!this.events[event]) {
+      this.events[event] = [];
+    }
+    
+    this.events[event].push(callback);
+    
+    // 返回取消订阅的函数
+    return () => {
+      this.off(event, callback);
+    };
+  }
 
-// 导入日志模块
-import Logger, { LogLevel } from './utils/logger.js';
+  /**
+   * 取消订阅事件
+   * @param {string} event - 事件名称
+   * @param {Function} callback - 回调函数
+   */
+  off(event, callback) {
+    if (!this.events[event]) return;
+    
+    this.events[event] = this.events[event].filter(cb => cb !== callback);
+  }
 
+  /**
+   * 发布事件
+   * @param {string} event - 事件名称
+   * @param {*} data - 事件数据
+   */
+  emit(event, data) {
+    if (!this.events[event]) return;
+    
+    this.events[event].forEach(callback => {
+      try {
+        callback(data);
+      } catch (error) {
+        console.error(`事件处理错误 [${event}]:`, error);
+      }
+    });
+  }
+
+  /**
+   * 一次性订阅事件
+   * @param {string} event - 事件名称
+   * @param {Function} callback - 回调函数
+   */
+  once(event, callback) {
+    const onceWrapper = (data) => {
+      callback(data);
+      this.off(event, onceWrapper);
+    };
+    
+    this.on(event, onceWrapper);
+  }
+}
+
+// ===== 日志系统 =====
+/**
+ * 日志管理器类
+ * 实现详细日志输出功能
+ */
+class Logger {
+  constructor(moduleName = 'App') {
+    this.moduleName = moduleName;
+    this.logLevel = 'debug'; // debug, info, warn, error
+    this.logFile = 'debug-console.log';
+  }
+
+  /**
+   * 格式化日志消息
+   * @param {string} level - 日志级别
+   * @param {string} message - 消息内容
+   * @returns {string} 格式化后的日志消息
+   */
+  formatMessage(level, message) {
+    const timestamp = new Date().toISOString();
+    return `[${timestamp}] [${this.moduleName}] [${level.toUpperCase()}] ${message}`;
+  }
+
+  /**
+   * 写入日志到文件和控制台
+   * @param {string} level - 日志级别
+   * @param {string} message - 消息内容
+   */
+  writeLog(level, message) {
+    const formattedMessage = this.formatMessage(level, message);
+    
+    // 输出到控制台
+    console[level](formattedMessage);
+    
+    // 在实际应用中，这里应该写入到文件
+    // 由于浏览器限制，这里仅模拟文件写入
+    this.simulateFileWrite(formattedMessage);
+  }
+
+  /**
+   * 模拟文件写入（在实际应用中应替换为真实的文件写入）
+   * @param {string} message - 日志消息
+   */
+  simulateFileWrite(message) {
+    // 在实际应用中，这里应该使用API将日志发送到服务器
+    // 或者使用浏览器的存储机制
+    if (typeof window !== 'undefined') {
+      // 存储到localStorage用于调试
+      const logs = JSON.parse(localStorage.getItem('appLogs') || '[]');
+      logs.push(message);
+      
+      // 限制日志数量，避免存储过多
+      if (logs.length > 1000) {
+        logs.shift();
+      }
+      
+      localStorage.setItem('appLogs', JSON.stringify(logs));
+    }
+  }
+
+  /**
+   * 调试级别日志
+   * @param {string} message - 消息内容
+   */
+  debug(message) {
+    if (this.logLevel === 'debug') {
+      this.writeLog('debug', message);
+    }
+  }
+
+  /**
+   * 信息级别日志
+   * @param {string} message - 消息内容
+   */
+  info(message) {
+    if (['debug', 'info'].includes(this.logLevel)) {
+      this.writeLog('info', message);
+    }
+  }
+
+  /**
+   * 警告级别日志
+   * @param {string} message - 消息内容
+   */
+  warn(message) {
+    if (['debug', 'info', 'warn'].includes(this.logLevel)) {
+      this.writeLog('warn', message);
+    }
+  }
+
+  /**
+   * 错误级别日志
+   * @param {string} message - 消息内容
+   * @param {Error} error - 错误对象（可选）
+   */
+  error(message, error) {
+    this.writeLog('error', message);
+    if (error) {
+      console.error(error);
+    }
+  }
+}
 
 // ===== 错误处理 =====
 /**
@@ -71,7 +229,7 @@ class ErrorHandler {
     this.logger.error(`错误发生在 [${context}]: ${error.message}`, error);
 
     // 通过事件总线传播错误事件
-    this.eventBus.emit(SYSTEM_EVENTS.ERROR.OCCURRED, errorInfo);
+    this.eventBus.emit('system:error:occurred', errorInfo);
 
     // 显示用户友好的错误消息
     this.showUserFriendlyError(error);
@@ -97,7 +255,7 @@ class ErrorHandler {
     }
 
     // 通过事件总线通知UI显示错误消息
-    this.eventBus.emit(UI_EVENTS.ERROR.SHOW, {
+    this.eventBus.emit('ui:error:show', {
       message: userMessage,
       type: error.type
     });
@@ -164,7 +322,7 @@ class WebSocketManager {
         this.logger.info('WebSocket连接已建立');
         this.isConnectedFlag = true;
         this.reconnectAttempts = 0;
-        this.eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED);
+        this.eventBus.emit('websocket:connection:established');
         
         // 发送队列中的消息
         this.flushMessageQueue();
@@ -177,7 +335,7 @@ class WebSocketManager {
       this.socket.onclose = () => {
         this.logger.warn('WebSocket连接已关闭');
         this.isConnectedFlag = false;
-        this.eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.CLOSED);
+        this.eventBus.emit('websocket:connection:closed');
         
         // 尝试重新连接
         this.attemptReconnect();
@@ -185,12 +343,12 @@ class WebSocketManager {
       
       this.socket.onerror = (error) => {
         this.logger.error('WebSocket连接错误', error);
-        this.eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.ERROR, error);
+        this.eventBus.emit('websocket:connection:error', error);
       };
       
     } catch (error) {
       this.logger.error('WebSocket连接失败', error);
-      this.eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.FAILED, error);
+      this.eventBus.emit('websocket:connection:failed', error);
     }
   }
 
@@ -231,7 +389,7 @@ class WebSocketManager {
         this.logger.debug(`发送消息: ${type}`);
       } catch (error) {
         this.logger.error(`发送消息失败: ${type}`, error);
-        this.eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND_FAILED, { type, error });
+        this.eventBus.emit('websocket:message:send_failed', { type, error });
       }
     } else {
       // 将消息加入队列，等待连接建立后发送
@@ -250,30 +408,8 @@ class WebSocketManager {
       this.logger.debug(`收到消息: ${message.type}`, message);
       
       // 通过事件总线分发消息
-      // 注意：这里的事件名称可能不符合 {module}:{action}:{status} 格式
-      // 我们需要根据消息类型进行适当的转换
-      let eventType = `websocket:message:${message.type}`;
-      if (message.type === 'pdf_list_updated' || message.type === 'pdf_list' ||
-          message.type === 'success' || message.type === 'error') {
-        // 这些是已知的事件类型，使用常量
-        if (message.type === 'pdf_list_updated') {
-          this.eventBus.emit(WEBSOCKET_MESSAGE_EVENTS.PDF_LIST_UPDATED, message);
-        } else if (message.type === 'pdf_list') {
-          this.eventBus.emit(WEBSOCKET_MESSAGE_EVENTS.PDF_LIST, message);
-        } else if (message.type === 'success') {
-          this.eventBus.emit(WEBSOCKET_MESSAGE_EVENTS.SUCCESS, message);
-        } else if (message.type === 'error') {
-          this.eventBus.emit(WEBSOCKET_MESSAGE_EVENTS.ERROR, message);
-        }
-      } else {
-        // 对于未知的事件类型，我们暂时禁用验证
-        // 注意：这里的事件名称可能不符合 {module}:{action}:{status} 格式
-        // 我们需要动态创建一个符合格式的事件名称
-        const safeEventType = eventType.startsWith('websocket:message:') ? eventType : `websocket:message:unknown`;
-        this.eventBus.emit(safeEventType, message);
-      }
-      
-      this.eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, message);
+      this.eventBus.emit(`websocket:message:${message.type}`, message);
+      this.eventBus.emit('websocket:message:received', message);
       
     } catch (error) {
       this.logger.error('解析WebSocket消息失败', error);
@@ -286,7 +422,7 @@ class WebSocketManager {
   attemptReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       this.logger.error('WebSocket重连次数已达上限');
-      this.eventBus.emit(WEBSOCKET_EVENTS.RECONNECT.FAILED);
+      this.eventBus.emit('websocket:reconnect:failed');
       return;
     }
     
@@ -349,31 +485,31 @@ class PDFManager {
    */
   setupWebSocketListeners() {
     // 监听PDF列表更新
-    this.eventBus.on(WEBSOCKET_MESSAGE_EVENTS.PDF_LIST_UPDATED, (data) => {
+    this.eventBus.on('websocket:message:pdf_list_updated', (data) => {
       this.logger.debug('收到 pdf_list_updated 消息:', data);
       this.handlePDFListUpdated(data);
     });
     
     // 监听PDF列表消息（添加缺失的监听器）
-    this.eventBus.on(WEBSOCKET_MESSAGE_EVENTS.PDF_LIST, (data) => {
+    this.eventBus.on('websocket:message:pdf_list', (data) => {
       this.logger.debug('收到 pdf_list 消息:', data);
       this.handlePDFListUpdated(data);
     });
     
     // 监听成功响应
-    this.eventBus.on(WEBSOCKET_MESSAGE_EVENTS.SUCCESS, (data) => {
+    this.eventBus.on('websocket:message:success', (data) => {
       this.logger.debug('收到 success 消息:', data);
       this.handleSuccessResponse(data);
     });
     
     // 监听错误响应
-    this.eventBus.on(WEBSOCKET_MESSAGE_EVENTS.ERROR, (data) => {
+    this.eventBus.on('websocket:message:error', (data) => {
       this.logger.debug('收到 error 消息:', data);
       this.handleErrorResponse(data);
     });
     
     // 监听所有WebSocket消息用于调试
-    this.eventBus.on(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, (message) => {
+    this.eventBus.on('websocket:message:received', (message) => {
       this.logger.debug(`收到所有WebSocket消息: ${message.type}`, message);
     });
   }
@@ -383,17 +519,17 @@ class PDFManager {
    */
   setupEventListeners() {
     // 监听添加PDF请求
-    this.eventBus.on(PDF_MANAGEMENT_EVENTS.ADD.REQUESTED, (fileInfo) => {
+    this.eventBus.on('pdf:management:add_requested', (fileInfo) => {
       this.addPDF(fileInfo);
     });
     
     // 监听删除PDF请求
-    this.eventBus.on(PDF_MANAGEMENT_EVENTS.REMOVE.REQUESTED, (filename) => {
+    this.eventBus.on('pdf:management:remove_requested', (filename) => {
       this.removePDF(filename);
     });
     
     // 监听打开PDF请求
-    this.eventBus.on(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, (filename) => {
+    this.eventBus.on('pdf:management:open_requested', (filename) => {
       this.openPDF(filename);
     });
   }
@@ -415,7 +551,7 @@ class PDFManager {
     
     if (data.data && data.data.files) {
       this.pdfs = data.data.files.map(file => this.mapBackendDataToTableData(file));
-      this.eventBus.emit(PDF_MANAGEMENT_EVENTS.LIST.UPDATED, this.pdfs);
+      this.eventBus.emit('pdf:management:list_updated', this.pdfs);
     }
   }
 
@@ -428,7 +564,7 @@ class PDFManager {
     
     if (data.data && data.data.original_type === 'get_pdf_list' && data.data.result && data.data.result.files) {
       this.pdfs = data.data.result.files.map(file => this.mapBackendDataToTableData(file));
-      this.eventBus.emit(PDF_MANAGEMENT_EVENTS.LIST.UPDATED, this.pdfs);
+      this.eventBus.emit('pdf:management:list_updated', this.pdfs);
     }
   }
 
@@ -446,7 +582,7 @@ class PDFManager {
       errorMessage = data.message;
     }
     
-    this.eventBus.emit(PDF_MANAGEMENT_EVENTS.ERROR, errorMessage);
+    this.eventBus.emit('pdf:management:error', errorMessage);
   }
 
   /**
@@ -458,10 +594,10 @@ class PDFManager {
     
     try {
       this.websocketManager.send('add_pdf', { fileInfo });
-      this.eventBus.emit(PDF_MANAGEMENT_EVENTS.ADD.STARTED, fileInfo);
+      this.eventBus.emit('pdf:management:add_started', fileInfo);
     } catch (error) {
       this.logger.error('添加PDF失败:', error);
-      this.eventBus.emit(PDF_MANAGEMENT_EVENTS.ADD.FAILED, error);
+      this.eventBus.emit('pdf:management:add_failed', error);
     }
   }
 
@@ -474,10 +610,10 @@ class PDFManager {
     
     try {
       this.websocketManager.send('remove_pdf', { filename });
-      this.eventBus.emit(PDF_MANAGEMENT_EVENTS.REMOVE.STARTED, filename);
+      this.eventBus.emit('pdf:management:remove_started', filename);
     } catch (error) {
       this.logger.error('删除PDF失败:', error);
-      this.eventBus.emit(PDF_MANAGEMENT_EVENTS.REMOVE.FAILED, error);
+      this.eventBus.emit('pdf:management:remove_failed', error);
     }
   }
 
@@ -490,13 +626,13 @@ class PDFManager {
     
     const pdf = this.pdfs.find(p => p.filename === filename);
     if (!pdf) {
-      this.eventBus.emit(PDF_MANAGEMENT_EVENTS.ERROR, '找不到指定的PDF文件');
+      this.eventBus.emit('pdf:management:error', '找不到指定的PDF文件');
       return;
     }
     
     const filepath = pdf.filepath || pdf.path;
     if (!filepath) {
-      this.eventBus.emit(PDF_MANAGEMENT_EVENTS.ERROR, 'PDF文件路径无效');
+      this.eventBus.emit('pdf:management:error', 'PDF文件路径无效');
       return;
     }
     
@@ -508,7 +644,7 @@ class PDFManager {
       window.open(viewerUrl, '_blank');
     }
     
-    this.eventBus.emit(PDF_MANAGEMENT_EVENTS.OPENED, pdf);
+    this.eventBus.emit('pdf:management:opened', pdf);
   }
 
   /**
@@ -652,7 +788,7 @@ class UIManager {
     if (this.elements.addPdfBtn) {
       this.elements.addPdfBtn.addEventListener('click', () => {
         // 通过WebSocket请求文件选择对话框
-        this.eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, {
+        this.eventBus.emit('websocket:send', {
           type: 'request_file_selection'
         });
       });
@@ -662,7 +798,7 @@ class UIManager {
     if (this.elements.batchAddBtn) {
       this.elements.batchAddBtn.addEventListener('click', () => {
         // 通过WebSocket请求文件选择对话框
-        this.eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, {
+        this.eventBus.emit('websocket:send', {
           type: 'request_file_selection'
         });
       });
@@ -691,31 +827,31 @@ class UIManager {
    */
   setupGlobalEventListeners() {
     // 监听PDF列表更新
-    this.eventBus.on(PDF_MANAGEMENT_EVENTS.LIST.UPDATED, (pdfs) => {
+    this.eventBus.on('pdf:management:list_updated', (pdfs) => {
       this.updatePDFList(pdfs);
     });
     
     // 监听WebSocket连接状态
-    this.eventBus.on(WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED, () => {
+    this.eventBus.on('websocket:connection:established', () => {
       this.setWebSocketConnected(true);
     });
     
-    this.eventBus.on(WEBSOCKET_EVENTS.CONNECTION.CLOSED, () => {
+    this.eventBus.on('websocket:connection:closed', () => {
       this.setWebSocketConnected(false);
     });
     
     // 监听错误事件
-    this.eventBus.on(UI_EVENTS.ERROR.SHOW, (errorInfo) => {
+    this.eventBus.on('ui:error:show', (errorInfo) => {
       this.showError(errorInfo.message);
     });
     
     // 监听成功事件
-    this.eventBus.on(UI_EVENTS.SUCCESS.SHOW, (message) => {
+    this.eventBus.on('ui:success:show', (message) => {
       this.showSuccess(message);
     });
     
     // 监听WebSocket发送请求
-    this.eventBus.on(WEBSOCKET_EVENTS.MESSAGE.SEND, (message) => {
+    this.eventBus.on('websocket:send', (message) => {
       if (window.app && window.app.websocketManager) {
         window.app.websocketManager.send(message.type, message.data || {});
       }
@@ -732,7 +868,7 @@ class UIManager {
       // Ctrl+N: 添加PDF
       if (event.ctrlKey && event.key === 'n') {
         event.preventDefault();
-        this.eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, {
+        this.eventBus.emit('websocket:send', {
           type: 'request_file_selection'
         });
       }
@@ -923,11 +1059,11 @@ class UIManager {
     
     switch (action) {
       case 'open':
-        this.eventBus.emit(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, filename);
+        this.eventBus.emit('pdf:management:open_requested', filename);
         break;
       case 'remove':
         if (confirm('确定要删除这个PDF文件吗？')) {
-          this.eventBus.emit(PDF_MANAGEMENT_EVENTS.REMOVE.REQUESTED, filename);
+          this.eventBus.emit('pdf:management:remove_requested', filename);
         }
         break;
     }
@@ -946,7 +1082,7 @@ class UIManager {
     if (confirm(`确定要删除选中的 ${checkboxes.length} 个PDF文件吗？`)) {
       checkboxes.forEach(checkbox => {
         const filename = checkbox.getAttribute('data-filename');
-        this.eventBus.emit(PDF_MANAGEMENT_EVENTS.REMOVE.REQUESTED, filename);
+        this.eventBus.emit('pdf:management:remove_requested', filename);
       });
     }
   }
@@ -1038,11 +1174,7 @@ class UIManager {
 class PDFHomeApp {
   constructor() {
     this.logger = new Logger('PDFHomeApp');
-    this.eventBus = new EventBus({
-      enableValidation: true,  // 启用事件名称验证
-      enableDebug: true,       // 启用调试功能
-      logLevel: LogLevel.DEBUG  // 设置日志级别为DEBUG，以便查看详细日志
-    });
+    this.eventBus = new EventBus();
     this.errorHandler = new ErrorHandler(this.eventBus);
     this.websocketManager = new WebSocketManager('ws://localhost:8765', this.eventBus);
     this.pdfManager = new PDFManager(this.eventBus, this.websocketManager);
@@ -1073,7 +1205,7 @@ class PDFHomeApp {
       this.logger.info('PDF主页应用初始化完成');
       
       // 触发初始化完成事件
-      this.eventBus.emit(APP_EVENTS.INITIALIZATION.COMPLETED);
+      this.eventBus.emit('app:initialization:completed');
       
     } catch (error) {
       this.logger.error('应用初始化失败', error);

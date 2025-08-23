@@ -148,6 +148,47 @@ class PDFManager(QObject):
             logger.error(f"移除文件失败: {error_msg}")
             self.error_occurred.emit(error_msg)
             return False
+
+    def batch_remove_files(self, file_ids: List[str]) -> Dict[str, Any]:
+        """
+        批量删除PDF文件
+        
+        Args:
+            file_ids: 文件ID列表
+            
+        Returns:
+            Dict: 包含删除结果的字典
+        """
+        try:
+            if not file_ids:
+                self.error_occurred.emit("文件ID列表不能为空")
+                return {"success": False, "message": "文件ID列表不能为空"}
+            
+            removed_files = []
+            failed_files = {}
+            
+            for file_id in file_ids:
+                success = self.remove_file(file_id)
+                if success:
+                    removed_files.append(file_id)
+                else:
+                    failed_files[file_id] = "删除失败"
+            
+            result = {
+                "removed_files": removed_files,
+                "failed_files": failed_files,
+                "total_removed": len(removed_files),
+                "total_failed": len(failed_files)
+            }
+            
+            logger.info(f"批量删除完成：成功删除 {len(removed_files)} 个文件，失败 {len(failed_files)} 个文件")
+            return {"success": True, **result}
+            
+        except Exception as e:
+            error_msg = ErrorHandler.get_error_message(e)
+            logger.error(f"批量删除文件失败: {error_msg}")
+            self.error_occurred.emit(error_msg)
+            return {"success": False, "message": error_msg}
             
     def get_files(self) -> List[Dict]:
         """获取所有PDF文件列表
