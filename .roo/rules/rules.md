@@ -125,3 +125,5 @@
     ```xml
     <attempt_completion><result>Feature X implemented and tested successfully.</result></attempt_completion>
     ```
+## 一些减少token消耗的技巧
+1. 如果你需要了解一个较大的文件, 你可以调用一个子任务, 获取其中的信息摘要返回. 

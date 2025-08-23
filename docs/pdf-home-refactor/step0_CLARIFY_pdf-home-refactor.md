@@ -348,7 +348,6 @@ pdf-home/
 │   │   └── ws-client.js
 │   ├── components/    # UI组件
 │   │   ├── pdf-list.js
-│   │   ├── file-uploader.js
 │   │   └── debug-panel.js
 │   └── utils/         # 工具函数
 │       ├── logger.js

@@ -1,4 +1,5 @@
 import asyncio
+import argparse
 import json
 import logging
 from datetime import datetime
@@ -7,30 +8,42 @@ import aiohttp
 import websockets
 
 # --- 配置 ---
-DEBUG_PORT = 9222
-LOG_FILE = 'debug-console.log'
+DEFAULT_DEBUG_PORT = 9222
+
+def get_log_file(port):
+    """根据端口生成日志文件名"""
+    return f'debug-console-at-{port}.log'
 # --- 配置结束 ---
+
+def parse_args():
+    """解析命令行参数"""
+    parser = argparse.ArgumentParser(description='浏览器调试控制台监听工具')
+    parser.add_argument('--port', '-p', type=int, default=DEFAULT_DEBUG_PORT,
+                        help=f'调试端口 (默认: {DEFAULT_DEBUG_PORT})')
+    return parser.parse_args()
 
 # 设置基础日志记录，用于记录本程序自身的状态
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def clear_log_file():
+def clear_log_file(port):
     """清空并初始化日志文件"""
+    log_file = get_log_file(port)
     try:
-        with open(LOG_FILE, 'w', encoding='utf-8') as f:
+        with open(log_file, 'w', encoding='utf-8') as f:
             f.write(f"--- Log Cleared and Initialized at {datetime.now().isoformat()} ---\n")
             f.write("--- Waiting for new console messages... ---\n\n")
-        logging.info(f"Log file '{LOG_FILE}' has been cleared.")
+        logging.info(f"Log file '{log_file}' has been cleared.")
     except IOError as e:
-        logging.error(f"Failed to clear log file '{LOG_FILE}': {e}")
+        logging.error(f"Failed to clear log file '{log_file}': {e}")
 
-def append_to_log(message: str):
+def append_to_log(message: str, port):
     """向日志文件追加内容"""
+    log_file = get_log_file(port)
     try:
-        with open(LOG_FILE, 'a', encoding='utf-8') as f:
+        with open(log_file, 'a', encoding='utf-8') as f:
             f.write(message + '\n')
     except IOError as e:
-        logging.error(f"Failed to write to log file '{LOG_FILE}': {e}")
+        logging.error(f"Failed to write to log file '{log_file}': {e}")
 
 def format_console_message(params: dict) -> str:
     """
@@ -64,12 +77,12 @@ def format_exception_message(params: dict) -> str:
 
     return f"[{timestamp}][FATAL ERROR] {text}\n  > {description}"
 
-async def listen_to_browser():
+async def listen_to_browser(port):
     """
     主函数，连接到浏览器并监听事件
     """
     # 1. 获取 WebSocket 调试 URL
-    target_url = f"http://localhost:{DEBUG_PORT}/json"
+    target_url = f"http://localhost:{port}/json"
     logging.info(f"Attempting to connect to {target_url} to find a debuggable page.")
     
     async with aiohttp.ClientSession() as session:
@@ -80,7 +93,11 @@ async def listen_to_browser():
                     return
                 targets = await response.json()
         except aiohttp.ClientConnectorError:
-            logging.error(f"Connection to {target_url} failed. Is the Qt application with remote debugging running?")
+            error_msg = f"Connection to {target_url} failed. Is the Qt application with remote debugging running?"
+            logging.error(error_msg)
+            # 即使连接失败也创建日志文件并记录错误信息
+            clear_log_file(port)
+            append_to_log(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}][ERROR] {error_msg}", port)
             return
 
     # 寻找第一个类型为 "page" 的目标
@@ -101,7 +118,7 @@ async def listen_to_browser():
             logging.info("Successfully enabled Page and Runtime domains. Listening for events...")
             
             # 初始时清空一次日志
-            clear_log_file()
+            clear_log_file(port)
 
             # 3. 循环监听消息
             async for message in websocket:
@@ -117,19 +134,19 @@ async def listen_to_browser():
                         # 只有主框架的导航才触发清空
                         if params.get('frame', {}).get('parentId') is None:
                             logging.info("Main frame navigated (Vite Hot Reload detected). Clearing log file.")
-                            clear_log_file()
+                            clear_log_file(port)
 
                     # --- 功能 1: 监听 console 信息 ---
                     elif method == 'Runtime.consoleAPICalled':
                         log_entry = format_console_message(params)
                         print(log_entry) # 也在终端打印一份
-                        append_to_log(log_entry)
+                        append_to_log(log_entry, port)
 
                     # --- 功能 3: 监听严重错误 ---
                     elif method == 'Runtime.exceptionThrown':
                         error_entry = format_exception_message(params)
                         print(error_entry) # 也在终端打印一份
-                        append_to_log(error_entry)
+                        append_to_log(error_entry, port)
 
     except websockets.exceptions.ConnectionClosed as e:
         logging.warning(f"WebSocket connection closed: {e}. Will try to reconnect.")
@@ -141,13 +158,16 @@ async def main():
     """
     程序入口，包含重连逻辑
     """
+    args = parse_args()
     while True:
-        await listen_to_browser()
+        await listen_to_browser(args.port)
         logging.info("Disconnected. Reconnecting in 5 seconds...")
         await asyncio.sleep(5)
 
 if __name__ == "__main__":
     try:
+        args = parse_args()
+        logging.info(f"Starting debug console listener on port {args.port}")
         asyncio.run(main())
     except KeyboardInterrupt:
         logging.info("Program terminated by user.")
