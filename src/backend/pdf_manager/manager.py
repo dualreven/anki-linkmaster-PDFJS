@@ -6,12 +6,13 @@ PDF文件管理器
 import os
 import json
 import logging
-from typing import List, Dict, Optional
+import shutil
+from typing import Dict, Any, List, Optional
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from .models import PDFFile, PDFFileList
-from .utils import FileValidator, FileScanner, ErrorHandler
-
+from .utils import FileValidator, ErrorHandler
+from .config import AppConfig
 logger = logging.getLogger(__name__)
 
 
@@ -35,8 +36,14 @@ class PDFManager(QObject):
         self.file_list = PDFFileList()
         self.config_file = os.path.join(data_dir, "pdf_files.json")
         
+        # 副本存储目录
+        self.pdfs_dir = os.path.join(data_dir, "pdfs")
+        self.thumbnails_dir = os.path.join(data_dir, "thumbnails")
+        
         # 确保数据目录存在
         os.makedirs(data_dir, exist_ok=True)
+        os.makedirs(self.pdfs_dir, exist_ok=True)
+        os.makedirs(self.thumbnails_dir, exist_ok=True)
         
         # 加载现有数据
         self.load_files()
@@ -69,8 +76,16 @@ class PDFManager(QObject):
                 self.error_occurred.emit("文件已存在于列表中")
                 return False
                 
-            # 创建PDF文件记录
-            pdf_file = PDFFile.from_file_path(filepath, file_id)
+            # 创建文件副本
+            copy_path = self._create_file_copy(filepath, file_id)
+            if not copy_path:
+                self.error_occurred.emit("创建文件副本失败")
+                return False
+                
+            # 创建PDF文件记录，使用副本路径
+            pdf_file = PDFFile.from_file_path(copy_path, file_id)
+            # 保存原始文件路径作为元数据
+            pdf_file.original_path = filepath
             
             # 提取元数据（占位符，后续可扩展）
             metadata = self._extract_metadata(filepath)
@@ -83,7 +98,7 @@ class PDFManager(QObject):
                 file_info = pdf_file.get_file_info()
                 self.file_added.emit(file_info)
                 self.file_list_changed.emit()
-                logger.info(f"文件添加成功: {filepath}")
+                logger.info(f"文件添加成功: {filepath} -> {copy_path}")
                 return True
             else:
                 self.error_occurred.emit("文件添加失败")
@@ -105,10 +120,18 @@ class PDFManager(QObject):
             bool: 删除成功返回True
         """
         try:
-            if not self.file_list.exists(file_id):
+            # 获取文件信息以获取副本路径
+            pdf_file = self.file_list.get_file(file_id)
+            if not pdf_file:
                 self.error_occurred.emit("文件不存在")
                 return False
                 
+            # 删除副本文件
+            copy_path = pdf_file.filepath
+            if os.path.exists(copy_path):
+                os.remove(copy_path)
+                logger.info(f"文件副本删除成功: {copy_path}")
+            
             success = self.file_list.remove_file(file_id)
             if success:
                 self.save_files()
@@ -146,25 +169,73 @@ class PDFManager(QObject):
         pdf_file = self.file_list.get_file(file_id)
         return pdf_file.get_file_info() if pdf_file else None
         
-    def get_file_detail(self, file_id: str) -> Optional[Dict]:
+    def get_file_detail(self, file_id: str) -> Optional[Dict[str, Any]]:
         """获取PDF文件详细信息
         
         Args:
             file_id: 文件ID
             
         Returns:
-            Optional[Dict]: 包含元数据的详细信息
+            Optional[Dict[str, Any]]: 文件详细信息字典
         """
-        pdf_file = self.file_list.get_file(file_id)
-        if not pdf_file:
-            return None
+        try:
+            pdf_file = self.file_list.get_file(file_id)
+            if not pdf_file:
+                return None
+                
+            # 获取基本文件信息
+            file_info = pdf_file.get_file_info()
             
-        return {
-            **pdf_file.get_file_info(),
-            **pdf_file.get_metadata(),
-            "exists": pdf_file.is_file_exists()
-        }
+            # 添加原始文件路径
+            if hasattr(pdf_file, 'original_path'):
+                file_info["original_path"] = pdf_file.original_path
+            
+            # 添加文件统计信息（使用副本文件）
+            stats = FileValidator.get_file_stats(pdf_file.filepath)
+            file_info.update(stats)
+            
+            # 添加元数据
+            file_info["metadata"] = pdf_file.get_metadata()
+            
+            return file_info
+            
+        except Exception as e:
+            error_msg = ErrorHandler.get_error_message(e)
+            logger.error(f"获取文件详情失败: {error_msg}")
+            return None
         
+    def _create_file_copy(self, original_path: str, file_id: str) -> str:
+        """创建PDF文件副本
+        
+        Args:
+            original_path: 原始文件路径
+            file_id: 文件ID
+            
+        Returns:
+            str: 副本文件路径，失败返回None
+        """
+        try:
+            # 生成副本文件路径
+            copy_filename = f"{file_id}.pdf"
+            copy_path = os.path.join(self.pdfs_dir, copy_filename)
+            
+            # 复制文件
+            import shutil
+            shutil.copy2(original_path, copy_path)
+            
+            # 验证副本是否创建成功
+            if os.path.exists(copy_path):
+                logger.info(f"文件副本创建成功: {original_path} -> {copy_path}")
+                return copy_path
+            else:
+                logger.error(f"文件副本创建失败: {original_path}")
+                return None
+                
+        except Exception as e:
+            error_msg = ErrorHandler.get_error_message(e)
+            logger.error(f"创建文件副本失败: {error_msg}")
+            return None
+
     def add_files_from_directory(self, directory_path: str, recursive: bool = True) -> int:
         """
         从目录批量添加PDF文件

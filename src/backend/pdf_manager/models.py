@@ -62,7 +62,7 @@ class PDFFile:
     @staticmethod
     def generate_file_id(file_path: str) -> str:
         """
-        生成文件唯一ID
+        生成文件唯一ID，基于规范化路径确保一致性
         
         Args:
             file_path: 文件路径
@@ -71,7 +71,15 @@ class PDFFile:
             str: 文件唯一ID
         """
         import hashlib
-        return hashlib.md5(file_path.encode()).hexdigest()[:12]
+        try:
+            # 获取绝对路径并规范化，解决相对路径和绝对路径不一致问题
+            normalized_path = os.path.abspath(os.path.normpath(file_path))
+            # Windows系统统一转为小写处理大小写不敏感问题
+            normalized_path = normalized_path.lower() if os.name == 'nt' else normalized_path
+            return hashlib.md5(normalized_path.encode('utf-8')).hexdigest()[:12]
+        except Exception as e:
+            # 降级处理：使用原始路径作为备选方案
+            return hashlib.md5(file_path.encode('utf-8')).hexdigest()[:12]
     
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
@@ -102,6 +110,7 @@ class PDFFile:
             "created_time": self.format_time(self.created_time),
             "modified_time": self.format_time(self.modified_time),
             "title": self.title,
+            "author": self.author,
             "page_count": self.page_count
         }
     

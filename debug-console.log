@@ -1,0 +1,29 @@
+--- Log Cleared and Initialized at 2025-08-23T12:02:08.967304 ---
+--- Waiting for new console messages... ---
+
+[12:02:07.169][DEBUG] [vite] connecting...
+[12:02:07.181][INFO] [2025-08-23T04:02:07.176Z] [PDFHomeApp] [INFO] 正在初始化PDF主页应用
+[12:02:07.189][INFO] [2025-08-23T04:02:07.189Z] [PDFManager] [INFO] 正在加载PDF列表
+[12:02:07.189][DEBUG] [2025-08-23T04:02:07.189Z] [WebSocket] [DEBUG] 消息已加入队列: get_pdf_list
+[12:02:07.190][INFO] [2025-08-23T04:02:07.190Z] [WebSocket] [INFO] 正在连接到WebSocket服务器: ws://localhost:8765
+[12:02:07.191][INFO] [2025-08-23T04:02:07.191Z] [PDFHomeApp] [INFO] PDF主页应用初始化完成
+[12:02:07.193][LOG] PDF主页应用已启动
+[12:02:07.206][DEBUG] [vite] connected.
+[12:02:07.552][INFO] [2025-08-23T04:02:07.552Z] [WebSocket] [INFO] WebSocket连接已建立
+[12:02:07.554][DEBUG] [2025-08-23T04:02:07.554Z] [WebSocket] [DEBUG] 发送队列消息: get_pdf_list
+[12:02:07.576][DEBUG] [2025-08-23T04:02:07.576Z] [WebSocket] [DEBUG] 收到消息: response
+[12:02:07.577][DEBUG] [2025-08-23T04:02:07.577Z] [PDFManager] [DEBUG] 收到所有WebSocket消息: response
+[12:02:07.654][DEBUG] [2025-08-23T04:02:07.654Z] [WebSocket] [DEBUG] 收到消息: pdf_list_updated
+[12:02:07.655][DEBUG] [2025-08-23T04:02:07.655Z] [PDFManager] [DEBUG] 收到 pdf_list_updated 消息:
+[12:02:07.655][INFO] [2025-08-23T04:02:07.655Z] [PDFManager] [INFO] 处理PDF列表更新
+[12:02:07.655][INFO] [2025-08-23T04:02:07.655Z] [UIManager] [INFO] 更新PDF列表UI
+[12:02:07.675][DEBUG] [2025-08-23T04:02:07.674Z] [PDFManager] [DEBUG] 收到所有WebSocket消息: pdf_list_updated
+[12:02:12.532][INFO] [2025-08-23T04:02:12.531Z] [PDFManager] [INFO] 删除PDF文件:
+[12:02:12.532][DEBUG] [2025-08-23T04:02:12.532Z] [WebSocket] [DEBUG] 发送消息: remove_pdf
+[12:02:12.544][DEBUG] [2025-08-23T04:02:12.544Z] [WebSocket] [DEBUG] 收到消息: response
+[12:02:12.545][DEBUG] [2025-08-23T04:02:12.545Z] [PDFManager] [DEBUG] 收到所有WebSocket消息: response
+[12:02:12.545][DEBUG] [2025-08-23T04:02:12.545Z] [WebSocket] [DEBUG] 收到消息: pdf_list
+[12:02:12.545][DEBUG] [2025-08-23T04:02:12.545Z] [PDFManager] [DEBUG] 收到 pdf_list 消息:
+[12:02:12.545][INFO] [2025-08-23T04:02:12.545Z] [PDFManager] [INFO] 处理PDF列表更新
+[12:02:12.546][INFO] [2025-08-23T04:02:12.546Z] [UIManager] [INFO] 更新PDF列表UI
+[12:02:12.547][DEBUG] [2025-08-23T04:02:12.547Z] [PDFManager] [DEBUG] 收到所有WebSocket消息: pdf_list

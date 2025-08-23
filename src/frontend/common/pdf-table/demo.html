@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Table Module Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        
+        .demo-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .demo-section h2 {
+            margin-top: 0;
+            color: #555;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        
+        .demo-description {
+            color: #666;
+            margin-bottom: 20px;
+        }
+        
+        .table-container {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            color: #333;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn:hover {
+            background: #f0f0f0;
+        }
+        
+        .btn-primary {
+            background: #2196f3;
+            color: white;
+            border-color: #2196f3;
+        }
+        
+        .btn-primary:hover {
+            background: #1976d2;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        /* Custom styles for demo */
+        .custom-importance {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .custom-importance--high {
+            background: #ffebee;
+            color: #c62828;
+        }
+        
+        .custom-importance--medium {
+            background: #fff3e0;
+            color: #ef6c00;
+        }
+        
+        .custom-importance--low {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+        
+        .progress-container {
+            position: relative;
+            width: 100%;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #4caf50, #8bc34a);
+            transition: width 0.3s ease;
+        }
+        
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 12px;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .custom-actions {
+            display: flex;
+            gap: 4px;
+            justify-content: center;
+        }
+        
+        .custom-actions .btn {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+        
+        .theme-selector {
+            margin-bottom: 20px;
+        }
+        
+        .theme-selector select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PDF Table Module Demo</h1>
+        
+        <!-- Basic Usage Example -->
+        <div class="demo-section">
+            <h2>基础用法</h2>
+            <div class="demo-description">
+                最简单的表格用法，包含基本的数据展示、排序、分页和选择功能。
+            </div>
+            <div class="controls">
+                <button class="btn btn-primary" onclick="loadBasicData()">加载数据</button>
+                <button class="btn" onclick="clearBasicData()">清空数据</button>
+                <button class="btn" onclick="getBasicSelection()">获取选中项</button>
+                <button class="btn" onclick="exportBasicData()">导出数据</button>
+            </div>
+            <div id="basic-status" class="status info">点击"加载数据"开始演示</div>
+            <div id="pdf-table-container" class="table-container"></div>
+        </div>
+        
+        <!-- Advanced Configuration Example -->
+        <div class="demo-section">
+            <h2>高级配置</h2>
+            <div class="demo-description">
+                展示高级配置选项，包括自定义列、主题切换、复杂事件处理等。
+            </div>
+            <div class="theme-selector">
+                <label>选择主题：</label>
+                <select id="theme-selector" onchange="changeTheme(this.value)">
+                    <option value="default">默认主题</option>
+                    <option value="dark">深色主题</option>
+                    <option value="modern">现代主题</option>
+                    <option value="classic">经典主题</option>
+                    <option value="compact">紧凑主题</option>
+                </select>
+            </div>
+            <div class="controls">
+                <button class="btn btn-primary" onclick="loadAdvancedData()">加载数据</button>
+                <button class="btn" onclick="addAdvancedFilter()">添加筛选</button>
+                <button class="btn" onclick="clearAdvancedFilter()">清除筛选</button>
+                <button class="btn" onclick="setAdvancedSort()">设置排序</button>
+            </div>
+            <div id="advanced-status" class="status info">点击"加载数据"开始演示</div>
+            <div id="pdf-table-advanced" class="table-container"></div>
+        </div>
+        
+        <!-- Custom Renderers Example -->
+        <div class="demo-section">
+            <h2>自定义渲染器</h2>
+            <div class="demo-description">
+                展示自定义渲染器和格式化器的使用，包括进度条、自定义按钮等。
+            </div>
+            <div class="controls">
+                <button class="btn btn-primary" onclick="loadCustomData()">加载数据</button>
+                <button class="btn" onclick="updateCustomData()">更新数据</button>
+                <button class="btn" onclick="addCustomRow()">添加行</button>
+            </div>
+            <div id="custom-status" class="status info">点击"加载数据"开始演示</div>
+            <div id="pdf-table-custom" class="table-container"></div>
+        </div>
+        
+        <!-- Dynamic Data Example -->
+        <div class="demo-section">
+            <h2>动态数据管理</h2>
+            <div class="demo-description">
+                展示动态数据操作，包括添加、更新、删除行，以及实时数据更新。
+            </div>
+            <div class="controls">
+                <button class="btn btn-primary" onclick="startDynamicDemo()">开始演示</button>
+                <button class="btn" onclick="pauseDynamicDemo()">暂停演示</button>
+                <button class="btn" onclick="stopDynamicDemo()">停止演示</button>
+            </div>
+            <div id="dynamic-status" class="status info">点击"开始演示"查看动态数据更新</div>
+            <div id="pdf-table-dynamic" class="table-container"></div>
+        </div>
+        
+        <!-- Real-time Updates Example -->
+        <div class="demo-section">
+            <h2>实时更新</h2>
+            <div class="demo-description">
+                模拟实时数据更新场景，展示表格的响应性能。
+            </div>
+            <div class="controls">
+                <button class="btn btn-primary" onclick="startRealtimeDemo()">开始实时更新</button>
+                <button class="btn" onclick="stopRealtimeDemo()">停止更新</button>
+            </div>
+            <div id="realtime-status" class="status info">点击"开始实时更新"查看效果</div>
+            <div id="pdf-table-realtime" class="table-container"></div>
+        </div>
+        
+        <!-- Export Example -->
+        <div class="demo-section">
+            <h2>数据导出</h2>
+            <div class="demo-description">
+                展示数据导出功能，支持CSV和JSON格式。
+            </div>
+            <div class="controls">
+                <button class="btn btn-primary" onclick="loadExportData()">加载数据</button>
+                <button class="btn" onclick="exportToCSV()">导出CSV</button>
+                <button class="btn" onclick="exportToJSON()">导出JSON</button>
+            </div>
+            <div id="export-status" class="status info">点击"加载数据"开始演示</div>
+            <div id="pdf-table-export" class="table-container"></div>
+        </div>
+    </div>
+    
+    <!-- Load the PDF Table Module -->
+    <script type="module">
+        import PDFTable from './common/pdf-table/index.js';
+        
+        // Sample data
+        const sampleData = [
+            {
+                id: '001',
+                filename: '机器学习基础教程.pdf',
+                filepath: 'C:\\data\\pdfs\\machine_learning.pdf',
+                title: '机器学习基础教程 - 从入门到实践',
+                author: '张三',
+                subject: '人工智能',
+                keywords: '机器学习, AI, 算法',
+                size: 2457600,
+                created_time: 1735706550.674962,
+                modified_time: 1735210049.2368014,
+                page_count: 250,
+                tags: ['学习', 'AI', '技术'],
+                notes: '很好的入门教程',
+                import_date: '2025-01-15T08:30:00.000Z',
+                access_date: '2025-01-20T14:45:00.000Z',
+                importance: 'high',
+                unread_pages: 45,
+                total_pages: 250,
+                annotations_count: 12,
+                cards_count: 28
+            },
+            {
+                id: '002',
+                filename: '数据结构与算法.pdf',
+                filepath: 'C:\\data\\pdfs\\data_structures.pdf',
+                title: '数据结构与算法 - 经典教材',
+                author: '李四',
+                subject: '计算机科学',
+                keywords: '数据结构, 算法, 编程',
+                size: 3789200,
+                created_time: 1735706625.1306179,
+                modified_time: 1735055630.628513,
+                page_count: 420,
+                tags: ['编程', '算法', '经典'],
+                notes: '算法学习的必备书籍',
+                import_date: '2025-01-10T09:15:00.000Z',
+                access_date: '2025-01-21T16:20:00.000Z',
+                importance: 'high',
+                unread_pages: 120,
+                total_pages: 420,
+                annotations_count: 25,
+                cards_count: 56
+            },
+            {
+                id: '003',
+                filename: '深度学习实战.pdf',
+                filepath: 'C:\\data\\pdfs\\deep_learning.pdf',
+                title: '深度学习实战 - 实战项目详解',
+                author: '王五',
+                subject: '深度学习',
+                keywords: '深度学习, 神经网络, 实战',
+                size: 5123400,
+                created_time: 1735706700.1306179,
+                modified_time: 1735055700.628513,
+                page_count: 350,
+                tags: ['深度学习', '神经网络', '实战'],
+                notes: '包含很多实战案例',
+                import_date: '2025-01-08T11:30:00.000Z',
+                access_date: '2025-01-19T10:15:00.000Z',
+                importance: 'medium',
+                unread_pages: 80,
+                total_pages: 350,
+                annotations_count: 18,
+                cards_count: 42
+            },
+            {
+                id: '004',
+                filename: 'Python编程指南.pdf',
+                filepath: 'C:\\data\\pdfs\\python_guide.pdf',
+                title: 'Python编程指南 - 从入门到精通',
+                author: '赵六',
+                subject: '编程语言',
+                keywords: 'Python, 编程, 入门',
+                size: 1867200,
+                created_time: 1735706800.1306179,
+                modified_time: 1735055800.628513,
+                page_count: 180,
+                tags: ['Python', '编程', '入门'],
+                notes: '适合初学者的Python教程',
+                import_date: '2025-01-12T14:45:00.000Z',
+                access_date: '2025-01-18T09:30:00.000Z',
+                importance: 'low',
+                unread_pages: 30,
+                total_pages: 180,
+                annotations_count: 8,
+                cards_count: 15
+            },
+            {
+                id: '005',
+                filename: 'Web前端开发.pdf',
+                filepath: 'C:\\data\\pdfs\\web_frontend.pdf',
+                title: 'Web前端开发 - 现代技术栈',
+                author: '孙七',
+                subject: '前端开发',
+                keywords: '前端, JavaScript, HTML, CSS',
+                size: 2981500,
+                created_time: 1735706900.1306179,
+                modified_time: 1735055900.628513,
+                page_count: 320,
+                tags: ['前端', 'JavaScript', 'Web开发'],
+                notes: '涵盖最新的前端技术',
+                import_date: '2025-01-05T16:20:00.000Z',
+                access_date: '2025-01-22T13:10:00.000Z',
+                importance: 'medium',
+                unread_pages: 95,
+                total_pages: 320,
+                annotations_count: 22,
+                cards_count: 38
+            }
+        ];
+        
+        // Table instances
+        let basicTable = null;
+        let advancedTable = null;
+        let customTable = null;
+        let dynamicTable = null;
+        let realtimeTable = null;
+        let exportTable = null;
+        
+        // Demo control variables
+        let dynamicInterval = null;
+        let realtimeInterval = null;
+        
+        // Basic demo functions
+        window.loadBasicData = async function() {
+            try {
+                updateStatus('basic', '正在加载数据...', 'info');
+                
+                if (!basicTable) {
+                    basicTable = new PDFTable('#pdf-table-container', {
+                        data: sampleData,
+                        pageSize: 5,
+                        sortable: true,
+                        filterable: true,
+                        selectable: true,
+                        pagination: true,
+                        theme: 'default'
+                    });
+                    
+                    await basicTable.initialize();
+                    
+                    basicTable.events.on('selection-changed', (selectedRows) => {
+                        console.log('Basic table selection changed:', selectedRows);
+                    });
+                    
+                    basicTable.events.on('button-click', ({ action, rowId }) => {
+                        console.log(`Basic table button clicked: ${action} on ${rowId}`);
+                    });
+                }
+                
+                updateStatus('basic', `成功加载 ${sampleData.length} 条数据`, 'success');
+            } catch (error) {
+                updateStatus('basic', `加载失败: ${error.message}`, 'error');
+            }
+        };
+        
+        window.clearBasicData = function() {
+            if (basicTable) {
+                basicTable.loadData([]);
+                updateStatus('basic', '数据已清空', 'info');
+            }
+        };
+        
+        window.getBasicSelection = function() {
+            if (basicTable) {
+                const selected = basicTable.getSelectedRows();
+                updateStatus('basic', `选中了 ${selected.length} 行数据`, 'info');
+                console.log('Selected rows:', selected);
+            }
+        };
+        
+        window.exportBasicData = function() {
+            if (basicTable) {
+                basicTable.exportToCSV('basic-table-data.csv');
+                updateStatus('basic', '数据已导出为 CSV 文件', 'success');
+            }
+        };
+        
+        // Advanced demo functions
+        window.loadAdvancedData = async function() {
+            try {
+                updateStatus('advanced', '正在加载数据...', 'info');
+                
+                if (!advancedTable) {
+                    const config = {
+                        columns: [
+                            { id: 'select', title: '选择', field: 'select', width: 50, align: 'center' },
+                            { id: 'filename', title: '文件名', field: 'filename', width: 200, sortable: true },
+                            { id: 'title', title: '标题', field: 'title', width: 250, sortable: true },
+                            { id: 'size', title: '大小', field: 'size', width: 100, align: 'right', sortable: true },
+                            { id: 'import_date', title: '导入日期', field: 'import_date', width: 120, sortable: true },
+                            { id: 'importance', title: '重要性', field: 'importance', width: 100, sortable: true },
+                            { id: 'actions', title: '操作', field: 'actions', width: 120, align: 'center' }
+                        ],
+                        data: sampleData,
+                        pageSize: 5,
+                        sortable: true,
+                        filterable: true,
+                        selectable: true,
+                        pagination: true,
+                        theme: 'default',
+                        multiSelect: true,
+                        rowClickSelect: true
+                    };
+                    
+                    advancedTable = new PDFTable('#pdf-table-advanced', config);
+                    await advancedTable.initialize();
+                    
+                    advancedTable.events.on('button-click', ({ action, rowId }) => {
+                        if (action === 'open') {
+                            alert(`打开文件: ${rowId}`);
+                        } else if (action === 'delete') {
+                            if (confirm('确定要删除这个文件吗？')) {
+                                advancedTable.removeRow(rowId);
+                            }
+                        }
+                    });
+                }
+                
+                updateStatus('advanced', `成功加载 ${sampleData.length} 条数据`, 'success');
+            } catch (error) {
+                updateStatus('advanced', `加载失败: ${error.message}`, 'error');
+            }
+        };
+        
+        window.changeTheme = function(theme) {
+            if (advancedTable) {
+                advancedTable.setTheme(theme);
+                updateStatus('advanced', `主题已切换为: ${theme}`, 'success');
+            }
+        };
+        
+        window.addAdvancedFilter = function() {
+            if (advancedTable) {
+                advancedTable.filtering.addTextFilter('importance', 'equals', 'high');
+                updateStatus('advanced', '已添加重要性筛选: 高', 'success');
+            }
+        };
+        
+        window.clearAdvancedFilter = function() {
+            if (advancedTable) {
+                advancedTable.filtering.clearAllFilters();
+                updateStatus('advanced', '已清除所有筛选', 'success');
+            }
+        };
+        
+        window.setAdvancedSort = function() {
+            if (advancedTable) {
+                advancedTable.sorting.setSort('import_date', 'desc');
+                updateStatus('advanced', '已设置排序: 导入日期降序', 'success');
+            }
+        };
+        
+        // Custom renderers demo functions
+        window.loadCustomData = async function() {
+            try {
+                updateStatus('custom', '正在加载数据...', 'info');
+                
+                if (!customTable) {
+                    const config = {
+                        columns: [
+                            { id: 'filename', title: '文件名', field: 'filename', width: 200 },
+                            { 
+                                id: 'size', 
+                                title: '大小', 
+                                field: 'size', 
+                                width: 100, 
+                                align: 'right',
+                                formatter: (value) => {
+                                    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                                    const i = Math.floor(Math.log(value) / Math.log(1024));
+                                    return parseFloat((value / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i];
+                                }
+                            },
+                            { 
+                                id: 'importance', 
+                                title: '重要性', 
+                                field: 'importance', 
+                                width: 120,
+                                renderer: (value, row, column) => {
+                                    const icons = {
+                                        high: '🔥',
+                                        medium: '⭐',
+                                        low: '📝'
+                                    };
+                                    return `<span class="custom-importance custom-importance--${value}">
+                                        ${icons[value]} ${value}
+                                    </span>`;
+                                }
+                            },
+                            { 
+                                id: 'progress', 
+                                title: '阅读进度', 
+                                field: 'unread_pages', 
+                                width: 150,
+                                renderer: (value, row, column) => {
+                                    const total = row.total_pages;
+                                    const read = total - value;
+                                    const percentage = total > 0 ? Math.round((read / total) * 100) : 0;
+                                    
+                                    return `
+                                        <div class="progress-container">
+                                            <div class="progress-bar" style="width: ${percentage}%"></div>
+                                            <span class="progress-text">${percentage}%</span>
+                                        </div>
+                                    `;
+                                }
+                            },
+                            { 
+                                id: 'actions', 
+                                title: '操作', 
+                                field: 'actions', 
+                                width: 150,
+                                renderer: (value, row, column) => {
+                                    return `
+                                        <div class="custom-actions">
+                                            <button class="btn btn-primary" onclick="viewFile('${row.id}')">查看</button>
+                                            <button class="btn" onclick="editFile('${row.id}')">编辑</button>
+                                            <button class="btn" style="background: #f44; color: white;" onclick="deleteFile('${row.id}')">删除</button>
+                                        </div>
+                                    `;
+                                }
+                            }
+                        ],
+                        data: sampleData,
+                        pageSize: 5,
+                        theme: 'modern'
+                    };
+                    
+                    customTable = new PDFTable('#pdf-table-custom', config);
+                    await customTable.initialize();
+                }
+                
+                updateStatus('custom', `成功加载 ${sampleData.length} 条数据`, 'success');
+            } catch (error) {
+                updateStatus('custom', `加载失败: ${error.message}`, 'error');
+            }
+        };
+        
+        window.updateCustomData = function() {
+            if (customTable) {
+                // 随机更新一些数据
+                const randomIndex = Math.floor(Math.random() * sampleData.length);
+                const randomRow = sampleData[randomIndex];
+                
+                customTable.updateRow(randomRow.id, {
+                    unread_pages: Math.max(0, randomRow.unread_pages - 5),
+                    access_date: new Date().toISOString()
+                });
+                
+                updateStatus('custom', `已更新数据: ${randomRow.title}`, 'success');
+            }
+        };
+        
+        window.addCustomRow = function() {
+            if (customTable) {
+                const newRow = {
+                    id: '006',
+                    filename: '新添加的文档.pdf',
+                    filepath: 'C:\\data\\pdfs\\new_document.pdf',
+                    title: '新添加的文档',
+                    size: 1024000,
+                    import_date: new Date().toISOString(),
+                    importance: 'medium',
+                    unread_pages: 0,
+                    total_pages: 100,
+                    annotations_count: 0,
+                    cards_count: 0
+                };
+                
+                customTable.addRow(newRow);
+                updateStatus('custom', '已添加新行', 'success');
+            }
+        };
+        
+        // Dynamic demo functions
+        window.startDynamicDemo = async function() {
+            try {
+                updateStatus('dynamic', '正在启动动态演示...', 'info');
+                
+                if (!dynamicTable) {
+                    dynamicTable = new PDFTable('#pdf-table-dynamic', {
+                        data: [],
+                        pageSize: 5,
+                        sortable: true,
+                        selectable: true,
+                        pagination: true
+                    });
+                    
+                    await dynamicTable.initialize();
+                }
+                
+                let counter = 0;
+                dynamicInterval = setInterval(() => {
+                    counter++;
+                    
+                    if (counter <= 5) {
+                        // 添加数据
+                        const row = sampleData[counter - 1];
+                        dynamicTable.addRow(row);
+                        updateStatus('dynamic', `已添加数据: ${row.title}`, 'success');
+                    } else if (counter <= 10) {
+                        // 更新数据
+                        const randomIndex = Math.floor(Math.random() * 5);
+                        const randomRow = sampleData[randomIndex];
+                        dynamicTable.updateRow(randomRow.id, {
+                            access_date: new Date().toISOString(),
+                            unread_pages: Math.max(0, randomRow.unread_pages - 1)
+                        });
+                        updateStatus('dynamic', `已更新数据: ${randomRow.title}`, 'success');
+                    } else {
+                        // 删除数据
+                        if (dynamicTable.getData().length > 0) {
+                            const data = dynamicTable.getData();
+                            const randomRow = data[Math.floor(Math.random() * data.length)];
+                            dynamicTable.removeRow(randomRow.id);
+                            updateStatus('dynamic', `已删除数据: ${randomRow.title}`, 'success');
+                        } else {
+                            window.stopDynamicDemo();
+                        }
+                    }
+                }, 2000);
+                
+                updateStatus('dynamic', '动态演示已启动', 'success');
+            } catch (error) {
+                updateStatus('dynamic', `启动失败: ${error.message}`, 'error');
+            }
+        };
+        
+        window.pauseDynamicDemo = function() {
+            if (dynamicInterval) {
+                clearInterval(dynamicInterval);
+                dynamicInterval = null;
+                updateStatus('dynamic', '动态演示已暂停', 'info');
+            }
+        };
+        
+        window.stopDynamicDemo = function() {
+            if (dynamicInterval) {
+                clearInterval(dynamicInterval);
+                dynamicInterval = null;
+            }
+            updateStatus('dynamic', '动态演示已停止', 'info');
+        };
+        
+        // Real-time demo functions
+        window.startRealtimeDemo = async function() {
+            try {
+                updateStatus('realtime', '正在启动实时更新...', 'info');
+                
+                if (!realtimeTable) {
+                    realtimeTable = new PDFTable('#pdf-table-realtime', {
+                        data: [...sampleData],
+                        pageSize: 5,
+                        sortable: true,
+                        selectable: true,
+                        pagination: true
+                    });
+                    
+                    await realtimeTable.initialize();
+                }
+                
+                let updateCounter = 0;
+                realtimeInterval = setInterval(() => {
+                    updateCounter++;
+                    
+                    // 随机更新一行数据
+                    const randomIndex = Math.floor(Math.random() * sampleData.length);
+                    const randomRow = sampleData[randomIndex];
+                    
+                    realtimeTable.updateRow(randomRow.id, {
+                        access_date: new Date().toISOString(),
+                        annotations_count: (randomRow.annotations_count || 0) + 1
+                    });
+                    
+                    if (updateCounter % 5 === 0) {
+                        updateStatus('realtime', `已进行 ${updateCounter} 次实时更新`, 'success');
+                    }
+                }, 1000);
+                
+                updateStatus('realtime', '实时更新已启动', 'success');
+            } catch (error) {
+                updateStatus('realtime', `启动失败: ${error.message}`, 'error');
+            }
+        };
+        
+        window.stopRealtimeDemo = function() {
+            if (realtimeInterval) {
+                clearInterval(realtimeInterval);
+                realtimeInterval = null;
+            }
+            updateStatus('realtime', '实时更新已停止', 'info');
+        };
+        
+        // Export demo functions
+        window.loadExportData = async function() {
+            try {
+                updateStatus('export', '正在加载数据...', 'info');
+                
+                if (!exportTable) {
+                    exportTable = new PDFTable('#pdf-table-export', {
+                        data: sampleData,
+                        pageSize: 10,
+                        exportEnabled: true,
+                        theme: 'default'
+                    });
+                    
+                    await exportTable.initialize();
+                }
+                
+                updateStatus('export', `成功加载 ${sampleData.length} 条数据`, 'success');
+            } catch (error) {
+                updateStatus('export', `加载失败: ${error.message}`, 'error');
+            }
+        };
+        
+        window.exportToCSV = function() {
+            if (exportTable) {
+                exportTable.exportToCSV('pdf-data.csv');
+                updateStatus('export', '数据已导出为 CSV 文件', 'success');
+            }
+        };
+        
+        window.exportToJSON = function() {
+            if (exportTable) {
+                const data = exportTable.getData();
+                const jsonData = JSON.stringify(data, null, 2);
+                const blob = new Blob([jsonData], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'pdf-data.json';
+                a.click();
+                URL.revokeObjectURL(url);
+                updateStatus('export', '数据已导出为 JSON 文件', 'success');
+            }
+        };
+        
+        // Utility functions
+        function updateStatus(section, message, type) {
+            const statusElement = document.getElementById(`${section}-status`);
+            if (statusElement) {
+                statusElement.textContent = message;
+                statusElement.className = `status ${type}`;
+            }
+        }
+        
+        // Action functions for custom renderers
+        window.viewFile = function(rowId) {
+            alert(`查看文件: ${rowId}`);
+        };
+        
+        window.editFile = function(rowId) {
+            alert(`编辑文件: ${rowId}`);
+        };
+        
+        window.deleteFile = function(rowId) {
+            if (confirm('确定要删除这个文件吗？')) {
+                alert(`删除文件: ${rowId}`);
+            }
+        };
+        
+        // Initialize page
+        console.log('PDF Table Module Demo loaded');
+    </script>
+</body>
+</html>

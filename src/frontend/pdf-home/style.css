@@ -60,22 +60,221 @@ h1 {
     background-color: #c0392b;
 }
 
-.pdf-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 20px;
+/* PDF表格集成样式 */
+#pdf-table-container {
+    margin-top: 20px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
-.pdf-card {
+.pdf-actions {
+    display: flex;
+    gap: 5px;
+    justify-content: center;
+    align-items: center;
+}
+
+.pdf-actions .btn {
+    padding: 4px 8px;
+    font-size: 12px;
+    border-radius: 3px;
+}
+
+.importance-high {
+    color: #e74c3c;
+    font-weight: bold;
+}
+
+.importance-medium {
+    color: #f39c12;
+    font-weight: bold;
+}
+
+.importance-low {
+    color: #27ae60;
+    font-weight: bold;
+}
+
+/* 确保PDF表格样式与现有主题兼容 */
+.pdf-table-container {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.pdf-table-container .btn {
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.pdf-table-container .btn-primary {
+    background-color: #3498db;
+    color: white;
+}
+
+.pdf-table-container .btn-primary:hover {
+    background-color: #2980b9;
+}
+
+.pdf-table-container .btn-danger {
+    background-color: #e74c3c;
+    color: white;
+}
+
+.pdf-table-container .btn-danger:hover {
+    background-color: #c0392b;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .pdf-table-container {
+        font-size: 12px;
+    }
+    
+    .pdf-actions {
+        flex-direction: column;
+        gap: 2px;
+    }
+    
+    .pdf-actions .btn {
+        padding: 2px 6px;
+        font-size: 11px;
+    }
+}
+
+.pdf-list {
     background: white;
     border-radius: 8px;
-    padding: 20px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    transition: transform 0.3s ease;
+    overflow: hidden;
+}
+
+.pdf-item {
+    display: grid;
+    grid-template-columns: 50px 1fr 150px 100px 100px 100px 80px 80px 120px 120px;
+    align-items: center;
+    padding: 15px 20px;
+    border-bottom: 1px solid #eee;
+    transition: background-color 0.2s ease;
+}
+
+.pdf-item:hover {
+    background-color: #f8f9fa;
+}
+
+.pdf-item:last-child {
+    border-bottom: none;
+}
+
+.pdf-item.selected {
+    background-color: #e3f2fd;
+}
+
+.pdf-item-checkbox {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+
+.pdf-item-icon {
+    font-size: 24px;
+    color: #2196F3;
+}
+
+.pdf-item-title {
+    font-weight: 600;
+    color: #2c3e50;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pdf-item-size {
+    color: #666;
+    font-size: 14px;
+}
+
+.pdf-item-date {
+    color: #666;
+    font-size: 12px;
+}
+
+.pdf-item-importance {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.pdf-item-pages {
+    color: #666;
+    font-size: 14px;
+}
+
+.pdf-item-annotations {
+    color: #666;
+    font-size: 14px;
+}
+
+.pdf-item-cards {
+    color: #666;
+    font-size: 14px;
+}
+
+.pdf-item-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.pdf-list-header {
+    display: grid;
+    grid-template-columns: 50px 1fr 150px 100px 100px 100px 80px 80px 120px 120px;
+    align-items: center;
+    padding: 15px 20px;
+    background: #f8f9fa;
+    border-bottom: 2px solid #ddd;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.list-header-select {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+
+.list-header-title {
+    text-align: left;
+}
+
+.list-header-size {
+    text-align: right;
+}
+
+.list-header-date {
+    text-align: center;
+}
+
+.list-header-importance {
+    text-align: center;
+}
+
+.list-header-pages {
+    text-align: right;
+}
+
+.list-header-annotations {
+    text-align: right;
+}
+
+.list-header-cards {
+    text-align: right;
 }
 
 .pdf-card:hover {
-    transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(0,0,0,0.15);
 }
 
@@ -96,11 +295,6 @@ h1 {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.pdf-actions {
-    display: flex;
-    gap: 10px;
 }
 
 .btn-small {
@@ -151,6 +345,21 @@ h1 {
     background-color: #f8d7da;
     color: #721c24;
     border: 1px solid #f5c6cb;
+    border-radius: 4px;
+    padding: 15px;
+    z-index: 1000;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    max-width: 400px;
+    display: none;
+}
+
+.success-message {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
     border-radius: 4px;
     padding: 15px;
     z-index: 1000;

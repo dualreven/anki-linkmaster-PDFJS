@@ -83,6 +83,29 @@ class FileValidator:
             return None
     
     @staticmethod
+    def get_file_stats(file_path: str) -> Optional[dict]:
+        """
+        获取文件统计信息
+        
+        Args:
+            file_path: 文件路径
+            
+        Returns:
+            dict: 文件统计信息或None
+        """
+        try:
+            stat = os.stat(file_path)
+            return {
+                'size': stat.st_size,
+                'created_time': stat.st_ctime,
+                'modified_time': stat.st_mtime,
+                'is_readable': os.access(file_path, os.R_OK)
+            }
+        except (OSError, IOError) as e:
+            logger.error(f"获取文件统计信息失败: {e}")
+            return None
+    
+    @staticmethod
     def validate_file_operation(file_path: str, operation: str = "read") -> Tuple[bool, str]:
         """
         验证文件操作

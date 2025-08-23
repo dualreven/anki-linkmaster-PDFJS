@@ -7,6 +7,8 @@ Anki LinkMaster PDFJS 主程序入口
 
 import sys
 import os
+DEBUG_PORT = "9223"
+os.environ['QTWEBENGINE_REMOTE_DEBUGGING'] = DEBUG_PORT
 
 # 将backend目录添加到Python路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -38,6 +40,3 @@ def main():
         return 1
 
 
-if __name__ == "__main__":
-    exit_code = main()
-    sys.exit(exit_code)
