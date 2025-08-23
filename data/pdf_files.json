@@ -1,3 +1,84 @@
 {
-  "files": {}
+  "files": {
+    "99f8e3fa1c2e": {
+      "id": "99f8e3fa1c2e",
+      "filename": "99f8e3fa1c2e.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\99f8e3fa1c2e.pdf",
+      "file_size": 2162861,
+      "created_time": 1755946052.9063084,
+      "modified_time": 1754484286.7053876,
+      "title": "_Mathematica_",
+      "author": "",
+      "subject": "",
+      "keywords": "",
+      "page_count": 0,
+      "thumbnail_path": null,
+      "tags": [],
+      "notes": ""
+    },
+    "b8dfc87455af": {
+      "id": "b8dfc87455af",
+      "filename": "b8dfc87455af.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
+      "file_size": 38840700,
+      "created_time": 1755946052.915306,
+      "modified_time": 1754465386.9573991,
+      "title": "未命名笔记",
+      "author": "",
+      "subject": "",
+      "keywords": "",
+      "page_count": 0,
+      "thumbnail_path": null,
+      "tags": [],
+      "notes": ""
+    },
+    "47eb644ee5cb": {
+      "id": "47eb644ee5cb",
+      "filename": "47eb644ee5cb.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\47eb644ee5cb.pdf",
+      "file_size": 39285362,
+      "created_time": 1755946052.9393125,
+      "modified_time": 1754465342.2901864,
+      "title": "未命名笔记(1)",
+      "author": "",
+      "subject": "",
+      "keywords": "",
+      "page_count": 0,
+      "thumbnail_path": null,
+      "tags": [],
+      "notes": ""
+    },
+    "6a57bd545951": {
+      "id": "6a57bd545951",
+      "filename": "6a57bd545951.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\6a57bd545951.pdf",
+      "file_size": 36389419,
+      "created_time": 1755946052.9617531,
+      "modified_time": 1754396506.6272895,
+      "title": "金融经济学二十五讲 (徐高) (Z-Library)",
+      "author": "",
+      "subject": "",
+      "keywords": "",
+      "page_count": 0,
+      "thumbnail_path": null,
+      "tags": [],
+      "notes": ""
+    },
+    "83d67be8232e": {
+      "id": "83d67be8232e",
+      "filename": "83d67be8232e.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\83d67be8232e.pdf",
+      "file_size": 291544,
+      "created_time": 1755946052.9834676,
+      "modified_time": 1754039576.3979113,
+      "title": "quiz",
+      "author": "",
+      "subject": "",
+      "keywords": "",
+      "page_count": 0,
+      "thumbnail_path": null,
+      "tags": [],
+      "notes": ""
+    }
+  }
 }
