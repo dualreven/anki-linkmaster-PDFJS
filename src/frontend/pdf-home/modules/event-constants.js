@@ -54,6 +54,9 @@ export const PDF_MANAGEMENT_EVENTS = {
     FAILED: 'pdf:management:remove_failed',
     COMPLETED: 'pdf:management:remove_completed'
   },
+  DELETE: {
+    REQUESTED: 'pdf:management:delete_requested'
+  },
   OPEN: {
     REQUESTED: 'pdf:management:open_requested',
     STARTED: 'pdf:management:open_started',
@@ -71,7 +74,8 @@ export const UI_EVENTS = {
   },
   SUCCESS: {
     SHOW: 'ui:success:show'
-  }
+  },
+  SELECTION_CHANGED: 'ui:selection:changed'
 };
 
 // ===== WebSocket消息事件 =====

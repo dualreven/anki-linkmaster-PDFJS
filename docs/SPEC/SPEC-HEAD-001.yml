@@ -1,0 +1,61 @@
+---
+# SPEC-HEAD-001.yml 项目规范索引文件
+self-desc: "anki-linkmaster-PDFJS项目规范索引文件，包含所有适用的开发规范"
+version: 1.0
+
+ref: # 引入其他规范性文件
+  global: # 全局性规范, 文档存放在 根目录下的 docs/SPEC/[id].yml
+  - id: GLOBAL-SPEC-NAMING-001
+    desc: 命名规范全局标准
+  - id: GLOBAL-SPEC-COMMENT-001
+    desc: 注释规范全局标准
+  - id: GLOBAL-SPEC-FUNCTION-001
+    desc: 函数设计规范全局标准
+  - id: GLOBAL-SPEC-CLASS-001
+    desc: 类设计规范全局标准
+  - id: GLOBAL-SPEC-FILE-001
+    desc: 文件结构规范全局标准
+  - id: GLOBAL-SPEC-EVENT-001
+    desc: 前端事件设计规范全局标准
+  - id: GLOBAL-SPEC-JSON-001
+    desc: JSON通信标准全局标准
+  - id: GLOBAL-SPEC-TEST-001
+    desc: 测试规范全局标准
+
+private: # 模块本身的规范
+# 命名规范
+- id: SPEC-NAMING-FILE-001 
+  desc: 文件命名规范  
+- id: SPEC-NAMING-VARIABLE-001
+  desc: 变量命名规范
+- id: SPEC-NAMING-FUNCTION-001
+  desc: 函数命名规范
+- id: SPEC-NAMING-CLASS-001
+  desc: 类命名规范
+- id: SPEC-NAMING-CONSTANT-001
+  desc: 常量命名规范
+- id: SPEC-NAMING-API-001
+  desc: API端点命名规范
+- id: SPEC-NAMING-DATABASE-001
+  desc: 数据库命名规范
+- id: SPEC-NAMING-ENV-001
+  desc: 环境变量命名规范
+# 其他规范
+- id: SPEC-COMMENT-001
+  desc: 注释规范
+- id: SPEC-FUNCTION-001
+  desc: 函数规范
+- id: SPEC-CLASS-001
+  desc: 类规范
+- id: SPEC-FILE-001
+  desc: 文件结构规范
+- id: SPEC-EVENT-001
+  desc: 前端事件设计规范
+- id: SPEC-JSON-001
+  desc: JSON通信标准
+- id: SPEC-JSON-EXAMPLE-001
+  desc: JSON标准示例
+- id: SPEC-TEST-FRONTEND-001
+  desc: 前端测试规范
+- id: SPEC-TEST-GENERAL-001
+  desc: 通用测试规范

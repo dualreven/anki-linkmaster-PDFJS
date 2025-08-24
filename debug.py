@@ -77,6 +77,33 @@ def format_exception_message(params: dict) -> str:
 
     return f"[{timestamp}][FATAL ERROR] {text}\n  > {description}"
 
+def format_loading_failed_message(params: dict) -> str:
+    """
+    格式化 Network.loadingFailed 事件的参数
+    """
+    timestamp = datetime.fromtimestamp(params['timestamp'] / 1000).strftime('%H:%M:%S.%f')[:-3]
+    request_id = params.get('requestId', 'unknown')
+    error_text = params.get('errorText', 'Unknown error')
+    request_url = params.get('request', {}).get('url', 'Unknown URL')
+    
+    return f"[{timestamp}][LOAD FAILED] {error_text}\n  > URL: {request_url}"
+
+def format_response_received_message(params: dict) -> str:
+    """
+    格式化 Network.responseReceived 事件的参数，用于捕捉4xx和5xx错误
+    """
+    timestamp = datetime.fromtimestamp(params['timestamp'] / 1000).strftime('%H:%M:%S.%f')[:-3]
+    response = params.get('response', {})
+    status = response.get('status', 0)
+    status_text = response.get('statusText', '')
+    url = response.get('url', 'Unknown URL')
+    
+    # 只记录4xx和5xx错误
+    if 400 <= status < 600:
+        return f"[{timestamp}][HTTP ERROR] {status} {status_text}\n  > URL: {url}"
+    
+    return None
+
 async def listen_to_browser(port):
     """
     主函数，连接到浏览器并监听事件
@@ -115,7 +142,8 @@ async def listen_to_browser(port):
             # 启用需要的 CDP 域
             await websocket.send(json.dumps({"id": 1, "method": "Page.enable"}))
             await websocket.send(json.dumps({"id": 2, "method": "Runtime.enable"}))
-            logging.info("Successfully enabled Page and Runtime domains. Listening for events...")
+            await websocket.send(json.dumps({"id": 3, "method": "Network.enable"}))
+            logging.info("Successfully enabled Page, Runtime, and Network domains. Listening for events...")
             
             # 初始时清空一次日志
             clear_log_file(port)
@@ -143,10 +171,23 @@ async def listen_to_browser(port):
                         append_to_log(log_entry, port)
 
                     # --- 功能 3: 监听严重错误 ---
-                    elif method == 'Runtime.exceptionThrown':
+                    elif method == "Runtime.exceptionThrown":
                         error_entry = format_exception_message(params)
                         print(error_entry) # 也在终端打印一份
                         append_to_log(error_entry, port)
+
+                    # --- 功能 4: 监听网络加载失败 ---
+                    elif method == "Network.loadingFailed":
+                        error_entry = format_loading_failed_message(params)
+                        print(error_entry) # 也在终端打印一份
+                        append_to_log(error_entry, port)
+
+                    # --- 功能 5: 监听HTTP错误响应 ---
+                    elif method == "Network.responseReceived":
+                        error_entry = format_response_received_message(params)
+                        if error_entry:  # 只记录4xx和5xx错误
+                            print(error_entry) # 也在终端打印一份
+                            append_to_log(error_entry, port)
 
     except websockets.exceptions.ConnectionClosed as e:
         logging.warning(f"WebSocket connection closed: {e}. Will try to reconnect.")

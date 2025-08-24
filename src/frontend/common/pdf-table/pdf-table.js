@@ -71,7 +71,7 @@ class PDFTable {
             this.setupEventListeners();
             
             // Load initial data if provided
-            if (this.config.data.length > 0) {
+            if (this.config.data && Array.isArray(this.config.data) && this.config.data.length > 0) {
                 await this.loadData(this.config.data);
             }
             
@@ -132,54 +132,56 @@ class PDFTable {
     
     /**
      * Load data into the table
-     * @param {Array} data - Array of data objects
+     * @param {Object|Array} data - Standard response object or array of data objects
      */
     async loadData(data) {
         try {
             this.state.isLoading = true;
             
-            // 防御性编程：确保数据是数组
-            if (!Array.isArray(data)) {
-                console.warn('PDFTable.loadData: 数据不是数组，重置为空数组');
-                data = [];
+            // 解析标准响应格式
+            let filesData = [];
+            
+            // 检查是否为标准响应格式
+            if (data && typeof data === 'object' && data.data && Array.isArray(data.data.files)) {
+                // 标准格式: { type: "pdf_list", data: { files: [...] } }
+                console.log('PDFTable.loadData: 检测到标准响应格式');
+                filesData = data.data.files;
+            } else if (Array.isArray(data)) {
+                // 向后兼容: 直接传入数组
+                console.log('PDFTable.loadData: 检测到数组格式（向后兼容）');
+                filesData = data;
+            } else {
+                // 不支持的格式
+                console.warn('PDFTable.loadData: 不支持的数据格式，重置为空数组', data);
+                filesData = [];
             }
             
-            // 验证数据
-            const validationErrors = this.dataModel.validateData(data);
+            // 验证数据 - 使用更宽松的验证策略
+            const validationErrors = this.dataModel.validateData(filesData);
             
             if (validationErrors.length > 0) {
-                console.error('数据验证失败，但系统将尝试渲染有效部分:', validationErrors);
+                console.warn('数据验证警告（系统将继续渲染）:', validationErrors);
                 
-                // 向用户显示一个非阻塞的错误提示
-                this.showNonBlockingError('部分PDF数据格式不正确，可能无法完全显示。');
-
-                // 策略：过滤掉无效数据，而不是完全失败
-                let validData = data;
+                // 即使验证失败，也尝试处理数据（向后兼容）
+                // 只过滤掉真正无效的数据行
+                const invalidRowIndices = new Set(
+                    validationErrors.filter(err => err.row !== undefined && err.type === 'required').map(err => err.row)
+                );
                 
-                if (validationErrors.some(err => err.row !== undefined)) {
-                    // 有行级错误，过滤掉无效行
-                    const invalidRowIndices = new Set(
-                        validationErrors.filter(err => err.row !== undefined).map(err => err.row)
-                    );
-                    validData = data.filter((_, index) => !invalidRowIndices.has(index));
-                } else {
-                    // 全局错误，尝试使用所有数据
-                    validData = data;
-                }
+                const validData = filesData.filter((_, index) => !invalidRowIndices.has(index));
                 
-                console.log(`保留有效数据: ${validData.length}/${data.length} 条记录`);
+                console.log(`经过宽松验证后保留有效数据: ${validData.length}/${filesData.length} 条记录`);
                 
-                // 如果过滤后仍有有效数据，则继续渲染
                 if (validData.length > 0) {
                     this.processValidatedData(validData);
                 } else {
-                    // 如果所有数据都无效，则显示空状态
-                    this.displayEmptyState('所有PDF数据均无效，无法加载。');
+                    // 如果所有数据都缺少必需字段，则显示空状态
+                    this.displayEmptyState('PDF数据格式不兼容，无法加载。');
                 }
                 
             } else {
                 // 验证通过，正常处理
-                this.processValidatedData(data);
+                this.processValidatedData(filesData);
             }
             
         } catch (error) {
@@ -188,7 +190,7 @@ class PDFTable {
             this.displayErrorState(`加载失败: ${error.message}`);
             
             // 不再向上抛出异常，避免上层组件崩溃
-            // throw error; 
+            // throw error;
         } finally {
             this.state.isLoading = false;
         }

@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Table Debug Tests</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .test-button:hover {
+            background-color: #45a049;
+        }
+        .test-results {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .error {
+            color: #d32f2f;
+        }
+        .success {
+            color: #388e3c;
+        }
+        .warning {
+            color: #f57c00;
+        }
+        .info {
+            color: #1976d2;
+        }
+    </style>
+</head>
+<body>
+    <h1>PDF Table Debug Tests</h1>
+    
+    <div class="test-container">
+        <h2>测试选项</h2>
+        <button class="test-button" onclick="runContainerDebugTest()">运行Container调试测试</button>
+        <button class="test-button" onclick="runIntegrationDebugTest()">运行集成调试测试</button>
+        <button class="test-button" onclick="clearResults()">清除结果</button>
+    </div>
+    
+    <div class="test-container">
+        <h2>测试结果</h2>
+        <div id="test-results" class="test-results">点击上方按钮运行测试...</div>
+    </div>
+
+    <script type="module">
+        // 模拟PDFTable类的简化版本
+        class MockPDFTable {
+            constructor(container, config = {}) {
+                log('[DEBUG] PDFTable constructor called with container:', container);
+                
+                // Validate container
+                if (typeof container === 'string') {
+                    this.container = document.querySelector(container);
+                } else {
+                    this.container = container;
+                }
+                
+                log('[DEBUG] PDFTable this.container:', this.container);
+                
+                if (!this.container) {
+                    throw new Error('Container element not found');
+                }
+                
+                // 注意：此时 this.tableWrapper 还未创建
+                log('[DEBUG] PDFTable this.tableWrapper before setupContainer:', this.tableWrapper);
+                
+                // Initialize core components - 这里会创建PDFTableRenderer
+                this.renderer = new MockPDFTableRenderer(this);
+                
+                log('[DEBUG] PDFTable renderer created, renderer.container:', this.renderer.container);
+                
+                // Initialize other components
+                this.events = new MockEventBus();
+                this.dataModel = new MockDataModel();
+                
+                // State management
+                this.state = {
+                    data: [],
+                    isLoading: false,
+                    error: null
+                };
+                
+                // Initialize config
+                this.config = {
+                    theme: config.theme || 'modern',
+                    ...config
+                };
+                
+                // Internal state
+                this._initialized = false;
+            }
+            
+            setupContainer() {
+                log('[DEBUG] PDFTable.setupContainer called');
+                
+                this.container.innerHTML = '';
+                this.container.className = `pdf-table-container pdf-table-container--${this.config.theme}`;
+                
+                // Create table wrapper
+                this.tableWrapper = document.createElement('div');
+                this.tableWrapper.className = 'pdf-table-wrapper';
+                
+                // Create loading indicator
+                this.loadingIndicator = document.createElement('div');
+                this.loadingIndicator.className = 'pdf-table-loading';
+                this.loadingIndicator.innerHTML = '<div class="pdf-table-loading-spinner"></div>';
+                this.loadingIndicator.style.display = 'none';
+                
+                // Create error message
+                this.errorMessage = document.createElement('div');
+                this.errorMessage.className = 'pdf-table-error';
+                this.errorMessage.style.display = 'none';
+                
+                // Assemble container
+                this.container.appendChild(this.loadingIndicator);
+                this.container.appendChild(this.errorMessage);
+                this.container.appendChild(this.tableWrapper);
+                
+                log('[DEBUG] PDFTable.setupContainer completed, this.tableWrapper:', this.tableWrapper);
+                log('[DEBUG] PDFTable.renderer.container after setupContainer:', this.renderer.container);
+            }
+            
+            async initialize() {
+                log('[DEBUG] PDFTable.initialize called');
+                
+                if (this._initialized) {
+                    log('[WARNING] PDFTable is already initialized');
+                    return;
+                }
+                
+                try {
+                    this.state.isLoading = true;
+                    
+                    // Setup container structure
+                    this.setupContainer();
+                    
+                    // Setup event listeners
+                    this.setupEventListeners();
+                    
+                    // Initial render
+                    await this.render();
+                    
+                    this._initialized = true;
+                    this.events.emit('initialized', this);
+                    
+                } catch (error) {
+                    this.state.error = error.message;
+                    this.events.emit('error', error);
+                    throw error;
+                } finally {
+                    this.state.isLoading = false;
+                }
+            }
+            
+            setupEventListeners() {
+                log('[DEBUG] PDFTable.setupEventListeners called');
+                // 简化的事件监听器设置
+            }
+            
+            async render() {
+                log('[DEBUG] PDFTable.render called');
+                try {
+                    await this.renderer.render(this.state.data);
+                } catch (error) {
+                    log('[ERROR] PDFTable.render failed:', error);
+                    throw error;
+                }
+            }
+        }
+
+        // 模拟PDFTableRenderer类的简化版本
+        class MockPDFTableRenderer {
+            constructor(table) {
+                log('[DEBUG] PDFTableRenderer constructor called');
+                this.table = table;
+                
+                // 这里使用table.tableWrapper，但此时table.tableWrapper可能还未创建
+                this.container = table.tableWrapper;
+                
+                log('[DEBUG] PDFTableRenderer this.container:', this.container);
+                log('[DEBUG] PDFTableRenderer this.container === undefined:', this.container === undefined);
+                log('[DEBUG] PDFTableRenderer this.container === null:', this.container === null);
+            }
+            
+            async render(data) {
+                log('[DEBUG] PDFTableRenderer.render called');
+                
+                // Clear container - 这里会抛出错误，如果this.container是undefined
+                this.clearContainer();
+                
+                log('[DEBUG] PDFTableRenderer.render completed successfully');
+            }
+            
+            clearContainer() {
+                log('[DEBUG] PDFTableRenderer.clearContainer called');
+                log('[DEBUG] PDFTableRenderer this.container before innerHTML:', this.container);
+                
+                // 这里会抛出错误，如果this.container是undefined
+                try {
+                    this.container.innerHTML = '';
+                    log('[DEBUG] PDFTableRenderer.clearContainer succeeded');
+                } catch (error) {
+                    log('[ERROR] PDFTableRenderer.clearContainer failed:', error);
+                    throw error;
+                }
+            }
+        }
+
+        // 模拟EventBus
+        class MockEventBus {
+            constructor() {
+                this.events = {};
+            }
+            
+            on(eventName, callback) {
+                if (!this.events[eventName]) {
+                    this.events[eventName] = [];
+                }
+                this.events[eventName].push(callback);
+            }
+            
+            emit(eventName, data) {
+                if (this.events[eventName]) {
+                    this.events[eventName].forEach(callback => callback(data));
+                }
+            }
+        }
+
+        // 模拟DataModel
+        class MockDataModel {
+            validateData(data) {
+                // 简化的数据验证
+                return [];
+            }
+        }
+
+        // 模拟UIManager的关键部分
+        class MockUIManager {
+            constructor() {
+                this.logger = {
+                    info: (msg) => log('[INFO]', msg),
+                    error: (msg, err) => log('[ERROR]', msg, err)
+                };
+                
+                this.pdfTable = null;
+                this.tableContainer = null;
+                
+                this.initializeElements();
+            }
+            
+            initializeElements() {
+                // 创建测试容器
+                const container = document.createElement('div');
+                container.className = 'container';
+                
+                const pdfTableContainer = document.createElement('div');
+                pdfTableContainer.id = 'pdf-table-container';
+                pdfTableContainer.className = 'pdf-table-container';
+                
+                container.appendChild(pdfTableContainer);
+                document.body.appendChild(container);
+                
+                this.elements = {
+                    container: container,
+                    pdfTableContainer: pdfTableContainer
+                };
+                
+                // 设置表格容器
+                this.tableContainer = this.elements.pdfTableContainer;
+                
+                log('[DEBUG] UIManager.initializeElements completed');
+                log('[DEBUG] UIManager.tableContainer:', this.tableContainer);
+            }
+            
+            async initializePDFTable() {
+                log('[DEBUG] UIManager.initializePDFTable called');
+                
+                if (this.pdfTable) {
+                    log('[DEBUG] PDFTable already initialized');
+                    return;
+                }
+                
+                const config = {
+                    columns: [
+                        { id: 'select', title: '选择', field: 'select', width: 50 },
+                        { id: 'filename', title: '文件名', field: 'filename', width: 250 }
+                    ],
+                    data: [],
+                    pageSize: 25,
+                    theme: 'modern'
+                };
+                
+                try {
+                    // 这里是关键：创建PDFTable实例
+                    this.pdfTable = new MockPDFTable(this.tableContainer, config);
+                    log('[DEBUG] PDFTable instance created');
+                    
+                    // 初始化PDFTable
+                    await this.pdfTable.initialize();
+                    log('[DEBUG] PDFTable initialized successfully');
+                    
+                } catch (error) {
+                    log('[ERROR] UIManager.initializePDFTable failed:', error);
+                    throw error;
+                }
+            }
+        }
+
+        // 日志函数
+        function log(...args) {
+            const resultsDiv = document.getElementById('test-results');
+            const message = args.map(arg => 
+                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+            ).join(' ');
+            
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            
+            resultsDiv.textContent += logEntry;
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+            
+            // 同时输出到控制台
+            console.log(...args);
+        }
+
+        // Container调试测试
+        async function runContainerDebugTest() {
+            clearResults();
+            log('[DEBUG] ===== 开始PDF Table Container调试测试 =====');
+            
+            try {
+                // 创建测试容器
+                const testContainer = document.createElement('div');
+                testContainer.id = 'pdf-table-container';
+                document.body.appendChild(testContainer);
+                
+                log('[DEBUG] 测试容器创建成功:', testContainer);
+                
+                // 模拟UIManager中的初始化过程
+                log('[DEBUG] 模拟UIManager.initializePDFTable...');
+                const pdfTable = new MockPDFTable(testContainer, {
+                    theme: 'modern'
+                });
+                
+                log('[DEBUG] PDFTable创建成功');
+                
+                // 尝试调用clearContainer，这应该会失败
+                log('[DEBUG] 尝试调用pdfTable.renderer.clearContainer...');
+                pdfTable.renderer.clearContainer();
+                
+                log('[SUCCESS] 测试完成，没有发生错误');
+                
+            } catch (error) {
+                log('[ERROR] 测试捕获到错误:', error);
+                log('[ERROR] 错误类型:', error.constructor.name);
+                log('[ERROR] 错误消息:', error.message);
+                
+                // 分析错误原因
+                if (error.message.includes('Cannot set properties of undefined (setting \'innerHTML\')')) {
+                    log('[INFO] 分析结果：确认了我们的假设 - PDFTableRenderer.container在初始化时是undefined');
+                    log('[INFO] 原因：PDFTableRenderer在PDFTable.setupContainer之前被创建，但此时tableWrapper还不存在');
+                }
+            } finally {
+                // 清理测试容器
+                const testContainer = document.getElementById('pdf-table-container');
+                if (testContainer) {
+                    document.body.removeChild(testContainer);
+                    log('[DEBUG] 测试容器已清理');
+                }
+                
+                log('[DEBUG] ===== PDF Table Container调试测试结束 =====');
+            }
+        }
+
+        // 集成调试测试
+        async function runIntegrationDebugTest() {
+            clearResults();
+            log('[DEBUG] ===== 开始PDF Table集成调试测试 =====');
+            
+            try {
+                // 模拟UIManager的初始化过程
+                log('[DEBUG] 创建UIManager...');
+                const uiManager = new MockUIManager();
+                
+                log('[DEBUG] 初始化PDFTable...');
+                await uiManager.initializePDFTable();
+                
+                log('[SUCCESS] 测试完成，没有发生错误');
+                
+            } catch (error) {
+                log('[ERROR] 测试捕获到错误:', error);
+                log('[ERROR] 错误类型:', error.constructor.name);
+                log('[ERROR] 错误消息:', error.message);
+                
+                // 分析错误原因
+                if (error.message.includes('Cannot set properties of undefined (setting \'innerHTML\')')) {
+                    log('[INFO] 分析结果：确认了我们的假设 - PDFTableRenderer.container在初始化时是undefined');
+                    log('[INFO] 原因：PDFTableRenderer在PDFTable.setupContainer之前被创建，但此时tableWrapper还不存在');
+                }
+            } finally {
+                // 清理测试容器
+                const container = document.querySelector('.container');
+                if (container) {
+                    document.body.removeChild(container);
+                    log('[DEBUG] 测试容器已清理');
+                }
+                
+                log('[DEBUG] ===== PDF Table集成调试测试结束 =====');
+            }
+        }
+
+        // 清除结果
+        function clearResults() {
+            document.getElementById('test-results').textContent = '测试结果已清除，准备运行新测试...\n';
+        }
+
+        // 导出函数到全局作用域
+        window.runContainerDebugTest = runContainerDebugTest;
+        window.runIntegrationDebugTest = runIntegrationDebugTest;
+        window.clearResults = clearResults;
+    </script>
+</body>
+</html>

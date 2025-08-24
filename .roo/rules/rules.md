@@ -90,6 +90,11 @@
 *   **`execute_command(command, cwd?)`** - 执行终端命令。
     ```xml
     <execute_command><command>npm install</command></execute_command>
+
+    <execute_command>
+    <command>npm install && npm run build</command>
+    <cwd>c:/Users/napretep/PycharmProjects/anki-linkmaster-PDFJS</cwd>
+    </execute_command>
     ```
 
 *   **`browser_action(action, ...)`** - 控制浏览器。必须以 `launch` 开始，以 `close` 结束。
