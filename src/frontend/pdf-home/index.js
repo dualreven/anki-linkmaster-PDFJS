@@ -46,7 +46,7 @@ class PDFHomeApp {
     });
     this.errorHandler = new ErrorHandler(this.eventBus);
     this.websocketManager = new WSClient('ws://localhost:8765', this.eventBus);
-    this.pdfManager = new PDFManager(this.eventBus, this.websocketManager);
+    this.pdfManager = new PDFManager(this.eventBus);
     this.uiManager = new UIManager(this.eventBus);
     
     this.initialized = false;

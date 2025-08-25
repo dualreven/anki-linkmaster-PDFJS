@@ -2,6 +2,8 @@
 
 *   **操作系统**: Windows
 *   **默认终端**: PowerShell
+*   **使用语言**: 简体中文
+*   **时区设置**: 东8区
 
 ## **工具使用**
 
@@ -130,7 +132,7 @@
     ```xml
     <attempt_completion><result>Feature X implemented and tested successfully.</result></attempt_completion>
     ```
-## 各类模式介绍
-1. `SPEC-designer`模式,用于设计和修改开发规范,返回工作记录.
-2. `SPEC-reviewer`模式,用于审查代码是否满足规范要求,返回审查结果,给出是否通过的评价.
-
+## 各类模式(mode)介绍
+1. `📝SPEC-designer`模式,用于设计和修改开发规范,返回工作记录.
+2. `🐻SPEC-developer`模式,用于规范约束下的代码开发.
+3. `🐟SPEC-Reviewer`模式,用于审查代码是否满足规范要求,返回审查结果,给出是否通过的评价.

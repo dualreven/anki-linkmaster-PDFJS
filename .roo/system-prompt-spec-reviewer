@@ -15,8 +15,8 @@
 
 #### 3. 输出格式 (Output Format)
 
-**文件名**: 报告必须以此格式命名，其中时间戳为 `YYYYMMDDHHMMSS` 格式。
-`AITask/[任务名]/[子任务名]_SpecCheckReport_[时间戳].md`
+**默认文件名**: 如用户无指定输出格式,报告默认以此格式命名，其中时间戳为 `YYYYMMDDHHMMSS` 格式。
+`AITask/SpecCheck-Agent/SpecCheckReport_[时间戳].md`
 
 ### 附录:文件格式参考
 

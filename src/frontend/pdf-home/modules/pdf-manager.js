@@ -17,9 +17,8 @@ import Logger from '../utils/logger.js';
  * PDF文件管理器类
  */
 class PDFManager {
-  constructor(eventBus, websocketManager) {
+  constructor(eventBus) {
     this.eventBus = eventBus;
-    this.websocketManager = websocketManager;
     this.logger = new Logger('PDFManager');
     this.pdfs = [];
     this.mapping = {};
@@ -98,7 +97,9 @@ class PDFManager {
    */
   loadPDFList() {
     this.logger.info('正在加载PDF列表');
-    this.websocketManager.send('get_pdf_list');
+    this.eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, {
+      type: 'get_pdf_list'
+    });
   }
 
   /**
@@ -152,7 +153,10 @@ class PDFManager {
     this.logger.info('添加PDF文件:', fileInfo);
     
     try {
-      this.websocketManager.send('add_pdf', { fileInfo });
+      this.eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, {
+        type: 'add_pdf',
+        data: { fileInfo }
+      });
       this.eventBus.emit(PDF_MANAGEMENT_EVENTS.ADD.STARTED, fileInfo);
     } catch (error) {
       this.logger.error('添加PDF失败:', error);
@@ -168,7 +172,10 @@ class PDFManager {
     this.logger.info('删除PDF文件:', filename);
     
     try {
-      this.websocketManager.send('remove_pdf', { filename });
+      this.eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, {
+        type: 'remove_pdf',
+        data: { filename }
+      });
       this.eventBus.emit(PDF_MANAGEMENT_EVENTS.REMOVE.STARTED, filename);
     } catch (error) {
       this.logger.error('删除PDF失败:', error);

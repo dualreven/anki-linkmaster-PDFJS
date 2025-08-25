@@ -1,36 +1,3 @@
 {
-  "files": {
-    "b8dfc87455af": {
-      "id": "b8dfc87455af",
-      "filename": "b8dfc87455af.pdf",
-      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
-      "file_size": 38840700,
-      "created_time": 1755946052.915306,
-      "modified_time": 1754465386.9573991,
-      "title": "未命名笔记",
-      "author": "",
-      "subject": "",
-      "keywords": "",
-      "page_count": 0,
-      "thumbnail_path": null,
-      "tags": [],
-      "notes": ""
-    },
-    "47eb644ee5cb": {
-      "id": "47eb644ee5cb",
-      "filename": "47eb644ee5cb.pdf",
-      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\47eb644ee5cb.pdf",
-      "file_size": 39285362,
-      "created_time": 1755946052.9393125,
-      "modified_time": 1754465342.2901864,
-      "title": "未命名笔记(1)",
-      "author": "",
-      "subject": "",
-      "keywords": "",
-      "page_count": 0,
-      "thumbnail_path": null,
-      "tags": [],
-      "notes": ""
-    }
-  }
+  "files": {}
 }

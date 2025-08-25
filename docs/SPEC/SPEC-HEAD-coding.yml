@@ -1,4 +1,3 @@
-<![CDATA[---
 # 编码规范头文件，索引所有编码相关的规范
 self-desc: "编码规范头文件"
 version: 1.0
@@ -57,4 +56,3 @@ private:
   desc: "API和数据库命名规范"
 - id: ENV-VARIABLE-NAMING-001
   desc: "环境变量命名规范"
-]]>

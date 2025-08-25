@@ -23,7 +23,6 @@ class WSClient {
     this.maxReconnectAttempts = 5;
     this.reconnectDelay = 1000;
     this.messageQueue = [];
-    this.messageHandlers = {};
   }
 
   /**
@@ -136,18 +135,6 @@ class WSClient {
   }
 
   /**
-   * 注册消息处理器
-   * @param {string} messageType - 消息类型
-   * @param {Function} handler - 处理函数
-   */
-  registerHandler(messageType, handler) {
-    if (!this.messageHandlers[messageType]) {
-      this.messageHandlers[messageType] = [];
-    }
-    this.messageHandlers[messageType].push(handler);
-  }
-
-  /**
    * 处理接收到的消息
    * @param {string} rawData - 原始消息数据
    */
@@ -156,40 +143,31 @@ class WSClient {
       const message = JSON.parse(rawData);
       this.logger.debug(`收到消息: ${message.type}`, message);
       
-      // 通过事件总线分发消息
+      // 通过事件总线分发消息，使用标准事件常量
       if (this.eventBus) {
-        // 注意：这里的事件名称可能不符合 {module}:{action}:{status} 格式
-        // 我们需要根据消息类型进行适当的转换
-        let eventType = `websocket:message:${message.type}`;
-        if (message.type === 'pdf_list_updated' || message.type === 'pdf_list' ||
-            message.type === 'success' || message.type === 'error') {
-          // 这些是已知的事件类型，使用常量
-          if (message.type === 'pdf_list_updated') {
-            this.eventBus.emit(WEBSOCKET_MESSAGE_EVENTS.PDF_LIST_UPDATED, message);
-          } else if (message.type === 'pdf_list') {
-            this.eventBus.emit(WEBSOCKET_MESSAGE_EVENTS.PDF_LIST, message);
-          } else if (message.type === 'success') {
-            this.eventBus.emit(WEBSOCKET_MESSAGE_EVENTS.SUCCESS, message);
-          } else if (message.type === 'error') {
-            this.eventBus.emit(WEBSOCKET_MESSAGE_EVENTS.ERROR, message);
-          }
-        } else {
-          // 对于未知的事件类型，我们暂时禁用验证
-          // 注意：这里的事件名称可能不符合 {module}:{action}:{status} 格式
-          // 我们需要动态创建一个符合格式的事件名称
-          const safeEventType = eventType.startsWith('websocket:message:') ? eventType : `websocket:message:unknown`;
-          this.eventBus.emit(safeEventType, message);
-        }
-        
+        // 首先分发通用的消息接收事件
         this.eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, message);
-      }
-      
-      // 调用注册的消息处理器
-      const { type } = message;
-      if (this.messageHandlers[type]) {
-        this.messageHandlers[type].forEach(handler => {
-          handler(message);
-        });
+        
+        // 根据消息类型分发特定事件
+        switch (message.type) {
+          case 'pdf_list_updated':
+            this.eventBus.emit(WEBSOCKET_MESSAGE_EVENTS.PDF_LIST_UPDATED, message);
+            break;
+          case 'pdf_list':
+            this.eventBus.emit(WEBSOCKET_MESSAGE_EVENTS.PDF_LIST, message);
+            break;
+          case 'success':
+            this.eventBus.emit(WEBSOCKET_MESSAGE_EVENTS.SUCCESS, message);
+            break;
+          case 'error':
+            this.eventBus.emit(WEBSOCKET_MESSAGE_EVENTS.ERROR, message);
+            break;
+          default:
+            // 对于未知消息类型，使用标准格式的事件名称
+            const eventName = `websocket:message:${message.type}`;
+            this.eventBus.emit(eventName, message);
+            break;
+        }
       }
       
     } catch (error) {
