@@ -1,0 +1,32 @@
+# 这是一个规范的头文件,描述本模块采用了哪些规范,方便后续的规范性检查
+self-desc: "模块pdf-table的规范头文件"
+version: 1.0
+
+public:
+- basepath: "../../../../docs/SPEC"  # 根目录下的全局规范文档
+  specs:
+  - id: FRONTEND-STRUCTURE-001
+    desc: "前端项目结构规范"
+  - id: FRONTEND-EVENT-NAMING-001
+    desc: "前端事件命名规范"
+  - id: JAVASCRIPT-CLASS-STRUCTURE-001
+    desc: "JavaScript类结构规范"
+  - id: JAVASCRIPT-FUNCTION-DESIGN-001
+    desc: "JavaScript函数设计规范"
+  - id: JAVASCRIPT-NAMING-CONVENTION-001
+    desc: "JavaScript命名规范"
+
+# 本模块私有的、新定义的规范
+private:
+- id: FRONTEND-ARCH-PDFTABLE-001
+  desc: "PDF表格模块化架构设计规范"
+- id: FRONTEND-DATA-PDFTABLE-001
+  desc: "PDF表格数据模型管理规范"
+- id: FRONTEND-PERF-PDFTABLE-001
+  desc: "PDF表格渲染性能优化规范"
+- id: FRONTEND-EVENT-PDFTABLE-001
+  desc: "PDF表格事件处理规范"
+- id: FRONTEND-CONFIG-PDFTABLE-001
+  desc: "PDF表格配置管理规范"
+- id: FRONTEND-STYLE-PDFTABLE-001
+  desc: "PDF表格样式和主题规范"

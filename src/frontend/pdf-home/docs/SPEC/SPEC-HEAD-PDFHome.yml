@@ -1,0 +1,33 @@
+# PDF-Home 模块规范头文件
+self-desc: "PDF-Home 模块的规范头文件"
+version: 1.1  # 版本更新：移除冗余规范，增加全局规范引用
+
+public:
+- basepath: "../../../docs/SPEC"  # 根目录下的全局规范文档
+  specs:
+  - id: FRONTEND-EVENT-BUS-001
+    desc: "前端事件总线使用规范"
+  - id: FRONTEND-EVENT-CONSTANTS-001
+    desc: "前端事件常量定义规范"
+  - id: FRONTEND-EVENT-ERROR-001
+    desc: "前端事件错误处理规范"
+  - id: FRONTEND-EVENT-NAMING-001
+    desc: "前端事件命名规范"
+  - id: MODULE-ORGANIZATION-001
+    desc: "模块组织规范"
+  - id: JAVASCRIPT-CLASS-STRUCTURE-001
+    desc: "JavaScript 类结构规范"
+  - id: JAVASCRIPT-FUNCTION-DESIGN-001
+    desc: "JavaScript 函数设计规范"
+  - id: JAVASCRIPT-NAMING-CONVENTION-001
+    desc: "JavaScript命名规范"
+
+    
+# 本模块私有的、新定义的规范
+private:
+- id: PDFHOME-ARCH-DESIGN-001
+  desc: "PDF-Home 架构设计规范"
+- id: PDFHOME-WEBSOCKET-INTEGRATION-001
+  desc: "PDF-Home WebSocket 集成规范"
+- id: PDFHOME-MODULE-INITIALIZATION-001
+  desc: "PDF-Home 模块初始化规范"

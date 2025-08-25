@@ -121,7 +121,7 @@
     <switch_mode><mode_slug>debug</mode_slug><reason>Tests failed.</reason></switch_mode>
     ```
 
-*   **`ask_followup_question(question, follow_up)`** - 在信息不足时向用户提问。
+*   **`ask_followup_question(question, follow_up)`** - 在信息不足时向用户提问,等待用户提供更多的信息再继续任务。
     ```xml
     <ask_followup_question><question>Which DB?</question><follow_up><suggest>Postgres</suggest><suggest>MySQL</suggest></follow_up></ask_followup_question>
     ```
@@ -130,5 +130,7 @@
     ```xml
     <attempt_completion><result>Feature X implemented and tested successfully.</result></attempt_completion>
     ```
-## 一些减少token消耗的技巧
-1. 如果你需要了解一个较大的文件, 你可以调用一个子任务, 获取其中的信息摘要返回. 
+## 各类模式介绍
+1. `SPEC-designer`模式,用于设计和修改开发规范,返回工作记录.
+2. `SPEC-reviewer`模式,用于审查代码是否满足规范要求,返回审查结果,给出是否通过的评价.
+
