@@ -35,6 +35,7 @@
 1. 简述完成报告
 2. 架构说明：[`AITASK/[序号-项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-架构说明.md`] 
 3. 规范说明：[`AITASK/[序号-项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-规范说明.md`] 
+4. 完成后,提交一次git
 
 ## 4. 任务拆解与测试用例设计
 创建子任务,(`new_task`,mode:`task-design-manager`)
@@ -51,6 +52,7 @@
 3. API用例集：[`AITASK/[序号-项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-API用例集.md`] 
 4. 综合任务群组：[`AITASK/[序号-项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-综合任务群组.md`] 
 5. 测试用例集：[`AITASK/[序号-项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-测试用例集.md`] 
+6. 完成后,提交一次git
 ## 5 分组计划与执行
 对[`AITASK/[序号-项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-综合任务群组.md`]每个任务群,创建子任务,(`new_task`,mode:`group-job-manager`)
 输入:
