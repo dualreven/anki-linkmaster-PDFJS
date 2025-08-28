@@ -1,0 +1,40 @@
+# pdf-table 模块规范头文件
+self-desc: "pdf-table 模块的规范头文件"
+version: 1.1  # 版本更新：完善规范引用
+
+public:
+- basepath: "../../../docs/SPEC"  # 根目录下的全局规范文档
+  specs:
+  - id: FRONTEND-EVENT-BUS-001
+    desc: "前端事件总线使用规范"
+  - id: FRONTEND-EVENT-CONSTANTS-001
+    desc: "前端事件常量定义规范"
+  - id: FRONTEND-EVENT-ERROR-001
+    desc: "前端事件错误处理规范"
+  - id: FRONTEND-EVENT-NAMING-001
+    desc: "前端事件命名规范"
+  - id: MODULE-ORGANIZATION-001
+    desc: "模块组织规范"
+  - id: JAVASCRIPT-CLASS-STRUCTURE-001
+    desc: "JavaScript 类结构规范"
+  - id: JAVASCRIPT-FUNCTION-DESIGN-001
+    desc: "JavaScript 函数设计规范"
+  - id: JAVASCRIPT-NAMING-CONVENTION-001
+    desc: "JavaScript命名规范"
+  - id: JSON-MESSAGE-FORMAT-001
+    desc: "JSON消息格式规范"
+  - id: HTTP-STATUS-CODE-001
+      desc: "HTTP状态码使用规范"
+
+# 本模块私有的、新定义的规范
+private:
+- id: PDFTABLE-ARCH-DESIGN-001
+  desc: "PDF-Table 架构设计规范"
+- id: PDFTABLE-API-CONTRACTS-001
+  desc: "PDF-Table API契约规范"
+- id: PDFTABLE-SORTING-001
+  desc: "PDF-Table 排序功能规范"
+- id: PDFTABLE-FILTERING-001
+  desc: "PDF-Table 筛选功能规范"
+- id: PDFTABLE-PAGINATION-001
+  desc: "PDF-Table 分页功能规范"

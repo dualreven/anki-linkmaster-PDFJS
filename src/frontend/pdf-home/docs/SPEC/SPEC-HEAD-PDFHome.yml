@@ -1,6 +1,6 @@
 # PDF-Home 模块规范头文件
 self-desc: "PDF-Home 模块的规范头文件"
-version: 1.1  # 版本更新：移除冗余规范，增加全局规范引用
+version: 1.2  # 版本更新：增加对pdf-table模块规范的引用
 
 public:
 - basepath: "../../../docs/SPEC"  # 根目录下的全局规范文档
@@ -37,6 +37,19 @@ public:
     desc: "前端测试模块注入规范"
   - id: FRONTEND-TEST-TOOLS-001
     desc: "前端测试工具规范"
+
+- basepath: "../../pdf-table/docs/SPEC"  # pdf-table模块规范文档
+  specs:
+  - id: PDFTABLE-ARCH-DESIGN-001
+    desc: "PDF-Table 架构设计规范"
+  - id: PDFTABLE-API-CONTRACTS-001
+    desc: "PDF-Table API契约规范"
+  - id: PDFTABLE-SORTING-001
+    desc: "PDF-Table 排序功能规范"
+  - id: PDFTABLE-FILTERING-001
+    desc: "PDF-Table 筛选功能规范"
+  - id: PDFTABLE-PAGINATION-001
+    desc: "PDF-Table 分页功能规范"
 
     
 # 本模块私有的、新定义的规范

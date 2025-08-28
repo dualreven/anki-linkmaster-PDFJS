@@ -25,19 +25,20 @@
 创建git迭代分支,命名为 `[序号]-[项目名]-v[原型版本号]`
 `AITASK/[序号-项目名]/`下创建对应的`v[原型版本号]`作为文件夹 
 ## 3.架构与规范设计
-创建子任务,采用`ArchSpec-Manager`模式
+创建子任务(`new_task`,mode:`archSpec-manager`)
 输入: 
 1. [`AITASK/[序号-项目名]/[YYYYMMDDhhmmss]-共识确认文档.md`] 
 2. [`AITASK/[序号-项目名]/[YYYYMMDDhhmmss]-原型迭代目标说明.md`] 
 3. 当前轮的版本号, 交接文件要存放的目录`AITASK/[序号-项目名]/v[原型版本号]` 
 4. 要求根据上述文件, 选择合适的架构,创建/修正对应模块的规范,使得架构合理,不同规范互不冲突
-返回:
+返回:(由 `archSpec-manager` 提供)
 1. 简述完成报告
 2. 架构说明：[`AITASK/[序号-项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-架构说明.md`] 
 3. 规范说明：[`AITASK/[序号-项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-规范说明.md`] 
+4. 完成后,提交一次git
 
 ## 4. 任务拆解与测试用例设计
-创建子任务,采用`Task-Design-Manager`模式
+创建子任务,(`new_task`,mode:`task-design-manager`)
 输入:
 1. [`AITASK/[序号-项目名]/[YYYYMMDDhhmmss]-共识确认文档.md`] 
 2. [`AITASK/[序号-项目名]/[YYYYMMDDhhmmss]-原型迭代目标说明.md`] 
@@ -45,14 +46,15 @@
 4. 规范说明：[`AITASK/[序号-项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-规范说明.md`] 
 5. 当前轮的版本号, 交接文件要存放的目录`AITASK/[序号-项目名]/v[原型版本号]` 
 6. 要求根据上述文件, 按顺序依次生成 1 API用例集 2 原子任务集 3 测试用例集 4 综合任务群组
-返回:
+返回:(由 `task-design-manager` 提供)
 1. 简述完成报告
 2. 原子任务集：[`AITASK/[序号-项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-原子任务集.md`] 
 3. API用例集：[`AITASK/[序号-项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-API用例集.md`] 
 4. 综合任务群组：[`AITASK/[序号-项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-综合任务群组.md`] 
 5. 测试用例集：[`AITASK/[序号-项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-测试用例集.md`] 
+6. 完成后,提交一次git
 ## 5 分组计划与执行
-对[`AITASK/[序号-项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-综合任务群组.md`]每个任务群,创建子任务,采用`Group-Job-Manager`模式 
+对[`AITASK/[序号-项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-综合任务群组.md`]每个任务群,创建子任务,(`new_task`,mode:`group-job-manager`)
 输入:
 1. [`AITASK/[序号-项目名]/[YYYYMMDDhhmmss]-共识确认文档.md`] 
 2. [`AITASK/[序号-项目名]/[YYYYMMDDhhmmss]-原型迭代目标说明.md`] 
@@ -64,7 +66,7 @@
 8. 测试用例集：[`AITASK/[序号-项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-测试用例集.md`] 
 9. 当前轮的版本号, 交接文件要存放的目录`AITASK/[序号-项目名]/v[原型版本号]`,指定定的任务群 
 10. 要求根据上述文件,对指定的任务群进一步分解执行,创建子任务,采用`Job-excutor`模式
-返回:
+返回:(由 `group-job-manager` 提供)
 1. 简述完成报告
 2. 分组任务文档：[`AITASK/[序号-项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-[任务群名]分组任务文档.md`] 
 
@@ -91,5 +93,5 @@
   - 分组任务执行结果模板参考：[`docs/AITASK/templates/分组任务执行结果.md`](docs/AITASK/templates/分组任务执行结果.md:1)
 
 - 要求：
-  1. 在 new_task 给 ArchSpec-Manager / Task-Design-Manager / Group-Job-Manager 委派时，明确在 message 中写明“参考模板路径”字段，便于子任务直接采用模板产出合规文档。
+  1. 在 new_task 给 archSpec-manager / task-design-manager / group-job-manager 委派时，明确在 message 中写明“参考模板路径”字段，便于子任务直接采用模板产出合规文档。
   2. 所有版本级产物（存放于 `AITASK/[序号-项目名]/v[原型版本号]/`）的 metadata 必须包含 `reference_templates` 字段。

@@ -3,10 +3,10 @@
 - 目标：执行 Test-Designer 产生的测试用例（单元/契约/集成/回归/验收），验证被测产物是否满足测试要求并产出测试验证报告，供 Group-Job-Manager 与 Proto-Iter-Developer 汇总与验收使用。
 
 # 必需输入
-- 测试用例集与测试数据：[`AITASK/[序号]-[项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-测试用例集.md`](AITASK/[序号]-[项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-测试用例集.md:1)
+- 测试用例集与测试数据：`AITASK/[序号]-[项目名]/v[原型版本号]/[任务组别编号]/[YYYYMMDDhhmmss]-测试用例集.md
 - 被测代码工件或服务入口（Code-Generator / Job-Executor 提供）
 - 执行环境说明与依赖（Group-Job-Manager 提供）
-- 版本目录：`AITASK/[序号]-[项目名]/v[原型版本号]`
+- 版本目录：`AITASK/[序号]-[项目名]/v[原型版本号]/`
 
 # 主要产出
 - 测试验证报告（覆盖率、通过/失败用例、日志、回归风险）：[`AITASK/[序号]-[项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-测试验证报告.md`](AITASK/[序号]-[项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-测试验证报告.md:1)

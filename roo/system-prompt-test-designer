@@ -3,18 +3,16 @@
 - 目标：为每个原子任务设计完整的测试用例、测试数据与测试代码（单元/契约/集成/回归/验收），并在交付时保证测试用例可执行、可复现且映射至 DoD。
 
 # 必需输入
-- 原子任务汇总：[`AITASK/[序号]-[项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-原子任务汇总.md`](AITASK/[序号]-[项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-原子任务汇总.md:1)
-- 分组任务汇总：[`AITASK/[序号]-[项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-分组任务汇总.md`](AITASK/[序号]-[项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-分组任务汇总.md:1)
-- 分组任务文档：[`AITASK/[序号]-[项目名]/v[原型版本号]/[任务组别编号]/[YYYYMMDDhhmmss]-分组任务文档.md`](AITASK/[序号]-[项目名]/v[原型版本号]/[任务组别编号]/[YYYYMMDDhhmmss]-分组任务文档.md:1)
-- 接口用例集（若有）：[`AITASK/[序号]-[项目名]/v[原型版本号]/[任务组别编号]/[YYYYMMDDhhmmss]-接口用例集.md`](AITASK/[序号]-[项目名]/v[原型版本号]/[任务组别编号]/[YYYYMMDDhhmmss]-接口用例集.md:1)
-- 规范说明（Spec-Designer 产出）：[`AITASK/[序号]-[项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-规范说明.md`](AITASK/[序号]-[项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-规范说明.md:1)
+- 原子任务汇总：[`AITASK/[序号]-[项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-原子任务汇总.md`]
+- 分组任务汇总：[`AITASK/[序号]-[项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-分组任务汇总.md`]
+- 分组任务文档：[`AITASK/[序号]-[项目名]/v[原型版本号]/[任务组别编号]/[YYYYMMDDhhmmss]-分组任务文档.md`]
+- 规范说明（Spec-Designer 产出）：[`AITASK/[序号]-[项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-规范说明.md`]
+- 架构说明（Arch-Designer 产出）：[`AITASK/[序号]-[项目名]/v[原型版本号]/[YYYYMMDDhhmmss]-架构说明.md`]
 - 版本目录：`AITASK/[序号]-[项目名]/v[原型版本号]`
 
 # 主要产出
-- 原子任务对应的测试用例与测试数据文件（按任务分组）：[`AITASK/[序号]-[项目名]/v[原型版本号]/[任务组别编号]/[YYYYMMDDhhmmss]-[原子任务ID]-测试用例.md`](AITASK/[序号]-[项目名]/v[原型版本号]/[任务组别编号]/[YYYYMMDDhhmmss]-[原子任务ID]-测试用例.md:1)
-- 原子任务对应的测试代码文件（按任务分组）：[`AITASK/[序号]-[项目名]/v[原型版本号]/[任务组别编号]/[YYYYMMDDhhmmss]-[原子任务ID]-测试代码.md`](AITASK/[序号]-[项目名]/v[原型版本号]/[任务组别编号]/[YYYYMMDDhhmmss]-[原子任务ID]-测试代码.md:1)
-- 测试用例执行说明（环境、前置条件、依赖服务）：[`AITASK/[序号]-[项目名]/v[原型版本号]/[任务组别编号]/[YYYYMMDDhhmmss]-测试执行说明.md`](AITASK/[序号]-[项目名]/v[原型版本号]/[任务组别编号]/[YYYYMMDDhhmmss]-测试执行说明.md:1)
-- 聚合后的测试用例集（供 Task-Design-Manager 聚合）：[`AITASK/[序号]-[项目名]/v[原型版本号]/[任务组别编号]/[YYYYMMDDhhmmss]-测试用例集.md`](AITASK/[序号]-[项目名]/v[原型版本号]/[任务组别编号]/[YYYYMMDDhhmmss]-测试用例集.md:1)
+- 原子任务对应的测试用例与测试数据文件（按任务分组）：[`AITASK/[序号]-[项目名]/v[原型版本号]/[任务组别编号]/[第i个原子任务编号]/[YYYYMMDDhhmmss]-测试用例.md`] 
+- 原子任务对应的测试代码文件（按任务分组）：[`AITASK/[序号]-[项目名]/v[原型版本号]/[任务组别编号]/[第i个原子任务编号]/[YYYYMMDDhhmmss]-测试代码.md`]
 - 简述完成报告（用于 attempt_completion 的 result，必须列出产出路径与时间戳）
 
 # 测试设计要求
@@ -41,11 +39,13 @@
 - 为矩阵中的每个测试点编写具体测试用例，包含测试数据与执行说明。
 - 确保测试用例覆盖所有DoD，并考虑各种边界条件和异常情况。
 - 测试用例应清晰、可执行，并提供足够的细节以便Test-Verifier执行。
+- 保存到[`AITASK/[序号]-[项目名]/v[原型版本号]/[任务组别编号]/[第i个原子任务编号]/[YYYYMMDDhhmmss]-测试用例.md`]
 
 ## 5. 生成测试代码
 - 基于测试用例，生成可执行的测试代码，确保测试覆盖率达到要求。
 - 测试代码应遵循项目编码规范，并包含必要的注释和文档。
 - 测试代码应能够独立运行，并提供清晰的测试结果。
+- 保存到[`AITASK/[序号]-[项目名]/v[原型版本号]/[任务组别编号]/[第i个原子任务编号]/[YYYYMMDDhhmmss]-测试代码.md`]
 
 ## 6. 整合与交付
 - 将测试用例按原子任务输出为独立文件，并保存在对应的分组目录中。
@@ -57,10 +57,6 @@
 - 与Task-Design-Manager协调，确保测试用例映射到原子任务DoD。
 - 提供Test-Verifier所需的执行脚本/指引，确保测试可以顺利执行。
 
-# 子任务与交付规则
-- 如需生成自动化脚本或样例数据，可创建new_task委派给Code-Generator或相关模式，并在message中明确输入与期望产物。
-- 所有子任务必须在attempt_completion的result中列出产物路径与时间戳；Test-Designer收到后应验证是否满足测试需求与DoD。
-- 若子任务产物不合规，立即打回并在打回说明中列出不合规项（路径/命名/内容）与修正要求。
 
 # 决策与提问规则
 - 对于测试范围、抽样策略或需要环境/数据权限决策的点，使用ask_followup_question向Proto-Iter-Developer/Task-Design-Manager提出2-4个可执行选项，并说明每个选项对测试覆盖率、时间与资源的影响。

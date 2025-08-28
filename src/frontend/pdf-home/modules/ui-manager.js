@@ -6,6 +6,9 @@
 // 导入DOM工具模块
 import { DOMUtils } from "../utils/dom-utils.js";
 
+// 导入PDF表格模块
+import PDFTable from "../../common/pdf-table/index.js";
+
 // 导入事件常量
 import {
   PDF_MANAGEMENT_EVENTS,
@@ -39,6 +42,9 @@ export class UIManager {
     this.#initializeElements();
     this.#setupEventListeners();
     this.#setupGlobalEventListeners();
+    
+    // 初始化PDF表格
+    this.#initializePDFTable();
   }
 
   /**
@@ -48,6 +54,11 @@ export class UIManager {
     this.#logger.info("Destroying UIManager and unsubscribing from events.");
     this.#unsubscribeFunctions.forEach((unsub) => unsub());
     this.#unsubscribeFunctions = [];
+    
+    // 销毁PDF表格
+    if (this.pdfTable && typeof this.pdfTable.destroy === 'function') {
+      this.pdfTable.destroy();
+    }
   }
 
   /**
@@ -65,6 +76,96 @@ export class UIManager {
       pdfTableContainer: DOMUtils.getElementById("pdf-table-container"),
       emptyState: DOMUtils.getElementById("empty-state"),
     };
+  }
+
+  /**
+   * 初始化PDF表格
+   */
+  #initializePDFTable() {
+    if (this.#elements.pdfTableContainer) {
+      // 配置PDF表格
+      const tableConfig = {
+        columns: [
+          {
+            id: 'filename',
+            title: '文件名',
+            field: 'filename',
+            width: 200,
+            align: 'left',
+            sortable: false, // 禁用排序功能
+            filterable: false, // 禁用筛选功能
+            visible: true
+          },
+          {
+            id: 'title',
+            title: '标题',
+            field: 'title',
+            width: 200,
+            align: 'left',
+            sortable: false, // 禁用排序功能
+            filterable: false, // 禁用筛选功能
+            visible: true
+          },
+          {
+            id: 'size',
+            title: '大小',
+            field: 'size',
+            width: 100,
+            align: 'right',
+            sortable: false, // 禁用排序功能
+            filterable: false, // 禁用筛选功能
+            visible: true,
+            formatter: 'fileSizeFormatter'
+          },
+          {
+            id: 'modified_time',
+            title: '修改时间',
+            field: 'modified_time',
+            width: 150,
+            align: 'center',
+            sortable: false, // 禁用排序功能
+            filterable: false, // 禁用筛选功能
+            visible: true,
+            formatter: 'dateFormatter'
+          },
+          {
+            id: 'page_count',
+            title: '页数',
+            field: 'page_count',
+            width: 80,
+            align: 'right',
+            sortable: false, // 禁用排序功能
+            filterable: false, // 禁用筛选功能
+            visible: true
+          },
+          {
+            id: 'actions',
+            title: '操作',
+            field: 'actions',
+            width: 120,
+            align: 'center',
+            sortable: false, // 禁用排序功能
+            filterable: false, // 禁用筛选功能
+            visible: true,
+            renderer: (value, row) => this.#createActionButtons(row)
+          }
+        ],
+        sortable: false, // 禁用排序功能
+        filterable: false, // 禁用筛选功能
+        pagination: false, // 禁用分页功能
+        selectable: false, // 禁用选择功能
+        exportEnabled: false, // 禁用导出功能
+        searchEnabled: false // 禁用搜索功能
+      };
+
+      // 创建PDF表格实例
+      this.pdfTable = new PDFTable(this.#elements.pdfTableContainer, tableConfig);
+      
+      // 初始化表格
+      this.pdfTable.initialize().catch(error => {
+        this.#logger.error("Failed to initialize PDF table:", error);
+      });
+    }
   }
 
   /**
@@ -94,7 +195,37 @@ export class UIManager {
       DOMUtils.addEventListener(this.#elements.debugBtn, "click", listener);
       this.#unsubscribeFunctions.push(() => DOMUtils.removeEventListener(this.#elements.debugBtn, "click", listener));
     }
-  }
+    
+    // 添加对PDF表格操作按钮的事件监听
+    const handleTableAction = (event) => {
+      const target = event.target;
+      if (target.tagName === 'BUTTON') {
+        const action = target.getAttribute('data-action');
+        const filename = target.getAttribute('data-filename');
+        
+        if (action && filename) {
+          event.preventDefault();
+          event.stopPropagation();
+          
+          switch (action) {
+            case 'open':
+              this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, filename);
+              break;
+            case 'remove':
+              if (confirm("确定要删除这个PDF文件吗？")) {
+                this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.REMOVE.REQUESTED, filename);
+              }
+              break;
+          }
+        }
+      }
+    };
+    
+    if (this.#elements.pdfTableContainer) {
+      DOMUtils.addEventListener(this.#elements.pdfTableContainer, 'click', handleTableAction);
+      this.#unsubscribeFunctions.push(() => DOMUtils.removeEventListener(this.#elements.pdfTableContainer, 'click', handleTableAction));
+    }
+ }
 
   /**
    * 设置全局事件监听
@@ -147,64 +278,58 @@ export class UIManager {
 
   #renderPDFList() {
     const { pdfs, loading } = this.#state;
-    const { pdfTableContainer, emptyState } = this.#elements;
-
-    if (!pdfTableContainer) return;
-
-    DOMUtils.empty(pdfTableContainer);
+    const { emptyState } = this.#elements;
 
     if (loading) {
-      const loadingDiv = DOMUtils.createElement("div", { className: "loading" }, "正在加载...");
-      DOMUtils.appendChild(pdfTableContainer, loadingDiv);
+      // 显示加载状态
+      if (this.pdfTable) {
+        this.pdfTable.displayEmptyState("正在加载...");
+      }
       DOMUtils.hide(emptyState);
     } else if (pdfs.length === 0) {
+      // 显示空状态
+      if (this.pdfTable) {
+        this.pdfTable.displayEmptyState();
+      }
       DOMUtils.show(emptyState);
     } else {
+      // 显示PDF列表
       DOMUtils.hide(emptyState);
-      const tableHeader = this.#createPDFListHeader();
-      DOMUtils.appendChild(pdfTableContainer, tableHeader);
-      pdfs.forEach((pdf) => {
-        const pdfItem = this.#createPDFItem(pdf);
-        DOMUtils.appendChild(pdfTableContainer, pdfItem);
-      });
+      if (this.pdfTable) {
+        // 转换数据格式以匹配pdf-table的期望格式
+        const tableData = pdfs.map(pdf => ({
+          ...pdf,
+          id: pdf.filename, // 使用文件名作为唯一标识符
+          size: pdf.size || 0,
+          modified_time: pdf.modified_time || '',
+          page_count: pdf.page_count || 0,
+          annotations_count: pdf.annotations_count || 0,
+          cards_count: pdf.cards_count || 0,
+          importance: pdf.importance || 'medium'
+        }));
+        
+        // 加载数据到表格
+        this.pdfTable.loadData(tableData).catch(error => {
+          this.#logger.error("Failed to load data into PDF table:", error);
+        });
+      }
     }
   }
 
   #createPDFListHeader() {
-    // ... implementation for creating header ...
-    return DOMUtils.createElement("div", { className: "pdf-list-header" });
+    // This method is no longer used as we're using pdf-table for rendering
+    return null;
   }
 
   #createPDFItem(pdf) {
-    // ... implementation for creating item ...
-    const item = DOMUtils.createElement("div", { className: "pdf-item" });
-    DOMUtils.addEventListener(item, "click", (event) => this.#handlePDFItemAction(event));
-    return item;
+    // This method is no longer used as we're using pdf-table for rendering
+    return null;
   }
 
   #handlePDFItemAction(event) {
-    const button = DOMUtils.closest(event.target, "button");
-    if (!button) return;
-
-    const action = DOMUtils.getAttribute(button, "data-action");
-    const filename = DOMUtils.getAttribute(button, "data-filename");
-
-    if (!action || !filename) return;
-
-    event.preventDefault();
-    event.stopPropagation();
-
-    switch (action) {
-      case "open":
-        this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, filename);
-        break;
-      case "remove":
-        if (confirm("确定要删除这个PDF文件吗？")) {
-          this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.REMOVE.REQUESTED, filename);
-        }
-        break;
-    }
-  }
+    // This method is no longer used as we're using pdf-table for rendering
+    // The event handling is now done in #setupEventListeners
+ }
 
   #handleBatchDelete() {
     const checkboxes = DOMUtils.findAllElements(".pdf-item-checkbox:checked");
@@ -219,6 +344,20 @@ export class UIManager {
         this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.REMOVE.REQUESTED, filename);
       });
     }
+  }
+
+  /**
+   * 创建操作按钮
+   * @param {Object} row - 表格行数据
+   * @returns {string} 操作按钮的HTML
+   */
+  #createActionButtons(row) {
+    return `
+      <div class="pdf-table-actions">
+        <button class="btn small primary" data-action="open" data-filename="${row.filename}">打开</button>
+        <button class="btn small danger" data-action="remove" data-filename="${row.filename}">删除</button>
+      </div>
+    `;
   }
 
   #toggleDebugStatus() {

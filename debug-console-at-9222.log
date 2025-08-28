@@ -1,4 +1,30 @@
---- Log Cleared and Initialized at 2025-08-26T04:16:15.761256 ---
+--- Log Cleared and Initialized at 2025-08-28T21:00:01.036417 ---
 --- Waiting for new console messages... ---
 
-[04:16:15.784][ERROR] Connection to http://localhost:9222/json failed. Is the Qt application with remote debugging running?
+[20:59:50.068][DEBUG] [vite] connecting...
+[20:59:50.168][DEBUG] [vite] connected.
+[20:59:50.260][INFO] [2025-08-28T12:59:50.246Z] [EventBus] [INFO] 事件总线已初始化 Object
+[20:59:50.263][INFO] [2025-08-28T12:59:50.263Z] [EventBus] [INFO] 事件总线已初始化 Object
+[20:59:50.266][INFO] [2025-08-28T12:59:50.266Z] [EventBus] [INFO] Event [pdf:list:updated]: 订阅 Object
+[20:59:50.266][INFO] [2025-08-28T12:59:50.266Z] [EventBus] [INFO] Event [websocket:connection:established]: 订阅 Object
+[20:59:50.266][INFO] [2025-08-28T12:59:50.266Z] [EventBus] [INFO] Event [websocket:connection:closed]: 订阅 Object
+[20:59:50.266][INFO] [2025-08-28T12:59:50.266Z] [EventBus] [INFO] Event [ui:error:show]: 订阅 Object
+[20:59:50.267][INFO] [2025-08-28T12:59:50.267Z] [EventBus] [INFO] Event [ui:success:show]: 订阅 Object
+[20:59:50.272][INFO] [2025-08-28T12:59:50.272Z] [PDFHomeApp] [INFO] Initializing PDF Home App...
+[20:59:50.274][INFO] [2025-08-28T12:59:50.274Z] [EventBus] [INFO] Event [websocket:message:updated]: 订阅 Object
+[20:59:50.274][ERROR] [2025-08-28T12:59:50.274Z] [EventBus] [ERROR] 事件订阅失败: 事件名称必须是非空字符串，但收到了：undefined Object
+[20:59:50.275][ERROR] [2025-08-28T12:59:50.275Z] [PDFHomeApp] [ERROR] Application initialization failed. Error: 无效的事件名称: 事件名称必须是非空字符串，但收到了：undefined
+    at EventBus.on (http://localhost:3000/pdf-home/modules/event-bus.js:58:15)
+    at #setupWebSocketListeners (http://localhost:3000/pdf-home/modules/pdf-manager.js:56:22)
+    at PDFManager.initialize (http://localhost:3000/pdf-home/modules/pdf-manager.js:35:34)
+    at PDFHomeApp.initialize (http://localhost:3000/pdf-home/index.js:47:24)
+    at HTMLDocument.<anonymous> (http://localhost:3000/pdf-home/index.js:101:7)
+[20:59:50.276][ERROR] [2025-08-28T12:59:50.276Z] [ErrorHandler] [ERROR] 错误发生在 [App.initialize]: 无效的事件名称: 事件名称必须是非空字符串，但收到了：undefined Error: 无效的事件名称: 事件名称必须是非空字符串，但收到了：undefined
+    at EventBus.on (http://localhost:3000/pdf-home/modules/event-bus.js:58:15)
+    at #setupWebSocketListeners (http://localhost:3000/pdf-home/modules/pdf-manager.js:56:22)
+    at PDFManager.initialize (http://localhost:3000/pdf-home/modules/pdf-manager.js:35:34)
+    at PDFHomeApp.initialize (http://localhost:3000/pdf-home/index.js:47:24)
+    at HTMLDocument.<anonymous> (http://localhost:3000/pdf-home/index.js:101:7)
+[20:59:50.277][INFO] [2025-08-28T12:59:50.277Z] [EventBus] [INFO] Event [ui:error:show]: 发布 Object
+[20:59:50.277][ERROR] [2025-08-28T12:59:50.277Z] [EventBus] [ERROR] 事件回调执行出错: DOMUtils.showError is not a function Object
+[20:59:50.278][LOG] PDF Home App started. Use window.app.getState() for status.
