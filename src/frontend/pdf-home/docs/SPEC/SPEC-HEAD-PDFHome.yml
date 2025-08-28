@@ -21,6 +21,22 @@ public:
     desc: "JavaScript 函数设计规范"
   - id: JAVASCRIPT-NAMING-CONVENTION-001
     desc: "JavaScript命名规范"
+  - id: FRONTEND-TEST-CLEANUP-001
+    desc: "前端测试清理规范"
+  - id: FRONTEND-TEST-CONSOLE-LOGGING-001
+    desc: "前端控制台调试规范"
+  - id: FRONTEND-TEST-DEBUGGING-001
+    desc: "前端调试指南规范"
+  - id: FRONTEND-TEST-ENVIRONMENT-001
+    desc: "前端测试环境规范"
+  - id: FRONTEND-TEST-FUNCTIONAL-001
+    desc: "前端功能测试规范"
+  - id: FRONTEND-TEST-METHOD-HMR-001
+    desc: "前端热更新测试方法规范"
+  - id: FRONTEND-TEST-MODULE-INJECTION-001
+    desc: "前端测试模块注入规范"
+  - id: FRONTEND-TEST-TOOLS-001
+    desc: "前端测试工具规范"
 
     
 # 本模块私有的、新定义的规范
