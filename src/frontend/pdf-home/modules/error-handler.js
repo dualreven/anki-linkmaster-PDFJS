@@ -4,21 +4,21 @@
  */
 
 // 导入日志模块
-import Logger from '../utils/logger.js';
+import Logger from "../utils/logger.js";
 
 // 导入事件常量
 import {
   SYSTEM_EVENTS,
   UI_EVENTS
-} from './event-constants.js';
+} from "./event-constants.js";
 
 /**
  * 错误类型枚举
  */
 export const ErrorType = {
-  BUSINESS: 'business',    // 业务错误
-  NETWORK: 'network',      // 网络错误
-  SYSTEM: 'system'         // 系统错误
+  BUSINESS: "business",    // 业务错误
+  NETWORK: "network",      // 网络错误
+  SYSTEM: "system"         // 系统错误
 };
 
 /**
@@ -27,7 +27,7 @@ export const ErrorType = {
 export class AppError extends Error {
   constructor(message, type = ErrorType.SYSTEM, code = null) {
     super(message);
-    this.name = 'AppError';
+    this.name = "AppError";
     this.type = type;
     this.code = code;
     this.timestamp = new Date().toISOString();
@@ -40,7 +40,7 @@ export class AppError extends Error {
 export class ErrorHandler {
   constructor(eventBus) {
     this.eventBus = eventBus;
-    this.logger = new Logger('ErrorHandler');
+    this.logger = new Logger("ErrorHandler");
   }
 
   /**
@@ -48,7 +48,7 @@ export class ErrorHandler {
    * @param {Error|AppError} error - 错误对象
    * @param {string} context - 错误上下文
    */
-  handleError(error, context = '') {
+  handleError(error, context = "") {
     const errorInfo = {
       message: error.message,
       stack: error.stack,
@@ -73,18 +73,18 @@ export class ErrorHandler {
    * @param {Error|AppError} error - 错误对象
    */
   showUserFriendlyError(error) {
-    let userMessage = '操作失败，请稍后重试';
+    let userMessage = "操作失败，请稍后重试";
 
     switch (error.type) {
-      case ErrorType.BUSINESS:
-        userMessage = error.message || '业务逻辑错误';
-        break;
-      case ErrorType.NETWORK:
-        userMessage = '网络连接失败，请检查网络设置';
-        break;
-      case ErrorType.SYSTEM:
-        userMessage = '系统错误，请联系管理员';
-        break;
+    case ErrorType.BUSINESS:
+      userMessage = error.message || "业务逻辑错误";
+      break;
+    case ErrorType.NETWORK:
+      userMessage = "网络连接失败，请检查网络设置";
+      break;
+    case ErrorType.SYSTEM:
+      userMessage = "系统错误，请联系管理员";
+      break;
     }
 
     // 通过事件总线通知UI显示错误消息

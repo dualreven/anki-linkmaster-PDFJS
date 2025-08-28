@@ -1,0 +1,96 @@
+// eslint.config.js
+import js from "@eslint/js";
+import globals from "globals";
+import tseslint from "typescript-eslint";
+import jsdoc from "eslint-plugin-jsdoc";
+
+export default [
+  // 使用 ESLint 官方推荐配置
+  js.configs.recommended,
+
+  // 针对 JavaScript 文件
+  {
+    files: ["**/*.js", "**/*.cjs", "**/*.mjs"],
+    plugins: {
+      jsdoc,
+    },
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "module",
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
+    },
+    rules: {
+      // 风格与质量控制
+      "eqeqeq": ["error", "always"],          // 强制使用 ===
+      "semi": ["error", "always"],            // 必须使用分号
+      "quotes": ["error", "double"],          // 统一双引号
+      "indent": ["error", 2],                 // 两格缩进
+      "no-trailing-spaces": "error",          // 禁止行尾空格
+      "eol-last": ["error", "always"],        // 文件末尾必须有换行
+      "no-multiple-empty-lines": ["error", { max: 1 }],
+      "curly": ["error", "all"],              // if/while 强制使用大括号
+
+      // 质量问题
+      "no-unused-vars": ["warn", { args: "none", ignoreRestSiblings: true }],
+      "no-console": "warn",
+      "no-debugger": "error",
+      "no-undef": "error",
+    },
+  },
+
+  // 针对 TypeScript 文件
+  ...tseslint.configs.recommended, // 官方推荐 TypeScript 规则
+  {
+    files: ["**/*.ts", "**/*.tsx"],
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: {
+        project: "./tsconfig.json", // 如果没有 tsconfig.json，可以去掉
+      },
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
+    },
+    rules: {
+      // TypeScript 常见质量规则
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/explicit-function-return-type": "warn",
+      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+      "@typescript-eslint/consistent-type-imports": "error",
+            // 强制函数必须写 JSDoc
+      "jsdoc/require-jsdoc": [
+        "error",
+        {
+          require: {
+            FunctionDeclaration: true,
+            MethodDefinition: true,
+            ClassDeclaration: true,
+            ArrowFunctionExpression: false, // 箭头函数可选
+            FunctionExpression: false,      // 匿名函数可选
+          },
+        },
+      ],
+      // 要求 JSDoc 必须有描述
+      "jsdoc/require-description": "warn",
+      // 确保 JSDoc 的参数和返回值与函数签名一致
+      "jsdoc/check-param-names": "error",
+      "jsdoc/require-param-type": "warn",
+      "jsdoc/require-returns-type": "warn",
+    },
+    
+  },
+
+  // 忽略文件
+  {
+    ignores: [
+      "dist/**",
+      "build/**",
+      "node_modules/**",
+      "**/*.min.js",
+    ],
+  },
+];

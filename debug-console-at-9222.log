@@ -1,4 +1,4 @@
---- Log Cleared and Initialized at 2025-08-25T23:01:18.465523 ---
+--- Log Cleared and Initialized at 2025-08-26T04:16:15.761256 ---
 --- Waiting for new console messages... ---
 
-[23:01:18.466][ERROR] Connection to http://localhost:9222/json failed. Is the Qt application with remote debugging running?
+[04:16:15.784][ERROR] Connection to http://localhost:9222/json failed. Is the Qt application with remote debugging running?

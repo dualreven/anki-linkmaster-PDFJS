@@ -1,144 +1,111 @@
 /**
- * PDF主页轻量级引导文件 v3
- * 负责模块导入、应用初始化和协调各模块之间的交互
+ * @file 应用主入口，负责模块的初始化、协调和生命周期管理。
+ * @module PDFHomeApp
  */
 
-// 导入事件总线模块
-import { EventBus } from './modules/event-bus.js';
+import { EventBus } from "./modules/event-bus.js";
+import { APP_EVENTS } from "./modules/event-constants.js";
+import Logger, { LogLevel } from "./utils/logger.js";
+import { ErrorHandler } from "./modules/error-handler.js";
+import { UIManager } from "./modules/ui-manager.js";
+import PDFManager from "./modules/pdf-manager.js";
+import WSClient from "./modules/ws-client.js";
 
-// 导入事件常量
-import {
-  APP_EVENTS,
-  SYSTEM_EVENTS,
-  WEBSOCKET_EVENTS,
-  PDF_MANAGEMENT_EVENTS,
-  UI_EVENTS,
-  WEBSOCKET_MESSAGE_EVENTS
-} from './modules/event-constants.js';
-
-// 导入日志模块
-import Logger, { LogLevel } from './utils/logger.js';
-
-// 导入错误处理模块
-import { ErrorHandler } from './modules/error-handler.js';
-
-// 导入UI管理器模块
-import { UIManager } from './modules/ui-manager.js';
-
-// 导入PDF管理器模块
-import PDFManager from './modules/pdf-manager.js';
-
-// 导入WebSocket客户端模块
-import WSClient from './modules/ws-client.js';
-
-// ===== 主应用类 =====
 /**
- * PDF主页应用类
- * 负责协调各模块之间的交互
+ * @class PDFHomeApp
+ * @description 应用的核心协调器，管理所有模块的生命周期。
  */
 class PDFHomeApp {
+  #logger;
+  #eventBus;
+  #errorHandler;
+  #websocketManager;
+  #pdfManager;
+  #uiManager;
+  #initialized = false;
+
   constructor() {
-    this.logger = new Logger('PDFHomeApp');
-    this.eventBus = new EventBus({
-      enableValidation: true,  // 启用事件名称验证
-      enableDebug: true,       // 启用调试功能
-      logLevel: LogLevel.DEBUG  // 设置日志级别为DEBUG，以便查看详细日志
+    this.#logger = new Logger("PDFHomeApp");
+    this.#eventBus = new EventBus({
+      enableValidation: true,
+      logLevel: LogLevel.DEBUG,
     });
-    this.errorHandler = new ErrorHandler(this.eventBus);
-    this.websocketManager = new WSClient('ws://localhost:8765', this.eventBus);
-    this.pdfManager = new PDFManager(this.eventBus);
-    this.uiManager = new UIManager(this.eventBus);
-    
-    this.initialized = false;
+    this.#errorHandler = new ErrorHandler(this.#eventBus);
+    this.#websocketManager = new WSClient("ws://localhost:8765", this.#eventBus);
+    this.#pdfManager = new PDFManager(this.#eventBus);
+    this.#uiManager = new UIManager(this.#eventBus);
   }
 
   /**
-   * 初始化应用
+   * 初始化所有应用模块。
    */
   async initialize() {
     try {
-      this.logger.info('正在初始化PDF主页应用');
+      this.#logger.info("Initializing PDF Home App...");
+      this.#setupGlobalErrorHandling();
       
-      // 初始化各组件
-      this.pdfManager.initialize();
+      this.#pdfManager.initialize();
+      this.#uiManager.initialize(); // UIManager now has its own initialization logic
+      this.#websocketManager.connect();
       
-      // 连接WebSocket
-      this.websocketManager.connect();
-      
-      // 设置全局错误处理
-      this.setupGlobalErrorHandling();
-      
-      // 设置完成标志
-      this.initialized = true;
-      
-      this.logger.info('PDF主页应用初始化完成');
-      
-      // 触发初始化完成事件
-      this.eventBus.emit(APP_EVENTS.INITIALIZATION.COMPLETED);
-      
+      this.#initialized = true;
+      this.#logger.info("PDF Home App initialized successfully.");
+      this.#eventBus.emit(APP_EVENTS.INITIALIZATION.COMPLETED);
     } catch (error) {
-      this.logger.error('应用初始化失败', error);
-      this.errorHandler.handleError(error, 'App.initialize');
+      this.#logger.error("Application initialization failed.", error);
+      this.#errorHandler.handleError(error, "App.initialize");
     }
   }
 
   /**
-   * 设置全局错误处理
+   * 销毁应用，清理所有资源。
    */
-  setupGlobalErrorHandling() {
-    // 捕获未处理的Promise rejection
-    window.addEventListener('unhandledrejection', (event) => {
-      this.logger.error('未处理的Promise rejection:', event.reason);
-      this.errorHandler.handleError(event.reason, 'UnhandledPromiseRejection');
-      event.preventDefault();
+  destroy() {
+    this.#logger.info("Destroying PDF Home App...");
+    this.#pdfManager.destroy();
+    this.#uiManager.destroy();
+    this.#websocketManager.disconnect();
+    this.#eventBus.destroy();
+    this.#logger.info("PDF Home App destroyed.");
+  }
+
+
+  #setupGlobalErrorHandling() {
+    window.addEventListener("unhandledrejection", (event) => {
+      this.#logger.error("Unhandled Promise Rejection:", event.reason);
+      this.#errorHandler.handleError(event.reason, "UnhandledPromiseRejection");
     });
-    
-    // 捕获全局错误
-    window.addEventListener('error', (event) => {
-      this.logger.error('全局错误:', event.error);
-      this.errorHandler.handleError(event.error, 'GlobalError');
-      event.preventDefault();
+
+    window.addEventListener("error", (event) => {
+      this.#logger.error("Global Error:", event.error);
+      this.#errorHandler.handleError(event.error, "GlobalError");
     });
   }
 
   /**
-   * 获取应用状态
-   * @returns {Object} 应用状态
+   * 获取应用的公开状态快照。
+   * @returns {object} 应用的当前状态。
    */
   getState() {
     return {
-      initialized: this.initialized,
-      websocketConnected: this.websocketManager.isConnected(),
-      pdfCount: this.pdfManager.getPDFs().length
-    };
-  }
-
-  /**
-   * 获取诊断信息
-   * @returns {Object} 诊断信息
-   */
-  getDiagnostics() {
-    return {
-      timestamp: new Date().toISOString(),
-      app: this.getState(),
-      logs: JSON.parse(localStorage.getItem('appLogs') || '[]').slice(-10)
+      initialized: this.#initialized,
+      websocketConnected: this.#websocketManager.isConnected(),
+      pdfCount: this.#pdfManager.getPDFs().length,
     };
   }
 }
 
 // ===== 应用启动 =====
-/**
- * 启动应用
- */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener("DOMContentLoaded", () => {
   const app = new PDFHomeApp();
   app.initialize().then(() => {
-    // 挂到全局方便调试
-    window.app = app;
-    window.eventBus = app.eventBus;
-    
-    console.log('PDF主页应用已启动');
+    window.app = {
+        getState: () => app.getState(),
+        destroy: () => app.destroy(),
+        _internal: app // For advanced debugging
+    };
+    console.log("PDF Home App started. Use window.app.getState() for status.");
   }).catch(error => {
-    console.error('PDF主页应用启动失败:', error);
+    console.error("Failed to start PDF Home App:", error);
   });
 });

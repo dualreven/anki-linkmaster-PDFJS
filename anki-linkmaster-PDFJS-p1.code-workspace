@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"name": "anki-linkmaster-PDFJS",
+			"path": "."
+		}
+	],
+	"settings": {
+		"python-envs.pythonProjects": [
+			{
+				"path": "AItask/src",
+				"envManager": "ms-python.python:venv",
+				"packageManager": "ms-python.python:pip"
+			}
+		]
+	}
+}
