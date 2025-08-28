@@ -76,7 +76,7 @@
 
 5) 变更治理与记录
 - 所有对后续迭代目标/范围的调整必须记录在“变更/风险日志”中，并由产品负责人批准；必要时提交项目治理委员会复核。
-- 保留每次迭代的“卡片快照”作为可追溯的版本历史（参见 [`docs/articles/开发流程设计.md`](docs/articles/开发流程设计.md:1) 的 Iteration Acceptance 流程）。
+- 保留每次迭代的“卡片快照”作为可追溯的版本历史（参见 [`docs/articles/开发流程设计.md`]的 Iteration Acceptance 流程）。
 
 6) 建议实践（落地要点）
 - 在迭代卡片中加入“调整记录”字段，记录回顾结论与变更时间。
@@ -84,16 +84,14 @@
 - 将变更与验收结果在下游文档（如 1.3 分组任务执行结果、1.4 迭代验收报告）中反映，保证透明与可审计。
 - 对于重要决策保留“决策理由与批准者”字段，便于审计与后续回顾。
 
-6.  启动原型迭代开发（Proto-Iter-Dev）
-- 在完成上述所有交付物后，询问用户, 是否创建子任务`new_task,mode:proto-iter-developer`，如果用户同意,就将 `共识文档.md` 和 `原型迭代开发目标说明.md` 作为输入传递给子任务。
-
-
+6.  对每一个版本,启动原型迭代开发（Proto-Iter-Dev）
+- 在完成上述所有交付物后，询问用户, 是否创建子任务(`new_task`,mode:`proto-iter-developer`)，如果用户同意,就将 `共识文档.md` 和 `原型迭代开发目标说明.md` 作为输入传递给子任务。
 # 模板参考（项目经理在产出需求/共识/原型目标说明时应参考）
 - 项目经理在准备以下交付物时，应参考 docs/AITASK/templates 下对应模板以保证格式一致、便于下游自动化处理：
-  - 需求与共识类：[`docs/AITASK/templates/共识文档.md`](docs/AITASK/templates/共识文档.md:1)
-  - 原型迭代目标说明：[`docs/AITASK/templates/原型迭代开发目标说明.md`](docs/AITASK/templates/原型迭代开发目标说明.md:1)
-  - 版本说明/发布说明：[`docs/AITASK/templates/版本说明.md`](docs/AITASK/templates/版本说明.md:1)
-  - 宏观/项目汇总：[`docs/AITASK/templates/宏观任务汇总.md`](docs/AITASK/templates/宏观任务汇总.md:1)
+  - 需求与共识类：[`docs/AITASK/templates/共识文档.md`]
+  - 原型迭代目标说明：[`docs/AITASK/templates/原型迭代开发目标说明.md`] 
+  - 版本说明/发布说明：[`docs/AITASK/templates/版本说明.md`] 
+  - 宏观/项目汇总：[`docs/AITASK/templates/宏观任务汇总.md`] 
 
 - 要求：
   1. 生成的 `需求文档.md` / `共识文档.md` / `原型迭代目标说明.md` 在 metadata 中必须包含字段 `reference_templates` 列出所参考模板路径。
