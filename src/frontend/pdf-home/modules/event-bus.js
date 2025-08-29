@@ -40,6 +40,7 @@ export class EventBus {
   #events = {};
   #enableValidation = true;
   #logger;
+  #nextSubscriberId = 1;
 
   constructor(options = {}) {
     this.#enableValidation = options.enableValidation !== false;
@@ -47,38 +48,81 @@ export class EventBus {
     if (options.logLevel) {
       this.#logger.setLogLevel(options.logLevel);
     }
-    this.#logger.info("事件总线已初始化", { validation: this.#enableValidation });
+    this.#logger.info(`事件总线已初始化，验证模式: ${this.#enableValidation}, 日志级别: ${options.logLevel || 'INFO'}`);
   }
 
-  on(event, callback) {
+  #inferActorId() {
+    try {
+      const err = new Error();
+      const stack = err.stack || '';
+      const lines = stack.split('\n').map(l => l.trim()).filter(Boolean);
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (!/event-bus\.js|EventBus\./i.test(line)) {
+          const m = line.match(/at\s+(.*)\s+\((.*):(\d+):(\d+)\)$/) || line.match(/at\s+(.*):(\d+):(\d+)$/);
+          if (m) {
+            const func = m[1];
+            const file = m[2] || m[1];
+            const lineNo = m[3] || m[2];
+            return `${func}:${lineNo}`;
+          }
+          return line;
+        }
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  on(event, callback, options = {}) {
     if (this.#enableValidation) {
       const error = EventNameValidator.getValidationError(event);
       if (error) {
-        this.#logger.error(`事件订阅失败: ${error}`, { event });
+        this.#logger.error(`事件订阅失败: ${error}, 事件名: ${event}`);
         throw new Error(`无效的事件名称: ${error}`);
       }
     }
     if (!this.#events[event]) {
-      this.#events[event] = new Set();
+      this.#events[event] = new Map();
     }
-    this.#events[event].add(callback);
-    this.#logger.event(event, "订阅", { subscribers: this.#events[event].size });
+    const subscriberId = options.subscriberId || this.#inferActorId() || `sub_${this.#nextSubscriberId++}`;
+    this.#events[event].set(subscriberId, callback);
+    // 直接在日志消息中包含 subscriberId，避免序列化被截断导致无法看到身份
+    this.#logger.event(`${event}`,`订阅`, { subscriberId, actorId: this.#inferActorId()});
 
-    return () => this.off(event, callback);
+    return () => this.off(event, subscriberId);
   }
 
-  off(event, callback) {
+  off(event, callbackOrId) {
     const subscribers = this.#events[event];
-    if (subscribers && subscribers.has(callback)) {
-      subscribers.delete(callback);
+    if (!subscribers) return;
+
+    let removedId = null;
+    if (typeof callbackOrId === 'function') {
+      for (const [id, cb] of subscribers.entries()) {
+        if (cb === callbackOrId) {
+          subscribers.delete(id);
+          removedId = id;
+          break;
+        }
+      }
+    } else {
+      if (subscribers.has(callbackOrId)) {
+        subscribers.delete(callbackOrId);
+        removedId = callbackOrId;
+      }
+    }
+
+    if (removedId !== null) {
       if (subscribers.size === 0) {
         delete this.#events[event];
       }
-      this.#logger.event(event, "取消订阅", { remaining: subscribers.size || 0 });
+      this.#logger.event(`${event} (取消订阅 by ${removedId})`);
     }
   }
 
-  emit(event, data) {
+  emit(event, data, options = {}) {
     if (this.#enableValidation) {
       const error = EventNameValidator.getValidationError(event);
       if (error) {
@@ -88,23 +132,25 @@ export class EventBus {
     }
     const subscribers = this.#events[event];
     if (subscribers && subscribers.size > 0) {
-      this.#logger.event(event, "发布", { subscriberCount: subscribers.size, data });
-      subscribers.forEach(callback => {
+      const actorId = options.actorId || this.#inferActorId();
+      // 在消息文本中包含 actorId，便于一眼识别触发者
+      this.#logger.event(`${event} (发布 by ${actorId || 'unknown'})`, "发布", { actorId, subscriberCount: subscribers.size, data });
+      for (const [id, callback] of subscribers.entries()) {
         try {
           callback(data);
         } catch (err) {
-          this.#logger.error(`事件回调执行出错: ${err.message}`, { event, error: err });
+          this.#logger.error(`事件回调执行出错: ${err.message}`, { event, subscriberId: id, actorId, error: err });
         }
-      });
+      }
     }
   }
 
-  once(event, callback) {
+  once(event, callback, options = {}) {
     const onceWrapper = (data) => {
       this.off(event, onceWrapper);
       callback(data);
     };
-    return this.on(event, onceWrapper);
+    return this.on(event, onceWrapper, options);
   }
   
   destroy() {

@@ -3,13 +3,13 @@
  * @module PDFHomeApp
  */
 
-import { EventBus } from "./modules/event-bus.js";
-import { APP_EVENTS } from "./modules/event-constants.js";
+import { EventBus } from "../common/event/event-bus.js";
+import { APP_EVENTS } from "../common/event/event-constants.js";
 import Logger, { LogLevel } from "./utils/logger.js";
-import { ErrorHandler } from "./modules/error-handler.js";
-import { UIManager } from "./modules/ui-manager.js";
-import PDFManager from "./modules/pdf-manager.js";
-import WSClient from "./modules/ws-client.js";
+import { ErrorHandler } from "../common/error/error-handler.js";
+import { UIManager } from "../common/ui/ui-manager.js";
+import PDFManager from "../common/pdf/pdf-manager.js";
+import WSClient from "../common/ws/ws-client.js";
 
 /**
  * @class PDFHomeApp
@@ -50,7 +50,7 @@ class PDFHomeApp {
       
       this.#initialized = true;
       this.#logger.info("PDF Home App initialized successfully.");
-      this.#eventBus.emit(APP_EVENTS.INITIALIZATION.COMPLETED);
+      this.#eventBus.emit(APP_EVENTS.INITIALIZATION.COMPLETED, undefined, { actorId: 'PDFHomeApp' });
     } catch (error) {
       this.#logger.error("Application initialization failed.", error);
       this.#errorHandler.handleError(error, "App.initialize");
@@ -98,14 +98,15 @@ class PDFHomeApp {
 // ===== 应用启动 =====
 document.addEventListener("DOMContentLoaded", () => {
   const app = new PDFHomeApp();
+  const index_logger = new Logger("pdf-home/index.js");
   app.initialize().then(() => {
     window.app = {
         getState: () => app.getState(),
         destroy: () => app.destroy(),
         _internal: app // For advanced debugging
     };
-    console.log("PDF Home App started. Use window.app.getState() for status.");
+    index_logger.info("PDF Home App started. Use window.app.getState() for status.");
   }).catch(error => {
-    console.error("Failed to start PDF Home App:", error);
+    index_logger.error("Failed to start PDF Home App:", error);
   });
 });

@@ -7,7 +7,7 @@
 import {
   PDF_MANAGEMENT_EVENTS,
   UI_EVENTS
-} from '../pdf-home/modules/event-constants.js';
+} from '../common/event/event-constants.js';
 
 // 导入日志模块
 import Logger from '../pdf-home/utils/logger.js';
@@ -119,8 +119,8 @@ async function initializeTestEnvironment() {
         };
         
         // 添加事件监听器
-        testState.eventBus.on('ui:pdf_table:initialized', initializationHandler);
-        testState.eventBus.on('ui:pdf_table:initialization_failed', failureHandler);
+        testState.eventBus.on('ui:pdf_table:initialized', initializationHandler, { subscriberId: 'PDFTableIntegrationTest' });
+        testState.eventBus.on('ui:pdf_table:initialization_failed', failureHandler, { subscriberId: 'PDFTableIntegrationTest' });
       });
     }
   } else {
@@ -190,7 +190,7 @@ async function testDataLoadTest() {
     };
     
     // 添加事件监听器
-    testState.eventBus.on(PDF_MANAGEMENT_EVENTS.LIST.UPDATED, listUpdatedHandler);
+    testState.eventBus.on(PDF_MANAGEMENT_EVENTS.LIST.UPDATED, listUpdatedHandler, { subscriberId: 'PDFTableIntegrationTest' });
     
     // 模拟触发pdf:management:list_updated事件
     console.log('[TEST] 模拟触发pdf:management:list_updated事件');
@@ -234,7 +234,7 @@ async function testSelectionEventTest() {
     };
     
     // 添加事件监听器
-    testState.eventBus.on(UI_EVENTS.SELECTION_CHANGED, selectionChangedHandler);
+    testState.eventBus.on(UI_EVENTS.SELECTION_CHANGED, selectionChangedHandler, { subscriberId: 'PDFTableIntegrationTest' });
     
     // 模拟选中表格中的一行
     console.log('[TEST] 模拟选中表格中的一行');
@@ -285,7 +285,7 @@ async function testDeleteEventTest() {
     };
     
     // 添加事件监听器
-    testState.eventBus.on(PDF_MANAGEMENT_EVENTS.DELETE.REQUESTED, deleteRequestedHandler);
+    testState.eventBus.on(PDF_MANAGEMENT_EVENTS.DELETE.REQUESTED, deleteRequestedHandler, { subscriberId: 'PDFTableIntegrationTest' });
     
     // 模拟点击某行的"删除"按钮
     console.log('[TEST] 模拟点击某行的"删除"按钮');

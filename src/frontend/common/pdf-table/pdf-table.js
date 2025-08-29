@@ -3,6 +3,15 @@
  * @module PDFTable
  */
 
+import PDFTableConfig from './pdf-table-config.js';
+import PDFTableDataModel from './pdf-table-data-model.js';
+import PDFTableRenderer from './pdf-table-renderer.js';
+import PDFTableSelection from './pdf-table-selection.js';
+import PDFTableSorting from './pdf-table-sorting.js';
+import PDFTableFiltering from './pdf-table-filtering.js';
+import PDFTablePagination from './pdf-table-pagination.js';
+import PDFTableEvents from './pdf-table-events.js';
+
 class PDFTable {
     /**
      * Create a new PDFTable instance
@@ -37,11 +46,11 @@ class PDFTable {
         
         // Initialize core components
         this.config = new PDFTableConfig(config);
-        this.events = new PDFTableEvents();
+        // Use unified EventBus wrapper for namespaced events
+        this.events = new PDFTableEvents(config.namespace || null);
         this.dataModel = new PDFTableDataModel();
-        this.renderer = new PDFTableRenderer(this);
         
-        // Initialize functional modules
+        // Initialize functional modules (renderer will be initialized later)
         this.selection = new PDFTableSelection(this);
         this.sorting = new PDFTableSorting(this);
         this.filtering = new PDFTableFiltering(this);
@@ -66,6 +75,9 @@ class PDFTable {
             
             // Setup container structure
             this.setupContainer();
+            
+            // Initialize renderer after container is set up
+            this.renderer = new PDFTableRenderer(this);
             
             // Setup event listeners
             this.setupEventListeners();
@@ -94,28 +106,48 @@ class PDFTable {
      * Setup container structure
      */
     setupContainer() {
-        this.container.innerHTML = '';
-        this.container.className = `pdf-table-container pdf-table-container--${this.config.theme}`;
-        
-        // Create table wrapper
-        this.tableWrapper = document.createElement('div');
-        this.tableWrapper.className = 'pdf-table-wrapper';
-        
-        // Create loading indicator
-        this.loadingIndicator = document.createElement('div');
-        this.loadingIndicator.className = 'pdf-table-loading';
-        this.loadingIndicator.innerHTML = '<div class="pdf-table-loading-spinner"></div>';
-        this.loadingIndicator.style.display = 'none';
-        
-        // Create error message
-        this.errorMessage = document.createElement('div');
-        this.errorMessage.className = 'pdf-table-error';
-        this.errorMessage.style.display = 'none';
-        
-        // Assemble container
-        this.container.appendChild(this.loadingIndicator);
-        this.container.appendChild(this.errorMessage);
-        this.container.appendChild(this.tableWrapper);
+        // Preserve host container children; only ensure required internal elements exist
+        // Add base classes without wiping out host content
+        try {
+            this.container.classList.add('pdf-table-container');
+            this.container.classList.add(`pdf-table-container--${this.config.theme}`);
+        } catch (e) {
+            // ignore if classList not available
+            this.container.className = `pdf-table-container pdf-table-container--${this.config.theme}`;
+        }
+
+        // Find or create table wrapper
+        const existingWrapper = this.container.querySelector('.pdf-table-wrapper');
+        if (existingWrapper) {
+            this.tableWrapper = existingWrapper;
+        } else {
+            this.tableWrapper = document.createElement('div');
+            this.tableWrapper.className = 'pdf-table-wrapper';
+            this.container.appendChild(this.tableWrapper);
+        }
+
+        // Create or reuse loading indicator
+        const existingLoading = this.container.querySelector('.pdf-table-loading');
+        if (existingLoading) {
+            this.loadingIndicator = existingLoading;
+        } else {
+            this.loadingIndicator = document.createElement('div');
+            this.loadingIndicator.className = 'pdf-table-loading';
+            this.loadingIndicator.innerHTML = '<div class="pdf-table-loading-spinner"></div>';
+            this.loadingIndicator.style.display = 'none';
+            this.container.insertBefore(this.loadingIndicator, this.tableWrapper);
+        }
+
+        // Create or reuse error message
+        const existingError = this.container.querySelector('.pdf-table-error');
+        if (existingError) {
+            this.errorMessage = existingError;
+        } else {
+            this.errorMessage = document.createElement('div');
+            this.errorMessage.className = 'pdf-table-error';
+            this.errorMessage.style.display = 'none';
+            this.container.insertBefore(this.errorMessage, this.tableWrapper);
+        }
     }
     
     /**
@@ -170,7 +202,6 @@ class PDFTable {
                 
                 const validData = filesData.filter((_, index) => !invalidRowIndices.has(index));
                 
-                console.log(`经过宽松验证后保留有效数据: ${validData.length}/${filesData.length} 条记录`);
                 
                 if (validData.length > 0) {
                     this.processValidatedData(validData);
@@ -201,17 +232,23 @@ class PDFTable {
      * @param {Array} data - 验证通过的数据
      */
     processValidatedData(data) {
+        
         // Update state
         this.state.data = data;
         this.state.filteredData = [...data];
         this.state.sortedData = [...data];
         
+        // CRITICAL FIX: Clear loading state
+        this.state.isLoading = false;
+        this.state.error = null;
+
         // Reset pagination
         this.state.currentPage = 1;
         
         // Emit events
         this.events.emit('data-loaded', data);
         this.events.emit('data-changed', data);
+
     }
 
     /**
@@ -267,8 +304,24 @@ class PDFTable {
             </div>
         `;
         
-        this.container.innerHTML = '';
-        this.container.appendChild(emptyState);
+        // Append empty state into the existing table wrapper to avoid detaching the main container
+        if (this.tableWrapper) {
+            this.tableWrapper.innerHTML = '';
+            this.tableWrapper.appendChild(emptyState);
+        } else {
+            const existingWrapper = this.container.querySelector('.pdf-table-wrapper');
+            if (existingWrapper) {
+                this.tableWrapper = existingWrapper;
+                this.tableWrapper.innerHTML = '';
+                this.tableWrapper.appendChild(emptyState);
+            } else {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'pdf-table-wrapper';
+                wrapper.appendChild(emptyState);
+                this.container.appendChild(wrapper);
+                this.tableWrapper = wrapper;
+            }
+        }
         
         this.events.emit('data-changed', []);
     }
@@ -307,8 +360,24 @@ class PDFTable {
             this.events.emit('retry-load');
         });
         
-        this.container.innerHTML = '';
-        this.container.appendChild(errorState);
+        // Place error state inside tableWrapper if available to avoid removing container children
+        if (this.tableWrapper) {
+            this.tableWrapper.innerHTML = '';
+            this.tableWrapper.appendChild(errorState);
+        } else {
+            const existingWrapper = this.container.querySelector('.pdf-table-wrapper');
+            if (existingWrapper) {
+                this.tableWrapper = existingWrapper;
+                this.tableWrapper.innerHTML = '';
+                this.tableWrapper.appendChild(errorState);
+            } else {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'pdf-table-wrapper';
+                wrapper.appendChild(errorState);
+                this.container.appendChild(wrapper);
+                this.tableWrapper = wrapper;
+            }
+        }
         
         this.events.emit('data-changed', []);
     }
@@ -444,21 +513,34 @@ class PDFTable {
      * Update the table display
      */
     async updateDisplay() {
+
+        // Update indicators
         if (this.state.isLoading) {
             this.showLoading();
-            return;
+        } else {
+            this.hideLoading();
         }
-        
+
         if (this.state.error) {
-            this.showError(this.state.error);
-            return;
+            this.displayErrorState(this.state.error);
+        } else {
+            this.hideError();
         }
-        
-        this.hideLoading();
-        this.hideError();
-        
+
+        // Prepare processed data and delegate rendering to renderer
         const processedData = this.getProcessedData();
-        await this.renderer.render(processedData);
+
+        try {
+            if (this.renderer && typeof this.renderer.render === 'function') {
+                await this.renderer.render(processedData);
+            } else {
+                console.warn('PDFTable.updateDisplay: renderer not available');
+            }
+        } catch (err) {
+            console.error('PDFTable.updateDisplay: render failed', err);
+            this.displayErrorState('渲染失败：' + (err && err.message ? err.message : String(err)));
+        }
+
     }
     
     /**

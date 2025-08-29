@@ -4,13 +4,13 @@
  */
 
 // 导入日志模块
-import Logger from "../utils/logger.js";
+import Logger from "../../pdf-home/utils/logger.js";
 
 // 导入事件常量
 import {
   SYSTEM_EVENTS,
   UI_EVENTS
-} from "./event-constants.js";
+} from "../event/event-constants.js";
 
 /**
  * 错误类型枚举
