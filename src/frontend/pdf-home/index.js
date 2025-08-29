@@ -5,7 +5,7 @@
 
 import { EventBus } from "../common/event/event-bus.js";
 import { APP_EVENTS } from "../common/event/event-constants.js";
-import Logger, { LogLevel } from "./utils/logger.js";
+import Logger, { LogLevel } from "../common/utils/logger.js";
 import { ErrorHandler } from "../common/error/error-handler.js";
 import { UIManager } from "../common/ui/ui-manager.js";
 import PDFManager from "../common/pdf/pdf-manager.js";

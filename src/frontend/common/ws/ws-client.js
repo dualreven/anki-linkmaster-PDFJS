@@ -1,7 +1,7 @@
 /**
  * WSClient (moved)
  */
-import Logger from "../../pdf-home/utils/logger.js";
+import Logger from "../utils/logger.js";
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS } from "../event/event-constants.js";
 
 export class WSClient {

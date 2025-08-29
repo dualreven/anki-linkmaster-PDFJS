@@ -1,7 +1,7 @@
 /**
  * 错误处理模块 (moved)
  */
-import Logger from "../../pdf-home/utils/logger.js";
+import Logger from "../utils/logger.js";
 import { SYSTEM_EVENTS, UI_EVENTS } from "../event/event-constants.js";
 
 export const ErrorType = { BUSINESS: "business", NETWORK: "network", SYSTEM: "system" };

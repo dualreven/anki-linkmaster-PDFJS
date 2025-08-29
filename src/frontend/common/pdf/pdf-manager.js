@@ -6,7 +6,7 @@
 
 import { PDF_MANAGEMENT_EVENTS, WEBSOCKET_MESSAGE_EVENTS, WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../event/event-constants.js";
 
-import Logger from "../../pdf-home/utils/logger.js";
+import Logger from "../utils/logger.js";
 
 
 

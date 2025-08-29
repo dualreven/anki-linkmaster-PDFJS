@@ -1,14 +1,14 @@
 /**
  * UI管理器模块 (moved)
  */
-import { DOMUtils } from "../../pdf-home/utils/dom-utils.js";
+import { DOMUtils } from "../utils/dom-utils.js";
 import PDFTable from "../pdf-table/index.js";
 import {
   PDF_MANAGEMENT_EVENTS,
   WEBSOCKET_EVENTS,
   UI_EVENTS,
 } from "../event/event-constants.js";
-import Logger from "../../pdf-home/utils/logger.js";
+import Logger from "../utils/logger.js";
 
 export class UIManager {
   #state;
@@ -211,8 +211,30 @@ export class UIManager {
   }
 
   #handleBatchDelete() {
-    const checkboxes = DOMUtils.findAllElements(".pdf-item-checkbox:checked");
+    // Support both legacy list checkboxes and pdf-table checkboxes
+    let checkboxes = Array.from(DOMUtils.findAllElements(".pdf-item-checkbox:checked") || []);
+    if (checkboxes.length === 0) {
+      checkboxes = Array.from(DOMUtils.findAllElements('.pdf-table-checkbox:checked') || []);
+    }
     if (checkboxes.length === 0) { this.showError("请先选择要删除的PDF文件"); return; }
+
+    if (!confirm(`确定要删除选中的 ${checkboxes.length} 个PDF文件吗？`)) return;
+
+    checkboxes.forEach(checkbox => {
+      // Prefer explicit filename attribute, fall back to rowId mapping
+      let filename = DOMUtils.getAttribute(checkbox, "data-filename") || DOMUtils.getAttribute(checkbox, "data-filepath");
+      if (!filename) {
+        const rowId = (checkbox.dataset && (checkbox.dataset.rowId || checkbox.dataset.rowid)) || DOMUtils.getAttribute(checkbox, 'data-row-id') || DOMUtils.getAttribute(checkbox, 'data-rowid');
+        if (rowId && Array.isArray(this.#state?.pdfs)) {
+          const entry = this.#state.pdfs.find(p => String(p.id) === String(rowId) || String(p.filename) === String(rowId));
+          filename = entry ? entry.filename : rowId;
+        } else {
+          filename = rowId;
+        }
+      }
+
+      this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.REMOVE.REQUESTED, filename);
+    });
   }
 
   #toggleDebugStatus() {

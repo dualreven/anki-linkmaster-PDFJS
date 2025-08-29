@@ -10,7 +10,7 @@ import {
 } from '../common/event/event-constants.js';
 
 // 导入日志模块
-import Logger from '../pdf-home/utils/logger.js';
+import Logger from '../common/utils/logger.js';
 
 // 测试模块状态
 const testState = {

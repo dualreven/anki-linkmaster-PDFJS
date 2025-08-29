@@ -1,7 +1,7 @@
 /**
  * 事件总线模块 (moved)
  */
-import { Logger, LogLevel } from "../../pdf-home/utils/logger.js";
+import { Logger, LogLevel } from "../utils/logger.js";
 
 class EventNameValidator {
   static validate(event) {
