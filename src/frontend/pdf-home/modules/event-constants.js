@@ -84,9 +84,11 @@ export const UI_EVENTS = {
 // ===== WebSocket消息事件 =====
 export const WEBSOCKET_MESSAGE_EVENTS = {
   PDF_LIST_UPDATED: "websocket:message:updated",
+  PDF_LIST: "websocket:message:list", // 新增：用于PDF列表消息
   PDF_LIST_RECEIVED: "websocket:message:received",
   SUCCESS: "websocket:message:success",
   ERROR: "websocket:message:error",
+  RESPONSE: "websocket:message:response", // 新增：用于response类型消息
   UNKNOWN: "websocket:message:unknown" // 用于未知消息类型
 };
 
@@ -95,7 +97,8 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   GET_PDF_LIST: "get_pdf_list",
   ADD_PDF: "add_pdf",
   REMOVE_PDF: "remove_pdf",
-  OPEN_PDF: "open_pdf"
+  OPEN_PDF: "open_pdf",
+  REQUEST_FILE_SELECTION: "request_file_selection"
 };
 
 // ===== 事件名称验证工具 =====

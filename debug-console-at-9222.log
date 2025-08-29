@@ -1,30 +1,1564 @@
---- Log Cleared and Initialized at 2025-08-28T21:00:01.036417 ---
+--- Log Cleared and Initialized at 2025-08-30T00:47:57.285195 ---
 --- Waiting for new console messages... ---
 
-[20:59:50.068][DEBUG] [vite] connecting...
-[20:59:50.168][DEBUG] [vite] connected.
-[20:59:50.260][INFO] [2025-08-28T12:59:50.246Z] [EventBus] [INFO] 事件总线已初始化 Object
-[20:59:50.263][INFO] [2025-08-28T12:59:50.263Z] [EventBus] [INFO] 事件总线已初始化 Object
-[20:59:50.266][INFO] [2025-08-28T12:59:50.266Z] [EventBus] [INFO] Event [pdf:list:updated]: 订阅 Object
-[20:59:50.266][INFO] [2025-08-28T12:59:50.266Z] [EventBus] [INFO] Event [websocket:connection:established]: 订阅 Object
-[20:59:50.266][INFO] [2025-08-28T12:59:50.266Z] [EventBus] [INFO] Event [websocket:connection:closed]: 订阅 Object
-[20:59:50.266][INFO] [2025-08-28T12:59:50.266Z] [EventBus] [INFO] Event [ui:error:show]: 订阅 Object
-[20:59:50.267][INFO] [2025-08-28T12:59:50.267Z] [EventBus] [INFO] Event [ui:success:show]: 订阅 Object
-[20:59:50.272][INFO] [2025-08-28T12:59:50.272Z] [PDFHomeApp] [INFO] Initializing PDF Home App...
-[20:59:50.274][INFO] [2025-08-28T12:59:50.274Z] [EventBus] [INFO] Event [websocket:message:updated]: 订阅 Object
-[20:59:50.274][ERROR] [2025-08-28T12:59:50.274Z] [EventBus] [ERROR] 事件订阅失败: 事件名称必须是非空字符串，但收到了：undefined Object
-[20:59:50.275][ERROR] [2025-08-28T12:59:50.275Z] [PDFHomeApp] [ERROR] Application initialization failed. Error: 无效的事件名称: 事件名称必须是非空字符串，但收到了：undefined
-    at EventBus.on (http://localhost:3000/pdf-home/modules/event-bus.js:58:15)
-    at #setupWebSocketListeners (http://localhost:3000/pdf-home/modules/pdf-manager.js:56:22)
-    at PDFManager.initialize (http://localhost:3000/pdf-home/modules/pdf-manager.js:35:34)
-    at PDFHomeApp.initialize (http://localhost:3000/pdf-home/index.js:47:24)
-    at HTMLDocument.<anonymous> (http://localhost:3000/pdf-home/index.js:101:7)
-[20:59:50.276][ERROR] [2025-08-28T12:59:50.276Z] [ErrorHandler] [ERROR] 错误发生在 [App.initialize]: 无效的事件名称: 事件名称必须是非空字符串，但收到了：undefined Error: 无效的事件名称: 事件名称必须是非空字符串，但收到了：undefined
-    at EventBus.on (http://localhost:3000/pdf-home/modules/event-bus.js:58:15)
-    at #setupWebSocketListeners (http://localhost:3000/pdf-home/modules/pdf-manager.js:56:22)
-    at PDFManager.initialize (http://localhost:3000/pdf-home/modules/pdf-manager.js:35:34)
-    at PDFHomeApp.initialize (http://localhost:3000/pdf-home/index.js:47:24)
-    at HTMLDocument.<anonymous> (http://localhost:3000/pdf-home/index.js:101:7)
-[20:59:50.277][INFO] [2025-08-28T12:59:50.277Z] [EventBus] [INFO] Event [ui:error:show]: 发布 Object
-[20:59:50.277][ERROR] [2025-08-28T12:59:50.277Z] [EventBus] [ERROR] 事件回调执行出错: DOMUtils.showError is not a function Object
-[20:59:50.278][LOG] PDF Home App started. Use window.app.getState() for status.
+[00:47:57.329][DEBUG] [vite] connecting...
+[00:47:57.338][DEBUG] [vite] connected.
+[00:47:57.406][INFO] [2025-08-29T16:47:57.406Z] [EventBus] [INFO] 事件总线已初始化，验证模式: true, 日志级别: INFO
+[00:47:57.408][INFO] [2025-08-29T16:47:57.408Z] [EventBus] [INFO] 事件总线已初始化，验证模式: true, 日志级别: debug
+[00:47:57.410][INFO] [2025-08-29T16:47:57.409Z] [EventBus] [INFO] Event [websocket:message:send]: 订阅 {
+  "subscriberId": "WSClient",
+  "actorId": "#setupEventListeners:19"
+}
+[00:47:57.411][INFO] [2025-08-29T16:47:57.411Z] [PDFHomeApp] [INFO] Initializing PDF Home App...
+[00:47:57.413][INFO] [2025-08-29T16:47:57.413Z] [EventBus] [INFO] Event [websocket:message:updated]: 订阅 {
+  "subscriberId": "PDFManager",
+  "actorId": "#setupWebSocketListeners:27"
+}
+[00:47:57.415][INFO] [2025-08-29T16:47:57.415Z] [EventBus] [INFO] Event [websocket:message:list]: 订阅 {
+  "subscriberId": "PDFManager",
+  "actorId": "#setupWebSocketListeners:27"
+}
+[00:47:57.416][INFO] [2025-08-29T16:47:57.416Z] [EventBus] [INFO] Event [websocket:message:success]: 订阅 {
+  "subscriberId": "PDFManager",
+  "actorId": "#setupWebSocketListeners:27"
+}
+[00:47:57.416][INFO] [2025-08-29T16:47:57.416Z] [EventBus] [INFO] Event [websocket:message:error]: 订阅 {
+  "subscriberId": "PDFManager",
+  "actorId": "#setupWebSocketListeners:27"
+}
+[00:47:57.416][INFO] [2025-08-29T16:47:57.416Z] [EventBus] [INFO] Event [websocket:message:response]: 订阅 {
+  "subscriberId": "PDFManager",
+  "actorId": "#setupWebSocketListeners:27"
+}
+[00:47:57.417][INFO] [2025-08-29T16:47:57.417Z] [EventBus] [INFO] Event [websocket:message:received]: 订阅 {
+  "subscriberId": "PDFManager",
+  "actorId": "#setupWebSocketListeners:27"
+}
+[00:47:57.417][INFO] [2025-08-29T16:47:57.417Z] [EventBus] [INFO] Event [pdf:add:requested]: 订阅 {
+  "subscriberId": "PDFManager",
+  "actorId": "#setupEventListeners:29"
+}
+[00:47:57.417][INFO] [2025-08-29T16:47:57.417Z] [EventBus] [INFO] Event [pdf:remove:requested]: 订阅 {
+  "subscriberId": "PDFManager",
+  "actorId": "#setupEventListeners:29"
+}
+[00:47:57.417][INFO] [2025-08-29T16:47:57.417Z] [EventBus] [INFO] Event [pdf:open:requested]: 订阅 {
+  "subscriberId": "PDFManager",
+  "actorId": "#setupEventListeners:29"
+}
+[00:47:57.418][INFO] [2025-08-29T16:47:57.418Z] [PDFManager] [INFO] Requesting PDF list from server.
+[00:47:57.418][INFO] [2025-08-29T16:47:57.418Z] [EventBus] [INFO] Event [websocket:message:send (发布 by PDFManager)]: 发布 {
+  "actorId": "PDFManager",
+  "subscriberCount": 1,
+  "data": {
+    "type": "get_pdf_list"
+  }
+}
+[00:47:57.420][INFO] [2025-08-29T16:47:57.419Z] [WSClient] [INFO] Received request to send message: {
+  "type": "get_pdf_list"
+}
+[00:47:57.420][INFO] [2025-08-29T16:47:57.420Z] [PDFManager] [INFO] PDF Manager initialized.
+[00:47:57.420][INFO] [2025-08-29T16:47:57.420Z] [UIManager] [INFO] Initializing UI Manager...
+[00:47:57.420][INFO] [2025-08-29T16:47:57.420Z] [EventBus] [INFO] Event [pdf:list:updated]: 订阅 {
+  "subscriberId": "#setupGlobalEventListeners:167",
+  "actorId": "#setupGlobalEventListeners:167"
+}
+[00:47:57.420][INFO] [2025-08-29T16:47:57.420Z] [EventBus] [INFO] Event [websocket:connection:established]: 订阅 {
+  "subscriberId": "#setupGlobalEventListeners:168",
+  "actorId": "#setupGlobalEventListeners:168"
+}
+[00:47:57.420][INFO] [2025-08-29T16:47:57.420Z] [EventBus] [INFO] Event [websocket:connection:closed]: 订阅 {
+  "subscriberId": "#setupGlobalEventListeners:169",
+  "actorId": "#setupGlobalEventListeners:169"
+}
+[00:47:57.420][INFO] [2025-08-29T16:47:57.420Z] [EventBus] [INFO] Event [ui:error:show]: 订阅 {
+  "subscriberId": "#setupGlobalEventListeners:170",
+  "actorId": "#setupGlobalEventListeners:170"
+}
+[00:47:57.421][INFO] [2025-08-29T16:47:57.421Z] [EventBus] [INFO] Event [ui:success:show]: 订阅 {
+  "subscriberId": "#setupGlobalEventListeners:171",
+  "actorId": "#setupGlobalEventListeners:171"
+}
+[00:47:57.421][INFO] [2025-08-29T16:47:57.421Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:row-click]: 订阅 {
+  "subscriberId": "pdf-table:1756486077421_ibu8d6",
+  "actorId": "PDFTableEvents.on:16"
+}
+[00:47:57.421][INFO] [2025-08-29T16:47:57.421Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:checkbox-click]: 订阅 {
+  "subscriberId": "pdf-table:1756486077421_ibu8d6",
+  "actorId": "PDFTableEvents.on:16"
+}
+[00:47:57.421][INFO] [2025-08-29T16:47:57.421Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:header-click]: 订阅 {
+  "subscriberId": "pdf-table:1756486077421_ibu8d6",
+  "actorId": "PDFTableEvents.on:16"
+}
+[00:47:57.421][INFO] [2025-08-29T16:47:57.421Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:data-changed]: 订阅 {
+  "subscriberId": "pdf-table:1756486077421_ibu8d6",
+  "actorId": "PDFTableEvents.on:16"
+}
+[00:47:57.421][INFO] [2025-08-29T16:47:57.421Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:header-click]: 订阅 {
+  "subscriberId": "pdf-table:1756486077421_ibu8d6",
+  "actorId": "PDFTableEvents.on:16"
+}
+[00:47:57.421][INFO] [2025-08-29T16:47:57.421Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:sort-changed]: 订阅 {
+  "subscriberId": "pdf-table:1756486077421_ibu8d6",
+  "actorId": "PDFTableEvents.on:16"
+}
+[00:47:57.422][INFO] [2025-08-29T16:47:57.422Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:filter-changed]: 订阅 {
+  "subscriberId": "pdf-table:1756486077421_ibu8d6",
+  "actorId": "PDFTableEvents.on:16"
+}
+[00:47:57.422][INFO] [2025-08-29T16:47:57.422Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:data-changed]: 订阅 {
+  "subscriberId": "pdf-table:1756486077421_ibu8d6",
+  "actorId": "PDFTableEvents.on:16"
+}
+[00:47:57.422][INFO] [2025-08-29T16:47:57.422Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:page-changed]: 订阅 {
+  "subscriberId": "pdf-table:1756486077421_ibu8d6",
+  "actorId": "PDFTableEvents.on:16"
+}
+[00:47:57.422][INFO] [2025-08-29T16:47:57.422Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:page-click]: 订阅 {
+  "subscriberId": "pdf-table:1756486077421_ibu8d6",
+  "actorId": "PDFTableEvents.on:16"
+}
+[00:47:57.422][INFO] [2025-08-29T16:47:57.422Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:pagination-click]: 订阅 {
+  "subscriberId": "pdf-table:1756486077421_ibu8d6",
+  "actorId": "PDFTableEvents.on:16"
+}
+[00:47:57.422][INFO] [2025-08-29T16:47:57.422Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:data-changed]: 订阅 {
+  "subscriberId": "pdf-table:1756486077421_ibu8d6",
+  "actorId": "PDFTableEvents.on:16"
+}
+[00:47:57.422][INFO] [2025-08-29T16:47:57.422Z] [UIManager] [INFO] PDF table instance created at: Object
+[00:47:57.428][INFO] [2025-08-29T16:47:57.428Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:data-loaded]: 订阅 {
+  "subscriberId": "pdf-table:1756486077421_ibu8d6",
+  "actorId": "PDFTableEvents.on:16"
+}
+[00:47:57.428][INFO] [2025-08-29T16:47:57.428Z] [EventBus] [INFO] Event [pdf:table:data-changed]: 订阅 {
+  "subscriberId": "#setupTableEventListeners:105",
+  "actorId": "#setupTableEventListeners:105"
+}
+[00:47:57.428][INFO] [2025-08-29T16:47:57.428Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:data-changed]: 订阅 {
+  "subscriberId": "pdf-table:1756486077421_ibu8d6",
+  "actorId": "PDFTableEvents.on:16"
+}
+[00:47:57.428][INFO] [2025-08-29T16:47:57.428Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:selection-changed]: 订阅 {
+  "subscriberId": "pdf-table:1756486077421_ibu8d6",
+  "actorId": "PDFTableEvents.on:16"
+}
+[00:47:57.428][INFO] [2025-08-29T16:47:57.428Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:sort-changed]: 订阅 {
+  "subscriberId": "pdf-table:1756486077421_ibu8d6",
+  "actorId": "PDFTableEvents.on:16"
+}
+[00:47:57.429][INFO] [2025-08-29T16:47:57.429Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:filter-changed]: 订阅 {
+  "subscriberId": "pdf-table:1756486077421_ibu8d6",
+  "actorId": "PDFTableEvents.on:16"
+}
+[00:47:57.429][INFO] [2025-08-29T16:47:57.429Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:page-changed]: 订阅 {
+  "subscriberId": "pdf-table:1756486077421_ibu8d6",
+  "actorId": "PDFTableEvents.on:16"
+}
+[00:47:57.429][INFO] [2025-08-29T16:47:57.429Z] [UIManager] [INFO] UI Manager initialized successfully.
+[00:47:57.429][INFO] [2025-08-29T16:47:57.429Z] [WSClient] [INFO] Connecting to WebSocket server: ws://localhost:8765
+[00:47:57.429][INFO] [2025-08-29T16:47:57.429Z] [PDFHomeApp] [INFO] PDF Home App initialized successfully.
+[00:47:57.432][INFO] [2025-08-29T16:47:57.432Z] [pdf-home/index.js] [INFO] PDF Home App started. Use window.app.getState() for status.
+[00:47:57.433][INFO] DEBUG_RENDERER: performRender called, dataLength= 0
+[00:47:57.741][INFO] [2025-08-29T16:47:57.741Z] [WSClient] [INFO] WebSocket connection established.
+[00:47:57.742][INFO] [2025-08-29T16:47:57.742Z] [EventBus] [INFO] Event [websocket:connection:established (发布 by WSClient)]: 发布 {
+  "actorId": "WSClient",
+  "subscriberCount": 1
+}
+[00:47:57.742][INFO] [2025-08-29T16:47:57.742Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:data-changed (发布 by pdf-table:1756486077421_ibu8d6)]: 发布 {
+  "actorId": "pdf-table:1756486077421_ibu8d6",
+  "subscriberCount": 1,
+  "data": []
+}
+[00:47:57.744][INFO] [2025-08-29T16:47:57.744Z] [WSClient] [INFO] Flushing 1 queued messages.
+[00:47:57.746][INFO] [2025-08-29T16:47:57.746Z] [EventBus] [INFO] Event [websocket:message:received (发布 by WSClient)]: 发布 {
+  "actorId": "WSClient",
+  "subscriberCount": 1,
+  "data": {
+    "type": "response",
+    "timestamp": 1756486077.7452207,
+    "request_id": null,
+    "status": "success",
+    "code": 200,
+    "message": "操作成功",
+    "data": {
+      "files": [
+        {
+          "id": "b3ec95651f46",
+          "filename": "b3ec95651f46.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b3ec95651f46.pdf",
+          "file_size": 254890,
+          "file_size_formatted": "248.9 KB",
+          "created_time": "2025-08-29 03:56:02",
+          "modified_time": "2025-06-25 15:34:45",
+          "title": "国家职业资格目录（2021 年版）",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "90d95881f8b9",
+          "filename": "90d95881f8b9.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\90d95881f8b9.pdf",
+          "file_size": 247733,
+          "file_size_formatted": "241.9 KB",
+          "created_time": "2025-08-29 03:58:45",
+          "modified_time": "2025-05-14 16:07:29",
+          "title": "温州职业技术学院公共基础学院绩效分配实施细则（试行）-20250514",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "417d4d0e3922",
+          "filename": "417d4d0e3922.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\417d4d0e3922.pdf",
+          "file_size": 311087,
+          "file_size_formatted": "303.8 KB",
+          "created_time": "2025-08-29 03:59:07",
+          "modified_time": "2025-08-25 03:11:52",
+          "title": "灵活就业登记",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "99f8e3fa1c2e",
+          "filename": "99f8e3fa1c2e.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\99f8e3fa1c2e.pdf",
+          "file_size": 2162861,
+          "file_size_formatted": "2.1 MB",
+          "created_time": "2025-08-29 04:10:32",
+          "modified_time": "2025-08-06 20:44:46",
+          "title": "_Mathematica_",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "b8dfc87455af",
+          "filename": "b8dfc87455af.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
+          "file_size": 38840700,
+          "file_size_formatted": "37.0 MB",
+          "created_time": "2025-08-29 15:25:56",
+          "modified_time": "2025-08-06 15:29:46",
+          "title": "未命名笔记",
+          "author": "",
+          "page_count": 0
+        }
+      ],
+      "pagination": {
+        "total": 5
+      }
+    },
+    "id": null
+  }
+}
+[00:47:57.747][INFO] [2025-08-29T16:47:57.747Z] [EventBus] [INFO] Event [websocket:message:response (发布 by WSClient)]: 发布 {
+  "actorId": "WSClient",
+  "subscriberCount": 1,
+  "data": {
+    "type": "response",
+    "timestamp": 1756486077.7452207,
+    "request_id": null,
+    "status": "success",
+    "code": 200,
+    "message": "操作成功",
+    "data": {
+      "files": [
+        {
+          "id": "b3ec95651f46",
+          "filename": "b3ec95651f46.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b3ec95651f46.pdf",
+          "file_size": 254890,
+          "file_size_formatted": "248.9 KB",
+          "created_time": "2025-08-29 03:56:02",
+          "modified_time": "2025-06-25 15:34:45",
+          "title": "国家职业资格目录（2021 年版）",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "90d95881f8b9",
+          "filename": "90d95881f8b9.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\90d95881f8b9.pdf",
+          "file_size": 247733,
+          "file_size_formatted": "241.9 KB",
+          "created_time": "2025-08-29 03:58:45",
+          "modified_time": "2025-05-14 16:07:29",
+          "title": "温州职业技术学院公共基础学院绩效分配实施细则（试行）-20250514",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "417d4d0e3922",
+          "filename": "417d4d0e3922.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\417d4d0e3922.pdf",
+          "file_size": 311087,
+          "file_size_formatted": "303.8 KB",
+          "created_time": "2025-08-29 03:59:07",
+          "modified_time": "2025-08-25 03:11:52",
+          "title": "灵活就业登记",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "99f8e3fa1c2e",
+          "filename": "99f8e3fa1c2e.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\99f8e3fa1c2e.pdf",
+          "file_size": 2162861,
+          "file_size_formatted": "2.1 MB",
+          "created_time": "2025-08-29 04:10:32",
+          "modified_time": "2025-08-06 20:44:46",
+          "title": "_Mathematica_",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "b8dfc87455af",
+          "filename": "b8dfc87455af.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
+          "file_size": 38840700,
+          "file_size_formatted": "37.0 MB",
+          "created_time": "2025-08-29 15:25:56",
+          "modified_time": "2025-08-06 15:29:46",
+          "title": "未命名笔记",
+          "author": "",
+          "page_count": 0
+        }
+      ],
+      "pagination": {
+        "total": 5
+      }
+    },
+    "id": null
+  }
+}
+[00:47:57.747][INFO] [2025-08-29T16:47:57.747Z] [PDFManager] [INFO] Handling response message: Object
+[00:47:57.747][INFO] [2025-08-29T16:47:57.747Z] [PDFManager] [INFO] Processing PDF list from 'response_get_list': {
+  "data": {
+    "files": [
+      {
+        "id": "b3ec95651f46",
+        "filename": "b3ec95651f46[truncated]
+[00:47:57.747][INFO] [2025-08-29T16:47:57.747Z] [PDFManager] [INFO] Processed 5 PDF files: [
+  {
+    "id": "b3ec95651f46",
+    "filename": "b3ec95651f46.pdf",
+    "filepath": "C:\\Users\\napr[truncated]
+[00:47:57.748][INFO] [2025-08-29T16:47:57.748Z] [EventBus] [INFO] Event [pdf:list:updated (发布 by PDFManager)]: 发布 {
+  "actorId": "PDFManager",
+  "subscriberCount": 1,
+  "data": [
+    {
+      "id": "b3ec95651f46",
+      "filename": "b3ec95651f46.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b3ec95651f46.pdf",
+      "title": "国家职业资格目录（2021 年版）",
+      "size": 254890,
+      "modified_time": "2025-06-25 15:34:45",
+      "page_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "90d95881f8b9",
+      "filename": "90d95881f8b9.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\90d95881f8b9.pdf",
+      "title": "温州职业技术学院公共基础学院绩效分配实施细则（试行）-20250514",
+      "size": 247733,
+      "modified_time": "2025-05-14 16:07:29",
+      "page_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "417d4d0e3922",
+      "filename": "417d4d0e3922.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\417d4d0e3922.pdf",
+      "title": "灵活就业登记",
+      "size": 311087,
+      "modified_time": "2025-08-25 03:11:52",
+      "page_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "99f8e3fa1c2e",
+      "filename": "99f8e3fa1c2e.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\99f8e3fa1c2e.pdf",
+      "title": "_Mathematica_",
+      "size": 2162861,
+      "modified_time": "2025-08-06 20:44:46",
+      "page_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "b8dfc87455af",
+      "filename": "b8dfc87455af.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
+      "title": "未命名笔记",
+      "size": 38840700,
+      "modified_time": "2025-08-06 15:29:46",
+      "page_count": 0,
+      "importance": "medium"
+    }
+  ]
+}
+[00:47:57.748][INFO] [2025-08-29T16:47:57.748Z] [UIManager] [INFO] Updating PDF list UI
+[00:47:57.748][LOG] PDFTable.loadData: 检测到数组格式（向后兼容）
+[00:47:57.748][WARNING] 数据验证警告（系统将继续渲染）: Array(5)
+[00:47:57.748][INFO] [2025-08-29T16:47:57.748Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:data-loaded (发布 by pdf-table:1756486077421_ibu8d6)]: 发布 {
+  "actorId": "pdf-table:1756486077421_ibu8d6",
+  "subscriberCount": 1,
+  "data": [
+    {
+      "id": "b3ec95651f46",
+      "filename": "b3ec95651f46.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b3ec95651f46.pdf",
+      "title": "国家职业资格目录（2021 年版）",
+      "size": 254890,
+      "modified_time": "2025-06-25 15:34:45",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "90d95881f8b9",
+      "filename": "90d95881f8b9.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\90d95881f8b9.pdf",
+      "title": "温州职业技术学院公共基础学院绩效分配实施细则（试行）-20250514",
+      "size": 247733,
+      "modified_time": "2025-05-14 16:07:29",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "417d4d0e3922",
+      "filename": "417d4d0e3922.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\417d4d0e3922.pdf",
+      "title": "灵活就业登记",
+      "size": 311087,
+      "modified_time": "2025-08-25 03:11:52",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "99f8e3fa1c2e",
+      "filename": "99f8e3fa1c2e.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\99f8e3fa1c2e.pdf",
+      "title": "_Mathematica_",
+      "size": 2162861,
+      "modified_time": "2025-08-06 20:44:46",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "b8dfc87455af",
+      "filename": "b8dfc87455af.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
+      "title": "未命名笔记",
+      "size": 38840700,
+      "modified_time": "2025-08-06 15:29:46",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    }
+  ]
+}
+[00:47:57.748][INFO] [2025-08-29T16:47:57.748Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:data-changed (发布 by pdf-table:1756486077421_ibu8d6)]: 发布 {
+  "actorId": "pdf-table:1756486077421_ibu8d6",
+  "subscriberCount": 1,
+  "data": [
+    {
+      "id": "b3ec95651f46",
+      "filename": "b3ec95651f46.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b3ec95651f46.pdf",
+      "title": "国家职业资格目录（2021 年版）",
+      "size": 254890,
+      "modified_time": "2025-06-25 15:34:45",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "90d95881f8b9",
+      "filename": "90d95881f8b9.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\90d95881f8b9.pdf",
+      "title": "温州职业技术学院公共基础学院绩效分配实施细则（试行）-20250514",
+      "size": 247733,
+      "modified_time": "2025-05-14 16:07:29",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "417d4d0e3922",
+      "filename": "417d4d0e3922.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\417d4d0e3922.pdf",
+      "title": "灵活就业登记",
+      "size": 311087,
+      "modified_time": "2025-08-25 03:11:52",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "99f8e3fa1c2e",
+      "filename": "99f8e3fa1c2e.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\99f8e3fa1c2e.pdf",
+      "title": "_Mathematica_",
+      "size": 2162861,
+      "modified_time": "2025-08-06 20:44:46",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "b8dfc87455af",
+      "filename": "b8dfc87455af.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
+      "title": "未命名笔记",
+      "size": 38840700,
+      "modified_time": "2025-08-06 15:29:46",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    }
+  ]
+}
+[00:47:57.759][INFO] DEBUG_RENDERER: performRender called, dataLength= 0
+[00:47:57.855][INFO] [2025-08-29T16:47:57.855Z] [EventBus] [INFO] Event [websocket:message:received (发布 by WSClient)]: 发布 {
+  "actorId": "WSClient",
+  "subscriberCount": 1,
+  "data": {
+    "type": "pdf_list_updated",
+    "data": {
+      "files": [
+        {
+          "id": "b3ec95651f46",
+          "filename": "b3ec95651f46.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b3ec95651f46.pdf",
+          "file_size": 254890,
+          "file_size_formatted": "248.9 KB",
+          "created_time": "2025-08-29 03:56:02",
+          "modified_time": "2025-06-25 15:34:45",
+          "title": "国家职业资格目录（2021 年版）",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "90d95881f8b9",
+          "filename": "90d95881f8b9.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\90d95881f8b9.pdf",
+          "file_size": 247733,
+          "file_size_formatted": "241.9 KB",
+          "created_time": "2025-08-29 03:58:45",
+          "modified_time": "2025-05-14 16:07:29",
+          "title": "温州职业技术学院公共基础学院绩效分配实施细则（试行）-20250514",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "417d4d0e3922",
+          "filename": "417d4d0e3922.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\417d4d0e3922.pdf",
+          "file_size": 311087,
+          "file_size_formatted": "303.8 KB",
+          "created_time": "2025-08-29 03:59:07",
+          "modified_time": "2025-08-25 03:11:52",
+          "title": "灵活就业登记",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "99f8e3fa1c2e",
+          "filename": "99f8e3fa1c2e.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\99f8e3fa1c2e.pdf",
+          "file_size": 2162861,
+          "file_size_formatted": "2.1 MB",
+          "created_time": "2025-08-29 04:10:32",
+          "modified_time": "2025-08-06 20:44:46",
+          "title": "_Mathematica_",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "b8dfc87455af",
+          "filename": "b8dfc87455af.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
+          "file_size": 38840700,
+          "file_size_formatted": "37.0 MB",
+          "created_time": "2025-08-29 15:25:56",
+          "modified_time": "2025-08-06 15:29:46",
+          "title": "未命名笔记",
+          "author": "",
+          "page_count": 0
+        }
+      ]
+    }
+  }
+}
+[00:47:57.856][INFO] [2025-08-29T16:47:57.856Z] [EventBus] [INFO] Event [websocket:message:updated (发布 by WSClient)]: 发布 {
+  "actorId": "WSClient",
+  "subscriberCount": 1,
+  "data": {
+    "type": "pdf_list_updated",
+    "data": {
+      "files": [
+        {
+          "id": "b3ec95651f46",
+          "filename": "b3ec95651f46.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b3ec95651f46.pdf",
+          "file_size": 254890,
+          "file_size_formatted": "248.9 KB",
+          "created_time": "2025-08-29 03:56:02",
+          "modified_time": "2025-06-25 15:34:45",
+          "title": "国家职业资格目录（2021 年版）",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "90d95881f8b9",
+          "filename": "90d95881f8b9.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\90d95881f8b9.pdf",
+          "file_size": 247733,
+          "file_size_formatted": "241.9 KB",
+          "created_time": "2025-08-29 03:58:45",
+          "modified_time": "2025-05-14 16:07:29",
+          "title": "温州职业技术学院公共基础学院绩效分配实施细则（试行）-20250514",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "417d4d0e3922",
+          "filename": "417d4d0e3922.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\417d4d0e3922.pdf",
+          "file_size": 311087,
+          "file_size_formatted": "303.8 KB",
+          "created_time": "2025-08-29 03:59:07",
+          "modified_time": "2025-08-25 03:11:52",
+          "title": "灵活就业登记",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "99f8e3fa1c2e",
+          "filename": "99f8e3fa1c2e.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\99f8e3fa1c2e.pdf",
+          "file_size": 2162861,
+          "file_size_formatted": "2.1 MB",
+          "created_time": "2025-08-29 04:10:32",
+          "modified_time": "2025-08-06 20:44:46",
+          "title": "_Mathematica_",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "b8dfc87455af",
+          "filename": "b8dfc87455af.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
+          "file_size": 38840700,
+          "file_size_formatted": "37.0 MB",
+          "created_time": "2025-08-29 15:25:56",
+          "modified_time": "2025-08-06 15:29:46",
+          "title": "未命名笔记",
+          "author": "",
+          "page_count": 0
+        }
+      ]
+    }
+  }
+}
+[00:47:57.856][INFO] [2025-08-29T16:47:57.856Z] [PDFManager] [INFO] Processing PDF list from 'update': {
+  "type": "pdf_list_updated",
+  "data": {
+    "files": [
+      {
+        "id": "b3ec95651f46",
+   [truncated]
+[00:47:57.856][INFO] [2025-08-29T16:47:57.856Z] [PDFManager] [INFO] Processed 5 PDF files: [
+  {
+    "id": "b3ec95651f46",
+    "filename": "b3ec95651f46.pdf",
+    "filepath": "C:\\Users\\napr[truncated]
+[00:47:57.856][INFO] [2025-08-29T16:47:57.856Z] [EventBus] [INFO] Event [pdf:list:updated (发布 by PDFManager)]: 发布 {
+  "actorId": "PDFManager",
+  "subscriberCount": 1,
+  "data": [
+    {
+      "id": "b3ec95651f46",
+      "filename": "b3ec95651f46.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b3ec95651f46.pdf",
+      "title": "国家职业资格目录（2021 年版）",
+      "size": 254890,
+      "modified_time": "2025-06-25 15:34:45",
+      "page_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "90d95881f8b9",
+      "filename": "90d95881f8b9.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\90d95881f8b9.pdf",
+      "title": "温州职业技术学院公共基础学院绩效分配实施细则（试行）-20250514",
+      "size": 247733,
+      "modified_time": "2025-05-14 16:07:29",
+      "page_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "417d4d0e3922",
+      "filename": "417d4d0e3922.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\417d4d0e3922.pdf",
+      "title": "灵活就业登记",
+      "size": 311087,
+      "modified_time": "2025-08-25 03:11:52",
+      "page_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "99f8e3fa1c2e",
+      "filename": "99f8e3fa1c2e.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\99f8e3fa1c2e.pdf",
+      "title": "_Mathematica_",
+      "size": 2162861,
+      "modified_time": "2025-08-06 20:44:46",
+      "page_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "b8dfc87455af",
+      "filename": "b8dfc87455af.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
+      "title": "未命名笔记",
+      "size": 38840700,
+      "modified_time": "2025-08-06 15:29:46",
+      "page_count": 0,
+      "importance": "medium"
+    }
+  ]
+}
+[00:47:57.856][INFO] [2025-08-29T16:47:57.856Z] [UIManager] [INFO] Updating PDF list UI
+[00:47:57.856][LOG] PDFTable.loadData: 检测到数组格式（向后兼容）
+[00:47:57.856][WARNING] 数据验证警告（系统将继续渲染）: Array(5)
+[00:47:57.857][INFO] [2025-08-29T16:47:57.857Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:data-loaded (发布 by pdf-table:1756486077421_ibu8d6)]: 发布 {
+  "actorId": "pdf-table:1756486077421_ibu8d6",
+  "subscriberCount": 1,
+  "data": [
+    {
+      "id": "b3ec95651f46",
+      "filename": "b3ec95651f46.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b3ec95651f46.pdf",
+      "title": "国家职业资格目录（2021 年版）",
+      "size": 254890,
+      "modified_time": "2025-06-25 15:34:45",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "90d95881f8b9",
+      "filename": "90d95881f8b9.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\90d95881f8b9.pdf",
+      "title": "温州职业技术学院公共基础学院绩效分配实施细则（试行）-20250514",
+      "size": 247733,
+      "modified_time": "2025-05-14 16:07:29",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "417d4d0e3922",
+      "filename": "417d4d0e3922.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\417d4d0e3922.pdf",
+      "title": "灵活就业登记",
+      "size": 311087,
+      "modified_time": "2025-08-25 03:11:52",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "99f8e3fa1c2e",
+      "filename": "99f8e3fa1c2e.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\99f8e3fa1c2e.pdf",
+      "title": "_Mathematica_",
+      "size": 2162861,
+      "modified_time": "2025-08-06 20:44:46",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "b8dfc87455af",
+      "filename": "b8dfc87455af.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
+      "title": "未命名笔记",
+      "size": 38840700,
+      "modified_time": "2025-08-06 15:29:46",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    }
+  ]
+}
+[00:47:57.857][INFO] [2025-08-29T16:47:57.857Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:data-changed (发布 by pdf-table:1756486077421_ibu8d6)]: 发布 {
+  "actorId": "pdf-table:1756486077421_ibu8d6",
+  "subscriberCount": 1,
+  "data": [
+    {
+      "id": "b3ec95651f46",
+      "filename": "b3ec95651f46.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b3ec95651f46.pdf",
+      "title": "国家职业资格目录（2021 年版）",
+      "size": 254890,
+      "modified_time": "2025-06-25 15:34:45",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "90d95881f8b9",
+      "filename": "90d95881f8b9.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\90d95881f8b9.pdf",
+      "title": "温州职业技术学院公共基础学院绩效分配实施细则（试行）-20250514",
+      "size": 247733,
+      "modified_time": "2025-05-14 16:07:29",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "417d4d0e3922",
+      "filename": "417d4d0e3922.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\417d4d0e3922.pdf",
+      "title": "灵活就业登记",
+      "size": 311087,
+      "modified_time": "2025-08-25 03:11:52",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "99f8e3fa1c2e",
+      "filename": "99f8e3fa1c2e.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\99f8e3fa1c2e.pdf",
+      "title": "_Mathematica_",
+      "size": 2162861,
+      "modified_time": "2025-08-06 20:44:46",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "b8dfc87455af",
+      "filename": "b8dfc87455af.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
+      "title": "未命名笔记",
+      "size": 38840700,
+      "modified_time": "2025-08-06 15:29:46",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    }
+  ]
+}
+[00:47:57.878][INFO] DEBUG_RENDERER: performRender called, dataLength= 5
+[00:48:04.553][INFO] [2025-08-29T16:48:04.553Z] [UIManager] [INFO] Table action triggered: action=delete, rowId=b3ec95651f46, filename=null
+[00:48:04.553][INFO] TABLE_ACTION Object
+[00:48:11.130][INFO] [2025-08-29T16:48:11.130Z] [EventBus] [INFO] Event [pdf:remove:requested (发布 by HTMLDivElement.handleTableAction:153)]: 发布 {
+  "actorId": "HTMLDivElement.handleTableAction:153",
+  "subscriberCount": 1,
+  "data": "b3ec95651f46"
+}
+[00:48:11.131][INFO] [2025-08-29T16:48:11.130Z] [PDFManager] [INFO] Requesting to remove PDF: b3ec95651f46
+[00:48:11.136][INFO] [2025-08-29T16:48:11.136Z] [EventBus] [INFO] Event [websocket:message:send (发布 by PDFManager)]: 发布 {
+  "actorId": "PDFManager",
+  "subscriberCount": 1,
+  "data": {
+    "type": "remove_pdf",
+    "data": {
+      "file_id": "b3ec95651f46",
+      "filename": "b3ec95651f46.pdf"
+    }
+  }
+}
+[00:48:11.136][INFO] [2025-08-29T16:48:11.136Z] [WSClient] [INFO] Received request to send message: {
+  "type": "remove_pdf",
+  "data": {
+    "file_id": "b3ec95651f46",
+    "filename": "b3ec95651f46.pdf"
+  }
+}
+[00:48:11.153][INFO] [2025-08-29T16:48:11.153Z] [EventBus] [INFO] Event [websocket:message:received (发布 by WSClient)]: 发布 {
+  "actorId": "WSClient",
+  "subscriberCount": 1,
+  "data": {
+    "type": "response",
+    "timestamp": 1756486091.1490955,
+    "request_id": null,
+    "status": "success",
+    "code": 200,
+    "message": "操作成功",
+    "data": {
+      "file": {
+        "id": "b3ec95651f46",
+        "filename": "b3ec95651f46.pdf"
+      },
+      "removed": true
+    },
+    "id": null
+  }
+}
+[00:48:11.154][INFO] [2025-08-29T16:48:11.153Z] [EventBus] [INFO] Event [websocket:message:response (发布 by WSClient)]: 发布 {
+  "actorId": "WSClient",
+  "subscriberCount": 1,
+  "data": {
+    "type": "response",
+    "timestamp": 1756486091.1490955,
+    "request_id": null,
+    "status": "success",
+    "code": 200,
+    "message": "操作成功",
+    "data": {
+      "file": {
+        "id": "b3ec95651f46",
+        "filename": "b3ec95651f46.pdf"
+      },
+      "removed": true
+    },
+    "id": null
+  }
+}
+[00:48:11.154][INFO] [2025-08-29T16:48:11.154Z] [PDFManager] [INFO] Handling response message: Object
+[00:48:11.155][INFO] [2025-08-29T16:48:11.155Z] [EventBus] [INFO] Event [websocket:message:received (发布 by WSClient)]: 发布 {
+  "actorId": "WSClient",
+  "subscriberCount": 1,
+  "data": {
+    "type": "pdf_list",
+    "timestamp": 1756486091.150215,
+    "request_id": null,
+    "status": "success",
+    "code": 200,
+    "message": "PDF列表更新",
+    "data": {
+      "files": [
+        {
+          "id": "90d95881f8b9",
+          "filename": "90d95881f8b9.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\90d95881f8b9.pdf",
+          "file_size": 247733,
+          "file_size_formatted": "241.9 KB",
+          "created_time": "2025-08-29 03:58:45",
+          "modified_time": "2025-05-14 16:07:29",
+          "title": "温州职业技术学院公共基础学院绩效分配实施细则（试行）-20250514",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "417d4d0e3922",
+          "filename": "417d4d0e3922.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\417d4d0e3922.pdf",
+          "file_size": 311087,
+          "file_size_formatted": "303.8 KB",
+          "created_time": "2025-08-29 03:59:07",
+          "modified_time": "2025-08-25 03:11:52",
+          "title": "灵活就业登记",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "99f8e3fa1c2e",
+          "filename": "99f8e3fa1c2e.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\99f8e3fa1c2e.pdf",
+          "file_size": 2162861,
+          "file_size_formatted": "2.1 MB",
+          "created_time": "2025-08-29 04:10:32",
+          "modified_time": "2025-08-06 20:44:46",
+          "title": "_Mathematica_",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "b8dfc87455af",
+          "filename": "b8dfc87455af.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
+          "file_size": 38840700,
+          "file_size_formatted": "37.0 MB",
+          "created_time": "2025-08-29 15:25:56",
+          "modified_time": "2025-08-06 15:29:46",
+          "title": "未命名笔记",
+          "author": "",
+          "page_count": 0
+        }
+      ],
+      "pagination": {
+        "total": 4
+      }
+    }
+  }
+}
+[00:48:11.155][INFO] [2025-08-29T16:48:11.155Z] [EventBus] [INFO] Event [websocket:message:list (发布 by WSClient)]: 发布 {
+  "actorId": "WSClient",
+  "subscriberCount": 1,
+  "data": {
+    "type": "pdf_list",
+    "timestamp": 1756486091.150215,
+    "request_id": null,
+    "status": "success",
+    "code": 200,
+    "message": "PDF列表更新",
+    "data": {
+      "files": [
+        {
+          "id": "90d95881f8b9",
+          "filename": "90d95881f8b9.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\90d95881f8b9.pdf",
+          "file_size": 247733,
+          "file_size_formatted": "241.9 KB",
+          "created_time": "2025-08-29 03:58:45",
+          "modified_time": "2025-05-14 16:07:29",
+          "title": "温州职业技术学院公共基础学院绩效分配实施细则（试行）-20250514",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "417d4d0e3922",
+          "filename": "417d4d0e3922.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\417d4d0e3922.pdf",
+          "file_size": 311087,
+          "file_size_formatted": "303.8 KB",
+          "created_time": "2025-08-29 03:59:07",
+          "modified_time": "2025-08-25 03:11:52",
+          "title": "灵活就业登记",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "99f8e3fa1c2e",
+          "filename": "99f8e3fa1c2e.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\99f8e3fa1c2e.pdf",
+          "file_size": 2162861,
+          "file_size_formatted": "2.1 MB",
+          "created_time": "2025-08-29 04:10:32",
+          "modified_time": "2025-08-06 20:44:46",
+          "title": "_Mathematica_",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "b8dfc87455af",
+          "filename": "b8dfc87455af.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
+          "file_size": 38840700,
+          "file_size_formatted": "37.0 MB",
+          "created_time": "2025-08-29 15:25:56",
+          "modified_time": "2025-08-06 15:29:46",
+          "title": "未命名笔记",
+          "author": "",
+          "page_count": 0
+        }
+      ],
+      "pagination": {
+        "total": 4
+      }
+    }
+  }
+}
+[00:48:11.155][INFO] [2025-08-29T16:48:11.155Z] [PDFManager] [INFO] Processing PDF list from 'list': {
+  "type": "pdf_list",
+  "timestamp": 1756486091.150215,
+  "request_id": null,
+  "status": "success[truncated]
+[00:48:11.155][INFO] [2025-08-29T16:48:11.155Z] [PDFManager] [INFO] Processed 4 PDF files: [
+  {
+    "id": "90d95881f8b9",
+    "filename": "90d95881f8b9.pdf",
+    "filepath": "C:\\Users\\napr[truncated]
+[00:48:11.155][INFO] [2025-08-29T16:48:11.155Z] [EventBus] [INFO] Event [pdf:list:updated (发布 by PDFManager)]: 发布 {
+  "actorId": "PDFManager",
+  "subscriberCount": 1,
+  "data": [
+    {
+      "id": "90d95881f8b9",
+      "filename": "90d95881f8b9.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\90d95881f8b9.pdf",
+      "title": "温州职业技术学院公共基础学院绩效分配实施细则（试行）-20250514",
+      "size": 247733,
+      "modified_time": "2025-05-14 16:07:29",
+      "page_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "417d4d0e3922",
+      "filename": "417d4d0e3922.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\417d4d0e3922.pdf",
+      "title": "灵活就业登记",
+      "size": 311087,
+      "modified_time": "2025-08-25 03:11:52",
+      "page_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "99f8e3fa1c2e",
+      "filename": "99f8e3fa1c2e.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\99f8e3fa1c2e.pdf",
+      "title": "_Mathematica_",
+      "size": 2162861,
+      "modified_time": "2025-08-06 20:44:46",
+      "page_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "b8dfc87455af",
+      "filename": "b8dfc87455af.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
+      "title": "未命名笔记",
+      "size": 38840700,
+      "modified_time": "2025-08-06 15:29:46",
+      "page_count": 0,
+      "importance": "medium"
+    }
+  ]
+}
+[00:48:11.155][INFO] [2025-08-29T16:48:11.155Z] [UIManager] [INFO] Updating PDF list UI
+[00:48:11.155][LOG] PDFTable.loadData: 检测到数组格式（向后兼容）
+[00:48:11.155][WARNING] 数据验证警告（系统将继续渲染）: Array(4)
+[00:48:11.155][INFO] [2025-08-29T16:48:11.155Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:data-loaded (发布 by pdf-table:1756486077421_ibu8d6)]: 发布 {
+  "actorId": "pdf-table:1756486077421_ibu8d6",
+  "subscriberCount": 1,
+  "data": [
+    {
+      "id": "90d95881f8b9",
+      "filename": "90d95881f8b9.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\90d95881f8b9.pdf",
+      "title": "温州职业技术学院公共基础学院绩效分配实施细则（试行）-20250514",
+      "size": 247733,
+      "modified_time": "2025-05-14 16:07:29",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "417d4d0e3922",
+      "filename": "417d4d0e3922.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\417d4d0e3922.pdf",
+      "title": "灵活就业登记",
+      "size": 311087,
+      "modified_time": "2025-08-25 03:11:52",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "99f8e3fa1c2e",
+      "filename": "99f8e3fa1c2e.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\99f8e3fa1c2e.pdf",
+      "title": "_Mathematica_",
+      "size": 2162861,
+      "modified_time": "2025-08-06 20:44:46",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "b8dfc87455af",
+      "filename": "b8dfc87455af.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
+      "title": "未命名笔记",
+      "size": 38840700,
+      "modified_time": "2025-08-06 15:29:46",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    }
+  ]
+}
+[00:48:11.156][INFO] [2025-08-29T16:48:11.156Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:data-changed (发布 by pdf-table:1756486077421_ibu8d6)]: 发布 {
+  "actorId": "pdf-table:1756486077421_ibu8d6",
+  "subscriberCount": 1,
+  "data": [
+    {
+      "id": "90d95881f8b9",
+      "filename": "90d95881f8b9.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\90d95881f8b9.pdf",
+      "title": "温州职业技术学院公共基础学院绩效分配实施细则（试行）-20250514",
+      "size": 247733,
+      "modified_time": "2025-05-14 16:07:29",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "417d4d0e3922",
+      "filename": "417d4d0e3922.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\417d4d0e3922.pdf",
+      "title": "灵活就业登记",
+      "size": 311087,
+      "modified_time": "2025-08-25 03:11:52",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "99f8e3fa1c2e",
+      "filename": "99f8e3fa1c2e.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\99f8e3fa1c2e.pdf",
+      "title": "_Mathematica_",
+      "size": 2162861,
+      "modified_time": "2025-08-06 20:44:46",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "b8dfc87455af",
+      "filename": "b8dfc87455af.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
+      "title": "未命名笔记",
+      "size": 38840700,
+      "modified_time": "2025-08-06 15:29:46",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    }
+  ]
+}
+[00:48:11.168][INFO] DEBUG_RENDERER: performRender called, dataLength= 4
+[00:48:19.098][INFO] [2025-08-29T16:48:19.098Z] [UIManager] [INFO] Table action triggered: action=delete, rowId=90d95881f8b9, filename=null
+[00:48:19.099][INFO] TABLE_ACTION Object
+[00:48:20.504][INFO] [2025-08-29T16:48:20.504Z] [EventBus] [INFO] Event [pdf:remove:requested (发布 by HTMLDivElement.handleTableAction:153)]: 发布 {
+  "actorId": "HTMLDivElement.handleTableAction:153",
+  "subscriberCount": 1,
+  "data": "90d95881f8b9"
+}
+[00:48:20.504][INFO] [2025-08-29T16:48:20.504Z] [PDFManager] [INFO] Requesting to remove PDF: 90d95881f8b9
+[00:48:20.504][INFO] [2025-08-29T16:48:20.504Z] [EventBus] [INFO] Event [websocket:message:send (发布 by PDFManager)]: 发布 {
+  "actorId": "PDFManager",
+  "subscriberCount": 1,
+  "data": {
+    "type": "remove_pdf",
+    "data": {
+      "file_id": "90d95881f8b9",
+      "filename": "90d95881f8b9.pdf"
+    }
+  }
+}
+[00:48:20.505][INFO] [2025-08-29T16:48:20.505Z] [WSClient] [INFO] Received request to send message: {
+  "type": "remove_pdf",
+  "data": {
+    "file_id": "90d95881f8b9",
+    "filename": "90d95881f8b9.pdf"
+  }
+}
+[00:48:20.512][INFO] [2025-08-29T16:48:20.512Z] [EventBus] [INFO] Event [websocket:message:received (发布 by WSClient)]: 发布 {
+  "actorId": "WSClient",
+  "subscriberCount": 1,
+  "data": {
+    "type": "response",
+    "timestamp": 1756486100.509087,
+    "request_id": null,
+    "status": "success",
+    "code": 200,
+    "message": "操作成功",
+    "data": {
+      "file": {
+        "id": "90d95881f8b9",
+        "filename": "90d95881f8b9.pdf"
+      },
+      "removed": true
+    },
+    "id": null
+  }
+}
+[00:48:20.512][INFO] [2025-08-29T16:48:20.512Z] [EventBus] [INFO] Event [websocket:message:response (发布 by WSClient)]: 发布 {
+  "actorId": "WSClient",
+  "subscriberCount": 1,
+  "data": {
+    "type": "response",
+    "timestamp": 1756486100.509087,
+    "request_id": null,
+    "status": "success",
+    "code": 200,
+    "message": "操作成功",
+    "data": {
+      "file": {
+        "id": "90d95881f8b9",
+        "filename": "90d95881f8b9.pdf"
+      },
+      "removed": true
+    },
+    "id": null
+  }
+}
+[00:48:20.512][INFO] [2025-08-29T16:48:20.512Z] [PDFManager] [INFO] Handling response message: Object
+[00:48:20.512][INFO] [2025-08-29T16:48:20.512Z] [EventBus] [INFO] Event [websocket:message:received (发布 by WSClient)]: 发布 {
+  "actorId": "WSClient",
+  "subscriberCount": 1,
+  "data": {
+    "type": "pdf_list",
+    "timestamp": 1756486100.510086,
+    "request_id": null,
+    "status": "success",
+    "code": 200,
+    "message": "PDF列表更新",
+    "data": {
+      "files": [
+        {
+          "id": "417d4d0e3922",
+          "filename": "417d4d0e3922.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\417d4d0e3922.pdf",
+          "file_size": 311087,
+          "file_size_formatted": "303.8 KB",
+          "created_time": "2025-08-29 03:59:07",
+          "modified_time": "2025-08-25 03:11:52",
+          "title": "灵活就业登记",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "99f8e3fa1c2e",
+          "filename": "99f8e3fa1c2e.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\99f8e3fa1c2e.pdf",
+          "file_size": 2162861,
+          "file_size_formatted": "2.1 MB",
+          "created_time": "2025-08-29 04:10:32",
+          "modified_time": "2025-08-06 20:44:46",
+          "title": "_Mathematica_",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "b8dfc87455af",
+          "filename": "b8dfc87455af.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
+          "file_size": 38840700,
+          "file_size_formatted": "37.0 MB",
+          "created_time": "2025-08-29 15:25:56",
+          "modified_time": "2025-08-06 15:29:46",
+          "title": "未命名笔记",
+          "author": "",
+          "page_count": 0
+        }
+      ],
+      "pagination": {
+        "total": 3
+      }
+    }
+  }
+}
+[00:48:20.513][INFO] [2025-08-29T16:48:20.513Z] [EventBus] [INFO] Event [websocket:message:list (发布 by WSClient)]: 发布 {
+  "actorId": "WSClient",
+  "subscriberCount": 1,
+  "data": {
+    "type": "pdf_list",
+    "timestamp": 1756486100.510086,
+    "request_id": null,
+    "status": "success",
+    "code": 200,
+    "message": "PDF列表更新",
+    "data": {
+      "files": [
+        {
+          "id": "417d4d0e3922",
+          "filename": "417d4d0e3922.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\417d4d0e3922.pdf",
+          "file_size": 311087,
+          "file_size_formatted": "303.8 KB",
+          "created_time": "2025-08-29 03:59:07",
+          "modified_time": "2025-08-25 03:11:52",
+          "title": "灵活就业登记",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "99f8e3fa1c2e",
+          "filename": "99f8e3fa1c2e.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\99f8e3fa1c2e.pdf",
+          "file_size": 2162861,
+          "file_size_formatted": "2.1 MB",
+          "created_time": "2025-08-29 04:10:32",
+          "modified_time": "2025-08-06 20:44:46",
+          "title": "_Mathematica_",
+          "author": "",
+          "page_count": 0
+        },
+        {
+          "id": "b8dfc87455af",
+          "filename": "b8dfc87455af.pdf",
+          "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
+          "file_size": 38840700,
+          "file_size_formatted": "37.0 MB",
+          "created_time": "2025-08-29 15:25:56",
+          "modified_time": "2025-08-06 15:29:46",
+          "title": "未命名笔记",
+          "author": "",
+          "page_count": 0
+        }
+      ],
+      "pagination": {
+        "total": 3
+      }
+    }
+  }
+}
+[00:48:20.513][INFO] [2025-08-29T16:48:20.513Z] [PDFManager] [INFO] Processing PDF list from 'list': {
+  "type": "pdf_list",
+  "timestamp": 1756486100.510086,
+  "request_id": null,
+  "status": "success[truncated]
+[00:48:20.513][INFO] [2025-08-29T16:48:20.513Z] [PDFManager] [INFO] Processed 3 PDF files: [
+  {
+    "id": "417d4d0e3922",
+    "filename": "417d4d0e3922.pdf",
+    "filepath": "C:\\Users\\napr[truncated]
+[00:48:20.513][INFO] [2025-08-29T16:48:20.513Z] [EventBus] [INFO] Event [pdf:list:updated (发布 by PDFManager)]: 发布 {
+  "actorId": "PDFManager",
+  "subscriberCount": 1,
+  "data": [
+    {
+      "id": "417d4d0e3922",
+      "filename": "417d4d0e3922.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\417d4d0e3922.pdf",
+      "title": "灵活就业登记",
+      "size": 311087,
+      "modified_time": "2025-08-25 03:11:52",
+      "page_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "99f8e3fa1c2e",
+      "filename": "99f8e3fa1c2e.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\99f8e3fa1c2e.pdf",
+      "title": "_Mathematica_",
+      "size": 2162861,
+      "modified_time": "2025-08-06 20:44:46",
+      "page_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "b8dfc87455af",
+      "filename": "b8dfc87455af.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
+      "title": "未命名笔记",
+      "size": 38840700,
+      "modified_time": "2025-08-06 15:29:46",
+      "page_count": 0,
+      "importance": "medium"
+    }
+  ]
+}
+[00:48:20.513][INFO] [2025-08-29T16:48:20.513Z] [UIManager] [INFO] Updating PDF list UI
+[00:48:20.513][LOG] PDFTable.loadData: 检测到数组格式（向后兼容）
+[00:48:20.514][WARNING] 数据验证警告（系统将继续渲染）: Array(3)
+[00:48:20.514][INFO] [2025-08-29T16:48:20.514Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:data-loaded (发布 by pdf-table:1756486077421_ibu8d6)]: 发布 {
+  "actorId": "pdf-table:1756486077421_ibu8d6",
+  "subscriberCount": 1,
+  "data": [
+    {
+      "id": "417d4d0e3922",
+      "filename": "417d4d0e3922.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\417d4d0e3922.pdf",
+      "title": "灵活就业登记",
+      "size": 311087,
+      "modified_time": "2025-08-25 03:11:52",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "99f8e3fa1c2e",
+      "filename": "99f8e3fa1c2e.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\99f8e3fa1c2e.pdf",
+      "title": "_Mathematica_",
+      "size": 2162861,
+      "modified_time": "2025-08-06 20:44:46",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "b8dfc87455af",
+      "filename": "b8dfc87455af.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
+      "title": "未命名笔记",
+      "size": 38840700,
+      "modified_time": "2025-08-06 15:29:46",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    }
+  ]
+}
+[00:48:20.514][INFO] [2025-08-29T16:48:20.514Z] [EventBus] [INFO] Event [pdf-table:1756486077421_ibu8d6:data-changed (发布 by pdf-table:1756486077421_ibu8d6)]: 发布 {
+  "actorId": "pdf-table:1756486077421_ibu8d6",
+  "subscriberCount": 1,
+  "data": [
+    {
+      "id": "417d4d0e3922",
+      "filename": "417d4d0e3922.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\417d4d0e3922.pdf",
+      "title": "灵活就业登记",
+      "size": 311087,
+      "modified_time": "2025-08-25 03:11:52",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "99f8e3fa1c2e",
+      "filename": "99f8e3fa1c2e.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\99f8e3fa1c2e.pdf",
+      "title": "_Mathematica_",
+      "size": 2162861,
+      "modified_time": "2025-08-06 20:44:46",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    },
+    {
+      "id": "b8dfc87455af",
+      "filename": "b8dfc87455af.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
+      "title": "未命名笔记",
+      "size": 38840700,
+      "modified_time": "2025-08-06 15:29:46",
+      "page_count": 0,
+      "annotations_count": 0,
+      "cards_count": 0,
+      "importance": "medium"
+    }
+  ]
+}
+[00:48:20.517][INFO] DEBUG_RENDERER: performRender called, dataLength= 3

@@ -3,8 +3,8 @@
  * @module WSClient
  */
 
-import Logger from "../utils/logger.js";
-import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS } from "./event-constants.js";
+import Logger from "../../pdf-home/utils/logger.js";
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS } from "../event/event-constants.js";
 
 /**
  * @class WSClient
@@ -28,6 +28,18 @@ export class WSClient {
     this.#url = url;
     this.#eventBus = eventBus;
     this.#logger = new Logger("WSClient");
+    this.#setupEventListeners();
+  }
+
+  /**
+   * 设置事件监听器
+   */
+  #setupEventListeners() {
+    // 监听发送消息的请求
+    this.#eventBus.on(WEBSOCKET_EVENTS.MESSAGE.SEND, (message) => {
+      this.#logger.info(`Received request to send message: ${JSON.stringify(message, null, 2)}`);
+      this.send(message);
+    }, { subscriberId: 'WSClient' });
   }
 
   /**
@@ -40,7 +52,7 @@ export class WSClient {
       this.#attachSocketHandlers();
     } catch (error) {
       this.#logger.error("Failed to initiate WebSocket connection.", error);
-      this.#eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.FAILED, error);
+      this.#eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.FAILED, error, { actorId: 'WSClient' });
     }
   }
 
@@ -78,7 +90,7 @@ export class WSClient {
         this.#logger.debug(`Sent message: ${type}`);
       } catch (error) {
         this.#logger.error(`Failed to send message: ${type}`, error);
-        this.#eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND_FAILED, { type, error });
+        this.#eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND_FAILED, { type, error }, { actorId: 'WSClient' });
       }
     } else {
       this.#messageQueue.push(message);
@@ -91,7 +103,7 @@ export class WSClient {
       this.#logger.info("WebSocket connection established.");
       this.#isConnectedFlag = true;
       this.#reconnectAttempts = 0;
-      this.#eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED);
+      this.#eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED, undefined, { actorId: 'WSClient' });
       this.#flushMessageQueue();
     };
 
@@ -100,13 +112,13 @@ export class WSClient {
     this.#socket.onclose = () => {
       this.#logger.warn("WebSocket connection closed.");
       this.#isConnectedFlag = false;
-      this.#eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.CLOSED);
+      this.#eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.CLOSED, undefined, { actorId: 'WSClient' });
       this.#attemptReconnect();
     };
 
     this.#socket.onerror = (error) => {
       this.#logger.error("WebSocket connection error.", error);
-      this.#eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.ERROR, error);
+      this.#eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.ERROR, error, { actorId: 'WSClient' });
     };
   }
 
@@ -115,16 +127,34 @@ export class WSClient {
       const message = JSON.parse(rawData);
       this.#logger.debug(`Received message: ${message.type}`, message);
       
-      this.#eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, message);
+      this.#eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, message, { actorId: 'WSClient' });
 
-      const eventType = Object.keys(WEBSOCKET_MESSAGE_EVENTS).find(
-        key => WEBSOCKET_MESSAGE_EVENTS[key].endsWith(message.type)
-      );
+      // 根据消息类型路由到相应的事件
+      let targetEvent = null;
+      switch (message.type) {
+        case 'pdf_list_updated':
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.PDF_LIST_UPDATED;
+          break;
+        case 'pdf_list':
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.PDF_LIST;
+          break;
+        case 'success':
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.SUCCESS;
+          break;
+        case 'error':
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.ERROR;
+          break;
+        case 'response':
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
+          break;
+        default:
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.UNKNOWN;
+          this.#logger.warn(`Unknown message type: ${message.type}`);
+      }
 
-      if (eventType) {
-        this.#eventBus.emit(WEBSOCKET_MESSAGE_EVENTS[eventType], message);
-      } else {
-        this.#eventBus.emit(WEBSOCKET_MESSAGE_EVENTS.UNKNOWN, message);
+      if (targetEvent) {
+        this.#logger.debug(`Routing message to event: ${targetEvent}`);
+        this.#eventBus.emit(targetEvent, message, { actorId: 'WSClient' });
       }
     } catch (error) {
       this.#logger.error("Failed to parse incoming WebSocket message.", error);
@@ -134,7 +164,7 @@ export class WSClient {
   #attemptReconnect() {
     if (this.#reconnectAttempts >= this.#maxReconnectAttempts) {
       this.#logger.error("Max WebSocket reconnect attempts reached.");
-      this.#eventBus.emit(WEBSOCKET_EVENTS.RECONNECT.FAILED);
+      this.#eventBus.emit(WEBSOCKET_EVENTS.RECONNECT.FAILED, undefined, { actorId: 'WSClient' });
       return;
     }
     this.#reconnectAttempts++;

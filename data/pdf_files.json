@@ -1,3 +1,52 @@
 {
-  "files": {}
+  "files": {
+    "417d4d0e3922": {
+      "id": "417d4d0e3922",
+      "filename": "417d4d0e3922.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\417d4d0e3922.pdf",
+      "file_size": 311087,
+      "created_time": 1756411147.3159356,
+      "modified_time": 1756062712.610914,
+      "title": "灵活就业登记",
+      "author": "",
+      "subject": "",
+      "keywords": "",
+      "page_count": 0,
+      "thumbnail_path": null,
+      "tags": [],
+      "notes": ""
+    },
+    "99f8e3fa1c2e": {
+      "id": "99f8e3fa1c2e",
+      "filename": "99f8e3fa1c2e.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\99f8e3fa1c2e.pdf",
+      "file_size": 2162861,
+      "created_time": 1756411832.4341855,
+      "modified_time": 1754484286.7053876,
+      "title": "_Mathematica_",
+      "author": "",
+      "subject": "",
+      "keywords": "",
+      "page_count": 0,
+      "thumbnail_path": null,
+      "tags": [],
+      "notes": ""
+    },
+    "b8dfc87455af": {
+      "id": "b8dfc87455af",
+      "filename": "b8dfc87455af.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b8dfc87455af.pdf",
+      "file_size": 38840700,
+      "created_time": 1756452356.5846872,
+      "modified_time": 1754465386.9573991,
+      "title": "未命名笔记",
+      "author": "",
+      "subject": "",
+      "keywords": "",
+      "page_count": 0,
+      "thumbnail_path": null,
+      "tags": [],
+      "notes": ""
+    }
+  }
 }

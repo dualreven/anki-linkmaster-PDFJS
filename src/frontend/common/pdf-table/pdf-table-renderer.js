@@ -77,17 +77,24 @@ class PDFTableRenderer {
     }
 
     /**
-     * Setup event listeners
+     * Setup event listeners (idempotent)
      */
     setupEventListeners() {
-        // Handle window resize for responsive design
+        if (this._setupDone) return;
+        this._setupDone = true;
+
+        // Create and store bound handlers so we can remove them later
         if (this.config.get('responsive')) {
-            window.addEventListener('resize', this.debounce(() => this.handleResize(), 100));
+            this._resizeHandler = this.debounce(this.handleResize.bind(this), 100);
+            window.addEventListener('resize', this._resizeHandler);
         }
-        
-        // Handle virtual scroll
+
         if (this.virtualScroll) {
-            this.container.addEventListener('scroll', this.debounce(() => this.handleScroll(), 16));
+            this._scrollHandler = this.debounce(this.handleScroll.bind(this), 16);
+            // container may be replaced; attach to container element reference
+            if (this.container && this.container.addEventListener) {
+                this.container.addEventListener('scroll', this._scrollHandler);
+            }
         }
     }
 
@@ -95,22 +102,34 @@ class PDFTableRenderer {
      * Main render method
      * @param {Array} data - Data to render
      */
-    async render(data) {
+    async render(data = null) {
         const startTime = performance.now();
-        
+        // Normalize data: prefer provided data, fallback to table state
+        const renderData = Array.isArray(data) ? data : (this.table && this.table.state && Array.isArray(this.table.state.sortedData) ? this.table.state.sortedData : []);
+
         try {
+            // Ensure we're writing into the live table wrapper element under the table's container.
+            try {
+                const liveWrapper = this.table.container && this.table.container.querySelector && this.table.container.querySelector('.pdf-table-wrapper');
+                if (liveWrapper) {
+                    this.container = liveWrapper;
+                }
+            } catch (e) {
+                // ignore
+            }
+
             // Schedule render if already scheduled
             if (this.renderScheduled) {
                 return;
             }
-            
+
             this.renderScheduled = true;
-            
+
             // Use requestAnimationFrame for better performance
             await new Promise(resolve => {
                 requestAnimationFrame(async () => {
                     try {
-                        await this.performRender(data);
+                        await this.performRender(renderData);
                         resolve();
                     } catch (error) {
                         console.error('Render error:', error);
@@ -118,7 +137,7 @@ class PDFTableRenderer {
                     }
                 });
             });
-            
+
         } catch (error) {
             console.error('Render error:', error);
             this.table.events.emit('render-error', error);
@@ -126,12 +145,12 @@ class PDFTableRenderer {
             this.renderScheduled = false;
             this.lastRenderTime = performance.now() - startTime;
             this.renderCount++;
-            
+
             // Emit render complete event
             this.table.events.emit('render-complete', {
                 duration: this.lastRenderTime,
                 renderCount: this.renderCount,
-                dataLength: data.length
+                dataLength: Array.isArray(renderData) ? renderData.length : 0
             });
         }
     }
@@ -141,11 +160,28 @@ class PDFTableRenderer {
      * @param {Array} data - Data to render
      */
     async performRender(data) {
+        // Normalize data
+        data = Array.isArray(data) ? data : (this.table && this.table.state && Array.isArray(this.table.state.sortedData) ? this.table.state.sortedData : []);
+
+        // Debug: incoming data
+        try {
+            console.info("DEBUG_RENDERER: performRender called, dataLength=", Array.isArray(data) ? data.length : 0);
+        } catch (e) {}
+
         // Clear container
         this.clearContainer();
         
         // Create table structure
         this.createTableStructure();
+
+        // Ensure tableWrapper remains attached to the main container (defensive)
+        try {
+            if (this.table && this.table.tableWrapper && this.table.container && this.table.tableWrapper.parentElement !== this.table.container) {
+                this.table.container.appendChild(this.table.tableWrapper);
+            }
+        } catch (e) {
+            console.warn('Could not re-attach tableWrapper to container:', e);
+        }
         
         // Render header
         await this.renderHeader();
@@ -156,6 +192,12 @@ class PDFTableRenderer {
         } else {
             await this.renderBody(data);
         }
+
+        // Debug: output generated table HTML (truncated) and row counts
+        try {
+            const tableHtml = this.tableElement ? (this.tableElement.outerHTML && this.tableElement.outerHTML.slice(0, 2000)) : "null";
+            const rowCount = this.tbody ? (this.tbody.querySelectorAll('tr[data-row-id]').length || this.tbody.rows.length) : 0;
+        } catch (e) {}
         
         // Render pagination if enabled
         if (this.config.get('pagination')) {
@@ -550,14 +592,16 @@ class PDFTableRenderer {
     }
 
     /**
-     * Attach event listeners
+     * Attach event listeners (idempotent per renderer instance)
      */
     attachEventListeners() {
         if (!this.tableElement) return;
-        
+        if (this._listenersAttached) return;
+        this._listenersAttached = true;
+
         // Header click events (sorting)
         if (this.thead) {
-            this.thead.addEventListener('click', (e) => {
+            this._onTheadClick = (e) => {
                 const th = e.target.closest('th');
                 if (th) {
                     const columnId = th.dataset.columnId;
@@ -566,12 +610,13 @@ class PDFTableRenderer {
                         this.table.events.emit('header-click', { columnId, event: e });
                     }
                 }
-            });
+            };
+            this.thead.addEventListener('click', this._onTheadClick);
         }
-        
+
         // Row click events
         if (this.tbody) {
-            this.tbody.addEventListener('click', (e) => {
+            this._onTbodyClick = (e) => {
                 const tr = e.target.closest('tr');
                 if (tr && tr.dataset.rowId) {
                     const rowId = tr.dataset.rowId;
@@ -580,14 +625,13 @@ class PDFTableRenderer {
                         this.table.events.emit('row-click', { rowData, event: e });
                     }
                 }
-                
-                // Handle button clicks
+
                 const button = e.target.closest('button');
                 if (button) {
                     const action = button.dataset.action;
                     const rowId = button.dataset.rowId;
                     const page = button.dataset.page;
-                    
+
                     if (action && rowId) {
                         this.table.events.emit('button-click', { action, rowId, event: e });
                     } else if (action === 'prev' || action === 'next') {
@@ -596,32 +640,65 @@ class PDFTableRenderer {
                         this.table.events.emit('page-click', { page: parseInt(page), event: e });
                     }
                 }
-                
-                // Handle checkbox clicks
+
                 const checkbox = e.target.closest('.pdf-table-checkbox');
                 if (checkbox) {
                     const rowId = checkbox.dataset.rowId;
                     this.table.events.emit('checkbox-click', { rowId, checked: checkbox.checked, event: e });
                 }
-            });
+            };
+            this.tbody.addEventListener('click', this._onTbodyClick);
         }
-        
+
         // Pagination events
         if (this.paginationElement) {
-            this.paginationElement.addEventListener('click', (e) => {
+            this._onPaginationClick = (e) => {
                 const button = e.target.closest('button');
                 if (button) {
                     const action = button.dataset.action;
                     const page = button.dataset.page;
-                    
+
                     if (action === 'prev' || action === 'next') {
                         this.table.events.emit('pagination-click', { action, event: e });
                     } else if (page) {
                         this.table.events.emit('page-click', { page: parseInt(page), event: e });
                     }
                 }
-            });
+            };
+            this.paginationElement.addEventListener('click', this._onPaginationClick);
         }
+    }
+
+    /**
+     * Update sort indicator
+     * @param {HTMLElement} indicator - Sort indicator element
+     * @param {string} columnId - Column ID
+     */
+
+    /**
+     * Destroy renderer and remove attached listeners
+     */
+    destroy() {
+        try {
+            if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
+        } catch (e) {}
+        try {
+            if (this._scrollHandler && this.container && this.container.removeEventListener) this.container.removeEventListener('scroll', this._scrollHandler);
+        } catch (e) {}
+        try {
+            if (this.thead && this._onTheadClick) this.thead.removeEventListener('click', this._onTheadClick);
+        } catch (e) {}
+        try {
+            if (this.tbody && this._onTbodyClick) this.tbody.removeEventListener('click', this._onTbodyClick);
+        } catch (e) {}
+        try {
+            if (this.paginationElement && this._onPaginationClick) this.paginationElement.removeEventListener('click', this._onPaginationClick);
+        } catch (e) {}
+
+        // Clear pools and caches
+        try { this.rowPool.clear(); } catch (e) {}
+        try { this.cellPool.clear(); } catch (e) {}
+        this.cache.clear();
     }
 
     /**

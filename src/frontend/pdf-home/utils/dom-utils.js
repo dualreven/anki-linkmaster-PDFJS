@@ -198,6 +198,30 @@ export class DOMUtils {
     const els = (elements instanceof NodeList) ? Array.from(elements) : [elements];
     els.forEach(el => el?.removeEventListener(eventType, handler, options));
    }
+
+  /**
+   * 显示错误消息
+   * @param {string} message - 错误消息
+   */
+  static showError(message) {
+    console.error('[ERROR]', message);
+    // 可以在这里添加更复杂的错误显示逻辑，比如弹出提示框
+    // if (typeof window !== 'undefined' && window.alert) {
+    //   window.alert(`错误: ${message}`);
+    // }
+  }
+
+  /**
+   * 显示成功消息
+   * @param {string} message - 成功消息
+   */
+  static showSuccess(message) {
+    console.info('[SUCCESS]', message);
+    // 可以在这里添加更复杂的成功显示逻辑，比如弹出提示框
+    // if (typeof window !== 'undefined' && window.alert) {
+    //   window.alert(`成功: ${message}`);
+    // }
+  }
 }
 
 export default DOMUtils;
