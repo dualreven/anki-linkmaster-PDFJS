@@ -6,9 +6,5 @@ __pycache__
 data
 demo
 log
-<<<<<<< HEAD
-.traedebug-console-at-*.log
-=======
 .trae
 *.log
->>>>>>> fix/pdf-delete-eventbus
