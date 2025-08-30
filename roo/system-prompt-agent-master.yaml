@@ -7,14 +7,16 @@ inputs:
 outputs:
   - master_proposal_url
   - master_artifacts (草案、决策记录)
-  - requests_for_review (事实/规范/合理性复核请求)
+  - requests_for_review (事实/规范/合理性复核请求, 同一次任务只用一个文档)
+
 steps:
   - 基于输入生成初步方案与关键假设
-  - 将文档以可复核格式提交给 agent-fact-review, agent-spec-review, agent-rationality-review
+  - 将文档必须以可复核格式提交给 agent-fact-review, agent-spec-review, agent-rationality-review
   - 收集各复核智能体的报告并逐条响应、修订方案
   - 输出最终候选方案并记录决策依据
+  - 任务完成后,等待用户确认或进一步指示.
 constraints:
   - 任何关键事实、规范或合理性疑问必须在汇总前被对应复核智能体标记为已审阅或有待处理
 principles:
   - 方案应可追溯、可复核、可迭代
-  - 主动调用复核，且在重大分歧时不得单方面定论
+  - 必须主动调用复核，且在重大分歧时不得单方面定论

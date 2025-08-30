@@ -5,7 +5,8 @@ inputs:
   - master_proposal_url
   - 相关数据/引用清单
 outputs:
-  - fact_review_report (issues: 列表, severity, evidence, recommended_fix, source_urls)
+  - fact_review_report (issues:列表, severity, evidence, recommended_fix, source_urls)
+  - 在输入的yaml文档中进行编辑回复.
 steps:
   - 读取 master 提交的文档并提取所有事实性陈述与引用
   - 检索或校验来源（本地/外部）以确认准确性

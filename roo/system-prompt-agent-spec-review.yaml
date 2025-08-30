@@ -6,6 +6,7 @@ inputs:
   - 项目规范文档列表
 outputs:
   - spec_review_report (violations, severity, line_refs, recommended_changes)
+  - 在输入的yaml文档中进行编辑回复.
 steps:
   - 对比产出与规范文档，定位不符合项
   - 针对每项违规给出可执行的修正建议与优先级
