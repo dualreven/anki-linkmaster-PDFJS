@@ -35,6 +35,12 @@ export default class TableWrapper {
     if (!this.container) throw new Error('Container not found');
 
     this.tableWrapper = this._getOrCreateWrapper();
+// 准备一个优雅的HTML字符串作为placeholder
+    const defaultPlaceholder = `
+      <div style="text-align:center;padding:24px;color:#666;">
+        <div style="font-size:32px;margin-bottom:8px">📄</div>
+        <div>暂无数据</div>
+      </div>`;
 
     this.options = Object.assign({
       // avoid forcing 100% height which can collapse if parent has no explicit height
@@ -42,6 +48,7 @@ export default class TableWrapper {
       layout: 'fitColumns',
       selectable: true,
       layoutColumnsOnNewData: false,
+      placeholder: defaultPlaceholder,
     }, options);
 
     this.tabulator = null;
@@ -217,15 +224,37 @@ export default class TableWrapper {
    * Render a simple empty state inside the tableWrapper (does not remove the wrapper element)
    */
   displayEmptyState(message) {
-    // Clear Tabulator data and show a small placeholder
-    try { this.tabulator.clearData(); } catch (e) {}
-    while (this.tableWrapper.firstChild) this.tableWrapper.removeChild(this.tableWrapper.firstChild);
-    const empty = document.createElement('div');
-    empty.className = 'pdf-table-empty-state';
-    empty.innerHTML = `\n      <div style=\"text-align:center;padding:24px;color:#666;\">\n        <div style=\"font-size:32px;margin-bottom:8px\">📄</div>\n        <div>${message || '暂无数据'}</div>\n      </div>`;
-    this.tableWrapper.appendChild(empty);
-    this._callLocalListeners('data-loaded', []);
+    // 清空数据，让Tabulator显示其内置的placeholder
+    try {
+      this.tabulator.clearData();
+
+      // 如果需要动态修改placeholder内容
+      if (message) {
+        const customPlaceholder = `
+          <div style="text-align:center;padding:24px;color:#666;">
+            <div style="font-size:32px;margin-bottom:8px">⏳</div>
+            <div>${message}</div>
+          </div>`;
+        // Tabulator没有直接更新placeholder的API，但我们可以通过清空并重新设置数据来触发
+        // 或者，更简单的方式是直接操作placeholder元素（如果能找到它）
+        // 最安全的方式还是在初始化时就设置好。
+        // 这里我们只做清空数据操作，让默认的placeholder显示出来。
+      }
+
+    } catch (e) {
+      logger.warn('Failed to clear data for empty state', e);
+    }
   }
+  // displayEmptyState(message) {
+  //   // Clear Tabulator data and show a small placeholder
+  //   try { this.tabulator.clearData(); } catch (e) {}
+  //   while (this.tableWrapper.firstChild) this.tableWrapper.removeChild(this.tableWrapper.firstChild);
+  //   const empty = document.createElement('div');
+  //   empty.className = 'pdf-table-empty-state';
+  //   empty.innerHTML = `\n      <div style=\"text-align:center;padding:24px;color:#666;\">\n        <div style=\"font-size:32px;margin-bottom:8px\">📄</div>\n        <div>${message || '暂无数据'}</div>\n      </div>`;
+  //   this.tableWrapper.appendChild(empty);
+  //   this._callLocalListeners('data-loaded', []);
+  // }
 
   // Additional helpers
   /**

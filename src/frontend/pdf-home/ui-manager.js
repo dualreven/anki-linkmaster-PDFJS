@@ -203,23 +203,54 @@ export class UIManager {
 
   #renderPDFList() {
     const { pdfs, loading } = this.#state;
-    const { emptyState } = this.#elements;
+    const { emptyState, pdfTableContainer } = this.#elements;
+
+    // ==================== 修改开始 (3/3) ====================
+    // 隐藏外部的、独立的 empty-state div，因为Tabulator现在自己管理空状态了
+    DOMUtils.hide(emptyState);
+    // 始终显示表格容器
+    DOMUtils.show(pdfTableContainer);
+
     if (loading) {
-      if (this.pdfTable) { this.pdfTable.displayEmptyState("正在加载..."); }
-      DOMUtils.hide(emptyState);
-    } else if (pdfs.length === 0) {
-      if (this.pdfTable) { this.pdfTable.displayEmptyState(); }
-      DOMUtils.show(emptyState);
+      // 我们可以创建一个“加载中”的placeholder，但目前为了简单，
+      // 暂时不清空数据，保持旧数据直到新数据加载完成。
+      // 或者，如果你想显示加载状态：
+      // if (this.pdfTable) { this.pdfTable.setData([]); } // 清空数据会显示placeholder
+      this.#logger.info("UI is in loading state.");
     } else {
-      DOMUtils.hide(emptyState);
       if (this.pdfTable) {
+        // 不管pdfs是空数组还是有数据，直接交给setData处理
+        // TableWrapper内部的Tabulator会根据数据是否为空来决定显示数据行还是placeholder
         const tableData = pdfs.map(pdf => ({ ...pdf, size: pdf.size || 0, modified_time: pdf.modified_time || '', page_count: pdf.page_count || 0, annotations_count: pdf.annotations_count || 0, cards_count: pdf.cards_count || 0, importance: pdf.importance || 'medium' }));
-        DOMUtils.hide(this.#elements.emptyState);
-        DOMUtils.show(this.#elements.pdfTableContainer);
-        this.pdfTable.loadData(tableData).catch(error => { this.#logger.error("Failed to load data into PDF table:", error); });
-      } else { this.#logger.warn("PDF table instance not found, cannot render PDF list."); }
+        
+        this.pdfTable.setData(tableData).catch(error => { // setData现在是TableWrapper的方法
+            this.#logger.error("Failed to load data into PDF table:", error);
+        });
+      } else {
+        this.#logger.warn("PDF table instance not found, cannot render PDF list.");
+      }
     }
+    // ==================== 修改结束 (3/3) ====================
   }
+  // #renderPDFList() {
+  //   const { pdfs, loading } = this.#state;
+  //   const { emptyState } = this.#elements;
+  //   if (loading) {
+  //     if (this.pdfTable) { this.pdfTable.displayEmptyState("正在加载..."); }
+  //     DOMUtils.hide(emptyState);
+  //   } else if (pdfs.length === 0) {
+  //     if (this.pdfTable) { this.pdfTable.displayEmptyState(); }
+  //     DOMUtils.show(emptyState);
+  //   } else {
+  //     DOMUtils.hide(emptyState);
+  //     if (this.pdfTable) {
+  //       const tableData = pdfs.map(pdf => ({ ...pdf, size: pdf.size || 0, modified_time: pdf.modified_time || '', page_count: pdf.page_count || 0, annotations_count: pdf.annotations_count || 0, cards_count: pdf.cards_count || 0, importance: pdf.importance || 'medium' }));
+  //       DOMUtils.hide(this.#elements.emptyState);
+  //       DOMUtils.show(this.#elements.pdfTableContainer);
+  //       this.pdfTable.loadData(tableData).catch(error => { this.#logger.error("Failed to load data into PDF table:", error); });
+  //     } else { this.#logger.warn("PDF table instance not found, cannot render PDF list."); }
+  //   }
+  // }
 
   #handleBatchDelete() {
     // Support both legacy list checkboxes and pdf-table checkboxes
