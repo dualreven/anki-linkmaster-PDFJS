@@ -24,6 +24,8 @@ export class PDFManager {
   #eventBus;
   #logger;
   #unsubscribeFunctions = [];
+  #lastListRequestTs = 0; // 上次请求完整列表的时间戳（ms）
+  #listRequestCooldownMs = 2000; // 防止短时间内重复刷新导致死循环（毫秒）
 
 /**
    * 创建 PDFManager 实例。
@@ -327,7 +329,13 @@ export class PDFManager {
             this.#logger.info(
               `Batch ${batchId} completed, requesting full PDF list`
             );
-            this.#loadPDFList();
+            const now = Date.now();
+            if (now - this.#lastListRequestTs > this.#listRequestCooldownMs) {
+              this.#lastListRequestTs = now;
+              this.#loadPDFList();
+            } else {
+              this.#logger.info('Skipping immediate list reload due to cooldown to avoid refresh loop');
+            }
             this.#eventBus.emit(
               PDF_MANAGEMENT_EVENTS.BATCH.COMPLETED,
               { batchRequestId: batchId },
@@ -336,6 +344,25 @@ export class PDFManager {
           }
         } catch (e) {
           this.#logger.warn('Error updating batch tracking for ' + batchId, e);
+        }
+      } else {
+        // 如果没有 batchId 回显，但响应中包含聚合信息（files 或 processed summary），则主动刷新列表以保持一致性。
+        try {
+          const filesArrayNoId = Array.isArray(respData?.files) ? respData.files : Array.isArray(data?.data?.files) ? data.data.files : null;
+          const processedSummaryNoId = respData?.summary || respData?.result || {};
+          const processedCountNoId = processedSummaryNoId?.processed || processedSummaryNoId?.deleted || processedSummaryNoId?.removed || processedSummaryNoId?.added || null;
+          if ((filesArrayNoId && filesArrayNoId.length > 0) || (typeof processedCountNoId === 'number' && processedCountNoId > 0)) {
+            this.#logger.info('Detected aggregated batch response without batch_id, requesting full PDF list to refresh UI');
+            const now = Date.now();
+            if (now - this.#lastListRequestTs > this.#listRequestCooldownMs) {
+              this.#lastListRequestTs = now;
+              this.#loadPDFList();
+            } else {
+              this.#logger.info('Skipping aggregated-list reload due to cooldown to avoid refresh loop');
+            }
+          }
+        } catch (e) {
+          // ignore
         }
       }
     } catch (e) {
