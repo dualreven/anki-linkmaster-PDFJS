@@ -212,7 +212,8 @@ class PDFTableRenderer {
     }
 
     /**
-     * Clear container
+     * 清空表格容器的 DOM 内容并重置渲染器缓存与对象池。
+     * @returns {void}
      */
     clearContainer() {
         this.container.innerHTML = '';
@@ -222,7 +223,8 @@ class PDFTableRenderer {
     }
 
     /**
-     * Create table structure
+     * 创建表格的 DOM 结构（table/thead/tbody 等），并将其插入到容器中。
+     * @returns {void}
      */
     createTableStructure() {
         this.tableElement = document.createElement('table');
@@ -252,7 +254,8 @@ class PDFTableRenderer {
     }
 
     /**
-     * Apply table styles
+     * 将配置中的样式应用到 table 元素上，并根据配置添加条件类名。
+     * @returns {void}
      */
     applyTableStyles() {
         const styles = this.config.get('style') || {};
@@ -280,7 +283,8 @@ class PDFTableRenderer {
     }
 
     /**
-     * Render table header
+     * 渲染表头行，根据可见列配置创建 th 元素并插入 thead。
+     * @returns {Promise<void>} 异步完成渲染。
      */
     async renderHeader() {
         if (!this.thead) return;
@@ -322,8 +326,9 @@ class PDFTableRenderer {
     }
 
     /**
-     * Render table body
-     * @param {Array} data - Data to render
+     * 渲染表格主体（非虚拟滚动模式）。
+     * @param {Array<Object>} data - 要渲染的行数据数组，每项为一条 PDF 元数据。
+     * @returns {Promise<void>} 异步完成渲染。
      */
     async renderBody(data) {
         if (!this.tbody) return;
@@ -345,8 +350,9 @@ class PDFTableRenderer {
     }
 
     /**
-     * Render virtual scrolling body
-     * @param {Array} data - Data to render
+     * 渲染虚拟滚动模式下的表格主体，仅渲染可见区间的行并使用上下 spacers 保持高度。
+     * @param {Array<Object>} data - 完整的数据数组，用于计算可见区间。
+     * @returns {Promise<void>} 异步完成渲染。
      */
     async renderVirtualBody(data) {
         if (!this.tbody) return;
@@ -392,11 +398,11 @@ class PDFTableRenderer {
     }
 
     /**
-     * Create table row
-     * @param {Object} row - Row data
-     * @param {number} index - Row index
-     * @param {Array} columns - Visible columns
-     * @returns {HTMLTableRowElement} Table row element
+     * 创建单个表格行的 DOM（tr）。
+     * @param {Object} row - 单条行数据对象。
+     * @param {number} index - 在数据数组中的索引位置。
+     * @param {Array<Object>} columns - 当前可见列的配置数组。
+     * @returns {HTMLTableRowElement} 新创建的 tr 元素。
      */
     createTableRow(row, index, columns) {
         // Get row from pool or create new
