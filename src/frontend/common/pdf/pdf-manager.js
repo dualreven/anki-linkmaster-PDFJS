@@ -290,22 +290,52 @@ export class PDFManager {
 
       if (batchId && this.#batchTrack.has(batchId)) {
         const entry = this.#batchTrack.get(batchId);
-        // 将成功或失败均计为已处理一项，减少 pending
-        entry.pending = Math.max(0, entry.pending - 1);
-        this.#logger.info(
-          `Batch ${batchId} progress: ${entry.pending} remaining`
-        );
-        if (entry.pending === 0) {
-          this.#batchTrack.delete(batchId);
+        // 后端可能会以多种方式回显批次处理结果：
+        // 1) 按文件逐条回显（包含 batch_index）
+        // 2) 聚合回显一次性完成（不包含 batch_index，但包含 files/summary/processed_count）
+        // 根据回显内容决定如何更新 pending
+        try {
+          const batchIndex = respData?.batch_index;
+          const batchTotal = respData?.batch_total || entry.files.length;
+
+          // 聚合完成回显：如果响应中包含 files 数组且长度等于批次数量，或 summary 指示已处理数量等于批次数量
+          const filesArray = Array.isArray(respData?.files) ? respData.files : Array.isArray(data?.data?.files) ? data.data.files : null;
+          const processedSummary = respData?.summary || respData?.result || {};
+          const processedCount = processedSummary?.processed || processedSummary?.deleted || processedSummary?.removed || processedSummary?.added || null;
+
+          if (batchIndex != null) {
+            // 单文件回显，减少1
+            entry.pending = Math.max(0, entry.pending - 1);
+          } else if (filesArray && filesArray.length === batchTotal) {
+            // 后端一次性返回了全部文件 -> 批次全部完成
+            entry.pending = 0;
+          } else if (typeof processedCount === 'number') {
+            // 如果 summary 中包含处理计数，按计数减少（保护性约束）
+            const toReduce = Math.min(entry.pending, processedCount);
+            entry.pending = Math.max(0, entry.pending - toReduce);
+          } else {
+            // 回退：默认减少1，兼容较简单的后端回显
+            entry.pending = Math.max(0, entry.pending - 1);
+          }
+
           this.#logger.info(
-            `Batch ${batchId} completed, requesting full PDF list`
+            `Batch ${batchId} progress: ${entry.pending} remaining`
           );
-          this.#loadPDFList();
-          this.#eventBus.emit(
-            PDF_MANAGEMENT_EVENTS.BATCH.COMPLETED,
-            { batchRequestId: batchId },
-            { actorId: "PDFManager" }
-          );
+
+          if (entry.pending === 0) {
+            this.#batchTrack.delete(batchId);
+            this.#logger.info(
+              `Batch ${batchId} completed, requesting full PDF list`
+            );
+            this.#loadPDFList();
+            this.#eventBus.emit(
+              PDF_MANAGEMENT_EVENTS.BATCH.COMPLETED,
+              { batchRequestId: batchId },
+              { actorId: "PDFManager" }
+            );
+          }
+        } catch (e) {
+          this.#logger.warn('Error updating batch tracking for ' + batchId, e);
         }
       }
     } catch (e) {
