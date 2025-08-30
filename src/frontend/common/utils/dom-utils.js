@@ -154,6 +154,40 @@ export class DOMUtils {
       element.innerHTML = html;
     }
   }
+
+  /**
+   * Show an error message to the user. Attempts non-blocking UI first, falls back to alert.
+   * @param {string} message
+   */
+  static showError(message) {
+    try {
+      const errEl = document.getElementById('global-error');
+      if (errEl) {
+        errEl.textContent = message;
+        errEl.style.display = '';
+        return;
+      }
+    } catch (e) {}
+    try { console.error(message); } catch (e) {}
+    try { alert(message); } catch (e) {}
+  }
+
+  /**
+   * Show a success message to the user. Attempts non-blocking UI first, falls back to alert.
+   * @param {string} message
+   */
+  static showSuccess(message) {
+    try {
+      const okEl = document.getElementById('global-success');
+      if (okEl) {
+        okEl.textContent = message;
+        okEl.style.display = '';
+        return;
+      }
+    } catch (e) {}
+    try { console.info(message); } catch (e) {}
+    try { alert(message); } catch (e) {}
+  }
   
   /**
    * 获取元素的指定data-*属性值。

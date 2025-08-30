@@ -1,7 +1,7 @@
 // table-wrapper.js
 // Tabulator-based table wrapper for pdf-home (native JS integration)
 
-import Tabulator from 'tabulator-tables';
+import { Tabulator } from 'tabulator-tables';
 import Logger from '../common/utils/logger.js';
 
 const logger = new Logger('TableWrapper');
@@ -43,6 +43,8 @@ export default class TableWrapper {
     }, options);
 
     this.tabulator = null;
+    // local event listeners for wrapper-level events (data-loaded, etc.)
+    this._localListeners = Object.create(null);
     this._init();
   }
 
@@ -79,8 +81,16 @@ export default class TableWrapper {
   setData(data) {
     // Defensive copy
     const rows = Array.isArray(data) ? data.map(r => Object.assign({}, r)) : [];
-    this.tabulator.setData(rows);
-    logger.debug('setData count=', rows.length);
+    const result = this.tabulator.setData(rows);
+    // Notify local listeners after data is set. Tabulator may return a Promise.
+    Promise.resolve(result).then(() => {
+      logger.debug('setData count=', rows.length);
+      this._callLocalListeners('data-loaded', rows);
+    }).catch(err => {
+      logger.warn('Tabulator setData failed', err);
+      this._callLocalListeners('data-loaded', rows);
+    });
+    return result;
   }
 
   /**
@@ -113,14 +123,56 @@ export default class TableWrapper {
   }
 
   // Additional helpers
+
+  _callLocalListeners(event, payload) {
+    const list = this._localListeners[event];
+    if (Array.isArray(list)) {
+      list.slice().forEach(fn => {
+        try { fn(payload); } catch (e) { logger.warn(`Listener for ${event} threw`, e); }
+      });
+    }
+  }
+
+  /**
+   * Backwards-compatible loadData API
+   */
+  loadData(data) {
+    return Promise.resolve(this.setData(data));
+  }
+
+  /**
+   * Render a simple empty state inside the tableWrapper (does not remove the wrapper element)
+   */
+  displayEmptyState(message) {
+    // Clear Tabulator data and show a small placeholder
+    try { this.tabulator.clearData(); } catch (e) {}
+    while (this.tableWrapper.firstChild) this.tableWrapper.removeChild(this.tableWrapper.firstChild);
+    const empty = document.createElement('div');
+    empty.className = 'pdf-table-empty-state';
+    empty.innerHTML = `\n      <div style="text-align:center;padding:24px;color:#666;">\n        <div style="font-size:32px;margin-bottom:8px">📄</div>\n        <div>${message || '暂无数据'}</div>\n      </div>`;
+    this.tableWrapper.appendChild(empty);
+    this._callLocalListeners('data-loaded', []);
+  }
+
+  // Additional helpers
   /**
    * 绑定 Tabulator 事件代理，封装对外订阅接口。
    * @param {string} event - Tabulator 事件名
    * @param {Function} handler - 事件处理函数
    */
   on(event, handler) {
-    if (!this.tabulator) return;
-    this.tabulator.on(event, handler);
+    // Register local listener
+    if (!this._localListeners[event]) this._localListeners[event] = [];
+    this._localListeners[event].push(handler);
+
+    // Also register with Tabulator if available (for Tabulator-specific events)
+    try {
+      if (this.tabulator && typeof this.tabulator.on === 'function') {
+        this.tabulator.on(event, handler);
+      }
+    } catch (e) {
+      // ignore
+    }
   }
 
   /**
@@ -129,8 +181,17 @@ export default class TableWrapper {
    * @param {Function} handler - 事件处理函数
    */
   off(event, handler) {
-    if (!this.tabulator) return;
-    this.tabulator.off(event, handler);
+    // Remove from local listeners
+    if (this._localListeners[event]) {
+      this._localListeners[event] = this._localListeners[event].filter(fn => fn !== handler);
+    }
+
+    // Also remove from Tabulator if available
+    try {
+      if (this.tabulator && typeof this.tabulator.off === 'function') {
+        this.tabulator.off(event, handler);
+      }
+    } catch (e) {}
   }
 
 }

@@ -15,6 +15,26 @@
     - 对每一个原型版本:
       - 启动原型迭代开发（proto-iter-dev）
 
+节点0.5:
+  角色: project-vise-manager
+  来源: project-manager
+  输入:
+    - 用户自然语言需求
+    - 0-1 需求对齐文档
+    - 0-2 原型迭代目标说明
+    - manager 发起轮次的草稿文档地址（Markdown）
+  输出:
+    - 0.5-1 对话记录文档地址（Markdown）
+    - 0.5-2 需求澄清提纲
+    - 0.5-3 迭代目标细化建议
+    - 0.5-4 风险与依赖清单
+  流程:
+    - project-manager 发起一轮对话：将简要想法写入 Markdown 文档并传递文档地址给 project-vise-manager
+    - project-vise-manager 浏览该文档，审阅并在对话记录文档中写入认同或反驳（含具体建议）
+    - project-vise-manager 返回对话记录文档地址给 project-manager
+    - project-manager 根据对话更新需求文档与迭代目标，若需继续则发起下一轮
+    - 循环直至达成共识或 project-manager 终止，并将最终对话记录与建议交付 project-manager
+
 节点1:
   角色: proto-iter-developer
   来源: project-manager
