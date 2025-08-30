@@ -112,8 +112,8 @@ class PDFTableRenderer {
             console.info('DEBUG_RENDERER: render called, callerHasData=', callerHasData, 'callerLen=', callerLen, 'stateLen=', stateLen);
         } catch (e) {}
 
-        // Normalize data: prefer provided data, fallback to table state
-        const renderData = Array.isArray(data) ? data : (this.table && this.table.state && Array.isArray(this.table.state.sortedData) ? this.table.state.sortedData : []);
+        // NOTE: do not rely on the caller-provided data here; rendering will fetch fresh data inside rAF
+        // The data parameter is intentionally ignored to avoid race conditions between calls and RAF.
 
         try {
             // Ensure we're writing into the live table wrapper element under the table's container.
@@ -137,7 +137,9 @@ class PDFTableRenderer {
             await new Promise(resolve => {
                 requestAnimationFrame(async () => {
                     try {
-                        await this.performRender(renderData);
+                        // CRITICAL: fetch the latest visible data at the moment of rendering
+                        const dataToRender = (typeof this.table.getVisibleData === 'function') ? this.table.getVisibleData() : (this.table && this.table.state && Array.isArray(this.table.state.sortedData) ? this.table.state.sortedData : []);
+                        await this.performRender(dataToRender);
                         resolve();
                     } catch (error) {
                         console.error('Render error:', error);
@@ -154,11 +156,12 @@ class PDFTableRenderer {
             this.lastRenderTime = performance.now() - startTime;
             this.renderCount++;
 
-            // Emit render complete event
+            // Emit render complete event (use actual DOM row count to reflect what was rendered)
+            const finalDataLength = this.tbody ? (this.tbody.querySelectorAll('tr[data-row-id]').length || 0) : 0;
             this.table.events.emit('render-complete', {
                 duration: this.lastRenderTime,
                 renderCount: this.renderCount,
-                dataLength: Array.isArray(renderData) ? renderData.length : 0
+                dataLength: finalDataLength
             });
         }
     }
