@@ -220,6 +220,8 @@ export class UIManager {
 
     if (!confirm(`确定要删除选中的 ${checkboxes.length} 个PDF文件吗？`)) return;
 
+    // 收集所有选中的文件
+    const selectedFiles = [];
     checkboxes.forEach(checkbox => {
       // Prefer explicit filename attribute, fall back to rowId mapping
       let filename = DOMUtils.getAttribute(checkbox, "data-filename") || DOMUtils.getAttribute(checkbox, "data-filepath");
@@ -232,8 +234,15 @@ export class UIManager {
           filename = rowId;
         }
       }
+      if (filename) {
+        selectedFiles.push(filename);
+      }
+    });
 
-      this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.REMOVE.REQUESTED, filename);
+    // 作为批量请求发送，避免竞态条件
+    this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.BATCH.REQUESTED, {
+      files: selectedFiles,
+      timestamp: Date.now()
     });
   }
 
