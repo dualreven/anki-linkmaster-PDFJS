@@ -232,7 +232,11 @@ class PDFTable {
      * @param {Array} data - 验证通过的数据
      */
     processValidatedData(data) {
-        console.log('PDFTable.processValidatedData IN ids=', Array.isArray(data) ? data.map(d => d.id) : data);
+        import Logger from '../utils/logger.js';
+
+const pdfTableLogger = new Logger('PDFTable');
+
+pdfTableLogger.debug('PDFTable.processValidatedData IN ids=', Array.isArray(data) ? data.map(d => d.id) : data);
         
         // Update state
         this.state.data = data;
@@ -249,7 +253,7 @@ class PDFTable {
         // Emit events
         this.events.emit('data-loaded', data);
         this.events.emit('data-changed', data);
-        console.log('PDFTable.processValidatedData OUT ids=', Array.isArray(this.state.data) ? this.state.data.map(d => d.id) : this.state.data);
+        pdfTableLogger.debug('PDFTable.processValidatedData OUT ids=', Array.isArray(this.state.data) ? this.state.data.map(d => d.id) : this.state.data);
 
     }
 
@@ -464,7 +468,7 @@ class PDFTable {
      */
     async removeRow(rowId) {
         try {
-            console.log('PDFTable.removeRow BEFORE ids=', Array.isArray(this.state.data) ? this.state.data.map(d => d.id) : this.state.data);
+            pdfTableLogger.debug('PDFTable.removeRow BEFORE ids=', Array.isArray(this.state.data) ? this.state.data.map(d => d.id) : this.state.data);
             const rowIndex = this.state.data.findIndex(row => row.id === rowId);
             if (rowIndex === -1) {
                 throw new Error(`Row with id ${rowId} not found`);
@@ -483,7 +487,7 @@ class PDFTable {
             // Emit events
             this.events.emit('row-removed', removedRow);
             this.events.emit('data-changed', this.state.data);
-            console.log('PDFTable.removeRow AFTER ids=', Array.isArray(this.state.data) ? this.state.data.map(d => d.id) : this.state.data);
+            pdfTableLogger.debug('PDFTable.removeRow AFTER ids=', Array.isArray(this.state.data) ? this.state.data.map(d => d.id) : this.state.data);
         } catch (error) {
             this.state.error = error.message;
             this.events.emit('error', error);
@@ -532,7 +536,7 @@ class PDFTable {
 
         // Prepare processed data and delegate rendering to renderer
         const processedData = this.getProcessedData();
-        console.log('PDFTable.updateDisplay processedData ids=', Array.isArray(processedData) ? processedData.map(d => d.id) : processedData);
+        pdfTableLogger.debug('PDFTable.updateDisplay processedData ids=', Array.isArray(processedData) ? processedData.map(d => d.id) : processedData);
 
         try {
             if (this.renderer && typeof this.renderer.render === 'function') {
