@@ -4,6 +4,7 @@
  */
 
 import { EventBus } from "../common/event/event-bus.js";
+import TableWrapper from './table-wrapper.js';
 import { APP_EVENTS } from "../common/event/event-constants.js";
 import Logger, { LogLevel } from "../common/utils/logger.js";
 import { ErrorHandler } from "../common/error/error-handler.js";
@@ -46,6 +47,32 @@ class PDFHomeApp {
       
       this.#pdfManager.initialize();
       this.#uiManager.initialize(); // UIManager now has its own initialization logic
+
+      // Initialize table wrapper (Tabulator)
+      const tableContainer = document.querySelector('#pdf-table-container');
+      if (tableContainer) {
+        this.tableWrapper = new TableWrapper(tableContainer, {
+          columns: [
+            { title: "File", field: "filename", headerFilter: true },
+            { title: "Title", field: "title" },
+            { title: "Pages", field: "page_count", hozAlign: "center" },
+            { title: "Cards", field: "cards_count", hozAlign: "center" },
+          ],
+          selectable: true
+        });
+
+        // Subscribe to pdf list updates from event bus
+        this.#eventBus.on('pdf:list:updated', (pdfs) => {
+          try {
+            const mapped = Array.isArray(pdfs) ? pdfs.map(p => ({ ...p })) : [];
+            this.tableWrapper.setData(mapped);
+          } catch (e) {
+            this.#logger.error('Failed to update table wrapper data', e);
+          }
+        }, { subscriberId: 'PDFHomeApp' });
+      } else {
+        this.#logger.warn('Table container #pdf-table-container not found; skipping TableWrapper init');
+      }
       this.#websocketManager.connect();
       
       this.#initialized = true;
