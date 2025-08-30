@@ -105,7 +105,13 @@ class PDFHomeApp {
         this.#eventBus.on('pdf:list:updated', (pdfs) => {
           try {
             const mapped = Array.isArray(pdfs) ? pdfs.map(p => ({ ...p })) : [];
-            this.tableWrapper.setData(mapped);
+            this.#logger.info(`pdf:list:updated received, count=${mapped.length}`);
+            if (mapped.length > 0) this.#logger.debug('sample item:', mapped[0]);
+            if (this.tableWrapper) {
+              this.tableWrapper.setData(mapped);
+            } else {
+              this.#logger.warn('TableWrapper not initialized when pdf:list:updated received');
+            }
           } catch (e) {
             this.#logger.error('Failed to update table wrapper data', e);
           }
@@ -188,14 +194,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     index_logger.info("PDF Home App started. Use window.app.getState() for status.");
 
     // run lightweight integration tests automatically and log result (non-blocking)
+    /* Integration tests disabled by default. To run manually, import and call from console or devtools.
     try {
       const { runIntegrationTests } = await import('./integration-tests.js');
-      // best-effort: use public eventBus if available
       const bus = (typeof app.getEventBus === 'function') ? app.getEventBus() : (app._eventBus || null);
       runIntegrationTests(bus, app).then(result => console.info('Integration tests result:', result)).catch(e => console.warn('Integration tests failed', e));
     } catch (e) {
       // ignore if tests cannot run in current environment
     }
+    */
   } catch (error) {
     index_logger.error("Failed to start PDF Home App:", error);
   }

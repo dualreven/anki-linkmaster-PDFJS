@@ -2,6 +2,7 @@
 // Tabulator-based table wrapper for pdf-home (native JS integration)
 
 import { Tabulator } from 'tabulator-tables';
+import 'tabulator-tables/dist/css/tabulator.min.css';
 import Logger from '../common/utils/logger.js';
 
 const logger = new Logger('TableWrapper');
@@ -36,7 +37,8 @@ export default class TableWrapper {
     this.tableWrapper = this._getOrCreateWrapper();
 
     this.options = Object.assign({
-      height: '100%',
+      // avoid forcing 100% height which can collapse if parent has no explicit height
+      height: 'auto',
       layout: 'fitColumns',
       selectable: true,
       layoutColumnsOnNewData: false,
@@ -58,6 +60,8 @@ export default class TableWrapper {
     if (existing) return existing;
     const wrapper = document.createElement('div');
     wrapper.className = 'pdf-table-wrapper';
+    // ensure wrapper has a minimum height so Tabulator can render
+    wrapper.style.minHeight = '200px';
     this.container.appendChild(wrapper);
     return wrapper;
   }
@@ -86,6 +90,75 @@ export default class TableWrapper {
     Promise.resolve(result).then(() => {
       logger.debug('setData count=', rows.length);
       this._callLocalListeners('data-loaded', rows);
+      try {
+        // ensure tabulator redraw
+        if (this.tabulator && typeof this.tabulator.redraw === 'function') {
+          try { this.tabulator.redraw(true); } catch (e) { /* ignore */ }
+        }
+
+        const childCount = this.tableWrapper ? this.tableWrapper.childElementCount : 0;
+        const innerLen = this.tableWrapper && this.tableWrapper.innerHTML ? this.tableWrapper.innerHTML.length : 0;
+        // Detect Tabulator element: it may be the wrapper itself (Tabulator adds classes to the container)
+        const wrapperIsTabulator = this.tableWrapper ? this.tableWrapper.classList && this.tableWrapper.classList.contains('tabulator') : false;
+        const tabEl = this.tableWrapper ? (wrapperIsTabulator ? this.tableWrapper : (this.tableWrapper.querySelector('.tabulator') || this.tableWrapper.querySelector('.tabulator-table'))) : null;
+        const tabExists = !!tabEl;
+        let rectInfo = 'null';
+        if (this.tableWrapper && typeof this.tableWrapper.getBoundingClientRect === 'function') {
+          const r = this.tableWrapper.getBoundingClientRect();
+          rectInfo = `${Math.round(r.width)}x${Math.round(r.height)}`;
+        }
+        logger.info(`TableWrapper DOM after setData: childCount=${childCount}, innerHTMLLen=${innerLen}, tableWrapper.className=${this.tableWrapper ? this.tableWrapper.className : 'null'}, tabExists=${tabExists}, rect=${rectInfo}`);
+
+        // If Tabulator did not create DOM (neither wrapper nor child), try forcing a height and redraw as fallback
+        if (!tabExists) {
+          try {
+            if (this.tableWrapper) this.tableWrapper.style.height = this.tableWrapper.style.height || '300px';
+            if (this.tabulator && typeof this.tabulator.redraw === 'function') this.tabulator.redraw(true);
+            const tabEl2 = this.tableWrapper.classList && this.tableWrapper.classList.contains('tabulator') ? this.tableWrapper : (this.tableWrapper.querySelector('.tabulator') || this.tableWrapper.querySelector('.tabulator-table'));
+            logger.info('Fallback attempt after forcing height, tabExistsNow=' + !!tabEl2 + ', tableWrapper.className=' + (this.tableWrapper ? this.tableWrapper.className : 'null'));
+          } catch (e) { logger.warn('Fallback redraw failed', e); }
+        }
+
+        // Additional diagnostics: computed styles and Tabulator instance keys
+        try {
+          if (typeof window !== 'undefined' && window.getComputedStyle) {
+            const cs = (el) => window.getComputedStyle(el);
+            const contStyles = cs(this.container);
+            const wrapStyles = cs(this.tableWrapper);
+            logger.info(`Computed styles - container: display=${contStyles.display}, height=${contStyles.height}, overflow=${contStyles.overflow}`);
+            logger.info(`Computed styles - wrapper: display=${wrapStyles.display}, height=${wrapStyles.height}, overflow=${wrapStyles.overflow}`);
+            let p = this.container;
+            let depth = 0;
+            while (p && p !== document.body && depth < 6) {
+              try {
+                const s = cs(p);
+                logger.debug(`ancestor:${p.tagName}.${p.className || ''} display=${s.display} height=${s.height}`);
+              } catch (e) {}
+              p = p.parentElement; depth++;
+            }
+          }
+        } catch (e) { logger.warn('Computed style diagnostics failed', e); }
+
+        try {
+          const keys = Object.keys(this.tabulator || {}).slice(0, 40);
+          logger.info('Tabulator instance keys (sample):', keys);
+
+          // Deeper introspection: DOM refs, internal data and columns
+          try {
+            const tEl = (this.tabulator && (this.tabulator.element || this.tabulator.table || this.tabulator.tableElement)) || null;
+            logger.info('Tabulator DOM reference present:', !!tEl);
+            let tdataLen = 'n/a';
+            try { tdataLen = (this.tabulator && typeof this.tabulator.getData === 'function') ? (Array.isArray(this.tabulator.getData()) ? this.tabulator.getData().length : 'non-array') : 'no-getData'; } catch (e) { tdataLen = 'getData-error'; }
+            logger.info('Tabulator internal data length:', tdataLen);
+            let colsCount = 'n/a';
+            try { colsCount = (this.tabulator && typeof this.tabulator.getColumns === 'function') ? (this.tabulator.getColumns().length) : 'no-getColumns'; } catch (e) { colsCount = 'getColumns-error'; }
+            logger.info('Tabulator columns count:', colsCount);
+          } catch (e) { logger.warn('Tabulator deeper introspect failed', e); }
+
+        } catch (e) { logger.warn('Tabulator introspect failed', e); }
+      } catch (e) {
+        logger.warn('Error inspecting tableWrapper DOM', e);
+      }
     }).catch(err => {
       logger.warn('Tabulator setData failed', err);
       this._callLocalListeners('data-loaded', rows);
@@ -149,7 +222,7 @@ export default class TableWrapper {
     while (this.tableWrapper.firstChild) this.tableWrapper.removeChild(this.tableWrapper.firstChild);
     const empty = document.createElement('div');
     empty.className = 'pdf-table-empty-state';
-    empty.innerHTML = `\n      <div style="text-align:center;padding:24px;color:#666;">\n        <div style="font-size:32px;margin-bottom:8px">📄</div>\n        <div>${message || '暂无数据'}</div>\n      </div>`;
+    empty.innerHTML = `\n      <div style=\"text-align:center;padding:24px;color:#666;\">\n        <div style=\"font-size:32px;margin-bottom:8px\">📄</div>\n        <div>${message || '暂无数据'}</div>\n      </div>`;
     this.tableWrapper.appendChild(empty);
     this._callLocalListeners('data-loaded', []);
   }
@@ -194,4 +267,48 @@ export default class TableWrapper {
     } catch (e) {}
   }
 
+}
+
+export function runTabulatorSmokeTest() {
+  try {
+    const container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.right = '10px';
+    container.style.bottom = '10px';
+    container.style.width = '320px';
+    container.style.height = '200px';
+    container.style.zIndex = '9999';
+    container.style.background = 'white';
+    container.className = 'tabulator-smoke-container';
+    document.body.appendChild(container);
+
+    const t = new Tabulator(container, {
+      height: '100%',
+      layout: 'fitColumns',
+      columns: [{ title: 'A', field: 'a' }],
+      data: [{ a: 'test' }]
+    });
+
+    // allow microtask for Tabulator to render
+    setTimeout(() => {
+      const exists = !!(container.querySelector('.tabulator') || container.querySelector('.tabulator-table'));
+      console.info('[TableWrapper][SmokeTest] Tabulator DOM present:', exists);
+      try { t.destroy(); } catch (e) {}
+      if (container.parentElement) container.parentElement.removeChild(container);
+    }, 50);
+  } catch (e) {
+    console.warn('[TableWrapper][SmokeTest] failed', e);
+  }
+}
+
+// Auto-run the non-destructive smoke test once on page load to verify Tabulator runtime
+if (typeof window !== 'undefined') {
+  try {
+    setTimeout(() => {
+      if (!window.__tabulatorSmokeRun) {
+        window.__tabulatorSmokeRun = true;
+        try { runTabulatorSmokeTest(); } catch (e) { console.warn('[TableWrapper] auto smoke test failed', e); }
+      }
+    }, 250);
+  } catch (e) { console.warn('[TableWrapper] schedule smoke test failed', e); }
 }

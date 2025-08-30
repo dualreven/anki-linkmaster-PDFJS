@@ -2,7 +2,6 @@
  * UI管理器（迁移到 pdf-home）
  */
 import { DOMUtils } from "../common/utils/dom-utils.js";
-import PDFTable from "../common/pdf-table/index.js";
 import {
   PDF_MANAGEMENT_EVENTS,
   WEBSOCKET_EVENTS,
@@ -61,21 +60,20 @@ export class UIManager {
   }
 
   #initializePDFTable() {
-    if (this.#elements.pdfTableContainer) {
-      const tableConfig = {
-        columns: [/* kept configuration omitted for brevity */],
-        sortable: false,
-        filterable: false,
-        pagination: false,
-        selectable: false,
-        exportEnabled: false,
-        searchEnabled: false
-      };
-      this.pdfTable = new PDFTable(this.#elements.pdfTableContainer, tableConfig);
-      this.#logger.info("PDF table instance created at:", this.#elements.pdfTableContainer);
-      this.#setupTableEventListeners();
+    if (!this.#elements.pdfTableContainer) return;
+
+    // Expect PDFHomeApp to inject a table instance (TableWrapper) as this.pdfTable before initialize()
+    if (!this.pdfTable) {
+      this.#logger.info("No injected pdfTable instance found; skipping table initialization. Integration should inject TableWrapper from PDFHomeApp.");
+      return;
+    }
+
+    this.#logger.info("Using injected pdfTable instance for UI Manager.");
+    this.#setupTableEventListeners();
+
+    if (typeof this.pdfTable.initialize === 'function') {
       this.pdfTable.initialize().catch(error => {
-        this.#logger.error("Failed to initialize PDF table:", error);
+        this.#logger.error("Failed to initialize injected pdfTable:", error);
       });
     }
   }
@@ -94,14 +92,27 @@ export class UIManager {
         }
         const internalEmptyStates = DOMUtils.findAllElements('.pdf-table-empty-state', this.#elements.pdfTableContainer);
         Array.from(internalEmptyStates).forEach(el => el.remove());
+        // try to expose wrapper element if available
         if (this.pdfTable.tableWrapper) this.pdfTable.tableWrapper.style.display = '';
         if (this.pdfTable.tableWrapper?.parentElement) this.pdfTable.tableWrapper.parentElement.style.display = '';
       } catch (e) {
         this.#logger.warn("Could not perform defensive cleanup after table render.", e);
       }
     };
-    this.pdfTable.events.on('data-loaded', handleDataChange);
-    this.#unsubscribeFunctions.push(() => this.pdfTable.events.off && this.pdfTable.events.off('data-loaded', handleDataChange));
+
+    // Support legacy PDFTable.events API or new TableWrapper.on API
+    try {
+      if (this.pdfTable.events && typeof this.pdfTable.events.on === 'function') {
+        this.pdfTable.events.on('data-loaded', handleDataChange);
+        this.#unsubscribeFunctions.push(() => this.pdfTable.events.off && this.pdfTable.events.off('data-loaded', handleDataChange));
+      } else if (typeof this.pdfTable.on === 'function') {
+        this.pdfTable.on('data-loaded', handleDataChange);
+        this.#unsubscribeFunctions.push(() => this.pdfTable.off && this.pdfTable.off('data-loaded', handleDataChange));
+      }
+    } catch (e) {
+      this.#logger.warn('Failed to attach to pdfTable data-loaded event', e);
+    }
+
     const unsubEventBus = this.#eventBus.on('pdf:table:data-changed', handleDataChange);
     if (typeof unsubEventBus === 'function') this.#unsubscribeFunctions.push(unsubEventBus);
     else if (typeof this.#eventBus.off === 'function') this.#unsubscribeFunctions.push(() => this.#eventBus.off('pdf:table:data-changed', handleDataChange));
