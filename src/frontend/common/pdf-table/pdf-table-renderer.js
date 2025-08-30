@@ -104,6 +104,14 @@ class PDFTableRenderer {
      */
     async render(data = null) {
         const startTime = performance.now();
+        // Diagnostics: record whether caller passed data and snapshot lengths
+        try {
+            const callerHasData = Array.isArray(data);
+            const callerLen = callerHasData ? data.length : -1;
+            const stateLen = this.table && this.table.state && Array.isArray(this.table.state.sortedData) ? this.table.state.sortedData.length : -1;
+            console.info('DEBUG_RENDERER: render called, callerHasData=', callerHasData, 'callerLen=', callerLen, 'stateLen=', stateLen);
+        } catch (e) {}
+
         // Normalize data: prefer provided data, fallback to table state
         const renderData = Array.isArray(data) ? data : (this.table && this.table.state && Array.isArray(this.table.state.sortedData) ? this.table.state.sortedData : []);
 
@@ -160,6 +168,15 @@ class PDFTableRenderer {
      * @param {Array} data - Data to render
      */
     async performRender(data) {
+        // Diagnostics: record whether we received data and what state holds at entry
+        try {
+            const paramIsArray = Array.isArray(data);
+            const paramLen = paramIsArray ? data.length : -1;
+            const stateArray = this.table && this.table.state && Array.isArray(this.table.state.sortedData) ? this.table.state.sortedData : null;
+            const stateLen = stateArray ? stateArray.length : -1;
+            console.info('DEBUG_RENDERER: performRender entry paramIsArray=', paramIsArray, 'paramLen=', paramLen, 'stateLen=', stateLen);
+        } catch (e) {}
+
         // Normalize data
         data = Array.isArray(data) ? data : (this.table && this.table.state && Array.isArray(this.table.state.sortedData) ? this.table.state.sortedData : []);
 
