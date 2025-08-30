@@ -13,6 +13,10 @@ import {
 
 import Logger from "../utils/logger.js";
 
+/**
+ * PDF 管理器，负责注册事件、维护 PDF 列表并与后端通信。
+ * @class PDFManager
+ */
 export class PDFManager {
   #pdfs = [];
   #batchTrack = new Map();
@@ -21,11 +25,19 @@ export class PDFManager {
   #logger;
   #unsubscribeFunctions = [];
 
+/**
+   * 创建 PDFManager 实例。
+   * @param {Object} eventBus - 应用的事件总线，用于模块间通信。
+   */
   constructor(eventBus) {
     this.#eventBus = eventBus;
     this.#logger = new Logger("PDFManager");
   }
 
+/**
+   * 初始化管理器：注册 websocket 与本地事件监听器并请求初始 PDF 列表。
+   * @returns {void}
+   */
   initialize() {
     this.#setupWebSocketListeners();
     this.#setupEventListeners();
@@ -33,10 +45,18 @@ export class PDFManager {
     this.#logger.info("PDF Manager initialized.");
   }
 
+/**
+   * 获取当前缓存的 PDF 列表（返回副本）。
+   * @returns {Array<Object>} PDF 元数据数组。
+   */
   getPDFs() {
     return Array.isArray(this.#pdfs) ? [...this.#pdfs] : [];
   }
 
+/**
+   * 销毁管理器：取消订阅所有注册的监听器并清理资源。
+   * @returns {void}
+   */
   destroy() {
     this.#logger.info(
       "Destroying PDF Manager and unsubscribing from all events."
@@ -45,6 +65,10 @@ export class PDFManager {
     this.#unsubscribeFunctions = [];
   }
 
+/**
+   * 注册与 WebSocket 相关的事件监听器到事件总线（内部方法）。
+   * @returns {void}
+   */
   #setupWebSocketListeners() {
     const listeners = [
       this.#eventBus.on(
@@ -85,6 +109,11 @@ export class PDFManager {
     this.#unsubscribeFunctions.push(...listeners);
   }
 
+/**
+   * 注册与 PDF 相关的本地事件监听器到事件总线（内部方法）。
+   * 负责将事件路由到相应的处理函数并在错误时上报。
+   * @returns {void}
+   */
   #setupEventListeners() {
     const listeners = [
       this.#eventBus.on(
@@ -155,6 +184,10 @@ export class PDFManager {
     this.#unsubscribeFunctions.push(...listeners);
   }
 
+/**
+   * 向后端发送请求以获取完整的 PDF 列表。
+   * @returns {void}
+   */
   #loadPDFList() {
     this.#logger.info("Requesting PDF list from server.");
     this.#eventBus.emit(
@@ -164,6 +197,12 @@ export class PDFManager {
     );
   }
 
+/**
+   * 处理来自后端的 PDF 列表更新：将后端数据映射并更新内部缓存，然后广播更新事件。
+   * @param {Object} data - 后端返回的消息对象，期望 data.data.files 为数组。
+   * @param {string} source - 来源字符串，供日志记录使用。
+   * @returns {void}
+   */
   #handlePDFListUpdate(data, source) {
     this.#logger.info(
       `Processing PDF list from '${source}': ${JSON.stringify(
@@ -179,6 +218,11 @@ export class PDFManager {
     this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.LIST.UPDATED, this.getPDFs(), { actorId: "PDFManager" });
   }
 
+/**
+   * 处理 WEBSOCKET_MESSAGE_EVENTS.SUCCESS 类型的消息，检测是否包含 GET_PDF_LIST 的结果。
+   * @param {Object} data - websocket 返回的消息对象。
+   * @returns {void}
+   */
   #handleSuccessResponse(data) {
     this.#logger.info("Handling success response:", data.original_type);
     if (
@@ -189,6 +233,11 @@ export class PDFManager {
     }
   }
 
+/**
+   * 处理后端返回的错误消息并向 UI 广播错误事件。
+   * @param {Object} data - 错误消息对象，可能包含 data.message 或 message。
+   * @returns {void}
+   */
   #handleErrorResponse(data) {
     const errorMessage =
       data?.data?.message || data?.message || "Unknown error from server.";
@@ -198,6 +247,11 @@ export class PDFManager {
     });
   }
 
+/**
+   * 处理通用的 RESPONSE 消息：包括快速返回的文件数组和批次删除进度追踪。
+   * @param {Object} data - websocket 响应负载。
+   * @returns {void}
+   */
   #handleResponse(data) {
     this.#logger.info("Handling response message:", data);
 
@@ -268,6 +322,11 @@ export class PDFManager {
     }
   }
 
+/**
+   * 请求打开文件选择器以添加 PDF（通过后端/网络层）。
+   * @param {Object} fileInfo - 可选的文件信息/提示，用于引导选择流程。
+   * @returns {void}
+   */
   addPDF(fileInfo) {
     this.#logger.info(
       `Requesting to add PDF: ${JSON.stringify(fileInfo, null, 2)}`
@@ -283,10 +342,20 @@ export class PDFManager {
     );
   }
 
+/**
+   * 生成一个用于请求跟踪的半唯一 ID。
+   * @returns {string} 请求 ID 字符串。
+   */
   #generateRequestId() {
     return "req_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
   }
 
+/**
+   * 请求删除指定 PDF（支持 id 或 filename）。
+   * 若 identifier 为 id，会尝试从缓存解析对应的 filename 并补全 .pdf 后缀。
+   * @param {string|number} identifier - PDF 的 id 或文件名。
+   * @returns {void}
+   */
   removePDF(identifier) {
     this.#logger.info(`Requesting to remove PDF: ${identifier}`);
     // Resolve filename from loaded list when possible (ensure .pdf suffix)
@@ -311,6 +380,11 @@ export class PDFManager {
     );
   }
 
+/**
+   * 请求后端打开指定的 PDF 文件（以 file_id 为标识）。
+   * @param {string} filename - 要打开的文件标识。
+   * @returns {void}
+   */
   openPDF(filename) {
     this.#logger.info(`Requesting to open PDF: ${filename}`);
     this.#eventBus.emit(
@@ -320,6 +394,11 @@ export class PDFManager {
     );
   }
 
+/**
+   * 处理批量删除请求：将批次拆分为若干单文件删除请求并附带批次元数据以便跟踪。
+   * @param {Object} batchData - 包含 files 数组及可选 timestamp 的对象。
+   * @returns {void}
+   */
   handleBatchRemove(batchData) {
     const { files = [], timestamp } = batchData;
     this.#logger.info(
@@ -359,6 +438,11 @@ export class PDFManager {
     });
   }
 
+/**
+   * 将后端的 PDF 对象转换为前端使用的标准结构。
+   * @param {Object} backendData - 后端返回的单个 PDF 描述对象。
+   * @returns {Object} 标准化后的 PDF 元数据对象。
+   */
   #mapBackendToFrontend(backendData) {
     return {
       id: backendData.id || backendData.filename,
