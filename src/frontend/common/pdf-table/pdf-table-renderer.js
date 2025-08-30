@@ -177,13 +177,16 @@ class PDFTableRenderer {
             console.info('DEBUG_RENDERER: performRender entry paramIsArray=', paramIsArray, 'paramLen=', paramLen, 'stateLen=', stateLen);
         } catch (e) {}
 
-        // Normalize data
-        data = Array.isArray(data) ? data : (this.table && this.table.state && Array.isArray(this.table.state.sortedData) ? this.table.state.sortedData : []);
+        // Defensive copy: ensure we operate on a snapshot and not a possibly-mutated array
+        const safeData = Array.isArray(data) ? data.slice() : (this.table && this.table.state && Array.isArray(this.table.state.sortedData) ? this.table.state.sortedData.slice() : []);
 
         // Debug: incoming data
         try {
-            console.info("DEBUG_RENDERER: performRender called, dataLength=", Array.isArray(data) ? data.length : 0);
+            console.info("DEBUG_RENDERER: performRender called, dataLength=", Array.isArray(safeData) ? safeData.length : 0);
         } catch (e) {}
+
+        // Use safeData for rendering
+        data = safeData;
 
         // Clear container
         this.clearContainer();

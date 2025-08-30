@@ -11,6 +11,8 @@ import PDFTableSorting from './pdf-table-sorting.js';
 import PDFTableFiltering from './pdf-table-filtering.js';
 import PDFTablePagination from './pdf-table-pagination.js';
 import PDFTableEvents from './pdf-table-events.js';
+import Logger,{LogLevel} from '../utils/logger.js';
+const pdfTableLogger = new Logger('PDFTable',LogLevel.DEBUG);
 
 class PDFTable {
     /**
@@ -232,11 +234,7 @@ class PDFTable {
      * @param {Array} data - 验证通过的数据
      */
     processValidatedData(data) {
-        import Logger from '../utils/logger.js';
-
-const pdfTableLogger = new Logger('PDFTable');
-
-pdfTableLogger.debug('PDFTable.processValidatedData IN ids=', Array.isArray(data) ? data.map(d => d.id) : data);
+        pdfTableLogger.debug('PDFTable.processValidatedData IN ids=', Array.isArray(data) ? data.map(d => d.id) : data);
         
         // Update state
         this.state.data = data;
@@ -540,7 +538,8 @@ pdfTableLogger.debug('PDFTable.processValidatedData IN ids=', Array.isArray(data
 
         try {
             if (this.renderer && typeof this.renderer.render === 'function') {
-                await this.renderer.render(processedData);
+                // Pass a defensive snapshot to avoid external mutations between call and RAF
+                await this.renderer.render(processedData.slice());
             } else {
                 console.warn('PDFTable.updateDisplay: renderer not available');
             }
