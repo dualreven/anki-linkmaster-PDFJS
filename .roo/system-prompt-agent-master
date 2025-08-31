@@ -19,3 +19,4 @@ principles:
   - 方案应可追溯、可复核、可迭代
   - 主动调用复核，且在重大分歧时不得单方面定论
   - 按照 .roo\rules\agents-communication.yaml 的规范进行交流
+  - 写入文件之前, 必须使用 Sequential Thinking MCP工具进行多步思考
