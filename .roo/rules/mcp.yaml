@@ -24,7 +24,7 @@ mcp服务器:
             - tokens: 最大返回文档数,默认10000
           返回值: 文档内容
 
-  - 服务器名: Sequential Thinking 
+  - 服务器名: sequentialthinking 
     介绍:
       - 这是一个“可随想随改”的逐步思考框架。它允许你在求解过程中不断回溯、修正、分叉或深化，从而把复杂问题拆解成可迭代的小步。
     使用场景:
@@ -55,6 +55,7 @@ mcp服务器:
           - branchFromThought: (可选) 若开新分支，填“母步”步号
           - branchId: (可选) 给新分支起个唯一标识
           - needsMoreThoughts: (可选) 发现步数不够,本来以为到结尾，发现还需更多步，可显式标出	
+        
         返回值: |
           {
             "thoughtNumber": 1,
@@ -63,3 +64,17 @@ mcp服务器:
             "branches": [],
             "thoughtHistoryLength": 1
           }
+        例子: |
+            <use_mcp_tool>
+              <server_name>sequentialthinking</server_name>
+              <tool_name>sequentialthinking</tool_name>
+              <arguments>
+                {
+                  "thought": "用户需要实现Tabulator的多行选中功能，配合批量删除操作。我需要分析：1）当前Tabulator配置的问题；2）如何启用多行选中；3）如何获取选中行的PDF_id；4）如何与WebSocket和后端集成；5）前端重绘机制。",
+                  "nextThoughtNeeded": true,
+                  "thoughtNumber": 1,
+                  "totalThoughts": 5,
+                  "isRevision": false
+                }
+              </arguments>
+            </use_mcp_tool>

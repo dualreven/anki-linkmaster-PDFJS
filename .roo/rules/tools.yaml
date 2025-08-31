@@ -126,6 +126,7 @@
       - 可用行范围高效读取大文件特定部分，
       - 推荐优先用 `list_code_definition_names` 获取代码定义名称。
       - 单次请求最多可读 5 个文件。若需读更多文件，请用多个连续的 `read_file` 。
+      - 尽可能一次读取所有文件, 避免多次调用.
     参数:
       args: # 要读取的文件路径列表，每个路径用 `<file>` 标签包裹。
         file:
@@ -355,13 +356,14 @@
         <command>python</command>
         <cwd>/home/user/app.py</cwd>
         </execute_command>      
+        
   use_mcp_tool:
     描述:
       - 用于调用MCP工具
     参数:
       server_name: (必需) MCP服务器名称
       tool_name: (必需) MCP工具名称
-      arguments: (必需) 传递给MCP工具的参数,json格式
+      arguments: (必需) 传递给MCP工具的参数,必须是json格式
     例子:
       - | # 调用天气预报工具
         <use_mcp_tool>
@@ -386,6 +388,7 @@
 
 
 工具使用规则:
+  - 使用工具时,需要等待其结果返回.
   - 在 `<thinking>` 标签中评估现有信息和任务所需信息。
   - 依据任务和工具描述选最合适的工具，优先用工具而非终端命令收集信息。
   - 需多操作时，每条消息用一个工具，迭代完成任务，每次基于上次结果，不做假设。

@@ -3,7 +3,7 @@ self-desc: "PDF-Home 模块的规范头文件"
 version: 1.2  # 版本更新：增加对pdf-table模块规范的引用
 
 public:
-- basepath: "../../../docs/SPEC"  # 根目录下的全局规范文档
+- basepath: "../../../docs/SPEC"  # 项目根目录下的全局规范文档
   specs:
   - id: FRONTEND-EVENT-BUS-001
     desc: "前端事件总线使用规范"
