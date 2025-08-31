@@ -253,44 +253,88 @@ export class UIManager {
   // }
 
   #handleBatchDelete() {
-    // 确保表格实例存在且具有获取选中行的方法
-    if (!this.pdfTable || typeof this.pdfTable.getSelectedRows !== 'function') {
-      this.showError("表格未正确初始化，无法执行批量删除");
-      return;
+    // 优先使用 Tabulator 的 API 获取选中的行
+    if (this.pdfTable && typeof this.pdfTable.getSelectedRows === 'function') {
+      try {
+        const selectedRows = this.pdfTable.getSelectedRows();
+        if (Array.isArray(selectedRows) && selectedRows.length > 0) {
+          if (!confirm(`确定要删除选中的 ${selectedRows.length} 个PDF文件吗？`)) return;
+          
+          // 收集所有选中的文件
+          const selectedFiles = selectedRows.map(row => row.id || row.filename || row.file_id || '').filter(Boolean);
+          
+          if (selectedFiles.length === 0) {
+            this.showError("无法获取选中的文件信息");
+            return;
+          }
+          
+          // 作为批量请求发送，避免竞态条件
+          this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.BATCH.REQUESTED, {
+            files: selectedFiles,
+            timestamp: Date.now()
+          });
+          
+          return;
+        }
+      } catch (e) {
+        this.#logger.warn('Failed to read selection from pdfTable API', e);
+      }
+    }
+    
+    // 如果 Tabulator API 不可用，回退到 DOM 检测
+    let checkboxes = Array.from(DOMUtils.findAllElements(".pdf-item-checkbox:checked") || []);
+    if (checkboxes.length === 0) {
+      checkboxes = Array.from(DOMUtils.findAllElements('.pdf-table-checkbox:checked') || []);
     }
 
-    try {
-      const selectedRows = this.pdfTable.getSelectedRows();
-      if (!Array.isArray(selectedRows) || selectedRows.length === 0) {
-        this.showError("请先选择要删除的PDF文件");
-        return;
+    // If still none, try to detect Tabulator selected rows in the container
+    if (checkboxes.length === 0 && this.#elements.pdfTableContainer) {
+      const tabulatorSelected = Array.from(DOMUtils.findAllElements('.tabulator-row.tabulator-selected', this.#elements.pdfTableContainer) || []);
+      if (tabulatorSelected.length > 0) {
+        tabulatorSelected.forEach(rowEl => {
+          let rowId = rowEl.getAttribute('data-row-id') || (rowEl.dataset && (rowEl.dataset.rowId || rowEl.dataset.rowid));
+          if (!rowId) {
+            const cellWithRowId = rowEl.querySelector('[data-row-id]');
+            if (cellWithRowId) rowId = cellWithRowId.getAttribute('data-row-id');
+          }
+          if (rowId) {
+            const fakeCheckbox = document.createElement('input');
+            fakeCheckbox.type = 'checkbox';
+            fakeCheckbox.dataset.rowId = rowId;
+            checkboxes.push(fakeCheckbox);
+          }
+        });
       }
-
-      if (!confirm(`确定要删除选中的 ${selectedRows.length} 个PDF文件吗？`)) {
-        return;
-      }
-
-      // 收集所有选中的文件标识（优先使用id，其次使用filename）
-      const selectedFiles = selectedRows.map(row => {
-        const data = row.getData ? row.getData() : row;
-        return data.id || data.filename || '';
-      }).filter(Boolean);
-
-      if (selectedFiles.length === 0) {
-        this.showError("无法获取选中的文件信息");
-        return;
-      }
-
-      // 发送批量删除请求
-      this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.BATCH.REQUESTED, {
-        files: selectedFiles,
-        timestamp: Date.now()
-      });
-
-    } catch (error) {
-      this.#logger.error('批量删除处理失败', error);
-      this.showError("批量删除操作失败，请重试");
     }
+
+    if (checkboxes.length === 0) { this.showError("请先选择要删除的PDF文件"); return; }
+
+    if (!confirm(`确定要删除选中的 ${checkboxes.length} 个PDF文件吗？`)) return;
+
+    // 收集所有选中的文件
+    const selectedFiles = [];
+    checkboxes.forEach(checkbox => {
+      // Prefer explicit filename attribute, fall back to rowId mapping
+      let filename = DOMUtils.getAttribute(checkbox, "data-filename") || DOMUtils.getAttribute(checkbox, "data-filepath") || (checkbox.dataset && checkbox.dataset.filename);
+      if (!filename) {
+        const rowId = (checkbox.dataset && (checkbox.dataset.rowId || checkbox.dataset.rowid)) || DOMUtils.getAttribute(checkbox, 'data-row-id') || DOMUtils.getAttribute(checkbox, 'data-rowid');
+        if (rowId && Array.isArray(this.#state?.pdfs)) {
+          const entry = this.#state.pdfs.find(p => String(p.id) === String(rowId) || String(p.filename) === String(rowId));
+          filename = entry ? entry.filename : rowId;
+        } else {
+          filename = rowId;
+        }
+      }
+      if (filename) {
+        selectedFiles.push(filename);
+      }
+    });
+
+    // 作为批量请求发送，避免竞态条件
+    this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.BATCH.REQUESTED, {
+      files: selectedFiles,
+      timestamp: Date.now()
+    });
   }
 
   #toggleDebugStatus() {
