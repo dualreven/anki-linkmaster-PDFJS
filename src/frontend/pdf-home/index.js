@@ -5,7 +5,7 @@
 
 import { EventBus } from "../common/event/event-bus.js";
 import TableWrapper from './table-wrapper.js';
-import { APP_EVENTS, PDF_MANAGEMENT_EVENTS } from "../common/event/event-constants.js";
+import { APP_EVENTS, PDF_MANAGEMENT_EVENTS, UI_EVENTS, SYSTEM_EVENTS } from "../common/event/event-constants.js";
 import Logger, { LogLevel } from "../common/utils/logger.js";
 import { ErrorHandler } from "../common/error/error-handler.js";
 import { UIManager } from "./ui-manager.js";
@@ -122,7 +122,6 @@ class PDFHomeApp {
         // });
 
 
-
         // Bridge Tabulator events to our event bus
         // Use Tabulator's cellClick event signature: function(e, cell) -> cell.getRow().getData()
         
@@ -134,9 +133,14 @@ class PDFHomeApp {
               console.log("行选择发生变化:", data, rows);
               try {
                 const selected = Array.isArray(data) ? data.map(r => r.id || r.filename) : [];
-                this.#eventBus.emit('ui:selection:changed', selected, { actorId: 'PDFHomeApp' });
+                this.#eventBus.emit(UI_EVENTS.SELECTION.CHANGED, selected, { actorId: 'PDFHomeApp' });
               } catch (err) {
                 this.#logger.warn('Error handling rowSelectionChanged', err);
+                this.#eventBus.emit(SYSTEM_EVENTS.ERROR.OCCURRED, {
+                  type: 'table_error',
+                  message: err.message,
+                  details: { context: 'rowSelectionChanged', error: err }
+                });
               }
             });
 
@@ -195,6 +199,11 @@ class PDFHomeApp {
         //     }
         //   } catch (err) {
         //     this.#logger.warn('Error handling table cellClick', err);
+        //     this.#eventBus.emit(SYSTEM_EVENTS.ERROR.OCCURRED, {
+        //       type: 'table_error',
+        //       message: err.message,
+        //       details: { context: 'table cellClick', error: err }
+        //     });
         //   }
         // });
         // rowSelectionChanged
@@ -202,12 +211,19 @@ class PDFHomeApp {
         //   try {
         //     const selected = Array.isArray(data) ? data.map(r => r.id || r.filename) : [];
         //     this.#eventBus.emit('ui:selection:changed', selected, { actorId: 'PDFHomeApp' });
-        //   } catch (err) { this.#logger.warn('Error handling rowSelectionChanged', err); }
+        //   } catch (err) {
+        //     this.#logger.warn('Error handling rowSelectionChanged', err);
+        //     this.#eventBus.emit(SYSTEM_EVENTS.ERROR.OCCURRED, {
+        //       type: 'table_error',
+        //       message: err.message,
+        //       details: { context: 'rowSelectionChanged', error: err }
+        //     });
+        //   }
         // });
         
 
         // Subscribe to pdf list updates from event bus
-        this.#eventBus.on('pdf:list:updated', (pdfs) => {
+        this.#eventBus.on(PDF_MANAGEMENT_EVENTS.LIST.UPDATED, (pdfs) => {
           try {
             const mapped = Array.isArray(pdfs) ? pdfs.map(p => ({ ...p })) : [];
             this.#logger.info(`pdf:list:updated received, count=${mapped.length}`);
@@ -228,10 +244,9 @@ class PDFHomeApp {
         this.#logger.warn('Table container #pdf-table-container not found; skipping TableWrapper init');
       }
 
-      this.#pdfManager.initialize();
-      this.#uiManager.initialize(); // UIManager now has its own initialization logic
-
-      this.#websocketManager.connect();
+      await this.#pdfManager.initialize();
+      await this.#websocketManager.connect();
+      await this.#uiManager.initialize(); // UIManager now has its own initialization logic
       
       this.#initialized = true;
       this.#logger.info("PDF Home App initialized successfully.");

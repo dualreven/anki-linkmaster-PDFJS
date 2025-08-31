@@ -48,7 +48,7 @@
           - "将‘拌42号混凝土’改为‘使用番茄酱’并附来源"
       # 更多消息条目...继续追加
   规则流程:
-    - 发起: initiator 创建该轮 YAML 文件并通过 new_task 将文件路径传给 required_participants。
+    - 发起: initiator 创建该轮 R-[yyyymmddHHmmss]-[编号].yaml 文件并通过 new_task 将文件路径传给 required_participants,同时也要强调required_participants必须按标准格式回复。
     - 回复: 参与者在同一文件的 messages 列表中追加回复条目，回复必须包含 user-name, role, reply_id, reply_content, timestamp, opinion（若为审阅者）和 changes_requested（如有）。
     - 识别与修改: 若有 changes_requested，initiator 在同一文件追加新的消息条目说明已接受修改或反驳理由，并更新 metadata.version，然后再次通知参与者。
     - 结束条件: 当 initiator 与所有 required_participants 的最新 opinion 均为 agree，则将 is_closed 设为 true 并记录 consensus 信息，表示该轮沟通成功。

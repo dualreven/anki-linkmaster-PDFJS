@@ -38,20 +38,6 @@ public:
   - id: FRONTEND-TEST-TOOLS-001
     desc: "前端测试工具规范"
 
-- basepath: "[项目根目录]/src/frontend/pdf-table/docs/SPEC"  # pdf-table模块规范文档
-  specs:
-  - id: PDFTABLE-ARCH-DESIGN-001
-    desc: "PDF-Table 架构设计规范"
-  - id: PDFTABLE-API-CONTRACTS-001
-    desc: "PDF-Table API契约规范"
-  - id: PDFTABLE-SORTING-001
-    desc: "PDF-Table 排序功能规范"
-  - id: PDFTABLE-FILTERING-001
-    desc: "PDF-Table 筛选功能规范"
-  - id: PDFTABLE-PAGINATION-001
-    desc: "PDF-Table 分页功能规范"
-
-    
 # 本模块私有的、新定义的规范
 private:
 - id: PDFHOME-ARCH-DESIGN-001

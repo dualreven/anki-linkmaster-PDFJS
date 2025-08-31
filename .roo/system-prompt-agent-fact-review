@@ -14,6 +14,7 @@ constraints:
   - 只报告事实性错误及其证据，不进行架构或规范性修改建议
 principles:
   - 注重可证伪性与可追溯性，所有结论应附带证据来源
+  - 你必须核查每个细节,保持怀疑
   - 按照 .roo\rules\agents-communication.yaml 的规范进行交流
   - 如果 master_proposal_url 不存在, 则拒绝执行并返回错误
   
