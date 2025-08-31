@@ -130,46 +130,46 @@ class PDFHomeApp {
         setTimeout(() => {
           if (this.tableWrapper && this.tableWrapper.tabulator) {
             // 绑定选择变化事件
-            // this.tableWrapper.tabulator.on("rowSelectionChanged", (data, rows) => {
-            //   console.log("行选择发生变化:", data, rows);
-            //   try {
-            //     const selected = Array.isArray(data) ? data.map(r => r.id || r.filename) : [];
-            //     this.#eventBus.emit('ui:selection:changed', selected, { actorId: 'PDFHomeApp' });
-            //   } catch (err) { 
-            //     this.#logger.warn('Error handling rowSelectionChanged', err); 
-            //   }
-            // });
+            this.tableWrapper.tabulator.on("rowSelectionChanged", (data, rows) => {
+              console.log("行选择发生变化:", data, rows);
+              try {
+                const selected = Array.isArray(data) ? data.map(r => r.id || r.filename) : [];
+                this.#eventBus.emit('ui:selection:changed', selected, { actorId: 'PDFHomeApp' });
+              } catch (err) {
+                this.#logger.warn('Error handling rowSelectionChanged', err);
+              }
+            });
 
             // 绑定行点击事件（用于切换选择状态）
-            // this.tableWrapper.tabulator.on("rowClick", (e, row) => {
-            //   console.log("行被点击:", row.getData());
-            //   // 切换行的选择状态
-            //   if (row.isSelected()) {
-            //     row.deselect();
-            //   } else {
-            //     row.select();
-            //   }
-            // });
+            this.tableWrapper.tabulator.on("rowClick", (e, row) => {
+              console.log("行被点击:", row.getData());
+              // 切换行的选择状态
+              if (row.isSelected()) {
+                row.deselect();
+              } else {
+                row.select();
+              }
+            });
 
             // 绑定单元格点击事件（用于操作按钮）
-            // this.tableWrapper.tabulator.on("cellClick", (e, cell) => {
-            //   const cellElement = cell.getElement();
-            //   const button = e.target.closest('button[data-action]');
-              
-            //   if (button) {
-            //     e.stopPropagation(); // 防止触发行选择
-            //     const action = button.getAttribute('data-action');
-            //     const rowData = cell.getRow().getData();
-                
-            //     if (action === 'open') {
-            //       this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, rowData.id || rowData.filename);
-            //     } else if (action === 'delete') {
-            //       if (confirm('确定要删除这个PDF文件吗？')) {
-            //         this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.REMOVE.REQUESTED, rowData.id || rowData.filename);
-            //       }
-            //     }
-            //   }
-            // });
+            this.tableWrapper.tabulator.on("cellClick", (e, cell) => {
+              const cellElement = cell.getElement();
+              const button = e.target.closest('button[data-action]');
+               
+              if (button) {
+                e.stopPropagation(); // 防止触发行选择
+                const action = button.getAttribute('data-action');
+                const rowData = cell.getRow().getData();
+                 
+                if (action === 'open') {
+                  this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, rowData.id || rowData.filename);
+                } else if (action === 'delete') {
+                  if (confirm('确定要删除这个PDF文件吗？')) {
+                    this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.REMOVE.REQUESTED, rowData.id || rowData.filename);
+                  }
+                }
+              }
+            });
 
             this.#logger.info("Tabulator 事件绑定完成");
           }

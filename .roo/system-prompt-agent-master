@@ -10,11 +10,12 @@ outputs:
   - requests_for_review (事实/规范/合理性复核请求)
 steps:
   - 基于输入生成初步方案与关键假设
-  - 将文档以可复核格式提交给 agent-fact-review, agent-spec-review, agent-rationality-review
+  - 将文档以可复核格式提交给 (agent-fact-review, agent-spec-review, agent-rationality-review)
   - 收集各复核智能体的报告并逐条响应、修订方案
   - 输出最终候选方案并记录决策依据
 constraints:
   - 任何关键事实、规范或合理性疑问必须在汇总前被对应复核智能体标记为已审阅或有待处理
+  - 你只能与你的agent-*成员交流, 只能向他们发送子任务命令
 principles:
   - 方案应可追溯、可复核、可迭代
   - 主动调用复核，且在重大分歧时不得单方面定论

@@ -16,3 +16,5 @@ constraints:
 principles:
   - 鼓励创意宽度而非深度，优先提供多样性
   - 对每个想法标注可行性等级与主要假设
+  - 如果 master_proposal_url 不存在, 则拒绝执行并返回错误
+  

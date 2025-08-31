@@ -15,3 +15,5 @@ constraints:
 principles:
   - 强调证据驱动的推理与多方案对比，提供清晰的权衡分析
   - 按照 .roo\rules\agents-communication.yaml 的规范进行交流
+  - 如果 master_proposal_url 不存在, 则拒绝执行并返回错误
+  

@@ -64,17 +64,125 @@ mcp服务器:
             "branches": [],
             "thoughtHistoryLength": 1
           }
-        例子: |
+        例子: 
+        - |
+          <use_mcp_tool>
+            <server_name>sequentialthinking</server_name>
+            <tool_name>sequentialthinking</tool_name>
+            <arguments>
+              {
+                "thought": "用户需要实现Tabulator的多行选中功能，配合批量删除操作。我需要分析：1）当前Tabulator配置的问题；2）如何启用多行选中；3）如何获取选中行的PDF_id；4）如何与WebSocket和后端集成；5）前端重绘机制。",
+                "nextThoughtNeeded": true,
+                "thoughtNumber": 1,
+                "totalThoughts": 5,
+                "isRevision": false
+              }
+            </arguments>
+          </use_mcp_tool>
+        - 一段完整的连续思考:
+          - |
             <use_mcp_tool>
-              <server_name>sequentialthinking</server_name>
-              <tool_name>sequentialthinking</tool_name>
-              <arguments>
-                {
-                  "thought": "用户需要实现Tabulator的多行选中功能，配合批量删除操作。我需要分析：1）当前Tabulator配置的问题；2）如何启用多行选中；3）如何获取选中行的PDF_id；4）如何与WebSocket和后端集成；5）前端重绘机制。",
-                  "nextThoughtNeeded": true,
-                  "thoughtNumber": 1,
-                  "totalThoughts": 5,
-                  "isRevision": false
-                }
-              </arguments>
+                <server_name>sequentialthinking</server_name>
+                <tool_name>sequentialthinking</tool_name>
+                <arguments>
+            {
+              "thought": "小明需要在 2025-08-31 当天 17:00 前抵达机场。我要帮他选择坐地铁还是打车。先列出已知信息：航班起飞 19:00，建议提前 2 h 到机场，因此 17:00 是硬截止。",
+              "next_thought_needed": true,
+              "thought_number": 1,
+              "total_thoughts": 5,
+              "is_revision": false
+            }
+                </arguments>
+            </use_mcp_tool>
+
+          - |
+            <use_mcp_tool>
+                <server_name>sequentialthinking</server_name>
+                <tool_name>sequentialthinking</tool_name>
+                <arguments>
+            {
+              "thought": "收集关键变量：① 当前时间 14:00；② 距离机场 45 km；③ 地铁线路需换乘 1 次，官方行程 60 min；④ 打车走高速，正常路况 40 min；⑤ 天气晴，无突发天气预警。初步假设：打车更快。",
+              "next_thought_needed": true,
+              "thought_number": 2,
+              "total_thoughts": 5,
+              "is_revision": false
+            }
+                </arguments>
+            </use_mcp_tool>
+
+          - |
+            <use_mcp_tool>
+                <server_name>sequentialthinking</server_name>
+                <tool_name>sequentialthinking</tool_name>
+                <arguments>
+            {
+              "thought": "生成可验证假设 H1：打车可在 16:40 前到达机场（14:00 出发 + 40 min 车程 = 14:40 到达，留有余量）。",
+              "next_thought_needed": true,
+              "thought_number": 3,
+              "total_thoughts": 5,
+              "is_revision": false
+            }
+                </arguments>
+            </use_mcp_tool>
+
+          - |
+            <use_mcp_tool>
+                <server_name>sequentialthinking</server_name>
+                <tool_name>sequentialthinking</tool_name>
+                <arguments>
+            {
+              "thought": "验证假设 H1：查询实时路况 API，发现高速出城方向有轻度拥堵，模型预测实际车行时间 55 min，而非 40 min。因此 14:00 出发将在 14:55 到达，仍早于 17:00。结论：H1 成立，但余量缩小。",
+              "next_thought_needed": true,
+              "thought_number": 4,
+              "total_thoughts": 5,
+              "is_revision": false
+            }
+                </arguments>
+            </use_mcp_tool>
+
+          - |
+            <use_mcp_tool>
+                <server_name>sequentialthinking</server_name>
+                <tool_name>sequentialthinking</tool_name>
+                <arguments>
+            {
+              "thought": "我突然想到：如果 15:00 以后出现突发事故，打车可能大幅延误。于是决定开一条分支，评估地铁方案的鲁棒性。",
+              "next_thought_needed": true,
+              "thought_number": 5,
+              "branch_from_thought": 4,
+              "branch_id": "B1",
+              "total_thoughts": 7,
+              "is_revision": false
+            }
+                </arguments>
+            </use_mcp_tool>
+
+          - |
+            <use_mcp_tool>
+                <server_name>sequentialthinking</server_name>
+                <tool_name>sequentialthinking</tool_name>
+                <arguments>
+            {
+              "thought": "地铁方案评估：固定 60 min 行程，不受地面交通影响；班次间隔 5 min，若错过一班最多 +5 min。14:00 进站可确保 15:05 到达机场，远早于 17:00。风险极低。",
+              "next_thought_needed": true,
+              "thought_number": 6,
+              "total_thoughts": 7,
+              "is_revision": false
+            }
+                </arguments>
+            </use_mcp_tool>
+
+          - |
+            <use_mcp_tool>
+                <server_name>sequentialthinking</server_name>
+                <tool_name>sequentialthinking</tool_name>
+                <arguments>
+            {
+              "thought": "综合比较：打车虽更快，但余量受路况影响；地铁准时且风险更低。最终建议：坐地铁。给出唯一答案：小明应选择地铁，14:00 出发，预计 15:05 抵达机场，可确保 17:00 前到达。思考完毕。",
+              "next_thought_needed": false,
+              "thought_number": 7,
+              "total_thoughts": 7,
+              "is_revision": false
+            }
+                </arguments>
             </use_mcp_tool>

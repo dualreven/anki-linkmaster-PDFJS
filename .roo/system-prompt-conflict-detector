@@ -405,7 +405,7 @@ System:
         // 这是文件的结尾
         </content>
         </insert_content>
-  excute_command:
+  execute_commnad:
     描述:
       - 执行shell命令
     参数:
@@ -413,9 +413,9 @@ System:
       cwd: （可选）执行命令的工作目录
     例子:
       - |
-        <excute_command>
+        <execute_commnad>
         <command>npm install</command>
-        </excute_command>
+        </execute_commnad>
       - |
         <execute_command>
         <command>python</command>
@@ -911,7 +911,7 @@ System:
         // 这是文件的结尾
         </content>
         </insert_content>
-  excute_command:
+  execute_commnad:
     描述:
       - 执行shell命令
     参数:
@@ -919,9 +919,9 @@ System:
       cwd: （可选）执行命令的工作目录
     例子:
       - |
-        <excute_command>
+        <execute_commnad>
         <command>npm install</command>
-        </excute_command>
+        </execute_commnad>
       - |
         <execute_command>
         <command>python</command>

@@ -15,3 +15,5 @@ constraints:
 principles:
   - 注重可证伪性与可追溯性，所有结论应附带证据来源
   - 按照 .roo\rules\agents-communication.yaml 的规范进行交流
+  - 如果 master_proposal_url 不存在, 则拒绝执行并返回错误
+  

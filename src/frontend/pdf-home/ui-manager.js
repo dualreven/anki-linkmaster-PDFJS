@@ -253,7 +253,35 @@ export class UIManager {
   // }
 
   #handleBatchDelete() {
-    // Support both legacy list checkboxes and pdf-table checkboxes
+    // 优先使用 Tabulator 的 API 获取选中的行
+    if (this.pdfTable && typeof this.pdfTable.getSelectedRows === 'function') {
+      try {
+        const selectedRows = this.pdfTable.getSelectedRows();
+        if (Array.isArray(selectedRows) && selectedRows.length > 0) {
+          if (!confirm(`确定要删除选中的 ${selectedRows.length} 个PDF文件吗？`)) return;
+          
+          // 收集所有选中的文件
+          const selectedFiles = selectedRows.map(row => row.id || row.filename || row.file_id || '').filter(Boolean);
+          
+          if (selectedFiles.length === 0) {
+            this.showError("无法获取选中的文件信息");
+            return;
+          }
+          
+          // 作为批量请求发送，避免竞态条件
+          this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.BATCH.REQUESTED, {
+            files: selectedFiles,
+            timestamp: Date.now()
+          });
+          
+          return;
+        }
+      } catch (e) {
+        this.#logger.warn('Failed to read selection from pdfTable API', e);
+      }
+    }
+    
+    // 如果 Tabulator API 不可用，回退到 DOM 检测
     let checkboxes = Array.from(DOMUtils.findAllElements(".pdf-item-checkbox:checked") || []);
     if (checkboxes.length === 0) {
       checkboxes = Array.from(DOMUtils.findAllElements('.pdf-table-checkbox:checked') || []);
@@ -276,25 +304,6 @@ export class UIManager {
             checkboxes.push(fakeCheckbox);
           }
         });
-      }
-    }
-
-    // If still none, try programmatic API on pdfTable (if available)
-    if (checkboxes.length === 0 && this.pdfTable && typeof this.pdfTable.getSelectedRows === 'function') {
-      try {
-        const selectedRows = this.pdfTable.getSelectedRows();
-        if (Array.isArray(selectedRows) && selectedRows.length > 0) {
-          selectedRows.forEach(row => {
-            const fakeCheckbox = document.createElement('input');
-            fakeCheckbox.type = 'checkbox';
-            // prefer id then filename
-            fakeCheckbox.dataset.rowId = row.id || row.filename || row.file_id || '';
-            fakeCheckbox.dataset.filename = row.filename || '';
-            checkboxes.push(fakeCheckbox);
-          });
-        }
-      } catch (e) {
-        this.#logger.warn('Failed to read selection from pdfTable API', e);
       }
     }
 
