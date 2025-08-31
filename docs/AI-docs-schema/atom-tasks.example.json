@@ -1,0 +1,43 @@
+{
+    "task-background": {
+        "project-name": "新功能开发",
+        "description": "开发一个新的软件功能以提升用户体验。",
+        "refers": [
+            "https://example.com/project-docs",
+            "https://example.com/feature-specs",
+            "docs/AI-docs-schema/atom-tasks.example.json"
+        ]
+    },
+   "atom-task-list": [
+        {
+            "title": "收集需求",
+            "content": "与相关人员沟通，明确项目需求。",
+            "status": "todo",
+            "index": 1
+        },
+        {
+            "title": "设计方案",
+            "content": "根据需求制定技术和实现方案。",
+            "status": "todo",
+            "index": 2
+        },
+        {
+            "title": "开发功能",
+            "content": "按照设计方案进行功能开发。",
+            "status": "todo",
+            "index": 3
+        },
+        {
+            "title": "测试功能",
+            "content": "对开发完成的功能进行测试。",
+            "status": "todo",
+            "index": 4
+        },
+        {
+            "title": "部署上线",
+            "content": "将测试通过的功能部署到生产环境。",
+            "status": "todo",
+            "index": 5
+        }
+    ]
+}

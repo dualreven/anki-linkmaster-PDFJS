@@ -1,0 +1,25 @@
+---
+# 这是一个规范的头文件,描述本项目采用的全局规范,方便后续的规范性检查
+self-desc: "项目全局规范头文件"
+version: 1.0 # 当规范内容或结构发生变化时, 递增此版本
+
+# 引入的外部规范 (可选项)
+ref:
+  # 全局规范, 存放在项目根目录/docs/SPEC/下
+  global: []
+
+  # 继承自其他模块的规范
+  local: []
+
+# 本模块私有的、新定义的规范
+private:
+- id: COMMON-LIBRARY-REUSE-001
+  desc: "Common库工具复用规范"
+- id: EVENT-NAMING-CONVENTION-001  
+  desc: "事件命名约定规范"
+- id: ERROR-HANDLING-UNIFIED-001
+  desc: "统一错误处理规范"
+- id: WEBSOCKET-REUSE-001
+  desc: "WebSocket通信复用规范"
+- id: LOGGING-STANDARD-001
+  desc: "统一日志记录规范"

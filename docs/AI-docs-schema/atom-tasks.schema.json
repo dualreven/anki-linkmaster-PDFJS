@@ -1,0 +1,33 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Atom Tasks Schema",
+    "type": "object",
+    "properties": {
+        "task-background": {
+            "type": "object",
+            "properties": {
+                "project-name": { "type": "string" },
+                "description": { "type": "string" },
+                "refers": {
+                    "type": "array",
+                    "items": { "type": "string", "format": "uri" }
+                }
+            },
+            "required": ["project-name", "description", "refers"]
+        },
+        "atom-task-list": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "title": { "type": "string" },
+                    "content": { "type": "string" },
+                    "status": { "type": "string", "enum": ["todo", "doing", "done"] },
+                    "index": { "type": "integer", "minimum": 1 }
+                },
+                "required": ["title", "content", "status", "index"]
+            }
+        }
+    },
+    "required": ["task-background", "atom-task-list"]
+}

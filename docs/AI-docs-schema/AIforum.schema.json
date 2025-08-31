@@ -1,0 +1,88 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "AI Forum Schema",
+    "type": "object",
+    "properties": {
+        "metadata": {
+            "type": "object",
+            "properties": {
+                "is_closed": { "type": "boolean" },
+                "round_id": { "type": "string" },
+                "project": { "type": "string" },
+                "initiator": { "type": "string" },
+                "required_participants": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                },
+                "created_at": { "type": "string", "format": "date-time" },
+                "version": { "type": "integer" },
+                "references": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                },
+                "consensus": {
+                    "type": "object",
+                    "properties": {
+                        "achieved": { "type": "boolean" },
+                        "achieved_at": { "type": ["string", "null"], "format": "date-time" },
+                        "agreements": {
+                            "type": "array",
+                            "items": { "type": "string" }
+                        }
+                    },
+                    "required": ["achieved", "achieved_at", "agreements"]
+                }
+            },
+            "required": [
+                "is_closed",
+                "round_id",
+                "project",
+                "initiator",
+                "required_participants",
+                "created_at",
+                "version",
+                "references",
+                "consensus"
+            ]
+        },
+        "unresolved_items": {
+            "type": "array",
+            "items": { "type": "string" }
+        },
+        "messages": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "user-name": { "type": "string" },
+                    "role": { "type": "string" },
+                    "topic": { "type": "string" },
+                    "reply_id": { "type": "string" },
+                    "reply_content": { "type": "string" },
+                    "links": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                    },
+                    "timestamp": { "type": "string", "format": "date-time" },
+                    "opinion": { "type": ["string", "null"] },
+                    "changes_requested": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                    }
+                },
+                "required": [
+                    "user-name",
+                    "role",
+                    "topic",
+                    "reply_id",
+                    "reply_content",
+                    "links",
+                    "timestamp",
+                    "opinion",
+                    "changes_requested"
+                ]
+            }
+        }
+    },
+    "required": ["metadata", "unresolved_items", "messages"]
+}
