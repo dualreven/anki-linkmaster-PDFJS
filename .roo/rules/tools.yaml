@@ -341,7 +341,7 @@
         </insert_content>
   excute_command:
     描述:
-      - 执行shell命令
+      - 用于执行shell命令
     参数:
       command: （必需）要执行的shell命令
       cwd: （可选）执行命令的工作目录
@@ -355,6 +355,35 @@
         <command>python</command>
         <cwd>/home/user/app.py</cwd>
         </execute_command>      
+  use_mcp_tool:
+    描述:
+      - 用于调用MCP工具
+    参数:
+      server_name: (必需) MCP服务器名称
+      tool_name: (必需) MCP工具名称
+      arguments: (必需) 传递给MCP工具的参数,json格式
+    例子:
+      - | # 调用天气预报工具
+        <use_mcp_tool>
+        <server_name>weather-server</server_name>
+        <tool_name>get_forecast</tool_name>
+        <arguments>
+        {
+          "city": "San Francisco",
+          "days": 5,
+          "format": "text"
+        }
+        </arguments>
+        </use_mcp_tool>
+      - | # 调用一个无需参数的工具
+        <use_mcp_tool>
+        <server_name>system-monitor</server_name>
+        <tool_name>get_current_status</tool_name>
+        <arguments>
+        {}
+        </arguments>
+        </use_mcp_tool>
+
 
 工具使用规则:
   - 在 `<thinking>` 标签中评估现有信息和任务所需信息。

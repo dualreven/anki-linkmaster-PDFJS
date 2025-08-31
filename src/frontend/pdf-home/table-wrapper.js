@@ -1,7 +1,13 @@
 // table-wrapper.js
 // Tabulator-based table wrapper for pdf-home (native JS integration)
 
-import { Tabulator } from 'tabulator-tables';
+// ==================== 修改开始 ====================
+// 1. 从主包导入 Tabulator 核心类
+// import { Tabulator } from 'tabulator-tables';
+ import { TabulatorFull as Tabulator} from "tabulator-tables"
+// 2. 从各自的独立路径中，逐一导入所有需要的模块
+// ==================== 修改结束 ====================
+
 import 'tabulator-tables/dist/css/tabulator.min.css';
 import Logger from '../common/utils/logger.js';
 
@@ -46,11 +52,14 @@ export default class TableWrapper {
       // avoid forcing 100% height which can collapse if parent has no explicit height
       height: 'auto',
       layout: 'fitColumns',
-      selectable: true,
+      selectable: true,           // 启用选择
+      // selectableRows: true,       // 启用行选择
+      // selectableRangeMode: "click", // 点击选择模式
+      // selectableRollingSelection: false, // 禁用滚动选择
       layoutColumnsOnNewData: false,
       placeholder: defaultPlaceholder,
     }, options);
-
+    console.log('TableWrapper options:', JSON.stringify(this.options));
     this.tabulator = null;
     // local event listeners for wrapper-level events (data-loaded, etc.)
     this._localListeners = Object.create(null);
@@ -80,6 +89,12 @@ export default class TableWrapper {
    */
   _init() {
     // Initialize Tabulator instance inside tableWrapper
+    // Tabulator.registerModule([
+    //   FormatModule,
+    //   SelectRowModule,
+    //   SortModule,
+    //   ResizeTableModule
+    // ]);
     this.tabulator = new Tabulator(this.tableWrapper, Object.assign({}, this.options));
     logger.info('Tabulator initialized');
   }

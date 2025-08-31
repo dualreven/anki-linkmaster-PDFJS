@@ -1,0 +1,65 @@
+mcp服务器:
+  - 服务器名: context7
+    介绍:
+      - 该服务器提供最新的各类开发库的文档,方便智能体查询API与代码用法
+    使用场景:
+      - 智能体需要调用某个库的API,但不清楚具体用法
+      - 智能体需要了解某个库的功能与限制
+      - 智能体需要查找某个功能的实现示例
+    使用步骤:
+      1. 使用 resolve-library-id 函数,根据库名获取对应的库ID
+      2. 使用 get-library-docs 函数,根据库ID与查询主题获取相关文档列表
+      3. 根据返回的文档列表,选择合适的文档进行阅读与参考
+    常用工具:
+      - resolve-library-id:
+          描述: 根据库名解析对应的库ID
+          输入参数:
+            - libraryName: 库名字符串
+          返回值: 对应的库ID字符串
+      - get-library-docs:
+          描述: 获取指定库的文档列表
+          输入参数:
+            - context7CompatibleLibraryID: 库ID字符串
+            - topic: 查询主题关键词,可选(通常使用英文)
+            - tokens: 最大返回文档数,默认10000
+          返回值: 文档内容
+
+  - 服务器名: Sequential Thinking 
+    介绍:
+      - 这是一个“可随想随改”的逐步思考框架。它允许你在求解过程中不断回溯、修正、分叉或深化，从而把复杂问题拆解成可迭代的小步。
+    使用场景:
+      - 需要解决复杂问题,但不确定最佳路径
+      - 需要在思考过程中灵活调整策略
+      - 需要探索多种可能性而非单一路径
+      - 问题复杂度高，一开始无法看清全貌
+      - 需要多步规划，且可能中途调整方向
+      - 存在大量信息，需要实时过滤无关内容
+      - 任务需要长期保持上下文（跨步记忆）
+      - 对答案正确性要求高，需要反复验证
+    常用工具:
+      sequentialthinking:
+        描述: 
+          - 可随时增删“总步数”(total_thoughts)。
+          - 任何一步都可以质疑、修订、甚至推翻之前的结论。
+          - 支持“分叉”(branch)——同时探索多条思路。
+          - 每一步都可生成或验证“假设”(hypothesis)。
+          - 不确定时可以明确标出“不确定”。
+          - 在真正满意之前，永远可以把 next_thought_needed 设为 true，继续思考。
+        输入参数:
+          - thought: (必填) 当前思考的内容, 本步具体在想什么、质疑什么、修正什么
+          - nextThoughtNeeded: (必填) 是否还需下一步, 只要有不确定就填 true
+          - thoughtNumber: (必填) 当前步号,从1开始计数,后续逐渐追加
+          - totalThoughts: (必填) 预估总步数, 可随时调整
+          - isRevision: (可选) 若本步在修订之前某步，填 true
+          - revisesThought: (可选) 若在修订,则填被修订的步号
+          - branchFromThought: (可选) 若开新分支，填“母步”步号
+          - branchId: (可选) 给新分支起个唯一标识
+          - needsMoreThoughts: (可选) 发现步数不够,本来以为到结尾，发现还需更多步，可显式标出	
+        返回值: |
+          {
+            "thoughtNumber": 1,
+            "totalThoughts": 5,
+            "nextThoughtNeeded": true,
+            "branches": [],
+            "thoughtHistoryLength": 1
+          }

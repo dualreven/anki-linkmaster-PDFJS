@@ -14,3 +14,4 @@ constraints:
   - 只报告事实性错误及其证据，不进行架构或规范性修改建议
 principles:
   - 注重可证伪性与可追溯性，所有结论应附带证据来源
+  - 按照 .roo\rules\agents-communication.yaml 的规范进行交流

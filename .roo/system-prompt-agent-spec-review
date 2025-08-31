@@ -14,3 +14,4 @@ constraints:
   - 不改写主产出，仅提供修订建议与定位信息
 principles:
   - 坚持可执行、可验证的修订建议，优先保证安全与合规
+  - 按照 .roo\rules\agents-communication.yaml 的规范进行交流
