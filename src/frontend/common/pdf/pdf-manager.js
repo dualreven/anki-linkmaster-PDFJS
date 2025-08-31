@@ -462,37 +462,43 @@ export class PDFManager {
       `Handling batch remove request for ${files.length} files, timestamp: ${timestamp}`
     );
 
-    // 为批量删除生成唯一的请求ID并跟踪剩余计数
+    // 为批量删除生成唯一的请求ID并跟踪
     const batchRequestId = this.#generateRequestId();
     this.#batchTrack.set(batchRequestId, {
-      pending: files.length,
+      pending: 1, // 单个批量请求，pending为1
       files: [...files],
     });
 
-    // 按文件逐条发送删除请求，包含批次元数据，兼容后端单文件删除接口
-    files.forEach((file, index) => {
-      const fileEntry =
-        this.#pdfs.find((p) => p.id === file || p.filename === file) || null;
-      let filename = fileEntry
-        ? fileEntry.filename
-        : typeof file === "string"
-        ? file
-        : undefined;
-      if (filename && !filename.endsWith(".pdf")) filename = `${filename}.pdf`;
-      const data = { file_id: file };
-      if (filename) data.filename = filename;
-      data.batch_request_id = batchRequestId;
-      data.batch_index = index + 1;
-      data.batch_total = files.length;
-      this.#eventBus.emit(
-        WEBSOCKET_EVENTS.MESSAGE.SEND,
-        {
-          type: WEBSOCKET_MESSAGE_TYPES.REMOVE_PDF,
-          data,
-        },
-        { actorId: "PDFManager" }
-      );
-    });
+    // 准备批量删除数据
+    const batchDataToSend = {
+      files: files.map(file => {
+        const fileEntry =
+          this.#pdfs.find((p) => p.id === file || p.filename === file) || null;
+        let filename = fileEntry
+          ? fileEntry.filename
+          : typeof file === "string"
+          ? file
+          : undefined;
+        if (filename && !filename.endsWith(".pdf")) filename = `${filename}.pdf`;
+        
+        return {
+          file_id: file,
+          filename: filename || file
+        };
+      }),
+      batch_request_id: batchRequestId,
+      batch_total: files.length
+    };
+
+    // 发送单个批量删除请求
+    this.#eventBus.emit(
+      WEBSOCKET_EVENTS.MESSAGE.SEND,
+      {
+        type: WEBSOCKET_MESSAGE_TYPES.BATCH_REMOVE_PDF,
+        data: batchDataToSend,
+      },
+      { actorId: "PDFManager" }
+    );
   }
 
 /**
