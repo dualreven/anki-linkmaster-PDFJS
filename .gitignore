@@ -8,3 +8,5 @@ demo
 log
 .trae
 *.log
+debug-console-at-*.log
+data/pdf_files.json
