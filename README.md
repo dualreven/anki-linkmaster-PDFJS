@@ -159,6 +159,29 @@ python main.py
 npm run dev
 ```
 
+### AI服务启动器（用于自动化/AI场景）
+
+为了方便AI工具（如roocode）自动化启动所有服务而不阻塞对话，项目提供了专用的PowerShell启动脚本：
+
+**启动所有AI服务（不阻塞）**:
+```bash
+powershell -ExecutionPolicy Bypass -File start-ai-services.ps1
+```
+
+**停止所有AI服务**:
+```bash
+powershell -ExecutionPolicy Bypass -File stop-ai-services.ps1
+```
+
+这些脚本会：
+- 在后台启动 `npm run dev`（前端开发服务器）
+- 在后台启动 `python app.py`（主应用）
+- 在后台启动 `python debug.py --port 9222`（调试控制台监听器）
+- 保存进程ID到 `ai-services.pids` 文件以便后续管理
+- 提供一键停止所有服务的功能
+
+> **注意**: 这些脚本专为AI/自动化场景设计，避免阻塞对话窗口。手动开发时建议使用单独的终端窗口运行各服务。
+
 ### 运行测试
 
 **后端测试**:
