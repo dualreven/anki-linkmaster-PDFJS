@@ -331,7 +331,7 @@
         // 这是文件的结尾
         </content>
         </insert_content>
-  execute_commnad:
+  execute_command:
     描述:
       - 用于执行shell命令
     参数:
@@ -339,15 +339,18 @@
       cwd: （可选）执行命令的工作目录
     例子:
       - |
-        <execute_commnad>
+        <execute_command>
         <command>npm install</command>
-        </execute_commnad>
+        </execute_command>
       - |
         <execute_command>
         <command>python</command>
         <cwd>/home/user/app.py</cwd>
         </execute_command>      
-        
+      - | 
+        <execute_command>
+        <command>mkdir -p src/components && touch src/components/App.js</command>
+        </execute_command>
   use_mcp_tool:
     描述:
       - 用于调用MCP工具

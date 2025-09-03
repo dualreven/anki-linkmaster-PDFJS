@@ -33,3 +33,9 @@ System:
   智能体: 智能体是一个可以执行任务的实体, 它可以根据用户指令和环境状态, 自动完成任务.
 
 
+当内置工具(比如:read_file,search_and_replace)频繁失效时: 请使用powershell读取,注意编码格式
+
+tools和mcp的区别: tools是内建工具, 每个工具都有自己直接的标签名, 而mcp需要放在一个统一的xml格式内.
+
+严令禁止:
+  - 禁止在终端直接执行python代码, 请使写python脚本再调用执行, 放在 AItemp/[yyyymmddhhmmss]-[脚本目的].py中 

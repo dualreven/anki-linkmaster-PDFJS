@@ -186,3 +186,15 @@ mcp服务器:
             }
                 </arguments>
             </use_mcp_tool>
+  - 服务器名: time 
+    介绍: 用于获取准确的当地时间
+    常用工具:
+      get_current_time:
+        输入参数: 
+          timezone:  "Asia/Shanghai"
+        例子: |
+            <use_mcp_tool>
+              <server_name>time</server_name>
+              <tool_name>get_current_time</tool_name>
+              <arguments>{ "timezone": "Asia/Shanghai"}</arguments>
+            </use_mcp_tool>

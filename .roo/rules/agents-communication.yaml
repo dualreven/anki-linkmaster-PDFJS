@@ -1,19 +1,32 @@
 智能体间持续沟通规则:
   描述:
     - 该规则定义智能体间基于文档的持续沟通与协商流程，确保多智能体在任务执行中能就事实、规范和合理性达成共识。
-    - 一轮对话的开始为一个主题首次提出，结束为该主题达成一致或升级至人工会商。 
-    - 每轮对话必须使用单一JSON文件作为该轮唯一真源。文件内按消息序列记录所有参与方发言，能区分不同发言者并支持多智能体并发参与。
   文件约定: 文件为一个 JSON 列表或对象，包含 metadata 与 messages 两部分；每条消息为一个条目，结构参照下方示例。
   文件名格式: AIforum/[yyyymmddHHmmss]-forum-[编号].json
   文件schema: docs/AI-docs-schema/AIforum.schema.json
-  示例格式: |
+  文件的创建规则:
+    - 发起人创建一个json文件, 并对于之后的相关话题讨论, 都在这个json文件中进行. 直到话题发生了改变, 才创建新的json文件.
+  规则流程:
+    - 发起: 发起人 创建该轮 `AIforum/[yyyymmddHHmmss]-forum-[编号].json` 文件并通过 new_task 将文件路径传给 required_participants,同时也要强调required_participants必须按标准格式回复。
+    - 回复: 参与者在同一文件的 messages 列表中追加回复条目，回复必须包含 user-name, role, reply_id, reply_content, timestamp, opinion（若为审阅者）和 changes_requested（如有）。
+    - 不可修改: 所有参与者只能追加消息，不能修改或删除已有条目。若需更正，必须在新条目中引用之前的 reply_id 并说明更正内容。
+    - 结束条件: 当 initiator 与所有 required_participants 的最新 opinion 均为 agree，则将 is_closed 设为 true 并记录 consensus 信息，表示该轮沟通成功。
+  多方并发与冲突处理:
+    - 支持多智能体并发回复；每条消息必须有唯一 reply_id 与精确 timestamp。
+    - 若存在互斥的 changes_requested，应在 messages 中由提出方给出 rationale 与证据链接；initiator 可调用 agent-master 或发起人工同步仲裁。
+  可追溯性与安全:
+    - 所有引用必须放入 links 或 metadata.references，且每次修改需在 metadata.version 中递增并记录修改摘要。
+    - 禁止将明文凭证或敏感密钥写入对话文件；如需敏感数据，使用受控存储并在 metadata 中标明访问策略。
+  适用对象:
+    - 该规则适用于需要基于文档对话协商的智能体。
+  json文件示例: |
           { 
                 "metadata": {
                   "is_closed": false,
                   "round_id": "forum-20250830-0001",
                   "project": "项目名",
                   "initiator": "agent-master",
-                  "required_participants": ["agent-fact-review", "agent-spec-review"],
+                  "required_participants": ["agent-review", "agent-master"],
                   "created_at": "2025-08-30T12:00:00Z",
                   "version": 1,
                   "references": [],
@@ -41,7 +54,7 @@
                     "changes_requested": []
                   },
                   {
-                    "user-name": "agent-fact-review",
+                    "user-name": "agent-review",
                     "role": "事实复核",
                     "topic": "今晚吃什么?",
                     "reply_id": "002",
@@ -57,16 +70,4 @@
                   }
                 ]
           }
-  规则流程:
-    - 发起: 发起人 创建该轮 `AIforum/[yyyymmddHHmmss]-forum-[编号].json` 文件并通过 new_task 将文件路径传给 required_participants,同时也要强调required_participants必须按标准格式回复。
-    - 回复: 参与者在同一文件的 messages 列表中追加回复条目，回复必须包含 user-name, role, reply_id, reply_content, timestamp, opinion（若为审阅者）和 changes_requested（如有）。
-    - 不可修改: 所有参与者只能追加消息，不能修改或删除已有条目。若需更正，必须在新条目中引用之前的 reply_id 并说明更正内容。
-    - 结束条件: 当 initiator 与所有 required_participants 的最新 opinion 均为 agree，则将 is_closed 设为 true 并记录 consensus 信息，表示该轮沟通成功。
-  多方并发与冲突处理:
-    - 支持多智能体并发回复；每条消息必须有唯一 reply_id 与精确 timestamp。
-    - 若存在互斥的 changes_requested，应在 messages 中由提出方给出 rationale 与证据链接；initiator 可调用 agent-master 或发起人工同步仲裁。
-  可追溯性与安全:
-    - 所有引用必须放入 links 或 metadata.references，且每次修改需在 metadata.version 中递增并记录修改摘要。
-    - 禁止将明文凭证或敏感密钥写入对话文件；如需敏感数据，使用受控存储并在 metadata 中标明访问策略。
-  适用对象:
-    - 该规则适用于需要基于文档对话协商的智能体。
+

@@ -21,7 +21,14 @@ function Start-NpmDev {
     Write-Host "[1/3] Starting npm run dev..." -ForegroundColor Cyan
     
     $logFile = "$ScriptPath\logs\npm-dev.log"
-    $process = Start-Process "cmd.exe" -ArgumentList "/c npm run dev > `"$logFile`" 2>&1" -PassThru
+    # Create a PowerShell script to remove ANSI codes
+    $psScript = @"
+npm run dev 2>&1 | ForEach-Object {
+    `$line = `$_ -replace '\x1b\[\d+(;\d+)*m', ''
+    `$line
+} | Out-File -FilePath '$logFile' -Encoding UTF8
+"@
+    $process = Start-Process "powershell.exe" -ArgumentList "-Command", $psScript -PassThru
     
     $processInfo = @{
         Type = "npm-dev"
@@ -37,7 +44,7 @@ function Start-DebugPy {
     Write-Host "[2/3] Starting debug.py..." -ForegroundColor Cyan
     
     $logFile = "$ScriptPath\logs\debug.log"
-    $process = Start-Process "python.exe" -ArgumentList "debug.py --port 9222" -RedirectStandardOutput $logFile -PassThru
+    $process = Start-Process "cmd.exe" -ArgumentList "/c chcp 65001 > nul && python.exe debug.py --port 9222 > `"$logFile`" 2>&1" -PassThru
     
     $processInfo = @{
         Type = "debug-py"
@@ -53,7 +60,7 @@ function Start-AppPy {
     Write-Host "[3/3] Starting app.py..." -ForegroundColor Cyan
     
     $logFile = "$ScriptPath\logs\app.log"
-    $process = Start-Process "python.exe" -ArgumentList "app.py" -RedirectStandardOutput $logFile -PassThru
+    $process = Start-Process "cmd.exe" -ArgumentList "/c chcp 65001 > nul && python.exe app.py > `"$logFile`" 2>&1" -PassThru
     
     $processInfo = @{
         Type = "main-app"
@@ -74,7 +81,8 @@ function Stop-AllProcesses {
             
             foreach ($info in $processInfos) {
                 try {
-                    Stop-Process -Id $info.PID -Force -ErrorAction SilentlyContinue
+                    # Use taskkill to terminate the process tree
+                    taskkill /F /T /PID $info.PID | Out-Null
                     Write-Host "Stopped $($info.Type) (PID: $($info.PID))" -ForegroundColor Green
                 }
                 catch {
@@ -89,13 +97,8 @@ function Stop-AllProcesses {
         }
     }
     
-    # Clean up any remaining processes
-    Get-Process | Where-Object { $_.ProcessName -eq "node" -or $_.ProcessName -eq "python" } | ForEach-Object {
-        try {
-            Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
-        }
-        catch {}
-    }
+    # Note: Only stop processes that were started by this launcher
+    # Do not kill all node/python processes to avoid affecting other applications
 }
 
 # Function to check process status
@@ -179,7 +182,7 @@ switch ($Action.ToLower()) {
         Write-Host "AI Integration Tips:" -ForegroundColor Magenta
         Write-Host "- Services are running in background" -ForegroundColor Magenta
         Write-Host "- Use '$PSCommandPath stop' to stop all services" -ForegroundColor Magenta
-        Write-Host "- Log files are available for debugging" -ForegroundColor Magenta
+        Write-Host "- Log files are available in logs/* for debugging" -ForegroundColor Magenta
     }
     
     "stop" {
@@ -206,7 +209,15 @@ switch ($Action.ToLower()) {
         foreach ($logFile in $logFiles) {
             if (Test-Path $logFile) {
                 Write-Host "--- $logFile (last 10 lines) ---" -ForegroundColor Yellow
-                Get-Content $logFile -Tail 10 | ForEach-Object { Write-Host $_ }
+                
+                # Use different encoding based on log file type
+                if ($logFile -like "*npm-dev*") {
+                    # npm-dev.log is now UTF-8 encoded with ANSI codes stripped
+                    Get-Content $logFile -Tail 10 -Encoding UTF8 | ForEach-Object { Write-Host $_ }
+                } else {
+                    # Python logs use UTF-8
+                    Get-Content $logFile -Tail 10 -Encoding UTF8 | ForEach-Object { Write-Host $_ }
+                }
                 Write-Host ""
             }
         }
