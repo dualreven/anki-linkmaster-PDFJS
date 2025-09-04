@@ -24,6 +24,8 @@ export default defineConfig({
     strictPort: true, // 如果3000端口被占用，则直接失败而不是尝试新端口
   },
 
+  
+
   // 构建配置：为多页面应用做准备
   // 这对于 `npm run build` (生产构建) 至关重要
   build: {
@@ -35,7 +37,7 @@ export default defineConfig({
       input: {
         // 定义你的每一个入口HTML文件
         // 'main' 是一个逻辑名称，值是相对于 `root` 配置的HTML文件路径
-        pdfHome: resolve(__dirname, 'src/frontend/pdf-home/index.html'),
+        pdfViewer: resolve(__dirname, 'src/frontend/pdf-viewer/index.html'),
         // 如果未来有其他页面，可以在这里添加
         // anotherPage: resolve(__dirname, 'src/frontend/another-page/index.html'),
       }

@@ -45,8 +45,14 @@ export const PDF_VIEWER_EVENTS = {
        * @event pdf-viewer:file:load:progress
        * @type {string}
        */
-      PROGRESS: 'pdf-viewer:file:load:progress'
-    },
+      PROGRESS: 'pdf-viewer:file:load:progress',
+      /**
+       * 文件重试加载事件
+       * @event pdf-viewer:file:load:retry
+       * @type {string}
+       */
+      RETRY: 'pdf-viewer:file:load:retry',
+     },
     
     /**
      * 文件关闭事件
@@ -67,7 +73,7 @@ export const PDF_VIEWER_EVENTS = {
      * @event pdf-viewer:file:info:response
      * @type {string}
      */
-    INFO_RESPONSE: 'pdf-viewer:file:info:response'
+    INFO_RESPONSE: 'pdf-viewer:file:info:response',
   },
   
   /**
@@ -108,7 +114,7 @@ export const PDF_VIEWER_EVENTS = {
      * @event pdf-viewer:navigation:total-pages-updated
      * @type {string}
      */
-    TOTAL_PAGES_UPDATED: 'pdf-viewer:navigation:total-pages-updated'
+    TOTAL_PAGES_UPDATED: 'pdf-viewer:navigation:total-pages-updated',
   },
   
   /**
@@ -156,7 +162,7 @@ export const PDF_VIEWER_EVENTS = {
      * @event pdf-viewer:zoom:changed
      * @type {string}
      */
-    CHANGED: 'pdf-viewer:zoom:changed'
+    CHANGED: 'pdf-viewer:zoom:changed',
   },
   
   /**
@@ -190,7 +196,7 @@ export const PDF_VIEWER_EVENTS = {
      * @event pdf-viewer:render:quality:changed
      * @type {string}
      */
-    QUALITY_CHANGED: 'pdf-viewer:render:quality:changed'
+    QUALITY_CHANGED: 'pdf-viewer:render:quality:changed',
   },
   
   /**
@@ -224,7 +230,7 @@ export const PDF_VIEWER_EVENTS = {
      * @event pdf-viewer:text:search:completed
      * @type {string}
      */
-    SEARCH_COMPLETED: 'pdf-viewer:text:search:completed'
+    SEARCH_COMPLETED: 'pdf-viewer:text:search:completed',
   },
   
   /**
@@ -258,7 +264,7 @@ export const PDF_VIEWER_EVENTS = {
      * @event pdf-viewer:bookmark:list:updated
      * @type {string}
      */
-    LIST_UPDATED: 'pdf-viewer:bookmark:list:updated'
+    LIST_UPDATED: 'pdf-viewer:bookmark:list:updated',
   },
   
   /**
@@ -292,7 +298,7 @@ export const PDF_VIEWER_EVENTS = {
      * @event pdf-viewer:ui:fullscreen:toggle
      * @type {string}
      */
-    FULLSCREEN_TOGGLE: 'pdf-viewer:ui:fullscreen:toggle'
+    FULLSCREEN_TOGGLE: 'pdf-viewer:ui:fullscreen:toggle',
   },
   
   /**
@@ -326,7 +332,7 @@ export const PDF_VIEWER_EVENTS = {
      * @event pdf-viewer:state:loading
      * @type {string}
      */
-    LOADING: 'pdf-viewer:state:loading'
+    LOADING: 'pdf-viewer:state:loading',
   }
 };
 

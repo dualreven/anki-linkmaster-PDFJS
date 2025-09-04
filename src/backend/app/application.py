@@ -49,7 +49,7 @@ class AnkiLinkMasterApp:
         self.main_window.send_debug_message_requested.connect(self.handle_send_debug_message)
 
         # 加载前端页面，使用Vite配置的端口和正确的入口路径
-        self.main_window.load_frontend("http://localhost:3000/pdf-home/index.html")
+        self.main_window.load_frontend("http://localhost:3000/pdf-viewer/index.html")
         self.main_window.show()
     def handle_send_debug_message(self):
         """处理来自UI的发送调试消息的请求"""
@@ -87,6 +87,8 @@ class AnkiLinkMasterApp:
                 self.handle_remove_pdf(client, message)
             elif message_type == 'batch_remove_pdf':
                 self.handle_batch_remove_pdf(client, message)
+            elif message_type == 'pdf_detail_request':
+                self.handle_pdf_detail_request(client, message)
             elif message_type == 'heartbeat':
                 # 心跳消息，不需要处理，只是保持连接
                 logger.debug(f"[DEBUG] 收到心跳消息 from {client.peerPort()}")
@@ -715,3 +717,75 @@ class AnkiLinkMasterApp:
         except Exception as e:
             logger.error(f"处理批量删除PDF文件请求时出错: {str(e)}")
             self.send_error_response(client, f"处理批量删除PDF文件请求时出错: {str(e)}", "batch_remove_pdf", "INTERNAL_ERROR", message.get('request_id'))
+    
+    def handle_pdf_detail_request(self, client, message):
+        """处理PDF详情请求
+        
+        Args:
+            client: QWebSocket客户端对象
+            message: 消息内容
+        """
+        try:
+            # 获取文件标识符
+            file_id = message.get('data', {}).get('file_id') or message.get('file_id')
+            
+            if not file_id:
+                logger.warning("PDF详情请求缺少文件ID参数")
+                expected_format = {
+                    "type": "pdf_detail_request",
+                    "request_id": "uuid",
+                    "data": {"file_id": "file_unique_id"}
+                }
+                error_message = f"PDF详情请求缺少文件ID参数。正确格式: {json.dumps(expected_format, ensure_ascii=False)}"
+                self.send_error_response(
+                    client,
+                    error_message,
+                    "pdf_detail_request",
+                    "MISSING_PARAMETERS",
+                    message.get('request_id')
+                )
+                return
+            
+            logger.info(f"处理PDF详情请求，文件ID: {file_id}")
+            
+            # 获取文件详情
+            file_detail = self.pdf_manager.get_file_detail(file_id)
+            
+            if not file_detail:
+                logger.warning(f"未找到文件: {file_id}")
+                self.send_error_response(
+                    client,
+                    f"未找到文件: {file_id}",
+                    "pdf_detail_request",
+                    "FILE_NOT_FOUND",
+                    message.get('request_id')
+                )
+                return
+            
+            # 发送成功响应
+            self.send_success_response(
+                client,
+                "pdf_detail_request",
+                file_detail,
+                message.get('request_id')
+            )
+            logger.info(f"PDF详情响应发送成功，文件ID: {file_id}")
+            
+        except ValueError as e:
+            logger.error(f"PDF详情请求参数格式错误: {str(e)}")
+            self.send_error_response(
+                client,
+                f"参数格式错误: {str(e)}",
+                "pdf_detail_request",
+                "INVALID_PARAMETER_FORMAT",
+                message.get('request_id')
+            )
+        except Exception as e:
+            logger.error(f"处理PDF详情请求时出错: {str(e)}")
+            self.send_error_response(
+                client,
+                f"处理PDF详情请求时出错: {str(e)}",
+                "pdf_detail_request",
+                "INTERNAL_ERROR",
+                message.get('request_id')
+            )

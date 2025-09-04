@@ -1,0 +1,181 @@
+{
+  "task-background": {
+    "project-name": "PDF查看器开发",
+    "description": "基于现有pdf-viewer模块规范开发完整的PDF查看器功能，采用测试驱动开发(TDD)方式，每个开发任务都有对应的测试任务。",
+    "content": "PDF查看器模块已有详细规范但缺少实现代码，需要基于pdf-home的事件总线架构进行开发，并与现有后端系统集成。方案包括前端实现（main.js + PDF.js集成 + eventbus）、WebSocket通信（PDF_DETAIL_REQUEST/RESPONSE）、后端修改（application.py扩展）、QtWebEngine兼容性配置、启动配置（ai-launcher.ps1修改）和测试验证计划。采用TDD方式，每个开发任务都有对应的测试验证任务。",
+    "refers": [
+      "src/frontend/pdf-viewer/docs/SPEC/SPEC-HEAD-pdf-viewer.json",
+      "src/frontend/pdf-viewer/docs/SPEC/PDF-VIEWER-PDFJS-INTEGRATION-001.md",
+      "src/frontend/pdf-viewer/docs/SPEC/PDF-VIEWER-WEBSOCKET-CONTRACT-001.md",
+      "src/backend/websocket/standard_protocol.py",
+      "src/backend/app/application.py",
+      "ai-launcher.ps1",
+      "docs/AI-docs-schema/atom-tasks.example.json"
+    ],
+    "status": "passed",
+    "total-atom-task-count": 22
+  },
+  "atom-task-list": [
+    {
+      "title": "创建PDF查看器前端main.js核心逻辑",
+      "content": "创建src/frontend/pdf-viewer/main.js文件，实现PDF文档加载、页面渲染、事件处理等核心功能，采用模块化设计便于测试。",
+      "status": "todo",
+      "index": 1,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "测试main.js核心逻辑功能",
+      "content": "为main.js核心逻辑编写单元测试，验证PDF文档加载、页面渲染、事件处理等功能的正确性。",
+      "status": "todo",
+      "index": 2,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "集成PDF.js v3.4.120+版本",
+      "content": "将index.html中的PDF.js版本从v3.11.174降级到v3.4.120+，配置worker线程支持跨域资源加载和内存优化。",
+      "status": "todo",
+      "index": 3,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "测试PDF.js集成兼容性",
+      "content": "验证PDF.js v3.4.120+版本在QtWebEngine环境下的兼容性，测试worker线程功能和内存使用情况。",
+      "status": "todo",
+      "index": 4,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "实现WebSocket PDF详情请求发送",
+      "content": "在main.js中实现PDF_DETAIL_REQUEST消息发送逻辑，包括请求ID生成、消息格式化和错误处理机制。",
+      "status": "todo",
+      "index": 5,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "测试WebSocket请求发送功能",
+      "content": "编写单元测试验证PDF_DETAIL_REQUEST消息的正确发送，包括请求ID生成、消息格式和错误处理。",
+      "status": "todo",
+      "index": 6,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "实现WebSocket响应处理逻辑",
+      "content": "在main.js中添加PDF_DETAIL_RESPONSE消息处理逻辑，解析响应数据并更新PDF渲染状态。",
+      "status": "todo",
+      "index": 7,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "测试WebSocket响应处理功能",
+      "content": "验证PDF_DETAIL_RESPONSE消息的正确处理，包括数据解析、状态更新和错误场景处理。",
+      "status": "todo",
+      "index": 8,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "集成eventbus.js事件总线模块",
+      "content": "在pdf-viewer模块中集成eventbus.js模块，实现模块间事件通信和状态管理，确保与现有架构兼容。",
+      "status": "todo",
+      "index": 9,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "测试eventbus集成功能",
+      "content": "验证eventbus.js模块的正确集成，测试事件发布/订阅功能和模块间通信机制。",
+      "status": "todo",
+      "index": 10,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "实现页面导航控制功能",
+      "content": "实现PDF页面的上一页/下一页导航功能，包括边界检测和页面状态同步。",
+      "status": "todo",
+      "index": 11,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "实现缩放控制和页面显示",
+      "content": "实现缩放控制（+/-按钮）和当前页面显示功能，确保缩放比例和页面信息的正确显示。",
+      "status": "todo",
+      "index": 12,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "测试页面导航和缩放功能",
+      "content": "验证页面导航和缩放控制的正确性，包括边界情况测试和用户体验验证。",
+      "status": "todo",
+      "index": 13,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "实现PDF错误处理和进度指示",
+      "content": "添加PDF加载错误处理机制和进度指示功能，提供用户友好的错误提示和加载状态反馈。",
+      "status": "todo",
+      "index": 14,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "测试错误处理和进度指示功能",
+      "content": "验证错误处理和进度指示功能的正确性，测试各种错误场景和加载状态的可视化效果。",
+      "status": "todo",
+      "index": 15,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "添加PDF_DETAIL_REQUEST处理逻辑",
+      "content": "在src/backend/app/application.py的handle_websocket_message方法中添加PDF_DETAIL_REQUEST消息类型处理逻辑。",
+      "status": "todo",
+      "index": 16,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "测试后端请求处理功能",
+      "content": "验证PDF_DETAIL_REQUEST消息的正确处理，包括消息解析、错误处理和响应生成。",
+      "status": "todo",
+      "index": 17,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "实现PDF文件内容读取功能",
+      "content": "实现PDF文件内容读取功能，支持从data/pdfs目录读取PDF文件并解析基本元数据。",
+      "status": "todo",
+      "index": 18,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "实现PDF分页传输机制",
+      "content": "实现PDF分页传输机制，支持按需分页加载和大文件处理，确保内存优化和传输效率。",
+      "status": "todo",
+      "index": 19,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "测试PDF文件读取功能",
+      "content": "验证PDF文件读取功能的正确性，测试文件解析、元数据提取和错误处理机制。",
+      "status": "todo",
+      "index": 20,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "测试PDF分页传输功能",
+      "content": "验证PDF分页传输机制的正确性，测试分页加载性能、内存使用和大文件处理能力。",
+      "status": "todo",
+      "index": 21,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "修复PDF元数据page_count问题",
+      "content": "修复data/pdfs/7d688289f74a.pdf的page_count=0问题，确保PDF元数据正确解析和显示。",
+      "status": "todo",
+      "index": 22,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "修改ai-launcher支持pdf-viewer启动",
+      "content": "修改ai-launcher.ps1脚本，将启动URL从http://localhost:3000/pdf-home/index.html改为http://localhost:3000/pdf-viewer/index.html，支持pdf-viewer模块独立启动。",
+      "status": "todo",
+      "index": 23,
+      "feedback": "[由执行者完成任务反馈填写]"
+    }
+  ]
+}

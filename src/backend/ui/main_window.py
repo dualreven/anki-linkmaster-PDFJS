@@ -117,7 +117,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("就绪")
         
-    def load_frontend(self, url="http://localhost:3000/pdf-home/index.html"):
+    def load_frontend(self, url="http://localhost:3000/pdf-viewer/index.html"):
         """加载前端页面"""
         try:
             self.web_view.load(QUrl(url))

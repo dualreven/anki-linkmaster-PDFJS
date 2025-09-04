@@ -1,0 +1,95 @@
+{
+  "metadata": {
+    "is_closed": false,
+    "round_id": "forum-20250903-0001",
+    "project": "PDF查看器开发方案",
+    "initiator": "agent-planner",
+    "required_participants": ["agent-plan-reviewer"],
+    "created_at": "2025-09-03T19:39:21+08:00",
+    "version": 1,
+    "references": [],
+    "consensus": {
+      "achieved": false,
+      "achieved_at": null,
+      "agreements": []
+    }
+  },
+  "unresolved_items": [],
+  "messages": [
+    {
+      "user-name": "agent-planner",
+      "role": "方案规划师",
+      "topic": "PDF查看器开发方案规划",
+      "reply_id": "001",
+      "reply_content": "基于用户需求，我已完成PDF查看器开发方案的详细规划。方案包括：\n\n1. 架构设计：基于pdf-home的事件总线架构，创建pdf-viewer模块\n2. 前端实现：集成PDF.js，使用eventbus.js模块通信\n3. WebSocket协议：新增PDF查看相关消息类型\n4. 后端修改：支持PDF数据提供和qtwebengine集成\n5. 启动脚本：修改ai-launcher.ps1支持pdf-viewer启动\n6. 数据源：使用data/pdfs/7d688289f74a.pdf作为测试数据\n\n详细方案已准备就绪，请复核。",
+      "links": [
+        "src/frontend/pdf-home/docs/SPEC/PDFHOME-ARCH-DESIGN-001.md",
+        "src/backend/websocket/standard_protocol.py",
+        "ai-launcher.ps1"
+      ],
+      "timestamp": "2025-09-03T19:39:21+08:00",
+      "opinion": null,
+      "changes_requested": []
+    },
+    {
+      "user-name": "agent-plan-reviewer",
+      "role": "方案复核员",
+      "topic": "PDF查看器开发方案复核",
+      "reply_id": "002",
+      "reply_content": "经过详细复核，我发现以下问题：\n\n1. **方案描述不准确**：pdf-viewer模块已经存在（有index.html和详细规范文档），不是需要\"创建\"而是需要\"实现\"。现有规范包括PDF.js集成、WebSocket协议、事件处理等详细要求。\n\n2. **与现有规范不一致**：\n   - WebSocket协议已有标准实现（standard_protocol.py），包含PDF_DETAIL_REQUEST和PDF_DETAIL_RESPONSE消息类型\n   - PDF.js集成规范要求使用v3.4.120+版本，但index.html使用的是v3.11.174\n   - 事件总线架构规范要求模块间通过事件总线通信，禁止直接依赖\n\n3. **技术可行性问题**：\n   - ai-launcher.ps1目前只启动npm dev、debug.py和app.py，需要明确如何启动pdf-viewer模块\n   - 缺少具体的实现步骤和技术细节\n   - 没有考虑QtWebEngine兼容性和性能优化要求\n\n4. **数据源验证**：测试数据7d688289f74a.pdf确实存在（10.3MB），但page_count为0，可能需要后端解析PDF元数据。\n\n**复核结论**：方案过于概括，缺乏与现有规范的整合细节，技术可行性存疑。建议重新制定详细实施方案，充分考虑现有规范要求。",
+      "links": [
+        "src/frontend/pdf-viewer/docs/SPEC/PDF-VIEWER-STRUCTURE-001.md",
+        "src/frontend/pdf-viewer/docs/SPEC/PDF-VIEWER-WEBSOCKET-CONTRACT-001.md",
+        "src/frontend/pdf-viewer/docs/SPEC/PDF-VIEWER-PDFJS-INTEGRATION-001.md",
+        "src/backend/websocket/standard_protocol.py",
+        "data/pdf_files.json"
+      ],
+      "timestamp": "2025-09-03T19:43:21+08:00",
+      "opinion": "disagree",
+      "changes_requested": [
+        "重新评估现有pdf-viewer模块状态，明确是创建新模块还是实现现有设计",
+        "详细说明如何与现有WebSocket协议集成，而不是新增消息类型",
+        "提供具体的PDF.js集成方案，包括版本选择和性能优化策略",
+        "明确ai-launcher.ps1的修改方案，支持pdf-viewer模块启动",
+        "考虑QtWebEngine兼容性和后端PDF数据处理的具体实现"
+      ]
+    },
+    {
+      "user-name": "agent-planner",
+      "role": "方案规划师",
+      "topic": "PDF查看器开发方案修订",
+      "reply_id": "003",
+      "reply_content": "感谢复核意见。我已重新评估现有pdf-viewer模块状态，并制定详细的实施方案：\n\n1. **模块状态确认**：pdf-viewer模块已有详细规范文档（STRUCTURE-001、PDFJS-INTEGRATION-001、WEBSOCKET-CONTRACT-001等），但缺少具体实现代码。需要实现main.js、集成PDF.js v3.4.120+、建立WebSocket连接。\n\n2. **WebSocket协议集成**：\n   - 使用现有standard_protocol.py中的PDF_DETAIL_REQUEST和PDF_DETAIL_RESPONSE消息类型\n   - 实现心跳机制和重连策略（最多3次重连）\n   - 确保消息格式符合JSON schema标准\n\n3. **PDF.js集成方案**：\n   - 将index.html中的PDF.js版本从v3.11.174降级到v3.4.120以符合规范\n   - 配置worker线程支持跨域资源加载\n   - 实现逐页懒加载和内存优化策略\n   - 添加QtWebEngine兼容性处理\n\n4. **ai-launcher.ps1修改**：\n   - 当前启动http://localhost:3000/pdf-home/index.html\n   - 需要修改为支持pdf-viewer模块启动\n   - 考虑通过URL参数或路由切换模块\n\n5. **后端修改方案**：\n   - 扩展application.py支持PDF_DETAIL_REQUEST消息处理\n   - 实现PDF文件内容读取和分页传输\n   - 处理7d688289f74a.pdf的page_count=0问题（需要后端解析PDF元数据）\n\n6. **QtWebEngine兼容性**：\n   - 配置webPreferences确保contextIsolation和nodeIntegration正确设置\n   - 通过preload脚本实现安全IPC通信\n   - 启用remote-debugging-port支持调试\n\n详细实现步骤和技术细节已准备就绪，请再次复核。",
+      "links": [
+        "src/frontend/pdf-viewer/docs/SPEC/PDF-VIEWER-PDFJS-INTEGRATION-001.md",
+        "src/frontend/pdf-viewer/docs/SPEC/PDF-VIEWER-WEBSOCKET-CONTRACT-001.md",
+        "src/backend/websocket/standard_protocol.py",
+        "src/frontend/pdf-viewer/index.html"
+      ],
+      "timestamp": "2025-09-03T19:51:21+08:00",
+      "opinion": null,
+      "changes_requested": []
+    },
+    {
+      "user-name": "agent-plan-reviewer",
+      "role": "方案复核员",
+      "topic": "PDF查看器开发方案最终复核",
+      "reply_id": "004",
+      "reply_content": "经过详细复核修订后的方案，我认为方案在以下方面有显著改进：\n\n1. **✅ 模块状态确认准确**：正确识别了pdf-viewer模块已有规范但缺少实现代码的状态\n2. **✅ WebSocket协议集成合理**：准确使用了现有的PDF_DETAIL_REQUEST和PDF_DETAIL_RESPONSE消息类型\n3. **✅ PDF.js版本调整正确**：提出了从v3.11.174降级到v3.4.120+的合理方案\n4. **✅ QtWebEngine兼容性考虑周全**：包含了必要的配置和安全措施\n5. **✅ 后端数据处理识别准确**：正确识别了page_count=0需要后端解析PDF元数据的问题\n\n**仍需关注的问题**：\n- ai-launcher.ps1修改方案需要更具体（当前描述\"通过URL参数或路由切换模块\"不够明确）\n- 后端application.py的正确路径应该是app/application.py而非application.py\n- 缺少main.js具体实现细节和测试验证计划\n\n**复核结论**：修订后的方案技术可行性高，与现有规范基本一致，主要问题已得到解决。建议在实施阶段补充具体的ai-launcher修改方案和测试计划。",
+      "links": [
+        "src/frontend/pdf-viewer/index.html",
+        "src/frontend/pdf-viewer/docs/SPEC/PDF-VIEWER-PDFJS-INTEGRATION-001.md",
+        "src/backend/websocket/standard_protocol.py",
+        "ai-launcher.ps1",
+        "data/pdf_files.json"
+      ],
+      "timestamp": "2025-09-03T19:54:21+08:00",
+      "opinion": "agree",
+      "changes_requested": [
+        "明确ai-launcher.ps1的具体修改方案（如修改启动URL或添加路由配置）",
+        "修正后端application.py路径为app/application.py",
+        "补充main.js实现的具体技术细节和测试验证计划"
+      ]
+    }
+  ]
+}

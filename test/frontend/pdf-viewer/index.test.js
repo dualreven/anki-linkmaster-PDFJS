@@ -4,15 +4,15 @@
  * @module PDFViewerAppTest
  */
 
-import { PDFViewerApp } from '../../../src/frontend/pdf-viewer/index.js';
+import { PDFViewerApp } from '../../../src/frontend/pdf-viewer/main.js';
 import EventBus from '../../../src/frontend/common/event/event-bus.js';
 import { PDF_VIEWER_EVENTS } from '../../../src/frontend/pdf-viewer/event/pdf-viewer-constants.js';
 
 // Mock 依赖模块
 jest.mock('../../../src/frontend/common/event/event-bus.js');
-jest.mock('../../../src/frontend/common/logger/logger.js');
+jest.mock('../../../src/frontend/common/utils/logger.js');
 jest.mock('../../../src/frontend/common/error/error-handler.js');
-jest.mock('../../../src/frontend/common/websocket/websocket-client.js');
+jest.mock('../../../src/frontend/common/ws/ws-client.js');
 jest.mock('../../../src/frontend/pdf-viewer/pdf-manager.js');
 jest.mock('../../../src/frontend/pdf-viewer/ui-manager.js');
 
