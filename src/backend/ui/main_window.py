@@ -47,6 +47,14 @@ class MainWindow(QMainWindow):
         settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalStorageEnabled, True)
         
+        # 设置安全选项
+        # 注意：WebSecurityEnabled 在当前PyQt6版本中可能不存在，已移除
+        settings.setAttribute(QWebEngineSettings.WebAttribute.AllowRunningInsecureContent, False)
+        settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, False)
+        settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, False)
+        settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanAccessClipboard, False)
+        settings.setAttribute(QWebEngineSettings.WebAttribute.XSSAuditingEnabled, True)
+        
         # 创建自定义页面以支持Inspector
         self.web_page = QWebEnginePage(self.web_view)
         self.web_view.setPage(self.web_page)

@@ -6,6 +6,8 @@
 
 import Logger from "../common/utils/logger.js";
 import PDF_VIEWER_EVENTS from "../common/event/pdf-viewer-constants.js";
+import { WebGLStateManager } from "../common/utils/webgl-detector.js";
+import ERROR_CODES from "../common/constants/error-codes.js";
 
 // PDF.js 配置
 const PDFJS_CONFIG = {
@@ -48,9 +50,19 @@ export class PDFManager {
   async initialize() {
     try {
       this.#logger.info("Initializing PDF Manager...");
+      // 检测WebGL状态并配置PDF.js
+      const webglState = WebGLStateManager.getWebGLState();
+      this.#logger.info("WebGL State:", webglState);
+      
       
       // 动态导入PDF.js库
       this.#pdfjsLib = await import('pdfjs-dist/build/pdf');
+      // 如果WebGL被禁用或需要回退到Canvas，配置PDF.js使用Canvas渲染
+      if (WebGLStateManager.shouldUseCanvasFallback()) {
+        this.#configurePDFJSForCanvas();
+        this.#logger.info("PDF.js configured for Canvas rendering (WebGL disabled)");
+      }
+      
       
       // 配置PDF.js worker
       this.#pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_CONFIG.workerSrc;
@@ -59,6 +71,33 @@ export class PDFManager {
     } catch (error) {
       this.#logger.error("Failed to initialize PDF Manager:", error);
       throw error;
+    }
+  }
+
+  /**
+   * 配置PDF.js使用Canvas渲染
+   * @private
+   */
+  #configurePDFJSForCanvas() {
+    try {
+      // 设置PDF.js使用Canvas渲染
+      if (this.#pdfjsLib.GlobalWorkerOptions) {
+        // 禁用WebGL相关功能
+        this.#pdfjsLib.GlobalWorkerOptions.disableWebGL = true;
+        this.#pdfjsLib.GlobalWorkerOptions.enableWebGL = false;
+      }
+
+      // 设置渲染器偏好为Canvas
+      if (this.#pdfjsLib.setPreferences) {
+        this.#pdfjsLib.setPreferences({
+          'renderer': 'canvas',
+          'enableWebGL': false
+        });
+      }
+
+      this.#logger.debug("PDF.js configured for Canvas rendering");
+    } catch (error) {
+      this.#logger.warn("Failed to configure PDF.js for Canvas:", error);
     }
   }
 
@@ -192,48 +231,73 @@ export class PDFManager {
    */
   #classifyPDFError(error, fileData) {
     const errorMessage = error.message || error.toString();
+    let errorCode = ERROR_CODES.GENERAL_ERRORS.UNKNOWN_ERROR;
     let errorType = 'UNKNOWN';
-    let userMessage = '加载PDF文件时发生未知错误';
+    let userMessage = ERROR_CODES.getErrorDescription(ERROR_CODES.GENERAL_ERRORS.UNKNOWN_ERROR);
     
     // 网络相关错误
     if (errorMessage.includes('Network') || errorMessage.includes('fetch') || 
         errorMessage.includes('HTTP') || errorMessage.includes('404') ||
         errorMessage.includes('CORS') || errorMessage.includes('cross-origin')) {
+      errorCode = ERROR_CODES.NETWORK_ERRORS.NETWORK_CONNECTION_FAILED;
       errorType = 'NETWORK_ERROR';
-      userMessage = '网络连接失败，请检查网络连接或文件URL是否正确';
+      userMessage = ERROR_CODES.getErrorDescription(errorCode);
     }
     // PDF格式错误
     else if (errorMessage.includes('format') || errorMessage.includes('PDF') || 
              errorMessage.includes('Invalid') || errorMessage.includes('corrupted')) {
+      errorCode = ERROR_CODES.FORMAT_ERRORS.INVALID_PDF_FORMAT;
       errorType = 'FORMAT_ERROR';
-      userMessage = '文件格式错误，可能不是有效的PDF文件或文件已损坏';
+      userMessage = ERROR_CODES.getErrorDescription(errorCode);
     }
     // 解析错误
     else if (errorMessage.includes('parse') || errorMessage.includes('syntax') ||
              errorMessage.includes('decrypt')) {
+      errorCode = ERROR_CODES.FORMAT_ERRORS.ENCRYPTED_PDF;
       errorType = 'PARSE_ERROR';
-      userMessage = 'PDF文件解析失败，可能使用了不支持的加密或压缩格式';
+      userMessage = ERROR_CODES.getErrorDescription(errorCode);
     }
     // 内存错误
     else if (errorMessage.includes('memory') || errorMessage.includes('out of memory') ||
              errorMessage.includes('too large')) {
+      errorCode = ERROR_CODES.GENERAL_ERRORS.MEMORY_ERROR;
       errorType = 'MEMORY_ERROR';
-      userMessage = '内存不足，无法加载大型PDF文件';
+      userMessage = ERROR_CODES.getErrorDescription(errorCode);
     }
     // 权限错误
     else if (errorMessage.includes('permission') || errorMessage.includes('access') ||
              errorMessage.includes('denied')) {
+      errorCode = ERROR_CODES.GENERAL_ERRORS.PERMISSION_ERROR;
       errorType = 'PERMISSION_ERROR';
-      userMessage = '没有权限访问该文件';
+      userMessage = ERROR_CODES.getErrorDescription(errorCode);
+    }
+    // 特定HTTP状态码处理
+    else if (errorMessage.includes('404')) {
+      errorCode = ERROR_CODES.NETWORK_ERRORS.FILE_NOT_FOUND;
+      errorType = 'NETWORK_ERROR';
+      userMessage = ERROR_CODES.getErrorDescription(errorCode);
+    }
+    else if (errorMessage.includes('500') || errorMessage.includes('502') || 
+             errorMessage.includes('503')) {
+      errorCode = ERROR_CODES.NETWORK_ERRORS.SERVER_ERROR;
+      errorType = 'NETWORK_ERROR';
+      userMessage = ERROR_CODES.getErrorDescription(errorCode);
+    }
+    // 超时错误
+    else if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
+      errorCode = ERROR_CODES.NETWORK_ERRORS.REQUEST_TIMEOUT;
+      errorType = 'NETWORK_ERROR';
+      userMessage = ERROR_CODES.getErrorDescription(errorCode);
     }
     
     return {
       error: errorMessage,
+      code: errorCode,
       type: errorType,
       userMessage: userMessage,
       file: fileData,
       timestamp: new Date().toISOString(),
-      retryable: errorType === 'NETWORK_ERROR' || errorType === 'UNKNOWN'
+      retryable: ERROR_CODES.isNetworkError(errorCode) || errorCode === ERROR_CODES.GENERAL_ERRORS.UNKNOWN_ERROR
     };
   }
 

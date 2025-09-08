@@ -1,6 +1,7 @@
 // vite.config.js
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
+import babel from 'vite-plugin-babel';
 
 export default defineConfig({
   // 关键配置1：指定项目根目录
@@ -25,6 +26,28 @@ export default defineConfig({
   },
 
   
+
+  // 插件配置：集成Babel转换ES2022+私有字段语法
+  plugins: [
+    babel({
+      babelConfig: {
+        presets: [
+          [
+            '@babel/preset-env',
+            {
+              targets: {
+                browsers: ['> 0.25%', 'not dead']
+              }
+            }
+          ]
+        ],
+        plugins: [
+          '@babel/plugin-transform-private-methods',
+          '@babel/plugin-transform-class-properties'
+        ]
+      }
+    })
+  ],
 
   // 构建配置：为多页面应用做准备
   // 这对于 `npm run build` (生产构建) 至关重要

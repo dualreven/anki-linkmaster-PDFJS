@@ -40,6 +40,9 @@ export class PDFViewerApp {
     this.#pdfManager = new PDFManager(this.#eventBus);
     this.#uiManager = new UIManager(this.#eventBus);
     
+    // 初始化WebSocket客户端
+    this.#wsClient = new WSClient("ws://localhost:8765", this.#eventBus);
+    
     this.#logger.info("PDFViewerApp instance created");
   }
 
@@ -54,7 +57,7 @@ export class PDFViewerApp {
       this.#setupEventListeners();
       
       // 初始化WebSocket客户端
-      // this.#initializeWebSocket();
+      this.#initializeWebSocket();
       
       await this.#pdfManager.initialize();
       await this.#uiManager.initialize();
@@ -439,6 +442,24 @@ export class PDFViewerApp {
     this.#eventBus.emit(PDF_VIEWER_EVENTS.STATE.LOADING, false, { 
       actorId: 'PDFViewerApp' 
     });
+  }
+
+  /**
+   * 初始化WebSocket连接和相关管理器
+   * @private
+   */
+  #initializeWebSocket() {
+    try {
+      this.#logger.info("Initializing WebSocket connection...");
+      
+      // 连接WebSocket服务器
+      this.#wsClient.connect();
+      
+      this.#logger.info("WebSocket connection initialized successfully.");
+    } catch (error) {
+      this.#logger.error("Failed to initialize WebSocket connection:", error);
+      this.#errorHandler.handleError(error, "WebSocketInitialization");
+    }
   }
 
   /**

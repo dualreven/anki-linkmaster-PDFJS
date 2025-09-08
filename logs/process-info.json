@@ -1,0 +1,17 @@
+[
+    {
+        "PID":  28992,
+        "Type":  "npm-dev",
+        "LogFile":  "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\logs\\npm-dev.log"
+    },
+    {
+        "PID":  55516,
+        "Type":  "debug-py",
+        "LogFile":  "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\logs\\debug.log"
+    },
+    {
+        "PID":  34744,
+        "Type":  "main-app",
+        "LogFile":  "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\logs\\app.log"
+    }
+]

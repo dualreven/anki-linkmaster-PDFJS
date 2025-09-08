@@ -6,7 +6,7 @@ import json
 import uuid
 import time
 import logging
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, Union, List
 from enum import Enum
 
 logger = logging.getLogger(__name__)

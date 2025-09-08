@@ -38,4 +38,4 @@ System:
 tools和mcp的区别: tools是内建工具, 每个工具都有自己直接的标签名, 而mcp需要放在一个统一的xml格式内.
 
 严令禁止:
-  - 禁止在终端直接执行python代码, 请使写python脚本再调用执行, 放在 AItemp/[yyyymmddhhmmss]-[脚本目的].py中 
+  - 禁止在终端直接执行python或js代码, 请使写python/js脚本再调用执行, 放在 AItemp/[yyyymmddhhmmss]-[脚本目的].py或js中 
