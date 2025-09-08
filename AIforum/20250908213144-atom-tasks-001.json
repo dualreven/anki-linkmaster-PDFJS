@@ -9,7 +9,7 @@
     {
       "id": "task-001",
       "description": "创建 git 分支用于修改",
-      "status": "pending",
+      "status": "completed",
       "background": "必须遵守开发规范，修改前创建分支，保存快照。"
     },
     {
