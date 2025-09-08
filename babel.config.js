@@ -4,12 +4,14 @@ module.exports = {
       '@babel/preset-env',
       {
         targets: {
-          node: 'current'
+          browsers: '> 0.25%, not dead'
         }
       }
     ]
   ],
   plugins: [
+    '@babel/plugin-proposal-private-methods',
+    '@babel/plugin-proposal-class-properties',
     '@babel/plugin-transform-private-methods',
     '@babel/plugin-transform-class-properties'
   ]
