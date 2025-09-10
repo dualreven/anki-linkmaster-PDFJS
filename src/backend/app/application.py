@@ -77,6 +77,34 @@ class AnkiLinkMasterApp:
             
             # QtWebEngine优化：改为客户端连接时主动推送数据
             logger.info("WebSocket服务器启动成功，等待客户端连接...")
+# NEW: notify frontend to open pdf-viewer after backend ready
+try:
+    from datetime import datetime
+    ws = getattr(self, 'websocket_server', None) or getattr(self, 'ws_server', None)
+    if ws:
+        payload = {"action": "open_pdf_viewer", "timestamp": datetime.utcnow().isoformat()}
+        try:
+            # 首选使用 broadcast_event（若实现存在）
+            if hasattr(ws, "broadcast_event"):
+                ws.broadcast_event("open_pdf_viewer", payload)
+            else:
+                # 回退到通用的 broadcast_message
+                ws.broadcast_message({"event": "open_pdf_viewer", "payload": payload})
+            from src.backend.logging.pdfjs_logger import get_pdfjs_logger
+            get_pdfjs_logger().info("Sent open_pdf_viewer event to frontend")
+        except Exception:
+            # 如果 broadcast_event 失败，尝试备用发送方式并记录
+            try:
+                ws.broadcast_message({"event": "open_pdf_viewer", "payload": payload})
+                from src.backend.logging.pdfjs_logger import get_pdfjs_logger
+                get_pdfjs_logger().info("Sent open_pdf_viewer (fallback) event to frontend via broadcast_message")
+            except Exception as inner_e:
+                import logging as _logging
+                _logging.getLogger("pdfjs_init").exception("Failed to send open_pdf_viewer via ws methods: %s", inner_e)
+except Exception as e:
+    import logging as _logging
+    _logging.getLogger("pdfjs_init").exception("Failed to notify frontend: %s", e)
+
             
         else:
             logger.error("WebSocket服务器启动失败")
