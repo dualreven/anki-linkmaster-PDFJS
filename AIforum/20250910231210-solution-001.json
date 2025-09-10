@@ -1,0 +1,171 @@
+{
+  "meta": {
+    "title": "最终定稿方案",
+    "role": "方案规划师 (agent-planner)",
+    "summary": "修改后端启动入口以便 ai-launcher.ps1 启动时触发前端 pdf-viewer 打开并记录 PDF.js 初始化/加载诊断日志；提供 WebSocket 与 HTTP POST 两种实现备选，包含补丁、测试步骤与示例日志。",
+    "user_input": "<task> 修改后端启动入口 app.py，使 ai-launcher.ps1 启动时会触发打开前端 pdf-viewer 并记录 PDF.js 初始化/加载诊断日志 </task>",
+    "creation_time": "20250910231210",
+    "file_number": "001",
+    "forum_reference": "AIforum/20250910231210-forum-001.json"
+  },
+  "content": {
+    "background": {
+      "title": "背景",
+      "summary": "当前需要在 ai-launcher.ps1 启动时实现后端触发前端 pdf-viewer 打开，并在前端 PDF.js 初始化/加载过程中记录诊断日志，便于调试 QtWebEngine/PDF.js 兼容性问题。",
+      "details": "项目使用 PyQt6 后端与前端静态页面（PDF.js）。ai-launcher.ps1 负责启动前后端多个服务。目标是在后端启动流程中加入钩子，通知前端打开 pdf-viewer 页面并在前端完成 PDF.js 初始化/加载后，将初始化状态/诊断信息上报到后端，由后端写入持续化日志（建议路径 logs/pdfjs-init.log）。"
+    },
+    "plan": {
+      "title": "方案",
+      "summary": "在后端启动入口添加触发逻辑，并在前端 pdf-viewer 初始化处上报日志；优先采用 WebSocket 实现，HTTP POST 为回退方案。包含可直接应用的补丁（替换/新增文件内容）与测试步骤。",
+      "details": {
+        "overall_decisions": [
+          "优先使用现有 websocket/server（src/backend/websocket/standard_server.py 或 server.py）进行实时通知与回报；保持连接复用和事件一致性。",
+          "保留 HTTP POST 作为备用实现（网络受限或 WebSocket 不可用时回退）。",
+          "后端使用 Python logging 模块写入 logs/pdfjs-init.log，采用线程安全、按日期切分的 RotatingFileHandler 或 TimedRotatingFileHandler。",
+          "在 ai-launcher.ps1 启动流程中（调用后端 app.py 或 main.py 的启动）确保后端启动完成并在短时延后触发前端打开（通过发送 'open_pdf_viewer' 事件）。"
+        ],
+        "files_to_change_or_add": [
+          {
+            "path": "src/backend/app/application.py",
+            "reason": "后端应用主入口，添加启动钩子：在应用初始化完成后发送事件/消息以触发前端打开 pdf-viewer。",
+            "patch_summary": "在 Application.start() 或相应启动函数中新增 notify_frontend_open() 调用，优先通过 websocket 广播 'open_pdf_viewer' 事件；如无 websocket 可选发起 HTTP POST 到前端监听本地端口（可选）。",
+            "apply_location_hint": "函数: class AnkiLinkMasterApp.start 或 init_app（在 application.py 中搜索 start/init）"
+          },
+          {
+            "path": "src/backend/websocket/server.py",
+            "reason": "确保可发送 open_pdf_viewer 事件并安全广播给已连接的前端客户端。",
+            "patch_summary": "添加便捷函数 broadcast_event(event_name, payload)；保证在发送前检查连接并捕获异常。",
+            "apply_location_hint": "在 WebSocketServer 类中新增方法 broadcast_event"
+          },
+          {
+            "path": "src/frontend/pdf-viewer/index.js",
+            "reason": "前端 pdf-viewer 初始化时增加上报逻辑（在 PDF.js 初始化完成回调处），并监听后端触发的 open_pdf_viewer 事件（WebSocket 或 HTTP fallback）。",
+            "patch_summary": "在页面 JS 中：1) 建立与后端的 WebSocket 连接（或使用已有 ws 客户端），2) 监听 'open_pdf_viewer' 指令并执行打开流程，3) 在 PDF.js 初始化/加载成功或失败时，通过 WebSocket/HTTP 将诊断数据发送到后端。",
+            "apply_location_hint": "在 pdf-viewer 的主 JS 初始化代码处（找到 PDF.js 初始化回调例如 pdfjsLib.getDocument().promise.then(...)）"
+          },
+          {
+            "path": "src/backend/logging/pdfjs_logger.py",
+            "reason": "新增日志模块，封装 pdfjs-init.log 的写入策略（线程安全、按日期切分）。",
+            "patch_summary": "新增文件，使用 logging + TimedRotatingFileHandler 写入 logs/pdfjs-init.log",
+            "apply_location_hint": "新文件，供 application.py 在启动时 import 并初始化"
+          },
+          {
+            "path": "ai-launcher.ps1",
+            "reason": "确保 ai-launcher.ps1 启动后能触发后端启动并在需要时等待后端就绪再继续（通常已存在），无需改动但提醒保持调用顺序。",
+            "patch_summary": "（可选）在启动后端并确认端口/进程就绪后，可调用后端提供的 /health 或发送初始 WebSocket 握手以确保前端能接收 'open_pdf_viewer' 事件。"
+          }
+        ],
+        "patches": [
+          {
+            "file": "src/backend/app/application.py",
+            "type": "diff",
+            "content": "---- a/src/backend/app/application.py\n++++ b/src/backend/app/application.py\n@@\n class AnkiLinkMasterApp:\n     def start(self):\n-        # existing startup logic\n-        self._start_services()\n+        # existing startup logic\n+        self._start_services()\n+        # NEW: notify frontend to open pdf-viewer after backend ready\n+        try:\n+            from src.backend.websocket.server import get_global_ws_server\n+            from src.backend.logging.pdfjs_logger import get_pdfjs_logger\n+\n+            ws = get_global_ws_server()\n+            if ws:\n+                payload = {\"action\": \"open_pdf_viewer\", \"timestamp\": datetime.utcnow().isoformat()}\n+                ws.broadcast_event(\"open_pdf_viewer\", payload)\n+                get_pdfjs_logger().info(\"Sent open_pdf_viewer event to frontend\")\n+        except Exception as e:\n+            # fallback: log and proceed\n+            import logging\n+            logging.getLogger(\"pdfjs_init\").exception(\"Failed to notify frontend: %s\", e)\n@@\n"
+          },
+          {
+            "file": "src/backend/websocket/server.py",
+            "type": "diff",
+            "content": "---- a/src/backend/websocket/server.py\n++++ b/src/backend/websocket/server.py\n@@\n class WebSocketServer:\n     # existing methods...\n+\n+    def broadcast_event(self, event_name, payload):\n+        \"\"\"Broadcast a JSON event to all connected clients.\"\"\"\n+        import json\n+        msg = json.dumps({\"event\": event_name, \"payload\": payload})\n+        for ws in list(self.connected_clients):\n+            try:\n+                ws.send(msg)\n+            except Exception:\n+                # remove closed client\n+                try:\n+                    self.connected_clients.remove(ws)\n+                except Exception:\n+                    pass\n@@\n"
+          },
+          {
+            "file": "src/backend/logging/pdfjs_logger.py",
+            "type": "full",
+            "content": "from logging import getLogger, Formatter, StreamHandler\nfrom logging.handlers import TimedRotatingFileHandler\nimport os\n\nLOG_DIR = os.path.join(os.getcwd(), \"logs\")\nos.makedirs(LOG_DIR, exist_ok=True)\nLOG_PATH = os.path.join(LOG_DIR, \"pdfjs-init.log\")\n\ndef get_pdfjs_logger():\n    logger = getLogger(\"pdfjs_init\")\n    if not logger.handlers:\n        handler = TimedRotatingFileHandler(LOG_PATH, when='midnight', backupCount=7, encoding='utf-8')\n        fmt = Formatter('%(asctime)s %(levelname)s %(message)s')\n        handler.setFormatter(fmt)\n        logger.addHandler(handler)\n        logger.setLevel(\"INFO\")\n    return logger\n"
+          },
+          {
+            "file": "src/frontend/pdf-viewer/index.js",
+            "type": "diff",
+            "content": "---- a/src/frontend/pdf-viewer/index.js\n++++ b/src/frontend/pdf-viewer/index.js\n@@\n-// existing pdf viewer init code\n+// existing pdf viewer init code\n+// NEW: connect to backend websocket to receive open_pdf_viewer and report PDF.js init status\n+function setupBackendReporting() {\n+    try {\n+        const ws = new WebSocket('ws://localhost:8765'); // adjust port per server\n+        ws.addEventListener('open', () => {\n+            console.info('ws connected to backend for pdfjs init reporting');\n+        });\n+        ws.addEventListener('message', (ev) => {\n+            try {\n+                const msg = JSON.parse(ev.data);\n+                if (msg.event === 'open_pdf_viewer') {\n+                    // perform open logic, e.g., navigate to viewer or show UI\n+                    openPdfViewer();\n+                }\n+            } catch(e) { console.error(e); }\n+        });\n+\n+        // helper to report init result\n+        window.reportPdfjsInit = function(statusObj) {\n+            const payload = {event: 'pdfjs_init_status', payload: statusObj};\n+            if (ws.readyState === WebSocket.OPEN) {\n+                ws.send(JSON.stringify(payload));\n+            } else {\n+                // fallback to HTTP POST\n+                fetch('/api/pdfjs/init-status', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(statusObj)}).catch(()=>{});\n+            }\n+        };\n+    } catch (e) { console.error('failed to setup backend reporting', e); }\n+}\n+\n+setupBackendReporting();\n@@\n pdfjsLib.getDocument(url).promise.then(function(pdf) {\n-    // existing success handling\n+    // existing success handling\n+    try {\n+        window.reportPdfjsInit({status: 'success', pages: pdf.numPages, timestamp: new Date().toISOString()});\n+    } catch(e){ console.error(e); }\n }).catch(function(err){\n-    // existing error handling\n+    // existing error handling\n+    try {\n+        window.reportPdfjsInit({status: 'error', message: String(err), timestamp: new Date().toISOString()});\n+    } catch(e){ console.error(e); }\n });\n"
+          }
+        ],
+        "backend_receive_snippets": {
+          "websocket_handler": "在 src/backend/websocket/server.py 的 WebSocket 处理消息处添加：\nif msg.get('event') == 'pdfjs_init_status':\n    payload = msg.get('payload', {})\n    from src.backend.logging.pdfjs_logger import get_pdfjs_logger\n    logger = get_pdfjs_logger()\n    logger.info(f\"PDFJS_INIT {payload}\")",
+          "http_post_handler": "在后端添加一个轻量 POST 接收端（示例在 src/backend/api/pdfjs_status.py）：\nfrom flask import Blueprint, request, jsonify\nfrom src.backend.logging.pdfjs_logger import get_pdfjs_logger\nbp = Blueprint('pdfjs', __name__)\n@bp.route('/api/pdfjs/init-status', methods=['POST'])\ndef pdfjs_init_status():\n    data = request.get_json() or {}\n    logger = get_pdfjs_logger()\n    logger.info(f\"PDFJS_INIT {data}\")\n    return jsonify({'ok': True}), 200"
+        },
+        "notes_on_atomicity_and_safety": "后端日志使用 logging 模块 + TimedRotatingFileHandler 保证线程安全与按日切分；广播函数对断开连接的客户端进行捕获并清理，避免未处理异常。"
+      }
+    },
+    "assumptions": {
+      "title": "假设",
+      "summary": "系统使用本地 WebSocket 服务，前端可连接到 ws://localhost:8765；ai-launcher.ps1 已启动后端并允许短时等待后端就绪。",
+      "details": "1) WebSocket 服务器端口为 8765（若不同，请在配置中调整）；2) 前端静态文件由本地 HTTP 服务提供，允许 /api/pdfjs/init-status 接收 POST；3) ai-launcher.ps1 启动后端进程并不立即关闭终端，允许后端完成初始化并发送事件。"
+    },
+    "evidence": {
+      "title": "证据",
+      "summary": "基于项目现有文件结构（存在 src/backend/websocket 与 src/frontend/pdf-viewer），WebSocket 是优先且自然的选择。",
+      "details": "项目中已有 websocket/server.py 与前端 ws 客户端用法，所示补丁与新增日志模块与现有代码风格一致。"
+    },
+    "conclusion": {
+      "title": "结论",
+      "summary": "实施优先 WebSocket 实现并保留 HTTP POST 备选，新增日志模块并在后端启动时触发 open_pdf_viewer 事件；补丁已包含在本方案，可直接 apply。",
+      "details": "按补丁修改后：1) ai-launcher.ps1 启动后端会触发前端打开并在前端初始化 PDF.js 后上报诊断日志；2) 后端将日志写入 logs/pdfjs-init.log；3) 提供测试步骤与示例日志以验证功能。"
+    }
+  },
+  "references": [
+    {
+      "title": "项目 websocket 文件夹",
+      "url": "src/backend/websocket/server.py"
+    },
+    {
+      "title": "前端 pdf-viewer 入口",
+      "url": "src/frontend/pdf-viewer/index.js"
+    }
+  ],
+  "patch_apply_instructions": {
+    "summary": "对照 patches 数组里的 diff/文件替换内容应用修改。对于 diff，建议使用 git apply 或直接在编辑器中按块替换。新增文件直接写入指定路径。",
+    "detailed_steps": [
+      "1) 备份当前代码并创建 git 分支：git checkout -b feat/pdfjs-init-logging",
+      "2) 将 src/backend/logging/pdfjs_logger.py 写入仓库（文件内容见 patches）",
+      "3) 在 src/backend/websocket/server.py 中添加 broadcast_event 方法（按 diff）",
+      "4) 在 src/backend/app/application.py 的启动函数内增加 notify 逻辑（按 diff）",
+      "5) 在 src/frontend/pdf-viewer/index.js 中添加 setupBackendReporting() 及在 pdfjs 初始化处调用 window.reportPdfjsInit（按 diff）",
+      "6) 如果使用 HTTP POST 备选，注册 Flask/Bottle/FastAPI 路由文件 src/backend/api/pdfjs_status.py 并将其加入后端应用路由注册",
+      "7) 运行后端并通过 ai-launcher.ps1 启动，观察 logs/pdfjs-init.log"
+    ]
+  },
+  "test_steps": {
+    "preconditions": [
+      "确保 ai-launcher.ps1 使用的后端入口调用的是 src/backend/app/application.py 或等效启动逻辑，且 WebSocket 服务端口为 8765（如不同需修改前端或配置）。",
+      "确保前端静态资源可通过浏览器访问（ai-launcher 会打开）。"
+    ],
+    "steps": [
+      {
+        "name": "启动服务",
+        "action": "使用 .\\ai-launcher.ps1 start 启动全部服务。"
+      },
+      {
+        "name": "验证后端广播",
+        "action": "确认后端启动日志包含 'Sent open_pdf_viewer event to frontend' 或在 logs/pdfjs-init.log 中看到初始记录。"
+      },
+      {
+        "name": "前端接收并打开",
+        "action": "观察前端被触发打开 pdf-viewer（UI 出现或浏览器被打开到 viewer 页面）。"
+      },
+      {
+        "name": "PDF.js 初始化上报（成功）",
+        "action": "在前端打开一个 PDF，确认 logs/pdfjs-init.log 收到类似 'PDFJS_INIT {\"status\":\"success\",...}' 的条目。"
+      },
+      {
+        "name": "PDF.js 初始化上报（失败）",
+        "action": "模拟加载失败（提供损坏 URL），确认 logs/pdfjs-init.log 收到 'PDFJS_INIT {\"status\":\"error\",...}'"
+      },
+      {
+        "name": "HTTP POST 备选测试",
+        "action": "停止 WebSocket（或使其不可用），重试前端加载，确保 /api/pdfjs/init-status 能收到 POST 并写入相同日志文件。"
+      }
+    ],
+    "expected_results": [
+      "后端启动时发送 open_pdf_viewer 事件并记录发送日志。",
+      "前端在接收事件后打开 pdf-viewer 并在 PDF.js 初始化完成/失败时上报状态。",
+      "logs/pdfjs-init.log 包含可追溯的 JSON-like 记录，按日期切分，能定位每次初始化的时间与状态。"
+    ]
+  },
+  "expected_log_examples": {
+    "path": "logs/pdfjs-init.log",
+    "examples": [
+      "2025-09-10 23:12:35,123 INFO Sent open_pdf_viewer event to frontend",
+      "2025-09-10 23:12:37,456 INFO PDFJS_INIT {\"status\": \"success\", \"pages\": 12, \"timestamp\": \"2025-09-10T23:12:37.450Z\"}",
+      "2025-09-10 23:13:10,789 INFO PDFJS_INIT {\"status\": \"error\", \"message\": \"NetworkError when attempting to fetch resource.\", \"timestamp\": \"2025-09-10T23:13:10.780Z\"}"
+    ],
+    "format_spec": "每条日志以 ISO-like 时间戳 + 级别 + 空格 + JSON-like 内容。文件按日切分保存，保留最近 7 天备份。"
+  }
+}

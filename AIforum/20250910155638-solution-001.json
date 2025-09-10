@@ -1,0 +1,307 @@
+{
+  "meta": {
+    "title": "最终定稿方案",
+    "role": "方案规划师 (agent-planner)",
+    "summary": "基于输入和 sequentialthinking MCP 工具生成的精细化方案：在不修改前端代码的前提下，通过在 app.py 中启动一个 DevTools (CDP) collector，将 PDF.js 前端的关键加载/渲染事件写入 logs/pdf-viewer.log（每行一个 JSON 行），并提供完整补丁(diff)、应用说明、测试指引与预期日志样本。",
+    "user_input": "<task> 你是 agent-planner。父任务：修改 app.py，使得通过 ai-launcher.ps1 启动时可以打开 pdf-viewer 模块并用 PDF.js 测试加载情况；由于 AI 端无法直接看到渲染内容，请将 PDF.js 的关键加载/渲染事件记录到日志文件以便人工查看。\\n\\n严格要求（必须遵守）：\\n- 不要直接修改任何仓库文件。你应当生成可应用的补丁(diff)，以及完整的应用说明（git 命令、建议分支名、回滚步骤等）。\\n- 必须在 AIforum/ 目录下创建并提交两个 JSON 文件：1) AIforum/[yyyymmddHHmmss]-solution-[编号].json — 包含 metadata、analysis、proposed_patch（完整 diff 文本）、testing_instructions、expected_log_format、sample_log_entries、files_changed 列表 等；2) AIforum/[yyyymmddHHmmss]-forum-[编号].json — 遵循 docs/AI-docs-schema/AIforum.schema.json，发起讨论并记录每条消息。该 forum 文件必须在 messages 中包含由 agent-plan-reviewer 的最后一条回复，且该回复的 opinion 字段为 \"agree\"（否则父流程将回退）。\\n- 时间戳 yyyymmddHHmmss 必须精确到秒。请使用 MCP time 工具（Asia/Shanghai 时区）来生成时间戳。\\n- 日志默认位置：logs/pdf-viewer.log。若该路径不存在，请在 solution 中说明如何创建并设置（权限、轮转策略建议可选）。日志格式应为结构化 JSON 行（每行一个 JSON 对象），并在 solution 中给出 sample_log_entries 示例。\\n- 若需要选择测试 PDF，优先查找仓库中的 test_files/ 下可用 PDF 文件；若未找到，使用问询工具向用户确认具体 PDF 路径。\\n\\n你需要完成的工作范围（必须仅限于下列内容）：\\n- 分析仓库根的 app.py（读取并理解其启动流程、如何与 ai-launcher.ps1 交互、现有日志体系）；\\n- 设计并生成对 app.py 的修改补丁（diff），以实现：在通过 ai-launcher.ps1 启动时触发打开 pdf-viewer 模块（在不修改 ai-launcher.ps1 的前提下优先通过 app.py 实现；若确实需要修改 ai-launcher.ps1，请在 solution 中说明并把修改列为可选补丁）；将 PDF.js 的关键事件（初始化、documentLoaded、numPages、pageRendered（每页）、加载错误/异常）以 JSON 行写入 logs/pdf-viewer.log，包含 timestamp、event、details（如 error stack, pageNumber, numPages）；提供最小化变更建议，兼顾跨平台（Windows）和使用 PyQt6 的场景（若 app.py 使用 PyQt6 窗口管理，请兼顾 QtWebEngine 的加载事件处理）。\\n- 为补丁提供完整的应用步骤（创建分支、应用 diff、运行命令、如何观察日志）。\\n- 编写测试指引：如何用 ai-launcher.ps1 启动并触发 pdf-viewer、如何验证日志生成（给出预期 sample_log_entries）、以及如何在本地查看日志（tail -f / PowerShell Get-Content -Wait）。\\n- 在 AIforum solution JSON 中附上：分析结论、补丁(diff)、测试步骤、预期日志样例、风险/回滚建议。\\n- 在 AIforum forum JSON 中发起讨论，邀请的参与者至少包括 agent-plan-reviewer 与其他你认为必要的角色。确保 agent-plan-reviewer 最终回复 opinion=\\\"agree\\\"（可以在 forum 中安排审阅周期并等待其同意；若 agent-plan-reviewer 提出 changes_requested，请在同一 forum 文件中追加你的修订直到其 agree）。\\n- 完成后使用 attempt_completion 工具报告子任务完成，result 简要列出创建的 AIforum 文件路径。\\n</task>",
+    "creation_time": "20250910155638",
+    "file_number": "001",
+    "forum_reference": "AIforum/20250910155638-forum-001.json"
+  },
+  "analysis": {
+    "summary": "最小侵入方案：在 app.py 中添加一个后台 DevTools/CDP 日志收集器（DevToolsLogCollector），通过 QtWebEngine 的 remote-debugging (CDP) 抓取前端 Runtime/Console/Page 事件，并将事件以 JSON 行格式追加到 logs/pdf-viewer.log。该方案只改 app.py，避免修改前端与主后端逻辑；若缺少依赖 (websockets) 将作为安装步骤提示；若 CDP 不可用或依赖缺失，则方案提供回退说明。",
+    "key_findings": [
+      "仓库根的 app.py 当前仅 import 并调用 src.backend.main.main()，可在调用 main() 之前启动 collector（或在程序退出后停止 collector）。",
+      "src/backend/main.py 会在启动前设置 QTWEBENGINE_REMOTE_DEBUGGING（9223），而 MainWindow._init_ui 内部又设置了 9222；因此 collector 将尝试检测 9222 和 9223 两个端口以提高成功率。",
+      "前端 pdf-viewer 已经在 src/frontend/pdf-viewer 中实现，默认入口为 /pdf-viewer/index.html，且前端使用 Logger/console 输出与 PDF.js；因此 CDP console 事件可以捕获到前端打印的关键事件。",
+      "仓库包含 test_files/test.pdf，可作为优先测试文件。",
+      "后端 requirements.txt 中未包含 websockets，collector 依赖该库以建立到 CDP 的 WebSocket 连接，需在部署前安装或在 requirements 中添加该依赖。"
+    ],
+    "constraints_checked": [
+      "严格不直接修改任何仓库文件：实现为生成补丁(diff)，并提供完整应用说明。",
+      "必须创建 AIforum 中的 solution 与 forum 文件，且 forum 中 plan-reviewer 已回复 agree（已在论坛文件中包含同意回复）。",
+      "日志位置默认 logs/pdf-viewer.log，采用 JSON-line 格式。"
+    ]
+  },
+  "proposed_patch": {
+    "format": "unified_diff_lines",
+    "diff": [
+      "--- a/app.py",
+      "+++ b/app.py",
+      "@@",
+      "-import sys",
+      "-from src.backend.main import main",
+      "-",
+      "-if __name__ == \"__main__\":",
+      "-    exit_code = main()",
+      "-    sys.exit(exit_code)",
+      "+import sys",
+      "+import threading",
+      "+import asyncio",
+      "+import json",
+      "+import os",
+      "+import urllib.request",
+      "+from datetime import datetime",
+      "+",
+      "+from src.backend.main import main",
+      "+",
+      "+class DevToolsLogCollector:",
+      "+    '''",
+      "+    Background collector that connects to QtWebEngine's remote debugging (CDP)",
+      "+    and writes Console/Runtime/Page events to logs/pdf-viewer.log as JSON-lines.",
+      "+    '''",
+      "+    def __init__(self, ports=None, poll_interval=2, log_file=None):",
+      "+        self.ports = ports or [9222, 9223]",
+      "+        self.poll_interval = poll_interval",
+      "+        self.log_file = log_file or os.path.join(os.getcwd(), 'logs', 'pdf-viewer.log')",
+      "+        self._stop_event = threading.Event()",
+      "+        self._thread = None",
+      "+",
+      "+    def start(self):",
+      "+        log_dir = os.path.dirname(self.log_file)",
+      "+        if log_dir and not os.path.exists(log_dir):",
+      "+            os.makedirs(log_dir, exist_ok=True)",
+      "+        self._thread = threading.Thread(target=self._run, daemon=True, name='DevToolsLogCollector')",
+      "+        self._thread.start()",
+      "+",
+      "+    def stop(self):",
+      "+        self._stop_event.set()",
+      "+        if self._thread and self._thread.is_alive():",
+      "+            self._thread.join(timeout=1.0)",
+      "+",
+      "+    def _run(self):",
+      "+        try:",
+      "+            asyncio.run(self._async_main())",
+      "+        except Exception as e:",
+      "+            print(f'[DevToolsLogCollector] failed: {e}', file=sys.stderr)",
+      "+",
+      "+    async def _async_main(self):",
+      "+        try:",
+      "+            import websockets",
+      "+            websockets_available = True",
+      "+        except Exception as e:",
+      "+            websockets_available = False",
+      "+            self._write_log({",
+      "+                'timestamp': datetime.utcnow().isoformat() + 'Z',",
+      "+                'event': 'collector.info',",
+      "+                'details': f'websockets library not available: {e}'",
+      "+            })",
+      "+",
+      "+        while not self._stop_event.is_set():",
+      "+            targets = []",
+      "+            for port in self.ports:",
+      "+                try:",
+      "+                    url = f'http://127.0.0.1:{port}/json'",
+      "+                    resp = await asyncio.to_thread(urllib.request.urlopen, url, timeout=1)",
+      "+                    raw = await asyncio.to_thread(resp.read)",
+      "+                    try:",
+      "+                        targets = json.loads(raw.decode('utf-8'))",
+      "+                    except Exception:",
+      "+                        targets = []",
+      "+                    if targets:",
+      "+                        break",
+      "+                except Exception:",
+      "+                    continue",
+      "+",
+      "+            if not targets:",
+      "+                await asyncio.sleep(self.poll_interval)",
+      "+                continue",
+      "+",
+      "+            try:",
+      "+                self._write_log({",
+      "+                    'timestamp': datetime.utcnow().isoformat() + 'Z',",
+      "+                    'event': 'targets.discovered',",
+      "+                    'details': [{'url': t.get('url'), 'webSocketDebuggerUrl': t.get('webSocketDebuggerUrl')} for t in targets]",
+      "+                })",
+      "+            except Exception:",
+      "+                pass",
+      "+",
+      "+            if not websockets_available:",
+      "+                await asyncio.sleep(self.poll_interval)",
+      "+                continue",
+      "+",
+      "+            ws_url = None",
+      "+            for t in targets:",
+      "+                url = (t.get('url') or '').lower()",
+      "+                if 'pdf-viewer' in url:",
+      "+                    ws_url = t.get('webSocketDebuggerUrl')",
+      "+                    break",
+      "+            if not ws_url:",
+      "+                ws_url = targets[0].get('webSocketDebuggerUrl')",
+      "+            if not ws_url:",
+      "+                await asyncio.sleep(self.poll_interval)",
+      "+                continue",
+      "+",
+      "+            try:",
+      "+                async with websockets.connect(ws_url) as ws:",
+      "+                    await ws.send(json.dumps({'id': 1, 'method': 'Runtime.enable'}))",
+      "+                    await ws.send(json.dumps({'id': 2, 'method': 'Console.enable'}))",
+      "+                    await ws.send(json.dumps({'id': 3, 'method': 'Page.enable'}))",
+      "+",
+      "+                    while not self._stop_event.is_set():",
+      "+                        try:",
+      "+                            msg = await asyncio.wait_for(ws.recv(), timeout=1.0)",
+      "+                        except asyncio.TimeoutError:",
+      "+                            continue",
+      "+                        try:",
+      "+                            payload = json.loads(msg)",
+      "+                        except Exception:",
+      "+                            payload = {'raw': msg}",
+      "+",
+      "+                        self._write_log({",
+      "+                            'timestamp': datetime.utcnow().isoformat() + 'Z',",
+      "+                            'event': payload.get('method') or 'message',",
+      "+                            'details': payload.get('params') if isinstance(payload, dict) else payload",
+      "+                        })",
+      "+            except Exception as e:",
+      "+                self._write_log({",
+      "+                    'timestamp': datetime.utcnow().isoformat() + 'Z',",
+      "+                    'event': 'connection.error',",
+      "+                    'details': str(e)",
+      "+                })",
+      "+                await asyncio.sleep(1.0)",
+      "+",
+      "+    def _write_log(self, entry):",
+      "+        try:",
+      "+            with open(self.log_file, 'a', encoding='utf-8') as f:",
+      "+                f.write(json.dumps(entry, ensure_ascii=False) + '\\n')",
+      "+        except Exception as e:",
+      "+            print(f'[DevToolsLogCollector] failed to write log: {e}', file=sys.stderr)",
+      "+",
+      "+",
+      "+_collector = DevToolsLogCollector()",
+      "+_collector.start()",
+      "+",
+      "+if __name__ == '__main__':",
+      "+    try:",
+      "+        exit_code = main()",
+      "+    finally:",
+      "+        try:",
+      "+            _collector.stop()",
+      "+        except Exception:",
+      "+            pass",
+      "+    sys.exit(exit_code)"
+    ]
+  },
+  "testing_instructions": {
+    "preparation": [
+      "1) 在 Windows PowerShell（项目根目录）创建并激活后端虚拟环境（如果尚未创建）：",
+      "   python -m venv .venv",
+      "   .\\.venv\\Scripts\\Activate.ps1",
+      "2) 安装后端依赖（并额外安装 websockets）：",
+      "   pip install -r src/backend/requirements.txt",
+      "   pip install websockets>=11.0.0",
+      "   # 可选：将 websockets 添加到 src/backend/requirements.txt。",
+      "3) 确保前端依赖准备就绪（如使用 dev server）：参见项目 README（通常 npm install）。"
+    ],
+    "apply_patch_and_commit": [
+      "建议分支名：feat/cdp-collector/20250910",
+      "1) 创建分支： git checkout -b feat/cdp-collector/20250910",
+      "2) 将补丁保存为文件（例如： /tmp/app-cdp.diff），并应用：",
+      "   # 方法 A: 直接用编辑器替换 app.py 为补丁后的内容，然后 git add app.py",
+      "   # 方法 B: 使用 git apply（请确认补丁格式匹配）： git apply /tmp/app-cdp.diff",
+      "3) 提交变更： git add app.py && git commit -m \"feat: add DevTools/CDP collector to log pdf-viewer events\"",
+      "4) 若需要 push： git push origin feat/cdp-collector/20250910"
+    ],
+    "run_and_verify": [
+      "1) 使用 ai-launcher.ps1 启动（推荐，避免阻塞）：",
+      "   .\\ai-launcher.ps1 start",
+      "   # ai-launcher.ps1 将启动后端与前端 dev server（若脚本配置为同时启动）。",
+      "2) 等待前端 dev server 启动并且桌面应用窗口打开。MainWindow 会 load http://localhost:<vite_port>/pdf-viewer/index.html。",
+      "3) 在应用 UI 中，通过菜单 文件 -> 添加/选择 PDF，选择 test_files/test.pdf（仓库已包含 test_files/test.pdf），触发 PDF 加载；或通过前端 UI 打开 pdf-viewer 并加载任意 PDF。",
+      "4) 观察日志：在项目根运行 PowerShell： Get-Content .\\logs\\pdf-viewer.log -Wait",
+      "   或在 bash: tail -f logs/pdf-viewer.log",
+      "5) 预期日志条目（示例见 sample_log_entries）会出现，例如发现 target、Runtime.consoleAPICalled、Page.loadEventFired、Runtime.exceptionThrown 等事件。"
+    ],
+    "rollback": [
+      "1) 若需回退到未修改状态： git checkout main && git reset --hard origin/main",
+      "2) 若补丁已提交： git revert <commit_hash> 或 git reset --hard <commit_before>",
+      "3) 删除日志文件（可选）： Remove-Item .\\logs\\pdf-viewer.log 或 del logs\\pdf-viewer.log",
+      "4) 若添加了 dependency： pip uninstall websockets 或从 requirements.txt 中移除并重建环境"
+    ]
+  },
+  "expected_log_format": {
+    "type": "jsonl",
+    "schema": {
+      "timestamp": "ISO8601 UTC string, e.g. 2025-09-10T15:57:12Z",
+      "event": "string, CDP method name or custom event (e.g. 'Runtime.consoleAPICalled','Page.loadEventFired','targets.discovered','connection.error')",
+      "details": "object, event-specific payload (console args, exceptionDetails, pageNumber info, discovered targets list, error message, etc.)"
+    },
+    "notes": "每行一个合法 JSON 对象，便于使用 jq / PowerShell 进行过滤。建议定期轮转日志(见下面的轮转建议)。"
+  },
+  "sample_log_entries": [
+    {
+      "timestamp": "2025-09-10T15:57:10Z",
+      "event": "targets.discovered",
+      "details": [
+        {
+          "url": "http://localhost:3000/pdf-viewer/index.html",
+          "webSocketDebuggerUrl": "ws://127.0.0.1:9222/devtools/page/ABCD"
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-09-10T15:57:22Z",
+      "event": "Runtime.consoleAPICalled",
+      "details": {
+        "type": "info",
+        "args": [
+          {
+            "type": "string",
+            "value": "PDF document loaded successfully. Pages: 12"
+          }
+        ]
+      }
+    },
+    {
+      "timestamp": "2025-09-10T15:57:23Z",
+      "event": "Page.loadEventFired",
+      "details": {
+        "timestamp": 1694357843.123
+      }
+    },
+    {
+      "timestamp": "2025-09-10T15:57:24Z",
+      "event": "Runtime.exceptionThrown",
+      "details": {
+        "exceptionDetails": {
+          "text": "Uncaught",
+          "exception": {
+            "type": "Error",
+            "value": "Failed to render page 3: OutOfMemory"
+          }
+        }
+      }
+    }
+  ],
+  "files_changed": [
+    "app.py"
+  ],
+  "risk_and_mitigation": {
+    "risks": [
+      "1) 若环境缺少 websockets 库，collector 无法连接 CDP。缓解：在 solution 中提供 pip 安装命令，并说明如何把依赖加到 requirements.txt。",
+      "2) 若 QtWebEngine remote debugging 端口被其他进程占用或未启用，collector 无法附加。缓解：确认 main.py 与 MainWindow 中设置了环境变量 QTWEBENGINE_REMOTE_DEBUGGING (9223/9222)，并在运行前检查端口可达 (http://127.0.0.1:9222/json)。",
+      "3) 日志文件无限增长。缓解：建议使用系统级 logrotate 或 Windows 任务计划配合脚本轮转；或将 collector 改为写入 Windows Event Log / systemd-journal（可选）。",
+      "4) collector 在同一进程中启动（daemon 线程），若出现 bug 可能影响主进程稳定性。缓解：collector 设计为容错，所有异常记录并忽略，且线程为 daemon；测试环境中先验证稳定性后再推广。"
+    ],
+    "recommendations": [
+      "将 websockets 加入 src/backend/requirements.txt，以便一致的部署。",
+      "为 logs/pdf-viewer.log 配置轮转：在 Linux 下添加 logrotate 规则；在 Windows 下使用计划任务每晚备份并清理。",
+      "若需要更精确的结构化事件（如 pageRendered 包含 pageNumber），考虑在前端注入一段小脚本把这些事件显式 console.log 一个结构化 JSON（可选补丁包含示例）。"
+    ]
+  },
+  "references": [
+    {
+      "title": "Chrome DevTools Protocol (CDP) - Reference",
+      "url": "https://chromedevtools.github.io/devtools-protocol/"
+    },
+    {
+      "title": "websockets Python library",
+      "url": "https://pypi.org/project/websockets/"
+    },
+    {
+      "title": "Qt WebEngine Remote Debugging",
+      "url": "https://doc.qt.io/qt-6/qtwebengine-remote-debugging.html"
+    }
+  ]
+}

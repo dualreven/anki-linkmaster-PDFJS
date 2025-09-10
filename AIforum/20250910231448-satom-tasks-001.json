@@ -1,0 +1,102 @@
+{
+  "metadata": {
+    "created_at": "2025-09-10T23:14:48Z",
+    "source_solution": "AIforum/20250910231210-solution-001.json",
+    "total-atom-task-count": 9
+  },
+  "satom-task-list": [
+    {
+      "id": "AT001",
+      "title": "新增后端 pdfjs 日志模块",
+      "description": "创建 src/backend/logging/pdfjs_logger.py，写入 logs/pdfjs-init.log（TimedRotatingFileHandler）。",
+      "estimated_time_minutes": 45,
+      "dependencies": []
+    },
+    {
+      "id": "AT002",
+      "title": "WebSocket broadcast_event 方法",
+      "description": "在 WebSocketServer 中添加 broadcast_event 用于广播 JSON 事件并清理断开客户端。",
+      "estimated_time_minutes": 40,
+      "dependencies": [
+        "AT001"
+      ]
+    },
+    {
+      "id": "AT003",
+      "title": "后端启动时触发 open_pdf_viewer 事件",
+      "description": "在 AnkiLinkMasterApp.start() 中调用全局 ws.server.broadcast_event('open_pdf_viewer', payload) 并记录日志（异常时捕获）。",
+      "estimated_time_minutes": 60,
+      "dependencies": [
+        "AT001",
+        "AT002"
+      ]
+    },
+    {
+      "id": "AT004",
+      "title": "前端建立后端通道并监听 open_pdf_viewer",
+      "description": "在 src/frontend/pdf-viewer/index.js 中新增 setupBackendReporting()，建立 ws 连接、监听 open_pdf_viewer 并提供 window.reportPdfjsInit 回退到 HTTP POST。",
+      "estimated_time_minutes": 50,
+      "dependencies": []
+    },
+    {
+      "id": "AT005",
+      "title": "后端接收 pdfjs_init_status 并写日志（WebSocket）",
+      "description": "在 WebSocket 消息处理处处理 event == 'pdfjs_init_status' 并写入日志。",
+      "estimated_time_minutes": 30,
+      "dependencies": [
+        "AT001",
+        "AT002",
+        "AT004"
+      ]
+    },
+    {
+      "id": "AT006",
+      "title": "HTTP POST 备选接收端",
+      "description": "新增 src/backend/api/pdfjs_status.py，提供 /api/pdfjs/init-status POST 路由，将接收到的数据写入 pdfjs 日志模块。",
+      "estimated_time_minutes": 45,
+      "dependencies": [
+        "AT001"
+      ]
+    },
+    {
+      "id": "AT007",
+      "title": "集成测试（WebSocket 路径）",
+      "description": "编写/运行集成测试脚本或手动步骤，验证从后端广播到前端上报再到后端日志写入的完整链路。",
+      "estimated_time_minutes": 90,
+      "dependencies": [
+        "AT001",
+        "AT002",
+        "AT003",
+        "AT004",
+        "AT005"
+      ]
+    },
+    {
+      "id": "AT008",
+      "title": "文档与操作说明",
+      "description": "在 docs/ 中新增 README-pdfjs-init.md，说明启动步骤、配置、测试与预期日志示例。",
+      "estimated_time_minutes": 30,
+      "dependencies": [
+        "AT001",
+        "AT003",
+        "AT004"
+      ]
+    },
+    {
+      "id": "AT009",
+      "title": "提交分支、PR 与合并",
+      "description": "在分支上提交所有变更，运行 CI/测试，创建 PR 并完成审查合并流程。",
+      "estimated_time_minutes": 60,
+      "dependencies": [
+        "AT001",
+        "AT002",
+        "AT003",
+        "AT004",
+        "AT005",
+        "AT006",
+        "AT007",
+        "AT008"
+      ]
+    }
+  ]
+}
