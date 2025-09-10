@@ -73,7 +73,7 @@ export class PageTransferManager {
         }
 
         // 生成请求ID
-        const requestId = this.#generateRequestId();
+        const requestId = this._generateRequestId();
         
         return new Promise((resolve, reject) => {
             // 存储请求信息
@@ -128,7 +128,7 @@ export class PageTransferManager {
         try {
             const message = {
                 type: 'pdf_page_preload',
-                request_id: this.#generateRequestId(),
+                request_id: this._generateRequestId(),
                 timestamp: Date.now(),
                 data: {
                     file_id: fileId,
@@ -187,7 +187,7 @@ export class PageTransferManager {
         // 发送缓存清理请求到后端
         const message = {
             type: 'pdf_page_cache_clear',
-            request_id: this.#generateRequestId(),
+            request_id: this._generateRequestId(),
             timestamp: Date.now(),
             data: {
                 file_id: fileId,
@@ -393,7 +393,7 @@ export class PageTransferManager {
         
         const message = {
             type: 'pdf_page_request',
-            request_id: this.#generateRequestId(),
+            request_id: this._generateRequestId(),
             timestamp: Date.now(),
             data: {
                 file_id: fileId,
@@ -506,7 +506,7 @@ export class PageTransferManager {
      * @returns {string} 请求ID
      * @private
      */
-    #generateRequestId() {
+    _generateRequestId() {
         return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     }
 

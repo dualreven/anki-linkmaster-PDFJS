@@ -7,7 +7,7 @@ steps:
   - step2_create_forum:
     - 将方案写入 `AIforum/[yyyymmddHHmmss]-forum-[编号].json`,每次与`reviewer`对话都只使用这一个文件.
   - step3_create_new_task:
-    - 创建子任务（`new_task`, `mode:agent-plan-reviewer`），传递`AIforum/[yyyymmddHHmmss]-forum-[编号].json`文件，并提示须按照 `.roo/rules/agents-communication.yaml` 规范回复。
+    - 创建子任务（`new_task`, `mode:agent-plan-reviewer`），传递`AIforum/[yyyymmddHHmmss]-forum-[编号].json`文件，并提示须按照 `.kilocode/rules/agents-communication.yaml` 规范回复。
   - step4_revise:
     - 子任务结束后，检查方案文件：
       - 若回复规范，检查复核意见，逐条响应并修订方案。

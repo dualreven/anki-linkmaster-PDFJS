@@ -26,7 +26,7 @@
 
 关键调用：
 - tableWrapper.reloadData(data) — src/frontend/pdf-home/table-wrapper.js:88
-- 事件发布：EventBus.publish('pdf:add', {request_id, items}) — roo/system-prompt-agent-master.yaml:10
+- 事件发布：EventBus.publish('pdf:add', {request_id, items}) — kilocode/system-prompt-agent-master.yaml:10
 
 测试与观察：
 - 在调试控制台观察 pdf-home 页面日志（debug-console-at-9222.log）。

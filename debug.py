@@ -12,7 +12,7 @@ DEFAULT_DEBUG_PORT = 9222
 
 def get_log_file(port):
     """根据端口生成日志文件名"""
-    return f'debug-console-at-{port}.log'
+    return f'logs/debug-console-at-{port}.log'
 # --- 配置结束 ---
 
 def parse_args():

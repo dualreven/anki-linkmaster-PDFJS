@@ -11,7 +11,7 @@ steps:
     - 创建子任务（`new_task`, `mode:agent-atomize-reviewer`），
     - 传递方案讨论文件 `AIforum/[yyyymmddHHmmss]-forum-[编号].json`，
     - 传递草稿版原子化任务列表 `AIforum/[yyyymmddHHmmss]-atom-tasks-draft-[编号].json`
-    - 提示子任务须按照 `.roo/rules/agents-communication.yaml` 规范回复。
+    - 提示子任务须按照 `.kilocode/rules/agents-communication.yaml` 规范回复。
   - step4_revise:
     - 子任务结束后，检查方案文件：
       - 若 reviewer最新的reply中,"opinion"字段为 "agree" 则跳到step5

@@ -1,0 +1,117 @@
+{
+  "task-background": {
+    "project-name": "Vite构建错误修复",
+    "description": "修复Vite构建过程中出现的CommonJS插件转换错误，确保项目能够正常构建和运行",
+    "content": "基于AIforum/20250910003356-solution-001.json中的修复方案和多轮复核意见，将Vite构建错误修复方案进一步细化为14个真正的原子任务，每个任务都是独立、可执行、不可再分的，并且包含明确的TDD测试步骤。任务之间的依赖关系清晰，确保了合理的执行顺序。",
+    "refers": [
+      "AIforum/20250910003356-solution-001.json",
+      "AIforum/20250910003904-forum-001.json",
+      "https://tabulator.info/docs/5.4/install",
+      "https://vitejs.dev/config/build-options.html#build-commonjsoptions",
+      "https://babeljs.io/docs/babel-plugin-transform-modules-commonjs",
+      "https://github.com/rollup/plugins/tree/master/packages/commonjs"
+    ],
+    "status": "passed",
+    "total-atom-task-count": 14
+  },
+  "atom-task-list": [
+    {
+      "title": "分析当前的Tabulator导入问题和Vite构建错误",
+      "content": "分析当前的Tabulator导入问题和Vite构建错误，包括：1) 检查当前的导入语句，2) 分析Vite构建错误日志，3) 确定问题的根本原因，4) 记录分析结果，5) 编写和运行TDD测试验证分析结果。这个任务为后续的修复工作提供基础。",
+      "status": "todo",
+      "index": 1,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "尝试默认导入方案",
+      "content": "尝试默认导入方案，包括：1) 修改导入语句为`import Tabulator from 'tabulator-tables'`，2) 编写TDD测试验证导入是否成功，3) 验证构建是否成功，4) 记录结果。这是一个独立的原子任务，专注于默认导入方案的尝试和验证。",
+      "status": "todo",
+      "index": 2,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "尝试完整导入方案",
+      "content": "尝试完整导入方案，包括：1) 修改导入语句为`import * as Tabulator from 'tabulator-tables'`，2) 编写TDD测试验证导入是否成功，3) 验证构建是否成功，4) 记录结果。这是一个独立的原子任务，专注于完整导入方案的尝试和验证。",
+      "status": "todo",
+      "index": 3,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "尝试变体导入方案",
+      "content": "尝试变体导入方案，包括：1) 修改导入语句为`import { TabulatorFull as Tabulator} from \"tabulator-tables\"`，2) 编写TDD测试验证导入是否成功，3) 验证构建是否成功，4) 记录结果。这是一个独立的原子任务，专注于变体导入方案的尝试和验证。",
+      "status": "todo",
+      "index": 4,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "添加include/exclude选项",
+      "content": "添加include/exclude选项，包括：1) 在vite.config.js中添加include/exclude选项：`include: /node_modules\\/tabulator-tables/`，2) 编写TDD测试验证配置是否正确，3) 验证构建是否成功，4) 记录结果。这是一个独立的原子任务，专注于include/exclude选项的添加和验证。",
+      "status": "todo",
+      "index": 5,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "配置transformMixedEsModules选项",
+      "content": "配置transformMixedEsModules选项，包括：1) 在vite.config.js中配置transformMixedEsModules选项，2) 编写TDD测试验证配置是否正确，3) 验证构建是否成功，4) 记录结果。这是一个独立的原子任务，专注于transformMixedEsModules选项的配置和验证。",
+      "status": "todo",
+      "index": 6,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "添加动态导入支持",
+      "content": "添加动态导入支持，包括：1) 在vite.config.js中添加动态导入支持，2) 编写TDD测试验证配置是否正确，3) 验证构建是否成功，4) 记录结果。这是一个独立的原子任务，专注于动态导入支持的添加和验证。",
+      "status": "todo",
+      "index": 7,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "添加@babel/plugin-transform-modules-commonjs插件",
+      "content": "添加@babel/plugin-transform-modules-commonjs插件，包括：1) 在babel.config.js中添加@babel/plugin-transform-modules-commonjs插件，2) 编写TDD测试验证插件是否正确添加，3) 验证构建是否成功，4) 记录结果。这是一个独立的原子任务，专注于Babel插件的添加和验证。",
+      "status": "todo",
+      "index": 8,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "优化Babel插件配置",
+      "content": "优化Babel插件配置，包括：1) 优化babel.config.js中的现有Babel插件配置，2) 编写TDD测试验证配置是否正确优化，3) 验证构建是否成功，4) 记录结果。这是一个独立的原子任务，专注于Babel插件配置的优化和验证。",
+      "status": "todo",
+      "index": 9,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "验证Tabulator实例正确初始化",
+      "content": "验证Tabulator实例正确初始化，包括：1) 编写TDD测试验证Tabulator实例是否正确初始化，2) 检查是否有'_container'未定义的错误，3) 记录验证结果。这是一个独立的原子任务，专注于Tabulator实例初始化的验证。",
+      "status": "todo",
+      "index": 10,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "验证DOM元素正确创建",
+      "content": "验证DOM元素正确创建，包括：1) 编写TDD测试验证DOM元素是否正确创建，2) 检查表格是否正确显示在页面上，3) 记录验证结果。这是一个独立的原子任务，专注于DOM元素创建的验证。",
+      "status": "todo",
+      "index": 11,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "测试表格功能正常工作",
+      "content": "测试表格功能正常工作，包括：1) 编写TDD测试验证表格功能是否正常工作，2) 测试排序、筛选、分页等核心功能，3) 记录测试结果。这是一个独立的原子任务，专注于表格功能的测试。",
+      "status": "todo",
+      "index": 12,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "添加回退机制和降级方案",
+      "content": "添加回退机制和降级方案，包括：1) 编写TDD测试验证回退机制是否正常工作，2) 确保在Tabulator初始化失败时能够提供基本的表格功能，3) 记录实现结果。这是一个独立的原子任务，专注于回退机制和降级方案的实现。",
+      "status": "todo",
+      "index": 13,
+      "feedback": "[由执行者完成任务反馈填写]"
+    },
+    {
+      "title": "增加错误日志和诊断信息",
+      "content": "增加错误日志和诊断信息，包括：1) 编写TDD测试验证错误日志是否正确记录，2) 实现有意义的错误信息显示，3) 记录实现结果。这是一个独立的原子任务，专注于错误日志和诊断信息的实现。",
+      "status": "todo",
+      "index": 14,
+      "feedback": "[由执行者完成任务反馈填写]"
+    }
+  ]
+}

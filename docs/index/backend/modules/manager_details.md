@@ -2,7 +2,7 @@
 
 接口与函数：
 - handleAddRequest(request)
-  - 参考：roo/system-prompt-agent-master.yaml:10
+  - 参考：kilocode/system-prompt-agent-master.yaml:10
   - 作用：接收添加请求，验证 request_id，调用 persistence.saveItems(items)，并在完成后发布 pdf:list:updated。
 - handleDeleteRequest(request)
   - 参考：data/pdf_files.json:1

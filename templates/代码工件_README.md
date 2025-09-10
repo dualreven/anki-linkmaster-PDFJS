@@ -96,10 +96,10 @@ curl -f http://localhost:3000/health || echo "健康检查失败"
 
 ## 参考文档与模板维护信息
 - 参考：
-- [`roo/system-prompt-code-generator`](roo/system-prompt-code-generator:1)
+- [`kilocode/system-prompt-code-generator`](kilocode/system-prompt-code-generator:1)
 - [`docs/articles/AITASK项目工程文件目录结构.md`](docs/articles/AITASK项目工程文件目录结构.md:1)
 - 模板维护说明：当模板需要更新时，请在仓库中更新本文件并在 PR 描述中说明变更内容与原因。
 
 生成说明：
-- 本模板由 [`Code-Generator`](roo/system-prompt-code-generator:1) 生成，用于统一 Code-Generator 输出的工件 README 结构。
+- 本模板由 [`Code-Generator`](kilocode/system-prompt-code-generator:1) 生成，用于统一 Code-Generator 输出的工件 README 结构。
 - 保存位置：[`templates/代码工件_README.md`](templates/代码工件_README.md:1)

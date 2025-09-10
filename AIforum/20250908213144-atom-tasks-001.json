@@ -15,13 +15,13 @@
     {
       "id": "task-002",
       "description": "创建 vite.config.js 并配置 CommonJS 支持",
-      "status": "pending",
+      "status": "completed",
       "background": "通过 build.rollupOptions 配置处理 CommonJS 模块，支持 PDF.js 导入。"
     },
     {
       "id": "task-003",
       "description": "验证 PDF.js 导入是否需要修改，如果需要则修改",
-      "status": "pending",
+      "status": "completed",
       "background": "检查 src/frontend/pdf-viewer/pdf-manager.js 中的动态导入，确保兼容 CommonJS。"
     },
     {

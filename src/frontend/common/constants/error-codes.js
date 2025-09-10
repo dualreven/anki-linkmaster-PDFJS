@@ -177,7 +177,7 @@ export function getErrorDescription(errorCode) {
  * @returns {boolean}
  */
 export function isNetworkError(errorCode) {
-  return errorCode >= 1000 && errorCode < 2000;
+  return errorCode >= 1001 && errorCode <= 1010;
 }
 
 /**
@@ -186,7 +186,7 @@ export function isNetworkError(errorCode) {
  * @returns {boolean}
  */
 export function isFormatError(errorCode) {
-  return errorCode >= 2000 && errorCode < 3000;
+  return errorCode >= 2001 && errorCode <= 2010;
 }
 
 /**
@@ -195,7 +195,7 @@ export function isFormatError(errorCode) {
  * @returns {boolean}
  */
 export function isRenderError(errorCode) {
-  return errorCode >= 3000 && errorCode < 4000;
+  return errorCode >= 3001 && errorCode <= 3010;
 }
 
 /**
@@ -204,7 +204,7 @@ export function isRenderError(errorCode) {
  * @returns {boolean}
  */
 export function isGeneralError(errorCode) {
-  return errorCode >= 9000 && errorCode < 10000;
+  return errorCode >= 9001 && errorCode <= 9010;
 }
 
 export default {

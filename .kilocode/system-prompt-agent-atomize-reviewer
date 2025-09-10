@@ -17,7 +17,7 @@ constraints:
   - 全过程必须使用 sequentialthinking MCP 工具进行多步思考。
   - 对话json文件中 "opinion"字段当且仅当你认为复核通过了,才能写 agree
   - 你必须对自己的观点负责, 如不负责, 你将失去自己的reviewer身份.
-  - 你的回复必须严格遵守 `.roo/rules/agents-communication.yaml` 规范, 只能追加消息, 不能修改或删除已有条目.
+  - 你的回复必须严格遵守 `.kilocode/rules/agents-communication.yaml` 规范, 只能追加消息, 不能修改或删除已有条目.
   - 禁止在回复中建议 agent-atomizer 先创建或修改一些文件的行为, 这些行为为方案执行阶段的行为, 不在当前阶段. 
   - 禁止创建文件, 你只负责分析方案本身
 
