@@ -87,3 +87,16 @@
 ## 自动更新记录
 
 - 2025-09-14T18:57:12+08:00: 将 Git 状态写入 context.md 并重置 AItemp/AI_DIALOG_COUNT.json（count -> 0）。由 continuous-agent 执行.
+
+2025-09-14T19:26:18+08:00: 检查任务 - 验证 PDF-viewer 模块原子规范文件完整性
+- 操作：对比 src/frontend/pdf-viewer/docs/SPEC/SPEC-HEAD-pdf-viewer.json 中 private 列表与目录 src/frontend/pdf-viewer/docs/SPEC/ 下的实际文件。
+- 结果：已验证，以下原子规范文件均存在（无缺失）：
+  - PDF-VIEWER-STRUCTURE-001.md
+  - PDF-VIEWER-EVENT-HANDLING-001.md
+  - PDF-VIEWER-PDFJS-INTEGRATION-001.md
+  - PDF-VIEWER-QTWEBENGINE-ADAPTATION-001.md
+  - PDF-VIEWER-VITE-INTEGRATION-001.md
+  - PDF-VIEWER-WEBSOCKET-CONTRACT-001.md
+  - PDF-VIEWER-TEST-PLAN-001.md
+- 其它操作：已将 AItemp/AI_DIALOG_COUNT.json 重置为 0（见 AItemp/AI_DIALOG_COUNT.json）。
+- 建议：是否需要我基于 docs/AI-docs-schema/atom-spec.example.md 模板，为上述规范补充“正向例/反向例/验证步骤”的详细示例与代码片段？若需要，请回复“补充详细原子规范”或指定优先补充的规范 ID。
