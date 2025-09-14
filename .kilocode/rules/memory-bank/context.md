@@ -147,3 +147,34 @@
 <!-- update: 2025-09-14 - 修复 EventBus 验证导致的 undefined 事件问题 -->
 
 
+
+2025-09-15T00:51:45+08:00: 修复：pdf-home 模块中 pdf-table 的多选删除问题
+- 问题概述：
+  - 报告：用户发现 pdf-home 的表格无法进行“多选删除”操作。
+  - 根因初步分析：Tabulator 在不同环境/版本下对“选中行”的 API 返回值不一致（有时返回 plain data objects，有时返回 RowComponent 对象）；TableWrapper 和 UIManager 之间对选中数据的期望不一致，导致 UIManager 无法正确收集选中 items 的 id/filename，从而批量删除未能触发或发送了空列表。
+- 已执行的修改（代码级）：
+  1. src/frontend/pdf-home/table-wrapper.js
+     - 修改：getSelectedRows() 方法被正规化（normalization），现在会：
+       - 在回退模式（fallback HTML table）下可靠读取 checkbox 并返回 plain object 列表（防御性拷贝）。
+       - 在 Tabulator 模式下优先使用 getSelectedData()（若返回 plain objects 即采用），若返回 RowComponent 列表则调用 getData() 并转为 plain objects；若两者均不可用则基于 DOM 查找 selected 行并映射到内部数据。
+       - 返回值保证为 plain object 数组（每项为 {id, filename, ...} 或尽可能可用的标识符），以便调用方无需关心底层 Tabulator 的返回类型差异。
+  2. src/frontend/pdf-home/ui-manager.js
+     - 修改：#handleBatchDelete() 中对选中项的读取逻辑增强：
+       - 优先使用 pdfTable.getSelectedRows()（现在返回正规化的 plain objects）。
+       - 增强回退检测：支持多种 checkbox 类名（.pdf-item-checkbox、.pdf-table-checkbox、.pdf-table-row-select）并从 DOM 中安全提取 data-filename / data-row-id / data-filepath。
+       - 对收集到的 selected identifiers 进行了更鲁棒的提取（优先 id -> filename -> file_id -> fileId）。
+       - 保持对 PDF_MANAGEMENT_EVENTS.BATCH.REQUESTED 事件的发送方式不变，但确保 payload.files 为非空且为前端/后端可识别的标识符数组。
+- 验证与诊断：
+  - 在 index.js 中已经添加（存在）对 Tabulator 原生事件 rowSelectionChanged 的诊断绑定（console 输出）。修改后，可在浏览器控制台进行以下验证：
+    1. 启动前端（使用 ai-launcher.ps1 start 或 npm run dev）。
+    2. 打开 pdf-home 页面，选中多行（使用 checkbox 或 rowSelection）。
+    3. 点击“批量删除”按钮，确认提示并检查控制台是否发送了包含已选文件列表的 PDF_MANAGEMENT_EVENTS.BATCH.REQUESTED 事件（可以在 EventBus 日志或 network/WebSocket 消息中查看）。
+    4. 观察后端（或 PDFManager 日志）是否收到了对应的批量删除请求，并且批次追踪（batch tracking）行为正常（pending 计数减少，最终触发列表刷新）。
+- 后续建议（优先级排序）：
+  1. 将上述修改提交为一个单独的 Git commit（遵循约定：先创建分支，运行测试，提交），建议分支名：fix/pdf-home-batch-delete.
+  2. 在 CI 或本地运行前端测试（npm test），并手动/自动验证与 IndexedDB 无关的单元与集成测试（本次改动主要是 DOM/事件层面，单元影响应有限）。
+  3. 考虑为 TableWrapper.getSelectedRows 增加单元测试，用 mock Tabulator 返回不同类型（plain objects / RowComponent）以确保兼容性不回退。
+  4. 若你的团队接受更严格的类型约定，建议在事件规范中明确 selection 事件的 payload schema（例如：始终发送 array of { id, filename }），并在 EventBus 的校验逻辑中强制验证。
+- 当前状态：
+  - 代码已修改并写入工作区（files modified: src/frontend/pdf-home/table-wrapper.js, src/frontend/pdf-home/ui-manager.js）。
+  - 建议进行一次手工 smoke 测试并在 CI 中包含相关测试。如需，我可以继续：创建分支、生成 commit、运行测试并提交 PR（new_task, mode: continuous-agent）。

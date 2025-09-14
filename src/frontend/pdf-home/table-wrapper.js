@@ -73,6 +73,55 @@ export default class TableWrapper {
       selectableRollingSelection: false, // 禁用滚动选择
       layoutColumnsOnNewData: false,
       placeholder: defaultPlaceholder,
+      /**
+       * 兼容性增强：若 Tabulator 没有内置的 rowSelection formatter（不同打包/版本可能缺少 SelectRowModule），
+       * 我们通过 rowFormatter 注入一个简易的 checkbox 到每一行的第一个单元格，class 为 pdf-table-row-select。
+       * 这样可以在不依赖额外模块的情况下，保证多选交互的可见性与可用性。
+       */
+      rowFormatter: function(row) {
+        try {
+          const rowEl = row.getElement ? row.getElement() : null;
+          if (!rowEl) return;
+          // 找到第一个单元格（Tabulator 渲染后第一个 .tabulator-cell）
+          const firstCell = rowEl.querySelector('.tabulator-cell');
+          if (!firstCell) return;
+          // 避免重复插入
+          let cb = firstCell.querySelector('.pdf-table-row-select');
+          if (!cb) {
+            cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.className = 'pdf-table-row-select';
+            // 尽量设置数据标识，便于回退检测读取
+            const data = (typeof row.getData === 'function') ? row.getData() : null;
+            if (data) {
+              if (data.id !== undefined) cb.dataset.rowId = data.id;
+              else if (data.filename) cb.dataset.filename = data.filename;
+            }
+            // 反映行选择状态
+            try { cb.checked = (typeof row.isSelected === 'function') ? !!row.isSelected() : false; } catch(e) {}
+            // 当 checkbox 改变时，切换 Tabulator 行的选择状态（若 RowComponent 可用）
+            cb.addEventListener('change', (e) => {
+              try {
+                if (typeof row.select === 'function' && typeof row.deselect === 'function') {
+                  if (e.target.checked) row.select();
+                  else row.deselect();
+                } else {
+                  // 尝试切换 DOM 的选中类，供回退逻辑使用
+                  if (e.target.checked) rowEl.classList.add('tabulator-selected');
+                  else rowEl.classList.remove('tabulator-selected');
+                }
+              } catch (err) { /* ignore */ }
+            });
+            // 将 checkbox 插入到单元格最前面
+            firstCell.insertBefore(cb, firstCell.firstChild);
+          } else {
+            // 同步选中状态
+            try { cb.checked = (typeof row.isSelected === 'function') ? !!row.isSelected() : cb.checked; } catch(e) {}
+          }
+        } catch (e) {
+          // silently ignore rowFormatter errors to avoid breaking rendering
+        }
+      }
     }, options);
     console.log('TableWrapper options:', JSON.stringify(this.#options));
     this.#tabulator = null;
@@ -438,25 +487,80 @@ export default class TableWrapper {
   }
 
   /**
-   * 获取当前被选中的行数据（由 Tabulator 管理）。
-   * @returns {Array<Object>} 被选中的行对象数组
+   * 获取当前被选中的行数据（统一返回 plain object 数组）。
+   * 为了兼容不同版本/环境下 Tabulator 的差异（有时返回 RowComponent，有时返回 plain data），
+   * 此方法会尽可能正规化输出为前端期待的 plain object 列表：[{id, filename, ...}, ...]
+   * @returns {Array<Object>} 被选中的行对象数组（防御性拷贝）
    */
   getSelectedRows() {
+    // 回退模式下从 HTML 回退表格获取选中行（类名为 pdf-table-row-select）
     if (this.#fallbackMode) {
-      // 回退模式下从HTML表格获取选中行
       const selectedRows = [];
-      const checkboxes = this.#fallbackTable.querySelectorAll('tbody input[type="checkbox"]:checked');
+      if (!this.#fallbackTable) return selectedRows;
+      const checkboxes = this.#fallbackTable.querySelectorAll('tbody input[type="checkbox"]:checked.pdf-table-row-select, tbody input[type="checkbox"].pdf-table-row-select:checked, tbody input[type="checkbox"]:checked');
       checkboxes.forEach(checkbox => {
         const rowIndex = parseInt(checkbox.dataset.rowIndex);
-        if (rowIndex >= 0 && rowIndex < this.#fallbackData.length) {
-          selectedRows.push(this.#fallbackData[rowIndex]);
+        if (!Number.isNaN(rowIndex) && rowIndex >= 0 && rowIndex < this.#fallbackData.length) {
+          selectedRows.push(Object.assign({}, this.#fallbackData[rowIndex]));
+        } else {
+          // fallback: try to read filename attribute if present
+          const filename = checkbox.dataset?.filename || checkbox.getAttribute('data-filename') || checkbox.getAttribute('data-filepath');
+          if (filename) selectedRows.push({ filename });
         }
       });
       return selectedRows;
     }
-
-    // 正常模式下使用Tabulator
-    return this.#tabulator.getSelectedData() || [];
+ 
+    // Tabulator 模式：尝试多种方式取得选中数据，最终正规化为 plain object 数组
+    try {
+      if (!this.#tabulator) return [];
+      // 1) 优先使用 getSelectedData() -> 通常返回 plain object 列表
+      if (typeof this.#tabulator.getSelectedData === 'function') {
+        const data = this.#tabulator.getSelectedData();
+        if (Array.isArray(data) && data.length > 0) {
+          return data.map(d => Object.assign({}, d));
+        }
+      }
+      // 2) 某些版本提供 getSelectedRows() 返回 RowComponent 列表
+      if (typeof this.#tabulator.getSelectedRows === 'function') {
+        const rows = this.#tabulator.getSelectedRows();
+        if (Array.isArray(rows) && rows.length > 0) {
+          return rows.map(r => {
+            try {
+              return (typeof r.getData === 'function') ? Object.assign({}, r.getData()) : Object.assign({}, r);
+            } catch (e) {
+              return Object.assign({}, r);
+            }
+          });
+        }
+      }
+      // 3) 最后尝试基于 DOM 查找 tabulator 选中行并映射到内部数据（依赖 table 的 data 能被读取）
+      const domSelected = this.#tableWrapper ? Array.from(this.#tableWrapper.querySelectorAll('.tabulator-row.tabulator-selected')) : [];
+      if (domSelected.length > 0) {
+        const allData = (this.#tabulator && typeof this.#tabulator.getData === 'function') ? this.#tabulator.getData() : null;
+        const selected = [];
+        domSelected.forEach(rowEl => {
+          const rowId = rowEl.getAttribute('data-row-id') || rowEl.dataset?.rowId || rowEl.dataset?.rowid || null;
+          if (rowId && Array.isArray(allData)) {
+            const entry = allData.find(p => String(p.id) === String(rowId) || String(p.filename) === String(rowId));
+            if (entry) selected.push(Object.assign({}, entry));
+          } else {
+            // attempt to read a cell with data-row-id or filename
+            const cellWithRowId = rowEl.querySelector('[data-row-id], [data-rowid], [data-filename], [data-filepath]');
+            if (cellWithRowId) {
+              const rid = cellWithRowId.getAttribute('data-row-id') || cellWithRowId.getAttribute('data-rowid') || cellWithRowId.getAttribute('data-filename') || cellWithRowId.getAttribute('data-filepath');
+              if (rid) selected.push({ id: rid, filename: rid });
+            }
+          }
+        });
+        if (selected.length > 0) return selected;
+      }
+    } catch (e) {
+      logger.warn('getSelectedRows normalization failed', e);
+    }
+ 
+    // 没有选中项时返回空数组
+    return [];
   }
 
   /**

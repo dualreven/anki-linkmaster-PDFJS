@@ -244,21 +244,25 @@ export class UIManager {
   }
 
   #handleBatchDelete() {
-    // 优先使用 Tabulator 的 API 获取选中的行
+    // 优先使用 TableWrapper 提供的 API 获取选中的行（该方法已被正规化为 plain objects）
     if (this.pdfTable && typeof this.pdfTable.getSelectedRows === 'function') {
       try {
         const selectedRows = this.pdfTable.getSelectedRows();
         if (Array.isArray(selectedRows) && selectedRows.length > 0) {
           if (!confirm(`确定要删除选中的 ${selectedRows.length} 个PDF文件吗？`)) return;
-          
-          // 收集所有选中的文件
-          const selectedFiles = selectedRows.map(row => row.id || row.filename || row.file_id || '').filter(Boolean);
-          
+ 
+          // 收集所有选中的文件标识（优先 id -> filename -> file_id）
+          const selectedFiles = selectedRows.map(row => {
+            // row 可能是 plain object
+            if (!row) return '';
+            return row.id || row.filename || row.file_id || row.fileId || '';
+          }).filter(Boolean);
+ 
           if (selectedFiles.length === 0) {
             this.showError("无法获取选中的文件信息");
             return;
           }
-          
+ 
           // 作为批量请求发送，避免竞态条件
           this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.BATCH.REQUESTED, {
             files: selectedFiles,
@@ -266,49 +270,58 @@ export class UIManager {
           }, {
             actorId: 'UIManager'
           });
-          
+ 
           return;
         }
       } catch (e) {
         this.#logger.warn('Failed to read selection from pdfTable API', e);
       }
     }
-    
-    // 如果 Tabulator API 不可用，回退到 DOM 检测
+ 
+    // 如果 TableWrapper API 不可用或未返回选中项，回退到 DOM 检测：
+    // 支持多种 checkbox 类名：pdf-item-checkbox, pdf-table-checkbox, pdf-table-row-select（TableWrapper 回退模式）
     let checkboxes = Array.from(DOMUtils.findAllElements(".pdf-item-checkbox:checked") || []);
     if (checkboxes.length === 0) {
       checkboxes = Array.from(DOMUtils.findAllElements('.pdf-table-checkbox:checked') || []);
     }
-
-    // If still none, try to detect Tabulator selected rows in the container
+    if (checkboxes.length === 0) {
+      checkboxes = Array.from(DOMUtils.findAllElements('.pdf-table-row-select:checked') || []);
+    }
+ 
+    // 如果仍为空，尝试检测 Tabulator 的选中行 DOM（并从行元素中找 data-row-id / data-filename）
     if (checkboxes.length === 0 && this.#elements.pdfTableContainer) {
       const tabulatorSelected = Array.from(DOMUtils.findAllElements('.tabulator-row.tabulator-selected', this.#elements.pdfTableContainer) || []);
       if (tabulatorSelected.length > 0) {
         tabulatorSelected.forEach(rowEl => {
-          let rowId = rowEl.getAttribute('data-row-id') || (rowEl.dataset && (rowEl.dataset.rowId || rowEl.dataset.rowid));
+          let rowId = rowEl.getAttribute('data-row-id') || rowEl.getAttribute('data-rowid') || (rowEl.dataset && (rowEl.dataset.rowId || rowEl.dataset.rowid));
+          let filename = null;
           if (!rowId) {
-            const cellWithRowId = rowEl.querySelector('[data-row-id]');
-            if (cellWithRowId) rowId = cellWithRowId.getAttribute('data-row-id');
+            const cellWithRowId = rowEl.querySelector('[data-row-id], [data-rowid], [data-filename], [data-filepath]');
+            if (cellWithRowId) {
+              rowId = cellWithRowId.getAttribute('data-row-id') || cellWithRowId.getAttribute('data-rowid') || null;
+              filename = cellWithRowId.getAttribute('data-filename') || cellWithRowId.getAttribute('data-filepath') || null;
+            }
           }
-          if (rowId) {
+          if (rowId || filename) {
             const fakeCheckbox = document.createElement('input');
             fakeCheckbox.type = 'checkbox';
-            fakeCheckbox.dataset.rowId = rowId;
+            if (rowId) fakeCheckbox.dataset.rowId = rowId;
+            if (filename) fakeCheckbox.dataset.filename = filename;
             checkboxes.push(fakeCheckbox);
           }
         });
       }
     }
-
+ 
     if (checkboxes.length === 0) { this.showError("请先选择要删除的PDF文件"); return; }
-
+ 
     if (!confirm(`确定要删除选中的 ${checkboxes.length} 个PDF文件吗？`)) return;
-
+ 
     // 收集所有选中的文件
     const selectedFiles = [];
     checkboxes.forEach(checkbox => {
-      // Prefer explicit filename attribute, fall back to rowId mapping
-      let filename = DOMUtils.getAttribute(checkbox, "data-filename") || DOMUtils.getAttribute(checkbox, "data-filepath") || (checkbox.dataset && checkbox.dataset.filename);
+      // 优先使用明确的 filename 属性
+      let filename = DOMUtils.getAttribute(checkbox, "data-filename") || DOMUtils.getAttribute(checkbox, "data-filepath") || (checkbox.dataset && (checkbox.dataset.filename || checkbox.dataset.filepath));
       if (!filename) {
         const rowId = (checkbox.dataset && (checkbox.dataset.rowId || checkbox.dataset.rowid)) || DOMUtils.getAttribute(checkbox, 'data-row-id') || DOMUtils.getAttribute(checkbox, 'data-rowid');
         if (rowId && Array.isArray(this.#state?.pdfs)) {
@@ -318,11 +331,9 @@ export class UIManager {
           filename = rowId;
         }
       }
-      if (filename) {
-        selectedFiles.push(filename);
-      }
+      if (filename) selectedFiles.push(filename);
     });
-
+ 
     // 作为批量请求发送，避免竞态条件
     this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.BATCH.REQUESTED, {
       files: selectedFiles,
