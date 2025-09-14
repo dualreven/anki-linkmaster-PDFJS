@@ -12,10 +12,10 @@
 ### 前端技术栈
 - **JavaScript**: ES6+ (Vanilla JavaScript)
 - **PDF处理**: PDF.js 3.4.120
-  - **Worker配置**: CDN加载pdf.worker.min.js
-  - **兼容性**: WebGL检测和Canvas回退
-  - **内存管理**: 页面缓存和资源清理
-  - **错误处理**: 分类错误和重试机制
+  - **Worker配置**: 使用CDN加载 `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js`
+  - **兼容性**: `webgl-detector.js` 自动检测WebGL支持，失败时回退至Canvas渲染
+  - **内存管理**: `page-transfer-manager.js` 实现LRU缓存策略，最大缓存10页，定期清理非活跃页面
+  - **错误处理**: 分类错误类型（加载失败、解码错误、权限错误），支持自动重试（最多3次），通过 `pdf-manager.js` 的 `retryLoad()` 方法实现
 - **表格组件**: Tabulator Tables 5.4.4
 - **构建工具**: Vite 5.0.0
 - **包管理**: npm

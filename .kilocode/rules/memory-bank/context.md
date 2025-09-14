@@ -13,6 +13,7 @@
 - ✅ 修复了PDF阅读器UI事件系统关键缺陷：修正了 `PDF_VIEWER_EVENTS` 的导入方式（从默认导入改为命名导入），解决了因事件名 `undefined` 导致的事件发布失败问题
 - ✅ 优化了UIManager中所有事件调用，将 `emit(..., undefined, ...)` 统一替换为 `emit(..., null, ...)` 提升代码健壮性
 - ✅ 修复了Vite构建配置：启用 `@vitejs/plugin-babel`，支持ES2022私有字段/方法（如 `#setupResizeObserver`），解决浏览器语法错误
+- ✅ **✅ PDF.js 集成完成**：成功实现PDF加载、渲染、页面缓存、错误处理、WebGL回退机制，通过 `pdf-manager.js` 与 `EventBus` 完全集成
 - ✅ 实现了完整的PDF加载和渲染机制
 - ✅ 建立了前后端PDF处理流程
 - ✅ 修复了UIManager中的语法错误：将所有 `$1` 占位符替换为正确的事件常量（ZOOM.IN, ZOOM.OUT, NAVIGATION.PREVIOUS, NAVIGATION.NEXT, ZOOM.ACTUAL_SIZE, FILE.CLOSE），解决了Vite构建失败问题

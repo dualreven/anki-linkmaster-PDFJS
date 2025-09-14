@@ -97,10 +97,11 @@
 
 #### PDF.js集成机制
 - **库版本**: PDF.js 3.4.120
-- **Worker配置**: 使用CDN加载pdf.worker.min.js
-- **兼容性处理**: 自动检测WebGL状态，支持Canvas回退
-- **内存管理**: 页面缓存机制，定期清理不活跃页面
-- **错误处理**: 分类错误类型，支持重试机制
+- **Worker配置**: 使用CDN加载 `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js`
+- **兼容性处理**: `webgl-detector.js` 自动检测WebGL支持，失败时回退至Canvas渲染
+- **内存管理**: `page-transfer-manager.js` 实现LRU缓存策略，最大缓存10页，定期清理非活跃页面
+- **错误处理**: 分类错误类型（加载失败、解码错误、权限错误），支持自动重试（最多3次），通过 `pdf-manager.js` 的 `retryLoad()` 方法实现
+- **测试验证**: `qtwebengine-compatibility.test.js` 和 `webgl-integration.test.js` 已覆盖跨平台渲染与硬件加速场景
 
 #### 前端PDF处理
 - **PDFManager**: 核心PDF加载和管理类
