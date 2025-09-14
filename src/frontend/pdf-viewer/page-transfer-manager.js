@@ -309,11 +309,11 @@ export class PageTransferManager {
             const pageData = await this.requestPage(fileId, pageNumber);
             
             // 触发页面渲染完成事件
-            this.#eventBus.emit(PDF_VIEWER_EVENTS.RENDER.PAGE_DATA_READY, {
+            this.#eventBus.emit(PDF_VIEWER_EVENTS.RENDER.PAGE_COMPLETED, {
                 pageNumber,
                 pageData,
                 fileId
-            });
+            }, { actorId: 'PageTransferManager' });
             
         } catch (error) {
             this.#logger.error(`页面渲染请求失败: ${error.message}`);
@@ -323,7 +323,7 @@ export class PageTransferManager {
                 pageNumber,
                 error: error.message,
                 fileId
-            });
+            }, { actorId: 'PageTransferManager' });
         }
     }
 

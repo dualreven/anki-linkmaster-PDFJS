@@ -26,7 +26,9 @@ export class ErrorHandler { constructor(eventBus) { this.eventBus = eventBus; th
 
     this.logger.error(`错误发生在 [${context}]: ${error.message}`, error);
 
-    this.eventBus.emit(SYSTEM_EVENTS.ERROR.OCCURRED, errorInfo);
+    this.eventBus.emit(SYSTEM_EVENTS.ERROR.OCCURRED, errorInfo, {
+      actorId: 'ErrorHandler'
+    });
 
     this.showUserFriendlyError(error);
 
@@ -48,7 +50,9 @@ export class ErrorHandler { constructor(eventBus) { this.eventBus = eventBus; th
         break; 
     } 
     
-    this.eventBus.emit(UI_EVENTS.ERROR.SHOW, { message: userMessage, type: errorType }); 
+    this.eventBus.emit(UI_EVENTS.ERROR.SHOW, { message: userMessage, type: errorType }, {
+      actorId: 'ErrorHandler'
+    });
   }
 
   createBusinessError(message, code = null) { return new AppError(message, ErrorType.BUSINESS, code); }

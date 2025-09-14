@@ -95,6 +95,22 @@
       "thumbnail_path": null,
       "tags": [],
       "notes": ""
+    },
+    "ec6213ab4cf8": {
+      "id": "ec6213ab4cf8",
+      "filename": "ec6213ab4cf8.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\ec6213ab4cf8.pdf",
+      "file_size": 10321702,
+      "created_time": 1757560608.8592644,
+      "modified_time": 1755056564.2150135,
+      "title": "",
+      "author": "",
+      "subject": "",
+      "keywords": "",
+      "page_count": 10,
+      "thumbnail_path": null,
+      "tags": [],
+      "notes": ""
     }
   }
 }

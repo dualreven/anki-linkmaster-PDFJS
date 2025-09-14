@@ -1,0 +1,17 @@
+# 必须按以下流程执行步骤
+0. 检查AItemp/AI_DIALOG_COUNT.json文件, 清空上次的记录, 重新开始计数.
+1. 查看 `.kilocode\rules\memory-bank\context.md` 的内容, 理解用户的输入
+2. 更新 `.kilocode\rules\memory-bank\context.md`的内容, 如, 描述当前问题, 问题背景, 相关模块和函数等.
+3. 如果 `.kilocode\rules\memory-bank\context.md` 有执行步骤,则按步骤执行
+4. 如果任务步骤有多步,考虑任务的工作量,按照原子任务的拆分原则,拆分成多个步骤, 将新步骤更新到 `.kilocode\rules\memory-bank\context.md`
+5. 执行原子步骤的任务,
+6. 执行结束后,记录完成结果到 `.kilocode\rules\memory-bank\context.md`如果架构有改动记得更新architecture.md
+7. 检查 `.kilocode\rules\memory-bank\context.md` 的字数,若超过30000个字符,则尝试压缩其中的内容.
+   1. 压缩的原则: 除了最前沿的原子任务外的细枝末节的内容都可以进行归纳处理
+8. 如果任务没完成,而且对话轮数超过了30轮,启动一个 `new_task, mode: continous-agent` 交付下一个任务.
+
+# 必须遵守下面的原则:
+
+1. 全过程必须使用 sequentialthinking MCP 工具进行多步思考
+2. 全过程必须加载memory bank全部信息.
+3. 每次对话都更新AItemp/AI_DIALOG_COUNT.json文件, 记录对话轮数.

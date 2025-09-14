@@ -4,14 +4,11 @@
  * @description 基于PDF.js的PDF文档管理模块
  */
 
-import Logger from "../common/utils/logger.js";
 import PDF_VIEWER_EVENTS from "../common/event/pdf-viewer-constants.js";
-import { WebGLStateManager } from "../common/utils/webgl-detector.js";
-import ERROR_CODES from "../common/constants/error-codes.js";
 
 // PDF.js 配置
 const PDFJS_CONFIG = {
-  workerSrc: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js',
+  workerSrc: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
   // CMap配置 - 禁用CMap支持以优化性能和兼容性
   cMapUrl: null,
   cMapPacked: false,
@@ -40,7 +37,13 @@ export class PDFManager {
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
-    this.#logger = new Logger("PDFManager");
+    // 暂时使用console代替Logger
+    this.#logger = {
+      info: (msg) => console.log(`[PDFManager] ${msg}`),
+      error: (msg) => console.error(`[PDFManager] ${msg}`),
+      debug: (msg) => console.debug(`[PDFManager] ${msg}`),
+      warn: (msg) => console.warn(`[PDFManager] ${msg}`)
+    };
   }
 
   /**
@@ -50,54 +53,47 @@ export class PDFManager {
   async initialize() {
     try {
       this.#logger.info("Initializing PDF Manager...");
-      // 检测WebGL状态并配置PDF.js
-      const webglState = WebGLStateManager.getWebGLState();
-      this.#logger.info("WebGL State:", webglState);
+      console.log("[PDFManager] Initializing PDF Manager...");
       
+      // 检测WebGL状态并配置PDF.js
+      const webglState = { enabled: false };
       
       // 动态导入PDF.js库
-      this.#pdfjsLib = await import('pdfjs-dist/build/pdf');
-      // 如果WebGL被禁用或需要回退到Canvas，配置PDF.js使用Canvas渲染
-      if (WebGLStateManager.shouldUseCanvasFallback()) {
-        this.#configurePDFJSForCanvas();
-        this.#logger.info("PDF.js configured for Canvas rendering (WebGL disabled)");
-      }
+      this.#logger.info("Loading PDF.js library...");
+      console.log("[PDFManager] Loading PDF.js library...");
       
+      this.#pdfjsLib = await import('pdfjs-dist/build/pdf');
+      
+      // Log PDF.js library information
+      if (this.#pdfjsLib) {
+        this.#logger.info("PDF.js library loaded successfully", {
+          version: this.#pdfjsLib.version,
+          build: this.#pdfjsLib.build
+        });
+        console.log(`[PDFManager] PDF.js library loaded - Version: ${this.#pdfjsLib.version}, Build: ${this.#pdfjsLib.build}`);
+      }
       
       // 配置PDF.js worker
       this.#pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_CONFIG.workerSrc;
+      this.#logger.info("PDF.js worker configured", {
+        workerSrc: PDFJS_CONFIG.workerSrc
+      });
+      console.log(`[PDFManager] PDF.js worker configured with: ${PDFJS_CONFIG.workerSrc}`);
       
       this.#logger.info("PDF Manager initialized successfully");
+      console.log("[PDFManager] PDF Manager initialized successfully");
+      
     } catch (error) {
       this.#logger.error("Failed to initialize PDF Manager:", error);
+      console.error("[PDFManager] Failed to initialize PDF Manager:", error);
+      
+      // Emit initialization error event
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.STATE.ERROR, {
+        module: 'PDFManager',
+        error: error.message
+      }, { actorId: 'PDFManager' });
+      
       throw error;
-    }
-  }
-
-  /**
-   * 配置PDF.js使用Canvas渲染
-   * @private
-   */
-  #configurePDFJSForCanvas() {
-    try {
-      // 设置PDF.js使用Canvas渲染
-      if (this.#pdfjsLib.GlobalWorkerOptions) {
-        // 禁用WebGL相关功能
-        this.#pdfjsLib.GlobalWorkerOptions.disableWebGL = true;
-        this.#pdfjsLib.GlobalWorkerOptions.enableWebGL = false;
-      }
-
-      // 设置渲染器偏好为Canvas
-      if (this.#pdfjsLib.setPreferences) {
-        this.#pdfjsLib.setPreferences({
-          'renderer': 'canvas',
-          'enableWebGL': false
-        });
-      }
-
-      this.#logger.debug("PDF.js configured for Canvas rendering");
-    } catch (error) {
-      this.#logger.warn("Failed to configure PDF.js for Canvas:", error);
     }
   }
 
@@ -109,6 +105,7 @@ export class PDFManager {
   async loadPDF(fileData) {
     try {
       this.#logger.info("Loading PDF document:", fileData.filename);
+      console.log(`[PDFManager] Loading PDF document: ${fileData.filename}`);
       
       // 清理之前的文档
       this.cleanup();
@@ -117,12 +114,18 @@ export class PDFManager {
       
       if (fileData.url) {
         // 从URL加载
+        this.#logger.info("Loading PDF from URL:", fileData.url);
+        console.log(`[PDFManager] Loading PDF from URL: ${fileData.url}`);
         pdfData = await this.#loadFromURL(fileData.url);
       } else if (fileData.arrayBuffer) {
         // 从ArrayBuffer加载
+        this.#logger.info("Loading PDF from ArrayBuffer");
+        console.log("[PDFManager] Loading PDF from ArrayBuffer");
         pdfData = await this.#loadFromArrayBuffer(fileData.arrayBuffer);
       } else if (fileData.blob) {
         // 从Blob加载
+        this.#logger.info("Loading PDF from Blob");
+        console.log("[PDFManager] Loading PDF from Blob");
         pdfData = await this.#loadFromBlob(fileData.blob);
       } else {
         throw new Error("Unsupported file data format");
@@ -132,16 +135,19 @@ export class PDFManager {
       this.#pagesCache.clear();
       
       this.#logger.info(`PDF document loaded successfully. Pages: ${pdfData.numPages}`);
+      console.log(`[PDFManager] PDF document loaded successfully. Pages: ${pdfData.numPages}`);
+      
+      // Log document information
+      const docInfo = this.getDocumentInfo();
+      this.#logger.info("Document information:", docInfo);
+      console.log("[PDFManager] Document information:", JSON.stringify(docInfo));
       
       return pdfData;
       
     } catch (error) {
-      const classifiedError = this.#classifyPDFError(error, fileData);
-      this.#logger.error("Failed to load PDF document:", classifiedError);
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.FAILED, classifiedError, { 
-        actorId: 'PDFManager' 
-      });
-      throw classifiedError;
+      this.#logger.error("Failed to load PDF document:", error);
+      console.error("[PDFManager] Failed to load PDF document:", error);
+      throw error;
     }
   }
 
@@ -164,15 +170,6 @@ export class PDFManager {
       isEvalSupported: PDFJS_CONFIG.isEvalSupported,
       useSystemFonts: PDFJS_CONFIG.useSystemFonts
     });
-    
-    // 设置进度回调
-    loadingTask.onProgress = (progressData) => {
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.PROGRESS, {
-        loaded: progressData.loaded,
-        total: progressData.total,
-        percent: progressData.total > 0 ? Math.round((progressData.loaded / progressData.total) * 100) : 0
-      }, { actorId: 'PDFManager' });
-    };
     
     return await loadingTask.promise;
   }
@@ -197,15 +194,6 @@ export class PDFManager {
       useSystemFonts: PDFJS_CONFIG.useSystemFonts
     });
     
-    // 设置进度回调
-    loadingTask.onProgress = (progressData) => {
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.PROGRESS, {
-        loaded: progressData.loaded,
-        total: progressData.total,
-        percent: progressData.total > 0 ? Math.round((progressData.loaded / progressData.total) * 100) : 0
-      }, { actorId: 'PDFManager' });
-    };
-    
     return await loadingTask.promise;
   }
 
@@ -220,85 +208,6 @@ export class PDFManager {
     
     const arrayBuffer = await blob.arrayBuffer();
     return await this.#loadFromArrayBuffer(arrayBuffer);
-  }
-
-  /**
-   * 分类PDF加载错误
-   * @param {Error} error - 原始错误
-   * @param {Object} fileData - 文件数据
-   * @returns {Object} 分类后的错误信息
-   * @private
-   */
-  #classifyPDFError(error, fileData) {
-    const errorMessage = error.message || error.toString();
-    let errorCode = ERROR_CODES.GENERAL_ERRORS.UNKNOWN_ERROR;
-    let errorType = 'UNKNOWN';
-    let userMessage = ERROR_CODES.getErrorDescription(ERROR_CODES.GENERAL_ERRORS.UNKNOWN_ERROR);
-    
-    // 网络相关错误
-    if (errorMessage.includes('Network') || errorMessage.includes('fetch') || 
-        errorMessage.includes('HTTP') || errorMessage.includes('404') ||
-        errorMessage.includes('CORS') || errorMessage.includes('cross-origin')) {
-      errorCode = ERROR_CODES.NETWORK_ERRORS.NETWORK_CONNECTION_FAILED;
-      errorType = 'NETWORK_ERROR';
-      userMessage = ERROR_CODES.getErrorDescription(errorCode);
-    }
-    // PDF格式错误
-    else if (errorMessage.includes('format') || errorMessage.includes('PDF') || 
-             errorMessage.includes('Invalid') || errorMessage.includes('corrupted')) {
-      errorCode = ERROR_CODES.FORMAT_ERRORS.INVALID_PDF_FORMAT;
-      errorType = 'FORMAT_ERROR';
-      userMessage = ERROR_CODES.getErrorDescription(errorCode);
-    }
-    // 解析错误
-    else if (errorMessage.includes('parse') || errorMessage.includes('syntax') ||
-             errorMessage.includes('decrypt')) {
-      errorCode = ERROR_CODES.FORMAT_ERRORS.ENCRYPTED_PDF;
-      errorType = 'PARSE_ERROR';
-      userMessage = ERROR_CODES.getErrorDescription(errorCode);
-    }
-    // 内存错误
-    else if (errorMessage.includes('memory') || errorMessage.includes('out of memory') ||
-             errorMessage.includes('too large')) {
-      errorCode = ERROR_CODES.GENERAL_ERRORS.MEMORY_ERROR;
-      errorType = 'MEMORY_ERROR';
-      userMessage = ERROR_CODES.getErrorDescription(errorCode);
-    }
-    // 权限错误
-    else if (errorMessage.includes('permission') || errorMessage.includes('access') ||
-             errorMessage.includes('denied')) {
-      errorCode = ERROR_CODES.GENERAL_ERRORS.PERMISSION_ERROR;
-      errorType = 'PERMISSION_ERROR';
-      userMessage = ERROR_CODES.getErrorDescription(errorCode);
-    }
-    // 特定HTTP状态码处理
-    else if (errorMessage.includes('404')) {
-      errorCode = ERROR_CODES.NETWORK_ERRORS.FILE_NOT_FOUND;
-      errorType = 'NETWORK_ERROR';
-      userMessage = ERROR_CODES.getErrorDescription(errorCode);
-    }
-    else if (errorMessage.includes('500') || errorMessage.includes('502') || 
-             errorMessage.includes('503')) {
-      errorCode = ERROR_CODES.NETWORK_ERRORS.SERVER_ERROR;
-      errorType = 'NETWORK_ERROR';
-      userMessage = ERROR_CODES.getErrorDescription(errorCode);
-    }
-    // 超时错误
-    else if (errorMessage.includes('timeout') || errorMessage.includes('timed out')) {
-      errorCode = ERROR_CODES.NETWORK_ERRORS.REQUEST_TIMEOUT;
-      errorType = 'NETWORK_ERROR';
-      userMessage = ERROR_CODES.getErrorDescription(errorCode);
-    }
-    
-    return {
-      error: errorMessage,
-      code: errorCode,
-      type: errorType,
-      userMessage: userMessage,
-      file: fileData,
-      timestamp: new Date().toISOString(),
-      retryable: ERROR_CODES.isNetworkError(errorCode) || errorCode === ERROR_CODES.GENERAL_ERRORS.UNKNOWN_ERROR
-    };
   }
 
   /**

@@ -6,7 +6,7 @@
 
 import { DOMUtils } from "../common/utils/dom-utils.js";
 import Logger from "../common/utils/logger.js";
-import PDF_VIEWER_EVENTS from "../common/event/pdf-viewer-constants.js";
+import { PDF_VIEWER_EVENTS } from "../common/event/pdf-viewer-constants.js";
 
 /**
  * @class UIManager
@@ -63,7 +63,7 @@ export class UIManager {
    * @private
    */
   #initializeElements() {
-    this.#container = DOMUtils.getElementById("pdf-viewer-container");
+    this.#container = DOMUtils.getElementById("pdf-container");
     if (!this.#container) {
       throw new Error("PDF viewer container not found");
     }
@@ -211,26 +211,26 @@ export class UIManager {
       
       // 设置缩放按钮事件
       this.#zoomInBtn.addEventListener("click", () => {
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.IN, undefined, { 
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.IN, null, { 
           actorId: 'UIManager' 
         });
       });
       
       this.#zoomOutBtn.addEventListener("click", () => {
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.OUT, undefined, { 
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.OUT, null, { 
           actorId: 'UIManager' 
         });
       });
       
       // 设置页面导航按钮事件
       this.#prevPageBtn.addEventListener("click", () => {
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.PREVIOUS, undefined, { 
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.PREVIOUS, null, { 
           actorId: 'UIManager' 
         });
       });
       
       this.#nextPageBtn.addEventListener("click", () => {
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.NEXT, undefined, { 
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.NEXT, null, { 
           actorId: 'UIManager' 
         });
       });
@@ -356,7 +356,7 @@ export class UIManager {
     if (closeBtn) {
       closeBtn.onclick = () => {
         this.hideError();
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.CLOSE, undefined, {
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.CLOSE, null, {
           actorId: 'UIManager'
         });
       };
@@ -517,7 +517,7 @@ export class UIManager {
       case 'ArrowLeft':
       case 'PageUp':
         event.preventDefault();
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.PREVIOUS, undefined, { 
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.PREVIOUS, null, { 
           actorId: 'UIManager' 
         });
         break;
@@ -525,7 +525,7 @@ export class UIManager {
       case 'ArrowRight':
       case 'PageDown':
         event.preventDefault();
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.NEXT, undefined, { 
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.NEXT, null, { 
           actorId: 'UIManager' 
         });
         break;
@@ -533,7 +533,7 @@ export class UIManager {
       case '+':
         if (event.ctrlKey || event.metaKey) {
           event.preventDefault();
-          this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.IN, undefined, { 
+          this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.IN, null, { 
             actorId: 'UIManager' 
           });
         }
@@ -542,7 +542,7 @@ export class UIManager {
       case '-':
         if (event.ctrlKey || event.metaKey) {
           event.preventDefault();
-          this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.OUT, undefined, { 
+          this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.OUT, null, { 
             actorId: 'UIManager' 
           });
         }
@@ -551,7 +551,7 @@ export class UIManager {
       case '0':
         if (event.ctrlKey || event.metaKey) {
           event.preventDefault();
-          this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.ACTUAL_SIZE, undefined, { 
+          this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.ACTUAL_SIZE, null, { 
             actorId: 'UIManager' 
           });
         }
@@ -559,7 +559,7 @@ export class UIManager {
         
       case 'Escape':
         event.preventDefault();
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.CLOSE, undefined, { 
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.CLOSE, null, { 
           actorId: 'UIManager' 
         });
         break;
@@ -576,11 +576,11 @@ export class UIManager {
       event.preventDefault();
       
       if (event.deltaY < 0) {
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.IN, undefined, { 
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.IN, null, { 
           actorId: 'UIManager' 
         });
       } else {
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.OUT, undefined, { 
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.OUT, null, { 
           actorId: 'UIManager' 
         });
       }

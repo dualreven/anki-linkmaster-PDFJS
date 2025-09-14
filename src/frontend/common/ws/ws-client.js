@@ -161,6 +161,8 @@ export class WSClient {
       if (targetEvent) {
         this.#logger.debug(`Routing message to event: ${targetEvent}`);
         this.#eventBus.emit(targetEvent, message, { actorId: "WSClient" });
+      } else {
+        this.#logger.warn(`No target event found for message type: ${message.type}`);
       }
     } catch (error) {
       this.#logger.error("Failed to parse incoming WebSocket message.", error);

@@ -77,34 +77,33 @@ class AnkiLinkMasterApp:
             
             # QtWebEngine优化：改为客户端连接时主动推送数据
             logger.info("WebSocket服务器启动成功，等待客户端连接...")
-# NEW: notify frontend to open pdf-viewer after backend ready
-try:
-    from datetime import datetime
-    ws = getattr(self, 'websocket_server', None) or getattr(self, 'ws_server', None)
-    if ws:
-        payload = {"action": "open_pdf_viewer", "timestamp": datetime.utcnow().isoformat()}
-        try:
-            # 首选使用 broadcast_event（若实现存在）
-            if hasattr(ws, "broadcast_event"):
-                ws.broadcast_event("open_pdf_viewer", payload)
-            else:
-                # 回退到通用的 broadcast_message
-                ws.broadcast_message({"event": "open_pdf_viewer", "payload": payload})
-            from src.backend.logging.pdfjs_logger import get_pdfjs_logger
-            get_pdfjs_logger().info("Sent open_pdf_viewer event to frontend")
-        except Exception:
-            # 如果 broadcast_event 失败，尝试备用发送方式并记录
+            # NEW: notify frontend to open pdf-viewer after backend ready
             try:
-                ws.broadcast_message({"event": "open_pdf_viewer", "payload": payload})
-                from src.backend.logging.pdfjs_logger import get_pdfjs_logger
-                get_pdfjs_logger().info("Sent open_pdf_viewer (fallback) event to frontend via broadcast_message")
-            except Exception as inner_e:
+                from datetime import datetime, timezone
+                ws = getattr(self, 'websocket_server', None) or getattr(self, 'ws_server', None)
+                if ws:
+                    payload = {"action": "open_pdf_viewer", "timestamp": datetime.now(timezone.utc).isoformat()}
+                    try:
+                        # 首选使用 broadcast_event（若实现存在）
+                        if hasattr(ws, "broadcast_event"):
+                            ws.broadcast_event("open_pdf_viewer", payload)
+                        else:
+                            # 回退到通用的 broadcast_message
+                            ws.broadcast_message({"event": "open_pdf_viewer", "payload": payload})
+                        from src.backend.logging.pdfjs_logger import get_pdfjs_logger
+                        get_pdfjs_logger().info("Sent open_pdf_viewer event to frontend")
+                    except Exception:
+                        # 如果 broadcast_event 失败，尝试备用发送方式并记录
+                        try:
+                            ws.broadcast_message({"event": "open_pdf_viewer", "payload": payload})
+                            from src.backend.logging.pdfjs_logger import get_pdfjs_logger
+                            get_pdfjs_logger().info("Sent open_pdf_viewer (fallback) event to frontend via broadcast_message")
+                        except Exception as inner_e:
+                            import logging as _logging
+                            _logging.getLogger("pdfjs_init").exception("Failed to send open_pdf_viewer via ws methods: %s", inner_e)
+            except Exception as e:
                 import logging as _logging
-                _logging.getLogger("pdfjs_init").exception("Failed to send open_pdf_viewer via ws methods: %s", inner_e)
-except Exception as e:
-    import logging as _logging
-    _logging.getLogger("pdfjs_init").exception("Failed to notify frontend: %s", e)
-
+                _logging.getLogger("pdfjs_init").exception("Failed to notify frontend: %s", e)
             
         else:
             logger.error("WebSocket服务器启动失败")
@@ -155,6 +154,8 @@ except Exception as e:
                 self.handle_batch_remove_pdf(client, message)
             elif message_type == 'pdf_detail_request':
                 self.handle_pdf_detail_request(client, message)
+            elif message_type == 'pdfjs_init_log':
+                self.handle_pdfjs_init_log(client, message)
             elif message_type == 'heartbeat':
                 # 心跳消息，不需要处理，只是保持连接
                 logger.debug(f"[DEBUG] 收到心跳消息 from {client.peerPort()}")
@@ -855,3 +856,42 @@ except Exception as e:
                 "INTERNAL_ERROR",
                 message.get('request_id')
             )
+
+    def handle_pdfjs_init_log(self, client, message):
+        """处理PDF.js初始化日志消息
+        
+        Args:
+            client: QWebSocket客户端对象
+            message: 消息内容
+        """
+        try:
+            from src.backend.logging.pdfjs_logger import get_pdfjs_logger
+            logger = get_pdfjs_logger()
+            
+            data = message.get('data', {})
+            log_message = f"JS PDF.js Init: {data.get('message', 'Init log received')}"
+            logger.info(log_message)
+            
+            # Log detailed data
+            if data.get('version'):
+                logger.info(f"PDF.js Version: {data['version']}")
+            if data.get('build'):
+                logger.info(f"PDF.js Build: {data['build']}")
+            if data.get('webglState'):
+                logger.info(f"WebGL State: {data['webglState']}")
+            if data.get('timestamp'):
+                logger.info(f"Timestamp: {data['timestamp']}")
+            
+            logger.info(f"Loaded: {data.get('loaded', False)}")
+            
+            # Send acknowledgment back to JS
+            self.send_success_response(client, "pdfjs_init_log_ack", {
+                "received": True,
+                "timestamp": time.time()
+            }, message.get('request_id'))
+            
+            logger.info("PDF.js init log processed and acknowledged")
+            
+        except Exception as e:
+            logger.error(f"处理PDF.js init log时出错: {str(e)}")
+            self.send_error_response(client, f"处理PDF.js init log出错: {str(e)}", "pdfjs_init_log", "INTERNAL_ERROR", message.get('request_id'))

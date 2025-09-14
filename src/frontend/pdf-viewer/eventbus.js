@@ -129,7 +129,9 @@ export class PDFViewerEventBus {
    * @param {Object} fileData - 文件数据
    */
   emitFileLoadRequested(fileData) {
-    this.emit(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, fileData);
+    this.emit(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, fileData, {
+      actorId: 'PDFViewerEventBus'
+    });
   }
 
   /**
@@ -137,7 +139,9 @@ export class PDFViewerEventBus {
    * @param {Object} result - 加载结果
    */
   emitFileLoadSuccess(result) {
-    this.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, result);
+    this.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, result, {
+      actorId: 'PDFViewerEventBus'
+    });
   }
 
   /**
@@ -145,7 +149,9 @@ export class PDFViewerEventBus {
    * @param {Object} error - 错误信息
    */
   emitFileLoadFailed(error) {
-    this.emit(PDF_VIEWER_EVENTS.FILE.LOAD.FAILED, error);
+    this.emit(PDF_VIEWER_EVENTS.FILE.LOAD.FAILED, error, {
+      actorId: 'PDFViewerEventBus'
+    });
   }
 
   /**
@@ -162,7 +168,9 @@ export class PDFViewerEventBus {
    * @param {Object} navigationData - 导航数据
    */
   emitNavigationChanged(navigationData) {
-    this.emit(PDF_VIEWER_EVENTS.NAVIGATION.CHANGED, navigationData);
+    this.emit(PDF_VIEWER_EVENTS.NAVIGATION.CHANGED, navigationData, {
+      actorId: 'PDFViewerEventBus'
+    });
   }
 
   /**
@@ -179,7 +187,9 @@ export class PDFViewerEventBus {
    * @param {Object} zoomData - 缩放数据
    */
   emitZoomChanged(zoomData) {
-    this.emit(PDF_VIEWER_EVENTS.ZOOM.CHANGED, zoomData);
+    this.emit(PDF_VIEWER_EVENTS.ZOOM.CHANGED, zoomData, {
+      actorId: 'PDFViewerEventBus'
+    });
   }
 
   /**
@@ -196,7 +206,9 @@ export class PDFViewerEventBus {
    * @param {Object} renderData - 渲染数据
    */
   emitPageRenderCompleted(renderData) {
-    this.emit(PDF_VIEWER_EVENTS.RENDER.PAGE_COMPLETED, renderData);
+    this.emit(PDF_VIEWER_EVENTS.RENDER.PAGE_COMPLETED, renderData, {
+      actorId: 'PDFViewerEventBus'
+    });
   }
 
   /**
@@ -213,7 +225,9 @@ export class PDFViewerEventBus {
    * @param {boolean} isLoading - 是否正在加载
    */
   emitStateLoading(isLoading) {
-    this.emit(PDF_VIEWER_EVENTS.STATE.LOADING, isLoading);
+    this.emit(PDF_VIEWER_EVENTS.STATE.LOADING, isLoading, {
+      actorId: 'PDFViewerEventBus'
+    });
   }
 
   /**
@@ -221,7 +235,9 @@ export class PDFViewerEventBus {
    * @param {Object} error - 错误信息
    */
   emitStateError(error) {
-    this.emit(PDF_VIEWER_EVENTS.STATE.ERROR, error);
+    this.emit(PDF_VIEWER_EVENTS.STATE.ERROR, error, {
+      actorId: 'PDFViewerEventBus'
+    });
   }
 }
 

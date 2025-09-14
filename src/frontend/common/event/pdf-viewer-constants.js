@@ -21,37 +21,37 @@ export const PDF_VIEWER_EVENTS = {
     LOAD: {
       /**
        * 文件加载请求事件
-       * @event pdf-viewer:file:load:requested
+       * @event pdf-viewer:file:load-requested
        * @type {string}
        */
-      REQUESTED: 'pdf-viewer:file:load:requested',
+      REQUESTED: 'pdf-viewer:file:load-requested',
       
       /**
        * 文件加载成功事件
-       * @event pdf-viewer:file:load:success
+       * @event pdf-viewer:file:load-success
        * @type {string}
        */
-      SUCCESS: 'pdf-viewer:file:load:success',
+      SUCCESS: 'pdf-viewer:file:load-success',
       
       /**
        * 文件加载失败事件
-       * @event pdf-viewer:file:load:failed
+       * @event pdf-viewer:file:load-failed
        * @type {string}
        */
-      FAILED: 'pdf-viewer:file:load:failed',
+      FAILED: 'pdf-viewer:file:load-failed',
       
       /**
        * 文件加载进度事件
-       * @event pdf-viewer:file:load:progress
+       * @event pdf-viewer:file:load-progress
        * @type {string}
        */
-      PROGRESS: 'pdf-viewer:file:load:progress',
+      PROGRESS: 'pdf-viewer:file:load-progress',
       /**
        * 文件重试加载事件
-       * @event pdf-viewer:file:load:retry
+       * @event pdf-viewer:file:load-retry
        * @type {string}
        */
-      RETRY: 'pdf-viewer:file:load:retry',
+      RETRY: 'pdf-viewer:file:load-retry',
      },
     
     /**
@@ -175,21 +175,21 @@ export const PDF_VIEWER_EVENTS = {
      * @event pdf-viewer:render:page:requested
      * @type {string}
      */
-    PAGE_REQUESTED: 'pdf-viewer:render:page:requested',
+    PAGE_REQUESTED: 'pdf-viewer:render-page:requested',
     
     /**
      * 页面渲染完成事件
      * @event pdf-viewer:render:page:completed
      * @type {string}
      */
-    PAGE_COMPLETED: 'pdf-viewer:render:page:completed',
+    PAGE_COMPLETED: 'pdf-viewer:render-page:completed',
     
     /**
      * 页面渲染失败事件
      * @event pdf-viewer:render:page:failed
      * @type {string}
      */
-    PAGE_FAILED: 'pdf-viewer:render:page:failed',
+    PAGE_FAILED: 'pdf-viewer:render-page:failed',
     
     /**
      * 渲染质量改变事件

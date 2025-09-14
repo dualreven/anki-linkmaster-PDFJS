@@ -120,12 +120,16 @@ export class UIManager {
 
   #setupEventListeners() {
     if (this.#elements.addPdfBtn) {
-      const listener = () => { this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.ADD.REQUESTED, {}); };
+      const listener = () => { this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.ADD.REQUESTED, {}, {
+        actorId: 'UIManager'
+      }); };
       DOMUtils.addEventListener(this.#elements.addPdfBtn, "click", listener);
       this.#unsubscribeFunctions.push(() => DOMUtils.removeEventListener(this.#elements.addPdfBtn, "click", listener));
     }
     if (this.#elements.batchAddBtn) {
-      const listener = () => this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.ADD.REQUESTED, { isBatch: true });
+      const listener = () => this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.ADD.REQUESTED, { isBatch: true }, {
+        actorId: 'UIManager'
+      });
       DOMUtils.addEventListener(this.#elements.batchAddBtn, "click", listener);
       this.#unsubscribeFunctions.push(() => DOMUtils.removeEventListener(this.#elements.batchAddBtn, "click", listener));
     }
@@ -155,13 +159,17 @@ export class UIManager {
         event.stopPropagation();
         switch (action) {
           case 'open':
-            this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, rowId || filename);
+            this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, rowId || filename, {
+              actorId: 'UIManager'
+            });
             break;
           case 'delete':
           case 'remove':
             if (confirm("确定要删除这个PDF文件吗？")) {
               const payload = rowId || filename;
-              this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.REMOVE.REQUESTED, payload);
+              this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.REMOVE.REQUESTED, payload, {
+                actorId: 'UIManager'
+              });
             }
             break;
         }
@@ -184,7 +192,9 @@ export class UIManager {
     this.#unsubscribeFunctions.push(...listeners);
     const handleKeyDown = (event) => {
       if (event.ctrlKey && event.key === "d") { event.preventDefault(); this.#toggleDebugStatus(); }
-      if (event.ctrlKey && event.key === "n") { event.preventDefault(); this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.ADD.REQUESTED); }
+      if (event.ctrlKey && event.key === "n") { event.preventDefault(); this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.ADD.REQUESTED, undefined, {
+        actorId: 'UIManager'
+      }); }
     };
     DOMUtils.addEventListener(document, "keydown", handleKeyDown);
     this.#unsubscribeFunctions.push(() => DOMUtils.removeEventListener(document, "keydown", handleKeyDown));
@@ -212,7 +222,7 @@ export class UIManager {
     DOMUtils.show(pdfTableContainer);
 
     if (loading) {
-      // 我们可以创建一个“加载中”的placeholder，但目前为了简单，
+      // 我们可以创建一个"加载中"的placeholder，但目前为了简单，
       // 暂时不清空数据，保持旧数据直到新数据加载完成。
       // 或者，如果你想显示加载状态：
       // if (this.pdfTable) { this.pdfTable.setData([]); } // 清空数据会显示placeholder
@@ -232,25 +242,6 @@ export class UIManager {
     }
     // ==================== 修改结束 (3/3) ====================
   }
-  // #renderPDFList() {
-  //   const { pdfs, loading } = this.#state;
-  //   const { emptyState } = this.#elements;
-  //   if (loading) {
-  //     if (this.pdfTable) { this.pdfTable.displayEmptyState("正在加载..."); }
-  //     DOMUtils.hide(emptyState);
-  //   } else if (pdfs.length === 0) {
-  //     if (this.pdfTable) { this.pdfTable.displayEmptyState(); }
-  //     DOMUtils.show(emptyState);
-  //   } else {
-  //     DOMUtils.hide(emptyState);
-  //     if (this.pdfTable) {
-  //       const tableData = pdfs.map(pdf => ({ ...pdf, size: pdf.size || 0, modified_time: pdf.modified_time || '', page_count: pdf.page_count || 0, annotations_count: pdf.annotations_count || 0, cards_count: pdf.cards_count || 0, importance: pdf.importance || 'medium' }));
-  //       DOMUtils.hide(this.#elements.emptyState);
-  //       DOMUtils.show(this.#elements.pdfTableContainer);
-  //       this.pdfTable.loadData(tableData).catch(error => { this.#logger.error("Failed to load data into PDF table:", error); });
-  //     } else { this.#logger.warn("PDF table instance not found, cannot render PDF list."); }
-  //   }
-  // }
 
   #handleBatchDelete() {
     // 优先使用 Tabulator 的 API 获取选中的行
@@ -272,6 +263,8 @@ export class UIManager {
           this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.BATCH.REQUESTED, {
             files: selectedFiles,
             timestamp: Date.now()
+          }, {
+            actorId: 'UIManager'
           });
           
           return;
@@ -334,6 +327,8 @@ export class UIManager {
     this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.BATCH.REQUESTED, {
       files: selectedFiles,
       timestamp: Date.now()
+    }, {
+      actorId: 'UIManager'
     });
   }
 

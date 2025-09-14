@@ -90,6 +90,30 @@
 用户操作 → 前端事件 → WebSocket消息 → 后端处理 → 文件删除 → 数据库更新 → 广播更新 → 前端更新
 ```
 
+### PDF加载流程
+```
+用户选择PDF → 前端事件(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED) → PDFManager.loadPDF() → PDF.js初始化 → 文档加载 → 页面缓存 → 渲染第一页 → 事件广播(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS)
+```
+
+#### PDF.js集成机制
+- **库版本**: PDF.js 3.4.120
+- **Worker配置**: 使用CDN加载pdf.worker.min.js
+- **兼容性处理**: 自动检测WebGL状态，支持Canvas回退
+- **内存管理**: 页面缓存机制，定期清理不活跃页面
+- **错误处理**: 分类错误类型，支持重试机制
+
+#### 前端PDF处理
+- **PDFManager**: 核心PDF加载和管理类
+- **支持格式**: URL、ArrayBuffer、Blob
+- **进度回调**: 实时加载进度反馈
+- **缓存策略**: LRU页面缓存，内存使用监控
+
+#### 后端PDF处理
+- **PDFManager**: PyQt6集成的高级管理器
+- **文件副本**: 自动创建PDF副本确保数据安全
+- **元数据提取**: 自动提取PDF元数据（标题、作者等）
+- **批量操作**: 支持批量添加、删除PDF文件
+
 ## 关键设计决策
 
 ### 1. 事件驱动设计

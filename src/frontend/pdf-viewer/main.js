@@ -6,7 +6,7 @@
 
 import { EventBus } from "../common/event/event-bus.js";
 import PDF_VIEWER_EVENTS from "../common/event/pdf-viewer-constants.js";
-import Logger from "../common/utils/logger.js";
+import Logger, { LogLevel } from "../common/utils/logger.js";
 import { ErrorHandler } from "../common/error/error-handler.js";
 import { PDFManager } from "./pdf-manager.js";
 import { UIManager } from "./ui-manager.js";
@@ -34,7 +34,7 @@ export class PDFViewerApp {
     this.#logger = new Logger("PDFViewerApp");
     this.#eventBus = new EventBus({
       enableValidation: true,
-      logLevel: Logger.LogLevel.DEBUG,
+      logLevel: LogLevel.INFO,
     });
     this.#errorHandler = new ErrorHandler(this.#eventBus);
     this.#pdfManager = new PDFManager(this.#eventBus);
@@ -98,16 +98,6 @@ export class PDFViewerApp {
     // 文件加载事件
     this.#eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, (fileData) => {
       this.#handleFileLoadRequested(fileData);
-    });
-
-    // PDF详情请求事件
-    this.#eventBus.on(PDF_VIEWER_EVENTS.FILE.INFO_REQUESTED, (fileData) => {
-      // this.#handlePDFDetailRequest(fileData);
-    });
-
-    // WebSocket消息事件监听
-    this.#eventBus.on(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, (message) => {
-      // this.#handleWebSocketMessage(message);
     });
 
     // 页面导航事件
@@ -483,24 +473,6 @@ export class PDFViewerApp {
     });
   }
 
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
   /**
    * 获取应用的公开状态快照
    * @returns {object} 应用的当前状态
@@ -514,24 +486,6 @@ export class PDFViewerApp {
       zoomLevel: this.#zoomLevel
     };
   }
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
-
-  
 
   /**
    * 获取事件总线实例（用于测试和外部集成）
@@ -564,19 +518,47 @@ document.addEventListener("DOMContentLoaded", async () => {
   const app = new PDFViewerApp();
   const indexLogger = new Logger("pdf-viewer/main.js");
   
+  // PDF.js will be loaded by PDFManager via ES modules
+  indexLogger.info("PDF.js will be loaded dynamically by PDFManager");
+  console.log("[PDFViewer] PDF.js will be loaded dynamically by PDFManager");
+  
   try {
+    indexLogger.info("Starting PDFViewer App initialization...");
+    console.log("[PDFViewer] Starting PDFViewer App initialization...");
+
     await app.initialize();
-    
+
     // 暴露应用实例到全局，便于调试
     window.pdfViewerApp = {
       getState: () => app.getState(),
       destroy: () => app.destroy(),
       _internal: app // 用于高级调试
     };
-    
-    indexLogger.info("PDF Viewer App started. Use window.pdfViewerApp.getState() for status.");
-    
+
+    indexLogger.info("PDFViewer App initialized successfully");
+    console.log("[PDFViewer] PDFViewer App initialized successfully");
+    console.log("[PDFViewer] PDFViewerApp ready for use");
+
+    // 自动加载测试PDF文件
+    console.log("[PDFViewer] Attempting to load test PDF...");
+    try {
+      const testPdfData = {
+        filename: "test.pdf",
+        url: "/test.pdf",
+        fileId: "test-pdf-001"
+      };
+
+      // 触发PDF加载事件
+      app.getEventBus().emit(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, testPdfData, {
+        actorId: 'PDFViewerApp'
+      });
+      console.log("[PDFViewer] Test PDF load request sent");
+    } catch (loadError) {
+      console.error("[PDFViewer] Failed to load test PDF:", loadError);
+    }
+
   } catch (error) {
     indexLogger.error("Failed to start PDF Viewer App:", error);
+    console.error("[PDFViewer] Failed to start PDF Viewer App:", error);
   }
 });

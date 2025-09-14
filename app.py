@@ -4,7 +4,7 @@ import asyncio
 import json
 import os
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 from typing import Optional
 
@@ -38,6 +38,15 @@ class DevToolsLogCollector:
         log_dir = os.path.dirname(self.log_file)
         if log_dir and not os.path.exists(log_dir):
             os.makedirs(log_dir, exist_ok=True)
+
+        # Clear the log file at startup
+        try:
+            with open(self.log_file, 'w', encoding='utf-8') as f:
+                f.write(f'{{"timestamp": "{datetime.now(timezone.utc).isoformat()}", "event": "log.cleared", "details": "Log file cleared at application startup"}}\n')
+            print(f'[DevToolsLogCollector] Log file cleared: {self.log_file}')
+        except Exception as e:
+            print(f'[DevToolsLogCollector] Failed to clear log file: {e}', file=sys.stderr)
+
         # record start to backend pdfjs logger if available
         try:
             if self._pdfjs_logger:
@@ -66,7 +75,7 @@ class DevToolsLogCollector:
         except Exception as e:
             websockets_available = False
             self._write_log({
-                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'timestamp': datetime.now(timezone.utc).isoformat(),
                 'event': 'collector.info',
                 'details': f'websockets library not available: {e}'
             })
@@ -93,7 +102,7 @@ class DevToolsLogCollector:
 
             try:
                 entry = {
-                    'timestamp': datetime.utcnow().isoformat() + 'Z',
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
                     'event': 'targets.discovered',
                     'details': [{'url': t.get('url'), 'webSocketDebuggerUrl': t.get('webSocketDebuggerUrl')} for t in targets]
                 }
@@ -147,13 +156,13 @@ class DevToolsLogCollector:
                             self._handle_pdfjs_message(payload)
                         
                         self._write_log({
-                            'timestamp': datetime.utcnow().isoformat() + 'Z',
+                            'timestamp': datetime.now(timezone.utc).isoformat(),
                             'event': payload.get('method') or 'message',
                             'details': payload.get('params') if isinstance(payload, dict) else payload
                         })
             except Exception as e:
                 entry = {
-                    'timestamp': datetime.utcnow().isoformat() + 'Z',
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
                     'event': 'connection.error',
                     'details': str(e)
                 }
@@ -189,7 +198,7 @@ class DevToolsLogCollector:
             
             # Test PDF.js library loading
             test_entry = {
-                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'timestamp': datetime.now(timezone.utc).isoformat(),
                 'event': 'pdfviewer.test.start',
                 'details': {
                     'test_type': 'pdfjs_loading',
@@ -200,7 +209,7 @@ class DevToolsLogCollector:
             
             # Test PDFViewer initialization
             init_test_entry = {
-                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'timestamp': datetime.now(timezone.utc).isoformat(),
                 'event': 'pdfviewer.test.init',
                 'details': {
                     'test_type': 'pdfviewer_initialization',
@@ -211,7 +220,7 @@ class DevToolsLogCollector:
             
             # Test PDF.js worker configuration
             worker_test_entry = {
-                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'timestamp': datetime.now(timezone.utc).isoformat(),
                 'event': 'pdfviewer.test.worker',
                 'details': {
                     'test_type': 'pdfjs_worker',
@@ -223,7 +232,7 @@ class DevToolsLogCollector:
             
             # Test WebGL compatibility
             webgl_test_entry = {
-                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'timestamp': datetime.now(timezone.utc).isoformat(),
                 'event': 'pdfviewer.test.webgl',
                 'details': {
                     'test_type': 'webgl_compatibility',
@@ -234,7 +243,7 @@ class DevToolsLogCollector:
             
             # Test PDF loading capability
             pdf_load_test_entry = {
-                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'timestamp': datetime.now(timezone.utc).isoformat(),
                 'event': 'pdfviewer.test.pdf_loading',
                 'details': {
                     'test_type': 'pdf_document_loading',
@@ -245,7 +254,7 @@ class DevToolsLogCollector:
             
             # Test complete
             complete_test_entry = {
-                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'timestamp': datetime.now(timezone.utc).isoformat(),
                 'event': 'pdfviewer.test.complete',
                 'details': {
                     'test_type': 'pdfviewer_test_complete',
@@ -256,7 +265,7 @@ class DevToolsLogCollector:
             
         except Exception as e:
             error_entry = {
-                'timestamp': datetime.utcnow().isoformat() + 'Z',
+                'timestamp': datetime.now(timezone.utc).isoformat(),
                 'event': 'pdfviewer.test.error',
                 'details': {
                     'test_type': 'pdfviewer_test_error',
@@ -266,8 +275,121 @@ class DevToolsLogCollector:
             }
             self._write_log(error_entry)
 
+    def _is_pdfjs_related(self, payload):
+        """Check if the message is related to PDF.js"""
+        try:
+            if not isinstance(payload, dict):
+                return False
+            
+            method = payload.get('method', '')
+            params = payload.get('params', {})
+            
+            # Check console messages for PDF.js references
+            if method == 'Console.messageAdded':
+                message = params.get('message', {}).get('text', '')
+                if 'pdf.js' in message.lower() or 'pdfjs' in message.lower():
+                    return True
+            
+            # Check runtime exceptions for PDF.js
+            if method == 'Runtime.exceptionThrown':
+                exception = params.get('exceptionDetails', {})
+                if exception:
+                    description = exception.get('exception', {}).get('description', '')
+                    if 'pdf.js' in description.lower() or 'pdfjs' in description.lower():
+                        return True
+            
+            # Check page load events for PDF viewer
+            if method == 'Page.loadEventFired':
+                # This could indicate PDF viewer page load
+                return True
+                
+            return False
+        except Exception:
+            return False
 
-_collector = DevToolsLogCollector()
+    def _handle_pdfjs_message(self, payload):
+        """Handle PDF.js related messages specifically"""
+        try:
+            pdfjs_entry = {
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+                'event': 'pdfjs.runtime.message',
+                'details': {
+                    'original_method': payload.get('method'),
+                    'pdfjs_related': True,
+                    'payload': payload.get('params', {})
+                }
+            }
+            self._write_log(pdfjs_entry)
+            
+            # Log to pdfjs-init.log if logger is available
+            if self._pdfjs_logger:
+                self._pdfjs_logger.info(f"PDF.js Runtime: {payload.get('method', 'unknown')}")
+                
+        except Exception as e:
+            error_entry = {
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+                'event': 'pdfjs.runtime.error',
+                'details': {
+                    'error': str(e),
+                    'message': 'Error handling PDF.js message'
+                }
+            }
+            self._write_log(error_entry)
+
+
+# Enhanced collector with PDFViewer testing
+class PDFViewerTestCollector(DevToolsLogCollector):
+    """Enhanced DevTools collector with PDFViewer specific testing"""
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._test_start_time = None
+        self._pdfviewer_initialized = False
+        self._pdfjs_version = None
+    
+    def start(self):
+        """Start collector and begin PDFViewer testing"""
+        super().start()
+        self._test_start_time = datetime.now(timezone.utc)
+        
+        # Log test start
+        if self._pdfjs_logger:
+            self._pdfjs_logger.info("=" * 60)
+            self._pdfjs_logger.info("PDFViewer Module Test Started")
+            self._pdfjs_logger.info("=" * 60)
+            self._pdfjs_logger.info(f"Test start time: {self._test_start_time.isoformat()}")
+    
+    def _handle_pdfjs_message(self, payload):
+        """Enhanced PDF.js message handling with version detection"""
+        super()._handle_pdfjs_message(payload)
+        
+        try:
+            # Try to detect PDF.js version from console messages
+            if payload.get('method') == 'Console.messageAdded':
+                message = payload.get('params', {}).get('message', {}).get('text', '')
+                
+                # Look for PDF.js version info
+                if 'PDF.js' in message and 'Version' in message:
+                    import re
+                    version_match = re.search(r'Version[:\s]+([0-9.]+)', message)
+                    if version_match:
+                        self._pdfjs_version = version_match.group(1)
+                        if self._pdfjs_logger:
+                            self._pdfjs_logger.info(f"Detected PDF.js Version: {self._pdfjs_version}")
+                
+                # Look for PDFViewer initialization
+                if 'PDFViewerApp' in message and 'initialized' in message.lower():
+                    self._pdfviewer_initialized = True
+                    if self._pdfjs_logger:
+                        self._pdfjs_logger.info("PDFViewer App Initialization Confirmed")
+                        
+        except Exception as e:
+            if self._pdfjs_logger:
+                self._pdfjs_logger.error(f"Error in enhanced PDF.js handling: {e}")
+
+
+# Use the enhanced collector
+_collector = PDFViewerTestCollector()
 _collector.start()
 
 if __name__ == '__main__':

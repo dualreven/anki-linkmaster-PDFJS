@@ -1,4 +1,4 @@
-module.exports = {
+export default {
   presets: [
     [
       '@babel/preset-env',
@@ -9,7 +9,7 @@ module.exports = {
         useBuiltIns: 'usage',
         corejs: 3,
         debug: false,
-        modules: 'auto' // 改为 'auto' 以便在测试环境中自动处理模块
+        modules: false // 改为 'auto' 以便在测试环境中自动处理模块
       }
     ]
   ],

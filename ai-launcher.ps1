@@ -55,17 +55,35 @@ function Start-DebugPy {
     return $processInfo
 }
 
-# Function to start app.py
+# Function to start app.py with PDFViewer testing
 function Start-AppPy {
-    Write-Host "[3/3] Starting app.py..." -ForegroundColor Cyan
+    Write-Host "[3/3] Starting app.py with PDFViewer testing..." -ForegroundColor Cyan
     
     $logFile = "$ScriptPath\logs\app.log"
+    $pdfjsLogFile = "$ScriptPath\logs\pdfjs-init.log"
+    
+    # Ensure logs directory exists
+    if (-not (Test-Path "logs")) {
+        New-Item -ItemType Directory -Path "logs" | Out-Null
+    }
+    
+    # Create PDFViewer test log header
+    $testHeader = @"
+=====================================
+PDFViewer Module Test Log
+Started: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+=====================================
+
+"@
+    $testHeader | Out-File -FilePath $pdfjsLogFile -Encoding UTF8
+    
     $process = Start-Process "cmd.exe" -ArgumentList "/c chcp 65001 > nul && python.exe app.py > `"$logFile`" 2>&1" -PassThru
     
     $processInfo = @{
         Type = "main-app"
         PID = $process.Id
         LogFile = $logFile
+        PDFViewerLog = $pdfjsLogFile
     }
     
     return $processInfo
@@ -202,8 +220,10 @@ switch ($Action.ToLower()) {
         
         $logFiles = @(
             "logs\npm-dev.log",
-            "logs\debug.log", 
-            "logs\app.log"
+            "logs\debug.log",
+            "logs\app.log",
+            "logs\pdfjs-init.log",
+            "logs\pdf-viewer.log"
         )
         
         foreach ($logFile in $logFiles) {

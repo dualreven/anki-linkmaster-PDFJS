@@ -12,6 +12,10 @@
 ### 前端技术栈
 - **JavaScript**: ES6+ (Vanilla JavaScript)
 - **PDF处理**: PDF.js 3.4.120
+  - **Worker配置**: CDN加载pdf.worker.min.js
+  - **兼容性**: WebGL检测和Canvas回退
+  - **内存管理**: 页面缓存和资源清理
+  - **错误处理**: 分类错误和重试机制
 - **表格组件**: Tabulator Tables 5.4.4
 - **构建工具**: Vite 5.0.0
 - **包管理**: npm
