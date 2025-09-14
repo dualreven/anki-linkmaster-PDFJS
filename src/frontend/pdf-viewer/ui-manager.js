@@ -68,24 +68,34 @@ export class UIManager {
       throw new Error("PDF viewer container not found");
     }
 
-    // 创建Canvas元素
-    this.#canvas = document.createElement("canvas");
-    this.#canvas.id = "pdf-canvas";
-    this.#canvas.className = "pdf-canvas";
-    this.#canvas.style.display = "block";
-    
-    // 设置Canvas样式
-    Object.assign(this.#canvas.style, {
-      margin: "0 auto",
-      display: "block",
-      background: "#f0f0f0",
-      boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
-    });
+    // 创建或复用Canvas元素（避免重复创建同 id 的 canvas）
+    const existingCanvas = this.#container.querySelector('#pdf-canvas');
+    if (existingCanvas instanceof HTMLCanvasElement) {
+      // 复用已有 canvas（来自静态 HTML 或其他初始化）
+      this.#canvas = existingCanvas;
+      this.#canvas.classList.add('pdf-canvas');
+      this.#logger.debug("Reusing existing canvas element");
+    } else {
+      // 创建新的 Canvas
+      this.#canvas = document.createElement("canvas");
+      this.#canvas.id = "pdf-canvas";
+      this.#canvas.className = "pdf-canvas";
+      this.#canvas.style.display = "block";
+      
+      // 设置Canvas样式
+      Object.assign(this.#canvas.style, {
+        margin: "0 auto",
+        display: "block",
+        background: "#f0f0f0",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
+      });
 
-    this.#container.appendChild(this.#canvas);
+      this.#container.appendChild(this.#canvas);
+      this.#logger.debug("Canvas element created and appended");
+    }
+
+    // 获取渲染上下文
     this.#ctx = this.#canvas.getContext("2d");
-    
-    this.#logger.debug("Canvas element created and initialized");
   }
 
   /**

@@ -1,3 +1,14 @@
+- 2025-09-14T19:56:09+08:00: 修复 PDF-viewer 中重复 canvas (id="pdf-canvas") 问题。
+  - 问题描述：在渲染 /pdf-viewer/index.html 时页面上出现两个具有相同 id="pdf-canvas" 的 canvas 元素。根因是 index.html 中静态包含了一个 canvas（id="pdf-canvas"），而 UIManager 初始化逻辑无条件创建并 append 了另一个同 id 的 canvas，导致 DOM 中存在重复 id，引发渲染/交互异常。
+  - 修改内容：
+    - 修改文件：src/frontend/pdf-viewer/ui-manager.js
+      - 变更点：在创建 canvas 之前先检查容器中是否已存在 id="pdf-canvas" 的元素；若存在且为 HTMLCanvasElement 则复用该元素；否则才创建并 append 新的 canvas。并保证获取上下文（getContext）后再进行事件绑定等初始化操作。
+    - 保留文件：src/frontend/pdf-viewer/index.html（静态 canvas 保留，UIManager 由复用优先改为必要时创建）
+  - 验证建议：
+    1. 在开发服务器 (npm run dev / 使用 ai-launcher.ps1) 下打开 http://localhost:3000/pdf-viewer/index.html，使用浏览器开发者工具检查 DOM，仅存在一个 id="pdf-canvas" 的 canvas。
+    2. 加载 test.pdf 检查页面渲染是否正常（第一页能渲染且无重复 canvas）。
+    3. 测试缩放、翻页、窗口 resize 等交互，确认 UIManager 对复用 canvas 的操作无副作用。
+  - 备注：已在本地将 AItemp/AI_DIALOG_COUNT.json 计数更新为 1，并记录此次修复时间。
 <!-- update: 2025-09-14 - 修复 EventBus 验证导致的 undefined 事件问题 -->
 
 - 2025-09-14: 修复 PDF-viewer 事件常量缺失导致 UIManager 在 #handleResize 时 emit(undefined) 的问题。变更文件：src/frontend/common/event/pdf-viewer-constants.js（新增 UI.RESIZED、调整 UI.TOOLBAR_TOGGLE 命名）；此外对 constants 的命名进行了规范化，确保所有事件名满足 EventBus 验证规则（形如 module:namespace:event）。
@@ -100,3 +111,14 @@
   - PDF-VIEWER-TEST-PLAN-001.md
 - 其它操作：已将 AItemp/AI_DIALOG_COUNT.json 重置为 0（见 AItemp/AI_DIALOG_COUNT.json）。
 - 建议：是否需要我基于 docs/AI-docs-schema/atom-spec.example.md 模板，为上述规范补充“正向例/反向例/验证步骤”的详细示例与代码片段？若需要，请回复“补充详细原子规范”或指定优先补充的规范 ID。
+- 2025-09-14T20:05:05+08:00: 为 UIManager 复用 canvas 问题新增 jsdom 单元测试。
+  - 文件：tests/frontend/pdf-viewer/ui-manager.spec.js
+  - 目的：验证 UIManager 在容器已存在 id="pdf-canvas" 的 canvas 时不会创建重复的 canvas 元素，而是复用已有元素。
+  - 测试要点：
+    1. 在 DOM 中预先创建一个带 id="pdf-canvas" 的 canvas（模拟 index.html 的静态 canvas）。
+    2. 导入并初始化 UIManager（尽可能兼容默认导出 / 命名导出 / 类构造签名）。
+    3. 断言初始化后 document.querySelectorAll('#pdf-canvas').length === 1 且返回的元素严格等于最初的静态 canvas。
+  - 验证建议：
+    1. 在本地运行：npm test -- tests/frontend/pdf-viewer/ui-manager.spec.js
+    2. 若测试因模块导入/初始化接口差异失败，请检查 src/frontend/pdf-viewer/ui-manager.js 的导出方式并在测试中适配（测试中已采用多种尝试路径以兼容常见导出形式）。
+  - 下一步建议：将该测试加入 CI 路径；如果出现 Jest/jsdom 环境对 IndexedDB 的其他失败，请按既定计划引入 fake-indexeddb 并在 jest.setup.js 中通过 'fake-indexeddb/auto' 做全局 polyfill。
