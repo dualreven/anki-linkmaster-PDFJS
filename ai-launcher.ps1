@@ -1,7 +1,9 @@
 # Anki LinkMaster PDFJS - AI Launcher
 param(
     [string]$Action = "start",
-    [int]$WaitTime = 10
+    [int]$WaitTime = 10,
+    [string]$Module = "pdf-viewer",
+    [int]$Port = 3000
 )
 
 # Set working directory
@@ -16,14 +18,14 @@ if (-not (Test-Path "logs")) {
 # Process info file
 $ProcessInfoFile = "logs\process-info.json"
 
-# Function to start npm dev
+# Function to start npm dev with custom port
 function Start-NpmDev {
-    Write-Host "[1/3] Starting npm run dev..." -ForegroundColor Cyan
+    Write-Host "[1/3] Starting npm run dev on port $Port..." -ForegroundColor Cyan
     
     $logFile = "$ScriptPath\logs\npm-dev.log"
-    # Create a PowerShell script to remove ANSI codes
+    # Create a PowerShell script to remove ANSI codes and use custom port
     $psScript = @"
-npm run dev 2>&1 | ForEach-Object {
+vite --port $Port 2>&1 | ForEach-Object {
     `$line = `$_ -replace '\x1b\[\d+(;\d+)*m', ''
     `$line
 } | Out-File -FilePath '$logFile' -Encoding UTF8
@@ -34,6 +36,7 @@ npm run dev 2>&1 | ForEach-Object {
         Type = "npm-dev"
         PID = $process.Id
         LogFile = $logFile
+        Port = $Port
     }
     
     return $processInfo
@@ -55,35 +58,40 @@ function Start-DebugPy {
     return $processInfo
 }
 
-# Function to start app.py with PDFViewer testing
+# Function to start app.py with module selection
 function Start-AppPy {
-    Write-Host "[3/3] Starting app.py with PDFViewer testing..." -ForegroundColor Cyan
+    Write-Host "[3/3] Starting app.py with module: $Module..." -ForegroundColor Cyan
     
     $logFile = "$ScriptPath\logs\app.log"
-    $pdfjsLogFile = "$ScriptPath\logs\pdfjs-init.log"
+    $moduleLogFile = "$ScriptPath\logs\$Module.log"
     
     # Ensure logs directory exists
     if (-not (Test-Path "logs")) {
         New-Item -ItemType Directory -Path "logs" | Out-Null
     }
     
-    # Create PDFViewer test log header
-    $testHeader = @"
+    # Create module log header
+    $logHeader = @"
 =====================================
-PDFViewer Module Test Log
+$Module Module Log
 Started: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+Vite Port: $Port
 =====================================
 
 "@
-    $testHeader | Out-File -FilePath $pdfjsLogFile -Encoding UTF8
+    $logHeader | Out-File -FilePath $moduleLogFile -Encoding UTF8
     
-    $process = Start-Process "cmd.exe" -ArgumentList "/c chcp 65001 > nul && python.exe app.py > `"$logFile`" 2>&1" -PassThru
+    # Build command arguments
+    $cmdArgs = "/c chcp 65001 > nul && python.exe app.py --module $Module --port $Port > `"$logFile`" 2>&1"
+    $process = Start-Process "cmd.exe" -ArgumentList $cmdArgs -PassThru
     
     $processInfo = @{
         Type = "main-app"
         PID = $process.Id
         LogFile = $logFile
-        PDFViewerLog = $pdfjsLogFile
+        ModuleLog = $moduleLogFile
+        Module = $Module
+        Port = $Port
     }
     
     return $processInfo
@@ -175,14 +183,15 @@ switch ($Action.ToLower()) {
         Write-Host "===================================" -ForegroundColor Green
         Write-Host ""
         Write-Host "Services:" -ForegroundColor White
-        Write-Host "- npm dev server: http://localhost:3000" -ForegroundColor White
+        Write-Host "- npm dev server: http://localhost:$Port" -ForegroundColor White
         Write-Host "- Debug console: Port 9222" -ForegroundColor White
-        Write-Host "- Main app: Started" -ForegroundColor White
+        Write-Host "- Main app: Module $Module" -ForegroundColor White
         Write-Host ""
         Write-Host "Log files:" -ForegroundColor White
         Write-Host "- npm log: logs\npm-dev.log" -ForegroundColor White
         Write-Host "- debug log: logs\debug.log" -ForegroundColor White
         Write-Host "- app log: logs\app.log" -ForegroundColor White
+        Write-Host "- module log: logs\$Module.log" -ForegroundColor White
         Write-Host ""
         Write-Host "Waiting $WaitTime seconds for services to start..." -ForegroundColor Yellow
         
@@ -222,8 +231,7 @@ switch ($Action.ToLower()) {
             "logs\npm-dev.log",
             "logs\debug.log",
             "logs\app.log",
-            "logs\pdfjs-init.log",
-            "logs\pdf-viewer.log"
+            "logs\$Module.log"
         )
         
         foreach ($logFile in $logFiles) {
@@ -244,12 +252,21 @@ switch ($Action.ToLower()) {
     }
     
     default {
-        Write-Host "Usage: .\ai-launcher.ps1 [start|stop|status|logs]" -ForegroundColor Red
+        Write-Host "Usage: .\ai-launcher.ps1 [start|stop|status|logs] [-Module {pdf-home|pdf-viewer}] [-Port PORT]" -ForegroundColor Red
         Write-Host ""
         Write-Host "Commands:" -ForegroundColor White
         Write-Host "  start  - Start all services (default)" -ForegroundColor White
         Write-Host "  stop   - Stop all services" -ForegroundColor White
         Write-Host "  status - Check service status" -ForegroundColor White
         Write-Host "  logs   - View recent logs" -ForegroundColor White
+        Write-Host ""
+        Write-Host "Options:" -ForegroundColor White
+        Write-Host "  -Module {pdf-home|pdf-viewer} - Select frontend module (default: pdf-viewer)" -ForegroundColor White
+        Write-Host "  -Port PORT - Vite dev server port (default: 3000)" -ForegroundColor White
+        Write-Host ""
+        Write-Host "Examples:" -ForegroundColor White
+        Write-Host "  .\ai-launcher.ps1 start -Module pdf-home -Port 3001" -ForegroundColor White
+        Write-Host "  .\ai-launcher.ps1 start -Module pdf-viewer" -ForegroundColor White
+        Write-Host "  .\ai-launcher.ps1 start" -ForegroundColor White
     }
 }

@@ -393,8 +393,19 @@ _collector = PDFViewerTestCollector()
 _collector.start()
 
 if __name__ == '__main__':
+    import argparse
+    
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description='Anki LinkMaster PDFJS Application')
+    parser.add_argument('--module', '-m', choices=['pdf-home', 'pdf-viewer'],
+                       default='pdf-viewer', help='选择要加载的前端模块 (默认: pdf-viewer)')
+    parser.add_argument('--port', '-p', type=int, default=3000,
+                       help='Vite开发服务器端口 (默认: 3000)')
+    
+    args = parser.parse_args()
+    
     try:
-        exit_code = main()
+        exit_code = main(args.module, args.port)
     finally:
         try:
             _collector.stop()

@@ -62,8 +62,13 @@ class AnkiLinkMasterApp:
         self.websocket_server = None
         self.pdf_manager = None
     
-    def run(self):
-        """运行应用"""
+    def run(self, module="pdf-viewer", vite_port=3000):
+        """运行应用
+        
+        Args:
+            module: 要加载的前端模块 (pdf-home 或 pdf-viewer)
+            vite_port: Vite开发服务器端口
+        """
         # 初始化PDF管理器
         self.pdf_manager = PDFManager()
         logger.info("PDF管理器初始化成功")
@@ -111,10 +116,14 @@ class AnkiLinkMasterApp:
         # 初始化主窗口
         self.main_window = MainWindow(self)
         self.main_window.send_debug_message_requested.connect(self.handle_send_debug_message)
-        vite_port = get_vite_port()
-        logger.info(f"Vite端口: {vite_port}")
+        
+        # 使用传入的端口或自动检测
+        actual_vite_port = get_vite_port() if vite_port == 3000 else vite_port
+        logger.info(f"Vite端口: {actual_vite_port}")
+        logger.info(f"加载模块: {module}")
+        
         # 加载前端页面，使用Vite配置的端口和正确的入口路径
-        self.main_window.load_frontend(f"http://localhost:{vite_port}/pdf-viewer/index.html")
+        self.main_window.load_frontend(f"http://localhost:{actual_vite_port}/{module}/index.html")
         self.main_window.show()
     def handle_send_debug_message(self):
         """处理来自UI的发送调试消息的请求"""

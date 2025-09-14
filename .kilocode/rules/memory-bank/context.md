@@ -3,23 +3,54 @@
 
 ## 工作焦点
 
-- **主要任务**：PDFJS载入viewer - 集成PDF.js阅读器到现有架构中
-- **当前状态**：核心PDF管理功能已完成，正在进行PDF阅读器集成
-- **优先级**：高 - 这是实现完整PDF处理流程的关键步骤
+- **主要任务**：AI启动器模块切换功能集成
+- **当前状态**：ai-launcher.ps1 已成功集成模块切换功能，支持 pdf-home 和 pdf-viewer 模块的动态切换
+- **优先级**：高 - 提高开发和测试效率的关键功能
 
 ## 最近变化
 
-- ✅ 完成了企业级表格组件(PDFTable)的开发和集成
-- ✅ 实现了WebSocket实时通信系统
-- ✅ 建立了完整的PDF文件管理功能（添加、删除、列表展示）
-- ✅ 实现了文件副本机制和元数据提取
-- ✅ 修复了PDF阅读器UI事件系统关键缺陷：修正了 `PDF_VIEWER_EVENTS` 的导入方式（从默认导入改为命名导入），解决了因事件名 `undefined` 导致的事件发布失败问题
-- ✅ 优化了UIManager中所有事件调用，将 `emit(..., undefined, ...)` 统一替换为 `emit(..., null, ...)` 提升代码健壮性
-- ✅ 修复了Vite构建配置：启用 `@vitejs/plugin-babel`，支持ES2022私有字段/方法（如 `#setupResizeObserver`），解决浏览器语法错误
-- ✅ **✅ PDF.js 集成完成**：成功实现PDF加载、渲染、页面缓存、错误处理、WebGL回退机制，通过 `pdf-manager.js` 与 `EventBus` 完全集成
-- ✅ 实现了完整的PDF加载和渲染机制
-- ✅ 建立了前后端PDF处理流程
-- ✅ 修复了UIManager中的语法错误：将所有 `$1` 占位符替换为正确的事件常量（ZOOM.IN, ZOOM.OUT, NAVIGATION.PREVIOUS, NAVIGATION.NEXT, ZOOM.ACTUAL_SIZE, FILE.CLOSE），解决了Vite构建失败问题
+- ✅ **✅ AI启动器模块切换功能**：成功将模块切换功能集成到 ai-launcher.ps1 中
+  - 支持 `-Module {pdf-home|pdf-viewer}` 参数
+  - 支持 `-Port PORT` 参数自定义Vite端口
+  - 自动创建模块特定的日志文件
+  - 完整的帮助文档和使用示例
+- ✅ 移除了 tech.md 中 python app.py 的手动调试用法
+- ✅ 更新了最佳实践指南，推荐使用 ai-launcher.ps1 作为唯一启动方式
+
+## 功能特性
+
+### ai-launcher.ps1 新功能
+- **模块切换**: 支持 pdf-home (文件管理) 和 pdf-viewer (PDF阅读器) 模块
+- **端口配置**: 支持自定义Vite开发服务器端口
+- **智能日志**: 自动创建模块特定的日志文件
+- **完整文档**: 详细的帮助信息和使用示例
+
+### 使用方法
+```bash
+# 默认启动 (pdf-viewer 模块，端口3000)
+.\ai-launcher.ps1 start
+
+# 启动 pdf-home 模块，端口3001
+.\ai-launcher.ps1 start -Module pdf-home -Port 3001
+
+# 启动 pdf-viewer 模块，端口3002
+.\ai-launcher.ps1 start -Module pdf-viewer -Port 3002
+
+# 查看帮助
+.\ai-launcher.ps1 help
+```
+
+## 验证结果
+- ✅ pdf-home 模块成功启动在端口3001
+- ✅ pdf-viewer 模块成功启动在端口3002
+- ✅ Vite服务器正确使用指定端口
+- ✅ 模块日志文件正确创建和记录
+- ✅ 所有服务进程正确管理
+
+## 最佳实践更新
+- **推荐**: 总是使用 `.\ai-launcher.ps1 start` 启动开发环境
+- **禁止**: 直接执行 `npm run dev`、`python app.py` 等阻塞命令
+- **理由**: ai-launcher.ps1 确保进程不会阻塞自动化流程
 
 ## 下一步计划
 
