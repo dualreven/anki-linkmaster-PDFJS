@@ -431,9 +431,12 @@ class PDFManager(QObject):
                 "page_count": 0
             }
         
-        # 返回提取到的元数据
+        # 返回提取到的元数据，如果title为空则使用文件名
+        filename_title = os.path.splitext(os.path.basename(filepath))[0]
+        extracted_title = metadata.get("title", "")
+        
         return {
-            "title": metadata.get("title", os.path.splitext(os.path.basename(filepath))[0]),
+            "title": extracted_title if extracted_title else filename_title,
             "author": metadata.get("author", ""),
             "subject": metadata.get("subject", ""),
             "keywords": metadata.get("keywords", ""),

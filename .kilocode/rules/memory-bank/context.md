@@ -178,3 +178,12 @@
 - 当前状态：
   - 代码已修改并写入工作区（files modified: src/frontend/pdf-home/table-wrapper.js, src/frontend/pdf-home/ui-manager.js）。
   - 建议进行一次手工 smoke 测试并在 CI 中包含相关测试。如需，我可以继续：创建分支、生成 commit、运行测试并提交 PR（new_task, mode: continuous-agent）。
+2025-09-15T17:31:00+08:00: 修复中文PDF标题提取问题
+- 问题：中文PDF文件"C:\Users\napretep\Downloads\基于深度特征的立定跳远子动作定位方法研究_花延卓.pdf"的标题不能被正确提取
+- 根因：PDFMetadataExtractor.extract_metadata()返回的title字段为空字符串，但manager.py中的逻辑只在title键不存在时才使用文件名回退
+- 修复：修改src/backend/pdf_manager/manager.py中的_extract_metadata方法，当提取的title为空字符串时也使用文件名作为回退
+- 修改内容：
+  - 将 `"title": metadata.get("title", os.path.splitext(os.path.basename(filepath))[0])`
+  - 改为：`"title": extracted_title if extracted_title else filename_title`
+- 验证：创建了单元测试src/backend/tests/test_pdf_manager_chinese.py，确保修复正确且不会被破坏
+- 结果：中文PDF文件现在能正确显示文件名作为标题
