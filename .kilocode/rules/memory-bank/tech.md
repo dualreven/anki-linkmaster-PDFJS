@@ -305,7 +305,7 @@ pip install -r requirements.txt
 npm install
 ```
 
-#### 4. 使用AI启动器（推荐）
+#### 4. 使用AI启动器（必须）
 ```bash
 # 启动所有服务
 .\ai-launcher.ps1 start
@@ -322,18 +322,6 @@ npm install
 
 # 停止所有服务
 .\ai-launcher.ps1 stop
-```
-
-#### 5. 手动启动（不推荐）
-```bash
-# 前端开发服务器
-npm run dev
-
-# 后端应用
-python src/backend/main.py
-
-# Python调试控制台
-python debug.py --port 9222
 ```
 
 ## 调试和故障排除

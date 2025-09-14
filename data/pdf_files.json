@@ -111,6 +111,22 @@
       "thumbnail_path": null,
       "tags": [],
       "notes": ""
+    },
+    "b3ec95651f46": {
+      "id": "b3ec95651f46",
+      "filename": "b3ec95651f46.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\b3ec95651f46.pdf",
+      "file_size": 254890,
+      "created_time": 1756573639.651654,
+      "modified_time": 1750836885.3656392,
+      "title": "",
+      "author": "Administrator",
+      "subject": "",
+      "keywords": "",
+      "page_count": 17,
+      "thumbnail_path": null,
+      "tags": [],
+      "notes": ""
     }
   }
 }

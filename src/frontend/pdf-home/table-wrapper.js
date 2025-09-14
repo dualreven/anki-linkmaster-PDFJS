@@ -68,10 +68,9 @@ export default class TableWrapper {
       // avoid forcing 100% height which can collapse if parent has no explicit height
       height: 'auto',
       layout: 'fitColumns',
-      selectable: true,           // 启用选择
-      // selectableRows: true,       // 启用行选择
-      // selectableRangeMode: "click", // 点击选择模式
-      // selectableRollingSelection: false, // 禁用滚动选择
+      selectable: true,           // 启用多选模式
+      selectableRangeMode: "click", // 点击选择模式
+      selectableRollingSelection: false, // 禁用滚动选择
       layoutColumnsOnNewData: false,
       placeholder: defaultPlaceholder,
     }, options);

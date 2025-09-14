@@ -106,11 +106,11 @@ class PDFHomeApp {
         setTimeout(() => {
           if (this.tableWrapper && this.tableWrapper.tabulator) {
             // 绑定选择变化事件
-            this.tableWrapper.tabulator.on("rowSelectionChanged", (data, rows) => {
-              console.log("行选择发生变化:", data, rows);
+            this.tableWrapper.tabulator.on("rowSelectionChanged", (selectedRows) => {
+              console.log("行选择发生变化:", selectedRows);
               try {
-                const selected = Array.isArray(data) ? data.map(r => r.id || r.filename) : [];
-                this.#eventBus.emit(UI_EVENTS.SELECTION.CHANGED, selected, { actorId: 'PDFHomeApp' });
+                const selectedIds = selectedRows.map(row => row.getData ? row.getData().id || row.getData().filename : row.id || row.filename);
+                this.#eventBus.emit(UI_EVENTS.SELECTION.CHANGED, selectedIds, { actorId: 'PDFHomeApp' });
               } catch (err) {
                 this.#logger.warn('Error handling rowSelectionChanged', err);
                 this.#eventBus.emit(SYSTEM_EVENTS.ERROR.OCCURRED, {
