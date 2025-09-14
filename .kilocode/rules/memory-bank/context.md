@@ -73,20 +73,11 @@
 ## Git 状态（自动更新）
 
 - 当前分支: feat/pdfjs-init-logging
-- 工作区状态: 有未提交的修改
-- 变更文件（git status --porcelain）:
-  - M .kilocode/rules/memory-bank/brief.md
-  - M .kilocode/rules/memory-bank/context.md
-  - M AItemp/AI_DIALOG_COUNT.json
-  - M jest.setup.js
-  - M logs/process-info.json
-  - M package-lock.json
-  - M package.json
-  - M src/frontend/common/event/pdf-viewer-constants.js
+- 工作区状态: 已提交所有修改
 - 最近提交:
-  - commit: 19d6e99
-  - date: 2025-09-14 17:26:34 +0800
-  - message: 改进提示词
+  - commit: 7a29626
+  - date: 2025-09-14 22:32:58 +0800
+  - message: 修复PDF-viewer中重复canvas问题，优化UIManager复用逻辑，更新context.md记录修复过程
 
 ## 操作说明（建议）
 
