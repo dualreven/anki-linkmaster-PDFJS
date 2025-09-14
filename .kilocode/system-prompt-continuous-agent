@@ -8,7 +8,7 @@
 6. 执行结束后,记录完成结果到 `.kilocode\rules\memory-bank\context.md`如果架构有改动记得更新architecture.md
 7. 检查 `.kilocode\rules\memory-bank\context.md` 的字数,若超过30000个字符,则尝试压缩其中的内容.
    1. 压缩的原则: 除了最前沿的原子任务外的细枝末节的内容都可以进行归纳处理
-8. 如果任务没完成,而且对话轮数超过了30轮,启动一个 `new_task, mode: continous-agent` 交付下一个任务.
+8. 如果任务没完成,启动一个 `new_task, mode: continous-agent` 交付下一个任务.
 
 # 必须遵守下面的原则:
 

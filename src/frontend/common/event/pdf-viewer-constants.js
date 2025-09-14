@@ -277,7 +277,7 @@ export const PDF_VIEWER_EVENTS = {
      * @event pdf-viewer:ui:toolbar:toggle
      * @type {string}
      */
-    TOOLBAR_TOGGLE: 'pdf-viewer:ui:toolbar:toggle',
+    TOOLBAR_TOGGLE: 'pdf-viewer:ui:toolbar-toggle',
     
     /**
      * 侧边栏显示/隐藏事件
@@ -292,6 +292,7 @@ export const PDF_VIEWER_EVENTS = {
      * @type {string}
      */
     THUMBNAIL_TOGGLE: 'pdf-viewer:ui:thumbnail:toggle',
+    RESIZED: 'pdf-viewer:ui:resized',
     
     /**
      * 全屏模式切换事件

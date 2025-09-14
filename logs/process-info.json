@@ -1,16 +1,16 @@
 [
     {
-        "PID":  36080,
+        "PID":  51684,
         "Type":  "npm-dev",
         "LogFile":  "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\logs\\npm-dev.log"
     },
     {
-        "PID":  35896,
+        "PID":  46820,
         "Type":  "debug-py",
         "LogFile":  "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\logs\\debug.log"
     },
     {
-        "PID":  41756,
+        "PID":  43080,
         "PDFViewerLog":  "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\logs\\pdfjs-init.log",
         "Type":  "main-app",
         "LogFile":  "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\logs\\app.log"
