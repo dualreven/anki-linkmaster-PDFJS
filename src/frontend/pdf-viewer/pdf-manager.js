@@ -44,6 +44,8 @@ export class PDFManager {
       debug: (msg) => console.debug(`[PDFManager] ${msg}`),
       warn: (msg) => console.warn(`[PDFManager] ${msg}`)
     };
+    // 注册事件监听器
+    this.#setupEventListeners();
   }
 
   /**
@@ -388,6 +390,38 @@ export class PDFManager {
     return {
       totalCached: this.#pagesCache.size,
       cachedPages: Array.from(this.#pagesCache.keys())
+  /**
+   * 注册事件监听器
+   * @private
+   */
+  #setupEventListeners() {
+    this.#eventBus.on(
+      PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
+      (data) => {
+        try {
+          const path = data?.path;
+          if (!path) {
+            this.#logger.warn("PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED received without path");
+            return;
+          }
+          this.#logger.info(`Auto-loading PDF from path: ${path}`);
+          // 调用 loadPDF，但注意：loadPDF 期望的是 { url: path } 或 { arrayBuffer: ... }
+          // 由于 path 是文件路径（如 "test_pdf_files\\test.pdf"），我们需要将其转换为 URL
+          // 假设前端静态资源根目录为 /，则路径应为 /test_pdf_files/test.pdf
+          const url = path.replace(/\\/g, '/'); // Windows 路径转为 URL 格式
+          this.loadPDF({ url }); // 调用已有的 loadPDF 方法
+        } catch (error) {
+          this.#logger.error("Error auto-loading PDF:", error);
+          this.#eventBus.emit(
+            PDF_VIEWER_EVENTS.FILE.LOAD.FAILED,
+            { error: error.message, path },
+            { actorId: "PDFManager" }
+          );
+        }
+      },
+      { subscriberId: "PDFManager" }
+    );
+  }
     };
   }
 }

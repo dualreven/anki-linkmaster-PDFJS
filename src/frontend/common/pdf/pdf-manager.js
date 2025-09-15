@@ -514,6 +514,19 @@ export class PDFManager {
       importance: backendData.importance || "medium",
     };
   }
+  /**
+   * 自动加载指定路径的 PDF 文件（由 WebSocket 消息触发）。
+   * @param {string} path - PDF 文件的相对路径（如 "test_pdf_files\\test.pdf"）
+   * @returns {void}
+   */
+  loadPDF(path) {
+    this.#logger.info(`Loading PDF via auto-request: ${path}`);
+    // 调用 PDF.js 加载逻辑（由 PDFManager 的子模块或外部组件处理）
+    // 由于 PDF.js 加载由 PDFViewerApp 或 PDFManager 的 UI 层处理，此处仅作为事件中转
+    // 实际加载由 PDFManager 的关联组件（如 PDFViewerApp）处理
+    // 为保持解耦，我们广播事件，由 UI 层响应
+    this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, { path }, { actorId: "PDFManager" });
+  }
 }
 
 export default PDFManager;
