@@ -314,6 +314,12 @@ npm install
 .\ai-launcher.ps1 start -Module pdf-home -Port 3001
 .\ai-launcher.ps1 start -Module pdf-viewer -Port 3002
 
+# 启动 pdf-viewer 并自动加载测试文件
+.\ai-launcher.ps1 start -Module pdf-viewer -Test
+
+# 启动 pdf-viewer 并加载指定 PDF 文件
+.\ai-launcher.ps1 start -Module pdf-viewer -Path "test_pdf_files\test.pdf"
+
 # 查看服务状态
 .\ai-launcher.ps1 status
 
@@ -323,6 +329,12 @@ npm install
 # 停止所有服务
 .\ai-launcher.ps1 stop
 ```
+
+> **参数说明**：
+> - `-Test`：仅在 `-Module pdf-viewer` 时有效，自动加载 `test_pdf_files\test.pdf`
+> - `-Path PATH`：仅在 `-Module pdf-viewer` 时有效，指定要加载的 PDF 文件路径（必须存在且为 `.pdf` 扩展名）
+> - 若同时使用 `-Test` 和 `-Path`，优先使用 `-Test`
+> - 在其他模块（如 `pdf-home`）下使用 `-Test` 或 `-Path` 将报错并退出
 
 ## 调试和故障排除
 

@@ -3,7 +3,9 @@ param(
     [string]$Action = "start",
     [int]$WaitTime = 10,
     [string]$Module = "pdf-viewer",
-    [int]$Port = 3000
+    [int]$Port = 3000,
+    [string]$Path,
+    [switch]$Test
 )
 
 # Set working directory
@@ -26,8 +28,8 @@ function Start-NpmDev {
     # Create a PowerShell script to remove ANSI codes and use custom port
     $psScript = @"
 vite --port $Port 2>&1 | ForEach-Object {
-    `$line = `$_ -replace '\x1b\[\d+(;\d+)*m', ''
-    `$line
+    $line = $_ -replace '\x1b\[\d+(;\d+)*m', ''
+    $line
 } | Out-File -FilePath '$logFile' -Encoding UTF8
 "@
     $process = Start-Process "powershell.exe" -ArgumentList "-Command", $psScript -PassThru
@@ -163,6 +165,39 @@ switch ($Action.ToLower()) {
         # Stop existing processes first
         Stop-AllProcesses
         
+        # Validate parameters
+        if ($Module -eq "pdf-viewer") {
+            if ($Test -and $Path) {
+                Write-Warning "Both -Test and -Path specified. Using -Test (test_pdf_files\test.pdf)"
+                $Path = "test_pdf_files\test.pdf"
+            }
+            elseif ($Test) {
+                $Path = "test_pdf_files\test.pdf"
+            }
+            
+            if ($Path) {
+                if (-not (Test-Path $Path)) {
+                    Write-Error "Error: File '$Path' does not exist."
+                    exit 1
+                }
+                if ($Path -notlike "*.pdf" -and $Path -notlike "*.PDF") {
+                    Write-Error "Error: File '$Path' is not a PDF file (must have .pdf extension)."
+                    exit 1
+                }
+                # Write path to trigger PDF load in backend
+                $loadPdfInfo = @{
+                    path = $Path
+                    timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                }
+                $loadPdfInfo | ConvertTo-Json | Set-Content "logs\load-pdf.json"
+                Write-Host "Triggering PDF load: $Path" -ForegroundColor Yellow
+            }
+        }
+        elseif ($Path -or $Test) {
+            Write-Error "Error: -Path and -Test parameters are only valid with -Module pdf-viewer."
+            exit 1
+        }
+        
         # Start all services
         $processInfos = @()
         
@@ -252,7 +287,7 @@ switch ($Action.ToLower()) {
     }
     
     default {
-        Write-Host "Usage: .\ai-launcher.ps1 [start|stop|status|logs] [-Module {pdf-home|pdf-viewer}] [-Port PORT]" -ForegroundColor Red
+        Write-Host "Usage: .\ai-launcher.ps1 [start|stop|status|logs] [-Module {pdf-home|pdf-viewer}] [-Port PORT] [-Path PATH] [-Test]" -ForegroundColor Red
         Write-Host ""
         Write-Host "Commands:" -ForegroundColor White
         Write-Host "  start  - Start all services (default)" -ForegroundColor White
@@ -263,10 +298,14 @@ switch ($Action.ToLower()) {
         Write-Host "Options:" -ForegroundColor White
         Write-Host "  -Module {pdf-home|pdf-viewer} - Select frontend module (default: pdf-viewer)" -ForegroundColor White
         Write-Host "  -Port PORT - Vite dev server port (default: 3000)" -ForegroundColor White
+        Write-Host "  -Path PATH - Load specified PDF file (only with -Module pdf-viewer)" -ForegroundColor White
+        Write-Host "  -Test - Load test file test_pdf_files\test.pdf (only with -Module pdf-viewer)" -ForegroundColor White
         Write-Host ""
         Write-Host "Examples:" -ForegroundColor White
         Write-Host "  .\ai-launcher.ps1 start -Module pdf-home -Port 3001" -ForegroundColor White
         Write-Host "  .\ai-launcher.ps1 start -Module pdf-viewer" -ForegroundColor White
+        Write-Host "  .\ai-launcher.ps1 start -Module pdf-viewer -Test" -ForegroundColor White
+        Write-Host "  .\ai-launcher.ps1 start -Module pdf-viewer -Path ""test_pdf_files\test.pdf""" -ForegroundColor White
         Write-Host "  .\ai-launcher.ps1 start" -ForegroundColor White
     }
 }

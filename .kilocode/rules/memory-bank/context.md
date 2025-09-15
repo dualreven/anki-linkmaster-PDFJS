@@ -1,4 +1,3 @@
-
 # 当前工作上下文
 
 ## 工作焦点
@@ -9,11 +8,14 @@
 
 ## 最近变化
 
-- ✅ **✅ AI启动器模块切换功能**：成功将模块切换功能集成到 ai-launcher.ps1 中
+- ✅ **✅ AI启动器模块切换与PDF自动加载功能**：成功增强 ai-launcher.ps1，支持在启动 pdf-viewer 模块时自动加载指定 PDF 文件
   - 支持 `-Module {pdf-home|pdf-viewer}` 参数
   - 支持 `-Port PORT` 参数自定义Vite端口
+  - 新增 `-Test` 参数：启动 pdf-viewer 时自动加载 `test_pdf_files\test.pdf`
+  - 新增 `-Path PATH` 参数：启动 pdf-viewer 时加载指定路径的 PDF 文件（必须存在且为 .pdf 扩展名）
   - 自动创建模块特定的日志文件
   - 完整的帮助文档和使用示例
+  - 参数验证：仅在 `-Module pdf-viewer` 时生效，非法路径或非PDF文件将报错退出
 - ✅ 移除了 tech.md 中 python app.py 的手动调试用法
 - ✅ 更新了最佳实践指南，推荐使用 ai-launcher.ps1 作为唯一启动方式
 
@@ -23,6 +25,7 @@
 - **模块切换**: 支持 pdf-home (文件管理) 和 pdf-viewer (PDF阅读器) 模块
 - **端口配置**: 支持自定义Vite开发服务器端口
 - **智能日志**: 自动创建模块特定的日志文件
+- **PDF自动加载**: 支持通过 `-Test` 或 `-Path` 参数在启动 pdf-viewer 时自动加载 PDF 文件
 - **完整文档**: 详细的帮助信息和使用示例
 
 ### 使用方法
@@ -36,6 +39,12 @@
 # 启动 pdf-viewer 模块，端口3002
 .\ai-launcher.ps1 start -Module pdf-viewer -Port 3002
 
+# 启动 pdf-viewer 并自动加载测试文件
+.\ai-launcher.ps1 start -Module pdf-viewer -Test
+
+# 启动 pdf-viewer 并加载指定 PDF 文件
+.\ai-launcher.ps1 start -Module pdf-viewer -Path "test_pdf_files\test.pdf"
+
 # 查看帮助
 .\ai-launcher.ps1 help
 ```
@@ -46,11 +55,13 @@
 - ✅ Vite服务器正确使用指定端口
 - ✅ 模块日志文件正确创建和记录
 - ✅ 所有服务进程正确管理
+- ✅ `-Test` 和 `-Path` 参数在合法路径下触发 PDF 加载请求（通过 logs\load-pdf.json 文件触发）
+- ✅ 非法参数（如非PDF文件、错误模块）时正确报错并退出
 
 ## 最佳实践更新
 - **推荐**: 总是使用 `.\ai-launcher.ps1 start` 启动开发环境
 - **禁止**: 直接执行 `npm run dev`、`python app.py` 等阻塞命令
-- **理由**: ai-launcher.ps1 确保进程不会阻塞自动化流程
+- **理由**: ai-launcher.ps1 确保进程不会阻塞自动化流程，且支持自动化测试与调试集成
 
 ## 下一步计划
 
@@ -106,7 +117,6 @@
 ## 自动更新记录
 - 2025-09-14T18:57:12+08:00: 将 Git 状态写入 context.md 并重置 AItemp/AI_DIALOG_COUNT.json（count -> 0）。由 continuous-agent 执行.
 
-
 - 2025-09-14: 修复 PDF-viewer 事件常量缺失导致 UIManager 在 #handleResize 时 emit(undefined) 的问题。变更文件：src/frontend/common/event/pdf-viewer-constants.js（新增 UI.RESIZED、调整 UI.TOOLBAR_TOGGLE 命名）；此外对 constants 的命名进行了规范化，确保所有事件名满足 EventBus 验证规则（形如 module:namespace:event）。
 
 2025-09-14T19:26:18+08:00: 检查任务 - 验证 PDF-viewer 模块原子规范文件完整性
@@ -146,8 +156,6 @@
   - 备注：已在本地将 AItemp/AI_DIALOG_COUNT.json 计数更新为 1，并记录此次修复时间。
 <!-- update: 2025-09-14 - 修复 EventBus 验证导致的 undefined 事件问题 -->
 
-
-
 2025-09-15T00:51:45+08:00: 修复：pdf-home 模块中 pdf-table 的多选删除问题
 - 问题概述：
   - 报告：用户发现 pdf-home 的表格无法进行“多选删除”操作。
@@ -155,15 +163,15 @@
 - 已执行的修改（代码级）：
   1. src/frontend/pdf-home/table-wrapper.js
      - 修改：getSelectedRows() 方法被正规化（normalization），现在会：
-       - 在回退模式（fallback HTML table）下可靠读取 checkbox 并返回 plain object 列表（防御性拷贝）。
-       - 在 Tabulator 模式下优先使用 getSelectedData()（若返回 plain objects 即采用），若返回 RowComponent 列表则调用 getData() 并转为 plain objects；若两者均不可用则基于 DOM 查找 selected 行并映射到内部数据。
-       - 返回值保证为 plain object 数组（每项为 {id, filename, ...} 或尽可能可用的标识符），以便调用方无需关心底层 Tabulator 的返回类型差异。
+        - 在回退模式（fallback HTML table）下可靠读取 checkbox 并返回 plain object 列表（防御性拷贝）。
+        - 在 Tabulator 模式下优先使用 getSelectedData()（若返回 plain objects 即采用），若返回 RowComponent 列表则调用 getData() 并转为 plain objects；若两者均不可用则基于 DOM 查找 selected 行并映射到内部数据。
+        - 返回值保证为 plain object 数组（每项为 {id, filename, ...} 或尽可能可用的标识符），以便调用方无需关心底层 Tabulator 的返回类型差异。
   2. src/frontend/pdf-home/ui-manager.js
      - 修改：#handleBatchDelete() 中对选中项的读取逻辑增强：
-       - 优先使用 pdfTable.getSelectedRows()（现在返回正规化的 plain objects）。
-       - 增强回退检测：支持多种 checkbox 类名（.pdf-item-checkbox、.pdf-table-checkbox、.pdf-table-row-select）并从 DOM 中安全提取 data-filename / data-row-id / data-filepath。
-       - 对收集到的 selected identifiers 进行了更鲁棒的提取（优先 id -> filename -> file_id -> fileId）。
-       - 保持对 PDF_MANAGEMENT_EVENTS.BATCH.REQUESTED 事件的发送方式不变，但确保 payload.files 为非空且为前端/后端可识别的标识符数组。
+        - 优先使用 pdfTable.getSelectedRows()（现在返回正规化的 plain objects）。
+        - 增强回退检测：支持多种 checkbox 类名（.pdf-item-checkbox、.pdf-table-checkbox、.pdf-table-row-select）并从 DOM 中安全提取 data-filename / data-row-id / data-filepath。
+        - 对收集到的 selected identifiers 进行了更鲁棒的提取（优先 id -> filename -> file_id -> fileId）。
+        - 保持对 PDF_MANAGEMENT_EVENTS.BATCH.REQUESTED 事件的发送方式不变，但确保 payload.files 为非空且为前端/后端可识别的标识符数组。
 - 验证与诊断：
   - 在 index.js 中已经添加（存在）对 Tabulator 原生事件 rowSelectionChanged 的诊断绑定（console 输出）。修改后，可在浏览器控制台进行以下验证：
     1. 启动前端（使用 ai-launcher.ps1 start 或 npm run dev）。
