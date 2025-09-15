@@ -10,6 +10,9 @@ from pdf_manager.manager import PDFManager
 import logging
 import json
 import os
+import time
+import threading
+import queue
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -61,6 +64,9 @@ class AnkiLinkMasterApp:
         self.main_window = None
         self.websocket_server = None
         self.pdf_manager = None
+        self.pdf_load_listener_thread = None
+        self.pdf_load_queue = queue.Queue()
+        self.pdf_load_listener_running = False
     
     def run(self, module="pdf-viewer", vite_port=3000):
         """运行应用
@@ -125,6 +131,97 @@ class AnkiLinkMasterApp:
         # 加载前端页面，使用Vite配置的端口和正确的入口路径
         self.main_window.load_frontend(f"http://localhost:{actual_vite_port}/{module}/index.html")
         self.main_window.show()
+        
+        # 如果是 pdf-viewer 模块，启动 PDF 加载监听器
+        if module == "pdf-viewer":
+            self.start_pdf_load_listener()
+    
+    def start_pdf_load_listener(self):
+        """启动 PDF 加载监听器线程，监听 logs/load-pdf.json 文件"""
+        if self.pdf_load_listener_running:
+            logger.warning("PDF 加载监听器已经在运行")
+            return
+            
+        # 创建监听器线程
+        self.pdf_load_listener_thread = threading.Thread(
+            target=self._pdf_load_listener_worker,
+            daemon=True,
+            name="PDFLoadListener"
+        )
+        self.pdf_load_listener_running = True
+        self.pdf_load_listener_thread.start()
+        logger.info("PDF 加载监听器已启动")
+    
+    def _pdf_load_listener_worker(self):
+        """PDF 加载监听器工作线程"""
+        logger.info("PDF 加载监听器工作线程开始运行")
+        
+        # logs 目录路径
+        logs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'logs')
+        load_pdf_file = os.path.join(logs_dir, 'load-pdf.json')
+        
+        # 确保 logs 目录存在
+        os.makedirs(logs_dir, exist_ok=True)
+        
+        # 上次文件修改时间
+        last_modified = 0
+        
+        while self.pdf_load_listener_running:
+            try:
+                # 检查文件是否存在且可读
+                if os.path.exists(load_pdf_file):
+                    current_modified = os.path.getmtime(load_pdf_file)
+                    
+                    # 如果文件被修改过
+                    if current_modified > last_modified:
+                        logger.info(f"检测到 load-pdf.json 文件被修改: {load_pdf_file}")
+                        
+                        # 读取文件内容
+                        with open(load_pdf_file, 'r', encoding='utf-8') as f:
+                            try:
+                                data = json.load(f)
+                                pdf_path = data.get('path')
+                                
+                                if pdf_path and os.path.exists(pdf_path):
+                                    logger.info(f"准备加载 PDF 文件: {pdf_path}")
+                                    
+                                    # 构建 WebSocket 消息
+                                    websocket_message = {
+                                        "type": "pdf_view_request",
+                                        "data": {
+                                            "path": pdf_path
+                                        }
+                                    }
+                                    
+                                    # 广播消息给所有前端客户端
+                                    if self.websocket_server:
+                                        self.websocket_server.broadcast_message(websocket_message)
+                                        logger.info(f"已广播 PDF 加载请求: {pdf_path}")
+                                    
+                                    # 删除 load-pdf.json 文件
+                                    os.remove(load_pdf_file)
+                                    logger.info(f"已删除 load-pdf.json 文件: {load_pdf_file}")
+                                    
+                                    # 更新最后修改时间
+                                    last_modified = current_modified
+                                    
+                                else:
+                                    logger.warning(f"load-pdf.json 中的路径无效或文件不存在: {pdf_path}")
+                                    
+                            except json.JSONDecodeError:
+                                logger.error(f"load-pdf.json 文件格式错误，无法解析为 JSON")
+                            except Exception as e:
+                                logger.error(f"处理 load-pdf.json 文件时出错: {str(e)}")
+                
+                # 等待一段时间后再次检查
+                time.sleep(1)
+                
+            except Exception as e:
+                logger.error(f"PDF 加载监听器工作线程发生错误: {str(e)}")
+                time.sleep(1)  # 出错后等待1秒再继续
+        
+        logger.info("PDF 加载监听器工作线程已停止")
+    
     def handle_send_debug_message(self):
         """处理来自UI的发送调试消息的请求"""
         logger.info("[DEBUG] 收到来自菜单的广播请求。")
@@ -132,6 +229,7 @@ class AnkiLinkMasterApp:
             "type": "debug",
             "content": "你好，这是一个来自菜单的调试消息！"
         })
+    
     def setup_websocket_handlers(self):
         """设置WebSocket消息处理程序"""
         if self.websocket_server:
@@ -185,7 +283,7 @@ class AnkiLinkMasterApp:
         # 关闭主窗口
         if self.main_window:
             self.main_window.close()
-
+    
     def send_response(self, client, data, original_message_id=None):
         """发送响应消息
         
@@ -285,8 +383,7 @@ class AnkiLinkMasterApp:
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(100, send_initial_data)
 
-
-        
+    
     def broadcast_pdf_list(self):
         """广播PDF文件列表更新"""
         try:
