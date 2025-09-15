@@ -52,7 +52,7 @@ export class PDFViewerApp {
    * @returns {Promise<void>}
    */
   async initialize() {
-    try {
+    
       this.#logger.info("Initializing PDF Viewer App...");
       this.#setupGlobalErrorHandling();
       this.#setupEventListeners();
@@ -237,7 +237,7 @@ export class PDFViewerApp {
    * @private
    */
   async #handleFileLoadRequested(fileData) {
-    try {
+    
       this.#logger.info("Handling file load request:", fileData);
 
       // 先关闭当前文件（如果有）
@@ -360,7 +360,7 @@ export class PDFViewerApp {
    * @private
    */
   async #renderPage(pageNumber) {
-    try {
+    
       this.#eventBus.emit(PDF_VIEWER_EVENTS.RENDER.PAGE_REQUESTED, {
         pageNumber,
         totalPages: this.#totalPages
@@ -526,7 +526,7 @@ export class PDFViewerApp {
    * @private
    */
   #initializeWebSocket() {
-    try {
+    
       this.#logger.info("Initializing WebSocket connection...");
       
       // 连接WebSocket服务器
@@ -609,7 +609,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   indexLogger.info("PDF.js will be loaded dynamically by PDFManager");
   console.log("[PDFViewer] PDF.js will be loaded dynamically by PDFManager");
   
-  try {
+  
     indexLogger.info("Starting PDFViewer App initialization...");
     console.log("[PDFViewer] Starting PDFViewer App initialization...");
 
@@ -626,9 +626,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.log("[PDFViewer] PDFViewer App initialized successfully");
     console.log("[PDFViewer] PDFViewerApp ready for use");
 
-    // 自动加载测试PDF文件
-    console.log("[PDFViewer] Attempting to load test PDF...");
-    try {
+    // 注释：移除自动加载测试PDF文件的代码，以避免干扰正常FilePath加载流程。
+    
+    
       const testPdfData = {
         filename: "test.pdf",
         url: "/test.pdf",
@@ -639,9 +639,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       app.getEventBus().emit(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, testPdfData, {
         actorId: 'PDFViewerApp'
       });
-      console.log("[PDFViewer] Test PDF load request sent");
+      
     } catch (loadError) {
-      console.error("[PDFViewer] Failed to load test PDF:", loadError);
+      
     }
 
   } catch (error) {

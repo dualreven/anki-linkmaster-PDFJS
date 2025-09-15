@@ -13,6 +13,8 @@
 2. 后端自实现的 HTTP 服务尚未完全支持 HTTP Range 请求，无法满足 PDF.js 的按需加载需求。
 3. 前端测试环境（Jest/jsdom）缺少 IndexedDB 支持，导致大量测试失败，需要在测试配置引入 fake-indexeddb 或在代码中做降级处理。
 4. Vite 代理配置中的 target 硬编码为静态端口，未动态从 logs/http-server-port.txt 读取实际 HTTP 服务端口，导致代理 failure 和前端提示找不到 PDF 文件。
+5. **紧急：**PDF文件名错误替换问题。运行 `.\ai-launcher.ps1 start -Module pdf-viewer -FilePath data\pdfs\test-file.pdf` 时，正确PDF显示500ms后被"test.pdf"覆盖报MissingPDFException。原因：src/frontend/pdf-viewer/main.js第629-645行硬编码自动加载测试PDF "/test.pdf"，覆盖正常FilePath加载。</search>
+</search_and_replace>
 
 ## 相关模块与文件
 
