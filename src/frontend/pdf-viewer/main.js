@@ -52,7 +52,7 @@ export class PDFViewerApp {
    * @returns {Promise<void>}
    */
   async initialize() {
-    
+    try{
       this.#logger.info("Initializing PDF Viewer App...");
       this.#setupGlobalErrorHandling();
       this.#setupEventListeners();
@@ -625,7 +625,5 @@ document.addEventListener("DOMContentLoaded", async () => {
     indexLogger.info("PDFViewer App initialized successfully");
     console.log("[PDFViewer] PDFViewer App initialized successfully");
     console.log("[PDFViewer] PDFViewerApp ready for use");
-
-
   
 });
