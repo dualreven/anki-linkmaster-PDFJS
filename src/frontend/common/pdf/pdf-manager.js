@@ -98,15 +98,6 @@ export class PDFManager {
         (data) => this.#handleResponse(data),
         { subscriberId: "PDFManager" }
       ),
-      this.#eventBus.on(
-        WEBSOCKET_EVENTS.MESSAGE.RECEIVED,
-        (message) =>
-          this.#logger.debug(
-            `Received WebSocket message: ${message.type}`,
-            message
-          ),
-        { subscriberId: "PDFManager" }
-      ),
     ];
     this.#unsubscribeFunctions.push(...listeners);
   }

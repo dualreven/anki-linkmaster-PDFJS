@@ -33,12 +33,17 @@
 
 ## 近期原子任务（按优先级排序）
 
-1. 前端加载逻辑完善：处理 load_pdf_file 消息并使用代理 URL (/pdfs/{filename}) 加载 PDF（含错误处理与重试）
+1. ✅ **修复WebSocket消息分发问题** (2025-09-15T11:00): pdf-viewer模块不再错误接收全部PDF数据记录
+   - 已修改事件系统：添加LOAD_PDF_FILE事件常量，停止通用MESSAGE.RECEIVED广播，只发送特定事件
+   - 修改文件：src/frontend/common/event/event-constants.js, src/frontend/common/ws/ws-client.js, src/frontend/pdf-viewer/main.js
+   - 额外修复：从PDFManager移除泛用MESSAGE.RECEIVED订阅，确保pdf-home完全不受影响
+   - 修改文件：src/frontend/common/pdf/pdf-manager.js
+2. 前端加载逻辑完善：处理 load_pdf_file 消息并使用代理 URL (/pdfs/{filename}) 加载 PDF（含错误处理与重试）
    - 修改文件：src/frontend/pdf-viewer/pdf-manager.js, src/frontend/common/pdf/pdf-manager.js
-2. 修复前端测试：为 Jest 引入 fake-indexeddb（或在 setup 文件中 mock）
+3. 修复前端测试：为 Jest 引入 fake-indexeddb（或在 setup 文件中 mock）
    - 修改文件：package.json (devDependencies), jest.setup.js, jest.config.js
-3. 回归与集成测试：端到端验证 ai-launcher -> 后端 -> 前端 的流程
-4. 接口统一与清理：统一 pdf_manager.add_file 的返回值，并补充类型注解
+4. 回归与集成测试：端到端验证 ai-launcher -> 后端 -> 前端 的流程
+5. 接口统一与清理：统一 pdf_manager.add_file 的返回值，并补充类型注解
 
 ## 执行步骤（本次会话计划）
 
@@ -63,7 +68,8 @@
 
 - 2025-09-15T14:46:32+08:00: 在 vite.config.js 中更新 /pdfs 代理配置（continuous-agent）。
 - 2025-09-15T14:48:11+08:00: 在 src/backend/http_server.py 中实现 HTTP Range 支持与请求头解析（continuous-agent）。
-- 2025-09-15T18:19:29+08:00: 修改 vite.config.js 为动态读取 logs/http-server-port.txt 获取代理目标端口（continuous-agent）。</search>
+- 2025-09-15T18:19:29+08:00: 修改 vite.config.js 为动态读取 logs/http-server-port.txt 获取代理目标端口（continuous-agent）。
+- 2025-09-15T18:39:00+08:00: 修复PDF加载重试无限循环，禁用了无限重试事件处理器，并增强了失败日志（continuous-agent）。</search>
 </search_and_replace>
 
 ----

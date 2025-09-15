@@ -129,9 +129,6 @@ export class WSClient {
     try {
       const message = JSON.parse(rawData);
       this.#logger.debug(`Received message: ${message.type}`, message);
-      this.#eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, message, {
-        actorId: "WSClient",
-      });
       let targetEvent = null;
       switch (message.type) {
         case "pdf_list_updated":
@@ -139,6 +136,9 @@ export class WSClient {
           break;
         case "pdf_list":
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.PDF_LIST;
+          break;
+        case "load_pdf_file":
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.LOAD_PDF_FILE;
           break;
         case "pdf_detail_response":
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;

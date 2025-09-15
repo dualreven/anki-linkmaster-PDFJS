@@ -96,8 +96,8 @@ export class PDFViewerApp {
    * @private
    */
   #setupEventListeners() {
-    // WebSocket消息接收事件
-    this.#eventBus.on(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, (message) => {
+    // 特定WebSocket消息接收事件
+    this.#eventBus.on(WEBSOCKET_MESSAGE_EVENTS.LOAD_PDF_FILE, (message) => {
       this.#handleWebSocketMessage(message);
     });
 
