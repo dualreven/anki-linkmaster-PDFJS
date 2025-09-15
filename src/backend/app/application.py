@@ -294,27 +294,21 @@ class AnkiLinkMasterApp:
                     }
                 })
                 logger.info(f"[DEBUG] 初始数据发送完成，包含 {len(pdfs)} 个文件")
-                
-                # 如果有文件路径参数，发送给前端
+
+                # 如果有文件路径参数，发送给前端 (解耦设计)
                 if hasattr(self, 'file_path') and self.file_path:
-                    logger.info(f"[DEBUG] 发送文件路径给前端: {self.file_path}")
-                    # 获取文件ID（通过文件名查找）
-                    filename = os.path.basename(self.file_path)
-                    file_id = None
-                    for pdf_file in self.pdf_manager.get_files():
-                        if pdf_file.get('filename') == filename:
-                            file_id = pdf_file.get('id')
-                            break
-                    
-                    if file_id:
-                        self.websocket_server.send_message(client, {
-                            'type': 'load_pdf_file',
-                            'data': {
-                                'fileId': file_id,
-                                'filename': filename,
-                                'url': f"/pdfs/{filename}"
-                            }
-                        })
+                     logger.info(f"[DEBUG] 发送文件路径给前端: {self.file_path}")
+                     filename = os.path.basename(self.file_path)
+
+                     # pdf-viewer 模块负责处理文件，消息队列确保初始化完成前处理
+                     self.websocket_server.send_message(client, {
+                         'type': 'load_pdf_file',
+                         'data': {
+                             'file_path': self.file_path,  # 原完整路径
+                             'filename': filename,         # 仅作为参考
+                             'url': f"/pdfs/{filename}"    # Vite代理路径
+                         }
+                     })
             except Exception as e:
                 logger.error(f"发送初始数据失败: {str(e)}")
         from PyQt6.QtCore import QTimer

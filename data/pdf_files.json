@@ -239,6 +239,22 @@
       "thumbnail_path": null,
       "tags": [],
       "notes": ""
+    },
+    "7f03d9b070d8": {
+      "id": "7f03d9b070d8",
+      "filename": "7f03d9b070d8.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\7f03d9b070d8.pdf",
+      "file_size": 155721,
+      "created_time": 1757926851.93765,
+      "modified_time": 1757227533.302337,
+      "title": "test",
+      "author": "CNKI",
+      "subject": "",
+      "keywords": "",
+      "page_count": 2,
+      "thumbnail_path": null,
+      "tags": [],
+      "notes": ""
     }
   }
 }

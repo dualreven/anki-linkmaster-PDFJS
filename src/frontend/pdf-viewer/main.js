@@ -195,17 +195,36 @@ export class PDFViewerApp {
    * @private
    */
   #handleLoadPdfFileMessage(data) {
-    if (data && data.fileId && data.filename && data.url) {
-      this.#logger.info(`Received load PDF file request: ${data.filename}`);
-      
-      // 触发文件加载事件
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, {
-        filename: data.filename,
-        url: data.url,
-        fileId: data.fileId
-      }, { actorId: 'WebSocket' });
+    // 支持新消息格式 (file_path) 和旧格式 (fileId)
+    let fileData = null;
+
+    if (data && data.filename && data.url) {
+      if (data.file_path) {
+        // 新格式：使用 file_path
+        fileData = {
+          file_path: data.file_path,
+          filename: data.filename,
+          url: data.url
+        };
+      } else if (data.fileId) {
+        // 旧格式：保持兼容性
+        fileData = {
+          filename: data.filename,
+          url: data.url,
+          fileId: data.fileId
+        };
+      }
+
+      if (fileData) {
+        this.#logger.info(`Received load PDF file request: ${data.filename}`);
+
+        // 触发文件加载事件
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, fileData, { actorId: 'WebSocket' });
+      } else {
+        this.#logger.warn('Invalid load_pdf_file message format:', data);
+      }
     } else {
-      this.#logger.warn('Invalid load_pdf_file message format:', data);
+      this.#logger.warn('Invalid load_pdf_file message format (missing required fields):', data);
     }
   }
 
@@ -217,7 +236,7 @@ export class PDFViewerApp {
   async #handleFileLoadRequested(fileData) {
     try {
       this.#logger.info("Handling file load request:", fileData);
-      
+
       // 先关闭当前文件（如果有）
       if (this.#currentFile) {
         await this.#handleFileClose();
@@ -226,6 +245,12 @@ export class PDFViewerApp {
       // 显示加载状态
       this.#uiManager.showLoading(true);
       this.#uiManager.updateProgress(0, '开始加载');
+
+      // 支持新消息格式 (file_path 优先)
+      if (fileData.file_path) {
+        this.#logger.info("Detected file_path in request, constructing proxy URL");
+        fileData.url = `/pdfs/${encodeURIComponent(fileData.filename)}`;
+      }
 
       // 加载PDF文档
       const pdfDocument = await this.#pdfManager.loadPDF(fileData);

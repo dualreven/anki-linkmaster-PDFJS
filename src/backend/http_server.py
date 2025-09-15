@@ -44,8 +44,8 @@ class HttpFileServer(QObject):
             listen_ok = False
             listen_attempts = []
 
-            # 候选端口：首选 self.port，再尝试常见备用端口，最后尝试 0（系统分配）
-            try_ports = [int(self.port), 8082, 0]
+            # 候选端口：首选 self.port，再尝试常见备用端口，不要最后尝试 0（系统分配会导致端口不一致）
+            try_ports = [int(self.port), 8082]
 
             for attempt_port in try_ports:
                 listen_attempts.append(f"尝试端口: {attempt_port}")
@@ -216,7 +216,7 @@ class HttpFileServer(QObject):
             except Exception as log_e:
                 logger.warning(f"写入请求异常日志失败: {log_e}")
             try:
-                self.send_response(socket, 500, 'Internal Server Error', '{"error': "Internal server error"}')
+                self.send_response(socket, 500, 'Internal Server Error', '{"error": "Internal server error"}')
             except Exception:
                 # 如果响应发送也失败，确保socket清理
                 try:

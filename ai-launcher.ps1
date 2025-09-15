@@ -194,7 +194,7 @@ switch ($Action.ToLower()) {
         Write-Host ""
         Write-Host "Log files:" -ForegroundColor White
         Write-Host "- npm log: logs\npm-dev.log" -ForegroundColor White
-        Write-Host "- debug log: logs\debug.log" -ForegroundColor White
+        Write-Host "- debug log: logs\debug-console-at-9222.log" -ForegroundColor White
         Write-Host "- app log: logs\app.log" -ForegroundColor White
         Write-Host "- module log: logs\$Module.log" -ForegroundColor White
         Write-Host ""
@@ -234,7 +234,7 @@ switch ($Action.ToLower()) {
         
         $logFiles = @(
             "logs\npm-dev.log",
-            "logs\debug.log",
+            "logs\debug-console-at-9222.log",
             "logs\app.log",
             "logs\$Module.log"
         )
