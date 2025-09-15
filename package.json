@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "jest"
+    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js"
     },
   "devDependencies": {
     "@babel/plugin-proposal-class-properties": "^7.18.6",

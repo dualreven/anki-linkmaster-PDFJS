@@ -103,51 +103,97 @@ export class PDFManager {
    * @returns {Promise<Object>} PDF文档对象
    */
   async loadPDF(fileData) {
-    try {
-      this.#logger.info("Loading PDF document:", fileData.filename);
-      console.log(`[PDFManager] Loading PDF document: ${fileData.filename}`);
-      
-      // 清理之前的文档
-      this.cleanup();
-      
-      let pdfData;
-      
-      if (fileData.url) {
-        // 从URL加载
-        this.#logger.info("Loading PDF from URL:", fileData.url);
-        console.log(`[PDFManager] Loading PDF from URL: ${fileData.url}`);
-        pdfData = await this.#loadFromURL(fileData.url);
-      } else if (fileData.arrayBuffer) {
-        // 从ArrayBuffer加载
-        this.#logger.info("Loading PDF from ArrayBuffer");
-        console.log("[PDFManager] Loading PDF from ArrayBuffer");
-        pdfData = await this.#loadFromArrayBuffer(fileData.arrayBuffer);
-      } else if (fileData.blob) {
-        // 从Blob加载
-        this.#logger.info("Loading PDF from Blob");
-        console.log("[PDFManager] Loading PDF from Blob");
-        pdfData = await this.#loadFromBlob(fileData.blob);
-      } else {
-        throw new Error("Unsupported file data format");
+    const maxRetries = 3;
+    const retryDelayMs = 500;
+    const filename = fileData && fileData.filename ? fileData.filename : null;
+
+    // 如果仅传入 filename 而没有 url，则使用开发代理相对路径
+    if (!fileData.url && filename) {
+      // 使用相对路径 /pdfs/{filename}，由 Vite dev server 代理到后端
+      fileData.url = `/pdfs/${encodeURIComponent(filename)}`;
+      this.#logger.debug(`Constructed proxy URL for filename ${filename}: ${fileData.url}`);
+    }
+
+    // 确保 PDF.js 已加载；若未加载尝试初始化
+    if (!this.#pdfjsLib) {
+      this.#logger.warn("PDF.js library not loaded yet, attempting to initialize before loading PDF");
+      try {
+        await this.initialize();
+      } catch (initErr) {
+        this.#logger.error("Failed to initialize PDFManager before load:", initErr);
+        // 继续，让下面的重试逻辑处理
       }
-      
-      this.#currentDocument = pdfData;
-      this.#pagesCache.clear();
-      
-      this.#logger.info(`PDF document loaded successfully. Pages: ${pdfData.numPages}`);
-      console.log(`[PDFManager] PDF document loaded successfully. Pages: ${pdfData.numPages}`);
-      
-      // Log document information
-      const docInfo = this.getDocumentInfo();
-      this.#logger.info("Document information:", docInfo);
-      console.log("[PDFManager] Document information:", JSON.stringify(docInfo));
-      
-      return pdfData;
-      
-    } catch (error) {
-      this.#logger.error("Failed to load PDF document:", error);
-      console.error("[PDFManager] Failed to load PDF document:", error);
-      throw error;
+    }
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        this.#logger.info(`Loading PDF document (attempt ${attempt}):`, filename || fileData.url);
+        console.log(`[PDFManager] Loading PDF document (attempt ${attempt}): ${filename || fileData.url}`);
+
+        // 清理之前的文档
+        this.cleanup();
+
+        let pdfData;
+
+        if (fileData.url) {
+          // 从URL加载
+          this.#logger.info("Loading PDF from URL:", fileData.url);
+          console.log(`[PDFManager] Loading PDF from URL: ${fileData.url}`);
+          pdfData = await this.#loadFromURL(fileData.url);
+        } else if (fileData.arrayBuffer) {
+          // 从ArrayBuffer加载
+          this.#logger.info("Loading PDF from ArrayBuffer");
+          console.log("[PDFManager] Loading PDF from ArrayBuffer");
+          pdfData = await this.#loadFromArrayBuffer(fileData.arrayBuffer);
+        } else if (fileData.blob) {
+          // 从Blob加载
+          this.#logger.info("Loading PDF from Blob");
+          console.log("[PDFManager] Loading PDF from Blob");
+          pdfData = await this.#loadFromBlob(fileData.blob);
+        } else {
+          throw new Error("Unsupported file data format");
+        }
+
+        this.#currentDocument = pdfData;
+        this.#pagesCache.clear();
+
+        this.#logger.info(`PDF document loaded successfully. Pages: ${pdfData.numPages}`);
+        console.log(`[PDFManager] PDF document loaded successfully. Pages: ${pdfData.numPages}`);
+
+        // Log document information
+        const docInfo = this.getDocumentInfo();
+        this.#logger.info("Document information:", docInfo);
+        console.log("[PDFManager] Document information:", JSON.stringify(docInfo));
+
+        return pdfData;
+      } catch (error) {
+        this.#logger.error(`Failed to load PDF document on attempt ${attempt}:`, error);
+        console.error(`[PDFManager] Failed to load PDF document on attempt ${attempt}:`, error);
+
+        // 如果未达到最大重试次数，则发出重试事件并等待一段时间再重试
+        if (attempt < maxRetries) {
+          try {
+            this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.RETRY, { filename, attempt }, { actorId: 'PDFManager' });
+          } catch (emitErr) {
+            // 忽略事件发射错误
+            this.#logger.warn("Failed to emit retry event:", emitErr);
+          }
+          await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+          continue;
+        }
+
+        // 最后一次失败，抛出错误并发出失败事件
+        try {
+          this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.FAILED, {
+            filename,
+            error: error && error.message ? error.message : String(error)
+          }, { actorId: 'PDFManager' });
+        } catch (emitErr) {
+          this.#logger.warn("Failed to emit load failed event:", emitErr);
+        }
+
+        throw error;
+      }
     }
   }
 

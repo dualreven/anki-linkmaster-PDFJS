@@ -1,214 +1,98 @@
-
 # 当前工作上下文
 
 ## 工作焦点
 
-- **主要任务**：AI启动器文件路径参数传递功能
-- **当前状态**：ai-launcher.ps1 已支持文件路径参数，后端已接收参数
-- **下一步**：实现前端文件加载和Vite代理配置
-- **优先级**：高 - 实现从命令行直接加载PDF文件的功能
+- 主要任务：实现从 ai-launcher 传入的 PDF 文件路径到前端 PDF Viewer 的端到端加载支持（包括 Vite 代理和后端 HTTP 服务的 Range 支持）。
+- 当前状态：ai-launcher.ps1 已支持 FilePath 参数；后端能够接收参数并准备发送 WebSocket 加载消息；Vite 与前端模块可启动。
+- 上次操作：已重置对话计数文件 AItemp/AI_DIALOG_COUNT.json（当前计数 2，时间：2025-09-15T14:48:11+08:00）。
+- 优先级：高
 
-## 未来开发计划
+## 问题描述（当前需要解决的核心问题）
 
-### 近期任务（高优先级）
-1. **Vite代理配置**：配置Vite将/pdf/请求代理到PyQt HTTP服务器
-2. **PyQt6 HTTP文件服务器**：实现基于PyQt6的HTTP文件服务
-3. **前端文件加载优化**：完善文件加载逻辑和错误处理
+1. 开发环境下前端无法直接通过命令行传入的本地文件路径加载 PDF，需要通过 HTTP 服务与 Vite 代理桥接。
+2. 后端自实现的 HTTP 服务尚未完全支持 HTTP Range 请求，无法满足 PDF.js 的按需加载需求。
+3. 前端测试环境（Jest/jsdom）缺少 IndexedDB 支持，导致大量测试失败，需要在测试配置引入 fake-indexeddb 或在代码中做降级处理。
 
-### 架构规划（中期）
-1. **Anki插件适配**：为生产环境准备纯PyQt6解决方案
-2. **模块间文件传递**：实现pdf-home → pdf-viewer的文件传递机制
-3. **性能优化**：支持Range请求和流式加载
+## 相关模块与文件
 
-### 技术决策
-- **文件传输方式**：HTTP优于WebSocket（性能更好）
-- **开发阶段**：使用Vite代理解决跨域问题
-- **生产环境**：PyQt6 HTTP服务器直接提供文件服务
-- **URL设计**：使用相对路径 `/pdfs/{fileId}`
+- 启动器：ai-launcher.ps1
+- 后端：src/backend/main.py, src/backend/app/application.py, src/backend/http_server.py, src/backend/pdf_manager/*
+- 前端（PDF Viewer）：src/frontend/pdf-viewer/pdf-manager.js, src/frontend/pdf-viewer/main.js, src/frontend/pdf-viewer/page-transfer-manager.js
+- 公共前端：src/frontend/common/pdf/pdf-manager.js, src/frontend/common/utils/indexeddb-cache-manager.js
+- 构建/测试：vite.config.js, package.json, jest.config.js, jest.setup.js
 
-## 最近变化
+## 已完成项（摘要）
 
-- ✅ **文件路径参数支持**：ai-launcher.ps1 支持 -FilePath 参数
-- ✅ **后端参数接收**：main.py和application.py已接收文件路径参数
-- ✅ **WebSocket消息准备**：后端已准备发送文件加载消息
+- ai-launcher.ps1 已实现 -FilePath 与 -Module 参数，能够启动指定模块和端口并创建日志。
+- 后端已接收启动参数并准备触发 load_pdf_file WebSocket 消息。
+- Vite 已能在指定端口启动，pdf-home 和 pdf-viewer 模块可独立运行。
+- 已完成的本次更改：
+  - 在 vite.config.js 中完善了 /pdfs 代理配置（增加 secure: false, ws: false，保持路径重写为 /pdfs/{filename}），便于在开发环境通过 Vite 访问后端 PyQt HTTP 服务。
+  - 在 src/backend/http_server.py 中增强了请求头解析并实现了对 HTTP Range 的支持（返回 206 Partial Content，解析 suffix 与区间请求，增加 Accept-Ranges/Content-Range 响应头）。
 
-## 最近变化
+## 近期原子任务（按优先级排序）
 
-- ✅ **✅ AI启动器模块切换功能**：成功将模块切换功能集成到 ai-launcher.ps1 中
-  - 支持 `-Module {pdf-home|pdf-viewer}` 参数
-  - 支持 `-Port PORT` 参数自定义Vite端口
-  - 自动创建模块特定的日志文件
-  - 完整的帮助文档和使用示例
-- ✅ 移除了 tech.md 中 python app.py 的手动调试用法
-- ✅ 更新了最佳实践指南，推荐使用 ai-launcher.ps1 作为唯一启动方式
+1. 前端加载逻辑完善：处理 load_pdf_file 消息并使用代理 URL (/pdfs/{filename}) 加载 PDF（含错误处理与重试）
+   - 修改文件：src/frontend/pdf-viewer/pdf-manager.js, src/frontend/common/pdf/pdf-manager.js
+2. 修复前端测试：为 Jest 引入 fake-indexeddb（或在 setup 文件中 mock）
+   - 修改文件：package.json (devDependencies), jest.setup.js, jest.config.js
+3. 回归与集成测试：端到端验证 ai-launcher -> 后端 -> 前端 的流程
+4. 接口统一与清理：统一 pdf_manager.add_file 的返回值，并补充类型注解
 
-## 功能特性
+## 执行步骤（本次会话计划）
 
-### ai-launcher.ps1 新功能
-- **模块切换**: 支持 pdf-home (文件管理) 和 pdf-viewer (PDF阅读器) 模块
-- **端口配置**: 支持自定义Vite开发服务器端口
-- **智能日志**: 自动创建模块特定的日志文件
-- **完整文档**: 详细的帮助信息和使用示例
+- 步骤 0：重置并记录对话计数（已完成：AItemp/AI_DIALOG_COUNT.json = {"count":2}，时间：2025-09-15T14:48:11+08:00）。
+- 步骤 1：已创建并应用 vite.config.js 的修改（添加 /pdfs 代理优化，文件：vite.config.js）。
+- 步骤 2：已实现后端 HTTP Range 支持（文件：src/backend/http_server.py）。
+- 步骤 3：下一步将实现前端加载逻辑的修改（准备生成 apply_diff）。
+- 步骤 4：随后修复并运行前端测试（添加 fake-indexeddb 并运行 npm test）。
 
-### 使用方法
-```bash
-# 默认启动 (pdf-viewer 模块，端口3000)
-.\ai-launcher.ps1 start
+## 当前阻塞/风险
 
-# 启动 pdf-home 模块，端口3001
-.\ai-launcher.ps1 start -Module pdf-home -Port 3001
+- 需要在修改前创建并推送分支（请在本地 git 执行 branch/commit；若需要我可生成 apply_diff 供你应用）。
+- PyQt QTcpServer 实现的 HTTP 服务对 Range 的实现细节复杂，需要谨慎测试以避免回归。
+- 若在 CI 或开发机器上运行 npm test，可能需较长时间，注意资源使用。
 
-# 启动 pdf-viewer 模块，端口3002
-.\ai-launcher.ps1 start -Module pdf-viewer -Port 3002
+## 建议的下一步（需你确认）
 
-# 查看帮助
-.\ai-launcher.ps1 help
-```
+- 我将生成前端修改的 apply_diff（src/frontend/pdf-viewer/pdf-manager.js），实现：处理 load_pdf_file 消息、构建代理 URL (http://localhost:3000/pdfs/{filename})、并在 viewer 未就绪时重试。你同意我按此操作并提交修改吗？
 
-## 验证结果
-- ✅ pdf-home 模块成功启动在端口3001
-- ✅ pdf-viewer 模块成功启动在端口3002
-- ✅ Vite服务器正确使用指定端口
-- ✅ 模块日志文件正确创建和记录
-- ✅ 所有服务进程正确管理
+## 记录更新历史
 
-## 最佳实践更新
-- **推荐**: 总是使用 `.\ai-launcher.ps1 start` 启动开发环境
-- **禁止**: 直接执行 `npm run dev`、`python app.py` 等阻塞命令
-- **理由**: ai-launcher.ps1 确保进程不会阻塞自动化流程
+- 2025-09-15T14:46:32+08:00: 在 vite.config.js 中更新 /pdfs 代理配置（continuous-agent）。
+- 2025-09-15T14:48:11+08:00: 在 src/backend/http_server.py 中实现 HTTP Range 支持与请求头解析（continuous-agent）。
 
-## 下一步计划
+----
 
-1. **PDF阅读器集成**：将PDF.js完全集成到现有的事件驱动架构中
-2. **智能卡片生成**：实现从PDF内容自动提取重要信息的功能
-3. **搜索与筛选**：添加全文搜索和高级筛选功能
-4. **批量操作**：实现批量处理PDF文件的能力
+请回复确认是否允许我生成并应用前端 pdf-manager 的修改 apply_diff，或给出其他指示。
+---
 
-## 技术债务
+### 临时变更记录（2025-09-15T16:39:47+08:00）
+**变更人**: continuous-agent  
+**描述**: 针对后端 HTTP 文件服务器的可观察性与错误保护进行了两项安全修补，并将变更记录到 memory-bank：
+1. 启动成功后将实际监听端口写入 logs/http-server-port.txt（覆盖），便于外部进程或 Vite 代理动态读取并同步目标端口。  
+   - 修改文件: src/backend/http_server.py  
+   - 目的: 解决后端使用临时端口（例如 54825）而 Vite 代理仍指向静态端口（如 8080）导致代理转发失败的问题。
+2. 加强 send_response 的异常捕获与诊断日志写入。  
+   - 修改文件: src/backend/http_server.py  
+   - 目的: 在 socket.write 或 disconnect 阶段发生异常时，将 traceback 追加到 logs/http-server-error.log，避免出现无诊断信息的 500 错误，便于后续定位（尤其是在代理出现 Unexpected server response (500) 场景下）。
 
-- 需要完善PDF元数据提取功能
-- 考虑添加更多单元测试覆盖
-- 性能优化空间（特别是大数据集处理）
+**实现结果（本地）**:
+- 已修改并保存: src/backend/http_server.py（写入 port 文件与增加 send_response 的异常记录逻辑）。
+- 下次启动后应在 logs/http-server-port.txt 中看到实际端口号（例如: 54825）。
+- 增强的异常记录会向 logs/http-server-error.log 追加详细堆栈信息（当写入或断开失败时）。
 
-## 风险点
+**后续建议与验证步骤**:
+- 重启服务：使用 .\ai-launcher.ps1 stop ; .\ai-launcher.ps1 start ... 启动后端（或完整重启 ai-launcher）。
+- 检查日志与端口文件：
+  - cat logs/http-server-port.txt → 确认端口号。
+  - curl http://localhost:{port}/health → 应返回 200 JSON。
+  - curl -I http://localhost:{port}/pdfs/{filename}.pdf → 应返回 200 或支持 Range 的 206 响应头。
+- 如果端口与 Vite 代理不一致，请将 vite.config.js 的 /pdfs 代理 target 更新为 http://localhost:{port} 或让启动器在启动完成后自动读取 logs/http-server-port.txt 并更新代理配置（推荐自动同步）。
+- 若仍然看到前端报 Unexpected server response (500)，请抓取并附上 logs/http-server-error.log 内的新条目（若有）以便进一步分析。
 
-- PDF.js与现有事件系统的集成复杂度
-- 跨平台兼容性（QtWebEngine的PDF.js支持）
-- 内存管理（处理大型PDF文件时的性能）
-- 2025-09-14T17:35:26+08:00: 启动自动化测试计划。目标：运行前端单元测试 (npm test)，将 Jest 输出保存到 logs/jest-output.log，并在测试完成后分析失败用例。发起者：continuous-agent；理由：验证最近对事件常量与 emit(null) 修复在真实测试下是否生效。
-  2025-09-14T17:44:14+08:00: 自动化测试运行结果摘要：
-- 操作：在项目根运行 npm test，将输出写入 logs/jest-output.log。
-- 结果：测试全部运行完毕。Summary: 27 个测试套件失败，5 个通过；总测试 344 个（225 失败，119 通过）。
-- 主要失败簇（初步分析）：
-  1. 大量失败来自 src/frontend/common/utils/indexeddb-cache-manager 的测试（IndexedDB 初始化 / onupgradeneeded 导致的 createIndex 报错：TypeError: Cannot read properties of undefined (reading 'createIndex')）。
-  2. 报错与 jsdom 下缺失或未 mock 的 IndexedDB API 高度相关（导致 objectStore 未按预期创建，随之触发多个 beforeEach/钩子超时）。
-- 初步结论与建议：
-  - 问题并非由先前修复的 PDF_VIEWER_EVENTS 事件常量引起；是测试环境（Jest/jsdom）对 IndexedDB 支持不足或缺少 polyfill/mock。
-  - 建议方案（优先级）：
-    1) 在测试环境引入 fake-indexeddb（或 fake-indexeddb/auto），并通过 jest 的 setupFiles 全局引入，使 Node/jsdom 在测试时拥有 IndexedDB API；这是最小改动且对现有实现侵入性最低的方案。
-    2) 若不愿意引入 polyfill，可在测试中单独 mock window.indexedDB，或在 IndexedDBCacheManager 的 initialize 中对缺失 indexedDB 做降级处理（使用内存实现或跳过相关逻辑），不过这可能影响实现验证的完整性。
-    3) 修改后需重新运行 npm test，优先关注之前因 IndexedDB 导致的连锁失败是否消除。
-- 后续步骤（待执行）：
-  - 创建修复子任务：在 devDependencies 中添加 fake-indexeddb 并在 jest.setup.js 或 jest.config.js 的 setupFiles 中引入 'fake-indexeddb/auto'；提交分支并运行测试验证。
-  - 若你同意，我将创建该子任务（new_task mode=continuous-agent），并在获准后提交 apply_diff 修改（先创建分支并 commit 快照的流程需遵循项目规范）。
+**记录更新人提醒**:
+- 这是一次中等风险但可逆的后端增强：若写入 port 文件或在 send_response 中写日志导致新的异常，可回退为之前版本（请参照 git commit 历史或让我生成回退 diff）。
+- 是否需要我继续：1) 修改启动器以读取 logs/http-server-port.txt 并自动更新 vite 配置；2) 或者生成一个小脚本由 ai-launcher 在启动后写入/通知前端代理（new_task: mode=code）？请指示。
 
-## Git 状态（自动更新）
-
-- 当前分支: feat/pdfjs-init-logging
-- 工作区状态: 已提交所有修改
-- 最近提交:
-  - commit: 7a29626
-  - date: 2025-09-14 22:32:58 +0800
-  - message: 修复PDF-viewer中重复canvas问题，优化UIManager复用逻辑，更新context.md记录修复过程
-
-## 操作说明（建议）
-
-- 请在继续前确认是否需要将上述修改提交到版本库。常见选项：
-  1. 提交（git add ...; git commit -m "..."; git push）
-  2. 若为临时更改，可使用 git stash 保存
-- 我将重置 AItemp/AI_DIALOG_COUNT.json 的计数（见下），并在文件更新后记录操作日志到 context.md
-
-## 自动更新记录
-- 2025-09-14T18:57:12+08:00: 将 Git 状态写入 context.md 并重置 AItemp/AI_DIALOG_COUNT.json（count -> 0）。由 continuous-agent 执行.
-
-
-- 2025-09-14: 修复 PDF-viewer 事件常量缺失导致 UIManager 在 #handleResize 时 emit(undefined) 的问题。变更文件：src/frontend/common/event/pdf-viewer-constants.js（新增 UI.RESIZED、调整 UI.TOOLBAR_TOGGLE 命名）；此外对 constants 的命名进行了规范化，确保所有事件名满足 EventBus 验证规则（形如 module:namespace:event）。
-
-2025-09-14T19:26:18+08:00: 检查任务 - 验证 PDF-viewer 模块原子规范文件完整性
-- 操作：对比 src/frontend/pdf-viewer/docs/SPEC/SPEC-HEAD-pdf-viewer.json 中 private 列表与目录 src/frontend/pdf-viewer/docs/SPEC/ 下的实际文件。
-- 结果：已验证，以下原子规范文件均存在（无缺失）：
-  - PDF-VIEWER-STRUCTURE-001.md
-  - PDF-VIEWER-EVENT-HANDLING-001.md
-  - PDF-VIEWER-PDFJS-INTEGRATION-001.md
-  - PDF-VIEWER-QTWEBENGINE-ADAPTATION-001.md
-  - PDF-VIEWER-VITE-INTEGRATION-001.md
-  - PDF-VIEWER-WEBSOCKET-CONTRACT-001.md
-  - PDF-VIEWER-TEST-PLAN-001.md
-- 其它操作：已将 AItemp/AI_DIALOG_COUNT.json 重置为 0（见 AItemp/AI_DIALOG_COUNT.json）。
-- 建议：是否需要我基于 docs/AI-docs-schema/atom-spec.example.md 模板，为上述规范补充“正向例/反向例/验证步骤”的详细示例与代码片段？若需要，请回复“补充详细原子规范”或指定优先补充的规范 ID。
-- 2025-09-14T20:05:05+08:00: 为 UIManager 复用 canvas 问题新增 jsdom 单元测试。
-  - 文件：tests/frontend/pdf-viewer/ui-manager.spec.js
-  - 目的：验证 UIManager 在容器已存在 id="pdf-canvas" 的 canvas 时不会创建重复的 canvas 元素，而是复用已有元素。
-  - 测试要点：
-    1. 在 DOM 中预先创建一个带 id="pdf-canvas" 的 canvas（模拟 index.html 的静态 canvas）。
-    2. 导入并初始化 UIManager（尽可能兼容默认导出 / 命名导出 / 类构造签名）。
-    3. 断言初始化后 document.querySelectorAll('#pdf-canvas').length === 1 且返回的元素严格等于最初的静态 canvas。
-  - 验证建议：
-    1. 在本地运行：npm test -- tests/frontend/pdf-viewer/ui-manager.spec.js
-    2. 若测试因模块导入/初始化接口差异失败，请检查 src/frontend/pdf-viewer/ui-manager.js 的导出方式并在测试中适配（测试中已采用多种尝试路径以兼容常见导出形式）。
-  - 下一步建议：将该测试加入 CI 路径；如果出现 Jest/jsdom 环境对 IndexedDB 的其他失败，请按既定计划引入 fake-indexeddb 并在 jest.setup.js 中通过 'fake-indexeddb/auto' 做全局 polyfill。
-
-  - 2025-09-14T19:56:09+08:00: 修复 PDF-viewer 中重复 canvas (id="pdf-canvas") 问题。
-  - 问题描述：在渲染 /pdf-viewer/index.html 时页面上出现两个具有相同 id="pdf-canvas" 的 canvas 元素。根因是 index.html 中静态包含了一个 canvas（id="pdf-canvas"），而 UIManager 初始化逻辑无条件创建并 append 了另一个同 id 的 canvas，导致 DOM 中存在重复 id，引发渲染/交互异常。
-  - 修改内容：
-    - 修改文件：src/frontend/pdf-viewer/ui-manager.js
-      - 变更点：在创建 canvas 之前先检查容器中是否已存在 id="pdf-canvas" 的元素；若存在且为 HTMLCanvasElement 则复用该元素；否则才创建并 append 新的 canvas。并保证获取上下文（getContext）后再进行事件绑定等初始化操作。
-    - 保留文件：src/frontend/pdf-viewer/index.html（静态 canvas 保留，UIManager 由复用优先改为必要时创建）
-  - 验证建议：
-    1. 在开发服务器 (npm run dev / 使用 ai-launcher.ps1) 下打开 http://localhost:3000/pdf-viewer/index.html，使用浏览器开发者工具检查 DOM，仅存在一个 id="pdf-canvas" 的 canvas。
-    2. 加载 test.pdf 检查页面渲染是否正常（第一页能渲染且无重复 canvas）。
-    3. 测试缩放、翻页、窗口 resize 等交互，确认 UIManager 对复用 canvas 的操作无副作用。
-  - 备注：已在本地将 AItemp/AI_DIALOG_COUNT.json 计数更新为 1，并记录此次修复时间。
-<!-- update: 2025-09-14 - 修复 EventBus 验证导致的 undefined 事件问题 -->
-
-
-
-2025-09-15T00:51:45+08:00: 修复：pdf-home 模块中 pdf-table 的多选删除问题
-- 问题概述：
-  - 报告：用户发现 pdf-home 的表格无法进行“多选删除”操作。
-  - 根因初步分析：Tabulator 在不同环境/版本下对“选中行”的 API 返回值不一致（有时返回 plain data objects，有时返回 RowComponent 对象）；TableWrapper 和 UIManager 之间对选中数据的期望不一致，导致 UIManager 无法正确收集选中 items 的 id/filename，从而批量删除未能触发或发送了空列表。
-- 已执行的修改（代码级）：
-  1. src/frontend/pdf-home/table-wrapper.js
-     - 修改：getSelectedRows() 方法被正规化（normalization），现在会：
-       - 在回退模式（fallback HTML table）下可靠读取 checkbox 并返回 plain object 列表（防御性拷贝）。
-       - 在 Tabulator 模式下优先使用 getSelectedData()（若返回 plain objects 即采用），若返回 RowComponent 列表则调用 getData() 并转为 plain objects；若两者均不可用则基于 DOM 查找 selected 行并映射到内部数据。
-       - 返回值保证为 plain object 数组（每项为 {id, filename, ...} 或尽可能可用的标识符），以便调用方无需关心底层 Tabulator 的返回类型差异。
-  2. src/frontend/pdf-home/ui-manager.js
-     - 修改：#handleBatchDelete() 中对选中项的读取逻辑增强：
-       - 优先使用 pdfTable.getSelectedRows()（现在返回正规化的 plain objects）。
-       - 增强回退检测：支持多种 checkbox 类名（.pdf-item-checkbox、.pdf-table-checkbox、.pdf-table-row-select）并从 DOM 中安全提取 data-filename / data-row-id / data-filepath。
-       - 对收集到的 selected identifiers 进行了更鲁棒的提取（优先 id -> filename -> file_id -> fileId）。
-       - 保持对 PDF_MANAGEMENT_EVENTS.BATCH.REQUESTED 事件的发送方式不变，但确保 payload.files 为非空且为前端/后端可识别的标识符数组。
-- 验证与诊断：
-  - 在 index.js 中已经添加（存在）对 Tabulator 原生事件 rowSelectionChanged 的诊断绑定（console 输出）。修改后，可在浏览器控制台进行以下验证：
-    1. 启动前端（使用 ai-launcher.ps1 start 或 npm run dev）。
-    2. 打开 pdf-home 页面，选中多行（使用 checkbox 或 rowSelection）。
-    3. 点击“批量删除”按钮，确认提示并检查控制台是否发送了包含已选文件列表的 PDF_MANAGEMENT_EVENTS.BATCH.REQUESTED 事件（可以在 EventBus 日志或 network/WebSocket 消息中查看）。
-    4. 观察后端（或 PDFManager 日志）是否收到了对应的批量删除请求，并且批次追踪（batch tracking）行为正常（pending 计数减少，最终触发列表刷新）。
-- 后续建议（优先级排序）：
-  1. 将上述修改提交为一个单独的 Git commit（遵循约定：先创建分支，运行测试，提交），建议分支名：fix/pdf-home-batch-delete.
-  2. 在 CI 或本地运行前端测试（npm test），并手动/自动验证与 IndexedDB 无关的单元与集成测试（本次改动主要是 DOM/事件层面，单元影响应有限）。
-  3. 考虑为 TableWrapper.getSelectedRows 增加单元测试，用 mock Tabulator 返回不同类型（plain objects / RowComponent）以确保兼容性不回退。
-  4. 若你的团队接受更严格的类型约定，建议在事件规范中明确 selection 事件的 payload schema（例如：始终发送 array of { id, filename }），并在 EventBus 的校验逻辑中强制验证。
-- 当前状态：
-  - 代码已修改并写入工作区（files modified: src/frontend/pdf-home/table-wrapper.js, src/frontend/pdf-home/ui-manager.js）。
-  - 建议进行一次手工 smoke 测试并在 CI 中包含相关测试。如需，我可以继续：创建分支、生成 commit、运行测试并提交 PR（new_task, mode: continuous-agent）。
-2025-09-15T17:31:00+08:00: 修复中文PDF标题提取问题
-- 问题：中文PDF文件"C:\Users\napretep\Downloads\基于深度特征的立定跳远子动作定位方法研究_花延卓.pdf"的标题不能被正确提取
-- 根因：PDFMetadataExtractor.extract_metadata()返回的title字段为空字符串，但manager.py中的逻辑只在title键不存在时才使用文件名回退
-- 修复：修改src/backend/pdf_manager/manager.py中的_extract_metadata方法，当提取的title为空字符串时也使用文件名作为回退
-- 修改内容：
-  - 将 `"title": metadata.get("title", os.path.splitext(os.path.basename(filepath))[0])`
-  - 改为：`"title": extracted_title if extracted_title else filename_title`
-- 验证：创建了单元测试src/backend/tests/test_pdf_manager_chinese.py，确保修复正确且不会被破坏
-- 结果：中文PDF文件现在能正确显示文件名作为标题
+---

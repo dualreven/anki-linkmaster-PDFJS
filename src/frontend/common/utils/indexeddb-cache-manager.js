@@ -45,7 +45,8 @@ export class IndexedDBCacheManager {
                 };
 
                 request.onupgradeneeded = (event) => {
-                    this.#handleUpgradeNeeded(event);
+                    // 传入 request 以兼容某些 polyfill 在 event.target.result 不可用时获取 db
+                    this.#handleUpgradeNeeded(event, request);
                 };
             });
         } catch (error) {

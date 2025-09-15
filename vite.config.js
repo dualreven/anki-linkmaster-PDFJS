@@ -11,6 +11,9 @@ export default defineConfig({
       '/pdfs': {
         target: 'http://localhost:8080',
         changeOrigin: true,
+        secure: false,
+        ws: false,
+        // 保持原始请求路径到后端（后端期望接收 /pdfs/{filename}）
         rewrite: (path) => path.replace(/^\/pdfs/, '/pdfs')
       },
       // 代理API请求到WebSocket服务器（如果需要）

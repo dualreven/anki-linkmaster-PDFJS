@@ -223,6 +223,22 @@
       "thumbnail_path": null,
       "tags": [],
       "notes": ""
+    },
+    "64d444da178c": {
+      "id": "64d444da178c",
+      "filename": "64d444da178c.pdf",
+      "filepath": "C:\\Users\\napretep\\PycharmProjects\\anki-linkmaster-PDFJS\\data\\pdfs\\64d444da178c.pdf",
+      "file_size": 1460726,
+      "created_time": 1757920320.5573893,
+      "modified_time": 1757227300.958378,
+      "title": "310c7e6a827d",
+      "author": "CNKI",
+      "subject": "",
+      "keywords": "",
+      "page_count": 11,
+      "thumbnail_path": null,
+      "tags": [],
+      "notes": ""
     }
   }
 }
