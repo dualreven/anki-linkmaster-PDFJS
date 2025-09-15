@@ -52,13 +52,20 @@ class HttpFileServer(QObject):
                 # 尝试多种 listen 签名以提高兼容性
                 try:
                     from PyQt6.QtNetwork import QHostAddress
-                    # 优先使用 QHostAddress.Any
+                    # 优先使用 QHostAddress.SpecialAddress.AnyIPv4
                     try:
-                        listen_ok = self.server.listen(QHostAddress(QHostAddress.SpecialAddress.AnyIPv4), attempt_port)
-                        listen_attempts.append(f"listen(QHostAddress.Any, {attempt_port}) -> {listen_ok}")
+                        listen_ok = self.server.listen(QHostAddress.SpecialAddress.AnyIPv4, attempt_port)
+                        listen_attempts.append(f"listen(QHostAddress.SpecialAddress.AnyIPv4, {attempt_port}) -> {listen_ok}")
                     except Exception as ex1:
-                        listen_attempts.append(f"listen(QHostAddress.Any, {attempt_port}) raised {type(ex1).__name__}: {ex1}")
+                        listen_attempts.append(f"listen(QHostAddress.SpecialAddress.AnyIPv4, {attempt_port}) raised {type(ex1).__name__}: {ex1}")
                         listen_ok = False
+                        # 回退到 QHostAddress('127.0.0.1')
+                        try:
+                            listen_ok = self.server.listen(QHostAddress('127.0.0.1'), attempt_port)
+                            listen_attempts.append(f"listen(QHostAddress('127.0.0.1'), {attempt_port}) -> {listen_ok}")
+                        except Exception as ex2:
+                            listen_attempts.append(f"listen(QHostAddress('127.0.0.1'), {attempt_port}) raised {type(ex2).__name__}: {ex2}")
+                            listen_ok = False
                 except Exception as e_qa:
                     # 如果无法导入 QHostAddress，也尝试无 QHostAddress 的签名
                     listen_attempts.append(f"无法导入 QHostAddress: {e_qa}")
