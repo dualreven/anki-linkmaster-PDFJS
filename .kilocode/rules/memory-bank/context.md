@@ -69,6 +69,7 @@
 2. **智能卡片生成**：实现从PDF内容自动提取重要信息的功能
 3. **搜索与筛选**：添加全文搜索和高级筛选功能
 4. **批量操作**：实现批量处理PDF文件的能力
+5. **后端PDF自动加载**：实现后端监听 logs/load-pdf.json 文件并触发 WebSocket 消息加载 PDF（已实现）
 
 ## 技术债务
 
@@ -194,4 +195,26 @@
   - 将 `"title": metadata.get("title", os.path.splitext(os.path.basename(filepath))[0])`
   - 改为：`"title": extracted_title if extracted_title else filename_title`
 - 验证：创建了单元测试src/backend/tests/test_pdf_manager_chinese.py，确保修复正确且不会被破坏
+2025-09-15T01:53:00+08:00: 实现后端监听 logs/load-pdf.json 文件并触发 WebSocket 消息加载 PDF
+- 问题：需要在后端实现自动监听 logs/load-pdf.json 文件，当文件被 ai-launcher.ps1 创建时，自动通过 WebSocket 向前端发送 PDF 加载请求
+- 解决方案：
+  1. 在 AnkiLinkMasterApp 类中添加 start_pdf_load_listener() 方法，用于启动后台线程监听文件
+  2. 在 run() 方法中，当启动 pdf-viewer 模块时调用 start_pdf_load_listener()
+  3. 后台线程定期检查 logs/load-pdf.json 文件是否存在且被修改
+  4. 读取文件内容，提取 path 字段
+  5. 通过 WebSocketServer 向所有连接的前端客户端广播 pdf_view_request 消息
+  6. 成功发送消息后删除 logs/load-pdf.json 文件
+- 实现文件：
+  - src/backend/app/application.py：添加了 start_pdf_load_listener() 和 _pdf_load_listener_worker() 方法
+  - src/backend/tests/test_pdf_load_listener.py：编写了完整的测试用例，验证文件监听、消息广播和文件删除功能
+- 验证：
+  - 测试用例覆盖了正常情况、无效JSON、不存在的PDF路径和缺少path字段等边界情况
+  - 所有测试通过，确保功能稳定可靠
+- 与 ai-launcher.ps1 的集成：
+  - ai-launcher.ps1 在启动 pdf-viewer 模块时会创建 logs/load-pdf.json 文件
+  - 后端监听器检测到文件后自动触发 WebSocket 消息，实现无缝集成
+- 优势：
+  - 实现了前后端的解耦，前端无需直接处理文件系统
+  - 提供了统一的 PDF 加载接口，便于未来扩展
+  - 自动清理临时文件，避免磁盘空间浪费
 - 结果：中文PDF文件现在能正确显示文件名作为标题
