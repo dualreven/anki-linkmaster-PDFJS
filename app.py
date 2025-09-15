@@ -401,11 +401,13 @@ if __name__ == '__main__':
                        default='pdf-viewer', help='选择要加载的前端模块 (默认: pdf-viewer)')
     parser.add_argument('--port', '-p', type=int, default=3000,
                        help='Vite开发服务器端口 (默认: 3000)')
+    parser.add_argument('--file-path', type=str, default=None,
+                       help='PDF文件路径 (仅pdf-viewer模块有效)')
     
     args = parser.parse_args()
     
     try:
-        exit_code = main(args.module, args.port)
+        exit_code = main(args.module, args.port, args.file_path)
     finally:
         try:
             _collector.stop()

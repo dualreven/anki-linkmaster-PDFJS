@@ -95,6 +95,11 @@ export class PDFViewerApp {
    * @private
    */
   #setupEventListeners() {
+    // WebSocket消息接收事件
+    this.#eventBus.on(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, (message) => {
+      this.#handleWebSocketMessage(message);
+    });
+
     // 文件加载事件
     this.#eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, (fileData) => {
       this.#handleFileLoadRequested(fileData);
@@ -153,6 +158,46 @@ export class PDFViewerApp {
     this.#eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.RETRY, (fileData) => {
       this.#handleFileLoadRetry(fileData);
     });
+  }
+
+  /**
+   * 处理WebSocket消息
+   * @param {Object} message - WebSocket消息
+   * @private
+   */
+  #handleWebSocketMessage(message) {
+    const { type, data } = message;
+    
+    switch (type) {
+      case 'load_pdf_file':
+        this.#handleLoadPdfFileMessage(data);
+        break;
+      
+      default:
+        // 其他消息类型不处理
+        this.#logger.debug(`Received unhandled WebSocket message type: ${type}`);
+        break;
+    }
+  }
+
+  /**
+   * 处理加载PDF文件消息
+   * @param {Object} data - 文件数据
+   * @private
+   */
+  #handleLoadPdfFileMessage(data) {
+    if (data && data.fileId && data.filename && data.url) {
+      this.#logger.info(`Received load PDF file request: ${data.filename}`);
+      
+      // 触发文件加载事件
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, {
+        filename: data.filename,
+        url: data.url,
+        fileId: data.fileId
+      }, { actorId: 'WebSocket' });
+    } else {
+      this.#logger.warn('Invalid load_pdf_file message format:', data);
+    }
   }
 
   /**

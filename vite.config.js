@@ -5,7 +5,20 @@ import babel from 'vite-plugin-babel'
 export default defineConfig({
   root: 'src/frontend',
   server: {
-    port: 3000
+    port: 3000,
+    proxy: {
+      // 代理PDF文件请求到PyQt HTTP服务器
+      '/pdfs': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/pdfs/, '/pdfs')
+      },
+      // 代理API请求到WebSocket服务器（如果需要）
+      '/api': {
+        target: 'http://localhost:8765',
+        changeOrigin: true
+      }
+    }
   },
   plugins: [
     babel({

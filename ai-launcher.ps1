@@ -3,7 +3,8 @@ param(
     [string]$Action = "start",
     [int]$WaitTime = 10,
     [string]$Module = "pdf-viewer",
-    [int]$Port = 3000
+    [int]$Port = 3000,
+    [string]$FilePath = ""
 )
 
 # Set working directory
@@ -82,7 +83,11 @@ Vite Port: $Port
     $logHeader | Out-File -FilePath $moduleLogFile -Encoding UTF8
     
     # Build command arguments
-    $cmdArgs = "/c chcp 65001 > nul && python.exe app.py --module $Module --port $Port > `"$logFile`" 2>&1"
+    $cmdArgs = "/c chcp 65001 > nul && python.exe app.py --module $Module --port $Port"
+    if ($FilePath -and $Module -eq "pdf-viewer") {
+        $cmdArgs += " --file-path `"$FilePath`""
+    }
+    $cmdArgs += " > `"$logFile`" 2>&1"
     $process = Start-Process "cmd.exe" -ArgumentList $cmdArgs -PassThru
     
     $processInfo = @{
@@ -252,7 +257,7 @@ switch ($Action.ToLower()) {
     }
     
     default {
-        Write-Host "Usage: .\ai-launcher.ps1 [start|stop|status|logs] [-Module {pdf-home|pdf-viewer}] [-Port PORT]" -ForegroundColor Red
+        Write-Host "Usage: .\ai-launcher.ps1 [start|stop|status|logs] [-Module {pdf-home|pdf-viewer}] [-Port PORT] [-FilePath PATH]" -ForegroundColor Red
         Write-Host ""
         Write-Host "Commands:" -ForegroundColor White
         Write-Host "  start  - Start all services (default)" -ForegroundColor White
@@ -263,9 +268,11 @@ switch ($Action.ToLower()) {
         Write-Host "Options:" -ForegroundColor White
         Write-Host "  -Module {pdf-home|pdf-viewer} - Select frontend module (default: pdf-viewer)" -ForegroundColor White
         Write-Host "  -Port PORT - Vite dev server port (default: 3000)" -ForegroundColor White
+        Write-Host "  -FilePath PATH - PDF file path to load (pdf-viewer module only)" -ForegroundColor White
         Write-Host ""
         Write-Host "Examples:" -ForegroundColor White
         Write-Host "  .\ai-launcher.ps1 start -Module pdf-home -Port 3001" -ForegroundColor White
+        Write-Host "  .\ai-launcher.ps1 start -Module pdf-viewer -FilePath `"C:\path\to\file.pdf`"" -ForegroundColor White
         Write-Host "  .\ai-launcher.ps1 start -Module pdf-viewer" -ForegroundColor White
         Write-Host "  .\ai-launcher.ps1 start" -ForegroundColor White
     }
