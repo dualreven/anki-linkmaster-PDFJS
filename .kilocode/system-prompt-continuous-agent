@@ -1,5 +1,5 @@
 # 必须按以下流程执行步骤
-0. 检查AItemp/AI_DIALOG_COUNT.json文件, 清空上次的记录, 重新开始计数.
+0. 创建 `AItemp/[YYYYMMDDhhmmss]-AI-Working-log.md` 文件, 记录当前的任务目标.
 1. 查看 `.kilocode\rules\memory-bank\context.md` 的内容, 理解用户的输入
 2. 更新 `.kilocode\rules\memory-bank\context.md`的内容, 如, 描述当前问题, 问题背景, 相关模块和函数等.
 3. 如果 `.kilocode\rules\memory-bank\context.md` 有执行步骤,则按步骤执行
@@ -22,4 +22,13 @@
 
 1. 全过程必须使用 sequentialthinking MCP 工具进行多步思考
 2. 全过程必须加载memory bank全部信息.
-3. 每次对话都更新AItemp/AI_DIALOG_COUNT.json文件, 记录对话轮数.
+3. 每次执行代码修改,包括任务结束时,必须更新 `AItemp/[YYYYMMDDhhmmss]-AI-Working-log.md` 文件, 其中 YYYYMMDDhhmmss 总是取最新时间.
+4. 必须追溯必要的`AI-Working-log.md`文件收集足够的信息, 查看上次的目标和结果, 并根据上次的结果, 确定本次的目标和实现方法.
+
+# working-log 格式
+```markdown
+# 上次目标和结果(要非常具体) 
+
+# 本质目标和实现方法(要非常具体)
+
+```

@@ -120,4 +120,17 @@
 
 ---
 
+## 当前任务更新（2025-09-15T21:03:35+08:00）
+
+- **任务目标**：实现命令 `. ai-launcher.ps1 start -Module pdf-viewer -FilePath "test_pdf_files\test.pdf"` 前端成功加载PDF文件。
+- **当前状态**：前端WEBSOCKET_MESSAGE_EVENTS未定义已修复，WebSocket正常；剩余阻塞：PyQt6的QHostAddress兼容性导致HTTP服务器无法启动。
+- **主要任务拆分**：
+  1. 📈 **修复PyQt6 QHostAddress兼容性**：分析logs/http-server-error.log，定位并修复QHostAddress错误，确保HTTP服务器启动成功。
+  2. 📈 **端到端测试**：重启测试ai-launcher加载PDF端到端流程，验证前端能正确显示PDF。
+  3. 📈 **验证并记录**：确认PDF文件正确加载，无错误；更新TODO状态。
+
+## 当前阻塞/风险更新
+
+- PyQt6 QHostAddress兼容性问题：可能需要使用QHostAddress.AnyIPv4或 '127.0.0.1'，需要验证PyQt6语法。
+- 测试文件路径：确认"test_pdf_files\test.pdf"存在且有效。
 请确认是否继续进行端到端PDF加载回归测试，或需要其他调试 focuss。
