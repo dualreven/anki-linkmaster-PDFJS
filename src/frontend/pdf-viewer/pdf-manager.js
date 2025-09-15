@@ -5,6 +5,7 @@
  */
 
 import PDF_VIEWER_EVENTS from "../common/event/pdf-viewer-constants.js";
+import { Logger } from "../common/utils/logger.js";
 
 // PDF.js 配置
 const PDFJS_CONFIG = {

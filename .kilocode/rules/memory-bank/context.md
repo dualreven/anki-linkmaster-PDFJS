@@ -156,3 +156,22 @@
 - PyQt6 QHostAddress兼容性问题：可能需要使用QHostAddress.AnyIPv4或 '127.0.0.1'，需要验证PyQt6语法。
 - 测试文件路径：确认"test_pdf_files\test.pdf"存在且有效。
 请确认是否继续进行端到端PDF加载回归测试，或需要其他调试 focuss。
+---
+
+### 临时变更记录（2025-09-15T23:28:26+08:00）
+**变更人**: continuous-agent  
+**描述**: 分析了 logs/pdf-viewer.log 文件以确定其信息是否有效，通过审查日志内容（初始化、WebSocket连接、PDF加载）、确认价值（详细跟踪前端加载过程）和潜在改进（统一Logger格式）。
+
+**实现结果（本地）**:
+- 日志显示前端正常初始化：EventBus、PDFManager、UI Manager等组件启动成功，WebSocket连接建立。
+- PDF加载成功：文档加载计数1页， 文件路径 "/pdfs/test-file.pdf"，信息包含页数等元数据。
+- 事件系统正常：订阅多个导航、缩放事件，消息接收和发布记录清晰。
+- WebSocket消息处理：接收 load_pdf_file 消息，构造代理URL并成功加载PDF。
+- 未发现错误：无异常日志，PDF文档加载顺利。
+
+**后续建议与验证步骤**:
+- 日志有用：提供完整的端到端跟踪，便于调试PDF加载问题。
+- 改进提议：如果需要更好一致性，可将 console.log 替换为统一Logger类（格式如 [timestamp] [PDFManager] [INFO] message）。
+- 若无进一步任务，分析完成；否则等待下一个任务指示。
+
+---

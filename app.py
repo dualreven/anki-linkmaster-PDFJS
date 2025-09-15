@@ -42,10 +42,12 @@ class DevToolsLogCollector:
         # Clear the log file at startup
         try:
             with open(self.log_file, 'w', encoding='utf-8') as f:
-                f.write(f'{{"timestamp": "{datetime.now(timezone.utc).isoformat()}", "event": "log.cleared", "details": "Log file cleared at application startup"}}\n')
-            print(f'[DevToolsLogCollector] Log file cleared: {self.log_file}')
+                timestamp = datetime.now(timezone.utc).isoformat()
+                formatted = f'{timestamp} [INFO] system: Log file cleared at application startup'
+                f.write(formatted + '\n')
+            logging.info(f'[DevToolsLogCollector] Log file cleared: {self.log_file}')
         except Exception as e:
-            print(f'[DevToolsLogCollector] Failed to clear log file: {e}', file=sys.stderr)
+            logging.error(f'[DevToolsLogCollector] Failed to clear log file: {e}')
 
         # record start to backend pdfjs logger if available
         try:
@@ -67,6 +69,24 @@ class DevToolsLogCollector:
             asyncio.run(self._async_main())
         except Exception as e:
             print(f'[DevToolsLogCollector] failed: {e}', file=sys.stderr)
+    def _format_log_entry(self, entry):
+        """Format log entry as plain text instead of JSON"""
+        try:
+            timestamp = entry.get('timestamp', datetime.now(timezone.utc).isoformat())
+            event = entry.get('event', 'unknown')
+            details = entry.get('details', '')
+            if isinstance(details, dict):
+                message = details.get('message', str(details))
+            else:
+                message = str(details)
+            
+            # Mappings:
+            level = 'ERROR' if 'error' in event.lower() else 'INFO'
+            module = 'pdfviewer' if 'pdfviewer' in event.lower() else 'system'
+            
+            return f'{timestamp} [{level}] {module}: {event} - {message}'
+        except Exception as e:
+            logging.error(f'{datetime.now(timezone.utc).isoformat()} [DevToolsLogCollector] failed: {e}')
 
     async def _async_main(self):
         try:
@@ -177,7 +197,8 @@ class DevToolsLogCollector:
     def _write_log(self, entry):
         try:
             with open(self.log_file, 'a', encoding='utf-8') as f:
-                f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+                formatted = self._format_log_entry(entry)
+                f.write(formatted + '\n')
         except Exception as e:
             print(f'[DevToolsLogCollector] failed to write log: {e}', file=sys.stderr)
         # mirror minimal info to backend pdfjs-init logger as well
