@@ -54,7 +54,7 @@ class HttpFileServer(QObject):
                     from PyQt6.QtNetwork import QHostAddress
                     # 优先使用 QHostAddress.Any
                     try:
-                        listen_ok = self.server.listen(QHostAddress.Any, attempt_port)
+                        listen_ok = self.server.listen(QHostAddress.AnyIPv4, attempt_port)
                         listen_attempts.append(f"listen(QHostAddress.Any, {attempt_port}) -> {listen_ok}")
                     except Exception as ex1:
                         listen_attempts.append(f"listen(QHostAddress.Any, {attempt_port}) raised {type(ex1).__name__}: {ex1}")

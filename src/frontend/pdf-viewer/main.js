@@ -11,7 +11,7 @@ import { ErrorHandler } from "../common/error/error-handler.js";
 import { PDFManager } from "./pdf-manager.js";
 import { UIManager } from "./ui-manager.js";
 import { WSClient } from "../common/ws/ws-client.js";
-import { WEBSOCKET_EVENTS } from "../common/event/event-constants.js";
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS } from "../common/event/event-constants.js";
 
 /**
  * @class PDFViewerApp
