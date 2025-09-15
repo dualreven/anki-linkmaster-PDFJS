@@ -367,10 +367,13 @@ class HttpFileServer(QObject):
             headers['Connection'] = 'close'
         
         response_lines = [
-            f"HTTP/1.1 {status_code} {status_text}",
-            f"Content-Length: {len(body)}"
+            f"HTTP/1.1 {status_code} {status_text}"
         ]
-        
+
+        # 添加 Content-Length 如果还未指定
+        if 'content-length' not in [k.lower() for k in headers.keys()]:
+            response_lines.append(f"Content-Length: {len(body)}")
+
         # 添加自定义头（保证头中的值为字符串）
         for key, value in headers.items():
             response_lines.append(f"{key}: {value}")
