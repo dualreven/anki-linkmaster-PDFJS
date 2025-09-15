@@ -33,7 +33,7 @@ export default defineConfig(async () => {
       proxy: {
         // 代理PDF文件请求到PyQt HTTP服务器
         '/pdfs': {
-          target: `http://localhost:${httpServerPort}`,
+          target: `http://localhost:8080`, // 临时固定端口以匹配HTTP服务器实际端口
           changeOrigin: true,
           secure: false,
           ws: false,

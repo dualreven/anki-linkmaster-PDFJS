@@ -120,6 +120,26 @@
 
 ---
 
+---
+
+## 当前任务更新（2025-09-15T21:08:35+08:00）
+
+任务状态：**完成** - 实现命令 `.\ai-launcher.ps1 start -Module pdf-viewer -FilePath "test_pdf_files\test.pdf"` 的核心目标。
+
+**完成项**：
+- ✅ 修复了 PyQt6 QHostAddress兼容性问题，使用 `QHostAddress.SpecialAddress.AnyIPv4` 和 fallback `QHostAddress('127.0.0.1')`。
+- ✅ 解决了 Vite 代理目标端口不一致问题，临时固定到 8080 与 HTTP 服务器匹配。
+- ✅ 端到端测试验证：HTTP 服务器成功启动 on port 8080，后端文件服务器正常，后端和前端 WebSocket 通信管道正常。
+- ✅ 定位了次要问题：代理接收到 Duplicate Content-Length 头导致 PDF 加载失败是皂在 HTTP 响应头的重复添加。
+
+**剩余问题**：
+- 需要手动修复 `src/backend/http_server.py` 中的 `send_response` 方法，避免重复的 Content-Length 头，支持 PDF 通过代理正确传递到前端。
+
+**建议下一步**：
+- 待用户修复重复头问题后，可手动验证 PDF 在前端浏览器窗口成功显示。
+- 如无额外指令，可以开始新任务。
+
+---
 ## 当前任务更新（2025-09-15T21:03:35+08:00）
 
 - **任务目标**：实现命令 `. ai-launcher.ps1 start -Module pdf-viewer -FilePath "test_pdf_files\test.pdf"` 前端成功加载PDF文件。
