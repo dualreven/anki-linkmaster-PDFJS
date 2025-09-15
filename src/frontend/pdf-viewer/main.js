@@ -237,7 +237,7 @@ export class PDFViewerApp {
    * @private
    */
   async #handleFileLoadRequested(fileData) {
-    
+    try {
       this.#logger.info("Handling file load request:", fileData);
 
       // 先关闭当前文件（如果有）
@@ -360,7 +360,7 @@ export class PDFViewerApp {
    * @private
    */
   async #renderPage(pageNumber) {
-    
+    try{
       this.#eventBus.emit(PDF_VIEWER_EVENTS.RENDER.PAGE_REQUESTED, {
         pageNumber,
         totalPages: this.#totalPages
@@ -526,7 +526,7 @@ export class PDFViewerApp {
    * @private
    */
   #initializeWebSocket() {
-    
+    try {
       this.#logger.info("Initializing WebSocket connection...");
       
       // 连接WebSocket服务器
@@ -626,23 +626,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.log("[PDFViewer] PDFViewer App initialized successfully");
     console.log("[PDFViewer] PDFViewerApp ready for use");
 
-    // 注释：移除自动加载测试PDF文件的代码，以避免干扰正常FilePath加载流程。
-    
-    
-      // const testPdfData = {
-      //   filename: "test.pdf",
-      //   url: "/test.pdf",
-      //   fileId: "test-pdf-001"
-      // };
-
-      // 触发PDF加载事件
-    //   app.getEventBus().emit(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, testPdfData, {
-    //     actorId: 'PDFViewerApp'
-    //   });
-      
-    // } catch (loadError) {
-      
-    // }
 
   
 });
