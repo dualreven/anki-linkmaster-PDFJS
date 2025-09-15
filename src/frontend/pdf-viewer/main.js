@@ -629,23 +629,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     // 注释：移除自动加载测试PDF文件的代码，以避免干扰正常FilePath加载流程。
     
     
-      const testPdfData = {
-        filename: "test.pdf",
-        url: "/test.pdf",
-        fileId: "test-pdf-001"
-      };
+      // const testPdfData = {
+      //   filename: "test.pdf",
+      //   url: "/test.pdf",
+      //   fileId: "test-pdf-001"
+      // };
 
       // 触发PDF加载事件
-      app.getEventBus().emit(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, testPdfData, {
-        actorId: 'PDFViewerApp'
-      });
+    //   app.getEventBus().emit(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, testPdfData, {
+    //     actorId: 'PDFViewerApp'
+    //   });
       
-    } catch (loadError) {
+    // } catch (loadError) {
       
-    }
+    // }
 
-  } catch (error) {
-    indexLogger.error("Failed to start PDF Viewer App:", error);
-    console.error("[PDFViewer] Failed to start PDF Viewer App:", error);
-  }
+  
 });
