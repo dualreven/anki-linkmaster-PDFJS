@@ -29,6 +29,7 @@ export class PDFViewerApp {
   #totalPages = 0;
   #zoomLevel = 1.0;
   #wsClient = null;
+  #messageQueue = [];
 
   constructor() {
     this.#logger = new Logger("PDFViewerApp");
@@ -157,6 +158,7 @@ export class PDFViewerApp {
     // 文件加载重试事件
     this.#eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.RETRY, (fileData) => {
       this.#handleFileLoadRetry(fileData);
+    this.#eventBus.on(PDF_VIEWER_EVENTS.STATE.INITIALIZED, this.#onInitialized.bind(this));
     });
   }
 
@@ -167,6 +169,13 @@ export class PDFViewerApp {
    */
   #handleWebSocketMessage(message) {
     const { type, data } = message;
+    
+    if (!this.#initialized) {
+      this.#logger.warn('Viewer not initialized yet, queuing WebSocket message:', message.type);
+      this.#messageQueue.push(message);
+      return;
+    }
+
     
     switch (type) {
       case 'load_pdf_file':
@@ -443,6 +452,11 @@ export class PDFViewerApp {
   #handleFileLoadProgress(progressData) {
     this.#logger.debug(`File load progress: ${progressData.percent}%`);
     this.#uiManager.updateProgress(progressData.percent, '加载中');
+  }
+  #onInitialized() {
+    this.#logger.info('Processing queued WebSocket messages:', this.#messageQueue.length);
+    this.#messageQueue.forEach(message => this.#handleWebSocketMessage(message));
+    this.#messageQueue = [];
   }
 
   /**
