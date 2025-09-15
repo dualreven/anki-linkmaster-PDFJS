@@ -175,3 +175,21 @@
 - 若无进一步任务，分析完成；否则等待下一个任务指示。
 
 ---
+---
+
+### 临时变更记录（2025-09-15T16:29:00+08:00）
+**变更人**: continuous-agent  
+**描述**: 完成了PDF viewer日志系统的统一，使用标准的Logger类替换自定义的console.log包装器和直接console.log调用。
+
+**实现结果（本地）**:
+- 统一了 `src/frontend/pdf-viewer/pdf-manager.js` 的日志调用，使用 `new Logger('PDFManager')` 实例
+- 统一了 `src/frontend/pdf-viewer/main.js` 的日志调用，已添加的Logger实例已有改进，移除了最后4个重复console.log
+- 所有日志现在使用标准化的格式：`[timestamp] [module] [level] message`
+- 代码提交到分支 'fix/unify-logger'，变更已合并主分支
+
+**后续建议与验证步骤**:
+- 重启PDF viewer模块验证新日志格式是否正确显示
+- 检查控制台输出是否有重复或格式不一致的日志
+- 日志系统现已标准化，提升可维护性和debug效率
+
+---
