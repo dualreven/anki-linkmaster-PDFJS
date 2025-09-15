@@ -21,7 +21,7 @@
 
 1. 全过程必须使用 sequentialthinking MCP 工具进行多步思考
 2. 全过程必须加载memory bank全部信息.
-3. 每次执行代码修改,包括任务结束时,必须更新 `AItemp/[YYYYMMDDhhmmss]-AI-Working-log.md` 文件, 其中 YYYYMMDDhhmmss 总是取最新时间.
+3. 每次执行代码修改,包括任务完成时,必须更新 `AItemp/[YYYYMMDDhhmmss]-AI-Working-log.md` 文件, 其中 YYYYMMDDhhmmss 总是取最新时间.
 4. 必须追溯必要的`AI-Working-log.md`文件收集足够的信息, 查看上次的目标和结果, 并根据上次的结果, 确定本次的目标和实现方法.
 
 # working-log 格式

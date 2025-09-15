@@ -40,10 +40,10 @@ export class PDFViewerApp {
     this.#errorHandler = new ErrorHandler(this.#eventBus);
     this.#pdfManager = new PDFManager(this.#eventBus);
     this.#uiManager = new UIManager(this.#eventBus);
-    
+
     // 初始化WebSocket客户端
     this.#wsClient = new WSClient("ws://localhost:8765", this.#eventBus);
-    
+
     this.#logger.info("PDFViewerApp instance created");
   }
 
@@ -56,17 +56,17 @@ export class PDFViewerApp {
       this.#logger.info("Initializing PDF Viewer App...");
       this.#setupGlobalErrorHandling();
       this.#setupEventListeners();
-      
+
       // 初始化WebSocket客户端
       this.#initializeWebSocket();
-      
+
       await this.#pdfManager.initialize();
       await this.#uiManager.initialize();
-      
+
       this.#initialized = true;
       this.#logger.info("PDF Viewer App initialized successfully.");
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.STATE.INITIALIZED, undefined, { 
-        actorId: 'PDFViewerApp' 
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.STATE.INITIALIZED, undefined, {
+        actorId: 'PDFViewerApp'
       });
     } catch (error) {
       this.#logger.error("Application initialization failed.", error);
@@ -172,19 +172,19 @@ export class PDFViewerApp {
    */
   #handleWebSocketMessage(message) {
     const { type, data } = message;
-    
+
     if (!this.#initialized) {
       this.#logger.warn('Viewer not initialized yet, queuing WebSocket message:', message.type);
       this.#messageQueue.push(message);
       return;
     }
 
-    
+
     switch (type) {
       case 'load_pdf_file':
         this.#handleLoadPdfFileMessage(data);
         break;
-      
+
       default:
         // 其他消息类型不处理
         this.#logger.debug(`Received unhandled WebSocket message type: ${type}`);
@@ -259,18 +259,18 @@ export class PDFViewerApp {
       const pdfDocument = await this.#pdfManager.loadPDF(fileData);
       this.#currentFile = fileData;
       this.#totalPages = pdfDocument.numPages;
-      
+
       // 隐藏进度条
       this.#uiManager.hideProgress();
       this.#uiManager.showLoading(false);
-      
+
       // 更新状态并触发渲染
       this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, {
         file: fileData,
         totalPages: this.#totalPages
       }, { actorId: 'PDFViewerApp' });
 
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.TOTAL_PAGES_UPDATED, 
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.TOTAL_PAGES_UPDATED,
         this.#totalPages, { actorId: 'PDFViewerApp' });
 
       // 更新UI管理器中的页面信息
@@ -283,10 +283,10 @@ export class PDFViewerApp {
       this.#logger.error("Failed to load PDF file:", error);
       this.#uiManager.hideProgress();
       this.#uiManager.showLoading(false);
-      
+
       // 显示用户友好的错误信息
       this.#uiManager.showError(error);
-      
+
       this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.FAILED, {
         error: error.message,
         file: fileData
@@ -305,12 +305,12 @@ export class PDFViewerApp {
     if (pageNumber >= 1 && pageNumber <= this.#totalPages) {
       this.#currentPage = pageNumber;
       await this.#renderPage(pageNumber);
-      
+
       this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.CHANGED, {
         currentPage: this.#currentPage,
         totalPages: this.#totalPages
       }, { actorId: 'PDFViewerApp' });
-      
+
       // 更新UI管理器中的页面信息
       this.#uiManager.updatePageInfo(this.#currentPage, this.#totalPages);
     }
@@ -324,12 +324,12 @@ export class PDFViewerApp {
     if (this.#currentPage > 1) {
       this.#currentPage--;
       await this.#renderPage(this.#currentPage);
-      
+
       this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.CHANGED, {
         currentPage: this.#currentPage,
         totalPages: this.#totalPages
       }, { actorId: 'PDFViewerApp' });
-      
+
       // 更新UI管理器中的页面信息
       this.#uiManager.updatePageInfo(this.#currentPage, this.#totalPages);
     }
@@ -343,12 +343,12 @@ export class PDFViewerApp {
     if (this.#currentPage < this.#totalPages) {
       this.#currentPage++;
       await this.#renderPage(this.#currentPage);
-      
+
       this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.CHANGED, {
         currentPage: this.#currentPage,
         totalPages: this.#totalPages
       }, { actorId: 'PDFViewerApp' });
-      
+
       // 更新UI管理器中的页面信息
       this.#uiManager.updatePageInfo(this.#currentPage, this.#totalPages);
     }
@@ -368,9 +368,9 @@ export class PDFViewerApp {
 
       const page = await this.#pdfManager.getPage(pageNumber);
       const viewport = page.getViewport({ scale: this.#zoomLevel });
-      
+
       await this.#uiManager.renderPage(page, viewport);
-      
+
       this.#eventBus.emit(PDF_VIEWER_EVENTS.RENDER.PAGE_COMPLETED, {
         pageNumber,
         viewport
@@ -450,10 +450,10 @@ export class PDFViewerApp {
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.CHANGED, {
         zoomLevel: this.#zoomLevel
       }, { actorId: 'PDFViewerApp' });
-      
+
       // 更新UI管理器中的缩放比例
       this.#uiManager.setScale(this.#zoomLevel);
-      
+
       // 重新渲染当前页面
       await this.#renderPage(this.#currentPage);
     }
@@ -506,18 +506,18 @@ export class PDFViewerApp {
    */
   async #handleFileClose() {
     this.#logger.info("Closing current PDF file");
-    
+
     // 清理资源
     this.#pdfManager.cleanup();
     this.#uiManager.cleanup();
-    
+
     this.#currentFile = null;
     this.#currentPage = 1;
     this.#totalPages = 0;
     this.#zoomLevel = 1.0;
-    
-    this.#eventBus.emit(PDF_VIEWER_EVENTS.STATE.LOADING, false, { 
-      actorId: 'PDFViewerApp' 
+
+    this.#eventBus.emit(PDF_VIEWER_EVENTS.STATE.LOADING, false, {
+      actorId: 'PDFViewerApp'
     });
   }
 
@@ -528,10 +528,10 @@ export class PDFViewerApp {
   #initializeWebSocket() {
     try {
       this.#logger.info("Initializing WebSocket connection...");
-      
+
       // 连接WebSocket服务器
       this.#wsClient.connect();
-      
+
       this.#logger.info("WebSocket connection initialized successfully.");
     } catch (error) {
       this.#logger.error("Failed to initialize WebSocket connection:", error);
@@ -544,16 +544,16 @@ export class PDFViewerApp {
    */
   destroy() {
     this.#logger.info("Destroying PDF Viewer App...");
-    
+
     // 断开WebSocket连接
     if (this.#wsClient) {
       this.#wsClient.disconnect();
     }
-    
+
     this.#pdfManager.destroy();
     this.#uiManager.destroy();
     this.#eventBus.destroy();
-    
+
     this.#logger.info("PDF Viewer App destroyed.");
     this.#eventBus.emit(PDF_VIEWER_EVENTS.STATE.DESTROYED, undefined, {
       actorId: 'PDFViewerApp'
@@ -604,14 +604,12 @@ export class PDFViewerApp {
 document.addEventListener("DOMContentLoaded", async () => {
   const app = new PDFViewerApp();
   const indexLogger = new Logger("pdf-viewer/main.js");
-  
+
   // PDF.js will be loaded by PDFManager via ES modules
   indexLogger.info("PDF.js will be loaded dynamically by PDFManager");
-  console.log("[PDFViewer] PDF.js will be loaded dynamically by PDFManager");
-  
-  
+
+
     indexLogger.info("Starting PDFViewer App initialization...");
-    console.log("[PDFViewer] Starting PDFViewer App initialization...");
 
     await app.initialize();
 
@@ -623,7 +621,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
 
     indexLogger.info("PDFViewer App initialized successfully");
-    console.log("[PDFViewer] PDFViewer App initialized successfully");
-    console.log("[PDFViewer] PDFViewerApp ready for use");
-  
+
+
 });

@@ -38,13 +38,7 @@ export class PDFManager {
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
-    // 暂时使用console代替Logger
-    this.#logger = {
-      info: (msg) => console.log(`[PDFManager] ${msg}`),
-      error: (msg) => console.error(`[PDFManager] ${msg}`),
-      debug: (msg) => console.debug(`[PDFManager] ${msg}`),
-      warn: (msg) => console.warn(`[PDFManager] ${msg}`)
-    };
+    this.#logger = new Logger('PDFManager');
   }
 
   /**
@@ -54,46 +48,40 @@ export class PDFManager {
   async initialize() {
     try {
       this.#logger.info("Initializing PDF Manager...");
-      console.log("[PDFManager] Initializing PDF Manager...");
-      
+
       // 检测WebGL状态并配置PDF.js
       const webglState = { enabled: false };
-      
+
       // 动态导入PDF.js库
       this.#logger.info("Loading PDF.js library...");
-      console.log("[PDFManager] Loading PDF.js library...");
-      
+
       this.#pdfjsLib = await import('pdfjs-dist/build/pdf');
-      
+
       // Log PDF.js library information
       if (this.#pdfjsLib) {
         this.#logger.info("PDF.js library loaded successfully", {
           version: this.#pdfjsLib.version,
           build: this.#pdfjsLib.build
         });
-        console.log(`[PDFManager] PDF.js library loaded - Version: ${this.#pdfjsLib.version}, Build: ${this.#pdfjsLib.build}`);
       }
-      
+
       // 配置PDF.js worker
       this.#pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_CONFIG.workerSrc;
       this.#logger.info("PDF.js worker configured", {
         workerSrc: PDFJS_CONFIG.workerSrc
       });
-      console.log(`[PDFManager] PDF.js worker configured with: ${PDFJS_CONFIG.workerSrc}`);
-      
+
       this.#logger.info("PDF Manager initialized successfully");
-      console.log("[PDFManager] PDF Manager initialized successfully");
-      
+
     } catch (error) {
       this.#logger.error("Failed to initialize PDF Manager:", error);
-      console.error("[PDFManager] Failed to initialize PDF Manager:", error);
-      
+
       // Emit initialization error event
       this.#eventBus.emit(PDF_VIEWER_EVENTS.STATE.ERROR, {
         module: 'PDFManager',
         error: error.message
       }, { actorId: 'PDFManager' });
-      
+
       throw error;
     }
   }
@@ -129,7 +117,6 @@ export class PDFManager {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         this.#logger.info(`Loading PDF document (attempt ${attempt}):`, filename || fileData.url);
-        console.log(`[PDFManager] Loading PDF document (attempt ${attempt}): ${filename || fileData.url}`);
 
         // 清理之前的文档
         this.cleanup();
@@ -139,17 +126,14 @@ export class PDFManager {
         if (fileData.url) {
           // 从URL加载
           this.#logger.info("Loading PDF from URL:", fileData.url);
-          console.log(`[PDFManager] Loading PDF from URL: ${fileData.url}`);
           pdfData = await this.#loadFromURL(fileData.url);
         } else if (fileData.arrayBuffer) {
           // 从ArrayBuffer加载
           this.#logger.info("Loading PDF from ArrayBuffer");
-          console.log("[PDFManager] Loading PDF from ArrayBuffer");
           pdfData = await this.#loadFromArrayBuffer(fileData.arrayBuffer);
         } else if (fileData.blob) {
           // 从Blob加载
           this.#logger.info("Loading PDF from Blob");
-          console.log("[PDFManager] Loading PDF from Blob");
           pdfData = await this.#loadFromBlob(fileData.blob);
         } else {
           throw new Error("Unsupported file data format");
@@ -159,17 +143,14 @@ export class PDFManager {
         this.#pagesCache.clear();
 
         this.#logger.info(`PDF document loaded successfully. Pages: ${pdfData.numPages}`);
-        console.log(`[PDFManager] PDF document loaded successfully. Pages: ${pdfData.numPages}`);
 
         // Log document information
         const docInfo = this.getDocumentInfo();
         this.#logger.info("Document information:", docInfo);
-        console.log("[PDFManager] Document information:", JSON.stringify(docInfo));
 
         return pdfData;
       } catch (error) {
         this.#logger.error(`Failed to load PDF document on attempt ${attempt}:`, error);
-        console.error(`[PDFManager] Failed to load PDF document on attempt ${attempt}:`, error);
 
         // 如果未达到最大重试次数，则发出重试事件并等待一段时间再重试
         if (attempt < maxRetries) {
@@ -185,7 +166,6 @@ export class PDFManager {
 
         // 达到最大重试次数，放弃尝试并记录最终失败
         this.#logger.warn(`PDF加载失败，已达到最大重试次数（${maxRetries}次），不再重试`, { filename });
-        console.warn(`[PDFManager] PDF加载失败，已达到最大重试次数（${maxRetries}次），不再重试: ${filename}`);
 
         // 发出失败事件
         try {
@@ -211,7 +191,7 @@ export class PDFManager {
    */
   async #loadFromURL(url) {
     this.#logger.debug("Loading PDF from URL:", url);
-    
+
     const loadingTask = this.#pdfjsLib.getDocument({
       url: url,
       withCredentials: PDFJS_CONFIG.withCredentials,
@@ -222,7 +202,7 @@ export class PDFManager {
       isEvalSupported: PDFJS_CONFIG.isEvalSupported,
       useSystemFonts: PDFJS_CONFIG.useSystemFonts
     });
-    
+
     return await loadingTask.promise;
   }
 
@@ -234,7 +214,7 @@ export class PDFManager {
    */
   async #loadFromArrayBuffer(arrayBuffer) {
     this.#logger.debug("Loading PDF from ArrayBuffer");
-    
+
     const loadingTask = this.#pdfjsLib.getDocument({
       data: arrayBuffer,
       withCredentials: PDFJS_CONFIG.withCredentials,
@@ -245,7 +225,7 @@ export class PDFManager {
       isEvalSupported: PDFJS_CONFIG.isEvalSupported,
       useSystemFonts: PDFJS_CONFIG.useSystemFonts
     });
-    
+
     return await loadingTask.promise;
   }
 
@@ -257,7 +237,7 @@ export class PDFManager {
    */
   async #loadFromBlob(blob) {
     this.#logger.debug("Loading PDF from Blob");
-    
+
     const arrayBuffer = await blob.arrayBuffer();
     return await this.#loadFromArrayBuffer(arrayBuffer);
   }
@@ -271,27 +251,27 @@ export class PDFManager {
     if (!this.#currentDocument) {
       throw new Error("No PDF document loaded");
     }
-    
+
     if (pageNumber < 1 || pageNumber > this.#currentDocument.numPages) {
       throw new Error(`Invalid page number: ${pageNumber}`);
     }
-    
+
     // 检查缓存
     if (this.#pagesCache.has(pageNumber)) {
       this.#logger.debug(`Returning page ${pageNumber} from cache`);
       return this.#pagesCache.get(pageNumber);
     }
-    
+
     try {
       this.#logger.debug(`Loading page ${pageNumber}`);
-      
+
       const page = await this.#currentDocument.getPage(pageNumber);
-      
+
       // 缓存页面
       this.#pagesCache.set(pageNumber, page);
-      
+
       return page;
-      
+
     } catch (error) {
       this.#logger.error(`Failed to get page ${pageNumber}:`, error);
       throw error;
@@ -306,7 +286,7 @@ export class PDFManager {
     if (!this.#currentDocument) {
       return null;
     }
-    
+
     return {
       numPages: this.#currentDocument.numPages,
       // 可以添加更多文档信息
@@ -323,15 +303,15 @@ export class PDFManager {
     if (!this.#currentDocument) {
       return;
     }
-    
+
     const totalPages = this.#currentDocument.numPages;
     const actualStart = Math.max(1, startPage);
     const actualEnd = Math.min(totalPages, endPage);
-    
+
     this.#logger.debug(`Preloading pages ${actualStart} to ${actualEnd}`);
-    
+
     const preloadPromises = [];
-    
+
     for (let i = actualStart; i <= actualEnd; i++) {
       // 跳过已经缓存的页面
       if (!this.#pagesCache.has(i)) {
@@ -342,7 +322,7 @@ export class PDFManager {
         );
       }
     }
-    
+
     await Promise.all(preloadPromises);
     this.#logger.debug(`Preloaded ${preloadPromises.length} pages`);
   }
@@ -355,19 +335,19 @@ export class PDFManager {
     if (!this.#currentDocument || this.#pagesCache.size === 0) {
       return;
     }
-    
+
     const currentPage = this.#getCurrentPageContext();
     if (!currentPage) return;
-    
+
     const pagesToKeep = new Set();
-    
+
     // 保留当前页面及前后页面
-    for (let i = Math.max(1, currentPage - keepPages); 
-         i <= Math.min(this.#currentDocument.numPages, currentPage + keepPages); 
+    for (let i = Math.max(1, currentPage - keepPages);
+         i <= Math.min(this.#currentDocument.numPages, currentPage + keepPages);
          i++) {
       pagesToKeep.add(i);
     }
-    
+
     // 清理不在保留范围内的页面
     for (const [pageNumber, page] of this.#pagesCache.entries()) {
       if (!pagesToKeep.has(pageNumber)) {
@@ -378,7 +358,7 @@ export class PDFManager {
         }
       }
     }
-    
+
     this.#logger.debug(`Cache cleaned. Kept ${pagesToKeep.size} pages`);
   }
 
@@ -398,7 +378,7 @@ export class PDFManager {
    */
   cleanup() {
     this.#logger.info("Cleaning up PDF resources");
-    
+
     // 清理所有页面缓存
     for (const [, page] of this.#pagesCache.entries()) {
       if (page.cleanup) {
@@ -406,7 +386,7 @@ export class PDFManager {
       }
     }
     this.#pagesCache.clear();
-    
+
     // 清理当前文档
     if (this.#currentDocument) {
       this.#currentDocument.destroy().catch(error => {
