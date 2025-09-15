@@ -182,11 +182,16 @@ export class PDFManager {
           continue;
         }
 
-        // 最后一次失败，抛出错误并发出失败事件
+        // 达到最大重试次数，放弃尝试并记录最终失败
+        this.#logger.warn(`PDF加载失败，已达到最大重试次数（${maxRetries}次），不再重试`, { filename });
+        console.warn(`[PDFManager] PDF加载失败，已达到最大重试次数（${maxRetries}次），不再重试: ${filename}`);
+
+        // 发出失败事件
         try {
           this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.FAILED, {
             filename,
-            error: error && error.message ? error.message : String(error)
+            error: error && error.message ? error.message : String(error),
+            attempts: maxRetries
           }, { actorId: 'PDFManager' });
         } catch (emitErr) {
           this.#logger.warn("Failed to emit load failed event:", emitErr);

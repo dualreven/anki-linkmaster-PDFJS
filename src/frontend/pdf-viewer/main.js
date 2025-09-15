@@ -155,11 +155,14 @@ export class PDFViewerApp {
       this.#handleFileLoadProgress(progressData);
     });
 
-    // 文件加载重试事件
-    this.#eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.RETRY, (fileData) => {
-      this.#handleFileLoadRetry(fileData);
+    // 文件加载重试事件 - 已禁用以避免无限重试循环
+    // loadPDF 函数已内置 3 次重试机制，这里不再重复重试
+    // this.#eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.RETRY, (fileData) => {
+    //   this.#handleFileLoadRetry(fileData);
+    // });
+
+    // 已初始化状态事件
     this.#eventBus.on(PDF_VIEWER_EVENTS.STATE.INITIALIZED, this.#onInitialized.bind(this));
-    });
   }
 
   /**
