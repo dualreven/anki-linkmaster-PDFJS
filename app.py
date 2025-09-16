@@ -11,13 +11,15 @@ from typing import Optional
 from src.backend.main import main
 # add pdfjs logger
 from src.backend.logging.pdfjs_logger import get_pdfjs_logger
+from src.backend.logging.cdp_logger import log_cdp_event
 import time
 
 class DevToolsLogCollector:
     '''
     Background collector that connects to QtWebEngine's remote debugging (CDP)
-    and writes Console/Runtime/Page events to logs/pdf-viewer.log as JSON-lines.
+    and writes Console/Runtime/Page events to logs/pdf-viewer.log in readable lines.
     Also tests PDFViewer module PDF.js loading and initialization.
+    Implements de-dup and method-level filtering to reduce noise (e.g., Console.messageAdded).
     '''
     def __init__(self, ports=None, poll_interval=2, log_file=None):
         self.ports = ports or [9222, 9223]
@@ -33,6 +35,11 @@ class DevToolsLogCollector:
         # PDFViewer test tracking
         self._pdfviewer_tested = False
         self._pdfjs_loaded = False
+        # CDP filtering & de-dup config
+        self._cdp_whitelist = os.environ.get('LOG_CDP_WHITELIST', '')  # e.g. 'Runtime.consoleAPICalled,Page.*'
+        self._cdp_blacklist = os.environ.get('LOG_CDP_BLACKLIST', 'Console.messageAdded')
+        self._cdp_dedupe_window_ms = int(os.environ.get('LOG_CDP_DEDUPE_WINDOW_MS', '1000'))
+        self._dedupe_cache = {}  # key -> last_ts_ms
 
     def start(self):
         log_dir = os.path.dirname(self.log_file)
@@ -75,15 +82,30 @@ class DevToolsLogCollector:
             timestamp = entry.get('timestamp', datetime.now(timezone.utc).isoformat())
             event = entry.get('event', 'unknown')
             details = entry.get('details', '')
+            # Extract better message text for CDP common events
+            message = ''
             if isinstance(details, dict):
-                message = details.get('message', str(details))
+                # Console.messageAdded payload
+                if event == 'Console.messageAdded':
+                    msg = details.get('message', {})
+                    text = msg.get('text') if isinstance(msg, dict) else None
+                    message = text or str(details)
+                # Runtime.consoleAPICalled payload
+                elif event == 'Runtime.consoleAPICalled':
+                    args = details.get('args', [])
+                    parts = []
+                    for a in args:
+                        if isinstance(a, dict) and isinstance(a.get('value'), str):
+                            parts.append(" ".join(a['value'].split())[:200])
+                    message = " | ".join(parts) if parts else str(details)
+                else:
+                    message = details.get('message', str(details))
             else:
                 message = str(details)
-            
-            # Mappings:
+
+            # Determine level/module
             level = 'ERROR' if 'error' in event.lower() else 'INFO'
             module = 'pdfviewer' if 'pdfviewer' in event.lower() else 'system'
-            
             return f'{timestamp} [{level}] {module}: {event} - {message}'
         except Exception as e:
             logging.error(f'{datetime.now(timezone.utc).isoformat()} [DevToolsLogCollector] failed: {e}')
@@ -175,10 +197,22 @@ class DevToolsLogCollector:
                         if self._is_pdfjs_related(payload):
                             self._handle_pdfjs_message(payload)
                         
+                        # Build event name and params
+                        raw_method = payload.get('method') if isinstance(payload, dict) else None
+                        event_name = str(raw_method) if raw_method is not None else 'message'
+                        params = payload.get('params') if isinstance(payload, dict) else payload
+
+                        # Filtering: whitelist/blacklist precedence (whitelist > blacklist)
+                        if not self._should_log_cdp_event(event_name):
+                            continue
+                        # De-dup within window
+                        if not self._dedupe_filter(event_name, params):
+                            continue
+
                         self._write_log({
                             'timestamp': datetime.now(timezone.utc).isoformat(),
-                            'event': payload.get('method') or 'message',
-                            'details': payload.get('params') if isinstance(payload, dict) else payload
+                            'event': event_name,
+                            'details': params
                         })
             except Exception as e:
                 entry = {
@@ -193,6 +227,57 @@ class DevToolsLogCollector:
                 except Exception:
                     pass
                 await asyncio.sleep(1.0)
+
+    def _match_patterns(self, patterns_str: str, value: str) -> bool:
+        """Match a simple comma-separated glob-like pattern list (supports *)."""
+        try:
+            patterns = [p.strip() for p in patterns_str.split(',') if p.strip()]
+            for pat in patterns:
+                # convert * to .*
+                import re as _re
+                regex = '^' + _re.escape(pat).replace('\\*', '.*') + '$'
+                if _re.match(regex, value):
+                    return True
+            return False
+        except Exception:
+            return False
+
+    def _should_log_cdp_event(self, method: str) -> bool:
+        """Apply whitelist/blacklist. Whitelist has precedence."""
+        if self._cdp_whitelist and self._match_patterns(self._cdp_whitelist, method):
+            return True
+        if self._cdp_blacklist and self._match_patterns(self._cdp_blacklist, method):
+            return False
+        return True
+
+    def _dedupe_key(self, method: str, params) -> str:
+        """Build a compact signature for dedupe; focus on textual content."""
+        try:
+            if method == 'Runtime.consoleAPICalled' and isinstance(params, dict):
+                args = params.get('args', [])
+                parts = []
+                for a in args:
+                    v = a.get('value') if isinstance(a, dict) else None
+                    if isinstance(v, str):
+                        parts.append(" ".join(v.split())[:200])
+                sig = method + "|" + "|".join(parts)
+                return sig or method
+            if isinstance(params, dict):
+                keys = ",".join(sorted(params.keys()))
+                return f"{method}|{keys}"
+            return method
+        except Exception:
+            return method
+
+    def _dedupe_filter(self, method: str, params) -> bool:
+        """Return True if not duplicate within window; otherwise False."""
+        key = self._dedupe_key(method, params)
+        now_ms = int(time.time() * 1000)
+        last = self._dedupe_cache.get(key)
+        if last is not None and (now_ms - last) < self._cdp_dedupe_window_ms:
+            return False
+        self._dedupe_cache[key] = now_ms
+        return True
 
     def _write_log(self, entry):
         try:
