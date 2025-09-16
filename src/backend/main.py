@@ -14,7 +14,7 @@ os.environ['QTWEBENGINE_REMOTE_DEBUGGING'] = DEBUG_PORT
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from PyQt6.QtWidgets import QApplication
-from app.application import AnkiLinkMasterApp
+from src.backend.app.application import AnkiLinkMasterApp
 
 
 def main(module="pdf-viewer", vite_port=3000, file_path=None):

@@ -4,10 +4,10 @@ Anki LinkMaster PDFJS 主应用类
 """
 
 from PyQt6.QtWidgets import QApplication
-from ui.main_window import MainWindow
-from websocket.standard_server import StandardWebSocketServer
-from pdf_manager.manager import PDFManager
-from http_server import HttpFileServer
+from src.backend.ui.main_window import MainWindow
+from src.backend.websocket.standard_server import StandardWebSocketServer
+from src.backend.pdf_manager.manager import PDFManager
+from src.backend.http_server import HttpFileServer
 import logging
 import json
 import os

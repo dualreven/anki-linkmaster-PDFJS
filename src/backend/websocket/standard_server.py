@@ -12,8 +12,8 @@ from PyQt6.QtWebSockets import QWebSocketServer, QWebSocket
 from PyQt6.QtNetwork import QHostAddress, QAbstractSocket
 
 from .standard_protocol import StandardMessageHandler, PDFMessageBuilder, MessageType
-from ..pdf_manager.manager import PDFManager
-from ..pdf_manager.page_transfer_manager import page_transfer_manager
+from src.backend.pdf_manager.manager import PDFManager
+from src.backend.pdf_manager.page_transfer_manager import page_transfer_manager
 
 logger = logging.getLogger(__name__)
 
@@ -382,8 +382,14 @@ class StandardWebSocketServer(QObject):
             if file_detail:
                 return PDFMessageBuilder.build_pdf_detail_response(request_id, file_detail)
             else:
-                return StandardMessageHandler.build_error_response(
-                    request_id,
+                return StandardMessageHandler.build_error_response(request_id, "FILE_NOT_FOUND", f"未找到文件ID为 {file_id} 的PDF文件")
+        except Exception as e:
+            logger.error(f"获取PDF详情失败: {e}")
+            return StandardMessageHandler.build_error_response(
+                request_id,
+                "DETAIL_ERROR",
+                f"获取PDF详情失败: {str(e)}"
+            )
     def handle_pdf_page_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """处理PDF页面请求"""
         try:
@@ -496,17 +502,8 @@ class StandardWebSocketServer(QObject):
                 "CACHE_CLEAR_ERROR",
                 f"清理缓存失败: {str(e)}"
             )
-                    "FILE_NOT_FOUND",
-                    f"找不到ID为{file_id}的PDF文件"
-                )
                 
-        except Exception as e:
-            logger.error(f"获取PDF详情失败: {e}")
-            return StandardMessageHandler.build_error_response(
-                request_id,
-                "DETAIL_ERROR",
-                f"获取PDF详情失败: {str(e)}"
-            )
+
     
     @pyqtSlot()
     def on_client_disconnected(self):

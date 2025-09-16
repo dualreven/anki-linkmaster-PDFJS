@@ -1,10 +1,60 @@
 ### 待办任务:
 
-1. 测试从pdf-home添加一个按钮,启动 加载特定 pdf文件的 pdf-viewer
+1. 测试从pdf-home添加一个按钮,启动 加载特定 pdf文件的 pdf-viewer, 参考 AItemp\20250917012135-AI-Working-log.md
+   1. 代码的修改导致 pdf-home模块显示不正常,需要修改
 2. 测试双击点击 pdf-table 某一行, 可打印该行内容到控制台.
 3. 结合1,2 实现双击 pdf-table 某一行, 将该行的pdf信息 用 pdf-viewer打开
 4. ai-launcher.py 启动后 命令行的键盘输入变得不正常, 无法输入控制字符比如 `ctrl+c` 或者 `backspace` 需要检查修复,
+5. 已有事件的命名要规范,变量化,未来新事件的命名应遵循规范
 
+### 当前任务：相对导入错误修复 ✅ 已完成
+
+**任务目标**：修复 "ImportError: attempted relative import beyond top-level package" 错误，使应用能够正常启动
+
+**任务状态**：✅ 已完成
+
+**修复的问题**：
+
+1. ✅ **相对导入超出顶级包**: `src/backend/websocket/standard_server.py`中的`from ..pdf_manager.manager import PDFManager`失败
+2. ✅ **main.py相对导入**: `src/backend/main.py`中的`from app.application import AnkiLinkMasterApp`失败
+3. ✅ **application.py相对导入**: `src/backend/app/application.py`中的多个相对导入失败
+4. ✅ **导入路径不一致**: 项目拆分后路径关系发生变化，相对导入不再正确工作
+
+**修复措施**：
+
+- ✅ 修改 `src/backend/websocket/standard_server.py`:
+  - `from ..pdf_manager.manager import PDFManager` → `from src.backend.pdf_manager.manager import PDFManager`
+  - `from ..pdf_manager.page_transfer_manager import page_transfer_manager` → `from src.backend.pdf_manager.page_transfer_manager import page_transfer_manager`
+
+- ✅ 修改 `src/backend/app/application.py`:
+  - `from ui.main_window import MainWindow` → `from src.backend.ui.main_window import MainWindow`
+  - `from websocket.standard_server import StandardWebSocketServer` → `from src.backend.websocket.standard_server import StandardWebSocketServer`
+  - `from pdf_manager.manager import PDFManager` → `from src.backend.pdf_manager.manager import PDFManager`
+  - `from http_server import HttpFileServer` → `from src.backend.http_server import HttpFileServer`
+
+- ✅ 修改 `src/backend/main.py`:
+  - `from app.application import AnkiLinkMasterApp` → `from src.backend.app.application import AnkiLinkMasterApp`
+
+**验证结果**：
+
+- ✅ 所有关键模块导入测试通过
+- ✅ 应用启动时的ImportError错误已完全解决
+- ✅ 测试脚本验证所有8个导入均成功：
+  - ✅ `src.backend.main`
+  - ✅ `src.backend.app.application`
+  - ✅ `src.backend.websocket.standard_server`
+  - ✅ `src.backend.pdf_manager.manager`和`page_transfer_manager`
+  - ✅ `src.backend.websocket.standard_protocol`
+  - ✅ `src.backend.ui.main_window`
+  - ✅ `src.backend.http_server`
+- ✅ 项目结构保持完整，未增加额外依赖
+
+**后续影响**：
+
+- 保持了项目的包结构清晰性
+- 简化了模块间的依赖关系
+- 提高了代码的可维护性和扩展性
+- 为后续功能开发奠定了基础
 ### 当前任务：ai-launcher模块选择修复 ✅ 已完成
 
 **任务目标**：修复ai-launcher.ps1启动pdf-viewer模块时却启动pdf-home模块的问题
