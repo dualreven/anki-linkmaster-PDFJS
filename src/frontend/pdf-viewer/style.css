@@ -125,23 +125,34 @@ h1 {
 main {
     flex: 1;
     position: relative;
+    /* 允许内部滚动容器在顶部留白区域内自然滚动显示 */
     overflow: hidden;
+    /* 在主内容区域顶部留出安全空间，避免被 header 边界裁切。
+       注意：使用内边距必须配合 box-sizing: border-box，确保高度计算不被撑破 */
+    box-sizing: border-box;
 }
 
 .pdf-container {
     width: 100%;
+    /* 关键：容器在 main 有 padding-top 时，使用 border-box 确保高度计算正确 */
     height: 100%;
     display: flex;
     justify-content: center;
-    align-items: center;
+    /* 让内容自顶部开始排列，避免垂直居中时顶端空间被 main 的 overflow 隐藏 */
+    align-items: flex-start;
     background-color: #f0f0f0;
     overflow: auto;
     position: relative;
+    /* 为上下各留出安全内边距，避免canvas被裁切 */
+    padding-top: 16px;
+    padding-bottom: 16px;
+    box-sizing: border-box;
 }
 
 /* Canvas样式 */
 #pdf-canvas {
     display: block;
+    /* 顶部不再强行贴边，由容器 padding 提供留白 */
     margin: 0 auto;
     background: #fff;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
