@@ -2,7 +2,7 @@
 param(
     [string]$Action = "start",
     [int]$WaitTime = 10,
-    [string]$Module = "pdf-viewer",
+    [Alias("Modules")][string]$Module = "pdf-viewer",
     [int]$Port = 3000,
     [string]$FilePath = ""
 )
@@ -257,7 +257,7 @@ switch ($Action.ToLower()) {
     }
     
     default {
-        Write-Host "Usage: .\ai-launcher.ps1 [start|stop|status|logs] [-Module {pdf-home|pdf-viewer}] [-Port PORT] [-FilePath PATH]" -ForegroundColor Red
+        Write-Host "Usage: .\ai-launcher.ps1 [start|stop|status|logs] [-Module|-Modules {pdf-home|pdf-viewer}] [-Port PORT] [-FilePath PATH]" -ForegroundColor Red
         Write-Host ""
         Write-Host "Commands:" -ForegroundColor White
         Write-Host "  start  - Start all services (default)" -ForegroundColor White
@@ -266,7 +266,7 @@ switch ($Action.ToLower()) {
         Write-Host "  logs   - View recent logs" -ForegroundColor White
         Write-Host ""
         Write-Host "Options:" -ForegroundColor White
-        Write-Host "  -Module {pdf-home|pdf-viewer} - Select frontend module (default: pdf-viewer)" -ForegroundColor White
+        Write-Host "  -Module|-Modules {pdf-home|pdf-viewer} - Select frontend module (default: pdf-viewer)" -ForegroundColor White
         Write-Host "  -Port PORT - Vite dev server port (default: 3000)" -ForegroundColor White
         Write-Host "  -FilePath PATH - PDF file path to load (pdf-viewer module only)" -ForegroundColor White
         Write-Host ""

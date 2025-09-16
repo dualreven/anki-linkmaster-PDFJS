@@ -43,6 +43,9 @@ class MessageType(Enum):
     HEARTBEAT = "heartbeat"
     HEARTBEAT_RESPONSE = "heartbeat_response"
 
+    # PDF查看器消息
+    LAUNCH_PDF_VIEWER = "launch_pdf_viewer"
+
 class StandardMessageHandler:
     """标准消息处理器 - 符合JSON通信标准"""
     
