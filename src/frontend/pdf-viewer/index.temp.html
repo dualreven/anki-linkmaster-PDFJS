@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF闃呰鍣?- Anki LinkMaster</title>
+    <title>PDF阅读器 - Anki LinkMaster</title>
     <link rel="stylesheet" href="style.css">
     <!-- PDF.js will be loaded via ES modules in main.js -->
 </head>
@@ -11,8 +11,8 @@
     <div class="container">
         <header>
             <div class="header-left">
-                <button id="back-btn" class="btn">鈫?杩斿洖</button>
-                <h1 id="pdf-title">PDF闃呰鍣?/h1>
+                <button id="back-btn" class="btn">← 返回</button>
+                <h1 id="pdf-title">PDF阅读器</h1>
             </div>
             <div class="header-right">
                 <div class="zoom-controls">
@@ -21,9 +21,9 @@
                     <button id="zoom-in" class="btn">+</button>
                 </div>
                 <div class="page-controls">
-                    <button id="prev-page" class="btn">涓婁竴椤?/button>
+                    <button id="prev-page" class="btn">上一页</button>
                     <span id="page-info">1 / 1</span>
-                    <button id="next-page" class="btn">涓嬩竴椤?/button>
+                    <button id="next-page" class="btn">下一页</button>
                 </div>
             </div>
         </header>
@@ -35,16 +35,16 @@
             
             <div id="loading" class="loading" style="display: none;">
                 <div class="spinner"></div>
-                <p>姝ｅ湪鍔犺浇PDF...</p>
+                <p>正在加载PDF...</p>
             </div>
 
             <div id="error" class="error" style="display: none;">
-                <p>鏃犳硶鍔犺浇PDF鏂囦欢</p>
+                <p>无法加载PDF文件</p>
             </div>
         </main>
     </div>
 
     <script type="module" src="main.js"></script>
-<script>window.PDF_PATH = "test_pdf_files\test.pdf";</script>
+<script>window.PDF_PATH = "path/to/file.pdf";</script>
 </body>
 </html>

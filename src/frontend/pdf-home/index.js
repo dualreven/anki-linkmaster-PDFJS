@@ -4,7 +4,7 @@
  */
 
 import { EventBus } from "../common/event/event-bus.js";
-import TableWrapper from './table-wrapper.js';
+import { TableWrapper } from './table-wrapper.js';
 import { APP_EVENTS, PDF_MANAGEMENT_EVENTS, UI_EVENTS, SYSTEM_EVENTS } from "../common/event/event-constants.js";
 import Logger, { LogLevel } from "../common/utils/logger.js";
 import { ErrorHandler } from "../common/error/error-handler.js";

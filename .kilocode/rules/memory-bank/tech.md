@@ -62,7 +62,9 @@ EventBus.once('module:action:status', (data) => {
 ```
 
 #### 事件命名规范
+
 事件名称必须遵循 `{module}:{action}:{status}` 格式：
+
 - `pdf:add:requested` - PDF添加请求
 - `websocket:connection:established` - WebSocket连接建立
 - `ui:error:show` - UI错误显示
@@ -96,6 +98,7 @@ wsClient.disconnect();
 ```
 
 #### 消息类型常量
+
 ```javascript
 import { WEBSOCKET_MESSAGE_TYPES } from '../common/event/event-constants.js';
 
@@ -213,24 +216,28 @@ PDFManager.renderPage(pageNumber, canvasElement, {
 #### 主要事件分类
 
 **应用事件 (APP_EVENTS)**
+
 ```javascript
 APP_EVENTS.INITIALIZATION.STARTED    // 应用初始化开始
 APP_EVENTS.INITIALIZATION.COMPLETED  // 应用初始化完成
 ```
 
 **WebSocket事件 (WEBSOCKET_EVENTS)**
+
 ```javascript
 WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED  // 连接建立
 WEBSOCKET_EVENTS.MESSAGE.RECEIVED        // 消息接收
 ```
 
 **PDF管理事件 (PDF_MANAGEMENT_EVENTS)**
+
 ```javascript
 PDF_MANAGEMENT_EVENTS.ADD.REQUESTED      // PDF添加请求
 PDF_MANAGEMENT_EVENTS.REMOVE.COMPLETED   // PDF删除完成
 ```
 
 **PDF查看器事件 (PDF_VIEWER_EVENTS)**
+
 ```javascript
 PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED    // 文件加载请求
 PDF_VIEWER_EVENTS.NAVIGATION.NEXT        // 下一页
@@ -240,6 +247,7 @@ PDF_VIEWER_EVENTS.ZOOM.IN                // 放大
 ### 事件使用最佳实践
 
 1. **始终使用命名导入**
+
 ```javascript
 // 正确
 import { PDF_MANAGEMENT_EVENTS } from '../event/event-constants.js';
@@ -249,6 +257,7 @@ import EVENT_CONSTANTS from '../event/event-constants.js';
 ```
 
 2. **事件数据规范**
+
 ```javascript
 // 发布事件时提供完整数据
 EventBus.emit(PDF_MANAGEMENT_EVENTS.ADD.COMPLETED, {
@@ -260,6 +269,7 @@ EventBus.emit(PDF_MANAGEMENT_EVENTS.ADD.COMPLETED, {
 ```
 
 3. **错误处理**
+
 ```javascript
 EventBus.emit(PDF_MANAGEMENT_EVENTS.ADD.FAILED, {
   error: error.message,
@@ -281,12 +291,14 @@ EventBus.emit(PDF_MANAGEMENT_EVENTS.ADD.FAILED, {
 ### 安装步骤
 
 #### 1. 克隆项目
+
 ```bash
 git clone <repository-url>
 cd anki-linkmaster-PDFJS
 ```
 
 #### 2. 后端环境设置
+
 ```bash
 cd src/backend
 python -m venv venv
@@ -301,27 +313,36 @@ pip install -r requirements.txt
 ```
 
 #### 3. 前端环境设置
+
 ```bash
 npm install
 ```
 
 #### 4. 使用AI启动器（必须）
+
 ```bash
+
 # 启动所有服务
-.\ai-launcher.ps1 start
+python ai-launcher.py start
 
 # 启动特定模块
-.\ai-launcher.ps1 start -Module pdf-home -Port 3001
-.\ai-launcher.ps1 start -Module pdf-viewer -Port 3002
+python ai-launcher.py start --module pdf-home --port 3001
+python ai-launcher.py start --module pdf-viewer --port 3002
+
+# 查看帮助信息
+python ai-launcher.py
+python ai-launcher.py --help
 
 # 查看服务状态
-.\ai-launcher.ps1 status
+python ai-launcher.py status
 
 # 查看日志
-.\ai-launcher.ps1 logs
+python ai-launcher.py logs
 
 # 停止所有服务
-.\ai-launcher.ps1 stop
+python ai-launcher.py stop
+```
+
 ```
 
 ## 调试和故障排除
@@ -345,6 +366,7 @@ logger.error('错误信息');
 ```
 
 **事件调试**
+
 ```javascript
 // 启用详细事件日志
 const eventBus = new EventBus({
@@ -356,6 +378,7 @@ const eventBus = new EventBus({
 ### 后端调试
 
 **PyQt6信号调试**
+
 ```python
 # 连接信号进行调试
 pdf_manager.file_added.connect(lambda file_info: print(f"File added: {file_info}"))
@@ -363,6 +386,7 @@ pdf_manager.error_occurred.connect(lambda error: print(f"Error: {error}"))
 ```
 
 **WebSocket调试**
+
 ```python
 # 查看WebSocket连接状态
 print(f"WebSocket状态: {websocket_server.get_connection_count()}个连接")
@@ -371,16 +395,19 @@ print(f"WebSocket状态: {websocket_server.get_connection_count()}个连接")
 ### 常见问题解决
 
 **PDF.js加载问题**
+
 - 检查CDN连接状态
 - 验证WebGL支持
 - 查看控制台错误信息
 
 **WebSocket连接失败**
+
 - 确认后端服务正在运行
 - 检查防火墙设置
 - 验证端口配置
 
 **内存泄漏**
+
 - 及时清理事件监听器
 - 使用destroy()方法释放资源
 - 监控内存使用情况
@@ -390,6 +417,7 @@ print(f"WebSocket状态: {websocket_server.get_connection_count()}个连接")
 ### 模块开发指南
 
 1. **创建新模块**
+
 ```javascript
 // src/frontend/my-module/index.js
 import { EventBus } from '../common/event/event-bus.js';
@@ -425,6 +453,7 @@ export default MyModule;
 ```
 
 2. **定义事件常量**
+
 ```javascript
 // src/frontend/my-module/event-constants.js
 export const MY_MODULE_EVENTS = {
@@ -437,6 +466,7 @@ export const MY_MODULE_EVENTS = {
 ```
 
 3. **集成到主应用**
+
 ```javascript
 // 在PDFHomeApp或PDFViewerApp中集成
 import MyModule from './my-module/index.js';
@@ -452,12 +482,14 @@ class PDFHomeApp {
 ### 代码规范
 
 **JavaScript规范**
+
 - 使用camelCase命名变量和函数
 - 使用PascalCase命名类和构造函数
 - 使用JSDoc格式注释
 - 导入顺序：标准库 → 第三方库 → 本地模块
 
 **Python规范**
+
 - 使用snake_case命名变量和函数
 - 使用PascalCase命名类
 - 遵循PEP8编码规范
@@ -466,6 +498,7 @@ class PDFHomeApp {
 ### 测试策略
 
 **前端测试**
+
 ```bash
 # 运行所有测试
 npm test
@@ -478,6 +511,7 @@ npm test -- --coverage
 ```
 
 **后端测试**
+
 ```bash
 # 运行Python测试
 pytest src/backend/tests/
@@ -489,12 +523,14 @@ pytest --cov=src.backend src/backend/tests/
 ### 性能优化
 
 **前端优化**
+
 - 使用虚拟滚动处理大数据集
 - 实现事件防抖减少频繁操作
 - 及时清理事件监听器防止内存泄漏
 - 使用LRU缓存管理PDF页面
 
 **后端优化**
+
 - 使用异步文件操作
 - 实现连接池管理WebSocket连接
 - 缓存文件元数据减少IO操作
@@ -507,6 +543,7 @@ pytest --cov=src.backend src/backend/tests/
 项目支持插件式扩展，可以通过事件总线集成新功能。
 
 **创建插件示例**
+
 ```javascript
 class MyPlugin {
   constructor(eventBus) {
@@ -534,12 +571,14 @@ class MyPlugin {
 ### API设计
 
 **WebSocket API**
+
 - 使用标准消息格式
 - 统一的错误响应格式
 - 版本控制支持
 - 向后兼容性保证
 
 **事件API**
+
 - 清晰的事件命名规范
 - 完整的事件数据格式
 - 错误处理和恢复机制

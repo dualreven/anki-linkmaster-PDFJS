@@ -1,321 +1,454 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Anki LinkMaster PDFJS - AI专用启动器
-功能：解决AI调用时终端阻塞问题，支持快速启动/停止所有服务
+Anki LinkMaster PDFJS - AI Launcher (Python Version)
+Python equivalent of ai-launcher.ps1
 """
 
 import os
 import sys
-import subprocess
-import time
 import json
-import signal
-import psutil
+import time
 import argparse
+import subprocess
+import signal
+import shutil
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Any, Optional
 
 class AILauncher:
-    def __init__(self, project_root: str = None):
-        self.project_root = Path(project_root) if project_root else Path(__file__).parent
-        self.logs_dir = self.project_root / "logs"
-        self.process_info_file = self.logs_dir / "process_info.json"
+    def __init__(self):
+        self.script_path = Path(__file__).parent.absolute()
+        self.process_info_file = self.script_path / "logs" / "process-info.json"
+        self.logs_dir = self.script_path / "logs"
         
-        # 创建日志目录
+        # Ensure logs directory exists
         self.logs_dir.mkdir(exist_ok=True)
+    
+    def parse_arguments(self) -> argparse.Namespace:
+        """Parse command line arguments"""
+        parser = argparse.ArgumentParser(
+            description="Anki LinkMaster PDFJS - AI Launcher",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            epilog="""
+Examples:
+  python ai-launcher.py start --module pdf-home --port 3001
+  python ai-launcher.py start --module pdf-viewer --pdf-path "C:\\path\\to\\file.pdf"
+  python ai-launcher.py start --module pdf-viewer
+  python ai-launcher.py start
+  python ai-launcher.py stop
+  python ai-launcher.py status
+  python ai-launcher.py logs
+            """
+        )
         
-        # 进程信息
-        self.processes: Dict[str, subprocess.Popen] = {}
+        parser.add_argument("action", choices=["start", "stop", "status", "logs"], 
+                          nargs="?", default="start", help="Action to perform")
+        parser.add_argument("--module", "-m", choices=["pdf-home", "pdf-viewer"], 
+                          default="pdf-viewer", help="Frontend module to use")
+        parser.add_argument("--port", "-p", type=int, default=3000, 
+                          help="Vite dev server port")
+        parser.add_argument("--pdf-path", type=str, default="", 
+                          help="PDF file path to load (pdf-viewer module only)")
+        parser.add_argument("--wait-time", "-w", type=int, default=10, 
+                          help="Wait time for services to start")
         
-    def start_npm_dev(self) -> bool:
-        """启动 npm run dev"""
-        print("[1/3] 启动 npm run dev...")
-        try:
-            log_file = self.logs_dir / "npm-dev.log"
-            with open(log_file, "w", encoding="utf-8") as f:
-                process = subprocess.Popen(
-                    ["npm.cmd", "run", "dev"],
-                    cwd=self.project_root,
-                    stdout=f,
-                    stderr=subprocess.STDOUT,
-                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
-                )
-                self.processes["npm-dev"] = process
-                self._save_process_info("npm-dev", process.pid, str(log_file))
-                return True
-        except Exception as e:
-            print(f"启动 npm run dev 失败: {e}")
-            return False
+        return parser.parse_args()
     
-    def start_debug_py(self) -> bool:
-        """启动 debug.py"""
-        print("[2/3] 启动 debug.py...")
-        try:
-            log_file = self.logs_dir / "debug.log"
+    def start_npm_dev(self, module: str, port: int, pdf_path: str = "") -> Dict[str, Any]:
+        """Start npm run dev with custom port"""
+        print(f"[1/3] Starting npm run dev on port {port} for module {module}...")
+        
+        log_file = self.logs_dir / "npm-dev.log"
+        
+        # Prepare index.html for Vite if PDF path is provided
+        vite_entry_file = f"src/frontend/{module}/index.html"
+        if pdf_path and module == "pdf-viewer":
+            original_html_path = Path("src/frontend/pdf-viewer/index.html")
+            temp_html_path = Path("src/frontend/pdf-viewer/index.temp.html")
+            
+            if original_html_path.exists():
+                html_content = original_html_path.read_text(encoding="utf-8")
+                injection_script = f'<script>window.PDF_PATH = "{pdf_path}";</script>'
+                html_content = html_content.replace("</body>", f"{injection_script}\n</body>")
+                
+                temp_html_path.write_text(html_content, encoding="utf-8")
+                vite_entry_file = str(temp_html_path)
+        
+        # Set environment variable for Vite module
+        env = os.environ.copy()
+        env["VITE_MODULE"] = module
+        
+        # Start npm dev process
+        # On Windows, npm commands need to be executed through cmd.exe
+        if sys.platform == "win32":
+            # Use cmd.exe to execute npm command
+            cmd = f'npm run dev -- --port {port}'
+            process = subprocess.Popen(
+                ["cmd.exe", "/c", cmd],
+                cwd=str(self.script_path),
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8"
+            )
+        else:
+            # On Unix systems, execute npm directly
+            process = subprocess.Popen(
+                ["npm", "run", "dev", "--", "--port", str(port)],
+                cwd=str(self.script_path),
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8"
+            )
+        
+        # Write output to log file
+        def log_writer():
             with open(log_file, "w", encoding="utf-8") as f:
-                process = subprocess.Popen(
-                    [sys.executable, "debug.py", "--port", "9222"],
-                    cwd=self.project_root,
-                    stdout=f,
-                    stderr=subprocess.STDOUT,
-                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
-                )
-                self.processes["debug-py"] = process
-                self._save_process_info("debug-py", process.pid, str(log_file))
-                return True
-        except Exception as e:
-            print(f"启动 debug.py 失败: {e}")
-            return False
-    
-    def start_app_py(self) -> bool:
-        """启动 app.py"""
-        print("[3/3] 启动 app.py...")
-        try:
-            log_file = self.logs_dir / "app.log"
-            with open(log_file, "w", encoding="utf-8") as f:
-                process = subprocess.Popen(
-                    [sys.executable, "app.py"],
-                    cwd=self.project_root,
-                    stdout=f,
-                    stderr=subprocess.STDOUT,
-                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
-                )
-                self.processes["main-app"] = process
-                self._save_process_info("main-app", process.pid, str(log_file))
-                return True
-        except Exception as e:
-            print(f"启动 app.py 失败: {e}")
-            return False
-    
-    def _save_process_info(self, name: str, pid: int, log_file: str):
-        """保存进程信息到文件"""
+                while True:
+                    line = process.stdout.readline()
+                    if not line:
+                        break
+                    # Strip ANSI codes
+                    clean_line = self.strip_ansi_codes(line)
+                    f.write(clean_line)
+                    f.flush()
+        
+        # Start log writer in background
+        import threading
+        log_thread = threading.Thread(target=log_writer, daemon=True)
+        log_thread.start()
+        
         process_info = {
-            "name": name,
-            "pid": pid,
-            "log_file": log_file,
-            "start_time": time.time()
+            "type": "npm-dev",
+            "pid": process.pid,
+            "log_file": str(log_file),
+            "port": port,
+            "process": process
         }
         
-        # 读取现有信息
-        all_info = []
-        if self.process_info_file.exists():
-            try:
-                with open(self.process_info_file, "r", encoding="utf-8") as f:
-                    all_info = json.load(f)
-            except:
-                pass
-        
-        # 添加新信息
-        all_info.append(process_info)
-        
-        # 保存
-        with open(self.process_info_file, "w", encoding="utf-8") as f:
-            json.dump(all_info, f, indent=2)
+        return process_info
     
-    def start_all(self, wait_time: int = 10) -> bool:
-        """启动所有服务"""
-        print("=" * 40)
-        print("Anki LinkMaster PDFJS - AI专用启动器")
-        print("=" * 40)
-        print()
+    def start_debug_py(self) -> Dict[str, Any]:
+        """Start debug.py"""
+        print("[2/3] Starting debug.py...")
         
-        # 先停止现有进程
-        self.stop_all()
+        log_file = self.logs_dir / "debug.log"
         
-        # 启动服务
-        success = True
-        success &= self.start_npm_dev()
-        time.sleep(5)  # 等待npm启动
+        # Start debug.py process using virtual environment Python
+        python_executable = os.path.join(self.script_path, ".venv", "Scripts", "python.exe")
+        process = subprocess.Popen(
+            [python_executable, "debug.py", "--port", "9222"],
+            cwd=str(self.script_path),
+            stdout=open(log_file, "w", encoding="utf-8"),
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8"
+        )
         
-        success &= self.start_debug_py()
-        time.sleep(2)  # 等待debug启动
+        process_info = {
+            "type": "debug-py",
+            "pid": process.pid,
+            "log_file": str(log_file),
+            "process": process
+        }
         
-        success &= self.start_app_py()
-        
-        if success:
-            print()
-            print("=" * 40)
-            print("所有服务已启动！")
-            print("=" * 40)
-            print()
-            print("服务信息：")
-            print("- npm dev server: http://localhost:3000")
-            print("- Debug console: 端口 9222")
-            print("- 主应用: 已启动")
-            print()
-            print("日志文件位置：")
-            print("- npm日志: logs/npm-dev.log")
-            print("- debug日志: logs/debug.log")
-            print("- app日志: logs/app.log")
-            print()
-            
-            # 等待服务启动
-            print(f"等待 {wait_time} 秒让服务完全启动...")
-            for i in range(wait_time):
-                print(f"\r进度: [{'=' * (i * 10 // wait_time)}{' ' * (10 - i * 10 // wait_time)}] {i + 1}/{wait_time}秒", end="")
-                time.sleep(1)
-            print("\n")
-            
-            # 检查状态
-            self.check_status()
-            
-            print("\nAI集成提示：")
-            print("- 服务已在后台运行，不会阻塞当前终端")
-            print("- 可以通过 'python ai-launcher.py stop' 停止所有服务")
-            print("- 可以通过 'python ai-launcher.py status' 检查服务状态")
-            
-            return True
-        else:
-            print("部分服务启动失败！")
-            return False
+        return process_info
     
-    def stop_all(self):
-        """停止所有服务"""
-        print("正在停止所有服务...")
+    def start_app_py(self, module: str, port: int, pdf_path: str = "") -> Dict[str, Any]:
+        """Start app.py with module selection"""
+        print(f"[3/3] Starting app.py with module: {module}...")
         
-        # 从文件读取进程信息
+        log_file = self.logs_dir / "app.log"
+        module_log_file = self.logs_dir / f"{module}.log"
+        
+        # Create module log header
+        log_header = f"""=====================================
+{module} Module Log
+Started: {time.strftime("%Y-%m-%d %H:%M:%S")}
+Vite Port: {port}
+=====================================
+
+"""
+        module_log_file.write_text(log_header, encoding="utf-8")
+        
+        # Build command arguments
+        cmd_args = ["python", "app.py", "--module", module, "--port", str(port)]
+        if pdf_path and module == "pdf-viewer":
+            cmd_args.extend(["--file-path", pdf_path])
+        
+        # Start app.py process using virtual environment Python
+        python_executable = os.path.join(self.script_path, ".venv", "Scripts", "python.exe")
+        cmd_args[0] = python_executable  # Replace "python" with full path
+        process = subprocess.Popen(
+            cmd_args,
+            cwd=str(self.script_path),
+            stdout=open(log_file, "w", encoding="utf-8"),
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8"
+        )
+        
+        process_info = {
+            "type": "main-app",
+            "pid": process.pid,
+            "log_file": str(log_file),
+            "module_log": str(module_log_file),
+            "module": module,
+            "port": port,
+            "process": process
+        }
+        
+        return process_info
+    
+    def stop_all_processes(self):
+        """Stop all processes"""
+        print("Stopping all services...")
+        
         if self.process_info_file.exists():
             try:
                 with open(self.process_info_file, "r", encoding="utf-8") as f:
                     process_infos = json.load(f)
-                    
+                
                 for info in process_infos:
                     try:
-                        pid = info["pid"]
-                        name = info["name"]
-                        
-                        # 终止进程
-                        if sys.platform == "win32":
-                            subprocess.run(["taskkill", "/F", "/PID", str(pid)], check=False, capture_output=True)
-                        else:
-                            os.kill(pid, signal.SIGTERM)
-                        
-                        print(f"已停止 {name} (PID: {pid})")
+                        # Use os.kill to terminate the process
+                        if "pid" in info:
+                            pid = info["pid"]
+                            try:
+                                if sys.platform == "win32":
+                                    # On Windows, use taskkill to terminate process tree
+                                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], 
+                                                 check=False, capture_output=True)
+                                else:
+                                    # On Unix, send SIGTERM to process group
+                                    os.killpg(os.getpgid(pid), signal.SIGTERM)
+                                print(f"Stopped {info.get('type', 'unknown')} (PID: {pid})")
+                            except (ProcessLookupError, OSError):
+                                # Process already terminated
+                                pass
                     except Exception as e:
-                        print(f"停止进程失败: {e}")
+                        print(f"Warning: Failed to stop {info.get('type', 'unknown')}: {e}")
                 
-                # 删除进程信息文件
-                self.process_info_file.unlink()
+                # Remove process info file
+                self.process_info_file.unlink(missing_ok=True)
+                
             except Exception as e:
-                print(f"读取进程信息失败: {e}")
+                print(f"Warning: Error reading process info: {e}")
         
-        # 清理残留进程
-        self._cleanup_processes()
-        
-        print("所有服务已停止")
+        print("All services stopped")
     
-    def _cleanup_processes(self):
-        """清理残留的 node 和 python 进程"""
-        try:
-            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                try:
-                    # 检查是否是相关进程
-                    if proc.info['name'] in ['node.exe', 'node', 'python.exe', 'python']:
-                        # 检查命令行是否包含项目相关内容
-                        cmdline = ' '.join(proc.info['cmdline'] or [])
-                        if any(keyword in cmdline.lower() for keyword in ['anki', 'pdfjs', 'vite', 'npm run dev']):
-                            proc.kill()
-                            print(f"清理残留进程: {proc.info['name']} (PID: {proc.info['pid']})")
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
-        except Exception as e:
-            print(f"清理进程时出错: {e}")
-    
-    def check_status(self):
-        """检查服务状态"""
-        print("检查服务状态...")
+    def check_process_status(self):
+        """Check process status"""
+        print("Checking service status...")
         
-        if not self.process_info_file.exists():
-            print("没有找到运行的服务信息")
-            return
-        
-        try:
-            with open(self.process_info_file, "r", encoding="utf-8") as f:
-                process_infos = json.load(f)
-            
-            all_running = True
-            for info in process_infos:
-                pid = info["pid"]
-                name = info["name"]
+        if self.process_info_file.exists():
+            try:
+                with open(self.process_info_file, "r", encoding="utf-8") as f:
+                    process_infos = json.load(f)
                 
-                if psutil.pid_exists(pid):
-                    print(f"✓ {name} (PID: {pid}) - 正在运行")
-                else:
-                    print(f"✗ {name} (PID: {pid}) - 已停止")
-                    all_running = False
-            
-            if all_running:
-                print("\n所有服务都在正常运行")
-            else:
-                print("\n部分服务已停止，建议重新启动")
+                for info in process_infos:
+                    pid = info.get("pid")
+                    if pid:
+                        try:
+                            # Check if process exists
+                            if sys.platform == "win32":
+                                # On Windows, use tasklist
+                                result = subprocess.run(
+                                    ["tasklist", "/FI", f"PID eq {pid}"], 
+                                    capture_output=True, text=True, check=False
+                                )
+                                is_running = str(pid) in result.stdout
+                            else:
+                                # On Unix, use ps
+                                os.kill(pid, 0)
+                                is_running = True
+                        except (OSError, subprocess.CalledProcessError):
+                            is_running = False
+                        
+                        if is_running:
+                            print(f"Process {info.get('type', 'unknown')} (PID: {pid}) is running")
+                        else:
+                            print(f"Process {info.get('type', 'unknown')} (PID: {pid}) has stopped")
                 
-        except Exception as e:
-            print(f"检查状态失败: {e}")
+            except Exception as e:
+                print(f"Warning: Error checking status: {e}")
+        else:
+            print("No process info found")
     
-    def show_logs(self, lines: int = 20):
-        """显示最近的日志"""
-        print("显示最近的日志：\n")
+    def show_logs(self, module: str):
+        """Show recent logs"""
+        print("Showing recent logs:")
+        print()
         
         log_files = [
             self.logs_dir / "npm-dev.log",
             self.logs_dir / "debug.log",
-            self.logs_dir / "app.log"
+            self.logs_dir / "app.log",
+            self.logs_dir / f"{module}.log"
         ]
         
         for log_file in log_files:
             if log_file.exists():
-                print(f"--- {log_file.name} (最后 {lines} 行) ---")
+                print(f"--- {log_file.name} (last 10 lines) ---")
                 try:
+                    # Read last 10 lines
                     with open(log_file, "r", encoding="utf-8") as f:
-                        content = f.readlines()
-                        for line in content[-lines:]:
-                            print(line.rstrip())
+                        lines = f.readlines()[-10:]
+                    for line in lines:
+                        print(line.rstrip())
+                    print()
                 except Exception as e:
-                    print(f"读取日志失败: {e}")
-                print()
+                    print(f"Error reading {log_file}: {e}")
+                    print()
     
-    def monitor(self, interval: int = 5):
-        """监控服务状态"""
-        print(f"开始监控服务状态 (每 {interval} 秒检查一次)...")
-        print("按 Ctrl+C 停止监控\n")
+    def strip_ansi_codes(self, text: str) -> str:
+        """Strip ANSI escape codes from text"""
+        import re
+        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+        return ansi_escape.sub('', text)
+    
+    def run(self):
+        """Main entry point"""
+        args = self.parse_arguments()
         
-        try:
-            while True:
-                self.check_status()
-                print(f"\n下次检查在 {interval} 秒后...\n")
-                time.sleep(interval)
-        except KeyboardInterrupt:
-            print("\n监控已停止")
+        if args.action == "start":
+            self.handle_start(args)
+        elif args.action == "stop":
+            self.handle_stop()
+        elif args.action == "status":
+            self.handle_status()
+        elif args.action == "logs":
+            self.handle_logs(args.module)
+        else:
+            print("Invalid action. Use --help for usage information.")
 
-
-def main():
-    parser = argparse.ArgumentParser(description="Anki LinkMaster PDFJS AI专用启动器")
-    parser.add_argument("action", nargs="?", default="start", 
-                       choices=["start", "stop", "status", "logs", "monitor"],
-                       help="要执行的操作")
-    parser.add_argument("--wait", type=int, default=10,
-                       help="启动后等待时间（秒）")
-    parser.add_argument("--lines", type=int, default=20,
-                       help="显示日志的行数")
-    parser.add_argument("--interval", type=int, default=5,
-                       help="监控间隔（秒）")
+    def handle_start(self, args):
+        """Handle start action"""
+        print("===================================")
+        print("Anki LinkMaster PDFJS - AI Launcher")
+        print("===================================")
+        print()
+        
+        # Stop existing processes first
+        self.stop_all_processes()
+        
+        # Start all services
+        process_infos = []
+        
+        # Start npm dev
+        npm_info = self.start_npm_dev(args.module, args.port, args.pdf_path)
+        process_infos.append({
+            "type": npm_info["type"],
+            "pid": npm_info["pid"],
+            "log_file": npm_info["log_file"],
+            "port": npm_info["port"]
+        })
+        time.sleep(5)
+        
+        # Start debug.py
+        debug_info = self.start_debug_py()
+        process_infos.append({
+            "type": debug_info["type"],
+            "pid": debug_info["pid"],
+            "log_file": debug_info["log_file"]
+        })
+        time.sleep(2)
+        
+        # Start app.py
+        app_info = self.start_app_py(args.module, args.port, args.pdf_path)
+        process_infos.append({
+            "type": app_info["type"],
+            "pid": app_info["pid"],
+            "log_file": app_info["log_file"],
+            "module_log": app_info["module_log"],
+            "module": app_info["module"],
+            "port": app_info["port"]
+        })
+        
+        # Save process info
+        with open(self.process_info_file, "w", encoding="utf-8") as f:
+            json.dump(process_infos, f, indent=2)
+        
+        print()
+        print("===================================")
+        print("All services started!")
+        print("===================================")
+        print()
+        print("Services:")
+        print(f"- npm dev server: http://localhost:{args.port}")
+        print("- Debug console: Port 9222")
+        print(f"- Main app: Module {args.module}")
+        print()
+        print("Log files:")
+        print("- npm log: logs/npm-dev.log")
+        print("- debug log: logs/debug.log")
+        print("- app log: logs/app.log")
+        print(f"- module log: logs/{args.module}.log")
+        print()
+        print(f"Waiting {args.wait_time} seconds for services to start...")
+        
+        # Wait for services
+        for i in range(1, args.wait_time + 1):
+            progress = (i / args.wait_time) * 100
+            print(f"\rWaited {i}/{args.wait_time} seconds ({progress:.0f}%)", end="")
+            time.sleep(1)
+        print()
+        
+        print()
+        print("Checking service status...")
+        self.check_process_status()
+        
+        print()
+        print("AI Integration Tips:")
+        print("- Services are running in background")
+        print("- Use 'python ai-launcher.py stop' to stop all services")
+        print("- Log files are available in logs/* for debugging")
     
-    args = parser.parse_args()
+    def handle_stop(self):
+        """Handle stop action"""
+        self.stop_all_processes()
     
-    launcher = AILauncher()
+    def handle_status(self):
+        """Handle status action"""
+        self.check_process_status()
     
-    if args.action == "start":
-        launcher.start_all(args.wait)
-    elif args.action == "stop":
-        launcher.stop_all()
-    elif args.action == "status":
-        launcher.check_status()
-    elif args.action == "logs":
-        launcher.show_logs(args.lines)
-    elif args.action == "monitor":
-        launcher.monitor(args.interval)
-
+    def handle_logs(self, module: str):
+        """Handle logs action"""
+        self.show_logs(module)
 
 if __name__ == "__main__":
-    main()
+    launcher = AILauncher()
+    
+    # If no arguments provided, show help
+    if len(sys.argv) == 1:
+        parser = argparse.ArgumentParser(
+            description="Anki LinkMaster PDFJS - AI Launcher",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            epilog="""
+Examples:
+  python ai-launcher.py start --module pdf-home --port 3001
+  python ai-launcher.py start --module pdf-viewer --pdf-path "C:\\path\\to\\file.pdf"
+  python ai-launcher.py start --module pdf-viewer
+  python ai-launcher.py start
+  python ai-launcher.py stop
+  python ai-launcher.py status
+  python ai-launcher.py logs
+            """
+        )
+        parser.add_argument("action", choices=["start", "stop", "status", "logs"], 
+                          nargs="?", default="start", help="Action to perform")
+        parser.add_argument("--module", "-m", choices=["pdf-home", "pdf-viewer"], 
+                          default="pdf-viewer", help="Frontend module to use")
+        parser.add_argument("--port", "-p", type=int, default=3000, 
+                          help="Vite dev server port")
+        parser.add_argument("--pdf-path", type=str, default="", 
+                          help="PDF file path to load (pdf-viewer module only)")
+        parser.add_argument("--wait-time", "-w", type=int, default=10, 
+                          help="Wait time for services to start")
+        parser.print_help()
+    else:
+        launcher.run()

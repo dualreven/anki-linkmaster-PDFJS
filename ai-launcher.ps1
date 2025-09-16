@@ -41,6 +41,7 @@ function Start-NpmDev {
     
     # Create a PowerShell script to remove ANSI codes and use custom port
     $psScript = @"
+`$env:VITE_MODULE=`"`$Module`"
 vite --port $Port 2>&1 | ForEach-Object {
     `$line = `$_ -replace '\x1b\[\d+(;\d+)*m', ''
     `$line

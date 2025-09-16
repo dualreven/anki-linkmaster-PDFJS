@@ -1,4 +1,4 @@
-// Vite config with Babel support (no React)
+// 动态Vite配置，支持多模块
 import { defineConfig } from 'vite'
 import babel from 'vite-plugin-babel'
 import fs from 'fs'
