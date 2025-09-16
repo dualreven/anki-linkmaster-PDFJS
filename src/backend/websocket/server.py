@@ -141,6 +141,40 @@ class WebSocketServer(QObject):
         self.clients = valid_clients
         logger.info(f"📡 广播消息完成，已成功发送给 {sent_count}/{len(self.clients)} 个客户端")
     
+    def broadcast_event(self, event_name, payload):
+        """Broadcast a JSON event to all connected clients."""
+        try:
+            msg = json.dumps({"event": event_name, "payload": payload})
+        except (TypeError, ValueError) as e:
+            logger.error(f"无法序列化 event/payload 为 JSON: {e}")
+            return 0
+
+        logger.info(f"📡 准备广播事件 '{event_name}' 到 {len(self.clients)} 个客户端")
+        sent_count = 0
+        valid_clients = []
+        for client in list(self.clients):
+            try:
+                if client.state() == QAbstractSocket.SocketState.ConnectedState:
+                    client.sendTextMessage(msg)
+                    sent_count += 1
+                    valid_clients.append(client)
+                    logger.info(f"✅ 向客户端 {client.peerPort()} 发送事件 '{event_name}'")
+                else:
+                    logger.warning(f"⚠️ 客户 {client.peerPort()} 未连接，准备移除")
+            except Exception as e:
+                logger.error(f"❌ 向客户端 {getattr(client, 'peerPort', lambda: 'unknown')()} 发送事件失败: {e}")
+                try:
+                    if client in self.clients:
+                        self.clients.remove(client)
+                except Exception:
+                    # 忽略移除时的任何异常
+                    pass
+
+        # 更新客户端列表为仍然有效的客户端
+        self.clients = valid_clients
+        logger.info(f"📡 事件广播完成，成功发送给 {sent_count} 个客户端")
+        return sent_count
+
     def get_client_count(self):
         """获取当前连接的客户端数量"""
         return len(self.clients)

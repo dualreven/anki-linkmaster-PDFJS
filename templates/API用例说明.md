@@ -315,15 +315,15 @@ Test Points:
 - [`docs/articles/开发流程设计.md`](docs/articles/开发流程设计.md:1)
   > 要点摘录：描述从任务链到接口用例再到代码/测试生成的工作流，强调 Traceability。
 
-- [`roo/system-prompt-spec-designer`](roo/system-prompt-spec-designer:1)
+- [`kilocode/system-prompt-spec-designer`](kilocode/system-prompt-spec-designer:1)
   > 要点摘录：Spec-Designer 使用规范同步与索引更新的行为准则。
 
-- [`roo/system-prompt-test-designer`](roo/system-prompt-test-designer:1)
+- [`kilocode/system-prompt-test-designer`](kilocode/system-prompt-test-designer:1)
   > 要点摘录：Test-Designer 如何根据契约映射生成测试用例与验收标准。
 
 - 可选：
-  - [`roo/system-prompt-code-generator`](roo/system-prompt-code-generator:1)
-  - [`roo/system-prompt-spec-verifier`](roo/system-prompt-spec-verifier:1)
+  - [`kilocode/system-prompt-code-generator`](kilocode/system-prompt-code-generator:1)
+  - [`kilocode/system-prompt-spec-verifier`](kilocode/system-prompt-spec-verifier:1)
 
 > 提示：在引用位置插入链接并在生成脚本中确保目标文件存在.
 

@@ -98,15 +98,6 @@ export class PDFManager {
         (data) => this.#handleResponse(data),
         { subscriberId: "PDFManager" }
       ),
-      this.#eventBus.on(
-        WEBSOCKET_EVENTS.MESSAGE.RECEIVED,
-        (message) =>
-          this.#logger.debug(
-            `Received WebSocket message: ${message.type}`,
-            message
-          ),
-        { subscriberId: "PDFManager" }
-      ),
     ];
     this.#unsubscribeFunctions.push(...listeners);
   }
@@ -392,7 +383,7 @@ export class PDFManager {
       WEBSOCKET_EVENTS.MESSAGE.SEND,
       {
         type: WEBSOCKET_MESSAGE_TYPES.REQUEST_FILE_SELECTION,
-        request_id: this.#generateRequestId(),
+        request_id: this._generateRequestId(),
         data: { prompt: "请选择要添加的PDF文件" },
       },
       { actorId: "PDFManager" }
@@ -403,7 +394,7 @@ export class PDFManager {
    * 生成一个用于请求跟踪的半唯一 ID。
    * @returns {string} 请求 ID 字符串。
    */
-  #generateRequestId() {
+  _generateRequestId() {
     return "req_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
   }
 
@@ -463,7 +454,7 @@ export class PDFManager {
     );
 
     // 为批量删除生成唯一的请求ID并跟踪剩余计数
-    const batchRequestId = this.#generateRequestId();
+    const batchRequestId = this._generateRequestId();
     this.#batchTrack.set(batchRequestId, {
       pending: files.length,
       files: [...files],

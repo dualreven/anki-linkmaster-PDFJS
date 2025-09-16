@@ -6,7 +6,7 @@ import json
 import uuid
 import time
 import logging
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, Union, List
 from enum import Enum
 
 logger = logging.getLogger(__name__)
@@ -24,6 +24,13 @@ class MessageType(Enum):
     BATCH_PDF_REMOVED = "batch_pdf_removed"
     PDF_DETAIL_REQUEST = "pdf_detail_request"
     PDF_DETAIL_RESPONSE = "pdf_detail_response"
+    
+    # PDF分页传输消息
+    PDF_PAGE_REQUEST = "pdf_page_request"
+    PDF_PAGE_RESPONSE = "pdf_page_response"
+    PDF_PAGE_PRELOAD = "pdf_page_preload"
+    PDF_PAGE_CACHE_CLEAR = "pdf_page_cache_clear"
+    PDF_PAGE_ERROR = "pdf_page_error"
     
     # 系统消息
     SYSTEM_STATUS = "system_status"
@@ -344,5 +351,109 @@ class PDFMessageBuilder:
             status="success",
             code=200,
             message=f"批量删除完成，成功删除 {len(removed_files)} 个文件",
+            data=data
+        )
+
+    @staticmethod
+    def build_pdf_page_response(
+        request_id: str,
+        file_id: str,
+        page_number: int,
+        page_data: Dict[str, Any],
+        compression: str = "none",
+        total_pages: Optional[int] = None,
+        page_size: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """构建PDF页面响应"""
+        data = {
+            "file_id": file_id,
+            "page_number": page_number,
+            "page_data": page_data,
+            "compression": compression,
+            "metadata": {
+                "retrieved_at": int(time.time() * 1000)
+            }
+        }
+        
+        if total_pages is not None:
+            data["total_pages"] = total_pages
+        if page_size is not None:
+            data["page_size"] = page_size
+
+        return StandardMessageHandler.build_response(
+            MessageType.PDF_PAGE_RESPONSE,
+            request_id,
+            data=data
+        )
+
+    @staticmethod
+    def build_pdf_page_error_response(
+        request_id: str,
+        file_id: str,
+        page_number: int,
+        error_type: str,
+        error_message: str,
+        retryable: bool = False,
+        error_details: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """构建PDF页面错误响应"""
+        error_data = {
+            "file_id": file_id,
+            "page_number": page_number,
+            "type": error_type,
+            "message": error_message,
+            "retryable": retryable,
+            "timestamp": int(time.time() * 1000)
+        }
+        
+        if error_details:
+            error_data["details"] = error_details
+
+        return StandardMessageHandler.build_response(
+            MessageType.PDF_PAGE_ERROR,
+            request_id,
+            status="error",
+            code=500,
+            message=error_message,
+            error=error_data
+        )
+
+    @staticmethod
+    def build_pdf_page_preload_request(
+        file_id: str,
+        start_page: int,
+        end_page: int,
+        priority: str = "low",
+        compression: str = "none"
+    ) -> Dict[str, Any]:
+        """构建PDF页面预加载请求"""
+        data = {
+            "file_id": file_id,
+            "start_page": start_page,
+            "end_page": end_page,
+            "priority": priority,
+            "compression": compression
+        }
+
+        return StandardMessageHandler.build_base_message(
+            MessageType.PDF_PAGE_PRELOAD,
+            data=data
+        )
+
+    @staticmethod
+    def build_pdf_page_cache_clear_request(
+        file_id: str,
+        keep_pages: Optional[List[int]] = None
+    ) -> Dict[str, Any]:
+        """构建PDF页面缓存清理请求"""
+        data = {
+            "file_id": file_id
+        }
+        
+        if keep_pages:
+            data["keep_pages"] = keep_pages
+
+        return StandardMessageHandler.build_base_message(
+            MessageType.PDF_PAGE_CACHE_CLEAR,
             data=data
         )

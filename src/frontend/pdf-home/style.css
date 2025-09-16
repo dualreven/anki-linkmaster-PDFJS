@@ -179,6 +179,19 @@ h1 {
     height: 20px;
     cursor: pointer;
 }
+/* 为 TableWrapper 注入的行级 checkbox 提供兼容样式，确保其在不同主题/Tabulator CSS 下可见 */
+.pdf-table-row-select {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    margin-right: 6px;
+    vertical-align: middle;
+    -webkit-appearance: checkbox;
+    appearance: checkbox;
+    /* 提高优先级，防止被 Tabulator 的样式覆盖为不可见 */
+    display: inline-block !important;
+    opacity: 1 !important;
+}
 
 .pdf-item-icon {
     font-size: 24px;

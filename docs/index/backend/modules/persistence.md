@@ -11,4 +11,4 @@
 
 细节：
 - 示例数据见 data/pdf_files.json:1
-- 与管理器的交互在 roo/system-prompt-agent-master.yaml 中有规划
+- 与管理器的交互在 kilocode/system-prompt-agent-master.yaml 中有规划

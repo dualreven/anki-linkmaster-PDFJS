@@ -1,0 +1,48 @@
+{
+  "meta": {
+    "title": "最终定稿方案",
+    "role": "方案规划师 (agent-planner)",
+    "summary": "基于输入和 sequentialthinking MCP 工具生成的精细化方案",
+    "user_input": "用户需求：实现PDF.js加载test_files\\test.pdf，最终验收方式是运行.\\ai-launcher.ps1 start会打开app.py，其中有PDF.js被加载而且test_files\\test.pdf被渲染。项目经过多次失败的AI代码生成，有很多混乱的地方，需要理清楚。澄清结果：需要将PDF.js集成到现有的事件驱动架构中，确保PDF阅读器能正确加载和渲染指定的测试PDF文件，通过启动脚本验证功能正常。需要分析项目结构，清理混乱代码，规划集成步骤。",
+    "creation_time": "20250911205235",
+    "file_number": "001",
+    "forum_reference": "AIforum/20250911205235-forum-001.json"
+  },
+  "content": {
+    "background": {
+      "title": "背景",
+      "summary": "用户需实现PDF.js加载test_files\\test.pdf，通过ai-launcher.ps1启动验证。项目混乱源于多次AI生成失败。",
+      "details": "用户要求在Anki LinkMaster PDFJS项目中实现PDF.js加载test_files\\test.pdf文件的功能，最终验收标准是通过运行.\\ai-launcher.ps1 start启动应用，其中PDF.js被正确加载且test.pdf文件被渲染。项目由于多次AI代码生成失败，导致代码混乱，需要理清项目结构、清理混乱代码，并规划PDF.js集成到现有事件驱动架构的步骤。项目基于PyQt6后端和前端事件驱动架构，PDF.js已在pdf-viewer模块中部分集成。"
+    },
+    "plan": {
+      "title": "方案",
+      "summary": "通过分析、验证、清理、集成、实现、测试步骤实现PDF.js集成。",
+      "details": "1. 分析项目结构：读取package.json确认PDF.js依赖、读取pdf-viewer模块文件(pdf-manager.js, main.js等)、检查事件常量(pdf-viewer-constants.js)、验证事件总线(event-bus.js)。2. 验证关键假设：检查PDF.js依赖安装、测试事件总线发布订阅机制、验证WebSocket消息传递、确认test.pdf文件有效性、测试ai-launcher.ps1启动流程。3. 清理混乱代码：识别重复PDF管理逻辑、移除遗留代码、统一到pdf-viewer模块。4. 集成到事件驱动架构：确保PDF加载事件通过event-bus发布、WebSocket正确传递消息。5. 实现test.pdf加载：修改PDF管理器加载指定文件路径。6. 测试验收：运行ai-launcher.ps1验证功能。"
+    },
+    "assumptions": {
+      "title": "假设",
+      "summary": "PDF.js依赖正确、事件总线正常、WebSocket通信正常、test.pdf有效、启动脚本工作。",
+      "details": "假设PDF.js依赖已正确安装在package.json中；事件总线能正常发布和订阅事件；WebSocket能正确传递消息；test.pdf是有效的PDF文件；ai-launcher.ps1脚本能正常启动前端和后端服务。这些假设将在验证步骤中确认。"
+    },
+    "evidence": {
+      "title": "证据",
+      "summary": "项目结构分析显示后端PyQt6、前端事件驱动、PDF.js在pdf-viewer模块，加上实际代码检查结果。",
+      "details": "项目结构分析显示后端基于PyQt6，包含应用主控制器、PDF管理器、WebSocket服务器、UI主窗口；前端分为pdf-home和pdf-viewer模块，使用事件总线和WebSocket客户端；PDF.js集成在pdf-viewer模块中，有pdf-manager.js、main.js等文件；事件常量在pdf-viewer-constants.js中定义；实际代码检查将确认PDF.js集成状态和事件总线实现。"
+    },
+    "conclusion": {
+      "title": "结论",
+      "summary": "通过系统化步骤实现集成，确保功能正常；包括风险评估和回滚计划。",
+      "details": "通过上述系统化步骤，可以实现PDF.js加载test_files\\test.pdf的功能，确保PDF阅读器正确加载和渲染指定的测试PDF文件，通过启动脚本验证功能正常。风险评估：PDF.js与QtWebEngine兼容性问题、事件总线阻塞导致消息丢失、WebSocket连接失败；回滚计划：恢复原代码版本、检查错误日志、重新分析项目结构。"
+    }
+  },
+  "references": [
+    {
+      "title": "PDF.js官方文档",
+      "url": "https://mozilla.github.io/pdf.js/"
+    },
+    {
+      "title": "QtWebEngine兼容性报告",
+      "url": "pdfjs_qtwebengine_compatibility_report_20250903_204038.json"
+    }
+  ]
+}

@@ -11,6 +11,7 @@ from PyQt6.QtNetwork import QHostAddress, QAbstractSocket
 
 from .standard_protocol import StandardMessageHandler, PDFMessageBuilder, MessageType
 from ..pdf_manager.manager import PDFManager
+from ..pdf_manager.page_transfer_manager import page_transfer_manager
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +162,19 @@ class StandardWebSocketServer(QObject):
         
         # PDF详情请求
         elif message_type == "pdf_detail_request":
+        # PDF页面请求
+        elif message_type == MessageType.PDF_PAGE_REQUEST.value:
+            return self.handle_pdf_page_request(request_id, data)
+
+        # PDF页面预加载请求
+        elif message_type == MessageType.PDF_PAGE_PRELOAD.value:
+            return self.handle_pdf_page_preload_request(request_id, data)
+
+        # PDF页面缓存清理请求
+        elif message_type == MessageType.PDF_PAGE_CACHE_CLEAR.value:
+            return self.handle_pdf_page_cache_clear_request(request_id, data)
+
+        
             return self.handle_pdf_detail_request(request_id, data)
         
         # 心跳消息
@@ -323,6 +337,118 @@ class StandardWebSocketServer(QObject):
             else:
                 return StandardMessageHandler.build_error_response(
                     request_id,
+    def handle_pdf_page_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """处理PDF页面请求"""
+        try:
+            file_id = data.get("file_id")
+            page_number = data.get("page_number")
+            compression = data.get("compression", "zlib_base64")
+            
+            if not file_id or not page_number:
+                return StandardMessageHandler.build_error_response(
+                    request_id,
+                    "INVALID_REQUEST",
+                    "缺少必需的file_id或page_number参数"
+                )
+            
+            # 获取页面数据
+            page_data = page_transfer_manager.get_page(file_id, page_number, compression)
+            
+            return PDFMessageBuilder.build_pdf_page_response(
+                request_id,
+                file_id,
+                page_number,
+                page_data,
+                compression
+            )
+            
+        except Exception as e:
+            logger.error(f"获取PDF页面失败: {e}")
+            return PDFMessageBuilder.build_pdf_page_error_response(
+                request_id,
+                data.get("file_id", "unknown"),
+                data.get("page_number", 0),
+                "PAGE_EXTRACTION_ERROR",
+                f"提取页面失败: {str(e)}",
+                retryable=True
+            )
+    
+    def handle_pdf_page_preload_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """处理PDF页面预加载请求"""
+        try:
+            file_id = data.get("file_id")
+            start_page = data.get("start_page", 1)
+            end_page = data.get("end_page", 1)
+            priority = data.get("priority", "low")
+            
+            if not file_id:
+                return StandardMessageHandler.build_error_response(
+                    request_id,
+                    "INVALID_REQUEST",
+                    "缺少必需的file_id参数"
+                )
+            
+            # 预加载页面
+            preloaded_count = page_transfer_manager.preload_pages(file_id, start_page, end_page, priority)
+            
+            return StandardMessageHandler.build_response(
+                "response",
+                request_id,
+                status="success",
+                code=200,
+                message=f"预加载完成，成功加载 {preloaded_count} 个页面",
+                data={
+                    "file_id": file_id,
+                    "preloaded_count": preloaded_count,
+                    "start_page": start_page,
+                    "end_page": end_page
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"预加载PDF页面失败: {e}")
+            return StandardMessageHandler.build_error_response(
+                request_id,
+                "PRELOAD_ERROR",
+                f"预加载页面失败: {str(e)}"
+            )
+    
+    def handle_pdf_page_cache_clear_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """处理PDF页面缓存清理请求"""
+        try:
+            file_id = data.get("file_id")
+            keep_pages = data.get("keep_pages")
+            
+            if not file_id:
+                return StandardMessageHandler.build_error_response(
+                    request_id,
+                    "INVALID_REQUEST",
+                    "缺少必需的file_id参数"
+                )
+            
+            # 清理缓存
+            cleared_count = page_transfer_manager.clear_cache(file_id, keep_pages)
+            
+            return StandardMessageHandler.build_response(
+                "response",
+                request_id,
+                status="success",
+                code=200,
+                message=f"缓存清理完成，清理了 {cleared_count} 个页面",
+                data={
+                    "file_id": file_id,
+                    "cleared_count": cleared_count,
+                    "keep_pages": keep_pages
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"清理PDF页面缓存失败: {e}")
+            return StandardMessageHandler.build_error_response(
+                request_id,
+                "CACHE_CLEAR_ERROR",
+                f"清理缓存失败: {str(e)}"
+            )
                     "FILE_NOT_FOUND",
                     f"找不到ID为{file_id}的PDF文件"
                 )

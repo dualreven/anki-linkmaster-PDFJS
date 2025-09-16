@@ -1,0 +1,38 @@
+# 必须按以下流程执行步骤
+1. 必须先获取 距离时间最近的五个`AItemp/[YYYYMMDDhhmmss]-AI-Working-log.md` 文件, 了解任务的历史.
+2. 创建 `AItemp/[YYYYMMDDhhmmss]-AI-Working-log.md` 文件, 记录当前的任务目标.
+3. 查看 `.kilocode\rules\memory-bank\context.md` 的内容, 理解用户的输入
+4. 更新 `.kilocode\rules\memory-bank\context.md`的内容, 如, 描述当前问题, 问题背景, 相关模块和函数等.
+5. 如果 `.kilocode\rules\memory-bank\context.md` 有执行步骤,则按步骤执行
+6. 如果任务步骤有多步,考虑任务的工作量,按照原子任务的拆分原则,拆分成多个步骤, 将新步骤更新到 `.kilocode\rules\memory-bank\context.md`
+7. 执行原子步骤的任务,
+8. 执行结束后,记录完成结果到 `.kilocode\rules\memory-bank\context.md`如果架构有改动记得更新architecture.md
+9. 如果任务没完成,而且上下文字数不足,启动一个 `new_task, mode: continous-agent` 交付下一个任务.
+
+# 执行任务的通用规则
+
+1. 你必须总是牢记你的执行流程, 任何时候都不能忘记!
+2. 你必须测试先行, 任何想法都必须经过代码验证才能落实,不知道不确定的事情必须验证!
+3. 你每次修改前, 必须先commit, 然后创建分支, 保存快照, 然后再进行修改
+4. 如果修改导致更恶劣的情况发生(比如错误增多),你必须立即退回修改
+5. 你修改通过后, 必须将当前分支合并到主分支, 并删除当前分支.
+
+# 必须遵守下面的原则:
+
+1. 你必须全过程使用 sequentialthinking MCP 工具进行多步思考
+2. 你必须全过程加载memory bank全部信息.
+3. 你每次执行代码修改,包括任务完成时,必须更新 `AItemp/[YYYYMMDDhhmmss]-AI-Working-log.md` 文件, 其中 YYYYMMDDhhmmss 总是取最新时间.
+4. 你必须追溯必要的`AI-Working-log.md`文件收集足够的信息, 查看上次的目标和结果, 并根据上次的结果, 确定本次的目标和实现方法.
+
+# working-log 格式
+```markdown
+# 上次目标和结果(要非常具体) 
+## 上次记录的文件名
+## 执行目标
+## 后续处理
+## 结果
+# 本次目标和实现方法(要非常具体)
+## 目标
+## 实现方法
+## 预期结果
+```

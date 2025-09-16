@@ -414,12 +414,31 @@ class PDFManager(QObject):
         return results
         
     def _extract_metadata(self, filepath: str) -> Dict[str, str]:
-        """提取PDF元数据（占位符实现）"""
-        # TODO: 后续集成PyPDF2或pdfplumber提取真实元数据
+        """提取PDF元数据"""
+        from .utils import PDFMetadataExtractor
+        
+        # 使用PDFMetadataExtractor提取真实元数据
+        metadata = PDFMetadataExtractor.extract_metadata(filepath)
+        
+        # 如果提取失败，返回默认值
+        if "error" in metadata:
+            logger.warning(f"提取PDF元数据失败: {metadata['error']}")
+            return {
+                "title": os.path.splitext(os.path.basename(filepath))[0],
+                "author": "",
+                "subject": "",
+                "keywords": "",
+                "page_count": 0
+            }
+        
+        # 返回提取到的元数据，如果title为空则使用文件名
+        filename_title = os.path.splitext(os.path.basename(filepath))[0]
+        extracted_title = metadata.get("title", "")
+        
         return {
-            "title": os.path.splitext(os.path.basename(filepath))[0],
-            "author": "",
-            "subject": "",
-            "keywords": "",
-            "page_count": 0
+            "title": extracted_title if extracted_title else filename_title,
+            "author": metadata.get("author", ""),
+            "subject": metadata.get("subject", ""),
+            "keywords": metadata.get("keywords", ""),
+            "page_count": metadata.get("page_count", 0)
         }

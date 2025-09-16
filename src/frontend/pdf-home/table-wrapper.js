@@ -4,7 +4,7 @@
 // ==================== 修改开始 ====================
 // 1. 从主包导入 Tabulator 核心类
 // import { Tabulator } from 'tabulator-tables';
- import { TabulatorFull as Tabulator} from "tabulator-tables"
+ import { Tabulator } from 'tabulator-tables';
 // 2. 从各自的独立路径中，逐一导入所有需要的模块
 // ==================== 修改结束 ====================
 
@@ -31,12 +31,16 @@ export default class TableWrapper {
   #options;
   #tabulator;
   #localListeners;
+  #fallbackMode = false; // 新增：回退模式标志
+  #fallbackTable = null; // 新增：回退表格元素
+  #fallbackData = []; // 新增：回退模式下的数据存储
 
   // Expose read-only accessors for integration code that expects public properties
   // e.g. other modules check `pdfTable.tableWrapper` or `pdfTable.tabulator`
   get tabulator() { return this.#tabulator; }
   get tableWrapper() { return this.#tableWrapper; }
   get container() { return this.#container; }
+  get fallbackMode() { return this.#fallbackMode; } // 新增：暴露回退模式状态
 
   /**
    * 创建 TableWrapper 实例并在 container 内准备 tableWrapper 插槽。
@@ -64,12 +68,60 @@ export default class TableWrapper {
       // avoid forcing 100% height which can collapse if parent has no explicit height
       height: 'auto',
       layout: 'fitColumns',
-      selectable: true,           // 启用选择
-      // selectableRows: true,       // 启用行选择
-      // selectableRangeMode: "click", // 点击选择模式
-      // selectableRollingSelection: false, // 禁用滚动选择
+      selectable: true,           // 启用多选模式
+      selectableRangeMode: "click", // 点击选择模式
+      selectableRollingSelection: false, // 禁用滚动选择
       layoutColumnsOnNewData: false,
       placeholder: defaultPlaceholder,
+      /**
+       * 兼容性增强：若 Tabulator 没有内置的 rowSelection formatter（不同打包/版本可能缺少 SelectRowModule），
+       * 我们通过 rowFormatter 注入一个简易的 checkbox 到每一行的第一个单元格，class 为 pdf-table-row-select。
+       * 这样可以在不依赖额外模块的情况下，保证多选交互的可见性与可用性。
+       */
+      rowFormatter: function(row) {
+        try {
+          const rowEl = row.getElement ? row.getElement() : null;
+          if (!rowEl) return;
+          // 找到第一个单元格（Tabulator 渲染后第一个 .tabulator-cell）
+          const firstCell = rowEl.querySelector('.tabulator-cell');
+          if (!firstCell) return;
+          // 避免重复插入
+          let cb = firstCell.querySelector('.pdf-table-row-select');
+          if (!cb) {
+            cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.className = 'pdf-table-row-select';
+            // 尽量设置数据标识，便于回退检测读取
+            const data = (typeof row.getData === 'function') ? row.getData() : null;
+            if (data) {
+              if (data.id !== undefined) cb.dataset.rowId = data.id;
+              else if (data.filename) cb.dataset.filename = data.filename;
+            }
+            // 反映行选择状态
+            try { cb.checked = (typeof row.isSelected === 'function') ? !!row.isSelected() : false; } catch(e) {}
+            // 当 checkbox 改变时，切换 Tabulator 行的选择状态（若 RowComponent 可用）
+            cb.addEventListener('change', (e) => {
+              try {
+                if (typeof row.select === 'function' && typeof row.deselect === 'function') {
+                  if (e.target.checked) row.select();
+                  else row.deselect();
+                } else {
+                  // 尝试切换 DOM 的选中类，供回退逻辑使用
+                  if (e.target.checked) rowEl.classList.add('tabulator-selected');
+                  else rowEl.classList.remove('tabulator-selected');
+                }
+              } catch (err) { /* ignore */ }
+            });
+            // 将 checkbox 插入到单元格最前面
+            firstCell.insertBefore(cb, firstCell.firstChild);
+          } else {
+            // 同步选中状态
+            try { cb.checked = (typeof row.isSelected === 'function') ? !!row.isSelected() : cb.checked; } catch(e) {}
+          }
+        } catch (e) {
+          // silently ignore rowFormatter errors to avoid breaking rendering
+        }
+      }
     }, options);
     console.log('TableWrapper options:', JSON.stringify(this.#options));
     this.#tabulator = null;
@@ -100,15 +152,165 @@ export default class TableWrapper {
    * @private
    */
   _init() {
-    // Initialize Tabulator instance inside tableWrapper
-    // Tabulator.registerModule([
-    //   FormatModule,
-    //   SelectRowModule,
-    //   SortModule,
-    //   ResizeTableModule
-    // ]);
-    this.#tabulator = new Tabulator(this.#tableWrapper, Object.assign({}, this.#options));
-    logger.info('Tabulator initialized');
+    try {
+      // 检查是否在测试环境中，并且是否有模拟的Tabulator失败
+      const isTestEnvironment = typeof global !== 'undefined' && global._forceTabulatorFailure;
+      
+      if (isTestEnvironment) {
+        throw new Error('Forced Tabulator failure for testing');
+      }
+      
+      // Initialize Tabulator instance inside tableWrapper
+      // Tabulator.registerModule([
+      //   FormatModule,
+      //   SelectRowModule,
+      //   SortModule,
+      //   ResizeTableModule
+      // ]);
+      this.#tabulator = new Tabulator(this.#tableWrapper, Object.assign({}, this.#options));
+      logger.info('Tabulator initialized');
+      this.#fallbackMode = false;
+    } catch (error) {
+      logger.warn('Tabulator initialization failed, falling back to HTML table:', error);
+      this.#fallbackMode = true;
+      this.#tabulator = null;
+      this._createFallbackTable();
+    }
+  }
+
+  /**
+   * 创建回退HTML表格
+   * @private
+   */
+  _createFallbackTable() {
+    // 清空现有内容
+    while (this.#tableWrapper.firstChild) {
+      this.#tableWrapper.removeChild(this.#tableWrapper.firstChild);
+    }
+
+    // 创建回退表格
+    this.#fallbackTable = document.createElement('table');
+    this.#fallbackTable.className = 'pdf-table-fallback';
+    this.#fallbackTable.style.width = '100%';
+    this.#fallbackTable.style.borderCollapse = 'collapse';
+    this.#fallbackTable.style.minHeight = '200px';
+
+    // 创建表头
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    
+    // 添加选择列
+    const selectHeader = document.createElement('th');
+    selectHeader.style.width = '40px';
+    selectHeader.style.padding = '8px';
+    selectHeader.style.border = '1px solid #ddd';
+    selectHeader.style.textAlign = 'center';
+    selectHeader.innerHTML = '<input type="checkbox" class="pdf-table-select-all">';
+    headerRow.appendChild(selectHeader);
+
+    // 添加数据列
+    if (this.#options.columns && Array.isArray(this.#options.columns)) {
+      this.#options.columns.forEach(column => {
+        const th = document.createElement('th');
+        th.style.padding = '8px';
+        th.style.border = '1px solid #ddd';
+        th.style.textAlign = 'left';
+        th.textContent = column.title || column.field;
+        headerRow.appendChild(th);
+      });
+    }
+
+    thead.appendChild(headerRow);
+    this.#fallbackTable.appendChild(thead);
+
+    // 创建表体
+    const tbody = document.createElement('tbody');
+    this.#fallbackTable.appendChild(tbody);
+
+    // 添加到容器
+    this.#tableWrapper.appendChild(this.#fallbackTable);
+
+    // 绑定全选事件
+    const selectAllCheckbox = this.#fallbackTable.querySelector('.pdf-table-select-all');
+    if (selectAllCheckbox) {
+      selectAllCheckbox.addEventListener('change', (e) => {
+        const checkboxes = this.#fallbackTable.querySelectorAll('tbody input[type="checkbox"]');
+        checkboxes.forEach(cb => cb.checked = e.target.checked);
+        // 触发行选择事件
+        this._callLocalListeners('row-selection-changed', this.getSelectedRows());
+      });
+    }
+
+    logger.info('Fallback table created');
+  }
+
+  /**
+   * 更新回退表格数据
+   * @param {Array} data - 要显示的数据
+   * @private
+   */
+  _updateFallbackTable(data) {
+    if (!this.#fallbackTable) return;
+
+    this.#fallbackData = this.#prepareData(data);
+    const tbody = this.#fallbackTable.querySelector('tbody');
+    
+    // 清空现有数据行
+    while (tbody.firstChild) {
+      tbody.removeChild(tbody.firstChild);
+    }
+
+    // 如果没有数据，显示空状态
+    if (!this.#fallbackData || this.#fallbackData.length === 0) {
+      const emptyRow = document.createElement('tr');
+      const emptyCell = document.createElement('td');
+      emptyCell.colSpan = (this.#options.columns ? this.#options.columns.length + 1 : 1);
+      emptyCell.style.padding = '24px';
+      emptyCell.style.textAlign = 'center';
+      emptyCell.style.color = '#666';
+      emptyCell.innerHTML = '<div>暂无数据</div>';
+      emptyRow.appendChild(emptyCell);
+      tbody.appendChild(emptyRow);
+      return;
+    }
+
+    // 添加数据行
+    this.#fallbackData.forEach((row, index) => {
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid #eee';
+      tr.dataset.rowIndex = index;
+
+      // 添加选择框
+      const selectCell = document.createElement('td');
+      selectCell.style.padding = '8px';
+      selectCell.style.border = '1px solid #ddd';
+      selectCell.style.textAlign = 'center';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'pdf-table-row-select';
+      checkbox.dataset.rowIndex = index;
+      checkbox.addEventListener('change', () => {
+        // 触发行选择事件
+        this._callLocalListeners('row-selection-changed', this.getSelectedRows());
+      });
+      selectCell.appendChild(checkbox);
+      tr.appendChild(selectCell);
+
+      // 添加数据列
+      if (this.#options.columns && Array.isArray(this.#options.columns)) {
+        this.#options.columns.forEach(column => {
+          const td = document.createElement('td');
+          td.style.padding = '8px';
+          td.style.border = '1px solid #ddd';
+          td.textContent = row[column.field] || '';
+          tr.appendChild(td);
+        });
+      }
+
+      tbody.appendChild(tr);
+    });
+
+    logger.info('Fallback table updated with', this.#fallbackData.length, 'rows');
   }
 
   /**
@@ -117,6 +319,14 @@ export default class TableWrapper {
    * @returns {void}
    */
   setData(data) {
+    if (this.#fallbackMode) {
+      // 回退模式下使用HTML表格
+      this._updateFallbackTable(data);
+      this._callLocalListeners('data-loaded', this.#prepareData(data));
+      return Promise.resolve();
+    }
+
+    // 正常模式下使用Tabulator
     const rows = this.#prepareData(data);
     const result = this.#tabulator.setData(rows);
     
@@ -277,11 +487,80 @@ export default class TableWrapper {
   }
 
   /**
-   * 获取当前被选中的行数据（由 Tabulator 管理）。
-   * @returns {Array<Object>} 被选中的行对象数组
+   * 获取当前被选中的行数据（统一返回 plain object 数组）。
+   * 为了兼容不同版本/环境下 Tabulator 的差异（有时返回 RowComponent，有时返回 plain data），
+   * 此方法会尽可能正规化输出为前端期待的 plain object 列表：[{id, filename, ...}, ...]
+   * @returns {Array<Object>} 被选中的行对象数组（防御性拷贝）
    */
   getSelectedRows() {
-    return this.#tabulator.getSelectedData() || [];
+    // 回退模式下从 HTML 回退表格获取选中行（类名为 pdf-table-row-select）
+    if (this.#fallbackMode) {
+      const selectedRows = [];
+      if (!this.#fallbackTable) return selectedRows;
+      const checkboxes = this.#fallbackTable.querySelectorAll('tbody input[type="checkbox"]:checked.pdf-table-row-select, tbody input[type="checkbox"].pdf-table-row-select:checked, tbody input[type="checkbox"]:checked');
+      checkboxes.forEach(checkbox => {
+        const rowIndex = parseInt(checkbox.dataset.rowIndex);
+        if (!Number.isNaN(rowIndex) && rowIndex >= 0 && rowIndex < this.#fallbackData.length) {
+          selectedRows.push(Object.assign({}, this.#fallbackData[rowIndex]));
+        } else {
+          // fallback: try to read filename attribute if present
+          const filename = checkbox.dataset?.filename || checkbox.getAttribute('data-filename') || checkbox.getAttribute('data-filepath');
+          if (filename) selectedRows.push({ filename });
+        }
+      });
+      return selectedRows;
+    }
+ 
+    // Tabulator 模式：尝试多种方式取得选中数据，最终正规化为 plain object 数组
+    try {
+      if (!this.#tabulator) return [];
+      // 1) 优先使用 getSelectedData() -> 通常返回 plain object 列表
+      if (typeof this.#tabulator.getSelectedData === 'function') {
+        const data = this.#tabulator.getSelectedData();
+        if (Array.isArray(data) && data.length > 0) {
+          return data.map(d => Object.assign({}, d));
+        }
+      }
+      // 2) 某些版本提供 getSelectedRows() 返回 RowComponent 列表
+      if (typeof this.#tabulator.getSelectedRows === 'function') {
+        const rows = this.#tabulator.getSelectedRows();
+        if (Array.isArray(rows) && rows.length > 0) {
+          return rows.map(r => {
+            try {
+              return (typeof r.getData === 'function') ? Object.assign({}, r.getData()) : Object.assign({}, r);
+            } catch (e) {
+              return Object.assign({}, r);
+            }
+          });
+        }
+      }
+      // 3) 最后尝试基于 DOM 查找 tabulator 选中行并映射到内部数据（依赖 table 的 data 能被读取）
+      const domSelected = this.#tableWrapper ? Array.from(this.#tableWrapper.querySelectorAll('.tabulator-row.tabulator-selected')) : [];
+      if (domSelected.length > 0) {
+        const allData = (this.#tabulator && typeof this.#tabulator.getData === 'function') ? this.#tabulator.getData() : null;
+        const selected = [];
+        domSelected.forEach(rowEl => {
+          const rowId = rowEl.getAttribute('data-row-id') || rowEl.dataset?.rowId || rowEl.dataset?.rowid || null;
+          if (rowId && Array.isArray(allData)) {
+            const entry = allData.find(p => String(p.id) === String(rowId) || String(p.filename) === String(rowId));
+            if (entry) selected.push(Object.assign({}, entry));
+          } else {
+            // attempt to read a cell with data-row-id or filename
+            const cellWithRowId = rowEl.querySelector('[data-row-id], [data-rowid], [data-filename], [data-filepath]');
+            if (cellWithRowId) {
+              const rid = cellWithRowId.getAttribute('data-row-id') || cellWithRowId.getAttribute('data-rowid') || cellWithRowId.getAttribute('data-filename') || cellWithRowId.getAttribute('data-filepath');
+              if (rid) selected.push({ id: rid, filename: rid });
+            }
+          }
+        });
+        if (selected.length > 0) return selected;
+      }
+    } catch (e) {
+      logger.warn('getSelectedRows normalization failed', e);
+    }
+ 
+    // 没有选中项时返回空数组
+    return [];
   }
 
   /**
@@ -289,6 +568,13 @@ export default class TableWrapper {
    * @returns {void}
    */
   clear() {
+    if (this.#fallbackMode) {
+      // 回退模式下清空HTML表格
+      this._updateFallbackTable([]);
+      return;
+    }
+
+    // 正常模式下使用Tabulator
     this.#tabulator.clearData();
   }
 
@@ -301,6 +587,14 @@ export default class TableWrapper {
       this.#tabulator.destroy();
       this.#tabulator = null;
     }
+    
+    // 销毁回退表格
+    if (this.#fallbackTable) {
+      this.#fallbackTable = null;
+    }
+    
+    this.#fallbackData = [];
+    
     // keep wrapper element to avoid detaching container
     while (this.#tableWrapper.firstChild) this.#tableWrapper.removeChild(this.#tableWrapper.firstChild);
   }
@@ -327,6 +621,12 @@ export default class TableWrapper {
    * Render a simple empty state inside the tableWrapper (does not remove the wrapper element)
    */
   displayEmptyState(message) {
+    if (this.#fallbackMode) {
+      // 回退模式下显示空状态
+      this._updateFallbackTable([]);
+      return;
+    }
+
     // 清空数据，让Tabulator显示其内置的placeholder
     try {
       this.#tabulator.clearData();
@@ -348,16 +648,6 @@ export default class TableWrapper {
       logger.warn('Failed to clear data for empty state', e);
     }
   }
-  // displayEmptyState(message) {
-  //   // Clear Tabulator data and show a small placeholder
-  //   try { this.tabulator.clearData(); } catch (e) {}
-  //   while (this.tableWrapper.firstChild) this.tableWrapper.removeChild(this.tableWrapper.firstChild);
-  //   const empty = document.createElement('div');
-  //   empty.className = 'pdf-table-empty-state';
-  //   empty.innerHTML = `\n      <div style=\"text-align:center;padding:24px;color:#666;\">\n        <div style=\"font-size:32px;margin-bottom:8px\">📄</div>\n        <div>${message || '暂无数据'}</div>\n      </div>`;
-  //   this.tableWrapper.appendChild(empty);
-  //   this._callLocalListeners('data-loaded', []);
-  // }
 
   // Additional helpers
   /**
@@ -369,6 +659,14 @@ export default class TableWrapper {
     // Register local listener
     if (!this.#localListeners[event]) this.#localListeners[event] = [];
     this.#localListeners[event].push(handler);
+
+    if (this.#fallbackMode) {
+      // 回退模式下直接绑定到HTML表格元素
+      if (this.#fallbackTable) {
+        this.#fallbackTable.addEventListener(event, handler);
+      }
+      return;
+    }
 
     // Also register with Tabulator if available (for Tabulator-specific events)
     try {
@@ -389,6 +687,14 @@ export default class TableWrapper {
     // Remove from local listeners
     if (this.#localListeners[event]) {
       this.#localListeners[event] = this.#localListeners[event].filter(fn => fn !== handler);
+    }
+
+    if (this.#fallbackMode) {
+      // 回退模式下从HTML表格元素解绑
+      if (this.#fallbackTable) {
+        this.#fallbackTable.removeEventListener(event, handler);
+      }
+      return;
     }
 
     // Also remove from Tabulator if available

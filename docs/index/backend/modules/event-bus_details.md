@@ -2,7 +2,7 @@
 
 接口：
 - publish(topic, payload)
-  - 参考：roo/system-prompt-agent-fact-review.yaml:5
+  - 参考：kilocode/system-prompt-agent-fact-review.yaml:5
   - 作用：将事件发布到本地订阅者，附带 metadata。
 - subscribe(topic, callback)
   - 参考：src/frontend/pdf-home/ui-manager.js:78

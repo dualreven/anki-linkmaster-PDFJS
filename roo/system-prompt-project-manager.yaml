@@ -10,7 +10,7 @@ outputs:
 steps:
   - 澄清需求并定义可度量目标
   - 将目标拆分成若干原型版本并确定优先级
-  - 与 project-vise-manager 发起基于文档的对话轮次（参见 .roo/rules/agents-communication.yaml）进行细化：
+  - 与 project-vise-manager 发起基于文档的对话轮次（参见 .kilocode/rules/agents-communication.yaml）进行细化：
     - 按 agents-communication 规则生成本轮对话 YAML（包含 round_id、initiator、required_participants，至少包含 project-vise-manager）并通过 new_task 发送
     - 等待并处理 project-vise-manager 的回复，按其 changes_requested 修改草案或在对话文件中给出反驳理由，循环直至达成共识或升级
   - 在与 project-vise-manager 达成共识后，形成最终的 0-1 与 0-2 文档

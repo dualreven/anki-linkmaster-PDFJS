@@ -2,6 +2,7 @@ import asyncio
 import argparse
 import json
 import logging
+import os
 from datetime import datetime
 
 import aiohttp
@@ -12,7 +13,7 @@ DEFAULT_DEBUG_PORT = 9222
 
 def get_log_file(port):
     """根据端口生成日志文件名"""
-    return f'debug-console-at-{port}.log'
+    return f'logs/debug-console-at-{port}.log'
 # --- 配置结束 ---
 
 def parse_args():
@@ -97,12 +98,12 @@ def format_response_received_message(params: dict) -> str:
     status = response.get('status', 0)
     status_text = response.get('statusText', '')
     url = response.get('url', 'Unknown URL')
-    
+
     # 只记录4xx和5xx错误
     if 400 <= status < 600:
         return f"[{timestamp}][HTTP ERROR] {status} {status_text}\n  > URL: {url}"
-    
-    return None
+
+    return ""
 
 async def listen_to_browser(port):
     """
@@ -185,7 +186,7 @@ async def listen_to_browser(port):
                     # --- 功能 5: 监听HTTP错误响应 ---
                     elif method == "Network.responseReceived":
                         error_entry = format_response_received_message(params)
-                        if error_entry:  # 只记录4xx和5xx错误
+                        if error_entry.strip():  # 只记录4xx和5xx错误
                             print(error_entry) # 也在终端打印一份
                             append_to_log(error_entry, port)
 

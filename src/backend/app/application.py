@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import QApplication
 from ui.main_window import MainWindow
 from websocket.server import WebSocketServer
 from pdf_manager.manager import PDFManager
+from http_server import HttpFileServer
 import logging
 import json
 import os
@@ -14,6 +15,43 @@ import os
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+
+def get_vite_port():
+    r"""
+    Docstring for gdef get_vite_port():
+    从 logs\npm-dev.log 获取 port
+    返回port值
+    """     
+    # 下面这个地址获取不正确
+    app_path = os.path.dirname(__file__)
+    backend_path = os.path.dirname(app_path)
+    src_path = os.path.dirname(backend_path)
+    src_path = os.path.dirname(src_path)
+    log_file_path = os.path.join(src_path, 'logs', 'npm-dev.log')
+    
+    try:
+        with open(log_file_path, 'r', encoding='utf-8') as f:
+            content = f.read()  
+        
+        # 查找包含"Local:"的行
+        lines = content.split('\n')
+        for line in lines:
+            if 'Local:' in line and 'localhost:' in line:
+                # 提取端口号
+                import re
+                match = re.search(r'localhost:(\d+)', line)
+                if match:
+                    return int(match.group(1))
+        
+        # 如果没有找到，返回默认端口3000
+        return 3000
+    except FileNotFoundError:
+        logger.warning(f"npm-dev.log文件未找到: {log_file_path}")
+        return 3000
+    except Exception as e:
+        logger.error(f"读取npm-dev.log文件时出错: {str(e)}")
+        return 3000
 
 
 class AnkiLinkMasterApp:
@@ -25,11 +63,26 @@ class AnkiLinkMasterApp:
         self.websocket_server = None
         self.pdf_manager = None
     
-    def run(self):
-        """运行应用"""
+    def run(self, module="pdf-viewer", vite_port=3000, file_path=None):
+        """运行应用
+        
+        Args:
+            module: 要加载的前端模块 (pdf-home 或 pdf-viewer)
+            vite_port: Vite开发服务器端口
+            file_path: PDF文件路径 (仅pdf-viewer模块有效)
+        """
+        # 存储文件路径供后续使用
+        self.file_path = file_path
         # 初始化PDF管理器
         self.pdf_manager = PDFManager()
         logger.info("PDF管理器初始化成功")
+        
+        # 初始化HTTP文件服务器
+        self.http_server = HttpFileServer(port=8080)
+        if self.http_server.start():
+            logger.info("HTTP文件服务器启动成功")
+        else:
+            logger.warning("HTTP文件服务器启动失败，文件传输功能受限")
         
         # 初始化并启动WebSocket服务器
         self.websocket_server = WebSocketServer(host="127.0.0.1", port=8765)
@@ -40,6 +93,33 @@ class AnkiLinkMasterApp:
             
             # QtWebEngine优化：改为客户端连接时主动推送数据
             logger.info("WebSocket服务器启动成功，等待客户端连接...")
+            # NEW: notify frontend to open pdf-viewer after backend ready
+            try:
+                from datetime import datetime, timezone
+                ws = getattr(self, 'websocket_server', None) or getattr(self, 'ws_server', None)
+                if ws:
+                    payload = {"action": "open_pdf_viewer", "timestamp": datetime.now(timezone.utc).isoformat()}
+                    try:
+                        # 首选使用 broadcast_event（若实现存在）
+                        if hasattr(ws, "broadcast_event"):
+                            ws.broadcast_event("open_pdf_viewer", payload)
+                        else:
+                            # 回退到通用的 broadcast_message
+                            ws.broadcast_message({"event": "open_pdf_viewer", "payload": payload})
+                        from src.backend.logging.pdfjs_logger import get_pdfjs_logger
+                        get_pdfjs_logger().info("Sent open_pdf_viewer event to frontend")
+                    except Exception:
+                        # 如果 broadcast_event 失败，尝试备用发送方式并记录
+                        try:
+                            ws.broadcast_message({"event": "open_pdf_viewer", "payload": payload})
+                            from src.backend.logging.pdfjs_logger import get_pdfjs_logger
+                            get_pdfjs_logger().info("Sent open_pdf_viewer (fallback) event to frontend via broadcast_message")
+                        except Exception as inner_e:
+                            import logging as _logging
+                            _logging.getLogger("pdfjs_init").exception("Failed to send open_pdf_viewer via ws methods: %s", inner_e)
+            except Exception as e:
+                import logging as _logging
+                _logging.getLogger("pdfjs_init").exception("Failed to notify frontend: %s", e)
             
         else:
             logger.error("WebSocket服务器启动失败")
@@ -47,10 +127,18 @@ class AnkiLinkMasterApp:
         # 初始化主窗口
         self.main_window = MainWindow(self)
         self.main_window.send_debug_message_requested.connect(self.handle_send_debug_message)
-
+        
+        # 使用传入的端口或自动检测
+        actual_vite_port = get_vite_port() if vite_port == 3000 else vite_port
+        logger.info(f"Vite端口: {actual_vite_port}")
+        logger.info(f"加载模块: {module}")
+        
         # 加载前端页面，使用Vite配置的端口和正确的入口路径
-        self.main_window.load_frontend("http://localhost:3000/pdf-home/index.html")
+        self.main_window.load_frontend(f"http://localhost:{actual_vite_port}/{module}/index.html")
         self.main_window.show()
+        
+        # 处理命令行传入的文件路径
+        self.handle_command_line_file(file_path, module)
     def handle_send_debug_message(self):
         """处理来自UI的发送调试消息的请求"""
         logger.info("[DEBUG] 收到来自菜单的广播请求。")
@@ -87,6 +175,10 @@ class AnkiLinkMasterApp:
                 self.handle_remove_pdf(client, message)
             elif message_type == 'batch_remove_pdf':
                 self.handle_batch_remove_pdf(client, message)
+            elif message_type == 'pdf_detail_request':
+                self.handle_pdf_detail_request(client, message)
+            elif message_type == 'pdfjs_init_log':
+                self.handle_pdfjs_init_log(client, message)
             elif message_type == 'heartbeat':
                 # 心跳消息，不需要处理，只是保持连接
                 logger.debug(f"[DEBUG] 收到心跳消息 from {client.peerPort()}")
@@ -202,6 +294,21 @@ class AnkiLinkMasterApp:
                     }
                 })
                 logger.info(f"[DEBUG] 初始数据发送完成，包含 {len(pdfs)} 个文件")
+
+                # 如果有文件路径参数，发送给前端 (解耦设计)
+                if hasattr(self, 'file_path') and self.file_path:
+                     logger.info(f"[DEBUG] 发送文件路径给前端: {self.file_path}")
+                     filename = os.path.basename(self.file_path)
+
+                     # pdf-viewer 模块负责处理文件，消息队列确保初始化完成前处理
+                     self.websocket_server.send_message(client, {
+                         'type': 'load_pdf_file',
+                         'data': {
+                             'file_path': self.file_path,  # 原完整路径
+                             'filename': filename,         # 仅作为参考
+                             'url': f"/pdfs/{filename}"    # Vite代理路径
+                         }
+                     })
             except Exception as e:
                 logger.error(f"发送初始数据失败: {str(e)}")
         from PyQt6.QtCore import QTimer
@@ -715,3 +822,179 @@ class AnkiLinkMasterApp:
         except Exception as e:
             logger.error(f"处理批量删除PDF文件请求时出错: {str(e)}")
             self.send_error_response(client, f"处理批量删除PDF文件请求时出错: {str(e)}", "batch_remove_pdf", "INTERNAL_ERROR", message.get('request_id'))
+    
+    def handle_pdf_detail_request(self, client, message):
+        """处理PDF详情请求
+        
+        Args:
+            client: QWebSocket客户端对象
+            message: 消息内容
+        """
+        try:
+            # 获取文件标识符
+            file_id = message.get('data', {}).get('file_id') or message.get('file_id')
+            
+            if not file_id:
+                logger.warning("PDF详情请求缺少文件ID参数")
+                expected_format = {
+                    "type": "pdf_detail_request",
+                    "request_id": "uuid",
+                    "data": {"file_id": "file_unique_id"}
+                }
+                error_message = f"PDF详情请求缺少文件ID参数。正确格式: {json.dumps(expected_format, ensure_ascii=False)}"
+                self.send_error_response(
+                    client,
+                    error_message,
+                    "pdf_detail_request",
+                    "MISSING_PARAMETERS",
+                    message.get('request_id')
+                )
+                return
+            
+            logger.info(f"处理PDF详情请求，文件ID: {file_id}")
+            
+            # 获取文件详情
+            file_detail = self.pdf_manager.get_file_detail(file_id)
+            
+            if not file_detail:
+                logger.warning(f"未找到文件: {file_id}")
+                self.send_error_response(
+                    client,
+                    f"未找到文件: {file_id}",
+                    "pdf_detail_request",
+                    "FILE_NOT_FOUND",
+                    message.get('request_id')
+                )
+                return
+            
+            # 发送成功响应
+            self.send_success_response(
+                client,
+                "pdf_detail_request",
+                file_detail,
+                message.get('request_id')
+            )
+            logger.info(f"PDF详情响应发送成功，文件ID: {file_id}")
+            
+        except ValueError as e:
+            logger.error(f"PDF详情请求参数格式错误: {str(e)}")
+            self.send_error_response(
+                client,
+                f"参数格式错误: {str(e)}",
+                "pdf_detail_request",
+                "INVALID_PARAMETER_FORMAT",
+                message.get('request_id')
+            )
+        except Exception as e:
+            logger.error(f"处理PDF详情请求时出错: {str(e)}")
+            self.send_error_response(
+                client,
+                f"处理PDF详情请求时出错: {str(e)}",
+                "pdf_detail_request",
+                "INTERNAL_ERROR",
+                message.get('request_id')
+            )
+
+    def handle_pdfjs_init_log(self, client, message):
+        """处理PDF.js初始化日志消息
+        
+        Args:
+            client: QWebSocket客户端对象
+            message: 消息内容
+        """
+        try:
+            from src.backend.logging.pdfjs_logger import get_pdfjs_logger
+            logger = get_pdfjs_logger()
+            
+            data = message.get('data', {})
+            log_message = f"JS PDF.js Init: {data.get('message', 'Init log received')}"
+            logger.info(log_message)
+            
+            # Log detailed data
+            if data.get('version'):
+                logger.info(f"PDF.js Version: {data['version']}")
+            if data.get('build'):
+                logger.info(f"PDF.js Build: {data['build']}")
+            if data.get('webglState'):
+                logger.info(f"WebGL State: {data['webglState']}")
+            if data.get('timestamp'):
+                logger.info(f"Timestamp: {data['timestamp']}")
+            
+            logger.info(f"Loaded: {data.get('loaded', False)}")
+            
+            # Send acknowledgment back to JS
+            self.send_success_response(client, "pdfjs_init_log_ack", {
+                "received": True,
+                "timestamp": time.time()
+            }, message.get('request_id'))
+            
+            logger.info("PDF.js init log processed and acknowledged")
+            
+        except Exception as e:
+            logger.error(f"处理PDF.js init log时出错: {str(e)}")
+            self.send_error_response(client, f"处理PDF.js init log出错: {str(e)}", "pdfjs_init_log", "INTERNAL_ERROR", message.get('request_id'))
+
+    def handle_command_line_file(self, file_path, module):
+        """处理命令行传入的文件路径
+        
+        Args:
+            file_path: PDF文件路径
+            module: 当前加载的模块
+        """
+        if not file_path:
+            return
+            
+        if module != "pdf-viewer":
+            logger.warning(f"文件路径参数仅在pdf-viewer模块有效，当前模块: {module}")
+            return
+            
+        if not os.path.exists(file_path):
+            logger.error(f"文件不存在: {file_path}")
+            return
+            
+        if not file_path.lower().endswith('.pdf'):
+            logger.error(f"文件格式不支持，仅支持PDF文件: {file_path}")
+            return
+            
+        try:
+            # 确保data/pdfs目录存在（项目根目录）
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+            pdfs_dir = os.path.join(project_root, 'data', 'pdfs')
+            os.makedirs(pdfs_dir, exist_ok=True)
+            
+            # 复制文件到data/pdfs目录
+            filename = os.path.basename(file_path)
+            dest_path = os.path.join(pdfs_dir, filename)
+            
+            if file_path != dest_path:
+                import shutil
+                shutil.copy2(file_path, dest_path)
+                logger.info(f"复制文件到HTTP服务目录: {file_path} -> {dest_path}")
+            
+            # 添加PDF文件到管理器
+            success = self.pdf_manager.add_file(dest_path)
+            if success:
+                logger.info(f"成功添加PDF文件: {file_path}")
+                
+                # 获取文件ID（通过文件名查找）
+                file_id = None
+                for pdf_file in self.pdf_manager.get_files():
+                    if pdf_file.get('filename') == filename:
+                        file_id = pdf_file.get('id')
+                        break
+                
+                if file_id and self.websocket_server:
+                    # 通过WebSocket通知前端加载文件
+                    self.websocket_server.broadcast_message({
+                        "type": "load_pdf_file",
+                        "data": {
+                            "fileId": file_id,
+                            "filename": filename,
+                            "url": f"/pdfs/{filename}"
+                        }
+                    })
+            else:
+                logger.warning(f"添加PDF文件失败: {file_path}")
+                
+        except Exception as e:
+            logger.error(f"处理命令行文件路径时出错: {str(e)}")

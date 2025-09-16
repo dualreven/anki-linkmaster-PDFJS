@@ -17,8 +17,14 @@ from PyQt6.QtWidgets import QApplication
 from app.application import AnkiLinkMasterApp
 
 
-def main():
-    """主函数"""
+def main(module="pdf-viewer", vite_port=3000, file_path=None):
+    """主函数
+    
+    Args:
+        module: 要加载的前端模块 (pdf-home 或 pdf-viewer)
+        vite_port: Vite开发服务器端口
+        file_path: PDF文件路径 (仅pdf-viewer模块有效)
+    """
     try:
         # 创建QApplication实例
         app = QApplication(sys.argv)
@@ -30,7 +36,7 @@ def main():
         
         # 创建并运行应用
         main_app = AnkiLinkMasterApp()
-        main_app.run()
+        main_app.run(module, vite_port, file_path)
         
         # 启动事件循环
         return app.exec()

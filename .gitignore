@@ -10,3 +10,11 @@ log
 *.log
 debug-console-at-*.log
 data/pdf_files.json
+AItemp/*
+AITask/*
+AItemp/AI_DIALOG_COUNT.json
+logs
+test
+tests
+test_files
+data/pdf_files.json

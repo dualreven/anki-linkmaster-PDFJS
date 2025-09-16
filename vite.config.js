@@ -1,44 +1,68 @@
-// vite.config.js
-import { defineConfig } from 'vite';
-import { resolve } from 'path';
+// Vite config with Babel support (no React)
+import { defineConfig } from 'vite'
+import babel from 'vite-plugin-babel'
+import fs from 'fs'
+import path from 'path'
 
-export default defineConfig({
-  // 关键配置1：指定项目根目录
-  // 这告诉Vite，Web服务器的根目录应该是 'src/frontend'。
-  // 这样，对 http://localhost:3000/pdf-home/index.html 的请求
-  // 会被正确映射到项目中的 src/frontend/pdf-home/index.html 文件。
-  root: resolve(__dirname, 'src/frontend'),
+export default defineConfig(async () => {
+  // 从日志文件中动态读取HTTP服务器端口，默认8080
+  const logFile = path.join(process.cwd(), 'logs', 'http-server-port.txt')
+  let httpServerPort = '8080' // 默认端口
 
-  // 关键配置2：配置路径别名
-  // 这允许我们使用简短、绝对的别名来代替冗长的相对路径 ../../
-  resolve: {
-    alias: {
-      // 创建一个 '@' 别名，它指向 'src/frontend' 目录
-      '@': resolve(__dirname, 'src/frontend')
+  try {
+    if (fs.existsSync(logFile)) {
+      const portContent = fs.readFileSync(logFile, 'utf8').trim()
+      const port = parseInt(portContent, 10)
+      if (port > 0 && port < 65536) {
+        httpServerPort = port.toString()
+        console.log(`[Vite] Read HTTP server port from logs: ${httpServerPort}`)
+      } else {
+        console.warn(`[Vite] Invalid port in logs file: ${portContent}, using default ${httpServerPort}`)
+      }
+    } else {
+      console.log(`[Vite] HTTP server port log file not found, using default port ${httpServerPort}`)
     }
-  },
+  } catch (error) {
+    console.warn(`[Vite] Failed to read HTTP server port log: ${error.message}, using default port ${httpServerPort}`)
+  }
 
-  // 服务器配置（您可能已经有了）
-  server: {
-    port: 3000, // 确保端口与您在Qt中加载的端口一致
-    strictPort: true, // 如果3000端口被占用，则直接失败而不是尝试新端口
-  },
-
-  // 构建配置：为多页面应用做准备
-  // 这对于 `npm run build` (生产构建) 至关重要
-  build: {
-    // 输出目录，相对于项目根目录
-    outDir: resolve(__dirname, 'dist'),
-    // 清空输出目录
-    emptyOutDir: true,
-    rollupOptions: {
-      input: {
-        // 定义你的每一个入口HTML文件
-        // 'main' 是一个逻辑名称，值是相对于 `root` 配置的HTML文件路径
-        pdfHome: resolve(__dirname, 'src/frontend/pdf-home/index.html'),
-        // 如果未来有其他页面，可以在这里添加
-        // anotherPage: resolve(__dirname, 'src/frontend/another-page/index.html'),
+  return {
+    root: 'src/frontend',
+    server: {
+      port: 3000,
+      proxy: {
+        // 代理PDF文件请求到PyQt HTTP服务器
+        '/pdfs': {
+          target: `http://localhost:8080`, // 临时固定端口以匹配HTTP服务器实际端口
+          changeOrigin: true,
+          secure: false,
+          ws: false,
+          // 保持原始请求路径到后端（后端期望接收 /pdfs/{filename}）
+          rewrite: (path) => path.replace(/^\/pdfs/, '/pdfs')
+        },
+        // 代理API请求到WebSocket服务器（如果需要）
+        '/api': {
+          target: 'http://localhost:8765',
+          changeOrigin: true
+        }
+      }
+    },
+    plugins: [
+      babel({
+        babelConfig: {
+          configFile: './babel.config.js'
+        }
+      })
+    ],
+    build: {
+      rollupOptions: {
+        external: [
+          /__tests__/,
+          /\.test\.js$/,
+          /\.spec\.js$/,
+          'pdfjs-dist'  // ✅ 关键修复：阻止 Vite 打包 PDF.js
+        ]
       }
     }
   }
-});
+})

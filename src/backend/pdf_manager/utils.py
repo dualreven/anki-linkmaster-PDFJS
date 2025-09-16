@@ -5,6 +5,7 @@ import os
 import logging
 from typing import List, Tuple, Optional
 from .models import PDFFile
+from pypdf import PdfReader
 
 logger = logging.getLogger(__name__)
 
@@ -268,7 +269,7 @@ class ErrorHandler:
 
 
 class PDFMetadataExtractor:
-    """PDF元数据提取工具类（占位符，后续可扩展）"""
+    """PDF元数据提取工具类"""
     
     @staticmethod
     def extract_metadata(file_path: str) -> dict:
@@ -279,20 +280,43 @@ class PDFMetadataExtractor:
             file_path: PDF文件路径
             
         Returns:
-            dict: 元数据字典
+            dict: 元数据字典，包含错误信息或提取的元数据
         """
-        # 这里是占位符实现，后续可以集成PyPDF2或pdfplumber
-        return {
-            "title": "",
-            "author": "",
-            "subject": "",
-            "keywords": "",
-            "page_count": 0,
-            "creator": "",
-            "producer": "",
-            "creation_date": None,
-            "modification_date": None
-        }
+        try:
+            if not os.path.exists(file_path):
+                return {"error": f"文件不存在: {file_path}"}
+                
+            reader = PdfReader(file_path)
+            metadata = reader.metadata or {}
+            
+            # 获取页数
+            page_count = len(reader.pages)
+            
+            # 格式化元数据
+            result = {
+                "title": metadata.get("/Title", ""),
+                "author": metadata.get("/Author", ""),
+                "subject": metadata.get("/Subject", ""),
+                "keywords": metadata.get("/Keywords", ""),
+                "page_count": page_count,
+                "creator": metadata.get("/Creator", ""),
+                "producer": metadata.get("/Producer", ""),
+                "creation_date": metadata.get("/CreationDate"),
+                "modification_date": metadata.get("/ModDate")
+            }
+            
+            # 清理字符串中的斜杠前缀
+            for key in ["title", "author", "subject", "keywords", "creator", "producer"]:
+                if result[key] and result[key].startswith('/'):
+                    result[key] = result[key][1:]
+            
+            logger.info(f"成功提取PDF元数据: {file_path}, 页数: {page_count}")
+            return result
+            
+        except Exception as e:
+            error_msg = f"提取PDF元数据失败: {e}"
+            logger.error(error_msg)
+            return {"error": error_msg}
     
     @staticmethod
     def get_page_count(file_path: str) -> int:
@@ -306,8 +330,15 @@ class PDFMetadataExtractor:
             int: 页数，失败返回0
         """
         try:
-            # 这里是占位符实现
-            return 0
+            if not os.path.exists(file_path):
+                logger.warning(f"文件不存在: {file_path}")
+                return 0
+                
+            reader = PdfReader(file_path)
+            page_count = len(reader.pages)
+            logger.info(f"获取PDF页数成功: {file_path}, 页数: {page_count}")
+            return page_count
+            
         except Exception as e:
-            logger.error(f"获取页数失败: {e}")
+            logger.error(f"获取PDF页数失败: {file_path}, 错误: {e}")
             return 0
