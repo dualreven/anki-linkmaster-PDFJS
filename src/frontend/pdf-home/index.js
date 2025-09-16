@@ -50,19 +50,21 @@ class PDFHomeApp {
       if (tableContainer) {
           this.tableWrapper = new TableWrapper(tableContainer, {
           columns: [
-            {
-              formatter: "rowSelection",
-              titleFormatter: "rowSelection", 
-              titleFormatterParams: {
-                rowRange: "active" // 只显示当前页的全选
-              },
-              hozAlign: "center",
-              headerSort: false,
-              width: 50, // 增加宽度
-              cellClick: function(e, cell) {
-                e.stopPropagation(); // 防止事件冒泡
-              }
-            },
+            // 注意：当前未启用 Tabulator 的 SelectRow 模块，上述 formatter 会在部分打包形态下无效并报错。
+            // 暂时移除 rowSelection 列，避免初始化告警；如需多选，请改用 table-wrapper.js 中的回退checkbox方案。
+            // {
+            //   formatter: "rowSelection",
+            //   titleFormatter: "rowSelection",
+            //   titleFormatterParams: {
+            //     rowRange: "active"
+            //   },
+            //   hozAlign: "center",
+            //   headerSort: false,
+            //   width: 50,
+            //   cellClick: function(e, cell) {
+            //     e.stopPropagation();
+            //   }
+            // },
             { title: "File", field: "filename", widthGrow: 2 },
             { title: "Title", field: "title", widthGrow: 3 },
             { title: "Pages", field: "page_count", hozAlign: "center", width: 80 },
@@ -71,12 +73,20 @@ class PDFHomeApp {
           selectable: true,
           layout: "fitColumns",
           rowDblClick: (e, row) => {
-           const rowData = row.getData();
-           if (rowData && (rowData.id || rowData.filename)) {
-             this.#logger.info(`Row double-clicked, opening PDF: ${rowData.filename}`);
-             this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, rowData.id || rowData.filename, {
-               actorId: 'PDFHomeApp'
-             });
+           console.log("Tabulator row double-click event triggered");
+           try {
+             const rowData = row.getData();
+             console.log("Row data:", rowData);
+             if (rowData && (rowData.id || rowData.filename)) {
+               this.#logger.info(`Row double-clicked, opening PDF: ${rowData.filename}`);
+               this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, rowData.id || rowData.filename, {
+                 actorId: 'PDFHomeApp'
+               });
+             } else {
+               console.warn("Row data is missing id or filename:", rowData);
+             }
+           } catch (error) {
+             console.error("Error in rowDblClick handler:", error);
            }
           },
         });
@@ -131,13 +141,14 @@ class PDFHomeApp {
             });
 
             // 绑定行点击事件（用于切换选择状态）
+            // 注意：当前未启用 Tabulator 的 SelectRow 模块，row 对象不一定含 isSelected/select/deselect
+            // 为避免报错，暂时仅打印行数据，不做选择切换；后续如需选择功能，可引入 SelectRow 模块或使用我们在 table-wrapper 的回退checkbox方案。
             this.tableWrapper.tabulator.on("rowClick", (e, row) => {
-              console.log("行被点击:", row.getData());
-              // 切换行的选择状态
-              if (row.isSelected()) {
-                row.deselect();
-              } else {
-                row.select();
+              try {
+                const data = row && typeof row.getData === 'function' ? row.getData() : null;
+                console.log("行被点击:", data);
+              } catch (err) {
+                console.warn("rowClick handler error:", err);
               }
             });
 
@@ -198,6 +209,143 @@ class PDFHomeApp {
       this.#initialized = true;
       this.#logger.info("PDF Home App initialized successfully.");
       this.#eventBus.emit(APP_EVENTS.INITIALIZATION.COMPLETED, undefined, { actorId: 'PDFHomeApp' });
+
+      // ====== 自检模式入口（方案A）======
+      try {
+        // 暴露自动化测试钩子
+        const autoTest = {
+          lastResult: null,
+          // 触发一次自动化双击测试
+          run: async () => {
+            const result = {
+              startedAt: new Date().toISOString(),
+              errors: [],
+              openRequestedFired: false,
+              usedMockData: false,
+              notes: []
+            };
+
+            // 1) 捕获 window 错误与 console.error
+            const errorHandler = (e) => {
+              try {
+                const msg = e?.message || e?.toString?.() || String(e);
+                result.errors.push({ source: 'window.onerror', message: msg });
+              } catch (_) {}
+            };
+            const origConsoleError = console.error;
+            console.error = function(...args) {
+              try { result.errors.push({ source: 'console.error', message: args.map(a => (a && a.message) ? a.message : String(a)).join(' ') }); } catch(_) {}
+              return origConsoleError.apply(console, args);
+            };
+
+            window.addEventListener('error', errorHandler);
+
+            // 2) 监听 OPEN.REQUESTED 事件是否触发
+            const unsubscribeOpen = this.#eventBus.on(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, (payload) => {
+              try {
+                result.openRequestedFired = true;
+                result.notes.push('OPEN.REQUESTED captured with payload: ' + JSON.stringify(payload));
+              } catch (_) {}
+            }, { subscriberId: 'AutoTest' });
+
+            // 3) 等待 Tabulator DOM 渲染
+            const waitForTableDom = async (timeoutMs = 5000) => {
+              const start = Date.now();
+              while (Date.now() - start < timeoutMs) {
+                try {
+                  const wrapper = this.tableWrapper?.tableWrapper || document.querySelector('#pdf-table-container .pdf-table-wrapper');
+                  if (wrapper) {
+                    const isTab = wrapper.classList?.contains?.('tabulator') || wrapper.querySelector('.tabulator, .tabulator-table');
+                    if (isTab) return wrapper;
+                  }
+                } catch (_) {}
+                await new Promise(r => setTimeout(r, 50));
+              }
+              throw new Error('Tabulator DOM not ready within timeout');
+            };
+
+            // 4) 若没有数据则注入一条 mock 数据
+            const ensureData = async () => {
+              try {
+                const dataLen = (() => {
+                  try {
+                    const d = this.tableWrapper?.tabulator?.getData?.();
+                    return Array.isArray(d) ? d.length : 0;
+                  } catch (_) { return 0; }
+                })();
+                if (dataLen === 0) {
+                  result.usedMockData = true;
+                  const mock = [{ id: 'auto-test.pdf', filename: 'auto-test.pdf', title: 'Auto Test PDF', page_count: 1, cards_count: 0 }];
+                  await this.tableWrapper.setData(mock);
+                  result.notes.push('Injected mock data for auto test');
+                }
+              } catch (e) {
+                result.errors.push({ source: 'ensureData', message: e?.message || String(e) });
+              }
+            };
+
+            // 5) 触发第一行的双击事件
+            const dispatchDblClick = async () => {
+              try {
+                const wrapper = this.tableWrapper?.tableWrapper || document.querySelector('#pdf-table-container .pdf-table-wrapper');
+                if (!wrapper) throw new Error('table wrapper not found');
+                // 兼容 Tabulator 不同结构，尝试多种选择器
+                const rowEl = wrapper.querySelector('.tabulator-row') || wrapper.querySelector('.tabulator-tableHolder .tabulator-table .tabulator-row');
+                if (!rowEl) throw new Error('no tabulator row found to double click');
+                const evt = new MouseEvent('dblclick', { bubbles: true, cancelable: true, view: window });
+                rowEl.dispatchEvent(evt);
+                result.notes.push('Dispatched dblclick on first row');
+              } catch (e) {
+                result.errors.push({ source: 'dispatchDblClick', message: e?.message || String(e) });
+              }
+            };
+
+            // 执行流程
+            try {
+              await waitForTableDom(6000);
+              await ensureData();
+              await new Promise(r => setTimeout(r, 100)); // 给渲染留一点时间
+              await dispatchDblClick();
+              await new Promise(r => setTimeout(r, 200)); // 等待事件总线处理
+            } catch (e) {
+              result.errors.push({ source: 'autoTestFlow', message: e?.message || String(e) });
+            }
+
+            // 清理监听
+            try { window.removeEventListener('error', errorHandler); } catch(_) {}
+            try { console.error = origConsoleError; } catch(_) {}
+            try { if (typeof unsubscribeOpen === 'function') unsubscribeOpen(); } catch(_) {}
+
+            // 6) 判定成功条件：无 isSelected 错误，且 OPEN.REQUESTED 触发
+            const hasIsSelectedError = result.errors.some(er => /isSelected/.test(er.message || ''));
+            result.success = !hasIsSelectedError && result.openRequestedFired;
+            result.finishedAt = new Date().toISOString();
+
+            // 对外暴露结果并打印
+            autoTest.lastResult = result;
+            window.__lastAutoTestResult = result;
+            if (result.success) {
+              console.info('[AutoTest] Success:', result);
+            } else {
+              console.warn('[AutoTest] Failed:', result);
+            }
+            return result;
+          }
+        };
+
+        // 暴露到 window
+        window.__pdfHomeAutoTest = autoTest;
+
+        // 若检测到环境变量（通过 window 注入的布尔值）则自动执行
+        if (window.PDF_HOME_AUTO_TEST === true || window.PDF_HOME_AUTO_TEST === '1') {
+          setTimeout(() => {
+            try { autoTest.run(); } catch (e) { console.warn('AutoTest run failed to start', e); }
+          }, 300);
+        }
+      } catch (e) {
+        this.#logger.warn('AutoTest hook init failed', e);
+      }
+      // ====== 自检模式入口结束 ======
     } catch (error) {
       this.#logger.error("Application initialization failed.", error);
       this.#errorHandler.handleError(error, "App.initialize");

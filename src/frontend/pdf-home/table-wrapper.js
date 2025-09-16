@@ -98,25 +98,22 @@ export default class TableWrapper {
               else if (data.filename) cb.dataset.filename = data.filename;
             }
             // 反映行选择状态
-            try { cb.checked = (typeof row.isSelected === 'function') ? !!row.isSelected() : false; } catch(e) {}
+            // 不再依赖 Tabulator 的 isSelected（某些构建未包含选择模块）
+            try { cb.checked = cb.checked || rowEl.classList.contains('tabulator-selected'); } catch(e) {}
             // 当 checkbox 改变时，切换 Tabulator 行的选择状态（若 RowComponent 可用）
             cb.addEventListener('change', (e) => {
               try {
-                if (typeof row.select === 'function' && typeof row.deselect === 'function') {
-                  if (e.target.checked) row.select();
-                  else row.deselect();
-                } else {
-                  // 尝试切换 DOM 的选中类，供回退逻辑使用
-                  if (e.target.checked) rowEl.classList.add('tabulator-selected');
-                  else rowEl.classList.remove('tabulator-selected');
-                }
+                // 不再依赖 row.select/deselect，统一使用 DOM class 维护回退选择态
+                if (e.target.checked) rowEl.classList.add('tabulator-selected');
+                else rowEl.classList.remove('tabulator-selected');
               } catch (err) { /* ignore */ }
             });
             // 将 checkbox 插入到单元格最前面
             firstCell.insertBefore(cb, firstCell.firstChild);
           } else {
             // 同步选中状态
-            try { cb.checked = (typeof row.isSelected === 'function') ? !!row.isSelected() : cb.checked; } catch(e) {}
+            // 同步为基于 DOM 的选中状态
+            try { cb.checked = rowEl.classList.contains('tabulator-selected'); } catch(e) {}
           }
         } catch (e) {
           // silently ignore rowFormatter errors to avoid breaking rendering
