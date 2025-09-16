@@ -169,7 +169,7 @@ export class DOMUtils {
       }
     } catch (e) {}
     try { console.error(message); } catch (e) {}
-    try { alert(message); } catch (e) {}
+    // try { alert(message); } catch (e) {}
   }
 
   /**
@@ -186,7 +186,7 @@ export class DOMUtils {
       }
     } catch (e) {}
     try { console.info(message); } catch (e) {}
-    try { alert(message); } catch (e) {}
+    // try { alert(message); } catch (e) {}
   }
   
   /**

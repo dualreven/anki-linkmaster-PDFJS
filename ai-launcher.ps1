@@ -41,7 +41,7 @@ function Start-NpmDev {
     
     # Create a PowerShell script to remove ANSI codes and use custom port
     $psScript = @"
-vite `$viteEntryFile --port $Port 2>&1 | ForEach-Object {
+vite --port $Port 2>&1 | ForEach-Object {
     `$line = `$_ -replace '\x1b\[\d+(;\d+)*m', ''
     `$line
 } | Out-File -FilePath '$logFile' -Encoding UTF8

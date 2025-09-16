@@ -27,9 +27,9 @@ export default defineConfig(async () => {
   }
 
   return {
-    root: 'src/frontend',
+    root: 'src/frontend/pdf-home',
     server: {
-      port: 3000,
+      port: process.env.VITE_PORT || 3000,
       proxy: {
         // 代理PDF文件请求到PyQt HTTP服务器
         '/pdfs': {
