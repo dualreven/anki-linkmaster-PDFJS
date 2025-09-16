@@ -4,7 +4,7 @@ param(
     [int]$WaitTime = 10,
     [Alias("Modules")][string]$Module = "pdf-viewer",
     [int]$Port = 3000,
-    [string]$FilePath = ""
+    [string]$PdfPath = ""
 )
 
 # Set working directory
@@ -21,12 +21,27 @@ $ProcessInfoFile = "logs\process-info.json"
 
 # Function to start npm dev with custom port
 function Start-NpmDev {
-    Write-Host "[1/3] Starting npm run dev on port $Port..." -ForegroundColor Cyan
+    Write-Host "[1/3] Starting npm run dev on port $Port for module $Module..." -ForegroundColor Cyan
     
     $logFile = "$ScriptPath\logs\npm-dev.log"
+    
+    # Prepare index.html for Vite
+    $viteEntryFile = "src/frontend/$Module/index.html"
+    if ($PdfPath -and $Module -eq "pdf-viewer") {
+        $originalHtmlPath = "src/frontend/pdf-viewer/index.html"
+        $tempHtmlPath = "src/frontend/pdf-viewer/index.temp.html"
+        
+        $htmlContent = Get-Content $originalHtmlPath -Raw
+        $injectionScript = "<script>window.PDF_PATH = `"$PdfPath`";</script>"
+        $htmlContent = $htmlContent -replace "</body>", "$injectionScript`n</body>"
+        
+        Set-Content -Path $tempHtmlPath -Value $htmlContent -Encoding UTF8
+        $viteEntryFile = $tempHtmlPath
+    }
+    
     # Create a PowerShell script to remove ANSI codes and use custom port
     $psScript = @"
-vite --port $Port 2>&1 | ForEach-Object {
+vite `$viteEntryFile --port $Port 2>&1 | ForEach-Object {
     `$line = `$_ -replace '\x1b\[\d+(;\d+)*m', ''
     `$line
 } | Out-File -FilePath '$logFile' -Encoding UTF8
@@ -84,8 +99,8 @@ Vite Port: $Port
     
     # Build command arguments
     $cmdArgs = "/c chcp 65001 > nul && python.exe app.py --module $Module --port $Port"
-    if ($FilePath -and $Module -eq "pdf-viewer") {
-        $cmdArgs += " --file-path `"$FilePath`""
+    if ($PdfPath -and $Module -eq "pdf-viewer") {
+        $cmdArgs += " --file-path `"$PdfPath`""
     }
     $cmdArgs += " > `"$logFile`" 2>&1"
     $process = Start-Process "cmd.exe" -ArgumentList $cmdArgs -PassThru
@@ -257,7 +272,7 @@ switch ($Action.ToLower()) {
     }
     
     default {
-        Write-Host "Usage: .\ai-launcher.ps1 [start|stop|status|logs] [-Module|-Modules {pdf-home|pdf-viewer}] [-Port PORT] [-FilePath PATH]" -ForegroundColor Red
+        Write-Host "Usage: .\ai-launcher.ps1 [start|stop|status|logs] [-Module|-Modules {pdf-home|pdf-viewer}] [-Port PORT] [-PdfPath PATH]" -ForegroundColor Red
         Write-Host ""
         Write-Host "Commands:" -ForegroundColor White
         Write-Host "  start  - Start all services (default)" -ForegroundColor White
@@ -268,11 +283,11 @@ switch ($Action.ToLower()) {
         Write-Host "Options:" -ForegroundColor White
         Write-Host "  -Module|-Modules {pdf-home|pdf-viewer} - Select frontend module (default: pdf-viewer)" -ForegroundColor White
         Write-Host "  -Port PORT - Vite dev server port (default: 3000)" -ForegroundColor White
-        Write-Host "  -FilePath PATH - PDF file path to load (pdf-viewer module only)" -ForegroundColor White
+        Write-Host "  -PdfPath PATH - PDF file path to load (pdf-viewer module only)" -ForegroundColor White
         Write-Host ""
         Write-Host "Examples:" -ForegroundColor White
         Write-Host "  .\ai-launcher.ps1 start -Module pdf-home -Port 3001" -ForegroundColor White
-        Write-Host "  .\ai-launcher.ps1 start -Module pdf-viewer -FilePath `"C:\path\to\file.pdf`"" -ForegroundColor White
+        Write-Host "  .\ai-launcher.ps1 start -Module pdf-viewer -PdfPath `"C:\path\to\file.pdf`"" -ForegroundColor White
         Write-Host "  .\ai-launcher.ps1 start -Module pdf-viewer" -ForegroundColor White
         Write-Host "  .\ai-launcher.ps1 start" -ForegroundColor White
     }

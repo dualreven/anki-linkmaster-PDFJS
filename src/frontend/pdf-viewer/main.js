@@ -622,5 +622,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     indexLogger.info("PDFViewer App initialized successfully");
 
+    // Check for injected PDF path and load it
+    if (window.PDF_PATH) {
+       indexLogger.info(`Found injected PDF path: ${window.PDF_PATH}`);
+       const eventBus = app.getEventBus();
+       eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, { filename: window.PDF_PATH }, { actorId: 'Launcher' });
+    }
+
 
 });

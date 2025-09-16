@@ -70,6 +70,15 @@ class PDFHomeApp {
           ],
           selectable: true,
           layout: "fitColumns",
+          rowDblClick: (e, row) => {
+           const rowData = row.getData();
+           if (rowData && (rowData.id || rowData.filename)) {
+             this.#logger.info(`Row double-clicked, opening PDF: ${rowData.filename}`);
+             this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, rowData.id || rowData.filename, {
+               actorId: 'PDFHomeApp'
+             });
+           }
+          },
         });
 
         // ==================== 诊断代码开始 ====================
