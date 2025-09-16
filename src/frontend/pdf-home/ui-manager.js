@@ -51,6 +51,7 @@ export class UIManager {
       addPdfBtn: DOMUtils.getElementById("add-pdf-btn"),
       batchAddBtn: DOMUtils.getElementById("batch-add-btn"),
       batchDeleteBtn: DOMUtils.getElementById("batch-delete-btn"),
+      testPdfViewerBtn: DOMUtils.getElementById("test-pdf-viewer-btn"),
       debugBtn: DOMUtils.getElementById("debug-btn"),
       debugStatus: DOMUtils.getElementById("debug-status"),
       debugContent: DOMUtils.getElementById("debug-content"),
@@ -137,6 +138,11 @@ export class UIManager {
       const listener = () => this.#handleBatchDelete();
       DOMUtils.addEventListener(this.#elements.batchDeleteBtn, "click", listener);
       this.#unsubscribeFunctions.push(() => DOMUtils.removeEventListener(this.#elements.batchDeleteBtn, "click", listener));
+    }
+    if (this.#elements.testPdfViewerBtn) {
+      const listener = () => this.#handleTestPdfViewer();
+      DOMUtils.addEventListener(this.#elements.testPdfViewerBtn, "click", listener);
+      this.#unsubscribeFunctions.push(() => DOMUtils.removeEventListener(this.#elements.testPdfViewerBtn, "click", listener));
     }
     if (this.#elements.debugBtn) {
       const listener = () => this.#toggleDebugStatus();
@@ -341,6 +347,21 @@ export class UIManager {
     }, {
       actorId: 'UIManager'
     });
+  }
+
+  #handleTestPdfViewer() {
+    this.#logger.info("测试PDF查看器按钮被点击");
+    
+    // 使用测试PDF文件路径
+    const testPdfPath = "public/test.pdf";
+    
+    // 触发PDF查看器启动事件
+    this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, testPdfPath, {
+      actorId: 'UIManager',
+      source: 'test-button'
+    });
+    
+    this.showSuccess("正在启动PDF查看器...");
   }
 
   #toggleDebugStatus() {

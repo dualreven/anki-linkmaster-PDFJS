@@ -167,6 +167,7 @@ class StandardWebSocketServer(QObject):
         
         # PDF详情请求
         elif message_type == "pdf_detail_request":
+            return self.handle_pdf_detail_request(request_id, data)
         # PDF页面请求
         elif message_type == MessageType.PDF_PAGE_REQUEST.value:
             return self.handle_pdf_page_request(request_id, data)
@@ -325,7 +326,7 @@ class StandardWebSocketServer(QObject):
                 f"批量删除PDF失败: {str(e)}"
             )
    
-   def handle_open_pdf_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    def handle_open_pdf_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
        """处理打开PDF的请求"""
        try:
            file_id = data.get("file_id")

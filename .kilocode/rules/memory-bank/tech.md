@@ -153,6 +153,54 @@ pdf_manager.file_added.connect(lambda file_info: print(f"文件添加: {file_inf
 pdf_manager.file_removed.connect(lambda file_id: print(f"文件删除: {file_id}"))
 ```
 
+### 应用子模块 (Application Submodules)
+
+主应用 `AnkiLinkMasterApp` 已拆分为多个功能模块，位于 `src/backend/app/application_subcode/` 目录下：
+
+#### 辅助函数模块 (helpers.py)
+```python
+from src.backend.app.application_subcode.helpers import get_vite_port
+
+# 获取Vite开发服务器端口
+port = get_vite_port()
+```
+
+#### 响应处理器模块 (response_handlers.py)
+```python
+from src.backend.app.application_subcode.response_handlers import ResponseHandlers
+
+# 初始化响应处理器
+response_handler = ResponseHandlers(websocket_server)
+response_handler.send_success_response(client, "operation_type", result_data)
+```
+
+#### WebSocket处理器模块 (websocket_handlers.py)
+```python
+from src.backend.app.application_subcode.websocket_handlers import WebSocketHandlers
+
+# 初始化WebSocket消息处理器
+ws_handler = WebSocketHandlers(app_instance, response_handler)
+ws_handler.handle_websocket_message(client, message)
+```
+
+#### 客户端处理器模块 (client_handler.py)
+```python
+from src.backend.app.application_subcode.client_handler import ClientHandler
+
+# 初始化客户端处理器
+client_handler = ClientHandler(app_instance)
+client_handler.on_client_connected(client)
+```
+
+#### 命令行处理器模块 (command_line_handler.py)
+```python
+from src.backend.app.application_subcode.command_line_handler import CommandLineHandler
+
+# 初始化命令行处理器
+cmd_handler = CommandLineHandler(app_instance)
+cmd_handler.handle_command_line_file(file_path, module)
+```
+
 ### UI管理器 (UIManager)
 
 UI管理器负责界面控制和用户交互。

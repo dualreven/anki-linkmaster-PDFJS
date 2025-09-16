@@ -1,3 +1,4 @@
+
 # 系统架构
 
 ## 整体架构
@@ -26,6 +27,12 @@
   - 消息路由和处理
   - PDF管理器协调
   - 主窗口管理
+- **子模块**:
+  - `application_subcode/helpers.py` - 辅助函数（端口检测等）
+  - `application_subcode/response_handlers.py` - WebSocket响应处理
+  - `application_subcode/websocket_handlers.py` - WebSocket消息处理器
+  - `application_subcode/client_handler.py` - 客户端连接处理
+  - `application_subcode/command_line_handler.py` - 命令行参数处理
 
 #### PDFManager (src/backend/pdf_manager/manager.py)
 - **职责**: PDF文件的核心管理逻辑
@@ -137,6 +144,11 @@
 - **实现**: 清晰的模块边界和接口定义
 - **优势**: 便于团队协作和功能迭代
 
+### 5. 代码拆分优化
+- **原因**: 提高大型文件的可维护性和可读性
+- **实现**: 将1000行的主应用文件拆分为6个功能模块
+- **优势**: 每个模块职责单一，便于测试和扩展
+
 ## 目录结构
 
 ```
@@ -144,6 +156,14 @@ anki-linkmaster-PDFJS/
 ├── src/
 │   ├── backend/              # PyQt6后端应用
 │   │   ├── app/              # 主应用逻辑
+│   │   │   ├── application.py              # 主应用类 (163行)
+│   │   │   └── application_subcode/        # 应用子模块
+│   │   │       ├── __init__.py            # 包初始化
+│   │   │       ├── helpers.py             # 辅助函数
+│   │   │       ├── response_handlers.py   # 响应处理
+│   │   │       ├── websocket_handlers.py  # WebSocket处理
+│   │   │       ├── client_handler.py      # 客户端处理
+│   │   │       └── command_line_handler.py # 命令行处理
 │   │   ├── pdf_manager/      # PDF文件管理
 │   │   ├── websocket/        # WebSocket通信
 │   │   └── ui/               # 用户界面
@@ -179,6 +199,4 @@ anki-linkmaster-PDFJS/
 - **配置系统**: 灵活的配置管理
 
 ### API设计
-- **RESTful原则**: 清晰的API设计
-- **版本控制**: API版本管理
-- **向后兼容**: 确保升级平滑
+- **RESTful原则**: 
