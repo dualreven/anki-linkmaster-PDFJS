@@ -7,24 +7,24 @@ steps:
   - step1_call_planner:
     - 创建子任务（`new_task`, `mode:agent-planner`）,将step0得到的澄清结果传递过去,
     - 规定必须返回文件:
-      - `AIforum/[yyyymmddHHmmss]-solution-[编号].json`
-      - `AIforum/[yyyymmddHHmmss]-forum-[编号].json`
+      - `AIforum/[yyyymmddHHmmss]-solution-[编号].md`
+      - `AIforum/[yyyymmddHHmmss]-forum-[编号].md`
   - step2_return_examing:
     - 以下判断必须全部为真,才能前进到step3,任意为假则带着对应信息,回到step1:
-      - step1的子任务返回了给定格式的文件 `AIforum/[yyyymmddHHmmss]-solution-[编号].json`
-      - step1的子任务`AIforum/[yyyymmddHHmmss]-forum-[编号].json`中最后一个回复者是 `agent-plan-reviewer`,而且`opinion`是`agree`
+      - step1的子任务返回了给定格式的文件 `AIforum/[yyyymmddHHmmss]-solution-[编号].md`
+      - step1的子任务`AIforum/[yyyymmddHHmmss]-forum-[编号].md`中最后一个回复者是 `agent-plan-reviewer`,而且`opinion`是`agree`
   - step3_call_atomizer:
-    - 创建子任务（`new_task`, `mode:agent-atomizer`），传递step1得到的文件，规定返回格式:`AIforum/[yyyymmddHHmmss]-atom-tasks-[编号].json`。
+    - 创建子任务（`new_task`, `mode:agent-atomizer`），传递step1得到的文件，规定返回格式:`AIforum/[yyyymmddHHmmss]-atom-tasks-[编号].md`。
     - 规定必须返回文件:
-      - `AIforum/[yyyymmddHHmmss]-satom-tasks-[编号].json`
-      - `AIforum/[yyyymmddHHmmss]-forum-[编号].json`
+      - `AIforum/[yyyymmddHHmmss]-satom-tasks-[编号].md`
+      - `AIforum/[yyyymmddHHmmss]-forum-[编号].md`
   - step4_return_examing:
     - 以下判断必须全部为真,才能前进到step5,任意为假则带着对应信息,回到step3:
-      - step3的子任务返回了给定格式的文件 `AIforum/[yyyymmddHHmmss]-atom-tasks-[编号].json`
-      - step3的子任务 `AIforum/[yyyymmddHHmmss]-forum-[编号].json`中最后一个回复者是 `agent-atomize-reviewer`,而且`opinion`是`agree`
-      - step3的子任务  `AIforum/[yyyymmddHHmmss]-atom-tasks-[编号].json` 中 "total-atom-task-count" 数值等于 "atom-task-list" 的长度.
+      - step3的子任务返回了给定格式的文件 `AIforum/[yyyymmddHHmmss]-atom-tasks-[编号].md`
+      - step3的子任务 `AIforum/[yyyymmddHHmmss]-forum-[编号].md`中最后一个回复者是 `agent-atomize-reviewer`,而且`opinion`是`agree`
+      - step3的子任务  `AIforum/[yyyymmddHHmmss]-atom-tasks-[编号].md` 中 "total-atom-task-count" 数值等于 "atom-task-list" 的长度.
   - step5_call_executor:  
-    - 创建子任务（`new_task`, `mode:agent-executor`），传递原子任务文件，`AIforum/[yyyymmddHHmmss]-atom-tasks-[编号].json`。
+    - 创建子任务（`new_task`, `mode:agent-executor`），传递原子任务文件，`AIforum/[yyyymmddHHmmss]-atom-tasks-[编号].md`。
 constraints:
   - 禁止修改任何文件.
   - 禁止输出与上述step无关的信息.
