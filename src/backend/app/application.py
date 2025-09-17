@@ -10,6 +10,9 @@ from src.backend.pdf_manager.manager import PDFManager
 from src.backend.http_server import HttpFileServer
 import logging
 import json
+import socket
+import subprocess
+import time
 import os
 
 # 导入拆分后的模块
@@ -20,6 +23,12 @@ from .application_subcode.client_handler import ClientHandler
 from .application_subcode.command_line_handler import CommandLineHandler
 
 # 配置日志
+
+def find_free_port():
+    """Find a free port"""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('localhost', 0))
+        return s.getsockname()[1]
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -63,7 +72,7 @@ class AnkiLinkMasterApp:
             logger.warning("HTTP文件服务器启动失败，文件传输功能受限")
         
         # 初始化并启动WebSocket服务器
-        self.websocket_server = StandardWebSocketServer(host="127.0.0.1", port=8765)
+        self.websocket_server = StandardWebSocketServer(host="127.0.0.1", port=8765, app=self)
         if self.websocket_server.start():
             logger.info("WebSocket服务器启动成功")
             # 初始化响应处理器
@@ -161,3 +170,66 @@ class AnkiLinkMasterApp:
         """广播PDF文件列表更新"""
         if self.client_handler:
             self.client_handler.broadcast_pdf_list()
+    def broadcast_pdf_list(self):
+        """广播PDF文件列表更新"""
+        if self.client_handler:
+            self.client_handler.broadcast_pdf_list()
+
+    def open_pdf_viewer_window(self, pdf_file_path: str, title: str = None) -> bool:
+        """直接在当前应用中创建新的PDF查看器窗口
+
+        Args:
+            pdf_file_path: PDF文件路径（可以是file_id或实际路径）
+            title: 窗口标题
+
+        Returns:
+            bool: 是否成功打开窗口
+        """
+        try:
+            from src.backend.ui.main_window import MainWindow
+            from .application_subcode.helpers import get_vite_port
+            import json
+
+            logger.info(f"创建PDF查看器窗口: {pdf_file_path}")
+
+            # 创建新的MainWindow实例用于PDF查看器
+            pdf_viewer_window = MainWindow(self)
+
+            # 设置窗口标题
+            if title:
+                pdf_viewer_window.setWindowTitle(f"Anki LinkMaster PDFJS - {title}")
+            else:
+                pdf_viewer_window.setWindowTitle("Anki LinkMaster PDFJS - PDF查看器")
+
+            # Start separate Vite server for pdf-viewer module
+            pdf_viewer_port = find_free_port()
+            env = os.environ.copy()
+            env["VITE_PORT"] = str(pdf_viewer_port)
+            env["VITE_MODULE"] = "pdf-viewer"
+            p = subprocess.Popen(["npx", "vite", "--port", str(pdf_viewer_port), "--host", "localhost", "--mode", "development"], env=env, cwd=".")
+            time.sleep(3)
+            # 加载pdf-viewer模块
+            url = f"http://localhost:{pdf_viewer_port}/index.html"
+
+            # 使用loadFinished事件在页面加载后注入PDF路径
+            def on_page_loaded():
+                # 页面加载完成，注入PDF路径
+                pdf_viewer_window.web_page.runJavaScript(f"window.PDF_PATH = '{pdf_file_path}';")
+                logger.info(f"PDF查看器窗口创建成功，路径: {pdf_file_path}")
+
+            pdf_viewer_window.web_loaded.connect(on_page_loaded)
+            pdf_viewer_window.load_frontend(url)
+
+            # 显示窗口
+            pdf_viewer_window.show()
+            pdf_viewer_window.raise_()
+            pdf_viewer_window.activateWindow()
+
+            logger.info(f"PDF查看器窗口已打开: {pdf_file_path}")
+            return True
+
+        except Exception as e:
+            logger.error(f"打开PDF查看器窗口失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return False

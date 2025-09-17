@@ -25,10 +25,11 @@ class StandardWebSocketServer(QObject):
     client_disconnected = pyqtSignal(QWebSocket)
     message_received = pyqtSignal(QWebSocket, dict)
     
-    def __init__(self, host="127.0.0.1", port=8765):
+    def __init__(self, host="127.0.0.1", port=8765, app=None):
         super().__init__()
         self.host = host
         self.port = port
+        self.app = app  # 存储应用实例引用
         self.server = QWebSocketServer("Anki LinkMaster Standard Server", QWebSocketServer.SslMode.NonSecureMode)
         
         # 客户端列表
@@ -326,46 +327,65 @@ class StandardWebSocketServer(QObject):
                 f"批量删除PDF失败: {str(e)}"
             )
    
+    #!/usr/bin/env python3
+    """
+    这包含了正确的handle_open_pdf_request方法
+    """
     def handle_open_pdf_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-       """处理打开PDF的请求"""
-       try:
-           file_id = data.get("file_id")
-           if not file_id:
-               return StandardMessageHandler.build_error_response(
-                   request_id,
-                   "INVALID_REQUEST",
-                   "Missing required file_id parameter"
-               )
-           
-           # Assuming ai-launcher.ps1 is in the root directory
-           command = [
-               "powershell.exe",
-               "-ExecutionPolicy", "Bypass",
-               "-File", ".\\ai-launcher.ps1",
-               "start",
-               "-Module", "pdf-viewer",
-               "-PdfPath", str(file_id)
-           ]
-           
-           # We use Popen to not block the server
-           subprocess.Popen(command, creationflags=subprocess.CREATE_NEW_CONSOLE)
-           
-           return StandardMessageHandler.build_response(
-               "response",
-               request_id,
-               status="success",
-               code=200,
-               message=f"Request to open PDF {file_id} has been sent.",
-               data={"file_id": file_id}
-           )
-           
-       except Exception as e:
-           logger.error(f"Failed to open PDF viewer: {e}")
-           return StandardMessageHandler.build_error_response(
-               request_id,
-               "OPEN_PDF_ERROR",
-               f"Failed to open PDF viewer: {str(e)}"
-           )
+        """处理打开PDF的请求"""
+        try:
+            file_id = data.get("file_id")
+            if not file_id:
+                return StandardMessageHandler.build_error_response(
+                    request_id,
+                    "INVALID_REQUEST",
+                    "Missing required file_id parameter"
+                )
+
+            # 调试应用引用状态
+            logger.info(f"[DEBUG] 检查应用引用 - hasattr(self, 'app'): {hasattr(self, 'app')}")
+            if hasattr(self, 'app'):
+                logger.info(f"[DEBUG] self.app 是否为None: {self.app is None}")
+                logger.info(f"[DEBUG] self.app 类型: {type(self.app)}")
+                if self.app is not None:
+                    logger.info(f"[DEBUG] self.app 具有 open_pdf_viewer_window 方法: {hasattr(self.app, 'open_pdf_viewer_window')}")
+            else:
+                logger.error("[DEBUG] self 对象没有 app 属性")
+            # 检查应用引用是否可用
+            if not hasattr(self, 'app') or self.app is None:
+                logger.error("应用引用丢失，无法打开PDF查看器")
+                return StandardMessageHandler.build_error_response(
+                    request_id,
+                    "APP_REFERENCE_ERROR",
+                    "Application reference not available"
+                )
+
+            # 直接调用应用打开PDF查看器窗口
+            success = self.app.open_pdf_viewer_window(file_id)
+
+            if success:
+                return StandardMessageHandler.build_response(
+                    "response",
+                    request_id,
+                    status="success",
+                    code=200,
+                    message=f"PDF viewer window opened successfully for {file_id}.",
+                    data={"file_id": file_id, "opened": True}
+                )
+            else:
+                return StandardMessageHandler.build_error_response(
+                    request_id,
+                    "OPEN_PDF_ERROR",
+                    f"Failed to open PDF viewer window for {file_id}"
+                )
+
+        except Exception as e:
+            logger.error(f"Failed to open PDF viewer: {e}")
+            return StandardMessageHandler.build_error_response(
+                request_id,
+                "OPEN_PDF_ERROR",
+                f"Failed to open PDF viewer: {str(e)}"
+            )
 
     def handle_pdf_detail_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """处理PDF详情请求"""

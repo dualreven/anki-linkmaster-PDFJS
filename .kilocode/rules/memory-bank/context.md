@@ -1,11 +1,11 @@
-### 待办任务:
+# 待办任务:
 
 ## 从pdf-home 加载 pdf-viewer
 
 ### 描述
 
 测试从pdf-home添加一个按钮,启动 加载特定 pdf文件的 pdf-viewer,
-2025年9月17日16:10:11 
+2025年9月17日16:10:11
 打开 pdf-viewer的方式,必须是从pdf-home点击事件,直接启动pdf-viewer窗口,不经过其他位置
 
 ### 进度
@@ -13,9 +13,30 @@
 1. 代码的拆分导致 pdf-home模块显示不正常,需要修改 [完成]
 2. 2025年9月17日14:36:39 当前进度是实现了按钮, 也尝试了点击逻辑, 但启动失败.[完成]
 3. 2025年9月17日16:10:14 已经实现点击按钮启动 命令行工具, 但我需要的是直接启动窗口, 因此下面要修改 后端的handle_open_pdf_request函数, 实现直接打开 pdf-viewer, 不经过 命令行工具.
+4. 2025年9月17日16:49:29 ✅ 已成功修改后端的handle_open_pdf_request函数，实现直接打开pdf-viewer，加载对应的pdf。
+   - 添加了AnkiLinkMasterApp.open_pdf_viewer_window方法，创建新的MainWindow加载pdf-viewer
+   - 修改了StandardWebSocketServer.add app参数引用
+   - 更新了WebSocketServer实例化传递app引用
+   - 修改了handle_open_pdf_request使用app.open_pdf_viewer_window而非启动子进程
+   - 测试验证方法存在并可调用
+5. 2025年9月18日00:34:31 app.log报错:
+Traceback (most recent call last):
+  File "C:\Users\napretep\PycharmProjects\anki-linkmaster-PDFJS\src\backend\app\application.py", line 209, in open_pdf_viewer_window
+    p = subprocess.Popen(["npx", "vite", "--port", str(pdf_viewer_port), "--host", "localhost", "--mode", "development"], env=env, cwd=".")
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\napretep\AppData\Local\Programs\Python\Python312\Lib\subprocess.py", line 1026, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+  File "C:\Users\napretep\AppData\Local\Programs\Python\Python312\Lib\subprocess.py", line 1538, in _execute_child
+    hp, ht, pid, tid = _winapi.CreateProcess(executable, args,
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [WinError 2] 系统找不到指定的文件。
+我们遇到了一些困难, 我们决定暂停测试, 转头开始新的任务, 从根本上解决报错问题.
+
 ### 日志
 
 1. AItemp\20250917012135-AI-Working-log.md
+2. AItemp\20250917162832-AI-Working-log.md
+3. AItemp\20250917164316-AI-Working-log.md
 
 ## pdf-table响应鼠标双击
 
@@ -37,6 +58,61 @@
 
 ### 日志
 
+## 前端架构重构策略
+
+### 描述
+探讨从多Vite服务器架构转向单Vite服务器路由架构的可能性和实施方案，目标是改善开发效率并为生产环境分离文件夹结构埋基础。
+
+### 当前状态分析
+1. 多服务器架构：每个前端模块(pdf-home, pdf-viewer)启动独立Vite服务器进程
+2. 问题：资源占用高，端口冲突，启动时间长，生产环境不兼容（分离文件夹结构）
+
+### 路由架构方案
+1. 统一单Vite服务器(端口3000)，基于URL路径路由(/pdf-home/, /pdf-viewer/)动态加载模块
+2. 使用ESModule异步import()在前端动态导入，根据路径加载不同模块
+3. 生产兼容：后续静态构建输出web/pdf-viewer/index.html等分离文件夹结构
+
+### 技术可行性评估
+1. 前端动态 import() 支持度：现代化浏览器(ES2020+)原生支持，Vite开发环境增强处理
+2. ES Module 语法：需 <script type="module"> 开启模块模式，支持异步加载
+3. 路径解析：浏览器window.location.pathname确定加载哪模块
+4. 构建适应：Vite配置多入口打包，生产输出保持分离
+
+### 安全迁移步骤（避免bug）
+1. 阶段一：准备测试环境 (5分钟)
+   - 创建迁移分支，备份关键文件，记录基准状态
+
+2. 阶段二：前端路由功能测试 (20分钟)
+   - 在现有pdf-home/index.html添加路径检测代码(无破坏变更)
+   - 验证URL切换时console.log输出正确
+
+3. 阶段三：动态加载实现 (25分钟)
+   - 新建master.index.html使用async import()根据路径加载不同模块
+   - 测试/pdf-home/ 和 /pdf-viewer/ 路径的模块动态加载
+
+4. 阶段四：后端URL迁移 (20分钟)
+   - 修改application.py的open_pdf_viewer_window方法URL生成
+   - 从多端口改为统一端口+路径路由
+
+5. 阶段五：生产构建适配 (30辅助分钟)
+   - 更新package.json build脚本和vite.config.js支持多模块分离输出
+   - 测试输出web/分离文件夹结构
+
+6. 阶段六：完整回归测试 (30分钟)
+   - end-to-end测试验证无bug
+   - 编写自动化测试脚本test_migration.py
+   - 设置1分钟热键广播回滚到多服务器架构
+
+### 潜在风险防范
+1. Bug防范：类型注释强化，错误界限，loading指示器
+2. 测试策略：自动化脚本验证，每次改 <<
+动<1小时，频繁验证
+3. 回滚策略：分支管理，环境隔离，日志监控阈值报警
+4. AI修复弱点：重点预防于修复，渐进，小步骤验证
+
+### 实施建议
+当前多服务器架构稳定，但长期考虑单路由架构更优，既减少复杂性又完美兼容生产分离文件夹结构。如果bug容忍程度不高，建议保持多服务器，否则准备一周后实施。
+
 ## ai-launcher.py行为异常
 
 ### 描述
@@ -49,7 +125,17 @@ ai-launcher.py 启动后 命令行的键盘输入变得不正常, 无法输入�
 
 已有事件的命名要规范,变量化,未来新事件的命名应遵循规范
 
-### 当前任务：相对导入错误修复 ✅ 已完成
+## 事件硬编码改为变量化
+
+### 描述
+
+## 完善后端日志系统
+
+### 描述
+
+目前的后端日志打印时,不显示调用者以及class, 需要修改.
+
+# 当前任务：相对导入错误修复 ✅ 已完成
 
 **任务目标**：修复 "ImportError: attempted relative import beyond top-level package" 错误，使应用能够正常启动
 
@@ -269,7 +355,7 @@ ai-launcher.py 启动后 命令行的键盘输入变得不正常, 无法输入�
 
 - 采用前端规范的统一列表格式（`- **` 标记）
 - 所有规范基于现有代码分析，具有实用性
-- 包含详细的正反示例和具体的验证方法
+- 包含详细的正反例和具体的验证方法
 - 特别注重常量化使用和硬编码避免
 - 为错误处理和资源管理提供完整的规范指南
 
