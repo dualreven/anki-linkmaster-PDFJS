@@ -1,11 +1,53 @@
 ### 待办任务:
 
-1. 测试从pdf-home添加一个按钮,启动 加载特定 pdf文件的 pdf-viewer, 参考 AItemp\20250917012135-AI-Working-log.md
-   1. 代码的修改导致 pdf-home模块显示不正常,需要修改
-2. 测试双击点击 pdf-table 某一行, 可打印该行内容到控制台.
-3. 结合1,2 实现双击 pdf-table 某一行, 将该行的pdf信息 用 pdf-viewer打开
-4. ai-launcher.py 启动后 命令行的键盘输入变得不正常, 无法输入控制字符比如 `ctrl+c` 或者 `backspace` 需要检查修复,
-5. 已有事件的命名要规范,变量化,未来新事件的命名应遵循规范
+## 从pdf-home 加载 pdf-viewer
+
+### 描述
+
+测试从pdf-home添加一个按钮,启动 加载特定 pdf文件的 pdf-viewer,
+2025年9月17日16:10:11 
+打开 pdf-viewer的方式,必须是从pdf-home点击事件,直接启动pdf-viewer窗口,不经过其他位置
+
+### 进度
+
+1. 代码的拆分导致 pdf-home模块显示不正常,需要修改 [完成]
+2. 2025年9月17日14:36:39 当前进度是实现了按钮, 也尝试了点击逻辑, 但启动失败.[完成]
+3. 2025年9月17日16:10:14 已经实现点击按钮启动 命令行工具, 但我需要的是直接启动窗口, 因此下面要修改 后端的handle_open_pdf_request函数, 实现直接打开 pdf-viewer, 不经过 命令行工具.
+### 日志
+
+1. AItemp\20250917012135-AI-Working-log.md
+
+## pdf-table响应鼠标双击
+
+### 描述:
+
+测试双击点击 pdf-table 某一行, 可打印该行内容到控制台.
+
+### 进度
+
+### 日志
+
+## 双击pdf-table, 打开 pdf-viewer
+
+### 描述
+
+结合上述内容实现双击 pdf-table 某一行, 将该行的pdf信息 用 pdf-viewer打开
+
+### 进度
+
+### 日志
+
+## ai-launcher.py行为异常
+
+### 描述
+
+ai-launcher.py 启动后 命令行的键盘输入变得不正常, 无法输入控制字符比如 `ctrl+c` 或者 `backspace` 需要检查修复,
+
+## 规范命名
+
+### 描述
+
+已有事件的命名要规范,变量化,未来新事件的命名应遵循规范
 
 ### 当前任务：相对导入错误修复 ✅ 已完成
 
@@ -15,24 +57,25 @@
 
 **修复的问题**：
 
-1. ✅ **相对导入超出顶级包**: `src/backend/websocket/standard_server.py`中的`from ..pdf_manager.manager import PDFManager`失败
-2. ✅ **main.py相对导入**: `src/backend/main.py`中的`from app.application import AnkiLinkMasterApp`失败
+1. ✅ **相对导入超出顶级包**: `src/backend/websocket/standard_server.py`中的 `from ..pdf_manager.manager import PDFManager`失败
+2. ✅ **main.py相对导入**: `src/backend/main.py`中的 `from app.application import AnkiLinkMasterApp`失败
 3. ✅ **application.py相对导入**: `src/backend/app/application.py`中的多个相对导入失败
 4. ✅ **导入路径不一致**: 项目拆分后路径关系发生变化，相对导入不再正确工作
 
 **修复措施**：
 
 - ✅ 修改 `src/backend/websocket/standard_server.py`:
+
   - `from ..pdf_manager.manager import PDFManager` → `from src.backend.pdf_manager.manager import PDFManager`
   - `from ..pdf_manager.page_transfer_manager import page_transfer_manager` → `from src.backend.pdf_manager.page_transfer_manager import page_transfer_manager`
-
 - ✅ 修改 `src/backend/app/application.py`:
+
   - `from ui.main_window import MainWindow` → `from src.backend.ui.main_window import MainWindow`
   - `from websocket.standard_server import StandardWebSocketServer` → `from src.backend.websocket.standard_server import StandardWebSocketServer`
   - `from pdf_manager.manager import PDFManager` → `from src.backend.pdf_manager.manager import PDFManager`
   - `from http_server import HttpFileServer` → `from src.backend.http_server import HttpFileServer`
-
 - ✅ 修改 `src/backend/main.py`:
+
   - `from app.application import AnkiLinkMasterApp` → `from src.backend.app.application import AnkiLinkMasterApp`
 
 **验证结果**：
@@ -43,7 +86,7 @@
   - ✅ `src.backend.main`
   - ✅ `src.backend.app.application`
   - ✅ `src.backend.websocket.standard_server`
-  - ✅ `src.backend.pdf_manager.manager`和`page_transfer_manager`
+  - ✅ `src.backend.pdf_manager.manager`和 `page_transfer_manager`
   - ✅ `src.backend.websocket.standard_protocol`
   - ✅ `src.backend.ui.main_window`
   - ✅ `src.backend.http_server`
@@ -55,6 +98,7 @@
 - 简化了模块间的依赖关系
 - 提高了代码的可维护性和扩展性
 - 为后续功能开发奠定了基础
+
 ### 当前任务：ai-launcher模块选择修复 ✅ 已完成
 
 **任务目标**：修复ai-launcher.ps1启动pdf-viewer模块时却启动pdf-home模块的问题
@@ -192,6 +236,50 @@
 - ✅ 文件结构完整且符合要求
 - ✅ 主应用文件行数163 < 400（符合要求）
 - ✅ 所有Python文件语法检查通过
+
+### Application Subcode模块规范文档重写 ✅ 已完成
+
+**任务目标**：参考前端事件规范格式重写 `src/backend/app/application_subcode` 模块的规范文档，使前后端规范风格一致
+
+**任务状态**：✅ 已完成
+
+**重写内容**：
+
+1. **重写事件命名规范**：
+
+   - `BACKEND-APPSUBCODE-EVENT-NAMING-001.md` - 采用前端事件规范的列表格式
+   - 更新了消息类型命名要求（snake_case、完整单词、使用常量）
+   - 添加了完整的正反例和验证方法
+2. **新增错误处理规范**：
+
+   - `BACKEND-APPSUBCODE-ERROR-HANDLING-001.md` - 后端错误捕获和处理机制
+   - 涵盖WebSocket消息处理、系统异常捕获、错误日志记录
+   - 分类处理和详细的错误报告机制
+3. **新增生命周期管理规范**：
+
+   - `BACKEND-APPSUBCODE-LIFECYCLE-001.md` - 后端对象生命周期和资源清理
+   - 事件订阅清理机制、PyQt组件资源管理
+   - 内存泄漏防护和循环引用检测
+4. **更新规范头文件**：
+
+   - `SPEC-HEAD-application_subcode.json` - 添加新增的2个原子规范引用
+   - 保持与原有规范的兼容性和完整性
+
+**规范特色**：
+
+- 采用前端规范的统一列表格式（`- **` 标记）
+- 所有规范基于现有代码分析，具有实用性
+- 包含详细的正反示例和具体的验证方法
+- 特别注重常量化使用和硬编码避免
+- 为错误处理和资源管理提供完整的规范指南
+
+**验证结果**：
+
+- 目录结构完整：7个规范文件 （1个头文件 + 6个原子规范）
+- 格式统一：所有文档采用前端规范的列表格式
+- 内容完备：包含详细内容、正反例和验证方法
+- 目录位置正确：保存在私有规范目录 `docs/SPEC` 下
+
 ### Application Subcode模块规范文档创建 ✅ 已完成
 
 **任务目标**：为 `src/backend/app/application_subcode` 模块创建规范文档，特别强调事件命名的规范性和使用变量，保存在私人规范目录 `docs/SPEC` 下
@@ -201,17 +289,18 @@
 **创建的内容**：
 
 1. **规范头文件**：`src/backend/app/application_subcode/docs/SPEC/SPEC-HEAD-application_subcode.json`
+
    - ✅ 定义模块规范头结构，使用JSON格式
    - ✅ 包含meta信息、引用规范、私有规范列表
    - ✅ 引用通用后端命名规范为参考
-
 2. **四大原子规范文档**：
+
    - ✅ **BACKEND-APPSUBCODE-EVENT-NAMING-001.md**：事件信号命名规范
    - ✅ **BACKEND-APPSUBCODE-VARIABLE-NAMING-001.md**：变量常量使用规范
    - ✅ **BACKEND-APPSUBCODE-MESSAGE-TYPE-001.md**：消息类型命名规范
    - ✅ **BACKEND-APPSUBCODE-MODULE-STRUCTURE-001.md**：模块结构组织规范
-
 3. **规范重点**：
+
    - ✅ **事件命名规范性**：强制使用常量而非硬编码字符串，统一WEBSOCKET_MESSAGE_TYPES常量类
    - ✅ **变量常量化**：变量使用snake_case，常量使用UPPER_CASE，避免硬编码
    - ✅ **消息类型统一**：所有WebSocket消息类型必须在常量类中定义

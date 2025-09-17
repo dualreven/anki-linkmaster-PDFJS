@@ -76,7 +76,7 @@ export class WSClient {
   }
 
   send({ type, data = {} }) {
-    const message = { type, data, timestamp: new Date().toISOString() };
+    const message = { type, data, timestamp: Date.now() };
     if (this.isConnected()) {
       try {
         this.#socket.send(JSON.stringify(message));
