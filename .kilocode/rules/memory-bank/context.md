@@ -192,4 +192,43 @@
 - ✅ 文件结构完整且符合要求
 - ✅ 主应用文件行数163 < 400（符合要求）
 - ✅ 所有Python文件语法检查通过
+### Application Subcode模块规范文档创建 ✅ 已完成
+
+**任务目标**：为 `src/backend/app/application_subcode` 模块创建规范文档，特别强调事件命名的规范性和使用变量，保存在私人规范目录 `docs/SPEC` 下
+
+**任务状态**：✅ 已完成
+
+**创建的内容**：
+
+1. **规范头文件**：`src/backend/app/application_subcode/docs/SPEC/SPEC-HEAD-application_subcode.json`
+   - ✅ 定义模块规范头结构，使用JSON格式
+   - ✅ 包含meta信息、引用规范、私有规范列表
+   - ✅ 引用通用后端命名规范为参考
+
+2. **四大原子规范文档**：
+   - ✅ **BACKEND-APPSUBCODE-EVENT-NAMING-001.md**：事件信号命名规范
+   - ✅ **BACKEND-APPSUBCODE-VARIABLE-NAMING-001.md**：变量常量使用规范
+   - ✅ **BACKEND-APPSUBCODE-MESSAGE-TYPE-001.md**：消息类型命名规范
+   - ✅ **BACKEND-APPSUBCODE-MODULE-STRUCTURE-001.md**：模块结构组织规范
+
+3. **规范重点**：
+   - ✅ **事件命名规范性**：强制使用常量而非硬编码字符串，统一WEBSOCKET_MESSAGE_TYPES常量类
+   - ✅ **变量常量化**：变量使用snake_case，常量使用UPPER_CASE，避免硬编码
+   - ✅ **消息类型统一**：所有WebSocket消息类型必须在常量类中定义
+   - ✅ **模块组织规则**：文件拆分原则、类组织规则、导入顺序规范
+
+**验证结果**：
+
+- ✅ 目录结构完整：`src/backend/app/application_subcode/docs/SPEC/` 下创建5个规范文件
+- ✅ 格式符合要求：使用标准原子规范模板，包括详细内容、正反例、验证方法
+- ✅ 私规范定位正确：保存在 `src/backend/app/application_subcode/docs/SPEC` 下
+- ✅ 内容面向实际代码：规范基于现有代码分析，针对性解决硬编码、命名不一致等问题
+- ✅ 特别突出常量化：所有文档都强调避免硬编码字符串，使用常量比较
+
+**后续影响**：
+
+- 为application_subcode模块建立了全面的代码规范体系
+- 为后续代码重构和功能开发提供了具体可遵循的标准
+- 规范文档可作为代码审查和验收的标准
+- 为整个项目的后端开发规范奠定了基础模式
 - ✅ 模块间引用正确，功能保持不变

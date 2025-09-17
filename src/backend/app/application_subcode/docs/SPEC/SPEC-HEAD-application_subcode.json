@@ -1,0 +1,46 @@
+{
+  "meta": {
+    "id": "BACKEND-APPSUBCODE-HEAD-001",
+    "type": "AI-DOCS-SCHEMA-HEAD",
+    "name": "application_subcode模块规范头文件",
+    "version": "1.0",
+    "desc": "private 字段定义私有原子规范，用于application_subcode模块的代码规范要求"
+  },
+  "ref": [
+    {
+      "module_path": "[项目根目录]/docs/SPEC",
+      "specs": [
+        {
+          "id": "BACKEND-GENERAL-NAMING-001",
+          "desc": "后端通用命名规范"
+        }
+      ]
+    }
+  ],
+  "private": [
+    {
+      "id": "BACKEND-APPSUBCODE-EVENT-NAMING-001",
+      "desc": "事件信号命名规范"
+    },
+    {
+      "id": "BACKEND-APPSUBCODE-VARIABLE-NAMING-001",
+      "desc": "变量常量使用规范"
+    },
+    {
+      "id": "BACKEND-APPSUBCODE-MESSAGE-TYPE-001",
+      "desc": "消息类型命名规范"
+    },
+    {
+      "id": "BACKEND-APPSUBCODE-MODULE-STRUCTURE-001",
+      "desc": "模块结构组织规范"
+    },
+    {
+      "id": "BACKEND-APPSUBCODE-ERROR-HANDLING-001",
+      "desc": "错误处理规范"
+    },
+    {
+      "id": "BACKEND-APPSUBCODE-LIFECYCLE-001",
+      "desc": "生命周期管理规范"
+    }
+  ]
+}
