@@ -16,7 +16,7 @@ steps:
   - step3_call_atomizer:
     - 创建子任务（`new_task`, `mode:agent-atomizer`），传递step1得到的文件，规定返回格式:`AIforum/[yyyymmddHHmmss]-atom-tasks-[编号].md`。
     - 规定必须返回文件:
-      - `AIforum/[yyyymmddHHmmss]-satom-tasks-[编号].md`
+      - `AIforum/[yyyymmddHHmmss]-atom-tasks-[编号].md`
       - `AIforum/[yyyymmddHHmmss]-forum-[编号].md`
   - step4_return_examing:
     - 以下判断必须全部为真,才能前进到step5,任意为假则带着对应信息,回到step3:

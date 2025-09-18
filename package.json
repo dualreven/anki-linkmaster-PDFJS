@@ -6,9 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:pdf-home": "VITE_MODULE=pdf-home vite build --outDir dist/pdf-home",
+    "build:pdf-viewer": "VITE_MODULE=pdf-viewer vite build --outDir dist/pdf-viewer",
+    "build:all": "npm run build:pdf-home && npm run build:pdf-viewer",
     "preview": "vite preview",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "benchmark": "node AItemp/performance-benchmark.js"
   },
   "devDependencies": {
     "@babel/core": "^7.22.0",
