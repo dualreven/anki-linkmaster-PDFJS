@@ -1,0 +1,26 @@
+meta:
+  id: AI-DOCS-SCHEMA-HEAD-001
+  type: AI-DOCS-SCHEMA-HEAD
+  name: AI文档规范头文件
+  version: '1.0'
+  desc: 'private 字段用于标记模块内的规范,ref字段用于引用其他模块的规范,旧版头文件使用yaml格式,现改为json格式'
+ref:
+  - module_path: '[项目根目录]/docs/SPEC'
+    specs:
+      - id: FRONTEND-EVENT-BUS-001
+        desc: 前端事件总线使用规范
+      - id: FRONTEND-EVENT-NAMING-001
+        desc: 前端事件命名规范
+  - module_path: '[项目根目录]/src/frontend/common/docs/SPEC'
+    specs:
+      - id: COMMON-UI-COMPONENT-001
+        desc: 通用UI组件规范
+private:
+  - id: PDF-VIEWER-STRUCTURE-001
+    desc: PDF查看器模块结构规范
+  - id: PDF-VIEWER-EVENT-HANDLING-001
+    desc: PDF查看器事件处理规范
+  - id: PDF-VIEWER-PDFJS-INTEGRATION-001
+    desc: PDF.js集成规范
+  - id: PDF-VIEWER-QTWEBENGINE-ADAPTATION-001
+    desc: QtWebEngine适配规范
