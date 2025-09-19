@@ -12,7 +12,10 @@ AI-log.py 放在 [根目录]/AIscripts/AI-log.py 下
 对于 solution,文件, 就是 [根目录]/AI-communication/[YYYYMMDDhhmmss]-solution.json
 对于 atom-tasks 文件, 就是 [根目录]/AI-communication/[YYYYMMDDhhmmss]-atom-tasks.json
 
+要提供help指令, 提供
+
 下面的命令中, 写入和更新, 都返回ok或报错内容.
+
 
 # forum的交互
 
@@ -39,7 +42,8 @@ python AI-log.py write --forum [YYYYMMDDhhmmss] --content [content] --user [user
 更新讨论状态
 python AI-log.py update --forum [YYYYMMDDhhmmss] --status [0|1]
 
-
+查询讨论状态
+python AI-log.py read --forum [YYYYMMDDhhmmss] --status 
 
 
 
@@ -89,6 +93,8 @@ python AI-log.py update --solution [YYYYMMDDhhmmss] --reference [reference]
 更新讨论状态
 python AI-log.py update --solution [YYYYMMDDhhmmss] --status [0|1]
 
+查询讨论状态
+python AI-log.py read --solution [YYYYMMDDhhmmss] --status 
 
 # atom-task 的交互
 
@@ -99,14 +105,18 @@ python AI-log.py create --atom-tasks [YYYYMMDDhhmmss] --project-name [项目名]
 添加原子任务
 python AI-log.py add --atom-tasks [YYYYMMDDhhmmss] --title [任务标题] --content [任务描述]
 
-更新讨论状态
+更新原子任务列表讨论状态
 python AI-log.py update --atom-tasks [YYYYMMDDhhmmss] --status [0|1]
+
+查询原子任务列表讨论状态
+python AI-log.py read --atom-tasks [YYYYMMDDhhmmss] --status 
 
 更新原子任务状态
 python AI-log.py update --atom-tasks [YYYYMMDDhhmmss] --index [任务序号] --status [任务状态]
 
 获取下个原子任务
 python AI-log.py read --atom-tasks [YYYYMMDDhhmmss] --next-todo
+
 
 
 文件有下面几种格式:
