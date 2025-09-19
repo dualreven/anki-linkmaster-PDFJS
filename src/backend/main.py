@@ -7,8 +7,9 @@ Anki LinkMaster PDFJS 主程序入口
 
 import sys
 import os
-DEBUG_PORT = "9223"
-os.environ['QTWEBENGINE_REMOTE_DEBUGGING'] = DEBUG_PORT
+# Respect existing env if provided by launcher; fallback to 9223
+_debug_port = os.environ.get('QTWEBENGINE_REMOTE_DEBUGGING', '9223')
+os.environ['QTWEBENGINE_REMOTE_DEBUGGING'] = _debug_port
 
 # 将backend目录添加到Python路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

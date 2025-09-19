@@ -4,7 +4,7 @@
   "description": "Anki LinkMaster PDFJS - PDF management and viewer application",
   "type": "module",
   "scripts": {
-    "dev": "vite --port 3000",
+    "dev": "vite",
     "build": "vite build",
     "build:pdf-home": "vite build --outDir dist/pdf-home --config vite.config.js --base=/pdf-home/",
     "build:pdf-viewer": "vite build --outDir dist/pdf-viewer --config vite.config.js --base=/pdf-viewer/",

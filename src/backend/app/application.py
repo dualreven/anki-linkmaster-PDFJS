@@ -64,15 +64,19 @@ class AnkiLinkMasterApp:
         self.pdf_manager = PDFManager()
         logger.info("PDF管理器初始化成功")
         
-        # 初始化HTTP文件服务器
-        self.http_server = HttpFileServer(port=8080)
+        # 初始化HTTP文件服务器（允许从环境变量覆盖端口）
+        http_port_env = os.environ.get("BACKEND_HTTP_PORT")
+        http_port = int(http_port_env) if http_port_env and http_port_env.isdigit() else 8080
+        self.http_server = HttpFileServer(port=http_port)
         if self.http_server.start():
             logger.info("HTTP文件服务器启动成功")
         else:
             logger.warning("HTTP文件服务器启动失败，文件传输功能受限")
         
-        # 初始化并启动WebSocket服务器
-        self.websocket_server = StandardWebSocketServer(host="127.0.0.1", port=8765, app=self)
+        # 初始化并启动WebSocket服务器（允许从环境变量覆盖端口）
+        ws_port_env = os.environ.get("BACKEND_WS_PORT")
+        ws_port = int(ws_port_env) if ws_port_env and ws_port_env.isdigit() else 8765
+        self.websocket_server = StandardWebSocketServer(host="127.0.0.1", port=ws_port, app=self)
         if self.websocket_server.start():
             logger.info("WebSocket服务器启动成功")
             # 初始化响应处理器

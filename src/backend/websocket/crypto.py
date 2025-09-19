@@ -12,10 +12,20 @@ import threading
 import hashlib
 import hmac as std_hmac
 from typing import Optional, Tuple, Dict, Any
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.backends import default_backend
-from cryptography.exceptions import InvalidTag
+
+# Lazily handle optional cryptography dependency to avoid startup ImportError
+try:
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.backends import default_backend
+    from cryptography.exceptions import InvalidTag  # type: ignore
+    CRYPTO_AVAILABLE = True
+    _CRYPTO_IMPORT_ERROR: Optional[str] = None
+except Exception as _e:  # pragma: no cover - only triggers on missing/wrong wheels
+    CRYPTO_AVAILABLE = False
+    _CRYPTO_IMPORT_ERROR = str(_e)
+    class InvalidTag(Exception):  # fallback placeholder
+        pass
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +46,11 @@ class AESGCMCrypto:
         Args:
             secret_key: 加密密钥（32字节），如果为None则自动生成
         """
+        if not CRYPTO_AVAILABLE:
+            raise ImportError(
+                "加密功能不可用：cryptography 未安装或加载失败。"
+                f" 原因: {_CRYPTO_IMPORT_ERROR or 'unknown'}"
+            )
         if secret_key is None:
             self._secret_key = self.generate_key()
         else:
