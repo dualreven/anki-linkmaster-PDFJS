@@ -3,11 +3,11 @@
 负责创建和管理应用程序的主界面
 """
 
-from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget, QStatusBar
-from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
-from PyQt6.QtCore import QUrl, pyqtSignal
-from PyQt6.QtGui import QAction
+from src.backend.qt.compat import (
+    QMainWindow, QVBoxLayout, QWidget, QStatusBar,
+    QWebEngineView, QWebEnginePage, QWebEngineSettings,
+    QUrl, pyqtSignal, QAction
+)
 
 
 class MainWindow(QMainWindow):
@@ -39,29 +39,36 @@ class MainWindow(QMainWindow):
         os.environ['QTWEBENGINE_REMOTE_DEBUGGING'] = '9222'
         
         # 创建WebEngine视图
-        self.web_view = QWebEngineView()
-        self.web_view.loadFinished.connect(self._on_web_loaded)
+        self.web_view = QWebEngineView() if QWebEngineView else None
+        if self.web_view:
+            self.web_view.loadFinished.connect(self._on_web_loaded)
         
         # 设置开发者工具属性
-        settings = self.web_view.settings()
-        settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
-        settings.setAttribute(QWebEngineSettings.WebAttribute.LocalStorageEnabled, True)
+        if self.web_view and QWebEngineSettings:
+            settings = self.web_view.settings()
+            settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
+            settings.setAttribute(QWebEngineSettings.WebAttribute.LocalStorageEnabled, True)
         
         # 设置安全选项
         # 注意：WebSecurityEnabled 在当前PyQt6版本中可能不存在，已移除
-        settings.setAttribute(QWebEngineSettings.WebAttribute.AllowRunningInsecureContent, False)
-        settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, False)
-        settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, False)
-        settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanAccessClipboard, False)
-        settings.setAttribute(QWebEngineSettings.WebAttribute.XSSAuditingEnabled, True)
+        if self.web_view and QWebEngineSettings:
+            settings.setAttribute(QWebEngineSettings.WebAttribute.AllowRunningInsecureContent, False)
+            settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, False)
+            settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, False)
+            settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanAccessClipboard, False)
+            settings.setAttribute(QWebEngineSettings.WebAttribute.XSSAuditingEnabled, True)
         
         # 创建自定义页面以支持Inspector
-        self.web_page = QWebEnginePage(self.web_view)
-        self.web_view.setPage(self.web_page)
+        if self.web_view and QWebEnginePage:
+            self.web_page = QWebEnginePage(self.web_view)
+            self.web_view.setPage(self.web_page)
+        else:
+            self.web_page = None
         
         # 设置主布局
         layout = QVBoxLayout()
-        layout.addWidget(self.web_view)
+        if self.web_view:
+            layout.addWidget(self.web_view)
         
         # 创建中心部件
         container = QWidget()
@@ -135,7 +142,8 @@ class MainWindow(QMainWindow):
             
     def reload_page(self):
         """重新加载当前页面"""
-        self.web_view.reload()
+        if self.web_view:
+            self.web_view.reload()
         
     def _on_web_loaded(self, success):
         """页面加载完成回调"""
@@ -204,7 +212,8 @@ class MainWindow(QMainWindow):
     def open_javascript_console(self):
         """打开JavaScript控制台"""
         try:
-            self.web_page.runJavaScript("console.clear(); console.log('JavaScript控制台已激活');")
+            if self.web_page:
+                self.web_page.runJavaScript("console.clear(); console.log('JavaScript控制台已激活');")
             self.show_inspector()
             self.status_bar.showMessage("JavaScript控制台已激活")
         except Exception as e:
@@ -213,7 +222,8 @@ class MainWindow(QMainWindow):
     def view_page_source(self):
         """查看页面源码"""
         try:
-            self.web_page.toHtml(self._on_page_source_loaded)
+            if self.web_page:
+                self.web_page.toHtml(self._on_page_source_loaded)
             self.status_bar.showMessage("正在获取页面源码...")
         except Exception as e:
             self.status_bar.showMessage(f"获取页面源码失败: {str(e)}")

@@ -3,9 +3,11 @@ WebSocket服务器模块 (已重构，更简洁、更健壮)
 """
 import logging
 import json
-from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
-from PyQt6.QtWebSockets import QWebSocketServer, QWebSocket
-from PyQt6.QtNetwork import QHostAddress, QAbstractSocket
+from src.backend.qt.compat import (
+    QObject, pyqtSignal, pyqtSlot,
+    QWebSocketServer, QWebSocket,
+    QHostAddress, QAbstractSocket
+)
 
 logger = logging.getLogger(__name__)
 

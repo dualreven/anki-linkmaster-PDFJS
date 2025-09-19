@@ -7,9 +7,11 @@ import time
 import subprocess
 import os
 from typing import Dict, Any, Optional
-from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
-from PyQt6.QtWebSockets import QWebSocketServer, QWebSocket
-from PyQt6.QtNetwork import QHostAddress, QAbstractSocket
+from src.backend.qt.compat import (
+    QObject, pyqtSignal, pyqtSlot,
+    QWebSocketServer, QWebSocket,
+    QHostAddress, QAbstractSocket
+)
 
 from .standard_protocol import StandardMessageHandler, PDFMessageBuilder, MessageType
 from src.backend.pdf_manager.manager import PDFManager

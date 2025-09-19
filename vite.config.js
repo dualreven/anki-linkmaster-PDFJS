@@ -5,9 +5,9 @@ import fs from 'fs'
 import path from 'path'
 
 export default defineConfig(async () => {
-  // 从环境变量获取模块名称
+  // 从环境变量获取模块名称（为兼容旧脚本保留日志，但不再用于 root 切换）
   const module = process.env.VITE_MODULE || 'pdf-home'
-  console.log(`[Vite] Loading module: ${module}`)
+  console.log(`[Vite] Loading module (compat log): ${module}`)
 
   // 从日志文件中动态读取HTTP服务器端口，默认8080
   const logFile = path.join(process.cwd(), 'logs', 'http-server-port.txt')
@@ -31,7 +31,8 @@ export default defineConfig(async () => {
   }
 
   return {
-    root: `src/frontend/${module}`,
+    // 统一根目录，单 Vite 服务器同时服务 /pdf-home/ 与 /pdf-viewer/
+    root: `src/frontend`,
     server: {
       port: process.env.VITE_PORT || 3000,
       proxy: {
@@ -60,6 +61,11 @@ export default defineConfig(async () => {
     ],
     build: {
       rollupOptions: {
+        // 多页面构建：分别输出 pdf-home 与 pdf-viewer
+        input: {
+          'pdf-home': path.resolve(process.cwd(), 'src/frontend/pdf-home/index.html'),
+          'pdf-viewer': path.resolve(process.cwd(), 'src/frontend/pdf-viewer/index.html')
+        },
         external: [
           /__tests__/,
           /\.test\.js$/,

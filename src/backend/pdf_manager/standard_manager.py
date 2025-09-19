@@ -7,7 +7,7 @@ import logging
 import shutil
 import time
 from typing import Dict, Any, List, Optional, Tuple
-from PyQt6.QtCore import QObject, pyqtSignal
+from src.backend.qt.compat import QObject, pyqtSignal
 
 from .models import PDFFile, PDFFileList
 from .utils import FileValidator, ErrorHandler

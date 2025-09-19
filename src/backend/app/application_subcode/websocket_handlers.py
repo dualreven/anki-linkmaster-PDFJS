@@ -6,8 +6,7 @@ Anki LinkMaster PDFJS - WebSocket消息处理器
 import os
 import json
 import logging
-from PyQt6.QtWidgets import QFileDialog, QApplication
-from PyQt6.QtCore import QTimer
+from src.backend.qt.compat import QFileDialog, QApplication, QTimer
 import sys
 
 # 配置日志

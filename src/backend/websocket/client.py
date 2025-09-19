@@ -3,8 +3,8 @@ WebSocket客户端连接管理模块
 """
 import json
 import logging
-from PyQt6.QtCore import QObject, pyqtSignal, QTimer, pyqtSlot
-from PyQt6.QtWebSockets import QWebSocket
+from src.backend.qt.compat import QObject, pyqtSignal, QTimer, pyqtSlot
+from src.backend.qt.compat import QWebSocket
 
 logger = logging.getLogger(__name__)
 

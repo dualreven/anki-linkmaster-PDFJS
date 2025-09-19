@@ -13,7 +13,7 @@ os.environ['QTWEBENGINE_REMOTE_DEBUGGING'] = DEBUG_PORT
 # 将backend目录添加到Python路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from PyQt6.QtWidgets import QApplication
+from src.backend.qt.compat import QApplication
 from src.backend.app.application import AnkiLinkMasterApp
 
 

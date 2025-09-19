@@ -3,7 +3,7 @@ Anki LinkMaster PDFJS 主应用类
 负责管理整个应用程序的生命周期
 """
 
-from PyQt6.QtWidgets import QApplication
+from src.backend.qt.compat import QApplication
 from src.backend.ui.main_window import MainWindow
 from src.backend.websocket.standard_server import StandardWebSocketServer
 from src.backend.pdf_manager.manager import PDFManager
@@ -130,7 +130,7 @@ class AnkiLinkMasterApp:
         logger.info(f"Vite端口: {actual_vite_port}")
         logger.info(f"加载模块: {module}")
         
-        # 加载前端页面，使用Vite配置的端口和正确的入口路径
+        # 加载前端页面：统一单端口，多页面路径路由
         self.main_window.load_frontend(f"http://localhost:{actual_vite_port}/{module}/index.html")
         self.main_window.show()
         
@@ -201,15 +201,9 @@ class AnkiLinkMasterApp:
             else:
                 pdf_viewer_window.setWindowTitle("Anki LinkMaster PDFJS - PDF查看器")
 
-            # Start separate Vite server for pdf-viewer module
-            pdf_viewer_port = find_free_port()
-            env = os.environ.copy()
-            env["VITE_PORT"] = str(pdf_viewer_port)
-            env["VITE_MODULE"] = "pdf-viewer"
-            p = subprocess.Popen(["npx", "vite", "--port", str(pdf_viewer_port), "--host", "localhost", "--mode", "development"], env=env, cwd=".")
-            time.sleep(3)
-            # 加载pdf-viewer模块
-            url = f"http://localhost:{pdf_viewer_port}/index.html"
+            # 使用单Vite服务器端口，直接加载 /pdf-viewer/index.html
+            actual_vite_port = get_vite_port()
+            url = f"http://localhost:{actual_vite_port}/pdf-viewer/index.html"
 
             # 使用loadFinished事件在页面加载后注入PDF路径
             def on_page_loaded():

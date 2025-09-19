@@ -4,7 +4,7 @@
 这些json文件是给agent AI使用的, 他们用于保存agent AI的交流记录, 为了避免他们反复读取整个文件, 我需要设计一个python脚本, 用于读写这些文件, 只获取最新的交流记录
 比如 planner agent 会生成 solution-draft 以及 forum 两个文件 传递给 plan-reviewer , plan-reviewer 是记忆清空的,因此他需要完全读取 forum内容, 和 solution-draft内容, 然后做出回复,添加到 forum 中, 再返回给  planner, 但 planner 的上下文中已经含有了 forum之前的讨论记录, 因此他只需要读取最新的forum内容即可. 他这时候最好有个 AI-log.py能帮助读取, 并且他有新的想法也可以通过 AI-log.py 写入, 这样能避免他私自篡改 forum记录, 确保内容的一致性.
 希望你写个python脚本, 能够实现 python AI-log.py read --forum [YYYYMMDDhhmmss] 能够读取 forum 文件中最新的一条记录
-同时, 也希望能够实现 python AI-log.py write --forum [YYYYMMDDhhmmss] --content [content] 能够将 [content] 写入到 forum 文件中, 并添加到最新的一条记录中, content应该更细致一些.
+同时, 也希望能够实现 python AI-log.py add --forum [YYYYMMDDhhmmss] --content [content] 能够将 [content] 写入到 forum 文件中, 并添加到最新的一条记录中, content应该更细致一些.
 
 AI-log.py 放在 [根目录]/AIscripts/AI-log.py 下
 创建的文件 放在 [根目录]/AI-communication/ 下.
@@ -31,13 +31,13 @@ python AI-log.py read --forum [YYYYMMDDhhmmss] --latest-reply
 python AI-log.py read --forum [YYYYMMDDhhmmss] --message-id [messageId]
 
 追加评论
-python AI-log.py write --forum [YYYYMMDDhhmmss] --content [content] --user [user]
+python AI-log.py add --forum [YYYYMMDDhhmmss] --content [content] --user [user]
 追加评论(通过文件)
-python AI-log.py write --forum [YYYYMMDDhhmmss] --content-from-file [content-path] --user [user] 
+python AI-log.py add --forum [YYYYMMDDhhmmss] --content-from-file [content-path] --user [user] 
 追加评论(可选resource)
-python AI-log.py write --forum [YYYYMMDDhhmmss] --content [content] --user [user] --resource [resource]
+python AI-log.py add --forum [YYYYMMDDhhmmss] --content [content] --user [user] --resource [resource]
 追加评论(可选agree)
-python AI-log.py write --forum [YYYYMMDDhhmmss] --content [content] --user [user] --agree [true|false|null]
+python AI-log.py add --forum [YYYYMMDDhhmmss] --content [content] --user [user] --agree [true|false|null]
 
 更新讨论状态
 python AI-log.py update --forum [YYYYMMDDhhmmss] --status [0|1]
