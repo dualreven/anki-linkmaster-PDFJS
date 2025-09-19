@@ -389,21 +389,24 @@ class AtomTasksHandler(BaseHandler):
             print(f"❌ 找不到atom-tasks文件: {atom_tasks_file}")
             return
 
-        print(f"📋 原子任务: {data['metadata']['name']}")
-        print(f"   📝 描述: {data['task_description']}")
-        print(f"   👤 负责人: {data['metadata']['assignee']}")
-        print(f"   📅 创建时间: {data['metadata']['created_at']}")
-        print(f"   🔄 状态: {data['metadata']['status']}")
+        tb = data.get('taskBackground', {})
+        print(f"📋 原子任务: {tb.get('projectName', 'Unknown')}")
+        print(f"   📝 描述: {tb.get('description', 'No description')}")
+        print(f"   🔄 状态: {tb.get('status', 'Unknown')}")
+        print(f"   📊 总任务数: {tb.get('totalAtomTaskCount', 0)}")
 
-        print(f"\n🪜 任务步骤:")
-        for i, step in enumerate(data['steps'], 1):
-            status = "✅" if step['completed'] else "❌"
-            print(f"   {i}. {status} {step['description']}")
-
-        print(f"\n✅ 验证标准:")
-        for i, criteria in enumerate(data['validation_criteria'], 1):
-            status = "✅" if criteria['completed'] else "❌"
-            print(f"   {i}. {status} {criteria['description']}")
+        if 'atomTaskList' in data and data['atomTaskList']:
+            print(f"\n🪜 原子任务列表:")
+            for i, task in enumerate(data['atomTaskList'], 1):
+                status_map = {0: "⏳待办", 1: "🔄进行中", 2: "✅已完成", 3: "❌失败"}
+                status = status_map.get(task.get('status', 0), "未知")
+                print(f"   {i}. {status} {task.get('title', 'No title')}")
+                if 'content' in task and task['content']:
+                    print(f"      📝 {task.get('content')}")
+                if 'feedback' in task and task.get('feedback', '').strip() and task['feedback'] != "[待完成任务反馈填写]":
+                    print(f"      💬 反馈: {task.get('feedback')}")
+        else:
+            print("   无原子任务项")
 
     def add_task(self, args):
         """添加任务项"""
@@ -411,6 +414,13 @@ class AtomTasksHandler(BaseHandler):
             print("❌ 必须提供atom_tasks参数")
             return
 
+        # 支持新旧两种参数名称
+        task_title = getattr(args, 'title', '') or getattr(args, 'task', '')
+        if not task_title:
+            print("❌ 必须提供title参数（或使用--task作为兼容参数）")
+            return
+
+        content = getattr(args, 'task_content', '') or getattr(args, 'content', '')
         atom_tasks_file = self.find_atom_tasks_file(args.atom_tasks)
         if not atom_tasks_file:
             print(f"❌ 找不到atom-tasks记录: {args.atom_tasks}")
@@ -423,52 +433,107 @@ class AtomTasksHandler(BaseHandler):
             return
 
         new_task = {
-            "id": f"task_{len(data['steps'])+1}",
-            "description": args.task,
-            "completed": False,
-            "timestamp": datetime.now().isoformat(),
-            "added_by": args.user if hasattr(args, 'user') else "system"
+            "title": task_title,
+            "content": content,
+            "status": 0,  # 0 todo 1 doing 2 done 3 failed
+            "index": len(data['atomTaskList']) + 1,
+            "feedback": "[待完成任务反馈填写]"
         }
 
-        data['steps'].append(new_task)
+        data['atomTaskList'].append(new_task)
         self.write_json(atom_tasks_file, data)
-        print(f"✅ 任务项添加成功: {new_task['id']}")
+        print(f"✅ 任务项添加成功: {new_task['index']}")
 
     def create(self, args):
         """创建atom-tasks记录"""
-        if not hasattr(args, 'task_name') or not args.task_name:
-            print("❌ 必须提供task_name参数")
+        if not hasattr(args, 'project_name') or not args.project_name:
+            print("❌ 必须提供project_name参数")
             return
+
+        description = getattr(args, 'description', '')
+        total_count = getattr(args, 'totalAtomTaskCount', 0)
+        refers = getattr(args, 'refers', [])
 
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         filename = f"{TASK_DIR}/{timestamp}-atom-tasks.json"
 
         data = {
-            "metadata": {
-                "id": f"ATOM-TASK-{timestamp}",
-                "type": "atom-task",
-                "name": args.task_name,
-                "created_at": datetime.now().isoformat(),
-                "status": "进行中",
-                "version": "1",
-                "assignee": args.user if hasattr(args, 'user') else '待分配'
+            "taskBackground": {
+                "status": 0,  # 0: draft, 1: final
+                "projectName": args.project_name,
+                "description": description,
+                "refers": refers,
+                "totalAtomTaskCount": total_count
             },
-            "task_description": args.task_name,
-            "steps": [
-                {"id": "step_1", "description": "步骤1", "completed": False},
-                {"id": "step_2", "description": "步骤2", "completed": False},
-                {"id": "step_3", "description": "步骤3", "completed": False}
-            ],
-            "validation_criteria": [
-                {"id": "validation_1", "description": "代码实现完成", "completed": False},
-                {"id": "validation_2", "description": "单元测试通过", "completed": False},
-                {"id": "validation_3", "description": "文档更新", "completed": False}
-            ],
-            "notes": ""
+            "atomTaskList": []  # 任务创建时为空，由用户通过add命令添加具体的任务项
         }
 
         self.write_json(Path(filename), data)
         print(f"✅ 原子任务创建成功: {filename}")
+
+    def read_next_todo(self, args):
+        """读取下一个待办任务"""
+        atom_tasks_file = self.find_atom_tasks_file(args.atom_tasks)
+        if not atom_tasks_file:
+            print(f"❌ 找不到atom-tasks记录: {args.atom_tasks}")
+            return
+
+        data = self.read_json(atom_tasks_file)
+        if not data or 'atomTaskList' not in data:
+            print("❌ 数据格式无效")
+            return
+
+        # 查找下一个待办任务（状态为0）
+        for task in data['atomTaskList']:
+            if task.get('status', 0) == 0:  # 0: todo
+                print("🎯 下一个待办任务:")
+                print(f"   标题: {task.get('title', 'No title')}")
+                print(f"   索引: {task.get('index', 0)}")
+                if task.get('content'):
+                    print(f"   描述: {task.get('content')}")
+                return
+
+        print("🎉 所有任务已完成！")
+
+    def update_task_status(self, args):
+        """更新任务状态"""
+        if not hasattr(args, 'index') or args.index is None:
+            print("❌ 必须提供--index参数")
+            return
+
+        atom_tasks_file = self.find_atom_tasks_file(args.atom_tasks)
+        if not atom_tasks_file:
+            print(f"❌ 找不到atom-tasks记录: {args.atom_tasks}")
+            return
+
+        data = self.read_json(atom_tasks_file)
+        if not data or 'atomTaskList' not in data:
+            print("❌ 数据格式无效")
+            return
+
+        # 查找并更新任务
+        updated = False
+        for task in data['atomTaskList']:
+            if task.get('index') == args.index:
+                # 验证状态值
+                valid_statuses = [0, 1, 2, 3]  # todo, doing, done, failed
+                status_map = {
+                    "0": 0, "1": 1, "2": 2, "3": 3,
+                    "todo": 0, "doing": 1, "done": 2, "failed": 3
+                }
+
+                if hasattr(args, 'status') and args.status is not None:
+                    new_status = status_map.get(args.status, status_map.get(str(args.status), None))
+                    if new_status is not None:
+                        task['status'] = new_status
+                        updated = True
+                        break
+
+        if updated:
+            self.write_json(atom_tasks_file, data)
+            print(f"✅ 任务 {args.index} 状态已更新为 {args.status}")
+        else:
+            print(f"❌ 找不到任务索引 {args.index} 或状态无效")
 
 def main():
     """主函数 - 解析命令行参数"""
@@ -511,7 +576,11 @@ def main():
     create_group = create_parser.add_mutually_exclusive_group(required=True)
     create_group.add_argument('--forum', type=str, help='创建forum记录')
     create_group.add_argument('--solution', type=str, help='创建solution记录')
-    create_group.add_argument('--atom-tasks', type=str, help='创建atom-tasks记录')
+    create_group.add_argument('--atom-tasks', type=str, help='atom-tasks时间戳')
+    create_parser.add_argument('--project-name', type=str, help='atom-tasks项目名称')
+    create_parser.add_argument('--description', type=str, help='atom-tasks项目描述')
+    create_parser.add_argument('--totalAtomTaskCount', type=int, default=0, help='atom-tasks原子任务总数')
+    create_parser.add_argument('--refers', type=str, nargs='*', help='atom-tasks参考文档列表')
     create_parser.add_argument('--user', required=True, help='创建者用户名')
     create_parser.add_argument('--model', type=str, help='使用的模型（solution专用）')
 
@@ -522,6 +591,7 @@ def main():
     read_group.add_argument('--solution', type=str, help='从solution读取')
     read_group.add_argument('--atom-tasks', type=str, help='从atom-tasks读取')
     read_parser.add_argument('--latest-reply', action='store_true', help='读取最新回复')
+    read_parser.add_argument('--next-todo', action='store_true', help='读取下一个待办任务（atom-tasks专用）')
 
     # ===== UPDATE 命令 =====
     update_parser = subparsers.add_parser('update', help='更新记录')
@@ -530,6 +600,7 @@ def main():
     update_group.add_argument('--solution', type=str, help='更新solution')
     update_group.add_argument('--atom-tasks', type=str, help='更新atom-tasks状态')
     update_parser.add_argument('--status', type=str, help='新的状态')
+    update_parser.add_argument('--index', type=int, help='任务索引（atom-tasks专用）')
     update_parser.add_argument('--user', required=True, help='操作用户名')
 
     # ===== ADD 命令 =====
@@ -542,11 +613,15 @@ def main():
     add_parser.add_argument('--content', type=str, help='追加到forum的评论内容（与--multiline互斥）')
     add_parser.add_argument('--multiline', action='store_true', help='进入交互式多行文本输入模式')
 
+    # 原子任务专用参数
+    add_parser.add_argument('--title', type=str, help='原子任务标题')
+    add_parser.add_argument('--task-content', type=str, help='原子任务描述内容')
+
     # 事实和困境选项（与forum/content互斥）
     add_group2 = add_parser.add_mutually_exclusive_group()
     add_group2.add_argument('--fact', type=str, help='添加事实')
     add_group2.add_argument('--dilemma', type=str, help='添加困境')
-    add_group2.add_argument('--task', type=str, help='添加任务项（atom-tasks专用）')
+    add_group2.add_argument('--task', type=str, help='添加任务项标题（atom-tasks专用，已废弃，使用--title代替）')
 
     add_parser.add_argument('--user', required=True, help='用户名')
 
@@ -574,15 +649,22 @@ def main():
                 args.solution_name = args.solution
                 handlers['solution'].create(args)
             elif hasattr(args, 'atom_tasks') and args.atom_tasks:
-                args.task_name = args.atom_tasks
-                handlers['atom-tasks'].create(args)
+                # 对于atom-tasks，检查新的参数格式
+                if hasattr(args, 'project_name') and args.project_name:
+                    handlers['atom-tasks'].create(args)
+                else:
+                    print("❌ 创建atom_tasks必须提供--project-name参数")
+                    return
 
         elif args.action == 'read':
             if hasattr(args, 'forum') and args.forum:
                 if hasattr(args, 'latest_reply') and args.latest_reply:
                     handlers['forum'].read_latest_reply(args)
             elif hasattr(args, 'atom_tasks') and args.atom_tasks:
-                handlers['atom-tasks'].read(args)
+                if hasattr(args, 'next_todo') and args.next_todo:
+                    handlers['atom-tasks'].read_next_todo(args)
+                else:
+                    handlers['atom-tasks'].read(args)
 
         elif args.action == 'add':
             if hasattr(args, 'forum') and args.forum and hasattr(args, 'content') and args.content:
@@ -592,8 +674,23 @@ def main():
                     handlers['solution'].add_fact(args)
                 elif hasattr(args, 'dilemma') and args.dilemma:
                     handlers['solution'].add_dilemma(args)
-            elif hasattr(args, 'atom_tasks') and args.atom_tasks and hasattr(args, 'task') and args.task:
-                handlers['atom-tasks'].add_task(args)
+            elif hasattr(args, 'atom_tasks') and args.atom_tasks:
+                # 支持新旧两种参数（title或task）
+                if hasattr(args, 'title') and args.title:
+                    handlers['atom-tasks'].add_task(args)
+                elif hasattr(args, 'task') and args.task:
+                    handlers['atom-tasks'].add_task(args)
+
+        elif args.action == 'update':
+            if hasattr(args, 'atom_tasks') and args.atom_tasks:
+                if hasattr(args, 'index') and args.index is not None:
+                    handlers['atom-tasks'].update_task_status(args)
+                else:
+                    print("❌ 更新atom-tasks必须提供--index参数")
+                    return
+            else:
+                print("❌ update功能当前只支持atom-tasks")
+                return
 
     except Exception as e:
         print(f"❌ 执行出错: {e}")
