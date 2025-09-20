@@ -113,11 +113,41 @@ AI 接管开发时的具体规则:
       - 使用 `node eslint.config.js` 或 `eslint` 检查代码风格，修复所有警告
       - 重要功能必须手动测试，包括边界情况和异常处理
 
-   5. 版本控制操作流程:
-      - 开始任务前：`git add . && git commit -m "snapshot before [任务描述]"`
-      - 创建分支：`git checkout -b feature/[任务名称]`
-      - 开发过程中：定期提交，每次提交都是一个完整的小功能
-      - 完成后：`git push origin feature/[任务名称]` 并请求合并
+   5. 强制分支回滚机制 (100%遵循):
+      ⚠️ 任何代码修改都必须严格遵循以下分支回滚机制，无例外！
+
+      修改前准备阶段：
+      a. 检查工作目录状态：`git status` 确保工作区干净
+      b. 保存当前状态：`git add . && git commit -m "checkpoint before [任务描述] - [timestamp]"`
+      c. 记录当前分支：使用 `git rev-parse --abbrev-ref HEAD` 获取原分支名
+      d. 记录当前commit：使用 `git rev-parse HEAD` 获取commit hash
+
+      创建临时分支：
+      e. 创建临时分支：`git checkout -b temp/modify-[任务简名]-[timestamp]`
+      f. 验证分支创建：`git branch` 确认在临时分支上
+
+      代码修改阶段：
+      g. 进行代码修改和测试
+      h. 小步提交：每个小功能完成后立即 `git add . && git commit -m "[具体修改]"`
+
+      结果处理阶段：
+      【修改成功时】：
+      i. 切回原分支：`git checkout [原分支名]`
+      j. 合并修改：`git merge temp/modify-[任务简名]-[timestamp] --no-ff`
+      k. 删除临时分支：`git branch -d temp/modify-[任务简名]-[timestamp]`
+      l. 推送修改：`git push origin [原分支名]`
+
+      【修改失败时】：
+      i. 立即停止修改，切回原分支：`git checkout [原分支名]`
+      j. 强制删除临时分支：`git branch -D temp/modify-[任务简名]-[timestamp]`
+      k. 验证回滚：`git log --oneline -5` 确认回到修改前状态
+      l. 报告失败原因并重新规划
+
+      紧急回滚指令：
+      - 如遇到严重问题，立即执行：`git checkout [原分支名] && git reset --hard [checkpoint-commit-hash]`
+      - 验证数据完整性：`npm run test` 确保项目状态正常
+
+      ⚠️ 违反此机制将导致开发中断，必须重新开始整个任务！
 
    6. PDF.js 相关的特殊要求:
       - 使用 PDF.js 时必须处理加载状态和错误状态
@@ -216,8 +246,29 @@ AI 接管开发时的具体规则:
 
 # AI助手协作记录 (自动维护)
 
-## 最近工作进展 [2025-09-20 15:05]
-🔵 **测试**: 测试追加模式更新memory-bank
+## 最近工作进展 [2025-09-20 18:25]
+🔧 **调试**: 分析并修复PDF双击事件调用链和日志分离问题
+
+### PDF双击事件完整调用链
+通过深入分析前端代码，发现了完整的双击事件传播路径：
+
+1. **用户双击** → Tabulator表格行双击事件
+2. **Tabulator捕获** → `rowDblClick` 事件处理器
+3. **事件发出** → `PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED` 事件到EventBus
+4. **PDFManager监听** → `EventHandler.setupEventListeners()` 捕获事件
+5. **调用openPDF** → `PDFManagerCore.openPDF(filename)` 方法
+6. **WebSocket发送** → `WEBSOCKET_EVENTS.MESSAGE.SEND` 消息
+7. **后端处理** → `StandardWebSocketServer.handle_open_pdf_request()`
+8. **窗口创建** → `Application.open_pdf_viewer_window()`
+9. **文件名注入** → `window.PDF_PATH` JavaScript注入
+
+### 已修复的问题
+- **文件ID解析**: 修复后端将file_id解析为完整文件名的逻辑
+- **403错误**: 通过PDF管理器获取完整文件名(含.pdf扩展名)
+- **日志分离**: 实现PDF特定日志文件创建机制
+
+### 待修复问题
+- **双击重复事件**: 一次双击触发两次`pdf:open:requested`事件
 
 ## 当前项目状态
 - 最后更新: 2025年09月20日 15:05
