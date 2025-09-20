@@ -12,6 +12,7 @@ import { PDFManager } from "./pdf-manager.js";
 import { UIManager } from "./ui-manager.js";
 import { WSClient } from "../common/ws/ws-client.js";
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS } from "../common/event/event-constants.js";
+import { createConsoleWebSocketBridge } from "../common/utils/console-websocket-bridge.js";
 
 /**
  * @class PDFViewerAppCore
@@ -30,6 +31,7 @@ export class PDFViewerAppCore {
   #zoomLevel = 1.0;
   #wsClient = null;
   #messageQueue = [];
+  #consoleBridge = null;
 
   constructor() {
     this.#logger = new Logger("PDFViewerApp");
@@ -43,6 +45,19 @@ export class PDFViewerAppCore {
 
     // 初始化WebSocket客户端
     this.#wsClient = new WSClient("ws://localhost:8765", this.#eventBus);
+
+    // 创建console桥接器，但暂时不启用
+    this.#consoleBridge = createConsoleWebSocketBridge('pdf-viewer', (message) => {
+      if (this.#wsClient && this.#wsClient.isConnected()) {
+        this.#wsClient.send({ type: 'console_log', data: message });
+      }
+    });
+
+    // 监听WebSocket连接建立事件，然后启用console桥接器
+    this.#eventBus.on('websocket:connection:established', () => {
+      this.#logger.info("WebSocket connected, enabling console bridge");
+      this.#consoleBridge.enable();
+    }, { subscriberId: 'PDFViewerAppCore' });
 
     this.#logger.info("PDFViewerApp instance created");
   }

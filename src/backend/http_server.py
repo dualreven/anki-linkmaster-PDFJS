@@ -235,8 +235,31 @@ class HttpFileServer(QObject):
         """处理PDF文件请求，支持 HTTP Range"""
         try:
             filename = path.replace('/pdfs/', '')
+
+            # 安全检查：防止目录遍历攻击
+            if '..' in filename or filename.startswith('/') or filename.startswith('\\'):
+                logger.warning(f"检测到可疑路径访问尝试: {filename}")
+                self.send_response(socket, 403, 'Forbidden', '{"error": "Invalid file path"}')
+                return
+
+            # 确保只允许访问 data/pdfs 目录下的 PDF 文件
+            if not filename.lower().endswith('.pdf'):
+                logger.warning(f"非PDF文件访问请求: {filename}")
+                self.send_response(socket, 403, 'Forbidden', '{"error": "Only PDF files are allowed"}')
+                return
+
             file_path = os.path.join(self.base_dir, 'data', 'pdfs', filename)
-            
+
+            # 验证最终路径确实在预期目录内
+            expected_dir = os.path.join(self.base_dir, 'data', 'pdfs')
+            real_file_path = os.path.realpath(file_path)
+            real_expected_dir = os.path.realpath(expected_dir)
+
+            if not real_file_path.startswith(real_expected_dir):
+                logger.warning(f"文件路径超出允许范围: {real_file_path}")
+                self.send_response(socket, 403, 'Forbidden', '{"error": "File path outside allowed directory"}')
+                return
+
             if not os.path.exists(file_path):
                 logger.warning(f"文件不存在: {file_path}")
                 self.send_response(socket, 404, 'Not Found', '{"error": "File not found"}')

@@ -53,6 +53,10 @@ class WebSocketHandlers:
                 self.handle_pdf_detail_request(client, message)
             elif message_type == 'pdfjs_init_log':
                 self.handle_pdfjs_init_log(client, message)
+            elif message_type == 'open_pdf':
+                self.handle_open_pdf_request(client, message)
+            elif message_type == 'console_log':
+                self.handle_console_log(client, message)
             elif message_type == 'heartbeat':
                 # 心跳消息，不需要处理，只是保持连接
                 logger.debug(f"[DEBUG] 收到心跳消息 from {client.peerPort()}")
@@ -641,3 +645,143 @@ class WebSocketHandlers:
         except Exception as e:
             logger.error(f"处理PDF.js init log时出错: {str(e)}")
             self.response.send_error_response(client, f"处理PDF.js init log出错: {str(e)}", "pdfjs_init_log", "INTERNAL_ERROR", message.get('request_id'))
+
+    def handle_open_pdf_request(self, client, message):
+        """处理打开PDF文件请求
+
+        Args:
+            client: QWebSocket客户端对象
+            message: 消息内容
+        """
+        try:
+            # 获取文件ID
+            file_id = message.get('data', {}).get('file_id') or message.get('file_id')
+
+            if not file_id:
+                logger.warning("打开PDF文件请求缺少文件ID参数")
+                expected_format = {
+                    "type": "open_pdf",
+                    "request_id": "uuid",
+                    "data": {"file_id": "file_unique_id"}
+                }
+                error_message = f"打开PDF文件请求缺少文件ID参数。正确格式: {json.dumps(expected_format, ensure_ascii=False)}"
+                self.response.send_error_response(
+                    client,
+                    error_message,
+                    "open_pdf",
+                    "MISSING_PARAMETERS",
+                    message.get('request_id')
+                )
+                return
+
+            logger.info(f"处理打开PDF请求，文件ID: {file_id}")
+
+            # 检查应用实例是否有 open_pdf_viewer_window 方法
+            if hasattr(self.app, 'open_pdf_viewer_window'):
+                logger.info(f"[DEBUG] 调用 self.app.open_pdf_viewer_window('{file_id}')")
+                success = self.app.open_pdf_viewer_window(file_id)
+
+                if success:
+                    logger.info(f"PDF viewer window opened successfully for {file_id}.")
+                    # 发送成功响应
+                    response_data = {
+                        "file_id": file_id,
+                        "opened": True
+                    }
+                    self.response.send_success_response(
+                        client,
+                        "open_pdf",
+                        response_data,
+                        message.get('request_id')
+                    )
+                else:
+                    logger.error(f"Failed to open PDF viewer window for {file_id}")
+                    self.response.send_error_response(
+                        client,
+                        f"Failed to open PDF viewer window for {file_id}",
+                        "open_pdf",
+                        "OPEN_FAILED",
+                        message.get('request_id')
+                    )
+            else:
+                logger.error("[DEBUG] self.app 没有 open_pdf_viewer_window 方法")
+                self.response.send_error_response(
+                    client,
+                    "PDF viewer functionality not available",
+                    "open_pdf",
+                    "FEATURE_NOT_AVAILABLE",
+                    message.get('request_id')
+                )
+
+        except ValueError as e:
+            logger.error(f"打开PDF文件参数格式错误: {str(e)}")
+            self.response.send_error_response(
+                client,
+                f"参数格式错误: {str(e)}",
+                "open_pdf",
+                "INVALID_PARAMETER_FORMAT",
+                message.get('request_id')
+            )
+        except Exception as e:
+            logger.error(f"处理打开PDF文件请求时出错: {str(e)}")
+            self.response.send_error_response(
+                client,
+                f"处理打开PDF文件请求时出错: {str(e)}",
+                "open_pdf",
+                "INTERNAL_ERROR",
+                message.get('request_id')
+            )
+
+    def handle_console_log(self, client, message):
+        """处理前端console日志消息
+
+        Args:
+            client: QWebSocket客户端对象
+            message: 消息内容，包含console日志数据
+        """
+        try:
+            # 从消息中提取console日志数据
+            data = message.get('data', {})
+            source = data.get('source', 'unknown')
+            level = data.get('level', 'log')
+            timestamp = data.get('timestamp', '')
+            log_message = data.get('message', '')
+
+            # 格式化时间戳
+            if timestamp:
+                try:
+                    import datetime
+                    dt = datetime.datetime.fromtimestamp(timestamp / 1000)
+                    formatted_time = dt.strftime('%H:%M:%S.%f')[:-3]
+                except:
+                    formatted_time = str(timestamp)
+            else:
+                formatted_time = ''
+
+            # 格式化日志条目
+            log_entry = f"[{formatted_time}][{level.upper()}][{source}] {log_message}"
+
+            # 写入统一日志文件
+            log_file_path = "logs/unified-console.log"
+
+            # 确保日志目录存在
+            os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+
+            # 追加写入日志文件
+            with open(log_file_path, 'a', encoding='utf-8') as f:
+                f.write(log_entry + '\n')
+                f.flush()  # 确保立即写入磁盘
+
+            # 同时输出到后端日志
+            if level == 'error':
+                logger.error(f"[FRONTEND-{source}] {log_message}")
+            elif level == 'warn':
+                logger.warning(f"[FRONTEND-{source}] {log_message}")
+            elif level == 'info':
+                logger.info(f"[FRONTEND-{source}] {log_message}")
+            else:
+                logger.debug(f"[FRONTEND-{source}] {log_message}")
+
+        except Exception as e:
+            logger.error(f"处理console日志时出错: {str(e)}")
+            # console日志处理失败不需要给前端发送错误响应，避免递归错误

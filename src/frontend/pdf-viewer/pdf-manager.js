@@ -98,9 +98,19 @@ export class PDFManager {
 
     // 如果仅传入 filename 而没有 url，则使用开发代理相对路径
     if (!fileData.url && filename) {
+      // 如果filename包含路径（如 "public/test.pdf"），提取实际文件名
+      const actualFilename = filename.includes('/')
+        ? filename.split('/').pop()
+        : filename;
+
       // 使用相对路径 /pdfs/{filename}，由 Vite dev server 代理到后端
-      fileData.url = `/pdfs/${encodeURIComponent(filename)}`;
-      this.#logger.debug(`Constructed proxy URL for filename ${filename}: ${fileData.url}`);
+      fileData.url = `/pdfs/${encodeURIComponent(actualFilename)}`;
+      this.#logger.debug(`Constructed proxy URL for filename ${filename} -> ${actualFilename}: ${fileData.url}`);
+
+      // 如果提取了路径，记录调试信息
+      if (filename !== actualFilename) {
+        this.#logger.info(`Path extraction: "${filename}" -> "${actualFilename}"`);
+      }
     }
 
     // 确保 PDF.js 已加载；若未加载尝试初始化
@@ -150,35 +160,105 @@ export class PDFManager {
 
         return pdfData;
       } catch (error) {
-        this.#logger.error(`Failed to load PDF document on attempt ${attempt}:`, error);
+        // 记录详细的错误信息，包含调试所需的所有上下文
+        this.#logger.error(`Failed to load PDF document on attempt ${attempt}/${maxRetries}:`, {
+          filename: filename,
+          url: fileData.url,
+          error: error.message,
+          errorType: error.name,
+          stack: error.stack,
+          attempt: attempt,
+          maxRetries: maxRetries
+        });
+
+        // 发出详细错误事件，包含诊断信息
+        const errorDetails = {
+          module: 'PDFManager',
+          operation: 'loadPDF',
+          filename: filename,
+          url: fileData.url,
+          attempt: attempt,
+          maxRetries: maxRetries,
+          error: error.message,
+          errorType: error.name,
+          timestamp: new Date().toISOString(),
+          suggestions: [
+            '检查文件是否存在于服务器',
+            '检查网络连接状态',
+            '检查代理服务器运行状态',
+            '检查文件路径格式是否正确',
+            '查看浏览器网络面板了解HTTP状态码'
+          ]
+        };
+
+        try {
+          this.#eventBus.emit(PDF_VIEWER_EVENTS.STATE.ERROR, errorDetails, { actorId: 'PDFManager' });
+        } catch (emitErr) {
+          this.#logger.warn("Failed to emit detailed error event:", emitErr);
+        }
 
         // 如果未达到最大重试次数，则发出重试事件并等待一段时间再重试
         if (attempt < maxRetries) {
           try {
-            this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.RETRY, { filename, attempt }, { actorId: 'PDFManager' });
+            this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.RETRY, {
+              filename,
+              attempt,
+              nextAttempt: attempt + 1,
+              retryDelayMs: retryDelayMs,
+              lastError: error.message
+            }, { actorId: 'PDFManager' });
           } catch (emitErr) {
             // 忽略事件发射错误
             this.#logger.warn("Failed to emit retry event:", emitErr);
           }
+
+          this.#logger.info(`将在 ${retryDelayMs}ms 后进行第 ${attempt + 1} 次重试...`);
           await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
           continue;
         }
 
         // 达到最大重试次数，放弃尝试并记录最终失败
-        this.#logger.warn(`PDF加载失败，已达到最大重试次数（${maxRetries}次），不再重试`, { filename });
+        this.#logger.error(`PDF加载完全失败！已达到最大重试次数（${maxRetries}次）`, {
+          filename,
+          finalUrl: fileData.url,
+          totalAttempts: maxRetries,
+          finalError: error.message
+        });
 
-        // 发出失败事件
+        // 发出最终失败事件
         try {
           this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.FAILED, {
             filename,
-            error: error && error.message ? error.message : String(error),
-            attempts: maxRetries
+            url: fileData.url,
+            error: error.message,
+            errorType: error.name,
+            attempts: maxRetries,
+            timestamp: new Date().toISOString(),
+            troubleshooting: {
+              fileExists: `检查文件是否存在: ${fileData.url}`,
+              proxyStatus: '检查 Vite 开发服务器代理配置',
+              backendStatus: '检查后端 HTTP 服务器是否运行在端口 8080',
+              networkCheck: '在浏览器开发者工具中查看网络请求状态'
+            }
           }, { actorId: 'PDFManager' });
         } catch (emitErr) {
           this.#logger.warn("Failed to emit load failed event:", emitErr);
         }
 
-        throw error;
+        // 抛出增强的错误信息
+        const enhancedError = new Error(
+          `加载PDF失败: ${filename}\n` +
+          `URL: ${fileData.url}\n` +
+          `错误: ${error.message}\n` +
+          `重试次数: ${maxRetries}\n` +
+          `建议: 检查文件路径、网络连接和代理配置`
+        );
+        enhancedError.originalError = error;
+        enhancedError.filename = filename;
+        enhancedError.url = fileData.url;
+        enhancedError.attempts = maxRetries;
+
+        throw enhancedError;
       }
     }
   }

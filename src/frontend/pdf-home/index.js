@@ -11,6 +11,7 @@ import { ErrorHandler } from "../common/error/error-handler.js";
 import { UIManager } from "./ui-manager.js";
 import PDFManager from "../common/pdf/pdf-manager.js";
 import WSClient from "../common/ws/ws-client.js";
+import { createConsoleWebSocketBridge } from "../common/utils/console-websocket-bridge.js";
 
 /**
  * @class PDFHomeApp
@@ -23,6 +24,7 @@ class PDFHomeApp {
   #websocketManager;
   #pdfManager;
   #uiManager;
+  #consoleBridge;
   #initialized = false;
 
   constructor() {
@@ -35,6 +37,13 @@ class PDFHomeApp {
     this.#websocketManager = new WSClient("ws://localhost:8765", this.#eventBus);
     this.#pdfManager = new PDFManager(this.#eventBus);
     this.#uiManager = new UIManager(this.#eventBus);
+
+    // 创建console桥接器，但暂时不启用
+    this.#consoleBridge = createConsoleWebSocketBridge('pdf-home', (message) => {
+      if (this.#websocketManager.isConnected()) {
+        this.#websocketManager.send({ type: 'console_log', data: message });
+      }
+    });
   }
 
   /**
@@ -121,9 +130,11 @@ class PDFHomeApp {
         
         // ==================== 诊断代码结束 ====================
 
+
         // 确保 Tabulator 完全初始化后再绑定事件
         setTimeout(() => {
           if (this.tableWrapper && this.tableWrapper.tabulator) {
+
             // 绑定选择变化事件
             this.tableWrapper.tabulator.on("rowSelectionChanged", (selectedRows) => {
               console.log("行选择发生变化:", selectedRows);
@@ -156,9 +167,11 @@ class PDFHomeApp {
             this.tableWrapper.tabulator.on("cellClick", (e, cell) => {
               const cellElement = cell.getElement();
               const button = e.target.closest('button[data-action]');
-               
+
               if (button) {
-                e.stopPropagation(); // 防止触发行选择
+                // 只阻止按钮点击的事件传播，但保留双击事件处理
+                e.stopPropagation();
+                e.preventDefault();
                 const action = button.getAttribute('data-action');
                 const rowData = cell.getRow().getData();
                  
@@ -176,7 +189,54 @@ class PDFHomeApp {
               }
             });
 
-            this.#logger.info("Tabulator 事件绑定完成");
+            // 双击事件绑定
+            this.tableWrapper.tabulator.on("rowDblClick", (e, row) => {
+              try {
+                const rowData = row.getData();
+                if (rowData && (rowData.id || rowData.filename)) {
+                  this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, rowData.id || rowData.filename, {
+                    actorId: 'PDFHomeApp'
+                  });
+                }
+              } catch (error) {
+                this.#logger.error('Error in rowDblClick handler:', error);
+              }
+            });
+
+            // DOM 级别双击事件作为备用方案
+            const tabulatorElement = this.tableWrapper.tabulator.element;
+            if (tabulatorElement) {
+              tabulatorElement.addEventListener('dblclick', (e) => {
+                // 查找最近的表格行元素，确保不是按钮点击
+                const rowElement = e.target.closest('.tabulator-row');
+                if (rowElement && !e.target.closest('button')) {
+                  try {
+                    const tabulator = this.tableWrapper.tabulator;
+                    if (tabulator) {
+                      const rows = tabulator.getRows();
+                      const matchingRow = rows.find(row => {
+                        const element = row.getElement();
+                        return element === rowElement;
+                      });
+
+                      if (matchingRow) {
+                        const rowData = matchingRow.getData();
+                        if (rowData && (rowData.id || rowData.filename)) {
+                          this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, rowData.id || rowData.filename, {
+                            actorId: 'PDFHomeApp',
+                            source: 'dom-dblclick-handler'
+                          });
+                        }
+                      }
+                    }
+                  } catch (error) {
+                    this.#logger.error('Error in DOM dblclick handler:', error);
+                  }
+                }
+              });
+            }
+
+            this.#logger.info("Tabulator 事件绑定完成（包含双击修复）");
           }
         }, 100); // 给 Tabulator 一些时间完成初始化
          
@@ -206,6 +266,12 @@ class PDFHomeApp {
       await this.#websocketManager.connect();
       await this.#uiManager.initialize(); // UIManager now has its own initialization logic
       
+      // 在WebSocket连接建立后启用console桥接器
+      this.#eventBus.on('websocket:connection:established', () => {
+        this.#logger.info("WebSocket connected, enabling console bridge");
+        this.#consoleBridge.enable();
+      }, { subscriberId: 'PDFHomeApp' });
+
       this.#initialized = true;
       this.#logger.info("PDF Home App initialized successfully.");
       this.#eventBus.emit(APP_EVENTS.INITIALIZATION.COMPLETED, undefined, { actorId: 'PDFHomeApp' });

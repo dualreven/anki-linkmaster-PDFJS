@@ -1,7 +1,8 @@
 ---
 基本规则:
    - 总是使用中文回复.
-   - 询问用户时,请在控制台打印 `[Console]::Beep(1440, 500)` 提醒我来看
+   - 询问用户时,使用Python脚本发出声音提醒: `python quick_beep.py`
+     (备用方法: PowerShell API调用，如果Python不可用)
 
 项目技术栈和开发工具:
    - 前端构建工具: Vite 5.0.0 (开发服务器 + 构建工具)
@@ -20,12 +21,12 @@
         * Jest 配置支持 jsdom 测试环境
    - 项目启动方式 (重要!):
         ⚠️ 严禁直接运行 npm run dev 或 python app.py 等命令!
-        必须使用 ai-launcher.ps1 脚本来管理项目启动和停止:
-        
-        启动所有服务: .\ai-launcher.ps1 start
-        检查服务状态: .\ai-launcher.ps1 status  
-        查看运行日志: .\ai-launcher.ps1 logs
-        停止所有服务: .\ai-launcher.ps1 stop
+        必须使用 ai-launcher.py 脚本来管理项目启动和停止:
+
+        启动所有服务: python ai-launcher.py start
+        检查服务状态: python ai-launcher.py status
+        查看运行日志: python ai-launcher.py logs
+        停止所有服务: python ai-launcher.py stop
         
         项目包含的服务:
         - npm-dev server (端口 3000): 前端开发服务器
@@ -86,10 +87,10 @@ AI 接管开发时的具体规则:
    1. 开发前的准备工作:
       - 必须先阅读要修改模块的 SPEC 文档，通常在 `[模块名]/docs/SPEC/` 目录下
       - 查看模块的结构图和接口文档，了解模块的职责和边界
-      - 使用 `.\ai-launcher.ps1 status` 检查项目服务状态
+      - 使用 `python ai-launcher.py status` 检查项目服务状态
       - 使用 `npm run test` 确保当前代码库状态正常
       - 使用 `git status` 查看当前工作目录状态，清理无关文件
-      - ⚠️ 严禁直接运行 npm run dev 或 python app.py 等命令，必须使用 ai-launcher.ps1
+      - ⚠️ 严禁直接运行 npm run dev 或 python app.py 等命令，必须使用 ai-launcher.py
 
    2. 任务规划和执行:
       - 使用 TodoWrite 工具创建具体的任务清单，每个任务都要有明确的完成标准
@@ -163,10 +164,72 @@ AI 接管开发时的具体规则:
       - 项目使用 `.kilocode/` 目录进行 AI 开发配置
 
    13. 重要提醒 - 项目启动方式:
-      - ⚠️ 必须使用 ai-launcher.ps1 脚本来管理项目启动和停止
+      - ⚠️ 必须使用 ai-launcher.py 脚本来管理项目启动和停止
       - 严禁直接运行 npm run dev 或 python app.py 等命令
-      - 开发前：使用 `.\ai-launcher.ps1 start` 启动所有服务
-      - 开发中：使用 `.\ai-launcher.ps1 status` 检查服务状态
-      - 查看日志：使用 `.\ai-launcher.ps1 logs` 监控运行情况
-      - 开发后：使用 `.\ai-launcher.ps1 stop` 停止所有服务
+      - 开发前：使用 `python ai-launcher.py start` 启动所有服务
+      - 开发中：使用 `python ai-launcher.py status` 检查服务状态
+      - 查看日志：使用 `python ai-launcher.py logs` 监控运行情况
+      - 开发后：使用 `python ai-launcher.py stop` 停止所有服务
       - 原因：直接启动会导致终端阻塞，无法进行 AI 自动化开发
+
+   14. AI声音提醒系统:
+      - 主要命令：`python quick_beep.py` (三音节上升提醒音)
+      - 测试脚本：`python beep_reminder.py` (测试5种声音方法)
+      - 技术方案：
+        * 主要方法：winsound.Beep() - Windows内置模块
+        * 备用方法：ctypes + Windows API
+        * 最后备用：系统铃声 echo \a
+      - 使用场景：询问用户、完成重要任务、需要注意时
+
+   15. Claude Code 强化工作流 (借鉴Kilocode smart-agent):
+      - 基于事实的决策机制：
+        * 收集事实依据：每个重要决策前必须先收集足够的事实信息
+        * 避免凭空猜测：不确定时优先使用搜索、读取文件等工具获取准确信息
+        * 验证假设：对关键假设必须通过实际操作或测试来验证
+
+      - 原子化任务分解：
+        * 复杂任务强制分解：超过3个主要步骤的任务必须先列出详细计划
+        * 原子任务标准：每个子任务应该是不可再分且可独立验证的
+        * 时间控制：单个原子任务应控制在15-30分钟内完成
+
+      - 验证驱动开发：
+        * 代码修改后立即验证：每次代码变更后必须运行相关测试
+        * 功能实现分步验证：复杂功能实现过程中要分阶段验证
+        * 错误快速发现：通过频繁验证尽早发现问题
+
+      - 结构化思考流程：
+        * 问题分析：明确当前面临的具体问题和困境
+        * 方案设计：基于事实提出可行的解决方案
+        * 风险评估：识别潜在风险和应对措施
+        * 实施验证：执行方案并验证结果
+
+      - 工作记录机制：
+        * 使用TodoWrite工具：复杂任务必须用TodoWrite追踪进度
+        * 关键决策记录：重要的技术决策和理由要记录到相关文档
+        * 失败经验总结：遇到问题时要分析原因并记录解决方案
+
+      - 质量控制标准：
+        * 代码质量：修改代码后必须通过ESLint和测试
+        * 文档完整：新功能必须有对应的文档和使用说明
+        * 向后兼容：变更要考虑对现有功能的影响
+        * 错误处理：关键功能必须有完善的错误处理机制
+
+# AI助手协作记录 (自动维护)
+
+## 最近工作进展 [2025-09-20 15:05]
+🔵 **测试**: 测试追加模式更新memory-bank
+
+## 当前项目状态
+- 最后更新: 2025年09月20日 15:05
+- 工作重心: 测试追加模式更新memory-bank
+- 优先级: low
+
+## Kilocode协作状态
+- 上下文已同步: ✅
+- 工作日志已创建: ✅
+- 可以无缝接管任务
+
+## 下次AI助手启动提醒
+- 请检查最新的工作进展
+- 关注当前任务的优先级
+- 如有疑问可查看AItemp/目录下的详细工作日志

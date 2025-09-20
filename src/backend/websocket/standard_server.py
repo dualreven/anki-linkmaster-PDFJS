@@ -186,6 +186,10 @@ class StandardWebSocketServer(QObject):
         
             return self.handle_pdf_detail_request(request_id, data)
         
+        # Console日志消息
+        elif message_type == "console_log":
+            return self.handle_console_log_request(request_id, data)
+
         # 心跳消息
         elif message_type == "heartbeat":
             return StandardMessageHandler.build_response(
@@ -524,9 +528,64 @@ class StandardWebSocketServer(QObject):
                 "CACHE_CLEAR_ERROR",
                 f"清理缓存失败: {str(e)}"
             )
-                
 
-    
+    def handle_console_log_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """处理前端console日志消息"""
+        try:
+            # 从数据中提取console日志信息
+            source = data.get('source', 'unknown')
+            level = data.get('level', 'log')
+            timestamp = data.get('timestamp', '')
+            log_message = data.get('message', '')
+
+            # 格式化时间戳
+            if timestamp:
+                try:
+                    import datetime
+                    dt = datetime.datetime.fromtimestamp(timestamp / 1000)
+                    formatted_time = dt.strftime('%H:%M:%S.%f')[:-3]
+                except:
+                    formatted_time = str(timestamp)
+            else:
+                formatted_time = ''
+
+            # 格式化日志条目
+            log_entry = f"[{formatted_time}][{level.upper()}][{source}] {log_message}"
+
+            # 写入统一日志文件
+            log_file_path = "logs/unified-console.log"
+
+            # 确保日志目录存在
+            os.makedirs(os.path.dirname(log_file_path), exist_ok=True)
+
+            # 追加写入日志文件
+            with open(log_file_path, 'a', encoding='utf-8') as f:
+                f.write(log_entry + '\n')
+                f.flush()  # 确保立即写入磁盘
+
+            # 同时输出到后端日志（简化格式）
+            logger.debug(f"[Console-{source}] {log_message}")
+
+            # 返回成功响应
+            return StandardMessageHandler.build_response(
+                "response",
+                request_id,
+                status="success",
+                code=200,
+                message="Console log recorded successfully",
+                data={"logged": True, "source": source, "level": level}
+            )
+
+        except Exception as e:
+            logger.error(f"处理console日志失败: {e}")
+            return StandardMessageHandler.build_error_response(
+                request_id,
+                "CONSOLE_LOG_ERROR",
+                f"处理console日志失败: {str(e)}"
+            )
+
+
+
     @pyqtSlot()
     def on_client_disconnected(self):
         """处理客户端断开连接"""

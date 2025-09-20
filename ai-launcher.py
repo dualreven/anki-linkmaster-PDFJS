@@ -158,7 +158,7 @@ Examples:
 
     def start_npm_dev(self, module: str, port: int, pdf_path: str = "") -> Dict[str, Any]:
         """Start npm run dev adapted to single-root Vite and optional PDF path injection"""
-        print(f"[1/3] Starting npm run dev on port {port} for module {module}...")
+        print(f"[1/2] Starting npm run dev on port {port} for module {module}...")
 
         log_file = self.logs_dir / "npm-dev.log"
 
@@ -284,42 +284,10 @@ Examples:
         
         return process_info
     
-    def start_debug_py(self, port: int, python_override: Optional[str] = None) -> Dict[str, Any]:
-        """Start debug.py"""
-        print("[2/3] Starting debug.py...")
-        
-        log_file = self.logs_dir / "debug.log"
-        
-        # Choose python that has debug dependencies available
-        python_executable = self._select_python(["aiohttp", "websockets"], override_path=python_override)
-        try:
-            print(f"[debug.py] Using Python interpreter: {python_executable}")
-            if python_override:
-                print(f"[debug.py] Override provided: {python_override}")
-        except Exception:
-            pass
-        process = subprocess.Popen(
-            [python_executable, "debug.py", "--port", str(port)],
-            cwd=str(self.script_path),
-            stdout=open(log_file, "w", encoding="utf-8"),
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            stdin=subprocess.DEVNULL
-        )
-        
-        process_info = {
-            "type": "debug-py",
-            "pid": process.pid,
-            "log_file": str(log_file),
-            "process": process
-        }
-        
-        return process_info
     
     def start_app_py(self, module: str, port: int, pdf_path: str = "", http_port: int = 8080, ws_port: int = 8765, python_override: Optional[str] = None, remote_debug_port: Optional[int] = None) -> Dict[str, Any]:
         """Start app.py with module selection"""
-        print(f"[3/3] Starting app.py with module: {module}...")
+        print(f"[2/2] Starting app.py with module: {module}...")
         
         log_file = self.logs_dir / "app.log"
         module_log_file = self.logs_dir / f"{module}.log"
@@ -535,7 +503,6 @@ Vite Port: {port}
         # After normal tracked kills, also kill stale processes not tracked
         try:
             self._kill_stale_main_apps(target_module)
-            self._kill_stale_debug(target_module)
         except Exception:
             pass
         
@@ -762,31 +729,6 @@ Vite Port: {port}
         except Exception:
             pass
 
-    def _kill_stale_debug(self, target_module: Optional[str]):
-        """Best-effort: kill stray debug.py processes when stopping all (module-agnostic)."""
-        try:
-            # We cannot reliably map debug.py to module; only kill on stop-all to avoid cross-module impact
-            if target_module is not None:
-                return
-            pids = self._list_pids_by_cmdline(["debug.py", "--port"])  # our debug process always has --port
-            # Exclude tracked debug pids
-            tracked = set()
-            try:
-                if self.process_info_file.exists():
-                    with open(self.process_info_file, "r", encoding="utf-8") as f:
-                        infos = json.load(f) or []
-                        for e in infos:
-                            pid = e.get("pid")
-                            if isinstance(pid, int) and pid > 0 and e.get("type") == "debug-py":
-                                tracked.add(pid)
-            except Exception:
-                pass
-            for pid in pids:
-                if pid in tracked:
-                    continue
-                self._kill_pid_tree(pid)
-        except Exception:
-            pass
 
     def handle_start(self, args):
         """Handle start action"""
@@ -826,17 +768,6 @@ Vite Port: {port}
         if self._is_port_in_use(debug_port):
             debug_port = self._find_free_port(debug_port + 1)
         remote_debug_port = debug_port
-        
-        # Start debug.py on a unique port
-        debug_info = self.start_debug_py(debug_port, python_override=args.python_exe or None)
-        process_infos.append({
-            "type": debug_info["type"],
-            "pid": debug_info["pid"],
-            "log_file": debug_info["log_file"],
-            "module": args.module,
-            "debug_port": debug_port
-        })
-        time.sleep(2)
         
         # Start app.py with unique backend and remote debug ports
         app_info = self.start_app_py(

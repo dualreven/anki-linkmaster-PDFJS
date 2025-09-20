@@ -8,6 +8,7 @@ import { PDFViewerAppCore } from "./app-core.js";
 import { EventHandlers } from "./event-handlers.js";
 import Logger from "../common/utils/logger.js";
 import PDF_VIEWER_EVENTS from "../common/event/pdf-viewer-constants.js";
+import { createConsoleWebSocketBridge } from "../common/utils/console-websocket-bridge.js";
 
 /**
  * @class PDFViewerApp

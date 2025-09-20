@@ -351,16 +351,20 @@ export class UIManager {
 
   #handleTestPdfViewer() {
     this.#logger.info("测试PDF查看器按钮被点击");
-    
-    // 使用测试PDF文件路径
-    const testPdfPath = "public/test.pdf";
-    
+
+    // 使用 data/pdfs 目录下的测试PDF文件
+    // 注意：只传递文件名，路径由后端处理
+    const testPdfPath = "test.pdf";
+
+    this.#logger.info(`请求打开测试PDF: ${testPdfPath} (从 data/pdfs 目录)`);
+
     // 触发PDF查看器启动事件
     this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, testPdfPath, {
       actorId: 'UIManager',
-      source: 'test-button'
+      source: 'test-button',
+      expectedLocation: 'data/pdfs/'
     });
-    
+
     this.showSuccess("正在启动PDF查看器...");
   }
 
