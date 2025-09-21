@@ -1,0 +1,77 @@
+{
+  "$schema": "./spec-head-schema.json",
+  "meta": {
+    "format_version": "2.0",
+    "self_desc": "模块communication的规范头文件",
+    "version": "1.0",
+    "last_updated": "2025-09-21",
+    "maintainer": "AI-Assistant",
+    "spec_file_rule": "规范ID + .md = 文件名，必须读取文件内容获取详细信息"
+  },
+  "refs": [
+    {
+      "category": "external",
+      "basepath": "../..",
+      "specs": [
+        {
+          "id": "GLOBAL-CODING-STANDARD-001",
+          "desc": "全局编码规范"
+        }
+      ]
+    }
+  ],
+  "private_specs": [
+    {
+      "id": "FRONTEND-EVENT-NAMING-001",
+      "desc": "前端事件命名规范"
+    },
+    {
+      "id": "FRONTEND-EVENT-CONSTANTS-001",
+      "desc": "前端事件常量定义规范"
+    },
+    {
+      "id": "FRONTEND-EVENT-BUS-001",
+      "desc": "前端事件总线使用规范"
+    },
+    {
+      "id": "FRONTEND-EVENT-ERROR-001",
+      "desc": "前端事件错误处理规范"
+    },
+    {
+      "id": "FRONTEND-EVENT-LIFECYCLE-001",
+      "desc": "前端事件生命周期管理规范"
+    },
+    {
+      "id": "JSON-MESSAGE-FORMAT-001",
+      "desc": "JSON消息格式规范"
+    },
+    {
+      "id": "HTTP-STATUS-CODE-001",
+      "desc": "HTTP状态码使用规范"
+    },
+    {
+      "id": "MESSAGE-TYPE-COMM-001",
+      "desc": "消息类型定义规范"
+    },
+    {
+      "id": "DATA-TYPE-FORMAT-001",
+      "desc": "数据类型格式规范"
+    },
+    {
+      "id": "ERROR-FORMAT-COMM-001",
+      "desc": "错误格式规范"
+    },
+    {
+      "id": "VALIDATION-RULES-001",
+      "desc": "数据验证规则规范"
+    },
+    {
+      "id": "VERSION-CONTROL-001",
+      "desc": "版本控制规范"
+    },
+    {
+      "id": "JSON-IMPLEMENTATION-001",
+      "desc": "JSON通信实现示例规范"
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "$schema": "./spec-head-schema.json",
+  "meta": {
+    "format_version": "2.0",
+    "self_desc": "PDF查看器模块规范头文件",
+    "version": "1.0",
+    "last_updated": "2025-09-21",
+    "maintainer": "AI-Assistant",
+    "spec_file_rule": "规范ID + .md = 文件名，必须读取文件内容获取详细信息"
+  },
+  "refs": [
+    {
+      "category": "global",
+      "basepath": "",
+      "specs": [
+        {
+          "id": "FRONTEND-EVENT-BUS-001",
+          "desc": "前端事件总线使用规范"
+        },
+        {
+          "id": "FRONTEND-EVENT-NAMING-001",
+          "desc": "前端事件命名规范"
+        },
+        {
+          "id": "JAVASCRIPT-CLASS-STRUCTURE-001",
+          "desc": "JavaScript类结构规范"
+        },
+        {
+          "id": "JAVASCRIPT-FUNCTION-DESIGN-001",
+          "desc": "JavaScript函数设计规范"
+        },
+        {
+          "id": "JAVASCRIPT-NAMING-CONVENTION-001",
+          "desc": "JavaScript命名规范"
+        }
+      ]
+    }
+  ],
+  "private_specs": [
+    {
+      "id": "PDF-VIEWER-STRUCTURE-001",
+      "desc": "PDF查看器模块结构规范"
+    },
+    {
+      "id": "PDF-VIEWER-EVENT-HANDLING-001",
+      "desc": "PDF查看器事件处理规范"
+    },
+    {
+      "id": "PDF-VIEWER-PDFJS-INTEGRATION-001",
+      "desc": "PDF.js集成规范"
+    },
+    {
+      "id": "PDF-VIEWER-QTWEBENGINE-ADAPTATION-001",
+      "desc": "QtWebEngine适配规范"
+    }
+  ]
+}

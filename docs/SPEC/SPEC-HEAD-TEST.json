@@ -1,0 +1,85 @@
+{
+  "$schema": "./spec-head-schema.json",
+  "meta": {
+    "format_version": "2.0",
+    "self_desc": "测试模块的规范头文件",
+    "version": "1.0",
+    "last_updated": "2025-09-21",
+    "maintainer": "AI-Assistant",
+    "spec_file_rule": "规范ID + .md = 文件名，必须读取文件内容获取详细信息"
+  },
+  "refs": [
+    {
+      "category": "external",
+      "basepath": "[project-root]/docs/SPEC",
+      "specs": [
+        {
+          "id": "TEST-PROCEDURE-PRIORITY-001",
+          "desc": "测试规范优先原则"
+        },
+        {
+          "id": "TEST-SAFETY-MINIMAL-IMPACT-001",
+          "desc": "测试最小影响原则"
+        },
+        {
+          "id": "TEST-VERIFICATION-RESULT-001",
+          "desc": "测试可验证原则"
+        },
+        {
+          "id": "TEST-PREPARATION-CHECKLIST-001",
+          "desc": "测试前检查清单"
+        },
+        {
+          "id": "TEST-EXECUTION-TYPES-001",
+          "desc": "测试类型规范"
+        },
+        {
+          "id": "TEST-EXECUTION-METHODS-001",
+          "desc": "测试方法规范"
+        },
+        {
+          "id": "TEST-OUTPUT-FORMAT-001",
+          "desc": "测试输出格式规范"
+        },
+        {
+          "id": "TEST-POST-PROCESSING-001",
+          "desc": "测试后处理规范"
+        }
+      ]
+    }
+  ],
+  "private_specs": [
+    {
+      "id": "FRONTEND-TEST-METHOD-HMR-001",
+      "desc": "前端热更新测试方法规范"
+    },
+    {
+      "id": "FRONTEND-TEST-ENVIRONMENT-001",
+      "desc": "前端测试环境规范"
+    },
+    {
+      "id": "FRONTEND-TEST-MODULE-INJECTION-001",
+      "desc": "前端测试模块注入规范"
+    },
+    {
+      "id": "FRONTEND-TEST-CONSOLE-LOGGING-001",
+      "desc": "前端控制台调试规范"
+    },
+    {
+      "id": "FRONTEND-TEST-FUNCTIONAL-001",
+      "desc": "前端功能测试规范"
+    },
+    {
+      "id": "FRONTEND-TEST-CLEANUP-001",
+      "desc": "前端测试清理规范"
+    },
+    {
+      "id": "FRONTEND-TEST-TOOLS-001",
+      "desc": "前端测试工具规范"
+    },
+    {
+      "id": "FRONTEND-TEST-DEBUGGING-001",
+      "desc": "前端调试指南规范"
+    }
+  ]
+}
