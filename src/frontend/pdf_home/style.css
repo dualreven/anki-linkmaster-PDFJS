@@ -1,0 +1,382 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background-color: #f5f5f5;
+    color: #333;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding: 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+h1 {
+    color: #2c3e50;
+    font-size: 28px;
+}
+
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.btn.primary {
+    background-color: #3498db;
+    color: white;
+}
+
+.btn.primary:hover {
+    background-color: #2980b9;
+}
+
+.btn.danger {
+    background-color: #e74c3c;
+    color: white;
+}
+
+.btn.danger:hover {
+    background-color: #c0392b;
+}
+
+/* PDF表格集成样式 */
+#pdf-table-container {
+    margin-top: 20px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.pdf-actions {
+    display: flex;
+    gap: 5px;
+    justify-content: center;
+    align-items: center;
+}
+
+.pdf-actions .btn {
+    padding: 4px 8px;
+    font-size: 12px;
+    border-radius: 3px;
+}
+
+.importance-high {
+    color: #e74c3c;
+    font-weight: bold;
+}
+
+.importance-medium {
+    color: #f39c12;
+    font-weight: bold;
+}
+
+.importance-low {
+    color: #27ae60;
+    font-weight: bold;
+}
+
+/* 确保PDF表格样式与现有主题兼容 */
+.pdf-table-container {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.pdf-table-container .btn {
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.pdf-table-container .btn-primary {
+    background-color: #3498db;
+    color: white;
+}
+
+.pdf-table-container .btn-primary:hover {
+    background-color: #2980b9;
+}
+
+.pdf-table-container .btn-danger {
+    background-color: #e74c3c;
+    color: white;
+}
+
+.pdf-table-container .btn-danger:hover {
+    background-color: #c0392b;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .pdf-table-container {
+        font-size: 12px;
+    }
+    
+    .pdf-actions {
+        flex-direction: column;
+        gap: 2px;
+    }
+    
+    .pdf-actions .btn {
+        padding: 2px 6px;
+        font-size: 11px;
+    }
+}
+
+.pdf-list {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+.pdf-item {
+    display: grid;
+    grid-template-columns: 50px 1fr 150px 100px 100px 100px 80px 80px 120px 120px;
+    align-items: center;
+    padding: 15px 20px;
+    border-bottom: 1px solid #eee;
+    transition: background-color 0.2s ease;
+}
+
+.pdf-item:hover {
+    background-color: #f8f9fa;
+}
+
+.pdf-item:last-child {
+    border-bottom: none;
+}
+
+.pdf-item.selected {
+    background-color: #e3f2fd;
+}
+
+.pdf-item-checkbox {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+/* 为 TableWrapper 注入的行级 checkbox 提供兼容样式，确保其在不同主题/Tabulator CSS 下可见 */
+.pdf-table-row-select {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    margin-right: 6px;
+    vertical-align: middle;
+    -webkit-appearance: checkbox;
+    appearance: checkbox;
+    /* 提高优先级，防止被 Tabulator 的样式覆盖为不可见 */
+    display: inline-block !important;
+    opacity: 1 !important;
+}
+
+.pdf-item-icon {
+    font-size: 24px;
+    color: #2196F3;
+}
+
+.pdf-item-title {
+    font-weight: 600;
+    color: #2c3e50;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pdf-item-size {
+    color: #666;
+    font-size: 14px;
+}
+
+.pdf-item-date {
+    color: #666;
+    font-size: 12px;
+}
+
+.pdf-item-importance {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.pdf-item-pages {
+    color: #666;
+    font-size: 14px;
+}
+
+.pdf-item-annotations {
+    color: #666;
+    font-size: 14px;
+}
+
+.pdf-item-cards {
+    color: #666;
+    font-size: 14px;
+}
+
+.pdf-item-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.pdf-list-header {
+    display: grid;
+    grid-template-columns: 50px 1fr 150px 100px 100px 100px 80px 80px 120px 120px;
+    align-items: center;
+    padding: 15px 20px;
+    background: #f8f9fa;
+    border-bottom: 2px solid #ddd;
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.list-header-select {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+
+.list-header-title {
+    text-align: left;
+}
+
+.list-header-size {
+    text-align: right;
+}
+
+.list-header-date {
+    text-align: center;
+}
+
+.list-header-importance {
+    text-align: center;
+}
+
+.list-header-pages {
+    text-align: right;
+}
+
+.list-header-annotations {
+    text-align: right;
+}
+
+.list-header-cards {
+    text-align: right;
+}
+
+.pdf-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.pdf-title {
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 8px;
+    color: #2c3e50;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pdf-path {
+    font-size: 12px;
+    color: #7f8c8d;
+    margin-bottom: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.btn-small {
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.empty-icon {
+    font-size: 48px;
+    margin-bottom: 20px;
+}
+
+.empty-state h3 {
+    color: #2c3e50;
+    margin-bottom: 10px;
+}
+
+.empty-state p {
+    color: #7f8c8d;
+}
+
+.loading {
+    text-align: center;
+    padding: 40px;
+    color: #7f8c8d;
+}
+
+.error {
+    background-color: #fee;
+    color: #c33;
+    padding: 10px;
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
+.error-message {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+    border-radius: 4px;
+    padding: 15px;
+    z-index: 1000;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    max-width: 400px;
+    display: none;
+}
+
+.success-message {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+    border-radius: 4px;
+    padding: 15px;
+    z-index: 1000;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    max-width: 400px;
+    display: none;
+}
