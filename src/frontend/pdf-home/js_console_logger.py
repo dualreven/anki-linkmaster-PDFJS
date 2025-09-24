@@ -65,7 +65,7 @@ class JSConsoleLogger:
         handler.setFormatter(formatter)
         self.js_logger.addHandler(handler)
 
-        # Prevent propagation to root logger
+        # Prevent propagation to root logger to avoid duplicate logs in pdf-home.log
         self.js_logger.propagate = False
 
     def start(self) -> bool:
