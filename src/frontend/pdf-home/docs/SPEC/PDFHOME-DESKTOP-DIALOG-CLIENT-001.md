@@ -10,7 +10,7 @@
 ## 1. 作用范围
 - 适用于 `pdf-home` 模块在桌面端 (PyQt) 运行时的 WebSocket 客户端实现。
 - 管理与标准 WebSocket 服务器 (`ws://localhost:<port>`) 的握手、能力声明以及文件选择代理流程。
-- 对应代码位置：`src/backend/app/pdf_home_dialog_client.py`（本次新增）。
+- 对应代码位置：`src/backend/app/pdf-home_dialog_client.py`（本次新增）。
 
 ## 2. 会话注册与握手
 1. 客户端启动后必须在 `WebSocket.connected` 事件中发送 `client_register_request`：

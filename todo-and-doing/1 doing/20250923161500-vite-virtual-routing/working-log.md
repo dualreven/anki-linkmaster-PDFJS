@@ -1,4 +1,4 @@
-# Vite虚拟路由系统工作日志
+﻿# Vite虚拟路由系统工作日志
 
 ## 项目基本信息
 - **功能ID**: 20250923161500-vite-virtual-routing
@@ -35,7 +35,7 @@
 **当前项目结构**:
 ```
 src/frontend/
-├── pdf_home/           # 实际目录(下划线)
+├── pdf-home/           # 实际目录(下划线)
 ├── pdf_viewer/         # 实际目录(下划线)
 ├── common/
 └── test_modules/
@@ -43,7 +43,7 @@ src/frontend/
 
 **期望URL访问**:
 ```
-localhost:3000/pdf-home/     → src/frontend/pdf_home/
+localhost:3000/pdf-home/     → src/frontend/pdf-home/
 localhost:3000/pdf-viewer/   → src/frontend/pdf_viewer/
 localhost:3000/common/       → src/frontend/common/
 ```
@@ -90,7 +90,7 @@ const urlToPath = (url) => {
 };
 
 // 示例转换
-'/pdf-home/' → '/pdf_home/'
+'/pdf-home/' → '/pdf-home/'
 '/test-modules/' → '/test_modules/'
 ```
 

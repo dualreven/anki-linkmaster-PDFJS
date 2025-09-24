@@ -1,4 +1,4 @@
-# Vite虚拟路由系统规格说明
+﻿# Vite虚拟路由系统规格说明
 
 **功能ID**: 20250923161500-vite-virtual-routing
 **优先级**: 高
@@ -8,7 +8,7 @@
 **状态**: 设计中
 
 ## 现状说明
-- 当前前端模块使用下划线命名：`src/frontend/pdf_home/`, `src/frontend/pdf_viewer/`
+- 当前前端模块使用下划线命名：`src/frontend/pdf-home/`, `src/frontend/pdf_viewer/`
 - Vite配置中的构建路径假设使用连字符：`src/frontend/pdf-home/index.html`
 - 实际访问需要直接指向具体的HTML文件，缺少统一的模块路由机制
 - URL访问不够标准化和用户友好
@@ -20,7 +20,7 @@
 - **扩展性差**: 新增模块需要手动配置路由规则
 
 ## 提出需求
-- **URL标准化**: 实现 `localhost:3000/pdf-home/` → `src/frontend/pdf_home/` 的自动映射
+- **URL标准化**: 实现 `localhost:3000/pdf-home/` → `src/frontend/pdf-home/` 的自动映射
 - **模块化路由**: 支持所有前端模块的统一访问方式
 - **Python兼容**: 保持目录下划线命名以支持Python导入
 - **自动发现**: 新增模块时自动支持路由，无需手动配置
@@ -33,12 +33,12 @@
 ### 技术方案
 1. **Vite中间件实现URL到路径的映射转换**
    - URL使用横杠：`/pdf-home/`, `/pdf-viewer/`
-   - 文件系统使用下划线：`pdf_home/`, `pdf_viewer/`
+   - 文件系统使用下划线：`pdf-home/`, `pdf_viewer/`
    - 通过中间件自动转换：横杠 → 下划线
 
 2. **映射规则**
    ```
-   URL: localhost:3000/pdf-home/     → 文件系统: src/frontend/pdf_home/
+   URL: localhost:3000/pdf-home/     → 文件系统: src/frontend/pdf-home/
    URL: localhost:3000/pdf-viewer/   → 文件系统: src/frontend/pdf_viewer/
    URL: localhost:3000/test-modules/ → 文件系统: src/frontend/test_modules/
    ```

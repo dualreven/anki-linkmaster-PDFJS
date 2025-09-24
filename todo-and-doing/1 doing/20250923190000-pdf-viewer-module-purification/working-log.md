@@ -1,4 +1,4 @@
-# PDF-Viewer模块纯化改造工作日志
+﻿# PDF-Viewer模块纯化改造工作日志
 
 ## 项目基本信息
 - **功能ID**: 20250923190000-pdf-viewer-module-purification
@@ -307,9 +307,9 @@ Container → Dependencies → Components → Lifecycle
 ## 相关资源
 
 ### 参考实现
-- PDF-Home模块的标准架构 (`src/frontend/pdf_home/`)
+- PDF-Home模块的标准架构 (`src/frontend/pdf-home/`)
 - 容器依赖注入模式 (`src/frontend/common/container/`)
-- QWebChannel桥接实现 (`src/frontend/pdf_home/qwebchannel-bridge.js`)
+- QWebChannel桥接实现 (`src/frontend/pdf-home/qwebchannel-bridge.js`)
 
 ### 设计文档
 - 统一通信架构需求 (`todo-and-doing/2 todo/20250923184000-unified-communication-architecture/`)

@@ -1,4 +1,4 @@
-# 统一通信架构重构工作日志
+﻿# 统一通信架构重构工作日志
 
 ## 项目基本信息
 - **功能ID**: 20250923184000-unified-communication-architecture
@@ -240,7 +240,7 @@ const scopeRules = {
 ### 项目文件
 - `src/backend/websocket/standard_server.py` - WebSocket服务器主实现
 - `src/frontend/common/event/event-bus.js` - 前端EventBus实现
-- `src/frontend/pdf_home/qwebchannel-bridge.js` - QWebChannel桥接器
+- `src/frontend/pdf-home/qwebchannel-bridge.js` - QWebChannel桥接器
 
 ## 项目里程碑
 

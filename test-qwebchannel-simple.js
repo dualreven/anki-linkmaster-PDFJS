@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 简单的QWebChannel集成测试
  */
 
@@ -35,7 +35,7 @@ async function runTests() {
 
   try {
     // 测试 PDFHomeQWebChannelManager
-    const { PDFHomeQWebChannelManager } = await import('./src/frontend/pdf_home/pdf-qwebchannel-manager.js');
+    const { PDFHomeQWebChannelManager } = await import('./src/frontend/pdf-home/pdf-qwebchannel-manager.js');
     const { EventBus } = await import('./src/frontend/common/event/event-bus.js');
 
     const eventBus = new EventBus();

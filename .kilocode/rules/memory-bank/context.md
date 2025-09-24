@@ -1,4 +1,10 @@
-﻿# 分支合并任务：准备
+﻿# 分支合并进展
+
+- 已尝试批量合并；大多数功能分支已在 main（或 fast-forward 无变更）。
+- 未合并分支（因冲突/架构差异）：feat/ai-launcher-pdf-auto-load, feature/eventbus-message-tracing, feature/pdf-home-add-pdf-button, feature/pdfhome-session-manager, temp/modify-ws-server-pyqt-20250920, temp/refactor-pdf-viewer-logging-20250921。
+- 主要冲突：目录命名（pdf-home vs pdf_home）、AI Launcher 子系统新增、后端大改、前端 dist 与源码路径重命名。
+- 建议：以 main 的目录结构为基线，改用 cherry-pick 挑拣功能提交；temp/* 分支待确认是否需要合并。
+# 分支合并任务：准备
 
 - 目标：将所有功能分支合并入主分支（main/master）
 - 步骤：列出分支 → 切换主分支 → 顺序合并 → 验证 → 记录
@@ -858,10 +864,10 @@ ai-launcher.py 启动后 命令行的键盘输入变得不正常, 无法输入�
 - ✅ 代码结构清晰，符合模块化要求
 
 **相关文件**：
-- `src/frontend/pdf_home/pdf-qwebchannel-manager.js`：新建的 QWebChannel 管理器
-- `src/frontend/pdf_home/index.js`：主应用文件，更新了管理器引用
-- `src/frontend/pdf_home/ui-manager.js`：UI管理器，直接调用 bridge 方法
-- `src/backend/app/pdf_home_bridge.py`：后端 QWebChannel 桥接（已存在）
+- `src/frontend/pdf-home/pdf-qwebchannel-manager.js`：新建的 QWebChannel 管理器
+- `src/frontend/pdf-home/index.js`：主应用文件，更新了管理器引用
+- `src/frontend/pdf-home/ui-manager.js`：UI管理器，直接调用 bridge 方法
+- `src/backend/app/pdf-home_bridge.py`：后端 QWebChannel 桥接（已存在）
 
 **下一步建议**：
 1. 实际运行并测试各项功能
@@ -925,11 +931,12 @@ ai-launcher.py 启动后 命令行的键盘输入变得不正常, 无法输入�
 ### 更新于 2025-09-24 02:21:12
 - 任务：为 pdf-home/launcher.py 增加端口获取（命令行与 logs/runtime-ports.json）
 - 背景：当前仅支持从日志解析 Vite 端口与 runtime-ports 中 ws/pdf，缺少统一 CLI 与 JSON 双通道配置。
-- 相关文件：src/frontend/pdf_home/launcher.py, logs/runtime-ports.json
+- 相关文件：src/frontend/pdf-home/launcher.py, logs/runtime-ports.json
 - 步骤：1) 添加 argparse；2) 读取 JSON；3) 解析优先级：CLI > JSON > 现有日志推断/默认；4) 记录到日志。
 - 成果：launcher.py 支持命令行与 JSON 双通道端口解析，便于集成与调试。
 
 - 更新：pdf-home 内部新增 container/app-container.js，去除对 ../common 的依赖；index.js 改为本地容器导入；数据交互全部走 WebSocket。
+
 
 
 

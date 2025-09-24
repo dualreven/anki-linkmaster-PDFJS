@@ -1,10 +1,10 @@
-# 工作日志 - 20250922194500-qwebchannel-refactor
+﻿# 工作日志 - 20250922194500-qwebchannel-refactor
 
 日期: 2025-09-22
 
 内容摘要:
 - 后端：为 pdf-home 模块集成 QWebChannel
-  - 新增 `src/backend/app/pdf_home_bridge.py`，提供 `selectPdfFiles`, `getPdfList`, `removePdf`, `openPdfViewer`，并通过 `pdfListUpdated` 信号通知前端
+  - 新增 `src/backend/app/pdf-home_bridge.py`，提供 `selectPdfFiles`, `getPdfList`, `removePdf`, `openPdfViewer`，并通过 `pdfListUpdated` 信号通知前端
   - 在 `AnkiLinkMasterApp._run_pdf_home_client` 中创建 `PDFManager`，初始化 `QWebChannel`，注册 `pdfHomeBridge`
   - 兼容导入：在 `src/backend/qt/compat.py` 中增加 `QWebChannel` 导出
   - 为 `PDFHomeDialogClient` 增加 `send_json()` 以便桥接层复用其 WebSocket 发送打开查看器请求
@@ -42,7 +42,7 @@
 
 - 代码要点
   - `src/backend/app/application.py`：pdf-home 模式自动解析 Vite 端口；初始化 `QWebChannel` 并注册 `pdfHomeBridge`。
-  - `src/backend/app/pdf_home_bridge.py`：
+  - `src/backend/app/pdf-home_bridge.py`：
     - 保留 `selectPdfFiles()`（PyQt 文件对话框，便于本地交互）、
       增加 `addPdfFromBase64()` 与 `addPdfBatchFromBase64()`（备用的前端直传能力）。
     - 实际数据面仍建议走 WS：前端发送 `file_selection_request`，后端通过 `PDFHomeDialogClient` 代理文件选择与入库，并广播列表更新。
