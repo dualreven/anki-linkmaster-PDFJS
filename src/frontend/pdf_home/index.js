@@ -1,5 +1,5 @@
 /**
- * @file 应用主入口，负责模块的初始化、协调和生命周期管理。
+ * @file 搴旂敤涓诲叆鍙ｏ紝璐熻矗妯″潡鐨勫垵濮嬪寲銆佸崗璋冨拰鐢熷懡鍛ㄦ湡绠＄悊銆?
  * @module PDFHomeApp
  */
 
@@ -18,7 +18,7 @@ import { initPdfHomeChannel } from './qwebchannel-bridge.js';
 
 /**
  * @class PDFHomeApp
- * @description 应用的核心协调器，管理所有模块的生命周期。
+ * @description 搴旂敤鐨勬牳蹇冨崗璋冨櫒锛岀鐞嗘墍鏈夋ā鍧楃殑鐢熷懡鍛ㄦ湡銆?
  */
 class PDFHomeApp {
   #logger;
@@ -31,31 +31,28 @@ class PDFHomeApp {
   #wsPort = DEFAULT_WS_PORT;
   #initialized = false;
   #coreGuard = null;
-  #pdfHomeBridge = null;
-  #qwebChannelCleanup = [];
-  #qwebChannelReady = false;
-  #appContainer; // 应用容器
+  #appContainer; // 搴旂敤瀹瑰櫒
 
   constructor(deps = {}) {
-    // 如果传入了容器，使用它；否则创建新容器
+    // 濡傛灉浼犲叆浜嗗鍣紝浣跨敤瀹冿紱鍚﹀垯鍒涘缓鏂板鍣?
     if (deps.container) {
       this.#appContainer = deps.container;
     } else {
-      // 创建应用容器，解决循环依赖
+      // 鍒涘缓搴旂敤瀹瑰櫒锛岃В鍐冲惊鐜緷璧?
       this.#appContainer = createPDFHomeContainer({
         wsUrl: deps.wsUrl || `ws://localhost:${DEFAULT_WS_PORT}`,
         enableValidation: deps.enableValidation !== false
       });
     }
 
-    // 从容器获取依赖
+    // 浠庡鍣ㄨ幏鍙栦緷璧?
     const { logger, eventBus, wsClient } = this.#appContainer.getDependencies();
     this.#logger = logger;
     this.#eventBus = eventBus;
     this.#websocketManager = wsClient;
     this.#coreGuard = deps.core?.guard || null;
 
-    // 创建其他组件
+    // 鍒涘缓鍏朵粬缁勪欢
     this.#errorHandler = new ErrorHandler(this.#eventBus);
     this.#pdfManager = new PDFManager(this.#eventBus);
     this.#uiManager = new UIManager(this.#eventBus);
@@ -89,7 +86,7 @@ class PDFHomeApp {
   }
 
   /**
-   * 初始化所有应用模块。
+   * 鍒濆鍖栨墍鏈夊簲鐢ㄦā鍧椼€?
    */
   async initialize() {
     console.log("[DEBUG] PDFHomeApp.initialize() called");
@@ -105,8 +102,8 @@ class PDFHomeApp {
       if (tableContainer) {
           this.tableWrapper = new TableWrapper(tableContainer, {
           columns: [
-            // 注意：当前未启用 Tabulator 的 SelectRow 模块，上述 formatter 会在部分打包环境下无效并报错。
-            // 暂时移除 rowSelection 列，避免初始化告警，如需多选，请改用 table-wrapper.js 中的回退checkbox方案。
+            // 娉ㄦ剰锛氬綋鍓嶆湭鍚敤 Tabulator 鐨?SelectRow 妯″潡锛屼笂杩?formatter 浼氬湪閮ㄥ垎鎵撳寘褰㈡€佷笅鏃犳晥骞舵姤閿欍€?
+            // 鏆傛椂绉婚櫎 rowSelection 鍒楋紝閬垮厤鍒濆鍖栧憡璀︼紱濡傞渶澶氶€夛紝璇锋敼鐢?table-wrapper.js 涓殑鍥為€€checkbox鏂规銆?
             // {
             //   formatter: "rowSelection",
             //   titleFormatter: "rowSelection",
@@ -144,36 +141,36 @@ class PDFHomeApp {
           },
         });
 
-        // ==================== 诊断代码开始====================
+        // ==================== 璇婃柇浠ｇ爜寮€濮?====================
 
-        // 1. 检查 TableWrapper 内部的 Tabulator 实例是否存在
+        // 1. 妫€鏌?TableWrapper 鍐呴儴鐨?Tabulator 瀹炰緥鏄惁瀛樺湪
         if (this.tableWrapper && this.tableWrapper.tabulator) {
 
-          // 2. 直接在原生 Tabulator 实例上绑定事件，跳过我们自己的 .on() 封装
+          // 2. 鐩存帴鍦ㄥ師濮?Tabulator 瀹炰緥涓婄粦瀹氫簨浠讹紝缁曡繃鎴戜滑鑷繁鐨?.on() 灏佽
           this.tableWrapper.tabulator.on("rowSelectionChanged", (data, rows) => {
-            this.#logger.debug("底层 Tabulator rowSelectionChanged 事件触发", data);
+            this.#logger.debug("搴曞眰 Tabulator rowSelectionChanged 浜嬩欢瑙﹀彂", data);
           });
 
           this.tableWrapper.tabulator.on("cellClick", (e, cell) => {
-            this.#logger.debug("底层 Tabulator cellClick 事件触发", { value: cell.getValue() });
+            this.#logger.debug("搴曞眰 Tabulator cellClick 浜嬩欢瑙﹀彂", { value: cell.getValue() });
           });
 
-          this.#logger.info("诊断: 已直接在底层 Tabulator 实例上绑定'rowSelectionChanged'和'cellClick'事件。");
+          this.#logger.info("璇婃柇: 宸茬洿鎺ュ湪搴曞眰 Tabulator 瀹炰緥涓婄粦瀹?'rowSelectionChanged' 鍜?'cellClick' 浜嬩欢銆?);
 
         } else {
-          this.#logger.error("诊断失败: 无法访问 this.tableWrapper.tabulator!这说明 TableWrapper 初始化可能丢失了。");
+          this.#logger.error("璇婃柇澶辫触: 鏃犳硶璁块棶鍒?this.tableWrapper.tabulator锛佽繖璇存槑 TableWrapper 鍒濆鍖栧彲鑳藉け璐ヤ簡銆?);
         }
 
-        // ==================== 诊断代码结束 ====================
+        // ==================== 璇婃柇浠ｇ爜缁撴潫 ====================
 
 
-        // 确保 Tabulator 完全初始化后再绑定事件
+        // 纭繚 Tabulator 瀹屽叏鍒濆鍖栧悗鍐嶇粦瀹氫簨浠?
         setTimeout(() => {
           if (this.tableWrapper && this.tableWrapper.tabulator) {
 
-            // 绑定选择变化事件
+            // 缁戝畾閫夋嫨鍙樺寲浜嬩欢
             this.tableWrapper.tabulator.on("rowSelectionChanged", (selectedRows) => {
-              this.#logger.debug("行选择发生变化", selectedRows);
+              this.#logger.debug("琛岄€夋嫨鍙戠敓鍙樺寲", selectedRows);
               try {
                 const selectedIds = selectedRows.map(row => row.getData ? row.getData().id || row.getData().filename : row.id || row.filename);
                 this.#eventBus.emit(UI_EVENTS.SELECTION.CHANGED, selectedIds, { actorId: 'PDFHomeApp' });
@@ -187,25 +184,25 @@ class PDFHomeApp {
               }
             });
 
-            // 绑定行点击事件（用于切换选择状态）
-            // 注意：当前未启用 Tabulator 的 SelectRow 模块，row 对象不一定包含 isSelected/select/deselect
-            // 为避免报错，暂时只打印行数据，不做选择切换；后续如需选择功能，可引入 SelectRow 模块或使用我们在 table-wrapper 的回退checkbox方案。
+            // 缁戝畾琛岀偣鍑讳簨浠讹紙鐢ㄤ簬鍒囨崲閫夋嫨鐘舵€侊級
+            // 娉ㄦ剰锛氬綋鍓嶆湭鍚敤 Tabulator 鐨?SelectRow 妯″潡锛宺ow 瀵硅薄涓嶄竴瀹氬惈 isSelected/select/deselect
+            // 涓洪伩鍏嶆姤閿欙紝鏆傛椂浠呮墦鍗拌鏁版嵁锛屼笉鍋氶€夋嫨鍒囨崲锛涘悗缁闇€閫夋嫨鍔熻兘锛屽彲寮曞叆 SelectRow 妯″潡鎴栦娇鐢ㄦ垜浠湪 table-wrapper 鐨勫洖閫€checkbox鏂规銆?
             this.tableWrapper.tabulator.on("rowClick", (e, row) => {
               try {
                 const data = row && typeof row.getData === 'function' ? row.getData() : null;
-                this.#logger.debug("行被点击", data);
+                this.#logger.debug("琛岃鐐瑰嚮", data);
               } catch (err) {
                 this.#logger.warn("rowClick handler error", err);
               }
             });
 
-            // 绑定单元格点击事件（用于操作按钮）
+            // 缁戝畾鍗曞厓鏍肩偣鍑讳簨浠讹紙鐢ㄤ簬鎿嶄綔鎸夐挳锛?
             this.tableWrapper.tabulator.on("cellClick", (e, cell) => {
               const cellElement = cell.getElement();
               const button = e.target.closest('button[data-action]');
 
               if (button) {
-                // 只阻止按钮点击的事件传播，但保留双击事件处理
+                // 鍙樆姝㈡寜閽偣鍑荤殑浜嬩欢浼犳挱锛屼絾淇濈暀鍙屽嚮浜嬩欢澶勭悊
                 e.stopPropagation();
                 e.preventDefault();
                 const action = button.getAttribute('data-action');
@@ -216,7 +213,7 @@ class PDFHomeApp {
                     actorId: 'PDFHomeApp'
                   });
                 } else if (action === 'delete') {
-                  if (confirm('确定要删除这个PDF文件吗？')) {
+                  if (confirm('纭畾瑕佸垹闄よ繖涓狿DF鏂囦欢鍚楋紵')) {
                     this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.REMOVE.REQUESTED, rowData.id || rowData.filename, {
                       actorId: 'PDFHomeApp'
                     });
@@ -225,15 +222,15 @@ class PDFHomeApp {
               }
             });
 
-            // 双击事件绑定已在Tabulator配置中完成，无需重复绑定
-            // (移除重复的rowDblClick绑定以避免双击重复触发)
+            // 鍙屽嚮浜嬩欢缁戝畾宸插湪Tabulator閰嶇疆涓畬鎴愶紝鏃犻渶閲嶅缁戝畾
+            // (绉婚櫎閲嶅鐨剅owDblClick缁戝畾浠ラ伩鍏嶅弻閲嶈Е鍙?
 
-            // 移除DOM级别双击事件处理器，避免重复触发
-            // 只使用Tabulator内置的rowDblClick配置处理双击事件
+            // 绉婚櫎DOM绾у埆鍙屽嚮浜嬩欢澶勭悊鍣紝閬垮厤閲嶅瑙﹀彂
+            // 鍙娇鐢═abulator鍐呯疆鐨剅owDblClick閰嶇疆澶勭悊鍙屽嚮浜嬩欢
 
-            this.#logger.info("Tabulator 事件绑定完成（包含双击修复）");
+            this.#logger.info("Tabulator 浜嬩欢缁戝畾瀹屾垚锛堝寘鍚弻鍑讳慨澶嶏級");
           }
-        }, 100); // 给 Tabulator 一些时间完成初始化
+        }, 100); // 缁?Tabulator 涓€浜涙椂闂村畬鎴愬垵濮嬪寲
 
         // Subscribe to pdf list updates from event bus
         this.#eventBus.on(PDF_MANAGEMENT_EVENTS.LIST.UPDATED, (pdfs) => {
@@ -257,20 +254,20 @@ class PDFHomeApp {
         this.#logger.warn('Table container #pdf-table-container not found; skipping TableWrapper init');
       }
 
-      // 初始化应用容器，建立依赖关系
+      // 鍒濆鍖栧簲鐢ㄥ鍣紝寤虹珛渚濊禆鍏崇郴
       if (!this.#appContainer.isInitialized()) {
         await this.#appContainer.initialize();
 
-        // 从容器获取更新后的依赖（如果容器内部创建了新的WebSocket客户端）
+        // 浠庡鍣ㄨ幏鍙栨洿鏂板悗鐨勪緷璧栵紙濡傛灉瀹瑰櫒鍐呴儴鍒涘缓浜嗘柊鐨刉ebSocket瀹㈡埛绔級
         const { logger, eventBus, wsClient } = this.#appContainer.getDependencies();
         this.#logger = logger;
         this.#eventBus = eventBus;
         this.#websocketManager = wsClient;
       }
 
-      // 设置全局WebSocket客户端供Logger使用
+      // 璁剧疆鍏ㄥ眬WebSocket瀹㈡埛绔緵Logger浣跨敤
       setGlobalWebSocketClient(this.#websocketManager);
-      // 在连接前注册"连接建立"监听，避免竞争丢失事件?
+      // 鍦ㄨ繛鎺ュ墠娉ㄥ唽"杩炴帴寤虹珛"鐩戝惉锛岄伩鍏嶇珵鎬佷涪澶变簨浠?
       this.#eventBus.on('websocket:connection:established', () => {
         this.#logger.info("WebSocket connected, enabling console bridge");
         try { window.__earlyConsoleBridge?.disable?.(); } catch(_) {}
@@ -280,7 +277,7 @@ class PDFHomeApp {
       if (!this.#websocketManager.isConnected()) {
         await this.#websocketManager.connect();
       }
-      // 外部注入路径：直接使用已注入的 WS/Logger/EventBus
+      // 澶栭儴娉ㄥ叆璺緞锛氱洿鎺ヤ娇鐢ㄥ凡娉ㄥ叆鐨?WS/Logger/EventBus
       await this.#pdfManager.initialize();
       await this.#uiManager.initialize();
       await this.#setupQWebChannelIntegration(); // UIManager now has its own initialization logic
@@ -289,12 +286,12 @@ class PDFHomeApp {
       this.#logger.info("PDF Home App initialized successfully.");
       this.#eventBus.emit(APP_EVENTS.INITIALIZATION.COMPLETED, undefined, { actorId: 'PDFHomeApp' });
 
-      // ====== 自检模式入口（方案A）=====
+      // ====== 鑷妯″紡鍏ュ彛锛堟柟妗圓锛?=====
       try {
-        // 暴露自动化测试钩子
+        // 鏆撮湶鑷姩鍖栨祴璇曢挬瀛?
         const autoTest = {
           lastResult: null,
-          // 触发一次自动化双击测试
+          // 瑙﹀彂涓€娆¤嚜鍔ㄥ寲鍙屽嚮娴嬭瘯
           run: async () => {
             const result = {
               startedAt: new Date().toISOString(),
@@ -304,7 +301,7 @@ class PDFHomeApp {
               notes: []
             };
 
-            // 1) 捕获 window 错误和 console.error
+            // 1) 鎹曡幏 window 閿欒涓?console.error
             const errorHandler = (e) => {
               try {
                 const msg = e?.message || e?.toString?.() || String(e);
@@ -319,7 +316,7 @@ class PDFHomeApp {
 
             window.addEventListener('error', errorHandler);
 
-            // 2) 监听 OPEN.REQUESTED 事件是否触发
+            // 2) 鐩戝惉 OPEN.REQUESTED 浜嬩欢鏄惁瑙﹀彂
             const unsubscribeOpen = this.#eventBus.on(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, (payload) => {
               try {
                 result.openRequestedFired = true;
@@ -327,7 +324,7 @@ class PDFHomeApp {
               } catch (_) {}
             }, { subscriberId: 'AutoTest' });
 
-            // 3) 等待 Tabulator DOM 渲染
+            // 3) 绛夊緟 Tabulator DOM 娓叉煋
             const waitForTableDom = async (timeoutMs = 5000) => {
               const start = Date.now();
               while (Date.now() - start < timeoutMs) {
@@ -343,7 +340,7 @@ class PDFHomeApp {
               throw new Error('Tabulator DOM not ready within timeout');
             };
 
-            // 4) 如果没有数据则注入一条 mock 数据
+            // 4) 鑻ユ病鏈夋暟鎹垯娉ㄥ叆涓€鏉?mock 鏁版嵁
             const ensureData = async () => {
               try {
                 const dataLen = (() => {
@@ -363,12 +360,12 @@ class PDFHomeApp {
               }
             };
 
-            // 5) 触发第一行的双击事件
+            // 5) 瑙﹀彂绗竴琛岀殑鍙屽嚮浜嬩欢
             const dispatchDblClick = async () => {
               try {
                 const wrapper = this.tableWrapper?.tableWrapper || document.querySelector('#pdf-table-container .pdf-table-wrapper');
                 if (!wrapper) throw new Error('table wrapper not found');
-                // 兼容 Tabulator 不同结构，尝试多种选择器
+                // 鍏煎 Tabulator 涓嶅悓缁撴瀯锛屽皾璇曞绉嶉€夋嫨鍣?
                 const rowEl = wrapper.querySelector('.tabulator-row') || wrapper.querySelector('.tabulator-tableHolder .tabulator-table .tabulator-row');
                 if (!rowEl) throw new Error('no tabulator row found to double click');
                 const evt = new MouseEvent('dblclick', { bubbles: true, cancelable: true, view: window });
@@ -379,28 +376,28 @@ class PDFHomeApp {
               }
             };
 
-            // 执行流程
+            // 鎵ц娴佺▼
             try {
               await waitForTableDom(6000);
               await ensureData();
-              await new Promise(r => setTimeout(r, 100)); // 给覆写留一点时间
+              await new Promise(r => setTimeout(r, 100)); // 缁欐覆鏌撶暀涓€鐐规椂闂?
               await dispatchDblClick();
-              await new Promise(r => setTimeout(r, 200)); // 等待事件主线处理
+              await new Promise(r => setTimeout(r, 200)); // 绛夊緟浜嬩欢鎬荤嚎澶勭悊
             } catch (e) {
               result.errors.push({ source: 'autoTestFlow', message: e?.message || String(e) });
             }
 
-            // 清理监听
+            // 娓呯悊鐩戝惉
             try { window.removeEventListener('error', errorHandler); } catch(_) {}
             try { console.error = origConsoleError; } catch(_) {}
             try { if (typeof unsubscribeOpen === 'function') unsubscribeOpen(); } catch(_) {}
 
-            // 6) 判定成功条件：无 isSelected 错误，且 OPEN.REQUESTED 触发
+            // 6) 鍒ゅ畾鎴愬姛鏉′欢锛氭棤 isSelected 閿欒锛屼笖 OPEN.REQUESTED 瑙﹀彂
             const hasIsSelectedError = result.errors.some(er => /isSelected/.test(er.message || ''));
             result.success = !hasIsSelectedError && result.openRequestedFired;
             result.finishedAt = new Date().toISOString();
 
-            // 对外暴露结果并打印
+            // 瀵瑰鏆撮湶缁撴灉骞舵墦鍗?
             autoTest.lastResult = result;
             window.__lastAutoTestResult = result;
             if (result.success) {
@@ -412,10 +409,10 @@ class PDFHomeApp {
           }
         };
 
-        // 暴露到 window
+        // 鏆撮湶鍒?window
         window.__pdfHomeAutoTest = autoTest;
 
-        // 如果检测到环境变量（通过 window 注入的广播机制）则自动执行
+        // 鑻ユ娴嬪埌鐜鍙橀噺锛堥€氳繃 window 娉ㄥ叆鐨勫竷灏斿€硷級鍒欒嚜鍔ㄦ墽琛?
         if (window.PDF_HOME_AUTO_TEST === true || window.PDF_HOME_AUTO_TEST === '1') {
           setTimeout(() => {
             try { autoTest.run(); } catch (e) { this.#logger.warn('AutoTest run failed to start', e); }
@@ -424,7 +421,7 @@ class PDFHomeApp {
       } catch (e) {
         this.#logger.warn('AutoTest hook init failed', e);
       }
-      // ====== 自检模式入口结束 ======
+      // ====== 鑷妯″紡鍏ュ彛缁撴潫 ======
     } catch (error) {
       this.#logger.error("Application initialization failed.", error);
       this.#errorHandler.handleError(error, "App.initialize");
@@ -432,7 +429,7 @@ class PDFHomeApp {
   }
 
   /**
-   * 销毁应用，清理所有资源。
+   * 閿€姣佸簲鐢紝娓呯悊鎵€鏈夎祫婧愩€?
    */
   destroy() {
     this.#logger.info("Destroying PDF Home App...");
@@ -457,8 +454,8 @@ class PDFHomeApp {
   }
 
   /**
-   * 获取应用的公开状态快照。
-   * @returns {object} 应用的当前状态。
+   * 鑾峰彇搴旂敤鐨勫叕寮€鐘舵€佸揩鐓с€?
+   * @returns {object} 搴旂敤鐨勫綋鍓嶇姸鎬併€?
    */
   getState() {
     return {
@@ -478,7 +475,7 @@ class PDFHomeApp {
     return this.#logger;
   }
 
-  // 依赖注入：在实例化后注入核心组件（WS -> Logger -> EventBus）
+  // 渚濊禆娉ㄥ叆锛氬湪瀹炰緥鍖栧悗娉ㄥ叆鏍稿績缁勪欢锛圵S 鈫?Logger 鈫?EventBus锛?
   injectCore(deps = {}) {
     const { wsClient, logger, eventBus, core } = deps;
     if (!wsClient || !logger || !eventBus) {
@@ -486,43 +483,43 @@ class PDFHomeApp {
     }
     this.#websocketManager = wsClient;
     this.#logger = logger;
-    // 如果已存在旧实例，先清理以避免重复订阅/暴露
+    // 鑻ュ凡瀛樺湪鏃у疄渚嬶紝鍏堟竻鐞嗕互閬垮厤閲嶅璁㈤槄/娉勯湶
     try { this.#uiManager?.destroy?.(); } catch(_) {}
     try { this.#pdfManager?.destroy?.(); } catch(_) {}
     try { this.#errorHandler = null; } catch(_) {}
-    // 使用新事件主线重建依赖模块
+    // 浣跨敤鏂颁簨浠舵€荤嚎閲嶅缓渚濊禆妯″潡
     this.#eventBus = eventBus;
     this.#errorHandler = new ErrorHandler(this.#eventBus);
     this.#pdfManager = new PDFManager(this.#eventBus);
     this.#uiManager = new UIManager(this.#eventBus);
     this.#coreGuard = core && typeof core.guard === 'function' ? core.guard : null;
-    // 绑定 console 桥接依赖的 WS
-    // （bridge 已在构造中创建，此处无需重建）
+    // 缁戝畾 console 妗ユ帴渚濊禆鐨?WS
+    // 锛坆ridge 宸插湪鏋勯€犱腑鍒涘缓锛屾澶勬棤闇€閲嶅缓锛?
   }
   async #setupQWebChannelIntegration() { try { this.#logger.info('QWebChannel integration disabled for list; using WebSocket.'); } catch (_) {} }
 }
 
-// ===== 应用启动 =====
+// ===== 搴旂敤鍚姩 =====
 console.log("[DEBUG] Script loaded, waiting for DOMContentLoaded...");
 
 document.addEventListener("DOMContentLoaded", async () => {
   console.log("[DEBUG] DOMContentLoaded: bootstrap PDF Home App...");
 
   try {
-    // 1) 解析WebSocket端口
+    // 1) 瑙ｆ瀽WebSocket绔彛
     const wsPort = resolveWebSocketPortSync({ fallbackPort: DEFAULT_WS_PORT });
     const wsUrl = `ws://localhost:${wsPort}`;
 
-    // 2) 提前启用一个早期"console桥接器"
+    // 2) 鎻愬墠鍚敤涓€涓?鏃╂湡"console妗ユ帴鍣?
     try {
       const earlyBridge = createConsoleWebSocketBridge('pdf-home', (message) => {
-        // 在应用初始化前，暂不发送 console log
+        // 鍦ㄥ簲鐢ㄥ垵濮嬪寲鍓嶏紝鏆備笉鍙戦€乧onsole log
       });
       earlyBridge.enable();
       try { window.__earlyConsoleBridge = earlyBridge; } catch(_) {}
     } catch (_) {}
 
-    // 3) 创建应用实例（会自动创建容器）
+    // 3) 鍒涘缓搴旂敤瀹炰緥锛堜細鑷姩鍒涘缓瀹瑰櫒锛?
     const app = new PDFHomeApp({ wsUrl });
 
     console.log("[DEBUG] Starting app initialization...");
@@ -535,14 +532,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       _internal: app
     };
 
-    // 使用getLogger创建临时logger来记录启动成功
+    // 浣跨敤getLogger鍒涘缓涓存椂logger鏉ヨ褰曞惎鍔ㄦ垚鍔?
     const logger = getLogger('pdf-home/app');
     logger.info("PDF Home App started. Use window.app.getState() for status.");
     console.log("[DEBUG] PDF Home App fully started");
   } catch (error) {
     console.error("[DEBUG] App bootstrap/initialization failed:", error);
     try {
-      // 尝试创建一个临时logger来记录错误
+      // 灏濊瘯鍒涘缓涓€涓复鏃秎ogger鏉ヨ褰曢敊璇?
       const tempLogger = getLogger('pdf-home/bootstrap');
       tempLogger.error('Bootstrap failed', error);
     } catch (_) {}
@@ -550,7 +547,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 console.log("[DEBUG] Event listener registered for DOMContentLoaded");
-
 
 
 

@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import List, Optional
 import logging
 
-from src.backend.qt.compat import QObject, pyqtSignal, pyqtSlot, QFileDialog
+from src.backend.qt.compat import QObject, pyqtSignal, pyqtSlot
 import base64
 import tempfile
 import os
@@ -39,23 +39,6 @@ class PdfHomeBridge(QObject):
     # Methods now use WebSocket communication with backend
 
     # -------------------- API methods --------------------
-    @pyqtSlot(result=list)
-    def selectPdfFiles(self) -> List[str]:
-        """Open a native file dialog to select PDF files."""
-        try:
-            # The parent argument is set to None to make the dialog application-modal.
-            files, _ = QFileDialog.getOpenFileNames(
-                None,
-                "选择 PDF 文件",
-                os.path.expanduser("~"),
-                "PDF Files (*.pdf)"
-            )
-            logger.info("Selected %d files via QFileDialog", len(files))
-            return files
-        except Exception as exc:
-            logger.exception("selectPdfFiles failed: %s", exc)
-            return []
-
     @pyqtSlot(result=list)
     def getPdfList(self) -> List[dict]:
         """Return current PDF list as a list of dicts."""

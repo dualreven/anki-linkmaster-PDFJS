@@ -23,8 +23,9 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.backend.qt.compat import QApplication, QUrl, QWebChannel, QWebSocket
-from src.frontend.common.pyqtui.main_window import MainWindow
+from src.backend.qt.compat import QApplication, QUrl, QWebChannel
+from src.frontend.pyqtui.main_window import MainWindow
+from src.backend.app.pdf_home_dialog_client import PDFHomeDialogClient
 from src.frontend.pdf_home.pdf_home_bridge import PdfHomeBridge
 # Simplified get_vite_port function for standalone launcher
 
@@ -120,14 +121,14 @@ def main() -> int:
         vite_port = 3000
     logger.info("Resolved ports: vite=%s ws=%s pdf=%s", vite_port, ws_port, pdf_port)
 
-    # Simple WebSocket client for the bridge to send messages to the backend
-    ws_client = QWebSocket()
-    ws_client.open(QUrl(f"ws://127.0.0.1:{ws_port}"))
+    # Desktop dialog client (for file selection proxy)
+    dialog_client = PDFHomeDialogClient('127.0.0.1', ws_port, window)
+    dialog_client.start()
 
-    # QWebChannel bridge for local JS-Python interaction
+    # QWebChannel bridge for local JS-Python interaction (non-data-plane)
     try:
         channel = QWebChannel(window)
-        bridge = PdfHomeBridge(ws_client, window)
+        bridge = PdfHomeBridge(dialog_client, window)
         channel.registerObject('pdfHomeBridge', bridge)
         if window.web_page:
             window.web_page.setWebChannel(channel)
@@ -136,14 +137,13 @@ def main() -> int:
         logger.warning("Failed to initialize QWebChannel bridge: %s", exc)
 
     # Load front-end page
-    url = f"http://localhost:{vite_port}/pdf_home/index.html?ws={ws_port}&pdfs={pdf_port}"
+    url = f"http://localhost:{vite_port}/pdf-home/?ws={ws_port}&pdfs={pdf_port}"
     logger.info("Loading front-end: %s", url)
     window.load_frontend(url)
     window.show()
 
     rc = app.exec()
     logger.info("pdf-home window exited with code %s", rc)
-    ws_client.close()
     return int(rc)
 
 
