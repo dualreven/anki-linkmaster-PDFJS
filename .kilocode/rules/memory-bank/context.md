@@ -1,4 +1,10 @@
-﻿# 修复实施记录
+﻿# 验证结果：无 JS 错误
+
+- 已重启 pdf-home 并解析 logs/pdf-home-js.log：未检出 [ERROR] 段落
+- 实施的容器 API 对齐（initialize/isInitialized/getDependencies）生效，启动流程顺畅
+
+---
+# 修复实施记录
 
 - 已在 app-container.js 实现 getDependencies() 并导出到返回对象，内部调用 ensureInfra()
 - 已添加验证脚本：AItemp/test-verify-app-container.ps1（UTF-8）
@@ -918,6 +924,7 @@ ai-launcher.py 启动后 命令行的键盘输入变得不正常, 无法输入�
 - 成果：launcher.py 支持命令行与 JSON 双通道端口解析，便于集成与调试。
 
 - 更新：pdf-home 内部新增 container/app-container.js，去除对 ../common 的依赖；index.js 改为本地容器导入；数据交互全部走 WebSocket。
+
 
 
 

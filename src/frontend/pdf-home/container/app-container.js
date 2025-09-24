@@ -11,6 +11,7 @@ export function createPDFHomeContainer({ root, wsUrl, logger } = {}) {
     root: resolveRoot(root),
     wsUrl: wsUrl || buildWsUrlFromQuery(),
     disposed: false,
+    initialized: false,
   };
 
   let uiManager = null;
@@ -23,7 +24,9 @@ export function createPDFHomeContainer({ root, wsUrl, logger } = {}) {
       if (!state.wsUrl) state.wsUrl = buildWsUrlFromQuery();
       log.info(`[pdf-home] connecting WS: ${state.wsUrl}`);
       ensureInfra();
-      wsClient = new WSClient(state.wsUrl, eventBus);
+      if (!wsClient) {
+        wsClient = new WSClient(state.wsUrl, eventBus);
+      }
       wsClient.connect();
       // initial data
       requestList();
@@ -49,7 +52,7 @@ export function createPDFHomeContainer({ root, wsUrl, logger } = {}) {
   ensureUI();
   ensureEventBridges();
 
-  return { connect, disconnect, reloadData, dispose, getDependencies };
+  return { connect, disconnect, reloadData, dispose, getDependencies, initialize, isInitialized };
 
   // ---------------- helpers ----------------
   function ensureUI() {
@@ -97,6 +100,21 @@ export function createPDFHomeContainer({ root, wsUrl, logger } = {}) {
     try { ensureInfra(); } catch {}
     return { logger: log, eventBus, wsClient };
   }
+
+  // initialize container internals without side effects like connecting
+  async function initialize() {
+    if (state.disposed) return;
+    if (state.initialized) return;
+    ensureInfra();
+    if (!state.wsUrl) state.wsUrl = buildWsUrlFromQuery();
+    // prepare ws client but do not connect; caller controls connection lifecycle
+    if (!wsClient && state.wsUrl) {
+      try { wsClient = new WSClient(state.wsUrl, eventBus); } catch (e) { log.warn('ws client prepare failed', e); }
+    }
+    state.initialized = true;
+  }
+
+  function isInitialized() { return !!state.initialized; }
 }
 
 function resolveRoot(root) {
