@@ -1,4 +1,18 @@
-﻿# 命名统一完成（pdf_home → pdf-home）
+﻿# 挑拣结果摘要
+
+- 新增（前端事件追踪）：
+  - src/frontend/common/event/README-message-tracing.md
+  - src/frontend/common/event/event-bus-with-tracing.js
+  - src/frontend/common/event/message-tracer.js
+  - src/frontend/common/event/test-message-tracing.js
+  - src/frontend/common/event/test-tracing.html
+- 新增（SPEC JSON）：
+  - docs/SPEC/SPEC-HEAD-TEST.json
+  - docs/SPEC/SPEC-HEAD-coding.json
+  - docs/SPEC/SPEC-HEAD-communication.json
+  - docs/SPEC/SPEC-HEAD-pdf-viewer.json
+- 跳过：后端 application.py 监听（冲突），建议按 main 架构重写对应能力。
+# 命名统一完成（pdf_home → pdf-home）
 
 - 已统一主线命名标准：使用 `src/frontend/pdf-home`（连字符）。
 - 已清理仓库内残留文本/路径引用，扫描报告 0 问题。
@@ -944,6 +958,7 @@ ai-launcher.py 启动后 命令行的键盘输入变得不正常, 无法输入�
 - 成果：launcher.py 支持命令行与 JSON 双通道端口解析，便于集成与调试。
 
 - 更新：pdf-home 内部新增 container/app-container.js，去除对 ../common 的依赖；index.js 改为本地容器导入；数据交互全部走 WebSocket。
+
 
 
 
