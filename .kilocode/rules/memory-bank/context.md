@@ -1,4 +1,12 @@
-﻿# 分支合并进展
+﻿# 命名统一完成（pdf_home → pdf-home）
+
+- 已统一主线命名标准：使用 `src/frontend/pdf-home`（连字符）。
+- 已清理仓库内残留文本/路径引用，扫描报告 0 问题。
+- 新增两枚工具脚本（UTF-8）：
+  - `AItemp/scan-pdf-home-naming.ps1`
+  - `AItemp/migrate-pdf_home-to-pdf-home.ps1`
+- 后续合并/拣选需保证不再引入 `pdf_home`。
+# 分支合并进展
 
 - 已尝试批量合并；大多数功能分支已在 main（或 fast-forward 无变更）。
 - 未合并分支（因冲突/架构差异）：feat/ai-launcher-pdf-auto-load, feature/eventbus-message-tracing, feature/pdf-home-add-pdf-button, feature/pdfhome-session-manager, temp/modify-ws-server-pyqt-20250920, temp/refactor-pdf-viewer-logging-20250921。
@@ -936,6 +944,7 @@ ai-launcher.py 启动后 命令行的键盘输入变得不正常, 无法输入�
 - 成果：launcher.py 支持命令行与 JSON 双通道端口解析，便于集成与调试。
 
 - 更新：pdf-home 内部新增 container/app-container.js，去除对 ../common 的依赖；index.js 改为本地容器导入；数据交互全部走 WebSocket。
+
 
 
 

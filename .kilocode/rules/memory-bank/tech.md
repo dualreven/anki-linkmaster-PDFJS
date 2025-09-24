@@ -658,3 +658,12 @@ class MyPlugin {
 - 用法示例：
   - `const { logger, eventBus, wsClient } = container.getDependencies();`
 
+# 前端目录命名标准
+
+- 规范：前端模块目录统一使用连字符（kebab-case），例如 `pdf-home`、`pdf-viewer`。
+- 禁止：`pdf_home`（snake_case）。
+- 工具：
+  - `AItemp/scan-pdf-home-naming.ps1` 用于扫描非法命名引用；发现问题即非零退出。
+  - `AItemp/migrate-pdf_home-to-pdf-home.ps1` 用于迁移目录与文本引用，默认 DRY-RUN，增加 `-Execute` 执行。
+- 建议：在 CI/预提交阶段调用扫描脚本，阻止回归。
+
