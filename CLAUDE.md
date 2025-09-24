@@ -57,9 +57,6 @@
 文件修改时的注意事项: 
    必须遵守和阅读开发规范: 每当你要修改一个模块时,你必须先阅读这个模块的开发规范, 通常他保存在 [模块名]/docs/SPEC 下面, 特别注意有个头文件 [模块名]/docs/SPEC/SPEC-HEAD-[模块名].yml 他记录了所有引用的规范, 必须先阅读规范, 然后遵守规范来修改和测试代码.
    与用户商量你的修改计划: 每次开始修改代码的任务前, 你必须先和用户商议讨论你的计划.
-   修改前提交git创建分支: 通过用户的许可后, 先git commit, 然后创建分支, 保存快照, 然后再进行修改
-   失败回滚git: 如果修改导致更恶劣的情况发生,应当立即退回修改
-   成功提交git合并分支: 修改通过后, 通过用户的认可再commit, 再合并分支到来时的分支
 
 开发工具和测试规范:
    代码质量检查: 修改完成后必须运行 `npm run test` 确保所有测试通过
@@ -128,41 +125,6 @@ AI 接管开发时的具体规则:
       - 使用 `node eslint.config.js` 或 `eslint` 检查代码风格，修复所有警告
       - 重要功能必须手动测试，包括边界情况和异常处理
 
-   5. 强制分支回滚机制 (100%遵循):
-      ⚠️ 任何代码修改都必须严格遵循以下分支回滚机制，无例外！
-
-      修改前准备阶段：
-      a. 检查工作目录状态：`git status` 确保工作区干净
-      b. 保存当前状态：`git add . && git commit -m "checkpoint before [任务描述] - [timestamp]"`
-      c. 记录当前分支：使用 `git rev-parse --abbrev-ref HEAD` 获取原分支名
-      d. 记录当前commit：使用 `git rev-parse HEAD` 获取commit hash
-
-      创建临时分支：
-      e. 创建临时分支：`git checkout -b temp/modify-[任务简名]-[timestamp]`
-      f. 验证分支创建：`git branch` 确认在临时分支上
-
-      代码修改阶段：
-      g. 进行代码修改和测试
-      h. 小步提交：每个小功能完成后立即 `git add . && git commit -m "[具体修改]"`
-
-      结果处理阶段：
-      【修改成功时】：
-      i. 切回原分支：`git checkout [原分支名]`
-      j. 合并修改：`git merge temp/modify-[任务简名]-[timestamp] --no-ff`
-      k. 删除临时分支：`git branch -d temp/modify-[任务简名]-[timestamp]`
-      l. 推送修改：`git push origin [原分支名]`
-
-      【修改失败时】：
-      i. 立即停止修改，切回原分支：`git checkout [原分支名]`
-      j. 强制删除临时分支：`git branch -D temp/modify-[任务简名]-[timestamp]`
-      k. 验证回滚：`git log --oneline -5` 确认回到修改前状态
-      l. 报告失败原因并重新规划
-
-      紧急回滚指令：
-      - 如遇到严重问题，立即执行：`git checkout [原分支名] && git reset --hard [checkpoint-commit-hash]`
-      - 验证数据完整性：`npm run test` 确保项目状态正常
-
-      ⚠️ 违反此机制将导致开发中断，必须重新开始整个任务！
 
    6. PDF.js 相关的特殊要求:
       - 使用 PDF.js 时必须处理加载状态和错误状态

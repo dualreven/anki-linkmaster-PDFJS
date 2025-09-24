@@ -14,9 +14,18 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from importlib.util import spec_from_file_location, module_from_spec
 
-# Reuse the existing logger implementation
-from src.frontend.pdf-home.js_console_logger import JSConsoleLogger  # type: ignore
+
+def _load_js_console_logger_class():
+    base = Path(__file__).resolve().parents[1]  # .../frontend
+    impl_path = base / 'pdf-home' / 'js_console_logger.py'
+    spec = spec_from_file_location('pdf_home_js_logger', impl_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f'Cannot load JSConsoleLogger from {impl_path}')
+    mod = module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore
+    return getattr(mod, 'JSConsoleLogger')
 
 
 def main() -> int:
@@ -26,6 +35,7 @@ def main() -> int:
         Path('logs').mkdir(parents=True, exist_ok=True)
         log_file = str(Path('logs') / f'pdf-viewer-{pdf_id}-js.log')
 
+        JSConsoleLogger = _load_js_console_logger_class()
         logger = JSConsoleLogger(debug_port=debug_port, log_file=log_file)
         if not logger.start():
             print(f"Failed to start console logger on port {debug_port}")
@@ -51,3 +61,5 @@ def main() -> int:
 if __name__ == '__main__':
     raise SystemExit(main())
 
+# Expose class symbol expected by launcher.py
+JSConsoleLogger = _load_js_console_logger_class()

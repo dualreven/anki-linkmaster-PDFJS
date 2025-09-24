@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file UI管理器核心模块
  * @module UIManagerCore
  * @description UI管理器的核心功能，包括初始化、事件处理和基础UI控制
@@ -18,6 +18,7 @@ export class UIManagerCore {
   #elements;
   #state;
   #unsubscribeFunctions = [];
+  // DOM/state are centrally kept in #elements and #state
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
@@ -83,6 +84,8 @@ export class UIManagerCore {
       throw new Error("PDF viewer container not found");
     }
 
+    // No direct private field mirrors to avoid Babel private name errors
+
     // 创建或复用Canvas元素（避免重复创建同 id 的 canvas）
     const existingCanvas = this.#elements.container.querySelector('#pdf-canvas');
     if (existingCanvas instanceof HTMLCanvasElement) {
@@ -125,7 +128,7 @@ export class UIManagerCore {
     document.addEventListener("keydown", (event) => this.#handleKeyDown(event));
     
     // 鼠标滚轮缩放
-    this.#canvas.addEventListener("wheel", (event) => this.#handleWheel(event), {
+    this.#elements.canvas.addEventListener("wheel", (event) => this.#handleWheel(event), {
       passive: false
     });
   }
@@ -138,13 +141,13 @@ export class UIManagerCore {
     if (typeof ResizeObserver === 'function') {
       const observer = new ResizeObserver((entries) => {
         for (const entry of entries) {
-          if (entry.target === this.#container) {
+          if (entry.target === this.#elements.container) {
             this.#handleResize();
           }
         }
       });
       
-      observer.observe(this.#container);
+      observer.observe(this.#elements.container);
       this.#logger.debug("ResizeObserver setup completed");
     }
   }
@@ -157,8 +160,8 @@ export class UIManagerCore {
     this.#logger.debug("Container resized");
     // 这里可以触发重新渲染或缩放调整
     this.#eventBus.emit(PDF_VIEWER_EVENTS.UI.RESIZED, {
-      width: this.#container.clientWidth,
-      height: this.#container.clientHeight
+      width: this.#elements.container.clientWidth,
+      height: this.#elements.container.clientHeight
     }, { actorId: 'UIManagerCore' });
   }
 
@@ -251,7 +254,7 @@ export class UIManagerCore {
    * @returns {number} 容器宽度
    */
   getContainerWidth() {
-    return this.#container ? this.#container.clientWidth : 0;
+    return this.#elements.container ? this.#elements.container.clientWidth : 0;
   }
 
   /**
@@ -259,7 +262,7 @@ export class UIManagerCore {
    * @returns {number} 容器高度
    */
   getContainerHeight() {
-    return this.#container ? this.#container.clientHeight : 0;
+    return this.#elements.container ? this.#elements.container.clientHeight : 0;
   }
 
   /**
@@ -267,11 +270,11 @@ export class UIManagerCore {
    * @param {boolean} isLoading - 是否正在加载
    */
   showLoading(isLoading) {
-    if (this.#container) {
+    if (this.#elements.container) {
       if (isLoading) {
-        DOMUtils.addClass(this.#container, 'loading');
+        DOMUtils.addClass(this.#elements.container, 'loading');
       } else {
-        DOMUtils.removeClass(this.#container, 'loading');
+        DOMUtils.removeClass(this.#elements.container, 'loading');
       }
     }
   }
@@ -283,22 +286,22 @@ export class UIManagerCore {
     this.#logger.info("Cleaning up UI resources");
     
     // 清理Canvas
-    if (this.#canvas) {
-      this.#canvas.width = 0;
-      this.#canvas.height = 0;
-      if (this.#canvas.parentNode) {
-        this.#canvas.parentNode.removeChild(this.#canvas);
+    if (this.#elements.canvas) {
+      this.#elements.canvas.width = 0;
+      this.#elements.canvas.height = 0;
+      if (this.#elements.canvas.parentNode) {
+        this.#elements.canvas.parentNode.removeChild(this.#elements.canvas);
       }
     }
     
-    this.#canvas = null;
-    this.#ctx = null;
+    this.#elements.canvas = null;
+    this.#state.ctx = null;
     
     // 重置容器
-    if (this.#container) {
-      this.#container.innerHTML = '';
-      DOMUtils.removeClass(this.#container, 'loading');
-      DOMUtils.removeClass(this.#container, 'error');
+    if (this.#elements.container) {
+      this.#elements.container.innerHTML = '';
+      DOMUtils.removeClass(this.#elements.container, 'loading');
+      DOMUtils.removeClass(this.#elements.container, 'error');
     }
   }
 
@@ -313,22 +316,22 @@ export class UIManagerCore {
     window.removeEventListener("resize", this.#handleResize);
     document.removeEventListener("keydown", this.#handleKeyDown);
     
-    if (this.#canvas) {
-      this.#canvas.removeEventListener("wheel", this.#handleWheel);
+    if (this.#elements.canvas) {
+      this.#elements.canvas.removeEventListener("wheel", this.#handleWheel);
     }
     
     // 移除缩放控制事件监听器
-    if (this.#zoomInBtn) {
-      this.#zoomInBtn.removeEventListener("click", () => {});
+    if (this.#elements.zoomInBtn) {
+      this.#elements.zoomInBtn.removeEventListener("click", () => {});
     }
-    if (this.#zoomOutBtn) {
-      this.#zoomOutBtn.removeEventListener("click", () => {});
+    if (this.#elements.zoomOutBtn) {
+      this.#elements.zoomOutBtn.removeEventListener("click", () => {});
     }
-    if (this.#prevPageBtn) {
-      this.#prevPageBtn.removeEventListener("click", () => {});
+    if (this.#elements.prevPageBtn) {
+      this.#elements.prevPageBtn.removeEventListener("click", () => {});
     }
-    if (this.#nextPageBtn) {
-      this.#nextPageBtn.removeEventListener("click", () => {});
+    if (this.#elements.nextPageBtn) {
+      this.#elements.nextPageBtn.removeEventListener("click", () => {});
     }
   }
 
