@@ -17,6 +17,7 @@ import os
 import json
 import sys
 import logging
+import argparse
 from pathlib import Path
 
 # Add project root to Python path
@@ -64,10 +65,9 @@ def get_vite_port():
             # Fallback: look for runtime-ports.json
             ports_file = Path(__file__).parent.parent.parent.parent / 'logs' / 'runtime-ports.json'
             if ports_file.exists():
-                import json
                 with open(ports_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                port = data.get('npm_port', 3000)
+                port = int(data.get('vite_port') or data.get('npm_port') or 3000)
                 logger.info("Found Vite port %d from runtime-ports.json", port)
                 return port
     except Exception as e:
@@ -78,8 +78,8 @@ def get_vite_port():
     return 3000
 
 
-def _read_runtime_ports(cwd: Path | None = None) -> tuple[int, int]:
-    """Read logs/runtime-ports.json and return (ws_port, pdf_port).
+def _read_runtime_ports(cwd: Path | None = None) -> tuple[int, int, int]:
+    """Read logs/runtime-ports.json and return (vite_port, ws_port, pdf_port).
     Fallback to (8765, 8080) if missing or malformed.
     """
     try:
@@ -87,12 +87,21 @@ def _read_runtime_ports(cwd: Path | None = None) -> tuple[int, int]:
         cfg_path = base / 'logs' / 'runtime-ports.json'
         if cfg_path.exists():
             data = json.loads(cfg_path.read_text(encoding='utf-8') or '{}')
+            vite_port = int(data.get('vite_port') or data.get('npm_port') or 3000)
             ws_port = int(data.get('ws_port') or 8765)
             pdf_port = int(data.get('pdf_port') or 8080)
-            return ws_port, pdf_port
+            return vite_port, ws_port, pdf_port
     except Exception as exc:  # pragma: no cover - defensive
         logger.warning("Failed reading runtime-ports.json: %s", exc)
-    return 8765, 8080
+    return 3000, 8765, 8080
+
+
+def _parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="pdf-home standalone launcher")
+    parser.add_argument("--vite-port", type=int, dest="vite_port", help="Vite dev server port")
+    parser.add_argument("--ws-port", type=int, dest="ws_port", help="WebSocket server port")
+    parser.add_argument("--pdf-port", type=int, dest="pdf_port", help="PDF HTTP server port")
+    return parser.parse_args(argv)
 
 
 def _setup_logging() -> None:
@@ -120,12 +129,19 @@ def main() -> int:
     # Host window
     window = MainWindow(app)
 
-    # Ports
-    ws_port, pdf_port = _read_runtime_ports()
-    try:
-        vite_port = get_vite_port()
-    except Exception:
-        vite_port = 3000
+    # Ports resolution (CLI > runtime-ports.json > logs/defaults)
+    args = _parse_args(sys.argv[1:])
+    vite_json, ws_json, pdf_json = _read_runtime_ports()
+
+    vite_port = args.vite_port if args.vite_port else vite_json
+    if args.vite_port is None:
+        try:
+            vite_port = get_vite_port() or vite_port
+        except Exception:
+            pass
+
+    ws_port = args.ws_port if args.ws_port else ws_json
+    pdf_port = args.pdf_port if args.pdf_port else pdf_json
     logger.info("Resolved ports: vite=%s ws=%s pdf=%s", vite_port, ws_port, pdf_port)
 
     # Simple WebSocket client for the bridge to send messages to the backend
