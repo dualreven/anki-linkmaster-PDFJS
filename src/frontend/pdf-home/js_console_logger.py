@@ -35,21 +35,6 @@ class JSConsoleLogger:
         # Setup logger for JS console output
         self._setup_js_logger()
 
-        # Setup logger for this module (prevent propagation to avoid mixing with pdf-home.log)
-        self.logger = logging.getLogger('js_console_logger')
-        self.logger.propagate = False
-
-        # Create dedicated handler for JSConsoleLogger internal logs
-        if not self.logger.handlers:
-            # Create a separate log file for JSConsoleLogger internal logs
-            from pathlib import Path
-            internal_log_file = str(Path(self.log_file).parent / 'js-console-logger.log')
-            handler = logging.FileHandler(internal_log_file, encoding='utf-8')
-            formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
-            handler.setFormatter(formatter)
-            self.logger.addHandler(handler)
-            self.logger.setLevel(logging.INFO)
-
     def _setup_js_logger(self) -> None:
         """Setup dedicated logger for JavaScript console output."""
         self.js_logger = logging.getLogger('pdf-home.js-console')
@@ -77,12 +62,12 @@ class JSConsoleLogger:
             # Get WebSocket URL from Chrome DevTools Protocol
             response = requests.get(f'http://localhost:{self.debug_port}/json')
             if response.status_code != 200:
-                self.logger.error(f"Failed to connect to debug port {self.debug_port}")
+                print(f"Error: Failed to connect to debug port {self.debug_port}")
                 return False
 
             tabs = response.json()
             if not tabs:
-                self.logger.error("No debug targets available")
+                print("Error: No debug targets available")
                 return False
 
             # Use first tab (should be pdf-home)
@@ -94,11 +79,11 @@ class JSConsoleLogger:
             self.thread.daemon = True
             self.thread.start()
 
-            self.logger.info(f"Started JS console logger on debug port {self.debug_port}")
+            print(f"Info: Started JS console logger on debug port {self.debug_port}")
             return True
 
         except Exception as exc:
-            self.logger.error(f"Failed to start JS console logger: {exc}")
+            print(f"Error: Failed to start JS console logger: {exc}")
             return False
 
     def stop(self) -> None:
@@ -108,7 +93,7 @@ class JSConsoleLogger:
             self.ws.close()
         if self.thread and self.thread.is_alive():
             self.thread.join(timeout=2.0)
-        self.logger.info("JS console logger stopped")
+        print("Info: JS console logger stopped")
 
     def _websocket_loop(self, ws_url: str) -> None:
         """WebSocket loop to receive console messages."""
@@ -127,7 +112,7 @@ class JSConsoleLogger:
                 'method': 'Console.enable'
             }))
 
-            self.logger.info("Connected to Chrome DevTools Protocol WebSocket")
+            print("Info: Connected to Chrome DevTools Protocol WebSocket")
 
             while self.running:
                 try:
@@ -138,11 +123,11 @@ class JSConsoleLogger:
                     continue
                 except Exception as exc:
                     if self.running:
-                        self.logger.error(f"WebSocket error: {exc}")
+                        print(f"Error: WebSocket error: {exc}")
                     break
 
         except Exception as exc:
-            self.logger.error(f"WebSocket connection failed: {exc}")
+            print(f"Error: WebSocket connection failed: {exc}")
         finally:
             if self.ws:
                 self.ws.close()
@@ -198,7 +183,7 @@ class JSConsoleLogger:
             self.js_logger.log(log_level, message_text)
 
         except Exception as exc:
-            self.logger.error(f"Failed to handle console message: {exc}")
+            print(f"Error: Failed to handle console message: {exc}")
 
 def main():
     """Test the JS console logger."""
