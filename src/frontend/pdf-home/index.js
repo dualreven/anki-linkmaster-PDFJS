@@ -1,10 +1,10 @@
-/**
+﻿/**
  * @file 应用主入口，负责模块的初始化、协调和生命周期管理。
  * @module PDFHomeApp
  */
 
 
-import { createPDFHomeContainer } from "../common/container/app-container.js";
+import { createPDFHomeContainer } from "./container/app-container.js";
 import { TableWrapper } from './table-wrapper.js';
 import { APP_EVENTS, PDF_MANAGEMENT_EVENTS, UI_EVENTS, SYSTEM_EVENTS, WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../common/event/event-constants.js";
 import { setGlobalWebSocketClient, LogLevel, getLogger } from "../common/utils/logger.js";
@@ -14,6 +14,7 @@ import PDFManager from "../common/pdf/pdf-manager.js";
 import { createConsoleWebSocketBridge } from "../common/utils/console-websocket-bridge.js";
 import { resolveWebSocketPort, DEFAULT_WS_PORT, resolveWebSocketPortSync } from "./utils/ws-port-resolver.js";
 import { EventBus as EventBusClass } from "../common/event/event-bus.js";
+import { QWebChannelManager } from "./qwebchannel-manager.js";
 
 /**
  * @class PDFHomeApp
@@ -27,6 +28,7 @@ class PDFHomeApp {
   #pdfManager;
   #uiManager;
   #consoleBridge;
+  #qwebchannelManager;
   #wsPort = DEFAULT_WS_PORT;
   #initialized = false;
   #coreGuard = null;
@@ -55,6 +57,7 @@ class PDFHomeApp {
     this.#errorHandler = new ErrorHandler(this.#eventBus);
     this.#pdfManager = new PDFManager(this.#eventBus);
     this.#uiManager = new UIManager(this.#eventBus);
+    this.#qwebchannelManager = new QWebChannelManager(this.#eventBus);
     this.#wsPort = DEFAULT_WS_PORT;
 
     this.#consoleBridge = createConsoleWebSocketBridge('pdf-home', (message) => {
@@ -276,6 +279,9 @@ class PDFHomeApp {
       if (!this.#websocketManager.isConnected()) {
         await this.#websocketManager.connect();
       }
+      // 初始化QWebChannel管理器
+      await this.#qwebchannelManager.initialize();
+
       // 外部注入路径：直接使用已注入的 WS/Logger/EventBus
       await this.#pdfManager.initialize();
       await this.#uiManager.initialize(); // UIManager now has its own initialization logic

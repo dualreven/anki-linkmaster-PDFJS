@@ -4,8 +4,8 @@ PyQt6 HTTP文件服务器模块
 基于QTcpServer的简单HTTP服务器实现
 """
 
-from src.backend.qt.compat import QObject, pyqtSlot
-from src.backend.qt.compat import QTcpServer, QTcpSocket
+from src.qt.compat import QObject, pyqtSlot
+from src.qt.compat import QTcpServer, QTcpSocket
 import os
 import logging
 import mimetypes

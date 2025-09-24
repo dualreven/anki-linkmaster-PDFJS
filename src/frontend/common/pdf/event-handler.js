@@ -4,7 +4,7 @@
  * @description 处理PDF管理的事件监听器设置
  */
 
-import { PDF_MANAGEMENT_EVENTS } from "../event/event-constants.js";
+import { PDF_MANAGEMENT_EVENTS, WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../event/event-constants.js";
 
 /**
  * @class EventHandler
@@ -30,9 +30,9 @@ export class EventHandler {
     const listeners = [
       this.#manager.eventBus.on(
         PDF_MANAGEMENT_EVENTS.ADD.REQUESTED,
-        (fileInfo) => {
+        async (fileInfo) => {
           try {
-            this.#manager.addPDF(fileInfo);
+            await this.handleAddPDFRequest(fileInfo);
           } catch (error) {
             this.#manager.logger.error("Error handling ADD.REQUESTED event:", error);
             this.#manager.eventBus.emit(
@@ -138,5 +138,69 @@ export class EventHandler {
         { actorId: "PDFManager" }
       );
     });
+  }
+
+  /**
+   * 处理添加PDF的请求 - 支持QWebChannel和WebSocket两种方式
+   * @param {Object} fileInfo - 文件信息
+   */
+  async handleAddPDFRequest(fileInfo) {
+    this.#manager.logger.info("Handling add PDF request:", fileInfo);
+
+    // 检查是否支持QWebChannel
+    const qwebchannelAvailable = await this.#checkQWebChannelAvailable();
+
+    if (qwebchannelAvailable) {
+      this.#manager.logger.info("Using QWebChannel for file selection");
+      await this.#handleQWebChannelFileSelection(fileInfo);
+    } else {
+      this.#manager.logger.info("Falling back to WebSocket file selection");
+      this.#manager.addPDF(fileInfo);
+    }
+  }
+
+  /**
+   * 检查QWebChannel是否可用
+   * @returns {boolean} 是否可用
+   */
+  async #checkQWebChannelAvailable() {
+    return new Promise((resolve) => {
+      // 发送检查事件并等待回应
+      const timeout = setTimeout(() => resolve(false), 1000);
+
+      const unsubscribe = this.#manager.eventBus.on('qwebchannel:ready', () => {
+        clearTimeout(timeout);
+        unsubscribe();
+        resolve(true);
+      });
+
+      const unsubscribeUnavailable = this.#manager.eventBus.on('qwebchannel:unavailable', () => {
+        clearTimeout(timeout);
+        unsubscribe();
+        unsubscribeUnavailable();
+        resolve(false);
+      });
+
+      // 检查QWebChannel是否已经就绪
+      this.#manager.eventBus.emit('qwebchannel:check', {}, { actorId: 'EventHandler' });
+    });
+  }
+
+  /**
+   * 使用QWebChannel处理文件选择
+   * @param {Object} fileInfo - 文件信息
+   */
+  async #handleQWebChannelFileSelection(fileInfo) {
+    try {
+      // 通过事件总线请求QWebChannel文件选择
+      this.#manager.eventBus.emit('qwebchannel:selectFiles', {
+        isBatch: fileInfo?.isBatch || false
+      }, { actorId: 'EventHandler' });
+
+      this.#manager.logger.info("QWebChannel file selection request sent");
+    } catch (error) {
+      this.#manager.logger.error("QWebChannel file selection failed:", error);
+      throw error;
+    }
   }
 }

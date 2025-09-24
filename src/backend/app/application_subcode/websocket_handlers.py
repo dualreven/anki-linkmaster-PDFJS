@@ -6,8 +6,7 @@ Anki LinkMaster PDFJS - WebSocket消息处理器
 import os
 import json
 import logging
-from src.backend.qt.compat import QFileDialog, QApplication, QTimer
-import sys
+from src.qt.compat import QTimer
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -38,9 +37,7 @@ class WebSocketHandlers:
         try:
             # 根据消息类型调用相应的处理函数
             message_type = message.get('type')
-            if message_type == 'request_file_selection':
-                self.handle_request_file_selection(client, message)
-            elif message_type == 'add_pdf':
+            if message_type == 'add_pdf':
                 # 保持向后兼容，但主要使用request_file_selection
                 self.handle_add_pdf(client, message)
             elif message_type == 'get_pdf_list':
@@ -67,109 +64,6 @@ class WebSocketHandlers:
             logger.error(f"处理WebSocket消息时出错: {str(e)}")
             self.response.send_error_response(client, f"处理消息时出错: {str(e)}", message.get('type'))
 
-    def handle_request_file_selection(self, client, message):
-        """处理文件选择请求 - 在QT端弹出文件选择对话框
-        
-        Args:
-            client: QWebSocket客户端对象
-            message: 消息内容
-        """
-        try:
-            # 确保有QApplication实例
-            app = QApplication.instance()
-            if app is None:
-                app = QApplication(sys.argv)
-            
-            # 弹出文件选择对话框（允许多选）
-            file_dialog = QFileDialog()
-            file_dialog.setFileMode(QFileDialog.FileMode.ExistingFiles)
-            file_dialog.setNameFilter("PDF Files (*.pdf)")
-            file_dialog.setWindowTitle("选择PDF文件")
-            
-            # 设置默认目录
-            default_dir = os.path.expanduser("~")
-            if os.path.exists(default_dir):
-                file_dialog.setDirectory(default_dir)
-            
-            if file_dialog.exec():
-                selected_files = file_dialog.selectedFiles()
-                
-                if selected_files:
-                    logger.info(f"用户选择了 {len(selected_files)} 个文件: {selected_files}")
-                    
-                    # 处理每个选中的文件
-                    added_files = []
-                    failed_files = []
-                    
-                    for file_path in selected_files:
-                        try:
-                            if os.path.exists(file_path) and file_path.lower().endswith('.pdf'):
-                                file_info = self.pdf_manager.add_file(file_path)
-                                if file_info:
-                                    added_files.append(file_info)
-                                    logger.info(f"成功添加文件: {file_path}")
-                                else:
-                                    failed_files.append({"path": file_path, "error": "添加失败"})
-                                    logger.error(f"添加文件失败: {file_path}")
-                            else:
-                                failed_files.append({"path": file_path, "error": "文件不存在或格式不支持"})
-                                logger.warning(f"文件不存在或格式不支持: {file_path}")
-                        except Exception as e:
-                            failed_files.append({"path": file_path, "error": str(e)})
-                            logger.error(f"处理文件时出错: {file_path} - {str(e)}")
-                    
-                    # 发送符合标准的响应
-                    response_data = {
-                        "files": added_files,
-                        "failed": failed_files,
-                        "summary": {
-                            "selected": len(selected_files),
-                            "added": len(added_files),
-                            "failed": len(failed_files)
-                        }
-                    }
-                    
-                    self.response.send_success_response(client, "files_selected", response_data, message.get('request_id'))
-                    
-                    # 如果有文件被成功添加，广播更新
-                    if added_files:
-                        self.app.broadcast_pdf_list()
-                        
-                else:
-                    logger.info("用户取消文件选择")
-                    response_data = {
-                        "files": [],
-                        "failed": [],
-                        "summary": {"selected": 0, "added": 0, "failed": 0}
-                    }
-                    self.response.send_success_response(client, "files_selected", response_data, message.get('request_id'))
-            else:
-                logger.info("用户取消文件选择")
-                response_data = {
-                    "files": [],
-                    "failed": [],
-                    "summary": {"selected": 0, "added": 0, "failed": 0}
-                }
-                self.response.send_success_response(client, "files_selected", response_data, message.get('request_id'))
-                
-        except ImportError as e:
-            logger.error(f"PyQt6导入失败: {str(e)}")
-            self.response.send_error_response(
-                client, 
-                f"文件选择功能不可用: {str(e)}", 
-                "request_file_selection", 
-                "FEATURE_NOT_AVAILABLE", 
-                message.get('request_id')
-            )
-        except Exception as e:
-            logger.error(f"文件选择失败: {str(e)}")
-            self.response.send_error_response(
-                client, 
-                f"文件选择失败: {str(e)}", 
-                "request_file_selection", 
-                "FILE_SELECTION_ERROR", 
-                message.get('request_id')
-            )
 
     def handle_add_pdf_with_path(self, client, file_info, message_id):
         """使用真实文件路径添加PDF文件

@@ -120,16 +120,24 @@ class BaseService(ABC):
             self.logger.debug(f"Working directory: {working_dir}")
 
             # 启动进程
-            self.process = subprocess.Popen(
-                command,
-                cwd=str(working_dir),
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding="utf-8",
-                stdin=subprocess.DEVNULL
-            )
+            # 在Windows上需要正确配置进程创建参数以避免终端控制字符问题
+            popen_kwargs = {
+                "cwd": str(working_dir),
+                "env": env,
+                "stdout": subprocess.PIPE,
+                "stderr": subprocess.STDOUT,
+                "text": True,
+                "encoding": "utf-8"
+            }
+
+            if sys.platform == "win32":
+                # Windows特定设置：DETACHED_PROCESS避免干扰父进程终端
+                popen_kwargs["creationflags"] = subprocess.DETACHED_PROCESS
+            else:
+                # Unix系统：使用start_new_session避免终端信号传播
+                popen_kwargs["start_new_session"] = True
+
+            self.process = subprocess.Popen(command, **popen_kwargs)
 
             # 创建日志写入器
             log_file = log_manager.create_service_log_file(self.name)

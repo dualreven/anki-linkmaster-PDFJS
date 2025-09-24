@@ -35,7 +35,7 @@ class PdfService(BaseService):
             List[str]: 启动命令
         """
         python_executable = sys.executable
-        pdf_server_path = self.project_root / "src" / "backend" / "services" / "pdf-server.py"
+        pdf_server_path = self.project_root / "pdf-server.py"
 
         host = kwargs.get("host", "127.0.0.1")
         port = kwargs.get("port", self.get_default_port())
@@ -85,7 +85,7 @@ class PdfService(BaseService):
             return False
 
         # 检查PDF服务器脚本是否存在
-        pdf_server_path = self.project_root / "src" / "backend" / "services" / "pdf-server.py"
+        pdf_server_path = self.project_root / "pdf-server.py"
         if not pdf_server_path.exists():
             self.logger.error(f"PDF server script not found at {pdf_server_path}")
             return False

@@ -35,7 +35,7 @@ class WebSocketService(BaseService):
             List[str]: 启动命令
         """
         python_executable = sys.executable
-        ws_server_path = self.project_root / "src" / "backend" / "services" / "ws-server.py"
+        ws_server_path = self.project_root / "ws-server.py"
 
         host = kwargs.get("host", "127.0.0.1")
         port = kwargs.get("port", self.get_default_port())
@@ -85,7 +85,7 @@ class WebSocketService(BaseService):
             return False
 
         # 检查WebSocket服务器脚本是否存在
-        ws_server_path = self.project_root / "src" / "backend" / "services" / "ws-server.py"
+        ws_server_path = self.project_root / "ws-server.py"
         if not ws_server_path.exists():
             self.logger.error(f"WebSocket server script not found at {ws_server_path}")
             return False

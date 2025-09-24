@@ -30,11 +30,18 @@ export default defineConfig(async () => {
     console.warn(`[Vite] Failed to read HTTP server port log: ${error.message}, using default port ${httpServerPort}`)
   }
 
+  // 读取ai-launcher指定的端口配置
+  const vitePort = process.env.VITE_PORT ? parseInt(process.env.VITE_PORT, 10) : 3000
+  const strictPort = process.env.VITE_STRICT_PORT === 'true'
+
+  console.log(`[Vite] Using port: ${vitePort}, strict mode: ${strictPort}`)
+
   return {
     // 统一根目录，单 Vite 服务器同时服务 /pdf-home/ 与 /pdf-viewer/
     root: `src/frontend`,
     server: {
-      port: process.env.VITE_PORT || 3000,
+      port: vitePort,
+      strictPort: strictPort, // 如果端口被占用则直接失败，不自动选择其他端口
       proxy: {
         // 代理PDF文件请求到PyQt HTTP服务器
         '/pdfs': {
@@ -61,10 +68,9 @@ export default defineConfig(async () => {
     ],
     build: {
       rollupOptions: {
-        // 多页面构建：分别输出 pdf-home 与 pdf-viewer
+        // 单页面构建：只构建 pdf-home
         input: {
-          'pdf-home': path.resolve(process.cwd(), 'src/frontend/pdf-home/index.html'),
-          'pdf-viewer': path.resolve(process.cwd(), 'src/frontend/pdf-viewer/index.html')
+          'pdf-home': path.resolve(process.cwd(), 'src/frontend/pdf-home/index.html')
         },
         external: [
           /__tests__/,

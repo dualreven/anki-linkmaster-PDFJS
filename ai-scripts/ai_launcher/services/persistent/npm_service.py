@@ -94,11 +94,16 @@ class NpmService(BaseService):
         """
         env = super().setup_environment(**kwargs)
 
-        # 设置Vite端口
+        # 设置Vite端口 - 强制使用ai-launcher指定的端口
         port = kwargs.get("port", self.get_default_port())
         if port:
             env["VITE_PORT"] = str(port)
+            # 禁用Vite自动端口选择
+            env["VITE_STRICT_PORT"] = "true"
+            # 额外确保端口不被更改
+            env["PORT"] = str(port)
 
+        self.logger.info(f"NPM Service will use fixed port: {port}")
         return env
 
     def get_service_type(self) -> str:

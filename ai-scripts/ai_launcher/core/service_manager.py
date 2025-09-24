@@ -12,6 +12,7 @@ import logging
 
 from .process_manager import ProcessManager
 from .logging_manager import LoggingManager
+from .port_manager import PortManager
 from ..services.persistent.npm_service import NpmService
 from ..services.persistent.ws_service import WebSocketService
 from ..services.persistent.pdf_service import PdfService
@@ -35,6 +36,7 @@ class ServiceManager:
         # 初始化管理器
         self.process_manager = ProcessManager(self.logs_dir)
         self.logging_manager = LoggingManager(self.logs_dir)
+        self.port_manager = PortManager(project_root)
 
         # 设置主日志
         self.logger = self.logging_manager.setup_main_logging("ai-launcher")
@@ -49,21 +51,21 @@ class ServiceManager:
         # 服务启动顺序（考虑依赖关系）
         self.startup_order = ["websocket", "pdf", "npm"]
 
-    def start_all_services(self, npm_port: int = 3000,
-                          ws_port: int = 8765, pdf_port: int = 8080) -> bool:
+    def start_all_services(self, npm_port: int = None,
+                          ws_port: int = None, pdf_port: int = None) -> bool:
         """
         启动所有持久服务
 
         Args:
-            npm_port: NPM服务端口
-            ws_port: WebSocket服务端口
-            pdf_port: PDF服务端口
+            npm_port: NPM服务端口 (可选，由端口管理器智能分配)
+            ws_port: WebSocket服务端口 (可选，由端口管理器智能分配)
+            pdf_port: PDF服务端口 (可选，由端口管理器智能分配)
 
         Returns:
             bool: 是否全部启动成功
         """
         self.logger.info("===================================")
-        self.logger.info("AI Launcher - 模块化服务架构")
+        self.logger.info("AI Launcher - 智能端口分配服务架构")
         self.logger.info("===================================")
 
         # 检查并停止已存在的持久服务
@@ -73,15 +75,40 @@ class ServiceManager:
             self.stop_all_services()
             time.sleep(2)  # 等待进程完全停止
 
+        # 智能端口分配
+        self.logger.info("开始智能端口分配...")
+        requested_ports = {}
+        if npm_port is not None:
+            requested_ports["npm_port"] = npm_port
+        if ws_port is not None:
+            requested_ports["ws_port"] = ws_port
+        if pdf_port is not None:
+            requested_ports["pdf_port"] = pdf_port
+
+        # 获取分配的端口
+        allocated_ports = self.port_manager.allocate_ports(requested_ports)
+
+        # 验证端口分配
+        is_valid, errors = self.port_manager.validate_port_allocation(allocated_ports)
+        if not is_valid:
+            self.logger.error("端口分配验证失败:")
+            for error in errors:
+                self.logger.error(f"  - {error}")
+            return False
+
         success_count = 0
         process_info_list = []
 
-        # 服务启动参数
+        # 服务启动参数 - 使用分配的端口
         service_params = {
-            "npm": {"port": npm_port},
-            "websocket": {"port": ws_port},
-            "pdf": {"port": pdf_port}
+            "npm": {"port": allocated_ports["npm_port"]},
+            "websocket": {"port": allocated_ports["ws_port"]},
+            "pdf": {"port": allocated_ports["pdf_port"]}
         }
+
+        self.logger.info("最终端口分配:")
+        for service_name, params in service_params.items():
+            self.logger.info(f"  {service_name}: {params['port']}")
 
         # 按顺序启动服务
         for service_name in self.startup_order:
@@ -113,18 +140,21 @@ class ServiceManager:
 
         if success_count == len(self.startup_order):
             self.logger.info("所有持久服务启动成功！")
-            self.logger.info(f"前端服务: http://localhost:{npm_port}")
-            self.logger.info(f"WebSocket服务: ws://localhost:{ws_port}")
-            self.logger.info(f"PDF API服务: http://localhost:{pdf_port}")
+            self.logger.info(f"前端服务: http://localhost:{allocated_ports['npm_port']}")
+            self.logger.info(f"WebSocket服务: ws://localhost:{allocated_ports['ws_port']}")
+            self.logger.info(f"PDF API服务: http://localhost:{allocated_ports['pdf_port']}")
             self.logger.info("日志文件:")
             for service_name in self.startup_order:
                 service = self.services[service_name]
                 self.logger.info(f"  - {service.name}.log")
             self.logger.info("  - ai-launcher.log")
+            self.logger.info("端口配置已保存到 logs/runtime-ports.json")
             self.logger.info("持久服务在后台运行。使用 'python ai-launcher.py stop' 停止。")
             return True
         else:
             self.logger.error("部分持久服务启动失败！")
+            # 启动失败时，重置端口配置
+            self.port_manager.release_ports()
             return False
 
     def stop_all_services(self) -> int:
