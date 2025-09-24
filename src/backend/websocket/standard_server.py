@@ -7,7 +7,7 @@ import time
 import subprocess
 import os
 from typing import Dict, Any, Optional
-from src.backend.qt.compat import (
+from src.qt.compat import (
     QObject, pyqtSignal, pyqtSlot,
     QWebSocketServer, QWebSocket,
     QHostAddress, QAbstractSocket

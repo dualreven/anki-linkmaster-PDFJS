@@ -5,7 +5,7 @@ Anki LinkMaster PDFJS - 客户端连接处理器
 
 import os
 import logging
-from src.backend.qt.compat import QTimer
+from src.qt.compat import QTimer
 
 # 配置日志
 logger = logging.getLogger(__name__)

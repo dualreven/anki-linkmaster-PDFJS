@@ -5,9 +5,10 @@
  */
 
 import { Tabulator } from 'tabulator-tables';
-import Logger from '../common/utils/logger.js';
+import { getLogger } from '../common/utils/logger.js';
+import { TableUtils } from './table-utils.js';
 
-const logger = new Logger('TableWrapperCore');
+const logger = getLogger('TableWrapperCore');
 
 /**
  * @class TableWrapperCore
@@ -167,31 +168,85 @@ export class TableWrapperCore {
    * @returns {Promise|void}
    */
   setData(data) {
-    const rows = this.#prepareData(data);
-    
+    const rows = TableUtils.prepareData(data);
+
     if (this.#fallbackMode) {
       this._callLocalListeners('data-loaded', rows);
       return Promise.resolve();
     }
 
-    const result = this.#tabulator.setData(rows);
-    
-    Promise.resolve(result)
-      .then(() => this.#handleDataLoaded(rows))
-      .catch(err => this.#handleSetDataError(err, rows));
-      
-    return result;
+    // 确保渲染器已准备就绪
+    return this.#ensureRendererReady()
+      .then(() => {
+        const result = this.#tabulator.setData(rows);
+
+        return Promise.resolve(result)
+          .then(() => this.#handleDataLoaded(rows))
+          .catch(err => this.#handleSetDataError(err, rows));
+      })
+      .catch(err => {
+        logger.warn('Failed to ensure renderer ready, using fallback:', err);
+        this.#handleSetDataError(err, rows);
+        return Promise.resolve();
+      });
   }
 
   /**
-   * 准备数据，进行防御性拷贝
-   * @param {Array<Object>} data - 原始数据
-   * @returns {Array<Object>} 拷贝后的数据
+   * 确保渲染器已准备就绪
+   * @returns {Promise} 解析后渲染器就绪的Promise
    * @private
    */
-  #prepareData(data) {
-    return Array.isArray(data) ? data.map(r => Object.assign({}, r)) : [];
+  #ensureRendererReady() {
+    return new Promise((resolve, reject) => {
+      // 检查 Tabulator 实例是否存在
+      if (!this.#tabulator) {
+        reject(new Error('Tabulator instance not available'));
+        return;
+      }
+
+      // 检查渲染器是否已经就绪
+      const checkRenderer = () => {
+        try {
+          // 尝试访问渲染器的关键属性
+          const renderer = this.#tabulator.renderer;
+          if (renderer && renderer.verticalFillMode !== undefined) {
+            logger.debug('Renderer is ready');
+            resolve();
+            return true;
+          }
+        } catch (e) {
+          // 渲染器还没有准备好
+        }
+        return false;
+      };
+
+      // 立即检查一次
+      if (checkRenderer()) {
+        return;
+      }
+
+      // 如果渲染器还没准备好，等待一小段时间再检查
+      let attempts = 0;
+      const maxAttempts = 10;
+      const checkInterval = 50; // ms
+
+      const intervalId = setInterval(() => {
+        attempts++;
+
+        if (checkRenderer()) {
+          clearInterval(intervalId);
+          return;
+        }
+
+        if (attempts >= maxAttempts) {
+          clearInterval(intervalId);
+          logger.warn(`Renderer not ready after ${maxAttempts} attempts, proceeding anyway`);
+          resolve(); // 仍然继续，但有警告
+        }
+      }, checkInterval);
+    });
   }
+
 
   /**
    * 处理数据加载完成后的逻辑
@@ -201,13 +256,13 @@ export class TableWrapperCore {
   #handleDataLoaded(rows) {
     logger.debug('setData count=', rows.length);
     this._callLocalListeners('data-loaded', rows);
-    
+
     try {
-      this.#ensureTabulatorRedraw();
-      this.#logDOMDiagnostics();
-      this.#handleMissingDOMElements();
-      this.#logComputedStyles();
-      this.#logTabulatorInstanceInfo();
+      TableUtils.ensureTabulatorRedraw(this.#tabulator);
+      TableUtils.logDOMDiagnostics(this.#tableWrapper, this.#tabulator);
+      TableUtils.handleMissingDOMElements(this.#tableWrapper, this.#tabulator);
+      TableUtils.logComputedStyles(this.#container, this.#tableWrapper);
+      TableUtils.logTabulatorInstanceInfo(this.#tabulator);
     } catch (e) {
       logger.warn('Error inspecting tableWrapper DOM', e);
     }
@@ -224,118 +279,6 @@ export class TableWrapperCore {
     this._callLocalListeners('data-loaded', rows);
   }
 
-  /**
-   * 确保Tabulator重绘
-   * @private
-   */
-  #ensureTabulatorRedraw() {
-    if (this.#tabulator && typeof this.#tabulator.redraw === 'function') {
-      try { this.#tabulator.redraw(true); } catch (e) { /* ignore */ }
-    }
-  }
-
-  /**
-   * 记录DOM诊断信息
-   * @private
-   */
-  #logDOMDiagnostics() {
-    const childCount = this.#tableWrapper ? this.#tableWrapper.childElementCount : 0;
-    const innerLen = this.#tableWrapper && this.#tableWrapper.innerHTML ? this.#tableWrapper.innerHTML.length : 0;
-    
-    const wrapperIsTabulator = this.#tableWrapper ?
-      this.#tableWrapper.classList && this.#tableWrapper.classList.contains('tabulator') : false;
-    const tabEl = this.#tableWrapper ?
-      (wrapperIsTabulator ? this.#tableWrapper :
-        (this.#tableWrapper.querySelector('.tabulator') || this.#tableWrapper.querySelector('.tabulator-table'))) : null;
-    const tabExists = !!tabEl;
-    
-    let rectInfo = 'null';
-    if (this.#tableWrapper && typeof this.#tableWrapper.getBoundingClientRect === 'function') {
-      const r = this.#tableWrapper.getBoundingClientRect();
-      rectInfo = `${Math.round(r.width)}x${Math.round(r.height)}`;
-    }
-    
-    logger.info(`TableWrapper DOM after setData: childCount=${childCount}, innerHTMLLen=${innerLen}, tableWrapper.className=${this.#tableWrapper ? this.#tableWrapper.className : 'null'}, tabExists=${tabExists}, rect=${rectInfo}`);
-  }
-
-  /**
-   * 处理缺失的DOM元素
-   * @private
-   */
-  #handleMissingDOMElements() {
-    const wrapperIsTabulator = this.#tableWrapper ?
-      this.#tableWrapper.classList && this.#tableWrapper.classList.contains('tabulator') : false;
-    const tabEl = this.#tableWrapper ?
-      (wrapperIsTabulator ? this.#tableWrapper :
-        (this.#tableWrapper.querySelector('.tabulator') || this.#tableWrapper.querySelector('.tabulator-table'))) : null;
-    const tabExists = !!tabEl;
-
-    if (!tabExists) {
-      try {
-        if (this.#tableWrapper) this.#tableWrapper.style.height = this.#tableWrapper.style.height || '300px';
-        if (this.#tabulator && typeof this.#tabulator.redraw === 'function') this.#tabulator.redraw(true);
-        const tabEl2 = this.#tableWrapper.classList && this.#tableWrapper.classList.contains('tabulator') ?
-          this.#tableWrapper : (this.#tableWrapper.querySelector('.tabulator') || this.#tableWrapper.querySelector('.tabulator-table'));
-        logger.info('Fallback attempt after forcing height, tabExistsNow=' + !!tabEl2 + ', tableWrapper.className=' + (this.#tableWrapper ? this.#tableWrapper.className : 'null'));
-      } catch (e) { logger.warn('Fallback redraw failed', e); }
-    }
-  }
-
-  /**
-   * 记录计算样式信息
-   * @private
-   */
-  #logComputedStyles() {
-    try {
-      if (typeof window !== 'undefined' && window.getComputedStyle) {
-        const cs = (el) => window.getComputedStyle(el);
-        const contStyles = cs(this.#container);
-        const wrapStyles = cs(this.#tableWrapper);
-        logger.info(`Computed styles - container: display=${contStyles.display}, height=${contStyles.height}, overflow=${contStyles.overflow}`);
-        logger.info(`Computed styles - wrapper: display=${wrapStyles.display}, height=${wrapStyles.height}, overflow=${wrapStyles.overflow}`);
-        
-        let p = this.#container;
-        let depth = 0;
-        while (p && p !== document.body && depth < 6) {
-          try {
-            const s = cs(p);
-            logger.debug(`ancestor:${p.tagName}.${p.className || ''} display=${s.display} height=${s.height}`);
-          } catch (e) {}
-          p = p.parentElement; depth++;
-        }
-      }
-    } catch (e) { logger.warn('Computed style diagnostics failed', e); }
-  }
-
-  /**
-   * 记录Tabulator实例信息
-   * @private
-   */
-  #logTabulatorInstanceInfo() {
-    try {
-      const keys = Object.keys(this.#tabulator || {}).slice(0, 40);
-      logger.info('Tabulator instance keys (sample):', keys);
-
-      try {
-        const tEl = (this.#tabulator && (this.#tabulator.element || this.#tabulator.table || this.#tabulator.tableElement)) || null;
-        logger.info('Tabulator DOM reference present:', !!tEl);
-        
-        let tdataLen = 'n/a';
-        try {
-          tdataLen = (this.#tabulator && typeof this.#tabulator.getData === 'function') ?
-            (Array.isArray(this.#tabulator.getData()) ? this.#tabulator.getData().length : 'non-array') : 'no-getData';
-        } catch (e) { tdataLen = 'getData-error'; }
-        logger.info('Tabulator internal data length:', tdataLen);
-        
-        let colsCount = 'n/a';
-        try {
-          colsCount = (this.#tabulator && typeof this.#tabulator.getColumns === 'function') ?
-            (this.#tabulator.getColumns().length) : 'no-getColumns';
-        } catch (e) { colsCount = 'getColumns-error'; }
-        logger.info('Tabulator columns count:', colsCount);
-      } catch (e) { logger.warn('Tabulator deeper introspect failed', e); }
-    } catch (e) { logger.warn('Tabulator introspect failed', e); }
-  }
 
   /**
    * 清空表格数据

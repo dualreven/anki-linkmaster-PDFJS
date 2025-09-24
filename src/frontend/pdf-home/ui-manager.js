@@ -7,7 +7,7 @@ import {
   WEBSOCKET_EVENTS,
   UI_EVENTS,
 } from "../common/event/event-constants.js";
-import Logger from "../common/utils/logger.js";
+import { getLogger } from "../common/utils/logger.js";
 
 export class UIManager {
   #state;
@@ -18,7 +18,7 @@ export class UIManager {
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
-    this.#logger = new Logger("UIManager");
+    this.#logger = getLogger("UIManager");
     this.#state = {
       pdfs: [],
       loading: false,
@@ -158,7 +158,6 @@ export class UIManager {
       const filename = btn.getAttribute('data-filename') || btn.getAttribute('data-filepath') || null;
 
       this.#logger.info(`Table action triggered: action=${action}, rowId=${rowId}, filename=${filename}`);
-      try { console.info('TABLE_ACTION', { action, rowId, filename }); } catch (e) {}
 
       if (action) {
         event.preventDefault();
@@ -171,11 +170,24 @@ export class UIManager {
             break;
           case 'delete':
           case 'remove':
-            if (confirm("确定要删除这个PDF文件吗？")) {
-              const payload = rowId || filename;
-              this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.REMOVE.REQUESTED, payload, {
-                actorId: 'UIManager'
+            // 使用新的对话框管理器
+            if (window.dialogManager) {
+              window.dialogManager.confirm("确定要删除这个PDF文件吗？").then(confirmed => {
+                if (confirmed) {
+                  const payload = rowId || filename;
+                  this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.REMOVE.REQUESTED, payload, {
+                    actorId: 'UIManager'
+                  });
+                }
               });
+            } else {
+              // 降级到原生confirm
+              if (confirm("确定要删除这个PDF文件吗？")) {
+                const payload = rowId || filename;
+                this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.REMOVE.REQUESTED, payload, {
+                  actorId: 'UIManager'
+                });
+              }
             }
             break;
         }
@@ -249,13 +261,20 @@ export class UIManager {
     // ==================== 修改结束 (3/3) ====================
   }
 
-  #handleBatchDelete() {
+  async #handleBatchDelete() {
     // 优先使用 TableWrapper 提供的 API 获取选中的行（该方法已被正规化为 plain objects）
     if (this.pdfTable && typeof this.pdfTable.getSelectedRows === 'function') {
       try {
         const selectedRows = this.pdfTable.getSelectedRows();
         if (Array.isArray(selectedRows) && selectedRows.length > 0) {
-          if (!confirm(`确定要删除选中的 ${selectedRows.length} 个PDF文件吗？`)) return;
+          // 使用新的对话框管理器
+          if (window.dialogManager) {
+            const confirmed = await window.dialogManager.confirm(`确定要删除选中的 ${selectedRows.length} 个PDF文件吗？`);
+            if (!confirmed) return;
+          } else {
+            // 降级到原生confirm
+            if (!confirm(`确定要删除选中的 ${selectedRows.length} 个PDF文件吗？`)) return;
+          }
  
           // 收集所有选中的文件标识（优先 id -> filename -> file_id）
           const selectedFiles = selectedRows.map(row => {
@@ -320,8 +339,15 @@ export class UIManager {
     }
  
     if (checkboxes.length === 0) { this.showError("请先选择要删除的PDF文件"); return; }
- 
-    if (!confirm(`确定要删除选中的 ${checkboxes.length} 个PDF文件吗？`)) return;
+
+    // 使用新的对话框管理器
+    if (window.dialogManager) {
+      const confirmed = await window.dialogManager.confirm(`确定要删除选中的 ${checkboxes.length} 个PDF文件吗？`);
+      if (!confirmed) return;
+    } else {
+      // 降级到原生confirm
+      if (!confirm(`确定要删除选中的 ${checkboxes.length} 个PDF文件吗？`)) return;
+    }
  
     // 收集所有选中的文件
     const selectedFiles = [];

@@ -4,7 +4,7 @@
  * @description 处理PDF查看器的所有事件监听和响应
  */
 
-import PDF_VIEWER_EVENTS from "../common/event/pdf-viewer-constants.js";
+import PDF_VIEWER_EVENTS from "../common/event/pdf_viewer-constants.js";
 import { WEBSOCKET_MESSAGE_EVENTS } from "../common/event/event-constants.js";
 
 /**

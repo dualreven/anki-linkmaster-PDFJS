@@ -8,7 +8,7 @@ import json
 import logging
 import shutil
 from typing import Dict, Any, List, Optional
-from src.backend.qt.compat import QObject, pyqtSignal
+from src.qt.compat import QObject, pyqtSignal
 
 from .models import PDFFile, PDFFileList
 from .utils import FileValidator, ErrorHandler

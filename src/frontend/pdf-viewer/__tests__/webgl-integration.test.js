@@ -6,7 +6,7 @@
 import { PDFManager } from '../pdf-manager.js';
 import { WebGLStateManager } from '../../common/utils/webgl-detector.js';
 import Logger from '../../common/utils/logger.js';
-import PDF_VIEWER_EVENTS from '../../common/event/pdf-viewer-constants.js';
+import PDF_VIEWER_EVENTS from '../../common/event/pdf_viewer-constants.js';
 
 // Mock Logger
 jest.mock('../../common/utils/logger.js', () => {

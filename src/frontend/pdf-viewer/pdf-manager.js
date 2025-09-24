@@ -4,7 +4,7 @@
  * @description 基于PDF.js的PDF文档管理模块
  */
 
-import PDF_VIEWER_EVENTS from "../common/event/pdf-viewer-constants.js";
+import PDF_VIEWER_EVENTS from "../common/event/pdf_viewer-constants.js";
 import { Logger } from "../common/utils/logger.js";
 
 // PDF.js 配置

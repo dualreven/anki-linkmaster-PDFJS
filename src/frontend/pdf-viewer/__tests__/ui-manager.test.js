@@ -91,7 +91,7 @@ describe('UIManager', () => {
     test('应该成功初始化UI管理器', async () => {
       await uiManager.initialize();
       
-      expect(DOMUtils.getElementById).toHaveBeenCalledWith('pdf-viewer-container');
+      expect(DOMUtils.getElementById).toHaveBeenCalledWith('pdf_viewer-container');
       expect(mockContainer.appendChild).toHaveBeenCalledWith(mockCanvas);
       expect(mockLogger.info).toHaveBeenCalledWith('UI Manager initialized successfully');
     });

@@ -3,7 +3,7 @@ WebSocket服务器模块 (已重构，更简洁、更健壮)
 """
 import logging
 import json
-from src.backend.qt.compat import (
+from src.qt.compat import (
     QObject, pyqtSignal, pyqtSlot,
     QWebSocketServer, QWebSocket,
     QHostAddress, QAbstractSocket

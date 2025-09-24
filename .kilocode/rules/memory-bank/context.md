@@ -1,3 +1,54 @@
+﻿# 验证结果：无 JS 错误
+
+- 已重启 pdf-home 并解析 logs/pdf-home-js.log：未检出 [ERROR] 段落
+- 实施的容器 API 对齐（initialize/isInitialized/getDependencies）生效，启动流程顺畅
+
+---
+# 修复实施记录
+
+- 已在 app-container.js 实现 getDependencies() 并导出到返回对象，内部调用 ensureInfra()
+- 已添加验证脚本：AItemp/test-verify-app-container.ps1（UTF-8）
+- 下一步：重启 pdf-home → 解析 logs/pdf-home-js.log，确认无 TypeError；若仍有异常，按调用栈继续定位
+
+---
+# 进展更新：pdf-home JS 日志错误定位
+
+- 错误确定：TypeError 源于 this.#appContainer.getDependencies() 缺失（非函数）
+- 证据：src/frontend/pdf-home/index.js 调用 getDependencies；app-container.js 未实现该接口
+- 建议：在 app-container.js 中实现 getDependencies()，返回 { logger: log, eventBus, wsClient }，内部先 ensureInfra()
+- 状态：解析脚本与测试已完成（AItemp/jslog_parser.ps1, AItemp/test-jslog_parser.ps1）
+
+---
+# 当前任务：检查 pdf-home 的 JS 日志错误
+
+**问题描述**：pdf-home JS 日志中出现初始化失败错误：TypeError: _classPrivateFieldGet(...).getDependencies is not a function；伴随 Bootstrap failed 记录。
+
+**问题背景**：近期对日志与事件总线、JS 调试端口做了较大改动（见 AItemp/20250924165506-AI-Working-log.md 等），现需验证前端容器初始化流程与依赖注入（或模块装配）是否一致。
+
+**相关模块与文件**：
+- logs/pdf-home-js.log：JS 控制台捕获日志
+- src/frontend/pdf-home/container/app-container.js：容器初始化与事件桥接
+- src/frontend/pdf-home/index.js 或等价入口：PDFHomeApp 构造与启动
+- src/frontend/common/*：Logger / EventBus / WSClient 相关
+
+**执行步骤**：
+1. 提取 logs/pdf-home-js.log 中 [ERROR] 段落，并保留堆栈供定位
+2. 搜索源码中 getDependencies 相关实现或期望接口，核对导入对象是否为函数
+3. 复查构造顺序与依赖注入（私有字段 _classPrivateFieldGet 的来源与初始化）
+4. 设计并运行一个日志解析脚本与最小化复现测试，输出明确错误摘要
+5. 形成修复建议（接口更名/导出修正/构造顺序/默认实现兜底）并给出变更影响面
+
+**原子任务拆分**：
+- 原子1：实现日志解析脚本（输入log，输出错误摘要）
+- 原子2：代码检索并定位 getDependencies 来源与不匹配点
+- 原子3：给出修复方案与验证步骤
+
+**验证方法**：
+- 运行解析脚本，确认能正确抽取 [ERROR] 段落和堆栈
+- 启动 pdf-home，观察新会话日志是否仍复现
+- 针对修复方案，编写最小用例验证不再抛出 TypeError
+
+---
 # 当前任务：AI-log.py atom-tasks字段格式修正 ✅ 已完成
 
 **任务目标**：修复AI-log.py中atom-tasks部分的JSON格式，使其完全符合docs/articles/读写python脚本.md中定义的标准格式
@@ -328,11 +379,59 @@ FileNotFoundError: [WinError 2] 系统找不到指定的文件。
 
 **建议批准进入第二阶段**: 前端路由功能测试
 
-## ai-launcher.py行为异常
+## ai-launcher.py行为异常 ✅ 已修复
 
 ### 描述
 
-ai-launcher.py 启动后 命令行的键盘输入变得不正常, 无法输入控制字符比如 `ctrl+c` 或者 `backspace` 需要检查修复,
+ai-launcher.py 启动后 命令行的键盘输入变得不正常, 无法输入控制字符比如 `ctrl+c` 或者 `backspace` 需要检查修复
+
+### 修复结果 ✅ (2025-09-24)
+
+**根本原因**：ai-scripts/ai_launcher/services/base_service.py中的subprocess.Popen添加了`stdin=subprocess.DEVNULL`参数，影响了终端输入处理
+
+**修复措施**：
+1. 移除base_service.py中的`stdin=subprocess.DEVNULL`参数
+2. 将ai-launcher.py改造为引导脚本，调用模块化的ai_launcher实现
+3. 实现了真正的非阻塞架构
+
+**当前架构**：
+- ai-launcher.py：简洁引导脚本（31行），调用模块化版本
+- ai-scripts/ai_launcher/：完整模块化实现，包含CLI、核心管理器、服务管理等
+- 统一入口，模块化架构，键盘输入正常
+
+## 后端WebSocket服务器架构分析 ✅ 已完成 (2025-09-24)
+
+### 任务描述
+检查后端WebSocket服务器代码，向用户汇报架构和工作原理
+
+### 架构分析结果
+
+**核心组件**：
+- **StandardWebSocketServer** (`src/backend/websocket/standard_server.py`): Qt WebSocket服务器，处理连接和消息路由
+- **StandardMessageHandler** (`src/backend/websocket/standard_protocol.py`): JSON协议处理器，消息验证和格式化
+- **WebSocketHandlers** (`src/backend/app/application_subcode/websocket_handlers.py`): 业务消息处理器
+- **WSClient** (`src/frontend/common/ws/ws-client.js`): 前端客户端，自动重连和事件总线集成
+
+**架构特点**：
+- 分层模块化设计：应用层 → WebSocket服务器层 → 协议处理层 → 业务处理层
+- 基于Qt QWebSocketServer + PyQt信号槽机制
+- 标准化JSON通信协议，支持11种消息类型
+- 事件驱动：PyQt信号槽 + 前端事件总线双向通信
+- 前端自动重连机制和消息队列
+- 统一的错误处理和异常封装
+
+**支持的功能**：
+- PDF文件管理（添加、删除、批量操作）
+- PDF详情查询和页面传输
+- PDF查看器启动
+- 系统状态监控和控制台日志收集
+- 多客户端并发和实时广播
+
+**技术优势**：
+- 模块化和可扩展性强
+- 标准化协议便于维护
+- 健壮的错误处理机制
+- 完整的日志追踪体系
 
 ## 规范命名
 
@@ -647,4 +746,185 @@ ai-launcher.py 启动后 命令行的键盘输入变得不正常, 无法输入�
 2. 检查Claude Code提供的前期工作成果
 3. 确定具体的实施方案和测试计划
 4. 开始执行任务
+
+---
+
+## 当前任务：pdf-home 日志系统重构 ✅ 已完成
+
+**任务目标**：按用户需求重构pdf-home的日志系统，实现完全分层的日志架构
+
+**任务状态**：✅ 已完成 (2025-09-24)
+
+**用户需求**：
+1. PyQt层日志，输出到 logs/pdf-home.log
+2. JS层日志，用logger模块记录，通过监听调试端口的控制台，输出到 logs/pdf-home-js.log
+3. 日志无需跨层传输
+
+**重构措施**：
+- **创建独立JS调试端口监听器**：`js_console_logger.py` 使用Chrome DevTools Protocol
+- **移除跨层日志传输**：删除JavaScript注入代码和QWebChannel Bridge的logFromJs方法
+- **集成新日志系统**：在launcher.py中自动启动和停止JS控制台监听器
+- **保持层次分离**：PyQt和JavaScript各用自己的日志机制
+
+**新日志架构**：
+- **PyQt层**：使用Python logging → `logs/pdf-home.log`
+- **JavaScript层**：DevTools Protocol监听 → Python logging → `logs/pdf-home-js.log`
+- **完全独立**：无跨层通信，各层职责清晰
+
+**技术亮点**：
+- 使用Chrome DevTools Protocol标准接口监听JavaScript控制台
+- 支持所有日志级别 (LOG/INFO/WARN/ERROR/DEBUG)
+- 自动启动和停止机制
+- 与现有远程调试功能完全兼容
+
+**验证结果**：
+- ✅ launcher.py基本功能正常
+- ✅ JS控制台监听器独立工作正常
+- ✅ 跨层日志传输完全消除
+- ✅ 代码架构更加清晰和专业
+
+---
+
+## 历史任务：修复 launcher.py 中 js_debug_port 未定义错误 ✅ 已完成
+
+**任务目标**：解决 src/frontend/pdf-home/launcher.py 中的 `UnboundLocalError: local variable 'js_debug_port' referenced before assignment` 错误
+
+**任务状态**：✅ 已完成 (2025-09-24)
+
+**问题详情**：
+- 第133行：MainWindow 创建时使用了 js_debug_port 变量
+- 第149行：js_debug_port 才被定义
+- 典型的变量作用域问题
+
+**修复措施**：
+- 重新组织 main() 函数的执行顺序
+- 将端口解析逻辑移到 MainWindow 创建之前
+- 确保所有变量在使用前先被定义
+
+**验证结果**：
+- ✅ `python src/frontend/pdf-home/launcher.py --help` 正常运行
+- ✅ UnboundLocalError 错误完全解决
+- ✅ 代码逻辑更加清晰和安全
+
+---
+
+## 历史任务：pdf_home 模块 QWebChannel 重构 ✅ 已完成
+
+**任务目标**：完成 pdf_home 模块的 QWebChannel 重构，将原有的 WebSocket 通信方式替换为 QWebChannel 直接调用
+
+**任务状态**：✅ 已完成 (2025-09-23)
+
+**重构内容**：
+
+### 1. 创建新的 PDF 管理器
+- ✅ 创建了 `pdf-qwebchannel-manager.js` 文件
+- ✅ 实现了 `PDFHomeQWebChannelManager` 类，使用 QWebChannel 直接调用后端方法
+- ✅ 支持的功能：
+  - 初始化 QWebChannel 桥接
+  - 获取 PDF 列表（getPdfList）
+  - 添加 PDF 文件（selectPdfFiles + addPdfBatchFromBase64）
+  - 删除 PDF 文件（removePdf）
+  - 打开 PDF 查看器（openPdfViewer）
+  - 批量删除 PDF 文件（batchRemovePDFs）
+
+### 2. 修改前端代码
+- ✅ 更新了 `index.js`，将原有的 PDFManager 替换为 PDFHomeQWebChannelManager
+- ✅ 修改了 `ui-manager.js`：
+  - 构造函数接收 PDFManager 实例
+  - 所有按钮事件直接调用 PDFManager 方法，不再通过事件总线
+  - 添加了错误处理和成功提示
+  - 实现了 `#handleOpenPDF` 方法
+
+### 3. 主要改动点
+1. **通信方式改变**：从 WebSocket 事件驱动改为 QWebChannel 直接调用
+2. **架构简化**：UIManager 直接调用 PDFManager，减少事件转发
+3. **错误处理**：添加了完善的错误处理机制
+4. **异步处理**：所有操作都使用 async/await 处理
+
+### 4. 技术细节
+- QWebChannel 初始化：使用 `initPdfHomeChannel()` 函数
+- 后端方法调用：直接通过 bridge 对象调用 Python 方法
+- 事件总线简化：减少了 PDF 相关的事件转发
+
+### 5. 验证结果
+- ✅ 项目构建成功，无语法错误
+- ✅ 所有文件修改完成
+- ✅ 代码结构清晰，符合模块化要求
+
+**相关文件**：
+- `src/frontend/pdf_home/pdf-qwebchannel-manager.js`：新建的 QWebChannel 管理器
+- `src/frontend/pdf_home/index.js`：主应用文件，更新了管理器引用
+- `src/frontend/pdf_home/ui-manager.js`：UI管理器，直接调用 bridge 方法
+- `src/backend/app/pdf_home_bridge.py`：后端 QWebChannel 桥接（已存在）
+
+**下一步建议**：
+1. 实际运行并测试各项功能
+2. 更新文档说明 QWebChannel 的使用方法
+3. 清理不再需要的 WebSocket 相关代码
+
+
+
+## 当前任务：后端UI剥离与终端控制字符修复 ✅ 已完成 (2025-09-24)
+
+**任务目标**：剥离后端中PyQt UI部分，只保留Qt WebSocket功能，转换为纯网络服务器架构；同时修复ai-launcher启动后终端控制字符异常问题
+
+**任务状态**：✅ 已完成
+
+**主要工作**：
+
+### 1. 后端UI剥离
+- ✅ **删除UI目录和文件**：完全删除 `src/backend/ui/` 目录
+- ✅ **删除QFileDialog功能**：删除 `pdf_home_dialog_client.py`，移除文件选择相关代码
+- ✅ **精简qt/compat.py**：移除所有UI组件导入，保留网络核心组件
+- ✅ **修改application.py**：移除所有UI相关代码和MainWindow引用
+- ✅ **修改main.py**：移除QApplication创建，转换为纯后端服务器启动函数
+- ✅ **QApplication管理外移**：将QApplication管理移至ai-launcher.py
+
+### 2. 架构转换成果
+**之前**：UI集成的桌面应用（QMainWindow + QWebEngineView + 集成文件对话框）
+**现在**：纯网络服务器（WebSocket服务器 + HTTP文件服务器 + 完全前后端分离）
+
+### 3. 终端控制字符修复
+**问题**：ai-launcher启动后终端控制字符异常（Ctrl+C显示为^C，Backspace显示为^H）
+**根本原因**：subprocess.Popen没有正确配置进程创建参数，干扰了父进程终端控制字符处理
+**解决方案**：在`ai-scripts/ai_launcher/services/base_service.py`中添加平台特定配置
+- Windows：使用`subprocess.DETACHED_PROCESS`创建独立进程组
+- Unix/Linux：使用`start_new_session=True`避免信号传播
+
+### 4. 验证结果
+- ✅ 后端服务器成功启动（WebSocket端口8765、HTTP端口8080）
+- ✅ 所有网络功能正常运行
+- ✅ 终端控制字符完全恢复正常
+- ✅ ai-launcher所有命令正常工作
+
+### 5. 技术成果
+- **代码清理**：删除约200+行UI相关代码，移除8个UI类导入
+- **架构优化**：实现完全的前后端分离，提高系统可维护性
+- **用户体验**：修复终端控制字符问题，改善开发体验
+- **跨平台兼容**：实现Windows和Unix系统的进程管理兼容性
+
+**相关文件**：
+- `src/backend/qt/compat.py`：精简UI导入，保留网络组件
+- `src/backend/app/application.py`：移除所有UI相关代码
+- `src/backend/main.py`：转换为纯后端启动函数
+- `ai-scripts/ai_launcher/services/base_service.py`：修复终端控制字符处理
+- `ai-launcher.py`：增强backend-only模式（已移除，使用标准start命令）
+
+**工作日志**：`AItemp/20250924124333-AI-Working-log.md`
+
+---
+
+## 历史更新记录
+
+### 更新于 2025-09-24 02:21:12
+- 任务：为 pdf-home/launcher.py 增加端口获取（命令行与 logs/runtime-ports.json）
+- 背景：当前仅支持从日志解析 Vite 端口与 runtime-ports 中 ws/pdf，缺少统一 CLI 与 JSON 双通道配置。
+- 相关文件：src/frontend/pdf_home/launcher.py, logs/runtime-ports.json
+- 步骤：1) 添加 argparse；2) 读取 JSON；3) 解析优先级：CLI > JSON > 现有日志推断/默认；4) 记录到日志。
+- 成果：launcher.py 支持命令行与 JSON 双通道端口解析，便于集成与调试。
+
+- 更新：pdf-home 内部新增 container/app-container.js，去除对 ../common 的依赖；index.js 改为本地容器导入；数据交互全部走 WebSocket。
+
+
+
 

@@ -6,7 +6,7 @@
 
 import { PDFViewerApp } from '../main.js';
 import { EventBus } from '../../common/event/event-bus.js';
-import PDF_VIEWER_EVENTS from '../../common/event/pdf-viewer-constants.js';
+import PDF_VIEWER_EVENTS from '../../common/event/pdf_viewer-constants.js';
 import { jest } from '@jest/globals';
 
 // Mock 依赖模块
@@ -77,7 +77,7 @@ describe('PDFViewerApp - 页面导航和缩放功能测试', () => {
 
     // Mock DOM 元素
     document.body.innerHTML = `
-      <div id="pdf-viewer-container"></div>
+      <div id="pdf_viewer-container"></div>
       <div id="pdf-toolbar"></div>
       <div id="pdf-sidebar"></div>
     `;

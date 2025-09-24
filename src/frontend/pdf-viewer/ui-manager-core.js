@@ -5,7 +5,7 @@
  */
 
 import { DOMUtils } from "../common/utils/dom-utils.js";
-import Logger from "../common/utils/logger.js";
+import { getLogger } from "../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../common/event/pdf-viewer-constants.js";
 
 /**
@@ -15,26 +15,20 @@ import { PDF_VIEWER_EVENTS } from "../common/event/pdf-viewer-constants.js";
 export class UIManagerCore {
   #eventBus;
   #logger;
-  #canvas = null;
-  #ctx = null;
-  #container = null;
-  #currentScale = 1.0;
-  #renderQueue = [];
-  #isRendering = false;
-  #zoomInBtn = null;
-  #zoomOutBtn = null;
-  #zoomLevelDisplay = null;
-  #pageInfoDisplay = null;
-  #prevPageBtn = null;
-  #nextPageBtn = null;
-  #progressBar = null;
-  #progressText = null;
-  #errorContainer = null;
-  #retryButton = null;
+  #elements;
+  #state;
+  #unsubscribeFunctions = [];
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
-    this.#logger = new Logger("UIManagerCore");
+    this.#logger = getLogger("UIManagerCore");
+
+    // 初始化状态
+    this.#state = {
+      currentScale: 1.0,
+      renderQueue: [],
+      isRendering: false
+    };
   }
 
   /**
@@ -44,11 +38,11 @@ export class UIManagerCore {
   async initialize() {
     try {
       this.#logger.info("Initializing UI Manager Core...");
-      
+
       this.#initializeElements();
       this.#setupEventListeners();
       this.#setupResizeObserver();
-      
+
       this.#logger.info("UI Manager Core initialized successfully");
     } catch (error) {
       this.#logger.error("Failed to initialize UI Manager Core:", error);
@@ -57,43 +51,66 @@ export class UIManagerCore {
   }
 
   /**
+   * 销毁UI管理器，清理资源
+   */
+  destroy() {
+    this.#logger.info("Destroying UIManagerCore and unsubscribing from events.");
+    this.#unsubscribeFunctions.forEach((unsub) => unsub());
+    this.#unsubscribeFunctions = [];
+  }
+
+  /**
    * 初始化DOM元素
    * @private
    */
   #initializeElements() {
-    this.#container = DOMUtils.getElementById("pdf-container");
-    if (!this.#container) {
+    this.#elements = {
+      container: DOMUtils.getElementById("pdf-container"),
+      canvas: null,
+      zoomInBtn: DOMUtils.getElementById("zoom-in"),
+      zoomOutBtn: DOMUtils.getElementById("zoom-out"),
+      zoomLevelDisplay: DOMUtils.getElementById("zoom-level"),
+      pageInfoDisplay: DOMUtils.getElementById("page-info"),
+      prevPageBtn: DOMUtils.getElementById("prev-page"),
+      nextPageBtn: DOMUtils.getElementById("next-page"),
+      progressBar: DOMUtils.getElementById("progress-bar"),
+      progressText: DOMUtils.getElementById("progress-text"),
+      errorContainer: DOMUtils.getElementById("error-container"),
+      retryButton: DOMUtils.getElementById("retry-button")
+    };
+
+    if (!this.#elements.container) {
       throw new Error("PDF viewer container not found");
     }
 
     // 创建或复用Canvas元素（避免重复创建同 id 的 canvas）
-    const existingCanvas = this.#container.querySelector('#pdf-canvas');
+    const existingCanvas = this.#elements.container.querySelector('#pdf-canvas');
     if (existingCanvas instanceof HTMLCanvasElement) {
       // 复用已有 canvas（来自静态 HTML 或其他初始化）
-      this.#canvas = existingCanvas;
-      this.#canvas.classList.add('pdf-canvas');
+      this.#elements.canvas = existingCanvas;
+      this.#elements.canvas.classList.add('pdf-canvas');
       this.#logger.debug("Reusing existing canvas element");
     } else {
       // 创建新的 Canvas
-      this.#canvas = document.createElement("canvas");
-      this.#canvas.id = "pdf-canvas";
-      this.#canvas.className = "pdf-canvas";
-      this.#canvas.style.display = "block";
-      
+      this.#elements.canvas = document.createElement("canvas");
+      this.#elements.canvas.id = "pdf-canvas";
+      this.#elements.canvas.className = "pdf-canvas";
+      this.#elements.canvas.style.display = "block";
+
       // 设置Canvas样式
-      Object.assign(this.#canvas.style, {
+      Object.assign(this.#elements.canvas.style, {
         margin: "0 auto",
         display: "block",
         background: "#f0f0f0",
         boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
       });
 
-      this.#container.appendChild(this.#canvas);
+      this.#elements.container.appendChild(this.#elements.canvas);
       this.#logger.debug("Canvas element created and appended");
     }
 
     // 获取渲染上下文
-    this.#ctx = this.#canvas.getContext("2d");
+    this.#state.ctx = this.#elements.canvas.getContext("2d");
   }
 
   /**
@@ -320,7 +337,7 @@ export class UIManagerCore {
    * @returns {HTMLElement|null} 容器元素
    */
   getContainer() {
-    return this.#container;
+    return this.#elements?.container || null;
   }
 
   /**
@@ -328,7 +345,7 @@ export class UIManagerCore {
    * @returns {HTMLCanvasElement|null} Canvas元素
    */
   getCanvas() {
-    return this.#canvas;
+    return this.#elements?.canvas || null;
   }
 
   /**
@@ -336,6 +353,6 @@ export class UIManagerCore {
    * @returns {CanvasRenderingContext2D|null} Canvas上下文
    */
   getContext() {
-    return this.#ctx;
+    return this.#state?.ctx || null;
   }
 }

@@ -648,3 +648,13 @@ class MyPlugin {
 ---
 
 *本文档持续更新，请定期查看最新版本以获取最新技术信息。*
+# 更新：pdf-home 容器接口
+
+- 新增接口：`createPDFHomeContainer().getDependencies()`
+  - 返回：`{ logger, eventBus, wsClient }`
+  - 说明：在内部调用 `ensureInfra()` 保证 `eventBus` 初始化；`wsClient` 在 `connect()` 前可能为 `null`，调用方应做空值判断（当前 `PDFHomeApp` 已使用可选链）。
+- 影响范围：`
+  - 调用方 `src/frontend/pdf-home/index.js` 现可安全获取依赖，避免 `getDependencies is not a function` 运行时错误。
+- 用法示例：
+  - `const { logger, eventBus, wsClient } = container.getDependencies();`
+

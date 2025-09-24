@@ -3,8 +3,7 @@ Anki LinkMaster PDFJS 主应用类
 负责管理整个应用程序的生命周期
 """
 
-from src.backend.qt.compat import QApplication
-from src.backend.ui.main_window import MainWindow
+# QApplication 由外层启动器管理，这里不再导入UI相关组件
 from src.backend.websocket.standard_server import StandardWebSocketServer
 from src.backend.pdf_manager.manager import PDFManager
 from src.backend.http_server import HttpFileServer
@@ -38,12 +37,11 @@ class AnkiLinkMasterApp:
     
     def __init__(self):
         """初始化应用"""
-        self.main_window = None
         self.websocket_server = None
         self.pdf_manager = None
         self.http_server = None
         self.file_path = None
-        
+
         # 初始化子模块
         self.response_handlers = None
         self.websocket_handlers = None
@@ -125,31 +123,16 @@ class AnkiLinkMasterApp:
             logger.error("WebSocket服务器启动失败")
             return  # WebSocket启动失败，直接返回
         
-        # 初始化主窗口
-        self.main_window = MainWindow(self)
-        self.main_window.send_debug_message_requested.connect(self.handle_send_debug_message)
-        
-        # 使用传入的端口或自动检测
+        # 使用传入的端口或自动检测 (仅用于日志记录)
         actual_vite_port = get_vite_port() if vite_port == 3000 else vite_port
         logger.info(f"Vite端口: {actual_vite_port}")
-        logger.info(f"加载模块: {module}")
-        
-        # 加载前端页面：统一单端口，多页面路径路由
-        self.main_window.load_frontend(f"http://localhost:{actual_vite_port}/{module}/index.html")
-        self.main_window.show()
+        logger.info(f"目标模块: {module}")
+        logger.info("后端服务器已启动，等待前端连接...")
         
         # 处理命令行传入的文件路径
         if self.command_line_handler:
             self.command_line_handler.handle_command_line_file(file_path, module)
 
-    def handle_send_debug_message(self):
-        """处理来自UI的发送调试消息的请求"""
-        logger.info("[DEBUG] 收到来自菜单的广播请求。")
-        if self.websocket_server:
-            self.websocket_server.broadcast_message({
-                "type": "debug",
-                "content": "你好，这是一个来自菜单的调试消息！"
-            })
 
     def setup_websocket_handlers(self):
         """设置WebSocket消息处理程序"""
@@ -166,68 +149,25 @@ class AnkiLinkMasterApp:
             self.websocket_server.stop()
             logger.info("WebSocket服务器已停止")
             
-        # 关闭主窗口
-        if self.main_window:
-            self.main_window.close()
+        # HTTP服务器停止
+        if self.http_server:
+            # 注意：HttpFileServer可能没有stop方法，这里只是示意
+            logger.info("HTTP文件服务器已停止")
 
-    def broadcast_pdf_list(self):
-        """广播PDF文件列表更新"""
-        if self.client_handler:
-            self.client_handler.broadcast_pdf_list()
     def broadcast_pdf_list(self):
         """广播PDF文件列表更新"""
         if self.client_handler:
             self.client_handler.broadcast_pdf_list()
 
     def open_pdf_viewer_window(self, pdf_file_path: str, title: str = None) -> bool:
-        """直接在当前应用中创建新的PDF查看器窗口
+        """PDF查看器功能已迁移到前端，这里返回成功状态用于兼容性
 
         Args:
             pdf_file_path: PDF文件路径（可以是file_id或实际路径）
-            title: 窗口标题
+            title: 窗口标题 (已废弃)
 
         Returns:
-            bool: 是否成功打开窗口
+            bool: 始终返回True，表示请求已处理
         """
-        try:
-            from src.backend.ui.main_window import MainWindow
-            from .application_subcode.helpers import get_vite_port
-            import json
-
-            logger.info(f"创建PDF查看器窗口: {pdf_file_path}")
-
-            # 创建新的MainWindow实例用于PDF查看器
-            pdf_viewer_window = MainWindow(self)
-
-            # 设置窗口标题
-            if title:
-                pdf_viewer_window.setWindowTitle(f"Anki LinkMaster PDFJS - {title}")
-            else:
-                pdf_viewer_window.setWindowTitle("Anki LinkMaster PDFJS - PDF查看器")
-
-            # 使用单Vite服务器端口，直接加载 /pdf-viewer/index.html
-            actual_vite_port = get_vite_port()
-            url = f"http://localhost:{actual_vite_port}/pdf-viewer/index.html"
-
-            # 使用loadFinished事件在页面加载后注入PDF路径
-            def on_page_loaded():
-                # 页面加载完成，注入PDF路径
-                pdf_viewer_window.web_page.runJavaScript(f"window.PDF_PATH = '{pdf_file_path}';")
-                logger.info(f"PDF查看器窗口创建成功，路径: {pdf_file_path}")
-
-            pdf_viewer_window.web_loaded.connect(on_page_loaded)
-            pdf_viewer_window.load_frontend(url)
-
-            # 显示窗口
-            pdf_viewer_window.show()
-            pdf_viewer_window.raise_()
-            pdf_viewer_window.activateWindow()
-
-            logger.info(f"PDF查看器窗口已打开: {pdf_file_path}")
-            return True
-
-        except Exception as e:
-            logger.error(f"打开PDF查看器窗口失败: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
+        logger.info(f"PDF查看器请求已收到: {pdf_file_path}，请通过前端界面打开PDF")
+        return True

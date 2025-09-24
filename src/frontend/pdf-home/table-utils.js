@@ -5,9 +5,9 @@
  */
 
 import { Tabulator } from 'tabulator-tables';
-import Logger from '../common/utils/logger.js';
+import { getLogger } from '../common/utils/logger.js';
 
-const logger = new Logger('TableUtils');
+const logger = getLogger('TableUtils');
 
 /**
  * @namespace TableUtils

@@ -32,6 +32,21 @@
         - npm-dev server (端口 3000): 前端开发服务器
         - debug.py (端口 9222): Python 调试控制台
         - app.py: 主应用程序 (包含 WebSocket 服务器端口 8765)
+
+        ⚡ 新增: 直接命令行启动后端服务器 (2025-09-24):
+        cd src/backend && python main.py                        # 使用默认端口启动
+        cd src/backend && python main.py --ws-port 8766 --http-port 8081  # 指定端口启动
+        cd src/backend && python main.py --module pdf-home      # 启动pdf-home模块
+        cd src/backend && python main.py --help                 # 查看所有可用参数
+
+        后端服务器支持的命令行参数:
+        * --module: 前端模块 (pdf-viewer|pdf-home, 默认: pdf-viewer)
+        * --vite-port: Vite开发服务器端口 (默认: 3000)
+        * --ws-port: WebSocket服务器端口 (默认: 8765)
+        * --http-port: HTTP文件服务器端口 (默认: 8080)
+        * --file-path: PDF文件路径 (仅pdf-viewer模块有效)
+
+        端口配置优先级: 命令行参数 > 环境变量 > 默认值
         
         开发命令 (仅用于特殊情况的手动调试):
         * npm run dev: 启动开发服务器 (端口3000，根目录为 src/frontend/pdf-home)

@@ -1,22 +1,19 @@
 /**
  * @file PDF查看器应用核心模块
  * @module PDFViewerAppCore
- * @description PDF查看器应用的核心功能，包括初始化、状态管理和基础协调
+ * @description PDF查看器应用的核心功能，包括初始化、状态管理和基础协调，使用容器化依赖注入架构
  */
 
-import { EventBus } from "../common/event/event-bus.js";
-import PDF_VIEWER_EVENTS from "../common/event/pdf-viewer-constants.js";
-import Logger, { LogLevel } from "../common/utils/logger.js";
+import { PDF_VIEWER_EVENTS } from "../common/event/pdf-viewer-constants.js";
 import { ErrorHandler } from "../common/error/error-handler.js";
 import { PDFManager } from "./pdf-manager.js";
 import { UIManager } from "./ui-manager.js";
-import { WSClient } from "../common/ws/ws-client.js";
-import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS } from "../common/event/event-constants.js";
 import { createConsoleWebSocketBridge } from "../common/utils/console-websocket-bridge.js";
+import { createPDFViewerContainer } from "./container/app-container.js";
 
 /**
  * @class PDFViewerAppCore
- * @description PDF查看器应用的核心协调器，管理所有模块的生命周期
+ * @description PDF查看器应用的核心协调器，管理所有模块的生命周期，使用容器化架构
  */
 export class PDFViewerAppCore {
   #logger;
@@ -32,22 +29,33 @@ export class PDFViewerAppCore {
   #wsClient = null;
   #messageQueue = [];
   #consoleBridge = null;
+  #appContainer; // 应用容器
 
-  constructor() {
-    this.#logger = new Logger("PDFViewerApp");
-    this.#eventBus = new EventBus({
-      enableValidation: true,
-      logLevel: LogLevel.INFO,
-    });
+  constructor(deps = {}) {
+    // 如果传入了容器，使用它；否则创建新容器
+    if (deps.container) {
+      this.#appContainer = deps.container;
+    } else {
+      // 创建应用容器，解决循环依赖
+      this.#appContainer = createPDFViewerContainer({
+        wsUrl: deps.wsUrl || 'ws://localhost:8765',
+        enableValidation: deps.enableValidation !== false
+      });
+    }
+
+    // 从容器获取依赖
+    const { logger, eventBus, wsClient } = this.#appContainer.getDependencies();
+    this.#logger = logger;
+    this.#eventBus = eventBus;
+    this.#wsClient = wsClient;
+
+    // 创建其他组件
     this.#errorHandler = new ErrorHandler(this.#eventBus);
     this.#pdfManager = new PDFManager(this.#eventBus);
     this.#uiManager = new UIManager(this.#eventBus);
 
-    // 初始化WebSocket客户端
-    this.#wsClient = new WSClient("ws://localhost:8765", this.#eventBus);
-
     // 创建console桥接器，但暂时不启用
-    this.#consoleBridge = createConsoleWebSocketBridge('pdf-viewer', (message) => {
+    this.#consoleBridge = createConsoleWebSocketBridge('pdf_viewer', (message) => {
       if (this.#wsClient && this.#wsClient.isConnected()) {
         this.#wsClient.send({ type: 'console_log', data: message });
       }
@@ -59,7 +67,7 @@ export class PDFViewerAppCore {
       this.#consoleBridge.enable();
     }, { subscriberId: 'PDFViewerAppCore' });
 
-    this.#logger.info("PDFViewerApp instance created");
+    this.#logger.info("PDFViewerApp instance created with container architecture");
   }
 
   /**
@@ -71,14 +79,14 @@ export class PDFViewerAppCore {
       this.#logger.info("Initializing PDF Viewer App...");
       this.#setupGlobalErrorHandling();
 
-      // 初始化WebSocket客户端
-      this.#initializeWebSocket();
+      // 通过容器连接WebSocket
+      this.#appContainer.connect();
 
       await this.#pdfManager.initialize();
       await this.#uiManager.initialize();
 
       this.#initialized = true;
-      this.#logger.info("PDF Viewer App initialized successfully.");
+      this.#logger.info("PDF Viewer App initialized successfully with container architecture.");
       this.#eventBus.emit(PDF_VIEWER_EVENTS.STATE.INITIALIZED, undefined, {
         actorId: 'PDFViewerApp'
       });
@@ -105,23 +113,6 @@ export class PDFViewerAppCore {
     });
   }
 
-  /**
-   * 初始化WebSocket连接和相关管理器
-   * @private
-   */
-  #initializeWebSocket() {
-    try {
-      this.#logger.info("Initializing WebSocket connection...");
-
-      // 连接WebSocket服务器
-      this.#wsClient.connect();
-
-      this.#logger.info("WebSocket connection initialized successfully.");
-    } catch (error) {
-      this.#logger.error("Failed to initialize WebSocket connection:", error);
-      this.#errorHandler.handleError(error, "WebSocketInitialization");
-    }
-  }
 
   /**
    * 处理已初始化状态
@@ -201,19 +192,20 @@ export class PDFViewerAppCore {
   destroy() {
     this.#logger.info("Destroying PDF Viewer App...");
 
-    // 断开WebSocket连接
-    if (this.#wsClient) {
-      this.#wsClient.disconnect();
+    // 通过容器断开连接和清理资源
+    if (this.#appContainer) {
+      this.#appContainer.dispose();
     }
 
     this.#pdfManager.destroy();
     this.#uiManager.destroy();
-    this.#eventBus.destroy();
 
     this.#logger.info("PDF Viewer App destroyed.");
     this.#eventBus.emit(PDF_VIEWER_EVENTS.STATE.DESTROYED, undefined, {
       actorId: 'PDFViewerApp'
     });
+
+    this.#eventBus.destroy();
   }
 
   /**

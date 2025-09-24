@@ -7,7 +7,7 @@
 import { PDFViewerAppCore } from "./app-core.js";
 import { EventHandlers } from "./event-handlers.js";
 import Logger from "../common/utils/logger.js";
-import PDF_VIEWER_EVENTS from "../common/event/pdf-viewer-constants.js";
+import { PDF_VIEWER_EVENTS } from "../common/event/pdf-viewer-constants.js";
 import { createConsoleWebSocketBridge } from "../common/utils/console-websocket-bridge.js";
 
 /**
@@ -47,7 +47,7 @@ export class PDFViewerApp extends PDFViewerAppCore {
 // ===== 应用启动 =====
 document.addEventListener("DOMContentLoaded", async () => {
   const app = new PDFViewerApp();
-  const indexLogger = new Logger("pdf-viewer/main.js");
+  const indexLogger = new Logger("pdf_viewer/main.js");
 
   // PDF.js will be loaded by PDFManager via ES modules
   indexLogger.info("PDF.js will be loaded dynamically by PDFManager");

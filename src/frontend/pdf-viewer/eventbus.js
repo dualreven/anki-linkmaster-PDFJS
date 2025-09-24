@@ -5,7 +5,7 @@
  */
 
 import { EventBus } from "../common/event/event-bus.js";
-import PDF_VIEWER_EVENTS from "../common/event/pdf-viewer-constants.js";
+import PDF_VIEWER_EVENTS from "../common/event/pdf_viewer-constants.js";
 import Logger from "../common/utils/logger.js";
 
 /**
@@ -75,8 +75,8 @@ export class PDFViewerEventBus {
    * @private
    */
   #validateEventName(event) {
-    if (!event.startsWith('pdf-viewer:')) {
-      this.#logger.warn(`事件名称 '${event}' 不符合PDF查看器命名规范，应以 'pdf-viewer:' 开头`);
+    if (!event.startsWith('pdf_viewer:')) {
+      this.#logger.warn(`事件名称 '${event}' 不符合PDF查看器命名规范，应以 'pdf_viewer:' 开头`);
     }
   }
 

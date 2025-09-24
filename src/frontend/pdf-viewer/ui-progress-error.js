@@ -5,7 +5,7 @@
  */
 
 import Logger from "../common/utils/logger.js";
-import { PDF_VIEWER_EVENTS } from "../common/event/pdf-viewer-constants.js";
+import { PDF_VIEWER_EVENTS } from "../common/event/pdf_viewer-constants.js";
 
 /**
  * @class UIProgressError
