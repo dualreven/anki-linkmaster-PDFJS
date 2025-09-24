@@ -1,4 +1,42 @@
-﻿# 当前任务：AI-log.py atom-tasks字段格式修正 ✅ 已完成
+﻿# 进展更新：pdf-home JS 日志错误定位
+
+- 错误确定：TypeError 源于 this.#appContainer.getDependencies() 缺失（非函数）
+- 证据：src/frontend/pdf-home/index.js 调用 getDependencies；app-container.js 未实现该接口
+- 建议：在 app-container.js 中实现 getDependencies()，返回 { logger: log, eventBus, wsClient }，内部先 ensureInfra()
+- 状态：解析脚本与测试已完成（AItemp/jslog_parser.ps1, AItemp/test-jslog_parser.ps1）
+
+---
+# 当前任务：检查 pdf-home 的 JS 日志错误
+
+**问题描述**：pdf-home JS 日志中出现初始化失败错误：TypeError: _classPrivateFieldGet(...).getDependencies is not a function；伴随 Bootstrap failed 记录。
+
+**问题背景**：近期对日志与事件总线、JS 调试端口做了较大改动（见 AItemp/20250924165506-AI-Working-log.md 等），现需验证前端容器初始化流程与依赖注入（或模块装配）是否一致。
+
+**相关模块与文件**：
+- logs/pdf-home-js.log：JS 控制台捕获日志
+- src/frontend/pdf-home/container/app-container.js：容器初始化与事件桥接
+- src/frontend/pdf-home/index.js 或等价入口：PDFHomeApp 构造与启动
+- src/frontend/common/*：Logger / EventBus / WSClient 相关
+
+**执行步骤**：
+1. 提取 logs/pdf-home-js.log 中 [ERROR] 段落，并保留堆栈供定位
+2. 搜索源码中 getDependencies 相关实现或期望接口，核对导入对象是否为函数
+3. 复查构造顺序与依赖注入（私有字段 _classPrivateFieldGet 的来源与初始化）
+4. 设计并运行一个日志解析脚本与最小化复现测试，输出明确错误摘要
+5. 形成修复建议（接口更名/导出修正/构造顺序/默认实现兜底）并给出变更影响面
+
+**原子任务拆分**：
+- 原子1：实现日志解析脚本（输入log，输出错误摘要）
+- 原子2：代码检索并定位 getDependencies 来源与不匹配点
+- 原子3：给出修复方案与验证步骤
+
+**验证方法**：
+- 运行解析脚本，确认能正确抽取 [ERROR] 段落和堆栈
+- 启动 pdf-home，观察新会话日志是否仍复现
+- 针对修复方案，编写最小用例验证不再抛出 TypeError
+
+---
+# 当前任务：AI-log.py atom-tasks字段格式修正 ✅ 已完成
 
 **任务目标**：修复AI-log.py中atom-tasks部分的JSON格式，使其完全符合docs/articles/读写python脚本.md中定义的标准格式
 
@@ -873,3 +911,5 @@ ai-launcher.py 启动后 命令行的键盘输入变得不正常, 无法输入�
 - 成果：launcher.py 支持命令行与 JSON 双通道端口解析，便于集成与调试。
 
 - 更新：pdf-home 内部新增 container/app-container.js，去除对 ../common 的依赖；index.js 改为本地容器导入；数据交互全部走 WebSocket。
+
+
