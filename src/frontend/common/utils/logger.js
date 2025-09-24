@@ -221,4 +221,32 @@ export class Logger {
   }
 }
 
+/**
+ * Logger 实例缓存，用于确保同一模块名只创建一个 logger 实例
+ */
+const loggerInstances = new Map();
+
+/**
+ * 获取或创建指定模块名的 Logger 实例
+ * @param {string} moduleName - 模块名称
+ * @param {LogLevel} [initialLogLevel=LogLevel.INFO] - 初始日志级别
+ * @returns {Logger} Logger 实例
+ */
+export function getLogger(moduleName, initialLogLevel = LogLevel.INFO) {
+  if (!loggerInstances.has(moduleName)) {
+    loggerInstances.set(moduleName, new Logger(moduleName, initialLogLevel));
+  }
+  return loggerInstances.get(moduleName);
+}
+
+/**
+ * 设置全局 WebSocket 客户端（用于向后端发送日志）
+ * 注意：由于我们已经重构为独立分层日志系统，此函数保留但不实际使用
+ * @param {Object} wsClient - WebSocket 客户端实例
+ */
+export function setGlobalWebSocketClient(wsClient) {
+  // 保留接口兼容性，但不实际使用
+  console.info('[Logger] setGlobalWebSocketClient called but not used in new architecture');
+}
+
 export default Logger;

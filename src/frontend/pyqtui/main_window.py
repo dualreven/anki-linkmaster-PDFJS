@@ -16,10 +16,12 @@ class MainWindow(QMainWindow):
     # 定义信号
     web_loaded = pyqtSignal()
 
-    def __init__(self,app):
+    def __init__(self,app, remote_debug_port: int | None = None, js_log_file: str | None = None):
         """初始化主窗口"""
         super().__init__()
         self.parent = app
+        self._remote_debug_port = remote_debug_port or 9222
+        self._js_log_file = js_log_file
         # 窗口属性
         self.setWindowTitle("Anki LinkMaster PDFJS")
         self.setGeometry(100, 100, 1200, 800)
@@ -36,7 +38,7 @@ class MainWindow(QMainWindow):
         """初始化用户界面"""
         # 启用远程调试端口 - 必须在创建WebEngineView之前设置
         import os
-        os.environ['QTWEBENGINE_REMOTE_DEBUGGING'] = '9222'
+        os.environ['QTWEBENGINE_REMOTE_DEBUGGING'] = str(self._remote_debug_port)
 
         # 创建WebEngine视图
         self.web_view = QWebEngineView() if QWebEngineView else None
@@ -60,7 +62,39 @@ class MainWindow(QMainWindow):
 
         # 创建自定义页面以支持Inspector
         if self.web_view and QWebEnginePage:
-            self.web_page = QWebEnginePage(self.web_view)
+            # 自定义页面以捕获前端console输出
+            try:
+                from PyQt6.QtWebEngineCore import QWebEnginePage as _QWEP  # type: ignore
+            except Exception:
+                _QWEP = QWebEnginePage
+
+            class LoggingWebPage(_QWEP):
+                def __init__(self, parent, log_file_path: str | None):
+                    super().__init__(parent)
+                    self._log_file_path = log_file_path
+                    try:
+                        if self._log_file_path:
+                            import os as _os
+                            _os.makedirs(_os.path.dirname(self._log_file_path), exist_ok=True)
+                    except Exception:
+                        pass
+
+                def javaScriptConsoleMessage(self, level, message, lineNumber, sourceID):  # type: ignore
+                    try:
+                        if self._log_file_path:
+                            from datetime import datetime as _dt
+                            ts = _dt.now().strftime('%H:%M:%S.%f')[:-3]
+                            line = f"[{ts}][{str(level)}][{sourceID}:{lineNumber}] {message}"
+                            with open(self._log_file_path, 'a', encoding='utf-8') as f:
+                                f.write(line + '\n')
+                    except Exception:
+                        pass
+                    try:
+                        return super().javaScriptConsoleMessage(level, message, lineNumber, sourceID)  # type: ignore
+                    except Exception:
+                        return None
+
+            self.web_page = LoggingWebPage(self.web_view, self._js_log_file)
             self.web_view.setPage(self.web_page)
         else:
             self.web_page = None

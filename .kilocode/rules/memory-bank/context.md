@@ -698,7 +698,66 @@ ai-launcher.py 启动后 命令行的键盘输入变得不正常, 无法输入�
 
 ---
 
-## 当前任务：pdf_home 模块 QWebChannel 重构 ✅ 已完成
+## 当前任务：pdf-home 日志系统重构 ✅ 已完成
+
+**任务目标**：按用户需求重构pdf-home的日志系统，实现完全分层的日志架构
+
+**任务状态**：✅ 已完成 (2025-09-24)
+
+**用户需求**：
+1. PyQt层日志，输出到 logs/pdf-home.log
+2. JS层日志，用logger模块记录，通过监听调试端口的控制台，输出到 logs/pdf-home-js.log
+3. 日志无需跨层传输
+
+**重构措施**：
+- **创建独立JS调试端口监听器**：`js_console_logger.py` 使用Chrome DevTools Protocol
+- **移除跨层日志传输**：删除JavaScript注入代码和QWebChannel Bridge的logFromJs方法
+- **集成新日志系统**：在launcher.py中自动启动和停止JS控制台监听器
+- **保持层次分离**：PyQt和JavaScript各用自己的日志机制
+
+**新日志架构**：
+- **PyQt层**：使用Python logging → `logs/pdf-home.log`
+- **JavaScript层**：DevTools Protocol监听 → Python logging → `logs/pdf-home-js.log`
+- **完全独立**：无跨层通信，各层职责清晰
+
+**技术亮点**：
+- 使用Chrome DevTools Protocol标准接口监听JavaScript控制台
+- 支持所有日志级别 (LOG/INFO/WARN/ERROR/DEBUG)
+- 自动启动和停止机制
+- 与现有远程调试功能完全兼容
+
+**验证结果**：
+- ✅ launcher.py基本功能正常
+- ✅ JS控制台监听器独立工作正常
+- ✅ 跨层日志传输完全消除
+- ✅ 代码架构更加清晰和专业
+
+---
+
+## 历史任务：修复 launcher.py 中 js_debug_port 未定义错误 ✅ 已完成
+
+**任务目标**：解决 src/frontend/pdf-home/launcher.py 中的 `UnboundLocalError: local variable 'js_debug_port' referenced before assignment` 错误
+
+**任务状态**：✅ 已完成 (2025-09-24)
+
+**问题详情**：
+- 第133行：MainWindow 创建时使用了 js_debug_port 变量
+- 第149行：js_debug_port 才被定义
+- 典型的变量作用域问题
+
+**修复措施**：
+- 重新组织 main() 函数的执行顺序
+- 将端口解析逻辑移到 MainWindow 创建之前
+- 确保所有变量在使用前先被定义
+
+**验证结果**：
+- ✅ `python src/frontend/pdf-home/launcher.py --help` 正常运行
+- ✅ UnboundLocalError 错误完全解决
+- ✅ 代码逻辑更加清晰和安全
+
+---
+
+## 历史任务：pdf_home 模块 QWebChannel 重构 ✅ 已完成
 
 **任务目标**：完成 pdf_home 模块的 QWebChannel 重构，将原有的 WebSocket 通信方式替换为 QWebChannel 直接调用
 

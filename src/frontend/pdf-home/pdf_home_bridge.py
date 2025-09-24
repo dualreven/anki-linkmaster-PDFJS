@@ -34,6 +34,12 @@ class PdfHomeBridge(QObject):
     def __init__(self, ws_client: Optional[object] = None, parent: Optional[QObject] = None):
         super().__init__(parent)
         self._ws_client = ws_client
+        # ensure logs dir
+        try:
+            logs_dir = Path.cwd() / 'logs'
+            logs_dir.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
 
     # -------------------- API methods --------------------
     @pyqtSlot(result=list)
@@ -101,6 +107,7 @@ class PdfHomeBridge(QObject):
             return True
         logger.warning("addPdfBatchFromBase64 -> WebSocket client not available")
         return False
+
 
     @pyqtSlot(str, result=bool)
     def removePdf(self, fileId: str) -> bool:

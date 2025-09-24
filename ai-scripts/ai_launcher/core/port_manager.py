@@ -199,13 +199,13 @@ class PortManager:
             current_ports.update(requested_ports)
             self.logger.info(f"Merged requested ports: {requested_ports}")
 
-        # 3. 检查和分配端口
+        # 3. 检查和分配端口（只处理核心服务端口）
         allocated_ports = {}
         conflicts = []
 
-        for service_name, preferred_port in current_ports.items():
-            if service_name.startswith('_'):  # 跳过元数据
-                continue
+        # 首先处理核心服务端口
+        for service_name in self.default_ports.keys():
+            preferred_port = current_ports.get(service_name, self.default_ports[service_name])
 
             try:
                 if self.is_port_available(preferred_port):
@@ -220,7 +220,14 @@ class PortManager:
             except Exception as e:
                 self.logger.error(f"Failed to allocate port for {service_name}: {e}")
                 # 使用默认端口作为后备
-                allocated_ports[service_name] = self.default_ports.get(service_name, 8000)
+                allocated_ports[service_name] = self.default_ports[service_name]
+
+        # 保留非核心端口配置（如pdf-home-js），但不进行验证分配
+        for service_name, port in current_ports.items():
+            if service_name.startswith('_'):  # 跳过元数据
+                continue
+            if service_name not in self.default_ports:
+                allocated_ports[service_name] = port  # 直接保留，不验证
 
         # 4. 保存更新的配置
         if conflicts or requested_ports:
@@ -249,15 +256,18 @@ class PortManager:
         errors = []
         used_ports = set()
 
+        # 只验证核心服务端口
         for service_name, port in ports.items():
             if service_name.startswith('_'):  # 跳过元数据
+                continue
+            if service_name not in self.default_ports:  # 跳过非核心端口
                 continue
 
             # 检查端口范围
             if not (1024 <= port <= 65535):
                 errors.append(f"{service_name} port {port} is out of valid range (1024-65535)")
 
-            # 检查端口重复
+            # 检查端口重复（只在核心服务间检查）
             if port in used_ports:
                 errors.append(f"Port {port} is assigned to multiple services")
             used_ports.add(port)
