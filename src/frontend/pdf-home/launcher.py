@@ -122,7 +122,7 @@ def _setup_logging() -> None:
         level=logging.INFO,
         format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
         handlers=[
-            logging.FileHandler(logs_dir / 'pdf-home.log', encoding='utf-8'),
+            logging.FileHandler(logs_dir / 'pdf-home.log', encoding='utf-8', mode='w'),
             logging.StreamHandler(sys.stdout),
         ],
     )

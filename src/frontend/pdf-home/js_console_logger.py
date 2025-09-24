@@ -44,7 +44,7 @@ class JSConsoleLogger:
         self.js_logger.handlers.clear()
 
         # Create file handler
-        handler = logging.FileHandler(self.log_file, encoding='utf-8')
+        handler = logging.FileHandler(self.log_file, encoding='utf-8', mode='w')
         formatter = logging.Formatter('[%(asctime)s.%(msecs)03d][%(levelname)s] %(message)s',
                                     datefmt='%H:%M:%S')
         handler.setFormatter(formatter)
