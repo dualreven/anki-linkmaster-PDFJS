@@ -49,7 +49,7 @@ export function createPDFHomeContainer({ root, wsUrl, logger } = {}) {
   ensureUI();
   ensureEventBridges();
 
-  return { connect, disconnect, reloadData, dispose };
+  return { connect, disconnect, reloadData, dispose, getDependencies };
 
   // ---------------- helpers ----------------
   function ensureUI() {
@@ -90,6 +90,12 @@ export function createPDFHomeContainer({ root, wsUrl, logger } = {}) {
 
   function send(msg) {
     try { wsClient?.send?.({ type: msg.type, data: msg.payload || msg.data || {} }); } catch (e) { log.warn('send failed', e); }
+  }
+
+  // expose logger/eventBus/wsClient to consumers (e.g., PDFHomeApp)
+  function getDependencies() {
+    try { ensureInfra(); } catch {}
+    return { logger: log, eventBus, wsClient };
   }
 }
 
