@@ -20,3 +20,4 @@ test_files
 data/pdf_files.json
 AIforum/*
 AI-communication/
+dist

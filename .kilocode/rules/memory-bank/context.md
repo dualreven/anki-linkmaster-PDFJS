@@ -36,5 +36,11 @@
 
 
 # 细节规划 
-## 任务1
-
+## pdf-home模块与 pdf-viewer模块的公共特点
+- 目录：`src/frontend/pdf-home`
+架构: pyqt+qwebengine+js
+pyqt层:
+  - QWebChannel通信
+  - 前端日志捕获（Logger）
+  - 前端事件总线（EventBus）
+  - WebSocket客户端（WSClient）
