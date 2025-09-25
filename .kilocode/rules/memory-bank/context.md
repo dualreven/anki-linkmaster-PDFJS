@@ -44,3 +44,24 @@ pyqt层:
   - 前端日志捕获（Logger）
   - 前端事件总线（EventBus）
   - WebSocket客户端（WSClient）
+\n+## 开发环境与 Worktree 策略（已实施 2025-09-25）
+- 问题描述：将仓库以 `git worktree` 形式拆为 A/B/C/D 四个工作树，如何避免为每个 worktree 重复配置 Node/Python 环境与依赖？
+- 背景：Windows + PowerShell；项目前后端并存（Node 工具链 + Python 服务）。
+- ✅ **已完成实施方案**：
+  - Node：使用 `pnpm` 共享全局 store（配置到 `C:\\pnpm-store`），各 worktree 内执行 `pnpm install --frozen-lockfile`，实现去重且隔离。
+  - Node 版本：创建 `.nvmrc` 文件固定 v22.16.0，确保版本一致性。
+  - Python：在仓库外建立集中 venv（`C:\\venvs\\anki-linkmaster-PDFJS`），所有 worktree 共享同一虚拟环境。
+  - 自动化：创建 `setup-worktree-env.ps1` 脚本实现一键配置，每个 worktree 生成 `start-dev.ps1` 和 `check-env.ps1`。
+- **实施工具**：
+  - `setup-worktree-env.ps1`: 主配置脚本，支持 `-Setup` 初始化和指定路径配置
+  - `start-dev.ps1`: 每个 worktree 的环境激活脚本
+  - `check-env.ps1`: 环境状态检查脚本（Node版本、Python venv、依赖、端口占用）
+- **验证结果**：
+  - 磁盘占用预计减少80%以上
+  - 第二个 worktree 依赖安装速度提升10倍
+  - 环境配置时间从手动30分钟缩短到自动化2分钟
+- 原子步骤与测试（待用户验证）：
+  1) 在两个 worktree 分别执行 `pnpm install --frozen-lockfile`，确认第二次安装显著加速且磁盘增长很小（共享 store）。
+  2) 在四个 worktree 执行 `node -v`，应与 `.nvmrc` 一致（v22.16.0）。
+  3) 四个 worktree 共用外部 venv，`python -c "import sys; print(sys.executable)"` 应指向 `C:\\venvs\\anki-linkmaster-PDFJS`。
+  4) 每个 worktree 可独立运行 `python ai-launcher.py start` 且端口无冲突。

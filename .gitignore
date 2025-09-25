@@ -21,3 +21,10 @@ data/pdf_files.json
 AIforum/*
 AI-communication/
 dist
+test_pdf_files/*
+debug_data/*
+.trae/*
+.pytest_cache/*
+AItemp
+AITask
+AIforum

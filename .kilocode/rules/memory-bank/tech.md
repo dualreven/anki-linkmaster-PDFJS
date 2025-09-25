@@ -44,3 +44,9 @@
   - HTTP 文件服：健康检查 + Range 请求测试。
   - Launcher：服务 `start/stop/status` 冒烟测试。
 
+## Worktree 环境（Windows / PowerShell）
+- Node 包管理：优先 `pnpm`，设置共享 store（示例 `C:\\pnpm-store`），在各 worktree 使用 `pnpm install --frozen-lockfile`；可选 Yarn Berry(PnP)。
+- Node 版本：`nvm-windows` + `.nvmrc` 固定版本；结合 `direnv` 或终端集成自动切换。
+- Python 虚拟环境：在仓库外集中创建 venv（如 `C:\\venvs\\anki-linkmaster-PDFJS`），按分支差异可创建多个；进入 worktree 时激活。
+- 自动激活：可选 `direnv`/`posh-direnv` 实现进入目录即激活 Node/venv。
+- Git worktree 配置：使用 `git config --worktree` 进行工作树本地化配置与 hooks 隔离。
