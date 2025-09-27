@@ -50,7 +50,7 @@ except Exception:
             QApplication, QFileDialog, QMainWindow, QWidget, QVBoxLayout, QStatusBar
         )
         from PyQt6.QtGui import QAction
-        from PyQt6.QtCore import QUrl, pyqtSignal, pyqtSlot, QTimer, QByteArray, QObject
+        from PyQt6.QtCore import QUrl, pyqtSignal, pyqtSlot, QTimer, QByteArray, QObject, QCoreApplication
         from PyQt6.QtNetwork import QTcpServer, QTcpSocket, QHostAddress, QAbstractSocket
         from PyQt6.QtWebSockets import QWebSocketServer, QWebSocket
         from PyQt6.QtWebChannel import QWebChannel

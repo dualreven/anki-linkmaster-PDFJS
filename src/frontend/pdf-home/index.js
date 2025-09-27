@@ -1,3 +1,5 @@
+// Import polyfills first
+import '../common/polyfills.js';
 ﻿/**
  * @file 应用主入口，负责模块的初始化、协调和生命周期管理。
  * @module PDFHomeApp
@@ -92,6 +94,9 @@ class PDFHomeApp {
    */
   async initialize() {
     console.log("[DEBUG] PDFHomeApp.initialize() called");
+    setTimeout(() => {
+       console.log("[TEST] JS Console Logger Test Message");
+    }, 3000);
     try {
       if (this.#coreGuard) this.#coreGuard();
       console.log("[DEBUG] About to log 'Initializing PDF Home App...'");

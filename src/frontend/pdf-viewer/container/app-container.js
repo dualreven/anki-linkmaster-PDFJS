@@ -101,6 +101,30 @@ export function createPDFViewerContainer({
   }
 
   /**
+   * 更新WebSocket URL并重新连接
+   * @param {string} newWsUrl - 新的WebSocket URL
+   */
+  function updateWebSocketUrl(newWsUrl) {
+    if (state.disposed) return;
+
+    const oldUrl = state.wsUrl;
+    containerLogger.info(`[pdf-viewer] updating WebSocket URL from ${oldUrl} to ${newWsUrl}`);
+
+    // 更新状态
+    state.wsUrl = newWsUrl;
+
+    // 如果当前已连接，需要断开并重新连接
+    if (state.connected) {
+      disconnect();
+      wsClient = null; // 重置客户端以使用新URL
+      connect();
+    } else {
+      // 如果未连接，只需重置客户端
+      wsClient = null;
+    }
+  }
+
+  /**
    * 获取容器管理的依赖
    * @returns {Object} 依赖对象 {logger, eventBus, wsClient}
    */
@@ -119,6 +143,7 @@ export function createPDFViewerContainer({
     disconnect,
     reloadData,
     dispose,
-    getDependencies
+    getDependencies,
+    updateWebSocketUrl
   };
 }

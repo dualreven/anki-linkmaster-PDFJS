@@ -54,7 +54,7 @@ export default defineConfig(async () => {
     plugins: [
       babel({
         babelConfig: {
-          configFile: './babel.config.js'
+          configFile: path.resolve(process.cwd(), 'babel.config.js')
         }
       })
     ],

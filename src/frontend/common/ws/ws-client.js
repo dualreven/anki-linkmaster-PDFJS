@@ -50,16 +50,42 @@ export class WSClient {
   }
 
   connect() {
-    try {
-      this.#logger.info(`Connecting to WebSocket server: ${this.#url}`);
-      this.#socket = new WebSocket(this.#url);
-      this.#attachSocketHandlers();
-    } catch (error) {
-      this.#logger.error("Failed to initiate WebSocket connection.", error);
-      this.#eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.FAILED, error, {
-        actorId: "WSClient",
-      });
-    }
+    return new Promise((resolve, reject) => {
+      try {
+        this.#logger.info(`Connecting to WebSocket server: ${this.#url}`);
+        this.#socket = new WebSocket(this.#url);
+        
+        const onOpen = () => {
+          cleanup();
+          resolve();
+        };
+
+        const onError = (error) => {
+          cleanup();
+          this.#logger.error("Failed to initiate WebSocket connection.", error);
+          this.#eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.FAILED, error, {
+            actorId: "WSClient",
+          });
+          reject(error);
+        };
+
+        const cleanup = () => {
+          this.#socket.removeEventListener('open', onOpen);
+          this.#socket.removeEventListener('error', onError);
+        };
+
+        this.#socket.addEventListener('open', onOpen);
+        this.#socket.addEventListener('error', onError);
+
+        this.#attachSocketHandlers();
+      } catch (error) {
+        this.#logger.error("Failed to create WebSocket object.", error);
+        this.#eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.FAILED, error, {
+          actorId: "WSClient",
+        });
+        reject(error);
+      }
+    });
   }
 
   disconnect() {

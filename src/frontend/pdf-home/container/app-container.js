@@ -126,9 +126,9 @@ function resolveRoot(root) {
 function buildWsUrlFromQuery() {
   try {
     const params = new URLSearchParams(location.search);
-    const wsPort = params.get('ws') || '8765';
+    const msgCenterPort = params.get('msgCenter') || '8765';
     const host = location.hostname || '127.0.0.1';
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    return `${proto}://${host}:${wsPort}/`;
+    return `${proto}://${host}:${msgCenterPort}/`;
   } catch { return null; }
 }

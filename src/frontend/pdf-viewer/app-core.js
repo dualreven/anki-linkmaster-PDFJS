@@ -80,10 +80,17 @@ export class PDFViewerAppCore {
       this.#setupGlobalErrorHandling();
 
       // 通过容器连接WebSocket
+      this.#logger.info("Attempting to connect WebSocket via container...");
       this.#appContainer.connect();
+      this.#logger.info("WebSocket connection initiated (sync call returned).");
 
+      this.#logger.info("Initializing PDFManager...");
       await this.#pdfManager.initialize();
+      this.#logger.info("PDFManager initialized.");
+
+      this.#logger.info("Initializing UIManager...");
       await this.#uiManager.initialize();
+      this.#logger.info("UIManager initialized.");
 
       this.#initialized = true;
       this.#logger.info("PDF Viewer App initialized successfully with container architecture.");

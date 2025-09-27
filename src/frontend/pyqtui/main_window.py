@@ -3,11 +3,40 @@
 负责创建和管理应用程序的主界面
 """
 
+from __future__ import annotations
+
+from datetime import datetime
+from pathlib import Path
+
 from src.qt.compat import (
     QMainWindow, QVBoxLayout, QWidget, QStatusBar,
     QWebEngineView, QWebEnginePage, QWebEngineSettings,
     QUrl, pyqtSignal, QAction
 )
+
+
+def write_js_console_message(
+    log_file_path: str | None,
+    *,
+    level: str,
+    message: str,
+    line_number: int,
+    source_id: str,
+) -> None:
+    """Append a JavaScript console line to the specified log file."""
+    if not log_file_path:
+        return
+
+    try:
+        path = Path(log_file_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime('%H:%M:%S.%f')[:-3]
+        line = f"[{ts}][{level}][{source_id}:{line_number}] {message}"
+        with path.open('a', encoding='utf-8') as handle:
+            handle.write(line + '\n')
+    except Exception:
+        # Avoid raising from logging helpers; surface issues via console only
+        pass
 
 
 class MainWindow(QMainWindow):
@@ -80,15 +109,13 @@ class MainWindow(QMainWindow):
                         pass
 
                 def javaScriptConsoleMessage(self, level, message, lineNumber, sourceID):  # type: ignore
-                    try:
-                        if self._log_file_path:
-                            from datetime import datetime as _dt
-                            ts = _dt.now().strftime('%H:%M:%S.%f')[:-3]
-                            line = f"[{ts}][{str(level)}][{sourceID}:{lineNumber}] {message}"
-                            with open(self._log_file_path, 'a', encoding='utf-8') as f:
-                                f.write(line + '\n')
-                    except Exception:
-                        pass
+                    write_js_console_message(
+                        self._log_file_path,
+                        level=str(level),
+                        message=str(message),
+                        line_number=lineNumber,
+                        source_id=str(sourceID),
+                    )
                     try:
                         return super().javaScriptConsoleMessage(level, message, lineNumber, sourceID)  # type: ignore
                     except Exception:

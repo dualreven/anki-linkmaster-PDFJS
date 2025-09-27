@@ -25,7 +25,8 @@ project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.qt.compat import QApplication, QUrl, QWebChannel, QWebSocket
-from src.frontend.pyqtui.main_window import MainWindow
+# 使用本地MainWindow模块
+from main_window import MainWindow
 
 # Import PdfHomeBridge and JSConsoleLogger from current directory
 import importlib.util
@@ -46,6 +47,11 @@ JSConsoleLogger = logger_module.JSConsoleLogger
 
 logger = logging.getLogger("pdf-home.launcher")
 
+
+
+
+def _get_js_log_path() -> Path:
+    return project_root / 'logs' / 'pdf-home-js.log'
 
 def get_vite_port():
     """Get Vite port from npm-dev-vite.log file or return default.
@@ -85,7 +91,7 @@ def get_vite_port():
 
 
 def _read_runtime_ports(cwd: Path | None = None) -> tuple[int, int, int, dict]:
-    """Read logs/runtime-ports.json and return (vite_port, ws_port, pdf_port, extras).
+    """Read logs/runtime-ports.json and return (vite_port, msgCenter_port, pdfFile_port, extras).
     Fallback to (8765, 8080) if missing or malformed.
     """
     try:
@@ -94,10 +100,10 @@ def _read_runtime_ports(cwd: Path | None = None) -> tuple[int, int, int, dict]:
         if cfg_path.exists():
             data = json.loads(cfg_path.read_text(encoding='utf-8') or '{}')
             vite_port = int(data.get('vite_port') or data.get('npm_port') or 3000)
-            ws_port = int(data.get('ws_port') or 8765)
-            pdf_port = int(data.get('pdf_port') or 8080)
-            extras = {k: v for k, v in data.items() if k not in ("vite_port", "npm_port", "ws_port", "pdf_port")}
-            return vite_port, ws_port, pdf_port, extras
+            msgCenter_port = int(data.get('msgCenter_port') or data.get('ws_port') or 8765)
+            pdfFile_port = int(data.get('pdfFile_port') or data.get('pdf_port') or 8080)
+            extras = {k: v for k, v in data.items() if k not in ("vite_port", "npm_port", "msgCenter_port", "ws_port", "pdfFile_port", "pdf_port")}
+            return vite_port, msgCenter_port, pdfFile_port, extras
     except Exception as exc:  # pragma: no cover - defensive
         logger.warning("Failed reading runtime-ports.json: %s", exc)
     return 3000, 8765, 8080, {}
@@ -106,8 +112,8 @@ def _read_runtime_ports(cwd: Path | None = None) -> tuple[int, int, int, dict]:
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="pdf-home standalone launcher")
     parser.add_argument("--vite-port", type=int, dest="vite_port", help="Vite dev server port")
-    parser.add_argument("--ws-port", type=int, dest="ws_port", help="WebSocket server port")
-    parser.add_argument("--pdf-port", type=int, dest="pdf_port", help="PDF HTTP server port")
+    parser.add_argument("--msgCenter-port", type=int, dest="msgCenter_port", help="消息中心服务器端口")
+    parser.add_argument("--pdfFile-port", type=int, dest="pdfFile_port", help="PDF文件服务器端口")
     parser.add_argument("--js-debug-port", type=int, dest="js_debug_port", help="Remote debugging port for PDF-Home JS (QTWEBENGINE)")
     parser.add_argument("--no-persist", action="store_true", help="Do not persist ports back to logs/runtime-ports.json")
     return parser.parse_args(argv)
@@ -128,121 +134,137 @@ def _setup_logging() -> None:
     )
 
 
-def main() -> int:
-    _setup_logging()
-    logger.info("Launching pdf-home standalone window")
+class PdfHomeApp:
+    """Encapsulates the pdf-home application logic."""
 
-    # Create Qt app
-    app = QApplication(sys.argv)
+    def __init__(self, argv: list[str] | None = None):
+        self.argv = argv if argv is not None else sys.argv
+        self.app = QApplication(self.argv)
+        self.window = None
+        self.ws_client = None
+        self.js_console_logger = None
 
-    # Ports resolution (CLI > runtime-ports.json > logs/defaults) - do this BEFORE creating window
-    args = _parse_args(sys.argv[1:])
-    vite_json, ws_json, pdf_json, extras = _read_runtime_ports()
+    def run(self) -> int:
+        """Initializes and runs the application."""
+        _setup_logging()
+        logger.info("Launching pdf-home standalone window")
 
-    vite_port = args.vite_port if args.vite_port else vite_json
-    if args.vite_port is None:
-        try:
-            vite_port = get_vite_port() or vite_port
-        except Exception:
-            pass
+        # Ports resolution
+        args = _parse_args(self.argv[1:])
+        vite_json, msgCenter_json, pdfFile_json, extras = _read_runtime_ports()
 
-    ws_port = args.ws_port if args.ws_port else ws_json
-    pdf_port = args.pdf_port if args.pdf_port else pdf_json
-    # JS remote debug port: CLI or extras key "pdf-home-js"; default 9222
-    js_debug_port = int(args.js_debug_port) if args.js_debug_port else int(extras.get("pdf-home-js", 9222))
+        vite_port = args.vite_port or vite_json
+        if not args.vite_port:
+            try:
+                vite_port = get_vite_port() or vite_port
+            except Exception:
+                pass
 
-    # Host window (pass JS remote debug port)
-    window = MainWindow(app, remote_debug_port=js_debug_port)
-    extras["pdf-home-js"] = js_debug_port
-    logger.info("Resolved ports: vite=%s ws=%s pdf=%s", vite_port, ws_port, pdf_port)
-    logger.info("JS remote debug port: %s", js_debug_port)
+        msgCenter_port = args.msgCenter_port or msgCenter_json
+        pdfFile_port = args.pdfFile_port or pdfFile_json
+        js_debug_port = args.js_debug_port or int(extras.get("pdf-home-js", 9222))
 
-    # Persist runtime ports (including extras) unless disabled
-    if not args.no_persist:
+        logger.info("Resolved ports: vite=%s msgCenter=%s pdfFile=%s", vite_port, msgCenter_port, pdfFile_port)
+        logger.info("JS remote debug port: %s", js_debug_port)
+
+        # Persist ports
+        extras["pdf-home-js"] = js_debug_port
+        if not args.no_persist:
+            self._persist_ports(vite_port, msgCenter_port, pdfFile_port, extras)
+
+        # Setup main window and bridges
+        js_log_file = str(_get_js_log_path())
+
+        # 先创建JS Logger
+        self._create_js_logger(js_debug_port, js_log_file)
+
+        # 创建MainWindow，传入logger实例
+        self.window = MainWindow(self.app, remote_debug_port=js_debug_port, js_log_file=js_log_file, js_logger=self.js_console_logger)
+
+        self.ws_client = QWebSocket()
+        self._setup_qwebchannel(msgCenter_port)
+
+        # Load frontend
+        url = f"http://localhost:{vite_port}/pdf-home/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"
+        logger.info("Loading front-end: %s", url)
+        self.window.load_frontend(url)
+        self.window.show()
+
+        rc = self.app.exec()
+        logger.info("pdf-home window exited with code %s", rc)
+        self.cleanup()
+        return rc
+
+    def _persist_ports(self, vite_port, msgCenter_port, pdfFile_port, extras):
         try:
             logs_dir = project_root / 'logs'
             logs_dir.mkdir(parents=True, exist_ok=True)
             cfg_path = logs_dir / 'runtime-ports.json'
-            payload = {"vite_port": vite_port, "ws_port": ws_port, "pdf_port": pdf_port}
-            payload.update(extras or {})
+            payload = {"vite_port": vite_port, "msgCenter_port": msgCenter_port, "pdfFile_port": pdfFile_port, **(extras or {})}
             cfg_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
         except Exception as exc:
             logger.warning("Failed persisting runtime-ports.json: %s", exc)
 
-    # Simple WebSocket client for the bridge to send messages to the backend
-    ws_client = QWebSocket()
-
-    # QWebChannel bridge for local JS-Python interaction
-    try:
-        channel = QWebChannel(window)
-        bridge = PdfHomeBridge(ws_client, window)
-        channel.registerObject('pdfHomeBridge', bridge)
-        if window.web_page:
-            window.web_page.setWebChannel(channel)
-        logger.info("QWebChannel initialized and pdfHomeBridge registered")
-
-        # Connect to WebSocket after bridge is set up (non-blocking)
-        ws_url = QUrl(f"ws://127.0.0.1:{ws_port}")
-
-        def on_connected():
-            logger.info(f"WebSocket connected to ws://127.0.0.1:{ws_port}")
-
-        def on_disconnected():
-            logger.info(f"WebSocket disconnected from ws://127.0.0.1:{ws_port}")
-
-        def on_error(error):
-            logger.warning(f"WebSocket error: {error}")
-
-        # Connect signals for non-blocking operation
-        ws_client.connected.connect(on_connected)
-        ws_client.disconnected.connect(on_disconnected)
-        ws_client.error.connect(on_error)
-
-        # Start connection (non-blocking)
-        ws_client.open(ws_url)
-        logger.info(f"WebSocket connection initiated to ws://127.0.0.1:{ws_port}")
-
-    except Exception as exc:
-        logger.warning("Failed to initialize QWebChannel bridge: %s", exc)
-
-    # Start independent JavaScript console logger after a delay to allow WebEngine to start
-    js_console_logger = None
-    def delayed_js_logger_start():
-        nonlocal js_console_logger
-        import time
-        time.sleep(2)  # Wait 2 seconds for WebEngine to fully initialize
+    def _setup_qwebchannel(self, msgCenter_port: int):
         try:
-            js_console_logger = JSConsoleLogger(
-                debug_port=js_debug_port,
-                log_file=str(project_root / 'logs' / 'pdf-home-js.log')
-            )
-            if js_console_logger.start():
-                logger.info(f"JS console logger started on debug port {js_debug_port}")
-            else:
-                logger.warning("Failed to start JS console logger - this is normal if QtWebEngine is not ready yet")
+            channel = QWebChannel(self.window)
+            bridge = PdfHomeBridge(self.ws_client, self.window)
+            channel.registerObject('pdfHomeBridge', bridge)
+            if self.window.web_page:
+                self.window.web_page.setWebChannel(channel)
+            logger.info("QWebChannel initialized and pdfHomeBridge registered")
+
+            ws_url = QUrl(f"ws://127.0.0.1:{msgCenter_port}")
+            self.ws_client.connected.connect(lambda: logger.info(f"WebSocket connected to {ws_url.toString()}"))
+            self.ws_client.disconnected.connect(lambda: logger.info(f"WebSocket disconnected from {ws_url.toString()}"))
+            self.ws_client.error.connect(lambda error: logger.warning(f"WebSocket error: {error}"))
+            self.ws_client.open(ws_url)
+            logger.info(f"WebSocket connection initiated to {ws_url.toString()}")
         except Exception as exc:
-            logger.warning("Failed to initialize JS console logger: %s", exc)
+            logger.warning("Failed to initialize QWebChannel bridge: %s", exc)
 
-    # Start JS logger in a separate thread to avoid blocking
-    import threading
-    js_logger_thread = threading.Thread(target=delayed_js_logger_start, daemon=True)
-    js_logger_thread.start()
+    def _create_js_logger(self, js_debug_port: int, log_file: str):
+        """创建JS控制台日志记录器实例."""
+        logger.info("创建JS控制台日志记录器...")
 
-    # Load front-end page
-    url = f"http://localhost:{vite_port}/pdf-home/?ws={ws_port}&pdfs={pdf_port}"
-    logger.info("Loading front-end: %s", url)
-    window.load_frontend(url)
-    window.show()
+        try:
+            self.js_console_logger = JSConsoleLogger(
+                debug_port=js_debug_port,
+                log_file=log_file
+            )
 
-    rc = app.exec()
-    logger.info("pdf-home window exited with code %s", rc)
+            if self.js_console_logger.start():
+                logger.info(f"✅ JS控制台日志记录器创建成功 (兼容端口: {js_debug_port})")
+                logger.info("📝 JavaScript控制台输出将通过Qt javaScriptConsoleMessage捕获")
+            else:
+                logger.warning("⚠️  JS控制台日志记录器启动失败")
 
-    # Clean up resources
-    ws_client.close()
-    if js_console_logger:
-        js_console_logger.stop()
+        except Exception as exc:
+            logger.error(f"❌ 创建JS控制台日志记录器失败: {exc}")
+            self.js_console_logger = None
 
-    return int(rc)
+    def cleanup(self):
+        """Clean up resources and ensure all logging handlers are flushed."""
+        if self.ws_client:
+            self.ws_client.close()
+        if self.js_console_logger:
+            self.js_console_logger.stop()
+
+        # Explicitly flush and close handlers in the root logger (and this launcher's logger)
+        try:
+            # logging.shutdown() closes all handlers registered with the root logger
+            # It should be sufficient to ensure pdf-home.log is written.
+            logging.shutdown()
+        except Exception as exc:
+            logger.warning("Failed to perform logging.shutdown(): %s", exc)
+            
+        logger.info("Cleaned up resources.")
+
+
+def main() -> int:
+    """Main entry point for standalone execution."""
+    app_instance = PdfHomeApp(sys.argv)
+    return app_instance.run()
 
 
 if __name__ == '__main__':

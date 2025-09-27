@@ -1,10 +1,14 @@
 {
-    "python-envs.pythonProjects": [
-        {
-            "path": "AItask/src",
-            "envManager": "ms-python.python:venv",
-            "packageManager": "ms-python.python:pip"
-        }
-    ],
-    "python.languageServer": "None"
+  "python.defaultInterpreterPath": "C:\\venvs\\anki-linkmaster-PDFJS\\Scripts\\python.exe",
+  "python.terminal.activateEnvironment": true,
+  "python.terminal.activateEnvInCurrentTerminal": true,
+  "terminal.integrated.env.windows": {
+    "PATH": "C:\\venvs\\anki-linkmaster-PDFJS\\Scripts;${env:PATH}"
+  },
+  "terminal.integrated.shellArgs.powershell": [
+    "-NoExit",
+    "-Command",
+    "& 'C:\\venvs\\anki-linkmaster-PDFJS\\Scripts\\Activate.ps1'"
+  ],
+  "python-envs.pythonProjects": []
 }

@@ -9,25 +9,26 @@ export default defineConfig(async () => {
   const module = process.env.VITE_MODULE || 'pdf-home'
   console.log(`[Vite] Loading module (compat log): ${module}`)
 
-  // 从日志文件中动态读取HTTP服务器端口，默认8080
-  const logFile = path.join(process.cwd(), 'logs', 'http-server-port.txt')
+  // 从runtime-ports.json动态读取PDF文件服务器端口，默认8080
+  const runtimePortsFile = path.join(process.cwd(), 'logs', 'runtime-ports.json')
   let httpServerPort = '8080' // 默认端口
 
   try {
-    if (fs.existsSync(logFile)) {
-      const portContent = fs.readFileSync(logFile, 'utf8').trim()
-      const port = parseInt(portContent, 10)
-      if (port > 0 && port < 65536) {
+    if (fs.existsSync(runtimePortsFile)) {
+      const portsContent = fs.readFileSync(runtimePortsFile, 'utf8').trim()
+      const portsData = JSON.parse(portsContent)
+      const port = portsData.pdfFile_port
+      if (port && port > 0 && port < 65536) {
         httpServerPort = port.toString()
-        console.log(`[Vite] Read HTTP server port from logs: ${httpServerPort}`)
+        console.log(`[Vite] Read PDF file server port from runtime-ports.json: ${httpServerPort}`)
       } else {
-        console.warn(`[Vite] Invalid port in logs file: ${portContent}, using default ${httpServerPort}`)
+        console.warn(`[Vite] Invalid pdfFile_port in runtime-ports.json: ${port}, using default ${httpServerPort}`)
       }
     } else {
-      console.log(`[Vite] HTTP server port log file not found, using default port ${httpServerPort}`)
+      console.log(`[Vite] runtime-ports.json not found, using default port ${httpServerPort}`)
     }
   } catch (error) {
-    console.warn(`[Vite] Failed to read HTTP server port log: ${error.message}, using default port ${httpServerPort}`)
+    console.warn(`[Vite] Failed to read PDF file server port from runtime-ports.json: ${error.message}, using default port ${httpServerPort}`)
   }
 
   // 读取ai-launcher指定的端口配置
@@ -45,7 +46,7 @@ export default defineConfig(async () => {
       proxy: {
         // 代理PDF文件请求到PyQt HTTP服务器
         '/pdfs': {
-          target: `http://localhost:8080`, // 临时固定端口以匹配HTTP服务器实际端口
+          target: `http://localhost:${httpServerPort}`, // 动态读取PDF服务器端口
           changeOrigin: true,
           secure: false,
           ws: false,
@@ -62,8 +63,14 @@ export default defineConfig(async () => {
     plugins: [
       babel({
         babelConfig: {
-          configFile: './babel.config.js'
-        }
+          // Resolve config file explicitly from project root to avoid cwd issues
+          configFile: path.resolve(process.cwd(), 'babel.config.js')
+        },
+        // Exclude node_modules and public directories from Babel processing
+        exclude: [
+          'node_modules/**',
+          'public/**'
+        ],
       })
     ],
     build: {

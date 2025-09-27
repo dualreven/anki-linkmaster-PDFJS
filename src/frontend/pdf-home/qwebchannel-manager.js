@@ -22,46 +22,44 @@ export class QWebChannelManager {
    */
   async initialize() {
     try {
-      // 检查QWebChannel是否可用
       if (typeof QWebChannel === 'undefined') {
         throw new Error('QWebChannel not available - running in browser mode');
       }
 
-      // 检查qt.webChannelTransport是否可用
-      if (typeof qt === 'undefined' || !qt.webChannelTransport) {
-        throw new Error('qt.webChannelTransport not available - not running in PyQt context');
-      }
+      this.#logger.info("Waiting for qt.webChannelTransport...");
 
-      this.#logger.info("Initializing QWebChannel connection...");
-
-      // 创建QWebChannel连接
-      this.#channel = new QWebChannel(qt.webChannelTransport, (channel) => {
-        this.#logger.info("QWebChannel connected successfully");
-
-        // 获取pdfHomeBridge对象
-        this.#bridge = channel.objects.pdfHomeBridge;
-
-        if (this.#bridge) {
-          this.#logger.info("Got pdfHomeBridge object from QWebChannel");
-          this.#isReady = true;
-
-          // 设置信号监听
-          this.#setupSignalListeners();
-
-          // 通知应用QWebChannel已就绪
-          this.#eventBus.emit('qwebchannel:ready', this.#bridge, {
-            actorId: 'QWebChannelManager'
-          });
-        } else {
-          this.#logger.error("pdfHomeBridge not found in QWebChannel objects");
-        }
+      await new Promise((resolve, reject) => {
+        let attempts = 0;
+        const maxAttempts = 50; // Wait for max 5 seconds
+        const interval = setInterval(() => {
+          if (typeof qt !== 'undefined' && qt.webChannelTransport) {
+            clearInterval(interval);
+            this.#logger.info("qt.webChannelTransport found. Initializing QWebChannel.");
+            this.#channel = new QWebChannel(qt.webChannelTransport, (channel) => {
+              this.#logger.info("QWebChannel connected successfully");
+              this.#bridge = channel.objects.pdfHomeBridge;
+              if (this.#bridge) {
+                this.#logger.info("Got pdfHomeBridge object from QWebChannel");
+                this.#isReady = true;
+                this.#setupSignalListeners();
+                this.#eventBus.emit('qwebchannel:ready', this.#bridge, { actorId: 'QWebChannelManager' });
+                resolve();
+              } else {
+                reject(new Error("pdfHomeBridge object not found in QWebChannel."));
+              }
+            });
+          } else {
+            attempts++;
+            if (attempts > maxAttempts) {
+              clearInterval(interval);
+              reject(new Error("Timed out waiting for qt.webChannelTransport."));
+            }
+          }
+        }, 100);
       });
-
     } catch (error) {
       this.#logger.warn("QWebChannel initialization failed:", error.message);
       this.#logger.info("Running in browser-only mode without PyQt integration");
-
-      // 通知应用QWebChannel不可用
       this.#eventBus.emit('qwebchannel:unavailable', {
         reason: error.message
       }, {

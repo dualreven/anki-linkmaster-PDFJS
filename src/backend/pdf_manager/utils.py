@@ -5,7 +5,8 @@ import os
 import logging
 from typing import List, Tuple, Optional
 from .models import PDFFile
-from pypdf import PdfReader
+# 移除pypdf依赖以确保Anki插件兼容性
+# from pypdf import PdfReader
 
 logger = logging.getLogger(__name__)
 
@@ -274,45 +275,38 @@ class PDFMetadataExtractor:
     @staticmethod
     def extract_metadata(file_path: str) -> dict:
         """
-        提取PDF元数据
-        
+        提取PDF元数据（简化版本，无pypdf依赖）
+
         Args:
             file_path: PDF文件路径
-            
+
         Returns:
-            dict: 元数据字典，包含错误信息或提取的元数据
+            dict: 元数据字典，包含基础文件信息
         """
         try:
             if not os.path.exists(file_path):
                 return {"error": f"文件不存在: {file_path}"}
-                
-            reader = PdfReader(file_path)
-            metadata = reader.metadata or {}
-            
-            # 获取页数
-            page_count = len(reader.pages)
-            
-            # 格式化元数据
+
+            # 获取文件基本信息
+            stat = os.stat(file_path)
+            filename = os.path.splitext(os.path.basename(file_path))[0]
+
+            # 简化的元数据，不依赖pypdf
             result = {
-                "title": metadata.get("/Title", ""),
-                "author": metadata.get("/Author", ""),
-                "subject": metadata.get("/Subject", ""),
-                "keywords": metadata.get("/Keywords", ""),
-                "page_count": page_count,
-                "creator": metadata.get("/Creator", ""),
-                "producer": metadata.get("/Producer", ""),
-                "creation_date": metadata.get("/CreationDate"),
-                "modification_date": metadata.get("/ModDate")
+                "title": filename,  # 使用文件名作为标题
+                "author": "",       # 空值，避免第三方库依赖
+                "subject": "",
+                "keywords": "",
+                "page_count": 0,    # 设为0，可通过前端PDF.js获取
+                "creator": "",
+                "producer": "",
+                "creation_date": stat.st_ctime,
+                "modification_date": stat.st_mtime
             }
-            
-            # 清理字符串中的斜杠前缀
-            for key in ["title", "author", "subject", "keywords", "creator", "producer"]:
-                if result[key] and result[key].startswith('/'):
-                    result[key] = result[key][1:]
-            
-            logger.info(f"成功提取PDF元数据: {file_path}, 页数: {page_count}")
+
+            logger.info(f"成功提取PDF基础元数据: {file_path}")
             return result
-            
+
         except Exception as e:
             error_msg = f"提取PDF元数据失败: {e}"
             logger.error(error_msg)
@@ -321,24 +315,24 @@ class PDFMetadataExtractor:
     @staticmethod
     def get_page_count(file_path: str) -> int:
         """
-        获取PDF页数
-        
+        获取PDF页数（简化版本，无pypdf依赖）
+
         Args:
             file_path: PDF文件路径
-            
+
         Returns:
-            int: 页数，失败返回0
+            int: 页数，简化版本返回0（可通过前端PDF.js获取实际页数）
         """
         try:
             if not os.path.exists(file_path):
                 logger.warning(f"文件不存在: {file_path}")
                 return 0
-                
-            reader = PdfReader(file_path)
-            page_count = len(reader.pages)
-            logger.info(f"获取PDF页数成功: {file_path}, 页数: {page_count}")
-            return page_count
-            
+
+            # 简化实现：返回0，实际页数由前端PDF.js获取
+            # 这样避免了pypdf依赖，符合Anki插件要求
+            logger.info(f"PDF页数将通过前端获取: {file_path}")
+            return 0
+
         except Exception as e:
             logger.error(f"获取PDF页数失败: {file_path}, 错误: {e}")
             return 0

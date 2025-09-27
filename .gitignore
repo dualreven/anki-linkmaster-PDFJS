@@ -1,6 +1,19 @@
 .venv
 .env
-node_modules
+# 依赖目录
+node_modules/
+
+# NPM 相关文件 (项目强制使用 PNPM)
+package-lock.json
+npm-debug.log*
+.npm
+
+# Yarn 相关文件 (项目强制使用 PNPM)
+yarn.lock
+yarn-debug.log*
+yarn-error.log*
+.yarn/
+.yarnrc.yml
 __pycache__
 .claude
 data
@@ -28,3 +41,4 @@ debug_data/*
 AItemp
 AITask
 AIforum
+venvsanki-linkmaster-PDFJS

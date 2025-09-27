@@ -17,9 +17,16 @@ import { createConsoleWebSocketBridge } from "../common/utils/console-websocket-
 export class PDFViewerApp extends PDFViewerAppCore {
   #eventHandlers;
 
-  constructor() {
-    super();
+  constructor(options = {}) {
+    super(options);
     this.#eventHandlers = new EventHandlers(this);
+  }
+
+  setWebSocketUrl(wsUrl) {
+    // 更新容器的WebSocket URL
+    if (this._appContainer) {
+      this._appContainer.updateWebSocketUrl(wsUrl);
+    }
   }
 
   /**
@@ -46,7 +53,12 @@ export class PDFViewerApp extends PDFViewerAppCore {
 
 // ===== 应用启动 =====
 document.addEventListener("DOMContentLoaded", async () => {
-  const app = new PDFViewerApp();
+  // 从URL参数获取端口配置
+  const urlParams = new URLSearchParams(window.location.search);
+  const msgCenterPort = urlParams.get('msgCenter') || '8765';
+  const wsUrl = `ws://localhost:${msgCenterPort}`;
+
+  const app = new PDFViewerApp({ wsUrl });  // 直接传入正确的WebSocket URL
   const indexLogger = new Logger("pdf_viewer/main.js");
 
   // PDF.js will be loaded by PDFManager via ES modules
@@ -66,9 +78,29 @@ document.addEventListener("DOMContentLoaded", async () => {
   indexLogger.info("PDFViewer App initialized successfully");
 
   // Check for injected PDF path and load it
+  let pdfPath = null;
+
+  // 优先检查window.PDF_PATH（通过script标签注入）
   if (window.PDF_PATH) {
-    indexLogger.info(`Found injected PDF path: ${window.PDF_PATH}`);
+    pdfPath = window.PDF_PATH;
+    indexLogger.info(`Found injected PDF path: ${pdfPath}`);
+  }
+  // 其次检查URL参数file（通过launcher.py传递）
+  else if (urlParams.get('file')) {
+    pdfPath = decodeURIComponent(urlParams.get('file'));
+    indexLogger.info(`Found PDF file from URL parameter: ${pdfPath}`);
+  }
+
+  if (pdfPath) {
+    // 从完整路径中提取文件名
+    const filename = pdfPath.includes('\\') || pdfPath.includes('/')
+      ? pdfPath.split(/[\\\/]/).pop()
+      : pdfPath;
+
     const eventBus = app.getEventBus();
-    eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, { filename: window.PDF_PATH }, { actorId: 'Launcher' });
+    eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, {
+      filename: filename,
+      file_path: pdfPath
+    }, { actorId: 'Launcher' });
   }
 });
