@@ -254,12 +254,12 @@ export class UIManager {
         // 不管pdfs是空数组还是有数据，直接交给setData处理
         // TableWrapper内部的Tabulator会根据数据是否为空来决定显示数据行还是placeholder
         const tableData = pdfs.map(pdf => ({ ...pdf, size: pdf.size || 0, modified_time: pdf.modified_time || '', page_count: pdf.page_count || 0, annotations_count: pdf.annotations_count || 0, cards_count: pdf.cards_count || 0, importance: pdf.importance || 'medium' }));
-        
+
         this.pdfTable.setData(tableData).catch(error => { // setData现在是TableWrapper的方法
             this.#logger.error("Failed to load data into PDF table:", error);
         });
       } else {
-        this.#logger.warn("PDF table instance not found, cannot render PDF list.");
+        this.#logger.debug("PDF table instance not yet initialized, skipping render.");
       }
     }
     // ==================== 修改结束 (3/3) ====================

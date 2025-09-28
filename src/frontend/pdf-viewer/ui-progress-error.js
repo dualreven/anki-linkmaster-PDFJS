@@ -4,7 +4,7 @@
  * @description 处理PDF查看器的进度显示和错误处理功能
  */
 
-import Logger from "../common/utils/logger.js";
+import { getLogger } from "../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../common/event/pdf-viewer-constants.js";
 
 /**
@@ -21,7 +21,7 @@ export class UIProgressError {
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
-    this.#logger = new Logger("UIProgressError");
+    this.#logger = getLogger("PDFViewer");
   }
 
   /**

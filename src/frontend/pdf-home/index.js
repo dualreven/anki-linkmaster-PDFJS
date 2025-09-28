@@ -35,6 +35,8 @@ class PDFHomeApp {
   #initialized = false;
   #coreGuard = null;
   #appContainer; // 应用容器
+  tableWrapper = null; // 表格包装器，延迟初始化
+  #tableConfig = null; // 表格配置，延迟初始化时使用
 
   constructor(deps = {}) {
     // 如果传入了容器，使用它；否则创建新容器
@@ -102,10 +104,12 @@ class PDFHomeApp {
       console.log("[DEBUG] Setting up global error handling...");
       this.#setupGlobalErrorHandling();
 
-      // Initialize table wrapper (Tabulator) BEFORE UIManager so UIManager can attach to it
-      const tableContainer = document.querySelector('#pdf-table-container');
-      if (tableContainer) {
-          this.tableWrapper = new TableWrapper(tableContainer, {
+      // Delay table wrapper initialization until PDF data is available
+      // This avoids renderer timing issues and improves performance
+      this.tableWrapper = null;
+
+      // Store table configuration for later initialization
+      this.#tableConfig = {
           columns: [
             // 注意：当前未启用 Tabulator 的 SelectRow 模块，上述 formatter 会在部分打包形态下无效并报错。
             // 暂时移除 rowSelection 列，避免初始化告警；如需多选，请改用 table-wrapper.js 中的回退checkbox方案。
@@ -144,122 +148,19 @@ class PDFHomeApp {
              this.#logger.error("Error in rowDblClick handler", error);
            }
           },
-        });
+        };
 
         // ==================== 诊断代码开始 ====================
+        // Note: Table initialization is now delayed until PDF data arrives
+        // Diagnostic code will be executed after table creation
 
-        // 1. 检查 TableWrapper 内部的 Tabulator 实例是否存在
-        if (this.tableWrapper && this.tableWrapper.tabulator) {
-
-          // 2. 直接在原始 Tabulator 实例上绑定事件，绕过我们自己的 .on() 封装
-          this.tableWrapper.tabulator.on("rowSelectionChanged", (data, rows) => {
-            this.#logger.debug("底层 Tabulator rowSelectionChanged 事件触发", data);
-          });
-
-          this.tableWrapper.tabulator.on("cellClick", (e, cell) => {
-            this.#logger.debug("底层 Tabulator cellClick 事件触发", { value: cell.getValue() });
-          });
-
-          this.#logger.info("诊断: 已直接在底层 Tabulator 实例上绑定 'rowSelectionChanged' 和 'cellClick' 事件。");
-
-        } else {
-          this.#logger.error("诊断失败: 无法访问到 this.tableWrapper.tabulator！这说明 TableWrapper 初始化可能失败了。");
-        }
+        // Listen for PDF list updates to trigger table initialization
+        this.#eventBus.on(PDF_MANAGEMENT_EVENTS.LIST.UPDATED, (pdfs) => {
+          this.#logger.info(`pdf:list:updated received, count=${pdfs.length}`);
+          this.#initializeTableIfNeeded();
+        }, { subscriberId: "PDFHomeApp" });
 
         // ==================== 诊断代码结束 ====================
-
-
-        // 确保 Tabulator 完全初始化后再绑定事件
-        setTimeout(() => {
-          if (this.tableWrapper && this.tableWrapper.tabulator) {
-
-            // 绑定选择变化事件
-            this.tableWrapper.tabulator.on("rowSelectionChanged", (selectedRows) => {
-              this.#logger.debug("行选择发生变化", selectedRows);
-              try {
-                const selectedIds = selectedRows.map(row => row.getData ? row.getData().id || row.getData().filename : row.id || row.filename);
-                this.#eventBus.emit(UI_EVENTS.SELECTION.CHANGED, selectedIds, { actorId: 'PDFHomeApp' });
-              } catch (err) {
-                this.#logger.warn('Error handling rowSelectionChanged', err);
-                this.#eventBus.emit(SYSTEM_EVENTS.ERROR.OCCURRED, {
-                  type: 'table_error',
-                  message: err.message,
-                  details: { context: 'rowSelectionChanged', error: err }
-                });
-              }
-            });
-
-            // 绑定行点击事件（用于切换选择状态）
-            // 注意：当前未启用 Tabulator 的 SelectRow 模块，row 对象不一定含 isSelected/select/deselect
-            // 为避免报错，暂时仅打印行数据，不做选择切换；后续如需选择功能，可引入 SelectRow 模块或使用我们在 table-wrapper 的回退checkbox方案。
-            this.tableWrapper.tabulator.on("rowClick", (e, row) => {
-              try {
-                const data = row && typeof row.getData === 'function' ? row.getData() : null;
-                this.#logger.debug("行被点击", data);
-              } catch (err) {
-                this.#logger.warn("rowClick handler error", err);
-              }
-            });
-
-            // 绑定单元格点击事件（用于操作按钮）
-            this.tableWrapper.tabulator.on("cellClick", (e, cell) => {
-              const cellElement = cell.getElement();
-              const button = e.target.closest('button[data-action]');
-
-              if (button) {
-                // 只阻止按钮点击的事件传播，但保留双击事件处理
-                e.stopPropagation();
-                e.preventDefault();
-                const action = button.getAttribute('data-action');
-                const rowData = cell.getRow().getData();
-
-                if (action === 'open') {
-                  this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, rowData.id || rowData.filename, {
-                    actorId: 'PDFHomeApp'
-                  });
-                } else if (action === 'delete') {
-                  if (confirm('确定要删除这个PDF文件吗？')) {
-                    this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.REMOVE.REQUESTED, rowData.id || rowData.filename, {
-                      actorId: 'PDFHomeApp'
-                    });
-                  }
-                }
-              }
-            });
-
-            // 双击事件绑定已在Tabulator配置中完成，无需重复绑定
-            // (移除重复的rowDblClick绑定以避免双重触发)
-
-            // 移除DOM级别双击事件处理器，避免重复触发
-            // 只使用Tabulator内置的rowDblClick配置处理双击事件
-
-            this.#logger.info("Tabulator 事件绑定完成（包含双击修复）");
-          }
-        }, 100); // 给 Tabulator 一些时间完成初始化
-
-        // Subscribe to pdf list updates from event bus
-        // 注意：UIManager已经在监听此事件并更新表格，这里只做日志记录
-        this.#eventBus.on(PDF_MANAGEMENT_EVENTS.LIST.UPDATED, (pdfs) => {
-          try {
-            const mapped = Array.isArray(pdfs) ? pdfs.map(p => ({ ...p })) : [];
-            this.#logger.info(`pdf:list:updated received, count=${mapped.length}`);
-            if (mapped.length > 0) this.#logger.debug('sample item:', mapped[0]);
-            // 移除重复的setData调用，UIManager已经在处理
-            // if (this.tableWrapper) {
-            //   this.tableWrapper.setData(mapped);
-            // } else {
-            //   this.#logger.warn('TableWrapper not initialized when pdf:list:updated received');
-            // }
-          } catch (e) {
-            this.#logger.error('Failed to process pdf list update', e);
-          }
-        }, { subscriberId: 'PDFHomeApp' });
-
-        // Provide the table instance to UIManager before it initializes
-        this.#uiManager.pdfTable = this.tableWrapper;
-      } else {
-        this.#logger.warn('Table container #pdf-table-container not found; skipping TableWrapper init');
-      }
 
       // 初始化应用容器，建立依赖关系
       if (!this.#appContainer.isInitialized()) {
@@ -513,6 +414,109 @@ class PDFHomeApp {
     this.#coreGuard = core && typeof core.guard === 'function' ? core.guard : null;
     // 绑定 console 桥接依赖的 WS
     // （bridge 已在构造中创建，此处无需重建）
+  }
+
+  /**
+   * Initialize table if needed when PDF data arrives
+   * @private
+   */
+  #initializeTableIfNeeded() {
+    if (this.tableWrapper) {
+      this.#logger.debug("Table already initialized, skipping");
+      return;
+    }
+
+    const tableContainer = document.querySelector('#pdf-table-container');
+    if (!tableContainer) {
+      this.#logger.warn('Table container #pdf-table-container not found; cannot initialize table');
+      return;
+    }
+
+    this.#logger.info("Initializing table with PDF data available");
+
+    try {
+      // Create TableWrapper with stored configuration
+      this.tableWrapper = new TableWrapper(tableContainer, this.#tableConfig);
+
+      // Set up event bindings after table creation
+      this.#setupTableEventBindings();
+
+      // Provide the table instance to UIManager
+      if (this.#uiManager) {
+        this.#uiManager.pdfTable = this.tableWrapper;
+        this.#logger.info("Table instance provided to UIManager");
+      }
+
+      this.#logger.info("Table initialization completed successfully");
+    } catch (error) {
+      this.#logger.error("Failed to initialize table:", error);
+    }
+  }
+
+  /**
+   * Set up table event bindings
+   * @private
+   */
+  #setupTableEventBindings() {
+    if (!this.tableWrapper || !this.tableWrapper.tabulator) {
+      this.#logger.warn("TableWrapper or Tabulator instance not available for event binding");
+      return;
+    }
+
+    const tabulator = this.tableWrapper.tabulator;
+
+    // Diagnostic event bindings
+    tabulator.on("rowSelectionChanged", (data, rows) => {
+      this.#logger.debug("底层 Tabulator rowSelectionChanged 事件触发", data);
+    });
+
+    tabulator.on("cellClick", (e, cell) => {
+      this.#logger.debug("底层 Tabulator cellClick 事件触发", { value: cell.getValue() });
+    });
+
+    // Selection change events
+    tabulator.on("rowSelectionChanged", (selectedRows) => {
+      this.#logger.debug("行选择发生变化", selectedRows);
+      try {
+        const selectedIds = selectedRows.map(row =>
+          row.getData ? row.getData().id || row.getData().filename : row.id || row.filename
+        );
+        this.#logger.debug("当前选中的ID", selectedIds);
+      } catch (e) {
+        this.#logger.warn("获取选中行数据时出错", e);
+      }
+    });
+
+    // Row click events
+    tabulator.on("rowClick", (e, row) => {
+      try {
+        const data = row && typeof row.getData === 'function' ? row.getData() : null;
+        this.#logger.debug("行被点击", data);
+      } catch (e) {
+        this.#logger.warn("获取行点击数据时出错", e);
+      }
+    });
+
+    // Cell click events for action buttons
+    tabulator.on("cellClick", (e, cell) => {
+      const cellElement = cell.getElement();
+      const button = e.target.closest('button[data-action]');
+
+      if (button) {
+        const action = button.getAttribute('data-action');
+        const rowData = cell.getRow().getData();
+        this.#logger.debug(`操作按钮被点击: ${action}`, rowData);
+
+        if (action === 'delete') {
+          this.#logger.info(`删除操作触发，文件: ${rowData.filename || rowData.id}`);
+          this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.REMOVE.REQUESTED, rowData.id || rowData.filename, {
+            actorId: 'PDFHomeApp'
+          });
+        }
+      }
+    });
+
+    this.#logger.info("Tabulator 事件绑定完成（包含双击修复）");
   }
 }
 

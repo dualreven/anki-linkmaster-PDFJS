@@ -36,21 +36,71 @@ export class PDFManager extends PDFManagerCore {
     const eventListeners = this.#eventHandler.setupEventListeners();
     this.unsubscribeFunctions.push(...eventListeners);
 
-    // 修改：仅在 WebSocket 连接建立后再请求列表，避免连接前入队导致的提前发送
-    const unsubscribeEstablished = this.eventBus.on(
-      WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED,
-      () => {
+    // 检查WebSocket连接状态并决定执行策略
+    this.#checkConnectionAndRequestList();
+
+    this.logger.info("PDF Manager initialized.");
+  }
+
+  /**
+   * 检查WebSocket连接状态并请求PDF列表
+   * @private
+   */
+  #checkConnectionAndRequestList() {
+    this.logger.debug("Checking WebSocket connection status...");
+
+    // 使用 once() 避免竞态条件和手动清理
+    const timeoutId = setTimeout(() => {
+      this.logger.warn("WebSocket status query timeout; falling back to connection event subscription.");
+      this.#subscribeToConnectionEstablished();
+    }, 1000);
+
+    // 使用 once() 确保只处理一次状态响应
+    this.eventBus.once(
+      WEBSOCKET_EVENTS.MSG_CENTER.STATUS.RESPONSE,
+      (statusData) => {
+        // 清理超时定时器
+        clearTimeout(timeoutId);
+
         try {
-          this.logger.info("WebSocket established; requesting initial PDF list.");
-          this.loadPDFList();
-        } finally {
-          try { unsubscribeEstablished(); } catch (_) {}
+          this.logger.info(`WebSocket status received: ${JSON.stringify(statusData)}`);
+
+          if (statusData && statusData.connected) {
+            // WebSocket已连接，直接请求PDF列表
+            this.logger.info("WebSocket already connected; requesting initial PDF list directly.");
+            this.loadPDFList();
+          } else {
+            // WebSocket未连接，订阅连接建立事件
+            this.logger.info("WebSocket not connected; subscribing to connection event.");
+            this.#subscribeToConnectionEstablished();
+          }
+        } catch (error) {
+          this.logger.error("Error processing WebSocket status response:", error);
+          // 发生错误时，回退到订阅连接事件
+          this.#subscribeToConnectionEstablished();
         }
       },
       { subscriberId: "PDFManager" }
     );
 
-    this.logger.info("PDF Manager initialized.");
+    // 发送状态查询请求
+    this.eventBus.emit(WEBSOCKET_EVENTS.MSG_CENTER.STATUS.REQUEST, {}, { actorId: "PDFManager" });
+  }
+
+  /**
+   * 订阅WebSocket连接建立事件
+   * @private
+   */
+  #subscribeToConnectionEstablished() {
+    // 使用 once() 自动处理取消订阅
+    this.eventBus.once(
+      WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED,
+      () => {
+        this.logger.info("WebSocket established; requesting initial PDF list.");
+        this.loadPDFList();
+      },
+      { subscriberId: "PDFManager" }
+    );
   }
 
   /**

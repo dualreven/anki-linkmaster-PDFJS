@@ -5,8 +5,9 @@
  */
 
 import { EventBus } from '../../common/event/event-bus.js';
-import Logger, { LogLevel } from '../../common/utils/logger.js';
+import { getLogger, setGlobalWebSocketClient, LogLevel } from '../../common/utils/logger.js';
 import { WSClient } from '../../common/ws/ws-client.js';
+import { createConsoleWebSocketBridge } from '../../common/utils/console-websocket-bridge.js';
 
 /**
  * 创建PDF查看器应用容器
@@ -22,8 +23,8 @@ export function createPDFViewerContainer({
   logger = null
 } = {}) {
 
-  // 创建核心依赖
-  const containerLogger = logger || new Logger('pdf-viewer.container');
+  // 创建核心依赖 - 使用getLogger单例模式
+  const containerLogger = logger || getLogger('PDFViewer');
   const eventBus = new EventBus({
     enableValidation,
     logLevel: LogLevel.INFO
@@ -37,6 +38,8 @@ export function createPDFViewerContainer({
   };
 
   let wsClient = null;
+  let consoleBridge = null;
+  let earlyConsoleBridge = null;
 
   /**
    * 确保基础设施已初始化
@@ -45,7 +48,56 @@ export function createPDFViewerContainer({
     if (!wsClient) {
       wsClient = new WSClient(state.wsUrl, eventBus);
       containerLogger.info(`[pdf-viewer] WSClient created for: ${state.wsUrl}`);
+
+      // 设置全局WebSocket客户端用于Logger传输
+      setGlobalWebSocketClient(wsClient);
+      containerLogger.info('[pdf-viewer] Global WebSocket client set for Logger transmission');
+
+      // 创建Console桥接器
+      setupConsoleBridge();
     }
+  }
+
+  /**
+   * 设置Console桥接器
+   */
+  function setupConsoleBridge() {
+    // PDF-Viewer特定的过滤规则
+    const pdfViewerSkipPatterns = [
+      'PDF\\.js.*worker.*ready',           // PDF.js Worker就绪
+      'Canvas.*render.*progress',          // Canvas渲染进度
+      'Page.*\\d+.*rendered',             // 页面渲染完成 (频繁)
+      'Zoom.*level.*\\d+\\.\\d+',         // 缩放级别变化 (频繁)
+      'Scroll.*position.*\\d+',           // 滚动位置更新
+      'WebSocket.*ping.*pong',            // WebSocket心跳
+      'Console log recorded successfully' // 后端响应确认
+    ];
+
+    // 早期Console桥接器 - 在WebSocket连接前缓存日志
+    earlyConsoleBridge = createConsoleWebSocketBridge('pdf-viewer', (message) => {
+      if (wsClient && wsClient.isConnected()) {
+        wsClient.send({ type: 'console_log', data: message });
+      }
+    });
+
+    // 创建主Console桥接器
+    consoleBridge = createConsoleWebSocketBridge('pdf-viewer', (message) => {
+      if (wsClient && wsClient.isConnected()) {
+        wsClient.send({ type: 'console_log', data: message });
+      }
+    });
+
+    // 设置PDF-Viewer特定的过滤规则
+    if (consoleBridge.setSkipPatterns) {
+      consoleBridge.setSkipPatterns(pdfViewerSkipPatterns);
+    }
+    if (earlyConsoleBridge.setSkipPatterns) {
+      earlyConsoleBridge.setSkipPatterns(pdfViewerSkipPatterns);
+    }
+
+    // 暴露给全局供调试使用
+    window.__earlyConsoleBridge = earlyConsoleBridge;
+    containerLogger.info('[pdf-viewer] Console bridge setup completed with PDF-specific filters');
   }
 
   /**
@@ -56,12 +108,34 @@ export function createPDFViewerContainer({
 
     try {
       containerLogger.info(`[pdf-viewer] connecting WS: ${state.wsUrl}`);
+
+      // 启用早期Console桥接器
+      if (earlyConsoleBridge && !earlyConsoleBridge.enabled) {
+        earlyConsoleBridge.enable();
+        containerLogger.info('[pdf-viewer] Early console bridge enabled');
+      }
+
       ensureInfra();
       wsClient.connect();
       state.connected = true;
 
-      // 初始化时请求基础数据（如果需要的话）
-      // TODO: 根据pdf-viewer的实际需求添加初始化逻辑
+      // WebSocket连接建立后切换到主Console桥接器
+      setTimeout(() => {
+        if (wsClient && wsClient.isConnected()) {
+          try {
+            if (earlyConsoleBridge) {
+              earlyConsoleBridge.disable();
+            }
+            if (consoleBridge) {
+              consoleBridge.enable();
+            }
+            containerLogger.info('[pdf-viewer] Console bridge switched to main bridge');
+          } catch (bridgeError) {
+            containerLogger.warn('[pdf-viewer] Console bridge switch failed', bridgeError);
+          }
+        }
+      }, 100);
+
     } catch (error) {
       containerLogger.warn('[pdf-viewer] connect failed', error);
     }
@@ -72,10 +146,19 @@ export function createPDFViewerContainer({
    */
   function disconnect() {
     try {
+      // 禁用Console桥接器
+      if (consoleBridge) {
+        consoleBridge.disable();
+      }
+      if (earlyConsoleBridge) {
+        earlyConsoleBridge.disable();
+      }
+
       if (wsClient) {
         wsClient.disconnect();
       }
       state.connected = false;
+      containerLogger.info('[pdf-viewer] Disconnected and console bridges disabled');
     } catch (error) {
       containerLogger.warn('[pdf-viewer] disconnect error', error);
     }

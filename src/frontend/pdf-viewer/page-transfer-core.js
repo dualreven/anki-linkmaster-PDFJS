@@ -4,7 +4,7 @@
  * @description PDF页面传输的核心功能，包括基础管理和配置
  */
 
-import Logger from "../common/utils/logger.js";
+import { getLogger } from "../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../common/event/pdf-viewer-constants.js";
 import { WEBSOCKET_EVENTS } from "../common/event/event-constants.js";
 
@@ -25,7 +25,7 @@ export class PageTransferCore {
 
   constructor(eventBus, wsClient) {
     this.#eventBus = eventBus;
-    this.#logger = new Logger("PageTransferManager");
+    this.#logger = getLogger("PDFViewer");
     this.#wsClient = wsClient;
   }
 

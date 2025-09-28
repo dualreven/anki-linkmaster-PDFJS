@@ -6,7 +6,7 @@
 
 import { PDFViewerAppCore } from "./app-core.js";
 import { EventHandlers } from "./event-handlers.js";
-import Logger from "../common/utils/logger.js";
+import { getLogger } from "../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../common/event/pdf-viewer-constants.js";
 import { createConsoleWebSocketBridge } from "../common/utils/console-websocket-bridge.js";
 
@@ -59,7 +59,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const wsUrl = `ws://localhost:${msgCenterPort}`;
 
   const app = new PDFViewerApp({ wsUrl });  // 直接传入正确的WebSocket URL
-  const indexLogger = new Logger("pdf_viewer/main.js");
+  const indexLogger = getLogger("PDFViewer");
 
   // PDF.js will be loaded by PDFManager via ES modules
   indexLogger.info("PDF.js will be loaded dynamically by PDFManager");

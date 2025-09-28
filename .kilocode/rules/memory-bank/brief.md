@@ -8,7 +8,7 @@
 
 # 流程规范
 
-- 1. 你必须先获取 距离时间最近的五个 `AItemp/[YYYYMMDDhhmmss]-AI-Working-log.md` 文件, 了解任务的历史.
+- 1. 你必须先获取 距离时间最近的8个 `AItemp/[YYYYMMDDhhmmss]-AI-Working-log.md` 文件, 了解任务的历史.
 - 2. 你必须创建 `AItemp/[YYYYMMDDhhmmss]-AI-Working-log.md` 文件, 记录当前的任务目标.
 - 3. 你必须查看 `.kilocode\rules\memory-bank\context.md` 的内容, 理解用户的输入
 - 4. 你必须更新 `.kilocode\rules\memory-bank\context.md`的内容, 如, 描述当前问题, 问题背景, 相关模块和函数等.

@@ -34,7 +34,8 @@ export class WSClient {
     'pdf_detail_response',
     'success',
     'error',
-    'response'
+    'response',
+    'system_status'
   ];
 
   constructor(url, eventBus) {
@@ -56,6 +57,24 @@ export class WSClient {
           )}`
         );
         this.send(message);
+      },
+      { subscriberId: "WSClient" }
+    );
+
+    // 添加状态查询响应
+    this.#eventBus.on(
+      WEBSOCKET_EVENTS.MSG_CENTER.STATUS.REQUEST,
+      () => {
+        const statusData = {
+          connected: this.isConnected(),
+          url: this.#url,
+          readyState: this.#socket?.readyState || null,
+          reconnectAttempts: this.#reconnectAttempts
+        };
+        this.#logger.info(`Status requested, responding with: ${JSON.stringify(statusData)}`);
+        this.#eventBus.emit(WEBSOCKET_EVENTS.MSG_CENTER.STATUS.RESPONSE, statusData, {
+          actorId: "WSClient"
+        });
       },
       { subscriberId: "WSClient" }
     );
@@ -288,6 +307,9 @@ export class WSClient {
           break;
         case "response":
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
+          break;
+        case "system_status":
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.SYSTEM_STATUS;
           break;
         default:
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.UNKNOWN;

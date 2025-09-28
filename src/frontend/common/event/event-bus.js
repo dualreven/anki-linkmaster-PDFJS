@@ -139,7 +139,7 @@ export class EventBus {
     }
     if (removedId !== null) {
       if (subscribers.size === 0) delete this.#events[event];
-      this.#logger.event(`${event} (取消订阅 by ${removedId})`);
+      this.#logger.event(event, `取消订阅 by ${removedId}`);
     }
   }
 
@@ -160,7 +160,7 @@ export class EventBus {
 
     if (subscribers && subscribers.size > 0) {
 
-      this.#logger.event(`${event} (发布 by ${actorId || "unknown"})`, "发布", {
+      this.#logger.event(event, `发布 by ${actorId || "unknown"}`, {
         actorId,
         subscriberCount: subscribers.size,
         data,

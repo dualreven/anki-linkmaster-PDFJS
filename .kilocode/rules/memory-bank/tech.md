@@ -37,6 +37,27 @@
   - `services/persistent/npm_service.py`：Vite 开发服务器
 - 示例入口：`ai-scripts/ai_launcher/example_run.py`（支持 `start/stop/status`）
 
+## AI Launcher 使用方法（ai_launcher.py）
+- 主要入口：项目根目录的 `ai_launcher.py`
+- 基本命令：
+  - `python ai_launcher.py start` - 启动所有服务（前端 + 后端）
+  - `python ai_launcher.py stop` - 停止所有服务
+  - `python ai_launcher.py status` - 查看服务状态
+- 参数选项：
+  - `--vite-port <number>` - 指定Vite开发服务器端口
+  - `--msgServer-port <number>` - 指定WebSocket服务器端口
+  - `--pdfFileServer-port <number>` - 指定PDF文件服务器端口
+  - `--module <pdf-home|pdf-viewer>` - 指定启动的前端模块
+  - `--pdf-id <string>` - 传给pdf-viewer的PDF标识
+- 端口配置优先级：命令行参数 > `logs/runtime-ports.json` > 默认值 > 可用性探测
+- 状态文件：
+  - `logs/dev-process-info.json` - Vite进程信息
+  - `logs/frontend-process-info.json` - 前端模块进程信息
+  - `logs/ai-launcher.log` - 启动器日志（UTF-8）
+- 使用示例：
+  - `python ai_launcher.py start --module pdf-home` - 启动pdf-home模块
+  - `python ai_launcher.py start --module pdf-viewer --pdf-id 12345` - 启动pdf-viewer并打开指定PDF
+
 ## 测试与可运行性
 - 每个模块需提供独立运行与最小验证路径：
   - 前端应用：独立 launcher + 日志文件检查。

@@ -10,6 +10,7 @@ export class ConsoleWebSocketBridge {
     this.websocketSender = websocketSender; // WebSocket消息发送函数
     this.originalConsole = {};
     this.enabled = false;
+    this.skipPatterns = []; // 自定义过滤规则
 
     // 保存原始console方法
     this.originalConsole.log = console.log.bind(console);
@@ -75,13 +76,22 @@ export class ConsoleWebSocketBridge {
   }
 
   /**
+   * 设置过滤规则
+   * @param {Array<string>} patterns - 过滤规则数组
+   */
+  setSkipPatterns(patterns) {
+    this.skipPatterns = [...patterns];
+  }
+
+  /**
    * 检查是否应该跳过某些消息以避免无限循环
    * @param {string} messageText - 消息文本
    * @returns {boolean} 是否跳过
    */
   shouldSkipMessage(messageText) {
-    const skipPatterns = [
-      // 暂时禁用所有过滤，观察完整日志
+    // 使用实例特定的过滤规则，如果没有设置则使用默认规则
+    const skipPatterns = this.skipPatterns.length > 0 ? this.skipPatterns : [
+      // 默认过滤规则 - 暂时禁用所有过滤，观察完整日志
     ];
 
     return skipPatterns.some(pattern => {

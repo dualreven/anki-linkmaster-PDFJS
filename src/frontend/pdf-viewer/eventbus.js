@@ -6,7 +6,7 @@
 
 import { EventBus } from "../common/event/event-bus.js";
 import { PDF_VIEWER_EVENTS } from "../common/event/pdf-viewer-constants.js";
-import Logger from "../common/utils/logger.js";
+import { getLogger } from "../common/utils/logger.js";
 
 /**
  * @class PDFViewerEventBus
@@ -22,7 +22,7 @@ export class PDFViewerEventBus {
       logLevel: options.logLevel || Logger.LogLevel.INFO,
       ...options
     });
-    this.#logger = new Logger("PDFViewerEventBus");
+    this.#logger = getLogger("PDFViewer");
   }
 
   /**

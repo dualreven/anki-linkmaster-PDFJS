@@ -8,7 +8,7 @@ import { UIManagerCore } from "./ui-manager-core.js";
 import { UIZoomControls } from "./ui-zoom-controls.js";
 import { UIProgressError } from "./ui-progress-error.js";
 import { UICanvasRender } from "./ui-canvas-render.js";
-import Logger from "../common/utils/logger.js";
+import { getLogger } from "../common/utils/logger.js";
 
 /**
  * @class UIManager
@@ -24,7 +24,7 @@ export class UIManager {
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
-    this.#logger = new Logger("UIManager");
+    this.#logger = getLogger("PDFViewer");
     
     // 初始化子模块
     this.#core = new UIManagerCore(eventBus);

@@ -4,7 +4,7 @@
  * @description 处理PDF页面的Canvas渲染功能
  */
 
-import Logger from "../common/utils/logger.js";
+import { getLogger } from "../common/utils/logger.js";
 
 /**
  * @class UICanvasRender
@@ -18,7 +18,7 @@ export class UICanvasRender {
   #isRendering = false;
 
   constructor() {
-    this.#logger = new Logger("UICanvasRender");
+    this.#logger = getLogger("PDFViewer");
   }
 
   /**
