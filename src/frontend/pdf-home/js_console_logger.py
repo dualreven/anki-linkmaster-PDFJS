@@ -130,11 +130,52 @@ class JSConsoleLogger(QObject):
             # 获取映射后的级别名称
             level_str = qt_level_mapping.get(str(level), str(level).upper())
 
-            # 格式化消息
-            if source and line:
-                formatted_msg = f"[{source}:{line}] {message}"
+            # 简化日志级别前缀（处理JavaScriptConsoleMessageLevel）
+            if 'JavaScriptConsoleMessageLevel' in str(level):
+                if 'InfoMessageLevel' in str(level):
+                    display_level = 'INFO'
+                elif 'WarningMessageLevel' in str(level):
+                    display_level = 'WARN'
+                elif 'ErrorMessageLevel' in str(level):
+                    display_level = 'ERROR'
+                else:
+                    display_level = level_str
             else:
-                formatted_msg = message
+                display_level = level_str
+
+            # 解析消息内容，避免重复的时间戳和日志级别
+            import re
+            parsed_message = str(message)
+
+            # 检查是否已有时间戳格式 [YYYY-MM-DDTHH:MM:SS.xxxZ]
+            timestamp_pattern = r'^\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)\]'
+            timestamp_match = re.match(timestamp_pattern, parsed_message)
+            if timestamp_match:
+                # 移除时间戳，因为日志系统会添加自己的时间戳
+                parsed_message = parsed_message[len(timestamp_match.group(0)):].strip()
+
+            # 检查是否已有日志级别标记 [INFO]、[WARN]、[ERROR]、[DEBUG] 等
+            level_pattern = r'^\[([A-Z]+)\]'
+            level_match = re.match(level_pattern, parsed_message)
+            if level_match:
+                embedded_level = level_match.group(1)
+                # 如果消息内已有级别，使用它而不是Qt级别
+                if embedded_level in ['INFO', 'WARN', 'WARNING', 'ERROR', 'DEBUG', 'CRITICAL']:
+                    display_level = embedded_level if embedded_level != 'WARNING' else 'WARN'
+                    # 移除消息中的级别标记，避免重复
+                    parsed_message = parsed_message[len(level_match.group(0)):].strip()
+
+            # 格式化消息（简化源文件路径，只保留文件名和行号）
+            if source and line:
+                # 只提取文件名，去掉完整URL路径
+                import os
+                if '/' in str(source):
+                    source_filename = str(source).split('/')[-1]
+                else:
+                    source_filename = str(source)
+                formatted_msg = f"[{source_filename}:{line}] {parsed_message}"
+            else:
+                formatted_msg = parsed_message
 
             # 映射到Python logging级别
             log_level = {
@@ -145,10 +186,10 @@ class JSConsoleLogger(QObject):
                 'ERROR': logging.ERROR,
                 'CRITICAL': logging.CRITICAL,
                 'DEBUG': logging.DEBUG
-            }.get(level_str, logging.INFO)
+            }.get(display_level, logging.INFO)
 
-            # 记录日志，显示映射后的级别名称
-            self.js_logger.log(log_level, f"[{level_str}] {formatted_msg}")
+            # 记录日志（不再手动添加级别标记，formatter会自动添加）
+            self.js_logger.log(log_level, formatted_msg)
 
         except Exception as exc:
             print(f"Error: Failed to log message: {exc}")

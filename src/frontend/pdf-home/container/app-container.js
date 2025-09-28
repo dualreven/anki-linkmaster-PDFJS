@@ -72,13 +72,17 @@ export function createPDFHomeContainer({ root, wsUrl, logger } = {}) {
 
   function ensureEventBridges() {
     ensureInfra();
-    eventBus.on(WEBSOCKET_MESSAGE_EVENTS.PDF_LIST, (message) => {
-      try { uiManager?.setData?.(Array.isArray(message.data?.items) ? message.data.items : []); } catch {}
-    }, { subscriberId: 'pdf-home.container' });
+    // 注释掉重复的事件监听，避免setData被多次调用
+    // PDF列表更新已经在index.js中通过PDF_MANAGEMENT_EVENTS.LIST.UPDATED事件处理了
+    // PDFManager会将WebSocket消息转换为PDF_MANAGEMENT_EVENTS事件
 
-    eventBus.on(WEBSOCKET_MESSAGE_EVENTS.PDF_LIST_UPDATED, (message) => {
-      try { uiManager?.setData?.(Array.isArray(message.data?.items) ? message.data.items : []); } catch {}
-    }, { subscriberId: 'pdf-home.container' });
+    // eventBus.on(WEBSOCKET_MESSAGE_EVENTS.PDF_LIST, (message) => {
+    //   try { uiManager?.setData?.(Array.isArray(message.data?.items) ? message.data.items : []); } catch {}
+    // }, { subscriberId: 'pdf-home.container' });
+
+    // eventBus.on(WEBSOCKET_MESSAGE_EVENTS.PDF_LIST_UPDATED, (message) => {
+    //   try { uiManager?.setData?.(Array.isArray(message.data?.items) ? message.data.items : []); } catch {}
+    // }, { subscriberId: 'pdf-home.container' });
 
     eventBus.on(WEBSOCKET_MESSAGE_EVENTS.SUCCESS, (message) => {
       try { uiManager?.notify?.({ level: 'info', message: message?.data?.message || 'OK' }); } catch {}

@@ -145,7 +145,7 @@ export class EventHandler {
    * @param {Object} fileInfo - 文件信息
    */
   async handleAddPDFRequest(fileInfo) {
-    this.#manager.logger.info("Handling add PDF request:", fileInfo);
+    this.#manager.logger.info("Handling add PDF request:", JSON.stringify(fileInfo, null, 2));
 
     // 检查是否支持QWebChannel
     const qwebchannelAvailable = await this.#checkQWebChannelAvailable();

@@ -24,6 +24,18 @@ export class WSClient {
   #messageQueue = [];
   #pendingRequests = new Map();
   #requestRetries = new Map();
+  #lastError = null;
+  #connectionHistory = [];
+
+  static VALID_MESSAGE_TYPES = [
+    'pdf_list_updated',
+    'pdf_list',
+    'load_pdf_file',
+    'pdf_detail_response',
+    'success',
+    'error',
+    'response'
+  ];
 
   constructor(url, eventBus) {
     this.#url = url;
@@ -106,27 +118,59 @@ export class WSClient {
     if (this.isConnected()) {
       try {
         this.#socket.send(JSON.stringify(message));
-        this.#logger.debug(`Sent message: ${type}`);
+        this.#logger.debug(`✉️ 已发送消息: ${type}`, { type, data });
       } catch (error) {
-        this.#logger.error(`Failed to send message: ${type}`, error);
+        const errorInfo = {
+          error_code: 'MESSAGE_SEND_ERROR',
+          message_type: type,
+          error_name: error.name,
+          error_message: error.message,
+          ready_state: this.#socket?.readyState,
+          ready_state_name: this.#getReadyStateName(),
+          queued_messages: this.#messageQueue.length,
+          diagnostic: '消息发送失败，可能是连接已断开或消息格式错误'
+        };
+
+        this.#logger.error(`❌ 消息发送失败: ${type}`, JSON.stringify(errorInfo, null, 2));
+
         this.#eventBus.emit(
           WEBSOCKET_EVENTS.MESSAGE.SEND_FAILED,
-          { type, error },
+          errorInfo,
           { actorId: "WSClient" }
         );
+
+        this.#messageQueue.push(message);
+        this.#logger.info(`📥 消息已加入队列，等待重连后发送: ${type}`);
       }
     } else {
       this.#messageQueue.push(message);
-      this.#logger.debug(`Message queued, connection not available: ${type}`);
+      this.#logger.debug(`📥 消息已排队（连接未建立）: ${type}`, {
+        queue_length: this.#messageQueue.length,
+        ready_state: this.#socket?.readyState,
+        ready_state_name: this.#getReadyStateName()
+      });
     }
   }
 
   #attachSocketHandlers() {
     this.#socket.onopen = () => {
-      this.#logger.info("WebSocket connection established.");
+      const connectionInfo = {
+        url: this.#url,
+        timestamp: Date.now(),
+        reconnect_attempts: this.#reconnectAttempts
+      };
+
+      this.#connectionHistory.push({
+        event: 'connected',
+        ...connectionInfo
+      });
+
+      this.#logger.info('✅ WebSocket连接已建立', JSON.stringify(connectionInfo, null, 2));
       this.#isConnectedFlag = true;
       this.#reconnectAttempts = 0;
-      this.#eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED, undefined, {
+      this.#lastError = null;
+
+      this.#eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED, connectionInfo, {
         actorId: "WSClient",
       });
       this.#flushMessageQueue();
@@ -134,18 +178,51 @@ export class WSClient {
 
     this.#socket.onmessage = (event) => this.#handleMessage(event.data);
 
-    this.#socket.onclose = () => {
-      this.#logger.warn("WebSocket connection closed.");
+    this.#socket.onclose = (event) => {
+      const closeInfo = {
+        code: event.code,
+        reason: event.reason || '未提供原因',
+        wasClean: event.wasClean,
+        url: this.#url,
+        timestamp: Date.now(),
+        queued_messages: this.#messageQueue.length
+      };
+
+      this.#connectionHistory.push({
+        event: 'closed',
+        ...closeInfo
+      });
+
+      this.#logger.warn('⚠️ WebSocket连接已关闭', JSON.stringify(closeInfo, null, 2));
       this.#isConnectedFlag = false;
-      this.#eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.CLOSED, undefined, {
+
+      this.#eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.CLOSED, closeInfo, {
         actorId: "WSClient",
       });
       this.#attemptReconnect();
     };
 
     this.#socket.onerror = (error) => {
-      this.#logger.error("WebSocket connection error.", error);
-      this.#eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.ERROR, error, {
+      const errorInfo = {
+        error_code: 'CONNECTION_ERROR',
+        url: this.#url,
+        ready_state: this.#socket?.readyState,
+        ready_state_name: this.#getReadyStateName(),
+        reconnect_attempts: this.#reconnectAttempts,
+        max_reconnect_attempts: this.#maxReconnectAttempts,
+        timestamp: Date.now(),
+        error
+      };
+
+      this.#lastError = errorInfo;
+      this.#connectionHistory.push({
+        event: 'error',
+        ...errorInfo
+      });
+
+      this.#logger.error('❌ WebSocket连接错误', JSON.stringify(errorInfo, null, 2));
+
+      this.#eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.ERROR, errorInfo, {
         actorId: "WSClient",
       });
     };
@@ -154,7 +231,40 @@ export class WSClient {
   #handleMessage(rawData) {
     try {
       const message = JSON.parse(rawData);
-      this.#logger.debug(`Received message: ${message.type}`, message);
+      this.#logger.debug(`Received message: ${message.type}`, JSON.stringify(message, null, 2));
+
+      if (!message.type) {
+        this.#logger.error('❌ WebSocket消息缺少type字段', {
+          rawData: rawData.substring(0, 200),
+          message,
+          diagnostic: '后端消息必须包含type字段，请检查消息格式'
+        });
+        this.#eventBus.emit(WEBSOCKET_MESSAGE_EVENTS.ERROR, {
+          error_code: 'MISSING_MESSAGE_TYPE',
+          message: '消息缺少type字段',
+          raw_message: message
+        }, { actorId: 'WSClient' });
+        return;
+      }
+
+      if (!WSClient.VALID_MESSAGE_TYPES.includes(message.type)) {
+        this.#logger.warn(`⚠️ 未知WebSocket消息类型: ${message.type}`, JSON.stringify({
+          receivedType: message.type,
+          validTypes: WSClient.VALID_MESSAGE_TYPES,
+          message,
+          diagnostic: {
+            suggestion: '请检查后端消息协议是否更新，或前端VALID_MESSAGE_TYPES是否需要添加新类型',
+            action: '如果这是预期的新消息类型，请在WSClient.VALID_MESSAGE_TYPES中添加'
+          }
+        }, null, 2));
+        this.#eventBus.emit(WEBSOCKET_MESSAGE_EVENTS.UNKNOWN, {
+          error_code: 'UNKNOWN_MESSAGE_TYPE',
+          received_type: message.type,
+          valid_types: WSClient.VALID_MESSAGE_TYPES,
+          message
+        }, { actorId: 'WSClient' });
+      }
+
       let targetEvent = null;
       switch (message.type) {
         case "pdf_list_updated":
@@ -181,17 +291,28 @@ export class WSClient {
           break;
         default:
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.UNKNOWN;
-          this.#logger.warn(`Unknown message type: ${message.type}`);
       }
 
       if (targetEvent) {
         this.#logger.debug(`Routing message to event: ${targetEvent}`);
         this.#eventBus.emit(targetEvent, message, { actorId: "WSClient" });
-      } else {
-        this.#logger.warn(`No target event found for message type: ${message.type}`);
       }
     } catch (error) {
-      this.#logger.error("Failed to parse incoming WebSocket message.", error);
+      const errorContext = {
+        error_code: 'MESSAGE_PARSE_ERROR',
+        error_name: error.name,
+        error_message: error.message,
+        stack: error.stack,
+        raw_data_preview: rawData.substring(0, 200),
+        raw_data_length: rawData.length,
+        diagnostic: '消息解析失败，可能是JSON格式错误或包含非法字符'
+      };
+
+      this.#logger.error('❌ WebSocket消息解析失败', JSON.stringify(errorContext, null, 2));
+
+      this.#eventBus.emit(WEBSOCKET_MESSAGE_EVENTS.ERROR, errorContext, {
+        actorId: 'WSClient'
+      });
     }
   }
 
@@ -281,7 +402,7 @@ export class WSClient {
         // 发送请求
         try {
           this.#socket.send(JSON.stringify(message));
-          this.#logger.debug(`PDF详情请求已发送: ${requestId}`, message);
+          this.#logger.debug(`PDF详情请求已发送: ${requestId}`, JSON.stringify(message, null, 2));
         } catch (error) {
           clearTimeout(timeoutId);
           handleError(error);
@@ -310,30 +431,106 @@ export class WSClient {
 
   #attemptReconnect() {
     if (this.#reconnectAttempts >= this.#maxReconnectAttempts) {
-      this.#logger.error("Max WebSocket reconnect attempts reached.");
-      this.#eventBus.emit(WEBSOCKET_EVENTS.RECONNECT.FAILED, undefined, {
+      const failureInfo = {
+        error_code: 'MAX_RECONNECT_ATTEMPTS',
+        url: this.#url,
+        attempts: this.#reconnectAttempts,
+        max_attempts: this.#maxReconnectAttempts,
+        queued_messages: this.#messageQueue.length,
+        last_error: this.#lastError,
+        connection_history: this.#connectionHistory.slice(-5)
+      };
+
+      this.#logger.error('❌ WebSocket重连失败：已达最大重试次数', JSON.stringify(failureInfo, null, 2));
+
+      this.#eventBus.emit(WEBSOCKET_EVENTS.RECONNECT.FAILED, failureInfo, {
         actorId: "WSClient",
       });
       return;
     }
+
     this.#reconnectAttempts++;
+    const delay = this.#reconnectDelay * this.#reconnectAttempts;
+
     this.#logger.info(
-      `Attempting to reconnect (${this.#reconnectAttempts}/${
-        this.#maxReconnectAttempts
-      })...`
+      `🔄 尝试重新连接 (${this.#reconnectAttempts}/${this.#maxReconnectAttempts})`,
+      JSON.stringify({
+        url: this.#url,
+        delay_ms: delay,
+        queued_messages: this.#messageQueue.length
+      }, null, 2)
     );
+
     setTimeout(
       () => this.connect(),
-      this.#reconnectDelay * this.#reconnectAttempts
+      delay
     );
   }
 
   #flushMessageQueue() {
-    this.#logger.info(`Flushing ${this.#messageQueue.length} queued messages.`);
+    const queueLength = this.#messageQueue.length;
+    if (queueLength === 0) {
+      return;
+    }
+
+    this.#logger.info(`📤 开始发送队列中的消息`, JSON.stringify({
+      queue_length: queueLength,
+      messages: this.#messageQueue.map(m => m.type)
+    }, null, 2));
+
+    let successCount = 0;
+    let failCount = 0;
+
     while (this.#messageQueue.length > 0) {
       const message = this.#messageQueue.shift();
-      this.send({ type: message.type, data: message.data });
+      try {
+        this.send({ type: message.type, data: message.data });
+        successCount++;
+      } catch (error) {
+        failCount++;
+        this.#logger.error(`队列消息发送失败: ${message.type}`, error);
+      }
     }
+
+    this.#logger.info('✅ 队列消息发送完成', JSON.stringify({
+      total: queueLength,
+      success: successCount,
+      failed: failCount
+    }, null, 2));
+  }
+
+  #getReadyStateName() {
+    if (!this.#socket) return 'NO_SOCKET';
+    const states = {
+      [WebSocket.CONNECTING]: 'CONNECTING',
+      [WebSocket.OPEN]: 'OPEN',
+      [WebSocket.CLOSING]: 'CLOSING',
+      [WebSocket.CLOSED]: 'CLOSED'
+    };
+    return states[this.#socket.readyState] || 'UNKNOWN';
+  }
+
+  getConnectionHistory() {
+    return [...this.#connectionHistory];
+  }
+
+  getLastError() {
+    return this.#lastError;
+  }
+
+  getDebugInfo() {
+    return {
+      url: this.#url,
+      connected: this.#isConnectedFlag,
+      ready_state: this.#socket?.readyState,
+      ready_state_name: this.#getReadyStateName(),
+      reconnect_attempts: this.#reconnectAttempts,
+      max_reconnect_attempts: this.#maxReconnectAttempts,
+      queued_messages: this.#messageQueue.length,
+      pending_requests: this.#pendingRequests.size,
+      last_error: this.#lastError,
+      connection_history: this.#connectionHistory.slice(-10)
+    };
   }
 }
 

@@ -1,4 +1,4 @@
-# Memory Bank（精简版 / 权威）
+﻿# Memory Bank（精简版 / 权威）
 
 ## 总体目标
 - 前端（pdf-home、pdf-viewer）为纯 UI 模块，复用共享基础设施（EventBus / Logger / WSClient），仅在必要时通过 QWebChannel 与 Python 通信。
@@ -29,6 +29,49 @@
   - 实现最小版 PDF 业务服务器并接入 WS 转发。
   - 复核 pdf-viewer 全量对齐共享 EventBus/WSClient。
   - 为 Launcher 增加健康检查与 E2E 脚本。
+
+## 已知问题：PDF列表双重更新问题 (2025-09-28)
+**问题描述**：`pdf:list:updated` 事件被触发两次，导致UI可能重复渲染。
+
+**根本原因**：
+PDFManager的`handleResponseMessage`方法在处理WebSocket响应时，如果响应包含文件列表但没有batch_id，会自动触发额外的`loadPDFList()`请求，导致：
+1. 第一次：处理初始的`get_pdf_list`响应，触发`pdf:list:updated`事件
+2. 第二次：检测到响应包含files数组，认为是"聚合批次响应"，再次请求列表并触发事件
+
+**影响**：
+- 不必要的网络请求
+- 潜在的UI闪烁或性能问题
+- 事件监听器被多次调用
+
+**建议修复方案**：
+在`websocket-handler.js`第215行的条件判断中，排除`get_pdf_list`类型的响应，避免重复请求。
+
+**验证证据（来自 logs/pdf-home-js.log）**：
+- 初始化阶段：`PDFManager.initialize()` 调用 `loadPDFList()` 发布 `get_pdf_list`（事件总线日志 + WSClient 收到发送请求日志）。
+- 连接建立后：WSClient 在 `onopen` 里调用 `#flushMessageQueue()`，队列中包含 `get_pdf_list`，完成首次真实发送（标记为 queue_flush）。
+- 随后一次：收到带有聚合 files 的响应，`WebSocketHandler.handleResponse()` 认为需要刷新，触发第二次 `loadPDFList()`（标记为 refresh_after_aggregated_response）。
+
+可运行的日志分析脚本（UTF-8）验证：`AItemp/tests/analyze-get-pdf-list.ps1`
+- 读取 `logs/pdf-home-js.log`（`-Encoding UTF8`），分类 `get_pdf_list` 的上下文：
+  - `initial_request_from_pdf_manager`
+  - `queue_flush_after_connect`
+  - `refresh_after_aggregated_response`
+  - 统计输出示例：`total_matches=5`，其中包含队列刷新1次、聚合响应后刷新1次。
+
+**相关模块/函数**：
+- `src/frontend/common/pdf/pdf-manager-core.js:73` `loadPDFList()`
+- `src/frontend/common/pdf/pdf-manager.js:25` `initialize()`（注册监听后调用 `loadPDFList()`）
+- `src/frontend/common/pdf/websocket-handler.js:115` `handleResponse()`（聚合响应触发二次 `loadPDFList()`）
+- `src/frontend/common/ws/ws-client.js:170` `#flushMessageQueue()`（连接建立后发送排队消息）
+
+## 当前任务：分析 WSClient 两次发送 get_pdf_list (2025-09-28)
+- 背景：用户反馈 `WSClient` 发送了两次 `get_pdf_list`。
+- 目标：基于事实（日志+代码）解释两次发送的触发链路，并提供可复验证据。
+- 执行步骤：
+  1) 检索 `logs/pdf-home-js.log` 中 `get_pdf_list` 周边上下文（UTF-8读取）
+  2) 交叉定位前端模块（`pdf-manager*`, `websocket-handler.js`, `ws-client.js`）
+  3) 运行 `AItemp/tests/analyze-get-pdf-list.ps1` 输出分类统计
+  4) 总结根因与改进建议，必要时在后续任务中提出修复方案
 
 ## 已完成任务：PDF.js性能优化研究 ✅ 完成 (2025-09-27)
 - **目标**: 研究PDF.js的性能优化方案，特别是页面边界检测、按需加载、虚拟化和内存管理
@@ -212,3 +255,39 @@
 - 新增文档：`README.ai_launcher.md`、`src/backend/README.md`
 - 新增测试：`scripts/test_readmes.py`，校验 UTF-8 读取、关键段落、无 `\r` 字符（保证使用 `\n`）
 - 本地执行测试：PASS
+
+
+
+### 变更记录（2025-09-28）
+- 调整 PDFManager 初始列表请求触发时机：仅在 `WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED` 事件触发后调用 `loadPDFList()`（一次性订阅后自动取消）。
+- 代码：src/frontend/common/pdf/pdf-manager.js（使用 UTF-8 编码保存，确保 `\n` 换行）。
+- 预期：消除连接前入队导致的首次 flush 发送，减少一次不必要的 get_pdf_list 触发。
+- 测试：AItemp/tests/test-pdfmanager-load-trigger.ps1 通过。
+
+
+### 诊断：大量 [console-websocket-bridge.js:<line>] 日志来源 (2025-09-28)
+- 来源：前端 `ConsoleWebSocketBridge` 覆写了 `console.*`，所有控制台输出都会先进入 `intercept()`，再通过 `originalConsole[level](...)` 打印，故 QWebEngine/浏览器记录的源文件与行号指向 `console-websocket-bridge.js`（常见为 61/77/87）。
+- 触发：启用了 console-bridge 后，EventBus 订阅/发布、WSClient 信息级日志等都会通过该桥打印并被捕获，数量较大属预期。
+- 证据：`AItemp/tests/summarize-bridge-logs.ps1` 统计发现 `console-websocket-bridge.js:87` 占多数；用户环境可能因版本/打包差异显示为 :61。
+- 降噪建议：
+  1) 收紧 `shouldSkipMessage()` 的 `skipPatterns`（过滤 EventBus 订阅/发布、桥接启用/禁用日志等）
+  2) 仅在 `websocket:connection:established` 后启用桥接，必要时只转发 warn/error
+  3) 为桥接添加采样/节流，或对 INFO 级别按模块白名单输出
+
+
+### JS 日志清理（2025-09-28）
+- 需求：去掉日志中 `[JAVASCRIPTCONSOLEMESSAGELEVEL.INFOMESSAGELEVEL] [http://localhost:3000/...:87]` 类冗余前缀
+- 变更：`src/frontend/pyqtui/main_window.py:write_js_console_message`
+  - 级别简化改为大小写无关，映射到 INFO/WARN/ERROR/CRITICAL
+  - 新增清理规则：剔除消息开头的 `[JavaScriptConsoleMessageLevel.*]` 与 `[http(s)://...:line]` 段
+  - 仍保留 `[filename:line]` 形式的精简来源
+- 测试：`AItemp/tests/test_js_log_cleanup.py` PASS
+- 影响：仅改变写入日志的可读性，不影响业务逻辑与WS交互
+
+
+### 日志过滤恢复（2025-09-28）
+- 将 `src/frontend/common/utils/console-websocket-bridge.js` 还原为“基线过滤”：
+  - `intercept()` 调用 `shouldSkipMessage(messageText)`（不再传入级别）
+  - `shouldSkipMessage(messageText)` 使用原始 `skipPatterns`（仅避免循环/重复，而不屏蔽 INFO 噪音）
+- 目的：恢复此前被过滤掉的 EventBus/队列/初始化类 INFO 日志。
+- 测试：`AItemp/tests/test-console-bridge-restore.ps1` PASS

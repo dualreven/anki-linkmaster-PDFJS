@@ -23,15 +23,81 @@ def write_js_console_message(
     line_number: int,
     source_id: str,
 ) -> None:
-    """Append a JavaScript console line to the specified log file."""
+    """Append a JavaScript console line to the specified log file.
+
+    备用日志记录函数，仅在JSConsoleLogger不可用时使用。
+    包含消息去重和格式化逻辑。
+    """
     if not log_file_path:
         return
 
     try:
+        import re
         path = Path(log_file_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime('%H:%M:%S.%f')[:-3]
-        line = f"[{ts}][{level}][{source_id}:{line_number}] {message}"
+
+        # 解析消息内容，避免重复的时间戳和日志级别/来源噪声
+        parsed_message = str(message)
+
+        # 检查是否已有时间戳格式 [YYYY-MM-DDTHH:MM:SS.xxxZ]
+        timestamp_pattern = r'^\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)\]'
+        timestamp_match = re.match(timestamp_pattern, parsed_message)
+        if timestamp_match:
+            # 移除时间戳，因为日志系统会添加自己的时间戳
+            parsed_message = parsed_message[len(timestamp_match.group(0)):].strip()
+
+        # 检查是否已有日志级别标记 [INFO]、[WARN]、[ERROR]、[DEBUG] 等
+        level_pattern = r'^\[([A-Z]+)\]'
+        level_match = re.match(level_pattern, parsed_message)
+        if level_match:
+            embedded_level = level_match.group(1)
+            # 如果消息内已有级别，使用它而不是Qt级别
+            if embedded_level in ['INFO', 'WARN', 'WARNING', 'ERROR', 'DEBUG', 'CRITICAL']:
+                level = embedded_level if embedded_level != 'WARNING' else 'WARN'
+                # 移除消息中的级别标记，避免重复
+                parsed_message = parsed_message[len(level_match.group(0)):].strip()
+        else:
+            # 简化日志级别前缀（兼容大小写/不同格式）
+            # 例如: JavaScriptConsoleMessageLevel.InfoMessageLevel / JAVASCRIPTCONSOLEMESSAGELEVEL.INFOMESSAGELEVEL
+            _lv = str(level)
+            _lv_lower = _lv.lower()
+            if 'javascriptconsolemessagelevel' in _lv_lower:
+                if 'infomessagelevel' in _lv_lower:
+                    level = 'INFO'
+                elif 'warningmessagelevel' in _lv_lower:
+                    level = 'WARN'
+                elif 'errormessagelevel' in _lv_lower:
+                    level = 'ERROR'
+                elif 'criticalmessagelevel' in _lv_lower:
+                    level = 'CRITICAL'
+                else:
+                    # 回退从最后一段推断
+                    try:
+                        tail = _lv_lower.split('.')[-1]
+                        level = tail.replace('messagelevel', '').upper()
+                    except Exception:
+                        level = 'INFO'
+
+        # 移除消息开头由某些环境附加的冗余方括号片段（如 JS Console Level、URL 源路径等）
+        # 例如: [JAVASCRIPTCONSOLEMESSAGELEVEL.INFOMESSAGELEVEL] [http://localhost:3000/xxx:87]
+        cleanup_patterns = [
+            r'^\[\s*JavaScriptConsoleMessageLevel\.[^\]]+\]\s*',
+            r'^\[\s*JAVASCRIPTCONSOLEMESSAGELEVEL\.[^\]]+\]\s*',
+            r'^\[\s*(?:https?|file)://[^\]]+\]\s*'
+        ]
+        for pat in cleanup_patterns:
+            parsed_message = re.sub(pat, '', parsed_message, flags=re.IGNORECASE)
+        parsed_message = parsed_message.strip()
+
+        # 简化源文件路径，只保留文件名
+        _sid = str(source_id)
+        if '/' in _sid:
+            source_filename = _sid.split('/')[-1]
+        else:
+            source_filename = _sid
+
+        line = f"[{ts}][{level}][{source_filename}:{line_number}] {parsed_message}"
         with path.open('a', encoding='utf-8') as handle:
             handle.write(line + '\n')
     except Exception:

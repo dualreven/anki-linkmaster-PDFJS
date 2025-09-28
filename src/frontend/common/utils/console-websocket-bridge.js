@@ -81,14 +81,7 @@ export class ConsoleWebSocketBridge {
    */
   shouldSkipMessage(messageText) {
     const skipPatterns = [
-      'Console log recorded successfully',
-      'Handling response message',
-      'WebSocket',
-      'console_log',
-      'request_id',
-      'status.*success',
-      'message.*Console log recorded',
-      'data.*logged.*true'
+      // 暂时禁用所有过滤，观察完整日志
     ];
 
     return skipPatterns.some(pattern => {

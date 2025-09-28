@@ -7,6 +7,7 @@
 import { PDFManagerCore } from "./pdf-manager-core.js";
 import { WebSocketHandler } from "./websocket-handler.js";
 import { EventHandler } from "./event-handler.js";
+import { WEBSOCKET_EVENTS } from "../event/event-constants.js";
 
 /**
  * @class PDFManager
@@ -35,7 +36,20 @@ export class PDFManager extends PDFManagerCore {
     const eventListeners = this.#eventHandler.setupEventListeners();
     this.unsubscribeFunctions.push(...eventListeners);
 
-    this.loadPDFList();
+    // 修改：仅在 WebSocket 连接建立后再请求列表，避免连接前入队导致的提前发送
+    const unsubscribeEstablished = this.eventBus.on(
+      WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED,
+      () => {
+        try {
+          this.logger.info("WebSocket established; requesting initial PDF list.");
+          this.loadPDFList();
+        } finally {
+          try { unsubscribeEstablished(); } catch (_) {}
+        }
+      },
+      { subscriberId: "PDFManager" }
+    );
+
     this.logger.info("PDF Manager initialized.");
   }
 

@@ -225,7 +225,11 @@ export class UIManager {
   }
 
   #setLoading(loading) { this.#state.loading = loading; this.#render(); }
-  #setWebSocketConnected(connected) { this.#state.websocketConnected = connected; this.#render(); }
+  #setWebSocketConnected(connected) {
+    this.#state.websocketConnected = connected;
+    // 只更新调试状态，不重新渲染表格数据
+    this.#updateDebugStatus();
+  }
 
   #render() { this.#renderPDFList(); this.#updateDebugStatus(); }
 

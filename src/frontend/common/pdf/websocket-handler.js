@@ -116,7 +116,7 @@ export class WebSocketHandler {
    * @returns {void}
    */
   handleResponse(data) {
-    this.#manager.logger.info("Handling response message:", data);
+    this.#manager.logger.info("Handling response message:", JSON.stringify(data, null, 2));
 
     // 兼容：后端返回完整文件数组的快速路径
     if (data?.status === "success" && Array.isArray(data?.data?.files)) {
@@ -207,24 +207,9 @@ export class WebSocketHandler {
           this.#manager.logger.warn('Error updating batch tracking for ' + batchId, e);
         }
       } else {
-        // 如果没有 batchId 回显，但响应中包含聚合信息（files 或 processed summary），则主动刷新列表以保持一致性。
-        try {
-          const filesArrayNoId = Array.isArray(respData?.files) ? respData.files : Array.isArray(data?.data?.files) ? data.data.files : null;
-          const processedSummaryNoId = respData?.summary || respData?.result || {};
-          const processedCountNoId = processedSummaryNoId?.processed || processedSummaryNoId?.deleted || processedSummaryNoId?.removed || processedSummaryNoId?.added || null;
-          if ((filesArrayNoId && filesArrayNoId.length > 0) || (typeof processedCountNoId === 'number' && processedCountNoId > 0)) {
-            this.#manager.logger.info('Detected aggregated batch response without batch_id, requesting full PDF list to refresh UI');
-            const now = Date.now();
-            if (now - this.#manager.lastListRequestTs > this.#manager.listRequestCooldownMs) {
-              this.#manager.lastListRequestTs = now;
-              this.#manager.loadPDFList();
-            } else {
-              this.#manager.logger.info('Skipping aggregated-list reload due to cooldown to avoid refresh loop');
-            }
-          }
-        } catch (e) {
-          // ignore
-        }
+        // 移除聚合批处理响应的误判逻辑
+        // 只有在明确需要刷新时（如删除、添加成功后）才会触发列表刷新
+        // 普通的pdf_list响应不应该触发额外的刷新请求
       }
     } catch (e) {
       this.#manager.logger.warn("Error while processing batch response tracking", e);

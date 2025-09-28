@@ -17,8 +17,6 @@ from src.qt.compat import (
     QUrl, pyqtSignal, QAction
 )
 
-from src.frontend.pyqtui.main_window import write_js_console_message
-
 
 class MainWindow(QMainWindow):
     """PDF-Home主窗口"""
@@ -101,18 +99,39 @@ class MainWindow(QMainWindow):
                     except Exception:
                         pass
 
+                def _write_simple_log(self, log_file_path, level, message, line_number, source_id):
+                    """简单的日志写入功能，替代 write_js_console_message"""
+                    try:
+                        from datetime import datetime
+                        ts = datetime.now().strftime('%H:%M:%S.%f')[:-3]
+
+                        # 简化源文件路径
+                        source_filename = source_id.split('/')[-1] if '/' in source_id else source_id
+
+                        # 简化日志级别
+                        if 'InfoMessageLevel' in level:
+                            level = 'INFO'
+                        elif 'WarningMessageLevel' in level:
+                            level = 'WARN'
+                        elif 'ErrorMessageLevel' in level:
+                            level = 'ERROR'
+                        else:
+                            level = str(level).upper()
+
+                        log_line = f"[{ts}][{level}][{source_filename}:{line_number}] {message}\n"
+
+                        with open(log_file_path, 'a', encoding='utf-8') as f:
+                            f.write(log_line)
+                    except Exception:
+                        pass  # 静默失败，避免日志错误影响主程序
+
                 def javaScriptConsoleMessage(self, level, message, lineNumber, sourceID):  # type: ignore
                     """控制台消息处理"""
-                    # 1. 写入到文件（保持原有功能）
-                    write_js_console_message(
-                        self._log_file_path,
-                        level=str(level),
-                        message=str(message),
-                        line_number=lineNumber,
-                        source_id=str(sourceID),
-                    )
+                    # 过滤掉"Console log recorded successfully"响应
+                    if "Console log recorded successfully" in str(message):
+                        return None
 
-                    # 2. 同时传递给JSConsoleLogger
+                    # 使用 JSConsoleLogger 记录日志
                     if self.js_logger and hasattr(self.js_logger, 'log_message'):
                         try:
                             self.js_logger.log_message(
@@ -123,6 +142,19 @@ class MainWindow(QMainWindow):
                             )
                         except Exception as e:
                             print(f"Warning: Failed to pass message to js_logger: {e}")
+                    else:
+                        # 如果没有 js_logger，直接写入日志文件
+                        if self._log_file_path:
+                            try:
+                                self._write_simple_log(
+                                    self._log_file_path,
+                                    level=str(level),
+                                    message=str(message),
+                                    line_number=lineNumber,
+                                    source_id=str(sourceID)
+                                )
+                            except Exception as e:
+                                print(f"Warning: Failed to write log: {e}")
 
                     try:
                         return super().javaScriptConsoleMessage(level, message, lineNumber, sourceID)  # type: ignore

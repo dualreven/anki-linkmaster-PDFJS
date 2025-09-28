@@ -62,11 +62,9 @@ class PDFHomeApp {
     this.#qwebchannelManager = new QWebChannelManager(this.#eventBus);
     this.#wsPort = DEFAULT_WS_PORT;
 
-    this.#consoleBridge = createConsoleWebSocketBridge('pdf-home', (message) => {
-      if (this.#websocketManager?.isConnected()) {
-        this.#websocketManager.send({ type: 'console_log', data: message });
-      }
-    });
+    // 创建console bridge但暂不启用，等待WebSocket连接
+    // 注意：此时早期Bridge可能已经修改了console，所以我们暂不创建
+    this.#consoleBridge = null; // 延迟创建
   }
 /**
   async #setupWebSocketClient() {
@@ -240,18 +238,20 @@ class PDFHomeApp {
         }, 100); // 给 Tabulator 一些时间完成初始化
 
         // Subscribe to pdf list updates from event bus
+        // 注意：UIManager已经在监听此事件并更新表格，这里只做日志记录
         this.#eventBus.on(PDF_MANAGEMENT_EVENTS.LIST.UPDATED, (pdfs) => {
           try {
             const mapped = Array.isArray(pdfs) ? pdfs.map(p => ({ ...p })) : [];
             this.#logger.info(`pdf:list:updated received, count=${mapped.length}`);
             if (mapped.length > 0) this.#logger.debug('sample item:', mapped[0]);
-            if (this.tableWrapper) {
-              this.tableWrapper.setData(mapped);
-            } else {
-              this.#logger.warn('TableWrapper not initialized when pdf:list:updated received');
-            }
+            // 移除重复的setData调用，UIManager已经在处理
+            // if (this.tableWrapper) {
+            //   this.tableWrapper.setData(mapped);
+            // } else {
+            //   this.#logger.warn('TableWrapper not initialized when pdf:list:updated received');
+            // }
           } catch (e) {
-            this.#logger.error('Failed to update table wrapper data', e);
+            this.#logger.error('Failed to process pdf list update', e);
           }
         }, { subscriberId: 'PDFHomeApp' });
 
@@ -276,10 +276,19 @@ class PDFHomeApp {
       setGlobalWebSocketClient(this.#websocketManager);
       // 在连接前注册"连接建立"监听，避免竞态丢失事件
       this.#eventBus.on('websocket:connection:established', () => {
-        this.#logger.info("WebSocket connected, enabling console bridge");
-        try { window.__earlyConsoleBridge?.disable?.(); } catch(_) {}
-        this.#consoleBridge.enable();
-        this.#logger.info("Logger WebSocket transmission enabled for pdf-home module");
+        this.#logger.info("WebSocket connected");
+        // 完全禁用ConsoleWebSocketBridge，避免日志重复
+        // Qt的javaScriptConsoleMessage已经能捕获所有console输出
+        try {
+          if (window.__earlyConsoleBridge?.disable) {
+            window.__earlyConsoleBridge.disable();
+            delete window.__earlyConsoleBridge;
+          }
+          this.#logger.info("Early console bridge disabled");
+        } catch(e) {
+          this.#logger.warn("Error disabling early bridge:", e);
+        }
+        // 不再创建新的ConsoleBridge，依赖Qt层面的日志捕获
       }, { subscriberId: 'PDFHomeApp' });
       if (!this.#websocketManager.isConnected()) {
         await this.#websocketManager.connect();
@@ -518,14 +527,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     const wsPort = resolveWebSocketPortSync({ fallbackPort: DEFAULT_WS_PORT });
     const wsUrl = `ws://localhost:${wsPort}`;
 
-    // 2) 提前启用一个"早期"console桥接器
-    try {
-      const earlyBridge = createConsoleWebSocketBridge('pdf-home', (message) => {
-        // 在应用初始化前，暂不发送console log
-      });
-      earlyBridge.enable();
-      try { window.__earlyConsoleBridge = earlyBridge; } catch(_) {}
-    } catch (_) {}
+    // 2) 禁用早期console桥接器，避免日志重复
+    // Qt层的javaScriptConsoleMessage已经足够捕获所有日志
+    // try {
+    //   const earlyBridge = createConsoleWebSocketBridge('pdf-home', (message) => {
+    //     // 在应用初始化前，暂不发送console log
+    //   });
+    //   earlyBridge.enable();
+    //   try { window.__earlyConsoleBridge = earlyBridge; } catch(_) {}
+    // } catch (_) {}
 
     // 3) 创建应用实例（会自动创建容器）
     const app = new PDFHomeApp({ wsUrl });
