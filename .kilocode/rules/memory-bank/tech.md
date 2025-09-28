@@ -1,4 +1,4 @@
-# 技术规范（清理版）
+﻿# 技术规范（清理版）
 
 本文件汇总当前权威的技术与使用规范，过时内容已清理。
 
@@ -88,40 +88,4 @@
 - 诊断输出格式：components.<name> = { enabled, executed, note }。
 - 配套测试：python ai-scripts/tests/test_pdf_viewer_launcher_diagnose.py。
 - 推荐排查：先 --diagnose-only --disable-js-console 验证 JS 日志线程，再逐项恢复。
-\n## ai_launcher 根 CLI 用法（2025-09-27）
-- 命令：
-  - `python ai_launcher.py start [--vite-port N] [--msgServer-port N] [--pdfFileServer-port N] [--module pdf-home|pdf-viewer] [--pdf-id STR]`
-  - `python ai_launcher.py stop`
-  - `python ai_launcher.py status`
-- 行为：
-  - start：优先级解析端口（CLI > runtime-ports.json > npm-dev-vite.log > 默认），启动 `pnpm run dev`（写入 `logs/dev-process-info.json`），启动后端 `src/backend/launcher.py start`，如指定 `--module` 再启动对应前端（写入 `logs/frontend-process-info.json`）。
-  - stop：停止 vite、前端，并调用后端 `stop`。
-  - status：打印 `logs/dev-process-info.json` 与 `logs/frontend-process-info.json`，以及后端 `status` 输出。
-- 兼容性映射：
-  - 前端启动器参数：`--msgServer-port` 映射为 `--ws-port`，`--pdfFileServer-port` 映射为 `--pdf-port`。
-  - `--pdf-id` 仅记录到前端进程信息，实际前端启动器不接收该参数。
-- 文件 I/O：所有 JSON/日志写入均 UTF-8 且换行 `\n`；关键输出：`logs/ai-launcher.log`。
 
-## PDF.js 性能优化配置规范 (2025-09-27)
-- **核心配置**：
-  - `disableAutoFetch: true`：禁用自动获取，延迟加载页面内容
-  - `disableStream: true`：禁用流式加载，配合Range请求使用
-  - `disableRange: false`：启用HTTP Range请求支持
-  - `maxImageSize: 16777216`：16MB图片大小限制，防止内存过载
-  - `useSystemFonts: false`：禁用系统字体，提升兼容性
-- **页面边界检测**：
-  - 使用 `page.getViewport({ scale: 1 })` 获取MediaBox尺寸
-  - 使用 `page.getCropBox()` 获取实际显示区域（如果存在）
-  - 通过 `viewport.width` 和 `viewport.height` 计算页面边界
-- **内存管理策略**：
-  - 页面缓存：使用Map缓存已加载页面，避免重复加载
-  - 智能清理：保留当前页前后3页，清理超出范围的页面缓存
-  - 预加载范围：根据滚动位置动态预加载可视区域前后页面
-- **HTTP Range请求支持**：
-  - 服务器端：支持`Accept-Ranges: bytes`和`Content-Range`响应头
-  - 客户端：通过`Range: bytes=start-end`请求指定字节范围
-  - 兼容性：注意Chrome/Safari首次Range请求可能不缓存的问题
-- **版本兼容性**：
-  - 推荐版本：PDF.js 2.5.207（生产环境稳定版本）
-  - 最新版本：3.11.174（可能存在Range请求回归bug，需充分测试）
-  - 移动端：iPad等设备Canvas内存限制更严格，建议使用SVG渲染模式

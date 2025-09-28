@@ -168,13 +168,13 @@ export class EventHandler {
       // 发送检查事件并等待回应
       const timeout = setTimeout(() => resolve(false), 1000);
 
-      const unsubscribe = this.#manager.eventBus.on('qwebchannel:ready', () => {
+      const unsubscribe = this.#manager.eventBus.on('qwebchannel:status:ready', () => {
         clearTimeout(timeout);
         unsubscribe();
         resolve(true);
       });
 
-      const unsubscribeUnavailable = this.#manager.eventBus.on('qwebchannel:unavailable', () => {
+      const unsubscribeUnavailable = this.#manager.eventBus.on('qwebchannel:status:unavailable', () => {
         clearTimeout(timeout);
         unsubscribe();
         unsubscribeUnavailable();
@@ -182,7 +182,7 @@ export class EventHandler {
       });
 
       // 检查QWebChannel是否已经就绪
-      this.#manager.eventBus.emit('qwebchannel:check', {}, { actorId: 'EventHandler' });
+      this.#manager.eventBus.emit('qwebchannel:check:request', {}, { actorId: 'EventHandler' });
     });
   }
 
@@ -193,7 +193,7 @@ export class EventHandler {
   async #handleQWebChannelFileSelection(fileInfo) {
     try {
       // 通过事件总线请求QWebChannel文件选择
-      this.#manager.eventBus.emit('qwebchannel:selectFiles', {
+      this.#manager.eventBus.emit('qwebchannel:selectFiles:request', {
         isBatch: fileInfo?.isBatch || false
       }, { actorId: 'EventHandler' });
 

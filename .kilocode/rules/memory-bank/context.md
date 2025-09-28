@@ -64,14 +64,29 @@ PDFManager的`handleResponseMessage`方法在处理WebSocket响应时，如果�
 - `src/frontend/common/pdf/websocket-handler.js:115` `handleResponse()`（聚合响应触发二次 `loadPDFList()`）
 - `src/frontend/common/ws/ws-client.js:170` `#flushMessageQueue()`（连接建立后发送排队消息）
 
-## 当前任务：分析 WSClient 两次发送 get_pdf_list (2025-09-28)
+## 重要发现：AI重复开发问题系统性分析 ✅ 完成 (2025-09-28)
+- **问题发现**：通过分析最近工作日志，发现AI开发中存在严重的重复开发问题
+- **典型表现**：
+  - 日志过滤功能在4小时内被反复修改
+  - PDF列表更新存在两条并行处理路径
+  - 控制台消息处理被重复实现
+- **根本原因**：
+  1. 上下文碎片化 - AI读取代码不完整，不了解已有实现
+  2. 缺乏架构全貌认知 - 不理解整体系统架构
+  3. 历史任务追溯不足 - 没有系统性回顾修改历史
+  4. 功能去重检查缺失 - 开发前没有验证功能是否已存在
+  5. 响应式开发模式 - 只解决当前问题，不考虑整体一致性
+- **解决方案**：
+  - 建立强制性架构调研流程
+  - 实施功能去重检查机制
+  - 强化历史工作日志追溯
+  - 建立功能注册表和事件处理统一规范
+- **产出文档**：`AItemp/AI重复开发问题分析报告-20250928.md`
+
+## 已完成任务：分析 WSClient 两次发送 get_pdf_list ✅ 完成 (2025-09-28)
 - 背景：用户反馈 `WSClient` 发送了两次 `get_pdf_list`。
 - 目标：基于事实（日志+代码）解释两次发送的触发链路，并提供可复验证据。
-- 执行步骤：
-  1) 检索 `logs/pdf-home-js.log` 中 `get_pdf_list` 周边上下文（UTF-8读取）
-  2) 交叉定位前端模块（`pdf-manager*`, `websocket-handler.js`, `ws-client.js`）
-  3) 运行 `AItemp/tests/analyze-get-pdf-list.ps1` 输出分类统计
-  4) 总结根因与改进建议，必要时在后续任务中提出修复方案
+- 执行结果：已识别为AI重复开发问题的典型案例，纳入系统性分析
 
 ## 已完成任务：PDF.js性能优化研究 ✅ 完成 (2025-09-27)
 - **目标**: 研究PDF.js的性能优化方案，特别是页面边界检测、按需加载、虚拟化和内存管理
@@ -291,3 +306,4 @@ PDFManager的`handleResponseMessage`方法在处理WebSocket响应时，如果�
   - `shouldSkipMessage(messageText)` 使用原始 `skipPatterns`（仅避免循环/重复，而不屏蔽 INFO 噪音）
 - 目的：恢复此前被过滤掉的 EventBus/队列/初始化类 INFO 日志。
 - 测试：`AItemp/tests/test-console-bridge-restore.ps1` PASS
+

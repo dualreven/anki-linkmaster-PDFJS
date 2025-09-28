@@ -42,7 +42,7 @@ export class QWebChannelManager {
                 this.#logger.info("Got pdfHomeBridge object from QWebChannel");
                 this.#isReady = true;
                 this.#setupSignalListeners();
-                this.#eventBus.emit('qwebchannel:ready', this.#bridge, { actorId: 'QWebChannelManager' });
+                this.#eventBus.emit('qwebchannel:initialized:ready', this.#bridge, { actorId: 'QWebChannelManager' });
                 resolve();
               } else {
                 reject(new Error("pdfHomeBridge object not found in QWebChannel."));
@@ -60,7 +60,7 @@ export class QWebChannelManager {
     } catch (error) {
       this.#logger.warn("QWebChannel initialization failed:", error.message);
       this.#logger.info("Running in browser-only mode without PyQt integration");
-      this.#eventBus.emit('qwebchannel:unavailable', {
+      this.#eventBus.emit('qwebchannel:initialized:unavailable', {
         reason: error.message
       }, {
         actorId: 'QWebChannelManager'
@@ -218,13 +218,13 @@ export class QWebChannelManager {
    */
   #setupEventListeners() {
     // 监听QWebChannel状态检查请求
-    this.#eventBus.on('qwebchannel:check', () => {
+    this.#eventBus.on('qwebchannel:check:request', () => {
       if (this.#isReady) {
-        this.#eventBus.emit('qwebchannel:ready', this.#bridge, {
+        this.#eventBus.emit('qwebchannel:status:ready', this.#bridge, {
           actorId: 'QWebChannelManager'
         });
       } else {
-        this.#eventBus.emit('qwebchannel:unavailable', {
+        this.#eventBus.emit('qwebchannel:status:unavailable', {
           reason: 'Not ready'
         }, {
           actorId: 'QWebChannelManager'
@@ -233,7 +233,7 @@ export class QWebChannelManager {
     }, { subscriberId: 'QWebChannelManager' });
 
     // 监听文件选择请求
-    this.#eventBus.on('qwebchannel:selectFiles', async (options) => {
+    this.#eventBus.on('qwebchannel:selectFiles:request', async (options) => {
       try {
         const files = await this.selectPdfFiles();
         this.#logger.info("File selection completed:", files);
@@ -244,7 +244,7 @@ export class QWebChannelManager {
         }
       } catch (error) {
         this.#logger.error("File selection failed:", error);
-        this.#eventBus.emit('qwebchannel:error', {
+        this.#eventBus.emit('qwebchannel:selectFiles:error', {
           error: error.message,
           operation: 'selectFiles'
         }, {
