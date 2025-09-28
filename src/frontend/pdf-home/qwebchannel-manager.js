@@ -21,16 +21,23 @@ export class QWebChannelManager {
    * 初始化QWebChannel连接
    */
   async initialize() {
+    // 检测运行环境
+    const environment = this.#detectEnvironment();
+    this.#logger.info(`Environment detected: ${environment.type} (${environment.description})`);
+
     try {
       if (typeof QWebChannel === 'undefined') {
-        throw new Error('QWebChannel not available - running in browser mode');
+        throw new Error(`QWebChannel script not loaded - ${environment.recommendation}`);
       }
 
-      this.#logger.info("Waiting for qt.webChannelTransport...");
+      // 根据环境类型调整等待策略
+      const waitConfig = this.#getWaitConfig(environment);
+      this.#logger.info(`Waiting for qt.webChannelTransport (timeout: ${waitConfig.timeout}ms)...`);
 
       await new Promise((resolve, reject) => {
         let attempts = 0;
-        const maxAttempts = 50; // Wait for max 5 seconds
+        const maxAttempts = Math.ceil(waitConfig.timeout / waitConfig.interval);
+
         const interval = setInterval(() => {
           if (typeof qt !== 'undefined' && qt.webChannelTransport) {
             clearInterval(interval);
@@ -52,19 +59,100 @@ export class QWebChannelManager {
             attempts++;
             if (attempts > maxAttempts) {
               clearInterval(interval);
-              reject(new Error("Timed out waiting for qt.webChannelTransport."));
+              reject(new Error(`Timed out waiting for qt.webChannelTransport after ${waitConfig.timeout}ms - ${environment.fallbackMessage}`));
             }
           }
-        }, 100);
+        }, waitConfig.interval);
       });
     } catch (error) {
-      this.#logger.warn("QWebChannel initialization failed:", error.message);
+      const severity = this.#getErrorSeverity(error.message);
+      this.#logger[severity]("QWebChannel initialization failed:", error.message);
       this.#logger.info("Running in browser-only mode without PyQt integration");
       this.#eventBus.emit('qwebchannel:initialized:unavailable', {
-        reason: error.message
+        reason: error.message,
+        environment: environment.type
       }, {
         actorId: 'QWebChannelManager'
       });
+    }
+  }
+
+  /**
+   * 检测运行环境
+   */
+  #detectEnvironment() {
+    const userAgent = navigator.userAgent || '';
+    const isElectron = /electron/i.test(userAgent);
+    const isQtWebEngine = /qtwebengine/i.test(userAgent);
+    const isChrome = /chrome/i.test(userAgent) && !isElectron;
+    const isFirefox = /firefox/i.test(userAgent);
+    const hasQt = typeof qt !== 'undefined';
+
+    if (isQtWebEngine && hasQt) {
+      return {
+        type: 'qt-webengine-with-bridge',
+        description: 'PyQt WebEngine with qt bridge available',
+        recommendation: 'this should work normally',
+        fallbackMessage: 'qt bridge may not be properly configured'
+      };
+    } else if (isQtWebEngine) {
+      return {
+        type: 'qt-webengine-no-bridge',
+        description: 'PyQt WebEngine without qt bridge',
+        recommendation: 'qt bridge not available, check PyQt setup',
+        fallbackMessage: 'qt bridge initialization may be pending'
+      };
+    } else if (isElectron) {
+      return {
+        type: 'electron',
+        description: 'Electron application',
+        recommendation: 'QWebChannel not supported in Electron',
+        fallbackMessage: 'use Electron IPC instead'
+      };
+    } else if (isChrome || isFirefox) {
+      return {
+        type: 'browser',
+        description: `Standard web browser (${isChrome ? 'Chrome' : 'Firefox'})`,
+        recommendation: 'QWebChannel not available in browser environment',
+        fallbackMessage: 'this is expected behavior for web browsers'
+      };
+    } else {
+      return {
+        type: 'unknown',
+        description: 'Unknown runtime environment',
+        recommendation: 'environment not recognized',
+        fallbackMessage: 'try running in a supported environment'
+      };
+    }
+  }
+
+  /**
+   * 根据环境获取等待配置
+   */
+  #getWaitConfig(environment) {
+    switch (environment.type) {
+      case 'qt-webengine-with-bridge':
+        return { timeout: 2000, interval: 100 }; // Qt环境，较短等待时间
+      case 'qt-webengine-no-bridge':
+        return { timeout: 5000, interval: 100 }; // Qt环境但无bridge，稍长等待
+      case 'browser':
+      case 'electron':
+        return { timeout: 500, interval: 100 };  // 浏览器环境，快速失败
+      default:
+        return { timeout: 3000, interval: 100 }; // 未知环境，中等等待时间
+    }
+  }
+
+  /**
+   * 根据错误消息确定日志级别
+   */
+  #getErrorSeverity(errorMessage) {
+    if (errorMessage.includes('not loaded') || errorMessage.includes('not available')) {
+      return 'info'; // 脚本未加载或不可用是常见情况，使用info级别
+    } else if (errorMessage.includes('Timed out') && errorMessage.includes('expected behavior')) {
+      return 'debug'; // 预期的超时使用debug级别
+    } else {
+      return 'warn'; // 其他错误使用warn级别
     }
   }
 

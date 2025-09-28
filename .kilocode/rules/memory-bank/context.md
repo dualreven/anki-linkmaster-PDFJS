@@ -301,9 +301,34 @@ PDFManager的`handleResponseMessage`方法在处理WebSocket响应时，如果�
 
 
 ### 日志过滤恢复（2025-09-28）
-- 将 `src/frontend/common/utils/console-websocket-bridge.js` 还原为“基线过滤”：
+- 将 `src/frontend/common/utils/console-websocket-bridge.js` 还原为"基线过滤"：
   - `intercept()` 调用 `shouldSkipMessage(messageText)`（不再传入级别）
   - `shouldSkipMessage(messageText)` 使用原始 `skipPatterns`（仅避免循环/重复，而不屏蔽 INFO 噪音）
 - 目的：恢复此前被过滤掉的 EventBus/队列/初始化类 INFO 日志。
 - 测试：`AItemp/tests/test-console-bridge-restore.ps1` PASS
+
+### QWebChannel 初始化失败分析 ✅ 完成 (2025-09-28)
+**问题**: 日志中出现 `[QWebChannelManager] [WARN] QWebChannel initialization failed: QWebChannel not available - running in browser mode`
+
+**根本原因**:
+- Vite 开发服务器无法提供 `/js/qwebchannel.js` 文件（404错误）
+- 文件实际位置：`public/js/qwebchannel.js`（项目根目录）
+- Vite 配置：`root: 'src/frontend'`，默认publicDir为 `src/frontend/public`
+- 导致 `QWebChannel` 对象未定义，触发浏览器模式降级
+
+**历史修复状态**:
+- 曾通过配置修复：在 `vite.config.js` 添加 `publicDir: path.resolve(process.cwd(), 'public')`
+- 但该修复已被回滚（参考 `20250928185656-AI-Working-log.md`）
+
+**当前影响**:
+- 系统自动降级为浏览器模式，功能正常
+- 无法使用 Qt 原生文件选择器等 PyQt 集成功能
+- 如在 PyQt WebEngine 环境中运行，会继续等待 `qt.webChannelTransport` 并可能超时
+
+**解决方案**:
+1. 重新应用 Vite 配置修复
+2. 或将静态资源迁移到 `src/frontend/public/` 目录
+3. 改进环境检测逻辑，更好区分浏览器模式和 Qt 模式
+
+**相关文档**: `AItemp/20250928185730-AI-Working-log.md` 包含详细分析
 
