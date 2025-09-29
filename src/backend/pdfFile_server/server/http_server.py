@@ -53,11 +53,14 @@ def run_server(port=DEFAULT_PORT, directory=None, blocking=True):
         os.chdir(directory)
 
         # 创建TCP服务器
+        logger.info(f"正在创建TCP服务器... 端口: {port}")
         with socketserver.TCPServer(("", port), PDFFileHandler) as httpd:
+            logger.info(f"TCP服务器创建成功")
             logger.info(f"PDF服务器成功启动于 http://localhost:{port}/pdfs/")
 
             if blocking:
                 try:
+                    logger.info(f"开始监听请求...")
                     httpd.serve_forever()
                 except KeyboardInterrupt:
                     logger.info("收到中断信号，正在停止服务器...")

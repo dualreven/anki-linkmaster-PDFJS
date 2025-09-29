@@ -64,11 +64,31 @@ class BackendPortManager:
         }
 
     def is_port_available(self, port: int, host: str = "127.0.0.1") -> bool:
-        """检查端口是否可用"""
+        """检查端口是否可用（未被占用）
+
+        Returns:
+            True: 端口可用（未被占用）
+            False: 端口不可用（已被占用/正在监听）
+        """
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.bind((host, port))
                 return True
+        except socket.error:
+            return False
+
+    def is_port_listening(self, port: int, host: str = "127.0.0.1", timeout: float = 0.5) -> bool:
+        """检查端口是否正在监听（可以连接）
+
+        Returns:
+            True: 端口正在监听（可以建立连接）
+            False: 端口未监听（无法建立连接）
+        """
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(timeout)
+                result = s.connect_ex((host, port))
+                return result == 0  # 0 表示连接成功
         except socket.error:
             return False
 
@@ -304,17 +324,10 @@ class BackendProcessManager:
             return False
 
     def start_service(self, service_name: str, port: int) -> bool:
-        """启动服务"""
-        # 检查现有进程状态
-        existing_pid = self.load_pid(service_name)
-        if existing_pid and self.is_process_running(existing_pid):
-            logger.warning(f"⚠️ 服务 {service_name} 已在运行 (PID: {existing_pid}, Port: {port})")
-            logger.info(f"正在停止现有进程...")
-            self.stop_service(service_name)
-        elif existing_pid:
-            logger.info(f"清理已失效的进程信息: {service_name} (PID: {existing_pid})")
-            self.remove_process_info(service_name)
+        """启动服务
 
+        注意: 调用此方法前应确保没有同名服务在运行
+        """
         # 构建启动命令
         if service_name == 'msgCenter_server':
             cmd = [sys.executable, '-m', 'src.backend.msgCenter_server.standard_server',
@@ -328,22 +341,29 @@ class BackendProcessManager:
 
         try:
             logger.info(f"🚀 正在启动服务 {service_name} 在端口 {port}...")
-            # 启动进程
+
+            # 为每个服务创建独立的日志文件
+            service_log_file = self.logs_dir / f"{service_name}.log"
+            log_handle = open(service_log_file, 'a', encoding='utf-8')
+
+            # 启动进程，输出重定向到服务日志文件
             process = subprocess.Popen(
                 cmd,
                 cwd=self.project_root,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=log_handle,
+                stderr=log_handle,
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
             )
 
             # 检查进程是否成功启动
-            time.sleep(1.5)  # 增加等待时间
+            # PDF文件服务器需要更长的启动时间（切换目录、初始化TCP服务器等）
+            wait_time = 3.0 if service_name == 'pdfFile-server' else 1.5
+            time.sleep(wait_time)
             if process.poll() is None:
                 self.save_process_info(service_name, process.pid, port)
                 logger.info(f"✅ 服务启动成功: {service_name} (PID: {process.pid}, Port: {port})")
-                # 验证端口是否真的被监听
-                if self.port_manager and not self.port_manager.is_port_available(port):
+                # 验证端口是否真的被监听（使用连接测试）
+                if self.port_manager and self.port_manager.is_port_listening(port):
                     logger.info(f"✅ 确认端口 {port} 正在监听")
                 else:
                     logger.warning(f"⚠️ 服务已启动但端口 {port} 未监听，服务可能还在初始化")
@@ -399,13 +419,24 @@ class BackendLauncher:
         """启动所有服务"""
         logger.info("=== 启动后端服务 ===")
 
-        # 解析端口
+        # 第一步: 先停止所有已跟踪的服务进程
+        services = ['msgCenter_server', 'pdfFile-server']
+        logger.info("检查并清理已跟踪的服务进程...")
+        for service in services:
+            existing_pid = self.process_manager.load_pid(service)
+            if existing_pid:
+                if self.process_manager.is_process_running(existing_pid):
+                    logger.info(f"🔄 清理已运行的服务: {service} (PID: {existing_pid})")
+                    self.process_manager.stop_service(service)
+                else:
+                    logger.info(f"清理失效的进程信息: {service} (PID: {existing_pid})")
+                    self.process_manager.remove_process_info(service)
+
+        # 第二步: 解析端口配置
         ports = self.port_manager.resolve_ports(args)
 
-        # 启动服务
+        # 第三步: 启动服务
         success_count = 0
-        services = ['msgCenter_server', 'pdfFile-server']
-
         for service in services:
             # 映射服务名到端口键
             if service == 'msgCenter_server':
@@ -472,8 +503,8 @@ class BackendLauncher:
             if running and pid:
                 status_str = f"✅ running (PID: {pid}, Port: {port})"
 
-                # 验证端口是否真的被监听
-                if port and not self.port_manager.is_port_available(port):
+                # 验证端口是否真的被监听（使用连接测试）
+                if port and self.port_manager.is_port_listening(port):
                     logger.info(f"  {service}: {status_str}")
                 else:
                     logger.warning(f"  {service}: ⚠️ 进程运行但端口 {port} 未监听")
