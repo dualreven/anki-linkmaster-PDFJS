@@ -194,25 +194,26 @@ class PdfHomeBridge(QObject):
     @pyqtSlot(result=dict)
     def testConnection(self) -> dict:
         """Test QWebChannel connection from PyQt side."""
-        import datetime
         try:
-            timestamp = datetime.datetime.now().isoformat()
-            logger.info("🔗 [PyQt Bridge] testConnection method called from JavaScript")
-            logger.info(f"🔗 [PyQt Bridge] Connection test successful at {timestamp}")
+            import datetime
+            import sys
 
-            return {
+            timestamp = datetime.datetime.now().isoformat()
+            logger.info("🔗 [PyQt Bridge] testConnection called")
+
+            result = {
                 "success": True,
                 "timestamp": timestamp,
-                "message": "PyQt QWebChannel connection verified successfully",
+                "message": "PyQt QWebChannel connection verified",
                 "bridge_name": "pdfHomeBridge",
-                "python_version": f"{__import__('sys').version_info.major}.{__import__('sys').version_info.minor}",
-                "available_methods": [
-                    "selectPdfFiles", "getPdfList", "addPdfFromBase64",
-                    "addPdfBatchFromBase64", "removePdf", "openPdfViewer",
-                    "readFileAsBase64", "testConnection"
-                ]
+                "python_version": f"{sys.version_info.major}.{sys.version_info.minor}"
             }
+
+            logger.info("🔗 [PyQt Bridge] testConnection completed successfully")
+            return result
+
         except Exception as exc:
+            import datetime
             logger.error(f"🔗 [PyQt Bridge] testConnection failed: {exc}")
             return {
                 "success": False,

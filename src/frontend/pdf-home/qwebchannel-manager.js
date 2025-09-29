@@ -156,6 +156,12 @@ export class QWebChannelManager {
     this.#eventBus.on('qwebchannel:test:request', async () => {
       try {
         this.#logger.info("Received PyQt connection test request");
+
+        // 检查是否就绪
+        if (!this.isReady()) {
+          throw new Error('QWebChannel not ready for testing');
+        }
+
         const result = await this.testConnection();
         this.#logger.info("PyQt connection test completed:", result);
 

@@ -306,33 +306,45 @@ export class UIEventHandlers {
   #handleTestQWebChannel() {
     this.#logger.info("测试QWebChannel连通性按钮被点击");
 
-    // 发送QWebChannel状态检查请求
-    this.#eventBus.emit('qwebchannel:check:request', {}, {
-      actorId: 'UIEventHandlers'
-    });
+    try {
+      // 简化处理，直接发送状态检查请求
+      this.#eventBus.emit('qwebchannel:check:request', {}, {
+        actorId: 'UIEventHandlers'
+      });
 
-    DOMUtils.showSuccess("正在检查QWebChannel连通性...");
+      DOMUtils.showSuccess("正在检查QWebChannel连通性...");
+    } catch (error) {
+      this.#logger.error("handleTestQWebChannel error:", error);
+      DOMUtils.showError("测试QWebChannel时发生错误");
+    }
   }
 
   /**
    * 处理QWebChannel就绪状态
    * @private
    */
-  async #handleQWebChannelReady(bridge) {
+  #handleQWebChannelReady(bridge) {
     this.#logger.info("QWebChannel连通性测试 - 已连接:", bridge);
 
     try {
-      // 尝试调用实际的连通测试
-      this.#eventBus.emit('qwebchannel:test:request', {}, {
-        actorId: 'UIEventHandlers'
-      });
-
       const timestamp = new Date().toLocaleTimeString();
       const message = `✅ QWebChannel连通测试成功! (${timestamp})`;
 
       DOMUtils.showSuccess(message);
       console.log("🔗 [QWebChannel测试] 连接正常，bridge对象:", bridge);
-      console.log("🔗 [QWebChannel测试] 已请求进一步测试PyQt功能...");
+
+      // 简化：延迟后再尝试调用PyQt方法，避免立即调用导致问题
+      setTimeout(() => {
+        try {
+          this.#eventBus.emit('qwebchannel:test:request', {}, {
+            actorId: 'UIEventHandlers'
+          });
+          console.log("🔗 [QWebChannel测试] 已请求PyQt方法测试...");
+        } catch (error) {
+          console.log("🔗 [QWebChannel测试] PyQt方法测试请求失败:", error);
+        }
+      }, 100);
+
     } catch (error) {
       this.#logger.error("QWebChannel连通性测试过程中发生错误:", error);
       DOMUtils.showError(`QWebChannel测试过程出错: ${error.message}`);
