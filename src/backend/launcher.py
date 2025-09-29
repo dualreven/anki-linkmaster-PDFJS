@@ -72,24 +72,84 @@ class BackendPortManager:
         except socket.error:
             return False
 
+    def get_port_owner(self, port: int) -> Optional[str]:
+        """获取占用端口的进程信息"""
+        try:
+            if os.name == 'nt':  # Windows
+                result = subprocess.run(
+                    ['netstat', '-ano'],
+                    capture_output=True,
+                    text=True,
+                    check=False
+                )
+                for line in result.stdout.split('\n'):
+                    if f':{port} ' in line and 'LISTENING' in line:
+                        parts = line.split()
+                        if parts:
+                            pid = parts[-1]
+                            try:
+                                # 获取进程名称
+                                task_result = subprocess.run(
+                                    ['tasklist', '/FI', f'PID eq {pid}', '/FO', 'CSV'],
+                                    capture_output=True,
+                                    text=True,
+                                    check=False
+                                )
+                                lines = task_result.stdout.strip().split('\n')
+                                if len(lines) > 1:
+                                    process_name = lines[1].split(',')[0].strip('"')
+                                    return f"{process_name} (PID: {pid})"
+                            except:
+                                return f"Unknown Process (PID: {pid})"
+            else:  # Linux/Mac
+                result = subprocess.run(
+                    ['lsof', '-i', f':{port}'],
+                    capture_output=True,
+                    text=True,
+                    check=False
+                )
+                lines = result.stdout.strip().split('\n')
+                if len(lines) > 1:
+                    parts = lines[1].split()
+                    if len(parts) >= 2:
+                        return f"{parts[0]} (PID: {parts[1]})"
+        except Exception as e:
+            logger.debug(f"无法获取端口 {port} 的占用信息: {e}")
+        return None
+
     def find_available_port(self, service_name: str, preferred_port: Optional[int] = None) -> int:
         """为服务查找可用端口"""
-        if preferred_port and self.is_port_available(preferred_port):
-            return preferred_port
+        if preferred_port:
+            if self.is_port_available(preferred_port):
+                logger.info(f"✅ 端口 {preferred_port} 可用于服务 {service_name}")
+                return preferred_port
+            else:
+                owner = self.get_port_owner(preferred_port)
+                if owner:
+                    logger.warning(f"⚠️ 端口 {preferred_port} 已被占用: {owner}")
+                else:
+                    logger.warning(f"⚠️ 端口 {preferred_port} 不可用")
 
         start_port, end_port = self.port_ranges.get(service_name, (8000, 9000))
         default_port = self.default_ports.get(service_name, start_port)
 
         # 先尝试默认端口
         if self.is_port_available(default_port):
+            logger.info(f"✅ 使用默认端口 {default_port} 给服务 {service_name}")
             return default_port
+        else:
+            owner = self.get_port_owner(default_port)
+            if owner:
+                logger.warning(f"⚠️ 默认端口 {default_port} 已被占用: {owner}")
 
         # 在范围内搜索
+        logger.info(f"搜索可用端口范围 {start_port}-{end_port} 给服务 {service_name}")
         for port in range(start_port, end_port + 1):
             if self.is_port_available(port):
+                logger.info(f"✅ 找到可用端口 {port} 给服务 {service_name}")
                 return port
 
-        raise RuntimeError(f"无法找到可用端口给服务 {service_name}")
+        raise RuntimeError(f"❌ 无法找到可用端口给服务 {service_name} (范围: {start_port}-{end_port})")
 
     def load_runtime_ports(self) -> Dict[str, Any]:
         """从配置文件加载端口"""
@@ -244,8 +304,15 @@ class BackendProcessManager:
 
     def start_service(self, service_name: str, port: int) -> bool:
         """启动服务"""
-        # 先停止已有进程
-        self.stop_service(service_name)
+        # 检查现有进程状态
+        existing_pid = self.load_pid(service_name)
+        if existing_pid and self.is_process_running(existing_pid):
+            logger.warning(f"⚠️ 服务 {service_name} 已在运行 (PID: {existing_pid}, Port: {port})")
+            logger.info(f"正在停止现有进程...")
+            self.stop_service(service_name)
+        elif existing_pid:
+            logger.info(f"清理已失效的进程信息: {service_name} (PID: {existing_pid})")
+            self.remove_process_info(service_name)
 
         # 构建启动命令
         if service_name == 'msgCenter_server':
@@ -255,10 +322,11 @@ class BackendProcessManager:
             cmd = [sys.executable, '-m', 'src.backend.pdfFile_server',
                    '--port', str(port)]
         else:
-            logger.error(f"未知服务: {service_name}")
+            logger.error(f"❌ 未知服务: {service_name}")
             return False
 
         try:
+            logger.info(f"🚀 正在启动服务 {service_name} 在端口 {port}...")
             # 启动进程
             process = subprocess.Popen(
                 cmd,
@@ -269,17 +337,22 @@ class BackendProcessManager:
             )
 
             # 检查进程是否成功启动
-            time.sleep(1)
+            time.sleep(1.5)  # 增加等待时间
             if process.poll() is None:
                 self.save_process_info(service_name, process.pid, port)
-                logger.info(f"服务启动成功: {service_name} (PID: {process.pid}, Port: {port})")
+                logger.info(f"✅ 服务启动成功: {service_name} (PID: {process.pid}, Port: {port})")
+                # 验证端口是否真的被监听
+                if not self.is_port_available(port):
+                    logger.info(f"✅ 确认端口 {port} 正在监听")
+                else:
+                    logger.warning(f"⚠️ 服务已启动但端口 {port} 未监听，服务可能还在初始化")
                 return True
             else:
-                logger.error(f"服务启动失败: {service_name}")
+                logger.error(f"❌ 服务启动失败: {service_name} (进程已退出)")
                 return False
 
         except Exception as e:
-            logger.error(f"启动服务异常 {service_name}: {e}")
+            logger.error(f"❌ 启动服务异常 {service_name}: {e}")
             return False
 
     def stop_service(self, service_name: str) -> bool:
@@ -378,6 +451,7 @@ class BackendLauncher:
 
     def show_status(self) -> Dict[str, Any]:
         """显示服务状态"""
+        logger.info("=== 检查后端服务状态 ===")
         status = {}
         ports = self.port_manager.load_runtime_ports()
 
@@ -395,9 +469,36 @@ class BackendLauncher:
             port = ports.get(port_key)
 
             if running and pid:
-                status[service] = f"running (PID: {pid}, Port: {port})"
+                status_str = f"✅ running (PID: {pid}, Port: {port})"
+
+                # 验证端口是否真的被监听
+                if port and not self.port_manager.is_port_available(port):
+                    logger.info(f"  {service}: {status_str}")
+                else:
+                    logger.warning(f"  {service}: ⚠️ 进程运行但端口 {port} 未监听")
+                    status_str = f"⚠️ abnormal (PID: {pid}, Port: {port} - not listening)"
+
+                status[service] = status_str
             else:
-                status[service] = "stopped"
+                status[service] = "❌ stopped"
+                logger.info(f"  {service}: ❌ stopped")
+
+                # 检查端口是否被其他进程占用
+                if port and not self.port_manager.is_port_available(port):
+                    owner = self.port_manager.get_port_owner(port)
+                    if owner:
+                        logger.warning(f"    ⚠️ 端口 {port} 被占用: {owner}")
+
+        # 检查是否有其他进程占用了WebSocket相关端口
+        ws_ports_to_check = [8765, 8766, 8767, 8783]
+        logger.info("\n=== WebSocket端口状态检查 ===")
+        for port in ws_ports_to_check:
+            if not self.port_manager.is_port_available(port):
+                owner = self.port_manager.get_port_owner(port)
+                if port in [ports.get('msgCenter_port'), ports.get('pdfFile_port')]:
+                    logger.info(f"  端口 {port}: 被本项目服务使用")
+                else:
+                    logger.warning(f"  端口 {port}: 被占用 - {owner or '未知进程'}")
 
         return status
 
