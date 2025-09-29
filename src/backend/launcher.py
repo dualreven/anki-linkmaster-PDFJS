@@ -37,7 +37,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(log_file, encoding='utf-8'),
+        logging.FileHandler(log_file, mode='w', encoding='utf-8'),  # 使用 'w' 模式每次重启清空日志
         logging.StreamHandler(sys.stdout)
     ]
 )
