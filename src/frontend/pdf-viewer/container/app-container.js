@@ -4,9 +4,9 @@
  * @description 参考pdf-home设计，实现pdf-viewer的容器化架构
  */
 
-import { EventBus } from '../../common/event/event-bus.js';
+import eventBusSingleton from '../../common/event/event-bus.js';  // 使用默认导出的单例
 import { getLogger, setGlobalWebSocketClient, LogLevel } from '../../common/utils/logger.js';
-import { WSClient } from '../../common/ws/ws-client.js';
+import WSClient from '../../common/ws/ws-client.js';  // WSClient也是默认导出
 import { createConsoleWebSocketBridge } from '../../common/utils/console-websocket-bridge.js';
 
 /**
@@ -23,18 +23,16 @@ export function createPDFViewerContainer({
   logger = null
 } = {}) {
 
-  // 创建核心依赖 - 使用getLogger单例模式
-  const containerLogger = logger || getLogger('PDFViewer');
-  const eventBus = new EventBus({
-    enableValidation,
-    logLevel: LogLevel.INFO
-  });
+  // 创建核心依赖 - 使用单例模式
+  const containerLogger = logger || getLogger('pdf-viewer.container');
+  const eventBus = eventBusSingleton;  // 使用共享的EventBus单例
 
   // 容器状态
   const state = {
-    wsUrl,
+    wsUrl: wsUrl || buildWsUrlFromQuery(),
     disposed: false,
-    connected: false
+    connected: false,
+    initialized: false  // 添加初始化状态
   };
 
   let wsClient = null;
@@ -45,15 +43,9 @@ export function createPDFViewerContainer({
    * 确保基础设施已初始化
    */
   function ensureInfra() {
-    if (!wsClient) {
-      wsClient = new WSClient(state.wsUrl, eventBus);
-      containerLogger.info(`[pdf-viewer] WSClient created for: ${state.wsUrl}`);
-
-      // 设置全局WebSocket客户端用于Logger传输
-      setGlobalWebSocketClient(wsClient);
-      containerLogger.info('[pdf-viewer] Global WebSocket client set for Logger transmission');
-
-      // 创建Console桥接器
+    // 这里只负责设置Console桥接器
+    // WSClient的创建移到initialize()方法中
+    if (!consoleBridge && !earlyConsoleBridge) {
       setupConsoleBridge();
     }
   }
@@ -106,6 +98,12 @@ export function createPDFViewerContainer({
   function connect() {
     if (state.disposed || state.connected) return;
 
+    // 确保已经初始化
+    if (!state.initialized) {
+      containerLogger.warn('[pdf-viewer] Container not initialized, call initialize() first');
+      return;
+    }
+
     try {
       containerLogger.info(`[pdf-viewer] connecting WS: ${state.wsUrl}`);
 
@@ -115,7 +113,12 @@ export function createPDFViewerContainer({
         containerLogger.info('[pdf-viewer] Early console bridge enabled');
       }
 
-      ensureInfra();
+      // 确保WSClient存在
+      if (!wsClient) {
+        containerLogger.error('[pdf-viewer] WSClient not available');
+        return;
+      }
+
       wsClient.connect();
       state.connected = true;
 
@@ -220,8 +223,46 @@ export function createPDFViewerContainer({
     };
   }
 
+  /**
+   * 初始化容器（不自动连接）
+   * @returns {Promise<void>}
+   */
+  async function initialize() {
+    if (state.disposed) return;
+    if (state.initialized) return;
+
+    containerLogger.info('[pdf-viewer] Initializing container...');
+
+    // 确保基础设施
+    ensureInfra();
+
+    // 准备WSClient但不连接
+    if (!wsClient && state.wsUrl) {
+      try {
+        wsClient = new WSClient(state.wsUrl, eventBus);
+        setGlobalWebSocketClient(wsClient);
+        containerLogger.info(`[pdf-viewer] WSClient created for: ${state.wsUrl}`);
+      } catch (e) {
+        containerLogger.warn('[pdf-viewer] WSClient creation failed', e);
+      }
+    }
+
+    state.initialized = true;
+    containerLogger.info('[pdf-viewer] Container initialized');
+  }
+
+  /**
+   * 检查容器是否已初始化
+   * @returns {boolean}
+   */
+  function isInitialized() {
+    return !!state.initialized;
+  }
+
   // 返回容器接口
   return {
+    initialize,      // 新增
+    isInitialized,   // 新增
     connect,
     disconnect,
     reloadData,
@@ -229,4 +270,20 @@ export function createPDFViewerContainer({
     getDependencies,
     updateWebSocketUrl
   };
+}
+
+/**
+ * 从URL查询参数构建WebSocket URL
+ * @returns {string|null} WebSocket URL
+ */
+function buildWsUrlFromQuery() {
+  try {
+    const params = new URLSearchParams(location.search);
+    const msgCenterPort = params.get('msgCenter') || '8765';
+    const host = location.hostname || '127.0.0.1';
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    return `${proto}://${host}:${msgCenterPort}/`;
+  } catch {
+    return null;
+  }
 }

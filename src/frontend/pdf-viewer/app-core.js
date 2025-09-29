@@ -79,11 +79,23 @@ export class PDFViewerAppCore {
       this.#logger.info("Initializing PDF Viewer App...");
       this.#setupGlobalErrorHandling();
 
-      // 通过容器连接WebSocket
+      // 1. 先初始化容器（创建WSClient但不连接）
+      if (!this.#appContainer.isInitialized()) {
+        this.#logger.info("Initializing container...");
+        await this.#appContainer.initialize();
+
+        // 重新获取依赖，特别是wsClient
+        const { wsClient } = this.#appContainer.getDependencies();
+        this.#wsClient = wsClient;
+        this.#logger.info("Container initialized, WSClient ready");
+      }
+
+      // 2. 然后连接WebSocket
       this.#logger.info("Attempting to connect WebSocket via container...");
       this.#appContainer.connect();
-      this.#logger.info("WebSocket connection initiated (sync call returned).");
+      this.#logger.info("WebSocket connection initiated.");
 
+      // 3. 初始化各管理器
       this.#logger.info("Initializing PDFManager...");
       await this.#pdfManager.initialize();
       this.#logger.info("PDFManager initialized.");
@@ -271,4 +283,5 @@ export class PDFViewerAppCore {
   set zoomLevel(value) { this.#zoomLevel = value; }
   get wsClient() { return this.#wsClient; }
   get messageQueue() { return this.#messageQueue; }
+  get _appContainer() { return this.#appContainer; }
 }

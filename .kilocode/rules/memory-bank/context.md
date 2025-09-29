@@ -349,3 +349,43 @@ PDFManager的`handleResponseMessage`方法在处理WebSocket响应时，如果�
 
 **相关文档**: `AItemp/20250928185730-AI-Working-log.md` 包含详细分析
 
+## pdf-viewer重构进展
+
+### 当前状态
+- 最后更新: 2025-09-30 00:35
+- 阶段: 基础设施改进完成
+
+### 已完成工作
+1. **分析了pdf-home的架构模式** (2025-09-29)
+   - 识别出5层分层架构
+   - 依赖注入容器模式
+   - Manager模式架构
+
+2. **制定了pdf-viewer的重构方案** (2025-09-29)
+   - 设计了详细的文件拆分策略
+   - 规划了模块化目录结构
+   - 制定了渐进式实施计划
+
+3. **完成基础设施加载改进** (2025-09-30)
+   - **EventBus使用单例模式**: 修改`container/app-container.js`使用全局EventBus单例
+   - **容器添加initialize()方法**: 实现两阶段初始化（先创建WSClient，后建立连接）
+   - **创建bootstrap入口**: 新增`bootstrap/app-bootstrap.js`统一启动流程
+   - **实现两阶段初始化**: app-core.js中先初始化容器，再连接WebSocket
+
+### 技术要点
+- EventBus从创建实例改为使用`eventBusSingleton`
+- 容器新增`initialize()`和`isInitialized()`方法
+- Bootstrap模式解析配置并动态加载应用
+- 与pdf-home保持架构一致性
+
+### 验证结果
+- EventBus单例正常工作，事件订阅和发布正常
+- 容器初始化成功，两阶段初始化按预期执行
+- WebSocket连接成功建立到ws://localhost:8765
+- Console桥接器成功从早期桥接器切换到主桥接器
+
+### 相关文档
+- `AItemp/pdf-viewer-refactoring-plan.md` - 完整重构方案
+- `AItemp/pdf-viewer-infrastructure-loading.md` - 基础设施加载详细说明
+- `AItemp/20250930003500-AI-Working-log.md` - 本次改进的工作日志
+

@@ -52,55 +52,17 @@ export class PDFViewerApp extends PDFViewerAppCore {
 }
 
 // ===== 应用启动 =====
+// 使用新的bootstrap模式启动应用
+import { bootstrapPDFViewerApp } from "./bootstrap/app-bootstrap.js";
+
 document.addEventListener("DOMContentLoaded", async () => {
-  // 从URL参数获取端口配置
-  const urlParams = new URLSearchParams(window.location.search);
-  const msgCenterPort = urlParams.get('msgCenter') || '8765';
-  const wsUrl = `ws://localhost:${msgCenterPort}`;
-
-  const app = new PDFViewerApp({ wsUrl });  // 直接传入正确的WebSocket URL
   const indexLogger = getLogger("PDFViewer");
+  indexLogger.info("DOMContentLoaded: Starting PDF Viewer App bootstrap...");
 
-  // PDF.js will be loaded by PDFManager via ES modules
-  indexLogger.info("PDF.js will be loaded dynamically by PDFManager");
-
-  indexLogger.info("Starting PDFViewer App initialization...");
-
-  await app.initialize();
-
-  // 暴露应用实例到全局，便于调试
-  window.pdfViewerApp = {
-    getState: () => app.getState(),
-    destroy: () => app.destroy(),
-    _internal: app // 用于高级调试
-  };
-
-  indexLogger.info("PDFViewer App initialized successfully");
-
-  // Check for injected PDF path and load it
-  let pdfPath = null;
-
-  // 优先检查window.PDF_PATH（通过script标签注入）
-  if (window.PDF_PATH) {
-    pdfPath = window.PDF_PATH;
-    indexLogger.info(`Found injected PDF path: ${pdfPath}`);
-  }
-  // 其次检查URL参数file（通过launcher.py传递）
-  else if (urlParams.get('file')) {
-    pdfPath = decodeURIComponent(urlParams.get('file'));
-    indexLogger.info(`Found PDF file from URL parameter: ${pdfPath}`);
-  }
-
-  if (pdfPath) {
-    // 从完整路径中提取文件名
-    const filename = pdfPath.includes('\\') || pdfPath.includes('/')
-      ? pdfPath.split(/[\\\/]/).pop()
-      : pdfPath;
-
-    const eventBus = app.getEventBus();
-    eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, {
-      filename: filename,
-      file_path: pdfPath
-    }, { actorId: 'Launcher' });
+  try {
+    await bootstrapPDFViewerApp();
+    indexLogger.info("PDF Viewer App bootstrap completed successfully");
+  } catch (error) {
+    indexLogger.error("PDF Viewer App bootstrap failed:", error);
   }
 });
