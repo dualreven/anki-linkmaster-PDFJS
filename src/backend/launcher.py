@@ -206,10 +206,11 @@ class BackendPortManager:
 class BackendProcessManager:
     """后端进程管理器"""
 
-    def __init__(self, project_root: Path):
+    def __init__(self, project_root: Path, port_manager: Optional['BackendPortManager'] = None):
         self.project_root = project_root
         self.logs_dir = project_root / 'logs'
         self.logs_dir.mkdir(parents=True, exist_ok=True)
+        self.port_manager = port_manager
 
         # 进程信息文件路径
         self.processes_info_file = self.logs_dir / 'backend-processes-info.json'
@@ -342,7 +343,7 @@ class BackendProcessManager:
                 self.save_process_info(service_name, process.pid, port)
                 logger.info(f"✅ 服务启动成功: {service_name} (PID: {process.pid}, Port: {port})")
                 # 验证端口是否真的被监听
-                if not self.is_port_available(port):
+                if self.port_manager and not self.port_manager.is_port_available(port):
                     logger.info(f"✅ 确认端口 {port} 正在监听")
                 else:
                     logger.warning(f"⚠️ 服务已启动但端口 {port} 未监听，服务可能还在初始化")
@@ -392,7 +393,7 @@ class BackendLauncher:
     def __init__(self):
         self.project_root = project_root
         self.port_manager = BackendPortManager(self.project_root)
-        self.process_manager = BackendProcessManager(self.project_root)
+        self.process_manager = BackendProcessManager(self.project_root, self.port_manager)
 
     def start_services(self, args: argparse.Namespace) -> bool:
         """启动所有服务"""
