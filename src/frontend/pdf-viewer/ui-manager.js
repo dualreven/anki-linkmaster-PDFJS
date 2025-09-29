@@ -4,7 +4,7 @@
  * @description UI管理器主入口，协调各子模块功能
  */
 
-import { UIManagerCore } from "./ui-manager-core.js";
+import { UIManagerCore } from "./ui/ui-manager-core-refactored.js";
 import { UIZoomControls } from "./ui-zoom-controls.js";
 import { UIProgressError } from "./ui-progress-error.js";
 import { UICanvasRender } from "./ui-canvas-render.js";

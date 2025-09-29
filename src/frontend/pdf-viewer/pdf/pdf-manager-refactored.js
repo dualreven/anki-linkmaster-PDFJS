@@ -113,11 +113,13 @@ export class PDFManager {
       try {
         this.#logger.info(`Loading PDF (attempt ${attempt}/${LOADING_CONFIG.maxRetries}): ${filename || url}`);
 
-        // 发布加载开始事件
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.START, {
+        // 发布加载进度事件（开始）
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.PROGRESS, {
           filename: filename,
           url: url,
-          attempt: attempt
+          attempt: attempt,
+          percent: 0,
+          message: `开始加载 (尝试 ${attempt}/${LOADING_CONFIG.maxRetries})`
         }, { actorId: 'PDFManager' });
 
         // 根据数据类型选择加载方法
@@ -143,10 +145,11 @@ export class PDFManager {
         this.#logger.error(`Failed to load PDF (attempt ${attempt}):`, error);
 
         // 发布加载失败事件
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.ERROR, {
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.FAILED, {
           filename: filename,
           error: error.message,
-          attempt: attempt
+          attempt: attempt,
+          maxAttempts: LOADING_CONFIG.maxRetries
         }, { actorId: 'PDFManager' });
 
         // 如果还有重试机会，等待后重试
