@@ -68,15 +68,8 @@ export class UIManagerCore {
    * @private
    */
   #setupEventListeners() {
-    // 页面变更事件
-    const pageChangeUnsub = this.#eventBus.on(
-      PDF_VIEWER_EVENTS.NAVIGATION.PAGE_CHANGED,
-      (data) => {
-        this.#stateManager.updatePageInfo(data.pageNumber, data.totalPages);
-      },
-      { subscriberId: 'UIManagerCore' }
-    );
-    this.#unsubscribeFunctions.push(pageChangeUnsub);
+    // 注意: PAGE_CHANGED 事件在当前版本中未定义
+    // 页面信息更新通过直接调用 updatePageInfo 方法实现
 
     // 缩放变更事件
     const zoomChangeUnsub = this.#eventBus.on(
@@ -88,16 +81,16 @@ export class UIManagerCore {
     );
     this.#unsubscribeFunctions.push(zoomChangeUnsub);
 
-    // 加载状态事件
-    const loadStartUnsub = this.#eventBus.on(
-      PDF_VIEWER_EVENTS.FILE.LOAD.START,
+    // 加载请求事件
+    const loadRequestedUnsub = this.#eventBus.on(
+      PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
       () => {
         this.#stateManager.updateLoadingState(true, false);
         this.#domManager.setLoadingState(true);
       },
       { subscriberId: 'UIManagerCore' }
     );
-    this.#unsubscribeFunctions.push(loadStartUnsub);
+    this.#unsubscribeFunctions.push(loadRequestedUnsub);
 
     const loadSuccessUnsub = this.#eventBus.on(
       PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
@@ -109,15 +102,15 @@ export class UIManagerCore {
     );
     this.#unsubscribeFunctions.push(loadSuccessUnsub);
 
-    const loadErrorUnsub = this.#eventBus.on(
-      PDF_VIEWER_EVENTS.FILE.LOAD.ERROR,
+    const loadFailedUnsub = this.#eventBus.on(
+      PDF_VIEWER_EVENTS.FILE.LOAD.FAILED,
       (data) => {
         this.#stateManager.updateErrorState(true, data.error);
         this.#domManager.setLoadingState(false);
       },
       { subscriberId: 'UIManagerCore' }
     );
-    this.#unsubscribeFunctions.push(loadErrorUnsub);
+    this.#unsubscribeFunctions.push(loadFailedUnsub);
 
     this.#logger.info("Event listeners setup complete");
   }
@@ -222,6 +215,120 @@ export class UIManagerCore {
   showLoading(isLoading) {
     this.#domManager.setLoadingState(isLoading);
     this.#stateManager.updateLoadingState(isLoading);
+  }
+
+  /**
+   * 更新页面信息
+   * @param {number} currentPage - 当前页码
+   * @param {number} totalPages - 总页数
+   */
+  updatePageInfo(currentPage, totalPages) {
+    this.#stateManager.updatePageInfo(currentPage, totalPages);
+    this.#logger.debug(`Page info updated: ${currentPage}/${totalPages}`);
+  }
+
+  /**
+   * 渲染页面
+   * @param {Object} page - PDF页面对象
+   * @param {Object} viewport - 视口对象
+   */
+  async renderPage(page, viewport) {
+    const canvas = this.#domManager.getElement('canvas');
+    if (!canvas) {
+      throw new Error('Canvas element not found');
+    }
+
+    const context = canvas.getContext('2d');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+
+    const renderContext = {
+      canvasContext: context,
+      viewport: viewport
+    };
+
+    await page.render(renderContext).promise;
+    this.#logger.debug('Page rendered successfully');
+  }
+
+  /**
+   * 更新进度
+   * @param {number} percent - 进度百分比
+   * @param {string} statusText - 状态文本
+   */
+  updateProgress(percent, statusText = '加载中...') {
+    const progressBar = this.#domManager.getElement('progressBar');
+    if (progressBar) {
+      progressBar.style.width = `${percent}%`;
+    }
+    this.#logger.debug(`Progress: ${percent}% - ${statusText}`);
+  }
+
+  /**
+   * 隐藏进度条
+   */
+  hideProgress() {
+    const progressBar = this.#domManager.getElement('progressBar');
+    if (progressBar && progressBar.parentElement) {
+      progressBar.parentElement.style.display = 'none';
+    }
+  }
+
+  /**
+   * 显示错误
+   * @param {Error|Object} errorData - 错误数据
+   */
+  showError(errorData) {
+    const errorMessage = this.#domManager.getElement('errorMessage');
+    if (errorMessage) {
+      errorMessage.textContent = errorData.message || '加载失败';
+      errorMessage.style.display = 'block';
+    }
+    this.#logger.error('Error displayed:', errorData);
+  }
+
+  /**
+   * 隐藏错误
+   */
+  hideError() {
+    const errorMessage = this.#domManager.getElement('errorMessage');
+    if (errorMessage) {
+      errorMessage.style.display = 'none';
+    }
+  }
+
+  /**
+   * 设置缩放比例
+   * @param {number} scale - 缩放比例
+   */
+  setScale(scale) {
+    this.#stateManager.updateScale(scale, 'custom');
+    this.#logger.debug(`Scale set to: ${scale}`);
+  }
+
+  /**
+   * 获取当前缩放比例
+   * @returns {number} 缩放比例
+   */
+  getScale() {
+    return this.#stateManager.get('currentScale');
+  }
+
+  /**
+   * 获取Canvas元素
+   * @returns {HTMLCanvasElement} Canvas元素
+   */
+  getCanvas() {
+    return this.#domManager.getElement('canvas');
+  }
+
+  /**
+   * 获取Canvas上下文
+   * @returns {CanvasRenderingContext2D} 2D上下文
+   */
+  getContext() {
+    const canvas = this.getCanvas();
+    return canvas ? canvas.getContext('2d') : null;
   }
 
   /**

@@ -181,17 +181,8 @@ export class NavigationHandler {
    * @private
    */
   #emitNavigationChanged() {
-    // 发送导航变更事件
-    this.#app.eventBus.emit(
-      PDF_VIEWER_EVENTS.NAVIGATION.PAGE_CHANGED,
-      {
-        pageNumber: this.#app.currentPage,
-        totalPages: this.#app.totalPages
-      },
-      { actorId: 'NavigationHandler' }
-    );
-
-    // 更新UI管理器中的页面信息
+    // 注意: PAGE_CHANGED 事件在当前版本中未定义
+    // 直接更新UI管理器中的页面信息
     this.#app.uiManager.updatePageInfo(
       this.#app.currentPage,
       this.#app.totalPages
