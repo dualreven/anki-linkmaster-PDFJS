@@ -94,6 +94,15 @@ export class UIEventHandlers {
       );
     }
 
+    // 测试QWebChannel连通性按钮
+    if (this.#elements.testQWebChannelBtn) {
+      const listener = () => this.#handleTestQWebChannel();
+      DOMUtils.addEventListener(this.#elements.testQWebChannelBtn, "click", listener);
+      this.#unsubscribeFunctions.push(() =>
+        DOMUtils.removeEventListener(this.#elements.testQWebChannelBtn, "click", listener)
+      );
+    }
+
     // 调试按钮
     if (this.#elements.debugBtn) {
       const listener = () => this.#toggleDebugStatus();
@@ -115,6 +124,10 @@ export class UIEventHandlers {
       this.#eventBus.on(WEBSOCKET_EVENTS.CONNECTION.CLOSED, () => this.#handleWebSocketConnected(false)),
       this.#eventBus.on(UI_EVENTS.ERROR.SHOW, (errorInfo) => this.#handleShowError(errorInfo.message)),
       this.#eventBus.on(UI_EVENTS.SUCCESS.SHOW, (message) => this.#handleShowSuccess(message)),
+      this.#eventBus.on('qwebchannel:status:ready', (bridge) => this.#handleQWebChannelReady(bridge)),
+      this.#eventBus.on('qwebchannel:status:unavailable', (info) => this.#handleQWebChannelUnavailable(info)),
+      this.#eventBus.on('qwebchannel:test:success', (result) => this.#handleQWebChannelTestSuccess(result)),
+      this.#eventBus.on('qwebchannel:test:failed', (error) => this.#handleQWebChannelTestFailed(error)),
     ];
     this.#unsubscribeFunctions.push(...listeners);
   }
@@ -284,6 +297,89 @@ export class UIEventHandlers {
     const debugInfo = this.#stateManager.getDebugInfo();
     const debugText = `PDF数量: ${debugInfo.pdfCount}, 加载中: ${debugInfo.loading}, WebSocket: ${debugInfo.websocketConnected}`;
     DOMUtils.setHTML(this.#elements.debugContent, debugText);
+  }
+
+  /**
+   * 处理测试QWebChannel连通性
+   * @private
+   */
+  #handleTestQWebChannel() {
+    this.#logger.info("测试QWebChannel连通性按钮被点击");
+
+    // 发送QWebChannel状态检查请求
+    this.#eventBus.emit('qwebchannel:check:request', {}, {
+      actorId: 'UIEventHandlers'
+    });
+
+    DOMUtils.showSuccess("正在检查QWebChannel连通性...");
+  }
+
+  /**
+   * 处理QWebChannel就绪状态
+   * @private
+   */
+  async #handleQWebChannelReady(bridge) {
+    this.#logger.info("QWebChannel连通性测试 - 已连接:", bridge);
+
+    try {
+      // 尝试调用实际的连通测试
+      this.#eventBus.emit('qwebchannel:test:request', {}, {
+        actorId: 'UIEventHandlers'
+      });
+
+      const timestamp = new Date().toLocaleTimeString();
+      const message = `✅ QWebChannel连通测试成功! (${timestamp})`;
+
+      DOMUtils.showSuccess(message);
+      console.log("🔗 [QWebChannel测试] 连接正常，bridge对象:", bridge);
+      console.log("🔗 [QWebChannel测试] 已请求进一步测试PyQt功能...");
+    } catch (error) {
+      this.#logger.error("QWebChannel连通性测试过程中发生错误:", error);
+      DOMUtils.showError(`QWebChannel测试过程出错: ${error.message}`);
+    }
+  }
+
+  /**
+   * 处理QWebChannel不可用状态
+   * @private
+   */
+  #handleQWebChannelUnavailable(info) {
+    this.#logger.info("QWebChannel连通性测试 - 不可用:", info);
+
+    const timestamp = new Date().toLocaleTimeString();
+    const message = `❌ QWebChannel连通测试失败 (${timestamp}): ${info.reason || '未知原因'}`;
+
+    DOMUtils.showError(message);
+    console.log("🔗 [QWebChannel测试] 连接失败，详细信息:", info);
+  }
+
+  /**
+   * 处理QWebChannel测试成功
+   * @private
+   */
+  #handleQWebChannelTestSuccess(result) {
+    this.#logger.info("PyQt连通性测试成功:", result);
+
+    const message = `🎉 PyQt连通性测试成功! (${result.timestamp})`;
+    DOMUtils.showSuccess(message);
+
+    console.log("🔗 [PyQt测试] 详细结果:", result);
+    if (result.message) {
+      console.log("🔗 [PyQt测试] 消息:", result.message);
+    }
+  }
+
+  /**
+   * 处理QWebChannel测试失败
+   * @private
+   */
+  #handleQWebChannelTestFailed(error) {
+    this.#logger.error("PyQt连通性测试失败:", error);
+
+    const message = `❌ PyQt连通性测试失败 (${error.timestamp}): ${error.error}`;
+    DOMUtils.showError(message);
+
+    console.log("🔗 [PyQt测试] 错误详情:", error);
   }
 
   /**

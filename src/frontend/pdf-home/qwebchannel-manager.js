@@ -106,6 +106,13 @@ export class QWebChannelManager {
   }
 
   /**
+   * 测试PyQt连通性
+   */
+  async testConnection() {
+    return await this.#apiWrapper.testConnection();
+  }
+
+  /**
    * 设置事件监听器
    * @private
    */
@@ -139,6 +146,31 @@ export class QWebChannelManager {
         this.#logger.error("File selection failed:", error);
         this.#eventBus.emit('qwebchannel:selectFiles:error', {
           error: error.message
+        }, {
+          actorId: 'QWebChannelManager'
+        });
+      }
+    });
+
+    // 监听PyQt连通性测试请求
+    this.#eventBus.on('qwebchannel:test:request', async () => {
+      try {
+        this.#logger.info("Received PyQt connection test request");
+        const result = await this.testConnection();
+        this.#logger.info("PyQt connection test completed:", result);
+
+        const timestamp = new Date().toLocaleTimeString();
+        this.#eventBus.emit('qwebchannel:test:success', {
+          ...result,
+          timestamp: timestamp
+        }, {
+          actorId: 'QWebChannelManager'
+        });
+      } catch (error) {
+        this.#logger.error("PyQt connection test failed:", error);
+        this.#eventBus.emit('qwebchannel:test:failed', {
+          error: error.message,
+          timestamp: new Date().toLocaleTimeString()
         }, {
           actorId: 'QWebChannelManager'
         });

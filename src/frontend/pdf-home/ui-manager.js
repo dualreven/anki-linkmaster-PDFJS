@@ -51,6 +51,7 @@ export class UIManager {
       batchAddBtn: DOMUtils.getElementById("batch-add-btn"),
       batchDeleteBtn: DOMUtils.getElementById("batch-delete-btn"),
       testPdfViewerBtn: DOMUtils.getElementById("test-pdf-viewer-btn"),
+      testQWebChannelBtn: DOMUtils.getElementById("test-qwebchannel-btn"),
       debugBtn: DOMUtils.getElementById("debug-btn"),
       debugStatus: DOMUtils.getElementById("debug-status"),
       debugContent: DOMUtils.getElementById("debug-content"),
