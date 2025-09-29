@@ -26,6 +26,13 @@ class PdfHomeBridge(QObject):
 
     Methods are exposed to JS (Qt will marshal return values to Promises).
     Signals can be subscribed to in JS and are emitted on list updates.
+
+    ⚠️ 重要提醒：QWebChannel类型转换规则
+    ✅ 安全的返回类型：str, int, float, bool
+    ❌ 避免使用：dict, 复杂对象 (会导致 TypeError: unable to convert dict to PyQt_PyObject)
+    💡 解决方案：复杂数据使用 json.dumps() 转为字符串，前端再解析
+
+    📚 详细开发规范请参考：docs/QWebChannel-Development-Guide.md
     """
 
     # Emitted when the PDF list changes; payload is a list[dict]
@@ -156,20 +163,25 @@ class PdfHomeBridge(QObject):
             logger.error("🔗 [PyQt Bridge] openPdfViewer failed: %s", exc)
             return False
 
-    @pyqtSlot(str, result=dict)
-    def readFileAsBase64(self, filePath: str) -> dict:
-        """Read a file and return its base64 content."""
+    @pyqtSlot(str, result=str)
+    def readFileAsBase64(self, filePath: str) -> str:
+        """Read a file and return its base64 content.
+
+        ⚠️ 注意：返回JSON字符串而不是dict，避免QWebChannel类型转换错误
+        前端需要JSON.parse()解析返回值
+        """
         try:
+            import json
             logger.info("🔗 [PyQt Bridge] readFileAsBase64 method called from JavaScript: filePath=%s", filePath)
             path = Path(filePath)
 
             if not path.exists():
                 logger.error("🔗 [PyQt Bridge] File does not exist: %s", filePath)
-                return {"success": False, "error": "File not found"}
+                return json.dumps({"success": False, "error": "File not found"}, ensure_ascii=False)
 
             if not path.is_file():
                 logger.error("🔗 [PyQt Bridge] Path is not a file: %s", filePath)
-                return {"success": False, "error": "Not a file"}
+                return json.dumps({"success": False, "error": "Not a file"}, ensure_ascii=False)
 
             # Read file content
             with open(path, 'rb') as f:
@@ -180,23 +192,31 @@ class PdfHomeBridge(QObject):
 
             logger.info("🔗 [PyQt Bridge] Successfully read file: %s (%d bytes)", path.name, len(file_content))
 
-            return {
+            result = {
                 "success": True,
                 "filename": path.name,
                 "data_base64": data_base64,
                 "size": len(file_content)
             }
 
-        except Exception as exc:
-            logger.error("🔗 [PyQt Bridge] readFileAsBase64 failed for %s: %s", filePath, exc)
-            return {"success": False, "error": str(exc)}
+            return json.dumps(result, ensure_ascii=False)
 
-    @pyqtSlot(result=dict)
-    def testConnection(self) -> dict:
-        """Test QWebChannel connection from PyQt side."""
+        except Exception as exc:
+            import json
+            logger.error("🔗 [PyQt Bridge] readFileAsBase64 failed for %s: %s", filePath, exc)
+            return json.dumps({"success": False, "error": str(exc)}, ensure_ascii=False)
+
+    @pyqtSlot(result=str)
+    def testConnection(self) -> str:
+        """Test QWebChannel connection from PyQt side.
+
+        ⚠️ 注意：返回JSON字符串而不是dict，避免QWebChannel类型转换错误
+        前端需要JSON.parse()解析返回值
+        """
         try:
             import datetime
             import sys
+            import json
 
             timestamp = datetime.datetime.now().isoformat()
             logger.info("🔗 [PyQt Bridge] testConnection called")
@@ -209,14 +229,20 @@ class PdfHomeBridge(QObject):
                 "python_version": f"{sys.version_info.major}.{sys.version_info.minor}"
             }
 
+            # 转换为JSON字符串以避免PyQt_PyObject转换错误
+            result_json = json.dumps(result, ensure_ascii=False)
             logger.info("🔗 [PyQt Bridge] testConnection completed successfully")
-            return result
+            return result_json
 
         except Exception as exc:
             import datetime
+            import json
             logger.error(f"🔗 [PyQt Bridge] testConnection failed: {exc}")
-            return {
+
+            error_result = {
                 "success": False,
                 "error": str(exc),
                 "timestamp": datetime.datetime.now().isoformat()
             }
+
+            return json.dumps(error_result, ensure_ascii=False)

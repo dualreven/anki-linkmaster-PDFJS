@@ -1,37 +1,34 @@
 /**
  * @file 表格封装核心模块
  * @module TableWrapperCore
- * @description TableWrapper的核心功能，包括基础表格封装和初始化
+ * @description TableWrapper的核心功能，基于模块化架构重构
  */
 
-import { Tabulator } from 'tabulator-tables';
 import { getLogger } from '../common/utils/logger.js';
-import { TableUtils } from './table-utils.js';
+import { TableCoreInitializer } from './table/table-core-initializer.js';
+import { TableDataHandler } from './table/table-data-handler.js';
+import { TableLifecycleManager } from './table/table-lifecycle-manager.js';
 
 const logger = getLogger('TableWrapperCore');
 
 /**
  * @class TableWrapperCore
- * @description 表格封装核心类，处理基础表格功能和初始化
+ * @description 表格封装核心类，采用组合模式整合各个专门模块
  */
 export class TableWrapperCore {
-  #container;
-  #tableWrapper;
-  #options;
-  #tabulator;
-  #localListeners;
-  #fallbackMode = false;
-  #fallbackTable = null;
-  #fallbackData = [];
+  #initializer;
+  #dataHandler;
+  #lifecycleManager;
+  #localListeners = Object.create(null);
 
   // Expose read-only accessors for integration code
-  get tabulator() { return this.#tabulator; }
-  get tableWrapper() { return this.#tableWrapper; }
-  get container() { return this.#container; }
-  get fallbackMode() { return this.#fallbackMode; }
-  get options() { return this.#options; }
+  get tabulator() { return this.#initializer?.tabulator; }
+  get tableWrapper() { return this.#initializer?.tableWrapper; }
+  get container() { return this.#initializer?.container; }
+  get fallbackMode() { return this.#dataHandler?.fallbackMode || false; }
+  get options() { return this.#initializer?.options; }
   get localListeners() { return this.#localListeners; }
-  get fallbackData() { return this.#fallbackData; }
+  get fallbackData() { return this.#dataHandler?.fallbackData || []; }
 
   /**
    * 创建 TableWrapper 实例
@@ -39,126 +36,78 @@ export class TableWrapperCore {
    * @param {Object} [options] - Tabulator配置选项
    */
   constructor(container, options = {}) {
-    if (typeof container === 'string') {
-      this.#container = document.querySelector(container);
-    } else {
-      this.#container = container;
-    }
+    logger.info('Initializing TableWrapperCore with modular architecture');
 
-    if (!this.#container) throw new Error('Container not found');
+    // 1. 初始化核心组件
+    this.#initializer = new TableCoreInitializer(container, options);
 
-    this.#tableWrapper = this._getOrCreateWrapper();
-    this.#options = this.#prepareOptions(options);
-    this.#tabulator = null;
-    this.#localListeners = Object.create(null);
-    this._init();
+    // 2. 初始化数据处理器
+    this.#dataHandler = new TableDataHandler(
+      null, // tabulator将在初始化后设置
+      this.#initializer.tableWrapper,
+      false, // fallbackMode初始为false
+      this.#localListeners
+    );
+
+    // 3. 初始化生命周期管理器
+    this.#lifecycleManager = new TableLifecycleManager(
+      null, // tabulator将在初始化后设置
+      this.#initializer.tableWrapper,
+      this.#initializer.container,
+      this.#localListeners
+    );
+
+    // 4. 执行同步初始化（不等待异步完成）
+    this._initSync();
   }
 
   /**
-   * 准备Tabulator配置选项
-   * @param {Object} options - 用户提供的选项
-   * @returns {Object} 合并后的选项
+   * 同步初始化部分（立即执行）
    * @private
    */
-  #prepareOptions(options) {
-    const defaultPlaceholder = `
-      <div style="text-align:center;padding:24px;color:#666;">
-        <div style="font-size:32px;margin-bottom:8px">📄</div>
-        <div>暂无数据</div>
-      </div>`;
-
-    return Object.assign({
-      height: 'auto',
-      layout: 'fitColumns',
-      selectable: true,
-      selectableRangeMode: "click",
-      selectableRollingSelection: false,
-      layoutColumnsOnNewData: false,
-      placeholder: defaultPlaceholder,
-      rowFormatter: this.#createRowFormatter()
-    }, options);
-  }
-
-  /**
-   * 创建行格式化函数
-   * @returns {Function} 行格式化函数
-   * @private
-   */
-  #createRowFormatter() {
-    return function(row) {
-      try {
-        const rowEl = row.getElement ? row.getElement() : null;
-        if (!rowEl) return;
-        
-        const firstCell = rowEl.querySelector('.tabulator-cell');
-        if (!firstCell) return;
-        
-        let cb = firstCell.querySelector('.pdf-table-row-select');
-        if (!cb) {
-          cb = document.createElement('input');
-          cb.type = 'checkbox';
-          cb.className = 'pdf-table-row-select';
-          
-          const data = (typeof row.getData === 'function') ? row.getData() : null;
-          if (data) {
-            if (data.id !== undefined) cb.dataset.rowId = data.id;
-            else if (data.filename) cb.dataset.filename = data.filename;
-          }
-          
-          try { cb.checked = cb.checked || rowEl.classList.contains('tabulator-selected'); } catch(e) {}
-          
-          cb.addEventListener('change', (e) => {
-            try {
-              if (e.target.checked) rowEl.classList.add('tabulator-selected');
-              else rowEl.classList.remove('tabulator-selected');
-            } catch (err) { /* ignore */ }
-          });
-          
-          firstCell.insertBefore(cb, firstCell.firstChild);
-        } else {
-          try { cb.checked = rowEl.classList.contains('tabulator-selected'); } catch(e) {}
-        }
-      } catch (e) {
-        // silently ignore rowFormatter errors
-      }
-    };
-  }
-
-  /**
-   * 查找或创建内部 tableWrapper 插槽
-   * @returns {HTMLElement} tableWrapper 元素
-   * @private
-   */
-  _getOrCreateWrapper() {
-    const existing = this.#container.querySelector('.pdf-table-wrapper');
-    if (existing) return existing;
-    
-    const wrapper = document.createElement('div');
-    wrapper.className = 'pdf-table-wrapper';
-    wrapper.style.minHeight = '200px';
-    this.#container.appendChild(wrapper);
-    return wrapper;
-  }
-
-  /**
-   * 初始化 Tabulator 实例
-   * @private
-   */
-  _init() {
+  _initSync() {
     try {
-      const isTestEnvironment = typeof global !== 'undefined' && global._forceTabulatorFailure;
-      
-      if (isTestEnvironment) {
-        throw new Error('Forced Tabulator failure for testing');
+      logger.info('Starting synchronous TableWrapperCore initialization');
+
+      // 使用同步初始化器创建Tabulator实例
+      const tabulator = this.#initializer.initializeSync();
+
+      // 更新各模块的Tabulator引用
+      this.#dataHandler.updateTabulatorReference(tabulator, !tabulator);
+      this.#lifecycleManager.updateTabulatorReference(tabulator);
+
+      if (tabulator) {
+        logger.info('TableWrapperCore synchronous initialization completed successfully');
+      } else {
+        logger.warn('TableWrapperCore synchronous initialization completed in fallback mode');
       }
-      
-      this.#tabulator = new Tabulator(this.#tableWrapper, Object.assign({}, this.#options));
-      logger.info('Tabulator initialized');
-      this.#fallbackMode = false;
+
     } catch (error) {
-      logger.warn('Tabulator initialization failed, falling back to HTML table:', error);
-      this.#fallbackMode = true;
-      this.#tabulator = null;
+      logger.error('TableWrapperCore synchronous initialization failed:', error);
+
+      // 确保在失败情况下也能正常工作
+      this.#dataHandler.updateTabulatorReference(null, true);
+      this.#lifecycleManager.updateTabulatorReference(null);
+    }
+  }
+
+  /**
+   * 异步初始化（可选，用于需要异步操作的情况）
+   * @returns {Promise<void>}
+   */
+  async initializeAsync() {
+    try {
+      logger.info('Starting asynchronous TableWrapperCore initialization');
+
+      // 如果需要异步初始化，可以在这里处理
+      // 目前保持同步初始化以保证兼容性
+
+      logger.info('Asynchronous TableWrapperCore initialization completed');
+      return true;
+
+    } catch (error) {
+      logger.error('Asynchronous TableWrapperCore initialization failed:', error);
+      return false;
     }
   }
 
@@ -168,144 +117,48 @@ export class TableWrapperCore {
    * @returns {Promise|void}
    */
   setData(data) {
-    const rows = TableUtils.prepareData(data);
-
-    if (this.#fallbackMode) {
-      this._callLocalListeners('data-loaded', rows);
-      return Promise.resolve();
-    }
-
-    // 确保渲染器已准备就绪
-    return this.#ensureRendererReady()
-      .then(() => {
-        const result = this.#tabulator.setData(rows);
-
-        return Promise.resolve(result)
-          .then(() => this.#handleDataLoaded(rows))
-          .catch(err => this.#handleSetDataError(err, rows));
-      })
-      .catch(err => {
-        logger.warn('Failed to ensure renderer ready, using fallback:', err);
-        this.#handleSetDataError(err, rows);
-        return Promise.resolve();
-      });
+    return this.#dataHandler.setData(data);
   }
 
   /**
-   * 确保渲染器已准备就绪
-   * @returns {Promise} 解析后渲染器就绪的Promise
-   * @private
+   * 兼容性API：loadData
+   * @param {Array<Object>} data - 数据
+   * @returns {Promise} Promise对象
    */
-  #ensureRendererReady() {
-    return new Promise((resolve, reject) => {
-      // 检查 Tabulator 实例是否存在
-      if (!this.#tabulator) {
-        reject(new Error('Tabulator instance not available'));
-        return;
-      }
-
-      // 检查渲染器是否已经就绪
-      const checkRenderer = () => {
-        try {
-          // 尝试访问渲染器的关键属性
-          const renderer = this.#tabulator.renderer;
-          if (renderer && renderer.verticalFillMode !== undefined) {
-            logger.debug('Renderer is ready');
-            resolve();
-            return true;
-          }
-        } catch (e) {
-          // 渲染器还没有准备好
-        }
-        return false;
-      };
-
-      // 立即检查一次
-      if (checkRenderer()) {
-        return;
-      }
-
-      // 如果渲染器还没准备好，等待一小段时间再检查
-      let attempts = 0;
-      const maxAttempts = 10;
-      const checkInterval = 50; // ms
-
-      const intervalId = setInterval(() => {
-        attempts++;
-
-        if (checkRenderer()) {
-          clearInterval(intervalId);
-          return;
-        }
-
-        if (attempts >= maxAttempts) {
-          clearInterval(intervalId);
-          logger.warn(`Renderer not ready after ${maxAttempts} attempts, proceeding anyway`);
-          resolve(); // 仍然继续，但有警告
-        }
-      }, checkInterval);
-    });
+  loadData(data) {
+    return this.#dataHandler.loadData(data);
   }
-
-
-  /**
-   * 处理数据加载完成后的逻辑
-   * @param {Array<Object>} rows - 数据行
-   * @private
-   */
-  #handleDataLoaded(rows) {
-    logger.debug('setData count=', rows.length);
-    this._callLocalListeners('data-loaded', rows);
-
-    try {
-      TableUtils.ensureTabulatorRedraw(this.#tabulator);
-      TableUtils.logDOMDiagnostics(this.#tableWrapper, this.#tabulator);
-      TableUtils.handleMissingDOMElements(this.#tableWrapper, this.#tabulator);
-      TableUtils.logComputedStyles(this.#container, this.#tableWrapper);
-      TableUtils.logTabulatorInstanceInfo(this.#tabulator);
-    } catch (e) {
-      logger.warn('Error inspecting tableWrapper DOM', e);
-    }
-  }
-
-  /**
-   * 处理设置数据错误
-   * @param {Error} err - 错误对象
-   * @param {Array<Object>} rows - 数据行
-   * @private
-   */
-  #handleSetDataError(err, rows) {
-    logger.warn('Tabulator setData failed', err);
-    this._callLocalListeners('data-loaded', rows);
-  }
-
 
   /**
    * 清空表格数据
    * @returns {void}
    */
   clear() {
-    if (this.#fallbackMode) {
-      return;
-    }
+    return this.#dataHandler.clear();
+  }
 
-    this.#tabulator.clearData();
+  /**
+   * 获取当前数据
+   * @returns {Array<Object>} 当前数据
+   */
+  getData() {
+    return this.#dataHandler.getData();
+  }
+
+  /**
+   * 显示空状态
+   * @param {string} message - 空状态消息
+   */
+  displayEmptyState(message) {
+    return this.#dataHandler.displayEmptyState(message);
   }
 
   /**
    * 销毁 Tabulator 实例
-   * @returns {void}
+   * @returns {Promise<void>} 销毁完成的Promise
    */
-  destroy() {
-    if (this.#tabulator) {
-      this.#tabulator.destroy();
-      this.#tabulator = null;
-    }
-    
-    this.#fallbackData = [];
-    
-    // keep wrapper element to avoid detaching container
-    while (this.#tableWrapper.firstChild) this.#tableWrapper.removeChild(this.#tableWrapper.firstChild);
+  async destroy() {
+    return await this.#lifecycleManager.destroy();
   }
 
   /**
@@ -324,27 +177,65 @@ export class TableWrapperCore {
   }
 
   /**
-   * 兼容性API：loadData
-   * @param {Array<Object>} data - 数据
-   * @returns {Promise} Promise对象
+   * 添加数据加载监听器
+   * @param {Function} callback - 回调函数
    */
-  loadData(data) {
-    return Promise.resolve(this.setData(data));
+  onDataLoaded(callback) {
+    this.#dataHandler.onDataLoaded(callback);
   }
 
   /**
-   * 显示空状态
-   * @param {string} message - 空状态消息
+   * 移除数据加载监听器
+   * @param {Function} callback - 要移除的回调函数
    */
-  displayEmptyState(message) {
-    if (this.#fallbackMode) {
-      return;
-    }
+  offDataLoaded(callback) {
+    this.#dataHandler.offDataLoaded(callback);
+  }
 
+  /**
+   * 获取表格状态信息
+   * @returns {Object} 状态信息
+   */
+  getStatus() {
+    return {
+      initialization: this.#initializer.getInitializationStatus(),
+      dataHandler: this.#dataHandler.getStatus(),
+      lifecycle: this.#lifecycleManager.getLifecycleStatus()
+    };
+  }
+
+  /**
+   * 重新初始化表格
+   * @param {Object} newOptions - 新的配置选项
+   * @returns {Promise<void>}
+   */
+  async reinitialize(newOptions = {}) {
     try {
-      this.#tabulator.clearData();
-    } catch (e) {
-      logger.warn('Failed to clear data for empty state', e);
+      logger.info('Reinitializing TableWrapperCore');
+
+      // 1. 销毁现有实例
+      await this.#lifecycleManager.destroy();
+
+      // 2. 重新初始化
+      const tabulator = await this.#initializer.reinitialize(newOptions);
+
+      // 3. 更新模块引用
+      this.#dataHandler.updateTabulatorReference(tabulator, !tabulator);
+      this.#lifecycleManager.updateTabulatorReference(tabulator);
+
+      logger.info('TableWrapperCore reinitialization completed');
+
+    } catch (error) {
+      logger.error('TableWrapperCore reinitialization failed:', error);
+      throw error;
     }
+  }
+
+  /**
+   * 软重置 - 清理内容但不销毁结构
+   * @returns {Promise<void>}
+   */
+  async softReset() {
+    return await this.#lifecycleManager.softReset();
   }
 }

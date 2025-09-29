@@ -207,21 +207,94 @@ class PdfHomeApp:
 
     def _setup_qwebchannel(self, msgCenter_port: int):
         try:
-            channel = QWebChannel(self.window)
-            bridge = PdfHomeBridge(self.ws_client, self.window)
-            channel.registerObject('pdfHomeBridge', bridge)
-            if self.window.web_page:
-                self.window.web_page.setWebChannel(channel)
-            logger.info("QWebChannel initialized and pdfHomeBridge registered")
+            logger.info("开始初始化QWebChannel...")
 
+            # 创建QWebChannel
+            channel = QWebChannel(self.window)
+            logger.info("QWebChannel创建成功")
+
+            # 创建Bridge
+            bridge = PdfHomeBridge(self.ws_client, self.window)
+            logger.info("PdfHomeBridge创建成功")
+
+            # 增强异常捕获：保存bridge引用以便调试
+            self.bridge = bridge
+
+            # 注册Bridge对象到QWebChannel
+            try:
+                channel.registerObject('pdfHomeBridge', bridge)
+                logger.info("pdfHomeBridge注册到QWebChannel成功")
+            except Exception as reg_exc:
+                logger.error("注册pdfHomeBridge到QWebChannel失败: %s", reg_exc, exc_info=True)
+                raise
+
+            # 设置WebChannel到WebPage
+            if self.window.web_page:
+                try:
+                    self.window.web_page.setWebChannel(channel)
+                    logger.info("WebChannel设置到WebPage成功")
+                except Exception as page_exc:
+                    logger.error("设置WebChannel到WebPage失败: %s", page_exc, exc_info=True)
+                    raise
+            else:
+                logger.warning("window.web_page不存在，无法设置WebChannel")
+
+            # 配置WebSocket连接
             ws_url = QUrl(f"ws://127.0.0.1:{msgCenter_port}")
-            self.ws_client.connected.connect(lambda: logger.info(f"WebSocket connected to {ws_url.toString()}"))
-            self.ws_client.disconnected.connect(lambda: logger.info(f"WebSocket disconnected from {ws_url.toString()}"))
-            self.ws_client.error.connect(lambda error: logger.warning(f"WebSocket error: {error}"))
-            self.ws_client.open(ws_url)
-            logger.info(f"WebSocket connection initiated to {ws_url.toString()}")
+
+            # 设置WebSocket事件处理器（使用安全的lambda）
+            try:
+                self.ws_client.connected.connect(lambda: self._log_ws_connected(ws_url))
+                self.ws_client.disconnected.connect(lambda: self._log_ws_disconnected(ws_url))
+                self.ws_client.error.connect(lambda error: self._log_ws_error(error))
+                logger.info("WebSocket事件处理器设置成功")
+            except Exception as ws_handler_exc:
+                logger.error("设置WebSocket事件处理器失败: %s", ws_handler_exc, exc_info=True)
+                # 这个不是致命错误，继续执行
+
+            # 开始WebSocket连接
+            try:
+                self.ws_client.open(ws_url)
+                logger.info(f"WebSocket连接已启动到: {ws_url.toString()}")
+            except Exception as ws_open_exc:
+                logger.error("启动WebSocket连接失败: %s", ws_open_exc, exc_info=True)
+                raise
+
+            logger.info("QWebChannel初始化完成")
+
         except Exception as exc:
-            logger.warning("Failed to initialize QWebChannel bridge: %s", exc)
+            logger.error("QWebChannel初始化失败: %s", exc, exc_info=True)
+            logger.error("错误类型: %s", type(exc).__name__)
+            logger.error("错误详情: %s", str(exc))
+            # 确保异常信息被写入文件
+            try:
+                import traceback
+                full_traceback = traceback.format_exc()
+                logger.error("完整堆栈跟踪:\n%s", full_traceback)
+            except Exception as tb_exc:
+                logger.error("获取堆栈跟踪失败: %s", tb_exc)
+            raise  # 重新抛出异常
+
+    def _log_ws_connected(self, ws_url):
+        """WebSocket连接成功日志"""
+        try:
+            logger.info(f"WebSocket连接成功到: {ws_url.toString()}")
+        except Exception as exc:
+            logger.error(f"记录WebSocket连接日志失败: {exc}")
+
+    def _log_ws_disconnected(self, ws_url):
+        """WebSocket断开连接日志"""
+        try:
+            logger.info(f"WebSocket断开连接从: {ws_url.toString()}")
+        except Exception as exc:
+            logger.error(f"记录WebSocket断开日志失败: {exc}")
+
+    def _log_ws_error(self, error):
+        """WebSocket错误日志"""
+        try:
+            logger.warning(f"WebSocket发生错误: {error}")
+        except Exception as exc:
+            logger.error(f"记录WebSocket错误日志失败: {exc}")
 
     def _create_js_logger(self, js_debug_port: int, log_file: str):
         """创建JS控制台日志记录器实例."""
@@ -245,20 +318,51 @@ class PdfHomeApp:
 
     def cleanup(self):
         """Clean up resources and ensure all logging handlers are flushed."""
-        if self.ws_client:
-            self.ws_client.close()
-        if self.js_console_logger:
-            self.js_console_logger.stop()
+        logger.info("开始清理资源...")
 
-        # Explicitly flush and close handlers in the root logger (and this launcher's logger)
+        # 关闭WebSocket连接
+        if self.ws_client:
+            try:
+                self.ws_client.close()
+                logger.info("WebSocket连接已关闭")
+            except Exception as exc:
+                logger.error("关闭WebSocket连接失败: %s", exc, exc_info=True)
+
+        # 停止JS日志记录器
+        if self.js_console_logger:
+            try:
+                self.js_console_logger.stop()
+                logger.info("JS控制台日志记录器已停止")
+            except Exception as exc:
+                logger.error("停止JS控制台日志记录器失败: %s", exc, exc_info=True)
+
+        # 清理QWebChannel bridge引用
+        if hasattr(self, 'bridge') and self.bridge:
+            try:
+                # 不需要手动清理，Qt会自动管理
+                logger.info("QWebChannel bridge引用已清理")
+            except Exception as exc:
+                logger.error("清理QWebChannel bridge失败: %s", exc, exc_info=True)
+
+        # 强制刷新并关闭日志处理器
         try:
+            # 确保所有日志都被写入文件
+            for handler in logging.getLogger().handlers:
+                if hasattr(handler, 'flush'):
+                    handler.flush()
+            logger.info("日志处理器已刷新")
+
             # logging.shutdown() closes all handlers registered with the root logger
             # It should be sufficient to ensure pdf-home.log is written.
             logging.shutdown()
+
         except Exception as exc:
-            logger.warning("Failed to perform logging.shutdown(): %s", exc)
-            
-        logger.info("Cleaned up resources.")
+            # 这里不能使用logger，因为可能已经关闭
+            print(f"清理日志系统失败: {exc}")
+            import traceback
+            traceback.print_exc()
+
+        print("资源清理完成")
 
 
 def main() -> int:

@@ -1,6 +1,13 @@
 /**
  * @file QWebChannel API包装器
  * @module ApiWrapper
+ *
+ * ⚠️ 重要提醒：QWebChannel数据处理规范
+ * - PyQt端返回JSON字符串，而不是对象（避免类型转换错误）
+ * - 所有方法都需要JSON.parse()解析PyQt返回的字符串
+ * - 必须有JSON解析异常处理
+ *
+ * 📚 详细开发规范请参考：../docs/QWebChannel-Development-Guide.md
  */
 
 import { getLogger } from "../../common/utils/logger.js";
@@ -169,9 +176,23 @@ export class ApiWrapper {
 
     try {
       this.#logger.info("Calling readFileAsBase64 via QWebChannel:", filePath);
-      const result = await this.#bridge.readFileAsBase64(filePath);
-      this.#logger.info("readFileAsBase64 returned success:", result?.success);
-      return result;
+      const resultStr = await this.#bridge.readFileAsBase64(filePath);
+      this.#logger.info("readFileAsBase64 returned string:", resultStr);
+
+      // PyQt端现在返回JSON字符串，需要解析
+      try {
+        const result = JSON.parse(resultStr);
+        this.#logger.info("readFileAsBase64 parsed result success:", result?.success);
+        return result;
+      } catch (parseError) {
+        this.#logger.error("Failed to parse readFileAsBase64 result:", parseError);
+        // 如果解析失败，返回包装的结果
+        return {
+          success: false,
+          error: "Failed to parse response",
+          raw_response: resultStr
+        };
+      }
     } catch (error) {
       this.#logger.error("readFileAsBase64 failed:", error);
       throw error;
@@ -192,9 +213,23 @@ export class ApiWrapper {
 
       // 如果bridge有testConnection方法就调用，否则返回基本信息
       if (this.#bridge.testConnection && typeof this.#bridge.testConnection === 'function') {
-        const result = await this.#bridge.testConnection();
-        this.#logger.info("testConnection returned:", result);
-        return result;
+        const resultStr = await this.#bridge.testConnection();
+        this.#logger.info("testConnection returned string:", resultStr);
+
+        // PyQt端现在返回JSON字符串，需要解析
+        try {
+          const result = JSON.parse(resultStr);
+          this.#logger.info("testConnection parsed result:", result);
+          return result;
+        } catch (parseError) {
+          this.#logger.error("Failed to parse testConnection result:", parseError);
+          // 如果解析失败，返回包装的结果
+          return {
+            success: false,
+            error: "Failed to parse response",
+            raw_response: resultStr
+          };
+        }
       } else {
         // 如果没有专门的testConnection方法，尝试调用一个简单的方法
         const timestamp = new Date().toISOString();

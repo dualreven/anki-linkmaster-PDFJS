@@ -98,15 +98,19 @@ src/frontend/pdf-home/
 
 ```
 └── docs/
-    └── SPEC/               # 模块规范文档
-        ├── SPEC-HEAD-PDFHome.json              # 规范头文件
-        ├── PDFHOME-ARCH-DESIGN-001.md          # 架构设计规范
-        ├── PDFHOME-MODULE-INITIALIZATION-001.md # 模块初始化规范
-        ├── PDFHOME-LOGGING-IMPLEMENTATION-001.md # 日志实施规范
-        ├── PDFHOME-WEBSOCKET-INTEGRATION-001.md # WebSocket集成规范
-        ├── PDFHOME-UI-MANAGER-001.md            # UI管理器规范
-        └── PDFHOME-DESKTOP-DIALOG-CLIENT-001.md # 桌面对话框规范
+    ├── SPEC/               # 模块规范文档
+    │   ├── SPEC-HEAD-PDFHome.json              # 规范头文件
+    │   ├── PDFHOME-ARCH-DESIGN-001.md          # 架构设计规范
+    │   ├── PDFHOME-MODULE-INITIALIZATION-001.md # 模块初始化规范
+    │   ├── PDFHOME-LOGGING-IMPLEMENTATION-001.md # 日志实施规范
+    │   ├── PDFHOME-WEBSOCKET-INTEGRATION-001.md # WebSocket集成规范
+    │   ├── PDFHOME-UI-MANAGER-001.md            # UI管理器规范
+    │   └── PDFHOME-DESKTOP-DIALOG-CLIENT-001.md # 桌面对话框规范
+    ├── QWebChannel-Development-Guide.md        # QWebChannel开发规范 ⚠️
+    └── Exception-Handling-Best-Practices.md    # 异常处理最佳实践 ⚠️
 ```
+
+**⚠️ 重要：** 新增的开发规范文档包含了关键的陷阱避免指南，开发前必须阅读！
 
 ### 5. 共享基础设施
 
@@ -940,6 +944,13 @@ WEBENGINE_CONFIG = {
 ## 开发指南
 
 ### 1. 开发环境设置
+
+#### ⚠️ 开发前必读
+**请务必先阅读以下开发规范文档：**
+- `docs/QWebChannel-Development-Guide.md` - QWebChannel开发规范和常见陷阱
+- `docs/Exception-Handling-Best-Practices.md` - 异常处理最佳实践
+
+这些文档包含了重要的陷阱避免指南，可以预防常见的开发错误！
 
 #### IDE配置
 推荐使用Visual Studio Code并安装以下扩展：
