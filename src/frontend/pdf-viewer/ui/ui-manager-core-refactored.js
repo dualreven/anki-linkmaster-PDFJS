@@ -160,12 +160,8 @@ export class UIManagerCore {
   #handleResize() {
     const dimensions = this.#domManager.getContainerDimensions();
 
-    this.#eventBus.emit(
-      PDF_VIEWER_EVENTS.VIEW.RESIZE,
-      dimensions,
-      { actorId: 'UIManagerCore' }
-    );
-
+    // 注意: VIEW.RESIZE 事件在当前版本中未定义
+    // 直接记录尺寸变化
     this.#logger.debug(`Container resized: ${dimensions.width}x${dimensions.height}`);
   }
 
@@ -329,6 +325,14 @@ export class UIManagerCore {
   getContext() {
     const canvas = this.getCanvas();
     return canvas ? canvas.getContext('2d') : null;
+  }
+
+  /**
+   * 获取容器元素
+   * @returns {HTMLElement} 容器元素
+   */
+  getContainer() {
+    return this.#domManager.getElement('container');
   }
 
   /**
