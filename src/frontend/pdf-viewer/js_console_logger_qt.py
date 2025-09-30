@@ -121,8 +121,8 @@ class JSConsoleLogger(QObject):
         Args:
             level: 日志级别 (可以是Qt数字级别或字符串)
             message: 消息内容
-            source: 来源文件（可选）
-            line: 行号（可选）
+            source: 来源文件（忽略，避免日志冗余）
+            line: 行号（忽略，避免日志冗余）
         """
         if not self.running:
             return
@@ -136,14 +136,21 @@ class JSConsoleLogger(QObject):
                 '3': 'CRITICAL', 'CriticalMessageLevel': 'CRITICAL'
             }
 
-            # 获取映射后的级别名称
-            level_str = qt_level_mapping.get(str(level), str(level).upper())
-
-            # 格式化消息
-            if source and line:
-                formatted_msg = f"[{source}:{line}] {message}"
+            # 简化Qt冗长的级别字符串
+            level_lower = str(level).lower()
+            if 'javascriptconsolemessagelevel' in level_lower:
+                if 'infomessagelevel' in level_lower:
+                    level_str = 'INFO'
+                elif 'warningmessagelevel' in level_lower:
+                    level_str = 'WARNING'
+                elif 'errormessagelevel' in level_lower:
+                    level_str = 'ERROR'
+                elif 'criticalmessagelevel' in level_lower:
+                    level_str = 'CRITICAL'
+                else:
+                    level_str = qt_level_mapping.get(str(level), str(level).upper())
             else:
-                formatted_msg = message
+                level_str = qt_level_mapping.get(str(level), str(level).upper())
 
             # 映射到Python logging级别
             log_level = {
@@ -156,8 +163,9 @@ class JSConsoleLogger(QObject):
                 'DEBUG': logging.DEBUG
             }.get(level_str, logging.INFO)
 
-            # 记录日志，显示映射后的级别名称
-            self.js_logger.log(log_level, f"[{level_str}] {formatted_msg}")
+            # 简化日志输出：只输出消息内容，不包含source和line
+            # 消息内容中已经包含模块名（如[PDFViewer]），足够定位问题
+            self.js_logger.log(log_level, message)
 
         except Exception as exc:
             print(f"Error: Failed to log message: {exc}")

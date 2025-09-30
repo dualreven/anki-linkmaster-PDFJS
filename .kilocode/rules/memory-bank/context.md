@@ -120,6 +120,22 @@ PDFManager的`handleResponseMessage`方法在处理WebSocket响应时，如果�
 - **产出文档**: `AItemp/20250929163759-AI-Working-log.md` 包含完整的分析报告和拆分方案
 - **后续建议**: 建议按第一优先级开始实施，先处理最大的4个核心文件
 
+## 已完成任务：PDF-Home模块日志系统分析 ✅ 完成 (2025-09-30)
+- **目标**: 深度分析pdf-home模块的日志系统实现，包括初始化、配置、错误处理和事件监听机制
+- **执行结果**:
+  - ✅ **5层分层架构**: 识别出Bootstrap层、Container层、Manager层、Logger层、Console Bridge层的完整架构
+  - ✅ **双路径日志系统**: 发现控制台输出(Logger)和WebSocket转发(ConsoleWebSocketBridge)并行机制
+  - ✅ **事件驱动初始化**: 分析了基于EventBus的日志系统启动和错误处理流程
+  - ✅ **错误处理链**: 梳理了从全局异常到用户友好提示的完整错误处理机制
+  - ✅ **实际日志分析**: 通过真实日志文件验证了系统运行状态和事件流
+- **技术发现**:
+  - Logger实例缓存和单例模式确保模块内日志一致性
+  - ConsoleWebSocketBridge实现了防循环的智能过滤机制
+  - 事件总线中的subscriberId机制避免了重复订阅问题
+  - 两阶段初始化模式(容器→连接)确保依赖正确创建
+  - 分层错误处理：技术错误→业务错误→用户友好提示的转换链
+- **产出文档**: `AItemp/20250930162000-AI-Working-log.md` 包含完整的技术分析报告
+
 ## 当前任务：实现统一的 `ai_launcher.py` (2025-09-27)
 - **目标**: 创建一个位于项目根目录的 `ai_launcher.py` 脚本，用于统一管理所有前端和后端服务的生命周期。
 - **背景**: 当前项目拥有一个模块化的 `ai-scripts/ai_launcher` 框架，但缺少一个顶层的、用户友好的命令行入口。此任务旨在创建该入口，并将其与现有框架集成。
@@ -348,4 +364,44 @@ PDFManager的`handleResponseMessage`方法在处理WebSocket响应时，如果�
 3. 改进环境检测逻辑，更好区分浏览器模式和 Qt 模式
 
 **相关文档**: `AItemp/20250928185730-AI-Working-log.md` 包含详细分析
+
+## pdf-viewer重构进展
+
+### 当前状态
+- 最后更新: 2025-09-30 00:35
+- 阶段: 基础设施改进完成
+
+### 已完成工作
+1. **分析了pdf-home的架构模式** (2025-09-29)
+   - 识别出5层分层架构
+   - 依赖注入容器模式
+   - Manager模式架构
+
+2. **制定了pdf-viewer的重构方案** (2025-09-29)
+   - 设计了详细的文件拆分策略
+   - 规划了模块化目录结构
+   - 制定了渐进式实施计划
+
+3. **完成基础设施加载改进** (2025-09-30)
+   - **EventBus使用单例模式**: 修改`container/app-container.js`使用全局EventBus单例
+   - **容器添加initialize()方法**: 实现两阶段初始化（先创建WSClient，后建立连接）
+   - **创建bootstrap入口**: 新增`bootstrap/app-bootstrap.js`统一启动流程
+   - **实现两阶段初始化**: app-core.js中先初始化容器，再连接WebSocket
+
+### 技术要点
+- EventBus从创建实例改为使用`eventBusSingleton`
+- 容器新增`initialize()`和`isInitialized()`方法
+- Bootstrap模式解析配置并动态加载应用
+- 与pdf-home保持架构一致性
+
+### 验证结果
+- EventBus单例正常工作，事件订阅和发布正常
+- 容器初始化成功，两阶段初始化按预期执行
+- WebSocket连接成功建立到ws://localhost:8765
+- Console桥接器成功从早期桥接器切换到主桥接器
+
+### 相关文档
+- `AItemp/pdf-viewer-refactoring-plan.md` - 完整重构方案
+- `AItemp/pdf-viewer-infrastructure-loading.md` - 基础设施加载详细说明
+- `AItemp/20250930003500-AI-Working-log.md` - 本次改进的工作日志
 

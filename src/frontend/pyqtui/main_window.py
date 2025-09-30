@@ -11,7 +11,7 @@ from pathlib import Path
 from src.qt.compat import (
     QMainWindow, QVBoxLayout, QWidget, QStatusBar,
     QWebEngineView, QWebEnginePage, QWebEngineSettings,
-    QUrl, pyqtSignal, QAction
+    QUrl, pyqtSignal, QAction, QSizePolicy
 )
 
 
@@ -90,14 +90,10 @@ def write_js_console_message(
             parsed_message = re.sub(pat, '', parsed_message, flags=re.IGNORECASE)
         parsed_message = parsed_message.strip()
 
-        # 简化源文件路径，只保留文件名
-        _sid = str(source_id)
-        if '/' in _sid:
-            source_filename = _sid.split('/')[-1]
-        else:
-            source_filename = _sid
-
-        line = f"[{ts}][{level}][{source_filename}:{line_number}] {parsed_message}"
+        # 优化输出格式：移除源文件路径和行号
+        # 这���信息通常不重要，只会增加日志噪音
+        # 如果需要调试特定文件，可以从消息内容中的模块名判断
+        line = f"[{ts}][{level}] {parsed_message}"
         with path.open('a', encoding='utf-8') as handle:
             handle.write(line + '\n')
     except Exception:
@@ -139,6 +135,8 @@ class MainWindow(QMainWindow):
         self.web_view = QWebEngineView() if QWebEngineView else None
         if self.web_view:
             self.web_view.loadFinished.connect(self._on_web_loaded)
+            # 设置大小策略，确保自适应窗口大小变化
+            self.web_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         # 设置开发者工具属性
         if self.web_view and QWebEngineSettings:
@@ -194,6 +192,10 @@ class MainWindow(QMainWindow):
 
         # 设置主布局
         layout = QVBoxLayout()
+        # 设置布局边距为0，确保WebView占满整个窗口
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
         if self.web_view:
             layout.addWidget(self.web_view)
 
@@ -201,6 +203,9 @@ class MainWindow(QMainWindow):
         container = QWidget()
         container.setLayout(layout)
         self.setCentralWidget(container)
+
+        # 设置窗口最小尺寸
+        self.setMinimumSize(800, 600)
 
     def _init_menu(self):
         """初始化菜单栏"""
@@ -386,6 +391,14 @@ class MainWindow(QMainWindow):
 
         except Exception as e:
             self.status_bar.showMessage(f"显示页面源码失败: {str(e)}")
+
+    def resizeEvent(self, event):
+        """窗口大小调整事件"""
+        super().resizeEvent(event)
+        # 确保WebView正确响应窗口大小变化
+        if self.web_view:
+            # 强制更新布局
+            self.web_view.updateGeometry()
 
     def closeEvent(self, event):
         """窗口关闭事件"""

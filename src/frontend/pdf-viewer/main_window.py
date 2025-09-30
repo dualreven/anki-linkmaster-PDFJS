@@ -15,7 +15,7 @@ from typing import Optional
 from src.qt.compat import (
     QMainWindow, QVBoxLayout, QWidget, QStatusBar,
     QWebEngineView, QWebEnginePage, QWebEngineSettings,
-    QUrl, pyqtSignal, QAction
+    QUrl, pyqtSignal, QAction, QSizePolicy
 )
 
 from src.frontend.pyqtui.main_window import write_js_console_message
@@ -72,6 +72,8 @@ class MainWindow(QMainWindow):
         self.web_view = QWebEngineView() if QWebEngineView else None
         if self.web_view:
             self.web_view.loadFinished.connect(self._on_web_loaded)
+            # 设置大小策略，确保自适应窗口大小变化
+            self.web_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         # 设置开发者工具属性
         if self.web_view and QWebEngineSettings:
@@ -143,6 +145,10 @@ class MainWindow(QMainWindow):
 
         # 设置主布局
         layout = QVBoxLayout()
+        # 设置布局边距为0，确保WebView占满整个窗口
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
         if self.web_view:
             layout.addWidget(self.web_view)
 
@@ -150,6 +156,9 @@ class MainWindow(QMainWindow):
         container = QWidget()
         container.setLayout(layout)
         self.setCentralWidget(container)
+
+        # 设置窗口最小尺寸
+        self.setMinimumSize(800, 600)
 
     def _init_menu(self):
         """初始化菜单栏"""
@@ -186,3 +195,11 @@ class MainWindow(QMainWindow):
         """更新WebPage中的js_logger引用"""
         if self.web_page and hasattr(self.web_page, 'js_logger'):
             self.web_page.js_logger = self.js_logger
+
+    def resizeEvent(self, event):
+        """窗口大小调整事件"""
+        super().resizeEvent(event)
+        # 确保WebView正确响应窗口大小变化
+        if self.web_view:
+            # 强制更新布局
+            self.web_view.updateGeometry()

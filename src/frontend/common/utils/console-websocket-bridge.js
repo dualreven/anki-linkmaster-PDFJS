@@ -119,12 +119,22 @@ export class ConsoleWebSocketBridge {
         return String(arg);
       });
 
+      const messageText = serializedArgs.join(' ');
+
+      // 关键：检测日志循环
+      // 如果这条日志是关于 WebSocket 响应的（特别是 console_log 类型的响应），
+      // 那么不应该再次发送，否则会形成无限循环
+      if (this.isLoggingAboutWebSocketResponse(messageText)) {
+        // 静默跳过，不发送到后端
+        return;
+      }
+
       const message = {
         type: 'console_log',
         source: this.source,
         level: level,
         timestamp: Date.now(),
-        message: serializedArgs.join(' '),
+        message: messageText,
         args: serializedArgs
       };
 
@@ -136,6 +146,34 @@ export class ConsoleWebSocketBridge {
       // 避免递归错误，直接用原始console输出
       this.originalConsole.error(`[${this.source}] Failed to send log to WebSocket:`, error);
     }
+  }
+
+  /**
+   * 检测是否是关于 WebSocket 响应的日志（避免循环）
+   * @param {string} messageText - 消息文本
+   * @returns {boolean} 是否是响应日志
+   */
+  isLoggingAboutWebSocketResponse(messageText) {
+    // 检测特征：
+    // 1. 包含 websocket:message:response 事件名
+    // 2. 包含 Console log recorded successfully 响应消息
+    // 3. 包含 type: "response" 且 data.logged: true
+
+    const responseIndicators = [
+      // EventBus 发布 WebSocket 响应事件
+      /Event \[websocket:message:response/i,
+      /Event \[websocket:heartbeat:response/i,
+      /Event \[websocket:ping:response/i,
+
+      // 后端响应中的特征字符串
+      /"type":\s*"response".*"message":\s*"Console log recorded successfully"/s,
+      /"logged":\s*true.*"source":\s*"pdf-viewer"/s,
+
+      // 组合特征：同时包含多个关键词
+      /websocket.*response.*Console log recorded/i
+    ];
+
+    return responseIndicators.some(pattern => pattern.test(messageText));
   }
 
   /**

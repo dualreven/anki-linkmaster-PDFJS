@@ -56,11 +56,12 @@ export class Logger {
       return;
     }
 
-    const timestamp = new Date().toISOString();
-    const prefix = `[${timestamp}] [${this.#moduleName}] [${level.toUpperCase()}]`;
+    // 简化日志前缀：移除ISO时间戳，只保留模块名和级别
+    // 时间戳由PyQt后端的日志系统统一添加，避免重复
+    const prefix = `[${this.#moduleName}] [${level.toUpperCase()}]`;
 
     const consoleMethod = console[level] || console.log;
-    
+
     if (args.length > 0) {
         // 序列化对象以便更好地查看内容
         const serializedArgs = args.map(arg => this.#serializeArg(arg));

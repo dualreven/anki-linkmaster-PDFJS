@@ -464,4 +464,22 @@ def main() -> int:
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except ImportError as e:
+        # 捕获导入错误（如缺少QSizePolicy等）
+        error_msg = f"导入错误: {e}\n\n"
+        error_msg += "可能的原因:\n"
+        error_msg += "1. 缺少必要的Qt组件 (如QSizePolicy)\n"
+        error_msg += "2. PyQt6或相关依赖未正确安装\n"
+        error_msg += "3. src/qt/compat.py 中缺少必要的导出\n\n"
+        error_msg += f"详细信息: {str(e)}"
+        print(error_msg, file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        # 捕获其他所有异常
+        error_msg = f"启动失败: {type(e).__name__}: {e}\n"
+        print(error_msg, file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
