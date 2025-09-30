@@ -7,6 +7,8 @@
 import { getLogger } from "../utils/logger.js";
 import { MessageTracer } from "./message-tracer.js";
 
+const SUPPRESSED_EVENT_LOGS = new Set(['pdf-viewer:file:load-progress']);
+
 class EventNameValidator {
   static validate(event) {
     if (typeof event !== "string" || !event) return false;
@@ -345,13 +347,15 @@ export class EventBus {
     }
 
     if (subscribers && subscribers.size > 0) {
-      this.#log("event", `${event} (发布 by ${actorId || "unknown"})`, "发布", {
-        actorId,
-        subscriberCount: subscribers.size,
-        data,
-        messageId, // 添加追踪信息到日志
-        traceId
-      });
+      if (!SUPPRESSED_EVENT_LOGS.has(event)) {
+        this.#log("event", `${event} (发布 by ${actorId || "unknown"})`, "发布", {
+          actorId,
+          subscriberCount: subscribers.size,
+          data,
+          messageId, // 添加追踪信息到日志
+          traceId
+        });
+      }
 
       // 执行所有订阅者回调
       for (const [id, callback] of subscribers.entries()) {
@@ -400,14 +404,16 @@ export class EventBus {
         }
       }
     } else {
-      // 没有订阅者时也要记录日志
-      this.#log("event", `${event} (发布 by ${actorId || "unknown"}) - 无订阅者`, "发布", {
-        actorId,
-        subscriberCount: 0,
-        data,
-        messageId,
-        traceId
-      });
+      if (!SUPPRESSED_EVENT_LOGS.has(event)) {
+        // 没有订阅者时也要记录日志
+        this.#log("event", `${event} (发布 by ${actorId || "unknown"}) - 无订阅者`, "发布", {
+          actorId,
+          subscriberCount: 0,
+          data,
+          messageId,
+          traceId
+        });
+      }
     }
 
     // 完成追踪记录
