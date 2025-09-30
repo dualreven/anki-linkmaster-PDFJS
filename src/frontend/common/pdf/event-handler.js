@@ -146,47 +146,43 @@ export class EventHandler {
    * @param {Object} fileInfo - 文件信息 { isBatch: boolean }
    */
   async handleAddFilesRequest(fileInfo) {
-    this.#manager.logger.info("[ADD_FILES] Handling add files request:", JSON.stringify(fileInfo, null, 2));
+    this.#manager.logger.info("[阶段3] [ADD_FILES] Handling add files request:", JSON.stringify(fileInfo, null, 2));
 
     try {
-      // 1. 通过QWebChannel请求文件选择
-      this.#manager.eventBus.emit('qwebchannel:selectFiles:request', {
-        isBatch: fileInfo?.isBatch || false
-      }, { actorId: 'EventHandler' });
+      // 检查是否已经有文件路径（新流程：文件已经通过 QWebChannel 选择好了）
+      const selectedFiles = fileInfo?.files;
 
-      // 2. 监听文件选择结果
-      const unsubscribe = this.#manager.eventBus.on('qwebchannel:filesSelected', async (selectedFiles) => {
-        unsubscribe(); // 只处理一次
+      if (!selectedFiles || selectedFiles.length === 0) {
+        this.#manager.logger.info("[阶段3] [ADD_FILES] No files provided in request");
+        return;
+      }
 
-        if (!selectedFiles || selectedFiles.length === 0) {
-          this.#manager.logger.info("[ADD_FILES] No files selected");
-          return;
-        }
+      this.#manager.logger.info(`[阶段3] [ADD_FILES] Processing ${selectedFiles.length} files from request`);
 
-        this.#manager.logger.info(`[ADD_FILES] Selected ${selectedFiles.length} files:`, selectedFiles);
+      // 为每个文件发送WebSocket消息到msgCenter
+      for (const filePath of selectedFiles) {
+        const fileName = filePath.split(/[\\/]/).pop(); // 提取文件名
 
-        // 3. 为每个文件发送WebSocket消息到msgCenter
-        for (const filePath of selectedFiles) {
-          const fileName = filePath.split(/[\\/]/).pop(); // 提取文件名
+        this.#manager.logger.info(`[阶段3] [ADD_FILES] 发送文件到 msgCenter: ${fileName}`);
+        this.#manager.logger.info(`[阶段3] [ADD_FILES]   完整路径: ${filePath}`);
 
-          this.#manager.eventBus.emit(
-            WEBSOCKET_EVENTS.MESSAGE.SEND,
-            {
-              type: WEBSOCKET_MESSAGE_TYPES.ADD_PDF,
-              data: {
-                name: fileName,
-                path: filePath
-              }
-            },
-            { actorId: "PDFManager" }
-          );
-        }
+        this.#manager.eventBus.emit(
+          WEBSOCKET_EVENTS.MESSAGE.SEND,
+          {
+            type: WEBSOCKET_MESSAGE_TYPES.ADD_PDF,
+            data: {
+              name: fileName,
+              filepath: filePath
+            }
+          },
+          { actorId: "PDFManager" }
+        );
+      }
 
-        this.#manager.logger.info(`[ADD_FILES] Sent ${selectedFiles.length} add requests to msgCenter`);
-      });
+      this.#manager.logger.info(`[阶段3] [ADD_FILES] 已发送 ${selectedFiles.length} 个文件请求到 msgCenter`);
 
     } catch (error) {
-      this.#manager.logger.error("[ADD_FILES] Error in handleAddFilesRequest:", error);
+      this.#manager.logger.error("[阶段3] [ADD_FILES] Error in handleAddFilesRequest:", error);
       throw error;
     }
   }

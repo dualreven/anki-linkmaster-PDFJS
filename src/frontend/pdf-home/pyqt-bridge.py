@@ -13,6 +13,7 @@ Usage:
 import logging
 from pathlib import Path
 from PyQt6.QtCore import QObject, pyqtSlot
+from PyQt6.QtWidgets import QFileDialog
 
 logger = logging.getLogger("pdf-home.pyqt-bridge")
 
@@ -51,3 +52,67 @@ class PyQtBridge(QObject):
         logger.info("[PyQtBridge] testConnection 被调用")
         logger.info("[PyQtBridge] QWebChannel 连接正常")
         return "PyQt Bridge Connected"
+
+    @pyqtSlot(bool, str, result=list)
+    def selectFiles(self, multiple=True, fileType='pdf'):
+        """
+        打开文件选择对话框
+
+        通过 Qt 原生对话框让用户选择文件。
+
+        Args:
+            multiple (bool): 是否允许多选。默认 True
+            fileType (str): 文件类型过滤。'pdf' 或 'all'。默认 'pdf'
+
+        Returns:
+            list: 选中的文件路径列表。用户取消则返回空列表 []
+
+        Example:
+            files = bridge.selectFiles(True, 'pdf')
+            # 返回: ['C:/path/file1.pdf', 'C:/path/file2.pdf']
+        """
+        logger.info(f"[PyQtBridge] [阶段2] selectFiles 被调用: multiple={multiple}, fileType={fileType}")
+
+        try:
+            # 设置文件过滤器
+            if fileType == 'pdf':
+                file_filter = "PDF Files (*.pdf)"
+            elif fileType == 'all':
+                file_filter = "All Files (*.*)"
+            else:
+                file_filter = "PDF Files (*.pdf)"
+
+            logger.info(f"[PyQtBridge] [阶段2] 文件过滤器: {file_filter}")
+
+            # 打开文件选择对话框
+            if multiple:
+                logger.info("[PyQtBridge] [阶段2] 打开多选文件对话框...")
+                files, _ = QFileDialog.getOpenFileNames(
+                    parent=self.parent,
+                    caption="选择PDF文件",
+                    directory="",  # 使用系统默认目录
+                    filter=file_filter
+                )
+            else:
+                logger.info("[PyQtBridge] [阶段2] 打开单选文件对话框...")
+                file_path, _ = QFileDialog.getOpenFileName(
+                    parent=self.parent,
+                    caption="选择PDF文件",
+                    directory="",
+                    filter=file_filter
+                )
+                files = [file_path] if file_path else []
+
+            # 记录结果
+            if not files:
+                logger.info("[PyQtBridge] [阶段2] 用户取消了文件选择")
+            else:
+                logger.info(f"[PyQtBridge] [阶段2] 用户选择了 {len(files)} 个文件:")
+                for i, file_path in enumerate(files, 1):
+                    logger.info(f"[PyQtBridge] [阶段2]   文件{i}: {file_path}")
+
+            return files
+
+        except Exception as e:
+            logger.error(f"[PyQtBridge] [阶段2] selectFiles 发生错误: {e}", exc_info=True)
+            return []

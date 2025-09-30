@@ -171,6 +171,59 @@ export class QWebChannelBridge {
     }
 
     /**
+     * 选择文件
+     *
+     * 调用 PyQt 原生文件选择对话框，让用户选择文件。
+     *
+     * @param {Object} options - 选项
+     * @param {boolean} options.multiple - 是否允许多选，默认 true
+     * @param {string} options.fileType - 文件类型，'pdf' 或 'all'，默认 'pdf'
+     * @returns {Promise<string[]>} 文件路径数组
+     * @throws {Error} 如果 QWebChannel 未初始化
+     *
+     * @example
+     * const files = await bridge.selectFiles({ multiple: true, fileType: 'pdf' });
+     * // 返回: ['C:/path/file1.pdf', 'C:/path/file2.pdf']
+     */
+    async selectFiles(options = {}) {
+        const { multiple = true, fileType = 'pdf' } = options;
+
+        this.#logger.info(`[阶段2] 调用 selectFiles: multiple=${multiple}, fileType=${fileType}`);
+
+        if (!this.#isReady) {
+            throw new Error('QWebChannel 未初始化，请先调用 initialize()');
+        }
+
+        try {
+            // 调用 PyQt 方法并包装成 Promise
+            const files = await new Promise((resolve, reject) => {
+                try {
+                    const result = this.#bridge.selectFiles(multiple, fileType);
+                    resolve(result);
+                } catch (error) {
+                    reject(error);
+                }
+            });
+
+            if (!files || files.length === 0) {
+                this.#logger.info('[阶段2] 用户取消了文件选择或未选择文件');
+                return [];
+            }
+
+            this.#logger.info(`[阶段2] 收到 ${files.length} 个文件路径:`);
+            files.forEach((file, i) => {
+                this.#logger.info(`[阶段2]   文件${i + 1}: ${file}`);
+            });
+
+            return files;
+
+        } catch (error) {
+            this.#logger.error('[阶段2] selectFiles 失败:', error);
+            throw error;
+        }
+    }
+
+    /**
      * 获取桥接对象（用于调试）
      * @returns {Object|null} PyQt 桥接对象
      */

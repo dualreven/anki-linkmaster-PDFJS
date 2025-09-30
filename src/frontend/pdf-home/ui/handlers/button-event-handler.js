@@ -59,13 +59,7 @@ export class ButtonEventHandler {
    */
   #setupAddPdfButton() {
     if (this.#elements.addPdfBtn) {
-      const listener = () => {
-        this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.ADD_FILES.REQUEST, {
-          isBatch: false
-        }, {
-          actorId: 'ButtonEventHandler'
-        });
-      };
+      const listener = () => this.#handleAddPdf();
       DOMUtils.addEventListener(this.#elements.addPdfBtn, "click", listener);
       this.#unsubscribeFunctions.push(() =>
         DOMUtils.removeEventListener(this.#elements.addPdfBtn, "click", listener)
@@ -200,6 +194,63 @@ export class ButtonEventHandler {
     DOMUtils.setHTML(this.#elements.debugContent, debugText);
   }
 
+
+  /**
+   * 处理添加PDF文件
+   * @private
+   */
+  async #handleAddPdf() {
+    this.#logger.info("[阶段2] 添加PDF按钮被点击");
+
+    try {
+      // 动态导入 QWebChannelBridge
+      const { QWebChannelBridge } = await import('../../qwebchannel/qwebchannel-bridge.js');
+
+      // 创建或获取桥接实例
+      const bridge = new QWebChannelBridge();
+
+      // 初始化连接
+      this.#logger.info("[阶段2] 初始化 QWebChannel...");
+      await bridge.initialize();
+
+      // 步骤1: 通过 QWebChannel 调用文件选择对话框
+      this.#logger.info("[阶段2] 调用文件选择对话框...");
+      const files = await bridge.selectFiles({
+        multiple: true,
+        fileType: 'pdf'
+      });
+
+      if (!files || files.length === 0) {
+        this.#logger.info("[阶段2] 用户取消了文件选择");
+        return;
+      }
+
+      this.#logger.info(`[阶段2] 用户选择了 ${files.length} 个文件`);
+      files.forEach((file, i) => {
+        this.#logger.info(`[阶段2]   文件${i + 1}: ${file}`);
+      });
+
+      // 步骤2: 通过 WebSocket 发送到 msgCenter
+      this.#logger.info("[阶段2] 准备通过 WebSocket 发送文件路径到 msgCenter");
+
+      // 发布事件，让 WebSocket 管理器处理
+      this.#eventBus.emit('pdf:add-files:request', {
+        files: files,
+        source: 'add-button',
+        timestamp: Date.now()
+      }, {
+        actorId: 'ButtonEventHandler'
+      });
+
+      this.#logger.info("[阶段2] 文件路径已发送到事件总线");
+      console.log(`%c[阶段2] ✅ 文件选择完成，已发送 ${files.length} 个文件路径`, 'color: green; font-weight: bold');
+
+    } catch (error) {
+      this.#logger.error("[阶段2] 添加文件失败:", error);
+      console.error('%c[阶段2] ❌ 添加文件失败', 'color: red; font-weight: bold', error);
+      DOMUtils.showError(`文件添加失败: ${error.message}`);
+    }
+  }
 
   /**
    * 处理测试QWebChannel连接
