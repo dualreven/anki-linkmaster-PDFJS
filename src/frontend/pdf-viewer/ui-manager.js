@@ -8,6 +8,7 @@ import { UIManagerCore } from "./ui/ui-manager-core-refactored.js";
 import { UIZoomControls } from "./ui-zoom-controls.js";
 import { UIProgressError } from "./ui-progress-error.js";
 import { UICanvasRender } from "./ui-canvas-render.js";
+import { TextLayerManager } from "./ui/text-layer-manager.js";
 import { getLogger } from "../common/utils/logger.js";
 
 /**
@@ -21,16 +22,18 @@ export class UIManager {
   #zoomControls;
   #progressError;
   #canvasRender;
+  #textLayerManager;
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
     this.#logger = getLogger("PDFViewer");
-    
+
     // 初始化子模块
     this.#core = new UIManagerCore(eventBus);
     this.#zoomControls = new UIZoomControls(eventBus);
     this.#progressError = new UIProgressError(eventBus);
     this.#canvasRender = new UICanvasRender();
+    this.#textLayerManager = null; // 稍后初始化
   }
 
   /**
@@ -40,19 +43,30 @@ export class UIManager {
   async initialize() {
     try {
       this.#logger.info("Initializing UI Manager...");
-      
+
       // 初始化核心模块
       await this.#core.initialize();
-      
+
       // 获取容器和Canvas引用
       const container = this.#core.getContainer();
       const canvas = this.#core.getCanvas();
-      
+
       // 初始化其他模块
       await this.#zoomControls.setupZoomControls(container);
       this.#progressError.setupProgressAndErrorUI(container);
       this.#canvasRender.initialize(canvas);
-      
+
+      // 初始化文字层管理器
+      const textLayerContainer = document.getElementById('text-layer');
+      if (textLayerContainer) {
+        this.#textLayerManager = new TextLayerManager({
+          container: textLayerContainer
+        });
+        this.#logger.info("TextLayerManager initialized");
+      } else {
+        this.#logger.warn("text-layer element not found, text selection will be disabled");
+      }
+
       this.#logger.info("UI Manager initialized successfully");
     } catch (error) {
       this.#logger.error("Failed to initialize UI Manager:", error);
@@ -67,7 +81,44 @@ export class UIManager {
    * @returns {Promise<void>}
    */
   async renderPage(page, viewport) {
-    return this.#canvasRender.renderPage(page, viewport);
+    this.#logger.debug(`[UIManager] renderPage called for page ${page.pageNumber || page._pageIndex + 1}`);
+
+    // 渲染Canvas层
+    await this.#canvasRender.renderPage(page, viewport);
+    this.#logger.debug("[UIManager] Canvas rendered");
+
+    // 设置text-layer尺寸与canvas一致
+    const textLayerContainer = document.getElementById('text-layer');
+    if (textLayerContainer) {
+      textLayerContainer.style.width = `${viewport.width}px`;
+      textLayerContainer.style.height = `${viewport.height}px`;
+      // 设置PDF.js要求的--scale-factor CSS变量
+      textLayerContainer.style.setProperty('--scale-factor', viewport.scale);
+      this.#logger.debug(`[UIManager] text-layer size set to ${viewport.width}x${viewport.height}, scale=${viewport.scale}`);
+    }
+
+    // 渲染文字层
+    if (this.#textLayerManager && this.#textLayerManager.isEnabled()) {
+      try {
+        if (textLayerContainer) {
+          this.#logger.debug("[UIManager] Loading text layer...");
+          await this.#textLayerManager.loadTextLayer(textLayerContainer, page, viewport);
+          this.#logger.info("[UIManager] Text layer rendered successfully");
+
+          // 调试：检查文字层DOM结构
+          const textLayerChildren = textLayerContainer.children.length;
+          const textLayerClass = textLayerContainer.className;
+          this.#logger.debug(`[UIManager] Text layer info: class="${textLayerClass}", children=${textLayerChildren}`);
+        }
+      } catch (error) {
+        this.#logger.error("[UIManager] Failed to render text layer:", error);
+        // 不抛出错误，允许Canvas正常显示
+      }
+    } else {
+      this.#logger.debug("[UIManager] TextLayerManager not enabled, skipping text layer");
+    }
+
+    this.#logger.debug("[UIManager] Page render complete");
   }
 
   /**

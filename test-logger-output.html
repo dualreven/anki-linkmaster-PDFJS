@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日志输出测试</title>
+</head>
+<body>
+    <h1>日志输出格式测试</h1>
+    <p>打开控制台查看日志输出效果</p>
+    <button onclick="testLogs()">测试日志输出</button>
+
+    <script type="module">
+        import { getLogger, LogLevel } from './src/frontend/common/utils/logger.js';
+
+        // 创建测试logger
+        const logger = getLogger('TestModule', LogLevel.DEBUG);
+
+        window.testLogs = function() {
+            console.log('=== 开始测试日志输出 ===');
+
+            // 测试不同级别的日志
+            logger.debug('这是一条调试消息');
+            logger.info('这是一条信息消息');
+            logger.warn('这是一条警告消息');
+            logger.error('这是一条错误消息');
+
+            // 测试带参数的日志
+            logger.info('用户操作', { action: 'click', target: 'button' });
+
+            // 测试事件日志
+            logger.event('websocket:connection:established', '订阅', {
+                subscriberId: 'TestSubscriber',
+                actorId: 'test:123'
+            });
+
+            console.log('=== 测试完成 ===');
+        };
+
+        // 自动运行测试
+        setTimeout(() => {
+            window.testLogs();
+        }, 500);
+    </script>
+</body>
+</html>

@@ -13,6 +13,32 @@
 
 import { getLogger } from "../../common/utils/logger.js";
 
+// 动态导入PDF.js的renderTextLayer
+let renderTextLayerFunc = null;
+
+/**
+ * 动态加载PDF.js的renderTextLayer函数
+ * @returns {Promise<Function>}
+ */
+async function loadRenderTextLayer() {
+  if (renderTextLayerFunc) {
+    return renderTextLayerFunc;
+  }
+
+  try {
+    // 尝试从pdfjs-dist导入renderTextLayer
+    const pdfjsModule = await import('pdfjs-dist');
+    if (pdfjsModule.renderTextLayer) {
+      renderTextLayerFunc = pdfjsModule.renderTextLayer;
+      return renderTextLayerFunc;
+    }
+  } catch (error) {
+    console.warn("Failed to import renderTextLayer from pdfjs-dist:", error);
+  }
+
+  return null;
+}
+
 /**
  * @class TextLayerManager
  * @description 管理PDF文字层的加载和交互
@@ -184,29 +210,33 @@ export class TextLayerManager {
    * @private
    */
   async #renderTextContent(container, viewport) {
-    // 检查PDF.js的TextLayer是否可用
-    if (typeof pdfjsLib === 'undefined' || !pdfjsLib.renderTextLayer) {
-      this.#logger.warn("PDF.js TextLayer not available, using fallback");
-      await this.#renderTextContentFallback(container, viewport);
-      return;
+    // 尝试使用PDF.js的renderTextLayer API
+    const renderTextLayer = await loadRenderTextLayer();
+
+    if (renderTextLayer) {
+      try {
+        this.#logger.debug("Using PDF.js renderTextLayer API");
+
+        // 使用PDF.js官方API渲染文字层
+        const renderTask = renderTextLayer({
+          textContentSource: this.#textContent,
+          container: container,
+          viewport: viewport,
+          textDivs: this.#textDivs
+        });
+
+        await renderTask.promise;
+        this.#logger.info("Text layer rendered with PDF.js API");
+        return;
+
+      } catch (error) {
+        this.#logger.warn("PDF.js renderTextLayer failed, using fallback:", error);
+      }
     }
 
-    try {
-      // 使用PDF.js的renderTextLayer API
-      const textLayerRenderTask = pdfjsLib.renderTextLayer({
-        textContentSource: this.#textContent,
-        container: container,
-        viewport: viewport,
-        textDivs: this.#textDivs
-      });
-
-      await textLayerRenderTask.promise;
-      this.#logger.debug("Text layer rendered with PDF.js API");
-
-    } catch (error) {
-      this.#logger.warn("PDF.js renderTextLayer failed, using fallback", error);
-      await this.#renderTextContentFallback(container, viewport);
-    }
+    // 如果API不可用或失败，使用fallback方法
+    this.#logger.debug("Using fallback text layer rendering");
+    await this.#renderTextContentFallback(container, viewport);
   }
 
   /**
@@ -218,6 +248,9 @@ export class TextLayerManager {
    */
   async #renderTextContentFallback(container, viewport) {
     const items = this.#textContent.items;
+    const scale = viewport.scale;
+
+    this.#logger.debug(`Rendering ${items.length} text items with viewport scale ${scale}`);
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
@@ -228,24 +261,37 @@ export class TextLayerManager {
       textDiv.className = 'textLayer-item';
 
       // 设置位置和样式
+      // transform = [scaleX, skewY, skewX, scaleY, translateX, translateY]
       const transform = item.transform;
-      const tx = transform[4];
-      const ty = transform[5];
+      const angle = Math.atan2(transform[1], transform[0]);
       const fontSize = Math.sqrt(transform[0] * transform[0] + transform[1] * transform[1]);
 
-      textDiv.style.left = `${tx}px`;
-      textDiv.style.top = `${viewport.height - ty}px`;
+      // PDF坐标系转换为CSS坐标系
+      // PDF: 左下角为原点，Y轴向上
+      // CSS: 左上角为原点，Y轴向下
+      const left = transform[4] * scale;
+      const top = (viewport.height / scale - transform[5]) * scale - fontSize;
+
+      textDiv.style.position = 'absolute';
+      textDiv.style.left = `${left}px`;
+      textDiv.style.top = `${top}px`;
       textDiv.style.fontSize = `${fontSize}px`;
       textDiv.style.fontFamily = item.fontName || 'sans-serif';
-      textDiv.style.position = 'absolute';
       textDiv.style.whiteSpace = 'pre';
+      textDiv.style.transformOrigin = '0% 0%';
+
+      // 如果有旋转，应用旋转变换
+      if (angle !== 0) {
+        textDiv.style.transform = `rotate(${angle}rad)`;
+      }
 
       container.appendChild(textDiv);
       this.#textDivs.push(textDiv);
     }
 
     this.#logger.debug("Text layer rendered with fallback method", {
-      itemCount: items.length
+      itemCount: items.length,
+      scale: scale
     });
   }
 

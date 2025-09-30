@@ -258,50 +258,49 @@ main {
 }
 
 /* 文字层样式 - 20250922143000-pdf-text-layer */
+/* 注意：PDF.js使用.textLayer类（大写L），我们需要兼容 */
 .text-layer,
-#text-layer {
-    /* 定位方式在上面已定义: position: absolute; left: 50%; transform: translateX(-50%); */
+#text-layer,
+.textLayer {
+    /* 定位方式: absolute positioned over canvas with left: 0; top: 0; (defined above in lines 168-174) */
     /* 尺寸会通过JS动态设置，与canvas保持一致 */
-    overflow: hidden;
+    overflow: visible !important;  /* PDF.js需要visible以正确渲染文字 */
     opacity: 1;
     line-height: 1.0;
     /* 确保文字层在canvas上方 */
     z-index: 2;
     /* 允许文字选择 */
-    user-select: text;
-    -webkit-user-select: text;
-    -moz-user-select: text;
-    -ms-user-select: text;
-    /* 指针事件穿透，允许点击canvas */
-    pointer-events: auto;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+    /* 指针事件允许，支持文字选择和交互 */
+    pointer-events: auto !important;
 }
 
-/* 文字层中的文字元素 */
-.text-layer span {
-    color: transparent;
+/* 文字层中的文字元素 - 兼容PDF.js和自定义渲染 */
+.text-layer span,
+.textLayer span,
+.textLayer-item {
+    color: transparent !important;
     position: absolute;
     white-space: pre;
     cursor: text;
     /* 文字变换原点 */
     transform-origin: 0% 0%;
-}
-
-/* 文字层项目（备用样式） */
-.textLayer-item {
-    color: transparent;
-    position: absolute;
-    white-space: pre;
-    cursor: text;
-    transform-origin: 0% 0%;
+    /* 允许指针事件用于文字选择 */
+    pointer-events: auto !important;
 }
 
 /* 文字选择高亮 */
-.text-layer ::selection {
-    background: rgba(0, 123, 255, 0.3);
+.text-layer ::selection,
+.textLayer ::selection {
+    background: rgba(0, 123, 255, 0.3) !important;
 }
 
-.text-layer ::-moz-selection {
-    background: rgba(0, 123, 255, 0.3);
+.text-layer ::-moz-selection,
+.textLayer ::-moz-selection {
+    background: rgba(0, 123, 255, 0.3) !important;
 }
 
 /* 文字高亮标记 */

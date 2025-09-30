@@ -4,6 +4,9 @@
  * @description 基于事件总线的组合式架构，管理PDF查看器的所有核心功能
  */
 
+// 导入PDF.js viewer的CSS样式（用于文字层）
+import 'pdfjs-dist/web/pdf_viewer.css';
+
 import { PDFViewerAppCore } from "./app-core.js";
 import { EventHandlers } from "./event-handlers.js";
 import { getLogger } from "../common/utils/logger.js";
