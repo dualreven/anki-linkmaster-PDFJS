@@ -93,10 +93,41 @@ export function createPDFViewerContainer({
   }
 
   /**
+   * 禁用Console桥接器，避免日志循环
+   * 参考pdf-home的实现
+   */
+  function disableConsoleBridge() {
+    try {
+      // 禁用早期Console桥接器
+      if (earlyConsoleBridge && earlyConsoleBridge.enabled) {
+        earlyConsoleBridge.disable();
+        containerLogger.info('[pdf-viewer] Early console bridge disabled');
+      }
+
+      // 禁用主Console桥接器
+      if (consoleBridge && consoleBridge.enabled) {
+        consoleBridge.disable();
+        containerLogger.info('[pdf-viewer] Console bridge disabled');
+      }
+
+      // 清理全局引用
+      if (window.__earlyConsoleBridge) {
+        delete window.__earlyConsoleBridge;
+      }
+    } catch (e) {
+      containerLogger.warn('[pdf-viewer] Error disabling console bridge:', e);
+    }
+  }
+
+  /**
    * 连接WebSocket服务器
    */
   function connect() {
     if (state.disposed || state.connected) return;
+
+    // 禁用 ConsoleWebSocketBridge，避免日志循环
+    // 参考 pdf-home 的实现：完全禁用 Console Bridge
+    disableConsoleBridge();
 
     // 确保已经初始化
     if (!state.initialized) {
@@ -107,12 +138,6 @@ export function createPDFViewerContainer({
     try {
       containerLogger.info(`[pdf-viewer] connecting WS: ${state.wsUrl}`);
 
-      // 启用早期Console桥接器
-      if (earlyConsoleBridge && !earlyConsoleBridge.enabled) {
-        earlyConsoleBridge.enable();
-        containerLogger.info('[pdf-viewer] Early console bridge enabled');
-      }
-
       // 确保WSClient存在
       if (!wsClient) {
         containerLogger.error('[pdf-viewer] WSClient not available');
@@ -121,23 +146,6 @@ export function createPDFViewerContainer({
 
       wsClient.connect();
       state.connected = true;
-
-      // WebSocket连接建立后切换到主Console桥接器
-      setTimeout(() => {
-        if (wsClient && wsClient.isConnected()) {
-          try {
-            if (earlyConsoleBridge) {
-              earlyConsoleBridge.disable();
-            }
-            if (consoleBridge) {
-              consoleBridge.enable();
-            }
-            containerLogger.info('[pdf-viewer] Console bridge switched to main bridge');
-          } catch (bridgeError) {
-            containerLogger.warn('[pdf-viewer] Console bridge switch failed', bridgeError);
-          }
-        }
-      }, 100);
 
     } catch (error) {
       containerLogger.warn('[pdf-viewer] connect failed', error);

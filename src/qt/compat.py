@@ -38,7 +38,7 @@ try:
     from aqt.qt import (
         QApplication, QWebChannel, QFileDialog,
         QMainWindow, QWidget, QVBoxLayout, QStatusBar, QAction,
-        QWebEngineView, QWebEnginePage, QWebEngineSettings
+        QWebEngineView, QWebEnginePage, QWebEngineSettings, QSizePolicy
     )
 
 except Exception:
@@ -47,7 +47,7 @@ except Exception:
         from PyQt6 import QtCore, QtNetwork, QtWebSockets
 
         from PyQt6.QtWidgets import (
-            QApplication, QFileDialog, QMainWindow, QWidget, QVBoxLayout, QStatusBar
+            QApplication, QFileDialog, QMainWindow, QWidget, QVBoxLayout, QStatusBar, QSizePolicy
         )
         from PyQt6.QtGui import QAction
         from PyQt6.QtCore import QUrl, pyqtSignal, pyqtSlot, QTimer, QByteArray, QObject, QCoreApplication
