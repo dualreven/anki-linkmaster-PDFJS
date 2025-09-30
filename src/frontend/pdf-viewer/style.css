@@ -142,31 +142,35 @@ main {
     align-items: flex-start;
     background-color: #f0f0f0;
     overflow: auto;
-    position: relative;
     /* 为上下各留出安全内边距，避免canvas被裁切 */
     padding-top: 16px;
     padding-bottom: 16px;
     box-sizing: border-box;
 }
 
-/* Canvas与文字层的包装容器 */
-#pdf-canvas,
-#text-layer,
-#annotation-layer {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    top: 16px;
+/* PDF页面包装器 - 包含canvas和文字层的相对定位容器 */
+.pdf-page-wrapper {
+    position: relative;
+    margin: 0 auto;
+    display: inline-block;
 }
 
 /* Canvas样式 */
 #pdf-canvas {
     display: block;
-    /* 顶部不再强行贴边，由容器 padding 提供留白 */
-    margin: 0 auto;
     background: #fff;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    transition: transform 0.3s ease;
+    position: relative;
+    z-index: 1;
+}
+
+/* 文字层和注释层绝对定位在canvas上方 */
+#text-layer,
+#annotation-layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    pointer-events: auto;
 }
 
 /* 加载状态样式 */
