@@ -9,6 +9,7 @@ import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
 import { DOMElementManager } from "./dom-element-manager.js";
 import { KeyboardHandler } from "./keyboard-handler.js";
 import { UIStateManager } from "./ui-state-manager.js";
+import { TextLayerManager } from "./text-layer-manager.js";
 
 /**
  * UI管理器核心类
@@ -20,6 +21,7 @@ export class UIManagerCore {
   #domManager;
   #keyboardHandler;
   #stateManager;
+  #textLayerManager;
   #resizeObserver;
   #unsubscribeFunctions = [];
 
@@ -31,6 +33,8 @@ export class UIManagerCore {
     this.#domManager = new DOMElementManager();
     this.#keyboardHandler = new KeyboardHandler(eventBus);
     this.#stateManager = new UIStateManager();
+    // TextLayerManager will be initialized after DOM elements are ready
+    this.#textLayerManager = null;
   }
 
   /**
@@ -43,6 +47,17 @@ export class UIManagerCore {
 
       // 初始化DOM元素
       const elements = this.#domManager.initializeElements();
+
+      // 初始化文字层管理器
+      const textLayerContainer = this.#domManager.getElement('textLayer');
+      if (textLayerContainer) {
+        this.#textLayerManager = new TextLayerManager({
+          container: textLayerContainer
+        });
+        this.#logger.info("TextLayerManager initialized");
+      } else {
+        this.#logger.warn("TextLayer container not found, text layer disabled");
+      }
 
       // 设置键盘事件
       this.#keyboardHandler.setupEventListener();
@@ -243,7 +258,24 @@ export class UIManagerCore {
       viewport: viewport
     };
 
+    // 渲染Canvas层
     await page.render(renderContext).promise;
+    this.#logger.debug('Page canvas rendered successfully');
+
+    // 渲染文字层
+    if (this.#textLayerManager && this.#textLayerManager.isEnabled()) {
+      try {
+        const textLayerContainer = this.#domManager.getElement('textLayer');
+        if (textLayerContainer) {
+          await this.#textLayerManager.loadTextLayer(textLayerContainer, page);
+          this.#logger.debug('Page text layer rendered successfully');
+        }
+      } catch (error) {
+        this.#logger.warn('Failed to render text layer:', error);
+        // 不抛出错误，允许Canvas正常显示
+      }
+    }
+
     this.#logger.debug('Page rendered successfully');
   }
 
@@ -383,6 +415,12 @@ export class UIManagerCore {
   cleanup() {
     this.#domManager.cleanup();
     this.#stateManager.clearRenderQueue();
+
+    // 清理文字层
+    if (this.#textLayerManager) {
+      this.#textLayerManager.cleanup();
+    }
+
     this.#logger.info("UI cleaned up");
   }
 
@@ -413,6 +451,12 @@ export class UIManagerCore {
     this.#stateManager.destroy();
     this.#domManager.destroy();
 
+    // 销毁文字层管理器
+    if (this.#textLayerManager) {
+      this.#textLayerManager.destroy();
+      this.#textLayerManager = null;
+    }
+
     this.#logger.info("UIManagerCore destroyed");
   }
 
@@ -422,5 +466,13 @@ export class UIManagerCore {
    */
   getPerformanceStats() {
     return this.#stateManager.getPerformanceStats();
+  }
+
+  /**
+   * 获取文字层管理器
+   * @returns {TextLayerManager|null} 文字层管理器实例
+   */
+  getTextLayerManager() {
+    return this.#textLayerManager;
   }
 }

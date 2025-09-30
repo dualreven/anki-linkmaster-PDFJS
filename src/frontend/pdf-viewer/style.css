@@ -243,6 +243,79 @@ main {
     100% { opacity: 1; }
 }
 
+/* 文字层样式 - 20250922143000-pdf-text-layer */
+.text-layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    overflow: hidden;
+    opacity: 1;
+    line-height: 1.0;
+    /* 确保文字层在canvas上方 */
+    z-index: 2;
+    /* 允许文字选择 */
+    user-select: text;
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+}
+
+/* 文字层中的文字元素 */
+.text-layer span {
+    color: transparent;
+    position: absolute;
+    white-space: pre;
+    cursor: text;
+    /* 文字变换原点 */
+    transform-origin: 0% 0%;
+}
+
+/* 文字层项目（备用样式） */
+.textLayer-item {
+    color: transparent;
+    position: absolute;
+    white-space: pre;
+    cursor: text;
+    transform-origin: 0% 0%;
+}
+
+/* 文字选择高亮 */
+.text-layer ::selection {
+    background: rgba(0, 123, 255, 0.3);
+}
+
+.text-layer ::-moz-selection {
+    background: rgba(0, 123, 255, 0.3);
+}
+
+/* 文字高亮标记 */
+.text-highlight {
+    position: absolute;
+    background-color: rgba(255, 255, 0, 0.3);
+    pointer-events: none;
+    z-index: 1;
+    border-radius: 2px;
+    transition: background-color 0.2s ease;
+}
+
+.text-highlight.active {
+    background-color: rgba(255, 255, 0, 0.5);
+}
+
+/* 注释层样式 */
+.annotation-layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    overflow: hidden;
+    /* 确保注释层在文字层上方 */
+    z-index: 3;
+}
+
 /* 响应式设计 */
 @media (max-width: 768px) {
     header {
@@ -250,19 +323,19 @@ main {
         gap: 12px;
         padding: 8px;
     }
-    
+
     .header-left,
     .header-right {
         width: 100%;
         justify-content: center;
     }
-    
+
     .zoom-controls,
     .page-controls {
         flex: 1;
         justify-content: center;
     }
-    
+
     .btn {
         padding: 6px 12px;
         font-size: 12px;
