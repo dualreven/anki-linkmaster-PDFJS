@@ -195,11 +195,15 @@ export class UIManagerCore {
         ? PDF_VIEWER_EVENTS.ZOOM.IN
         : PDF_VIEWER_EVENTS.ZOOM.OUT;
 
+      // 固定使用10%的缩放步进，使Ctrl+滚轮缩放更平滑
+      // 不使用event.deltaY，因为不同鼠标/触控板的deltaY值差异很大
+      const smoothStep = 0.1; // 10% per scroll
+
       this.#eventBus.emit(zoomEvent, {
-        delta: Math.abs(event.deltaY)
+        delta: smoothStep
       }, { actorId: 'UIManagerCore.Wheel' });
 
-      this.#logger.debug(`Wheel zoom ${direction}`);
+      this.#logger.debug(`Wheel zoom ${direction} (step: ${smoothStep})`);
     }
   }
 
