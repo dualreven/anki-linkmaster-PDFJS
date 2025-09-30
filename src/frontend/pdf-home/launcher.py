@@ -24,13 +24,21 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.qt.compat import QApplication, QUrl, QWebSocket
+from src.qt.compat import QApplication, QUrl, QWebSocket, QWebChannel
 # 使用本地MainWindow模块
 from main_window import MainWindow
 
-# Import JS Console Logger from current directory
+# Import PyQtBridge and JSConsoleLogger from current directory
 import importlib.util
 current_dir = Path(__file__).parent
+
+# Import PyQtBridge
+bridge_spec = importlib.util.spec_from_file_location("pyqt_bridge", current_dir / "pyqt-bridge.py")
+bridge_module = importlib.util.module_from_spec(bridge_spec)
+bridge_spec.loader.exec_module(bridge_module)
+PyQtBridge = bridge_module.PyQtBridge
+
+# Import JSConsoleLogger
 logger_spec = importlib.util.spec_from_file_location("js_console_logger", current_dir / "js_console_logger.py")
 logger_module = importlib.util.module_from_spec(logger_spec)
 logger_spec.loader.exec_module(logger_module)
@@ -137,6 +145,7 @@ class PdfHomeApp:
         self.window = None
         self.ws_client = None
         self.js_console_logger = None
+        self.pyqt_bridge = None
 
     def run(self) -> int:
         """Initializes and runs the application."""
@@ -179,6 +188,9 @@ class PdfHomeApp:
         self.ws_client = QWebSocket()
         self._setup_websocket(msgCenter_port)
 
+        # 设置 QWebChannel（用于 PyQt 和 JS 之间的桥接）
+        self._setup_qwebchannel()
+
         # Load frontend
         url = f"http://localhost:{vite_port}/pdf-home/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"
         logger.info("Loading front-end: %s", url)
@@ -218,6 +230,38 @@ class PdfHomeApp:
 
         except Exception as exc:
             logger.error("WebSocket初始化失败: %s", exc, exc_info=True)
+            raise
+
+    def _setup_qwebchannel(self):
+        """设置 QWebChannel 桥接"""
+        try:
+            logger.info("[QWebChannel] 开始初始化 QWebChannel...")
+
+            # 创建 QWebChannel 实例
+            channel = QWebChannel(self.window)
+            logger.info("[QWebChannel] QWebChannel 创建成功")
+
+            # 创建 PyQtBridge 实例
+            self.pyqt_bridge = PyQtBridge(self.window)
+            logger.info("[QWebChannel] PyQtBridge 创建成功")
+
+            # 注册 PyQtBridge 到 QWebChannel
+            channel.registerObject('pyqtBridge', self.pyqt_bridge)
+            logger.info("[QWebChannel] PyQtBridge 注册到 QWebChannel 成功")
+
+            # 设置 WebChannel 到 WebPage
+            if self.window.web_page:
+                self.window.web_page.setWebChannel(channel)
+                logger.info("[QWebChannel] QWebChannel 设置到 WebPage 成功")
+            else:
+                logger.warning("[QWebChannel] window.web_page 不存在，无法设置 QWebChannel")
+
+            logger.info("[QWebChannel] QWebChannel 初始化完成")
+
+        except Exception as exc:
+            logger.error("[QWebChannel] 初始化失败: %s", exc, exc_info=True)
+            logger.error("[QWebChannel] 错误类型: %s", type(exc).__name__)
+            logger.error("[QWebChannel] 错误详情: %s", str(exc))
             raise
 
     def _create_js_logger(self, js_debug_port: int, log_file: str):

@@ -40,6 +40,7 @@ export class ButtonEventHandler {
     this.#setupBatchAddButton();
     this.#setupBatchDeleteButton();
     this.#setupTestPdfViewerButton();
+    this.#setupTestQWebChannelButton();
     this.#setupDebugButton();
   }
 
@@ -122,6 +123,20 @@ export class ButtonEventHandler {
 
 
   /**
+   * 设置测试QWebChannel按钮
+   * @private
+   */
+  #setupTestQWebChannelButton() {
+    if (this.#elements.testQWebChannelBtn) {
+      const listener = () => this.#handleTestQWebChannel();
+      DOMUtils.addEventListener(this.#elements.testQWebChannelBtn, "click", listener);
+      this.#unsubscribeFunctions.push(() =>
+        DOMUtils.removeEventListener(this.#elements.testQWebChannelBtn, "click", listener)
+      );
+    }
+  }
+
+  /**
    * 设置调试按钮
    * @private
    */
@@ -185,6 +200,44 @@ export class ButtonEventHandler {
     DOMUtils.setHTML(this.#elements.debugContent, debugText);
   }
 
+
+  /**
+   * 处理测试QWebChannel连接
+   * @private
+   */
+  async #handleTestQWebChannel() {
+    this.#logger.info("[阶段1测试] 测试QWebChannel连接按钮被点击");
+
+    try {
+      // 动态导入 QWebChannelBridge
+      const { QWebChannelBridge } = await import('../../qwebchannel/qwebchannel-bridge.js');
+
+      // 创建桥接实例
+      const bridge = new QWebChannelBridge();
+
+      // 初始化连接
+      this.#logger.info("[阶段1测试] 正在初始化 QWebChannel...");
+      console.log("[阶段1测试] 正在连接 QWebChannel...");
+
+      await bridge.initialize();
+      this.#logger.info("[阶段1测试] QWebChannel 初始化成功");
+
+      // 测试连接
+      this.#logger.info("[阶段1测试] 调用 testConnection()...");
+      const message = await bridge.testConnection();
+
+      this.#logger.info(`[阶段1测试] testConnection() 返回: ${message}`);
+      console.log(`%c[阶段1测试] 🎉 QWebChannel 连接成功！`, 'color: green; font-weight: bold; font-size: 14px');
+      console.log(`%c[阶段1测试] 返回消息: ${message}`, 'color: blue; font-size: 12px');
+
+      DOMUtils.showSuccess(`QWebChannel 连接成功！返回消息: ${message}`);
+
+    } catch (error) {
+      this.#logger.error("[阶段1测试] QWebChannel 连接失败:", error);
+      console.error('%c[阶段1测试] ❌ QWebChannel 连接失败', 'color: red; font-weight: bold; font-size: 14px', error);
+      DOMUtils.showError(`QWebChannel 连接失败: ${error.message}`);
+    }
+  }
 
   /**
    * 处理批量删除

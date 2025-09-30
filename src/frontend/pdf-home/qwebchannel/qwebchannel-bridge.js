@@ -1,0 +1,180 @@
+/**
+ * @file QWebChannel 桥接封装
+ * @module QWebChannelBridge
+ * @description 封装 QWebChannel 连接逻辑，提供 Promise 风格的 API
+ */
+
+import { getLogger } from "../../common/utils/logger.js";
+
+/**
+ * QWebChannel 桥接类
+ *
+ * 封装与 PyQt 后端的通信，提供简洁的 Promise API。
+ *
+ * @class QWebChannelBridge
+ */
+export class QWebChannelBridge {
+    #logger;
+    #bridge = null;
+    #isReady = false;
+    #initPromise = null;
+
+    constructor() {
+        this.#logger = getLogger("QWebChannelBridge");
+        this.#logger.info("QWebChannelBridge 实例创建");
+    }
+
+    /**
+     * 初始化 QWebChannel 连接
+     *
+     * 等待 Qt WebChannel 传输层准备就绪，然后建立连接。
+     * 可以多次调用，但只会初始化一次。
+     *
+     * @returns {Promise<void>}
+     */
+    async initialize() {
+        // 如果已经初始化，直接返回
+        if (this.#isReady) {
+            this.#logger.debug("QWebChannel 已经初始化，跳过");
+            return;
+        }
+
+        // 如果正在初始化，等待之前的初始化完成
+        if (this.#initPromise) {
+            this.#logger.debug("QWebChannel 正在初始化，等待完成");
+            return this.#initPromise;
+        }
+
+        // 开始初始化
+        this.#logger.info("开始初始化 QWebChannel...");
+
+        this.#initPromise = new Promise((resolve, reject) => {
+            // 检查 QWebChannel 是否可用
+            if (typeof QWebChannel === 'undefined') {
+                const error = 'QWebChannel 未定义，请确保 qwebchannel.js 已加载';
+                this.#logger.error(error);
+                reject(new Error(error));
+                return;
+            }
+
+            // 检查 Qt WebChannel 传输层是否可用
+            if (!window.qt || !window.qt.webChannelTransport) {
+                this.#logger.warn("Qt WebChannel 传输层未就绪，等待...");
+
+                // 等待传输层就绪（最多等待10秒）
+                const checkInterval = 100;
+                const maxWaitTime = 10000;
+                let elapsedTime = 0;
+
+                const checkTransport = setInterval(() => {
+                    elapsedTime += checkInterval;
+
+                    if (window.qt && window.qt.webChannelTransport) {
+                        clearInterval(checkTransport);
+                        this.#logger.info("Qt WebChannel 传输层已就绪");
+                        this.#connectToChannel(resolve, reject);
+                    } else if (elapsedTime >= maxWaitTime) {
+                        clearInterval(checkTransport);
+                        const error = 'Qt WebChannel 传输层超时未就绪';
+                        this.#logger.error(error);
+                        reject(new Error(error));
+                    }
+                }, checkInterval);
+
+                return;
+            }
+
+            // 传输层已就绪，直接连接
+            this.#connectToChannel(resolve, reject);
+        });
+
+        return this.#initPromise;
+    }
+
+    /**
+     * 连接到 QWebChannel
+     * @param {Function} resolve - Promise resolve 函数
+     * @param {Function} reject - Promise reject 函数
+     * @private
+     */
+    #connectToChannel(resolve, reject) {
+        try {
+            this.#logger.info("正在连接 QWebChannel...");
+
+            new QWebChannel(window.qt.webChannelTransport, (channel) => {
+                this.#logger.info("QWebChannel 连接成功");
+
+                // 获取 pyqtBridge 对象
+                if (!channel.objects.pyqtBridge) {
+                    const error = 'pyqtBridge 对象未注册';
+                    this.#logger.error(error);
+                    reject(new Error(error));
+                    return;
+                }
+
+                this.#bridge = channel.objects.pyqtBridge;
+                this.#isReady = true;
+
+                this.#logger.info("QWebChannel 初始化完成");
+                this.#logger.debug("可用的桥接方法:", Object.keys(this.#bridge));
+
+                resolve();
+            });
+
+        } catch (error) {
+            this.#logger.error("连接 QWebChannel 失败:", error);
+            reject(error);
+        }
+    }
+
+    /**
+     * 检查 QWebChannel 是否已初始化
+     * @returns {boolean}
+     */
+    isReady() {
+        return this.#isReady;
+    }
+
+    /**
+     * 测试连接
+     *
+     * 调用 PyQt 端的 testConnection 方法，验证通信是否正常。
+     *
+     * @returns {Promise<string>} 测试消息
+     * @throws {Error} 如果 QWebChannel 未初始化
+     */
+    async testConnection() {
+        this.#logger.info("调用 testConnection");
+
+        if (!this.#isReady) {
+            throw new Error('QWebChannel 未初始化，请先调用 initialize()');
+        }
+
+        try {
+            // 将同步调用包装成 Promise
+            const result = await new Promise((resolve, reject) => {
+                try {
+                    const message = this.#bridge.testConnection();
+                    resolve(message);
+                } catch (error) {
+                    reject(error);
+                }
+            });
+
+            this.#logger.info("testConnection 返回:", result);
+            return result;
+
+        } catch (error) {
+            this.#logger.error("testConnection 失败:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * 获取桥接对象（用于调试）
+     * @returns {Object|null} PyQt 桥接对象
+     */
+    getBridge() {
+        return this.#bridge;
+    }
+}
