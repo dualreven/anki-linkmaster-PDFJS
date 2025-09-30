@@ -359,9 +359,23 @@ export class FileHandler {
    * @private
    */
   async #renderInitialPage() {
-    const page = await this.#app.pdfManager.getPage(1);
-    const viewport = page.getViewport({ scale: this.#app.zoomLevel });
-    await this.#app.uiManager.renderPage(page, viewport);
+    try {
+      this.#logger.info("Rendering initial page...");
+      this.#logger.debug("Getting page 1 from PDFManager...");
+      const page = await this.#app.pdfManager.getPage(1);
+      this.#logger.info("Got page 1 from PDFManager");
+
+      this.#logger.debug(`Creating viewport with scale ${this.#app.zoomLevel}...`);
+      const viewport = page.getViewport({ scale: this.#app.zoomLevel });
+      this.#logger.info(`Created viewport: ${viewport.width}x${viewport.height}, scale=${this.#app.zoomLevel}`);
+
+      this.#logger.debug("Calling uiManager.renderPage...");
+      await this.#app.uiManager.renderPage(page, viewport);
+      this.#logger.info("Initial page rendered successfully");
+    } catch (error) {
+      this.#logger.error("Failed to render initial page:", error);
+      throw error;
+    }
   }
 
   /**

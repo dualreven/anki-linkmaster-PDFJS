@@ -25,6 +25,7 @@
   - pdf-viewer UI 私有字段使用修复（以 `#elements/#state` 为中心）。
   - HTTP 文件服务器可独立运行；AI Launcher 模块化骨架就绪。
   - ✅ **pdf-viewer日志系统重构完成 (2025-09-26)**：参考pdf-home设计，实现简化版架构，支持动态PDF ID命名格式。
+  - ✅ **PDF中文渲染修复完成 (2025-09-30)**：使用Vite别名@pdfjs简化CMap和标准字体路径，解决中文字符无法渲染问题。
 - 待办：
   - 实现最小版 PDF 业务服务器并接入 WS 转发。
   - 复核 pdf-viewer 全量对齐共享 EventBus/WSClient。
@@ -119,6 +120,25 @@ PDFManager的`handleResponseMessage`方法在处理WebSocket响应时，如果�
   - 渐进式实施：按优先级分批拆分，确保功能完整性
 - **产出文档**: `AItemp/20250929163759-AI-Working-log.md` 包含完整的分析报告和拆分方案
 - **后续建议**: 建议按第一优先级开始实施，先处理最大的4个核心文件
+
+## 已完成任务：PDF中文字符渲染修复 ✅ 完成 (2025-09-30)
+- **问题**: PDF中的中文字符无法渲染，日志显示CMap文件加载失败(404错误)
+- **根本原因**:
+  - 相对路径计算错误：pdf-loader.js位于`src/frontend/pdf-viewer/pdf/`，使用`../../../`向上3层只到`src/`目录
+  - 实际node_modules在项目根目录，需要向上4层才正确
+  - Vite将错误路径映射为`/@fs/.../src/node_modules/...`导致404
+- **解决方案**:
+  - 在vite.config.js添加别名：`'@pdfjs': path.resolve(process.cwd(), 'node_modules/pdfjs-dist')`
+  - 在pdf-loader.js和pdf-manager-refactored.js中使用`@pdfjs/cmaps/`和`@pdfjs/standard_fonts/`
+- **技术亮点**:
+  - 使用Vite官方推荐的resolve.alias功能
+  - 路径简洁清晰，易于维护
+  - 本地资源，不依赖网络
+- **修改文件**:
+  - `vite.config.js:44-49` - 新增resolve.alias配置
+  - `src/frontend/pdf-viewer/pdf/pdf-loader.js:50-54,103-107` - 启用CMap和标准字体
+  - `src/frontend/pdf-viewer/pdf/pdf-manager-refactored.js:61-62` - 启用标准字体
+- **Commit**: 8653524 "修复: PDF中文字符渲染问题 - 使用Vite别名简化CMap路径"
 
 ## 已完成任务：PDF-Home模块日志系统分析 ✅ 完成 (2025-09-30)
 - **目标**: 深度分析pdf-home模块的日志系统实现，包括初始化、配置、错误处理和事件监听机制

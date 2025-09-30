@@ -41,6 +41,12 @@ export default defineConfig(async () => {
     // 统一根目录，单 Vite 服务器同时服务 /pdf-home/ 与 /pdf-viewer/
     root: `src/frontend`,
     // 显式指定静态资源目录为仓库根目录下的 public（确保 /js/qwebchannel.js 可被 dev server 提供）
+    resolve: {
+      alias: {
+        // 简化PDF.js资源路径访问
+        '@pdfjs': path.resolve(process.cwd(), 'node_modules/pdfjs-dist')
+      }
+    },
     server: {
       port: vitePort,
       strictPort: strictPort, // 如果端口被占用则直接失败，不自动选择其他端口
