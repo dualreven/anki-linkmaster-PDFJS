@@ -119,12 +119,13 @@ export class TextLayerManager {
    * 加载文字层到指定容器
    * @param {HTMLElement} container - 文字层加载的目标容器元素
    * @param {Object} page - 要加载的pdf页面对象
+   * @param {Object} viewport - 视图端口(可选,如不提供则使用scale=1.0)
    * @returns {Promise<void>}
    *
    * 接口实现: loadTextLayer(container, page)
    * 需求: v001-spec.md - 接口1
    */
-  async loadTextLayer(container, page) {
+  async loadTextLayer(container, page, viewport = null) {
     try {
       if (!container) {
         throw new Error("Container element is required");
@@ -158,8 +159,10 @@ export class TextLayerManager {
         itemCount: this.#textContent.items.length
       });
 
-      // 获取页面的viewport
-      const viewport = page.getViewport({ scale: 1.0 });
+      // 使用传入的viewport或创建默认viewport
+      if (!viewport) {
+        viewport = page.getViewport({ scale: 1.0 });
+      }
 
       // 使用PDF.js的renderTextLayer方法渲染文字层
       await this.#renderTextContent(container, viewport);

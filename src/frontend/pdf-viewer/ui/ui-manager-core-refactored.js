@@ -262,12 +262,18 @@ export class UIManagerCore {
     await page.render(renderContext).promise;
     this.#logger.debug('Page canvas rendered successfully');
 
+    // 设置text-layer尺寸与canvas一致
+    const textLayerContainer = this.#domManager.getElement('textLayer');
+    if (textLayerContainer) {
+      textLayerContainer.style.width = `${viewport.width}px`;
+      textLayerContainer.style.height = `${viewport.height}px`;
+    }
+
     // 渲染文字层
     if (this.#textLayerManager && this.#textLayerManager.isEnabled()) {
       try {
-        const textLayerContainer = this.#domManager.getElement('textLayer');
         if (textLayerContainer) {
-          await this.#textLayerManager.loadTextLayer(textLayerContainer, page);
+          await this.#textLayerManager.loadTextLayer(textLayerContainer, page, viewport);
           this.#logger.debug('Page text layer rendered successfully');
         }
       } catch (error) {

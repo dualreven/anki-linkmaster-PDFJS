@@ -149,6 +149,16 @@ main {
     box-sizing: border-box;
 }
 
+/* Canvas与文字层的包装容器 */
+#pdf-canvas,
+#text-layer,
+#annotation-layer {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 16px;
+}
+
 /* Canvas样式 */
 #pdf-canvas {
     display: block;
@@ -244,12 +254,10 @@ main {
 }
 
 /* 文字层样式 - 20250922143000-pdf-text-layer */
-.text-layer {
-    position: absolute;
-    left: 0;
-    top: 0;
-    right: 0;
-    bottom: 0;
+.text-layer,
+#text-layer {
+    /* 定位方式在上面已定义: position: absolute; left: 50%; transform: translateX(-50%); */
+    /* 尺寸会通过JS动态设置，与canvas保持一致 */
     overflow: hidden;
     opacity: 1;
     line-height: 1.0;
@@ -260,6 +268,8 @@ main {
     -webkit-user-select: text;
     -moz-user-select: text;
     -ms-user-select: text;
+    /* 指针事件穿透，允许点击canvas */
+    pointer-events: auto;
 }
 
 /* 文字层中的文字元素 */
