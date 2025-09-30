@@ -9,7 +9,6 @@ import { getLogger } from "../../common/utils/logger.js";
 import { UIManager } from "../ui-manager.js";
 import PDFManager from "../../common/pdf/pdf-manager.js";
 import { DEFAULT_WS_PORT } from "../utils/ws-port-resolver.js";
-import { QWebChannelManager } from "../qwebchannel-manager.js";
 
 // 导入专门的管理器
 import { AppInitializationManager } from "./managers/app-initialization-manager.js";
@@ -26,7 +25,6 @@ export class PDFHomeApp {
   #websocketManager;
   #pdfManager;
   #uiManager;
-  #qwebchannelManager;
   #coreGuard = null;
   #appContainer;
 
@@ -76,7 +74,6 @@ export class PDFHomeApp {
     this.#coreGuard = deps.coreGuard || null;
 
     // 创建各个基础管理器
-    this.#qwebchannelManager = new QWebChannelManager(this.#eventBus);
     this.#pdfManager = new PDFManager(this.#eventBus);
     this.#uiManager = new UIManager(this.#eventBus);
 
@@ -92,7 +89,6 @@ export class PDFHomeApp {
     this.#initializationManager = new AppInitializationManager({
       eventBus: this.#eventBus,
       appContainer: this.#appContainer,
-      qwebchannelManager: this.#qwebchannelManager,
       pdfManager: this.#pdfManager,
       uiManager: this.#uiManager,
       websocketManager: this.#websocketManager
@@ -198,7 +194,6 @@ export class PDFHomeApp {
       tableConfiguration: this.#tableConfigurationManager.getStatus(),
       websocket: this.#websocketEventManager.getStatus(),
       managers: {
-        qwebchannel: this.#qwebchannelManager !== null,
         pdf: this.#pdfManager !== null,
         ui: this.#uiManager !== null
       },
@@ -230,13 +225,6 @@ export class PDFHomeApp {
     return this.#uiManager;
   }
 
-  /**
-   * 获取QWebChannel管理器（用于调试和测试）
-   * @returns {QWebChannelManager} QWebChannel管理器实例
-   */
-  getQWebChannelManager() {
-    return this.#qwebchannelManager;
-  }
 
   /**
    * 获取WebSocket管理器（用于调试和测试）
@@ -275,10 +263,6 @@ export class PDFHomeApp {
 
     if (this.#pdfManager && typeof this.#pdfManager.destroy === 'function') {
       await this.#pdfManager.destroy();
-    }
-
-    if (this.#qwebchannelManager && typeof this.#qwebchannelManager.destroy === 'function') {
-      await this.#qwebchannelManager.destroy();
     }
 
     this.#logger.info("PDFHomeApp destroyed successfully");

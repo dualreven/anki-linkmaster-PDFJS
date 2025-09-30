@@ -204,30 +204,29 @@ class StandardWebSocketServer(QObject):
         message_type = message.get("type")
         request_id = message.get("request_id")
         data = message.get("data", {})
-        
-        logger.info(f"处理消息类型: {message_type}, 请求ID: {request_id}")
-        
-        # PDF列表请求
-        if message_type == "get_pdf_list":
-            return self.handle_pdf_list_request(request_id, data)
-        
-        # PDF上传请求
-        elif message_type == "add_pdf":
-            return self.handle_pdf_upload_request(request_id, data)
-        
-        # PDF删除请求
-        elif message_type == "remove_pdf":
-            return self.handle_pdf_remove_request(request_id, data)
-        
-        # PDF批量删除请求
-        elif message_type == "batch_remove_pdf":
-            return self.handle_batch_pdf_remove_request(request_id, data)
 
-        elif message_type == "open_pdf":
+        logger.info(f"处理消息类型: {message_type}, 请求ID: {request_id}")
+
+        # === 新规范消息处理（v2: 主语:谓语:宾语） ===
+        # 获取PDF列表
+        if message_type in ["pdf-home:get:pdf-list", "get_pdf_list"]:
+            return self.handle_pdf_list_request(request_id, data)
+
+        # 添加PDF文件（支持单个/多个）
+        elif message_type in ["pdf-home:add:pdf-files", "add_pdf"]:
+            return self.handle_pdf_upload_request(request_id, data)
+
+        # 删除PDF文件（支持单个/多个，合并了batch_remove_pdf）
+        elif message_type in ["pdf-home:remove:pdf-files", "remove_pdf", "batch_remove_pdf"]:
+            # 统一处理为删除请求，根据data中的文件数量判断
+            return self.handle_pdf_remove_request(request_id, data)
+
+        # 打开PDF查看器
+        elif message_type in ["pdf-home:open:pdf-file", "open_pdf"]:
            return self.handle_open_pdf_request(request_id, data)
-        
-        # PDF详情请求
-        elif message_type == "pdf_detail_request":
+
+        # 获取PDF详情
+        elif message_type in ["pdf-home:get:pdf-info", "pdf_detail_request"]:
             return self.handle_pdf_detail_request(request_id, data)
         # PDF页面请求
         elif message_type == MessageType.PDF_PAGE_REQUEST.value:

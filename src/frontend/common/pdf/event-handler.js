@@ -28,16 +28,17 @@ export class EventHandler {
    */
   setupEventListeners() {
     const listeners = [
+      // 添加文件请求监听
       this.#manager.eventBus.on(
-        PDF_MANAGEMENT_EVENTS.ADD.REQUESTED,
+        PDF_MANAGEMENT_EVENTS.ADD_FILES.REQUEST,
         async (fileInfo) => {
           try {
-            await this.handleAddPDFRequest(fileInfo);
+            await this.handleAddFilesRequest(fileInfo);
           } catch (error) {
-            this.#manager.logger.error("Error handling ADD.REQUESTED event:", error);
+            this.#manager.logger.error("Error handling ADD_FILES.REQUEST event:", error);
             this.#manager.eventBus.emit(
               PDF_MANAGEMENT_EVENTS.ERROR.OCCURRED,
-              { message: "Failed to handle add PDF request." },
+              { message: "Failed to handle add files request." },
               { actorId: "PDFManager" }
             );
           }
@@ -141,66 +142,53 @@ export class EventHandler {
   }
 
   /**
-   * 处理添加PDF的请求 - 支持QWebChannel和WebSocket两种方式
-   * @param {Object} fileInfo - 文件信息
+   * 处理添加文件请求（新版本v002规范）- 直接向msgCenter发送消息
+   * @param {Object} fileInfo - 文件信息 { isBatch: boolean }
    */
-  async handleAddPDFRequest(fileInfo) {
-    this.#manager.logger.info("Handling add PDF request:", JSON.stringify(fileInfo, null, 2));
+  async handleAddFilesRequest(fileInfo) {
+    this.#manager.logger.info("[ADD_FILES] Handling add files request:", JSON.stringify(fileInfo, null, 2));
 
-    // 检查是否支持QWebChannel
-    const qwebchannelAvailable = await this.#checkQWebChannelAvailable();
-
-    if (qwebchannelAvailable) {
-      this.#manager.logger.info("Using QWebChannel for file selection");
-      await this.#handleQWebChannelFileSelection(fileInfo);
-    } else {
-      this.#manager.logger.info("Falling back to WebSocket file selection");
-      this.#manager.addPDF(fileInfo);
-    }
-  }
-
-  /**
-   * 检查QWebChannel是否可用
-   * @returns {boolean} 是否可用
-   */
-  async #checkQWebChannelAvailable() {
-    return new Promise((resolve) => {
-      // 发送检查事件并等待回应
-      const timeout = setTimeout(() => resolve(false), 1000);
-
-      const unsubscribe = this.#manager.eventBus.on('qwebchannel:status:ready', () => {
-        clearTimeout(timeout);
-        unsubscribe();
-        resolve(true);
-      });
-
-      const unsubscribeUnavailable = this.#manager.eventBus.on('qwebchannel:status:unavailable', () => {
-        clearTimeout(timeout);
-        unsubscribe();
-        unsubscribeUnavailable();
-        resolve(false);
-      });
-
-      // 检查QWebChannel是否已经就绪
-      this.#manager.eventBus.emit('qwebchannel:check:request', {}, { actorId: 'EventHandler' });
-    });
-  }
-
-  /**
-   * 使用QWebChannel处理文件选择
-   * @param {Object} fileInfo - 文件信息
-   */
-  async #handleQWebChannelFileSelection(fileInfo) {
     try {
-      // 通过事件总线请求QWebChannel文件选择
+      // 1. 通过QWebChannel请求文件选择
       this.#manager.eventBus.emit('qwebchannel:selectFiles:request', {
         isBatch: fileInfo?.isBatch || false
       }, { actorId: 'EventHandler' });
 
-      this.#manager.logger.info("QWebChannel file selection request sent");
+      // 2. 监听文件选择结果
+      const unsubscribe = this.#manager.eventBus.on('qwebchannel:filesSelected', async (selectedFiles) => {
+        unsubscribe(); // 只处理一次
+
+        if (!selectedFiles || selectedFiles.length === 0) {
+          this.#manager.logger.info("[ADD_FILES] No files selected");
+          return;
+        }
+
+        this.#manager.logger.info(`[ADD_FILES] Selected ${selectedFiles.length} files:`, selectedFiles);
+
+        // 3. 为每个文件发送WebSocket消息到msgCenter
+        for (const filePath of selectedFiles) {
+          const fileName = filePath.split(/[\\/]/).pop(); // 提取文件名
+
+          this.#manager.eventBus.emit(
+            WEBSOCKET_EVENTS.MESSAGE.SEND,
+            {
+              type: WEBSOCKET_MESSAGE_TYPES.ADD_PDF,
+              data: {
+                name: fileName,
+                path: filePath
+              }
+            },
+            { actorId: "PDFManager" }
+          );
+        }
+
+        this.#manager.logger.info(`[ADD_FILES] Sent ${selectedFiles.length} add requests to msgCenter`);
+      });
+
     } catch (error) {
-      this.#manager.logger.error("QWebChannel file selection failed:", error);
+      this.#manager.logger.error("[ADD_FILES] Error in handleAddFilesRequest:", error);
       throw error;
     }
   }
+
 }

@@ -62,6 +62,8 @@
    - 删除请求: `pdf:remove-files:request`
    - 删除响应: `pdf:remove-files:response`
    - 列表更新: `pdf:list:updated`
+   - 列表添加: `pdf:list:add-files`
+   - 列表删除: `pdf:list:remove-files`
    - 操作进度: `pdf:operation:progress`
 
 ### 实现细节

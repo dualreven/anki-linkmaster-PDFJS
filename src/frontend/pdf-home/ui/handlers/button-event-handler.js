@@ -40,7 +40,6 @@ export class ButtonEventHandler {
     this.#setupBatchAddButton();
     this.#setupBatchDeleteButton();
     this.#setupTestPdfViewerButton();
-    this.#setupTestQWebChannelButton();
     this.#setupDebugButton();
   }
 
@@ -60,7 +59,9 @@ export class ButtonEventHandler {
   #setupAddPdfButton() {
     if (this.#elements.addPdfBtn) {
       const listener = () => {
-        this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.ADD.REQUESTED, {}, {
+        this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.ADD_FILES.REQUEST, {
+          isBatch: false
+        }, {
           actorId: 'ButtonEventHandler'
         });
       };
@@ -77,9 +78,13 @@ export class ButtonEventHandler {
    */
   #setupBatchAddButton() {
     if (this.#elements.batchAddBtn) {
-      const listener = () => this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.ADD.REQUESTED, { isBatch: true }, {
-        actorId: 'ButtonEventHandler'
-      });
+      const listener = () => {
+        this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.ADD_FILES.REQUEST, {
+          isBatch: true
+        }, {
+          actorId: 'ButtonEventHandler'
+        });
+      };
       DOMUtils.addEventListener(this.#elements.batchAddBtn, "click", listener);
       this.#unsubscribeFunctions.push(() =>
         DOMUtils.removeEventListener(this.#elements.batchAddBtn, "click", listener)
@@ -115,19 +120,6 @@ export class ButtonEventHandler {
     }
   }
 
-  /**
-   * 设置测试QWebChannel连通性按钮
-   * @private
-   */
-  #setupTestQWebChannelButton() {
-    if (this.#elements.testQWebChannelBtn) {
-      const listener = () => this.#handleTestQWebChannel();
-      DOMUtils.addEventListener(this.#elements.testQWebChannelBtn, "click", listener);
-      this.#unsubscribeFunctions.push(() =>
-        DOMUtils.removeEventListener(this.#elements.testQWebChannelBtn, "click", listener)
-      );
-    }
-  }
 
   /**
    * 设置调试按钮
@@ -193,25 +185,6 @@ export class ButtonEventHandler {
     DOMUtils.setHTML(this.#elements.debugContent, debugText);
   }
 
-  /**
-   * 处理测试QWebChannel连通性
-   * @private
-   */
-  #handleTestQWebChannel() {
-    this.#logger.info("测试QWebChannel连通性按钮被点击");
-
-    try {
-      // 简化处理，直接发送状态检查请求
-      this.#eventBus.emit('qwebchannel:check:request', {}, {
-        actorId: 'ButtonEventHandler'
-      });
-
-      DOMUtils.showSuccess("正在检查QWebChannel连通性...");
-    } catch (error) {
-      this.#logger.error("handleTestQWebChannel error:", error);
-      DOMUtils.showError("测试QWebChannel时发生错误");
-    }
-  }
 
   /**
    * 处理批量删除

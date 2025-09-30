@@ -17,7 +17,6 @@ export class AppInitializationManager {
   #eventBus;
   #errorHandler;
   #appContainer;
-  #qwebchannelManager;
   #pdfManager;
   #uiManager;
   #websocketManager;
@@ -31,7 +30,6 @@ export class AppInitializationManager {
     const {
       eventBus,
       appContainer,
-      qwebchannelManager,
       pdfManager,
       uiManager,
       websocketManager
@@ -39,7 +37,6 @@ export class AppInitializationManager {
 
     this.#eventBus = eventBus;
     this.#appContainer = appContainer;
-    this.#qwebchannelManager = qwebchannelManager;
     this.#pdfManager = pdfManager;
     this.#uiManager = uiManager;
     this.#websocketManager = websocketManager;
@@ -141,7 +138,6 @@ export class AppInitializationManager {
     this.#logger.debug("Initializing application managers");
 
     const managers = [
-      { name: 'QWebChannelManager', instance: this.#qwebchannelManager },
       { name: 'PDFManager', instance: this.#pdfManager },
       { name: 'UIManager', instance: this.#uiManager }
     ];
@@ -209,7 +205,6 @@ export class AppInitializationManager {
     return {
       initialized: this.#initialized,
       hasAppContainer: this.#appContainer !== null,
-      hasQWebChannelManager: this.#qwebchannelManager !== null,
       hasPDFManager: this.#pdfManager !== null,
       hasUIManager: this.#uiManager !== null,
       hasWebSocketManager: this.#websocketManager !== null,

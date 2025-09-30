@@ -8,7 +8,6 @@ import { getLogger } from "../../common/utils/logger.js";
 import { ButtonEventHandler } from "./handlers/button-event-handler.js";
 import { KeyboardEventHandler } from "./handlers/keyboard-event-handler.js";
 import { TableEventHandler } from "./handlers/table-event-handler.js";
-import { QWebChannelEventHandler } from "./handlers/qwebchannel-event-handler.js";
 import { UIResponseHandler } from "./handlers/ui-response-handler.js";
 
 /**
@@ -26,7 +25,6 @@ export class UIEventHandlers {
   #buttonHandler;
   #keyboardHandler;
   #tableHandler;
-  #qwebchannelHandler;
   #uiResponseHandler;
 
   constructor(eventBus, elements, stateManager) {
@@ -47,7 +45,6 @@ export class UIEventHandlers {
     this.#buttonHandler = new ButtonEventHandler(this.#eventBus, this.#elements, this.#stateManager);
     this.#keyboardHandler = new KeyboardEventHandler(this.#eventBus, this.#elements);
     this.#tableHandler = new TableEventHandler(this.#eventBus, this.#elements);
-    this.#qwebchannelHandler = new QWebChannelEventHandler(this.#eventBus);
     this.#uiResponseHandler = new UIResponseHandler(this.#eventBus, this.#stateManager);
 
     this.#logger.info("All event handlers initialized with modular architecture");
@@ -62,7 +59,6 @@ export class UIEventHandlers {
     this.#buttonHandler.setupEventListeners();
     this.#keyboardHandler.setupEventListeners();
     this.#tableHandler.setupEventListeners();
-    this.#qwebchannelHandler.setupEventListeners();
     this.#uiResponseHandler.setupEventListeners();
 
     this.#logger.info("All event listeners setup completed");
@@ -87,10 +83,6 @@ export class UIEventHandlers {
       this.#tableHandler.destroy();
       this.#tableHandler = null;
     }
-    if (this.#qwebchannelHandler) {
-      this.#qwebchannelHandler.destroy();
-      this.#qwebchannelHandler = null;
-    }
     if (this.#uiResponseHandler) {
       this.#uiResponseHandler.destroy();
       this.#uiResponseHandler = null;
@@ -108,9 +100,8 @@ export class UIEventHandlers {
       buttonHandler: this.#buttonHandler !== null,
       keyboardHandler: this.#keyboardHandler !== null,
       tableHandler: this.#tableHandler !== null,
-      qwebchannelHandler: this.#qwebchannelHandler !== null,
       uiResponseHandler: this.#uiResponseHandler !== null,
-      totalHandlers: 5,
+      totalHandlers: 4,
       architecture: 'modular-composition'
     };
   }

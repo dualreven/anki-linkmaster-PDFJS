@@ -13,7 +13,21 @@ logger = logging.getLogger(__name__)
 
 class MessageType(Enum):
     """标准消息类型枚举 - 符合JSON通信标准"""
-    # PDF管理消息
+    # === PDF-Home模块消息（新规范 v2: 主语:谓语:宾语） ===
+    # 请求消息
+    PDF_HOME_GET_PDF_LIST = "pdf-home:get:pdf-list"
+    PDF_HOME_ADD_PDF_FILES = "pdf-home:add:pdf-files"
+    PDF_HOME_REMOVE_PDF_FILES = "pdf-home:remove:pdf-files"
+    PDF_HOME_OPEN_PDF_FILE = "pdf-home:open:pdf-file"
+    PDF_HOME_GET_PDF_INFO = "pdf-home:get:pdf-info"
+
+    # 响应消息
+    PDF_HOME_RESPONSE_PDF_LIST = "pdf-home:response:pdf-list"
+    PDF_HOME_RESPONSE_PDF_ADDED = "pdf-home:response:pdf-added"
+    PDF_HOME_RESPONSE_PDF_REMOVED = "pdf-home:response:pdf-removed"
+    PDF_HOME_RESPONSE_PDF_INFO = "pdf-home:response:pdf-info"
+
+    # === 旧版消息类型（向后兼容，将逐步废弃） ===
     GET_PDF_LIST = "get_pdf_list"
     PDF_LIST = "pdf_list"
     ADD_PDF = "add_pdf"
@@ -24,21 +38,21 @@ class MessageType(Enum):
     BATCH_PDF_REMOVED = "batch_pdf_removed"
     PDF_DETAIL_REQUEST = "pdf_detail_request"
     PDF_DETAIL_RESPONSE = "pdf_detail_response"
-    
+
     # PDF分页传输消息
     PDF_PAGE_REQUEST = "pdf_page_request"
     PDF_PAGE_RESPONSE = "pdf_page_response"
     PDF_PAGE_PRELOAD = "pdf_page_preload"
     PDF_PAGE_CACHE_CLEAR = "pdf_page_cache_clear"
     PDF_PAGE_ERROR = "pdf_page_error"
-    
+
     # 系统消息
     SYSTEM_STATUS = "system_status"
     SYSTEM_CONFIG = "system_config"
-    
+
     # 错误消息
     ERROR = "error"
-    
+
     # 心跳消息
     HEARTBEAT = "heartbeat"
     HEARTBEAT_RESPONSE = "heartbeat_response"

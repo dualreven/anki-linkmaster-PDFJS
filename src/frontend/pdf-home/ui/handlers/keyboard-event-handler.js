@@ -59,7 +59,9 @@ export class KeyboardEventHandler {
       // Ctrl+N：添加新PDF
       if (event.ctrlKey && event.key === "n") {
         event.preventDefault();
-        this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.ADD.REQUESTED, undefined, {
+        this.#eventBus.emit(PDF_MANAGEMENT_EVENTS.ADD_FILES.REQUEST, {
+          isBatch: false
+        }, {
           actorId: 'KeyboardEventHandler'
         });
       }
