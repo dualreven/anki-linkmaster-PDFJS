@@ -130,6 +130,16 @@ export class TableWrapperCore {
   }
 
   /**
+   * 添加单行数据到表格
+   * @param {Object} rowData - 行数据对象
+   * @param {boolean} addToTop - 是否添加到顶部，默认true
+   * @returns {Promise|void} Promise对象或void
+   */
+  addRow(rowData, addToTop = true) {
+    return this.#dataHandler.addRow(rowData, addToTop);
+  }
+
+  /**
    * 清空表格数据
    * @returns {void}
    */

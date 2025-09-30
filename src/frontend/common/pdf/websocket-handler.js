@@ -56,6 +56,11 @@ export class WebSocketHandler {
         (data) => this.handleResponse(data),
         { subscriberId: "PDFManager" }
       ),
+      this.#manager.eventBus.on(
+        WEBSOCKET_MESSAGE_EVENTS.SYSTEM_STATUS,
+        (data) => this.handleSystemStatus(data),
+        { subscriberId: "PDFManager" }
+      ),
     ];
     return listeners;
   }
@@ -108,6 +113,48 @@ export class WebSocketHandler {
     this.#manager.eventBus.emit(PDF_MANAGEMENT_EVENTS.ERROR.OCCURRED, {
       message: errorMessage,
     });
+  }
+
+  /**
+   * 处理系统状态消息（包括 file_added 等广播事件）
+   * @param {Object} data - system_status 消息对象
+   * @returns {void}
+   */
+  handleSystemStatus(data) {
+    this.#manager.logger.info("[阶段4] 收到 system_status 消息:", JSON.stringify(data, null, 2));
+
+    const eventType = data?.data?.event;
+
+    if (eventType === "file_added") {
+      const fileInfo = data?.data?.file_info;
+      this.#manager.logger.info("[阶段4] 检测到文件添加事件:", fileInfo?.filename);
+
+      // 发布 UI 成功消息事件
+      const successMessage = `文件添加成功: ${fileInfo?.title || fileInfo?.filename}`;
+      this.#manager.eventBus.emit(
+        "ui:success:show",
+        successMessage,
+        { actorId: "PDFManager" }
+      );
+
+      // 增量添加新文件到本地列表（性能优化：避免完整刷新）
+      if (fileInfo) {
+        this.#manager.logger.info("[阶段4] 增量添加新文件到列表");
+        const newPdf = this.#manager.mapBackendToFrontend(fileInfo);
+
+        // 添加到列表顶部
+        this.#manager.pdfs.unshift(newPdf);
+
+        // 发布增量更新事件，UI层会自动调用 addRow
+        this.#manager.eventBus.emit(
+          "pdf:file:added",
+          newPdf,
+          { actorId: "PDFManager" }
+        );
+
+        this.#manager.logger.info("[阶段4] 新文件已添加到列表，无需完整刷新");
+      }
+    }
   }
 
   /**

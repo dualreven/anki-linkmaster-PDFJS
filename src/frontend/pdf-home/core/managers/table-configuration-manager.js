@@ -74,6 +74,17 @@ export class TableConfigurationManager {
       this.#logger.info(`pdf:list:updated received, count=${pdfs.length}`);
       this.#initializeTableIfNeeded();
     }, { subscriberId: "TableConfigurationManager" });
+
+    // Listen for single file addition to add row incrementally
+    this.#eventBus.on("pdf:file:added", (newPdf) => {
+      this.#logger.info(`[阶段4] 收到新文件添加事件:`, newPdf.filename);
+      if (this.#tableWrapper) {
+        this.#logger.info(`[阶段4] 增量添加行到表格顶部`);
+        this.#tableWrapper.addRow(newPdf, true); // 添加到顶部
+      } else {
+        this.#logger.warn(`[阶段4] 表格未初始化，无法增量添加行`);
+      }
+    }, { subscriberId: "TableConfigurationManager" });
   }
 
   /**

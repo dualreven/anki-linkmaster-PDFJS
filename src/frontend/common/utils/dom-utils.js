@@ -164,7 +164,12 @@ export class DOMUtils {
       const errEl = document.getElementById('global-error');
       if (errEl) {
         errEl.textContent = message;
-        errEl.style.display = '';
+        errEl.style.display = 'block';
+
+        // 自动隐藏消息（5秒后，错误消息显示时间长一些）
+        setTimeout(() => {
+          errEl.style.display = 'none';
+        }, 5000);
         return;
       }
     } catch (e) {}
@@ -181,7 +186,12 @@ export class DOMUtils {
       const okEl = document.getElementById('global-success');
       if (okEl) {
         okEl.textContent = message;
-        okEl.style.display = '';
+        okEl.style.display = 'block';
+
+        // 自动隐藏消息（3秒后）
+        setTimeout(() => {
+          okEl.style.display = 'none';
+        }, 3000);
         return;
       }
     } catch (e) {}

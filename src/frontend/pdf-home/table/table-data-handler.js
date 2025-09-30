@@ -82,6 +82,44 @@ export class TableDataHandler {
   }
 
   /**
+   * 添加单行数据到表格顶部
+   * @param {Object} rowData - 行数据对象
+   * @param {boolean} addToTop - 是否添加到顶部，默认true
+   * @returns {Promise|void} Promise对象或void
+   */
+  addRow(rowData, addToTop = true) {
+    const row = TableUtils.prepareData([rowData])[0];
+
+    if (this.#fallbackMode) {
+      logger.info('Adding row in fallback mode');
+      if (addToTop) {
+        this.#fallbackData.unshift(row);
+      } else {
+        this.#fallbackData.push(row);
+      }
+      this._callLocalListeners('row-added', row);
+      return Promise.resolve();
+    }
+
+    if (!this.#tabulator) {
+      logger.warn('No tabulator instance available for addRow');
+      return Promise.reject(new Error('Tabulator instance not available'));
+    }
+
+    logger.info('Adding row to Tabulator:', row.id || row.filename);
+
+    try {
+      this.#tabulator.addRow(row, addToTop);
+      this._callLocalListeners('row-added', row);
+      logger.debug('Row added successfully');
+      return Promise.resolve();
+    } catch (error) {
+      logger.error('Error adding row to tabulator:', error);
+      return Promise.reject(error);
+    }
+  }
+
+  /**
    * 清空表格数据
    * @returns {void}
    */
