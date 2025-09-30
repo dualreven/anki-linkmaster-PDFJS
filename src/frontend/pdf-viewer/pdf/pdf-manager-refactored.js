@@ -57,8 +57,13 @@ export class PDFManager {
       // 配置PDF.js
       const config = getPDFJSConfig();
       this.#pdfjsLib.GlobalWorkerOptions.workerSrc = config.workerSrc;
+
+      // 启用标准字体映射，支持中文等非拉丁字符（使用Vite别名，简单且本地化）
+      this.#pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = new URL('@pdfjs/standard_fonts/', import.meta.url).href;
+
       this.#logger.info("PDF.js worker configured", {
-        workerSrc: config.workerSrc
+        workerSrc: config.workerSrc,
+        standardFontDataUrl: this.#pdfjsLib.GlobalWorkerOptions.standardFontDataUrl
       });
 
       // 初始化子模块

@@ -46,7 +46,12 @@ export class PDFLoader {
       withCredentials: false,
       disableAutoFetch: false,
       disableStream: false,
-      disableRange: false
+      disableRange: false,
+      // 启用CMap支持中文等CJK字符（使用Vite别名，简单且本地化）
+      cMapUrl: new URL('@pdfjs/cmaps/', import.meta.url).href,
+      cMapPacked: true,
+      // 启用标准字体（使用Vite别名）
+      standardFontDataUrl: new URL('@pdfjs/standard_fonts/', import.meta.url).href
     });
 
     this.#currentLoadTask = loadingTask;
@@ -94,7 +99,12 @@ export class PDFLoader {
       data: arrayBuffer,
       disableAutoFetch: false,
       disableStream: false,
-      disableRange: false
+      disableRange: false,
+      // 启用CMap支持中文等CJK字符（使用Vite别名，简单且本地化）
+      cMapUrl: new URL('@pdfjs/cmaps/', import.meta.url).href,
+      cMapPacked: true,
+      // 启用标准字体（使用Vite别名）
+      standardFontDataUrl: new URL('@pdfjs/standard_fonts/', import.meta.url).href
     });
 
     this.#currentLoadTask = loadingTask;
