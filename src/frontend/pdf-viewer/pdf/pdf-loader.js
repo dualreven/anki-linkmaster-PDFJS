@@ -62,11 +62,10 @@ export class PDFLoader {
         ? Math.round((progressData.loaded / progressData.total) * 100)
         : 0;
 
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.PROGRESS, {
-        loaded: progressData.loaded,
-        total: progressData.total,
-        percent: percent
-      }, { actorId: 'PDFLoader' });
+      if (percent === 0 || percent === 100) {
+        this.#logger.debug(`Load progress checkpoint: ${percent}%`);
+      }
+      // 不再向 EventBus 发布 FILE.LOAD.PROGRESS 事件，避免日志刷屏
     };
 
     try {
@@ -115,11 +114,10 @@ export class PDFLoader {
         ? Math.round((progressData.loaded / progressData.total) * 100)
         : 0;
 
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.PROGRESS, {
-        loaded: progressData.loaded,
-        total: progressData.total,
-        percent: percent
-      }, { actorId: 'PDFLoader' });
+      if (percent === 0 || percent === 100) {
+        this.#logger.debug(`Load progress checkpoint: ${percent}%`);
+      }
+      // 不再向 EventBus 发布 FILE.LOAD.PROGRESS 事件，避免日志刷屏
     };
 
     try {
