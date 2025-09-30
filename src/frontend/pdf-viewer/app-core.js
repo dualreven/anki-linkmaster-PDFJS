@@ -30,6 +30,7 @@ export class PDFViewerAppCore {
   #messageQueue = [];
   #consoleBridge = null;
   #appContainer; // 应用容器
+  #bookmarkManager; // 书签管理器（按需动态加载）
 
   constructor(deps = {}) {
     // 如果传入了容器，使用它；否则创建新容器
@@ -53,6 +54,7 @@ export class PDFViewerAppCore {
     this.#errorHandler = new ErrorHandler(this.#eventBus);
     this.#pdfManager = new PDFManager(this.#eventBus);
     this.#uiManager = new UIManager(this.#eventBus);
+    this.#bookmarkManager = null;
 
     // 创建console桥接器，但暂时不启用
     this.#consoleBridge = createConsoleWebSocketBridge('pdf_viewer', (message) => {
@@ -103,6 +105,24 @@ export class PDFViewerAppCore {
       this.#logger.info("Initializing UIManager...");
       await this.#uiManager.initialize();
       this.#logger.info("UIManager initialized.");
+
+      // 初始化书签管理器（依赖UI容器已就绪）；默认启用，可通过 ?bookmark=0 显式关闭
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const bookmarkParam = (params.get('bookmark') || '').toLowerCase();
+        const enableBookmarks = (bookmarkParam === '' || bookmarkParam === '1' || bookmarkParam === 'true' || bookmarkParam === 'on');
+        if (enableBookmarks) {
+          const { BookmarkManager } = await import("./bookmark/bookmark-manager.js");
+          this.#bookmarkManager = new BookmarkManager(this.#eventBus);
+          this.#bookmarkManager.initialize();
+          this.#logger.info("BookmarkManager initialized (enabled by default; disable with ?bookmark=0).");
+        } else {
+          this.#logger.info("BookmarkManager disabled by URL param bookmark=0");
+        }
+      } catch (bmErr) {
+        const reason = bmErr && typeof bmErr === 'object' ? (bmErr.stack || bmErr.message || JSON.stringify(bmErr)) : bmErr;
+        this.#logger.warn("BookmarkManager init failed, continue without bookmarks", reason);
+      }
 
       this.#initialized = true;
       this.#logger.info("PDF Viewer App initialized successfully with container architecture.");
@@ -218,6 +238,9 @@ export class PDFViewerAppCore {
 
     this.#pdfManager.destroy();
     this.#uiManager.destroy();
+    if (this.#bookmarkManager) {
+      this.#bookmarkManager.destroy();
+    }
 
     this.#logger.info("PDF Viewer App destroyed.");
     this.#eventBus.emit(PDF_VIEWER_EVENTS.STATE.DESTROYED, undefined, {

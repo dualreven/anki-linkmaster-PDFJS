@@ -239,32 +239,189 @@ export const PDF_VIEWER_EVENTS = {
    */
   BOOKMARK: {
     /**
-     * 添加书签事件
-     * @event pdf-viewer:bookmark:add
-     * @type {string}
+     * 侧边栏控制事件
+     * @namespace SIDEBAR
      */
-    ADD: 'pdf-viewer:bookmark:add',
-    
+    SIDEBAR: {
+      /**
+       * 切换侧边栏显示/隐藏
+       * @event pdf-viewer:bookmark:sidebar:toggle
+       * @type {string}
+       */
+      TOGGLE: 'pdf-viewer:bookmark-sidebar:toggle',
+
+      /**
+       * 侧边栏已打开
+       * @event pdf-viewer:bookmark:sidebar:opened
+       * @type {string}
+       */
+      OPENED: 'pdf-viewer:bookmark-sidebar:opened',
+
+      /**
+       * 侧边栏已关闭
+       * @event pdf-viewer:bookmark:sidebar:closed
+       * @type {string}
+       */
+      CLOSED: 'pdf-viewer:bookmark-sidebar:closed',
+    },
+
     /**
-     * 删除书签事件
-     * @event pdf-viewer:bookmark:remove
-     * @type {string}
+     * 书签加载事件
+     * @namespace LOAD
      */
-    REMOVE: 'pdf-viewer:bookmark:remove',
-    
+    LOAD: {
+      /**
+       * 请求加载书签
+       * @event pdf-viewer:bookmark:load:requested
+       * @type {string}
+       */
+      REQUESTED: 'pdf-viewer:bookmark-load:requested',
+
+      /**
+       * 书签加载成功
+       * @event pdf-viewer:bookmark:load:success
+       * @type {string}
+       * @payload {Object} data
+       * @payload {Array<BookmarkNode>} data.bookmarks - 书签数据数组
+       * @payload {number} data.count - 书签总数（包括子书签）
+       * @payload {string} data.source - 数据来源 ('pdf' | 'local')
+       */
+      SUCCESS: 'pdf-viewer:bookmark-load:success',
+
+      /**
+       * 书签加载失败
+       * @event pdf-viewer:bookmark:load:failed
+       * @type {string}
+       * @payload {Object} data
+       * @payload {Error} data.error - 错误对象
+       * @payload {string} data.message - 错误消息
+       */
+      FAILED: 'pdf-viewer:bookmark-load:failed',
+
+      /**
+       * 书签为空（无书签）
+       * @event pdf-viewer:bookmark:load:empty
+       * @type {string}
+       */
+      EMPTY: 'pdf-viewer:bookmark-load:empty',
+    },
+
     /**
-     * 跳转到书签事件
-     * @event pdf-viewer:bookmark:goto
-     * @type {string}
+     * 书签导航事件
+     * @namespace NAVIGATE
      */
-    GOTO: 'pdf-viewer:bookmark:goto',
-    
+    NAVIGATE: {
+      /**
+       * 请求导航到书签
+       * @event pdf-viewer:bookmark:navigate:requested
+       * @type {string}
+       * @payload {Object} data
+       * @payload {BookmarkNode} data.bookmark - 被点击的书签对象
+       * @payload {number} data.timestamp - 触发时间戳
+       */
+      REQUESTED: 'pdf-viewer:bookmark-navigate:requested',
+
+      /**
+       * 导航成功
+       * @event pdf-viewer:bookmark:navigate:success
+       * @type {string}
+       * @payload {Object} data
+       * @payload {number} data.pageNumber - 目标页码
+       * @payload {Object} data.position - 目标位置 {x, y}
+       */
+      SUCCESS: 'pdf-viewer:bookmark-navigate:success',
+
+      /**
+       * 导航失败
+       * @event pdf-viewer:bookmark:navigate:failed
+       * @type {string}
+       * @payload {Object} data
+       * @payload {Error} data.error - 错误对象
+       * @payload {string} data.message - 错误消息
+       */
+      FAILED: 'pdf-viewer:bookmark-navigate:failed',
+    },
+
     /**
-     * 书签列表更新事件
-     * @event pdf-viewer:bookmark:list:updated
-     * @type {string}
+     * 书签创建事件（v002+ 预留）
+     * @namespace CREATE
      */
-    LIST_UPDATED: 'pdf-viewer:bookmark:list:updated',
+    CREATE: {
+      /**
+       * 请求创建书签
+       * @event pdf-viewer:bookmark:create:requested
+       * @type {string}
+       */
+      REQUESTED: 'pdf-viewer:bookmark-create:requested',
+
+      /**
+       * 创建成功
+       * @event pdf-viewer:bookmark:create:success
+       * @type {string}
+       */
+      SUCCESS: 'pdf-viewer:bookmark-create:success',
+
+      /**
+       * 创建失败
+       * @event pdf-viewer:bookmark:create:failed
+       * @type {string}
+       */
+      FAILED: 'pdf-viewer:bookmark-create:failed',
+    },
+
+    /**
+     * 书签更新事件（v002+ 预留）
+     * @namespace UPDATE
+     */
+    UPDATE: {
+      /**
+       * 请求更新书签
+       * @event pdf-viewer:bookmark:update:requested
+       * @type {string}
+       */
+      REQUESTED: 'pdf-viewer:bookmark-update:requested',
+
+      /**
+       * 更新成功
+       * @event pdf-viewer:bookmark:update:success
+       * @type {string}
+       */
+      SUCCESS: 'pdf-viewer:bookmark-update:success',
+
+      /**
+       * 更新失败
+       * @event pdf-viewer:bookmark:update:failed
+       * @type {string}
+       */
+      FAILED: 'pdf-viewer:bookmark-update:failed',
+    },
+
+    /**
+     * 书签删除事件（v002+ 预留）
+     * @namespace DELETE
+     */
+    DELETE: {
+      /**
+       * 请求删除书签
+       * @event pdf-viewer:bookmark:delete:requested
+       * @type {string}
+       */
+      REQUESTED: 'pdf-viewer:bookmark-delete:requested',
+
+      /**
+       * 删除成功
+       * @event pdf-viewer:bookmark:delete:success
+       * @type {string}
+       */
+      SUCCESS: 'pdf-viewer:bookmark-delete:success',
+
+      /**
+       * 删除失败
+       * @event pdf-viewer:bookmark:delete:failed
+       * @type {string}
+       */
+      FAILED: 'pdf-viewer:bookmark-delete:failed',
+    },
   },
   
   /**

@@ -6,6 +6,7 @@
 
 import { getLogger } from "../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
+import { setCurrentPDFDocument, clearCurrentPDFDocument } from "./current-document-registry.js";
 
 /**
  * PDF文档管理器类
@@ -31,6 +32,8 @@ export class PDFDocumentManager {
     this.closeDocument();
 
     this.#currentDocument = pdfDocument;
+    // 更新全局注册表
+    try { setCurrentPDFDocument(pdfDocument); } catch (_) {}
     this.#extractDocumentInfo();
 
     this.#logger.info(`Document loaded: ${this.#documentInfo.title || 'Untitled'}`);
@@ -112,6 +115,9 @@ export class PDFDocumentManager {
 
       this.#currentDocument = null;
       this.#documentInfo = null;
+
+      // 清空全局注册表
+      try { clearCurrentPDFDocument(); } catch (_) {}
 
       // 发布文档关闭事件
       this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.CLOSE, {}, { actorId: 'PDFDocumentManager' });
