@@ -306,6 +306,11 @@ export class WSClient {
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.ERROR;
           break;
         case "response":
+          // 静默处理日志确认响应，避免无订阅者警告
+          if (this.#isLogConfirmationResponse(message)) {
+            this.#logger.debug('Silently handling log confirmation response');
+            return; // 不发出事件
+          }
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
           break;
         case "system_status":
@@ -336,6 +341,23 @@ export class WSClient {
         actorId: 'WSClient'
       });
     }
+  }
+
+  /**
+   * 检测是否是日志确认响应（静默处理，避免无订阅者警告）
+   * @param {object} message - WebSocket消息
+   * @returns {boolean} 是否是日志确认响应
+   */
+  #isLogConfirmationResponse(message) {
+    // 检测特征：
+    // 1. type: "response"
+    // 2. message: "Console log recorded successfully"
+    // 3. data.logged: true
+    return (
+      message.type === 'response' &&
+      message.message === 'Console log recorded successfully' &&
+      message.data?.logged === true
+    );
   }
 
   /**
