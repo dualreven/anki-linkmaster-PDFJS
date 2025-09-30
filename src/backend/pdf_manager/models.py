@@ -198,16 +198,26 @@ class PDFFileList:
         return self.files.get(file_id)
     
     def get_all_files(self) -> list:
-        """获取所有PDF文件列表"""
-        return list(self.files.values())
+        """
+        获取所有PDF文件列表，按创建时间倒序排序（最新的在前）
+        """
+        files = list(self.files.values())
+        # 按创建时间倒序排序，确保最新添加的文件显示在前面
+        files.sort(key=lambda f: f.created_time if hasattr(f, 'created_time') and f.created_time else '', reverse=True)
+        return files
     
     def get_file_ids(self) -> list:
         """获取所有文件ID列表"""
         return list(self.files.keys())
     
     def get_files_info(self) -> list:
-        """获取所有文件的基本信息"""
-        return [file.get_file_info() for file in self.files.values()]
+        """
+        获取所有文件的基本信息，按创建时间倒序排序（最新的在前）
+        """
+        files = list(self.files.values())
+        # 按创建时间倒序排序
+        files.sort(key=lambda f: f.created_time if hasattr(f, 'created_time') and f.created_time else '', reverse=True)
+        return [file.get_file_info() for file in files]
     
     def clear(self) -> None:
         """清空文件列表"""
