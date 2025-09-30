@@ -140,6 +140,15 @@ export class TableWrapperCore {
   }
 
   /**
+   * 删除指定行
+   * @param {string} rowId - 行ID
+   * @returns {Promise|void} Promise对象或void
+   */
+  deleteRow(rowId) {
+    return this.#dataHandler.deleteRow(rowId);
+  }
+
+  /**
    * 清空表格数据
    * @returns {void}
    */

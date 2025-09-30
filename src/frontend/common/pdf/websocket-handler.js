@@ -116,7 +116,7 @@ export class WebSocketHandler {
   }
 
   /**
-   * 处理系统状态消息（包括 file_added 等广播事件）
+   * 处理系统状态消息（包括 file_added、file_removed 等广播事件）
    * @param {Object} data - system_status 消息对象
    * @returns {void}
    */
@@ -153,6 +153,37 @@ export class WebSocketHandler {
         );
 
         this.#manager.logger.info("[阶段4] 新文件已添加到列表，无需完整刷新");
+      }
+    } else if (eventType === "file_removed") {
+      const fileId = data?.data?.file_id;
+      this.#manager.logger.info("[删除-阶段4] 检测到文件删除事件:", fileId);
+
+      // 发布 UI 成功消息事件
+      this.#manager.eventBus.emit(
+        "ui:success:show",
+        "文件删除成功",
+        { actorId: "PDFManager" }
+      );
+
+      // 增量删除文件从本地列表（性能优化：避免完整刷新）
+      if (fileId) {
+        this.#manager.logger.info("[删除-阶段4] 从列表中移除文件");
+        const index = this.#manager.pdfs.findIndex(pdf => pdf.id === fileId);
+
+        if (index !== -1) {
+          const removedPdf = this.#manager.pdfs.splice(index, 1)[0];
+
+          // 发布增量删除事件，UI层会自动调用 deleteRow
+          this.#manager.eventBus.emit(
+            "pdf:file:removed",
+            removedPdf,
+            { actorId: "PDFManager" }
+          );
+
+          this.#manager.logger.info("[删除-阶段4] 文件已从列表移除，无需完整刷新");
+        } else {
+          this.#manager.logger.warn("[删除-阶段4] 在列表中未找到要删除的文件:", fileId);
+        }
       }
     }
   }

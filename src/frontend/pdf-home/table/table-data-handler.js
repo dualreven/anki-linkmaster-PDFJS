@@ -120,6 +120,47 @@ export class TableDataHandler {
   }
 
   /**
+   * 删除指定行
+   * @param {string} rowId - 行ID
+   * @returns {Promise|void} Promise对象或void
+   */
+  deleteRow(rowId) {
+    if (this.#fallbackMode) {
+      logger.info('Deleting row in fallback mode:', rowId);
+      const index = this.#fallbackData.findIndex(row => row.id === rowId);
+      if (index !== -1) {
+        this.#fallbackData.splice(index, 1);
+        this._callLocalListeners('row-deleted', rowId);
+      }
+      return Promise.resolve();
+    }
+
+    if (!this.#tabulator) {
+      logger.warn('No tabulator instance available for deleteRow');
+      return Promise.reject(new Error('Tabulator instance not available'));
+    }
+
+    logger.info('Deleting row from Tabulator:', rowId);
+
+    try {
+      // Tabulator 的删除方法
+      const row = this.#tabulator.getRow(rowId);
+      if (row) {
+        row.delete();
+        this._callLocalListeners('row-deleted', rowId);
+        logger.debug('Row deleted successfully');
+        return Promise.resolve();
+      } else {
+        logger.warn('Row not found for deletion:', rowId);
+        return Promise.reject(new Error('Row not found'));
+      }
+    } catch (error) {
+      logger.error('Error deleting row from tabulator:', error);
+      return Promise.reject(error);
+    }
+  }
+
+  /**
    * 清空表格数据
    * @returns {void}
    */

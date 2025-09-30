@@ -179,11 +179,27 @@ export class UIManager {
       try {
         const selectedRows = this.pdfTable.getSelectedRows();
         if (Array.isArray(selectedRows) && selectedRows.length > 0) {
-          // 使用新的对话框管理器
-          if (window.dialogManager) {
-            const confirmed = await window.dialogManager.confirm(`确定要删除选中的 ${selectedRows.length} 个PDF文件吗？`);
-            if (!confirmed) return;
-          } else {
+          // 使用 QWebChannel 确认对话框（删除-阶段1）
+          try {
+            const { QWebChannelBridge } = await import('./qwebchannel/qwebchannel-bridge.js');
+            const bridge = new QWebChannelBridge();
+            await bridge.initialize();
+
+            const fileCount = selectedRows.length;
+            const message = fileCount === 1
+              ? `确定要删除 "${selectedRows[0].title || selectedRows[0].filename}" 吗？`
+              : `确定要删除选中的 ${fileCount} 个文件吗？`;
+
+            this.#logger.info('[删除-阶段1] 显示确认对话框');
+            const confirmed = await bridge.showConfirmDialog('确认删除', message);
+
+            if (!confirmed) {
+              this.#logger.info('[删除-阶段1] 用户取消了删除操作');
+              return;
+            }
+            this.#logger.info('[删除-阶段1] 用户确认删除，继续执行');
+          } catch (error) {
+            this.#logger.error('[删除-阶段1] QWebChannel 确认对话框失败，降级到原生 confirm:', error);
             // 降级到原生confirm
             if (!confirm(`确定要删除选中的 ${selectedRows.length} 个PDF文件吗？`)) return;
           }

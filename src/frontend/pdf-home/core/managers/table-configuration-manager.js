@@ -85,6 +85,17 @@ export class TableConfigurationManager {
         this.#logger.warn(`[阶段4] 表格未初始化，无法增量添加行`);
       }
     }, { subscriberId: "TableConfigurationManager" });
+
+    // Listen for single file removal to delete row incrementally
+    this.#eventBus.on("pdf:file:removed", (removedPdf) => {
+      this.#logger.info(`[删除-阶段4] 收到文件删除事件:`, removedPdf.filename);
+      if (this.#tableWrapper) {
+        this.#logger.info(`[删除-阶段4] 增量删除表格行`);
+        this.#tableWrapper.deleteRow(removedPdf.id); // 根据ID删除
+      } else {
+        this.#logger.warn(`[删除-阶段4] 表格未初始化，无法增量删除行`);
+      }
+    }, { subscriberId: "TableConfigurationManager" });
   }
 
   /**

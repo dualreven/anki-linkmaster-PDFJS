@@ -13,7 +13,7 @@ Usage:
 import logging
 from pathlib import Path
 from PyQt6.QtCore import QObject, pyqtSlot
-from PyQt6.QtWidgets import QFileDialog
+from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
 logger = logging.getLogger("pdf-home.pyqt-bridge")
 
@@ -116,3 +116,43 @@ class PyQtBridge(QObject):
         except Exception as e:
             logger.error(f"[PyQtBridge] [阶段2] selectFiles 发生错误: {e}", exc_info=True)
             return []
+
+    @pyqtSlot(str, str, result=bool)
+    def showConfirmDialog(self, title, message):
+        """
+        显示确认对话框
+
+        通过 Qt 原生对话框让用户确认操作。
+
+        Args:
+            title (str): 对话框标题
+            message (str): 提示消息
+
+        Returns:
+            bool: 用户是否点击确认 (True=是, False=否)
+
+        Example:
+            confirmed = bridge.showConfirmDialog('确认删除', '确定要删除此文件吗？')
+            # 返回: True 或 False
+        """
+        logger.info(f"[PyQtBridge] [删除-阶段1] showConfirmDialog 被调用: title={title}")
+        logger.info(f"[PyQtBridge] [删除-阶段1] 消息内容: {message}")
+
+        try:
+            # 显示确认对话框
+            reply = QMessageBox.question(
+                self.parent,
+                title,
+                message,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No  # 默认选择"否"，防止误操作
+            )
+
+            confirmed = (reply == QMessageBox.StandardButton.Yes)
+            logger.info(f"[PyQtBridge] [删除-阶段1] 用户选择: {'确认' if confirmed else '取消'}")
+
+            return confirmed
+
+        except Exception as e:
+            logger.error(f"[PyQtBridge] [删除-阶段1] showConfirmDialog 发生错误: {e}", exc_info=True)
+            return False  # 发生错误时默认返回取消

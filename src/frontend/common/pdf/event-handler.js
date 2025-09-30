@@ -119,13 +119,21 @@ export class EventHandler {
     files.forEach((file, index) => {
       const fileEntry =
         this.#manager.pdfs.find((p) => p.id === file || p.filename === file) || null;
+
+      // 确保 file_id 是纯ID（不带 .pdf 后缀）
+      let fileId = file;
+      if (typeof fileId === "string" && fileId.endsWith(".pdf")) {
+        fileId = fileId.replace(/\.pdf$/, "");
+      }
+
       let filename = fileEntry
         ? fileEntry.filename
         : typeof file === "string"
         ? file
         : undefined;
       if (filename && !filename.endsWith(".pdf")) filename = `${filename}.pdf`;
-      const data = { file_id: file };
+
+      const data = { file_id: fileId };
       if (filename) data.filename = filename;
       data.batch_request_id = batchRequestId;
       data.batch_index = index + 1;

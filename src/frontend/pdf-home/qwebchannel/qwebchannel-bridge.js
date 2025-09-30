@@ -224,6 +224,50 @@ export class QWebChannelBridge {
     }
 
     /**
+     * 显示确认对话框
+     *
+     * 调用 PyQt 原生确认对话框，让用户确认操作。
+     *
+     * @param {string} title - 对话框标题
+     * @param {string} message - 提示消息
+     * @returns {Promise<boolean>} 用户是否确认 (true=确认, false=取消)
+     * @throws {Error} 如果 QWebChannel 未初始化
+     *
+     * @example
+     * const confirmed = await bridge.showConfirmDialog('确认删除', '确定要删除此文件吗？');
+     * if (confirmed) {
+     *     // 执行删除操作
+     * }
+     */
+    async showConfirmDialog(title, message) {
+        this.#logger.info(`[删除-阶段1] 调用 showConfirmDialog: title="${title}"`);
+        this.#logger.info(`[删除-阶段1] 消息: ${message}`);
+
+        if (!this.#isReady) {
+            throw new Error('QWebChannel 未初始化，请先调用 initialize()');
+        }
+
+        try {
+            // 调用 PyQt 方法并包装成 Promise
+            const confirmed = await new Promise((resolve, reject) => {
+                try {
+                    const result = this.#bridge.showConfirmDialog(title, message);
+                    resolve(result);
+                } catch (error) {
+                    reject(error);
+                }
+            });
+
+            this.#logger.info(`[删除-阶段1] 用户选择: ${confirmed ? '确认' : '取消'}`);
+            return confirmed;
+
+        } catch (error) {
+            this.#logger.error('[删除-阶段1] showConfirmDialog 失败:', error);
+            throw error;
+        }
+    }
+
+    /**
      * 获取桥接对象（用于调试）
      * @returns {Object|null} PyQt 桥接对象
      */
