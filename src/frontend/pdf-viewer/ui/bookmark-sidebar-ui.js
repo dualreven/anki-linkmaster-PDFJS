@@ -137,6 +137,7 @@ export class BookmarkSidebarUI {
       btn.style.overflow = 'hidden';
       btn.style.textOverflow = 'ellipsis';
       btn.addEventListener('click', () => {
+        this.#logger.info(`Bookmark clicked: ${node.title}, dest:`, node.dest);
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.REQUESTED,
           { bookmark: node, timestamp: Date.now() },

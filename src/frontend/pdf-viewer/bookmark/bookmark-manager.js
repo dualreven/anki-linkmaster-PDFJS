@@ -109,11 +109,14 @@ export class BookmarkManager {
   }
 
   async #handleNavigateRequested(data) {
+    this.#logger.info('Navigate requested, data:', data);
     try {
       const bookmark = data?.bookmark;
       if (!bookmark) throw new Error('bookmark is required');
 
+      this.#logger.info('Parsing destination:', bookmark.dest);
       const result = await this.#dataProvider.parseDestination(bookmark.dest);
+      this.#logger.info('Parsed destination result:', result);
 
       // 触发页面跳转（由导航模块处理）
       this.#eventBus.emit(
