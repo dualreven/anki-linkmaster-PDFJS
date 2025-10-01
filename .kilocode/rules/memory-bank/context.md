@@ -388,8 +388,8 @@ PDFManager的`handleResponseMessage`方法在处理WebSocket响应时，如果�
 ## pdf-viewer重构进展
 
 ### 当前状态
-- 最后更新: 2025-09-30 00:35
-- 阶段: 基础设施改进完成
+- 最后更新: 2025-10-01 20:46
+- 阶段: PDFViewer组件集成
 
 ### 已完成工作
 1. **分析了pdf-home的架构模式** (2025-09-29)
@@ -408,20 +408,65 @@ PDFManager的`handleResponseMessage`方法在处理WebSocket响应时，如果�
    - **创建bootstrap入口**: 新增`bootstrap/app-bootstrap.js`统一启动流程
    - **实现两阶段初始化**: app-core.js中先初始化容器，再连接WebSocket
 
+4. **PDFViewer组件集成问题分析与临时解决方案** (2025-10-01) ⚠️
+   - **问题**: AnnotationEditorType未定义导致PDFViewer初始化失败
+   - **根本原因**: pdfjs-dist v3.11.174在Vite构建环境下的兼容性问题
+     * PDFViewer组件内部依赖AnnotationEditorType等枚举类型
+     * Vite的依赖预构建过程中这些类型未正确导出
+     * 错误发生在pdfjs内部代码第6035行,不是参数配置问题
+   - **已尝试的方案**:
+     1. 添加EventBus和LinkService配置 - 失败
+     2. 移除annotationEditorMode参数 - 失败
+     3. 多次修改配置参数 - 均失败
+   - **临时解决方案**:
+     * 禁用PDFViewer组件的使用
+     * 保留现有的canvas-based PDF渲染方式
+     * 简化PDFViewerManager为容器管理器
+   - **修改文件**: `src/frontend/pdf-viewer/pdf-viewer-manager.js:1-62`
+   - **未来改进方向**:
+     1. 研究正确的Vite配置支持pdfjs-dist v3.11
+     2. 考虑降级到pdfjs-dist v2.x
+     3. 等待pdfjs-dist v3.12+修复
+     4. 参考pdfjs官方Vite集成示例
+
 ### 技术要点
 - EventBus从创建实例改为使用`eventBusSingleton`
 - 容器新增`initialize()`和`isInitialized()`方法
 - Bootstrap模式解析配置并动态加载应用
 - 与pdf-home保持架构一致性
+- **PDF.js需要独立的EventBus系统**,不能复用应用EventBus
+- **LinkService是PDF链接导航的必需组件**
+- **annotationEditorMode设为0可避免AnnotationEditorType相关错误**
 
 ### 验证结果
 - EventBus单例正常工作，事件订阅和发布正常
 - 容器初始化成功，两阶段初始化按预期执行
 - WebSocket连接成功建立到ws://localhost:8765
 - Console桥接器成功从早期桥接器切换到主桥接器
+- **待验证**: PDFViewer初始化修复效果(需重启服务测试)
 
 ### 相关文档
 - `AItemp/pdf-viewer-refactoring-plan.md` - 完整重构方案
 - `AItemp/pdf-viewer-infrastructure-loading.md` - 基础设施加载详细说明
-- `AItemp/20250930003500-AI-Working-log.md` - 本次改进的工作日志
+- `AItemp/20250930003500-AI-Working-log.md` - 基础设施改进工作日志
+- `AItemp/20251001204624-AI-Working-log.md` - PDFViewer初始化错误修复
+
+### 下一步 (已完成)
+- ✅ 用户重启服务并测试修复效果
+- ✅ 查看日志解决渲染问题
+- ✅ 实现渲染模式切换功能
+
+### 最新进展 (2025-10-01 21:01)
+- ✅ **修复renderPage方法缺失**: 在UIManager中添加委托方法
+- ✅ **新增渲染模式切换功能**: 用户可在Canvas和PDFViewer模式间切换
+- ✅ **修复PDFViewer模式空白**: 实现切换时的自动重新渲染
+- 📝 **工作日志**: `AItemp/20251001204624-AI-Working-log.md` 记录完整修复过程
+
+### 渲染模式切换功能
+- **UI**: HTML中新增切换按钮
+- **管理器**: `render-mode-manager.js` 管理模式状态和切换
+- **渲染**: 两种模式分别渲染到不同容器
+  * Canvas模式 → #pdf-canvas
+  * PDFViewer模式 → #viewer (动态创建canvas)
+- **切换**: 自动重新渲染当前页面,保持状态
 
