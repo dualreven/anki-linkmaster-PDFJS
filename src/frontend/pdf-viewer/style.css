@@ -72,6 +72,44 @@ h1 {
     color: #333;
 }
 
+/* 布局控制样式 */
+.layout-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #f8f9fa;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+}
+
+.layout-controls select {
+    padding: 4px 8px;
+    border: 1px solid #ddd;
+    background-color: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+/* 旋转控制样式 */
+.rotation-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #f8f9fa;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+}
+
+.rotation-controls .btn {
+    padding: 4px 8px;
+    min-width: 32px;
+    font-weight: bold;
+    font-size: 18px;
+}
+
 /* 缩放控制样式 */
 .zoom-controls {
     display: flex;

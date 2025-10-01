@@ -8,6 +8,7 @@ import { UIManagerCore } from "./ui/ui-manager-core-refactored.js";
 import { UIZoomControls } from "./ui-zoom-controls.js";
 import { UIProgressError } from "./ui-progress-error.js";
 import { PDFViewerManager } from "./pdf-viewer-manager.js";
+import { UILayoutControls } from "./ui-layout-controls.js";
 import { getLogger } from "../common/utils/logger.js";
 
 /**
@@ -21,6 +22,7 @@ export class UIManager {
   #zoomControls;
   #progressError;
   #pdfViewerManager;
+  #layoutControls;
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
@@ -31,6 +33,7 @@ export class UIManager {
     this.#zoomControls = new UIZoomControls(eventBus);
     this.#progressError = new UIProgressError(eventBus);
     this.#pdfViewerManager = new PDFViewerManager(this.#eventBus);
+    this.#layoutControls = new UILayoutControls(this.#eventBus);
   }
 
   /**
@@ -54,6 +57,9 @@ export class UIManager {
       // PDFViewer需要使用包含#viewer的容器元素
       const viewerContainer = document.getElementById("viewerContainer");
       this.#pdfViewerManager.initialize(viewerContainer);
+
+      // 初始化布局控件
+      this.#layoutControls.setup(this.#pdfViewerManager);
 
       this.#logger.info("UI Manager initialized successfully");
     } catch (error) {
@@ -174,14 +180,16 @@ export class UIManager {
    */
   destroy() {
     this.#logger.info("Destroying UI Manager");
-    
+
     this.#core.destroy();
     this.#zoomControls.destroy();
     this.#progressError.destroy();
-    
+    this.#layoutControls.destroy();
+
     this.#core = null;
     this.#zoomControls = null;
     this.#progressError = null;
     this.#pdfViewerManager = null;
+    this.#layoutControls = null;
   }
 }

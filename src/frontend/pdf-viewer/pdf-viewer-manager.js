@@ -14,7 +14,13 @@ if (typeof globalThis !== 'undefined') {
   window.pdfjsLib = pdfjsLib;
 }
 
-import { EventBus, PDFViewer, PDFLinkService } from "@pdfjs/web/pdf_viewer.mjs";
+import {
+  EventBus,
+  PDFViewer,
+  PDFLinkService,
+  ScrollMode,
+  SpreadMode
+} from "@pdfjs/web/pdf_viewer.mjs";
 
 /**
  * @class PDFViewerManager
@@ -230,5 +236,21 @@ export class PDFViewerManager {
    */
   get pagesCount() {
     return this.#pdfViewer?.pagesCount || 0;
+  }
+
+  /**
+   * 获取ScrollMode常量
+   * @returns {Object} ScrollMode枚举
+   */
+  static get ScrollMode() {
+    return ScrollMode;
+  }
+
+  /**
+   * 获取SpreadMode常量
+   * @returns {Object} SpreadMode枚举
+   */
+  static get SpreadMode() {
+    return SpreadMode;
   }
 }
