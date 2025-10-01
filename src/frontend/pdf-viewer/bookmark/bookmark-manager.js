@@ -20,8 +20,7 @@ export class BookmarkManager {
 
   constructor(eventBus, options = {}) {
     this.#eventBus = eventBus;
-    this.#logger = { info: () => {}, warn: () => {}, error: () => {} }; // 临时禁用日志
-    // this.#logger = getLogger("BookmarkManager");
+    this.#logger = getLogger("BookmarkManager");
     this.#dataProvider = options.dataProvider || new BookmarkDataProvider();
     this.#ui = null; // 初始化时创建
   }
@@ -35,7 +34,7 @@ export class BookmarkManager {
 
     // 初始化侧边栏UI（挂载到容器）
     try {
-      const container = document.getElementById('pdf-container');
+      const container = document.getElementById('viewerContainer');
       this.#ui = new BookmarkSidebarUI(this.#eventBus, { container });
       this.#ui.initialize();
     } catch (e) {

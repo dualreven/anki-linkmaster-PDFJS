@@ -19,7 +19,7 @@ export class BookmarkSidebarUI {
   constructor(eventBus, options = {}) {
     this.#eventBus = eventBus;
     this.#logger = getLogger('BookmarkSidebarUI');
-    this.#container = options.container || document.getElementById('pdf-container');
+    this.#container = options.container || document.getElementById('viewerContainer');
     this.#sidebar = null;
   }
 
