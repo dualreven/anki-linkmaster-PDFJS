@@ -89,8 +89,11 @@ export class UILayoutControls {
       this.#scrollModeSelect.addEventListener('change', (e) => {
         const mode = parseInt(e.target.value, 10);
         this.#logger.info(`Changing scroll mode to: ${mode}`);
-        if (this.#pdfViewerManager) {
+        if (this.#pdfViewerManager && this.#pdfViewerManager.viewer) {
           this.#pdfViewerManager.scrollMode = mode;
+          // 触发PDFViewer更新
+          this.#pdfViewerManager.viewer.update();
+          this.#logger.info(`Scroll mode updated and view refreshed`);
         }
       });
     }
@@ -100,8 +103,11 @@ export class UILayoutControls {
       this.#spreadModeSelect.addEventListener('change', (e) => {
         const mode = parseInt(e.target.value, 10);
         this.#logger.info(`Changing spread mode to: ${mode}`);
-        if (this.#pdfViewerManager) {
+        if (this.#pdfViewerManager && this.#pdfViewerManager.viewer) {
           this.#pdfViewerManager.spreadMode = mode;
+          // 触发PDFViewer更新
+          this.#pdfViewerManager.viewer.update();
+          this.#logger.info(`Spread mode updated and view refreshed`);
         }
       });
     }
@@ -127,7 +133,7 @@ export class UILayoutControls {
    * @private
    */
   #rotatePages(degrees) {
-    if (!this.#pdfViewerManager) return;
+    if (!this.#pdfViewerManager || !this.#pdfViewerManager.viewer) return;
 
     const currentRotation = this.#pdfViewerManager.pagesRotation || 0;
     let newRotation = (currentRotation + degrees) % 360;
@@ -137,6 +143,10 @@ export class UILayoutControls {
 
     this.#logger.info(`Rotating pages: ${currentRotation}° -> ${newRotation}°`);
     this.#pdfViewerManager.pagesRotation = newRotation;
+
+    // 触发PDFViewer更新
+    this.#pdfViewerManager.viewer.update();
+    this.#logger.info(`Pages rotated and view refreshed`);
   }
 
   /**

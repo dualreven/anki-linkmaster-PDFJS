@@ -201,33 +201,22 @@ export class PDFViewerAppCore {
    * 渲染PDF到#viewer容器(PDFViewer模式)
    * @param {Object} page - PDF页面对象
    * @param {Object} viewport - 视口对象
+   * @description 在PDFViewer模式下，PDFViewer组件会通过setDocument()自动渲染所有页面，
+   *              因此此方法不需要手动渲染。只需确保#viewer容器可见并让PDFViewer接管即可。
    */
   async renderToViewer(page, viewport) {
-    const viewerContainer = document.getElementById('viewer');
-    if (!viewerContainer) {
-      throw new Error('Viewer container not found');
+    // PDFViewer组件已经通过setDocument()自动渲染了所有页面
+    // 我们不需要手动创建canvas或渲染
+    // PDFViewer会在#viewer元素内自动创建并管理所有页面的canvas
+
+    this.#logger.info(`PDFViewer mode: rendering handled automatically by PDFViewer component`);
+
+    // 可选：如果需要跳转到特定页面，可以设置currentPageNumber
+    if (this.#uiManager && this.#uiManager.pdfViewerManager) {
+      const currentPage = this.#currentPage || 1;
+      this.#uiManager.pdfViewerManager.currentPageNumber = currentPage;
+      this.#logger.info(`Set PDFViewer to page ${currentPage}`);
     }
-
-    // 清空viewer容器
-    viewerContainer.innerHTML = '';
-
-    // 创建canvas元素
-    const canvas = document.createElement('canvas');
-    canvas.id = 'viewer-canvas';
-    canvas.className = 'viewer-canvas';
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    viewerContainer.appendChild(canvas);
-
-    // 渲染PDF页面
-    const context = canvas.getContext('2d');
-    const renderContext = {
-      canvasContext: context,
-      viewport: viewport
-    };
-
-    await page.render(renderContext).promise;
-    this.#logger.info(`Rendered page to viewer container: ${viewport.width}x${viewport.height}`);
   }
 
   /**

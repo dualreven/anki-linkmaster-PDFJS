@@ -169,6 +169,14 @@ export class UIManager {
   }
 
   /**
+   * 获取PDFViewerManager实例
+   * @returns {PDFViewerManager}
+   */
+  get pdfViewerManager() {
+    return this.#pdfViewerManager;
+  }
+
+  /**
    * 清理UI资源
    */
   cleanup() {
