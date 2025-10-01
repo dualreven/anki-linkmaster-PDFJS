@@ -129,6 +129,11 @@ export class PDFViewerAppCore {
       this.#eventBus.emit(PDF_VIEWER_EVENTS.STATE.INITIALIZED, undefined, {
         actorId: 'PDFViewerApp'
       });
+
+      // 监听PDF加载成功事件
+      this.#eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, ({ pdfDocument }) => {
+        this.#uiManager.loadPdfDocument(pdfDocument);
+      });
     } catch (error) {
       this.#logger.error("Application initialization failed.", error);
       this.#errorHandler.handleError(error, "App.initialize");
