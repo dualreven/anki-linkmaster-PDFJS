@@ -161,10 +161,13 @@ export class UIManagerCore {
    * @private
    */
   #setupWheelListener() {
-    const container = this.#domManager.getElement('container');
+    // 使用viewerContainer而不是旧的container（已隐藏）
+    const container = document.getElementById('viewerContainer');
     if (container) {
       container.addEventListener('wheel', this.#handleWheel.bind(this), { passive: false });
-      this.#logger.info("Wheel event listener setup");
+      this.#logger.info("Wheel event listener setup on viewerContainer");
+    } else {
+      this.#logger.error("viewerContainer not found for wheel listener");
     }
   }
 
@@ -461,7 +464,7 @@ export class UIManagerCore {
     }
 
     // 移除滚轮事件
-    const container = this.#domManager.getElement('container');
+    const container = document.getElementById('viewerContainer');
     if (container) {
       container.removeEventListener('wheel', this.#handleWheel.bind(this));
     }
