@@ -170,14 +170,29 @@ def _port_is_listening(port: int, host: str = "127.0.0.1") -> bool:
     """
     Checks if a port is actively listening (can be connected to).
     Used to verify that a service has successfully started.
+    Tries both IPv4 and IPv6.
     """
+    # Try IPv4
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(1.0)
             result = s.connect_ex((host, port))
-            return result == 0  # 0 = connection successful
+            if result == 0:
+                return True
     except Exception:
-        return False
+        pass
+
+    # Try IPv6
+    try:
+        with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as s:
+            s.settimeout(1.0)
+            result = s.connect_ex(("::1", port))
+            if result == 0:
+                return True
+    except Exception:
+        pass
+
+    return False
 
 
 def _allocate_ports(cli: argparse.Namespace) -> Dict[str, int]:
@@ -365,17 +380,31 @@ def _start_vite(npm_port: int) -> Optional[int]:
     pid = service.proc_manager.get_pid()
 
     if ok and pid:
-        # Verify that Vite successfully bound to the port
-        LOGGER.info("Waiting for Vite to start listening on port %s...", npm_port)
+        # Verify that Vite successfully bound to a port
+        # Note: Vite may auto-increment port if requested port is busy
+        LOGGER.info("Waiting for Vite to start listening (requested port: %s)...", npm_port)
         max_wait = 30  # 30 seconds timeout
+        actual_port = None
+
         for i in range(max_wait):
             time.sleep(1.0)
 
-            # Check if Vite is listening
+            # Check if Vite is listening on the requested port
             if _port_is_listening(npm_port):
-                LOGGER.info("✓ Vite successfully started on port %s", npm_port)
-                _save_dev_process(pid, npm_port, f"pnpm run dev -- --port {npm_port}")
-                return pid
+                actual_port = npm_port
+                LOGGER.info("✓ Vite successfully started on requested port %s", npm_port)
+                break
+
+            # Check if Vite auto-incremented to nearby ports (3001, 3002, etc.)
+            for port_offset in range(1, 10):
+                check_port = npm_port + port_offset
+                if _port_is_listening(check_port):
+                    actual_port = check_port
+                    LOGGER.warning("⚠ Vite started on port %s (requested %s was busy)", check_port, npm_port)
+                    break
+
+            if actual_port:
+                break
 
             # Check if process died
             if not is_process_running(pid):
@@ -383,12 +412,16 @@ def _start_vite(npm_port: int) -> Optional[int]:
                 _save_dev_process(None, npm_port, f"pnpm run dev -- --port {npm_port}")
                 return None
 
-        # Timeout - Vite didn't start listening
-        LOGGER.error("✗ Vite failed to start listening within %s seconds", max_wait)
-        LOGGER.error("  Killing Vite process (PID: %s)", pid)
-        kill_process(pid)
-        _save_dev_process(None, npm_port, f"pnpm run dev -- --port {npm_port}")
-        return None
+        if actual_port:
+            _save_dev_process(pid, actual_port, f"pnpm run dev -- --port {npm_port} (actual: {actual_port})")
+            return pid
+        else:
+            # Timeout - Vite didn't start listening
+            LOGGER.error("✗ Vite failed to start listening within %s seconds", max_wait)
+            LOGGER.error("  Killing Vite process (PID: %s)", pid)
+            kill_process(pid)
+            _save_dev_process(None, npm_port, f"pnpm run dev -- --port {npm_port}")
+            return None
 
     _save_dev_process(pid if ok else None, npm_port, f"pnpm run dev -- --port {npm_port}")
     return pid if ok else None
