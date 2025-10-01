@@ -348,10 +348,20 @@ export class EventBus {
 
     if (subscribers && subscribers.size > 0) {
       if (!SUPPRESSED_EVENT_LOGS.has(event)) {
+        // 安全地截断data到200字符以减少日志输出
+        let truncatedData;
+        try {
+          const dataStr = JSON.stringify(data);
+          truncatedData = dataStr.length > 200 ? dataStr.substring(0, 200) + '...' : dataStr;
+        } catch (err) {
+          // JSON.stringify可能失败（循环引用等），使用原始data
+          truncatedData = data;
+        }
+
         this.#log("event", `${event} (发布 by ${actorId || "unknown"})`, "发布", {
           actorId,
           subscriberCount: subscribers.size,
-          data,
+          data: truncatedData,
           messageId, // 添加追踪信息到日志
           traceId
         });
@@ -405,11 +415,21 @@ export class EventBus {
       }
     } else {
       if (!SUPPRESSED_EVENT_LOGS.has(event)) {
+        // 安全地截断data到200字符以减少日志输出
+        let truncatedData;
+        try {
+          const dataStr = JSON.stringify(data);
+          truncatedData = dataStr.length > 200 ? dataStr.substring(0, 200) + '...' : dataStr;
+        } catch (err) {
+          // JSON.stringify可能失败（循环引用等），使用原始data
+          truncatedData = data;
+        }
+
         // 没有订阅者时也要记录日志
         this.#log("event", `${event} (发布 by ${actorId || "unknown"}) - 无订阅者`, "发布", {
           actorId,
           subscriberCount: 0,
-          data,
+          data: truncatedData,
           messageId,
           traceId
         });

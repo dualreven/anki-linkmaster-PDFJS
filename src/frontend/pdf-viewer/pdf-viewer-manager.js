@@ -77,8 +77,16 @@ export class PDFViewerManager {
         enableHWA: true
       });
 
+      // 查找viewer元素（显示PDF页面的容器）
+      const viewerElement = this.#container.querySelector('.pdfViewer') ||
+                           this.#container.querySelector('#viewer') ||
+                           this.#container.firstElementChild;
+
+      this.#logger.info(`Found viewer element:`, viewerElement);
+
       this.#pdfViewer = new PDFViewer({
         container: this.#container,
+        viewer: viewerElement, // 明确指定viewer元素
         eventBus: pdfjsEventBus,
         linkService: this.#linkService,
         textLayerMode: 2, // 启用增强文本层
@@ -109,9 +117,43 @@ export class PDFViewerManager {
       return;
     }
 
-    this.#pdfViewer.setDocument(pdfDocument);
-    this.#linkService.setDocument(pdfDocument);
+    this.#logger.info("Before setDocument, checking viewer state...");
+    this.#logger.info(`PDFViewer instance exists: ${!!this.#pdfViewer}`);
+    this.#logger.info(`pdfDocument: ${pdfDocument}, numPages: ${pdfDocument?.numPages}`);
+    this.#logger.info(`Container element: ${this.#container?.tagName}.${this.#container?.className}`);
+    this.#logger.info(`Container innerHTML length: ${this.#container?.innerHTML?.length || 0}`);
+
+    try {
+      this.#logger.info("Calling pdfViewer.setDocument...");
+      this.#pdfViewer.setDocument(pdfDocument);
+      this.#logger.info("setDocument returned successfully");
+
+      this.#logger.info("Calling linkService.setDocument...");
+      this.#linkService.setDocument(pdfDocument);
+      this.#logger.info("linkService.setDocument returned successfully");
+
+      this.#logger.info("Immediately after setDocument:");
+      this.#logger.info(`  pdfViewer.pdfDocument: ${!!this.#pdfViewer.pdfDocument}`);
+      this.#logger.info(`  pdfViewer.pagesCount: ${this.#pdfViewer.pagesCount}`);
+    } catch (error) {
+      this.#logger.error("Error during setDocument:", error);
+    }
+
     this.#logger.info("PDF document loaded into PDFViewer");
+
+    // 等待一下，然后检查是否有页面被渲染
+    setTimeout(() => {
+      this.#logger.info("After setDocument (2s delay), checking viewer content...");
+      const viewerElement = this.#container.querySelector('.pdfViewer') || this.#container.querySelector('#viewer');
+      this.#logger.info(`Viewer element innerHTML length: ${viewerElement?.innerHTML?.length || 0}`);
+      this.#logger.info(`Viewer element children count: ${viewerElement?.children?.length || 0}`);
+      if (viewerElement && viewerElement.children.length > 0) {
+        this.#logger.info(`First child: ${viewerElement.children[0].tagName}.${viewerElement.children[0].className}`);
+      }
+      this.#logger.info(`PDFViewer.pagesCount: ${this.#pdfViewer.pagesCount}`);
+      this.#logger.info(`PDFViewer.currentPageNumber: ${this.#pdfViewer.currentPageNumber}`);
+      this.#logger.info(`PDFViewer.currentScale: ${this.#pdfViewer.currentScale}`);
+    }, 2000);
   }
 
   /**

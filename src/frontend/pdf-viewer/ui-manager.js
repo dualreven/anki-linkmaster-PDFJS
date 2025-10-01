@@ -54,7 +54,9 @@ export class UIManager {
       await this.#zoomControls.setupZoomControls(container);
       this.#progressError.setupProgressAndErrorUI(container);
 
-      // PDFViewer需要使用包含#viewer的容器元素
+      // PDFViewer需要外层滚动容器，但HTML中有#viewerContainer和#viewer两层
+      // 根据PDF.js要求，container应该是滚动容器，PDFViewer会在其中查找.pdfViewer元素
+      // 所以传入#viewerContainer，让PDFViewer自动找到#viewer.pdfViewer
       const viewerContainer = document.getElementById("viewerContainer");
       this.#pdfViewerManager.initialize(viewerContainer);
 

@@ -170,23 +170,22 @@ main {
     box-sizing: border-box;
 }
 
+/* viewerContainer是PDFViewer的外层容器 */
 .pdf-container {
-    /* PDFViewer 要求容器必须使用绝对定位 */
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    display: flex;
-    justify-content: center;
-    /* 让内容自顶部开始排列，避免垂直居中时顶端空间被 main 的 overflow 隐藏 */
-    align-items: flex-start;
     background-color: #f0f0f0;
     overflow: auto;
-    /* 为上下各留出安全内边距，避免canvas被裁切 */
-    padding-top: 16px;
-    padding-bottom: 16px;
     box-sizing: border-box;
+}
+
+/* PDFViewer组件容器 - 必须让PDF.js完全控制布局 */
+#viewer.pdfViewer {
+    /* 不添加任何样式，让PDF.js的官方CSS完全控制 */
+    /* PDF.js会自动管理内部的.page元素布局 */
 }
 
 /* PDF页面包装器 - 包含canvas和文字层的相对定位容器 */

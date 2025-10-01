@@ -20,7 +20,8 @@ export class BookmarkManager {
 
   constructor(eventBus, options = {}) {
     this.#eventBus = eventBus;
-    this.#logger = getLogger("BookmarkManager");
+    this.#logger = { info: () => {}, warn: () => {}, error: () => {} }; // 临时禁用日志
+    // this.#logger = getLogger("BookmarkManager");
     this.#dataProvider = options.dataProvider || new BookmarkDataProvider();
     this.#ui = null; // 初始化时创建
   }

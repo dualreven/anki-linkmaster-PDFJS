@@ -342,6 +342,7 @@ export class FileHandler {
       PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
       {
         file: fileData,
+        pdfDocument: pdfDocument,  // ✅ 添加pdfDocument字段，保持与PDFManager的事件数据结构一致
         totalPages: pdfDocument.numPages
       },
       { actorId: 'FileHandler' }
