@@ -99,6 +99,9 @@ export class PDFViewerManager {
       this.#logger.info("PDFViewer instance created");
       this.#linkService.setViewer(this.#pdfViewer);
 
+      // 监听PDFViewer的事件并桥接到应用EventBus
+      this.#setupEventBridge(pdfjsEventBus);
+
       this.#logger.info("PDFViewer initialized with full functionality");
     } catch (error) {
       this.#logger.error("Failed to initialize PDFViewer:", error);
@@ -311,5 +314,36 @@ export class PDFViewerManager {
    */
   static get SpreadMode() {
     return SpreadMode;
+  }
+
+  /**
+   * 设置PDF.js EventBus到应用EventBus的事件桥接
+   * @param {EventBus} pdfjsEventBus - PDF.js的EventBus实例
+   * @private
+   */
+  #setupEventBridge(pdfjsEventBus) {
+    // 监听页面变化事件
+    pdfjsEventBus.on('pagechanging', (evt) => {
+      const pageNumber = evt.pageNumber;
+      this.#logger.info(`PDFViewer page changing to ${pageNumber}`);
+
+      // 发送到应用EventBus（如果需要）
+      if (this.#eventBus) {
+        this.#eventBus.emit('pdfviewer:pagechanging', { pageNumber }, { actorId: 'PDFViewerManager' });
+      }
+    });
+
+    // 监听缩放变化事件
+    pdfjsEventBus.on('scalechanging', (evt) => {
+      const scale = evt.scale;
+      this.#logger.info(`PDFViewer scale changing to ${scale}`);
+
+      // 发送到应用EventBus（如果需要）
+      if (this.#eventBus) {
+        this.#eventBus.emit('pdfviewer:scalechanging', { scale }, { actorId: 'PDFViewerManager' });
+      }
+    });
+
+    this.#logger.info("PDFViewer event bridge setup complete");
   }
 }

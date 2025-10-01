@@ -223,20 +223,20 @@ export class ZoomHandler {
   }
 
   /**
-   * 应用缩放设置
+   * 应用缩放设置(使用PDFViewer)
    * @private
    */
   async #applyZoom() {
     if (!this.#validateZoomPreconditions()) return;
 
     try {
-      // 重新渲染当前页面
-      const page = await this.#app.pdfManager.getPage(this.#app.currentPage);
-      const viewport = page.getViewport({ scale: this.#app.zoomLevel });
-
-      await this.#app.uiManager.renderPage(page, viewport);
-
-      this.#logger.debug(`Zoom applied: ${this.#app.zoomLevel.toFixed(2)}`);
+      // 使用PDFViewer的currentScale属性设置缩放
+      if (this.#app.uiManager.pdfViewerManager) {
+        this.#app.uiManager.pdfViewerManager.currentScale = this.#app.zoomLevel;
+        this.#logger.debug(`PDFViewer zoom applied: ${this.#app.zoomLevel.toFixed(2)}`);
+      } else {
+        this.#logger.warn("PDFViewerManager not available for zoom");
+      }
 
     } catch (error) {
       this.#logger.error("Failed to apply zoom:", error);
