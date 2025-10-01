@@ -91,10 +91,14 @@ export class DOMElementManager {
    * @private
    */
   #createMissingElements() {
-    // [已废弃] 不再创建旧版pdf-container - 现在使用HTML中的viewerContainer
-    // 保留此方法以防其他代码依赖，但不再创建container元素
+    // [已废弃] 创建旧版容器但立即隐藏 - 现在使用HTML中的viewerContainer
     if (!this.#elements.container) {
-      this.#logger.warn("Legacy pdf-container not found - this is expected, using viewerContainer instead");
+      this.#elements.container = document.createElement("div");
+      this.#elements.container.id = "pdf-container";
+      this.#elements.container.className = "pdf-container";
+      this.#elements.container.style.display = "none"; // 隐藏旧版容器，避免遮挡页面
+      document.body.appendChild(this.#elements.container);
+      this.#logger.info("Created legacy PDF container (hidden)");
     }
 
     // [已废弃] 创建画布 - Canvas模式已移除，但保留以防旧代码调用

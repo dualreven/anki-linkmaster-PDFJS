@@ -180,24 +180,18 @@ export class BookmarkSidebarUI {
   show() {
     if (this.#sidebar) this.#sidebar.style.display = 'block';
     if (this.#toggleBtn) this.#toggleBtn.style.display = 'none';
-    // 调整viewerContainer的left位置，为侧边栏留出空间（因为viewerContainer是absolute定位）
+    // 调整viewerContainer左边距，为侧边栏留出空间
     const viewerContainer = document.getElementById('viewerContainer');
-    if (viewerContainer) {
-      viewerContainer.style.left = '260px';
-      viewerContainer.style.width = 'calc(100% - 260px)';
-    }
+    if (viewerContainer) viewerContainer.style.marginLeft = '260px';
     this.#eventBus.emit(PDF_VIEWER_EVENTS.BOOKMARK.SIDEBAR.OPENED, {}, { actorId: 'BookmarkSidebarUI' });
   }
 
   hide() {
     if (this.#sidebar) this.#sidebar.style.display = 'none';
     if (this.#toggleBtn) this.#toggleBtn.style.display = 'block';
-    // 恢复viewerContainer的left位置
+    // 恢复viewerContainer左边距
     const viewerContainer = document.getElementById('viewerContainer');
-    if (viewerContainer) {
-      viewerContainer.style.left = '0';
-      viewerContainer.style.width = '100%';
-    }
+    if (viewerContainer) viewerContainer.style.marginLeft = '0';
     this.#eventBus.emit(PDF_VIEWER_EVENTS.BOOKMARK.SIDEBAR.CLOSED, {}, { actorId: 'BookmarkSidebarUI' });
   }
 
