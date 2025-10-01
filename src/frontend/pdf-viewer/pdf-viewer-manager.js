@@ -2,10 +2,12 @@
  * @file PDF Viewer Manager
  * @module PDFViewerManager
  * @description Manages the PDF.js PDFViewer component.
+ *
+ * IMPORTANT: This file is NOT using PDFViewer due to AnnotationEditorType errors.
+ * Instead, we render PDFs manually using the page rendering API.
  */
 
 import { getLogger } from "../common/utils/logger.js";
-import { PDFViewer } from "pdfjs-dist/web/pdf_viewer.js";
 
 /**
  * @class PDFViewerManager
@@ -13,7 +15,6 @@ import { PDFViewer } from "pdfjs-dist/web/pdf_viewer.js";
  */
 export class PDFViewerManager {
   #logger;
-  #viewer = null;
   #container = null;
   #eventBus = null;
 
@@ -23,41 +24,39 @@ export class PDFViewerManager {
   }
 
   /**
-   * Initializes the PDFViewer.
+   * Initializes the PDF container.
+   * NOTE: We are NOT using pdfjs PDFViewer component due to AnnotationEditorType issues.
    * @param {HTMLElement} container - The container element for the viewer.
    */
   initialize(container) {
     this.#container = container;
     if (!this.#container) {
-      this.#logger.error("PDFViewer container not found!");
+      this.#logger.error("PDF container not found!");
       return;
     }
-    this.#viewer = new PDFViewer({
-      container: this.#container,
-      eventBus: this.#eventBus,
-      // Other PDFViewer options can be added here
-    });
-    this.#logger.info("PDFViewer initialized");
+
+    this.#logger.info("PDF container initialized (no PDFViewer component, using manual rendering)");
   }
 
   /**
-   * Loads a PDF document into the viewer.
+   * Loads a PDF document.
+   * NOTE: This is a placeholder. Actual rendering happens elsewhere.
    * @param {PDFDocumentProxy} pdfDocument - The PDF document to load.
    */
   load(pdfDocument) {
-    if (!this.#viewer) {
-      this.#logger.error("PDFViewer not initialized. Call initialize() first.");
+    if (!this.#container) {
+      this.#logger.error("PDF container not initialized. Call initialize() first.");
       return;
     }
-    this.#viewer.setDocument(pdfDocument);
-    this.#logger.info("PDF document loaded into viewer");
+    this.#logger.info("PDF document ready (using canvas-based rendering)");
+    // The actual rendering will be done by ui-canvas-render or similar
   }
 
   /**
-   * Gets the PDFViewer instance.
-   * @returns {PDFViewer} The PDFViewer instance.
+   * Gets the container element.
+   * @returns {HTMLElement} The container element.
    */
-  get viewer() {
-    return this.#viewer;
+  get container() {
+    return this.#container;
   }
 }

@@ -33,11 +33,19 @@ export class PDFViewerApp extends PDFViewerAppCore {
   async initialize() {
     try{
       this.logger.info("Initializing PDF Viewer App...");
+      this.logger.info("[App.initialize] Step 1: Setting up event handlers...");
       this.#eventHandlers.setupEventListeners();
+      this.logger.info("[App.initialize] Step 2: Event handlers setup complete, calling super.initialize()...");
 
       // 调用父类的初始化方法
       await super.initialize();
 
+      this.logger.info("[App.initialize] Step 3: super.initialize() complete");
+      this.logger.info("[App.initialize] Step 4: Checking renderModeManager status...");
+      this.logger.info(`[App.initialize] renderModeManager exists: ${!!this.renderModeManager}`);
+      if (this.renderModeManager) {
+        this.logger.info(`[App.initialize] renderModeManager mode: ${this.renderModeManager.getCurrentMode()}`);
+      }
       this.logger.info("PDF Viewer App initialized successfully.");
     } catch (error) {
       this.logger.error("Application initialization failed.", error);

@@ -150,6 +150,15 @@ export class UIManager {
     this.#core.showLoading(isLoading);
   }
 
+  /**
+   * 渲染PDF页面
+   * @param {PDFPageProxy} page - PDF页面对象
+   * @param {PageViewport} viewport - 页面视口
+   * @returns {Promise<void>}
+   */
+  async renderPage(page, viewport) {
+    return await this.#core.renderPage(page, viewport);
+  }
 
   /**
    * 清理UI资源

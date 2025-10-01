@@ -369,8 +369,19 @@ export class FileHandler {
       const viewport = page.getViewport({ scale: this.#app.zoomLevel });
       this.#logger.info(`Created viewport: ${viewport.width}x${viewport.height}, scale=${this.#app.zoomLevel}`);
 
-      this.#logger.debug("Calling uiManager.renderPage...");
-      await this.#app.uiManager.renderPage(page, viewport);
+      // 检查当前渲染模式并渲染到对应容器
+      const hasRenderModeManager = !!this.#app.renderModeManager;
+      const currentMode = this.#app.renderModeManager ? this.#app.renderModeManager.getCurrentMode() : 'canvas';
+      this.#logger.info(`Render mode check: hasManager=${hasRenderModeManager}, currentMode=${currentMode}`);
+
+      if (currentMode === 'pdfviewer') {
+        this.#logger.info("Rendering to viewer container (PDFViewer mode)...");
+        await this.#app.renderToViewer(page, viewport);
+      } else {
+        this.#logger.info("Rendering to canvas (Canvas mode)...");
+        await this.#app.uiManager.renderPage(page, viewport);
+      }
+
       this.#logger.info("Initial page rendered successfully");
     } catch (error) {
       this.#logger.error("Failed to render initial page:", error);
