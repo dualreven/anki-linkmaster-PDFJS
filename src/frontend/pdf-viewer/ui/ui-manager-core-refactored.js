@@ -359,18 +359,22 @@ export class UIManagerCore {
   }
 
   /**
-   * 获取Canvas元素
+   * [已废弃] 获取Canvas元素
+   * @deprecated Canvas模式已移除,此方法仅为向后兼容保留
    * @returns {HTMLCanvasElement} Canvas元素
    */
   getCanvas() {
+    this.#logger.warn('getCanvas() is deprecated. Canvas rendering mode is no longer supported.');
     return this.#domManager.getElement('canvas');
   }
 
   /**
-   * 获取Canvas上下文
+   * [已废弃] 获取Canvas上下文
+   * @deprecated Canvas模式已移除,此方法仅为向后兼容保留
    * @returns {CanvasRenderingContext2D} 2D上下文
    */
   getContext() {
+    this.#logger.warn('getContext() is deprecated. Canvas rendering mode is no longer supported.');
     const canvas = this.getCanvas();
     return canvas ? canvas.getContext('2d') : null;
   }
