@@ -56,38 +56,23 @@ def _get_js_log_path() -> Path:
     return project_root / 'logs' / 'pdf-home-js.log'
 
 def get_vite_port():
-    """Get Vite port from npm-dev-vite.log file or return default.
-    Reads the actual running Vite port from log file.
+    """Get Vite port from runtime-ports.json.
+
+    Returns the actual running Vite port as managed by ai_launcher.
+    Do NOT parse log files - runtime-ports.json is the single source of truth.
     """
-    import re
-
-    # Try to read from npm-dev-vite.log first
-    log_file_path = Path(__file__).parent.parent.parent.parent / 'logs' / 'npm-dev-vite.log'
-
     try:
-        if log_file_path.exists():
-            with open(log_file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-
-            # Look for "Local: http://localhost:PORT/" pattern
-            match = re.search(r'Local:\s+http://localhost:(\d+)/', content)
-            if match:
-                port = int(match.group(1))
-                logger.info("Found Vite port %d from npm-dev-vite.log", port)
-                return port
-
-            # Fallback: look for runtime-ports.json
-            ports_file = Path(__file__).parent.parent.parent.parent / 'logs' / 'runtime-ports.json'
-            if ports_file.exists():
-                with open(ports_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                port = int(data.get('vite_port') or data.get('npm_port') or 3000)
-                logger.info("Found Vite port %d from runtime-ports.json", port)
-                return port
+        ports_file = Path(__file__).parent.parent.parent.parent / 'logs' / 'runtime-ports.json'
+        if ports_file.exists():
+            with open(ports_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            port = int(data.get('vite_port') or data.get('npm_port') or 3000)
+            logger.info("Found Vite port %d from runtime-ports.json", port)
+            return port
     except Exception as e:
-        logger.warning("Failed to read Vite port from logs: %s", e)
+        logger.warning("Failed to read Vite port from runtime-ports.json: %s", e)
 
-    # Final fallback
+    # Fallback to default
     logger.info("Using default Vite port 3000")
     return 3000
 
