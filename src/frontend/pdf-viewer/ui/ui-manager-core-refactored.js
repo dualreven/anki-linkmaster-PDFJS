@@ -243,11 +243,16 @@ export class UIManagerCore {
   }
 
   /**
-   * 渲染页面
+   * [已废弃] 渲染页面 - Canvas模式专用
+   * @deprecated 现在使用PDFViewer组件自动渲染，不再需要手动Canvas渲染
    * @param {Object} page - PDF页面对象
    * @param {Object} viewport - 视口对象
    */
   async renderPage(page, viewport) {
+    this.#logger.warn('renderPage() is deprecated. PDFViewer component handles rendering automatically.');
+    throw new Error('Canvas rendering mode is no longer supported. Use PDFViewer mode instead.');
+
+    /* Canvas rendering code (deprecated) - 保留以备将来参考
     const canvas = this.#domManager.getElement('canvas');
     if (!canvas) {
       throw new Error('Canvas element not found');
@@ -287,6 +292,7 @@ export class UIManagerCore {
     }
 
     this.#logger.debug('Page rendered successfully');
+    */
   }
 
   /**
