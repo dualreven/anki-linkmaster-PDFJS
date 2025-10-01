@@ -34,7 +34,8 @@ export class BookmarkManager {
 
     // 初始化侧边栏UI（挂载到容器）
     try {
-      const container = document.getElementById('viewerContainer');
+      // 侧边栏应该添加到main元素，与viewerContainer并列
+      const container = document.querySelector('main');
       this.#ui = new BookmarkSidebarUI(this.#eventBus, { container });
       this.#ui.initialize();
     } catch (e) {

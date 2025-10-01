@@ -19,7 +19,8 @@ export class BookmarkSidebarUI {
   constructor(eventBus, options = {}) {
     this.#eventBus = eventBus;
     this.#logger = getLogger('BookmarkSidebarUI');
-    this.#container = options.container || document.getElementById('viewerContainer');
+    // 侧边栏应该添加到main元素，与viewerContainer并列
+    this.#container = options.container || document.querySelector('main');
     this.#sidebar = null;
   }
 
@@ -179,12 +180,18 @@ export class BookmarkSidebarUI {
   show() {
     if (this.#sidebar) this.#sidebar.style.display = 'block';
     if (this.#toggleBtn) this.#toggleBtn.style.display = 'none';
+    // 调整viewerContainer左边距，为侧边栏留出空间
+    const viewerContainer = document.getElementById('viewerContainer');
+    if (viewerContainer) viewerContainer.style.marginLeft = '260px';
     this.#eventBus.emit(PDF_VIEWER_EVENTS.BOOKMARK.SIDEBAR.OPENED, {}, { actorId: 'BookmarkSidebarUI' });
   }
 
   hide() {
     if (this.#sidebar) this.#sidebar.style.display = 'none';
     if (this.#toggleBtn) this.#toggleBtn.style.display = 'block';
+    // 恢复viewerContainer左边距
+    const viewerContainer = document.getElementById('viewerContainer');
+    if (viewerContainer) viewerContainer.style.marginLeft = '0';
     this.#eventBus.emit(PDF_VIEWER_EVENTS.BOOKMARK.SIDEBAR.CLOSED, {}, { actorId: 'BookmarkSidebarUI' });
   }
 
