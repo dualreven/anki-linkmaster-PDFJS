@@ -8,8 +8,8 @@
  * PDF.js 默认配置
  */
 export const PDFJS_CONFIG = {
-  // Worker配置
-  workerSrc: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
+  // Worker配置 - 使用本地worker文件 (通过Vite别名 @pdfjs)
+  workerSrc: new URL('@pdfjs/build/pdf.worker.min.mjs', import.meta.url).href,
 
   // CMap配置 - 禁用CMap支持以优化性能和兼容性
   cMapUrl: null,

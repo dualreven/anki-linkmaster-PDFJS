@@ -133,8 +133,11 @@ main {
 }
 
 .pdf-container {
+    /* PDFViewer 要求容器必须使用绝对定位 */
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
-    /* 关键：容器在 main 有 padding-top 时，使用 border-box 确保高度计算正确 */
     height: 100%;
     display: flex;
     justify-content: center;

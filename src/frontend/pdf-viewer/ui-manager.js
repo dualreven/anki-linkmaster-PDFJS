@@ -50,7 +50,9 @@ export class UIManager {
       // 初始化其他模块
       await this.#zoomControls.setupZoomControls(container);
       this.#progressError.setupProgressAndErrorUI(container);
-      const viewerContainer = document.getElementById("viewer");
+
+      // PDFViewer需要使用包含#viewer的容器元素
+      const viewerContainer = document.getElementById("viewerContainer");
       this.#pdfViewerManager.initialize(viewerContainer);
 
       this.#logger.info("UI Manager initialized successfully");

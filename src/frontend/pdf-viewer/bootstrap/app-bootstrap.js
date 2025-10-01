@@ -102,6 +102,7 @@ export async function bootstrapPDFViewerApp() {
 
   } catch (error) {
     logger.error("[Bootstrap] Failed to initialize PDF Viewer App:", error);
+    console.error("[Bootstrap] Full error details:", error.message, error.stack);
 
     // 尝试显示错误信息到界面
     try {
