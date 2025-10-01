@@ -4,7 +4,7 @@
  * @description 表格相关的工具函数和辅助功能
  */
 
-import { Tabulator } from 'tabulator-tables';
+import { TabulatorFull as Tabulator } from 'tabulator-tables';
 import { getLogger } from '../common/utils/logger.js';
 
 const logger = getLogger('TableUtils');

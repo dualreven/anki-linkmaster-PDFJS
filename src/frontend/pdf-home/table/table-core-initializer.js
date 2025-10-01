@@ -4,7 +4,7 @@
  * @description 处理Tabulator表格的初始化、选项准备和容器管理
  */
 
-import { Tabulator } from 'tabulator-tables';
+import { TabulatorFull as Tabulator } from 'tabulator-tables';
 import { getLogger } from '../../common/utils/logger.js';
 
 const logger = getLogger('TableCoreInitializer');

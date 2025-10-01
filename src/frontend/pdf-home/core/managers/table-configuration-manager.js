@@ -42,6 +42,49 @@ export class TableConfigurationManager {
         { title: "Title", field: "title", widthGrow: 3 },
         { title: "Pages", field: "page_count", hozAlign: "center", width: 80 },
         { title: "Cards", field: "cards_count", hozAlign: "center", width: 80 },
+        // 学习管理字段 (扩展 - 2025-10-02)
+        {
+          title: "Rating",
+          field: "rating",
+          hozAlign: "center",
+          width: 100,
+          formatter: (cell) => this.#formatRating(cell)
+        },
+        {
+          title: "Reviews",
+          field: "review_count",
+          hozAlign: "center",
+          width: 80,
+          formatter: (cell) => this.#formatReviewCount(cell)
+        },
+        {
+          title: "Last Access",
+          field: "last_accessed_at",
+          hozAlign: "center",
+          width: 120,
+          formatter: (cell) => this.#formatLastAccessed(cell)
+        },
+        {
+          title: "Reading Time",
+          field: "total_reading_time",
+          hozAlign: "center",
+          width: 120,
+          formatter: (cell) => this.#formatReadingTime(cell)
+        },
+        {
+          title: "Due Date",
+          field: "due_date",
+          hozAlign: "center",
+          width: 120,
+          formatter: (cell) => this.#formatDueDate(cell)
+        },
+        {
+          title: "Visible",
+          field: "is_visible",
+          hozAlign: "center",
+          width: 80,
+          formatter: (cell) => this.#formatVisibility(cell)
+        },
       ],
       selectable: true,
       layout: "fitColumns",
@@ -174,6 +217,138 @@ export class TableConfigurationManager {
     });
 
     this.#logger.info("Tabulator 事件绑定完成（包含双击修复）");
+  }
+
+  /**
+   * 格式化评分字段 (星星显示)
+   * @private
+   * @param {Object} cell - Tabulator单元格对象
+   * @returns {string} HTML字符串
+   */
+  #formatRating(cell) {
+    const value = cell.getValue();
+    if (value === undefined || value === null || value === 0) {
+      return '<span style="color: #999;">-</span>';
+    }
+    const stars = '★'.repeat(value) + '☆'.repeat(5 - value);
+    return `<span style="color: #ffa500;">${stars}</span>`;
+  }
+
+  /**
+   * 格式化复习次数
+   * @private
+   * @param {Object} cell - Tabulator单元格对象
+   * @returns {string} HTML字符串
+   */
+  #formatReviewCount(cell) {
+    const value = cell.getValue();
+    if (value === undefined || value === null || value === 0) {
+      return '<span style="color: #999;">-</span>';
+    }
+    return `<span style="color: #4CAF50;">${value}</span>`;
+  }
+
+  /**
+   * 格式化最后访问时间 (相对时间)
+   * @private
+   * @param {Object} cell - Tabulator单元格对象
+   * @returns {string} HTML字符串
+   */
+  #formatLastAccessed(cell) {
+    const value = cell.getValue();
+    if (!value || value === 0) {
+      return '<span style="color: #999;">Never</span>';
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const diff = now - value;
+
+    let timeStr;
+    if (diff < 60) {
+      timeStr = 'Just now';
+    } else if (diff < 3600) {
+      timeStr = `${Math.floor(diff / 60)}m ago`;
+    } else if (diff < 86400) {
+      timeStr = `${Math.floor(diff / 3600)}h ago`;
+    } else if (diff < 2592000) {
+      timeStr = `${Math.floor(diff / 86400)}d ago`;
+    } else {
+      const date = new Date(value * 1000);
+      timeStr = date.toLocaleDateString();
+    }
+
+    return `<span style="color: #2196F3;">${timeStr}</span>`;
+  }
+
+  /**
+   * 格式化阅读时长
+   * @private
+   * @param {Object} cell - Tabulator单元格对象
+   * @returns {string} HTML字符串
+   */
+  #formatReadingTime(cell) {
+    const value = cell.getValue();
+    if (!value || value === 0) {
+      return '<span style="color: #999;">-</span>';
+    }
+
+    const hours = Math.floor(value / 3600);
+    const minutes = Math.floor((value % 3600) / 60);
+
+    let timeStr;
+    if (hours > 0) {
+      timeStr = `${hours}h ${minutes}m`;
+    } else if (minutes > 0) {
+      timeStr = `${minutes}m`;
+    } else {
+      timeStr = `${value}s`;
+    }
+
+    return `<span style="color: #9C27B0;">${timeStr}</span>`;
+  }
+
+  /**
+   * 格式化到期日期
+   * @private
+   * @param {Object} cell - Tabulator单元格对象
+   * @returns {string} HTML字符串
+   */
+  #formatDueDate(cell) {
+    const value = cell.getValue();
+    if (!value || value === 0) {
+      return '<span style="color: #999;">-</span>';
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const date = new Date(value * 1000);
+    const dateStr = date.toLocaleDateString();
+
+    let color = '#666';
+    if (value < now) {
+      color = '#f44336'; // 过期 - 红色
+    } else if (value < now + 86400 * 3) {
+      color = '#ff9800'; // 即将到期 - 橙色
+    } else {
+      color = '#4CAF50'; // 未到期 - 绿色
+    }
+
+    return `<span style="color: ${color};">${dateStr}</span>`;
+  }
+
+  /**
+   * 格式化可见性
+   * @private
+   * @param {Object} cell - Tabulator单元格对象
+   * @returns {string} HTML字符串
+   */
+  #formatVisibility(cell) {
+    const value = cell.getValue();
+    if (value === undefined || value === null) {
+      return '<span style="color: #4CAF50;">✓</span>';
+    }
+    return value
+      ? '<span style="color: #4CAF50;">✓</span>'
+      : '<span style="color: #f44336;">✗</span>';
   }
 
   /**
