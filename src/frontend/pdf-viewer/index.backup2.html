@@ -12,14 +12,9 @@
         <header>
             <div class="header-left">
                 <button id="back-btn" class="btn">← 返回</button>
-                <h1 id="pdf-title">PDF阅读器-A</h1>
+                <h1 id="pdf-title">PDF阅读器</h1>
             </div>
             <div class="header-right">
-                <div class="render-mode-controls">
-                    <button id="toggle-render-mode" class="btn" title="切换渲染模式">
-                        <span id="render-mode-label">Canvas渲染</span>
-                    </button>
-                </div>
                 <div class="zoom-controls">
                     <button id="zoom-out" class="btn">-</button>
                     <span id="zoom-level">100%</span>
@@ -34,7 +29,9 @@
         </header>
 
         <main>
+            <!-- PDF.js PDFViewer容器结构 -->
             <div id="pdf-container" class="pdf-container">
+                <!-- PDFViewer会在这里动态创建页面元素 -->
                 <div id="viewer" class="pdfViewer"></div>
             </div>
 
@@ -49,6 +46,6 @@
         </main>
     </div>
 
-    <script type="module" src="main.js"></script>
+    <!-- <script type="module" src="main.js"></script> -->
 </body>
 </html>

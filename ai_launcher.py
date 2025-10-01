@@ -40,7 +40,7 @@ from typing import Any, Dict, Optional
 
 
 # Project paths
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(os.getcwd())
 LOGS_DIR = PROJECT_ROOT / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -169,7 +169,7 @@ def _port_available(port: int, host: str = "127.0.0.1") -> bool:
 def _allocate_ports(cli: argparse.Namespace) -> Dict[str, int]:
     requested: Dict[str, int] = {}
     if getattr(cli, "vite_port", None):
-        requested["npm_port"] = int(cli.vite_port)
+        requested["vite_port"] = int(cli.vite_port)
     if getattr(cli, "msgServer_port", None):
         requested["msgCenter_port"] = int(cli.msgServer_port)
     # accept both styles for pdf port
@@ -182,7 +182,7 @@ def _allocate_ports(cli: argparse.Namespace) -> Dict[str, int]:
         pm = PortManager(PROJECT_ROOT)
         # Merge with vite resolution priority (CLI>runtime>log>default)
         vite_port = resolve_vite_port(getattr(cli, "vite_port", None))
-        requested.setdefault("npm_port", vite_port)
+        requested.setdefault("vite_port", vite_port)
         ports = pm.allocate_ports(requested)
         valid, errors = pm.validate_port_allocation(ports)
         if not valid:
@@ -214,7 +214,7 @@ def _allocate_ports(cli: argparse.Namespace) -> Dict[str, int]:
                 pdfFile = p
                 break
 
-    return {"npm_port": int(npm), "msgCenter_port": int(msgCenter), "pdfFile_port": int(pdfFile)}
+    return {"vite_port": int(npm), "msgCenter_port": int(msgCenter), "pdfFile_port": int(pdfFile)}
 
 
 # ---- Process helpers ----
@@ -318,15 +318,26 @@ def _start_vite(npm_port: int) -> Optional[int]:
         # Minimal fallback: spawn pnpm directly
         cmd = ["pnpm", "run", "dev", "--", "--port", str(npm_port)]
         try:
-            proc = subprocess.Popen(
-                cmd,
-                cwd=str(PROJECT_ROOT),
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                shell=True,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
-            )
+            # --- VITE START DEBUG ---
+            LOGGER.info("--- VITE START DEBUG ---")
+            LOGGER.info("PROJECT_ROOT variable is: %s", str(PROJECT_ROOT))
+            LOGGER.info("CWD for subprocess will be: %s", str(PROJECT_ROOT))
+            LOGGER.info("Executing command: %s", " ".join(cmd))
+            LOGGER.info("--- END VITE START DEBUG ---")
+            # --- END VITE START DEBUG ---
+
+            log_file_path = LOGS_DIR / "npm-dev.log"
+            LOGGER.info("Redirecting Vite output to %s", log_file_path)
+            with open(log_file_path, "w", encoding="utf-8", newline="\n") as log_file:
+                proc = subprocess.Popen(
+                    cmd,
+                    cwd=str(PROJECT_ROOT),
+                    stdin=subprocess.DEVNULL,
+                    stdout=log_file,
+                    stderr=log_file,
+                    shell=True,
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
+                )
             _save_dev_process(proc.pid, npm_port, " ".join(cmd))
             time.sleep(1.0)
             return proc.pid
@@ -512,7 +523,7 @@ def cmd_start(args: argparse.Namespace) -> int:
     LOGGER.info("=== ai-launcher start ===")
     try:
         ports = _allocate_ports(args)
-        vite_port = int(ports.get("npm_port") or 3000)
+        vite_port = int(ports.get("vite_port") or ports.get("npm_port") or 3000)
         msgCenter_port = int(ports.get("msgCenter_port") or ports.get("ws_port") or 8765)
         pdfFile_port = int(ports.get("pdfFile_port") or 8080)
         LOGGER.info("Resolved ports: vite=%s msgCenter=%s pdfFile=%s", vite_port, msgCenter_port, pdfFile_port)

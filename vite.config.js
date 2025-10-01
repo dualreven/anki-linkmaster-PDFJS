@@ -3,6 +3,27 @@ import { defineConfig } from 'vite'
 import babel from 'vite-plugin-babel'
 import fs from 'fs'
 import path from 'path'
+import { fileURLToPath } from 'url'
+
+// ESM-safe equivalent for __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Custom plugin to log all file requests
+const viteRequestLogger = () => ({
+  name: 'vite-request-logger',
+  load(id) {
+    console.log(`[Vite Load] Loading file: ${id}`);
+    return null; // Fallback to default loader
+  },
+  transform(code, id) {
+    // Log when specific key files are being transformed
+    if (id.includes('main.js') || id.includes('app-bootstrap.js')) {
+        console.log(`[Vite Transform] Transforming file: ${id}`);
+    }
+    return null; // Fallback to default transform
+  }
+});
 
 export default defineConfig(async () => {
   // 从环境变量获取模块名称（为兼容旧脚本保留日志，但不再用于 root 切换）
@@ -10,7 +31,7 @@ export default defineConfig(async () => {
   console.log(`[Vite] Loading module (compat log): ${module}`)
 
   // 从runtime-ports.json动态读取PDF文件服务器端口，默认8080
-  const runtimePortsFile = path.join(process.cwd(), 'logs', 'runtime-ports.json')
+  const runtimePortsFile = path.join(__dirname, 'logs', 'runtime-ports.json')
   let httpServerPort = '8080' // 默认端口
 
   try {
@@ -44,7 +65,7 @@ export default defineConfig(async () => {
     resolve: {
       alias: {
         // 简化PDF.js资源路径访问
-        '@pdfjs': path.resolve(process.cwd(), 'node_modules/pdfjs-dist')
+        '@pdfjs': path.resolve(__dirname, 'node_modules/pdfjs-dist')
       }
     },
     server: {
@@ -68,10 +89,11 @@ export default defineConfig(async () => {
       }
     },
     plugins: [
+      viteRequestLogger(),
       babel({
         babelConfig: {
           // Resolve config file explicitly from project root to avoid cwd issues
-          configFile: path.resolve(process.cwd(), 'babel.config.js')
+          configFile: path.resolve(__dirname, 'babel.config.js')
         },
         // Exclude node_modules and public directories from Babel processing
         exclude: [
@@ -84,7 +106,7 @@ export default defineConfig(async () => {
       rollupOptions: {
         // 单页面构建：只构建 pdf-home
         input: {
-          'pdf-home': path.resolve(process.cwd(), 'src/frontend/pdf-home/index.html')
+          'pdf-home': path.resolve(__dirname, 'src/frontend/pdf-home/index.html')
         },
         external: [
           /__tests__/,

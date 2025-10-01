@@ -60,7 +60,7 @@ export async function bootstrapPDFViewerApp() {
     logger.info(`[Bootstrap] Configuration: wsUrl=${wsUrl}, pdfPath=${pdfPath}`);
 
     // 2. 动态导入主应用类（避免循环依赖）
-    const { PDFViewerApp } = await import("../main.js");
+    const { PDFViewerApp } = await import("../app.js");
 
     // 3. 创建应用实例
     const app = new PDFViewerApp({ wsUrl });
