@@ -147,9 +147,26 @@ export class PDFViewerManager {
       const viewerElement = this.#container.querySelector('.pdfViewer') || this.#container.querySelector('#viewer');
       this.#logger.info(`Viewer element innerHTML length: ${viewerElement?.innerHTML?.length || 0}`);
       this.#logger.info(`Viewer element children count: ${viewerElement?.children?.length || 0}`);
+
+      // 🔍 详细分析子元素类型
       if (viewerElement && viewerElement.children.length > 0) {
+        const childrenTypes = {};
+        for (let i = 0; i < viewerElement.children.length; i++) {
+          const child = viewerElement.children[i];
+          const type = `${child.tagName}.${child.className}`;
+          childrenTypes[type] = (childrenTypes[type] || 0) + 1;
+        }
+        this.#logger.info(`Children types breakdown: ${JSON.stringify(childrenTypes, null, 2)}`);
         this.#logger.info(`First child: ${viewerElement.children[0].tagName}.${viewerElement.children[0].className}`);
+
+        // 统计真正的页面容器
+        const pageContainers = viewerElement.querySelectorAll('.page');
+        this.#logger.info(`Actual page containers (.page): ${pageContainers.length}`);
+
+        // 检查是否有重复的页面
+        this.#logger.info(`Expected pages from pdfDocument: ${this.#pdfViewer.pdfDocument?.numPages || 'unknown'}`);
       }
+
       this.#logger.info(`PDFViewer.pagesCount: ${this.#pdfViewer.pagesCount}`);
       this.#logger.info(`PDFViewer.currentPageNumber: ${this.#pdfViewer.currentPageNumber}`);
       this.#logger.info(`PDFViewer.currentScale: ${this.#pdfViewer.currentScale}`);

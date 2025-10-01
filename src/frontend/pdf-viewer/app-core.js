@@ -161,6 +161,7 @@ export class PDFViewerAppCore {
       });
 
       // 监听PDF加载成功事件
+      // 由FileHandler统一发射，确保只调用一次
       this.#eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, ({ pdfDocument }) => {
         this.#uiManager.loadPdfDocument(pdfDocument);
       });

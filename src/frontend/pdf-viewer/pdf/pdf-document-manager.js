@@ -38,10 +38,12 @@ export class PDFDocumentManager {
 
     this.#logger.info(`Document loaded: ${this.#documentInfo.title || 'Untitled'}`);
 
-    // 发布文档加载完成事件
-    this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, {
-      ...this.#documentInfo
-    }, { actorId: 'PDFDocumentManager' });
+    // ⚠️ 不在这里发射FILE.LOAD.SUCCESS事件，由FileHandler统一发射
+    // 此事件之前传递documentInfo而非pdfDocument，会导致app-core收到undefined的pdfDocument
+    // 现在由FileHandler统一发射，传递完整的file和pdfDocument数据
+    // this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, {
+    //   ...this.#documentInfo
+    // }, { actorId: 'PDFDocumentManager' });
   }
 
   /**
