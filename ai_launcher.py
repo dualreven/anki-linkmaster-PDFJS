@@ -380,31 +380,34 @@ def _start_vite(npm_port: int) -> Optional[int]:
     pid = service.proc_manager.get_pid()
 
     if ok and pid:
-        # Verify that Vite successfully bound to a port
+        # Verify that Vite successfully bound to a port by parsing its log output
         # Note: Vite may auto-increment port if requested port is busy
         LOGGER.info("Waiting for Vite to start listening (requested port: %s)...", npm_port)
         max_wait = 30  # 30 seconds timeout
         actual_port = None
+        log_file = LOGS_DIR / "npm-dev.log"
 
         for i in range(max_wait):
             time.sleep(1.0)
 
-            # Check if Vite is listening on the requested port
-            if _port_is_listening(npm_port):
-                actual_port = npm_port
-                LOGGER.info("✓ Vite successfully started on requested port %s", npm_port)
-                break
-
-            # Check if Vite auto-incremented to nearby ports (3001, 3002, etc.)
-            for port_offset in range(1, 10):
-                check_port = npm_port + port_offset
-                if _port_is_listening(check_port):
-                    actual_port = check_port
-                    LOGGER.warning("⚠ Vite started on port %s (requested %s was busy)", check_port, npm_port)
-                    break
-
-            if actual_port:
-                break
+            # Parse Vite log to find the actual port it's using
+            try:
+                if log_file.exists():
+                    content = log_file.read_text(encoding="utf-8")
+                    # Look for "Local:   http://localhost:PORT/"
+                    match = re.search(r"Local:\s+http://localhost:(\d+)/", content)
+                    if match:
+                        detected_port = int(match.group(1))
+                        # Verify the port is actually listening
+                        if _port_is_listening(detected_port):
+                            actual_port = detected_port
+                            if detected_port == npm_port:
+                                LOGGER.info("✓ Vite successfully started on requested port %s", npm_port)
+                            else:
+                                LOGGER.warning("⚠ Vite started on port %s (requested %s was busy)", detected_port, npm_port)
+                            break
+            except Exception as e:
+                LOGGER.debug("Error parsing Vite log: %s", e)
 
             # Check if process died
             if not is_process_running(pid):
@@ -603,7 +606,16 @@ def cmd_start(args: argparse.Namespace) -> int:
         LOGGER.info("Resolved ports: vite=%s msgCenter=%s pdfFile=%s", vite_port, msgCenter_port, pdfFile_port)
 
         # 1) vite
-        _start_vite(vite_port)
+        vite_pid = _start_vite(vite_port)
+
+        # Update ports with actual Vite port (may differ if auto-incremented)
+        if vite_pid:
+            dev_info = read_json(LOGS_DIR / "dev-process-info.json")
+            actual_vite_port = dev_info.get("vite", {}).get("port", vite_port)
+            ports["vite_port"] = actual_vite_port
+            ports["npm_port"] = actual_vite_port
+            if actual_vite_port != vite_port:
+                LOGGER.info("Updated ports dict with actual Vite port: %s", actual_vite_port)
 
         # 2) backend
         _start_backend(msgCenter_port, pdfFile_port)
