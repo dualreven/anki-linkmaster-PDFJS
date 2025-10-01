@@ -53,10 +53,13 @@ try:
     from ai_scripts.ai_launcher.services.persistent.npm_service import (
         NpmDevServerService,
     )
+    from core_utils.process_utils import kill_process_tree, is_process_running
 except Exception:  # pragma: no cover - allow fallback without crashing tests
     PortManager = None  # type: ignore
     LoggingManager = None  # type: ignore
     NpmDevServerService = None  # type: ignore
+    kill_process_tree = None # type: ignore
+    is_process_running = None # type: ignore
 
 
 # ---- Logging ----
@@ -149,10 +152,16 @@ def resolve_vite_port(cli_port: Optional[int], project_root: Path = PROJECT_ROOT
 
 
 def _port_available(port: int, host: str = "127.0.0.1") -> bool:
+    """
+    Checks if a port is available for a new service to bind to.
+    This is the reliable way, as opposed to checking for listening services.
+    """
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(0.5)
-            return s.connect_ex((host, port)) != 0
+            s.bind((host, port))
+        return True
+    except socket.error:
+        return False
     except Exception:
         return False
 
@@ -210,16 +219,10 @@ def _allocate_ports(cli: argparse.Namespace) -> Dict[str, int]:
 
 # ---- Process helpers ----
 def kill_process(pid: int) -> bool:
-    try:
-        if os.name == "nt":
-            subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], check=False, capture_output=True)
-        else:
-            os.kill(pid, 15)
-            time.sleep(1.0)
-        return True
-    except Exception as exc:
-        LOGGER.warning("Failed to kill PID %s: %s", pid, exc)
+    if kill_process_tree is None:
+        LOGGER.error("kill_process_tree utility is not available.")
         return False
+    return kill_process_tree(pid)
 
 
 def is_process_running(pid: Optional[int]) -> bool:

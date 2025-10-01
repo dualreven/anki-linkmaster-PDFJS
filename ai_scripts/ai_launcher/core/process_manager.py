@@ -11,10 +11,14 @@ import time
 from pathlib import Path
 from typing import Optional, List, Dict
 
-try:
-    import psutil
-except ImportError:
-    psutil = None
+import sys
+from pathlib import Path
+
+# Ensure project root is in path to allow top-level imports
+project_root = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+from core_utils.process_utils import kill_process_tree, is_process_running
 
 
 class ProcessManager:
@@ -54,29 +58,7 @@ class ProcessManager:
 
     def is_running(self) -> bool:
         pid = self.get_pid()
-        if not pid:
-            return False
-        if psutil:
-            return psutil.pid_exists(pid)
-
-        if sys.platform == "win32":
-            try:
-                output = subprocess.check_output(
-                    f'tasklist /FI "PID eq {pid}"',
-                    stderr=subprocess.STDOUT,
-                    text=True
-                )
-                return str(pid) in output
-            except subprocess.CalledProcessError:
-                return False
-        else:
-            try:
-                import os
-                os.kill(pid, 0)
-            except OSError:
-                return False
-            else:
-                return True
+        return is_process_running(pid)
 
     def start(self, argv: List[str], cwd: Optional[str] = None, shell: bool = False,
               check_delay: float = 0.5, env: Optional[Dict[str, str]] = None,
@@ -151,39 +133,18 @@ class ProcessManager:
             self.logger.info(f"Service with PID {pid} is not running. Cleaning up PID file.")
             self._cleanup_pid()
             return True
-
+        
         self.logger.info(f"Attempting to stop service with PID {pid}...")
-        try:
-            if psutil:
-                parent = psutil.Process(pid)
-                children = parent.children(recursive=True)
-                for child in children:
-                    try:
-                        child.terminate()
-                    except psutil.NoSuchProcess:
-                        pass
-                parent.terminate()
-                gone, alive = psutil.wait_procs([parent] + children, timeout=timeout)
-                for p in alive:
-                    try:
-                        p.kill()
-                    except psutil.NoSuchProcess:
-                        pass
-            else:
-                import os
-                import signal
-                if sys.platform == "win32":
-                    subprocess.run(f"taskkill /F /T /PID {pid}", check=False, capture_output=True)
-                else:
-                    os.kill(pid, signal.SIGTERM)
+        
+        killed = kill_process_tree(pid, timeout=timeout)
+        
+        if killed:
+            self.logger.info("Service stopped successfully.")
+        else:
+            self.logger.error(f"Failed to stop service with PID {pid}.")
 
-            self.logger.info("Service stopped.")
-        except Exception as e:
-            self.logger.error(f"Error while stopping service with PID {pid}: {e}", exc_info=True)
-        finally:
-            self._cleanup_pid()
-
-        return not self.is_running()
+        self._cleanup_pid()
+        return killed
 
     def _cleanup_pid(self):
         pids = self._read_pids()

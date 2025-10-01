@@ -27,6 +27,8 @@ backend_dir = Path(__file__).resolve().parent
 project_root = backend_dir.parent.parent
 sys.path.insert(0, str(project_root))
 
+from core_utils.process_utils import kill_process_tree, is_process_running
+
 # 确保logs目录存在
 logs_dir = project_root / 'logs'
 logs_dir.mkdir(parents=True, exist_ok=True)
@@ -294,34 +296,11 @@ class BackendProcessManager:
 
     def is_process_running(self, pid: int) -> bool:
         """检查进程是否在运行"""
-        try:
-            if os.name == 'nt':  # Windows
-                result = subprocess.run(['tasklist', '/FI', f'PID eq {pid}'],
-                                      capture_output=True, text=True, timeout=5)
-                return str(pid) in result.stdout
-            else:  # Unix-like
-                os.kill(pid, 0)
-                return True
-        except (subprocess.TimeoutExpired, ProcessLookupError, OSError):
-            return False
+        return is_process_running(pid)
 
     def kill_process(self, pid: int) -> bool:
         """终止进程"""
-        try:
-            if os.name == 'nt':  # Windows
-                subprocess.run(['taskkill', '/F', '/PID', str(pid)],
-                             capture_output=True, timeout=10)
-            else:  # Unix-like
-                os.kill(pid, signal.SIGTERM)
-                time.sleep(2)
-                if self.is_process_running(pid):
-                    os.kill(pid, signal.SIGKILL)
-
-            logger.info(f"进程已终止: PID {pid}")
-            return True
-        except Exception as e:
-            logger.error(f"终止进程失败 PID {pid}: {e}")
-            return False
+        return kill_process_tree(pid)
 
     def start_service(self, service_name: str, port: int) -> bool:
         """启动服务
