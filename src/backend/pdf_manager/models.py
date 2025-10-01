@@ -26,7 +26,15 @@ class PDFFile:
     thumbnail_path: Optional[str] = None
     tags: list = None
     notes: str = ""
-    
+
+    # 学习管理字段 (新增 - 2025-10-02)
+    last_accessed_at: int = 0          # 最后访问时间 (Unix秒)
+    review_count: int = 0               # 复习次数
+    rating: int = 0                     # 评分 (0-5星)
+    is_visible: bool = True             # 是否可见
+    total_reading_time: int = 0         # 总阅读时长 (秒)
+    due_date: int = 0                   # 到期日期 (Unix秒)
+
     def __post_init__(self):
         """初始化后的处理"""
         if self.tags is None:
@@ -111,7 +119,14 @@ class PDFFile:
             "modified_time": self.format_time(self.modified_time),
             "title": self.title,
             "author": self.author,
-            "page_count": self.page_count
+            "page_count": self.page_count,
+            # 学习管理字段 (扩展 - 2025-10-02)
+            "last_accessed_at": getattr(self, 'last_accessed_at', 0),
+            "review_count": getattr(self, 'review_count', 0),
+            "rating": getattr(self, 'rating', 0),
+            "is_visible": getattr(self, 'is_visible', True),
+            "total_reading_time": getattr(self, 'total_reading_time', 0),
+            "due_date": getattr(self, 'due_date', 0)
         }
     
     def get_metadata(self) -> Dict[str, Any]:

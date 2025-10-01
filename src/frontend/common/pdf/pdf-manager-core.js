@@ -168,6 +168,13 @@ export class PDFManagerCore {
       annotations_count: backendData.annotations_count,
       cards_count: backendData.cards_count,
       importance: backendData.importance || "medium",
+      // 学习管理字段 (扩展 - 2025-10-02)
+      last_accessed_at: backendData.last_accessed_at || 0,
+      review_count: backendData.review_count || 0,
+      rating: backendData.rating || 0,
+      is_visible: backendData.is_visible !== undefined ? backendData.is_visible : true,
+      total_reading_time: backendData.total_reading_time || 0,
+      due_date: backendData.due_date || 0,
     };
   }
 

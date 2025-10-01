@@ -314,17 +314,24 @@ class StandardPDFManager(QObject):
     def _build_standard_file_info(self, pdf_file: PDFFile) -> Dict[str, Any]:
         """构建标准格式的文件信息"""
         base_info = pdf_file.get_file_info()
-        
+
         return {
             "id": base_info["id"],
             "filename": base_info["filename"],
             "title": base_info["title"],
             "author": base_info["author"],
-            "file_size": base_info.get("size", 0),
+            "file_size": base_info.get("file_size", 0),
             "page_count": base_info.get("page_count", 0),
             "tags": base_info.get("tags", []),
             "upload_time": base_info.get("upload_time", int(time.time() * 1000)),
-            "metadata": base_info.get("metadata", {})
+            "metadata": base_info.get("metadata", {}),
+            # 学习管理字段 (扩展 - 2025-10-02)
+            "last_accessed_at": base_info.get("last_accessed_at", 0),
+            "review_count": base_info.get("review_count", 0),
+            "rating": base_info.get("rating", 0),
+            "is_visible": base_info.get("is_visible", True),
+            "total_reading_time": base_info.get("total_reading_time", 0),
+            "due_date": base_info.get("due_date", 0)
         }
     
     def _build_error_response(self, type: str, message: str, details: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
