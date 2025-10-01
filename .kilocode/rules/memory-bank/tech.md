@@ -38,25 +38,206 @@
 - 示例入口：`ai-scripts/ai_launcher/example_run.py`（支持 `start/stop/status`）
 
 ## AI Launcher 使用方法（ai_launcher.py）
-- 主要入口：项目根目录的 `ai_launcher.py`
-- 基本命令：
-  - `python ai_launcher.py start` - 启动所有服务（前端 + 后端）
-  - `python ai_launcher.py stop` - 停止所有服务
-  - `python ai_launcher.py status` - 查看服务状态
-- 参数选项：
-  - `--vite-port <number>` - 指定Vite开发服务器端口
-  - `--msgServer-port <number>` - 指定WebSocket服务器端口
-  - `--pdfFileServer-port <number>` - 指定PDF文件服务器端口
-  - `--module <pdf-home|pdf-viewer>` - 指定启动的前端模块
-  - `--pdf-id <string>` - 传给pdf-viewer的PDF标识
-- 端口配置优先级：命令行参数 > `logs/runtime-ports.json` > 默认值 > 可用性探测
-- 状态文件：
-  - `logs/dev-process-info.json` - Vite进程信息
-  - `logs/frontend-process-info.json` - 前端模块进程信息
-  - `logs/ai-launcher.log` - 启动器日志（UTF-8）
-- 使用示例：
-  - `python ai_launcher.py start --module pdf-home` - 启动pdf-home模块
-  - `python ai_launcher.py start --module pdf-viewer --pdf-id 12345` - 启动pdf-viewer并打开指定PDF
+
+### 概述
+- **主要入口**：项目根目录的 `ai_launcher.py`
+- **功能**：统一管理前后端服务的生命周期（Vite开发服务器 + WebSocket服务器 + HTTP文件服务器 + 前端窗口）
+- **重要原则**：⚠️ 在AI自动化开发环境中，严禁直接运行 `npm run dev` 或 `python app.py`，必须使用 `ai_launcher.py` 以避免终端阻塞
+
+### 基本命令
+
+#### 1. start - 启动服务
+```bash
+python ai_launcher.py start [选项]
+```
+
+**服务启动顺序**：
+1. Vite 开发服务器（端口 3000，可配置）
+2. 后端服务器（WebSocket + HTTP 文件服务）
+3. 前端模块窗口（pdf-home 或 pdf-viewer）
+
+**命令行参数**：
+- `--vite-port <端口号>` - 指定 Vite 开发服务器端口（默认：3000）
+- `--msgServer-port <端口号>` - 指定 WebSocket 服务器端口（默认：8765）
+- `--pdfFileServer-port <端口号>` - 指定 PDF 文件服务器端口（默认：8080）
+- `--module <模块名>` - 指定启动的前端模块，可选值：
+  - `pdf-home` - PDF 文件管理界面（列表、添加、删除）
+  - `pdf-viewer` - PDF 阅读器界面（渲染、缩放、翻页）
+- `--pdf-id <标识>` - 传给 pdf-viewer 的 PDF 文件标识（仅 pdf-viewer 模块使用）
+
+**使用示例**：
+```bash
+# 启动 pdf-home 模块（默认端口）
+python ai_launcher.py start --module pdf-home
+
+# 启动 pdf-viewer 并打开指定 PDF
+python ai_launcher.py start --module pdf-viewer --pdf-id 12345
+
+# 自定义所有端口启动 pdf-home
+python ai_launcher.py start --module pdf-home --vite-port 3001 --msgServer-port 8766 --pdfFileServer-port 8081
+
+# 仅启动后端服务（不启动前端窗口）
+python ai_launcher.py start
+```
+
+#### 2. stop - 停止服务
+```bash
+python ai_launcher.py stop
+```
+
+**功能**：按顺序停止所有正在运行的服务
+1. 前端模块窗口
+2. Vite 开发服务器
+3. 后端服务器
+
+**清理操作**：
+- 杀死所有相关进程
+- 清理进程信息文件（`logs/dev-process-info.json`, `logs/frontend-process-info.json`）
+- 记录停止日志到 `logs/ai-launcher.log`
+
+#### 3. status - 查看状态
+```bash
+python ai_launcher.py status
+```
+
+**输出信息**：
+- Vite 开发服务器状态（PID、端口、运行时间）
+- 前端模块状态（模块名、PID、启动参数）
+- 后端服务器状态（WebSocket 端口、HTTP 端口、健康状态）
+
+### 端口配置
+
+**优先级**（从高到低）：
+1. 命令行参数（`--vite-port` 等）
+2. 运行时配置文件（`logs/runtime-ports.json`）
+3. Vite 日志文件（`logs/npm-dev-vite.log`）
+4. 默认值（Vite: 3000, WebSocket: 8765, HTTP: 8080）
+5. 可用性自动探测（如果默认端口被占用）
+
+**端口冲突处理**：
+- 自动检测端口占用
+- 尝试杀死占用端口的旧进程
+- 如果无法释放，自动选择可用端口
+
+### 状态文件
+
+#### logs/dev-process-info.json
+记录 Vite 开发服务器进程信息：
+```json
+{
+  "pid": 12345,
+  "port": 3000,
+  "command": "pnpm run dev -- --port 3000",
+  "started_at": "2025-10-01T20:00:00"
+}
+```
+
+#### logs/frontend-process-info.json
+记录前端模块进程信息：
+```json
+{
+  "module": "pdf-home",
+  "pid": 12346,
+  "ws_port": 8765,
+  "vite_port": 3000,
+  "pdf_port": 8080,
+  "pdf_id": null,
+  "started_at": "2025-10-01T20:00:05"
+}
+```
+
+#### logs/runtime-ports.json
+运行时端口配置（持久化）：
+```json
+{
+  "vite": 3000,
+  "websocket": 8765,
+  "http": 8080
+}
+```
+
+#### logs/ai-launcher.log
+启动器运行日志（UTF-8 编码）：
+```
+[2025-10-01 20:00:00] [INFO] Starting AI Launcher...
+[2025-10-01 20:00:01] [INFO] Vite server started on port 3000 (PID: 12345)
+[2025-10-01 20:00:02] [INFO] Backend services started
+[2025-10-01 20:00:05] [INFO] Frontend module 'pdf-home' started (PID: 12346)
+```
+
+### 参数映射关系
+
+ai_launcher.py 会自动将参数映射到各个服务：
+
+| ai_launcher 参数 | 后端服务参数 | 前端模块参数 |
+|-----------------|------------|------------|
+| `--msgServer-port` | `--ws-port` | `--ws-port` |
+| `--pdfFileServer-port` | `--http-port` | `--pdf-port` |
+| `--vite-port` | - | `--vite-port` |
+| `--pdf-id` | - | 不传递（内部使用） |
+
+### 故障排查
+
+**常见问题**：
+
+1. **端口被占用**
+   ```bash
+   # 查看端口占用
+   python ai_launcher.py status
+   # 停止所有服务释放端口
+   python ai_launcher.py stop
+   ```
+
+2. **Vite 启动失败**
+   ```bash
+   # 查看详细日志
+   cat logs/npm-dev.log
+   # 检查 node_modules 是否完整
+   pnpm install
+   ```
+
+3. **前端窗口无法启动**
+   ```bash
+   # 查看启动器日志
+   cat logs/ai-launcher.log
+   # 检查 Python 虚拟环境
+   python --version
+   ```
+
+4. **WebSocket 连接失败**
+   ```bash
+   # 查看后端日志
+   cat logs/websocket-server.log
+   # 确认 WebSocket 服务器正在运行
+   python ai_launcher.py status
+   ```
+
+### 开发最佳实践
+
+1. **开发前**：`python ai_launcher.py start --module <模块名>`
+2. **开发中**：`python ai_launcher.py status` 检查服务状态
+3. **遇到问题**：查看 `logs/ai-launcher.log` 和各服务日志
+4. **开发后**：`python ai_launcher.py stop` 停止所有服务
+5. **切换模块**：先 `stop`，再 `start --module <新模块>`
+
+### AI 开发环境特别注意
+
+⚠️ **严禁直接运行以下命令**（会导致终端阻塞）：
+- `npm run dev`
+- `python app.py`
+- `python src/backend/main.py`
+- `python src/frontend/pdf-home/launcher.py`
+
+✅ **正确做法**：
+```bash
+# 统一使用 ai_launcher.py
+python ai_launcher.py start --module pdf-home
+```
+
+**原因**：
+- 直接运行会占用终端，无法进行 AI 自动化操作
+- ai_launcher.py 会在后台启动服务，记录进程信息
+- 支持进程管理、日志收集、优雅停止等功能
 
 ## 测试与可运行性
 - 每个模块需提供独立运行与最小验证路径：
