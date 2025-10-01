@@ -151,12 +151,35 @@ h1 {
     min-width: 40px;
 }
 
-#page-info {
+/* 页码输入框 */
+.page-input {
+    width: 50px;
+    padding: 4px 6px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+    color: #495057;
+    background-color: #fff;
+    transition: border-color 0.2s ease;
+}
+
+.page-input:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0,123,255,0.1);
+}
+
+.page-input::-webkit-inner-spin-button,
+.page-input::-webkit-outer-spin-button {
+    opacity: 1;
+}
+
+#page-total {
     font-size: 14px;
     font-weight: 500;
     color: #495057;
-    min-width: 60px;
-    text-align: center;
 }
 
 /* 主内容区域 */

@@ -12,6 +12,8 @@ export class BookmarkSidebarUI {
   #logger;
   #container;
   #sidebar;
+  #sidebarHeader; // 书签侧边栏的header元素（包含关闭按钮）
+  #sidebarContent; // 书签侧边栏的内容区域（书签列表）
   #toggleBtn;
   #bookmarks = [];
   #unsubs = [];
@@ -28,7 +30,8 @@ export class BookmarkSidebarUI {
     // 创建侧边栏DOM
     this.#ensureSidebar();
     this.#ensureToggleButton();
-    this.#ensureHeaderToggle();
+    // 不再在header添加书签按钮，已有侧边栏内置的关闭按钮
+    // this.#ensureHeaderToggle();
 
     // 监听书签加载
     this.#unsubs.push(this.#eventBus.on(
@@ -71,7 +74,7 @@ export class BookmarkSidebarUI {
       'padding: 8px',
       'box-sizing: border-box',
       'display: none',
-      'z-index: 100' // 提高z-index确保在PDF上方
+      'z-index: 1000' // 更高的z-index确保不被任何元素遮挡
     ].join(';');
 
     this.#container.style.position = this.#container.style.position || 'relative';
@@ -93,13 +96,22 @@ export class BookmarkSidebarUI {
     header.appendChild(title);
     header.appendChild(closeBtn);
     sidebar.appendChild(header);
+    this.#sidebarHeader = header;
+
+    // 创建内容区域
+    const content = document.createElement('div');
+    content.style.cssText = 'flex:1;overflow:auto;';
+    sidebar.appendChild(content);
+    this.#sidebarContent = content;
   }
 
   #renderBookmarks(bookmarks) {
     this.#bookmarks = Array.isArray(bookmarks) ? bookmarks : [];
     if (!this.#sidebar) this.#ensureSidebar();
-    if (!this.#sidebar) return;
-    this.#sidebar.innerHTML = '';
+    if (!this.#sidebarContent) return;
+
+    // 只清空内容区域，保留header
+    this.#sidebarContent.innerHTML = '';
 
     const list = document.createElement('ul');
     list.style.listStyle = 'none';
@@ -168,15 +180,17 @@ export class BookmarkSidebarUI {
     };
 
     this.#bookmarks.forEach(n => list.appendChild(buildNode(n, 0)));
-    this.#sidebar.appendChild(list);
+    this.#sidebarContent.appendChild(list);
     // 自动展开侧边栏
     this.show();
   }
 
   #renderEmpty() {
     if (!this.#sidebar) this.#ensureSidebar();
-    if (!this.#sidebar) return;
-    this.#sidebar.innerHTML = '<div style="color:#666;">无书签</div>';
+    if (!this.#sidebarContent) return;
+
+    // 只清空内容区域，保留header
+    this.#sidebarContent.innerHTML = '<div style="color:#666;padding:8px;">无书签</div>';
   }
 
   show() {
