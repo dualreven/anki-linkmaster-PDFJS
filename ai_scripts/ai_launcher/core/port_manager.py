@@ -50,23 +50,32 @@ class PortManager:
 
     def is_port_available(self, port: int, host: str = "127.0.0.1") -> bool:
         """
-        检查端口是否可用
+        检查端口是否可用于绑定新服务
+
+        使用 bind() 方法而不是 connect_ex()，这样可以准确检测端口占用情况：
+        - 能检测到正在监听的服务
+        - 能检测到被占用但不监听的端口（如崩溃进程）
+        - 能跨 worktree 检测端口冲突（操作系统级）
 
         Args:
             port: 端口号
             host: 主机地址
 
         Returns:
-            bool: 端口是否可用
+            bool: 端口是否可用（True = 可以绑定）
         """
         try:
-            # 创建socket并尝试绑定端口
+            # 尝试绑定端口，而不是连接端口
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                # 不设置 SO_REUSEADDR，以检测真实的端口占用情况
                 sock.settimeout(1.0)  # 1秒超时
-                result = sock.connect_ex((host, port))
-                # 如果连接失败(端口未被占用)，返回True
-                return result != 0
+                sock.bind((host, port))  # 尝试绑定端口
+                # 绑定成功表示端口可用
+                return True
+        except OSError as e:
+            # 绑定失败表示端口被占用
+            self.logger.debug(f"Port {port} is not available: {e}")
+            return False
         except Exception as e:
             self.logger.debug(f"Port availability check failed for {port}: {e}")
             # 出现异常时假设端口不可用

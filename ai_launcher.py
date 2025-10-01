@@ -166,6 +166,20 @@ def _port_available(port: int, host: str = "127.0.0.1") -> bool:
         return False
 
 
+def _port_is_listening(port: int, host: str = "127.0.0.1") -> bool:
+    """
+    Checks if a port is actively listening (can be connected to).
+    Used to verify that a service has successfully started.
+    """
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(1.0)
+            result = s.connect_ex((host, port))
+            return result == 0  # 0 = connection successful
+    except Exception:
+        return False
+
+
 def _allocate_ports(cli: argparse.Namespace) -> Dict[str, int]:
     requested: Dict[str, int] = {}
     if getattr(cli, "vite_port", None):
@@ -349,6 +363,33 @@ def _start_vite(npm_port: int) -> Optional[int]:
     service = NpmDevServerService(PROJECT_ROOT)
     ok = service.start({"port": int(npm_port)})
     pid = service.proc_manager.get_pid()
+
+    if ok and pid:
+        # Verify that Vite successfully bound to the port
+        LOGGER.info("Waiting for Vite to start listening on port %s...", npm_port)
+        max_wait = 30  # 30 seconds timeout
+        for i in range(max_wait):
+            time.sleep(1.0)
+
+            # Check if Vite is listening
+            if _port_is_listening(npm_port):
+                LOGGER.info("✓ Vite successfully started on port %s", npm_port)
+                _save_dev_process(pid, npm_port, f"pnpm run dev -- --port {npm_port}")
+                return pid
+
+            # Check if process died
+            if not is_process_running(pid):
+                LOGGER.error("✗ Vite process exited prematurely (PID: %s)", pid)
+                _save_dev_process(None, npm_port, f"pnpm run dev -- --port {npm_port}")
+                return None
+
+        # Timeout - Vite didn't start listening
+        LOGGER.error("✗ Vite failed to start listening within %s seconds", max_wait)
+        LOGGER.error("  Killing Vite process (PID: %s)", pid)
+        kill_process(pid)
+        _save_dev_process(None, npm_port, f"pnpm run dev -- --port {npm_port}")
+        return None
+
     _save_dev_process(pid if ok else None, npm_port, f"pnpm run dev -- --port {npm_port}")
     return pid if ok else None
 
