@@ -63,14 +63,15 @@ export class BookmarkSidebarUI {
       'left: 0',
       'top: 0',
       'bottom: 0',
-      'width: 260px',
+      'width: 280px',
       'overflow: auto',
-      'background: #f7f7f7',
-      'border-right: 1px solid #ddd',
+      'background: #ffffff',
+      'border-right: 1px solid #ccc',
+      'box-shadow: 2px 0 8px rgba(0,0,0,0.15)', // 添加阴影，更明显的悬浮效果
       'padding: 8px',
       'box-sizing: border-box',
       'display: none',
-      'z-index: 20'
+      'z-index: 100' // 提高z-index确保在PDF上方
     ].join(';');
 
     this.#container.style.position = this.#container.style.position || 'relative';
@@ -180,18 +181,14 @@ export class BookmarkSidebarUI {
   show() {
     if (this.#sidebar) this.#sidebar.style.display = 'block';
     if (this.#toggleBtn) this.#toggleBtn.style.display = 'none';
-    // 调整viewerContainer左边距，为侧边栏留出空间
-    const viewerContainer = document.getElementById('viewerContainer');
-    if (viewerContainer) viewerContainer.style.marginLeft = '260px';
+    // 书签侧边栏使用绝对定位悬浮显示，不调整PDF渲染区域
     this.#eventBus.emit(PDF_VIEWER_EVENTS.BOOKMARK.SIDEBAR.OPENED, {}, { actorId: 'BookmarkSidebarUI' });
   }
 
   hide() {
     if (this.#sidebar) this.#sidebar.style.display = 'none';
     if (this.#toggleBtn) this.#toggleBtn.style.display = 'block';
-    // 恢复viewerContainer左边距
-    const viewerContainer = document.getElementById('viewerContainer');
-    if (viewerContainer) viewerContainer.style.marginLeft = '0';
+    // 书签侧边栏使用绝对定位悬浮显示，不调整PDF渲染区域
     this.#eventBus.emit(PDF_VIEWER_EVENTS.BOOKMARK.SIDEBAR.CLOSED, {}, { actorId: 'BookmarkSidebarUI' });
   }
 
