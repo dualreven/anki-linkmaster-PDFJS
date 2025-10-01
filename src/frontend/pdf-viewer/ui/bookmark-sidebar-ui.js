@@ -12,6 +12,8 @@ export class BookmarkSidebarUI {
   #logger;
   #container;
   #sidebar;
+  #sidebarHeader; // 书签侧边栏的header元素（包含关闭按钮）
+  #sidebarContent; // 书签侧边栏的内容区域（书签列表）
   #toggleBtn;
   #bookmarks = [];
   #unsubs = [];
@@ -19,7 +21,8 @@ export class BookmarkSidebarUI {
   constructor(eventBus, options = {}) {
     this.#eventBus = eventBus;
     this.#logger = getLogger('BookmarkSidebarUI');
-    this.#container = options.container || document.getElementById('pdf-container');
+    // 侧边栏应该添加到main元素，与viewerContainer并列
+    this.#container = options.container || document.querySelector('main');
     this.#sidebar = null;
   }
 
@@ -27,7 +30,8 @@ export class BookmarkSidebarUI {
     // 创建侧边栏DOM
     this.#ensureSidebar();
     this.#ensureToggleButton();
-    this.#ensureHeaderToggle();
+    // 不再在header添加书签按钮，已有侧边栏内置的关闭按钮
+    // this.#ensureHeaderToggle();
 
     // 监听书签加载
     this.#unsubs.push(this.#eventBus.on(
@@ -62,14 +66,15 @@ export class BookmarkSidebarUI {
       'left: 0',
       'top: 0',
       'bottom: 0',
-      'width: 260px',
+      'width: 280px',
       'overflow: auto',
-      'background: #f7f7f7',
-      'border-right: 1px solid #ddd',
+      'background: #ffffff',
+      'border-right: 1px solid #ccc',
+      'box-shadow: 2px 0 8px rgba(0,0,0,0.15)', // 添加阴影，更明显的悬浮效果
       'padding: 8px',
       'box-sizing: border-box',
       'display: none',
-      'z-index: 20'
+      'z-index: 1000' // 更高的z-index确保不被任何元素遮挡
     ].join(';');
 
     this.#container.style.position = this.#container.style.position || 'relative';
@@ -91,13 +96,22 @@ export class BookmarkSidebarUI {
     header.appendChild(title);
     header.appendChild(closeBtn);
     sidebar.appendChild(header);
+    this.#sidebarHeader = header;
+
+    // 创建内容区域
+    const content = document.createElement('div');
+    content.style.cssText = 'flex:1;overflow:auto;';
+    sidebar.appendChild(content);
+    this.#sidebarContent = content;
   }
 
   #renderBookmarks(bookmarks) {
     this.#bookmarks = Array.isArray(bookmarks) ? bookmarks : [];
     if (!this.#sidebar) this.#ensureSidebar();
-    if (!this.#sidebar) return;
-    this.#sidebar.innerHTML = '';
+    if (!this.#sidebarContent) return;
+
+    // 只清空内容区域，保留header
+    this.#sidebarContent.innerHTML = '';
 
     const list = document.createElement('ul');
     list.style.listStyle = 'none';
@@ -135,6 +149,7 @@ export class BookmarkSidebarUI {
       btn.style.overflow = 'hidden';
       btn.style.textOverflow = 'ellipsis';
       btn.addEventListener('click', () => {
+        this.#logger.info(`Bookmark clicked: ${node.title}, dest:`, node.dest);
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.REQUESTED,
           { bookmark: node, timestamp: Date.now() },
@@ -165,26 +180,30 @@ export class BookmarkSidebarUI {
     };
 
     this.#bookmarks.forEach(n => list.appendChild(buildNode(n, 0)));
-    this.#sidebar.appendChild(list);
+    this.#sidebarContent.appendChild(list);
     // 自动展开侧边栏
     this.show();
   }
 
   #renderEmpty() {
     if (!this.#sidebar) this.#ensureSidebar();
-    if (!this.#sidebar) return;
-    this.#sidebar.innerHTML = '<div style="color:#666;">无书签</div>';
+    if (!this.#sidebarContent) return;
+
+    // 只清空内容区域，保留header
+    this.#sidebarContent.innerHTML = '<div style="color:#666;padding:8px;">无书签</div>';
   }
 
   show() {
     if (this.#sidebar) this.#sidebar.style.display = 'block';
     if (this.#toggleBtn) this.#toggleBtn.style.display = 'none';
+    // 书签侧边栏使用绝对定位悬浮显示，不调整PDF渲染区域
     this.#eventBus.emit(PDF_VIEWER_EVENTS.BOOKMARK.SIDEBAR.OPENED, {}, { actorId: 'BookmarkSidebarUI' });
   }
 
   hide() {
     if (this.#sidebar) this.#sidebar.style.display = 'none';
     if (this.#toggleBtn) this.#toggleBtn.style.display = 'block';
+    // 书签侧边栏使用绝对定位悬浮显示，不调整PDF渲染区域
     this.#eventBus.emit(PDF_VIEWER_EVENTS.BOOKMARK.SIDEBAR.CLOSED, {}, { actorId: 'BookmarkSidebarUI' });
   }
 

@@ -124,7 +124,7 @@ export class NavigationHandler {
   }
 
   /**
-   * 渲染指定页面
+   * 跳转到指定页面(使用PDFViewer)
    * @param {number} pageNumber - 页面编号
    * @private
    */
@@ -140,27 +140,27 @@ export class NavigationHandler {
     );
 
     try {
-      // 获取页面
-      const page = await this.#app.pdfManager.getPage(pageNumber);
-      const viewport = page.getViewport({ scale: this.#app.zoomLevel });
-
-      // 渲染页面
-      await this.#app.uiManager.renderPage(page, viewport);
+      // 使用PDFViewer的currentPageNumber属性跳转
+      if (this.#app.uiManager.pdfViewerManager) {
+        this.#app.uiManager.pdfViewerManager.currentPageNumber = pageNumber;
+        this.#logger.debug(`PDFViewer navigated to page ${pageNumber}`);
+      } else {
+        this.#logger.warn("PDFViewerManager not available");
+      }
 
       // 发送渲染完成事件
       this.#app.eventBus.emit(
         PDF_VIEWER_EVENTS.RENDER.PAGE_COMPLETED,
         {
-          pageNumber,
-          viewport
+          pageNumber
         },
         { actorId: 'NavigationHandler' }
       );
 
-      this.#logger.debug(`Page ${pageNumber} rendered successfully`);
+      this.#logger.debug(`Page ${pageNumber} navigation completed`);
 
     } catch (error) {
-      this.#logger.error(`Failed to render page ${pageNumber}:`, error);
+      this.#logger.error(`Failed to navigate to page ${pageNumber}:`, error);
 
       // 发送渲染失败事件
       this.#app.eventBus.emit(

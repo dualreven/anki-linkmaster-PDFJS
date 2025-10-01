@@ -34,7 +34,8 @@ export class BookmarkManager {
 
     // 初始化侧边栏UI（挂载到容器）
     try {
-      const container = document.getElementById('pdf-container');
+      // 侧边栏应该添加到main元素，与viewerContainer并列
+      const container = document.querySelector('main');
       this.#ui = new BookmarkSidebarUI(this.#eventBus, { container });
       this.#ui.initialize();
     } catch (e) {
@@ -108,11 +109,14 @@ export class BookmarkManager {
   }
 
   async #handleNavigateRequested(data) {
+    this.#logger.info('Navigate requested, data:', data);
     try {
       const bookmark = data?.bookmark;
       if (!bookmark) throw new Error('bookmark is required');
 
+      this.#logger.info('Parsing destination:', bookmark.dest);
       const result = await this.#dataProvider.parseDestination(bookmark.dest);
+      this.#logger.info('Parsed destination result:', result);
 
       // 触发页面跳转（由导航模块处理）
       this.#eventBus.emit(

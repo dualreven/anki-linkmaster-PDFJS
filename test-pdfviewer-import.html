@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test PDFViewer Import</title>
+    <link rel="stylesheet" href="/@pdfjs/web/pdf_viewer.css">
+</head>
+<body>
+    <h1>Testing PDFViewer Import</h1>
+    <div id="status">Loading...</div>
+
+    <script type="module">
+        try {
+            document.getElementById('status').textContent = 'Importing PDFViewer...';
+
+            const { EventBus, PDFViewer, PDFLinkService } = await import('@pdfjs/web/pdf_viewer.mjs');
+
+            console.log('EventBus:', EventBus);
+            console.log('PDFViewer:', PDFViewer);
+            console.log('PDFLinkService:', PDFLinkService);
+
+            document.getElementById('status').textContent = 'Success! PDFViewer imported correctly.';
+            document.getElementById('status').style.color = 'green';
+        } catch (error) {
+            console.error('Import failed:', error);
+            document.getElementById('status').textContent = `Error: ${error.message}`;
+            document.getElementById('status').style.color = 'red';
+        }
+    </script>
+</body>
+</html>

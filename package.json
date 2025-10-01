@@ -39,7 +39,7 @@
   },
   "dependencies": {
     "core-js": "^3.45.1",
-    "pdfjs-dist": "^3.4.120",
+    "pdfjs-dist": "^4.7.76",
     "regenerator-runtime": "^0.14.1",
     "tabulator-tables": "^5.4.4"
   }

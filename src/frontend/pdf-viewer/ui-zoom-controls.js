@@ -21,6 +21,8 @@ export class UIZoomControls {
   #prevPageBtn = null;
   #nextPageBtn = null;
   #currentScale = 1.0;
+  #currentPage = 1;
+  #totalPages = 1;
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
@@ -40,12 +42,13 @@ export class UIZoomControls {
       this.#zoomInBtn = document.getElementById("zoom-in");
       this.#zoomOutBtn = document.getElementById("zoom-out");
       this.#zoomLevelDisplay = document.getElementById("zoom-level");
-      this.#pageInfoDisplay = document.getElementById("page-info");
+      this.#pageInfoDisplay = document.getElementById("page-info"); // 可选，向后兼容
       this.#prevPageBtn = document.getElementById("prev-page");
       this.#nextPageBtn = document.getElementById("next-page");
-      
-      if (!this.#zoomInBtn || !this.#zoomOutBtn || !this.#zoomLevelDisplay || 
-          !this.#pageInfoDisplay || !this.#prevPageBtn || !this.#nextPageBtn) {
+
+      // 检查必需的元素（page-info是可选的，用于向后兼容）
+      if (!this.#zoomInBtn || !this.#zoomOutBtn || !this.#zoomLevelDisplay ||
+          !this.#prevPageBtn || !this.#nextPageBtn) {
         throw new Error("Zoom control elements not found");
       }
       
@@ -70,11 +73,32 @@ export class UIZoomControls {
       });
       
       this.#nextPageBtn.addEventListener("click", () => {
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.NEXT, null, { 
-          actorId: 'UIZoomControls' 
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.NEXT, null, {
+          actorId: 'UIZoomControls'
         });
       });
-      
+
+      // 设置页码输入框事件
+      const pageInput = document.getElementById('page-input');
+      if (pageInput) {
+        // 监听Enter键和失焦事件
+        pageInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            this.#handlePageInputChange(pageInput);
+          }
+        });
+
+        pageInput.addEventListener('blur', () => {
+          this.#handlePageInputChange(pageInput);
+        });
+
+        // 监听input事件实现实时跳转（可选）
+        pageInput.addEventListener('change', () => {
+          this.#handlePageInputChange(pageInput);
+        });
+      }
+
       // 初始更新显示
       this.#updateZoomDisplay();
       this.#updatePageInfo(1, 1);
@@ -113,16 +137,68 @@ export class UIZoomControls {
    * @private
    */
   #updatePageInfo(currentPage, totalPages) {
+    // 更新内部状态
+    this.#currentPage = currentPage;
+    this.#totalPages = totalPages;
+
+    // 更新页码输入框
+    const pageInput = document.getElementById('page-input');
+    if (pageInput) {
+      pageInput.value = currentPage;
+      pageInput.max = totalPages;
+    }
+
+    // 更新总页数显示
+    const pageTotal = document.getElementById('page-total');
+    if (pageTotal) {
+      pageTotal.textContent = `/ ${totalPages}`;
+    }
+
+    // 保持对旧版page-info的兼容（如果存在）
     if (this.#pageInfoDisplay) {
       this.#pageInfoDisplay.textContent = `${currentPage} / ${totalPages}`;
-      
-      // 更新导航按钮状态
-      if (this.#prevPageBtn) {
-        this.#prevPageBtn.disabled = currentPage <= 1;
-      }
-      if (this.#nextPageBtn) {
-        this.#nextPageBtn.disabled = currentPage >= totalPages;
-      }
+    }
+
+    // 更新导航按钮状态
+    if (this.#prevPageBtn) {
+      this.#prevPageBtn.disabled = currentPage <= 1;
+    }
+    if (this.#nextPageBtn) {
+      this.#nextPageBtn.disabled = currentPage >= totalPages;
+    }
+  }
+
+  /**
+   * 处理页码输入变化
+   * @param {HTMLInputElement} input - 页码输入框元素
+   * @private
+   */
+  #handlePageInputChange(input) {
+    const pageNumber = parseInt(input.value, 10);
+    const max = parseInt(input.max, 10) || 1;
+
+    // 验证页码有效性
+    if (isNaN(pageNumber) || pageNumber < 1) {
+      // 无效页码，恢复到当前页
+      input.value = this.#currentPage;
+      this.#logger.warn(`Invalid page number: ${input.value}`);
+      return;
+    }
+
+    // 限制在有效范围内
+    const validPage = Math.max(1, Math.min(pageNumber, max));
+    if (validPage !== pageNumber) {
+      input.value = validPage;
+    }
+
+    // 如果页码与当前页不同，触发导航事件
+    if (validPage !== this.#currentPage) {
+      this.#logger.info(`Page input changed to ${validPage}, navigating...`);
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.GOTO, {
+        pageNumber: validPage
+      }, {
+        actorId: 'UIZoomControls.PageInput'
+      });
     }
   }
 

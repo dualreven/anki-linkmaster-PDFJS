@@ -10,7 +10,6 @@ import { PDFManager } from "./pdf-manager.js";
 import { UIManager } from "./ui-manager.js";
 import { createConsoleWebSocketBridge } from "../common/utils/console-websocket-bridge.js";
 import { createPDFViewerContainer } from "./container/app-container.js";
-import { RenderModeManager } from "./render-mode-manager.js";
 
 /**
  * @class PDFViewerAppCore
@@ -32,7 +31,6 @@ export class PDFViewerAppCore {
   #consoleBridge = null;
   #appContainer; // 应用容器
   #bookmarkManager; // 书签管理器（按需动态加载）
-  #renderModeManager; // 渲染模式管理器
 
   constructor(deps = {}) {
     // 如果传入了容器，使用它；否则创建新容器
@@ -126,33 +124,6 @@ export class PDFViewerAppCore {
         this.#logger.warn("BookmarkManager init failed, continue without bookmarks", reason);
       }
 
-      // 初始化渲染模式管理器
-      this.#renderModeManager = new RenderModeManager(async (newMode, oldMode) => {
-        this.#logger.info(`Render mode changed: ${oldMode} -> ${newMode}`);
-
-        // 如果当前有PDF文档,重新渲染到新的容器
-        if (this.#pdfManager && this.#totalPages > 0) {
-          try {
-            this.#logger.info("Re-rendering PDF in new mode...");
-            // 使用PDFManager的getPage方法获取当前页
-            const page = await this.#pdfManager.getPage(this.#currentPage);
-            const viewport = page.getViewport({ scale: this.#zoomLevel });
-
-            if (newMode === 'pdfviewer') {
-              // PDFViewer模式: 在#viewer容器内创建canvas并渲染
-              await this.renderToViewer(page, viewport);
-            } else {
-              // Canvas模式: 使用标准渲染
-              await this.#uiManager.renderPage(page, viewport);
-            }
-
-            this.#logger.info("PDF re-rendered successfully");
-          } catch (error) {
-            this.#logger.error("Failed to re-render PDF:", error);
-          }
-        }
-      });
-      this.#renderModeManager.initialize();
 
       this.#initialized = true;
       this.#logger.info("PDF Viewer App initialized successfully with container architecture.");
@@ -161,6 +132,7 @@ export class PDFViewerAppCore {
       });
 
       // 监听PDF加载成功事件
+      // 由FileHandler统一发射，确保只调用一次
       this.#eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, ({ pdfDocument }) => {
         this.#uiManager.loadPdfDocument(pdfDocument);
       });
@@ -201,33 +173,22 @@ export class PDFViewerAppCore {
    * 渲染PDF到#viewer容器(PDFViewer模式)
    * @param {Object} page - PDF页面对象
    * @param {Object} viewport - 视口对象
+   * @description 在PDFViewer模式下，PDFViewer组件会通过setDocument()自动渲染所有页面，
+   *              因此此方法不需要手动渲染。只需确保#viewer容器可见并让PDFViewer接管即可。
    */
   async renderToViewer(page, viewport) {
-    const viewerContainer = document.getElementById('viewer');
-    if (!viewerContainer) {
-      throw new Error('Viewer container not found');
+    // PDFViewer组件已经通过setDocument()自动渲染了所有页面
+    // 我们不需要手动创建canvas或渲染
+    // PDFViewer会在#viewer元素内自动创建并管理所有页面的canvas
+
+    this.#logger.info(`PDFViewer mode: rendering handled automatically by PDFViewer component`);
+
+    // 可选：如果需要跳转到特定页面，可以设置currentPageNumber
+    if (this.#uiManager && this.#uiManager.pdfViewerManager) {
+      const currentPage = this.#currentPage || 1;
+      this.#uiManager.pdfViewerManager.currentPageNumber = currentPage;
+      this.#logger.info(`Set PDFViewer to page ${currentPage}`);
     }
-
-    // 清空viewer容器
-    viewerContainer.innerHTML = '';
-
-    // 创建canvas元素
-    const canvas = document.createElement('canvas');
-    canvas.id = 'viewer-canvas';
-    canvas.className = 'viewer-canvas';
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    viewerContainer.appendChild(canvas);
-
-    // 渲染PDF页面
-    const context = canvas.getContext('2d');
-    const renderContext = {
-      canvasContext: context,
-      viewport: viewport
-    };
-
-    await page.render(renderContext).promise;
-    this.#logger.info(`Rendered page to viewer container: ${viewport.width}x${viewport.height}`);
   }
 
   /**
@@ -375,5 +336,4 @@ export class PDFViewerAppCore {
   get wsClient() { return this.#wsClient; }
   get messageQueue() { return this.#messageQueue; }
   get _appContainer() { return this.#appContainer; }
-  get renderModeManager() { return this.#renderModeManager; }
 }

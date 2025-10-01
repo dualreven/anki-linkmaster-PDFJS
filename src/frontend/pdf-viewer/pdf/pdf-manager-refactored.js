@@ -143,10 +143,11 @@ export class PDFManager {
         this.#documentManager.setDocument(pdfDocument);
 
         this.#logger.info(`PDF loaded successfully: ${filename || 'Document'}`);
-        
-        // 将加载的文档传递给UIManager
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, { pdfDocument });
-        
+
+        // ⚠️ 不在这里发射FILE.LOAD.SUCCESS事件，由FileHandler统一发射
+        // 避免重复发射导致setDocument()被调用多次
+        // this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, { pdfDocument });
+
         return pdfDocument;
 
       } catch (error) {

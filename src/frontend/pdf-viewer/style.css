@@ -72,6 +72,44 @@ h1 {
     color: #333;
 }
 
+/* 布局控制样式 */
+.layout-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #f8f9fa;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+}
+
+.layout-controls select {
+    padding: 4px 8px;
+    border: 1px solid #ddd;
+    background-color: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+/* 旋转控制样式 */
+.rotation-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #f8f9fa;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+}
+
+.rotation-controls .btn {
+    padding: 4px 8px;
+    min-width: 32px;
+    font-weight: bold;
+    font-size: 18px;
+}
+
 /* 缩放控制样式 */
 .zoom-controls {
     display: flex;
@@ -113,12 +151,35 @@ h1 {
     min-width: 40px;
 }
 
-#page-info {
+/* 页码输入框 */
+.page-input {
+    width: 50px;
+    padding: 4px 6px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+    color: #495057;
+    background-color: #fff;
+    transition: border-color 0.2s ease;
+}
+
+.page-input:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0,123,255,0.1);
+}
+
+.page-input::-webkit-inner-spin-button,
+.page-input::-webkit-outer-spin-button {
+    opacity: 1;
+}
+
+#page-total {
     font-size: 14px;
     font-weight: 500;
     color: #495057;
-    min-width: 60px;
-    text-align: center;
 }
 
 /* 主内容区域 */
@@ -132,20 +193,22 @@ main {
     box-sizing: border-box;
 }
 
+/* viewerContainer是PDFViewer的外层容器 */
 .pdf-container {
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
-    /* 关键：容器在 main 有 padding-top 时，使用 border-box 确保高度计算正确 */
     height: 100%;
-    display: flex;
-    justify-content: center;
-    /* 让内容自顶部开始排列，避免垂直居中时顶端空间被 main 的 overflow 隐藏 */
-    align-items: flex-start;
     background-color: #f0f0f0;
     overflow: auto;
-    /* 为上下各留出安全内边距，避免canvas被裁切 */
-    padding-top: 16px;
-    padding-bottom: 16px;
     box-sizing: border-box;
+}
+
+/* PDFViewer组件容器 - 必须让PDF.js完全控制布局 */
+#viewer.pdfViewer {
+    /* 不添加任何样式，让PDF.js的官方CSS完全控制 */
+    /* PDF.js会自动管理内部的.page元素布局 */
 }
 
 /* PDF页面包装器 - 包含canvas和文字层的相对定位容器 */
@@ -155,23 +218,17 @@ main {
     display: inline-block;
 }
 
-/* Canvas样式 */
+/* [已废弃] Canvas样式 - Canvas模式已移除 */
 #pdf-canvas {
-    display: block;
+    display: none; /* 隐藏Canvas元素 */
     background: #fff;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     position: relative;
     z-index: 1;
 }
 
-/* 文字层和注释层绝对定位在canvas上方 */
-#text-layer,
-#annotation-layer {
-    position: absolute;
-    left: 0;
-    top: 0;
-    pointer-events: auto;
-}
+/* [已废弃] 文字层和注释层样式 - PDFViewer自动管理，不需要手动定位 */
+/* 旧版#text-layer和#annotation-layer已被隐藏，PDFViewer会自动创建.textLayer和.annotationLayer */
 
 /* 加载状态样式 */
 .loading {
@@ -257,51 +314,25 @@ main {
     100% { opacity: 1; }
 }
 
-/* 文字层样式 - 20250922143000-pdf-text-layer */
-/* 注意：PDF.js使用.textLayer类（大写L），我们需要兼容 */
+/* [已废弃] 文字层样式 - PDFViewer组件自带文本层，不需要自定义样式 */
+/* PDF.js 4.7.76的官方CSS已经完美处理了文本层的所有样式和对齐 */
+/*
 .text-layer,
 #text-layer,
 .textLayer {
-    /* 定位方式: absolute positioned over canvas with left: 0; top: 0; (defined above in lines 168-174) */
-    /* 尺寸会通过JS动态设置，与canvas保持一致 */
-    overflow: visible !important;  /* PDF.js需要visible以正确渲染文字 */
-    opacity: 1;
-    line-height: 1.0;
-    /* 确保文字层在canvas上方 */
-    z-index: 2;
-    /* 允许文字选择 */
-    user-select: text !important;
-    -webkit-user-select: text !important;
-    -moz-user-select: text !important;
-    -ms-user-select: text !important;
-    /* 指针事件允许，支持文字选择和交互 */
-    pointer-events: auto !important;
+    // 已移除：让PDF.js完全控制文本层样式
 }
+*/
 
-/* 文字层中的文字元素 - 兼容PDF.js和自定义渲染 */
-.text-layer span,
-.textLayer span,
-.textLayer-item {
-    color: transparent !important;
-    position: absolute;
-    white-space: pre;
-    cursor: text;
-    /* 文字变换原点 */
-    transform-origin: 0% 0%;
-    /* 允许指针事件用于文字选择 */
-    pointer-events: auto !important;
-}
-
-/* 文字选择高亮 */
-.text-layer ::selection,
+/* 可选：自定义文字选择高亮颜色（如果需要的话）
 .textLayer ::selection {
-    background: rgba(0, 123, 255, 0.3) !important;
+    background: rgba(0, 123, 255, 0.3);
 }
 
-.text-layer ::-moz-selection,
 .textLayer ::-moz-selection {
-    background: rgba(0, 123, 255, 0.3) !important;
+    background: rgba(0, 123, 255, 0.3);
 }
+*/
 
 /* 文字高亮标记 */
 .text-highlight {

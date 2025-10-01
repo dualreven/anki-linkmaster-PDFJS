@@ -161,10 +161,13 @@ export class UIManagerCore {
    * @private
    */
   #setupWheelListener() {
-    const container = this.#domManager.getElement('container');
+    // 使用viewerContainer而不是旧的container（已隐藏）
+    const container = document.getElementById('viewerContainer');
     if (container) {
       container.addEventListener('wheel', this.#handleWheel.bind(this), { passive: false });
-      this.#logger.info("Wheel event listener setup");
+      this.#logger.info("Wheel event listener setup on viewerContainer");
+    } else {
+      this.#logger.error("viewerContainer not found for wheel listener");
     }
   }
 
@@ -243,11 +246,16 @@ export class UIManagerCore {
   }
 
   /**
-   * 渲染页面
+   * [已废弃] 渲染页面 - Canvas模式专用
+   * @deprecated 现在使用PDFViewer组件自动渲染，不再需要手动Canvas渲染
    * @param {Object} page - PDF页面对象
    * @param {Object} viewport - 视口对象
    */
   async renderPage(page, viewport) {
+    this.#logger.warn('renderPage() is deprecated. PDFViewer component handles rendering automatically.');
+    throw new Error('Canvas rendering mode is no longer supported. Use PDFViewer mode instead.');
+
+    /* Canvas rendering code (deprecated) - 保留以备将来参考
     const canvas = this.#domManager.getElement('canvas');
     if (!canvas) {
       throw new Error('Canvas element not found');
@@ -287,6 +295,7 @@ export class UIManagerCore {
     }
 
     this.#logger.debug('Page rendered successfully');
+    */
   }
 
   /**
@@ -353,18 +362,22 @@ export class UIManagerCore {
   }
 
   /**
-   * 获取Canvas元素
+   * [已废弃] 获取Canvas元素
+   * @deprecated Canvas模式已移除,此方法仅为向后兼容保留
    * @returns {HTMLCanvasElement} Canvas元素
    */
   getCanvas() {
+    this.#logger.warn('getCanvas() is deprecated. Canvas rendering mode is no longer supported.');
     return this.#domManager.getElement('canvas');
   }
 
   /**
-   * 获取Canvas上下文
+   * [已废弃] 获取Canvas上下文
+   * @deprecated Canvas模式已移除,此方法仅为向后兼容保留
    * @returns {CanvasRenderingContext2D} 2D上下文
    */
   getContext() {
+    this.#logger.warn('getContext() is deprecated. Canvas rendering mode is no longer supported.');
     const canvas = this.getCanvas();
     return canvas ? canvas.getContext('2d') : null;
   }
@@ -451,7 +464,7 @@ export class UIManagerCore {
     }
 
     // 移除滚轮事件
-    const container = this.#domManager.getElement('container');
+    const container = document.getElementById('viewerContainer');
     if (container) {
       container.removeEventListener('wheel', this.#handleWheel.bind(this));
     }

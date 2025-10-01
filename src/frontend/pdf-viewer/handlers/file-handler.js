@@ -342,6 +342,7 @@ export class FileHandler {
       PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
       {
         file: fileData,
+        pdfDocument: pdfDocument,  // ✅ 添加pdfDocument字段，保持与PDFManager的事件数据结构一致
         totalPages: pdfDocument.numPages
       },
       { actorId: 'FileHandler' }
@@ -369,18 +370,9 @@ export class FileHandler {
       const viewport = page.getViewport({ scale: this.#app.zoomLevel });
       this.#logger.info(`Created viewport: ${viewport.width}x${viewport.height}, scale=${this.#app.zoomLevel}`);
 
-      // 检查当前渲染模式并渲染到对应容器
-      const hasRenderModeManager = !!this.#app.renderModeManager;
-      const currentMode = this.#app.renderModeManager ? this.#app.renderModeManager.getCurrentMode() : 'canvas';
-      this.#logger.info(`Render mode check: hasManager=${hasRenderModeManager}, currentMode=${currentMode}`);
-
-      if (currentMode === 'pdfviewer') {
-        this.#logger.info("Rendering to viewer container (PDFViewer mode)...");
-        await this.#app.renderToViewer(page, viewport);
-      } else {
-        this.#logger.info("Rendering to canvas (Canvas mode)...");
-        await this.#app.uiManager.renderPage(page, viewport);
-      }
+      // 使用PDFViewer模式渲染（Canvas模式已废弃）
+      this.#logger.info("Rendering to viewer container (PDFViewer mode)...");
+      await this.#app.renderToViewer(page, viewport);
 
       this.#logger.info("Initial page rendered successfully");
     } catch (error) {

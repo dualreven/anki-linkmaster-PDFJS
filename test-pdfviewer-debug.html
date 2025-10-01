@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDFViewer Debug</title>
+    <style>
+        body { margin: 0; padding: 20px; }
+        #container {
+            width: 800px;
+            height: 600px;
+            border: 2px solid red;
+            overflow: auto;
+            position: relative;
+        }
+        #viewer {
+            border: 2px solid blue;
+        }
+    </style>
+    <link rel="stylesheet" href="node_modules/pdfjs-dist/web/pdf_viewer.css">
+</head>
+<body>
+    <h1>PDFViewer Debug Test</h1>
+    <div id="container">
+        <div id="viewer" class="pdfViewer"></div>
+    </div>
+
+    <div id="debug"></div>
+
+    <script type="module">
+        import * as pdfjsLib from './node_modules/pdfjs-dist/build/pdf.mjs';
+        import { PDFViewer, EventBus, PDFLinkService } from './node_modules/pdfjs-dist/web/pdf_viewer.mjs';
+
+        pdfjsLib.GlobalWorkerOptions.workerSrc = './node_modules/pdfjs-dist/build/pdf.worker.mjs';
+
+        const debug = document.getElementById('debug');
+
+        async function test() {
+            debug.innerHTML += '<p>Step 1: Creating EventBus...</p>';
+            const eventBus = new EventBus();
+
+            debug.innerHTML += '<p>Step 2: Creating PDFLinkService...</p>';
+            const linkService = new PDFLinkService({ eventBus });
+
+            debug.innerHTML += '<p>Step 3: Getting container and viewer elements...</p>';
+            const container = document.getElementById('container');
+            const viewer = document.getElementById('viewer');
+            debug.innerHTML += `<p>Container: ${container}, Viewer: ${viewer}</p>`;
+            debug.innerHTML += `<p>Viewer has class pdfViewer: ${viewer.classList.contains('pdfViewer')}</p>`;
+
+            debug.innerHTML += '<p>Step 4: Creating PDFViewer instance...</p>';
+            const pdfViewer = new PDFViewer({
+                container: container,
+                viewer: viewer,
+                eventBus: eventBus,
+                linkService: linkService
+            });
+
+            linkService.setViewer(pdfViewer);
+            debug.innerHTML += '<p>Step 5: PDFViewer created</p>';
+
+            debug.innerHTML += '<p>Step 6: Loading PDF...</p>';
+            const loadingTask = pdfjsLib.getDocument('/pdfs/test.pdf');
+            const pdfDocument = await loadingTask.promise;
+            debug.innerHTML += `<p>Step 7: PDF loaded, ${pdfDocument.numPages} pages</p>`;
+
+            debug.innerHTML += '<p>Step 8: Calling setDocument...</p>';
+            pdfViewer.setDocument(pdfDocument);
+            linkService.setDocument(pdfDocument);
+            debug.innerHTML += '<p>Step 9: setDocument completed</p>';
+
+            debug.innerHTML += '<p>Step 10: Checking viewer content...</p>';
+            setTimeout(() => {
+                const viewerContent = viewer.innerHTML;
+                debug.innerHTML += `<p>Viewer innerHTML length: ${viewerContent.length}</p>`;
+                debug.innerHTML += `<p>Viewer has children: ${viewer.children.length}</p>`;
+                if (viewer.children.length > 0) {
+                    debug.innerHTML += `<p>First child: ${viewer.children[0].tagName}.${viewer.children[0].className}</p>`;
+                }
+            }, 2000);
+        }
+
+        test().catch(err => {
+            debug.innerHTML += `<p style="color: red;">ERROR: ${err.message}</p>`;
+            console.error(err);
+        });
+    </script>
+</body>
+</html>

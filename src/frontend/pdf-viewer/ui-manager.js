@@ -8,6 +8,7 @@ import { UIManagerCore } from "./ui/ui-manager-core-refactored.js";
 import { UIZoomControls } from "./ui-zoom-controls.js";
 import { UIProgressError } from "./ui-progress-error.js";
 import { PDFViewerManager } from "./pdf-viewer-manager.js";
+import { UILayoutControls } from "./ui-layout-controls.js";
 import { getLogger } from "../common/utils/logger.js";
 
 /**
@@ -21,6 +22,7 @@ export class UIManager {
   #zoomControls;
   #progressError;
   #pdfViewerManager;
+  #layoutControls;
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
@@ -31,6 +33,7 @@ export class UIManager {
     this.#zoomControls = new UIZoomControls(eventBus);
     this.#progressError = new UIProgressError(eventBus);
     this.#pdfViewerManager = new PDFViewerManager(this.#eventBus);
+    this.#layoutControls = new UILayoutControls(this.#eventBus);
   }
 
   /**
@@ -50,8 +53,15 @@ export class UIManager {
       // 初始化其他模块
       await this.#zoomControls.setupZoomControls(container);
       this.#progressError.setupProgressAndErrorUI(container);
-      const viewerContainer = document.getElementById("viewer");
+
+      // PDFViewer需要外层滚动容器，但HTML中有#viewerContainer和#viewer两层
+      // 根据PDF.js要求，container应该是滚动容器，PDFViewer会在其中查找.pdfViewer元素
+      // 所以传入#viewerContainer，让PDFViewer自动找到#viewer.pdfViewer
+      const viewerContainer = document.getElementById("viewerContainer");
       this.#pdfViewerManager.initialize(viewerContainer);
+
+      // 初始化布局控件
+      this.#layoutControls.setup(this.#pdfViewerManager);
 
       this.#logger.info("UI Manager initialized successfully");
     } catch (error) {
@@ -161,6 +171,14 @@ export class UIManager {
   }
 
   /**
+   * 获取PDFViewerManager实例
+   * @returns {PDFViewerManager}
+   */
+  get pdfViewerManager() {
+    return this.#pdfViewerManager;
+  }
+
+  /**
    * 清理UI资源
    */
   cleanup() {
@@ -172,14 +190,16 @@ export class UIManager {
    */
   destroy() {
     this.#logger.info("Destroying UI Manager");
-    
+
     this.#core.destroy();
     this.#zoomControls.destroy();
     this.#progressError.destroy();
-    
+    this.#layoutControls.destroy();
+
     this.#core = null;
     this.#zoomControls = null;
     this.#progressError = null;
     this.#pdfViewerManager = null;
+    this.#layoutControls = null;
   }
 }
