@@ -92,7 +92,9 @@ export class PDFViewerManager {
         textLayerMode: 2, // 启用增强文本层
         annotationMode: 2, // 启用表单和注释
         annotationEditorMode: 0, // 禁用注释编辑器（避免工具栏）
-        removePageBorders: false,
+        removePageBorders: true, // 移除页面边框，避免textLayer偏移9px
+        useOnlyCssZoom: false, // 使用Canvas scale模式，确保textLayer与canvas同步
+        maxCanvasPixels: 16777216, // 设置最大canvas像素，避免scale计算错误
         enableHWA: true, // 启用硬件加速
       });
 
@@ -138,6 +140,12 @@ export class PDFViewerManager {
       this.#logger.info("Immediately after setDocument:");
       this.#logger.info(`  pdfViewer.pdfDocument: ${!!this.#pdfViewer.pdfDocument}`);
       this.#logger.info(`  pdfViewer.pagesCount: ${this.#pdfViewer.pagesCount}`);
+
+      // 强制刷新PDFViewer以确保textLayer和canvas尺寸一致
+      // 这会触发PDFViewer重新计算所有页面的viewport和布局
+      this.#logger.info("Forcing PDFViewer update to sync layer dimensions...");
+      this.#pdfViewer.update();
+      this.#logger.info(`PDFViewer updated, currentScale: ${this.#pdfViewer.currentScale}`);
     } catch (error) {
       this.#logger.error("Error during setDocument:", error);
     }

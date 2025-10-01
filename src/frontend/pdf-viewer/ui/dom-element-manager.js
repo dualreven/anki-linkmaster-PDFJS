@@ -111,20 +111,24 @@ export class DOMElementManager {
       this.#logger.info("Created PDF canvas (deprecated, hidden)");
     }
 
-    // 创建文本层
+    // [已废弃] 创建旧版文本层但立即隐藏 - 现在使用PDFViewer自动生成的textLayer
     if (!this.#elements.textLayer) {
       this.#elements.textLayer = document.createElement("div");
       this.#elements.textLayer.id = "text-layer";
       this.#elements.textLayer.className = "text-layer";
+      this.#elements.textLayer.style.display = "none"; // 隐藏旧版文本层，避免干扰PDFViewer
       this.#elements.container.appendChild(this.#elements.textLayer);
+      this.#logger.info("Created legacy text layer (hidden)");
     }
 
-    // 创建注释层
+    // [已废弃] 创建旧版注释层但立即隐藏 - 现在使用PDFViewer自动生成的annotationLayer
     if (!this.#elements.annotationLayer) {
       this.#elements.annotationLayer = document.createElement("div");
       this.#elements.annotationLayer.id = "annotation-layer";
       this.#elements.annotationLayer.className = "annotation-layer";
+      this.#elements.annotationLayer.style.display = "none"; // 隐藏旧版注释层，避免干扰PDFViewer
       this.#elements.container.appendChild(this.#elements.annotationLayer);
+      this.#logger.info("Created legacy annotation layer (hidden)");
     }
   }
 
