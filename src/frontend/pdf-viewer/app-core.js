@@ -10,7 +10,6 @@ import { PDFManager } from "./pdf-manager.js";
 import { UIManager } from "./ui-manager.js";
 import { createConsoleWebSocketBridge } from "../common/utils/console-websocket-bridge.js";
 import { createPDFViewerContainer } from "./container/app-container.js";
-import { RenderModeManager } from "./render-mode-manager.js";
 
 /**
  * @class PDFViewerAppCore
@@ -32,7 +31,6 @@ export class PDFViewerAppCore {
   #consoleBridge = null;
   #appContainer; // 应用容器
   #bookmarkManager; // 书签管理器（按需动态加载）
-  #renderModeManager; // 渲染模式管理器
 
   constructor(deps = {}) {
     // 如果传入了容器，使用它；否则创建新容器
@@ -126,33 +124,6 @@ export class PDFViewerAppCore {
         this.#logger.warn("BookmarkManager init failed, continue without bookmarks", reason);
       }
 
-      // 初始化渲染模式管理器
-      this.#renderModeManager = new RenderModeManager(async (newMode, oldMode) => {
-        this.#logger.info(`Render mode changed: ${oldMode} -> ${newMode}`);
-
-        // 如果当前有PDF文档,重新渲染到新的容器
-        if (this.#pdfManager && this.#totalPages > 0) {
-          try {
-            this.#logger.info("Re-rendering PDF in new mode...");
-            // 使用PDFManager的getPage方法获取当前页
-            const page = await this.#pdfManager.getPage(this.#currentPage);
-            const viewport = page.getViewport({ scale: this.#zoomLevel });
-
-            if (newMode === 'pdfviewer') {
-              // PDFViewer模式: 在#viewer容器内创建canvas并渲染
-              await this.renderToViewer(page, viewport);
-            } else {
-              // Canvas模式: 使用标准渲染
-              await this.#uiManager.renderPage(page, viewport);
-            }
-
-            this.#logger.info("PDF re-rendered successfully");
-          } catch (error) {
-            this.#logger.error("Failed to re-render PDF:", error);
-          }
-        }
-      });
-      this.#renderModeManager.initialize();
 
       this.#initialized = true;
       this.#logger.info("PDF Viewer App initialized successfully with container architecture.");
@@ -365,5 +336,4 @@ export class PDFViewerAppCore {
   get wsClient() { return this.#wsClient; }
   get messageQueue() { return this.#messageQueue; }
   get _appContainer() { return this.#appContainer; }
-  get renderModeManager() { return this.#renderModeManager; }
 }
