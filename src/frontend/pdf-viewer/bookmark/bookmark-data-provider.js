@@ -26,10 +26,9 @@ export class BookmarkDataProvider {
    * 创建书签数据提供者实例
    */
   constructor() {
-    this.#logger = { info: () => {}, warn: () => {}, error: () => {} }; // 临时禁用日志
-    // this.#logger = getLogger('BookmarkDataProvider');
+    this.#logger = getLogger('BookmarkDataProvider');
     this.#pdfDocument = null;
-    // this.#logger.info('BookmarkDataProvider initialized');
+    this.#logger.info('BookmarkDataProvider initialized');
   }
 
   // 私有字段
