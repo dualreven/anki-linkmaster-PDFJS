@@ -616,6 +616,12 @@ def cmd_start(args: argparse.Namespace) -> int:
             ports["npm_port"] = actual_vite_port
             if actual_vite_port != vite_port:
                 LOGGER.info("Updated ports dict with actual Vite port: %s", actual_vite_port)
+                # Update runtime-ports.json so frontend can read the correct port
+                runtime_ports = read_json(LOGS_DIR / "runtime-ports.json")
+                runtime_ports["vite_port"] = actual_vite_port
+                runtime_ports["npm_port"] = actual_vite_port
+                write_json_atomic(LOGS_DIR / "runtime-ports.json", runtime_ports)
+                LOGGER.info("Updated runtime-ports.json with actual Vite port")
 
         # 2) backend
         _start_backend(msgCenter_port, pdfFile_port)
