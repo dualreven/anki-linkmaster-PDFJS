@@ -9,6 +9,7 @@ import '../common/polyfills.js';
  */
 
 import { bootstrapPDFHomeAppV2 } from './bootstrap/app-bootstrap-v2.js';
+import { setupCommunicationTestUI } from './utils/communication-tester.js';
 
 /**
  * 获取运行环境
@@ -44,6 +45,17 @@ async function startApp() {
     });
 
     console.log('[DEBUG] App started successfully');
+
+    // 在开发环境下设置通信测试工具
+    const env = getEnvironment();
+    if (env === 'development') {
+      const { wsClient, eventBus } = app.getDependencies();
+      if (wsClient && eventBus) {
+        setupCommunicationTestUI(wsClient, eventBus);
+        console.log('[DEBUG] Communication test UI enabled (dev mode)');
+      }
+    }
+
     return app;
 
   } catch (error) {

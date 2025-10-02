@@ -488,8 +488,72 @@ def main() -> int:
         js_console_logger.stop()
         logger.info(f"JS console logger stopped for pdf_id: {pdf_id}")
 
+    # 停止后台服务（复制closeEvent中的逻辑）
+    _cleanup_backend_services(pdf_id, logger)
+
     logger.info(f"pdf-viewer window exited with code {rc} (pdf_id: {pdf_id})")
     return int(rc)
+
+
+def _cleanup_backend_services(pdf_id: str, logger) -> None:
+    """清理后台服务 - 当窗口关闭时调用"""
+    import subprocess
+    import json
+    from pathlib import Path
+
+    try:
+        # 修正路径：launcher.py -> pdf-viewer -> frontend -> src -> 项目根目录
+        project_root = Path(__file__).parent.parent.parent.parent
+        logger.info(f"开始清理后台服务 (pdf_id: {pdf_id})")
+        logger.info(f"项目根目录: {project_root}")
+
+        # 第一步：从 frontend-process-info.json 中移除窗口记录
+        try:
+            frontend_info_path = project_root / 'logs' / 'frontend-process-info.json'
+            if frontend_info_path.exists():
+                with open(frontend_info_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+
+                if 'frontend' in data and isinstance(data['frontend'], dict):
+                    keys_to_remove = [
+                        key for key in data['frontend'].keys()
+                        if key.startswith('pdf-viewer') and pdf_id in key
+                    ]
+                    for key in keys_to_remove:
+                        del data['frontend'][key]
+                        logger.info(f"已从跟踪列表中移除窗口: {key}")
+
+                with open(frontend_info_path, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                logger.info("✓ 清理前端进程信息成功")
+        except Exception as e:
+            logger.warning(f"✗ 清理前端进程信息失败: {e}")
+
+        # 第二步：调用 ai_launcher.py stop 停止后端服务
+        ai_launcher_path = project_root / 'ai_launcher.py'
+        if ai_launcher_path.exists():
+            logger.info("正在停止后端服务...")
+            result = subprocess.run(
+                [sys.executable, str(ai_launcher_path), 'stop'],
+                cwd=str(project_root),
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+
+            if result.returncode == 0:
+                logger.info("✓ 后端服务已停止")
+            else:
+                logger.warning(f"✗ 停止后端服务失败 (code={result.returncode})")
+        else:
+            logger.warning(f"✗ 未找到 ai_launcher.py: {ai_launcher_path}")
+
+    except subprocess.TimeoutExpired:
+        logger.error("✗ 停止服务超时")
+    except Exception as e:
+        logger.error(f"✗ 清理后台服务时发生错误: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
 
 
 if __name__ == '__main__':
