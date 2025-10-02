@@ -251,22 +251,7 @@ export class BookmarkSidebarUI {
     bookmarkBtn.addEventListener('click', () => this.show());
     buttonContainer.appendChild(bookmarkBtn);
 
-    // 创建标注按钮
-    const annotationBtn = document.createElement('button');
-    annotationBtn.type = 'button';
-    annotationBtn.textContent = '✎ 标注';
-    annotationBtn.title = '打开标注';
-    annotationBtn.style.cssText = [
-      'padding:4px 8px','border:1px solid #ddd','border-radius:4px',
-      'background:#fff','cursor:pointer','box-shadow:0 1px 2px rgba(0,0,0,0.06)',
-      'font-size:13px','white-space:nowrap'
-    ].join(';');
-    annotationBtn.addEventListener('click', () => {
-      this.#logger.info('[BookmarkSidebarUI] Annotation button clicked');
-      // 触发标注侧边栏切换事件
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.TOGGLE, {});
-    });
-    buttonContainer.appendChild(annotationBtn);
+    // 标注按钮已移至 AnnotationFeature 中管理
 
     // 创建卡片按钮
     const cardBtn = document.createElement('button');

@@ -97,30 +97,36 @@ export class AnnotationFeature {
    * @private
    */
   #createAnnotationButton() {
-    // 在header-right中查找合适的位置插入按钮
-    const headerRight = document.querySelector('.header-right');
-    if (!headerRight) {
-      this.#logger.warn('Header-right not found, cannot create annotation button');
-      return;
+    // 查找书签按钮所在的容器（由BookmarkSidebarUI创建）
+    // 容器可能在main元素内，也可能在body上（fixed定位）
+    const mainContainer = document.querySelector('main');
+    let buttonContainer = mainContainer ? mainContainer.querySelector('div[style*="flex-direction:column"]') : null;
+
+    if (!buttonContainer) {
+      // 尝试在body上查找fixed定位的容器
+      buttonContainer = document.body.querySelector('div[style*="position:fixed"][style*="flex-direction:column"]');
     }
 
-    // 创建标注按钮容器
-    const annotationControls = document.createElement('div');
-    annotationControls.className = 'annotation-controls';
-    annotationControls.style.cssText = 'display: flex; align-items: center; margin-right: 8px;';
+    if (!buttonContainer) {
+      this.#logger.warn('Button container not found, cannot create annotation button');
+      return;
+    }
 
     // 创建标注按钮
     const button = document.createElement('button');
     button.id = 'annotation-toggle-btn';
-    button.className = 'btn';
-    button.title = '标注（Ctrl+Shift+A）';
-    button.textContent = '📝 标注';
+    button.type = 'button';
+    button.textContent = '✎ 标注';
+    button.title = '打开标注（Ctrl+Shift+A）';
     button.style.cssText = [
-      'display: flex',
-      'align-items: center',
-      'gap: 4px',
-      'padding: 6px 12px',
-      'font-size: 14px'
+      'padding:4px 8px',
+      'border:1px solid #ddd',
+      'border-radius:4px',
+      'background:#fff',
+      'cursor:pointer',
+      'box-shadow:0 1px 2px rgba(0,0,0,0.06)',
+      'font-size:13px',
+      'white-space:nowrap'
     ].join(';');
 
     // 点击事件
@@ -133,17 +139,21 @@ export class AnnotationFeature {
     document.addEventListener('keydown', (e) => {
       if (e.ctrlKey && e.shiftKey && e.key === 'A') {
         e.preventDefault();
+        this.#logger.debug('Annotation keyboard shortcut triggered');
         this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.TOGGLE, {});
       }
     });
 
-    annotationControls.appendChild(button);
-
-    // 插入到header-right的第一个位置（最左边）
-    headerRight.insertBefore(annotationControls, headerRight.firstChild);
+    // 插入到书签按钮后面
+    const bookmarkBtn = buttonContainer.querySelector('button');
+    if (bookmarkBtn && bookmarkBtn.nextSibling) {
+      buttonContainer.insertBefore(button, bookmarkBtn.nextSibling);
+    } else {
+      buttonContainer.appendChild(button);
+    }
 
     this.#toggleButton = button;
-    this.#logger.debug('Annotation button created');
+    this.#logger.debug('Annotation button created and inserted after bookmark button');
 
     // 监听侧边栏状态，更新按钮样式
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.OPENED, () => {
@@ -152,8 +162,8 @@ export class AnnotationFeature {
     }, { subscriberId: 'AnnotationFeature' });
 
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.CLOSED, () => {
-      button.style.background = '';
-      button.style.borderColor = '';
+      button.style.background = '#fff';
+      button.style.borderColor = '#ddd';
     }, { subscriberId: 'AnnotationFeature' });
   }
 }
