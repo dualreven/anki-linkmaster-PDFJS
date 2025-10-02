@@ -567,6 +567,14 @@ export class StateManager {
   }
 
   /**
+   * 销毁功能域状态（deleteState 的别名）
+   * @param {string} namespace - 命名空间
+   */
+  destroyState(namespace) {
+    this.deleteState(namespace);
+  }
+
+  /**
    * 获取所有命名空间
    * @returns {string[]}
    */
@@ -580,6 +588,44 @@ export class StateManager {
   clear() {
     this.#states.clear();
     this.#logger.info('All states cleared');
+  }
+
+  /**
+   * 生成所有功能域的全局快照
+   * @returns {Object} 全局快照对象
+   */
+  snapshot() {
+    const snapshots = {};
+
+    for (const [namespace, reactiveState] of this.#states.entries()) {
+      snapshots[namespace] = reactiveState.snapshot();
+    }
+
+    return {
+      states: snapshots,
+      timestamp: Date.now()
+    };
+  }
+
+  /**
+   * 从全局快照恢复所有功能域状态
+   * @param {Object} globalSnapshot - 全局快照对象
+   */
+  restore(globalSnapshot) {
+    if (!globalSnapshot || !globalSnapshot.states) {
+      throw new Error('Invalid snapshot format');
+    }
+
+    for (const [namespace, snapshot] of Object.entries(globalSnapshot.states)) {
+      const reactiveState = this.#states.get(namespace);
+      if (reactiveState) {
+        reactiveState.restore(snapshot);
+      } else {
+        this.#logger.warn(`Namespace "${namespace}" not found, skipping restore`);
+      }
+    }
+
+    this.#logger.info(`Restored state from global snapshot (timestamp: ${globalSnapshot.timestamp})`);
   }
 }
 

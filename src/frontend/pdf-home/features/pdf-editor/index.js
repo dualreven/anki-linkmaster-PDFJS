@@ -17,7 +17,7 @@
  */
 
 import { PDFEditorFeatureConfig } from './feature.config.js';
-import { getLogger } from '../../common/utils/logger.js';
+import { getLogger } from '../../../common/utils/logger.js';
 
 /**
  * PDF Editor 功能域类

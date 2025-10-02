@@ -16,7 +16,7 @@
  */
 
 import { PDFListFeatureConfig } from './feature.config.js';
-import { getLogger } from '../../common/utils/logger.js';
+import { getLogger } from '../../../common/utils/logger.js';
 
 /**
  * PDF List 功能域类

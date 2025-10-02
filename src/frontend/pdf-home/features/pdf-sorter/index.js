@@ -17,7 +17,7 @@
  */
 
 import { PDFSorterFeatureConfig } from './feature.config.js';
-import { getLogger } from '../../common/utils/logger.js';
+import { getLogger } from '../../../common/utils/logger.js';
 
 /**
  * PDF Sorter 功能域类
