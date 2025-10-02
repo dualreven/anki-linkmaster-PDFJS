@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScopedEventBus 演示</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .feature-domain {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .feature-domain h2 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+
+        .feature-domain.editor h2 {
+            border-color: #2196F3;
+        }
+
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+
+        button:hover {
+            background: #45a049;
+        }
+
+        .editor button {
+            background: #2196F3;
+        }
+
+        .editor button:hover {
+            background: #0b7dda;
+        }
+
+        .global button {
+            background: #ff9800;
+        }
+
+        .global button:hover {
+            background: #e68900;
+        }
+
+        .log-area {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .log-area h2 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        .log {
+            background: #263238;
+            color: #aed581;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            height: 400px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #4CAF50;
+            padding-left: 10px;
+        }
+
+        .log-entry.editor {
+            border-color: #2196F3;
+        }
+
+        .log-entry.global {
+            border-color: #ff9800;
+            background: rgba(255, 152, 0, 0.1);
+        }
+
+        .timestamp {
+            color: #78909c;
+            font-size: 11px;
+        }
+
+        .event-name {
+            color: #ffeb3b;
+            font-weight: bold;
+        }
+
+        .clear-btn {
+            background: #f44336;
+            margin-top: 10px;
+        }
+
+        .clear-btn:hover {
+            background: #da190b;
+        }
+
+        .info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2196F3;
+        }
+
+        .info h3 {
+            margin-top: 0;
+        }
+
+        .info code {
+            background: #fff;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎯 ScopedEventBus 功能演示</h1>
+
+    <div class="info">
+        <h3>📖 使用说明</h3>
+        <p>此演示展示了 <strong>ScopedEventBus</strong> 的命名空间隔离功能：</p>
+        <ul>
+            <li><strong>功能域隔离</strong>：<code>pdf-list</code> 和 <code>pdf-editor</code> 的同名事件互不干扰</li>
+            <li><strong>全局通信</strong>：使用 <code>emitGlobal</code> 实现跨功能域通信</li>
+            <li><strong>查看控制台</strong>：打开浏览器开发者工具查看详细日志</li>
+        </ul>
+    </div>
+
+    <div class="container">
+        <div class="feature-domain list">
+            <h2>📄 PDF List 功能域</h2>
+            <p>命名空间：<code>@pdf-list/</code></p>
+            <button onclick="listEmitLocal()">触发本地事件</button>
+            <button onclick="listEmitGlobal()">触发全局事件</button>
+            <button onclick="listEmitCommon()">触发通用事件</button>
+        </div>
+
+        <div class="feature-domain editor">
+            <h2>✏️ PDF Editor 功能域</h2>
+            <p>命名空间：<code>@pdf-editor/</code></p>
+            <button onclick="editorEmitLocal()">触发本地事件</button>
+            <button onclick="editorEmitGlobal()">触发全局事件</button>
+            <button onclick="editorEmitCommon()">触发通用事件</button>
+        </div>
+    </div>
+
+    <div class="log-area">
+        <h2>📊 事件日志</h2>
+        <button class="clear-btn" onclick="clearLog()">清空日志</button>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script type="module">
+        // 模拟全局 EventBus
+        class MockEventBus {
+            constructor() {
+                this.events = new Map();
+            }
+
+            emit(event, data, metadata) {
+                console.log(`[GlobalEventBus] emit: ${event}`, data, metadata);
+                const listeners = this.events.get(event) || [];
+                listeners.forEach(callback => callback(data, metadata));
+                return true;
+            }
+
+            on(event, callback, options) {
+                if (!this.events.has(event)) {
+                    this.events.set(event, []);
+                }
+                this.events.get(event).push(callback);
+                return () => this.off(event, callback);
+            }
+
+            off(event, callback) {
+                const listeners = this.events.get(event);
+                if (listeners) {
+                    const index = listeners.indexOf(callback);
+                    if (index !== -1) {
+                        listeners.splice(index, 1);
+                    }
+                }
+            }
+
+            once(event, callback, options) {
+                const wrappedCallback = (data, metadata) => {
+                    callback(data, metadata);
+                    this.off(event, wrappedCallback);
+                };
+                return this.on(event, wrappedCallback, options);
+            }
+        }
+
+        // 简化的 Logger
+        window.mockLogger = {
+            debug: () => {},
+            info: console.log,
+            warn: console.warn,
+            error: console.error
+        };
+
+        // 导入 ScopedEventBus（需要手动复制核心代码）
+        class ScopedEventBus {
+            #namespace = '';
+            #globalEventBus = null;
+            #localListeners = new Map();
+            #callbackMap = new Map();
+            #logger = null;
+            #namespacePrefix = '';
+
+            constructor(namespace, globalEventBus) {
+                if (!namespace || typeof namespace !== 'string') {
+                    throw new Error('ScopedEventBus requires a valid namespace string');
+                }
+                if (!globalEventBus) {
+                    throw new Error('ScopedEventBus requires a global EventBus instance');
+                }
+
+                this.#namespace = namespace;
+                this.#globalEventBus = globalEventBus;
+                this.#namespacePrefix = `@${namespace}/`;
+                this.#logger = window.mockLogger;
+            }
+
+            emit(event, data, metadata = {}) {
+                const namespacedEvent = this.#addNamespace(event);
+                return this.#globalEventBus.emit(namespacedEvent, data, {
+                    ...metadata,
+                    namespace: this.#namespace,
+                    scopedEvent: event
+                });
+            }
+
+            on(event, callback, options = {}) {
+                const namespacedEvent = this.#addNamespace(event);
+                const wrappedCallback = (data, metadata) => {
+                    return callback(data, metadata);
+                };
+
+                this.#callbackMap.set(callback, wrappedCallback);
+                const unsubscribe = this.#globalEventBus.on(namespacedEvent, wrappedCallback, {
+                    ...options,
+                    subscriberId: options.subscriberId || `${this.#namespace}.${event}`
+                });
+
+                if (!this.#localListeners.has(event)) {
+                    this.#localListeners.set(event, new Set());
+                }
+                this.#localListeners.get(event).add(wrappedCallback);
+
+                return () => {
+                    this.#localListeners.get(event)?.delete(wrappedCallback);
+                    this.#callbackMap.delete(callback);
+                    unsubscribe();
+                };
+            }
+
+            emitGlobal(event, data, metadata = {}) {
+                return this.#globalEventBus.emit(event, data, {
+                    ...metadata,
+                    source: this.#namespace
+                });
+            }
+
+            onGlobal(event, callback, options = {}) {
+                return this.#globalEventBus.on(event, callback, {
+                    ...options,
+                    subscriberId: options.subscriberId || `${this.#namespace}.global.${event}`
+                });
+            }
+
+            getNamespace() {
+                return this.#namespace;
+            }
+
+            #addNamespace(event) {
+                if (event.startsWith('@')) {
+                    return event;
+                }
+                return `${this.#namespacePrefix}${event}`;
+            }
+        }
+
+        // 创建全局 EventBus
+        const globalEventBus = new MockEventBus();
+
+        // 创建两个功能域的 ScopedEventBus
+        const listBus = new ScopedEventBus('pdf-list', globalEventBus);
+        const editorBus = new ScopedEventBus('pdf-editor', globalEventBus);
+
+        // 日志记录
+        function addLog(message, type = 'list') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `
+                <span class="timestamp">[${timestamp}]</span> ${message}
+            `;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        // 注册监听器
+        listBus.on('action:triggered', (data) => {
+            addLog(`<span class="event-name">@pdf-list/action:triggered</span> 收到: ${JSON.stringify(data)}`, 'list');
+        });
+
+        editorBus.on('action:triggered', (data) => {
+            addLog(`<span class="event-name">@pdf-editor/action:triggered</span> 收到: ${JSON.stringify(data)}`, 'editor');
+        });
+
+        // 监听全局事件
+        listBus.onGlobal('shared:update', (data, metadata) => {
+            addLog(`<span class="event-name">shared:update</span> [pdf-list收到] 来自: ${metadata.source}, 数据: ${JSON.stringify(data)}`, 'global');
+        });
+
+        editorBus.onGlobal('shared:update', (data, metadata) => {
+            addLog(`<span class="event-name">shared:update</span> [pdf-editor收到] 来自: ${metadata.source}, 数据: ${JSON.stringify(data)}`, 'global');
+        });
+
+        // 按钮事件
+        window.listEmitLocal = () => {
+            const data = { action: 'list-local', timestamp: Date.now() };
+            listBus.emit('action:triggered', data);
+            addLog(`<span class="event-name">@pdf-list/action:triggered</span> 已触发`, 'list');
+        };
+
+        window.listEmitGlobal = () => {
+            const data = { from: 'pdf-list', message: 'Hello from List!' };
+            listBus.emitGlobal('shared:update', data);
+            addLog(`<span class="event-name">shared:update</span> [pdf-list触发]`, 'global');
+        };
+
+        window.listEmitCommon = () => {
+            const data = { common: 'event', from: 'list' };
+            listBus.emit('common:event', data);
+            addLog(`<span class="event-name">@pdf-list/common:event</span> 已触发`, 'list');
+        };
+
+        window.editorEmitLocal = () => {
+            const data = { action: 'editor-local', timestamp: Date.now() };
+            editorBus.emit('action:triggered', data);
+            addLog(`<span class="event-name">@pdf-editor/action:triggered</span> 已触发`, 'editor');
+        };
+
+        window.editorEmitGlobal = () => {
+            const data = { from: 'pdf-editor', message: 'Hello from Editor!' };
+            editorBus.emitGlobal('shared:update', data);
+            addLog(`<span class="event-name">shared:update</span> [pdf-editor触发]`, 'global');
+        };
+
+        window.editorEmitCommon = () => {
+            const data = { common: 'event', from: 'editor' };
+            editorBus.emit('common:event', data);
+            addLog(`<span class="event-name">@pdf-editor/common:event</span> 已触发`, 'editor');
+        };
+
+        window.clearLog = () => {
+            document.getElementById('log').innerHTML = '';
+            addLog('日志已清空', 'global');
+        };
+
+        // 初始化提示
+        addLog('✅ ScopedEventBus 演示已就绪', 'global');
+        addLog('💡 尝试点击按钮查看命名空间隔离效果', 'global');
+    </script>
+</body>
+</html>
