@@ -1,0 +1,211 @@
+{
+  "$schema": "./feature-flags.schema.json",
+  "version": "1.0.0",
+  "environment": "development",
+  "description": "PDF-Viewer功能域架构 - Feature Flag配置",
+  "lastUpdated": "2025-10-02T16:00:00Z",
+
+  "flags": {
+    "_comment_architecture": "=== 架构切换 ===",
+
+    "use-feature-domain-architecture": {
+      "enabled": false,
+      "description": "启用功能域架构（v003）",
+      "rollout": 0,
+      "environments": ["development", "staging"],
+      "metadata": {
+        "version": "v003",
+        "migrationPhase": "Phase 1 - 准备中",
+        "documentation": "todo-and-doing/2 todo/20251002040217-pdf-viewer-architecture-refactoring/v003-spec.md"
+      }
+    },
+
+    "_comment_current_features": "=== 当前功能（Phase 1）===",
+
+    "pdf-reader": {
+      "enabled": false,
+      "description": "PDF阅读核心功能",
+      "dependencies": [],
+      "metadata": {
+        "phase": "Phase 1",
+        "priority": "high",
+        "includes": [
+          "PDF文件加载",
+          "页面渲染",
+          "导航控制",
+          "缩放控制",
+          "文本层管理"
+        ]
+      }
+    },
+
+    "pdf-ui": {
+      "enabled": false,
+      "description": "UI组件功能",
+      "dependencies": ["pdf-reader"],
+      "metadata": {
+        "phase": "Phase 1",
+        "priority": "high",
+        "includes": [
+          "渲染容器管理",
+          "键盘快捷键",
+          "进度条和错误提示",
+          "布局控制",
+          "缩放控件"
+        ]
+      }
+    },
+
+    "pdf-bookmark": {
+      "enabled": false,
+      "description": "书签管理功能",
+      "dependencies": ["pdf-reader", "pdf-ui"],
+      "metadata": {
+        "phase": "Phase 1",
+        "priority": "medium",
+        "optional": true,
+        "includes": [
+          "书签侧边栏",
+          "书签添加/删除",
+          "书签跳转"
+        ]
+      }
+    },
+
+    "websocket-adapter": {
+      "enabled": false,
+      "description": "WebSocket适配器",
+      "dependencies": [],
+      "metadata": {
+        "phase": "Phase 1",
+        "priority": "high",
+        "includes": [
+          "WebSocket连接管理",
+          "消息路由",
+          "事件适配"
+        ]
+      }
+    },
+
+    "_comment_future_features": "=== 未来功能（Phase 2+）===",
+
+    "anki-card-maker": {
+      "enabled": false,
+      "description": "Anki制卡功能",
+      "dependencies": ["pdf-reader"],
+      "rollout": 0,
+      "environments": ["development"],
+      "metadata": {
+        "phase": "Phase 2",
+        "priority": "high",
+        "status": "planned",
+        "includes": [
+          "选择文本制卡",
+          "截图制卡",
+          "卡片模板管理",
+          "发送到Anki"
+        ]
+      }
+    },
+
+    "anki-launcher": {
+      "enabled": false,
+      "description": "Anki启动和复习",
+      "dependencies": ["anki-card-maker"],
+      "rollout": 0,
+      "environments": ["development"],
+      "metadata": {
+        "phase": "Phase 2",
+        "priority": "medium",
+        "status": "planned",
+        "includes": [
+          "启动Anki复习",
+          "查看复习统计",
+          "管理卡组"
+        ]
+      }
+    },
+
+    "translation": {
+      "enabled": false,
+      "description": "翻译功能",
+      "dependencies": ["pdf-reader"],
+      "rollout": 0,
+      "environments": ["development"],
+      "metadata": {
+        "phase": "Phase 2",
+        "priority": "medium",
+        "status": "planned",
+        "includes": [
+          "选择文本翻译",
+          "翻译结果显示",
+          "多语言支持"
+        ]
+      }
+    },
+
+    "ai-assistant": {
+      "enabled": false,
+      "description": "AI助手功能",
+      "dependencies": ["pdf-reader"],
+      "rollout": 0,
+      "environments": ["development"],
+      "metadata": {
+        "phase": "Phase 3",
+        "priority": "low",
+        "status": "planned",
+        "includes": [
+          "智能摘要",
+          "问答助手",
+          "制卡建议"
+        ]
+      }
+    },
+
+    "_comment_debug": "=== 调试和开发 ===",
+
+    "debug-mode": {
+      "enabled": false,
+      "description": "调试模式",
+      "environments": ["development"],
+      "metadata": {
+        "includes": [
+          "详细日志",
+          "性能监控",
+          "事件追踪"
+        ]
+      }
+    },
+
+    "performance-monitor": {
+      "enabled": false,
+      "description": "性能监控",
+      "environments": ["development"],
+      "metadata": {
+        "includes": [
+          "页面渲染时间",
+          "内存使用",
+          "事件处理耗时"
+        ]
+      }
+    }
+  },
+
+  "rolloutRules": {
+    "defaultRollout": 0,
+    "strategies": {
+      "percentage": "按百分比灰度发布",
+      "user": "按用户ID发布",
+      "environment": "按环境发布"
+    }
+  },
+
+  "metadata": {
+    "project": "anki-linkmaster",
+    "module": "pdf-viewer",
+    "architecture": "feature-domain",
+    "version": "v003",
+    "maintainer": "Anki-Linkmaster Team",
+    "repository": "https://github.com/your-org/anki-linkmaster"
+  }
+}
