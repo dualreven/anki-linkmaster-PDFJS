@@ -17,3 +17,6 @@ export * from './ui';
 
 // 适配器层类型
 export * from './adapters';
+
+// Feature-based架构类型
+export * from './features';
