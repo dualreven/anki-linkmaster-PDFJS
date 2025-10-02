@@ -197,7 +197,13 @@ export class PDFHomeAppV2 {
 
       // 4. 连接 WebSocket（如果有）
       if (this.#wsClient) {
-        await this.#wsClient.connect();
+        try {
+          await this.#wsClient.connect();
+          this.#logger.info('WebSocket connected successfully');
+        } catch (error) {
+          // WebSocket 连接失败不应阻止应用启动
+          this.#logger.warn('WebSocket connection failed (app will continue without real-time features):', error.message);
+        }
       }
 
       this.#status = 'ready';
