@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>标注UI调试</title>
+  <style>
+    body {
+      font-family: monospace;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    .success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    .error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    .info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+    pre {
+      background: #fff;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔍 标注UI模块加载诊断</h1>
+  <div id="output"></div>
+
+  <script type="module">
+    const output = document.getElementById('output');
+
+    function log(message, type = 'info') {
+      const div = document.createElement('div');
+      div.className = `status ${type}`;
+      div.innerHTML = message;
+      output.appendChild(div);
+    }
+
+    function logError(message, error) {
+      const div = document.createElement('div');
+      div.className = 'status error';
+      div.innerHTML = `
+        <strong>${message}</strong><br>
+        <pre>${error.message}\n${error.stack}</pre>
+      `;
+      output.appendChild(div);
+    }
+
+    // 测试各个模块的导入
+    async function testImports() {
+      log('开始测试模块导入...', 'info');
+
+      // 1. 测试 EventBus
+      try {
+        const { EventBus } = await import('./src/frontend/common/event/event-bus.js');
+        log('✅ EventBus 导入成功', 'success');
+        const eventBus = new EventBus();
+        log('✅ EventBus 实例化成功', 'success');
+        window.eventBus = eventBus;
+      } catch (error) {
+        logError('❌ EventBus 导入失败', error);
+        return;
+      }
+
+      // 2. 测试 PDF_VIEWER_EVENTS
+      try {
+        const { PDF_VIEWER_EVENTS } = await import('./src/frontend/common/event/pdf-viewer-constants.js');
+        log('✅ PDF_VIEWER_EVENTS 导入成功', 'success');
+        log(`找到 ${Object.keys(PDF_VIEWER_EVENTS).length} 个事件分类`, 'info');
+        if (PDF_VIEWER_EVENTS.ANNOTATION) {
+          log('✅ ANNOTATION 事件存在', 'success');
+          log(`ANNOTATION 事件数: ${Object.keys(PDF_VIEWER_EVENTS.ANNOTATION).length}`, 'info');
+        }
+      } catch (error) {
+        logError('❌ PDF_VIEWER_EVENTS 导入失败', error);
+        return;
+      }
+
+      // 3. 测试 Annotation 模型
+      try {
+        const { Annotation, AnnotationType, HighlightColor } = await import('./src/frontend/pdf-viewer/features/annotation/models/annotation.js');
+        log('✅ Annotation 模型导入成功', 'success');
+
+        // 测试创建标注
+        const testAnnotation = Annotation.createScreenshot(
+          1,
+          { x: 10, y: 10, width: 100, height: 100 },
+          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+          '测试'
+        );
+        log('✅ Annotation 实例创建成功', 'success');
+        log(`标注ID: ${testAnnotation.id}`, 'info');
+      } catch (error) {
+        logError('❌ Annotation 模型导入失败', error);
+        return;
+      }
+
+      // 4. 测试 Comment 模型
+      try {
+        const { Comment } = await import('./src/frontend/pdf-viewer/features/annotation/models/comment.js');
+        log('✅ Comment 模型导入成功', 'success');
+      } catch (error) {
+        logError('❌ Comment 模型导入失败', error);
+        return;
+      }
+
+      // 5. 测试 AnnotationSidebarUI
+      try {
+        const { AnnotationSidebarUI } = await import('./src/frontend/pdf-viewer/features/annotation/components/annotation-sidebar-ui.js');
+        log('✅ AnnotationSidebarUI 导入成功', 'success');
+
+        // 创建容器
+        const container = document.createElement('main');
+        container.style.cssText = 'position: relative; width: 100vw; height: 100vh;';
+        document.body.appendChild(container);
+
+        // 实例化
+        const sidebarUI = new AnnotationSidebarUI(window.eventBus, { container });
+        log('✅ AnnotationSidebarUI 实例化成功', 'success');
+
+        // 初始化
+        sidebarUI.initialize();
+        log('✅ AnnotationSidebarUI 初始化成功', 'success');
+
+        window.sidebarUI = sidebarUI;
+
+        // 显示侧边栏
+        setTimeout(() => {
+          sidebarUI.show();
+          log('✅ 侧边栏已显示', 'success');
+        }, 500);
+
+      } catch (error) {
+        logError('❌ AnnotationSidebarUI 导入或初始化失败', error);
+        return;
+      }
+
+      log('🎉 所有模块测试通过！', 'success');
+      log('💡 打开浏览器控制台查看 window.eventBus 和 window.sidebarUI', 'info');
+    }
+
+    // 执行测试
+    testImports().catch(error => {
+      logError('未捕获的错误', error);
+    });
+  </script>
+</body>
+</html>

@@ -117,22 +117,13 @@ export class AnnotationFeature {
     console.log('🔧 #createAnnotationButton() START');
 
     // 查找书签按钮所在的容器（由BookmarkSidebarUI创建）
-    // 容器可能在main元素内，也可能在body上（fixed定位）
-    const mainContainer = document.querySelector('main');
-    console.log('🔧 mainContainer:', mainContainer);
-
-    let buttonContainer = mainContainer ? mainContainer.querySelector('div[style*="flex-direction:column"]') : null;
-    console.log('🔧 buttonContainer in main:', buttonContainer);
-
-    if (!buttonContainer) {
-      // 尝试在body上查找fixed定位的容器
-      buttonContainer = document.body.querySelector('div[style*="position:fixed"][style*="flex-direction:column"]');
-      console.log('🔧 buttonContainer in body:', buttonContainer);
-    }
+    // 使用ID选择器，更可靠
+    let buttonContainer = document.getElementById('pdf-viewer-button-container');
+    console.log('🔧 buttonContainer by ID:', buttonContainer);
 
     if (!buttonContainer) {
       console.error('❌ Button container NOT FOUND');
-      this.#logger.warn('Button container not found, cannot create annotation button');
+      this.#logger.warn('Button container #pdf-viewer-button-container not found, cannot create annotation button');
       return;
     }
 

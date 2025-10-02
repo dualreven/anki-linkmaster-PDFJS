@@ -2,13 +2,33 @@
   "python.defaultInterpreterPath": "C:\\venvs\\anki-linkmaster-PDFJS\\Scripts\\python.exe",
   "python.terminal.activateEnvironment": true,
   "python.terminal.activateEnvInCurrentTerminal": true,
+
+  // 设置默认终端为PowerShell
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+
+  // 配置PowerShell终端
+  "terminal.integrated.profiles.windows": {
+    "PowerShell": {
+      "source": "PowerShell",
+      "args": [
+        "-NoExit",
+        "-Command",
+        "& 'C:\\venvs\\anki-linkmaster-PDFJS\\Scripts\\Activate.ps1'"
+      ]
+    },
+    "Command Prompt": {
+      "path": "cmd.exe",
+      "args": ["/K", "C:\\venvs\\anki-linkmaster-PDFJS\\Scripts\\activate.bat"]
+    },
+    "Git Bash": {
+      "source": "Git Bash",
+      "args": ["--init-file", "<(echo 'source C:/venvs/anki-linkmaster-PDFJS/Scripts/activate')"]
+    }
+  },
+
   "terminal.integrated.env.windows": {
     "PATH": "C:\\venvs\\anki-linkmaster-PDFJS\\Scripts;${env:PATH}"
   },
-  "terminal.integrated.shellArgs.powershell": [
-    "-NoExit",
-    "-Command",
-    "& 'C:\\venvs\\anki-linkmaster-PDFJS\\Scripts\\Activate.ps1'"
-  ],
+
   "python-envs.pythonProjects": []
 }

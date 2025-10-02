@@ -219,6 +219,7 @@ export class BookmarkSidebarUI {
 
     // 创建按钮容器
     const buttonContainer = document.createElement('div');
+    buttonContainer.id = 'pdf-viewer-button-container'; // 添加ID让其他Feature能找到
 
     // 根据容器可见性选择定位策略：优先挂在容器，否则挂到 body（fixed）
     const attachToBody = !this.#container || (this.#container.offsetWidth === 0 && this.#container.offsetHeight === 0);
