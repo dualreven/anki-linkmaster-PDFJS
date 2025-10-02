@@ -104,8 +104,8 @@ describe('PageCacheManager', () => {
   describe('cleanupCache', () => {
     beforeEach(() => {
       // 添加页面1-10
+      cacheManager = new PageCacheManager({ maxCacheSize: 15 });
       for (let i = 1; i <= 10; i++) {
-        cacheManager = new PageCacheManager({ maxCacheSize: 15 });
         cacheManager.addPage(i, { number: i });
       }
     });

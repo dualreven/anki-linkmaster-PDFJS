@@ -24,9 +24,14 @@ export class PDFManager {
   #cacheManager = null;
   #initialized = false;
 
-  constructor(eventBus) {
+  /**
+   * @param {Object} eventBus - 事件总线
+   * @param {Object} [pdfjsLib] - PDF.js库（可选，用于测试时注入mock）
+   */
+  constructor(eventBus, pdfjsLib = null) {
     this.#eventBus = eventBus;
     this.#logger = getLogger('PDFViewer');
+    this.#pdfjsLib = pdfjsLib; // 如果提供了pdfjsLib，则使用注入的版本
   }
 
   /**
@@ -42,9 +47,11 @@ export class PDFManager {
     try {
       this.#logger.info("Initializing PDF Manager...");
 
-      // 动态导入PDF.js库
-      this.#logger.info("Loading PDF.js library...");
-      this.#pdfjsLib = await import('pdfjs-dist/build/pdf');
+      // 动态导入PDF.js库（仅在未注入时）
+      if (!this.#pdfjsLib) {
+        this.#logger.info("Loading PDF.js library...");
+        this.#pdfjsLib = await import('pdfjs-dist/build/pdf');
+      }
 
       // 记录PDF.js版本信息
       if (this.#pdfjsLib) {
@@ -59,11 +66,21 @@ export class PDFManager {
       this.#pdfjsLib.GlobalWorkerOptions.workerSrc = config.workerSrc;
 
       // 启用标准字体映射，支持中文等非拉丁字符（使用Vite别名，简单且本地化）
-      this.#pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = new URL('@pdfjs/standard_fonts/', import.meta.url).href;
+      // 使用Function构造器避开Babel的静态分析
+      try {
+        const getImportMetaUrl = new Function('return import.meta.url');
+        const metaUrl = getImportMetaUrl();
+        if (metaUrl) {
+          this.#pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = new URL('@pdfjs/standard_fonts/', metaUrl).href;
+        }
+      } catch (e) {
+        // 测试环境中import.meta不可用，跳过
+        this.#logger.debug('import.meta.url not available, skipping standardFontDataUrl config');
+      }
 
       this.#logger.info("PDF.js worker configured", {
         workerSrc: config.workerSrc,
-        standardFontDataUrl: this.#pdfjsLib.GlobalWorkerOptions.standardFontDataUrl
+        standardFontDataUrl: this.#pdfjsLib.GlobalWorkerOptions.standardFontDataUrl || '(not set)'
       });
 
       // 初始化子模块
@@ -180,7 +197,7 @@ export class PDFManager {
    * @returns {Promise<Object>} 页面对象
    */
   async getPage(pageNumber) {
-    if (!this.#documentManager.hasDocument()) {
+    if (!this.#documentManager || !this.#documentManager.hasDocument()) {
       throw new Error("No PDF document loaded");
     }
 
@@ -239,7 +256,7 @@ export class PDFManager {
    * @returns {number} 总页数
    */
   getTotalPages() {
-    return this.#documentManager.getTotalPages();
+    return this.#documentManager ? this.#documentManager.getTotalPages() : 0;
   }
 
   /**

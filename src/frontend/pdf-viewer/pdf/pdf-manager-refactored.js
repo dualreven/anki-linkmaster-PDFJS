@@ -54,15 +54,14 @@ export class PDFManager {
         });
       }
 
-      // 配置PDF.js
-      const config = getPDFJSConfig();
-      this.#pdfjsLib.GlobalWorkerOptions.workerSrc = config.workerSrc;
+      // 配置PDF.js - 使用import.meta.url直接解析Vite别名
+      this.#pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('@pdfjs/build/pdf.worker.min.mjs', import.meta.url).href;
 
       // 启用标准字体映射，支持中文等非拉丁字符（使用Vite别名，简单且本地化）
       this.#pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = new URL('@pdfjs/standard_fonts/', import.meta.url).href;
 
       this.#logger.info("PDF.js worker configured", {
-        workerSrc: config.workerSrc,
+        workerSrc: this.#pdfjsLib.GlobalWorkerOptions.workerSrc,
         standardFontDataUrl: this.#pdfjsLib.GlobalWorkerOptions.standardFontDataUrl
       });
 
@@ -72,6 +71,9 @@ export class PDFManager {
       this.#cacheManager = new PageCacheManager({
         maxCacheSize: CACHE_CONFIG.maxCacheSize
       });
+
+      // 设置事件监听器
+      this.#setupEventListeners();
 
       this.#initialized = true;
       this.#logger.info("PDF Manager initialized successfully");
@@ -144,9 +146,12 @@ export class PDFManager {
 
         this.#logger.info(`PDF loaded successfully: ${filename || 'Document'}`);
 
-        // ⚠️ 不在这里发射FILE.LOAD.SUCCESS事件，由FileHandler统一发射
-        // 避免重复发射导致setDocument()被调用多次
-        // this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, { pdfDocument });
+        // 发射 FILE.LOAD.SUCCESS 事件，通知 UI 进行渲染
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, {
+          pdfDocument,
+          filename: filename,
+          url: url
+        }, { actorId: 'PDFManager' });
 
         return pdfDocument;
 
@@ -272,6 +277,30 @@ export class PDFManager {
    */
   getCacheStats() {
     return this.#cacheManager ? this.#cacheManager.getStats() : null;
+  }
+
+  /**
+   * 设置事件监听器
+   * @private
+   */
+  #setupEventListeners() {
+    // 监听 PDF 加载请求事件
+    this.#eventBus.on(
+      PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
+      async (eventData) => {
+        this.#logger.info('Received PDF load request:', eventData);
+
+        try {
+          // 调用 loadPDF 方法
+          await this.loadPDF(eventData);
+        } catch (error) {
+          this.#logger.error('Failed to handle PDF load request:', error);
+        }
+      },
+      { subscriberId: 'PDFManager' }
+    );
+
+    this.#logger.info('PDFManager event listeners setup complete');
   }
 
   /**

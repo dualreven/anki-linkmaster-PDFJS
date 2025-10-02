@@ -15,6 +15,7 @@ export class PageCacheManager {
   #pagesCache = new Map();
   #maxCacheSize = 10; // 最大缓存页面数
   #accessHistory = new Map(); // 记录页面访问历史
+  #accessCounter = 0; // 访问计数器，用于LRU排序
 
   constructor(options = {}) {
     this.#logger = getLogger('PDFViewer.Cache');
@@ -33,7 +34,7 @@ export class PageCacheManager {
     }
 
     this.#pagesCache.set(pageNumber, page);
-    this.#accessHistory.set(pageNumber, Date.now());
+    this.#accessHistory.set(pageNumber, ++this.#accessCounter);
     this.#logger.debug(`Page ${pageNumber} added to cache`);
   }
 
@@ -44,8 +45,8 @@ export class PageCacheManager {
    */
   getPage(pageNumber) {
     if (this.#pagesCache.has(pageNumber)) {
-      // 更新访问时间
-      this.#accessHistory.set(pageNumber, Date.now());
+      // 更新访问计数
+      this.#accessHistory.set(pageNumber, ++this.#accessCounter);
       this.#logger.debug(`Page ${pageNumber} retrieved from cache`);
       return this.#pagesCache.get(pageNumber);
     }
@@ -138,7 +139,7 @@ export class PageCacheManager {
    */
   #evictLRUPage() {
     let oldestPage = null;
-    let oldestTime = Date.now();
+    let oldestTime = Infinity; // 初始化为无穷大，确保第一个页面会被比较
 
     for (const [pageNumber, accessTime] of this.#accessHistory.entries()) {
       if (accessTime < oldestTime) {

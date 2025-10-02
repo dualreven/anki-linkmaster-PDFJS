@@ -10,6 +10,10 @@ import { DOMElementManager } from "./dom-element-manager.js";
 import { KeyboardHandler } from "./keyboard-handler.js";
 import { UIStateManager } from "./ui-state-manager.js";
 import { TextLayerManager } from "./text-layer-manager.js";
+import { PDFViewerManager } from "../pdf-viewer-manager.js";
+import { BookmarkManager } from "../bookmark/bookmark-manager.js";
+import { UIZoomControls } from "../ui-zoom-controls.js";
+import { UILayoutControls } from "../ui-layout-controls.js";
 
 /**
  * UI管理器核心类
@@ -22,6 +26,10 @@ export class UIManagerCore {
   #keyboardHandler;
   #stateManager;
   #textLayerManager;
+  #pdfViewerManager;
+  #bookmarkManager;
+  #uiZoomControls;
+  #uiLayoutControls;
   #resizeObserver;
   #unsubscribeFunctions = [];
 
@@ -33,8 +41,9 @@ export class UIManagerCore {
     this.#domManager = new DOMElementManager();
     this.#keyboardHandler = new KeyboardHandler(eventBus);
     this.#stateManager = new UIStateManager();
-    // TextLayerManager will be initialized after DOM elements are ready
+    // TextLayerManager and PDFViewerManager will be initialized after DOM elements are ready
     this.#textLayerManager = null;
+    this.#pdfViewerManager = null;
   }
 
   /**
@@ -59,6 +68,16 @@ export class UIManagerCore {
         this.#logger.warn("TextLayer container not found, text layer disabled");
       }
 
+      // 初始化PDFViewerManager
+      const viewerContainer = document.getElementById('viewerContainer');
+      if (viewerContainer) {
+        this.#pdfViewerManager = new PDFViewerManager(this.#eventBus);
+        this.#pdfViewerManager.initialize(viewerContainer);
+        this.#logger.info("PDFViewerManager initialized");
+      } else {
+        this.#logger.error("viewerContainer not found, PDF rendering disabled");
+      }
+
       // 设置键盘事件
       this.#keyboardHandler.setupEventListener();
 
@@ -70,6 +89,12 @@ export class UIManagerCore {
 
       // 设置滚轮事件
       this.#setupWheelListener();
+
+      // 初始化书签管理器
+      await this.#initializeBookmarkManager();
+
+      // 初始化UI控件
+      await this.#initializeUIControls();
 
       this.#logger.info("UI Manager Core initialized successfully");
     } catch (error) {
@@ -109,9 +134,27 @@ export class UIManagerCore {
 
     const loadSuccessUnsub = this.#eventBus.on(
       PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
-      () => {
+      ({ pdfDocument }) => {
         this.#stateManager.updateLoadingState(false, true);
         this.#domManager.setLoadingState(false);
+
+        // 加载PDF到PDFViewerManager
+        if (this.#pdfViewerManager && pdfDocument) {
+          this.#logger.info("Loading PDF document into PDFViewerManager");
+          this.#pdfViewerManager.load(pdfDocument);
+
+          // 初始化页码显示 - 延迟一小段时间等待pagesCount更新
+          setTimeout(() => {
+            if (this.#uiZoomControls && this.#pdfViewerManager) {
+              const totalPages = this.#pdfViewerManager.pagesCount || pdfDocument.numPages;
+              const currentPage = this.#pdfViewerManager.currentPageNumber || 1;
+              this.#uiZoomControls.updatePageInfo(currentPage, totalPages);
+              this.#logger.info(`Page info initialized: ${currentPage}/${totalPages}`);
+            }
+          }, 100); // 延迟100ms，等待PDFViewer完成初始化
+        } else {
+          this.#logger.warn("Cannot load PDF: pdfViewerManager or pdfDocument is missing");
+        }
       },
       { subscriberId: 'UIManagerCore' }
     );
@@ -448,6 +491,162 @@ export class UIManagerCore {
   }
 
   /**
+   * 初始化书签管理器
+   * @private
+   * @returns {Promise<void>}
+   */
+  async #initializeBookmarkManager() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const bookmarkParam = (params.get('bookmark') || '').toLowerCase();
+      const enableBookmarks = (
+        bookmarkParam === '' ||
+        bookmarkParam === '1' ||
+        bookmarkParam === 'true' ||
+        bookmarkParam === 'on'
+      );
+
+      if (enableBookmarks) {
+        this.#bookmarkManager = new BookmarkManager(this.#eventBus);
+        this.#bookmarkManager.initialize();
+        this.#logger.info('BookmarkManager initialized (enabled by default; disable with ?bookmark=0)');
+      } else {
+        this.#logger.info('BookmarkManager disabled by URL param bookmark=0');
+      }
+    } catch (bmErr) {
+      const reason = bmErr && typeof bmErr === 'object'
+        ? (bmErr.stack || bmErr.message || JSON.stringify(bmErr))
+        : bmErr;
+      this.#logger.warn('BookmarkManager init failed, continue without bookmarks', reason);
+    }
+  }
+
+  /**
+   * 初始化UI控件（缩放控件和布局控件）
+   * @private
+   * @returns {Promise<void>}
+   */
+  async #initializeUIControls() {
+    try {
+      this.#logger.info("Initializing UI controls...");
+
+      // 初始化缩放控件
+      this.#uiZoomControls = new UIZoomControls(this.#eventBus);
+      await this.#uiZoomControls.setupZoomControls();
+      this.#logger.info("UIZoomControls initialized");
+
+      // 初始化布局控件（需要PDFViewerManager）
+      if (this.#pdfViewerManager) {
+        this.#uiLayoutControls = new UILayoutControls(this.#eventBus);
+        this.#uiLayoutControls.setup(this.#pdfViewerManager);
+        this.#logger.info("UILayoutControls initialized");
+      } else {
+        this.#logger.warn("PDFViewerManager not available, layout controls disabled");
+      }
+
+      // 连接缩放事件到PDFViewerManager
+      this.#setupZoomIntegration();
+
+      // 监听PDFViewerManager的缩放变化事件，更新UI显示
+      this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.CHANGING, ({ scale }) => {
+        if (this.#uiZoomControls) {
+          this.#uiZoomControls.setScale(scale);
+        }
+      }, { subscriberId: 'UIManagerCore' });
+
+      // 监听页面变化事件，更新页码显示
+      this.#eventBus.on(PDF_VIEWER_EVENTS.PAGE.CHANGING, ({ pageNumber }) => {
+        if (this.#uiZoomControls && this.#pdfViewerManager) {
+          const totalPages = this.#pdfViewerManager.pagesCount || 0;
+          this.#uiZoomControls.updatePageInfo(pageNumber, totalPages);
+          this.#logger.debug(`Page info updated: ${pageNumber}/${totalPages}`);
+        }
+      }, { subscriberId: 'UIManagerCore.PageSync' });
+
+    } catch (error) {
+      this.#logger.error("Failed to initialize UI controls:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * 设置缩放事件集成
+   * @private
+   */
+  #setupZoomIntegration() {
+    if (!this.#pdfViewerManager) {
+      this.#logger.warn("PDFViewerManager not available, zoom integration disabled");
+      return;
+    }
+
+    // 放大
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.IN, (data) => {
+      const delta = data?.delta || 0.25;
+      const newScale = Math.min((this.#pdfViewerManager.currentScale || 1.0) + delta, 5.0);
+      this.#pdfViewerManager.currentScale = newScale;
+      this.#logger.info(`Zoom in: ${newScale.toFixed(2)}`);
+    }, { subscriberId: 'UIManagerCore.ZoomIn' });
+
+    // 缩小
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.OUT, (data) => {
+      const delta = data?.delta || 0.25;
+      const newScale = Math.max((this.#pdfViewerManager.currentScale || 1.0) - delta, 0.25);
+      this.#pdfViewerManager.currentScale = newScale;
+      this.#logger.info(`Zoom out: ${newScale.toFixed(2)}`);
+    }, { subscriberId: 'UIManagerCore.ZoomOut' });
+
+    // 实际大小（重置缩放到100%）
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.ACTUAL_SIZE, () => {
+      this.#pdfViewerManager.currentScale = 1.0;
+      this.#logger.info('Zoom reset to actual size (100%)');
+    }, { subscriberId: 'UIManagerCore.ZoomActualSize' });
+
+    // 适应宽度
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.FIT_WIDTH, () => {
+      this.#pdfViewerManager.currentScaleValue = 'page-width';
+      this.#logger.info('Zoom to fit width');
+    }, { subscriberId: 'UIManagerCore.ZoomFitWidth' });
+
+    // 适应高度
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.FIT_HEIGHT, () => {
+      this.#pdfViewerManager.currentScaleValue = 'page-height';
+      this.#logger.info('Zoom to fit height');
+    }, { subscriberId: 'UIManagerCore.ZoomFitHeight' });
+
+    // 上一页
+    this.#eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.PREVIOUS, () => {
+      const currentPage = this.#pdfViewerManager.currentPageNumber;
+      if (currentPage > 1) {
+        this.#pdfViewerManager.currentPageNumber = currentPage - 1;
+        this.#logger.info(`Navigate to previous page: ${currentPage - 1}`);
+      }
+    }, { subscriberId: 'UIManagerCore.NavPrev' });
+
+    // 下一页
+    this.#eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.NEXT, () => {
+      const currentPage = this.#pdfViewerManager.currentPageNumber;
+      const totalPages = this.#pdfViewerManager.pagesCount;
+      if (currentPage < totalPages) {
+        this.#pdfViewerManager.currentPageNumber = currentPage + 1;
+        this.#logger.info(`Navigate to next page: ${currentPage + 1}`);
+      }
+    }, { subscriberId: 'UIManagerCore.NavNext' });
+
+    // 跳转到指定页
+    this.#eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.GOTO, (data) => {
+      const targetPage = data?.pageNumber;
+      const totalPages = this.#pdfViewerManager.pagesCount;
+
+      if (targetPage && targetPage >= 1 && targetPage <= totalPages) {
+        this.#pdfViewerManager.currentPageNumber = targetPage;
+        this.#logger.info(`Navigate to page: ${targetPage}`);
+      } else {
+        this.#logger.warn(`Invalid page number for GOTO: ${targetPage} (total: ${totalPages})`);
+      }
+    }, { subscriberId: 'UIManagerCore.NavGoto' });
+  }
+
+  /**
    * 销毁UI管理器
    */
   destroy() {
@@ -480,6 +679,28 @@ export class UIManagerCore {
       this.#textLayerManager = null;
     }
 
+    // 销毁PDFViewer管理器
+    if (this.#pdfViewerManager) {
+      // PDFViewerManager没有destroy方法，只需清空引用
+      this.#pdfViewerManager = null;
+    }
+
+    // 销毁书签管理器
+    if (this.#bookmarkManager) {
+      this.#bookmarkManager.destroy();
+      this.#bookmarkManager = null;
+    }
+
+    // 销毁UI控件
+    if (this.#uiZoomControls) {
+      // UIZoomControls可能没有destroy方法，只需清空引用
+      this.#uiZoomControls = null;
+    }
+    if (this.#uiLayoutControls) {
+      // UILayoutControls可能没有destroy方法，只需清空引用
+      this.#uiLayoutControls = null;
+    }
+
     this.#logger.info("UIManagerCore destroyed");
   }
 
@@ -497,5 +718,13 @@ export class UIManagerCore {
    */
   getTextLayerManager() {
     return this.#textLayerManager;
+  }
+
+  /**
+   * 获取PDFViewer管理器
+   * @returns {PDFViewerManager|null} PDFViewer管理器实例
+   */
+  get pdfViewerManager() {
+    return this.#pdfViewerManager;
   }
 }

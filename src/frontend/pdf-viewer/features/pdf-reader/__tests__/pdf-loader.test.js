@@ -127,6 +127,9 @@ describe('PDFLoader', () => {
   describe('loadFromBlob', () => {
     it('应该成功从Blob加载PDF', async () => {
       const blob = new Blob(['test'], { type: 'application/pdf' });
+      // Mock arrayBuffer method for older jsdom environments
+      blob.arrayBuffer = jest.fn().mockResolvedValue(new ArrayBuffer(4));
+
       const result = await loader.loadFromBlob(blob);
 
       expect(mockPdfjsLib.getDocument).toHaveBeenCalled();

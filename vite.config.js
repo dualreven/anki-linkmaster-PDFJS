@@ -81,6 +81,14 @@ export default defineConfig(async () => {
           // 保持原始请求路径到后端（后端期望接收 /pdfs/{filename}）
           rewrite: (path) => path.replace(/^\/pdfs/, '/pdfs')
         },
+        // 代理PDF文件请求（新路径）
+        '/pdf-files': {
+          target: `http://localhost:${httpServerPort}`,
+          changeOrigin: true,
+          secure: false,
+          ws: false,
+          rewrite: (path) => path.replace(/^\/pdf-files/, '/pdfs')
+        },
         // 代理API请求到WebSocket服务器（如果需要）
         '/api': {
           target: 'http://localhost:8765',

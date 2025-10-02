@@ -10,16 +10,18 @@ import 'pdfjs-dist/web/pdf_viewer.css';
 import { getLogger } from "../common/utils/logger.js";
 
 // ===== 应用启动 =====
-// 使用新的bootstrap模式启动应用
-import { bootstrapPDFViewerApp } from "./bootstrap/app-bootstrap.js";
+// 使用 Feature-based bootstrap 模式启动应用（插件化架构）
+// 旧版本: import { bootstrapPDFViewerApp } from "./bootstrap/app-bootstrap.js";
+import { bootstrapPDFViewerAppFeature } from "./bootstrap/app-bootstrap-feature.js";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const indexLogger = getLogger("PDFViewer");
   indexLogger.info("DOMContentLoaded: Starting PDF Viewer App bootstrap...");
-  indexLogger.info("黄集攀-1");
+  indexLogger.info("黄集攀-1 (Feature-based architecture)");
 
   try {
-    await bootstrapPDFViewerApp();
+    // 使用新的 Feature-based bootstrap
+    await bootstrapPDFViewerAppFeature();
     indexLogger.info("PDF Viewer App bootstrap completed successfully");
   } catch (error) {
     indexLogger.error("PDF Viewer App bootstrap failed:", error);

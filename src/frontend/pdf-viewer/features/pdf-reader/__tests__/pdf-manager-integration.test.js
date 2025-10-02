@@ -3,18 +3,15 @@
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+import { PDFManager } from '../services/pdf-manager-service.js';
 
-// Mock PDF.js before importing PDFManager
+// Mock PDF.js - PDFManager接受pdfjs作为参数，所以可以在测试中mock
 const mockPdfjsLib = {
   version: '3.4.120',
   build: 'test',
   GlobalWorkerOptions: {},
   getDocument: jest.fn()
 };
-
-jest.unstable_mockModule('pdfjs-dist/build/pdf', () => mockPdfjsLib);
-
-const { PDFManager } = await import('../services/pdf-manager-service.js');
 
 describe('PDFManager集成测试', () => {
   let manager;
@@ -56,7 +53,8 @@ describe('PDFManager集成测试', () => {
 
     mockPdfjsLib.getDocument.mockReturnValue(mockLoadingTask);
 
-    manager = new PDFManager(mockEventBus);
+    // 注入mockPdfjsLib以避免动态import
+    manager = new PDFManager(mockEventBus, mockPdfjsLib);
   });
 
   describe('初始化', () => {
@@ -133,8 +131,12 @@ describe('PDFManager集成测试', () => {
       };
 
       // 第一次失败，第二次成功
+      // 注意：必须给rejected promise添加catch handler，否则会导致unhandled rejection
+      const failPromise = Promise.reject(new Error('Load failed'));
+      failPromise.catch(() => {}); // 防止unhandled rejection
+
       const failTask = {
-        promise: Promise.reject(new Error('Load failed')),
+        promise: failPromise,
         destroy: jest.fn(),
         onProgress: null
       };
@@ -173,15 +175,28 @@ describe('PDFManager集成测试', () => {
     });
 
     it('应该使用缓存', async () => {
+      // 清除loadPDF期间的getPage调用计数（包括预加载）
+      mockPdfDocument.getPage.mockClear();
+
       const page1 = await manager.getPage(1);
+
+      // 等待异步预加载完成（#preloadAdjacentPages是async但没有await）
+      await new Promise(resolve => setTimeout(resolve, 50));
+      const initialCalls = mockPdfDocument.getPage.mock.calls.length;
+
       const page2 = await manager.getPage(1);
 
+      // 再次等待，确保没有新的预加载
+      await new Promise(resolve => setTimeout(resolve, 50));
+      const finalCalls = mockPdfDocument.getPage.mock.calls.length;
+
       expect(page1).toBe(page2);
-      expect(mockPdfDocument.getPage).toHaveBeenCalledTimes(1);
+      // 第二次调用应该使用缓存，不增加调用次数
+      expect(finalCalls).toBe(initialCalls);
     });
 
     it('无文档时应该抛出错误', async () => {
-      const emptyManager = new PDFManager(mockEventBus);
+      const emptyManager = new PDFManager(mockEventBus, mockPdfjsLib);
 
       await expect(emptyManager.getPage(1)).rejects.toThrow('No PDF document loaded');
     });

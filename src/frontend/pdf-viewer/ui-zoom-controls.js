@@ -239,7 +239,7 @@ export class UIZoomControls {
     if (canvas) {
       this.applyZoomAnimation(canvas);
     }
-    this.#logger.debug(`Scale set to: ${this.#currentScale}`);
+    this.#logger.info(`[UIZoomControls] setScale called: ${this.#currentScale} (from ${scale})`);
   }
 
   /**

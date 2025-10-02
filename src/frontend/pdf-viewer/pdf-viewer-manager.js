@@ -335,9 +335,9 @@ export class PDFViewerManager {
       const pageNumber = evt.pageNumber;
       this.#logger.info(`PDFViewer page changing to ${pageNumber}`);
 
-      // 发送到应用EventBus（如果需要）
+      // 发送到应用EventBus（修复事件名称格式为 module:action:status）
       if (this.#eventBus) {
-        this.#eventBus.emit('pdfviewer:pagechanging', { pageNumber }, { actorId: 'PDFViewerManager' });
+        this.#eventBus.emit('pdf-viewer:page:changing', { pageNumber }, { actorId: 'PDFViewerManager' });
       }
     });
 
@@ -346,9 +346,9 @@ export class PDFViewerManager {
       const scale = evt.scale;
       this.#logger.info(`PDFViewer scale changing to ${scale}`);
 
-      // 发送到应用EventBus（如果需要）
+      // 发送到应用EventBus（修复事件名称格式为 module:action:status）
       if (this.#eventBus) {
-        this.#eventBus.emit('pdfviewer:scalechanging', { scale }, { actorId: 'PDFViewerManager' });
+        this.#eventBus.emit('pdf-viewer:zoom:changing', { scale }, { actorId: 'PDFViewerManager' });
       }
     });
 

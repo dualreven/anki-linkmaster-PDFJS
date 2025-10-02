@@ -293,7 +293,7 @@ export class FeatureRegistry {
 
     try {
       // 创建功能上下文
-      const context = this.#createFeatureContext(name);
+      const context = await this.#createFeatureContext(name);
       record.setContext(context);
 
       // 调用安装方法
@@ -332,6 +332,7 @@ export class FeatureRegistry {
         await this.install(name);
       } catch (error) {
         // 某个功能安装失败，记录错误但继续安装其他功能
+        this.#logger.error(`Failed to install feature "${name}":`, error.message || error);
         this.#logger.warn(`Failed to install feature "${name}", continuing with others...`);
       }
     }
@@ -600,7 +601,7 @@ export class FeatureRegistry {
    * @returns {FeatureContext}
    * @private
    */
-  #createFeatureContext(featureName) {
+  async #createFeatureContext(featureName) {
     // 创建功能域专用的作用域容器
     const featureScope = this.#container.createScope(featureName);
 
@@ -611,8 +612,8 @@ export class FeatureRegistry {
     let scopedEventBus = null;
     if (this.#globalEventBus) {
       // 动态导入 ScopedEventBus（避免循环依赖）
-      const { ScopedEventBus } = require('../../common/event/scoped-event-bus.js');
-      scopedEventBus = new ScopedEventBus(featureName, this.#globalEventBus);
+      const { ScopedEventBus } = await import('../../common/event/scoped-event-bus.js');
+      scopedEventBus = new ScopedEventBus(this.#globalEventBus, featureName);
     }
 
     return {

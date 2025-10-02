@@ -24,6 +24,31 @@ export class PDFLoader {
   }
 
   /**
+   * 获取PDF.js配置中的资源URL
+   * @private
+   * @returns {Object} 包含cMapUrl和standardFontDataUrl的对象
+   */
+  #getPDFJSResourceUrls() {
+    const urls = {};
+
+    // 使用Function构造器避开Babel的静态分析
+    // 在测试环境中import.meta不可用，返回空对象
+    try {
+      const getImportMetaUrl = new Function('return import.meta.url');
+      const metaUrl = getImportMetaUrl();
+      if (metaUrl) {
+        urls.cMapUrl = new URL('@pdfjs/cmaps/', metaUrl).href;
+        urls.standardFontDataUrl = new URL('@pdfjs/standard_fonts/', metaUrl).href;
+      }
+    } catch (e) {
+      // 测试环境中import.meta不可用，跳过
+      this.#logger.debug('import.meta.url not available, skipping CMap and StandardFonts config');
+    }
+
+    return urls;
+  }
+
+  /**
    * 从URL加载PDF文档
    * @param {string} url - PDF文件URL
    * @returns {Promise<Object>} PDF文档对象
@@ -41,18 +66,18 @@ export class PDFLoader {
     }
 
     // 创建加载配置
-    const loadingTask = this.#pdfjsLib.getDocument({
+    const config = {
       url: url,
       withCredentials: false,
       disableAutoFetch: false,
       disableStream: false,
       disableRange: false,
-      // 启用CMap支持中文等CJK字符（使用Vite别名，简单且本地化）
-      cMapUrl: new URL('@pdfjs/cmaps/', import.meta.url).href,
       cMapPacked: true,
-      // 启用标准字体（使用Vite别名）
-      standardFontDataUrl: new URL('@pdfjs/standard_fonts/', import.meta.url).href
-    });
+      // 获取资源URL（在测试环境中可能为空）
+      ...this.#getPDFJSResourceUrls()
+    };
+
+    const loadingTask = this.#pdfjsLib.getDocument(config);
 
     this.#currentLoadTask = loadingTask;
 
@@ -100,11 +125,9 @@ export class PDFLoader {
       disableAutoFetch: false,
       disableStream: false,
       disableRange: false,
-      // 启用CMap支持中文等CJK字符（使用Vite别名，简单且本地化）
-      cMapUrl: new URL('@pdfjs/cmaps/', import.meta.url).href,
       cMapPacked: true,
-      // 启用标准字体（使用Vite别名）
-      standardFontDataUrl: new URL('@pdfjs/standard_fonts/', import.meta.url).href
+      // 获取资源URL（在测试环境中可能为空）
+      ...this.#getPDFJSResourceUrls()
     });
 
     this.#currentLoadTask = loadingTask;
