@@ -309,6 +309,32 @@ export class PDFViewerManager {
   }
 
   /**
+   * 获取PDFViewer实例（用于SearchFeature等扩展功能）
+   * @returns {PDFViewer}
+   */
+  get pdfViewer() {
+    return this.#pdfViewer;
+  }
+
+  /**
+   * 获取PDF.js EventBus实例（用于SearchFeature等扩展功能）
+   * @returns {EventBus}
+   */
+  get eventBus() {
+    // 注意：这是PDF.js的EventBus，不是应用的EventBus
+    // 从PDFViewer中获取，因为它在初始化时被传入
+    return this.#pdfViewer?._eventBus || null;
+  }
+
+  /**
+   * 获取PDFLinkService实例（用于SearchFeature等扩展功能）
+   * @returns {PDFLinkService}
+   */
+  get linkService() {
+    return this.#linkService;
+  }
+
+  /**
    * 获取ScrollMode常量
    * @returns {Object} ScrollMode枚举
    */
