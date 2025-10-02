@@ -390,8 +390,9 @@ PDFManager的`handleResponseMessage`方法在处理WebSocket响应时，如果�
 ## pdf-viewer重构进展
 
 ### 当前状态
-- 最后更新: 2025-10-01 20:46
-- 阶段: PDFViewer组件集成
+- 最后更新: 2025-10-02 12:07
+- 阶段: 架构重构 v002 - 阶段1执行中
+- 任务: 执行五层架构重构，清理文件组织混乱
 
 ### 已完成工作
 1. **分析了pdf-home的架构模式** (2025-09-29)
@@ -471,4 +472,53 @@ PDFManager的`handleResponseMessage`方法在处理WebSocket响应时，如果�
   * Canvas模式 → #pdf-canvas
   * PDFViewer模式 → #viewer (动态创建canvas)
 - **切换**: 自动重新渲染当前页面,保持状态
+
+## 当前任务：PDF-Viewer架构重构 v002 (2025-10-02)
+
+### 任务背景
+执行 `todo-and-doing/2 todo/20251002040217-pdf-viewer-architecture-refactoring/v002-spec.md` 需求文档，系统性重构PDF-Viewer模块架构。
+
+### 核心目标
+1. 建立清晰的五层架构 (共用/核心/功能/适配器/入口)
+2. 消除重构遗留问题 (备份文件、桥接文件、-refactored后缀)
+3. 改继承为组合模式
+4. 提升代码可维护性和协作开发效率
+
+### 主要问题
+- P0-1: 文件组织混乱 - 根目录堆积19个文件
+- P0-2: 重构遗留冗余 - 大量过渡性文件和命名混乱
+- P0-3: 继承设计不合理 - PDFViewerApp继承PDFViewerAppCore
+- P1-1: app-core.js职责过重 - 340行承担10+项职责
+- P1-2: 事件总线封装无价值 - eventbus.js无意义封装
+- P1-3: WebSocket处理分散 - 逻辑分散在3个地方
+- P1-4: Handler目录职责不清
+
+### 五层架构设计
+```
+Layer 1: 基础设施层 (common/, shared/)
+Layer 2: 核心领域层 (core/)
+Layer 3: 功能特性层 (features/)
+Layer 4: 适配器层 (adapters/)
+Layer 5: 应用入口层 (bootstrap/, main.js)
+```
+
+### 执行阶段
+- **阶段1 (执行中)**: Layer 1 基础设施层准备 (3-4小时)
+  - 1.1 项目清理 - 删除备份/桥接/无价值封装文件
+  - 1.2 目录结构创建 - 创建五层架构目录
+  - 1.3 类型系统建立 - 创建TypeScript类型定义
+  - 1.4 依赖检查配置 - 集成dependency-cruiser
+  - 1.5 路径更新 - 批量更新导入路径
+- **阶段2 (待执行)**: Layer 4 适配器层重构 (4-5小时)
+- **阶段3 (待执行)**: Layer 2 核心领域层重构 (6-8小时)
+- **阶段4 (待执行)**: Layer 3 功能特性层重构 (5-6小时)
+- **阶段5 (待执行)**: Layer 5 应用入口层重构 (4-5小时)
+- **阶段6 (待执行)**: 完善和优化 (3-4小时)
+
+### 相关文档
+- 主规格说明: `v002-spec.md`
+- 协作开发指南: `v002-appendix-collaboration.md`
+- 实施步骤: `v002-appendix-implementation.md`
+- 测试清单: `v002-appendix-testing.md`
+- 工作日志: `AItemp/20251002120700-AI-Working-log.md`
 
