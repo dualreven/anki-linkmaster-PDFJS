@@ -14,6 +14,7 @@ import { AppCoreFeature } from "../features/app-core/index.js";
 import { PDFManagerFeature } from "../features/pdf-manager/index.js";
 import { UIManagerFeature } from "../features/ui-manager/index.js";
 import { URLNavigationFeature } from "../features/url-navigation/index.js";
+import { AnnotationFeature } from "../features/annotation/index.js";
 
 /**
  * 解析WebSocket端口
@@ -87,6 +88,7 @@ export async function bootstrapPDFViewerAppFeature() {
     registry.register(new PDFManagerFeature());
     registry.register(new UIManagerFeature());
     registry.register(new URLNavigationFeature());
+    registry.register(new AnnotationFeature());
 
     // 5. 安装所有 Features（自动解析依赖顺序）
     logger.info("[Bootstrap] Installing features...");

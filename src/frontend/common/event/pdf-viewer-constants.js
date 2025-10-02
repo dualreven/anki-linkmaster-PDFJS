@@ -567,378 +567,133 @@ export const PDF_VIEWER_EVENTS = {
   /**
    * 标注相关事件
    * @namespace ANNOTATION
+   * @description 事件格式说明：使用 'annotation-sidebar:xxx:xxx' 或 'annotation-tool:xxx:xxx' 等来符合3段格式要求
    */
   ANNOTATION: {
     /**
-     * 侧边栏控制事件
-     * @namespace SIDEBAR
+     * 侧边栏控制事件 - 使用 annotation-sidebar 作为模块名
      */
     SIDEBAR: {
-      /**
-       * 打开标注侧边栏
-       * @event pdf-viewer:annotation:sidebar:open
-       * @type {string}
-       */
-      OPEN: 'pdf-viewer:annotation:sidebar:open',
-
-      /**
-       * 关闭标注侧边栏
-       * @event pdf-viewer:annotation:sidebar:close
-       * @type {string}
-       */
-      CLOSE: 'pdf-viewer:annotation:sidebar:close',
-
-      /**
-       * 切换标注侧边栏显示/隐藏
-       * @event pdf-viewer:annotation:sidebar:toggle
-       * @type {string}
-       */
-      TOGGLE: 'pdf-viewer:annotation:sidebar:toggle',
-
-      /**
-       * 侧边栏已打开
-       * @event pdf-viewer:annotation:sidebar:opened
-       * @type {string}
-       */
-      OPENED: 'pdf-viewer:annotation:sidebar:opened',
-
-      /**
-       * 侧边栏已关闭
-       * @event pdf-viewer:annotation:sidebar:closed
-       * @type {string}
-       */
-      CLOSED: 'pdf-viewer:annotation:sidebar:closed',
+      /** 打开标注侧边栏 */
+      OPEN: 'annotation-sidebar:toggle:open',
+      /** 关闭标注侧边栏 */
+      CLOSE: 'annotation-sidebar:toggle:close',
+      /** 切换标注侧边栏显示/隐藏 */
+      TOGGLE: 'annotation-sidebar:toggle:requested',
+      /** 侧边栏已打开 */
+      OPENED: 'annotation-sidebar:toggle:opened',
+      /** 侧边栏已关闭 */
+      CLOSED: 'annotation-sidebar:toggle:closed',
     },
 
     /**
      * 工具模式切换事件
-     * @namespace TOOL
      */
     TOOL: {
-      /**
-       * 激活工具
-       * @event pdf-viewer:annotation:tool:activate
-       * @type {string}
-       * @payload {Object} data
-       * @payload {string} data.tool - 工具类型 ('screenshot'|'text-highlight'|'comment')
-       */
-      ACTIVATE: 'pdf-viewer:annotation:tool:activate',
-
-      /**
-       * 停用工具
-       * @event pdf-viewer:annotation:tool:deactivate
-       * @type {string}
-       */
-      DEACTIVATE: 'pdf-viewer:annotation:tool:deactivate',
-
-      /**
-       * 工具已激活
-       * @event pdf-viewer:annotation:tool:activated
-       * @type {string}
-       * @payload {Object} data
-       * @payload {string} data.tool - 工具类型
-       */
-      ACTIVATED: 'pdf-viewer:annotation:tool:activated',
-
-      /**
-       * 工具已停用
-       * @event pdf-viewer:annotation:tool:deactivated
-       * @type {string}
-       */
-      DEACTIVATED: 'pdf-viewer:annotation:tool:deactivated',
+      /** 激活工具 - data: { tool: 'screenshot'|'text-highlight'|'comment' } */
+      ACTIVATE: 'annotation-tool:activate:requested',
+      /** 停用工具 */
+      DEACTIVATE: 'annotation-tool:deactivate:requested',
+      /** 工具已激活 */
+      ACTIVATED: 'annotation-tool:activate:success',
+      /** 工具已停用 */
+      DEACTIVATED: 'annotation-tool:deactivate:success',
     },
 
     /**
      * 标注CRUD事件
-     * @namespace CRUD
      */
-    /**
-     * 创建标注请求
-     * @event pdf-viewer:annotation:create
-     * @type {string}
-     * @payload {Object} data - 标注数据
-     */
-    CREATE: 'pdf-viewer:annotation:create',
-
-    /**
-     * 标注已创建
-     * @event pdf-viewer:annotation:created
-     * @type {string}
-     * @payload {Object} data
-     * @payload {Annotation} data.annotation - 创建的标注对象
-     */
-    CREATED: 'pdf-viewer:annotation:created',
-
-    /**
-     * 更新标注请求
-     * @event pdf-viewer:annotation:update
-     * @type {string}
-     * @payload {Object} data
-     * @payload {string} data.id - 标注ID
-     * @payload {Object} data.changes - 变更内容
-     */
-    UPDATE: 'pdf-viewer:annotation:update',
-
-    /**
-     * 标注已更新
-     * @event pdf-viewer:annotation:updated
-     * @type {string}
-     * @payload {Object} data
-     * @payload {Annotation} data.annotation - 更新后的标注对象
-     */
-    UPDATED: 'pdf-viewer:annotation:updated',
-
-    /**
-     * 删除标注请求
-     * @event pdf-viewer:annotation:delete
-     * @type {string}
-     * @payload {Object} data
-     * @payload {string} data.id - 标注ID
-     */
-    DELETE: 'pdf-viewer:annotation:delete',
-
-    /**
-     * 标注已删除
-     * @event pdf-viewer:annotation:deleted
-     * @type {string}
-     * @payload {Object} data
-     * @payload {string} data.id - 已删除的标注ID
-     */
-    DELETED: 'pdf-viewer:annotation:deleted',
+    /** 创建标注请求 */
+    CREATE: 'annotation:create:requested',
+    /** 标注已创建 */
+    CREATED: 'annotation:create:success',
+    /** 更新标注请求 */
+    UPDATE: 'annotation:update:requested',
+    /** 标注已更新 */
+    UPDATED: 'annotation:update:success',
+    /** 删除标注请求 */
+    DELETE: 'annotation:delete:requested',
+    /** 标注已删除 */
+    DELETED: 'annotation:delete:success',
 
     /**
      * 标注交互事件
-     * @namespace INTERACTION
      */
-    /**
-     * 选中标注
-     * @event pdf-viewer:annotation:select
-     * @type {string}
-     * @payload {Object} data
-     * @payload {string} data.id - 标注ID
-     */
-    SELECT: 'pdf-viewer:annotation:select',
-
-    /**
-     * 标注已选中
-     * @event pdf-viewer:annotation:selected
-     * @type {string}
-     * @payload {Object} data
-     * @payload {string} data.id - 标注ID
-     */
-    SELECTED: 'pdf-viewer:annotation:selected',
-
-    /**
-     * 跳转到标注位置
-     * @event pdf-viewer:annotation:jump-to
-     * @type {string}
-     * @payload {Object} data
-     * @payload {string} data.id - 标注ID
-     */
-    JUMP_TO: 'pdf-viewer:annotation:jump-to',
-
-    /**
-     * 高亮标注（闪烁效果）
-     * @event pdf-viewer:annotation:highlight
-     * @type {string}
-     * @payload {Object} data
-     * @payload {string} data.id - 标注ID
-     */
-    HIGHLIGHT: 'pdf-viewer:annotation:highlight',
+    /** 选中标注 */
+    SELECT: 'annotation:select:requested',
+    /** 标注已选中 */
+    SELECTED: 'annotation:select:success',
+    /** 跳转到标注位置 */
+    JUMP_TO: 'annotation:jump:requested',
+    /** 高亮标注（闪烁效果） */
+    HIGHLIGHT: 'annotation:highlight:requested',
 
     /**
      * 评论事件
-     * @namespace COMMENT
      */
     COMMENT: {
-      /**
-       * 添加评论请求
-       * @event pdf-viewer:annotation:comment:add
-       * @type {string}
-       * @payload {Object} data
-       * @payload {string} data.annotationId - 标注ID
-       * @payload {string} data.content - 评论内容
-       */
-      ADD: 'pdf-viewer:annotation:comment:add',
-
-      /**
-       * 评论已添加
-       * @event pdf-viewer:annotation:comment:added
-       * @type {string}
-       * @payload {Object} data
-       * @payload {Comment} data.comment - 评论对象
-       */
-      ADDED: 'pdf-viewer:annotation:comment:added',
-
-      /**
-       * 删除评论请求
-       * @event pdf-viewer:annotation:comment:delete
-       * @type {string}
-       * @payload {Object} data
-       * @payload {string} data.commentId - 评论ID
-       */
-      DELETE: 'pdf-viewer:annotation:comment:delete',
-
-      /**
-       * 评论已删除
-       * @event pdf-viewer:annotation:comment:deleted
-       * @type {string}
-       * @payload {Object} data
-       * @payload {string} data.commentId - 评论ID
-       */
-      DELETED: 'pdf-viewer:annotation:comment:deleted',
+      /** 添加评论请求 */
+      ADD: 'annotation-comment:add:requested',
+      /** 评论已添加 */
+      ADDED: 'annotation-comment:add:success',
+      /** 删除评论请求 */
+      DELETE: 'annotation-comment:delete:requested',
+      /** 评论已删除 */
+      DELETED: 'annotation-comment:delete:success',
     },
 
     /**
      * 数据加载事件
-     * @namespace DATA
      */
     DATA: {
-      /**
-       * 加载标注请求
-       * @event pdf-viewer:annotation:load
-       * @type {string}
-       * @payload {Object} data
-       * @payload {string} data.pdfPath - PDF文件路径
-       */
-      LOAD: 'pdf-viewer:annotation:load',
-
-      /**
-       * 标注已加载
-       * @event pdf-viewer:annotation:loaded
-       * @type {string}
-       * @payload {Object} data
-       * @payload {Array<Annotation>} data.annotations - 标注数组
-       */
-      LOADED: 'pdf-viewer:annotation:loaded',
-
-      /**
-       * 保存标注请求
-       * @event pdf-viewer:annotation:save
-       * @type {string}
-       * @payload {Object} data
-       * @payload {Array<Annotation>} data.annotations - 标注数组
-       */
-      SAVE: 'pdf-viewer:annotation:save',
-
-      /**
-       * 标注已保存
-       * @event pdf-viewer:annotation:saved
-       * @type {string}
-       */
-      SAVED: 'pdf-viewer:annotation:saved',
-
-      /**
-       * 加载失败
-       * @event pdf-viewer:annotation:load-failed
-       * @type {string}
-       * @payload {Object} data
-       * @payload {Error} data.error - 错误对象
-       */
-      LOAD_FAILED: 'pdf-viewer:annotation:load-failed',
-
-      /**
-       * 保存失败
-       * @event pdf-viewer:annotation:save-failed
-       * @type {string}
-       * @payload {Object} data
-       * @payload {Error} data.error - 错误对象
-       */
-      SAVE_FAILED: 'pdf-viewer:annotation:save-failed',
+      /** 加载标注请求 */
+      LOAD: 'annotation-data:load:requested',
+      /** 标注已加载 */
+      LOADED: 'annotation-data:load:success',
+      /** 保存标注请求 */
+      SAVE: 'annotation-data:save:requested',
+      /** 标注已保存 */
+      SAVED: 'annotation-data:save:success',
+      /** 加载失败 */
+      LOAD_FAILED: 'annotation-data:load:failed',
+      /** 保存失败 */
+      SAVE_FAILED: 'annotation-data:save:failed',
     },
 
     /**
      * 截图工具事件
-     * @namespace SCREENSHOT
      */
     SCREENSHOT: {
-      /**
-       * 开始截图
-       * @event pdf-viewer:annotation:screenshot:start
-       * @type {string}
-       */
-      START: 'pdf-viewer:annotation:screenshot:start',
-
-      /**
-       * 区域已选择
-       * @event pdf-viewer:annotation:screenshot:area-selected
-       * @type {string}
-       * @payload {Object} data
-       * @payload {Object} data.rect - 选择区域 {x, y, width, height}
-       */
-      AREA_SELECTED: 'pdf-viewer:annotation:screenshot:area-selected',
-
-      /**
-       * 截图已捕获
-       * @event pdf-viewer:annotation:screenshot:captured
-       * @type {string}
-       * @payload {Object} data
-       * @payload {string} data.imageData - base64图片数据
-       */
-      CAPTURED: 'pdf-viewer:annotation:screenshot:captured',
-
-      /**
-       * 取消截图
-       * @event pdf-viewer:annotation:screenshot:cancel
-       * @type {string}
-       */
-      CANCEL: 'pdf-viewer:annotation:screenshot:cancel',
+      /** 开始截图 */
+      START: 'annotation-screenshot:start:requested',
+      /** 区域已选择 */
+      AREA_SELECTED: 'annotation-screenshot:area:selected',
+      /** 截图已捕获 */
+      CAPTURED: 'annotation-screenshot:capture:success',
+      /** 取消截图 */
+      CANCEL: 'annotation-screenshot:cancel:requested',
     },
 
     /**
      * 选字高亮事件
-     * @namespace TEXT_HIGHLIGHT
      */
     TEXT_HIGHLIGHT: {
-      /**
-       * 开始选字
-       * @event pdf-viewer:annotation:text:selection:start
-       * @type {string}
-       */
-      SELECTION_START: 'pdf-viewer:annotation:text:selection:start',
-
-      /**
-       * 文本已选择
-       * @event pdf-viewer:annotation:text:selected
-       * @type {string}
-       * @payload {Object} data
-       * @payload {string} data.text - 选中的文本
-       * @payload {Array} data.ranges - 文本范围数组
-       */
-      TEXT_SELECTED: 'pdf-viewer:annotation:text:selected',
-
-      /**
-       * 高亮已应用
-       * @event pdf-viewer:annotation:highlight:applied
-       * @type {string}
-       * @payload {Object} data
-       * @payload {Annotation} data.annotation - 标注对象
-       */
-      HIGHLIGHT_APPLIED: 'pdf-viewer:annotation:highlight:applied',
+      /** 开始选字 */
+      SELECTION_START: 'annotation-highlight:selection:started',
+      /** 文本已选择 */
+      TEXT_SELECTED: 'annotation-highlight:text:selected',
+      /** 高亮已应用 */
+      HIGHLIGHT_APPLIED: 'annotation-highlight:apply:success',
     },
 
     /**
      * 批注工具事件
-     * @namespace COMMENT_TOOL
      */
     COMMENT_TOOL: {
-      /**
-       * 批注工具激活
-       * @event pdf-viewer:annotation:comment-tool:active
-       * @type {string}
-       */
-      ACTIVE: 'pdf-viewer:annotation:comment-tool:active',
-
-      /**
-       * 位置已选择
-       * @event pdf-viewer:annotation:comment:position:selected
-       * @type {string}
-       * @payload {Object} data
-       * @payload {number} data.x - X坐标
-       * @payload {number} data.y - Y坐标
-       * @payload {number} data.pageNumber - 页码
-       */
-      POSITION_SELECTED: 'pdf-viewer:annotation:comment:position:selected',
+      /** 批注工具激活 */
+      ACTIVE: 'annotation-comment-tool:activate:success',
+      /** 位置已选择 */
+      POSITION_SELECTED: 'annotation-comment-tool:position:selected',
     },
   }
 };
