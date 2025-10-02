@@ -1,0 +1,334 @@
+/**
+ * @file PDF编辑表单组件样式
+ * @description StarRating、TagsInput、ToggleSwitch、通用表单样式
+ */
+
+/* ========== 通用表单样式 ========== */
+.pdf-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #424242;
+}
+
+.form-group input[type="text"],
+.form-group textarea {
+  padding: 10px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.form-group input[type="text"]:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #1976d2;
+  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
+}
+
+.form-group input.readonly {
+  background-color: #f5f5f5;
+  color: #757575;
+  cursor: not-allowed;
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* ========== 星级评分组件 ========== */
+.star-rating {
+  display: flex;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.star-rating.readonly {
+  cursor: default;
+}
+
+.star-rating .star {
+  font-size: 28px;
+  color: #e0e0e0;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+/* 星星状态 */
+.star-rating .star.full {
+  color: #ffc107;
+}
+
+.star-rating .star.half {
+  background: linear-gradient(90deg, #ffc107 50%, #e0e0e0 50%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.star-rating .star.empty {
+  color: #e0e0e0;
+}
+
+/* 悬停预览效果 */
+.star-rating:not(.readonly) .star.preview {
+  transform: scale(1.1);
+}
+
+.star-rating:not(.readonly) .star:hover {
+  transform: scale(1.15);
+}
+
+.star-rating:not(.readonly) .star:active {
+  transform: scale(1.05);
+}
+
+/* ========== 标签输入组件 ========== */
+.tags-input {
+  min-height: 42px;
+  padding: 6px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  cursor: text;
+  transition: all 0.2s ease;
+}
+
+.tags-input:focus-within {
+  border-color: #1976d2;
+  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
+}
+
+/* 标签容器 */
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* 单个标签 */
+.tags-input .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background-color: #e3f2fd;
+  color: #1976d2;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  animation: tagFadeIn 0.2s ease-out;
+}
+
+.tags-input .tag-text {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tags-input .tag-remove {
+  background: none;
+  border: none;
+  color: #1976d2;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.15s ease;
+}
+
+.tags-input .tag-remove:hover {
+  background-color: rgba(25, 118, 210, 0.1);
+  transform: scale(1.1);
+}
+
+.tags-input .tag-remove:active {
+  transform: scale(0.95);
+}
+
+/* 标签输入框 */
+.tags-input .tag-input {
+  flex: 1;
+  min-width: 120px;
+  border: none;
+  outline: none;
+  padding: 4px 8px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.tags-input .tag-input:disabled {
+  background-color: transparent;
+  color: #bdbdbd;
+  cursor: not-allowed;
+}
+
+/* ========== 开关按钮组件 ========== */
+.toggle-switch-wrapper {
+  display: inline-block;
+}
+
+.toggle-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-switch.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 隐藏原生checkbox */
+.toggle-switch .toggle-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 开关滑块容器 */
+.toggle-switch .toggle-slider {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  background-color: #bdbdbd;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+/* 开关滑块圆点 */
+.toggle-switch .toggle-slider::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+}
+
+/* 选中状态 */
+.toggle-switch .toggle-input:checked + .toggle-slider {
+  background-color: #4caf50;
+}
+
+.toggle-switch .toggle-input:checked + .toggle-slider::after {
+  transform: translateX(20px);
+}
+
+/* 聚焦状态 */
+.toggle-switch .toggle-input:focus + .toggle-slider {
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2);
+}
+
+/* 禁用状态 */
+.toggle-switch.disabled .toggle-slider {
+  background-color: #e0e0e0;
+}
+
+.toggle-switch.disabled .toggle-input:checked + .toggle-slider {
+  background-color: #a5d6a7;
+}
+
+/* 标签文本 */
+.toggle-switch .toggle-label {
+  font-size: 14px;
+  color: #424242;
+  font-weight: 500;
+}
+
+.toggle-switch.disabled .toggle-label {
+  color: #9e9e9e;
+}
+
+/* ========== 动画 ========== */
+@keyframes tagFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ========== 响应式设计 ========== */
+@media (max-width: 768px) {
+  .star-rating .star {
+    font-size: 24px;
+  }
+
+  .tags-input .tag-text {
+    max-width: 120px;
+  }
+}
+
+@media (max-width: 480px) {
+  .pdf-edit-form {
+    gap: 16px;
+  }
+
+  .form-group {
+    gap: 6px;
+  }
+
+  .star-rating .star {
+    font-size: 22px;
+    gap: 2px;
+  }
+
+  .tags-input .tag {
+    padding: 3px 6px;
+    font-size: 12px;
+  }
+
+  .tags-input .tag-text {
+    max-width: 100px;
+  }
+
+  .toggle-switch .toggle-slider {
+    width: 40px;
+    height: 22px;
+  }
+
+  .toggle-switch .toggle-slider::after {
+    width: 18px;
+    height: 18px;
+  }
+
+  .toggle-switch .toggle-input:checked + .toggle-slider::after {
+    transform: translateX(18px);
+  }
+}
