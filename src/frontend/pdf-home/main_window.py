@@ -224,7 +224,65 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event):
         """窗口大小调整事件"""
         super().resizeEvent(event)
-        # 确保WebView正确响应窗口大小变��
+        # 确保WebView正确响应窗口大小变化
         if self.web_view:
             # 强制更新布局
             self.web_view.updateGeometry()
+
+    def closeEvent(self, event):
+        """窗口关闭事件 - 停止后台服务（但不杀掉窗口自己）"""
+        import subprocess
+        import sys
+        import json
+        from pathlib import Path
+
+        try:
+            # 获取项目根目录
+            project_root = Path(__file__).parent.parent.parent
+
+            # 第一步：从 frontend-process-info.json 中移除当前窗口的 PID
+            # 这样 ai_launcher.py stop 就不会杀掉窗口自己
+            try:
+                frontend_info_path = project_root / 'logs' / 'frontend-process-info.json'
+                if frontend_info_path.exists():
+                    with open(frontend_info_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+
+                    # 从 frontend 记录中移除 pdf-home
+                    if 'frontend' in data and isinstance(data['frontend'], dict):
+                        if 'pdf-home' in data['frontend']:
+                            del data['frontend']['pdf-home']
+                            print(f"[MainWindow] 已从跟踪列表中移除当前窗口")
+
+                    # 写回文件
+                    with open(frontend_info_path, 'w', encoding='utf-8') as f:
+                        json.dump(data, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                print(f"[MainWindow] 清理前端进程信息失败: {e}")
+
+            # 第二步：调用 ai_launcher.py stop 停止后台服务
+            ai_launcher_path = project_root / 'ai_launcher.py'
+            if ai_launcher_path.exists():
+                print(f"[MainWindow] 正在停止后台服务...")
+                result = subprocess.run(
+                    [sys.executable, str(ai_launcher_path), 'stop'],
+                    cwd=str(project_root),
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+
+                if result.returncode == 0:
+                    print(f"[MainWindow] 后端服务已停止")
+                else:
+                    print(f"[MainWindow] 停止后端服务失败: {result.stderr}")
+            else:
+                print(f"[MainWindow] 未找到 ai_launcher.py: {ai_launcher_path}")
+
+        except subprocess.TimeoutExpired:
+            print(f"[MainWindow] 停止服务超时")
+        except Exception as e:
+            print(f"[MainWindow] 关闭窗口时发生错误: {e}")
+
+        # 接受关闭事件
+        event.accept()
