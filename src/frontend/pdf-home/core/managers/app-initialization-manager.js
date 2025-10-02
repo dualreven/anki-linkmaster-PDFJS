@@ -88,11 +88,23 @@ export class AppInitializationManager {
 
     // 设置全局未捕获异常处理
     window.addEventListener('error', (event) => {
+      // 过滤掉资源加载错误（通常 event.error 为 null）
+      if (!event.error) {
+        // 这通常是脚本/图片/CSS 等资源加载失败
+        if (event.message && event.message !== 'Script error.') {
+          this.#logger.warn(`Resource loading error: ${event.message} at ${event.filename || 'unknown'}:${event.lineno || 0}`);
+        }
+        // 不调用 errorHandler，避免产生无意义的错误日志
+        return;
+      }
+
+      // 只处理真正的 JavaScript 运行时错误
       this.#errorHandler.handleError(event.error, 'Global Error Handler');
     });
 
     // 设置全局Promise拒绝处理
     window.addEventListener('unhandledrejection', (event) => {
+      // event.reason 可能是任何值（Error、字符串、对象等）
       this.#errorHandler.handleError(event.reason, 'Unhandled Promise Rejection');
     });
 
