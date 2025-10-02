@@ -210,7 +210,8 @@ export class PDFHomeAppV2 {
       this.#logger.info('App initialization completed successfully');
 
       // 触发初始化完成事件
-      this.#eventBus.emit('app:initialized', {
+      // 事件名称格式：{module}:{action}:{status}
+      this.#eventBus.emit('app:initialize:completed', {
         version: 'v2',
         features: this.#registry.getInstalledFeatures()
       });

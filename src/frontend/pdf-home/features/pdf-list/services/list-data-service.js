@@ -58,9 +58,10 @@ export class ListDataService {
     if (this.#fallbackMode) {
       logger.info('Setting data in fallback mode:', rows.length, 'rows');
 
-      // 更新状态
+      // 注意：不在这里更新state.items，避免与state.subscribe循环
+      // state的更新应该从外部（WebSocket响应）直接设置
       if (this.#state) {
-        this.#state.set({ items: rows, isLoading: false });
+        this.#state.isLoading = false;
       }
 
       // 发出数据加载完成事件
@@ -344,7 +345,7 @@ export class ListDataService {
   async clear() {
     if (this.#fallbackMode) {
       if (this.#state) {
-        this.#state.set({ items: [] });
+        this.#state.items = [];
       }
 
       this.#eventBus?.emit(PDF_LIST_EVENTS.DATA_CLEARED);
@@ -361,9 +362,9 @@ export class ListDataService {
     try {
       this.#tabulator.clearData();
 
-      // 更新状态
+      // 更新状态 (直接属性赋值)
       if (this.#state) {
-        this.#state.set({ items: [] });
+        this.#state.items = [];
       }
 
       // 发出数据清空事件
@@ -384,20 +385,20 @@ export class ListDataService {
    */
   getData() {
     if (this.#fallbackMode || !this.#state) {
-      // 从状态获取
-      return this.#state ? this.#state.get().items : [];
+      // 从状态获取 (直接属性访问)
+      return this.#state ? this.#state.items : [];
     }
 
     if (!this.#tabulator) {
       logger.warn('No tabulator instance available for getData');
-      return this.#state ? this.#state.get().items : [];
+      return this.#state ? this.#state.items : [];
     }
 
     try {
       return this.#tabulator.getData();
     } catch (error) {
       logger.error('Error getting tabulator data:', error);
-      return this.#state ? this.#state.get().items : [];
+      return this.#state ? this.#state.items : [];
     }
   }
 
@@ -476,9 +477,12 @@ export class ListDataService {
   async _handleDataLoaded(rows) {
     logger.debug('Data loaded successfully, count:', rows.length);
 
-    // 更新状态
+    // 注意：不在这里更新state，避免与state.subscribe循环
+    // state的更新应该从外部（WebSocket响应）直接设置
+    // 只更新加载状态
     if (this.#state) {
-      this.#state.set({ items: rows, isLoading: false, error: null });
+      this.#state.isLoading = false;
+      this.#state.error = null;
     }
 
     // 发出数据加载完成事件
@@ -526,13 +530,11 @@ export class ListDataService {
   _handleSetDataError(err, rows) {
     logger.warn('Tabulator setData failed:', err);
 
-    // 更新状态
+    // 注意：不在这里更新state.items，避免与state.subscribe循环
+    // 只更新错误状态
     if (this.#state) {
-      this.#state.set({
-        items: rows,  // 仍然保存数据到状态
-        isLoading: false,
-        error: err.message
-      });
+      this.#state.isLoading = false;
+      this.#state.error = err.message;
     }
 
     // 发出数据加载失败事件

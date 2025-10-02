@@ -119,6 +119,8 @@ class PDFFile:
             "modified_time": self.format_time(self.modified_time),
             "title": self.title,
             "author": self.author,
+            "subject": getattr(self, 'subject', ''),
+            "keywords": getattr(self, 'keywords', ''),
             "page_count": self.page_count,
             # 学习管理字段 (扩展 - 2025-10-02)
             "last_accessed_at": getattr(self, 'last_accessed_at', 0),
@@ -126,7 +128,9 @@ class PDFFile:
             "rating": getattr(self, 'rating', 0),
             "is_visible": getattr(self, 'is_visible', True),
             "total_reading_time": getattr(self, 'total_reading_time', 0),
-            "due_date": getattr(self, 'due_date', 0)
+            "due_date": getattr(self, 'due_date', 0),
+            "tags": getattr(self, 'tags', []),
+            "notes": getattr(self, 'notes', '')
         }
     
     def get_metadata(self) -> Dict[str, Any]:

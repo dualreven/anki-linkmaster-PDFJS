@@ -83,10 +83,10 @@ export class TableInitializer {
 
     const mergedOptions = Object.assign({}, defaultOptions, options);
 
-    // 确保行格式化函数存在
-    if (!mergedOptions.rowFormatter) {
-      mergedOptions.rowFormatter = this._createRowFormatter();
-    }
+    // 注释掉行格式化函数 - 现在使用 rowSelection formatter 列来处理选择
+    // if (!mergedOptions.rowFormatter) {
+    //   mergedOptions.rowFormatter = this._createRowFormatter();
+    // }
 
     logger.debug('Table options prepared:', Object.keys(mergedOptions));
     return mergedOptions;
@@ -115,9 +115,6 @@ export class TableInitializer {
     return {
       height: 'auto',
       layout: 'fitColumns',
-      selectable: true,
-      selectableRangeMode: "click",
-      selectableRollingSelection: false,
       layoutColumnsOnNewData: false,
       placeholder: placeholder,
       // 其他默认选项可以在这里添加

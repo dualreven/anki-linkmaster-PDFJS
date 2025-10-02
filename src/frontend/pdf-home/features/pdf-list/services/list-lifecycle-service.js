@@ -291,20 +291,18 @@ export class ListLifecycleService {
       if (this.#state) {
         logger.debug('Cleaning up state');
 
-        // 重置状态为初始值
-        this.#state.set({
-          items: [],
-          selectedIndices: [],
-          isLoading: false,
-          error: null,
-          sortColumn: null,
-          sortDirection: 'asc',
-          filters: {
-            searchText: '',
-            tags: [],
-            dateRange: null
-          }
-        });
+        // 重置状态为初始值 (直接属性赋值)
+        this.#state.items = [];
+        this.#state.selectedIndices = [];
+        this.#state.isLoading = false;
+        this.#state.error = null;
+        this.#state.sortColumn = null;
+        this.#state.sortDirection = 'asc';
+        this.#state.filters = {
+          searchText: '',
+          tags: [],
+          dateRange: null
+        };
 
         logger.debug('State cleaned up');
       }
@@ -413,12 +411,10 @@ export class ListLifecycleService {
         this.#tabulator.clearData();
       }
 
-      // 清理状态数据
+      // 清理状态数据 (直接属性赋值)
       if (this.#state) {
-        this.#state.set({
-          items: [],
-          selectedIndices: []
-        });
+        this.#state.items = [];
+        this.#state.selectedIndices = [];
       }
 
       // 清理DOM内容但保留结构
@@ -467,9 +463,10 @@ export class ListLifecycleService {
         this.#tableWrapper.parentNode.removeChild(this.#tableWrapper);
       }
 
-      // 强制清理状态
+      // 强制清理状态 (直接属性赋值)
       if (this.#state) {
-        this.#state.set({ items: [], selectedIndices: [] });
+        this.#state.items = [];
+        this.#state.selectedIndices = [];
       }
 
       // 发出销毁事件

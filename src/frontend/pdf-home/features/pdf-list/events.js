@@ -18,9 +18,9 @@ export const PDF_LIST_EVENTS = {
   DATA_LOAD_FAILED: 'data:load:failed',
 
   // 数据变更事件
-  DATA_CHANGED: 'data:changed',
-  DATA_UPDATED: 'data:updated',
-  DATA_CLEARED: 'data:cleared',
+  DATA_CHANGED: 'data:change:completed',
+  DATA_UPDATED: 'data:update:completed',
+  DATA_CLEARED: 'data:clear:completed',
 
   // PDF操作事件
   PDF_ADD_REQUESTED: 'pdf:add:requested',
@@ -36,35 +36,35 @@ export const PDF_LIST_EVENTS = {
   PDF_UPDATE_FAILED: 'pdf:update:failed',
 
   // 选择事件
-  ROW_SELECTED: 'row:selected',
-  ROW_DESELECTED: 'row:deselected',
-  SELECTION_CHANGED: 'selection:changed',
-  SELECTION_CLEARED: 'selection:cleared',
+  ROW_SELECTED: 'row:select:completed',
+  ROW_DESELECTED: 'row:deselect:completed',
+  SELECTION_CHANGED: 'selection:change:completed',
+  SELECTION_CLEARED: 'selection:clear:completed',
 
   // 交互事件
-  ROW_CLICKED: 'row:clicked',
-  ROW_DOUBLE_CLICKED: 'row:double-clicked',
-  ROW_CONTEXT_MENU: 'row:context-menu',
+  ROW_CLICKED: 'row:click:completed',
+  ROW_DOUBLE_CLICKED: 'row:doubleclick:completed',
+  ROW_CONTEXT_MENU: 'row:contextmenu:completed',
 
   // 排序/筛选事件
-  SORT_CHANGED: 'sort:changed',
-  FILTER_CHANGED: 'filter:changed',
-  FILTER_CLEARED: 'filter:cleared',
+  SORT_CHANGED: 'sort:change:completed',
+  FILTER_CHANGED: 'filter:change:completed',
+  FILTER_CLEARED: 'filter:clear:completed',
 
   // 视图事件
   VIEW_CONFIG_CHANGED: 'view:config:changed',
   COLUMN_CONFIG_CHANGED: 'column:config:changed',
-  PAGINATION_CHANGED: 'pagination:changed',
+  PAGINATION_CHANGED: 'pagination:change:completed',
 
   // 生命周期事件
-  TABLE_INITIALIZED: 'table:initialized',
-  TABLE_READY: 'table:ready',
-  TABLE_DESTROYED: 'table:destroyed',
+  TABLE_INITIALIZED: 'table:initialize:completed',
+  TABLE_READY: 'table:readiness:completed',
+  TABLE_DESTROYED: 'table:destroy:completed',
   TABLE_REFRESH_REQUESTED: 'table:refresh:requested',
-  TABLE_REFRESHED: 'table:refreshed',
+  TABLE_REFRESHED: 'table:refresh:completed',
 
   // 错误事件
-  ERROR_OCCURRED: 'error:occurred',
+  ERROR_OCCURRED: 'error:occur:completed',
 };
 
 /**
