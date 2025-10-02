@@ -15,6 +15,8 @@ Args:
   --pdfFileServer-port <int>   (also accept --pdfFileServer_port)
   --module <pdf-home|pdf-viewer>
   --pdf-id <string>
+  --page-at <int>              (PDF page number, 1-based index)
+  --position <float>           (Vertical position percentage within page, 0-100)
 
 Logging:
   - Writes to logs/ai-launcher.log (UTF-8)
@@ -22,7 +24,7 @@ Logging:
 Notes:
   - All file I/O uses UTF-8 explicitly and writes with "\n" newlines
   - Frontend flag mapping: msgServer-port -> --ws-port, pdfFileServer-port -> --pdf-port
-  - pdf-viewer does not accept --pdf-id; we record it to process info only
+  - pdf-id, page-at, position parameters are passed directly to frontend launcher.py
 """
 
 from __future__ import annotations
@@ -294,11 +296,11 @@ def _save_dev_process(pid: Optional[int], port: int, cmdline: str) -> None:
     write_json_atomic(LOGS_DIR / "dev-process-info.json", info)
 
 
-def _save_frontend_process(pid: Optional[int], module: str, ports: Dict[str, int], pdf_id: Optional[str]) -> None:
+def _save_frontend_process(pid: Optional[int], module: str, ports: Dict[str, int], pdf_id: Optional[str], page_at: Optional[int] = None, position: Optional[float] = None) -> None:
     """Read-modify-write the frontend process info file."""
     path = LOGS_DIR / "frontend-process-info.json"
     data = read_json(path)
-    
+
     # Clean up old flat structure if it exists
     if "frontend" not in data or not isinstance(data.get("frontend"), dict) or any(not isinstance(v, dict) for v in data["frontend"].values()):
         data["frontend"] = {}
@@ -319,6 +321,12 @@ def _save_frontend_process(pid: Optional[int], module: str, ports: Dict[str, int
         },
         "pdf_id": pdf_id or "",
     }
+
+    # Add navigation parameters if provided
+    if page_at is not None:
+        process_info["page_at"] = int(page_at)
+    if position is not None:
+        process_info["position"] = float(position)
 
     # Update the data and write it back
     data["frontend"][key] = process_info
@@ -452,7 +460,7 @@ def _start_backend(msgCenter_port: int | None, pdfFile_port: int | None) -> bool
 
 
 
-def _start_frontend(module: str, ports: Dict[str, int], pdf_id: Optional[str]) -> Optional[int]:
+def _start_frontend(module: str, ports: Dict[str, int], pdf_id: Optional[str], page_at: Optional[int] = None, position: Optional[float] = None) -> Optional[int]:
     # Enhanced: stop ALL processes of the same module type before starting new one
     LOGGER.info("Stopping all existing processes for module '%s' before starting new instance", module)
     _stop_frontend(module_filter=module)
@@ -468,7 +476,7 @@ def _start_frontend(module: str, ports: Dict[str, int], pdf_id: Optional[str]) -
 
     # test mode
     if os.environ.get("AI_LAUNCHER_TEST_MODE") == "1":
-        _save_frontend_process(None, module, ports, pdf_id)
+        _save_frontend_process(None, module, ports, pdf_id, page_at, position)
         return None
 
     vite = int(ports.get("npm_port") or ports.get("vite_port") or 3000)
@@ -481,6 +489,12 @@ def _start_frontend(module: str, ports: Dict[str, int], pdf_id: Optional[str]) -
     if pdf_id:
         cmd.extend(["--pdf-id", pdf_id])
 
+    # 添加页面导航参数
+    if page_at is not None:
+        cmd.extend(["--page-at", str(page_at)])
+    if position is not None:
+        cmd.extend(["--position", str(position)])
+
     LOGGER.info("Starting frontend %s: %s", module, " ".join(cmd))
     try:
         proc = subprocess.Popen(
@@ -491,12 +505,12 @@ def _start_frontend(module: str, ports: Dict[str, int], pdf_id: Optional[str]) -
             stderr=subprocess.DEVNULL,
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
         )
-        _save_frontend_process(proc.pid, module, ports, pdf_id)
+        _save_frontend_process(proc.pid, module, ports, pdf_id, page_at, position)
         time.sleep(1.0)
         return proc.pid
     except Exception as exc:
         LOGGER.error("Failed to start frontend %s: %s", module, exc)
-        _save_frontend_process(None, module, ports, pdf_id)
+        _save_frontend_process(None, module, ports, pdf_id, page_at, position)
         return None
 
 
@@ -588,6 +602,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         sp.add_argument("--pdfFileServer_port", type=int, dest="pdfFileServer_port_alt")
         sp.add_argument("--module", choices=["pdf-home", "pdf-viewer"], dest="module")
         sp.add_argument("--pdf-id", type=str, dest="pdf_id")
+        sp.add_argument("--page-at", type=int, dest="page_at", help="Target page number (1-based index)")
+        sp.add_argument("--position", type=float, dest="position", help="Vertical position percentage within page (0-100)")
 
     add_common(sub.add_parser("start", help="Start vite, backend, and optional frontend"))
     sub.add_parser("stop", help="Stop vite, frontend, and backend")
@@ -628,7 +644,13 @@ def cmd_start(args: argparse.Namespace) -> int:
 
         # 3) frontend module if requested
         if getattr(args, "module", None):
-            _start_frontend(args.module, ports, getattr(args, "pdf_id", None))
+            _start_frontend(
+                args.module,
+                ports,
+                getattr(args, "pdf_id", None),
+                getattr(args, "page_at", None),
+                getattr(args, "position", None)
+            )
 
         return 0
     except Exception as exc:

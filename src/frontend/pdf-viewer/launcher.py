@@ -8,7 +8,32 @@ already running. The launcher auto-resolves ports from logs/runtime-ports.json
 and logs/npm-dev.log where possible.
 
 Usage:
-  python src/frontend/pdf-viewer/launcher.py [--file-path path/to/file.pdf]
+  # 基本用法 - 打开指定PDF文件
+  python src/frontend/pdf-viewer/launcher.py --file-path path/to/file.pdf
+
+  # 使用PDF ID（会在指定目录中查找对应的PDF文件）
+  python src/frontend/pdf-viewer/launcher.py --pdf-id sample
+
+  # 打开PDF并跳转到指定页码（第5页）
+  python src/frontend/pdf-viewer/launcher.py --pdf-id sample --page-at 5
+
+  # 打开PDF并跳转到指定页码的特定位置（第5页的50%位置）
+  python src/frontend/pdf-viewer/launcher.py --pdf-id sample --page-at 5 --position 50
+
+  # 完整示例：指定所有参数
+  python src/frontend/pdf-viewer/launcher.py \\
+    --file-path data/pdfs/document.pdf \\
+    --page-at 10 \\
+    --position 75
+
+URL Navigation Parameters:
+  --pdf-id ID          PDF文件标识符（会自动解析为文件路径）
+  --page-at PAGE       目标页码（从1开始）
+  --position PERCENT   页面内垂直位置百分比（0-100）
+
+Note:
+  URL导航参数会传递给前端的url-navigation Feature处理。
+  前端会自动加载PDF并跳转到指定位置。
 """
 
 from __future__ import annotations
@@ -200,6 +225,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--no-persist", action="store_true", help="Do not persist ports back to logs/runtime-ports.json")
     parser.add_argument("--file-path", type=str, dest="file_path", help="PDF file path to load automatically")
     parser.add_argument("--pdf-id", type=str, dest="pdf_id", help="PDF ID to resolve to file path")
+    parser.add_argument("--page-at", type=int, dest="page_at", help="Target page number to navigate to (1-based index)")
+    parser.add_argument("--position", type=float, dest="position", help="Vertical position percentage within the page (0-100)")
     parser.add_argument("--diagnose-only", action="store_true", help="Run initialization diagnostics and exit before starting the Qt event loop")
     parser.add_argument("--disable-webchannel", action="store_true", help="Skip QWebChannel bridge setup")
     parser.add_argument("--disable-websocket", action="store_true", help="Skip QWebSocket bridge connection")
@@ -411,6 +438,23 @@ def main() -> int:
         import urllib.parse
         file_param = urllib.parse.quote(file_path)
         url += f"&file={file_param}"
+
+    # Add URL navigation parameters (for url-navigation Feature)
+    if args.pdf_id:
+        # 如果使用pdf-id，添加到URL（前端url-navigation Feature会处理）
+        url += f"&pdf-id={args.pdf_id}"
+
+    if args.page_at is not None:
+        # 添加目标页码参数
+        url += f"&page-at={args.page_at}"
+        logger.info(f"URL navigation: target page = {args.page_at}")
+
+    if args.position is not None:
+        # 添加页面内位置百分比参数
+        # 限制在0-100范围内
+        position = max(0.0, min(100.0, args.position))
+        url += f"&position={position}"
+        logger.info(f"URL navigation: target position = {position}%")
 
     frontend_enabled = not args.disable_frontend_load
     frontend_executed = False
