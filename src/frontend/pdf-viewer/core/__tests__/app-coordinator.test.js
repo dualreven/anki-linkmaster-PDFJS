@@ -16,7 +16,7 @@ jest.mock('../../pdf/pdf-manager-refactored.js', () => ({
 }));
 
 jest.mock('../../ui/ui-manager-core-refactored.js', () => ({
-  UIManager: jest.fn().mockImplementation(() => ({
+  UIManagerCore: jest.fn().mockImplementation(() => ({
     initialize: jest.fn(async () => {}),
     destroy: jest.fn(),
     loadPdfDocument: jest.fn()
