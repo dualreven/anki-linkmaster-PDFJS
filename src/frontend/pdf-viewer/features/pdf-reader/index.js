@@ -7,6 +7,15 @@
 import { getLogger } from '../../../common/utils/logger.js';
 import { PDFReaderFeatureConfig } from './feature.config.js';
 
+// 导入服务和组件
+import { PDFLoader } from './components/pdf-loader.js';
+import { PageCacheManager } from './components/page-cache-manager.js';
+import { PDFDocumentManager } from './services/pdf-document-service.js';
+import { PDFManager } from './services/pdf-manager-service.js';
+import { FileHandler } from './services/file-service.js';
+import { NavigationHandler } from './services/navigation-service.js';
+import { ZoomHandler } from './services/zoom-service.js';
+
 /**
  * PDF阅读器功能类
  * 实现 IFeature 接口
@@ -28,6 +37,19 @@ export class PDFReaderFeature {
 
   /** @type {boolean} */
   #enabled = false;
+
+  // 服务实例
+  /** @type {PDFManager} */
+  #pdfManager;
+
+  /** @type {FileHandler} */
+  #fileHandler;
+
+  /** @type {NavigationHandler} */
+  #navigationHandler;
+
+  /** @type {ZoomHandler} */
+  #zoomHandler;
 
   /**
    * 功能名称（唯一标识）
@@ -189,24 +211,63 @@ export class PDFReaderFeature {
   async #registerServices(context) {
     this.#logger.debug('Registering services...');
 
-    // TODO: 在阶段3实施时，注册实际的服务
-    // const { container } = context;
-    //
-    // // 注册PDF加载服务
-    // container.register(
-    //   PDFReaderFeatureConfig.services.pdfLoader,
-    //   PDFLoaderService,
-    //   { scope: 'singleton' }
-    // );
-    //
-    // // 注册文档管理服务
-    // container.register(
-    //   PDFReaderFeatureConfig.services.documentManager,
-    //   PDFDocumentManager,
-    //   { scope: 'singleton' }
-    // );
+    const { container, scopedEventBus } = context;
 
-    this.#logger.debug('Services registered (placeholder)');
+    // 创建PDFManager（核心服务）- 使用ScopedEventBus实现事件隔离
+    this.#pdfManager = new PDFManager(scopedEventBus);
+    await this.#pdfManager.initialize();
+
+    // 注册PDFManager到容器
+    container.register(
+      'pdfManager',
+      this.#pdfManager,
+      { scope: 'singleton', isInstance: true }
+    );
+
+    // 创建服务适配器上下文（兼容旧的Handler API）
+    const serviceContext = {
+      eventBus: scopedEventBus, // 使用ScopedEventBus，自动添加@pdf-reader/命名空间
+      state: this.#state,
+      pdfManager: this.#pdfManager,
+      // 提供状态访问器
+      get currentFile() { return this.state.currentFile; },
+      set currentFile(value) { this.state.currentFile = value; },
+      get currentPage() { return this.state.currentPage; },
+      set currentPage(value) { this.state.currentPage = value; },
+      get totalPages() { return this.state.totalPages; },
+      set totalPages(value) { this.state.totalPages = value; },
+      get zoomLevel() { return this.state.zoomLevel; },
+      set zoomLevel(value) { this.state.zoomLevel = value; },
+      // 占位符（待UI迁移后实现）
+      uiManager: {
+        updatePageInfo: () => {},
+        showLoading: () => {},
+        hideProgress: () => {},
+        updateProgress: () => {},
+        showError: () => {},
+        hideError: () => {},
+        cleanup: () => {},
+        getContainerWidth: () => 800,
+        getContainerHeight: () => 600,
+        setScale: () => {},
+        pdfViewerManager: null
+      },
+      errorHandler: {
+        handleError: (error, context) => {
+          this.#logger.error(`Error in ${context}:`, error);
+        }
+      },
+      renderToViewer: async () => {
+        this.#logger.debug('Render to viewer (placeholder)');
+      }
+    };
+
+    // 创建Handlers - 它们将通过scopedEventBus自动获得@pdf-reader/命名空间
+    this.#fileHandler = new FileHandler(serviceContext);
+    this.#navigationHandler = new NavigationHandler(serviceContext);
+    this.#zoomHandler = new ZoomHandler(serviceContext);
+
+    this.#logger.debug('Services registered successfully');
   }
 
   /**
@@ -216,17 +277,34 @@ export class PDFReaderFeature {
   #registerEventListeners() {
     this.#logger.debug('Registering event listeners...');
 
-    const { events } = PDFReaderFeatureConfig;
+    // 设置Handler的事件监听
+    if (this.#fileHandler) {
+      this.#fileHandler.setupEventListeners();
+    }
 
-    // TODO: 在阶段3实施时，注册实际的事件监听
-    // 示例：
-    // const unsubscribe = this.#scopedEventBus.on(
-    //   events.FILE_LOAD_REQUESTED,
-    //   this.#handleFileLoadRequest.bind(this)
-    // );
-    // this.#unsubscribers.push(unsubscribe);
+    if (this.#navigationHandler) {
+      this.#navigationHandler.setupEventListeners();
+    }
 
-    this.#logger.debug('Event listeners registered (placeholder)');
+    if (this.#zoomHandler) {
+      this.#zoomHandler.setupEventListeners();
+    }
+
+    // 监听状态变化，同步更新
+    this.#setupStateWatchers();
+
+    this.#logger.debug('Event listeners registered successfully');
+  }
+
+  /**
+   * 设置状态监听器
+   * @private
+   */
+  #setupStateWatchers() {
+    // 监听currentPage变化
+    // StateManager会提供watch功能，暂时placeholder
+
+    this.#logger.debug('State watchers setup');
   }
 
   /**
@@ -274,7 +352,27 @@ export class PDFReaderFeature {
   async #cleanupServices(context) {
     this.#logger.debug('Cleaning up services...');
 
-    // TODO: 清理服务
+    // 清理Handlers
+    if (this.#fileHandler) {
+      this.#fileHandler.destroy();
+      this.#fileHandler = null;
+    }
+
+    if (this.#navigationHandler) {
+      this.#navigationHandler.destroy();
+      this.#navigationHandler = null;
+    }
+
+    if (this.#zoomHandler) {
+      this.#zoomHandler.destroy();
+      this.#zoomHandler = null;
+    }
+
+    // 清理PDFManager
+    if (this.#pdfManager) {
+      this.#pdfManager.destroy();
+      this.#pdfManager = null;
+    }
 
     this.#logger.debug('Services cleaned up');
   }

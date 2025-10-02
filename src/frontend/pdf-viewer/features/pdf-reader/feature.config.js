@@ -28,6 +28,9 @@ export const PDFReaderFeatureConfig = {
 
   // 状态定义
   stateSchema: {
+    // 当前文件信息
+    currentFile: null,
+
     // PDF文档对象
     pdfDocument: null,
 
