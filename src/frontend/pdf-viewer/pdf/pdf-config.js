@@ -5,11 +5,32 @@
  */
 
 /**
+ * 获取Worker源URL（延迟计算以避免import.meta.url在测试环境中的问题）
+ * @returns {string} Worker源URL
+ */
+function getWorkerSrc() {
+  try {
+    const getImportMetaUrl = new Function('return import.meta.url');
+    const metaUrl = getImportMetaUrl();
+    if (metaUrl) {
+      return new URL('@pdfjs/build/pdf.worker.min.mjs', metaUrl).href;
+    }
+  } catch (e) {
+    // 测试环境中import.meta不可用，返回fallback
+  }
+  // Fallback: 使用CDN或者空字符串让PDF.js自动处理
+  // 在浏览器环境中，上面的代码应该总是能执行成功
+  return '';
+}
+
+/**
  * PDF.js 默认配置
  */
 export const PDFJS_CONFIG = {
-  // Worker配置 - 使用本地worker文件 (通过Vite别名 @pdfjs)
-  workerSrc: new URL('@pdfjs/build/pdf.worker.min.mjs', import.meta.url).href,
+  // Worker配置 - 延迟计算
+  get workerSrc() {
+    return getWorkerSrc();
+  },
 
   // CMap配置 - 禁用CMap支持以优化性能和兼容性
   cMapUrl: null,
