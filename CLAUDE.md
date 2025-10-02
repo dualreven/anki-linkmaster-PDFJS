@@ -97,6 +97,12 @@ debug代码时的注意事项:
 功能域模块化架构 (Feature-based Modular Architecture):
    架构定义: pdf-home和pdf-viewer采用统一的功能域模块化架构，每个功能作为独立可插拔模块，通过共享micro-service基础设施协作，支持并行开发。
 
+   📖 理解架构原理: src/frontend/ARCHITECTURE-EXPLAINED.md
+   - 深度解析插件模式如何工作
+   - EventBus、Registry、Container的运作原理
+   - 完整运行流程演示
+   - 实战案例
+
    核心开发原则:
    1. 功能域隔离
       - 每个Feature必须是独立目录 (features/功能名/)
