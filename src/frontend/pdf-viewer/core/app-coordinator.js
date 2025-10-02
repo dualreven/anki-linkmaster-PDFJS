@@ -7,7 +7,7 @@
 import { getLogger } from '../../common/utils/logger.js';
 import { PDF_VIEWER_EVENTS } from '../../common/event/pdf-viewer-constants.js';
 import { PDFManager } from '../pdf/pdf-manager-refactored.js';
-import { UIManager } from '../ui/ui-manager-core-refactored.js';
+import { UIManagerCore as UIManager } from '../ui/ui-manager-core-refactored.js';
 import { createConsoleWebSocketBridge } from '../../common/utils/console-websocket-bridge.js';
 
 /**
