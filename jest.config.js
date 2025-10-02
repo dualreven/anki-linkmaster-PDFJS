@@ -2,14 +2,13 @@
 export default {
   testEnvironment: 'jsdom',
   setupFiles: ['<rootDir>/jest.setup.js'],
-  extensionsToTreatAsEsm: ['.js'],
-  globals: {
-    'ts-jest': {
-      useESM: true
-    }
-  },
-  moduleNameMapping: {
+  moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1'
   },
-  transform: {}
+  transform: {
+    '^.+\\.js$': 'babel-jest'
+  },
+  transformIgnorePatterns: [
+    'node_modules/(?!(pdfjs-dist)/)'
+  ]
 };
