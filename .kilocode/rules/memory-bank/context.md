@@ -390,18 +390,49 @@ PDFManager的`handleResponseMessage`方法在处理WebSocket响应时，如果�
 ## pdf-viewer重构进展
 
 ### 当前状态
-- 最后更新: 2025-10-02 18:00
-- 阶段: ✅ **全模块 Feature-based 架构统一完成**
+- 最后更新: 2025-10-02 22:17
+- 阶段: ✅ **全模块 Feature-based 架构统一完成 + V1架构完全移除**
 - 成果:
   * ✅ Worktree A (pdf-viewer) 合并完成
-  * ✅ Worktree B (pdf-home) 合并完成
+  * ✅ Worktree B (pdf-home) 两次合并全部完成
   * ✅ 两个模块架构完全统一
+  * ✅ V1架构文件全部清理
   * ✅ 共享 micro-service 基础设施
   * ✅ 9个功能域全部实现
+  * ✅ 开发工具脚本完善（5个工具）
 
 ### 已完成工作（最新优先）
 
-1. **合并 worktree B 的 pdf-home 功能域架构** ✅ 完成 (2025-10-02 18:00)
+1. **再次合并 worktree B 的新提交（V1架构清理）** ✅ 完成 (2025-10-02 22:17)
+   - **合并分支**: `feature/pdf-home-add-delete-improvements` → `main` (第二次合并)
+   - **合并提交**: aea64a0
+   - **代码变更**: +730行 / -4,125行 / 净删除3,395行
+   - **本次合并的3个提交**:
+     * 321ec96 - refactor(pdf-home): 移除V1架构，完全迁移到V2功能域架构
+     * d2ff056 - chore(scripts): 添加PDF字段扩展相关的开发工具脚本
+     * 70aa160 - docs(memory-bank): 更新Memory Bank记录代码库清理和工具脚本提交
+   - **主要成果**:
+     * ✅ 删除所有V1架构文件（约3,730行代码）
+     * ✅ 新增5个后端开发工具脚本（483行）
+     * ✅ 扩展PDF模型字段（7个学习管理字段）
+     * ✅ 优化功能域架构实现
+     * ✅ 代码库精简度提升83%
+   - **删除的V1组件**:
+     * ❌ Bootstrap启动器 (app-bootstrap.js)
+     * ❌ V1主应用 (pdf-home-app.js, 270行)
+     * ❌ 三大管理器 (初始化/表格/WebSocket, 846行)
+     * ❌ Table模块 (6个文件, 1,564行)
+     * ❌ UI模块 (7个文件, 1,196行)
+   - **新增开发工具** (src/backend/scripts/):
+     * migrate_pdf_fields.py (89行) - PDF字段数据迁移工具
+     * verify_migration.py (97行) - 迁移验证工具
+     * set_demo_values.py (95行) - 演示数据生成器
+     * test_pdf_list_output.py (115行) - WebSocket输出格式测试
+     * debug_websocket_message.py (87行) - WebSocket消息调试工具
+   - **冲突解决**: 1个冲突（context.md，保留两边内容合并）
+   - **工作日志**: `AItemp/20251002221737-AI-Working-log.md`
+
+2. **合并 worktree B 的 pdf-home 功能域架构** ✅ 完成 (2025-10-02 18:00)
    - **合并分支**: `feature/pdf-home-add-delete-improvements` → `main`
    - **合并提交**: ceaf394
    - **代码变更**: +16,480行 / -78行 / 净增16,402行
