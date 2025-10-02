@@ -1,0 +1,191 @@
+{
+  "$schema": "./feature-flags.schema.json",
+  "description": "Feature flags configuration for PDF-Home module",
+  "version": "1.0.0",
+  "environment": "development",
+
+  "features": {
+    "pdf-list": {
+      "enabled": true,
+      "description": "PDF 列表功能 - 显示和管理 PDF 文件列表",
+      "metadata": {
+        "owner": "pdf-home-team",
+        "createdAt": "2025-10-02"
+      }
+    },
+
+    "pdf-editor": {
+      "enabled": true,
+      "description": "PDF 编辑功能 - 编辑 PDF 元数据（星标、标签、备注等）",
+      "conditions": {
+        "environment": "development"
+      },
+      "metadata": {
+        "owner": "pdf-home-team",
+        "createdAt": "2025-10-02",
+        "status": "beta"
+      }
+    },
+
+    "pdf-sorter": {
+      "enabled": true,
+      "description": "PDF 排序功能 - 多字段排序、自定义排序方案",
+      "conditions": {
+        "roles": ["admin", "editor"]
+      },
+      "metadata": {
+        "owner": "pdf-home-team",
+        "createdAt": "2025-10-02",
+        "status": "stable"
+      }
+    },
+
+    "pdf-filter": {
+      "enabled": true,
+      "description": "PDF 筛选功能 - 高级筛选、保存筛选方案",
+      "conditions": {
+        "environment": "development",
+        "percentage": 50
+      },
+      "metadata": {
+        "owner": "pdf-home-team",
+        "createdAt": "2025-10-02",
+        "status": "experimental"
+      }
+    },
+
+    "pdf-export": {
+      "enabled": false,
+      "description": "PDF 导出功能 - 导出列表到 Excel、CSV 等格式",
+      "metadata": {
+        "owner": "pdf-home-team",
+        "createdAt": "2025-10-02",
+        "status": "planned"
+      }
+    },
+
+    "pdf-batch-operations": {
+      "enabled": true,
+      "description": "批量操作功能 - 批量删除、批量编辑等",
+      "conditions": {
+        "users": ["admin@example.com", "power-user@example.com"]
+      },
+      "metadata": {
+        "owner": "pdf-home-team",
+        "createdAt": "2025-10-02",
+        "status": "beta",
+        "risk": "high"
+      }
+    },
+
+    "advanced-search": {
+      "enabled": true,
+      "description": "高级搜索功能 - 全文搜索、正则表达式搜索",
+      "conditions": {
+        "environment": "development",
+        "roles": ["admin", "power-user"],
+        "percentage": 80
+      },
+      "metadata": {
+        "owner": "search-team",
+        "createdAt": "2025-10-02",
+        "status": "experimental",
+        "dependencies": ["pdf-list"]
+      }
+    },
+
+    "ai-assistant": {
+      "enabled": false,
+      "description": "AI 助手功能 - 智能推荐、自动分类",
+      "conditions": {
+        "environment": "development",
+        "users": ["admin@example.com"]
+      },
+      "metadata": {
+        "owner": "ai-team",
+        "createdAt": "2025-10-02",
+        "status": "prototype",
+        "cost": "high"
+      }
+    }
+  },
+
+  "comments": {
+    "enabled": "功能是否启用的基础开关",
+    "description": "功能的描述信息",
+    "conditions": {
+      "environment": "环境条件：'development' | 'staging' | 'production'",
+      "users": "用户白名单：只有这些用户可以使用该功能",
+      "roles": "角色白名单：拥有这些角色的用户可以使用该功能",
+      "percentage": "灰度发布百分比：0-100 之间的数字，表示启用的概率"
+    },
+    "metadata": {
+      "owner": "功能负责团队",
+      "createdAt": "功能创建日期",
+      "status": "功能状态：planned | prototype | experimental | beta | stable | deprecated",
+      "risk": "风险等级：low | medium | high",
+      "cost": "成本等级：low | medium | high",
+      "dependencies": "依赖的其他功能"
+    }
+  },
+
+  "usage-examples": {
+    "example1": {
+      "scenario": "开发环境启用所有功能",
+      "config": {
+        "pdf-editor": {
+          "enabled": true,
+          "conditions": {
+            "environment": "development"
+          }
+        }
+      }
+    },
+
+    "example2": {
+      "scenario": "仅管理员可用的功能",
+      "config": {
+        "pdf-batch-operations": {
+          "enabled": true,
+          "conditions": {
+            "roles": ["admin"]
+          }
+        }
+      }
+    },
+
+    "example3": {
+      "scenario": "灰度发布（50% 用户）",
+      "config": {
+        "pdf-filter": {
+          "enabled": true,
+          "conditions": {
+            "percentage": 50
+          }
+        }
+      }
+    },
+
+    "example4": {
+      "scenario": "组合条件：开发环境 + 管理员 + 80% 灰度",
+      "config": {
+        "advanced-search": {
+          "enabled": true,
+          "conditions": {
+            "environment": "development",
+            "roles": ["admin", "power-user"],
+            "percentage": 80
+          }
+        }
+      }
+    }
+  },
+
+  "migration-guide": {
+    "step1": "将此文件复制为 feature-flags.json",
+    "step2": "根据当前环境（development/staging/production）修改配置",
+    "step3": "在应用启动时加载配置：await featureFlagManager.loadFromConfig('./config/feature-flags.json')",
+    "step4": "在注册功能前检查标志：if (featureFlagManager.isEnabled('pdf-editor')) { registry.register(new PDFEditorFeature()); }",
+    "step5": "运行时可以动态修改：featureFlagManager.enable('pdf-filter') 或 featureFlagManager.disable('pdf-filter')"
+  }
+}

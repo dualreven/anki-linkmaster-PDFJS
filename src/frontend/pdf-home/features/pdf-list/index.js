@@ -1,0 +1,907 @@
+/**
+ * @file PDF List 功能域入口
+ * @module features/pdf-list
+ * @description
+ * PDF 列表管理功能域，提供 PDF 记录的列表展示、增删改查、搜索过滤等功能。
+ *
+ * 实现了 IFeature 接口，可通过 FeatureRegistry 进行注册和管理。
+ *
+ * @example
+ * import { PDFListFeature } from './features/pdf-list/index.js';
+ * import { FeatureRegistry } from './core/feature-registry.js';
+ *
+ * const registry = new FeatureRegistry({ container });
+ * registry.register(new PDFListFeature());
+ * await registry.install('pdf-list');
+ */
+
+import { PDFListFeatureConfig } from './feature.config.js';
+import { getLogger } from '../../../common/utils/logger.js';
+import { createListState, ListStateHelpers } from './state/list-state.js';
+import { PDF_LIST_EVENTS, EventDataFactory } from './events.js';
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from '../../../common/event/event-constants.js';
+import { showSuccess, showError } from '../../../common/utils/notification.js';
+// 预先导入 Tabulator 以避免动态导入时的 CommonJS 问题
+import 'tabulator-tables';
+
+/**
+ * PDF List 功能域类
+ * @class PDFListFeature
+ * @implements {IFeature}
+ */
+export class PDFListFeature {
+  /**
+   * 功能上下文（在 install 时注入）
+   * @type {import('../../core/feature-registry.js').FeatureContext|null}
+   * @private
+   */
+  #context = null;
+
+  /**
+   * 作用域事件总线
+   * @type {import('../../common/event/scoped-event-bus.js').ScopedEventBus|null}
+   * @private
+   */
+  #scopedEventBus = null;
+
+  /**
+   * 日志记录器
+   * @type {import('../../common/utils/logger.js').Logger|null}
+   * @private
+   */
+  #logger = null;
+
+  /**
+   * UI 管理器
+   * @type {Object|null}
+   * @private
+   */
+  #uiManager = null;
+
+  /**
+   * WebSocket 客户端
+   * @type {Object|null}
+   * @private
+   */
+  #wsClient = null;
+
+  /**
+   * 列表状态（由 StateManager 管理）
+   * @type {Object|null}
+   * @private
+   */
+  #state = null;
+
+  /**
+   * 事件取消订阅函数列表
+   * @type {Function[]}
+   * @private
+   */
+  #unsubscribers = [];
+
+  /**
+   * 功能是否已启用
+   * @type {boolean}
+   * @private
+   */
+  #enabled = false;
+
+  // ==================== IFeature 接口实现 ====================
+
+  /**
+   * 功能名称（唯一标识）
+   * @returns {string}
+   */
+  get name() {
+    return PDFListFeatureConfig.name;
+  }
+
+  /**
+   * 功能版本
+   * @returns {string}
+   */
+  get version() {
+    return PDFListFeatureConfig.version;
+  }
+
+  /**
+   * 功能依赖列表
+   * @returns {string[]}
+   */
+  get dependencies() {
+    return PDFListFeatureConfig.dependencies;
+  }
+
+  /**
+   * 安装功能（初始化逻辑）
+   * @param {import('../../core/feature-registry.js').FeatureContext} context - 功能上下文
+   * @returns {Promise<void>}
+   */
+  async install(context) {
+    this.#context = context;
+    this.#scopedEventBus = context.scopedEventBus;
+    this.#logger = context.logger || getLogger(`Feature.${this.name}`);
+
+    this.#logger.info(`Installing ${this.name} v${this.version}...`);
+
+    try {
+      // 1. 从容器中获取必要的服务
+      this.#logger.debug('Step 1: Setting up services...');
+      await this.#setupServices(context);
+
+      // 2. 注册事件监听器
+      this.#logger.debug('Step 2: Registering event listeners...');
+      this.#registerEventListeners();
+
+      // 3. 初始化 UI（如果需要）
+      this.#logger.debug('Step 3: Initializing UI...');
+      await this.#initializeUI();
+
+      // 4. 标记为已启用
+      this.#enabled = true;
+
+      // 5. 请求初始PDF列表数据
+      this.#logger.debug('Step 4: Requesting initial PDF list...');
+      this.#requestPdfList();
+
+      this.#logger.info(`${this.name} installed successfully`);
+    } catch (error) {
+      // 详细的错误日志
+      this.#logger.error(`Failed to install ${this.name}:`);
+      this.#logger.error(`Error name: ${error.name}`);
+      this.#logger.error(`Error message: ${error.message}`);
+      this.#logger.error(`Error stack: ${error.stack}`);
+      throw error;
+    }
+  }
+
+  /**
+   * 卸载功能（清理逻辑）
+   * @param {import('../../core/feature-registry.js').FeatureContext} context - 功能上下文
+   * @returns {Promise<void>}
+   */
+  async uninstall(context) {
+    this.#logger.info(`Uninstalling ${this.name}...`);
+
+    try {
+      // 1. 取消所有事件监听
+      this.#unregisterEventListeners();
+
+      // 2. 清理 UI
+      await this.#cleanupUI();
+
+      // 3. 清理服务引用
+      this.#wsClient = null;
+      this.#uiManager = null;
+      this.#state = null;
+
+      // 4. 标记为未启用
+      this.#enabled = false;
+
+      this.#logger.info(`${this.name} uninstalled successfully`);
+    } catch (error) {
+      this.#logger.error(`Failed to uninstall ${this.name}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 启用功能（可选）
+   * @returns {Promise<void>}
+   */
+  async enable() {
+    if (this.#enabled) {
+      this.#logger.debug(`${this.name} is already enabled`);
+      return;
+    }
+
+    this.#logger.info(`Enabling ${this.name}...`);
+
+    // 重新注册事件监听器
+    this.#registerEventListeners();
+
+    this.#enabled = true;
+    this.#logger.info(`${this.name} enabled`);
+  }
+
+  /**
+   * 禁用功能（可选）
+   * @returns {Promise<void>}
+   */
+  async disable() {
+    if (!this.#enabled) {
+      this.#logger.debug(`${this.name} is already disabled`);
+      return;
+    }
+
+    this.#logger.info(`Disabling ${this.name}...`);
+
+    // 取消事件监听
+    this.#unregisterEventListeners();
+
+    this.#enabled = false;
+    this.#logger.info(`${this.name} disabled`);
+  }
+
+  // ==================== 私有方法 ====================
+
+  /**
+   * 设置服务依赖
+   * @param {import('../../core/feature-registry.js').FeatureContext} context - 功能上下文
+   * @private
+   */
+  async #setupServices(context) {
+    // 从全局容器中获取服务
+    const globalContainer = context.container;
+
+    // 1. 获取 WebSocket 客户端（如果存在）
+    if (globalContainer && globalContainer.has && globalContainer.has('wsClient')) {
+      this.#wsClient = globalContainer.get('wsClient');
+      this.#logger.debug('WSClient service acquired from container');
+    }
+
+    // 2. 获取 StateManager 并创建功能域状态
+    if (globalContainer && globalContainer.has && globalContainer.has('stateManager')) {
+      const stateManager = globalContainer.get('stateManager');
+      this.#state = createListState(stateManager);
+      this.#logger.debug('List state created via StateManager');
+
+      // 3. 设置状态监听器
+      this.#setupStateWatchers();
+    } else {
+      this.#logger.warn('StateManager not available, feature will run without state management');
+    }
+
+    // 注意：这里只是获取服务引用，实际的初始化逻辑应该在服务层处理
+  }
+
+  /**
+   * 设置状态监听器
+   * @private
+   */
+  #setupStateWatchers() {
+    if (!this.#state) {
+      this.#logger.warn('State not available, skipping state watchers setup');
+      return;
+    }
+
+    // 监听列表数据变化
+    this.#state.subscribe('items', (newItems, oldItems) => {
+      this.#logger.debug(`List items changed: ${oldItems?.length || 0} -> ${newItems?.length || 0}`);
+
+      // 更新表格显示
+      if (this.#uiManager && newItems) {
+        this.#logger.debug('Updating table with new items:', newItems.length);
+        this.#uiManager.setData(newItems);
+      }
+
+      this.#scopedEventBus?.emit(PDF_LIST_EVENTS.DATA_CHANGED, {
+        items: newItems,
+        previousCount: oldItems?.length || 0,
+        currentCount: newItems?.length || 0
+      });
+    });
+
+    // 监听选中项变化
+    this.#state.subscribe('selectedIndices', (newIndices, oldIndices) => {
+      this.#logger.debug(`Selection changed: ${oldIndices?.length || 0} -> ${newIndices?.length || 0} items selected`);
+      const items = this.#state?.items || [];
+      const selectedItems = (newIndices || []).map(index => items[index]).filter(Boolean);
+
+      this.#scopedEventBus?.emit(
+        PDF_LIST_EVENTS.SELECTION_CHANGED,
+        EventDataFactory.createSelectionChangedData(newIndices || [], selectedItems)
+      );
+    });
+
+    // 监听加载状态变化
+    this.#state.subscribe('isLoading', (isLoading) => {
+      this.#logger.debug(`Loading state changed: ${isLoading}`);
+      if (isLoading) {
+        this.#scopedEventBus?.emit(PDF_LIST_EVENTS.DATA_LOAD_STARTED);
+      }
+    });
+
+    // 监听排序列变化
+    this.#state.subscribe('sortColumn', (newSortColumn, oldSortColumn) => {
+      this.#logger.debug(`Sort column changed: ${oldSortColumn} -> ${newSortColumn}`);
+      this.#scopedEventBus?.emit(
+        PDF_LIST_EVENTS.SORT_CHANGED,
+        EventDataFactory.createSortChangedData(newSortColumn, this.#state.sortDirection)
+      );
+    });
+
+    // 监听排序方向变化
+    this.#state.subscribe('sortDirection', (newDirection, oldDirection) => {
+      this.#logger.debug(`Sort direction changed: ${oldDirection} -> ${newDirection}`);
+      this.#scopedEventBus?.emit(
+        PDF_LIST_EVENTS.SORT_CHANGED,
+        EventDataFactory.createSortChangedData(this.#state.sortColumn, newDirection)
+      );
+    });
+
+    // 监听过滤条件变化
+    this.#state.subscribe('filters', (newFilters, oldFilters) => {
+      this.#logger.debug('Filters changed:', newFilters);
+      this.#scopedEventBus?.emit(
+        PDF_LIST_EVENTS.FILTER_CHANGED,
+        EventDataFactory.createFilterChangedData(newFilters)
+      );
+    });
+
+    this.#logger.debug('State watchers configured');
+  }
+
+  /**
+   * 设置按钮事件监听器
+   * @private
+   */
+  #setupButtonListeners() {
+    // 获取按钮元素
+    const addPdfBtn = document.getElementById('add-pdf-btn');
+    const batchAddBtn = document.getElementById('batch-add-btn');
+    const batchDeleteBtn = document.getElementById('batch-delete-btn');
+
+    // 添加PDF按钮
+    if (addPdfBtn) {
+      const handleAddClick = () => this.#handleAddPdf();
+      addPdfBtn.addEventListener('click', handleAddClick);
+      this.#unsubscribers.push(() => addPdfBtn.removeEventListener('click', handleAddClick));
+      this.#logger.debug('Add PDF button listener registered');
+    }
+
+    // 批量添加按钮
+    if (batchAddBtn) {
+      const handleBatchAddClick = () => this.#handleBatchAdd();
+      batchAddBtn.addEventListener('click', handleBatchAddClick);
+      this.#unsubscribers.push(() => batchAddBtn.removeEventListener('click', handleBatchAddClick));
+      this.#logger.debug('Batch add button listener registered');
+    }
+
+    // 批量删除按钮
+    if (batchDeleteBtn) {
+      const handleBatchDeleteClick = () => this.#handleBatchDelete();
+      batchDeleteBtn.addEventListener('click', handleBatchDeleteClick);
+      this.#unsubscribers.push(() => batchDeleteBtn.removeEventListener('click', handleBatchDeleteClick));
+      this.#logger.debug('Batch delete button listener registered');
+    }
+  }
+
+  /**
+   * 处理添加PDF
+   * @private
+   */
+  async #handleAddPdf() {
+    this.#logger.info('Add PDF button clicked');
+
+    try {
+      // 动态导入 QWebChannelBridge
+      const { QWebChannelBridge } = await import('../../qwebchannel/qwebchannel-bridge.js');
+
+      // 创建或获取桥接实例
+      const bridge = new QWebChannelBridge();
+
+      // 初始化连接
+      this.#logger.info('Initializing QWebChannel...');
+      await bridge.initialize();
+
+      // 调用文件选择对话框
+      this.#logger.info('Opening file selection dialog...');
+      const files = await bridge.selectFiles({
+        multiple: true,
+        fileType: 'pdf'
+      });
+
+      if (!files || files.length === 0) {
+        this.#logger.info('User cancelled file selection');
+        return;
+      }
+
+      this.#logger.info(`User selected ${files.length} files`);
+
+      // 循环发送多个单文件请求（后端期望单个filepath参数）
+      for (const filepath of files) {
+        this.#scopedEventBus?.emitGlobal('websocket:message:send', {
+          type: 'pdf-home:add:pdf-files',
+          data: {
+            filepath: filepath  // 后端期望单个文件路径
+          },
+          source: 'add-button'
+        });
+        this.#logger.debug(`File path sent to backend: ${filepath}`);
+      }
+
+      this.#logger.info(`${files.length} file requests sent to backend`);
+
+    } catch (error) {
+      this.#logger.error('Add PDF failed:', error);
+      showError(`添加文件失败: ${error.message}`);
+    }
+  }
+
+  /**
+   * 处理批量添加
+   * @private
+   */
+  async #handleBatchAdd() {
+    this.#logger.info('Batch add button clicked');
+
+    try {
+      // 动态导入 QWebChannelBridge
+      const { QWebChannelBridge } = await import('../../qwebchannel/qwebchannel-bridge.js');
+
+      // 创建或获取桥接实例
+      const bridge = new QWebChannelBridge();
+
+      // 初始化连接
+      this.#logger.info('Initializing QWebChannel...');
+      await bridge.initialize();
+
+      // 调用文件选择对话框（批量模式）
+      this.#logger.info('Opening batch file selection dialog...');
+      const files = await bridge.selectFiles({
+        multiple: true,
+        fileType: 'pdf'
+      });
+
+      if (!files || files.length === 0) {
+        this.#logger.info('User cancelled batch file selection');
+        return;
+      }
+
+      this.#logger.info(`User selected ${files.length} files in batch mode`);
+
+      // 循环发送多个单文件请求（后端期望单个filepath参数）
+      for (const filepath of files) {
+        this.#scopedEventBus?.emitGlobal('websocket:message:send', {
+          type: 'pdf-home:add:pdf-files',
+          data: {
+            filepath: filepath  // 后端期望单个文件路径
+          },
+          source: 'batch-add-button'
+        });
+        this.#logger.debug(`Batch file path sent to backend: ${filepath}`);
+      }
+
+      this.#logger.info(`${files.length} batch file requests sent to backend`);
+
+    } catch (error) {
+      this.#logger.error('Batch add failed:', error);
+      showError(`批量添加文件失败: ${error.message}`);
+    }
+  }
+
+  /**
+   * 处理批量删除
+   * @private
+   */
+  async #handleBatchDelete() {
+    this.#logger.info('Batch delete button clicked');
+
+    // 获取选中的行索引和对应的items
+    const selectedIndices = this.#state?.selectedIndices || [];
+    const items = this.#state?.items || [];
+
+    if (selectedIndices.length === 0) {
+      this.#logger.warn('No items selected for deletion');
+      showError('请先选择要删除的PDF文件');
+      return;
+    }
+
+    // 根据索引获取选中的items
+    const selectedItems = selectedIndices.map(index => items[index]).filter(Boolean);
+
+    if (selectedItems.length === 0) {
+      this.#logger.warn('Selected items not found');
+      showError('无法获取选中的PDF文件');
+      return;
+    }
+
+    // 确认删除
+    const confirmMsg = `确定要删除选中的 ${selectedItems.length} 个PDF文件吗？`;
+    if (!confirm(confirmMsg)) {
+      this.#logger.info('User cancelled deletion');
+      return;
+    }
+
+    this.#logger.info(`Deleting ${selectedItems.length} files:`, selectedItems.map(f => f.filename));
+
+    // 直接通过 WebSocket 发送删除请求（后端期望 file_ids 数组在 data 中）
+    this.#scopedEventBus?.emitGlobal('websocket:message:send', {
+      type: 'pdf-home:remove:pdf-files',
+      data: {
+        file_ids: selectedItems.map(item => item.id)
+      }
+    });
+  }
+
+  /**
+   * 注册事件监听器
+   * @private
+   */
+  #registerEventListeners() {
+    if (!this.#scopedEventBus) {
+      this.#logger.warn('ScopedEventBus not available, skipping event registration');
+      return;
+    }
+
+    // 设置按钮事件监听器
+    this.#setupButtonListeners();
+
+    const { local, global } = PDFListFeatureConfig.config.events;
+
+    // 监听本地事件（功能域内部事件）
+    // 监听选择变化事件，更新state
+    const unsubSelectionChanged = this.#scopedEventBus.on(PDF_LIST_EVENTS.SELECTION_CHANGED, (data) => {
+      this.#logger.debug('Selection changed:', data);
+      if (this.#state && data.selectedIndices) {
+        this.#state.selectedIndices = data.selectedIndices;
+      }
+    });
+    this.#unsubscribers.push(unsubSelectionChanged);
+
+    // 监听表格行选中事件
+    const unsubRowSelected = this.#scopedEventBus.on(local.ROW_SELECTED, (data) => {
+      this.#logger.debug('Row selected:', data);
+      // TODO: 处理行选中逻辑
+    });
+    this.#unsubscribers.push(unsubRowSelected);
+
+    // 监听表格行双击事件
+    const unsubRowDblClick = this.#scopedEventBus.on(local.ROW_DOUBLE_CLICK, (data) => {
+      this.#logger.debug('Row double-clicked:', data);
+
+      // 触发全局事件：PDF 打开请求
+      this.#scopedEventBus.emitGlobal(global.OPEN_REQUESTED, {
+        filename: data.filename,
+        path: data.path
+      });
+    });
+    this.#unsubscribers.push(unsubRowDblClick);
+
+    // 监听全局事件（如果需要响应其他功能域的事件）
+    // 示例：监听 PDF 编辑器的更新事件
+    // 事件名称格式：{module}:{action}:{status}
+    const unsubGlobalUpdate = this.#scopedEventBus.onGlobal('editor:record:updated', (data) => {
+      this.#logger.debug('PDF record updated by editor:', data);
+      // TODO: 刷新列表中的对应行
+    });
+    this.#unsubscribers.push(unsubGlobalUpdate);
+
+    // 监听WebSocket的PDF列表消息 (通用response事件)
+    const unsubWebSocketResponse = this.#scopedEventBus.onGlobal('websocket:message:response', (data) => {
+      this.#logger.debug('Received WebSocket response:', data);
+
+      // 添加调试日志，检查响应数据结构
+      if (data && data.data) {
+        this.#logger.debug('Response data keys:', Object.keys(data.data));
+        this.#logger.debug('Has added_files:', 'added_files' in data.data);
+        this.#logger.debug('Has removed_files:', 'removed_files' in data.data);
+        this.#logger.debug('Has files:', 'files' in data.data);
+      }
+
+      // 检查是否是PDF列表响应
+      if (data && data.data && Array.isArray(data.data.files)) {
+        this.#logger.info(`Received PDF list from WebSocket: ${data.data.files.length} files`);
+
+        // 更新状态中的items (直接设置属性，而不是调用set方法)
+        if (this.#state) {
+          this.#state.items = data.data.files;
+          this.#state.isLoading = false;
+
+          // 发出数据加载完成事件
+          this.#scopedEventBus?.emit(
+            PDF_LIST_EVENTS.DATA_LOAD_COMPLETED,
+            EventDataFactory.createDataLoadedData(data.data.files, data.data.files.length)
+          );
+        }
+      }
+
+      // 处理单个文件添加响应（后端返回 data.file 对象）
+      if (data && data.data && data.data.file && data.status === 'success') {
+        this.#logger.info(`File added successfully: ${data.data.file.filename}`);
+
+        // 重新请求完整列表以更新表格（因为后端返回的信息不完整）
+        this.#scopedEventBus?.emitGlobal('websocket:message:send', {
+          type: 'pdf-home:get:pdf-list'
+        });
+      }
+
+      // 处理批量添加响应（如果后端支持）
+      if (data && data.data && Array.isArray(data.data.added_files)) {
+        this.#logger.info(`Files added: ${data.data.added_files.length} successful, ${data.data.failed_files?.length || 0} failed`);
+
+        // 显示添加结果
+        if (data.data.failed_files && data.data.failed_files.length > 0) {
+          showError(`添加完成：成功 ${data.data.added_files.length} 个，失败 ${data.data.failed_files.length} 个`);
+        } else if (data.data.added_files.length > 0) {
+          showSuccess(`成功添加 ${data.data.added_files.length} 个文件`);
+        }
+
+        // 使用addRow增量添加新行，而不是刷新整个列表
+        const tabulator = this.#uiManager?.tabulator;
+        if (tabulator && data.data.added_files.length > 0) {
+          try {
+            data.data.added_files.forEach(file => {
+              tabulator.addRow(file);
+              this.#logger.debug(`Added row for file: ${file.filename || file.id}`);
+            });
+            this.#logger.info(`Successfully added ${data.data.added_files.length} rows to table`);
+          } catch (error) {
+            this.#logger.error('Error adding rows to table:', error);
+            // 如果增量添加失败，回退到重新请求完整列表
+            this.#scopedEventBus?.emitGlobal('websocket:message:send', {
+              type: 'pdf-home:get:pdf-list'
+            });
+          }
+        }
+      }
+
+      // 处理批量删除响应
+      if (data && data.data && Array.isArray(data.data.removed_files)) {
+        this.#logger.info(`Files removed: ${data.data.removed_files.length} successful`);
+
+        // 显示删除结果
+        showSuccess(`成功删除 ${data.data.removed_files.length} 个文件`);
+
+        // 使用deleteRow增量删除行，而不是刷新整个列表
+        const tabulator = this.#uiManager?.tabulator;
+        if (tabulator && data.data.removed_files.length > 0) {
+          try {
+            data.data.removed_files.forEach(fileId => {
+              // 通过文件ID删除行
+              const row = tabulator.getRow(fileId);
+              if (row) {
+                row.delete();
+                this.#logger.debug(`Deleted row for file: ${fileId}`);
+              } else {
+                this.#logger.warn(`Row not found for file ID: ${fileId}`);
+              }
+            });
+            this.#logger.info(`Successfully deleted ${data.data.removed_files.length} rows from table`);
+
+            // 删除成功后清空选中状态，避免重复删除
+            if (this.#state) {
+              this.#state.selectedIndices = [];
+              // 从tabulator重新获取数据更新state
+              this.#state.items = tabulator.getData();
+              this.#logger.debug('Cleared selection state after deletion');
+            }
+          } catch (error) {
+            this.#logger.error('Error deleting rows from table:', error);
+            // 如果增量删除失败，回退到重新请求完整列表
+            this.#scopedEventBus?.emitGlobal('websocket:message:send', {
+              type: 'pdf-home:get:pdf-list'
+            });
+          }
+        }
+      }
+    });
+    this.#unsubscribers.push(unsubWebSocketResponse);
+
+    // 也监听专门的pdf_list消息（如果后端发送）
+    const unsubWebSocketList = this.#scopedEventBus.onGlobal('websocket:message:list', (data) => {
+      this.#logger.info('Received PDF list from WebSocket (list event):', data);
+
+      // 更新状态中的items
+      if (this.#state && data && Array.isArray(data.items)) {
+        this.#logger.debug(`Updating list with ${data.items.length} items`);
+        this.#state.items = data.items;
+        this.#state.isLoading = false;
+
+        // 发出数据加载完成事件
+        this.#scopedEventBus?.emit(
+          PDF_LIST_EVENTS.DATA_LOAD_COMPLETED,
+          EventDataFactory.createDataLoadedData(data.items, data.items.length)
+        );
+      } else {
+        this.#logger.warn('Invalid PDF list data received:', data);
+        if (this.#state) {
+          this.#state.isLoading = false;
+        }
+      }
+    });
+    this.#unsubscribers.push(unsubWebSocketList);
+
+    this.#logger.debug(`Registered ${this.#unsubscribers.length} event listeners`);
+  }
+
+  /**
+   * 取消事件监听器
+   * @private
+   */
+  #unregisterEventListeners() {
+    this.#unsubscribers.forEach(unsubscribe => {
+      try {
+        unsubscribe();
+      } catch (error) {
+        this.#logger.warn('Failed to unsubscribe event listener:', error);
+      }
+    });
+
+    this.#unsubscribers = [];
+    this.#logger.debug('All event listeners unregistered');
+  }
+
+  /**
+   * 初始化 UI
+   * @private
+   */
+  async #initializeUI() {
+    try {
+      this.#logger.debug('Initializing PDF list UI');
+
+      // 1. 获取表格容器
+      const tableContainer = document.querySelector('#pdf-table-container');
+      if (!tableContainer) {
+        this.#logger.warn('PDF table container not found, skipping UI initialization');
+        return;
+      }
+
+      // 2. 动态导入 PDFTable 组件
+      const { PDFTable } = await import('./components/pdf-table.js');
+
+      // 3. 创建 PDFTable 实例
+      this.#uiManager = new PDFTable({
+        container: tableContainer,
+        state: this.#state,
+        eventBus: this.#scopedEventBus,
+        tabulatorOptions: {
+          // 从配置文件传递列定义
+          columns: PDFListFeatureConfig.config.table.columns
+        }
+      });
+
+      // 4. 初始化组件
+      await this.#uiManager.initialize();
+
+      this.#logger.debug('PDF list UI initialized successfully');
+
+    } catch (error) {
+      this.#logger.error('Failed to initialize PDF list UI:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 清理 UI
+   * @private
+   */
+  async #cleanupUI() {
+    if (this.#uiManager) {
+      try {
+        if (typeof this.#uiManager.destroy === 'function') {
+          await this.#uiManager.destroy();
+        }
+        this.#uiManager = null;
+        this.#logger.debug('UI cleaned up successfully');
+      } catch (error) {
+        this.#logger.warn('Error cleaning up UI:', error);
+        this.#uiManager = null;
+      }
+    }
+  }
+
+  /**
+   * 请求PDF列表数据
+   * @private
+   */
+  #requestPdfList() {
+    if (!this.#scopedEventBus) {
+      this.#logger.warn('Cannot request PDF list: ScopedEventBus not available');
+      return;
+    }
+
+    this.#logger.info('Requesting PDF list from backend...');
+
+    // 设置加载状态 (直接设置属性)
+    if (this.#state) {
+      this.#state.isLoading = true;
+    }
+
+    // 发送WebSocket消息请求PDF列表
+    this.#scopedEventBus.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, {
+      type: WEBSOCKET_MESSAGE_TYPES.GET_PDF_LIST
+    });
+
+    this.#logger.debug('PDF list request sent');
+  }
+
+  // ==================== 公开方法（供外部调用） ====================
+
+  /**
+   * 刷新 PDF 列表
+   * @returns {Promise<void>}
+   */
+  async refreshList() {
+    if (!this.#enabled) {
+      this.#logger.warn('Cannot refresh list: feature is disabled');
+      return;
+    }
+
+    this.#logger.info('Refreshing PDF list...');
+
+    try {
+      // 1. 设置加载状态
+      if (this.#state) {
+        ListStateHelpers.setLoading(this.#state, true);
+      }
+
+      // 2. 触发数据加载请求事件
+      this.#scopedEventBus?.emit(PDF_LIST_EVENTS.DATA_LOAD_REQUESTED);
+
+      // TODO: 实际的列表刷新逻辑（将在后续迁移中实现）
+      // 1. 通过 WebSocket 请求后端数据
+      // 2. 接收数据后更新状态
+      // 3. 状态变化会自动触发 DATA_CHANGED 事件
+
+      this.#logger.info('PDF list refresh initiated');
+    } catch (error) {
+      this.#logger.error('Failed to refresh PDF list:', error);
+
+      if (this.#state) {
+        ListStateHelpers.setError(this.#state, error);
+        ListStateHelpers.setLoading(this.#state, false);
+      }
+
+      this.#scopedEventBus?.emit(PDF_LIST_EVENTS.DATA_LOAD_FAILED, {
+        error: error.message,
+        timestamp: Date.now()
+      });
+
+      throw error;
+    }
+  }
+
+  /**
+   * 获取选中的记录
+   * @returns {Object[]} 选中的记录数组
+   */
+  getSelectedRecords() {
+    if (!this.#state) {
+      this.#logger.warn('State not available, returning empty array');
+      return [];
+    }
+
+    const items = this.#state.items || [];
+    const selectedIndices = this.#state.selectedIndices || [];
+    const selectedRecords = selectedIndices.map(index => items[index]).filter(Boolean);
+
+    this.#logger.debug(`Retrieved ${selectedRecords.length} selected records`);
+    return selectedRecords;
+  }
+
+  /**
+   * 设置过滤条件
+   * @param {Object} filters - 过滤条件
+   */
+  setFilters(filters) {
+    if (!this.#enabled) {
+      this.#logger.warn('Cannot set filters: feature is disabled');
+      return;
+    }
+
+    if (!this.#state) {
+      this.#logger.warn('State not available, cannot set filters');
+      return;
+    }
+
+    this.#logger.debug('Setting filters:', filters);
+
+    // 使用 ListStateHelpers 更新过滤条件
+    ListStateHelpers.setFilters(this.#state, filters);
+
+    // 状态变化会自动触发 FILTER_CHANGED 事件
+    // 实际的过滤逻辑将在表格组件中实现
+  }
+}
+
+/**
+ * 创建 PDF List 功能域实例的工厂函数
+ * @returns {PDFListFeature}
+ */
+export function createPDFListFeature() {
+  return new PDFListFeature();
+}
+
+export default PDFListFeature;
