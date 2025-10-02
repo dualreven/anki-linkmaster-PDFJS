@@ -98,7 +98,10 @@ export async function bootstrapPDFViewerAppFeature() {
     window.pdfViewerApp = {
       registry,
       container,
-      getFeature: (name) => registry.getFeature(name),
+      getFeature: (name) => {
+        const record = registry.get(name);
+        return record ? record.feature : null;
+      },
       destroy: () => registry.uninstallAll(),
       eventBus: eventBusSingleton
     };

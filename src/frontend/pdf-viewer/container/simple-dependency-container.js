@@ -15,12 +15,15 @@ export class SimpleDependencyContainer {
   #services = new Map();
   #logger;
   #name;
+  #parent = null;  // 父容器引用
 
   /**
    * @param {string} name - 容器名称
+   * @param {SimpleDependencyContainer} parent - 父容器（可选）
    */
-  constructor(name = 'default') {
+  constructor(name = 'default', parent = null) {
     this.#name = name;
+    this.#parent = parent;
     this.#logger = getLogger(`Container.${name}`);
   }
 
@@ -35,16 +38,41 @@ export class SimpleDependencyContainer {
   }
 
   /**
-   * 获取服务
+   * 注册服务到根容器（全局共享）
+   * @param {string} name - 服务名称
+   * @param {any} instance - 服务实例
+   */
+  registerGlobal(name, instance) {
+    // 找到根容器
+    let root = this;
+    while (root.#parent) {
+      root = root.#parent;
+    }
+
+    // 在根容器注册
+    root.register(name, instance);
+    this.#logger.debug(`Service registered globally: ${name}`);
+  }
+
+  /**
+   * 获取服务（支持父容器查找）
    * @param {string} name - 服务名称
    * @returns {any}
    */
   get(name) {
-    const service = this.#services.get(name);
-    if (!service) {
-      this.#logger.warn(`Service not found: ${name}`);
+    // 先在当前容器查找
+    if (this.#services.has(name)) {
+      return this.#services.get(name);
     }
-    return service;
+
+    // 如果当前容器没有，尝试从父容器获取
+    if (this.#parent) {
+      return this.#parent.get(name);
+    }
+
+    // 都找不到，记录警告
+    this.#logger.warn(`Service not found: ${name}`);
+    return null;
   }
 
   /**
@@ -57,26 +85,35 @@ export class SimpleDependencyContainer {
   }
 
   /**
-   * 检查服务是否存在
+   * 检查服务是否存在（支持父容器查找）
    * @param {string} name - 服务名称
    * @returns {boolean}
    */
   has(name) {
-    return this.#services.has(name);
+    // 先检查当前容器
+    if (this.#services.has(name)) {
+      return true;
+    }
+
+    // 再检查父容器
+    if (this.#parent) {
+      return this.#parent.has(name);
+    }
+
+    return false;
   }
 
   /**
-   * 创建子作用域（简化版）
+   * 创建子作用域（支持父容器链）
    * @param {string} scopeName - 作用域名称
    * @returns {SimpleDependencyContainer}
    */
   createScope(scopeName) {
-    const childContainer = new SimpleDependencyContainer(`${this.#name}.${scopeName}`);
+    // 创建子容器，传递父容器引用
+    const childContainer = new SimpleDependencyContainer(`${this.#name}.${scopeName}`, this);
 
-    // 复制父容器的所有服务到子容器
-    for (const [name, service] of this.#services.entries()) {
-      childContainer.register(name, service);
-    }
+    // 不再复制服务，通过父容器引用自动继承
+    // 子容器可以注册自己的服务，不会影响父容器
 
     return childContainer;
   }

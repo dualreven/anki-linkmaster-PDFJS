@@ -262,15 +262,27 @@ export class SearchBox {
    * @private
    */
   #attachHeaderSearchButton() {
+    this.#logger.info('[DEBUG] Attempting to attach search button...');
+    this.#logger.info('[DEBUG] document.readyState:', document.readyState);
+    this.#logger.info('[DEBUG] document.body exists:', !!document.body);
+
     const searchToggleBtn = document.getElementById('search-toggle-btn');
+
+    this.#logger.info('[DEBUG] Button element found:', !!searchToggleBtn);
+    this.#logger.info('[DEBUG] Button:', searchToggleBtn);
+
     if (searchToggleBtn) {
       searchToggleBtn.addEventListener('click', () => {
         this.#logger.info('Header search button clicked');
         this.toggle();
       });
-      this.#logger.info('Header search button listener attached');
+      this.#logger.info('Header search button listener attached successfully');
     } else {
-      this.#logger.warn('Header search button not found (#search-toggle-btn)');
+      this.#logger.error('❌ Header search button NOT FOUND (#search-toggle-btn)');
+
+      // 列出所有button元素的id
+      const allButtons = document.querySelectorAll('button[id]');
+      this.#logger.info('[DEBUG] All buttons with id:', Array.from(allButtons).map(b => b.id));
     }
   }
 

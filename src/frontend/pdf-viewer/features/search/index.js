@@ -75,25 +75,32 @@ export class SearchFeature {
 
   /**
    * 安装Feature
-   * @param {import('../../container/simple-dependency-container').SimpleDependencyContainer} container - 依赖容器
+   * @param {Object} context - Feature上下文
+   * @param {import('../../container/simple-dependency-container').SimpleDependencyContainer} context.container - 依赖容器
+   * @param {import('../../../common/event/event-bus').EventBus} context.globalEventBus - 全局事件总线
+   * @param {import('../../../common/utils/logger').Logger} context.logger - 日志器
    * @returns {Promise<void>}
    */
-  async install(container) {
+  async install(context) {
     if (this.#installed) {
       this.#logger.warn('SearchFeature already installed');
       return;
     }
 
     this.#logger.info('Installing SearchFeature...');
-    this.#logger.info(`Container type: ${container?.constructor?.name}`);
+
+    // 从 context 中解构依赖
+    const { container, globalEventBus, logger } = context;
+
+    this.#logger.info(`Context container type: ${container?.constructor?.name}`);
     this.#logger.info(`Container has resolve: ${typeof container?.resolve}`);
-    this.#logger.info(`Container has get: ${typeof container?.get}`);
+    this.#logger.info(`GlobalEventBus exists: ${!!globalEventBus}`);
 
     try {
-      // 1. 从容器获取依赖
-      this.#eventBus = container.resolve('eventBus');
+      // 1. 从 context 获取全局 EventBus
+      this.#eventBus = globalEventBus;
       if (!this.#eventBus) {
-        throw new Error('EventBus not found in container');
+        throw new Error('GlobalEventBus not found in context');
       }
 
       // 获取PDFViewerManager（来自ui-manager feature）
@@ -352,9 +359,10 @@ export class SearchFeature {
 
   /**
    * 卸载Feature
+   * @param {Object} context - Feature上下文
    * @returns {Promise<void>}
    */
-  async uninstall() {
+  async uninstall(context) {
     if (!this.#installed) {
       this.#logger.warn('SearchFeature not installed');
       return;
