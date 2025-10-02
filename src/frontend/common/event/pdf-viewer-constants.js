@@ -128,6 +128,57 @@ export const PDF_VIEWER_EVENTS = {
      * @type {string}
      */
     TOTAL_PAGES_UPDATED: 'pdf-viewer:navigation:total-pages-updated',
+
+    /**
+     * URL参数导航相关事件
+     * @namespace URL_PARAMS
+     */
+    URL_PARAMS: {
+      /**
+       * URL参数解析完成事件
+       * @event pdf-viewer:url-params:parsed
+       * @type {string}
+       * @payload {Object} data
+       * @payload {string|null} data.pdfId - PDF文件ID
+       * @payload {number|null} data.pageAt - 目标页码(从1开始)
+       * @payload {number|null} data.position - 页面内位置百分比(0-100)
+       */
+      PARSED: 'pdf-viewer:url-params:parsed',
+
+      /**
+       * URL参数导航请求事件
+       * @event pdf-viewer:url-params:requested
+       * @type {string}
+       * @payload {Object} data
+       * @payload {string} data.pdfId - PDF文件ID
+       * @payload {number} data.pageAt - 目标页码
+       * @payload {number|null} data.position - 页面内位置百分比(可选)
+       */
+      REQUESTED: 'pdf-viewer:url-params:requested',
+
+      /**
+       * URL参数导航成功事件
+       * @event pdf-viewer:url-params:success
+       * @type {string}
+       * @payload {Object} data
+       * @payload {string} data.pdfId - PDF文件ID
+       * @payload {number} data.pageAt - 实际页码
+       * @payload {number|null} data.position - 实际位置百分比
+       * @payload {number} data.duration - 导航耗时(ms)
+       */
+      SUCCESS: 'pdf-viewer:url-params:success',
+
+      /**
+       * URL参数导航失败事件
+       * @event pdf-viewer:url-params:failed
+       * @type {string}
+       * @payload {Object} data
+       * @payload {Error} data.error - 错误对象
+       * @payload {string} data.message - 错误消息
+       * @payload {string} data.stage - 失败阶段('parse'|'load'|'navigate'|'scroll')
+       */
+      FAILED: 'pdf-viewer:url-params:failed',
+    },
   },
   
   /**

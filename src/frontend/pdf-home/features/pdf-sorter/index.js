@@ -27,7 +27,7 @@ import { getLogger } from '../../../common/utils/logger.js';
 export class PDFSorterFeature {
   /**
    * 功能上下文（在 install 时注入）
-   * @type {import('../../core/feature-registry.js').FeatureContext|null}
+   * @type {import('../../../common/micro-service/feature-registry.js').FeatureContext|null}
    * @private
    */
   #context = null;
@@ -95,7 +95,7 @@ export class PDFSorterFeature {
 
   /**
    * 安装功能（初始化逻辑）
-   * @param {import('../../core/feature-registry.js').FeatureContext} context - 功能上下文
+   * @param {import('../../../common/micro-service/feature-registry.js').FeatureContext} context - 功能上下文
    * @returns {Promise<void>}
    */
   async install(context) {
@@ -124,7 +124,7 @@ export class PDFSorterFeature {
 
   /**
    * 卸载功能（清理逻辑）
-   * @param {import('../../core/feature-registry.js').FeatureContext} context - 功能上下文
+   * @param {import('../../../common/micro-service/feature-registry.js').FeatureContext} context - 功能上下文
    * @returns {Promise<void>}
    */
   async uninstall(context) {

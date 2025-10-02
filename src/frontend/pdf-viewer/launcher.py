@@ -8,7 +8,32 @@ already running. The launcher auto-resolves ports from logs/runtime-ports.json
 and logs/npm-dev.log where possible.
 
 Usage:
-  python src/frontend/pdf-viewer/launcher.py [--file-path path/to/file.pdf]
+  # 基本用法 - 打开指定PDF文件
+  python src/frontend/pdf-viewer/launcher.py --file-path path/to/file.pdf
+
+  # 使用PDF ID（会在指定目录中查找对应的PDF文件）
+  python src/frontend/pdf-viewer/launcher.py --pdf-id sample
+
+  # 打开PDF并跳转到指定页码（第5页）
+  python src/frontend/pdf-viewer/launcher.py --pdf-id sample --page-at 5
+
+  # 打开PDF并跳转到指定页码的特定位置（第5页的50%位置）
+  python src/frontend/pdf-viewer/launcher.py --pdf-id sample --page-at 5 --position 50
+
+  # 完整示例：指定所有参数
+  python src/frontend/pdf-viewer/launcher.py \\
+    --file-path data/pdfs/document.pdf \\
+    --page-at 10 \\
+    --position 75
+
+URL Navigation Parameters:
+  --pdf-id ID          PDF文件标识符（会自动解析为文件路径）
+  --page-at PAGE       目标页码（从1开始）
+  --position PERCENT   页面内垂直位置百分比（0-100）
+
+Note:
+  URL导航参数会传递给前端的url-navigation Feature处理。
+  前端会自动加载PDF并跳转到指定位置。
 """
 
 from __future__ import annotations
@@ -200,6 +225,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--no-persist", action="store_true", help="Do not persist ports back to logs/runtime-ports.json")
     parser.add_argument("--file-path", type=str, dest="file_path", help="PDF file path to load automatically")
     parser.add_argument("--pdf-id", type=str, dest="pdf_id", help="PDF ID to resolve to file path")
+    parser.add_argument("--page-at", type=int, dest="page_at", help="Target page number to navigate to (1-based index)")
+    parser.add_argument("--position", type=float, dest="position", help="Vertical position percentage within the page (0-100)")
     parser.add_argument("--diagnose-only", action="store_true", help="Run initialization diagnostics and exit before starting the Qt event loop")
     parser.add_argument("--disable-webchannel", action="store_true", help="Skip QWebChannel bridge setup")
     parser.add_argument("--disable-websocket", action="store_true", help="Skip QWebSocket bridge connection")
@@ -412,6 +439,23 @@ def main() -> int:
         file_param = urllib.parse.quote(file_path)
         url += f"&file={file_param}"
 
+    # Add URL navigation parameters (for url-navigation Feature)
+    if args.pdf_id:
+        # 如果使用pdf-id，添加到URL（前端url-navigation Feature会处理）
+        url += f"&pdf-id={args.pdf_id}"
+
+    if args.page_at is not None:
+        # 添加目标页码参数
+        url += f"&page-at={args.page_at}"
+        logger.info(f"URL navigation: target page = {args.page_at}")
+
+    if args.position is not None:
+        # 添加页面内位置百分比参数
+        # 限制在0-100范围内
+        position = max(0.0, min(100.0, args.position))
+        url += f"&position={position}"
+        logger.info(f"URL navigation: target position = {position}%")
+
     frontend_enabled = not args.disable_frontend_load
     frontend_executed = False
     frontend_note: str | None = None
@@ -444,8 +488,72 @@ def main() -> int:
         js_console_logger.stop()
         logger.info(f"JS console logger stopped for pdf_id: {pdf_id}")
 
+    # 停止后台服务（复制closeEvent中的逻辑）
+    _cleanup_backend_services(pdf_id, logger)
+
     logger.info(f"pdf-viewer window exited with code {rc} (pdf_id: {pdf_id})")
     return int(rc)
+
+
+def _cleanup_backend_services(pdf_id: str, logger) -> None:
+    """清理后台服务 - 当窗口关闭时调用"""
+    import subprocess
+    import json
+    from pathlib import Path
+
+    try:
+        # 修正路径：launcher.py -> pdf-viewer -> frontend -> src -> 项目根目录
+        project_root = Path(__file__).parent.parent.parent.parent
+        logger.info(f"开始清理后台服务 (pdf_id: {pdf_id})")
+        logger.info(f"项目根目录: {project_root}")
+
+        # 第一步：从 frontend-process-info.json 中移除窗口记录
+        try:
+            frontend_info_path = project_root / 'logs' / 'frontend-process-info.json'
+            if frontend_info_path.exists():
+                with open(frontend_info_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+
+                if 'frontend' in data and isinstance(data['frontend'], dict):
+                    keys_to_remove = [
+                        key for key in data['frontend'].keys()
+                        if key.startswith('pdf-viewer') and pdf_id in key
+                    ]
+                    for key in keys_to_remove:
+                        del data['frontend'][key]
+                        logger.info(f"已从跟踪列表中移除窗口: {key}")
+
+                with open(frontend_info_path, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                logger.info("✓ 清理前端进程信息成功")
+        except Exception as e:
+            logger.warning(f"✗ 清理前端进程信息失败: {e}")
+
+        # 第二步：调用 ai_launcher.py stop 停止后端服务
+        ai_launcher_path = project_root / 'ai_launcher.py'
+        if ai_launcher_path.exists():
+            logger.info("正在停止后端服务...")
+            result = subprocess.run(
+                [sys.executable, str(ai_launcher_path), 'stop'],
+                cwd=str(project_root),
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+
+            if result.returncode == 0:
+                logger.info("✓ 后端服务已停止")
+            else:
+                logger.warning(f"✗ 停止后端服务失败 (code={result.returncode})")
+        else:
+            logger.warning(f"✗ 未找到 ai_launcher.py: {ai_launcher_path}")
+
+    except subprocess.TimeoutExpired:
+        logger.error("✗ 停止服务超时")
+    except Exception as e:
+        logger.error(f"✗ 清理后台服务时发生错误: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
 
 
 if __name__ == '__main__':

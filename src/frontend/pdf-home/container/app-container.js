@@ -2,7 +2,7 @@
 import { WEBSOCKET_MESSAGE_EVENTS } from '../../common/event/event-constants.js';
 import eventBusSingleton from '../../common/event/event-bus.js';
 import WSClient from '../../common/ws/ws-client.js';
-import { DependencyContainer } from '../core/dependency-container.js';
+import { DependencyContainer } from '../../common/micro-service/dependency-container.js';
 // utf-8
 // pdf-home container: uses DependencyContainer to manage services
 

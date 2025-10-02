@@ -52,6 +52,15 @@ src/frontend/pdf-viewer/
 ├── ui-zoom-controls.js            # 缩放控件
 ├── ui-layout-controls.js          # 布局控件
 │
+├── types/                          # TypeScript类型定义
+│   ├── index.d.ts                 # 类型定义导出
+│   ├── common.d.ts                # 通用类型
+│   ├── events.d.ts                # 事件类型
+│   ├── pdf.d.ts                   # PDF模块类型
+│   ├── ui.d.ts                    # UI模块类型
+│   ├── adapters.d.ts              # 适配器类型
+│   └── features.d.ts              # Feature架构类型
+│
 ├── handlers/                       # 事件处理器（旧架构）
 ├── adapters/                       # 适配器
 ├── core/                           # 核心组件（旧架构）
@@ -387,7 +396,72 @@ uiZoomControls.setScale(scale)
 - 跨Feature通信测试
 - 完整用户流程测试
 
-### 10. 未来规划
+### 10. TypeScript类型定义
+
+项目已引入完整的TypeScript类型定义，位于`types/`目录。虽然项目使用JavaScript编写，但通过`.d.ts`文件提供类型支持，为IDE提供智能提示和类型检查。
+
+#### 类型定义结构
+```typescript
+types/
+├── index.d.ts        # 统一导出入口
+├── common.d.ts       # 通用类型（Logger、EventOptions、StateSnapshot）
+├── events.d.ts       # 事件系统类型（EventBus、事件数据）
+├── pdf.d.ts          # PDF模块类型（IPDFManager、IPDFLoader等）
+├── ui.d.ts           # UI模块类型（IUIManager、IZoomControls等）
+├── adapters.d.ts     # 适配器类型（WSClient、IWebSocketAdapter）
+└── features.d.ts     # Feature架构类型（IFeature、IDependencyContainer等）
+```
+
+#### 核心类型接口
+**Feature接口**
+```typescript
+export interface IFeature {
+  readonly name: string;
+  readonly version: string;
+  readonly dependencies: readonly string[];
+  install(container: IDependencyContainer): Promise<void>;
+  uninstall(): Promise<void>;
+}
+```
+
+**依赖容器接口**
+```typescript
+export interface IDependencyContainer {
+  register<T>(key: string, instance: T): void;
+  resolve<T>(key: string): T | null;
+  has(key: string): boolean;
+  clear(): void;
+  keys(): string[];
+}
+```
+
+**事件总线接口**
+```typescript
+export interface EventBus {
+  on<T>(event: string, callback: (data: T, metadata?: EventMetadata) => void, options?: EventOptions): () => void;
+  emit<T>(event: string, data: T, metadata?: EventMetadata): void;
+  off(event: string, callback?: Function): void;
+  destroy(): void;
+}
+```
+
+#### 使用方式
+在JavaScript文件中通过JSDoc引用类型：
+```javascript
+/**
+ * @typedef {import('../types').IFeature} IFeature
+ * @typedef {import('../types').IDependencyContainer} IDependencyContainer
+ */
+
+/**
+ * @implements {IFeature}
+ */
+export class MyFeature {
+  // IDE会提供类型检查和智能提示
+}
+```
+
+### 11. 未来规划
 
 #### 待迁移Features
 - **bookmark**: 书签功能域
@@ -395,13 +469,16 @@ uiZoomControls.setScale(scale)
 - **websocket-adapter**: WebSocket适配器
 
 #### 架构优化
-- 引入TypeScript类型定义
+- ✅ 引入TypeScript类型定义（已完成）
 - 完善依赖注入容器
 - 优化事件溯源和调试
 - 增强错误处理和恢复机制
 
 ---
 
-**文档版本**: v1.0.0
+**文档版本**: v1.1.0
 **最后更新**: 2025-10-02
 **维护者**: PDF Viewer Team
+**变更日志**:
+- v1.1.0 (2025-10-02): 添加TypeScript类型定义章节，更新目录结构
+- v1.0.0 (2025-10-02): Feature-based架构文档初始版本

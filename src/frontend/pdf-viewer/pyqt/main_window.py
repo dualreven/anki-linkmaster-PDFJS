@@ -203,3 +203,94 @@ class MainWindow(QMainWindow):
         if self.web_view:
             # 强制更新布局
             self.web_view.updateGeometry()
+
+    def closeEvent(self, event):
+        """窗口关闭事件 - 停止后台服务（但不杀掉窗口自己）"""
+        import subprocess
+        import sys
+        import json
+        from pathlib import Path
+        from datetime import datetime
+
+        # 创建日志函数，同时输出到控制台和文件
+        def log_message(msg):
+            print(msg, flush=True)  # 强制刷新输出
+            try:
+                log_path = Path(__file__).parent.parent.parent.parent / 'logs' / 'window-close.log'
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                with open(log_path, 'a', encoding='utf-8') as f:
+                    f.write(f"[{timestamp}] {msg}\n")
+            except:
+                pass
+
+        log_message(f"[MainWindow-{self.pdf_id}] closeEvent触发，开始清理...")
+
+        try:
+            # 获取项目根目录 (main_window.py -> pyqt -> pdf-viewer -> frontend -> src -> 项目根目录)
+            project_root = Path(__file__).parent.parent.parent.parent.parent
+            log_message(f"[MainWindow-{self.pdf_id}] 项目根目录: {project_root}")
+
+            # 第一步：从 frontend-process-info.json 中移除当前窗口的记录
+            # 这样 ai_launcher.py stop 就不会杀掉窗口自己
+            try:
+                frontend_info_path = project_root / 'logs' / 'frontend-process-info.json'
+                log_message(f"[MainWindow-{self.pdf_id}] 检查文件: {frontend_info_path}")
+
+                if frontend_info_path.exists():
+                    with open(frontend_info_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+
+                    # 从 frontend 记录中移除 pdf-viewer 相关的实例
+                    # pdf-viewer 使用 pdf-viewer-{pdf_id} 作为键名
+                    if 'frontend' in data and isinstance(data['frontend'], dict):
+                        # 查找并移除所有包含当前pdf_id的键
+                        keys_to_remove = [
+                            key for key in data['frontend'].keys()
+                            if key.startswith('pdf-viewer') and self.pdf_id in key
+                        ]
+                        for key in keys_to_remove:
+                            del data['frontend'][key]
+                            log_message(f"[MainWindow-{self.pdf_id}] 已从跟踪列表中移除窗口: {key}")
+
+                    # 写回文件
+                    with open(frontend_info_path, 'w', encoding='utf-8') as f:
+                        json.dump(data, f, ensure_ascii=False, indent=2)
+                    log_message(f"[MainWindow-{self.pdf_id}] ✓ 清理前端进程信息成功")
+                else:
+                    log_message(f"[MainWindow-{self.pdf_id}] 文件不存在，跳过清理")
+            except Exception as e:
+                log_message(f"[MainWindow-{self.pdf_id}] ✗ 清理前端进程信息失败: {e}")
+
+            # 第二步：调用 ai_launcher.py stop 停止后台服务
+            ai_launcher_path = project_root / 'ai_launcher.py'
+            if ai_launcher_path.exists():
+                log_message(f"[MainWindow-{self.pdf_id}] 正在停止后端服务...")
+                result = subprocess.run(
+                    [sys.executable, str(ai_launcher_path), 'stop'],
+                    cwd=str(project_root),
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+
+                if result.returncode == 0:
+                    log_message(f"[MainWindow-{self.pdf_id}] ✓ 后端服务已停止")
+                else:
+                    log_message(f"[MainWindow-{self.pdf_id}] ✗ 停止后端服务失败 (code={result.returncode})")
+                    if result.stderr:
+                        log_message(f"[MainWindow-{self.pdf_id}] 错误输出: {result.stderr[:200]}")
+            else:
+                log_message(f"[MainWindow-{self.pdf_id}] ✗ 未找到 ai_launcher.py: {ai_launcher_path}")
+
+        except subprocess.TimeoutExpired:
+            log_message(f"[MainWindow-{self.pdf_id}] ✗ 停止服务超时")
+        except Exception as e:
+            log_message(f"[MainWindow-{self.pdf_id}] ✗ 关闭窗口时发生错误: {e}")
+            import traceback
+            log_message(f"[MainWindow-{self.pdf_id}] 堆栈: {traceback.format_exc()}")
+
+        log_message(f"[MainWindow-{self.pdf_id}] closeEvent完成，窗口即将关闭")
+
+        # 接受关闭事件
+        event.accept()
