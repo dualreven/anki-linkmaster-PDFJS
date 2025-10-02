@@ -216,10 +216,10 @@ class StandardWebSocketServer(QObject):
         elif message_type in ["pdf-home:add:pdf-files", "add_pdf"]:
             return self.handle_pdf_upload_request(request_id, data)
 
-        # 删除PDF文件（支持单个/多个，合并了batch_remove_pdf）
+        # 删除PDF文件（统一批量处理）
         elif message_type in ["pdf-home:remove:pdf-files", "remove_pdf", "batch_remove_pdf"]:
-            # 统一处理为删除请求，根据data中的文件数量判断
-            return self.handle_pdf_remove_request(request_id, data)
+            # 统一使用批量删除处理器
+            return self.handle_batch_pdf_remove_request(request_id, data)
 
         # 打开PDF查看器
         elif message_type in ["pdf-home:open:pdf-file", "open_pdf"]:
