@@ -15,7 +15,7 @@ import { FeatureRegistry } from './feature-registry.js';
 import { StateManager } from './state-manager.js';
 import { FeatureFlagManager } from './feature-flag-manager.js';
 import { getLogger } from '../../common/utils/logger.js';
-import { eventBusSingleton } from '../../common/event/event-bus.js';
+import eventBus from '../../common/event/event-bus.js';
 import WSClient from '../../common/ws/ws-client.js';
 
 // 导入功能域
@@ -126,11 +126,11 @@ export class PDFHomeAppV2 {
     // 创建功能注册中心
     this.#registry = new FeatureRegistry({
       container: this.#container,
-      globalEventBus: eventBusSingleton
+      globalEventBus: eventBus
     });
 
     // 使用全局事件总线（保持向后兼容）
-    this.#eventBus = eventBusSingleton;
+    this.#eventBus = eventBus;
 
     this.#logger.debug('Core components created');
   }
