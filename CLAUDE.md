@@ -127,13 +127,20 @@ debug代码时的注意事项:
    ❌ 绕过EventBus直接操作DOM或状态
    ❌ 复制粘贴代码，应提取到common/或创建新Feature
 
-   开发新Feature的步骤:
-   1. 在features/下创建功能目录
-   2. 创建feature.config.js声明元数据和依赖
-   3. 创建index.js实现Feature类(继承基类)
-   4. 在events.js定义Feature专属事件
-   5. 在bootstrap注册Feature到Registry
-   6. 编写单元测试验证隔离性
+   开发新Feature的标准流程（严格遵守）:
+   ⚠️ 开发任何新功能前，必须先阅读：src/frontend/HOW-TO-ADD-FEATURE.md
+
+   简化版步骤：
+   1. 阅读 HOW-TO-ADD-FEATURE.md 完整文档
+   2. 复制标准模板创建Feature类（必须实现4个接口）
+   3. 在bootstrap/app-bootstrap-feature.js注册
+   4. 通过EventBus通信，禁止直接调用其他Feature
+
+   关键原则：
+   - Feature类必须有：name, version, dependencies, install(), uninstall()
+   - 在bootstrap中用 registry.register(new YourFeature()) 注册
+   - 依赖其他Feature时，在dependencies数组中声明，不要import
+   - 私有字段用 # 前缀
 
 AI 接管开发时的具体规则:
 
