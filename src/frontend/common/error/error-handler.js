@@ -21,6 +21,21 @@ export class AppError extends Error { constructor(message, type = ErrorType.SYST
 export class ErrorHandler { constructor(eventBus) { this.eventBus = eventBus; this.logger = new Logger("ErrorHandler"); }
 
   handleError(error, context = "") {
+    // 防御性检查：确保 error 不是 null 或 undefined
+    if (!error) {
+      error = new Error('Unknown error (error object is null or undefined)');
+    }
+
+    // 如果 error 不是 Error 实例，尝试规范化
+    if (!(error instanceof Error)) {
+      // 如果是字符串，转为 Error 对象
+      if (typeof error === 'string') {
+        error = new Error(error);
+      } else {
+        // 其他类型，转为带详细信息的 Error
+        error = new Error(`Non-standard error: ${JSON.stringify(error)}`);
+      }
+    }
 
     const errorInfo = { message: error.message, stack: error.stack, type: error.type || ErrorType.SYSTEM, code: error.code || null, context, timestamp: new Date().toISOString() };
 
