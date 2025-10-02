@@ -43,17 +43,21 @@ export class AnnotationFeature {
 
   /**
    * 安装Feature
-   * @param {IDependencyContainer} container - 依赖容器
+   * @param {Object} context - Feature上下文
+   * @param {EventBus} context.globalEventBus - 全局事件总线
+   * @param {Logger} context.logger - 日志记录器
    * @returns {Promise<void>}
    */
-  async install(container) {
-    this.#logger = getLogger('AnnotationFeature');
+  async install(context) {
+    const { globalEventBus, logger, container } = context;
+
+    this.#logger = logger || getLogger('AnnotationFeature');
     this.#logger.info(`[${this.name}] Installing...`);
 
-    // 获取依赖
-    this.#eventBus = container.resolve('eventBus');
+    // 获取事件总线
+    this.#eventBus = globalEventBus;
     if (!this.#eventBus) {
-      throw new Error(`[${this.name}] EventBus not found in container`);
+      throw new Error(`[${this.name}] EventBus not found in context`);
     }
 
     // 创建标注侧边栏UI
