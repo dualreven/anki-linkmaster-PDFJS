@@ -20,3 +20,6 @@ export * from './adapters';
 
 // Feature-based架构类型
 export * from './features';
+
+// 标注功能类型
+export * from './annotation';
