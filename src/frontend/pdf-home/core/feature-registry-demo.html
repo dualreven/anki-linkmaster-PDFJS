@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FeatureRegistry 演示</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .panel h2 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+
+        button:hover {
+            background: #45a049;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        button.danger {
+            background: #f44336;
+        }
+
+        button.danger:hover {
+            background: #da190b;
+        }
+
+        button.warning {
+            background: #ff9800;
+        }
+
+        button.warning:hover {
+            background: #e68900;
+        }
+
+        button.info {
+            background: #2196F3;
+        }
+
+        button.info:hover {
+            background: #0b7dda;
+        }
+
+        .log-area {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .log {
+            background: #263238;
+            color: #aed581;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            height: 400px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #4CAF50;
+            padding-left: 10px;
+        }
+
+        .log-entry.info {
+            border-color: #2196F3;
+        }
+
+        .log-entry.success {
+            border-color: #4CAF50;
+        }
+
+        .log-entry.error {
+            border-color: #f44336;
+            background: rgba(244, 67, 54, 0.1);
+        }
+
+        .log-entry.warning {
+            border-color: #ff9800;
+            background: rgba(255, 152, 0, 0.1);
+        }
+
+        .timestamp {
+            color: #78909c;
+            font-size: 11px;
+        }
+
+        .event-name {
+            color: #ffeb3b;
+            font-weight: bold;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+
+        .status-registered { background: #9e9e9e; color: white; }
+        .status-installing { background: #2196F3; color: white; }
+        .status-installed { background: #4CAF50; color: white; }
+        .status-disabled { background: #ff9800; color: white; }
+        .status-failed { background: #f44336; color: white; }
+        .status-uninstalled { background: #607d8b; color: white; }
+
+        .info-box {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2196F3;
+        }
+
+        .info-box h3 {
+            margin-top: 0;
+        }
+
+        .info-box code {
+            background: #fff;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .feature-status {
+            margin-top: 15px;
+        }
+
+        .feature-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: #f5f5f5;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .feature-name {
+            font-weight: bold;
+        }
+
+        .feature-version {
+            color: #666;
+            font-size: 12px;
+        }
+
+        .dependency-tree {
+            font-family: 'Courier New', monospace;
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            white-space: pre;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎯 FeatureRegistry 功能演示</h1>
+
+    <div class="info-box">
+        <h3>📖 使用说明</h3>
+        <p>此演示展示了 <strong>FeatureRegistry</strong> 的功能注册和依赖管理：</p>
+        <ul>
+            <li><strong>功能注册</strong>：注册多个功能域（core、websocket、pdf-list、pdf-editor）</li>
+            <li><strong>依赖解析</strong>：自动计算安装顺序（拓扑排序）</li>
+            <li><strong>生命周期管理</strong>：install、uninstall、enable、disable</li>
+            <li><strong>循环依赖检测</strong>：尝试注册循环依赖的功能</li>
+            <li><strong>错误隔离</strong>：某个功能失败不影响其他功能</li>
+        </ul>
+    </div>
+
+    <div class="container">
+        <div class="panel">
+            <h2>🔧 功能注册</h2>
+            <button onclick="registerFeatures()">注册所有功能</button>
+            <button onclick="registerCircularFeatures()" class="danger">注册循环依赖功能</button>
+            <button onclick="registerFailingFeature()" class="warning">注册会失败的功能</button>
+
+            <div class="feature-status" id="featureList"></div>
+        </div>
+
+        <div class="panel">
+            <h2>⚙️ 生命周期管理</h2>
+            <button onclick="installAll()" class="info">安装所有功能</button>
+            <button onclick="uninstallAll()" class="danger">卸载所有功能</button>
+            <hr>
+            <button onclick="installFeature('core')">安装 Core</button>
+            <button onclick="installFeature('websocket')">安装 WebSocket</button>
+            <button onclick="installFeature('pdf-list')">安装 PDF List</button>
+            <hr>
+            <button onclick="disableFeature('pdf-list')" class="warning">禁用 PDF List</button>
+            <button onclick="enableFeature('pdf-list')" class="info">启用 PDF List</button>
+            <hr>
+            <button onclick="showDependencyTree()">显示依赖树</button>
+            <button onclick="showStatusSummary()">显示状态摘要</button>
+        </div>
+    </div>
+
+    <div class="log-area">
+        <h2>📊 操作日志</h2>
+        <button class="danger" onclick="clearLog()">清空日志</button>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script type="module">
+        // ==================== Mock DependencyContainer ====================
+        class MockDependencyContainer {
+            constructor(name) {
+                this.name = name;
+                this.services = new Map();
+                this.children = new Map();
+            }
+
+            register(name, service) {
+                this.services.set(name, service);
+            }
+
+            has(name) {
+                return this.services.has(name);
+            }
+
+            get(name) {
+                return this.services.get(name);
+            }
+
+            createScope(name) {
+                const child = new MockDependencyContainer(`${this.name}.${name}`);
+                this.children.set(name, child);
+                return child;
+            }
+
+            dispose() {
+                this.children.clear();
+            }
+        }
+
+        // ==================== Mock Logger ====================
+        window.mockLogger = {
+            debug: (...args) => console.log('[DEBUG]', ...args),
+            info: (...args) => console.log('[INFO]', ...args),
+            warn: (...args) => console.warn('[WARN]', ...args),
+            error: (...args) => console.error('[ERROR]', ...args)
+        };
+
+        // ==================== Mock EventBus ====================
+        class MockEventBus {
+            constructor() {
+                this.events = new Map();
+            }
+
+            emit(event, data) {
+                const listeners = this.events.get(event) || [];
+                listeners.forEach(callback => callback(data));
+            }
+
+            on(event, callback) {
+                if (!this.events.has(event)) {
+                    this.events.set(event, []);
+                }
+                this.events.get(event).push(callback);
+            }
+        }
+
+        // ==================== 导入 FeatureRegistry 核心代码 ====================
+        const FeatureStatus = {
+            REGISTERED: 'registered',
+            INSTALLING: 'installing',
+            INSTALLED: 'installed',
+            DISABLED: 'disabled',
+            FAILED: 'failed',
+            UNINSTALLED: 'uninstalled'
+        };
+
+        class FeatureRecord {
+            #feature = null;
+            #status = FeatureStatus.REGISTERED;
+            #context = null;
+            #error = null;
+            #installedAt = 0;
+
+            constructor(feature) {
+                this.#feature = feature;
+            }
+
+            get feature() { return this.#feature; }
+            get status() { return this.#status; }
+            get context() { return this.#context; }
+            get error() { return this.#error; }
+            get installedAt() { return this.#installedAt; }
+
+            setStatus(status) { this.#status = status; }
+            setContext(context) { this.#context = context; }
+            setError(error) { this.#error = error; }
+            markInstalled() {
+                this.#installedAt = Date.now();
+                this.#status = FeatureStatus.INSTALLED;
+            }
+
+            toJSON() {
+                return {
+                    name: this.#feature.name,
+                    version: this.#feature.version,
+                    status: this.#status,
+                    dependencies: this.#feature.dependencies,
+                    installedAt: this.#installedAt,
+                    error: this.#error?.message || null
+                };
+            }
+        }
+
+        class FeatureRegistry {
+            #features = new Map();
+            #container = null;
+            #logger = null;
+            #globalEventBus = null;
+
+            constructor({ container, logger, globalEventBus } = {}) {
+                if (!container) {
+                    throw new Error('FeatureRegistry requires a DependencyContainer instance');
+                }
+                this.#container = container;
+                this.#logger = logger || window.mockLogger;
+                this.#globalEventBus = globalEventBus || null;
+            }
+
+            register(feature) {
+                this.#validateFeature(feature);
+                const { name } = feature;
+
+                if (this.#features.has(name)) {
+                    throw new Error(`Feature "${name}" is already registered`);
+                }
+
+                const record = new FeatureRecord(feature);
+                this.#features.set(name, record);
+                this.#logger.info(`Feature registered: ${name} (v${feature.version})`);
+            }
+
+            has(name) {
+                return this.#features.has(name);
+            }
+
+            get(name) {
+                return this.#features.get(name) || null;
+            }
+
+            getRegisteredFeatures() {
+                return Array.from(this.#features.keys());
+            }
+
+            getInstalledFeatures() {
+                return Array.from(this.#features.values())
+                    .filter(record => record.status === FeatureStatus.INSTALLED)
+                    .map(record => record.feature.name);
+            }
+
+            async install(name) {
+                const record = this.#features.get(name);
+
+                if (!record) {
+                    throw new Error(`Feature "${name}" is not registered`);
+                }
+
+                if (record.status === FeatureStatus.INSTALLED) {
+                    this.#logger.debug(`Feature "${name}" is already installed, skipping`);
+                    return;
+                }
+
+                const { feature } = record;
+                const missingDeps = this.#checkDependencies(feature);
+
+                if (missingDeps.length > 0) {
+                    throw new Error(`Feature "${name}" has missing dependencies: ${missingDeps.join(', ')}`);
+                }
+
+                record.setStatus(FeatureStatus.INSTALLING);
+
+                try {
+                    const context = this.#createFeatureContext(name);
+                    record.setContext(context);
+
+                    this.#logger.info(`Installing feature: ${name}...`);
+                    await feature.install(context);
+
+                    record.markInstalled();
+                    this.#logger.info(`Feature installed successfully: ${name}`);
+                } catch (error) {
+                    record.setStatus(FeatureStatus.FAILED);
+                    record.setError(error);
+                    this.#logger.error(`Feature installation failed: ${name}`, error);
+                    throw error;
+                }
+            }
+
+            async installAll() {
+                const installOrder = this.#resolveInstallOrder();
+                this.#logger.info(`Installing ${installOrder.length} features in order: ${installOrder.join(' -> ')}`);
+
+                for (const name of installOrder) {
+                    try {
+                        await this.install(name);
+                    } catch (error) {
+                        this.#logger.warn(`Failed to install feature "${name}", continuing with others...`);
+                    }
+                }
+
+                const installedCount = this.getInstalledFeatures().length;
+                this.#logger.info(`Installed ${installedCount}/${installOrder.length} features`);
+            }
+
+            async uninstall(name) {
+                const record = this.#features.get(name);
+
+                if (!record) {
+                    throw new Error(`Feature "${name}" is not registered`);
+                }
+
+                if (record.status !== FeatureStatus.INSTALLED && record.status !== FeatureStatus.DISABLED) {
+                    this.#logger.debug(`Feature "${name}" is not installed, skipping uninstall`);
+                    return;
+                }
+
+                try {
+                    const { feature, context } = record;
+                    this.#logger.info(`Uninstalling feature: ${name}...`);
+                    await feature.uninstall(context);
+
+                    record.setStatus(FeatureStatus.UNINSTALLED);
+                    record.setContext(null);
+
+                    this.#logger.info(`Feature uninstalled: ${name}`);
+                } catch (error) {
+                    this.#logger.error(`Feature uninstall failed: ${name}`, error);
+                    throw error;
+                }
+            }
+
+            async enable(name) {
+                const record = this.#features.get(name);
+                if (!record) throw new Error(`Feature "${name}" is not registered`);
+
+                if (record.status !== FeatureStatus.DISABLED) {
+                    this.#logger.debug(`Feature "${name}" is not disabled, skipping enable`);
+                    return;
+                }
+
+                const { feature } = record;
+                if (typeof feature.enable === 'function') {
+                    this.#logger.info(`Enabling feature: ${name}...`);
+                    await feature.enable();
+                    record.setStatus(FeatureStatus.INSTALLED);
+                    this.#logger.info(`Feature enabled: ${name}`);
+                }
+            }
+
+            async disable(name) {
+                const record = this.#features.get(name);
+                if (!record) throw new Error(`Feature "${name}" is not registered`);
+
+                if (record.status !== FeatureStatus.INSTALLED) {
+                    this.#logger.debug(`Feature "${name}" is not installed, skipping disable`);
+                    return;
+                }
+
+                const { feature } = record;
+                if (typeof feature.disable === 'function') {
+                    this.#logger.info(`Disabling feature: ${name}...`);
+                    await feature.disable();
+                    record.setStatus(FeatureStatus.DISABLED);
+                    this.#logger.info(`Feature disabled: ${name}`);
+                }
+            }
+
+            getStatusSummary() {
+                const summary = {
+                    total: this.#features.size,
+                    installed: 0,
+                    disabled: 0,
+                    failed: 0,
+                    features: []
+                };
+
+                this.#features.forEach(record => {
+                    const info = record.toJSON();
+                    summary.features.push(info);
+
+                    if (record.status === FeatureStatus.INSTALLED) summary.installed++;
+                    if (record.status === FeatureStatus.DISABLED) summary.disabled++;
+                    if (record.status === FeatureStatus.FAILED) summary.failed++;
+                });
+
+                return summary;
+            }
+
+            #validateFeature(feature) {
+                if (!feature || typeof feature !== 'object') {
+                    throw new Error('Feature must be an object');
+                }
+
+                const requiredProps = ['name', 'version', 'dependencies', 'install', 'uninstall'];
+                for (const prop of requiredProps) {
+                    if (!(prop in feature)) {
+                        throw new Error(`Feature is missing required property: ${prop}`);
+                    }
+                }
+
+                if (typeof feature.name !== 'string' || feature.name.trim() === '') {
+                    throw new Error('Feature.name must be a non-empty string');
+                }
+
+                if (!Array.isArray(feature.dependencies)) {
+                    throw new Error('Feature.dependencies must be an array');
+                }
+
+                if (typeof feature.install !== 'function') {
+                    throw new Error('Feature.install must be a function');
+                }
+
+                if (typeof feature.uninstall !== 'function') {
+                    throw new Error('Feature.uninstall must be a function');
+                }
+            }
+
+            #checkDependencies(feature) {
+                const missing = [];
+                for (const dep of feature.dependencies) {
+                    const depRecord = this.#features.get(dep);
+                    if (!depRecord) {
+                        if (!this.#container.has(dep)) {
+                            missing.push(dep);
+                        }
+                    } else if (depRecord.status !== FeatureStatus.INSTALLED) {
+                        missing.push(dep);
+                    }
+                }
+                return missing;
+            }
+
+            #resolveInstallOrder() {
+                const visited = new Set();
+                const visiting = new Set();
+                const order = [];
+
+                const dfs = (name) => {
+                    if (visited.has(name)) return;
+                    if (visiting.has(name)) {
+                        throw new Error(`Circular dependency detected: ${name}`);
+                    }
+
+                    visiting.add(name);
+
+                    const record = this.#features.get(name);
+                    if (record) {
+                        const { feature } = record;
+                        for (const dep of feature.dependencies) {
+                            if (this.#features.has(dep)) {
+                                dfs(dep);
+                            }
+                        }
+                    }
+
+                    visiting.delete(name);
+                    visited.add(name);
+                    order.push(name);
+                };
+
+                for (const name of this.#features.keys()) {
+                    dfs(name);
+                }
+
+                return order;
+            }
+
+            #createFeatureContext(featureName) {
+                const featureScope = this.#container.createScope(featureName);
+                return {
+                    container: featureScope,
+                    globalEventBus: this.#globalEventBus,
+                    logger: window.mockLogger,
+                    config: {}
+                };
+            }
+        }
+
+        // ==================== Mock Features ====================
+        class CoreFeature {
+            get name() { return 'core'; }
+            get version() { return '1.0.0'; }
+            get dependencies() { return []; }
+
+            async install(context) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+                addLog(`Core Feature 已安装`, 'success');
+            }
+
+            async uninstall() {
+                addLog(`Core Feature 已卸载`, 'info');
+            }
+        }
+
+        class WebSocketFeature {
+            get name() { return 'websocket'; }
+            get version() { return '1.2.0'; }
+            get dependencies() { return ['core']; }
+
+            async install(context) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+                addLog(`WebSocket Feature 已安装 (依赖: core)`, 'success');
+            }
+
+            async uninstall() {
+                addLog(`WebSocket Feature 已卸载`, 'info');
+            }
+        }
+
+        class PDFListFeature {
+            get name() { return 'pdf-list'; }
+            get version() { return '2.0.0'; }
+            get dependencies() { return ['core', 'websocket']; }
+
+            async install(context) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+                addLog(`PDF List Feature 已安装 (依赖: core, websocket)`, 'success');
+            }
+
+            async uninstall() {
+                addLog(`PDF List Feature 已卸载`, 'info');
+            }
+
+            async enable() {
+                addLog(`PDF List Feature 已启用`, 'success');
+            }
+
+            async disable() {
+                addLog(`PDF List Feature 已禁用`, 'warning');
+            }
+        }
+
+        class PDFEditorFeature {
+            get name() { return 'pdf-editor'; }
+            get version() { return '1.0.0'; }
+            get dependencies() { return ['pdf-list']; }
+
+            async install(context) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+                addLog(`PDF Editor Feature 已安装 (依赖: pdf-list)`, 'success');
+            }
+
+            async uninstall() {
+                addLog(`PDF Editor Feature 已卸载`, 'info');
+            }
+        }
+
+        class FailingFeature {
+            get name() { return 'failing-feature'; }
+            get version() { return '0.1.0'; }
+            get dependencies() { return []; }
+
+            async install() {
+                await new Promise(resolve => setTimeout(resolve, 300));
+                throw new Error('安装失败：模拟的错误');
+            }
+
+            async uninstall() {}
+        }
+
+        class CircularA {
+            get name() { return 'circular-a'; }
+            get version() { return '1.0.0'; }
+            get dependencies() { return ['circular-b']; }
+
+            async install() {}
+            async uninstall() {}
+        }
+
+        class CircularB {
+            get name() { return 'circular-b'; }
+            get version() { return '1.0.0'; }
+            get dependencies() { return ['circular-a']; }
+
+            async install() {}
+            async uninstall() {}
+        }
+
+        // ==================== Global State ====================
+        const container = new MockDependencyContainer('pdf-home');
+        const globalEventBus = new MockEventBus();
+        const registry = new FeatureRegistry({ container, logger: window.mockLogger, globalEventBus });
+
+        window.registry = registry;
+
+        // ==================== UI Functions ====================
+        function addLog(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+            addLog('日志已清空', 'info');
+        }
+
+        function updateFeatureList() {
+            const listDiv = document.getElementById('featureList');
+            const features = registry.getStatusSummary().features;
+
+            if (features.length === 0) {
+                listDiv.innerHTML = '<p style="color: #999;">尚未注册任何功能</p>';
+                return;
+            }
+
+            listDiv.innerHTML = features.map(f => `
+                <div class="feature-item">
+                    <div>
+                        <span class="feature-name">${f.name}</span>
+                        <span class="feature-version">v${f.version}</span>
+                        <span class="status-badge status-${f.status}">${f.status.toUpperCase()}</span>
+                    </div>
+                    <div style="font-size: 11px; color: #666;">
+                        ${f.dependencies.length > 0 ? `依赖: ${f.dependencies.join(', ')}` : '无依赖'}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        window.registerFeatures = function() {
+            try {
+                registry.register(new CoreFeature());
+                registry.register(new WebSocketFeature());
+                registry.register(new PDFListFeature());
+                registry.register(new PDFEditorFeature());
+
+                addLog('✅ 成功注册 4 个功能', 'success');
+                updateFeatureList();
+            } catch (error) {
+                addLog(`❌ 注册失败: ${error.message}`, 'error');
+            }
+        };
+
+        window.registerCircularFeatures = function() {
+            try {
+                registry.register(new CircularA());
+                registry.register(new CircularB());
+                addLog('已注册循环依赖功能 (circular-a ↔ circular-b)', 'warning');
+                updateFeatureList();
+            } catch (error) {
+                addLog(`❌ 注册失败: ${error.message}`, 'error');
+            }
+        };
+
+        window.registerFailingFeature = function() {
+            try {
+                registry.register(new FailingFeature());
+                addLog('已注册会失败的功能 (failing-feature)', 'warning');
+                updateFeatureList();
+            } catch (error) {
+                addLog(`❌ 注册失败: ${error.message}`, 'error');
+            }
+        };
+
+        window.installAll = async function() {
+            try {
+                addLog('开始安装所有功能...', 'info');
+                await registry.installAll();
+                addLog('✅ 安装流程完成', 'success');
+                updateFeatureList();
+            } catch (error) {
+                addLog(`❌ 安装失败: ${error.message}`, 'error');
+                updateFeatureList();
+            }
+        };
+
+        window.uninstallAll = async function() {
+            const features = registry.getRegisteredFeatures();
+            for (const name of features.reverse()) {
+                try {
+                    await registry.uninstall(name);
+                } catch (error) {
+                    addLog(`卸载 ${name} 时出错: ${error.message}`, 'error');
+                }
+            }
+            addLog('✅ 所有功能已卸载', 'info');
+            updateFeatureList();
+        };
+
+        window.installFeature = async function(name) {
+            try {
+                await registry.install(name);
+                updateFeatureList();
+            } catch (error) {
+                addLog(`❌ 安装 ${name} 失败: ${error.message}`, 'error');
+                updateFeatureList();
+            }
+        };
+
+        window.disableFeature = async function(name) {
+            try {
+                await registry.disable(name);
+                updateFeatureList();
+            } catch (error) {
+                addLog(`❌ 禁用 ${name} 失败: ${error.message}`, 'error');
+            }
+        };
+
+        window.enableFeature = async function(name) {
+            try {
+                await registry.enable(name);
+                updateFeatureList();
+            } catch (error) {
+                addLog(`❌ 启用 ${name} 失败: ${error.message}`, 'error');
+            }
+        };
+
+        window.showDependencyTree = function() {
+            const features = registry.getStatusSummary().features;
+
+            if (features.length === 0) {
+                addLog('无功能可显示', 'warning');
+                return;
+            }
+
+            let tree = '\n依赖关系树:\n';
+            tree += '═'.repeat(50) + '\n';
+
+            features.forEach(f => {
+                const status = f.status === 'installed' ? '✅' :
+                              f.status === 'failed' ? '❌' :
+                              f.status === 'disabled' ? '⚠️' : '⭕';
+                tree += `${status} ${f.name} (v${f.version})\n`;
+                if (f.dependencies.length > 0) {
+                    f.dependencies.forEach((dep, i) => {
+                        const isLast = i === f.dependencies.length - 1;
+                        tree += `  ${isLast ? '└─' : '├─'} 依赖: ${dep}\n`;
+                    });
+                } else {
+                    tree += '  └─ 无依赖\n';
+                }
+            });
+
+            addLog(`<pre class="dependency-tree">${tree}</pre>`, 'info');
+        };
+
+        window.showStatusSummary = function() {
+            const summary = registry.getStatusSummary();
+
+            let msg = `\n功能状态摘要:\n`;
+            msg += `═`.repeat(50) + '\n';
+            msg += `总计: ${summary.total} 个功能\n`;
+            msg += `已安装: ${summary.installed} 个\n`;
+            msg += `已禁用: ${summary.disabled} 个\n`;
+            msg += `失败: ${summary.failed} 个\n`;
+
+            addLog(`<pre class="dependency-tree">${msg}</pre>`, 'info');
+        };
+
+        // ==================== 初始化 ====================
+        addLog('✅ FeatureRegistry 演示已就绪', 'success');
+        addLog('💡 点击"注册所有功能"开始体验', 'info');
+        updateFeatureList();
+    </script>
+</body>
+</html>
