@@ -41,7 +41,7 @@ export class AppInitializationManager {
     this.#uiManager = uiManager;
     this.#websocketManager = websocketManager;
     this.#logger = getLogger("AppInitializationManager");
-    this.#errorHandler = new ErrorHandler();
+    this.#errorHandler = new ErrorHandler(this.#eventBus);
   }
 
   /**
