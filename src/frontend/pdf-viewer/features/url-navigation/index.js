@@ -61,16 +61,21 @@ export class URLNavigationFeature {
 
   /**
    * 安装Feature
-   * @param {import('../../container/simple-dependency-container.js').SimpleDependencyContainer} container - 依赖容器
+   * @param {Object} context - Feature上下文对象
+   * @param {import('../../container/simple-dependency-container.js').SimpleDependencyContainer} context.container - 依赖容器
+   * @param {Object} context.globalEventBus - 全局事件总线
+   * @param {Object} context.scopedEventBus - 作用域事件总线
+   * @param {Object} context.logger - 日志器
    * @returns {Promise<void>}
    */
-  async install(container) {
+  async install(context) {
     this.#logger.info(`安装 ${this.name} Feature v${this.version}...`);
 
-    // 1. 获取依赖（SimpleDependencyContainer使用get方法）
-    this.#eventBus = container.get ? container.get('eventBus') : container.resolve('eventBus');
+    // 1. 从context中获取依赖
+    const container = context.container || context;  // 兼容旧版本直接传container的情况
+    this.#eventBus = context.globalEventBus || container.get('eventBus');
     if (!this.#eventBus) {
-      throw new Error('EventBus未在容器中注册');
+      throw new Error('EventBus未在容器或context中找到');
     }
 
     // 2. 初始化导航服务
@@ -110,10 +115,8 @@ export class URLNavigationFeature {
     // 5. 设置事件监听器
     this.#setupEventListeners();
 
-    // 6. 如果有pdf-id参数，触发PDF加载
-    if (this.#parsedParams.pdfId) {
-      this.#initiateNavigation();
-    }
+    // 注意：不在这里触发PDF加载，因为Bootstrap会根据launcher.py传递的file参数自动加载PDF
+    // URLNavigationFeature只需要监听FILE.LOAD.SUCCESS事件，等PDF加载完成后再执行导航即可
 
     this.#logger.info(`${this.name} Feature安装完成`);
   }
@@ -204,7 +207,13 @@ export class URLNavigationFeature {
       return;
     }
 
-    this.#logger.info('PDF加载成功，开始执行页面导航');
+    this.#logger.info('PDF加载成功，等待PDFViewer完全初始化后执行页面导航');
+
+    // 等待PDFViewer完全初始化（pagesCount > 0）
+    // 根据日志，PDFViewer在setDocument后约2秒完成初始化
+    await new Promise(resolve => setTimeout(resolve, 2500));
+
+    this.#logger.info('PDFViewer初始化完成，开始执行页面导航');
 
     try {
       // 标准化参数（使用PDF的实际总页数）

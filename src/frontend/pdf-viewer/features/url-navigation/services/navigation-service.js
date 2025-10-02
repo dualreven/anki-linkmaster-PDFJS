@@ -111,13 +111,13 @@ export class NavigationService {
         { actorId: 'NavigationService' }
       );
 
-      // 3. 等待页面渲染完成
+      // 3. 等待页面跳转完成（使用固定延迟而非事件监听，更可靠）
       await this.#waitForPageReady(actualPage);
 
       // 4. 如果指定了position，执行滚动
       let actualPosition = null;
       if (position !== null) {
-        actualPosition = await this.scrollToPosition(position);
+        actualPosition = await this.scrollToPosition(position, actualPage);
       }
 
       const duration = Math.round(performance.now() - startTime);
@@ -147,13 +147,14 @@ export class NavigationService {
   /**
    * 滚动到页面内指定位置百分比
    * @param {number} percentage - 位置百分比（0-100）
+   * @param {number} pageNumber - 目标页码(必填，由navigateTo方法提供)
    * @returns {Promise<number>} 实际滚动到的百分比
    *
    * @example
-   * const actualPosition = await navigationService.scrollToPosition(50);
-   * // 50 (滚动到页面中间)
+   * const actualPosition = await navigationService.scrollToPosition(50, 25);
+   * // 50 (滚动到第25页的中间位置)
    */
-  async scrollToPosition(percentage) {
+  async scrollToPosition(percentage, pageNumber) {
     return new Promise((resolve) => {
       try {
         // 限制百分比在0-100之间
@@ -167,19 +168,25 @@ export class NavigationService {
           return;
         }
 
-        // 获取当前显示的页面元素
-        const currentPage = viewerContainer.querySelector('.page[data-loaded="true"]');
-        if (!currentPage) {
-          this.#logger.warn('未找到已加载的页面元素，跳过位置滚动');
+        // 获取目标页面元素(使用传入的pageNumber参数)
+        const pageElement = viewerContainer.querySelector(`.page[data-page-number="${pageNumber}"]`);
+        if (!pageElement) {
+          this.#logger.warn(`未找到页面 ${pageNumber} 的元素，跳过位置滚动`);
           resolve(0);
           return;
         }
 
-        // 计算目标滚动位置
-        const pageHeight = currentPage.offsetHeight;
-        const targetScrollTop = (pageHeight * clampedPercentage) / 100;
+        // 计算目标页面在文档中的绝对位置
+        const pageOffsetTop = pageElement.offsetTop;
+        const pageHeight = pageElement.offsetHeight;
 
-        this.#logger.debug(`滚动到位置: ${clampedPercentage}% (${targetScrollTop}px / ${pageHeight}px)`);
+        // 计算页面内的偏移量
+        const offsetWithinPage = (pageHeight * clampedPercentage) / 100;
+
+        // 最终滚动位置 = 页面顶部位置 + 页面内偏移
+        const targetScrollTop = pageOffsetTop + offsetWithinPage;
+
+        this.#logger.debug(`滚动到页面 ${pageNumber} 的位置: ${clampedPercentage}% (绝对位置=${targetScrollTop}px, 页面顶部=${pageOffsetTop}px, 页面内偏移=${offsetWithinPage}px, 页面高度=${pageHeight}px)`);
 
         // 使用平滑滚动
         this.#smoothScrollTo(viewerContainer, targetScrollTop, this.#options.scrollDuration)
@@ -238,29 +245,48 @@ export class NavigationService {
    * @private
    */
   #waitForPageReady(pageNumber) {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.#logger.warn(`等待页面 ${pageNumber} 渲染超时`);
-        reject(new Error(`页面渲染超时: ${pageNumber}`));
-      }, this.#options.navigationTimeout);
+    return new Promise((resolve) => {
+      const maxWaitTime = 3000; // 最大等待3秒
+      const checkInterval = 50; // 每50ms检查一次
+      const startTime = performance.now();
 
-      // 监听页面变化事件
-      const handlePageChanging = ({ pageNumber: currentPage }) => {
-        if (currentPage === pageNumber) {
-          clearTimeout(timeout);
-          this.#eventBus.off(PDF_VIEWER_EVENTS.PAGE.CHANGING, handlePageChanging);
+      const checkPageReady = () => {
+        const elapsed = performance.now() - startTime;
 
-          // 等待一帧确保渲染完成
-          requestAnimationFrame(() => {
-            this.#logger.debug(`页面 ${pageNumber} 渲染完成`);
-            resolve();
-          });
+        // 检查页面元素是否存在且已加载
+        const viewerContainer = document.getElementById('viewerContainer');
+        if (!viewerContainer) {
+          this.#logger.warn('未找到viewerContainer，使用固定延迟');
+          setTimeout(resolve, 200);
+          return;
         }
+
+        const pageElement = viewerContainer.querySelector(`.page[data-page-number="${pageNumber}"]`);
+
+        if (pageElement) {
+          // 页面元素存在，检查是否已渲染（有高度）
+          const hasHeight = pageElement.offsetHeight > 0;
+
+          if (hasHeight) {
+            this.#logger.debug(`页面 ${pageNumber} 已渲染完成 (耗时 ${Math.round(elapsed)}ms)`);
+            resolve();
+            return;
+          }
+        }
+
+        // 超时检查
+        if (elapsed >= maxWaitTime) {
+          this.#logger.warn(`页面 ${pageNumber} 等待超时 (${maxWaitTime}ms)，继续执行`);
+          resolve();
+          return;
+        }
+
+        // 继续等待
+        setTimeout(checkPageReady, checkInterval);
       };
 
-      this.#eventBus.on(PDF_VIEWER_EVENTS.PAGE.CHANGING, handlePageChanging, {
-        subscriberId: 'NavigationService',
-      });
+      this.#logger.debug(`开始等待页面 ${pageNumber} 渲染完成`);
+      checkPageReady();
     });
   }
 
