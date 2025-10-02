@@ -17,6 +17,8 @@
 
 import { PDFListFeatureConfig } from './feature.config.js';
 import { getLogger } from '../../../common/utils/logger.js';
+import { createListState, ListStateHelpers } from './state/list-state.js';
+import { PDF_LIST_EVENTS, EventDataFactory } from './events.js';
 
 /**
  * PDF List 功能域类
@@ -58,6 +60,13 @@ export class PDFListFeature {
    * @private
    */
   #wsClient = null;
+
+  /**
+   * 列表状态（由 StateManager 管理）
+   * @type {Object|null}
+   * @private
+   */
+  #state = null;
 
   /**
    * 事件取消订阅函数列表
@@ -144,11 +153,12 @@ export class PDFListFeature {
       this.#unregisterEventListeners();
 
       // 2. 清理 UI
-      this.#cleanupUI();
+      await this.#cleanupUI();
 
       // 3. 清理服务引用
       this.#wsClient = null;
       this.#uiManager = null;
+      this.#state = null;
 
       // 4. 标记为未启用
       this.#enabled = false;
@@ -206,15 +216,92 @@ export class PDFListFeature {
    * @private
    */
   async #setupServices(context) {
-    // 从全局容器中获取 WebSocket 客户端（如果存在）
+    // 从全局容器中获取服务
     const globalContainer = context.container;
 
+    // 1. 获取 WebSocket 客户端（如果存在）
     if (globalContainer && globalContainer.has && globalContainer.has('wsClient')) {
       this.#wsClient = globalContainer.get('wsClient');
       this.#logger.debug('WSClient service acquired from container');
     }
 
+    // 2. 获取 StateManager 并创建功能域状态
+    if (globalContainer && globalContainer.has && globalContainer.has('stateManager')) {
+      const stateManager = globalContainer.get('stateManager');
+      this.#state = createListState(stateManager);
+      this.#logger.debug('List state created via StateManager');
+
+      // 3. 设置状态监听器
+      this.#setupStateWatchers();
+    } else {
+      this.#logger.warn('StateManager not available, feature will run without state management');
+    }
+
     // 注意：这里只是获取服务引用，实际的初始化逻辑应该在服务层处理
+  }
+
+  /**
+   * 设置状态监听器
+   * @private
+   */
+  #setupStateWatchers() {
+    if (!this.#state) {
+      this.#logger.warn('State not available, skipping state watchers setup');
+      return;
+    }
+
+    // 监听列表数据变化
+    this.#state.watch('items', (newItems, oldItems) => {
+      this.#logger.debug(`List items changed: ${oldItems.length} -> ${newItems.length}`);
+      this.#scopedEventBus?.emit(PDF_LIST_EVENTS.DATA_CHANGED, {
+        items: newItems,
+        previousCount: oldItems.length,
+        currentCount: newItems.length
+      });
+    });
+
+    // 监听选中项变化
+    this.#state.watch('selectedIndices', (newIndices, oldIndices) => {
+      this.#logger.debug(`Selection changed: ${oldIndices.length} -> ${newIndices.length} items selected`);
+      const items = this.#state.get().items;
+      const selectedItems = newIndices.map(index => items[index]).filter(Boolean);
+
+      this.#scopedEventBus?.emit(
+        PDF_LIST_EVENTS.SELECTION_CHANGED,
+        EventDataFactory.createSelectionChangedData(newIndices, selectedItems)
+      );
+    });
+
+    // 监听加载状态变化
+    this.#state.watch('isLoading', (isLoading) => {
+      this.#logger.debug(`Loading state changed: ${isLoading}`);
+      if (isLoading) {
+        this.#scopedEventBus?.emit(PDF_LIST_EVENTS.DATA_LOAD_STARTED);
+      }
+    });
+
+    // 监听排序变化
+    this.#state.watch(['sortColumn', 'sortDirection'], (newState, oldState) => {
+      if (newState.sortColumn !== oldState.sortColumn ||
+          newState.sortDirection !== oldState.sortDirection) {
+        this.#logger.debug(`Sort changed: ${newState.sortColumn} ${newState.sortDirection}`);
+        this.#scopedEventBus?.emit(
+          PDF_LIST_EVENTS.SORT_CHANGED,
+          EventDataFactory.createSortChangedData(newState.sortColumn, newState.sortDirection)
+        );
+      }
+    });
+
+    // 监听过滤条件变化
+    this.#state.watch('filters', (newFilters, oldFilters) => {
+      this.#logger.debug('Filters changed:', newFilters);
+      this.#scopedEventBus?.emit(
+        PDF_LIST_EVENTS.FILTER_CHANGED,
+        EventDataFactory.createFilterChangedData(newFilters)
+      );
+    });
+
+    this.#logger.debug('State watchers configured');
   }
 
   /**
@@ -282,24 +369,57 @@ export class PDFListFeature {
    * @private
    */
   async #initializeUI() {
-    // TODO: 初始化 UI 组件
-    // 注意：这里暂时不创建 UI，因为现有的 UI 代码还在 ui-manager.js 中
-    // 在后续的重构中，会将 UI 代码迁移到这个功能域中
+    try {
+      this.#logger.debug('Initializing PDF list UI');
 
-    this.#logger.debug('UI initialization skipped (using legacy UI manager)');
+      // 1. 获取表格容器
+      const tableContainer = document.querySelector('#pdf-table-container');
+      if (!tableContainer) {
+        this.#logger.warn('PDF table container not found, skipping UI initialization');
+        return;
+      }
+
+      // 2. 动态导入 PDFTable 组件
+      const { PDFTable } = await import('./components/pdf-table.js');
+
+      // 3. 创建 PDFTable 实例
+      this.#uiManager = new PDFTable({
+        container: tableContainer,
+        state: this.#state,
+        eventBus: this.#scopedEventBus,
+        tabulatorOptions: {
+          // 可以在这里添加自定义的 Tabulator 选项
+        }
+      });
+
+      // 4. 初始化组件
+      await this.#uiManager.initialize();
+
+      this.#logger.debug('PDF list UI initialized successfully');
+
+    } catch (error) {
+      this.#logger.error('Failed to initialize PDF list UI:', error);
+      throw error;
+    }
   }
 
   /**
    * 清理 UI
    * @private
    */
-  #cleanupUI() {
-    if (this.#uiManager && typeof this.#uiManager.dispose === 'function') {
-      this.#uiManager.dispose();
-      this.#uiManager = null;
+  async #cleanupUI() {
+    if (this.#uiManager) {
+      try {
+        if (typeof this.#uiManager.destroy === 'function') {
+          await this.#uiManager.destroy();
+        }
+        this.#uiManager = null;
+        this.#logger.debug('UI cleaned up successfully');
+      } catch (error) {
+        this.#logger.warn('Error cleaning up UI:', error);
+        this.#uiManager = null;
+      }
     }
-
-    this.#logger.debug('UI cleaned up');
   }
 
   // ==================== 公开方法（供外部调用） ====================
@@ -317,17 +437,33 @@ export class PDFListFeature {
     this.#logger.info('Refreshing PDF list...');
 
     try {
-      // 触发数据加载中事件
-      this.#scopedEventBus?.emit(PDFListFeatureConfig.config.events.local.DATA_LOADING);
+      // 1. 设置加载状态
+      if (this.#state) {
+        ListStateHelpers.setLoading(this.#state, true);
+      }
 
-      // TODO: 实际的列表刷新逻辑
+      // 2. 触发数据加载请求事件
+      this.#scopedEventBus?.emit(PDF_LIST_EVENTS.DATA_LOAD_REQUESTED);
+
+      // TODO: 实际的列表刷新逻辑（将在后续迁移中实现）
       // 1. 通过 WebSocket 请求后端数据
-      // 2. 更新表格数据
-      // 3. 触发数据加载完成事件
+      // 2. 接收数据后更新状态
+      // 3. 状态变化会自动触发 DATA_CHANGED 事件
 
-      this.#logger.info('PDF list refreshed');
+      this.#logger.info('PDF list refresh initiated');
     } catch (error) {
       this.#logger.error('Failed to refresh PDF list:', error);
+
+      if (this.#state) {
+        ListStateHelpers.setError(this.#state, error);
+        ListStateHelpers.setLoading(this.#state, false);
+      }
+
+      this.#scopedEventBus?.emit(PDF_LIST_EVENTS.DATA_LOAD_FAILED, {
+        error: error.message,
+        timestamp: Date.now()
+      });
+
       throw error;
     }
   }
@@ -337,8 +473,16 @@ export class PDFListFeature {
    * @returns {Object[]} 选中的记录数组
    */
   getSelectedRecords() {
-    // TODO: 从表格中获取选中的记录
-    return [];
+    if (!this.#state) {
+      this.#logger.warn('State not available, returning empty array');
+      return [];
+    }
+
+    const { items, selectedIndices } = this.#state.get();
+    const selectedRecords = selectedIndices.map(index => items[index]).filter(Boolean);
+
+    this.#logger.debug(`Retrieved ${selectedRecords.length} selected records`);
+    return selectedRecords;
   }
 
   /**
@@ -351,8 +495,18 @@ export class PDFListFeature {
       return;
     }
 
+    if (!this.#state) {
+      this.#logger.warn('State not available, cannot set filters');
+      return;
+    }
+
     this.#logger.debug('Setting filters:', filters);
-    // TODO: 应用过滤条件到表格
+
+    // 使用 ListStateHelpers 更新过滤条件
+    ListStateHelpers.setFilters(this.#state, filters);
+
+    // 状态变化会自动触发 FILTER_CHANGED 事件
+    // 实际的过滤逻辑将在表格组件中实现
   }
 }
 
