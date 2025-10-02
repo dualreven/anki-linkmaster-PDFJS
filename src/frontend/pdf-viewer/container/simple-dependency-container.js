@@ -2,6 +2,7 @@
  * @file 简化的依赖注入容器
  * @module SimpleDependencyContainer
  * @description 为 pdf-viewer 提供最小化的 DependencyContainer 实现
+ * @version 1.0.1
  */
 
 import { getLogger } from '../../common/utils/logger.js';

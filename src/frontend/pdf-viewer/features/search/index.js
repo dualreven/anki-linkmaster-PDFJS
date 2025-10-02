@@ -85,6 +85,9 @@ export class SearchFeature {
     }
 
     this.#logger.info('Installing SearchFeature...');
+    this.#logger.info(`Container type: ${container?.constructor?.name}`);
+    this.#logger.info(`Container has resolve: ${typeof container?.resolve}`);
+    this.#logger.info(`Container has get: ${typeof container?.get}`);
 
     try {
       // 1. 从容器获取依赖
