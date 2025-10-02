@@ -4,7 +4,7 @@
  */
 
 import eventBusSingleton from '../../common/event/event-bus.js';
-import { UIManagerCore } from '../ui/ui-manager-core-refactored.js';
+import { UIManagerCore } from '../features/ui-manager/components/ui-manager-core.js';
 import { PDF_VIEWER_EVENTS } from '../../common/event/pdf-viewer-constants.js';
 import { getLogger } from '../../common/utils/logger.js';
 

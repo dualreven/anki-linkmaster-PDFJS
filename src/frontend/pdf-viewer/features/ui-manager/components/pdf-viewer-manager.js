@@ -4,7 +4,7 @@
  * @description Manages the PDF.js PDFViewer component with full functionality
  */
 
-import { getLogger } from "../common/utils/logger.js";
+import { getLogger } from "../../../../common/utils/logger.js";
 import * as pdfjsLib from 'pdfjs-dist/build/pdf';
 
 // PDF.js Viewer组件需要全局pdfjsLib

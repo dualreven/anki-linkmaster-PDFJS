@@ -3,7 +3,7 @@
  * @module UIManagerFeature
  */
 
-import { UIManagerCore } from '../../ui/ui-manager-core-refactored.js';
+import { UIManagerCore } from './components/ui-manager-core.js';
 
 /**
  * UI管理器功能域
