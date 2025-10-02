@@ -263,7 +263,8 @@ export class BookmarkSidebarUI {
     ].join(';');
     annotationBtn.addEventListener('click', () => {
       this.#logger.info('[BookmarkSidebarUI] Annotation button clicked');
-      // TODO: 实现标注功能
+      // 触发标注侧边栏切换事件
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.TOGGLE, {});
     });
     buttonContainer.appendChild(annotationBtn);
 
