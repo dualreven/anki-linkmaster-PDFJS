@@ -251,7 +251,27 @@ export class SearchBox {
       this.#handleOptionChange('wholeWords', e.target.checked);
     });
 
+    // Header上的搜索按钮
+    this.#attachHeaderSearchButton();
+
     this.#logger.info('Event listeners attached');
+  }
+
+  /**
+   * 绑定header中搜索按钮的事件
+   * @private
+   */
+  #attachHeaderSearchButton() {
+    const searchToggleBtn = document.getElementById('search-toggle-btn');
+    if (searchToggleBtn) {
+      searchToggleBtn.addEventListener('click', () => {
+        this.#logger.info('Header search button clicked');
+        this.toggle();
+      });
+      this.#logger.info('Header search button listener attached');
+    } else {
+      this.#logger.warn('Header search button not found (#search-toggle-btn)');
+    }
   }
 
   /**
