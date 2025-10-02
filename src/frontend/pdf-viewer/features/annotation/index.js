@@ -21,7 +21,7 @@ export class AnnotationFeature {
   version = '1.0.0';
 
   /** @type {Array<string>} 依赖的Features */
-  dependencies = ['app-core'];
+  dependencies = ['app-core', 'ui-manager'];
 
   /** @type {Logger} */
   #logger;
@@ -61,8 +61,11 @@ export class AnnotationFeature {
     });
     this.#sidebarUI.initialize();
 
-    // 创建标注按钮
-    this.#createAnnotationButton();
+    // 延迟创建标注按钮，确保BookmarkSidebarUI已经创建了按钮容器
+    // 使用setTimeout让UIManager完成初始化
+    setTimeout(() => {
+      this.#createAnnotationButton();
+    }, 100);
 
     // 注册服务到容器
     container.register('annotationSidebarUI', this.#sidebarUI);
