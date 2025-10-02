@@ -238,7 +238,7 @@ class MainWindow(QMainWindow):
 
         try:
             # 获取项目根目录
-            project_root = Path(__file__).parent.parent.parent
+            project_root = Path(__file__).parent.parent.parent.parent
 
             # 第一步：从 frontend-process-info.json 中移除当前窗口的 PID
             # 这样 ai_launcher.py stop 就不会杀掉窗口自己
@@ -273,16 +273,14 @@ class MainWindow(QMainWindow):
                 )
 
                 if result.returncode == 0:
-                    print(f"[MainWindow] 后端服务已停止")
+                    print(f"[MainWindow] 后台服务已停止")
                 else:
-                    print(f"[MainWindow] 停止后端服务失败: {result.stderr}")
+                    print(f"[MainWindow] 停止服务时出现警告: {result.stderr}")
             else:
-                print(f"[MainWindow] 未找到 ai_launcher.py: {ai_launcher_path}")
+                print(f"[MainWindow] 找不到 ai_launcher.py，跳过服务停止")
 
-        except subprocess.TimeoutExpired:
-            print(f"[MainWindow] 停止服务超时")
         except Exception as e:
-            print(f"[MainWindow] 关闭窗口时发生错误: {e}")
-
-        # 接受关闭事件
-        event.accept()
+            print(f"[MainWindow] 停止服务失败: {e}")
+        finally:
+            # 接受关闭事件，让窗口优雅关闭
+            event.accept()
