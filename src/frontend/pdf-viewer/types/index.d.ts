@@ -14,3 +14,6 @@ export * from './pdf';
 
 // UI模块类型
 export * from './ui';
+
+// 适配器层类型
+export * from './adapters';
