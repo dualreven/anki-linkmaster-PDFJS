@@ -1,80 +1,35 @@
 {
-  "description": "PDF Home 功能域 Feature Flag 配置",
-  "version": "1.0.0",
-  "lastUpdated": "2025-10-02",
-  "features": {
-    "pdf-list": {
-      "enabled": true,
-      "description": "PDF 列表功能域",
-      "version": "1.0.0",
+  "pdf-list": {
+    "enabled": true,
+    "description": "PDF 列表功能域",
+    "version": "1.0.0",
+    "meta": {
       "status": "stable",
-      "meta": {
-        "owner": "pdf-home-team",
-        "dependencies": [],
-        "releasedAt": "2025-10-02"
-      }
-    },
-    "pdf-editor": {
-      "enabled": false,
-      "description": "PDF 编辑功能域（开发中）",
-      "version": "0.1.0",
-      "status": "development",
-      "meta": {
-        "owner": "pdf-home-team",
-        "dependencies": ["pdf-list"],
-        "estimatedRelease": "2025-10-15"
-      }
-    },
-    "pdf-sorter": {
-      "enabled": false,
-      "description": "PDF 排序功能域（开发中）",
-      "version": "0.1.0",
-      "status": "development",
-      "meta": {
-        "owner": "pdf-home-team",
-        "dependencies": ["pdf-list"],
-        "estimatedRelease": "2025-10-20"
-      }
+      "owner": "pdf-home-team",
+      "dependencies": [],
+      "releasedAt": "2025-10-02"
     }
   },
-  "environments": {
-    "development": {
-      "description": "开发环境配置（可启用实验性功能）",
-      "overrides": {
-        "pdf-editor": {
-          "enabled": false,
-          "description": "开发环境中可以启用编辑器测试"
-        }
-      }
-    },
-    "test": {
-      "description": "测试环境配置（所有功能都启用以覆盖测试）",
-      "overrides": {
-        "pdf-list": { "enabled": true },
-        "pdf-editor": { "enabled": true },
-        "pdf-sorter": { "enabled": true }
-      }
-    },
-    "production": {
-      "description": "生产环境配置（只启用稳定功能）",
-      "overrides": {
-        "pdf-list": { "enabled": true },
-        "pdf-editor": { "enabled": false },
-        "pdf-sorter": { "enabled": false }
-      }
+  "pdf-editor": {
+    "enabled": false,
+    "description": "PDF 编辑功能域（开发中）",
+    "version": "0.1.0",
+    "meta": {
+      "status": "development",
+      "owner": "pdf-home-team",
+      "dependencies": ["pdf-list"],
+      "estimatedRelease": "2025-10-15"
     }
   },
-  "rollout": {
-    "description": "渐进式发布配置（暂未使用）",
-    "strategies": {
-      "percentage": {
-        "enabled": false,
-        "value": 0
-      },
-      "userGroups": {
-        "enabled": false,
-        "groups": []
-      }
+  "pdf-sorter": {
+    "enabled": false,
+    "description": "PDF 排序功能域（开发中）",
+    "version": "0.1.0",
+    "meta": {
+      "status": "development",
+      "owner": "pdf-home-team",
+      "dependencies": ["pdf-list"],
+      "estimatedRelease": "2025-10-20"
     }
   }
 }
