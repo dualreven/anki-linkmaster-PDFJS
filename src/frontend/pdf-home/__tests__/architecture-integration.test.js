@@ -10,10 +10,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { DependencyContainer } from '../core/dependency-container.js';
-import { FeatureRegistry } from '../core/feature-registry.js';
-import { StateManager } from '../core/state-manager.js';
-import { FeatureFlagManager } from '../core/feature-flag-manager.js';
+import { DependencyContainer } from '../../common/micro-service/dependency-container.js';
+import { FeatureRegistry } from '../../common/micro-service/feature-registry.js';
+import { StateManager } from '../../common/micro-service/state-manager.js';
+import { FeatureFlagManager } from '../../common/micro-service/feature-flag-manager.js';
 import { PDFListFeature } from '../features/pdf-list/index.js';
 import { PDFEditorFeature } from '../features/pdf-editor/index.js';
 import { PDFSorterFeature } from '../features/pdf-sorter/index.js';

@@ -4,8 +4,8 @@
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { FeatureRegistry } from '../../core/feature-registry.js';
-import { DependencyContainer } from '../../core/dependency-container.js';
+import { FeatureRegistry } from '../../../common/micro-service/feature-registry.js';
+import { DependencyContainer } from '../../../common/micro-service/dependency-container.js';
 import { PDFListFeature } from '../pdf-list/index.js';
 import { PDFEditorFeature } from '../pdf-editor/index.js';
 import { PDFSorterFeature } from '../pdf-sorter/index.js';
