@@ -21,12 +21,12 @@
         * Jest 配置支持 jsdom 测试环境
    - 项目启动方式 (重要!):
         ⚠️ 严禁直接运行 npm run dev 或 python app.py 等命令!
-        必须使用 ai-launcher.py 脚本来管理项目启动和停止:
+        必须使用 ai_launcher.py 脚本来管理项目启动和停止:
 
-        启动所有服务: python ai-launcher.py start
-        检查服务状态: python ai-launcher.py status
-        查看运行日志: python ai-launcher.py logs
-        停止所有服务: python ai-launcher.py stop
+        启动所有服务: python ai_launcher.py start
+        检查服务状态: python ai_launcher.py status
+        查看运行日志: python ai_launcher.py logs
+        停止所有服务: python ai_launcher.py stop
         
         项目包含的服务:
         - npm-dev server (端口 3000): 前端开发服务器
@@ -99,10 +99,10 @@ AI 接管开发时的具体规则:
    1. 开发前的准备工作:
       - 必须先阅读要修改模块的 SPEC 文档，通常在 `[模块名]/docs/SPEC/` 目录下
       - 查看模块的结构图和接口文档，了解模块的职责和边界
-      - 使用 `python ai-launcher.py status` 检查项目服务状态
+      - 使用 `python ai_launcher.py status` 检查项目服务状态
       - 使用 `npm run test` 确保当前代码库状态正常
       - 使用 `git status` 查看当前工作目录状态，清理无关文件
-      - ⚠️ 严禁直接运行 npm run dev 或 python app.py 等命令，必须使用 ai-launcher.py
+      - ⚠️ 严禁直接运行 npm run dev 或 python app.py 等命令，必须使用 ai_launcher.py
 
    2. 任务规划和执行:
       - 使用 TodoWrite 工具创建具体的任务清单，每个任务都要有明确的完成标准
@@ -171,12 +171,12 @@ AI 接管开发时的具体规则:
       - 项目使用 `.kilocode/` 目录进行 AI 开发配置
 
    13. 重要提醒 - 项目启动方式:
-      - ⚠️ 必须使用 ai-launcher.py 脚本来管理项目启动和停止
+      - ⚠️ 必须使用 ai_launcher.py 脚本来管理项目启动和停止
       - 严禁直接运行 npm run dev 或 python app.py 等命令
-      - 开发前：使用 `python ai-launcher.py start` 启动所有服务
-      - 开发中：使用 `python ai-launcher.py status` 检查服务状态
-      - 查看日志：使用 `python ai-launcher.py logs` 监控运行情况
-      - 开发后：使用 `python ai-launcher.py stop` 停止所有服务
+      - 开发前：使用 `python ai_launcher.py start` 启动所有服务
+      - 开发中：使用 `python ai_launcher.py status` 检查服务状态
+      - 查看日志：使用 `python ai_launcher.py logs` 监控运行情况
+      - 开发后：使用 `python ai_launcher.py stop` 停止所有服务
       - 原因：直接启动会导致终端阻塞，无法进行 AI 自动化开发
 
    14. AI声音提醒系统:
