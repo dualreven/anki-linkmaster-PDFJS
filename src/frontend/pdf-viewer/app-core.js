@@ -6,8 +6,8 @@
 
 import { PDF_VIEWER_EVENTS } from "../common/event/pdf-viewer-constants.js";
 import { ErrorHandler } from "../common/error/error-handler.js";
-import { PDFManager } from "./pdf-manager.js";
-import { UIManager } from "./ui-manager.js";
+import { PDFManager } from "./pdf/pdf-manager-refactored.js";
+import { UIManager } from "./ui/ui-manager-core-refactored.js";
 import { createConsoleWebSocketBridge } from "../common/utils/console-websocket-bridge.js";
 import { createPDFViewerContainer } from "./container/app-container.js";
 

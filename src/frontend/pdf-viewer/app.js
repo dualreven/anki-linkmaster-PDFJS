@@ -5,7 +5,7 @@
  */
 
 import { PDFViewerAppCore } from "./app-core.js";
-import { EventHandlers } from "./event-handlers.js";
+import { EventHandlers } from "./handlers/event-handlers-refactored.js";
 
 /**
  * @class PDFViewerApp
