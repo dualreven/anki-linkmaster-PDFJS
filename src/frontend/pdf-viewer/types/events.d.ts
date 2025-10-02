@@ -109,3 +109,58 @@ export interface WebSocketMessage {
   /** 消息ID */
   id?: string;
 }
+
+/**
+ * 作用域事件总线接口
+ * 用于解决多人协同开发时的事件命名冲突问题
+ */
+export interface ScopedEventBus {
+  /**
+   * 注册模块内事件监听器(自动添加命名空间)
+   */
+  on<T = any>(
+    event: string,
+    callback: (data: T, metadata?: EventMetadata) => void,
+    options?: EventOptions
+  ): () => void;
+
+  /**
+   * 发射模块内事件(自动添加命名空间)
+   */
+  emit<T = any>(event: string, data: T, metadata?: EventMetadata): void;
+
+  /**
+   * 注册全局事件监听器(不添加命名空间，用于跨模块通信)
+   */
+  onGlobal<T = any>(
+    event: string,
+    callback: (data: T, metadata?: EventMetadata) => void,
+    options?: EventOptions
+  ): () => void;
+
+  /**
+   * 发射全局事件(不添加命名空间，用于跨模块通信)
+   */
+  emitGlobal<T = any>(event: string, data: T, metadata?: EventMetadata): void;
+
+  /**
+   * 移除事件监听器
+   */
+  off(event: string, callback?: Function): void;
+
+  /**
+   * 销毁作用域事件总线
+   */
+  destroy(): void;
+}
+
+/**
+ * 创建作用域事件总线
+ * @param globalEventBus - 全局事件总线实例
+ * @param scope - 作用域名称(模块名)
+ * @returns 作用域事件总线实例
+ */
+export function createScopedEventBus(
+  globalEventBus: EventBus,
+  scope: string
+): ScopedEventBus;

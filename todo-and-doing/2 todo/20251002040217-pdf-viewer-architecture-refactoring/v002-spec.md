@@ -342,6 +342,170 @@ handlers/
 
 ---
 
+### P1-5: 事件命名空间缺失 【重要】(v002新增)
+
+**问题描述**:
+全局EventBus缺乏命名空间隔离机制，多人协同开发时容易产生事件命名冲突
+
+**具体表现**:
+
+1. **事件命名冲突风险**:
+```javascript
+// 开发者A在 pdf-editor 功能中
+eventBus.emit('pdf:edit:requested', data);
+
+// 开发者B在 pdf-annotation 功能中也使用了相同事件名
+eventBus.emit('pdf:edit:requested', otherData);  // 冲突!
+```
+
+2. **跨功能事件污染**:
+```javascript
+// bookmark 功能监听了事件
+eventBus.on('page:changed', handlePageChange);
+
+// ui 功能也监听了同名事件
+eventBus.on('page:changed', updateUI);  // 两个功能互相干扰
+```
+
+3. **事件来源不明确**:
+```javascript
+// 收到事件时无法确定来自哪个功能模块
+eventBus.on('data:loaded', (data) => {
+  // 这个事件是 pdf 功能发出的？还是 bookmark 功能？
+});
+```
+
+**问题分析**:
+- 全局事件空间 → 事件名可能重复 → 功能互相干扰
+- 缺少功能域隔离 → 难以追踪事件来源 → 调试困难
+- 多人协作时需要人工协调事件命名 → 维护成本高
+- 重构时容易遗漏事件订阅 → 引入隐蔽bug
+
+**影响范围**:
+- 多人协同开发效率降低
+- 功能模块耦合度增加
+- 事件系统可维护性差
+- 代码审查难度增加
+
+**期望状态**:
+引入 `ScopedEventBus` 机制:
+- 自动命名空间：`@pdf-editor/edit:requested` vs `@pdf-annotation/edit:requested`
+- 功能域隔离：每个功能模块有独立的事件空间
+- 全局通信：`emitGlobal()` 用于跨功能模块通信
+- 调试友好：事件名自动包含模块信息
+
+**实现方案**:
+```javascript
+// common/event/scoped-event-bus.js
+export class ScopedEventBus {
+  #globalEventBus;
+  #scope;
+  #logger;
+
+  constructor(globalEventBus, scope) {
+    this.#globalEventBus = globalEventBus;
+    this.#scope = scope;
+    this.#logger = getLogger(`ScopedEventBus:${scope}`);
+  }
+
+  // 自动添加命名空间前缀
+  #scopedEvent(event) {
+    return `@${this.#scope}/${event}`;
+  }
+
+  // 模块内事件：自动添加命名空间
+  on(event, callback, options = {}) {
+    const scopedEvent = this.#scopedEvent(event);
+    this.#logger.debug(`Listening: ${event} → ${scopedEvent}`);
+    return this.#globalEventBus.on(scopedEvent, callback, {
+      ...options,
+      subscriberId: options.subscriberId || this.#scope
+    });
+  }
+
+  emit(event, data, metadata = {}) {
+    const scopedEvent = this.#scopedEvent(event);
+    this.#logger.debug(`Emitting: ${event} → ${scopedEvent}`);
+    return this.#globalEventBus.emit(scopedEvent, data, {
+      ...metadata,
+      actorId: metadata.actorId || this.#scope
+    });
+  }
+
+  // 全局事件：不添加命名空间，用于跨模块通信
+  onGlobal(event, callback, options = {}) {
+    this.#logger.debug(`Listening global: ${event}`);
+    return this.#globalEventBus.on(event, callback, {
+      ...options,
+      subscriberId: options.subscriberId || this.#scope
+    });
+  }
+
+  emitGlobal(event, data, metadata = {}) {
+    this.#logger.debug(`Emitting global: ${event}`);
+    return this.#globalEventBus.emit(event, data, {
+      ...metadata,
+      actorId: metadata.actorId || this.#scope
+    });
+  }
+
+  off(event, callback) {
+    const scopedEvent = this.#scopedEvent(event);
+    return this.#globalEventBus.off(scopedEvent, callback);
+  }
+
+  destroy() {
+    // 清理所有该作用域的监听器
+    this.#logger.info(`Destroying scoped event bus: ${this.#scope}`);
+  }
+}
+```
+
+**使用示例**:
+```javascript
+// features/pdf/manager.js
+import { createScopedEventBus } from '../../common/event/scoped-event-bus.js';
+
+export class PDFManager {
+  constructor(globalEventBus) {
+    // 创建带命名空间的事件总线
+    this.eventBus = createScopedEventBus(globalEventBus, 'pdf-manager');
+  }
+
+  initialize() {
+    // 模块内事件：自动加上 @pdf-manager/ 前缀
+    this.eventBus.on('file:loaded', this.handleFileLoaded);
+    // 实际监听: @pdf-manager/file:loaded
+
+    // 全局事件：监听其他模块的事件
+    this.eventBus.onGlobal('pdf:page:changed', this.handleGlobalPageChange);
+    // 实际监听: pdf:page:changed (无前缀)
+  }
+
+  loadFile(url) {
+    // 发射模块内事件
+    this.eventBus.emit('file:loading', { url });
+    // 实际发射: @pdf-manager/file:loading
+
+    // 发射全局事件供其他模块监听
+    this.eventBus.emitGlobal('pdf:file:loaded', { url, pages: 10 });
+    // 实际发射: pdf:file:loaded
+  }
+}
+```
+
+**优势对比**:
+
+| 特性 | 全局EventBus | ScopedEventBus |
+|------|-------------|----------------|
+| 命名冲突 | 容易冲突 | 自动隔离 |
+| 事件来源 | 不明确 | 清晰可追踪 |
+| 调试难度 | 高 | 低 |
+| 多人协作 | 需人工协调 | 自动隔离 |
+| 跨模块通信 | 直接使用 | emitGlobal() |
+
+---
+
 ### P2-1: Python与JS混杂 【次要】
 
 **问题描述**:
@@ -1276,6 +1440,29 @@ export async function bootstrap(options) {
 
 ---
 
+#### 需求9: 实现ScopedEventBus 【P1】(v002新增)
+解决多人协同开发时的事件命名冲突问题
+
+**核心功能**:
+- 自动命名空间隔离：`@module-name/event` 格式
+- 模块内事件：使用 `on()` / `emit()` 自动添加命名空间
+- 全局事件：使用 `onGlobal()` / `emitGlobal()` 进行跨模块通信
+- 调试友好：事件名包含模块信息，易于追踪
+
+**实现位置**:
+- 创建 `common/event/scoped-event-bus.js`
+- 提供工厂函数 `createScopedEventBus(globalEventBus, scope)`
+- 各 feature 模块使用 ScopedEventBus 替代直接使用 globalEventBus
+
+**迁移策略**:
+- 现有全局事件保持不变（向后兼容）
+- 新功能模块强制使用 ScopedEventBus
+- 逐步迁移现有模块到 ScopedEventBus
+
+**详细实现**: 见本文档 "P1-5: 事件命名空间缺失" 章节
+
+---
+
 ## 约束条件
 
 ### 1. 仅修改 PDF-Viewer 模块代码
@@ -1450,11 +1637,19 @@ export async function bootstrap(options) {
   - 更新测试文件路径
   - 运行 ESLint 检查
 
+- [ ] **1.6 实现ScopedEventBus** (v002新增)
+  - 创建 common/event/scoped-event-bus.js
+  - 实现 ScopedEventBus 类(on, emit, onGlobal, emitGlobal, destroy)
+  - 实现工厂函数 createScopedEventBus(globalEventBus, scope)
+  - 添加 TypeScript 类型定义 (types/events.d.ts)
+  - 编写单元测试验证命名空间隔离
+
 **验收标准**:
 - ✅ 根目录只保留 main.js, jsconfig.json, .dependency-cruiser.js
 - ✅ 无备份和临时文件，无 -refactored 后缀
 - ✅ 所有类型定义文件创建完成，IDE 能识别类型
 - ✅ 依赖检查配置完成并通过
+- ✅ ScopedEventBus 实现完成并通过单元测试
 - ✅ ESLint 无错误，应用可以正常启动
 
 **详细步骤**: 见 `v002-appendix-implementation.md` - "阶段1: 目录重组脚本"
