@@ -81,8 +81,8 @@ export class ListStateHelpers {
    * @param {Object} pdfItem - PDF项数据
    */
   static addItem(state, pdfItem) {
-    const items = [...state.get().items, pdfItem];
-    state.set({ items });
+    const items = [...state.items, pdfItem];
+    state.items = items;
   }
 
   /**
@@ -91,8 +91,8 @@ export class ListStateHelpers {
    * @param {string} filename - 文件名
    */
   static removeItem(state, filename) {
-    const items = state.get().items.filter(item => item.filename !== filename);
-    state.set({ items });
+    const items = state.items.filter(item => item.filename !== filename);
+    state.items = items;
   }
 
   /**
@@ -102,10 +102,10 @@ export class ListStateHelpers {
    * @param {Object} updates - 更新数据
    */
   static updateItem(state, filename, updates) {
-    const items = state.get().items.map(item =>
+    const items = state.items.map(item =>
       item.filename === filename ? { ...item, ...updates } : item
     );
-    state.set({ items });
+    state.items = items;
   }
 
   /**
@@ -114,7 +114,7 @@ export class ListStateHelpers {
    * @param {boolean} isLoading - 是否正在加载
    */
   static setLoading(state, isLoading) {
-    state.set({ isLoading });
+    state.isLoading = isLoading;
   }
 
   /**
@@ -123,7 +123,7 @@ export class ListStateHelpers {
    * @param {Error|null} error - 错误对象
    */
   static setError(state, error) {
-    state.set({ error: error ? error.message : null });
+    state.error = error ? error.message : null;
   }
 
   /**
@@ -132,7 +132,7 @@ export class ListStateHelpers {
    * @param {Array<number>} indices - 选中的索引数组
    */
   static setSelectedIndices(state, indices) {
-    state.set({ selectedIndices: indices });
+    state.selectedIndices = indices;
   }
 
   /**
@@ -141,18 +141,13 @@ export class ListStateHelpers {
    * @param {string} column - 列名
    */
   static toggleSort(state, column) {
-    const current = state.get();
-    if (current.sortColumn === column) {
+    if (state.sortColumn === column) {
       // 切换排序方向
-      state.set({
-        sortDirection: current.sortDirection === 'asc' ? 'desc' : 'asc'
-      });
+      state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
     } else {
       // 切换列
-      state.set({
-        sortColumn: column,
-        sortDirection: 'asc'
-      });
+      state.sortColumn = column;
+      state.sortDirection = 'asc';
     }
   }
 
@@ -162,10 +157,7 @@ export class ListStateHelpers {
    * @param {Object} filters - 过滤条件
    */
   static setFilters(state, filters) {
-    const current = state.get();
-    state.set({
-      filters: { ...current.filters, ...filters }
-    });
+    state.filters = { ...state.filters, ...filters };
   }
 
   /**
@@ -173,9 +165,7 @@ export class ListStateHelpers {
    * @param {ReactiveState} state - 状态对象
    */
   static resetFilters(state) {
-    state.set({
-      filters: LIST_STATE_SCHEMA.filters
-    });
+    state.filters = LIST_STATE_SCHEMA.filters;
   }
 
   /**
@@ -185,13 +175,10 @@ export class ListStateHelpers {
    * @param {Object} config - 列配置
    */
   static updateColumnConfig(state, columnName, config) {
-    const current = state.get();
-    state.set({
-      columnConfig: {
-        ...current.columnConfig,
-        [columnName]: { ...current.columnConfig[columnName], ...config }
-      }
-    });
+    state.columnConfig = {
+      ...state.columnConfig,
+      [columnName]: { ...state.columnConfig[columnName], ...config }
+    };
   }
 
   /**
@@ -200,9 +187,6 @@ export class ListStateHelpers {
    * @param {Object} pagination - 分页配置
    */
   static setPagination(state, pagination) {
-    const current = state.get();
-    state.set({
-      pagination: { ...current.pagination, ...pagination }
-    });
+    state.pagination = { ...state.pagination, ...pagination };
   }
 }
