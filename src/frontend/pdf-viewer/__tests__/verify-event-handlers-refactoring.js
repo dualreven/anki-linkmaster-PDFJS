@@ -47,9 +47,7 @@ function createMockApp() {
     },
     errorHandler: {
       handleError: () => {}
-    },
-    onInitialized: () => {},
-    handleWebSocketMessage: () => {}
+    }
   };
 }
 

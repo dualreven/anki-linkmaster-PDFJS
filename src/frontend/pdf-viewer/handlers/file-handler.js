@@ -32,11 +32,6 @@ export class FileHandler {
   setupEventListeners() {
     const eventBus = this.#app.eventBus;
 
-    // WebSocket消息接收事件
-    eventBus.on(WEBSOCKET_MESSAGE_EVENTS.LOAD_PDF_FILE, (message) => {
-      this.handleWebSocketMessage(message);
-    }, { subscriberId: 'FileHandler' });
-
     // 文件加载请求
     eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, (fileData) => {
       this.handleLoadRequested(fileData);
@@ -59,15 +54,6 @@ export class FileHandler {
     // 可通过其他方式触发下载功能
 
     this.#logger.info("File event listeners setup complete");
-  }
-
-  /**
-   * 处理WebSocket消息
-   * @param {Object} message - WebSocket消息
-   */
-  handleWebSocketMessage(message) {
-    this.#logger.info("Received WebSocket message for PDF loading:", message);
-    this.#app.handleWebSocketMessage(message);
   }
 
   /**

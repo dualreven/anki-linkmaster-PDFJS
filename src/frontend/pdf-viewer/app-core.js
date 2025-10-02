@@ -27,7 +27,6 @@ export class PDFViewerAppCore {
   #totalPages = 0;
   #zoomLevel = 1.0;
   #wsClient = null;
-  #messageQueue = [];
   #consoleBridge = null;
   #appContainer; // 应用容器
   #bookmarkManager; // 书签管理器（按需动态加载）
@@ -161,15 +160,6 @@ export class PDFViewerAppCore {
 
 
   /**
-   * 处理已初始化状态
-   */
-  onInitialized() {
-    this.#logger.info('Processing queued WebSocket messages:', this.#messageQueue.length);
-    this.#messageQueue.forEach(message => this.handleWebSocketMessage(message));
-    this.#messageQueue = [];
-  }
-
-  /**
    * 渲染PDF到#viewer容器(PDFViewer模式)
    * @param {Object} page - PDF页面对象
    * @param {Object} viewport - 视口对象
@@ -188,69 +178,6 @@ export class PDFViewerAppCore {
       const currentPage = this.#currentPage || 1;
       this.#uiManager.pdfViewerManager.currentPageNumber = currentPage;
       this.#logger.info(`Set PDFViewer to page ${currentPage}`);
-    }
-  }
-
-  /**
-   * 处理WebSocket消息
-   * @param {Object} message - WebSocket消息
-   */
-  handleWebSocketMessage(message) {
-    const { type, data } = message;
-
-    if (!this.#initialized) {
-      this.#logger.warn('Viewer not initialized yet, queuing WebSocket message:', message.type);
-      this.#messageQueue.push(message);
-      return;
-    }
-
-    switch (type) {
-      case 'load_pdf_file':
-        this.handleLoadPdfFileMessage(data);
-        break;
-
-      default:
-        // 其他消息类型不处理
-        this.#logger.debug(`Received unhandled WebSocket message type: ${type}`);
-        break;
-    }
-  }
-
-  /**
-   * 处理加载PDF文件消息
-   * @param {Object} data - 文件数据
-   */
-  handleLoadPdfFileMessage(data) {
-    // 支持新消息格式 (file_path) 和旧格式 (fileId)
-    let fileData = null;
-
-    if (data && data.filename && data.url) {
-      if (data.file_path) {
-        // 新格式：使用 file_path
-        fileData = {
-          file_path: data.file_path,
-          filename: data.filename,
-          url: data.url
-        };
-      } else if (data.fileId) {
-        // 旧格式：保持兼容性
-        fileData = {
-          filename: data.filename,
-          url: data.url,
-          fileId: data.fileId
-        };
-      }
-
-      if (fileData) {
-        this.#logger.info(`Received load PDF file request: ${data.filename}`);
-
-        // 触发文件加载事件
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, fileData, { actorId: 'WebSocket' });
-      } else {
-        this.#logger.warn('Invalid load_pdf_file message format:', data);
-      }
-    } else {
-      this.#logger.warn('Invalid load_pdf_file message format (missing required fields):', data);
     }
   }
 

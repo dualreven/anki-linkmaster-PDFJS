@@ -70,12 +70,8 @@ export class EventHandlers {
    * @private
    */
   #setupAppEventListeners() {
-    // 已初始化状态事件
-    this.#app.eventBus.on(
-      PDF_VIEWER_EVENTS.STATE.INITIALIZED,
-      this.#app.onInitialized.bind(this.#app),
-      { subscriberId: 'EventHandlers.App' }
-    );
+    // WebSocketAdapter will handle initialization message processing
+    // No need to listen for STATE.INITIALIZED here anymore
 
     this.#logger.info("Application event listeners setup");
   }
