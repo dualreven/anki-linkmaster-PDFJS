@@ -10,10 +10,10 @@
  * - ScopedEventBus: 命名空间事件隔离
  */
 
-import { DependencyContainer } from './dependency-container.js';
-import { FeatureRegistry } from './feature-registry.js';
-import { StateManager } from './state-manager.js';
-import { FeatureFlagManager } from './feature-flag-manager.js';
+import { DependencyContainer } from '../../common/micro-service/dependency-container.js';
+import { FeatureRegistry } from '../../common/micro-service/feature-registry.js';
+import { StateManager } from '../../common/micro-service/state-manager.js';
+import { FeatureFlagManager } from '../../common/micro-service/feature-flag-manager.js';
 import { getLogger } from '../../common/utils/logger.js';
 import eventBus from '../../common/event/event-bus.js';
 import WSClient from '../../common/ws/ws-client.js';
