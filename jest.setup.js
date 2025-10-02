@@ -4,7 +4,12 @@
  */
 
 // 引入 fake-indexeddb 为测试环境提供 IndexedDB 支持
-require('fake-indexeddb/auto');
+try {
+  require('fake-indexeddb/auto');
+} catch (e) {
+  // fake-indexeddb 可能未安装，某些测试不需要 IndexedDB
+  console.warn('fake-indexeddb not found, skipping IndexedDB mock');
+}
 
 // 模拟全局对象，以便在测试环境中使用
 global.fetch = jest.fn();
