@@ -47,6 +47,15 @@ export class SimpleDependencyContainer {
   }
 
   /**
+   * 解析服务（get的别名，用于依赖注入标准API）
+   * @param {string} name - 服务名称
+   * @returns {any}
+   */
+  resolve(name) {
+    return this.get(name);
+  }
+
+  /**
    * 检查服务是否存在
    * @param {string} name - 服务名称
    * @returns {boolean}
