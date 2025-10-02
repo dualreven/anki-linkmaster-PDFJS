@@ -1,0 +1,195 @@
+/**
+ * 标注侧边栏样式
+ * @file annotation-sidebar.css
+ */
+
+/* 侧边栏容器 */
+.annotation-sidebar {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+}
+
+/* 标注卡片悬停动画 */
+.annotation-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.annotation-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: transparent;
+  transition: background 0.2s;
+}
+
+.annotation-card:hover::before {
+  background: #2196f3;
+}
+
+/* 工具按钮悬停动画 */
+.annotation-tool-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.annotation-tool-btn::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(33, 150, 243, 0.1);
+  transform: translate(-50%, -50%);
+  transition: width 0.3s, height 0.3s;
+}
+
+.annotation-tool-btn:active::after {
+  width: 100%;
+  height: 100%;
+}
+
+/* 跳转按钮悬停效果 */
+.annotation-jump-btn:hover {
+  background: #f5f5f5 !important;
+  border-color: #bbb !important;
+  color: #333 !important;
+}
+
+.annotation-jump-btn:active {
+  background: #e0e0e0 !important;
+}
+
+/* 关闭按钮悬停效果 */
+.annotation-close-btn:hover {
+  color: #333 !important;
+  background: rgba(0, 0, 0, 0.05) !important;
+  border-radius: 4px;
+}
+
+.annotation-close-btn:active {
+  background: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* 滚动条样式（WebKit浏览器） */
+.annotation-sidebar-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.annotation-sidebar-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.annotation-sidebar-content::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+
+.annotation-sidebar-content::-webkit-scrollbar-thumb:hover {
+  background: #999;
+}
+
+/* 空状态动画 */
+.annotation-empty {
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 卡片进入动画 */
+.annotation-card {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .annotation-sidebar {
+    width: 100% !important;
+  }
+
+  .annotation-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .annotation-tool-btn {
+    flex: 1 1 calc(33.333% - 6px);
+    min-width: 80px;
+  }
+}
+
+/* 打印时隐藏侧边栏 */
+@media print {
+  .annotation-sidebar {
+    display: none !important;
+  }
+}
+
+/* 高对比度模式支持 */
+@media (prefers-contrast: high) {
+  .annotation-sidebar {
+    border-color: #000 !important;
+  }
+
+  .annotation-card {
+    border-color: #000 !important;
+  }
+
+  .annotation-tool-btn {
+    border-color: #000 !important;
+  }
+}
+
+/* 深色模式支持（预留） */
+@media (prefers-color-scheme: dark) {
+  .annotation-sidebar {
+    background: #1e1e1e !important;
+    border-color: #444 !important;
+    color: #e0e0e0;
+  }
+
+  .annotation-sidebar-header {
+    background: #2a2a2a !important;
+    border-color: #444 !important;
+  }
+
+  .annotation-card {
+    background: #2a2a2a !important;
+    border-color: #444 !important;
+    color: #e0e0e0 !important;
+  }
+
+  .annotation-tool-btn {
+    background: #2a2a2a !important;
+    border-color: #444 !important;
+    color: #e0e0e0 !important;
+  }
+
+  .annotation-tool-btn:hover {
+    background: #333 !important;
+  }
+}
