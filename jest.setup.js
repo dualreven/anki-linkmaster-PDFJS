@@ -3,8 +3,13 @@
  * @file 为 Jest 测试环境提供全局设置
  */
 
-// 引入 fake-indexeddb 为测试环境提供 IndexedDB 支持
-require('fake-indexeddb/auto');
+// 引入 fake-indexeddb 为测试环境提供 IndexedDB 支持（可选）
+try {
+  require('fake-indexeddb/auto');
+} catch (e) {
+  // fake-indexeddb未安装，跳过
+  console.warn('fake-indexeddb not installed, IndexedDB mocking unavailable');
+}
 
 // 模拟全局对象，以便在测试环境中使用
 global.fetch = jest.fn();

@@ -6,10 +6,12 @@
 
 import { PDF_VIEWER_EVENTS } from "../common/event/pdf-viewer-constants.js";
 import { ErrorHandler } from "../common/error/error-handler.js";
-import { PDFManager } from "./pdf-manager.js";
-import { UIManager } from "./ui-manager.js";
+import { PDFManager } from "./pdf/pdf-manager-refactored.js";
+import { UIManagerCore } from "./ui/ui-manager-core-refactored.js";
 import { createConsoleWebSocketBridge } from "../common/utils/console-websocket-bridge.js";
 import { createPDFViewerContainer } from "./container/app-container.js";
+import { UIZoomControls } from "./ui-zoom-controls.js";
+import { UILayoutControls } from "./ui-layout-controls.js";
 
 /**
  * @class PDFViewerAppCore
@@ -27,10 +29,11 @@ export class PDFViewerAppCore {
   #totalPages = 0;
   #zoomLevel = 1.0;
   #wsClient = null;
-  #messageQueue = [];
   #consoleBridge = null;
   #appContainer; // 应用容器
   #bookmarkManager; // 书签管理器（按需动态加载）
+  #uiZoomControls = null; // UI缩放控制器
+  #uiLayoutControls = null; // UI布局控制器
 
   constructor(deps = {}) {
     // 如果传入了容器，使用它；否则创建新容器
@@ -53,7 +56,7 @@ export class PDFViewerAppCore {
     // 创建其他组件
     this.#errorHandler = new ErrorHandler(this.#eventBus);
     this.#pdfManager = new PDFManager(this.#eventBus);
-    this.#uiManager = new UIManager(this.#eventBus);
+    this.#uiManager = new UIManagerCore(this.#eventBus);
     this.#bookmarkManager = null;
 
     // 创建console桥接器，但暂时不启用
@@ -124,6 +127,46 @@ export class PDFViewerAppCore {
         this.#logger.warn("BookmarkManager init failed, continue without bookmarks", reason);
       }
 
+      // 初始化UI控制器
+      try {
+        this.#logger.info("Initializing UI controls...");
+
+        // 初始化缩放控制器
+        this.#uiZoomControls = new UIZoomControls(this.#eventBus);
+        await this.#uiZoomControls.setupZoomControls();
+        this.#logger.info("UIZoomControls initialized");
+
+        // 初始化布局控制器（需要PDFViewerManager）
+        if (this.#uiManager && this.#uiManager.pdfViewerManager) {
+          this.#uiLayoutControls = new UILayoutControls(this.#eventBus);
+          this.#uiLayoutControls.setup(this.#uiManager.pdfViewerManager);
+          this.#logger.info("UILayoutControls initialized");
+        } else {
+          this.#logger.warn("PDFViewerManager not available, layout controls disabled");
+        }
+
+        // 连接缩放事件到PDFViewerManager
+        this.#setupZoomIntegration();
+
+        // 监听PDFViewerManager的缩放变化事件，更新UI显示
+        this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.CHANGING, ({ scale }) => {
+          if (this.#uiZoomControls) {
+            this.#uiZoomControls.setScale(scale);
+          }
+        }, { subscriberId: 'PDFViewerAppCore.ZoomSync' });
+
+        // 监听PDFViewerManager的页面变化事件，更新页码显示
+        this.#eventBus.on(PDF_VIEWER_EVENTS.PAGE.CHANGING, ({ pageNumber }) => {
+          if (this.#uiZoomControls) {
+            this.#uiZoomControls.updatePageInfo(pageNumber, this.#totalPages);
+          }
+          this.#currentPage = pageNumber;
+        }, { subscriberId: 'PDFViewerAppCore.PageSync' });
+
+      } catch (ctrlErr) {
+        const reason = ctrlErr && typeof ctrlErr === 'object' ? (ctrlErr.stack || ctrlErr.message || JSON.stringify(ctrlErr)) : ctrlErr;
+        this.#logger.warn("UI controls init failed, continue without controls", reason);
+      }
 
       this.#initialized = true;
       this.#logger.info("PDF Viewer App initialized successfully with container architecture.");
@@ -131,11 +174,8 @@ export class PDFViewerAppCore {
         actorId: 'PDFViewerApp'
       });
 
-      // 监听PDF加载成功事件
-      // 由FileHandler统一发射，确保只调用一次
-      this.#eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, ({ pdfDocument }) => {
-        this.#uiManager.loadPdfDocument(pdfDocument);
-      });
+      // UIManagerCore已通过事件监听处理PDF加载成功
+      // 不需要在这里手动调用loadPdfDocument（该方法不存在）
     } catch (error) {
       this.#logger.error("Application initialization failed.", error);
       this.#errorHandler.handleError(error, "App.initialize");
@@ -159,15 +199,54 @@ export class PDFViewerAppCore {
     });
   }
 
-
   /**
-   * 处理已初始化状态
+   * 设置缩放功能与PDFViewerManager的集成
+   * @private
    */
-  onInitialized() {
-    this.#logger.info('Processing queued WebSocket messages:', this.#messageQueue.length);
-    this.#messageQueue.forEach(message => this.handleWebSocketMessage(message));
-    this.#messageQueue = [];
+  #setupZoomIntegration() {
+    const pdfViewerManager = this.#uiManager?.pdfViewerManager;
+    if (!pdfViewerManager) {
+      this.#logger.warn("PDFViewerManager not available, zoom integration disabled");
+      return;
+    }
+
+    // 放大
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.IN, (data) => {
+      const delta = data?.delta || 0.25;
+      const newScale = Math.min((pdfViewerManager.currentScale || 1.0) + delta, 5.0);
+      pdfViewerManager.currentScale = newScale;
+      this.#logger.info(`Zoom in: ${newScale.toFixed(2)}`);
+    }, { subscriberId: 'PDFViewerAppCore.ZoomIn' });
+
+    // 缩小
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.OUT, (data) => {
+      const delta = data?.delta || 0.25;
+      const newScale = Math.max((pdfViewerManager.currentScale || 1.0) - delta, 0.25);
+      pdfViewerManager.currentScale = newScale;
+      this.#logger.info(`Zoom out: ${newScale.toFixed(2)}`);
+    }, { subscriberId: 'PDFViewerAppCore.ZoomOut' });
+
+    // 适应宽度
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.FIT_WIDTH, () => {
+      pdfViewerManager.currentScaleValue = 'page-width';
+      this.#logger.info("Zoom fit width");
+    }, { subscriberId: 'PDFViewerAppCore.ZoomFitWidth' });
+
+    // 适应高度
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.FIT_HEIGHT, () => {
+      pdfViewerManager.currentScaleValue = 'page-height';
+      this.#logger.info("Zoom fit height");
+    }, { subscriberId: 'PDFViewerAppCore.ZoomFitHeight' });
+
+    // 实际大小
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.ACTUAL_SIZE, () => {
+      pdfViewerManager.currentScale = 1.0;
+      this.#logger.info("Zoom actual size");
+    }, { subscriberId: 'PDFViewerAppCore.ZoomActualSize' });
+
+    this.#logger.info("Zoom integration with PDFViewerManager setup complete");
   }
+
 
   /**
    * 渲染PDF到#viewer容器(PDFViewer模式)
@@ -188,69 +267,6 @@ export class PDFViewerAppCore {
       const currentPage = this.#currentPage || 1;
       this.#uiManager.pdfViewerManager.currentPageNumber = currentPage;
       this.#logger.info(`Set PDFViewer to page ${currentPage}`);
-    }
-  }
-
-  /**
-   * 处理WebSocket消息
-   * @param {Object} message - WebSocket消息
-   */
-  handleWebSocketMessage(message) {
-    const { type, data } = message;
-
-    if (!this.#initialized) {
-      this.#logger.warn('Viewer not initialized yet, queuing WebSocket message:', message.type);
-      this.#messageQueue.push(message);
-      return;
-    }
-
-    switch (type) {
-      case 'load_pdf_file':
-        this.handleLoadPdfFileMessage(data);
-        break;
-
-      default:
-        // 其他消息类型不处理
-        this.#logger.debug(`Received unhandled WebSocket message type: ${type}`);
-        break;
-    }
-  }
-
-  /**
-   * 处理加载PDF文件消息
-   * @param {Object} data - 文件数据
-   */
-  handleLoadPdfFileMessage(data) {
-    // 支持新消息格式 (file_path) 和旧格式 (fileId)
-    let fileData = null;
-
-    if (data && data.filename && data.url) {
-      if (data.file_path) {
-        // 新格式：使用 file_path
-        fileData = {
-          file_path: data.file_path,
-          filename: data.filename,
-          url: data.url
-        };
-      } else if (data.fileId) {
-        // 旧格式：保持兼容性
-        fileData = {
-          filename: data.filename,
-          url: data.url,
-          fileId: data.fileId
-        };
-      }
-
-      if (fileData) {
-        this.#logger.info(`Received load PDF file request: ${data.filename}`);
-
-        // 触发文件加载事件
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, fileData, { actorId: 'WebSocket' });
-      } else {
-        this.#logger.warn('Invalid load_pdf_file message format:', data);
-      }
-    } else {
-      this.#logger.warn('Invalid load_pdf_file message format (missing required fields):', data);
     }
   }
 
@@ -334,6 +350,5 @@ export class PDFViewerAppCore {
   get zoomLevel() { return this.#zoomLevel; }
   set zoomLevel(value) { this.#zoomLevel = value; }
   get wsClient() { return this.#wsClient; }
-  get messageQueue() { return this.#messageQueue; }
   get _appContainer() { return this.#appContainer; }
 }

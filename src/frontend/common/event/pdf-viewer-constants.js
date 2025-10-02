@@ -77,6 +77,19 @@ export const PDF_VIEWER_EVENTS = {
   },
   
   /**
+   * 页面相关事件（简化命名空间）
+   * @namespace PAGE
+   */
+  PAGE: {
+    /**
+     * 页面正在改变事件（PDFViewerManager发出）
+     * @event pdf-viewer:page:changing
+     * @type {string}
+     */
+    CHANGING: 'pdf-viewer:page:changing',
+  },
+
+  /**
    * 页面导航相关事件
    * @namespace NAVIGATION
    */
@@ -87,28 +100,28 @@ export const PDF_VIEWER_EVENTS = {
      * @type {string}
      */
     PREVIOUS: 'pdf-viewer:navigation:previous',
-    
+
     /**
      * 下一页事件
      * @event pdf-viewer:navigation:next
      * @type {string}
      */
     NEXT: 'pdf-viewer:navigation:next',
-    
+
     /**
      * 跳转到指定页面事件
      * @event pdf-viewer:navigation:goto
      * @type {string}
      */
     GOTO: 'pdf-viewer:navigation:goto',
-    
+
     /**
      * 页面改变事件
      * @event pdf-viewer:navigation:changed
      * @type {string}
      */
     CHANGED: 'pdf-viewer:navigation:changed',
-    
+
     /**
      * 总页数更新事件
      * @event pdf-viewer:navigation:total-pages-updated
@@ -128,41 +141,48 @@ export const PDF_VIEWER_EVENTS = {
      * @type {string}
      */
     IN: 'pdf-viewer:zoom:in',
-    
+
     /**
      * 缩小事件
      * @event pdf-viewer:zoom:out
      * @type {string}
      */
     OUT: 'pdf-viewer:zoom:out',
-    
+
     /**
      * 适应宽度事件
      * @event pdf-viewer:zoom:fit-width
      * @type {string}
      */
     FIT_WIDTH: 'pdf-viewer:zoom:fit-width',
-    
+
     /**
      * 适应高度事件
      * @event pdf-viewer:zoom:fit-height
      * @type {string}
      */
     FIT_HEIGHT: 'pdf-viewer:zoom:fit-height',
-    
+
     /**
      * 实际大小事件
      * @event pdf-viewer:zoom:actual-size
      * @type {string}
      */
     ACTUAL_SIZE: 'pdf-viewer:zoom:actual-size',
-    
+
     /**
      * 缩放比例改变事件
      * @event pdf-viewer:zoom:changed
      * @type {string}
      */
     CHANGED: 'pdf-viewer:zoom:changed',
+
+    /**
+     * 缩放比例正在改变事件（PDFViewerManager发出）
+     * @event pdf-viewer:zoom:changing
+     * @type {string}
+     */
+    CHANGING: 'pdf-viewer:zoom:changing',
   },
   
   /**

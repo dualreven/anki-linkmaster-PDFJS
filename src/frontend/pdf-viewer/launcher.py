@@ -26,18 +26,18 @@ sys.path.insert(0, str(project_root))
 
 from src.qt.compat import QApplication, QUrl, QWebChannel, QWebSocket
 # 使用MainWindow支持JS日志记录
-from main_window import MainWindow
+from pyqt.main_window import MainWindow
 
-# Import PdfViewerBridge and JSConsoleLogger from current directory
+# Import PdfViewerBridge and JSConsoleLogger from pyqt directory
 import importlib.util
-current_dir = Path(__file__).parent
-bridge_spec = importlib.util.spec_from_file_location("pdf_viewer_bridge", current_dir / "pdf_viewer_bridge.py")
+pyqt_dir = Path(__file__).parent / "pyqt"
+bridge_spec = importlib.util.spec_from_file_location("pdf_viewer_bridge", pyqt_dir / "pdf_viewer_bridge.py")
 bridge_module = importlib.util.module_from_spec(bridge_spec)
 bridge_spec.loader.exec_module(bridge_module)
 PdfViewerBridge = bridge_module.PdfViewerBridge
 
 # Import JS Console Logger
-logger_spec = importlib.util.spec_from_file_location("js_console_logger_qt", current_dir / "js_console_logger_qt.py")
+logger_spec = importlib.util.spec_from_file_location("js_console_logger_qt", pyqt_dir / "js_console_logger_qt.py")
 logger_module = importlib.util.module_from_spec(logger_spec)
 logger_spec.loader.exec_module(logger_module)
 JSConsoleLogger = logger_module.JSConsoleLogger

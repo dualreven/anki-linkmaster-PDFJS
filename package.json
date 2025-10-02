@@ -13,7 +13,9 @@
     "preview": "vite preview",
     "test": "jest",
     "test:watch": "jest --watch",
-    "benchmark": "node AItemp/performance-benchmark.js"
+    "benchmark": "node AItemp/performance-benchmark.js",
+    "check:deps": "depcruise --config src/frontend/pdf-viewer/.dependency-cruiser.js src/frontend/pdf-viewer",
+    "test:pre-commit": "pnpm run check:deps && pnpm run test"
   },
   "engines": {
     "node": ">=14.0.0",
