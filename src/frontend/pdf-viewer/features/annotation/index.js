@@ -49,10 +49,12 @@ export class AnnotationFeature {
    * @returns {Promise<void>}
    */
   async install(context) {
+    console.log('🎯 AnnotationFeature.install() CALLED', context);
     const { globalEventBus, logger, container } = context;
 
     this.#logger = logger || getLogger('AnnotationFeature');
     this.#logger.info(`[${this.name}] Installing...`);
+    console.log('🎯 AnnotationFeature: logger initialized');
 
     // 获取事件总线
     this.#eventBus = globalEventBus;
@@ -72,12 +74,17 @@ export class AnnotationFeature {
     this.#sidebarUI.initialize();
 
     // 创建标注按钮
+    console.log('🎯 AnnotationFeature: About to create annotation button');
     this.#createAnnotationButton();
+    console.log('🎯 AnnotationFeature: Button creation completed');
 
     // 注册服务到容器
-    container.register('annotationSidebarUI', this.#sidebarUI);
+    if (container) {
+      container.register('annotationSidebarUI', this.#sidebarUI);
+    }
 
     this.#logger.info(`[${this.name}] Installed successfully`);
+    console.log('🎯 AnnotationFeature: Installation COMPLETE');
   }
 
   /**
@@ -107,20 +114,29 @@ export class AnnotationFeature {
    * @private
    */
   #createAnnotationButton() {
+    console.log('🔧 #createAnnotationButton() START');
+
     // 查找书签按钮所在的容器（由BookmarkSidebarUI创建）
     // 容器可能在main元素内，也可能在body上（fixed定位）
     const mainContainer = document.querySelector('main');
+    console.log('🔧 mainContainer:', mainContainer);
+
     let buttonContainer = mainContainer ? mainContainer.querySelector('div[style*="flex-direction:column"]') : null;
+    console.log('🔧 buttonContainer in main:', buttonContainer);
 
     if (!buttonContainer) {
       // 尝试在body上查找fixed定位的容器
       buttonContainer = document.body.querySelector('div[style*="position:fixed"][style*="flex-direction:column"]');
+      console.log('🔧 buttonContainer in body:', buttonContainer);
     }
 
     if (!buttonContainer) {
+      console.error('❌ Button container NOT FOUND');
       this.#logger.warn('Button container not found, cannot create annotation button');
       return;
     }
+
+    console.log('✅ Button container FOUND:', buttonContainer);
 
     // 创建标注按钮
     const button = document.createElement('button');
@@ -156,13 +172,21 @@ export class AnnotationFeature {
 
     // 插入到书签按钮后面
     const bookmarkBtn = buttonContainer.querySelector('button');
+    console.log('🔧 bookmarkBtn:', bookmarkBtn);
+    console.log('🔧 bookmarkBtn.nextSibling:', bookmarkBtn?.nextSibling);
+
     if (bookmarkBtn && bookmarkBtn.nextSibling) {
       buttonContainer.insertBefore(button, bookmarkBtn.nextSibling);
+      console.log('✅ Button inserted BEFORE nextSibling');
     } else {
       buttonContainer.appendChild(button);
+      console.log('✅ Button APPENDED');
     }
 
     this.#toggleButton = button;
+    console.log('✅ Annotation button created! ID:', button.id);
+    console.log('✅ Button container children:', buttonContainer.children.length);
+    console.log('✅ Buttons:', Array.from(buttonContainer.children).map(b => b.textContent));
     this.#logger.info('Annotation button created and inserted');
 
     // 监听侧边栏状态，更新按钮样式
