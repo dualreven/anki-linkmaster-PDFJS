@@ -516,7 +516,7 @@ export class PDFEditFeature {
    * @private
    */
   #handleFormSubmit() {
-    console.log('🔥🔥🔥 FORM SUBMIT TRIGGERED! 🔥🔥🔥');
+    this.#logger.info('=== FORM SUBMIT TRIGGERED ===');
     try {
       // 收集表单数据
       const updates = {
@@ -530,9 +530,8 @@ export class PDFEditFeature {
         notes: document.getElementById('edit-notes').value.trim()
       };
 
-      console.log('📝 Form data collected:', updates);
+      this.#logger.info('Form data collected:', updates);
       this.#logger.info('Submitting edit for:', this.#currentRecord.pdf_id || this.#currentRecord.id);
-      this.#logger.debug('Updates:', updates);
 
       // 发送全局更新事件
       this.#globalEventBus.emitGlobal(
@@ -563,10 +562,8 @@ export class PDFEditFeature {
    * @param {Object} updates - 更新数据
    */
   #sendEditRequestToBackend(fileId, updates) {
-    console.log('📤 Sending to backend:', { fileId, updates });
+    this.#logger.info('=== Sending edit request to backend ===', { fileId, updates });
     try {
-      this.#logger.info('Sending edit request to backend:', { fileId, updates });
-
       const message = {
         type: 'update_pdf',
         request_id: `edit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -575,16 +572,16 @@ export class PDFEditFeature {
           updates: updates
         }
       };
-      console.log('📧 WebSocket message:', message);
+      this.#logger.info('WebSocket message prepared:', message);
 
       // 通过ScopedEventBus发送全局WebSocket消息（功能域架构标准方式）
       this.#scopedEventBus.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, message, { actorId: 'PDFEditFeature' });
 
-      console.log('✅ Message emitted via scopedEventBus.emitGlobal');
+      this.#logger.info('Message emitted via scopedEventBus.emitGlobal');
 
     } catch (error) {
-      console.error('❌ Send error:', error);
       this.#logger.error('Failed to send edit request:', error);
+      this.#logger.error('Error details:', error.stack);
     }
   }
 
