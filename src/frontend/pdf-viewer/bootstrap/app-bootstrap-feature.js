@@ -17,6 +17,7 @@ import { CoreNavigationFeature } from "../features/core-navigation/index.js";
 import { SearchFeature } from "../features/search/index.js";
 import { URLNavigationFeature } from "../features/url-navigation/index.js";
 import { AnnotationFeature } from "../features/annotation/index.js";
+import { SidebarManagerFeature } from "../features/sidebar-manager/index.js";
 
 /**
  * 解析WebSocket端口
@@ -92,6 +93,7 @@ export async function bootstrapPDFViewerAppFeature() {
     registry.register(new CoreNavigationFeature());  // 核心导航服务（需在url-navigation和annotation之前）
     registry.register(new SearchFeature());  // 注册搜索功能
     registry.register(new URLNavigationFeature());
+    registry.register(new SidebarManagerFeature());  // 侧边栏统一管理器
     registry.register(new AnnotationFeature());
 
     // 5. 安装所有 Features（自动解析依赖顺序）

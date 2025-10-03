@@ -146,8 +146,8 @@ export class AnnotationFeature {
     // 7. 创建工具按钮UI
     this.#createToolButtons();
 
-    // 8. 创建标注侧边栏切换按钮
-    this.#createAnnotationButton();
+    // 8. 创建标注侧边栏切换按钮 (已由SidebarManager统一管理，此处不再创建)
+    // this.#createAnnotationButton();
 
     // 9. 设置事件监听器
     this.#setupEventListeners();

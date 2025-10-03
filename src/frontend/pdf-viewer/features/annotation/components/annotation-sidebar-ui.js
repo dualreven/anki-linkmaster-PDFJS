@@ -11,7 +11,7 @@ import { AnnotationType } from '../models/index.js';
 /**
  * 标注侧边栏UI类
  * @class AnnotationSidebarUI
- * @description 管理标注侧边栏的显示和交互
+ * @description 管理标注侧边栏的显示和交互（仅负责内容，不负责容器）
  */
 export class AnnotationSidebarUI {
   /** @type {EventBus} */
@@ -20,8 +20,6 @@ export class AnnotationSidebarUI {
   #logger;
   /** @type {HTMLElement} */
   #container;
-  /** @type {HTMLElement} */
-  #sidebar;
   /** @type {HTMLElement} */
   #sidebarHeader;
   /** @type {HTMLElement} */
@@ -39,70 +37,51 @@ export class AnnotationSidebarUI {
    * 创建AnnotationSidebarUI实例
    * @param {EventBus} eventBus - 事件总线
    * @param {Object} [options={}] - 配置选项
-   * @param {HTMLElement} [options.container] - 容器元素
    */
   constructor(eventBus, options = {}) {
     this.#eventBus = eventBus;
     this.#logger = getLogger('AnnotationSidebarUI');
-    this.#container = options.container || document.querySelector('main');
-    this.#sidebar = null;
+    this.#container = null;
   }
 
   /**
-   * 初始化侧边栏
+   * 初始化侧边栏（仅创建内容元素）
    */
   initialize() {
-    this.#logger.info('Initializing annotation sidebar UI');
+    this.#logger.info('Initializing annotation sidebar UI (content only)');
 
-    // 创建侧边栏DOM
-    this.#createSidebar();
+    // 创建内容容器
+    this.#createContent();
 
     // 监听事件
     this.#setupEventListeners();
   }
 
   /**
-   * 创建侧边栏DOM结构
+   * 创建内容容器（包含header和content，但不包含外部容器）
    * @private
    */
-  #createSidebar() {
-    if (!this.#container) {
-      this.#logger.warn('Container not found');
-      return;
-    }
-    if (this.#sidebar && this.#sidebar.parentNode) {
-      this.#logger.debug('Sidebar already exists');
+  #createContent() {
+    if (this.#container) {
+      this.#logger.debug('Content already exists');
       return;
     }
 
-    // 主侧边栏容器
-    const sidebar = document.createElement('div');
-    sidebar.id = 'annotation-sidebar';
-    sidebar.className = 'annotation-sidebar';
-    sidebar.style.cssText = [
-      'position: absolute',
-      'left: 0',
-      'top: 0',
-      'bottom: 0',
-      'width: 350px',
+    // 主容器（flex布局）
+    const container = document.createElement('div');
+    container.className = 'annotation-sidebar-container';
+    container.style.cssText = [
+      'display: flex',
+      'flex-direction: column',
+      'height: 100%',
+      'width: 100%',
       'overflow: hidden',
-      'background: #ffffff',
-      'border-right: 1px solid #ccc',
-      'box-shadow: 2px 0 8px rgba(0,0,0,0.15)',
-      'padding: 0',
-      'box-sizing: border-box',
-      'display: none',
-      'z-index: 1001',
-      'flex-direction: column'
+      'background: #ffffff'
     ].join(';');
 
-    this.#container.style.position = this.#container.style.position || 'relative';
-    this.#container.appendChild(sidebar);
-    this.#sidebar = sidebar;
-
-    // 创建Header
+    // 创建Header（包含工具栏）
     this.#sidebarHeader = this.#createHeader();
-    sidebar.appendChild(this.#sidebarHeader);
+    container.appendChild(this.#sidebarHeader);
 
     // 创建内容区域
     const content = document.createElement('div');
@@ -113,14 +92,26 @@ export class AnnotationSidebarUI {
       'padding: 12px',
       'box-sizing: border-box'
     ].join(';');
-    sidebar.appendChild(content);
+    container.appendChild(content);
     this.#sidebarContent = content;
 
-    this.#logger.debug('Sidebar created');
+    this.#container = container;
+    this.#logger.debug('Content created');
   }
 
   /**
-   * 创建Header部分（包含工具栏和关闭按钮）
+   * 获取内容元素（供SidebarManager使用）
+   * @returns {HTMLElement} 内容元素
+   */
+  getContentElement() {
+    if (!this.#container) {
+      this.#createContent();
+    }
+    return this.#container;
+  }
+
+  /**
+   * 创建Header部分（包含工具栏，不包含关闭按钮）
    * @returns {HTMLElement}
    * @private
    */
@@ -131,47 +122,12 @@ export class AnnotationSidebarUI {
       'padding: 12px',
       'border-bottom: 1px solid #eee',
       'background: #fafafa',
-      'box-sizing: border-box'
+      'box-sizing: border-box',
+      'flex-shrink: 0'
     ].join(';');
-
-    // 标题行
-    const titleRow = document.createElement('div');
-    titleRow.style.cssText = [
-      'display: flex',
-      'align-items: center',
-      'justify-content: space-between',
-      'margin-bottom: 12px'
-    ].join(';');
-
-    const title = document.createElement('div');
-    title.textContent = '标注';
-    title.style.cssText = 'font-weight: 600; color: #333; font-size: 16px;';
-
-    const closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.textContent = '×';
-    closeBtn.title = '关闭标注';
-    closeBtn.className = 'annotation-close-btn';
-    closeBtn.style.cssText = [
-      'border: none',
-      'background: transparent',
-      'font-size: 20px',
-      'cursor: pointer',
-      'line-height: 1',
-      'color: #666',
-      'padding: 0',
-      'width: 24px',
-      'height: 24px'
-    ].join(';');
-    closeBtn.addEventListener('click', () => this.hide());
-
-    titleRow.appendChild(title);
-    titleRow.appendChild(closeBtn);
 
     // 工具栏
     const toolbar = this.#createToolbar();
-
-    header.appendChild(titleRow);
     header.appendChild(toolbar);
 
     return header;
@@ -279,7 +235,9 @@ export class AnnotationSidebarUI {
    * @private
    */
   #updateToolbarState() {
-    const buttons = this.#sidebar.querySelectorAll('.annotation-tool-btn');
+    if (!this.#container) return;
+
+    const buttons = this.#container.querySelectorAll('.annotation-tool-btn');
     buttons.forEach(btn => {
       const toolId = btn.dataset.tool;
       if (toolId === this.#activeTool) {
@@ -299,25 +257,6 @@ export class AnnotationSidebarUI {
    * @private
    */
   #setupEventListeners() {
-    // 监听侧边栏切换
-    this.#unsubs.push(this.#eventBus.on(
-      PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.TOGGLE,
-      () => this.toggle(),
-      { subscriberId: 'AnnotationSidebarUI' }
-    ));
-
-    this.#unsubs.push(this.#eventBus.on(
-      PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.OPEN,
-      () => this.show(),
-      { subscriberId: 'AnnotationSidebarUI' }
-    ));
-
-    this.#unsubs.push(this.#eventBus.on(
-      PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.CLOSE,
-      () => this.hide(),
-      { subscriberId: 'AnnotationSidebarUI' }
-    ));
-
     // 监听标注CRUD事件
     this.#unsubs.push(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANNOTATION.CREATED,
@@ -360,46 +299,6 @@ export class AnnotationSidebarUI {
       (data) => this.highlightAndScrollToCard(data.id),
       { subscriberId: 'AnnotationSidebarUI' }
     ));
-  }
-
-  /**
-   * 显示侧边栏
-   */
-  show() {
-    if (!this.#sidebar) {
-      this.#createSidebar();
-    }
-    this.#sidebar.style.display = 'flex';
-    this.#logger.info('Annotation sidebar shown');
-    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.OPENED, {});
-  }
-
-  /**
-   * 隐藏侧边栏
-   */
-  hide() {
-    if (this.#sidebar) {
-      this.#sidebar.style.display = 'none';
-      // 停用当前工具
-      if (this.#activeTool) {
-        this.#activeTool = null;
-        this.#updateToolbarState();
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.TOOL.DEACTIVATE, {});
-      }
-    }
-    this.#logger.info('Annotation sidebar hidden');
-    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.CLOSED, {});
-  }
-
-  /**
-   * 切换侧边栏显示
-   */
-  toggle() {
-    if (!this.#sidebar || this.#sidebar.style.display === 'none') {
-      this.show();
-    } else {
-      this.hide();
-    }
   }
 
   /**
@@ -743,11 +642,6 @@ export class AnnotationSidebarUI {
   highlightAndScrollToCard(annotationId) {
     this.#logger.debug(`Highlighting and scrolling to card: ${annotationId}`);
 
-    // 如果侧边栏关闭，先打开
-    if (!this.#sidebar || this.#sidebar.style.display === 'none') {
-      this.show();
-    }
-
     // 获取目标卡片
     const targetCard = this.#annotationCards.get(annotationId);
     if (!targetCard) {
@@ -789,9 +683,9 @@ export class AnnotationSidebarUI {
     this.#unsubs = [];
 
     // 移除DOM
-    if (this.#sidebar) {
-      this.#sidebar.remove();
-      this.#sidebar = null;
+    if (this.#container) {
+      this.#container.remove();
+      this.#container = null;
     }
 
     this.#logger.info('Annotation sidebar destroyed');

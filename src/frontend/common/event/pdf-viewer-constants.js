@@ -776,6 +776,68 @@ export const PDF_VIEWER_EVENTS = {
   },
 
   /**
+   * 侧边栏管理器事件
+   * @namespace SIDEBAR_MANAGER
+   */
+  SIDEBAR_MANAGER: {
+    /**
+     * 切换侧边栏请求
+     * @event sidebar:toggle:requested
+     * @type {string}
+     * @payload {Object} data
+     * @payload {string} data.sidebarId - 侧边栏ID
+     */
+    TOGGLE_REQUESTED: 'sidebar:toggle:requested',
+
+    /**
+     * 打开侧边栏请求
+     * @event sidebar:open:requested
+     * @type {string}
+     * @payload {Object} data
+     * @payload {string} data.sidebarId - 侧边栏ID
+     */
+    OPEN_REQUESTED: 'sidebar:open:requested',
+
+    /**
+     * 关闭侧边栏请求
+     * @event sidebar:close:requested
+     * @type {string}
+     * @payload {Object} data
+     * @payload {string} data.sidebarId - 侧边栏ID
+     */
+    CLOSE_REQUESTED: 'sidebar:close:requested',
+
+    /**
+     * 侧边栏已打开完成
+     * @event sidebar:opened:completed
+     * @type {string}
+     * @payload {Object} data
+     * @payload {string} data.sidebarId - 侧边栏ID
+     * @payload {number} data.order - 打开顺序
+     */
+    OPENED_COMPLETED: 'sidebar:opened:completed',
+
+    /**
+     * 侧边栏已关闭完成
+     * @event sidebar:closed:completed
+     * @type {string}
+     * @payload {Object} data
+     * @payload {string} data.sidebarId - 侧边栏ID
+     * @payload {string[]} data.remainingIds - 剩余打开的侧边栏ID列表
+     */
+    CLOSED_COMPLETED: 'sidebar:closed:completed',
+
+    /**
+     * 布局已更新
+     * @event sidebar:layout:updated
+     * @type {string}
+     * @payload {Object} data
+     * @payload {Array} data.layouts - 布局数据数组
+     */
+    LAYOUT_UPDATED: 'sidebar:layout:updated',
+  },
+
+  /**
    * 标注相关事件
    * @namespace ANNOTATION
    * @description 事件格式说明：使用 'annotation-sidebar:xxx:xxx' 或 'annotation-tool:xxx:xxx' 等来符合3段格式要求
