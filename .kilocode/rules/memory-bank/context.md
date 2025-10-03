@@ -28,6 +28,7 @@
   - ✅ **PDF中文渲染修复完成 (2025-09-30)**：使用Vite别名@pdfjs简化CMap和标准字体路径，解决中文字符无法渲染问题。
   - ✅ **PDF-Home添加和删除功能完成 (2025-10-01)**：包含文件选择、上传、删除、列表更新、错误处理等完整流程。参考提交: bf8b64d。
   - ✅ **PDF书签侧边栏功能完成 (2025-10-01)**：pdf-viewer模块的书签侧边栏功能已实现并可用。
+  - ✅ **PDF-Viewer搜索按钮事件修复完成 (2025-10-03)**：修复了SearchFeature的参数签名错误和SimpleDependencyContainer的架构缺陷，实现了原型链式依赖注入，搜索按钮现可正常点击并弹出搜索框。参考提交: 待提交。
 - 待办：
   - 实现最小版 PDF 业务服务器并接入 WS 转发。
   - 复核 pdf-viewer 全量对齐共享 EventBus/WSClient。
@@ -621,31 +622,70 @@ Layer 5: 应用入口层 (bootstrap/, main.js)
   2. `src/backend/scripts/verify_migration.py` - 迁移验证工具
   3. `src/backend/scripts/set_demo_values.py` - 演示数据生成器
   4. `src/backend/scripts/test_pdf_list_output.py` - WebSocket输出格式测试
-  5. `src/backend/scripts/debug_websocket_message.py` - WebSocket消息调试工具
+  5. `src/backend/scripts/debug_websocket_message.js` - WebSocket消息调试工具
 - **用途**: 支持PDF记录扩展字段功能的开发、测试和维护
+
+## PDF记录编辑功能开发 (2025-10-03)
+
+### 编辑表单字段扩展 ✅ 完成 (2025-10-03 14:00)
+- **目标**: 扩展PDF编辑表单，添加书名、作者、主题、关键词等元数据字段
+- **执行结果**:
+  - ✅ 在编辑表单中新增4个可编辑文本字段（title, author, subject, keywords）
+  - ✅ 更新表单提交逻辑以收集新字段值
+  - ✅ 保持与现有表单组件的一致性
+  - ✅ 使用HTML转义确保安全性
+- **修改文件**:
+  - `src/frontend/pdf-home/features/pdf-edit/index.js:391-453` - 表单HTML生成
+  - `src/frontend/pdf-home/features/pdf-edit/index.js:518-530` - 表单提交逻辑
+- **表单字段列表** (共9个):
+  1. 文件名 (filename) - 只读
+  2. 书名 (title) - 可编辑文本 ✨新增
+  3. 作者 (author) - 可编辑文本 ✨新增
+  4. 主题 (subject) - 可编辑文本 ✨新增
+  5. 关键词 (keywords) - 可编辑文本 ✨新增
+  6. 评分 (rating) - 星级组件
+  7. 标签 (tags) - 标签组件
+  8. 已读状态 (is_read) - 开关组件
+  9. 备注 (notes) - 文本域
+- **技术亮点**:
+  - 最小化修改原则 - 仅修改2个方法
+  - 安全性考虑 - 使用`#escapeHtml()`和`trim()`
+  - 用户体验优化 - 字段顺序符合逻辑，提供友好提示
+- **工作日志**: `AItemp/20251003140000-AI-Working-log.md`
 
 ### 待办任务概览
 **已完成**:
 - ✅ PDF-Home添加删除按钮功能
 - ✅ PDF记录扩展字段功能（7个学习管理字段）
 - ✅ PDF书签侧边栏功能
+- ✅ **PDF编辑表单字段扩展** (2025-10-03)
 - ✅ PDF标注功能按钮加载修复 (2025-10-03)
+
+**进行中**:
+- 📋 20251002120000 - PDF记录编辑模态框
+  - ✅ Phase 1: 表格编辑按钮
+  - ✅ Phase 2: 模态框管理器
+  - ✅ Phase 3: 表单组件（基础）
+  - ✅ Phase 3.5: 表单字段扩展（元数据）- 今日完成
+  - ⏳ Phase 4: 后端数据交互（等待后端支持）
+  - ⏳ Phase 5: 样式和优化
 
 **待开发** (按时间顺序):
 1. 📋 20251002001902 - PDF列表排序系统
 2. 📋 20251002005635 - PDF列表过滤系统
-3. 📋 20251002120000 - PDF记录编辑模态框
-4. 📋 20251002130000 - PDF-Home协作架构
-5. 📋 20250923184000 - 统一通信架构
-6. 📋 PDF标注功能Phase 3-10 - 截图/高亮/批注工具实现
+3. 📋 20251002130000 - PDF-Home协作架构
+4. 📋 20250923184000 - 统一通信架构
+5. 📋 PDF标注功能Phase 3-10 - 截图/高亮/批注工具实现
 
 ### 技术规范遵循
 - ✅ 遵循CLAUDE.md流程规范：读取历史日志 → 检查Memory Bank → 执行任务 → 更新文档
 - ✅ Git提交规范：使用约定式提交（Conventional Commits）
 - ✅ 代码库管理：工具脚本纳入版本控制，临时文档保留在工作区
+- ✅ ES6+语法和代码质量标准
 
 ### 相关文档
-- 工作日志: `AItemp/20251002140000-AI-Working-log.md`
+- 最新工作日志: `AItemp/20251003140000-AI-Working-log.md`
+- 前次工作日志: `AItemp/20251002140000-AI-Working-log.md`
 - 分支: `feature/pdf-home-add-delete-improvements`
 - 最新commit: d2ff056
 

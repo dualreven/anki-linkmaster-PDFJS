@@ -155,6 +155,92 @@ export interface ScopedEventBus {
 }
 
 /**
+ * 搜索选项
+ */
+export interface SearchOptions {
+  /** 是否区分大小写 */
+  caseSensitive?: boolean;
+  /** 是否全词匹配 */
+  wholeWords?: boolean;
+  /** 是否高亮所有结果 */
+  highlightAll?: boolean;
+  /** 是否启用正则表达式 */
+  useRegex?: boolean;
+}
+
+/**
+ * 搜索匹配项
+ */
+export interface SearchMatch {
+  /** 匹配项所在页码 */
+  pageNumber: number;
+  /** 匹配项在页面中的索引 */
+  matchIndex: number;
+  /** 匹配的文本内容 */
+  text: string;
+  /** 匹配项在整个文档中的全局索引 */
+  globalIndex: number;
+}
+
+/**
+ * 搜索执行请求事件数据
+ */
+export interface SearchQueryData {
+  /** 搜索关键词 */
+  query: string;
+  /** 搜索选项 */
+  options: SearchOptions;
+}
+
+/**
+ * 搜索结果事件数据
+ */
+export interface SearchResultData {
+  /** 搜索关键词 */
+  query: string;
+  /** 总匹配数 */
+  total: number;
+  /** 当前匹配索引(从1开始) */
+  current: number;
+  /** 匹配结果数组 */
+  matches: SearchMatch[];
+}
+
+/**
+ * 搜索导航完成事件数据
+ */
+export interface SearchNavigateData {
+  /** 跳转到的页码 */
+  pageNumber: number;
+  /** 匹配项索引 */
+  matchIndex: number;
+  /** 匹配项在整个文档中的全局索引 */
+  globalIndex: number;
+}
+
+/**
+ * 搜索选项改变事件数据
+ */
+export interface SearchOptionChangeData {
+  /** 选项名称 */
+  option: 'caseSensitive' | 'wholeWords' | 'highlightAll' | 'useRegex';
+  /** 选项值 */
+  value: boolean;
+}
+
+/**
+ * 搜索进度事件数据
+ */
+export interface SearchProgressData {
+  /** 当前搜索页数 */
+  current: number;
+  /** 总页数 */
+  total: number;
+  /** 进度百分比(0-100) */
+  percentage: number;
+}
+
+/**
  * 创建作用域事件总线
  * @param globalEventBus - 全局事件总线实例
  * @param scope - 作用域名称(模块名)

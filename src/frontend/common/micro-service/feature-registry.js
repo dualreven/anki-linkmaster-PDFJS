@@ -126,15 +126,24 @@ class FeatureRecord {
     this.#feature = feature;
   }
 
+  /** 获取功能实例 @returns {IFeature} */
   get feature() { return this.#feature; }
+  /** 获取功能状态 @returns {FeatureStatus} */
   get status() { return this.#status; }
+  /** 获取功能上下文 @returns {FeatureContext|null} */
   get context() { return this.#context; }
+  /** 获取错误信息 @returns {Error|null} */
   get error() { return this.#error; }
+  /** 获取安装时间戳 @returns {number} */
   get installedAt() { return this.#installedAt; }
 
+  /** 设置功能状态 @param {FeatureStatus} status */
   setStatus(status) { this.#status = status; }
+  /** 设置功能上下文 @param {FeatureContext} context */
   setContext(context) { this.#context = context; }
+  /** 设置错误信息 @param {Error} error */
   setError(error) { this.#error = error; }
+  /** 标记功能为已安装状态，同时记录安装时间戳 */
   markInstalled() {
     this.#installedAt = Date.now();
     this.#status = FeatureStatus.INSTALLED;

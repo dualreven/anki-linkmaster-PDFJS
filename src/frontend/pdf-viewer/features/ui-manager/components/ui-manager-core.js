@@ -4,16 +4,16 @@
  * @description 协调DOM元素、键盘事件和UI状态的主管理器
  */
 
-import { getLogger } from "../../common/utils/logger.js";
-import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
-import { DOMElementManager } from "./dom-element-manager.js";
-import { KeyboardHandler } from "./keyboard-handler.js";
-import { UIStateManager } from "./ui-state-manager.js";
-import { TextLayerManager } from "./text-layer-manager.js";
-import { PDFViewerManager } from "../pdf-viewer-manager.js";
-import { BookmarkManager } from "../bookmark/bookmark-manager.js";
-import { UIZoomControls } from "../ui-zoom-controls.js";
-import { UILayoutControls } from "../ui-layout-controls.js";
+import { getLogger } from "../../../../common/utils/logger.js";
+import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
+import { DOMElementManager } from "../../../ui/dom-element-manager.js";
+import { KeyboardHandler } from "../../../ui/keyboard-handler.js";
+import { UIStateManager } from "../../../ui/ui-state-manager.js";
+import { TextLayerManager } from "../../../ui/text-layer-manager.js";
+import { PDFViewerManager } from "./pdf-viewer-manager.js";
+import { BookmarkManager } from "../../../bookmark/bookmark-manager.js";
+import { UIZoomControls } from "./ui-zoom-controls.js";
+import { UILayoutControls } from "./ui-layout-controls.js";
 
 /**
  * UI管理器核心类

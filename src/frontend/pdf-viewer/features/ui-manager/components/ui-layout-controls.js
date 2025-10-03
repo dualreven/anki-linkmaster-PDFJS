@@ -4,7 +4,7 @@
  * @description 管理PDF查看器的布局控制（滚动模式、跨页模式、旋转）
  */
 
-import { getLogger } from "../common/utils/logger.js";
+import { getLogger } from "../../../../common/utils/logger.js";
 import { PDFViewerManager } from "./pdf-viewer-manager.js";
 
 /**

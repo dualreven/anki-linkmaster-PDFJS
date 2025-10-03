@@ -3,7 +3,7 @@
  * @module UIManagerFeature
  */
 
-import { UIManagerCore } from '../../ui/ui-manager-core-refactored.js';
+import { UIManagerCore } from './components/ui-manager-core.js';
 
 /**
  * UI管理器功能域
@@ -33,7 +33,7 @@ export class UIManagerFeature {
    * @param {FeatureContext} context - 功能上下文
    */
   async install(context) {
-    const { globalEventBus, logger } = context;
+    const { container, globalEventBus, logger } = context;
 
     logger.info('Installing UIManagerFeature...');
 
@@ -42,6 +42,15 @@ export class UIManagerFeature {
 
     // 初始化
     await this.#uiManager.initialize();
+
+    // 注册 pdfViewerManager 到全局容器（供其他 Feature 使用，如 SearchFeature）
+    // 使用 registerGlobal 确保所有 Feature 都能访问
+    if (this.#uiManager.pdfViewerManager) {
+      container.registerGlobal('pdfViewerManager', this.#uiManager.pdfViewerManager);
+      logger.info('✅ PDFViewerManager registered to global container');
+    } else {
+      logger.warn('⚠️ PDFViewerManager not available from UIManagerCore');
+    }
 
     logger.info('UIManagerFeature installed successfully');
   }

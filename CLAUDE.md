@@ -94,6 +94,60 @@ debug代码时的注意事项:
    模块化: 合理组织代码结构，避免全局变量污染
    性能优化: 注意大文件的分块加载，避免阻塞主线程
 
+功能域模块化架构 (Feature-based Modular Architecture):
+   架构定义: pdf-home和pdf-viewer采用统一的功能域模块化架构，每个功能作为独立可插拔模块，通过共享micro-service基础设施协作，支持并行开发。
+
+   📖 理解架构原理: src/frontend/ARCHITECTURE-EXPLAINED.md
+   - 深度解析插件模式如何工作
+   - EventBus、Registry、Container的运作原理
+   - 完整运行流程演示
+   - 实战案例
+
+   核心开发原则:
+   1. 功能域隔离
+      - 每个Feature必须是独立目录 (features/功能名/)
+      - Feature内部结构: index.js(入口) + components/ + services/ + events.js
+      - 一个Feature = 一个独立功能，职责单一
+
+   2. 事件驱动通信
+      - Feature之间只能通过EventBus通信，禁止直接引用
+      - 事件命名规范: `模块:功能:动作` (如 pdf-viewer:bookmark:toggle)
+      - 所有事件定义集中在 common/event/constants.js
+
+   3. 依赖注入
+      - Feature依赖必须通过DependencyContainer注入
+      - 在feature.config.js声明依赖: dependencies: ['logger', 'eventBus']
+      - 禁止直接import其他Feature的代码
+
+   4. 共享基础设施 (common/micro-service/)
+      - FeatureRegistry - 注册和管理Feature
+      - DependencyContainer - 依赖注入容器
+      - ScopedEventBus - 作用域事件总线
+      - StateManager - 响应式状态管理
+      - FeatureFlagManager - 特性开关
+
+   严格禁止:
+   ❌ Feature之间直接调用函数或访问属性
+   ❌ 在Feature内部创建全局变量
+   ❌ 硬编码依赖其他Feature的路径
+   ❌ 绕过EventBus直接操作DOM或状态
+   ❌ 复制粘贴代码，应提取到common/或创建新Feature
+
+   开发新Feature的标准流程（严格遵守）:
+   ⚠️ 开发任何新功能前，必须先阅读：src/frontend/HOW-TO-ADD-FEATURE.md
+
+   简化版步骤：
+   1. 阅读 HOW-TO-ADD-FEATURE.md 完整文档
+   2. 复制标准模板创建Feature类（必须实现4个接口）
+   3. 在bootstrap/app-bootstrap-feature.js注册
+   4. 通过EventBus通信，禁止直接调用其他Feature
+
+   关键原则：
+   - Feature类必须有：name, version, dependencies, install(), uninstall()
+   - 在bootstrap中用 registry.register(new YourFeature()) 注册
+   - 依赖其他Feature时，在dependencies数组中声明，不要import
+   - 私有字段用 # 前缀
+
 AI 接管开发时的具体规则:
 
    1. 开发前的准备工作:

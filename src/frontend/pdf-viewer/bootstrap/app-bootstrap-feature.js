@@ -13,6 +13,7 @@ import eventBusSingleton from "../../common/event/event-bus.js";
 import { AppCoreFeature } from "../features/app-core/index.js";
 import { PDFManagerFeature } from "../features/pdf-manager/index.js";
 import { UIManagerFeature } from "../features/ui-manager/index.js";
+import { SearchFeature } from "../features/search/index.js";
 import { URLNavigationFeature } from "../features/url-navigation/index.js";
 import { AnnotationFeature } from "../features/annotation/index.js";
 
@@ -87,6 +88,7 @@ export async function bootstrapPDFViewerAppFeature() {
     registry.register(new AppCoreFeature());
     registry.register(new PDFManagerFeature());
     registry.register(new UIManagerFeature());
+    registry.register(new SearchFeature());  // 注册搜索功能
     registry.register(new URLNavigationFeature());
     registry.register(new AnnotationFeature());
 
@@ -98,7 +100,10 @@ export async function bootstrapPDFViewerAppFeature() {
     window.pdfViewerApp = {
       registry,
       container,
-      getFeature: (name) => registry.getFeature(name),
+      getFeature: (name) => {
+        const record = registry.get(name);
+        return record ? record.feature : null;
+      },
       destroy: () => registry.uninstallAll(),
       eventBus: eventBusSingleton
     };

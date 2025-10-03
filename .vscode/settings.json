@@ -27,6 +27,7 @@
   },
 
   "terminal.integrated.env.windows": {
+    "VIRTUAL_ENV": "C:\\venvs\\anki-linkmaster-PDFJS",
     "PATH": "C:\\venvs\\anki-linkmaster-PDFJS\\Scripts;${env:PATH}"
   },
 
