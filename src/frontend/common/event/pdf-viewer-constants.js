@@ -835,7 +835,7 @@ export const PDF_VIEWER_EVENTS = {
     /** 标注已选中 */
     SELECTED: 'annotation:select:success',
     /** 跳转到标注位置 */
-    JUMP_TO: 'annotation:jump:requested',
+    JUMP_TO: 'annotation-navigation:jump:requested',
     /** 高亮标注（闪烁效果） */
     HIGHLIGHT: 'annotation:highlight:requested',
 
