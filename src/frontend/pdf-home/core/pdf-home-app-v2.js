@@ -22,6 +22,7 @@ import WSClient from '../../common/ws/ws-client.js';
 import { PDFListFeature } from '../features/pdf-list/index.js';
 import { PDFEditorFeature } from '../features/pdf-editor/index.js';
 import { PDFSorterFeature } from '../features/pdf-sorter/index.js';
+import { PDFEditFeature } from '../features/pdf-edit/index.js';
 
 /**
  * @class PDFHomeAppV2
@@ -268,7 +269,8 @@ export class PDFHomeAppV2 {
     const features = [
       new PDFListFeature(),
       new PDFEditorFeature(),
-      new PDFSorterFeature()
+      new PDFSorterFeature(),
+      new PDFEditFeature()
     ];
 
     for (const feature of features) {
