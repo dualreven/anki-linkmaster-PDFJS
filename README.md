@@ -113,9 +113,10 @@ python launcher.py start --module pdf-home
 pnpm install  # 首次运行
 pnpm run dev
 
-# 启动PDF查看器窗口
+# 启动PDF查看器窗口（推荐使用 --pdf-id）
 cd src/frontend/pdf-viewer
-python launcher.py --file-path "path/to/document.pdf"
+python launcher.py --pdf-id sample              # 推荐：使用PDF ID
+# python launcher.py --file-path "path/to/document.pdf"  # 已过时，不推荐
 ```
 
 ### 3. 开发模式

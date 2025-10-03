@@ -8,11 +8,11 @@ already running. The launcher auto-resolves ports from logs/runtime-ports.json
 and logs/npm-dev.log where possible.
 
 Usage:
-  # 基本用法 - 打开指定PDF文件
-  python src/frontend/pdf-viewer/launcher.py --file-path path/to/file.pdf
-
-  # 使用PDF ID（会在指定目录中查找对应的PDF文件）
+  # 推荐用法 - 使用PDF ID（会自动在 data/pdfs/ 等目录查找）
   python src/frontend/pdf-viewer/launcher.py --pdf-id sample
+
+  # 已过时 - 使用文件路径（不推荐）
+  # python src/frontend/pdf-viewer/launcher.py --file-path path/to/file.pdf
 
   # 打开PDF并跳转到指定页码（第5页）
   python src/frontend/pdf-viewer/launcher.py --pdf-id sample --page-at 5
@@ -66,6 +66,12 @@ logger_spec = importlib.util.spec_from_file_location("js_console_logger_qt", pyq
 logger_module = importlib.util.module_from_spec(logger_spec)
 logger_spec.loader.exec_module(logger_module)
 JSConsoleLogger = logger_module.JSConsoleLogger
+
+# Import Screenshot Handler
+screenshot_spec = importlib.util.spec_from_file_location("screenshot_handler", pyqt_dir / "screenshot_handler.py")
+screenshot_module = importlib.util.module_from_spec(screenshot_spec)
+screenshot_spec.loader.exec_module(screenshot_module)
+ScreenshotHandler = screenshot_module.ScreenshotHandler
 
 # Simplified get_vite_port function for standalone launcher
 
@@ -362,6 +368,7 @@ def main() -> int:
     # QWebChannel bridge for local JS-Python interaction
     channel = None
     bridge = None
+    screenshot_handler = None
     webchannel_enabled = not args.disable_webchannel
     webchannel_executed = False
     webchannel_note: str | None = None
@@ -369,10 +376,12 @@ def main() -> int:
         try:
             channel = QWebChannel(window)
             bridge = PdfViewerBridge(ws_client, window, file_path)
+            screenshot_handler = ScreenshotHandler(window, project_root)
             channel.registerObject('pdfViewerBridge', bridge)
+            channel.registerObject('screenshotHandler', screenshot_handler)
             if window.web_page:
                 window.web_page.setWebChannel(channel)
-            logger.info("QWebChannel initialized and pdfViewerBridge registered")
+            logger.info("QWebChannel initialized: pdfViewerBridge and screenshotHandler registered")
             webchannel_executed = True
         except Exception as exc:
             webchannel_note = f"Initialization failed: {exc}"
