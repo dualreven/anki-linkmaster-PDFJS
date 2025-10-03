@@ -219,7 +219,7 @@ export class ScreenshotTool extends IAnnotationTool {
       'width: 100%',
       'height: 100%',
       'z-index: 9999',
-      'pointer-events: auto'
+      'pointer-events: none'  // 默认不拦截事件，允许页面滚动
     ].join(';');
 
     // 选择矩形
@@ -243,8 +243,6 @@ export class ScreenshotTool extends IAnnotationTool {
    * @private
    */
   #setupMouseEvents() {
-    const overlay = this.#selectionOverlay;
-
     const onMouseDown = (e) => this.#handleMouseDown(e);
     const onMouseMove = (e) => this.#handleMouseMove(e);
     const onMouseUp = (e) => this.#handleMouseUp(e);
@@ -254,9 +252,10 @@ export class ScreenshotTool extends IAnnotationTool {
       }
     };
 
-    overlay.addEventListener('mousedown', onMouseDown);
-    overlay.addEventListener('mousemove', onMouseMove);
-    overlay.addEventListener('mouseup', onMouseUp);
+    // 在document上监听，这样可以捕获所有鼠标事件
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
     document.addEventListener('keydown', onKeyDown);
 
     // 保存引用以便清理
@@ -268,6 +267,14 @@ export class ScreenshotTool extends IAnnotationTool {
    * @private
    */
   #handleMouseDown(e) {
+    // 如果不是激活状态，不处理
+    if (!this.#isActive) return;
+
+    // 阻止默认行为和事件传播（防止拖拽选择文本等）
+    e.preventDefault();
+    e.stopPropagation();
+
+    // 保存viewport坐标（用于UI显示）
     this.#startPos = { x: e.clientX, y: e.clientY };
     this.#endPos = null;
 
@@ -284,7 +291,11 @@ export class ScreenshotTool extends IAnnotationTool {
    * @private
    */
   #handleMouseMove(e) {
-    if (!this.#startPos) return;
+    // 只有在正在绘制时（startPos存在）才处理移动事件
+    if (!this.#startPos || !this.#isActive) return;
+
+    // 阻止默认行为（防止触发其他交互）
+    e.preventDefault();
 
     this.#endPos = { x: e.clientX, y: e.clientY };
 
@@ -302,7 +313,7 @@ export class ScreenshotTool extends IAnnotationTool {
    * @private
    */
   async #handleMouseUp(e) {
-    if (!this.#startPos) return;
+    if (!this.#startPos || !this.#isActive) return;
 
     this.#endPos = { x: e.clientX, y: e.clientY };
     const rect = this.#getRectFromPoints(this.#startPos, this.#endPos);
@@ -314,25 +325,34 @@ export class ScreenshotTool extends IAnnotationTool {
       return;
     }
 
-    // 捕获并保存截图
-    await this.#captureAndSave(rect);
-
-    // 重置选择框（保持工具激活状态，支持连续截图）
+    // 立即重置选择框，防止对话框弹出时继续绘制
     this.#resetSelection();
+
+    // 捕获并保存截图（异步操作，但选择框已重置）
+    await this.#captureAndSave(rect);
   }
 
   /**
    * 捕获截图并保存
    * @private
+   * @param {Object} viewportRect - viewport坐标的矩形
    */
-  async #captureAndSave(rect) {
+  async #captureAndSave(viewportRect) {
     try {
       const pageNumber = this.#getCurrentPageNumber();
 
-      this.#logger.info(`[ScreenshotTool] Capturing screenshot at page ${pageNumber}`, rect);
+      this.#logger.info(`[ScreenshotTool] Capturing screenshot at page ${pageNumber}`, viewportRect);
 
-      // 1. 使用Canvas捕获截图（base64）
-      const base64Image = await this.#capturer.capture(pageNumber, rect);
+      // 1. 将viewport坐标转换为Canvas坐标
+      const canvasRect = this.#convertViewportToCanvasRect(pageNumber, viewportRect);
+      if (!canvasRect) {
+        throw new Error('Failed to convert viewport coordinates to canvas coordinates');
+      }
+
+      this.#logger.info('[ScreenshotTool] Converted to canvas coordinates', canvasRect);
+
+      // 2. 使用Canvas捕获截图（base64）
+      const base64Image = await this.#capturer.capture(pageNumber, canvasRect);
 
       // 2. 显示预览对话框
       const description = await this.#showPreviewDialog(base64Image);
@@ -356,7 +376,7 @@ export class ScreenshotTool extends IAnnotationTool {
         type: AnnotationType.SCREENSHOT,
         pageNumber,
         data: {
-          rect,  // rect应该在data中
+          rect: canvasRect,  // 使用Canvas坐标的rect
           imagePath: saveResult.path,
           imageHash: saveResult.hash,
           imageData: base64Image,  // Mock模式下需要base64数据才能显示图片
@@ -540,6 +560,72 @@ export class ScreenshotTool extends IAnnotationTool {
   }
 
   /**
+   * 将viewport坐标转换为Canvas坐标
+   * @private
+   * @param {number} pageNumber - 页码
+   * @param {Object} viewportRect - viewport坐标系的矩形 { x, y, width, height }
+   * @returns {Object|null} Canvas坐标系的矩形 { x, y, width, height }
+   */
+  #convertViewportToCanvasRect(pageNumber, viewportRect) {
+    try {
+      // 1. 获取PageView对象
+      const pageView = this.#pdfViewerManager.getPageView(pageNumber);
+      if (!pageView) {
+        this.#logger.error(`[ScreenshotTool] Cannot find PageView for page ${pageNumber}`);
+        return null;
+      }
+
+      // 2. 获取页面容器的位置信息
+      const pageDiv = pageView.div;
+      if (!pageDiv) {
+        this.#logger.error(`[ScreenshotTool] Cannot find page div for page ${pageNumber}`);
+        return null;
+      }
+
+      // 3. 获取页面相对于viewport的偏移量
+      const pageBounds = pageDiv.getBoundingClientRect();
+
+      // 4. 计算相对于页面的坐标
+      const relativeX = viewportRect.x - pageBounds.left;
+      const relativeY = viewportRect.y - pageBounds.top;
+
+      // 5. 获取Canvas元素
+      const canvas = pageDiv.querySelector('canvas');
+      if (!canvas) {
+        this.#logger.error(`[ScreenshotTool] Cannot find canvas for page ${pageNumber}`);
+        return null;
+      }
+
+      // 6. 计算缩放比例
+      // Canvas的实际像素尺寸 / 页面div的显示尺寸
+      const scaleX = canvas.width / pageBounds.width;
+      const scaleY = canvas.height / pageBounds.height;
+
+      // 7. 转换为Canvas坐标
+      const canvasRect = {
+        x: Math.round(relativeX * scaleX),
+        y: Math.round(relativeY * scaleY),
+        width: Math.round(viewportRect.width * scaleX),
+        height: Math.round(viewportRect.height * scaleY)
+      };
+
+      this.#logger.info('[ScreenshotTool] Coordinate conversion:', {
+        viewport: viewportRect,
+        pageBounds: { left: pageBounds.left, top: pageBounds.top, width: pageBounds.width, height: pageBounds.height },
+        canvasSize: { width: canvas.width, height: canvas.height },
+        scale: { x: scaleX, y: scaleY },
+        canvas: canvasRect
+      });
+
+      return canvasRect;
+
+    } catch (error) {
+      this.#logger.error('[ScreenshotTool] Coordinate conversion failed:', error);
+      return null;
+    }
+  }
+
+  /**
    * 重置选择框（保持工具激活）
    * 用于截图完成后，清除当前选择框但保持截图模式，支持连续截图
    * @private
@@ -565,17 +651,17 @@ export class ScreenshotTool extends IAnnotationTool {
    * @private
    */
   #cleanup() {
-    if (this.#selectionOverlay) {
-      // 移除事件监听
-      if (this.#mouseListeners) {
-        this.#selectionOverlay.removeEventListener('mousedown', this.#mouseListeners.onMouseDown);
-        this.#selectionOverlay.removeEventListener('mousemove', this.#mouseListeners.onMouseMove);
-        this.#selectionOverlay.removeEventListener('mouseup', this.#mouseListeners.onMouseUp);
-        document.removeEventListener('keydown', this.#mouseListeners.onKeyDown);
-        this.#mouseListeners = null;
-      }
+    // 移除事件监听（现在都在document上）
+    if (this.#mouseListeners) {
+      document.removeEventListener('mousedown', this.#mouseListeners.onMouseDown);
+      document.removeEventListener('mousemove', this.#mouseListeners.onMouseMove);
+      document.removeEventListener('mouseup', this.#mouseListeners.onMouseUp);
+      document.removeEventListener('keydown', this.#mouseListeners.onKeyDown);
+      this.#mouseListeners = null;
+    }
 
-      // 移除DOM
+    // 移除遮罩层DOM
+    if (this.#selectionOverlay) {
       this.#selectionOverlay.remove();
       this.#selectionOverlay = null;
     }
