@@ -96,9 +96,10 @@ export class QWebChannelScreenshotBridge {
           return;
         }
 
-        // 调用PyQt方法
+        // 调用PyQt方法（PyQt的@pyqtSlot会自动转换为Promise）
         this.#pyqtObject.saveScreenshot(base64Image, (result) => {
-          if (result.success) {
+          // QWebChannel会将PyQt的返回值通过回调传递
+          if (result && result.success) {
             this.#logger.info('[QWebChannel] Screenshot saved:', result.path);
             resolve({
               success: true,
@@ -106,8 +107,9 @@ export class QWebChannelScreenshotBridge {
               hash: result.hash
             });
           } else {
-            this.#logger.error('[QWebChannel] Save failed:', result.error);
-            reject(new Error(result.error || 'Unknown error'));
+            const errorMsg = result?.error || 'Unknown error';
+            this.#logger.error('[QWebChannel] Save failed:', errorMsg);
+            reject(new Error(errorMsg));
           }
         });
 

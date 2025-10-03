@@ -67,6 +67,12 @@ logger_module = importlib.util.module_from_spec(logger_spec)
 logger_spec.loader.exec_module(logger_module)
 JSConsoleLogger = logger_module.JSConsoleLogger
 
+# Import Screenshot Handler
+screenshot_spec = importlib.util.spec_from_file_location("screenshot_handler", pyqt_dir / "screenshot_handler.py")
+screenshot_module = importlib.util.module_from_spec(screenshot_spec)
+screenshot_spec.loader.exec_module(screenshot_module)
+ScreenshotHandler = screenshot_module.ScreenshotHandler
+
 # Simplified get_vite_port function for standalone launcher
 
 logger = logging.getLogger("pdf-viewer.launcher")
@@ -362,6 +368,7 @@ def main() -> int:
     # QWebChannel bridge for local JS-Python interaction
     channel = None
     bridge = None
+    screenshot_handler = None
     webchannel_enabled = not args.disable_webchannel
     webchannel_executed = False
     webchannel_note: str | None = None
@@ -369,10 +376,12 @@ def main() -> int:
         try:
             channel = QWebChannel(window)
             bridge = PdfViewerBridge(ws_client, window, file_path)
+            screenshot_handler = ScreenshotHandler(window, project_root)
             channel.registerObject('pdfViewerBridge', bridge)
+            channel.registerObject('screenshotHandler', screenshot_handler)
             if window.web_page:
                 window.web_page.setWebChannel(channel)
-            logger.info("QWebChannel initialized and pdfViewerBridge registered")
+            logger.info("QWebChannel initialized: pdfViewerBridge and screenshotHandler registered")
             webchannel_executed = True
         except Exception as exc:
             webchannel_note = f"Initialization failed: {exc}"
