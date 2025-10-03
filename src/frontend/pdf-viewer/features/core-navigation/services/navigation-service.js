@@ -152,7 +152,7 @@ export class NavigationService {
    *
    * @example
    * const actualPosition = await navigationService.scrollToPosition(50, 25);
-   * // 50 (滚动到第25页的中间位置)
+   * // 50 (滚动到第25页的中间位置，并尽可能让目标位置显示在窗口中心)
    */
   async scrollToPosition(percentage, pageNumber) {
     return new Promise((resolve) => {
@@ -183,13 +183,36 @@ export class NavigationService {
         // 计算页面内的偏移量
         const offsetWithinPage = (pageHeight * clampedPercentage) / 100;
 
-        // 最终滚动位置 = 页面顶部位置 + 页面内偏移
-        const targetScrollTop = pageOffsetTop + offsetWithinPage;
+        // 目标位置在文档中的绝对Y坐标
+        const targetPositionY = pageOffsetTop + offsetWithinPage;
 
-        this.#logger.debug(`滚动到页面 ${pageNumber} 的位置: ${clampedPercentage}% (绝对位置=${targetScrollTop}px, 页面顶部=${pageOffsetTop}px, 页面内偏移=${offsetWithinPage}px, 页面高度=${pageHeight}px)`);
+        // 获取视口高度
+        const viewportHeight = viewerContainer.clientHeight;
+
+        // 计算滚动位置，让目标位置显示在视口中心
+        // 理想情况：滚动位置 = 目标位置 - (视口高度 / 2)
+        let targetScrollTop = targetPositionY - (viewportHeight / 2);
+
+        // 边界处理：确保滚动位置在有效范围内
+        const maxScrollTop = viewerContainer.scrollHeight - viewportHeight;
+        const boundedScrollTop = Math.max(0, Math.min(targetScrollTop, maxScrollTop));
+
+        // 计算实际居中偏移量（用于日志）
+        const centerOffset = targetPositionY - boundedScrollTop - (viewportHeight / 2);
+        const isCentered = Math.abs(centerOffset) < 1; // 允许1px误差
+
+        this.#logger.debug(
+          `滚动到页面 ${pageNumber} 的位置: ${clampedPercentage}%\n` +
+          `  - 目标位置Y坐标: ${targetPositionY}px (页面顶部=${pageOffsetTop}px + 页面内偏移=${offsetWithinPage}px)\n` +
+          `  - 视口高度: ${viewportHeight}px\n` +
+          `  - 理想滚动位置: ${targetScrollTop.toFixed(0)}px (目标位置 - 视口高度/2)\n` +
+          `  - 实际滚动位置: ${boundedScrollTop.toFixed(0)}px\n` +
+          `  - 居中状态: ${isCentered ? '✓ 完全居中' : `偏移 ${centerOffset.toFixed(0)}px (${centerOffset > 0 ? '偏下' : '偏上'})`}\n` +
+          `  - 边界限制: [0, ${maxScrollTop.toFixed(0)}px]`
+        );
 
         // 使用平滑滚动
-        this.#smoothScrollTo(viewerContainer, targetScrollTop, this.#options.scrollDuration)
+        this.#smoothScrollTo(viewerContainer, boundedScrollTop, this.#options.scrollDuration)
           .then(() => {
             resolve(clampedPercentage);
           })
