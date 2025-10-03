@@ -219,6 +219,7 @@ export class BookmarkSidebarUI {
 
     // 创建按钮容器
     const buttonContainer = document.createElement('div');
+    buttonContainer.id = 'pdf-viewer-button-container'; // 添加ID让其他Feature能找到
 
     // 根据容器可见性选择定位策略：优先挂在容器，否则挂到 body（fixed）
     const attachToBody = !this.#container || (this.#container.offsetWidth === 0 && this.#container.offsetHeight === 0);
@@ -251,21 +252,7 @@ export class BookmarkSidebarUI {
     bookmarkBtn.addEventListener('click', () => this.show());
     buttonContainer.appendChild(bookmarkBtn);
 
-    // 创建标注按钮
-    const annotationBtn = document.createElement('button');
-    annotationBtn.type = 'button';
-    annotationBtn.textContent = '✎ 标注';
-    annotationBtn.title = '打开标注';
-    annotationBtn.style.cssText = [
-      'padding:4px 8px','border:1px solid #ddd','border-radius:4px',
-      'background:#fff','cursor:pointer','box-shadow:0 1px 2px rgba(0,0,0,0.06)',
-      'font-size:13px','white-space:nowrap'
-    ].join(';');
-    annotationBtn.addEventListener('click', () => {
-      this.#logger.info('[BookmarkSidebarUI] Annotation button clicked');
-      // TODO: 实现标注功能
-    });
-    buttonContainer.appendChild(annotationBtn);
+    // 标注按钮已移至 AnnotationFeature 中管理
 
     // 创建卡片按钮
     const cardBtn = document.createElement('button');

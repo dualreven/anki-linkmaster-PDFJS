@@ -752,27 +752,160 @@ export const PDF_VIEWER_EVENTS = {
      * @type {string}
      */
     INITIALIZED: 'pdf-viewer:state:initialized',
-    
+
     /**
      * 应用销毁事件
      * @event pdf-viewer:state:destroyed
      * @type {string}
      */
     DESTROYED: 'pdf-viewer:state:destroyed',
-    
+
     /**
      * 错误状态事件
      * @event pdf-viewer:state:error
      * @type {string}
      */
     ERROR: 'pdf-viewer:state:error',
-    
+
     /**
      * 加载状态事件
      * @event pdf-viewer:state:loading
      * @type {string}
      */
     LOADING: 'pdf-viewer:state:loading',
+  },
+
+  /**
+   * 标注相关事件
+   * @namespace ANNOTATION
+   * @description 事件格式说明：使用 'annotation-sidebar:xxx:xxx' 或 'annotation-tool:xxx:xxx' 等来符合3段格式要求
+   */
+  ANNOTATION: {
+    /**
+     * 侧边栏控制事件 - 使用 annotation-sidebar 作为模块名
+     */
+    SIDEBAR: {
+      /** 打开标注侧边栏 */
+      OPEN: 'annotation-sidebar:toggle:open',
+      /** 关闭标注侧边栏 */
+      CLOSE: 'annotation-sidebar:toggle:close',
+      /** 切换标注侧边栏显示/隐藏 */
+      TOGGLE: 'annotation-sidebar:toggle:requested',
+      /** 侧边栏已打开 */
+      OPENED: 'annotation-sidebar:toggle:opened',
+      /** 侧边栏已关闭 */
+      CLOSED: 'annotation-sidebar:toggle:closed',
+    },
+
+    /**
+     * 工具模式切换事件
+     */
+    TOOL: {
+      /** 激活工具 - data: { tool: 'screenshot'|'text-highlight'|'comment' } */
+      ACTIVATE: 'annotation-tool:activate:requested',
+      /** 停用工具 */
+      DEACTIVATE: 'annotation-tool:deactivate:requested',
+      /** 工具已激活 */
+      ACTIVATED: 'annotation-tool:activate:success',
+      /** 工具已停用 */
+      DEACTIVATED: 'annotation-tool:deactivate:success',
+    },
+
+    /**
+     * 标注CRUD事件
+     */
+    /** 创建标注请求 */
+    CREATE: 'annotation:create:requested',
+    /** 标注已创建 */
+    CREATED: 'annotation:create:success',
+    /** 更新标注请求 */
+    UPDATE: 'annotation:update:requested',
+    /** 标注已更新 */
+    UPDATED: 'annotation:update:success',
+    /** 删除标注请求 */
+    DELETE: 'annotation:delete:requested',
+    /** 标注已删除 */
+    DELETED: 'annotation:delete:success',
+
+    /**
+     * 标注交互事件
+     */
+    /** 选中标注 */
+    SELECT: 'annotation:select:requested',
+    /** 标注已选中 */
+    SELECTED: 'annotation:select:success',
+    /** 跳转到标注位置 */
+    JUMP_TO: 'annotation:jump:requested',
+    /** 高亮标注（闪烁效果） */
+    HIGHLIGHT: 'annotation:highlight:requested',
+
+    /**
+     * 评论事件
+     */
+    COMMENT: {
+      /** 添加评论请求 */
+      ADD: 'annotation-comment:add:requested',
+      /** 评论已添加 */
+      ADDED: 'annotation-comment:add:success',
+      /** 删除评论请求 */
+      DELETE: 'annotation-comment:delete:requested',
+      /** 评论已删除 */
+      DELETED: 'annotation-comment:delete:success',
+    },
+
+    /**
+     * 数据加载事件
+     */
+    DATA: {
+      /** 加载标注请求 */
+      LOAD: 'annotation-data:load:requested',
+      /** 标注已加载 */
+      LOADED: 'annotation-data:load:success',
+      /** 保存标注请求 */
+      SAVE: 'annotation-data:save:requested',
+      /** 标注已保存 */
+      SAVED: 'annotation-data:save:success',
+      /** 加载失败 */
+      LOAD_FAILED: 'annotation-data:load:failed',
+      /** 保存失败 */
+      SAVE_FAILED: 'annotation-data:save:failed',
+    },
+
+    /**
+     * 截图工具事件
+     */
+    SCREENSHOT: {
+      /** 开始截图 */
+      START: 'annotation-screenshot:start:requested',
+      /** 区域已选择 */
+      AREA_SELECTED: 'annotation-screenshot:area:selected',
+      /** 截图已捕获 */
+      CAPTURED: 'annotation-screenshot:capture:success',
+      /** 取消截图 */
+      CANCEL: 'annotation-screenshot:cancel:requested',
+    },
+
+    /**
+     * 选字高亮事件
+     */
+    TEXT_HIGHLIGHT: {
+      /** 开始选字 */
+      SELECTION_START: 'annotation-highlight:selection:started',
+      /** 文本已选择 */
+      TEXT_SELECTED: 'annotation-highlight:text:selected',
+      /** 高亮已应用 */
+      HIGHLIGHT_APPLIED: 'annotation-highlight:apply:success',
+    },
+
+    /**
+     * 批注工具事件
+     */
+    COMMENT_TOOL: {
+      /** 批注工具激活 */
+      ACTIVE: 'annotation-comment-tool:activate:success',
+      /** 位置已选择 */
+      POSITION_SELECTED: 'annotation-comment-tool:position:selected',
+    },
   }
 };
 

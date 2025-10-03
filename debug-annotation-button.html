@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>调试标注按钮</title>
+</head>
+<body>
+    <h1>调试标注按钮加载</h1>
+    <button onclick="checkContainers()">检查按钮容器</button>
+    <button onclick="checkFeature()">检查AnnotationFeature</button>
+    <button onclick="checkLogs()">查看日志</button>
+    <pre id="output"></pre>
+
+    <script>
+        function log(msg) {
+            const output = document.getElementById('output');
+            output.textContent += msg + '\n';
+            console.log(msg);
+        }
+
+        function checkContainers() {
+            const output = document.getElementById('output');
+            output.textContent = '=== 检查按钮容器 ===\n';
+
+            // 检查main元素
+            const main = document.querySelector('main');
+            log(`main元素: ${main ? '✅ 存在' : '❌ 不存在'}`);
+
+            if (main) {
+                // 检查flex-direction:column容器
+                const flexContainers = main.querySelectorAll('div[style*="flex-direction"]');
+                log(`\nflex容器数量: ${flexContainers.length}`);
+                flexContainers.forEach((container, i) => {
+                    log(`\n容器 ${i + 1}:`);
+                    log(`  位置: ${container.style.position}`);
+                    log(`  样式: ${container.style.cssText.substring(0, 100)}...`);
+                    log(`  子元素数量: ${container.children.length}`);
+                    Array.from(container.children).forEach((child, j) => {
+                        log(`    ${j + 1}. ${child.tagName} ${child.id ? '#' + child.id : ''} - ${child.textContent?.substring(0, 20)}`);
+                    });
+                });
+            }
+
+            // 检查body上的fixed容器
+            const bodyFixedContainers = document.body.querySelectorAll('div[style*="position:fixed"][style*="flex-direction"]');
+            log(`\nbody上的fixed flex容器数量: ${bodyFixedContainers.length}`);
+            bodyFixedContainers.forEach((container, i) => {
+                log(`\n容器 ${i + 1}:`);
+                log(`  样式: ${container.style.cssText.substring(0, 100)}...`);
+                log(`  子元素数量: ${container.children.length}`);
+            });
+
+            // 检查标注按钮
+            const annotationBtn = document.getElementById('annotation-toggle-btn');
+            log(`\n标注按钮: ${annotationBtn ? '✅ 存在' : '❌ 不存在'}`);
+            if (annotationBtn) {
+                log(`  父元素: ${annotationBtn.parentElement?.tagName}`);
+                log(`  文本: ${annotationBtn.textContent}`);
+            }
+        }
+
+        function checkFeature() {
+            const output = document.getElementById('output');
+            output.textContent = '=== 检查AnnotationFeature ===\n';
+
+            if (window.pdfViewerApp) {
+                log('✅ pdfViewerApp 存在');
+                const registry = window.pdfViewerApp.registry;
+
+                try {
+                    const annotationFeature = registry.getFeature('annotation');
+                    log(`AnnotationFeature: ${annotationFeature ? '✅ 已安装' : '❌ 未安装'}`);
+
+                    // 检查所有已安装的features
+                    log('\n已安装的Features:');
+                    const features = registry._features || new Map();
+                    features.forEach((feature, name) => {
+                        log(`  - ${name}: ${feature.version || 'N/A'}`);
+                    });
+                } catch (e) {
+                    log(`❌ 错误: ${e.message}`);
+                }
+            } else {
+                log('❌ pdfViewerApp 不存在');
+            }
+        }
+
+        function checkLogs() {
+            const output = document.getElementById('output');
+            output.textContent = '=== 控制台日志 ===\n';
+            log('请打开浏览器开发者工具查看完整日志');
+            log('查找关键词: AnnotationFeature, annotation button');
+        }
+
+        // 页面加载后自动检查
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                log('=== 页面加载完成，3秒后自动检查 ===\n');
+                setTimeout(checkContainers, 3000);
+            }, 0);
+        });
+    </script>
+</body>
+</html>
