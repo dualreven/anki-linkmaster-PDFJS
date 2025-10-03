@@ -32,6 +32,7 @@ export class PDFViewerManager {
   #eventBus = null;
   #pdfViewer = null;
   #linkService = null;
+  #pdfjsEventBus = null;  // PDF.js的EventBus实例
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
@@ -57,13 +58,13 @@ export class PDFViewerManager {
     try {
       // 创建PDF.js EventBus
       this.#logger.info("Creating PDF.js EventBus...");
-      const pdfjsEventBus = new EventBus();
+      this.#pdfjsEventBus = new EventBus();
       this.#logger.info("PDF.js EventBus created");
 
       // 创建PDFLinkService
       this.#logger.info("Creating PDFLinkService...");
       this.#linkService = new PDFLinkService({
-        eventBus: pdfjsEventBus,
+        eventBus: this.#pdfjsEventBus,
       });
       this.#logger.info("PDFLinkService created");
 
@@ -87,7 +88,7 @@ export class PDFViewerManager {
       this.#pdfViewer = new PDFViewer({
         container: this.#container,
         viewer: viewerElement, // 明确指定viewer元素
-        eventBus: pdfjsEventBus,
+        eventBus: this.#pdfjsEventBus,
         linkService: this.#linkService,
         textLayerMode: 2, // 启用增强文本层
         annotationMode: 2, // 启用表单和注释
@@ -102,7 +103,7 @@ export class PDFViewerManager {
       this.#linkService.setViewer(this.#pdfViewer);
 
       // 监听PDFViewer的事件并桥接到应用EventBus
-      this.#setupEventBridge(pdfjsEventBus);
+      this.#setupEventBridge(this.#pdfjsEventBus);
 
       this.#logger.info("PDFViewer initialized with full functionality");
     } catch (error) {
@@ -322,8 +323,7 @@ export class PDFViewerManager {
    */
   get eventBus() {
     // 注意：这是PDF.js的EventBus，不是应用的EventBus
-    // 从PDFViewer中获取，因为它在初始化时被传入
-    return this.#pdfViewer?._eventBus || null;
+    return this.#pdfjsEventBus;
   }
 
   /**

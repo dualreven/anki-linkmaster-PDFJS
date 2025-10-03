@@ -226,6 +226,15 @@ export class SearchFeature {
       { subscriberId: 'SearchFeature' }
     );
 
+    // 监听搜索结果更新（从SearchEngine）
+    this.#eventBus.on(
+      PDF_VIEWER_EVENTS.SEARCH.RESULT.UPDATED,
+      ({ current, total, query }) => {
+        this.#handleSearchResultUpdated(current, total, query);
+      },
+      { subscriberId: 'SearchFeature' }
+    );
+
     this.#logger.info('Event listeners attached');
   }
 
@@ -339,6 +348,21 @@ export class SearchFeature {
 
     // 更新搜索引擎选项
     this.#searchEngine.updateOptions({ [option]: value });
+  }
+
+  /**
+   * 处理搜索结果更新
+   * @private
+   * @param {number} current - 当前匹配索引
+   * @param {number} total - 总匹配数
+   * @param {string} query - 搜索关键词
+   */
+  #handleSearchResultUpdated(current, total, query) {
+    this.#logger.info(`Handling search result updated: ${current}/${total} for query "${query}"`);
+
+    // 更新SearchStateManager的结果数据，使hasResults返回正确的值
+    this.#stateManager.updateResults(current, total);
+    this.#stateManager.setSearching(false);
   }
 
   /**

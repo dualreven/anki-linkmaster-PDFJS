@@ -98,10 +98,28 @@ export class SearchEngine {
         linkService: pdfLinkService,
       });
 
-      // 设置pdfViewer的findController
-      pdfViewer.setFindController(this.#findController);
+      // 将findController绑定到PDFViewer（直接设置属性）
+      pdfViewer.findController = this.#findController;
 
-      this.#logger.info('PDFFindController initialized successfully');
+      // 设置可见性回调（PDFFindController需要知道哪些页面可见）
+      this.#findController.onIsPageVisible = (pageNumber) => {
+        // 从PDFViewer获取可见页面信息
+        const visiblePages = pdfViewer._getVisiblePages();
+        return visiblePages?.ids?.has(pageNumber) || false;
+      };
+
+      // 设置PDF文档到findController（因为SearchEngine初始化时PDF已经加载）
+      const pdfDocument = pdfViewer.pdfDocument;
+      this.#logger.info(`[SearchEngine] PDFViewer.pdfDocument exists: ${!!pdfDocument}, pages: ${pdfDocument?.numPages || 0}`);
+
+      if (pdfDocument) {
+        this.#findController.setDocument(pdfDocument);
+        this.#logger.info('[SearchEngine] PDF document set to PDFFindController');
+      } else {
+        this.#logger.warn('[SearchEngine] ⚠️ PDFViewer has no document yet');
+      }
+
+      this.#logger.info('[SearchEngine] ✅ PDFFindController initialized and bound to PDFViewer');
     } catch (error) {
       this.#logger.error('Failed to initialize PDFFindController:', error);
       throw new Error(`SearchEngine initialization failed: ${error.message}`);
@@ -262,7 +280,9 @@ export class SearchEngine {
    * @returns {Promise<void>}
    */
   async executeSearch(query, options = {}) {
-    this.#logger.info(`Executing search: "${query}"`, options);
+    this.#logger.info(`[SearchEngine] Executing search: "${query}"`, options);
+    this.#logger.info(`[SearchEngine] findController exists: ${!!this.#findController}`);
+    this.#logger.info(`[SearchEngine] pdfEventBus exists: ${!!this.#pdfEventBus}`);
 
     if (!this.#findController) {
       throw new Error('SearchEngine not initialized. Call initialize() first.');
@@ -291,19 +311,23 @@ export class SearchEngine {
       { actorId: 'SearchEngine' }
     );
 
-    // 调用PDF.js的搜索API
+    // 调用PDF.js的搜索API（通过EventBus dispatch）
     try {
-      this.#findController.executeCommand('find', {
+      const searchParams = {
+        type: null, // null表示新搜索，"again"表示查找下一个
         query: this.#currentQuery,
         caseSensitive: this.#currentOptions.caseSensitive,
         entireWord: this.#currentOptions.wholeWords,
         highlightAll: this.#currentOptions.highlightAll,
         findPrevious: false, // 总是从第一个开始
-      });
+      };
 
-      this.#logger.info('Search command executed');
+      this.#logger.info('[SearchEngine] Dispatching find event with params:', searchParams);
+      this.#pdfEventBus.dispatch('find', searchParams);
+
+      this.#logger.info('[SearchEngine] Find event dispatched successfully');
     } catch (error) {
-      this.#logger.error('Search execution failed:', error);
+      this.#logger.error('[SearchEngine] Search execution failed:', error);
       this.#isSearching = false;
 
       this.#eventBus.emit(
@@ -333,7 +357,8 @@ export class SearchEngine {
     }
 
     try {
-      this.#findController.executeCommand('findagain', {
+      this.#pdfEventBus.dispatch('find', {
+        type: 'again', // "again"表示查找下一个
         query: this.#currentQuery,
         caseSensitive: this.#currentOptions.caseSensitive,
         entireWord: this.#currentOptions.wholeWords,
@@ -366,7 +391,8 @@ export class SearchEngine {
     }
 
     try {
-      this.#findController.executeCommand('findagain', {
+      this.#pdfEventBus.dispatch('find', {
+        type: 'again', // "again"表示查找下一个/上一个
         query: this.#currentQuery,
         caseSensitive: this.#currentOptions.caseSensitive,
         entireWord: this.#currentOptions.wholeWords,
@@ -388,8 +414,10 @@ export class SearchEngine {
   clearSearch() {
     this.#logger.info('Clearing search');
 
-    if (this.#findController) {
-      this.#findController.executeCommand('find', {
+    if (this.#pdfEventBus) {
+      // 使用dispatch发送清空搜索的事件
+      this.#pdfEventBus.dispatch('find', {
+        type: null,
         query: '',
         caseSensitive: false,
         entireWord: false,
