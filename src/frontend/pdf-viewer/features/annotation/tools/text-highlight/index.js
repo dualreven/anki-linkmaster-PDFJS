@@ -7,7 +7,7 @@
 import { IAnnotationTool } from '../../interfaces/IAnnotationTool.js';
 import { TextSelectionHandler } from './text-selection-handler.js';
 import { HighlightRenderer } from './highlight-renderer.js';
-import { ColorPickerDialog } from './color-picker-dialog.js';
+import { FloatingColorToolbar } from './floating-color-toolbar.js';
 import { Annotation } from '../../models/Annotation.js';
 import { PDF_VIEWER_EVENTS } from '../../../../../common/event/pdf-viewer-constants.js';
 
@@ -34,11 +34,14 @@ export class TextHighlightTool extends IAnnotationTool {
   /** @type {HighlightRenderer} */
   #highlightRenderer = null;
 
-  /** @type {ColorPickerDialog} */
-  #colorPickerDialog = null;
+  /** @type {FloatingColorToolbar} */
+  #floatingToolbar = null;
 
   /** @type {boolean} */
   #isActive = false;
+
+  /** @type {Object|null} 当前选择数据（等待用户选择颜色） */
+  #pendingSelection = null;
 
   /** @type {string} */
   #defaultColor = '#ffff00'; // 默认黄色
@@ -112,7 +115,12 @@ export class TextHighlightTool extends IAnnotationTool {
     // 创建工具特定的对象
     this.#selectionHandler = new TextSelectionHandler(this.#eventBus, this.#logger);
     this.#highlightRenderer = new HighlightRenderer(this.#pdfViewerManager, this.#logger);
-    this.#colorPickerDialog = new ColorPickerDialog();
+
+    // 创建浮动颜色工具栏
+    this.#floatingToolbar = new FloatingColorToolbar({
+      onColorSelected: this.#handleColorSelected.bind(this),
+      onCancel: this.#handleColorSelectionCancelled.bind(this)
+    });
 
     // 绑定事件处理器
     this.#onTextSelectionCompletedHandler = this.#handleTextSelectionCompleted.bind(this);
@@ -202,16 +210,16 @@ export class TextHighlightTool extends IAnnotationTool {
    * @param {number} data.pageNumber - 页码
    * @param {Array<{start: number, end: number}>} data.ranges - 文本范围
    * @param {Range} data.range - 浏览器Range对象
-   * @param {Object} data.rect - 边界矩形
-   * @returns {Promise<void>}
+   * @param {Object} data.rect - 边界矩形（相对于页面容器）
+   * @returns {void}
    * @private
    */
-  async #handleTextSelectionCompleted(data) {
+  #handleTextSelectionCompleted(data) {
     if (!this.#isActive) {
       return;
     }
 
-    const { text, pageNumber, ranges, rect } = data;
+    const { text, pageNumber, ranges, rect, range } = data;
 
     this.#logger.info('[TextHighlightTool] Text selected', {
       text: text.substring(0, 50) + '...',
@@ -219,17 +227,34 @@ export class TextHighlightTool extends IAnnotationTool {
       rangesCount: ranges.length
     });
 
+    // 保存选择数据，等待用户选择颜色
+    this.#pendingSelection = { text, pageNumber, ranges, rect };
+
+    // 获取选择区域相对于viewport的位置
+    const viewportRect = range.getBoundingClientRect();
+
+    // 显示浮动颜色工具栏
+    this.#floatingToolbar.show(viewportRect);
+
+    this.#logger.debug('[TextHighlightTool] Floating toolbar shown at', viewportRect);
+  }
+
+  /**
+   * 处理颜色选择
+   * @param {string} color - 选中的颜色
+   * @private
+   */
+  #handleColorSelected(color) {
+    if (!this.#pendingSelection) {
+      this.#logger.warn('[TextHighlightTool] No pending selection');
+      return;
+    }
+
+    const { text, pageNumber, ranges, rect } = this.#pendingSelection;
+
+    this.#logger.info('[TextHighlightTool] Color selected', { color });
+
     try {
-      // 显示颜色选择对话框
-      const color = await this.#colorPickerDialog.show();
-
-      if (!color) {
-        // 用户取消了
-        this.#logger.info('[TextHighlightTool] User cancelled color selection');
-        window.getSelection()?.removeAllRanges();
-        return;
-      }
-
       // 创建标注对象
       const annotation = new Annotation({
         type: 'text-highlight',
@@ -252,18 +277,30 @@ export class TextHighlightTool extends IAnnotationTool {
         annotation: annotation
       });
 
-      // 清除选择
-      window.getSelection()?.removeAllRanges();
-
       this.#logger.info('[TextHighlightTool] Annotation created', {
         id: annotation.id,
         type: annotation.type,
         pageNumber: annotation.pageNumber
       });
     } catch (error) {
-      this.#logger.error('[TextHighlightTool] Error handling text selection', error);
+      this.#logger.error('[TextHighlightTool] Error creating annotation', error);
+    } finally {
+      // 清除选择和待处理数据
       window.getSelection()?.removeAllRanges();
+      this.#pendingSelection = null;
     }
+  }
+
+  /**
+   * 处理颜色选择取消
+   * @private
+   */
+  #handleColorSelectionCancelled() {
+    this.#logger.info('[TextHighlightTool] Color selection cancelled');
+
+    // 清除选择和待处理数据
+    window.getSelection()?.removeAllRanges();
+    this.#pendingSelection = null;
   }
 
   /**
@@ -553,8 +590,8 @@ export class TextHighlightTool extends IAnnotationTool {
       this.#highlightRenderer.destroy();
     }
 
-    if (this.#colorPickerDialog) {
-      this.#colorPickerDialog.destroy();
+    if (this.#floatingToolbar) {
+      this.#floatingToolbar.destroy();
     }
 
     // 清理引用
@@ -563,7 +600,8 @@ export class TextHighlightTool extends IAnnotationTool {
     this.#pdfViewerManager = null;
     this.#selectionHandler = null;
     this.#highlightRenderer = null;
-    this.#colorPickerDialog = null;
+    this.#floatingToolbar = null;
+    this.#pendingSelection = null;
     this.#onTextSelectionCompletedHandler = null;
     this.#onAnnotationCreatedHandler = null;
 
