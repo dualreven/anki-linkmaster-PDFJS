@@ -13,12 +13,15 @@
         <header>
             <h1>PDF文件管理-B</h1>
             <div style="display: flex; align-items: center; gap: 10px;">
+                <button id="open-pdf-btn" class="btn success" title="打开选中的PDF文件">📂 打开</button>
                 <button id="add-pdf-btn" class="btn primary">＋添加</button>
                 <button id="batch-delete-btn" class="btn danger" title="删除选中的PDF文件">－删除</button>
                 <div style="width: 20px;"></div>
                 <button id="edit-pdf-btn" class="btn" title="选择一条记录后可编辑">✏️ 编辑</button>
-                <button id="search-btn" class="btn" title="搜索PDF文件">🔍 搜索</button>
-                <button id="filter-btn" class="btn" title="筛选PDF文件">🎯 筛选</button>
+                <button id="sort-btn" class="btn" title="排序PDF列表">🔃 排序</button>
+                <button id="search-filter-btn" class="btn" title="搜索和筛选PDF文件">🔍 查找</button>
+                <button id="preset-filter-btn" class="btn" title="保存和加载搜索预设">🔖 预设</button>
+                <button id="review-btn" class="btn" title="复习PDF文件">📚 复习</button>
             </div>
         </header>
 
@@ -33,11 +36,11 @@
                 <p>点击"添加文件"按钮开始管理您的PDF文档</p>
             </div>
 
-            <!-- 全局消息提示 (移到表格下方) -->
-            <div id="global-success" style="display: none; background: #d4edda; border: 1px solid #c3e6cb; color: #155724; border-radius: 4px; padding: 10px; margin-top: 15px; font-size: 14px;">
+            <!-- Toast消息提示 (浮动在右上角) -->
+            <div id="global-success" class="toast toast-success">
                 <!-- 成功消息将在这里显示 -->
             </div>
-            <div id="global-error" style="display: none; background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; border-radius: 4px; padding: 10px; margin-top: 15px; font-size: 14px;">
+            <div id="global-error" class="toast toast-error">
                 <!-- 错误消息将在这里显示 -->
             </div>
 
