@@ -3,6 +3,7 @@ import js from "@eslint/js";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 import jsdoc from "eslint-plugin-jsdoc";
+import eventNameFormat from "./eslint-rules/event-name-format.js";
 
 export default [
   // 使用 ESLint 官方推荐配置
@@ -13,6 +14,11 @@ export default [
     files: ["**/*.js", "**/*.cjs", "**/*.mjs"],
     plugins: {
       jsdoc,
+      "custom": {
+        rules: {
+          "event-name-format": eventNameFormat
+        }
+      }
     },
     languageOptions: {
       ecmaVersion: 2022,
@@ -23,6 +29,9 @@ export default [
       },
     },
     rules: {
+      // 🚨 事件名称格式检查（自定义规则）
+      "custom/event-name-format": "error",    // 强制三段式事件名称
+
       // 风格与质量控制
       "eqeqeq": ["error", "always"],          // 强制使用 ===
       "semi": ["error", "always"],            // 必须使用分号

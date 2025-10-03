@@ -1,4 +1,96 @@
 ---
+
+# 🚨 极其重要：事件名称三段式格式规范 🚨
+
+**⚠️ 在编写任何 eventBus.emit() 或 eventBus.on() 代码之前，必须阅读此节！**
+
+## ❌ 最常见的错误（AI必看）
+
+事件名称**必须严格**遵循三段式格式：`{module}:{action}:{status}`
+
+**错误示例（绝对禁止）：**
+```javascript
+// ❌ 缺少冒号
+eventBus.emit('loadData', data);
+eventBus.emit('onButtonClick', data);
+
+// ❌ 超过3段
+eventBus.emit('pdf:list:data:loaded', data);
+eventBus.emit('pdf:viewer:file:load:completed', data);
+
+// ❌ 使用下划线
+eventBus.emit('pdf_list_updated', data);
+
+// ❌ 使用驼峰命名
+eventBus.emit('pdfListUpdated', data);
+eventBus.emit('onDataLoad', data);
+
+// ❌ 只有2段
+eventBus.emit('pdf:loaded', data);
+```
+
+**正确示例（必须这样写）：**
+```javascript
+// ✅ 正确格式
+eventBus.emit('pdf:load:completed', data);
+eventBus.emit('bookmark:toggle:requested', data);
+eventBus.emit('sidebar:open:success', data);
+eventBus.emit('annotation:create:failed', data);
+```
+
+## 💡 强制使用辅助函数（推荐）
+
+为避免格式错误，**强烈推荐**使用辅助函数：
+
+```javascript
+import { createEventName, EventModule, EventAction, EventStatus } from '../common/event/event-name-helpers.js';
+
+// ✅ 使用辅助函数（编译时检查参数）
+const eventName = createEventName(
+  EventModule.PDF,      // 第1段：模块
+  EventAction.LOAD,     // 第2段：动作
+  EventStatus.COMPLETED // 第3段：状态
+);
+eventBus.emit(eventName, data);
+
+// ✅ 或使用字符串参数
+const eventName = createEventName('pdf', 'load', 'completed');
+```
+
+## 🛡️ 运行时保护机制
+
+项目已启用严格的运行时验证：
+- 如果事件名称格式错误，**事件将被阻止发布**
+- 控制台会显示**详细的错误提示和修复建议**
+- 错误信息包含正确示例和常见错误模式检测
+
+如果看到错误提示，**必须立即修复事件名称**，不要尝试绕过验证！
+
+## 📋 事件名称组成规则
+
+1. **第1段（module）**：模块名称
+   - 小写字母开头
+   - 只能包含：小写字母、数字、连字符
+   - 例如：`pdf`, `bookmark`, `pdf-viewer`
+
+2. **第2段（action）**：动作名称
+   - 小写字母开头
+   - 只能包含：小写字母、数字、连字符
+   - 例如：`load`, `create`, `toggle`, `open`
+
+3. **第3段（status）**：状态名称
+   - 常用值：`requested`, `completed`, `success`, `failed`, `error`, `started`, `progress`, `updated`
+   - 小写字母开头
+   - 只能包含：小写字母、数字、连字符
+
+## 参考文档
+
+- 事件命名规范：`src/frontend/common/event/event-bus.js` (EventNameValidator 类)
+- 辅助工具：`src/frontend/common/event/event-name-helpers.js`
+- 事件常量：`src/frontend/common/event/pdf-viewer-constants.js`
+
+---
+
 基本规则:
    - 总是使用中文回复.
    - 询问用户时,使用Python脚本发出声音提醒: `python quick_beep.py`
