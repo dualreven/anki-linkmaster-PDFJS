@@ -95,16 +95,17 @@ debug代码时的注意事项:
    性能优化: 注意大文件的分块加载，避免阻塞主线程
 
 ⚠️ EventBus 事件命名规范 (严格遵守):
-   格式: {module}:{action}:{status}
+   格式: {module}:{action}:{status}  (必须正好3段，用冒号分隔)
 
    示例:
-   ✅ 正确: 'pdf-list:data:load:completed', 'bookmark:toggle:requested', 'ui:button:click:success'
-   ❌ 错误: 'loadData', 'onButtonClick', 'pdf_list_updated'
+   ✅ 正确: 'pdf-list:load:completed', 'bookmark:toggle:requested', 'ui:refresh:success'
+   ❌ 错误: 'loadData', 'pdf-list:data:load:completed', 'pdf_list_updated', 'onButtonClick'
 
    规则:
    - module: 模块名称 (小写，用连字符分隔，如 pdf-list, pdf-viewer)
-   - action: 动作名称 (小写，用连字符分隔，如 data:load, bookmark:toggle)
+   - action: 动作名称 (小写，用连字符分隔，如 load, toggle, refresh)
    - status: 状态 (requested/completed/failed/success/error 等)
+   - ⚠️ 必须正好3段，不能多也不能少！
 
    ⚠️ 局部事件 vs 全局事件 (严格区分):
 
