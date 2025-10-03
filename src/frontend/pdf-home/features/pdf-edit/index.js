@@ -543,14 +543,44 @@ export class PDFEditFeature {
         { actorId: 'PDFEditFeature' }
       );
 
+      // 发送WebSocket消息到后端
+      this.#sendEditRequestToBackend(this.#currentRecord.pdf_id || this.#currentRecord.id, updates);
+
       // 关闭模态框
       this.#modalManager.hide();
 
-      // TODO: 发送WebSocket消息到后端（待后端支持）
-      // this.#sendEditRequestToBackend(this.#currentRecord.pdf_id, updates);
-
     } catch (error) {
       this.#logger.error('Form submission failed:', error);
+    }
+  }
+
+  /**
+   * 发送编辑请求到后端
+   * @private
+   * @param {string} fileId - 文件ID
+   * @param {Object} updates - 更新数据
+   */
+  #sendEditRequestToBackend(fileId, updates) {
+    if (!this.#wsClient) {
+      this.#logger.warn('WebSocket client not available, cannot send edit request');
+      return;
+    }
+
+    try {
+      const message = {
+        type: 'update_pdf',
+        request_id: `edit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        data: {
+          file_id: fileId,
+          updates: updates
+        }
+      };
+
+      this.#logger.info('Sending edit request to backend:', { fileId, updates });
+      this.#wsClient.sendMessage(message);
+
+    } catch (error) {
+      this.#logger.error('Failed to send edit request:', error);
     }
   }
 

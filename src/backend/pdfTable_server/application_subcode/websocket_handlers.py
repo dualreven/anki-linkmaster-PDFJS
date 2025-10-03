@@ -54,6 +54,8 @@ class WebSocketHandlers:
                 self.handle_open_pdf_request(client, message)
             elif message_type == 'console_log':
                 self.handle_console_log(client, message)
+            elif message_type == 'update_pdf':
+                self.handle_update_pdf(client, message)
             elif message_type == 'heartbeat':
                 # 心跳消息，不需要处理，只是保持连接
                 logger.debug(f"[DEBUG] 收到心跳消息 from {client.peerPort()}")
@@ -679,3 +681,102 @@ class WebSocketHandlers:
         except Exception as e:
             logger.error(f"处理console日志时出错: {str(e)}")
             # console日志处理失败不需要给前端发送错误响应，避免递归错误
+
+    def handle_update_pdf(self, client, message):
+        """处理PDF文件更新请求
+
+        Args:
+            client: QWebSocket客户端对象
+            message: 消息内容
+        """
+        try:
+            # 获取文件ID和更新数据
+            data = message.get('data', {})
+            file_id = data.get('file_id') or data.get('pdf_id')
+            updates = data.get('updates', {})
+
+            if not file_id:
+                logger.warning("更新PDF文件请求缺少文件ID参数")
+                expected_format = {
+                    "type": "update_pdf",
+                    "request_id": "uuid",
+                    "data": {
+                        "file_id": "file_unique_id",
+                        "updates": {
+                            "title": "新书名",
+                            "author": "作者",
+                            "subject": "主题",
+                            "keywords": "关键词",
+                            "rating": 5,
+                            "tags": ["tag1", "tag2"],
+                            "is_read": True,
+                            "notes": "备注"
+                        }
+                    }
+                }
+                error_message = f"更新PDF文件请求缺少文件ID参数。正确格式: {json.dumps(expected_format, ensure_ascii=False)}"
+                self.response.send_error_response(
+                    client,
+                    error_message,
+                    "update_pdf",
+                    "MISSING_PARAMETERS",
+                    message.get('request_id')
+                )
+                return
+
+            if not updates or not isinstance(updates, dict):
+                logger.warning("更新PDF文件请求缺少或格式错误的updates参数")
+                self.response.send_error_response(
+                    client,
+                    "更新数据缺失或格式错误",
+                    "update_pdf",
+                    "INVALID_UPDATES",
+                    message.get('request_id')
+                )
+                return
+
+            logger.info(f"处理PDF更新请求，文件ID: {file_id}, 更新字段: {list(updates.keys())}")
+
+            # 调用PDF管理器的更新方法
+            success, result = self.pdf_manager.update_file(file_id, updates)
+
+            if success:
+                logger.info(f"PDF文件更新成功: {file_id}")
+                # 发送成功响应
+                self.response.send_success_response(
+                    client,
+                    "pdf_updated",
+                    result,
+                    message.get('request_id')
+                )
+                # 广播PDF列表更新
+                self.app.broadcast_pdf_list()
+            else:
+                logger.error(f"PDF文件更新失败: {file_id}")
+                # result包含错误信息
+                self.response.send_error_response(
+                    client,
+                    result.get('message', 'PDF文件更新失败'),
+                    "update_pdf",
+                    result.get('type', 'UPDATE_FAILED'),
+                    message.get('request_id')
+                )
+
+        except ValueError as e:
+            logger.error(f"更新PDF文件参数格式错误: {str(e)}")
+            self.response.send_error_response(
+                client,
+                f"参数格式错误: {str(e)}",
+                "update_pdf",
+                "INVALID_PARAMETER_FORMAT",
+                message.get('request_id')
+            )
+        except Exception as e:
+            logger.error(f"处理更新PDF文件请求时出错: {str(e)}")
+            self.response.send_error_response(
+                client,
+                f"处理更新PDF文件请求时出错: {str(e)}",
+                "update_pdf",
+                "INTERNAL_ERROR",
+                message.get('request_id')
+            )
