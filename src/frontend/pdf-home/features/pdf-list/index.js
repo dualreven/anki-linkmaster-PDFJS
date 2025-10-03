@@ -472,47 +472,106 @@ export class PDFListFeature {
   }
 
   /**
-   * 处理批量删除
+   * 处理批量删除按钮点击事件
+   *
+   * 功能流程：
+   * 1. 从状态管理器获取用户当前选中的PDF文件列表
+   * 2. 验证选中项的有效性（是否为空、是否存在于数据中）
+   * 3. 弹出确认对话框，要求用户确认删除操作
+   * 4. 通过EventBus向后端发送WebSocket删除请求
+   * 5. 等待后端响应并更新UI（在 #registerEventListeners 中处理）
+   *
+   * 架构说明：
+   * - 遵循功能域模块化架构，只能通过EventBus与其他模块通信
+   * - 不直接调用后端API，而是发送事件到WebSocket适配器
+   * - 删除结果通过事件回调处理（见 #registerEventListeners 中的 websocket:message:response 监听器）
+   *
+   * 状态管理：
+   * - 选中状态由 StateManager 管理（this.#state.selectedIndices）
+   * - 删除成功后会自动清空选中状态，防止重复删除
+   * - 表格数据通过增量更新（deleteRow）保持同步
+   *
+   * 错误处理：
+   * - 未选中文件时显示错误提示
+   * - 选中项数据异常时显示错误提示
+   * - 用户取消删除时记录日志并退出
+   *
    * @private
+   * @async
+   * @fires ScopedEventBus#websocket:message:send - 发送删除请求到后端
+   * @listens ScopedEventBus#websocket:message:response - 接收删除结果（在 #registerEventListeners 中）
    */
   async #handleBatchDelete() {
     this.#logger.info('Batch delete button clicked');
 
-    // 获取选中的行索引和对应的items
+    // ==================== 第一步：获取选中的行数据 ====================
+    // 从响应式状态管理器中获取用户选中的行索引数组
+    // selectedIndices 是由 PDFTable 组件在用户勾选复选框时更新的
     const selectedIndices = this.#state?.selectedIndices || [];
+
+    // 获取完整的PDF文件列表数据
+    // items 包含所有PDF记录的元数据（id、filename、path、size等）
     const items = this.#state?.items || [];
 
+    // ==================== 第二步：验证选中项 ====================
+    // 检查用户是否选中了至少一个文件
     if (selectedIndices.length === 0) {
       this.#logger.warn('No items selected for deletion');
       showError('请先选择要删除的PDF文件');
       return;
     }
 
-    // 根据索引获取选中的items
+    // 根据索引从完整列表中提取选中的项
+    // filter(Boolean) 过滤掉 undefined 值（防止索引越界）
     const selectedItems = selectedIndices.map(index => items[index]).filter(Boolean);
 
+    // 二次验证：确保选中的索引对应的数据确实存在
+    // （防止状态不一致导致的空删除）
     if (selectedItems.length === 0) {
       this.#logger.warn('Selected items not found');
       showError('无法获取选中的PDF文件');
       return;
     }
 
-    // 确认删除
+    // ==================== 第三步：用户确认 ====================
+    // 弹出原生确认对话框，显示将要删除的文件数量
+    // 这是防止误操作的最后一道防线
     const confirmMsg = `确定要删除选中的 ${selectedItems.length} 个PDF文件吗？`;
     if (!confirm(confirmMsg)) {
       this.#logger.info('User cancelled deletion');
       return;
     }
 
+    // 记录详细的删除日志，便于追踪和调试
     this.#logger.info(`Deleting ${selectedItems.length} files:`, selectedItems.map(f => f.filename));
 
-    // 直接通过 WebSocket 发送删除请求（后端期望 file_ids 数组在 data 中）
+    // ==================== 第四步：发送删除请求 ====================
+    // 架构说明：
+    // - 不直接调用 WebSocket API，而是通过事件总线发送全局事件
+    // - 由 websocket-adapter 功能域统一处理 WebSocket 通信
+    // - 这种解耦设计使得功能域之间互不依赖，可独立开发和测试
+    //
+    // 消息协议：
+    // - type: 'pdf-home:remove:pdf-files' - 后端识别的删除操作类型
+    // - data.file_ids: 要删除的文件ID数组（后端通过ID精确定位文件）
+    //
+    // 后续流程：
+    // 1. websocket-adapter 接收事件并发送到后端
+    // 2. 后端执行删除操作并返回结果
+    // 3. websocket-adapter 收到响应后发送 'websocket:message:response' 事件
+    // 4. 本功能域的监听器（见 #registerEventListeners L640-678）处理响应
+    // 5. 删除成功后使用 tabulator.deleteRow() 增量更新表格
+    // 6. 清空选中状态（this.#state.selectedIndices = []）
     this.#scopedEventBus?.emitGlobal('websocket:message:send', {
       type: 'pdf-home:remove:pdf-files',
       data: {
-        file_ids: selectedItems.map(item => item.id)
+        file_ids: selectedItems.map(item => item.id)  // 提取每个文件的唯一ID
       }
     });
+
+    // 注意：删除请求是异步的，不在此处等待响应
+    // 响应处理在 #registerEventListeners 方法中的 'websocket:message:response' 监听器
+    // 见 L640-678 的删除响应处理逻辑
   }
 
   /**
