@@ -397,20 +397,56 @@ PDFManager的`handleResponseMessage`方法在处理WebSocket响应时，如果�
 ## pdf-viewer重构进展
 
 ### 当前状态
-- 最后更新: 2025-10-02 22:17
-- 阶段: ✅ **全模块 Feature-based 架构统一完成 + V1架构完全移除**
+- 最后更新: 2025-10-04 18:35
+- 阶段: ✅ **全模块 Feature-based 架构统一完成 + 核心功能持续扩展**
 - 成果:
   * ✅ Worktree A (pdf-viewer) 合并完成
-  * ✅ Worktree B (pdf-home) 两次合并全部完成
+  * ✅ Worktree B (pdf-home) 三次合并全部完成
   * ✅ 两个模块架构完全统一
   * ✅ V1架构文件全部清理
   * ✅ 共享 micro-service 基础设施
   * ✅ 9个功能域全部实现
   * ✅ 开发工具脚本完善（5个工具）
+  * ✅ PDF排序器完整实现（4种模式）
+  * ✅ 前后端通信协议文档完善
 
 ### 已完成工作（最新优先）
 
-1. **再次合并 worktree B 的新提交（V1架构清理）** ✅ 完成 (2025-10-02 22:17)
+1. **第三次合并 worktree B (PDF排序器功能)** ✅ 完成 (2025-10-04 18:35)
+   - **合并分支**: `feature/pdf-home-add-delete-improvements` → `main` (第三次合并)
+   - **合并提交**: d406ad2
+   - **代码变更**: +3,521行 / -40行 / 净增3,481行
+   - **本次合并的6个提交**:
+     * 3873ef0 - docs(pdf-home): 添加前后端通信协议完整指南
+     * 1ca570b - debug: 添加应用启动调试标识
+     * 9d156b2 - feat: 启用 pdf-sorter 和 filter 功能模块
+     * d04dc15 - feat(pdf-sorter): 添加排序面板完整样式
+     * afe8fd1 - refactor(notification): 改用CSS类控制Toast显示隐藏
+     * 035fd70 - fix(pdf-sorter): 修复事件订阅被覆盖导致模式切换无效的问题
+   - **主要成果**:
+     * ✅ PDF排序器(pdf-sorter)完整实现 - 4种排序模式（简单/多字段/权重/自定义）
+     * ✅ 新增前后端通信协议完整指南文档（693行）
+     * ✅ 完整UI组件体系（4个组件，2,412行）
+     * ✅ 服务层抽象（2个服务，671行）
+     * ✅ 新增417行样式代码
+     * ✅ 通知系统优化（CSS类控制）
+   - **新增文件** (7个):
+     * Communication-Protocol-Guide.md (693行) - 前后端通信协议指南
+     * mode-selector.js (300行) - 排序模式选择器
+     * multi-sort-builder.js (398行) - 多字段排序构建器
+     * sorter-panel.js (324行) - 排序面板主组件
+     * weighted-sort-editor.js (390行) - 权重排序编辑器
+     * sort-manager.js (361行) - 排序管理服务
+     * tabulator-adapter.js (310行) - Tabulator适配器
+   - **架构特性**:
+     * 依赖注入架构
+     * 事件驱动通信
+     * 插件化设计
+     * 状态管理
+   - **冲突解决**: 无冲突，自动合并成功
+   - **工作日志**: `AItemp/20251004183000-AI-Working-log.md`
+
+2. **再次合并 worktree B 的新提交（V1架构清理）** ✅ 完成 (2025-10-02 22:17)
    - **合并分支**: `feature/pdf-home-add-delete-improvements` → `main` (第二次合并)
    - **合并提交**: aea64a0
    - **代码变更**: +730行 / -4,125行 / 净删除3,395行

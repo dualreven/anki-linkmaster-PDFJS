@@ -11,7 +11,6 @@ import { KeyboardHandler } from "../../../ui/keyboard-handler.js";
 import { UIStateManager } from "../../../ui/ui-state-manager.js";
 import { TextLayerManager } from "../../../ui/text-layer-manager.js";
 import { PDFViewerManager } from "./pdf-viewer-manager.js";
-import { BookmarkManager } from "../../../bookmark/bookmark-manager.js";
 import { UIZoomControls } from "./ui-zoom-controls.js";
 import { UILayoutControls } from "./ui-layout-controls.js";
 
@@ -27,7 +26,6 @@ export class UIManagerCore {
   #stateManager;
   #textLayerManager;
   #pdfViewerManager;
-  #bookmarkManager;
   #uiZoomControls;
   #uiLayoutControls;
   #resizeObserver;
@@ -89,9 +87,6 @@ export class UIManagerCore {
 
       // 设置滚轮事件
       this.#setupWheelListener();
-
-      // 初始化书签管理器
-      await this.#initializeBookmarkManager();
 
       // 初始化UI控件
       await this.#initializeUIControls();
@@ -490,36 +485,6 @@ export class UIManagerCore {
     this.#logger.info("UI cleaned up");
   }
 
-  /**
-   * 初始化书签管理器
-   * @private
-   * @returns {Promise<void>}
-   */
-  async #initializeBookmarkManager() {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const bookmarkParam = (params.get('bookmark') || '').toLowerCase();
-      const enableBookmarks = (
-        bookmarkParam === '' ||
-        bookmarkParam === '1' ||
-        bookmarkParam === 'true' ||
-        bookmarkParam === 'on'
-      );
-
-      if (enableBookmarks) {
-        this.#bookmarkManager = new BookmarkManager(this.#eventBus);
-        this.#bookmarkManager.initialize();
-        this.#logger.info('BookmarkManager initialized (enabled by default; disable with ?bookmark=0)');
-      } else {
-        this.#logger.info('BookmarkManager disabled by URL param bookmark=0');
-      }
-    } catch (bmErr) {
-      const reason = bmErr && typeof bmErr === 'object'
-        ? (bmErr.stack || bmErr.message || JSON.stringify(bmErr))
-        : bmErr;
-      this.#logger.warn('BookmarkManager init failed, continue without bookmarks', reason);
-    }
-  }
 
   /**
    * 初始化UI控件（缩放控件和布局控件）

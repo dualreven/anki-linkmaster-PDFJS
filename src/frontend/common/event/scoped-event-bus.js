@@ -99,10 +99,9 @@ export class ScopedEventBus {
     const scopedEvent = this.#scopedEvent(event);
     this.#logger.debug(`Listening: ${event} → ${scopedEvent}`);
 
-    const unsubscribe = this.#globalEventBus.on(scopedEvent, callback, {
-      ...options,
-      subscriberId: options.subscriberId || this.#scope
-    });
+    // 不强制传递 subscriberId，让 EventBus 从调用栈自动推断
+    // EventBus 会跳过 scoped-event-bus.js，推断到真正的调用者
+    const unsubscribe = this.#globalEventBus.on(scopedEvent, callback, options);
 
     // 记录监听器以便后续清理
     this.#listeners.push({ event: scopedEvent, unsubscribe });
@@ -148,10 +147,8 @@ export class ScopedEventBus {
   onGlobal(event, callback, options = {}) {
     this.#logger.debug(`Listening global: ${event}`);
 
-    const unsubscribe = this.#globalEventBus.on(event, callback, {
-      ...options,
-      subscriberId: options.subscriberId || this.#scope
-    });
+    // 不强制传递 subscriberId，让 EventBus 从调用栈自动推断
+    const unsubscribe = this.#globalEventBus.on(event, callback, options);
 
     // 记录监听器以便后续清理
     this.#listeners.push({ event, unsubscribe });

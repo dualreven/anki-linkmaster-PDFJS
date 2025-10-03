@@ -385,7 +385,8 @@ export class EventBus {
         .filter(Boolean);
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i];
-        if (!/event-bus\.js|EventBus\./i.test(line)) {
+        // 跳过 event-bus.js 和 scoped-event-bus.js，找到真正的调用者
+        if (!/event-bus\.js|scoped-event-bus\.js|EventBus\.|ScopedEventBus\./i.test(line)) {
           const m =
             line.match(/at\s+(.*)\s+\((.*):(\d+):(\d+)\)$/) ||
             line.match(/at\s+(.*):(\d+):(\d+)$/);
@@ -447,6 +448,30 @@ export class EventBus {
     }
 
     if (!this.#events[event]) this.#events[event] = new Map();
+
+    // 检查是否重复订阅（同一 subscriberId 订阅同一事件）
+    if (this.#events[event].has(subscriberId)) {
+      const errorMsg = [
+        `❌ 重复订阅检测！`,
+        ``,
+        `事件名称: "${event}"`,
+        `订阅者ID: "${subscriberId}"`,
+        ``,
+        `💡 可能原因:`,
+        `1. 同一个组件多次调用 eventBus.on() 订阅同一事件`,
+        `2. 组件未正确清理旧订阅（调用 unsubscribe()）`,
+        `3. 多个组件使用了相同的 subscriberId（如多次实例化同一组件）`,
+        ``,
+        `🔧 解决方法:`,
+        `1. 确保组件销毁时调用 unsubscribe() 清理订阅`,
+        `2. 或传递唯一的 subscriberId: eventBus.on(event, callback, { subscriberId: 'unique-id' })`,
+        `3. 或使用 off() 手动移除旧订阅后再重新订阅`,
+        `4. 检查是否有组件被错误地多次实例化`,
+      ].join('\n');
+
+      this.#log("error", errorMsg);
+      throw new Error(`重复订阅: 事件 "${event}" 已被 "${subscriberId}" 订阅`);
+    }
 
     this.#events[event].set(subscriberId, callback);
 
