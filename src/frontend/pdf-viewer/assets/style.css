@@ -72,15 +72,22 @@ h1 {
     color: #333;
 }
 
+/* 主控制区域样式 */
+.main-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background-color: #f8f9fa;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+}
+
 /* 布局控制样式 */
 .layout-controls {
     display: flex;
     align-items: center;
     gap: 8px;
-    background-color: #f8f9fa;
-    padding: 6px 12px;
-    border-radius: 6px;
-    border: 1px solid #e9ecef;
 }
 
 .layout-controls select {
@@ -209,10 +216,8 @@ h1 {
     display: flex;
     align-items: center;
     gap: 8px;
-    background-color: #f8f9fa;
-    padding: 6px 12px;
-    border-radius: 6px;
-    border: 1px solid #e9ecef;
+    padding-left: 12px;
+    border-left: 1px solid #dee2e6;
 }
 
 .rotation-controls .btn {
@@ -222,15 +227,27 @@ h1 {
     font-size: 18px;
 }
 
+/* 页面控制样式 */
+.page-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-left: 12px;
+    border-left: 1px solid #dee2e6;
+}
+
+.page-controls .btn {
+    padding: 4px 8px;
+    min-width: 40px;
+}
+
 /* 缩放控制样式 */
 .zoom-controls {
     display: flex;
     align-items: center;
     gap: 8px;
-    background-color: #f8f9fa;
-    padding: 6px 12px;
-    border-radius: 6px;
-    border: 1px solid #e9ecef;
+    padding-left: 12px;
+    border-left: 1px solid #dee2e6;
 }
 
 .zoom-controls .btn {
@@ -245,22 +262,6 @@ h1 {
     color: #495057;
     min-width: 50px;
     text-align: center;
-}
-
-/* 页面控制样式 */
-.page-controls {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background-color: #f8f9fa;
-    padding: 6px 12px;
-    border-radius: 6px;
-    border: 1px solid #e9ecef;
-}
-
-.page-controls .btn {
-    padding: 4px 8px;
-    min-width: 40px;
 }
 
 /* 页码输入框 */
