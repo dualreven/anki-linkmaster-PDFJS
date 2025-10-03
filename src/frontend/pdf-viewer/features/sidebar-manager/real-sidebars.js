@@ -19,13 +19,6 @@ const logger = getLogger('RealSidebars');
 export function registerRealSidebars(sidebarManager, eventBus, container) {
     logger.info('Registering real sidebars...');
 
-    // 【诊断】检查容器状态
-    logger.info(`Container exists: ${!!container}`);
-    if (container) {
-        const testGet = container.get('annotationSidebarUI');
-        logger.info(`annotationSidebarUI in container at registration time: ${!!testGet}`);
-    }
-
     // 1. 书签侧边栏
     const bookmarkUI = new BookmarkSidebarUI(eventBus);
     bookmarkUI.initialize();

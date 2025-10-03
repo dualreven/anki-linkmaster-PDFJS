@@ -121,13 +121,19 @@ export class AnnotationFeature {
     this.#sidebarUI.initialize();
     this.#logger.info('[AnnotationFeature] AnnotationSidebarUI initialized');
 
-    // 4. 【关键修复】先注册服务到容器，再初始化工具
-    // 这样工具初始化时可以从容器获取依赖
+    // 4. 【关键修复】使用 registerGlobal() 注册服务到根容器
+    // 这样其他 Feature 的 scoped container 也能访问这些服务
     if (container) {
-      container.register('annotationSidebarUI', this.#sidebarUI);
-      container.register('toolRegistry', this.#toolRegistry);
-      container.register('annotationManager', this.#annotationManager);
-      this.#logger.info('[AnnotationFeature] Services registered to container');
+      container.registerGlobal('annotationSidebarUI', this.#sidebarUI);
+      container.registerGlobal('toolRegistry', this.#toolRegistry);
+      container.registerGlobal('annotationManager', this.#annotationManager);
+      this.#logger.info('[AnnotationFeature] Services registered to global container');
+
+      // 验证注册是否成功
+      const testGet = container.get('annotationSidebarUI');
+      this.#logger.info(`[AnnotationFeature] Verification: annotationSidebarUI retrievable = ${!!testGet}`);
+    } else {
+      this.#logger.error('[AnnotationFeature] Container is null! Cannot register services');
     }
 
     // 5. 注册工具插件
