@@ -20,6 +20,7 @@ class MessageType(Enum):
     PDF_HOME_REMOVE_PDF_FILES = "pdf-home:remove:pdf-files"
     PDF_HOME_OPEN_PDF_FILE = "pdf-home:open:pdf-file"
     PDF_HOME_GET_PDF_INFO = "pdf-home:get:pdf-info"
+    PDF_HOME_UPDATE_PDF = "pdf-home:update:pdf"
 
     # 响应消息
     PDF_HOME_RESPONSE_PDF_LIST = "pdf-home:response:pdf-list"

@@ -454,3 +454,53 @@ class StandardPDFManager(QObject):
     def get_file_ids(self) -> List[str]:
         """获取所有文件ID列表"""
         return self.file_list.get_file_ids()
+
+    def update_file(self, file_id: str, updates: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
+        """
+        更新PDF文件元数据（标准格式）
+
+        Args:
+            file_id: 文件ID
+            updates: 要更新的字段字典
+
+        Returns:
+            Tuple[bool, Dict]: (是否成功, 标准格式的响应数据)
+        """
+        try:
+            # 获取文件对象
+            pdf_file = self.file_list.get_file(file_id)
+            if not pdf_file:
+                error_response = self._build_error_response("FILE_NOT_FOUND", "文件不存在")
+                self.error_occurred.emit(error_response)
+                return False, error_response
+
+            # 更新元数据
+            pdf_file.update_metadata(updates)
+
+            # 保存到磁盘
+            success = self.save_files()
+            if success:
+                # 构建标准格式的更新响应
+                file_info = self._build_standard_file_info(pdf_file)
+                update_response = {
+                    "file": file_info,
+                    "updated_fields": list(updates.keys()),
+                    "update_time": int(time.time() * 1000)
+                }
+
+                # 发出文件列表变更信号
+                self.file_list_changed.emit()
+
+                logger.info(f"文件更新成功: {file_id}, 更新字段: {list(updates.keys())}")
+                return True, update_response
+            else:
+                error_response = self._build_error_response("SAVE_ERROR", "保存文件更新失败")
+                self.error_occurred.emit(error_response)
+                return False, error_response
+
+        except Exception as e:
+            error_msg = ErrorHandler.get_error_message(e)
+            logger.error(f"更新文件失败: {error_msg}")
+            error_response = self._build_error_response("PROCESSING_ERROR", error_msg)
+            self.error_occurred.emit(error_response)
+            return False, error_response

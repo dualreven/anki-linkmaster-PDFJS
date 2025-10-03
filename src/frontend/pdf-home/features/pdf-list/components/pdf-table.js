@@ -315,6 +315,48 @@ export class PDFTable {
     }
   }
 
+  /**
+   * 处理编辑操作
+   * @param {string} rowId - 行ID
+   * @param {string} filename - 文件名
+   * @private
+   */
+  _handleEditAction(rowId, filename) {
+    try {
+      // 从Tabulator获取完整的行数据
+      const tabulator = this.#initializer?.tabulator;
+      if (!tabulator) {
+        logger.warn('Tabulator not available for edit action');
+        return;
+      }
+
+      // 根据rowId或filename查找行数据
+      let rowData = null;
+      const allData = tabulator.getData();
+
+      if (rowId) {
+        rowData = allData.find(row => row.id === rowId || row.filename === rowId);
+      } else if (filename) {
+        rowData = allData.find(row => row.filename === filename);
+      }
+
+      if (!rowData) {
+        logger.warn('Row data not found for edit action:', { rowId, filename });
+        return;
+      }
+
+      // 发出全局编辑请求事件（供pdf-edit功能域监听）
+      this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.EDIT.REQUESTED, rowData, {
+        actorId: 'PDFTable'
+      });
+
+      logger.info('Edit action triggered for record:', rowData.filename || rowData.id);
+
+    } catch (error) {
+      logger.error('Error handling edit action:', error);
+    }
+  }
+
   // ==================== 公开 API ====================
 
   /**

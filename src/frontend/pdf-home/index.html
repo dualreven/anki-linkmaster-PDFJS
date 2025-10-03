@@ -13,27 +13,39 @@
         <header>
             <h1>PDF文件管理-B</h1>
             <div style="display: flex; align-items: center; gap: 10px;">
-                <button id="add-pdf-btn" class="btn primary">添加PDF文件</button>
-                <button id="batch-add-btn" class="btn" title="批量添加PDF文件">📁 批量添加</button>
+                <button id="open-pdf-btn" class="btn success" title="打开选中的PDF文件">📂 打开</button>
+                <button id="add-pdf-btn" class="btn primary">＋添加</button>
+                <button id="batch-delete-btn" class="btn danger" title="删除选中的PDF文件">－删除</button>
+                <div style="width: 20px;"></div>
                 <button id="edit-pdf-btn" class="btn" title="选择一条记录后可编辑">✏️ 编辑</button>
-                <button id="batch-delete-btn" class="btn danger" title="批量删除选中的PDF文件">🗑️ 批量删除</button>
-                <button id="test-pdf-viewer-btn" class="btn" style="background: #28a745; color: white;" title="测试启动PDF查看器">📖 测试查看器</button>
-                <button id="test-qwebchannel-btn" class="btn" style="background: #17a2b8; color: white;" title="测试QWebChannel连接">🔗 测试连接</button>
-                <button id="debug-btn" class="btn" style="background: #666; color: white;" title="显示调试面板 (Ctrl+D)">🔧 调试</button>
+                <button id="sort-btn" class="btn" title="排序PDF列表">🔃 排序</button>
+                <button id="search-filter-btn" class="btn" title="搜索和筛选PDF文件">🔍 查找</button>
+                <button id="preset-filter-btn" class="btn" title="保存和加载搜索预设">🔖 预设</button>
+                <button id="review-btn" class="btn" title="复习PDF文件">📚 复习</button>
             </div>
         </header>
 
         <main>
-            <!-- 全局消息提示 -->
-            <div id="global-success" style="display: none; background: #d4edda; border: 1px solid #c3e6cb; color: #155724; border-radius: 4px; padding: 10px; margin-bottom: 15px; font-size: 14px;">
+            <div id="pdf-table-container" class="pdf-table-container">
+                <!-- PDF表格将在这里动态生成 -->
+            </div>
+
+            <div id="empty-state" class="empty-state" style="display: none;">
+                <div class="empty-icon">📄</div>
+                <h3>暂无PDF文件</h3>
+                <p>点击"添加文件"按钮开始管理您的PDF文档</p>
+            </div>
+
+            <!-- Toast消息提示 (浮动在右上角) -->
+            <div id="global-success" class="toast toast-success">
                 <!-- 成功消息将在这里显示 -->
             </div>
-            <div id="global-error" style="display: none; background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; border-radius: 4px; padding: 10px; margin-bottom: 15px; font-size: 14px;">
+            <div id="global-error" class="toast toast-error">
                 <!-- 错误消息将在这里显示 -->
             </div>
 
             <!-- 调试状态显示 -->
-            <div id="debug-status" style="display: none; background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; padding: 10px; margin-bottom: 15px; font-family: monospace; font-size: 12px;">
+            <div id="debug-status" style="display: none; background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; padding: 10px; margin-top: 15px; font-family: monospace; font-size: 12px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <strong>🔍 调试状态</strong>
                     <button onclick="document.getElementById('debug-status').style.display='none'" style="background: #f44; color: white; border: none; padding: 2px 6px; border-radius: 3px; cursor: pointer;">隐藏</button>
@@ -41,16 +53,6 @@
                 <div id="debug-content">
                     <!-- 调试信息将在这里显示 -->
                 </div>
-            </div>
-
-            <div id="pdf-table-container" class="pdf-table-container">
-                <!-- PDF表格将在这里动态生成 -->
-            </div>
-            
-            <div id="empty-state" class="empty-state" style="display: none;">
-                <div class="empty-icon">📄</div>
-                <h3>暂无PDF文件</h3>
-                <p>点击"添加PDF文件"按钮开始管理您的PDF文档</p>
             </div>
         </main>
     </div>
