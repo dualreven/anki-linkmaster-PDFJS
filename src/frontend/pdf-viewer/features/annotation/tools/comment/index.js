@@ -52,6 +52,12 @@ export class CommentTool extends IAnnotationTool {
   /** @type {Object} 依赖容器 */
   #container = null;
 
+  /** @type {Object} PDF.js EventBus (用于监听页面渲染事件) */
+  #pdfjsEventBus = null;
+
+  /** @type {Object} 标注管理器 (用于获取标注数据) */
+  #annotationManager = null;
+
   /** @type {boolean} 是否激活 */
   #isActive = false;
 
@@ -82,11 +88,50 @@ export class CommentTool extends IAnnotationTool {
     this.#pdfViewerManager = pdfViewerManager;
     this.#container = container;
 
+    this.#logger.info('========================================');
+    this.#logger.info('🚀 CommentTool Initialization Started');
+    this.#logger.info('========================================');
+
+    // 获取PDF.js EventBus（用于监听页面渲染事件）
+    this.#logger.info('Step 1: Getting PDF.js EventBus...');
+    if (pdfViewerManager && pdfViewerManager.eventBus) {
+      this.#pdfjsEventBus = pdfViewerManager.eventBus;
+      this.#logger.info('  ✅ Got PDF.js EventBus reference for page rendering events');
+    } else {
+      this.#logger.error('  ❌ PDF.js EventBus not available, marker restoration will NOT work!');
+      this.#logger.warn('  PDFViewerManager:', pdfViewerManager);
+    }
+
+    // 获取AnnotationManager（用于获取标注数据）
+    this.#logger.info('Step 2: Getting AnnotationManager...');
+    if (container) {
+      this.#annotationManager = container.get('annotationManager');
+      if (this.#annotationManager) {
+        this.#logger.info('  ✅ Got AnnotationManager reference');
+      } else {
+        this.#logger.error('  ❌ AnnotationManager not found in container!');
+      }
+    } else {
+      this.#logger.error('  ❌ No container provided!');
+    }
+
     // 创建辅助组件
+    this.#logger.info('Step 3: Creating helper components...');
     this.#commentInput = new CommentInput();
     this.#commentMarker = new CommentMarker();
+    this.#logger.info('  ✅ CommentInput and CommentMarker created');
 
-    this.#logger.info(`CommentTool initialized (v${this.version})`);
+    // 设置页面渲染事件监听
+    this.#logger.info('Step 4: Setting up page rendering listener...');
+    this.#setupPageRenderingListener();
+
+    // 设置标注创建事件监听
+    this.#logger.info('Step 5: Setting up annotation event listeners...');
+    this.#setupAnnotationEventListeners();
+
+    this.#logger.info('========================================');
+    this.#logger.info(`✅ CommentTool initialized (v${this.version})`);
+    this.#logger.info('========================================');
   }
 
   /**
@@ -232,29 +277,14 @@ export class CommentTool extends IAnnotationTool {
     // 创建标注对象（使用静态工厂方法）
     const annotation = Annotation.createComment(pageNumber, { x, y }, content);
 
-    // 创建并渲染标记
-    const marker = this.#commentMarker.createMarker(annotation);
-
-    // 添加标记到页面
-    const pageElement = this.#getPageElement(pageNumber);
-    if (pageElement) {
-      this.#commentMarker.renderToPage(annotation.id, pageElement);
-    }
-
-    // 添加标记点击事件
-    marker.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.#handleMarkerClick(annotation.id);
-    });
-
-    // 发布创建事件
+    // 发布创建事件（标记渲染会在annotation:create:success事件中统一处理）
     this.#eventBus.emit(
       'annotation:create:requested',
       { annotation },
       { actorId: 'CommentTool' }
     );
 
-    this.#logger.info(`Comment annotation created: ${annotation.id}`);
+    this.#logger.info(`Comment annotation creation requested: ${annotation.id}`);
   }
 
   /**
@@ -275,6 +305,170 @@ export class CommentTool extends IAnnotationTool {
       { actorId: 'CommentTool' }
     );
   }
+
+  // ==================== 标记恢复机制 ====================
+
+  /**
+   * 设置页面渲染事件监听
+   * @private
+   */
+  #setupPageRenderingListener() {
+    if (!this.#pdfjsEventBus) {
+      this.#logger.warn('❌ Cannot setup page rendering listener: pdfjsEventBus not available');
+      this.#logger.warn('PDFViewerManager status:', this.#pdfViewerManager);
+      return;
+    }
+
+    this.#logger.info('✅ PDF.js EventBus available, setting up pagerendered listener...');
+
+    // 监听PDF.js的pagerendered事件
+    this.#pdfjsEventBus.on('pagerendered', (evt) => {
+      const pageNumber = evt.pageNumber;
+      this.#logger.info(`📄 [PageRendered Event] Page ${pageNumber} rendered, restoring markers...`);
+
+      // 恢复该页面的所有标记
+      this.#restoreMarkersForPage(pageNumber);
+    });
+
+    this.#logger.info('✅ Page rendering listener setup complete');
+  }
+
+  /**
+   * 设置标注事件监听
+   * @private
+   */
+  #setupAnnotationEventListeners() {
+    if (!this.#eventBus) {
+      this.#logger.error('❌ Cannot setup annotation event listeners: eventBus not available');
+      return;
+    }
+
+    // 监听标注创建成功事件
+    this.#eventBus.on('annotation:create:success', (data) => {
+      const { annotation } = data;
+
+      this.#logger.info(`📢 [Event] annotation:create:success received for ${annotation.id} (type: ${annotation.type})`);
+
+      // 只处理comment类型的标注
+      if (annotation.type !== 'comment') {
+        this.#logger.debug(`  ⏭️ Skipping non-comment annotation`);
+        return;
+      }
+
+      this.#logger.info(`  ✅ Comment annotation created successfully, rendering marker...`);
+
+      // 渲染标记
+      this.#renderMarkerForAnnotation(annotation);
+    }, { subscriberId: 'CommentTool' });
+
+    // 监听标注删除成功事件
+    this.#eventBus.on('annotation:delete:success', (data) => {
+      const { id } = data;
+
+      this.#logger.info(`📢 [Event] annotation:delete:success received for ${id}`);
+
+      // 移除标记
+      if (this.#commentMarker) {
+        this.#commentMarker.removeMarker(id);
+        this.#logger.info(`  ✅ Marker removed for deleted annotation: ${id}`);
+      }
+    }, { subscriberId: 'CommentTool' });
+
+    this.#logger.info('✅ Annotation event listeners setup complete');
+  }
+
+  /**
+   * 恢复指定页面的所有标记
+   * @private
+   * @param {number} pageNumber - 页码
+   */
+  #restoreMarkersForPage(pageNumber) {
+    this.#logger.info(`🔄 [RestoreMarkers] Starting restoration for page ${pageNumber}`);
+
+    if (!this.#annotationManager) {
+      this.#logger.error('❌ Cannot restore markers: AnnotationManager not available');
+      this.#logger.warn('Container status:', this.#container);
+      return;
+    }
+
+    // 获取该页面的所有comment类型标注
+    const annotations = this.#annotationManager.getAnnotationsByPage(pageNumber);
+    this.#logger.info(`📋 Found ${annotations.length} total annotations on page ${pageNumber}`);
+
+    const commentAnnotations = annotations.filter(ann => ann.type === 'comment');
+    this.#logger.info(`📝 Found ${commentAnnotations.length} comment annotations on page ${pageNumber}`);
+
+    if (commentAnnotations.length === 0) {
+      this.#logger.debug(`ℹ️ No comment annotations to restore on page ${pageNumber}`);
+      return;
+    }
+
+    this.#logger.info(`✨ Restoring ${commentAnnotations.length} markers for page ${pageNumber}`);
+
+    // 为每个标注渲染标记
+    commentAnnotations.forEach((annotation, index) => {
+      this.#logger.debug(`  [${index + 1}/${commentAnnotations.length}] Restoring marker for annotation ${annotation.id}`);
+      this.#renderMarkerForAnnotation(annotation);
+    });
+
+    this.#logger.info(`✅ Marker restoration complete for page ${pageNumber}`);
+  }
+
+  /**
+   * 为标注渲染标记
+   * @private
+   * @param {Annotation} annotation - 标注对象
+   */
+  #renderMarkerForAnnotation(annotation) {
+    this.#logger.debug(`🎨 [RenderMarker] Rendering marker for annotation ${annotation.id}`);
+
+    // 检查标记是否已存在
+    const existingMarker = this.#commentMarker.getMarker(annotation.id);
+    if (existingMarker) {
+      const hasParent = existingMarker.parentElement !== null;
+      this.#logger.debug(`  Existing marker found: hasParent=${hasParent}`);
+
+      if (hasParent) {
+        this.#logger.debug(`  ✅ Marker already attached to DOM, skipping`);
+        return;
+      } else {
+        this.#logger.debug(`  ⚠️ Marker exists but detached from DOM, will recreate`);
+      }
+    } else {
+      this.#logger.debug(`  ℹ️ No existing marker, creating new one`);
+    }
+
+    // 创建标记
+    this.#logger.debug(`  Creating marker...`);
+    const marker = this.#commentMarker.createMarker(annotation);
+
+    // 获取页面元素
+    this.#logger.debug(`  Finding page element for page ${annotation.pageNumber}...`);
+    const pageElement = this.#getPageElement(annotation.pageNumber);
+    if (!pageElement) {
+      this.#logger.error(`  ❌ Page element not found for annotation ${annotation.id} (page ${annotation.pageNumber})`);
+      return;
+    }
+    this.#logger.debug(`  ✅ Page element found`);
+
+    // 渲染标记到页面
+    this.#logger.debug(`  Appending marker to page...`);
+    const success = this.#commentMarker.renderToPage(annotation.id, pageElement);
+    if (!success) {
+      this.#logger.error(`  ❌ Failed to render marker to page`);
+      return;
+    }
+
+    // 添加点击事件
+    marker.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.#handleMarkerClick(annotation.id);
+    });
+
+    this.#logger.info(`  ✅ Marker successfully rendered for annotation ${annotation.id} on page ${annotation.pageNumber}`);
+  }
+
+  // ==================== 辅助方法 ====================
 
   /**
    * 获取当前页码
