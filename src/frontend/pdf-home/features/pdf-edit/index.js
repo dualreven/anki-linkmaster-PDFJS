@@ -564,8 +564,8 @@ export class PDFEditFeature {
     try {
       this.#logger.info('Sending edit request to backend:', { fileId, updates });
 
-      // 通过EventBus发送WebSocket消息（标准方式）
-      this.#globalEventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, {
+      // 通过ScopedEventBus发送全局WebSocket消息（功能域架构标准方式）
+      this.#scopedEventBus.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, {
         type: 'update_pdf',
         request_id: `edit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         data: {
