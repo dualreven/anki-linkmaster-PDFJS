@@ -92,6 +92,62 @@ h1 {
     font-size: 13px;
 }
 
+/* 跨页模式选择器样式 */
+.spread-mode-selector {
+    position: relative;
+    display: inline-block;
+}
+
+.spread-mode-selector #spread-mode-btn {
+    padding: 4px 8px;
+    min-width: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.spread-mode-selector .spread-icon {
+    display: block;
+}
+
+.spread-mode-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    padding: 4px;
+    z-index: 1000;
+    min-width: 48px;
+}
+
+.spread-mode-dropdown button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 8px;
+    border: none;
+    background: white;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: background-color 0.2s;
+}
+
+.spread-mode-dropdown button:hover {
+    background-color: #f8f9fa;
+}
+
+.spread-mode-dropdown button:active {
+    background-color: #e9ecef;
+}
+
+.spread-mode-dropdown button + button {
+    margin-top: 2px;
+}
+
 /* 旋转控制样式 */
 .rotation-controls {
     display: flex;

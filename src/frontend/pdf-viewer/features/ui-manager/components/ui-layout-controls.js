@@ -17,6 +17,9 @@ export class UILayoutControls {
   #pdfViewerManager;
   #scrollModeSelect = null;
   #spreadModeSelect = null;
+  #spreadModeBtn = null;
+  #spreadModeDropdown = null;
+  #currentSpreadMode = 0;
   #rotateCCWBtn = null;
   #rotateCWBtn = null;
 
@@ -35,6 +38,8 @@ export class UILayoutControls {
     // 获取DOM元素
     this.#scrollModeSelect = document.getElementById('scroll-mode');
     this.#spreadModeSelect = document.getElementById('spread-mode');
+    this.#spreadModeBtn = document.getElementById('spread-mode-btn');
+    this.#spreadModeDropdown = document.querySelector('.spread-mode-dropdown');
     this.#rotateCCWBtn = document.getElementById('rotate-ccw');
     this.#rotateCWBtn = document.getElementById('rotate-cw');
 
@@ -66,6 +71,7 @@ export class UILayoutControls {
     const controls = [
       this.#scrollModeSelect,
       this.#spreadModeSelect,
+      this.#spreadModeBtn,
       this.#rotateCCWBtn,
       this.#rotateCWBtn
     ];
@@ -98,7 +104,7 @@ export class UILayoutControls {
       });
     }
 
-    // 跨页模式改变
+    // 跨页模式改变（隐藏select，保持兼容性）
     if (this.#spreadModeSelect) {
       this.#spreadModeSelect.addEventListener('change', (e) => {
         const mode = parseInt(e.target.value, 10);
@@ -108,6 +114,35 @@ export class UILayoutControls {
           // 触发PDFViewer更新
           this.#pdfViewerManager.viewer.update();
           this.#logger.info(`Spread mode updated and view refreshed`);
+        }
+      });
+    }
+
+    // 自定义SVG跨页模式按钮
+    if (this.#spreadModeBtn && this.#spreadModeDropdown) {
+      // 点击按钮切换下拉菜单显示
+      this.#spreadModeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isVisible = this.#spreadModeDropdown.style.display === 'block';
+        this.#spreadModeDropdown.style.display = isVisible ? 'none' : 'block';
+      });
+
+      // 点击下拉菜单选项
+      const dropdownButtons = this.#spreadModeDropdown.querySelectorAll('button[data-value]');
+      dropdownButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const mode = parseInt(btn.dataset.value, 10);
+          this.#changeSpreadMode(mode);
+          this.#spreadModeDropdown.style.display = 'none';
+        });
+      });
+
+      // 点击外部关闭下拉菜单
+      document.addEventListener('click', (e) => {
+        if (this.#spreadModeDropdown &&
+            this.#spreadModeDropdown.style.display === 'block') {
+          this.#spreadModeDropdown.style.display = 'none';
         }
       });
     }
@@ -124,6 +159,46 @@ export class UILayoutControls {
       this.#rotateCWBtn.addEventListener('click', () => {
         this.#rotatePages(90);
       });
+    }
+  }
+
+  /**
+   * 改变跨页模式
+   * @param {number} mode - 跨页模式（0=单页, 2=双页）
+   * @private
+   */
+  #changeSpreadMode(mode) {
+    this.#currentSpreadMode = mode;
+    this.#logger.info(`Changing spread mode to: ${mode}`);
+
+    // 更新按钮图标
+    this.#updateSpreadModeIcon(mode);
+
+    // 同步更新隐藏的select（保持兼容性）
+    if (this.#spreadModeSelect) {
+      this.#spreadModeSelect.value = mode;
+      // 触发change事件，让原有的处理逻辑生效
+      this.#spreadModeSelect.dispatchEvent(new Event('change'));
+    }
+  }
+
+  /**
+   * 更新跨页模式按钮图标
+   * @param {number} mode - 跨页模式（0=单页, 2=双页）
+   * @private
+   */
+  #updateSpreadModeIcon(mode) {
+    if (!this.#spreadModeBtn) return;
+
+    const iconSVG = this.#spreadModeBtn.querySelector('.spread-icon');
+    if (!iconSVG) return;
+
+    if (mode === 0) {
+      // 单页图标
+      iconSVG.innerHTML = '<rect x="5" y="2" width="8" height="14" stroke="currentColor" stroke-width="1.5" fill="none"/>';
+    } else if (mode === 2) {
+      // 双页图标
+      iconSVG.innerHTML = '<rect x="1" y="2" width="7" height="14" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="10" y="2" width="7" height="14" stroke="currentColor" stroke-width="1.5" fill="none"/>';
     }
   }
 
@@ -155,6 +230,8 @@ export class UILayoutControls {
   destroy() {
     this.#scrollModeSelect = null;
     this.#spreadModeSelect = null;
+    this.#spreadModeBtn = null;
+    this.#spreadModeDropdown = null;
     this.#rotateCCWBtn = null;
     this.#rotateCWBtn = null;
     this.#pdfViewerManager = null;

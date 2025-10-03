@@ -22,10 +22,33 @@
                         <option value="2">环绕滚动</option>
                         <option value="3">单页</option>
                     </select>
-                    <select id="spread-mode" class="btn" title="跨页模式">
-                        <option value="0">📄 单页</option>
-                        <option value="2">📖 双页</option>
+                    <!-- 隐藏的select，保持兼容性 -->
+                    <select id="spread-mode" style="display:none;">
+                        <option value="0">单页</option>
+                        <option value="2">双页</option>
                     </select>
+                    <!-- 自定义SVG图标选择器 -->
+                    <div class="spread-mode-selector">
+                        <button id="spread-mode-btn" class="btn" type="button" title="跨页模式">
+                            <!-- 默认显示单页图标 -->
+                            <svg class="spread-icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
+                                <rect x="5" y="2" width="8" height="14" stroke="currentColor" stroke-width="1.5"/>
+                            </svg>
+                        </button>
+                        <div class="spread-mode-dropdown" style="display:none;">
+                            <button type="button" data-value="0" title="单页">
+                                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                                    <rect x="5" y="2" width="8" height="14" stroke="currentColor" stroke-width="1.5"/>
+                                </svg>
+                            </button>
+                            <button type="button" data-value="2" title="双页">
+                                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                                    <rect x="1" y="2" width="7" height="14" stroke="currentColor" stroke-width="1.5"/>
+                                    <rect x="10" y="2" width="7" height="14" stroke="currentColor" stroke-width="1.5"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 <div class="rotation-controls">
                     <button id="rotate-ccw" class="btn" title="逆时针旋转">↺</button>
