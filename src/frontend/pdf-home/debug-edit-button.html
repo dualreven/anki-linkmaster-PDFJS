@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>编辑按钮调试</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .debug-section {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .debug-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .status-ok {
+            color: green;
+            font-weight: bold;
+        }
+        .status-error {
+            color: red;
+            font-weight: bold;
+        }
+        .code {
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 5px 0;
+            font-size: 12px;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            cursor: pointer;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 PDF编辑按钮调试工具</h1>
+
+    <div class="debug-section">
+        <h3>1. 检查全局应用对象</h3>
+        <button onclick="checkApp()">检查 window.app</button>
+        <div id="app-check"></div>
+    </div>
+
+    <div class="debug-section">
+        <h3>2. 检查功能域注册</h3>
+        <button onclick="checkFeatures()">检查功能域</button>
+        <div id="features-check"></div>
+    </div>
+
+    <div class="debug-section">
+        <h3>3. 检查编辑按钮</h3>
+        <button onclick="checkEditButton()">检查按钮元素</button>
+        <div id="button-check"></div>
+    </div>
+
+    <div class="debug-section">
+        <h3>4. 检查状态管理器</h3>
+        <button onclick="checkStateManager()">检查StateManager</button>
+        <div id="state-check"></div>
+    </div>
+
+    <div class="debug-section">
+        <h3>5. 手动绑定测试</h3>
+        <button onclick="manualBindTest()">手动绑定事件</button>
+        <div id="manual-check"></div>
+    </div>
+
+    <div class="debug-section">
+        <h3>6. 检查控制台日志</h3>
+        <div class="code">
+            请在浏览器控制台(F12)运行以下命令：
+            <br><br>
+            // 检查pdf-edit功能域是否安装<br>
+            window.app?.getState()?.features?.installed
+            <br><br>
+            // 检查编辑按钮是否存在<br>
+            document.getElementById('edit-pdf-btn')
+            <br><br>
+            // 检查StateManager<br>
+            window.app?.getStateManager()?.getState('pdf-list')
+        </div>
+    </div>
+
+    <script type="module">
+        window.checkApp = function() {
+            const div = document.getElementById('app-check');
+            if (!window.app) {
+                div.innerHTML = '<span class="status-error">❌ window.app 不存在</span>';
+                return;
+            }
+
+            div.innerHTML = `
+                <span class="status-ok">✅ window.app 存在</span>
+                <div class="code">
+                    版本: ${window.app.getState?.()?.version || 'unknown'}<br>
+                    状态: ${window.app.getState?.()?.status || 'unknown'}<br>
+                    架构: ${window.app.getState?.()?.architecture || 'unknown'}
+                </div>
+            `;
+        };
+
+        window.checkFeatures = function() {
+            const div = document.getElementById('features-check');
+            if (!window.app) {
+                div.innerHTML = '<span class="status-error">❌ window.app 不存在</span>';
+                return;
+            }
+
+            const state = window.app.getState();
+            const registered = state?.features?.registered || [];
+            const installed = state?.features?.installed || [];
+
+            div.innerHTML = `
+                <div class="code">
+                    已注册: ${registered.join(', ')}<br>
+                    已安装: ${installed.join(', ')}<br>
+                    <br>
+                    pdf-edit 注册: ${registered.includes('pdf-edit') ? '✅' : '❌'}<br>
+                    pdf-edit 安装: ${installed.includes('pdf-edit') ? '✅' : '❌'}
+                </div>
+            `;
+        };
+
+        window.checkEditButton = function() {
+            const div = document.getElementById('button-check');
+            const btn = document.getElementById('edit-pdf-btn');
+
+            if (!btn) {
+                div.innerHTML = '<span class="status-error">❌ 按钮元素不存在</span>';
+                return;
+            }
+
+            const listeners = getEventListeners?.(btn);
+
+            div.innerHTML = `
+                <span class="status-ok">✅ 按钮元素存在</span>
+                <div class="code">
+                    ID: ${btn.id}<br>
+                    类名: ${btn.className}<br>
+                    禁用状态: ${btn.disabled}<br>
+                    显示状态: ${btn.style.display}<br>
+                    点击事件数: ${listeners?.click?.length || '无法检测(需Chrome DevTools)'}
+                </div>
+            `;
+        };
+
+        window.checkStateManager = function() {
+            const div = document.getElementById('state-check');
+
+            if (!window.app) {
+                div.innerHTML = '<span class="status-error">❌ window.app 不存在</span>';
+                return;
+            }
+
+            const stateManager = window.app.getStateManager?.();
+            if (!stateManager) {
+                div.innerHTML = '<span class="status-error">❌ StateManager 不存在</span>';
+                return;
+            }
+
+            const listState = stateManager.getState('pdf-list');
+
+            div.innerHTML = `
+                <span class="status-ok">✅ StateManager 存在</span>
+                <div class="code">
+                    pdf-list 状态存在: ${listState ? '✅' : '❌'}<br>
+                    选中索引: ${JSON.stringify(listState?.selectedIndices || [])}<br>
+                    总条目数: ${listState?.items?.length || 0}
+                </div>
+            `;
+        };
+
+        window.manualBindTest = function() {
+            const div = document.getElementById('manual-check');
+            const btn = document.getElementById('edit-pdf-btn');
+
+            if (!btn) {
+                div.innerHTML = '<span class="status-error">❌ 按钮不存在</span>';
+                return;
+            }
+
+            // 手动添加测试事件
+            const testHandler = () => {
+                alert('✅ 编辑按钮点击事件正常工作！');
+                console.log('[DEBUG] Edit button clicked');
+            };
+
+            btn.addEventListener('click', testHandler);
+
+            div.innerHTML = `
+                <span class="status-ok">✅ 已添加测试事件监听器</span>
+                <div class="code">
+                    请点击页面上的"✏️ 编辑"按钮，如果弹出alert说明按钮可以响应点击。
+                    <br><br>
+                    如果没有弹出，可能是按钮被CSS遮挡或disabled。
+                </div>
+            `;
+        };
+
+        // 页面加载后自动运行检查
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                checkApp();
+                checkFeatures();
+                checkEditButton();
+                checkStateManager();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

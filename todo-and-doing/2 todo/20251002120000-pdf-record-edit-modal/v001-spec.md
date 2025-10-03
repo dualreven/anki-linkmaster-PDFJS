@@ -125,25 +125,77 @@ Tabulator 表格刷新
 
 ## 约束条件
 
-### 仅修改本模块代码
+### ⚠️ 并行开发原则（最重要）
 
-**允许修改的文件**：
-- `src/frontend/pdf-home/table/table-configuration-manager.js` - 添加编辑列
-- `src/frontend/pdf-home/managers/pdf-manager.js` - 监听更新事件
-- `src/backend/websocket/handlers.py` - 添加更新处理器（如需新增）
-- `src/backend/services/pdf_service.py` - 添加批量更新方法（如需）
+**功能域隔离架构**：
 
-**允许新建的文件**：
-- `src/frontend/pdf-home/ui/modal-manager.js` - 模态框管理器
-- `src/frontend/pdf-home/ui/components/star-rating-input.js` - 星级选择器
-- `src/frontend/pdf-home/ui/components/tags-input.js` - 多标签输入
-- `src/frontend/pdf-home/ui/components/toggle-switch.js` - 开关按钮
-- `src/frontend/pdf-home/ui/styles/modal.css` - 模态框样式
-- `src/frontend/pdf-home/ui/styles/form-components.css` - 表单组件样式
+本功能必须作为**独立的功能域**（pdf-edit）实现，严禁侵入其他功能域：
 
-**不可修改**：
-- 其他模块的代码
-- 现有的 WebSocket 消息协议核心结构（仅扩展）
+```
+src/frontend/pdf-home/features/
+├── pdf-list/              【禁止修改】其他团队维护
+│   ├── components/
+│   │   └── pdf-table.js   【仅允许】添加编辑按钮触发全局事件
+│   └── events.js          【禁止】添加编辑相关事件
+│
+└── pdf-edit/              【本次开发】独立功能域
+    ├── feature.config.js  【必须】声明依赖和提供的事件
+    ├── events.js          【必须】定义内部事件
+    ├── components/
+    │   ├── modal-manager.js
+    │   ├── star-rating.js
+    │   ├── tags-input.js
+    │   └── toggle-switch.js
+    ├── services/
+    └── state/
+```
+
+**跨域通信机制**：
+
+```javascript
+// ✅ 正确：pdf-table.js 使用全局事件触发编辑
+eventBus.emitGlobal(PDF_MANAGEMENT_EVENTS.EDIT.REQUESTED, rowData);
+
+// ❌ 错误：直接调用 pdf-edit 功能域的方法
+import { openEditModal } from '../pdf-edit/modal-manager.js'; // 严禁
+
+// ✅ 正确：pdf-edit 监听全局事件
+eventBus.onGlobal(PDF_MANAGEMENT_EVENTS.EDIT.REQUESTED, (data) => {
+  this.openEditModal(data);
+});
+```
+
+**关键原则**：
+
+1. **功能域独立性**：pdf-edit 所有代码必须在 `features/pdf-edit/` 目录下
+2. **最小化修改**：仅在 pdf-table.js 中添加编辑按钮列和触发全局事件
+3. **禁止侵入**：不得在 pdf-list/events.js 中添加编辑事件
+4. **全局事件通信**：使用 `PDF_MANAGEMENT_EVENTS.EDIT.*` 进行跨域通信
+5. **声明依赖**：在 feature.config.js 中明确声明监听和提供的事件
+
+### 允许修改和新建的文件
+
+**最小化修改现有文件**：
+- ✅ `features/pdf-list/components/pdf-table.js` - 仅添加编辑按钮列和全局事件触发
+- ✅ `common/event/event-constants.js` - 添加 `PDF_MANAGEMENT_EVENTS.EDIT`
+- ✅ `managers/pdf-manager.js` - 监听编辑完成事件（如需）
+- ✅ `src/backend/websocket/handlers.py` - 添加更新处理器（如需）
+- ✅ `src/backend/services/pdf_service.py` - 添加批量更新方法（如需）
+
+**新建独立功能域**：
+- ✅ `features/pdf-edit/feature.config.js` - 功能域配置
+- ✅ `features/pdf-edit/events.js` - 内部事件定义
+- ✅ `features/pdf-edit/components/modal-manager.js` - 模态框管理器
+- ✅ `features/pdf-edit/components/star-rating.js` - 星级选择器
+- ✅ `features/pdf-edit/components/tags-input.js` - 多标签输入
+- ✅ `features/pdf-edit/components/toggle-switch.js` - 开关按钮
+- ✅ `features/pdf-edit/styles/modal.css` - 模态框样式
+- ✅ `features/pdf-edit/styles/form-components.css` - 表单组件样式
+
+**严禁修改**：
+- ❌ `features/pdf-list/events.js` - 不得添加编辑事件
+- ❌ 其他功能域的代码（除了必要的事件触发点）
+- ❌ 现有的 WebSocket 消息协议核心结构（仅扩展）
 
 ### 严格遵循代码规范和标准
 
@@ -152,7 +204,7 @@ Tabulator 表格刷新
 - 类的私有方法使用 `#` 前缀
 - 所有函数必须有 JSDoc 注释
 - 异步操作使用 async/await
-- 事件命名遵循现有规范（如 `pdf:edit:requested`）
+- 事件命名遵循现有规范（全局：`pdf:edit:requested`，域内：`edit:requested`）
 - 字段命名统一使用 snake_case（前后端一致）
 
 ### 技术限制

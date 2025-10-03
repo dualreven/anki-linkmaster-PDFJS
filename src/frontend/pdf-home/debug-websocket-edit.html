@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>PDF编辑WebSocket诊断工具</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .section {
+            background: #252526;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 4px solid #007acc;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #4ec9b0;
+        }
+        .log {
+            background: #1e1e1e;
+            padding: 10px;
+            border-radius: 3px;
+            margin: 5px 0;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 5px;
+        }
+        .log-entry.info { color: #4ec9b0; }
+        .log-entry.warn { color: #ce9178; }
+        .log-entry.error { color: #f48771; }
+        .log-entry.success { color: #608b4e; }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            cursor: pointer;
+            background: #0e639c;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #1177bb;
+        }
+        button:disabled {
+            background: #3c3c3c;
+            cursor: not-allowed;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        .status.ok {
+            background: #608b4e;
+        }
+        .status.error {
+            background: #f48771;
+        }
+        .code {
+            background: #1e1e1e;
+            padding: 8px;
+            border-radius: 3px;
+            margin: 5px 0;
+            font-size: 11px;
+            color: #ce9178;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 PDF编辑WebSocket诊断工具</h1>
+
+    <div class="section">
+        <h3>1. 检查应用状态</h3>
+        <button onclick="checkAppState()">检查window.app</button>
+        <div id="app-state"></div>
+    </div>
+
+    <div class="section">
+        <h3>2. 检查WebSocket连接</h3>
+        <button onclick="checkWebSocket()">检查WebSocket状态</button>
+        <div id="ws-state"></div>
+    </div>
+
+    <div class="section">
+        <h3>3. 监听WebSocket消息</h3>
+        <button onclick="startListening()" id="listen-btn">开始监听</button>
+        <button onclick="stopListening()" id="stop-btn" disabled>停止监听</button>
+        <button onclick="clearLogs()">清空日志</button>
+        <div class="log" id="ws-log"></div>
+    </div>
+
+    <div class="section">
+        <h3>4. 测试发送编辑消息</h3>
+        <button onclick="testSendEditMessage()">发送测试消息</button>
+        <div id="test-result"></div>
+    </div>
+
+    <div class="section">
+        <h3>5. 检查pdf-edit功能域</h3>
+        <button onclick="checkPDFEditFeature()">检查功能域状态</button>
+        <div id="feature-state"></div>
+    </div>
+
+    <script type="module">
+        let listeners = [];
+        let logEntries = [];
+
+        window.checkAppState = function() {
+            const div = document.getElementById('app-state');
+
+            if (!window.app) {
+                div.innerHTML = '<span class="status error">❌ window.app不存在</span>';
+                return;
+            }
+
+            const state = window.app.getState();
+            div.innerHTML = `
+                <span class="status ok">✅ 应用已加载</span>
+                <div class="code">
+                    版本: ${state.version || 'unknown'}<br>
+                    架构: ${state.architecture || 'unknown'}<br>
+                    已注册功能: ${state.features?.registered?.join(', ') || 'none'}<br>
+                    已安装功能: ${state.features?.installed?.join(', ') || 'none'}
+                </div>
+            `;
+        };
+
+        window.checkWebSocket = async function() {
+            const div = document.getElementById('ws-state');
+
+            if (!window.app) {
+                div.innerHTML = '<span class="status error">❌ window.app不存在</span>';
+                return;
+            }
+
+            try {
+                const container = window.app.getContainer?.();
+                if (!container) {
+                    div.innerHTML = '<span class="status error">❌ Container不可用</span>';
+                    return;
+                }
+
+                const wsClient = container.get('wsClient');
+                if (!wsClient) {
+                    div.innerHTML = '<span class="status error">❌ WSClient未注册</span>';
+                    return;
+                }
+
+                const debugInfo = wsClient.getDebugInfo();
+                const isConnected = wsClient.isConnected();
+
+                div.innerHTML = `
+                    <span class="status ${isConnected ? 'ok' : 'error'}">
+                        ${isConnected ? '✅ 已连接' : '❌ 未连接'}
+                    </span>
+                    <div class="code">
+                        URL: ${debugInfo.url}<br>
+                        状态: ${debugInfo.ready_state_name}<br>
+                        重连次数: ${debugInfo.reconnect_attempts}/${debugInfo.max_reconnect_attempts}<br>
+                        队列消息: ${debugInfo.queued_messages}<br>
+                        待处理请求: ${debugInfo.pending_requests}
+                    </div>
+                `;
+
+                if (debugInfo.last_error) {
+                    div.innerHTML += `<div class="code" style="color: #f48771;">
+                        最后错误: ${JSON.stringify(debugInfo.last_error, null, 2)}
+                    </div>`;
+                }
+            } catch (error) {
+                div.innerHTML = `<span class="status error">❌ 检查失败: ${error.message}</span>`;
+            }
+        };
+
+        window.startListening = function() {
+            const logDiv = document.getElementById('ws-log');
+            const listenBtn = document.getElementById('listen-btn');
+            const stopBtn = document.getElementById('stop-btn');
+
+            if (!window.app) {
+                addLog('❌ window.app不存在', 'error');
+                return;
+            }
+
+            try {
+                const container = window.app.getContainer();
+                const eventBus = container.get('eventBus');
+
+                // 监听所有WebSocket事件
+                import('../../../common/event/event-constants.js').then(module => {
+                    const { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS } = module;
+
+                    // 监听发送消息
+                    const sendListener = eventBus.on(WEBSOCKET_EVENTS.MESSAGE.SEND, (message) => {
+                        addLog(`📤 发送: ${message.type}`, 'info', message);
+                    });
+                    listeners.push(() => sendListener());
+
+                    // 监听接收消息
+                    const receiveEvents = [
+                        WEBSOCKET_MESSAGE_EVENTS.PDF_LIST_UPDATED,
+                        WEBSOCKET_MESSAGE_EVENTS.SUCCESS,
+                        WEBSOCKET_MESSAGE_EVENTS.ERROR,
+                        WEBSOCKET_MESSAGE_EVENTS.RESPONSE
+                    ];
+
+                    receiveEvents.forEach(eventName => {
+                        const listener = eventBus.on(eventName, (message) => {
+                            addLog(`📥 接收: ${eventName}`, 'success', message);
+                        });
+                        listeners.push(() => listener());
+                    });
+
+                    addLog('✅ 开始监听WebSocket事件', 'success');
+                    listenBtn.disabled = true;
+                    stopBtn.disabled = false;
+                });
+
+            } catch (error) {
+                addLog(`❌ 启动监听失败: ${error.message}`, 'error');
+            }
+        };
+
+        window.stopListening = function() {
+            listeners.forEach(unsub => unsub());
+            listeners = [];
+
+            document.getElementById('listen-btn').disabled = false;
+            document.getElementById('stop-btn').disabled = true;
+            addLog('⏸️ 停止监听', 'info');
+        };
+
+        window.clearLogs = function() {
+            logEntries = [];
+            document.getElementById('ws-log').innerHTML = '';
+        };
+
+        window.testSendEditMessage = function() {
+            const div = document.getElementById('test-result');
+
+            try {
+                const container = window.app.getContainer();
+                const eventBus = container.get('eventBus');
+
+                import('../../../common/event/event-constants.js').then(module => {
+                    const { WEBSOCKET_EVENTS } = module;
+
+                    const testMessage = {
+                        type: 'update_pdf',
+                        request_id: `test_${Date.now()}`,
+                        data: {
+                            file_id: 'test-file-id',
+                            updates: {
+                                title: '测试书名',
+                                author: '测试作者'
+                            }
+                        }
+                    };
+
+                    addLog('🧪 发送测试消息...', 'info', testMessage);
+                    eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, testMessage, { actorId: 'DiagnosticTool' });
+
+                    div.innerHTML = `<span class="status ok">✅ 测试消息已发送</span>
+                        <div class="code">${JSON.stringify(testMessage, null, 2)}</div>`;
+                });
+            } catch (error) {
+                div.innerHTML = `<span class="status error">❌ 发送失败: ${error.message}</span>`;
+                addLog(`❌ 测试失败: ${error.message}`, 'error');
+            }
+        };
+
+        window.checkPDFEditFeature = function() {
+            const div = document.getElementById('feature-state');
+
+            try {
+                const container = window.app.getContainer();
+                const eventBus = container.get('eventBus');
+                const wsClient = container.get('wsClient');
+
+                div.innerHTML = `
+                    <span class="status ok">✅ 核心组件已加载</span>
+                    <div class="code">
+                        EventBus: ${eventBus ? '✅' : '❌'}<br>
+                        WSClient: ${wsClient ? '✅' : '❌'}<br>
+                        WSClient已连接: ${wsClient?.isConnected() ? '✅' : '❌'}
+                    </div>
+                `;
+            } catch (error) {
+                div.innerHTML = `<span class="status error">❌ 检查失败: ${error.message}</span>`;
+            }
+        };
+
+        function addLog(message, type = 'info', data = null) {
+            const logDiv = document.getElementById('ws-log');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = {
+                time: timestamp,
+                message,
+                type,
+                data
+            };
+            logEntries.push(entry);
+
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.innerHTML = `[${timestamp}] ${message}`;
+
+            if (data) {
+                logEntry.innerHTML += `<br><code style="font-size: 10px;">${JSON.stringify(data, null, 2)}</code>`;
+            }
+
+            logDiv.appendChild(logEntry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        // 页面加载后自动检查
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                checkAppState();
+                checkWebSocket();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
