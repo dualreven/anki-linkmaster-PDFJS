@@ -55,8 +55,9 @@ class ServiceDefinition {
   }
 
   /**
-   * 检查是否为单例
-   * @returns {boolean}
+   * 检查是否为单例模式
+   * @returns {boolean} 如果是单例返回 true
+   * @description 单例模式下，容器只会创建一次实例并缓存
    */
   isSingleton() {
     return this.scope === ServiceScope.SINGLETON;
@@ -64,7 +65,8 @@ class ServiceDefinition {
 
   /**
    * 检查是否为工厂函数
-   * @returns {boolean}
+   * @returns {boolean} 如果是工厂函数返回 true
+   * @description 工厂函数会被直接调用，不使用 new 操作符
    */
   isFactory() {
     return this.factory === true;
@@ -72,7 +74,8 @@ class ServiceDefinition {
 
   /**
    * 检查是否为类（需要 new 实例化）
-   * @returns {boolean}
+   * @returns {boolean} 如果是类返回 true
+   * @description 类会使用 new 操作符进行实例化
    */
   isClass() {
     return typeof this.target === 'function' && !this.factory;
