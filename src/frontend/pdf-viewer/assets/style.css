@@ -40,6 +40,7 @@ header {
     display: flex;
     align-items: center;
     gap: 24px;
+    margin-left: auto;
 }
 
 .btn {
@@ -72,6 +73,50 @@ h1 {
     color: #333;
 }
 
+/* 侧边栏按钮样式 */
+.sidebar-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+/* 浮动控制面板样式 */
+.floating-controls {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.controls-toggle-btn {
+    padding: 8px 16px;
+    border: 1px solid #ddd;
+    background-color: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    transition: all 0.2s ease;
+}
+
+.controls-toggle-btn:hover {
+    background-color: #f8f9fa;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.controls-content {
+    transition: all 0.3s ease;
+}
+
+.controls-content.collapsed {
+    display: none;
+}
+
 /* 主控制区域样式 */
 .main-controls {
     display: flex;
@@ -81,6 +126,8 @@ h1 {
     padding: 6px 12px;
     border-radius: 6px;
     border: 1px solid #e9ecef;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    flex-shrink: 0;
 }
 
 /* 布局控制样式 */

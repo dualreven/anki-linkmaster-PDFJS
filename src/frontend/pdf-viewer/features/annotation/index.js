@@ -308,22 +308,31 @@ export class AnnotationFeature {
       return;
     }
 
+    // 检测容器是否在header中（通过检查是否有sidebar-buttons类或在header-right中）
+    const inHeader = buttonContainer.classList.contains('sidebar-buttons') ||
+                     buttonContainer.closest('.header-right') !== null;
+
     // 创建标注按钮
     const button = document.createElement('button');
     button.id = 'annotation-toggle-btn';
     button.type = 'button';
     button.textContent = '✎ 标注';
     button.title = '打开标注（Ctrl+Shift+A）';
-    button.style.cssText = [
-      'padding:4px 8px',
-      'border:1px solid #ddd',
-      'border-radius:4px',
-      'background:#fff',
-      'cursor:pointer',
-      'box-shadow:0 1px 2px rgba(0,0,0,0.06)',
-      'font-size:13px',
-      'white-space:nowrap'
-    ].join(';');
+    button.className = 'btn'; // 使用统一的btn样式
+
+    // 只有在非header模式才添加内联样式
+    if (!inHeader) {
+      button.style.cssText = [
+        'padding:4px 8px',
+        'border:1px solid #ddd',
+        'border-radius:4px',
+        'background:#fff',
+        'cursor:pointer',
+        'box-shadow:0 1px 2px rgba(0,0,0,0.06)',
+        'font-size:13px',
+        'white-space:nowrap'
+      ].join(';');
+    }
 
     // 点击事件
     button.addEventListener('click', () => {
