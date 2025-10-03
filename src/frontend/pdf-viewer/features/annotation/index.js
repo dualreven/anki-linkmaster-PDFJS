@@ -162,11 +162,10 @@ export class AnnotationFeature {
     this.#logger.info('[AnnotationFeature] Registering tools...');
 
     // Phase 1: 注册截图工具
-    // 注意: 暂时注释掉，等待ScreenshotTool实现后取消注释
-    // const { ScreenshotTool } = await import('./tools/screenshot/index.js');
-    // const screenshotTool = new ScreenshotTool();
-    // this.#toolRegistry.register(screenshotTool);
-    // this.#logger.info('[AnnotationFeature] Screenshot tool registered');
+    const { ScreenshotTool } = await import('./tools/screenshot/index.js');
+    const screenshotTool = new ScreenshotTool();
+    this.#toolRegistry.register(screenshotTool);
+    this.#logger.info('[AnnotationFeature] Screenshot tool registered');
 
     // Phase 2: 注册文字高亮工具
     const { TextHighlightTool } = await import('./tools/text-highlight/index.js');

@@ -180,6 +180,27 @@ class MainWindow(QMainWindow):
     def _on_web_loaded(self, success: bool):
         """网页加载完成处理"""
         if success:
+            # 注入qwebchannel.js脚本以支持QWebChannel
+            if self.web_view and self.web_view.page():
+                script = """
+                (function() {
+                    if (typeof qt !== 'undefined' && qt.webChannelTransport) {
+                        var script = document.createElement('script');
+                        script.src = 'qrc:///qtwebchannel/qwebchannel.js';
+                        script.onload = function() {
+                            console.log('[MainWindow] qwebchannel.js loaded successfully');
+                        };
+                        script.onerror = function() {
+                            console.error('[MainWindow] Failed to load qwebchannel.js');
+                        };
+                        document.head.appendChild(script);
+                    } else {
+                        console.warn('[MainWindow] qt.webChannelTransport not available');
+                    }
+                })();
+                """
+                self.web_view.page().runJavaScript(script)
+
             self.status_bar.showMessage(f'页面加载完成 (PDF: {self.pdf_id})')
             self.web_loaded.emit()
         else:

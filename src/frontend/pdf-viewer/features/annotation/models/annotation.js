@@ -127,7 +127,12 @@ export class Annotation {
   #validateTypeSpecificData(type, data) {
     switch (type) {
       case AnnotationType.SCREENSHOT:
-        if (!data.rect || !data.rect.x || !data.rect.y || !data.rect.width || !data.rect.height) {
+        // 使用typeof检查，支持0值（页面左上角坐标可能是0）
+        if (!data.rect ||
+            typeof data.rect.x !== 'number' ||
+            typeof data.rect.y !== 'number' ||
+            typeof data.rect.width !== 'number' ||
+            typeof data.rect.height !== 'number') {
           throw new Error('Screenshot annotation requires rect with x, y, width, height');
         }
         // v003规范: 支持imagePath（文件路径）而非imageData（base64）

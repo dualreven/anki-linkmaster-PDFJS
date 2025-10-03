@@ -335,6 +335,19 @@ export class PDFViewerManager {
   }
 
   /**
+   * 获取指定页面的PageView对象
+   * @param {number} pageNumber - 页码（从1开始）
+   * @returns {Object|null} PageView对象，包含viewport、div、canvas等信息
+   */
+  getPageView(pageNumber) {
+    if (!this.#pdfViewer || pageNumber < 1 || pageNumber > this.pagesCount) {
+      return null;
+    }
+    // PDF.js的_pages数组索引从0开始，所以需要-1
+    return this.#pdfViewer._pages?.[pageNumber - 1] || null;
+  }
+
+  /**
    * 获取ScrollMode常量
    * @returns {Object} ScrollMode枚举
    */
