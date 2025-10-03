@@ -130,8 +130,13 @@ export class Annotation {
         if (!data.rect || !data.rect.x || !data.rect.y || !data.rect.width || !data.rect.height) {
           throw new Error('Screenshot annotation requires rect with x, y, width, height');
         }
-        if (!data.imageData || !data.imageData.startsWith('data:image/')) {
-          throw new Error('Screenshot annotation requires valid imageData (base64)');
+        // v003规范: 支持imagePath（文件路径）而非imageData（base64）
+        // 兼容两种格式: imagePath优先，imageData作为回退
+        if (!data.imagePath && !data.imageData) {
+          throw new Error('Screenshot annotation requires imagePath or imageData');
+        }
+        if (data.imageData && !data.imageData.startsWith('data:image/')) {
+          throw new Error('Screenshot annotation imageData must be valid base64');
         }
         break;
 
@@ -300,12 +305,36 @@ export class Annotation {
    * 创建截图标注
    * @param {number} pageNumber - 页码
    * @param {Object} rect - 区域 {x, y, width, height}
-   * @param {string} imageData - base64图片数据
+   * @param {string} imagePath - 图片文件路径（如'/data/screenshots/abc123.png'）
+   * @param {string} imageHash - 图片MD5哈希值
    * @param {string} [description=''] - 描述
    * @returns {Annotation} 标注实例
    * @static
    */
-  static createScreenshot(pageNumber, rect, imageData, description = '') {
+  static createScreenshot(pageNumber, rect, imagePath, imageHash, description = '') {
+    return new Annotation({
+      type: AnnotationType.SCREENSHOT,
+      pageNumber,
+      data: {
+        rect,
+        imagePath,      // v003规范: 使用文件路径
+        imageHash,      // v003规范: MD5哈希值
+        description
+      }
+    });
+  }
+
+  /**
+   * 创建截图标注（旧版兼容，使用base64）
+   * @param {number} pageNumber - 页码
+   * @param {Object} rect - 区域 {x, y, width, height}
+   * @param {string} imageData - base64图片数据
+   * @param {string} [description=''] - 描述
+   * @returns {Annotation} 标注实例
+   * @static
+   * @deprecated 使用createScreenshot(pageNumber, rect, imagePath, imageHash, description)代替
+   */
+  static createScreenshotLegacy(pageNumber, rect, imageData, description = '') {
     return new Annotation({
       type: AnnotationType.SCREENSHOT,
       pageNumber,

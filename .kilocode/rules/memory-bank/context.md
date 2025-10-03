@@ -689,10 +689,87 @@ Layer 5: 应用入口层 (bootstrap/, main.js)
 - 分支: `feature/pdf-home-add-delete-improvements`
 - 最新commit: d2ff056
 
+## PDF标注功能模块化架构实施 ✅ Phase 0完成 (2025-10-03 18:00)
+
+### 任务概述
+实施PDF标注功能的模块化插件化架构（v003规范），支持并行开发多个标注工具
+
+### Phase 0: 基础设施 ✅ 完成
+
+**架构升级**：
+```
+AnnotationFeature v1.0 (简单Feature)
+    ↓ 升级为
+AnnotationFeature v2.0 (容器/协调器)
+  ├── ToolRegistry (工具注册表)
+  ├── AnnotationManager (数据管理器)
+  └── AnnotationSidebarUI (UI管理器)
+```
+
+**核心组件**：
+1. ✅ **IAnnotationTool接口** (`interfaces/IAnnotationTool.js`)
+   - 定义11个必须实现的方法
+   - 元数据、生命周期、UI、清理方法
+   - validateAnnotationTool验证函数
+
+2. ✅ **ToolRegistry工具注册表** (`core/tool-registry.js`)
+   - 工具注册、初始化、激活/停用
+   - 互斥激活机制（同时只能有一个工具激活）
+   - 工具按钮创建和管理
+
+3. ✅ **AnnotationManager数据管理器** (`core/annotation-manager.js`)
+   - 标注CRUD操作（创建、更新、删除、查询）
+   - Phase 1 Mock模式（内存存储）
+   - 事件驱动架构
+
+4. ✅ **Annotation模型升级** (`models/annotation.js`)
+   - 支持imagePath（v003规范：文件路径 + MD5哈希）
+   - 兼容imageData（旧版base64）
+   - createScreenshot方法签名更新
+
+5. ✅ **AnnotationFeature重构** (`index.js`)
+   - 从简单Feature升级为容器模式
+   - 版本v2.0.0
+   - 管理三大核心组件的生命周期
+
+**并行开发架构**：
+```
+tools/
+  ├── screenshot/     ← 开发者A (待实现)
+  │   ├── index.js
+  │   ├── screenshot-capturer.js
+  │   └── qwebchannel-bridge.js
+  ├── text-highlight/ ← 开发者B (待实现)
+  └── comment/        ← 开发者C (待实现)
+```
+
+**内外层通信机制**：
+- 工具插件 → 发布事件 → EventBus → AnnotationManager处理 → 发布成功事件 → AnnotationFeature → 更新UI
+- 完全解耦，工具无需知道外层实现
+
+**技术要点**：
+- 事件总线驱动
+- 依赖注入模式
+- 插件接口标准化
+- Git零冲突并行开发
+
+### 后续任务分工
+- **Phase 1 (ScreenshotTool)**: 待AI-A实现
+- **Phase 2 (TextHighlightTool)**: 待AI-B实现
+- **Phase 3 (CommentTool)**: 待AI-C实现
+
+### 相关文档
+- 架构规范: `todo-and-doing/2 todo/20251002213000-pdf-annotation-sidebar/v003-modular-screenshot-spec.md`
+- 并行策略: `todo-and-doing/2 todo/20251002213000-pdf-annotation-sidebar/parallel-development-strategy.md`
+- 工作日志: `AItemp/20251003170000-AI-Working-log.md`
+- 测试说明: `AItemp/Phase0-测试说明.md`
+
+---
+
 ## PDF标注功能按钮加载修复 ✅ 完成 (2025-10-03 01:00)
 
 ### 任务概述
-成功修复PDF-Viewer模块中标注功能(AnnotationFeature)按钮无法加载的问题
+成功修复PDF-Viewer模块中标注功能(AnnotationFeature)按钮无法加载的问题（已被Phase 0架构升级替代）
 
 ### 关键问题和解决方案
 
