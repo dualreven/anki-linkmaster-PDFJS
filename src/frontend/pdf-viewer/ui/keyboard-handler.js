@@ -203,7 +203,7 @@ export class KeyboardHandler {
    * @private
    */
   #openSearch() {
-    this.#eventBus.emit(PDF_VIEWER_EVENTS.SEARCH.OPEN, {}, { actorId: 'KeyboardHandler' });
+    this.#eventBus.emit(PDF_VIEWER_EVENTS.SEARCH.UI.OPEN, {}, { actorId: 'KeyboardHandler' });
     this.#logger.info("Open search");
   }
 
