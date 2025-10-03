@@ -101,6 +101,98 @@ debug代码时的注意事项:
    模块化: 合理组织代码结构，避免全局变量污染
    性能优化: 注意大文件的分块加载，避免阻塞主线程
 
+⚠️ 前端开发核心规范 (严格遵守):
+
+   1. Logger 日志系统 (强制使用):
+      ❌ 严禁使用 console.log / console.info / console.warn / console.error
+      ✅ 必须使用项目的 Logger 系统
+
+      位置: src/frontend/common/utils/logger.js
+
+      基本用法:
+      ```javascript
+      import { getLogger, LogLevel } from '../common/utils/logger.js';
+
+      // 获取模块专属 logger（推荐使用 getLogger，会自动缓存实例）
+      const logger = getLogger('ModuleName');
+
+      // 或手动创建实例
+      import { Logger } from '../common/utils/logger.js';
+      const logger = new Logger('ModuleName', LogLevel.DEBUG);
+
+      // 使用日志
+      logger.debug('调试信息', extraData);      // 调试级别
+      logger.info('一般信息', extraData);       // 信息级别
+      logger.warn('警告信息', extraData);       // 警告级别
+      logger.error('错误信息', errorObject);   // 错误级别
+      logger.event('event:name', 'action', data); // 事件日志
+
+      // 设置日志级别
+      logger.setLogLevel(LogLevel.DEBUG);  // DEBUG | INFO | WARN | ERROR
+      ```
+
+      日志特性:
+      - ✅ 自动添加模块名前缀: [ModuleName] [INFO] 消息内容
+      - ✅ 支持对象序列化: 自动处理 Error、循环引用、深层对象
+      - ✅ 日志分级过滤: 只输出大于等于当前级别的日志
+      - ✅ PyQt 集成: 前端日志会被 PyQt 捕获并写入日志文件
+      - ✅ 单例模式: getLogger() 确保同一模块只有一个实例
+
+      常见错误示例:
+      ❌ console.log('数据加载完成', data);           // 错误：使用 console.log
+      ❌ console.error('发生错误:', error);           // 错误：使用 console.error
+      ❌ console.info(`事件: ${eventName}`);          // 错误：使用 console.info
+
+      正确示例:
+      ✅ logger.info('数据加载完成', data);            // 正确：使用 logger.info
+      ✅ logger.error('发生错误:', error);            // 正确：使用 logger.error
+      ✅ logger.event(eventName, 'triggered', data);  // 正确：使用 logger.event
+
+      为什么必须使用 Logger:
+      1. 统一日志格式，便于调试和追踪问题
+      2. 支持日志级别控制，生产环境可关闭 debug 日志
+      3. 日志会被保存到文件，便于事后分析
+      4. 防止敏感信息泄露（Logger 会过滤私有属性）
+      5. 与 PyQt 集成，前后端日志统一管理
+
+   2. 项目启动方法 (必须遵守):
+      ⚠️ 严禁直接运行 npm run dev 或 python app.py 等命令！
+      ✅ 必须使用 ai_launcher.py 脚本来管理项目启动和停止
+
+      正确启动方式:
+      ```bash
+      # 启动 PDF-Home 模块（文件管理界面）
+      python ai_launcher.py start --module pdf-home
+
+      # 启动 PDF-Viewer 模块（查看器）
+      python ai_launcher.py start --module pdf-viewer --pdf-id sample
+
+      # 检查服务状态
+      python ai_launcher.py status
+
+      # 查看运行日志
+      python ai_launcher.py logs
+
+      # 停止所有服务
+      python ai_launcher.py stop
+      ```
+
+      为什么必须使用 ai_launcher.py:
+      1. 自动管理多个服务的启动顺序（Vite、WebSocket、HTTP服务器）
+      2. 自动检测端口冲突，避免启动失败
+      3. 后台运行，不阻塞终端，支持 AI 自动化开发
+      4. 统一日志管理，所有服务日志集中输出
+      5. 一键停止所有服务，避免遗留进程
+
+   3. EventBus 事件系统 (必须遵守):
+      项目使用事件驱动架构，所有模块通过 EventBus 通信。
+      详细规范见下方 "EventBus 事件命名规范" 章节。
+
+      核心原则:
+      - Feature 之间只能通过 EventBus 通信，禁止直接引用
+      - 事件命名必须符合 3 段格式: {module}:{action}:{status}
+      - 区分局部事件（emit）和全局事件（emitGlobal）
+
 ⚠️ EventBus 事件命名规范 (严格遵守):
    格式: {module}:{action}:{status}  (必须正好3段，用冒号分隔)
 
@@ -244,10 +336,12 @@ AI 接管开发时的具体规则:
       - 消息队列必须有防重复机制
 
    9. 调试和问题排查:
-      - 使用 console.log 调试时必须包含明确的标识
-      - 错误信息必须包含上下文，便于定位问题
+      - ⚠️ 严禁使用 console.log，必须使用 logger.debug() 或 logger.info()
+      - 调试日志必须使用 logger.debug()，便于生产环境过滤
+      - 错误信息必须使用 logger.error() 并包含上下文，便于定位问题
       - 使用浏览器开发者工具检查性能和内存使用
-      - 重要操作必须有日志记录，便于事后分析
+      - 重要操作必须有日志记录（logger.info），便于事后分析
+      - 临时调试代码提交前必须删除或改为 logger.debug()
 
    10. 文档和注释要求:
       - 所有新功能必须更新对应的文档
