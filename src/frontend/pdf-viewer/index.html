@@ -16,18 +16,59 @@
             </div>
             <div class="header-right">
                 <div class="layout-controls">
-                    <select id="scroll-mode" class="btn" title="滚动模式">
+                    <!-- 隐藏的select，保持兼容性 -->
+                    <select id="scroll-mode" style="display:none;">
                         <option value="0">垂直滚动</option>
                         <option value="1">水平滚动</option>
                         <option value="2">环绕滚动</option>
                         <option value="3">单页</option>
                     </select>
+                    <!-- 自定义SVG滚动模式选择器 -->
+                    <div class="scroll-mode-selector">
+                        <button id="scroll-mode-btn" class="btn" type="button" title="滚动模式">
+                            <!-- 默认显示垂直滚动图标 -->
+                            <svg class="scroll-icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
+                                <rect x="4" y="1" width="10" height="4" stroke="currentColor" stroke-width="1.5"/>
+                                <rect x="4" y="7" width="10" height="4" stroke="currentColor" stroke-width="1.5"/>
+                                <rect x="4" y="13" width="10" height="4" stroke="currentColor" stroke-width="1.5"/>
+                            </svg>
+                        </button>
+                        <div class="scroll-mode-dropdown" style="display:none;">
+                            <button type="button" data-value="0" title="垂直滚动">
+                                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                                    <rect x="4" y="1" width="10" height="4" stroke="currentColor" stroke-width="1.5"/>
+                                    <rect x="4" y="7" width="10" height="4" stroke="currentColor" stroke-width="1.5"/>
+                                    <rect x="4" y="13" width="10" height="4" stroke="currentColor" stroke-width="1.5"/>
+                                </svg>
+                            </button>
+                            <button type="button" data-value="1" title="水平滚动">
+                                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                                    <rect x="1" y="4" width="4" height="10" stroke="currentColor" stroke-width="1.5"/>
+                                    <rect x="7" y="4" width="4" height="10" stroke="currentColor" stroke-width="1.5"/>
+                                    <rect x="13" y="4" width="4" height="10" stroke="currentColor" stroke-width="1.5"/>
+                                </svg>
+                            </button>
+                            <button type="button" data-value="2" title="环绕滚动">
+                                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                                    <rect x="1" y="1" width="7" height="7" stroke="currentColor" stroke-width="1.5"/>
+                                    <rect x="10" y="1" width="7" height="7" stroke="currentColor" stroke-width="1.5"/>
+                                    <rect x="1" y="10" width="7" height="7" stroke="currentColor" stroke-width="1.5"/>
+                                    <rect x="10" y="10" width="7" height="7" stroke="currentColor" stroke-width="1.5"/>
+                                </svg>
+                            </button>
+                            <button type="button" data-value="3" title="单页">
+                                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                                    <rect x="3" y="1" width="12" height="16" stroke="currentColor" stroke-width="1.5"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
                     <!-- 隐藏的select，保持兼容性 -->
                     <select id="spread-mode" style="display:none;">
                         <option value="0">单页</option>
                         <option value="2">双页</option>
                     </select>
-                    <!-- 自定义SVG图标选择器 -->
+                    <!-- 自定义SVG跨页模式选择器 -->
                     <div class="spread-mode-selector">
                         <button id="spread-mode-btn" class="btn" type="button" title="跨页模式">
                             <!-- 默认显示单页图标 -->

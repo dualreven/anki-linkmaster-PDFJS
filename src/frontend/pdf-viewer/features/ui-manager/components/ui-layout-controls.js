@@ -16,6 +16,9 @@ export class UILayoutControls {
   #eventBus;
   #pdfViewerManager;
   #scrollModeSelect = null;
+  #scrollModeBtn = null;
+  #scrollModeDropdown = null;
+  #currentScrollMode = 0;
   #spreadModeSelect = null;
   #spreadModeBtn = null;
   #spreadModeDropdown = null;
@@ -37,6 +40,8 @@ export class UILayoutControls {
 
     // 获取DOM元素
     this.#scrollModeSelect = document.getElementById('scroll-mode');
+    this.#scrollModeBtn = document.getElementById('scroll-mode-btn');
+    this.#scrollModeDropdown = document.querySelector('.scroll-mode-dropdown');
     this.#spreadModeSelect = document.getElementById('spread-mode');
     this.#spreadModeBtn = document.getElementById('spread-mode-btn');
     this.#spreadModeDropdown = document.querySelector('.spread-mode-dropdown');
@@ -70,6 +75,7 @@ export class UILayoutControls {
   #setControlsEnabled(enabled) {
     const controls = [
       this.#scrollModeSelect,
+      this.#scrollModeBtn,
       this.#spreadModeSelect,
       this.#spreadModeBtn,
       this.#rotateCCWBtn,
@@ -90,7 +96,7 @@ export class UILayoutControls {
    * @private
    */
   #setupEventListeners() {
-    // 滚动模式改变
+    // 滚动模式改变（隐藏select，保持兼容性）
     if (this.#scrollModeSelect) {
       this.#scrollModeSelect.addEventListener('change', (e) => {
         const mode = parseInt(e.target.value, 10);
@@ -100,6 +106,35 @@ export class UILayoutControls {
           // 触发PDFViewer更新
           this.#pdfViewerManager.viewer.update();
           this.#logger.info(`Scroll mode updated and view refreshed`);
+        }
+      });
+    }
+
+    // 自定义SVG滚动模式按钮
+    if (this.#scrollModeBtn && this.#scrollModeDropdown) {
+      // 点击按钮切换下拉菜单显示
+      this.#scrollModeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isVisible = this.#scrollModeDropdown.style.display === 'block';
+        this.#scrollModeDropdown.style.display = isVisible ? 'none' : 'block';
+      });
+
+      // 点击下拉菜单选项
+      const dropdownButtons = this.#scrollModeDropdown.querySelectorAll('button[data-value]');
+      dropdownButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const mode = parseInt(btn.dataset.value, 10);
+          this.#changeScrollMode(mode);
+          this.#scrollModeDropdown.style.display = 'none';
+        });
+      });
+
+      // 点击外部关闭下拉菜单
+      document.addEventListener('click', (e) => {
+        if (this.#scrollModeDropdown &&
+            this.#scrollModeDropdown.style.display === 'block') {
+          this.#scrollModeDropdown.style.display = 'none';
         }
       });
     }
@@ -159,6 +194,52 @@ export class UILayoutControls {
       this.#rotateCWBtn.addEventListener('click', () => {
         this.#rotatePages(90);
       });
+    }
+  }
+
+  /**
+   * 改变滚动模式
+   * @param {number} mode - 滚动模式（0=垂直, 1=水平, 2=环绕, 3=单页）
+   * @private
+   */
+  #changeScrollMode(mode) {
+    this.#currentScrollMode = mode;
+    this.#logger.info(`Changing scroll mode to: ${mode}`);
+
+    // 更新按钮图标
+    this.#updateScrollModeIcon(mode);
+
+    // 同步更新隐藏的select（保持兼容性）
+    if (this.#scrollModeSelect) {
+      this.#scrollModeSelect.value = mode;
+      // 触发change事件，让原有的处理逻辑生效
+      this.#scrollModeSelect.dispatchEvent(new Event('change'));
+    }
+  }
+
+  /**
+   * 更新滚动模式按钮图标
+   * @param {number} mode - 滚动模式（0=垂直, 1=水平, 2=环绕, 3=单页）
+   * @private
+   */
+  #updateScrollModeIcon(mode) {
+    if (!this.#scrollModeBtn) return;
+
+    const iconSVG = this.#scrollModeBtn.querySelector('.scroll-icon');
+    if (!iconSVG) return;
+
+    if (mode === 0) {
+      // 垂直滚动：3个方框垂直排列
+      iconSVG.innerHTML = '<rect x="4" y="1" width="10" height="4" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="4" y="7" width="10" height="4" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="4" y="13" width="10" height="4" stroke="currentColor" stroke-width="1.5" fill="none"/>';
+    } else if (mode === 1) {
+      // 水平滚动：3个方框水平排列
+      iconSVG.innerHTML = '<rect x="1" y="4" width="4" height="10" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="7" y="4" width="4" height="10" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="13" y="4" width="4" height="10" stroke="currentColor" stroke-width="1.5" fill="none"/>';
+    } else if (mode === 2) {
+      // 环绕滚动：4个方框2x2网格
+      iconSVG.innerHTML = '<rect x="1" y="1" width="7" height="7" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="10" y="1" width="7" height="7" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="1" y="10" width="7" height="7" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="10" y="10" width="7" height="7" stroke="currentColor" stroke-width="1.5" fill="none"/>';
+    } else if (mode === 3) {
+      // 单页：1个大方框
+      iconSVG.innerHTML = '<rect x="3" y="1" width="12" height="16" stroke="currentColor" stroke-width="1.5" fill="none"/>';
     }
   }
 
@@ -229,6 +310,8 @@ export class UILayoutControls {
    */
   destroy() {
     this.#scrollModeSelect = null;
+    this.#scrollModeBtn = null;
+    this.#scrollModeDropdown = null;
     this.#spreadModeSelect = null;
     this.#spreadModeBtn = null;
     this.#spreadModeDropdown = null;
