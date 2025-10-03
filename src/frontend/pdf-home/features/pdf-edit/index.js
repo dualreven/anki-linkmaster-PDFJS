@@ -285,7 +285,7 @@ export class PDFEditFeature {
   }
 
   /**
-   * 显示全局错误消息
+   * 显示全局错误消息（Toast形式）
    * @private
    * @param {string} message - 错误消息
    */
@@ -293,33 +293,36 @@ export class PDFEditFeature {
     const errorDiv = document.getElementById('global-error');
     if (errorDiv) {
       errorDiv.textContent = message;
-      errorDiv.style.display = 'block';
+      errorDiv.classList.add('show');
+
       // 3秒后自动隐藏
       setTimeout(() => {
-        errorDiv.style.display = 'none';
+        errorDiv.classList.remove('show');
       }, 3000);
     }
   }
 
   /**
-   * 显示全局警告消息
+   * 显示全局警告消息（Toast形式）
    * @private
    * @param {string} message - 警告消息
    */
   #showGlobalWarning(message) {
     const errorDiv = document.getElementById('global-error');
     if (errorDiv) {
-      errorDiv.style.background = '#fff3cd';
-      errorDiv.style.borderColor = '#ffc107';
-      errorDiv.style.color = '#856404';
+      // 临时改为警告样式
+      errorDiv.classList.remove('toast-error');
+      errorDiv.classList.add('toast-warning');
       errorDiv.textContent = message;
-      errorDiv.style.display = 'block';
-      // 3秒后自动隐藏并恢复原样式
+      errorDiv.classList.add('show');
+
+      // 3秒后自动隐藏并恢复样式
       setTimeout(() => {
-        errorDiv.style.display = 'none';
-        errorDiv.style.background = '#f8d7da';
-        errorDiv.style.borderColor = '#f5c6cb';
-        errorDiv.style.color = '#721c24';
+        errorDiv.classList.remove('show');
+        setTimeout(() => {
+          errorDiv.classList.remove('toast-warning');
+          errorDiv.classList.add('toast-error');
+        }, 300);
       }, 3000);
     }
   }
