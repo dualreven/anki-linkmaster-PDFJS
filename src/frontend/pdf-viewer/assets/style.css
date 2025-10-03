@@ -40,6 +40,7 @@ header {
     display: flex;
     align-items: center;
     gap: 24px;
+    margin-left: auto;
 }
 
 .btn {
@@ -72,15 +73,68 @@ h1 {
     color: #333;
 }
 
+/* 侧边栏按钮样式 */
+.sidebar-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+/* 浮动控制面板样式 */
+.floating-controls {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.controls-toggle-btn {
+    padding: 8px 16px;
+    border: 1px solid #ddd;
+    background-color: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    transition: all 0.2s ease;
+}
+
+.controls-toggle-btn:hover {
+    background-color: #f8f9fa;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.controls-content {
+    transition: all 0.3s ease;
+}
+
+.controls-content.collapsed {
+    display: none;
+}
+
+/* 主控制区域样式 */
+.main-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background-color: #f8f9fa;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    flex-shrink: 0;
+}
+
 /* 布局控制样式 */
 .layout-controls {
     display: flex;
     align-items: center;
     gap: 8px;
-    background-color: #f8f9fa;
-    padding: 6px 12px;
-    border-radius: 6px;
-    border: 1px solid #e9ecef;
 }
 
 .layout-controls select {
@@ -92,15 +146,125 @@ h1 {
     font-size: 13px;
 }
 
+/* 滚动模式选择器样式 */
+.scroll-mode-selector {
+    position: relative;
+    display: inline-block;
+}
+
+.scroll-mode-selector #scroll-mode-btn {
+    padding: 4px 8px;
+    min-width: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.scroll-mode-selector .scroll-icon {
+    display: block;
+}
+
+.scroll-mode-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    padding: 4px;
+    z-index: 1000;
+    min-width: 48px;
+}
+
+.scroll-mode-dropdown button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 8px;
+    border: none;
+    background: white;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: background-color 0.2s;
+}
+
+.scroll-mode-dropdown button:hover {
+    background-color: #f8f9fa;
+}
+
+.scroll-mode-dropdown button:active {
+    background-color: #e9ecef;
+}
+
+.scroll-mode-dropdown button + button {
+    margin-top: 2px;
+}
+
+/* 跨页模式选择器样式 */
+.spread-mode-selector {
+    position: relative;
+    display: inline-block;
+}
+
+.spread-mode-selector #spread-mode-btn {
+    padding: 4px 8px;
+    min-width: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.spread-mode-selector .spread-icon {
+    display: block;
+}
+
+.spread-mode-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    padding: 4px;
+    z-index: 1000;
+    min-width: 48px;
+}
+
+.spread-mode-dropdown button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 8px;
+    border: none;
+    background: white;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: background-color 0.2s;
+}
+
+.spread-mode-dropdown button:hover {
+    background-color: #f8f9fa;
+}
+
+.spread-mode-dropdown button:active {
+    background-color: #e9ecef;
+}
+
+.spread-mode-dropdown button + button {
+    margin-top: 2px;
+}
+
 /* 旋转控制样式 */
 .rotation-controls {
     display: flex;
     align-items: center;
     gap: 8px;
-    background-color: #f8f9fa;
-    padding: 6px 12px;
-    border-radius: 6px;
-    border: 1px solid #e9ecef;
+    padding-left: 12px;
+    border-left: 1px solid #dee2e6;
 }
 
 .rotation-controls .btn {
@@ -110,15 +274,27 @@ h1 {
     font-size: 18px;
 }
 
+/* 页面控制样式 */
+.page-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-left: 12px;
+    border-left: 1px solid #dee2e6;
+}
+
+.page-controls .btn {
+    padding: 4px 8px;
+    min-width: 40px;
+}
+
 /* 缩放控制样式 */
 .zoom-controls {
     display: flex;
     align-items: center;
     gap: 8px;
-    background-color: #f8f9fa;
-    padding: 6px 12px;
-    border-radius: 6px;
-    border: 1px solid #e9ecef;
+    padding-left: 12px;
+    border-left: 1px solid #dee2e6;
 }
 
 .zoom-controls .btn {
@@ -133,22 +309,6 @@ h1 {
     color: #495057;
     min-width: 50px;
     text-align: center;
-}
-
-/* 页面控制样式 */
-.page-controls {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background-color: #f8f9fa;
-    padding: 6px 12px;
-    border-radius: 6px;
-    border: 1px solid #e9ecef;
-}
-
-.page-controls .btn {
-    padding: 4px 8px;
-    min-width: 40px;
 }
 
 /* 页码输入框 */

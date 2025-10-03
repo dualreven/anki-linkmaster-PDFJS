@@ -195,14 +195,12 @@ export class BookmarkSidebarUI {
 
   show() {
     if (this.#sidebar) this.#sidebar.style.display = 'block';
-    if (this.#toggleBtn) this.#toggleBtn.style.display = 'none';
     // 书签侧边栏使用绝对定位悬浮显示，不调整PDF渲染区域
     this.#eventBus.emit(PDF_VIEWER_EVENTS.BOOKMARK.SIDEBAR.OPENED, {}, { actorId: 'BookmarkSidebarUI' });
   }
 
   hide() {
     if (this.#sidebar) this.#sidebar.style.display = 'none';
-    if (this.#toggleBtn) this.#toggleBtn.style.display = 'block';
     // 书签侧边栏使用绝对定位悬浮显示，不调整PDF渲染区域
     this.#eventBus.emit(PDF_VIEWER_EVENTS.BOOKMARK.SIDEBAR.CLOSED, {}, { actorId: 'BookmarkSidebarUI' });
   }
@@ -217,26 +215,32 @@ export class BookmarkSidebarUI {
   #ensureToggleButton() {
     if (this.#toggleBtn) return;
 
-    // 创建按钮容器
-    const buttonContainer = document.createElement('div');
-    buttonContainer.id = 'pdf-viewer-button-container'; // 添加ID让其他Feature能找到
+    // 优先查找header中的按钮容器
+    let buttonContainer = document.getElementById('pdf-viewer-button-container');
+    let inHeader = !!buttonContainer;
 
-    // 根据容器可见性选择定位策略：优先挂在容器，否则挂到 body（fixed）
-    const attachToBody = !this.#container || (this.#container.offsetWidth === 0 && this.#container.offsetHeight === 0);
+    // 如果header中没有容器，使用旧的浮动方式创建（向后兼容）
+    if (!buttonContainer) {
+      buttonContainer = document.createElement('div');
+      buttonContainer.id = 'pdf-viewer-button-container';
 
-    if (attachToBody) {
-      buttonContainer.style.cssText = [
-        'position:fixed','left:8px','top:80px','z-index:1000',
-        'display:flex','flex-direction:column','gap:8px'
-      ].join(';');
-      document.body.appendChild(buttonContainer);
-    } else {
-      buttonContainer.style.cssText = [
-        'position:absolute','left:8px','top:8px','z-index:10',
-        'display:flex','flex-direction:column','gap:8px'
-      ].join(';');
-      this.#container.style.position = this.#container.style.position || 'relative';
-      this.#container.appendChild(buttonContainer);
+      // 根据容器可见性选择定位策略：优先挂在容器，否则挂到 body（fixed）
+      const attachToBody = !this.#container || (this.#container.offsetWidth === 0 && this.#container.offsetHeight === 0);
+
+      if (attachToBody) {
+        buttonContainer.style.cssText = [
+          'position:fixed','left:8px','top:80px','z-index:1000',
+          'display:flex','flex-direction:column','gap:8px'
+        ].join(';');
+        document.body.appendChild(buttonContainer);
+      } else {
+        buttonContainer.style.cssText = [
+          'position:absolute','left:8px','top:8px','z-index:10',
+          'display:flex','flex-direction:column','gap:8px'
+        ].join(';');
+        this.#container.style.position = this.#container.style.position || 'relative';
+        this.#container.appendChild(buttonContainer);
+      }
     }
 
     // 创建书签按钮
@@ -244,11 +248,15 @@ export class BookmarkSidebarUI {
     bookmarkBtn.type = 'button';
     bookmarkBtn.textContent = '≡ 书签';
     bookmarkBtn.title = '打开书签';
-    bookmarkBtn.style.cssText = [
-      'padding:4px 8px','border:1px solid #ddd','border-radius:4px',
-      'background:#fff','cursor:pointer','box-shadow:0 1px 2px rgba(0,0,0,0.06)',
-      'font-size:13px','white-space:nowrap'
-    ].join(';');
+    bookmarkBtn.className = 'btn'; // 使用统一的btn样式
+    // 只有在非header模式才添加内联样式
+    if (!inHeader) {
+      bookmarkBtn.style.cssText = [
+        'padding:4px 8px','border:1px solid #ddd','border-radius:4px',
+        'background:#fff','cursor:pointer','box-shadow:0 1px 2px rgba(0,0,0,0.06)',
+        'font-size:13px','white-space:nowrap'
+      ].join(';');
+    }
     bookmarkBtn.addEventListener('click', () => this.show());
     buttonContainer.appendChild(bookmarkBtn);
 
@@ -259,18 +267,43 @@ export class BookmarkSidebarUI {
     cardBtn.type = 'button';
     cardBtn.textContent = '📇 卡片';
     cardBtn.title = '打开卡片';
-    cardBtn.style.cssText = [
-      'padding:4px 8px','border:1px solid #ddd','border-radius:4px',
-      'background:#fff','cursor:pointer','box-shadow:0 1px 2px rgba(0,0,0,0.06)',
-      'font-size:13px','white-space:nowrap'
-    ].join(';');
+    cardBtn.className = 'btn'; // 使用统一的btn样式
+    // 只有在非header模式才添加内联样式
+    if (!inHeader) {
+      cardBtn.style.cssText = [
+        'padding:4px 8px','border:1px solid #ddd','border-radius:4px',
+        'background:#fff','cursor:pointer','box-shadow:0 1px 2px rgba(0,0,0,0.06)',
+        'font-size:13px','white-space:nowrap'
+      ].join(';');
+    }
     cardBtn.addEventListener('click', () => {
       this.#logger.info('[BookmarkSidebarUI] Card button clicked');
       // TODO: 实现卡片功能
     });
     buttonContainer.appendChild(cardBtn);
 
-    this.#logger.info('[BookmarkSidebarUI] Toggle buttons created', { attachToBody });
+    // 创建翻译按钮（空壳子）
+    const translateBtn = document.createElement('button');
+    translateBtn.id = 'translate-sidebar-button';
+    translateBtn.type = 'button';
+    translateBtn.textContent = '🌐 翻译';
+    translateBtn.title = '打开翻译';
+    translateBtn.className = 'btn'; // 使用统一的btn样式
+    // 只有在非header模式才添加内联样式
+    if (!inHeader) {
+      translateBtn.style.cssText = [
+        'padding:4px 8px','border:1px solid #ddd','border-radius:4px',
+        'background:#fff','cursor:pointer','box-shadow:0 1px 2px rgba(0,0,0,0.06)',
+        'font-size:13px','white-space:nowrap'
+      ].join(';');
+    }
+    translateBtn.addEventListener('click', () => {
+      this.#logger.info('[BookmarkSidebarUI] Translate button clicked');
+      // TODO: 实现翻译功能
+    });
+    buttonContainer.appendChild(translateBtn);
+
+    this.#logger.info('[BookmarkSidebarUI] Toggle buttons created', { inHeader, fallbackMode: !inHeader });
     this.#toggleBtn = bookmarkBtn; // 保持对书签按钮的引用
   }
 
