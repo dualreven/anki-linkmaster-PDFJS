@@ -305,6 +305,217 @@ export const PDF_VIEWER_EVENTS = {
   },
   
   /**
+   * 搜索功能相关事件
+   * @namespace SEARCH
+   */
+  SEARCH: {
+    /**
+     * UI控制事件
+     * @namespace UI
+     */
+    UI: {
+      /**
+       * 打开搜索框
+       * @event pdf-viewer:search:ui:open
+       * @type {string}
+       */
+      OPEN: 'pdf-viewer:search:ui:open',
+
+      /**
+       * 关闭搜索框
+       * @event pdf-viewer:search:ui:close
+       * @type {string}
+       */
+      CLOSE: 'pdf-viewer:search:ui:close',
+
+      /**
+       * 切换搜索框显示/隐藏
+       * @event pdf-viewer:search:ui:toggle
+       * @type {string}
+       */
+      TOGGLE: 'pdf-viewer:search:ui:toggle',
+    },
+
+    /**
+     * 搜索执行事件
+     * @namespace EXECUTE
+     */
+    EXECUTE: {
+      /**
+       * 执行搜索请求
+       * @event pdf-viewer:search:execute:query
+       * @type {string}
+       * @payload {Object} data
+       * @payload {string} data.query - 搜索关键词
+       * @payload {Object} data.options - 搜索选项
+       * @payload {boolean} data.options.caseSensitive - 是否区分大小写
+       * @payload {boolean} data.options.wholeWords - 是否全词匹配
+       * @payload {boolean} data.options.highlightAll - 是否高亮所有结果
+       */
+      QUERY: 'pdf-viewer:search:execute:query',
+
+      /**
+       * 搜索关键词变化
+       * @event pdf-viewer:search:execute:query-changed
+       * @type {string}
+       * @payload {Object} data
+       * @payload {string} data.query - 新的搜索关键词
+       */
+      QUERY_CHANGED: 'pdf-viewer:search:execute:query-changed',
+
+      /**
+       * 清空搜索
+       * @event pdf-viewer:search:execute:clear
+       * @type {string}
+       */
+      CLEAR: 'pdf-viewer:search:execute:clear',
+    },
+
+    /**
+     * 搜索结果事件
+     * @namespace RESULT
+     */
+    RESULT: {
+      /**
+       * 找到搜索结果
+       * @event pdf-viewer:search:result:found
+       * @type {string}
+       * @payload {Object} data
+       * @payload {string} data.query - 搜索关键词
+       * @payload {number} data.total - 总匹配数
+       * @payload {number} data.current - 当前匹配索引
+       * @payload {Array} data.matches - 匹配结果数组
+       */
+      FOUND: 'pdf-viewer:search:result:found',
+
+      /**
+       * 未找到搜索结果
+       * @event pdf-viewer:search:result:not-found
+       * @type {string}
+       * @payload {Object} data
+       * @payload {string} data.query - 搜索关键词
+       */
+      NOT_FOUND: 'pdf-viewer:search:result:not-found',
+
+      /**
+       * 搜索结果已更新
+       * @event pdf-viewer:search:result:updated
+       * @type {string}
+       * @payload {Object} data
+       * @payload {number} data.current - 当前匹配索引
+       * @payload {number} data.total - 总匹配数
+       */
+      UPDATED: 'pdf-viewer:search:result:updated',
+
+      /**
+       * 搜索进度更新
+       * @event pdf-viewer:search:result:progress
+       * @type {string}
+       * @payload {Object} data
+       * @payload {number} data.current - 当前搜索页数
+       * @payload {number} data.total - 总页数
+       */
+      PROGRESS: 'pdf-viewer:search:result:progress',
+    },
+
+    /**
+     * 搜索导航事件
+     * @namespace NAVIGATE
+     */
+    NAVIGATE: {
+      /**
+       * 导航到下一个搜索结果
+       * @event pdf-viewer:search:navigate:next
+       * @type {string}
+       */
+      NEXT: 'pdf-viewer:search:navigate:next',
+
+      /**
+       * 导航到上一个搜索结果
+       * @event pdf-viewer:search:navigate:prev
+       * @type {string}
+       */
+      PREV: 'pdf-viewer:search:navigate:prev',
+
+      /**
+       * 跳转到指定搜索结果
+       * @event pdf-viewer:search:navigate:to
+       * @type {string}
+       * @payload {Object} data
+       * @payload {number} data.index - 目标结果索引
+       */
+      TO: 'pdf-viewer:search:navigate:to',
+
+      /**
+       * 导航完成
+       * @event pdf-viewer:search:navigate:completed
+       * @type {string}
+       * @payload {Object} data
+       * @payload {number} data.pageNumber - 跳转到的页码
+       * @payload {number} data.matchIndex - 匹配项索引
+       */
+      COMPLETED: 'pdf-viewer:search:navigate:completed',
+    },
+
+    /**
+     * 搜索选项事件
+     * @namespace OPTION
+     */
+    OPTION: {
+      /**
+       * 搜索选项改变
+       * @event pdf-viewer:search:option:changed
+       * @type {string}
+       * @payload {Object} data
+       * @payload {string} data.option - 选项名称（caseSensitive|wholeWords|highlightAll）
+       * @payload {boolean} data.value - 选项值
+       */
+      CHANGED: 'pdf-viewer:search:option:changed',
+
+      /**
+       * 重置搜索选项
+       * @event pdf-viewer:search:option:reset
+       * @type {string}
+       */
+      RESET: 'pdf-viewer:search:option:reset',
+    },
+
+    /**
+     * 搜索状态事件
+     * @namespace STATE
+     */
+    STATE: {
+      /**
+       * 搜索引擎已初始化
+       * @event pdf-viewer:search:state:initialized
+       * @type {string}
+       */
+      INITIALIZED: 'pdf-viewer:search:state:initialized',
+
+      /**
+       * 搜索引擎已销毁
+       * @event pdf-viewer:search:state:destroyed
+       * @type {string}
+       */
+      DESTROYED: 'pdf-viewer:search:state:destroyed',
+
+      /**
+       * 搜索中
+       * @event pdf-viewer:search:state:searching
+       * @type {string}
+       */
+      SEARCHING: 'pdf-viewer:search:state:searching',
+
+      /**
+       * 搜索空闲
+       * @event pdf-viewer:search:state:idle
+       * @type {string}
+       */
+      IDLE: 'pdf-viewer:search:state:idle',
+    },
+  },
+
+  /**
    * 书签相关事件
    * @namespace BOOKMARK
    */
