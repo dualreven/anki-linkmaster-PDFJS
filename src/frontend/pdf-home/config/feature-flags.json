@@ -22,19 +22,30 @@
     }
   },
   "pdf-sorter": {
-    "enabled": false,
-    "description": "PDF 排序功能域（开发中）",
-    "version": "0.1.0",
+    "enabled": true,
+    "description": "PDF 排序功能域",
+    "version": "1.0.0",
     "meta": {
-      "status": "development",
+      "status": "stable",
       "owner": "pdf-home-team",
       "dependencies": ["pdf-list"],
-      "estimatedRelease": "2025-10-20"
+      "releasedAt": "2025-10-04"
     }
   },
   "pdf-edit": {
     "enabled": true,
     "description": "PDF 记录编辑功能域",
+    "version": "1.0.0",
+    "meta": {
+      "status": "stable",
+      "owner": "pdf-home-team",
+      "dependencies": ["pdf-list"],
+      "releasedAt": "2025-10-03"
+    }
+  },
+  "filter": {
+    "enabled": true,
+    "description": "PDF 搜索和筛选功能域",
     "version": "1.0.0",
     "meta": {
       "status": "stable",
