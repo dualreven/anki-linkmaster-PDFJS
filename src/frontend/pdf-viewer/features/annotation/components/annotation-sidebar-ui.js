@@ -353,6 +353,13 @@ export class AnnotationSidebarUI {
       },
       { subscriberId: 'AnnotationSidebarUI' }
     ));
+
+    // 监听标注选择事件（点击标记时）
+    this.#unsubs.push(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANNOTATION.SELECT,
+      (data) => this.highlightAndScrollToCard(data.id),
+      { subscriberId: 'AnnotationSidebarUI' }
+    ));
   }
 
   /**
@@ -727,6 +734,50 @@ export class AnnotationSidebarUI {
     // 这里可以展开评论输入区域或打开评论对话框
     // 暂时只发出事件
     this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SELECT, { id: annotationId });
+  }
+
+  /**
+   * 高亮并滚动到指定的标注卡片
+   * @param {string} annotationId - 标注ID
+   */
+  highlightAndScrollToCard(annotationId) {
+    this.#logger.debug(`Highlighting and scrolling to card: ${annotationId}`);
+
+    // 如果侧边栏关闭，先打开
+    if (!this.#sidebar || this.#sidebar.style.display === 'none') {
+      this.show();
+    }
+
+    // 获取目标卡片
+    const targetCard = this.#annotationCards.get(annotationId);
+    if (!targetCard) {
+      this.#logger.warn(`Card not found: ${annotationId}`);
+      return;
+    }
+
+    // 移除所有卡片的高亮状态
+    this.#annotationCards.forEach((card) => {
+      card.style.background = '#fff';
+      card.style.borderColor = '#e0e0e0';
+    });
+
+    // 高亮目标卡片
+    targetCard.style.background = '#fff3cd';
+    targetCard.style.borderColor = '#ffc107';
+
+    // 滚动到目标卡片
+    targetCard.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center'
+    });
+
+    // 3秒后恢复正常样式
+    setTimeout(() => {
+      targetCard.style.background = '#fff';
+      targetCard.style.borderColor = '#e0e0e0';
+    }, 3000);
+
+    this.#logger.info(`Card highlighted and scrolled: ${annotationId}`);
   }
 
   /**
