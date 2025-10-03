@@ -837,3 +837,320 @@ tools/
 ### 相关文档
 - 工作日志: `AItemp/20251003010000-AI-Working-log.md`
 - 需求文档: `todo-and-doing/PDF标注功能需求`
+
+---
+
+## CommentTool实现Bug修复 ✅ 完成 (2025-10-03 17:44)
+
+### 任务概述
+继续Phase 0架构，验证并修复CommentTool实现中的数据结构访问错误
+
+### 关键Bug和修复
+
+#### Bug 1: Annotation对象创建方式错误
+- **错误**: 直接在构造函数中传入content和position作为顶层属性
+- **正确**: 应使用`Annotation.createComment()`静态工厂方法
+- **影响**: 创建的Annotation对象不符合模型规范
+- **修复**: `tools/comment/index.js:219`
+  ```javascript
+  // 错误：
+  const annotation = new Annotation({
+    type: 'comment',
+    content,
+    pageNumber,
+    position: { x, y },
+    createdAt: new Date().toISOString(),
+  });
+
+  // 修复：
+  const annotation = Annotation.createComment(pageNumber, { x, y }, content);
+  ```
+
+#### Bug 2: CommentMarker访问属性错误
+- **错误**: 直接从annotation解构position和content
+- **正确**: 应从annotation.data中获取
+- **影响**: 标记创建时无法获取正确的位置和内容
+- **修复**: `tools/comment/comment-marker.js:38-39`
+  ```javascript
+  // 错误：
+  const { id, pageNumber, position, content } = annotation;
+
+  // 修复：
+  const { id, pageNumber, data } = annotation;
+  const { position, content } = data;
+  ```
+
+#### Bug 3: createAnnotationCard访问属性错误
+- **错误**: 使用annotation.content访问内容
+- **正确**: 应使用annotation.data.content
+- **影响**: 侧边栏卡片显示"无内容"
+- **修复**: `tools/comment/index.js:371`
+  ```javascript
+  // 错误：
+  ${annotation.content || '无内容'}
+
+  // 修复：
+  ${annotation.data.content || '无内容'}
+  ```
+
+#### Bug 4: 跳转事件名称错误
+- **错误**: 使用`annotation:jump-to:requested`
+- **正确**: 应使用`annotation:jump:requested`（符合EventBus 3段式格式）
+- **影响**: 跳转功能无法触发
+- **修复**: `tools/comment/index.js:407`
+
+#### Bug 5: 私有字段未声明
+- **错误**: 使用`this.#handleKeydown`但未在类中声明
+- **影响**: ESLint报错，代码无法通过语法检查
+- **修复**: `tools/comment/comment-input.js:33` - 添加私有字段声明
+
+### Annotation模型数据结构规范
+根据`annotation/models/annotation.js`，comment类型的正确结构：
+```javascript
+{
+  id: string,              // 自动生成
+  type: 'comment',         // 类型
+  pageNumber: number,      // 页码
+  data: {                  // ⚠️ 类型特定数据必须在data对象中
+    position: { x, y },    // 位置坐标
+    content: string        // 批注内容
+  },
+  createdAt: string,       // ISO 8601
+  updatedAt: string        // ISO 8601
+}
+```
+
+### 验证结果
+- ✅ 所有语法检查通过（ESLint无错误）
+- ✅ Annotation对象创建符合模型规范
+- ✅ 标记渲染使用正确的数据访问路径
+- ✅ 事件名称符合EventBus 3段式规范
+- ✅ 服务状态正常（Vite: 3002, msgCenter: 8776, pdfFile: 8080）
+
+### 技术要点
+1. **静态工厂方法**: 优先使用`Annotation.createComment()`而非直接构造
+2. **数据结构访问**: comment类型数据在`annotation.data`中，不是顶层属性
+3. **EventBus规范**: 严格遵循3段式事件名称格式
+4. **私有字段声明**: JavaScript私有字段必须先声明再使用
+
+### 修改文件清单
+1. ✅ `src/frontend/pdf-viewer/features/annotation/tools/comment/index.js`
+   - 修复Annotation创建（line 219）
+   - 修复内容访问（line 371）
+   - 修复事件名称（line 407）
+
+2. ✅ `src/frontend/pdf-viewer/features/annotation/tools/comment/comment-marker.js`
+   - 修复属性访问（line 38-39）
+   - 更新JSDoc文档
+
+3. ✅ `src/frontend/pdf-viewer/features/annotation/tools/comment/comment-input.js`
+   - 添加私有字段声明（line 33）
+
+### 后续任务
+- ⏳ 浏览器实际测试CommentTool功能
+- ⏳ 验证批注创建、显示、删除流程
+- ⏳ 验证标记点击和高亮效果
+- ⏳ 验证跳转功能
+- ⏳ 处理PDF页面元素选择器的兼容性问题
+
+### 相关文档
+- 工作日志: `AItemp/20251003174421-AI-Working-log.md`
+- 架构规范: `todo-and-doing/2 todo/20251002213000-pdf-annotation-sidebar/v003-modular-screenshot-spec.md`
+- Annotation模型: `src/frontend/pdf-viewer/features/annotation/models/annotation.js`
+
+---
+
+## CommentTool页面跳转Bug修复 ✅ 完成 (2025-10-03 18:01)
+
+### 问题描述
+用户反馈：启用批注功能后，点击任何一个页面都会跳转到第一页。
+
+### 根本原因
+三个关键问题导致：
+1. **事件冒泡**: 点击事件没有阻止冒泡，触发了其他导航逻辑
+2. **页码获取不准确**: 总是使用`pdfViewerManager.currentPageNumber`或默认值1
+3. **坐标系统混乱**: 使用容器相对坐标但定位不准确
+
+### 修复方案
+
+#### 1. 阻止事件冒泡 ✅
+**文件**: `tools/comment/index.js:185-186`
+```javascript
+e.preventDefault();
+e.stopPropagation();
+```
+- 防止点击触发其他导航处理器
+- 避免页面滚动或跳转
+
+#### 2. 使用事件委托获取准确页码 ✅
+**文件**: `tools/comment/index.js:188-201`
+```javascript
+// 查找实际点击的页面元素
+let pageElement = e.target.closest('.page');
+if (!pageElement) {
+  this.#logger.warn('Click target is not within a .page element, ignoring');
+  return;
+}
+
+// 从页面元素获取页码
+const pageNumber = parseInt(pageElement.dataset.pageNumber) || this.#getCurrentPageNumber();
+
+// 获取点击位置（相对于页面元素）
+const pageRect = pageElement.getBoundingClientRect();
+const x = e.clientX - pageRect.left;
+const y = e.clientY - pageRect.top;
+```
+- 使用事件委托找到实际点击的`.page`元素
+- 从`data-page-number`属性直接读取页码
+- 坐标相对于页面元素计算（用于渲染标记）
+
+#### 3. 改用fixed定位和视口坐标 ✅
+**文件1**: `tools/comment/index.js:203-212`
+```javascript
+// 获取显示输入框的位置（相对于视口）
+const displayX = e.clientX;
+const displayY = e.clientY;
+
+this.#commentInput.show({
+  x: displayX,
+  y: displayY,
+  pageNumber,
+  ...
+});
+```
+
+**文件2**: `tools/comment/comment-input.js:59-77,138`
+```javascript
+// 调整位置避免超出视口
+const adjustedX = Math.min(x, window.innerWidth - 320);
+const adjustedY = Math.min(y, window.innerHeight - 200);
+
+this.#container.style.cssText = `
+  position: fixed;
+  left: ${adjustedX}px;
+  top: ${adjustedY}px;
+  ...
+`;
+
+// 添加到body（因为使用fixed定位）
+document.body.appendChild(this.#container);
+```
+- 使用`position: fixed`相对于视口定位
+- 添加边界检查防止超出屏幕
+- 直接添加到`document.body`
+
+### 技术要点
+1. **事件委托模式**: 使用`e.target.closest()`查找实际点击元素
+2. **坐标系统分离**:
+   - 批注标记坐标: 相对于`.page`元素（用于渲染）
+   - 输入框坐标: 相对于视口（用于UI显示）
+3. **事件处理**: `preventDefault()` + `stopPropagation()`
+
+### 验证结果
+- ✅ ESLint语法检查通过
+- ✅ 事件冒泡问题已解决
+- ✅ 页码获取准确（基于实际点击的页面）
+- ✅ 坐标系统清晰（批注vs UI分离）
+- ✅ 边界检查完善（输入框不超出视口）
+
+### 测试建议
+1. 在第2/3页创建批注，验证页面不跳转
+2. 检查标记是否准确出现在对应页面
+3. 测试页面边缘点击，输入框不超出屏幕
+4. 测试滚动状态下的批注创建
+
+### 修改文件清单
+1. ✅ `src/frontend/pdf-viewer/features/annotation/tools/comment/index.js`
+   - 添加事件阻止（line 185-186）
+   - 实现事件委托获取页码（line 188-196）
+   - 坐标分离处理（line 198-212）
+
+2. ✅ `src/frontend/pdf-viewer/features/annotation/tools/comment/comment-input.js`
+   - 改用fixed定位（line 66）
+   - 添加边界检查（line 59-60）
+   - 简化DOM添加（line 138）
+
+### 相关文档
+- 详细工作日志: `AItemp/20251003180103-AI-Working-log.md`
+- 前次修复: `AItemp/20251003174421-AI-Working-log.md`
+
+---
+
+## CommentTool重复创建卡片Bug修复 ✅ 完成 (2025-10-03 18:15)
+
+### 问题描述
+用户反馈：一次批注点击会创建两个标注卡片。
+
+### 根本原因
+**重复事件监听**问题：`annotation:create:success` 事件被两个组件同时监听并处理：
+
+1. **AnnotationSidebarUI** (annotation-sidebar-ui.js:322) 监听 `PDF_VIEWER_EVENTS.ANNOTATION.CREATED`
+2. **AnnotationFeature** (index.js:196) 也监听 `annotation:create:success`
+
+两者是同一事件（CREATED = 'annotation:create:success'），导致每次创建都调用两次 `addAnnotationCard()`。
+
+### 修复方案 ✅
+删除AnnotationFeature中的重复监听器，保留AnnotationSidebarUI的监听。
+
+**文件**: `features/annotation/index.js:194-204`
+
+**理由**:
+- **职责分离**: UI组件应该自己监听自己需要的事件
+- **低耦合**: 容器不应该直接操作UI组件的内部方法
+- **架构清晰**: AnnotationFeature作为容器/协调器，只负责管理组件生命周期
+
+### 正确的架构关系
+```
+AnnotationFeature (容器/协调器)
+  ├── ToolRegistry (工具管理) - 自治
+  ├── AnnotationManager (数据管理) - 自治
+  └── AnnotationSidebarUI (UI管理) - 自治，自己监听事件
+```
+
+### 事件流程
+```
+CommentTool → 发布 'annotation:create:requested'
+    ↓
+AnnotationManager → 监听并创建 → 发布 'annotation:create:success'
+    ↓
+AnnotationSidebarUI → 监听并添加卡片 (只一次)
+```
+
+### 组件职责分配
+
+**AnnotationFeature (容器)**:
+- ✅ 管理组件生命周期
+- ✅ 协调初始化顺序
+- ❌ 不直接操作UI
+- ❌ 不处理业务事件
+
+**AnnotationSidebarUI (UI组件)**:
+- ✅ 监听CRUD事件
+- ✅ 渲染卡片列表
+- ✅ 处理用户交互
+
+### 验证结果
+- ✅ ESLint语法检查通过
+- ✅ 删除重复监听器
+- ✅ 职责边界清晰
+- ✅ 添加详细注释
+
+### 测试建议
+1. 创建一个批注 → 侧边栏只显示**1个**卡片
+2. 连续创建3个批注 → 侧边栏显示**3个**卡片（不重复）
+3. 删除批注 → 卡片正常移除
+
+### 技术要点
+1. **事件驱动最佳实践**: 一个事件只被一个组件处理（UI更新类）
+2. **容器模式**: 容器管理生命周期，不干涉内部逻辑
+3. **职责分离**: UI组件自治，自己监听自己的事件
+
+### 修改文件
+1. ✅ `src/frontend/pdf-viewer/features/annotation/index.js`
+   - 删除重复事件监听（line 194-204）
+   - 添加职责说明注释
+
+### 相关文档
+- 详细工作日志: `AItemp/20251003181547-AI-Working-log.md`
+- 页面跳转修复: `AItemp/20251003180103-AI-Working-log.md`
+- 数据结构修复: `AItemp/20251003174421-AI-Working-log.md`

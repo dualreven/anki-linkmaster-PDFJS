@@ -171,9 +171,10 @@ export class AnnotationFeature {
     this.#toolRegistry.register(new TextHighlightTool());
     this.#logger.info('[AnnotationFeature] Text highlight tool registered');
 
-    // Phase 3: 注册批注工具
-    // const { CommentTool } = await import('./tools/comment/index.js');
-    // this.#toolRegistry.register(new CommentTool());
+    // Phase 3: 注册批注工具 ✅
+    const { CommentTool } = await import('./tools/comment/index.js');
+    this.#toolRegistry.register(new CommentTool());
+    this.#logger.info('[AnnotationFeature] Comment tool registered');
 
     this.#logger.info(`[AnnotationFeature] ${this.#toolRegistry.getCount()} tools registered`);
   }
@@ -202,8 +203,15 @@ export class AnnotationFeature {
    * @private
    */
   #setupEventListeners() {
-    // AnnotationSidebarUI 会自己监听 annotation:create:success 和 annotation:delete:success
+    // 注意：标注CRUD事件的UI更新已由AnnotationSidebarUI自己监听处理
     // 这里不需要重复监听，避免重复添加/删除卡片
+
+    // AnnotationFeature作为容器/协调器，主要职责是：
+    // 1. 管理工具注册表、标注管理器、侧边栏UI的生命周期
+    // 2. 协调各组件之间的交互（如果需要的话）
+    //
+    // 标注卡片的添加/删除由AnnotationSidebarUI负责监听和处理
+    // 参考：annotation-sidebar-ui.js:322-338
 
     // 监听标注导航请求
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.JUMP_TO, (data) => {
