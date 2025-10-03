@@ -94,6 +94,43 @@ debug代码时的注意事项:
    模块化: 合理组织代码结构，避免全局变量污染
    性能优化: 注意大文件的分块加载，避免阻塞主线程
 
+⚠️ EventBus 事件命名规范 (严格遵守):
+   格式: {module}:{action}:{status}
+
+   示例:
+   ✅ 正确: 'pdf-list:data:load:completed', 'bookmark:toggle:requested', 'ui:button:click:success'
+   ❌ 错误: 'loadData', 'onButtonClick', 'pdf_list_updated'
+
+   规则:
+   - module: 模块名称 (小写，用连字符分隔，如 pdf-list, pdf-viewer)
+   - action: 动作名称 (小写，用连字符分隔，如 data:load, bookmark:toggle)
+   - status: 状态 (requested/completed/failed/success/error 等)
+
+   ⚠️ 局部事件 vs 全局事件 (严格区分):
+
+   局部事件（功能域内部）- 使用 emit():
+   - 自动添加命名空间前缀: @{feature-name}/
+   - 仅在当前功能域内传播
+   - 示例: eventBus.emit('data:load:completed', data)
+   - 实际事件名: '@pdf-list/data:load:completed'
+
+   全局事件（跨功能域通信）- 使用 emitGlobal():
+   - 不添加命名空间前缀
+   - 所有功能域都可以监听
+   - 示例: eventBus.emitGlobal('pdf:list:updated', data)
+   - 实际事件名: 'pdf:list:updated'
+
+   ❌ 常见错误:
+   - 混用局部和全局事件，导致事件无法正确传递
+   - 在功能域内发全局事件时忘记使用 emitGlobal()
+   - 监听全局事件时使用了带命名空间的事件名
+
+   ⚠️ 不符合此格式的事件名会导致 EventBus 验证失败，代码无法运行！
+
+   参考文档:
+   - src/frontend/common/event/event-bus.js (EventNameValidator 类)
+   - src/frontend/common/event/scoped-event-bus.js (ScopedEventBus 类)
+
 功能域模块化架构 (Feature-based Modular Architecture):
    架构定义: pdf-home和pdf-viewer采用统一的功能域模块化架构，每个功能作为独立可插拔模块，通过共享micro-service基础设施协作，支持并行开发。
 
