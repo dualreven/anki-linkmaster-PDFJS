@@ -38,6 +38,12 @@ export const PDF_MANAGEMENT_EVENTS = {
     FAILED: "pdf:open:failed",
     COMPLETED: "pdf:open:completed"
   },
+  EDIT: {
+    REQUESTED: "pdf:edit:requested",
+    STARTED: "pdf:edit:started",
+    FAILED: "pdf:edit:failed",
+    COMPLETED: "pdf:edit:completed"
+  },
   OPERATION: {
     PROGRESS: "pdf:operation:progress"
   },

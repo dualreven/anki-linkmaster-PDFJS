@@ -31,5 +31,16 @@
       "dependencies": ["pdf-list"],
       "estimatedRelease": "2025-10-20"
     }
+  },
+  "pdf-edit": {
+    "enabled": true,
+    "description": "PDF 记录编辑功能域",
+    "version": "1.0.0",
+    "meta": {
+      "status": "stable",
+      "owner": "pdf-home-team",
+      "dependencies": ["pdf-list"],
+      "releasedAt": "2025-10-03"
+    }
   }
 }
