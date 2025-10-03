@@ -18,6 +18,12 @@
 
 import { PDFSorterFeatureConfig } from './feature.config.js';
 import { getLogger } from '../../../common/utils/logger.js';
+import { SorterPanel } from './components/sorter-panel.js';
+import { ModeSelector } from './components/mode-selector.js';
+import { MultiSortBuilder } from './components/multi-sort-builder.js';
+import { WeightedSortEditor } from './components/weighted-sort-editor.js';
+import { SortManager } from './services/sort-manager.js';
+import { TabulatorAdapter } from './services/tabulator-adapter.js';
 
 /**
  * PDF Sorter 功能域类
@@ -40,11 +46,60 @@ export class PDFSorterFeature {
   #scopedEventBus = null;
 
   /**
+   * 全局事件总线
+   * @type {EventBus|null}
+   * @private
+   */
+  #globalEventBus = null;
+
+  /**
    * 日志记录器
    * @type {import('../../common/utils/logger.js').Logger|null}
    * @private
    */
   #logger = null;
+
+  /**
+   * 排序面板组件
+   * @type {SorterPanel|null}
+   * @private
+   */
+  #sorterPanel = null;
+
+  /**
+   * 模式选择器组件
+   * @type {ModeSelector|null}
+   * @private
+   */
+  #modeSelector = null;
+
+  /**
+   * 多级排序构建器
+   * @type {MultiSortBuilder|null}
+   * @private
+   */
+  #multiSortBuilder = null;
+
+  /**
+   * 加权排序编辑器
+   * @type {WeightedSortEditor|null}
+   * @private
+   */
+  #weightedSortEditor = null;
+
+  /**
+   * 排序管理器
+   * @type {SortManager|null}
+   * @private
+   */
+  #sortManager = null;
+
+  /**
+   * Tabulator适配器
+   * @type {TabulatorAdapter|null}
+   * @private
+   */
+  #tabulatorAdapter = null;
 
   /**
    * 当前排序配置
@@ -101,20 +156,32 @@ export class PDFSorterFeature {
   async install(context) {
     this.#context = context;
     this.#scopedEventBus = context.scopedEventBus;
+    this.#globalEventBus = context.globalEventBus;
     this.#logger = context.logger || getLogger(`Feature.${this.name}`);
 
     this.#logger.info(`Installing ${this.name} v${this.version}...`);
 
     try {
-      // 1. 初始化默认排序配置
-      this.#initializeDefaultSort();
+      // 1. 初始化核心服务
+      this.#sortManager = new SortManager(this.#logger, this.#globalEventBus);
+      this.#tabulatorAdapter = new TabulatorAdapter(this.#logger);
 
-      // 2. 注册事件监听器
+      // 2. 创建UI组件
+      this.#createUIComponents();
+
+      // 3. 绑定排序按钮事件
+      this.#bindSorterButton();
+
+      // 4. 注册事件监听器
       this.#registerEventListeners();
 
-      // 3. 标记为已启用
-      this.#enabled = true;
+      // 5. 订阅PDF列表数据更新
+      this.#subscribeToPdfList();
 
+      // 6. 初始化默认排序
+      this.#initializeDefaultSort();
+
+      this.#enabled = true;
       this.#logger.info(`${this.name} installed successfully`);
     } catch (error) {
       this.#logger.error(`Failed to install ${this.name}:`, error);
@@ -134,10 +201,35 @@ export class PDFSorterFeature {
       // 1. 取消所有事件监听
       this.#unregisterEventListeners();
 
-      // 2. 清理排序配置
-      this.#currentSort = [];
+      // 2. 销毁UI组件
+      if (this.#sorterPanel) {
+        this.#sorterPanel.destroy();
+        this.#sorterPanel = null;
+      }
+      if (this.#modeSelector) {
+        this.#modeSelector.destroy();
+        this.#modeSelector = null;
+      }
+      if (this.#multiSortBuilder) {
+        this.#multiSortBuilder.destroy();
+        this.#multiSortBuilder = null;
+      }
+      if (this.#weightedSortEditor) {
+        this.#weightedSortEditor.destroy();
+        this.#weightedSortEditor = null;
+      }
 
-      // 3. 标记为未启用
+      // 3. 恢复Tabulator原始状态
+      if (this.#tabulatorAdapter) {
+        this.#tabulatorAdapter.restore();
+        this.#tabulatorAdapter = null;
+      }
+
+      // 4. 清理排序配置
+      this.#currentSort = [];
+      this.#sortManager = null;
+
+      // 5. 标记为未启用
       this.#enabled = false;
 
       this.#logger.info(`${this.name} uninstalled successfully`);
@@ -205,6 +297,77 @@ export class PDFSorterFeature {
   }
 
   /**
+   * 创建UI组件
+   * @private
+   */
+  #createUIComponents() {
+    console.log('[DEBUG PDFSorterFeature] Creating UI components...');
+
+    // 1. 创建排序面板
+    this.#sorterPanel = new SorterPanel(this.#logger, this.#scopedEventBus);
+    console.log('[DEBUG PDFSorterFeature] SorterPanel created:', this.#sorterPanel);
+
+    this.#sorterPanel.render();
+    console.log('[DEBUG PDFSorterFeature] SorterPanel rendered');
+
+    // 2. 创建模式选择器
+    this.#modeSelector = new ModeSelector(this.#logger, this.#scopedEventBus, {
+      defaultMode: 2 // 默认多级排序
+    });
+    this.#modeSelector.render(this.#sorterPanel.getModeSelectorContainer());
+
+    // 3. 创建多级排序构建器
+    this.#multiSortBuilder = new MultiSortBuilder(this.#logger, this.#scopedEventBus, {
+      availableFields: PDFSorterFeatureConfig.config.sorter.sortableFields,
+      maxFields: PDFSorterFeatureConfig.config.sorter.maxSortFields
+    });
+    this.#multiSortBuilder.render(this.#sorterPanel.getMultiSortContainer());
+
+    // 4. 创建加权排序编辑器
+    this.#weightedSortEditor = new WeightedSortEditor(this.#logger, this.#scopedEventBus, {
+      availableFields: PDFSorterFeatureConfig.config.sorter.sortableFields
+    });
+    this.#weightedSortEditor.render(this.#sorterPanel.getWeightedSortContainer());
+
+    this.#logger.info('[PDFSorterFeature] UI components created');
+  }
+
+  /**
+   * 绑定排序按钮事件
+   * @private
+   */
+  #bindSorterButton() {
+    console.log('[DEBUG PDFSorterFeature] Attempting to bind sort button...');
+    console.log('[DEBUG PDFSorterFeature] SorterPanel instance:', this.#sorterPanel);
+
+    const sortBtn = document.getElementById('sort-btn');
+    console.log('[DEBUG PDFSorterFeature] Sort button element:', sortBtn);
+
+    if (!sortBtn) {
+      this.#logger.warn('[PDFSorterFeature] Sort button not found');
+      console.warn('[DEBUG PDFSorterFeature] Sort button NOT FOUND in DOM!');
+      return;
+    }
+
+    const handleSortClick = () => {
+      console.log('[DEBUG PDFSorterFeature] ===== SORT BUTTON CLICKED =====');
+      this.#logger.info('[PDFSorterFeature] Sort button clicked');
+      console.log('[DEBUG PDFSorterFeature] Calling sorterPanel.toggle()...');
+      this.#sorterPanel.toggle();
+    };
+
+    sortBtn.addEventListener('click', handleSortClick);
+
+    // 存储 unsubscribe 函数，用于 uninstall 时清理
+    this.#unsubscribers.push(() => {
+      sortBtn.removeEventListener('click', handleSortClick);
+    });
+
+    this.#logger.info('[PDFSorterFeature] Sort button bound');
+    console.log('[DEBUG PDFSorterFeature] Sort button event listener attached successfully');
+  }
+
+  /**
    * 注册事件监听器
    * @private
    */
@@ -214,15 +377,107 @@ export class PDFSorterFeature {
       return;
     }
 
-    // 监听 PDF 列表数据加载事件（来自 pdf-list）
-    const unsubDataLoaded = this.#scopedEventBus.onGlobal('pdf:list:data:loaded', (data) => {
-      this.#logger.debug('PDF list data loaded, applying sort');
-      // 自动应用当前排序
-      this.applySort();
+    // 监听模式变更事件（三段式格式）
+    const unsubModeChanged = this.#scopedEventBus.on('sorter:mode:changed', (data) => {
+      this.#handleModeChange(data.mode);
     });
-    this.#unsubscribers.push(unsubDataLoaded);
+    this.#unsubscribers.push(unsubModeChanged);
+
+    // 监听排序应用请求（三段式格式）
+    const unsubApplySort = this.#scopedEventBus.on('sorter:sort:requested', (data) => {
+      this.#handleApplySort(data);
+    });
+    this.#unsubscribers.push(unsubApplySort);
+
+    // 监听排序清除请求（三段式格式）
+    const unsubClearSort = this.#scopedEventBus.on('sorter:sort:cleared', () => {
+      this.#handleClearSort();
+    });
+    this.#unsubscribers.push(unsubClearSort);
 
     this.#logger.debug(`Registered ${this.#unsubscribers.length} event listeners`);
+  }
+
+  /**
+   * 订阅PDF列表数据更新
+   * @private
+   */
+  #subscribeToPdfList() {
+    // 监听PDF列表数据加载完成
+    const unsubListLoaded = this.#globalEventBus.on('@pdf-list/data:load:completed', (data) => {
+      this.#logger.info('[PDFSorterFeature] PDF list loaded', { count: data.items?.length });
+      if (data.items) {
+        this.#sortManager.setDataSource(data.items);
+      }
+    });
+    this.#unsubscribers.push(unsubListLoaded);
+
+    // 监听表格就绪(用于获取table实例)
+    const unsubTableReady = this.#globalEventBus.on('@pdf-list/table:readiness:completed', (data) => {
+      this.#logger.info('[PDFSorterFeature] PDF table is ready');
+      if (data.table) {
+        this.#tabulatorAdapter.setTable(data.table);
+      }
+    });
+    this.#unsubscribers.push(unsubTableReady);
+  }
+
+  /**
+   * 处理模式变更
+   * @param {number} mode - 新模式
+   * @private
+   */
+  #handleModeChange(mode) {
+    this.#logger.info(`[PDFSorterFeature] Handling mode change: ${mode}`);
+
+    // 更新Tabulator适配器
+    if (this.#tabulatorAdapter) {
+      this.#tabulatorAdapter.switchMode(mode);
+    }
+
+    // 更新排序管理器模式
+    if (this.#sortManager) {
+      this.#sortManager.setMode(mode);
+    }
+  }
+
+  /**
+   * 处理应用排序
+   * @param {Object} data - 排序数据
+   * @private
+   */
+  #handleApplySort(data) {
+    this.#logger.info('[PDFSorterFeature] Handling apply sort', data);
+
+    try {
+      if (data.type === 'multi') {
+        // 多级排序
+        const sortedData = this.#sortManager.applyMultiSort(data.configs);
+        this.#tabulatorAdapter.applyMultiSort(data.configs);
+      } else if (data.type === 'weighted') {
+        // 加权排序
+        const sortedData = this.#sortManager.applyWeightedSort(data.formula);
+        this.#tabulatorAdapter.applyWeightedSort(sortedData);
+      }
+    } catch (error) {
+      this.#logger.error('[PDFSorterFeature] Failed to apply sort', error);
+      alert(`排序失败: ${error.message}`);
+    }
+  }
+
+  /**
+   * 处理清除排序
+   * @private
+   */
+  #handleClearSort() {
+    this.#logger.info('[PDFSorterFeature] Handling clear sort');
+
+    try {
+      const originalData = this.#sortManager.clearSort();
+      this.#tabulatorAdapter.clearSort();
+    } catch (error) {
+      this.#logger.error('[PDFSorterFeature] Failed to clear sort', error);
+    }
   }
 
   /**

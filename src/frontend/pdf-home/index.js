@@ -44,7 +44,7 @@ async function startApp() {
       environment: getEnvironment()
     });
 
-    console.log('[DEBUG] App started successfully');
+    console.log('[DEBUG] 黄集攀 App started successfully');
 
     // 在开发环境下设置通信测试工具
     const env = getEnvironment();

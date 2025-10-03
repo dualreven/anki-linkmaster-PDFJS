@@ -23,6 +23,7 @@ import { PDFListFeature } from '../features/pdf-list/index.js';
 import { PDFEditorFeature } from '../features/pdf-editor/index.js';
 import { PDFSorterFeature } from '../features/pdf-sorter/index.js';
 import { PDFEditFeature } from '../features/pdf-edit/index.js';
+import { FilterFeature } from '../features/filter/index.js';
 
 /**
  * @class PDFHomeAppV2
@@ -231,14 +232,17 @@ export class PDFHomeAppV2 {
    */
   async #loadFeatureFlags() {
     this.#logger.debug('Loading Feature Flags...');
+    console.log('[DEBUG PDFHomeAppV2] ===== LOADING FEATURE FLAGS =====');
 
     try {
       // 尝试从配置文件加载
       try {
         await this.#flagManager.loadFromConfig('./config/feature-flags.json');
         this.#logger.info('Feature Flags loaded from config file');
+        console.log('[DEBUG PDFHomeAppV2] Feature flags loaded from config file successfully');
       } catch (error) {
         this.#logger.warn('Failed to load feature-flags.json, using defaults:', error.message);
+        console.warn('[DEBUG PDFHomeAppV2] Failed to load feature-flags.json, using defaults:', error);
 
         // 使用默认配置
         this.#flagManager.loadFromObject({
@@ -246,11 +250,16 @@ export class PDFHomeAppV2 {
           'pdf-editor': { enabled: false, description: 'PDF 编辑功能（开发中）' },
           'pdf-sorter': { enabled: false, description: 'PDF 排序功能（开发中）' }
         });
+        console.log('[DEBUG PDFHomeAppV2] Using default feature flags (pdf-sorter is DISABLED by default)');
       }
 
       // 记录当前 Feature Flag 状态
       const stats = this.#flagManager.getStats();
       this.#logger.info(`Feature Flags: ${stats.enabled}/${stats.total} enabled`);
+
+      // 打印所有feature flags的状态
+      const allFlags = this.#flagManager.getAllFlags();
+      console.log('[DEBUG PDFHomeAppV2] All feature flags:', allFlags);
 
     } catch (error) {
       this.#logger.error('Failed to load Feature Flags:', error);
@@ -270,7 +279,8 @@ export class PDFHomeAppV2 {
       new PDFListFeature(),
       new PDFEditorFeature(),
       new PDFSorterFeature(),
-      new PDFEditFeature()
+      new PDFEditFeature(),
+      new FilterFeature()
     ];
 
     for (const feature of features) {
@@ -292,20 +302,29 @@ export class PDFHomeAppV2 {
    */
   async #installEnabledFeatures() {
     this.#logger.debug('Installing enabled features...');
+    console.log('[DEBUG PDFHomeAppV2] ===== FEATURE INSTALLATION START =====');
 
     const registeredFeatures = this.#registry.getRegisteredFeatures();
+    console.log('[DEBUG PDFHomeAppV2] Registered features:', registeredFeatures);
 
     for (const featureName of registeredFeatures) {
-      if (this.#flagManager.isEnabled(featureName)) {
+      const isEnabled = this.#flagManager.isEnabled(featureName);
+      console.log(`[DEBUG PDFHomeAppV2] Feature "${featureName}" enabled:`, isEnabled);
+
+      if (isEnabled) {
         try {
+          console.log(`[DEBUG PDFHomeAppV2] Installing feature "${featureName}"...`);
           await this.#registry.install(featureName);
           this.#logger.info(`Feature installed: ${featureName}`);
+          console.log(`[DEBUG PDFHomeAppV2] Feature "${featureName}" installed successfully`);
         } catch (error) {
           this.#logger.error(`Failed to install feature ${featureName}:`, error);
+          console.error(`[DEBUG PDFHomeAppV2] Failed to install feature "${featureName}":`, error);
           // 继续安装其他功能
         }
       } else {
         this.#logger.debug(`Feature ${featureName} is disabled, skipping installation`);
+        console.log(`[DEBUG PDFHomeAppV2] Feature "${featureName}" is DISABLED, skipping`);
       }
     }
 

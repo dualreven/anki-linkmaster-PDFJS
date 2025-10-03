@@ -17,11 +17,11 @@ export function showSuccess(message, duration = 3000) {
   }
 
   element.textContent = message;
-  element.style.display = 'block';
+  element.classList.add('show');
 
   if (duration > 0) {
     setTimeout(() => {
-      element.style.display = 'none';
+      element.classList.remove('show');
     }, duration);
   }
 }
@@ -39,11 +39,11 @@ export function showError(message, duration = 5000) {
   }
 
   element.textContent = message;
-  element.style.display = 'block';
+  element.classList.add('show');
 
   if (duration > 0) {
     setTimeout(() => {
-      element.style.display = 'none';
+      element.classList.remove('show');
     }, duration);
   }
 }
@@ -64,6 +64,6 @@ export function hideAll() {
   const successElement = document.getElementById('global-success');
   const errorElement = document.getElementById('global-error');
 
-  if (successElement) successElement.style.display = 'none';
-  if (errorElement) errorElement.style.display = 'none';
+  if (successElement) successElement.classList.remove('show');
+  if (errorElement) errorElement.classList.remove('show');
 }
