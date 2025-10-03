@@ -629,6 +629,7 @@ Layer 5: 应用入口层 (bootstrap/, main.js)
 - ✅ PDF-Home添加删除按钮功能
 - ✅ PDF记录扩展字段功能（7个学习管理字段）
 - ✅ PDF书签侧边栏功能
+- ✅ PDF标注功能按钮加载修复 (2025-10-03)
 
 **待开发** (按时间顺序):
 1. 📋 20251002001902 - PDF列表排序系统
@@ -636,6 +637,7 @@ Layer 5: 应用入口层 (bootstrap/, main.js)
 3. 📋 20251002120000 - PDF记录编辑模态框
 4. 📋 20251002130000 - PDF-Home协作架构
 5. 📋 20250923184000 - 统一通信架构
+6. 📋 PDF标注功能Phase 3-10 - 截图/高亮/批注工具实现
 
 ### 技术规范遵循
 - ✅ 遵循CLAUDE.md流程规范：读取历史日志 → 检查Memory Bank → 执行任务 → 更新文档
@@ -646,3 +648,75 @@ Layer 5: 应用入口层 (bootstrap/, main.js)
 - 工作日志: `AItemp/20251002140000-AI-Working-log.md`
 - 分支: `feature/pdf-home-add-delete-improvements`
 - 最新commit: d2ff056
+
+## PDF标注功能按钮加载修复 ✅ 完成 (2025-10-03 01:00)
+
+### 任务概述
+成功修复PDF-Viewer模块中标注功能(AnnotationFeature)按钮无法加载的问题
+
+### 关键问题和解决方案
+
+#### 问题1: EventBus事件名称格式错误
+- **错误**: 使用4段式事件名 `pdf-viewer:annotation:sidebar:toggle`
+- **要求**: EventBus严格要求3段式格式 `{module}:{action}:{status}`
+- **解决**: 重构27个ANNOTATION事件为3段式格式
+- **文件**: `src/frontend/common/event/pdf-viewer-constants.js`
+
+#### 问题2: Feature接口实现错误
+- **错误**: 使用类字段声明 `name = 'annotation'`
+- **要求**: 必须使用getter方法 `get name() { return 'annotation'; }`
+- **解决**: 修正name/version/dependencies为getter方法
+- **文件**: `src/frontend/pdf-viewer/features/annotation/index.js:30-42`
+
+#### 问题3: install方法签名错误
+- **错误**: 参数命名为 `install(container)`
+- **要求**: 必须接收 `install(context)` 并解构
+- **解决**: 改为 `install(context)` 并解构出 `{globalEventBus, logger, container}`
+- **文件**: `src/frontend/pdf-viewer/features/annotation/index.js:51-63`
+
+#### 问题4: DOM选择器不可靠
+- **错误**: 使用style属性选择器 `querySelector('div[style*="flex-direction:column"]')`
+- **问题**: style属性可能被动态修改或覆盖
+- **解决**: 为容器添加ID并使用 `getElementById('pdf-viewer-button-container')`
+- **文件**:
+  * `src/frontend/pdf-viewer/ui/bookmark-sidebar-ui.js:222` - 添加ID
+  * `src/frontend/pdf-viewer/features/annotation/index.js:121` - 使用ID选择
+
+### 验证结果
+- ✅ 标注按钮成功显示在UI中(书签和卡片按钮之间)
+- ✅ 点击按钮成功触发 `annotation-sidebar:toggle:requested` 事件
+- ✅ 侧边栏正常显示/隐藏
+- ✅ 键盘快捷键 Ctrl+Shift+A 正常工作
+- ✅ 按钮样式随侧边栏状态动态更新
+
+### 技术要点
+1. **EventBus命名规范**: 严格的3段式格式 `{module}:{action}:{status}`
+2. **Feature接口规范**: name/version/dependencies必须使用getter方法
+3. **依赖注入模式**: install方法接收context对象并解构
+4. **DOM选择最佳实践**: 优先使用ID选择器而非style属性选择器
+5. **架构一致性**: AnnotationFeature遵循与AppCoreFeature/UIManagerFeature相同的模式
+
+### 修改文件清单
+1. `src/frontend/common/event/pdf-viewer-constants.js` - 重构27个事件名称
+2. `src/frontend/pdf-viewer/features/annotation/index.js` - 修正Feature类实现
+3. `src/frontend/pdf-viewer/ui/bookmark-sidebar-ui.js` - 添加按钮容器ID
+4. `src/frontend/pdf-viewer/features/annotation/components/annotation-sidebar-ui.js` - 创建侧边栏UI
+
+### 后续开发计划
+- Phase 3: 截图工具实现 (4小时)
+- Phase 4: 文字高亮工具实现 (3小时)
+- Phase 5: 批注工具实现 (3小时)
+- Phase 6: 标注管理器实现 (4小时)
+- Phase 7: 标注渲染器实现 (3小时)
+- Phase 8: 数据存储/WebSocket实现 (3小时)
+- Phase 9: 集成测试 (3小时)
+- Phase 10: 文档和优化 (2小时)
+
+### 待清理
+- 移除调试console.log语句(约30行)
+- 简化日志级别
+- 优化事件监听器注册
+
+### 相关文档
+- 工作日志: `AItemp/20251003010000-AI-Working-log.md`
+- 需求文档: `todo-and-doing/PDF标注功能需求`
