@@ -33,6 +33,12 @@
   - 实现最小版 PDF 业务服务器并接入 WS 转发。
   - 复核 pdf-viewer 全量对齐共享 EventBus/WSClient。
   - 为 Launcher 增加健康检查与 E2E 脚本。
+  - ⏳ **侧边栏统一管理** (20251004030451-sidebar-unified-management):
+    - 创建SidebarManagerFeature统一管理标注栏、书签栏、卡片栏、翻译栏
+    - 实现左流动布局系统，支持多侧边栏并存
+    - ❌ 所有按钮都不显示激活状态（需求变更v001.1）
+    - ✅ 按钮切换关闭 + 侧边栏关闭按钮（X图标）
+    - ✅ 宽度可拖拽调整（250-600px，支持localStorage持久化）（需求变更v001.2）
 
 ## 已知问题：PDF列表双重更新问题 (2025-09-28)
 **问题描述**：`pdf:list:updated` 事件被触发两次，导致UI可能重复渲染。
