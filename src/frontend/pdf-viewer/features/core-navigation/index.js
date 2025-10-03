@@ -96,12 +96,12 @@ export class CoreNavigationFeature {
 
     this.#logger.info('[CoreNavigationFeature] NavigationService 已创建');
 
-    // 3. 将 NavigationService 注册到容器中，供其他 Feature 使用
-    if (container.register) {
-      container.register('navigationService', this.#navigationService);
-      this.#logger.info('[CoreNavigationFeature] NavigationService 已注册到容器');
+    // 3. 将 NavigationService 注册到全局容器中，供其他 Feature 使用
+    if (container.registerGlobal) {
+      container.registerGlobal('navigationService', this.#navigationService);
+      this.#logger.info('[CoreNavigationFeature] NavigationService 已注册到全局容器');
     } else {
-      this.#logger.warn('[CoreNavigationFeature] 容器不支持 register 方法，无法注册服务');
+      this.#logger.warn('[CoreNavigationFeature] 容器不支持 registerGlobal 方法，无法注册服务');
     }
 
     this.#logger.info(`${this.name} Feature 安装完成`);
