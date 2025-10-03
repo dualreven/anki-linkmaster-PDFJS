@@ -11,6 +11,7 @@ from typing import Optional, Callable
 import logging
 import base64
 import hashlib
+import json
 from pathlib import Path
 from datetime import datetime
 
@@ -44,15 +45,15 @@ class ScreenshotHandler(QObject):
 
         logger.info(f"ScreenshotHandler initialized. Screenshots dir: {self._screenshots_dir}")
 
-    @pyqtSlot(str, result=dict)
-    def saveScreenshot(self, base64Image: str) -> dict:
+    @pyqtSlot(str, result=str)
+    def saveScreenshot(self, base64Image: str) -> str:
         """Save a base64-encoded screenshot image to local disk.
 
         Args:
             base64Image: Base64-encoded image data (format: data:image/png;base64,...)
 
         Returns:
-            dict: Result containing:
+            str: JSON string containing:
                 - success (bool): Whether the save was successful
                 - path (str): Relative path to the saved image (e.g., /data/screenshots/abc123.png)
                 - hash (str): MD5 hash of the image (used as filename)
@@ -60,8 +61,9 @@ class ScreenshotHandler(QObject):
 
         Example:
             >>> handler.saveScreenshot('data:image/png;base64,iVBORw0KG...')
-            {'success': True, 'path': '/data/screenshots/a1b2c3d4.png', 'hash': 'a1b2c3d4'}
+            '{"success": true, "path": "/data/screenshots/a1b2c3d4.png", "hash": "a1b2c3d4"}'
         """
+        logger.info(f"[saveScreenshot] Called with base64 length: {len(base64Image) if base64Image else 0}")
         try:
             # Validate input format
             if not isinstance(base64Image, str):
@@ -89,12 +91,14 @@ class ScreenshotHandler(QObject):
             # Check if file already exists (deduplication)
             if file_path.exists():
                 logger.info(f"Screenshot already exists: {filename}")
-                return {
+                result = {
                     'success': True,
                     'path': f'/data/screenshots/{filename}',
                     'hash': md5_hash,
                     'message': 'File already exists (deduplicated)'
                 }
+                logger.info(f"[saveScreenshot] Returning (duplicate): {result}")
+                return json.dumps(result)
 
             # Save to file
             with open(file_path, 'wb') as f:
@@ -102,43 +106,41 @@ class ScreenshotHandler(QObject):
 
             logger.info(f"Screenshot saved: {filename} ({len(image_bytes)} bytes)")
 
-            return {
+            result = {
                 'success': True,
                 'path': f'/data/screenshots/{filename}',
                 'hash': md5_hash
             }
+            logger.info(f"[saveScreenshot] Returning (success): {result}")
+            return json.dumps(result)
 
         except base64.binascii.Error as e:
             error_msg = f"Base64 decode failed: {str(e)}"
             logger.error(error_msg)
-            return {
-                'success': False,
-                'error': error_msg
-            }
+            result = {'success': False, 'error': error_msg}
+            logger.info(f"[saveScreenshot] Returning (base64 error): {result}")
+            return json.dumps(result)
 
         except ValueError as e:
             error_msg = f"Validation failed: {str(e)}"
             logger.error(error_msg)
-            return {
-                'success': False,
-                'error': error_msg
-            }
+            result = {'success': False, 'error': error_msg}
+            logger.info(f"[saveScreenshot] Returning (validation error): {result}")
+            return json.dumps(result)
 
         except OSError as e:
             error_msg = f"File write failed: {str(e)}"
             logger.error(error_msg)
-            return {
-                'success': False,
-                'error': error_msg
-            }
+            result = {'success': False, 'error': error_msg}
+            logger.info(f"[saveScreenshot] Returning (file error): {result}")
+            return json.dumps(result)
 
         except Exception as e:
             error_msg = f"Unexpected error: {str(e)}"
             logger.error(error_msg)
-            return {
-                'success': False,
-                'error': error_msg
-            }
+            result = {'success': False, 'error': error_msg}
+            logger.info(f"[saveScreenshot] Returning (unexpected error): {result}")
+            return json.dumps(result)
 
     @pyqtSlot(result=str)
     def getScreenshotsDir(self) -> str:

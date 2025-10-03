@@ -353,16 +353,22 @@ export class ScreenshotTool extends IAnnotationTool {
 
       // 2. 使用Canvas捕获截图（base64）
       const base64Image = await this.#capturer.capture(pageNumber, canvasRect);
+      this.#logger.info('[ScreenshotTool] base64Image captured, length:', base64Image?.length);
 
       // 2. 显示预览对话框
+      this.#logger.info('[ScreenshotTool] Showing preview dialog...');
       const description = await this.#showPreviewDialog(base64Image);
+      this.#logger.info('[ScreenshotTool] Preview dialog closed, description:', description);
+
       if (description === null) {
         this.#logger.info('[ScreenshotTool] User cancelled');
         return;
       }
 
       // 3. 通过QWebChannel保存到PyQt
+      this.#logger.info('[ScreenshotTool] Calling saveImageToPyQt...');
       const saveResult = await this.#saveImageToPyQt(base64Image);
+      this.#logger.info('[ScreenshotTool] saveImageToPyQt returned:', saveResult);
 
       if (!saveResult.success) {
         throw new Error(saveResult.error || 'Failed to save image');

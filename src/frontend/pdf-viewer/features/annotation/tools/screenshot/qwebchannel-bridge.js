@@ -54,6 +54,11 @@ export class QWebChannelScreenshotBridge {
       });
     } catch (error) {
       this.#logger.error('[QWebChannel] Connection failed:', error);
+      this.#logger.error('[QWebChannel] Error message:', error.message);
+      this.#logger.error('[QWebChannel] Error stack:', error.stack);
+      this.#logger.error('[QWebChannel] qt available:', typeof qt !== 'undefined');
+      this.#logger.error('[QWebChannel] qt.webChannelTransport:', typeof qt !== 'undefined' ? (qt.webChannelTransport ? 'exists' : 'null') : 'qt undefined');
+      this.#logger.error('[QWebChannel] QWebChannel class:', typeof QWebChannel !== 'undefined' ? 'exists' : 'undefined');
       this.#isAvailable = false;
     }
   }
@@ -88,41 +93,53 @@ export class QWebChannelScreenshotBridge {
       return this.#mockSaveScreenshot(base64Image);
     }
 
-    return new Promise((resolve, reject) => {
-      try {
-        // 验证base64格式
-        if (!this.#validateBase64Image(base64Image)) {
-          reject(new Error('Invalid base64 image format'));
-          return;
-        }
-
-        // 调用PyQt方法（PyQt的@pyqtSlot会自动转换为Promise）
-        this.#pyqtObject.saveScreenshot(base64Image, (result) => {
-          // QWebChannel会将PyQt的返回值通过回调传递
-          if (result && result.success) {
-            this.#logger.info('[QWebChannel] Screenshot saved:', result.path);
-            resolve({
-              success: true,
-              path: result.path,
-              hash: result.hash
-            });
-          } else {
-            const errorMsg = result?.error || 'Unknown error';
-            this.#logger.error('[QWebChannel] Save failed:', errorMsg);
-            reject(new Error(errorMsg));
-          }
-        });
-
-        // 设置超时（10秒）
-        setTimeout(() => {
-          reject(new Error('Screenshot save timeout (10s)'));
-        }, 10000);
-
-      } catch (error) {
-        this.#logger.error('[QWebChannel] Call failed:', error);
-        reject(error);
+    try {
+      // 验证base64格式
+      if (!this.#validateBase64Image(base64Image)) {
+        throw new Error('Invalid base64 image format');
       }
-    });
+
+      this.#logger.debug('[QWebChannel] Calling PyQt saveScreenshot...');
+
+      // QWebChannel会自动将带有result参数的PyQt slot转换为返回Promise的方法
+      // 因此直接await即可，不需要回调函数
+      // 注意: PyQt返回的是JSON字符串，需要parse
+      const resultStr = await Promise.race([
+        this.#pyqtObject.saveScreenshot(base64Image),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Screenshot save timeout (10s)')), 10000)
+        )
+      ]);
+
+      this.#logger.debug('[QWebChannel] Received result string from PyQt:', typeof resultStr, resultStr);
+
+      // 解析JSON字符串
+      let result;
+      try {
+        result = JSON.parse(resultStr);
+        this.#logger.debug('[QWebChannel] Parsed result:', result);
+      } catch (parseError) {
+        this.#logger.error('[QWebChannel] Failed to parse result JSON:', parseError);
+        throw new Error(`Invalid JSON response from PyQt: ${resultStr}`);
+      }
+
+      if (result && result.success) {
+        this.#logger.info('[QWebChannel] Screenshot saved:', result.path);
+        return {
+          success: true,
+          path: result.path,
+          hash: result.hash
+        };
+      } else {
+        const errorMsg = result?.error || 'Unknown error';
+        this.#logger.error('[QWebChannel] Save failed:', errorMsg);
+        throw new Error(errorMsg);
+      }
+
+    } catch (error) {
+      this.#logger.error('[QWebChannel] Call failed:', error);
+      throw error;
+    }
   }
 
   /**
