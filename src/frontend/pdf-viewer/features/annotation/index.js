@@ -16,6 +16,7 @@ import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js
 import { AnnotationSidebarUI } from "./components/annotation-sidebar-ui.js";
 import { ToolRegistry } from "./core/tool-registry.js";
 import { AnnotationManager } from "./core/annotation-manager.js";
+import { NavigationService } from "../url-navigation/services/navigation-service.js";
 
 /**
  * 标注功能Feature（容器模式）
@@ -37,6 +38,9 @@ export class AnnotationFeature {
 
   /** @type {AnnotationManager} */
   #annotationManager;
+
+  /** @type {NavigationService} */
+  #navigationService;
 
   /** @type {HTMLElement} */
   #toggleButton;
@@ -98,6 +102,12 @@ export class AnnotationFeature {
     this.#annotationManager = new AnnotationManager(this.#eventBus, this.#logger);
     this.#logger.info('[AnnotationFeature] AnnotationManager created');
 
+    // 2.5. 创建导航服务（用于位置跳转）
+    this.#navigationService = new NavigationService(this.#eventBus, {
+      scrollDuration: 500, // 滚动动画持续时间（ms）
+    });
+    this.#logger.info('[AnnotationFeature] NavigationService created');
+
     // 3. 创建侧边栏UI
     const mainContainer = document.querySelector('main');
     if (!mainContainer) {
@@ -156,8 +166,9 @@ export class AnnotationFeature {
     this.#logger.info('[AnnotationFeature] Screenshot tool registered');
 
     // Phase 2: 注册文字高亮工具
-    // const { TextHighlightTool } = await import('./tools/text-highlight/index.js');
-    // this.#toolRegistry.register(new TextHighlightTool());
+    const { TextHighlightTool } = await import('./tools/text-highlight/index.js');
+    this.#toolRegistry.register(new TextHighlightTool());
+    this.#logger.info('[AnnotationFeature] Text highlight tool registered');
 
     // Phase 3: 注册批注工具
     // const { CommentTool } = await import('./tools/comment/index.js');
@@ -190,21 +201,97 @@ export class AnnotationFeature {
    * @private
    */
   #setupEventListeners() {
-    // 监听标注创建成功事件
-    this.#eventBus.on('annotation:create:success', (data) => {
-      const { annotation } = data;
-      this.#logger.info(`[AnnotationFeature] Annotation created: ${annotation.id}`);
-      // 更新侧边栏UI（使用现有方法addAnnotationCard）
-      this.#sidebarUI.addAnnotationCard(annotation);
-    }, { subscriberId: 'AnnotationFeature' });
+    // AnnotationSidebarUI 会自己监听 annotation:create:success 和 annotation:delete:success
+    // 这里不需要重复监听，避免重复添加/删除卡片
 
-    // 监听标注删除成功事件
-    this.#eventBus.on('annotation:delete:success', (data) => {
-      const { id } = data;
-      this.#logger.info(`[AnnotationFeature] Annotation deleted: ${id}`);
-      // 更新侧边栏UI（使用现有方法removeAnnotationCard）
-      this.#sidebarUI.removeAnnotationCard(id);
+    // 监听标注导航请求
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.JUMP_TO, (data) => {
+      this.#handleNavigateToAnnotation(data);
     }, { subscriberId: 'AnnotationFeature' });
+  }
+
+  /**
+   * 处理标注导航请求
+   * @param {Object} data - 导航数据
+   * @param {Annotation|string} data.annotation - 标注对象或标注ID
+   * @param {string} [data.id] - 标注ID（备用）
+   * @private
+   */
+  async #handleNavigateToAnnotation(data) {
+    try {
+      // 获取标注对象
+      let annotation = null;
+
+      if (data.annotation) {
+        // 如果传入的是标注对象
+        if (typeof data.annotation === 'object') {
+          annotation = data.annotation;
+        }
+        // 如果传入的是ID字符串
+        else if (typeof data.annotation === 'string') {
+          annotation = this.#annotationManager.getAnnotation(data.annotation);
+        }
+      } else if (data.id) {
+        // 备用：使用id字段
+        annotation = this.#annotationManager.getAnnotation(data.id);
+      }
+
+      if (!annotation) {
+        this.#logger.warn('[AnnotationFeature] Annotation not found for navigation', data);
+        return;
+      }
+
+      const pageNumber = annotation.pageNumber;
+      if (!pageNumber) {
+        this.#logger.warn('[AnnotationFeature] Annotation has no page number', annotation);
+        return;
+      }
+
+      this.#logger.info(`[AnnotationFeature] Navigating to annotation on page ${pageNumber}`, annotation.id);
+
+      // 计算位置百分比（如果标注有boundingBox）
+      let position = null;
+      if (annotation.data && annotation.data.boundingBox) {
+        const boundingBox = annotation.data.boundingBox;
+
+        // 获取页面元素来计算高度
+        const viewerContainer = document.getElementById('viewerContainer');
+        if (viewerContainer) {
+          const pageElement = viewerContainer.querySelector(`.page[data-page-number="${pageNumber}"]`);
+          if (pageElement) {
+            const pageHeight = pageElement.offsetHeight;
+            // 计算标注在页面中的位置百分比
+            position = (boundingBox.y / pageHeight) * 100;
+            this.#logger.debug(`[AnnotationFeature] Calculated position: ${position.toFixed(2)}% (y=${boundingBox.y}, pageHeight=${pageHeight})`);
+          }
+        }
+      }
+
+      // 使用NavigationService进行精确位置导航
+      const result = await this.#navigationService.navigateTo({
+        pageAt: pageNumber,
+        position: position
+      });
+
+      if (result.success) {
+        // 发出导航成功事件
+        this.#eventBus.emit('annotation-navigation:jump:success', {
+          annotation: annotation,
+          pageNumber: result.actualPage,
+          position: result.actualPosition
+        });
+
+        this.#logger.info(`[AnnotationFeature] Navigation succeeded: page=${result.actualPage}, position=${result.actualPosition}%`);
+      } else {
+        throw new Error(result.error || 'Navigation failed');
+      }
+
+    } catch (error) {
+      this.#logger.error('[AnnotationFeature] Error navigating to annotation:', error);
+      this.#eventBus.emit('annotation-navigation:jump:failed', {
+        error: error.message
+      });
+    }
   }
 
   /**
@@ -292,6 +379,12 @@ export class AnnotationFeature {
     if (this.#annotationManager) {
       this.#annotationManager.clear();
       this.#annotationManager = null;
+    }
+
+    // 销毁导航服务
+    if (this.#navigationService) {
+      this.#navigationService.destroy();
+      this.#navigationService = null;
     }
 
     // 销毁侧边栏UI
