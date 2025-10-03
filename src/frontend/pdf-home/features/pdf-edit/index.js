@@ -14,7 +14,6 @@ import { getLogger } from '../../../common/utils/logger.js';
 import { ModalManager } from './components/modal-manager.js';
 import { StarRating } from './components/star-rating.js';
 import { TagsInput } from './components/tags-input.js';
-import { ToggleSwitch } from './components/toggle-switch.js';
 
 // 导入样式
 import './styles/modal.css';
@@ -286,6 +285,46 @@ export class PDFEditFeature {
   }
 
   /**
+   * 显示全局错误消息
+   * @private
+   * @param {string} message - 错误消息
+   */
+  #showGlobalError(message) {
+    const errorDiv = document.getElementById('global-error');
+    if (errorDiv) {
+      errorDiv.textContent = message;
+      errorDiv.style.display = 'block';
+      // 3秒后自动隐藏
+      setTimeout(() => {
+        errorDiv.style.display = 'none';
+      }, 3000);
+    }
+  }
+
+  /**
+   * 显示全局警告消息
+   * @private
+   * @param {string} message - 警告消息
+   */
+  #showGlobalWarning(message) {
+    const errorDiv = document.getElementById('global-error');
+    if (errorDiv) {
+      errorDiv.style.background = '#fff3cd';
+      errorDiv.style.borderColor = '#ffc107';
+      errorDiv.style.color = '#856404';
+      errorDiv.textContent = message;
+      errorDiv.style.display = 'block';
+      // 3秒后自动隐藏并恢复原样式
+      setTimeout(() => {
+        errorDiv.style.display = 'none';
+        errorDiv.style.background = '#f8d7da';
+        errorDiv.style.borderColor = '#f5c6cb';
+        errorDiv.style.color = '#721c24';
+      }, 3000);
+    }
+  }
+
+  /**
    * 处理编辑按钮点击
    * @private
    */
@@ -314,13 +353,13 @@ export class PDFEditFeature {
 
           if (selectedIndices.length === 0) {
             this.#logger.warn('No row selected');
-            alert('请先选择一条PDF记录');
+            this.#showGlobalError('请先选择一条PDF记录');
             return;
           }
 
           if (selectedIndices.length > 1) {
             this.#logger.warn('Multiple rows selected, only editing the first one');
-            alert('您选择了多条记录，将只编辑第一条');
+            this.#showGlobalWarning('您选择了多条记录，将只编辑第一条');
           }
 
           // 获取第一个选中行的数据
@@ -329,7 +368,7 @@ export class PDFEditFeature {
 
           if (!rowData) {
             this.#logger.error(`Item at index ${firstIndex} not found`);
-            alert('无法获取选中的PDF记录');
+            this.#showGlobalError('无法获取选中的PDF记录');
             return;
           }
 
@@ -343,12 +382,12 @@ export class PDFEditFeature {
 
       // 如果无法获取状态，提示用户
       this.#logger.error('StateManager not available or pdf-list state not found');
-      alert('系统未正确初始化，请刷新页面');
+      this.#showGlobalError('系统未正确初始化，请刷新页面');
 
     } catch (error) {
       this.#logger.error('Error handling edit button click:', error);
       this.#logger.error('Error stack:', error.stack);
-      alert('获取选中记录失败，请重试');
+      this.#showGlobalError('获取选中记录失败，请重试');
     }
   }
 
@@ -458,11 +497,6 @@ export class PDFEditFeature {
         </div>
 
         <div class="form-group">
-          <label for="edit-read-status">已读状态</label>
-          <div id="edit-read-status" class="toggle-switch-container"></div>
-        </div>
-
-        <div class="form-group">
           <label for="edit-notes">备注</label>
           <textarea
             id="edit-notes"
@@ -497,18 +531,6 @@ export class PDFEditFeature {
       placeholder: '添加标签...',
       maxTags: 10
     });
-
-    // 已读状态开关
-    const readStatusContainer = document.getElementById('edit-read-status');
-    this.#formComponents.readStatus = new ToggleSwitch({
-      container: readStatusContainer,
-      checked: record.is_read || false,
-      label: record.is_read ? '已读' : '未读',
-      onChange: (checked) => {
-        // 更新标签文本
-        this.#formComponents.readStatus.setLabel(checked ? '已读' : '未读');
-      }
-    });
   }
 
   /**
@@ -526,7 +548,6 @@ export class PDFEditFeature {
         keywords: document.getElementById('edit-keywords').value.trim(),
         rating: this.#formComponents.rating.getValue(),
         tags: this.#formComponents.tags.getTags(),
-        is_read: this.#formComponents.readStatus.isChecked(),
         notes: document.getElementById('edit-notes').value.trim()
       };
 
@@ -534,7 +555,7 @@ export class PDFEditFeature {
       this.#logger.info('Submitting edit for:', this.#currentRecord.pdf_id || this.#currentRecord.id);
 
       // 发送全局更新事件
-      this.#globalEventBus.emitGlobal(
+      this.#scopedEventBus.emitGlobal(
         PDF_MANAGEMENT_EVENTS.EDIT.STARTED,
         {
           pdf_id: this.#currentRecord.pdf_id || this.#currentRecord.id,

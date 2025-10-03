@@ -742,16 +742,34 @@ export class PDFListFeature {
     const unsubWebSocketList = this.#scopedEventBus.onGlobal('websocket:message:list', (data) => {
       this.#logger.info('Received PDF list from WebSocket (list event):', data);
 
+      // 处理两种数据格式：
+      // 1. 标准格式：data.data.files (后端广播的格式)
+      // 2. 简化格式：data.items (旧格式，保持兼容)
+      let items = null;
+
+      if (data && data.data && Array.isArray(data.data.files)) {
+        // 后端广播格式：{ data: { files: [...] } }
+        items = data.data.files;
+        this.#logger.info(`Received list in standard format: ${items.length} files`);
+      } else if (data && Array.isArray(data.items)) {
+        // 旧格式：{ items: [...] }
+        items = data.items;
+        this.#logger.info(`Received list in legacy format: ${items.length} items`);
+      }
+
       // 更新状态中的items
-      if (this.#state && data && Array.isArray(data.items)) {
-        this.#logger.debug(`Updating list with ${data.items.length} items`);
-        this.#state.items = data.items;
+      if (this.#state && items) {
+        this.#logger.info(`✅ Updating table with ${items.length} items`);
+        this.#state.items = items;
         this.#state.isLoading = false;
+
+        // 触发表格更新（使用 uiManager.setData）
+        this.#uiManager?.setData(items);
 
         // 发出数据加载完成事件
         this.#scopedEventBus?.emit(
           PDF_LIST_EVENTS.DATA_LOAD_COMPLETED,
-          EventDataFactory.createDataLoadedData(data.items, data.items.length)
+          EventDataFactory.createDataLoadedData(items, items.length)
         );
       } else {
         this.#logger.warn('Invalid PDF list data received:', data);

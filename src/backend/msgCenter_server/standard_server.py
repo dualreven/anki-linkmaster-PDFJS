@@ -228,6 +228,11 @@ class StandardWebSocketServer(QObject):
         # 获取PDF详情
         elif message_type in ["pdf-home:get:pdf-info", "pdf_detail_request"]:
             return self.handle_pdf_detail_request(request_id, data)
+
+        # 更新PDF元数据
+        elif message_type in ["pdf-home:update:pdf", "update_pdf"]:
+            return self.handle_pdf_update_request(request_id, data)
+
         # PDF页面请求
         elif message_type == MessageType.PDF_PAGE_REQUEST.value:
             return self.handle_pdf_page_request(request_id, data)
@@ -473,6 +478,57 @@ class StandardWebSocketServer(QObject):
                 "DETAIL_ERROR",
                 f"获取PDF详情失败: {str(e)}"
             )
+
+    def handle_pdf_update_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """处理PDF更新请求"""
+        try:
+            file_id = data.get("file_id")
+            updates = data.get("updates", {})
+
+            if not file_id:
+                return StandardMessageHandler.build_error_response(
+                    request_id,
+                    "INVALID_REQUEST",
+                    "缺少必需的file_id参数"
+                )
+
+            if not updates:
+                return StandardMessageHandler.build_error_response(
+                    request_id,
+                    "INVALID_REQUEST",
+                    "缺少updates参数"
+                )
+
+            # 调用PDF管理器更新文件
+            success = self.pdf_manager.update_file(file_id, updates)
+
+            if success:
+                # 广播列表更新
+                self.on_pdf_list_changed()
+
+                return StandardMessageHandler.build_response(
+                    "response",
+                    request_id,
+                    status="success",
+                    code=200,
+                    message="PDF文件更新成功",
+                    data={"file_id": file_id, "updates": updates}
+                )
+            else:
+                return StandardMessageHandler.build_error_response(
+                    request_id,
+                    "UPDATE_FAILED",
+                    "PDF文件更新失败"
+                )
+
+        except Exception as e:
+            logger.error(f"更新PDF失败: {e}")
+            return StandardMessageHandler.build_error_response(
+                request_id,
+                "UPDATE_ERROR",
+                f"更新PDF失败: {str(e)}"
+            )
+
     def handle_pdf_page_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """处理PDF页面请求"""
         try:
@@ -690,7 +746,19 @@ class StandardWebSocketServer(QObject):
     def on_pdf_list_changed(self):
         """处理PDF列表变更事件"""
         logger.info("PDF列表变更事件")
-        # 可以触发列表更新广播
+        # 广播列表更新消息，让所有客户端重新获取列表
+        try:
+            files = self.pdf_manager.get_files()
+            message = PDFMessageBuilder.build_pdf_list_response(
+                request_id=None,
+                files=files
+            )
+            # 修改消息类型为list，让前端识别为列表更新
+            message["type"] = "list"
+            self.broadcast_message(message)
+            logger.info(f"已广播PDF列表更新消息，共 {len(files)} 个文件")
+        except Exception as e:
+            logger.error(f"广播列表更新失败: {e}")
     
     def send_message(self, client: QWebSocket, message: Dict[str, Any]) -> bool:
         """发送消息给指定客户端"""

@@ -244,7 +244,42 @@ class PDFManager(QObject):
             error_msg = ErrorHandler.get_error_message(e)
             logger.error(f"获取文件详情失败: {error_msg}")
             return None
-        
+
+    def update_file(self, file_id: str, updates: Dict[str, Any]) -> bool:
+        """更新PDF文件元数据
+
+        Args:
+            file_id: 文件ID
+            updates: 更新的字段字典
+
+        Returns:
+            bool: 更新成功返回True
+        """
+        try:
+            # 获取文件对象
+            pdf_file = self.file_list.get_file(file_id)
+            if not pdf_file:
+                self.error_occurred.emit(f"文件不存在: {file_id}")
+                return False
+
+            # 更新元数据
+            pdf_file.update_metadata(updates)
+
+            # 保存到文件
+            self.save_files()
+
+            # 触发列表变更信号
+            self.file_list_changed.emit()
+
+            logger.info(f"文件元数据更新成功: {file_id}")
+            return True
+
+        except Exception as e:
+            error_msg = ErrorHandler.get_error_message(e)
+            logger.error(f"更新文件失败: {error_msg}")
+            self.error_occurred.emit(f"更新文件失败: {error_msg}")
+            return False
+
     def _create_file_copy(self, original_path: str, file_id: str) -> str:
         """创建PDF文件副本
         

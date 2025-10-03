@@ -30,6 +30,7 @@ export class WSClient {
   static VALID_MESSAGE_TYPES = [
     'pdf_list_updated',
     'pdf_list',
+    'list',  // 后端广播列表更新时使用的类型
     'load_pdf_file',
     'pdf_detail_response',
     'success',
@@ -290,6 +291,7 @@ export class WSClient {
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.PDF_LIST_UPDATED;
           break;
         case "pdf_list":
+        case "list":  // 后端广播列表更新使用 'list' 类型
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.PDF_LIST;
           break;
         case "load_pdf_file":
