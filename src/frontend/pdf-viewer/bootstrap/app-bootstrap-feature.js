@@ -13,6 +13,7 @@ import eventBusSingleton from "../../common/event/event-bus.js";
 import { AppCoreFeature } from "../features/app-core/index.js";
 import { PDFManagerFeature } from "../features/pdf-manager/index.js";
 import { UIManagerFeature } from "../features/ui-manager/index.js";
+import { CoreNavigationFeature } from "../features/core-navigation/index.js";
 import { SearchFeature } from "../features/search/index.js";
 import { URLNavigationFeature } from "../features/url-navigation/index.js";
 import { AnnotationFeature } from "../features/annotation/index.js";
@@ -88,6 +89,7 @@ export async function bootstrapPDFViewerAppFeature() {
     registry.register(new AppCoreFeature());
     registry.register(new PDFManagerFeature());
     registry.register(new UIManagerFeature());
+    registry.register(new CoreNavigationFeature());  // 核心导航服务（需在url-navigation和annotation之前）
     registry.register(new SearchFeature());  // 注册搜索功能
     registry.register(new URLNavigationFeature());
     registry.register(new AnnotationFeature());

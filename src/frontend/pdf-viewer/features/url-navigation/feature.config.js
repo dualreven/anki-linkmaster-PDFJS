@@ -20,7 +20,7 @@ export const URLNavigationFeatureConfig = {
    * 依赖的Features
    * @type {string[]}
    */
-  dependencies: ['app-core', 'pdf-manager'],
+  dependencies: ['app-core', 'pdf-manager', 'core-navigation'],
 
   /**
    * 功能描述

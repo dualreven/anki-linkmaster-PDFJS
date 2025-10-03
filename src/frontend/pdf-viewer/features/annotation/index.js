@@ -16,7 +16,6 @@ import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js
 import { AnnotationSidebarUI } from "./components/annotation-sidebar-ui.js";
 import { ToolRegistry } from "./core/tool-registry.js";
 import { AnnotationManager } from "./core/annotation-manager.js";
-import { NavigationService } from "../url-navigation/services/navigation-service.js";
 
 /**
  * 标注功能Feature（容器模式）
@@ -63,7 +62,7 @@ export class AnnotationFeature {
 
   /** 依赖的Features */
   get dependencies() {
-    return ['app-core', 'ui-manager'];
+    return ['app-core', 'ui-manager', 'core-navigation'];
   }
 
   /**
@@ -102,11 +101,13 @@ export class AnnotationFeature {
     this.#annotationManager = new AnnotationManager(this.#eventBus, this.#logger);
     this.#logger.info('[AnnotationFeature] AnnotationManager created');
 
-    // 2.5. 创建导航服务（用于位置跳转）
-    this.#navigationService = new NavigationService(this.#eventBus, {
-      scrollDuration: 500, // 滚动动画持续时间（ms）
-    });
-    this.#logger.info('[AnnotationFeature] NavigationService created');
+    // 2.5. 从容器获取导航服务（由 core-navigation Feature 提供）
+    this.#navigationService = container?.get('navigationService');
+    if (!this.#navigationService) {
+      this.#logger.warn('[AnnotationFeature] navigationService 未在容器中找到，标注跳转功能可能不可用');
+    } else {
+      this.#logger.info('[AnnotationFeature] NavigationService obtained from container');
+    }
 
     // 3. 创建侧边栏UI
     const mainContainer = document.querySelector('main');
@@ -391,11 +392,8 @@ export class AnnotationFeature {
       this.#annotationManager = null;
     }
 
-    // 销毁导航服务
-    if (this.#navigationService) {
-      this.#navigationService.destroy();
-      this.#navigationService = null;
-    }
+    // 注意：不需要销毁 navigationService，它由 core-navigation Feature 管理
+    this.#navigationService = null;
 
     // 销毁侧边栏UI
     if (this.#sidebarUI) {

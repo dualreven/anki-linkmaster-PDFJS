@@ -8,7 +8,6 @@
 import { getLogger } from '../../../common/utils/logger.js';
 import { PDF_VIEWER_EVENTS } from '../../../common/event/pdf-viewer-constants.js';
 import { URLParamsParser } from './components/url-params-parser.js';
-import { NavigationService } from './services/navigation-service.js';
 import { URLNavigationFeatureConfig } from './feature.config.js';
 
 /**
@@ -78,8 +77,11 @@ export class URLNavigationFeature {
       throw new Error('EventBus未在容器或context中找到');
     }
 
-    // 2. 初始化导航服务
-    this.#navigationService = new NavigationService(this.#eventBus, URLNavigationFeatureConfig.options);
+    // 2. 从容器获取导航服务（由 core-navigation Feature 提供）
+    this.#navigationService = container.get('navigationService');
+    if (!this.#navigationService) {
+      throw new Error('[url-navigation] navigationService 未在容器中找到，请确保 core-navigation Feature 已安装');
+    }
 
     // 3. 解析URL参数
     this.#parsedParams = URLParamsParser.parse();
@@ -128,11 +130,8 @@ export class URLNavigationFeature {
   async uninstall() {
     this.#logger.info(`卸载 ${this.name} Feature...`);
 
-    if (this.#navigationService) {
-      this.#navigationService.destroy();
-      this.#navigationService = null;
-    }
-
+    // 注意：不需要销毁 navigationService，它由 core-navigation Feature 管理
+    this.#navigationService = null;
     this.#eventBus = null;
     this.#parsedParams = null;
     this.#hasProcessedParams = false;
