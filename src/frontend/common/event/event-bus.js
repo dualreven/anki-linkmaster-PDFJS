@@ -135,16 +135,78 @@ export const getAllEventBuses = () => {
   return eventBusManager.getAllEventBuses();
 };
 
+/**
+ * 事件总线类
+ * @class EventBus
+ * @description
+ * 提供模块化的发布-订阅（Pub-Sub）模式事件管理功能
+ *
+ * 核心功能：
+ * 1. 事件订阅与发布：on(), emit(), once(), off()
+ * 2. 事件名称验证：确保事件名符合 {module}:{action}:{status} 格式
+ * 3. 消息追踪：支持调用链追踪和性能分析（可选）
+ * 4. 自动推断执行者：通过调用栈自动识别发布者和订阅者
+ * 5. 错误隔离：订阅者回调错误不影响其他订阅者
+ *
+ * @example
+ * // 创建事件总线
+ * const eventBus = new EventBus({
+ *   moduleName: 'PDFViewer',
+ *   enableValidation: true,
+ *   enableTracing: false
+ * });
+ *
+ * // 订阅事件
+ * eventBus.on('pdf:file:loaded', (data) => {
+ *   console.log('PDF loaded:', data.filename);
+ * });
+ *
+ * // 发布事件
+ * eventBus.emit('pdf:file:loaded', { filename: 'test.pdf' });
+ */
 export class EventBus {
+  /** @type {Object<string, Map<string, Function>>} 事件名到订阅者映射 */
   #events = {};
-  #enableValidation = true;
-  #logger;
-  #nextSubscriberId = 1;
-  #moduleName;
-  #earlyLogQueue = []; // 早期日志缓存
-  #messageTracer = null; // 消息追踪器
-  #enableTracing = false; // 是否启用追踪
 
+  /** @type {boolean} 是否启用事件名称验证 */
+  #enableValidation = true;
+
+  /** @type {Logger|null} 日志记录器 */
+  #logger;
+
+  /** @type {number} 下一个订阅者ID */
+  #nextSubscriberId = 1;
+
+  /** @type {string} 模块名称 */
+  #moduleName;
+
+  /** @type {Array} 早期日志缓存（Logger注入前） */
+  #earlyLogQueue = [];
+
+  /** @type {MessageTracer|null} 消息追踪器 */
+  #messageTracer = null;
+
+  /** @type {boolean} 是否启用消息追踪 */
+  #enableTracing = false;
+
+  /**
+   * 创建事件总线实例
+   * @param {Object} [options={}] - 配置选项
+   * @param {string} [options.moduleName='EventBus'] - 模块名称
+   * @param {boolean} [options.enableValidation=true] - 是否启用事件名称验证
+   * @param {boolean} [options.enableTracing=false] - 是否启用消息追踪
+   * @param {Logger} [options.logger] - 日志记录器（可选，支持延迟注入）
+   * @param {number} [options.maxTraceSize=1000] - 追踪记录最大数量
+   * @param {boolean} [options.enablePerformanceTracking=true] - 是否启用性能追踪
+   *
+   * @example
+   * const eventBus = new EventBus({
+   *   moduleName: 'PDFViewer',
+   *   enableValidation: true,
+   *   enableTracing: true,
+   *   maxTraceSize: 500
+   * });
+   */
   constructor(options = {}) {
     this.#enableValidation = options.enableValidation !== false;
     this.#moduleName = options.moduleName || "EventBus";
@@ -257,10 +319,38 @@ export class EventBus {
     }
   }
 
+  /**
+   * 订阅事件
+   * @param {string} event - 事件名称，格式：{module}:{action}:{status}
+   * @param {Function} callback - 事件回调函数
+   * @param {Object} [options={}] - 订阅选项
+   * @param {string} [options.subscriberId] - 订阅者ID（可选，未指定时自动推断）
+   * @param {string} [options.actorId] - 执行者ID（可选，未指定时自动推断）
+   * @returns {Function} 取消订阅函数
+   * @throws {Error} 如果事件名称格式不正确且启用验证
+   *
+   * @description
+   * 订阅指定事件，当事件触发时调用回调函数
+   * 返回一个取消订阅函数，调用后将移除该订阅
+   *
+   * @example
+   * // 基本订阅
+   * const unsubscribe = eventBus.on('pdf:file:loaded', (data) => {
+   *   console.log('PDF loaded:', data);
+   * });
+   *
+   * // 带追踪信息的订阅
+   * eventBus.on('pdf:file:loaded', (data, traceInfo) => {
+   *   console.log('PDF loaded:', data, 'Message ID:', traceInfo.messageId);
+   * });
+   *
+   * // 取消订阅
+   * unsubscribe();
+   */
   on(event, callback, options = {}) {
     const subscriberId = options.subscriberId || this.#inferActorId() || `sub_${this.#nextSubscriberId++}`;
     const actorId = options.actorId || this.#inferActorId();
-    
+
     if (this.#enableValidation) {
       const error = EventNameValidator.getValidationError(event, { subscriberId, actorId });
 
@@ -283,6 +373,27 @@ export class EventBus {
     return () => this.off(event, subscriberId);
   }
 
+  /**
+   * 取消订阅事件
+   * @param {string} event - 事件名称
+   * @param {Function|string} callbackOrId - 回调函数或订阅者ID
+   * @description
+   * 取消指定事件的订阅
+   * 可以通过回调函数或订阅者ID来匹配要取消的订阅
+   *
+   * @example
+   * // 通过回调函数取消订阅
+   * const callback = (data) => console.log(data);
+   * eventBus.on('pdf:file:loaded', callback);
+   * eventBus.off('pdf:file:loaded', callback);
+   *
+   * // 通过订阅者ID取消订阅
+   * eventBus.off('pdf:file:loaded', 'sub_123');
+   *
+   * // 推荐使用返回的取消订阅函数
+   * const unsubscribe = eventBus.on('pdf:file:loaded', callback);
+   * unsubscribe(); // 更简洁
+   */
   off(event, callbackOrId) {
     const subscribers = this.#events[event];
     if (!subscribers) return;
@@ -307,6 +418,43 @@ export class EventBus {
     }
   }
 
+  /**
+   * 发布事件
+   * @param {string} event - 事件名称，格式：{module}:{action}:{status}
+   * @param {any} data - 事件数据
+   * @param {Object} [options={}] - 发布选项
+   * @param {string} [options.actorId] - 执行者ID（可选，未指定时自动推断）
+   * @param {string} [options.parentTraceId] - 父调用链ID（用于级联事件追踪）
+   * @param {string} [options.parentMessageId] - 父消息ID（用于级联事件追踪）
+   * @returns {Object|undefined} 如果启用追踪，返回 { messageId, traceId, timestamp }
+   * @description
+   * 向所有订阅者发布事件
+   * - 如果启用验证且事件名称不符合格式，事件不会发布
+   * - 如果启用追踪，会记录消息追踪信息并返回追踪元数据
+   * - 订阅者回调执行错误不会中断其他订阅者的执行
+   * - 高频事件（如进度更新）的日志会被抑制
+   *
+   * @example
+   * // 基本发布
+   * eventBus.emit('pdf:file:loaded', { filename: 'test.pdf' });
+   *
+   * // 带执行者ID
+   * eventBus.emit('pdf:file:loaded', { filename: 'test.pdf' }, {
+   *   actorId: 'PDFManager'
+   * });
+   *
+   * // 启用追踪时
+   * const traceInfo = eventBus.emit('pdf:file:loaded', data);
+   * console.log('Message ID:', traceInfo.messageId);
+   *
+   * // 级联事件
+   * eventBus.on('pdf:file:loaded', (data, traceInfo) => {
+   *   eventBus.emit('pdf:processing:started', data, {
+   *     parentTraceId: traceInfo.traceId,
+   *     parentMessageId: traceInfo.messageId
+   *   });
+   * });
+   */
   emit(event, data, options = {}) {
     const actorId = options.actorId || this.#inferActorId();
 
@@ -452,6 +600,28 @@ export class EventBus {
     }
   }
 
+  /**
+   * 订阅事件（仅触发一次）
+   * @param {string} event - 事件名称，格式：{module}:{action}:{status}
+   * @param {Function} callback - 事件回调函数
+   * @param {Object} [options={}] - 订阅选项
+   * @param {string} [options.subscriberId] - 订阅者ID（可选）
+   * @param {string} [options.actorId] - 执行者ID（可选）
+   * @returns {Function} 取消订阅函数
+   * @description
+   * 订阅指定事件，但回调只会执行一次
+   * 事件触发后会自动取消订阅
+   *
+   * @example
+   * // 仅在首次加载时执行
+   * eventBus.once('pdf:file:loaded', (data) => {
+   *   console.log('First PDF loaded:', data);
+   * });
+   *
+   * // 可以提前取消订阅
+   * const unsubscribe = eventBus.once('pdf:file:loaded', callback);
+   * unsubscribe(); // 如果在触发前取消，回调不会执行
+   */
   once(event, callback, options = {}) {
     const onceWrapper = (data) => {
       this.off(event, onceWrapper);
@@ -539,6 +709,28 @@ export class EventBus {
     };
   }
 
+  /**
+   * 销毁事件总线
+   * @description
+   * 清除所有事件订阅和追踪数据，释放资源
+   * 调用后该 EventBus 实例将不可用
+   *
+   * 销毁操作包括：
+   * 1. 清除所有事件订阅
+   * 2. 销毁消息追踪器（如果启用）
+   * 3. 清空追踪数据
+   *
+   * @example
+   * // 在模块卸载时销毁事件总线
+   * async uninstall(context) {
+   *   context.globalEventBus.destroy();
+   * }
+   *
+   * // 在测试清理时销毁
+   * afterEach(() => {
+   *   eventBus.destroy();
+   * });
+   */
   destroy() {
     this.#log("info", `正在销毁事件总线 [${this.#moduleName}]，清除所有订阅...`);
     this.#events = {};
