@@ -8,11 +8,11 @@ already running. The launcher auto-resolves ports from logs/runtime-ports.json
 and logs/npm-dev.log where possible.
 
 Usage:
-  # 基本用法 - 打开指定PDF文件
-  python src/frontend/pdf-viewer/launcher.py --file-path path/to/file.pdf
-
-  # 使用PDF ID（会在指定目录中查找对应的PDF文件）
+  # 推荐用法 - 使用PDF ID（会自动在 data/pdfs/ 等目录查找）
   python src/frontend/pdf-viewer/launcher.py --pdf-id sample
+
+  # 已过时 - 使用文件路径（不推荐）
+  # python src/frontend/pdf-viewer/launcher.py --file-path path/to/file.pdf
 
   # 打开PDF并跳转到指定页码（第5页）
   python src/frontend/pdf-viewer/launcher.py --pdf-id sample --page-at 5

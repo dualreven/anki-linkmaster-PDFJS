@@ -234,7 +234,8 @@ python launcher.py start --module pdf-viewer
 
 # 3. 启动PDF查看器窗口（第三个终端）
 cd src/frontend/pdf-viewer
-python launcher.py --file-path path/to/document.pdf
+python launcher.py --pdf-id sample              # 推荐：使用PDF ID
+# python launcher.py --file-path path/to/document.pdf  # 已过时，不推荐
 ```
 
 ### 3. 开发模式

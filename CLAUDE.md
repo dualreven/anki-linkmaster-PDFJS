@@ -44,7 +44,14 @@
         * --vite-port: Vite开发服务器端口 (默认: 3000)
         * --ws-port: WebSocket服务器端口 (默认: 8765)
         * --http-port: HTTP文件服务器端口 (默认: 8080)
-        * --file-path: PDF文件路径 (仅pdf-viewer模块有效)
+
+        PDF Viewer 启动方式:
+        python src/frontend/pdf-viewer/launcher.py --pdf-id sample
+
+        launcher.py 支持的参数:
+        * --pdf-id: PDF标识符（会自动在 data/pdfs/ 等目录查找）
+        * --page-at: 目标页码（从1开始）
+        * --position: 页面内垂直位置百分比（0-100）
 
         端口配置优先级: 命令行参数 > 环境变量 > 默认值
         
