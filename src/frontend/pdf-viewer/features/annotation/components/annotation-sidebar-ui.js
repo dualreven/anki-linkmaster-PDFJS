@@ -119,7 +119,7 @@ export class AnnotationSidebarUI {
     const header = document.createElement('div');
     header.className = 'annotation-sidebar-header';
     header.style.cssText = [
-      'padding: 12px',
+      'padding: 8px',  // 第二期：从12px减少到8px，使工具栏更紧凑
       'border-bottom: 1px solid #eee',
       'background: #fafafa',
       'box-sizing: border-box',
@@ -134,7 +134,7 @@ export class AnnotationSidebarUI {
   }
 
   /**
-   * 创建工具栏
+   * 创建工具栏（第二期：优化按钮尺寸）
    * @returns {HTMLElement}
    * @private
    */
@@ -143,15 +143,17 @@ export class AnnotationSidebarUI {
     toolbar.className = 'annotation-toolbar';
     toolbar.style.cssText = [
       'display: flex',
-      'gap: 8px',
+      'gap: 4px',
       'align-items: center'
     ].join(';');
 
-    // 工具按钮配置
+    // 工具按钮配置（第二期：新增筛选和设置按钮）
     const tools = [
-      { id: 'screenshot', icon: '📷', label: '截图', title: '截图标注' },
-      { id: 'text-highlight', icon: '✏️', label: '选字', title: '选字高亮' },
-      { id: 'comment', icon: '📝', label: '批注', title: '批注' }
+      { id: 'screenshot', icon: '📷', title: '截图标注' },
+      { id: 'text-highlight', icon: '✏️', title: '选字高亮' },
+      { id: 'comment', icon: '📝', title: '批注' },
+      { id: 'filter', icon: '🔍', title: '筛选标注' },
+      { id: 'settings', icon: '⚙️', title: '设置' }
     ];
 
     tools.forEach(tool => {
@@ -159,34 +161,38 @@ export class AnnotationSidebarUI {
       btn.type = 'button';
       btn.className = `annotation-tool-btn annotation-tool-${tool.id}`;
       btn.dataset.tool = tool.id;
-      btn.title = tool.title;
+      btn.title = tool.title; // Tooltip提示
       btn.style.cssText = [
         'display: flex',
-        'flex-direction: column',
         'align-items: center',
-        'gap: 4px',
-        'padding: 8px 12px',
+        'justify-content: center',
+        'width: 28px',
+        'height: 28px',
+        'padding: 0',
         'border: 1px solid #ddd',
         'background: #fff',
         'border-radius: 4px',
         'cursor: pointer',
         'transition: all 0.2s',
-        'flex: 1',
-        'font-size: 12px',
+        'font-size: 16px',
         'color: #666'
       ].join(';');
 
+      // 仅图标，不显示文字
       const iconSpan = document.createElement('span');
       iconSpan.textContent = tool.icon;
-      iconSpan.style.fontSize = '20px';
-
-      const labelSpan = document.createElement('span');
-      labelSpan.textContent = tool.label;
+      iconSpan.style.lineHeight = '1';
 
       btn.appendChild(iconSpan);
-      btn.appendChild(labelSpan);
 
-      btn.addEventListener('click', () => this.#handleToolClick(tool.id));
+      // 根据按钮类型绑定不同的处理器
+      if (tool.id === 'filter' || tool.id === 'settings') {
+        // 筛选和设置按钮的点击处理（第二期功能）
+        btn.addEventListener('click', () => this.#handleUtilityButtonClick(tool.id));
+      } else {
+        // 标注工具按钮的点击处理
+        btn.addEventListener('click', () => this.#handleToolClick(tool.id));
+      }
 
       // 悬停效果
       btn.addEventListener('mouseenter', () => {
@@ -227,6 +233,29 @@ export class AnnotationSidebarUI {
       this.#activeTool = toolId;
       this.#updateToolbarState();
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.TOOL.ACTIVATE, { tool: toolId });
+    }
+  }
+
+  /**
+   * 处理辅助按钮点击（筛选、设置等）
+   * @param {string} buttonId - 按钮ID
+   * @private
+   */
+  #handleUtilityButtonClick(buttonId) {
+    this.#logger.debug(`Utility button clicked: ${buttonId}`);
+
+    // 根据按钮类型执行不同操作
+    switch (buttonId) {
+      case 'filter':
+        // 切换筛选面板显示状态（第二期功能）
+        this.#eventBus.emit('pdf-viewer:annotation:filter:toggle', {});
+        break;
+      case 'settings':
+        // 打开设置面板（预留功能）
+        this.#eventBus.emit('pdf-viewer:annotation:settings:open', {});
+        break;
+      default:
+        this.#logger.warn(`Unknown utility button: ${buttonId}`);
     }
   }
 
@@ -446,6 +475,57 @@ export class AnnotationSidebarUI {
     header.appendChild(typeInfo);
     header.appendChild(jumpBtn);
 
+    // ID行（第二期：新增）
+    const idRow = document.createElement('div');
+    idRow.style.cssText = [
+      'display: flex',
+      'align-items: center',
+      'gap: 6px',
+      'margin-bottom: 8px',
+      'font-size: 11px',
+      'color: #999'
+    ].join(';');
+
+    const idLabel = document.createElement('span');
+    idLabel.textContent = 'ID:';
+
+    const idValue = document.createElement('span');
+    idValue.textContent = annotation.id;
+    idValue.style.cssText = [
+      'font-family: monospace',
+      'color: #666',
+      'user-select: all'
+    ].join(';');
+
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.textContent = '📋';
+    copyBtn.title = '复制ID';
+    copyBtn.className = 'annotation-copy-id-btn';
+    copyBtn.style.cssText = [
+      'border: none',
+      'background: transparent',
+      'cursor: pointer',
+      'font-size: 14px',
+      'padding: 0 4px',
+      'color: #666',
+      'transition: all 0.2s'
+    ].join(';');
+    copyBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await this.#handleCopyIdClick(annotation.id);
+    });
+    copyBtn.addEventListener('mouseenter', () => {
+      copyBtn.style.color = '#2196f3';
+    });
+    copyBtn.addEventListener('mouseleave', () => {
+      copyBtn.style.color = '#666';
+    });
+
+    idRow.appendChild(idLabel);
+    idRow.appendChild(idValue);
+    idRow.appendChild(copyBtn);
+
     // 卡片内容
     const content = document.createElement('div');
     content.className = 'annotation-card-content';
@@ -531,12 +611,13 @@ export class AnnotationSidebarUI {
     footer.appendChild(time);
     footer.appendChild(commentInfo);
 
-    // 组装卡片
+    // 组装卡片（第二期：添加ID行）
     card.appendChild(header);
+    card.appendChild(idRow);
     card.appendChild(content);
     card.appendChild(footer);
 
-    // 点击卡片跳转
+    // 点击卡片跳转（第二期：暂时保持原有行为，后续可改为展开评论）
     card.addEventListener('click', () => {
       this.#handleJumpClick(annotation.id);
     });
@@ -633,6 +714,86 @@ export class AnnotationSidebarUI {
     // 这里可以展开评论输入区域或打开评论对话框
     // 暂时只发出事件
     this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SELECT, { id: annotationId });
+  }
+
+  /**
+   * 处理复制ID按钮点击（第二期：新增）
+   * @param {string} annotationId - 标注ID
+   * @private
+   */
+  async #handleCopyIdClick(annotationId) {
+    this.#logger.debug(`Copy annotation ID: ${annotationId}`);
+
+    try {
+      // 使用Clipboard API复制文本
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(annotationId);
+        this.#showCopyToast('✓ ID已复制');
+      } else {
+        // 降级方案：使用传统方法
+        const textarea = document.createElement('textarea');
+        textarea.value = annotationId;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        this.#showCopyToast('✓ ID已复制');
+      }
+
+      // 发出ID复制事件
+      this.#eventBus.emit('pdf-viewer:annotation:id:copied', { id: annotationId });
+    } catch (error) {
+      this.#logger.error('Failed to copy ID:', error);
+      this.#showCopyToast('✗ 复制失败');
+    }
+  }
+
+  /**
+   * 显示复制提示（第二期：新增）
+   * @param {string} message - 提示消息
+   * @private
+   */
+  #showCopyToast(message) {
+    // 创建Toast提示
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    toast.style.cssText = [
+      'position: fixed',
+      'top: 20px',
+      'left: 50%',
+      'transform: translateX(-50%)',
+      'background: rgba(0, 0, 0, 0.8)',
+      'color: #fff',
+      'padding: 8px 16px',
+      'border-radius: 4px',
+      'font-size: 14px',
+      'z-index: 10000',
+      'animation: fadeInOut 2s ease-in-out'
+    ].join(';');
+
+    // 添加动画样式
+    if (!document.querySelector('#copy-toast-animation')) {
+      const style = document.createElement('style');
+      style.id = 'copy-toast-animation';
+      style.textContent = `
+        @keyframes fadeInOut {
+          0% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+          10% { opacity: 1; transform: translateX(-50%) translateY(0); }
+          90% { opacity: 1; transform: translateX(-50%) translateY(0); }
+          100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    document.body.appendChild(toast);
+
+    // 2秒后移除
+    setTimeout(() => {
+      toast.remove();
+    }, 2000);
   }
 
   /**
