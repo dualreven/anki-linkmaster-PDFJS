@@ -9,7 +9,7 @@
 
 import { PDF_EDIT_FEATURE_CONFIG } from './feature.config.js';
 import { PDF_EDIT_EVENTS, createEditRequestedData, createEditCompletedData } from './events.js';
-import { PDF_MANAGEMENT_EVENTS } from '../../../common/event/event-constants.js';
+import { PDF_MANAGEMENT_EVENTS, WEBSOCKET_EVENTS } from '../../../common/event/event-constants.js';
 import { getLogger } from '../../../common/utils/logger.js';
 import { ModalManager } from './components/modal-manager.js';
 import { StarRating } from './components/star-rating.js';
@@ -561,23 +561,18 @@ export class PDFEditFeature {
    * @param {Object} updates - 更新数据
    */
   #sendEditRequestToBackend(fileId, updates) {
-    if (!this.#wsClient) {
-      this.#logger.warn('WebSocket client not available, cannot send edit request');
-      return;
-    }
-
     try {
-      const message = {
+      this.#logger.info('Sending edit request to backend:', { fileId, updates });
+
+      // 通过EventBus发送WebSocket消息（标准方式）
+      this.#globalEventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, {
         type: 'update_pdf',
         request_id: `edit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         data: {
           file_id: fileId,
           updates: updates
         }
-      };
-
-      this.#logger.info('Sending edit request to backend:', { fileId, updates });
-      this.#wsClient.sendMessage(message);
+      }, { actorId: 'PDFEditFeature' });
 
     } catch (error) {
       this.#logger.error('Failed to send edit request:', error);
