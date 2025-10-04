@@ -50,6 +50,26 @@
     - 文件修改: style.css (margin-right过渡)、pdf-layout-adapter.js (新建84行)、sidebar-manager/index.js (事件发布)
     - 提交记录: b44a799 "feat(pdf-viewer): 侧边栏打开时PDF渲染区自动缩小，不被遮挡"
     - 工作日志: AItemp/20251004193000-AI-Working-log.md
+  - ✅ **插件隔离架构改进** (20251004200000) (2025-10-04 20:00):
+    - 目标: 提升pdf-viewer功能域插件架构的隔离质量（7.6→9.0分）
+    - 核心修复:
+      1. 依赖声明完整性：sidebar-manager添加pdf-bookmark依赖
+      2. 消除全局访问：SelectionMonitor改用依赖注入获取container
+      3. 文档完善：创建EventBus使用规范指南（EVENTBUS-USAGE-GUIDE.md）
+    - 文件修改: sidebar-manager/index.js、pdf-translator/index.js、SelectionMonitor.js
+    - 新增文档: src/frontend/common/event/EVENTBUS-USAGE-GUIDE.md (完整的API使用指南)
+    - 提交记录: c96f346 "refactor(architecture): 改进插件隔离架构和EventBus规范"
+    - 分析报告: AItemp/20251004193000-pdf-viewer-isolation-analysis.md
+    - 改进总结: AItemp/20251004200000-isolation-improvements-summary.md
+  - ✅ **Worktree D 合并：书签智能添加功能** (2025-10-04 20:05):
+    - 合并分支: d-main-20250927
+    - 新增提交: b4250f6 feat(pdf-bookmark): 智能添加位置和自动选中功能
+    - 功能说明:
+      1. 添加书签时智能判断插入位置（在选中书签后面）
+      2. 自动选中新添加的书签节点
+      3. 优化用户体验
+    - 文件修改: pdf-bookmark/index.js (+73行)、bookmark-manager.js (+23行)、bookmark-sidebar-ui.js (+65行)
+    - 提交记录: 5106808 "Merge worktree D: 书签智能添加功能 (1个提交)"
 
 ## 已知问题：PDF列表双重更新问题 (2025-09-28)
 **问题描述**：`pdf:list:updated` 事件被触发两次，导致UI可能重复渲染。
