@@ -5,6 +5,10 @@
 import { FilterManager } from './services/filter-manager.js';
 import { FilterSearchBar } from './components/filter-search-bar.js';
 import { FilterBuilder } from './components/filter-builder-v2.js';
+import { PresetDropdown } from './components/preset-dropdown.js';
+
+// 导入样式
+import './styles/preset-dropdown.css';
 
 export class FilterFeature {
   name = 'filter';
@@ -19,6 +23,7 @@ export class FilterFeature {
   #searchBar = null;
   #searchDialog = null;
   #filterBuilder = null;
+  #presetDropdown = null;
   #pdfTable = null;
   #unsubscribers = [];
   #escKeyHandler = null;
@@ -43,6 +48,9 @@ export class FilterFeature {
 
       // 3. 绑定搜索按钮事件
       this.#bindSearchButton();
+
+      // 3.5. 绑定预设按钮事件
+      this.#bindPresetButton();
 
       // 4. 监听事件
       this.#setupEventListeners();
@@ -79,6 +87,10 @@ export class FilterFeature {
 
     if (this.#filterBuilder) {
       this.#filterBuilder.destroy();
+    }
+
+    if (this.#presetDropdown) {
+      this.#presetDropdown.destroy();
     }
 
     // 移除搜索栏
@@ -146,6 +158,18 @@ export class FilterFeature {
     });
 
     this.#logger.info('[FilterFeature] Search button bound');
+  }
+
+  /**
+   * 绑定预设按钮
+   * @private
+   */
+  #bindPresetButton() {
+    // 创建预设下拉菜单组件
+    this.#presetDropdown = new PresetDropdown(this.#logger, this.#scopedEventBus);
+    this.#presetDropdown.render('preset-filter-btn');
+
+    this.#logger.info('[FilterFeature] Preset button bound');
   }
 
   /**
