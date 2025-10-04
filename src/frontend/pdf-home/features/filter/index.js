@@ -46,11 +46,14 @@ export class FilterFeature {
       // 2. 创建搜索对话框DOM
       this.#createSearchDialog();
 
-      // 3. 绑定搜索按钮事件
+      // 3. 绑定搜索按钮事件（已废弃）
       this.#bindSearchButton();
 
       // 3.5. 绑定预设按钮事件
       this.#bindPresetButton();
+
+      // 3.6. 初始化搜索栏组件（始终显示）
+      this.#initializeSearchComponents();
 
       // 4. 监听事件
       this.#setupEventListeners();
@@ -74,11 +77,6 @@ export class FilterFeature {
     // 取消所有事件订阅
     this.#unsubscribers.forEach(unsub => unsub());
     this.#unsubscribers = [];
-
-    // 移除ESC键监听
-    if (this.#escKeyHandler) {
-      document.removeEventListener('keydown', this.#escKeyHandler);
-    }
 
     // 销毁组件
     if (this.#searchBar) {
@@ -107,12 +105,12 @@ export class FilterFeature {
   }
 
   /**
-   * 创建搜索栏DOM（吸附在header下方）
+   * 创建搜索栏DOM（吸附在header下方，始终显示）
    * @private
    */
   #createSearchDialog() {
     this.#searchDialog = document.createElement('div');
-    this.#searchDialog.className = 'filter-search-panel';
+    this.#searchDialog.className = 'filter-search-panel active';  // 直接添加active类
     this.#searchDialog.innerHTML = `
       <div class="filter-search-panel-content">
         <div class="filter-search-container"></div>
@@ -130,34 +128,18 @@ export class FilterFeature {
       document.body.insertBefore(this.#searchDialog, document.body.firstChild);
     }
 
-    // ESC键关闭
-    this.#escKeyHandler = (e) => {
-      if (e.key === 'Escape' && this.#searchDialog.classList.contains('active')) {
-        this.#hideSearchDialog();
-      }
-    };
-    document.addEventListener('keydown', this.#escKeyHandler);
+    // 不再需要ESC键关闭功能
 
-    this.#logger.info('[FilterFeature] Search panel created');
+    this.#logger.info('[FilterFeature] Search panel created (always visible)');
   }
 
   /**
-   * 绑定搜索按钮
+   * 绑定搜索按钮（已废弃，搜索面板始终显示）
    * @private
    */
   #bindSearchButton() {
-    const searchBtn = document.getElementById('search-filter-btn');
-    if (!searchBtn) {
-      this.#logger.warn('[FilterFeature] Search button not found');
-      return;
-    }
-
-    searchBtn.addEventListener('click', () => {
-      this.#logger.info('[FilterFeature] Search button clicked');
-      this.#toggleSearchDialog();
-    });
-
-    this.#logger.info('[FilterFeature] Search button bound');
+    // 搜索面板现在始终显示，不需要切换按钮
+    this.#logger.info('[FilterFeature] Search panel is always visible, no toggle needed');
   }
 
   /**
@@ -173,13 +155,11 @@ export class FilterFeature {
   }
 
   /**
-   * 显示搜索栏
+   * 初始化搜索栏组件（搜索栏始终显示）
    * @private
    */
-  #showSearchDialog() {
-    this.#searchDialog.classList.add('active');
-
-    // 首次显示时创建搜索栏
+  #initializeSearchComponents() {
+    // 创建搜索栏
     if (!this.#searchBar) {
       const searchContainer = this.#searchDialog.querySelector('.filter-search-container');
       this.#searchBar = new FilterSearchBar(this.#logger, this.#scopedEventBus, {
@@ -188,7 +168,7 @@ export class FilterFeature {
       this.#searchBar.render(searchContainer);
     }
 
-    // 首次显示时创建FilterBuilder
+    // 创建FilterBuilder
     if (!this.#filterBuilder) {
       const builderContainer = this.#searchDialog.querySelector('.filter-builder-container');
       this.#filterBuilder = new FilterBuilder(
@@ -202,70 +182,23 @@ export class FilterFeature {
     // 调整表格容器位置，避免被遮挡
     this.#adjustTablePosition(true);
 
-    // 聚焦搜索框
-    setTimeout(() => {
-      this.#searchBar.focus();
-    }, 100);
-
-    this.#logger.info('[FilterFeature] Search panel shown');
-  }
-
-  /**
-   * 隐藏搜索栏
-   * @private
-   */
-  #hideSearchDialog() {
-    this.#searchDialog.classList.remove('active');
-
-    // 隐藏FilterBuilder
-    if (this.#filterBuilder) {
-      this.#filterBuilder.hide();
-    }
-
-    // 恢复表格容器位置
-    this.#adjustTablePosition(false);
-
-    // 清除搜索内容和筛选
-    if (this.#searchBar) {
-      this.#searchBar.setSearchText('');
-    }
-    this.#handleClear();
-
-    this.#logger.info('[FilterFeature] Search panel hidden');
+    this.#logger.info('[FilterFeature] Search components initialized');
   }
 
   /**
    * 调整表格位置避免被搜索栏遮挡
-   * @param {boolean} show - true显示搜索栏，false隐藏搜索栏
    * @private
    */
-  #adjustTablePosition(show) {
+  #adjustTablePosition() {
     const tableContainer = document.getElementById('pdf-table-container');
     if (!tableContainer) {
       this.#logger.warn('[FilterFeature] Table container not found');
       return;
     }
 
-    if (show) {
-      // 搜索栏高度约为100px，增加margin-top避免遮挡
-      tableContainer.style.marginTop = '120px';
-      tableContainer.style.transition = 'margin-top 0.3s ease';
-    } else {
-      // 恢复原始margin
-      tableContainer.style.marginTop = '0';
-    }
-  }
-
-  /**
-   * 切换搜索栏显示/隐藏
-   * @private
-   */
-  #toggleSearchDialog() {
-    if (this.#searchDialog.classList.contains('active')) {
-      this.#hideSearchDialog();
-    } else {
-      this.#showSearchDialog();
-    }
+    // 搜索栏高度约为100px，增加margin-top避免遮挡
+    tableContainer.style.marginTop = '120px';
+    tableContainer.style.transition = 'margin-top 0.3s ease';
   }
 
   /**

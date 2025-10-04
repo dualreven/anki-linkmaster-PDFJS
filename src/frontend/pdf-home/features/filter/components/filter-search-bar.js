@@ -43,17 +43,6 @@ export class FilterSearchBar {
   #getTemplate() {
     return `
       <div class="filter-search-bar">
-        <div class="search-controls-left">
-          <button class="search-btn" title="执行搜索">
-            🔍 搜索
-          </button>
-          <button class="advanced-filter-btn" title="高级筛选">
-            🎚️ 高级
-          </button>
-          <button class="save-preset-btn" title="保存搜索条件">
-            💾 保存条件
-          </button>
-        </div>
         <div class="search-input-wrapper">
           <input
             type="text"
@@ -63,6 +52,17 @@ export class FilterSearchBar {
           />
           <button class="clear-search-btn" title="清除搜索" style="display: none;">
             ✕
+          </button>
+        </div>
+        <div class="search-controls-right">
+          <button class="search-btn" title="执行搜索">
+            🔍 搜索
+          </button>
+          <button class="advanced-filter-btn" title="高级筛选">
+            🎚️ 高级
+          </button>
+          <button class="save-preset-btn" title="保存搜索条件">
+            💾 保存条件
           </button>
         </div>
         <div class="filter-stats" style="display: none;">

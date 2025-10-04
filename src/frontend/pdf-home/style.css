@@ -498,7 +498,7 @@ h1 {
     padding: 0 20px;
 }
 
-.search-controls-left {
+.search-controls-right {
     display: flex;
     gap: 8px;
     flex-shrink: 0;
@@ -623,7 +623,7 @@ h1 {
         margin-top: 10px;
     }
 
-    .search-controls-left {
+    .search-controls-right {
         order: 1;
     }
 
