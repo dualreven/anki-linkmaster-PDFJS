@@ -97,8 +97,8 @@ export class PDFTranslatorFeature {
     });
     this.#logger.info(`[${this.name}] Translation service initialized`);
 
-    // 2. 创建文本选择监听器
-    this.#selectionMonitor = new SelectionMonitor(this.#eventBus, {
+    // 2. 创建文本选择监听器（传入container以使用依赖注入）
+    this.#selectionMonitor = new SelectionMonitor(this.#eventBus, this.#container, {
       enabled: true,
       minLength: 3,
       maxLength: 500,

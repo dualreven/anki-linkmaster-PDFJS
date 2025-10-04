@@ -15,6 +15,7 @@ import { PDF_TRANSLATOR_EVENTS } from '../events.js';
 export class SelectionMonitor {
   #eventBus;
   #logger;
+  #container;                // 依赖容器
   #lastSelection = null;     // 上一次选择的文本
   #lastRange = null;         // 上一次选择的Range对象
   #debounceTimer = null;     // 防抖定时器
@@ -29,14 +30,16 @@ export class SelectionMonitor {
   /**
    * 构造函数
    * @param {EventBus} eventBus - 事件总线
+   * @param {Object} container - 依赖容器
    * @param {Object} [options] - 配置选项
    * @param {boolean} [options.enabled=true] - 是否启用
    * @param {number} [options.minLength=3] - 最小字符数
    * @param {number} [options.maxLength=500] - 最大字符数
    * @param {number} [options.debounceDelay=300] - 防抖延迟
    */
-  constructor(eventBus, options = {}) {
+  constructor(eventBus, container, options = {}) {
     this.#eventBus = eventBus;
+    this.#container = container;
     this.#logger = getLogger('SelectionMonitor');
 
     // 应用配置
@@ -277,10 +280,10 @@ export class SelectionMonitor {
    */
   #getCurrentPage() {
     try {
-      // 方法1: 从自定义PDFViewerManager获取（优先）
-      if (window.pdfViewerApp?.container) {
+      // 方法1: 从自定义PDFViewerManager获取（优先，通过依赖注入）
+      if (this.#container) {
         try {
-          const manager = window.pdfViewerApp.container.get('pdfViewerManager');
+          const manager = this.#container.get('pdfViewerManager');
           if (manager?.pdfViewer?.currentPageNumber) {
             this.#logger.debug(`Got page number from PDFViewerManager: ${manager.pdfViewer.currentPageNumber}`);
             return manager.pdfViewer.currentPageNumber;

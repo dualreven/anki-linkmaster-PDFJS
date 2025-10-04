@@ -37,12 +37,19 @@
     - 根因: PDFBookmarkFeature未注册到bootstrap + 错误的依赖声明
     - 修复: 在app-bootstrap-feature.js中注册Feature + 修正feature.config.js依赖为pdf-manager
     - 工作日志: AItemp/20251004145800-AI-Working-log.md
-  - ⏳ **侧边栏统一管理** (20251004030451-sidebar-unified-management):
+  - ✅ **侧边栏统一管理** (20251004030451-sidebar-unified-management):
     - 创建SidebarManagerFeature统一管理标注栏、书签栏、卡片栏、翻译栏
-    - 实现左流动布局系统，支持多侧边栏并存
+    - 实现右侧流动布局系统，支持多侧边栏并存
     - ❌ 所有按钮都不显示激活状态（需求变更v001.1）
     - ✅ 按钮切换关闭 + 侧边栏关闭按钮（X图标）
     - ✅ 宽度可拖拽调整（250-600px，支持localStorage持久化）（需求变更v001.2）
+  - ✅ **PDF渲染区布局适配** (20251004193000) (2025-10-04 19:30-19:45):
+    - 需求澄清: 侧边栏打开时PDF渲染区**自动缩小宽度**，不被遮挡，居中显示
+    - 核心实现: 创建PDFLayoutAdapter监听`sidebar:layout:changed`事件，动态调整PDF容器margin-right
+    - 技术方案: 事件驱动非侵入式设计，SidebarManager计算总宽度→发布事件→PDFLayoutAdapter调整布局
+    - 文件修改: style.css (margin-right过渡)、pdf-layout-adapter.js (新建84行)、sidebar-manager/index.js (事件发布)
+    - 提交记录: b44a799 "feat(pdf-viewer): 侧边栏打开时PDF渲染区自动缩小，不被遮挡"
+    - 工作日志: AItemp/20251004193000-AI-Working-log.md
 
 ## 已知问题：PDF列表双重更新问题 (2025-09-28)
 **问题描述**：`pdf:list:updated` 事件被触发两次，导致UI可能重复渲染。

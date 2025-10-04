@@ -358,14 +358,13 @@ main {
     position: absolute;
     top: 0;
     left: 0;
-    width: 100%;
+    right: 0;
     height: 100%;
     background-color: #f0f0f0;
     overflow: auto;
     box-sizing: border-box;
-    /* 为侧边栏让出空间 */
-    margin-right: 0;
-    transition: margin-right 0.3s ease;
+    /* 为侧边栏让出空间 - 通过动态设置left值实现 */
+    transition: left 0.3s ease;
 }
 
 /* PDFViewer组件容器 - 必须让PDF.js完全控制布局 */

@@ -54,13 +54,10 @@ export class PDFLayoutAdapter {
 
         this.#currentSidebarWidth = sidebarWidth;
 
-        // 为侧边栏让出右侧空间
-        this.#pdfContainer.style.marginRight = `${sidebarWidth}px`;
+        // 为侧边栏让出左侧空间（使用left属性）
+        this.#pdfContainer.style.left = `${sidebarWidth}px`;
 
-        logger.info('PDF layout updated', {
-            sidebarWidth,
-            pdfContainerMarginRight: this.#pdfContainer.style.marginRight
-        });
+        logger.info(`PDF layout updated: sidebarWidth=${sidebarWidth}px, left=${this.#pdfContainer.style.left}, container=${this.#pdfContainer.className}`);
     }
 
     /**
@@ -76,7 +73,7 @@ export class PDFLayoutAdapter {
      */
     destroy() {
         if (this.#pdfContainer) {
-            this.#pdfContainer.style.marginRight = '0';
+            this.#pdfContainer.style.left = '0';
         }
         this.#currentSidebarWidth = 0;
         logger.info('PDFLayoutAdapter destroyed');
