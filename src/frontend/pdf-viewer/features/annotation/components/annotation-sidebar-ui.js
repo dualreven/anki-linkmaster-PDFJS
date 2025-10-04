@@ -147,12 +147,13 @@ export class AnnotationSidebarUI {
       'align-items: center'
     ].join(';');
 
-    // 工具按钮配置（第二期：新增筛选和设置按钮）
+    // 工具按钮配置（第二期：新增筛选、排序和设置按钮）
     const tools = [
       { id: 'screenshot', icon: '📷', title: '截图标注' },
       { id: 'text-highlight', icon: '✏️', title: '选字高亮' },
       { id: 'comment', icon: '📝', title: '批注' },
       { id: 'filter', icon: '🔍', title: '筛选标注' },
+      { id: 'sort', icon: '↕️', title: '排序标注' },
       { id: 'settings', icon: '⚙️', title: '设置' }
     ];
 
@@ -164,7 +165,7 @@ export class AnnotationSidebarUI {
       btn.title = tool.title; // Tooltip提示
 
       // 标记是否为标注工具（用于状态更新）
-      const isAnnotationTool = !['filter', 'settings'].includes(tool.id);
+      const isAnnotationTool = !['filter', 'sort', 'settings'].includes(tool.id);
       if (isAnnotationTool) {
         btn.dataset.isTool = 'true';
       }
@@ -193,8 +194,8 @@ export class AnnotationSidebarUI {
       btn.appendChild(iconSpan);
 
       // 根据按钮类型绑定不同的处理器
-      if (tool.id === 'filter' || tool.id === 'settings') {
-        // 筛选和设置按钮的点击处理（第二期功能）
+      if (tool.id === 'filter' || tool.id === 'sort' || tool.id === 'settings') {
+        // 筛选、排序和设置按钮的点击处理（第二期功能）
         btn.addEventListener('click', () => this.#handleUtilityButtonClick(tool.id));
       } else {
         // 标注工具按钮的点击处理
@@ -275,7 +276,7 @@ export class AnnotationSidebarUI {
   }
 
   /**
-   * 处理辅助按钮点击（筛选、设置等）
+   * 处理辅助按钮点击（筛选、排序、设置等）
    * @param {string} buttonId - 按钮ID
    * @private
    */
@@ -287,10 +288,17 @@ export class AnnotationSidebarUI {
       case 'filter':
         // 切换筛选面板显示状态（第二期功能）
         this.#eventBus.emit('pdf-viewer:annotation:filter:toggle', {});
+        this.#showToast('筛选功能开发中...', 'info');
+        break;
+      case 'sort':
+        // 切换排序面板显示状态（第二期功能）
+        this.#eventBus.emit('pdf-viewer:annotation:sort:toggle', {});
+        this.#showToast('排序功能开发中...', 'info');
         break;
       case 'settings':
         // 打开设置面板（预留功能）
         this.#eventBus.emit('pdf-viewer:annotation:settings:open', {});
+        this.#showToast('设置功能开发中...', 'info');
         break;
       default:
         this.#logger.warn(`Unknown utility button: ${buttonId}`);
