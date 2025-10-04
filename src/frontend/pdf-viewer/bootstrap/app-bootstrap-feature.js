@@ -18,6 +18,8 @@ import { SearchFeature } from "../features/search/index.js";
 import { URLNavigationFeature } from "../features/url-navigation/index.js";
 import { AnnotationFeature } from "../features/annotation/index.js";
 import { SidebarManagerFeature } from "../features/sidebar-manager/index.js";
+import { PDFTranslatorFeature } from "../features/pdf-translator/index.js";
+import { PDFBookmarkFeature } from "../features/pdf-bookmark/index.js";
 
 /**
  * 解析WebSocket端口
@@ -93,8 +95,10 @@ export async function bootstrapPDFViewerAppFeature() {
     registry.register(new CoreNavigationFeature());  // 核心导航服务（需在url-navigation和annotation之前）
     registry.register(new SearchFeature());  // 注册搜索功能
     registry.register(new URLNavigationFeature());
-    registry.register(new SidebarManagerFeature());  // 侧边栏统一管理器
+    registry.register(new PDFBookmarkFeature());  // 书签管理功能（需在sidebar-manager之前）
     registry.register(new AnnotationFeature());
+    registry.register(new PDFTranslatorFeature());  // 翻译功能
+    registry.register(new SidebarManagerFeature());  // 侧边栏统一管理器（最后注册，依赖annotation、pdf-translator和pdf-bookmark）
 
     // 5. 安装所有 Features（自动解析依赖顺序）
     logger.info("[Bootstrap] Installing features...");
@@ -134,6 +138,9 @@ export async function bootstrapPDFViewerAppFeature() {
 
   } catch (error) {
     logger.error("[Bootstrap] Failed to start PDF Viewer App:", error);
+    logger.error("[Bootstrap] Error message:", error?.message);
+    logger.error("[Bootstrap] Error stack:", error?.stack);
+    logger.error("[Bootstrap] Error details:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
     throw error;
   }
 }

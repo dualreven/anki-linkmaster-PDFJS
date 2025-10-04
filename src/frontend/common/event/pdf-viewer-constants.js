@@ -704,6 +704,53 @@ export const PDF_VIEWER_EVENTS = {
        */
       FAILED: 'pdf-viewer:bookmark-delete:failed',
     },
+
+    /**
+     * 书签排序事件
+     * @namespace REORDER
+     */
+    REORDER: {
+      /**
+       * 请求重新排序书签
+       * @event pdf-viewer:bookmark:reorder:requested
+       * @type {string}
+       * @payload {Object} data
+       * @payload {string} data.bookmarkId - 被移动的书签ID
+       * @payload {string|null} data.newParentId - 新的父书签ID（null表示根级）
+       * @payload {number} data.newIndex - 新的排序位置
+       */
+      REQUESTED: 'pdf-viewer:bookmark-reorder:requested',
+
+      /**
+       * 排序成功
+       * @event pdf-viewer:bookmark:reorder:success
+       * @type {string}
+       */
+      SUCCESS: 'pdf-viewer:bookmark-reorder:success',
+
+      /**
+       * 排序失败
+       * @event pdf-viewer:bookmark:reorder:failed
+       * @type {string}
+       */
+      FAILED: 'pdf-viewer:bookmark-reorder:failed',
+    },
+
+    /**
+     * 书签选择事件
+     * @namespace SELECT
+     */
+    SELECT: {
+      /**
+       * 书签选择状态改变
+       * @event pdf-viewer:bookmark:select:changed
+       * @type {string}
+       * @payload {Object} data
+       * @payload {string|null} data.bookmarkId - 被选中的书签ID（null表示取消选择）
+       * @payload {Bookmark|null} data.bookmark - 被选中的书签对象
+       */
+      CHANGED: 'pdf-viewer:bookmark-select:changed',
+    },
   },
   
   /**

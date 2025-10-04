@@ -8,7 +8,7 @@
 .unified-sidebar-container {
     position: fixed;
     top: 60px; /* 工具栏高度 */
-    left: 0;
+    left: 0; /* 从左侧弹出 */
     bottom: 0;
     width: auto;
     z-index: 1000;
@@ -21,8 +21,8 @@
     top: 0;
     height: 100%;
     background: var(--sidebar-bg, #ffffff);
-    border-left: 1px solid var(--sidebar-border, #e0e0e0);
-    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+    border-right: 1px solid var(--sidebar-border, #e0e0e0);
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
     display: flex;
     flex-direction: column;
     transition: left 0.3s ease, width 0.3s ease;
@@ -99,7 +99,7 @@
 .sidebar-resize-handle {
     position: absolute;
     top: 0;
-    right: 0;
+    right: 0; /* 从左侧弹出时，调整条在右侧 */
     width: 4px;
     height: 100%;
     cursor: col-resize;

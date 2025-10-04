@@ -93,19 +93,30 @@ export function registerRealSidebars(sidebarManager, eventBus, container) {
     sidebarManager.registerSidebar(cardConfig);
     logger.info('Card sidebar registered (placeholder)');
 
-    // 4. 翻译侧边栏（占位）
+    // 4. 翻译侧边栏（延迟获取，首次调用时从容器获取并缓存）
+    let translatorUIInstance = null;
+
     const translateConfig = createSidebarConfig({
         id: 'translate',
         title: '翻译',
         contentRenderer: () => {
-            const content = document.createElement('div');
-            content.style.cssText = 'padding: 20px; color: #666; text-align: center;';
-            content.innerHTML = `
-                <div style="font-size: 48px; margin-bottom: 16px;">🌐</div>
-                <div style="font-size: 16px; margin-bottom: 8px;">翻译功能</div>
-                <div style="font-size: 14px; color: #999;">功能开发中...</div>
-            `;
-            return content;
+            // 首次调用时从容器获取并缓存
+            if (!translatorUIInstance && container) {
+                translatorUIInstance = container.get('translatorSidebarUI');
+                logger.info(`Retrieved translatorSidebarUI from container: ${!!translatorUIInstance}`);
+            }
+
+            if (translatorUIInstance) {
+                const contentElement = translatorUIInstance.getContentElement();
+                logger.info('Returned TranslatorSidebarUI content element');
+                return contentElement;
+            } else {
+                logger.warn('TranslatorSidebarUI still not available, showing placeholder');
+                const placeholder = document.createElement('div');
+                placeholder.style.cssText = 'padding: 20px; color: #999; text-align: center;';
+                placeholder.innerHTML = '<div>翻译功能加载中...</div>';
+                return placeholder;
+            }
         },
         defaultWidth: 350,
         minWidth: 250,
@@ -113,7 +124,7 @@ export function registerRealSidebars(sidebarManager, eventBus, container) {
         resizable: true
     });
     sidebarManager.registerSidebar(translateConfig);
-    logger.info('Translate sidebar registered (placeholder)');
+    logger.info('Translate sidebar registered (will load from container on first open)');
 
     logger.info('All real sidebars registered successfully');
 }

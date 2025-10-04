@@ -35,18 +35,18 @@ export class LayoutEngine {
 
         for (let i = 0; i < count; i++) {
             const isLast = i === count - 1;
-            const left = i * baseWidth;
+            const left = i * baseWidth; // 从左到右排列
             const width = isLast ? containerWidth - left : baseWidth;
 
             layouts.push({
                 id: openSidebarIds[i],
                 left: left,
                 width: width,
-                zIndex: 100 + i
+                zIndex: 100 + i // 最左侧z-index最低，最右侧最高
             });
         }
 
-        logger.debug('Calculated equal-width layout', {
+        logger.debug('Calculated equal-width layout (left-aligned)', {
             count,
             containerWidth,
             layouts
@@ -65,6 +65,7 @@ export class LayoutEngine {
     calculateLayoutWithCustomWidths(openSidebarIds, widthMap, containerWidth) {
         const layouts = [];
         let currentLeft = 0;
+        const count = openSidebarIds.length;
 
         openSidebarIds.forEach((id, index) => {
             const width = widthMap.get(id) || 350; // 使用自定义宽度或默认值
@@ -73,13 +74,13 @@ export class LayoutEngine {
                 id: id,
                 left: currentLeft,
                 width: width,
-                zIndex: 100 + index
+                zIndex: 100 + index // 最左侧z-index最低，最右侧最高
             });
 
             currentLeft += width;
         });
 
-        logger.debug('Calculated custom-width layout', {
+        logger.debug('Calculated custom-width layout (left-aligned)', {
             openSidebarIds,
             totalWidth: currentLeft,
             layouts

@@ -650,12 +650,6 @@ export class UIManagerCore {
       this.#pdfViewerManager = null;
     }
 
-    // 销毁书签管理器
-    if (this.#bookmarkManager) {
-      this.#bookmarkManager.destroy();
-      this.#bookmarkManager = null;
-    }
-
     // 销毁UI控件
     if (this.#uiZoomControls) {
       // UIZoomControls可能没有destroy方法，只需清空引用
