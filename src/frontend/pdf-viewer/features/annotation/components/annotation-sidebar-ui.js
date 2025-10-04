@@ -162,6 +162,13 @@ export class AnnotationSidebarUI {
       btn.className = `annotation-tool-btn annotation-tool-${tool.id}`;
       btn.dataset.tool = tool.id;
       btn.title = tool.title; // Tooltip提示
+
+      // 标记是否为标注工具（用于状态更新）
+      const isAnnotationTool = !['filter', 'settings'].includes(tool.id);
+      if (isAnnotationTool) {
+        btn.dataset.isTool = 'true';
+      }
+
       btn.style.cssText = [
         'display: flex',
         'align-items: center',
@@ -266,19 +273,26 @@ export class AnnotationSidebarUI {
   #updateToolbarState() {
     if (!this.#container) return;
 
-    const buttons = this.#container.querySelectorAll('.annotation-tool-btn');
+    // 只更新标注工具按钮（不包括筛选、设置等辅助按钮）
+    const buttons = this.#container.querySelectorAll('.annotation-tool-btn[data-is-tool="true"]');
     buttons.forEach(btn => {
       const toolId = btn.dataset.tool;
       if (toolId === this.#activeTool) {
+        // 激活状态：蓝色高亮
         btn.style.background = '#e3f2fd';
         btn.style.borderColor = '#2196f3';
         btn.style.color = '#1976d2';
+        btn.style.fontWeight = '500';
       } else {
+        // 未激活状态：默认样式
         btn.style.background = '#fff';
         btn.style.borderColor = '#ddd';
         btn.style.color = '#666';
+        btn.style.fontWeight = 'normal';
       }
     });
+
+    this.#logger.debug(`Toolbar state updated, active tool: ${this.#activeTool || 'none'}`);
   }
 
   /**
