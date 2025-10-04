@@ -1013,19 +1013,34 @@ export class AnnotationSidebarUI {
 
     let success = false;
 
-    // 方法1: 尝试使用 Clipboard API
+    // 方法1: 尝试使用 Clipboard API（带超时保护）
     if (navigator.clipboard && navigator.clipboard.writeText) {
+      console.log('[DEBUG] Trying Clipboard API...');
       try {
-        await navigator.clipboard.writeText(annotationId);
+        // 添加超时保护
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Clipboard API timeout')), 1000)
+        );
+
+        await Promise.race([
+          navigator.clipboard.writeText(annotationId),
+          timeoutPromise
+        ]);
+
         success = true;
+        console.log('[DEBUG] Clipboard API succeeded');
         this.#logger.debug('Copied using Clipboard API');
       } catch (error) {
+        console.log('[DEBUG] Clipboard API failed:', error.message);
         this.#logger.warn('Clipboard API failed, trying fallback method:', error);
       }
+    } else {
+      console.log('[DEBUG] Clipboard API not available');
     }
 
     // 方法2: 降级方案 - 使用 textarea + execCommand
     if (!success) {
+      console.log('[DEBUG] Trying fallback method (execCommand)...');
       try {
         const textarea = document.createElement('textarea');
         textarea.value = annotationId;
@@ -1044,12 +1059,19 @@ export class AnnotationSidebarUI {
           'pointer-events: none'
         ].join(';');
 
+        console.log('[DEBUG] Appending textarea...');
         document.body.appendChild(textarea);
+
+        console.log('[DEBUG] Focusing textarea...');
         textarea.focus();
+
+        console.log('[DEBUG] Selecting text...');
         textarea.select();
 
-        // 尝试复制
+        console.log('[DEBUG] Executing copy command...');
         const successful = document.execCommand('copy');
+
+        console.log('[DEBUG] execCommand result:', successful);
         document.body.removeChild(textarea);
 
         if (successful) {
@@ -1059,6 +1081,7 @@ export class AnnotationSidebarUI {
           this.#logger.error('execCommand returned false');
         }
       } catch (error) {
+        console.log('[DEBUG] Fallback method error:', error.message);
         this.#logger.error('Fallback copy method failed:', error);
       }
     }
