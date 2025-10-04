@@ -33,6 +33,10 @@
   - 实现最小版 PDF 业务服务器并接入 WS 转发。
   - 复核 pdf-viewer 全量对齐共享 EventBus/WSClient。
   - 为 Launcher 增加健康检查与 E2E 脚本。
+  - ✅ **PDF书签加载问题修复** (2025-10-04): PDF自带书签无法加载问题已解决
+    - 根因: PDFBookmarkFeature未注册到bootstrap + 错误的依赖声明
+    - 修复: 在app-bootstrap-feature.js中注册Feature + 修正feature.config.js依赖为pdf-manager
+    - 工作日志: AItemp/20251004145800-AI-Working-log.md
   - ⏳ **侧边栏统一管理** (20251004030451-sidebar-unified-management):
     - 创建SidebarManagerFeature统一管理标注栏、书签栏、卡片栏、翻译栏
     - 实现左流动布局系统，支持多侧边栏并存
