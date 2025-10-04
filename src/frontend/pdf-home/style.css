@@ -1561,7 +1561,7 @@ h1 {
     background: white;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     border-radius: 0 0 8px 8px;
-    z-index: 998;
+    z-index: 1000;
     opacity: 0;
     transition: transform 0.3s ease, opacity 0.3s ease;
     pointer-events: none;
