@@ -8,6 +8,7 @@ import { getLogger } from '../../../common/utils/logger.js';
 import { LayoutEngine } from './layout-engine.js';
 import { validateSidebarConfig } from './sidebar-config.js';
 import { registerRealSidebars, createRealSidebarButtons } from './real-sidebars.js';
+import { PDFLayoutAdapter } from './pdf-layout-adapter.js';
 
 const logger = getLogger('SidebarManager');
 
@@ -18,6 +19,7 @@ export class SidebarManagerFeature {
     #sidebars = new Map();          // 注册的侧边栏配置
     #openOrder = [];                 // 打开顺序
     #layoutEngine;                   // 布局引擎
+    #pdfLayoutAdapter;               // PDF布局适配器
     #containerElement;               // 统一容器DOM
     #sidebarWidths = new Map();      // 自定义宽度存储
     #resizeState = {                 // 拖拽调整状态
@@ -62,11 +64,17 @@ export class SidebarManagerFeature {
         this.#container = container;
         this.#logger = logger || getLogger('SidebarManagerFeature');
         this.#layoutEngine = new LayoutEngine();
+        this.#pdfLayoutAdapter = new PDFLayoutAdapter(globalEventBus);
 
         this.#createContainer();
         this.#loadWidthPreferences();
         this.#setupEventListeners();
         this.#setupGlobalResizeHandlers();
+
+        // 初始化PDF布局适配器
+        setTimeout(() => {
+            this.#pdfLayoutAdapter.initialize();
+        }, 100);
 
         // 注册真实侧边栏（书签、批注、卡片、翻译）
         registerRealSidebars(this, this.#eventBus, this.#container);
@@ -89,6 +97,7 @@ export class SidebarManagerFeature {
         this.#sidebars.clear();
         this.#openOrder = [];
         this.#sidebarWidths.clear();
+        this.#pdfLayoutAdapter?.destroy();
 
         logger.info('SidebarManagerFeature uninstalled');
     }
@@ -280,11 +289,16 @@ export class SidebarManagerFeature {
      * 重新计算布局
      */
     #recalculateLayout() {
+        const containerWidth = this.#containerElement.offsetWidth || 1200; // 默认宽度
+
         if (this.#openOrder.length === 0) {
+            // 没有侧边栏时，通知PDF容器恢复全宽
+            this.#eventBus.emit('sidebar:layout:changed', {
+                totalWidth: 0
+            }, { actorId: 'SidebarManager' });
             return;
         }
 
-        const containerWidth = this.#containerElement.offsetWidth || 1200; // 默认宽度
         const layouts = this.#layoutEngine.calculateLayoutWithCustomWidths(
             this.#openOrder,
             this.#sidebarWidths,
@@ -293,11 +307,21 @@ export class SidebarManagerFeature {
 
         this.#layoutEngine.applyLayout(layouts, this.#containerElement);
 
+        // 计算侧边栏总宽度
+        const totalWidth = layouts.reduce((sum, layout) => sum + layout.width, 0);
+
+        // 通知PDF容器调整布局
+        this.#eventBus.emit('sidebar:layout:changed', {
+            totalWidth,
+            layouts
+        }, { actorId: 'SidebarManager' });
+
         this.#eventBus.emit('sidebar:update:completed', { layouts }, { actorId: 'SidebarManager' });
 
         logger.debug('Layout recalculated', {
             openCount: this.#openOrder.length,
             containerWidth,
+            totalWidth,
             layouts
         });
     }
