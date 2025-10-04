@@ -437,7 +437,8 @@ export class SidebarManagerFeature {
             if (!this.#resizeState.isResizing) return;
 
             const deltaX = e.clientX - this.#resizeState.startX;
-            const newWidth = this.#resizeState.startWidth + deltaX;
+            // 从右侧弹出时，向左拖（deltaX为负）应该增加宽度
+            const newWidth = this.#resizeState.startWidth - deltaX; // 反转方向
             const sidebarId = this.#resizeState.sidebarId;
 
             // 更新宽度

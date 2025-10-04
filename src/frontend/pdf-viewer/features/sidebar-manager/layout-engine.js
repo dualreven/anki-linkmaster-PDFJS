@@ -12,7 +12,7 @@ const logger = getLogger('LayoutEngine');
  * 布局数据类型
  * @typedef {Object} LayoutData
  * @property {string} id - 侧边栏ID
- * @property {number} left - 左侧位置（px）
+ * @property {number} right - 右侧位置（px）
  * @property {number} width - 宽度（px）
  * @property {number} zIndex - 层级
  */
@@ -35,18 +35,18 @@ export class LayoutEngine {
 
         for (let i = 0; i < count; i++) {
             const isLast = i === count - 1;
-            const left = i * baseWidth;
-            const width = isLast ? containerWidth - left : baseWidth;
+            const right = i * baseWidth; // 从右到左排列
+            const width = isLast ? containerWidth - right : baseWidth;
 
             layouts.push({
                 id: openSidebarIds[i],
-                left: left,
+                right: right, // 使用right替代left
                 width: width,
-                zIndex: 100 + i
+                zIndex: 100 + (count - i) // 最右侧z-index最高
             });
         }
 
-        logger.debug('Calculated equal-width layout', {
+        logger.debug('Calculated equal-width layout (right-aligned)', {
             count,
             containerWidth,
             layouts
@@ -64,24 +64,25 @@ export class LayoutEngine {
      */
     calculateLayoutWithCustomWidths(openSidebarIds, widthMap, containerWidth) {
         const layouts = [];
-        let currentLeft = 0;
+        let currentRight = 0;
+        const count = openSidebarIds.length;
 
         openSidebarIds.forEach((id, index) => {
             const width = widthMap.get(id) || 350; // 使用自定义宽度或默认值
 
             layouts.push({
                 id: id,
-                left: currentLeft,
+                right: currentRight, // 使用right替代left
                 width: width,
-                zIndex: 100 + index
+                zIndex: 100 + (count - index) // 最右侧z-index最高
             });
 
-            currentLeft += width;
+            currentRight += width;
         });
 
-        logger.debug('Calculated custom-width layout', {
+        logger.debug('Calculated custom-width layout (right-aligned)', {
             openSidebarIds,
-            totalWidth: currentLeft,
+            totalWidth: currentRight,
             layouts
         });
 
@@ -102,7 +103,7 @@ export class LayoutEngine {
         layouts.forEach(layout => {
             const panel = containerElement.querySelector(`[data-sidebar-id="${layout.id}"]`);
             if (panel) {
-                panel.style.left = `${layout.left}px`;
+                panel.style.right = `${layout.right}px`; // 使用right替代left
                 panel.style.width = `${layout.width}px`;
                 panel.style.zIndex = layout.zIndex;
 
@@ -124,12 +125,12 @@ export class LayoutEngine {
         }
 
         for (const layout of layouts) {
-            if (!layout.id || typeof layout.left !== 'number' || typeof layout.width !== 'number') {
+            if (!layout.id || typeof layout.right !== 'number' || typeof layout.width !== 'number') {
                 logger.error('Invalid layout data', layout);
                 return false;
             }
 
-            if (layout.left < 0 || layout.width <= 0) {
+            if (layout.right < 0 || layout.width <= 0) {
                 logger.error('Invalid layout dimensions', layout);
                 return false;
             }
