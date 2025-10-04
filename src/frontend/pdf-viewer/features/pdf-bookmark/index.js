@@ -2,79 +2,78 @@
  * @file PDF Bookmark 功能域入口
  * @module features/pdf-bookmark
  * @description
- * PDF 书签管理功能域，提供 PDF 文档书签的显示、导航、折叠/展开等功能。
- *
- * 功能职责：
- * - 从 PDF.js 获取文档大纲（outline）数据
- * - 渲染书签树形结构到侧边栏
- * - 处理书签点击事件，跳转到对应页面
- * - 支持书签折叠/展开状态管理
- * - 与 UI Manager 协作管理侧边栏显示/隐藏
- *
- * 实现了 IFeature 接口，可通过 FeatureRegistry 进行注册和管理。
- *
- * 架构模式：
- * - 遵循功能域模块化架构
- * - 通过 EventBus 与其他功能域解耦通信
- * - 依赖注入获取共享服务（logger、eventBus、pdfManager等）
- * - 状态管理由 StateManager 统一管理
- *
- * @example
- * import { PDFBookmarkFeature } from './features/pdf-bookmark/index.js';
- * import { FeatureRegistry } from './core/feature-registry.js';
- *
- * const registry = new FeatureRegistry({ container });
- * registry.register(new PDFBookmarkFeature());
- * await registry.install('pdf-bookmark');
+ * PDF 书签管理功能域，提供用户自定义书签的添加、编辑、删除功能
  */
 
 import { getLogger } from '../../../common/utils/logger.js';
+import { PDF_VIEWER_EVENTS } from '../../../common/event/pdf-viewer-constants.js';
 import { PDFBookmarkFeatureConfig } from './feature.config.js';
+import { BookmarkManager } from './services/bookmark-manager.js';
+import { BookmarkDialog } from './components/bookmark-dialog.js';
+import { BookmarkDataProvider } from '../../bookmark/bookmark-data-provider.js';
+import { getCurrentPDFDocument } from '../../pdf/current-document-registry.js';
 
 /**
  * PDF Bookmark 功能域类
- *
- * 当前状态：占位符实现（Placeholder）
- * - 已实现基本的 IFeature 接口
- * - 待实现完整的书签管理功能
- *
- * TODO（待实现的功能）：
- * 1. 书签数据获取
- *    - 从 PDF Manager 获取当前文档
- *    - 调用 PDF.js API 获取 outline 数据
- *    - 解析并转换为树形结构
- *
- * 2. 书签 UI 渲染
- *    - 创建书签侧边栏组件（BookmarkSidebarUI）
- *    - 实现树形结构的递归渲染
- *    - 支持折叠/展开动画效果
- *
- * 3. 交互功能
- *    - 书签点击跳转到目标页面
- *    - 书签节点折叠/展开
- *    - 当前页面书签高亮显示
- *    - 搜索/过滤书签功能
- *
- * 4. 状态管理
- *    - 书签展开/折叠状态持久化
- *    - 当前激活书签追踪
- *    - 书签加载状态管理
- *
- * 5. 事件通信
- *    - 监听文档加载完成事件
- *    - 监听页面变化事件（更新高亮）
- *    - 发送跳转请求事件
- *
  * @class PDFBookmarkFeature
  * @implements {IFeature}
  */
 export class PDFBookmarkFeature {
   /**
    * 日志记录器
-   * @type {import('../../../common/utils/logger.js').Logger|null}
+   * @type {import('../../../common/utils/logger.js').Logger}
    * @private
    */
   #logger;
+
+  /**
+   * 事件总线
+   * @type {Object}
+   * @private
+   */
+  #eventBus;
+
+  /**
+   * 依赖容器
+   * @type {Object}
+   * @private
+   */
+  #container;
+
+  /**
+   * 书签管理器
+   * @type {BookmarkManager}
+   * @private
+   */
+  #bookmarkManager;
+
+  /**
+   * PDF原生书签提供者
+   * @type {BookmarkDataProvider}
+   * @private
+   */
+  #bookmarkDataProvider;
+
+  /**
+   * 导航服务
+   * @type {NavigationService|null}
+   * @private
+   */
+  #navigationService = null;
+
+  /**
+   * 对话框组件
+   * @type {BookmarkDialog}
+   * @private
+   */
+  #dialog;
+
+  /**
+   * 事件取消订阅函数列表
+   * @type {Function[]}
+   * @private
+   */
+  #unsubs = [];
 
   /**
    * 功能是否已启用
@@ -85,156 +84,629 @@ export class PDFBookmarkFeature {
 
   // ==================== IFeature 接口实现 ====================
 
-  /**
-   * 功能名称（唯一标识）
-   * 从配置文件获取，通常为 'pdf-bookmark'
-   * @returns {string}
-   */
   get name() { return PDFBookmarkFeatureConfig.name; }
-
-  /**
-   * 功能版本
-   * 从配置文件获取，用于版本管理和兼容性检查
-   * @returns {string}
-   */
   get version() { return PDFBookmarkFeatureConfig.version; }
-
-  /**
-   * 功能依赖列表
-   * 声明本功能依赖的其他功能域或服务
-   * 例如：['logger', 'eventBus', 'pdf-manager', 'ui-manager']
-   * @returns {string[]}
-   */
   get dependencies() { return PDFBookmarkFeatureConfig.dependencies; }
 
   /**
    * 安装功能（初始化逻辑）
-   *
-   * 当前实现：占位符版本
-   * - 仅初始化日志器并标记为已启用
-   * - 未实现实际的书签功能
-   *
-   * 完整实现应包括：
-   * 1. 从 context 获取依赖服务（eventBus、pdfManager、uiManager等）
-   * 2. 创建书签状态管理器
-   * 3. 注册事件监听器（文档加载、页面变化等）
-   * 4. 初始化书签 UI 组件
-   * 5. 请求当前文档的书签数据
-   *
-   * @param {import('../../../common/micro-service/feature-registry.js').FeatureContext} context - 功能上下文
-   * @param {Object} context.logger - 日志记录器（由 FeatureRegistry 注入）
-   * @param {Object} context.scopedEventBus - 作用域事件总线（由 FeatureRegistry 注入）
-   * @param {Object} context.container - 依赖注入容器（由 FeatureRegistry 注入）
+   * @param {Object} context - 功能上下文
    * @returns {Promise<void>}
-   *
-   * @example
-   * // FeatureRegistry 调用示例
-   * const context = {
-   *   logger: getLogger('Feature.pdf-bookmark'),
-   *   scopedEventBus: new ScopedEventBus(globalEventBus, 'pdf-bookmark'),
-   *   container: dependencyContainer
-   * };
-   * await bookmarkFeature.install(context);
    */
   async install(context) {
-    // 获取或创建日志记录器
-    // 日志前缀格式：Feature.pdf-bookmark
     this.#logger = context.logger || getLogger(`Feature.${this.name}`);
+    this.#eventBus = context.scopedEventBus || context.globalEventBus;
+    this.#container = context.container;
 
-    // 记录安装开始
-    this.#logger.info(`Installing ${this.name}...`);
+    this.#logger.info(`🚀 [DEBUG] Installing ${this.name}...`);
+    this.#logger.info('🔍 [DEBUG] EventBus type:', {
+      hasScopedEventBus: !!context.scopedEventBus,
+      hasGlobalEventBus: !!context.globalEventBus,
+      usingScoped: !!context.scopedEventBus
+    });
 
-    // 标记功能为已启用
-    // 在完整实现中，应该在所有初始化完成后再设置此标志
+    // 获取PDF ID
+    const pdfId = this.#getPdfId();
+    if (!pdfId) {
+      this.#logger.warn('PDF ID not available, using default');
+    }
+
+    // 获取导航服务
+    this.#navigationService = this.#container.get('navigationService');
+    if (!this.#navigationService) {
+      this.#logger.warn('NavigationService not found in container, bookmark navigation will not work');
+    }
+
+    // 初始化书签管理器
+    this.#bookmarkManager = new BookmarkManager({
+      eventBus: this.#eventBus,
+      pdfId: pdfId || 'default'
+    });
+    await this.#bookmarkManager.initialize();
+
+    // 初始化PDF原生书签提供者
+    this.#bookmarkDataProvider = new BookmarkDataProvider();
+
+    // 初始化对话框
+    this.#dialog = new BookmarkDialog();
+
+    // 注册事件监听器
+    this.#setupEventListeners();
+
+    // 尝试主动加载PDF原生书签（如果PDF已经加载）
+    // 注意：#tryLoadNativeBookmarks() 内部会调用 #refreshBookmarkList()
+    // 如果PDF未加载，则等待 FILE.LOAD.SUCCESS 事件触发
+    await this.#tryLoadNativeBookmarks();
+
     this.#enabled = true;
-
-    // 记录安装完成
-    // (placeholder) 标识表示这是占位符实现
-    this.#logger.info(`${this.name} installed (placeholder)`);
-
-    // TODO: 实现完整的初始化逻辑
-    // - 获取 PDF Manager（管理当前文档）
-    // - 获取 UI Manager（管理侧边栏）
-    // - 创建书签组件
-    // - 注册事件监听器
+    this.#logger.info(`${this.name} installed successfully`);
   }
 
   /**
    * 卸载功能（清理逻辑）
-   *
-   * 当前实现：占位符版本
-   * - 仅标记为未启用
-   *
-   * 完整实现应包括：
-   * 1. 取消所有事件监听器
-   * 2. 销毁书签 UI 组件
-   * 3. 清理状态数据
-   * 4. 释放资源引用（防止内存泄漏）
-   *
-   * @param {import('../../../common/micro-service/feature-registry.js').FeatureContext} context - 功能上下文
+   * @param {Object} context - 功能上下文
    * @returns {Promise<void>}
-   *
-   * @example
-   * // FeatureRegistry 调用示例
-   * await bookmarkFeature.uninstall(context);
    */
   async uninstall(context) {
-    // 记录卸载开始
     this.#logger.info(`Uninstalling ${this.name}...`);
 
-    // 标记功能为未启用
-    this.#enabled = false;
+    // 取消所有事件监听
+    this.#unsubs.forEach(unsub => {
+      try { unsub(); } catch (e) { /* ignore */ }
+    });
+    this.#unsubs = [];
 
-    // TODO: 实现完整的清理逻辑
-    // - 取消事件监听
-    // - 销毁 UI 组件
-    // - 清空状态数据
+    // 销毁管理器
+    if (this.#bookmarkManager) {
+      this.#bookmarkManager.destroy();
+      this.#bookmarkManager = null;
+    }
+
+    // 销毁PDF原生书签提供者
+    if (this.#bookmarkDataProvider) {
+      this.#bookmarkDataProvider.destroy();
+      this.#bookmarkDataProvider = null;
+    }
+
+    // 关闭对话框
+    if (this.#dialog) {
+      this.#dialog.close();
+      this.#dialog = null;
+    }
+
+    this.#enabled = false;
+    this.#logger.info(`${this.name} uninstalled`);
   }
 
   /**
    * 检查功能是否已启用
-   *
-   * 用途：
-   * - 外部模块查询功能状态
-   * - 功能内部检查是否可执行操作
-   *
-   * @returns {boolean} 是否已启用
-   *
-   * @example
-   * if (bookmarkFeature.isEnabled()) {
-   *   bookmarkFeature.scrollToBookmark(bookmarkId);
-   * }
+   * @returns {boolean}
    */
-  isEnabled() { return this.#enabled; }
+  isEnabled() {
+    return this.#enabled;
+  }
 
-  // ==================== 公开方法（待实现） ====================
-
-  // TODO: 添加以下公开方法：
+  // ==================== 私有方法 ====================
 
   /**
-   * 获取当前文档的书签数据
-   * @returns {Promise<Object[]>} 书签树形结构
+   * 获取PDF ID
+   * @returns {string|null}
+   * @private
    */
-  // async getBookmarks() { }
+  #getPdfId() {
+    try {
+      // 尝试从container获取pdfManager
+      const pdfManager = this.#container?.resolve('pdfManager');
+      if (pdfManager && pdfManager.currentPdfId) {
+        return pdfManager.currentPdfId;
+      }
+
+      // 尝试从window.PDF_PATH获取
+      if (window.PDF_PATH) {
+        // 从路径提取文件名作为ID
+        const filename = window.PDF_PATH.split('/').pop().split('.')[0];
+        return filename;
+      }
+
+      return null;
+    } catch (error) {
+      this.#logger.warn('Failed to get PDF ID:', error);
+      return null;
+    }
+  }
 
   /**
-   * 跳转到指定书签
-   * @param {string} bookmarkId - 书签ID
+   * 获取当前页码
+   * @returns {number}
+   * @private
+   */
+  #getCurrentPage() {
+    try {
+      const pdfManager = this.#container?.resolve('pdfManager');
+      if (pdfManager && pdfManager.currentPageNumber) {
+        return pdfManager.currentPageNumber;
+      }
+      return 1;
+    } catch (error) {
+      this.#logger.warn('Failed to get current page:', error);
+      return 1;
+    }
+  }
+
+  /**
+   * 尝试主动加载PDF原生书签（如果PDF已经加载）
    * @returns {Promise<void>}
+   * @private
    */
-  // async scrollToBookmark(bookmarkId) { }
+  async #tryLoadNativeBookmarks() {
+    try {
+      this.#logger.info('🔍 [DEBUG] tryLoadNativeBookmarks called');
+      const pdfDocument = getCurrentPDFDocument();
+      this.#logger.info('🔍 [DEBUG] getCurrentPDFDocument result:', { hasPdfDocument: !!pdfDocument });
+
+      if (pdfDocument) {
+        this.#logger.info('✅ PDF already loaded, fetching native bookmarks...');
+        await this.#handlePdfLoaded({ pdfDocument });
+      } else {
+        this.#logger.info('⏳ PDF not yet loaded, waiting for load event');
+        // PDF未加载时，显示空的书签列表（只有自定义书签，如果有的话）
+        this.#refreshBookmarkList([]);
+      }
+    } catch (error) {
+      this.#logger.error('❌ Failed to try load native bookmarks:', error);
+      // 出错时也显示空列表
+      this.#refreshBookmarkList([]);
+    }
+  }
 
   /**
-   * 展开/折叠书签节点
-   * @param {string} bookmarkId - 书签ID
-   * @param {boolean} expanded - 是否展开
-   * @returns {void}
+   * 设置事件监听器
+   * @private
    */
-  // toggleBookmark(bookmarkId, expanded) { }
+  #setupEventListeners() {
+    // 监听PDF加载完成事件（全局事件，使用onGlobal）
+    // 注意：FILE.LOAD.SUCCESS 由 PDFManager 使用全局EventBus发出，必须用onGlobal监听
+    this.#unsubs.push(
+      this.#eventBus.onGlobal(
+        PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
+        (data) => {
+          this.#logger.info('🎯 [DEBUG] FILE.LOAD.SUCCESS event received!', { hasData: !!data });
+          this.#handlePdfLoaded(data);
+        },
+        { subscriberId: 'PDFBookmarkFeature' }
+      )
+    );
+
+    // 监听创建书签请求（全局事件，使用onGlobal）
+    // 注意：BookmarkToolbar 使用全局EventBus发出，必须用onGlobal监听
+    this.#unsubs.push(
+      this.#eventBus.onGlobal(
+        PDF_VIEWER_EVENTS.BOOKMARK.CREATE.REQUESTED,
+        (data) => this.#handleCreateRequest(data),
+        { subscriberId: 'PDFBookmarkFeature' }
+      )
+    );
+
+    // 监听更新书签请求（全局事件，使用onGlobal）
+    this.#unsubs.push(
+      this.#eventBus.onGlobal(
+        PDF_VIEWER_EVENTS.BOOKMARK.UPDATE.REQUESTED,
+        (data) => this.#handleUpdateRequest(data),
+        { subscriberId: 'PDFBookmarkFeature' }
+      )
+    );
+
+    // 监听删除书签请求（全局事件，使用onGlobal）
+    this.#unsubs.push(
+      this.#eventBus.onGlobal(
+        PDF_VIEWER_EVENTS.BOOKMARK.DELETE.REQUESTED,
+        (data) => this.#handleDeleteRequest(data),
+        { subscriberId: 'PDFBookmarkFeature' }
+      )
+    );
+
+    // 监听排序书签请求（全局事件，使用onGlobal）
+    this.#unsubs.push(
+      this.#eventBus.onGlobal(
+        PDF_VIEWER_EVENTS.BOOKMARK.REORDER.REQUESTED,
+        (data) => this.#handleReorderRequest(data),
+        { subscriberId: 'PDFBookmarkFeature' }
+      )
+    );
+
+    // 监听书签导航请求（全局事件，使用onGlobal）
+    this.#unsubs.push(
+      this.#eventBus.onGlobal(
+        PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.REQUESTED,
+        (data) => this.#handleNavigateRequest(data),
+        { subscriberId: 'PDFBookmarkFeature' }
+      )
+    );
+
+    this.#logger.info('Event listeners registered');
+  }
 
   /**
-   * 刷新书签数据
-   * @returns {Promise<void>}
+   * 处理创建书签请求
+   * @param {Object} data - 请求数据
+   * @private
    */
-  // async refreshBookmarks() { }
+  #handleCreateRequest(data) {
+    const currentPage = this.#getCurrentPage();
+
+    this.#dialog.showAdd({
+      currentPage,
+      onConfirm: (bookmarkData) => {
+        const result = this.#bookmarkManager.addBookmark(bookmarkData);
+
+        if (result.success) {
+          this.#logger.info(`Bookmark created: ${result.bookmarkId}`);
+          this.#eventBus.emitGlobal(
+            PDF_VIEWER_EVENTS.BOOKMARK.CREATE.SUCCESS,
+            { bookmarkId: result.bookmarkId, bookmark: bookmarkData },
+            { actorId: 'PDFBookmarkFeature' }
+          );
+
+          // 刷新书签列表显示
+          this.#refreshBookmarkList();
+        } else {
+          this.#logger.error(`Failed to create bookmark: ${result.error}`);
+          this.#eventBus.emitGlobal(
+            PDF_VIEWER_EVENTS.BOOKMARK.CREATE.FAILED,
+            { error: result.error },
+            { actorId: 'PDFBookmarkFeature' }
+          );
+          alert(`添加书签失败: ${result.error}`);
+        }
+      },
+      onCancel: () => {
+        this.#logger.debug('Create bookmark cancelled');
+      }
+    });
+  }
+
+  /**
+   * 处理更新书签请求
+   * @param {Object} data - 请求数据
+   * @private
+   */
+  #handleUpdateRequest(data) {
+    const { bookmarkId } = data;
+    const bookmark = this.#bookmarkManager.getBookmark(bookmarkId);
+
+    if (!bookmark) {
+      this.#logger.warn(`Bookmark not found: ${bookmarkId}`);
+      alert('书签不存在');
+      return;
+    }
+
+    this.#dialog.showEdit({
+      bookmark,
+      onConfirm: (updates) => {
+        const result = this.#bookmarkManager.updateBookmark(bookmarkId, updates);
+
+        if (result.success) {
+          this.#logger.info(`Bookmark updated: ${bookmarkId}`);
+          this.#eventBus.emitGlobal(
+            PDF_VIEWER_EVENTS.BOOKMARK.UPDATE.SUCCESS,
+            { bookmarkId, updates },
+            { actorId: 'PDFBookmarkFeature' }
+          );
+
+          // 刷新书签列表显示
+          this.#refreshBookmarkList();
+        } else {
+          this.#logger.error(`Failed to update bookmark: ${result.error}`);
+          this.#eventBus.emitGlobal(
+            PDF_VIEWER_EVENTS.BOOKMARK.UPDATE.FAILED,
+            { bookmarkId, error: result.error },
+            { actorId: 'PDFBookmarkFeature' }
+          );
+          alert(`更新书签失败: ${result.error}`);
+        }
+      },
+      onCancel: () => {
+        this.#logger.debug('Update bookmark cancelled');
+      }
+    });
+  }
+
+  /**
+   * 处理删除书签请求
+   * @param {Object} data - 请求数据
+   * @private
+   */
+  #handleDeleteRequest(data) {
+    const { bookmarkId } = data;
+    const bookmark = this.#bookmarkManager.getBookmark(bookmarkId);
+
+    if (!bookmark) {
+      this.#logger.warn(`Bookmark not found: ${bookmarkId}`);
+      alert('书签不存在');
+      return;
+    }
+
+    const childCount = bookmark.children ? bookmark.children.length : 0;
+
+    this.#dialog.showDelete({
+      bookmark,
+      childCount,
+      onConfirm: (cascadeDelete) => {
+        const result = this.#bookmarkManager.deleteBookmark(bookmarkId, cascadeDelete);
+
+        if (result.success) {
+          this.#logger.info(`Bookmark deleted: ${bookmarkId}, count: ${result.deletedIds.length}`);
+          this.#eventBus.emitGlobal(
+            PDF_VIEWER_EVENTS.BOOKMARK.DELETE.SUCCESS,
+            { bookmarkId, deletedIds: result.deletedIds },
+            { actorId: 'PDFBookmarkFeature' }
+          );
+
+          // 刷新书签列表显示
+          this.#refreshBookmarkList();
+        } else {
+          this.#logger.error(`Failed to delete bookmark: ${result.error}`);
+          this.#eventBus.emitGlobal(
+            PDF_VIEWER_EVENTS.BOOKMARK.DELETE.FAILED,
+            { bookmarkId, error: result.error },
+            { actorId: 'PDFBookmarkFeature' }
+          );
+          alert(`删除书签失败: ${result.error}`);
+        }
+      },
+      onCancel: () => {
+        this.#logger.debug('Delete bookmark cancelled');
+      }
+    });
+  }
+
+  /**
+   * 处理排序书签请求
+   * @param {Object} data - 请求数据
+   * @private
+   */
+  #handleReorderRequest(data) {
+    const { bookmarkId, newParentId, newIndex } = data;
+    const result = this.#bookmarkManager.reorderBookmarks(bookmarkId, newParentId, newIndex);
+
+    if (result.success) {
+      this.#logger.info(`Bookmark reordered: ${bookmarkId}`);
+      this.#eventBus.emitGlobal(
+        PDF_VIEWER_EVENTS.BOOKMARK.REORDER.SUCCESS,
+        { bookmarkId, newParentId, newIndex },
+        { actorId: 'PDFBookmarkFeature' }
+      );
+
+      // 刷新书签列表显示
+      this.#refreshBookmarkList();
+    } else {
+      this.#logger.error(`Failed to reorder bookmark: ${result.error}`);
+      this.#eventBus.emitGlobal(
+        PDF_VIEWER_EVENTS.BOOKMARK.REORDER.FAILED,
+        { bookmarkId, error: result.error },
+        { actorId: 'PDFBookmarkFeature' }
+      );
+    }
+  }
+
+  /**
+   * 处理PDF加载完成事件
+   * @param {Object} data - PDF加载数据
+   * @param {Object} data.pdfDocument - PDF文档对象
+   * @private
+   */
+  async #handlePdfLoaded(data) {
+    try {
+      this.#logger.info('🔍 [DEBUG] #handlePdfLoaded called with data:', { hasData: !!data, hasPdfDocument: !!(data && data.pdfDocument) });
+
+      if (!data || !data.pdfDocument) {
+        this.#logger.warn('❌ PDF document not available in load event');
+        return;
+      }
+
+      this.#logger.info('📄 PDF loaded, loading native bookmarks...');
+
+      // 获取PDF原生书签
+      const nativeBookmarks = await this.#bookmarkDataProvider.getBookmarks(data.pdfDocument);
+
+      this.#logger.info(`📚 Loaded ${nativeBookmarks.length} native bookmarks`);
+
+      // 刷新书签列表（包含原生书签）
+      this.#refreshBookmarkList(nativeBookmarks);
+    } catch (error) {
+      this.#logger.error('❌ Failed to load native bookmarks:', error);
+      // 即使失败也要刷新，至少显示自定义书签
+      this.#refreshBookmarkList([]);
+    }
+  }
+
+  /**
+   * 刷新书签列表显示
+   * @param {Array} nativeBookmarks - PDF原生书签（可选）
+   * @private
+   */
+  #refreshBookmarkList(nativeBookmarks = []) {
+    this.#logger.info('🔍 [DEBUG] #refreshBookmarkList called with nativeBookmarks:', nativeBookmarks.length);
+
+    const customBookmarks = this.#bookmarkManager.getAllBookmarks();
+    this.#logger.info('🔍 [DEBUG] customBookmarks from manager:', customBookmarks.length);
+
+    // 将自定义书签转换为与PDF原生书签兼容的格式
+    const formattedCustomBookmarks = this.#formatBookmarksForDisplay(customBookmarks);
+
+    // 合并原生书签和自定义书签（原生书签在前）
+    const allBookmarks = [...nativeBookmarks, ...formattedCustomBookmarks];
+    this.#logger.info('🔍 [DEBUG] Total bookmarks to emit:', allBookmarks.length, 'Event:', PDF_VIEWER_EVENTS.BOOKMARK.LOAD.SUCCESS);
+
+    // 发出全局事件（跨Feature通信，不使用命名空间）
+    // 注意：BookmarkSidebarUI 使用全局EventBus监听，所以这里必须用 emitGlobal()
+    this.#eventBus.emitGlobal(
+      PDF_VIEWER_EVENTS.BOOKMARK.LOAD.SUCCESS,
+      {
+        bookmarks: allBookmarks,
+        count: this.#countBookmarks(allBookmarks),
+        source: nativeBookmarks.length > 0 ? 'mixed' : 'local'
+      },
+      { actorId: 'PDFBookmarkFeature' }
+    );
+
+    this.#logger.info(`✅ Bookmark list refreshed: ${nativeBookmarks.length} native + ${customBookmarks.length} custom, event emitted`);
+  }
+
+  /**
+   * 格式化书签数据用于显示
+   * @param {Array} bookmarks - 书签数组
+   * @returns {Array} 格式化后的书签数组
+   * @private
+   */
+  #formatBookmarksForDisplay(bookmarks) {
+    return bookmarks.map(bookmark => ({
+      id: bookmark.id,
+      title: bookmark.name,
+      dest: bookmark.pageNumber, // 简化处理，实际应该是dest对象
+      items: bookmark.children && bookmark.children.length > 0
+        ? this.#formatBookmarksForDisplay(bookmark.children)
+        : []
+    }));
+  }
+
+  /**
+   * 计算书签总数（包括子书签）
+   * @param {Array} bookmarks - 书签数组
+   * @returns {number} 总数
+   * @private
+   */
+  #countBookmarks(bookmarks) {
+    let count = bookmarks.length;
+    bookmarks.forEach(bookmark => {
+      if (bookmark.children && bookmark.children.length > 0) {
+        count += this.#countBookmarks(bookmark.children);
+      }
+    });
+    return count;
+  }
+
+  /**
+   * 处理书签导航请求
+   * @param {Object} data - 导航数据
+   * @param {Object} data.bookmark - 书签对象
+   * @private
+   */
+  async #handleNavigateRequest(data) {
+    try {
+      const bookmark = data?.bookmark;
+      if (!bookmark) {
+        this.#logger.warn('书签导航请求缺少bookmark对象');
+        return;
+      }
+
+      // 检查导航服务是否可用
+      if (!this.#navigationService) {
+        this.#logger.error('NavigationService未初始化，无法导航');
+        this.#eventBus.emitGlobal(
+          PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED,
+          { error: 'NavigationService不可用' },
+          { actorId: 'PDFBookmarkFeature' }
+        );
+        return;
+      }
+
+      this.#logger.info(`开始导航到书签: ${bookmark.title}`);
+
+      // 解析书签dest获取页码
+      const pageNumber = await this.#parseBookmarkDest(bookmark);
+      if (!pageNumber) {
+        this.#logger.warn(`无法解析书签dest: ${bookmark.title}`);
+        this.#eventBus.emitGlobal(
+          PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED,
+          { error: '无法解析书签目标页码' },
+          { actorId: 'PDFBookmarkFeature' }
+        );
+        return;
+      }
+
+      this.#logger.info(`书签目标页码: ${pageNumber}`);
+
+      // 调用导航服务
+      const result = await this.#navigationService.navigateTo({
+        pageAt: pageNumber,
+        position: null  // PDF书签通常不指定具体位置百分比
+      });
+
+      if (result.success) {
+        this.#logger.info(`书签导航成功: 页码=${result.actualPage}`);
+        this.#eventBus.emitGlobal(
+          PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.SUCCESS,
+          {
+            pageNumber: result.actualPage,
+            position: result.actualPosition
+          },
+          { actorId: 'PDFBookmarkFeature' }
+        );
+      } else {
+        this.#logger.error(`书签导航失败: ${result.error}`);
+        this.#eventBus.emitGlobal(
+          PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED,
+          { error: result.error },
+          { actorId: 'PDFBookmarkFeature' }
+        );
+      }
+    } catch (error) {
+      this.#logger.error('处理书签导航请求时出错:', error);
+      this.#eventBus.emitGlobal(
+        PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED,
+        { error: error.message },
+        { actorId: 'PDFBookmarkFeature' }
+      );
+    }
+  }
+
+  /**
+   * 解析书签dest获取页码
+   * @param {Object} bookmark - 书签对象
+   * @returns {Promise<number|null>} 页码（从1开始），失败返回null
+   * @private
+   */
+  async #parseBookmarkDest(bookmark) {
+    try {
+      const dest = bookmark.dest;
+      if (!dest || !Array.isArray(dest) || dest.length === 0) {
+        this.#logger.warn('书签dest无效或为空');
+        return null;
+      }
+
+      // dest格式: [pageRef, destType, ...params]
+      // pageRef可能是: {num: xx, gen: yy} 或直接是页码数字
+      const pageRef = dest[0];
+
+      // 如果pageRef直接是数字，就是页码（从0开始）
+      if (typeof pageRef === 'number') {
+        return pageRef + 1;  // 转换为从1开始
+      }
+
+      // 如果pageRef是对象，需要通过PDFDocument解析
+      if (pageRef && typeof pageRef === 'object' && 'num' in pageRef) {
+        const pdfDocument = getCurrentPDFDocument();
+        if (!pdfDocument) {
+          this.#logger.warn('PDF文档对象不可用，无法解析页面引用');
+          return null;
+        }
+
+        try {
+          // 使用PDFDocument的getPageIndex方法将引用转换为索引
+          const pageIndex = await pdfDocument.getPageIndex(pageRef);
+          return pageIndex + 1;  // 转换为从1开始的页码
+        } catch (error) {
+          this.#logger.error('解析页面引用失败:', error);
+          return null;
+        }
+      }
+
+      this.#logger.warn('未知的pageRef格式:', pageRef);
+      return null;
+    } catch (error) {
+      this.#logger.error('解析书签dest时出错:', error);
+      return null;
+    }
+  }
 }
