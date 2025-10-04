@@ -1,0 +1,33 @@
+/**
+ * SearchResultItem 样式
+ */
+
+/* 搜索结果条目样式 */
+.search-result-item {
+  /* TODO: 添加样式 */
+}
+
+/* 条目悬停效果 */
+.search-result-item:hover {
+  /* TODO: 添加样式 */
+}
+
+/* 条目选中状态 */
+.search-result-item.selected {
+  /* TODO: 添加样式 */
+}
+
+/* 缩略图样式 */
+.search-result-item-thumbnail {
+  /* TODO: 添加样式 */
+}
+
+/* 元数据样式 */
+.search-result-item-metadata {
+  /* TODO: 添加样式 */
+}
+
+/* 标签样式 */
+.search-result-item-tags {
+  /* TODO: 添加样式 */
+}

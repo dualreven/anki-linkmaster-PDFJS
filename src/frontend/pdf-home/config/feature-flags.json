@@ -56,13 +56,68 @@
   },
   "sidebar": {
     "enabled": true,
-    "description": "侧边栏功能域 - 显示最近搜索、阅读、添加",
-    "version": "1.0.0",
+    "description": "侧边栏容器插件 - 管理子功能",
+    "version": "2.0.0",
     "meta": {
       "status": "stable",
       "owner": "pdf-home-team",
       "dependencies": [],
       "releasedAt": "2025-10-04"
+    }
+  },
+  "recent-searches": {
+    "enabled": false,
+    "description": "最近搜索功能 - 显示搜索历史（开发中）",
+    "version": "1.0.0",
+    "meta": {
+      "status": "development",
+      "owner": "pdf-home-team",
+      "dependencies": ["sidebar"],
+      "estimatedRelease": "2025-10-05"
+    }
+  },
+  "recent-opened": {
+    "enabled": false,
+    "description": "最近阅读功能 - 显示阅读历史（开发中）",
+    "version": "1.0.0",
+    "meta": {
+      "status": "development",
+      "owner": "pdf-home-team",
+      "dependencies": ["sidebar"],
+      "estimatedRelease": "2025-10-05"
+    }
+  },
+  "recent-added": {
+    "enabled": false,
+    "description": "最近添加功能 - 显示添加历史（开发中）",
+    "version": "1.0.0",
+    "meta": {
+      "status": "development",
+      "owner": "pdf-home-team",
+      "dependencies": ["sidebar"],
+      "estimatedRelease": "2025-10-05"
+    }
+  },
+  "search-results": {
+    "enabled": false,
+    "description": "搜索结果功能 - 显示PDF搜索结果表格（开发中）",
+    "version": "1.0.0",
+    "meta": {
+      "status": "development",
+      "owner": "pdf-home-team",
+      "dependencies": ["filter"],
+      "estimatedRelease": "2025-10-05"
+    }
+  },
+  "search-result-item": {
+    "enabled": false,
+    "description": "搜索结果条目 - 单个结果项渲染（开发中）",
+    "version": "1.0.0",
+    "meta": {
+      "status": "development",
+      "owner": "pdf-home-team",
+      "dependencies": ["search-results"],
+      "estimatedRelease": "2025-10-05"
     }
   }
 }

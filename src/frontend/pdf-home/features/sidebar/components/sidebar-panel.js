@@ -34,7 +34,50 @@ export class SidebarPanel {
     this.#container = container;
     this.#container.innerHTML = this.#getTemplate();
     this.#attachEventListeners();
+    this.#createToggleButton();
     this.#logger.info('[SidebarPanel] Rendered');
+  }
+
+  /**
+   * 创建收起/展开按钮
+   * @private
+   */
+  #createToggleButton() {
+    // 检查按钮是否已存在
+    if (document.getElementById('sidebar-toggle-btn')) {
+      return;
+    }
+
+    const toggleBtn = document.createElement('button');
+    toggleBtn.id = 'sidebar-toggle-btn';
+    toggleBtn.className = 'sidebar-toggle-btn';
+    toggleBtn.innerHTML = '◀';
+    toggleBtn.title = '收起侧边栏';
+
+    // 添加到body（fixed定位）
+    document.body.appendChild(toggleBtn);
+
+    // 绑定点击事件
+    toggleBtn.addEventListener('click', () => {
+      const sidebar = document.getElementById('sidebar');
+      const isCollapsed = sidebar.classList.contains('collapsed');
+
+      if (isCollapsed) {
+        sidebar.classList.remove('collapsed');
+        toggleBtn.innerHTML = '◀';
+        toggleBtn.title = '收起侧边栏';
+        toggleBtn.classList.remove('collapsed');
+        this.#eventBus.emit('sidebar:toggled', { collapsed: false });
+      } else {
+        sidebar.classList.add('collapsed');
+        toggleBtn.innerHTML = '▶';
+        toggleBtn.title = '展开侧边栏';
+        toggleBtn.classList.add('collapsed');
+        this.#eventBus.emit('sidebar:toggled', { collapsed: true });
+      }
+    });
+
+    this.#logger.info('[SidebarPanel] Toggle button created');
   }
 
   /**

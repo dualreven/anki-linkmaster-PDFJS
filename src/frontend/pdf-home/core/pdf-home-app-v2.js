@@ -26,6 +26,15 @@ import { PDFEditFeature } from '../features/pdf-edit/index.js';
 import { FilterFeature } from '../features/filter/index.js';
 import { SidebarFeature } from '../features/sidebar/index.js';
 
+// 侧边栏子功能
+import { RecentSearchesFeature } from '../features/sidebar/recent-searches/index.js';
+import { RecentOpenedFeature } from '../features/sidebar/recent-opened/index.js';
+import { RecentAddedFeature } from '../features/sidebar/recent-added/index.js';
+
+// 搜索结果功能
+import { SearchResultsFeature } from '../features/search-results/index.js';
+import { SearchResultItemFeature } from '../features/search-result-item/index.js';
+
 /**
  * @class PDFHomeAppV2
  * @description 新版应用核心类，使用功能域架构
@@ -282,7 +291,16 @@ export class PDFHomeAppV2 {
       new PDFSorterFeature(),
       new PDFEditFeature(),
       new FilterFeature(),
-      new SidebarFeature()
+      new SidebarFeature(),
+
+      // 侧边栏子功能
+      new RecentSearchesFeature(),
+      new RecentOpenedFeature(),
+      new RecentAddedFeature(),
+
+      // 搜索结果功能
+      new SearchResultsFeature(),
+      new SearchResultItemFeature()
     ];
 
     for (const feature of features) {

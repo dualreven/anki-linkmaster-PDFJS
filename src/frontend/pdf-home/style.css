@@ -18,47 +18,35 @@ body {
     padding-top: 200px; /* 为fixed header和搜索面板留出空间 */
 }
 
-/* ===== 左右两栏布局 ===== */
+/* ===== 全局布局 ===== */
 .layout-container {
-    display: flex;
-    gap: 20px;
+    display: block;
     width: 100%;
 }
 
-/* 左侧侧边栏 */
+/* 侧边栏 - 悬浮面板 */
 .sidebar {
-    flex-shrink: 0;
+    position: fixed;
+    left: 0;
+    top: 180px; /* header高度 + 搜索面板高度 */
     width: 280px;
+    height: calc(100vh - 180px);
     background: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 2px 0 16px rgba(0, 0, 0, 0.15);
     padding: 20px;
-    height: fit-content;
-    position: sticky;
-    top: 220px; /* header高度 + 搜索面板高度 + 间距 */
+    z-index: 999;
+    overflow-y: auto;
+    transition: transform 0.3s ease;
 }
 
-/* 右侧主内容区 */
+/* 主内容区 - 全宽 */
 .main-content {
-    flex-grow: 1;
-    min-width: 0; /* 防止flex溢出 */
+    width: 100%;
     background: white;
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     padding: 20px;
-    min-height: 600px; /* 确保有足够的高度 */
-}
-
-/* 响应式：小屏幕时垂直堆叠 */
-@media (max-width: 1024px) {
-    .layout-container {
-        flex-direction: column;
-    }
-
-    .sidebar {
-        width: 100%;
-        position: static;
-    }
+    min-height: 600px;
 }
 
 header {
