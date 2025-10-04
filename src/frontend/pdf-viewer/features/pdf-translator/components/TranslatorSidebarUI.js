@@ -566,6 +566,55 @@ export class TranslatorSidebarUI {
   }
 
   /**
+   * 处理制作标注
+   * @private
+   * @param {Object} translation - 翻译数据
+   */
+  #handleCreateAnnotation(translation) {
+    this.#logger.info('Creating annotation from translation...');
+
+    // 验证是否有位置信息和Range数据
+    if (!translation.pageNumber || !translation.position) {
+      this.#showToast('无法创建标注：缺少位置信息', 'error');
+      this.#logger.warn('Cannot create annotation: missing pageNumber or position', translation);
+      return;
+    }
+
+    if (!translation.rangeData || translation.rangeData.length === 0) {
+      this.#showToast('无法创建标注：缺少文本选择数据', 'error');
+      this.#logger.warn('Cannot create annotation: missing rangeData', translation);
+      return;
+    }
+
+    // 构建标注内容（原文+译文）
+    const annotationContent = `📝 原文:\n${translation.original}\n\n✅ 译文:\n${translation.translation}`;
+
+    // 创建文本高亮类型的标注（带评论）
+    const annotationData = {
+      type: 'text-highlight',  // 文本高亮类型
+      pageNumber: translation.pageNumber,
+      data: {
+        selectedText: translation.original,  // 原始选中的文本
+        highlightColor: 'yellow',  // 高亮颜色
+        textRanges: translation.rangeData,  // Range数据（序列化后的）
+        boundingBox: translation.position,  // 边界框
+        comment: annotationContent  // 添加评论（包含原文和译文）
+      }
+    };
+
+    this.#logger.info('Annotation data prepared:', annotationData);
+
+    // 发出创建标注事件（全局事件，供AnnotationFeature监听）
+    this.#eventBus.emit('annotation:create:requested', {
+      annotation: annotationData
+    }, { actorId: 'TranslatorSidebarUI' });
+
+    // 显示成功提示
+    this.#showToast('✅ 标注已创建');
+    this.#logger.info('Annotation creation requested');
+  }
+
+  /**
    * 处理制作卡片
    * @private
    * @param {Object} translation - 翻译数据

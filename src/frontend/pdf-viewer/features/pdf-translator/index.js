@@ -207,11 +207,11 @@ export class PDFTranslatorFeature {
    * @param {Object} data - 选择数据
    */
   async #handleTextSelected(data) {
-    const { text, pageNumber, position } = data;
+    const { text, pageNumber, position, rangeData } = data;
     this.#logger.info(`Text selected on page ${pageNumber}: "${text.substring(0, 50)}..."`);
 
-    // 自动触发翻译（传递位置信息）
-    await this.#translateText(text, null, 'auto', { pageNumber, position });
+    // 自动触发翻译（传递位置信息和Range数据）
+    await this.#translateText(text, null, 'auto', { pageNumber, position, rangeData });
   }
 
   /**

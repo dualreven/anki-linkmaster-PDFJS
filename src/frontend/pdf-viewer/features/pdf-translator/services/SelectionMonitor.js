@@ -16,6 +16,7 @@ export class SelectionMonitor {
   #eventBus;
   #logger;
   #lastSelection = null;     // 上一次选择的文本
+  #lastRange = null;         // 上一次选择的Range对象
   #debounceTimer = null;     // 防抖定时器
   #config = {
     enabled: true,           // 是否启用自动翻译
@@ -122,8 +123,16 @@ export class SelectionMonitor {
     // 更新上次选择
     this.#lastSelection = text;
 
+    // 保存Range对象（用于后续创建标注）
+    if (selection && selection.rangeCount > 0) {
+      this.#lastRange = selection.getRangeAt(0).cloneRange();
+    }
+
     // 获取选择位置
     const position = this.#getSelectionPosition(selection);
+
+    // 序列化Range数据（用于创建文本高亮标注）
+    const rangeData = this.#serializeRanges(selection);
 
     // 获取当前页码（从PDF.js获取，如果可用）
     const pageNumber = this.#getCurrentPage();
@@ -135,6 +144,7 @@ export class SelectionMonitor {
         text,
         pageNumber,
         position,
+        rangeData,  // 添加Range数据用于创建文本高亮标注
         timestamp: Date.now()
       },
       { actorId: 'SelectionMonitor' }
@@ -143,7 +153,8 @@ export class SelectionMonitor {
     this.#logger.info(`Text selected: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`, {
       length: text.length,
       pageNumber,
-      position
+      position,
+      rangeCount: rangeData ? rangeData.length : 0
     });
   }
 
@@ -202,31 +213,139 @@ export class SelectionMonitor {
   }
 
   /**
+   * 序列化Selection的Range对象
+   * @private
+   * @param {Selection} selection - 选择对象
+   * @returns {Array} 序列化的Range数据数组
+   */
+  #serializeRanges(selection) {
+    try {
+      if (!selection || selection.rangeCount === 0) {
+        return [];
+      }
+
+      const ranges = [];
+      for (let i = 0; i < selection.rangeCount; i++) {
+        const range = selection.getRangeAt(i);
+        const rect = range.getBoundingClientRect();
+
+        // 序列化Range信息（不包含DOM引用，可以通过事件传递）
+        ranges.push({
+          startContainer: this.#serializeNode(range.startContainer),
+          startOffset: range.startOffset,
+          endContainer: this.#serializeNode(range.endContainer),
+          endOffset: range.endOffset,
+          text: range.toString(),
+          boundingBox: {
+            x: rect.left,
+            y: rect.top,
+            width: rect.width,
+            height: rect.height
+          }
+        });
+      }
+
+      return ranges;
+    } catch (error) {
+      this.#logger.warn('Failed to serialize ranges:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 序列化DOM节点为可传递的数据
+   * @private
+   * @param {Node} node - DOM节点
+   * @returns {Object} 节点信息
+   */
+  #serializeNode(node) {
+    if (!node) return null;
+
+    return {
+      nodeName: node.nodeName,
+      nodeType: node.nodeType,
+      textContent: node.nodeType === Node.TEXT_NODE ? node.textContent : null,
+      className: node.className || null,
+      id: node.id || null
+    };
+  }
+
+  /**
    * 获取当前页码
    * @private
    * @returns {number} 页码（从1开始）
    */
   #getCurrentPage() {
     try {
-      // 尝试从 PDF.js 获取当前页码
-      // 方法1: 从 PDFViewerApplication（如果可用）
-      if (window.PDFViewerApplication?.pdfViewer?.currentPageNumber) {
-        return window.PDFViewerApplication.pdfViewer.currentPageNumber;
-      }
-
-      // 方法2: 从自定义全局对象
-      if (window.pdfViewerApp?.container?.get('pdfViewerManager')) {
-        const manager = window.pdfViewerApp.container.get('pdfViewerManager');
-        if (manager && manager.getCurrentPage) {
-          return manager.getCurrentPage();
+      // 方法1: 从自定义PDFViewerManager获取（优先）
+      if (window.pdfViewerApp?.container) {
+        try {
+          const manager = window.pdfViewerApp.container.get('pdfViewerManager');
+          if (manager?.pdfViewer?.currentPageNumber) {
+            this.#logger.debug(`Got page number from PDFViewerManager: ${manager.pdfViewer.currentPageNumber}`);
+            return manager.pdfViewer.currentPageNumber;
+          }
+        } catch (err) {
+          this.#logger.debug('PDFViewerManager not available:', err.message);
         }
       }
 
+      // 方法2: 从 PDFViewerApplication（标准PDF.js）
+      if (window.PDFViewerApplication?.pdfViewer?.currentPageNumber) {
+        this.#logger.debug(`Got page number from PDFViewerApplication: ${window.PDFViewerApplication.pdfViewer.currentPageNumber}`);
+        return window.PDFViewerApplication.pdfViewer.currentPageNumber;
+      }
+
+      // 方法3: 尝试从DOM推断（查找可见的.page元素）
+      const visiblePage = this.#getVisiblePageFromDOM();
+      if (visiblePage > 0) {
+        this.#logger.debug(`Got page number from DOM: ${visiblePage}`);
+        return visiblePage;
+      }
+
       // 默认返回 1
+      this.#logger.warn('Could not determine current page, defaulting to 1');
       return 1;
     } catch (error) {
       this.#logger.warn('Failed to get current page number:', error);
       return 1;
+    }
+  }
+
+  /**
+   * 从DOM推断当前可见页码
+   * @private
+   * @returns {number} 页码（从1开始），0表示无法确定
+   */
+  #getVisiblePageFromDOM() {
+    try {
+      // 查找所有.page元素
+      const pages = document.querySelectorAll('.page');
+      if (!pages || pages.length === 0) {
+        return 0;
+      }
+
+      // 查找第一个在视口中的页面
+      const viewportHeight = window.innerHeight;
+      const viewportMid = viewportHeight / 2;
+
+      for (let i = 0; i < pages.length; i++) {
+        const page = pages[i];
+        const rect = page.getBoundingClientRect();
+
+        // 页面中心点是否在视口中间附近
+        const pageCenter = rect.top + rect.height / 2;
+        if (Math.abs(pageCenter - viewportMid) < viewportHeight / 2) {
+          // data-page-number 属性（从1开始）
+          const pageNum = parseInt(page.dataset.pageNumber || (i + 1));
+          return pageNum;
+        }
+      }
+
+      return 0;
+    } catch (error) {
+      this.#logger.debug('Failed to get page from DOM:', error);
+      return 0;
     }
   }
 
