@@ -270,6 +270,13 @@ export class ScreenshotTool extends IAnnotationTool {
     // 如果不是激活状态，不处理
     if (!this.#isActive) return;
 
+    // 检查点击位置是否在PDF页面元素内
+    const pageElement = e.target.closest('.page');
+    if (!pageElement) {
+      this.#logger.debug('[ScreenshotTool] Click not within a PDF page element, ignoring');
+      return;
+    }
+
     // 阻止默认行为和事件传播（防止拖拽选择文本等）
     e.preventDefault();
     e.stopPropagation();

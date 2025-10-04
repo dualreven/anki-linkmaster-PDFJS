@@ -404,6 +404,13 @@ export class AnnotationSidebarUI {
       (data) => this.#handleSidebarClosed(data),
       { subscriberId: 'AnnotationSidebarUI' }
     ));
+
+    // 监听评论添加事件（第二期：新增）
+    this.#unsubs.push(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANNOTATION.COMMENT.ADDED,
+      (data) => this.#handleCommentAdded(data),
+      { subscriberId: 'AnnotationSidebarUI' }
+    ));
   }
 
   /**
@@ -439,6 +446,39 @@ export class AnnotationSidebarUI {
       const modeName = modeNames[deactivatedTool] || '标注模式';
       this.#showToast(`${modeName}已关闭`, 'info');
     }
+  }
+
+  /**
+   * 处理评论添加事件（第二期：新增）
+   * @param {Object} data - 事件数据
+   * @param {string} data.annotationId - 标注ID
+   * @param {string} data.content - 评论内容
+   * @param {number} data.timestamp - 时间戳
+   * @param {boolean} [data.skipUpdate] - 是否跳过更新（本地添加时已更新）
+   * @private
+   */
+  #handleCommentAdded(data) {
+    const { annotationId, skipUpdate } = data;
+
+    // 如果是本地添加（已经更新），跳过处理
+    if (skipUpdate) {
+      this.#logger.debug(`Comment already added locally, skipping update`);
+      return;
+    }
+
+    // 找到对应的annotation
+    const annotation = this.#annotations.find(a => a.id === annotationId);
+    if (!annotation) {
+      this.#logger.warn(`Annotation not found: ${annotationId}`);
+      return;
+    }
+
+    // 这里可以处理来自外部的评论添加（如从后端同步）
+    // 当前版本中，本地添加已在submitComment中处理，这里保留用于扩展
+    this.#logger.debug(`External comment added to annotation ${annotationId}`);
+
+    // 更新对应的卡片（刷新评论数量显示）
+    this.updateAnnotationCard(annotation);
   }
 
   /**
@@ -600,9 +640,12 @@ export class AnnotationSidebarUI {
     // 根据类型显示不同的内容
     if (annotation.type === AnnotationType.SCREENSHOT) {
       // 截图：显示缩略图和描述
-      if (annotation.data.imageData) {
+      if (annotation.data.imageData || annotation.data.imagePath) {
         const img = document.createElement('img');
-        img.src = annotation.data.imageData;
+        // 优先使用imageData(base64)，如果是imagePath则转换为完整URL
+        img.src = annotation.data.imageData
+          ? annotation.data.imageData
+          : this.#getImageUrl(annotation.data.imagePath);
         img.alt = '截图';
         img.style.cssText = [
           'width: 100%',
@@ -843,11 +886,18 @@ export class AnnotationSidebarUI {
   }
 
   /**
-   * 显示评论对话框（第二期：新增）
+   * 显示评论对话框（第二期：新增，支持历史评论显示）
    * @param {string} annotationId - 标注ID
    * @private
    */
   #showCommentDialog(annotationId) {
+    // 获取标注数据
+    const annotation = this.#annotations.find(a => a.id === annotationId);
+    if (!annotation) {
+      this.#logger.warn(`Annotation not found: ${annotationId}`);
+      return;
+    }
+
     // 创建遮罩层
     const overlay = document.createElement('div');
     overlay.style.cssText = [
@@ -869,20 +919,143 @@ export class AnnotationSidebarUI {
       'background: #fff',
       'border-radius: 8px',
       'padding: 20px',
-      'width: 400px',
+      'width: 500px',
       'max-width: 90%',
+      'max-height: 80vh',
+      'display: flex',
+      'flex-direction: column',
       'box-shadow: 0 4px 20px rgba(0,0,0,0.3)'
     ].join(';');
 
     // 标题
     const title = document.createElement('div');
-    title.textContent = '添加评论';
+    const commentCount = annotation.getCommentCount();
+    title.textContent = commentCount > 0 ? `评论 (${commentCount})` : '添加评论';
     title.style.cssText = [
       'font-size: 16px',
       'font-weight: 500',
       'margin-bottom: 12px',
       'color: #333'
     ].join(';');
+
+    // 标注内容显示区域（第二期：新增）
+    const annotationContent = document.createElement('div');
+    annotationContent.style.cssText = [
+      'background: #f9f9f9',
+      'border: 1px solid #e8e8e8',
+      'border-radius: 6px',
+      'padding: 12px',
+      'margin-bottom: 12px',
+      'max-height: 200px',
+      'overflow-y: auto'
+    ].join(';');
+
+    // 根据标注类型显示不同内容
+    const typeIcon = annotation.getTypeIcon();
+    const typeLabel = document.createElement('div');
+    typeLabel.style.cssText = [
+      'font-size: 12px',
+      'color: #666',
+      'margin-bottom: 8px',
+      'font-weight: 500'
+    ].join(';');
+
+    switch (annotation.type) {
+      case 'screenshot':
+        typeLabel.textContent = `${typeIcon} 截图标注`;
+        annotationContent.appendChild(typeLabel);
+
+        // 显示截图描述
+        if (annotation.data.description) {
+          const desc = document.createElement('div');
+          desc.textContent = annotation.data.description;
+          desc.style.cssText = [
+            'font-size: 14px',
+            'color: #333',
+            'margin-bottom: 8px'
+          ].join(';');
+          annotationContent.appendChild(desc);
+        }
+
+        // 显示截图图片（如果有imagePath或imageData）
+        if (annotation.data.imagePath || annotation.data.imageData) {
+          const img = document.createElement('img');
+          // 优先使用imageData(base64)，如果是imagePath则转换为完整URL
+          img.src = annotation.data.imageData
+            ? annotation.data.imageData
+            : this.#getImageUrl(annotation.data.imagePath);
+          img.style.cssText = [
+            'max-width: 100%',
+            'border-radius: 4px',
+            'display: block'
+          ].join(';');
+          img.onerror = () => {
+            // 图片加载失败时显示提示
+            img.style.display = 'none';
+            const errorTip = document.createElement('div');
+            errorTip.textContent = '图片加载失败';
+            errorTip.style.cssText = [
+              'color: #999',
+              'font-size: 12px',
+              'padding: 8px',
+              'text-align: center'
+            ].join(';');
+            img.parentElement.appendChild(errorTip);
+          };
+          annotationContent.appendChild(img);
+        }
+        break;
+
+      case 'text-highlight':
+        typeLabel.textContent = `${typeIcon} 文本高亮`;
+        annotationContent.appendChild(typeLabel);
+
+        const highlightText = document.createElement('div');
+        highlightText.textContent = `"${annotation.data.selectedText}"`;
+        highlightText.style.cssText = [
+          'font-size: 14px',
+          'color: #333',
+          'line-height: 1.6',
+          'font-style: italic',
+          'padding: 8px',
+          'background: ' + (annotation.data.highlightColor || '#ffff00') + '40',
+          'border-radius: 4px'
+        ].join(';');
+        annotationContent.appendChild(highlightText);
+
+        // 显示笔记（如果有）
+        if (annotation.data.note) {
+          const note = document.createElement('div');
+          note.textContent = `笔记: ${annotation.data.note}`;
+          note.style.cssText = [
+            'font-size: 13px',
+            'color: #666',
+            'margin-top: 8px',
+            'padding-top: 8px',
+            'border-top: 1px solid #e8e8e8'
+          ].join(';');
+          annotationContent.appendChild(note);
+        }
+        break;
+
+      case 'comment':
+        typeLabel.textContent = `${typeIcon} 批注`;
+        annotationContent.appendChild(typeLabel);
+
+        const commentText = document.createElement('div');
+        commentText.textContent = annotation.data.content;
+        commentText.style.cssText = [
+          'font-size: 14px',
+          'color: #333',
+          'line-height: 1.6'
+        ].join(';');
+        annotationContent.appendChild(commentText);
+        break;
+
+      default:
+        typeLabel.textContent = `${typeIcon} 标注`;
+        annotationContent.appendChild(typeLabel);
+    }
 
     // ID显示
     const idInfo = document.createElement('div');
@@ -894,12 +1067,65 @@ export class AnnotationSidebarUI {
       'font-family: monospace'
     ].join(';');
 
+    // 历史评论列表容器
+    const commentsContainer = document.createElement('div');
+    commentsContainer.style.cssText = [
+      'flex: 1',
+      'overflow-y: auto',
+      'margin-bottom: 16px',
+      'border: 1px solid #f0f0f0',
+      'border-radius: 4px',
+      'max-height: 300px'
+    ].join(';');
+
+    // 显示历史评论
+    if (annotation.comments && annotation.comments.length > 0) {
+      annotation.comments.forEach(comment => {
+        const commentItem = document.createElement('div');
+        commentItem.style.cssText = [
+          'padding: 12px',
+          'border-bottom: 1px solid #f0f0f0',
+          'background: #fafafa'
+        ].join(';');
+
+        const commentContent = document.createElement('div');
+        commentContent.textContent = comment.content;
+        commentContent.style.cssText = [
+          'font-size: 14px',
+          'color: #333',
+          'margin-bottom: 8px',
+          'word-wrap: break-word'
+        ].join(';');
+
+        const commentTime = document.createElement('div');
+        commentTime.textContent = comment.getFormattedDate();
+        commentTime.style.cssText = [
+          'font-size: 12px',
+          'color: #999'
+        ].join(';');
+
+        commentItem.appendChild(commentContent);
+        commentItem.appendChild(commentTime);
+        commentsContainer.appendChild(commentItem);
+      });
+    } else {
+      const emptyTip = document.createElement('div');
+      emptyTip.textContent = '暂无评论';
+      emptyTip.style.cssText = [
+        'padding: 20px',
+        'text-align: center',
+        'color: #999',
+        'font-size: 14px'
+      ].join(';');
+      commentsContainer.appendChild(emptyTip);
+    }
+
     // 输入框
     const textarea = document.createElement('textarea');
-    textarea.placeholder = '请输入评论内容...';
+    textarea.placeholder = '请输入新评论...';
     textarea.style.cssText = [
       'width: 100%',
-      'min-height: 100px',
+      'min-height: 80px',
       'padding: 8px',
       'border: 1px solid #ddd',
       'border-radius: 4px',
@@ -951,6 +1177,58 @@ export class AnnotationSidebarUI {
       overlay.remove();
     };
 
+    // 刷新历史评论列表
+    const refreshComments = () => {
+      // 清空现有评论
+      commentsContainer.innerHTML = '';
+
+      // 重新显示历史评论
+      if (annotation.comments && annotation.comments.length > 0) {
+        annotation.comments.forEach(comment => {
+          const commentItem = document.createElement('div');
+          commentItem.style.cssText = [
+            'padding: 12px',
+            'border-bottom: 1px solid #f0f0f0',
+            'background: #fafafa'
+          ].join(';');
+
+          const commentContent = document.createElement('div');
+          commentContent.textContent = comment.content;
+          commentContent.style.cssText = [
+            'font-size: 14px',
+            'color: #333',
+            'margin-bottom: 8px',
+            'word-wrap: break-word'
+          ].join(';');
+
+          const commentTime = document.createElement('div');
+          commentTime.textContent = comment.getFormattedDate();
+          commentTime.style.cssText = [
+            'font-size: 12px',
+            'color: #999'
+          ].join(';');
+
+          commentItem.appendChild(commentContent);
+          commentItem.appendChild(commentTime);
+          commentsContainer.appendChild(commentItem);
+        });
+      } else {
+        const emptyTip = document.createElement('div');
+        emptyTip.textContent = '暂无评论';
+        emptyTip.style.cssText = [
+          'padding: 20px',
+          'text-align: center',
+          'color: #999',
+          'font-size: 14px'
+        ].join(';');
+        commentsContainer.appendChild(emptyTip);
+      }
+
+      // 更新标题显示评论数量
+      const commentCount = annotation.getCommentCount();
+      title.textContent = commentCount > 0 ? `评论 (${commentCount})` : '添加评论';
+    };
+
     // 提交评论函数
     const submitComment = () => {
       const content = textarea.value.trim();
@@ -959,15 +1237,34 @@ export class AnnotationSidebarUI {
         return;
       }
 
-      // 发出评论事件
+      // 直接添加评论到annotation对象
+      annotation.addComment({
+        content,
+        createdAt: new Date().toISOString()
+      });
+
+      // 发出评论事件（用于持久化等后续处理）
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.COMMENT.ADDED, {
         annotationId,
         content,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        skipUpdate: true  // 本地已更新，跳过事件处理器的更新
       });
 
+      // 刷新历史评论列表
+      refreshComments();
+
+      // 清空输入框
+      textarea.value = '';
+
+      // 显示成功提示
       this.#showToast('✓ 评论已添加', 'success');
-      closeDialog();
+
+      // 更新卡片显示（刷新评论数量）
+      this.updateAnnotationCard(annotation);
+
+      // 重新聚焦输入框，方便继续添加评论
+      textarea.focus();
     };
 
     // 事件监听
@@ -991,7 +1288,9 @@ export class AnnotationSidebarUI {
     buttonContainer.appendChild(cancelBtn);
     buttonContainer.appendChild(confirmBtn);
     dialog.appendChild(title);
+    dialog.appendChild(annotationContent);  // 标注内容（第二期：新增）
     dialog.appendChild(idInfo);
+    dialog.appendChild(commentsContainer);
     dialog.appendChild(textarea);
     dialog.appendChild(buttonContainer);
     overlay.appendChild(dialog);
@@ -1161,6 +1460,17 @@ export class AnnotationSidebarUI {
     }, 3000);
 
     this.#logger.info(`Card highlighted and scrolled: ${annotationId}`);
+  }
+
+  /**
+   * 获取图片完整URL（第二期：新增）
+   * @param {string} imagePath - 图片相对路径（如'/data/screenshots/abc.png'）
+   * @returns {string} 完整HTTP URL
+   * @private
+   */
+  #getImageUrl(imagePath) {
+    const port = window.APP_CONFIG?.fileServerPort || 8092;
+    return `http://localhost:${port}${imagePath}`;
   }
 
   /**
