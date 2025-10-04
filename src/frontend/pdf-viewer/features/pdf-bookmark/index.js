@@ -82,6 +82,13 @@ export class PDFBookmarkFeature {
    */
   #enabled = false;
 
+  /**
+   * 当前选中的书签ID和书签对象
+   * @type {{id: string|null, bookmark: Object|null}}
+   * @private
+   */
+  #selectedBookmark = { id: null, bookmark: null };
+
   // ==================== IFeature 接口实现 ====================
 
   get name() { return PDFBookmarkFeatureConfig.name; }
@@ -330,6 +337,15 @@ export class PDFBookmarkFeature {
       )
     );
 
+    // 监听书签选中变化（全局事件，使用onGlobal）
+    this.#unsubs.push(
+      this.#eventBus.onGlobal(
+        PDF_VIEWER_EVENTS.BOOKMARK.SELECT.CHANGED,
+        (data) => this.#handleSelectionChanged(data),
+        { subscriberId: 'PDFBookmarkFeature' }
+      )
+    );
+
     this.#logger.info('Event listeners registered');
   }
 
@@ -341,9 +357,39 @@ export class PDFBookmarkFeature {
   #handleCreateRequest(data) {
     const currentPage = this.#getCurrentPage();
 
+    // 计算新书签的父级和排序位置
+    let parentId = null;
+    let order = 0;
+
+    if (this.#selectedBookmark.id && this.#selectedBookmark.bookmark) {
+      // 如果有选中的书签，添加到选中书签的同级下面
+      const selected = this.#selectedBookmark.bookmark;
+      parentId = selected.parentId || null;
+
+      // 获取同级列表
+      let siblings = [];
+      if (parentId) {
+        const parent = this.#bookmarkManager.getBookmark(parentId);
+        siblings = parent ? parent.children : [];
+      } else {
+        siblings = this.#bookmarkManager.getAllBookmarks();
+      }
+
+      // 找到选中书签的索引
+      const selectedIndex = siblings.findIndex(b => b.id === selected.id);
+      // 新书签插入到选中书签后面
+      order = selectedIndex !== -1 ? selectedIndex + 1 : siblings.length;
+
+      this.#logger.info(`Adding bookmark after selected: parent=${parentId || 'root'}, order=${order}`);
+    }
+
     this.#dialog.showAdd({
       currentPage,
       onConfirm: async (bookmarkData) => {
+        // 设置父级和排序
+        bookmarkData.parentId = parentId;
+        bookmarkData.order = order;
+
         const result = await this.#bookmarkManager.addBookmark(bookmarkData);
 
         if (result.success) {
@@ -356,6 +402,18 @@ export class PDFBookmarkFeature {
 
           // 刷新书签列表显示
           this.#refreshBookmarkList();
+
+          // 自动选中新添加的书签（延迟执行，等待DOM渲染完成）
+          const newBookmark = this.#bookmarkManager.getBookmark(result.bookmarkId);
+          if (newBookmark) {
+            setTimeout(() => {
+              this.#eventBus.emitGlobal(
+                PDF_VIEWER_EVENTS.BOOKMARK.SELECT.CHANGED,
+                { bookmarkId: result.bookmarkId, bookmark: newBookmark },
+                { actorId: 'PDFBookmarkFeature' }
+              );
+            }, 50); // 延迟50ms，确保DOM已渲染
+          }
         } else {
           this.#logger.error(`Failed to create bookmark: ${result.error}`);
           this.#eventBus.emitGlobal(
@@ -597,6 +655,21 @@ export class PDFBookmarkFeature {
       }
     });
     return count;
+  }
+
+  /**
+   * 处理书签选中变化
+   * @param {Object} data - 选中数据
+   * @param {string|null} data.bookmarkId - 书签ID
+   * @param {Object|null} data.bookmark - 书签对象
+   * @private
+   */
+  #handleSelectionChanged(data) {
+    this.#selectedBookmark = {
+      id: data?.bookmarkId || null,
+      bookmark: data?.bookmark || null
+    };
+    this.#logger.debug(`Selection changed: ${this.#selectedBookmark.id}`);
   }
 
   /**

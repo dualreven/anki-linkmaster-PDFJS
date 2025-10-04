@@ -101,12 +101,31 @@ export class BookmarkManager {
 
       // 如果是根级书签，添加到根列表
       if (!bookmark.parentId) {
-        this.#rootBookmarkIds.push(bookmark.id);
+        // 如果指定了order，插入到指定位置；否则添加到末尾
+        const insertIndex = typeof bookmark.order === 'number' && bookmark.order >= 0
+          ? bookmark.order
+          : this.#rootBookmarkIds.length;
+
+        this.#rootBookmarkIds.splice(insertIndex, 0, bookmark.id);
+        this.#logger.info(`Added bookmark to root at index ${insertIndex}`);
       } else {
         // 如果有父书签，添加到父书签的children
         const parent = this.#bookmarks.get(bookmark.parentId);
         if (parent) {
-          parent.addChild(bookmark);
+          // 如果指定了order，插入到指定位置；否则添加到末尾
+          const insertIndex = typeof bookmark.order === 'number' && bookmark.order >= 0
+            ? bookmark.order
+            : parent.children.length;
+
+          bookmark.order = insertIndex;
+          parent.children.splice(insertIndex, 0, bookmark);
+
+          // 重新计算后续书签的order
+          parent.children.forEach((child, i) => {
+            child.order = i;
+          });
+
+          this.#logger.info(`Added bookmark to parent ${parent.name} at index ${insertIndex}`);
         }
       }
 
