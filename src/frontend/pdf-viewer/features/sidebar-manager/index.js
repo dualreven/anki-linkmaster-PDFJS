@@ -12,10 +12,6 @@ import { registerRealSidebars, createRealSidebarButtons } from './real-sidebars.
 const logger = getLogger('SidebarManager');
 
 export class SidebarManagerFeature {
-    name = 'sidebar-manager';
-    version = '1.0.0';
-    dependencies = ['annotation'];  // 依赖annotation，确保annotation先安装
-
     #eventBus;
     #container;
     #logger;
@@ -30,6 +26,27 @@ export class SidebarManagerFeature {
         startX: 0,
         startWidth: 0
     };
+
+    /**
+     * Feature名称
+     */
+    get name() {
+        return 'sidebar-manager';
+    }
+
+    /**
+     * 版本号
+     */
+    get version() {
+        return '1.0.0';
+    }
+
+    /**
+     * 依赖的Features
+     */
+    get dependencies() {
+        return ['annotation', 'pdf-translator'];
+    }
 
     /**
      * 安装Feature
@@ -142,7 +159,7 @@ export class SidebarManagerFeature {
         this.#recalculateLayout();
 
         // 触发事件
-        this.#eventBus.emit('sidebar:opened:completed', {
+        this.#eventBus.emit('sidebar:open:completed', {
             sidebarId,
             order: this.#openOrder.length
         }, { actorId: 'SidebarManager' });
@@ -175,7 +192,7 @@ export class SidebarManagerFeature {
         this.#recalculateLayout();
 
         // 触发事件
-        this.#eventBus.emit('sidebar:closed:completed', {
+        this.#eventBus.emit('sidebar:close:completed', {
             sidebarId,
             remainingIds: [...this.#openOrder]
         }, { actorId: 'SidebarManager' });
@@ -276,7 +293,7 @@ export class SidebarManagerFeature {
 
         this.#layoutEngine.applyLayout(layouts, this.#containerElement);
 
-        this.#eventBus.emit('sidebar:layout:updated', { layouts }, { actorId: 'SidebarManager' });
+        this.#eventBus.emit('sidebar:update:completed', { layouts }, { actorId: 'SidebarManager' });
 
         logger.debug('Layout recalculated', {
             openCount: this.#openOrder.length,
