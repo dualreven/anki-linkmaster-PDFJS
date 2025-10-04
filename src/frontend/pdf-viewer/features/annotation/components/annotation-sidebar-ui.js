@@ -675,7 +675,13 @@ export class AnnotationSidebarUI {
     ].join(';');
     copyIdBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      await this.#handleCopyIdClick(annotation.id);
+      console.log('[DEBUG] Copy button clicked, ID:', annotation.id);
+      try {
+        await this.#handleCopyIdClick(annotation.id);
+      } catch (error) {
+        console.error('[ERROR] Copy click handler failed:', error);
+        this.#showToast('✗ 复制失败', 'error');
+      }
     });
     copyIdBtn.addEventListener('mouseenter', () => {
       copyIdBtn.style.background = '#e3f2fd';
@@ -1002,6 +1008,7 @@ export class AnnotationSidebarUI {
    * @private
    */
   async #handleCopyIdClick(annotationId) {
+    console.log('[DEBUG] handleCopyIdClick called with ID:', annotationId);
     this.#logger.debug(`Copy annotation ID: ${annotationId}`);
 
     let success = false;
@@ -1057,11 +1064,14 @@ export class AnnotationSidebarUI {
     }
 
     // 显示结果
+    console.log('[DEBUG] Copy result - success:', success);
     if (success) {
+      console.log('[DEBUG] Showing success toast');
       this.#showCopyToast('✓ ID已复制');
       // 发出ID复制事件
       this.#eventBus.emit('pdf-viewer:annotation:id:copied', { id: annotationId });
     } else {
+      console.log('[DEBUG] Showing failure toast');
       this.#showCopyToast('✗ 复制失败');
     }
   }
@@ -1073,6 +1083,7 @@ export class AnnotationSidebarUI {
    * @private
    */
   #showToast(message, type = 'success') {
+    console.log('[DEBUG] showToast called - message:', message, 'type:', type);
     // 根据类型选择背景色
     const typeStyles = {
       success: 'background: rgba(76, 175, 80, 0.9);', // 绿色
