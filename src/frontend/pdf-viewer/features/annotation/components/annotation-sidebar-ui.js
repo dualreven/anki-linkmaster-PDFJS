@@ -644,71 +644,51 @@ export class AnnotationSidebarUI {
       content.appendChild(text);
     }
 
-    // 卡片底部（ID + 时间 + 评论）
+    // 卡片底部（拷贝ID + 时间 + 评论）
     const footer = document.createElement('div');
     footer.style.cssText = [
       'display: flex',
       'align-items: center',
       'justify-content: space-between',
-      'font-size: 11px',
+      'font-size: 12px',
       'color: #999',
       'padding-top: 8px',
       'border-top: 1px solid #f0f0f0',
       'gap: 8px'
     ].join(';');
 
-    // 左侧：ID + 复制按钮
-    const leftSection = document.createElement('div');
-    leftSection.style.cssText = [
-      'display: flex',
-      'align-items: center',
-      'gap: 4px',
-      'flex-shrink: 0'
-    ].join(';');
-
-    const idLabel = document.createElement('span');
-    idLabel.textContent = 'ID:';
-    idLabel.style.color = '#999';
-
-    const idValue = document.createElement('span');
-    idValue.textContent = annotation.id;
-    idValue.style.cssText = [
-      'font-family: monospace',
-      'color: #666',
-      'user-select: all',
-      'font-size: 11px'
-    ].join(';');
-
-    const copyBtn = document.createElement('button');
-    copyBtn.type = 'button';
-    copyBtn.textContent = '📋';
-    copyBtn.title = '复制ID';
-    copyBtn.className = 'annotation-copy-id-btn';
-    copyBtn.style.cssText = [
-      'border: none',
-      'background: transparent',
+    // 左侧：拷贝ID按钮
+    const copyIdBtn = document.createElement('button');
+    copyIdBtn.type = 'button';
+    copyIdBtn.textContent = '拷贝ID';
+    copyIdBtn.title = `复制ID: ${annotation.id}`;
+    copyIdBtn.className = 'annotation-copy-id-btn';
+    copyIdBtn.style.cssText = [
+      'border: 1px solid #ddd',
+      'background: #fff',
+      'border-radius: 4px',
       'cursor: pointer',
-      'font-size: 13px',
-      'padding: 0 2px',
-      'color: #999',
+      'font-size: 12px',
+      'padding: 2px 8px',
+      'color: #666',
       'transition: all 0.2s'
     ].join(';');
-    copyBtn.addEventListener('click', async (e) => {
+    copyIdBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       await this.#handleCopyIdClick(annotation.id);
     });
-    copyBtn.addEventListener('mouseenter', () => {
-      copyBtn.style.color = '#2196f3';
+    copyIdBtn.addEventListener('mouseenter', () => {
+      copyIdBtn.style.background = '#e3f2fd';
+      copyIdBtn.style.borderColor = '#2196f3';
+      copyIdBtn.style.color = '#2196f3';
     });
-    copyBtn.addEventListener('mouseleave', () => {
-      copyBtn.style.color = '#999';
+    copyIdBtn.addEventListener('mouseleave', () => {
+      copyIdBtn.style.background = '#fff';
+      copyIdBtn.style.borderColor = '#ddd';
+      copyIdBtn.style.color = '#666';
     });
 
-    leftSection.appendChild(idLabel);
-    leftSection.appendChild(idValue);
-    leftSection.appendChild(copyBtn);
-
-    // 右侧：时间 + 评论
+    // 右侧：时间 + 评论按钮
     const rightSection = document.createElement('div');
     rightSection.style.cssText = [
       'display: flex',
@@ -721,26 +701,41 @@ export class AnnotationSidebarUI {
     time.textContent = annotation.getFormattedDate();
     time.style.color = '#999';
 
-    const commentInfo = document.createElement('span');
+    const commentBtn = document.createElement('button');
+    commentBtn.type = 'button';
     const commentCount = annotation.getCommentCount();
-    commentInfo.textContent = commentCount > 0 ? `💬 ${commentCount}` : '💬';
-    commentInfo.title = commentCount > 0 ? `${commentCount}条评论` : '添加评论';
-    commentInfo.style.cssText = 'cursor: pointer; color: #666; transition: color 0.2s;';
-    commentInfo.addEventListener('click', (e) => {
+    commentBtn.textContent = commentCount > 0 ? `评论(${commentCount})` : '评论';
+    commentBtn.title = commentCount > 0 ? `${commentCount}条评论` : '添加评论';
+    commentBtn.className = 'annotation-comment-btn';
+    commentBtn.style.cssText = [
+      'border: 1px solid #ddd',
+      'background: #fff',
+      'border-radius: 4px',
+      'cursor: pointer',
+      'font-size: 12px',
+      'padding: 2px 8px',
+      'color: #666',
+      'transition: all 0.2s'
+    ].join(';');
+    commentBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       this.#handleCommentClick(annotation.id);
     });
-    commentInfo.addEventListener('mouseenter', () => {
-      commentInfo.style.color = '#2196f3';
+    commentBtn.addEventListener('mouseenter', () => {
+      commentBtn.style.background = '#e3f2fd';
+      commentBtn.style.borderColor = '#2196f3';
+      commentBtn.style.color = '#2196f3';
     });
-    commentInfo.addEventListener('mouseleave', () => {
-      commentInfo.style.color = '#666';
+    commentBtn.addEventListener('mouseleave', () => {
+      commentBtn.style.background = '#fff';
+      commentBtn.style.borderColor = '#ddd';
+      commentBtn.style.color = '#666';
     });
 
     rightSection.appendChild(time);
-    rightSection.appendChild(commentInfo);
+    rightSection.appendChild(commentBtn);
 
-    footer.appendChild(leftSection);
+    footer.appendChild(copyIdBtn);
     footer.appendChild(rightSection);
 
     // 组装卡片（第二期：ID移至左下角，移除整体点击事件）
