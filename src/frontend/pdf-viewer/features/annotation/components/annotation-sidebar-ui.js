@@ -389,6 +389,48 @@ export class AnnotationSidebarUI {
       (data) => this.highlightAndScrollToCard(data.id),
       { subscriberId: 'AnnotationSidebarUI' }
     ));
+
+    // 监听侧边栏关闭事件（第二期：关闭时停用所有工具）
+    this.#unsubs.push(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.CLOSED_COMPLETED,
+      (data) => this.#handleSidebarClosed(data),
+      { subscriberId: 'AnnotationSidebarUI' }
+    ));
+  }
+
+  /**
+   * 处理侧边栏关闭事件（第二期：新增）
+   * @param {Object} data - 事件数据
+   * @param {string} data.sidebarId - 关闭的侧边栏ID
+   * @private
+   */
+  #handleSidebarClosed(data) {
+    // 只处理annotation侧边栏关闭事件
+    if (data?.sidebarId !== 'annotation') {
+      return;
+    }
+
+    this.#logger.info('Annotation sidebar closed, deactivating all tools');
+
+    // 如果有激活的工具，停用它
+    if (this.#activeTool) {
+      const deactivatedTool = this.#activeTool;
+      this.#activeTool = null;
+      this.#updateToolbarState();
+
+      // 发出工具停用事件
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.TOOL.DEACTIVATE, { tool: deactivatedTool });
+      this.#logger.info(`Tool deactivated due to sidebar close: ${deactivatedTool}`);
+
+      // 显示提示
+      const modeNames = {
+        'screenshot': '截图模式',
+        'text-highlight': '选字模式',
+        'comment': '批注模式'
+      };
+      const modeName = modeNames[deactivatedTool] || '标注模式';
+      this.#showToast(`${modeName}已关闭`, 'info');
+    }
   }
 
   /**
