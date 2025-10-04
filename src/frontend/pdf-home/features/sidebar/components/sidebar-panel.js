@@ -10,10 +10,20 @@ export class SidebarPanel {
   #recentSearches = [];
   #recentOpened = [];
   #recentAdded = [];
+  #displayLimits = {
+    searches: 5,
+    opened: 5,
+    added: 5
+  };
 
-  constructor(logger, eventBus) {
+  constructor(logger, eventBus, displayLimits = {}) {
     this.#logger = logger;
     this.#eventBus = eventBus;
+    this.#displayLimits = {
+      searches: displayLimits.searches || 5,
+      opened: displayLimits.opened || 5,
+      added: displayLimits.added || 5
+    };
   }
 
   /**
@@ -38,6 +48,13 @@ export class SidebarPanel {
         <div class="sidebar-section">
           <h3 class="sidebar-section-title">
             <span>🔍 最近搜索</span>
+            <select class="sidebar-limit-select" data-type="searches">
+              <option value="5" ${this.#displayLimits.searches === 5 ? 'selected' : ''}>5条</option>
+              <option value="10" ${this.#displayLimits.searches === 10 ? 'selected' : ''}>10条</option>
+              <option value="15" ${this.#displayLimits.searches === 15 ? 'selected' : ''}>15条</option>
+              <option value="20" ${this.#displayLimits.searches === 20 ? 'selected' : ''}>20条</option>
+              <option value="30" ${this.#displayLimits.searches === 30 ? 'selected' : ''}>30条</option>
+            </select>
           </h3>
           <ul class="sidebar-list" id="recent-searches-list">
             ${this.#renderSearches()}
@@ -48,6 +65,13 @@ export class SidebarPanel {
         <div class="sidebar-section">
           <h3 class="sidebar-section-title">
             <span>📖 最近阅读</span>
+            <select class="sidebar-limit-select" data-type="opened">
+              <option value="5" ${this.#displayLimits.opened === 5 ? 'selected' : ''}>5条</option>
+              <option value="10" ${this.#displayLimits.opened === 10 ? 'selected' : ''}>10条</option>
+              <option value="15" ${this.#displayLimits.opened === 15 ? 'selected' : ''}>15条</option>
+              <option value="20" ${this.#displayLimits.opened === 20 ? 'selected' : ''}>20条</option>
+              <option value="30" ${this.#displayLimits.opened === 30 ? 'selected' : ''}>30条</option>
+            </select>
           </h3>
           <ul class="sidebar-list" id="recent-opened-list">
             ${this.#renderOpened()}
@@ -58,6 +82,13 @@ export class SidebarPanel {
         <div class="sidebar-section">
           <h3 class="sidebar-section-title">
             <span>➕ 最近添加</span>
+            <select class="sidebar-limit-select" data-type="added">
+              <option value="5" ${this.#displayLimits.added === 5 ? 'selected' : ''}>5条</option>
+              <option value="10" ${this.#displayLimits.added === 10 ? 'selected' : ''}>10条</option>
+              <option value="15" ${this.#displayLimits.added === 15 ? 'selected' : ''}>15条</option>
+              <option value="20" ${this.#displayLimits.added === 20 ? 'selected' : ''}>20条</option>
+              <option value="30" ${this.#displayLimits.added === 30 ? 'selected' : ''}>30条</option>
+            </select>
           </h3>
           <ul class="sidebar-list" id="recent-added-list">
             ${this.#renderAdded()}
@@ -76,7 +107,9 @@ export class SidebarPanel {
       return '<li class="sidebar-empty">暂无搜索记录</li>';
     }
 
+    const limit = this.#displayLimits.searches;
     return this.#recentSearches
+      .slice(0, limit)
       .map((search, index) => `
         <li class="sidebar-item" data-type="search" data-index="${index}">
           <span class="sidebar-item-icon">🔍</span>
@@ -98,7 +131,9 @@ export class SidebarPanel {
       return '<li class="sidebar-empty">暂无阅读记录</li>';
     }
 
+    const limit = this.#displayLimits.opened;
     return this.#recentOpened
+      .slice(0, limit)
       .map((pdf, index) => `
         <li class="sidebar-item" data-type="opened" data-index="${index}">
           <span class="sidebar-item-icon">📄</span>
@@ -120,7 +155,9 @@ export class SidebarPanel {
       return '<li class="sidebar-empty">暂无添加记录</li>';
     }
 
+    const limit = this.#displayLimits.added;
     return this.#recentAdded
+      .slice(0, limit)
       .map((pdf, index) => `
         <li class="sidebar-item" data-type="added" data-index="${index}">
           <span class="sidebar-item-icon">📄</span>
@@ -138,6 +175,16 @@ export class SidebarPanel {
    * @private
    */
   #attachEventListeners() {
+    // 监听下拉菜单变化
+    const limitSelects = this.#container.querySelectorAll('.sidebar-limit-select');
+    limitSelects.forEach(select => {
+      select.addEventListener('change', (e) => {
+        const type = e.target.dataset.type;
+        const newLimit = parseInt(e.target.value);
+        this.#handleLimitChange(type, newLimit);
+      });
+    });
+
     // 监听搜索项点击
     const searchList = this.#container.querySelector('#recent-searches-list');
     if (searchList) {
@@ -184,6 +231,33 @@ export class SidebarPanel {
           }
         }
       });
+    }
+  }
+
+  /**
+   * 处理显示条数变化
+   * @private
+   */
+  #handleLimitChange(type, newLimit) {
+    this.#logger.info(`[SidebarPanel] Limit changed for ${type}: ${newLimit}`);
+
+    // 更新内部状态
+    this.#displayLimits[type] = newLimit;
+
+    // 触发事件通知外部
+    this.#eventBus.emit('limit:changed', { type, limit: newLimit });
+
+    // 重新渲染对应的列表
+    switch (type) {
+      case 'searches':
+        this.updateSearches(this.#recentSearches);
+        break;
+      case 'opened':
+        this.updateOpened(this.#recentOpened);
+        break;
+      case 'added':
+        this.updateAdded(this.#recentAdded);
+        break;
     }
   }
 

@@ -24,6 +24,13 @@ export class SidebarFeature {
   #recentOpened = [];
   #recentAdded = [];
 
+  // 显示条数限制
+  #displayLimits = {
+    searches: 5,
+    opened: 5,
+    added: 5
+  };
+
   /**
    * 安装Feature
    */
@@ -81,7 +88,7 @@ export class SidebarFeature {
       return;
     }
 
-    this.#sidebarPanel = new SidebarPanel(this.#logger, this.#scopedEventBus);
+    this.#sidebarPanel = new SidebarPanel(this.#logger, this.#scopedEventBus, this.#displayLimits);
     this.#sidebarPanel.render(container);
 
     // 初始化数据
@@ -144,6 +151,14 @@ export class SidebarFeature {
       this.#logger.debug('[SidebarFeature] PDF list changed');
     });
     this.#unsubscribers.push(unsubDataChanged);
+
+    // 监听内部事件：显示条数变化
+    const unsubLimitChanged = this.#scopedEventBus.on('limit:changed', (data) => {
+      this.#logger.info('[SidebarFeature] Display limit changed:', data);
+      this.#displayLimits[data.type] = data.limit;
+      this.#saveDisplayLimits();
+    });
+    this.#unsubscribers.push(unsubLimitChanged);
 
     this.#logger.info('[SidebarFeature] Event listeners setup');
   }
@@ -266,6 +281,9 @@ export class SidebarFeature {
         this.#recentAdded = JSON.parse(addedData);
       }
 
+      // 加载显示条数设置
+      this.#loadDisplayLimits();
+
       this.#logger.info('[SidebarFeature] History loaded', {
         searches: this.#recentSearches.length,
         opened: this.#recentOpened.length,
@@ -273,6 +291,40 @@ export class SidebarFeature {
       });
     } catch (error) {
       this.#logger.error('[SidebarFeature] Failed to load history', error);
+    }
+  }
+
+  /**
+   * 从localStorage加载显示条数设置
+   * @private
+   */
+  #loadDisplayLimits() {
+    try {
+      const limitsData = localStorage.getItem('pdf-home:sidebar-display-limits');
+      if (limitsData) {
+        const limits = JSON.parse(limitsData);
+        this.#displayLimits = {
+          searches: limits.searches || 5,
+          opened: limits.opened || 5,
+          added: limits.added || 5
+        };
+        this.#logger.info('[SidebarFeature] Display limits loaded:', this.#displayLimits);
+      }
+    } catch (error) {
+      this.#logger.error('[SidebarFeature] Failed to load display limits', error);
+    }
+  }
+
+  /**
+   * 保存显示条数设置到localStorage
+   * @private
+   */
+  #saveDisplayLimits() {
+    try {
+      localStorage.setItem('pdf-home:sidebar-display-limits', JSON.stringify(this.#displayLimits));
+      this.#logger.debug('[SidebarFeature] Display limits saved:', this.#displayLimits);
+    } catch (error) {
+      this.#logger.error('[SidebarFeature] Failed to save display limits', error);
     }
   }
 

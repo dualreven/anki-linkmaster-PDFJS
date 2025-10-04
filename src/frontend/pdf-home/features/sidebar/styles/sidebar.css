@@ -29,6 +29,28 @@
   justify-content: space-between;
 }
 
+/* 下拉菜单样式 */
+.sidebar-limit-select {
+  font-size: 12px;
+  padding: 2px 6px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  background: white;
+  color: #666;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.sidebar-limit-select:hover {
+  border-color: #007bff;
+}
+
+.sidebar-limit-select:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.1);
+}
+
 /* 列表样式 */
 .sidebar-list {
   list-style: none;
