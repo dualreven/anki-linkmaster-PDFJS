@@ -675,11 +675,10 @@ export class AnnotationSidebarUI {
     ].join(';');
     copyIdBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      console.log('[DEBUG] Copy button clicked, ID:', annotation.id);
       try {
         await this.#handleCopyIdClick(annotation.id);
       } catch (error) {
-        console.error('[ERROR] Copy click handler failed:', error);
+        this.#logger.error('Copy click handler failed:', error);
         this.#showToast('✗ 复制失败', 'error');
       }
     });
@@ -1008,93 +1007,52 @@ export class AnnotationSidebarUI {
    * @private
    */
   async #handleCopyIdClick(annotationId) {
-    console.log('[DEBUG] handleCopyIdClick called with ID:', annotationId);
     this.#logger.debug(`Copy annotation ID: ${annotationId}`);
 
     let success = false;
 
-    // 方法1: 尝试使用 Clipboard API（带超时保护）
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      console.log('[DEBUG] Trying Clipboard API...');
-      try {
-        // 添加超时保护
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Clipboard API timeout')), 1000)
-        );
+    // 直接使用 execCommand 方法（PyQt WebEngine中Clipboard API不可用）
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = annotationId;
+      textarea.style.cssText = [
+        'position: fixed',
+        'top: 0',
+        'left: 0',
+        'width: 2em',
+        'height: 2em',
+        'padding: 0',
+        'border: none',
+        'outline: none',
+        'boxShadow: none',
+        'background: transparent',
+        'opacity: 0',
+        'pointer-events: none'
+      ].join(';');
 
-        await Promise.race([
-          navigator.clipboard.writeText(annotationId),
-          timeoutPromise
-        ]);
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
 
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textarea);
+
+      if (successful) {
         success = true;
-        console.log('[DEBUG] Clipboard API succeeded');
-        this.#logger.debug('Copied using Clipboard API');
-      } catch (error) {
-        console.log('[DEBUG] Clipboard API failed:', error.message);
-        this.#logger.warn('Clipboard API failed, trying fallback method:', error);
+        this.#logger.debug('Copied using execCommand');
+      } else {
+        this.#logger.error('execCommand returned false');
       }
-    } else {
-      console.log('[DEBUG] Clipboard API not available');
-    }
-
-    // 方法2: 降级方案 - 使用 textarea + execCommand
-    if (!success) {
-      console.log('[DEBUG] Trying fallback method (execCommand)...');
-      try {
-        const textarea = document.createElement('textarea');
-        textarea.value = annotationId;
-        textarea.style.cssText = [
-          'position: fixed',
-          'top: 0',
-          'left: 0',
-          'width: 2em',
-          'height: 2em',
-          'padding: 0',
-          'border: none',
-          'outline: none',
-          'boxShadow: none',
-          'background: transparent',
-          'opacity: 0',
-          'pointer-events: none'
-        ].join(';');
-
-        console.log('[DEBUG] Appending textarea...');
-        document.body.appendChild(textarea);
-
-        console.log('[DEBUG] Focusing textarea...');
-        textarea.focus();
-
-        console.log('[DEBUG] Selecting text...');
-        textarea.select();
-
-        console.log('[DEBUG] Executing copy command...');
-        const successful = document.execCommand('copy');
-
-        console.log('[DEBUG] execCommand result:', successful);
-        document.body.removeChild(textarea);
-
-        if (successful) {
-          success = true;
-          this.#logger.debug('Copied using execCommand');
-        } else {
-          this.#logger.error('execCommand returned false');
-        }
-      } catch (error) {
-        console.log('[DEBUG] Fallback method error:', error.message);
-        this.#logger.error('Fallback copy method failed:', error);
-      }
+    } catch (error) {
+      this.#logger.error('Copy failed:', error);
     }
 
     // 显示结果
-    console.log('[DEBUG] Copy result - success:', success);
     if (success) {
-      console.log('[DEBUG] Showing success toast');
       this.#showCopyToast('✓ ID已复制');
-      // 发出ID复制事件
-      this.#eventBus.emit('pdf-viewer:annotation:id:copied', { id: annotationId });
+      // 发出ID复制事件（修正为3段格式）
+      this.#eventBus.emit('annotation:id-copy:success', { id: annotationId });
     } else {
-      console.log('[DEBUG] Showing failure toast');
       this.#showCopyToast('✗ 复制失败');
     }
   }
@@ -1106,7 +1064,6 @@ export class AnnotationSidebarUI {
    * @private
    */
   #showToast(message, type = 'success') {
-    console.log('[DEBUG] showToast called - message:', message, 'type:', type);
     // 根据类型选择背景色
     const typeStyles = {
       success: 'background: rgba(76, 175, 80, 0.9);', // 绿色
