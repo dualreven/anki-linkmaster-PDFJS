@@ -252,7 +252,26 @@ export class AnnotationSidebarUI {
       this.#updateToolbarState();
       this.#logger.info(`Tool activated: ${toolId}`);
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.TOOL.ACTIVATE, { tool: toolId });
+
+      // 显示模式切换提示
+      this.#showModeToast(toolId);
     }
+  }
+
+  /**
+   * 显示模式切换提示（第二期：新增）
+   * @param {string} toolId - 工具ID
+   * @private
+   */
+  #showModeToast(toolId) {
+    const modeNames = {
+      'screenshot': '📷 已启动截图模式',
+      'text-highlight': '✏️ 已启动选字模式',
+      'comment': '📝 已启动批注模式'
+    };
+
+    const message = modeNames[toolId] || `已启动${toolId}模式`;
+    this.#showToast(message, 'info');
   }
 
   /**
@@ -793,11 +812,20 @@ export class AnnotationSidebarUI {
   }
 
   /**
-   * 显示复制提示（第二期：新增）
+   * 显示Toast提示（第二期：通用toast方法）
    * @param {string} message - 提示消息
+   * @param {string} type - 提示类型 (success|info|warning|error)
    * @private
    */
-  #showCopyToast(message) {
+  #showToast(message, type = 'success') {
+    // 根据类型选择背景色
+    const typeStyles = {
+      success: 'background: rgba(76, 175, 80, 0.9);', // 绿色
+      info: 'background: rgba(33, 150, 243, 0.9);',    // 蓝色
+      warning: 'background: rgba(255, 152, 0, 0.9);',  // 橙色
+      error: 'background: rgba(244, 67, 54, 0.9);'     // 红色
+    };
+
     // 创建Toast提示
     const toast = document.createElement('div');
     toast.textContent = message;
@@ -806,24 +834,26 @@ export class AnnotationSidebarUI {
       'top: 20px',
       'left: 50%',
       'transform: translateX(-50%)',
-      'background: rgba(0, 0, 0, 0.8)',
+      typeStyles[type] || typeStyles.success,
       'color: #fff',
-      'padding: 8px 16px',
+      'padding: 10px 20px',
       'border-radius: 4px',
       'font-size: 14px',
+      'font-weight: 500',
+      'box-shadow: 0 2px 8px rgba(0,0,0,0.2)',
       'z-index: 10000',
-      'animation: fadeInOut 2s ease-in-out'
+      'animation: fadeInOut 2.5s ease-in-out'
     ].join(';');
 
     // 添加动画样式
-    if (!document.querySelector('#copy-toast-animation')) {
+    if (!document.querySelector('#annotation-toast-animation')) {
       const style = document.createElement('style');
-      style.id = 'copy-toast-animation';
+      style.id = 'annotation-toast-animation';
       style.textContent = `
         @keyframes fadeInOut {
           0% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
           10% { opacity: 1; transform: translateX(-50%) translateY(0); }
-          90% { opacity: 1; transform: translateX(-50%) translateY(0); }
+          85% { opacity: 1; transform: translateX(-50%) translateY(0); }
           100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
         }
       `;
@@ -832,10 +862,20 @@ export class AnnotationSidebarUI {
 
     document.body.appendChild(toast);
 
-    // 2秒后移除
+    // 2.5秒后移除
     setTimeout(() => {
       toast.remove();
-    }, 2000);
+    }, 2500);
+  }
+
+  /**
+   * 显示复制提示（第二期：调用通用toast方法）
+   * @param {string} message - 提示消息
+   * @private
+   */
+  #showCopyToast(message) {
+    const isSuccess = message.includes('✓');
+    this.#showToast(message, isSuccess ? 'success' : 'error');
   }
 
   /**
