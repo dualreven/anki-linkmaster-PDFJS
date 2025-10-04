@@ -6,6 +6,7 @@
 
 import { Bookmark } from '../models/bookmark.js';
 import { getLogger } from '../../../../common/utils/logger.js';
+import { createDefaultBookmarkStorage } from './bookmark-storage.js';
 
 /**
  * BookmarkManager 书签管理类
@@ -34,6 +35,13 @@ export class BookmarkManager {
   #pdfId;
 
   /**
+   * 书签存储实例
+   * @type {import('./bookmark-storage.js').IBookmarkStorage}
+   * @private
+   */
+  #storage;
+
+  /**
    * 书签集合（Map<id, Bookmark>）
    * @type {Map<string, Bookmark>}
    * @private
@@ -56,6 +64,7 @@ export class BookmarkManager {
     this.#logger = getLogger('BookmarkManager');
     this.#eventBus = eventBus;
     this.#pdfId = pdfId;
+    this.#storage = createDefaultBookmarkStorage();
   }
 
   /**
@@ -71,9 +80,9 @@ export class BookmarkManager {
   /**
    * 添加书签
    * @param {Object} bookmarkData - 书签数据
-   * @returns {{success: boolean, bookmarkId?: string, error?: string}}
+   * @returns {Promise<{success: boolean, bookmarkId?: string, error?: string}>}
    */
-  addBookmark(bookmarkData) {
+  async addBookmark(bookmarkData) {
     try {
       const bookmark = new Bookmark(bookmarkData);
 
@@ -102,7 +111,7 @@ export class BookmarkManager {
       }
 
       // 保存到存储
-      this.saveToStorage();
+      await this.saveToStorage();
 
       this.#logger.info(`Bookmark added: ${bookmark.id} (${bookmark.name})`);
       return {
@@ -122,9 +131,9 @@ export class BookmarkManager {
    * 删除书签
    * @param {string} bookmarkId - 书签ID
    * @param {boolean} [cascadeDelete=true] - 是否级联删除子书签
-   * @returns {{success: boolean, deletedIds?: string[], error?: string}}
+   * @returns {Promise<{success: boolean, deletedIds?: string[], error?: string}>}
    */
-  deleteBookmark(bookmarkId, cascadeDelete = true) {
+  async deleteBookmark(bookmarkId, cascadeDelete = true) {
     try {
       const bookmark = this.#bookmarks.get(bookmarkId);
       if (!bookmark) {
@@ -169,7 +178,7 @@ export class BookmarkManager {
       deletedIds.push(bookmarkId);
 
       // 保存到存储
-      this.saveToStorage();
+      await this.saveToStorage();
 
       this.#logger.info(`Bookmark deleted: ${bookmarkId}, total deleted: ${deletedIds.length}`);
       return {
@@ -189,9 +198,9 @@ export class BookmarkManager {
    * 更新书签
    * @param {string} bookmarkId - 书签ID
    * @param {Object} updates - 要更新的字段
-   * @returns {{success: boolean, updatedBookmark?: Bookmark, error?: string}}
+   * @returns {Promise<{success: boolean, updatedBookmark?: Bookmark, error?: string}>}
    */
-  updateBookmark(bookmarkId, updates) {
+  async updateBookmark(bookmarkId, updates) {
     try {
       const bookmark = this.#bookmarks.get(bookmarkId);
       if (!bookmark) {
@@ -215,7 +224,7 @@ export class BookmarkManager {
       }
 
       // 保存到存储
-      this.saveToStorage();
+      await this.saveToStorage();
 
       this.#logger.info(`Bookmark updated: ${bookmarkId}`);
       return {
@@ -236,9 +245,9 @@ export class BookmarkManager {
    * @param {string} bookmarkId - 被移动的书签ID
    * @param {string|null} newParentId - 新的父书签ID（null表示移到根级）
    * @param {number} newIndex - 新的排序位置
-   * @returns {{success: boolean, error?: string}}
+   * @returns {Promise<{success: boolean, error?: string}>}
    */
-  reorderBookmarks(bookmarkId, newParentId, newIndex) {
+  async reorderBookmarks(bookmarkId, newParentId, newIndex) {
     try {
       const bookmark = this.#bookmarks.get(bookmarkId);
       if (!bookmark) {
@@ -248,16 +257,24 @@ export class BookmarkManager {
         };
       }
 
+      this.#logger.info(`📋 Reorder start: ${bookmark.name} (${bookmarkId})`);
+      this.#logger.info(`  From: parent=${bookmark.parentId || 'root'}, order=${bookmark.order}`);
+      this.#logger.info(`  To: parent=${newParentId || 'root'}, index=${newIndex}`);
+
       // 从原位置移除
       if (bookmark.parentId) {
         const oldParent = this.#bookmarks.get(bookmark.parentId);
         if (oldParent) {
+          this.#logger.info(`  Removing from parent: ${oldParent.name} (children count before: ${oldParent.children.length})`);
           oldParent.removeChild(bookmarkId);
+          this.#logger.info(`  Removed (children count after: ${oldParent.children.length})`);
         }
       } else {
         const index = this.#rootBookmarkIds.indexOf(bookmarkId);
+        this.#logger.info(`  Removing from root: index=${index}, root count before: ${this.#rootBookmarkIds.length}`);
         if (index !== -1) {
           this.#rootBookmarkIds.splice(index, 1);
+          this.#logger.info(`  Removed from root, count after: ${this.#rootBookmarkIds.length}`);
         }
       }
 
@@ -273,21 +290,26 @@ export class BookmarkManager {
             error: `New parent not found: ${newParentId}`
           };
         }
+        this.#logger.info(`  Adding to parent: ${newParent.name} (children count before: ${newParent.children.length})`);
         // 插入到指定位置
         newParent.children.splice(newIndex, 0, bookmark);
         // 重新计算order
         newParent.children.forEach((child, i) => {
           child.order = i;
         });
+        this.#logger.info(`  Added to parent (children count after: ${newParent.children.length})`);
       } else {
+        this.#logger.info(`  Adding to root at index ${newIndex}, root count before: ${this.#rootBookmarkIds.length}`);
         // 插入到根列表
         this.#rootBookmarkIds.splice(newIndex, 0, bookmarkId);
+        this.#logger.info(`  Added to root, count after: ${this.#rootBookmarkIds.length}`);
+        this.#logger.info(`  Root IDs: ${this.#rootBookmarkIds.join(', ')}`);
       }
 
       // 保存到存储
-      this.saveToStorage();
+      await this.saveToStorage();
 
-      this.#logger.info(`Bookmark reordered: ${bookmarkId} to ${newParentId || 'root'}[${newIndex}]`);
+      this.#logger.info(`✅ Bookmark reordered successfully: ${bookmarkId} to ${newParentId || 'root'}[${newIndex}]`);
       return { success: true };
     } catch (error) {
       this.#logger.error('Failed to reorder bookmark:', error);
@@ -316,20 +338,20 @@ export class BookmarkManager {
   }
 
   /**
-   * 从LocalStorage加载书签
+   * 从存储加载书签
    * @returns {Promise<void>}
    */
   async loadFromStorage() {
     try {
-      const storageKey = `pdf-viewer-bookmarks-${this.#pdfId}`;
-      const data = localStorage.getItem(storageKey);
+      const data = await this.#storage.load(this.#pdfId);
 
       if (!data) {
-        this.#logger.info('No bookmarks found in storage');
+        this.#logger.info(`❌ No bookmarks found in storage for PDF: ${this.#pdfId}`);
         return;
       }
 
-      const { bookmarks, rootIds } = JSON.parse(data);
+      const { bookmarks, rootIds } = data;
+      this.#logger.info(`✅ Found stored data: ${bookmarks.length} bookmarks, ${rootIds.length} root IDs`);
 
       // 重建bookmarks Map
       this.#bookmarks.clear();
@@ -340,27 +362,21 @@ export class BookmarkManager {
 
       this.#rootBookmarkIds = rootIds || [];
 
-      this.#logger.info(`Loaded ${this.#bookmarks.size} bookmarks from storage`);
+      this.#logger.info(`✅ Loaded ${this.#bookmarks.size} bookmarks from storage`);
     } catch (error) {
       this.#logger.error('Failed to load bookmarks from storage:', error);
     }
   }
 
   /**
-   * 保存书签到LocalStorage
-   * @returns {void}
+   * 保存书签到存储
+   * @returns {Promise<void>}
    */
-  saveToStorage() {
+  async saveToStorage() {
     try {
-      const storageKey = `pdf-viewer-bookmarks-${this.#pdfId}`;
-      const data = {
-        bookmarks: Array.from(this.#bookmarks.values()).map(b => b.toJSON()),
-        rootIds: this.#rootBookmarkIds,
-        savedAt: new Date().toISOString()
-      };
-
-      localStorage.setItem(storageKey, JSON.stringify(data));
-      this.#logger.debug('Bookmarks saved to storage');
+      const bookmarks = Array.from(this.#bookmarks.values()).map(b => b.toJSON());
+      await this.#storage.save(this.#pdfId, bookmarks, this.#rootBookmarkIds);
+      this.#logger.info(`✅ Bookmarks saved to storage: PDF=${this.#pdfId}, count=${this.#bookmarks.size}`);
     } catch (error) {
       this.#logger.error('Failed to save bookmarks to storage:', error);
     }
@@ -368,13 +384,115 @@ export class BookmarkManager {
 
   /**
    * 清空所有书签
-   * @returns {void}
+   * @returns {Promise<void>}
    */
-  clearAll() {
+  async clearAll() {
     this.#bookmarks.clear();
     this.#rootBookmarkIds = [];
-    this.saveToStorage();
+    await this.#storage.clear(this.#pdfId);
     this.#logger.info('All bookmarks cleared');
+  }
+
+  /**
+   * 批量导入PDF原生书签
+   * @param {Array} nativeBookmarks - PDF原生书签数组（格式：{ title, dest, items: [] }）
+   * @param {Function} parseDestFunc - dest解析函数，返回Promise<number|null>
+   * @returns {Promise<{success: boolean, count: number, error?: string}>}
+   */
+  async importNativeBookmarks(nativeBookmarks, parseDestFunc) {
+    try {
+      this.#logger.info(`Importing ${nativeBookmarks.length} native bookmarks...`);
+
+      // 递归转换并导入书签
+      const importedCount = await this.#importBookmarksRecursive(
+        nativeBookmarks,
+        parseDestFunc,
+        null, // 根级书签没有parentId
+        0     // 初始order
+      );
+
+      // 保存到存储
+      await this.saveToStorage();
+
+      this.#logger.info(`Successfully imported ${importedCount} native bookmarks`);
+      return {
+        success: true,
+        count: importedCount
+      };
+    } catch (error) {
+      this.#logger.error('Failed to import native bookmarks:', error);
+      return {
+        success: false,
+        count: 0,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * 递归导入书签（私有辅助方法）
+   * @param {Array} nativeBookmarks - 原生书签数组
+   * @param {Function} parseDestFunc - dest解析函数
+   * @param {string|null} parentId - 父书签ID
+   * @param {number} startOrder - 起始排序号
+   * @returns {Promise<number>} 导入的书签总数
+   * @private
+   */
+  async #importBookmarksRecursive(nativeBookmarks, parseDestFunc, parentId, startOrder) {
+    let count = 0;
+    let currentOrder = startOrder;
+
+    for (const nativeBookmark of nativeBookmarks) {
+      try {
+        // 解析dest获取页码
+        const pageNumber = await parseDestFunc(nativeBookmark);
+        if (!pageNumber) {
+          this.#logger.warn(`Skipping bookmark with invalid dest: ${nativeBookmark.title}`);
+          continue;
+        }
+
+        // 创建Bookmark实例
+        const bookmark = new Bookmark({
+          name: nativeBookmark.title || '(未命名)',
+          type: 'page',
+          pageNumber: pageNumber,
+          parentId: parentId,
+          order: currentOrder
+        });
+
+        // 添加到集合
+        this.#bookmarks.set(bookmark.id, bookmark);
+
+        // 如果是根级书签，添加到根列表
+        if (!parentId) {
+          this.#rootBookmarkIds.push(bookmark.id);
+        } else {
+          // 如果有父书签，添加到父书签的children
+          const parent = this.#bookmarks.get(parentId);
+          if (parent) {
+            parent.children.push(bookmark);
+          }
+        }
+
+        count++;
+        currentOrder++;
+
+        // 递归导入子书签
+        if (nativeBookmark.items && nativeBookmark.items.length > 0) {
+          const childCount = await this.#importBookmarksRecursive(
+            nativeBookmark.items,
+            parseDestFunc,
+            bookmark.id, // 当前书签作为父书签
+            0 // 子书签从0开始排序
+          );
+          count += childCount;
+        }
+      } catch (error) {
+        this.#logger.error(`Failed to import bookmark: ${nativeBookmark.title}`, error);
+      }
+    }
+
+    return count;
   }
 
   /**

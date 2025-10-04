@@ -195,6 +195,13 @@ export class PDFBookmarkFeature {
    */
   #getPdfId() {
     try {
+      // 优先从URL参数获取pdf-id（最可靠）
+      const urlParams = new URLSearchParams(window.location.search);
+      const pdfId = urlParams.get('pdf-id');
+      if (pdfId) {
+        return pdfId;
+      }
+
       // 尝试从container获取pdfManager
       const pdfManager = this.#container?.resolve('pdfManager');
       if (pdfManager && pdfManager.currentPdfId) {
@@ -245,17 +252,17 @@ export class PDFBookmarkFeature {
       this.#logger.info('🔍 [DEBUG] getCurrentPDFDocument result:', { hasPdfDocument: !!pdfDocument });
 
       if (pdfDocument) {
-        this.#logger.info('✅ PDF already loaded, fetching native bookmarks...');
+        this.#logger.info('✅ PDF already loaded, checking if native bookmarks need to be imported...');
         await this.#handlePdfLoaded({ pdfDocument });
       } else {
         this.#logger.info('⏳ PDF not yet loaded, waiting for load event');
-        // PDF未加载时，显示空的书签列表（只有自定义书签，如果有的话）
-        this.#refreshBookmarkList([]);
+        // PDF未加载时，显示本地存储的书签（如果有的话）
+        this.#refreshBookmarkList();
       }
     } catch (error) {
       this.#logger.error('❌ Failed to try load native bookmarks:', error);
-      // 出错时也显示空列表
-      this.#refreshBookmarkList([]);
+      // 出错时也刷新列表
+      this.#refreshBookmarkList();
     }
   }
 
@@ -336,8 +343,8 @@ export class PDFBookmarkFeature {
 
     this.#dialog.showAdd({
       currentPage,
-      onConfirm: (bookmarkData) => {
-        const result = this.#bookmarkManager.addBookmark(bookmarkData);
+      onConfirm: async (bookmarkData) => {
+        const result = await this.#bookmarkManager.addBookmark(bookmarkData);
 
         if (result.success) {
           this.#logger.info(`Bookmark created: ${result.bookmarkId}`);
@@ -382,8 +389,8 @@ export class PDFBookmarkFeature {
 
     this.#dialog.showEdit({
       bookmark,
-      onConfirm: (updates) => {
-        const result = this.#bookmarkManager.updateBookmark(bookmarkId, updates);
+      onConfirm: async (updates) => {
+        const result = await this.#bookmarkManager.updateBookmark(bookmarkId, updates);
 
         if (result.success) {
           this.#logger.info(`Bookmark updated: ${bookmarkId}`);
@@ -431,8 +438,8 @@ export class PDFBookmarkFeature {
     this.#dialog.showDelete({
       bookmark,
       childCount,
-      onConfirm: (cascadeDelete) => {
-        const result = this.#bookmarkManager.deleteBookmark(bookmarkId, cascadeDelete);
+      onConfirm: async (cascadeDelete) => {
+        const result = await this.#bookmarkManager.deleteBookmark(bookmarkId, cascadeDelete);
 
         if (result.success) {
           this.#logger.info(`Bookmark deleted: ${bookmarkId}, count: ${result.deletedIds.length}`);
@@ -465,9 +472,9 @@ export class PDFBookmarkFeature {
    * @param {Object} data - 请求数据
    * @private
    */
-  #handleReorderRequest(data) {
+  async #handleReorderRequest(data) {
     const { bookmarkId, newParentId, newIndex } = data;
-    const result = this.#bookmarkManager.reorderBookmarks(bookmarkId, newParentId, newIndex);
+    const result = await this.#bookmarkManager.reorderBookmarks(bookmarkId, newParentId, newIndex);
 
     if (result.success) {
       this.#logger.info(`Bookmark reordered: ${bookmarkId}`);
@@ -504,70 +511,76 @@ export class PDFBookmarkFeature {
         return;
       }
 
-      this.#logger.info('📄 PDF loaded, loading native bookmarks...');
+      // 检查本地是否已有书签
+      const localBookmarks = this.#bookmarkManager.getAllBookmarks();
+      const hasLocalBookmarks = localBookmarks.length > 0;
 
-      // 获取PDF原生书签
-      const nativeBookmarks = await this.#bookmarkDataProvider.getBookmarks(data.pdfDocument);
+      this.#logger.info(`📄 PDF loaded, local bookmarks count: ${localBookmarks.length}`);
 
-      this.#logger.info(`📚 Loaded ${nativeBookmarks.length} native bookmarks`);
+      if (!hasLocalBookmarks) {
+        // 本地为空时，尝试导入PDF原生书签
+        this.#logger.info('📚 No local bookmarks found, importing native bookmarks...');
 
-      // 刷新书签列表（包含原生书签）
-      this.#refreshBookmarkList(nativeBookmarks);
+        try {
+          // 获取PDF原生书签
+          const nativeBookmarks = await this.#bookmarkDataProvider.getBookmarks(data.pdfDocument);
+          this.#logger.info(`✅ Fetched ${nativeBookmarks.length} native bookmarks from PDF`);
+
+          if (nativeBookmarks.length > 0) {
+            // 导入原生书签到BookmarkManager
+            const result = await this.#bookmarkManager.importNativeBookmarks(
+              nativeBookmarks,
+              (bookmark) => this.#parseBookmarkDest(bookmark)
+            );
+
+            if (result.success) {
+              this.#logger.info(`✅ Successfully imported ${result.count} native bookmarks to local storage`);
+            } else {
+              this.#logger.error(`❌ Failed to import native bookmarks: ${result.error}`);
+            }
+          } else {
+            this.#logger.info('ℹ️ No native bookmarks found in PDF');
+          }
+        } catch (error) {
+          this.#logger.error('❌ Failed to fetch or import native bookmarks:', error);
+        }
+      } else {
+        this.#logger.info('ℹ️ Local bookmarks already exist, skipping native bookmark import');
+      }
+
+      // 刷新书签列表（从BookmarkManager读取）
+      this.#refreshBookmarkList();
     } catch (error) {
-      this.#logger.error('❌ Failed to load native bookmarks:', error);
-      // 即使失败也要刷新，至少显示自定义书签
-      this.#refreshBookmarkList([]);
+      this.#logger.error('❌ Failed to handle PDF loaded event:', error);
+      // 即使失败也要刷新列表
+      this.#refreshBookmarkList();
     }
   }
 
   /**
-   * 刷新书签列表显示
-   * @param {Array} nativeBookmarks - PDF原生书签（可选）
+   * 刷新书签列表显示（从BookmarkManager读取所有书签）
    * @private
    */
-  #refreshBookmarkList(nativeBookmarks = []) {
-    this.#logger.info('🔍 [DEBUG] #refreshBookmarkList called with nativeBookmarks:', nativeBookmarks.length);
+  #refreshBookmarkList() {
+    const bookmarks = this.#bookmarkManager.getAllBookmarks();
+    this.#logger.info('🔍 [DEBUG] #refreshBookmarkList called, bookmarks from manager:', bookmarks.length);
 
-    const customBookmarks = this.#bookmarkManager.getAllBookmarks();
-    this.#logger.info('🔍 [DEBUG] customBookmarks from manager:', customBookmarks.length);
-
-    // 将自定义书签转换为与PDF原生书签兼容的格式
-    const formattedCustomBookmarks = this.#formatBookmarksForDisplay(customBookmarks);
-
-    // 合并原生书签和自定义书签（原生书签在前）
-    const allBookmarks = [...nativeBookmarks, ...formattedCustomBookmarks];
-    this.#logger.info('🔍 [DEBUG] Total bookmarks to emit:', allBookmarks.length, 'Event:', PDF_VIEWER_EVENTS.BOOKMARK.LOAD.SUCCESS);
+    // 直接发送 Bookmark 模型数据（不再转换）
+    this.#logger.info('🔍 [DEBUG] Total bookmarks to emit:', bookmarks.length, 'Event:', PDF_VIEWER_EVENTS.BOOKMARK.LOAD.SUCCESS);
 
     // 发出全局事件（跨Feature通信，不使用命名空间）
     // 注意：BookmarkSidebarUI 使用全局EventBus监听，所以这里必须用 emitGlobal()
     this.#eventBus.emitGlobal(
       PDF_VIEWER_EVENTS.BOOKMARK.LOAD.SUCCESS,
       {
-        bookmarks: allBookmarks,
-        count: this.#countBookmarks(allBookmarks),
-        source: nativeBookmarks.length > 0 ? 'mixed' : 'local'
+        bookmarks: bookmarks,  // 直接使用 Bookmark 模型
+        count: this.#countBookmarks(bookmarks),
+        source: 'local'
       },
       { actorId: 'PDFBookmarkFeature' }
     );
 
-    this.#logger.info(`✅ Bookmark list refreshed: ${nativeBookmarks.length} native + ${customBookmarks.length} custom, event emitted`);
-  }
-
-  /**
-   * 格式化书签数据用于显示
-   * @param {Array} bookmarks - 书签数组
-   * @returns {Array} 格式化后的书签数组
-   * @private
-   */
-  #formatBookmarksForDisplay(bookmarks) {
-    return bookmarks.map(bookmark => ({
-      id: bookmark.id,
-      title: bookmark.name,
-      dest: bookmark.pageNumber, // 简化处理，实际应该是dest对象
-      items: bookmark.children && bookmark.children.length > 0
-        ? this.#formatBookmarksForDisplay(bookmark.children)
-        : []
-    }));
+    this.#logger.info(`✅ Bookmark list refreshed: ${bookmarks.length} bookmarks, event emitted`);
   }
 
   /**
@@ -611,12 +624,12 @@ export class PDFBookmarkFeature {
         return;
       }
 
-      this.#logger.info(`开始导航到书签: ${bookmark.title}`);
+      this.#logger.info(`开始导航到书签: ${bookmark.name}`);
 
       // 解析书签dest获取页码
       const pageNumber = await this.#parseBookmarkDest(bookmark);
       if (!pageNumber) {
-        this.#logger.warn(`无法解析书签dest: ${bookmark.title}`);
+        this.#logger.warn(`无法解析书签dest: ${bookmark.name}`);
         this.#eventBus.emitGlobal(
           PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED,
           { error: '无法解析书签目标页码' },
@@ -663,13 +676,26 @@ export class PDFBookmarkFeature {
 
   /**
    * 解析书签dest获取页码
-   * @param {Object} bookmark - 书签对象
+   * @param {Object} bookmark - 书签对象（Bookmark 模型）
    * @returns {Promise<number|null>} 页码（从1开始），失败返回null
    * @private
    */
   async #parseBookmarkDest(bookmark) {
     try {
+      // 优先使用 Bookmark 模型的 pageNumber 字段
+      if (bookmark.pageNumber && typeof bookmark.pageNumber === 'number') {
+        return bookmark.pageNumber;  // Bookmark 模型已经是从1开始的页码
+      }
+
+      // 兼容旧格式：如果有 dest 字段，尝试解析
       const dest = bookmark.dest;
+
+      // 情况1：dest直接是数字（本地导入的书签，已经是页码）
+      if (typeof dest === 'number') {
+        return dest;  // 已经是从1开始的页码
+      }
+
+      // 情况2：dest是数组（PDF原生书签）
       if (!dest || !Array.isArray(dest) || dest.length === 0) {
         this.#logger.warn('书签dest无效或为空');
         return null;

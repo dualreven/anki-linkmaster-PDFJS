@@ -48,6 +48,13 @@ export class BookmarkToolbar {
   #selectedBookmarkId = null;
 
   /**
+   * 是否处于排序模式
+   * @type {boolean}
+   * @private
+   */
+  #sortMode = false;
+
+  /**
    * @param {Object} options - 配置选项
    * @param {Object} options.eventBus - 事件总线
    */
@@ -88,7 +95,6 @@ export class BookmarkToolbar {
     this.#buttons.add = this.#createButton({
       id: 'add',
       icon: '➕',
-      title: '添加书签',
       tooltip: '将当前页添加为书签'
     });
 
@@ -96,7 +102,6 @@ export class BookmarkToolbar {
     this.#buttons.delete = this.#createButton({
       id: 'delete',
       icon: '🗑️',
-      title: '删除',
       tooltip: '删除选中的书签'
     });
 
@@ -104,7 +109,6 @@ export class BookmarkToolbar {
     this.#buttons.edit = this.#createButton({
       id: 'edit',
       icon: '✏️',
-      title: '编辑',
       tooltip: '编辑选中的书签'
     });
 
@@ -112,23 +116,19 @@ export class BookmarkToolbar {
     const separator = document.createElement('div');
     separator.style.cssText = 'width: 1px; height: 20px; background-color: #ccc; margin: 0 4px;';
 
-    // 拖动提示图标
-    const dragHint = document.createElement('div');
-    dragHint.innerHTML = '⇅';
-    dragHint.title = '提示：可以拖动书签进行排序';
-    dragHint.style.cssText = `
-      font-size: 16px;
-      color: #666;
-      cursor: help;
-      padding: 4px 8px;
-    `;
+    // 排序按钮
+    this.#buttons.sort = this.#createButton({
+      id: 'sort',
+      icon: '⇅',
+      tooltip: '进入排序模式'
+    });
 
     // 组装工具栏
     toolbar.appendChild(this.#buttons.add);
     toolbar.appendChild(this.#buttons.delete);
     toolbar.appendChild(this.#buttons.edit);
     toolbar.appendChild(separator);
-    toolbar.appendChild(dragHint);
+    toolbar.appendChild(this.#buttons.sort);
 
     return toolbar;
   }
@@ -138,39 +138,40 @@ export class BookmarkToolbar {
    * @param {Object} config - 按钮配置
    * @param {string} config.id - 按钮ID
    * @param {string} config.icon - 按钮图标
-   * @param {string} config.title - 按钮文本
    * @param {string} config.tooltip - 提示文本
    * @returns {HTMLElement} 按钮元素
    * @private
    */
-  #createButton({ id, icon, title, tooltip }) {
+  #createButton({ id, icon, tooltip }) {
     const button = document.createElement('button');
     button.type = 'button';
     button.dataset.action = id;
     button.title = tooltip;
-    button.innerHTML = `<span style="font-size:16px;margin-right:4px;">${icon}</span><span>${title}</span>`;
+    button.innerHTML = `<span style="font-size:20px;">${icon}</span>`;
     button.style.cssText = `
       display: flex;
       align-items: center;
-      padding: 6px 12px;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      padding: 0;
       border: 1px solid #ccc;
       border-radius: 4px;
       background-color: white;
       cursor: pointer;
-      font-size: 13px;
       transition: all 0.2s;
     `;
 
     // 悬停效果
     button.addEventListener('mouseenter', () => {
-      if (!button.disabled) {
+      if (!button.disabled && !button.dataset.active) {
         button.style.backgroundColor = '#e8e8e8';
         button.style.borderColor = '#aaa';
       }
     });
 
     button.addEventListener('mouseleave', () => {
-      if (!button.disabled) {
+      if (!button.disabled && !button.dataset.active) {
         button.style.backgroundColor = 'white';
         button.style.borderColor = '#ccc';
       }
@@ -188,6 +189,7 @@ export class BookmarkToolbar {
     this.#buttons.add.addEventListener('click', () => this.#handleAddClick());
     this.#buttons.delete.addEventListener('click', () => this.#handleDeleteClick());
     this.#buttons.edit.addEventListener('click', () => this.#handleEditClick());
+    this.#buttons.sort.addEventListener('click', () => this.#handleSortClick());
 
     // 监听书签选择变化
     this.#eventBus.on(
@@ -238,6 +240,87 @@ export class BookmarkToolbar {
       { bookmarkId: this.#selectedBookmarkId },
       { actorId: 'BookmarkToolbar' }
     );
+  }
+
+  /**
+   * 处理排序按钮点击
+   * @private
+   */
+  #handleSortClick() {
+    this.#sortMode = !this.#sortMode;
+    this.#logger.info(`Sort mode ${this.#sortMode ? 'enabled' : 'disabled'}`);
+
+    // 更新按钮样式
+    const sortBtn = this.#buttons.sort;
+    if (this.#sortMode) {
+      sortBtn.dataset.active = 'true';  // 标记为激活状态
+      sortBtn.style.backgroundColor = '#4CAF50';
+      sortBtn.style.borderColor = '#4CAF50';
+      // 显示toast提醒
+      this.#showToast('拖动书签进行排序');
+    } else {
+      sortBtn.dataset.active = '';  // 移除激活状态
+      sortBtn.style.backgroundColor = 'white';
+      sortBtn.style.borderColor = '#ccc';
+      // 显示toast提醒
+      this.#showToast('排序模式已关闭');
+    }
+
+    // 发出排序模式切换事件
+    this.#eventBus.emit(
+      'pdf-viewer:bookmark-sort:mode-changed',
+      { sortMode: this.#sortMode },
+      { actorId: 'BookmarkToolbar' }
+    );
+  }
+
+  /**
+   * 显示Toast提醒
+   * @param {string} message - 提示消息
+   * @private
+   */
+  #showToast(message) {
+    // 创建toast元素
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    toast.style.cssText = `
+      position: fixed;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 12px 24px;
+      border-radius: 4px;
+      font-size: 14px;
+      z-index: 10000;
+      animation: fadeInOut 2s ease-in-out;
+    `;
+
+    // 添加动画样式
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes fadeInOut {
+        0% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+        10% { opacity: 1; transform: translateX(-50%) translateY(0); }
+        90% { opacity: 1; transform: translateX(-50%) translateY(0); }
+        100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+      }
+    `;
+    if (!document.querySelector('#toast-animation-style')) {
+      style.id = 'toast-animation-style';
+      document.head.appendChild(style);
+    }
+
+    // 添加到页面
+    document.body.appendChild(toast);
+
+    // 2秒后自动移除
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.parentNode.removeChild(toast);
+      }
+    }, 2000);
   }
 
   /**
