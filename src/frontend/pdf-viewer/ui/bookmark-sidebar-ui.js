@@ -72,6 +72,18 @@ export class BookmarkSidebarUI {
       { subscriberId: 'BookmarkSidebarUI' }
     ));
 
+    // 监听外部选中事件（来自 PDFBookmarkFeature）
+    this.#unsubs.push(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.BOOKMARK.SELECT.CHANGED,
+      (data, metadata) => {
+        // 只处理来自外部的选中事件（不是自己发出的）
+        if (metadata?.actorId !== 'BookmarkSidebarUI') {
+          this.#handleExternalSelection(data);
+        }
+      },
+      { subscriberId: 'BookmarkSidebarUI' }
+    ));
+
     this.#logger.info('BookmarkSidebarUI initialized with toolbar');
   }
 
@@ -320,21 +332,12 @@ export class BookmarkSidebarUI {
    * 选中书签
    * @param {string} bookmarkId - 书签ID
    * @param {Object} bookmark - 书签对象
+   * @param {boolean} scrollIntoView - 是否滚动到可见区域
    * @private
    */
-  #selectBookmark(bookmarkId, bookmark) {
-    // 清除之前的选中状态（只选择书签标题按钮，不包括跳转按钮）
-    this.#bookmarkList.querySelectorAll('.bookmark-title-btn').forEach(btn => {
-      btn.style.backgroundColor = 'transparent';
-      btn.style.fontWeight = 'normal';
-    });
-
-    // 设置新的选中状态
-    const selectedBtn = this.#bookmarkList.querySelector(`.bookmark-title-btn[data-bookmark-id="${bookmarkId}"]`);
-    if (selectedBtn) {
-      selectedBtn.style.backgroundColor = '#e3f2fd';
-      selectedBtn.style.fontWeight = 'bold';
-    }
+  #selectBookmark(bookmarkId, bookmark, scrollIntoView = false) {
+    // 更新UI
+    this.#updateSelectionUI(bookmarkId, scrollIntoView);
 
     this.#selectedBookmarkId = bookmarkId;
 
@@ -346,6 +349,52 @@ export class BookmarkSidebarUI {
     );
 
     this.#logger.debug(`Bookmark selected: ${bookmarkId}`);
+  }
+
+  /**
+   * 更新选中状态的UI（不发出事件）
+   * @param {string} bookmarkId - 书签ID
+   * @param {boolean} scrollIntoView - 是否滚动到可见区域
+   * @private
+   */
+  #updateSelectionUI(bookmarkId, scrollIntoView = false) {
+    // 清除之前的选中状态（只选择书签标题按钮，不包括跳转按钮）
+    this.#bookmarkList.querySelectorAll('.bookmark-title-btn').forEach(btn => {
+      btn.style.backgroundColor = 'transparent';
+      btn.style.fontWeight = 'normal';
+    });
+
+    // 设置新的选中状态
+    const selectedBtn = this.#bookmarkList.querySelector(`.bookmark-title-btn[data-bookmark-id="${bookmarkId}"]`);
+    if (selectedBtn) {
+      selectedBtn.style.backgroundColor = '#e3f2fd';
+      selectedBtn.style.fontWeight = 'bold';
+
+      // 滚动到可见区域
+      if (scrollIntoView) {
+        selectedBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+
+    this.#selectedBookmarkId = bookmarkId;
+  }
+
+  /**
+   * 处理外部选中事件
+   * @param {Object} data - 选中数据
+   * @param {string|null} data.bookmarkId - 书签ID
+   * @private
+   */
+  #handleExternalSelection(data) {
+    const bookmarkId = data?.bookmarkId;
+    if (!bookmarkId) {
+      this.#logger.warn('External selection event missing bookmarkId');
+      return;
+    }
+
+    this.#logger.info(`Handling external selection: ${bookmarkId}`);
+    // 更新UI并滚动到选中的书签
+    this.#updateSelectionUI(bookmarkId, true);
   }
 
   #renderEmpty() {
