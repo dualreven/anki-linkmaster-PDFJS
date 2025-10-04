@@ -834,9 +834,166 @@ export class AnnotationSidebarUI {
    */
   #handleCommentClick(annotationId) {
     this.#logger.debug(`Comment on annotation: ${annotationId}`);
-    // 这里可以展开评论输入区域或打开评论对话框
-    // 暂时只发出事件
-    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SELECT, { id: annotationId });
+    this.#showCommentDialog(annotationId);
+  }
+
+  /**
+   * 显示评论对话框（第二期：新增）
+   * @param {string} annotationId - 标注ID
+   * @private
+   */
+  #showCommentDialog(annotationId) {
+    // 创建遮罩层
+    const overlay = document.createElement('div');
+    overlay.style.cssText = [
+      'position: fixed',
+      'top: 0',
+      'left: 0',
+      'right: 0',
+      'bottom: 0',
+      'background: rgba(0, 0, 0, 0.5)',
+      'display: flex',
+      'align-items: center',
+      'justify-content: center',
+      'z-index: 10000'
+    ].join(';');
+
+    // 创建对话框
+    const dialog = document.createElement('div');
+    dialog.style.cssText = [
+      'background: #fff',
+      'border-radius: 8px',
+      'padding: 20px',
+      'width: 400px',
+      'max-width: 90%',
+      'box-shadow: 0 4px 20px rgba(0,0,0,0.3)'
+    ].join(';');
+
+    // 标题
+    const title = document.createElement('div');
+    title.textContent = '添加评论';
+    title.style.cssText = [
+      'font-size: 16px',
+      'font-weight: 500',
+      'margin-bottom: 12px',
+      'color: #333'
+    ].join(';');
+
+    // ID显示
+    const idInfo = document.createElement('div');
+    idInfo.textContent = `标注ID: ${annotationId}`;
+    idInfo.style.cssText = [
+      'font-size: 12px',
+      'color: #999',
+      'margin-bottom: 16px',
+      'font-family: monospace'
+    ].join(';');
+
+    // 输入框
+    const textarea = document.createElement('textarea');
+    textarea.placeholder = '请输入评论内容...';
+    textarea.style.cssText = [
+      'width: 100%',
+      'min-height: 100px',
+      'padding: 8px',
+      'border: 1px solid #ddd',
+      'border-radius: 4px',
+      'font-size: 14px',
+      'font-family: inherit',
+      'resize: vertical',
+      'margin-bottom: 16px',
+      'box-sizing: border-box'
+    ].join(';');
+
+    // 按钮容器
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.cssText = [
+      'display: flex',
+      'justify-content: flex-end',
+      'gap: 8px'
+    ].join(';');
+
+    // 取消按钮
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = '取消';
+    cancelBtn.style.cssText = [
+      'padding: 6px 16px',
+      'border: 1px solid #ddd',
+      'background: #fff',
+      'border-radius: 4px',
+      'cursor: pointer',
+      'font-size: 14px',
+      'color: #666'
+    ].join(';');
+
+    // 确定按钮
+    const confirmBtn = document.createElement('button');
+    confirmBtn.type = 'button';
+    confirmBtn.textContent = '确定';
+    confirmBtn.style.cssText = [
+      'padding: 6px 16px',
+      'border: none',
+      'background: #2196f3',
+      'border-radius: 4px',
+      'cursor: pointer',
+      'font-size: 14px',
+      'color: #fff'
+    ].join(';');
+
+    // 关闭对话框函数
+    const closeDialog = () => {
+      overlay.remove();
+    };
+
+    // 提交评论函数
+    const submitComment = () => {
+      const content = textarea.value.trim();
+      if (!content) {
+        this.#showToast('请输入评论内容', 'warning');
+        return;
+      }
+
+      // 发出评论事件
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.COMMENT.ADDED, {
+        annotationId,
+        content,
+        timestamp: Date.now()
+      });
+
+      this.#showToast('✓ 评论已添加', 'success');
+      closeDialog();
+    };
+
+    // 事件监听
+    cancelBtn.addEventListener('click', closeDialog);
+    confirmBtn.addEventListener('click', submitComment);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        closeDialog();
+      }
+    });
+
+    // Enter键提交（Ctrl+Enter或Shift+Enter换行）
+    textarea.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
+        e.preventDefault();
+        submitComment();
+      }
+    });
+
+    // 组装对话框
+    buttonContainer.appendChild(cancelBtn);
+    buttonContainer.appendChild(confirmBtn);
+    dialog.appendChild(title);
+    dialog.appendChild(idInfo);
+    dialog.appendChild(textarea);
+    dialog.appendChild(buttonContainer);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    // 自动聚焦输入框
+    textarea.focus();
   }
 
   /**
