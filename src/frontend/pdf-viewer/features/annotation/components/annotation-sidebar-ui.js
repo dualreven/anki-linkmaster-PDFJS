@@ -227,18 +227,30 @@ export class AnnotationSidebarUI {
    * @private
    */
   #handleToolClick(toolId) {
-    this.#logger.debug(`Tool clicked: ${toolId}`);
+    this.#logger.debug(`Tool clicked: ${toolId}, current active: ${this.#activeTool}`);
 
     // 切换工具状态
     if (this.#activeTool === toolId) {
-      // 停用当前工具
+      // 点击当前激活的工具 - 停用它
+      const oldTool = this.#activeTool;
       this.#activeTool = null;
       this.#updateToolbarState();
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.TOOL.DEACTIVATE, {});
+      this.#logger.info(`Tool deactivated: ${oldTool}`);
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.TOOL.DEACTIVATE, { tool: oldTool });
     } else {
+      // 切换到新工具
+      const oldTool = this.#activeTool;
+
+      // 先停用旧工具（如果有）
+      if (oldTool) {
+        this.#logger.debug(`Switching from ${oldTool} to ${toolId}`);
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.TOOL.DEACTIVATE, { tool: oldTool });
+      }
+
       // 激活新工具
       this.#activeTool = toolId;
       this.#updateToolbarState();
+      this.#logger.info(`Tool activated: ${toolId}`);
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.TOOL.ACTIVATE, { tool: toolId });
     }
   }
@@ -326,12 +338,28 @@ export class AnnotationSidebarUI {
       { subscriberId: 'AnnotationSidebarUI' }
     ));
 
-    // 监听工具停用（如按ESC键）
+    // 监听工具停用（如按ESC键或外部触发）
     this.#unsubs.push(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANNOTATION.TOOL.DEACTIVATED,
-      () => {
-        this.#activeTool = null;
-        this.#updateToolbarState();
+      (data) => {
+        // 只有在事件数据中的工具与当前激活的工具匹配时，或者没有指定工具时才清空
+        // 这样可以防止工具切换时误清空新激活的工具
+        const deactivatedTool = data?.tool;
+
+        if (!deactivatedTool) {
+          // 没有指定工具，清空所有（如按ESC键全局停用）
+          this.#logger.debug('All tools deactivated (no specific tool specified)');
+          this.#activeTool = null;
+          this.#updateToolbarState();
+        } else if (deactivatedTool === this.#activeTool) {
+          // 指定的工具与当前激活的工具匹配，清空
+          this.#logger.debug(`Tool deactivated: ${deactivatedTool} (matches active tool)`);
+          this.#activeTool = null;
+          this.#updateToolbarState();
+        } else {
+          // 停用的工具不是当前激活的工具，忽略
+          this.#logger.debug(`Tool deactivated: ${deactivatedTool}, but active tool is ${this.#activeTool}, ignoring`);
+        }
       },
       { subscriberId: 'AnnotationSidebarUI' }
     ));
