@@ -306,15 +306,21 @@ export class FilterFeature {
   }
 
   /**
-   * 处理高级筛选
+   * 处理高级筛选（切换显示/隐藏）
    * @private
    */
   #handleAdvancedFilter() {
     this.#logger.info('[FilterFeature] Advanced filter button clicked');
 
-    // 显示FilterBuilder对话框
+    // 切换FilterBuilder显示/隐藏
     if (this.#filterBuilder) {
-      this.#filterBuilder.show();
+      if (this.#filterBuilder.isVisible()) {
+        this.#filterBuilder.hide();
+        this.#logger.info('[FilterFeature] FilterBuilder toggled to hidden');
+      } else {
+        this.#filterBuilder.show();
+        this.#logger.info('[FilterFeature] FilterBuilder toggled to visible');
+      }
     } else {
       this.#logger.error('[FilterFeature] FilterBuilder not initialized');
     }
