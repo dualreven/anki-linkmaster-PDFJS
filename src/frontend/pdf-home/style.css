@@ -42,6 +42,11 @@ body {
 .main-content {
     flex-grow: 1;
     min-width: 0; /* 防止flex溢出 */
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    min-height: 600px; /* 确保有足够的高度 */
 }
 
 /* 响应式：小屏幕时垂直堆叠 */
