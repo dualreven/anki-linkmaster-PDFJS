@@ -1004,28 +1004,64 @@ export class AnnotationSidebarUI {
   async #handleCopyIdClick(annotationId) {
     this.#logger.debug(`Copy annotation ID: ${annotationId}`);
 
-    try {
-      // 使用Clipboard API复制文本
-      if (navigator.clipboard && navigator.clipboard.writeText) {
+    let success = false;
+
+    // 方法1: 尝试使用 Clipboard API
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
         await navigator.clipboard.writeText(annotationId);
-        this.#showCopyToast('✓ ID已复制');
-      } else {
-        // 降级方案：使用传统方法
+        success = true;
+        this.#logger.debug('Copied using Clipboard API');
+      } catch (error) {
+        this.#logger.warn('Clipboard API failed, trying fallback method:', error);
+      }
+    }
+
+    // 方法2: 降级方案 - 使用 textarea + execCommand
+    if (!success) {
+      try {
         const textarea = document.createElement('textarea');
         textarea.value = annotationId;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-        this.#showCopyToast('✓ ID已复制');
-      }
+        textarea.style.cssText = [
+          'position: fixed',
+          'top: 0',
+          'left: 0',
+          'width: 2em',
+          'height: 2em',
+          'padding: 0',
+          'border: none',
+          'outline: none',
+          'boxShadow: none',
+          'background: transparent',
+          'opacity: 0',
+          'pointer-events: none'
+        ].join(';');
 
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+
+        // 尝试复制
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textarea);
+
+        if (successful) {
+          success = true;
+          this.#logger.debug('Copied using execCommand');
+        } else {
+          this.#logger.error('execCommand returned false');
+        }
+      } catch (error) {
+        this.#logger.error('Fallback copy method failed:', error);
+      }
+    }
+
+    // 显示结果
+    if (success) {
+      this.#showCopyToast('✓ ID已复制');
       // 发出ID复制事件
       this.#eventBus.emit('pdf-viewer:annotation:id:copied', { id: annotationId });
-    } catch (error) {
-      this.#logger.error('Failed to copy ID:', error);
+    } else {
       this.#showCopyToast('✗ 复制失败');
     }
   }
