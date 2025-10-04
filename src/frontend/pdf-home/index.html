@@ -25,14 +25,25 @@
         </header>
 
         <main>
-            <div id="pdf-table-container" class="pdf-table-container">
-                <!-- PDF表格将在这里动态生成 -->
-            </div>
+            <!-- 左右两栏布局 -->
+            <div class="layout-container">
+                <!-- 左侧侧边栏 -->
+                <aside id="sidebar" class="sidebar">
+                    <!-- 侧边栏内容将由JavaScript动态生成 -->
+                </aside>
 
-            <div id="empty-state" class="empty-state" style="display: none;">
-                <div class="empty-icon">📄</div>
-                <h3>暂无PDF文件</h3>
-                <p>点击"添加文件"按钮开始管理您的PDF文档</p>
+                <!-- 右侧主内容区 -->
+                <div class="main-content">
+                    <div id="pdf-table-container" class="pdf-table-container">
+                        <!-- PDF表格将在这里动态生成 -->
+                    </div>
+
+                    <div id="empty-state" class="empty-state" style="display: none;">
+                        <div class="empty-icon">📄</div>
+                        <h3>暂无PDF文件</h3>
+                        <p>点击"添加文件"按钮开始管理您的PDF文档</p>
+                    </div>
+                </div>
             </div>
 
             <!-- Toast消息提示 (浮动在右上角) -->

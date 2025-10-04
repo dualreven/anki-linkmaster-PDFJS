@@ -12,10 +12,48 @@ body {
 }
 
 .container {
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 0 auto;
     padding: 20px;
     padding-top: 100px; /* 为fixed header留出空间 */
+}
+
+/* ===== 左右两栏布局 ===== */
+.layout-container {
+    display: flex;
+    gap: 20px;
+    width: 100%;
+}
+
+/* 左侧侧边栏 */
+.sidebar {
+    flex-shrink: 0;
+    width: 280px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    height: fit-content;
+    position: sticky;
+    top: 120px; /* header高度 + 一些间距 */
+}
+
+/* 右侧主内容区 */
+.main-content {
+    flex-grow: 1;
+    min-width: 0; /* 防止flex溢出 */
+}
+
+/* 响应式：小屏幕时垂直堆叠 */
+@media (max-width: 1024px) {
+    .layout-container {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        position: static;
+    }
 }
 
 header {
@@ -24,7 +62,7 @@ header {
     left: 50%;
     transform: translateX(-50%);
     width: 100%;
-    max-width: 1200px;
+    max-width: 1400px;
     display: flex;
     justify-content: space-between;
     align-items: center;

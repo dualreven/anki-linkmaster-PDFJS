@@ -24,6 +24,7 @@ import { PDFEditorFeature } from '../features/pdf-editor/index.js';
 import { PDFSorterFeature } from '../features/pdf-sorter/index.js';
 import { PDFEditFeature } from '../features/pdf-edit/index.js';
 import { FilterFeature } from '../features/filter/index.js';
+import { SidebarFeature } from '../features/sidebar/index.js';
 
 /**
  * @class PDFHomeAppV2
@@ -280,7 +281,8 @@ export class PDFHomeAppV2 {
       new PDFEditorFeature(),
       new PDFSorterFeature(),
       new PDFEditFeature(),
-      new FilterFeature()
+      new FilterFeature(),
+      new SidebarFeature()
     ];
 
     for (const feature of features) {
