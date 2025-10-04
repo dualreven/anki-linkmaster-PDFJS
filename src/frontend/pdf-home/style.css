@@ -15,7 +15,7 @@ body {
     max-width: 1400px;
     margin: 0 auto;
     padding: 20px;
-    padding-top: 100px; /* 为fixed header留出空间 */
+    padding-top: 200px; /* 为fixed header和搜索面板留出空间 */
 }
 
 /* ===== 左右两栏布局 ===== */
@@ -35,7 +35,7 @@ body {
     padding: 20px;
     height: fit-content;
     position: sticky;
-    top: 120px; /* header高度 + 一些间距 */
+    top: 220px; /* header高度 + 搜索面板高度 + 间距 */
 }
 
 /* 右侧主内容区 */
@@ -506,7 +506,7 @@ h1 {
     left: 50%;
     transform: translateX(-50%) translateY(-100%);
     width: 100%;
-    max-width: 1200px;
+    max-width: 1400px;
     background: white;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     border-radius: 0 0 8px 8px;

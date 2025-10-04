@@ -186,19 +186,12 @@ export class FilterFeature {
   }
 
   /**
-   * 调整表格位置避免被搜索栏遮挡
+   * 调整表格位置（已废弃 - 现在通过容器padding-top控制布局）
    * @private
    */
   #adjustTablePosition() {
-    const tableContainer = document.getElementById('pdf-table-container');
-    if (!tableContainer) {
-      this.#logger.warn('[FilterFeature] Table container not found');
-      return;
-    }
-
-    // 搜索栏高度约为100px，增加margin-top避免遮挡
-    tableContainer.style.marginTop = '120px';
-    tableContainer.style.transition = 'margin-top 0.3s ease';
+    // 不再需要单独调整表格位置，布局由container的padding-top控制
+    this.#logger.debug('[FilterFeature] Table position adjustment skipped (handled by container layout)');
   }
 
   /**
