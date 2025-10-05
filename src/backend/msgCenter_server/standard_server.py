@@ -1,4 +1,4 @@
-"""
+﻿"""
 标准WebSocket服务器 - 基于JSON通信标准
 """
 import logging
@@ -6,7 +6,7 @@ import json
 import time
 import subprocess
 import os
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 # Add project root to Python path for standalone execution
 import sys
@@ -130,6 +130,8 @@ class StandardWebSocketServer(QObject):
         for client in self.clients:
             client.close()
         self.clients.clear()
+        if hasattr(self, "pdf_library_api") and self.pdf_library_api:
+            self.pdf_library_api.shutdown()
         self.running = False
         logger.info("标准WebSocket服务器已停止")
         
@@ -209,7 +211,10 @@ class StandardWebSocketServer(QObject):
 
         # === 新规范消息处理（v2: 主语:谓语:宾语） ===
         # 获取PDF列表
-        if message_type in ["pdf-home:get:pdf-list", "get_pdf_list"]:
+        if message_type == "pdf/list":
+            if hasattr(self, "pdf_library_api") and self.pdf_library_api:
+                return self.handle_pdf_list_v2(request_id, data)
+        elif message_type in ["pdf-home:get:pdf-list", "get_pdf_list"]:
             return self.handle_pdf_list_request(request_id, data)
 
         # 添加PDF文件（支持单个/多个）
@@ -271,6 +276,39 @@ class StandardWebSocketServer(QObject):
                 code=400
             )
     
+
+    def handle_pdf_list_v2(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            include_hidden = data.get("include_hidden", True)
+            limit = data.get("limit")
+            offset = data.get("offset")
+            limit = int(limit) if limit is not None else None
+            offset = int(offset) if offset is not None else None
+            records: List[Dict[str, Any]] = []
+            if hasattr(self, "pdf_library_api") and self.pdf_library_api:
+                records = self.pdf_library_api.list_records(include_hidden=include_hidden, limit=limit, offset=offset)
+            response = {
+                "type": "pdf/list",
+                "timestamp": int(time.time()),
+                "data": {
+                    "records": records,
+                    "total": len(records),
+                },
+            }
+            if request_id:
+                response["request_id"] = request_id
+            return response
+        except Exception as exc:
+            logger.error("获取 PDF 列表失败(v2): %s", exc, exc_info=True)
+            return {
+                "type": "error",
+                "timestamp": int(time.time()),
+                "request_id": request_id,
+                "data": {
+                    "message": "获取PDF列表失败",
+                    "details": str(exc),
+                },
+            }
     def handle_pdf_list_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """处理PDF列表请求"""
         try:
@@ -719,6 +757,11 @@ class StandardWebSocketServer(QObject):
     def on_pdf_file_added(self, file_info: Dict[str, Any]):
         """处理PDF文件添加事件"""
         logger.info(f"PDF文件添加事件: {file_info}")
+        if hasattr(self, "pdf_library_api") and self.pdf_library_api:
+            try:
+                self.pdf_library_api.register_file_info(file_info)
+            except Exception as exc:
+                logger.error("同步文件信息到数据库失败: %s", exc)
         # 可以广播给所有客户端
         message = StandardMessageHandler.build_base_message(
             MessageType.SYSTEM_STATUS,
@@ -733,6 +776,11 @@ class StandardWebSocketServer(QObject):
     def on_pdf_file_removed(self, file_id: str):
         """处理PDF文件删除事件"""
         logger.info(f"PDF文件删除事件: {file_id}")
+        if hasattr(self, "pdf_library_api") and self.pdf_library_api:
+            try:
+                self.pdf_library_api.delete_record(file_id)
+            except Exception as exc:
+                logger.error("删除PDF数据库记录失败: %s", exc)
         message = StandardMessageHandler.build_base_message(
             MessageType.SYSTEM_STATUS,
             data={
@@ -755,6 +803,20 @@ class StandardWebSocketServer(QObject):
             )
             # 修改消息类型为list，让前端识别为列表更新
             message["type"] = "list"
+            if hasattr(self, "pdf_library_api") and self.pdf_library_api:
+                try:
+                    records = self.pdf_library_api.list_records()
+                    v2_message = {
+                        "type": "pdf/list",
+                        "timestamp": int(time.time()),
+                        "data": {
+                            "records": records,
+                            "total": len(records),
+                        },
+                    }
+                    self.broadcast_message(v2_message)
+                except Exception as exc:
+                    logger.error("广播新版PDF列表失败: %s", exc)
             self.broadcast_message(message)
             logger.info(f"已广播PDF列表更新消息，共 {len(files)} 个文件")
         except Exception as e:

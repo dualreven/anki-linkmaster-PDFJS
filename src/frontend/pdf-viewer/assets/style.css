@@ -146,6 +146,24 @@ h1 {
     font-size: 13px;
 }
 
+/* 鼠标模式选择器样式 */
+.mouse-mode-selector {
+    position: relative;
+    display: inline-block;
+}
+
+.mouse-mode-selector #mouse-mode-btn {
+    padding: 4px 8px;
+    min-width: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mouse-mode-selector .mouse-icon {
+    display: block;
+}
+
 /* 滚动模式选择器样式 */
 .scroll-mode-selector {
     position: relative;
@@ -166,7 +184,7 @@ h1 {
 
 .scroll-mode-dropdown {
     position: absolute;
-    top: calc(100% + 4px);
+    bottom: calc(100% + 4px);
     left: 0;
     background: white;
     border: 1px solid #ddd;
@@ -222,7 +240,7 @@ h1 {
 
 .spread-mode-dropdown {
     position: absolute;
-    top: calc(100% + 4px);
+    bottom: calc(100% + 4px);
     left: 0;
     background: white;
     border: 1px solid #ddd;
@@ -365,6 +383,31 @@ main {
     box-sizing: border-box;
     /* 为侧边栏让出空间 - 通过动态设置left值实现 */
     transition: left 0.3s ease;
+}
+
+/* 鼠标模式：文本选择模式（默认） */
+.pdf-container.text-mode {
+    cursor: text;
+}
+
+.pdf-container.text-mode .textLayer {
+    pointer-events: auto;
+    user-select: text;
+}
+
+/* 鼠标模式：拖拽浏览模式 */
+.pdf-container.drag-mode {
+    cursor: grab;
+}
+
+.pdf-container.drag-mode.dragging {
+    cursor: grabbing;
+    user-select: none;
+}
+
+.pdf-container.drag-mode .textLayer {
+    pointer-events: none;
+    user-select: none;
 }
 
 /* PDFViewer组件容器 - 必须让PDF.js完全控制布局 */

@@ -1339,3 +1339,87 @@ AnnotationSidebarUI → 监听并添加卡片 (只一次)
 - 详细工作日志: `AItemp/20251003181547-AI-Working-log.md`
 - 页面跳转修复: `AItemp/20251003180103-AI-Working-log.md`
 - 数据结构修复: `AItemp/20251003174421-AI-Working-log.md`
+
+## 2025-10-05 数据库 Phase3（PDFInfo 表插件）
+- ⏳ 阶段目标：完成数据库Phase3的首个数据表插件（PDFInfoTablePlugin），确保插件测试通过后继续实现文档中剩余功能。
+- 当前状态：插件代码和测试已由上一轮开发完成但尚未复核，需要重新运行 `pytest src/backend/database/plugins/__tests__/test_pdf_info_plugin.py` 确认绿色。
+- 关键路径：
+  - 需求文档：`todo-and-doing/2 todo/20251005140340-backend-database-impl/v001-phase3-pdf-info.md`（包含字段约束、扩展方法、测试用例清单）。
+  - 代码位置：`src/backend/database/plugins/pdf_info_plugin.py`（主实现）、`src/backend/database/plugins/__tests__/test_pdf_info_plugin.py`（单测）、`src/backend/database/plugins/__tests__/fixtures/pdf_info_samples.py`（样例数据，如存在）。
+- 执行步骤（原子任务）：
+  1. 阅读需求规范与现有实现，确认接口、事件、扩展查询覆盖的契合度。
+  2. 运行上述pytest命令验证插件行为，若失败收集日志与失败案例。
+  3. 根据需求文档补足缺失的功能/测试（例如高级查询、标签管理、统计等）。
+  4. 测试全部通过后更新工作日志与memory bank，并准备继续Phase3后续（annotation/bookmark/search_condition）。
+- 注意事项：所有文件读写显式UTF-8；遵循TablePlugin接口规范；开发前先补齐测试；如拆分多模块需考虑subagent。
+## 当前任务 (2025-10-05 15:55)
+- 合并 worktree A(feature-bookmark-fix) 与 worktree D(d-main-20250927) 到 main 分支
+- 目标：同步侧边栏与 d-main 分支最新改动，保持主线最新
+- 预计步骤：检查 git 状态 → 拉取两个分支最新提交 → 合并并解决冲突 → 基本验证
+- 相关路径：worktree A=C:/Users/napretep/PycharmProjects/anki-linkmaster-A，worktree D=C:/Users/napretep/PycharmProjects/anki-linkmaster-D
+### 2025-10-05 16:05 更新
+- main 分支已合并 feature-bookmark-fix（f378ef4）与 d-main-20250927（399d04a），获取了 UI 布局优化与 PDF 卡片侧栏骨架
+- d-main-20250927 新增 PDFCardFeature（卡片侧栏UI、feature.config、Sidebar注册时从容器延迟获取实例）已同步到主线
+- 合并后保留反向链接侧栏占位（real-sidebars.js）及既有文档改动，需要后续功能实现时替换
+- pnpm run test 受 WebGL/IndexedDB 依赖缺失影响失败（fake-indexeddb、canvas 未安装），后续定位前需补齐测试依赖
+
+
+## 2025-10-05 数据库 Phase3（PDFAnnotation 表插件）
+- ✅ 阶段目标：PDFAnnotationTablePlugin 已完成，支持截图 / 文本高亮 / 批注三类标注的建表、数据校验、CRUD、扩展查询、评论管理与事件发布。
+- 当前状态：代码与测试位于 `src/backend/database/plugins/`；与 PDFInfo 插件联动（外键/事件）已验证通过。
+- 关键资料：
+  - 需求文档：`todo-and-doing/2 todo/20251005140340-backend-database-impl/v001-phase3-pdf-annotation.md`
+  - 代码：`src/backend/database/plugins/pdf_annotation_plugin.py`
+  - 测试：`src/backend/database/plugins/__tests__/test_pdf_annotation_plugin.py`
+  - 样例：`src/backend/database/plugins/__tests__/fixtures/pdf_annotation_samples.py`
+- 主要实现要点：
+  1. 数据验证区分 screenshot/text-highlight/comment 三类 payload，并校验 comments 数组。
+  2. CRUD 及扩展方法（按 PDF/页码/类型查询、计数、批量删除、评论增删）。
+  3. 事件统一使用 `table:pdf-annotation:*:*`，启用时订阅 `table:pdf-info:delete:completed` 实现级联删除。
+- 测试结论：`pytest src/backend/database/plugins/__tests__` 共 76 项全部通过（含 pdf_info + pdf_annotation）。
+- 后续衔接：继续 Phase3 其他表插件（bookmark / search_condition），复用同目录结构与事件命名规范。
+
+## 2025-10-05 数据库 Phase3（PDFBookmark 表插件）
+- ✅ 阶段目标：PDFBookmarkTablePlugin 已实现，支持层级书签、排序、递归扁平化与级联删除。
+- 当前状态：`pdf_bookmark_plugin.py` 与测试、样例均落地，已通过插件测试全集（115 项）。
+- 核心文件：
+  - 代码：`src/backend/database/plugins/pdf_bookmark_plugin.py`
+  - 测试：`src/backend/database/plugins/__tests__/test_pdf_bookmark_plugin.py`
+  - 样例：`src/backend/database/plugins/__tests__/fixtures/pdf_bookmark_samples.py`
+- 主要功能：
+  1. 验证 `bookmark_id`、`pageNumber`、`region`、`children` 等字段，支持递归校验。
+  2. CRUD + 扩展方法（按 PDF/页 查询、统计、批量删除、子节点增删、重排、扁平化）。
+  3. 事件遵循 `table:pdf-bookmark:*:*`，监听 `table:pdf-info:delete:completed` 执行级联删除。
+- 测试结论：`pytest src/backend/database/plugins/__tests__` → 115 Passed（含 info / annotation / bookmark 插件）。
+- 后续衔接：Phase3 剩余表（search_condition）沿用相同目录与约定，注意事件命名和外键依赖。
+
+## 2025-10-05 数据库 Phase3（SearchCondition 表插件）
+- ✅ 阶段目标：SearchConditionTablePlugin 完成，实现筛选/排序条件的持久化、统计与事件发布。
+- 当前状态：`search_condition_plugin.py`、测试与样例均落地，插件套件合计 144 用例全部通过。
+- 核心文件：
+  - 代码：`src/backend/database/plugins/search_condition_plugin.py`
+  - 测试：`src/backend/database/plugins/__tests__/test_search_condition_plugin.py`
+  - 样例：`src/backend/database/plugins/__tests__/fixtures/search_condition_samples.py`
+- 主要功能：
+  1. 支持 fuzzy / field / composite 三类条件递归校验，包含 sort_config 模式 0-3 验证。
+  2. 扩展方法：`query_by_name`、`query_enabled`、`increment_use_count`、`set_last_used`、`activate_exclusive`、`query_by_tag`、`search_by_keyword`。
+  3. 事件命名 `table:search-condition:*:*`，便于前端监听保存/更新/删除行为。
+- 测试结论：`pytest src/backend/database/plugins/__tests__` → 144 Passed（info/annotation/bookmark/search_condition 全部插件）。
+- 后续衔接：Phase3 已完成四个插件，可进入集成或 Stage4；若新增条件类型需在 `_validate_condition` 扩展。
+## 当前任务 (2025-10-05 17:51)
+- 目标：梳理并理解现有前后端通信链路，在保持统一消息协议的前提下设计与实现供前端调用的后端 API 层。
+- 背景：数据库插件层（pdf_info/pdfs_annotation/pdf_bookmark/search_condition）已完成，需要通过统一通信架构向前端暴露受控接口。
+- 相关模块：src/backend/pdfTable_server、src/backend/msgCenter_server、src/backend/database/plugins/*、src/backend/api/*、src/frontend/common/ws、src/frontend/pdf-home。
+- 重要文档：docs/SPEC/SPEC-HEAD-communication.json、docs/SPEC/JSON-MESSAGE-FORMAT-001.md、todo-and-doing/2 todo/20250923184000-unified-communication-architecture/v001-spec.md。
+### 拆解步骤
+1. 阅读并整理现有通信架构代码/文档，明确消息流、事件命名及现有 API 空缺。
+2. 根据数据库能力列出前端所需 API 场景，完成接口设计草案（消息类型、payload、响应结构）。
+3. 为 API 层编写测试（优先覆盖查询/创建/更新/删除流程及错误分支）。
+4. 实现 API 层代码，衔接数据库插件和通信层，确保事件发布/日志符合规范。
+5. 运行测试并排查，确保新增逻辑与现有系统协同无回归。
+6. 更新文档、memory bank 及工作日志，准备后续前端联调。
+
+### 进展 2025-10-05 19:05
+- 已实现 `PDFLibraryAPI`（数据库 → 前端）封装，提供 list/detail/update/delete/register_file 接口，并新增单元测试 `src/backend/api/__tests__/test_pdf_library_api.py`。
+- WebSocket 服务器接入新 API：支持 `pdf/list` 消息、文件增删事件同步数据库并广播新版记录结构。
+- 新逻辑保持原有 `pdf-home:get:pdf-list` 兼容，新增广播时同时发送旧版 `list` 与新版 `pdf/list`。
