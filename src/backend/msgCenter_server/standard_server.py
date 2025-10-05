@@ -26,10 +26,120 @@ import sys
 
 from src.backend.msgCenter_server.standard_protocol import StandardMessageHandler, PDFMessageBuilder, MessageType
 from src.backend.pdf_manager.manager import PDFManager
+from src.backend.pdf_manager.models import PDFFile
+from src.backend.api.pdf_library_api import PDFLibraryAPI
 # 移除传输优化模块的依赖
 # from src.backend.pdf_manager.page_transfer_manager import page_transfer_manager
 
 logger = logging.getLogger(__name__)
+
+class LegacyPDFManagerAdapter:
+    def __init__(self, manager):
+        self._manager = manager
+        self._last_error = None
+        if hasattr(self._manager, 'error_occurred'):
+            try:
+                self._manager.error_occurred.connect(self._capture_error)
+            except Exception:
+                pass
+
+    def _capture_error(self, error):
+        self._last_error = error
+
+    def add_file(self, filepath):
+        self._last_error = None
+        success = self._manager.add_file(filepath)
+        if success:
+            normalized_path = os.path.abspath(filepath)
+            # 优先从列表中命中
+            for candidate in self._manager.get_files():
+                if candidate.get('original_path') == normalized_path:
+                    metadata = {
+                        'title': candidate.get('title', ''),
+                        'author': candidate.get('author', ''),
+                        'subject': candidate.get('subject', ''),
+                        'keywords': candidate.get('keywords', ''),
+                    }
+                    file_info = {
+                        'id': candidate.get('id'),
+                        'filename': candidate.get('filename', ''),
+                        'file_size': candidate.get('file_size', candidate.get('size', 0)),
+                        'page_count': candidate.get('page_count', 0),
+                        'filepath': candidate.get('filepath', ''),
+                        'original_path': candidate.get('original_path', normalized_path),
+                        'created_time': candidate.get('created_time'),
+                        'modified_time': candidate.get('modified_time'),
+                        'last_accessed_at': candidate.get('last_accessed_at', 0),
+                        'review_count': candidate.get('review_count', 0),
+                        'rating': candidate.get('rating', 0),
+                        'is_visible': candidate.get('is_visible', True),
+                        'total_reading_time': candidate.get('total_reading_time', 0),
+                        'due_date': candidate.get('due_date', 0),
+                        'tags': candidate.get('tags', []),
+                        'notes': candidate.get('notes', ''),
+                        'metadata': metadata,
+                        'thumbnail_path': candidate.get('thumbnail_path'),
+                    }
+                    return True, file_info
+            # 若未命中，按约定快速构造成功返回，避免前端收到成功但无明细
+            try:
+                file_id = PDFFile.generate_file_id(normalized_path)
+            except Exception:
+                file_id = None
+            copy_dir = getattr(self._manager, 'pdfs_dir', os.path.join('data', 'pdfs'))
+            computed = {
+                'id': file_id,
+                'filename': (f"{file_id}.pdf" if file_id else ''),
+                'file_size': os.path.getsize(normalized_path) if os.path.exists(normalized_path) else 0,
+                'page_count': 0,
+                'filepath': os.path.join(copy_dir, f"{file_id}.pdf") if file_id else '',
+                'original_path': normalized_path,
+                'created_time': None,
+                'modified_time': None,
+                'last_accessed_at': 0,
+                'review_count': 0,
+                'rating': 0,
+                'is_visible': True,
+                'total_reading_time': 0,
+                'due_date': 0,
+                'tags': [],
+                'notes': '',
+                'metadata': {
+                    'title': os.path.splitext(os.path.basename(normalized_path))[0],
+                    'author': '',
+                    'subject': '',
+                    'keywords': '',
+                },
+                'thumbnail_path': None,
+            }
+            return True, computed
+        error_payload = self._last_error
+        message = ''
+        if isinstance(error_payload, dict):
+            message = error_payload.get('message') or error_payload.get('error') or ''
+        elif isinstance(error_payload, str):
+            message = error_payload
+        # 兜底推断更具体的原因
+        if not message:
+            try:
+                if not os.path.exists(filepath):
+                    message = f'文件不存在: {filepath}'
+                elif not isinstance(filepath, str) or not filepath.lower().endswith('.pdf'):
+                    message = '文件格式错误：请选择PDF文件'
+                elif not os.access(filepath, os.R_OK):
+                    message = f'没有读取权限: {filepath}'
+                else:
+                    message = 'PDF文件添加失败'
+            except Exception:
+                message = 'PDF文件添加失败'
+        return False, {'error': message}
+
+    def remove_file(self, file_id):
+        return self._manager.remove_file(file_id)
+
+    def get_files(self):
+        return self._manager.get_files()
+
 
 def setup_logging():
     """配置日志记录"""
@@ -99,6 +209,16 @@ class StandardWebSocketServer(QObject):
         # PDF管理器
         self.pdf_manager = PDFManager()
         
+        # 初始化 PDFLibraryAPI（数据库层）
+        try:
+            self._legacy_pdf_adapter = LegacyPDFManagerAdapter(self.pdf_manager)
+            self.pdf_library_api = PDFLibraryAPI(pdf_manager=self._legacy_pdf_adapter)
+            logger.info('PDFLibraryAPI initialized successfully')
+        except Exception as exc:
+            logger.error(f'Failed to initialize PDFLibraryAPI: {exc}')
+            self.pdf_library_api = None
+            self._legacy_pdf_adapter = LegacyPDFManagerAdapter(self.pdf_manager)
+
         # 连接信号
         self.server.newConnection.connect(self.on_new_connection)
         
@@ -395,7 +515,7 @@ class StandardWebSocketServer(QObject):
             )
     
     def handle_pdf_upload_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-        """处理PDF上传请求"""
+        """处理PDF上传请求（使用数据库 + JSON 双写）"""
         try:
             filepath = data.get("filepath")
             if not filepath:
@@ -404,35 +524,46 @@ class StandardWebSocketServer(QObject):
                     "INVALID_REQUEST",
                     "缺少必需的filepath参数"
                 )
-            
-            success = self.pdf_manager.add_file(filepath)
-            if success:
-                # 获取刚添加的文件信息
-                file_id = None
-                filename = None
-                file_size = 0
-                
-                files = self.pdf_manager.get_files()
-                for file_info in files:
-                    if "original_path" in file_info and file_info["original_path"] == filepath:
-                        file_id = file_info["id"]
-                        filename = file_info["filename"]
-                        file_size = file_info.get("size", 0)
-                        break
-                
+
+            if hasattr(self, "pdf_library_api") and self.pdf_library_api:
+                result = self.pdf_library_api.add_pdf_from_file(filepath)
+
+                if result["success"]:
+                    return PDFMessageBuilder.build_pdf_upload_response(
+                        request_id,
+                        result["uuid"],
+                        result["filename"],
+                        result["file_size"]
+                    )
+                else:
+                    return StandardMessageHandler.build_error_response(
+                        request_id,
+                        "UPLOAD_FAILED",
+                        result.get("error", "PDF文件上传失败")
+                    )
+
+            adapter = getattr(self, '_legacy_pdf_adapter', None) or LegacyPDFManagerAdapter(self.pdf_manager)
+            success, payload = adapter.add_file(filepath)
+            if success and isinstance(payload, dict):
                 return PDFMessageBuilder.build_pdf_upload_response(
                     request_id,
-                    file_id or "unknown",
-                    filename or os.path.basename(filepath),
-                    file_size
+                    payload.get('id') or 'unknown',
+                    payload.get('filename') or os.path.basename(filepath),
+                    payload.get('file_size', 0)
                 )
-            else:
-                return StandardMessageHandler.build_error_response(
-                    request_id,
-                    "UPLOAD_FAILED",
-                    "PDF文件上传失败"
-                )
-                
+
+            error_message = 'PDF文件上传失败'
+            if isinstance(payload, dict):
+                error_message = payload.get('error') or error_message
+            elif isinstance(payload, str):
+                error_message = payload
+
+            return StandardMessageHandler.build_error_response(
+                request_id,
+                "UPLOAD_FAILED",
+                error_message
+            )
+
         except Exception as e:
             logger.error(f"上传PDF失败: {e}")
             return StandardMessageHandler.build_error_response(
@@ -965,3 +1096,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

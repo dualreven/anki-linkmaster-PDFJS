@@ -1,4 +1,6 @@
 ﻿import pytest
+import os
+import hashlib
 import sys
 from pathlib import Path
 
@@ -358,3 +360,122 @@ def test_search_records_returns_empty_when_no_match(api):
     result = api.search_records(payload)
     assert result["records"] == []
     assert result["total"] == 0
+
+def _reset_db_state():
+    TablePluginRegistry.reset_instance()
+    DatabaseConnectionManager._instance = None
+
+
+class DummyPDFManager:
+    def __init__(self):
+        self.added = []
+        self.fail_next = False
+
+    def add_file(self, filepath):
+        self.added.append(filepath)
+        if self.fail_next:
+            return False, {"type": "ADD_ERROR", "message": "duplicate file"}
+        normalized = str(Path(filepath).resolve())
+        file_id = hashlib.md5(normalized.encode('utf-8')).hexdigest()[:12]
+        info = {
+            "id": file_id,
+            "filename": f"{file_id}.pdf",
+            "original_filename": Path(filepath).name,
+            "file_size": os.path.getsize(filepath),
+            "page_count": 0,
+            "filepath": f"/copies/{file_id}.pdf",
+            "original_path": normalized,
+            "created_time": "2025-10-06 00:00:00",
+            "modified_time": "2025-10-06 00:00:00",
+            "last_accessed_at": 0,
+            "review_count": 0,
+            "rating": 0,
+            "is_visible": True,
+            "total_reading_time": 0,
+            "due_date": 0,
+            "tags": [],
+            "metadata": {
+                "title": Path(filepath).stem,
+                "author": "",
+                "subject": "",
+                "keywords": "",
+                "tags": [],
+                "notes": "",
+            },
+        }
+        return True, info
+
+    def remove_file(self, file_id):
+        return True
+
+    def get_file_count(self):
+        return len(self.added)
+
+
+def test_add_pdf_from_file_uses_pdf_manager(tmp_path):
+    _reset_db_state()
+    manager = DummyPDFManager()
+    workdir = tmp_path / "add_manager_case"
+    workdir.mkdir()
+    pdf_path = workdir / "sample.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\nstartxref\n0\n%%EOF\n")
+    api = PDFLibraryAPI(db_path=str(workdir / "library.db"), pdf_manager=manager)
+    try:
+        result = api.add_pdf_from_file(str(pdf_path))
+        assert result["success"] is True
+        expected_id = hashlib.md5(str(pdf_path.resolve()).encode('utf-8')).hexdigest()[:12]
+        assert result["uuid"] == expected_id
+        assert manager.added == [str(pdf_path)]
+
+        record = api.get_record(expected_id)
+        assert record is not None
+        assert record["file_size"] == pdf_path.stat().st_size
+        assert record["file_path"] == f"/copies/{expected_id}.pdf"
+        assert record["filename"] == f"{expected_id}.pdf"
+        assert record["title"] == pdf_path.stem
+    finally:
+        api.shutdown()
+        _reset_db_state()
+
+
+def test_add_pdf_from_file_propagates_manager_error(tmp_path):
+    _reset_db_state()
+    manager = DummyPDFManager()
+    manager.fail_next = True
+    workdir = tmp_path / "add_manager_failure"
+    workdir.mkdir()
+    pdf_path = workdir / "duplicate.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\nstartxref\n0\n%%EOF\n")
+    api = PDFLibraryAPI(db_path=str(workdir / "library.db"), pdf_manager=manager)
+    try:
+        result = api.add_pdf_from_file(str(pdf_path))
+        assert result["success"] is False
+        assert "duplicate" in result["error"].lower()
+        assert api.list_records() == []
+    finally:
+        api.shutdown()
+        _reset_db_state()
+
+
+def test_add_pdf_from_file_without_manager_inserts_record(tmp_path):
+    _reset_db_state()
+    workdir = tmp_path / "add_without_manager"
+    workdir.mkdir()
+    pdf_path = workdir / "standalone.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\nstartxref\n0\n%%EOF\n")
+    api = PDFLibraryAPI(db_path=str(workdir / "library.db"), pdf_manager=None)
+    api._pdf_manager = None
+    try:
+        result = api.add_pdf_from_file(str(pdf_path))
+        assert result["success"] is True
+        assert result["uuid"]
+
+        record = api.get_record(result["uuid"])
+        assert record is not None
+        assert record["file_size"] == pdf_path.stat().st_size
+        assert record["file_path"] == str(pdf_path.resolve())
+        assert record["filename"] == f"{record['id']}.pdf"
+        assert record["title"] == pdf_path.stem
+    finally:
+        api.shutdown()
+        _reset_db_state()

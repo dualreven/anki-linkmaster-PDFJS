@@ -24,6 +24,9 @@ from ..database.plugins.pdf_annotation_plugin import PDFAnnotationTablePlugin
 from ..database.plugins.pdf_bookmark_plugin import PDFBookmarkTablePlugin
 from ..database.plugins.search_condition_plugin import SearchConditionTablePlugin
 from ..pdf_manager.standard_manager import StandardPDFManager
+from ..pdf_manager.utils import PDFMetadataExtractor, FileValidator
+import os
+import uuid as uuid_module
 
 
 class PDFLibraryAPI:
@@ -79,6 +82,139 @@ class PDFLibraryAPI:
         payload = self._normalize_input(data)
         return self._pdf_info_plugin.insert(payload)
 
+    def add_pdf_from_file(self, filepath: str) -> Dict[str, Any]:
+        """
+        从文件路径添加 PDF 到数据库
+
+        Args:
+            filepath: PDF 文件的绝对路径
+
+        Returns:
+            Dict[str, Any]: 包含新创建记录的信息
+            {
+                "success": bool,
+                "uuid": str,  # 新记录的UUID
+                "filename": str,
+                "file_size": int,
+                "error": str  # 如果失败
+            }
+        """
+        try:
+            if not filepath:
+                return {
+                    "success": False,
+                    "error": "文件路径不能为空"
+                }
+
+            absolute_path = os.path.abspath(filepath)
+            if not os.path.exists(absolute_path):
+                return {
+                    "success": False,
+                    "error": f"文件不存在: {absolute_path}"
+                }
+
+            if not FileValidator.is_pdf_file(absolute_path):
+                return {
+                    "success": False,
+                    "error": "仅支持添加 PDF 文件"
+                }
+
+            file_size = os.path.getsize(absolute_path)
+            filename = os.path.basename(absolute_path)
+
+            if self._pdf_manager is not None:
+                success, payload = self._pdf_manager.add_file(absolute_path)
+                if not success:
+                    error_message = ""
+                    if isinstance(payload, dict):
+                        error_message = payload.get("message") or payload.get("error") or ""
+                    if not error_message:
+                        error_message = "PDF文件添加失败"
+                    return {
+                        "success": False,
+                        "error": error_message
+                    }
+
+                file_info = payload if isinstance(payload, dict) else {}
+
+                try:
+                    record_uuid = self.register_file_info(file_info)
+                except Exception as exc:
+                    self._logger.error("同步 PDF 信息到数据库失败: %s", exc, exc_info=True)
+                    file_id = file_info.get("id")
+                    if file_id:
+                        try:
+                            self._pdf_manager.remove_file(file_id)
+                        except Exception as cleanup_exc:  # pragma: no cover - best effort cleanup
+                            self._logger.warning("回滚 PDF 添加失败: %s", cleanup_exc)
+                    return {
+                        "success": False,
+                        "error": "同步 PDF 信息到数据库失败"
+                    }
+
+                return {
+                    "success": True,
+                    "uuid": record_uuid,
+                    "filename": file_info.get("filename", filename),
+                    "file_size": file_info.get("file_size", file_size)
+                }
+
+            metadata = PDFMetadataExtractor.extract_metadata(absolute_path)
+            if "error" in metadata:
+                return {
+                    "success": False,
+                    "error": metadata["error"]
+                }
+
+            record_uuid = uuid_module.uuid4().hex[:12]
+            current_time_ms = int(time.time() * 1000)
+
+            record_data = {
+                "uuid": record_uuid,
+                "title": metadata.get("title", filename),
+                "author": metadata.get("author", ""),
+                "page_count": metadata.get("page_count", 0),
+                "file_size": file_size,
+                "created_at": current_time_ms,
+                "updated_at": current_time_ms,
+                "visited_at": 0,
+                "version": 1,
+                "json_data": {
+                    "filename": f"{record_uuid}.pdf",
+                    "original_filename": filename,
+                    "filepath": absolute_path,
+                    "original_path": absolute_path,
+                    "subject": metadata.get("subject", ""),
+                    "keywords": metadata.get("keywords", ""),
+                    "creator": metadata.get("creator", ""),
+                    "producer": metadata.get("producer", ""),
+                    "page_count": metadata.get("page_count", 0),
+                    "tags": [],
+                    "notes": "",
+                    "rating": 0,
+                    "is_visible": True,
+                    "review_count": 0,
+                    "total_reading_time": 0,
+                    "due_date": 0,
+                    "last_accessed_at": 0
+                }
+            }
+
+            self.create_record(record_data)
+
+            return {
+                "success": True,
+                "uuid": record_uuid,
+                "filename": filename,
+                "file_size": file_size
+            }
+
+        except Exception as e:
+            self._logger.error("添加 PDF 文件失败: %s", e, exc_info=True)
+            return {
+                "success": False,
+                "error": str(e)
+            }
     def update_record(self, uuid: str, updates: Dict[str, Any]) -> bool:
         normalized = self._normalize_update(uuid, updates)
         return self._pdf_info_plugin.update(uuid, normalized)
@@ -387,32 +523,41 @@ class PDFLibraryAPI:
         if not uuid:
             raise DatabaseValidationError("file info missing id")
 
+        metadata = file_info.get("metadata") or {}
         created_at = self._parse_datetime_to_ms(file_info.get("created_time"))
         updated_at = self._parse_datetime_to_ms(file_info.get("modified_time")) or created_at
-        last_accessed = file_info.get("last_accessed_at", 0)
+        last_accessed = file_info.get("last_accessed_at", metadata.get("last_accessed_at", 0))
+
+        storage_path = file_info.get("filepath") or metadata.get("filepath", "")
+        original_path = (
+            file_info.get("original_path")
+            or metadata.get("original_path")
+            or storage_path
+        )
 
         json_data = {
             "filename": file_info.get("filename", ""),
-            "filepath": file_info.get("filepath", ""),
-            "tags": self._normalize_tags(file_info.get("tags")),
-            "rating": file_info.get("rating", 0),
-            "is_visible": file_info.get("is_visible", True),
-            "total_reading_time": file_info.get("total_reading_time", 0),
+            "filepath": storage_path,
+            "original_path": original_path,
+            "tags": self._normalize_tags(file_info.get("tags") or metadata.get("tags")),
+            "rating": file_info.get("rating", metadata.get("rating", 0)),
+            "is_visible": file_info.get("is_visible", metadata.get("is_visible", True)),
+            "total_reading_time": file_info.get("total_reading_time", metadata.get("total_reading_time", 0)),
             "last_accessed_at": self._ensure_ms(last_accessed),
-            "review_count": file_info.get("review_count", 0),
-            "due_date": self._ensure_ms(file_info.get("due_date", 0)),
-            "notes": file_info.get("notes", ""),
-            "thumbnail_path": file_info.get("thumbnail_path"),
-            "subject": file_info.get("subject", ""),
-            "keywords": file_info.get("keywords", ""),
+            "review_count": file_info.get("review_count", metadata.get("review_count", 0)),
+            "due_date": self._ensure_ms(file_info.get("due_date", metadata.get("due_date", 0))),
+            "notes": file_info.get("notes", metadata.get("notes", "")),
+            "thumbnail_path": file_info.get("thumbnail_path") or metadata.get("thumbnail_path"),
+            "subject": metadata.get("subject", file_info.get("subject", "")),
+            "keywords": metadata.get("keywords", file_info.get("keywords", "")),
         }
 
         payload = {
             "uuid": uuid,
-            "title": file_info.get("title") or file_info.get("filename", ""),
-            "author": file_info.get("author", ""),
-            "page_count": file_info.get("page_count", 0),
-            "file_size": file_info.get("file_size", 0),
+            "title": file_info.get("title") or metadata.get("title") or file_info.get("filename", ""),
+            "author": file_info.get("author", metadata.get("author", "")),
+            "page_count": file_info.get("page_count", metadata.get("page_count", 0)),
+            "file_size": file_info.get("file_size", metadata.get("file_size", 0)),
             "created_at": created_at or int(time.time() * 1000),
             "updated_at": updated_at or int(time.time() * 1000),
             "visited_at": self._ensure_ms(last_accessed),
@@ -420,7 +565,6 @@ class PDFLibraryAPI:
             "json_data": json_data,
         }
         return payload
-
     def _map_to_frontend(self, row: Dict[str, Any]) -> Dict[str, Any]:
         json_data = deepcopy(row.get("json_data", {}))
         created_at = row.get("created_at", 0)
