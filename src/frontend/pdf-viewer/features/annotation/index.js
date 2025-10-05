@@ -16,6 +16,7 @@ import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js
 import { AnnotationSidebarUI } from "./components/annotation-sidebar-ui.js";
 import { ToolRegistry } from "./core/tool-registry.js";
 import { AnnotationManager } from "./core/annotation-manager.js";
+import { getCenterPercentFromRect } from "./utils/position-utils.js";
 
 /**
  * 标注功能Feature（容器模式）
@@ -268,7 +269,15 @@ export class AnnotationFeature {
 
       // 计算位置百分比（批注使用position字段）
       let position = null;
-      if (annotation.data && annotation.data.position) {
+      if (annotation.type === 'screenshot' && annotation.data?.rectPercent) {
+        const centerPercent = getCenterPercentFromRect(annotation.data.rectPercent);
+        if (centerPercent !== null) {
+          position = centerPercent;
+          this.#logger.info(`[AnnotationFeature] Calculated position from rectPercent: ${centerPercent.toFixed(2)}%`);
+        }
+      }
+
+      if (position === null && annotation.data && annotation.data.position) {
         const annotationPosition = annotation.data.position;
 
         // 先导航到页面，确保页面已渲染
@@ -293,7 +302,8 @@ export class AnnotationFeature {
             this.#logger.warn(`[AnnotationFeature] Page element not found for page ${pageNumber}`);
           }
         }
-      } else if (annotation.data && annotation.data.boundingBox) {
+      }
+      if (position === null && annotation.data && annotation.data.boundingBox) {
         // 兼容其他类型标注使用boundingBox
         const boundingBox = annotation.data.boundingBox;
 

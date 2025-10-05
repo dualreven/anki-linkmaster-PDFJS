@@ -1343,3 +1343,5 @@ AnnotationSidebarUI → 监听并添加卡片 (只一次)
 - 2025-10-05 16:16 edge-tts 安装：因清华镜像缺包，改用官方 PyPI (-i https://pypi.org/simple) 成功安装 edge-tts 7.2.3。
 - 2025-10-05 16:21 高亮标注问题：反向选择文字时渲染方向错误，需排查 highlight 工具的范围计算与渲染逻辑。
 - 2025-10-05 16:45 高亮标注修复：TextSelectionHandler 增加 lineRects 百分比坐标，HighlightRenderer 支持 lineRects 回放，反向划选不会偏移。
+- 2025-10-05 16:59 截图跳转问题：现仅按页滚动，需接入已有精确跳转API，并使用标注矩形实现精准定位。
+- 2025-10-05 17:10 截图跳转：AnnotationFeature 使用 rectPercent 计算中心百分比并直接调用 navigationService，实现截图标注精确定位；新增 position-utils 辅助函数及单元测试。
