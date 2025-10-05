@@ -25,6 +25,15 @@ export class UILayoutControls {
   #currentSpreadMode = 0;
   #rotateCCWBtn = null;
   #rotateCWBtn = null;
+  // 鼠标模式相关
+  #mouseModeBtn = null;
+  #currentMouseMode = 'text'; // 'text' | 'drag'
+  #pdfContainer = null;
+  #isDragging = false;
+  #dragStartX = 0;
+  #dragStartY = 0;
+  #scrollStartX = 0;
+  #scrollStartY = 0;
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
@@ -47,9 +56,15 @@ export class UILayoutControls {
     this.#spreadModeDropdown = document.querySelector('.spread-mode-dropdown');
     this.#rotateCCWBtn = document.getElementById('rotate-ccw');
     this.#rotateCWBtn = document.getElementById('rotate-cw');
+    this.#mouseModeBtn = document.getElementById('mouse-mode-btn');
+    this.#pdfContainer = document.getElementById('viewerContainer');
 
     // 设置事件监听器
     this.#setupEventListeners();
+    this.#setupMouseModeControl();
+
+    // 设置默认模式为文本选择
+    this.#setMouseMode('text');
 
     // 监听渲染模式变化
     this.#eventBus.on('pdf-viewer:render-mode:changed', this.#handleRenderModeChange.bind(this));
@@ -306,9 +321,191 @@ export class UILayoutControls {
   }
 
   /**
+   * 设置鼠标模式控制器
+   * @private
+   */
+  #setupMouseModeControl() {
+    if (!this.#mouseModeBtn) {
+      this.#logger.warn('Mouse mode button not found');
+      return;
+    }
+
+    // 点击按钮切换模式
+    this.#mouseModeBtn.addEventListener('click', () => {
+      this.#toggleMouseMode();
+    });
+
+    this.#logger.info('Mouse mode control setup complete');
+  }
+
+  /**
+   * 切换鼠标模式
+   * @private
+   */
+  #toggleMouseMode() {
+    const newMode = this.#currentMouseMode === 'text' ? 'drag' : 'text';
+    this.#setMouseMode(newMode);
+  }
+
+  /**
+   * 设置鼠标模式
+   * @param {'text' | 'drag'} mode - 鼠标模式
+   * @private
+   */
+  #setMouseMode(mode) {
+    if (!this.#pdfContainer) {
+      this.#logger.warn('PDF container not found');
+      return;
+    }
+
+    this.#currentMouseMode = mode;
+
+    // 更新CSS类名
+    if (mode === 'drag') {
+      this.#pdfContainer.classList.remove('text-mode');
+      this.#pdfContainer.classList.add('drag-mode');
+      this.#setupDragListeners();
+    } else {
+      this.#pdfContainer.classList.remove('drag-mode');
+      this.#pdfContainer.classList.add('text-mode');
+      this.#removeDragListeners();
+    }
+
+    // 更新按钮图标和tooltip
+    this.#updateMouseModeIcon(mode);
+
+    // 发出事件
+    this.#eventBus.emit('pdf-viewer:mouse-mode:changed', {
+      mode: mode
+    });
+
+    this.#logger.info(`Mouse mode changed to: ${mode}`);
+  }
+
+  /**
+   * 更新鼠标模式按钮图标
+   * @param {'text' | 'drag'} mode - 鼠标模式
+   * @private
+   */
+  #updateMouseModeIcon(mode) {
+    if (!this.#mouseModeBtn) return;
+
+    const iconSVG = this.#mouseModeBtn.querySelector('.mouse-icon');
+    if (!iconSVG) return;
+
+    if (mode === 'text') {
+      // 文本选择图标：I字形光标 + 文本线条
+      iconSVG.innerHTML = `
+        <path d="M6 3 L6 4 L8 4 L8 14 L6 14 L6 15 L12 15 L12 14 L10 14 L10 4 L12 4 L12 3 Z" stroke="currentColor" stroke-width="1.5" fill="none"/>
+        <line x1="4" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="1" opacity="0.5"/>
+        <line x1="4" y1="11" x2="14" y2="11" stroke="currentColor" stroke-width="1" opacity="0.5"/>
+      `;
+      this.#mouseModeBtn.title = '鼠标模式：文本选择';
+    } else {
+      // 手形拖拽图标
+      iconSVG.innerHTML = `
+        <path d="M9 6 L9 3 L10 3 L10 6 M11 6 L11 2 L12 2 L12 6 M13 6 L13 3 L14 3 L14 9 L14 12 C14 13.5 13 15 11 15 L8 15 C6.5 15 5 14 4 12 L4 10 L5 10 L5 12 C5.5 13 6.5 14 8 14 L11 14 C12 14 13 13 13 12 L13 9 M7 6 L7 8 L8 8 L8 6 Z" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      `;
+      this.#mouseModeBtn.title = '鼠标模式：拖拽浏览';
+    }
+  }
+
+  /**
+   * 设置拖拽事件监听器
+   * @private
+   */
+  #setupDragListeners() {
+    if (!this.#pdfContainer) return;
+
+    // 使用箭头函数绑定this，并保存引用以便后续移除
+    this._handleMouseDown = this._handleMouseDown || this.#handleMouseDown.bind(this);
+    this._handleMouseMove = this._handleMouseMove || this.#handleMouseMove.bind(this);
+    this._handleMouseUp = this._handleMouseUp || this.#handleMouseUp.bind(this);
+
+    this.#pdfContainer.addEventListener('mousedown', this._handleMouseDown);
+    document.addEventListener('mousemove', this._handleMouseMove);
+    document.addEventListener('mouseup', this._handleMouseUp);
+
+    this.#logger.debug('Drag listeners added');
+  }
+
+  /**
+   * 移除拖拽事件监听器
+   * @private
+   */
+  #removeDragListeners() {
+    if (!this.#pdfContainer) return;
+
+    if (this._handleMouseDown) {
+      this.#pdfContainer.removeEventListener('mousedown', this._handleMouseDown);
+    }
+    if (this._handleMouseMove) {
+      document.removeEventListener('mousemove', this._handleMouseMove);
+    }
+    if (this._handleMouseUp) {
+      document.removeEventListener('mouseup', this._handleMouseUp);
+    }
+
+    this.#logger.debug('Drag listeners removed');
+  }
+
+  /**
+   * 处理鼠标按下事件
+   * @param {MouseEvent} e - 鼠标事件
+   * @private
+   */
+  #handleMouseDown(e) {
+    if (this.#currentMouseMode !== 'drag') return;
+
+    this.#isDragging = true;
+    this.#dragStartX = e.clientX;
+    this.#dragStartY = e.clientY;
+    this.#scrollStartX = this.#pdfContainer.scrollLeft;
+    this.#scrollStartY = this.#pdfContainer.scrollTop;
+
+    this.#pdfContainer.classList.add('dragging');
+
+    e.preventDefault();
+  }
+
+  /**
+   * 处理鼠标移动事件
+   * @param {MouseEvent} e - 鼠标事件
+   * @private
+   */
+  #handleMouseMove(e) {
+    if (!this.#isDragging || this.#currentMouseMode !== 'drag') return;
+
+    const deltaX = e.clientX - this.#dragStartX;
+    const deltaY = e.clientY - this.#dragStartY;
+
+    this.#pdfContainer.scrollLeft = this.#scrollStartX - deltaX;
+    this.#pdfContainer.scrollTop = this.#scrollStartY - deltaY;
+
+    e.preventDefault();
+  }
+
+  /**
+   * 处理鼠标释放事件
+   * @param {MouseEvent} e - 鼠标事件
+   * @private
+   */
+  #handleMouseUp(e) {
+    if (!this.#isDragging) return;
+
+    this.#isDragging = false;
+    this.#pdfContainer.classList.remove('dragging');
+
+    e.preventDefault();
+  }
+
+  /**
    * 销毁控制器
    */
   destroy() {
+    // 清理拖拽监听器
+    this.#removeDragListeners();
+
     this.#scrollModeSelect = null;
     this.#scrollModeBtn = null;
     this.#scrollModeDropdown = null;
@@ -317,6 +514,8 @@ export class UILayoutControls {
     this.#spreadModeDropdown = null;
     this.#rotateCCWBtn = null;
     this.#rotateCWBtn = null;
+    this.#mouseModeBtn = null;
+    this.#pdfContainer = null;
     this.#pdfViewerManager = null;
     this.#logger.info("Layout controls destroyed");
   }
