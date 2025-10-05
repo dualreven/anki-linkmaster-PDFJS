@@ -217,6 +217,18 @@ class StandardWebSocketServer(QObject):
         elif message_type in ["pdf-home:get:pdf-list", "get_pdf_list"]:
             return self.handle_pdf_list_request(request_id, data)
 
+        # 搜索PDF记录
+        elif message_type == "pdf/search":
+            if hasattr(self, "pdf_library_api") and self.pdf_library_api:
+                return self.handle_pdf_search_v2(request_id, data)
+            else:
+                return StandardMessageHandler.build_error_response(
+                    request_id,
+                    "SERVICE_UNAVAILABLE",
+                    "PDF搜索服务不可用",
+                    code=503
+                )
+
         # 添加PDF文件（支持单个/多个）
         elif message_type in ["pdf-home:add:pdf-files", "add_pdf"]:
             return self.handle_pdf_upload_request(request_id, data)
@@ -276,6 +288,66 @@ class StandardWebSocketServer(QObject):
                 code=400
             )
     
+
+    def handle_pdf_search_v2(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        处理 PDF 搜索请求（v2 规范）
+
+        消息格式:
+        {
+            "type": "pdf/search",
+            "data": {
+                "search_text": "关键词1 关键词2",
+                "search_fields": ["title", "author", "filename", "tags", "notes"],  // 可选
+                "include_hidden": true,  // 可选
+                "limit": 100,            // 可选
+                "offset": 0              // 可选
+            },
+            "request_id": "unique-id"
+        }
+        """
+        try:
+            search_text = data.get("search_text", "")
+            search_fields = data.get("search_fields")
+            include_hidden = data.get("include_hidden", True)
+            limit = data.get("limit")
+            offset = data.get("offset")
+
+            # 转换类型
+            limit = int(limit) if limit is not None else None
+            offset = int(offset) if offset is not None else None
+
+            # 调用 API 搜索
+            search_result = self.pdf_library_api.search_records(
+                search_text=search_text,
+                search_fields=search_fields,
+                include_hidden=include_hidden,
+                limit=limit,
+                offset=offset
+            )
+
+            # 构建响应
+            response = {
+                "type": "pdf/search",
+                "status": "success",
+                "timestamp": int(time.time()),
+                "data": search_result  # 包含 records, count, search_text
+            }
+
+            if request_id:
+                response["request_id"] = request_id
+
+            logger.info(f"搜索完成: '{search_text}', 找到 {search_result['count']} 条记录")
+            return response
+
+        except Exception as exc:
+            logger.error(f"搜索失败: {exc}", exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id,
+                "SEARCH_ERROR",
+                f"搜索失败: {str(exc)}",
+                code=500
+            )
 
     def handle_pdf_list_v2(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
         try:

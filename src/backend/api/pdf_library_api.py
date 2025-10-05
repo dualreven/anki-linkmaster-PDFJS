@@ -130,6 +130,60 @@ class PDFLibraryAPI:
                 mapped.append(record)
         return mapped
 
+    def search_records(
+        self,
+        search_text: str,
+        *,
+        search_fields: Optional[List[str]] = None,
+        include_hidden: bool = True,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """
+        搜索 PDF 记录（支持多关键词搜索）
+
+        Args:
+            search_text: 搜索文本（将按空格分词）
+            search_fields: 要搜索的字段列表，默认 ['title', 'author', 'filename', 'tags', 'notes']
+            include_hidden: 是否包含隐藏记录
+            limit: 结果数量限制
+            offset: 结果偏移量
+
+        Returns:
+            搜索结果字典 {
+                "records": [...],  # 记录列表（前端格式）
+                "count": 10,       # 结果数量
+                "search_text": "关键词1 关键词2"
+            }
+
+        Examples:
+            >>> api.search_records("Python 编程", limit=50)
+            >>> api.search_records("深度学习", search_fields=['title', 'tags'])
+        """
+        # 按空格分词
+        keywords = [kw.strip() for kw in search_text.split() if kw.strip()]
+
+        # 调用插件搜索
+        rows = self._pdf_info_plugin.search_records(
+            keywords=keywords,
+            search_fields=search_fields,
+            limit=limit,
+            offset=offset
+        )
+
+        # 转换格式并过滤隐藏记录
+        mapped: List[Dict[str, Any]] = []
+        for row in rows:
+            record = self._map_to_frontend(row)
+            if include_hidden or record.get("is_visible", True):
+                mapped.append(record)
+
+        return {
+            "records": mapped,
+            "count": len(mapped),
+            "search_text": search_text
+        }
+
     # Sync helpers --------------------------------------------------------
 
     def register_file_info(self, file_info: Dict[str, Any]) -> str:

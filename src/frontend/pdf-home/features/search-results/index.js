@@ -155,6 +155,17 @@ export class SearchResultsFeature {
    * @private
    */
   #subscribeToFilterEvents() {
+    // 监听搜索结果更新（来自search插件）
+    const unsubSearchResults = this.#globalEventBus.on('search:results:updated', (data) => {
+      this.#logger.info('[SearchResultsFeature] Search results received', {
+        count: data.count,
+        searchText: data.searchText
+      });
+
+      this.#handleResultsUpdate(data.records, data.count, data.searchText);
+    });
+    this.#unsubscribers.push(unsubSearchResults);
+
     // 监听筛选结果更新（来自filter插件）
     const unsubResults = this.#globalEventBus.on('filter:results:updated', (data) => {
       this.#logger.info('[SearchResultsFeature] Filter results received', {
@@ -166,7 +177,7 @@ export class SearchResultsFeature {
     });
     this.#unsubscribers.push(unsubResults);
 
-    this.#logger.info('[SearchResultsFeature] Subscribed to filter events');
+    this.#logger.info('[SearchResultsFeature] Subscribed to search and filter events');
   }
 
   /**
