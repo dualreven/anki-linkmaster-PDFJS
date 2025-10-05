@@ -109,7 +109,7 @@ export class FilterManager {
     this.#filteredData = [...this.#originalData];
 
     this.#logger.info('[FilterManager] Filter cleared');
-    this.#eventBus.emit('filter:cleared', {
+    this.#eventBus.emit('filter:clear:completed', {
       resultCount: this.#filteredData.length,
       data: this.#filteredData
     });

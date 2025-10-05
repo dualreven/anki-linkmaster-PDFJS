@@ -10,20 +10,6 @@
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>PDF文件管理-B</h1>
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <button id="add-pdf-btn" class="btn primary">＋添加</button>
-                <button id="batch-delete-btn" class="btn danger" title="删除选中的PDF文件">－删除</button>
-                <div style="width: 20px;"></div>
-                <button id="edit-pdf-btn" class="btn" title="选择一条记录后可编辑">✏️ 编辑</button>
-                <button id="sort-btn" class="btn" title="排序PDF列表">🔃 排序</button>
-                <button id="preset-filter-btn" class="btn" title="保存和加载搜索预设">🔖 预设</button>
-                <button id="review-btn" class="btn" title="复习PDF文件">📚 复习</button>
-                <button id="open-pdf-btn" class="btn" title="打开选中的PDF文件">📖 阅读</button>
-            </div>
-        </header>
-
         <main>
             <!-- 左右两栏布局 -->
             <div class="layout-container">
@@ -34,14 +20,13 @@
 
                 <!-- 右侧主内容区 -->
                 <div class="main-content">
-                    <div id="pdf-table-container" class="pdf-table-container">
-                        <!-- PDF表格将在这里动态生成 -->
+                    <div class="search-results-header">
+                        <h2>📚 搜索结果</h2>
+                        <span class="result-count-badge">共 0 条</span>
                     </div>
 
-                    <div id="empty-state" class="empty-state" style="display: none;">
-                        <div class="empty-icon">📄</div>
-                        <h3>暂无PDF文件</h3>
-                        <p>点击"添加文件"按钮开始管理您的PDF文档</p>
+                    <div id="pdf-table-container" class="pdf-table-container">
+                        <!-- 搜索结果将在这里动态生成 -->
                     </div>
                 </div>
             </div>

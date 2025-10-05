@@ -56,6 +56,7 @@ export const WEBSOCKET_MESSAGE_EVENTS = { PDF_LIST_UPDATED: "websocket:message:u
 export const WEBSOCKET_MESSAGE_TYPES = {
   // 新规范 (v2: 主语:谓语:宾语)
   GET_PDF_LIST: "pdf-home:get:pdf-list",
+  SEARCH_PDF: "pdf-home:search:pdf-files",  // 新增：搜索PDF文件
   ADD_PDF: "pdf-home:add:pdf-files",
   REMOVE_PDF: "pdf-home:remove:pdf-files",
   OPEN_PDF: "pdf-home:open:pdf-file",

@@ -1,29 +1,24 @@
 /**
- * 简单搜索框UI组件
+ * 筛选面板UI组件
+ * 提供高级筛选和保存条件按钮
  */
 
-export class FilterSearchBar {
+export class FilterPanel {
   #logger = null;
   #eventBus = null;
   #container = null;
-  #searchInput = null;
-  #searchBtn = null;
-  #clearBtn = null;
   #advancedBtn = null;
   #savePresetBtn = null;
-  #statsDisplay = null;
-  #callbacks = null;
   #presetDialog = null;
   #presetNameInput = null;
 
-  constructor(logger, eventBus, callbacks = {}) {
+  constructor(logger, eventBus) {
     this.#logger = logger;
     this.#eventBus = eventBus;
-    this.#callbacks = callbacks;
   }
 
   /**
-   * 渲染搜索栏
+   * 渲染筛选面板
    * @param {HTMLElement} container - 容器元素
    */
   render(container) {
@@ -33,7 +28,7 @@ export class FilterSearchBar {
     this.#attachEventListeners();
     this.#createPresetDialog();
 
-    this.#logger.info('[FilterSearchBar] Rendered');
+    this.#logger.info('[FilterPanel] Rendered');
   }
 
   /**
@@ -42,38 +37,13 @@ export class FilterSearchBar {
    */
   #getTemplate() {
     return `
-      <div class="filter-search-bar">
-        <button id="add-pdf-btn" class="btn primary" title="添加PDF文件">
-          ＋添加
+      <div class="filter-panel">
+        <button class="advanced-filter-btn" title="高级筛选">
+          🎚️ 高级筛选
         </button>
-        <div class="search-input-wrapper">
-          <input
-            type="text"
-            class="search-input"
-            placeholder="输入关键词搜索PDF（文件名、标签、备注）..."
-            autocomplete="off"
-          />
-          <button class="clear-search-btn" title="清除搜索" style="display: none;">
-            ✕
-          </button>
-        </div>
-        <div class="search-controls-right">
-          <button class="search-btn" title="执行搜索">
-            🔍 搜索
-          </button>
-          <button class="advanced-filter-btn" title="高级筛选">
-            🎚️ 高级
-          </button>
-          <button class="save-preset-btn" title="保存搜索条件">
-            💾 保存条件
-          </button>
-          <button id="sort-btn" class="btn" title="排序PDF列表">
-            🔃 排序
-          </button>
-        </div>
-        <div class="filter-stats" style="display: none;">
-          找到 <span class="result-count">0</span> 个结果
-        </div>
+        <button class="save-preset-btn" title="保存搜索条件">
+          💾 保存条件
+        </button>
       </div>
     `;
   }
@@ -128,12 +98,8 @@ export class FilterSearchBar {
    * @private
    */
   #bindElements() {
-    this.#searchInput = this.#container.querySelector('.search-input');
-    this.#searchBtn = this.#container.querySelector('.search-btn');
-    this.#clearBtn = this.#container.querySelector('.clear-search-btn');
     this.#advancedBtn = this.#container.querySelector('.advanced-filter-btn');
     this.#savePresetBtn = this.#container.querySelector('.save-preset-btn');
-    this.#statsDisplay = this.#container.querySelector('.filter-stats');
   }
 
   /**
@@ -141,42 +107,6 @@ export class FilterSearchBar {
    * @private
    */
   #attachEventListeners() {
-    // 搜索输入 - 实时搜索（可选，保留原有功能）
-    let searchTimeout = null;
-    this.#searchInput.addEventListener('input', (e) => {
-      const searchText = e.target.value.trim();
-
-      // 防抖处理
-      clearTimeout(searchTimeout);
-      searchTimeout = setTimeout(() => {
-        this.#handleSearch(searchText);
-      }, 300);
-
-      // 显示/隐藏清除按钮
-      this.#clearBtn.style.display = searchText ? 'block' : 'none';
-    });
-
-    // Enter键触发立即搜索
-    this.#searchInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        clearTimeout(searchTimeout);
-        this.#handleSearch(e.target.value.trim());
-      }
-    });
-
-    // 搜索按钮
-    this.#searchBtn.addEventListener('click', () => {
-      const searchText = this.#searchInput.value.trim();
-      this.#handleSearch(searchText);
-    });
-
-    // 清除按钮
-    this.#clearBtn.addEventListener('click', () => {
-      this.#searchInput.value = '';
-      this.#clearBtn.style.display = 'none';
-      this.#handleClear();
-    });
-
     // 高级筛选按钮
     this.#advancedBtn.addEventListener('click', () => {
       this.#handleAdvancedFilter();
@@ -236,82 +166,12 @@ export class FilterSearchBar {
   }
 
   /**
-   * 处理搜索
-   * @private
-   */
-  #handleSearch(searchText) {
-    if (!searchText) {
-      this.#handleClear();
-      return;
-    }
-
-    this.#logger.info('[FilterSearchBar] Search triggered', { searchText });
-    this.#eventBus.emit('filter:search:requested', { searchText });
-  }
-
-  /**
-   * 处理清除
-   * @private
-   */
-  #handleClear() {
-    this.#logger.info('[FilterSearchBar] Clear triggered');
-    this.#eventBus.emit('filter:clear:requested');
-    this.updateStats(null);
-  }
-
-  /**
    * 处理高级筛选
    * @private
    */
   #handleAdvancedFilter() {
-    this.#logger.info('[FilterSearchBar] Advanced filter triggered');
-
-    // 优先使用回调函数
-    if (this.#callbacks.onAdvancedClick) {
-      this.#callbacks.onAdvancedClick();
-    } else {
-      // 回退到事件机制
-      this.#eventBus.emit('filter:advanced:open');
-    }
-  }
-
-  /**
-   * 更新统计信息显示
-   * @param {Object} stats - 统计信息 {filteredCount, originalCount}
-   */
-  updateStats(stats) {
-    if (!stats || !stats.hasFilter) {
-      this.#statsDisplay.style.display = 'none';
-      return;
-    }
-
-    const resultCountSpan = this.#statsDisplay.querySelector('.result-count');
-    resultCountSpan.textContent = stats.filteredCount;
-    this.#statsDisplay.style.display = 'block';
-  }
-
-  /**
-   * 设置搜索文本（编程式设置）
-   * @param {string} text
-   */
-  setSearchText(text) {
-    this.#searchInput.value = text;
-    this.#clearBtn.style.display = text ? 'block' : 'none';
-  }
-
-  /**
-   * 获取当前搜索文本
-   * @returns {string}
-   */
-  getSearchText() {
-    return this.#searchInput.value.trim();
-  }
-
-  /**
-   * 聚焦搜索框
-   */
-  focus() {
-    this.#searchInput.focus();
+    this.#logger.info('[FilterPanel] Advanced filter triggered');
+    this.#eventBus.emit('filter:advanced:open');
   }
 
   /**
@@ -325,7 +185,7 @@ export class FilterSearchBar {
     setTimeout(() => {
       this.#presetNameInput.focus();
     }, 100);
-    this.#logger.info('[FilterSearchBar] Preset dialog shown');
+    this.#logger.info('[FilterPanel] Preset dialog shown');
   }
 
   /**
@@ -335,7 +195,7 @@ export class FilterSearchBar {
   #hidePresetDialog() {
     this.#presetDialog.hidden = true;
     this.#presetNameInput.value = '';
-    this.#logger.info('[FilterSearchBar] Preset dialog hidden');
+    this.#logger.info('[FilterPanel] Preset dialog hidden');
   }
 
   /**
@@ -350,10 +210,8 @@ export class FilterSearchBar {
       return;
     }
 
-    this.#logger.info('[FilterSearchBar] Save preset requested', { presetName });
-
-    // TODO: 实现保存逻辑
-    console.log('保存预设:', presetName);
+    this.#logger.info('[FilterPanel] Save preset requested', { presetName });
+    this.#eventBus.emit('filter:preset:save', { presetName });
 
     this.#hidePresetDialog();
   }
@@ -373,6 +231,6 @@ export class FilterSearchBar {
       this.#presetNameInput = null;
     }
 
-    this.#logger.info('[FilterSearchBar] Destroyed');
+    this.#logger.info('[FilterPanel] Destroyed');
   }
 }

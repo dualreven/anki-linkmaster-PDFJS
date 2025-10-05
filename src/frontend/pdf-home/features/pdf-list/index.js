@@ -140,9 +140,9 @@ export class PDFListFeature {
       // 4. 标记为已启用
       this.#enabled = true;
 
-      // 5. 请求初始PDF列表数据（暂时禁用）
-      this.#logger.debug('Step 4: Requesting initial PDF list... (DISABLED for UI design phase)');
-      // this.#requestPdfList();
+      // 5. 请求初始PDF列表数据
+      this.#logger.debug('Step 5: Requesting initial PDF list...');
+      this.#requestPdfList();
 
       this.#logger.info(`${this.name} installed successfully`);
     } catch (error) {

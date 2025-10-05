@@ -1,4 +1,15 @@
 {
+  "header": {
+    "enabled": false,
+    "description": "Header UI管理 - 应用标题和操作按钮（开发中）",
+    "version": "1.0.0",
+    "meta": {
+      "status": "development",
+      "owner": "pdf-home-team",
+      "dependencies": [],
+      "estimatedRelease": "2025-10-05"
+    }
+  },
   "pdf-list": {
     "enabled": true,
     "description": "PDF 列表功能域",
@@ -43,15 +54,26 @@
       "releasedAt": "2025-10-03"
     }
   },
-  "filter": {
+  "search": {
     "enabled": true,
-    "description": "PDF 搜索和筛选功能域",
+    "description": "PDF 搜索功能 - 搜索框UI和基础搜索逻辑",
     "version": "1.0.0",
     "meta": {
       "status": "stable",
       "owner": "pdf-home-team",
-      "dependencies": ["pdf-list"],
-      "releasedAt": "2025-10-03"
+      "dependencies": [],
+      "releasedAt": "2025-10-04"
+    }
+  },
+  "filter": {
+    "enabled": true,
+    "description": "PDF 高级筛选功能 - 筛选条件构建和管理",
+    "version": "2.0.0",
+    "meta": {
+      "status": "stable",
+      "owner": "pdf-home-team",
+      "dependencies": ["search"],
+      "releasedAt": "2025-10-04"
     }
   },
   "sidebar": {
@@ -63,6 +85,17 @@
       "owner": "pdf-home-team",
       "dependencies": [],
       "releasedAt": "2025-10-04"
+    }
+  },
+  "saved-filters": {
+    "enabled": true,
+    "description": "已存搜索条件功能 - 显示和管理保存的搜索条件",
+    "version": "1.0.0",
+    "meta": {
+      "status": "stable",
+      "owner": "pdf-home-team",
+      "dependencies": ["sidebar"],
+      "releasedAt": "2025-10-05"
     }
   },
   "recent-searches": {
@@ -99,25 +132,25 @@
     }
   },
   "search-results": {
-    "enabled": false,
-    "description": "搜索结果功能 - 显示PDF搜索结果表格（开发中）",
+    "enabled": true,
+    "description": "搜索结果功能 - 显示PDF搜索结果列表",
     "version": "1.0.0",
     "meta": {
-      "status": "development",
+      "status": "stable",
       "owner": "pdf-home-team",
       "dependencies": ["filter"],
-      "estimatedRelease": "2025-10-05"
+      "releasedAt": "2025-10-04"
     }
   },
   "search-result-item": {
-    "enabled": false,
-    "description": "搜索结果条目 - 单个结果项渲染（开发中）",
+    "enabled": true,
+    "description": "搜索结果条目 - 单个结果项卡片渲染",
     "version": "1.0.0",
     "meta": {
-      "status": "development",
+      "status": "stable",
       "owner": "pdf-home-team",
       "dependencies": ["search-results"],
-      "estimatedRelease": "2025-10-05"
+      "releasedAt": "2025-10-04"
     }
   }
 }

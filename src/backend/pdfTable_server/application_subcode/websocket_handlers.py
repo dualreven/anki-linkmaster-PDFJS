@@ -29,7 +29,7 @@ class WebSocketHandlers:
 
     def handle_websocket_message(self, client, message):
         """处理WebSocket消息
-        
+
         Args:
             client: QWebSocket客户端对象
             message: 消息内容（已解析为字典）
@@ -42,6 +42,8 @@ class WebSocketHandlers:
                 self.handle_add_pdf(client, message)
             elif message_type == 'get_pdf_list':
                 self.handle_get_pdf_list(client, message)
+            elif message_type == 'pdf-home:search:pdf-files':
+                self.handle_search_pdf(client, message)
             elif message_type == 'remove_pdf':
                 self.handle_remove_pdf(client, message)
             elif message_type == 'batch_remove_pdf':
@@ -173,7 +175,7 @@ class WebSocketHandlers:
     
     def handle_get_pdf_list(self, client, message):
         """处理获取PDF列表请求
-        
+
         Args:
             client: QWebSocket客户端对象
             message: 消息内容
@@ -185,9 +187,9 @@ class WebSocketHandlers:
                 "pagination": {"total": len(pdfs)}
             }
             self.response.send_success_response(
-                client, 
-                "get_pdf_list", 
-                response_data, 
+                client,
+                "get_pdf_list",
+                response_data,
                 message.get('request_id')
             )
         except FileNotFoundError as e:
@@ -199,6 +201,59 @@ class WebSocketHandlers:
         except Exception as e:
             logger.error(f"处理获取PDF列表请求时出错: {str(e)}")
             self.response.send_error_response(client, f"处理获取PDF列表请求时出错: {str(e)}", "get_pdf_list", "INTERNAL_ERROR", message.get('request_id'))
+
+    def handle_search_pdf(self, client, message):
+        """处理PDF搜索请求（实时搜索）
+
+        Args:
+            client: QWebSocket客户端对象
+            message: 消息内容，包含 search_text 参数
+        """
+        try:
+            # 获取搜索文本（可以为空）
+            search_text = message.get('search_text', '').strip()
+
+            logger.info(f"处理搜索请求，搜索文本: '{search_text}' (空搜索将返回全部)")
+
+            # 如果搜索文本为空，返回所有PDF文件
+            if not search_text:
+                pdfs = self.pdf_manager.get_files()
+                logger.info(f"返回全部PDF文件: {len(pdfs)} 个")
+            else:
+                # 使用PDF管理器的搜索功能
+                search_result = self.pdf_manager.search_files(search_text)
+                if search_result.get('success'):
+                    pdfs = search_result['data']['files']
+                    logger.info(f"搜索到 {len(pdfs)} 个匹配的PDF文件")
+                else:
+                    logger.error(f"搜索失败: {search_result.get('error')}")
+                    pdfs = []
+
+            # 构建响应数据（符合前端期望的格式）
+            response_data = {
+                "files": pdfs,
+                "search_text": search_text,
+                "total_count": len(pdfs),
+                "original_type": "pdf-home:search:pdf-files"  # 前端需要此字段来识别响应类型
+            }
+
+            # 发送成功响应
+            self.response.send_success_response(
+                client,
+                "pdf-home:search:pdf-files",
+                response_data,
+                message.get('request_id')
+            )
+
+        except Exception as e:
+            logger.error(f"处理搜索请求时出错: {str(e)}")
+            self.response.send_error_response(
+                client,
+                f"处理搜索请求时出错: {str(e)}",
+                "pdf-home:search:pdf-files",
+                "INTERNAL_ERROR",
+                message.get('request_id')
+            )
 
     def handle_add_pdf(self, client, message):
         """处理添加PDF文件请求（向后兼容）
