@@ -322,18 +322,21 @@ class StandardPDFManager(QObject):
             "author": base_info["author"],
             "file_size": base_info.get("file_size", 0),
             "page_count": base_info.get("page_count", 0),
+            "filepath": base_info.get("filepath"),
+            "original_path": getattr(pdf_file, "original_path", base_info.get("filepath")),
+            "created_time": base_info.get("created_time"),
+            "modified_time": base_info.get("modified_time"),
             "tags": base_info.get("tags", []),
             "upload_time": base_info.get("upload_time", int(time.time() * 1000)),
             "metadata": base_info.get("metadata", {}),
-            # 学习管理字段 (扩展 - 2025-10-02)
             "last_accessed_at": base_info.get("last_accessed_at", 0),
             "review_count": base_info.get("review_count", 0),
             "rating": base_info.get("rating", 0),
             "is_visible": base_info.get("is_visible", True),
             "total_reading_time": base_info.get("total_reading_time", 0),
-            "due_date": base_info.get("due_date", 0)
+            "due_date": base_info.get("due_date", 0),
+            "notes": base_info.get("notes", ""),
         }
-    
     def _build_error_response(self, type: str, message: str, details: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """构建新标准格式的错误响应"""
         error_response = {

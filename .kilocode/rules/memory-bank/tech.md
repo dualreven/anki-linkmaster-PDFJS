@@ -357,3 +357,10 @@ emove_comment(ann_id, comment_id)。
 ### 2025-10-06 加权排序公式构建器与搜索结果布局
 - 校验：使用 `#hasFieldReference` 判断公式是否引用字段，floor(filename)/length(title) 等公式被视为合法。
 - 搜索结果布局：`.search-results-container` 使用 `layout-single/double/triple` 类控制列数，按钮状态存储于 localStorage(`pdf-home:search-results:layout`)；布局按钮样式位于 search-results.css。
+
+### 2025-10-06 PDFLibraryAPI.add_pdf_from_file 更新
+- 新增 12 位十六进制 UUID 与 `<uuid>.pdf` 文件名校验，保持与 `StandardPDFManager` 副本策略一致。
+- 默认优先调用 `StandardPDFManager` 并写表，失败时回滚并返回 `UPLOAD_FAILED`；当管理器禁用时回退至直接建表但仍记录原路径。
+- 返回结构保持 `{success, uuid, filename, file_size|error}`，供 WebSocket 响应直接使用。
+- WebSocket `handle_pdf_upload_request` 现透传 `PDFLibraryAPI` 结果，fallback 时解析 `(success, payload)` 元组并回传原始错误信息，前端可准确提示原因。
+- `PDFManager.add_file` 现在在重复写入时直接发出"文件已存在于列表中"信号，Legacy 适配器即可透传该信息。

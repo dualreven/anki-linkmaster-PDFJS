@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file PDF List 功能域入口
  * @module features/pdf-list
  * @description
@@ -85,6 +85,13 @@ export class PDFListFeature {
    * @private
    */
   #enabled = false;
+
+  /**
+   * 多文件添加的聚合状态
+   * @type {{expected:number, processed:number, success:number, failed:number}|null}
+   * @private
+   */
+  #pendingAdd = null;
 
   // ==================== IFeature 接口实现 ====================
 
@@ -398,6 +405,7 @@ export class PDFListFeature {
       }
 
       this.#logger.info(`User selected ${files.length} files`);
+      this.#pendingAdd = { expected: files.length, processed: 0, success: 0, failed: 0 };
 
       // 循环发送多个单文件请求（后端期望单个filepath参数）
       for (const filepath of files) {
@@ -450,6 +458,7 @@ export class PDFListFeature {
       }
 
       this.#logger.info(`User selected ${files.length} files in batch mode`);
+      this.#pendingAdd = { expected: files.length, processed: 0, success: 0, failed: 0 };
 
       // 循环发送多个单文件请求（后端期望单个filepath参数）
       for (const filepath of files) {
@@ -631,6 +640,12 @@ export class PDFListFeature {
     const unsubWebSocketResponse = this.#scopedEventBus.onGlobal('websocket:message:response', (data) => {
       this.#logger.debug('Received WebSocket response:', data);
 
+      if (data?.status === 'error') {
+        const errorMessage = data?.message || data?.error?.message || '操作失败';
+        showError(errorMessage);
+        return;
+      }
+
       // 添加调试日志，检查响应数据结构
       if (data && data.data) {
         this.#logger.debug('Response data keys:', Object.keys(data.data));
@@ -659,6 +674,24 @@ export class PDFListFeature {
       // 处理单个文件添加响应（后端返回 data.file 对象）
       if (data && data.data && data.data.file && data.status === 'success') {
         this.#logger.info(`File added successfully: ${data.data.file.filename}`);
+
+        if (this.#pendingAdd && typeof this.#pendingAdd.expected === 'number') {
+          this.#pendingAdd.processed += 1;
+          this.#pendingAdd.success += 1;
+          if (this.#pendingAdd.processed >= this.#pendingAdd.expected) {
+            const { success, failed, expected } = this.#pendingAdd;
+            if (failed > 0 && success === 0) {
+              showError(`添加完成：全部失败 ${failed}/${expected}`);
+            } else if (failed > 0) {
+              showError(`添加完成：成功 ${success} 个，失败 ${failed} 个`);
+            } else {
+              showSuccess(`成功添加 ${success} 个文件`);
+            }
+            this.#pendingAdd = null;
+          }
+        } else {
+          showSuccess('成功添加 1 个文件');
+        }
 
         // 重新请求完整列表以更新表格（因为后端返回的信息不完整）
         this.#scopedEventBus?.emitGlobal('websocket:message:send', {
@@ -982,3 +1015,4 @@ export function createPDFListFeature() {
 }
 
 export default PDFListFeature;
+

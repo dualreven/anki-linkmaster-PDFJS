@@ -632,3 +632,26 @@ const service = new NavigationService();
 - 实现: SearchResultsFeature 新增布局按钮 (layout-toggle)、本地偏好持久化与 `layout-single/layout-double/layout-triple` 容器类。
 - 样式: search-results.css 引入网格布局与按钮样式；search-result-item 卡片高度填充、去除 margin；全局批量动作区域支持 wrap。
 - 测试: `layout-toggle.test.js` 验证默认布局、按钮切换及 localStorage 恢复。
+
+## 202510052139 标注卡片删除按钮
+- 需求: 在标注侧边栏的卡片上新增删除按钮，统一触发 annotation 删除流程。
+- 相关文件: src/frontend/pdf-viewer/features/annotation/components/annotation-sidebar-ui.js, 各工具 createAnnotationCard 实现。
+- 约束: 按钮需复用现有删除事件 (PDF_VIEWER_EVENTS.ANNOTATION.DELETE)，遵循侧边栏样式规范。
+- 原子任务:
+  1. 梳理卡片渲染入口，决定统一处理或分工具扩展。
+  2. 实现删除按钮 DOM & 事件，调用公共删除逻辑。
+  3. 更新 UI/测试，验证操作。
+
+## 202510052150 标注UI表情优化
+- 需求: 在标注插件系统UI（侧边栏工具按钮、卡片按钮、快捷操作按钮等）使用Unicode表情取代纯文字标识。
+- 关注范围: annotation-sidebar-ui, tools下的按钮, text-selection-quick-actions。
+- 注意: 保留tooltip解释文字，确保表情含义直观。
+
+### 2025-10-06 PDF-Home 添加流程回归
+- 后端：`PDFLibraryAPI.add_pdf_from_file` 统一生成 12 位十六进制 UUID，并优先通过 `PDFLibraryAPI` 路径完成数据库写入；失败时回滚 `StandardPDFManager`，并保留旧 JSON 流程兜底。
+- 同步更新 `StandardPDFManager._build_standard_file_info`，补充 `filepath`、`original_path`、`created_time/modified_time` 等字段以满足注册器校验。
+- 新增 `DummyPDFManager` 测试桩覆盖成败分支，确保回退模式（禁用 pdf_manager）仍可落表。
+- 前端 `pdf-list` 监听 `websocket:message:response` 时补充错误提示与单文件添加成功提示，用户可见反馈更加明确。
+- 测试：`python -m pytest` 运行 `test_add_pdf_from_file_uses_pdf_manager`、`test_add_pdf_from_file_without_manager_inserts_record`、`test_add_pdf_from_file_propagates_manager_error`。
+- WebSocket 服务器在处理 `pdf-home:add:pdf-files` 时优先调用 `PDFLibraryAPI`，失败将透传 `StandardPDFManager` 返回的实际错误文案，避免前端出现"上传失败"泛化提示。
+- 调整 `PDFManager.add_file` 失败分支，直接抛出"文件已存在于列表中"，便于前端获得具体原因。

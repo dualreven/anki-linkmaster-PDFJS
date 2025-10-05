@@ -321,9 +321,9 @@ class BackendProcessManager:
         try:
             logger.info(f"🚀 正在启动服务 {service_name} 在端口 {port}...")
 
-            # 为每个服务创建独立的日志文件
+            # 为每个服务创建独立的日志文件（使用 'w' 模式每次重启清空日志）
             service_log_file = self.logs_dir / f"{service_name}.log"
-            log_handle = open(service_log_file, 'a', encoding='utf-8')
+            log_handle = open(service_log_file, 'w', encoding='utf-8')
 
             # 启动进程，输出重定向到服务日志文件
             process = subprocess.Popen(

@@ -101,9 +101,8 @@ class PDFManager(QObject):
                 logger.info(f"文件添加成功: {filepath} -> {copy_path}")
                 return True
             else:
-                self.error_occurred.emit("文件添加失败")
+                self.error_occurred.emit("文件已存在于列表中")
                 return False
-                
         except Exception as e:
             error_msg = ErrorHandler.get_error_message(e)
             logger.error(f"添加文件失败: {error_msg}")
