@@ -214,7 +214,7 @@ export class UILayoutControls {
 
   /**
    * 改变滚动模式
-   * @param {number} mode - 滚动模式（0=垂直, 1=水平, 2=环绕, 3=单页）
+   * @param {number} mode - 滚动模式（0=垂直, 1=水平, 3=单页）
    * @private
    */
   #changeScrollMode(mode) {
@@ -228,7 +228,6 @@ export class UILayoutControls {
     const modeNames = {
       0: '📄 垂直滚动模式',
       1: '↔️ 水平滚动模式',
-      2: '🔲 环绕滚动模式',
       3: '📃 单页模式'
     };
     this.#showToast(modeNames[mode] || `滚动模式：${mode}`, 'info');
@@ -243,7 +242,7 @@ export class UILayoutControls {
 
   /**
    * 更新滚动模式按钮图标
-   * @param {number} mode - 滚动模式（0=垂直, 1=水平, 2=环绕, 3=单页）
+   * @param {number} mode - 滚动模式（0=垂直, 1=水平, 3=单页）
    * @private
    */
   #updateScrollModeIcon(mode) {
@@ -258,9 +257,6 @@ export class UILayoutControls {
     } else if (mode === 1) {
       // 水平滚动：3个方框水平排列
       iconSVG.innerHTML = '<rect x="1" y="4" width="4" height="10" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="7" y="4" width="4" height="10" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="13" y="4" width="4" height="10" stroke="currentColor" stroke-width="1.5" fill="none"/>';
-    } else if (mode === 2) {
-      // 环绕滚动：4个方框2x2网格
-      iconSVG.innerHTML = '<rect x="1" y="1" width="7" height="7" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="10" y="1" width="7" height="7" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="1" y="10" width="7" height="7" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="10" y="10" width="7" height="7" stroke="currentColor" stroke-width="1.5" fill="none"/>';
     } else if (mode === 3) {
       // 单页：1个大方框
       iconSVG.innerHTML = '<rect x="3" y="1" width="12" height="16" stroke="currentColor" stroke-width="1.5" fill="none"/>';
@@ -269,7 +265,7 @@ export class UILayoutControls {
 
   /**
    * 改变跨页模式
-   * @param {number} mode - 跨页模式（0=单页, 2=双页）
+   * @param {number} mode - 跨页模式（0=单页, 2=偶数双页）
    * @private
    */
   #changeSpreadMode(mode) {
@@ -282,7 +278,7 @@ export class UILayoutControls {
     // 显示Toast提示
     const modeNames = {
       0: '📄 单页模式',
-      2: '📖 双页模式'
+      2: '📖 偶数双页'
     };
     this.#showToast(modeNames[mode] || `跨页模式：${mode}`, 'info');
 
@@ -296,7 +292,7 @@ export class UILayoutControls {
 
   /**
    * 更新跨页模式按钮图标
-   * @param {number} mode - 跨页模式（0=单页, 2=双页）
+   * @param {number} mode - 跨页模式（0=单页, 2=偶数双页）
    * @private
    */
   #updateSpreadModeIcon(mode) {
