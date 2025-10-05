@@ -32,7 +32,7 @@
 - 你必须全过程加载memory bank全部信息.
 - 你每次执行代码修改,包括任务完成时,必须更新 `AItemp/[YYYYMMDDhhmmss]-AI-Working-log.md` 文件, 其中 YYYYMMDDhhmmss 总是取最新时间.
 - 你必须追溯必要的 `AI-Working-log.md`文件收集足够的信息, 查看上次的目标和结果, 并根据上次的结果, 确定本次的目标和实现方法.
-- 任务完成时,你应当调用 `notify-tts "任务完成"` 通知用户任务完成.
+- 你必须调用 `notify-tts "[某任务]已完成,请检查结果"` 通知用户任务完成.
 
 # 一致性原则
 
