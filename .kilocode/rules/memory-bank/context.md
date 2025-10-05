@@ -1345,3 +1345,5 @@ AnnotationSidebarUI → 监听并添加卡片 (只一次)
 - 2025-10-05 16:45 高亮标注修复：TextSelectionHandler 增加 lineRects 百分比坐标，HighlightRenderer 支持 lineRects 回放，反向划选不会偏移。
 - 2025-10-05 16:59 截图跳转问题：现仅按页滚动，需接入已有精确跳转API，并使用标注矩形实现精准定位。
 - 2025-10-05 17:10 截图跳转：AnnotationFeature 使用 rectPercent 计算中心百分比并直接调用 navigationService，实现截图标注精确定位；新增 position-utils 辅助函数及单元测试。
+- 2025-10-05 17:29 截图标记增强：需在标记框添加颜色选择与跳转按钮，默认收起，hover 关闭按钮时展开。
+- 2025-10-05 17:55 截图标记框新增悬停控制：关闭按钮 hover 展开颜色选项与跳转按钮，支持切换 markerColor 并自动打开标注侧边栏高亮卡片。
