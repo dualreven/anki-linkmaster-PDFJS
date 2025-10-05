@@ -52,7 +52,7 @@ export const PDF_MANAGEMENT_EVENTS = {
   }
 };
 export const UI_EVENTS = { ERROR: { SHOW: "ui:error:show" }, SUCCESS: { SHOW: "ui:success:show" }, SELECTION: { CHANGED: "ui:selection:changed" } };
-export const WEBSOCKET_MESSAGE_EVENTS = { PDF_LIST_UPDATED: "websocket:message:updated", PDF_LIST: "websocket:message:list", PDF_LIST_RECEIVED: "websocket:message:received", LOAD_PDF_FILE: "websocket:message:load_pdf_file", SUCCESS: "websocket:message:success", ERROR: "websocket:message:error", RESPONSE: "websocket:message:response", SYSTEM_STATUS: "websocket:message:system_status", UNKNOWN: "websocket:message:unknown" };
+export const WEBSOCKET_MESSAGE_EVENTS = { PDF_LIST_UPDATED: "websocket:message:updated", PDF_LIST: "websocket:message:list", PDF_LIST_RECEIVED: "websocket:message:received", LOAD_PDF_FILE: "websocket:message:load_pdf_file", SUCCESS: "websocket:message:success", ERROR: "websocket:message:error", RESPONSE: "websocket:message:response", SYSTEM_STATUS: "websocket:message:system_status", BOOKMARK_LIST: "websocket:message:bookmark_list", BOOKMARK_SAVE: "websocket:message:bookmark_save", UNKNOWN: "websocket:message:unknown" };
 export const WEBSOCKET_MESSAGE_TYPES = {
   // 新规范 (v2: 主语:谓语:宾语)
   GET_PDF_LIST: "pdf-home:get:pdf-list",
@@ -61,6 +61,8 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   REMOVE_PDF: "pdf-home:remove:pdf-files",
   OPEN_PDF: "pdf-home:open:pdf-file",
   PDF_DETAIL_REQUEST: "pdf-home:get:pdf-info",
+  BOOKMARK_LIST: "bookmark/list",
+  BOOKMARK_SAVE: "bookmark/save",
 
   // 废弃的类型
   REQUEST_FILE_SELECTION: "request_file_selection", // 已废弃，不再使用

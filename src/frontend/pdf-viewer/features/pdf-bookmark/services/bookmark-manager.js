@@ -60,11 +60,18 @@ export class BookmarkManager {
    * @param {Object} options.eventBus - 事件总线
    * @param {string} options.pdfId - PDF文档ID
    */
-  constructor({ eventBus, pdfId }) {
+  constructor({ eventBus, pdfId, storage, storageFactory, storageOptions } = {}) {
     this.#logger = getLogger('BookmarkManager');
     this.#eventBus = eventBus;
     this.#pdfId = pdfId;
-    this.#storage = createDefaultBookmarkStorage();
+
+    if (storage) {
+      this.#storage = storage;
+    } else if (typeof storageFactory === 'function') {
+      this.#storage = storageFactory();
+    } else {
+      this.#storage = createDefaultBookmarkStorage(storageOptions);
+    }
   }
 
   /**

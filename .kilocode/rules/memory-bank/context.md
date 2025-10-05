@@ -1524,3 +1524,24 @@ AnnotationSidebarUI → 监听并添加卡片 (只一次)
 - 需求: 在标注插件系统UI（侧边栏工具按钮、卡片按钮、快捷操作按钮等）使用Unicode表情取代纯文字标识。
 - 关注范围: annotation-sidebar-ui, tools下的按钮, text-selection-quick-actions。
 - 注意: 保留tooltip解释文字，确保表情含义直观。
+## 2025-10-06 PDF书签持久化调研
+- 触发：用户要求完成 pdf-viewer 书签功能的持久化存储，询问后端基础设施是否完备。
+- 目标：盘点现有数据库插件、API、消息通道是否已覆盖书签 CRUD；若缺口存在需拆解原子任务（后端/前端）。
+- 关联模块：`src/backend/database/plugins/pdf_bookmark_plugin.py`、`src/backend/api/pdf_library_api.py`、`src/backend/websocket/standard_server.py`、`src/frontend/pdf-viewer/features/bookmark/*`。
+- 待办：
+  1. 阅读 bookmark 插件及 API 实现，确认书签写入/读取能力与事件流。
+  2. 核对 WebSocket 消息是否暴露书签存储接口。
+  3. 若无现成接口，设计最小持久化协议并整理到 todo 文档。
+  4. 更新本调研结果与后续任务安排。
+### 2025-10-06 调研结论
+- `PDFBookmarkTablePlugin` 已具备完整 CRUD/层级能力并通过单测，但 `PDFLibraryAPI` 尚未暴露书签 CRUD 接口，仅用于统计数量。
+- WebSocket `StandardWebSocketServer` 当前仅提供 `pdf/list` 等基础消息，缺少 `bookmark/*` 相关路由，前端无法直接调用后端持久化接口。
+- 前端 `features/pdf-bookmark` 仍使用 `LocalStorageBookmarkStorage`，未集成远端存储实现；持久化落地需新增后端 API、消息协议与前端存储策略切换。
+### 2025-10-06 书签持久化执行步骤
+1. 设计并补充后端 API (`PDFLibraryAPI`) 的书签 CRUD 接口，同时规划对应单元测试。
+2. 在 WebSocket 标准服务器中定义 `bookmark/*` 消息协议与路由，实现与 API 的集成，并规划消息流测试。
+3. 扩展前端书签存储层：新增远端存储实现、切换策略与回退方案，设计前端单元/集成测试。
+4. 设计端到端验证（含前端→WS→API→数据库闭环），实现并执行回归测试。
+- 2025-10-06：PDFLibraryAPI 增补 `list_bookmarks`/`save_bookmarks`/`search_records` 接口；实现 LocalStorage → 数据库的树形书签持久化转换，并重写搜索逻辑（支持 tokens、多字段权重、过滤、分页）。对应单测 `src/backend/api/__tests__/test_pdf_library_api.py` 全部通过。
+- 2025-10-06：WebSocket 标准服务器新增 `bookmark/list` 与 `bookmark/save` 消息处理，统一委派到 PDFLibraryAPI，并返回 `{bookmarks, root_ids}` / `{saved}` 数据结构。
+- 2025-10-06：前端书签存储切换为远端优先模型，BookmarkManager 支持注入 `wsClient`，默认通过 RemoteBookmarkStorage→WebSocket→PDFLibraryAPI 持久化；WSClient 新增 `request()` + `_settlePendingRequest`，统一请求/响应链路。

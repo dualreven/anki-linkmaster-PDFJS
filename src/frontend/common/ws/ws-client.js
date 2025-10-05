@@ -1,4 +1,4 @@
-/**
+﻿/**
  
  * WSClient (moved)
  
@@ -294,6 +294,14 @@ export class WSClient {
         case "list":  // 后端广播列表更新使用 'list' 类型
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.PDF_LIST;
           break;
+        case "bookmark/list":
+          this._settlePendingRequest(message);
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.BOOKMARK_LIST;
+          break;
+        case "bookmark/save":
+          this._settlePendingRequest(message);
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.BOOKMARK_SAVE;
+          break;
         case "load_pdf_file":
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.LOAD_PDF_FILE;
           break;
@@ -305,6 +313,7 @@ export class WSClient {
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.SUCCESS;
           break;
         case "error":
+          this._settlePendingRequest(message, { error: message?.error || message?.data });
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.ERROR;
           break;
         case "response":
@@ -369,6 +378,25 @@ export class WSClient {
   _generateRequestId() {
     return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
+  _settlePendingRequest(message, { error = null, data = undefined } = {}) {
+    const requestId = message?.request_id;
+    if (!requestId || !this.#pendingRequests.has(requestId)) {
+      return false;
+    }
+
+    const handlers = this.#pendingRequests.get(requestId);
+    this.#pendingRequests.delete(requestId);
+    this.#requestRetries.delete(requestId);
+
+    if (error) {
+      const err = error instanceof Error ? error : new Error(typeof error === 'string' ? error : (error?.message || 'WebSocket请求失败'));
+      handlers.reject(err);
+    } else {
+      handlers.resolve(data !== undefined ? data : message?.data);
+    }
+    return true;
+  }
+
 
   /**
    * 构建符合标准协议的PDF详情请求消息
@@ -387,53 +415,29 @@ export class WSClient {
     };
   }
 
-  /**
-   * 处理PDF详情响应
-   * @param {object} message - 响应消息
-   * @private
-   */
-  _handlePDFDetailResponse(message) {
-    const { request_id, data, error } = message;
-    
-    if (this.#pendingRequests.has(request_id)) {
-      const { resolve, reject } = this.#pendingRequests.get(request_id);
-      this.#pendingRequests.delete(request_id);
-      this.#requestRetries.delete(request_id);
-      
-      if (error) {
-        reject(new Error(error.message || 'PDF详情请求失败'));
-      } else {
-        resolve(data);
-      }
-    }
-  }
-
-  /**
-   * 发送PDF详情请求
-   * @param {string} pdfId - PDF文件ID
-   * @param {number} timeout - 超时时间（毫秒），默认5000
-   * @param {number} maxRetries - 最大重试次数，默认3
-   * @returns {Promise<object>} PDF详情数据
-   */
-  async sendPDFDetailRequest(pdfId, timeout = 5000, maxRetries = 3) {
+  async request(messageType, payload = {}, options = {}) {
+    const { timeout = 5000, maxRetries = 0 } = options;
     const requestId = this._generateRequestId();
-    const message = this._buildPDFDetailRequestMessage(pdfId, requestId);
-    
+    const message = {
+      type: messageType,
+      request_id: requestId,
+      timestamp: Date.now(),
+      data: payload,
+    };
+
     return new Promise((resolve, reject) => {
       let retryCount = 0;
-      
-      const executeRequest = () => {
+
+      const sendOnce = () => {
         if (!this.isConnected()) {
           handleError(new Error('WebSocket连接未建立'));
           return;
         }
 
-        // 设置超时
         const timeoutId = setTimeout(() => {
-          handleError(new Error('PDF详情请求超时'));
+          handleError(new Error('请求超时'));
         }, timeout);
 
-        // 保存请求信息
         this.#pendingRequests.set(requestId, {
           resolve: (data) => {
             clearTimeout(timeoutId);
@@ -445,10 +449,10 @@ export class WSClient {
           }
         });
 
-        // 发送请求
         try {
+          message.timestamp = Date.now();
           this.#socket.send(JSON.stringify(message));
-          this.#logger.debug(`PDF详情请求已发送: ${requestId}`, JSON.stringify(message, null, 2));
+          this.#logger.debug(`WS request sent: ${messageType}`, message);
         } catch (error) {
           clearTimeout(timeoutId);
           handleError(error);
@@ -457,25 +461,50 @@ export class WSClient {
 
       const handleError = (error) => {
         if (retryCount < maxRetries) {
-          retryCount++;
+          retryCount += 1;
           this.#requestRetries.set(requestId, retryCount);
-          this.#logger.warn(`PDF详情请求失败，第${retryCount}次重试: ${error.message}`);
-          
+          this.#logger.warn(`WS请求失败，第${retryCount}次重试: ${error.message}`);
           setTimeout(() => {
-            executeRequest();
-          }, 1000 * retryCount); // 指数退避
+            sendOnce();
+          }, 1000 * retryCount);
         } else {
           this.#pendingRequests.delete(requestId);
           this.#requestRetries.delete(requestId);
-          reject(new Error(`PDF详情请求失败，已重试${maxRetries}次: ${error.message}`));
+          const err = error instanceof Error ? error : new Error(error?.message || 'WebSocket请求失败');
+          reject(err);
         }
       };
 
-      executeRequest();
+      sendOnce();
     });
   }
 
-  #attemptReconnect() {
+  /**
+   * 处理PDF详情响应
+   * @param {object} message - 响应消息
+   * @private
+   */
+  _handlePDFDetailResponse(message) {
+    const { data, error } = message || {};
+    const err = error ? new Error(error.message || 'PDF详情请求失败') : null;
+    this._settlePendingRequest(message || {}, { error: err, data });
+  }
+
+  /**
+   * 发送PDF详情请求
+   * @param {string} pdfId - PDF文件ID
+   * @param {number} timeout - 超时时间（毫秒），默认5000
+   * @param {number} maxRetries - 最大重试次数，默认3
+   * @returns {Promise<object>} PDF详情数据
+   */
+  async sendPDFDetailRequest(pdfId, timeout = 5000, maxRetries = 3) {
+    return this.request(
+      WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST,
+      { pdf_id: pdfId },
+      { timeout, maxRetries }
+    );
+  }
+#attemptReconnect() {
     if (this.#reconnectAttempts >= this.#maxReconnectAttempts) {
       const failureInfo = {
         error_code: 'MAX_RECONNECT_ATTEMPTS',
@@ -581,3 +610,8 @@ export class WSClient {
 }
 
 export default WSClient;
+
+
+
+
+

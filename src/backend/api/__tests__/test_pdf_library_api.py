@@ -358,3 +358,122 @@ def test_search_records_returns_empty_when_no_match(api):
     result = api.search_records(payload)
     assert result["records"] == []
     assert result["total"] == 0
+
+
+def _sample_bookmarks():
+    created_at = "2025-10-06T00:00:00.000Z"
+    return [
+        {
+            "id": "bookmark-1728123457000-root",
+            "name": "章节一",
+            "type": "page",
+            "pageNumber": 1,
+            "region": None,
+            "children": [
+                {
+                    "id": "bookmark-1728123457001-child",
+                    "name": "重点段落",
+                    "type": "region",
+                    "pageNumber": 1,
+                    "region": {
+                        "scrollX": 10.5,
+                        "scrollY": 240.0,
+                        "zoom": 1.25,
+                    },
+                    "children": [],
+                    "parentId": "bookmark-1728123457000-root",
+                    "order": 0,
+                    "createdAt": created_at,
+                    "updatedAt": created_at,
+                }
+            ],
+            "parentId": None,
+            "order": 0,
+            "createdAt": created_at,
+            "updatedAt": created_at,
+        },
+        {
+            "id": "bookmark-1728123457002-second",
+            "name": "章节二",
+            "type": "page",
+            "pageNumber": 5,
+            "region": None,
+            "children": [],
+            "parentId": None,
+            "order": 1,
+            "createdAt": created_at,
+            "updatedAt": created_at,
+        },
+    ]
+
+
+def test_save_and_list_bookmarks_roundtrip(api):
+    pdf_uuid = "555555555555"
+    _insert_sample(api, uuid=pdf_uuid, title="With Bookmarks")
+
+    bookmarks = _sample_bookmarks()
+    api.save_bookmarks(pdf_uuid, bookmarks, root_ids=[b["id"] for b in bookmarks if b["parentId"] is None])
+
+    result = api.list_bookmarks(pdf_uuid)
+    assert result["root_ids"] == ["bookmark-1728123457000-root", "bookmark-1728123457002-second"]
+    ids = {item["id"] for item in result["bookmarks"]}
+    assert {
+        "bookmark-1728123457000-root",
+        "bookmark-1728123457001-child",
+        "bookmark-1728123457002-second",
+    }.issubset(ids)
+
+    child = next(item for item in result["bookmarks"] if item["id"] == "bookmark-1728123457001-child")
+    assert child["parentId"] == "bookmark-1728123457000-root"
+    assert child["region"]["zoom"] == 1.25
+
+
+def test_save_bookmarks_overwrite_existing(api):
+    pdf_uuid = "666666666666"
+    _insert_sample(api, uuid=pdf_uuid, title="Overwrite")
+
+    first = _sample_bookmarks()
+    api.save_bookmarks(pdf_uuid, first, root_ids=[b["id"] for b in first if b["parentId"] is None])
+
+    second = [
+        {
+            "id": "bookmark-1728123460000-new",
+            "name": "新章节",
+            "type": "page",
+            "pageNumber": 9,
+            "region": None,
+            "children": [],
+            "parentId": None,
+            "order": 0,
+            "createdAt": "2025-10-06T00:00:00.000Z",
+            "updatedAt": "2025-10-06T00:00:00.000Z",
+        }
+    ]
+    api.save_bookmarks(pdf_uuid, second, root_ids=["bookmark-1728123460000-new"])
+
+    result = api.list_bookmarks(pdf_uuid)
+    assert result["root_ids"] == ["bookmark-1728123460000-new"]
+    assert len(result["bookmarks"]) == 1
+    assert result["bookmarks"][0]["pageNumber"] == 9
+
+
+def test_save_bookmarks_validation_error(api):
+    pdf_uuid = "777777777777"
+    _insert_sample(api, uuid=pdf_uuid, title="Invalid")
+
+    invalid = [
+        {
+            "id": "bookmark-1728123470000-invalid",
+            "name": "",
+            "type": "page",
+            "pageNumber": 1,
+            "children": [],
+            "parentId": None,
+            "order": 0,
+            "createdAt": "2025-10-06T00:00:00.000Z",
+            "updatedAt": "2025-10-06T00:00:00.000Z",
+        }
+    ]
+
+    with pytest.raises(DatabaseValidationError):
+        api.save_bookmarks(pdf_uuid, invalid, root_ids=["bookmark-1728123470000-invalid"])
