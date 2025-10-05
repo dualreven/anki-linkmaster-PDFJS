@@ -19,8 +19,10 @@ import { URLNavigationFeature } from "../features/url-navigation/index.js";
 import { AnnotationFeature } from "../features/annotation/index.js";
 import { SidebarManagerFeature } from "../features/sidebar-manager/index.js";
 import { PDFTranslatorFeature } from "../features/pdf-translator/index.js";
+import { TextSelectionQuickActionsFeature } from "../features/text-selection-quick-actions/index.js";
 import { PDFBookmarkFeature } from "../features/pdf-bookmark/index.js";
 import { PDFCardFeature } from "../features/pdf-card/index.js";
+import { AiAssistantFeature } from "../features/ai-assistant/index.js";
 
 /**
  * 解析WebSocket端口
@@ -99,7 +101,9 @@ export async function bootstrapPDFViewerAppFeature() {
     registry.register(new PDFBookmarkFeature());  // 书签管理功能（需在sidebar-manager之前）
     registry.register(new AnnotationFeature());
     registry.register(new PDFTranslatorFeature());  // 翻译功能
+    registry.register(new TextSelectionQuickActionsFeature());  // 文本选择快捷操作
     registry.register(new PDFCardFeature());  // 卡片管理功能（需在sidebar-manager之前）
+    registry.register(new AiAssistantFeature());  // AI 助手侧边栏（独立插件）
     registry.register(new SidebarManagerFeature());  // 侧边栏统一管理器（最后注册，依赖annotation、pdf-translator、pdf-bookmark和pdf-card）
 
     // 5. 安装所有 Features（自动解析依赖顺序）

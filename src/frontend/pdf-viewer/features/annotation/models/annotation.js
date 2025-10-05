@@ -145,17 +145,37 @@ export class Annotation {
         }
         break;
 
-      case AnnotationType.TEXT_HIGHLIGHT:
+      case AnnotationType.TEXT_HIGHLIGHT: {
         if (!data.selectedText || typeof data.selectedText !== 'string') {
           throw new Error('Text highlight annotation requires selectedText');
         }
-        if (!Array.isArray(data.textRanges) || data.textRanges.length === 0) {
-          throw new Error('Text highlight annotation requires textRanges array');
+
+        const hasTextRanges = Array.isArray(data.textRanges) && data.textRanges.length > 0;
+        const hasLineRects = Array.isArray(data.lineRects) && data.lineRects.length > 0;
+
+        if (!hasTextRanges && !hasLineRects) {
+          throw new Error('Text highlight annotation requires textRanges or lineRects');
         }
+
+        if (hasLineRects) {
+          data.lineRects.forEach((rect, index) => {
+            if (!rect || typeof rect !== 'object') {
+              throw new Error(`Text highlight annotation lineRects[${index}] must be object`);
+            }
+
+            ['xPercent', 'yPercent', 'widthPercent', 'heightPercent'].forEach((key) => {
+              if (typeof rect[key] !== 'number' || Number.isNaN(rect[key])) {
+                throw new Error(`Text highlight annotation lineRects[${index}].${key} must be a number`);
+              }
+            });
+          });
+        }
+
         if (!data.highlightColor) {
           throw new Error('Text highlight annotation requires highlightColor');
         }
         break;
+      }
 
       case AnnotationType.COMMENT:
         if (!data.position || typeof data.position.x !== 'number' || typeof data.position.y !== 'number') {
@@ -358,19 +378,26 @@ export class Annotation {
    * @param {Array} textRanges - 文本范围数组
    * @param {string} highlightColor - 高亮颜色
    * @param {string} [note=''] - 笔记
+   * @param {Array} [lineRects=[]] - 行矩形百分比数组
    * @returns {Annotation} 标注实例
    * @static
    */
-  static createTextHighlight(pageNumber, selectedText, textRanges, highlightColor, note = '') {
+  static createTextHighlight(pageNumber, selectedText, textRanges, highlightColor, note = '', lineRects = []) {
+    const data = {
+      selectedText,
+      textRanges,
+      highlightColor,
+      note
+    };
+
+    if (Array.isArray(lineRects) && lineRects.length > 0) {
+      data.lineRects = lineRects;
+    }
+
     return new Annotation({
       type: AnnotationType.TEXT_HIGHLIGHT,
       pageNumber,
-      data: {
-        selectedText,
-        textRanges,
-        highlightColor,
-        note
-      }
+      data
     });
   }
 

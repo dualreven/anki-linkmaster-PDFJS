@@ -117,11 +117,14 @@ export class TextSelectionHandler {
         height: boundingRect.height
       };
 
+      const lineRects = this.#calculateLineRects(range, pageRect);
+
       this.#logger.info('[TextSelectionHandler] Text selected', {
         text: text.substring(0, 50) + '...',
         pageNumber,
         textLength: text.length,
-        rangesCount: textRanges.length
+        rangesCount: textRanges.length,
+        rectsCount: lineRects.length
       });
 
       // 发送文本选择完成事件
@@ -130,7 +133,8 @@ export class TextSelectionHandler {
         pageNumber: pageNumber,
         ranges: textRanges,
         range: range,
-        rect: relativeRect
+        rect: relativeRect,
+        lineRects: lineRects
       });
     }, 10);
   }
@@ -169,6 +173,49 @@ export class TextSelectionHandler {
 
     const pageNumber = parseInt(pageNumberAttr, 10);
     return isNaN(pageNumber) ? null : pageNumber;
+  }
+
+  /**
+   * 计算选中文本对应的行矩形（以页面百分比表示）
+   * @param {Range} range - 浏览器Range对象
+   * @param {DOMRect} pageRect - 页面矩形
+   * @returns {Array<{xPercent: number, yPercent: number, widthPercent: number, heightPercent: number}>}
+   * @private
+   */
+  #calculateLineRects(range, pageRect) {
+    if (!range || typeof range.getClientRects !== 'function') {
+      return [];
+    }
+
+    if (!pageRect || pageRect.width === 0 || pageRect.height === 0) {
+      return [];
+    }
+
+    const rectList = Array.from(range.getClientRects());
+
+    return rectList
+      .filter(rect => rect.width > 0 && rect.height > 0)
+      .map(rect => ({
+        xPercent: this.#toPercent(rect.left - pageRect.left, pageRect.width),
+        yPercent: this.#toPercent(rect.top - pageRect.top, pageRect.height),
+        widthPercent: this.#toPercent(rect.width, pageRect.width),
+        heightPercent: this.#toPercent(rect.height, pageRect.height)
+      }));
+  }
+
+  /**
+   * 将值转换为百分比（保留6位小数）
+   * @param {number} value - 数值
+   * @param {number} total - 总量
+   * @returns {number} 百分比
+   * @private
+   */
+  #toPercent(value, total) {
+    if (!total) {
+      return 0;
+    }
+    const percent = (value / total) * 100;
+    return Number(percent.toFixed(6));
   }
 
   /**

@@ -101,10 +101,41 @@ export function registerRealSidebars(sidebarManager, eventBus, container) {
         maxWidth: 600,
         resizable: true
     });
+    // 4. AI 助手侧边栏（延迟获取）
+    let aiAssistantUIInstance = null;
+
+    const aiAssistantConfig = createSidebarConfig({
+        id: 'ai-assistant',
+        title: 'AI 助手',
+        contentRenderer: () => {
+            if (!aiAssistantUIInstance && container) {
+                aiAssistantUIInstance = container.get('aiAssistantSidebarUI');
+                logger.info(`Retrieved aiAssistantSidebarUI from container: ${!!aiAssistantUIInstance}`);
+            }
+
+            if (aiAssistantUIInstance) {
+                const contentElement = aiAssistantUIInstance.getContentElement();
+                logger.info('Returned AiAssistantSidebarUI content element');
+                return contentElement;
+            } else {
+                const placeholder = document.createElement('div');
+                placeholder.style.cssText = 'padding: 20px; color: #999; text-align: center;';
+                placeholder.innerHTML = '<div>AI助手加载中...</div>';
+                return placeholder;
+            }
+        },
+        defaultWidth: 360,
+        minWidth: 260,
+        maxWidth: 600,
+        resizable: true
+    });
+    sidebarManager.registerSidebar(aiAssistantConfig);
+    logger.info('AI assistant sidebar registered (lazy loads from container)');
+
     sidebarManager.registerSidebar(cardConfig);
     logger.info('Card sidebar registered (will load from container on first open)');
 
-    // 4. 翻译侧边栏（延迟获取，首次调用时从容器获取并缓存）
+    // 5. 翻译侧边栏（延迟获取，首次调用时从容器获取并缓存）
     let translatorUIInstance = null;
 
     const translateConfig = createSidebarConfig({
@@ -192,6 +223,7 @@ export function createRealSidebarButtons(eventBus) {
         { id: 'bookmark', label: '≡ 书签', title: '打开书签侧边栏' },
         { id: 'annotation', label: '📝 标注', title: '打开标注侧边栏' },
         { id: 'card', label: '📇 卡片', title: '打开卡片侧边栏' },
+        { id: 'ai-assistant', label: '🤖 AI', title: '打开AI助手侧边栏' },
         { id: 'translate', label: '🌐 翻译', title: '打开翻译侧边栏' },
         { id: 'backlink', label: '🔗 反链', title: '打开反向链接侧边栏' }
     ];

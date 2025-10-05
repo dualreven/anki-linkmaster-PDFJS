@@ -12,6 +12,17 @@ import { ScreenshotCapturer } from './screenshot-capturer.js';
 import { QWebChannelScreenshotBridge } from './qwebchannel-bridge.js';
 import { AnnotationType } from '../../models/annotation.js';
 import { getLogger } from '../../../../../common/utils/logger.js';
+import { PDF_VIEWER_EVENTS } from '../../../../../common/event/pdf-viewer-constants.js';
+
+const MARKER_COLOR_PRESETS = [
+  { name: 'orange', label: '橙色', value: '#ff9800' },
+  { name: 'teal', label: '青色', value: '#26a69a' },
+  { name: 'blue', label: '蓝色', value: '#2196f3' },
+  { name: 'purple', label: '紫色', value: '#ab47bc' }
+];
+
+const DEFAULT_MARKER_COLOR = MARKER_COLOR_PRESETS[0].value;
+
 
 export class ScreenshotTool extends IAnnotationTool {
   // ===== 元数据 (getter方法) =====
@@ -454,6 +465,7 @@ export class ScreenshotTool extends IAnnotationTool {
           rectPercent: percentRect,
           // 保留绝对坐标用于兼容和调试
           rect: canvasRect,
+          markerColor: DEFAULT_MARKER_COLOR,
           imagePath: saveResult.path,
           imageHash: saveResult.hash,
           imageData: base64Image,  // Mock模式下需要base64数据才能显示图片
@@ -625,7 +637,7 @@ export class ScreenshotTool extends IAnnotationTool {
    * @private
    */
   #handleJumpToAnnotation(annotationId) {
-    this.#eventBus.emit('annotation:jump:requested', {
+    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.JUMP_TO, {
       id: annotationId,
       toolName: this.name  // 标识是截图工具的跳转请求
     });
@@ -636,7 +648,7 @@ export class ScreenshotTool extends IAnnotationTool {
    * @private
    */
   #handleAddComment(annotationId) {
-    this.#eventBus.emit('annotation-comment:add:requested', { annotationId });
+    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.COMMENT.ADD, { annotationId });
   }
 
   /**
@@ -871,68 +883,182 @@ export class ScreenshotTool extends IAnnotationTool {
         `top: ${markerRect.top}px`,
         `width: ${markerRect.width}px`,
         `height: ${markerRect.height}px`,
-        'border: 2px solid #ff9800',  // 橙色边框
-        'background: rgba(255, 152, 0, 0.1)',  // 淡橙色半透明背景
-        'pointer-events: none',  // 不阻挡鼠标事件
+        'pointer-events: none',
         'box-sizing: border-box',
-        'z-index: 10'
+        'z-index: 10',
+        'transition: border-color 0.2s ease, background-color 0.2s ease'
       ].join(';');
 
-      // 创建删除按钮（右上角）
-      const deleteBtn = document.createElement('div');
-      deleteBtn.className = 'screenshot-marker-delete';
-      deleteBtn.style.cssText = [
+      const initialColor = data.markerColor || DEFAULT_MARKER_COLOR;
+      data.markerColor = initialColor;
+      this.#applyMarkerColor(marker, initialColor);
+
+      const baseCircleStyle = [
         'position: absolute',
         'top: -10px',
         'right: -10px',
         'width: 24px',
         'height: 24px',
-        'background: #f44336',
         'border: 2px solid white',
         'border-radius: 50%',
         'cursor: pointer',
-        'pointer-events: auto',  // 删除按钮可点击
+        'pointer-events: auto',
         'display: flex',
         'align-items: center',
         'justify-content: center',
         'font-size: 14px',
-        'color: white',
         'font-weight: bold',
         'transition: all 0.2s',
-        'z-index: 11'
-      ].join(';');
+        'z-index: 12',
+        'box-shadow: 0 2px 6px rgba(0,0,0,0.2)'
+      ];
+
+      // 删除按钮（右上角）
+      const deleteBtn = document.createElement('div');
+      deleteBtn.className = 'screenshot-marker-delete';
+      deleteBtn.style.cssText = baseCircleStyle.concat([
+        'background: #f44336',
+        'color: white'
+      ]).join(';');
       deleteBtn.innerHTML = '×';
       deleteBtn.title = '删除此截图标注';
 
-      // 删除按钮悬停效果
-      deleteBtn.addEventListener('mouseenter', () => {
-        deleteBtn.style.transform = 'scale(1.2)';
+      // 控制面板容器（初始收起）
+      const controlsContainer = document.createElement('div');
+      controlsContainer.className = 'screenshot-marker-controls';
+      controlsContainer.style.cssText = [
+        'position: absolute',
+        'top: -10px',
+        'right: 18px',
+        'display: flex',
+        'gap: 6px',
+        'pointer-events: none',
+        'opacity: 0',
+        'transform: translateX(8px)',
+        'transition: opacity 0.2s ease, transform 0.2s ease',
+        'z-index: 11'
+      ].join(';');
+
+      const colorButtons = [];
+      const updateActiveColorButton = (color) => {
+        colorButtons.forEach((btn) => {
+          if (btn.dataset.color === color) {
+            btn.style.transform = 'scale(1.1)';
+            btn.style.boxShadow = '0 0 0 2px white, 0 2px 6px rgba(0,0,0,0.3)';
+          } else {
+            btn.style.transform = 'scale(1)';
+            btn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
+          }
+        });
+      };
+
+      const applyColor = (color) => {
+        this.#applyMarkerColor(marker, color);
+        data.markerColor = color;
+        updateActiveColorButton(color);
+      };
+
+      MARKER_COLOR_PRESETS.forEach((preset) => {
+        const colorBtn = document.createElement('button');
+        colorBtn.type = 'button';
+        colorBtn.dataset.color = preset.value;
+        colorBtn.title = `切换为${preset.label}`;
+        colorBtn.style.cssText = [
+          'width: 24px',
+          'height: 24px',
+          'border-radius: 50%',
+          'border: 2px solid white',
+          `background: ${preset.value}`,
+          'cursor: pointer',
+          'pointer-events: auto',
+          'display: flex',
+          'align-items: center',
+          'justify-content: center',
+          'transition: transform 0.2s ease, box-shadow 0.2s ease'
+        ].join(';');
+        colorBtn.addEventListener('click', (event) => {
+          event.stopPropagation();
+          applyColor(preset.value);
+        });
+        controlsContainer.appendChild(colorBtn);
+        colorButtons.push(colorBtn);
+      });
+
+      updateActiveColorButton(initialColor);
+
+      // 跳转按钮
+      const jumpBtn = document.createElement('button');
+      jumpBtn.type = 'button';
+      jumpBtn.title = '查看标注卡片';
+      jumpBtn.innerHTML = '↗';
+      jumpBtn.style.cssText = [
+        'width: 24px',
+        'height: 24px',
+        'border-radius: 50%',
+        'border: 2px solid white',
+        'background: #2196f3',
+        'color: white',
+        'cursor: pointer',
+        'pointer-events: auto',
+        'display: flex',
+        'align-items: center',
+        'justify-content: center',
+        'font-size: 14px',
+        'transition: transform 0.2s ease, box-shadow 0.2s ease'
+      ].join(';');
+      jumpBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        this.#handleJumpToAnnotation(annotation.id);
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, { sidebarId: 'annotation' });
+        setTimeout(() => {
+          this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SELECT, { id: annotation.id });
+        }, 150);
+      });
+      controlsContainer.appendChild(jumpBtn);
+
+      // 删除按钮悬停效果与控制显示逻辑
+      let hideTimer = null;
+      const showControls = () => {
+        if (hideTimer) {
+          clearTimeout(hideTimer);
+          hideTimer = null;
+        }
+        controlsContainer.style.opacity = '1';
+        controlsContainer.style.pointerEvents = 'auto';
+        controlsContainer.style.transform = 'translateX(0)';
+        deleteBtn.style.transform = 'scale(1.1)';
         deleteBtn.style.background = '#d32f2f';
-      });
-      deleteBtn.addEventListener('mouseleave', () => {
-        deleteBtn.style.transform = 'scale(1)';
-        deleteBtn.style.background = '#f44336';
-      });
+      };
+      const scheduleHide = () => {
+        if (hideTimer) {
+          clearTimeout(hideTimer);
+        }
+        hideTimer = setTimeout(() => {
+          controlsContainer.style.opacity = '0';
+          controlsContainer.style.pointerEvents = 'none';
+          controlsContainer.style.transform = 'translateX(8px)';
+          deleteBtn.style.transform = 'scale(1)';
+          deleteBtn.style.background = '#f44336';
+        }, 120);
+      };
+
+      deleteBtn.addEventListener('mouseenter', showControls);
+      deleteBtn.addEventListener('mouseleave', scheduleHide);
+      controlsContainer.addEventListener('mouseenter', showControls);
+      controlsContainer.addEventListener('mouseleave', scheduleHide);
 
       // 点击删除 - 删除标注（需要确认）
       deleteBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-
-        // 确认删除
         if (confirm('确定要删除此截图标注吗？')) {
           this.#logger.info(`[ScreenshotTool] Requesting deletion of annotation ${annotation.id}`);
-
-          // 发送删除标注的请求事件
-          this.#eventBus.emit('annotation:delete:requested', {
-            id: annotation.id
-          });
-
-          // 注意：标记框的移除会在 annotation:delete:success 事件中自动处理
+          this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DELETE, { id: annotation.id });
         }
       });
 
       // 组装
       marker.appendChild(deleteBtn);
+      marker.appendChild(controlsContainer);
       pageDiv.appendChild(marker);
 
       // 保存引用
@@ -943,6 +1069,38 @@ export class ScreenshotTool extends IAnnotationTool {
     } catch (error) {
       this.#logger.error('[ScreenshotTool] Failed to render marker:', error);
     }
+  }
+
+  #applyMarkerColor(marker, color) {
+    const rgb = this.#hexToRgb(color);
+    if (!rgb) {
+      return;
+    }
+    marker.style.border = `2px solid ${color}`;
+    marker.style.background = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.18)`;
+    marker.dataset.markerColor = color;
+  }
+
+  #hexToRgb(hex) {
+    if (typeof hex !== 'string') {
+      return null;
+    }
+    let normalized = hex.trim().replace('#', '');
+    if (normalized.length === 3) {
+      normalized = normalized.split('').map((ch) => ch + ch).join('');
+    }
+    if (normalized.length !== 6) {
+      return null;
+    }
+    const intValue = Number.parseInt(normalized, 16);
+    if (Number.isNaN(intValue)) {
+      return null;
+    }
+    return {
+      r: (intValue >> 16) & 255,
+      g: (intValue >> 8) & 255,
+      b: intValue & 255
+    };
   }
 
   /**
