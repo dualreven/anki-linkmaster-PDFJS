@@ -1,4 +1,4 @@
-/** @type {import('jest').Config} */
+﻿/** @type {import(''jest'').Config} */
 export default {
   testEnvironment: 'jsdom',
   setupFiles: ['<rootDir>/jest.setup.js'],
@@ -8,7 +8,8 @@ export default {
     }
   },
   moduleNameMapper: {
-    '^(\\.{1,2}/.*)\\.js$': '$1'
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+    '\\.(css|less|sass|scss)$': '<rootDir>/tests/__mocks__/styleMock.js'
   },
   transform: {
     '^.+\\.js$': 'babel-jest'

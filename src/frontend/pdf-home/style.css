@@ -1,4 +1,4 @@
-* {
+﻿* {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
@@ -71,9 +71,11 @@ body {
 /* 批量操作按钮区域 */
 .batch-actions {
     display: flex;
+    align-items: center;
     gap: 8px;
     flex: 1;
-    justify-content: center;
+    flex-wrap: wrap;
+    justify-content: flex-start;
 }
 
 /* 批量操作按钮 */
@@ -604,6 +606,7 @@ body {
 
 .search-controls-right {
     display: flex;
+    align-items: center;
     gap: 8px;
     flex-shrink: 0;
 }
@@ -849,6 +852,7 @@ body {
 
 .toolbar-group {
     display: flex;
+    align-items: center;
     gap: 8px;
 }
 
@@ -1203,6 +1207,7 @@ body {
 
 .condition-editor {
     display: flex;
+    align-items: center;
     gap: 8px;
     align-items: center;
 }
@@ -1323,6 +1328,7 @@ body {
 
 .actions {
     display: flex;
+    align-items: center;
     gap: 8px;
 }
 
@@ -1843,6 +1849,7 @@ body {
 
 .multi-sort-actions {
     display: flex;
+    align-items: center;
     gap: 8px;
 }
 
@@ -2115,6 +2122,7 @@ body {
 
 .number-pad-actions {
     display: flex;
+    align-items: center;
     gap: 8px;
 }
 
@@ -2145,6 +2153,7 @@ body {
 
 .weighted-sort-actions {
     display: flex;
+    align-items: center;
     gap: 8px;
 }
 
@@ -2186,3 +2195,4 @@ body {
 .btn-clear-weighted:hover {
     background-color: #c82333;
 }
+

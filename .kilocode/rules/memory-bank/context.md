@@ -1464,3 +1464,8 @@ AnnotationSidebarUI → 监听并添加卡片 (只一次)
   - 新增 Jest 用例 `weighted-sort-editor.builder.test.js` 覆盖字段、函数、删除、事件 6 条交互路径。
 - 测试: `pnpm test -- weighted-sort-editor.builder` ✅
 - 后续: 如需支持撤销/重做或更多函数，可在当前令牌模型基础上扩展。
+## 2025-10-06 搜索结果多列布局
+- 背景: 用户希望在搜索结果区提供一栏/双栏/三栏多列视图切换按钮，纯前端控制展示。
+- 实现: SearchResultsFeature 新增布局按钮 (layout-toggle)、本地偏好持久化与 `layout-single/layout-double/layout-triple` 容器类。
+- 样式: search-results.css 引入网格布局与按钮样式；search-result-item 卡片高度填充、去除 margin；全局批量动作区域支持 wrap。
+- 测试: `layout-toggle.test.js` 验证默认布局、按钮切换及 localStorage 恢复。
