@@ -15,7 +15,7 @@
  */
 
 import { getLogger } from '../../../../common/utils/logger.js';
-import { Annotation } from '../models/annotation.js';
+import { Annotation, AnnotationType } from '../models/annotation.js';
 import { PDF_VIEWER_EVENTS } from '../../../../common/event/pdf-viewer-constants.js';
 
 /**
@@ -84,13 +84,21 @@ export class AnnotationManager {
   #setupEventListeners() {
     // 创建标注 - 双重监听：
     // 1. 局部事件：来自 annotation feature 内部工具（TextHighlightTool, ScreenshotTool等）
-    // 2. 全局事件：来自其他 feature（text-selection-quick-actions）
+    // 2. 全局事件：来自其他 feature（text-selection-quick-actions），仅处理高亮标注
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, (data) => {
       this.#handleCreateAnnotation(data);
     }, { subscriberId: 'AnnotationManager-local' });
 
     this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, (data) => {
-      this.#handleCreateAnnotation(data);
+      // 全局事件仅处理高亮标注（text-selection-quick-actions 只发送此类型）
+      const annotation = data?.annotation;
+      if (annotation?.type === AnnotationType.TEXT_HIGHLIGHT) {
+        this.#handleCreateAnnotation(data);
+      } else if (annotation) {
+        this.#logger.warn('[AnnotationManager] Global CREATE event ignored - not a TEXT_HIGHLIGHT', {
+          type: annotation.type
+        });
+      }
     }, { subscriberId: 'AnnotationManager-global' });
 
     // 更新标注 - 只需局部监听（仅内部工具会发送）
