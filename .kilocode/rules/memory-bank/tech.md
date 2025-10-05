@@ -338,3 +338,4 @@ emove_comment(ann_id, comment_id)。
 - 事件：`table:search-condition:create|update|delete:completed`。
 - 测试：`pytest src/backend/database/plugins/__tests__/test_search_condition_plugin.py`（29 用例）。
 - 2025-10-05：新增 `PDFLibraryAPI`，提供 `list_records/get_record_detail/update_record/delete_record/register_file_info`，单位为秒/毫秒转换遵循 JSON-MESSAGE-FORMAT-001，WebSocket `pdf/list` 消息返回 `records`。
+- 校验：使用 `#hasFieldReference` 判断公式是否引用字段，floor(filename)/length(title) 等公式被视为合法。

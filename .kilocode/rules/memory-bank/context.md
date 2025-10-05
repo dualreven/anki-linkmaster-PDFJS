@@ -1454,3 +1454,13 @@ AnnotationSidebarUI → 监听并添加卡片 (只一次)
   6. 测试与 QA 覆盖 20251005195500-pdf-search-testing
 - 关键决策：首版采用 LIKE + 多 token + CASE 权重方案，预留未来 FTS5 升级路径；前端必须通过 SearchService 统一发起请求并支持分页控件。
 - 2025-10-05 21:00: 开始实施第一层 LIKE 搜索任务：目标是实现 PDFLibraryAPI.search_records、对应 SQL CTE、测试覆盖。
+## 2025-10-06 加权排序公式构建器 (恢复)
+- 背景: 用户回滚导致 WeightedSortEditor 回退为 textarea 版本，需重新交付按钮式构建器。
+- 交付点:
+  - 重写 `weighted-sort-editor.js`，提供字段/运算符/函数/数字面板按钮、令牌列表、函数参数提示、字段校验(`hasFieldReference`)；所有交互纯鼠标即可完成。
+  - 恢复样式块（builder-chip、formula-token、number-pad 等），保证视觉反馈与布局。
+  - 扩展 `feature.config.js` 的 `sortableFields`，涵盖书名/作者/关键词/备注/评分/复习次数/阅读时长/最后访问/截止日期等字段。
+  - 同步 `SortManager` 公式上下文，追加 title/author/subject/keywords/notes/tags_count 等字段及 length/asc/desc/clamp/normalize 工具函数。
+  - 新增 Jest 用例 `weighted-sort-editor.builder.test.js` 覆盖字段、函数、删除、事件 6 条交互路径。
+- 测试: `pnpm test -- weighted-sort-editor.builder` ✅
+- 后续: 如需支持撤销/重做或更多函数，可在当前令牌模型基础上扩展。

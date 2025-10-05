@@ -1894,17 +1894,22 @@ body {
 .weighted-sort-editor {
     background: #f8f9fa;
     border: 1px solid #dee2e6;
-    border-radius: 6px;
+    border-radius: 8px;
     padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 
 .weighted-sort-header {
-    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 
 .weighted-sort-header h4 {
-    margin: 0 0 4px 0;
-    font-size: 15px;
+    margin: 0;
+    font-size: 16px;
     color: #333;
 }
 
@@ -1913,37 +1918,93 @@ body {
     font-size: 12px;
 }
 
-.formula-editor-section {
-    margin-bottom: 16px;
-}
-
-.formula-editor-section label {
-    display: block;
-    margin-bottom: 6px;
-    font-weight: 600;
-    font-size: 14px;
-    color: #333;
-}
-
-.formula-input {
-    width: 100%;
-    padding: 10px;
-    border: 2px solid #ddd;
+.formula-preview {
+    background: #ffffff;
+    border: 1px solid #ced4da;
     border-radius: 4px;
+    padding: 10px 12px;
     font-family: 'Courier New', monospace;
     font-size: 14px;
-    resize: vertical;
-    transition: border-color 0.2s;
+    color: #212529;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
 }
 
-.formula-input:focus {
-    outline: none;
-    border-color: #007bff;
+.formula-preview code {
+    display: block;
+    width: 100%;
+    color: inherit;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.formula-token-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 40px;
+}
+
+.formula-token {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: #e9ecef;
+    border: 1px solid #ced4da;
+    border-radius: 16px;
+    font-size: 13px;
+    line-height: 1;
+}
+
+.formula-token-function {
+    background: #d1ecf1;
+    border-color: #bee5eb;
+}
+
+.formula-token.placeholder {
+    background: transparent;
+    border: 1px dashed #ced4da;
+    color: #868e96;
+    cursor: default;
+    padding: 10px 12px;
+    border-radius: 4px;
+}
+
+.token-delete {
+    border: none;
+    background: transparent;
+    color: #6c757d;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+}
+
+.token-delete:hover {
+    color: #dc3545;
+}
+
+.function-pending {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border: 1px dashed #17a2b8;
+    background: rgba(23, 162, 184, 0.08);
+    border-radius: 6px;
+    font-size: 13px;
+    color: #0c5460;
+}
+
+.function-pending .pending-remaining {
+    font-weight: 600;
 }
 
 .formula-validation {
-    margin-top: 8px;
     font-size: 13px;
+    min-height: 18px;
 }
 
 .validation-status.valid {
@@ -1954,77 +2015,132 @@ body {
     color: #dc3545;
 }
 
-.available-fields-section,
-.available-operators-section,
-.formula-examples-section {
-    margin-bottom: 14px;
+.builder-panels {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
-.available-fields-section h5,
-.available-operators-section h5,
-.formula-examples-section h5 {
-    margin: 0 0 8px 0;
-    font-size: 13px;
+.builder-panel {
+    background: #ffffff;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.builder-panel header {
+    font-size: 14px;
     font-weight: 600;
-    color: #495057;
+    color: #343a40;
 }
 
-.fields-list,
-.operators-list {
+.builder-panel .panel-body {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 8px;
 }
 
-.field-tag,
-.operator-tag {
+.panel-placeholder {
+    color: #adb5bd;
+    font-size: 13px;
+}
+
+.builder-chip {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    background: #e9ecef;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #f1f3f5;
     border: 1px solid #ced4da;
-    border-radius: 4px;
+    border-radius: 16px;
     font-size: 12px;
+    line-height: 1;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
-.field-tag:hover {
+.builder-chip:hover {
     background: #007bff;
-    color: white;
+    color: #ffffff;
     border-color: #007bff;
 }
 
-.field-tag code {
-    background: rgba(0, 0, 0, 0.1);
+.builder-chip code {
+    display: inline-block;
     padding: 2px 4px;
-    border-radius: 2px;
+    background: rgba(0, 0, 0, 0.08);
+    border-radius: 4px;
     font-family: 'Courier New', monospace;
+    font-size: 11px;
+    color: inherit;
 }
 
-.operator-tag {
-    cursor: default;
+.number-panel {
+    display: grid;
+    gap: 10px;
+}
+
+.number-pad-display {
+    background: #212529;
+    color: #ffffff;
+    border-radius: 6px;
+    padding: 10px 12px;
     font-family: 'Courier New', monospace;
+    font-size: 18px;
+    text-align: right;
 }
 
-.examples-list {
-    margin: 0;
-    padding-left: 20px;
-    font-size: 13px;
-    color: #495057;
+.number-pad-grid {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: repeat(3, 1fr);
 }
 
-.examples-list li {
-    margin-bottom: 4px;
+.number-pad-digit {
+    padding: 10px 0;
+    font-size: 16px;
+    background: #f8f9fa;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s ease;
 }
 
-.examples-list code {
+.number-pad-digit:hover {
     background: #e9ecef;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-family: 'Courier New', monospace;
-    font-size: 12px;
+}
+
+.number-pad-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.number-pad-action {
+    flex: 1;
+    padding: 8px 10px;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    background: #f8f9fa;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.number-pad-action:hover {
+    background: #e9ecef;
+}
+
+.number-pad-action.primary {
+    background: #17a2b8;
+    border-color: #17a2b8;
+    color: #ffffff;
+}
+
+.number-pad-action.primary:hover {
+    background: #138496;
 }
 
 .weighted-sort-actions {
@@ -2041,12 +2157,12 @@ body {
     border-radius: 4px;
     font-size: 14px;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background 0.2s ease;
 }
 
 .btn-test-formula {
     background-color: #17a2b8;
-    color: white;
+    color: #ffffff;
 }
 
 .btn-test-formula:hover {
@@ -2055,7 +2171,7 @@ body {
 
 .btn-apply-weighted {
     background-color: #28a745;
-    color: white;
+    color: #ffffff;
 }
 
 .btn-apply-weighted:hover {
@@ -2064,7 +2180,7 @@ body {
 
 .btn-clear-weighted {
     background-color: #dc3545;
-    color: white;
+    color: #ffffff;
 }
 
 .btn-clear-weighted:hover {

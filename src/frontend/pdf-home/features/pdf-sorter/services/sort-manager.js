@@ -290,12 +290,67 @@ export class SortManager {
    * @private
    */
   #createFormulaContext(item) {
+    const toNumber = (value) => {
+      const num = Number(value);
+      return Number.isFinite(num) ? num : 0;
+    };
+
+    const lengthFn = (value) => {
+      if (Array.isArray(value)) {
+        return value.length;
+      }
+      if (value === null || value === undefined) {
+        return 0;
+      }
+      return String(value).length;
+    };
+
+    const clampFn = (value, min, max) => {
+      const v = toNumber(value);
+      const lower = toNumber(min);
+      const upper = toNumber(max);
+      const minVal = Math.min(lower, upper);
+      const maxVal = Math.max(lower, upper);
+      if (!Number.isFinite(minVal) || !Number.isFinite(maxVal)) {
+        return v;
+      }
+      return Math.min(Math.max(v, minVal), maxVal);
+    };
+
+    const normalizeFn = (value, min, max) => {
+      const v = toNumber(value);
+      const minVal = toNumber(min);
+      const maxVal = toNumber(max);
+      if (maxVal === minVal) {
+        return 0;
+      }
+      return (v - minVal) / (maxVal - minVal);
+    };
+
+    const tagsValue = Array.isArray(item.tags)
+      ? item.tags
+      : typeof item.tags === 'string' && item.tags.length > 0
+        ? item.tags.split(/[,;\s]+/).filter(Boolean)
+        : [];
+
     const context = {
       // 基础字段
       filename: item.filename || '',
+      title: item.title || '',
+      author: item.author || '',
+      subject: item.subject || '',
+      keywords: Array.isArray(item.keywords) ? item.keywords.join(',') : (item.keywords || ''),
+      notes: item.notes || '',
+      tags: Array.isArray(item.tags) ? item.tags : (item.tags || []),
+      tags_count: tagsValue.length,
       size: item.size || 0,
+      rating: (item.rating ?? item.star ?? 0),
+      review_count: item.review_count || 0,
+      total_reading_time: item.total_reading_time || 0,
       modified_time: item.modified_time || 0,
       created_time: item.created_time || 0,
+      last_accessed_at: item.last_accessed_at || 0,
+      due_date: item.due_date || 0,
       page_count: item.page_count || 0,
       star: item.star || 0,
 
@@ -307,7 +362,12 @@ export class SortManager {
       max: Math.max,
       min: Math.min,
       sqrt: Math.sqrt,
-      pow: Math.pow
+      pow: Math.pow,
+      length: lengthFn,
+      asc: (value) => toNumber(value),
+      desc: (value) => -toNumber(value),
+      clamp: clampFn,
+      normalize: normalizeFn
     };
 
     return context;

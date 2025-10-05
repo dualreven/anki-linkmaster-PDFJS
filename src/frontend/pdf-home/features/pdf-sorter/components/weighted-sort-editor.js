@@ -1,390 +1,719 @@
-/**
+﻿/**
  * @file 加权排序编辑器组件
  * @module features/pdf-sorter/components/weighted-sort-editor
  * @description
- * 提供加权排序功能，用户可以输入数学公式来计算权重分数
- * 支持字段引用、基本运算符和常用函数
+ * 提供纯鼠标交互的加权排序公式构建器，支持字段、运算符、函数与数字面板
  */
 
-/**
- * 加权排序编辑器组件
- * @class WeightedSortEditor
- */
 export class WeightedSortEditor {
-  /**
-   * 日志记录器
-   * @type {Logger}
-   * @private
-   */
+  /** @type {import('../../../common/utils/logger.js').Logger} */
   #logger = null;
 
-  /**
-   * 作用域事件总线
-   * @type {ScopedEventBus}
-   * @private
-   */
+  /** @type {import('../../../common/event/scoped-event-bus.js').ScopedEventBus} */
   #eventBus = null;
 
-  /**
-   * 容器DOM元素
-   * @type {HTMLElement|null}
-   * @private
-   */
+  /** @type {HTMLElement|null} */
   #container = null;
 
-  /**
-   * 公式输入框
-   * @type {HTMLTextAreaElement|null}
-   * @private
-   */
-  #formulaInput = null;
+  /** @type {Array<{type: string, value: string, name?: string}>} */
+  #tokens = [];
 
-  /**
-   * 当前公式
-   * @type {string}
-   * @private
-   */
-  #currentFormula = '';
-
-  /**
-   * 可用字段列表
-   * @type {Array<{field: string, label: string, type: string}>}
-   * @private
-   */
+  /** @type {Array<{field: string, label: string, type: string}>} */
   #availableFields = [];
 
-  /**
-   * 公式验证结果
-   * @type {Object|null}
-   * @private
-   */
+  /** @type {string} */
+  #currentFormula = '';
+
+  /** @type {string} */
+  #numberBuffer = '';
+
+  /** @type {{ name: string, label: string, arity: number, args: string[] }|null} */
+  #pendingFunction = null;
+
+  /** @type {Object|null} */
   #validationResult = null;
 
+  /** @type {HTMLElement|null} */
+  #tokenListEl = null;
+
+  /** @type {HTMLElement|null} */
+  #previewCodeEl = null;
+
+  /** @type {HTMLElement|null} */
+  #pendingIndicatorHost = null;
+
+  /** @type {HTMLElement|null} */
+  #numberDisplayEl = null;
+
+  /** @type {HTMLElement|null} */
+  #validationStatusEl = null;
+
+  /** @type {Function|null} */
+  #containerClickHandler = null;
+
+  /** @type {ReadonlyArray<string>} */
+  #operators = ['+', '-', '*', '/', '%', '**', '(', ')'];
+
+  /** @type {ReadonlyArray<string>} */
+  #numberPadDigits = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '0', '.'];
+
+  /** @type {Readonly<Record<string, { name: string, label: string, display: string, arity: number }>>} */
+  #functionDefinitions = {
+    abs: { name: 'abs', label: '绝对值', display: 'abs(x)', arity: 1 },
+    ceil: { name: 'ceil', label: '向上取整', display: 'ceil(x)', arity: 1 },
+    floor: { name: 'floor', label: '向下取整', display: 'floor(x)', arity: 1 },
+    round: { name: 'round', label: '四舍五入', display: 'round(x)', arity: 1 },
+    max: { name: 'max', label: '最大值', display: 'max(a, b)', arity: 2 },
+    min: { name: 'min', label: '最小值', display: 'min(a, b)', arity: 2 },
+    sqrt: { name: 'sqrt', label: '平方根', display: 'sqrt(x)', arity: 1 },
+    pow: { name: 'pow', label: '乘方', display: 'pow(base, exp)', arity: 2 },
+    length: { name: 'length', label: '长度(字符数)', display: 'length(x)', arity: 1 },
+    asc: { name: 'asc', label: '升序(原值)', display: 'asc(x)', arity: 1 },
+    desc: { name: 'desc', label: '降序(取反)', display: 'desc(x)', arity: 1 },
+    clamp: { name: 'clamp', label: '范围限制', display: 'clamp(x, min, max)', arity: 3 },
+    normalize: { name: 'normalize', label: '归一化', display: 'normalize(x, min, max)', arity: 3 }
+  };
+
   /**
-   * 构造函数
-   * @param {Logger} logger - 日志记录器
-   * @param {ScopedEventBus} eventBus - 作用域事件总线
-   * @param {Object} options - 配置选项
-   * @param {Array} options.availableFields - 可用字段
+   * @param {import('../../../common/utils/logger.js').Logger} logger
+   * @param {import('../../../common/event/scoped-event-bus.js').ScopedEventBus} eventBus
+   * @param {{ availableFields?: Array<{field: string, label: string, type: string}> }} options
    */
   constructor(logger, eventBus, options = {}) {
     this.#logger = logger;
     this.#eventBus = eventBus;
     this.#availableFields = options.availableFields || [];
 
-    // 初始化默认公式
-    this.#currentFormula = 'size * 0.3 + star * 0.5 - page_count * 0.1';
+    this.#tokens = [];
+    this.#currentFormula = '';
   }
 
   /**
    * 渲染组件
-   * @param {HTMLElement} container - 容器元素
-   * @public
+   * @param {HTMLElement} container
    */
   render(container) {
+    if (!container) {
+      throw new Error('WeightedSortEditor: container is required');
+    }
+
     this.#container = container;
     this.#container.innerHTML = this.#getTemplate();
-    this.#bindElements();
-    this.#attachEventListeners();
+
+    this.#cacheElements();
+    this.#bindEvents();
+    this.#syncView();
 
     this.#logger.info('[WeightedSortEditor] Rendered');
   }
 
   /**
-   * 获取HTML模板
+   * 生成模板
    * @returns {string}
-   * @private
    */
   #getTemplate() {
+    const fieldButtons = this.#availableFields.map((field) => `
+      <button
+        type="button"
+        class="builder-chip field-button"
+        data-test="field-button"
+        data-field="${field.field}"
+        title="插入字段 ${field.label}"
+      >
+        <span>${field.label}</span>
+        <code>${field.field}</code>
+      </button>
+    `).join('');
+
+    const operatorButtons = this.#operators.map((operator) => `
+      <button
+        type="button"
+        class="builder-chip operator-button"
+        data-test="operator-button"
+        data-operator="${operator}"
+        title="插入运算符 ${operator}"
+      >${operator}</button>
+    `).join('');
+
+    const functionButtons = Object.values(this.#functionDefinitions).map((fn) => `
+      <button
+        type="button"
+        class="builder-chip function-button"
+        data-test="function-button"
+        data-function="${fn.name}"
+        data-arity="${fn.arity}"
+        title="${fn.label}(${fn.arity} 参数)"
+      >${fn.display}</button>
+    `).join('');
+
+    const numberPadDigits = this.#numberPadDigits.map((digit) => `
+      <button
+        type="button"
+        class="number-pad-digit"
+        data-test="number-pad-digit"
+        data-digit="${digit}"
+      >${digit}</button>
+    `).join('');
+
     return `
       <div class="weighted-sort-editor">
         <div class="weighted-sort-header">
           <h4>加权排序配置</h4>
-          <small>使用数学公式计算权重分数</small>
+          <small>通过按钮组合字段、运算符、函数和数字来构建排序公式</small>
         </div>
 
-        <div class="formula-editor-section">
-          <label for="formula-input">权重公式:</label>
-          <textarea
-            id="formula-input"
-            class="formula-input"
-            rows="3"
-            placeholder="例如: size * 0.3 + star * 0.5 - page_count * 0.1"
-          >${this.#currentFormula}</textarea>
-
-          <div class="formula-validation">
-            <span class="validation-status"></span>
-          </div>
+        <div class="formula-preview" data-test="formula-preview">
+          <code>尚未设置公式</code>
         </div>
 
-        <div class="available-fields-section">
-          <h5>可用字段:</h5>
-          <div class="fields-list">
-            ${this.#availableFields.map(f => `
-              <button
-                class="field-tag"
-                data-field="${f.field}"
-                title="点击插入到公式"
-              >
-                ${f.label} <code>${f.field}</code>
-              </button>
-            `).join('')}
-          </div>
+        <div class="formula-token-list" data-test="formula-tokens"></div>
+        <div data-role="pending-function"></div>
+
+        <div class="formula-validation">
+          <span class="validation-status" data-test="validation-status"></span>
         </div>
 
-        <div class="available-operators-section">
-          <h5>可用运算符和函数:</h5>
-          <div class="operators-list">
-            <span class="operator-tag" title="加法">+</span>
-            <span class="operator-tag" title="减法">-</span>
-            <span class="operator-tag" title="乘法">*</span>
-            <span class="operator-tag" title="除法">/</span>
-            <span class="operator-tag" title="取余">%</span>
-            <span class="operator-tag" title="幂运算">**</span>
-            <span class="operator-tag" title="绝对值">abs(x)</span>
-            <span class="operator-tag" title="向上取整">ceil(x)</span>
-            <span class="operator-tag" title="向下取整">floor(x)</span>
-            <span class="operator-tag" title="四舍五入">round(x)</span>
-            <span class="operator-tag" title="最大值">max(a,b)</span>
-            <span class="operator-tag" title="最小值">min(a,b)</span>
-          </div>
-        </div>
+        <div class="builder-panels">
+          <section class="builder-panel">
+            <header>字段</header>
+            <div class="panel-body">
+              ${fieldButtons || '<div class="panel-placeholder">暂无可用字段</div>'}
+            </div>
+          </section>
 
-        <div class="formula-examples-section">
-          <h5>公式示例:</h5>
-          <ul class="examples-list">
-            <li><code>size * 0.5 + star * 0.3</code> - 文件大小和星标加权</li>
-            <li><code>star * 10 - page_count</code> - 优先高星标，页数越少越靠前</li>
-            <li><code>abs(size - 5000000) * -1</code> - 文件大小越接近5MB越靠前</li>
-          </ul>
+          <section class="builder-panel">
+            <header>运算符</header>
+            <div class="panel-body">
+              ${operatorButtons}
+            </div>
+          </section>
+
+          <section class="builder-panel">
+            <header>函数</header>
+            <div class="panel-body">
+              ${functionButtons}
+            </div>
+          </section>
+
+          <section class="builder-panel number-panel">
+            <header>数字面板</header>
+            <div class="number-pad-display" data-test="number-pad-display">0</div>
+            <div class="number-pad-grid">
+              ${numberPadDigits}
+            </div>
+            <div class="number-pad-actions">
+              <button type="button" class="number-pad-action" data-test="number-pad-action" data-action="backspace">⌫</button>
+              <button type="button" class="number-pad-action" data-test="number-pad-action" data-action="clear">清空</button>
+              <button type="button" class="number-pad-action primary" data-test="number-pad-action" data-action="commit">确定</button>
+            </div>
+          </section>
         </div>
 
         <div class="weighted-sort-actions">
-          <button class="btn-test-formula" title="测试公式">
-            🧪 测试公式
-          </button>
-          <button class="btn-apply-weighted" title="应用加权排序">
-            ✅ 应用排序
-          </button>
-          <button class="btn-clear-weighted" title="清除排序">
-            🗑️ 清除排序
-          </button>
+          <button type="button" class="btn-test-formula" data-test="test-weighted-sort">🧪 测试公式</button>
+          <button type="button" class="btn-apply-weighted" data-test="apply-weighted-sort">✅ 应用排序</button>
+          <button type="button" class="btn-clear-weighted" data-test="clear-weighted-sort">🗑️ 清除排序</button>
         </div>
       </div>
     `;
   }
 
-  /**
-   * 绑定DOM元素
-   * @private
-   */
-  #bindElements() {
-    this.#formulaInput = this.#container.querySelector('.formula-input');
+  #cacheElements() {
+    this.#tokenListEl = this.#container.querySelector('[data-test="formula-tokens"]');
+    this.#previewCodeEl = this.#container.querySelector('[data-test="formula-preview"] code');
+    this.#pendingIndicatorHost = this.#container.querySelector('[data-role="pending-function"]');
+    this.#numberDisplayEl = this.#container.querySelector('[data-test="number-pad-display"]');
+    this.#validationStatusEl = this.#container.querySelector('[data-test="validation-status"]');
   }
 
-  /**
-   * 附加事件监听
-   * @private
-   */
-  #attachEventListeners() {
-    // 公式输入变更
-    this.#formulaInput.addEventListener('input', (e) => {
-      this.#currentFormula = e.target.value;
-      this.#validateFormula();
-    });
+  #bindEvents() {
+    this.#containerClickHandler = (event) => {
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      if (!target) {
+        return;
+      }
 
-    // 字段标签点击插入
-    const fieldTags = this.#container.querySelectorAll('.field-tag');
-    fieldTags.forEach(tag => {
-      tag.addEventListener('click', () => {
-        this.#insertFieldToFormula(tag.dataset.field);
-      });
-    });
+      const fieldButton = target.closest('[data-test="field-button"]');
+      if (fieldButton) {
+        event.preventDefault();
+        this.#handleFieldClick(fieldButton);
+        return;
+      }
 
-    // 测试公式按钮
-    const btnTest = this.#container.querySelector('.btn-test-formula');
-    btnTest.addEventListener('click', () => this.#handleTestFormula());
+      const operatorButton = target.closest('[data-test="operator-button"]');
+      if (operatorButton) {
+        event.preventDefault();
+        this.#handleOperatorClick(operatorButton);
+        return;
+      }
 
-    // 应用排序按钮
-    const btnApply = this.#container.querySelector('.btn-apply-weighted');
-    btnApply.addEventListener('click', () => this.#handleApplyWeightedSort());
+      const functionButton = target.closest('[data-test="function-button"]');
+      if (functionButton) {
+        event.preventDefault();
+        this.#handleFunctionClick(functionButton);
+        return;
+      }
 
-    // 清除排序按钮
-    const btnClear = this.#container.querySelector('.btn-clear-weighted');
-    btnClear.addEventListener('click', () => this.#handleClearSort());
+      const numberDigit = target.closest('[data-test="number-pad-digit"]');
+      if (numberDigit) {
+        event.preventDefault();
+        this.#handleNumberDigit(numberDigit);
+        return;
+      }
 
-    this.#logger.debug('[WeightedSortEditor] Event listeners attached');
+      const numberAction = target.closest('[data-test="number-pad-action"]');
+      if (numberAction) {
+        event.preventDefault();
+        this.#handleNumberAction(numberAction);
+        return;
+      }
+
+      const tokenDelete = target.closest('[data-test="token-delete"]');
+      if (tokenDelete) {
+        event.preventDefault();
+        this.#handleTokenDelete(tokenDelete);
+        return;
+      }
+
+      if (target.matches('[data-test="apply-weighted-sort"]')) {
+        event.preventDefault();
+        this.#handleApplyWeightedSort();
+        return;
+      }
+
+      if (target.matches('[data-test="test-weighted-sort"]')) {
+        event.preventDefault();
+        this.#handleTestFormula();
+        return;
+      }
+
+      if (target.matches('[data-test="clear-weighted-sort"]')) {
+        event.preventDefault();
+        this.#handleClearSort();
+      }
+    };
+
+    this.#container.addEventListener('click', this.#containerClickHandler);
   }
 
-  /**
-   * 插入字段到公式
-   * @param {string} field - 字段名
-   * @private
-   */
-  #insertFieldToFormula(field) {
-    const cursorPos = this.#formulaInput.selectionStart;
-    const textBefore = this.#currentFormula.substring(0, cursorPos);
-    const textAfter = this.#currentFormula.substring(this.#formulaInput.selectionEnd);
-
-    this.#currentFormula = textBefore + field + textAfter;
-    this.#formulaInput.value = this.#currentFormula;
-
-    // 设置光标位置
-    const newPos = cursorPos + field.length;
-    this.#formulaInput.setSelectionRange(newPos, newPos);
-    this.#formulaInput.focus();
-
+  #syncView() {
+    this.#renderTokens();
+    this.#renderPendingIndicator();
+    this.#updateNumberPadDisplay();
+    this.#rebuildFormula();
+    this.#updateFormulaPreview();
     this.#validateFormula();
-    this.#logger.debug(`[WeightedSortEditor] Field inserted: ${field}`);
   }
 
-  /**
-   * 验证公式
-   * @private
-   */
-  #validateFormula() {
-    const validationStatus = this.#container.querySelector('.validation-status');
-
-    if (!this.#currentFormula.trim()) {
-      validationStatus.textContent = '';
-      validationStatus.className = 'validation-status';
+  #renderTokens() {
+    if (!this.#tokenListEl) {
       return;
     }
 
-    try {
-      // 基础语法检查
-      const result = this.#performBasicValidation(this.#currentFormula);
+    if (!this.#tokens.length) {
+      this.#tokenListEl.innerHTML = '<div class="formula-token placeholder">点击上方按钮开始构建公式</div>';
+      return;
+    }
 
-      if (result.valid) {
-        validationStatus.textContent = '✅ 公式格式正确';
-        validationStatus.className = 'validation-status valid';
-        this.#validationResult = result;
-      } else {
-        validationStatus.textContent = `❌ ${result.error}`;
-        validationStatus.className = 'validation-status invalid';
-        this.#validationResult = null;
-      }
-    } catch (error) {
-      validationStatus.textContent = `❌ 验证失败: ${error.message}`;
-      validationStatus.className = 'validation-status invalid';
+    const fragment = document.createDocumentFragment();
+    this.#tokens.forEach((token, index) => {
+      const tokenEl = document.createElement('div');
+      tokenEl.className = `formula-token formula-token-${token.type}`;
+      tokenEl.setAttribute('data-test', 'formula-token');
+      tokenEl.setAttribute('data-index', String(index));
+      tokenEl.textContent = token.value;
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'token-delete';
+      deleteBtn.setAttribute('data-test', 'token-delete');
+      deleteBtn.textContent = '×';
+
+      tokenEl.appendChild(deleteBtn);
+      fragment.appendChild(tokenEl);
+    });
+
+    this.#tokenListEl.innerHTML = '';
+    this.#tokenListEl.appendChild(fragment);
+  }
+
+  #renderPendingIndicator() {
+    if (!this.#pendingIndicatorHost) {
+      return;
+    }
+
+    if (!this.#pendingFunction) {
+      this.#pendingIndicatorHost.innerHTML = '';
+      return;
+    }
+
+    const remaining = this.#pendingFunction.arity - this.#pendingFunction.args.length;
+    this.#pendingIndicatorHost.innerHTML = `
+      <div class="function-pending" data-test="function-pending" data-function="${this.#pendingFunction.name}" data-remaining="${remaining}">
+        <span>${this.#pendingFunction.label}</span>
+        <span class="pending-remaining">还需 ${remaining} 个参数</span>
+      </div>
+    `;
+  }
+
+  #updateNumberPadDisplay() {
+    if (this.#numberDisplayEl) {
+      this.#numberDisplayEl.textContent = this.#numberBuffer || '0';
+    }
+  }
+
+  #updateFormulaPreview() {
+    if (this.#previewCodeEl) {
+      this.#previewCodeEl.textContent = this.#currentFormula || '尚未设置公式';
+    }
+  }
+
+  #validateFormula() {
+    if (!this.#validationStatusEl) {
+      return;
+    }
+
+    if (!this.#currentFormula) {
+      this.#validationStatusEl.textContent = '';
+      this.#validationStatusEl.className = 'validation-status';
       this.#validationResult = null;
+      return;
     }
-  }
 
-  /**
-   * 执行基础验证
-   * @param {string} formula - 公式字符串
-   * @returns {Object} 验证结果
-   * @private
-   */
-  #performBasicValidation(formula) {
-    // 检查括号匹配
-    const openBrackets = (formula.match(/\(/g) || []).length;
-    const closeBrackets = (formula.match(/\)/g) || []).length;
+    const openBrackets = (this.#currentFormula.match(/\(/g) || []).length;
+    const closeBrackets = (this.#currentFormula.match(/\)/g) || []).length;
     if (openBrackets !== closeBrackets) {
-      return { valid: false, error: '括号不匹配' };
+      this.#validationStatusEl.textContent = '❌ 括号不匹配';
+      this.#validationStatusEl.className = 'validation-status invalid';
+      this.#validationResult = { valid: false, error: '括号不匹配' };
+      return;
     }
 
-    // 检查是否包含有效字段
-    const fieldNames = this.#availableFields.map(f => f.field);
-    const hasValidField = fieldNames.some(field => formula.includes(field));
-    if (!hasValidField) {
-      return { valid: false, error: '公式中未包含任何有效字段' };
+    if (!this.#hasFieldReference(this.#currentFormula)) {
+      this.#validationStatusEl.textContent = '❌ 公式中缺少字段';
+      this.#validationStatusEl.className = 'validation-status invalid';
+      this.#validationResult = { valid: false, error: '公式缺少字段' };
+      return;
     }
 
-    // 检查非法字符（简单检查）
-    const allowedChars = /^[a-zA-Z0-9_+\-*/%()., ]+$/;
-    if (!allowedChars.test(formula)) {
-      return { valid: false, error: '公式包含非法字符' };
+    this.#validationStatusEl.textContent = '✅ 公式格式正确';
+    this.#validationStatusEl.className = 'validation-status valid';
+    this.#validationResult = { valid: true };
+  }
+
+  #hasFieldReference(formula) {
+    if (!formula) {
+      return false;
     }
 
-    return { valid: true, formula };
+    const fieldNames = this.#availableFields.map((field) => field.field);
+    return fieldNames.some((fieldName) => {
+      const pattern = new RegExp(`\\b${this.#escapeRegExp(fieldName)}\\b`, 'i');
+      return pattern.test(formula);
+    });
   }
 
   /**
-   * 处理测试公式
-   * @private
+   * 转义正则特殊字符
+   * @param {string} value
+   * @returns {string}
    */
+  #escapeRegExp(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  #handleFieldClick(button) {
+    const field = button.getAttribute('data-field');
+    if (!field) {
+      return;
+    }
+    this.#appendToken({ type: 'field', value: field });
+  }
+
+  #handleOperatorClick(button) {
+    const operator = button.getAttribute('data-operator');
+    if (!operator || this.#pendingFunction) {
+      return;
+    }
+    this.#appendToken({ type: 'operator', value: operator });
+  }
+
+  #handleFunctionClick(button) {
+    const functionName = button.getAttribute('data-function');
+    if (!functionName || this.#pendingFunction) {
+      return;
+    }
+
+    const definition = this.#functionDefinitions[functionName];
+    if (!definition) {
+      this.#logger.warn(`[WeightedSortEditor] 未知函数: ${functionName}`);
+      return;
+    }
+
+    this.#pendingFunction = {
+      name: definition.name,
+      label: definition.display,
+      arity: definition.arity,
+      args: []
+    };
+    this.#renderPendingIndicator();
+  }
+
+  #handleNumberDigit(button) {
+    const digit = button.getAttribute('data-digit');
+    if (!digit) {
+      return;
+    }
+
+    if (digit === '.' && this.#numberBuffer.includes('.')) {
+      return;
+    }
+
+    this.#numberBuffer += digit;
+    this.#updateNumberPadDisplay();
+  }
+
+  #handleNumberAction(button) {
+    const action = button.getAttribute('data-action');
+    if (!action) {
+      return;
+    }
+
+    if (action === 'backspace') {
+      this.#numberBuffer = this.#numberBuffer.slice(0, -1);
+      this.#updateNumberPadDisplay();
+      return;
+    }
+
+    if (action === 'clear') {
+      this.#numberBuffer = '';
+      this.#updateNumberPadDisplay();
+      return;
+    }
+
+    if (action === 'commit') {
+      this.#commitNumberBuffer();
+    }
+  }
+
+  #commitNumberBuffer() {
+    if (!this.#numberBuffer) {
+      return;
+    }
+
+    const token = { type: 'number', value: this.#numberBuffer };
+    this.#appendToken(token);
+    this.#numberBuffer = '';
+    this.#updateNumberPadDisplay();
+  }
+
+  #appendToken(token) {
+    if (this.#pendingFunction) {
+      this.#pendingFunction.args.push(token.value);
+      if (this.#pendingFunction.args.length >= this.#pendingFunction.arity) {
+        const expression = `${this.#pendingFunction.name}(${this.#pendingFunction.args.join(', ')})`;
+        this.#tokens.push({ type: 'function', value: expression, name: this.#pendingFunction.name });
+        this.#pendingFunction = null;
+      }
+      this.#syncView();
+      return;
+    }
+
+    this.#tokens.push(token);
+    this.#syncView();
+  }
+
+  #handleTokenDelete(button) {
+    const tokenEl = button.closest('[data-test="formula-token"]');
+    if (!tokenEl) {
+      return;
+    }
+
+    const index = Number(tokenEl.getAttribute('data-index'));
+    if (Number.isNaN(index)) {
+      return;
+    }
+
+    this.#tokens.splice(index, 1);
+    this.#syncView();
+  }
+
+  #rebuildFormula() {
+    if (!this.#tokens.length) {
+      this.#currentFormula = '';
+      return;
+    }
+
+    let formula = this.#tokens.map((token) => token.value).join(' ');
+    formula = formula.replace(/\(\s+/g, '(')
+      .replace(/\s+\)/g, ')')
+      .replace(/\s+,/g, ',')
+      .replace(/,\s*/g, ', ')
+      .replace(/\s+\*/g, ' *')
+      .replace(/\s+\//g, ' /')
+      .replace(/\s+\+/g, ' +')
+      .replace(/\s+-/g, ' -');
+
+    this.#currentFormula = formula.trim();
+  }
+
+  #loadFormula(formula) {
+    this.#tokens = [];
+    this.#numberBuffer = '';
+    this.#pendingFunction = null;
+
+    if (!formula) {
+      this.#syncView();
+      return;
+    }
+
+    const length = formula.length;
+    let index = 0;
+
+    while (index < length) {
+      const char = formula[index];
+
+      if (/\s/.test(char)) {
+        index += 1;
+        continue;
+      }
+
+      if (char === '*' && formula[index + 1] === '*') {
+        this.#tokens.push({ type: 'operator', value: '**' });
+        index += 2;
+        continue;
+      }
+
+      if ('+-*/%()'.includes(char)) {
+        this.#tokens.push({ type: 'operator', value: char });
+        index += 1;
+        continue;
+      }
+
+      if (/[0-9]/.test(char)) {
+        let numberLiteral = char;
+        index += 1;
+        while (index < length && /[0-9.]/.test(formula[index])) {
+          numberLiteral += formula[index];
+          index += 1;
+        }
+        this.#tokens.push({ type: 'number', value: numberLiteral });
+        continue;
+      }
+
+      if (/[a-zA-Z_]/.test(char)) {
+        let identifier = char;
+        index += 1;
+        while (index < length && /[a-zA-Z0-9_]/.test(formula[index])) {
+          identifier += formula[index];
+          index += 1;
+        }
+
+        if (this.#functionDefinitions[identifier] && formula[index] === '(') {
+          let depth = 0;
+          let expression = identifier;
+          while (index < length) {
+            const currentChar = formula[index];
+            expression += currentChar;
+            if (currentChar === '(') {
+              depth += 1;
+            } else if (currentChar === ')') {
+              depth -= 1;
+              if (depth === 0) {
+                index += 1;
+                break;
+              }
+            }
+            index += 1;
+          }
+          this.#tokens.push({ type: 'function', value: expression, name: identifier });
+          continue;
+        }
+
+        const isField = this.#availableFields.some((field) => field.field === identifier);
+        this.#tokens.push({ type: isField ? 'field' : 'identifier', value: identifier });
+        continue;
+      }
+
+      if (char === ',') {
+        this.#tokens.push({ type: 'operator', value: ',' });
+        index += 1;
+        continue;
+      }
+
+      this.#logger.warn(`[WeightedSortEditor] 无法识别的字符: ${char}`);
+      index += 1;
+    }
+
+    this.#syncView();
+  }
+
   #handleTestFormula() {
     if (!this.#validationResult || !this.#validationResult.valid) {
       this.#logger.warn('[WeightedSortEditor] Cannot test invalid formula');
-      alert('请先修复公式错误');
+      alert('请先构建有效的公式再进行测试');
       return;
     }
 
     this.#logger.info('[WeightedSortEditor] Testing formula:', this.#currentFormula);
-
-    // 触发测试事件（三段式格式）
     this.#eventBus.emit('sorter:formula:tested', {
       formula: this.#currentFormula
     });
 
-    alert(`公式测试请求已发送\n公式: ${this.#currentFormula}\n\n实际测试功能需要在后续实现`);
+    alert(`公式测试请求已发送\n公式: ${this.#currentFormula}\n\n后端执行逻辑将在后续实现`);
   }
 
-  /**
-   * 处理应用加权排序
-   * @private
-   */
   #handleApplyWeightedSort() {
     if (!this.#validationResult || !this.#validationResult.valid) {
       this.#logger.warn('[WeightedSortEditor] Cannot apply invalid formula');
-      alert('请先修复公式错误');
+      alert('请先构建有效的公式');
       return;
     }
 
     this.#logger.info('[WeightedSortEditor] Applying weighted sort:', this.#currentFormula);
-
-    // 触发应用排序事件（三段式格式）
     this.#eventBus.emit('sorter:sort:requested', {
       type: 'weighted',
       formula: this.#currentFormula
     });
   }
 
-  /**
-   * 处理清除排序
-   * @private
-   */
   #handleClearSort() {
-    this.#currentFormula = '';
-    this.#formulaInput.value = '';
-    this.#validateFormula();
+    this.#tokens = [];
+    this.#numberBuffer = '';
+    this.#pendingFunction = null;
+    this.#syncView();
     this.#logger.info('[WeightedSortEditor] Formula cleared');
 
-    // 触发清除排序事件（三段式格式）
     this.#eventBus.emit('sorter:sort:cleared', {});
   }
 
-  /**
-   * 获取当前公式
-   * @returns {string}
-   * @public
-   */
   getFormula() {
     return this.#currentFormula;
   }
 
-  /**
-   * 设置公式（编程方式）
-   * @param {string} formula - 公式字符串
-   * @public
-   */
   setFormula(formula) {
-    this.#currentFormula = formula;
-    this.#formulaInput.value = formula;
-    this.#validateFormula();
-    this.#logger.info('[WeightedSortEditor] Formula set:', formula);
+    this.#currentFormula = formula || '';
+    this.#loadFormula(this.#currentFormula);
+    this.#logger.info('[WeightedSortEditor] Formula set:', this.#currentFormula);
   }
 
-  /**
-   * 销毁组件
-   * @public
-   */
   destroy() {
+    if (this.#container && this.#containerClickHandler) {
+      this.#container.removeEventListener('click', this.#containerClickHandler);
+    }
+
     if (this.#container) {
       this.#container.innerHTML = '';
     }
+
+    this.#container = null;
+    this.#tokenListEl = null;
+    this.#previewCodeEl = null;
+    this.#pendingIndicatorHost = null;
+    this.#numberDisplayEl = null;
+    this.#validationStatusEl = null;
+    this.#containerClickHandler = null;
+
     this.#logger.info('[WeightedSortEditor] Destroyed');
   }
 }
