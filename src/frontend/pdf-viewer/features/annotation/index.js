@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Annotation Feature - PDF标注功能（模块化容器版）
  * @module features/annotation
  * @description 提供PDF标注功能，采用插件化架构
@@ -12,6 +12,7 @@
  */
 
 import { getLogger } from "../../../common/utils/logger.js";
+import { createScopedEventBus } from "../../../common/event/scoped-event-bus.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
 import { AnnotationSidebarUI } from "./components/annotation-sidebar-ui.js";
 import { ToolRegistry } from "./core/tool-registry.js";
@@ -29,6 +30,12 @@ export class AnnotationFeature {
 
   /** @type {EventBus} */
   #eventBus;
+
+  /** @type {EventBus} */
+  #globalEventBus;
+
+  /** @type {boolean} */
+  #ownsScopedEventBus = false;
 
   /** @type {AnnotationSidebarUI} */
   #sidebarUI;
@@ -75,15 +82,22 @@ export class AnnotationFeature {
    * @returns {Promise<void>}
    */
   async install(context) {
-    const { globalEventBus, logger, container } = context;
+    const { globalEventBus, scopedEventBus, logger, container } = context;
 
     this.#logger = logger || getLogger('AnnotationFeature');
     this.#logger.info(`[${this.name}] Installing (v${this.version})...`);
 
-    // 获取事件总线
-    this.#eventBus = globalEventBus;
-    if (!this.#eventBus) {
-      throw new Error(`[${this.name}] EventBus not found in context`);
+    if (!globalEventBus) {
+      throw new Error(`[${this.name}] Global EventBus not found in context`);
+    }
+
+    this.#globalEventBus = globalEventBus;
+
+    if (scopedEventBus) {
+      this.#eventBus = scopedEventBus;
+    } else {
+      this.#eventBus = createScopedEventBus(globalEventBus, this.name);
+      this.#ownsScopedEventBus = true;
     }
 
     this.#container = container;
@@ -223,7 +237,7 @@ export class AnnotationFeature {
     // 参考：annotation-sidebar-ui.js:322-338
 
     // 监听标注导航请求
-    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.JUMP_TO, (data) => {
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, (data) => {
       this.#handleNavigateToAnnotation(data);
     }, { subscriberId: 'AnnotationFeature' });
   }
@@ -334,7 +348,7 @@ export class AnnotationFeature {
 
         if (result.success) {
           // 发出导航成功事件
-          this.#eventBus.emit('annotation-navigation:jump:success', {
+          this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_SUCCESS, {
             annotation: annotation,
             pageNumber: result.actualPage,
             position: result.actualPosition
@@ -356,7 +370,7 @@ export class AnnotationFeature {
 
         if (result.success) {
           // 发出导航成功事件
-          this.#eventBus.emit('annotation-navigation:jump:success', {
+          this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_SUCCESS, {
             annotation: annotation,
             pageNumber: result.actualPage,
             position: result.actualPosition
@@ -373,7 +387,7 @@ export class AnnotationFeature {
 
     } catch (error) {
       this.#logger.error('[AnnotationFeature] Error navigating to annotation:', error);
-      this.#eventBus.emit('annotation-navigation:jump:failed', {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_FAILED, {
         error: error.message
       });
     }
@@ -386,7 +400,7 @@ export class AnnotationFeature {
    */
   #highlightAnnotationMarker(annotationId) {
     // 发出标注选择事件，由CommentTool处理高亮
-    this.#eventBus.emit('annotation:select:requested', {
+    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SELECT, {
       id: annotationId
     }, { actorId: 'AnnotationFeature' });
 
@@ -503,6 +517,14 @@ export class AnnotationFeature {
       this.#toggleButton.remove();
       this.#toggleButton = null;
     }
+
+    if (this.#ownsScopedEventBus && typeof this.#eventBus?.destroy === 'function') {
+      this.#eventBus.destroy();
+    }
+
+    this.#eventBus = null;
+    this.#globalEventBus = null;
+    this.#ownsScopedEventBus = false;
 
     this.#logger.info(`[${this.name}] Uninstalled successfully`);
   }

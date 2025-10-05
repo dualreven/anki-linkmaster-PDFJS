@@ -1489,3 +1489,38 @@ AnnotationSidebarUI → 监听并添加卡片 (只一次)
   6. 测试与 QA 覆盖 20251005195500-pdf-search-testing
 - 关键决策：首版采用 LIKE + 多 token + CASE 权重方案，预留未来 FTS5 升级路径；前端必须通过 SearchService 统一发起请求并支持分页控件。
 - 2025-10-05 21:00: 开始实施第一层 LIKE 搜索任务：目标是实现 PDFLibraryAPI.search_records、对应 SQL CTE、测试覆盖。
+
+## 20251005203920 Annotation事件规范审查
+- 问题: annotation 模块的事件命名、数据结构和常量使用存在多处不符合既有规范的情况, 造成事件监听与发布脱节。
+- 背景: PDF_VIEWER_EVENTS 已给出统一事件清单, EventBus 使用指南要求通过 ScopedEventBus 区分局部/全局事件。
+- 相关模块: src/frontend/pdf-viewer/features/annotation/index.js, core/annotation-manager.js, core/tool-registry.js, tools/{comment,text-highlight,screenshot}, components/annotation-sidebar-ui.js。
+- 现状梳理:
+  - CommentTool 仍发布 `annotation:jump:requested`, AnnotationFeature 监听的是 `annotation-navigation:jump:requested`, 导致跳转事件失配。
+  - TextHighlightTool 删除事件 payload 使用 `annotationId`, AnnotationManager #handleDeleteAnnotation 只接受 `id`, 删除流程不一致。
+  - 多数事件直接硬编码字符串, 未复用 `PDF_VIEWER_EVENTS`, 且 `annotation-navigation:jump:success` 等新事件未补登记到常量文件。
+  - 侧边栏触发 `pdf-viewer:annotation:*` 事件未遵循三段式命名, Notification 事件也缺少常量。
+  - 模块内全部通过 globalEventBus 通信, 未利用 ScopedEventBus 隔离内部事件。
+- 原子任务拆分:
+  1. 整理 annotation 模块现有事件清单, 标记命名/数据结构/常量差异。
+  2. 设计事件治理方案, 包含命名规范校准、常量补全、ScopedEventBus 引入及数据契约调整。
+
+## 202510052055 Annotation事件治理
+- AnnotationFeature 现优先使用 ScopedEventBus；缺省时基于 globalEventBus 创建并在卸载时销毁，跨模块事件通过 `emitGlobal/onGlobal` 分发。
+- PDF_VIEWER_EVENTS 补充：`ANNOTATION.NAVIGATION.JUMP_{REQUESTED,SUCCESS,FAILED}`、`ANNOTATION.SIDEBAR` 下的 FILTER/SORT/SETTINGS/ID 复制、CRUD 失败常量以及顶层 `NOTIFICATION.ERROR.TRIGGERED`。
+- AnnotationManager/ToolRegistry/CommentTool/TextHighlightTool/ScreenshotTool/AnnotationSidebarUI 全量改用事件常量；TextHighlightTool 删除请求参数改为 `id`；CommentTool 跳转使用导航常量。
+- 截图与高亮工具调用 `emitGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED)` 与 `emitGlobal(PDF_TRANSLATOR_EVENTS.TEXT.SELECTED)`，ScreenshotTool 错误提示使用通知常量。
+- text-highlight-tool 测试同步更新，验证颜色变更、跳转、翻译场景下新事件流。
+
+## 202510052139 标注卡片删除按钮
+- 需求: 在标注侧边栏的卡片上新增删除按钮，统一触发 annotation 删除流程。
+- 相关文件: src/frontend/pdf-viewer/features/annotation/components/annotation-sidebar-ui.js, 各工具 createAnnotationCard 实现。
+- 约束: 按钮需复用现有删除事件 (PDF_VIEWER_EVENTS.ANNOTATION.DELETE)，遵循侧边栏样式规范。
+- 原子任务:
+  1. 梳理卡片渲染入口，决定统一处理或分工具扩展。
+  2. 实现删除按钮 DOM & 事件，调用公共删除逻辑。
+  3. 更新 UI/测试，验证操作。
+
+## 202510052150 标注UI表情优化
+- 需求: 在标注插件系统UI（侧边栏工具按钮、卡片按钮、快捷操作按钮等）使用Unicode表情取代纯文字标识。
+- 关注范围: annotation-sidebar-ui, tools下的按钮, text-selection-quick-actions。
+- 注意: 保留tooltip解释文字，确保表情含义直观。

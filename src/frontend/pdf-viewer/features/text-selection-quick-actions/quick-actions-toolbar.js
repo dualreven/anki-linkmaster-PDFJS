@@ -4,10 +4,10 @@
  */
 
 const BUTTON_DEFS = [
-  { key: 'copy', label: '复制' },
-  { key: 'annotate', label: '标注' },
-  { key: 'translate', label: '翻译' },
-  { key: 'ai', label: 'AI' }
+  { key: 'copy', icon: '📋', label: '复制' },
+  { key: 'annotate', icon: '🖍️', label: '标注' },
+  { key: 'translate', icon: '🌐', label: '翻译' },
+  { key: 'ai', icon: '🤖', label: 'AI' }
 ];
 
 export class QuickActionsToolbar {
@@ -38,11 +38,13 @@ export class QuickActionsToolbar {
       'user-select: none'
     ].join(';');
 
-    BUTTON_DEFS.forEach(({ key, label }) => {
+    BUTTON_DEFS.forEach(({ key, icon, label }) => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.dataset.action = key;
-      btn.textContent = label;
+      btn.textContent = icon;
+      btn.setAttribute('aria-label', label);
+      btn.title = label;
       btn.style.cssText = [
         'border: none',
         'padding: 6px 12px',

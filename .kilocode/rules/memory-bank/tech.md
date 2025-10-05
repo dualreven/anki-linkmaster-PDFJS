@@ -338,3 +338,10 @@ emove_comment(ann_id, comment_id)。
 - 事件：`table:search-condition:create|update|delete:completed`。
 - 测试：`pytest src/backend/database/plugins/__tests__/test_search_condition_plugin.py`（29 用例）。
 - 2025-10-05：新增 `PDFLibraryAPI`，提供 `list_records/get_record_detail/update_record/delete_record/register_file_info`，单位为秒/毫秒转换遵循 JSON-MESSAGE-FORMAT-001，WebSocket `pdf/list` 消息返回 `records`。
+
+## 2025-10-05 Annotation事件规范
+- AnnotationFeature 缺省使用 ScopedEventBus，跨模块交互统一经 `emitGlobal/onGlobal`。
+- PDF_VIEWER_EVENTS 新增注解导航 SUCCESS/FAILED、侧边栏辅助按钮及通知错误常量，CRUD 失败常量也需使用同名常量调用。
+- 工具类（Comment/Screenshot/TextHighlight）与 AnnotationManager/Event UI 必须引用常量，不得再硬编码字符串事件。
+- 2025-10-05: AnnotationSidebarUI 卡片头部新增删除按钮，通过 `PDF_VIEWER_EVENTS.ANNOTATION.DELETE` 触发；TextSelectionQuickActionsFeature 在监听 `@annotation/annotation-tool:*` 时禁用快捷操作。
+- 2025-10-05: 标注UI按钮表情化：QuickActionsToolbar 与 AnnotationSidebarUI 操作按钮改用 Unicode 表情，统一提供 aria-label/title 辅助文本。

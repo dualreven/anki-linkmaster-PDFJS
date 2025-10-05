@@ -9,6 +9,7 @@ import { IAnnotationTool } from '../../interfaces/IAnnotationTool.js';
 import { CommentInput } from './comment-input.js';
 import { CommentMarker } from './comment-marker.js';
 import { Annotation } from '../../models/annotation.js';
+import { PDF_VIEWER_EVENTS } from '../../../../../common/event/pdf-viewer-constants.js';
 
 /**
  * 批注工具类
@@ -279,7 +280,7 @@ export class CommentTool extends IAnnotationTool {
 
     // 发布创建事件（标记渲染会在annotation:create:success事件中统一处理）
     this.#eventBus.emit(
-      'annotation:create:requested',
+      PDF_VIEWER_EVENTS.ANNOTATION.CREATE,
       { annotation },
       { actorId: 'CommentTool' }
     );
@@ -300,7 +301,7 @@ export class CommentTool extends IAnnotationTool {
 
     // 发布选择事件
     this.#eventBus.emit(
-      'annotation:select:requested',
+      PDF_VIEWER_EVENTS.ANNOTATION.SELECT,
       { id: annotationId },
       { actorId: 'CommentTool' }
     );
@@ -344,7 +345,7 @@ export class CommentTool extends IAnnotationTool {
     }
 
     // 监听标注创建成功事件
-    this.#eventBus.on('annotation:create:success', (data) => {
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, (data) => {
       const { annotation } = data;
 
       this.#logger.info(`📢 [Event] annotation:create:success received for ${annotation.id} (type: ${annotation.type})`);
@@ -362,7 +363,7 @@ export class CommentTool extends IAnnotationTool {
     }, { subscriberId: 'CommentTool' });
 
     // 监听标注删除成功事件
-    this.#eventBus.on('annotation:delete:success', (data) => {
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DELETED, (data) => {
       const { id } = data;
 
       this.#logger.info(`📢 [Event] annotation:delete:success received for ${id}`);
@@ -612,7 +613,7 @@ export class CommentTool extends IAnnotationTool {
     jumpBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       this.#eventBus.emit(
-        'annotation:jump:requested',
+        PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
         { id: annotation.id },
         { actorId: 'CommentTool' }
       );
@@ -624,7 +625,7 @@ export class CommentTool extends IAnnotationTool {
       e.stopPropagation();
       if (confirm('确定要删除这条批注吗？')) {
         this.#eventBus.emit(
-          'annotation:delete:requested',
+          PDF_VIEWER_EVENTS.ANNOTATION.DELETE,
           { id: annotation.id },
           { actorId: 'CommentTool' }
         );

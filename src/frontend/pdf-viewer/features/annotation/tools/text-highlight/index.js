@@ -156,9 +156,9 @@ export class TextHighlightTool extends IAnnotationTool {
 
     // 注册事件监听器
     this.#eventBus.on('annotation-highlight:selection:completed', this.#onTextSelectionCompletedHandler);
-    this.#eventBus.on('annotation:create:success', this.#onAnnotationCreatedHandler);
-    this.#eventBus.on('annotation:update:success', this.#onAnnotationUpdatedHandler);
-    this.#eventBus.on('annotation:delete:success', this.#onAnnotationDeletedHandler);
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, this.#onAnnotationCreatedHandler);
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.UPDATED, this.#onAnnotationUpdatedHandler);
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DELETED, this.#onAnnotationDeletedHandler);
 
     this.#logger.info('[TextHighlightTool] Initialized successfully');
   }
@@ -309,7 +309,7 @@ export class TextHighlightTool extends IAnnotationTool {
       });
 
       // 发送创建标注请求
-      this.#eventBus.emit('annotation:create:requested', {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, {
         annotation: annotation
       });
 
@@ -501,9 +501,9 @@ export class TextHighlightTool extends IAnnotationTool {
     }
 
     this.#logger.info(`[TextHighlightTool] Jump requested for annotation ${annotation.id}`);
-    this.#eventBus.emit(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, { sidebarId: 'annotation' });
+    this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, { sidebarId: 'annotation' });
     this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SELECT, { id: annotation.id });
-    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.JUMP_TO, { annotation });
+    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, { annotation });
   }
 
   /**
@@ -520,8 +520,8 @@ export class TextHighlightTool extends IAnnotationTool {
     }
 
     this.#logger.info(`[TextHighlightTool] Translate requested for annotation ${annotation.id}`);
-    this.#eventBus.emit(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, { sidebarId: 'translate' });
-    this.#eventBus.emit(PDF_TRANSLATOR_EVENTS.TEXT.SELECTED, {
+    this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, { sidebarId: 'translate' });
+    this.#eventBus.emitGlobal(PDF_TRANSLATOR_EVENTS.TEXT.SELECTED, {
       text,
       pageNumber: annotation.pageNumber,
       annotationId: annotation.id,
@@ -757,7 +757,7 @@ export class TextHighlightTool extends IAnnotationTool {
     });
     jumpButton.addEventListener('click', (e) => {
       e.stopPropagation();
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.JUMP_TO, {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, {
         annotation: annotation
       });
     });
@@ -786,8 +786,8 @@ export class TextHighlightTool extends IAnnotationTool {
     deleteButton.addEventListener('click', (e) => {
       e.stopPropagation();
       if (confirm('确定要删除这个标注吗？')) {
-        this.#eventBus.emit('annotation:delete:requested', {
-          annotationId: annotation.id
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DELETE, {
+          id: annotation.id
         });
       }
     });
@@ -797,7 +797,7 @@ export class TextHighlightTool extends IAnnotationTool {
 
     // 卡片点击跳转
     card.addEventListener('click', () => {
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.JUMP_TO, {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, {
         annotation: annotation
       });
     });
@@ -820,9 +820,9 @@ export class TextHighlightTool extends IAnnotationTool {
     // 移除事件监听器
     if (this.#eventBus) {
       this.#eventBus.off('annotation-highlight:selection:completed', this.#onTextSelectionCompletedHandler);
-      this.#eventBus.off('annotation:create:success', this.#onAnnotationCreatedHandler);
-      this.#eventBus.off('annotation:update:success', this.#onAnnotationUpdatedHandler);
-      this.#eventBus.off('annotation:delete:success', this.#onAnnotationDeletedHandler);
+      this.#eventBus.off(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, this.#onAnnotationCreatedHandler);
+      this.#eventBus.off(PDF_VIEWER_EVENTS.ANNOTATION.UPDATED, this.#onAnnotationUpdatedHandler);
+      this.#eventBus.off(PDF_VIEWER_EVENTS.ANNOTATION.DELETED, this.#onAnnotationDeletedHandler);
     }
 
     // 销毁子组件

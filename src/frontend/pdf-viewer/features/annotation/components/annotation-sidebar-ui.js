@@ -287,17 +287,17 @@ export class AnnotationSidebarUI {
     switch (buttonId) {
       case 'filter':
         // 切换筛选面板显示状态（第二期功能）
-        this.#eventBus.emit('pdf-viewer:annotation:filter:toggle', {});
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.FILTER_TOGGLE, {});
         this.#showToast('筛选功能开发中...', 'info');
         break;
       case 'sort':
         // 切换排序面板显示状态（第二期功能）
-        this.#eventBus.emit('pdf-viewer:annotation:sort:toggle', {});
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.SORT_TOGGLE, {});
         this.#showToast('排序功能开发中...', 'info');
         break;
       case 'settings':
         // 打开设置面板（预留功能）
-        this.#eventBus.emit('pdf-viewer:annotation:settings:open', {});
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.SETTINGS_OPEN, {});
         this.#showToast('设置功能开发中...', 'info');
         break;
       default:
@@ -399,7 +399,7 @@ export class AnnotationSidebarUI {
     ));
 
     // 监听侧边栏关闭事件（第二期：关闭时停用所有工具）
-    this.#unsubs.push(this.#eventBus.on(
+    this.#unsubs.push(this.#eventBus.onGlobal(
       PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.CLOSED_COMPLETED,
       (data) => this.#handleSidebarClosed(data),
       { subscriberId: 'AnnotationSidebarUI' }
@@ -544,7 +544,7 @@ export class AnnotationSidebarUI {
     message.textContent = '暂无标注';
 
     const hint = document.createElement('div');
-    hint.textContent = '点击上方工具按钮开始标注';
+    hint.textContent = '🖱️ 点击上方工具按钮开始标注';
     hint.style.cssText = 'margin-top: 8px; font-size: 12px; color: #bbb;';
 
     emptyDiv.appendChild(icon);
@@ -607,10 +607,12 @@ export class AnnotationSidebarUI {
     typeInfo.appendChild(typeIcon);
     typeInfo.appendChild(pageInfo);
 
-    // 跳转按钮
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display: flex; align-items: center; gap: 6px;';
+
     const jumpBtn = document.createElement('button');
     jumpBtn.type = 'button';
-    jumpBtn.textContent = '→';
+    jumpBtn.textContent = '🧭';
     jumpBtn.title = '跳转到标注位置';
     jumpBtn.className = 'annotation-jump-btn';
     jumpBtn.style.cssText = [
@@ -620,15 +622,60 @@ export class AnnotationSidebarUI {
       'padding: 4px 8px',
       'cursor: pointer',
       'font-size: 14px',
-      'color: #666'
+      'color: #666',
+      'transition: all 0.2s'
     ].join(';');
+    jumpBtn.addEventListener('mouseenter', () => {
+      jumpBtn.style.background = '#e3f2fd';
+      jumpBtn.style.borderColor = '#2196f3';
+      jumpBtn.style.color = '#2196f3';
+    });
+    jumpBtn.addEventListener('mouseleave', () => {
+      jumpBtn.style.background = '#fff';
+      jumpBtn.style.borderColor = '#ddd';
+      jumpBtn.style.color = '#666';
+    });
+    jumpBtn.setAttribute('aria-label', '跳转到标注位置');
     jumpBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       this.#handleJumpClick(annotation.id);
     });
 
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.textContent = '🗑️';
+    deleteBtn.title = '删除标注';
+    deleteBtn.className = 'annotation-delete-btn';
+    deleteBtn.dataset.action = 'delete';
+    deleteBtn.style.cssText = [
+      'border: 1px solid #f44336',
+      'background: #fff',
+      'border-radius: 4px',
+      'padding: 4px 8px',
+      'cursor: pointer',
+      'font-size: 12px',
+      'color: #f44336',
+      'transition: all 0.2s'
+    ].join(';');
+    deleteBtn.addEventListener('mouseenter', () => {
+      deleteBtn.style.background = '#f44336';
+      deleteBtn.style.color = '#fff';
+    });
+    deleteBtn.addEventListener('mouseleave', () => {
+      deleteBtn.style.background = '#fff';
+      deleteBtn.style.color = '#f44336';
+    });
+    deleteBtn.setAttribute('aria-label', '删除标注');
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.#handleDeleteClick(annotation.id);
+    });
+
+    actions.appendChild(jumpBtn);
+    actions.appendChild(deleteBtn);
+
     header.appendChild(typeInfo);
-    header.appendChild(jumpBtn);
+    header.appendChild(actions);
 
     // 卡片内容
     const content = document.createElement('div');
@@ -707,7 +754,7 @@ export class AnnotationSidebarUI {
     // 左侧：拷贝ID按钮
     const copyIdBtn = document.createElement('button');
     copyIdBtn.type = 'button';
-    copyIdBtn.textContent = '拷贝ID';
+    copyIdBtn.textContent = '📋';
     copyIdBtn.title = `复制ID: ${annotation.id}`;
     copyIdBtn.className = 'annotation-copy-id-btn';
     copyIdBtn.style.cssText = [
@@ -739,6 +786,7 @@ export class AnnotationSidebarUI {
       copyIdBtn.style.borderColor = '#ddd';
       copyIdBtn.style.color = '#666';
     });
+    copyIdBtn.setAttribute('aria-label', '复制标注ID');
 
     // 右侧：时间 + 评论按钮
     const rightSection = document.createElement('div');
@@ -756,7 +804,7 @@ export class AnnotationSidebarUI {
     const commentBtn = document.createElement('button');
     commentBtn.type = 'button';
     const commentCount = annotation.getCommentCount();
-    commentBtn.textContent = commentCount > 0 ? `评论(${commentCount})` : '评论';
+    commentBtn.textContent = commentCount > 0 ? `💬 ${commentCount}` : '💬';
     commentBtn.title = commentCount > 0 ? `${commentCount}条评论` : '添加评论';
     commentBtn.className = 'annotation-comment-btn';
     commentBtn.style.cssText = [
@@ -783,6 +831,7 @@ export class AnnotationSidebarUI {
       commentBtn.style.borderColor = '#ddd';
       commentBtn.style.color = '#666';
     });
+    commentBtn.setAttribute('aria-label', commentCount > 0 ? `查看评论（${commentCount}）` : '添加评论');
 
     rightSection.appendChild(time);
     rightSection.appendChild(commentBtn);
@@ -884,6 +933,22 @@ export class AnnotationSidebarUI {
    * @param {string} annotationId - 标注ID
    * @private
    */
+  #handleDeleteClick(annotationId) {
+    if (!annotationId) {
+      return;
+    }
+
+    if (typeof window !== 'undefined' && window.confirm) {
+      const confirmed = window.confirm('确定要删除该标注吗？');
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    this.#logger.debug(`Delete annotation requested: ${annotationId}`);
+    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DELETE, { id: annotationId });
+  }
+
   #handleCommentClick(annotationId) {
     this.#logger.debug(`Comment on annotation: ${annotationId}`);
     this.#showCommentDialog(annotationId);
@@ -1151,7 +1216,8 @@ export class AnnotationSidebarUI {
     // 取消按钮
     const cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
-    cancelBtn.textContent = '取消';
+    cancelBtn.textContent = '✖️';
+    cancelBtn.setAttribute('aria-label', '取消');
     cancelBtn.style.cssText = [
       'padding: 6px 16px',
       'border: 1px solid #ddd',
@@ -1165,7 +1231,8 @@ export class AnnotationSidebarUI {
     // 确定按钮
     const confirmBtn = document.createElement('button');
     confirmBtn.type = 'button';
-    confirmBtn.textContent = '确定';
+    confirmBtn.textContent = '✅';
+    confirmBtn.setAttribute('aria-label', '确定');
     confirmBtn.style.cssText = [
       'padding: 6px 16px',
       'border: none',
@@ -1354,7 +1421,7 @@ export class AnnotationSidebarUI {
     if (success) {
       this.#showCopyToast('✓ ID已复制');
       // 发出ID复制事件（修正为3段格式）
-      this.#eventBus.emit('annotation:id-copy:success', { id: annotationId });
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.ID_COPY_SUCCESS, { id: annotationId });
     } else {
       this.#showCopyToast('✗ 复制失败');
     }
