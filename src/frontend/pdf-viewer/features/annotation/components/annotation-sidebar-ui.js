@@ -427,17 +427,19 @@ export class AnnotationSidebarUI {
 
     this.#logger.info('Annotation sidebar closed, deactivating all tools');
 
-    // 如果有激活的工具，停用它
-    if (this.#activeTool) {
-      const deactivatedTool = this.#activeTool;
-      this.#activeTool = null;
-      this.#updateToolbarState();
+    // 记录当前激活的工具（在发送停用事件前）
+    const deactivatedTool = this.#activeTool;
 
-      // 发出工具停用事件
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.TOOL.DEACTIVATE, { tool: deactivatedTool });
-      this.#logger.info(`Tool deactivated due to sidebar close: ${deactivatedTool}`);
+    // 发出工具停用请求事件（ToolRegistry会处理实际停用）
+    this.#eventBus.emit('annotation-tool:deactivate:requested', {});
+    this.#logger.info(`Tool deactivate requested due to sidebar close`);
 
-      // 显示提示
+    // 清空本地状态
+    this.#activeTool = null;
+    this.#updateToolbarState();
+
+    // 显示提示（无论是否有激活工具都显示）
+    if (deactivatedTool) {
       const modeNames = {
         'screenshot': '截图模式',
         'text-highlight': '选字模式',
@@ -445,6 +447,8 @@ export class AnnotationSidebarUI {
       };
       const modeName = modeNames[deactivatedTool] || '标注模式';
       this.#showToast(`${modeName}已关闭`, 'info');
+    } else {
+      this.#showToast('标注侧边栏已关闭', 'info');
     }
   }
 
