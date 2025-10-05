@@ -1347,3 +1347,23 @@ AnnotationSidebarUI → 监听并添加卡片 (只一次)
 - 2025-10-05 17:10 截图跳转：AnnotationFeature 使用 rectPercent 计算中心百分比并直接调用 navigationService，实现截图标注精确定位；新增 position-utils 辅助函数及单元测试。
 - 2025-10-05 17:29 截图标记增强：需在标记框添加颜色选择与跳转按钮，默认收起，hover 关闭按钮时展开。
 - 2025-10-05 17:55 截图标记框新增悬停控制：关闭按钮 hover 展开颜色选项与跳转按钮，支持切换 markerColor 并自动打开标注侧边栏高亮卡片。
+
+## 20251005181633 高亮标注悬停工具按钮增强
+- 当前问题：文字高亮标注仅渲染背景色，缺少悬停操作按钮，用户无法在PDF页面直接删除/复制/换色/定位/翻译。
+- 背景：2025-10-05 已修复反向高亮偏移并完善标注侧边栏，现需进一步提升高亮交互体验。
+- 相关模块：	ext-highlight/highlight-renderer.js、	ext-highlight/index.js、nnotation-sidebar、pdf-translator。
+
+### 执行步骤（原子任务拆分）
+1. 调研现有高亮渲染、侧边栏及翻译栏事件流程，确定可扩展的DOM与事件入口。
+2. 设计并补充测试方案（单元/集成），覆盖悬停工具栏渲染、事件派发（删除/复制/换色/跳转/翻译）。
+3. 基于测试驱动实现 hover 工具栏 DOM 结构与样式，确保与现有高亮布局兼容。
+4. 打通五个按钮事件：调用删除请求、复制文本到剪贴板、同步切换颜色、触发侧边栏跳转并高亮卡片、向翻译栏发送文本。
+5. 执行并记录测试，确认样式与交互在多高亮并存场景下无冲突。
+- 输出：更新日志、测试结果、需要时更新架构/技术文档。
+- 结果：新增 HighlightActionMenu 管理文字高亮悬停操作，支持删除/复制/换色/跳转/翻译；HighlightRenderer 提供包围盒和颜色更新接口；TextHighlightTool 调整为统一事件流并打通翻译、侧边栏联动。
+- 测试：新增 highlight-action-menu.test.js、	ext-highlight-tool.test.js 并扩充 highlight-renderer.test.js，执行 pnpm run test -- highlight-renderer highlight-action-menu text-highlight-tool 全部通过。
+- 修复翻译按钮体验：TextHighlightTool 现在触发 sidebar:open:requested 时使用 SidebarManager 的实际 ID 	ranslate，点击翻译后侧边栏立即打开。
+- 新需求：在非标注模式下监听文本选取，弹出四按钮快捷操作（复制/标注/翻译/AI）。
+- 要求：实现为独立插件，复用现有事件（标注创建、翻译触发），避免影响既有工具。
+- 关键点：文本选取位置、按钮定位、与 SelectionMonitor/AnnotationFeature/PDFTranslatorFeature 的协作。
+- 2025-10-05 18:02 AI助手修复：feature.config 仅依赖 annotation，保证在 SidebarManager 前注册，避免 aiAssistantSidebarUI 未加载导致侧边栏空白。
