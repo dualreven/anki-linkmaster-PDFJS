@@ -47,7 +47,7 @@ export class SidebarManagerFeature {
      * 依赖的Features
      */
     get dependencies() {
-        return ['annotation', 'pdf-translator', 'pdf-bookmark'];
+        return ['annotation', 'pdf-translator', 'pdf-bookmark', 'pdf-card'];
     }
 
     /**
@@ -200,8 +200,8 @@ export class SidebarManagerFeature {
         // 重新计算布局
         this.#recalculateLayout();
 
-        // 触发事件
-        this.#eventBus.emit('sidebar:close:completed', {
+        // 触发事件（修复：使用正确的事件名 sidebar:closed:completed）
+        this.#eventBus.emit('sidebar:closed:completed', {
             sidebarId,
             remainingIds: [...this.#openOrder]
         }, { actorId: 'SidebarManager' });
