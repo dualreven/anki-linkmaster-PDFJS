@@ -1453,3 +1453,4 @@ AnnotationSidebarUI → 监听并添加卡片 (只一次)
   5. 筛选条件序列化 20251005195400-pdf-search-filter-serialization
   6. 测试与 QA 覆盖 20251005195500-pdf-search-testing
 - 关键决策：首版采用 LIKE + 多 token + CASE 权重方案，预留未来 FTS5 升级路径；前端必须通过 SearchService 统一发起请求并支持分页控件。
+- 2025-10-05 21:00: 开始实施第一层 LIKE 搜索任务：目标是实现 PDFLibraryAPI.search_records、对应 SQL CTE、测试覆盖。
