@@ -337,34 +337,47 @@ export class PDFSorterFeature {
    * @private
    */
   #bindSorterButton() {
-    console.log('[DEBUG PDFSorterFeature] Attempting to bind sort button...');
-    console.log('[DEBUG PDFSorterFeature] SorterPanel instance:', this.#sorterPanel);
+    if (!this.#globalEventBus) {
+      this.#logger.warn('[PDFSorterFeature] Global event bus not available; falling back to DOM binding');
 
-    const sortBtn = document.getElementById('sort-btn');
-    console.log('[DEBUG PDFSorterFeature] Sort button element:', sortBtn);
+      const sortBtn = document.getElementById('sort-btn');
+      if (!sortBtn) {
+        this.#logger.warn('[PDFSorterFeature] Sort button not found for DOM fallback');
+        return;
+      }
 
-    if (!sortBtn) {
-      this.#logger.warn('[PDFSorterFeature] Sort button not found');
-      console.warn('[DEBUG PDFSorterFeature] Sort button NOT FOUND in DOM!');
+      const handleSortClick = () => {
+        this.#logger.info('[PDFSorterFeature] Sort button clicked (DOM fallback)');
+        this.#sorterPanel.toggle();
+      };
+
+      sortBtn.addEventListener('click', handleSortClick);
+      this.#unsubscribers.push(() => {
+        sortBtn.removeEventListener('click', handleSortClick);
+      });
       return;
     }
 
-    const handleSortClick = () => {
-      console.log('[DEBUG PDFSorterFeature] ===== SORT BUTTON CLICKED =====');
-      this.#logger.info('[PDFSorterFeature] Sort button clicked');
-      console.log('[DEBUG PDFSorterFeature] Calling sorterPanel.toggle()...');
+    const togglePanel = (source = 'unknown') => {
+      if (!this.#sorterPanel) {
+        this.#logger.warn('[PDFSorterFeature] Sort panel is not ready');
+        return;
+      }
+
+      this.#logger.info(`[PDFSorterFeature] Sort toggle requested via ${source}`);
       this.#sorterPanel.toggle();
     };
 
-    sortBtn.addEventListener('click', handleSortClick);
-
-    // 存储 unsubscribe 函数，用于 uninstall 时清理
-    this.#unsubscribers.push(() => {
-      sortBtn.removeEventListener('click', handleSortClick);
+    const unsubSearchSort = this.#globalEventBus.on('search:sort:clicked', (payload = {}) => {
+      togglePanel(payload.source || 'search:sort:clicked');
     });
 
-    this.#logger.info('[PDFSorterFeature] Sort button bound');
-    console.log('[DEBUG PDFSorterFeature] Sort button event listener attached successfully');
+    const unsubHeaderSort = this.#globalEventBus.on('header:sort:clicked', (payload = {}) => {
+      togglePanel(payload.source || 'header:sort:clicked');
+    });
+
+    this.#unsubscribers.push(unsubSearchSort, unsubHeaderSort);
+    this.#logger.info('[PDFSorterFeature] Listening global sort toggle events (search/header)');
   }
 
   /**

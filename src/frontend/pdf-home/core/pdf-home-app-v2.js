@@ -19,11 +19,26 @@ import eventBus from '../../common/event/event-bus.js';
 import WSClient from '../../common/ws/ws-client.js';
 
 // 导入功能域
+import { HeaderFeature } from '../features/header/index.js';
 import { PDFListFeature } from '../features/pdf-list/index.js';
 import { PDFEditorFeature } from '../features/pdf-editor/index.js';
 import { PDFSorterFeature } from '../features/pdf-sorter/index.js';
 import { PDFEditFeature } from '../features/pdf-edit/index.js';
+import { SidebarFeature } from '../features/sidebar/index.js';
+
+// 搜索和筛选功能
+import { SearchFeature } from '../features/search/index.js';
 import { FilterFeature } from '../features/filter/index.js';
+
+// 侧边栏子功能
+import { SavedFiltersFeature } from '../features/sidebar/saved-filters/index.js';
+import { RecentSearchesFeature } from '../features/sidebar/recent-searches/index.js';
+import { RecentOpenedFeature } from '../features/sidebar/recent-opened/index.js';
+import { RecentAddedFeature } from '../features/sidebar/recent-added/index.js';
+
+// 搜索结果功能
+import { SearchResultsFeature } from '../features/search-results/index.js';
+import { SearchResultItemFeature } from '../features/search-result-item/index.js';
 
 /**
  * @class PDFHomeAppV2
@@ -276,11 +291,29 @@ export class PDFHomeAppV2 {
 
     // 注册所有功能域（注册不等于安装）
     const features = [
+      // UI布局功能
+      new HeaderFeature(),
+      new SidebarFeature(),
+
+      // 搜索和筛选功能（按优先级顺序）
+      new SearchFeature(),        // 优先：搜索框UI
+      new FilterFeature(),         // 其次：高级筛选
+      new SearchResultsFeature(),  // 最后：结果展示
+
+      // 核心功能
       new PDFListFeature(),
       new PDFEditorFeature(),
       new PDFSorterFeature(),
       new PDFEditFeature(),
-      new FilterFeature()
+
+      // 侧边栏子功能
+      new SavedFiltersFeature(),
+      new RecentSearchesFeature(),
+      new RecentOpenedFeature(),
+      new RecentAddedFeature(),
+
+      // 搜索结果条目渲染
+      new SearchResultItemFeature()
     ];
 
     for (const feature of features) {

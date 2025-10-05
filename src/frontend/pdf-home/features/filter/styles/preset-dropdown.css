@@ -1,0 +1,36 @@
+/**
+ * Preset Dropdown Styles
+ * 预设下拉菜单样式
+ */
+
+.preset-dropdown-menu {
+  position: fixed;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 8px 0;
+  min-width: 200px;
+  z-index: 1000;
+}
+
+.preset-menu-item {
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.preset-menu-item:hover {
+  background: #f5f5f5;
+}
+
+.preset-menu-item-name {
+  font-weight: 500;
+  margin-bottom: 2px;
+  color: #333;
+}
+
+.preset-menu-item-desc {
+  font-size: 12px;
+  color: #666;
+}

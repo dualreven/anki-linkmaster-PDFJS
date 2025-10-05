@@ -133,15 +133,15 @@ export class PDFListFeature {
       this.#logger.debug('Step 2: Registering event listeners...');
       this.#registerEventListeners();
 
-      // 3. 初始化 UI（如果需要）
-      this.#logger.debug('Step 3: Initializing UI...');
-      await this.#initializeUI();
+      // 3. 初始化 UI（暂时禁用以专注于搜索栏UI设计）
+      this.#logger.debug('Step 3: Initializing UI... (DISABLED for UI design phase)');
+      // await this.#initializeUI();
 
       // 4. 标记为已启用
       this.#enabled = true;
 
       // 5. 请求初始PDF列表数据
-      this.#logger.debug('Step 4: Requesting initial PDF list...');
+      this.#logger.debug('Step 5: Requesting initial PDF list...');
       this.#requestPdfList();
 
       this.#logger.info(`${this.name} installed successfully`);

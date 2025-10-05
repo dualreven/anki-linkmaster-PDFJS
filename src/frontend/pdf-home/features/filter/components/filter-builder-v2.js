@@ -161,6 +161,15 @@ export class FilterBuilder {
   }
 
   /**
+   * 检查FilterBuilder是否可见
+   * @returns {boolean} 是否可见
+   */
+  isVisible() {
+    const builderElement = this.#container.querySelector('.filter-builder');
+    return builderElement ? !builderElement.hidden : false;
+  }
+
+  /**
    * 渲染树状结构
    */
   #renderTree() {

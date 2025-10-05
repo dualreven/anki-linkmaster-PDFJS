@@ -7,6 +7,7 @@ export class FilterSearchBar {
   #eventBus = null;
   #container = null;
   #searchInput = null;
+  #searchBtn = null;
   #clearBtn = null;
   #advancedBtn = null;
   #savePresetBtn = null;
@@ -42,6 +43,9 @@ export class FilterSearchBar {
   #getTemplate() {
     return `
       <div class="filter-search-bar">
+        <button id="add-pdf-btn" class="btn primary" title="添加PDF文件">
+          ＋添加
+        </button>
         <div class="search-input-wrapper">
           <input
             type="text"
@@ -53,12 +57,20 @@ export class FilterSearchBar {
             ✕
           </button>
         </div>
-        <button class="advanced-filter-btn" title="高级筛选">
-          🎚️ 高级
-        </button>
-        <button class="save-preset-btn" title="保存为预设">
-          💾 保存为预设
-        </button>
+        <div class="search-controls-right">
+          <button class="search-btn" title="执行搜索">
+            🔍 搜索
+          </button>
+          <button class="advanced-filter-btn" title="高级筛选">
+            🎚️ 高级
+          </button>
+          <button class="save-preset-btn" title="保存搜索条件">
+            💾 保存条件
+          </button>
+          <button id="sort-btn" class="btn" title="排序PDF列表">
+            🔃 排序
+          </button>
+        </div>
         <div class="filter-stats" style="display: none;">
           找到 <span class="result-count">0</span> 个结果
         </div>
@@ -117,6 +129,7 @@ export class FilterSearchBar {
    */
   #bindElements() {
     this.#searchInput = this.#container.querySelector('.search-input');
+    this.#searchBtn = this.#container.querySelector('.search-btn');
     this.#clearBtn = this.#container.querySelector('.clear-search-btn');
     this.#advancedBtn = this.#container.querySelector('.advanced-filter-btn');
     this.#savePresetBtn = this.#container.querySelector('.save-preset-btn');
@@ -128,7 +141,7 @@ export class FilterSearchBar {
    * @private
    */
   #attachEventListeners() {
-    // 搜索输入 - 实时搜索
+    // 搜索输入 - 实时搜索（可选，保留原有功能）
     let searchTimeout = null;
     this.#searchInput.addEventListener('input', (e) => {
       const searchText = e.target.value.trim();
@@ -149,6 +162,12 @@ export class FilterSearchBar {
         clearTimeout(searchTimeout);
         this.#handleSearch(e.target.value.trim());
       }
+    });
+
+    // 搜索按钮
+    this.#searchBtn.addEventListener('click', () => {
+      const searchText = this.#searchInput.value.trim();
+      this.#handleSearch(searchText);
     });
 
     // 清除按钮

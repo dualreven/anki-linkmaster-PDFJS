@@ -12,31 +12,135 @@ body {
 }
 
 .container {
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 0 auto;
     padding: 20px;
-    padding-top: 100px; /* 为fixed header留出空间 */
+    padding-top: 140px; /* 为fixed搜索面板留出空间 */
 }
 
-header {
-    position: fixed;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
+/* ===== 全局布局 ===== */
+.layout-container {
+    display: block;
     width: 100%;
-    max-width: 1200px;
+}
+
+/* 侧边栏 - 悬浮面板 */
+.sidebar {
+    position: fixed;
+    left: 0;
+    top: 120px; /* 搜索面板高度 */
+    width: 280px;
+    height: calc(100vh - 120px);
+    background: white;
+    box-shadow: 2px 0 16px rgba(0, 0, 0, 0.15);
+    padding: 20px;
+    z-index: 999;
+    overflow-y: auto;
+    transition: transform 0.3s ease;
+}
+
+/* 主内容区 - 全宽 */
+.main-content {
+    width: 100%;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    min-height: 600px;
+}
+
+/* 搜索结果标题栏 */
+.search-results-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px;
-    background: white;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    z-index: 1000;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #e0e0e0;
 }
 
-h1 {
+.search-results-header h2 {
+    margin: 0;
     color: #2c3e50;
-    font-size: 28px;
+    font-size: 20px;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+/* 批量操作按钮区域 */
+.batch-actions {
+    display: flex;
+    gap: 8px;
+    flex: 1;
+    justify-content: center;
+}
+
+/* 批量操作按钮 */
+.batch-action-btn {
+    padding: 6px 16px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    background: white;
+    color: #666;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+
+.batch-action-btn:hover {
+    background: #f5f5f5;
+    border-color: #ccc;
+    transform: translateY(-1px);
+}
+
+/* 复习按钮 */
+.batch-btn-review:hover {
+    background: #e3f2fd;
+    border-color: #1976d2;
+    color: #1976d2;
+}
+
+/* 阅读按钮 */
+.batch-btn-read {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    font-weight: 500;
+}
+
+.batch-btn-read:hover {
+    background: linear-gradient(135deg, #5568d3 0%, #653a8e 100%);
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+/* 编辑按钮 */
+.batch-btn-edit:hover {
+    background: #fff3e0;
+    border-color: #ff9800;
+    color: #ff9800;
+}
+
+/* 删除按钮 */
+.batch-btn-delete:hover {
+    background: #ffebee;
+    border-color: #f44336;
+    color: #f44336;
+}
+
+.result-count-badge {
+    background: #e3f2fd;
+    color: #1976d2;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    flex-shrink: 0;
 }
 
 .btn {
@@ -461,18 +565,18 @@ h1 {
     }
 }
 
-/* ===== Filter Search Panel Styles (吸附在header下方) ===== */
+/* ===== Filter Search Panel Styles (fixed在顶部) ===== */
 .filter-search-panel {
     position: fixed;
-    top: 80px; /* header高度 + 一些间距 */
+    top: 0;
     left: 50%;
     transform: translateX(-50%) translateY(-100%);
     width: 100%;
-    max-width: 1200px;
+    max-width: 1400px;
     background: white;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     border-radius: 0 0 8px 8px;
-    z-index: 999;
+    z-index: 1000;
     opacity: 0;
     transition: transform 0.3s ease, opacity 0.3s ease;
     pointer-events: none;
@@ -491,14 +595,41 @@ h1 {
 /* ===== Filter Search Bar Styles ===== */
 .filter-search-bar {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     align-items: center;
+    justify-content: center;
     margin-bottom: 20px;
+    padding: 0 20px;
+}
+
+.search-controls-right {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.search-btn {
+    padding: 12px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+.search-btn:hover {
+    background-color: #0056b3;
 }
 
 .search-input-wrapper {
-    flex: 1;
+    max-width: 600px;
+    min-width: 400px;
     position: relative;
+    flex-grow: 1;
 }
 
 .search-input {
@@ -536,7 +667,7 @@ h1 {
 }
 
 .advanced-filter-btn {
-    padding: 12px 16px;
+    padding: 12px 18px;
     background-color: #6c757d;
     color: white;
     border: none;
@@ -552,7 +683,7 @@ h1 {
 }
 
 .save-preset-btn {
-    padding: 12px 16px;
+    padding: 12px 18px;
     background-color: #28a745;
     color: white;
     border: none;
@@ -574,11 +705,36 @@ h1 {
     border-radius: 4px;
     font-size: 14px;
     color: #004085;
+    flex-shrink: 0;
 }
 
 .result-count {
     font-weight: bold;
     color: #007bff;
+}
+
+/* 响应式布局 - 小屏幕 */
+@media (max-width: 900px) {
+    .filter-search-bar {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
+
+    .search-input-wrapper {
+        min-width: 300px;
+        order: 2;
+        width: 100%;
+        margin-top: 10px;
+    }
+
+    .search-controls-right {
+        order: 1;
+    }
+
+    .filter-stats {
+        order: 3;
+        margin-top: 10px;
+    }
 }
 
 .filter-help-text {
@@ -1509,7 +1665,7 @@ h1 {
     background: white;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     border-radius: 0 0 8px 8px;
-    z-index: 998;
+    z-index: 1000;
     opacity: 0;
     transition: transform 0.3s ease, opacity 0.3s ease;
     pointer-events: none;

@@ -10,30 +10,25 @@
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>PDF文件管理-B</h1>
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <button id="open-pdf-btn" class="btn success" title="打开选中的PDF文件">📖 阅读</button>
-                <button id="add-pdf-btn" class="btn primary">＋添加</button>
-                <button id="batch-delete-btn" class="btn danger" title="删除选中的PDF文件">－删除</button>
-                <div style="width: 20px;"></div>
-                <button id="edit-pdf-btn" class="btn" title="选择一条记录后可编辑">✏️ 编辑</button>
-                <button id="sort-btn" class="btn" title="排序PDF列表">🔃 排序</button>
-                <button id="search-filter-btn" class="btn" title="搜索和筛选PDF文件">🔍 查找</button>
-                <button id="preset-filter-btn" class="btn" title="保存和加载搜索预设">🔖 预设</button>
-                <button id="review-btn" class="btn" title="复习PDF文件">📚 复习</button>
-            </div>
-        </header>
-
         <main>
-            <div id="pdf-table-container" class="pdf-table-container">
-                <!-- PDF表格将在这里动态生成 -->
-            </div>
+            <!-- 左右两栏布局 -->
+            <div class="layout-container">
+                <!-- 左侧侧边栏 -->
+                <aside id="sidebar" class="sidebar">
+                    <!-- 侧边栏内容将由JavaScript动态生成 -->
+                </aside>
 
-            <div id="empty-state" class="empty-state" style="display: none;">
-                <div class="empty-icon">📄</div>
-                <h3>暂无PDF文件</h3>
-                <p>点击"添加文件"按钮开始管理您的PDF文档</p>
+                <!-- 右侧主内容区 -->
+                <div class="main-content">
+                    <div class="search-results-header">
+                        <h2>📚 搜索结果</h2>
+                        <span class="result-count-badge">共 0 条</span>
+                    </div>
+
+                    <div id="pdf-table-container" class="pdf-table-container">
+                        <!-- 搜索结果将在这里动态生成 -->
+                    </div>
+                </div>
             </div>
 
             <!-- Toast消息提示 (浮动在右上角) -->

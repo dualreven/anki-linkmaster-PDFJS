@@ -1456,3 +1456,36 @@ AnnotationSidebarUI → 监听并添加卡片 (只一次)
 - 新增单元测试：selection-utils.test.js、quick-actions-toolbar.test.js，确保坐标换算与 UI 显示逻辑稳定；既有 	ext-highlight-tool.test.js 继续通过。
 - 修复复制按钮导致工具栏再次定位的问题：在 TextSelectionQuickActionsFeature.#handleMouseUp 内判断若事件发生于工具栏自身则不重新展示，并在复制完成后调用 #clearSelection() 防止残留选择触发重定位。
 - Quick Actions 复制修复：在 #handleMouseUp 内识别工具栏交互，阻止 selectionchange 立刻清空状态；复制完成后调用 #clearSelection() 并隐藏按钮，确保剪贴板写入成功且面板不再移动。
+
+## 2025-10-05 PDF-Home 搜索端到端方案讨论
+- 问题背景：前端 Search/Filter 组合目前在浏览器内对 @pdf-list/data:load:completed 缓存做模糊筛选，后端仅有 StandardPDFManager 基于文件列表的简易 search_files；数据库层尚未提供分词、筛选、排序一体化查询，无法满足一次 SQL 完成"搜索→筛选→排序"的要求。
+- 相关模块：前端 src/frontend/pdf-home/features/search、src/frontend/pdf-home/features/filter、src/frontend/pdf-home/features/search-results；后端 src/backend/api/pdf_library_api.py、src/backend/msgCenter_server/standard_server.py、src/backend/pdfTable_server/application_subcode/websocket_handlers.py；数据库插件 pdf_info_plugin.py、search_condition_plugin.py。
+- 现状评估：
+  1. PDFLibraryAPI 已负责 pdf_info 记录映射但缺少搜索接口；pdf_info 表文本字段可通过 json_extract 访问，已有若干普通索引。
+  2. FilterManager 能将 fuzzy/field/composite 条件序列化；WS 常量已定义 pdf-home:search:pdf-files 但仍由旧 StandardPDFManager.search_files 处理。
+  3. 搜索词拆分仅在前端按空格进行，无法满足"按非文本符号分割"的需求；也未对标签、笔记等字段做权重控制。
+- 待解决要点：
+  1. 设计多 token 匹配 + 权重排名 + 过滤约束的 SQL（可用 CTE + LOWER(... LIKE ?)/json_each 或引入 FTS5）并返回 match_score。
+  2. 将 Filter 条件 JSON 翻译为 SQL where 子句（支持 AND/OR/NOT、标签包含、数值区间、布尔字段）。
+  3. 统一消息流：Search/Filter 通过 WSClient 发出 pdf-home:search:pdf-files，StandardWebSocketServer 调用 PDFLibraryAPI.search_records，返回标准化结果事件供 SearchResults 渲染。
+  4. 补齐测试：数据库层搜索单测、WebSocket handler 集成测，前端 SearchService/Jest 覆盖 payload 组装与结果派发。
+- 下一步：编写详细方案文档，确认字段权重 & 排序策略，定义分页/排序 schema，并规划数据同步触发 FTS/索引更新。
+- 用户确认前端搜索结果需要分页控件；方案需明确分页UI与请求参数。
+
+### 2025-10-05 PDF-Home 排序面板修复
+- 问题：排序按钮点击后无任何响应，原因是 pdf-sorter 功能域在安装阶段直接查找 DOM #sort-btn 并绑定 click，实际按钮由 SearchFeature 渲染且安装顺序靠后，导致绑定失败。
+- 方案：改为监听全局事件 search:sort:clicked 与 header:sort:clicked 触发排序面板；仅当全局事件不可用时才启用 DOM 兜底，避免重复 toggle。
+- 关键文件：src/frontend/pdf-home/features/pdf-sorter/index.js、src/frontend/pdf-home/features/pdf-sorter/__tests__/sorter-panel-events.test.js。
+- 测试：pnpm test -- sorter-panel-events（覆盖 search/header 事件驱动排序面板展示）。
+- 影响：排序面板与配置区可通过现有事件体系正常打开，未改变其他功能域事件命名，前端排序交互对齐架构规范。
+
+### 2025-10-05 搜索任务拆分
+- 已创建 6 个并行规格文档（todo-and-doing/2 todo/20251005195xxx-*），覆盖：
+  1. 后端 LIKE SQL 搜索实现 20251005195000-pdf-search-like-sql
+  2. WebSocket 搜索消息路由 20251005195100-pdf-search-ws-routing
+  3. 前端 SearchService 重构 20251005195200-pdf-search-frontend-service
+  4. 搜索结果分页 UI 20251005195300-pdf-search-pagination-ui
+  5. 筛选条件序列化 20251005195400-pdf-search-filter-serialization
+  6. 测试与 QA 覆盖 20251005195500-pdf-search-testing
+- 关键决策：首版采用 LIKE + 多 token + CASE 权重方案，预留未来 FTS5 升级路径；前端必须通过 SearchService 统一发起请求并支持分页控件。
+- 2025-10-05 21:00: 开始实施第一层 LIKE 搜索任务：目标是实现 PDFLibraryAPI.search_records、对应 SQL CTE、测试覆盖。
