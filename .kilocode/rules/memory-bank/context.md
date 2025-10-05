@@ -1339,3 +1339,7 @@ AnnotationSidebarUI → 监听并添加卡片 (只一次)
 - 详细工作日志: `AItemp/20251003181547-AI-Working-log.md`
 - 页面跳转修复: `AItemp/20251003180103-AI-Working-log.md`
 - 数据结构修复: `AItemp/20251003174421-AI-Working-log.md`
+- 2025-10-05 16:09 提交流程检查：当前分支 d-main-20250927 工作区干净，无需提交。
+- 2025-10-05 16:16 edge-tts 安装：因清华镜像缺包，改用官方 PyPI (-i https://pypi.org/simple) 成功安装 edge-tts 7.2.3。
+- 2025-10-05 16:21 高亮标注问题：反向选择文字时渲染方向错误，需排查 highlight 工具的范围计算与渲染逻辑。
+- 2025-10-05 16:45 高亮标注修复：TextSelectionHandler 增加 lineRects 百分比坐标，HighlightRenderer 支持 lineRects 回放，反向划选不会偏移。

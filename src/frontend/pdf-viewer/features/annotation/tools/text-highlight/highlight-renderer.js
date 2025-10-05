@@ -31,12 +31,13 @@ export class HighlightRenderer {
   /**
    * 渲染文本高亮
    * @param {number} pageNumber - 页码
-   * @param {Array<{start: number, end: number}>} textRanges - 文本范围数组
+   * @param {Array<{start: number, end: number}>} [textRanges=[]] - 文本范围数组
    * @param {string} color - 高亮颜色（hex格式）
    * @param {string} [annotationId] - 标注ID（用于后续删除）
+   * @param {Array<{xPercent: number, yPercent: number, widthPercent: number, heightPercent: number}>} [lineRects=null] - 行矩形百分比数据
    * @returns {HTMLElement|null} 高亮层元素
    */
-  renderHighlight(pageNumber, textRanges, color, annotationId = null) {
+  renderHighlight(pageNumber, textRanges, color, annotationId = null, lineRects = null) {
     const pageView = this.#getPageView(pageNumber);
     if (!pageView) {
       this.#logger.error(`[HighlightRenderer] Page ${pageNumber} not found`);
@@ -52,8 +53,16 @@ export class HighlightRenderer {
     // 获取或创建高亮层
     const highlightLayer = this.#getOrCreateHighlightLayer(pageView, pageNumber);
 
-    // 计算高亮区域的矩形
-    const rects = this.#calculateHighlightRects(textLayer, textRanges);
+    let rects = [];
+
+    if (Array.isArray(lineRects) && lineRects.length > 0) {
+      rects = this.#convertPercentRectsToClientRects(pageView, lineRects);
+    } else if (Array.isArray(textRanges) && textRanges.length > 0) {
+      rects = this.#calculateHighlightRects(textLayer, textRanges);
+    } else {
+      this.#logger.warn(`[HighlightRenderer] No range data provided for page ${pageNumber}`);
+      return null;
+    }
 
     if (rects.length === 0) {
       this.#logger.warn(`[HighlightRenderer] No rects calculated for page ${pageNumber}`);
@@ -68,7 +77,7 @@ export class HighlightRenderer {
     }
 
     // 为每个矩形创建高亮元素
-    rects.forEach((rect, index) => {
+    rects.forEach((rect) => {
       const highlightEl = this.#createHighlightElement(rect, color);
       highlightContainer.appendChild(highlightEl);
     });
@@ -181,6 +190,35 @@ export class HighlightRenderer {
     this.#highlightLayers.set(layerKey, highlightLayer);
 
     return highlightLayer;
+  }
+
+  /**
+   * 将百分比矩形转换为页面坐标矩形
+   * @param {HTMLElement} pageView - 页面元素
+   * @param {Array<{xPercent: number, yPercent: number, widthPercent: number, heightPercent: number}>} lineRects - 百分比矩形
+   * @returns {Array<{left: number, top: number, width: number, height: number}>}
+   * @private
+   */
+  #convertPercentRectsToClientRects(pageView, lineRects) {
+    if (!pageView || !Array.isArray(lineRects)) {
+      return [];
+    }
+
+    const width = pageView.clientWidth || pageView.getBoundingClientRect().width;
+    const height = pageView.clientHeight || pageView.getBoundingClientRect().height;
+
+    if (!width || !height) {
+      return [];
+    }
+
+    return lineRects
+      .filter((rect) => rect && typeof rect === 'object')
+      .map((rect) => ({
+        left: (rect.xPercent / 100) * width,
+        top: (rect.yPercent / 100) * height,
+        width: (rect.widthPercent / 100) * width,
+        height: (rect.heightPercent / 100) * height
+      }));
   }
 
   /**

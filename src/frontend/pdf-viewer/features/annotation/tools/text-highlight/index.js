@@ -219,7 +219,7 @@ export class TextHighlightTool extends IAnnotationTool {
       return;
     }
 
-    const { text, pageNumber, ranges, rect, range } = data;
+    const { text, pageNumber, ranges, rect, range, lineRects } = data;
 
     this.#logger.info('[TextHighlightTool] Text selected', {
       text: text.substring(0, 50) + '...',
@@ -228,7 +228,7 @@ export class TextHighlightTool extends IAnnotationTool {
     });
 
     // 保存选择数据，等待用户选择颜色
-    this.#pendingSelection = { text, pageNumber, ranges, rect };
+    this.#pendingSelection = { text, pageNumber, ranges, rect, lineRects };
 
     // 获取选择区域相对于viewport的位置
     const viewportRect = range.getBoundingClientRect();
@@ -250,26 +250,32 @@ export class TextHighlightTool extends IAnnotationTool {
       return;
     }
 
-    const { text, pageNumber, ranges, rect } = this.#pendingSelection;
+    const { text, pageNumber, ranges, rect, lineRects } = this.#pendingSelection;
 
     this.#logger.info('[TextHighlightTool] Color selected', { color });
 
     try {
       // 创建标注对象
+      const annotationData = {
+        selectedText: text,
+        highlightColor: color,
+        textRanges: ranges,
+        boundingBox: {
+          x: rect.left,
+          y: rect.top,
+          width: rect.width,
+          height: rect.height
+        }
+      };
+
+      if (Array.isArray(lineRects) && lineRects.length > 0) {
+        annotationData.lineRects = lineRects;
+      }
+
       const annotation = new Annotation({
         type: 'text-highlight',
         pageNumber: pageNumber,
-        data: {
-          selectedText: text,
-          highlightColor: color,
-          textRanges: ranges,
-          boundingBox: {
-            x: rect.left,
-            y: rect.top,
-            width: rect.width,
-            height: rect.height
-          }
-        }
+        data: annotationData
       });
 
       // 发送创建标注请求
@@ -325,7 +331,8 @@ export class TextHighlightTool extends IAnnotationTool {
       annotation.pageNumber,
       annotation.data.textRanges,
       annotation.data.highlightColor,
-      annotation.id
+      annotation.id,
+      annotation.data.lineRects
     );
   }
 
