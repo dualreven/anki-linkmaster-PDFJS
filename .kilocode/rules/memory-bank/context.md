@@ -492,4 +492,143 @@ const service = new NavigationService();
 ### 修改文件
 13 个文件 (+1017, -101)
 
+### 相关文档
+- 详细工作日志: `AItemp/20251003181547-AI-Working-log.md`
+- 页面跳转修复: `AItemp/20251003180103-AI-Working-log.md`
+- 数据结构修复: `AItemp/20251003174421-AI-Working-log.md`
+
 ---
+
+## 2025-10-05 数据库 Phase3（PDFInfo 表插件）
+- ⏳ 阶段目标：完成数据库Phase3的首个数据表插件（PDFInfoTablePlugin），确保插件测试通过后继续实现文档中剩余功能。
+- 当前状态：插件代码和测试已由上一轮开发完成但尚未复核，需要重新运行 `pytest src/backend/database/plugins/__tests__/test_pdf_info_plugin.py` 确认绿色。
+- 关键路径：
+  - 需求文档：`todo-and-doing/2 todo/20251005140340-backend-database-impl/v001-phase3-pdf-info.md`（包含字段约束、扩展方法、测试用例清单）。
+  - 代码位置：`src/backend/database/plugins/pdf_info_plugin.py`（主实现）、`src/backend/database/plugins/__tests__/test_pdf_info_plugin.py`（单测）、`src/backend/database/plugins/__tests__/fixtures/pdf_info_samples.py`（样例数据，如存在）。
+- 执行步骤（原子任务）：
+  1. 阅读需求规范与现有实现，确认接口、事件、扩展查询覆盖的契合度。
+  2. 运行上述pytest命令验证插件行为，若失败收集日志与失败案例。
+  3. 根据需求文档补足缺失的功能/测试（例如高级查询、标签管理、统计等）。
+  4. 测试全部通过后更新工作日志与memory bank，并准备继续Phase3后续（annotation/bookmark/search_condition）。
+- 注意事项：所有文件读写显式UTF-8；遵循TablePlugin接口规范；开发前先补齐测试；如拆分多模块需考虑subagent。
+## 当前任务 (2025-10-05 15:55)
+- 合并 worktree A(feature-bookmark-fix) 与 worktree D(d-main-20250927) 到 main 分支
+- 目标：同步侧边栏与 d-main 分支最新改动，保持主线最新
+- 预计步骤：检查 git 状态 → 拉取两个分支最新提交 → 合并并解决冲突 → 基本验证
+- 相关路径：worktree A=C:/Users/napretep/PycharmProjects/anki-linkmaster-A，worktree D=C:/Users/napretep/PycharmProjects/anki-linkmaster-D
+### 2025-10-05 16:05 更新
+- main 分支已合并 feature-bookmark-fix（f378ef4）与 d-main-20250927（399d04a），获取了 UI 布局优化与 PDF 卡片侧栏骨架
+- d-main-20250927 新增 PDFCardFeature（卡片侧栏UI、feature.config、Sidebar注册时从容器延迟获取实例）已同步到主线
+- 合并后保留反向链接侧栏占位（real-sidebars.js）及既有文档改动，需要后续功能实现时替换
+- pnpm run test 受 WebGL/IndexedDB 依赖缺失影响失败（fake-indexeddb、canvas 未安装），后续定位前需补齐测试依赖
+
+
+## 2025-10-05 数据库 Phase3（PDFAnnotation 表插件）
+- ✅ 阶段目标：PDFAnnotationTablePlugin 已完成，支持截图 / 文本高亮 / 批注三类标注的建表、数据校验、CRUD、扩展查询、评论管理与事件发布。
+- 当前状态：代码与测试位于 `src/backend/database/plugins/`；与 PDFInfo 插件联动（外键/事件）已验证通过。
+- 关键资料：
+  - 需求文档：`todo-and-doing/2 todo/20251005140340-backend-database-impl/v001-phase3-pdf-annotation.md`
+  - 代码：`src/backend/database/plugins/pdf_annotation_plugin.py`
+  - 测试：`src/backend/database/plugins/__tests__/test_pdf_annotation_plugin.py`
+  - 样例：`src/backend/database/plugins/__tests__/fixtures/pdf_annotation_samples.py`
+- 主要实现要点：
+  1. 数据验证区分 screenshot/text-highlight/comment 三类 payload，并校验 comments 数组。
+  2. CRUD 及扩展方法（按 PDF/页码/类型查询、计数、批量删除、评论增删）。
+  3. 事件统一使用 `table:pdf-annotation:*:*`，启用时订阅 `table:pdf-info:delete:completed` 实现级联删除。
+- 测试结论：`pytest src/backend/database/plugins/__tests__` 共 76 项全部通过（含 pdf_info + pdf_annotation）。
+- 后续衔接：继续 Phase3 其他表插件（bookmark / search_condition），复用同目录结构与事件命名规范。
+
+## 2025-10-05 数据库 Phase3（PDFBookmark 表插件）
+- ✅ 阶段目标：PDFBookmarkTablePlugin 已实现，支持层级书签、排序、递归扁平化与级联删除。
+- 当前状态：`pdf_bookmark_plugin.py` 与测试、样例均落地，已通过插件测试全集（115 项）。
+- 核心文件：
+  - 代码：`src/backend/database/plugins/pdf_bookmark_plugin.py`
+  - 测试：`src/backend/database/plugins/__tests__/test_pdf_bookmark_plugin.py`
+  - 样例：`src/backend/database/plugins/__tests__/fixtures/pdf_bookmark_samples.py`
+- 主要功能：
+  1. 验证 `bookmark_id`、`pageNumber`、`region`、`children` 等字段，支持递归校验。
+  2. CRUD + 扩展方法（按 PDF/页 查询、统计、批量删除、子节点增删、重排、扁平化）。
+  3. 事件遵循 `table:pdf-bookmark:*:*`，监听 `table:pdf-info:delete:completed` 执行级联删除。
+- 测试结论：`pytest src/backend/database/plugins/__tests__` → 115 Passed（含 info / annotation / bookmark 插件）。
+- 后续衔接：Phase3 剩余表（search_condition）沿用相同目录与约定，注意事件命名和外键依赖。
+
+## 2025-10-05 数据库 Phase3（SearchCondition 表插件）
+- ✅ 阶段目标：SearchConditionTablePlugin 完成，实现筛选/排序条件的持久化、统计与事件发布。
+- 当前状态：`search_condition_plugin.py`、测试与样例均落地，插件套件合计 144 用例全部通过。
+- 核心文件：
+  - 代码：`src/backend/database/plugins/search_condition_plugin.py`
+  - 测试：`src/backend/database/plugins/__tests__/test_search_condition_plugin.py`
+  - 样例：`src/backend/database/plugins/__tests__/fixtures/search_condition_samples.py`
+- 主要功能：
+  1. 支持 fuzzy / field / composite 三类条件递归校验，包含 sort_config 模式 0-3 验证。
+  2. 扩展方法：`query_by_name`、`query_enabled`、`increment_use_count`、`set_last_used`、`activate_exclusive`、`query_by_tag`、`search_by_keyword`。
+  3. 事件命名 `table:search-condition:*:*`，便于前端监听保存/更新/删除行为。
+- 测试结论：`pytest src/backend/database/plugins/__tests__` → 144 Passed（info/annotation/bookmark/search_condition 全部插件）。
+- 后续衔接：Phase3 已完成四个插件，可进入集成或 Stage4；若新增条件类型需在 `_validate_condition` 扩展。
+## 当前任务 (2025-10-05 17:51)
+- 目标：梳理并理解现有前后端通信链路，在保持统一消息协议的前提下设计与实现供前端调用的后端 API 层。
+- 背景：数据库插件层（pdf_info/pdfs_annotation/pdf_bookmark/search_condition）已完成，需要通过统一通信架构向前端暴露受控接口。
+- 相关模块：src/backend/pdfTable_server、src/backend/msgCenter_server、src/backend/database/plugins/*、src/backend/api/*、src/frontend/common/ws、src/frontend/pdf-home。
+- 重要文档：docs/SPEC/SPEC-HEAD-communication.json、docs/SPEC/JSON-MESSAGE-FORMAT-001.md、todo-and-doing/2 todo/20250923184000-unified-communication-architecture/v001-spec.md。
+### 拆解步骤
+1. 阅读并整理现有通信架构代码/文档，明确消息流、事件命名及现有 API 空缺。
+2. 根据数据库能力列出前端所需 API 场景，完成接口设计草案（消息类型、payload、响应结构）。
+3. 为 API 层编写测试（优先覆盖查询/创建/更新/删除流程及错误分支）。
+4. 实现 API 层代码，衔接数据库插件和通信层，确保事件发布/日志符合规范。
+5. 运行测试并排查，确保新增逻辑与现有系统协同无回归。
+6. 更新文档、memory bank 及工作日志，准备后续前端联调。
+
+### 进展 2025-10-05 19:05
+- 已实现 `PDFLibraryAPI`（数据库 → 前端）封装，提供 list/detail/update/delete/register_file 接口，并新增单元测试 `src/backend/api/__tests__/test_pdf_library_api.py`。
+- WebSocket 服务器接入新 API：支持 `pdf/list` 消息、文件增删事件同步数据库并广播新版记录结构。
+- 新逻辑保持原有 `pdf-home:get:pdf-list` 兼容，新增广播时同时发送旧版 `list` 与新版 `pdf/list`。
+## 2025-10-05 PDF-Home 搜索端到端方案讨论
+- 问题背景：前端 Search/Filter 组合目前在浏览器内对 @pdf-list/data:load:completed 缓存做模糊筛选，后端仅有 StandardPDFManager 基于文件列表的简易 search_files；数据库层尚未提供分词、筛选、排序一体化查询，无法满足一次 SQL 完成“搜索→筛选→排序”的要求。
+- 相关模块：前端 src/frontend/pdf-home/features/search、src/frontend/pdf-home/features/filter、src/frontend/pdf-home/features/search-results；后端 src/backend/api/pdf_library_api.py、src/backend/msgCenter_server/standard_server.py、src/backend/pdfTable_server/application_subcode/websocket_handlers.py；数据库插件 pdf_info_plugin.py、search_condition_plugin.py。
+- 现状评估：
+  1. PDFLibraryAPI 已负责 pdf_info 记录映射但缺少搜索接口；pdf_info 表文本字段可通过 json_extract 访问，已有若干普通索引。
+  2. FilterManager 能将 uzzy/field/composite 条件序列化；WS 常量已定义 pdf-home:search:pdf-files 但仍由旧 StandardPDFManager.search_files 处理。
+  3. 搜索词拆分仅在前端按空格进行，无法满足“按非文本符号分割”的需求；也未对标签、笔记等字段做权重控制。
+- 待解决要点：
+  1. 设计多 token 匹配 + 权重排名 + 过滤约束的 SQL（可用 CTE + LOWER(... LIKE ?)/json_each 或引入 FTS5）并返回 match_score。
+  2. 将 Filter 条件 JSON 翻译为 SQL where 子句（支持 AND/OR/NOT、标签包含、数值区间、布尔字段）。
+  3. 统一消息流：Search/Filter 通过 WSClient 发出 pdf-home:search:pdf-files，StandardWebSocketServer 调用 PDFLibraryAPI.search_records，返回标准化结果事件供 SearchResults 渲染。
+  4. 补齐测试：数据库层搜索单测、WebSocket handler 集成测，前端 SearchService/Jest 覆盖 payload 组装与结果派发。
+- 下一步：编写详细方案文档，确认字段权重 & 排序策略，定义分页/排序 schema，并规划数据同步触发 FTS/索引更新。
+- 用户确认前端搜索结果需要分页控件；方案需明确分页UI与请求参数。
+
+### 2025-10-05 PDF-Home 排序面板修复
+- 问题：排序按钮点击后无任何响应，原因是 pdf-sorter 功能域在安装阶段直接查找 DOM #sort-btn 并绑定 click，实际按钮由 SearchFeature 渲染且安装顺序靠后，导致绑定失败。
+- 方案：改为监听全局事件 search:sort:clicked 与 header:sort:clicked 触发排序面板；仅当全局事件不可用时才启用 DOM 兜底，避免重复 toggle。
+- 关键文件：src/frontend/pdf-home/features/pdf-sorter/index.js、src/frontend/pdf-home/features/pdf-sorter/__tests__/sorter-panel-events.test.js。
+- 测试：pnpm test -- sorter-panel-events（覆盖 search/header 事件驱动排序面板展示）。
+- 影响：排序面板与配置区可通过现有事件体系正常打开，未改变其他功能域事件命名，前端排序交互对齐架构规范。
+### 2025-10-05 搜索任务拆分
+- 已创建 6 个并行规格文档（todo-and-doing/2 todo/20251005195xxx-*），覆盖：
+  1. 后端 LIKE SQL 搜索实现 20251005195000-pdf-search-like-sql
+  2. WebSocket 搜索消息路由 20251005195100-pdf-search-ws-routing
+  3. 前端 SearchService 重构 20251005195200-pdf-search-frontend-service
+  4. 搜索结果分页 UI 20251005195300-pdf-search-pagination-ui
+  5. 筛选条件序列化 20251005195400-pdf-search-filter-serialization
+  6. 测试与 QA 覆盖 20251005195500-pdf-search-testing
+- 关键决策：首版采用 LIKE + 多 token + CASE 权重方案，预留未来 FTS5 升级路径；前端必须通过 SearchService 统一发起请求并支持分页控件。
+- 2025-10-05 21:00: 开始实施第一层 LIKE 搜索任务：目标是实现 PDFLibraryAPI.search_records、对应 SQL CTE、测试覆盖。
+
+---
+
+## 2025-10-06 加权排序公式构建器 (恢复)
+- 背景: 用户回滚导致 WeightedSortEditor 回退为 textarea 版本，需重新交付按钮式构建器。
+- 交付点:
+  - 重写 `weighted-sort-editor.js`，提供字段/运算符/函数/数字面板按钮、令牌列表、函数参数提示、字段校验(`hasFieldReference`)；所有交互纯鼠标即可完成。
+  - 恢复样式块（builder-chip、formula-token、number-pad 等），保证视觉反馈与布局。
+  - 扩展 `feature.config.js` 的 `sortableFields`，涵盖书名/作者/关键词/备注/评分/复习次数/阅读时长/最后访问/截止日期等字段。
+  - 同步 `SortManager` 公式上下文，追加 title/author/subject/keywords/notes/tags_count 等字段及 length/asc/desc/clamp/normalize 工具函数。
+  - 新增 Jest 用例 `weighted-sort-editor.builder.test.js` 覆盖字段、函数、删除、事件 6 条交互路径。
+- 测试: `pnpm test -- weighted-sort-editor.builder` ✅
+- 后续: 如需支持撤销/重做或更多函数，可在当前令牌模型基础上扩展。
+
+## 2025-10-06 搜索结果多列布局
+- 背景: 用户希望在搜索结果区提供一栏/双栏/三栏多列视图切换按钮，纯前端控制展示。
+- 实现: SearchResultsFeature 新增布局按钮 (layout-toggle)、本地偏好持久化与 `layout-single/layout-double/layout-triple` 容器类。
+- 样式: search-results.css 引入网格布局与按钮样式；search-result-item 卡片高度填充、去除 margin；全局批量动作区域支持 wrap。
+- 测试: `layout-toggle.test.js` 验证默认布局、按钮切换及 localStorage 恢复。
