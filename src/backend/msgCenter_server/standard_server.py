@@ -214,6 +214,10 @@ class StandardWebSocketServer(QObject):
         if message_type == "pdf/list":
             if hasattr(self, "pdf_library_api") and self.pdf_library_api:
                 return self.handle_pdf_list_v2(request_id, data)
+        elif message_type == "bookmark/list":
+            return self.handle_bookmark_list_request(request_id, data)
+        elif message_type == "bookmark/save":
+            return self.handle_bookmark_save_request(request_id, data)
         elif message_type in ["pdf-home:get:pdf-list", "get_pdf_list"]:
             return self.handle_pdf_list_request(request_id, data)
 
@@ -276,6 +280,87 @@ class StandardWebSocketServer(QObject):
                 code=400
             )
     
+
+    def handle_bookmark_list_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        pdf_uuid = (data or {}).get('pdf_uuid')
+        if not pdf_uuid:
+            return {
+                "type": "error",
+                "timestamp": int(time.time()),
+                "request_id": request_id,
+                "data": {
+                    "message": "缺少必需的 pdf_uuid",
+                },
+            }
+        try:
+            result = {"bookmarks": [], "root_ids": []}
+            if hasattr(self, "pdf_library_api") and self.pdf_library_api:
+                result = self.pdf_library_api.list_bookmarks(pdf_uuid) or result
+            response = {
+                "type": "bookmark/list",
+                "timestamp": int(time.time()),
+                "data": result,
+            }
+            if request_id:
+                response["request_id"] = request_id
+            return response
+        except Exception as exc:
+            logger.error("获取书签失败: %s", exc, exc_info=True)
+            return {
+                "type": "error",
+                "timestamp": int(time.time()),
+                "request_id": request_id,
+                "data": {
+                    "message": "获取书签失败",
+                    "details": str(exc),
+                },
+            }
+
+    def handle_bookmark_save_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        pdf_uuid = (data or {}).get('pdf_uuid')
+        bookmarks = (data or {}).get('bookmarks')
+        root_ids = (data or {}).get('root_ids')
+        if not pdf_uuid:
+            return {
+                "type": "error",
+                "timestamp": int(time.time()),
+                "request_id": request_id,
+                "data": {
+                    "message": "缺少必需的 pdf_uuid",
+                },
+            }
+        if bookmarks is None:
+            return {
+                "type": "error",
+                "timestamp": int(time.time()),
+                "request_id": request_id,
+                "data": {
+                    "message": "缺少必需的 bookmarks",
+                },
+            }
+        try:
+            saved = 0
+            if hasattr(self, "pdf_library_api") and self.pdf_library_api:
+                saved = self.pdf_library_api.save_bookmarks(pdf_uuid, bookmarks, root_ids=root_ids)
+            response = {
+                "type": "bookmark/save",
+                "timestamp": int(time.time()),
+                "data": {"saved": saved},
+            }
+            if request_id:
+                response["request_id"] = request_id
+            return response
+        except Exception as exc:
+            logger.error("保存书签失败: %s", exc, exc_info=True)
+            return {
+                "type": "error",
+                "timestamp": int(time.time()),
+                "request_id": request_id,
+                "data": {
+                    "message": "保存书签失败",
+                    "details": str(exc),
+                },
+            }
 
     def handle_pdf_list_v2(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
         try:

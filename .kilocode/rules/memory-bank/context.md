@@ -449,3 +449,47 @@ const service = new NavigationService();
 - CommentTool Bug 修复系列
 
 查看历史详情请参考归档文件。
+
+---
+
+## 2025-10-06 PDF书签WebSocket持久化 ✅ 完成
+
+### 功能概述
+实现PDF书签的远程持久化存储，前端书签通过WebSocket同步到后端数据库。
+
+### 后端实现
+- **PDFLibraryAPI 新增接口**:
+  - `list_bookmarks(pdf_uuid)` - 查询书签并构建树形结构
+  - `save_bookmarks(pdf_uuid, bookmarks, root_ids)` - 保存书签（支持覆盖）
+  - 支持递归校验、排序、region 数据
+
+- **WebSocket 服务器路由**:
+  - `bookmark/list` - 列出书签
+  - `bookmark/save` - 保存书签
+  - 返回 `{bookmarks, root_ids}` / `{saved}` 数据结构
+
+### 前端实现
+- **BookmarkStorage 重构**:
+  - 新增 `RemoteBookmarkStorage` 通过 WebSocket 持久化
+  - `LocalStorageBookmarkStorage` 降级为缓存层
+  - BookmarkManager 支持注入 `wsClient`
+
+- **WSClient 增强**:
+  - 新增 `request()` 方法统一请求/响应链路
+  - `_settlePendingRequest` 处理异步响应
+
+### 测试覆盖
+- ✅ 119 个后端 API 测试
+- ✅ 81 个 WebSocket 服务器测试
+- ✅ 80 个前端存储测试
+
+### 技术亮点
+- 树形结构扁平化算法
+- region 百分比坐标支持
+- 事件驱动的前后端同步
+- 完整的错误处理和边界情况覆盖
+
+### 修改文件
+13 个文件 (+1017, -101)
+
+---

@@ -345,3 +345,10 @@ emove_comment(ann_id, comment_id)。
 - 工具类（Comment/Screenshot/TextHighlight）与 AnnotationManager/Event UI 必须引用常量，不得再硬编码字符串事件。
 - 2025-10-05: AnnotationSidebarUI 卡片头部新增删除按钮，通过 `PDF_VIEWER_EVENTS.ANNOTATION.DELETE` 触发；TextSelectionQuickActionsFeature 在监听 `@annotation/annotation-tool:*` 时禁用快捷操作。
 - 2025-10-05: 标注UI按钮表情化：QuickActionsToolbar 与 AnnotationSidebarUI 操作按钮改用 Unicode 表情，统一提供 aria-label/title 辅助文本。
+### 2025-10-06 PDFLibraryAPI 扩展
+- 新增接口：`list_bookmarks(pdf_uuid)` 返回 `{bookmarks, root_ids}`；`save_bookmarks(pdf_uuid, bookmarks, root_ids=None)` 负责树形书签覆盖写；`search_records(payload)` 支持多 token 权重排序 + 过滤 + 分页。
+- 书签序列化：前端结构（含子节点）通过 `_flatten_bookmark_tree` 映射为 `pdf_bookmark` 行，`parentId`/`order` 与层级信息同步写入。
+- 搜索逻辑：在内存层整合 title/author/notes/tags/subject/keywords，支持短语匹配（query），默认排序遵循 `match_score` → `updated_at`。
+- 单测：`python -m pytest src/backend/api/__tests__/test_pdf_library_api.py`。
+- WebSocket 消息扩展：`bookmark/list` -> data={pdf_uuid}，响应带 `bookmarks`/`root_ids`；`bookmark/save` -> data={pdf_uuid, bookmarks, root_ids}，成功返回 `saved` 数量，异常统一返回 `type=error`。
+- WSClient 增强：提供 `request(type, payload, {timeout,maxRetries})` 泛化调用，维护 `_settlePendingRequest`，新增消息类型 `bookmark/list`、`bookmark/save` 及事件 `websocket:message:bookmark_list/save`；前端书签默认通过 `RemoteBookmarkStorage` 走 WebSocket，自动回落至 LocalStorage。
