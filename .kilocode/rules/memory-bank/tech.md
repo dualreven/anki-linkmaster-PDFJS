@@ -291,3 +291,50 @@ python ai_launcher.py start --module pdf-home
 - 配套测试：python ai-scripts/tests/test_pdf_viewer_launcher_diagnose.py。
 - 推荐排查：先 --diagnose-only --disable-js-console 验证 JS 日志线程，再逐项恢复。
 
+### 2025-10-05 PDFCardFeature 使用说明
+- 入口：src/frontend/pdf-viewer/features/pdf-card/index.js 注册 PDFCardFeature
+- 依赖：通过依赖容器暴露 cardSidebarUI，SidebarManager 的 
+eal-sidebars.js 首次打开时调用 container.get('cardSidebarUI')
+- Feature 注册顺序：需在 pp-bootstrap-feature.js 中放在 SidebarManagerFeature 之前，保证侧栏可获取 UI
+- UI 类：CardSidebarUI 提供 initialize(container)、getContentElement()，并监听 PDF_CARD.LOAD.SUCCESS
+
+### 2025-10-05 PDFInfoTablePlugin 使用说明
+- 模块：src/backend/database/plugins/pdf_info_plugin.py，需搭配 Stage1 SQLExecutor 与 Stage2 EventBus。
+- 构造：PDFInfoTablePlugin(executor, event_bus, logger=None)，启用前调用 enable() 以创建表和索引。
+- 事件：发布事件命名统一为 	able:pdf-info:<action>:<status>；订阅时务必使用连字符版本（EventBus 不接受下划线）。
+- 核心接口：
+  - alidate_data(data)：按规范校验 uuid/title/时间戳/json_data。
+  - CRUD：insert / update / delete / query_by_id / query_all(limit, offset)。
+  - 扩展：search(keyword, fields=None, limit=50)、ilter_by_tags(tags, match_mode='any')、ilter_by_rating(min_rating, max_rating)、get_visible_pdfs()、update_reading_stats(uuid, reading_time_delta)、dd_tag(uuid, tag)、
+emove_tag(uuid, tag)、get_statistics()。
+- 测试：运行 pytest src/backend/database/plugins/__tests__/test_pdf_info_plugin.py（32 用例，覆盖建表/验证/CRUD/事件）。
+- 样例数据：plugins/__tests__/fixtures/pdf_info_samples.py 提供 make_pdf_info_sample/make_bulk_samples 工具，便于生成标准化输入。
+### 2025-10-05 PDFAnnotationTablePlugin 使用说明
+- 模块：src/backend/database/plugins/pdf_annotation_plugin.py。
+- 启用：先启用 PDFInfoTablePlugin 并插入 pdf_uuid，再实例化 PDFAnnotationTablePlugin(executor, event_bus, logger) 调用 enable()。
+- 支持类型：screenshot / 	ext-highlight / comment，分别要求 rect/imagePath/imageHash、selectedText/textRanges/highlightColor、position/content 等字段。
+- 常用方法：
+  - query_by_pdf(pdf_uuid) / query_by_page(pdf_uuid, page_number) / query_by_type(pdf_uuid, ann_type)。
+  - count_by_pdf(pdf_uuid) / count_by_type(pdf_uuid, ann_type)。
+  - delete_by_pdf(pdf_uuid)（触发事件 	able:pdf-annotation:delete:completed）。
+  - dd_comment(ann_id, content) / 
+emove_comment(ann_id, comment_id)。
+- 事件：启用时自动订阅 	able:pdf-info:delete:completed 并级联删除标注。订阅者 ID：pdf-annotation-plugin-<id>。
+- 测试：运行 pytest src/backend/database/plugins/__tests__/test_pdf_annotation_plugin.py（44 用例）。
+
+### 2025-10-05 PDFBookmarkTablePlugin 使用说明
+- 模块：`src/backend/database/plugins/pdf_bookmark_plugin.py`。
+- 依赖：启用前需先启用 `PDFInfoTablePlugin`，保持 pdf_uuid 存在；事件命名为 `table:pdf-bookmark:*:*`。
+- 数据要求：`json_data` 含 `name/type/pageNumber`，`type=region` 时必须提供 `region.scrollX/scrollY/zoom`；`children` 为递归数组。
+- 常用接口：`query_by_pdf`、`query_root_bookmarks`、`query_by_page`、`count_by_pdf`、`delete_by_pdf`、`add_child_bookmark`、`remove_child_bookmark`、`reorder_bookmarks`、`flatten_bookmarks`。
+- 树操作：`add_child_bookmark` 自动设置 `parentId/order` 并更新父节点；`reorder_bookmarks` 根据 ordered_ids 更新 `order` 字段；`flatten_bookmarks` 返回附带 `level` 的扁平列表。
+- 测试命令：`pytest src/backend/database/plugins/__tests__/test_pdf_bookmark_plugin.py`（39 用例）。
+
+### 2025-10-05 SearchConditionTablePlugin 使用说明
+- 模块：`src/backend/database/plugins/search_condition_plugin.py`。
+- 条件类型：`fuzzy`(keywords/searchFields/matchMode)、`field`(field/operator/value)、`composite`(operator+conditions)。
+- 排序模式：`mode=0` 默认；`mode=1` 需 `manual_order`；`mode=2` 需 `multi_sort` 列表；`mode=3` 需 `weighted_sort.formula`。
+- 扩展接口：`query_by_name`、`query_enabled`、`increment_use_count`、`set_last_used`、`activate_exclusive`、`query_by_tag`、`search_by_keyword`。
+- 事件：`table:search-condition:create|update|delete:completed`。
+- 测试：`pytest src/backend/database/plugins/__tests__/test_search_condition_plugin.py`（29 用例）。
+- 2025-10-05：新增 `PDFLibraryAPI`，提供 `list_records/get_record_detail/update_record/delete_record/register_file_info`，单位为秒/毫秒转换遵循 JSON-MESSAGE-FORMAT-001，WebSocket `pdf/list` 消息返回 `records`。

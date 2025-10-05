@@ -1,5 +1,255 @@
 ---
 
+# 🚨🚨🚨 AI开发前端功能前必读（降低错误率）🚨🚨🚨
+
+**⚠️ Claude Code 在开发前端功能时错误率高的主要原因：**
+1. 事件系统复杂 - 三段式命名 + 局部/全局事件混用
+2. 插件隔离架构 - Feature间通信规则严格
+3. 没有第一时间查看架构文档
+
+**📖 必读文档索引（按优先级排序）：**
+1. ✅ **本章节** - 快速上手核心规范（5分钟）
+2. ✅ `src/frontend/HOW-TO-ADD-FEATURE.md` - 添加新Feature标准流程
+3. ✅ `src/frontend/common/event/EVENTBUS-USAGE-GUIDE.md` - EventBus完整使用指南
+4. ✅ `src/frontend/ARCHITECTURE-EXPLAINED.md` - 插件架构深度解析
+
+---
+
+## 📋 核心规范速查表
+
+### 1️⃣ 事件命名规范（三段式格式 - 强制）
+
+**格式**: `{module}:{action}:{status}` （必须正好3段，用冒号分隔）
+
+✅ **正确示例**:
+```javascript
+'pdf:load:completed'          // PDF加载完成
+'bookmark:create:requested'   // 请求创建书签
+'sidebar:open:success'        // 侧边栏打开成功
+'annotation:delete:failed'    // 删除批注失败
+```
+
+❌ **错误示例（绝对禁止）**:
+```javascript
+'loadData'                    // ❌ 缺少冒号
+'pdf:list:data:loaded'        // ❌ 超过3段
+'pdf_list_updated'            // ❌ 使用下划线
+'onButtonClick'               // ❌ 驼峰命名
+'pdf:loaded'                  // ❌ 只有2段
+```
+
+**运行时保护**: 格式错误的事件名会被阻止发布，控制台显示详细错误提示。
+
+---
+
+### 2️⃣ 局部事件 vs 全局事件（必须区分）
+
+#### 🔹 局部事件（Feature内部通信）
+**使用方法**: `scopedEventBus.on()` / `scopedEventBus.emit()`
+- 自动添加命名空间 `@feature-name/`
+- 仅在同一Feature内传递
+- 其他Feature **无法**监听
+
+```javascript
+// ✅ 正确：Feature内部事件
+class MyFeature {
+  async install(context) {
+    const { scopedEventBus } = context;
+
+    // 发布局部事件
+    scopedEventBus.emit('data:load:completed', data);
+    // 实际事件名: @my-feature/data:load:completed
+
+    // 监听局部事件
+    scopedEventBus.on('ui:refresh:requested', (data) => {
+      this.#refreshUI(data);
+    });
+  }
+}
+```
+
+#### 🌐 全局事件（Feature间跨模块通信）
+**使用方法**: `scopedEventBus.onGlobal()` / `scopedEventBus.emitGlobal()`
+- 不添加命名空间前缀
+- 所有Feature都可以监听
+- 用于跨模块通信
+
+```javascript
+// ✅ 正确：跨Feature通信
+class BookmarkFeature {
+  async install(context) {
+    const { scopedEventBus } = context;
+
+    // 发布全局事件（其他Feature可监听）
+    scopedEventBus.emitGlobal('pdf:bookmark:created', bookmark);
+
+    // 监听全局事件（来自其他Feature）
+    scopedEventBus.onGlobal('pdf:file:loaded', (data) => {
+      this.#loadBookmarks(data);
+    });
+  }
+}
+```
+
+❌ **常见错误**:
+```javascript
+// ❌ 错误：混用局部和全局
+scopedEventBus.emit('pdf:file:loaded', data);  // 应该用 emitGlobal()
+scopedEventBus.on('pdf:file:loaded', handler);  // 应该用 onGlobal()
+
+// ❌ 错误：监听全局事件时使用了带命名空间的名称
+scopedEventBus.onGlobal('@my-feature/data:loaded', handler);  // 不需要命名空间
+```
+
+---
+
+### 3️⃣ Feature开发标准流程（严格遵守）
+
+#### 第一步：创建Feature类结构
+```javascript
+/**
+ * @file [功能描述]功能域
+ */
+export class MyFeature {
+  // 私有字段（使用 # 前缀）
+  #eventBus;
+  #container;
+  #logger;
+
+  /** 功能名称 - 必须实现 */
+  get name() {
+    return 'my-feature';  // kebab-case，小写+连字符
+  }
+
+  /** 版本号 - 必须实现 */
+  get version() {
+    return '1.0.0';
+  }
+
+  /** 依赖的功能 - 必须实现 */
+  get dependencies() {
+    return ['app-core'];  // 声明依赖的其他Feature
+  }
+
+  /** 安装功能 - 必须实现 */
+  async install(context) {
+    const { globalEventBus, scopedEventBus, logger, container } = context;
+
+    this.#eventBus = scopedEventBus;  // 优先使用 scopedEventBus
+    this.#container = container;
+    this.#logger = logger;
+
+    // 初始化逻辑...
+    logger.info(`${this.name} installed successfully`);
+  }
+
+  /** 卸载功能 - 必须实现 */
+  async uninstall(context) {
+    // 清理资源...
+    this.#logger.info(`${this.name} uninstalled`);
+  }
+}
+```
+
+#### 第二步：在Bootstrap中注册
+**文件**: `bootstrap/app-bootstrap-feature.js`
+```javascript
+import { MyFeature } from '../features/my-feature/index.js';
+
+// 注册Feature
+registry.register(new MyFeature());
+```
+
+#### 第三步：声明依赖关系
+```javascript
+// ✅ 正确：在dependencies中声明
+get dependencies() {
+  return ['pdf-manager', 'annotation'];  // 依赖这两个Feature
+}
+
+// ❌ 错误：直接import其他Feature
+import { PDFManagerFeature } from '../pdf-manager/index.js';  // 禁止！
+```
+
+---
+
+### 4️⃣ 依赖注入规范（禁止硬编码）
+
+#### ✅ 正确方式：通过Container获取依赖
+```javascript
+class MyFeature {
+  async install(context) {
+    const { container } = context;
+
+    // 从容器获取依赖
+    const pdfManager = container.get('pdfManager');
+    const navigationService = container.get('navigationService');
+
+    if (!pdfManager) {
+      this.#logger.warn('PDFManager not found');
+      return;
+    }
+  }
+}
+```
+
+#### ❌ 错误方式：硬编码依赖
+```javascript
+// ❌ 禁止：直接import其他Feature
+import { PDFManager } from '../pdf-manager/pdf-manager.js';
+
+// ❌ 禁止：访问全局变量
+const manager = window.pdfManager;
+
+// ❌ 禁止：直接new实例
+const service = new NavigationService();
+```
+
+---
+
+### 5️⃣ 常见错误汇总
+
+#### 错误1：事件名称格式错误
+```javascript
+❌ eventBus.emit('loadData', data);
+❌ eventBus.emit('pdf:list:data:loaded', data);
+✅ eventBus.emit('pdf:load:completed', data);
+```
+
+#### 错误2：混用局部和全局事件
+```javascript
+❌ scopedEventBus.emit('pdf:file:loaded', data);  // 全局事件应用 emitGlobal
+❌ scopedEventBus.on('pdf:file:loaded', handler);  // 应用 onGlobal
+✅ scopedEventBus.emitGlobal('pdf:file:loaded', data);
+✅ scopedEventBus.onGlobal('pdf:file:loaded', handler);
+```
+
+#### 错误3：Feature间直接调用
+```javascript
+❌ import { BookmarkFeature } from '../bookmark/index.js';
+❌ const bookmarkFeature = new BookmarkFeature();
+✅ const bookmarkManager = container.get('bookmarkManager');
+```
+
+#### 错误4：使用console.log
+```javascript
+❌ console.log('数据加载完成', data);
+❌ console.error('发生错误:', error);
+✅ logger.info('数据加载完成', data);
+✅ logger.error('发生错误:', error);
+```
+
+---
+
+## 📚 详细文档链接
+
+1. **添加新Feature** → `src/frontend/HOW-TO-ADD-FEATURE.md`
+2. **EventBus完整指南** → `src/frontend/common/event/EVENTBUS-USAGE-GUIDE.md`
+3. **架构深度解析** → `src/frontend/ARCHITECTURE-EXPLAINED.md`
+4. **事件追踪调试** → `src/frontend/HOW-TO-ENABLE-EVENT-TRACING.md`
+
+---
+
 # 🚨 极其重要：事件名称三段式格式规范 🚨
 
 **⚠️ 在编写任何 eventBus.emit() 或 eventBus.on() 代码之前，必须阅读此节！**

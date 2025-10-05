@@ -33,3 +33,16 @@
 2) 校验 pdf-viewer 完整对齐共享 EventBus/WSClient 的模式。
 3) 为 AI Launcher 增加健康检查与 E2E 脚本。
 
+### 2025-10-05 更新
+- pdf-viewer 新增 eatures/pdf-card 模块：提供 PDFCardFeature、CardSidebarUI，通过依赖容器延迟获取 UI 并在 SidebarManager 注册卡片侧栏
+- 在 pp-bootstrap-feature.js 中注册顺序更新：PDFCardFeature 在 SidebarManagerFeature 之前装载，以确保卡片侧栏依赖被解析
+### 2025-10-05 数据库系统
+- Stage1（抽象层）：src/backend/database/{config,connection,transaction,executor,exceptions}.py 提供连接池、事务、SQL 执行与统一异常封装。
+- Stage2（插件架构）：src/backend/database/plugin/* 定义 TablePlugin 抽象类、EventBus、PluginRegistry，实现表级插件隔离与事件驱动。
+- Stage3（表插件包）：src/backend/database/plugins/* 存放具体数据表插件；首个 pdf_info_plugin.py 已落地，配套测试在 plugins/__tests__，后续表插件需复用同目录结构与事件命名（table:pdf-info:*:*）。
+- Stage3 插件实例：pdf_annotation_plugin.py（标注表），与 PDFInfo 插件共享 SQLExecutor/EventBus，事件命名 	able:pdf-annotation:*:*，监听 pdf_info 删除事件执行级联清理。
+
+- Stage3 插件实例补充：`pdf_bookmark_plugin.py`（层级书签表），与 PDFInfo 插件共享 SQLExecutor/EventBus，事件命名 `table:pdf-bookmark:*:*`，订阅 `table:pdf-info:delete:completed` 执行级联删除与树形维护。
+
+- SearchCondition 插件：`search_condition_plugin.py` 保存筛选/排序条件，事件命名 `table:search-condition:*:*`，与其它表无直接外键但复用 TablePlugin 架构。
+- 2025-10-05：新增 `PDFLibraryAPI`（backend/api/pdf_library_api.py）作为数据库插件统一出入口，并在 `StandardWebSocketServer` 中接入，提供 `pdf/list` 新消息以及文件增删同步数据库。

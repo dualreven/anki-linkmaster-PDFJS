@@ -137,6 +137,28 @@ export function registerRealSidebars(sidebarManager, eventBus, container) {
     sidebarManager.registerSidebar(translateConfig);
     logger.info('Translate sidebar registered (will load from container on first open)');
 
+    // 5. 反向链接侧边栏（占位）
+    const backlinkConfig = createSidebarConfig({
+        id: 'backlink',
+        title: '反向链接',
+        contentRenderer: () => {
+            const content = document.createElement('div');
+            content.style.cssText = 'padding: 20px; color: #666; text-align: center;';
+            content.innerHTML = `
+                <div style="font-size: 48px; margin-bottom: 16px;">🔗</div>
+                <div style="font-size: 16px; margin-bottom: 8px;">反向链接功能</div>
+                <div style="font-size: 14px; color: #999;">功能开发中...</div>
+            `;
+            return content;
+        },
+        defaultWidth: 350,
+        minWidth: 250,
+        maxWidth: 600,
+        resizable: true
+    });
+    sidebarManager.registerSidebar(backlinkConfig);
+    logger.info('Backlink sidebar registered (placeholder)');
+
     logger.info('All real sidebars registered successfully');
 }
 
@@ -170,7 +192,8 @@ export function createRealSidebarButtons(eventBus) {
         { id: 'bookmark', label: '≡ 书签', title: '打开书签侧边栏' },
         { id: 'annotation', label: '📝 标注', title: '打开标注侧边栏' },
         { id: 'card', label: '📇 卡片', title: '打开卡片侧边栏' },
-        { id: 'translate', label: '🌐 翻译', title: '打开翻译侧边栏' }
+        { id: 'translate', label: '🌐 翻译', title: '打开翻译侧边栏' },
+        { id: 'backlink', label: '🔗 反链', title: '打开反向链接侧边栏' }
     ];
 
     // 创建按钮
