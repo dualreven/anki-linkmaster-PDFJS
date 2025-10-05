@@ -33,24 +33,47 @@ describe('HighlightRenderer', () => {
     document.body.innerHTML = '';
   });
 
-  it('renders highlight using lineRects percent coordinates', () => {
+  it('returns container and bounding box when rendering percent rects', () => {
     const renderer = new HighlightRenderer(null, logger);
     const lineRects = [
-      { xPercent: 10, yPercent: 20, widthPercent: 30, heightPercent: 5 }
+      { xPercent: 10, yPercent: 20, widthPercent: 30, heightPercent: 5 },
+      { xPercent: 12, yPercent: 26, widthPercent: 28, heightPercent: 5 }
     ];
 
-    const container = renderer.renderHighlight(1, [], '#ffeb3b', 'ann-test', lineRects);
+    const result = renderer.renderHighlight(1, [], '#ffeb3b', 'ann-test', lineRects);
 
-    expect(container).not.toBeNull();
+    expect(result).not.toBeNull();
+    expect(result.container).toBeInstanceOf(HTMLElement);
+    expect(result.boundingBox.left).toBeCloseTo(60);
+    expect(result.boundingBox.top).toBeCloseTo(160);
+    expect(result.boundingBox.right).toBeCloseTo(240);
+    expect(result.boundingBox.bottom).toBeCloseTo(248);
+    expect(result.boundingBox.width).toBeCloseTo(180);
+    expect(result.boundingBox.height).toBeCloseTo(88);
 
     const highlightLayer = document.querySelector('.highlight-layer');
     expect(highlightLayer).not.toBeNull();
 
-    const highlight = container.querySelector('.text-highlight');
-    expect(highlight).not.toBeNull();
-    expect(highlight.style.left).toBe('60px');
-    expect(highlight.style.top).toBe('160px');
-    expect(highlight.style.width).toBe('180px');
-    expect(highlight.style.height).toBe('40px');
+    const highlightElements = result.container.querySelectorAll('.text-highlight');
+    expect(highlightElements).toHaveLength(2);
+  });
+
+  it('replaces existing highlight when rendering same annotation id', () => {
+    const renderer = new HighlightRenderer(null, logger);
+    const rects = [
+      { xPercent: 0, yPercent: 0, widthPercent: 10, heightPercent: 10 }
+    ];
+
+    const first = renderer.renderHighlight(1, [], '#ffeb3b', 'ann-duplicate', rects);
+    const second = renderer.renderHighlight(1, [], '#4caf50', 'ann-duplicate', rects);
+
+    expect(first.container.isConnected).toBe(false);
+    expect(second.container.dataset.annotationId).toBe('ann-duplicate');
+
+    const containers = document.querySelectorAll('[data-annotation-id="ann-duplicate"]');
+    expect(containers).toHaveLength(1);
+
+    const highlight = second.container.querySelector('.text-highlight');
+    expect(highlight.style.backgroundColor).toBe('rgb(76, 175, 80)');
   });
 });

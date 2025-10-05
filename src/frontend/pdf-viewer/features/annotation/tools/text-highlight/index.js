@@ -8,8 +8,12 @@ import { IAnnotationTool } from '../../interfaces/IAnnotationTool.js';
 import { TextSelectionHandler } from './text-selection-handler.js';
 import { HighlightRenderer } from './highlight-renderer.js';
 import { FloatingColorToolbar } from './floating-color-toolbar.js';
+import { HighlightActionMenu } from './highlight-action-menu.js';
+import { PDF_TRANSLATOR_EVENTS } from '../../../pdf-translator/events.js';
 import { Annotation } from '../../models/Annotation.js';
 import { PDF_VIEWER_EVENTS } from '../../../../../common/event/pdf-viewer-constants.js';
+
+const HIGHLIGHT_COLOR_PRESETS = ['#ffeb3b', '#4caf50', '#2196f3', '#ff9800', '#e91e63', '#9c27b0'];
 
 /**
  * 文字高亮工具
@@ -36,6 +40,18 @@ export class TextHighlightTool extends IAnnotationTool {
 
   /** @type {FloatingColorToolbar} */
   #floatingToolbar = null;
+
+  /** @type {HighlightActionMenu} */
+  #actionMenu = null;
+
+  /** @type {Map<string, { annotation: Annotation, container: HTMLElement, boundingBox: { left: number, top: number, right: number, bottom: number, width: number, height: number } }>} */
+  #annotationHighlightRecords = new Map();
+
+  /** @type {Function} */
+  #onAnnotationUpdatedHandler = null;
+
+  /** @type {Function} */
+  #onAnnotationDeletedHandler = null;
 
   /** @type {boolean} */
   #isActive = false;
@@ -122,13 +138,27 @@ export class TextHighlightTool extends IAnnotationTool {
       onCancel: this.#handleColorSelectionCancelled.bind(this)
     });
 
+    this.#actionMenu = new HighlightActionMenu({
+      logger: this.#logger,
+      colorPresets: HIGHLIGHT_COLOR_PRESETS,
+      onDelete: this.#handleDeleteRequested.bind(this),
+      onCopy: this.#handleCopyRequested.bind(this),
+      onColorChange: this.#handleColorChangeRequested.bind(this),
+      onJump: this.#handleJumpRequested.bind(this),
+      onTranslate: this.#handleTranslateRequested.bind(this)
+    });
+
     // 绑定事件处理器
     this.#onTextSelectionCompletedHandler = this.#handleTextSelectionCompleted.bind(this);
     this.#onAnnotationCreatedHandler = this.#handleAnnotationCreated.bind(this);
+    this.#onAnnotationUpdatedHandler = this.#handleAnnotationUpdated.bind(this);
+    this.#onAnnotationDeletedHandler = this.#handleAnnotationDeleted.bind(this);
 
     // 注册事件监听器
     this.#eventBus.on('annotation-highlight:selection:completed', this.#onTextSelectionCompletedHandler);
     this.#eventBus.on('annotation:create:success', this.#onAnnotationCreatedHandler);
+    this.#eventBus.on('annotation:update:success', this.#onAnnotationUpdatedHandler);
+    this.#eventBus.on('annotation:delete:success', this.#onAnnotationDeletedHandler);
 
     this.#logger.info('[TextHighlightTool] Initialized successfully');
   }
@@ -326,14 +356,219 @@ export class TextHighlightTool extends IAnnotationTool {
 
     this.#logger.info('[TextHighlightTool] Rendering highlight for annotation', annotation.id);
 
-    // 渲染高亮
-    this.#highlightRenderer.renderHighlight(
+    const renderResult = this.#highlightRenderer.renderHighlight(
       annotation.pageNumber,
       annotation.data.textRanges,
       annotation.data.highlightColor,
       annotation.id,
       annotation.data.lineRects
     );
+
+    if (!renderResult) {
+      return;
+    }
+
+    this.#annotationHighlightRecords.set(annotation.id, {
+      annotation,
+      container: renderResult.container,
+      boundingBox: renderResult.boundingBox
+    });
+
+    this.#actionMenu?.attach(renderResult.container, annotation, { boundingBox: renderResult.boundingBox });
+  }
+
+  /**
+   * 处理删除请求
+   * @param {Annotation} annotation - 标注对象
+   * @private
+   */
+  #handleDeleteRequested(annotation) {
+    if (!annotation?.id) {
+      return;
+    }
+
+    const shouldDelete = typeof window !== 'undefined' && typeof window.confirm === 'function'
+      ? window.confirm('确定要删除这个高亮标注吗？')
+      : true;
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    this.#logger.info(`[TextHighlightTool] Delete requested for annotation ${annotation.id}`);
+    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DELETE, { id: annotation.id });
+  }
+
+  /**
+   * 处理复制请求
+   * @param {Annotation} annotation - 标注对象
+   * @private
+   */
+  #handleCopyRequested(annotation) {
+    const latestRecord = annotation?.id ? this.#annotationHighlightRecords.get(annotation.id)?.annotation : null;
+    const text = latestRecord?.data?.selectedText ?? annotation?.data?.selectedText;
+    if (!text) {
+      this.#logger.warn('[TextHighlightTool] No text available for copy');
+      return;
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(() => {
+          this.#logger.info('[TextHighlightTool] Copied highlight text to clipboard');
+        })
+        .catch((error) => {
+          this.#logger.warn('[TextHighlightTool] Clipboard API failed, fallback in use', error);
+          this.#fallbackCopyToClipboard(text);
+        });
+    } else {
+      this.#fallbackCopyToClipboard(text);
+    }
+  }
+
+  /**
+   * 剪贴板复制回退方案
+   * @param {string} text - 要复制的文本
+   * @private
+   */
+  #fallbackCopyToClipboard(text) {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.top = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.select();
+
+    try {
+      document.execCommand('copy');
+      this.#logger.info('[TextHighlightTool] Copied highlight text via fallback');
+    } catch (error) {
+      this.#logger.error('[TextHighlightTool] Failed to copy highlight text', error);
+    } finally {
+      textarea.remove();
+    }
+  }
+
+  /**
+   * 处理颜色变更请求
+   * @param {Annotation} annotation - 标注对象
+   * @param {string} color - 新颜色
+   * @private
+   */
+  #handleColorChangeRequested(annotation, color) {
+    if (!annotation?.id) {
+      return;
+    }
+
+    this.#logger.info(`[TextHighlightTool] Color change requested: ${color} for ${annotation.id}`);
+
+    this.#highlightRenderer.updateHighlightColor(annotation.id, color);
+    this.#actionMenu?.updateColor(annotation.id, color);
+
+    const record = this.#annotationHighlightRecords.get(annotation.id);
+    if (record) {
+      record.annotation = {
+        ...annotation,
+        data: {
+          ...annotation.data,
+          highlightColor: color
+        }
+      };
+    }
+
+    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.UPDATE, {
+      id: annotation.id,
+      changes: {
+        data: {
+          highlightColor: color
+        }
+      }
+    });
+  }
+
+  /**
+   * 处理跳转请求
+   * @param {Annotation} annotation - 标注对象
+   * @private
+   */
+  #handleJumpRequested(annotation) {
+    if (!annotation?.id) {
+      return;
+    }
+
+    this.#logger.info(`[TextHighlightTool] Jump requested for annotation ${annotation.id}`);
+    this.#eventBus.emit(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, { sidebarId: 'annotation' });
+    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SELECT, { id: annotation.id });
+    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.JUMP_TO, { annotation });
+  }
+
+  /**
+   * 处理翻译请求
+   * @param {Annotation} annotation - 标注对象
+   * @private
+   */
+  #handleTranslateRequested(annotation) {
+    const latestRecord = annotation?.id ? this.#annotationHighlightRecords.get(annotation.id)?.annotation : null;
+    const text = latestRecord?.data?.selectedText ?? annotation?.data?.selectedText;
+    if (!text) {
+      this.#logger.warn('[TextHighlightTool] No text available for translation');
+      return;
+    }
+
+    this.#logger.info(`[TextHighlightTool] Translate requested for annotation ${annotation.id}`);
+    this.#eventBus.emit(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, { sidebarId: 'translate' });
+    this.#eventBus.emit(PDF_TRANSLATOR_EVENTS.TEXT.SELECTED, {
+      text,
+      pageNumber: annotation.pageNumber,
+      annotationId: annotation.id,
+      source: 'text-highlight',
+      timestamp: Date.now()
+    });
+  }
+
+  /**
+   * 处理标注更新事件
+   * @param {{ annotation: Annotation }} data - 事件数据
+   * @private
+   */
+  #handleAnnotationUpdated(data) {
+    const annotation = data?.annotation;
+    if (!annotation || annotation.type !== 'text-highlight') {
+      return;
+    }
+
+    const record = this.#annotationHighlightRecords.get(annotation.id);
+    if (!record) {
+      return;
+    }
+
+    record.annotation = annotation;
+
+    if (annotation.data?.highlightColor) {
+      this.#highlightRenderer.updateHighlightColor(annotation.id, annotation.data.highlightColor);
+      this.#actionMenu?.updateColor(annotation.id, annotation.data.highlightColor);
+    }
+  }
+
+  /**
+   * 处理标注删除事件
+   * @param {{ id: string }} data - 事件数据
+   * @private
+   */
+  #handleAnnotationDeleted(data) {
+    const annotationId = data?.id;
+    if (!annotationId) {
+      return;
+    }
+
+    this.#logger.info(`[TextHighlightTool] Annotation deleted event received: ${annotationId}`);
+    this.#highlightRenderer.removeHighlight(annotationId);
+    this.#actionMenu?.detach(annotationId);
+    this.#annotationHighlightRecords.delete(annotationId);
   }
 
   // ==================== UI方法 ====================
@@ -586,6 +821,8 @@ export class TextHighlightTool extends IAnnotationTool {
     if (this.#eventBus) {
       this.#eventBus.off('annotation-highlight:selection:completed', this.#onTextSelectionCompletedHandler);
       this.#eventBus.off('annotation:create:success', this.#onAnnotationCreatedHandler);
+      this.#eventBus.off('annotation:update:success', this.#onAnnotationUpdatedHandler);
+      this.#eventBus.off('annotation:delete:success', this.#onAnnotationDeletedHandler);
     }
 
     // 销毁子组件
@@ -601,6 +838,10 @@ export class TextHighlightTool extends IAnnotationTool {
       this.#floatingToolbar.destroy();
     }
 
+    if (this.#actionMenu) {
+      this.#actionMenu.destroy();
+    }
+
     // 清理引用
     this.#eventBus = null;
     this.#logger = null;
@@ -608,9 +849,13 @@ export class TextHighlightTool extends IAnnotationTool {
     this.#selectionHandler = null;
     this.#highlightRenderer = null;
     this.#floatingToolbar = null;
+    this.#actionMenu = null;
     this.#pendingSelection = null;
     this.#onTextSelectionCompletedHandler = null;
     this.#onAnnotationCreatedHandler = null;
+    this.#onAnnotationUpdatedHandler = null;
+    this.#onAnnotationDeletedHandler = null;
+    this.#annotationHighlightRecords.clear();
 
     this.#logger?.info('[TextHighlightTool] Destroyed');
   }

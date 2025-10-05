@@ -19,6 +19,12 @@ export class HighlightRenderer {
   #highlightLayers = new Map();
 
   /**
+   * 标注ID到高亮容器的映射
+   * @type {Map<string, { container: HTMLElement, pageNumber: number, boundingBox: { left: number, top: number, right: number, bottom: number, width: number, height: number } }>}
+   */
+  #annotationHighlights = new Map();
+
+  /**
    * 构造函数
    * @param {Object} pdfViewerManager - PDF查看器管理器
    * @param {Logger} logger - 日志记录器
@@ -35,7 +41,7 @@ export class HighlightRenderer {
    * @param {string} color - 高亮颜色（hex格式）
    * @param {string} [annotationId] - 标注ID（用于后续删除）
    * @param {Array<{xPercent: number, yPercent: number, widthPercent: number, heightPercent: number}>} [lineRects=null] - 行矩形百分比数据
-   * @returns {HTMLElement|null} 高亮层元素
+   * @returns {{ container: HTMLElement, rects: Array, boundingBox: { left: number, top: number, right: number, bottom: number, width: number, height: number } }|null} 高亮渲染结果
    */
   renderHighlight(pageNumber, textRanges, color, annotationId = null, lineRects = null) {
     const pageView = this.#getPageView(pageNumber);
@@ -50,8 +56,11 @@ export class HighlightRenderer {
       return null;
     }
 
-    // 获取或创建高亮层
     const highlightLayer = this.#getOrCreateHighlightLayer(pageView, pageNumber);
+
+    if (annotationId) {
+      this.removeHighlight(annotationId);
+    }
 
     let rects = [];
 
@@ -69,14 +78,18 @@ export class HighlightRenderer {
       return null;
     }
 
-    // 创建高亮元素容器
     const highlightContainer = document.createElement('div');
     highlightContainer.className = 'text-highlight-container';
+    highlightContainer.style.position = 'absolute';
+    highlightContainer.style.left = '0px';
+    highlightContainer.style.top = '0px';
+    highlightContainer.style.width = '100%';
+    highlightContainer.style.height = '100%';
+    highlightContainer.style.pointerEvents = 'none';
     if (annotationId) {
       highlightContainer.dataset.annotationId = annotationId;
     }
 
-    // 为每个矩形创建高亮元素
     rects.forEach((rect) => {
       const highlightEl = this.#createHighlightElement(rect, color);
       highlightContainer.appendChild(highlightEl);
@@ -84,9 +97,23 @@ export class HighlightRenderer {
 
     highlightLayer.appendChild(highlightContainer);
 
+    const boundingBox = this.#calculateBoundingBox(rects);
+
+    if (annotationId) {
+      this.#annotationHighlights.set(annotationId, {
+        container: highlightContainer,
+        pageNumber,
+        boundingBox
+      });
+    }
+
     this.#logger.info(`[HighlightRenderer] Rendered ${rects.length} highlights on page ${pageNumber}`);
 
-    return highlightContainer;
+    return {
+      container: highlightContainer,
+      rects,
+      boundingBox
+    };
   }
 
   /**
@@ -97,13 +124,25 @@ export class HighlightRenderer {
   removeHighlight(annotationId) {
     let removed = false;
 
-    this.#highlightLayers.forEach((layer) => {
-      const container = layer.querySelector(`[data-annotation-id="${annotationId}"]`);
-      if (container) {
-        container.remove();
-        removed = true;
-      }
-    });
+    const record = this.#annotationHighlights.get(annotationId);
+    if (record?.container) {
+      record.container.remove();
+      removed = true;
+    }
+
+    if (this.#annotationHighlights.has(annotationId)) {
+      this.#annotationHighlights.delete(annotationId);
+    }
+
+    if (!removed) {
+      this.#highlightLayers.forEach((layer) => {
+        const container = layer.querySelector(`[data-annotation-id="${annotationId}"]`);
+        if (container) {
+          container.remove();
+          removed = true;
+        }
+      });
+    }
 
     if (removed) {
       this.#logger.info(`[HighlightRenderer] Removed highlight for annotation ${annotationId}`);
@@ -122,6 +161,9 @@ export class HighlightRenderer {
     const layer = this.#highlightLayers.get(layerKey);
 
     if (layer) {
+      layer.querySelectorAll('[data-annotation-id]').forEach((el) => {
+        this.#annotationHighlights.delete(el.dataset.annotationId);
+      });
       layer.innerHTML = '';
       this.#logger.info(`[HighlightRenderer] Cleared all highlights on page ${pageNumber}`);
     }
@@ -135,6 +177,7 @@ export class HighlightRenderer {
     this.#highlightLayers.forEach((layer) => {
       layer.innerHTML = '';
     });
+    this.#annotationHighlights.clear();
     this.#logger.info('[HighlightRenderer] Cleared all highlights');
   }
 
@@ -388,6 +431,61 @@ export class HighlightRenderer {
     return merged;
   }
 
+
+  /**
+   * 更新指定标注的高亮颜色
+   * @param {string} annotationId - 标注ID
+   * @param {string} color - 新颜色
+   * @returns {boolean} 是否更新成功
+   */
+  updateHighlightColor(annotationId, color) {
+    const record = this.#annotationHighlights.get(annotationId);
+    if (!record?.container) {
+      return false;
+    }
+
+    const highlights = record.container.querySelectorAll('.text-highlight');
+    highlights.forEach((el) => {
+      el.style.backgroundColor = color;
+    });
+
+    this.#annotationHighlights.set(annotationId, { ...record, boundingBox: record.boundingBox });
+    return true;
+  }
+
+  /**
+   * 计算高亮区域的包围盒
+   * @param {Array<{left: number, top: number, width: number, height: number}>} rects - 高亮矩形集合
+   * @returns {{left: number, top: number, right: number, bottom: number, width: number, height: number}}
+   * @private
+   */
+  #calculateBoundingBox(rects) {
+    if (!Array.isArray(rects) || rects.length === 0) {
+      return { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 };
+    }
+
+    let left = Number.POSITIVE_INFINITY;
+    let top = Number.POSITIVE_INFINITY;
+    let right = Number.NEGATIVE_INFINITY;
+    let bottom = Number.NEGATIVE_INFINITY;
+
+    rects.forEach((rect) => {
+      left = Math.min(left, rect.left);
+      top = Math.min(top, rect.top);
+      right = Math.max(right, rect.left + rect.width);
+      bottom = Math.max(bottom, rect.top + rect.height);
+    });
+
+    return {
+      left,
+      top,
+      right,
+      bottom,
+      width: Math.max(0, right - left),
+      height: Math.max(0, bottom - top)
+    };
+  }
+
   /**
    * 创建高亮元素
    * @param {{left: number, top: number, width: number, height: number}} rect - 矩形
@@ -419,6 +517,7 @@ export class HighlightRenderer {
   destroy() {
     this.clearAllHighlights();
     this.#highlightLayers.clear();
+    this.#annotationHighlights.clear();
     this.#pdfViewerManager = null;
     this.#logger = null;
   }

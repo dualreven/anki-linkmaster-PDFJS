@@ -1367,3 +1367,8 @@ AnnotationSidebarUI → 监听并添加卡片 (只一次)
 - 要求：实现为独立插件，复用现有事件（标注创建、翻译触发），避免影响既有工具。
 - 关键点：文本选取位置、按钮定位、与 SelectionMonitor/AnnotationFeature/PDFTranslatorFeature 的协作。
 - 2025-10-05 18:02 AI助手修复：feature.config 仅依赖 annotation，保证在 SidebarManager 前注册，避免 aiAssistantSidebarUI 未加载导致侧边栏空白。
+- 文本选择快捷操作插件 	ext-selection-quick-actions：监听非标注模式下的文本选择，在鼠标抬起位置展示四个按钮（复制/标注/翻译/AI）。复制直接写入剪贴板；标注自动创建黄色高亮并激活标注侧边栏；翻译发送 PDF_TRANSLATOR_EVENTS.TEXT.SELECTED 并打开翻译栏；AI 留空待扩展。
+- 关键实现：selection-utils 负责坐标换算与包围盒、行矩形百分比；quick-actions-toolbar 管理浮动按钮；主 Feature 处理事件监听、状态切换及侧边栏联动。
+- 新增单元测试：selection-utils.test.js、quick-actions-toolbar.test.js，确保坐标换算与 UI 显示逻辑稳定；既有 	ext-highlight-tool.test.js 继续通过。
+- 修复复制按钮导致工具栏再次定位的问题：在 TextSelectionQuickActionsFeature.#handleMouseUp 内判断若事件发生于工具栏自身则不重新展示，并在复制完成后调用 #clearSelection() 防止残留选择触发重定位。
+- Quick Actions 复制修复：在 #handleMouseUp 内识别工具栏交互，阻止 selectionchange 立刻清空状态；复制完成后调用 #clearSelection() 并隐藏按钮，确保剪贴板写入成功且面板不再移动。
