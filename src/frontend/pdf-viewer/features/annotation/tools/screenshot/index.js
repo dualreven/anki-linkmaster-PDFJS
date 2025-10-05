@@ -32,6 +32,7 @@ export class ScreenshotTool extends IAnnotationTool {
   #startPos = null;
   #endPos = null;
   #mouseListeners = null;
+  #renderedMarkers = new Map();  // 存储已渲染的截图标记框 (annotationId -> markerElement)
 
   /**
    * 初始化工具
@@ -50,6 +51,9 @@ export class ScreenshotTool extends IAnnotationTool {
 
     // 初始化QWebChannel桥接器
     this.#qwebChannelBridge = new QWebChannelScreenshotBridge();
+
+    // 监听标注跳转成功事件，用于渲染截图标记框
+    this.#setupJumpEventListener();
 
     this.#logger.info('[ScreenshotTool] Initialized', {
       qwebChannelMode: this.#qwebChannelBridge.getMode()
@@ -182,8 +186,11 @@ export class ScreenshotTool extends IAnnotationTool {
     `;
 
     // 绑定事件
+    // 注意：实际使用中，AnnotationSidebarUI 有自己的 #createAnnotationCard 方法
+    // 这个方法保留是为了实现 IAnnotationTool 接口，但可能不会被实际调用
     card.querySelector('.jump-btn').addEventListener('click', () => {
       this.#handleJumpToAnnotation(annotation.id);
+      // 标记框的渲染现在由事件监听器处理 (#setupJumpEventListener)
     });
 
     card.querySelector('.comment-btn').addEventListener('click', () => {
@@ -201,6 +208,54 @@ export class ScreenshotTool extends IAnnotationTool {
     this.#capturer = null;
     this.#qwebChannelBridge = null;
     this.#logger.info('[ScreenshotTool] Destroyed');
+  }
+
+  // ===== 私有方法：事件监听 =====
+
+  /**
+   * 设置标注相关事件监听器
+   * - 跳转成功时显示标记框
+   * - 标注创建成功时立即显示标记框
+   * - 标注删除成功时移除标记框
+   * @private
+   */
+  #setupJumpEventListener() {
+    // 监听标注跳转成功事件
+    this.#eventBus.on('annotation-navigation:jump:success', ({ annotation }) => {
+      this.#logger.info('[ScreenshotTool] ===== Jump success event received =====');
+      this.#logger.info('[ScreenshotTool] Annotation type:', annotation?.type);
+
+      // 只处理截图类型的标注
+      if (annotation && annotation.type === AnnotationType.SCREENSHOT) {
+        this.#logger.info('[ScreenshotTool] This is a screenshot annotation, rendering marker...');
+
+        // 延迟渲染，确保页面已经跳转并渲染完成
+        setTimeout(() => {
+          this.renderScreenshotMarker(annotation);
+        }, 300);
+      }
+    });
+
+    // 监听标注创建成功事件（初次截图完成后立即显示标记框）
+    this.#eventBus.on('annotation:create:success', ({ annotation }) => {
+      // 只处理截图类型的标注
+      if (annotation && annotation.type === AnnotationType.SCREENSHOT) {
+        this.#logger.info('[ScreenshotTool] Screenshot annotation created, rendering marker immediately');
+
+        // 立即渲染标记框（无需延迟，因为页面没有跳转）
+        setTimeout(() => {
+          this.renderScreenshotMarker(annotation);
+        }, 100);
+      }
+    });
+
+    // 监听标注删除成功事件（自动移除标记框）
+    this.#eventBus.on('annotation:delete:success', ({ id }) => {
+      this.#logger.info(`[ScreenshotTool] Annotation deleted, removing marker: ${id}`);
+      this.removeScreenshotMarker(id);
+    });
+
+    this.#logger.info('[ScreenshotTool] Annotation event listeners registered');
   }
 
   // ===== 私有方法：截图流程 =====
@@ -383,13 +438,22 @@ export class ScreenshotTool extends IAnnotationTool {
 
       this.#logger.info('[ScreenshotTool] Image saved', saveResult);
 
-      // 4. 创建标注数据
+      // 4. 转换为百分比坐标
+      const percentRect = this.#convertCanvasToPercent(pageNumber, canvasRect);
+      if (!percentRect) {
+        throw new Error('Failed to convert canvas coordinates to percentage');
+      }
+
+      // 5. 创建标注数据
       // 注意: Mock模式下imagePath是虚拟路径,需要同时保存base64以便显示
       const annotationData = {
         type: AnnotationType.SCREENSHOT,
         pageNumber,
         data: {
-          rect: canvasRect,  // 使用Canvas坐标的rect
+          // 主要使用百分比坐标（缩放无关）
+          rectPercent: percentRect,
+          // 保留绝对坐标用于兼容和调试
+          rect: canvasRect,
           imagePath: saveResult.path,
           imageHash: saveResult.hash,
           imageData: base64Image,  // Mock模式下需要base64数据才能显示图片
@@ -561,7 +625,10 @@ export class ScreenshotTool extends IAnnotationTool {
    * @private
    */
   #handleJumpToAnnotation(annotationId) {
-    this.#eventBus.emit('annotation:jump:requested', { id: annotationId });
+    this.#eventBus.emit('annotation:jump:requested', {
+      id: annotationId,
+      toolName: this.name  // 标识是截图工具的跳转请求
+    });
   }
 
   /**
@@ -570,6 +637,94 @@ export class ScreenshotTool extends IAnnotationTool {
    */
   #handleAddComment(annotationId) {
     this.#eventBus.emit('annotation-comment:add:requested', { annotationId });
+  }
+
+  /**
+   * 将Canvas绝对坐标转换为百分比坐标
+   * @private
+   * @param {number} pageNumber - 页码
+   * @param {Object} canvasRect - Canvas坐标系的矩形 { x, y, width, height }
+   * @returns {Object|null} 百分比坐标 { xPercent, yPercent, widthPercent, heightPercent }
+   */
+  #convertCanvasToPercent(pageNumber, canvasRect) {
+    try {
+      // 获取Canvas元素
+      const pageView = this.#pdfViewerManager.getPageView(pageNumber);
+      if (!pageView) {
+        this.#logger.error(`[ScreenshotTool] Cannot find PageView for page ${pageNumber}`);
+        return null;
+      }
+
+      const canvas = pageView.div?.querySelector('canvas');
+      if (!canvas) {
+        this.#logger.error(`[ScreenshotTool] Cannot find canvas for page ${pageNumber}`);
+        return null;
+      }
+
+      // 计算百分比
+      const percentRect = {
+        xPercent: (canvasRect.x / canvas.width) * 100,
+        yPercent: (canvasRect.y / canvas.height) * 100,
+        widthPercent: (canvasRect.width / canvas.width) * 100,
+        heightPercent: (canvasRect.height / canvas.height) * 100
+      };
+
+      this.#logger.info('[ScreenshotTool] Canvas to Percent conversion:', {
+        canvas: canvasRect,
+        canvasSize: { width: canvas.width, height: canvas.height },
+        percent: percentRect
+      });
+
+      return percentRect;
+
+    } catch (error) {
+      this.#logger.error('[ScreenshotTool] Canvas to Percent conversion failed:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 将百分比坐标转换为Canvas绝对坐标
+   * @private
+   * @param {number} pageNumber - 页码
+   * @param {Object} percentRect - 百分比坐标 { xPercent, yPercent, widthPercent, heightPercent }
+   * @returns {Object|null} Canvas坐标系的矩形 { x, y, width, height }
+   */
+  #convertPercentToCanvas(pageNumber, percentRect) {
+    try {
+      // 获取Canvas元素
+      const pageView = this.#pdfViewerManager.getPageView(pageNumber);
+      if (!pageView) {
+        this.#logger.error(`[ScreenshotTool] Cannot find PageView for page ${pageNumber}`);
+        return null;
+      }
+
+      const canvas = pageView.div?.querySelector('canvas');
+      if (!canvas) {
+        this.#logger.error(`[ScreenshotTool] Cannot find canvas for page ${pageNumber}`);
+        return null;
+      }
+
+      // 计算Canvas坐标
+      const canvasRect = {
+        x: Math.round((percentRect.xPercent / 100) * canvas.width),
+        y: Math.round((percentRect.yPercent / 100) * canvas.height),
+        width: Math.round((percentRect.widthPercent / 100) * canvas.width),
+        height: Math.round((percentRect.heightPercent / 100) * canvas.height)
+      };
+
+      this.#logger.info('[ScreenshotTool] Percent to Canvas conversion:', {
+        percent: percentRect,
+        canvasSize: { width: canvas.width, height: canvas.height },
+        canvas: canvasRect
+      });
+
+      return canvasRect;
+
+    } catch (error) {
+      this.#logger.error('[ScreenshotTool] Percent to Canvas conversion failed:', error);
+      return null;
+    }
   }
 
   /**
@@ -660,10 +815,180 @@ export class ScreenshotTool extends IAnnotationTool {
   }
 
   /**
+   * 渲染截图标记框（在PDF页面上显示截图区域）
+   * @param {Object} annotation - 截图标注对象
+   */
+  renderScreenshotMarker(annotation) {
+    try {
+      this.#logger.info('[ScreenshotTool] ========== renderScreenshotMarker called ==========');
+      this.#logger.info('[ScreenshotTool] Annotation:', annotation);
+
+      // 检查是否已经渲染过
+      if (this.#renderedMarkers.has(annotation.id)) {
+        this.#logger.info(`[ScreenshotTool] Marker already rendered for ${annotation.id}`);
+        return;
+      }
+
+      const { pageNumber, data } = annotation;
+      this.#logger.info('[ScreenshotTool] PageNumber:', pageNumber);
+      this.#logger.info('[ScreenshotTool] Data:', data);
+
+      const { rectPercent } = data;
+
+      if (!rectPercent) {
+        this.#logger.warn(`[ScreenshotTool] ❌ No rectPercent data for annotation ${annotation.id}`);
+        this.#logger.warn('[ScreenshotTool] Available data keys:', Object.keys(data));
+        return;
+      }
+
+      this.#logger.info('[ScreenshotTool] RectPercent:', rectPercent);
+
+      // 获取页面容器
+      const pageView = this.#pdfViewerManager.getPageView(pageNumber);
+      if (!pageView || !pageView.div) {
+        this.#logger.error(`[ScreenshotTool] Cannot find page ${pageNumber}`);
+        return;
+      }
+
+      const pageDiv = pageView.div;
+      const pageBounds = pageDiv.getBoundingClientRect();
+
+      // 计算标记框的位置（基于百分比）
+      const markerRect = {
+        left: (rectPercent.xPercent / 100) * pageBounds.width,
+        top: (rectPercent.yPercent / 100) * pageBounds.height,
+        width: (rectPercent.widthPercent / 100) * pageBounds.width,
+        height: (rectPercent.heightPercent / 100) * pageBounds.height
+      };
+
+      // 创建标记框元素
+      const marker = document.createElement('div');
+      marker.className = 'screenshot-marker';
+      marker.dataset.annotationId = annotation.id;
+      marker.style.cssText = [
+        'position: absolute',
+        `left: ${markerRect.left}px`,
+        `top: ${markerRect.top}px`,
+        `width: ${markerRect.width}px`,
+        `height: ${markerRect.height}px`,
+        'border: 2px solid #ff9800',  // 橙色边框
+        'background: rgba(255, 152, 0, 0.1)',  // 淡橙色半透明背景
+        'pointer-events: none',  // 不阻挡鼠标事件
+        'box-sizing: border-box',
+        'z-index: 10'
+      ].join(';');
+
+      // 创建删除按钮（右上角）
+      const deleteBtn = document.createElement('div');
+      deleteBtn.className = 'screenshot-marker-delete';
+      deleteBtn.style.cssText = [
+        'position: absolute',
+        'top: -10px',
+        'right: -10px',
+        'width: 24px',
+        'height: 24px',
+        'background: #f44336',
+        'border: 2px solid white',
+        'border-radius: 50%',
+        'cursor: pointer',
+        'pointer-events: auto',  // 删除按钮可点击
+        'display: flex',
+        'align-items: center',
+        'justify-content: center',
+        'font-size: 14px',
+        'color: white',
+        'font-weight: bold',
+        'transition: all 0.2s',
+        'z-index: 11'
+      ].join(';');
+      deleteBtn.innerHTML = '×';
+      deleteBtn.title = '删除此截图标注';
+
+      // 删除按钮悬停效果
+      deleteBtn.addEventListener('mouseenter', () => {
+        deleteBtn.style.transform = 'scale(1.2)';
+        deleteBtn.style.background = '#d32f2f';
+      });
+      deleteBtn.addEventListener('mouseleave', () => {
+        deleteBtn.style.transform = 'scale(1)';
+        deleteBtn.style.background = '#f44336';
+      });
+
+      // 点击删除 - 删除标注（需要确认）
+      deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+
+        // 确认删除
+        if (confirm('确定要删除此截图标注吗？')) {
+          this.#logger.info(`[ScreenshotTool] Requesting deletion of annotation ${annotation.id}`);
+
+          // 发送删除标注的请求事件
+          this.#eventBus.emit('annotation:delete:requested', {
+            id: annotation.id
+          });
+
+          // 注意：标记框的移除会在 annotation:delete:success 事件中自动处理
+        }
+      });
+
+      // 组装
+      marker.appendChild(deleteBtn);
+      pageDiv.appendChild(marker);
+
+      // 保存引用
+      this.#renderedMarkers.set(annotation.id, marker);
+
+      this.#logger.info(`[ScreenshotTool] Marker rendered for annotation ${annotation.id} on page ${pageNumber}`);
+
+    } catch (error) {
+      this.#logger.error('[ScreenshotTool] Failed to render marker:', error);
+    }
+  }
+
+  /**
+   * 移除截图标记框
+   * @param {string} annotationId - 标注ID
+   */
+  removeScreenshotMarker(annotationId) {
+    const marker = this.#renderedMarkers.get(annotationId);
+    if (!marker) {
+      this.#logger.debug(`[ScreenshotTool] No marker found for ${annotationId}`);
+      return;
+    }
+
+    // 移除DOM
+    if (marker.parentNode) {
+      marker.remove();
+    }
+
+    // 移除引用
+    this.#renderedMarkers.delete(annotationId);
+
+    this.#logger.info(`[ScreenshotTool] Marker removed for annotation ${annotationId}`);
+  }
+
+  /**
+   * 清除所有截图标记框
+   */
+  clearAllMarkers() {
+    this.#renderedMarkers.forEach((marker, id) => {
+      if (marker.parentNode) {
+        marker.remove();
+      }
+    });
+    this.#renderedMarkers.clear();
+    this.#logger.info('[ScreenshotTool] All markers cleared');
+  }
+
+  /**
    * 清理资源
    * @private
    */
   #cleanup() {
+    // ⚠️ 注意：不清理标记框，因为标记框应该持久显示
+    // 即使退出截图模式，已经创建的截图标注的标记框也应该保留
+    // 只清理截图模式相关的UI元素（选择框和事件监听）
+
     // 移除事件监听（现在都在document上）
     if (this.#mouseListeners) {
       document.removeEventListener('mousedown', this.#mouseListeners.onMouseDown);
@@ -673,7 +998,7 @@ export class ScreenshotTool extends IAnnotationTool {
       this.#mouseListeners = null;
     }
 
-    // 移除遮罩层DOM
+    // 移除遮罩层DOM（选择框）
     if (this.#selectionOverlay) {
       this.#selectionOverlay.remove();
       this.#selectionOverlay = null;
