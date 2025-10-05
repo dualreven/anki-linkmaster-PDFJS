@@ -1372,3 +1372,22 @@ AnnotationSidebarUI → 监听并添加卡片 (只一次)
 - 新增单元测试：selection-utils.test.js、quick-actions-toolbar.test.js，确保坐标换算与 UI 显示逻辑稳定；既有 	ext-highlight-tool.test.js 继续通过。
 - 修复复制按钮导致工具栏再次定位的问题：在 TextSelectionQuickActionsFeature.#handleMouseUp 内判断若事件发生于工具栏自身则不重新展示，并在复制完成后调用 #clearSelection() 防止残留选择触发重定位。
 - Quick Actions 复制修复：在 #handleMouseUp 内识别工具栏交互，阻止 selectionchange 立刻清空状态；复制完成后调用 #clearSelection() 并隐藏按钮，确保剪贴板写入成功且面板不再移动。
+## 20251005203920 Annotation事件规范审查
+- 问题: annotation 模块的事件命名、数据结构和常量使用存在多处不符合既有规范的情况, 造成事件监听与发布脱节。
+- 背景: PDF_VIEWER_EVENTS 已给出统一事件清单, EventBus 使用指南要求通过 ScopedEventBus 区分局部/全局事件。
+- 相关模块: src/frontend/pdf-viewer/features/annotation/index.js, core/annotation-manager.js, core/tool-registry.js, tools/{comment,text-highlight,screenshot}, components/annotation-sidebar-ui.js。
+- 现状梳理:
+  - CommentTool 仍发布 `annotation:jump:requested`, AnnotationFeature 监听的是 `annotation-navigation:jump:requested`, 导致跳转事件失配。
+  - TextHighlightTool 删除事件 payload 使用 `annotationId`, AnnotationManager #handleDeleteAnnotation 只接受 `id`, 删除流程不一致。
+  - 多数事件直接硬编码字符串, 未复用 `PDF_VIEWER_EVENTS`, 且 `annotation-navigation:jump:success` 等新事件未补登记到常量文件。
+  - 侧边栏触发 `pdf-viewer:annotation:*` 事件未遵循三段式命名, Notification 事件也缺少常量。
+  - 模块内全部通过 globalEventBus 通信, 未利用 ScopedEventBus 隔离内部事件。
+- 原子任务拆分:
+  1. 整理 annotation 模块现有事件清单, 标记命名/数据结构/常量差异。
+  2. 设计事件治理方案, 包含命名规范校准、常量补全、ScopedEventBus 引入及数据契约调整。
+## 202510052055 Annotation事件治理
+- AnnotationFeature 现优先使用 ScopedEventBus；缺省时基于 globalEventBus 创建并在卸载时销毁，跨模块事件通过 `emitGlobal/onGlobal` 分发。
+- PDF_VIEWER_EVENTS 补充：`ANNOTATION.NAVIGATION.JUMP_{REQUESTED,SUCCESS,FAILED}`、`ANNOTATION.SIDEBAR` 下的 FILTER/SORT/SETTINGS/ID 复制、CRUD 失败常量以及顶层 `NOTIFICATION.ERROR.TRIGGERED`。
+- AnnotationManager/ToolRegistry/CommentTool/TextHighlightTool/ScreenshotTool/AnnotationSidebarUI 全量改用事件常量；TextHighlightTool 删除请求参数改为 `id`；CommentTool 跳转使用导航常量。
+- 截图与高亮工具调用 `emitGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED)` 与 `emitGlobal(PDF_TRANSLATOR_EVENTS.TEXT.SELECTED)`，ScreenshotTool 错误提示使用通知常量。
+- text-highlight-tool 测试同步更新，验证颜色变更、跳转、翻译场景下新事件流。

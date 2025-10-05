@@ -232,7 +232,7 @@ export class ScreenshotTool extends IAnnotationTool {
    */
   #setupJumpEventListener() {
     // 监听标注跳转成功事件
-    this.#eventBus.on('annotation-navigation:jump:success', ({ annotation }) => {
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_SUCCESS, ({ annotation }) => {
       this.#logger.info('[ScreenshotTool] ===== Jump success event received =====');
       this.#logger.info('[ScreenshotTool] Annotation type:', annotation?.type);
 
@@ -248,7 +248,7 @@ export class ScreenshotTool extends IAnnotationTool {
     });
 
     // 监听标注创建成功事件（初次截图完成后立即显示标记框）
-    this.#eventBus.on('annotation:create:success', ({ annotation }) => {
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, ({ annotation }) => {
       // 只处理截图类型的标注
       if (annotation && annotation.type === AnnotationType.SCREENSHOT) {
         this.#logger.info('[ScreenshotTool] Screenshot annotation created, rendering marker immediately');
@@ -261,7 +261,7 @@ export class ScreenshotTool extends IAnnotationTool {
     });
 
     // 监听标注删除成功事件（自动移除标记框）
-    this.#eventBus.on('annotation:delete:success', ({ id }) => {
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DELETED, ({ id }) => {
       this.#logger.info(`[ScreenshotTool] Annotation deleted, removing marker: ${id}`);
       this.removeScreenshotMarker(id);
     });
@@ -474,7 +474,7 @@ export class ScreenshotTool extends IAnnotationTool {
       };
 
       // 5. 发布创建事件 (包装成{annotation: ...}格式)
-      this.#eventBus.emit('annotation:create:requested', {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, {
         annotation: annotationData
       });
 
@@ -488,7 +488,7 @@ export class ScreenshotTool extends IAnnotationTool {
       });
 
       // 显示错误提示 (修复事件名称格式)
-      this.#eventBus.emit('notification:error:triggered', {
+      this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.NOTIFICATION.ERROR.TRIGGERED, {
         message: '截图失败: ' + error.message
       });
     }
@@ -1009,7 +1009,7 @@ export class ScreenshotTool extends IAnnotationTool {
       jumpBtn.addEventListener('click', (event) => {
         event.stopPropagation();
         this.#handleJumpToAnnotation(annotation.id);
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, { sidebarId: 'annotation' });
+        this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, { sidebarId: 'annotation' });
         setTimeout(() => {
           this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SELECT, { id: annotation.id });
         }, 150);

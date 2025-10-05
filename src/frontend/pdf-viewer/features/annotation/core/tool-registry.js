@@ -31,6 +31,7 @@
 
 import { getLogger } from '../../../../common/utils/logger.js';
 import { validateAnnotationTool } from '../interfaces/IAnnotationTool.js';
+import { PDF_VIEWER_EVENTS } from '../../../../common/event/pdf-viewer-constants.js';
 
 /**
  * 工具注册表类
@@ -97,13 +98,13 @@ export class ToolRegistry {
    */
   #setupEventListeners() {
     // 监听工具激活请求
-    this.#eventBus.on('annotation-tool:activate:requested', (data) => {
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.TOOL.ACTIVATE, (data) => {
       const { tool } = data;
       this.activateTool(tool);
     }, { subscriberId: 'ToolRegistry' });
 
     // 监听工具停用请求
-    this.#eventBus.on('annotation-tool:deactivate:requested', () => {
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.TOOL.DEACTIVATE, () => {
       this.deactivateCurrentTool();
     }, { subscriberId: 'ToolRegistry' });
   }

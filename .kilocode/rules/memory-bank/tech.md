@@ -291,3 +291,7 @@ python ai_launcher.py start --module pdf-home
 - 配套测试：python ai-scripts/tests/test_pdf_viewer_launcher_diagnose.py。
 - 推荐排查：先 --diagnose-only --disable-js-console 验证 JS 日志线程，再逐项恢复。
 
+## 2025-10-05 Annotation事件规范
+- AnnotationFeature 缺省使用 ScopedEventBus，跨模块交互统一经 `emitGlobal/onGlobal`。
+- PDF_VIEWER_EVENTS 新增注解导航 SUCCESS/FAILED、侧边栏辅助按钮及通知错误常量，CRUD 失败常量也需使用同名常量调用。
+- 工具类（Comment/Screenshot/TextHighlight）与 AnnotationManager/Event UI 必须引用常量，不得再硬编码字符串事件。

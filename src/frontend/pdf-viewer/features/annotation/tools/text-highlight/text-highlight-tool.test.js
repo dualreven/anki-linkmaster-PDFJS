@@ -1,5 +1,7 @@
 ﻿import { jest } from '@jest/globals';
 import { TextHighlightTool } from './index.js';
+import { PDF_VIEWER_EVENTS } from '../../../../../common/event/pdf-viewer-constants.js';
+import { PDF_TRANSLATOR_EVENTS } from '../../../pdf-translator/events.js';
 
 let mockHighlightRendererInstance;
 let mockHighlightActionMenuInstance;
@@ -38,11 +40,17 @@ describe('TextHighlightTool integration with action menu', () => {
     handlers = {};
     eventBus = {
       emit: jest.fn(),
+      emitGlobal: jest.fn(),
       on: jest.fn((event, handler) => {
         handlers[event] = handler;
         return () => delete handlers[event];
       }),
-      off: jest.fn()
+      onGlobal: jest.fn((event, handler) => {
+        handlers[event] = handler;
+        return () => delete handlers[event];
+      }),
+      off: jest.fn(),
+      offGlobal: jest.fn()
     };
 
     mockHighlightRendererInstance = {
@@ -88,7 +96,7 @@ describe('TextHighlightTool integration with action menu', () => {
 
   it('attaches highlight action menu when annotation is created', () => {
     const annotation = createAnnotation();
-    handlers['annotation:create:success']({ annotation });
+    handlers[PDF_VIEWER_EVENTS.ANNOTATION.CREATED]({ annotation });
 
     expect(mockHighlightRendererInstance.renderHighlight).toHaveBeenCalledWith(
       annotation.pageNumber,
@@ -103,7 +111,7 @@ describe('TextHighlightTool integration with action menu', () => {
 
   it('emits update request when color change handler triggered', () => {
     const annotation = createAnnotation();
-    handlers['annotation:create:success']({ annotation });
+    handlers[PDF_VIEWER_EVENTS.ANNOTATION.CREATED]({ annotation });
 
     const { onColorChange } = mockHighlightActionMenuInstance.options;
     onColorChange(annotation, '#4caf50');
@@ -111,7 +119,7 @@ describe('TextHighlightTool integration with action menu', () => {
     expect(mockHighlightRendererInstance.updateHighlightColor).toHaveBeenCalledWith(annotation.id, '#4caf50');
     expect(mockHighlightActionMenuInstance.updateColor).toHaveBeenCalledWith(annotation.id, '#4caf50');
     expect(eventBus.emit).toHaveBeenCalledWith(
-      'annotation:update:requested',
+      PDF_VIEWER_EVENTS.ANNOTATION.UPDATE,
       expect.objectContaining({
         id: annotation.id,
         changes: {
@@ -125,40 +133,42 @@ describe('TextHighlightTool integration with action menu', () => {
 
   it('emits navigation and sidebar events when jump handler triggered', () => {
     const annotation = createAnnotation();
-    handlers['annotation:create:success']({ annotation });
+    handlers[PDF_VIEWER_EVENTS.ANNOTATION.CREATED]({ annotation });
 
     const { onJump } = mockHighlightActionMenuInstance.options;
     eventBus.emit.mockClear();
+    eventBus.emitGlobal.mockClear();
     onJump(annotation);
 
-    expect(eventBus.emit).toHaveBeenCalledWith(
-      'sidebar:open:requested',
+    expect(eventBus.emitGlobal).toHaveBeenCalledWith(
+      PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED,
       { sidebarId: 'annotation' }
     );
     expect(eventBus.emit).toHaveBeenCalledWith(
-      'annotation:select:requested',
+      PDF_VIEWER_EVENTS.ANNOTATION.SELECT,
       { id: annotation.id }
     );
     expect(eventBus.emit).toHaveBeenCalledWith(
-      'annotation-navigation:jump:requested',
+      PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
       { annotation }
     );
   });
 
   it('emits translator event when translate handler triggered', () => {
     const annotation = createAnnotation();
-    handlers['annotation:create:success']({ annotation });
+    handlers[PDF_VIEWER_EVENTS.ANNOTATION.CREATED]({ annotation });
 
     const { onTranslate } = mockHighlightActionMenuInstance.options;
     eventBus.emit.mockClear();
+    eventBus.emitGlobal.mockClear();
     onTranslate(annotation);
 
-    expect(eventBus.emit).toHaveBeenCalledWith(
-      'sidebar:open:requested',
+    expect(eventBus.emitGlobal).toHaveBeenCalledWith(
+      PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED,
       { sidebarId: 'translate' }
     );
-    expect(eventBus.emit).toHaveBeenCalledWith(
-      'pdf-translator:text:selected',
+    expect(eventBus.emitGlobal).toHaveBeenCalledWith(
+      PDF_TRANSLATOR_EVENTS.TEXT.SELECTED,
       expect.objectContaining({
         text: annotation.data.selectedText,
         annotationId: annotation.id

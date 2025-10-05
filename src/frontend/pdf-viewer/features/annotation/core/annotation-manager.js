@@ -16,6 +16,7 @@
 
 import { getLogger } from '../../../../common/utils/logger.js';
 import { Annotation } from '../models/annotation.js';
+import { PDF_VIEWER_EVENTS } from '../../../../common/event/pdf-viewer-constants.js';
 
 /**
  * 标注管理器类
@@ -82,22 +83,22 @@ export class AnnotationManager {
    */
   #setupEventListeners() {
     // 创建标注
-    this.#eventBus.on('annotation:create:requested', (data) => {
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, (data) => {
       this.#handleCreateAnnotation(data);
     }, { subscriberId: 'AnnotationManager' });
 
     // 更新标注
-    this.#eventBus.on('annotation:update:requested', (data) => {
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.UPDATE, (data) => {
       this.#handleUpdateAnnotation(data);
     }, { subscriberId: 'AnnotationManager' });
 
     // 删除标注
-    this.#eventBus.on('annotation:delete:requested', (data) => {
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DELETE, (data) => {
       this.#handleDeleteAnnotation(data);
     }, { subscriberId: 'AnnotationManager' });
 
     // 加载标注
-    this.#eventBus.on('annotation-data:load:requested', (data) => {
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, (data) => {
       this.#handleLoadAnnotations(data);
     }, { subscriberId: 'AnnotationManager' });
   }
@@ -141,7 +142,7 @@ export class AnnotationManager {
       this.#annotations.set(annotationObj.id, annotationObj);
 
       // 发布成功事件
-      this.#eventBus.emit('annotation:create:success', {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, {
         annotation: annotationObj
       });
 
@@ -149,7 +150,7 @@ export class AnnotationManager {
 
     } catch (error) {
       this.#logger.error('[AnnotationManager] Failed to create annotation:', error);
-      this.#eventBus.emit('annotation:create:failed', {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.CREATE_FAILED, {
         error: error.message
       });
     }
@@ -209,7 +210,7 @@ export class AnnotationManager {
       }
 
       // 发布成功事件
-      this.#eventBus.emit('annotation:update:success', {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.UPDATED, {
         annotation
       });
 
@@ -217,7 +218,7 @@ export class AnnotationManager {
 
     } catch (error) {
       this.#logger.error('[AnnotationManager] Failed to update annotation:', error);
-      this.#eventBus.emit('annotation:update:failed', {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.UPDATE_FAILED, {
         error: error.message
       });
     }
@@ -252,7 +253,7 @@ export class AnnotationManager {
       this.#annotations.delete(id);
 
       // 发布成功事件
-      this.#eventBus.emit('annotation:delete:success', {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DELETED, {
         id,
         annotation
       });
@@ -261,7 +262,7 @@ export class AnnotationManager {
 
     } catch (error) {
       this.#logger.error('[AnnotationManager] Failed to delete annotation:', error);
-      this.#eventBus.emit('annotation:delete:failed', {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DELETE_FAILED, {
         error: error.message
       });
     }
@@ -322,7 +323,7 @@ export class AnnotationManager {
       });
 
       // 发布成功事件
-      this.#eventBus.emit('annotation-data:load:success', {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, {
         annotations,
         count: annotations.length
       });
@@ -331,7 +332,7 @@ export class AnnotationManager {
 
     } catch (error) {
       this.#logger.error('[AnnotationManager] Failed to load annotations:', error);
-      this.#eventBus.emit('annotation-data:load:failed', {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD_FAILED, {
         error: error.message
       });
     }

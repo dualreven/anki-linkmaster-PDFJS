@@ -61,17 +61,20 @@ export class TextSelectionQuickActionsFeature {
     document.addEventListener('selectionchange', this.#selectionChangeHandler);
     document.addEventListener('scroll', this.#scrollHandler, true);
 
+    const scopedToolActivatedEvent = `@annotation/${PDF_VIEWER_EVENTS.ANNOTATION.TOOL.ACTIVATED}`;
+    const scopedToolDeactivatedEvent = `@annotation/${PDF_VIEWER_EVENTS.ANNOTATION.TOOL.DEACTIVATED}`;
+
     this.#unsubscribes.push(
-      this.#eventBus.on('annotation-tool:activate:success', () => {
-        this.#logger.debug('Annotation tool activated, disabling quick actions');
+      this.#eventBus.on(scopedToolActivatedEvent, () => {
+        this.#logger.debug('Annotation tool activated (scoped), disabling quick actions');
         this.#isAnnotationMode = true;
         this.#hideToolbar();
       })
     );
 
     this.#unsubscribes.push(
-      this.#eventBus.on('annotation-tool:deactivate:success', () => {
-        this.#logger.debug('Annotation tool deactivated, enabling quick actions');
+      this.#eventBus.on(scopedToolDeactivatedEvent, () => {
+        this.#logger.debug('Annotation tool deactivated (scoped), enabling quick actions');
         this.#isAnnotationMode = false;
       })
     );

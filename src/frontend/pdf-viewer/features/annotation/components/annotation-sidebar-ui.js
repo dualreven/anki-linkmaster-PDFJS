@@ -287,17 +287,17 @@ export class AnnotationSidebarUI {
     switch (buttonId) {
       case 'filter':
         // 切换筛选面板显示状态（第二期功能）
-        this.#eventBus.emit('pdf-viewer:annotation:filter:toggle', {});
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.FILTER_TOGGLE, {});
         this.#showToast('筛选功能开发中...', 'info');
         break;
       case 'sort':
         // 切换排序面板显示状态（第二期功能）
-        this.#eventBus.emit('pdf-viewer:annotation:sort:toggle', {});
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.SORT_TOGGLE, {});
         this.#showToast('排序功能开发中...', 'info');
         break;
       case 'settings':
         // 打开设置面板（预留功能）
-        this.#eventBus.emit('pdf-viewer:annotation:settings:open', {});
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.SETTINGS_OPEN, {});
         this.#showToast('设置功能开发中...', 'info');
         break;
       default:
@@ -399,7 +399,7 @@ export class AnnotationSidebarUI {
     ));
 
     // 监听侧边栏关闭事件（第二期：关闭时停用所有工具）
-    this.#unsubs.push(this.#eventBus.on(
+    this.#unsubs.push(this.#eventBus.onGlobal(
       PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.CLOSED_COMPLETED,
       (data) => this.#handleSidebarClosed(data),
       { subscriberId: 'AnnotationSidebarUI' }
@@ -1354,7 +1354,7 @@ export class AnnotationSidebarUI {
     if (success) {
       this.#showCopyToast('✓ ID已复制');
       // 发出ID复制事件（修正为3段格式）
-      this.#eventBus.emit('annotation:id-copy:success', { id: annotationId });
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.ID_COPY_SUCCESS, { id: annotationId });
     } else {
       this.#showCopyToast('✗ 复制失败');
     }

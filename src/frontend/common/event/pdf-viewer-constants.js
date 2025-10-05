@@ -1,4 +1,4 @@
-/**
+﻿/**
  * PDF-Viewer 事件常量定义
  * @file 定义 PDF-Viewer 模块专用的事件常量
  * @module PDFViewerEvents
@@ -904,6 +904,14 @@ export const PDF_VIEWER_EVENTS = {
       OPENED: 'annotation-sidebar:toggle:opened',
       /** 侧边栏已关闭 */
       CLOSED: 'annotation-sidebar:toggle:closed',
+      /** 过滤器开关 */
+      FILTER_TOGGLE: 'annotation-sidebar:filter:toggle',
+      /** 排序方式开关 */
+      SORT_TOGGLE: 'annotation-sidebar:sort:toggle',
+      /** 打开侧边栏设置 */
+      SETTINGS_OPEN: 'annotation-sidebar:settings:open',
+      /** 标注ID复制成功通知 */
+      ID_COPY_SUCCESS: 'annotation:id-copy:success',
     },
 
     /**
@@ -927,14 +935,20 @@ export const PDF_VIEWER_EVENTS = {
     CREATE: 'annotation:create:requested',
     /** 标注已创建 */
     CREATED: 'annotation:create:success',
+    /** 创建标注失败 */
+    CREATE_FAILED: 'annotation:create:failed',
     /** 更新标注请求 */
     UPDATE: 'annotation:update:requested',
     /** 标注已更新 */
     UPDATED: 'annotation:update:success',
+    /** 更新标注失败 */
+    UPDATE_FAILED: 'annotation:update:failed',
     /** 删除标注请求 */
     DELETE: 'annotation:delete:requested',
     /** 标注已删除 */
     DELETED: 'annotation:delete:success',
+    /** 删除标注失败 */
+    DELETE_FAILED: 'annotation:delete:failed',
 
     /**
      * 标注交互事件
@@ -943,7 +957,16 @@ export const PDF_VIEWER_EVENTS = {
     SELECT: 'annotation:select:requested',
     /** 标注已选中 */
     SELECTED: 'annotation:select:success',
-    /** 跳转到标注位置 */
+    /** 标注导航事件 */
+    NAVIGATION: {
+      /** 请求跳转到标注位置 */
+      JUMP_REQUESTED: 'annotation-navigation:jump:requested',
+      /** 标注跳转成功 */
+      JUMP_SUCCESS: 'annotation-navigation:jump:success',
+      /** 标注跳转失败 */
+      JUMP_FAILED: 'annotation-navigation:jump:failed',
+    },
+    /** 跳转到标注位置（兼容旧常量命名） */
     JUMP_TO: 'annotation-navigation:jump:requested',
     /** 高亮标注（闪烁效果） */
     HIGHLIGHT: 'annotation:highlight:requested',
@@ -1015,7 +1038,16 @@ export const PDF_VIEWER_EVENTS = {
       /** 位置已选择 */
       POSITION_SELECTED: 'annotation-comment-tool:position:selected',
     },
-  }
+  },
+
+  NOTIFICATION: {
+    /** 错误提示事件 */
+    ERROR: {
+      /** 触发错误提示 */
+      TRIGGERED: 'notification:error:triggered',
+    },
+  },
+
 };
 
 /**
