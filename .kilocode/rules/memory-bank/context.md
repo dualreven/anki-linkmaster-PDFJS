@@ -1391,3 +1391,15 @@ AnnotationSidebarUI → 监听并添加卡片 (只一次)
 - AnnotationManager/ToolRegistry/CommentTool/TextHighlightTool/ScreenshotTool/AnnotationSidebarUI 全量改用事件常量；TextHighlightTool 删除请求参数改为 `id`；CommentTool 跳转使用导航常量。
 - 截图与高亮工具调用 `emitGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED)` 与 `emitGlobal(PDF_TRANSLATOR_EVENTS.TEXT.SELECTED)`，ScreenshotTool 错误提示使用通知常量。
 - text-highlight-tool 测试同步更新，验证颜色变更、跳转、翻译场景下新事件流。
+## 202510052139 标注卡片删除按钮
+- 需求: 在标注侧边栏的卡片上新增删除按钮，统一触发 annotation 删除流程。
+- 相关文件: src/frontend/pdf-viewer/features/annotation/components/annotation-sidebar-ui.js, 各工具 createAnnotationCard 实现。
+- 约束: 按钮需复用现有删除事件 (PDF_VIEWER_EVENTS.ANNOTATION.DELETE)，遵循侧边栏样式规范。
+- 原子任务:
+  1. 梳理卡片渲染入口，决定统一处理或分工具扩展。
+  2. 实现删除按钮 DOM & 事件，调用公共删除逻辑。
+  3. 更新 UI/测试，验证操作。
+## 202510052150 标注UI表情优化
+- 需求: 在标注插件系统UI（侧边栏工具按钮、卡片按钮、快捷操作按钮等）使用Unicode表情取代纯文字标识。
+- 关注范围: annotation-sidebar-ui, tools下的按钮, text-selection-quick-actions。
+- 注意: 保留tooltip解释文字，确保表情含义直观。

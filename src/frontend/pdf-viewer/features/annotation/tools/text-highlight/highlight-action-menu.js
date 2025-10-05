@@ -186,14 +186,14 @@ export class HighlightActionMenu {
       return btn;
     };
 
-    const deleteBtn = createButton({ label: '删', title: '删除标注', action: 'delete', background: '#f44336' });
+    const deleteBtn = createButton({ label: '🗑️', title: '删除标注', action: 'delete', background: '#f44336' });
     deleteBtn.addEventListener('click', (event) => {
       event.stopPropagation();
       hideToolbar();
       this.#onDelete?.(annotation);
     });
 
-    const copyBtn = createButton({ label: '复制', title: '复制文本', action: 'copy' });
+    const copyBtn = createButton({ label: '📋', title: '复制文本', action: 'copy' });
     copyBtn.addEventListener('click', (event) => {
       event.stopPropagation();
       hideToolbar();
@@ -244,14 +244,14 @@ export class HighlightActionMenu {
 
     updateActiveColor(state.activeColor);
 
-    const jumpBtn = createButton({ label: '↗', title: '打开标注栏定位卡片', action: 'jump' });
+    const jumpBtn = createButton({ label: '🧭', title: '打开标注栏定位卡片', action: 'jump' });
     jumpBtn.addEventListener('click', (event) => {
       event.stopPropagation();
       hideToolbar();
       this.#onJump?.(annotation);
     });
 
-    const translateBtn = createButton({ label: '译', title: '发送到翻译栏', action: 'translate' });
+    const translateBtn = createButton({ label: '🌐', title: '发送到翻译栏', action: 'translate' });
     translateBtn.addEventListener('click', (event) => {
       event.stopPropagation();
       hideToolbar();
