@@ -937,3 +937,12 @@ const service = new NavigationService();
 - 如提供 service_registry，则内部创建 PDFLibraryAPI(service_registry=...)，否则保持原逻辑（无门面时走回退）
 - 维持对现有测试的兼容（仍可直接设置 server.pdf_library_api = Fake 实例）
  
+
+## 合并 main 并适配后端 API 重构（兼容实现）
+- 时间: 2025-10-06 14:45:36
+- 操作: 合并 origin/main 到当前分支 d-main-20250927，并解决 memory-bank/context.md 冲突（保留双方更新）。
+- 变更:
+  - src/backend/api/pdf_library_api.py: 为 ServiceRegistry 引入 try/except 可选导入，缺失时提供最小桩（register/has/get）与常量，确保 test_pdf_library_api 可运行；保留后续接入真实 ServiceRegistry 的能力。
+  - src/backend/msgCenter_server/standard_server.py: 对 ServiceRegistry 采用可选导入与最小桩声明，维持注入接口不变。
+- 测试: 后端相关单测 17 通过（命令: PYTHONPATH=src python -m pytest -q src/backend/api/__tests__/test_pdf_library_api.py src/backend/msgCenter_server/__tests__/test_standard_server_bookmarks.py）。
+- 后续: 如需完整跟进 main 上的 API 插件隔离重构，请创建子任务落实 service_registry 与域服务实现（search/add/bookmark），当前仅提供兼容层避免功能回归。
