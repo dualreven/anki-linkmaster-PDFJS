@@ -30,6 +30,7 @@ export class UIManagerCore {
   #uiLayoutControls;
   #resizeObserver;
   #unsubscribeFunctions = [];
+  #currentPdfId = null; // 当前 PDF 的 ID
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
@@ -91,6 +92,9 @@ export class UIManagerCore {
       // 初始化UI控件
       await this.#initializeUIControls();
 
+      // 初始化复制 PDF ID 按钮
+      this.#setupCopyPdfIdButton();
+
       this.#logger.info("UI Manager Core initialized successfully");
     } catch (error) {
       this.#logger.error("Failed to initialize UI Manager Core:", error);
@@ -129,9 +133,23 @@ export class UIManagerCore {
 
     const loadSuccessUnsub = this.#eventBus.on(
       PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
-      ({ pdfDocument }) => {
+      ({ pdfDocument, filename }) => {
         this.#stateManager.updateLoadingState(false, true);
         this.#domManager.setLoadingState(false);
+
+        // 更新 header 标题为书名（文件名）
+        if (filename) {
+          this.#updateHeaderTitle(filename);
+          // 若尚未获取到 pdfId，则从 filename 回填（移除 .pdf 扩展名）
+          if (!this.#currentPdfId) {
+            const derivedId = filename.toLowerCase().endsWith('.pdf')
+              ? filename.slice(0, -4)
+              : filename;
+            this.#currentPdfId = derivedId;
+            this.#updateCopyButtonVisibility();
+            this.#logger.info(`Derived PDF ID from filename: ${derivedId}`);
+          }
+        }
 
         // 加载PDF到PDFViewerManager
         if (this.#pdfViewerManager && pdfDocument) {
@@ -164,6 +182,23 @@ export class UIManagerCore {
       { subscriberId: 'UIManagerCore' }
     );
     this.#unsubscribeFunctions.push(loadFailedUnsub);
+
+    // 监听 URL 参数解析事件，获取 pdf-id
+    const urlParamsParsedUnsub = this.#eventBus.on(
+      PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.PARSED,
+      (data) => {
+        this.#logger.info('[UIManagerCore] URL_PARAMS.PARSED event received:', data);
+        if (data?.pdfId) {
+          this.#currentPdfId = data.pdfId;
+          this.#updateCopyButtonVisibility();
+          this.#logger.info(`✅ PDF ID captured and button shown: ${this.#currentPdfId}`);
+        } else {
+          this.#logger.warn('[UIManagerCore] URL_PARAMS.PARSED event has no pdfId');
+        }
+      },
+      { subscriberId: 'UIManagerCore' }
+    );
+    this.#unsubscribeFunctions.push(urlParamsParsedUnsub);
 
     this.#logger.info("Event listeners setup complete");
   }
@@ -245,6 +280,345 @@ export class UIManagerCore {
       }, { actorId: 'UIManagerCore.Wheel' });
 
       this.#logger.debug(`Wheel zoom ${direction} (step: ${smoothStep})`);
+    }
+  }
+
+  /**
+   * 更新 header 标题为 PDF 书名
+   * @param {string} filename - PDF 文件名
+   * @private
+   */
+  #updateHeaderTitle(filename) {
+    const titleElement = document.getElementById('pdf-title');
+    if (!titleElement) {
+      this.#logger.warn('Header title element not found');
+      return;
+    }
+
+    // 移除 .pdf 扩展名（如果存在）
+    const displayName = filename.endsWith('.pdf')
+      ? filename.slice(0, -4)
+      : filename;
+
+    titleElement.textContent = displayName;
+    this.#logger.info(`Header title updated: ${displayName}`);
+  }
+
+  /**
+   * 设置复制 PDF ID 按钮
+   * @private
+   */
+  #setupCopyPdfIdButton() {
+    const copyBtn = document.getElementById('copy-pdf-id-btn');
+    if (!copyBtn) {
+      this.#logger.warn('Copy PDF ID button not found');
+      return;
+    }
+
+    // 尝试从 URL 直接获取 pdf-id 作为备选
+    const urlParams = new URLSearchParams(window.location.search);
+    const pdfIdFromUrl = urlParams.get('pdf-id');
+    if (pdfIdFromUrl && !this.#currentPdfId) {
+      this.#currentPdfId = pdfIdFromUrl;
+      this.#updateCopyButtonVisibility();
+      this.#logger.info(`PDF ID obtained directly from URL: ${pdfIdFromUrl}`);
+    }
+
+    copyBtn.addEventListener('click', async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      this.#logger.info(`Copy button clicked, currentPdfId: ${this.#currentPdfId}`);
+
+      if (!this.#currentPdfId) {
+        this.#logger.warn('No PDF ID available to copy');
+        alert('无法复制：PDF ID 不可用\n请确保 URL 中包含 pdf-id 参数');
+        return;
+      }
+
+      try {
+        // 复制到剪贴板（带超时保护）
+        await this.#copyWithTimeout(this.#currentPdfId, 800);
+
+        // 视觉反馈：添加"已复制"状态
+        copyBtn.classList.add('copied');
+        copyBtn.title = `已复制: ${this.#currentPdfId}`;
+        this.#showToast('✓ PDF ID 已复制');
+
+        this.#logger.info(`✅ PDF ID copied to clipboard: ${this.#currentPdfId}`);
+
+        // 2秒后恢复原状态
+        setTimeout(() => {
+          copyBtn.classList.remove('copied');
+          copyBtn.title = '复制 PDF ID';
+          this.#logger.debug('Copy button state reset');
+        }, 2000);
+      } catch (error) {
+        this.#logger.error('Failed to copy PDF ID to clipboard:', error);
+        // 如果剪贴板 API 不可用或超时，尝试使用旧方法
+        try {
+          this.#fallbackCopyToClipboard(this.#currentPdfId);
+
+          // 备用方法成功，也显示视觉反馈
+          copyBtn.classList.add('copied');
+          copyBtn.title = `已复制: ${this.#currentPdfId}`;
+          this.#showToast('✓ PDF ID 已复制');
+
+          setTimeout(() => {
+            copyBtn.classList.remove('copied');
+            copyBtn.title = '复制 PDF ID';
+          }, 2000);
+        } catch (fallbackError) {
+          this.#logger.error('Fallback copy also failed:', fallbackError);
+          this.#showToast('✗ 复制失败，已提供手动复制', 'error');
+          // 最终兜底：显示手动复制对话框
+          this.#showManualCopyDialog(this.#currentPdfId);
+        }
+      }
+    });
+
+    this.#logger.info('Copy PDF ID button initialized');
+  }
+
+  /**
+   * 尝试使用 Clipboard API 复制，超时则抛出错误以触发降级
+   * @param {string} text - 要复制的文本
+   * @param {number} timeoutMs - 超时时间（毫秒）
+   * @private
+   */
+  async #copyWithTimeout(text, timeoutMs = 800) {
+    if (!(navigator && navigator.clipboard && typeof navigator.clipboard.writeText === 'function')) {
+      throw new Error('clipboard-api-not-available');
+    }
+
+    const writePromise = navigator.clipboard.writeText(text);
+    const timeoutPromise = new Promise((_, reject) => {
+      const id = setTimeout(() => {
+        clearTimeout(id);
+        reject(new Error('clipboard-timeout'));
+      }, timeoutMs);
+    });
+
+    return Promise.race([writePromise, timeoutPromise]);
+  }
+
+  /**
+   * 显示Toast提示
+   * @param {string} message - 提示文本
+   * @param {'success'|'error'|'info'} [type='success'] - 提示类型
+   * @private
+   */
+  #showToast(message, type = 'success') {
+    const typeStyles = {
+      success: 'background: #2e7d32',
+      error: 'background: #c62828',
+      info: 'background: #1565c0'
+    };
+
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    toast.style.cssText = [
+      'position: fixed',
+      'top: 20px',
+      'left: 50%',
+      'transform: translateX(-50%)',
+      typeStyles[type] || typeStyles.info,
+      'color: #fff',
+      'padding: 10px 20px',
+      'border-radius: 4px',
+      'font-size: 14px',
+      'font-weight: 500',
+      'box-shadow: 0 4px 12px rgba(0,0,0,0.2)',
+      'z-index: 10000',
+      'animation: slideDown 0.3s ease-out, fadeOut 0.3s ease-out 2.2s',
+      'pointer-events: none'
+    ].join(';');
+
+    // 添加动画样式（如无）
+    if (!document.getElementById('toast-animation-styles')) {
+      const style = document.createElement('style');
+      style.id = 'toast-animation-styles';
+      style.textContent = `
+        @keyframes slideDown {
+          from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+          to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+        @keyframes fadeOut {
+          from { opacity: 1; }
+          to { opacity: 0; }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2500);
+  }
+
+  /**
+   * 显示手动复制对话框（最终兜底）
+   * @param {string} text - 待复制文本
+   * @private
+   */
+  #showManualCopyDialog(text) {
+    // 避免重复创建
+    if (document.getElementById('manual-copy-overlay')) {
+      const input = document.getElementById('manual-copy-input');
+      if (input) {
+        input.value = text || '';
+        input.focus();
+        input.select();
+      }
+      return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.id = 'manual-copy-overlay';
+    overlay.style.cssText = [
+      'position: fixed',
+      'inset: 0',
+      'background: rgba(0,0,0,0.35)',
+      'display: flex',
+      'align-items: center',
+      'justify-content: center',
+      'z-index: 10001'
+    ].join(';');
+
+    const dialog = document.createElement('div');
+    dialog.style.cssText = [
+      'background: #fff',
+      'padding: 16px',
+      'border-radius: 8px',
+      'min-width: 320px',
+      'max-width: 80vw',
+      'box-shadow: 0 8px 24px rgba(0,0,0,0.2)',
+      'font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif'
+    ].join(';');
+
+    const title = document.createElement('div');
+    title.textContent = '手动复制 PDF ID';
+    title.style.cssText = 'font-size:16px;font-weight:600;margin-bottom:8px;color:#333;';
+
+    const tip = document.createElement('div');
+    tip.textContent = '内容已选中，按 Ctrl+C 复制（或右键复制）';
+    tip.style.cssText = 'font-size:12px;color:#666;margin-bottom:8px;';
+
+    const input = document.createElement('input');
+    input.id = 'manual-copy-input';
+    input.type = 'text';
+    input.value = text || '';
+    input.readOnly = true;
+    input.style.cssText = [
+      'width: 100%',
+      'padding: 8px 10px',
+      'border: 1px solid #ddd',
+      'border-radius: 4px',
+      'font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, \'Liberation Mono\', monospace',
+      'font-size: 13px',
+      'color: #333'
+    ].join(';');
+
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:12px;';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '关闭';
+    closeBtn.className = 'btn';
+    closeBtn.style.cssText = 'padding:6px 12px;border:1px solid #ccc;background:#f8f9fa;border-radius:4px;cursor:pointer;';
+    closeBtn.addEventListener('click', () => overlay.remove());
+
+    const tryCopyBtn = document.createElement('button');
+    tryCopyBtn.textContent = '复制';
+    tryCopyBtn.className = 'btn';
+    tryCopyBtn.style.cssText = 'padding:6px 12px;border:1px solid #1976d2;background:#1976d2;color:#fff;border-radius:4px;cursor:pointer;';
+    tryCopyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(input.value);
+        this.#showToast('✓ 已复制');
+        overlay.remove();
+      } catch (e) {
+        // 尝试降级
+        try {
+          this.#fallbackCopyToClipboard(input.value);
+          this.#showToast('✓ 已复制');
+          overlay.remove();
+        } catch (e2) {
+          this.#showToast('✗ 复制失败，请手动 Ctrl+C', 'error');
+          input.focus();
+          input.select();
+        }
+      }
+    });
+
+    actions.appendChild(closeBtn);
+    actions.appendChild(tryCopyBtn);
+
+    dialog.appendChild(title);
+    dialog.appendChild(tip);
+    dialog.appendChild(input);
+    dialog.appendChild(actions);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    // 自动选中文本
+    setTimeout(() => {
+      input.focus();
+      input.select();
+    }, 0);
+
+    // 点击遮罩关闭
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+  }
+
+  /**
+   * 备用复制方法（兼容旧浏览器）
+   * @param {string} text - 要复制的文本
+   * @private
+   */
+  #fallbackCopyToClipboard(text) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    try {
+      const successful = document.execCommand('copy');
+      if (successful) {
+        this.#logger.info(`✅ PDF ID copied using fallback method: ${text}`);
+      } else {
+        throw new Error('execCommand returned false');
+      }
+    } catch (error) {
+      this.#logger.error('Fallback copy method failed:', error);
+      throw error;
+    } finally {
+      document.body.removeChild(textArea);
+    }
+  }
+
+  /**
+   * 更新复制按钮的可见性
+   * @private
+   */
+  #updateCopyButtonVisibility() {
+    const copyBtn = document.getElementById('copy-pdf-id-btn');
+    if (!copyBtn) {
+      this.#logger.warn('Cannot update button visibility: button not found');
+      return;
+    }
+
+    if (this.#currentPdfId) {
+      copyBtn.style.display = 'flex';
+      this.#logger.info(`✅ Copy button shown (PDF ID: ${this.#currentPdfId})`);
+    } else {
+      copyBtn.style.display = 'none';
+      this.#logger.debug('Copy button hidden (no PDF ID)');
     }
   }
 
