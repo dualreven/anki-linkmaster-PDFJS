@@ -1545,3 +1545,51 @@ AnnotationSidebarUI → 监听并添加卡片 (只一次)
 - 2025-10-06：PDFLibraryAPI 增补 `list_bookmarks`/`save_bookmarks`/`search_records` 接口；实现 LocalStorage → 数据库的树形书签持久化转换，并重写搜索逻辑（支持 tokens、多字段权重、过滤、分页）。对应单测 `src/backend/api/__tests__/test_pdf_library_api.py` 全部通过。
 - 2025-10-06：WebSocket 标准服务器新增 `bookmark/list` 与 `bookmark/save` 消息处理，统一委派到 PDFLibraryAPI，并返回 `{bookmarks, root_ids}` / `{saved}` 数据结构。
 - 2025-10-06：前端书签存储切换为远端优先模型，BookmarkManager 支持注入 `wsClient`，默认通过 RemoteBookmarkStorage→WebSocket→PDFLibraryAPI 持久化；WSClient 新增 `request()` + `_settlePendingRequest`，统一请求/响应链路。
+
+## 2025-10-06 复制 PDF ID 按钮修复（当前）
+- 问题：书名左侧新增的“复制 PDF ID”按钮点击后未能复制 `pdf_id`，或在缺少 `pdf-id` URL 参数时按钮不显示/不可用。
+- 背景：
+  - UI 位于 `src/frontend/pdf-viewer/index.html:15`（`#copy-pdf-id-btn`）。
+  - 复制逻辑位于 `src/frontend/pdf-viewer/features/ui-manager/components/ui-manager-core.js`：
+    - 初始化按钮并绑定点击事件（`#setupCopyPdfIdButton()`）。
+    - 当前仅在收到 `URL_PARAMS.PARSED` 事件或直接从 URL 查询到 `pdf-id` 时设置 `#currentPdfId`。
+    - 在 `FILE.LOAD.SUCCESS` 事件中只更新标题，未回填 `#currentPdfId`。
+- 相关模块与函数：
+  - `URLNavigationFeature` 解析并发布 `PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.PARSED`（`features/url-navigation/index.js`）。
+  - `UIManagerCore` 事件处理与按钮逻辑（`#setupEventListeners()`、`#setupCopyPdfIdButton()`、`#updateHeaderTitle()`）。
+- 假设与可能根因：
+  1) 启动场景未携带 `pdf-id`（仅携带 `file`），导致 `#currentPdfId` 为空，按钮保持隐藏；
+  2) 某些环境下 `navigator.clipboard` 不可用，未触发降级逻辑或降级失败提示不明显；
+  3) 事件顺序或作用域问题导致未捕获 `URL_PARAMS.PARSED`。
+- 修复思路：
+  - 在 `FILE.LOAD.SUCCESS` 事件回调中，若 `#currentPdfId` 为空且存在 `filename`，从 `filename` 去除扩展名得到 `pdfId` 并设置，同时调用 `#updateCopyButtonVisibility()`。
+  - 保留现有 Clipboard API + `execCommand` 降级链路与 UI 提示。
+- 执行步骤：
+  1. 先编写 Jest 测试：
+     - 场景A：URL 含 `pdf-id=sample`，初始化后按钮可见，点击后调用 `navigator.clipboard.writeText('sample')`，按钮出现 `copied` 状态与 `title` 变更。
+     - 场景B：无 `pdf-id`，但触发 `FILE.LOAD.SUCCESS{ filename:'doc.pdf' }`，按钮应可见，点击复制 `doc`。
+  2. 实现 `UIManagerCore` 在 `FILE.LOAD.SUCCESS` 中的回填逻辑，并调用可见性更新。
+  3. 运行测试，确保通过；更新工作日志与本上下文。
+- 验收标准：
+  - 两个测试场景均通过；
+  - 按钮在无 `pdf-id` 但有 `filename` 的情况下可用；
+  - 复制成功后 2 秒内 UI 恢复初始提示；
+  - 未破坏既有事件与样式。
+- 已增加复制成功/失败的 Toast 提示（UIManagerCore.#showToast），避免仅依赖 title 悬浮提示造成“无提示”的用户感受。
+- 失败时同时保留 alert 兜底，便于 Qt WebEngine 等环境提示。
+
+- 追加：Clipboard 写入在部分环境（如 Qt WebEngine）可能卡住不返回，导致无提示。已在 UIManagerCore 中加入 #copyWithTimeout(800ms) 超时回退，确保点击后总有可视化反馈与兜底对话框。
+
+
+## 修复记录：PDF-Viewer 复制 PDF ID 按钮（2025-10-06）
+- 问题：书名左侧复制按钮点击后未能复制 pdf_id（在 Qt WebEngine 环境）
+- 根因：src/frontend/pdf-viewer/pyqt/main_window.py 禁用了 QWebEngineSettings.WebAttribute.JavascriptCanAccessClipboard
+- 方案：仅对 PDF-Viewer 窗口启用该属性（True）；保留前端超时保护与回退（execCommand 与手动复制对话框）
+- 变更文件：
+  - src/frontend/pdf-viewer/pyqt/main_window.py:82（实际行号以当前版本为准）
+- 验证步骤：
+  - 启动 python src/frontend/pdf-viewer/launcher.py --pdf-id sample
+  - 按钮可见 → 点击 → toast 提示“✓ PDF ID 已复制”，粘贴结果应为 sample
+  - 日志包含 ✅ PDF ID copied to clipboard: sample
+- 影响范围：仅 PDF-Viewer 窗口；不影响 pdf-home。
+
