@@ -351,6 +351,15 @@ export class WSClient {
         case "list":  // 兼容旧版广播类型
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.PDF_LIST;
           break;
+        // 统一将标准契约的 add 完成/失败 路由为通用响应，方便上层复用既有监听
+        case "pdf-library:add:completed":
+          this._settlePendingRequest(message);
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
+          break;
+        case "pdf-library:add:failed":
+          this._settlePendingRequest(message, { error: message?.error || message?.data });
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
+          break;
         case "bookmark:list:records":
           this._settlePendingRequest(message);
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.BOOKMARK_LIST;

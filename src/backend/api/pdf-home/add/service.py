@@ -38,7 +38,17 @@ class DefaultAddService(AddService):
                 return {"success": False, "error": f"文件不存在: {absolute_path}"}
 
             # Lazy import utilities to avoid hard dependency when unused
-            from ...pdf_manager.utils import FileValidator  # type: ignore
+            # 注意：该模块通过 importlib 加载为独立模块，无法依赖相对导入路径
+            from src.backend.pdf_manager.utils import FileValidator  # type: ignore
+
+            # 进一步校验可读性/权限等问题，直接返回清晰错误
+            try:
+                ok, msg = FileValidator.validate_file_operation(absolute_path, "read")
+                if not ok:
+                    return {"success": False, "error": msg or "文件不可读或权限不足"}
+            except Exception:
+                # 忽略 validate 的异常，走后续分支
+                pass
 
             if not FileValidator.is_pdf_file(absolute_path):
                 return {"success": False, "error": "仅支持添加 PDF 文件"}
@@ -48,16 +58,54 @@ class DefaultAddService(AddService):
 
             # 优先通过 pdf_manager 添加
             if context._pdf_manager is not None:  # type: ignore[attr-defined]
-                success, payload = context._pdf_manager.add_file(absolute_path)  # type: ignore[attr-defined]
+                # 兼容两类PDF管理器：
+                # - 标准管理器 StandardPDFManager.add_file -> Tuple[bool, Dict]
+                # - 旧版管理器 PDFManager.add_file -> bool
+                result = context._pdf_manager.add_file(absolute_path)  # type: ignore[attr-defined]
+                success = False
+                file_info: Dict[str, Any] = {}
+                payload = None
+                try:
+                    if isinstance(result, tuple) and len(result) == 2:
+                        success, payload = result
+                        if isinstance(payload, dict):
+                            file_info = payload
+                    elif isinstance(result, bool):
+                        success = result
+                        if success:
+                            # 尝试从管理器查询标准化的文件信息
+                            try:
+                                from src.backend.pdf_manager.models import PDFFile as _PDF  # type: ignore
+                                file_id = _PDF.generate_file_id(absolute_path)
+                                info_dict = context._pdf_manager.get_file_by_id(file_id)  # type: ignore[attr-defined]
+                                if isinstance(info_dict, dict):
+                                    file_info = info_dict
+                            except Exception:
+                                file_info = {}
+                    else:
+                        success = bool(result)
+                except Exception:
+                    success = False
+
                 if not success:
+                    # 给出更具体的失败原因
                     error_message = ""
+                    # 1) 尝试使用管理器的重复检测给出提示
+                    try:
+                        from src.backend.pdf_manager.models import PDFFile as _PDF  # type: ignore
+                        file_id = _PDF.generate_file_id(absolute_path)
+                        if getattr(context._pdf_manager, "file_list", None) is not None:  # type: ignore[attr-defined]
+                            if context._pdf_manager.file_list.exists(file_id):  # type: ignore[attr-defined]
+                                error_message = "文件已存在于列表中"
+                    except Exception:
+                        pass
+
+                    # 2) 如果管理器返回了负载，尽量取其 message/error
                     if isinstance(payload, dict):
                         error_message = payload.get("message") or payload.get("error") or ""
                     if not error_message:
                         error_message = "PDF文件添加失败"
                     return {"success": False, "error": error_message}
-
-                file_info = payload if isinstance(payload, dict) else {}
 
                 # 同步到数据库
                 try:
@@ -80,7 +128,7 @@ class DefaultAddService(AddService):
                 }
 
             # 无 manager，直接从文件构建记录
-            from ...pdf_manager.pdf_metadata_extractor import PDFMetadataExtractor  # type: ignore
+            from src.backend.pdf_manager.pdf_metadata_extractor import PDFMetadataExtractor  # type: ignore
 
             metadata = PDFMetadataExtractor.extract_metadata(absolute_path)
             if "error" in metadata:

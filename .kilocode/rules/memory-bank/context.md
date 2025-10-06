@@ -23,6 +23,28 @@
 **位置**: `src/frontend/common/utils/logger.js`
 
 **基本用法**:
+## 2025-10-07 Git 同步 - 合并 origin/main 到当前分支
+- 仓库: C:\Users\napretep\PycharmProjects\anki-linkmaster-B
+- 背景: 保持当前开发分支与远程 main 同步，避免后续提交产生大跨度差异，降低冲突风险。
+- 相关工具: git（fetch/merge/stash）、本地验证命令。
+
+### 执行步骤（原子化）
+1. 获取远程与当前分支信息：`git remote -v`、`git rev-parse --abbrev-ref HEAD`。
+2. 拉取远程：`git fetch origin --prune`，确认 `origin/main` 存在。
+3. 若工作区存在未提交改动，先 `git stash push -u -m "auto-stash: merge origin/main"`。
+4. 合并远程主线：`git merge --no-edit origin/main`。
+5. 若曾 stash，执行 `git stash pop` 并按需处理冲突。
+6. 验证结果：`git merge-base --is-ancestor origin/main HEAD` 返回 0 视为成功。
+
+### 预期结果
+- 当前分支包含 `origin/main` 的最新提交；若存在冲突，已在工作区标记等待人工处理。
+
+### 实际结果（2025-10-07 01:58）
+- 合并方式为 Fast-forward，已成功将 `origin/main` 合并至 `feature/pdf-home-add-delete-improvements`。
+- 存在本地改动（context.md），已自动 stash 并在合并后 pop 恢复。
+- 验证通过：`git merge-base --is-ancestor origin/main HEAD` => 0（OK）。
+- 未产生冲突，当前工作区保留对 context.md 的修改，待按需提交。
+
 ```javascript
 import { getLogger, LogLevel } from '../common/utils/logger.js';
 
@@ -1472,7 +1494,8 @@ todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/schemas/
 ### 依据
 - 前端：
   - src/frontend/common/event/event-constants.js 已收敛核心消息类型（pdf-library、bookmark、pdf-page、storage-kv/fs、capability、annotation）。
-  - src/frontend/common/ws/ws-client.js 已实现基于 equest_id 的泛化请求-响应结算，未知/未注册类型会显式报错。
+  - src/frontend/common/ws/ws-client.js 已实现基于 
+equest_id 的泛化请求-响应结算，未知/未注册类型会显式报错。
   - 全局事件白名单由 global-event-registry.js 自动收敛，防止未注册事件“泄漏”。
 - 契约：
   - 	odo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/schemas/** 已覆盖各域 JSON Schema（request/completed/failed）。
@@ -1557,3 +1580,24 @@ if (res?.status === 'success') { /* 使用 res.data */ }
 - annotation-manager.js 中重复的私有方法 `#deleteAnnotationFromBackend` 已去重
 - 保留的实现：基于 `#wsClient.request` 的删除逻辑
 - 构建验证通过：`pnpm run build:pdf-viewer`（无 Babel 报错）
+
+## 2025-10-07 pdf-home 添加PDF 修复
+- 背景: 前端通过 QWebChannel 获取文件路径后，向 WS 发送 'pdf-library:add:records'。后端返回标准契约 'pdf-library:add:completed/failed'，但 WSClient 未路由该类型到通用响应事件，导致前端未监听到成功/失败；同时没有‘导入中’提示与文件名绑定的成功/失败 toast。
+- 变更: 
+  - 新增 ToastManager（左上角堆叠），在发送每个文件时显示 '导入中'，携带 request_id 关联；收到响应后替换为 '<文件名>-导入成功/失败-原因'。
+  - WSClient 将 'pdf-library:add:completed/failed' 路由为 'websocket:message:response'，并结算 pending 请求。
+  - pdf-list/index.js 发送添加请求附带 request_id；监听 response 处理 add:completed/failed；unknown 兜底转发。
+- 相关模块/函数: 
+  - 前端: src/frontend/pdf-home/features/pdf-list/index.js, src/frontend/common/ws/ws-client.js, src/frontend/common/utils/toast-manager.js
+  - 后端: src/backend/msgCenter_server/standard_server.py (handle_pdf_upload_request), src/backend/api/pdf_library_api.py（add_pdf_from_file）
+- 执行步骤: 
+  1) 实现 ToastManager；2) 修正 WSClient 路由；3) 发送携带 request_id；4) 监听响应更新 toast；5) 兜底 unknown 转发；6) 观察 logs/ 与 UI 结果。
+- 预期: 
+  - 点击添加后弹 '导入中'（可堆叠）；每个文件成功时 '文件名-导入成功'；失败时 '文件名-导入失败-原因'；添加完成刷新列表。
+- 实际: 按上述实现已完成代码修改，待端到端手动验证。
+- 备注: 保持事件命名三段式；严禁 console.*，统一 Logger；所有读写 UTF-8。
+
+### 2025-10-07 Toast 一致性 & 相对导入错误
+- Toast: 将 pdf-home 添加流程的错误/成功提示统一改用左上角堆叠Toast (ToastManager)，替换此前使用的 notification.js（右上角）。
+- ImportError: DefaultAddService 以 importlib 动态加载，无法依赖相对导入；已将 '...pdf_manager.*' 改为 'src.backend.pdf_manager.*' 绝对导入，避免 'attempted relative import with no known parent package'。
+- 受影响文件: src/frontend/pdf-home/features/pdf-list/index.js, src/frontend/common/utils/toast-manager.js, src/frontend/common/ws/ws-client.js, src/backend/api/pdf-home/add/service.py
