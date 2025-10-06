@@ -10,7 +10,8 @@ import { PDFHomeAppV2 } from '../core/pdf-home-app-v2.js';
 import { setupAutoTestEnvironment } from '../core/auto-test-runner.js';
 import { resolveWebSocketPortSync, DEFAULT_WS_PORT } from '../utils/ws-port-resolver.js';
 import { getLogger } from '../../common/utils/logger.js';
-const logger = getLogger('pdf-home/app-v2');
+// 提前创建引导日志器，避免在函数中使用前未定义
+const logger = getLogger('pdf-home/bootstrap-v2');
 
 /**
  * 启动 PDF Home 应用（V2 功能域架构）
@@ -71,15 +72,16 @@ export async function bootstrapPDFHomeAppV2(options = {}) {
     };
 
     // 6. 记录启动成功
-    logger.info('PDF Home App V2 (Feature Domain Architecture) started successfully');
+    const appLogger = getLogger('pdf-home/app-v2');
+    appLogger.info('PDF Home App V2 (Feature Domain Architecture) started successfully');
 
     // 记录功能域状态
     const state = app.getState();
-    logger.info(`Installed Features: ${state.features.installed.join(', ')}`);
-    logger.info('Use window.app.getState() for full status');
+    appLogger.info(`Installed Features: ${state.features.installed.join(', ')}`);
+    appLogger.info('Use window.app.getState() for full status');
 
-    logger.info('[DEBUG] PDF Home App V2 fully started');
-    logger.info('[DEBUG] Available features:', state.features.installed);
+    appLogger.info('[DEBUG] PDF Home App V2 fully started');
+    appLogger.info('[DEBUG] Available features:', state.features.installed);
 
     return app;
 
