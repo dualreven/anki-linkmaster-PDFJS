@@ -337,7 +337,7 @@ emove_comment(ann_id, comment_id)。
 - 扩展接口：`query_by_name`、`query_enabled`、`increment_use_count`、`set_last_used`、`activate_exclusive`、`query_by_tag`、`search_by_keyword`。
 - 事件：`table:search-condition:create|update|delete:completed`。
 - 测试：`pytest src/backend/database/plugins/__tests__/test_search_condition_plugin.py`（29 用例）。
-- 2025-10-05：新增 `PDFLibraryAPI`，提供 `list_records/get_record_detail/update_record/delete_record/register_file_info`，单位为秒/毫秒转换遵循 JSON-MESSAGE-FORMAT-001，WebSocket `pdf/list` 消息返回 `records`。
+- 2025-10-05：新增 `PDFLibraryAPI`，提供 `list_records/get_record_detail/update_record/delete_record/register_file_info`，单位为秒/毫秒转换遵循 JSON-MESSAGE-FORMAT-001，WebSocket `pdf-library:list:records` 消息返回 `records`。
 
 ## 2025-10-05 Annotation事件规范
 - AnnotationFeature 缺省使用 ScopedEventBus，跨模块交互统一经 `emitGlobal/onGlobal`。
@@ -368,7 +368,7 @@ emove_comment(ann_id, comment_id)。
 ## 2025-10-06 PDF-Home 搜索 v001 变更说明
 - 默认搜索字段：后端与前端均包含 `title, author, filename, tags, notes, subject, keywords`
 - SQL 安全：统一使用参数绑定；所有 LIKE 条件采用 `ESCAPE '\\'` 语法并对 `%`、`_` 进行转义；tags 使用 JSON 文本包含匹配
-- 事件契约：WebSocket `type: "pdf/search"`，响应 `status: "success"`，`data: { records, count, search_text }`
+- 事件契约：WebSocket `type: "pdf-library:search:records"`，响应 `status: "success"`，`data: { records, count, search_text }`
 - UI 行为：SearchBar → SearchManager（发起 WS）→ SearchResultsFeature（渲染）；空搜索返回全部
 
 ## 2025-10-06 搜索语义（v001）

@@ -228,26 +228,26 @@ class StandardWebSocketServer(QObject):
         logger.info(f"处理消息类型: {message_type}, 请求ID: {request_id}")
 
         # 获取PDF列表（将 v2 路由映射到 v1 响应）
-        if message_type == "pdf/list":
+        if message_type == "pdf-library:list:records":
             return self.handle_pdf_list_request(request_id, data)
-        elif message_type == "bookmark/list":
+        elif message_type == "bookmark:list:records":
             return self.handle_bookmark_list_request(request_id, data)
-        elif message_type == "bookmark/save":
+        elif message_type == "bookmark:save:record":
             return self.handle_bookmark_save_request(request_id, data)
         elif message_type in ["pdf-home:get:pdf-list", "get_pdf_list"]:
             return self.handle_pdf_list_request(request_id, data)
 
         # 添加PDF文件（支持单个/多个）
-        elif message_type in ["pdf-home:add:pdf-files", "add_pdf"]:
+        elif message_type in ["pdf-library:add:records", "pdf-home:add:pdf-files", "add_pdf"]:
             return self.handle_pdf_upload_request(request_id, data)
 
         # 删除PDF文件（统一批量处理）
-        elif message_type in ["pdf-home:remove:pdf-files", "remove_pdf", "batch_remove_pdf"]:
+        elif message_type in ["pdf-library:remove:records", "pdf-home:remove:pdf-files", "remove_pdf", "batch_remove_pdf"]:
             # 统一使用批量删除处理器
             return self.handle_batch_pdf_remove_request(request_id, data)
 
         # 打开PDF查看器
-        elif message_type in ["pdf-home:open:pdf-file", "open_pdf"]:
+        elif message_type in ["pdf-library:open:viewer", "pdf-home:open:pdf-file", "open_pdf"]:
            return self.handle_open_pdf_request(request_id, data)
 
         # 获取PDF详情
@@ -416,7 +416,7 @@ class StandardWebSocketServer(QObject):
             if hasattr(self, "pdf_library_api") and self.pdf_library_api:
                 result = self.pdf_library_api.list_bookmarks(pdf_uuid) or result
             response = {
-                "type": "bookmark/list",
+                "type": "bookmark:list:records",
                 "timestamp": int(time.time()),
                 "data": result,
             }
@@ -462,7 +462,7 @@ class StandardWebSocketServer(QObject):
             if hasattr(self, "pdf_library_api") and self.pdf_library_api:
                 saved = self.pdf_library_api.save_bookmarks(pdf_uuid, bookmarks, root_ids=root_ids)
             response = {
-                "type": "bookmark/save",
+                "type": "bookmark:save:record",
                 "timestamp": int(time.time()),
                 "data": {"saved": saved},
             }
@@ -492,7 +492,7 @@ class StandardWebSocketServer(QObject):
             if hasattr(self, "pdf_library_api") and self.pdf_library_api:
                 records = self.pdf_library_api.list_records(include_hidden=include_hidden, limit=limit, offset=offset)
             response = {
-                "type": "pdf/list",
+                "type": "pdf-library:list:records",
                 "timestamp": int(time.time()),
                 "data": {
                     "records": records,
@@ -1093,9 +1093,7 @@ class StandardWebSocketServer(QObject):
                 request_id=None,
                 files=files
             )
-            # 修改消息类型为list，让前端识别为列表更新
-            message["type"] = "list"
-            # 取消 v2 广播，仅保持 v1 兼容广播
+            message["type"] = "pdf-library:list:records"
             self.broadcast_message(message)
             logger.info(f"已广播PDF列表更新消息，共 {len(files)} 个文件")
         except Exception as e:

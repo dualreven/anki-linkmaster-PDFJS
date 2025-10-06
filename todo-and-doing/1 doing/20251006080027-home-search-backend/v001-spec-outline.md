@@ -14,22 +14,22 @@
 
 ## 当前状况与差距
 - 前端：已具备 SearchBar、SearchFeature、SearchManager、SearchResultsFeature；SearchManager 通过 EventBus 发送 WebSocket 消息并接收响应，使用事件 `websocket:message:received` 分发。
-- 协议：前端使用消息类型 `type: "pdf/search"`，后端 msgCenter 标准服务器已实现对应处理逻辑，并调用 `PDFLibraryAPI.search_records(...)`。
+- 协议：前端使用消息类型 `type: "pdf-library:search:records"`，后端 msgCenter 标准服务器已实现对应处理逻辑，并调用 `PDFLibraryAPI.search_records(...)`。
 - 数据库：`PDFInfoTablePlugin.search_records(keywords, search_fields, ...)` 已实现多关键词、多字段模糊搜索（AND 连接关键词，字段内 OR）。
 - 差距：需要形成一致的“最小闭环实施步骤+测试方案”，并补上必要的校验、配置与诊断文档，以减少集成风险。
 
 ## 设计原则
-- 单一入口：通过 `msgCenter_server/standard_server.py` 的 `type: "pdf/search"` 路由访问数据库搜索。
+- 单一入口：通过 `msgCenter_server/standard_server.py` 的 `type: "pdf-library:search:records"` 路由访问数据库搜索。
 - 防回归：保留旧的 `pdfTable_server` 兼容路径（`pdf-home:search:pdf-files`），但本次不改动旧路径。
 - 安全稳健：SQL 统一使用参数绑定；LIKE 特殊字符（`%`、`_`）转义；前后端所有文件 I/O 均显式 UTF-8，且换行 `\n` 正确。
 
 ## 协议与数据结构（v001）
 - WebSocket 请求
-  - `type: "pdf/search"`
+  - `type: "pdf-library:search:records"`
   - `request_id: string`
   - `data`: `{ search_text: string, search_fields?: string[], include_hidden?: boolean, limit?: number, offset?: number }`
 - WebSocket 响应（成功）
-  - `type: "pdf/search"`
+  - `type: "pdf-library:search:records"`
   - `status: "success"`
   - `data`: `{ records: PDFRecord[], count: number, search_text: string }`
 - 记录结构（前端使用）示例字段：`id, title, author, tags, notes, rating, is_visible, file_path, created_at, updated_at, last_accessed_at ...`
@@ -46,9 +46,9 @@
 ## 端到端流程（v001）
 1) SearchBar 将输入变更 → `search:query:requested`（空格=且，A B 表示同时包含 A 与 B）
 2) SearchFeature 桥接到全局 EventBus → `search:query:requested`
-3) SearchManager 生成 `request_id` 并通过 `WEBSOCKET_EVENTS.MESSAGE.SEND` 发送 `{ type: 'pdf/search', data: {...} }`
-4) msgCenter 标准服务器匹配 `pdf/search` → 调用 `PDFLibraryAPI.search_records(search_text, ...)` → 由 `PDFInfoTablePlugin.search_records(...)` 在 SQLite 进行多字段模糊搜索（多关键词 AND，字段内 OR）
-5) 服务器返回 `type: 'pdf/search'` 成功响应
+3) SearchManager 生成 `request_id` 并通过 `WEBSOCKET_EVENTS.MESSAGE.SEND` 发送 `{ type: 'pdf-library:search:records', data: {...} }`
+4) msgCenter 标准服务器匹配 `pdf-library:search:records` → 调用 `PDFLibraryAPI.search_records(search_text, ...)` → 由 `PDFInfoTablePlugin.search_records(...)` 在 SQLite 进行多字段模糊搜索（多关键词 AND，字段内 OR）
+5) 服务器返回 `type: 'pdf-library:search:records'` 成功响应
 6) WSClient 发出 `websocket:message:received`，SearchManager 捕获并发布 `search:results:updated`
 7) SearchResultsFeature 渲染结果列表
 
@@ -66,7 +66,7 @@
   - 默认字段：title/author/filename/tags/notes/subject/keywords；字段可配但 v001 用默认值。
   - 前端能收到结果并在列表中渲染，数量徽标显示正确。
 - 接口契约：
-  - 请求与响应均按本文协议；消息类型固定 `pdf/search`；所有 JSON 字段 snake_case。
+  - 请求与响应均按本文协议；消息类型固定 `pdf-library:search:records`；所有 JSON 字段 snake_case。
 - 稳定性与日志：
   - 前后端日志均为 UTF-8 输出，换行 `\n`；错误路径有明确日志与用户可见提示。
 - 测试：
@@ -75,7 +75,7 @@
 
 ## 风险与回滚
 - 风险：消息类型不一致、字段大小写/命名不一致导致前端不识别；LIKE 特殊字符未转义导致误命中；tags 数组匹配策略导致性能问题。
-- 回滚：保持现有 `pdfTable_server` 的 `pdf-home:search:pdf-files` 老路径不变；若新路径异常，可短期退回旧逻辑（但前端 v001 默认走 `pdf/search`）。
+- 回滚：保持现有 `pdfTable_server` 的 `pdf-home:search:pdf-files` 老路径不变；若新路径异常，可短期退回旧逻辑（但前端 v001 默认走 `pdf-library:search:records`）。
 
 ## 规范依赖
 - 必须先阅读 `src/frontend/pdf-home/docs/SPEC/SPEC-HEAD-PDFHome.json:1` 引用的规范；遵循事件命名与模块注册规则。

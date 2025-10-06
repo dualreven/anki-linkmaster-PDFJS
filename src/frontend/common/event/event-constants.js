@@ -64,8 +64,8 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   // 配置读取/更新（用于长期存储 recent_search 等）
   GET_CONFIG: "pdf-home:get:config",
   UPDATE_CONFIG: "pdf-home:update:config",
-  BOOKMARK_LIST: "bookmark/list",
-  BOOKMARK_SAVE: "bookmark/save",
+  BOOKMARK_LIST: "bookmark:list:records",
+  BOOKMARK_SAVE: "bookmark:save:record",
 
   // 废弃的类型
   REQUEST_FILE_SELECTION: "request_file_selection", // 已废弃，不再使用

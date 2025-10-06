@@ -45,7 +45,7 @@
 - Stage3 插件实例补充：`pdf_bookmark_plugin.py`（层级书签表），与 PDFInfo 插件共享 SQLExecutor/EventBus，事件命名 `table:pdf-bookmark:*:*`，订阅 `table:pdf-info:delete:completed` 执行级联删除与树形维护。
 
 - SearchCondition 插件：`search_condition_plugin.py` 保存筛选/排序条件，事件命名 `table:search-condition:*:*`，与其它表无直接外键但复用 TablePlugin 架构。
-- 2025-10-05：新增 `PDFLibraryAPI`（backend/api/pdf_library_api.py）作为数据库插件统一出入口，并在 `StandardWebSocketServer` 中接入，提供 `pdf/list` 新消息以及文件增删同步数据库。
+- 2025-10-05：新增 `PDFLibraryAPI`（backend/api/pdf_library_api.py）作为数据库插件统一出入口，并在 `StandardWebSocketServer` 中接入，提供 `pdf-library:list:records` 新消息以及文件增删同步数据库。
 - 前端 pdf-bookmark 功能域：BookmarkManager 可注入 WSClient，默认通过 RemoteBookmarkStorage 先写后端再同步 LocalStorage，确保书签在刷新后持久存在。
 
 

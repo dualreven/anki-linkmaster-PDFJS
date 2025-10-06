@@ -25,7 +25,7 @@ describe('RemoteBookmarkStorage', () => {
     const result = await storage.load('pdf-1');
 
     expect(wsClient.request).toHaveBeenCalledWith(
-      expect.stringContaining('bookmark/list'),
+      expect.stringContaining('bookmark:list:records'),
       { pdf_uuid: 'pdf-1' },
       expect.any(Object)
     );
@@ -56,7 +56,7 @@ describe('RemoteBookmarkStorage', () => {
     await storage.save('pdf-3', [{ id: 'b2' }], ['b2']);
 
     expect(wsClient.request).toHaveBeenCalledWith(
-      expect.stringContaining('bookmark/save'),
+      expect.stringContaining('bookmark:save:record'),
       {
         pdf_uuid: 'pdf-3',
         bookmarks: [{ id: 'b2' }],

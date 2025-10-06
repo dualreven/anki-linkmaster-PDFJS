@@ -29,14 +29,17 @@ export class WSClient {
 
   static VALID_MESSAGE_TYPES = [
     'pdf_list_updated',
+    'pdf-library:list:records',
     'pdf_list',
-    'list',  // 后端广播列表更新时使用的类型
+    'list',  // 兼容旧版广播类型
     'load_pdf_file',
     'pdf_detail_response',
     'success',
     'error',
     'response',
-    'system_status'
+    'system_status',
+    'bookmark:list:records',
+    'bookmark:save:record'
   ];
 
   constructor(url, eventBus) {
@@ -311,15 +314,16 @@ export class WSClient {
         case "pdf_list_updated":
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.PDF_LIST_UPDATED;
           break;
+        case "pdf-library:list:records":
         case "pdf_list":
-        case "list":  // 后端广播列表更新使用 'list' 类型
+        case "list":  // 兼容旧版广播类型
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.PDF_LIST;
           break;
-        case "bookmark/list":
+        case "bookmark:list:records":
           this._settlePendingRequest(message);
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.BOOKMARK_LIST;
           break;
-        case "bookmark/save":
+        case "bookmark:save:record":
           this._settlePendingRequest(message);
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.BOOKMARK_SAVE;
           break;

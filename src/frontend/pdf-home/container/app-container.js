@@ -88,8 +88,8 @@ export function createPDFHomeContainer({ root, wsUrl, logger, enableValidation =
     import('../ui-manager.js').then((mod) => {
       const UIManager = mod.UIManager || mod.default;
       uiManager = new UIManager({ root: state.root, logger, send });
-      uiManager.on?.('action:open-pdf', (payload) => send({ type: 'pdf/open', payload }));
-      uiManager.on?.('action:remove-pdf', (payload) => send({ type: 'pdf/remove', payload }));
+      uiManager.on?.('action:open-pdf', (payload) => send({ type: 'pdf-library:open:viewer', payload }));
+      uiManager.on?.('action:remove-pdf', (payload) => send({ type: 'pdf-library:remove:records', payload }));
       uiManager.on?.('action:refresh', () => requestList());
     }).catch((e) => logger.warn('UI manager load failed', e));
   }
@@ -111,7 +111,7 @@ export function createPDFHomeContainer({ root, wsUrl, logger, enableValidation =
   }
 
   function requestList() {
-    send({ type: 'pdf/list', data: {} });
+    send({ type: 'pdf-library:list:records', data: {} });
   }
 
   function send(msg) {

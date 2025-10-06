@@ -580,8 +580,8 @@ const service = new NavigationService();
 
 ### 进展 2025-10-05 19:05
 - 已实现 `PDFLibraryAPI`（数据库 → 前端）封装，提供 list/detail/update/delete/register_file 接口，并新增单元测试 `src/backend/api/__tests__/test_pdf_library_api.py`。
-- WebSocket 服务器接入新 API：支持 `pdf/list` 消息、文件增删事件同步数据库并广播新版记录结构。
-- 新逻辑保持原有 `pdf-home:get:pdf-list` 兼容，新增广播时同时发送旧版 `list` 与新版 `pdf/list`。
+- WebSocket 服务器接入新 API：支持 `pdf-library:list:records` 消息、文件增删事件同步数据库并广播新版记录结构。
+- 新逻辑保持原有 `pdf-home:get:pdf-list` 兼容，新增广播时同时发送旧版 `list` 与新版 `pdf-library:list:records`。
 ## 2025-10-05 PDF-Home 搜索端到端方案讨论
 - 问题背景：前端 Search/Filter 组合目前在浏览器内对 @pdf-list/data:load:completed 缓存做模糊筛选，后端仅有 StandardPDFManager 基于文件列表的简易 search_files；数据库层尚未提供分词、筛选、排序一体化查询，无法满足一次 SQL 完成“搜索→筛选→排序”的要求。
 - 相关模块：前端 src/frontend/pdf-home/features/search、src/frontend/pdf-home/features/filter、src/frontend/pdf-home/features/search-results；后端 src/backend/api/pdf_library_api.py、src/backend/msgCenter_server/standard_server.py、src/backend/pdfTable_server/application_subcode/websocket_handlers.py；数据库插件 pdf_info_plugin.py、search_condition_plugin.py。
@@ -657,7 +657,7 @@ const service = new NavigationService();
   4. 更新本调研结果与后续任务安排。
 ### 2025-10-06 调研结论
 - `PDFBookmarkTablePlugin` 已具备完整 CRUD/层级能力并通过单测，但 `PDFLibraryAPI` 尚未暴露书签 CRUD 接口，仅用于统计数量。
-- WebSocket `StandardWebSocketServer` 当前仅提供 `pdf/list` 等基础消息，缺少 `bookmark/*` 相关路由，前端无法直接调用后端持久化接口。
+- WebSocket `StandardWebSocketServer` 当前仅提供 `pdf-library:list:records` 等基础消息，缺少 `bookmark/*` 相关路由，前端无法直接调用后端持久化接口。
 - 前端 `features/pdf-bookmark` 仍使用 `LocalStorageBookmarkStorage`，未集成远端存储实现；持久化落地需新增后端 API、消息协议与前端存储策略切换。
 ### 2025-10-06 书签持久化执行步骤
 1. 设计并补充后端 API (`PDFLibraryAPI`) 的书签 CRUD 接口，同时规划对应单元测试。

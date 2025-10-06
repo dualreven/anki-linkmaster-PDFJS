@@ -30,21 +30,21 @@ WEBSOCKET_MESSAGE_SCHEMA = {
 
 # 前端到后端的消息类型
 FRONTEND_TO_BACKEND_MESSAGES = {
-    'pdf/list': {
+    'pdf-library:list:records': {
         'data': {}  # 空对象
     },
-    'pdf/add': {
+    'pdf-library:add:records': {
         'data': {
             'file_paths': list  # 文件路径列表
         }
     },
-    'pdf/remove': {
+    'pdf-library:remove:records': {
         'data': {
             'id': str,          # PDF ID（优先）
             'filename': str     # 文件名（备用）
         }
     },
-    'pdf/open': {
+    'pdf-library:open:viewer': {
         'data': {
             'id': str,          # PDF ID（优先）
             'filename': str     # 文件名（备用）
@@ -54,19 +54,19 @@ FRONTEND_TO_BACKEND_MESSAGES = {
 
 # 后端到前端的消息类型
 BACKEND_TO_FRONTEND_MESSAGES = {
-    'pdf/list': {
+    'pdf-library:list:records': {
         'data': {
             'records': list  # PDF 记录列表
         }
     },
-    'pdf/added': {
+    'pdf-library:add:completed': {
         'data': {
             'success': list,    # 成功添加的文件列表
             'failed': list,     # 失败的文件列表
             'summary': str      # 摘要信息
         }
     },
-    'pdf/removed': {
+    'pdf-library:remove:completed': {
         'data': {
             'success': bool,
             'message': str,
