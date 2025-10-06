@@ -238,9 +238,9 @@ class StandardWebSocketServer(QObject):
         elif message_type in ["pdf-home:get:pdf-info", "pdf_detail_request"]:
             return self.handle_pdf_detail_request(request_id, data)
 
-        # 搜索（兼容 v1/v2）
-        elif message_type in ["pdf/search", "pdf-home:search:pdf-files"]:
-            return self.handle_pdf_search_request(request_id, data, message_type, message)
+        # 搜索（仅保留 v1）
+        elif message_type in ["pdf-home:search:pdf-files"]:
+            return self.handle_pdf_search_request(request_id, data, message)
 
         # 更新PDF元数据
         elif message_type in ["pdf-home:update:pdf", "update_pdf"]:
@@ -411,13 +411,11 @@ class StandardWebSocketServer(QObject):
                 f"获取PDF列表失败: {str(e)}"
             )
 
-    def handle_pdf_search_request(self, request_id: str, data: Dict[str, Any], message_type: str, raw_message: Dict[str, Any]) -> Dict[str, Any]:
+    def handle_pdf_search_request(self, request_id: str, data: Dict[str, Any], raw_message: Dict[str, Any]) -> Dict[str, Any]:
         """处理PDF搜索请求（v1/v2 兼容）
 
         - v1: type = 'pdf-home:search:pdf-files', 顶层携带 search_text
               响应使用标准 response 包，data = { files, search_text, total_count, original_type }
-        - v2: type = 'pdf/search', data = { search_text, search_fields?, include_hidden?, limit?, offset? }
-              响应使用类型化消息 'pdf/search'，data = { records, count, search_text }
         """
         try:
             # 兼容两种位置的 search_text
@@ -477,54 +475,29 @@ class StandardWebSocketServer(QObject):
                     records = results
                 total = len(records)
 
-            if message_type == 'pdf/search':
-                # 返回类型化响应
-                response = {
-                    'type': 'pdf/search',
-                    'timestamp': int(time.time()),
-                    'request_id': request_id,
-                    'status': 'success',
-                    'code': 200,
-                    'message': '搜索成功',
-                    'data': {
-                        'records': records,
-                        'count': total,
-                        'search_text': search_text
-                    }
+            # 仅返回 v1 标准 response 包
+            return StandardMessageHandler.build_response(
+                'response',
+                request_id,
+                status='success',
+                code=200,
+                message='搜索成功',
+                data={
+                    'files': records,
+                    'search_text': search_text,
+                    'total_count': total,
+                    'original_type': 'pdf-home:search:pdf-files'
                 }
-                return response
-            else:
-                # 兼容旧响应（统一 response 包）
-                return StandardMessageHandler.build_response(
-                    'response',
-                    request_id,
-                    status='success',
-                    code=200,
-                    message='搜索成功',
-                    data={
-                        'files': records,
-                        'search_text': search_text,
-                        'total_count': total,
-                        'original_type': 'pdf-home:search:pdf-files'
-                    }
-                )
+            )
 
         except Exception as e:
             logger.error("处理搜索请求时出错: %s", e, exc_info=True)
-            if message_type == 'pdf/search':
-                return StandardMessageHandler.build_error_response(
-                    request_id,
-                    'SEARCH_ERROR',
-                    f'搜索失败: {str(e)}',
-                    code=500
-                )
-            else:
-                return StandardMessageHandler.build_error_response(
-                    request_id,
-                    'SEARCH_ERROR',
-                    f'搜索失败: {str(e)}',
-                    code=500
-                )
+            return StandardMessageHandler.build_error_response(
+                request_id,
+                'SEARCH_ERROR',
+                f'搜索失败: {str(e)}',
+                code=500
+            )
     
     def handle_pdf_upload_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """处理PDF上传请求"""

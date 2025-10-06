@@ -733,15 +733,17 @@ const service = new NavigationService();
   - Feature Flag 已启用：`src/frontend/pdf-home/config/feature-flags.json:101`
   - 不涉及后端改动
 
-## 2025-10-06 搜索消息类型兼容修复
+## 2025-10-06 搜索消息类型兼容修复（已改为仅保留 v1）
 - 现象：点击搜索出现“未知的消息类型: pdf/search”。
 - 根因：当前运行的后端 `pdfTable_server` 仅识别旧类型 `pdf-home:search:pdf-files`，并统一以 `type=response` 返回；前端 `SearchManager` 发送了新类型 `pdf/search` 且仅处理新协议响应，导致报错。
-- 修复：
-  - 发送端：`SearchManager` 新增模式控制与本地持久化（默认 `v1`）。优先使用 `pdf-home:search:pdf-files`；如遇“未知消息类型”，对该次请求仅回退一次到 `pdf/search` 再试；成功后锁定模式并持久化。
-  - 接收端：新增对 `websocket:message:response` 的解析（旧服务统一 `type=response`），识别 `data.files/total_count/search_text`，转发为 `search:results:updated`；保留对新协议 `pdf/search` 的直接处理。
-  - 本地配置：`localStorage['pdf-home:search:backend-mode']` 可强制设置 `'v1'|'v2'`。
- - 受影响文件：`src/frontend/pdf-home/features/search/services/search-manager.js:1`
-- 预期：避免“未知类型”死循环；自动适配后端协议并记忆。
+- 最终决定：完全移除 v2（`pdf/search`）支持，只保留 v1：
+  - 前端 SearchManager 仅发送 `pdf-home:search:pdf-files`（顶层 `search_text`），仅解析 `websocket:message:response`，读取 `data.files/total_count/search_text`。
+  - 后端 MsgCenter 仅路由 `pdf-home:search:pdf-files` 并返回标准 `response` 包。
+  - 移除了前端“协议自动适配/回退/记忆”等逻辑。
+  - 受影响文件：
+    - `src/frontend/pdf-home/features/search/services/search-manager.js:1`（删除 v2 相关逻辑）
+    - `src/backend/msgCenter_server/standard_server.py:1`（仅保留 v1 搜索路由）
+  - 预期：不会出现“未知的消息类型: pdf/search”；只有 v1 搜索链路生效。
 
 ## 2025-10-06 MsgCenter 搜索路由补全（standard_server）
 - 现象：MsgCenter 日志显示对 `pdf-home:search:pdf-files` 与 `pdf/search` 均返回 `response`，且 message 为“未知的消息类型: ...”。
