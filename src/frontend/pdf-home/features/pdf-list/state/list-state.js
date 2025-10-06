@@ -9,7 +9,8 @@
  * PDF列表状态Schema
  * @typedef {Object} ListState
  * @property {Array<Object>} items - PDF列表项
- * @property {Array<number>} selectedIndices - 选中的行索引
+ * @property {Array<number>} selectedIndices - 选中的行索引（用于批量操作）
+ * @property {number|null} focusedIndex - 当前聚焦的行索引（用于单项操作和键盘导航）
  * @property {boolean} isLoading - 是否正在加载
  * @property {string|null} sortColumn - 当前排序列
  * @property {string} sortDirection - 排序方向 ('asc' | 'desc')
@@ -20,7 +21,8 @@
 export const LIST_STATE_SCHEMA = {
   // 数据
   items: [],
-  selectedIndices: [],
+  selectedIndices: [],      // 选中的项（用于批量操作）
+  focusedIndex: null,        // 聚焦的项（用于单项操作和键盘导航）
 
   // UI状态
   isLoading: false,
@@ -133,6 +135,31 @@ export class ListStateHelpers {
    */
   static setSelectedIndices(state, indices) {
     state.selectedIndices = indices;
+  }
+
+  /**
+   * 设置聚焦项
+   * @param {ReactiveState} state - 状态对象
+   * @param {number|null} index - 聚焦的索引（null表示取消聚焦）
+   */
+  static setFocusedIndex(state, index) {
+    state.focusedIndex = index;
+  }
+
+  /**
+   * 切换选中状态（用于复选框点击）
+   * @param {ReactiveState} state - 状态对象
+   * @param {number} index - 要切换的索引
+   */
+  static toggleSelection(state, index) {
+    const selectedIndices = [...state.selectedIndices];
+    const indexPos = selectedIndices.indexOf(index);
+    if (indexPos >= 0) {
+      selectedIndices.splice(indexPos, 1);
+    } else {
+      selectedIndices.push(index);
+    }
+    state.selectedIndices = selectedIndices;
   }
 
   /**

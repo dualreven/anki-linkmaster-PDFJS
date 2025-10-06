@@ -35,11 +35,16 @@ export const PDF_LIST_EVENTS = {
   PDF_UPDATE_COMPLETED: 'pdf:update:completed',
   PDF_UPDATE_FAILED: 'pdf:update:failed',
 
-  // 选择事件
+  // 选择事件（用于批量操作）
   ROW_SELECTED: 'row:select:completed',
   ROW_DESELECTED: 'row:deselect:completed',
   SELECTION_CHANGED: 'selection:change:completed',
   SELECTION_CLEARED: 'selection:clear:completed',
+
+  // 聚焦事件（用于单项操作和键盘导航）
+  ROW_FOCUSED: 'row:focus:completed',
+  ROW_UNFOCUSED: 'row:unfocus:completed',
+  FOCUS_CHANGED: 'focus:change:completed',
 
   // 交互事件
   ROW_CLICKED: 'row:click:completed',

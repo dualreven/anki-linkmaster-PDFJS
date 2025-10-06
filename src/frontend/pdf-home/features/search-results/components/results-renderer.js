@@ -54,9 +54,9 @@ export class ResultsRenderer {
         const itemHTML = this.#itemRenderer.render(result);
         const itemElement = this.#createElementFromHTML(itemHTML);
 
-        // 绑定点击事件
-        itemElement.addEventListener('click', () => {
-          this.#handleItemClick(result, index);
+        // 绑定点击事件（区分复选框点击和行点击）
+        itemElement.addEventListener('click', (e) => {
+          this.#handleItemClick(result, index, e);
         });
 
         // 绑定双击事件（打开PDF）
@@ -101,22 +101,50 @@ export class ResultsRenderer {
    * 处理条目点击
    * @private
    */
-  #handleItemClick(result, index) {
+  #handleItemClick(result, index, event) {
     this.#logger.debug('[ResultsRenderer] Item clicked', { id: result.id, index });
 
-    // 清除其他选中状态
-    this.#container.querySelectorAll('.search-result-item.selected').forEach(item => {
-      item.classList.remove('selected');
+    const clickedItem = this.#container.querySelector(`[data-id="${result.id}"]`);
+    if (!clickedItem) return;
+
+    // 检查是否点击了复选框
+    const isCheckboxClick = event.target &&
+      (event.target.classList.contains('search-result-checkbox') ||
+       event.target.closest('.search-result-item-checkbox'));
+
+    if (isCheckboxClick) {
+      // 复选框点击：仅切换选中状态（不改变聚焦）
+      clickedItem.classList.toggle('selected');
+      this.#eventBus.emit('results:item:selection-toggled', { result, index });
+    } else if (event.ctrlKey || event.metaKey) {
+      // Ctrl+Click: 切换选中 + 设置聚焦
+      clickedItem.classList.toggle('selected');
+      this.#setFocusedItem(clickedItem);
+      this.#eventBus.emit('results:item:ctrl-clicked', { result, index });
+    } else if (event.shiftKey) {
+      // Shift+Click: 范围选择（暂不实现，可扩展）
+      this.#logger.debug('[ResultsRenderer] Shift+Click not implemented yet');
+    } else {
+      // 普通点击：仅设置聚焦（不改变选中状态）
+      this.#setFocusedItem(clickedItem);
+      this.#eventBus.emit('results:item:focused', { result, index });
+    }
+  }
+
+  /**
+   * 设置聚焦项
+   * @private
+   */
+  #setFocusedItem(itemElement) {
+    // 清除其他聚焦状态
+    this.#container.querySelectorAll('.search-result-item.focused').forEach(item => {
+      item.classList.remove('focused');
     });
 
-    // 添加选中状态
-    const clickedItem = this.#container.querySelector(`[data-id="${result.id}"]`);
-    if (clickedItem) {
-      clickedItem.classList.add('selected');
+    // 添加聚焦状态
+    if (itemElement) {
+      itemElement.classList.add('focused');
     }
-
-    // 发出选中事件
-    this.#eventBus.emit('results:item:selected', { result, index });
   }
 
   /**
