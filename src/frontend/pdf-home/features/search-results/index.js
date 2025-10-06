@@ -325,12 +325,6 @@ export class SearchResultsFeature {
 
     // 渲染结果
     this.#resultsRenderer.render(this.#resultsContainer, this.#currentResults);
-
-    // 通知search插件更新统计
-    this.#globalEventBus.emit('search:results:updated', {
-      count,
-      hasResults: count > 0
-    });
   }
 
   /**

@@ -364,3 +364,14 @@ emove_comment(ann_id, comment_id)。
 - 返回结构保持 `{success, uuid, filename, file_size|error}`，供 WebSocket 响应直接使用。
 - WebSocket `handle_pdf_upload_request` 现透传 `PDFLibraryAPI` 结果，fallback 时解析 `(success, payload)` 元组并回传原始错误信息，前端可准确提示原因。
 - `PDFManager.add_file` 现在在重复写入时直接发出"文件已存在于列表中"信号，Legacy 适配器即可透传该信息。
+
+## 2025-10-06 PDF-Home 搜索 v001 变更说明
+- 默认搜索字段：后端与前端均包含 `title, author, filename, tags, notes, subject, keywords`
+- SQL 安全：统一使用参数绑定；所有 LIKE 条件采用 `ESCAPE '\\'` 语法并对 `%`、`_` 进行转义；tags 使用 JSON 文本包含匹配
+- 事件契约：WebSocket `type: "pdf/search"`，响应 `status: "success"`，`data: { records, count, search_text }`
+- UI 行为：SearchBar → SearchManager（发起 WS）→ SearchResultsFeature（渲染）；空搜索返回全部
+
+## 2025-10-06 搜索语义（v001）
+- 默认字段：title/author/filename/tags/notes/subject/keywords
+- 关键词：按空格分词；关键词之间 AND；字段内 OR；LIKE 模糊匹配（转义 `%`、`_`，使用 `ESCAPE '\'`）
+- UI 提示：SearchBar 占位符注明"空格=且"

@@ -510,9 +510,9 @@ class PDFInfoTablePlugin(TablePlugin):
         if not keywords:
             return self.query_all(limit=limit, offset=offset)
 
-        # 默认搜索字段
+        # 默认搜索字段（包含主题与关键词，满足 v001 需求）
         if search_fields is None:
-            search_fields = ['title', 'author', 'filename', 'tags', 'notes']
+            search_fields = ['title', 'author', 'filename', 'tags', 'notes', 'subject', 'keywords']
 
         # 构建 WHERE 子句
         # 对每个关键词，在所有字段中搜索（OR），然后用 AND 连接
@@ -528,16 +528,16 @@ class PDFInfoTablePlugin(TablePlugin):
 
             # 基础字段搜索
             if 'title' in search_fields:
-                field_conditions.append("title LIKE ?")
+                field_conditions.append("title LIKE ? ESCAPE '\\'")
                 params.append(like_value)
 
             if 'author' in search_fields:
-                field_conditions.append("author LIKE ?")
+                field_conditions.append("author LIKE ? ESCAPE '\\'")
                 params.append(like_value)
 
             # JSON 字段搜索
             if 'filename' in search_fields:
-                field_conditions.append("json_extract(json_data, '$.filename') LIKE ?")
+                field_conditions.append("json_extract(json_data, '$.filename') LIKE ? ESCAPE '\\'")
                 params.append(like_value)
 
             if 'tags' in search_fields:
@@ -546,15 +546,15 @@ class PDFInfoTablePlugin(TablePlugin):
                 params.append(f'%"{escaped_keyword}"%')
 
             if 'notes' in search_fields:
-                field_conditions.append("json_extract(json_data, '$.notes') LIKE ?")
+                field_conditions.append("json_extract(json_data, '$.notes') LIKE ? ESCAPE '\\'")
                 params.append(like_value)
 
             if 'subject' in search_fields:
-                field_conditions.append("json_extract(json_data, '$.subject') LIKE ?")
+                field_conditions.append("json_extract(json_data, '$.subject') LIKE ? ESCAPE '\\'")
                 params.append(like_value)
 
             if 'keywords' in search_fields:
-                field_conditions.append("json_extract(json_data, '$.keywords') LIKE ?")
+                field_conditions.append("json_extract(json_data, '$.keywords') LIKE ? ESCAPE '\\'")
                 params.append(like_value)
 
             # 将该关键词的所有字段条件用 OR 连接

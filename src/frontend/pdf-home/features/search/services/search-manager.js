@@ -137,7 +137,8 @@ export class SearchManager {
         request_id: requestId,
         data: {
           search_text: searchText,
-          search_fields: ['title', 'author', 'filename', 'tags', 'notes'],
+          // 默认包含主题与关键词，便于更全面的初版检索
+          search_fields: ['title', 'author', 'filename', 'tags', 'notes', 'subject', 'keywords'],
           include_hidden: true,
           limit: 500  // 默认最多500条结果
         }

@@ -655,3 +655,46 @@ const service = new NavigationService();
 - 测试：`python -m pytest` 运行 `test_add_pdf_from_file_uses_pdf_manager`、`test_add_pdf_from_file_without_manager_inserts_record`、`test_add_pdf_from_file_propagates_manager_error`。
 - WebSocket 服务器在处理 `pdf-home:add:pdf-files` 时优先调用 `PDFLibraryAPI`，失败将透传 `StandardPDFManager` 返回的实际错误文案，避免前端出现"上传失败"泛化提示。
 - 调整 `PDFManager.add_file` 失败分支，直接抛出"文件已存在于列表中"，便于前端获得具体原因。
+
+## 2025-10-06 新任务：pdf-home 搜索功能（v001）后端打通
+- 任务背景：仅实现 search（不含 filter/sort）。输入按空格分词，多字段 LIKE 模糊匹配，字段默认包含 title/author/filename/tags/notes/subject/keywords，后续可配置。结果展示在 pdf-home 搜索结果列表。
+- 相关模块/函数：
+  - 前端：
+    - SearchFeature（搜索 UI 与桥接）：src/frontend/pdf-home/features/search/index.js:1
+    - SearchManager（请求/响应处理）：src/frontend/pdf-home/features/search/services/search-manager.js:1
+    - SearchResultsFeature（渲染）：src/frontend/pdf-home/features/search-results/index.js:1
+    - WSClient（发送/接收）：src/frontend/common/ws/ws-client.js:1
+  - 后端：
+    - 标准 WS 服务器：src/backend/msgCenter_server/standard_server.py:1（handle_pdf_search_v2）
+    - API 门面：src/backend/api/pdf_library_api.py:269（search_records）
+    - DB 插件：src/backend/database/plugins/pdf_info_plugin.py:480（search_records）
+- 消息契约（v001）：
+  - 请求：{ type: 'pdf/search', request_id, data: { search_text, search_fields?, include_hidden?, limit?, offset? } }
+  - 响应：{ type: 'pdf/search', status: 'success'|'error', data: { records, count, search_text }, request_id }
+- 原子步骤（v001）：
+  1) 架构梳理与协议校验（步骤01）
+  2) 后端 WS 路由与 API 打通（步骤02）
+  3) 数据库搜索插件校验与用例（步骤03）
+  4) 前端集成与事件流验证（步骤04）
+  5) E2E 场景与验收测试（步骤05）
+  6) 日志与诊断（步骤06）
+- 参考规范：src/frontend/pdf-home/docs/SPEC/SPEC-HEAD-PDFHome.json:1；所有文件 I/O 必须显式 UTF-8，换行 \n。
+- 备注：保留旧路径 pdfTable_server::'pdf-home:search:pdf-files' 兼容，不在本次修改范围。
+
+## 2025-10-06 搜索实现执行记录（v001 实施）
+- 代码变更：
+  - 后端 DB：`src/backend/database/plugins/pdf_info_plugin.py:search_records`
+    - 默认字段增加 `subject`、`keywords`
+    - 所有 LIKE 条件添加 `ESCAPE '\\'`，并对 `%`、`_` 做转义，避免通配误匹配
+  - 前端：`src/frontend/pdf-home/features/search/services/search-manager.js`
+    - `search_fields` 默认包含 `subject`、`keywords`，提升首版检索覆盖面
+- 测试：新增 `src/backend/database/plugins/__tests__/test_pdf_info_plugin_search_records.py`
+  - 覆盖多关键词 AND、JSON 字段、tags、LIKE 转义与分页
+  - 本地 `pytest` 通过
+- 结论：pdf-home 基础搜索前后端链路符合 v001 规格；后端 SQL 转义更稳健，前端字段更全面。
+
+## 2025-10-06 搜索语义更新
+- 搜索语义明确为：空格 = 且（AND）。例如：`A B` 表示返回同时包含 `A` 与 `B` 的记录。
+- 实现位置：
+  - 后端：`PDFInfoTablePlugin.search_records` 对多个关键词使用 AND 连接，字段内 OR。
+  - 前端：`SearchBar` 占位提示文案更新为"空格=且"。
