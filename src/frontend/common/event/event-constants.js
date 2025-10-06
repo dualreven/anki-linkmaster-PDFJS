@@ -61,6 +61,9 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   REMOVE_PDF: "pdf-home:remove:pdf-files",
   OPEN_PDF: "pdf-home:open:pdf-file",
   PDF_DETAIL_REQUEST: "pdf-home:get:pdf-info",
+  // 配置读取/更新（用于长期存储 recent_search 等）
+  GET_CONFIG: "pdf-home:get:config",
+  UPDATE_CONFIG: "pdf-home:update:config",
   BOOKMARK_LIST: "bookmark/list",
   BOOKMARK_SAVE: "bookmark/save",
 

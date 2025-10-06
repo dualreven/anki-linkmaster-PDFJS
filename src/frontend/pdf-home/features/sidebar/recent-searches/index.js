@@ -4,6 +4,7 @@
  */
 
 import { RecentSearchesFeatureConfig } from './feature.config.js';
+import { WEBSOCKET_MESSAGE_TYPES } from '../../../../common/event/event-constants.js';
 import './styles/recent-searches.css';
 
 export class RecentSearchesFeature {
@@ -24,6 +25,9 @@ export class RecentSearchesFeature {
   #containerEl = null;
   #listEl = null;
   #limitSelectEl = null;
+  #saveTimer = null;
+  #pendingGetConfigReqId = null;
+  #saveDebounceMs = 300; // 后端持久化防抖，避免频繁写盘
 
   /**
    * 安装Feature
@@ -47,6 +51,8 @@ export class RecentSearchesFeature {
 
       // 2. 加载历史数据
       this.#loadFromStorage();
+      // 同步后端持久化配置（覆盖本地）
+      this.#requestLoadFromBackend();
 
       // 3. 渲染UI（含显示条数选择）
       this.#ensureLimitSelect();
@@ -127,6 +133,29 @@ export class RecentSearchesFeature {
       this.#unsubscribers.push(() => this.#limitSelectEl.removeEventListener('change', changeHandler));
     }
 
+    // 监听后端响应（用于加载/保存配置回执）
+    const unsubWsResponse = this.#scopedEventBus.onGlobal('websocket:message:response', (data) => {
+      try {
+        if (!data || data.status !== 'success') return;
+
+        if (this.#pendingGetConfigReqId && data.request_id === this.#pendingGetConfigReqId) {
+          this.#pendingGetConfigReqId = null;
+          const cfg = data?.data?.config;
+          if (cfg && Array.isArray(cfg.recent_search)) {
+            this.#recentSearches = cfg.recent_search
+              .filter(x => x && typeof x.text === 'string')
+              .slice(0, RecentSearchesFeatureConfig.config.maxItems);
+            this.#saveToStorage();
+            this.#renderList();
+            this.#logger.info('[RecentSearchesFeature] Synced from backend config');
+          }
+        }
+      } catch (e) {
+        this.#logger.error('[RecentSearchesFeature] Handle backend response failed', e);
+      }
+    }, { subscriberId: 'RecentSearchesFeature' });
+    this.#unsubscribers.push(unsubWsResponse);
+
     this.#logger.debug('[RecentSearchesFeature] Event listeners setup');
   }
 
@@ -150,6 +179,21 @@ export class RecentSearchesFeature {
     } catch (error) {
       this.#logger.error('[RecentSearchesFeature] Failed to load from storage', error);
       this.#recentSearches = [];
+    }
+  }
+
+  // 私有：向后端请求加载配置（获取 recent_search 持久化数据）
+  #requestLoadFromBackend() {
+    try {
+      const reqId = `cfg_get_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      this.#pendingGetConfigReqId = reqId;
+      this.#scopedEventBus.emitGlobal('websocket:message:send', {
+        type: WEBSOCKET_MESSAGE_TYPES.GET_CONFIG,
+        request_id: reqId
+      });
+      this.#logger.debug('[RecentSearchesFeature] Requesting backend config', { request_id: reqId });
+    } catch (e) {
+      this.#logger.warn('[RecentSearchesFeature] Request backend config failed', e);
     }
   }
 
@@ -185,6 +229,33 @@ export class RecentSearchesFeature {
 
     this.#saveToStorage();
     this.#renderList();
+
+    // 后端持久化（防抖）
+    this.#scheduleSaveToBackend();
+  }
+
+  // 私有：调度向后端保存配置（持久化 recent_search）
+  #scheduleSaveToBackend() {
+    try {
+      if (this.#saveTimer) {
+        clearTimeout(this.#saveTimer);
+      }
+      this.#saveTimer = setTimeout(() => {
+        this.#saveTimer = null;
+        const reqId = `cfg_up_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const payload = {
+          type: WEBSOCKET_MESSAGE_TYPES.UPDATE_CONFIG,
+          request_id: reqId,
+          data: {
+            recent_search: this.#recentSearches.slice(0, RecentSearchesFeatureConfig.config.maxItems)
+          }
+        };
+        this.#logger.debug('[RecentSearchesFeature] Saving backend config', { request_id: reqId, count: this.#recentSearches.length });
+        this.#scopedEventBus.emitGlobal('websocket:message:send', payload);
+      }, this.#saveDebounceMs);
+    } catch (e) {
+      this.#logger.warn('[RecentSearchesFeature] Schedule save backend failed', e);
+    }
   }
 
   // 私有：渲染最近搜索列表

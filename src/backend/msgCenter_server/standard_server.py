@@ -240,6 +240,12 @@ class StandardWebSocketServer(QObject):
         elif message_type in ["pdf-home:search:pdf-files"]:
             return self.handle_pdf_search_request(request_id, data, message)
 
+        # PDF-Home 配置读写（recent_search 持久化）
+        elif message_type in ["pdf-home:get:config"]:
+            return self.handle_pdf_home_get_config(request_id)
+        elif message_type in ["pdf-home:update:config"]:
+            return self.handle_pdf_home_update_config(request_id, data)
+
         # 更新PDF元数据
         elif message_type in ["pdf-home:update:pdf", "update_pdf"]:
             return self.handle_pdf_update_request(request_id, data)
@@ -280,6 +286,99 @@ class StandardWebSocketServer(QObject):
                 "unknown_message_type",
                 f"未知的消息类型: {message_type}",
                 code=400
+            )
+
+    def _get_pdf_home_config_path(self) -> str:
+        try:
+            data_dir = getattr(self.pdf_manager, 'data_dir', 'data') or 'data'
+        except Exception:
+            data_dir = 'data'
+        os.makedirs(data_dir, exist_ok=True)
+        return os.path.join(data_dir, 'pdf-home-config.json')
+
+    def handle_pdf_home_get_config(self, request_id: Optional[str]) -> Dict[str, Any]:
+        try:
+            cfg_path = self._get_pdf_home_config_path()
+            config_obj = {"recent_search": []}
+            if os.path.exists(cfg_path):
+                with open(cfg_path, 'r', encoding='utf-8') as f:
+                    try:
+                        loaded = json.load(f)
+                        if isinstance(loaded, dict):
+                            config_obj.update(loaded)
+                    except Exception as exc:
+                        logger.warning("配置文件解析失败，使用默认对象: %s", exc, exc_info=True)
+            else:
+                with open(cfg_path, 'w', encoding='utf-8', newline='\n') as f:
+                    json.dump(config_obj, f, ensure_ascii=False, indent=2)
+
+            return StandardMessageHandler.build_response(
+                'response',
+                request_id,
+                status='success',
+                code=200,
+                message='读取配置成功',
+                data={
+                    'original_type': 'pdf-home:get:config',
+                    'config': config_obj
+                }
+            )
+        except Exception as e:
+            logger.error("读取配置失败: %s", e, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id,
+                'INTERNAL_ERROR',
+                f'读取配置失败: {str(e)}',
+                code=500
+            )
+
+    def handle_pdf_home_update_config(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            cfg_path = self._get_pdf_home_config_path()
+            # 读旧配置
+            config_obj = {"recent_search": []}
+            if os.path.exists(cfg_path):
+                with open(cfg_path, 'r', encoding='utf-8') as f:
+                    try:
+                        loaded = json.load(f)
+                        if isinstance(loaded, dict):
+                            config_obj.update(loaded)
+                    except Exception as exc:
+                        logger.warning("配置文件解析失败，将覆盖为新配置: %s", exc, exc_info=True)
+
+            # 合并新数据（仅 recent_search）
+            recent = (data or {}).get('recent_search')
+            if isinstance(recent, list):
+                cleaned = []
+                for it in recent:
+                    if isinstance(it, dict) and isinstance(it.get('text'), str):
+                        cleaned.append({
+                            'text': it.get('text', ''),
+                            'ts': it.get('ts') or 0
+                        })
+                config_obj['recent_search'] = cleaned
+
+            with open(cfg_path, 'w', encoding='utf-8', newline='\n') as f:
+                json.dump(config_obj, f, ensure_ascii=False, indent=2)
+
+            return StandardMessageHandler.build_response(
+                'response',
+                request_id,
+                status='success',
+                code=200,
+                message='更新配置成功',
+                data={
+                    'original_type': 'pdf-home:update:config',
+                    'config': config_obj
+                }
+            )
+        except Exception as e:
+            logger.error("更新配置失败: %s", e, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id,
+                'INTERNAL_ERROR',
+                f'更新配置失败: {str(e)}',
+                code=500
             )
     
 

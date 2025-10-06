@@ -755,3 +755,32 @@ const service = new NavigationService();
   - 搜索实现优先使用 `pdf_library_api.search_records()`（若注入），否则回退到 `PDFManager` 内存搜索（空搜索=全部）。
 - 受影响文件：`src/backend/msgCenter_server/standard_server.py:1`（新增分支与处理方法）
 - 结果：前端不会再收到“未知的消息类型: pdf/search|pdf-home:search:pdf-files”的错误；`SearchManager` 的 v1/v2 双协议解析均可正常工作。
+
+## 2025-10-06 PDF-Home 最近搜索长期存储（进行中）
+### 问题与背景
+- 目前 pdf-home 的“最近搜索”仅存于 LocalStorage，无法跨环境/长期保存。
+- 目标：将最近搜索改为长期存储到文件 `data/pdf-home-config.json` 的 `recent_search` 字段，并在前端定期（防抖）推送更新。
+
+### 涉及模块与文件
+- 前端：`src/frontend/pdf-home/features/sidebar/recent-searches/index.js`
+  - 安装时先从 localStorage 读取，再发送 `pdf-home:get:config` 请求，收到回执覆盖本地并渲染。
+  - 每次新增/置顶搜索后，300ms 防抖发送 `pdf-home:update:config`，payload 中包含 `recent_search` 数组（元素形如 `{ text, ts }`）。
+- 前端事件常量：`src/frontend/common/event/event-constants.js:WEBSOCKET_MESSAGE_TYPES`
+  - 新增 `GET_CONFIG`、`UPDATE_CONFIG`。
+- 后端：`src/backend/pdfTable_server/application_subcode/websocket_handlers.py`
+  - 新增 `handle_get_config`、`handle_update_config`。
+  - 配置文件路径：`data/pdf-home-config.json`（UTF-8 + 换行 `\n`）。
+
+### 执行步骤（原子任务）
+1. 新增事件常量（前端）
+2. 编写前端单测（安装请求、更新发送、回执覆盖）
+3. 改造 RecentSearchesFeature 读/写后端（含防抖）
+4. 增加后端 WS 处理器（UTF-8 文件读写）
+5. 运行前端测试并修正
+6. 记录日志并通知完成
+
+### 注意事项
+- 文件读写统一使用 `encoding='utf-8'`，写入需 `newline='\n'`，JSON `ensure_ascii=False`。
+- 事件命名严格 `module:action:object` 三段式。
+- 仍保留 localStorage 作为 UI 立即可用的本地缓存；后端回执为权威数据源，覆盖本地。
+- WebSocket 连接时序：Feature 安装可能早于 WS 连接建立；已修复 WSClient `#flushMessageQueue()` 保留完整消息（含 `request_id`），避免队列消息回执无法关联。
