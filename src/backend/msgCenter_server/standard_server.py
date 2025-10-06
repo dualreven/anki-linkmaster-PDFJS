@@ -77,6 +77,10 @@ def get_port(args_port=None):
     logger.info(f"Using default port: {default_port}")
     return default_port
 
+from src.backend.api.pdf_library_api import PDFLibraryAPI  # type: ignore
+from src.backend.api.service_registry import ServiceRegistry  # type: ignore
+
+
 class StandardWebSocketServer(QObject):
     """标准WebSocket服务器 - 支持JSON通信标准"""
     
@@ -85,7 +89,7 @@ class StandardWebSocketServer(QObject):
     client_disconnected = pyqtSignal(QWebSocket)
     message_received = pyqtSignal(QWebSocket, dict)
     
-    def __init__(self, host="127.0.0.1", port=8765, app=None):
+    def __init__(self, host="127.0.0.1", port=8765, app=None, *, pdf_library_api: Optional[PDFLibraryAPI] = None, service_registry: Optional[ServiceRegistry] = None):
         super().__init__()
         self.host = host
         self.port = port
@@ -98,6 +102,14 @@ class StandardWebSocketServer(QObject):
         
         # PDF管理器
         self.pdf_manager = PDFManager()
+
+        # API 门面/服务注册表（可注入）
+        self.pdf_library_api = pdf_library_api
+        if self.pdf_library_api is None and service_registry is not None:
+            try:
+                self.pdf_library_api = PDFLibraryAPI(service_registry=service_registry)
+            except Exception as exc:
+                logger.warning("创建 PDFLibraryAPI 失败: %s", exc)
         
         # 连接信号
         self.server.newConnection.connect(self.on_new_connection)

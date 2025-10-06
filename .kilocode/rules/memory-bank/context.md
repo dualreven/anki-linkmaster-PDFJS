@@ -830,3 +830,9 @@ const service = new NavigationService();
   - pdf-viewer/bookmark: DefaultBookmarkService（list_bookmarks, save_bookmarks）
 - 修改 PDFLibraryAPI：_auto_register_default_services + 动态加载 _load_default_service()（避免 Python 包导入对 kebab-case 的限制）
 - 保持门面旧逻辑作为回退路径；现默认走委派路径。
+
+
+## 2025-10-06 实施记录（插件隔离阶段三）
+- 标准服务器支持注入：src/backend/msgCenter_server/standard_server.py: __init__(..., pdf_library_api=None, service_registry=None)
+- 如提供 service_registry，则内部创建 PDFLibraryAPI(service_registry=...)，否则保持原逻辑（无门面时走回退）
+- 维持对现有测试的兼容（仍可直接设置 server.pdf_library_api = Fake 实例）
