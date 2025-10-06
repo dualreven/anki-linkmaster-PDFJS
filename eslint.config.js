@@ -1,9 +1,12 @@
-// eslint.config.js
+import { existsSync } from "node:fs";
 import js from "@eslint/js";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 import jsdoc from "eslint-plugin-jsdoc";
 import eventNameFormat from "./eslint-rules/event-name-format.js";
+
+const hasTsconfig = existsSync(new URL("./tsconfig.json", import.meta.url));
+const tsParserOptions = hasTsconfig ? { project: "./tsconfig.json" } : {};
 
 export default [
   // 使用 ESLint 官方推荐配置
@@ -14,7 +17,7 @@ export default [
     files: ["**/*.js", "**/*.cjs", "**/*.mjs"],
     plugins: {
       jsdoc,
-      "custom": {
+      custom: {
         rules: {
           "event-name-format": eventNameFormat
         }
@@ -50,14 +53,17 @@ export default [
     },
   },
 
-  // 针对 TypeScript 文件
-  ...tseslint.configs.recommended, // 官方推荐 TypeScript 规则
+  // 针对 TypeScript 文件（如仓库存在 tsconfig.json，则启用类型感知）
+  ...tseslint.configs.recommended,
   {
     files: ["**/*.ts", "**/*.tsx"],
+    plugins: {
+      jsdoc,
+    },
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: {
-        project: "./tsconfig.json", // 如果没有 tsconfig.json，可以去掉
+        ...tsParserOptions,
       },
       globals: {
         ...globals.browser,
@@ -70,7 +76,7 @@ export default [
       "@typescript-eslint/explicit-function-return-type": "warn",
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
       "@typescript-eslint/consistent-type-imports": "error",
-            // 强制函数必须写 JSDoc
+      // 强制函数必须写 JSDoc
       "jsdoc/require-jsdoc": [
         "error",
         {
@@ -90,7 +96,6 @@ export default [
       "jsdoc/require-param-type": "warn",
       "jsdoc/require-returns-type": "warn",
     },
-    
   },
 
   // 忽略文件

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "docs/contracts/storage-fs/v1/messages/write.completed.schema.json",
+  "title": "storage-fs:write:completed",
+  "type": "object",
+  "properties": {
+    "type": {"const": "storage-fs:write:completed"},
+    "timestamp": {"type": "number"},
+    "request_id": {"type": "string"},
+    "status": {"const": "success"},
+    "code": {"type": "integer"},
+    "message": {"type": "string"},
+    "metadata": {"type": "object", "properties": {"version": {"type": "string"}}, "required": ["version"]},
+    "data": {"type": "object", "properties": {"path": {"type": "string"}, "bytes": {"type": "integer"}}, "required": ["path", "bytes"], "additionalProperties": false}
+  },
+  "required": ["type", "timestamp", "request_id", "status", "code", "data", "metadata"],
+  "additionalProperties": false
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "annotation:save:completed",
+  "type": "object",
+  "required": ["type", "timestamp", "request_id", "status", "code", "data"],
+  "properties": {
+    "type": { "const": "annotation:save:completed" },
+    "timestamp": { "type": "number" },
+    "request_id": { "type": "string" },
+    "status": { "const": "success" },
+    "code": { "type": "integer" },
+    "message": { "type": "string" },
+    "data": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string" },
+        "created": { "type": "boolean" },
+        "updated": { "type": "boolean" }
+      }
+    }
+  }
+}
+

@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "annotation:delete:completed",
+  "type": "object",
+  "required": ["type", "timestamp", "request_id", "status", "code", "data"],
+  "properties": {
+    "type": { "const": "annotation:delete:completed" },
+    "timestamp": { "type": "number" },
+    "request_id": { "type": "string" },
+    "status": { "const": "success" },
+    "code": { "type": "integer" },
+    "message": { "type": "string" },
+    "data": {
+      "type": "object",
+      "properties": {
+        "ok": { "type": "boolean" }
+      }
+    }
+  }
+}
+

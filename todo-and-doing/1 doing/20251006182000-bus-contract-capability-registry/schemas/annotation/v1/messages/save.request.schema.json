@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "annotation:save:requested",
+  "type": "object",
+  "required": ["type", "timestamp", "request_id", "data"],
+  "properties": {
+    "type": { "const": "annotation:save:requested" },
+    "timestamp": { "type": "number" },
+    "request_id": { "type": "string" },
+    "data": {
+      "type": "object",
+      "required": ["pdf_uuid", "annotation"],
+      "properties": {
+        "pdf_uuid": { "type": "string", "pattern": "^[a-f0-9]{12}$" },
+        "annotation": {
+          "type": "object",
+          "required": ["type", "pageNumber", "data"],
+          "properties": {
+            "id": { "type": "string" },
+            "type": { "type": "string", "enum": ["screenshot", "text-highlight", "comment"] },
+            "pageNumber": { "type": "integer", "minimum": 1 },
+            "data": { "type": "object" },
+            "comments": { "type": "array" },
+            "createdAt": { "type": "string" },
+            "updatedAt": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}
+

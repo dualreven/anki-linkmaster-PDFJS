@@ -340,16 +340,7 @@ export class AnnotationManager {
     return { success: true, id };
   }
 
-  /**
-   * 从后端删除标注（Phase 2，待实现）
-   * @param {string} id - 标注ID
-   * @returns {Promise<void>}
-   * @private
-   */
-  async #deleteAnnotationFromBackend(id) {
-    // TODO: Phase 2 - 通过WebSocket发送到后端
-    throw new Error('Backend delete not implemented yet (Phase 2)');
-  }
+  // 从后端删除标注的方法在文件后部已实现，此处移除重复定义以避免 Babel 报错
 
   /**
    * 加载标注（内部处理）

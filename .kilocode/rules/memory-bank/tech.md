@@ -16,6 +16,23 @@
   - pdf-viewer：写入 `logs/pdf-viewer-<pdf-id>-js.log`
 - JS 层可使用共享 Logger 输出到控制台；由 Python 捕获程序写入日志（UTF-8）。
 
+日志治理（配置项与默认）
+- 生产默认：`WARN` 级别、事件采样 20%、JSON 不美化
+- 运行时可通过 localStorage 调整（无需改代码）：
+  - `LOG_LEVEL`: `debug|info|warn|error`
+  - `LOG_EVENT_SAMPLE_RATE`: `0~1`（例如 `0.2`）
+  - `LOG_RATE_LIMIT`: `messages,intervalMs`（如 `100,1000`）
+  - `LOG_DEDUP_WINDOW_MS`: 重复折叠窗口毫秒
+  - `LOG_EVENT_MAX_JSON`: 事件 JSON 最大长度
+  - `LOG_EVENT_PRETTY`: `true|false`
+  
+编程方式（可在 Bootstrap 中设置）
+```js
+import { configureLogger, LogLevel, setModuleLogLevel } from 'src/frontend/common/utils/logger.js';
+configureLogger({ globalLevel: LogLevel.INFO, rateLimit: { messages: 60, intervalMs: 1000 }, event: { sampleRate: 0.5 } });
+setModuleLogLevel('Feature.annotation', LogLevel.WARN);
+```
+
 ## 后端日志规范
 - 统一使用 Python `logging`，显式 UTF-8；必要时采用覆盖写并确保行尾正确。
 
@@ -411,3 +428,13 @@ emove_comment(ann_id, comment_id)。
   - nnotation:save:completed → data: { id, created?, updated? }
   - nnotation:delete:completed → data: { ok }
 - 说明：前端 AnnotationManager 自动从 DI 容器获取 wsClient，可用即远程持久化；否则退化为 Mock。
+
+## 代码格式化工具（2025-10-06）
+- 使用 Prettier 统一批量格式化，配置文件 `.prettierrc.json`（100列、单引号、LF）。
+- 默认忽略目录：`node_modules/`、`build/`、`dist/`、`logs/`、`AItemp/`、`todo-and-doing/`（见 `.prettierignore`）。
+- 命令：
+  - 写入格式：`pnpm run format`（封装 `scripts/run-prettier.mjs --write`，作用于 `src/`、`scripts/` 及根部配置文件）。
+  - 校验：`pnpm run format:check`（同脚本 `--check`）。可用 `--pattern <glob>` 指定子集。
+- 示例：`pnpm run format:check -- --pattern scripts/test-formatting-sample.js`
+- 快速自测：`pnpm run test:format` 会在示例文件上执行 `format:check`，验证命令链路。
+

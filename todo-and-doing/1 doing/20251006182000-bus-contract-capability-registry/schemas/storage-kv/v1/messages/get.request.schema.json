@@ -1,0 +1,23 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "docs/contracts/storage-kv/v1/messages/get.request.schema.json",
+  "title": "storage-kv:get:requested",
+  "type": "object",
+  "properties": {
+    "type": {"const": "storage-kv:get:requested"},
+    "timestamp": {"type": "number"},
+    "request_id": {"type": "string"},
+    "metadata": {"type": "object", "properties": {"version": {"type": "string"}}, "required": ["version"]},
+    "data": {
+      "type": "object",
+      "properties": {
+        "namespace": {"type": "string"},
+        "key": {"type": "string"}
+      },
+      "required": ["namespace", "key"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["type", "timestamp", "request_id", "metadata", "data"],
+  "additionalProperties": false
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "docs/contracts/pdf-library/v1/messages/info.completed.schema.json",
+  "title": "pdf-library:info:completed",
+  "type": "object",
+  "properties": {
+    "type": {"const": "pdf-library:info:completed"},
+    "timestamp": {"type": "number"},
+    "request_id": {"type": "string"},
+    "status": {"const": "success"},
+    "code": {"type": "integer"},
+    "message": {"type": "string"},
+    "metadata": {"type": "object", "properties": {"version": {"type": "string"}}, "required": ["version"], "additionalProperties": true},
+    "data": {"type": "object"}
+  },
+  "required": ["type", "timestamp", "request_id", "status", "code", "data", "metadata"],
+  "additionalProperties": false
+}

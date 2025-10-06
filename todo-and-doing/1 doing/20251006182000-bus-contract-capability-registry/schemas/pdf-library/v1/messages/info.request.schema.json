@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "docs/contracts/pdf-library/v1/messages/info.request.schema.json",
+  "title": "pdf-library:info:requested",
+  "type": "object",
+  "properties": {
+    "type": {"const": "pdf-library:info:requested"},
+    "timestamp": {"type": "number"},
+    "request_id": {"type": "string"},
+    "metadata": {"type": "object", "properties": {"version": {"type": "string"}}, "required": ["version"], "additionalProperties": true},
+    "data": {
+      "type": "object",
+      "properties": {
+        "pdf_id": {"type": "string"}
+      },
+      "required": ["pdf_id"],
+      "additionalProperties": true
+    }
+  },
+  "required": ["type", "timestamp", "request_id", "metadata", "data"],
+  "additionalProperties": false
+}

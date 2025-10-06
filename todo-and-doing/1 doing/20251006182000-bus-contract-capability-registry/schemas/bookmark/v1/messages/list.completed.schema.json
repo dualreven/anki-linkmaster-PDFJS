@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "docs/contracts/bookmark/v1/messages/list.completed.schema.json",
+  "title": "bookmark:list:completed",
+  "type": "object",
+  "properties": {
+    "type": {"const": "bookmark:list:completed"},
+    "timestamp": {"type": "number"},
+    "request_id": {"type": "string"},
+    "status": {"const": "success"},
+    "code": {"type": "integer"},
+    "message": {"type": "string"},
+    "metadata": {"type": "object", "properties": {"version": {"type": "string"}}, "required": ["version"]},
+    "data": {
+      "type": "object",
+      "properties": {
+        "bookmarks": {"type": "array"},
+        "root_ids": {"type": "array", "items": {"type": "string"}}
+      },
+      "required": ["bookmarks"],
+      "additionalProperties": true
+    }
+  },
+  "required": ["type", "timestamp", "request_id", "status", "code", "data", "metadata"],
+  "additionalProperties": false
+}
+

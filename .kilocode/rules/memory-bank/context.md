@@ -44,6 +44,54 @@ logger.event('event:name', 'action', data); // 事件日志
 4. 防止敏感信息泄露（Logger 会过滤私有属性）
 5. 与 PyQt 集成，前后端日志统一管理
 
+#### 🔧 日志治理（新增能力）
+- 全局/模块级级别覆盖：`setGlobalLogLevel(level)`、`setModuleLogLevel(module, level)`；优先级：模块级 > 全局级 > 实例级
+- 限流：按“模块+级别”固定窗口限流（默认 120 条/秒），超额将被抑制并在窗口滚动时输出一次汇总
+- 重复折叠：相同消息在 `dedupWindowMs`（默认 500ms）内仅首条输出，其余折叠；遇到不同消息时输出一次折叠汇总
+- 事件采样与裁剪：`logger.event()` 支持采样（默认 100%/生产20%）与 JSON 文本长度上限（默认 800 字符）
+- 生产默认：`WARN` 级别、关闭 JSON pretty、事件采样 20%
+
+高频日志候选关闭（依据 20251007 分析）
+- 订阅日志：`Event [xxx]: 订阅 { ... }`（event-bus.js:487）→ 默认关闭，仅排障时打开（DEBUG）
+- 发布日志：`Event [xxx]: 发布 { ... }`（event-bus.js:637）→ 默认关闭或仅输出事件名
+- 无订阅者提示：`... - 无订阅者`（event-bus.js:705）→ 默认关闭/降级 DEBUG
+- WebSocket 杂项：`websocket:message:unknown` 等 → 加入 SUPPRESSED_EVENT_LOGS 白名单
+- 高频状态变更：`pdf-viewer:page:changing`、`...:bookmark-select:changed` → 降级 DEBUG 或采样
+- 未注册全局事件错误：`search:query:requested` → 保留但限频 + 尽快修复调用点
+
+用户确认后的最终策略（已实施）
+- 统一关闭发布/订阅日志：不再输出 `Event [xxx]: 订阅/发布 {...}`
+- 保留 `websocket:message:unknown` 发布日志（用于诊断未知WS消息）
+- `pdf-viewer:page:changing` 与 `pdf-viewer:bookmark-select:changed` 的发布日志做 10% 采样
+- Feature.annotation 与 PDFViewerManager 初始化细节降为 DEBUG，仅保留关键结论为 INFO
+- `'search:query:requested'` 未注册全局事件错误：维持现有策略（保留错误，提示修复）
+
+运行时配置（localStorage，可热更新）
+- `LOG_LEVEL`: `debug|info|warn|error`
+- `LOG_EVENT_SAMPLE_RATE`: `0~1` 浮点数，例如 `0.2`
+- `LOG_RATE_LIMIT`: 形如 `100,1000`（每窗口允许条数, 窗口毫秒）
+- `LOG_DEDUP_WINDOW_MS`: 重复折叠窗口，毫秒（整数）
+- `LOG_EVENT_MAX_JSON`: 事件 JSON 最大长度，字符数
+- `LOG_EVENT_PRETTY`: `true|false` 是否美化缩进
+
+编程配置（API）
+```js
+import { configureLogger, setGlobalLogLevel, setModuleLogLevel, LogLevel } from '../common/utils/logger.js';
+
+configureLogger({
+  globalLevel: LogLevel.INFO,
+  rateLimit: { messages: 60, intervalMs: 1000 },
+  dedupWindowMs: 300,
+  event: { sampleRate: 0.5, maxJsonLength: 600, pretty: false },
+});
+
+setModuleLogLevel('Feature.annotation', LogLevel.WARN);
+```
+
+最小验证脚本
+- `node AItemp/tests/logger-govern.mjs`（Node ESM）
+- 断言限流/折叠/采样生效并通过
+
 ---
 
 ### 2️⃣ 项目启动方法（必须遵守）
@@ -214,6 +262,25 @@ export class MyFeature {
     this.#logger.info(`${this.name} uninstalled`);
   }
 }
+
+---
+
+## 当前任务（20251007013000）
+
+- 名称：执行 Git 提交（必要时推送）
+- 背景：工作区存在多项改动（含新增脚本、配置与前端修复），需要一次性提交固化。
+- 原子步骤：
+  1) 获取最近 8 条 AI 工作日志，理解历史（已完成）
+  2) 记录本次任务工作日志 `AItemp/20251007013000-AI-Working-log.md`
+  3) 检查/读取本文件（context.md）并补充当前任务段落（即本段）
+  4) 执行 `git add -A` 与 `git commit -m "chore(repo): sync changes, logs, memory-bank"`
+  5) 识别远程与上游，若存在则 `git push`（可选，若失败不阻塞）
+  6) 将执行结果回写至本任务工作日志与 memory-bank
+  7) 调用 `notify-tts` 播报完成
+
+### 期望结果
+- 提交完成且工作区干净；若可推送则已推送至上游。
+
 ```
 
 **第二步：在Bootstrap中注册**
@@ -1183,6 +1250,12 @@ todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/schemas/
 6. 子模块新增单测；保留并通过 `test_pdf_library_api.py`
 7. 冒烟验证 WebSocket 相关路径（不改协议/调用点）
 
+### 最新进展（2025-10-06 23:58）
+- 已新增批量格式化脚本 `scripts/run-prettier.mjs`，封装 Prettier 调用，支持 `--check` / `--write` 与 `--pattern` 定向格式化。
+- `package.json` 新增命令：`pnpm run format`（批量写入）与 `pnpm run format:check`（校验），默认覆盖 `src/`、`scripts/` 及根部配置文件。
+- 配置文件：新增 `.prettierrc.json`（单引号、100 列宽、LF）与 `.prettierignore`（忽略 node_modules/AItemp 等目录）。
+- 验证命令：`pnpm run test:format` 会在示例文件上执行 `format:check`，确保工具链稳定。
+
 ### 测试设计
 - 覆盖：搜索（多 token/空/标签/评分/分页/排序/负例）、书签（树结构/顺序/区域校验/级联）、入库（路径校验/PDF 校验/回滚/DB 同步）
 - 兼容：门面旧测试不变；新增子模块测试
@@ -1259,47 +1332,26 @@ todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/schemas/
 
 ---
 
-## 当前问题与目标（2025-10-06）
-- 问题：隔离插件事件总线模式下，多个前端需要与同一后端插件联动（含持久化读写），并行开发时容易出现事件线路与数据契约不一致，导致互相踩线和回归成本高。
-- 目标：建立“契约优先 + 能力注册中心 + 版本化”的协作机制，统一请求-响应语义、持久化访问接口与迁移策略，使前端可并行、后端可演进且不破坏现有功能。
+## 当前问题（2025-10-06 23:58）
 
-### 相关模块/文件
-- 事件与消息规范：docs/SPEC/FRONTEND-EVENT-NAMING-001.md、docs/SPEC/JSON-MESSAGE-FORMAT-001.md、docs/SPEC/SPEC-HEAD-communication.json
-- 后端 API 门面：src/backend/api/pdf_library_api.py（现为统一入口，已规划服务注册拆分）
-- 数据库插件层：src/backend/database/plugins/*（pdf_info/annotation/bookmark/search_condition）
+- 需求：实现面向仓库的 JavaScript/TypeScript 批量格式化流程，遵守既有 UTF-8/\n 规范与契约驱动协作方式。
+- 目标：在现有工具链内（pnpm/脚本）提供可重复执行的格式化命令，并保证不会破坏既有代码结构或契约文件。
+- 关注点：已有脚本/配置（如 prettier、eslint）是否存在；全局 Logger/事件规范需保持；避免对非 JS/TS 文件造成影响。
 
-### 方案要点
-1) 契约与版本：三段式事件名 + JSON Schema 契约 + metadata.version，禁止未提主版本的破坏性变更。
-2) 能力注册中心：后端插件上报能力清单（事件、版本、特性），前端通过 discovery 获取并缓存，统一接入。
-3) 请求-响应语义：统一 requested/completed/failed；携带 request_id/correlationId 与 replyTo；响应含 code/message/error。
-4) 存储服务抽象：提供 storage:kv/fs:* 标准接口，业务插件通过 API 门面访问存储，前端不直连 DB。
-5) SDK 与适配器：由同一 Schema 生成前端/后端类型与常量；保留旧事件名的 adapter 以平滑迁移。
-6) 测试与门禁：新增契约一致性校验与端到端路由冒烟；CI 阶段阻断不合规变更。
+### 相关模块与文件
+- package.json / pnpm-lock.yaml：检查是否已声明 Prettier/ESLint。
+- scripts/*（若存在）：复用或扩展 CLI 脚本。
+- src/frontend/**：待格式化的主要 JS 目录。
+- 可能的配置文件：.prettierrc、.eslintrc.*、.editorconfig（需确认是否已有）。
 
 ### 执行步骤（原子任务）
-A-1. 在 docs/contracts/ 下建立契约目录与基础 Schema（仅文档/样例）。
-A-2. 在 docs/architecture/ 新增 “Bus 能力注册中心与请求-响应约定” 文档。
-A-3. 在 docs/SPEC 增补三段式事件 + JSON 消息结构的对齐说明（type=事件名，metadata.version 版本）。
-A-4. 规划 storage:kv 与 storage:fs 的最小接口与错误模型。
-A-5. 设计契约一致性测试（后续落地脚本），并在 tech.md 记录使用方法。
-A-6. 为并行开发制定“提契约 PR→合并后再开发”的流程清单。
-
-### 注意与约束
-- 保持 UTF-8 与换行 \n；禁止下划线事件名；严格三段式。
-- 不立即改代码行为，本轮仅落地文档/样例与流程，避免打断现有开发。
-### 2025-10-06 消息命名治理进度
-- 后端 `standard_protocol` / `standard_server` 已引入 `pdf-library:*:requested|completed|failed` 三段式常量，并在 `StandardWebSocketServer.handle_message` 中兼容旧类型到新类型的映射
-- 新增测试 `test_standard_server_messages.py` 覆盖文件入库路径，`test_standard_server_bookmarks.py` 同步改为 `bookmark:*:requested|completed|failed`
-- 待办：重构 `pdfTable_server/application_subcode/response_handlers.py` 让成功/失败返回不再使用 `type=response`；同步更新 `pdfTable_server` 内 add/remove/search/config 分支，使 `send_success_response`/`send_error_response` 传入三段式请求并写入 `original_type`
-
-- 文档迁移：契约与能力注册中心相关文档已移动至 todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/ （含 v001-spec.md 与 schemas/）。
-
-### 2025-10-06 开发进展（并行契约闭环，最小实现）
-- 后端新增：capability:discover/describe 与 storage-kv:get 处理，均走 UTF-8 I/O；在 standard_protocol/standard_server 接入，事件三段式。
-- 前端增强：WSClient 泛化结算（任意 *:completed|failed 或带 status 的响应自动结算 pending）；新增若干 VALID_MESSAGE_TYPES。
-- 使用文档：todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/USAGE.md
-- 测试：src/backend/msgCenter_server/__tests__/test_capability_registry.py
-\n---\n
+1. 调研仓库现有格式化/检查工具配置，确认是否已引入 Prettier 或 ESLint。
+2. 阅读相关模块规范文档（docs/SPEC/*、readme、templates）定位格式要求。
+3. 设计测试方案：至少包含在样例 JS 文件上运行格式化命令并比对变更；必要时先创建干净样例。
+4. 在掌握规范后，先编写测试脚本/命令（例如使用 pnpm script 触发 npx prettier --check）。
+5. 实现批量格式化命令（如新增 pnpm script / PowerShell 脚本），确保指定文件编码与换行规范。
+6. 执行测试验证命令可运行并输出符合预期的结果；如遇冲突需记录并处理。
+7. 更新 memory bank 与日志，记录命令用法、注意事项及后续拓展建议。
 ## 2025-10-06 修复记录（前端Babel报错）
 - 症状：构建时报错 Private name #buildError is not defined，定位到 src/frontend/common/event/event-bus.js
 - 原因：在 EventBus.on()/emit() 中错误地调用了 EventNameValidator 的私有静态方法 #buildError（跨类访问私有方法，语法不合法）
@@ -1317,6 +1369,12 @@ A-6. 为并行开发制定“提契约 PR→合并后再开发”的流程清单
 - 变更：src/frontend/pdf-viewer/pyqt/pdf_viewer_bridge.py 的 loadPdfFile 发送消息增加 timestamp（毫秒）。
 - 背景：服务器 standard_protocol.validate_message_structure 要求消息必须包含 type 和 timestamp；此前日志出现缺少 timestamp。
 - 影响：避免 load_pdf_file 被服务器拒绝，提升打开 PDF 的稳定性。
+
+### 最新进展（2025-10-06 23:58）
+- 已新增批量格式化脚本 `scripts/run-prettier.mjs`，封装 Prettier 调用，支持 `--check` / `--write` 与 `--pattern` 定向格式化。
+- `package.json` 新增命令：`pnpm run format`（批量写入）与 `pnpm run format:check`（校验），默认覆盖 `src/`、`scripts/` 及根部配置文件。
+- 配置文件：新增 `.prettierrc.json`（单引号、100 列宽、LF）与 `.prettierignore`（忽略 node_modules/AItemp 等目录）。
+- 验证命令：`pnpm run test:format` 会在示例文件上执行 `format:check`，确保工具链稳定。
 
 - 全域覆盖：已将 pdf-library（list/add/remove/info/config）、bookmark、pdf-page、storage-kv(set/delete/get)、storage-fs(read/write)、system(heartbeat) 纳入能力发现与白名单，契约位于 doing/schemas。
 \n---
@@ -1363,33 +1421,134 @@ A-6. 为并行开发制定“提契约 PR→合并后再开发”的流程清单
 5. 补充 JSON Schema 契约与能力描述
 6. 自测：在 pdf-viewer 中创建高亮/截图/批注，刷新后可恢复
 
+### 最新进展（2025-10-06 23:58）
+- 已新增批量格式化脚本 `scripts/run-prettier.mjs`，封装 Prettier 调用，支持 `--check` / `--write` 与 `--pattern` 定向格式化。
+- `package.json` 新增命令：`pnpm run format`（批量写入）与 `pnpm run format:check`（校验），默认覆盖 `src/`、`scripts/` 及根部配置文件。
+- 配置文件：新增 `.prettierrc.json`（单引号、100 列宽、LF）与 `.prettierignore`（忽略 node_modules/AItemp 等目录）。
+- 验证命令：`pnpm run test:format` 会在示例文件上执行 `format:check`，确保工具链稳定。
+
 ### 设计约束
 - 三段式事件命名；所有写入/读取均显式 UTF-8 且换行 \n
 - 先设计测试再实现；若产生与主任务不强相关的子任务（如大范围文档重排），交由 subagent
 
 ---
 
-## 当前问题（2025-10-06 22:54）
+## 当前问题（2025-10-06 23:58）
 
-- 现象：构建时报错 `[plugin:babel-plugin] Unexpected reserved word 'await'`，位置 `src/frontend/pdf-home/features/pdf-edit/index.js:671`。
-- 根因：在私有方法 `#sendEditRequestToBackend(fileId, updates)` 内使用了 `await`，但该方法未声明 `async`，Babel 无法解析。
-- 影响范围：PDF-Home 编辑对话框功能构建失败；运行逻辑涉及 WSClient 发送 `pdf-library:record-update:requested`。
+- 需求：实现面向仓库的 JavaScript/TypeScript 批量格式化流程，遵守既有 UTF-8/\n 规范与契约驱动协作方式。
+- 目标：在现有工具链内（pnpm/脚本）提供可重复执行的格式化命令，并保证不会破坏既有代码结构或契约文件。
+- 关注点：已有脚本/配置（如 prettier、eslint）是否存在；全局 Logger/事件规范需保持；避免对非 JS/TS 文件造成影响。
 
-### 相关模块与函数
-- 模块：`pdf-home/features/pdf-edit`
-- 文件：`src/frontend/pdf-home/features/pdf-edit/index.js`
-- 函数：
-  - `#handleFormSubmit()`：提交表单后触发发送编辑请求与关闭模态框。
-  - `#sendEditRequestToBackend(fileId, updates)`：通过 `WSClient.request` 或全局事件发送更新请求。
+### 相关模块与文件
+- package.json / pnpm-lock.yaml：检查是否已声明 Prettier/ESLint。
+- scripts/*（若存在）：复用或扩展 CLI 脚本。
+- src/frontend/**：待格式化的主要 JS 目录。
+- 可能的配置文件：.prettierrc、.eslintrc.*、.editorconfig（需确认是否已有）。
 
 ### 执行步骤（原子任务）
-1. 将 `#sendEditRequestToBackend` 声明为 `async`（最小改动）。
-2. 运行构建测试：`pnpm run build:pdf-home`，确认无 Babel 解析错误。
-3. 若构建仍失败，排查文件内其余 `await` 的上游函数是否为 `async`。
+1. 调研仓库现有格式化/检查工具配置，确认是否已引入 Prettier 或 ESLint。
+2. 阅读相关模块规范文档（docs/SPEC/*、readme、templates）定位格式要求。
+3. 设计测试方案：至少包含在样例 JS 文件上运行格式化命令并比对变更；必要时先创建干净样例。
+4. 在掌握规范后，先编写测试脚本/命令（例如使用 pnpm script 触发 npx prettier --check）。
+5. 实现批量格式化命令（如新增 pnpm script / PowerShell 脚本），确保指定文件编码与换行规范。
+6. 执行测试验证命令可运行并输出符合预期的结果；如遇冲突需记录并处理。
+7. 更新 memory bank 与日志，记录命令用法、注意事项及后续拓展建议。
+## 2025-10-06 前后端并行开发评估（CRUD）
 
-### 备注
-- 维持 `#handleFormSubmit()` 的“提交即关闭”交互；错误由 `#sendEditRequestToBackend` 内部 try/catch 记录。
+### 最新进展（2025-10-06 23:58）
+- 已新增批量格式化脚本 `scripts/run-prettier.mjs`，封装 Prettier 调用，支持 `--check` / `--write` 与 `--pattern` 定向格式化。
+- `package.json` 新增命令：`pnpm run format`（批量写入）与 `pnpm run format:check`（校验），默认覆盖 `src/`、`scripts/` 及根部配置文件。
+- 配置文件：新增 `.prettierrc.json`（单引号、100 列宽、LF）与 `.prettierignore`（忽略 node_modules/AItemp 等目录）。
+- 验证命令：`pnpm run test:format` 会在示例文件上执行 `format:check`，确保工具链稳定。
 
-### 修复记录（2025-10-06 22:56）
-- 修改 `src/frontend/pdf-home/features/pdf-edit/index.js`：`#sendEditRequestToBackend` → `async`，以允许内部 `await`。
-- 构建验证：`pnpm run build:pdf-home` 通过。
+### 结论
+- 可以并行开发：pdf-home / pdf-viewer 等页面与后端的 CRUD 交互已具备契约驱动的并行开发条件。
+
+### 依据
+- 前端：
+  - src/frontend/common/event/event-constants.js 已收敛核心消息类型（pdf-library、bookmark、pdf-page、storage-kv/fs、capability、annotation）。
+  - src/frontend/common/ws/ws-client.js 已实现基于 equest_id 的泛化请求-响应结算，未知/未注册类型会显式报错。
+  - 全局事件白名单由 global-event-registry.js 自动收敛，防止未注册事件“泄漏”。
+- 契约：
+  - 	odo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/schemas/** 已覆盖各域 JSON Schema（request/completed/failed）。
+- 后端：
+  - src/backend/msgCenter_server/standard_protocol.py 定义 MessageType 枚举；
+  - src/backend/msgCenter_server/standard_server.py 实现各域 handler（list/add/remove/info/record-update、bookmark list/save、pdf-page load/preload/cache-clear、storage-kv/fs、capability、annotation list/save/delete）。
+
+### 并行协作的边界条件（必须遵守）
+1) 新增消息类型时，三处同步：
+   - 前端 event-constants.js 常量；
+   - 后端 standard_protocol.py 与 standard_server.py 分发与实现；
+   - 契约 	odo-and-doing/.../schemas/<domain>/v1/messages/*.schema.json；
+2) 只允许三段式事件名；未注册事件将被拦截；
+3) 所有文件读写显式 UTF-8，换行 \n；消息必须包含 	ype 与 	imestamp；
+4) 先写测试/Schema 再实现，使用 i_launcher.py 启停服务做端到端验证。
+
+### 已覆盖领域（当前可直接并行）
+- pdf-library: list/add/remove/info/search/record-update/config-read/config-write/viewer
+- ookmark: list/save
+- nnotation: list/save/delete（建议补充端到端实测）
+- pdf-page: load/preload/cache-clear
+- storage-kv 与 storage-fs
+- capability: discover/describe
+
+### 建议的原子任务拆分（示例）
+- 页面A-功能X：
+  - 规格：补/核对 Schema → 更新 capability
+  - 后端：MessageType + handler + 最小单测（往返）
+  - 前端：接入 wsClient.request(type, data) + 处理 completed/failed
+  - 自测：ai_launcher 启动后端到端验证
+
+### 快速用法示例（前端）
+`js
+import { WEBSOCKET_MESSAGE_TYPES as T } from '../common/event/event-constants.js';
+const res = await wsClient.request(T.STORAGE_KV_GET, { key: 'recent-searches' });
+if (res?.status === 'success') { /* 使用 res.data */ }
+`
+
+
+
+### 执行结果（20251007000109）
+- 合并来源: worktree-A（feature-bookmark-fix）
+- 目标分支: main
+- 结果: Already up to date；未产生新提交
+- 备注: 自动创建的 stash 未弹出，以免覆盖当前 context.md 修改；保留以便手动处理：stash@{0}: On main: auto-stash before merging worktree A
+
+---
+## 2025-10-07 00:07:44 决策：并行开发起点采用 Schema-first
+- 结论：是，所有新增/调整消息需先完成 JSON Schema（request/completed/failed）。
+- 同步项：
+  - 前端 event-constants.js（注册消息常量，进入白名单）；
+  - 后端 MessageType 与 standard_server handler；
+  - capability:describe 能力曝光；
+- 验收：requested→completed/failed 往返测试，ai_launcher 端到端验证；
+- 规范：UTF-8 文件编码，换行 
+；消息含 type/timestamp，三段式事件名。
+
+
+---
+
+## 当前问题（20251007）
+- 报错：Babel Duplicate private name `#deleteAnnotationFromBackend`（annotation-manager.js:440:8）
+- 背景：类中存在同名私有方法/字段重复定义，Babel 无法编译
+- 影响范围：Feature.annotation（PDF Viewer 批注管理）
+- 目标：删除重复定义、合并实现，保持公共 API 不变
+
+### 相关文件
+- `src/frontend/pdf-viewer/features/annotation/core/annotation-manager.js`
+
+### 执行步骤
+1. 全文检索 `#deleteAnnotationFromBackend`，确认重复定义位置
+2. 比对两个实现差异，保留语义更完整的一处，将调用点统一指向保留实现
+3. 去除重复私有方法，确保类结构与外部接口无变化
+4. 运行构建（或启动 ai_launcher.py 相应模块）验证无错误
+5. 更新 AItemp 工作日志与本 context 记录结果与注意事项
+
+### 测试与验证
+- 使用项目构建作为最小验证标准（无 Babel 报错）
+- 如需进一步验证，补充最小 Node ESM 载入测试（仅语法/导入检验）
+
+\r\n## 执行结果（20251007）
+- annotation-manager.js 中重复的私有方法 `#deleteAnnotationFromBackend` 已去重
+- 保留的实现：基于 `#wsClient.request` 的删除逻辑
+- 构建验证通过：`pnpm run build:pdf-viewer`（无 Babel 报错）

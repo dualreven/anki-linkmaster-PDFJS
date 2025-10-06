@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "docs/contracts/annotation/v1/messages/update.request.schema.json",
+  "title": "annotation:update:requested",
+  "type": "object",
+  "properties": {
+    "type": {"const": "annotation:update:requested"},
+    "timestamp": {"type": "number"},
+    "request_id": {"type": "string"},
+    "metadata": {"type": "object", "properties": {"version": {"type": "string"}}, "required": ["version"]},
+    "data": {
+      "type": "object",
+      "properties": {
+        "ann_id": {"type": "string"},
+        "changes": {"type": "object"}
+      },
+      "required": ["ann_id", "changes"],
+      "additionalProperties": true
+    }
+  },
+  "required": ["type", "timestamp", "request_id", "metadata", "data"],
+  "additionalProperties": false
+}
+

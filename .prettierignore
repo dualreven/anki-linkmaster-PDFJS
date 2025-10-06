@@ -1,0 +1,8 @@
+node_modules
+build
+dist
+logs
+AItemp
+todo-and-doing
+.pnpm-store
+coverage

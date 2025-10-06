@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "docs/contracts/bookmark/v1/messages/save.request.schema.json",
+  "title": "bookmark:save:requested",
+  "type": "object",
+  "properties": {
+    "type": {"const": "bookmark:save:requested"},
+    "timestamp": {"type": "number"},
+    "request_id": {"type": "string"},
+    "metadata": {"type": "object", "properties": {"version": {"type": "string"}}, "required": ["version"]},
+    "data": {
+      "type": "object",
+      "properties": {
+        "pdf_uuid": {"type": "string"},
+        "bookmarks": {"type": "array"},
+        "root_ids": {"type": "array", "items": {"type": "string"}}
+      },
+      "required": ["pdf_uuid", "bookmarks"],
+      "additionalProperties": true
+    }
+  },
+  "required": ["type", "timestamp", "request_id", "metadata", "data"],
+  "additionalProperties": false
+}
+

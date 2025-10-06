@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "annotation:list:completed",
+  "type": "object",
+  "required": ["type", "timestamp", "request_id", "status", "code", "data"],
+  "properties": {
+    "type": { "const": "annotation:list:completed" },
+    "timestamp": { "type": "number" },
+    "request_id": { "type": "string" },
+    "status": { "const": "success" },
+    "code": { "type": "integer" },
+    "message": { "type": "string" },
+    "data": {
+      "type": "object",
+      "required": ["annotations", "count"],
+      "properties": {
+        "count": { "type": "integer", "minimum": 0 },
+        "annotations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "type", "pageNumber", "data", "comments", "createdAt", "updatedAt"],
+            "properties": {
+              "id": { "type": "string" },
+              "type": { "type": "string", "enum": ["screenshot", "text-highlight", "comment"] },
+              "pageNumber": { "type": "integer", "minimum": 1 },
+              "data": { "type": "object" },
+              "comments": { "type": "array" },
+              "createdAt": { "type": "string" },
+              "updatedAt": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
