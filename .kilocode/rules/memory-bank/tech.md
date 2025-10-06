@@ -43,6 +43,18 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
   - `ws/ws-client.js`
 - QWebChannel 逻辑由前端管理（如 `src/frontend/pdf-home/qwebchannel-manager.js`）。
 
+## 第三方 Toast 使用规范（pdf-home 添加流程）
+- 依赖：`izitoast`（已加入 package.json）
+- 统一通过适配器调用：`src/frontend/common/utils/thirdparty-toast.js`
+  - `pending(id, message)`：右上角粘性提示（timeout: false），需后续 `dismissById(id)` 关闭
+  - `success(message, ms=3000)`：成功提示
+  - `warning(message, ms=4000)`：警告提示
+  - `error(message, ms=5000)`：错误提示
+  - `dismissById(id)`：关闭 `pending(id)` 创建的提示
+- 样式：适配器内部已 `import 'izitoast/dist/css/iziToast.min.css'`，无需重复引入
+- 位置：统一右上角（topRight），与既有规范一致
+- 适用范围：当前仅在 `pdf-home` 的“添加 PDF”流程中使用；其他模块暂不修改
+
 ## 启动与编排（AI Launcher）
 - 模块化服务管理：
   - `ai-scripts/ai_launcher/core/service_manager.py`

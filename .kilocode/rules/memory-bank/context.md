@@ -1601,3 +1601,21 @@ if (res?.status === 'success') { /* 使用 res.data */ }
 - Toast: 将 pdf-home 添加流程的错误/成功提示统一改用左上角堆叠Toast (ToastManager)，替换此前使用的 notification.js（右上角）。
 - ImportError: DefaultAddService 以 importlib 动态加载，无法依赖相对导入；已将 '...pdf_manager.*' 改为 'src.backend.pdf_manager.*' 绝对导入，避免 'attempted relative import with no known parent package'。
 - 受影响文件: src/frontend/pdf-home/features/pdf-list/index.js, src/frontend/common/utils/toast-manager.js, src/frontend/common/ws/ws-client.js, src/backend/api/pdf-home/add/service.py
+
+## 2025-10-06 第三方 Toast 集成（pdf-home 添加流程）
+- 背景: 应用户要求，引入第三方 Toast 库以替换“添加 PDF”相关提示，提升样式与交互体验；范围限定在 pdf-home 添加流程，避免对其他模块造成侵入。
+- 选型: 采用 `izitoast`（无依赖、成熟、支持 `position: 'topRight'`、`timeout: false` 粘性提示与可编程关闭）。
+- 适配器: 新增 `src/frontend/common/utils/thirdparty-toast.js`，统一导出：
+  - `pending(id, message)`：右上角粘性提示，记录 DOM 句柄。
+  - `success(message, ms=3000)`：成功提示。
+  - `error(message, ms=5000)`：错误提示。
+  - `dismissById(id)`：通过 `pending` 时的 id 关闭对应 toast。
+- 使用范围: 仅替换 `src/frontend/pdf-home/features/pdf-list/index.js` 中添加流程（导入中/成功/失败/汇总）相关调用；删除等其他流程保持不变。
+- 样式引入: 由适配器内部 `import 'izitoast/dist/css/iziToast.min.css'` 统一引入，Jest 通过 `moduleNameMapper` 对 CSS 做了 mock。
+- 执行步骤（原子化）:
+  1) 安装依赖：`pnpm add izitoast`
+  2) 新增适配器文件并暴露 API
+  3) 替换 pdf-list 中添加流程相关 toast 调用（基于 request_id → pending/dismiss）
+  4) 编写并运行 Jest 测试验证适配器行为
+  5) 更新本 context 与 tech 记录
+- 预期: 多文件添加时每个文件出现“导入中”→ 成功/失败后关闭并弹出结果；全部完成后显示汇总；位置右上角堆叠。
