@@ -274,4 +274,34 @@ export class QWebChannelBridge {
     getBridge() {
         return this.#bridge;
     }
+
+    /**
+     * 批量打开 pdf-viewer 窗口（通过 PyQt 桥接，不使用外部 launcher）。
+     * @param {{ pdfIds: string[] }} options
+     * @returns {Promise<boolean>} 是否成功触发打开动作
+     */
+    async openPdfViewers(options = {}) {
+        const { pdfIds = [] } = options;
+        this.#logger.info(`[阅读] 调用 openPdfViewers, 选中数量=${pdfIds.length}`);
+
+        if (!this.#isReady) {
+            throw new Error('QWebChannel 未初始化，请先调用 initialize()');
+        }
+
+        try {
+            const ok = await new Promise((resolve, reject) => {
+                try {
+                    const result = this.#bridge.openPdfViewers(pdfIds);
+                    resolve(!!result);
+                } catch (error) {
+                    reject(error);
+                }
+            });
+            this.#logger.info(`[阅读] openPdfViewers 返回: ${ok}`);
+            return !!ok;
+        } catch (error) {
+            this.#logger.error('[阅读] openPdfViewers 失败:', error);
+            throw error;
+        }
+    }
 }

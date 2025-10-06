@@ -450,3 +450,13 @@ emove_comment(ann_id, comment_id)。
 - 示例：`pnpm run format:check -- --pattern scripts/test-formatting-sample.js`
 - 快速自测：`pnpm run test:format` 会在示例文件上执行 `format:check`，验证命令链路。
 
+
+### 技术变更：Toast 方案
+- 引入第三方库 iziToast 作为统一 toast 方案；废弃原先依赖 DOM 元素（#global-success/#global-error）的方式。
+- 使用方法不变：
+  - showSuccess(message, durationMs=3000)
+  - showError(message, durationMs=5000)
+  - showInfo(message, durationMs=3000)
+  - hideAll()
+- 实现位置：src/frontend/common/utils/notification.js（内部 import 'izitoast/dist/css/iziToast.min.css' 全局引入样式）
+- 注意：duration=0 表示不自动关闭（iziToast 用 	imeout: false）。

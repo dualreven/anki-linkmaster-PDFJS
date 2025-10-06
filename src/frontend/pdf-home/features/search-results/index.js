@@ -4,6 +4,7 @@
  */
 
 import { ResultsRenderer } from './components/results-renderer.js';
+import { QWebChannelBridge } from '../../qwebchannel/qwebchannel-bridge.js';
 import './styles/search-results.css';
 
 export class SearchResultsFeature {
@@ -21,6 +22,7 @@ export class SearchResultsFeature {
   #resultsRenderer = null;
   #resultsContainer = null;
   #headerElement = null;
+  #qwcBridge = null;
 
   // 当前结果
   #currentResults = [];
@@ -47,6 +49,15 @@ export class SearchResultsFeature {
 
       // 2. 初始化渲染器
       this.#resultsRenderer = new ResultsRenderer(this.#logger, this.#scopedEventBus);
+
+      // 2.1 初始化 QWebChannel 桥接（供“阅读”按钮调用 PyQt 打开窗口）
+      try {
+        this.#qwcBridge = new QWebChannelBridge();
+        await this.#qwcBridge.initialize();
+        this.#logger.info('[SearchResultsFeature] QWebChannelBridge 已就绪');
+      } catch (e) {
+        this.#logger.warn('[SearchResultsFeature] QWebChannelBridge 初始化失败，阅读功能不可用', e);
+      }
 
       // 3. 监听筛选结果更新事件（来自filter插件）
       this.#subscribeToFilterEvents();
@@ -168,6 +179,29 @@ export class SearchResultsFeature {
     actionsDiv.appendChild(layoutToggle);
 
     this.#headerElement.appendChild(actionsDiv);
+    // 绑定“阅读”按钮
+    const readBtn = actionsDiv.querySelector('.batch-btn-read');
+    if (readBtn) {
+      readBtn.addEventListener('click', async () => {
+        try {
+          const selectedIds = Array.from(document.querySelectorAll('.search-result-checkbox:checked'))
+            .map(el => el.getAttribute('data-id'))
+            .filter(Boolean);
+          if (!selectedIds || selectedIds.length === 0) {
+            this.#logger.info('[SearchResultsFeature] 未选择任何条目，阅读操作中止');
+            return;
+          }
+          if (!this.#qwcBridge || !this.#qwcBridge.isReady()) {
+            this.#logger.warn('[SearchResultsFeature] QWebChannel 未就绪，无法打开阅读窗口');
+            return;
+          }
+          this.#logger.info('[SearchResultsFeature] 发起阅读，选中:', { count: selectedIds.length, ids: selectedIds });
+          await this.#qwcBridge.openPdfViewers({ pdfIds: selectedIds });
+        } catch (e) {
+          this.#logger.error('[SearchResultsFeature] 执行阅读失败', e);
+        }
+      });
+    }
     this.#bindLayoutButtons(layoutToggle);
     this.#updateLayoutButtonsState();
 

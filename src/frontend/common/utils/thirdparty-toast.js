@@ -12,7 +12,7 @@ import 'izitoast/dist/css/iziToast.min.css';
 const pendingMap = new Map();
 
 /**
- * 显示“进行中”粘性提示
+ * 显示"进行中"粘性提示
  * @param {string} id - 业务侧自定义ID（建议使用 request_id）
  * @param {string} message - 显示文案
  * @returns {string} 返回 id，便于链路统一
@@ -22,7 +22,7 @@ export function pending(id, message = '进行中') {
     iziToast.info({
       message,
       position: 'topRight',
-      timeout: false, // 粘性提示，需手动关闭
+      timeout: 5000, // 5秒自动关闭
       close: true,
       // 捕获 DOM 句柄，供后续关闭
       onOpening: (_instance, toast) => {

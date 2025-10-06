@@ -56,6 +56,28 @@ export class SearchManager {
     }, { subscriberId: 'SearchManager' });
     this.#unsubs.push(unsubWsResponse);
 
+    // 监听 WebSocket 错误消息（包括 pdf-library:search:failed 或通用 error）
+    const unsubWsError = this.#eventBus.on(WEBSOCKET_MESSAGE_EVENTS.ERROR, (message) => {
+      try {
+        const reqId = message?.request_id;
+        if (!reqId || !this.#pendingRequests.has(reqId)) return;
+
+        const requestInfo = this.#pendingRequests.get(reqId);
+        this.#pendingRequests.delete(reqId);
+        this.#isSearching = false;
+
+        const errorMsg = message?.message || message?.error?.message || '搜索失败';
+        this.#logger.error('[SearchManager] Search failed (WS ERROR)', errorMsg);
+        this.#eventBus.emit('search:results:failed', {
+          error: errorMsg,
+          searchText: requestInfo?.searchText
+        });
+      } catch (e) {
+        // 忽略错误，避免影响全局错误处理
+      }
+    }, { subscriberId: 'SearchManager' });
+    this.#unsubs.push(unsubWsError);
+
     this.#logger.debug('[SearchManager] Event listeners set up');
   }
 
@@ -175,10 +197,18 @@ export class SearchManager {
    * @private
    */
   #buildMessage(searchText, requestId) {
+    // 标准协议：载荷放入 data，包含 query 与 tokens（按空格切分，AND 语义）
+    const tokens = (searchText || '')
+      .split(/\s+/)
+      .map(t => t.trim())
+      .filter(t => t.length > 0);
     return {
       type: WEBSOCKET_MESSAGE_TYPES.SEARCH_PDF,
       request_id: requestId,
-      search_text: searchText
+      data: {
+        query: searchText || '',
+        tokens
+      }
     };
   }
 

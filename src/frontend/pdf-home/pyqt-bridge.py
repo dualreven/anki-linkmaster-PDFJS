@@ -39,6 +39,14 @@ class PyQtBridge(QObject):
         self.parent = parent
         logger.info("[PyQtBridge] PyQtBridge 初始化")
 
+        # 记录已打开的 pdf-viewer 窗口（由 pdf-home MainWindow 统一管理）
+        # 若 parent(MainWindow) 未初始化该字典，则在此做兜底
+        try:
+            if getattr(self.parent, "viewer_windows", None) is None:
+                setattr(self.parent, "viewer_windows", {})
+        except Exception:
+            pass
+
     @pyqtSlot(result=str)
     def testConnection(self):
         """
@@ -156,3 +164,193 @@ class PyQtBridge(QObject):
         except Exception as e:
             logger.error(f"[PyQtBridge] [删除-阶段1] showConfirmDialog 发生错误: {e}", exc_info=True)
             return False  # 发生错误时默认返回取消
+
+    # ---------- 新增：批量打开 pdf-viewer 窗口 ----------
+
+    def _read_runtime_ports(self) -> tuple[int, int, int, dict]:
+        """读取 logs/runtime-ports.json 以获取 vite/ws/pdfFile 端口。
+
+        Returns:
+            (vite_port, msgCenter_port, pdfFile_port, extras)
+        """
+        try:
+            from pathlib import Path
+            import json
+            # 项目根目录: pyqt-bridge.py -> pdf-home -> frontend -> src -> 项目根
+            project_root = Path(__file__).parent.parent.parent.parent
+            cfg_path = project_root / 'logs' / 'runtime-ports.json'
+            if cfg_path.exists():
+                text = cfg_path.read_text(encoding='utf-8')
+                data = json.loads(text or '{}')
+                vite_port = int(data.get('vite_port') or data.get('npm_port') or 3000)
+                msg_port = int(data.get('msgCenter_port') or data.get('ws_port') or 8765)
+                pdf_port = int(data.get('pdfFile_port') or data.get('pdf_port') or 8080)
+                extras = {k: v for k, v in data.items() if k not in ("vite_port", "npm_port", "msgCenter_port", "ws_port", "pdfFile_port", "pdf_port")}
+                return vite_port, msg_port, pdf_port, extras
+        except Exception as exc:
+            logger.warning(f"[PyQtBridge] 读取运行端口失败: {exc}")
+        return 3000, 8765, 8080, {}
+
+    def _next_js_debug_port(self, base: int = 9223) -> int:
+        """分配下一个可用的 JS 远程调试端口（pdf-viewer）。
+
+        简单策略：在 base 开始，按已存在窗口数量顺延。
+        """
+        try:
+            existing = getattr(self.parent, "viewer_windows", {}) or {}
+            return base + max(0, len(existing))
+        except Exception:
+            return base
+
+    def _build_pdf_viewer_url(self, vite_port: int, msgCenter_port: int, pdfFile_port: int,
+                               pdf_id: str, page_at: int | None = None, position: float | None = None,
+                               file_path: str | None = None) -> str:
+        """构建 pdf-viewer 前端 URL（供测试与调用）。"""
+        url = build_pdf_viewer_url(vite_port, msgCenter_port, pdfFile_port, pdf_id, page_at, position)
+        if file_path:
+            import urllib.parse
+            url += f"&file={urllib.parse.quote(str(file_path))}"
+        return url
+
+    @pyqtSlot(list, result=bool)
+    def openPdfViewers(self, pdf_ids: list) -> bool:
+        """批量打开 pdf-viewer 窗口（不通过 launcher，直接从 Python 启动）。
+
+        Args:
+            pdf_ids: 选中的 PDF 标识列表（字符串数组）
+
+        Returns:
+            True 表示已发起打开动作（不保证全部成功）
+        """
+        try:
+            if not pdf_ids:
+                logger.info("[PyQtBridge] openPdfViewers 被调用，但没有选中任何条目")
+                return False
+
+            # 端口解析
+            vite_port, msg_port, pdf_port, _extras = self._read_runtime_ports()
+
+            # 延迟导入 Qt 与 viewer MainWindow（通过文件路径加载，避免模块名中的连字符问题）
+            from src.qt.compat import QApplication
+            import importlib.util as _ilu
+            from pathlib import Path as _Path
+            _viewer_main_path = _Path(__file__).parent.parent / 'pdf-viewer' / 'pyqt' / 'main_window.py'
+            _spec = _ilu.spec_from_file_location('pdf_viewer_main_window', _viewer_main_path)
+            assert _spec and _spec.loader, "无法定位 pdf-viewer 主窗口模块"
+            _mod = _ilu.module_from_spec(_spec)
+            _spec.loader.exec_module(_mod)  # type: ignore[attr-defined]
+            ViewerMainWindow = getattr(_mod, 'MainWindow')
+
+            app = QApplication.instance()
+            if app is None:
+                logger.error("[PyQtBridge] QApplication 实例不存在，无法创建窗口")
+                return False
+
+            # 初始化父窗口的字典
+            parent_win = self.parent
+            if getattr(parent_win, "viewer_windows", None) is None:
+                setattr(parent_win, "viewer_windows", {})
+
+            for raw_id in pdf_ids:
+                pdf_id = str(raw_id)
+                # 若已存在则激活已有窗口
+                existing = parent_win.viewer_windows.get(pdf_id) if hasattr(parent_win, 'viewer_windows') else None
+                if existing:
+                    try:
+                        existing.raise_()  # type: ignore[attr-defined]
+                        existing.activateWindow()
+                        logger.info(f"[PyQtBridge] 已存在窗口，激活: {pdf_id}")
+                        continue
+                    except Exception:
+                        pass
+
+                debug_port = self._next_js_debug_port()
+                js_log_path = self._compute_js_log_path(pdf_id)
+                # 解析文件路径（若无法解析则仍然仅传递 pdf-id）
+                file_path = self._resolve_pdf_file_path(pdf_id)
+
+                # 创建 viewer 窗口，标记 has_host=True 以避免其关闭时停止后台服务
+                viewer = ViewerMainWindow(
+                    app,
+                    remote_debug_port=debug_port,
+                    js_log_file=js_log_path,
+                    js_logger=None,
+                    pdf_id=pdf_id,
+                    has_host=True
+                )
+
+                # 构建并加载前端 URL
+                url = self._build_pdf_viewer_url(vite_port, msg_port, pdf_port, pdf_id, file_path=file_path)
+                logger.info(f"[PyQtBridge] 打开 pdf-viewer (pdf_id={pdf_id}) URL={url}")
+                viewer.load_frontend(url)
+                viewer.show()
+
+                # 记录到父窗口字典，便于统一关闭
+                try:
+                    parent_win.viewer_windows[pdf_id] = viewer
+                except Exception:
+                    pass
+
+            return True
+        except Exception as e:
+            logger.error(f"[PyQtBridge] 打开 pdf-viewer 失败: {e}", exc_info=True)
+            return False
+
+    def _compute_js_log_path(self, pdf_id: str) -> str:
+        """计算 pdf-viewer JS 日志文件路径（UTF-8）。"""
+        try:
+            from pathlib import Path
+            project_root = Path(__file__).parent.parent.parent.parent
+            logs_dir = project_root / 'logs'
+            logs_dir.mkdir(parents=True, exist_ok=True)
+            path = logs_dir / f"pdf-viewer-{pdf_id}-js.log"
+            # 确保文件存在（UTF-8 空文件，不创建 BOM）
+            if not path.exists():
+                with open(path, 'w', encoding='utf-8', newline='\n') as f:
+                    f.write('')
+            return str(path)
+        except Exception:
+            # 兜底返回相对路径名
+            return f"logs/pdf-viewer-{pdf_id}-js.log"
+
+    def _resolve_pdf_file_path(self, pdf_id: str) -> str | None:
+        """解析 pdf-id 对应的文件路径。
+
+        优先复用 pdf-viewer/launcher.py 中的 `resolve_pdf_id_to_file_path` 逻辑。
+        """
+        try:
+            import importlib.util as _ilu
+            from pathlib import Path as _Path
+            _launcher_path = _Path(__file__).parent.parent / 'pdf-viewer' / 'launcher.py'
+            if not _launcher_path.exists():
+                return None
+            _spec = _ilu.spec_from_file_location('pdf_viewer_launcher', _launcher_path)
+            if not _spec or not _spec.loader:
+                return None
+            _mod = _ilu.module_from_spec(_spec)
+            _spec.loader.exec_module(_mod)  # type: ignore[attr-defined]
+            resolver = getattr(_mod, 'resolve_pdf_id_to_file_path', None)
+            if not resolver:
+                return None
+            path = resolver(str(pdf_id))
+            return path
+        except Exception:
+            return None
+
+
+def build_pdf_viewer_url(vite_port: int, msgCenter_port: int, pdfFile_port: int,
+                         pdf_id: str, page_at: int | None = None, position: float | None = None) -> str:
+    """纯函数：构建 pdf-viewer 前端 URL，便于测试。
+
+    确保参数通过查询字符串传递，且 position 限制在 0-100。
+    """
+    import urllib.parse
+    base = f"http://localhost:{int(vite_port)}/pdf-viewer/?msgCenter={int(msgCenter_port)}&pdfs={int(pdfFile_port)}"
+    if pdf_id:
+        base += f"&pdf-id={urllib.parse.quote(str(pdf_id))}"
+    if page_at is not None:
+        base += f"&page-at={int(page_at)}"
+    if position is not None:
+        pos = max(0.0, min(100.0, float(position)))
+        base += f"&position={pos}"
+    return base

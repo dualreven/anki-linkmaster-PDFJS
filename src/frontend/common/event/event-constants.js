@@ -182,6 +182,25 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   ANNOTATION_DELETE_FAILED: 'annotation:delete:failed'
 };
 
+// ====== 搜索与筛选（新增，为全局事件白名单注册）======
+export const SEARCH_EVENTS = {
+  QUERY: {
+    REQUESTED: 'search:query:requested',
+    STARTED: 'search:query:started',
+    CLEARED: 'search:clear:requested',
+  },
+  RESULTS: {
+    UPDATED: 'search:results:updated',
+    FAILED: 'search:results:failed',
+  }
+};
+
+export const FILTER_EVENTS = {
+  RESULTS: {
+    UPDATED: 'filter:results:updated',
+  }
+};
+
 export const validateEventName = (eventName) => {
   if (!eventName || typeof eventName !== 'string') return false;
   const parts = eventName.split(':');
@@ -195,7 +214,9 @@ export const EVENT_CONSTANTS = {
   PDF_MANAGEMENT: PDF_MANAGEMENT_EVENTS,
   UI: UI_EVENTS,
   WEBSOCKET_MESSAGE: WEBSOCKET_MESSAGE_EVENTS,
-  WEBSOCKET_MESSAGE_TYPES
+  WEBSOCKET_MESSAGE_TYPES,
+  SEARCH: SEARCH_EVENTS,
+  FILTER: FILTER_EVENTS
 };
 
 export default EVENT_CONSTANTS;

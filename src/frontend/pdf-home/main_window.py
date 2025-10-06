@@ -35,8 +35,20 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.parent = app
         self._remote_debug_port = remote_debug_port or 9222
-        self._js_log_file = js_log_file
+        # 若未显式传入日志文件，则使用默认路径 logs/pdf-home-js.log（UTF-8）
+        if js_log_file:
+            self._js_log_file = js_log_file
+        else:
+            try:
+                default_logs = Path(__file__).parent.parent.parent.parent / 'logs'
+                default_logs.mkdir(parents=True, exist_ok=True)
+                self._js_log_file = str(default_logs / 'pdf-home-js.log')
+            except Exception:
+                self._js_log_file = None
         self.js_logger = js_logger  # 简化版Logger实例
+
+        # 管理由本窗口打开的 pdf-viewer 窗口（pdf_id -> ViewerMainWindow 实例）
+        self.viewer_windows: dict[str, object] = {}
 
         # 窗口属性
         self.setWindowTitle("Anki LinkMaster PDFJS")
@@ -133,30 +145,42 @@ class MainWindow(QMainWindow):
                     if "Console log recorded successfully" in str(message):
                         return None
 
-                    # 使用 JSConsoleLogger 记录日志
+                    wrote = False
+                    # 使用 JSConsoleLogger 记录日志（若存在且已启动）
                     if self.js_logger and hasattr(self.js_logger, 'log_message'):
                         try:
-                            self.js_logger.log_message(
-                                level=str(level),
-                                message=str(message),
-                                source=str(sourceID) if sourceID else "",
-                                line=lineNumber
-                            )
-                        except Exception as e:
-                            print(f"Warning: Failed to pass message to js_logger: {e}")
-                    else:
-                        # 如果没有 js_logger，直接写入日志文件
-                        if self._log_file_path:
-                            try:
-                                self._write_simple_log(
-                                    self._log_file_path,
+                            is_running = True
+                            if hasattr(self.js_logger, 'is_connected'):
+                                try:
+                                    is_running = bool(self.js_logger.is_connected())
+                                except Exception:
+                                    # 若检测失败，尝试发送，失败再回退
+                                    is_running = True
+
+                            if is_running:
+                                self.js_logger.log_message(
                                     level=str(level),
                                     message=str(message),
-                                    line_number=lineNumber,
-                                    source_id=str(sourceID)
+                                    source=str(sourceID) if sourceID else "",
+                                    line=lineNumber
                                 )
-                            except Exception as e:
-                                print(f"Warning: Failed to write log: {e}")
+                                wrote = True
+                        except Exception as e:
+                            print(f"Warning: Failed to pass message to js_logger: {e}")
+
+                    # 若无 js_logger 或未写入成功，则直接写入日志文件
+                    if not wrote and self._log_file_path:
+                        try:
+                            self._write_simple_log(
+                                self._log_file_path,
+                                level=str(level),
+                                message=str(message),
+                                line_number=lineNumber,
+                                source_id=str(sourceID)
+                            )
+                            wrote = True
+                        except Exception as e:
+                            print(f"Warning: Failed to write log: {e}")
 
                     try:
                         return super().javaScriptConsoleMessage(level, message, lineNumber, sourceID)  # type: ignore
@@ -230,13 +254,38 @@ class MainWindow(QMainWindow):
             self.web_view.updateGeometry()
 
     def closeEvent(self, event):
-        """窗口关闭事件 - 停止后台服务（但不杀掉窗口自己）"""
+        """窗口关闭事件 - 先关闭由本窗口打开的 pdf-viewer，再处理后台服务清理"""
         import subprocess
         import sys
         import json
         from pathlib import Path
+        from datetime import datetime
 
         try:
+            # 先尝试关闭所有由 pdf-home 打开的 pdf-viewer 窗口
+            try:
+                if getattr(self, 'viewer_windows', None):
+                    for k, win in list(self.viewer_windows.items()):
+                        try:
+                            # 记录一条日志到 logs/window-close.log
+                            log_path = Path(__file__).parent.parent.parent.parent / 'logs' / 'window-close.log'
+                            log_path.parent.mkdir(parents=True, exist_ok=True)
+                            ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                            with open(log_path, 'a', encoding='utf-8', newline='\n') as f:
+                                f.write(f"[{ts}] [pdf-home] 关闭子窗口: pdf-viewer({k})\n")
+                        except Exception:
+                            pass
+                        try:
+                            win.close()
+                        except Exception:
+                            pass
+                    try:
+                        self.viewer_windows.clear()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
             # 获取项目根目录
             project_root = Path(__file__).parent.parent.parent.parent
 

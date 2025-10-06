@@ -51,6 +51,7 @@
     "prettier": "^3.4.2"
   },
   "dependencies": {
+    "izitoast": "^1.4.0",
     "core-js": "^3.45.1",
     "izitoast": "^1.4.0",
     "pdfjs-dist": "^4.7.76",
