@@ -754,11 +754,11 @@ const service = new NavigationService();
     - v2: `pdf/search`（`data.search_text` 等）→ 返回类型化消息 `type='pdf/search'`，`data={ records, count, search_text }`
   - 搜索实现优先使用 `pdf_library_api.search_records()`（若注入），否则回退到 `PDFManager` 内存搜索（空搜索=全部）。
 - 受影响文件：`src/backend/msgCenter_server/standard_server.py:1`（新增分支与处理方法）
-- 结果：前端不会再收到“未知的消息类型: pdf/search|pdf-home:search:pdf-files”的错误；`SearchManager` 的 v1/v2 双协议解析均可正常工作。
+- 结果：前端不会再收到"未知的消息类型: pdf/search|pdf-home:search:pdf-files"的错误；`SearchManager` 的 v1/v2 双协议解析均可正常工作。
 
-## 2025-10-06 PDF-Home 最近搜索长期存储（进行中）
+## 2025-10-06 PDF-Home 最近搜索长期存储 ✅ 完成
 ### 问题与背景
-- 目前 pdf-home 的“最近搜索”仅存于 LocalStorage，无法跨环境/长期保存。
+- 目前 pdf-home 的"最近搜索"仅存于 LocalStorage，无法跨环境/长期保存。
 - 目标：将最近搜索改为长期存储到文件 `data/pdf-home-config.json` 的 `recent_search` 字段，并在前端定期（防抖）推送更新。
 
 ### 涉及模块与文件
@@ -767,20 +767,66 @@ const service = new NavigationService();
   - 每次新增/置顶搜索后，300ms 防抖发送 `pdf-home:update:config`，payload 中包含 `recent_search` 数组（元素形如 `{ text, ts }`）。
 - 前端事件常量：`src/frontend/common/event/event-constants.js:WEBSOCKET_MESSAGE_TYPES`
   - 新增 `GET_CONFIG`、`UPDATE_CONFIG`。
-- 后端：`src/backend/pdfTable_server/application_subcode/websocket_handlers.py`
-  - 新增 `handle_get_config`、`handle_update_config`。
+- 后端：`src/backend/msgCenter_server/standard_server.py`
+  - 新增 `handle_pdf_home_get_config`、`handle_pdf_home_update_config`。
   - 配置文件路径：`data/pdf-home-config.json`（UTF-8 + 换行 `\n`）。
 
-### 执行步骤（原子任务）
-1. 新增事件常量（前端）
-2. 编写前端单测（安装请求、更新发送、回执覆盖）
-3. 改造 RecentSearchesFeature 读/写后端（含防抖）
-4. 增加后端 WS 处理器（UTF-8 文件读写）
-5. 运行前端测试并修正
-6. 记录日志并通知完成
+### 完成内容
+- ✅ 新增事件常量（前端）
+- ✅ 编写前端单测（安装请求、更新发送、回执覆盖）
+- ✅ 改造 RecentSearchesFeature 读/写后端（含防抖）
+- ✅ 增加后端 WS 处理器（UTF-8 文件读写）
+- ✅ 修复 WSClient `#flushMessageQueue()` 保留完整消息（含 `request_id`），避免队列消息回执无法关联
 
-### 注意事项
-- 文件读写统一使用 `encoding='utf-8'`，写入需 `newline='\n'`，JSON `ensure_ascii=False`。
-- 事件命名严格 `module:action:object` 三段式。
-- 仍保留 localStorage 作为 UI 立即可用的本地缓存；后端回执为权威数据源，覆盖本地。
-- WebSocket 连接时序：Feature 安装可能早于 WS 连接建立；已修复 WSClient `#flushMessageQueue()` 保留完整消息（含 `request_id`），避免队列消息回执无法关联。
+---
+
+## 任务：PDFLibraryAPI 插件隔离重构（规划)
+
+- 时间：2025-10-06
+- 背景：`src/backend/api/pdf_library_api.py` 现为多功能混合门面（搜索/书签/入库等），职责过重，影响扩展与测试边界。
+- 目标：按前端域拆分后端模块，并保留向下兼容门面；不改变 WebSocket 消息契约与前端行为。
+
+### 目录规划
+- `src/backend/api/pdf-home/search`：搜索服务（search_records）
+- `src/backend/api/pdf-home/add`：文件入库/注册（register_file_info, add_pdf_from_file）
+- `src/backend/api/pdf-viewer/bookmark`：书签读写（list_bookmarks, save_bookmarks）
+- `src/backend/api/utils`：时间戳、record 映射、tags 归一化等通用工具
+
+### 执行步骤（原子任务）
+1. 新建上述目录与空模块，补充 `__init__.py`
+2. 提炼工具函数至 `api/utils`（ms/iso/second、tags、row↔record 映射）
+3. 迁移搜索逻辑至 `pdf-home/search/service.py`，门面委派
+4. 迁移书签逻辑至 `pdf-viewer/bookmark/service.py`，门面委派
+5. 迁移入库逻辑至 `pdf-home/add/service.py`，门面委派
+6. 子模块新增单测；保留并通过 `test_pdf_library_api.py`
+7. 冒烟验证 WebSocket 相关路径（不改协议/调用点）
+
+### 测试设计
+- 覆盖：搜索（多 token/空/标签/评分/分页/排序/负例）、书签（树结构/顺序/区域校验/级联）、入库（路径校验/PDF 校验/回滚/DB 同步）
+- 兼容：门面旧测试不变；新增子模块测试
+
+### 约束
+- 文件 I/O 全部显式 UTF-8 编码，换行 `\n` 校验
+- 目录命名使用 kebab-case（例如 `pdf-home`、`pdf-viewer`）
+- 不改动数据库表结构与前端协议
+
+- 需求文档：todo-and-doing/2 todo/20251006140530-pdf-library-api-plugin-isolation/v001-spec.md
+
+## 2025-10-06 实施记录（插件隔离阶段一）
+- 新增 ServiceRegistry：src/backend/api/service_registry.py（键：pdf-home.search/pdf-home.add/pdf-viewer.bookmark）
+- 新建域目录骨架：
+  - src/backend/api/pdf-home/search/{__init__.py, service.py}
+  - src/backend/api/pdf-home/add/{__init__.py, service.py}
+  - src/backend/api/pdf-viewer/bookmark/{__init__.py, service.py}
+- 修改 PDFLibraryAPI：构造函数支持注入 service_registry；search/add/bookmark 方法在服务存在时委派，否则回退原实现；pdf_manager 懒加载避免 Qt 依赖阻塞单测；add_pdf_from_file 懒加载工具避免硬依赖。
+- 新增单测：src/backend/api/__tests__/test_api_service_registry.py（验证注入委派生效）
+- 单测结果：本地仅执行新用例通过（使用 $env:PYTHONPATH=src）
+
+## 2025-10-06 实施记录（插件隔离阶段二）
+- 抽取 utils：src/backend/api/utils/{datetime.py,mapping.py,tags.py}
+- 实现默认服务并自动注册（动态按文件路径加载，兼容 kebab-case 目录）：
+  - pdf-home/search: DefaultSearchService（search_records）
+  - pdf-home/add: DefaultAddService（register_file_info, add_pdf_from_file）
+  - pdf-viewer/bookmark: DefaultBookmarkService（list_bookmarks, save_bookmarks）
+- 修改 PDFLibraryAPI：_auto_register_default_services + 动态加载 _load_default_service()（避免 Python 包导入对 kebab-case 的限制）
+- 保持门面旧逻辑作为回退路径；现默认走委派路径。
