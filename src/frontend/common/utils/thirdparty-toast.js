@@ -8,8 +8,67 @@
 import iziToast from 'izitoast';
 import 'izitoast/dist/css/iziToast.min.css';
 
-// 简单内存映射：request_id -> toast DOM
+// 简单内存映射：request_id -> toast DOM（第三方或降级DOM）
 const pendingMap = new Map();
+
+// ---- 降级渲染（当第三方库不可用或抛错时）----
+function fallbackContainer() {
+  let c = document.getElementById('fallback-toast-container');
+  if (!c) {
+    c = document.createElement('div');
+    c.id = 'fallback-toast-container';
+    c.style.cssText = [
+      'position:fixed',
+      'top:16px',
+      'right:16px',
+      'z-index:2147483647',
+      'pointer-events:none',
+      'display:flex',
+      'flex-direction:column',
+      'gap:8px',
+    ].join(';');
+    document.body.appendChild(c);
+  }
+  return c;
+}
+
+function fallbackToast(message, { background = '#323232', color = '#fff', ms = 3000 } = {}) {
+  try {
+    const c = fallbackContainer();
+    const el = document.createElement('div');
+    el.textContent = String(message || '');
+    el.style.cssText = [
+      'pointer-events:auto',
+      'min-width:160px',
+      'max-width:360px',
+      'padding:10px 14px',
+      'border-radius:6px',
+      'box-shadow:0 4px 12px rgba(0,0,0,0.2)',
+      `background:${background}`,
+      `color:${color}`,
+      'font-size:13px',
+      'line-height:1.4',
+      'opacity:0',
+      'transform:translateY(-6px)',
+      'transition:opacity .15s ease, transform .15s ease',
+    ].join(';');
+    c.appendChild(el);
+    requestAnimationFrame(() => {
+      el.style.opacity = '1';
+      el.style.transform = 'translateY(0)';
+    });
+    const t = setTimeout(() => {
+      try {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(-6px)';
+        setTimeout(() => el.remove(), 180);
+      } catch (_) {}
+    }, ms === 0 ? 3000 : ms);
+    return { el, timer: t };
+  } catch (_) {
+    return null;
+  }
+}
 
 /**
  * 显示"进行中"粘性提示
@@ -30,7 +89,11 @@ export function pending(id, message = '进行中') {
       }
     });
   } catch (_) {
-    // 忽略渲染异常，保持流程不中断
+    // 降级渲染
+    const fb = fallbackToast(message, { background: '#2b6cb0', color: '#fff', ms: 5000 });
+    if (fb && fb.el) {
+      pendingMap.set(id, fb.el);
+    }
   }
   return id;
 }
@@ -43,7 +106,9 @@ export function pending(id, message = '进行中') {
 export function success(message, ms = 3000) {
   try {
     iziToast.success({ message, position: 'topRight', timeout: ms, close: true });
-  } catch (_) {}
+  } catch (_) {
+    fallbackToast(message, { background: '#2f855a', color: '#fff', ms });
+  }
 }
 
 /**
@@ -54,7 +119,9 @@ export function success(message, ms = 3000) {
 export function warning(message, ms = 4000) {
   try {
     iziToast.warning({ message, position: 'topRight', timeout: ms, close: true });
-  } catch (_) {}
+  } catch (_) {
+    fallbackToast(message, { background: '#b7791f', color: '#fff', ms });
+  }
 }
 
 /**
@@ -65,7 +132,9 @@ export function warning(message, ms = 4000) {
 export function error(message, ms = 5000) {
   try {
     iziToast.error({ message, position: 'topRight', timeout: ms, close: true });
-  } catch (_) {}
+  } catch (_) {
+    fallbackToast(message, { background: '#c53030', color: '#fff', ms });
+  }
 }
 
 /**
@@ -77,7 +146,12 @@ export function dismissById(id) {
   const toast = pendingMap.get(id);
   if (!toast) return false;
   try {
-    iziToast.hide({}, toast);
+    // 尝试第三方关闭
+    try { iziToast.hide({}, toast); } catch (_) {}
+    // 若是降级DOM，直接移除
+    if (toast && toast.parentElement) {
+      toast.remove();
+    }
   } catch (_) {
     // 容忍关闭异常
   } finally {

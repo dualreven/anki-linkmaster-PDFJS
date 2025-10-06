@@ -5,6 +5,8 @@
 
 import { ResultsRenderer } from './components/results-renderer.js';
 import { QWebChannelBridge } from '../../qwebchannel/qwebchannel-bridge.js';
+import { PDF_MANAGEMENT_EVENTS } from '../../../common/event/event-constants.js';
+import { warning as toastWarning } from '../../../common/utils/thirdparty-toast.js';
 import './styles/search-results.css';
 
 export class SearchResultsFeature {
@@ -202,6 +204,37 @@ export class SearchResultsFeature {
         }
       });
     }
+    // 绑定“编辑”按钮（选中多条时，仅取第一条发起编辑）
+    const editBtn = actionsDiv.querySelector('.batch-btn-edit');
+    if (editBtn) {
+      editBtn.addEventListener('click', () => {
+        try {
+          const selectedIds = Array.from(document.querySelectorAll('.search-result-checkbox:checked'))
+            .map(el => el.getAttribute('data-id'))
+            .filter(Boolean);
+          if (!selectedIds || selectedIds.length === 0) {
+            this.#logger.info('[SearchResultsFeature] 未选择任何条目，编辑操作中止');
+            toastWarning('未选择任何条目');
+            return;
+          }
+
+          // 仅编辑第一条（与 pdf-edit 现有逻辑一致）
+          const firstId = String(selectedIds[0]);
+          const record = (this.#currentResults || []).find(r => String(r?.id) === firstId);
+          if (!record) {
+            this.#logger.warn('[SearchResultsFeature] 选中记录未在当前结果中找到', { id: firstId });
+            toastWarning('无法获取选中的PDF记录');
+            return;
+          }
+
+          this.#logger.info('[SearchResultsFeature] 触发编辑请求', { id: record.id, filename: record.filename });
+          this.#globalEventBus.emit(PDF_MANAGEMENT_EVENTS.EDIT.REQUESTED, record);
+        } catch (e) {
+          this.#logger.error('[SearchResultsFeature] 执行编辑失败', e);
+        }
+      });
+    }
+
     this.#bindLayoutButtons(layoutToggle);
     this.#updateLayoutButtonsState();
 
