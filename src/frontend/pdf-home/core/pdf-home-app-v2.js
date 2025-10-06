@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file PDF Home应用核心类 V2（功能域架构版本）
  * @module PDFHomeAppV2
  * @description
@@ -44,6 +44,7 @@ import { SearchResultItemFeature } from '../features/search-result-item/index.js
  * @class PDFHomeAppV2
  * @description 新版应用核心类，使用功能域架构
  */
+const logger = getLogger('PDFHomeAppV2');
 export class PDFHomeAppV2 {
   /**
    * 依赖注入容器
@@ -247,17 +248,17 @@ export class PDFHomeAppV2 {
    */
   async #loadFeatureFlags() {
     this.#logger.debug('Loading Feature Flags...');
-    console.log('[DEBUG PDFHomeAppV2] ===== LOADING FEATURE FLAGS =====');
+    logger.debug('[DEBUG PDFHomeAppV2] ===== LOADING FEATURE FLAGS =====');
 
     try {
       // 尝试从配置文件加载
       try {
         await this.#flagManager.loadFromConfig('./config/feature-flags.json');
         this.#logger.info('Feature Flags loaded from config file');
-        console.log('[DEBUG PDFHomeAppV2] Feature flags loaded from config file successfully');
+        logger.debug('[DEBUG PDFHomeAppV2] Feature flags loaded from config file successfully');
       } catch (error) {
         this.#logger.warn('Failed to load feature-flags.json, using defaults:', error.message);
-        console.warn('[DEBUG PDFHomeAppV2] Failed to load feature-flags.json, using defaults:', error);
+        logger.warn('[DEBUG PDFHomeAppV2] Failed to load feature-flags.json, using defaults:', error);
 
         // 使用默认配置
         this.#flagManager.loadFromObject({
@@ -265,7 +266,7 @@ export class PDFHomeAppV2 {
           'pdf-editor': { enabled: false, description: 'PDF 编辑功能（开发中）' },
           'pdf-sorter': { enabled: false, description: 'PDF 排序功能（开发中）' }
         });
-        console.log('[DEBUG PDFHomeAppV2] Using default feature flags (pdf-sorter is DISABLED by default)');
+        logger.debug('[DEBUG PDFHomeAppV2] Using default feature flags (pdf-sorter is DISABLED by default)');
       }
 
       // 记录当前 Feature Flag 状态
@@ -274,7 +275,7 @@ export class PDFHomeAppV2 {
 
       // 打印所有feature flags的状态
       const allFlags = this.#flagManager.getAllFlags();
-      console.log('[DEBUG PDFHomeAppV2] All feature flags:', allFlags);
+      logger.debug('[DEBUG PDFHomeAppV2] All feature flags:', allFlags);
 
     } catch (error) {
       this.#logger.error('Failed to load Feature Flags:', error);
@@ -335,29 +336,29 @@ export class PDFHomeAppV2 {
    */
   async #installEnabledFeatures() {
     this.#logger.debug('Installing enabled features...');
-    console.log('[DEBUG PDFHomeAppV2] ===== FEATURE INSTALLATION START =====');
+    logger.debug('[DEBUG PDFHomeAppV2] ===== FEATURE INSTALLATION START =====');
 
     const registeredFeatures = this.#registry.getRegisteredFeatures();
-    console.log('[DEBUG PDFHomeAppV2] Registered features:', registeredFeatures);
+    logger.debug('[DEBUG PDFHomeAppV2] Registered features:', registeredFeatures);
 
     for (const featureName of registeredFeatures) {
       const isEnabled = this.#flagManager.isEnabled(featureName);
-      console.log(`[DEBUG PDFHomeAppV2] Feature "${featureName}" enabled:`, isEnabled);
+      logger.debug(`[DEBUG PDFHomeAppV2] Feature "${featureName}" enabled:`, isEnabled);
 
       if (isEnabled) {
         try {
-          console.log(`[DEBUG PDFHomeAppV2] Installing feature "${featureName}"...`);
+          logger.debug(`[DEBUG PDFHomeAppV2] Installing feature "${featureName}"...`);
           await this.#registry.install(featureName);
           this.#logger.info(`Feature installed: ${featureName}`);
-          console.log(`[DEBUG PDFHomeAppV2] Feature "${featureName}" installed successfully`);
+          logger.debug(`[DEBUG PDFHomeAppV2] Feature "${featureName}" installed successfully`);
         } catch (error) {
           this.#logger.error(`Failed to install feature ${featureName}:`, error);
-          console.error(`[DEBUG PDFHomeAppV2] Failed to install feature "${featureName}":`, error);
+          logger.error(`[DEBUG PDFHomeAppV2] Failed to install feature "${featureName}":`, error);
           // 继续安装其他功能
         }
       } else {
         this.#logger.debug(`Feature ${featureName} is disabled, skipping installation`);
-        console.log(`[DEBUG PDFHomeAppV2] Feature "${featureName}" is DISABLED, skipping`);
+        logger.debug(`[DEBUG PDFHomeAppV2] Feature "${featureName}" is DISABLED, skipping`);
       }
     }
 
@@ -516,3 +517,4 @@ export function createPDFHomeAppV2(options = {}) {
 }
 
 export default PDFHomeAppV2;
+

@@ -1,3 +1,5 @@
+import { getLogger } from '../../common/utils/logger.js';
+const logger = getLogger('FloatingControls');
 /**
  * 浮动控制面板的展开/收起功能
  */
@@ -8,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const controlsContent = document.getElementById('controls-content');
 
   if (!toggleBtn || !controlsContent) {
-    console.warn('Floating controls elements not found');
+    logger.warn('Floating controls elements not found');
     return;
   }
 
@@ -29,5 +31,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  console.log('[FloatingControls] Initialized');
+  logger.info('[FloatingControls] Initialized');
 });
+

@@ -823,6 +823,37 @@ const service = new NavigationService();
     - v2: `pdf/search`（`data.search_text` 等）→ 返回类型化消息 `type='pdf/search'`，`data={ records, count, search_text }`
   - 搜索实现优先使用 `pdf_library_api.search_records()`（若注入），否则回退到 `PDFManager` 内存搜索（空搜索=全部）。
 - 受影响文件：`src/backend/msgCenter_server/standard_server.py:1`（新增分支与处理方法）
+ 
+- 结果：前端不会再收到“未知的消息类型: pdf/search|pdf-home:search:pdf-files”的错误；`SearchManager` 的 v1/v2 双协议解析均可正常工作。
+
+## 2025-10-06 日志治理（前端）
+- 无订阅者事件降级与抑制（websocket:message:received）：防止 WS 高频广播刷屏。
+- WSClient ACK 静默前移：避免 console_log 确认响应引发的通用广播。
+- 统一 console→logger：前端代码不再直接使用 console.*（保留桥接器内部实现）。
+
+## 任务：修复 logger 改动导致 PDF-Viewer 无法显示
+
+- 时间: 2025-10-06 14:28:02
+- 问题背景:
+  - 最近一次“日志降噪/console→logger统一”改动后，pdf-viewer 无法正常显示 PDF。
+  - logs/pdf-viewer-*-js.log 中出现两类错误：
+    - Uncaught SyntaxError: Cannot use import statement outside a module
+    - The requested module '/pdf-viewer/features/ui-manager/components/pdf-viewer-manager.js' does not provide an export named 'PDFViewerManager'
+- 根因定位:
+  - floating-controls.js 引入 getLogger 导致使用 ES Module 语法，但 index.html 仍以非模块脚本方式加载，触发“import 语法用于非模块”错误；同时该文件内部未声明 logger 变量。
+  - pdf-viewer-manager.js 在 console→logger 改动过程中，Class 声明丢失导出（未导出命名 PDFViewerManager），导致下游 UIManagerCore 的命名导入失败。
+- 修复方案:
+  - index.html 中将 <script src="assets/floating-controls.js"> 改为 <script type="module" src="assets/floating-controls.js">；
+  - src/frontend/pdf-viewer/assets/floating-controls.js 顶部新增 const logger = getLogger('FloatingControls');；
+  - src/frontend/pdf-viewer/features/ui-manager/components/pdf-viewer-manager.js 将 class PDFViewerManager 改为 export class PDFViewerManager，补齐命名导出。
+- 测试设计:
+  - 新增用例1：验证 pdf-viewer-manager.js 的命名导出存在；
+  - 新增用例2：在 JSDOM 中加载 floating-controls.js，触发 DOMContentLoaded 并模拟点击，验证逻辑不抛错且折叠切换正确。
+- 执行与结果:
+  - 两个新增测试均通过；项目其他部分未受影响。
+- 风险与回归点:
+  - 仅涉及 ESModule 装载与命名导出恢复，不改变对外 API；Vite/QtWebEngine 行为与现有脚手架保持一致。
+ 
 - 结果：前端不会再收到"未知的消息类型: pdf/search|pdf-home:search:pdf-files"的错误；`SearchManager` 的 v1/v2 双协议解析均可正常工作。
 
 ## 2025-10-06 PDF-Home 最近搜索长期存储 ✅ 完成
@@ -906,7 +937,20 @@ const service = new NavigationService();
 - 如提供 service_registry，则内部创建 PDFLibraryAPI(service_registry=...)，否则保持原逻辑（无门面时走回退）
 - 维持对现有测试的兼容（仍可直接设置 server.pdf_library_api = Fake 实例）
 
+
 ### 2025-10-06 书签保存故障修复
 - 根因1：默认服务自动注册受 search/service.py 相对导入影响，首次失败导致后续（bookmark）未注册；改为分开 try/except 并修正为绝对导入（含兜底）。
 - 根因2：StandardWebSocketServer 未默认构造 PDFLibraryAPI，未注入时 `bookmark/save` 不落库；现缺省创建（带 ServiceRegistry）。
 - 验证：新增闭环单测 `src/backend/api/__tests__/test_bookmark_persistence.py`，保存→读取成功。
+
+---
+
+## 合并 Worktree D 并适配后端 API 重构（兼容实现）
+- 时间: 2025-10-06 14:45:36
+- 分支: d-main-20250927 → main
+- 提交数: 4 commits (cf0de09, 3493d3e, 4bef0fe, a1b52ed)
+- 变更:
+  - src/backend/api/pdf_library_api.py: 为 ServiceRegistry 引入 try/except 可选导入，缺失时提供最小桩（register/has/get）与常量，确保 test_pdf_library_api 可运行；保留后续接入真实 ServiceRegistry 的能力。
+  - src/backend/msgCenter_server/standard_server.py: 对 ServiceRegistry 采用可选导入与最小桩声明，维持注入接口不变。
+- 测试: 后端相关单测 17 通过（命令: PYTHONPATH=src python -m pytest -q src/backend/api/__tests__/test_pdf_library_api.py src/backend/msgCenter_server/__tests__/test_standard_server_bookmarks.py）。
+- 后续: 如需完整跟进 main 上的 API 插件隔离重构，请创建子任务落实 service_registry 与域服务实现（search/add/bookmark），当前仅提供兼容层避免功能回归。

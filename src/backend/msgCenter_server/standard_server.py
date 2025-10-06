@@ -78,7 +78,12 @@ def get_port(args_port=None):
     return default_port
 
 from src.backend.api.pdf_library_api import PDFLibraryAPI  # type: ignore
-from src.backend.api.service_registry import ServiceRegistry  # type: ignore
+# ServiceRegistry 可选导入：在未提供文件时采用最小桩以维持兼容
+try:  # pragma: no cover - 兼容导入
+    from src.backend.api.service_registry import ServiceRegistry  # type: ignore
+except Exception:  # pragma: no cover - 提供最小桩
+    class ServiceRegistry:  # type: ignore
+        pass
 
 
 class StandardWebSocketServer(QObject):

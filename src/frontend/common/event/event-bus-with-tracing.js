@@ -5,7 +5,7 @@
  */
 
 import { getLogger } from "../utils/logger.js";
-import { MessageTracer } from "./message-tracer.js";
+import { MessageTracer } from "./message-tracer.js";`n`nconst SUPPRESSED_EVENT_LOGS = new Set(["websocket:message:received"]);
 
 class EventNameValidator {
   static validate(event) {
@@ -532,3 +532,4 @@ export { EventNameValidator };
 // 为保持向后兼容性，导出默认的EventBus实例
 // 但推荐使用 getEventBus() 函数获取模块特定的实例
 export default getEventBus("App", { enableValidation: true });
+
