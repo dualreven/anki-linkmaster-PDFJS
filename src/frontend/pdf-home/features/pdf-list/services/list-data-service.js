@@ -8,8 +8,8 @@ import { getLogger } from '../../../../common/utils/logger.js';
 import { TableUtils } from './table-utils.js';
 import { PDF_LIST_EVENTS, EventDataFactory } from '../events.js';
 import { ListStateHelpers } from '../state/list-state.js';
-
 const logger = getLogger('PDFList.DataService');
+
 
 /**
  * PDF列表数据服务类

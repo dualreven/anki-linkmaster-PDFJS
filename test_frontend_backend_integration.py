@@ -192,12 +192,12 @@ class IntegrationTester:
     async def test_pdf_list(self, websocket):
         """测试 PDF 列表获取"""
         print("\n" + "="*80)
-        print("测试: PDF 列表获取 (pdf/list)")
+        print("测试: PDF 列表获取 (pdf-library:list:records)")
         print("="*80)
 
         # 发送请求
         request = {
-            'type': 'pdf/list',
+            'type': 'pdf-library:list:records',
             'data': {}
         }
 
@@ -207,7 +207,7 @@ class IntegrationTester:
         self.validator.validate_message_structure(response)
 
         # 验证响应类型
-        if response.get('type') == 'pdf/list':
+        if response.get('type') == 'pdf-library:list:records':
             # 验证 records 字段
             if 'records' in response.get('data', {}):
                 records = response['data']['records']
@@ -221,17 +221,17 @@ class IntegrationTester:
                 self.validator.errors.append("响应缺少 'records' 字段")
         else:
             self.validator.errors.append(
-                f"响应类型错误: 期望 'pdf/list', 实际 '{response.get('type')}'"
+                f"响应类型错误: 期望 'pdf-library:list:records', 实际 '{response.get('type')}'"
             )
 
     async def test_pdf_open(self, websocket, pdf_id: str = None, filename: str = None):
         """测试 PDF 打开"""
         print("\n" + "="*80)
-        print("测试: PDF 打开 (pdf/open)")
+        print("测试: PDF 打开 (pdf-library:open:viewer)")
         print("="*80)
 
         request = {
-            'type': 'pdf/open',
+            'type': 'pdf-library:open:viewer',
             'data': {}
         }
 

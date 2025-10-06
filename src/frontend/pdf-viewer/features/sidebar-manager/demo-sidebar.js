@@ -5,8 +5,8 @@
 
 import { getLogger } from '../../../common/utils/logger.js';
 import { createSidebarConfig } from './sidebar-config.js';
-
 const logger = getLogger('DemoSidebar');
+
 
 /**
  * 创建测试侧边栏1的配置

@@ -39,12 +39,12 @@ import { RecentAddedFeature } from '../features/sidebar/recent-added/index.js';
 // 搜索结果功能
 import { SearchResultsFeature } from '../features/search-results/index.js';
 import { SearchResultItemFeature } from '../features/search-result-item/index.js';
+const logger = getLogger('PDFHomeAppV2');
 
 /**
  * @class PDFHomeAppV2
  * @description 新版应用核心类，使用功能域架构
  */
-const logger = getLogger('PDFHomeAppV2');
 export class PDFHomeAppV2 {
   /**
    * 依赖注入容器

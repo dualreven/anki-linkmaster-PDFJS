@@ -110,18 +110,18 @@ export class AnnotationFeature {
 
     // 1. 创建工具注册表
     this.#toolRegistry = new ToolRegistry(this.#eventBus, this.#logger);
-    this.#logger.info('[AnnotationFeature] ToolRegistry created');
+    this.#logger.debug('[AnnotationFeature] ToolRegistry created');
 
     // 2. 创建标注管理器
-    this.#annotationManager = new AnnotationManager(this.#eventBus, this.#logger);
-    this.#logger.info('[AnnotationFeature] AnnotationManager created');
+    this.#annotationManager = new AnnotationManager(this.#eventBus, this.#logger, this.#container);
+    this.#logger.debug('[AnnotationFeature] AnnotationManager created');
 
     // 2.5. 从容器获取导航服务（由 core-navigation Feature 提供）
     this.#navigationService = container?.get('navigationService');
     if (!this.#navigationService) {
       this.#logger.warn('[AnnotationFeature] navigationService 未在容器中找到，标注跳转功能可能不可用');
     } else {
-      this.#logger.info('[AnnotationFeature] NavigationService obtained from container');
+      this.#logger.debug('[AnnotationFeature] NavigationService obtained from container');
     }
 
     // 3. 创建侧边栏UI
@@ -134,7 +134,7 @@ export class AnnotationFeature {
       container: mainContainer
     });
     this.#sidebarUI.initialize();
-    this.#logger.info('[AnnotationFeature] AnnotationSidebarUI initialized');
+    this.#logger.debug('[AnnotationFeature] AnnotationSidebarUI initialized');
 
     // 4. 【关键修复】使用 registerGlobal() 注册服务到根容器
     // 这样其他 Feature 的 scoped container 也能访问这些服务
@@ -142,11 +142,11 @@ export class AnnotationFeature {
       container.registerGlobal('annotationSidebarUI', this.#sidebarUI);
       container.registerGlobal('toolRegistry', this.#toolRegistry);
       container.registerGlobal('annotationManager', this.#annotationManager);
-      this.#logger.info('[AnnotationFeature] Services registered to global container');
+      this.#logger.debug('[AnnotationFeature] Services registered to global container');
 
-      // 验证注册是否成功
+      // 验证注册是否成功（降级为debug）
       const testGet = container.get('annotationSidebarUI');
-      this.#logger.info(`[AnnotationFeature] Verification: annotationSidebarUI retrievable = ${!!testGet}`);
+      this.#logger.debug(`[AnnotationFeature] Verification: annotationSidebarUI retrievable = ${!!testGet}`);
     } else {
       this.#logger.error('[AnnotationFeature] Container is null! Cannot register services');
     }
@@ -162,7 +162,7 @@ export class AnnotationFeature {
       container: this.#container
     };
     await this.#toolRegistry.initializeAll(toolContext);
-    this.#logger.info('[AnnotationFeature] All tools initialized');
+    this.#logger.debug('[AnnotationFeature] All tools initialized');
 
     // 7. 创建工具按钮UI
     this.#createToolButtons();
@@ -181,23 +181,26 @@ export class AnnotationFeature {
    * @private
    */
   async #registerTools() {
-    this.#logger.info('[AnnotationFeature] Registering tools...');
+    this.#logger.debug('[AnnotationFeature] Registering tools...');
 
     // Phase 1: 注册截图工具
     const { ScreenshotTool } = await import('./tools/screenshot/index.js');
     const screenshotTool = new ScreenshotTool();
     this.#toolRegistry.register(screenshotTool);
-    this.#logger.info('[AnnotationFeature] Screenshot tool registered');
+    this.#logger.debug('[AnnotationFeature] Screenshot tool registered');
 
     // Phase 2: 注册文字高亮工具
     const { TextHighlightTool } = await import('./tools/text-highlight/index.js');
     this.#toolRegistry.register(new TextHighlightTool());
-    this.#logger.info('[AnnotationFeature] Text highlight tool registered');
+    this.#logger.debug('[AnnotationFeature] Text highlight tool registered');
 
     // Phase 3: 注册批注工具 ✅
     const { CommentTool } = await import('./tools/comment/index.js');
     this.#toolRegistry.register(new CommentTool());
-    this.#logger.info('[AnnotationFeature] Comment tool registered');
+    this.#logger.debug('[AnnotationFeature] Comment tool registered');
+
+    // 汇总一次性信息（信息级别）
+    this.#logger.info('[AnnotationFeature] Registered tools: screenshot, text-highlight, comment');
 
     this.#logger.info(`[AnnotationFeature] ${this.#toolRegistry.getCount()} tools registered`);
   }

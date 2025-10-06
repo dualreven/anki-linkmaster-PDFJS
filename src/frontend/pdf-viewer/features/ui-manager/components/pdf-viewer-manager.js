@@ -22,12 +22,13 @@ import {
   SpreadMode
 } from "@pdfjs/web/pdf_viewer.mjs";
 
+// 模块级日志记录器（用于非实例化路径的快速日志）
+const logger = getLogger('PDFViewerManager');
+
 /**
- * @const logger = getLogger('PDFViewerManager');
 class PDFViewerManager
  * @description 管理PDF.js的PDFViewer组件，提供完整的PDF查看功能
  */
-export const logger = getLogger('PDFViewerManager');
 export class PDFViewerManager {
   #logger;
   #container = null;
@@ -54,25 +55,25 @@ export class PDFViewerManager {
       throw new Error(errorMsg);
     }
 
-    this.#logger.info(`Initializing PDFViewer with container:`, container);
-    logger.info("[PDFViewerManager] Container element:", container);
+    this.#logger.info(`Initializing PDFViewer`);
+    logger.debug("[PDFViewerManager] Container element (debug)", container);
 
     try {
       // 创建PDF.js EventBus
-      this.#logger.info("Creating PDF.js EventBus...");
+      this.#logger.debug("Creating PDF.js EventBus...");
       this.#pdfjsEventBus = new EventBus();
-      this.#logger.info("PDF.js EventBus created");
+      this.#logger.debug("PDF.js EventBus created");
 
       // 创建PDFLinkService
-      this.#logger.info("Creating PDFLinkService...");
+      this.#logger.debug("Creating PDFLinkService...");
       this.#linkService = new PDFLinkService({
         eventBus: this.#pdfjsEventBus,
       });
-      this.#logger.info("PDFLinkService created");
+      this.#logger.debug("PDFLinkService created");
 
       // 创建PDFViewer实例
-      this.#logger.info("Creating PDFViewer instance...");
-      logger.info("[PDFViewerManager] Creating PDFViewer with options:", {
+      this.#logger.debug("Creating PDFViewer instance...");
+      logger.debug("[PDFViewerManager] Creating PDFViewer with options:", {
         container: this.#container,
         textLayerMode: 2,
         annotationMode: 2,
@@ -85,7 +86,7 @@ export class PDFViewerManager {
                            this.#container.querySelector('#viewer') ||
                            this.#container.firstElementChild;
 
-      this.#logger.info(`Found viewer element:`, viewerElement);
+      this.#logger.debug(`Found viewer element:`, viewerElement);
 
       this.#pdfViewer = new PDFViewer({
         container: this.#container,
@@ -101,13 +102,13 @@ export class PDFViewerManager {
         enableHWA: true, // 启用硬件加速
       });
 
-      this.#logger.info("PDFViewer instance created");
+      this.#logger.debug("PDFViewer instance created");
       this.#linkService.setViewer(this.#pdfViewer);
 
       // 监听PDFViewer的事件并桥接到应用EventBus
       this.#setupEventBridge(this.#pdfjsEventBus);
 
-      this.#logger.info("PDFViewer initialized with full functionality");
+      this.#logger.info("PDFViewer initialized");
     } catch (error) {
       this.#logger.error("Failed to initialize PDFViewer:", error);
       logger.error("[PDFViewerManager] Full error:", error.message, error.stack);
@@ -125,42 +126,42 @@ export class PDFViewerManager {
       return;
     }
 
-    this.#logger.info("Before setDocument, checking viewer state...");
-    this.#logger.info(`PDFViewer instance exists: ${!!this.#pdfViewer}`);
-    this.#logger.info(`pdfDocument: ${pdfDocument}, numPages: ${pdfDocument?.numPages}`);
-    this.#logger.info(`Container element: ${this.#container?.tagName}.${this.#container?.className}`);
-    this.#logger.info(`Container innerHTML length: ${this.#container?.innerHTML?.length || 0}`);
+    this.#logger.debug("Before setDocument, checking viewer state...");
+    this.#logger.debug(`PDFViewer instance exists: ${!!this.#pdfViewer}`);
+    this.#logger.debug(`pdfDocument: ${pdfDocument}, numPages: ${pdfDocument?.numPages}`);
+    this.#logger.debug(`Container element: ${this.#container?.tagName}.${this.#container?.className}`);
+    this.#logger.debug(`Container innerHTML length: ${this.#container?.innerHTML?.length || 0}`);
 
     try {
-      this.#logger.info("Calling pdfViewer.setDocument...");
+      this.#logger.debug("Calling pdfViewer.setDocument...");
       this.#pdfViewer.setDocument(pdfDocument);
-      this.#logger.info("setDocument returned successfully");
+      this.#logger.debug("setDocument returned successfully");
 
-      this.#logger.info("Calling linkService.setDocument...");
+      this.#logger.debug("Calling linkService.setDocument...");
       this.#linkService.setDocument(pdfDocument);
-      this.#logger.info("linkService.setDocument returned successfully");
+      this.#logger.debug("linkService.setDocument returned successfully");
 
-      this.#logger.info("Immediately after setDocument:");
-      this.#logger.info(`  pdfViewer.pdfDocument: ${!!this.#pdfViewer.pdfDocument}`);
-      this.#logger.info(`  pdfViewer.pagesCount: ${this.#pdfViewer.pagesCount}`);
+      this.#logger.debug("Immediately after setDocument:");
+      this.#logger.debug(`  pdfViewer.pdfDocument: ${!!this.#pdfViewer.pdfDocument}`);
+      this.#logger.debug(`  pdfViewer.pagesCount: ${this.#pdfViewer.pagesCount}`);
 
       // 强制刷新PDFViewer以确保textLayer和canvas尺寸一致
       // 这会触发PDFViewer重新计算所有页面的viewport和布局
-      this.#logger.info("Forcing PDFViewer update to sync layer dimensions...");
+      this.#logger.debug("Forcing PDFViewer update to sync layer dimensions...");
       this.#pdfViewer.update();
-      this.#logger.info(`PDFViewer updated, currentScale: ${this.#pdfViewer.currentScale}`);
+      this.#logger.debug(`PDFViewer updated, currentScale: ${this.#pdfViewer.currentScale}`);
     } catch (error) {
       this.#logger.error("Error during setDocument:", error);
     }
 
-    this.#logger.info("PDF document loaded into PDFViewer");
+    this.#logger.info("PDF document loaded");
 
     // 等待一下，然后检查是否有页面被渲染
     setTimeout(() => {
-      this.#logger.info("After setDocument (2s delay), checking viewer content...");
+      this.#logger.debug("After setDocument (2s delay), checking viewer content...");
       const viewerElement = this.#container.querySelector('.pdfViewer') || this.#container.querySelector('#viewer');
-      this.#logger.info(`Viewer element innerHTML length: ${viewerElement?.innerHTML?.length || 0}`);
-      this.#logger.info(`Viewer element children count: ${viewerElement?.children?.length || 0}`);
+      this.#logger.debug(`Viewer element innerHTML length: ${viewerElement?.innerHTML?.length || 0}`);
+      this.#logger.debug(`Viewer element children count: ${viewerElement?.children?.length || 0}`);
 
       // 🔍 详细分析子元素类型
       if (viewerElement && viewerElement.children.length > 0) {
@@ -170,20 +171,20 @@ export class PDFViewerManager {
           const type = `${child.tagName}.${child.className}`;
           childrenTypes[type] = (childrenTypes[type] || 0) + 1;
         }
-        this.#logger.info(`Children types breakdown: ${JSON.stringify(childrenTypes, null, 2)}`);
-        this.#logger.info(`First child: ${viewerElement.children[0].tagName}.${viewerElement.children[0].className}`);
+        this.#logger.debug(`Children types breakdown: ${JSON.stringify(childrenTypes, null, 2)}`);
+        this.#logger.debug(`First child: ${viewerElement.children[0].tagName}.${viewerElement.children[0].className}`);
 
         // 统计真正的页面容器
         const pageContainers = viewerElement.querySelectorAll('.page');
-        this.#logger.info(`Actual page containers (.page): ${pageContainers.length}`);
+        this.#logger.debug(`Actual page containers (.page): ${pageContainers.length}`);
 
         // 检查是否有重复的页面
-        this.#logger.info(`Expected pages from pdfDocument: ${this.#pdfViewer.pdfDocument?.numPages || 'unknown'}`);
+        this.#logger.debug(`Expected pages from pdfDocument: ${this.#pdfViewer.pdfDocument?.numPages || 'unknown'}`);
       }
 
-      this.#logger.info(`PDFViewer.pagesCount: ${this.#pdfViewer.pagesCount}`);
-      this.#logger.info(`PDFViewer.currentPageNumber: ${this.#pdfViewer.currentPageNumber}`);
-      this.#logger.info(`PDFViewer.currentScale: ${this.#pdfViewer.currentScale}`);
+      this.#logger.debug(`PDFViewer.pagesCount: ${this.#pdfViewer.pagesCount}`);
+      this.#logger.debug(`PDFViewer.currentPageNumber: ${this.#pdfViewer.currentPageNumber}`);
+      this.#logger.debug(`PDFViewer.currentScale: ${this.#pdfViewer.currentScale}`);
     }, 2000);
   }
 
@@ -396,4 +397,5 @@ export class PDFViewerManager {
     this.#logger.info("PDFViewer event bridge setup complete");
   }
 }
+
 

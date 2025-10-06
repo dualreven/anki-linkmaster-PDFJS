@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "annotation:delete:requested",
+  "type": "object",
+  "required": ["type", "timestamp", "request_id", "data"],
+  "properties": {
+    "type": { "const": "annotation:delete:requested" },
+    "timestamp": { "type": "number" },
+    "request_id": { "type": "string" },
+    "data": {
+      "type": "object",
+      "required": ["ann_id"],
+      "properties": {
+        "ann_id": { "type": "string" }
+      }
+    }
+  }
+}
+

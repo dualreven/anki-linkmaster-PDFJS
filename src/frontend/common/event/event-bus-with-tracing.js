@@ -5,7 +5,10 @@
  */
 
 import { getLogger } from "../utils/logger.js";
-import { MessageTracer } from "./message-tracer.js";`n`nconst SUPPRESSED_EVENT_LOGS = new Set(["websocket:message:received"]);
+import { MessageTracer } from "./message-tracer.js";
+import { isGlobalEventAllowed } from "./global-event-registry.js";
+
+const SUPPRESSED_EVENT_LOGS = new Set(["websocket:message:received"]);
 
 class EventNameValidator {
   static validate(event) {
@@ -256,6 +259,13 @@ export class EventBus {
   }
 
   on(event, callback, options = {}) {
+    // 全局事件白名单校验（局部事件 @ 开头跳过）
+    if (!event?.startsWith('@') && !isGlobalEventAllowed(event)) {
+      const err = EventNameValidator.getValidationError(event, { subscriberId: options?.subscriberId })
+        || `未注册的全局事件：'${event}'，已被禁止订阅`;
+      this.#log("error", err, { event });
+      return () => {};
+    }
     const subscriberId = options.subscriberId || this.#inferActorId() || `sub_${this.#nextSubscriberId++}`;
     const actorId = options.actorId || this.#inferActorId();
     
@@ -316,6 +326,14 @@ export class EventBus {
 
         return;
       }
+    }
+
+    // 全局事件白名单校验（局部事件 @ 开头跳过）
+    if (!event?.startsWith('@') && !isGlobalEventAllowed(event)) {
+      const err = EventNameValidator.getValidationError(event, { actorId }) 
+        || `未注册的全局事件：'${event}'，已被禁止发布`;
+      this.#log("error", err, { event, data });
+      return;
     }
 
     const subscribers = this.#events[event];

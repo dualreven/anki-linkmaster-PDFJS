@@ -199,7 +199,7 @@ src/frontend/common/
 ```javascript
 // PDF列表请求
 {
-  type: 'pdf/list',
+  type: 'pdf-library:list:records',
   data: {}
 }
 
@@ -221,7 +221,7 @@ src/frontend/common/
 
 // PDF操作请求
 {
-  type: 'pdf/add',
+  type: 'pdf-library:add:records',
   data: {
     filename: 'new-document.pdf',
     path: '/path/to/file'
@@ -483,7 +483,7 @@ ws.onclose = () => {
 ```javascript
 // 请求
 {
-  type: 'pdf/list',
+  type: 'pdf-library:list:records',
   data: {}
 }
 
@@ -512,7 +512,7 @@ ws.onclose = () => {
 ```javascript
 // 请求
 {
-  type: 'pdf/add',
+  type: 'pdf-library:add:records',
   data: {
     filename: 'new-document.pdf',
     title: 'New Document',
@@ -543,7 +543,7 @@ ws.onclose = () => {
 ```javascript
 // 请求
 {
-  type: 'pdf/remove',
+  type: 'pdf-library:remove:records',
   data: {
     file_id: 'file-to-delete'
   }
@@ -551,7 +551,7 @@ ws.onclose = () => {
 
 // 批量删除请求
 {
-  type: 'pdf/remove_batch',
+  type: 'pdf-library:remove:records'  # 批量删除使用同一消息,
   data: {
     file_ids: ['file1', 'file2', 'file3']
   }
@@ -562,7 +562,7 @@ ws.onclose = () => {
 ```javascript
 // 请求
 {
-  type: 'pdf/open',
+  type: 'pdf-library:open:viewer',
   data: {
     file_id: 'file-to-open',
     viewer_options: {

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "docs/contracts/storage-fs/v1/messages/write.request.schema.json",
+  "title": "storage-fs:write:requested",
+  "type": "object",
+  "properties": {
+    "type": {"const": "storage-fs:write:requested"},
+    "timestamp": {"type": "number"},
+    "request_id": {"type": "string"},
+    "metadata": {"type": "object", "properties": {"version": {"type": "string"}}, "required": ["version"]},
+    "data": {
+      "type": "object",
+      "properties": {
+        "path": {"type": "string"},
+        "content": {"type": "string"},
+        "overwrite": {"type": "boolean"}
+      },
+      "required": ["path", "content"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["type", "timestamp", "request_id", "metadata", "data"],
+  "additionalProperties": false
+}

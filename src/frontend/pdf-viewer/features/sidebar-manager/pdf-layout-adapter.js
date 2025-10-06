@@ -5,8 +5,8 @@
  */
 
 import { getLogger } from '../../../common/utils/logger.js';
-
 const logger = getLogger('PDFLayoutAdapter');
+
 
 export class PDFLayoutAdapter {
     #eventBus;

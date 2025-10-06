@@ -23,10 +23,10 @@
   - DB 插件：`src/backend/database/plugins/pdf_info_plugin.py:1`
 
 ## 需要确认的契约
-1) WebSocket 消息类型统一使用 `pdf/search`
-   - 前端发送：SearchManager 通过 `WEBSOCKET_EVENTS.MESSAGE.SEND` 发送 `{ type: 'pdf/search', data, request_id }`
-   - 后端响应：`{ type: 'pdf/search', status: 'success'|'error', data, request_id }`
-   - WSClient 支持 `pdf/search` 类型（在 `WSClient.VALID_MESSAGE_TYPES` 列表中）。
+1) WebSocket 消息类型统一使用 `pdf-library:search:records`
+   - 前端发送：SearchManager 通过 `WEBSOCKET_EVENTS.MESSAGE.SEND` 发送 `{ type: 'pdf-library:search:records', data, request_id }`
+   - 后端响应：`{ type: 'pdf-library:search:records', status: 'success'|'error', data, request_id }`
+   - WSClient 支持 `pdf-library:search:records` 类型（在 `WSClient.VALID_MESSAGE_TYPES` 列表中）。
 
 2) 请求数据（v001）
    - data.search_text: string（空字符串表示“全部”）
@@ -48,11 +48,11 @@
 ## 验证清单（按顺序执行）
 1. 阅读规范头文件：`src/frontend/pdf-home/docs/SPEC/SPEC-HEAD-PDFHome.json:1`
 2. 打开并确认前端：
-   - `src/frontend/common/ws/ws-client.js:1` 中 `VALID_MESSAGE_TYPES` 包含 `pdf/search`。
+   - `src/frontend/common/ws/ws-client.js:1` 中 `VALID_MESSAGE_TYPES` 包含 `pdf-library:search:records`。
    - `src/frontend/pdf-home/features/search/services/search-manager.js:1` 发送与接收逻辑符合契约。
    - `src/frontend/pdf-home/features/search-results/index.js:1` 监听 `search:results:updated` 并渲染。
 3. 打开并确认后端：
-   - `src/backend/msgCenter_server/standard_server.py:341` 存在 `elif message_type == "pdf/search":` 路由；`handle_pdf_search_v2` 实现调用 `PDFLibraryAPI.search_records`。
+   - `src/backend/msgCenter_server/standard_server.py:341` 存在 `elif message_type == "pdf-library:search:records":` 路由；`handle_pdf_search_v2` 实现调用 `PDFLibraryAPI.search_records`。
    - `src/backend/api/pdf_library_api.py:269` 存在 `search_records` 并调用 `PDFInfoTablePlugin.search_records`。
    - `src/backend/database/plugins/pdf_info_plugin.py:480` 存在 `search_records`，包含 LIKE 转义与多字段拼接。
 
@@ -63,7 +63,7 @@
 ---
 
 校验记录：
-- [ ] 前端 WS 类型已包含 `pdf/search`
+- [ ] 前端 WS 类型已包含 `pdf-library:search:records`
 - [ ] SearchManager 请求/响应契约与 v001 对齐
 - [ ] SearchResultsFeature 正常订阅并渲染
 - [ ] 后端 WS 路由存在并正确调用 API

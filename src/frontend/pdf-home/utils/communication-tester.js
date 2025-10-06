@@ -4,8 +4,8 @@
  */
 
 import { getLogger } from '../../common/utils/logger.js';
-
 const logger = getLogger('CommunicationTester');
+
 
 /**
  * PDF 记录字段定义（用于验证）
@@ -115,7 +115,7 @@ export class CommunicationTester {
             };
 
             // 监听响应
-            const unsubscribe = this.eventBus.on('pdf/list', (data) => {
+            const unsubscribe = this.eventBus.on('pdf-library:list:records', (data) => {
                 try {
                     testResult.details.responseType = data?.type || 'unknown';
                     testResult.details.hasRecords = 'records' in (data?.data || {});
@@ -154,7 +154,7 @@ export class CommunicationTester {
             // 发送请求
             try {
                 this.wsClient.send({
-                    type: 'pdf/list',
+                    type: 'pdf-library:list:records',
                     data: {}
                 });
                 testResult.details.requestSent = true;

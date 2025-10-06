@@ -16,6 +16,23 @@
   - pdf-viewer：写入 `logs/pdf-viewer-<pdf-id>-js.log`
 - JS 层可使用共享 Logger 输出到控制台；由 Python 捕获程序写入日志（UTF-8）。
 
+日志治理（配置项与默认）
+- 生产默认：`WARN` 级别、事件采样 20%、JSON 不美化
+- 运行时可通过 localStorage 调整（无需改代码）：
+  - `LOG_LEVEL`: `debug|info|warn|error`
+  - `LOG_EVENT_SAMPLE_RATE`: `0~1`（例如 `0.2`）
+  - `LOG_RATE_LIMIT`: `messages,intervalMs`（如 `100,1000`）
+  - `LOG_DEDUP_WINDOW_MS`: 重复折叠窗口毫秒
+  - `LOG_EVENT_MAX_JSON`: 事件 JSON 最大长度
+  - `LOG_EVENT_PRETTY`: `true|false`
+  
+编程方式（可在 Bootstrap 中设置）
+```js
+import { configureLogger, LogLevel, setModuleLogLevel } from 'src/frontend/common/utils/logger.js';
+configureLogger({ globalLevel: LogLevel.INFO, rateLimit: { messages: 60, intervalMs: 1000 }, event: { sampleRate: 0.5 } });
+setModuleLogLevel('Feature.annotation', LogLevel.WARN);
+```
+
 ## 后端日志规范
 - 统一使用 Python `logging`，显式 UTF-8；必要时采用覆盖写并确保行尾正确。
 
@@ -337,7 +354,7 @@ emove_comment(ann_id, comment_id)。
 - 扩展接口：`query_by_name`、`query_enabled`、`increment_use_count`、`set_last_used`、`activate_exclusive`、`query_by_tag`、`search_by_keyword`。
 - 事件：`table:search-condition:create|update|delete:completed`。
 - 测试：`pytest src/backend/database/plugins/__tests__/test_search_condition_plugin.py`（29 用例）。
-- 2025-10-05：新增 `PDFLibraryAPI`，提供 `list_records/get_record_detail/update_record/delete_record/register_file_info`，单位为秒/毫秒转换遵循 JSON-MESSAGE-FORMAT-001，WebSocket `pdf/list` 消息返回 `records`。
+- 2025-10-05：新增 `PDFLibraryAPI`，提供 `list_records/get_record_detail/update_record/delete_record/register_file_info`，单位为秒/毫秒转换遵循 JSON-MESSAGE-FORMAT-001，WebSocket `pdf-library:list:records` 消息返回 `records`。
 
 ## 2025-10-05 Annotation事件规范
 - AnnotationFeature 缺省使用 ScopedEventBus，跨模块交互统一经 `emitGlobal/onGlobal`。
@@ -368,7 +385,7 @@ emove_comment(ann_id, comment_id)。
 ## 2025-10-06 PDF-Home 搜索 v001 变更说明
 - 默认搜索字段：后端与前端均包含 `title, author, filename, tags, notes, subject, keywords`
 - SQL 安全：统一使用参数绑定；所有 LIKE 条件采用 `ESCAPE '\\'` 语法并对 `%`、`_` 进行转义；tags 使用 JSON 文本包含匹配
-- 事件契约：WebSocket `type: "pdf/search"`，响应 `status: "success"`，`data: { records, count, search_text }`
+- 事件契约：WebSocket `type: "pdf-library:search:records"`，响应 `status: "success"`，`data: { records, count, search_text }`
 - UI 行为：SearchBar → SearchManager（发起 WS）→ SearchResultsFeature（渲染）；空搜索返回全部
 
 ## 2025-10-06 搜索语义（v001）
@@ -399,3 +416,35 @@ emove_comment(ann_id, comment_id)。
 - 要求：在 src/frontend/pdf-viewer/index.html 中必须以模块方式加载：
   - <script type="module" src="assets/floating-controls.js"></script>
 - 说明：统一使用项目 Logger，不得回退 console.*；如需在 HTML 直连脚本中使用 Logger，必须以模块脚本加载。
+
+## 契约一致性与门禁（新增）
+- 合并前必须先合入契约（docs/contracts/*）并通过评审。
+- 响应消息需满足：事件名三段式映射至 type，且响应 status=success/error 与事件状态一致。
+- 后续将提供轻量 Schema 校验脚本（前端/后端均本地可跑），未通过禁止合并。
+
+
+- 当前契约样例位于: todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/schemas
+- 规格说明: todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/v001-spec.md
+
+- 新增脚本：scripts/validate_schemas.py（UTF-8-SIG 读取，检查Schema关键字段），建议在CI中执行。
+
+## 新增：Annotation 域 WS 消息（v1）
+- 请求：
+  - nnotation:list:requested → data: { pdf_uuid }
+  - nnotation:save:requested → data: { pdf_uuid, annotation }
+  - nnotation:delete:requested → data: { ann_id }
+- 响应：
+  - nnotation:list:completed → data: { annotations: [], count }
+  - nnotation:save:completed → data: { id, created?, updated? }
+  - nnotation:delete:completed → data: { ok }
+- 说明：前端 AnnotationManager 自动从 DI 容器获取 wsClient，可用即远程持久化；否则退化为 Mock。
+
+## 代码格式化工具（2025-10-06）
+- 使用 Prettier 统一批量格式化，配置文件 `.prettierrc.json`（100列、单引号、LF）。
+- 默认忽略目录：`node_modules/`、`build/`、`dist/`、`logs/`、`AItemp/`、`todo-and-doing/`（见 `.prettierignore`）。
+- 命令：
+  - 写入格式：`pnpm run format`（封装 `scripts/run-prettier.mjs --write`，作用于 `src/`、`scripts/` 及根部配置文件）。
+  - 校验：`pnpm run format:check`（同脚本 `--check`）。可用 `--pattern <glob>` 指定子集。
+- 示例：`pnpm run format:check -- --pattern scripts/test-formatting-sample.js`
+- 快速自测：`pnpm run test:format` 会在示例文件上执行 `format:check`，验证命令链路。
+

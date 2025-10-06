@@ -7,8 +7,8 @@ import eventBusSingleton from '../../common/event/event-bus.js';
 import { UIManagerCore } from '../features/ui-manager/components/ui-manager-core.js';
 import { PDF_VIEWER_EVENTS } from '../../common/event/pdf-viewer-constants.js';
 import { getLogger } from '../../common/utils/logger.js';
-
 const logger = getLogger('UIRefactoringTest');
+
 
 /**
  * 验证UI管理器重构

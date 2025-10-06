@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "docs/contracts/annotation-comment/v1/messages/add.completed.schema.json",
+  "title": "annotation-comment:add:completed",
+  "type": "object",
+  "properties": {
+    "type": {"const": "annotation-comment:add:completed"},
+    "timestamp": {"type": "number"},
+    "request_id": {"type": "string"},
+    "status": {"const": "success"},
+    "code": {"type": "integer"},
+    "message": {"type": "string"},
+    "metadata": {"type": "object", "properties": {"version": {"type": "string"}}, "required": ["version"]},
+    "data": {"type": "object", "properties": {"comment": {"type": "object"}}, "required": ["comment"], "additionalProperties": true}
+  },
+  "required": ["type", "timestamp", "request_id", "status", "code", "data", "metadata"],
+  "additionalProperties": false
+}
+

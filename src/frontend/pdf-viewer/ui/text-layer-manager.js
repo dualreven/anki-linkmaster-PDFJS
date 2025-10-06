@@ -12,6 +12,7 @@
  */
 
 import { getLogger } from "../../common/utils/logger.js";
+const logger = getLogger('TextLayerManager');
 
 // 动态导入PDF.js的renderTextLayer
 let renderTextLayerFunc = null;
@@ -55,7 +56,6 @@ async function loadRenderTextLayer() {
  * - clearTextSelection(): 清除当前选中的文字
  * - highlightSelectedText(area_list): 高亮当前选中的文字
  */
-const logger = getLogger('TextLayerManager');
 export class TextLayerManager {
   // 私有属性
   #logger;

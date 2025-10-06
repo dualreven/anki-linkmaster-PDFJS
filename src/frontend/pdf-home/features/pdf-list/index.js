@@ -410,7 +410,7 @@ export class PDFListFeature {
       // 循环发送多个单文件请求（后端期望单个filepath参数）
       for (const filepath of files) {
         this.#scopedEventBus?.emitGlobal('websocket:message:send', {
-          type: 'pdf-home:add:pdf-files',
+          type: 'pdf-library:add:records',
           data: {
             filepath: filepath  // 后端期望单个文件路径
           },
@@ -463,7 +463,7 @@ export class PDFListFeature {
       // 循环发送多个单文件请求（后端期望单个filepath参数）
       for (const filepath of files) {
         this.#scopedEventBus?.emitGlobal('websocket:message:send', {
-          type: 'pdf-home:add:pdf-files',
+          type: 'pdf-library:add:records',
           data: {
             filepath: filepath  // 后端期望单个文件路径
           },
@@ -561,7 +561,7 @@ export class PDFListFeature {
     // - 这种解耦设计使得功能域之间互不依赖，可独立开发和测试
     //
     // 消息协议：
-    // - type: 'pdf-home:remove:pdf-files' - 后端识别的删除操作类型
+    // - type: 'pdf-library:remove:records' - 后端识别的删除操作类型
     // - data.file_ids: 要删除的文件ID数组（后端通过ID精确定位文件）
     //
     // 后续流程：
@@ -572,7 +572,7 @@ export class PDFListFeature {
     // 5. 删除成功后使用 tabulator.deleteRow() 增量更新表格
     // 6. 清空选中状态（this.#state.selectedIndices = []）
     this.#scopedEventBus?.emitGlobal('websocket:message:send', {
-      type: 'pdf-home:remove:pdf-files',
+      type: 'pdf-library:remove:records',
       data: {
         file_ids: selectedItems.map(item => item.id)  // 提取每个文件的唯一ID
       }
@@ -695,7 +695,7 @@ export class PDFListFeature {
 
         // 重新请求完整列表以更新表格（因为后端返回的信息不完整）
         this.#scopedEventBus?.emitGlobal('websocket:message:send', {
-          type: 'pdf-home:get:pdf-list'
+          type: 'pdf-library:list:records'
         });
       }
 
@@ -723,7 +723,7 @@ export class PDFListFeature {
             this.#logger.error('Error adding rows to table:', error);
             // 如果增量添加失败，回退到重新请求完整列表
             this.#scopedEventBus?.emitGlobal('websocket:message:send', {
-              type: 'pdf-home:get:pdf-list'
+              type: 'pdf-library:list:records'
             });
           }
         }
@@ -763,7 +763,7 @@ export class PDFListFeature {
             this.#logger.error('Error deleting rows from table:', error);
             // 如果增量删除失败，回退到重新请求完整列表
             this.#scopedEventBus?.emitGlobal('websocket:message:send', {
-              type: 'pdf-home:get:pdf-list'
+              type: 'pdf-library:list:records'
             });
           }
         }

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "docs/contracts/pdf-library/v1/messages/viewer.completed.schema.json",
+  "title": "pdf-library:viewer:completed",
+  "type": "object",
+  "properties": {
+    "type": {"const": "pdf-library:viewer:completed"},
+    "timestamp": {"type": "number"},
+    "request_id": {"type": "string"},
+    "status": {"const": "success"},
+    "code": {"type": "integer"},
+    "message": {"type": "string"},
+    "metadata": {"type": "object", "properties": {"version": {"type": "string"}}, "required": ["version"]},
+    "data": {"type": "object", "properties": {"file_id": {"type": "string"}}, "additionalProperties": true}
+  },
+  "required": ["type", "timestamp", "request_id", "status", "code", "data", "metadata"],
+  "additionalProperties": false
+}
+

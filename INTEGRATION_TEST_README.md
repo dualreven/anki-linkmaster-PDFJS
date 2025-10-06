@@ -51,11 +51,11 @@ python test_frontend_backend_integration.py --host localhost --port 8765
 ✅ 成功连接到 ws://localhost:8765/
 
 ================================================================================
-测试: PDF 列表获取 (pdf/list)
+测试: PDF 列表获取 (pdf-library:list:records)
 ================================================================================
 
-📤 发送: {"type": "pdf/list", "data": {}}
-📥 接收: {"type": "pdf/list", "data": {"records": [...]}}
+📤 发送: {"type": "pdf-library:list:records", "data": {}}
+📥 接收: {"type": "pdf-library:list:records", "data": {"records": [...]}}
 
 📊 收到 3 条 PDF 记录
 
@@ -90,13 +90,13 @@ python test_frontend_backend_integration.py --host localhost --port 8765
 ```javascript
 // ❌ 错误 - 前端发送 camelCase
 {
-  type: 'pdf/open',
+  type: 'pdf-library:open:viewer',
   data: { fileName: 'test.pdf' }  // 应该是 filename
 }
 
 // ✅ 正确 - 使用 snake_case
 {
-  type: 'pdf/open',
+  type: 'pdf-library:open:viewer',
   data: { filename: 'test.pdf' }
 }
 ```
@@ -145,7 +145,7 @@ python test_frontend_backend_integration.py --host localhost --port 8765
 async def test_pdf_add(self, websocket):
     """测试 PDF 添加"""
     request = {
-        'type': 'pdf/add',
+        'type': 'pdf-library:add:records',
         'data': {
             'file_paths': ['/path/to/test.pdf']
         }

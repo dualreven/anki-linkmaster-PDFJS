@@ -1,0 +1,39 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "docs/contracts/pdf-library/v1/messages/search.completed.schema.json",
+  "title": "pdf-library:search:completed",
+  "type": "object",
+  "properties": {
+    "type": {"const": "pdf-library:search:completed"},
+    "timestamp": {"type": "number"},
+    "request_id": {"type": "string"},
+    "status": {"const": "success"},
+    "code": {"type": "integer"},
+    "message": {"type": "string"},
+    "metadata": {"type": "object", "properties": {"version": {"type": "string"}}, "required": ["version"], "additionalProperties": true},
+    "data": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pdf_id": {"type": "string"},
+              "title": {"type": "string"},
+              "page_count": {"type": "integer"},
+              "tags": {"type": "array", "items": {"type": "string"}}
+            },
+            "required": ["pdf_id", "title"],
+            "additionalProperties": true
+          }
+        },
+        "total": {"type": "integer"}
+      },
+      "required": ["items"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["type", "timestamp", "request_id", "status", "code", "data", "metadata"],
+  "additionalProperties": false
+}

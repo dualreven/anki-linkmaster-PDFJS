@@ -1,4 +1,4 @@
-"""
+﻿"""
 标准JSON通信协议处理器
 基于docs/SPEC/json_communication_standard.md实现
 """
@@ -12,55 +12,141 @@ from enum import Enum
 logger = logging.getLogger(__name__)
 
 class MessageType(Enum):
-    """标准消息类型枚举 - 符合JSON通信标准"""
-    # === PDF-Home模块消息（新规范 v2: 主语:谓语:宾语） ===
-    # 请求消息
-    PDF_HOME_GET_PDF_LIST = "pdf-home:get:pdf-list"
-    PDF_HOME_ADD_PDF_FILES = "pdf-home:add:pdf-files"
-    PDF_HOME_REMOVE_PDF_FILES = "pdf-home:remove:pdf-files"
-    PDF_HOME_OPEN_PDF_FILE = "pdf-home:open:pdf-file"
-    PDF_HOME_GET_PDF_INFO = "pdf-home:get:pdf-info"
-    PDF_HOME_UPDATE_PDF = "pdf-home:update:pdf"
+    """标准消息类型枚举 - 三段式命名及兼容旧协议"""
 
-    # 响应消息
-    PDF_HOME_RESPONSE_PDF_LIST = "pdf-home:response:pdf-list"
-    PDF_HOME_RESPONSE_PDF_ADDED = "pdf-home:response:pdf-added"
-    PDF_HOME_RESPONSE_PDF_REMOVED = "pdf-home:response:pdf-removed"
-    PDF_HOME_RESPONSE_PDF_INFO = "pdf-home:response:pdf-info"
+    # === PDF Library 基础操作 ===
+    PDF_LIBRARY_LIST_REQUESTED = "pdf-library:list:requested"
+    PDF_LIBRARY_LIST_COMPLETED = "pdf-library:list:completed"
+    PDF_LIBRARY_LIST_FAILED = "pdf-library:list:failed"
 
-    # === 旧版消息类型（向后兼容，将逐步废弃） ===
-    GET_PDF_LIST = "get_pdf_list"
-    PDF_LIST = "pdf_list"
-    ADD_PDF = "add_pdf"
-    PDF_ADDED = "pdf_added"
-    REMOVE_PDF = "remove_pdf"
-    PDF_REMOVED = "pdf_removed"
-    BATCH_REMOVE_PDF = "batch_remove_pdf"
-    BATCH_PDF_REMOVED = "batch_pdf_removed"
-    PDF_DETAIL_REQUEST = "pdf_detail_request"
-    PDF_DETAIL_RESPONSE = "pdf_detail_response"
+    PDF_LIBRARY_ADD_REQUESTED = "pdf-library:add:requested"
+    PDF_LIBRARY_ADD_COMPLETED = "pdf-library:add:completed"
+    PDF_LIBRARY_ADD_FAILED = "pdf-library:add:failed"
 
-    # PDF分页传输消息
-    PDF_PAGE_REQUEST = "pdf_page_request"
-    PDF_PAGE_RESPONSE = "pdf_page_response"
-    PDF_PAGE_PRELOAD = "pdf_page_preload"
-    PDF_PAGE_CACHE_CLEAR = "pdf_page_cache_clear"
-    PDF_PAGE_ERROR = "pdf_page_error"
+    PDF_LIBRARY_REMOVE_REQUESTED = "pdf-library:remove:requested"
+    PDF_LIBRARY_REMOVE_COMPLETED = "pdf-library:remove:completed"
+    PDF_LIBRARY_REMOVE_FAILED = "pdf-library:remove:failed"
 
-    # 系统消息
-    SYSTEM_STATUS = "system_status"
-    SYSTEM_CONFIG = "system_config"
+    PDF_LIBRARY_VIEWER_REQUESTED = "pdf-library:viewer:requested"
+    PDF_LIBRARY_VIEWER_COMPLETED = "pdf-library:viewer:completed"
+    PDF_LIBRARY_VIEWER_FAILED = "pdf-library:viewer:failed"
 
-    # 错误消息
-    ERROR = "error"
+    PDF_LIBRARY_INFO_REQUESTED = "pdf-library:info:requested"
+    PDF_LIBRARY_INFO_COMPLETED = "pdf-library:info:completed"
+    PDF_LIBRARY_INFO_FAILED = "pdf-library:info:failed"
 
-    # 心跳消息
-    HEARTBEAT = "heartbeat"
-    HEARTBEAT_RESPONSE = "heartbeat_response"
+    PDF_LIBRARY_SEARCH_REQUESTED = "pdf-library:search:requested"
+    PDF_LIBRARY_SEARCH_COMPLETED = "pdf-library:search:completed"
+    PDF_LIBRARY_SEARCH_FAILED = "pdf-library:search:failed"
+    PDF_LIBRARY_RECORD_UPDATE_REQUESTED = "pdf-library:record-update:requested"
+    PDF_LIBRARY_RECORD_UPDATE_COMPLETED = "pdf-library:record-update:completed"
+    PDF_LIBRARY_RECORD_UPDATE_FAILED = "pdf-library:record-update:failed"
 
-    # PDF查看器消息
-    LAUNCH_PDF_VIEWER = "launch_pdf_viewer"
+    PDF_LIBRARY_CONFIG_READ_REQUESTED = "pdf-library:config-read:requested"
+    PDF_LIBRARY_CONFIG_READ_COMPLETED = "pdf-library:config-read:completed"
+    PDF_LIBRARY_CONFIG_READ_FAILED = "pdf-library:config-read:failed"
 
+    PDF_LIBRARY_CONFIG_WRITE_REQUESTED = "pdf-library:config-write:requested"
+    PDF_LIBRARY_CONFIG_WRITE_COMPLETED = "pdf-library:config-write:completed"
+    PDF_LIBRARY_CONFIG_WRITE_FAILED = "pdf-library:config-write:failed"
+
+    # === Bookmark 操作 ===
+    BOOKMARK_LIST_REQUESTED = "bookmark:list:requested"
+    BOOKMARK_LIST_COMPLETED = "bookmark:list:completed"
+    BOOKMARK_LIST_FAILED = "bookmark:list:failed"
+
+    BOOKMARK_SAVE_REQUESTED = "bookmark:save:requested"
+    BOOKMARK_SAVE_COMPLETED = "bookmark:save:completed"
+    BOOKMARK_SAVE_FAILED = "bookmark:save:failed"
+
+    # === PDF 页面传输 ===
+    PDF_PAGE_LOAD_REQUESTED = "pdf-page:load:requested"
+    PDF_PAGE_LOAD_COMPLETED = "pdf-page:load:completed"
+    PDF_PAGE_LOAD_FAILED = "pdf-page:load:failed"
+
+    PDF_PAGE_PRELOAD_REQUESTED = "pdf-page:preload:requested"
+    PDF_PAGE_CACHE_CLEAR_REQUESTED = "pdf-page:cache-clear:requested"
+
+    # === 系统与心跳 ===
+    SYSTEM_STATUS_UPDATED = "system:status:updated"
+    SYSTEM_CONFIG_UPDATED = "system:config:updated"
+    SYSTEM_ERROR_OCCURRED = "system:error:occurred"
+
+    HEARTBEAT_REQUESTED = "system:heartbeat:requested"
+    HEARTBEAT_COMPLETED = "system:heartbeat:completed"
+
+    # === 能力注册中心（Capability Registry） ===
+    CAPABILITY_DISCOVER_REQUESTED = "capability:discover:requested"
+    CAPABILITY_DISCOVER_COMPLETED = "capability:discover:completed"
+    CAPABILITY_DISCOVER_FAILED = "capability:discover:failed"
+
+    CAPABILITY_DESCRIBE_REQUESTED = "capability:describe:requested"
+    CAPABILITY_DESCRIBE_COMPLETED = "capability:describe:completed"
+    CAPABILITY_DESCRIBE_FAILED = "capability:describe:failed"
+
+    # === 存储服务（KV 最小实现） ===
+    STORAGE_KV_GET_REQUESTED = "storage-kv:get:requested"
+    STORAGE_KV_GET_COMPLETED = "storage-kv:get:completed"
+    STORAGE_KV_GET_FAILED = "storage-kv:get:failed"
+    STORAGE_KV_SET_REQUESTED = "storage-kv:set:requested"
+    STORAGE_KV_SET_COMPLETED = "storage-kv:set:completed"
+    STORAGE_KV_SET_FAILED = "storage-kv:set:failed"
+    STORAGE_KV_DELETE_REQUESTED = "storage-kv:delete:requested"
+    STORAGE_KV_DELETE_COMPLETED = "storage-kv:delete:completed"
+    STORAGE_KV_DELETE_FAILED = "storage-kv:delete:failed"
+
+    # === 存储服务（FS 最小实现） ===
+    STORAGE_FS_READ_REQUESTED = "storage-fs:read:requested"
+    STORAGE_FS_READ_COMPLETED = "storage-fs:read:completed"
+    STORAGE_FS_READ_FAILED = "storage-fs:read:failed"
+    STORAGE_FS_WRITE_REQUESTED = "storage-fs:write:requested"
+    STORAGE_FS_WRITE_COMPLETED = "storage-fs:write:completed"
+    STORAGE_FS_WRITE_FAILED = "storage-fs:write:failed"
+
+    # === Annotation（标注） ===
+    ANNOTATION_LIST_REQUESTED = "annotation:list:requested"
+    ANNOTATION_LIST_COMPLETED = "annotation:list:completed"
+    ANNOTATION_LIST_FAILED = "annotation:list:failed"
+
+    ANNOTATION_SAVE_REQUESTED = "annotation:save:requested"
+    ANNOTATION_SAVE_COMPLETED = "annotation:save:completed"
+    ANNOTATION_SAVE_FAILED = "annotation:save:failed"
+
+    ANNOTATION_DELETE_REQUESTED = "annotation:delete:requested"
+    ANNOTATION_DELETE_COMPLETED = "annotation:delete:completed"
+    ANNOTATION_DELETE_FAILED = "annotation:delete:failed"
+
+    # === 兼容旧版消息（保留常量以便查询与降级） ===
+    LEGACY_PDF_HOME_GET_PDF_LIST = "pdf-home:get:pdf-list"
+    LEGACY_PDF_HOME_ADD_PDF_FILES = "pdf-home:add:pdf-files"
+    LEGACY_PDF_HOME_REMOVE_PDF_FILES = "pdf-home:remove:pdf-files"
+    LEGACY_PDF_HOME_OPEN_PDF_FILE = "pdf-home:open:pdf-file"
+    LEGACY_PDF_HOME_GET_PDF_INFO = "pdf-home:get:pdf-info"
+    LEGACY_PDF_HOME_UPDATE_PDF = "pdf-home:update:pdf"
+
+    LEGACY_PDF_LIBRARY_LIST = "pdf-library:list:records"
+    LEGACY_PDF_LIBRARY_ADD = "pdf-library:add:records"
+    LEGACY_PDF_LIBRARY_REMOVE = "pdf-library:remove:records"
+    LEGACY_PDF_LIBRARY_OPEN = "pdf-library:open:viewer"
+    LEGACY_PDF_LIBRARY_INFO = "pdf-library:get:info"
+    LEGACY_PDF_LIBRARY_SEARCH = "pdf-library:search:records"
+    LEGACY_PDF_LIBRARY_GET_CONFIG = "pdf-library:get:config"
+    LEGACY_PDF_LIBRARY_UPDATE_CONFIG = "pdf-library:update:config"
+
+    LEGACY_BOOKMARK_LIST = "bookmark:list:records"
+    LEGACY_BOOKMARK_SAVE = "bookmark:save:record"
+
+    LEGACY_PDF_PAGE_REQUEST = "pdf_page_request"
+    LEGACY_PDF_PAGE_RESPONSE = "pdf_page_response"
+    LEGACY_PDF_PAGE_PRELOAD = "pdf_page_preload"
+    LEGACY_PDF_PAGE_CACHE_CLEAR = "pdf_page_cache_clear"
+    LEGACY_PDF_PAGE_ERROR = "pdf_page_error"
+
+    LEGACY_SYSTEM_STATUS = "system_status"
+    LEGACY_SYSTEM_CONFIG = "system_config"
+    LEGACY_ERROR = "error"
+    LEGACY_HEARTBEAT = "heartbeat"
+    LEGACY_HEARTBEAT_RESPONSE = "heartbeat_response"
 class StandardMessageHandler:
     """标准消息处理器 - 符合JSON通信标准"""
     
@@ -174,7 +260,7 @@ class StandardMessageHandler:
             message_type = message_type.value
 
         response = {
-            "type": "response",
+            "type": message_type,
             "timestamp": time.time(),  # Unix时间戳(秒)
             "request_id": request_id,
             "status": status,
@@ -194,39 +280,30 @@ class StandardMessageHandler:
         request_id: str,
         error_type: str,
         error_message: str,
+        *,
+        message_type: Union[str, MessageType] = MessageType.LEGACY_ERROR,
         error_details: Optional[Dict[str, Any]] = None,
         code: int = 500
     ) -> Dict[str, Any]:
-        """
-        构建标准错误响应消息
+        """构建标准错误响应消息"""
+        if isinstance(message_type, MessageType):
+            message_type = message_type.value
 
-        Args:
-            request_id: 对应的请求ID
-            error_type: 错误类型
-            error_message: 错误消息
-            error_details: 详细错误信息（可选）
-            code: HTTP状态码
-
-        Returns:
-            Dict: 标准格式的错误响应消息
-        """
-        error_data = {
+        error_payload = {
             "type": error_type,
             "message": error_message
         }
-
         if error_details:
-            error_data["details"] = error_details
+            error_payload["details"] = error_details
 
         return StandardMessageHandler.build_response(
-            "response",
+            message_type,
             request_id,
             status="error",
             code=code,
             message=error_message,
-            error=error_data
+            error=error_payload
         )
-    
     @staticmethod
     def parse_message(raw_message: str) -> tuple[Optional[Dict[str, Any]], Optional[str]]:
         """
@@ -264,7 +341,7 @@ class StandardMessageHandler:
 
 class PDFMessageBuilder:
     """PDF相关消息构建器"""
-    
+
     @staticmethod
     def build_pdf_list_response(
         request_id: str,
@@ -285,14 +362,14 @@ class PDFMessageBuilder:
         }
 
         return StandardMessageHandler.build_response(
-            "response",
+            MessageType.PDF_LIBRARY_LIST_COMPLETED,
             request_id,
             status="success",
             code=200,
             message="PDF列表获取成功",
             data=data
         )
-    
+
     @staticmethod
     def build_pdf_upload_response(
         request_id: str,
@@ -310,14 +387,14 @@ class PDFMessageBuilder:
         }
 
         return StandardMessageHandler.build_response(
-            "response",
+            MessageType.PDF_LIBRARY_ADD_COMPLETED,
             request_id,
             status="success",
             code=201,
             message="PDF文件上传成功",
             data=data
         )
-    
+
     @staticmethod
     def build_pdf_remove_response(
         request_id: str,
@@ -329,14 +406,14 @@ class PDFMessageBuilder:
         }
 
         return StandardMessageHandler.build_response(
-            "response",
+            MessageType.PDF_LIBRARY_REMOVE_COMPLETED,
             request_id,
             status="success",
             code=200,
             message="PDF文件删除成功",
             data=data
         )
-    
+
     @staticmethod
     def build_pdf_detail_response(
         request_id: str,
@@ -344,8 +421,11 @@ class PDFMessageBuilder:
     ) -> Dict[str, Any]:
         """构建PDF详情响应"""
         return StandardMessageHandler.build_response(
-            MessageType.PDF_DETAIL_RESPONSE,
+            MessageType.PDF_LIBRARY_INFO_COMPLETED,
             request_id,
+            status="success",
+            code=200,
+            message="PDF详情获取成功",
             data=file_detail
         )
 
@@ -364,7 +444,7 @@ class PDFMessageBuilder:
         }
 
         return StandardMessageHandler.build_response(
-            "response",
+            MessageType.PDF_LIBRARY_REMOVE_COMPLETED,
             request_id,
             status="success",
             code=200,
@@ -392,15 +472,18 @@ class PDFMessageBuilder:
                 "retrieved_at": int(time.time() * 1000)
             }
         }
-        
+
         if total_pages is not None:
             data["total_pages"] = total_pages
         if page_size is not None:
             data["page_size"] = page_size
 
         return StandardMessageHandler.build_response(
-            MessageType.PDF_PAGE_RESPONSE,
+            MessageType.PDF_PAGE_LOAD_COMPLETED,
             request_id,
+            status="success",
+            code=200,
+            message="PDF页面获取成功",
             data=data
         )
 
@@ -423,17 +506,17 @@ class PDFMessageBuilder:
             "retryable": retryable,
             "timestamp": int(time.time() * 1000)
         }
-        
+
         if error_details:
             error_data["details"] = error_details
 
-        return StandardMessageHandler.build_response(
-            MessageType.PDF_PAGE_ERROR,
+        return StandardMessageHandler.build_error_response(
             request_id,
-            status="error",
-            code=500,
-            message=error_message,
-            error=error_data
+            error_type,
+            error_message,
+            message_type=MessageType.PDF_PAGE_LOAD_FAILED,
+            error_details=error_data,
+            code=500
         )
 
     @staticmethod
@@ -454,7 +537,7 @@ class PDFMessageBuilder:
         }
 
         return StandardMessageHandler.build_base_message(
-            MessageType.PDF_PAGE_PRELOAD,
+            MessageType.PDF_PAGE_PRELOAD_REQUESTED,
             data=data
         )
 
@@ -467,11 +550,11 @@ class PDFMessageBuilder:
         data = {
             "file_id": file_id
         }
-        
+
         if keep_pages:
             data["keep_pages"] = keep_pages
 
         return StandardMessageHandler.build_base_message(
-            MessageType.PDF_PAGE_CACHE_CLEAR,
+            MessageType.PDF_PAGE_CACHE_CLEAR_REQUESTED,
             data=data
         )

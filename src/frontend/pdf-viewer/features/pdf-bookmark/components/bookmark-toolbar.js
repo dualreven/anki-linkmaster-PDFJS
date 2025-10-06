@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file BookmarkToolbar 书签工具栏组件
  * @module features/pdf-bookmark/components/bookmark-toolbar
  * @description 提供书签管理操作按钮（添加、删除、修改、拖动提示）

@@ -17,6 +17,7 @@
 import { getLogger } from '../../../../common/utils/logger.js';
 import { Annotation, AnnotationType } from '../models/annotation.js';
 import { PDF_VIEWER_EVENTS } from '../../../../common/event/pdf-viewer-constants.js';
+import { WEBSOCKET_MESSAGE_TYPES } from '../../../../common/event/event-constants.js';
 
 /**
  * 标注管理器类
@@ -62,8 +63,9 @@ export class AnnotationManager {
    * 创建标注管理器
    * @param {EventBus} eventBus - 事件总线
    * @param {Logger} [logger] - 日志器
+   * @param {Object} [container] - 依赖容器（用于获取 wsClient）
    */
-  constructor(eventBus, logger) {
+  constructor(eventBus, logger, container) {
     if (!eventBus) {
       throw new Error('AnnotationManager requires eventBus');
     }
@@ -71,10 +73,39 @@ export class AnnotationManager {
     this.#eventBus = eventBus;
     this.#logger = logger || getLogger('AnnotationManager');
 
+    // 从容器中获取 wsClient（若可用）
+    this.#initWSClient(container);
+
     // 设置事件监听器
     this.#setupEventListeners();
 
-    this.#logger.info('[AnnotationManager] Created (Mock Mode)');
+    this.#logger.info(`[AnnotationManager] Created (${this.#mockMode ? 'Mock' : 'Remote'} Mode)`);
+  }
+
+  #wsClient = null;
+
+  #initWSClient(container) {
+    try {
+      if (!container) return;
+      let ws = null;
+      if (typeof container.getWSClient === 'function') {
+        ws = container.getWSClient();
+      } else if (typeof container.getDependencies === 'function') {
+        const deps = container.getDependencies() || {};
+        ws = deps.wsClient || null;
+      } else if (typeof container.get === 'function') {
+        try { ws = container.get('wsClient'); } catch (_) {}
+      }
+      if (ws && typeof ws.request === 'function') {
+        this.#wsClient = ws;
+        this.#mockMode = false;
+        this.#logger.info('[AnnotationManager] wsClient obtained from container; remote persistence enabled');
+      } else {
+        this.#logger.warn('[AnnotationManager] wsClient unavailable; fallback to mock mode');
+      }
+    } catch (e) {
+      this.#logger.warn('[AnnotationManager] Failed to obtain wsClient', e);
+    }
   }
 
   /**
@@ -191,8 +222,21 @@ export class AnnotationManager {
    * @private
    */
   async #saveAnnotationToBackend(annotation) {
-    // TODO: Phase 2 - 通过WebSocket发送到后端
-    throw new Error('Backend save not implemented yet (Phase 2)');
+    if (!this.#wsClient || typeof this.#wsClient.request !== 'function') {
+      throw new Error('wsClient not available');
+    }
+    if (!this.#pdfId) {
+      throw new Error('PDF ID not set');
+    }
+    const payload = {
+      pdf_uuid: this.#pdfId,
+      annotation: annotation.toJSON ? annotation.toJSON() : annotation,
+    };
+    await this.#wsClient.request(
+      WEBSOCKET_MESSAGE_TYPES.ANNOTATION_SAVE,
+      payload,
+      { timeout: 8000 }
+    );
   }
 
   /**
@@ -296,16 +340,7 @@ export class AnnotationManager {
     return { success: true, id };
   }
 
-  /**
-   * 从后端删除标注（Phase 2，待实现）
-   * @param {string} id - 标注ID
-   * @returns {Promise<void>}
-   * @private
-   */
-  async #deleteAnnotationFromBackend(id) {
-    // TODO: Phase 2 - 通过WebSocket发送到后端
-    throw new Error('Backend delete not implemented yet (Phase 2)');
-  }
+  // 从后端删除标注的方法在文件后部已实现，此处移除重复定义以避免 Babel 报错
 
   /**
    * 加载标注（内部处理）
@@ -373,8 +408,35 @@ export class AnnotationManager {
    * @private
    */
   async #loadAnnotationsFromBackend(pdfId) {
-    // TODO: Phase 2 - 通过WebSocket从后端加载
-    throw new Error('Backend load not implemented yet (Phase 2)');
+    if (!this.#wsClient || typeof this.#wsClient.request !== 'function') {
+      throw new Error('wsClient not available');
+    }
+    const resp = await this.#wsClient.request(
+      WEBSOCKET_MESSAGE_TYPES.ANNOTATION_LIST,
+      { pdf_uuid: pdfId },
+      { timeout: 8000 }
+    );
+    const items = Array.isArray(resp?.annotations) ? resp.annotations : [];
+    return items.map(obj => Annotation.fromJSON({
+      id: obj.id,
+      type: obj.type,
+      pageNumber: obj.pageNumber,
+      data: obj.data || {},
+      comments: obj.comments || [],
+      createdAt: obj.createdAt,
+      updatedAt: obj.updatedAt,
+    }));
+  }
+
+  async #deleteAnnotationFromBackend(id) {
+    if (!this.#wsClient || typeof this.#wsClient.request !== 'function') {
+      throw new Error('wsClient not available');
+    }
+    await this.#wsClient.request(
+      WEBSOCKET_MESSAGE_TYPES.ANNOTATION_DELETE,
+      { pdf_uuid: this.#pdfId, ann_id: id },
+      { timeout: 5000 }
+    );
   }
 
   // ==================== 公共API ====================

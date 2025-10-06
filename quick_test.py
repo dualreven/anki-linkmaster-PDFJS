@@ -25,7 +25,7 @@ async def quick_test(port=8765):
 
             # 测试1: PDF列表
             print("📋 测试1: 获取PDF列表")
-            request = {"type": "pdf/list", "data": {}}
+            request = {"type": "pdf-library:list:records", "data": {}}
             await ws.send(json.dumps(request))
             print(f"  发送: {request}")
 

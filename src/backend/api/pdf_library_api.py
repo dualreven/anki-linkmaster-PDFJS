@@ -290,7 +290,8 @@ class PDFLibraryAPI:
             node['children'].sort(key=lambda item: item['order'])
 
         root_ids.sort(key=lambda item: node_map[item]['order'])
-        bookmarks = list(node_map.values())
+        # 仅返回根节点列表，避免将所有节点平铺到顶层破坏层级结构
+        bookmarks = [node_map[bid] for bid in root_ids if bid in node_map]
         return {"bookmarks": bookmarks, "root_ids": root_ids}
 
     def save_bookmarks(
@@ -324,6 +325,11 @@ class PDFLibraryAPI:
         for row in rows:
             self._bookmark_plugin.insert(row)
         return len(rows)
+
+    def clear_bookmarks(self, pdf_uuid: str) -> int:
+        if not pdf_uuid:
+            raise DatabaseValidationError("pdf_uuid is required")
+        return self._bookmark_plugin.delete_by_pdf(pdf_uuid)
 
     # Sync helpers --------------------------------------------------------
 
@@ -496,21 +502,30 @@ class PDFLibraryAPI:
         This keeps backward compatibility while enabling plugin-like
         customization by overriding the defaults via the registry.
         """
-        try:
-            if not self._services.has(SERVICE_PDF_HOME_SEARCH):
+        # 独立 try/except，避免单个失败阻断其余服务注册
+        if not self._services.has(SERVICE_PDF_HOME_SEARCH):
+            try:
                 svc = self._load_default_service(["pdf-home", "search", "service.py"], "DefaultSearchService")
                 if svc:
                     self._services.register(SERVICE_PDF_HOME_SEARCH, svc)
-            if not self._services.has(SERVICE_PDF_HOME_ADD):
+            except Exception as exc:  # pragma: no cover
+                self._logger.warning("auto-register search service failed: %s", exc)
+
+        if not self._services.has(SERVICE_PDF_HOME_ADD):
+            try:
                 svc = self._load_default_service(["pdf-home", "add", "service.py"], "DefaultAddService")
                 if svc:
                     self._services.register(SERVICE_PDF_HOME_ADD, svc)
-            if not self._services.has(SERVICE_PDF_VIEWER_BOOKMARK):
+            except Exception as exc:  # pragma: no cover
+                self._logger.warning("auto-register add service failed: %s", exc)
+
+        if not self._services.has(SERVICE_PDF_VIEWER_BOOKMARK):
+            try:
                 svc = self._load_default_service(["pdf-viewer", "bookmark", "service.py"], "DefaultBookmarkService")
                 if svc:
                     self._services.register(SERVICE_PDF_VIEWER_BOOKMARK, svc)
-        except Exception as exc:  # pragma: no cover - non-fatal
-            self._logger.warning("auto-register services failed: %s", exc)
+            except Exception as exc:  # pragma: no cover
+                self._logger.warning("auto-register bookmark service failed: %s", exc)
 
     def _load_default_service(self, relparts: List[str], class_name: str):
         base = Path(__file__).parent

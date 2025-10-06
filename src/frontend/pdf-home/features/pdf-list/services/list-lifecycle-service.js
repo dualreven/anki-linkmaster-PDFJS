@@ -6,8 +6,8 @@
 
 import { getLogger } from '../../../../common/utils/logger.js';
 import { PDF_LIST_EVENTS } from '../events.js';
-
 const logger = getLogger('PDFList.LifecycleService');
+
 
 /**
  * PDF列表生命周期服务类

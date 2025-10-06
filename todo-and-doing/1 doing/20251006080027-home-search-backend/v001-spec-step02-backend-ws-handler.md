@@ -5,7 +5,7 @@
 产出: 可通过 WS 进行搜索的后端闭环
 
 ## 目标
-- 在 `msgCenter_server/standard_server.py` 中处理 `type: 'pdf/search'` 消息，调用 `PDFLibraryAPI.search_records`，返回统一格式。
+- 在 `msgCenter_server/standard_server.py` 中处理 `type: 'pdf-library:search:records'` 消息，调用 `PDFLibraryAPI.search_records`，返回统一格式。
 - 与前端 SearchManager 的请求/响应格式保持一致。
 
 ## 关键文件
@@ -14,7 +14,7 @@
 
 ## 实施要点
 1) 在 `standard_server.py` 增加/校验路由
-   - 路由判断：`elif message_type == "pdf/search": return self.handle_pdf_search_v2(request_id, data)`
+   - 路由判断：`elif message_type == "pdf-library:search:records": return self.handle_pdf_search_v2(request_id, data)`
    - 参考实现：`handle_pdf_search_v2`（应存在；如缺失，按下述签名新增）。
 
 2) `handle_pdf_search_v2` 处理逻辑
@@ -33,7 +33,7 @@
    - 成功响应：
      ```json
      {
-       "type": "pdf/search",
+       "type": "pdf-library:search:records",
        "status": "success",
        "timestamp": 1690000000,
        "data": { "records": [...], "count": 10, "search_text": "..." },

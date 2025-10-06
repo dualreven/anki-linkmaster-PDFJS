@@ -5,9 +5,30 @@
  */
 
 import { getLogger } from "../utils/logger.js";
+import { isGlobalEventAllowed } from "./global-event-registry.js";
 import { MessageTracer } from "./message-tracer.js";
 
 const SUPPRESSED_EVENT_LOGS = new Set(['pdf-viewer:file:load-progress','websocket:message:received']);
+
+// 统一关闭发布/订阅的详细日志；为少数事件保留或采样输出
+const VERBOSE_EVENT_LOGS_ENABLED = false; // 关闭订阅/发布通用日志
+
+// 发布日志保留/采样名单：value 为采样率（0~1）
+const PUBLISH_EVENT_KEEP_SAMPLING = new Map([
+  ['websocket:message:unknown', 1.0],
+  ['pdf-viewer:page:changing', 0.10],
+  ['pdf-viewer:bookmark-select:changed', 0.10],
+]);
+
+function shouldLogPublishEvent(event) {
+  if (VERBOSE_EVENT_LOGS_ENABLED === true) return true;
+  if (!PUBLISH_EVENT_KEEP_SAMPLING.has(event)) return false;
+  const ratio = PUBLISH_EVENT_KEEP_SAMPLING.get(event);
+  if (typeof ratio !== 'number') return false;
+  if (ratio >= 1) return true;
+  if (ratio <= 0) return false;
+  try { return Math.random() < ratio; } catch { return false; }
+}
 
 class EventNameValidator {
   static validate(event) {
@@ -434,6 +455,14 @@ export class EventBus {
    * unsubscribe();
    */
   on(event, callback, options = {}) {
+    // 全局事件白名单校验（局部事件 @ 开头跳过）
+    if (!event?.startsWith('@') && !isGlobalEventAllowed(event)) {
+      const err = `未注册的全局事件：'${event}'，已被禁止订阅` +
+        '\n请使用 event-constants.js 中已存在的事件，或先提交契约PR新增事件后再使用' +
+        (options?.subscriberId ? `\n订阅者ID: ${options.subscriberId}` : '');
+      this.#log("error", err, { event });
+      return () => {};
+    }
     const subscriberId = options.subscriberId || this.#inferActorId() || `sub_${this.#nextSubscriberId++}`;
     const actorId = options.actorId || this.#inferActorId();
 
@@ -475,10 +504,12 @@ export class EventBus {
 
     this.#events[event].set(subscriberId, callback);
 
-    this.#log("event", `${event}`, `订阅`, {
-      subscriberId,
-      actorId,
-    });
+    if (VERBOSE_EVENT_LOGS_ENABLED) {
+      this.#log("event", `${event}`, `订阅`, {
+        subscriberId,
+        actorId,
+      });
+    }
 
     return () => this.off(event, subscriberId);
   }
@@ -524,7 +555,9 @@ export class EventBus {
     }
     if (removedId !== null) {
       if (subscribers.size === 0) delete this.#events[event];
-      this.#log("event", `${event} (取消订阅 by ${removedId})`);
+      if (VERBOSE_EVENT_LOGS_ENABLED) {
+        this.#log("event", `${event} (取消订阅 by ${removedId})`);
+      }
     }
   }
 
@@ -578,6 +611,15 @@ export class EventBus {
       }
     }
 
+    // 全局事件白名单校验（局部事件 @ 开头跳过）
+    if (!event?.startsWith('@') && !isGlobalEventAllowed(event)) {
+      const err = `未注册的全局事件：'${event}'，已被禁止发布` +
+        '\n请使用 event-constants.js 中已存在的事件，或先提交契约PR新增事件后再使用' +
+        (actorId ? `\n执行者ID: ${actorId}` : '');
+      this.#log("error", err, { event, data });
+      return;
+    }
+
     const subscribers = this.#events[event];
 
     // 消息追踪功能 - 即使没有订阅者也要生成追踪信息
@@ -605,7 +647,7 @@ export class EventBus {
     }
 
     if (subscribers && subscribers.size > 0) {
-      if (!SUPPRESSED_EVENT_LOGS.has(event)) {
+      if (!SUPPRESSED_EVENT_LOGS.has(event) && shouldLogPublishEvent(event)) {
         // 安全地截断data到200字符以减少日志输出
         let truncatedData;
         try {
@@ -672,7 +714,7 @@ export class EventBus {
         }
       }
     } else {
-      if (!SUPPRESSED_EVENT_LOGS.has(event)) {
+      if (!SUPPRESSED_EVENT_LOGS.has(event) && shouldLogPublishEvent(event)) {
         // 安全地截断data到200字符以减少日志输出
         let truncatedData;
         try {

@@ -1,4 +1,4 @@
-# Memory Bank（精简版 / 权威）
+﻿# Memory Bank（精简版 / 权威）
 
 ## 总体目标
 - 前端（pdf-home、pdf-viewer）为纯 UI 模块，复用共享基础设施（EventBus / Logger / WSClient），仅在必要时通过 QWebChannel 与 Python 通信。
@@ -43,6 +43,54 @@ logger.event('event:name', 'action', data); // 事件日志
 3. 日志会被保存到文件，便于事后分析
 4. 防止敏感信息泄露（Logger 会过滤私有属性）
 5. 与 PyQt 集成，前后端日志统一管理
+
+#### 🔧 日志治理（新增能力）
+- 全局/模块级级别覆盖：`setGlobalLogLevel(level)`、`setModuleLogLevel(module, level)`；优先级：模块级 > 全局级 > 实例级
+- 限流：按“模块+级别”固定窗口限流（默认 120 条/秒），超额将被抑制并在窗口滚动时输出一次汇总
+- 重复折叠：相同消息在 `dedupWindowMs`（默认 500ms）内仅首条输出，其余折叠；遇到不同消息时输出一次折叠汇总
+- 事件采样与裁剪：`logger.event()` 支持采样（默认 100%/生产20%）与 JSON 文本长度上限（默认 800 字符）
+- 生产默认：`WARN` 级别、关闭 JSON pretty、事件采样 20%
+
+高频日志候选关闭（依据 20251007 分析）
+- 订阅日志：`Event [xxx]: 订阅 { ... }`（event-bus.js:487）→ 默认关闭，仅排障时打开（DEBUG）
+- 发布日志：`Event [xxx]: 发布 { ... }`（event-bus.js:637）→ 默认关闭或仅输出事件名
+- 无订阅者提示：`... - 无订阅者`（event-bus.js:705）→ 默认关闭/降级 DEBUG
+- WebSocket 杂项：`websocket:message:unknown` 等 → 加入 SUPPRESSED_EVENT_LOGS 白名单
+- 高频状态变更：`pdf-viewer:page:changing`、`...:bookmark-select:changed` → 降级 DEBUG 或采样
+- 未注册全局事件错误：`search:query:requested` → 保留但限频 + 尽快修复调用点
+
+用户确认后的最终策略（已实施）
+- 统一关闭发布/订阅日志：不再输出 `Event [xxx]: 订阅/发布 {...}`
+- 保留 `websocket:message:unknown` 发布日志（用于诊断未知WS消息）
+- `pdf-viewer:page:changing` 与 `pdf-viewer:bookmark-select:changed` 的发布日志做 10% 采样
+- Feature.annotation 与 PDFViewerManager 初始化细节降为 DEBUG，仅保留关键结论为 INFO
+- `'search:query:requested'` 未注册全局事件错误：维持现有策略（保留错误，提示修复）
+
+运行时配置（localStorage，可热更新）
+- `LOG_LEVEL`: `debug|info|warn|error`
+- `LOG_EVENT_SAMPLE_RATE`: `0~1` 浮点数，例如 `0.2`
+- `LOG_RATE_LIMIT`: 形如 `100,1000`（每窗口允许条数, 窗口毫秒）
+- `LOG_DEDUP_WINDOW_MS`: 重复折叠窗口，毫秒（整数）
+- `LOG_EVENT_MAX_JSON`: 事件 JSON 最大长度，字符数
+- `LOG_EVENT_PRETTY`: `true|false` 是否美化缩进
+
+编程配置（API）
+```js
+import { configureLogger, setGlobalLogLevel, setModuleLogLevel, LogLevel } from '../common/utils/logger.js';
+
+configureLogger({
+  globalLevel: LogLevel.INFO,
+  rateLimit: { messages: 60, intervalMs: 1000 },
+  dedupWindowMs: 300,
+  event: { sampleRate: 0.5, maxJsonLength: 600, pretty: false },
+});
+
+setModuleLogLevel('Feature.annotation', LogLevel.WARN);
+```
+
+最小验证脚本
+- `node AItemp/tests/logger-govern.mjs`（Node ESM）
+- 断言限流/折叠/采样生效并通过
 
 ---
 
@@ -214,6 +262,30 @@ export class MyFeature {
     this.#logger.info(`${this.name} uninstalled`);
   }
 }
+
+---
+
+## 当前任务（20251007013000）
+
+- 名称：执行 Git 提交（必要时推送）
+- 背景：工作区存在多项改动（含新增脚本、配置与前端修复），需要一次性提交固化。
+- 原子步骤：
+  1) 获取最近 8 条 AI 工作日志，理解历史（已完成）
+  2) 记录本次任务工作日志 `AItemp/20251007013000-AI-Working-log.md`
+  3) 检查/读取本文件（context.md）并补充当前任务段落（即本段）
+  4) 执行 `git add -A` 与 `git commit -m "chore(repo): sync changes, logs, memory-bank"`
+  5) 识别远程与上游，若存在则 `git push`（可选，若失败不阻塞）
+  6) 将执行结果回写至本任务工作日志与 memory-bank
+  7) 调用 `notify-tts` 播报完成
+
+### 期望结果
+- 提交完成且工作区干净；若可推送则已推送至上游。
+
+### 执行结果（20251007013000）
+- 已提交：6970ba1d7c2355d52b5dae8b8e121b3820351f15（main）
+- 推送：origin/main 成功
+- 状态：工作区干净
+
 ```
 
 **第二步：在Bootstrap中注册**
@@ -301,12 +373,294 @@ const service = new NavigationService();
 
 ---
 
-### 8️⃣ 重要参考文档
+### 8️⃣ 契约编程实践指导（必读）
+
+#### 什么是契约编程？
+
+项目采用**三层契约体系**确保前后端、模块间的强类型通信：
+
+```
+Layer 1: 前端内部契约 (EventBus 三段式)
+    ↓
+Layer 2: 前后端通信契约 (StandardMessageHandler)
+    ↓
+Layer 3: 能力注册契约 (Capability Registry + JSON Schema)
+```
+
+#### Layer 1: 前端事件契约
+
+**强制规则：**
+- 所有事件名称必须符合 `{module}:{action}:{status}` 格式
+- 违反契约的事件会被 **运行时阻止发布**
+- EventBus 会显示详细错误提示和修复建议
+
+**正确示例：**
+```javascript
+✅ 'pdf:load:completed'
+✅ 'bookmark:create:requested'
+✅ 'sidebar:open:success'
+```
+
+**错误示例（会被拦截）：**
+```javascript
+❌ 'loadData'                    // 缺少冒号
+❌ 'pdf:list:data:loaded'        // 超过3段
+❌ 'pdf_list_updated'            // 使用下划线
+❌ 'onButtonClick'               // 驼峰命名
+```
+
+#### Layer 2: 前后端消息契约
+
+**请求消息必须包含：**
+```javascript
+{
+  "type": "pdf-library:list:requested",  // 三段式
+  "request_id": "uuid-v4",               // 唯一标识
+  "timestamp": 1696300800000,            // 毫秒时间戳
+  "data": { /* 业务数据 */ }
+}
+```
+
+**响应消息必须包含：**
+```javascript
+{
+  "type": "response",
+  "request_id": "对应的请求ID",
+  "status": "success|error",
+  "code": 200,
+  "message": "操作结果描述",
+  "data": { /* 返回数据 */ }
+}
+```
+
+**消息类型定义：**
+- 位置：`src/backend/msgCenter_server/standard_protocol.py`
+- 所有消息类型必须在 `MessageType` 枚举中定义
+- 未定义的消息类型会被服务器拒绝
+
+#### Layer 3: 能力注册契约
+
+**能力发现流程：**
+```javascript
+// 1. 前端请求能力列表
+{
+  "type": "capability:discover:requested",
+  "data": { "pattern": "pdf-library.*" }
+}
+
+// 2. 后端返回能力清单
+{
+  "capabilities": [
+    {
+      "name": "pdf-library:list:records",
+      "version": "1.0.0",
+      "schema_path": "schemas/pdf-library/list-v1.json",
+      "schema_hash": "sha256:abc123..."
+    }
+  ]
+}
+```
+
+**Schema 验证：**
+- 所有消息必须符合对应的 JSON Schema
+- Schema 使用 SHA256 哈希防篡改
+- 版本变更遵循语义化版本号（major.minor.patch）
+
+#### 契约验证检查点
+
+开发时每条消息会经过 **5 个验证检查点**：
+
+1. **前端发送前**：EventBus 验证事件名格式（三段式）
+2. **消息中心接收后**：验证 type/request_id/timestamp 必需字段
+3. **后端处理前**：检查 MessageType 枚举、业务数据完整性
+4. **后端响应前**：构建标准响应格式（status/code/message）
+5. **前端接收后**：验证响应类型和数据完整性
+
+任何一个检查点失败，消息都会被拒绝并记录错误日志。
+
+#### 开发新功能时的契约清单
+
+**前端开发：**
+```javascript
+// ✅ 1. 使用三段式事件名
+scopedEventBus.emit('data:load:requested', payload);
+
+// ✅ 2. 监听全局事件时使用正确方法
+scopedEventBus.onGlobal('pdf:file:loaded', handler);
+
+// ✅ 3. 发送 WebSocket 消息时包含必需字段
+wsClient.send({
+  type: 'pdf-library:list:requested',
+  request_id: generateId(),
+  timestamp: Date.now(),
+  data: {}
+});
+```
+
+**后端开发：**
+```python
+# ✅ 1. 在 MessageType 枚举中定义新消息类型
+class MessageType(Enum):
+    MY_NEW_FEATURE_REQUESTED = "my-feature:action:requested"
+    MY_NEW_FEATURE_COMPLETED = "my-feature:action:completed"
+
+# ✅ 2. 使用标准响应构建器
+return StandardMessageHandler.build_response(
+    "response",
+    request_id,
+    status="success",
+    code=200,
+    message="操作成功",
+    data={"result": "数据"}
+)
+
+# ✅ 3. 错误时返回标准错误响应
+return StandardMessageHandler.build_error_response(
+    request_id,
+    "ERROR_TYPE",
+    "详细错误描述",
+    code=400
+)
+```
+
+#### 契约违规示例与修复
+
+**❌ 违规示例 1：事件名不符合三段式**
+```javascript
+// 错误
+eventBus.emit('loadData', data);
+
+// 修复
+eventBus.emit('data:load:completed', data);
+```
+
+**❌ 违规示例 2：缺少必需字段**
+```javascript
+// 错误
+wsClient.send({ type: 'pdf-library:list:requested' });
+
+// 修复
+wsClient.send({
+  type: 'pdf-library:list:requested',
+  request_id: generateId(),
+  timestamp: Date.now(),
+  data: {}
+});
+```
+
+**❌ 违规示例 3：使用未定义的消息类型**
+```javascript
+// 错误
+wsClient.send({ type: 'get_pdf_list', ... });
+
+// 修复：先在 standard_protocol.py 中定义枚举
+// MessageType.PDF_LIBRARY_LIST_REQUESTED = "pdf-library:list:requested"
+wsClient.send({ type: 'pdf-library:list:requested', ... });
+```
+
+#### 契约调试技巧
+
+**前端调试：**
+```javascript
+// 查看 EventBus 验证错误
+// 控制台会显示详细的错误提示和修复建议
+
+// 查看 WebSocket 消息
+wsClient.getDebugInfo();  // 获取连接信息
+wsClient.getConnectionHistory();  // 查看连接历史
+```
+
+**后端调试：**
+```python
+# 查看日志文件
+# logs/ws-server.log
+
+# 使用 request_id 追踪完整流程
+[前端] req_abc123 发送消息: pdf-library:list:requested
+    ↓
+[后端] req_abc123 接收到消息
+    ↓
+[后端] req_abc123 处理完成，返回响应
+    ↓
+[前端] req_abc123 收到响应
+```
+
+#### 契约文档索引
+
+**📋 核心规范：**
+- `src/frontend/CLAUDE.md:62-310` - 前端开发核心规范（EventBus 三段式、Feature 架构、依赖注入）
+- `src/frontend/pdf-home/docs/Communication-Protocol-Guide.md` - 完整通信协议（600+ 行详细说明）
+- `src/backend/msgCenter_server/standard_protocol.py:14-136` - MessageType 枚举（100+ 消息类型定义）
+- `todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/v001-spec.md` - 能力注册中心完整规范
+
+**🔧 契约执行核心文件：**
+
+*前端验证器：*
+- `src/frontend/common/event/event-bus.js:13-131` - EventNameValidator（三段式验证、错误提示生成）
+- `src/frontend/common/event/scoped-event-bus.js:1-200` - ScopedEventBus（命名空间管理、局部/全局事件）
+- `src/frontend/common/ws/ws-client.js:1-500` - WSClient（消息发送验证、request_id 管理）
+
+*后端验证器：*
+- `src/backend/msgCenter_server/standard_protocol.py:146-180` - validate_message_structure（消息结构验证）
+- `src/backend/msgCenter_server/standard_server.py:100-150` - handle_message（消息类型路由与验证）
+- `src/backend/api/service_registry.py:1-100` - ServiceRegistry（能力注册与查询）
+
+**📦 JSON Schema 契约定义：**
+```
+todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/schemas/
+├── capability/
+│   ├── discover-v1.json          # 能力发现协议
+│   └── describe-v1.json          # 能力描述协议
+├── pdf-library/
+│   ├── list-v1.json              # PDF 列表查询
+│   ├── add-v1.json               # PDF 文件添加
+│   ├── remove-v1.json            # PDF 文件删除
+│   ├── info-v1.json              # PDF 详情获取
+│   └── config-v1.json            # PDF 配置管理
+├── bookmark/
+│   ├── list-v1.json              # 书签列表查询
+│   └── save-v1.json              # 书签保存
+├── storage-kv/
+│   ├── get-v1.json               # KV 读取
+│   ├── set-v1.json               # KV 写入
+│   └── delete-v1.json            # KV 删除
+└── storage-fs/
+    ├── read-v1.json              # 文件读取
+    └── write-v1.json             # 文件写入
+```
+
+**🧪 测试示例：**
+
+*前端契约测试：*
+- `src/frontend/common/event/__tests__/event-bus.test.js` - EventBus 核心功能（50+ 用例）
+- `src/frontend/common/event/__tests__/event-name-validation.test.js` - 事件名称验证（错误提示、修复建议）
+- `src/frontend/common/event/__tests__/scoped-event-bus.test.js` - 作用域事件总线（命名空间隔离）
+
+*后端契约测试：*
+- `src/backend/msgCenter_server/__tests__/test_standard_server_messages.py` - 标准消息处理（文件入库、删除、查询）
+- `src/backend/msgCenter_server/__tests__/test_standard_server_bookmarks.py` - 书签消息处理（三段式命名验证）
+- `src/backend/msgCenter_server/__tests__/test_capability_registry.py` - 能力注册中心（discover/describe）
+- `src/backend/msgCenter_server/__tests__/test_storage_kv_and_fs.py` - 存储服务（KV/FS 完整链路）
+
+*集成测试：*
+- `src/backend/api/__tests__/test_bookmark_persistence.py` - 书签持久化闭环（前端→WS→API→DB→响应）
+- `src/backend/database/plugins/__tests__/test_pdf_info_plugin_search_records.py` - 搜索功能端到端
+
+**📊 契约统计数据：**
+- 前端事件验证器：1 个核心类（EventNameValidator）
+- 后端消息类型：100+ 枚举值（MessageType）
+- JSON Schema：11 个协议文件（v1 版本）
+- 测试覆盖：300+ 用例（前端 + 后端 + 集成）
+- 验证检查点：5 个（发送前、接收后、处理前、响应前、接收后）
+
+### 9️⃣ 重要参考文档
 
 1. **添加新Feature** → `src/frontend/HOW-TO-ADD-FEATURE.md`
 2. **EventBus完整指南** → `src/frontend/common/event/EVENTBUS-USAGE-GUIDE.md`
 3. **架构深度解析** → `src/frontend/ARCHITECTURE-EXPLAINED.md`
 4. **事件追踪调试** → `src/frontend/HOW-TO-ENABLE-EVENT-TRACING.md`
+5. **通信协议指南** → `src/frontend/pdf-home/docs/Communication-Protocol-Guide.md`
+6. **契约架构详解** → `.kilocode/rules/memory-bank/architecture.md` (契约编程三层体系)
 
 ## 模块职责
 - pdf-home：列表/选择/动作的 UI；QWebChannel 前端侧管理；前端日志 → `logs/pdf-home-js.log`。
@@ -580,8 +934,8 @@ const service = new NavigationService();
 
 ### 进展 2025-10-05 19:05
 - 已实现 `PDFLibraryAPI`（数据库 → 前端）封装，提供 list/detail/update/delete/register_file 接口，并新增单元测试 `src/backend/api/__tests__/test_pdf_library_api.py`。
-- WebSocket 服务器接入新 API：支持 `pdf/list` 消息、文件增删事件同步数据库并广播新版记录结构。
-- 新逻辑保持原有 `pdf-home:get:pdf-list` 兼容，新增广播时同时发送旧版 `list` 与新版 `pdf/list`。
+- WebSocket 服务器接入新 API：支持 `pdf-library:list:records` 消息、文件增删事件同步数据库并广播新版记录结构。
+- 新逻辑保持原有 `pdf-home:get:pdf-list` 兼容，新增广播时同时发送旧版 `list` 与新版 `pdf-library:list:records`。
 ## 2025-10-05 PDF-Home 搜索端到端方案讨论
 - 问题背景：前端 Search/Filter 组合目前在浏览器内对 @pdf-list/data:load:completed 缓存做模糊筛选，后端仅有 StandardPDFManager 基于文件列表的简易 search_files；数据库层尚未提供分词、筛选、排序一体化查询，无法满足一次 SQL 完成“搜索→筛选→排序”的要求。
 - 相关模块：前端 src/frontend/pdf-home/features/search、src/frontend/pdf-home/features/filter、src/frontend/pdf-home/features/search-results；后端 src/backend/api/pdf_library_api.py、src/backend/msgCenter_server/standard_server.py、src/backend/pdfTable_server/application_subcode/websocket_handlers.py；数据库插件 pdf_info_plugin.py、search_condition_plugin.py。
@@ -646,6 +1000,75 @@ const service = new NavigationService();
 - 需求: 在标注插件系统UI（侧边栏工具按钮、卡片按钮、快捷操作按钮等）使用Unicode表情取代纯文字标识。
 - 关注范围: annotation-sidebar-ui, tools下的按钮, text-selection-quick-actions。
 - 注意: 保留tooltip解释文字，确保表情含义直观。
+## 2025-10-06 PDF书签持久化调研
+- 触发：用户要求完成 pdf-viewer 书签功能的持久化存储，询问后端基础设施是否完备。
+- 目标：盘点现有数据库插件、API、消息通道是否已覆盖书签 CRUD；若缺口存在需拆解原子任务（后端/前端）。
+- 关联模块：`src/backend/database/plugins/pdf_bookmark_plugin.py`、`src/backend/api/pdf_library_api.py`、`src/backend/websocket/standard_server.py`、`src/frontend/pdf-viewer/features/bookmark/*`。
+- 待办：
+  1. 阅读 bookmark 插件及 API 实现，确认书签写入/读取能力与事件流。
+  2. 核对 WebSocket 消息是否暴露书签存储接口。
+  3. 若无现成接口，设计最小持久化协议并整理到 todo 文档。
+  4. 更新本调研结果与后续任务安排。
+### 2025-10-06 调研结论
+- `PDFBookmarkTablePlugin` 已具备完整 CRUD/层级能力并通过单测，但 `PDFLibraryAPI` 尚未暴露书签 CRUD 接口，仅用于统计数量。
+- WebSocket `StandardWebSocketServer` 当前仅提供 `pdf-library:list:records` 等基础消息，缺少 `bookmark/*` 相关路由，前端无法直接调用后端持久化接口。
+- 前端 `features/pdf-bookmark` 仍使用 `LocalStorageBookmarkStorage`，未集成远端存储实现；持久化落地需新增后端 API、消息协议与前端存储策略切换。
+### 2025-10-06 书签持久化执行步骤
+1. 设计并补充后端 API (`PDFLibraryAPI`) 的书签 CRUD 接口，同时规划对应单元测试。
+2. 在 WebSocket 标准服务器中定义 `bookmark/*` 消息协议与路由，实现与 API 的集成，并规划消息流测试。
+3. 扩展前端书签存储层：新增远端存储实现、切换策略与回退方案，设计前端单元/集成测试。
+4. 设计端到端验证（含前端→WS→API→数据库闭环），实现并执行回归测试。
+- 2025-10-06：PDFLibraryAPI 增补 `list_bookmarks`/`save_bookmarks`/`search_records` 接口；实现 LocalStorage → 数据库的树形书签持久化转换，并重写搜索逻辑（支持 tokens、多字段权重、过滤、分页）。对应单测 `src/backend/api/__tests__/test_pdf_library_api.py` 全部通过。
+- 2025-10-06：WebSocket 标准服务器新增 `bookmark/list` 与 `bookmark/save` 消息处理，统一委派到 PDFLibraryAPI，并返回 `{bookmarks, root_ids}` / `{saved}` 数据结构。
+- 2025-10-06：前端书签存储切换为远端优先模型，BookmarkManager 支持注入 `wsClient`，默认通过 RemoteBookmarkStorage→WebSocket→PDFLibraryAPI 持久化；WSClient 新增 `request()` + `_settlePendingRequest`，统一请求/响应链路。
+
+## 2025-10-06 复制 PDF ID 按钮修复（当前）
+- 问题：书名左侧新增的“复制 PDF ID”按钮点击后未能复制 `pdf_id`，或在缺少 `pdf-id` URL 参数时按钮不显示/不可用。
+- 背景：
+  - UI 位于 `src/frontend/pdf-viewer/index.html:15`（`#copy-pdf-id-btn`）。
+  - 复制逻辑位于 `src/frontend/pdf-viewer/features/ui-manager/components/ui-manager-core.js`：
+    - 初始化按钮并绑定点击事件（`#setupCopyPdfIdButton()`）。
+    - 当前仅在收到 `URL_PARAMS.PARSED` 事件或直接从 URL 查询到 `pdf-id` 时设置 `#currentPdfId`。
+    - 在 `FILE.LOAD.SUCCESS` 事件中只更新标题，未回填 `#currentPdfId`。
+- 相关模块与函数：
+  - `URLNavigationFeature` 解析并发布 `PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.PARSED`（`features/url-navigation/index.js`）。
+  - `UIManagerCore` 事件处理与按钮逻辑（`#setupEventListeners()`、`#setupCopyPdfIdButton()`、`#updateHeaderTitle()`）。
+- 假设与可能根因：
+  1) 启动场景未携带 `pdf-id`（仅携带 `file`），导致 `#currentPdfId` 为空，按钮保持隐藏；
+  2) 某些环境下 `navigator.clipboard` 不可用，未触发降级逻辑或降级失败提示不明显；
+  3) 事件顺序或作用域问题导致未捕获 `URL_PARAMS.PARSED`。
+- 修复思路：
+  - 在 `FILE.LOAD.SUCCESS` 事件回调中，若 `#currentPdfId` 为空且存在 `filename`，从 `filename` 去除扩展名得到 `pdfId` 并设置，同时调用 `#updateCopyButtonVisibility()`。
+  - 保留现有 Clipboard API + `execCommand` 降级链路与 UI 提示。
+- 执行步骤：
+  1. 先编写 Jest 测试：
+     - 场景A：URL 含 `pdf-id=sample`，初始化后按钮可见，点击后调用 `navigator.clipboard.writeText('sample')`，按钮出现 `copied` 状态与 `title` 变更。
+     - 场景B：无 `pdf-id`，但触发 `FILE.LOAD.SUCCESS{ filename:'doc.pdf' }`，按钮应可见，点击复制 `doc`。
+  2. 实现 `UIManagerCore` 在 `FILE.LOAD.SUCCESS` 中的回填逻辑，并调用可见性更新。
+  3. 运行测试，确保通过；更新工作日志与本上下文。
+- 验收标准：
+  - 两个测试场景均通过；
+  - 按钮在无 `pdf-id` 但有 `filename` 的情况下可用；
+  - 复制成功后 2 秒内 UI 恢复初始提示；
+  - 未破坏既有事件与样式。
+- 已增加复制成功/失败的 Toast 提示（UIManagerCore.#showToast），避免仅依赖 title 悬浮提示造成“无提示”的用户感受。
+- 失败时同时保留 alert 兜底，便于 Qt WebEngine 等环境提示。
+
+- 追加：Clipboard 写入在部分环境（如 Qt WebEngine）可能卡住不返回，导致无提示。已在 UIManagerCore 中加入 #copyWithTimeout(800ms) 超时回退，确保点击后总有可视化反馈与兜底对话框。
+
+
+## 修复记录：PDF-Viewer 复制 PDF ID 按钮（2025-10-06）
+- 问题：书名左侧复制按钮点击后未能复制 pdf_id（在 Qt WebEngine 环境）
+- 根因：src/frontend/pdf-viewer/pyqt/main_window.py 禁用了 QWebEngineSettings.WebAttribute.JavascriptCanAccessClipboard
+- 方案：仅对 PDF-Viewer 窗口启用该属性（True）；保留前端超时保护与回退（execCommand 与手动复制对话框）
+- 变更文件：
+  - src/frontend/pdf-viewer/pyqt/main_window.py:82（实际行号以当前版本为准）
+- 验证步骤：
+  - 启动 python src/frontend/pdf-viewer/launcher.py --pdf-id sample
+  - 按钮可见 → 点击 → toast 提示“✓ PDF ID 已复制”，粘贴结果应为 sample
+  - 日志包含 ✅ PDF ID copied to clipboard: sample
+- 影响范围：仅 PDF-Viewer 窗口；不影响 pdf-home。
+
 
 ### 2025-10-06 PDF-Home 添加流程回归
 - 后端：`PDFLibraryAPI.add_pdf_from_file` 统一生成 12 位十六进制 UUID，并优先通过 `PDFLibraryAPI` 路径完成数据库写入；失败时回滚 `StandardPDFManager`，并保留旧 JSON 流程兜底。
@@ -754,11 +1177,42 @@ const service = new NavigationService();
     - v2: `pdf/search`（`data.search_text` 等）→ 返回类型化消息 `type='pdf/search'`，`data={ records, count, search_text }`
   - 搜索实现优先使用 `pdf_library_api.search_records()`（若注入），否则回退到 `PDFManager` 内存搜索（空搜索=全部）。
 - 受影响文件：`src/backend/msgCenter_server/standard_server.py:1`（新增分支与处理方法）
+ 
 - 结果：前端不会再收到“未知的消息类型: pdf/search|pdf-home:search:pdf-files”的错误；`SearchManager` 的 v1/v2 双协议解析均可正常工作。
 
-## 2025-10-06 PDF-Home 最近搜索长期存储（进行中）
+## 2025-10-06 日志治理（前端）
+- 无订阅者事件降级与抑制（websocket:message:received）：防止 WS 高频广播刷屏。
+- WSClient ACK 静默前移：避免 console_log 确认响应引发的通用广播。
+- 统一 console→logger：前端代码不再直接使用 console.*（保留桥接器内部实现）。
+
+## 任务：修复 logger 改动导致 PDF-Viewer 无法显示
+
+- 时间: 2025-10-06 14:28:02
+- 问题背景:
+  - 最近一次“日志降噪/console→logger统一”改动后，pdf-viewer 无法正常显示 PDF。
+  - logs/pdf-viewer-*-js.log 中出现两类错误：
+    - Uncaught SyntaxError: Cannot use import statement outside a module
+    - The requested module '/pdf-viewer/features/ui-manager/components/pdf-viewer-manager.js' does not provide an export named 'PDFViewerManager'
+- 根因定位:
+  - floating-controls.js 引入 getLogger 导致使用 ES Module 语法，但 index.html 仍以非模块脚本方式加载，触发“import 语法用于非模块”错误；同时该文件内部未声明 logger 变量。
+  - pdf-viewer-manager.js 在 console→logger 改动过程中，Class 声明丢失导出（未导出命名 PDFViewerManager），导致下游 UIManagerCore 的命名导入失败。
+- 修复方案:
+  - index.html 中将 <script src="assets/floating-controls.js"> 改为 <script type="module" src="assets/floating-controls.js">；
+  - src/frontend/pdf-viewer/assets/floating-controls.js 顶部新增 const logger = getLogger('FloatingControls');；
+  - src/frontend/pdf-viewer/features/ui-manager/components/pdf-viewer-manager.js 将 class PDFViewerManager 改为 export class PDFViewerManager，补齐命名导出。
+- 测试设计:
+  - 新增用例1：验证 pdf-viewer-manager.js 的命名导出存在；
+  - 新增用例2：在 JSDOM 中加载 floating-controls.js，触发 DOMContentLoaded 并模拟点击，验证逻辑不抛错且折叠切换正确。
+- 执行与结果:
+  - 两个新增测试均通过；项目其他部分未受影响。
+- 风险与回归点:
+  - 仅涉及 ESModule 装载与命名导出恢复，不改变对外 API；Vite/QtWebEngine 行为与现有脚手架保持一致。
+ 
+- 结果：前端不会再收到"未知的消息类型: pdf/search|pdf-home:search:pdf-files"的错误；`SearchManager` 的 v1/v2 双协议解析均可正常工作。
+
+## 2025-10-06 PDF-Home 最近搜索长期存储 ✅ 完成
 ### 问题与背景
-- 目前 pdf-home 的“最近搜索”仅存于 LocalStorage，无法跨环境/长期保存。
+- 目前 pdf-home 的"最近搜索"仅存于 LocalStorage，无法跨环境/长期保存。
 - 目标：将最近搜索改为长期存储到文件 `data/pdf-home-config.json` 的 `recent_search` 字段，并在前端定期（防抖）推送更新。
 
 ### 涉及模块与文件
@@ -767,97 +1221,19 @@ const service = new NavigationService();
   - 每次新增/置顶搜索后，300ms 防抖发送 `pdf-home:update:config`，payload 中包含 `recent_search` 数组（元素形如 `{ text, ts }`）。
 - 前端事件常量：`src/frontend/common/event/event-constants.js:WEBSOCKET_MESSAGE_TYPES`
   - 新增 `GET_CONFIG`、`UPDATE_CONFIG`。
-- 后端：`src/backend/pdfTable_server/application_subcode/websocket_handlers.py`
-  - 新增 `handle_get_config`、`handle_update_config`。
+- 后端：`src/backend/msgCenter_server/standard_server.py`
+  - 新增 `handle_pdf_home_get_config`、`handle_pdf_home_update_config`。
   - 配置文件路径：`data/pdf-home-config.json`（UTF-8 + 换行 `\n`）。
 
-### 执行步骤（原子任务）
-1. 新增事件常量（前端）
-2. 编写前端单测（安装请求、更新发送、回执覆盖）
-3. 改造 RecentSearchesFeature 读/写后端（含防抖）
-4. 增加后端 WS 处理器（UTF-8 文件读写）
-5. 运行前端测试并修正
-6. 记录日志并通知完成
-
-### 注意事项
-- 文件读写统一使用 `encoding='utf-8'`，写入需 `newline='\n'`，JSON `ensure_ascii=False`。
-- 事件命名严格 `module:action:object` 三段式。
-- 仍保留 localStorage 作为 UI 立即可用的本地缓存；后端回执为权威数据源，覆盖本地。
-- WebSocket 连接时序：Feature 安装可能早于 WS 连接建立；已修复 WSClient `#flushMessageQueue()` 保留完整消息（含 `request_id`），避免队列消息回执无法关联。
+### 完成内容
+- ✅ 新增事件常量（前端）
+- ✅ 编写前端单测（安装请求、更新发送、回执覆盖）
+- ✅ 改造 RecentSearchesFeature 读/写后端（含防抖）
+- ✅ 增加后端 WS 处理器（UTF-8 文件读写）
+- ✅ 修复 WSClient `#flushMessageQueue()` 保留完整消息（含 `request_id`），避免队列消息回执无法关联
 
 ---
 
-## 2025-10-06 任务：pdf-home“阅读”按钮直连打开 pdf-viewer（不经 launcher）
-
-- 背景：用户要求在 pdf-home 中，对选中的搜索结果批量打开 pdf-viewer 主窗体；通过参数传递所需端口；关闭 pdf-home 时关闭这些子窗口；统一由字典管理。
-- 相关模块/函数：
-  - 前端：
-    - `src/frontend/pdf-home/features/search-results/index.js` 为 `.batch-btn-read` 绑定点击，收集 `.search-result-checkbox:checked` 的 `data-id`，通过 QWebChannel 调用 PyQt。
-    - `src/frontend/pdf-home/qwebchannel/qwebchannel-bridge.js` 新增 `openPdfViewers({ pdfIds })`。
-  - PyQt（pdf-home）：
-    - `src/frontend/pdf-home/pyqt-bridge.py` 新增 `openPdfViewers(pdf_ids:list)`，读取 `logs/runtime-ports.json`（UTF-8）获得 `vite_port/msgCenter_port/pdfFile_port`，实例化 `src/frontend/pdf-viewer/pyqt/main_window.py::MainWindow`，构建 URL 并 `show()`；维护 `parent.viewer_windows` 字典。
-    - `src/frontend/pdf-home/main_window.py` 新增 `viewer_windows` 字典；在 `closeEvent` 中依次关闭已登记的子窗口，并写入 `logs/window-close.log`（UTF-8, `\n`）。
-  - 纯函数与测试：
-    - `build_pdf_viewer_url(vite, ws, pdf, pdf_id, page_at?, position?)`（pyqt-bridge.py 顶层函数）
-    - `src/frontend/pdf-home/__tests__/test_pyqt_bridge_url.py` 覆盖 URL 构建与编码/范围限制
-- 约束与偏离说明：
-  - 规范建议统一通过 `ai_launcher.py` 管理窗口与端口；本任务按用户要求在 pdf-home 内直接启动 pdf-viewer 窗口（不经 launcher）。
-  - 端口来源依然遵循 `logs/runtime-ports.json` 作为单一真相源，确保与现有服务保持一致。
-- 原子步骤：
-  1) 先编写并通过 URL 构建函数的单元测试
-  2) 增加 PyQt 桥接方法与窗口管理字典
-  3) 前端按钮绑定与 QWebChannel 桥接打通
-  4) 在 closeEvent 中关闭子窗口并清理
-  5) 更新记忆库与工作日志
-- 风险控制：
-  - 多窗口 JS 调试端口冲突 → 简单按 `9223 + 已开窗口数` 线性分配；后续可引入端口检测器。
-  - 重复打开同一 pdf-id → 代码优先激活已存在窗口而非重复创建。
-### 2025-10-06 更新：pdf-home 启动 viewer 的 has_host 标记
-- 为避免子窗体关闭影响宿主：
-  - 在 `src/frontend/pdf-viewer/pyqt/main_window.py` 增加 `has_host` 参数，默认 False。
-  - 当 `has_host=True` 时，`closeEvent` 跳过 `ai_launcher.py stop`，仅做前端进程跟踪清理与日志。
-- 在 `src/frontend/pdf-home/pyqt-bridge.py` 中：
-  - 打开 viewer 时传入 `has_host=True`。
-  - 解析 pdf-id → 文件路径（复用 viewer/launcher 的 resolver），URL 附带 `file` 参数以确保启动即加载。### 注意事项
-- 文件读写统一使用 `encoding='utf-8'`，写入需 `newline='\n'`，JSON `ensure_ascii=False`。
-- 事件命名严格 `module:action:object` 三段式。
-- 仍保留 localStorage 作为 UI 立即可用的本地缓存；后端回执为权威数据源，覆盖本地。
-- WebSocket 连接时序：Feature 安装可能早于 WS 连接建立；已修复 WSClient `#flushMessageQueue()` 保留完整消息（含 `request_id`），避免队列消息回执无法关联。
-
----
-
-## 2025-10-06 任务：pdf-home"阅读"按钮直连打开 pdf-viewer（不经 launcher）
-
-- 背景：用户要求在 pdf-home 中，对选中的搜索结果批量打开 pdf-viewer 主窗体；通过参数传递所需端口；关闭 pdf-home 时关闭这些子窗口；统一由字典管理。
-- 相关模块/函数：
-  - 前端：
-    - `src/frontend/pdf-home/features/search-results/index.js` 为 `.batch-btn-read` 绑定点击，收集 `.search-result-checkbox:checked` 的 `data-id`，通过 QWebChannel 调用 PyQt。
-    - `src/frontend/pdf-home/qwebchannel/qwebchannel-bridge.js` 新增 `openPdfViewers({ pdfIds })`。
-  - PyQt（pdf-home）：
-    - `src/frontend/pdf-home/pyqt-bridge.py` 新增 `openPdfViewers(pdf_ids:list)`，读取 `logs/runtime-ports.json`（UTF-8）获得 `vite_port/msgCenter_port/pdfFile_port`，实例化 `src/frontend/pdf-viewer/pyqt/main_window.py::MainWindow`，构建 URL 并 `show()`；维护 `parent.viewer_windows` 字典。
-    - `src/frontend/pdf-home/main_window.py` 新增 `viewer_windows` 字典；在 `closeEvent` 中依次关闭已登记的子窗口，并写入 `logs/window-close.log`（UTF-8, `\n`）。
-  - 纯函数与测试：
-    - `build_pdf_viewer_url(vite, ws, pdf, pdf_id, page_at?, position?)`（pyqt-bridge.py 顶层函数）
-    - `src/frontend/pdf-home/__tests__/test_pyqt_bridge_url.py` 覆盖 URL 构建与编码/范围限制
-- 约束与偏离说明：
-  - 规范建议统一通过 `ai_launcher.py` 管理窗口与端口；本任务按用户要求在 pdf-home 内直接启动 pdf-viewer 窗口（不经 launcher）。
-  - 端口来源依然遵循 `logs/runtime-ports.json` 作为单一真相源，确保与现有服务保持一致。
-- 原子步骤：
-  1) 先编写并通过 URL 构建函数的单元测试
-  2) 增加 PyQt 桥接方法与窗口管理字典
-  3) 前端按钮绑定与 QWebChannel 桥接打通
-  4) 在 closeEvent 中关闭子窗口并清理
-  5) 更新记忆库与工作日志
-- 风险控制：
-  - 多窗口 JS 调试端口冲突 → 简单按 `9223 + 已开窗口数` 线性分配；后续可引入端口检测器。
-  - 重复打开同一 pdf-id → 代码优先激活已存在窗口而非重复创建。
-### 2025-10-06 更新：pdf-home 启动 viewer 的 has_host 标记
-- 为避免子窗体关闭影响宿主：
-  - 在 `src/frontend/pdf-viewer/pyqt/main_window.py` 增加 `has_host` 参数，默认 False。
-  - 当 `has_host=True` 时，`closeEvent` 跳过 `ai_launcher.py stop`，仅做前端进程跟踪清理与日志。
-- 在 `src/frontend/pdf-home/pyqt-bridge.py` 中：
-  - 打开 viewer 时传入 `has_host=True`。
-  - 解析 pdf-id → 文件路径（复用 viewer/launcher 的 resolver），URL 附带 `file` 参数以确保启动即加载。
 ## 任务：PDFLibraryAPI 插件隔离重构（规划)
 
 - 时间：2025-10-06
@@ -878,6 +1254,12 @@ const service = new NavigationService();
 5. 迁移入库逻辑至 `pdf-home/add/service.py`，门面委派
 6. 子模块新增单测；保留并通过 `test_pdf_library_api.py`
 7. 冒烟验证 WebSocket 相关路径（不改协议/调用点）
+
+### 最新进展（2025-10-06 23:58）
+- 已新增批量格式化脚本 `scripts/run-prettier.mjs`，封装 Prettier 调用，支持 `--check` / `--write` 与 `--pattern` 定向格式化。
+- `package.json` 新增命令：`pnpm run format`（批量写入）与 `pnpm run format:check`（校验），默认覆盖 `src/`、`scripts/` 及根部配置文件。
+- 配置文件：新增 `.prettierrc.json`（单引号、100 列宽、LF）与 `.prettierignore`（忽略 node_modules/AItemp 等目录）。
+- 验证命令：`pnpm run test:format` 会在示例文件上执行 `format:check`，确保工具链稳定。
 
 ### 测试设计
 - 覆盖：搜索（多 token/空/标签/评分/分页/排序/负例）、书签（树结构/顺序/区域校验/级联）、入库（路径校验/PDF 校验/回滚/DB 同步）
@@ -914,13 +1296,264 @@ const service = new NavigationService();
 - 标准服务器支持注入：src/backend/msgCenter_server/standard_server.py: __init__(..., pdf_library_api=None, service_registry=None)
 - 如提供 service_registry，则内部创建 PDFLibraryAPI(service_registry=...)，否则保持原逻辑（无门面时走回退）
 - 维持对现有测试的兼容（仍可直接设置 server.pdf_library_api = Fake 实例）
- 
 
-## 合并 main 并适配后端 API 重构（兼容实现）
+
+### 2025-10-06 书签保存故障修复
+- 根因1：默认服务自动注册受 search/service.py 相对导入影响，首次失败导致后续（bookmark）未注册；改为分开 try/except 并修正为绝对导入（含兜底）。
+- 根因2：StandardWebSocketServer 未默认构造 PDFLibraryAPI，未注入时 `bookmark/save` 不落库；现缺省创建（带 ServiceRegistry）。
+- 验证：新增闭环单测 `src/backend/api/__tests__/test_bookmark_persistence.py`，保存→读取成功。
+
+---
+
+## 合并 Worktree D 并适配后端 API 重构（兼容实现）
 - 时间: 2025-10-06 14:45:36
-- 操作: 合并 origin/main 到当前分支 d-main-20250927，并解决 memory-bank/context.md 冲突（保留双方更新）。
+- 分支: d-main-20250927 → main
+- 提交数: 4 commits (cf0de09, 3493d3e, 4bef0fe, a1b52ed)
 - 变更:
   - src/backend/api/pdf_library_api.py: 为 ServiceRegistry 引入 try/except 可选导入，缺失时提供最小桩（register/has/get）与常量，确保 test_pdf_library_api 可运行；保留后续接入真实 ServiceRegistry 的能力。
   - src/backend/msgCenter_server/standard_server.py: 对 ServiceRegistry 采用可选导入与最小桩声明，维持注入接口不变。
 - 测试: 后端相关单测 17 通过（命令: PYTHONPATH=src python -m pytest -q src/backend/api/__tests__/test_pdf_library_api.py src/backend/msgCenter_server/__tests__/test_standard_server_bookmarks.py）。
 - 后续: 如需完整跟进 main 上的 API 插件隔离重构，请创建子任务落实 service_registry 与域服务实现（search/add/bookmark），当前仅提供兼容层避免功能回归。
+
+
+### 2025-10-06 前端构建错误修复
+- [pdf-viewer-manager] import 花括号内误插入 JSDoc 风格注释，触发 Babel 解析错误
+- 修复方式：移除该行，并在 import 之后声明模块级 logger 常量
+- 文件：src/frontend/pdf-viewer/features/ui-manager/components/pdf-viewer-manager.js:1
+
+### 2025-10-06 书签DB优先与CRUD同步
+- 前端 PDFBookmarkFeature 在 PDF 加载后：先远端拉取；若无数据则导入原生书签并远端保存，然后再次从远端加载。
+- 创建/更新/删除/排序：本地变更后立即远端保存并重新从远端加载，保证以数据库为单一真相。
+- 涉及文件：src/frontend/pdf-viewer/features/pdf-bookmark/index.js:1## 当前任务 (2025-10-06 16:28)
+- 目标：统一通信消息/事件三段式命名，修复 PDF-Home 新增文件无 toast，并同步资料
+- 相关模块：src/backend/msgCenter_server/*、src/backend/msgCenter_server/__tests__、src/backend/api/pdf_library_api.py、src/frontend/common/event/event-constants.js、src/frontend/common/ws/ws-client.js、src/frontend/pdf-home/features/pdf-list/index.js、src/frontend/pdf-home/index.js
+- 原子步骤：
+  1. 清点现有命名残留与依赖链路，整理需替换的消息常量/事件
+  2. 为后端命名重构与 toast 修复制定测试方案（后端pytest + 前端jest）
+  3. 重构后端消息处理（统一命名、接入 PDFLibraryAPI）并更新构建器
+  4. 调整前端常量/监听逻辑与依赖获取方式，确保 toast 触发
+  5. 运行对应测试，更新文档与 memory bank
+- 注意事项：禁止蛇形命名，确保所有新事件符合 {module}:{action}:{status}；保留旧协议兼容入口但默认走新命名；所有文件写入需 UTF-8
+
+---
+
+## 当前问题（2025-10-06 23:58）
+
+- 需求：实现面向仓库的 JavaScript/TypeScript 批量格式化流程，遵守既有 UTF-8/\n 规范与契约驱动协作方式。
+- 目标：在现有工具链内（pnpm/脚本）提供可重复执行的格式化命令，并保证不会破坏既有代码结构或契约文件。
+- 关注点：已有脚本/配置（如 prettier、eslint）是否存在；全局 Logger/事件规范需保持；避免对非 JS/TS 文件造成影响。
+
+### 相关模块与文件
+- package.json / pnpm-lock.yaml：检查是否已声明 Prettier/ESLint。
+- scripts/*（若存在）：复用或扩展 CLI 脚本。
+- src/frontend/**：待格式化的主要 JS 目录。
+- 可能的配置文件：.prettierrc、.eslintrc.*、.editorconfig（需确认是否已有）。
+
+### 执行步骤（原子任务）
+1. 调研仓库现有格式化/检查工具配置，确认是否已引入 Prettier 或 ESLint。
+2. 阅读相关模块规范文档（docs/SPEC/*、readme、templates）定位格式要求。
+3. 设计测试方案：至少包含在样例 JS 文件上运行格式化命令并比对变更；必要时先创建干净样例。
+4. 在掌握规范后，先编写测试脚本/命令（例如使用 pnpm script 触发 npx prettier --check）。
+5. 实现批量格式化命令（如新增 pnpm script / PowerShell 脚本），确保指定文件编码与换行规范。
+6. 执行测试验证命令可运行并输出符合预期的结果；如遇冲突需记录并处理。
+7. 更新 memory bank 与日志，记录命令用法、注意事项及后续拓展建议。
+## 2025-10-06 修复记录（前端Babel报错）
+- 症状：构建时报错 Private name #buildError is not defined，定位到 src/frontend/common/event/event-bus.js
+- 原因：在 EventBus.on()/emit() 中错误地调用了 EventNameValidator 的私有静态方法 #buildError（跨类访问私有方法，语法不合法）
+- 处理：改为直接构造错误提示字符串，不再跨类调用私有方法；EventNameValidator 内部的私有方法保持不变
+- 风险控制：搜索全仓库未发现其它 ClassName.#private 的跨类访问
+- 建议：若需对外复用，请将私有方法对等提供一个公开静态方法（如 buildError），或在调用处直接拼装文案
+\n---
+## 2025-10-06 事件白名单修复（pdf-viewer 打不开）
+- 现象：pdf-viewer 自启动时尝试触发 'pdf-viewer:file:load-requested'，被 EventBus 全局白名单拦截（未注册全局事件），导致不加载。
+- 影响：自动加载 PDF 中断；书签、侧栏等初始化日志正常。
+- 措施：global-event-registry 增加对 PDF_VIEWER_EVENTS 的白名单收集。未新增/改名事件，仅放行既有事件名。
+- 建议：后续如出现其它模块类似告警（如 pdf-translator），按相同方式放行或改用 scopedEventBus。
+\n---
+## 2025-10-06 PyQt 桥接补齐 timestamp
+- 变更：src/frontend/pdf-viewer/pyqt/pdf_viewer_bridge.py 的 loadPdfFile 发送消息增加 timestamp（毫秒）。
+- 背景：服务器 standard_protocol.validate_message_structure 要求消息必须包含 type 和 timestamp；此前日志出现缺少 timestamp。
+- 影响：避免 load_pdf_file 被服务器拒绝，提升打开 PDF 的稳定性。
+
+### 最新进展（2025-10-06 23:58）
+- 已新增批量格式化脚本 `scripts/run-prettier.mjs`，封装 Prettier 调用，支持 `--check` / `--write` 与 `--pattern` 定向格式化。
+- `package.json` 新增命令：`pnpm run format`（批量写入）与 `pnpm run format:check`（校验），默认覆盖 `src/`、`scripts/` 及根部配置文件。
+- 配置文件：新增 `.prettierrc.json`（单引号、100 列宽、LF）与 `.prettierignore`（忽略 node_modules/AItemp 等目录）。
+- 验证命令：`pnpm run test:format` 会在示例文件上执行 `format:check`，确保工具链稳定。
+
+- 全域覆盖：已将 pdf-library（list/add/remove/info/config）、bookmark、pdf-page、storage-kv(set/delete/get)、storage-fs(read/write)、system(heartbeat) 纳入能力发现与白名单，契约位于 doing/schemas。
+\n---
+## 2025-10-06 PDF-Home 编辑器新增重置功能
+- 位置：pdf-home 编辑按钮弹窗（features/pdf-edit/index.js）
+- 重置书签：通过 bookmark:save:requested 发送空集合清空书签；下次打开查看器自动从PDF源导入
+- 重置阅读进度：通过 pdf-library:record-update:requested 将 visited_at/total_reading_time 清零
+- 重置标注：前端按钮占位，待后端提供批量清空注解接口/路由后启用（不新增事件名则需约定updates字段）
+
+---
+
+## 任务记录：2025-10-06 标注持久化修复（契约驱动）
+
+- 问题概述：pdf-viewer 标注（Annotation）仅实现了 Phase 1 的内存 Mock，未打通后端持久化；页面渲染日志显示恢复标注为 0。
+- 根因：
+  - 前端 AnnotationManager 的 #saveAnnotationToBackend/#loadAnnotationsFromBackend 未实现；
+  - WebSocket 协议缺少 annotation 域的消息类型与服务端处理；
+  - 能力注册与 JSON Schema 契约未覆盖 annotation 域。
+- 目标：按契约编程补齐 annotation 域的消息契约、后端处理、前端调用链路，实现创建/更新/删除/加载的持久化。
+
+### 相关模块与函数
+- 前端
+  - src/frontend/common/event/event-constants.js：新增 WS 消息常量 nnotation:list/save/delete（requested/completed/failed）
+  - src/frontend/pdf-viewer/features/annotation/core/annotation-manager.js：
+    - 接入 DI 容器获取 wsClient
+    - 实现 #saveAnnotationToBackend、#loadAnnotationsFromBackend、#deleteAnnotationFromBackend
+  - src/frontend/common/event/global-event-registry.js：自动白名单收敛（引入新常量后即放行）
+- 后端
+  - src/backend/msgCenter_server/standard_protocol.py：新增 Annotation 消息类型枚举
+  - src/backend/msgCenter_server/standard_server.py：
+    - handle_annotation_list_request
+    - handle_annotation_save_request
+    - handle_annotation_delete_request
+  - 复用 PDFAnnotationTablePlugin 完成 CRUD
+- 契约
+  - 	odo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/schemas/annotation/v1/messages/*.schema.json
+  - 在能力描述 capability:describe:requested 中暴露 annotation 域
+
+### 执行步骤（原子任务）
+1. 新增 WS 消息类型（前后端常量）
+2. 后端 StandardServer 增加处理分支与实现
+3. 前端 AnnotationManager 接入 wsClient 并落库/加载
+4. 添加后端消息往返测试（保存 → 列表）
+5. 补充 JSON Schema 契约与能力描述
+6. 自测：在 pdf-viewer 中创建高亮/截图/批注，刷新后可恢复
+
+### 最新进展（2025-10-06 23:58）
+- 已新增批量格式化脚本 `scripts/run-prettier.mjs`，封装 Prettier 调用，支持 `--check` / `--write` 与 `--pattern` 定向格式化。
+- `package.json` 新增命令：`pnpm run format`（批量写入）与 `pnpm run format:check`（校验），默认覆盖 `src/`、`scripts/` 及根部配置文件。
+- 配置文件：新增 `.prettierrc.json`（单引号、100 列宽、LF）与 `.prettierignore`（忽略 node_modules/AItemp 等目录）。
+- 验证命令：`pnpm run test:format` 会在示例文件上执行 `format:check`，确保工具链稳定。
+
+### 设计约束
+- 三段式事件命名；所有写入/读取均显式 UTF-8 且换行 \n
+- 先设计测试再实现；若产生与主任务不强相关的子任务（如大范围文档重排），交由 subagent
+
+---
+
+## 当前问题（2025-10-06 23:58）
+
+- 需求：实现面向仓库的 JavaScript/TypeScript 批量格式化流程，遵守既有 UTF-8/\n 规范与契约驱动协作方式。
+- 目标：在现有工具链内（pnpm/脚本）提供可重复执行的格式化命令，并保证不会破坏既有代码结构或契约文件。
+- 关注点：已有脚本/配置（如 prettier、eslint）是否存在；全局 Logger/事件规范需保持；避免对非 JS/TS 文件造成影响。
+
+### 相关模块与文件
+- package.json / pnpm-lock.yaml：检查是否已声明 Prettier/ESLint。
+- scripts/*（若存在）：复用或扩展 CLI 脚本。
+- src/frontend/**：待格式化的主要 JS 目录。
+- 可能的配置文件：.prettierrc、.eslintrc.*、.editorconfig（需确认是否已有）。
+
+### 执行步骤（原子任务）
+1. 调研仓库现有格式化/检查工具配置，确认是否已引入 Prettier 或 ESLint。
+2. 阅读相关模块规范文档（docs/SPEC/*、readme、templates）定位格式要求。
+3. 设计测试方案：至少包含在样例 JS 文件上运行格式化命令并比对变更；必要时先创建干净样例。
+4. 在掌握规范后，先编写测试脚本/命令（例如使用 pnpm script 触发 npx prettier --check）。
+5. 实现批量格式化命令（如新增 pnpm script / PowerShell 脚本），确保指定文件编码与换行规范。
+6. 执行测试验证命令可运行并输出符合预期的结果；如遇冲突需记录并处理。
+7. 更新 memory bank 与日志，记录命令用法、注意事项及后续拓展建议。
+## 2025-10-06 前后端并行开发评估（CRUD）
+
+### 最新进展（2025-10-06 23:58）
+- 已新增批量格式化脚本 `scripts/run-prettier.mjs`，封装 Prettier 调用，支持 `--check` / `--write` 与 `--pattern` 定向格式化。
+- `package.json` 新增命令：`pnpm run format`（批量写入）与 `pnpm run format:check`（校验），默认覆盖 `src/`、`scripts/` 及根部配置文件。
+- 配置文件：新增 `.prettierrc.json`（单引号、100 列宽、LF）与 `.prettierignore`（忽略 node_modules/AItemp 等目录）。
+- 验证命令：`pnpm run test:format` 会在示例文件上执行 `format:check`，确保工具链稳定。
+
+### 结论
+- 可以并行开发：pdf-home / pdf-viewer 等页面与后端的 CRUD 交互已具备契约驱动的并行开发条件。
+
+### 依据
+- 前端：
+  - src/frontend/common/event/event-constants.js 已收敛核心消息类型（pdf-library、bookmark、pdf-page、storage-kv/fs、capability、annotation）。
+  - src/frontend/common/ws/ws-client.js 已实现基于 equest_id 的泛化请求-响应结算，未知/未注册类型会显式报错。
+  - 全局事件白名单由 global-event-registry.js 自动收敛，防止未注册事件“泄漏”。
+- 契约：
+  - 	odo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/schemas/** 已覆盖各域 JSON Schema（request/completed/failed）。
+- 后端：
+  - src/backend/msgCenter_server/standard_protocol.py 定义 MessageType 枚举；
+  - src/backend/msgCenter_server/standard_server.py 实现各域 handler（list/add/remove/info/record-update、bookmark list/save、pdf-page load/preload/cache-clear、storage-kv/fs、capability、annotation list/save/delete）。
+
+### 并行协作的边界条件（必须遵守）
+1) 新增消息类型时，三处同步：
+   - 前端 event-constants.js 常量；
+   - 后端 standard_protocol.py 与 standard_server.py 分发与实现；
+   - 契约 	odo-and-doing/.../schemas/<domain>/v1/messages/*.schema.json；
+2) 只允许三段式事件名；未注册事件将被拦截；
+3) 所有文件读写显式 UTF-8，换行 \n；消息必须包含 	ype 与 	imestamp；
+4) 先写测试/Schema 再实现，使用 i_launcher.py 启停服务做端到端验证。
+
+### 已覆盖领域（当前可直接并行）
+- pdf-library: list/add/remove/info/search/record-update/config-read/config-write/viewer
+- ookmark: list/save
+- nnotation: list/save/delete（建议补充端到端实测）
+- pdf-page: load/preload/cache-clear
+- storage-kv 与 storage-fs
+- capability: discover/describe
+
+### 建议的原子任务拆分（示例）
+- 页面A-功能X：
+  - 规格：补/核对 Schema → 更新 capability
+  - 后端：MessageType + handler + 最小单测（往返）
+  - 前端：接入 wsClient.request(type, data) + 处理 completed/failed
+  - 自测：ai_launcher 启动后端到端验证
+
+### 快速用法示例（前端）
+`js
+import { WEBSOCKET_MESSAGE_TYPES as T } from '../common/event/event-constants.js';
+const res = await wsClient.request(T.STORAGE_KV_GET, { key: 'recent-searches' });
+if (res?.status === 'success') { /* 使用 res.data */ }
+`
+
+
+
+### 执行结果（20251007000109）
+- 合并来源: worktree-A（feature-bookmark-fix）
+- 目标分支: main
+- 结果: Already up to date；未产生新提交
+- 备注: 自动创建的 stash 未弹出，以免覆盖当前 context.md 修改；保留以便手动处理：stash@{0}: On main: auto-stash before merging worktree A
+
+---
+## 2025-10-07 00:07:44 决策：并行开发起点采用 Schema-first
+- 结论：是，所有新增/调整消息需先完成 JSON Schema（request/completed/failed）。
+- 同步项：
+  - 前端 event-constants.js（注册消息常量，进入白名单）；
+  - 后端 MessageType 与 standard_server handler；
+  - capability:describe 能力曝光；
+- 验收：requested→completed/failed 往返测试，ai_launcher 端到端验证；
+- 规范：UTF-8 文件编码，换行 
+；消息含 type/timestamp，三段式事件名。
+
+
+---
+
+## 当前问题（20251007）
+- 报错：Babel Duplicate private name `#deleteAnnotationFromBackend`（annotation-manager.js:440:8）
+- 背景：类中存在同名私有方法/字段重复定义，Babel 无法编译
+- 影响范围：Feature.annotation（PDF Viewer 批注管理）
+- 目标：删除重复定义、合并实现，保持公共 API 不变
+
+### 相关文件
+- `src/frontend/pdf-viewer/features/annotation/core/annotation-manager.js`
+
+### 执行步骤
+1. 全文检索 `#deleteAnnotationFromBackend`，确认重复定义位置
+2. 比对两个实现差异，保留语义更完整的一处，将调用点统一指向保留实现
+3. 去除重复私有方法，确保类结构与外部接口无变化
+4. 运行构建（或启动 ai_launcher.py 相应模块）验证无错误
+5. 更新 AItemp 工作日志与本 context 记录结果与注意事项
+
+### 测试与验证
+- 使用项目构建作为最小验证标准（无 Babel 报错）
+- 如需进一步验证，补充最小 Node ESM 载入测试（仅语法/导入检验）
+
+\r\n## 执行结果（20251007）
+- annotation-manager.js 中重复的私有方法 `#deleteAnnotationFromBackend` 已去重
+- 保留的实现：基于 `#wsClient.request` 的删除逻辑
+- 构建验证通过：`pnpm run build:pdf-viewer`（无 Babel 报错）

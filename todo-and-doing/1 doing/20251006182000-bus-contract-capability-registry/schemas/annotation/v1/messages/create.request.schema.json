@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "docs/contracts/annotation/v1/messages/create.request.schema.json",
+  "title": "annotation:create:requested",
+  "type": "object",
+  "properties": {
+    "type": {"const": "annotation:create:requested"},
+    "timestamp": {"type": "number"},
+    "request_id": {"type": "string"},
+    "metadata": {"type": "object", "properties": {"version": {"type": "string"}}, "required": ["version"]},
+    "data": {
+      "type": "object",
+      "properties": {
+        "pdf_uuid": {"type": "string"},
+        "page_number": {"type": "integer", "minimum": 1},
+        "type": {"type": "string", "enum": ["screenshot", "text-highlight", "comment"]},
+        "json_data": {"type": "object"}
+      },
+      "required": ["pdf_uuid", "page_number", "type", "json_data"],
+      "additionalProperties": true
+    }
+  },
+  "required": ["type", "timestamp", "request_id", "metadata", "data"],
+  "additionalProperties": false
+}
+

@@ -37,7 +37,7 @@ export class AppCoreFeature {
    * @param {FeatureContext} context - 功能上下文
    */
   async install(context) {
-    const { globalEventBus, logger, config = {} } = context;
+    const { globalEventBus, logger, config = {}, container } = context;
 
     logger.info('Installing AppCoreFeature...');
 
@@ -69,6 +69,16 @@ export class AppCoreFeature {
       const { wsClient } = this.#appContainer.getDependencies();
       this.#wsClient = wsClient;
 
+      // 将 wsClient 注册到根容器，供其他 Feature（如 PDFBookmarkFeature）获取
+      try {
+        if (container && typeof container.registerGlobal === 'function' && this.#wsClient) {
+          container.registerGlobal('wsClient', this.#wsClient);
+          logger.info('wsClient registered globally in DI container');
+        }
+      } catch (e) {
+        logger.warn('Failed to register wsClient globally', e);
+      }
+
       logger.info('App container initialized');
     }
 
@@ -76,18 +86,7 @@ export class AppCoreFeature {
     logger.info('Connecting WebSocket...');
     this.#appContainer.connect();
 
-    // 创建 Console 桥接器
-    this.#consoleBridge = createConsoleWebSocketBridge('pdf_viewer', (message) => {
-      if (this.#wsClient && this.#wsClient.isConnected()) {
-        this.#wsClient.send({ type: 'console_log', data: message });
-      }
-    });
-
-    // 监听 WebSocket 连接建立事件
-    globalEventBus.on('websocket:connection:established', () => {
-      logger.info('WebSocket connected, enabling console bridge');
-      this.#consoleBridge.enable();
-    }, { subscriberId: 'AppCoreFeature' });
+    // 不再创建独立的 Console 桥接器，避免与容器层冲突与重复日志
 
     logger.info('AppCoreFeature installed successfully');
   }
