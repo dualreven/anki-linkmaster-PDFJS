@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import logging
+import os
+import uuid as uuid_module
 from copy import deepcopy
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import time
 
@@ -24,9 +26,8 @@ from ..database.plugins.pdf_annotation_plugin import PDFAnnotationTablePlugin
 from ..database.plugins.pdf_bookmark_plugin import PDFBookmarkTablePlugin
 from ..database.plugins.search_condition_plugin import SearchConditionTablePlugin
 from ..pdf_manager.standard_manager import StandardPDFManager
-from ..pdf_manager.utils import PDFMetadataExtractor, FileValidator
-import os
-import uuid as uuid_module
+from ..pdf_manager.utils import FileValidator
+from ..pdf_manager.pdf_metadata_extractor import PDFMetadataExtractor
 
 
 class PDFLibraryAPI:
@@ -82,139 +83,6 @@ class PDFLibraryAPI:
         payload = self._normalize_input(data)
         return self._pdf_info_plugin.insert(payload)
 
-    def add_pdf_from_file(self, filepath: str) -> Dict[str, Any]:
-        """
-        从文件路径添加 PDF 到数据库
-
-        Args:
-            filepath: PDF 文件的绝对路径
-
-        Returns:
-            Dict[str, Any]: 包含新创建记录的信息
-            {
-                "success": bool,
-                "uuid": str,  # 新记录的UUID
-                "filename": str,
-                "file_size": int,
-                "error": str  # 如果失败
-            }
-        """
-        try:
-            if not filepath:
-                return {
-                    "success": False,
-                    "error": "文件路径不能为空"
-                }
-
-            absolute_path = os.path.abspath(filepath)
-            if not os.path.exists(absolute_path):
-                return {
-                    "success": False,
-                    "error": f"文件不存在: {absolute_path}"
-                }
-
-            if not FileValidator.is_pdf_file(absolute_path):
-                return {
-                    "success": False,
-                    "error": "仅支持添加 PDF 文件"
-                }
-
-            file_size = os.path.getsize(absolute_path)
-            filename = os.path.basename(absolute_path)
-
-            if self._pdf_manager is not None:
-                success, payload = self._pdf_manager.add_file(absolute_path)
-                if not success:
-                    error_message = ""
-                    if isinstance(payload, dict):
-                        error_message = payload.get("message") or payload.get("error") or ""
-                    if not error_message:
-                        error_message = "PDF文件添加失败"
-                    return {
-                        "success": False,
-                        "error": error_message
-                    }
-
-                file_info = payload if isinstance(payload, dict) else {}
-
-                try:
-                    record_uuid = self.register_file_info(file_info)
-                except Exception as exc:
-                    self._logger.error("同步 PDF 信息到数据库失败: %s", exc, exc_info=True)
-                    file_id = file_info.get("id")
-                    if file_id:
-                        try:
-                            self._pdf_manager.remove_file(file_id)
-                        except Exception as cleanup_exc:  # pragma: no cover - best effort cleanup
-                            self._logger.warning("回滚 PDF 添加失败: %s", cleanup_exc)
-                    return {
-                        "success": False,
-                        "error": "同步 PDF 信息到数据库失败"
-                    }
-
-                return {
-                    "success": True,
-                    "uuid": record_uuid,
-                    "filename": file_info.get("filename", filename),
-                    "file_size": file_info.get("file_size", file_size)
-                }
-
-            metadata = PDFMetadataExtractor.extract_metadata(absolute_path)
-            if "error" in metadata:
-                return {
-                    "success": False,
-                    "error": metadata["error"]
-                }
-
-            record_uuid = uuid_module.uuid4().hex[:12]
-            current_time_ms = int(time.time() * 1000)
-
-            record_data = {
-                "uuid": record_uuid,
-                "title": metadata.get("title", filename),
-                "author": metadata.get("author", ""),
-                "page_count": metadata.get("page_count", 0),
-                "file_size": file_size,
-                "created_at": current_time_ms,
-                "updated_at": current_time_ms,
-                "visited_at": 0,
-                "version": 1,
-                "json_data": {
-                    "filename": f"{record_uuid}.pdf",
-                    "original_filename": filename,
-                    "filepath": absolute_path,
-                    "original_path": absolute_path,
-                    "subject": metadata.get("subject", ""),
-                    "keywords": metadata.get("keywords", ""),
-                    "creator": metadata.get("creator", ""),
-                    "producer": metadata.get("producer", ""),
-                    "page_count": metadata.get("page_count", 0),
-                    "tags": [],
-                    "notes": "",
-                    "rating": 0,
-                    "is_visible": True,
-                    "review_count": 0,
-                    "total_reading_time": 0,
-                    "due_date": 0,
-                    "last_accessed_at": 0
-                }
-            }
-
-            self.create_record(record_data)
-
-            return {
-                "success": True,
-                "uuid": record_uuid,
-                "filename": filename,
-                "file_size": file_size
-            }
-
-        except Exception as e:
-            self._logger.error("添加 PDF 文件失败: %s", e, exc_info=True)
-            return {
-                "success": False,
-                "error": str(e)
-            }
     def update_record(self, uuid: str, updates: Dict[str, Any]) -> bool:
         normalized = self._normalize_update(uuid, updates)
         return self._pdf_info_plugin.update(uuid, normalized)
@@ -268,57 +136,146 @@ class PDFLibraryAPI:
 
     def search_records(
         self,
-        search_text: str,
-        *,
-        search_fields: Optional[List[str]] = None,
-        include_hidden: bool = True,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
+        payload: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """
-        搜索 PDF 记录（支持多关键词搜索）
+        if payload is None:
+            raise DatabaseValidationError("payload is required")
+        tokens = [str(token).strip().lower() for token in payload.get("tokens", []) if str(token).strip()]
+        filters = payload.get("filters")
+        sort_rules = payload.get("sort") or []
+        pagination = payload.get("pagination") or {}
+        try:
+            limit = int(pagination.get("limit", 50))
+        except (TypeError, ValueError):
+            raise DatabaseValidationError("pagination.limit must be an integer")
+        try:
+            offset = int(pagination.get("offset", 0))
+        except (TypeError, ValueError):
+            raise DatabaseValidationError("pagination.offset must be an integer")
+        if limit < 0:
+            raise DatabaseValidationError("pagination.limit must be >= 0")
+        if offset < 0:
+            raise DatabaseValidationError("pagination.offset must be >= 0")
+        need_total = bool(pagination.get("need_total", False))
 
-        Args:
-            search_text: 搜索文本（将按空格分词）
-            search_fields: 要搜索的字段列表，默认 ['title', 'author', 'filename', 'tags', 'notes']
-            include_hidden: 是否包含隐藏记录
-            limit: 结果数量限制
-            offset: 结果偏移量
-
-        Returns:
-            搜索结果字典 {
-                "records": [...],  # 记录列表（前端格式）
-                "count": 10,       # 结果数量
-                "search_text": "关键词1 关键词2"
-            }
-
-        Examples:
-            >>> api.search_records("Python 编程", limit=50)
-            >>> api.search_records("深度学习", search_fields=['title', 'tags'])
-        """
-        # 按空格分词
-        keywords = [kw.strip() for kw in search_text.split() if kw.strip()]
-
-        # 调用插件搜索
-        rows = self._pdf_info_plugin.search_records(
-            keywords=keywords,
-            search_fields=search_fields,
-            limit=limit,
-            offset=offset
-        )
-
-        # 转换格式并过滤隐藏记录
-        mapped: List[Dict[str, Any]] = []
+        query_text = str(payload.get("query", "") or "").strip().lower()
+        rows = self._pdf_info_plugin.query_all()
+        matches = []
         for row in rows:
             record = self._map_to_frontend(row)
-            if include_hidden or record.get("is_visible", True):
-                mapped.append(record)
+            match_info = self._calculate_match_info(record, row, tokens, query_text)
+            if tokens and not match_info["matched"]:
+                continue
+            if filters and not self._apply_search_filters(record, filters):
+                continue
+            record_copy = dict(record)
+            record_copy["match_score"] = match_info["score"]
+            record_copy["matched_fields"] = sorted(match_info["fields"])
+            matches.append({
+                "record": record_copy,
+                "row": row,
+                "score": match_info["score"],
+            })
 
+        if not tokens and not sort_rules:
+            sort_rules = [{"field": "updated_at", "direction": "desc"}]
+        elif tokens and not sort_rules:
+            sort_rules = [
+                {"field": "match_score", "direction": "desc"},
+                {"field": "updated_at", "direction": "desc"},
+            ]
+
+        for rule in reversed(sort_rules):
+            field = rule.get("field", "")
+            direction = str(rule.get("direction", "asc")).lower()
+            reverse = direction == "desc"
+            matches.sort(key=lambda item: self._search_sort_value(item, field), reverse=reverse)
+
+        total = len(matches)
+        if limit == 0:
+            paginated = matches[offset:]
+        else:
+            end = offset + limit if limit else None
+            paginated = matches[offset:end]
+        records = [item["record"] for item in paginated]
+        page_info = {"limit": limit, "offset": offset}
         return {
-            "records": mapped,
-            "count": len(mapped),
-            "search_text": search_text
+            "records": records,
+            "total": total if need_total else total,
+            "page": page_info,
+            "meta": {"query": payload.get("query", ""), "tokens": tokens},
         }
+
+    def list_bookmarks(
+        self,
+        pdf_uuid: str,
+    ) -> Dict[str, Any]:
+        if not pdf_uuid:
+            raise DatabaseValidationError("pdf_uuid is required")
+        rows = self._bookmark_plugin.query_by_pdf(pdf_uuid)
+        if not rows:
+            return {"bookmarks": [], "root_ids": []}
+
+        node_map: Dict[str, Dict[str, Any]] = {}
+        for row in rows:
+            bookmark_id = row['bookmark_id']
+            node_map[bookmark_id] = {
+                "id": bookmark_id,
+                "name": row.get('name', ''),
+                "type": row.get('type', 'page'),
+                "pageNumber": row.get('pageNumber', 1),
+                "region": row.get('region'),
+                "children": [],
+                "parentId": row.get('parentId'),
+                "order": row.get('order', 0),
+                "createdAt": self._ms_to_iso(row.get('created_at')),
+                "updatedAt": self._ms_to_iso(row.get('updated_at')),
+            }
+
+        root_ids: List[str] = []
+        for row in rows:
+            bookmark_id = row['bookmark_id']
+            parent_id = row.get('parentId')
+            node = node_map[bookmark_id]
+            if parent_id and parent_id in node_map:
+                node_map[parent_id]["children"].append(node)
+            else:
+                root_ids.append(bookmark_id)
+
+        for node in node_map.values():
+            node['children'].sort(key=lambda item: item['order'])
+
+        root_ids.sort(key=lambda item: node_map[item]['order'])
+        bookmarks = list(node_map.values())
+        return {"bookmarks": bookmarks, "root_ids": root_ids}
+
+    def save_bookmarks(
+        self,
+        pdf_uuid: str,
+        bookmarks: List[Dict[str, Any]],
+        *,
+        root_ids: Optional[List[str]] = None,
+    ) -> int:
+        if not pdf_uuid:
+            raise DatabaseValidationError("pdf_uuid is required")
+        if bookmarks is None:
+            raise DatabaseValidationError("bookmarks is required")
+        if not isinstance(bookmarks, list):
+            raise DatabaseValidationError("bookmarks must be a list")
+        root_order = self._build_root_order(bookmarks, root_ids)
+
+        rows: List[Dict[str, Any]] = []
+        for bookmark in bookmarks:
+            order = root_order.get(bookmark.get('id'))
+            bookmark_rows, _ = self._flatten_bookmark_tree(
+                bookmark, pdf_uuid, parent_id=None, order=order
+            )
+            rows.extend(bookmark_rows)
+
+        self._bookmark_plugin.delete_by_pdf(pdf_uuid)
+        for row in rows:
+            self._bookmark_plugin.insert(row)
+        return len(rows)
 
     # Sync helpers --------------------------------------------------------
 
@@ -329,6 +286,144 @@ class PDFLibraryAPI:
         except DatabaseConstraintError:
             self._pdf_info_plugin.update(payload["uuid"], payload)
             return payload["uuid"]
+
+    def add_pdf_from_file(self, filepath: str) -> Dict[str, Any]:
+        """
+        从文件路径添加 PDF 到数据库
+
+        Args:
+            filepath: PDF 文件的绝对路径
+
+        Returns:
+            Dict[str, Any]: 包含新创建记录的信息
+            {
+                "success": bool,
+                "uuid": str,  # 新记录的UUID
+                "filename": str,
+                "file_size": int,
+                "error": str  # 如果失败
+            }
+        """
+        try:
+            if not filepath:
+                return {
+                    "success": False,
+                    "error": "文件路径不能为空"
+                }
+
+            absolute_path = os.path.abspath(filepath)
+            if not os.path.exists(absolute_path):
+                return {
+                    "success": False,
+                    "error": f"文件不存在: {absolute_path}"
+                }
+
+            if not FileValidator.is_pdf_file(absolute_path):
+                return {
+                    "success": False,
+                    "error": "仅支持添加 PDF 文件"
+                }
+
+            file_size = os.path.getsize(absolute_path)
+            filename = os.path.basename(absolute_path)
+
+            # 如果有 PDF 管理器，优先使用管理器添加文件
+            if self._pdf_manager is not None:
+                success, payload = self._pdf_manager.add_file(absolute_path)
+                if not success:
+                    error_message = ""
+                    if isinstance(payload, dict):
+                        error_message = payload.get("message") or payload.get("error") or ""
+                    if not error_message:
+                        error_message = "PDF文件添加失败"
+                    return {
+                        "success": False,
+                        "error": error_message
+                    }
+
+                file_info = payload if isinstance(payload, dict) else {}
+
+                # 同步到数据库
+                try:
+                    record_uuid = self.register_file_info(file_info)
+                except Exception as exc:
+                    self._logger.error("同步 PDF 信息到数据库失败: %s", exc, exc_info=True)
+                    # 回滚 PDF 管理器中的文件
+                    file_id = file_info.get("id")
+                    if file_id:
+                        try:
+                            self._pdf_manager.remove_file(file_id)
+                        except Exception as cleanup_exc:  # pragma: no cover - best effort cleanup
+                            self._logger.warning("回滚 PDF 添加失败: %s", cleanup_exc)
+                    return {
+                        "success": False,
+                        "error": "同步 PDF 信息到数据库失败"
+                    }
+
+                return {
+                    "success": True,
+                    "uuid": record_uuid,
+                    "filename": file_info.get("filename", filename),
+                    "file_size": file_info.get("file_size", file_size)
+                }
+
+            # 没有 PDF 管理器，直接添加到数据库
+            metadata = PDFMetadataExtractor.extract_metadata(absolute_path)
+            if "error" in metadata:
+                return {
+                    "success": False,
+                    "error": metadata["error"]
+                }
+
+            record_uuid = uuid_module.uuid4().hex[:12]
+            current_time_ms = int(time.time() * 1000)
+
+            record_data = {
+                "uuid": record_uuid,
+                "title": metadata.get("title", filename),
+                "author": metadata.get("author", ""),
+                "page_count": metadata.get("page_count", 0),
+                "file_size": file_size,
+                "created_at": current_time_ms,
+                "updated_at": current_time_ms,
+                "visited_at": 0,
+                "version": 1,
+                "json_data": {
+                    "filename": f"{record_uuid}.pdf",
+                    "original_filename": filename,
+                    "filepath": absolute_path,
+                    "original_path": absolute_path,
+                    "subject": metadata.get("subject", ""),
+                    "keywords": metadata.get("keywords", ""),
+                    "creator": metadata.get("creator", ""),
+                    "producer": metadata.get("producer", ""),
+                    "page_count": metadata.get("page_count", 0),
+                    "tags": [],
+                    "notes": "",
+                    "rating": 0,
+                    "is_visible": True,
+                    "review_count": 0,
+                    "total_reading_time": 0,
+                    "due_date": 0,
+                    "last_accessed_at": 0
+                }
+            }
+
+            self.create_record(record_data)
+
+            return {
+                "success": True,
+                "uuid": record_uuid,
+                "filename": f"{record_uuid}.pdf",
+                "file_size": file_size
+            }
+
+        except Exception as exc:
+            self._logger.error("添加 PDF 文件失败: %s", exc, exc_info=True)
+            return {
+                "success": False,
+                "error": f"添加 PDF 文件失败: {str(exc)}"
+            }
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -367,6 +462,261 @@ class PDFLibraryAPI:
         if value >= 10 ** 12:
             return int(value // 1000)
         return int(value)
+
+    def _calculate_match_info(
+        self,
+        record: Dict[str, Any],
+        row: Dict[str, Any],
+        tokens: List[str],
+        query: str,
+    ) -> Dict[str, Any]:
+        if not tokens:
+            return {"matched": True, "score": 0, "fields": set()}
+
+        json_data = row.get("json_data", {}) or {}
+        field_weights = {
+            "title": 5,
+            "author": 3,
+            "tags": 2,
+            "subject": 2,
+            "keywords": 2,
+            "notes": 1,
+        }
+        field_sources = {
+            "title": record.get("title", ""),
+            "author": record.get("author", ""),
+            "notes": record.get("notes", json_data.get("notes", "")),
+            "subject": record.get("subject", json_data.get("subject", "")),
+            "keywords": record.get("keywords", json_data.get("keywords", "")),
+        }
+        tags = record.get("tags", json_data.get("tags", [])) or []
+
+        aggregate_parts = [value for value in field_sources.values() if isinstance(value, str)]
+        aggregate_parts.extend(str(tag) for tag in tags if isinstance(tag, str))
+        aggregate_text = " ".join(aggregate_parts).lower()
+        if query and query not in aggregate_text:
+            return {"matched": False, "score": 0, "fields": set()}
+
+        matched_fields: set[str] = set()
+        score = 0
+
+        for token in tokens:
+            token_matched = False
+            for field_name, value in field_sources.items():
+                if not isinstance(value, str):
+                    continue
+                if token in value.lower():
+                    token_matched = True
+                    matched_fields.add(field_name)
+                    score += field_weights.get(field_name, 1)
+            if any(isinstance(tag, str) and token in tag.lower() for tag in tags):
+                token_matched = True
+                matched_fields.add("tags")
+                score += field_weights.get("tags", 2)
+            if not token_matched:
+                return {"matched": False, "score": 0, "fields": set()}
+
+        return {"matched": True, "score": score, "fields": matched_fields}
+
+    def _apply_search_filters(self, record: Dict[str, Any], filters: Dict[str, Any]) -> bool:
+        if not filters:
+            return True
+        filter_type = filters.get("type")
+        if filter_type == "composite":
+            operator = str(filters.get("operator", "AND")).upper()
+            conditions = filters.get("conditions") or []
+            results = [self._apply_search_filters(record, cond) for cond in conditions]
+            if operator == "AND":
+                return all(results)
+            if operator == "OR":
+                return any(results)
+            if operator == "NOT":
+                return not any(results)
+            return all(results)
+        if filter_type == "field":
+            field = filters.get("field")
+            operator = filters.get("operator")
+            value = filters.get("value")
+            if field == "rating" and operator == "gte":
+                return record.get("rating", 0) >= value
+            if field == "is_visible" and operator == "eq":
+                return bool(record.get("is_visible", False)) == bool(value)
+            if field == "tags" and operator == "has_any":
+                target = {str(v).lower() for v in (value or [])}
+                record_tags = {str(tag).lower() for tag in record.get("tags", [])}
+                return bool(record_tags.intersection(target))
+            if field == "total_reading_time" and operator == "gte":
+                return record.get("total_reading_time", 0) >= value
+            return True
+        return True
+
+    def _search_sort_value(self, item: Dict[str, Any], field: str) -> Any:
+        field_lower = str(field).lower()
+        record = item["record"]
+        row = item["row"]
+        if field_lower == "match_score":
+            return item.get("score", 0)
+        if field_lower in {"updated_at", "created_at"}:
+            return row.get(field_lower, 0)
+        value = record.get(field_lower)
+        if value is None:
+            value = record.get(field)
+        if value is None:
+            value = row.get(field_lower)
+        if isinstance(value, str):
+            return value.lower()
+        if isinstance(value, (list, tuple)):
+            return len(value)
+        return value if value is not None else 0
+
+    def _build_root_order(
+        self,
+        bookmarks: List[Dict[str, Any]],
+        root_ids: Optional[List[str]],
+    ) -> Dict[str, int]:
+        order_map: Dict[str, int] = {}
+        if root_ids:
+            for idx, bookmark_id in enumerate(root_ids):
+                if isinstance(bookmark_id, str):
+                    order_map.setdefault(bookmark_id, idx)
+        for idx, bookmark in enumerate(bookmarks):
+            bookmark_id = bookmark.get('id') or bookmark.get('bookmark_id')
+            if not isinstance(bookmark_id, str):
+                continue
+            explicit_order = bookmark.get('order')
+            if isinstance(explicit_order, int) and explicit_order >= 0:
+                order_map.setdefault(bookmark_id, explicit_order)
+            else:
+                order_map.setdefault(bookmark_id, idx)
+        return order_map
+
+    def _flatten_bookmark_tree(
+        self,
+        bookmark: Dict[str, Any],
+        pdf_uuid: str,
+        *,
+        parent_id: Optional[str],
+        order: Optional[int],
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        if not isinstance(bookmark, dict):
+            raise DatabaseValidationError('bookmark must be an object')
+        bookmark_id = bookmark.get('id') or bookmark.get('bookmark_id')
+        if not isinstance(bookmark_id, str) or not bookmark_id:
+            raise DatabaseValidationError('bookmark id is required')
+
+        children = bookmark.get('children') or []
+        rows: List[Dict[str, Any]] = []
+        child_summaries: List[Dict[str, Any]] = []
+        for idx, child in enumerate(children):
+            child_rows, child_summary = self._flatten_bookmark_tree(
+                child, pdf_uuid, parent_id=bookmark_id, order=idx
+            )
+            rows.extend(child_rows)
+            child_summaries.append(child_summary)
+
+        row = self._build_bookmark_row(
+            bookmark, pdf_uuid, parent_id, order if isinstance(order, int) else 0, child_summaries
+        )
+        rows.insert(0, row)
+        summary = {
+            'bookmark_id': row['bookmark_id'],
+            'name': row['json_data']['name'],
+            'type': row['json_data']['type'],
+            'pageNumber': row['json_data']['pageNumber'],
+            'region': row['json_data']['region'],
+            'children': child_summaries,
+            'parentId': parent_id,
+            'order': row['json_data']['order'],
+        }
+        return rows, summary
+
+    def _build_bookmark_row(
+        self,
+        bookmark: Dict[str, Any],
+        pdf_uuid: str,
+        parent_id: Optional[str],
+        order: int,
+        child_summaries: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        bookmark_id = bookmark.get('id') or bookmark.get('bookmark_id')
+        if not isinstance(bookmark_id, str) or not bookmark_id:
+            raise DatabaseValidationError('bookmark id is required')
+        name = bookmark.get('name')
+        if not isinstance(name, str) or not name.strip():
+            raise DatabaseValidationError('bookmark name is required')
+        bookmark_type = bookmark.get('type', 'page')
+        if bookmark_type not in {'page', 'region'}:
+            raise DatabaseValidationError("bookmark type must be 'page' or 'region'")
+        try:
+            page_number = int(bookmark.get('pageNumber', 1))
+        except (TypeError, ValueError):
+            raise DatabaseValidationError('pageNumber must be an integer >= 1')
+        if page_number < 1:
+            raise DatabaseValidationError('pageNumber must be an integer >= 1')
+
+        created_ms = self._iso_to_ms(bookmark.get('createdAt'))
+        updated_ms = self._iso_to_ms(bookmark.get('updatedAt'))
+        if created_ms == 0:
+            created_ms = int(time.time() * 1000)
+        if updated_ms == 0:
+            updated_ms = created_ms
+
+        json_data = {
+            'name': name.strip(),
+            'type': bookmark_type,
+            'pageNumber': page_number,
+            'region': self._normalize_region(bookmark.get('region'), bookmark_type),
+            'children': child_summaries,
+            'parentId': parent_id,
+            'order': order if isinstance(order, int) and order >= 0 else 0,
+        }
+
+        return {
+            'bookmark_id': bookmark_id,
+            'pdf_uuid': pdf_uuid,
+            'created_at': created_ms,
+            'updated_at': updated_ms,
+            'version': 1,
+            'json_data': json_data,
+        }
+
+    @staticmethod
+    def _normalize_region(region: Any, bookmark_type: str) -> Optional[Dict[str, Any]]:
+        if bookmark_type != 'region':
+            return None
+        if not isinstance(region, dict):
+            raise DatabaseValidationError('region bookmark requires region object')
+        required_keys = ('scrollX', 'scrollY', 'zoom')
+        normalized: Dict[str, Any] = {}
+        for key in required_keys:
+            value = region.get(key)
+            if not isinstance(value, (int, float)):
+                raise DatabaseValidationError('region requires numeric scrollX, scrollY, zoom')
+            normalized[key] = float(value)
+        if normalized['zoom'] <= 0:
+            raise DatabaseValidationError('region.zoom must be greater than 0')
+        return normalized
+
+    @staticmethod
+    def _iso_to_ms(value: Optional[str]) -> int:
+        if not value:
+            return 0
+        try:
+            iso_value = value.replace('Z', '+00:00')
+            dt = datetime.fromisoformat(iso_value)
+            return int(dt.timestamp() * 1000)
+        except ValueError:
+            return 0
+
+    @staticmethod
+    def _ms_to_iso(value: Optional[int]) -> str:
+        if not value:
+            return datetime.utcfromtimestamp(0).isoformat() + 'Z'
+        try:
+            seconds = value / 1000 if value >= 10 ** 12 else value
+            return datetime.utcfromtimestamp(seconds).isoformat() + 'Z'
+        except (OverflowError, OSError):
+            return datetime.utcfromtimestamp(0).isoformat() + 'Z'
 
     @staticmethod
     def _parse_datetime_to_ms(value: Optional[str]) -> int:
@@ -523,41 +873,32 @@ class PDFLibraryAPI:
         if not uuid:
             raise DatabaseValidationError("file info missing id")
 
-        metadata = file_info.get("metadata") or {}
         created_at = self._parse_datetime_to_ms(file_info.get("created_time"))
         updated_at = self._parse_datetime_to_ms(file_info.get("modified_time")) or created_at
-        last_accessed = file_info.get("last_accessed_at", metadata.get("last_accessed_at", 0))
-
-        storage_path = file_info.get("filepath") or metadata.get("filepath", "")
-        original_path = (
-            file_info.get("original_path")
-            or metadata.get("original_path")
-            or storage_path
-        )
+        last_accessed = file_info.get("last_accessed_at", 0)
 
         json_data = {
             "filename": file_info.get("filename", ""),
-            "filepath": storage_path,
-            "original_path": original_path,
-            "tags": self._normalize_tags(file_info.get("tags") or metadata.get("tags")),
-            "rating": file_info.get("rating", metadata.get("rating", 0)),
-            "is_visible": file_info.get("is_visible", metadata.get("is_visible", True)),
-            "total_reading_time": file_info.get("total_reading_time", metadata.get("total_reading_time", 0)),
+            "filepath": file_info.get("filepath", ""),
+            "tags": self._normalize_tags(file_info.get("tags")),
+            "rating": file_info.get("rating", 0),
+            "is_visible": file_info.get("is_visible", True),
+            "total_reading_time": file_info.get("total_reading_time", 0),
             "last_accessed_at": self._ensure_ms(last_accessed),
-            "review_count": file_info.get("review_count", metadata.get("review_count", 0)),
-            "due_date": self._ensure_ms(file_info.get("due_date", metadata.get("due_date", 0))),
-            "notes": file_info.get("notes", metadata.get("notes", "")),
-            "thumbnail_path": file_info.get("thumbnail_path") or metadata.get("thumbnail_path"),
-            "subject": metadata.get("subject", file_info.get("subject", "")),
-            "keywords": metadata.get("keywords", file_info.get("keywords", "")),
+            "review_count": file_info.get("review_count", 0),
+            "due_date": self._ensure_ms(file_info.get("due_date", 0)),
+            "notes": file_info.get("notes", ""),
+            "thumbnail_path": file_info.get("thumbnail_path"),
+            "subject": file_info.get("subject", ""),
+            "keywords": file_info.get("keywords", ""),
         }
 
         payload = {
             "uuid": uuid,
-            "title": file_info.get("title") or metadata.get("title") or file_info.get("filename", ""),
-            "author": file_info.get("author", metadata.get("author", "")),
-            "page_count": file_info.get("page_count", metadata.get("page_count", 0)),
-            "file_size": file_info.get("file_size", metadata.get("file_size", 0)),
+            "title": file_info.get("title") or file_info.get("filename", ""),
+            "author": file_info.get("author", ""),
+            "page_count": file_info.get("page_count", 0),
+            "file_size": file_info.get("file_size", 0),
             "created_at": created_at or int(time.time() * 1000),
             "updated_at": updated_at or int(time.time() * 1000),
             "visited_at": self._ensure_ms(last_accessed),
@@ -565,6 +906,7 @@ class PDFLibraryAPI:
             "json_data": json_data,
         }
         return payload
+
     def _map_to_frontend(self, row: Dict[str, Any]) -> Dict[str, Any]:
         json_data = deepcopy(row.get("json_data", {}))
         created_at = row.get("created_at", 0)
@@ -593,4 +935,7 @@ class PDFLibraryAPI:
             "keywords": json_data.get("keywords", ""),
         }
         return record
+
+
+
 

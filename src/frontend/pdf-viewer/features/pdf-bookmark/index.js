@@ -125,9 +125,26 @@ export class PDFBookmarkFeature {
     }
 
     // 初始化书签管理器
+    let wsClient = null;
+    if (this.#container) {
+      if (typeof this.#container.getWSClient === 'function') {
+        wsClient = this.#container.getWSClient();
+      } else if (typeof this.#container.getDependencies === 'function') {
+        const deps = this.#container.getDependencies() || {};
+        wsClient = deps.wsClient || null;
+      } else if (typeof this.#container.get === 'function') {
+        try {
+          wsClient = this.#container.get('wsClient');
+        } catch (error) {
+          this.#logger.debug('wsClient not available in container', error);
+        }
+      }
+    }
+
     this.#bookmarkManager = new BookmarkManager({
       eventBus: this.#eventBus,
-      pdfId: pdfId || 'default'
+      pdfId: pdfId || 'default',
+      storageOptions: { wsClient }
     });
     await this.#bookmarkManager.initialize();
 

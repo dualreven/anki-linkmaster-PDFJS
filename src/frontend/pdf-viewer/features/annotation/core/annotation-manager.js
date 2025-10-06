@@ -15,7 +15,7 @@
  */
 
 import { getLogger } from '../../../../common/utils/logger.js';
-import { Annotation } from '../models/annotation.js';
+import { Annotation, AnnotationType } from '../models/annotation.js';
 import { PDF_VIEWER_EVENTS } from '../../../../common/event/pdf-viewer-constants.js';
 
 /**
@@ -82,22 +82,36 @@ export class AnnotationManager {
    * @private
    */
   #setupEventListeners() {
-    // 创建标注
+    // 创建标注 - 双重监听：
+    // 1. 局部事件：来自 annotation feature 内部工具（TextHighlightTool, ScreenshotTool等）
+    // 2. 全局事件：来自其他 feature（text-selection-quick-actions），仅处理高亮标注
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, (data) => {
       this.#handleCreateAnnotation(data);
-    }, { subscriberId: 'AnnotationManager' });
+    }, { subscriberId: 'AnnotationManager-local' });
 
-    // 更新标注
+    this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, (data) => {
+      // 全局事件仅处理高亮标注（text-selection-quick-actions 只发送此类型）
+      const annotation = data?.annotation;
+      if (annotation?.type === AnnotationType.TEXT_HIGHLIGHT) {
+        this.#handleCreateAnnotation(data);
+      } else if (annotation) {
+        this.#logger.warn('[AnnotationManager] Global CREATE event ignored - not a TEXT_HIGHLIGHT', {
+          type: annotation.type
+        });
+      }
+    }, { subscriberId: 'AnnotationManager-global' });
+
+    // 更新标注 - 只需局部监听（仅内部工具会发送）
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.UPDATE, (data) => {
       this.#handleUpdateAnnotation(data);
     }, { subscriberId: 'AnnotationManager' });
 
-    // 删除标注
+    // 删除标注 - 只需局部监听（仅内部工具会发送）
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DELETE, (data) => {
       this.#handleDeleteAnnotation(data);
     }, { subscriberId: 'AnnotationManager' });
 
-    // 加载标注
+    // 加载标注 - 只需局部监听（内部操作）
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, (data) => {
       this.#handleLoadAnnotations(data);
     }, { subscriberId: 'AnnotationManager' });
@@ -141,7 +155,7 @@ export class AnnotationManager {
       // 添加到内存
       this.#annotations.set(annotationObj.id, annotationObj);
 
-      // 发布成功事件
+      // 发布成功事件（使用局部事件，feature内部通信）
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, {
         annotation: annotationObj
       });
@@ -209,7 +223,7 @@ export class AnnotationManager {
         await this.#saveAnnotationToBackend(annotation);
       }
 
-      // 发布成功事件
+      // 发布成功事件（使用局部事件）
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.UPDATED, {
         annotation
       });
@@ -252,7 +266,7 @@ export class AnnotationManager {
       // 从内存中删除
       this.#annotations.delete(id);
 
-      // 发布成功事件
+      // 发布成功事件（使用局部事件）
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DELETED, {
         id,
         annotation
@@ -322,7 +336,7 @@ export class AnnotationManager {
         this.#annotations.set(ann.id, ann);
       });
 
-      // 发布成功事件
+      // 发布成功事件（使用局部事件）
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, {
         annotations,
         count: annotations.length

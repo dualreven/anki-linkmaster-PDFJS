@@ -46,36 +46,22 @@ export const PDFSorterFeatureConfig = {
 
       // 支持的排序字段
       sortableFields: [
-        {
-          field: 'filename',
-          label: '文件名',
-          type: 'string'
-        },
-        {
-          field: 'size',
-          label: '文件大小',
-          type: 'number'
-        },
-        {
-          field: 'modified_time',
-          label: '修改时间',
-          type: 'datetime'
-        },
-        {
-          field: 'created_time',
-          label: '创建时间',
-          type: 'datetime'
-        },
-        {
-          field: 'page_count',
-          label: '页数',
-          type: 'number'
-        },
-        {
-          field: 'star',
-          label: '星标',
-          type: 'number'
-        }
+        { field: 'filename', label: '文件名', type: 'string' },
+        { field: 'title', label: '书名', type: 'string' },
+        { field: 'author', label: '作者', type: 'string' },
+        { field: 'subject', label: '主题', type: 'string' },
+        { field: 'keywords', label: '关键词', type: 'string' },
+        { field: 'notes', label: '备注', type: 'string' },
+        { field: 'size', label: '文件大小', type: 'number' },
+        { field: 'rating', label: '评分', type: 'number' },
+        { field: 'review_count', label: '复习次数', type: 'number' },
+        { field: 'total_reading_time', label: '总阅读时长', type: 'number' },
+        { field: 'page_count', label: '页数', type: 'number' },
+        { field: 'star', label: '星标', type: 'number' },
+        { field: 'created_time', label: '创建时间', type: 'datetime' },
+        { field: 'modified_time', label: '修改时间', type: 'datetime' },
+        { field: 'last_accessed_at', label: '最后访问时间', type: 'datetime' },
+        { field: 'due_date', label: '截止日期', type: 'datetime' }
       ],
 
       // 是否支持多字段排序

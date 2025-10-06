@@ -25,6 +25,11 @@ export class SearchResultsFeature {
   // 当前结果
   #currentResults = [];
 
+  // 布局控制
+  #layoutButtons = [];
+  #layoutPreferenceKey = 'pdf-home:search-results:layout';
+  #currentLayout = 'single';
+
   /**
    * 安装Feature
    */
@@ -110,13 +115,14 @@ export class SearchResultsFeature {
       // 创建新容器（如果index.html中没有）
       this.#resultsContainer = document.createElement('div');
       this.#resultsContainer.id = 'pdf-table-container';
-      this.#resultsContainer.className = 'search-results-container';
-
-      // 插入到header后面
       this.#headerElement.insertAdjacentElement('afterend', this.#resultsContainer);
     }
 
+    this.#resultsContainer.classList.add('search-results-container');
+
     this.#logger.debug('[SearchResultsFeature] Results container created');
+
+    this.#restoreLayoutPreference();
   }
 
   /**
@@ -124,8 +130,13 @@ export class SearchResultsFeature {
    * @private
    */
   #createBatchActionButtons() {
-    // 检查是否已存在
-    if (this.#headerElement.querySelector('.batch-actions')) {
+    const existingActions = this.#headerElement.querySelector('.batch-actions');
+    if (existingActions) {
+      const existingToggle = existingActions.querySelector('.layout-toggle');
+      if (existingToggle) {
+        this.#bindLayoutButtons(existingToggle);
+        this.#updateLayoutButtonsState();
+      }
       return;
     }
 
@@ -146,8 +157,100 @@ export class SearchResultsFeature {
       </button>
     `;
 
+    const layoutToggle = document.createElement('div');
+    layoutToggle.className = 'layout-toggle';
+    layoutToggle.innerHTML = `
+      <span class="layout-toggle__label">布局</span>
+      <button type="button" class="layout-toggle__btn" data-layout="single" title="单栏">1栏</button>
+      <button type="button" class="layout-toggle__btn" data-layout="double" title="双栏">2栏</button>
+      <button type="button" class="layout-toggle__btn" data-layout="triple" title="三栏">3栏</button>
+    `;
+    actionsDiv.appendChild(layoutToggle);
+
     this.#headerElement.appendChild(actionsDiv);
+    this.#bindLayoutButtons(layoutToggle);
+    this.#updateLayoutButtonsState();
+
     this.#logger.debug('[SearchResultsFeature] Batch action buttons created');
+  }
+
+  /**
+   * 绑定布局切换按钮
+   * @param {HTMLElement} container
+   * @private
+   */
+  #bindLayoutButtons(container) {
+    this.#layoutButtons = Array.from(container.querySelectorAll('[data-layout]')) || [];
+    this.#layoutButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const layout = button.getAttribute('data-layout');
+        this.#applyLayout(layout);
+      });
+    });
+  }
+
+  /**
+   * 恢复布局偏好
+   * @private
+   */
+  #restoreLayoutPreference() {
+    let stored = null;
+    try {
+      stored = window.localStorage.getItem(this.#layoutPreferenceKey);
+    } catch (error) {
+      this.#logger?.warn('[SearchResultsFeature] Failed to read layout preference', error);
+    }
+
+    this.#applyLayout(stored || this.#currentLayout, { persist: false });
+  }
+
+  /**
+   * 应用布局并可选持久化
+   * @param {string} layout
+   * @param {{ persist?: boolean }} [options]
+   * @private
+   */
+  #applyLayout(layout, { persist = true } = {}) {
+    const allowed = ['single', 'double', 'triple'];
+    const targetLayout = allowed.includes(layout) ? layout : 'single';
+    this.#currentLayout = targetLayout;
+
+    if (this.#resultsContainer) {
+      this.#resultsContainer.classList.remove('layout-single', 'layout-double', 'layout-triple');
+      this.#resultsContainer.classList.add('layout-' + targetLayout);
+    }
+
+    this.#updateLayoutButtonsState();
+
+    if (persist) {
+      try {
+        window.localStorage.setItem(this.#layoutPreferenceKey, targetLayout);
+      } catch (error) {
+        this.#logger?.warn('[SearchResultsFeature] Failed to persist layout preference', error);
+      }
+    }
+  }
+
+  /**
+   * 更新布局按钮状态
+   * @private
+   */
+  #updateLayoutButtonsState() {
+    if (!this.#layoutButtons || this.#layoutButtons.length === 0) {
+      return;
+    }
+
+    this.#layoutButtons.forEach((button) => {
+      const layout = button.getAttribute('data-layout');
+      if (!layout) {
+        return;
+      }
+      if (layout === this.#currentLayout) {
+        button.classList.add('is-active');
+      } else {
+        button.classList.remove('is-active');
+      }
+    });
   }
 
   /**

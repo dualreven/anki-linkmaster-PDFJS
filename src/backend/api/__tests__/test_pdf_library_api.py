@@ -1,6 +1,4 @@
 ﻿import pytest
-import os
-import hashlib
 import sys
 from pathlib import Path
 
@@ -361,121 +359,121 @@ def test_search_records_returns_empty_when_no_match(api):
     assert result["records"] == []
     assert result["total"] == 0
 
-def _reset_db_state():
-    TablePluginRegistry.reset_instance()
-    DatabaseConnectionManager._instance = None
+
+def _sample_bookmarks():
+    created_at = "2025-10-06T00:00:00.000Z"
+    return [
+        {
+            "id": "bookmark-1728123457000-root",
+            "name": "章节一",
+            "type": "page",
+            "pageNumber": 1,
+            "region": None,
+            "children": [
+                {
+                    "id": "bookmark-1728123457001-child",
+                    "name": "重点段落",
+                    "type": "region",
+                    "pageNumber": 1,
+                    "region": {
+                        "scrollX": 10.5,
+                        "scrollY": 240.0,
+                        "zoom": 1.25,
+                    },
+                    "children": [],
+                    "parentId": "bookmark-1728123457000-root",
+                    "order": 0,
+                    "createdAt": created_at,
+                    "updatedAt": created_at,
+                }
+            ],
+            "parentId": None,
+            "order": 0,
+            "createdAt": created_at,
+            "updatedAt": created_at,
+        },
+        {
+            "id": "bookmark-1728123457002-second",
+            "name": "章节二",
+            "type": "page",
+            "pageNumber": 5,
+            "region": None,
+            "children": [],
+            "parentId": None,
+            "order": 1,
+            "createdAt": created_at,
+            "updatedAt": created_at,
+        },
+    ]
 
 
-class DummyPDFManager:
-    def __init__(self):
-        self.added = []
-        self.fail_next = False
+def test_save_and_list_bookmarks_roundtrip(api):
+    pdf_uuid = "555555555555"
+    _insert_sample(api, uuid=pdf_uuid, title="With Bookmarks")
 
-    def add_file(self, filepath):
-        self.added.append(filepath)
-        if self.fail_next:
-            return False, {"type": "ADD_ERROR", "message": "duplicate file"}
-        normalized = str(Path(filepath).resolve())
-        file_id = hashlib.md5(normalized.encode('utf-8')).hexdigest()[:12]
-        info = {
-            "id": file_id,
-            "filename": f"{file_id}.pdf",
-            "original_filename": Path(filepath).name,
-            "file_size": os.path.getsize(filepath),
-            "page_count": 0,
-            "filepath": f"/copies/{file_id}.pdf",
-            "original_path": normalized,
-            "created_time": "2025-10-06 00:00:00",
-            "modified_time": "2025-10-06 00:00:00",
-            "last_accessed_at": 0,
-            "review_count": 0,
-            "rating": 0,
-            "is_visible": True,
-            "total_reading_time": 0,
-            "due_date": 0,
-            "tags": [],
-            "metadata": {
-                "title": Path(filepath).stem,
-                "author": "",
-                "subject": "",
-                "keywords": "",
-                "tags": [],
-                "notes": "",
-            },
+    bookmarks = _sample_bookmarks()
+    api.save_bookmarks(pdf_uuid, bookmarks, root_ids=[b["id"] for b in bookmarks if b["parentId"] is None])
+
+    result = api.list_bookmarks(pdf_uuid)
+    assert result["root_ids"] == ["bookmark-1728123457000-root", "bookmark-1728123457002-second"]
+    ids = {item["id"] for item in result["bookmarks"]}
+    assert {
+        "bookmark-1728123457000-root",
+        "bookmark-1728123457001-child",
+        "bookmark-1728123457002-second",
+    }.issubset(ids)
+
+    child = next(item for item in result["bookmarks"] if item["id"] == "bookmark-1728123457001-child")
+    assert child["parentId"] == "bookmark-1728123457000-root"
+    assert child["region"]["zoom"] == 1.25
+
+
+def test_save_bookmarks_overwrite_existing(api):
+    pdf_uuid = "666666666666"
+    _insert_sample(api, uuid=pdf_uuid, title="Overwrite")
+
+    first = _sample_bookmarks()
+    api.save_bookmarks(pdf_uuid, first, root_ids=[b["id"] for b in first if b["parentId"] is None])
+
+    second = [
+        {
+            "id": "bookmark-1728123460000-new",
+            "name": "新章节",
+            "type": "page",
+            "pageNumber": 9,
+            "region": None,
+            "children": [],
+            "parentId": None,
+            "order": 0,
+            "createdAt": "2025-10-06T00:00:00.000Z",
+            "updatedAt": "2025-10-06T00:00:00.000Z",
         }
-        return True, info
+    ]
+    api.save_bookmarks(pdf_uuid, second, root_ids=["bookmark-1728123460000-new"])
 
-    def remove_file(self, file_id):
-        return True
-
-    def get_file_count(self):
-        return len(self.added)
-
-
-def test_add_pdf_from_file_uses_pdf_manager(tmp_path):
-    _reset_db_state()
-    manager = DummyPDFManager()
-    workdir = tmp_path / "add_manager_case"
-    workdir.mkdir()
-    pdf_path = workdir / "sample.pdf"
-    pdf_path.write_bytes(b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\nstartxref\n0\n%%EOF\n")
-    api = PDFLibraryAPI(db_path=str(workdir / "library.db"), pdf_manager=manager)
-    try:
-        result = api.add_pdf_from_file(str(pdf_path))
-        assert result["success"] is True
-        expected_id = hashlib.md5(str(pdf_path.resolve()).encode('utf-8')).hexdigest()[:12]
-        assert result["uuid"] == expected_id
-        assert manager.added == [str(pdf_path)]
-
-        record = api.get_record(expected_id)
-        assert record is not None
-        assert record["file_size"] == pdf_path.stat().st_size
-        assert record["file_path"] == f"/copies/{expected_id}.pdf"
-        assert record["filename"] == f"{expected_id}.pdf"
-        assert record["title"] == pdf_path.stem
-    finally:
-        api.shutdown()
-        _reset_db_state()
+    result = api.list_bookmarks(pdf_uuid)
+    assert result["root_ids"] == ["bookmark-1728123460000-new"]
+    assert len(result["bookmarks"]) == 1
+    assert result["bookmarks"][0]["pageNumber"] == 9
 
 
-def test_add_pdf_from_file_propagates_manager_error(tmp_path):
-    _reset_db_state()
-    manager = DummyPDFManager()
-    manager.fail_next = True
-    workdir = tmp_path / "add_manager_failure"
-    workdir.mkdir()
-    pdf_path = workdir / "duplicate.pdf"
-    pdf_path.write_bytes(b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\nstartxref\n0\n%%EOF\n")
-    api = PDFLibraryAPI(db_path=str(workdir / "library.db"), pdf_manager=manager)
-    try:
-        result = api.add_pdf_from_file(str(pdf_path))
-        assert result["success"] is False
-        assert "duplicate" in result["error"].lower()
-        assert api.list_records() == []
-    finally:
-        api.shutdown()
-        _reset_db_state()
+def test_save_bookmarks_validation_error(api):
+    pdf_uuid = "777777777777"
+    _insert_sample(api, uuid=pdf_uuid, title="Invalid")
 
+    invalid = [
+        {
+            "id": "bookmark-1728123470000-invalid",
+            "name": "",
+            "type": "page",
+            "pageNumber": 1,
+            "children": [],
+            "parentId": None,
+            "order": 0,
+            "createdAt": "2025-10-06T00:00:00.000Z",
+            "updatedAt": "2025-10-06T00:00:00.000Z",
+        }
+    ]
 
-def test_add_pdf_from_file_without_manager_inserts_record(tmp_path):
-    _reset_db_state()
-    workdir = tmp_path / "add_without_manager"
-    workdir.mkdir()
-    pdf_path = workdir / "standalone.pdf"
-    pdf_path.write_bytes(b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\nstartxref\n0\n%%EOF\n")
-    api = PDFLibraryAPI(db_path=str(workdir / "library.db"), pdf_manager=None)
-    api._pdf_manager = None
-    try:
-        result = api.add_pdf_from_file(str(pdf_path))
-        assert result["success"] is True
-        assert result["uuid"]
-
-        record = api.get_record(result["uuid"])
-        assert record is not None
-        assert record["file_size"] == pdf_path.stat().st_size
-        assert record["file_path"] == str(pdf_path.resolve())
-        assert record["filename"] == f"{record['id']}.pdf"
-        assert record["title"] == pdf_path.stem
-    finally:
-        api.shutdown()
-        _reset_db_state()
+    with pytest.raises(DatabaseValidationError):
+        api.save_bookmarks(pdf_uuid, invalid, root_ids=["bookmark-1728123470000-invalid"])
