@@ -13,52 +13,6 @@
 
 ---
 
-## 本次任务（20251006160045）
-
-- 名称：拉取远程 main 并合并到当前分支
-- 当前分支：feature-pdf-processing
-- 目的：同步主线最新变更，减少后续冲突风险。
-- 相关：仅涉及 Git 分支与合并流程，不改动业务架构。
-
-执行步骤（原子）
-1) 检查远程与当前分支：`git remote -v`、`git rev-parse --abbrev-ref HEAD`
-2) 拉取主线：`git fetch origin main --prune --tags`
-3) 暂存本地未提交修改：`git stash save`（必要时）
-4) 合并主线：`git merge --no-edit origin/main`
-5) 解决冲突：优先融合 V2 接口与 Logger 规范（如发生）
-6) 还原暂存：`git stash pop` 并继续解决冲突（如发生）
-7) 验证：`git status` 与关键脚本/单测快速运行
-
-当前状态（2025-10-06 16:08:00）
-- 合并提交已生成；冲突文件已解决并提交：
-  - `src/frontend/pdf-home/bootstrap/app-bootstrap-v2.js`
-  - `src/frontend/pdf-home/index.js`
-- 其余文件合并完成；工作区仍有少量未提交改动（非冲突）。
-
-记录
-- 详见：`AItemp/20251006160045-AI-Working-log.md`
-- 本文件与日志均使用 UTF-8 与 `\n` 换行。
-
----
-
-## 本次任务（20251006170512）
-
-- 名称：修复“搜索中不结束/无结果显示”问题
-- 背景：用户反馈搜索后一直显示“搜索中”，无任何结果或失败提示。
-- 根因：
-  - WSClient 提前拦截 `type='error'/'response'` 等兼容消息，导致未进入分发流程；
-  - SearchManager 未订阅 ERROR 事件，失败场景无法结算 pending 请求。
-- 方案：
-  1) 放宽 WSClient 入站白名单：允许 `WSClient.VALID_MESSAGE_TYPES` 与 `response` 类型通过；
-  2) SearchManager 订阅 `WEBSOCKET_MESSAGE_EVENTS.ERROR`，匹配本请求 `request_id` 后发布 `search:results:failed`，隐藏“搜索中”。
-- 状态：已修复，建议端到端验证。
-- 变更文件：
-  - `src/frontend/common/ws/ws-client.js`
-  - `src/frontend/pdf-home/features/search/services/search-manager.js`
-- 记录：`AItemp/20251006170512-AI-Working-log.md`
-
----
-
 ## ⚠️ 前端开发核心规范（必读）
 
 ### 1️⃣ Logger 日志系统（强制使用）
@@ -69,6 +23,28 @@
 **位置**: `src/frontend/common/utils/logger.js`
 
 **基本用法**:
+## 2025-10-07 Git 同步 - 合并 origin/main 到当前分支
+- 仓库: C:\Users\napretep\PycharmProjects\anki-linkmaster-B
+- 背景: 保持当前开发分支与远程 main 同步，避免后续提交产生大跨度差异，降低冲突风险。
+- 相关工具: git（fetch/merge/stash）、本地验证命令。
+
+### 执行步骤（原子化）
+1. 获取远程与当前分支信息：`git remote -v`、`git rev-parse --abbrev-ref HEAD`。
+2. 拉取远程：`git fetch origin --prune`，确认 `origin/main` 存在。
+3. 若工作区存在未提交改动，先 `git stash push -u -m "auto-stash: merge origin/main"`。
+4. 合并远程主线：`git merge --no-edit origin/main`。
+5. 若曾 stash，执行 `git stash pop` 并按需处理冲突。
+6. 验证结果：`git merge-base --is-ancestor origin/main HEAD` 返回 0 视为成功。
+
+### 预期结果
+- 当前分支包含 `origin/main` 的最新提交；若存在冲突，已在工作区标记等待人工处理。
+
+### 实际结果（2025-10-07 01:58）
+- 合并方式为 Fast-forward，已成功将 `origin/main` 合并至 `feature/pdf-home-add-delete-improvements`。
+- 存在本地改动（context.md），已自动 stash 并在合并后 pop 恢复。
+- 验证通过：`git merge-base --is-ancestor origin/main HEAD` => 0（OK）。
+- 未产生冲突，当前工作区保留对 context.md 的修改，待按需提交。
+
 ```javascript
 import { getLogger, LogLevel } from '../common/utils/logger.js';
 
@@ -1518,7 +1494,8 @@ todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/schemas/
 ### 依据
 - 前端：
   - src/frontend/common/event/event-constants.js 已收敛核心消息类型（pdf-library、bookmark、pdf-page、storage-kv/fs、capability、annotation）。
-  - src/frontend/common/ws/ws-client.js 已实现基于 equest_id 的泛化请求-响应结算，未知/未注册类型会显式报错。
+  - src/frontend/common/ws/ws-client.js 已实现基于 
+equest_id 的泛化请求-响应结算，未知/未注册类型会显式报错。
   - 全局事件白名单由 global-event-registry.js 自动收敛，防止未注册事件“泄漏”。
 - 契约：
   - 	odo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/schemas/** 已覆盖各域 JSON Schema（request/completed/failed）。
@@ -1604,16 +1581,41 @@ if (res?.status === 'success') { /* 使用 res.data */ }
 - 保留的实现：基于 `#wsClient.request` 的删除逻辑
 - 构建验证通过：`pnpm run build:pdf-viewer`（无 Babel 报错）
 
-## 本次任务（20251006163530)
-- 名称：修复 pdf-home 搜索（WS契约+SQLite模糊搜索+Toast）
-- 目的：点击显示‘搜索中’，按空格分词，SQLite多字段模糊（标题/作者/文件名/标签/备注/主题/关键词），后端统一 completed 消息，前端渲染结果。
-- 涉及：
-  - 后端：src/backend/msgCenter_server/standard_server.py（搜索请求处理），src/backend/pdfTable_server/application_subcode/websocket_handlers.py（去除旧重复搜索响应）
-  - 前端：src/frontend/common/ws/ws-client.js（事件映射），src/frontend/pdf-home/features/search/services/search-manager.js（请求载荷修正），src/frontend/pdf-home/features/search/index.js（Toast）
-- 执行步骤：
-  1) 修改标准WS搜索处理，构造 tokens 并返回完整 files
-  2) 移除旧搜索重复响应
-  3) 修复 WSClient 对搜索 completed/failed 的事件映射
-  4) SearchManager 发送 data: { query, tokens }
-  5) SearchFeature 显示/隐藏 Toast
-  6) 端到端验证与记录
+## 2025-10-07 pdf-home 添加PDF 修复
+- 背景: 前端通过 QWebChannel 获取文件路径后，向 WS 发送 'pdf-library:add:records'。后端返回标准契约 'pdf-library:add:completed/failed'，但 WSClient 未路由该类型到通用响应事件，导致前端未监听到成功/失败；同时没有‘导入中’提示与文件名绑定的成功/失败 toast。
+- 变更: 
+  - 新增 ToastManager（左上角堆叠），在发送每个文件时显示 '导入中'，携带 request_id 关联；收到响应后替换为 '<文件名>-导入成功/失败-原因'。
+  - WSClient 将 'pdf-library:add:completed/failed' 路由为 'websocket:message:response'，并结算 pending 请求。
+  - pdf-list/index.js 发送添加请求附带 request_id；监听 response 处理 add:completed/failed；unknown 兜底转发。
+- 相关模块/函数: 
+  - 前端: src/frontend/pdf-home/features/pdf-list/index.js, src/frontend/common/ws/ws-client.js, src/frontend/common/utils/toast-manager.js
+  - 后端: src/backend/msgCenter_server/standard_server.py (handle_pdf_upload_request), src/backend/api/pdf_library_api.py（add_pdf_from_file）
+- 执行步骤: 
+  1) 实现 ToastManager；2) 修正 WSClient 路由；3) 发送携带 request_id；4) 监听响应更新 toast；5) 兜底 unknown 转发；6) 观察 logs/ 与 UI 结果。
+- 预期: 
+  - 点击添加后弹 '导入中'（可堆叠）；每个文件成功时 '文件名-导入成功'；失败时 '文件名-导入失败-原因'；添加完成刷新列表。
+- 实际: 按上述实现已完成代码修改，待端到端手动验证。
+- 备注: 保持事件命名三段式；严禁 console.*，统一 Logger；所有读写 UTF-8。
+
+### 2025-10-07 Toast 一致性 & 相对导入错误
+- Toast: 将 pdf-home 添加流程的错误/成功提示统一改用左上角堆叠Toast (ToastManager)，替换此前使用的 notification.js（右上角）。
+- ImportError: DefaultAddService 以 importlib 动态加载，无法依赖相对导入；已将 '...pdf_manager.*' 改为 'src.backend.pdf_manager.*' 绝对导入，避免 'attempted relative import with no known parent package'。
+- 受影响文件: src/frontend/pdf-home/features/pdf-list/index.js, src/frontend/common/utils/toast-manager.js, src/frontend/common/ws/ws-client.js, src/backend/api/pdf-home/add/service.py
+
+## 2025-10-06 第三方 Toast 集成（pdf-home 添加流程）
+- 背景: 应用户要求，引入第三方 Toast 库以替换“添加 PDF”相关提示，提升样式与交互体验；范围限定在 pdf-home 添加流程，避免对其他模块造成侵入。
+- 选型: 采用 `izitoast`（无依赖、成熟、支持 `position: 'topRight'`、`timeout: false` 粘性提示与可编程关闭）。
+- 适配器: 新增 `src/frontend/common/utils/thirdparty-toast.js`，统一导出：
+  - `pending(id, message)`：右上角粘性提示，记录 DOM 句柄。
+  - `success(message, ms=3000)`：成功提示。
+  - `error(message, ms=5000)`：错误提示。
+  - `dismissById(id)`：通过 `pending` 时的 id 关闭对应 toast。
+- 使用范围: 仅替换 `src/frontend/pdf-home/features/pdf-list/index.js` 中添加流程（导入中/成功/失败/汇总）相关调用；删除等其他流程保持不变。
+- 样式引入: 由适配器内部 `import 'izitoast/dist/css/iziToast.min.css'` 统一引入，Jest 通过 `moduleNameMapper` 对 CSS 做了 mock。
+- 执行步骤（原子化）:
+  1) 安装依赖：`pnpm add izitoast`
+  2) 新增适配器文件并暴露 API
+  3) 替换 pdf-list 中添加流程相关 toast 调用（基于 request_id → pending/dismiss）
+  4) 编写并运行 Jest 测试验证适配器行为
+  5) 更新本 context 与 tech 记录
+- 预期: 多文件添加时每个文件出现“导入中”→ 成功/失败后关闭并弹出结果；全部完成后显示汇总；位置右上角堆叠。

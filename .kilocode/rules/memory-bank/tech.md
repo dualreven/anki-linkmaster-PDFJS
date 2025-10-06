@@ -43,6 +43,18 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
   - `ws/ws-client.js`
 - QWebChannel 逻辑由前端管理（如 `src/frontend/pdf-home/qwebchannel-manager.js`）。
 
+## 第三方 Toast 使用规范（pdf-home 添加流程）
+- 依赖：`izitoast`（已加入 package.json）
+- 统一通过适配器调用：`src/frontend/common/utils/thirdparty-toast.js`
+  - `pending(id, message)`：右上角粘性提示（timeout: false），需后续 `dismissById(id)` 关闭
+  - `success(message, ms=3000)`：成功提示
+  - `warning(message, ms=4000)`：警告提示
+  - `error(message, ms=5000)`：错误提示
+  - `dismissById(id)`：关闭 `pending(id)` 创建的提示
+- 样式：适配器内部已 `import 'izitoast/dist/css/iziToast.min.css'`，无需重复引入
+- 位置：统一右上角（topRight），与既有规范一致
+- 适用范围：当前仅在 `pdf-home` 的“添加 PDF”流程中使用；其他模块暂不修改
+
 ## 启动与编排（AI Launcher）
 - 模块化服务管理：
   - `ai-scripts/ai_launcher/core/service_manager.py`
@@ -393,16 +405,6 @@ emove_comment(ann_id, comment_id)。
 - 关键词：按空格分词；关键词之间 AND；字段内 OR；LIKE 模糊匹配（转义 `%`、`_`，使用 `ESCAPE '\'`）
 - UI 提示：SearchBar 占位符注明"空格=且"
 
-## QWebChannel 桥接扩展（pdf-home → pdf-viewer）
-- 新增 JS API：`QWebChannelBridge.openPdfViewers({ pdfIds })` → 调用 PyQt 端 `openPdfViewers(list)`。
-- PyQt 端：`src/frontend/pdf-home/pyqt-bridge.py`
-  - 读取端口：`logs/runtime-ports.json`（UTF-8）→ `vite_port/msgCenter_port/pdfFile_port`
-  - 生成 URL：`build_pdf_viewer_url(vite, ws, pdf, pdf_id, page, pos)`（位置限定 0-100）
-  - 窗口管理：`MainWindow.viewer_windows: dict[pdf_id, viewer]`
-- 关闭策略：`pdf-home/main_window.py::closeEvent` 先关闭字典中的所有 viewer 窗口，再走后续服务清理逻辑。
-## PDF-Viewer 端口参数消费更新
-- URL 参数 `pdfs=<port>`：viewer 现在在 `file-service` 中读取该参数，优先构造 `http://localhost:<port>/pdfs/<filename>` 的绝对地址加载 PDF，避免依赖 Vite 代理；若未提供则回退 `/pdfs/<filename>` 走代理。
-- URL 参数 `msgCenter=<port>`：沿用现有解析逻辑，建立 WebSocket 连接。
 ### 日志策略更新（前端）
 - EventBus：无订阅者日志→debug；websocket:message:received 默认 suppress。
 - WSClient：type="response" 当作 ACK；仅 settle pending，不广播。
@@ -448,26 +450,3 @@ emove_comment(ann_id, comment_id)。
 - 示例：`pnpm run format:check -- --pattern scripts/test-formatting-sample.js`
 - 快速自测：`pnpm run test:format` 会在示例文件上执行 `format:check`，验证命令链路。
 
-
-## WebSocket 消息契约（搜索）
-
-- 请求（前端 → 后端）：
-  - 	ype: pdf-library:search:requested
-  - equest_id: <string>
-  - data:
-    - query: <string> 原始搜索文本
-    - 	okens: <string[]> 按空格切分的关键词组（AND 语义，可选；未提供时后端根据 query 推导）
-
-- 响应（后端 → 前端）：
-  - 	ype: pdf-library:search:completed（若失败：pdf-library:search:failed）
-  - equest_id: <string> 与请求对应
-  - status: success|error
-  - data:
-    - iles: <Array<Record>> 标准前端记录（含 id/title/author/filename/tags/notes/…）
-    - 	otal_count: <number> 结果总数
-    - search_text: <string> 原始搜索文本回显
-
-- 前端事件路由：
-  - ws-client 将 pdf-library:search:completed 路由为 websocket:message:response，与既有模块兼容
-
-- 字段可配置：SQLite 搜索字段默认覆盖：标题、作者、文件名、标签、备注、主题、关键词；后续在数据库插件层可通过配置扩展。

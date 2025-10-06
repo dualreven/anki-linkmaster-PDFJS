@@ -21,6 +21,7 @@ import { createListState, ListStateHelpers } from './state/list-state.js';
 import { PDF_LIST_EVENTS, EventDataFactory } from './events.js';
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from '../../../common/event/event-constants.js';
 import { showSuccess, showError } from '../../../common/utils/notification.js';
+import { pending as toastPending, success as toastSuccess, warning as toastWarning, error as toastError, dismissById as toastDismiss } from '../../../common/utils/thirdparty-toast.js';
 // 预先导入 Tabulator 以避免动态导入时的 CommonJS 问题
 import 'tabulator-tables';
 
@@ -92,6 +93,9 @@ export class PDFListFeature {
    * @private
    */
   #pendingAdd = null;
+
+  // 添加流程的 Toast 待结算映射（按 request_id 关联）
+  #pendingToastsByRid = new Map();
 
   // ==================== IFeature 接口实现 ====================
 
@@ -231,6 +235,18 @@ export class PDFListFeature {
   }
 
   // ==================== 私有方法 ====================
+
+  // ===== 工具方法 =====
+  #generateRequestId() {
+    return `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  #basename(filepath) {
+    if (!filepath) return '';
+    const norm = String(filepath).replace(/\\/g, '/');
+    const idx = norm.lastIndexOf('/');
+    return idx >= 0 ? norm.slice(idx + 1) : norm;
+  }
 
   /**
    * 设置服务依赖
@@ -401,6 +417,7 @@ export class PDFListFeature {
 
       if (!files || files.length === 0) {
         this.#logger.info('User cancelled file selection');
+        toastWarning('未选择任何文件');
         return;
       }
 
@@ -409,8 +426,14 @@ export class PDFListFeature {
 
       // 循环发送多个单文件请求（后端期望单个filepath参数）
       for (const filepath of files) {
+        const rid = this.#generateRequestId();
+        const base = this.#basename(filepath);
+        // 使用第三方 toast：右上角粘性“导入中”
+        toastPending(rid, '导入中');
+        this.#pendingToastsByRid.set(rid, { base, filepath });
         this.#scopedEventBus?.emitGlobal('websocket:message:send', {
           type: 'pdf-library:add:records',
+          request_id: rid,
           data: {
             filepath: filepath  // 后端期望单个文件路径
           },
@@ -423,7 +446,7 @@ export class PDFListFeature {
 
     } catch (error) {
       this.#logger.error('Add PDF failed:', error);
-      showError(`添加文件失败: ${error.message}`);
+      toastError(`添加文件失败: ${error.message}`);
     }
   }
 
@@ -454,6 +477,7 @@ export class PDFListFeature {
 
       if (!files || files.length === 0) {
         this.#logger.info('User cancelled batch file selection');
+        toastWarning('未选择任何文件');
         return;
       }
 
@@ -462,8 +486,13 @@ export class PDFListFeature {
 
       // 循环发送多个单文件请求（后端期望单个filepath参数）
       for (const filepath of files) {
+        const rid = this.#generateRequestId();
+        const base = this.#basename(filepath);
+        toastPending(rid, '导入中');
+        this.#pendingToastsByRid.set(rid, { base, filepath });
         this.#scopedEventBus?.emitGlobal('websocket:message:send', {
           type: 'pdf-library:add:records',
+          request_id: rid,
           data: {
             filepath: filepath  // 后端期望单个文件路径
           },
@@ -476,7 +505,7 @@ export class PDFListFeature {
 
     } catch (error) {
       this.#logger.error('Batch add failed:', error);
-      showError(`批量添加文件失败: ${error.message}`);
+      toastError(`批量添加文件失败: ${error.message}`);
     }
   }
 
@@ -642,7 +671,22 @@ export class PDFListFeature {
 
       if (data?.status === 'error') {
         const errorMessage = data?.message || data?.error?.message || '操作失败';
-        showError(errorMessage);
+        const isAddFlow = typeof data?.type === 'string' && data.type.startsWith('pdf-library:add:');
+        const rid = data?.request_id;
+        if (isAddFlow || (rid && this.#pendingToastsByRid.has(rid))) {
+          // 使用第三方 toast 处理添加流程的错误
+          if (rid && this.#pendingToastsByRid.has(rid)) {
+            const { base } = this.#pendingToastsByRid.get(rid) || {};
+            toastDismiss(rid);
+            toastError(`${base}-导入失败-${errorMessage}`);
+            this.#pendingToastsByRid.delete(rid);
+          } else {
+            toastError(`添加文件失败: ${errorMessage}`);
+          }
+        } else {
+          // 非添加流程保持原全局提示
+          showError(errorMessage);
+        }
         return;
       }
 
@@ -672,7 +716,13 @@ export class PDFListFeature {
       }
 
       // 处理单个文件添加响应（后端返回 data.file 对象）
-      if (data && data.data && data.data.file && data.status === 'success') {
+      if (data && data.type === 'pdf-library:add:completed' && data.data && data.data.file && data.status === 'success') {
+        if (data.request_id && this.#pendingToastsByRid.has(data.request_id)) {
+          const { base } = this.#pendingToastsByRid.get(data.request_id) || {};
+          toastDismiss(data.request_id);
+          toastSuccess(`${base}-导入成功`);
+          this.#pendingToastsByRid.delete(data.request_id);
+        }
         this.#logger.info(`File added successfully: ${data.data.file.filename}`);
 
         if (this.#pendingAdd && typeof this.#pendingAdd.expected === 'number') {
@@ -681,16 +731,16 @@ export class PDFListFeature {
           if (this.#pendingAdd.processed >= this.#pendingAdd.expected) {
             const { success, failed, expected } = this.#pendingAdd;
             if (failed > 0 && success === 0) {
-              showError(`添加完成：全部失败 ${failed}/${expected}`);
+              toastError(`添加完成：全部失败 ${failed}/${expected}`);
             } else if (failed > 0) {
-              showError(`添加完成：成功 ${success} 个，失败 ${failed} 个`);
+              toastError(`添加完成：成功 ${success} 个，失败 ${failed} 个`);
             } else {
-              showSuccess(`成功添加 ${success} 个文件`);
+              toastSuccess(`成功添加 ${success} 个文件`);
             }
             this.#pendingAdd = null;
           }
         } else {
-          showSuccess('成功添加 1 个文件');
+          toastSuccess('成功添加 1 个文件');
         }
 
         // 重新请求完整列表以更新表格（因为后端返回的信息不完整）
@@ -699,15 +749,28 @@ export class PDFListFeature {
         });
       }
 
+      // 处理添加失败
+      if (data && data.type === 'pdf-library:add:failed') {
+        const errMsg = (data?.error?.message) || data?.message || '添加失败';
+        if (data.request_id && this.#pendingToastsByRid.has(data.request_id)) {
+          const { base } = this.#pendingToastsByRid.get(data.request_id) || {};
+          toastDismiss(data.request_id);
+          toastError(`${base}-导入失败-${errMsg}`);
+          this.#pendingToastsByRid.delete(data.request_id);
+        } else {
+          toastError(`添加文件失败: ${errMsg}`);
+        }
+      }
+
       // 处理批量添加响应（如果后端支持）
       if (data && data.data && Array.isArray(data.data.added_files)) {
         this.#logger.info(`Files added: ${data.data.added_files.length} successful, ${data.data.failed_files?.length || 0} failed`);
 
         // 显示添加结果
         if (data.data.failed_files && data.data.failed_files.length > 0) {
-          showError(`添加完成：成功 ${data.data.added_files.length} 个，失败 ${data.data.failed_files.length} 个`);
+          toastError(`添加完成：成功 ${data.data.added_files.length} 个，失败 ${data.data.failed_files.length} 个`);
         } else if (data.data.added_files.length > 0) {
-          showSuccess(`成功添加 ${data.data.added_files.length} 个文件`);
+          toastSuccess(`成功添加 ${data.data.added_files.length} 个文件`);
         }
 
         // 使用addRow增量添加新行，而不是刷新整个列表
@@ -770,6 +833,15 @@ export class PDFListFeature {
       }
     });
     this.#unsubscribers.push(unsubWebSocketResponse);
+
+    // 兜底：将 WSClient 未专门路由的 add completed/failed 通过 unknown 转发到 response
+    const unsubUnknown = this.#scopedEventBus.onGlobal('websocket:message:unknown', (msg) => {
+      if (!msg || typeof msg.type !== 'string') return;
+      if (msg.type === 'pdf-library:add:completed' || msg.type === 'pdf-library:add:failed') {
+        this.#scopedEventBus?.emitGlobal('websocket:message:response', msg);
+      }
+    });
+    this.#unsubscribers.push(unsubUnknown);
 
     // 也监听专门的pdf_list消息（如果后端发送）
     const unsubWebSocketList = this.#scopedEventBus.onGlobal('websocket:message:list', (data) => {
