@@ -33,7 +33,6 @@ export class WSClient {
     'list',  // 后端广播列表更新时使用的类型
     'load_pdf_file',
     'pdf_detail_response',
-    'pdf/search',  // PDF搜索响应
     'success',
     'error',
     'response',

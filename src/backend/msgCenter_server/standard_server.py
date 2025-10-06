@@ -209,11 +209,9 @@ class StandardWebSocketServer(QObject):
 
         logger.info(f"处理消息类型: {message_type}, 请求ID: {request_id}")
 
-        # === 新规范消息处理（v2: 主语:谓语:宾语） ===
-        # 获取PDF列表
+        # 获取PDF列表（将 v2 路由映射到 v1 响应）
         if message_type == "pdf/list":
-            if hasattr(self, "pdf_library_api") and self.pdf_library_api:
-                return self.handle_pdf_list_v2(request_id, data)
+            return self.handle_pdf_list_request(request_id, data)
         elif message_type == "bookmark/list":
             return self.handle_bookmark_list_request(request_id, data)
         elif message_type == "bookmark/save":
@@ -980,20 +978,7 @@ class StandardWebSocketServer(QObject):
             )
             # 修改消息类型为list，让前端识别为列表更新
             message["type"] = "list"
-            if hasattr(self, "pdf_library_api") and self.pdf_library_api:
-                try:
-                    records = self.pdf_library_api.list_records()
-                    v2_message = {
-                        "type": "pdf/list",
-                        "timestamp": int(time.time()),
-                        "data": {
-                            "records": records,
-                            "total": len(records),
-                        },
-                    }
-                    self.broadcast_message(v2_message)
-                except Exception as exc:
-                    logger.error("广播新版PDF列表失败: %s", exc)
+            # 取消 v2 广播，仅保持 v1 兼容广播
             self.broadcast_message(message)
             logger.info(f"已广播PDF列表更新消息，共 {len(files)} 个文件")
         except Exception as e:
