@@ -1,5 +1,28 @@
 ﻿# Memory Bank（精简版 / 权威）
 
+## 当前任务（20251007045101）
+- 名称：修复 pdf-home 的 PDF 编辑保存链路（前后端联通 + Toast 提示）
+- 问题背景：
+  - 前端 pdf-edit 功能域存在表单与提交逻辑，但保存后“跑不起来”：
+    1) WEBSOCKET_MESSAGE_TYPES 缺失 `pdf-library:record-update:requested`，WSClient 拒绝发送（未注册的请求类型）。
+    2) 保存流程未接入 Toast，用户缺少“更新中/完成/失败”状态反馈。
+  - 后端 msgCenter 标准协议与 standard_server 已实现 `pdf-library:record-update:*`，可直接对接。
+- 相关模块与函数：
+  - 前端：
+    - `src/frontend/pdf-home/features/pdf-edit/index.js`（保存逻辑、WS 提交、现有全局错误容器）
+    - `src/frontend/common/event/event-constants.js`（消息常量定义）
+    - `src/frontend/common/ws/ws-client.js`（请求白名单 ALLOWED_OUTBOUND_TYPES 收集）
+    - `src/frontend/common/utils/thirdparty-toast.js`（标准 toast 适配器）
+  - 后端：
+    - `src/backend/msgCenter_server/standard_server.py::handle_pdf_update_request`
+    - `src/backend/msgCenter_server/standard_protocol.py::MessageType.PDF_LIBRARY_RECORD_UPDATE_*`
+- 执行步骤（原子化）：
+  1) 补充前端常量：在 `WEBSOCKET_MESSAGE_TYPES` 中加入 `PDF_LIBRARY_RECORD_UPDATE_REQUESTED/COMPLETED/FAILED`
+  2) 在 pdf-edit 保存流程中接入第三方 toast：提交前 `pending('更新中')`，成功 `success('更新完成')`，失败 `error('更新失败-原因')`
+  3) 设计最小化测试：断言 WSClient.ALLOWED_OUTBOUND_TYPES 含 `record-update:requested`
+  4) 本地联调验证：点击编辑-保存，观察后端日志与前端 toast
+  5) 回写本文件与 AI-Working-log，并通知完成
+
 ## 总体目标
 - 前端（pdf-home、pdf-viewer）为纯 UI 模块，复用共享基础设施（EventBus / Logger / WSClient），仅在必要时通过 QWebChannel 与 Python 通信。
 - 后端分三类：WebSocket 转发器（仅收发转发）、HTTP 文件服务器（仅文件传输）、PDF 业务服务器（独立、接收指令执行业务）。
