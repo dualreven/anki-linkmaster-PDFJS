@@ -25,7 +25,7 @@ export class SearchBar {
     this.#config = {
       debounceDelay: 300,
       enableLiveSearch: true,
-      placeholder: '输入关键词搜索PDF（文件名、标签、备注）...',
+      placeholder: '输入关键词（空格=且）搜索PDF（标题、作者、文件名、标签、备注、主题、关键词）...',
       ...config
     };
   }
