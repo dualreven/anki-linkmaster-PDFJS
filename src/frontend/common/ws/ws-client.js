@@ -33,7 +33,6 @@ export class WSClient {
     'list',  // 后端广播列表更新时使用的类型
     'load_pdf_file',
     'pdf_detail_response',
-    'pdf/search',  // PDF搜索响应
     'success',
     'error',
     'response',
@@ -581,7 +580,8 @@ export class WSClient {
     while (this.#messageQueue.length > 0) {
       const message = this.#messageQueue.shift();
       try {
-        this.send({ type: message.type, data: message.data });
+        // 保留原始消息（包含 request_id 等字段），避免丢失请求关联
+        this.send(message);
         successCount++;
       } catch (error) {
         failCount++;

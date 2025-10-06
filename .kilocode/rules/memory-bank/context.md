@@ -733,15 +733,17 @@ const service = new NavigationService();
   - Feature Flag 已启用：`src/frontend/pdf-home/config/feature-flags.json:101`
   - 不涉及后端改动
 
-## 2025-10-06 搜索消息类型兼容修复
+## 2025-10-06 搜索消息类型兼容修复（已改为仅保留 v1）
 - 现象：点击搜索出现“未知的消息类型: pdf/search”。
 - 根因：当前运行的后端 `pdfTable_server` 仅识别旧类型 `pdf-home:search:pdf-files`，并统一以 `type=response` 返回；前端 `SearchManager` 发送了新类型 `pdf/search` 且仅处理新协议响应，导致报错。
-- 修复：
-  - 发送端：`SearchManager` 新增模式控制与本地持久化（默认 `v1`）。优先使用 `pdf-home:search:pdf-files`；如遇“未知消息类型”，对该次请求仅回退一次到 `pdf/search` 再试；成功后锁定模式并持久化。
-  - 接收端：新增对 `websocket:message:response` 的解析（旧服务统一 `type=response`），识别 `data.files/total_count/search_text`，转发为 `search:results:updated`；保留对新协议 `pdf/search` 的直接处理。
-  - 本地配置：`localStorage['pdf-home:search:backend-mode']` 可强制设置 `'v1'|'v2'`。
- - 受影响文件：`src/frontend/pdf-home/features/search/services/search-manager.js:1`
-- 预期：避免“未知类型”死循环；自动适配后端协议并记忆。
+- 最终决定：完全移除 v2（`pdf/search`）支持，只保留 v1：
+  - 前端 SearchManager 仅发送 `pdf-home:search:pdf-files`（顶层 `search_text`），仅解析 `websocket:message:response`，读取 `data.files/total_count/search_text`。
+  - 后端 MsgCenter 仅路由 `pdf-home:search:pdf-files` 并返回标准 `response` 包。
+  - 移除了前端“协议自动适配/回退/记忆”等逻辑。
+  - 受影响文件：
+    - `src/frontend/pdf-home/features/search/services/search-manager.js:1`（删除 v2 相关逻辑）
+    - `src/backend/msgCenter_server/standard_server.py:1`（仅保留 v1 搜索路由）
+  - 预期：不会出现“未知的消息类型: pdf/search”；只有 v1 搜索链路生效。
 
 ## 2025-10-06 MsgCenter 搜索路由补全（standard_server）
 - 现象：MsgCenter 日志显示对 `pdf-home:search:pdf-files` 与 `pdf/search` 均返回 `response`，且 message 为“未知的消息类型: ...”。
@@ -753,3 +755,32 @@ const service = new NavigationService();
   - 搜索实现优先使用 `pdf_library_api.search_records()`（若注入），否则回退到 `PDFManager` 内存搜索（空搜索=全部）。
 - 受影响文件：`src/backend/msgCenter_server/standard_server.py:1`（新增分支与处理方法）
 - 结果：前端不会再收到“未知的消息类型: pdf/search|pdf-home:search:pdf-files”的错误；`SearchManager` 的 v1/v2 双协议解析均可正常工作。
+
+## 2025-10-06 PDF-Home 最近搜索长期存储（进行中）
+### 问题与背景
+- 目前 pdf-home 的“最近搜索”仅存于 LocalStorage，无法跨环境/长期保存。
+- 目标：将最近搜索改为长期存储到文件 `data/pdf-home-config.json` 的 `recent_search` 字段，并在前端定期（防抖）推送更新。
+
+### 涉及模块与文件
+- 前端：`src/frontend/pdf-home/features/sidebar/recent-searches/index.js`
+  - 安装时先从 localStorage 读取，再发送 `pdf-home:get:config` 请求，收到回执覆盖本地并渲染。
+  - 每次新增/置顶搜索后，300ms 防抖发送 `pdf-home:update:config`，payload 中包含 `recent_search` 数组（元素形如 `{ text, ts }`）。
+- 前端事件常量：`src/frontend/common/event/event-constants.js:WEBSOCKET_MESSAGE_TYPES`
+  - 新增 `GET_CONFIG`、`UPDATE_CONFIG`。
+- 后端：`src/backend/pdfTable_server/application_subcode/websocket_handlers.py`
+  - 新增 `handle_get_config`、`handle_update_config`。
+  - 配置文件路径：`data/pdf-home-config.json`（UTF-8 + 换行 `\n`）。
+
+### 执行步骤（原子任务）
+1. 新增事件常量（前端）
+2. 编写前端单测（安装请求、更新发送、回执覆盖）
+3. 改造 RecentSearchesFeature 读/写后端（含防抖）
+4. 增加后端 WS 处理器（UTF-8 文件读写）
+5. 运行前端测试并修正
+6. 记录日志并通知完成
+
+### 注意事项
+- 文件读写统一使用 `encoding='utf-8'`，写入需 `newline='\n'`，JSON `ensure_ascii=False`。
+- 事件命名严格 `module:action:object` 三段式。
+- 仍保留 localStorage 作为 UI 立即可用的本地缓存；后端回执为权威数据源，覆盖本地。
+- WebSocket 连接时序：Feature 安装可能早于 WS 连接建立；已修复 WSClient `#flushMessageQueue()` 保留完整消息（含 `request_id`），避免队列消息回执无法关联。
