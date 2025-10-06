@@ -4,6 +4,10 @@
  */
 
 export class SearchBar {
+  // 轻量依赖：用于显示“搜索中”提示
+  // 注意：相对路径从 features/search/components 到 common/utils
+  // 路径计算：components -> search -> features -> pdf-home -> frontend -> common
+  
   #logger = null;
   #eventBus = null;
   #container = null;
@@ -310,6 +314,13 @@ export class SearchBar {
   #handleSearch(searchText) {
     // 空搜索也是有效的搜索，应该显示所有记录
     this.#logger.info('[SearchBar] Search triggered', { searchText: searchText || '(empty)' });
+    // UI 立即反馈：显示“搜索中”，避免依赖后续 SearchManager 的 started 事件
+    try {
+      // 动态导入以避免循环依赖和初次加载开销
+      import('../../../../common/utils/notification.js').then(mod => {
+        try { mod.showInfo && mod.showInfo('搜索中', 0); } catch (_) {}
+      }).catch(() => {});
+    } catch (_) {}
     this.#eventBus.emit('search:query:requested', { searchText: searchText || '' });
   }
 

@@ -561,7 +561,7 @@ class StandardWebSocketServer(QObject):
             )
 
     def handle_pdf_search_request(self, request_id: Optional[str], data: Dict[str, Any], raw_message: Dict[str, Any]) -> Dict[str, Any]:
-        """处理 PDF 搜索请求，适配统一契约。"""
+        """处理 PDF 搜索请求（标准契约，SQLite 多字段模糊，支持空格分词 AND）。"""
         try:
             if not hasattr(self, "pdf_library_api") or not self.pdf_library_api:
                 return StandardMessageHandler.build_error_response(
@@ -571,6 +571,8 @@ class StandardWebSocketServer(QObject):
                     message_type=MessageType.PDF_LIBRARY_SEARCH_FAILED,
                     code=503,
                 )
+
+            # 解析入参
             query = "" if not isinstance(data, dict) else str(data.get("query", "") or "")
             try:
                 limit = int(data.get("limit", 50)) if isinstance(data, dict) else 50
@@ -580,22 +582,39 @@ class StandardWebSocketServer(QObject):
                 offset = int(data.get("offset", 0)) if isinstance(data, dict) else 0
             except Exception:
                 offset = 0
+
+            # 将 query 按空格拆分为 tokens（忽略空项）
+            # 使用小写匹配；具体字段匹配由 API 内部完成（标题/作者/文件名/标签/备注/主题/关键词）
+            tokens = [t.strip().lower() for t in query.split() if str(t).strip()]
+
             payload = {
                 "query": query,
+                "tokens": tokens,
                 "pagination": {"limit": limit, "offset": offset, "need_total": True},
             }
+
+            # 执行搜索（返回前端映射后的完整记录）
             search_result = self.pdf_library_api.search_records(payload)
-            items = []
-            for rec in search_result.get("records", []):
-                items.append({
-                    "pdf_id": rec.get("id"),
-                    "title": rec.get("title"),
-                    "page_count": rec.get("page_count"),
-                    "tags": rec.get("tags", []),
-                })
-            data_payload = {"items": items}
-            if "total" in search_result:
-                data_payload["total"] = search_result.get("total")
+            records = search_result.get("records", [])
+            total = search_result.get("total", len(records))
+
+            # 兼容/兜底：若空查询且数据库暂无同步记录，则回退到运行内存的 pdf_manager 列表
+            if (not tokens) and (not records) and hasattr(self, "pdf_manager") and self.pdf_manager:
+                try:
+                    pm_files = self.pdf_manager.get_files() or []
+                    # pm_files 已为前端友好字段（id/title/author/filename/tags/notes/...）
+                    records = pm_files
+                    total = len(records)
+                except Exception as _:
+                    pass
+
+            # 统一 completed 响应数据结构供前端消费
+            data_payload = {
+                "files": records,
+                "total_count": total,
+                "search_text": query,
+            }
+
             return StandardMessageHandler.build_response(
                 MessageType.PDF_LIBRARY_SEARCH_COMPLETED,
                 request_id or StandardMessageHandler.generate_request_id(),

@@ -448,3 +448,26 @@ emove_comment(ann_id, comment_id)。
 - 示例：`pnpm run format:check -- --pattern scripts/test-formatting-sample.js`
 - 快速自测：`pnpm run test:format` 会在示例文件上执行 `format:check`，验证命令链路。
 
+
+## WebSocket 消息契约（搜索）
+
+- 请求（前端 → 后端）：
+  - 	ype: pdf-library:search:requested
+  - equest_id: <string>
+  - data:
+    - query: <string> 原始搜索文本
+    - 	okens: <string[]> 按空格切分的关键词组（AND 语义，可选；未提供时后端根据 query 推导）
+
+- 响应（后端 → 前端）：
+  - 	ype: pdf-library:search:completed（若失败：pdf-library:search:failed）
+  - equest_id: <string> 与请求对应
+  - status: success|error
+  - data:
+    - iles: <Array<Record>> 标准前端记录（含 id/title/author/filename/tags/notes/…）
+    - 	otal_count: <number> 结果总数
+    - search_text: <string> 原始搜索文本回显
+
+- 前端事件路由：
+  - ws-client 将 pdf-library:search:completed 路由为 websocket:message:response，与既有模块兼容
+
+- 字段可配置：SQLite 搜索字段默认覆盖：标题、作者、文件名、标签、备注、主题、关键词；后续在数据库插件层可通过配置扩展。

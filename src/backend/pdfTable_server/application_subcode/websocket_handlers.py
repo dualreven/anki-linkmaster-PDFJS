@@ -42,8 +42,9 @@ class WebSocketHandlers:
                 self.handle_add_pdf(client, message)
             elif message_type in ('pdf-library:list:requested', 'get_pdf_list'):
                 self.handle_get_pdf_list(client, message)
+            # 搜索请求改由标准服务器统一处理（返回 ':completed' 消息），此处不再重复处理，避免重复响应
             elif message_type in ('pdf-library:search:requested', 'pdf-library:search:records'):
-                self.handle_search_pdf(client, message)
+                return
             elif message_type in ('pdf-library:config-read:requested', 'pdf-home:get:config'):
                 self.handle_get_config(client, message)
             elif message_type in ('pdf-library:config-write:requested', 'pdf-home:update:config'):

@@ -13,6 +13,52 @@
 
 ---
 
+## 本次任务（20251006160045）
+
+- 名称：拉取远程 main 并合并到当前分支
+- 当前分支：feature-pdf-processing
+- 目的：同步主线最新变更，减少后续冲突风险。
+- 相关：仅涉及 Git 分支与合并流程，不改动业务架构。
+
+执行步骤（原子）
+1) 检查远程与当前分支：`git remote -v`、`git rev-parse --abbrev-ref HEAD`
+2) 拉取主线：`git fetch origin main --prune --tags`
+3) 暂存本地未提交修改：`git stash save`（必要时）
+4) 合并主线：`git merge --no-edit origin/main`
+5) 解决冲突：优先融合 V2 接口与 Logger 规范（如发生）
+6) 还原暂存：`git stash pop` 并继续解决冲突（如发生）
+7) 验证：`git status` 与关键脚本/单测快速运行
+
+当前状态（2025-10-06 16:08:00）
+- 合并提交已生成；冲突文件已解决并提交：
+  - `src/frontend/pdf-home/bootstrap/app-bootstrap-v2.js`
+  - `src/frontend/pdf-home/index.js`
+- 其余文件合并完成；工作区仍有少量未提交改动（非冲突）。
+
+记录
+- 详见：`AItemp/20251006160045-AI-Working-log.md`
+- 本文件与日志均使用 UTF-8 与 `\n` 换行。
+
+---
+
+## 本次任务（20251006170512）
+
+- 名称：修复“搜索中不结束/无结果显示”问题
+- 背景：用户反馈搜索后一直显示“搜索中”，无任何结果或失败提示。
+- 根因：
+  - WSClient 提前拦截 `type='error'/'response'` 等兼容消息，导致未进入分发流程；
+  - SearchManager 未订阅 ERROR 事件，失败场景无法结算 pending 请求。
+- 方案：
+  1) 放宽 WSClient 入站白名单：允许 `WSClient.VALID_MESSAGE_TYPES` 与 `response` 类型通过；
+  2) SearchManager 订阅 `WEBSOCKET_MESSAGE_EVENTS.ERROR`，匹配本请求 `request_id` 后发布 `search:results:failed`，隐藏“搜索中”。
+- 状态：已修复，建议端到端验证。
+- 变更文件：
+  - `src/frontend/common/ws/ws-client.js`
+  - `src/frontend/pdf-home/features/search/services/search-manager.js`
+- 记录：`AItemp/20251006170512-AI-Working-log.md`
+
+---
+
 ## ⚠️ 前端开发核心规范（必读）
 
 ### 1️⃣ Logger 日志系统（强制使用）
@@ -1557,3 +1603,17 @@ if (res?.status === 'success') { /* 使用 res.data */ }
 - annotation-manager.js 中重复的私有方法 `#deleteAnnotationFromBackend` 已去重
 - 保留的实现：基于 `#wsClient.request` 的删除逻辑
 - 构建验证通过：`pnpm run build:pdf-viewer`（无 Babel 报错）
+
+## 本次任务（20251006163530)
+- 名称：修复 pdf-home 搜索（WS契约+SQLite模糊搜索+Toast）
+- 目的：点击显示‘搜索中’，按空格分词，SQLite多字段模糊（标题/作者/文件名/标签/备注/主题/关键词），后端统一 completed 消息，前端渲染结果。
+- 涉及：
+  - 后端：src/backend/msgCenter_server/standard_server.py（搜索请求处理），src/backend/pdfTable_server/application_subcode/websocket_handlers.py（去除旧重复搜索响应）
+  - 前端：src/frontend/common/ws/ws-client.js（事件映射），src/frontend/pdf-home/features/search/services/search-manager.js（请求载荷修正），src/frontend/pdf-home/features/search/index.js（Toast）
+- 执行步骤：
+  1) 修改标准WS搜索处理，构造 tokens 并返回完整 files
+  2) 移除旧搜索重复响应
+  3) 修复 WSClient 对搜索 completed/failed 的事件映射
+  4) SearchManager 发送 data: { query, tokens }
+  5) SearchFeature 显示/隐藏 Toast
+  6) 端到端验证与记录

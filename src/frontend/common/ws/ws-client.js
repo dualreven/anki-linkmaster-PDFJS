@@ -324,7 +324,10 @@ export class WSClient {
         }
       }
 
-      if (!AllowedGlobalEvents.has(message.type)) {
+      // 允许标准契约外的一些通用类型（后端可能返回 'response'/'error' 等兼容类型）
+      const _type = String(message.type || '');
+      const isCompatAllowed = WSClient.VALID_MESSAGE_TYPES.includes(_type) || _type === 'response';
+      if (!AllowedGlobalEvents.has(message.type) && !isCompatAllowed) {
         // 未注册的消息类型：拦截并作为错误处理
         const errInfo = {
           error_code: 'UNREGISTERED_MESSAGE_TYPE',
@@ -366,6 +369,22 @@ export class WSClient {
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
           this._handlePDFDetailResponse(message);
           break;
+        case "pdf-library:search:completed":
+          // 标准搜索完成事件：统一路由为通用 RESPONSE，便于既有模块复用
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
+          break;
+        case "pdf-library:search:failed":
+          // 标准搜索失败事件：作为通用 ERROR 处理
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.ERROR;
+          break;
+        case "pdf-library:list:completed":
+          // 统一作为通用 RESPONSE，供上层 PDF 列表处理逻辑消费
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
+          break;
+        case "pdf-library:config-read:completed":
+          // 统一作为通用 RESPONSE，便于配置读取监听
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
+          break;
         case "success":
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.SUCCESS;
           break;
@@ -374,9 +393,10 @@ export class WSClient {
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.ERROR;
           break;
         case "response":
-          // Treat generic "response" messages as ACK: settle pending request and do not emit
+          // 兼容旧服务：通用 response 也广播为标准 RESPONSE 事件，便于上层统一处理
           this._settlePendingRequest(message);
-          return;
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
+          break;
         case "system_status":
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.SYSTEM_STATUS;
           break;
