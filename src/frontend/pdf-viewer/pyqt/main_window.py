@@ -1,4 +1,4 @@
-"""
+﻿"""
 MainWindow for PDF-Viewer - 集成JSConsoleLogger
 
 这个版本的MainWindow会将javaScriptConsoleMessage自动传递给
@@ -86,7 +86,7 @@ class MainWindow(QMainWindow):
             settings.setAttribute(QWebEngineSettings.WebAttribute.AllowRunningInsecureContent, False)
             settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, False)
             settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, False)
-            settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanAccessClipboard, False)
+            settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanAccessClipboard, True)
             settings.setAttribute(QWebEngineSettings.WebAttribute.XSSAuditingEnabled, True)
 
         # 创建增强版自定义页面

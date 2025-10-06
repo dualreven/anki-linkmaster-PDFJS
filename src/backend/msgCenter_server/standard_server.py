@@ -77,6 +77,10 @@ def get_port(args_port=None):
     logger.info(f"Using default port: {default_port}")
     return default_port
 
+from src.backend.api.pdf_library_api import PDFLibraryAPI  # type: ignore
+from src.backend.api.service_registry import ServiceRegistry  # type: ignore
+
+
 class StandardWebSocketServer(QObject):
     """标准WebSocket服务器 - 支持JSON通信标准"""
     
@@ -85,7 +89,7 @@ class StandardWebSocketServer(QObject):
     client_disconnected = pyqtSignal(QWebSocket)
     message_received = pyqtSignal(QWebSocket, dict)
     
-    def __init__(self, host="127.0.0.1", port=8765, app=None):
+    def __init__(self, host="127.0.0.1", port=8765, app=None, *, pdf_library_api: Optional[PDFLibraryAPI] = None, service_registry: Optional[ServiceRegistry] = None):
         super().__init__()
         self.host = host
         self.port = port
@@ -98,6 +102,14 @@ class StandardWebSocketServer(QObject):
         
         # PDF管理器
         self.pdf_manager = PDFManager()
+
+        # API 门面/服务注册表（可注入）
+        self.pdf_library_api = pdf_library_api
+        if self.pdf_library_api is None and service_registry is not None:
+            try:
+                self.pdf_library_api = PDFLibraryAPI(service_registry=service_registry)
+            except Exception as exc:
+                logger.warning("创建 PDFLibraryAPI 失败: %s", exc)
         
         # 连接信号
         self.server.newConnection.connect(self.on_new_connection)
@@ -209,11 +221,9 @@ class StandardWebSocketServer(QObject):
 
         logger.info(f"处理消息类型: {message_type}, 请求ID: {request_id}")
 
-        # === 新规范消息处理（v2: 主语:谓语:宾语） ===
-        # 获取PDF列表
+        # 获取PDF列表（将 v2 路由映射到 v1 响应）
         if message_type == "pdf/list":
-            if hasattr(self, "pdf_library_api") and self.pdf_library_api:
-                return self.handle_pdf_list_v2(request_id, data)
+            return self.handle_pdf_list_request(request_id, data)
         elif message_type == "bookmark/list":
             return self.handle_bookmark_list_request(request_id, data)
         elif message_type == "bookmark/save":
@@ -238,9 +248,15 @@ class StandardWebSocketServer(QObject):
         elif message_type in ["pdf-home:get:pdf-info", "pdf_detail_request"]:
             return self.handle_pdf_detail_request(request_id, data)
 
-        # 搜索（兼容 v1/v2）
-        elif message_type in ["pdf/search", "pdf-home:search:pdf-files"]:
-            return self.handle_pdf_search_request(request_id, data, message_type, message)
+        # 搜索（仅保留 v1）
+        elif message_type in ["pdf-home:search:pdf-files"]:
+            return self.handle_pdf_search_request(request_id, data, message)
+
+        # PDF-Home 配置读写（recent_search 持久化）
+        elif message_type in ["pdf-home:get:config"]:
+            return self.handle_pdf_home_get_config(request_id)
+        elif message_type in ["pdf-home:update:config"]:
+            return self.handle_pdf_home_update_config(request_id, data)
 
         # 更新PDF元数据
         elif message_type in ["pdf-home:update:pdf", "update_pdf"]:
@@ -282,6 +298,99 @@ class StandardWebSocketServer(QObject):
                 "unknown_message_type",
                 f"未知的消息类型: {message_type}",
                 code=400
+            )
+
+    def _get_pdf_home_config_path(self) -> str:
+        try:
+            data_dir = getattr(self.pdf_manager, 'data_dir', 'data') or 'data'
+        except Exception:
+            data_dir = 'data'
+        os.makedirs(data_dir, exist_ok=True)
+        return os.path.join(data_dir, 'pdf-home-config.json')
+
+    def handle_pdf_home_get_config(self, request_id: Optional[str]) -> Dict[str, Any]:
+        try:
+            cfg_path = self._get_pdf_home_config_path()
+            config_obj = {"recent_search": []}
+            if os.path.exists(cfg_path):
+                with open(cfg_path, 'r', encoding='utf-8') as f:
+                    try:
+                        loaded = json.load(f)
+                        if isinstance(loaded, dict):
+                            config_obj.update(loaded)
+                    except Exception as exc:
+                        logger.warning("配置文件解析失败，使用默认对象: %s", exc, exc_info=True)
+            else:
+                with open(cfg_path, 'w', encoding='utf-8', newline='\n') as f:
+                    json.dump(config_obj, f, ensure_ascii=False, indent=2)
+
+            return StandardMessageHandler.build_response(
+                'response',
+                request_id,
+                status='success',
+                code=200,
+                message='读取配置成功',
+                data={
+                    'original_type': 'pdf-home:get:config',
+                    'config': config_obj
+                }
+            )
+        except Exception as e:
+            logger.error("读取配置失败: %s", e, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id,
+                'INTERNAL_ERROR',
+                f'读取配置失败: {str(e)}',
+                code=500
+            )
+
+    def handle_pdf_home_update_config(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            cfg_path = self._get_pdf_home_config_path()
+            # 读旧配置
+            config_obj = {"recent_search": []}
+            if os.path.exists(cfg_path):
+                with open(cfg_path, 'r', encoding='utf-8') as f:
+                    try:
+                        loaded = json.load(f)
+                        if isinstance(loaded, dict):
+                            config_obj.update(loaded)
+                    except Exception as exc:
+                        logger.warning("配置文件解析失败，将覆盖为新配置: %s", exc, exc_info=True)
+
+            # 合并新数据（仅 recent_search）
+            recent = (data or {}).get('recent_search')
+            if isinstance(recent, list):
+                cleaned = []
+                for it in recent:
+                    if isinstance(it, dict) and isinstance(it.get('text'), str):
+                        cleaned.append({
+                            'text': it.get('text', ''),
+                            'ts': it.get('ts') or 0
+                        })
+                config_obj['recent_search'] = cleaned
+
+            with open(cfg_path, 'w', encoding='utf-8', newline='\n') as f:
+                json.dump(config_obj, f, ensure_ascii=False, indent=2)
+
+            return StandardMessageHandler.build_response(
+                'response',
+                request_id,
+                status='success',
+                code=200,
+                message='更新配置成功',
+                data={
+                    'original_type': 'pdf-home:update:config',
+                    'config': config_obj
+                }
+            )
+        except Exception as e:
+            logger.error("更新配置失败: %s", e, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id,
+                'INTERNAL_ERROR',
+                f'更新配置失败: {str(e)}',
+                code=500
             )
     
 
@@ -411,13 +520,11 @@ class StandardWebSocketServer(QObject):
                 f"获取PDF列表失败: {str(e)}"
             )
 
-    def handle_pdf_search_request(self, request_id: str, data: Dict[str, Any], message_type: str, raw_message: Dict[str, Any]) -> Dict[str, Any]:
+    def handle_pdf_search_request(self, request_id: str, data: Dict[str, Any], raw_message: Dict[str, Any]) -> Dict[str, Any]:
         """处理PDF搜索请求（v1/v2 兼容）
 
         - v1: type = 'pdf-home:search:pdf-files', 顶层携带 search_text
               响应使用标准 response 包，data = { files, search_text, total_count, original_type }
-        - v2: type = 'pdf/search', data = { search_text, search_fields?, include_hidden?, limit?, offset? }
-              响应使用类型化消息 'pdf/search'，data = { records, count, search_text }
         """
         try:
             # 兼容两种位置的 search_text
@@ -477,54 +584,29 @@ class StandardWebSocketServer(QObject):
                     records = results
                 total = len(records)
 
-            if message_type == 'pdf/search':
-                # 返回类型化响应
-                response = {
-                    'type': 'pdf/search',
-                    'timestamp': int(time.time()),
-                    'request_id': request_id,
-                    'status': 'success',
-                    'code': 200,
-                    'message': '搜索成功',
-                    'data': {
-                        'records': records,
-                        'count': total,
-                        'search_text': search_text
-                    }
+            # 仅返回 v1 标准 response 包
+            return StandardMessageHandler.build_response(
+                'response',
+                request_id,
+                status='success',
+                code=200,
+                message='搜索成功',
+                data={
+                    'files': records,
+                    'search_text': search_text,
+                    'total_count': total,
+                    'original_type': 'pdf-home:search:pdf-files'
                 }
-                return response
-            else:
-                # 兼容旧响应（统一 response 包）
-                return StandardMessageHandler.build_response(
-                    'response',
-                    request_id,
-                    status='success',
-                    code=200,
-                    message='搜索成功',
-                    data={
-                        'files': records,
-                        'search_text': search_text,
-                        'total_count': total,
-                        'original_type': 'pdf-home:search:pdf-files'
-                    }
-                )
+            )
 
         except Exception as e:
             logger.error("处理搜索请求时出错: %s", e, exc_info=True)
-            if message_type == 'pdf/search':
-                return StandardMessageHandler.build_error_response(
-                    request_id,
-                    'SEARCH_ERROR',
-                    f'搜索失败: {str(e)}',
-                    code=500
-                )
-            else:
-                return StandardMessageHandler.build_error_response(
-                    request_id,
-                    'SEARCH_ERROR',
-                    f'搜索失败: {str(e)}',
-                    code=500
-                )
+            return StandardMessageHandler.build_error_response(
+                request_id,
+                'SEARCH_ERROR',
+                f'搜索失败: {str(e)}',
+                code=500
+            )
     
     def handle_pdf_upload_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """处理PDF上传请求"""
@@ -1007,20 +1089,7 @@ class StandardWebSocketServer(QObject):
             )
             # 修改消息类型为list，让前端识别为列表更新
             message["type"] = "list"
-            if hasattr(self, "pdf_library_api") and self.pdf_library_api:
-                try:
-                    records = self.pdf_library_api.list_records()
-                    v2_message = {
-                        "type": "pdf/list",
-                        "timestamp": int(time.time()),
-                        "data": {
-                            "records": records,
-                            "total": len(records),
-                        },
-                    }
-                    self.broadcast_message(v2_message)
-                except Exception as exc:
-                    logger.error("广播新版PDF列表失败: %s", exc)
+            # 取消 v2 广播，仅保持 v1 兼容广播
             self.broadcast_message(message)
             logger.info(f"已广播PDF列表更新消息，共 {len(files)} 个文件")
         except Exception as e:

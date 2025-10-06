@@ -1,4 +1,4 @@
-# Memory Bank（精简版 / 权威）
+﻿# Memory Bank（精简版 / 权威）
 
 ## 总体目标
 - 前端（pdf-home、pdf-viewer）为纯 UI 模块，复用共享基础设施（EventBus / Logger / WSClient），仅在必要时通过 QWebChannel 与 Python 通信。
@@ -646,6 +646,75 @@ const service = new NavigationService();
 - 需求: 在标注插件系统UI（侧边栏工具按钮、卡片按钮、快捷操作按钮等）使用Unicode表情取代纯文字标识。
 - 关注范围: annotation-sidebar-ui, tools下的按钮, text-selection-quick-actions。
 - 注意: 保留tooltip解释文字，确保表情含义直观。
+## 2025-10-06 PDF书签持久化调研
+- 触发：用户要求完成 pdf-viewer 书签功能的持久化存储，询问后端基础设施是否完备。
+- 目标：盘点现有数据库插件、API、消息通道是否已覆盖书签 CRUD；若缺口存在需拆解原子任务（后端/前端）。
+- 关联模块：`src/backend/database/plugins/pdf_bookmark_plugin.py`、`src/backend/api/pdf_library_api.py`、`src/backend/websocket/standard_server.py`、`src/frontend/pdf-viewer/features/bookmark/*`。
+- 待办：
+  1. 阅读 bookmark 插件及 API 实现，确认书签写入/读取能力与事件流。
+  2. 核对 WebSocket 消息是否暴露书签存储接口。
+  3. 若无现成接口，设计最小持久化协议并整理到 todo 文档。
+  4. 更新本调研结果与后续任务安排。
+### 2025-10-06 调研结论
+- `PDFBookmarkTablePlugin` 已具备完整 CRUD/层级能力并通过单测，但 `PDFLibraryAPI` 尚未暴露书签 CRUD 接口，仅用于统计数量。
+- WebSocket `StandardWebSocketServer` 当前仅提供 `pdf/list` 等基础消息，缺少 `bookmark/*` 相关路由，前端无法直接调用后端持久化接口。
+- 前端 `features/pdf-bookmark` 仍使用 `LocalStorageBookmarkStorage`，未集成远端存储实现；持久化落地需新增后端 API、消息协议与前端存储策略切换。
+### 2025-10-06 书签持久化执行步骤
+1. 设计并补充后端 API (`PDFLibraryAPI`) 的书签 CRUD 接口，同时规划对应单元测试。
+2. 在 WebSocket 标准服务器中定义 `bookmark/*` 消息协议与路由，实现与 API 的集成，并规划消息流测试。
+3. 扩展前端书签存储层：新增远端存储实现、切换策略与回退方案，设计前端单元/集成测试。
+4. 设计端到端验证（含前端→WS→API→数据库闭环），实现并执行回归测试。
+- 2025-10-06：PDFLibraryAPI 增补 `list_bookmarks`/`save_bookmarks`/`search_records` 接口；实现 LocalStorage → 数据库的树形书签持久化转换，并重写搜索逻辑（支持 tokens、多字段权重、过滤、分页）。对应单测 `src/backend/api/__tests__/test_pdf_library_api.py` 全部通过。
+- 2025-10-06：WebSocket 标准服务器新增 `bookmark/list` 与 `bookmark/save` 消息处理，统一委派到 PDFLibraryAPI，并返回 `{bookmarks, root_ids}` / `{saved}` 数据结构。
+- 2025-10-06：前端书签存储切换为远端优先模型，BookmarkManager 支持注入 `wsClient`，默认通过 RemoteBookmarkStorage→WebSocket→PDFLibraryAPI 持久化；WSClient 新增 `request()` + `_settlePendingRequest`，统一请求/响应链路。
+
+## 2025-10-06 复制 PDF ID 按钮修复（当前）
+- 问题：书名左侧新增的“复制 PDF ID”按钮点击后未能复制 `pdf_id`，或在缺少 `pdf-id` URL 参数时按钮不显示/不可用。
+- 背景：
+  - UI 位于 `src/frontend/pdf-viewer/index.html:15`（`#copy-pdf-id-btn`）。
+  - 复制逻辑位于 `src/frontend/pdf-viewer/features/ui-manager/components/ui-manager-core.js`：
+    - 初始化按钮并绑定点击事件（`#setupCopyPdfIdButton()`）。
+    - 当前仅在收到 `URL_PARAMS.PARSED` 事件或直接从 URL 查询到 `pdf-id` 时设置 `#currentPdfId`。
+    - 在 `FILE.LOAD.SUCCESS` 事件中只更新标题，未回填 `#currentPdfId`。
+- 相关模块与函数：
+  - `URLNavigationFeature` 解析并发布 `PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.PARSED`（`features/url-navigation/index.js`）。
+  - `UIManagerCore` 事件处理与按钮逻辑（`#setupEventListeners()`、`#setupCopyPdfIdButton()`、`#updateHeaderTitle()`）。
+- 假设与可能根因：
+  1) 启动场景未携带 `pdf-id`（仅携带 `file`），导致 `#currentPdfId` 为空，按钮保持隐藏；
+  2) 某些环境下 `navigator.clipboard` 不可用，未触发降级逻辑或降级失败提示不明显；
+  3) 事件顺序或作用域问题导致未捕获 `URL_PARAMS.PARSED`。
+- 修复思路：
+  - 在 `FILE.LOAD.SUCCESS` 事件回调中，若 `#currentPdfId` 为空且存在 `filename`，从 `filename` 去除扩展名得到 `pdfId` 并设置，同时调用 `#updateCopyButtonVisibility()`。
+  - 保留现有 Clipboard API + `execCommand` 降级链路与 UI 提示。
+- 执行步骤：
+  1. 先编写 Jest 测试：
+     - 场景A：URL 含 `pdf-id=sample`，初始化后按钮可见，点击后调用 `navigator.clipboard.writeText('sample')`，按钮出现 `copied` 状态与 `title` 变更。
+     - 场景B：无 `pdf-id`，但触发 `FILE.LOAD.SUCCESS{ filename:'doc.pdf' }`，按钮应可见，点击复制 `doc`。
+  2. 实现 `UIManagerCore` 在 `FILE.LOAD.SUCCESS` 中的回填逻辑，并调用可见性更新。
+  3. 运行测试，确保通过；更新工作日志与本上下文。
+- 验收标准：
+  - 两个测试场景均通过；
+  - 按钮在无 `pdf-id` 但有 `filename` 的情况下可用；
+  - 复制成功后 2 秒内 UI 恢复初始提示；
+  - 未破坏既有事件与样式。
+- 已增加复制成功/失败的 Toast 提示（UIManagerCore.#showToast），避免仅依赖 title 悬浮提示造成“无提示”的用户感受。
+- 失败时同时保留 alert 兜底，便于 Qt WebEngine 等环境提示。
+
+- 追加：Clipboard 写入在部分环境（如 Qt WebEngine）可能卡住不返回，导致无提示。已在 UIManagerCore 中加入 #copyWithTimeout(800ms) 超时回退，确保点击后总有可视化反馈与兜底对话框。
+
+
+## 修复记录：PDF-Viewer 复制 PDF ID 按钮（2025-10-06）
+- 问题：书名左侧复制按钮点击后未能复制 pdf_id（在 Qt WebEngine 环境）
+- 根因：src/frontend/pdf-viewer/pyqt/main_window.py 禁用了 QWebEngineSettings.WebAttribute.JavascriptCanAccessClipboard
+- 方案：仅对 PDF-Viewer 窗口启用该属性（True）；保留前端超时保护与回退（execCommand 与手动复制对话框）
+- 变更文件：
+  - src/frontend/pdf-viewer/pyqt/main_window.py:82（实际行号以当前版本为准）
+- 验证步骤：
+  - 启动 python src/frontend/pdf-viewer/launcher.py --pdf-id sample
+  - 按钮可见 → 点击 → toast 提示“✓ PDF ID 已复制”，粘贴结果应为 sample
+  - 日志包含 ✅ PDF ID copied to clipboard: sample
+- 影响范围：仅 PDF-Viewer 窗口；不影响 pdf-home。
+
 
 ### 2025-10-06 PDF-Home 添加流程回归
 - 后端：`PDFLibraryAPI.add_pdf_from_file` 统一生成 12 位十六进制 UUID，并优先通过 `PDFLibraryAPI` 路径完成数据库写入；失败时回滚 `StandardPDFManager`，并保留旧 JSON 流程兜底。
@@ -733,15 +802,17 @@ const service = new NavigationService();
   - Feature Flag 已启用：`src/frontend/pdf-home/config/feature-flags.json:101`
   - 不涉及后端改动
 
-## 2025-10-06 搜索消息类型兼容修复
+## 2025-10-06 搜索消息类型兼容修复（已改为仅保留 v1）
 - 现象：点击搜索出现“未知的消息类型: pdf/search”。
 - 根因：当前运行的后端 `pdfTable_server` 仅识别旧类型 `pdf-home:search:pdf-files`，并统一以 `type=response` 返回；前端 `SearchManager` 发送了新类型 `pdf/search` 且仅处理新协议响应，导致报错。
-- 修复：
-  - 发送端：`SearchManager` 新增模式控制与本地持久化（默认 `v1`）。优先使用 `pdf-home:search:pdf-files`；如遇“未知消息类型”，对该次请求仅回退一次到 `pdf/search` 再试；成功后锁定模式并持久化。
-  - 接收端：新增对 `websocket:message:response` 的解析（旧服务统一 `type=response`），识别 `data.files/total_count/search_text`，转发为 `search:results:updated`；保留对新协议 `pdf/search` 的直接处理。
-  - 本地配置：`localStorage['pdf-home:search:backend-mode']` 可强制设置 `'v1'|'v2'`。
- - 受影响文件：`src/frontend/pdf-home/features/search/services/search-manager.js:1`
-- 预期：避免“未知类型”死循环；自动适配后端协议并记忆。
+- 最终决定：完全移除 v2（`pdf/search`）支持，只保留 v1：
+  - 前端 SearchManager 仅发送 `pdf-home:search:pdf-files`（顶层 `search_text`），仅解析 `websocket:message:response`，读取 `data.files/total_count/search_text`。
+  - 后端 MsgCenter 仅路由 `pdf-home:search:pdf-files` 并返回标准 `response` 包。
+  - 移除了前端“协议自动适配/回退/记忆”等逻辑。
+  - 受影响文件：
+    - `src/frontend/pdf-home/features/search/services/search-manager.js:1`（删除 v2 相关逻辑）
+    - `src/backend/msgCenter_server/standard_server.py:1`（仅保留 v1 搜索路由）
+  - 预期：不会出现“未知的消息类型: pdf/search”；只有 v1 搜索链路生效。
 
 ## 2025-10-06 MsgCenter 搜索路由补全（standard_server）
 - 现象：MsgCenter 日志显示对 `pdf-home:search:pdf-files` 与 `pdf/search` 均返回 `response`，且 message 为“未知的消息类型: ...”。
@@ -752,6 +823,7 @@ const service = new NavigationService();
     - v2: `pdf/search`（`data.search_text` 等）→ 返回类型化消息 `type='pdf/search'`，`data={ records, count, search_text }`
   - 搜索实现优先使用 `pdf_library_api.search_records()`（若注入），否则回退到 `PDFManager` 内存搜索（空搜索=全部）。
 - 受影响文件：`src/backend/msgCenter_server/standard_server.py:1`（新增分支与处理方法）
+ 
 - 结果：前端不会再收到“未知的消息类型: pdf/search|pdf-home:search:pdf-files”的错误；`SearchManager` 的 v1/v2 双协议解析均可正常工作。
 
 ## 2025-10-06 日志治理（前端）
@@ -781,3 +853,87 @@ const service = new NavigationService();
   - 两个新增测试均通过；项目其他部分未受影响。
 - 风险与回归点:
   - 仅涉及 ESModule 装载与命名导出恢复，不改变对外 API；Vite/QtWebEngine 行为与现有脚手架保持一致。
+ 
+- 结果：前端不会再收到"未知的消息类型: pdf/search|pdf-home:search:pdf-files"的错误；`SearchManager` 的 v1/v2 双协议解析均可正常工作。
+
+## 2025-10-06 PDF-Home 最近搜索长期存储 ✅ 完成
+### 问题与背景
+- 目前 pdf-home 的"最近搜索"仅存于 LocalStorage，无法跨环境/长期保存。
+- 目标：将最近搜索改为长期存储到文件 `data/pdf-home-config.json` 的 `recent_search` 字段，并在前端定期（防抖）推送更新。
+
+### 涉及模块与文件
+- 前端：`src/frontend/pdf-home/features/sidebar/recent-searches/index.js`
+  - 安装时先从 localStorage 读取，再发送 `pdf-home:get:config` 请求，收到回执覆盖本地并渲染。
+  - 每次新增/置顶搜索后，300ms 防抖发送 `pdf-home:update:config`，payload 中包含 `recent_search` 数组（元素形如 `{ text, ts }`）。
+- 前端事件常量：`src/frontend/common/event/event-constants.js:WEBSOCKET_MESSAGE_TYPES`
+  - 新增 `GET_CONFIG`、`UPDATE_CONFIG`。
+- 后端：`src/backend/msgCenter_server/standard_server.py`
+  - 新增 `handle_pdf_home_get_config`、`handle_pdf_home_update_config`。
+  - 配置文件路径：`data/pdf-home-config.json`（UTF-8 + 换行 `\n`）。
+
+### 完成内容
+- ✅ 新增事件常量（前端）
+- ✅ 编写前端单测（安装请求、更新发送、回执覆盖）
+- ✅ 改造 RecentSearchesFeature 读/写后端（含防抖）
+- ✅ 增加后端 WS 处理器（UTF-8 文件读写）
+- ✅ 修复 WSClient `#flushMessageQueue()` 保留完整消息（含 `request_id`），避免队列消息回执无法关联
+
+---
+
+## 任务：PDFLibraryAPI 插件隔离重构（规划)
+
+- 时间：2025-10-06
+- 背景：`src/backend/api/pdf_library_api.py` 现为多功能混合门面（搜索/书签/入库等），职责过重，影响扩展与测试边界。
+- 目标：按前端域拆分后端模块，并保留向下兼容门面；不改变 WebSocket 消息契约与前端行为。
+
+### 目录规划
+- `src/backend/api/pdf-home/search`：搜索服务（search_records）
+- `src/backend/api/pdf-home/add`：文件入库/注册（register_file_info, add_pdf_from_file）
+- `src/backend/api/pdf-viewer/bookmark`：书签读写（list_bookmarks, save_bookmarks）
+- `src/backend/api/utils`：时间戳、record 映射、tags 归一化等通用工具
+
+### 执行步骤（原子任务）
+1. 新建上述目录与空模块，补充 `__init__.py`
+2. 提炼工具函数至 `api/utils`（ms/iso/second、tags、row↔record 映射）
+3. 迁移搜索逻辑至 `pdf-home/search/service.py`，门面委派
+4. 迁移书签逻辑至 `pdf-viewer/bookmark/service.py`，门面委派
+5. 迁移入库逻辑至 `pdf-home/add/service.py`，门面委派
+6. 子模块新增单测；保留并通过 `test_pdf_library_api.py`
+7. 冒烟验证 WebSocket 相关路径（不改协议/调用点）
+
+### 测试设计
+- 覆盖：搜索（多 token/空/标签/评分/分页/排序/负例）、书签（树结构/顺序/区域校验/级联）、入库（路径校验/PDF 校验/回滚/DB 同步）
+- 兼容：门面旧测试不变；新增子模块测试
+
+### 约束
+- 文件 I/O 全部显式 UTF-8 编码，换行 `\n` 校验
+- 目录命名使用 kebab-case（例如 `pdf-home`、`pdf-viewer`）
+- 不改动数据库表结构与前端协议
+
+- 需求文档：todo-and-doing/2 todo/20251006140530-pdf-library-api-plugin-isolation/v001-spec.md
+
+## 2025-10-06 实施记录（插件隔离阶段一）
+- 新增 ServiceRegistry：src/backend/api/service_registry.py（键：pdf-home.search/pdf-home.add/pdf-viewer.bookmark）
+- 新建域目录骨架：
+  - src/backend/api/pdf-home/search/{__init__.py, service.py}
+  - src/backend/api/pdf-home/add/{__init__.py, service.py}
+  - src/backend/api/pdf-viewer/bookmark/{__init__.py, service.py}
+- 修改 PDFLibraryAPI：构造函数支持注入 service_registry；search/add/bookmark 方法在服务存在时委派，否则回退原实现；pdf_manager 懒加载避免 Qt 依赖阻塞单测；add_pdf_from_file 懒加载工具避免硬依赖。
+- 新增单测：src/backend/api/__tests__/test_api_service_registry.py（验证注入委派生效）
+- 单测结果：本地仅执行新用例通过（使用 $env:PYTHONPATH=src）
+
+## 2025-10-06 实施记录（插件隔离阶段二）
+- 抽取 utils：src/backend/api/utils/{datetime.py,mapping.py,tags.py}
+- 实现默认服务并自动注册（动态按文件路径加载，兼容 kebab-case 目录）：
+  - pdf-home/search: DefaultSearchService（search_records）
+  - pdf-home/add: DefaultAddService（register_file_info, add_pdf_from_file）
+  - pdf-viewer/bookmark: DefaultBookmarkService（list_bookmarks, save_bookmarks）
+- 修改 PDFLibraryAPI：_auto_register_default_services + 动态加载 _load_default_service()（避免 Python 包导入对 kebab-case 的限制）
+- 保持门面旧逻辑作为回退路径；现默认走委派路径。
+
+
+## 2025-10-06 实施记录（插件隔离阶段三）
+- 标准服务器支持注入：src/backend/msgCenter_server/standard_server.py: __init__(..., pdf_library_api=None, service_registry=None)
+- 如提供 service_registry，则内部创建 PDFLibraryAPI(service_registry=...)，否则保持原逻辑（无门面时走回退）
+- 维持对现有测试的兼容（仍可直接设置 server.pdf_library_api = Fake 实例）
+ 
