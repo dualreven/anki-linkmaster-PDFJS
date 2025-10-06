@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import uuid as uuid_module
 from copy import deepcopy
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -24,6 +26,8 @@ from ..database.plugins.pdf_annotation_plugin import PDFAnnotationTablePlugin
 from ..database.plugins.pdf_bookmark_plugin import PDFBookmarkTablePlugin
 from ..database.plugins.search_condition_plugin import SearchConditionTablePlugin
 from ..pdf_manager.standard_manager import StandardPDFManager
+from ..pdf_manager.utils import FileValidator
+from ..pdf_manager.pdf_metadata_extractor import PDFMetadataExtractor
 
 
 class PDFLibraryAPI:
@@ -282,6 +286,144 @@ class PDFLibraryAPI:
         except DatabaseConstraintError:
             self._pdf_info_plugin.update(payload["uuid"], payload)
             return payload["uuid"]
+
+    def add_pdf_from_file(self, filepath: str) -> Dict[str, Any]:
+        """
+        从文件路径添加 PDF 到数据库
+
+        Args:
+            filepath: PDF 文件的绝对路径
+
+        Returns:
+            Dict[str, Any]: 包含新创建记录的信息
+            {
+                "success": bool,
+                "uuid": str,  # 新记录的UUID
+                "filename": str,
+                "file_size": int,
+                "error": str  # 如果失败
+            }
+        """
+        try:
+            if not filepath:
+                return {
+                    "success": False,
+                    "error": "文件路径不能为空"
+                }
+
+            absolute_path = os.path.abspath(filepath)
+            if not os.path.exists(absolute_path):
+                return {
+                    "success": False,
+                    "error": f"文件不存在: {absolute_path}"
+                }
+
+            if not FileValidator.is_pdf_file(absolute_path):
+                return {
+                    "success": False,
+                    "error": "仅支持添加 PDF 文件"
+                }
+
+            file_size = os.path.getsize(absolute_path)
+            filename = os.path.basename(absolute_path)
+
+            # 如果有 PDF 管理器，优先使用管理器添加文件
+            if self._pdf_manager is not None:
+                success, payload = self._pdf_manager.add_file(absolute_path)
+                if not success:
+                    error_message = ""
+                    if isinstance(payload, dict):
+                        error_message = payload.get("message") or payload.get("error") or ""
+                    if not error_message:
+                        error_message = "PDF文件添加失败"
+                    return {
+                        "success": False,
+                        "error": error_message
+                    }
+
+                file_info = payload if isinstance(payload, dict) else {}
+
+                # 同步到数据库
+                try:
+                    record_uuid = self.register_file_info(file_info)
+                except Exception as exc:
+                    self._logger.error("同步 PDF 信息到数据库失败: %s", exc, exc_info=True)
+                    # 回滚 PDF 管理器中的文件
+                    file_id = file_info.get("id")
+                    if file_id:
+                        try:
+                            self._pdf_manager.remove_file(file_id)
+                        except Exception as cleanup_exc:  # pragma: no cover - best effort cleanup
+                            self._logger.warning("回滚 PDF 添加失败: %s", cleanup_exc)
+                    return {
+                        "success": False,
+                        "error": "同步 PDF 信息到数据库失败"
+                    }
+
+                return {
+                    "success": True,
+                    "uuid": record_uuid,
+                    "filename": file_info.get("filename", filename),
+                    "file_size": file_info.get("file_size", file_size)
+                }
+
+            # 没有 PDF 管理器，直接添加到数据库
+            metadata = PDFMetadataExtractor.extract_metadata(absolute_path)
+            if "error" in metadata:
+                return {
+                    "success": False,
+                    "error": metadata["error"]
+                }
+
+            record_uuid = uuid_module.uuid4().hex[:12]
+            current_time_ms = int(time.time() * 1000)
+
+            record_data = {
+                "uuid": record_uuid,
+                "title": metadata.get("title", filename),
+                "author": metadata.get("author", ""),
+                "page_count": metadata.get("page_count", 0),
+                "file_size": file_size,
+                "created_at": current_time_ms,
+                "updated_at": current_time_ms,
+                "visited_at": 0,
+                "version": 1,
+                "json_data": {
+                    "filename": f"{record_uuid}.pdf",
+                    "original_filename": filename,
+                    "filepath": absolute_path,
+                    "original_path": absolute_path,
+                    "subject": metadata.get("subject", ""),
+                    "keywords": metadata.get("keywords", ""),
+                    "creator": metadata.get("creator", ""),
+                    "producer": metadata.get("producer", ""),
+                    "page_count": metadata.get("page_count", 0),
+                    "tags": [],
+                    "notes": "",
+                    "rating": 0,
+                    "is_visible": True,
+                    "review_count": 0,
+                    "total_reading_time": 0,
+                    "due_date": 0,
+                    "last_accessed_at": 0
+                }
+            }
+
+            self.create_record(record_data)
+
+            return {
+                "success": True,
+                "uuid": record_uuid,
+                "filename": f"{record_uuid}.pdf",
+                "file_size": file_size
+            }
+
+        except Exception as exc:
+            self._logger.error("添加 PDF 文件失败: %s", exc, exc_info=True)
+            return {
+                "success": False,
+                "error": f"添加 PDF 文件失败: {str(exc)}"
+            }
 
     # ------------------------------------------------------------------
     # Internal helpers

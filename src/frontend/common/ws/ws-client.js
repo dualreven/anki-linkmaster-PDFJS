@@ -33,6 +33,7 @@ export class WSClient {
     'list',  // 后端广播列表更新时使用的类型
     'load_pdf_file',
     'pdf_detail_response',
+    'pdf/search',  // PDF搜索响应
     'success',
     'error',
     'response',
@@ -133,12 +134,27 @@ export class WSClient {
     return this.#isConnectedFlag && this.#socket?.readyState === WebSocket.OPEN;
   }
 
-  send({ type, data = {} }) {
-    const message = { type, data, timestamp: Date.now() };
+  send(messageInput) {
+    // 支持两种调用方式:
+    // 1. send({ type, data }) - 传统方式，自动添加timestamp
+    // 2. send({ type, request_id, data, ... }) - 完整消息，保留所有字段
+    const type = messageInput.type;
+    const data = messageInput.data || {};
+
+    // 保留原始消息的所有字段（如 request_id），并添加 timestamp（如果没有）
+    const message = {
+      ...messageInput,  // 保留所有原始字段
+      timestamp: messageInput.timestamp || Date.now()  // 添加时间戳（如果没有）
+    };
+
     if (this.isConnected()) {
       try {
         this.#socket.send(JSON.stringify(message));
-        this.#logger.debug(`✉️ 已发送消息: ${type}`, { type, data });
+        this.#logger.debug(`✉️ 已发送消息: ${type}`, {
+          type,
+          data,
+          request_id: message.request_id || 'none'
+        });
       } catch (error) {
         const errorInfo = {
           error_code: 'MESSAGE_SEND_ERROR',
@@ -266,6 +282,12 @@ export class WSClient {
         }, { actorId: 'WSClient' });
         return;
       }
+
+      // 发出通用的 websocket:message:received 事件（所有消息都会发出）
+      // 这允许任何 Feature 监听所有 WebSocket 消息并自行过滤
+      this.#eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, message, {
+        actorId: 'WSClient'
+      });
 
       if (!WSClient.VALID_MESSAGE_TYPES.includes(message.type)) {
         this.#logger.warn(`⚠️ 未知WebSocket消息类型: ${message.type}`, JSON.stringify({

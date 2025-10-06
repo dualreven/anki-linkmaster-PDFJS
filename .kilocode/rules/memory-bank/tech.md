@@ -345,6 +345,7 @@ emove_comment(ann_id, comment_id)。
 - 工具类（Comment/Screenshot/TextHighlight）与 AnnotationManager/Event UI 必须引用常量，不得再硬编码字符串事件。
 - 2025-10-05: AnnotationSidebarUI 卡片头部新增删除按钮，通过 `PDF_VIEWER_EVENTS.ANNOTATION.DELETE` 触发；TextSelectionQuickActionsFeature 在监听 `@annotation/annotation-tool:*` 时禁用快捷操作。
 - 2025-10-05: 标注UI按钮表情化：QuickActionsToolbar 与 AnnotationSidebarUI 操作按钮改用 Unicode 表情，统一提供 aria-label/title 辅助文本。
+
 ### 2025-10-06 PDFLibraryAPI 扩展
 - 新增接口：`list_bookmarks(pdf_uuid)` 返回 `{bookmarks, root_ids}`；`save_bookmarks(pdf_uuid, bookmarks, root_ids=None)` 负责树形书签覆盖写；`search_records(payload)` 支持多 token 权重排序 + 过滤 + 分页。
 - 书签序列化：前端结构（含子节点）通过 `_flatten_bookmark_tree` 映射为 `pdf_bookmark` 行，`parentId`/`order` 与层级信息同步写入。
@@ -352,3 +353,25 @@ emove_comment(ann_id, comment_id)。
 - 单测：`python -m pytest src/backend/api/__tests__/test_pdf_library_api.py`。
 - WebSocket 消息扩展：`bookmark/list` -> data={pdf_uuid}，响应带 `bookmarks`/`root_ids`；`bookmark/save` -> data={pdf_uuid, bookmarks, root_ids}，成功返回 `saved` 数量，异常统一返回 `type=error`。
 - WSClient 增强：提供 `request(type, payload, {timeout,maxRetries})` 泛化调用，维护 `_settlePendingRequest`，新增消息类型 `bookmark/list`、`bookmark/save` 及事件 `websocket:message:bookmark_list/save`；前端书签默认通过 `RemoteBookmarkStorage` 走 WebSocket，自动回落至 LocalStorage。
+
+### 2025-10-06 加权排序公式构建器与搜索结果布局
+- 校验：使用 `#hasFieldReference` 判断公式是否引用字段，floor(filename)/length(title) 等公式被视为合法。
+- 搜索结果布局：`.search-results-container` 使用 `layout-single/double/triple` 类控制列数，按钮状态存储于 localStorage(`pdf-home:search-results:layout`)；布局按钮样式位于 search-results.css。
+
+### 2025-10-06 PDFLibraryAPI.add_pdf_from_file 更新
+- 新增 12 位十六进制 UUID 与 `<uuid>.pdf` 文件名校验，保持与 `StandardPDFManager` 副本策略一致。
+- 默认优先调用 `StandardPDFManager` 并写表，失败时回滚并返回 `UPLOAD_FAILED`；当管理器禁用时回退至直接建表但仍记录原路径。
+- 返回结构保持 `{success, uuid, filename, file_size|error}`，供 WebSocket 响应直接使用。
+- WebSocket `handle_pdf_upload_request` 现透传 `PDFLibraryAPI` 结果，fallback 时解析 `(success, payload)` 元组并回传原始错误信息，前端可准确提示原因。
+- `PDFManager.add_file` 现在在重复写入时直接发出"文件已存在于列表中"信号，Legacy 适配器即可透传该信息。
+
+## 2025-10-06 PDF-Home 搜索 v001 变更说明
+- 默认搜索字段：后端与前端均包含 `title, author, filename, tags, notes, subject, keywords`
+- SQL 安全：统一使用参数绑定；所有 LIKE 条件采用 `ESCAPE '\\'` 语法并对 `%`、`_` 进行转义；tags 使用 JSON 文本包含匹配
+- 事件契约：WebSocket `type: "pdf/search"`，响应 `status: "success"`，`data: { records, count, search_text }`
+- UI 行为：SearchBar → SearchManager（发起 WS）→ SearchResultsFeature（渲染）；空搜索返回全部
+
+## 2025-10-06 搜索语义（v001）
+- 默认字段：title/author/filename/tags/notes/subject/keywords
+- 关键词：按空格分词；关键词之间 AND；字段内 OR；LIKE 模糊匹配（转义 `%`、`_`，使用 `ESCAPE '\'`）
+- UI 提示：SearchBar 占位符注明"空格=且"

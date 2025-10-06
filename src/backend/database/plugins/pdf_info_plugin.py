@@ -477,6 +477,120 @@ class PDFInfoTablePlugin(TablePlugin):
         rows = self._executor.execute_query(sql, tuple(params))
         return [self._parse_row(row) for row in rows]
 
+    def search_records(
+        self,
+        keywords: List[str],
+        search_fields: Optional[List[str]] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        多关键词搜索（支持按空格分词的搜索）
+
+        Args:
+            keywords: 关键词列表（已按空格分词）
+            search_fields: 要搜索的字段列表，默认 ['title', 'author', 'filename', 'tags', 'notes']
+            limit: 结果数量限制
+            offset: 结果偏移量
+
+        Returns:
+            匹配的记录列表
+
+        Examples:
+            >>> # 搜索 "Python 编程"
+            >>> plugin.search_records(['Python', '编程'])
+            >>> # 返回 title/author/filename/tags/notes 中同时包含 "Python" 和 "编程" 的记录
+        """
+        # 如果没有关键词，返回所有记录
+        if not keywords:
+            return self.query_all(limit=limit, offset=offset)
+
+        # 过滤空关键词
+        keywords = [kw for kw in keywords if kw and kw.strip()]
+        if not keywords:
+            return self.query_all(limit=limit, offset=offset)
+
+        # 默认搜索字段（包含主题与关键词，满足 v001 需求）
+        if search_fields is None:
+            search_fields = ['title', 'author', 'filename', 'tags', 'notes', 'subject', 'keywords']
+
+        # 构建 WHERE 子句
+        # 对每个关键词，在所有字段中搜索（OR），然后用 AND 连接
+        keyword_conditions: List[str] = []
+        params: List[Any] = []
+
+        for keyword in keywords:
+            # 转义 SQL LIKE 特殊字符（%, _）
+            escaped_keyword = keyword.replace('%', '\\%').replace('_', '\\_')
+            like_value = f"%{escaped_keyword}%"
+
+            field_conditions: List[str] = []
+
+            # 基础字段搜索
+            if 'title' in search_fields:
+                field_conditions.append("title LIKE ? ESCAPE '\\'")
+                params.append(like_value)
+
+            if 'author' in search_fields:
+                field_conditions.append("author LIKE ? ESCAPE '\\'")
+                params.append(like_value)
+
+            # JSON 字段搜索
+            if 'filename' in search_fields:
+                field_conditions.append("json_extract(json_data, '$.filename') LIKE ? ESCAPE '\\'")
+                params.append(like_value)
+
+            if 'tags' in search_fields:
+                # tags 是数组，使用 JSON 字符串匹配
+                field_conditions.append("json_data LIKE ?")
+                params.append(f'%"{escaped_keyword}"%')
+
+            if 'notes' in search_fields:
+                field_conditions.append("json_extract(json_data, '$.notes') LIKE ? ESCAPE '\\'")
+                params.append(like_value)
+
+            if 'subject' in search_fields:
+                field_conditions.append("json_extract(json_data, '$.subject') LIKE ? ESCAPE '\\'")
+                params.append(like_value)
+
+            if 'keywords' in search_fields:
+                field_conditions.append("json_extract(json_data, '$.keywords') LIKE ? ESCAPE '\\'")
+                params.append(like_value)
+
+            # 将该关键词的所有字段条件用 OR 连接
+            if field_conditions:
+                keyword_conditions.append(f"({' OR '.join(field_conditions)})")
+
+        if not keyword_conditions:
+            return []
+
+        # 所有关键词条件用 AND 连接（每个关键词都要匹配）
+        where_clause = ' AND '.join(keyword_conditions)
+
+        sql = f"""
+        SELECT * FROM pdf_info
+        WHERE {where_clause}
+        ORDER BY updated_at DESC
+        """
+
+        if limit is not None:
+            sql += " LIMIT ?"
+            params.append(int(limit))
+
+        if offset is not None:
+            sql += " OFFSET ?"
+            params.append(int(offset))
+
+        rows = self._executor.execute_query(sql, tuple(params))
+        result = [self._parse_row(row) for row in rows]
+
+        if self._logger:
+            self._logger.info(
+                f"Search completed: {len(keywords)} keywords, {len(result)} results"
+            )
+
+        return result
+
     def filter_by_tags(
         self,
         tags: List[str],

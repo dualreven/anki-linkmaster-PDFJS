@@ -99,14 +99,14 @@
     }
   },
   "recent-searches": {
-    "enabled": false,
+    "enabled": true,
     "description": "最近搜索功能 - 显示搜索历史（开发中）",
     "version": "1.0.0",
     "meta": {
-      "status": "development",
+      "status": "stable",
       "owner": "pdf-home-team",
       "dependencies": ["sidebar"],
-      "estimatedRelease": "2025-10-05"
+      "releasedAt": "2025-10-06"
     }
   },
   "recent-opened": {
