@@ -9,7 +9,7 @@
  */
 
 import { getLogger } from '../../../../common/utils/logger.js';
-import { WEBSOCKET_EVENTS } from '../../../../common/event/event-constants.js';
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS, WEBSOCKET_MESSAGE_TYPES } from '../../../../common/event/event-constants.js';
 
 export class SearchManager {
   #logger = null;
@@ -18,6 +18,8 @@ export class SearchManager {
   #isSearching = false;
   #unsubs = [];
   #pendingRequests = new Map();  // 存储待处理的请求
+  #backendMode = 'v1'; // 'v1' | 'v2'，默认兼容旧后端
+  #MODE_STORAGE_KEY = 'pdf-home:search:backend-mode';
 
   /**
    * 创建 SearchManager 实例
@@ -27,6 +29,7 @@ export class SearchManager {
   constructor(eventBus) {
     this.#logger = getLogger('SearchManager');
     this.#eventBus = eventBus;
+    this.#loadBackendMode();
     this.#setupEventListeners();
 
     this.#logger.info('[SearchManager] Initialized');
@@ -49,11 +52,17 @@ export class SearchManager {
     }, { subscriberId: 'SearchManager' });
     this.#unsubs.push(unsubClear);
 
-    // 监听 WebSocket 响应消息
+    // 监听 WebSocket 原始消息（新协议直接响应类型）
     const unsubWsMessage = this.#eventBus.on('websocket:message:received', (data) => {
       this.#handleWebSocketMessage(data);
     }, { subscriberId: 'SearchManager' });
     this.#unsubs.push(unsubWsMessage);
+
+    // 监听 WebSocket 标准响应消息（旧pdfTable_server统一type=response）
+    const unsubWsResponse = this.#eventBus.on(WEBSOCKET_MESSAGE_EVENTS.RESPONSE, (data) => {
+      this.#handleWebSocketResponse(data);
+    }, { subscriberId: 'SearchManager' });
+    this.#unsubs.push(unsubWsResponse);
 
     this.#logger.debug('[SearchManager] Event listeners set up');
   }
@@ -63,7 +72,7 @@ export class SearchManager {
    * @private
    */
   #handleWebSocketMessage(data) {
-    // 检查是否是搜索响应
+    // 检查是否是新协议的搜索响应
     if (data.type === 'pdf/search' && data.request_id) {
       const requestInfo = this.#pendingRequests.get(data.request_id);
       if (!requestInfo) {
@@ -86,6 +95,10 @@ export class SearchManager {
         this.#logger.info('[SearchManager] Search completed successfully', {
           count: count || 0
         });
+
+        // 识别并持久化为 v2
+        this.#backendMode = 'v2';
+        this.#saveBackendMode('v2');
       } else {
         const errorMsg = data.message || '搜索失败';
         this.#logger.error('[SearchManager] Search failed', errorMsg);
@@ -96,6 +109,59 @@ export class SearchManager {
           searchText: requestInfo.searchText
         });
       }
+    }
+  }
+
+  /**
+   * 处理 WebSocket 标准响应（旧pdfTable_server: type='response'）
+   * @private
+   */
+  #handleWebSocketResponse(message) {
+    const reqId = message?.request_id;
+    if (!reqId || !this.#pendingRequests.has(reqId)) return;
+
+    const requestInfo = this.#pendingRequests.get(reqId);
+    this.#pendingRequests.delete(reqId);
+
+    if (message?.status === 'success') {
+      const data = message?.data || {};
+      const records = data?.files || [];
+      const count = (typeof data?.total_count === 'number') ? data.total_count : records.length;
+      const searchText = data?.search_text ?? requestInfo.searchText;
+
+      this.#eventBus.emit('search:results:updated', {
+        records,
+        count,
+        searchText
+      });
+      this.#logger.info('[SearchManager] Search (legacy response) completed successfully', { count });
+
+      // 识别并持久化为 v1
+      this.#backendMode = 'v1';
+      this.#saveBackendMode('v1');
+      this.#isSearching = false;
+    } else {
+      const errorMsg = message?.message || message?.error?.message || '搜索失败';
+      this.#logger.error('[SearchManager] Search (legacy response) failed', errorMsg);
+
+      // 如果是“未知的消息类型”，尝试协议回退
+      const isUnknownType = /未知的消息类型|Unknown message type/i.test(errorMsg || '');
+      if (isUnknownType) {
+        const retries = requestInfo.retries || 0;
+        if (retries < 1) {
+          const fallbackMode = requestInfo.mode === 'v2' ? 'v1' : 'v2';
+          this.#logger.warn('[SearchManager] Unknown type, fallback once', { from: requestInfo.mode, to: fallbackMode });
+          this.#sendSearchRequest(requestInfo.searchText, fallbackMode, retries + 1);
+          return;
+        }
+        this.#logger.warn('[SearchManager] Unknown type after fallback, stop retry');
+      }
+
+      this.#isSearching = false;
+      this.#eventBus.emit('search:results:failed', {
+        error: errorMsg,
+        searchText: requestInfo.searchText
+      });
     }
   }
 
@@ -122,48 +188,8 @@ export class SearchManager {
         searchText: searchText
       });
 
-      // 生成唯一请求ID
-      const requestId = `search_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-      // 记录待处理的请求
-      this.#pendingRequests.set(requestId, {
-        searchText,
-        timestamp: Date.now()
-      });
-
-      // 构建 WebSocket 消息
-      const message = {
-        type: 'pdf/search',
-        request_id: requestId,
-        data: {
-          search_text: searchText,
-          // 默认包含主题与关键词，便于更全面的初版检索
-          search_fields: ['title', 'author', 'filename', 'tags', 'notes', 'subject', 'keywords'],
-          include_hidden: true,
-          limit: 500  // 默认最多500条结果
-        }
-      };
-
-      this.#logger.info('[SearchManager] Sending search request', message);
-
-      // 通过 EventBus 发送 WebSocket 消息
-      this.#eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, message, {
-        actorId: 'SearchManager'
-      });
-
-      // 设置超时（30秒）
-      setTimeout(() => {
-        if (this.#pendingRequests.has(requestId)) {
-          this.#pendingRequests.delete(requestId);
-          this.#isSearching = false;
-
-          this.#logger.error('[SearchManager] Search request timeout');
-          this.#eventBus.emit('search:results:failed', {
-            error: '搜索超时，请重试',
-            searchText
-          });
-        }
-      }, 30000);
+      // 使用已知模式（默认 v1，可由成功响应锁定并持久化）
+      this.#sendSearchRequest(searchText, this.#backendMode);
 
     } catch (error) {
       this.#logger.error('[SearchManager] Search failed', error);
@@ -175,6 +201,88 @@ export class SearchManager {
         searchText: searchText
       });
     }
+  }
+
+  /**
+   * 发送具体模式的搜索请求，并设置超时与pending跟踪
+   * @private
+   */
+  #sendSearchRequest(searchText, mode, retries = 0) {
+    // 生成唯一请求ID
+    const requestId = `search_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // 记录待处理的请求
+    this.#pendingRequests.set(requestId, {
+      searchText,
+      timestamp: Date.now(),
+      mode,
+      retries
+    });
+
+    // 构建消息
+    const message = this.#buildMessage(searchText, requestId, mode);
+    this.#logger.info('[SearchManager] Sending search request', { type: message.type, mode, request_id: requestId });
+
+    // 发送
+    this.#eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, message, { actorId: 'SearchManager' });
+
+    // 超时
+    setTimeout(() => {
+      if (this.#pendingRequests.has(requestId)) {
+        this.#pendingRequests.delete(requestId);
+        this.#isSearching = false;
+
+        this.#logger.error('[SearchManager] Search request timeout', { mode });
+        this.#eventBus.emit('search:results:failed', {
+          error: '搜索超时，请重试',
+          searchText
+        });
+      }
+    }, 30000);
+  }
+
+  /**
+   * 构建不同协议的消息
+   * @private
+   */
+  #buildMessage(searchText, requestId, mode) {
+    if (mode === 'v1') {
+      return {
+        type: WEBSOCKET_MESSAGE_TYPES.SEARCH_PDF,
+        request_id: requestId,
+        search_text: searchText
+      };
+    }
+    // v2（默认）
+    return {
+      type: 'pdf/search',
+      request_id: requestId,
+      data: {
+        search_text: searchText,
+        // 默认包含主题与关键词，便于更全面的初版检索
+        search_fields: ['title', 'author', 'filename', 'tags', 'notes', 'subject', 'keywords'],
+        include_hidden: true,
+        limit: 500
+      }
+    };
+  }
+
+  // 加载/保存后端模式
+  #loadBackendMode() {
+    try {
+      const m = localStorage.getItem(this.#MODE_STORAGE_KEY);
+      if (m === 'v1' || m === 'v2') {
+        this.#backendMode = m;
+      }
+      this.#logger.info('[SearchManager] Backend mode loaded', { mode: this.#backendMode });
+    } catch {}
+  }
+
+  #saveBackendMode(mode) {
+    try {
+      localStorage.setItem(this.#MODE_STORAGE_KEY, mode);
+      this.#logger.info('[SearchManager] Backend mode saved', { mode });
+    } catch {}
   }
 
   /**
