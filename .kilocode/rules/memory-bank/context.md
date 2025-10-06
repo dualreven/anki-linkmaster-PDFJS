@@ -818,4 +818,109 @@ const service = new NavigationService();
   - 当 `has_host=True` 时，`closeEvent` 跳过 `ai_launcher.py stop`，仅做前端进程跟踪清理与日志。
 - 在 `src/frontend/pdf-home/pyqt-bridge.py` 中：
   - 打开 viewer 时传入 `has_host=True`。
+  - 解析 pdf-id → 文件路径（复用 viewer/launcher 的 resolver），URL 附带 `file` 参数以确保启动即加载。### 注意事项
+- 文件读写统一使用 `encoding='utf-8'`，写入需 `newline='\n'`，JSON `ensure_ascii=False`。
+- 事件命名严格 `module:action:object` 三段式。
+- 仍保留 localStorage 作为 UI 立即可用的本地缓存；后端回执为权威数据源，覆盖本地。
+- WebSocket 连接时序：Feature 安装可能早于 WS 连接建立；已修复 WSClient `#flushMessageQueue()` 保留完整消息（含 `request_id`），避免队列消息回执无法关联。
+
+---
+
+## 2025-10-06 任务：pdf-home"阅读"按钮直连打开 pdf-viewer（不经 launcher）
+
+- 背景：用户要求在 pdf-home 中，对选中的搜索结果批量打开 pdf-viewer 主窗体；通过参数传递所需端口；关闭 pdf-home 时关闭这些子窗口；统一由字典管理。
+- 相关模块/函数：
+  - 前端：
+    - `src/frontend/pdf-home/features/search-results/index.js` 为 `.batch-btn-read` 绑定点击，收集 `.search-result-checkbox:checked` 的 `data-id`，通过 QWebChannel 调用 PyQt。
+    - `src/frontend/pdf-home/qwebchannel/qwebchannel-bridge.js` 新增 `openPdfViewers({ pdfIds })`。
+  - PyQt（pdf-home）：
+    - `src/frontend/pdf-home/pyqt-bridge.py` 新增 `openPdfViewers(pdf_ids:list)`，读取 `logs/runtime-ports.json`（UTF-8）获得 `vite_port/msgCenter_port/pdfFile_port`，实例化 `src/frontend/pdf-viewer/pyqt/main_window.py::MainWindow`，构建 URL 并 `show()`；维护 `parent.viewer_windows` 字典。
+    - `src/frontend/pdf-home/main_window.py` 新增 `viewer_windows` 字典；在 `closeEvent` 中依次关闭已登记的子窗口，并写入 `logs/window-close.log`（UTF-8, `\n`）。
+  - 纯函数与测试：
+    - `build_pdf_viewer_url(vite, ws, pdf, pdf_id, page_at?, position?)`（pyqt-bridge.py 顶层函数）
+    - `src/frontend/pdf-home/__tests__/test_pyqt_bridge_url.py` 覆盖 URL 构建与编码/范围限制
+- 约束与偏离说明：
+  - 规范建议统一通过 `ai_launcher.py` 管理窗口与端口；本任务按用户要求在 pdf-home 内直接启动 pdf-viewer 窗口（不经 launcher）。
+  - 端口来源依然遵循 `logs/runtime-ports.json` 作为单一真相源，确保与现有服务保持一致。
+- 原子步骤：
+  1) 先编写并通过 URL 构建函数的单元测试
+  2) 增加 PyQt 桥接方法与窗口管理字典
+  3) 前端按钮绑定与 QWebChannel 桥接打通
+  4) 在 closeEvent 中关闭子窗口并清理
+  5) 更新记忆库与工作日志
+- 风险控制：
+  - 多窗口 JS 调试端口冲突 → 简单按 `9223 + 已开窗口数` 线性分配；后续可引入端口检测器。
+  - 重复打开同一 pdf-id → 代码优先激活已存在窗口而非重复创建。
+### 2025-10-06 更新：pdf-home 启动 viewer 的 has_host 标记
+- 为避免子窗体关闭影响宿主：
+  - 在 `src/frontend/pdf-viewer/pyqt/main_window.py` 增加 `has_host` 参数，默认 False。
+  - 当 `has_host=True` 时，`closeEvent` 跳过 `ai_launcher.py stop`，仅做前端进程跟踪清理与日志。
+- 在 `src/frontend/pdf-home/pyqt-bridge.py` 中：
+  - 打开 viewer 时传入 `has_host=True`。
   - 解析 pdf-id → 文件路径（复用 viewer/launcher 的 resolver），URL 附带 `file` 参数以确保启动即加载。
+## 任务：PDFLibraryAPI 插件隔离重构（规划)
+
+- 时间：2025-10-06
+- 背景：`src/backend/api/pdf_library_api.py` 现为多功能混合门面（搜索/书签/入库等），职责过重，影响扩展与测试边界。
+- 目标：按前端域拆分后端模块，并保留向下兼容门面；不改变 WebSocket 消息契约与前端行为。
+
+### 目录规划
+- `src/backend/api/pdf-home/search`：搜索服务（search_records）
+- `src/backend/api/pdf-home/add`：文件入库/注册（register_file_info, add_pdf_from_file）
+- `src/backend/api/pdf-viewer/bookmark`：书签读写（list_bookmarks, save_bookmarks）
+- `src/backend/api/utils`：时间戳、record 映射、tags 归一化等通用工具
+
+### 执行步骤（原子任务）
+1. 新建上述目录与空模块，补充 `__init__.py`
+2. 提炼工具函数至 `api/utils`（ms/iso/second、tags、row↔record 映射）
+3. 迁移搜索逻辑至 `pdf-home/search/service.py`，门面委派
+4. 迁移书签逻辑至 `pdf-viewer/bookmark/service.py`，门面委派
+5. 迁移入库逻辑至 `pdf-home/add/service.py`，门面委派
+6. 子模块新增单测；保留并通过 `test_pdf_library_api.py`
+7. 冒烟验证 WebSocket 相关路径（不改协议/调用点）
+
+### 测试设计
+- 覆盖：搜索（多 token/空/标签/评分/分页/排序/负例）、书签（树结构/顺序/区域校验/级联）、入库（路径校验/PDF 校验/回滚/DB 同步）
+- 兼容：门面旧测试不变；新增子模块测试
+
+### 约束
+- 文件 I/O 全部显式 UTF-8 编码，换行 `\n` 校验
+- 目录命名使用 kebab-case（例如 `pdf-home`、`pdf-viewer`）
+- 不改动数据库表结构与前端协议
+
+- 需求文档：todo-and-doing/2 todo/20251006140530-pdf-library-api-plugin-isolation/v001-spec.md
+
+## 2025-10-06 实施记录（插件隔离阶段一）
+- 新增 ServiceRegistry：src/backend/api/service_registry.py（键：pdf-home.search/pdf-home.add/pdf-viewer.bookmark）
+- 新建域目录骨架：
+  - src/backend/api/pdf-home/search/{__init__.py, service.py}
+  - src/backend/api/pdf-home/add/{__init__.py, service.py}
+  - src/backend/api/pdf-viewer/bookmark/{__init__.py, service.py}
+- 修改 PDFLibraryAPI：构造函数支持注入 service_registry；search/add/bookmark 方法在服务存在时委派，否则回退原实现；pdf_manager 懒加载避免 Qt 依赖阻塞单测；add_pdf_from_file 懒加载工具避免硬依赖。
+- 新增单测：src/backend/api/__tests__/test_api_service_registry.py（验证注入委派生效）
+- 单测结果：本地仅执行新用例通过（使用 $env:PYTHONPATH=src）
+
+## 2025-10-06 实施记录（插件隔离阶段二）
+- 抽取 utils：src/backend/api/utils/{datetime.py,mapping.py,tags.py}
+- 实现默认服务并自动注册（动态按文件路径加载，兼容 kebab-case 目录）：
+  - pdf-home/search: DefaultSearchService（search_records）
+  - pdf-home/add: DefaultAddService（register_file_info, add_pdf_from_file）
+  - pdf-viewer/bookmark: DefaultBookmarkService（list_bookmarks, save_bookmarks）
+- 修改 PDFLibraryAPI：_auto_register_default_services + 动态加载 _load_default_service()（避免 Python 包导入对 kebab-case 的限制）
+- 保持门面旧逻辑作为回退路径；现默认走委派路径。
+
+
+## 2025-10-06 实施记录（插件隔离阶段三）
+- 标准服务器支持注入：src/backend/msgCenter_server/standard_server.py: __init__(..., pdf_library_api=None, service_registry=None)
+- 如提供 service_registry，则内部创建 PDFLibraryAPI(service_registry=...)，否则保持原逻辑（无门面时走回退）
+- 维持对现有测试的兼容（仍可直接设置 server.pdf_library_api = Fake 实例）
+ 
+
+## 合并 main 并适配后端 API 重构（兼容实现）
+- 时间: 2025-10-06 14:45:36
+- 操作: 合并 origin/main 到当前分支 d-main-20250927，并解决 memory-bank/context.md 冲突（保留双方更新）。
+- 变更:
+  - src/backend/api/pdf_library_api.py: 为 ServiceRegistry 引入 try/except 可选导入，缺失时提供最小桩（register/has/get）与常量，确保 test_pdf_library_api 可运行；保留后续接入真实 ServiceRegistry 的能力。
+  - src/backend/msgCenter_server/standard_server.py: 对 ServiceRegistry 采用可选导入与最小桩声明，维持注入接口不变。
+- 测试: 后端相关单测 17 通过（命令: PYTHONPATH=src python -m pytest -q src/backend/api/__tests__/test_pdf_library_api.py src/backend/msgCenter_server/__tests__/test_standard_server_bookmarks.py）。
+- 后续: 如需完整跟进 main 上的 API 插件隔离重构，请创建子任务落实 service_registry 与域服务实现（search/add/bookmark），当前仅提供兼容层避免功能回归。

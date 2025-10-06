@@ -1,3 +1,4 @@
+﻿import { getLogger } from './logger.js';
 /**
  * @file WebGL检测工具
  * @description 用于检测WebGL支持状态和动态禁用WebGL
@@ -95,7 +96,7 @@ export class WebGLDetector {
       
       HTMLCanvasElement.prototype.getContext = function(contextType, contextAttributes) {
         if (contextType && contextType.toLowerCase().includes('webgl')) {
-          console.warn('WebGL is disabled by configuration');
+          logger.warn('WebGL is disabled by configuration');
           return null;
         }
         return originalGetContext.call(this, contextType, contextAttributes);
@@ -121,7 +122,7 @@ export class WebGLDetector {
 
       return true;
     } catch (error) {
-      console.error('Failed to disable WebGL:', error);
+      logger.error('Failed to disable WebGL:', error);
       return false;
     }
   }
@@ -138,7 +139,7 @@ export class WebGLDetector {
 
     // 检查PDF.js版本和配置
     const version = pdfjsLib.version;
-    console.log(`PDF.js version: ${version}`);
+    logger.info(`PDF.js version: ${version}`);
 
     // PDF.js 3.x版本默认使用Canvas渲染，但某些功能可能使用WebGL
     // 检查是否有WebGL相关的配置选项
@@ -182,7 +183,7 @@ export class WebGLDetector {
 
       return true;
     } catch (error) {
-      console.error('Failed to configure PDF.js for Canvas:', error);
+      logger.error('Failed to configure PDF.js for Canvas:', error);
       return false;
     }
   }
@@ -203,7 +204,7 @@ export class WebGLStateManager {
     this.#webglEnabled = this.#detectionResult.supported && 
                          !this.#detectionResult.disabledByConfig;
 
-    console.log('WebGL State:', {
+    logger.info('WebGL State:', {
       supported: this.#detectionResult.supported,
       disabledByConfig: this.#detectionResult.disabledByConfig,
       enabled: this.#webglEnabled
@@ -223,7 +224,7 @@ export class WebGLStateManager {
       const success = WebGLDetector.disableWebGL();
       if (success) {
         this.#webglEnabled = false;
-        console.log('WebGL has been disabled');
+        logger.info('WebGL has been disabled');
       }
     }
   }
@@ -255,3 +256,4 @@ if (typeof window !== 'undefined') {
     WebGLStateManager.initialize();
   });
 }
+

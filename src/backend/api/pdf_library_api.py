@@ -7,7 +7,9 @@ import os
 import uuid as uuid_module
 from copy import deepcopy
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from pathlib import Path
+import importlib.util
 
 import time
 
@@ -25,9 +27,35 @@ from ..database.plugins.pdf_info_plugin import PDFInfoTablePlugin
 from ..database.plugins.pdf_annotation_plugin import PDFAnnotationTablePlugin
 from ..database.plugins.pdf_bookmark_plugin import PDFBookmarkTablePlugin
 from ..database.plugins.search_condition_plugin import SearchConditionTablePlugin
-from ..pdf_manager.standard_manager import StandardPDFManager
-from ..pdf_manager.utils import FileValidator
-from ..pdf_manager.pdf_metadata_extractor import PDFMetadataExtractor
+# Lazy imports for pdf_manager to avoid hard dependency during tests
+# 可选的服务注册表（在某些分支/环境中尚未提供时，采用本地降级桩）
+try:  # pragma: no cover - 动态兼容导入
+    from .service_registry import (
+        ServiceRegistry,
+        SERVICE_PDF_HOME_SEARCH,
+        SERVICE_PDF_HOME_ADD,
+        SERVICE_PDF_VIEWER_BOOKMARK,
+    )
+except Exception:  # pragma: no cover - 兼容路径：提供最小桩以通过现有测试
+    class ServiceRegistry:  # type: ignore
+        def __init__(self) -> None:
+            self._services = {}
+
+        def has(self, key: str) -> bool:
+            return key in self._services
+
+        def get(self, key: str):
+            return self._services[key]
+
+        def register(self, key: str, service) -> None:
+            self._services[key] = service
+
+    SERVICE_PDF_HOME_SEARCH = "pdf-home.search"
+    SERVICE_PDF_HOME_ADD = "pdf-home.add"
+    SERVICE_PDF_VIEWER_BOOKMARK = "pdf-viewer.bookmark"
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from ..pdf_manager.standard_manager import StandardPDFManager
 
 
 class PDFLibraryAPI:
@@ -40,6 +68,7 @@ class PDFLibraryAPI:
         logger: Optional[logging.Logger] = None,
         event_bus: Optional[EventBus] = None,
         pdf_manager: Optional[StandardPDFManager] = None,
+        service_registry: Optional[ServiceRegistry] = None,
     ) -> None:
         self._logger = logger or logging.getLogger("pdf.library.api")
         self._db_path = db_path or str(get_db_path())
@@ -58,10 +87,17 @@ class PDFLibraryAPI:
 
         self._register_plugins()
 
+        # API-level service registry (domain delegates)
+        self._services = service_registry or ServiceRegistry()
+        self._auto_register_default_services()
+
         self._pdf_manager = pdf_manager
         if self._pdf_manager is None:
             try:
-                self._pdf_manager = StandardPDFManager()
+                # Lazy import to avoid hard dependency during headless tests
+                from ..pdf_manager.standard_manager import StandardPDFManager as _StdMgr  # type: ignore
+
+                self._pdf_manager = _StdMgr()
             except Exception as exc:  # pragma: no cover - fallback path
                 self._logger.warning("StandardPDFManager init failed: %s", exc)
                 self._pdf_manager = None
@@ -138,6 +174,10 @@ class PDFLibraryAPI:
         self,
         payload: Dict[str, Any],
     ) -> Dict[str, Any]:
+        # Delegate to registered service if available
+        if self._services and self._services.has(SERVICE_PDF_HOME_SEARCH):
+            service = self._services.get(SERVICE_PDF_HOME_SEARCH)
+            return service.search_records(payload, context=self)
         if payload is None:
             raise DatabaseValidationError("payload is required")
         tokens = [str(token).strip().lower() for token in payload.get("tokens", []) if str(token).strip()]
@@ -210,6 +250,10 @@ class PDFLibraryAPI:
         self,
         pdf_uuid: str,
     ) -> Dict[str, Any]:
+        # Delegate to registered service if available
+        if self._services and self._services.has(SERVICE_PDF_VIEWER_BOOKMARK):
+            service = self._services.get(SERVICE_PDF_VIEWER_BOOKMARK)
+            return service.list_bookmarks(pdf_uuid, context=self)
         if not pdf_uuid:
             raise DatabaseValidationError("pdf_uuid is required")
         rows = self._bookmark_plugin.query_by_pdf(pdf_uuid)
@@ -256,6 +300,10 @@ class PDFLibraryAPI:
         *,
         root_ids: Optional[List[str]] = None,
     ) -> int:
+        # Delegate to registered service if available
+        if self._services and self._services.has(SERVICE_PDF_VIEWER_BOOKMARK):
+            service = self._services.get(SERVICE_PDF_VIEWER_BOOKMARK)
+            return service.save_bookmarks(pdf_uuid, bookmarks, root_ids=root_ids, context=self)
         if not pdf_uuid:
             raise DatabaseValidationError("pdf_uuid is required")
         if bookmarks is None:
@@ -280,6 +328,10 @@ class PDFLibraryAPI:
     # Sync helpers --------------------------------------------------------
 
     def register_file_info(self, file_info: Dict[str, Any]) -> str:
+        # Delegate to registered service if available
+        if self._services and self._services.has(SERVICE_PDF_HOME_ADD):
+            service = self._services.get(SERVICE_PDF_HOME_ADD)
+            return service.register_file_info(file_info, context=self)
         payload = self._from_pdf_manager_info(file_info)
         try:
             return self._pdf_info_plugin.insert(payload)
@@ -288,6 +340,10 @@ class PDFLibraryAPI:
             return payload["uuid"]
 
     def add_pdf_from_file(self, filepath: str) -> Dict[str, Any]:
+        # Delegate to registered service if available
+        if self._services and self._services.has(SERVICE_PDF_HOME_ADD):
+            service = self._services.get(SERVICE_PDF_HOME_ADD)
+            return service.add_pdf_from_file(filepath, context=self)
         """
         从文件路径添加 PDF 到数据库
 
@@ -317,6 +373,9 @@ class PDFLibraryAPI:
                     "success": False,
                     "error": f"文件不存在: {absolute_path}"
                 }
+
+            # Lazy import utilities to avoid hard dependency when unused
+            from ..pdf_manager.utils import FileValidator  # type: ignore
 
             if not FileValidator.is_pdf_file(absolute_path):
                 return {
@@ -368,6 +427,8 @@ class PDFLibraryAPI:
                 }
 
             # 没有 PDF 管理器，直接添加到数据库
+            from ..pdf_manager.pdf_metadata_extractor import PDFMetadataExtractor  # type: ignore
+
             metadata = PDFMetadataExtractor.extract_metadata(absolute_path)
             if "error" in metadata:
                 return {
@@ -424,6 +485,46 @@ class PDFLibraryAPI:
                 "success": False,
                 "error": f"添加 PDF 文件失败: {str(exc)}"
             }
+
+    # ------------------------------------------------------------------
+    # Service bootstrap
+    # ------------------------------------------------------------------
+
+    def _auto_register_default_services(self) -> None:
+        """Register in-process default domain services if not provided.
+
+        This keeps backward compatibility while enabling plugin-like
+        customization by overriding the defaults via the registry.
+        """
+        try:
+            if not self._services.has(SERVICE_PDF_HOME_SEARCH):
+                svc = self._load_default_service(["pdf-home", "search", "service.py"], "DefaultSearchService")
+                if svc:
+                    self._services.register(SERVICE_PDF_HOME_SEARCH, svc)
+            if not self._services.has(SERVICE_PDF_HOME_ADD):
+                svc = self._load_default_service(["pdf-home", "add", "service.py"], "DefaultAddService")
+                if svc:
+                    self._services.register(SERVICE_PDF_HOME_ADD, svc)
+            if not self._services.has(SERVICE_PDF_VIEWER_BOOKMARK):
+                svc = self._load_default_service(["pdf-viewer", "bookmark", "service.py"], "DefaultBookmarkService")
+                if svc:
+                    self._services.register(SERVICE_PDF_VIEWER_BOOKMARK, svc)
+        except Exception as exc:  # pragma: no cover - non-fatal
+            self._logger.warning("auto-register services failed: %s", exc)
+
+    def _load_default_service(self, relparts: List[str], class_name: str):
+        base = Path(__file__).parent
+        file_path = base.joinpath(*relparts)
+        if not file_path.exists():
+            return None
+        module_name = "_api_" + "_" + "_".join([p.replace("-", "_") for p in relparts[:-1]])
+        spec = importlib.util.spec_from_file_location(module_name, str(file_path))
+        if spec is None or spec.loader is None:
+            return None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)  # type: ignore[attr-defined]
+        svc_cls = getattr(module, class_name, None)
+        return svc_cls() if svc_cls else None
 
     # ------------------------------------------------------------------
     # Internal helpers

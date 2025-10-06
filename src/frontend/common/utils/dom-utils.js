@@ -1,3 +1,4 @@
+﻿import { getLogger } from './logger.js';
 /**
  * @file DOM操作工具类，提供一组静态方法来简化和封装常用的DOM操作。
  * @module DOMUtils
@@ -173,7 +174,7 @@ export class DOMUtils {
         return;
       }
     } catch (e) {}
-    try { console.error(message); } catch (e) {}
+    try { logger.error(message); } catch (e) {}
     // try { alert(message); } catch (e) {}
   }
 
@@ -195,7 +196,7 @@ export class DOMUtils {
         return;
       }
     } catch (e) {}
-    try { console.info(message); } catch (e) {}
+    try { logger.info(message); } catch (e) {}
     // try { alert(message); } catch (e) {}
   }
   
@@ -245,3 +246,4 @@ export class DOMUtils {
 }
 
 export default DOMUtils;
+

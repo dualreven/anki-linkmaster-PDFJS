@@ -386,3 +386,16 @@ emove_comment(ann_id, comment_id)。
 ## PDF-Viewer 端口参数消费更新
 - URL 参数 `pdfs=<port>`：viewer 现在在 `file-service` 中读取该参数，优先构造 `http://localhost:<port>/pdfs/<filename>` 的绝对地址加载 PDF，避免依赖 Vite 代理；若未提供则回退 `/pdfs/<filename>` 走代理。
 - URL 参数 `msgCenter=<port>`：沿用现有解析逻辑，建立 WebSocket 连接。
+### 日志策略更新（前端）
+- EventBus：无订阅者日志→debug；websocket:message:received 默认 suppress。
+- WSClient：type="response" 当作 ACK；仅 settle pending，不广播。
+- ConsoleBridge：建议启用过滤规则，避免日志回环（下一步可加开关）。
+- 代码风格：统一使用 getLogger().info/warn/error/debug，禁用裸 console.*。
+
+## 前端脚本加载规范更新（PDF-Viewer）
+
+- 归口：PDF-Viewer Assets
+- 变更：src/frontend/pdf-viewer/assets/floating-controls.js 现使用 ES Module 语法（import getLogger）。
+- 要求：在 src/frontend/pdf-viewer/index.html 中必须以模块方式加载：
+  - <script type="module" src="assets/floating-controls.js"></script>
+- 说明：统一使用项目 Logger，不得回退 console.*；如需在 HTML 直连脚本中使用 Logger，必须以模块脚本加载。

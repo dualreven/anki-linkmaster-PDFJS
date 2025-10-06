@@ -1,3 +1,4 @@
+﻿import { getLogger } from '../common/utils/logger.js';
 // Import polyfills first
 import '../common/polyfills.js';
 
@@ -37,14 +38,14 @@ function getEnvironment() {
  * @returns {Promise<void>}
  */
 async function startApp() {
-  console.log('[DEBUG] Starting PDF Home App...');
+  logger.info('[DEBUG] Starting PDF Home App...');
 
   try {
     const app = await bootstrapPDFHomeAppV2({
       environment: getEnvironment()
     });
 
-    console.log('[DEBUG] 黄集攀 App started successfully');
+    logger.info('[DEBUG] 黄集攀 App started successfully');
 
     // 在开发环境下设置通信测试工具
     const env = getEnvironment();
@@ -52,23 +53,26 @@ async function startApp() {
       const { wsClient, eventBus } = app.getDependencies();
       if (wsClient && eventBus) {
         setupCommunicationTestUI(wsClient, eventBus);
-        console.log('[DEBUG] Communication test UI enabled (dev mode)');
+        logger.info('[DEBUG] Communication test UI enabled (dev mode)');
       }
     }
 
     return app;
 
   } catch (error) {
-    console.error('[DEBUG] App bootstrap failed:', error);
+    logger.error('[DEBUG] App bootstrap failed:', error);
     throw error;
   }
 }
 
 // ===== 应用启动 =====
-console.log('[DEBUG] Script loaded, waiting for DOMContentLoaded...');
+logger.info('[DEBUG] Script loaded, waiting for DOMContentLoaded...');
+
+const logger = getLogger('pdf-home.index');
 
 document.addEventListener('DOMContentLoaded', async () => {
   await startApp();
 });
 
-console.log('[DEBUG] Event listener registered for DOMContentLoaded');
+logger.info('[DEBUG] Event listener registered for DOMContentLoaded');
+

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file 应用启动引导程序 V2（功能域架构版本）
  * @module AppBootstrapV2
  * @description
@@ -19,7 +19,7 @@ import { getLogger } from '../../common/utils/logger.js';
  * @returns {Promise<PDFHomeAppV2>} 应用实例
  */
 export async function bootstrapPDFHomeAppV2(options = {}) {
-  console.log('[DEBUG] DOMContentLoaded: bootstrap PDF Home App V2 (Feature Domain Architecture)...');
+  logger.info('[DEBUG] DOMContentLoaded: bootstrap PDF Home App V2 (Feature Domain Architecture)...');
 
   try {
     // 1. 解析 WebSocket 端口
@@ -33,7 +33,7 @@ export async function bootstrapPDFHomeAppV2(options = {}) {
       featureFlagConfigPath: options.featureFlagConfigPath || './config/feature-flags.json'
     };
 
-    console.log('[DEBUG] Creating PDFHomeAppV2 with options:', {
+    logger.info('[DEBUG] Creating PDFHomeAppV2 with options:', {
       wsUrl,
       environment: appOptions.environment,
       featureFlagConfig: appOptions.featureFlagConfigPath
@@ -42,13 +42,13 @@ export async function bootstrapPDFHomeAppV2(options = {}) {
     // 3. 创建应用实例（功能域架构）
     const app = new PDFHomeAppV2(appOptions);
 
-    console.log('[DEBUG] Starting app V2 initialization...');
+    logger.info('[DEBUG] Starting app V2 initialization...');
     await app.initialize();
 
     // 4. 设置自动化测试环境
     setupAutoTestEnvironment(app);
 
-    console.log('[DEBUG] App V2 initialization completed, setting up window.app...');
+    logger.info('[DEBUG] App V2 initialization completed, setting up window.app...');
 
     // 5. 暴露全局接口（与 V1 兼容）
     window.app = {
@@ -78,13 +78,13 @@ export async function bootstrapPDFHomeAppV2(options = {}) {
     logger.info(`Installed Features: ${state.features.installed.join(', ')}`);
     logger.info('Use window.app.getState() for full status');
 
-    console.log('[DEBUG] PDF Home App V2 fully started');
-    console.log('[DEBUG] Available features:', state.features.installed);
+    logger.info('[DEBUG] PDF Home App V2 fully started');
+    logger.info('[DEBUG] Available features:', state.features.installed);
 
     return app;
 
   } catch (error) {
-    console.error('[DEBUG] App V2 bootstrap/initialization failed:', error);
+    logger.error('[DEBUG] App V2 bootstrap/initialization failed:', error);
 
     // 尝试记录错误
     try {
@@ -129,3 +129,4 @@ export function getRecommendedOptions(environment) {
       };
   }
 }
+
