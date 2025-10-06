@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file PDF Viewer Manager
  * @module PDFViewerManager
  * @description Manages the PDF.js PDFViewer component with full functionality
@@ -23,9 +23,11 @@ import {
 } from "@pdfjs/web/pdf_viewer.mjs";
 
 /**
- * @class PDFViewerManager
+ * @const logger = getLogger('PDFViewerManager');
+class PDFViewerManager
  * @description 管理PDF.js的PDFViewer组件，提供完整的PDF查看功能
  */
+export const logger = getLogger('PDFViewerManager');
 export class PDFViewerManager {
   #logger;
   #container = null;
@@ -48,12 +50,12 @@ export class PDFViewerManager {
     if (!this.#container) {
       const errorMsg = "PDF container not found!";
       this.#logger.error(errorMsg);
-      console.error("[PDFViewerManager]", errorMsg);
+      logger.error("[PDFViewerManager]", errorMsg);
       throw new Error(errorMsg);
     }
 
     this.#logger.info(`Initializing PDFViewer with container:`, container);
-    console.log("[PDFViewerManager] Container element:", container);
+    logger.info("[PDFViewerManager] Container element:", container);
 
     try {
       // 创建PDF.js EventBus
@@ -70,7 +72,7 @@ export class PDFViewerManager {
 
       // 创建PDFViewer实例
       this.#logger.info("Creating PDFViewer instance...");
-      console.log("[PDFViewerManager] Creating PDFViewer with options:", {
+      logger.info("[PDFViewerManager] Creating PDFViewer with options:", {
         container: this.#container,
         textLayerMode: 2,
         annotationMode: 2,
@@ -108,7 +110,7 @@ export class PDFViewerManager {
       this.#logger.info("PDFViewer initialized with full functionality");
     } catch (error) {
       this.#logger.error("Failed to initialize PDFViewer:", error);
-      console.error("[PDFViewerManager] Full error:", error.message, error.stack);
+      logger.error("[PDFViewerManager] Full error:", error.message, error.stack);
       throw error;
     }
   }
@@ -394,3 +396,4 @@ export class PDFViewerManager {
     this.#logger.info("PDFViewer event bridge setup complete");
   }
 }
+

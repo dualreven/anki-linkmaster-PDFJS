@@ -375,3 +375,17 @@ emove_comment(ann_id, comment_id)。
 - 默认字段：title/author/filename/tags/notes/subject/keywords
 - 关键词：按空格分词；关键词之间 AND；字段内 OR；LIKE 模糊匹配（转义 `%`、`_`，使用 `ESCAPE '\'`）
 - UI 提示：SearchBar 占位符注明"空格=且"
+
+### 日志策略更新（前端）
+- EventBus：无订阅者日志→debug；websocket:message:received 默认 suppress。
+- WSClient：type="response" 当作 ACK；仅 settle pending，不广播。
+- ConsoleBridge：建议启用过滤规则，避免日志回环（下一步可加开关）。
+- 代码风格：统一使用 getLogger().info/warn/error/debug，禁用裸 console.*。
+
+## 前端脚本加载规范更新（PDF-Viewer）
+
+- 归口：PDF-Viewer Assets
+- 变更：src/frontend/pdf-viewer/assets/floating-controls.js 现使用 ES Module 语法（import getLogger）。
+- 要求：在 src/frontend/pdf-viewer/index.html 中必须以模块方式加载：
+  - <script type="module" src="assets/floating-controls.js"></script>
+- 说明：统一使用项目 Logger，不得回退 console.*；如需在 HTML 直连脚本中使用 Logger，必须以模块脚本加载。

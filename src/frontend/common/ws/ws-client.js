@@ -339,13 +339,9 @@ export class WSClient {
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.ERROR;
           break;
         case "response":
-          // 静默处理日志确认响应，避免无订阅者警告
-          if (this.#isLogConfirmationResponse(message)) {
-            this.#logger.debug('Silently handling log confirmation response');
-            return; // 不发出事件
-          }
-          targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
-          break;
+          // Treat generic "response" messages as ACK: settle pending request and do not emit
+          this._settlePendingRequest(message);
+          return;
         case "system_status":
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.SYSTEM_STATUS;
           break;

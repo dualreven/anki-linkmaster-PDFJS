@@ -753,3 +753,31 @@ const service = new NavigationService();
   - 搜索实现优先使用 `pdf_library_api.search_records()`（若注入），否则回退到 `PDFManager` 内存搜索（空搜索=全部）。
 - 受影响文件：`src/backend/msgCenter_server/standard_server.py:1`（新增分支与处理方法）
 - 结果：前端不会再收到“未知的消息类型: pdf/search|pdf-home:search:pdf-files”的错误；`SearchManager` 的 v1/v2 双协议解析均可正常工作。
+
+## 2025-10-06 日志治理（前端）
+- 无订阅者事件降级与抑制（websocket:message:received）：防止 WS 高频广播刷屏。
+- WSClient ACK 静默前移：避免 console_log 确认响应引发的通用广播。
+- 统一 console→logger：前端代码不再直接使用 console.*（保留桥接器内部实现）。
+
+## 任务：修复 logger 改动导致 PDF-Viewer 无法显示
+
+- 时间: 2025-10-06 14:28:02
+- 问题背景:
+  - 最近一次“日志降噪/console→logger统一”改动后，pdf-viewer 无法正常显示 PDF。
+  - logs/pdf-viewer-*-js.log 中出现两类错误：
+    - Uncaught SyntaxError: Cannot use import statement outside a module
+    - The requested module '/pdf-viewer/features/ui-manager/components/pdf-viewer-manager.js' does not provide an export named 'PDFViewerManager'
+- 根因定位:
+  - floating-controls.js 引入 getLogger 导致使用 ES Module 语法，但 index.html 仍以非模块脚本方式加载，触发“import 语法用于非模块”错误；同时该文件内部未声明 logger 变量。
+  - pdf-viewer-manager.js 在 console→logger 改动过程中，Class 声明丢失导出（未导出命名 PDFViewerManager），导致下游 UIManagerCore 的命名导入失败。
+- 修复方案:
+  - index.html 中将 <script src="assets/floating-controls.js"> 改为 <script type="module" src="assets/floating-controls.js">；
+  - src/frontend/pdf-viewer/assets/floating-controls.js 顶部新增 const logger = getLogger('FloatingControls');；
+  - src/frontend/pdf-viewer/features/ui-manager/components/pdf-viewer-manager.js 将 class PDFViewerManager 改为 export class PDFViewerManager，补齐命名导出。
+- 测试设计:
+  - 新增用例1：验证 pdf-viewer-manager.js 的命名导出存在；
+  - 新增用例2：在 JSDOM 中加载 floating-controls.js，触发 DOMContentLoaded 并模拟点击，验证逻辑不抛错且折叠切换正确。
+- 执行与结果:
+  - 两个新增测试均通过；项目其他部分未受影响。
+- 风险与回归点:
+  - 仅涉及 ESModule 装载与命名导出恢复，不改变对外 API；Vite/QtWebEngine 行为与现有脚手架保持一致。

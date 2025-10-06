@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file 文字层管理器
  * @module TextLayerManager
  * @description 管理PDF文字层的加载、渲染和交互功能
@@ -33,7 +33,7 @@ async function loadRenderTextLayer() {
       return renderTextLayerFunc;
     }
   } catch (error) {
-    console.warn("Failed to import renderTextLayer from pdfjs-dist:", error);
+    logger.warn("Failed to import renderTextLayer from pdfjs-dist:", error);
   }
 
   return null;
@@ -55,6 +55,7 @@ async function loadRenderTextLayer() {
  * - clearTextSelection(): 清除当前选中的文字
  * - highlightSelectedText(area_list): 高亮当前选中的文字
  */
+const logger = getLogger('TextLayerManager');
 export class TextLayerManager {
   // 私有属性
   #logger;

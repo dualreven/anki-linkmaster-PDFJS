@@ -1,3 +1,4 @@
+﻿import { getLogger } from './logger.js';
 /**
  * @file 通知工具
  * @module Notification
@@ -9,10 +10,11 @@
  * @param {string} message - 消息内容
  * @param {number} duration - 显示时长（毫秒），默认3000ms，0表示不自动隐藏
  */
+const logger = getLogger('Notification');
 export function showSuccess(message, duration = 3000) {
   const element = document.getElementById('global-success');
   if (!element) {
-    console.warn('Success notification element not found');
+    logger.warn('Success notification element not found');
     return;
   }
 
@@ -31,10 +33,11 @@ export function showSuccess(message, duration = 3000) {
  * @param {string} message - 消息内容
  * @param {number} duration - 显示时长（毫秒），默认5000ms，0表示不自动隐藏
  */
+const logger = getLogger('Notification');
 export function showError(message, duration = 5000) {
   const element = document.getElementById('global-error');
   if (!element) {
-    console.warn('Error notification element not found');
+    logger.warn('Error notification element not found');
     return;
   }
 
@@ -53,6 +56,7 @@ export function showError(message, duration = 5000) {
  * @param {string} message - 消息内容
  * @param {number} duration - 显示时长（毫秒），默认3000ms
  */
+const logger = getLogger('Notification');
 export function showInfo(message, duration = 3000) {
   showSuccess(message, duration);
 }
@@ -60,6 +64,7 @@ export function showInfo(message, duration = 3000) {
 /**
  * 隐藏所有通知
  */
+const logger = getLogger('Notification');
 export function hideAll() {
   const successElement = document.getElementById('global-success');
   const errorElement = document.getElementById('global-error');
@@ -67,3 +72,4 @@ export function hideAll() {
   if (successElement) successElement.classList.remove('show');
   if (errorElement) errorElement.classList.remove('show');
 }
+
