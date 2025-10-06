@@ -214,6 +214,7 @@ export class FileHandler {
     const processed = { ...fileData };
 
     // 支持新消息格式 (file_path 优先)
+    // 使用 Vite 代理：始终构造相对路径 /pdfs/<filename>，由 Vite 将请求转发到 pdfFile_server。
     if (processed.file_path && !processed.url) {
       this.#logger.info("Detected file_path in request, constructing proxy URL");
       processed.url = `/pdfs/${encodeURIComponent(processed.filename)}`;

@@ -375,3 +375,14 @@ emove_comment(ann_id, comment_id)。
 - 默认字段：title/author/filename/tags/notes/subject/keywords
 - 关键词：按空格分词；关键词之间 AND；字段内 OR；LIKE 模糊匹配（转义 `%`、`_`，使用 `ESCAPE '\'`）
 - UI 提示：SearchBar 占位符注明"空格=且"
+
+## QWebChannel 桥接扩展（pdf-home → pdf-viewer）
+- 新增 JS API：`QWebChannelBridge.openPdfViewers({ pdfIds })` → 调用 PyQt 端 `openPdfViewers(list)`。
+- PyQt 端：`src/frontend/pdf-home/pyqt-bridge.py`
+  - 读取端口：`logs/runtime-ports.json`（UTF-8）→ `vite_port/msgCenter_port/pdfFile_port`
+  - 生成 URL：`build_pdf_viewer_url(vite, ws, pdf, pdf_id, page, pos)`（位置限定 0-100）
+  - 窗口管理：`MainWindow.viewer_windows: dict[pdf_id, viewer]`
+- 关闭策略：`pdf-home/main_window.py::closeEvent` 先关闭字典中的所有 viewer 窗口，再走后续服务清理逻辑。
+## PDF-Viewer 端口参数消费更新
+- URL 参数 `pdfs=<port>`：viewer 现在在 `file-service` 中读取该参数，优先构造 `http://localhost:<port>/pdfs/<filename>` 的绝对地址加载 PDF，避免依赖 Vite 代理；若未提供则回退 `/pdfs/<filename>` 走代理。
+- URL 参数 `msgCenter=<port>`：沿用现有解析逻辑，建立 WebSocket 连接。

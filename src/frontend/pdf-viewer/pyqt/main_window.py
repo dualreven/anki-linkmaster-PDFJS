@@ -26,7 +26,7 @@ class MainWindow(QMainWindow):
     send_debug_message_requested = pyqtSignal()
     web_loaded = pyqtSignal()
 
-    def __init__(self, app, remote_debug_port: int | None = None, js_log_file: str | None = None, js_logger=None, pdf_id: str = "empty"):
+    def __init__(self, app, remote_debug_port: int | None = None, js_log_file: str | None = None, js_logger=None, pdf_id: str = "empty", has_host: bool = False):
         """初始化主窗口
 
         Args:
@@ -42,6 +42,7 @@ class MainWindow(QMainWindow):
         self._js_log_file = js_log_file
         self.js_logger = js_logger  # 简化版Logger实例
         self.pdf_id = pdf_id
+        self.has_host = has_host
 
         # 窗口属性
         self.setWindowTitle(f"Anki LinkMaster PDF Viewer - {pdf_id}")
@@ -226,7 +227,11 @@ class MainWindow(QMainWindow):
             self.web_view.updateGeometry()
 
     def closeEvent(self, event):
-        """窗口关闭事件 - 停止后台服务（但不杀掉窗口自己）"""
+        """窗口关闭事件。
+
+        当 has_host=True（由 pdf-home 启动）时，仅做前端进程跟踪文件清理与日志记录，
+        不触发后台服务的停止，避免影响宿主（pdf-home）。
+        """
         import subprocess
         import sys
         import json
@@ -283,26 +288,29 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 log_message(f"[MainWindow-{self.pdf_id}] ✗ 清理前端进程信息失败: {e}")
 
-            # 第二步：调用 ai_launcher.py stop 停止后台服务
-            ai_launcher_path = project_root / 'ai_launcher.py'
-            if ai_launcher_path.exists():
-                log_message(f"[MainWindow-{self.pdf_id}] 正在停止后端服务...")
-                result = subprocess.run(
-                    [sys.executable, str(ai_launcher_path), 'stop'],
-                    cwd=str(project_root),
-                    capture_output=True,
-                    text=True,
-                    timeout=10
-                )
+            # 第二步：根据 has_host 决定是否停止后台服务
+            if not self.has_host:
+                ai_launcher_path = project_root / 'ai_launcher.py'
+                if ai_launcher_path.exists():
+                    log_message(f"[MainWindow-{self.pdf_id}] 正在停止后端服务...")
+                    result = subprocess.run(
+                        [sys.executable, str(ai_launcher_path), 'stop'],
+                        cwd=str(project_root),
+                        capture_output=True,
+                        text=True,
+                        timeout=10
+                    )
 
-                if result.returncode == 0:
-                    log_message(f"[MainWindow-{self.pdf_id}] ✓ 后端服务已停止")
+                    if result.returncode == 0:
+                        log_message(f"[MainWindow-{self.pdf_id}] ✓ 后端服务已停止")
+                    else:
+                        log_message(f"[MainWindow-{self.pdf_id}] ✗ 停止后端服务失败 (code={result.returncode})")
+                        if result.stderr:
+                            log_message(f"[MainWindow-{self.pdf_id}] 错误输出: {result.stderr[:200]}")
                 else:
-                    log_message(f"[MainWindow-{self.pdf_id}] ✗ 停止后端服务失败 (code={result.returncode})")
-                    if result.stderr:
-                        log_message(f"[MainWindow-{self.pdf_id}] 错误输出: {result.stderr[:200]}")
+                    log_message(f"[MainWindow-{self.pdf_id}] ✗ 未找到 ai_launcher.py: {ai_launcher_path}")
             else:
-                log_message(f"[MainWindow-{self.pdf_id}] ✗ 未找到 ai_launcher.py: {ai_launcher_path}")
+                log_message(f"[MainWindow-{self.pdf_id}] has_host=True，跳过后台服务停止（由宿主管理）")
 
         except subprocess.TimeoutExpired:
             log_message(f"[MainWindow-{self.pdf_id}] ✗ 停止服务超时")

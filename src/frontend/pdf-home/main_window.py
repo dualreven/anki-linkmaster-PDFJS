@@ -38,6 +38,9 @@ class MainWindow(QMainWindow):
         self._js_log_file = js_log_file
         self.js_logger = js_logger  # 简化版Logger实例
 
+        # 管理由本窗口打开的 pdf-viewer 窗口（pdf_id -> ViewerMainWindow 实例）
+        self.viewer_windows: dict[str, object] = {}
+
         # 窗口属性
         self.setWindowTitle("Anki LinkMaster PDFJS")
         self.setGeometry(100, 100, 1200, 800)
@@ -230,13 +233,38 @@ class MainWindow(QMainWindow):
             self.web_view.updateGeometry()
 
     def closeEvent(self, event):
-        """窗口关闭事件 - 停止后台服务（但不杀掉窗口自己）"""
+        """窗口关闭事件 - 先关闭由本窗口打开的 pdf-viewer，再处理后台服务清理"""
         import subprocess
         import sys
         import json
         from pathlib import Path
+        from datetime import datetime
 
         try:
+            # 先尝试关闭所有由 pdf-home 打开的 pdf-viewer 窗口
+            try:
+                if getattr(self, 'viewer_windows', None):
+                    for k, win in list(self.viewer_windows.items()):
+                        try:
+                            # 记录一条日志到 logs/window-close.log
+                            log_path = Path(__file__).parent.parent.parent.parent / 'logs' / 'window-close.log'
+                            log_path.parent.mkdir(parents=True, exist_ok=True)
+                            ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                            with open(log_path, 'a', encoding='utf-8', newline='\n') as f:
+                                f.write(f"[{ts}] [pdf-home] 关闭子窗口: pdf-viewer({k})\n")
+                        except Exception:
+                            pass
+                        try:
+                            win.close()
+                        except Exception:
+                            pass
+                    try:
+                        self.viewer_windows.clear()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
             # 获取项目根目录
             project_root = Path(__file__).parent.parent.parent.parent
 

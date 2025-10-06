@@ -784,3 +784,38 @@ const service = new NavigationService();
 - 事件命名严格 `module:action:object` 三段式。
 - 仍保留 localStorage 作为 UI 立即可用的本地缓存；后端回执为权威数据源，覆盖本地。
 - WebSocket 连接时序：Feature 安装可能早于 WS 连接建立；已修复 WSClient `#flushMessageQueue()` 保留完整消息（含 `request_id`），避免队列消息回执无法关联。
+
+---
+
+## 2025-10-06 任务：pdf-home“阅读”按钮直连打开 pdf-viewer（不经 launcher）
+
+- 背景：用户要求在 pdf-home 中，对选中的搜索结果批量打开 pdf-viewer 主窗体；通过参数传递所需端口；关闭 pdf-home 时关闭这些子窗口；统一由字典管理。
+- 相关模块/函数：
+  - 前端：
+    - `src/frontend/pdf-home/features/search-results/index.js` 为 `.batch-btn-read` 绑定点击，收集 `.search-result-checkbox:checked` 的 `data-id`，通过 QWebChannel 调用 PyQt。
+    - `src/frontend/pdf-home/qwebchannel/qwebchannel-bridge.js` 新增 `openPdfViewers({ pdfIds })`。
+  - PyQt（pdf-home）：
+    - `src/frontend/pdf-home/pyqt-bridge.py` 新增 `openPdfViewers(pdf_ids:list)`，读取 `logs/runtime-ports.json`（UTF-8）获得 `vite_port/msgCenter_port/pdfFile_port`，实例化 `src/frontend/pdf-viewer/pyqt/main_window.py::MainWindow`，构建 URL 并 `show()`；维护 `parent.viewer_windows` 字典。
+    - `src/frontend/pdf-home/main_window.py` 新增 `viewer_windows` 字典；在 `closeEvent` 中依次关闭已登记的子窗口，并写入 `logs/window-close.log`（UTF-8, `\n`）。
+  - 纯函数与测试：
+    - `build_pdf_viewer_url(vite, ws, pdf, pdf_id, page_at?, position?)`（pyqt-bridge.py 顶层函数）
+    - `src/frontend/pdf-home/__tests__/test_pyqt_bridge_url.py` 覆盖 URL 构建与编码/范围限制
+- 约束与偏离说明：
+  - 规范建议统一通过 `ai_launcher.py` 管理窗口与端口；本任务按用户要求在 pdf-home 内直接启动 pdf-viewer 窗口（不经 launcher）。
+  - 端口来源依然遵循 `logs/runtime-ports.json` 作为单一真相源，确保与现有服务保持一致。
+- 原子步骤：
+  1) 先编写并通过 URL 构建函数的单元测试
+  2) 增加 PyQt 桥接方法与窗口管理字典
+  3) 前端按钮绑定与 QWebChannel 桥接打通
+  4) 在 closeEvent 中关闭子窗口并清理
+  5) 更新记忆库与工作日志
+- 风险控制：
+  - 多窗口 JS 调试端口冲突 → 简单按 `9223 + 已开窗口数` 线性分配；后续可引入端口检测器。
+  - 重复打开同一 pdf-id → 代码优先激活已存在窗口而非重复创建。
+### 2025-10-06 更新：pdf-home 启动 viewer 的 has_host 标记
+- 为避免子窗体关闭影响宿主：
+  - 在 `src/frontend/pdf-viewer/pyqt/main_window.py` 增加 `has_host` 参数，默认 False。
+  - 当 `has_host=True` 时，`closeEvent` 跳过 `ai_launcher.py stop`，仅做前端进程跟踪清理与日志。
+- 在 `src/frontend/pdf-home/pyqt-bridge.py` 中：
+  - 打开 viewer 时传入 `has_host=True`。
+  - 解析 pdf-id → 文件路径（复用 viewer/launcher 的 resolver），URL 附带 `file` 参数以确保启动即加载。
