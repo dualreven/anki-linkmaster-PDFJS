@@ -477,21 +477,30 @@ class PDFLibraryAPI:
         This keeps backward compatibility while enabling plugin-like
         customization by overriding the defaults via the registry.
         """
-        try:
-            if not self._services.has(SERVICE_PDF_HOME_SEARCH):
+        # 独立 try/except，避免单个失败阻断其余服务注册
+        if not self._services.has(SERVICE_PDF_HOME_SEARCH):
+            try:
                 svc = self._load_default_service(["pdf-home", "search", "service.py"], "DefaultSearchService")
                 if svc:
                     self._services.register(SERVICE_PDF_HOME_SEARCH, svc)
-            if not self._services.has(SERVICE_PDF_HOME_ADD):
+            except Exception as exc:  # pragma: no cover
+                self._logger.warning("auto-register search service failed: %s", exc)
+
+        if not self._services.has(SERVICE_PDF_HOME_ADD):
+            try:
                 svc = self._load_default_service(["pdf-home", "add", "service.py"], "DefaultAddService")
                 if svc:
                     self._services.register(SERVICE_PDF_HOME_ADD, svc)
-            if not self._services.has(SERVICE_PDF_VIEWER_BOOKMARK):
+            except Exception as exc:  # pragma: no cover
+                self._logger.warning("auto-register add service failed: %s", exc)
+
+        if not self._services.has(SERVICE_PDF_VIEWER_BOOKMARK):
+            try:
                 svc = self._load_default_service(["pdf-viewer", "bookmark", "service.py"], "DefaultBookmarkService")
                 if svc:
                     self._services.register(SERVICE_PDF_VIEWER_BOOKMARK, svc)
-        except Exception as exc:  # pragma: no cover - non-fatal
-            self._logger.warning("auto-register services failed: %s", exc)
+            except Exception as exc:  # pragma: no cover
+                self._logger.warning("auto-register bookmark service failed: %s", exc)
 
     def _load_default_service(self, relparts: List[str], class_name: str):
         base = Path(__file__).parent

@@ -105,9 +105,10 @@ class StandardWebSocketServer(QObject):
 
         # API 门面/服务注册表（可注入）
         self.pdf_library_api = pdf_library_api
-        if self.pdf_library_api is None and service_registry is not None:
+        if self.pdf_library_api is None:
             try:
-                self.pdf_library_api = PDFLibraryAPI(service_registry=service_registry)
+                reg = service_registry if service_registry is not None else ServiceRegistry()
+                self.pdf_library_api = PDFLibraryAPI(service_registry=reg)
             except Exception as exc:
                 logger.warning("创建 PDFLibraryAPI 失败: %s", exc)
         

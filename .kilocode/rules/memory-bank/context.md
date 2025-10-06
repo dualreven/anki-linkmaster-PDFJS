@@ -905,3 +905,8 @@ const service = new NavigationService();
 - 标准服务器支持注入：src/backend/msgCenter_server/standard_server.py: __init__(..., pdf_library_api=None, service_registry=None)
 - 如提供 service_registry，则内部创建 PDFLibraryAPI(service_registry=...)，否则保持原逻辑（无门面时走回退）
 - 维持对现有测试的兼容（仍可直接设置 server.pdf_library_api = Fake 实例）
+
+### 2025-10-06 书签保存故障修复
+- 根因1：默认服务自动注册受 search/service.py 相对导入影响，首次失败导致后续（bookmark）未注册；改为分开 try/except 并修正为绝对导入（含兜底）。
+- 根因2：StandardWebSocketServer 未默认构造 PDFLibraryAPI，未注入时 `bookmark/save` 不落库；现缺省创建（带 ServiceRegistry）。
+- 验证：新增闭环单测 `src/backend/api/__tests__/test_bookmark_persistence.py`，保存→读取成功。
