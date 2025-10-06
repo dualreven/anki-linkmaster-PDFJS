@@ -238,6 +238,10 @@ class StandardWebSocketServer(QObject):
         elif message_type in ["pdf-home:get:pdf-info", "pdf_detail_request"]:
             return self.handle_pdf_detail_request(request_id, data)
 
+        # 搜索（兼容 v1/v2）
+        elif message_type in ["pdf/search", "pdf-home:search:pdf-files"]:
+            return self.handle_pdf_search_request(request_id, data, message_type, message)
+
         # 更新PDF元数据
         elif message_type in ["pdf-home:update:pdf", "update_pdf"]:
             return self.handle_pdf_update_request(request_id, data)
@@ -406,6 +410,121 @@ class StandardWebSocketServer(QObject):
                 "PDF_LIST_ERROR",
                 f"获取PDF列表失败: {str(e)}"
             )
+
+    def handle_pdf_search_request(self, request_id: str, data: Dict[str, Any], message_type: str, raw_message: Dict[str, Any]) -> Dict[str, Any]:
+        """处理PDF搜索请求（v1/v2 兼容）
+
+        - v1: type = 'pdf-home:search:pdf-files', 顶层携带 search_text
+              响应使用标准 response 包，data = { files, search_text, total_count, original_type }
+        - v2: type = 'pdf/search', data = { search_text, search_fields?, include_hidden?, limit?, offset? }
+              响应使用类型化消息 'pdf/search'，data = { records, count, search_text }
+        """
+        try:
+            # 兼容两种位置的 search_text
+            search_text = ''
+            if raw_message and isinstance(raw_message, dict) and isinstance(raw_message.get('search_text'), str):
+                search_text = (raw_message.get('search_text') or '').strip()
+            else:
+                search_text = (data or {}).get('search_text') or ''
+                if not isinstance(search_text, str):
+                    search_text = ''
+                search_text = search_text.strip()
+
+            # 当无数据库API时，回退到内存PDFManager
+            records: list = []
+            total: int = 0
+            used_backend = 'pdf_manager'
+
+            if hasattr(self, "pdf_library_api") and self.pdf_library_api:
+                try:
+                    # 构造 search payload
+                    tokens = [t for t in (search_text.split() if search_text else []) if t]
+                    limit = None
+                    offset = None
+                    if isinstance(data, dict):
+                        pagination = data.get('pagination') or {}
+                        limit = pagination.get('limit')
+                        offset = pagination.get('offset')
+                        # 兼容简化字段
+                        if limit is None:
+                            limit = data.get('limit')
+                        if offset is None:
+                            offset = data.get('offset')
+                    payload = {
+                        'query': search_text,
+                        'tokens': tokens,
+                        'pagination': {
+                            'limit': int(limit) if isinstance(limit, (int, str)) and str(limit).isdigit() else 500,
+                            'offset': int(offset) if isinstance(offset, (int, str)) and str(offset).isdigit() else 0,
+                            'need_total': True,
+                        }
+                    }
+                    result = self.pdf_library_api.search_records(payload) or { 'records': [], 'total': 0 }
+                    records = result.get('records') or []
+                    total = int(result.get('total') or len(records))
+                    used_backend = 'pdf_library_api'
+                except Exception as exc:
+                    logger.error("数据库搜索失败，回退到内存搜索: %s", exc, exc_info=True)
+
+            if used_backend == 'pdf_manager':
+                # 内存搜索：空搜索返回全部
+                if not search_text:
+                    records = self.pdf_manager.get_files()
+                else:
+                    # 仅支持单关键词模糊（保持最小可用）
+                    results = self.pdf_manager.search_files(search_text)
+                    # 转换为 records（结构与 list_records 接近）
+                    records = results
+                total = len(records)
+
+            if message_type == 'pdf/search':
+                # 返回类型化响应
+                response = {
+                    'type': 'pdf/search',
+                    'timestamp': int(time.time()),
+                    'request_id': request_id,
+                    'status': 'success',
+                    'code': 200,
+                    'message': '搜索成功',
+                    'data': {
+                        'records': records,
+                        'count': total,
+                        'search_text': search_text
+                    }
+                }
+                return response
+            else:
+                # 兼容旧响应（统一 response 包）
+                return StandardMessageHandler.build_response(
+                    'response',
+                    request_id,
+                    status='success',
+                    code=200,
+                    message='搜索成功',
+                    data={
+                        'files': records,
+                        'search_text': search_text,
+                        'total_count': total,
+                        'original_type': 'pdf-home:search:pdf-files'
+                    }
+                )
+
+        except Exception as e:
+            logger.error("处理搜索请求时出错: %s", e, exc_info=True)
+            if message_type == 'pdf/search':
+                return StandardMessageHandler.build_error_response(
+                    request_id,
+                    'SEARCH_ERROR',
+                    f'搜索失败: {str(e)}',
+                    code=500
+                )
+            else:
+                return StandardMessageHandler.build_error_response(
+                    request_id,
+                    'SEARCH_ERROR',
+                    f'搜索失败: {str(e)}',
+                    code=500
+                )
     
     def handle_pdf_upload_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """处理PDF上传请求"""

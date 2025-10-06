@@ -26,7 +26,8 @@ export const RecentSearchesFeatureConfig = {
         LIMIT_CHANGED: 'limit:changed'
       },
       global: {
-        SEARCH_REQUESTED: 'search:requested'
+        // 与 SearchFeature 保持一致（严格三段式）
+        SEARCH_REQUESTED: 'search:query:requested'
       }
     }
   }

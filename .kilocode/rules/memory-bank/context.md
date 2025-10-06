@@ -698,3 +698,58 @@ const service = new NavigationService();
 - 实现位置：
   - 后端：`PDFInfoTablePlugin.search_records` 对多个关键词使用 AND 连接，字段内 OR。
   - 前端：`SearchBar` 占位提示文案更新为"空格=且"。
+
+## 2025-10-06 pdf-home 最近搜索插件（v1）
+- 任务目标：实现侧边栏 RecentSearches 插件，记录并显示最近的搜索关键字，点击可再次发起搜索。
+- 相关模块/文件：
+  - 前端：
+    - 插件类：`src/frontend/pdf-home/features/sidebar/recent-searches/index.js:1`
+    - 插件配置：`src/frontend/pdf-home/features/sidebar/recent-searches/feature.config.js:1`
+    - 样式：`src/frontend/pdf-home/features/sidebar/recent-searches/styles/recent-searches.css:1`
+    - 容器：`src/frontend/pdf-home/features/sidebar/components/sidebar-container.js:1`（提供 DOM 容器）
+  - 事件：
+    - 全局监听：`search:query:requested`（与 SearchFeature 保持一致）
+    - 本地触发：`search:clicked`、`limit:changed`
+  - 本地存储：
+    - 历史键名：`pdf-home:recent-searches`
+    - 显示条数键名：`pdf-home:recent-searches:display-limit`
+- 事件流：
+  1) 用户在 SearchBar 输入并触发搜索 → 全局事件 `search:query:requested`
+  2) RecentSearches 监听事件，写入/去重/上移并保存到 LocalStorage → 渲染列表
+  3) 用户点击某条历史 → 插件发出本地 `search:clicked` + 全局 `search:query:requested`，驱动重新搜索
+- UI：
+  - 列表容器：`#recent-searches-list`（由 SidebarContainer 预先渲染）
+  - 标题处附加“显示 N”下拉（5/10/20/50），更新显示条数并持久化
+  - 空列表显示“暂无搜索记录”占位
+- 原子步骤：
+  1) 读取规范、确认事件名（三段式）与容器 DOM
+  2) 先写 Jest 单测：存取、渲染、点击回放、去重置顶
+  3) 实现插件：存储读写、渲染、事件桥接、显示条数
+  4) 打开 Feature Flag：`recent-searches=true`
+  5) 更新文档与工作日志
+- 结果：
+  - 新增测试：`src/frontend/pdf-home/features/sidebar/recent-searches/__tests__/recent-searches.test.js:1`
+  - 实现逻辑：`index.js` 完成；`feature.config.js` 事件名与 SearchFeature 对齐
+  - Feature Flag 已启用：`src/frontend/pdf-home/config/feature-flags.json:101`
+  - 不涉及后端改动
+
+## 2025-10-06 搜索消息类型兼容修复
+- 现象：点击搜索出现“未知的消息类型: pdf/search”。
+- 根因：当前运行的后端 `pdfTable_server` 仅识别旧类型 `pdf-home:search:pdf-files`，并统一以 `type=response` 返回；前端 `SearchManager` 发送了新类型 `pdf/search` 且仅处理新协议响应，导致报错。
+- 修复：
+  - 发送端：`SearchManager` 新增模式控制与本地持久化（默认 `v1`）。优先使用 `pdf-home:search:pdf-files`；如遇“未知消息类型”，对该次请求仅回退一次到 `pdf/search` 再试；成功后锁定模式并持久化。
+  - 接收端：新增对 `websocket:message:response` 的解析（旧服务统一 `type=response`），识别 `data.files/total_count/search_text`，转发为 `search:results:updated`；保留对新协议 `pdf/search` 的直接处理。
+  - 本地配置：`localStorage['pdf-home:search:backend-mode']` 可强制设置 `'v1'|'v2'`。
+ - 受影响文件：`src/frontend/pdf-home/features/search/services/search-manager.js:1`
+- 预期：避免“未知类型”死循环；自动适配后端协议并记忆。
+
+## 2025-10-06 MsgCenter 搜索路由补全（standard_server）
+- 现象：MsgCenter 日志显示对 `pdf-home:search:pdf-files` 与 `pdf/search` 均返回 `response`，且 message 为“未知的消息类型: ...”。
+- 原因：`src/backend/msgCenter_server/standard_server.py` 未实现这两类搜索消息的路由分支，走了默认 unknown_message_type 分支。
+- 处理：
+  - 新增 `handle_pdf_search_request()`，支持两种消息：
+    - v1: `pdf-home:search:pdf-files`（顶层 `search_text`）→ 返回标准 `response` 包，`data={ files, total_count, search_text, original_type }`
+    - v2: `pdf/search`（`data.search_text` 等）→ 返回类型化消息 `type='pdf/search'`，`data={ records, count, search_text }`
+  - 搜索实现优先使用 `pdf_library_api.search_records()`（若注入），否则回退到 `PDFManager` 内存搜索（空搜索=全部）。
+- 受影响文件：`src/backend/msgCenter_server/standard_server.py:1`（新增分支与处理方法）
+- 结果：前端不会再收到“未知的消息类型: pdf/search|pdf-home:search:pdf-files”的错误；`SearchManager` 的 v1/v2 双协议解析均可正常工作。
