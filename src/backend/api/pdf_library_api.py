@@ -290,7 +290,8 @@ class PDFLibraryAPI:
             node['children'].sort(key=lambda item: item['order'])
 
         root_ids.sort(key=lambda item: node_map[item]['order'])
-        bookmarks = list(node_map.values())
+        # 仅返回根节点列表，避免将所有节点平铺到顶层破坏层级结构
+        bookmarks = [node_map[bid] for bid in root_ids if bid in node_map]
         return {"bookmarks": bookmarks, "root_ids": root_ids}
 
     def save_bookmarks(
@@ -324,6 +325,11 @@ class PDFLibraryAPI:
         for row in rows:
             self._bookmark_plugin.insert(row)
         return len(rows)
+
+    def clear_bookmarks(self, pdf_uuid: str) -> int:
+        if not pdf_uuid:
+            raise DatabaseValidationError("pdf_uuid is required")
+        return self._bookmark_plugin.delete_by_pdf(pdf_uuid)
 
     # Sync helpers --------------------------------------------------------
 

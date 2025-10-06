@@ -11,6 +11,7 @@ import '../common/polyfills.js';
 
 import { bootstrapPDFHomeAppV2 } from './bootstrap/app-bootstrap-v2.js';
 import { setupCommunicationTestUI } from './utils/communication-tester.js';
+const logger = getLogger('pdf-home.index');
 
 /**
  * 获取运行环境
@@ -68,7 +69,6 @@ async function startApp() {
 // ===== 应用启动 =====
 logger.info('[DEBUG] Script loaded, waiting for DOMContentLoaded...');
 
-const logger = getLogger('pdf-home.index');
 
 document.addEventListener('DOMContentLoaded', async () => {
   await startApp();

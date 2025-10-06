@@ -389,3 +389,25 @@ emove_comment(ann_id, comment_id)。
 - 要求：在 src/frontend/pdf-viewer/index.html 中必须以模块方式加载：
   - <script type="module" src="assets/floating-controls.js"></script>
 - 说明：统一使用项目 Logger，不得回退 console.*；如需在 HTML 直连脚本中使用 Logger，必须以模块脚本加载。
+
+## 契约一致性与门禁（新增）
+- 合并前必须先合入契约（docs/contracts/*）并通过评审。
+- 响应消息需满足：事件名三段式映射至 type，且响应 status=success/error 与事件状态一致。
+- 后续将提供轻量 Schema 校验脚本（前端/后端均本地可跑），未通过禁止合并。
+
+
+- 当前契约样例位于: todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/schemas
+- 规格说明: todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/v001-spec.md
+
+- 新增脚本：scripts/validate_schemas.py（UTF-8-SIG 读取，检查Schema关键字段），建议在CI中执行。
+
+## 新增：Annotation 域 WS 消息（v1）
+- 请求：
+  - nnotation:list:requested → data: { pdf_uuid }
+  - nnotation:save:requested → data: { pdf_uuid, annotation }
+  - nnotation:delete:requested → data: { ann_id }
+- 响应：
+  - nnotation:list:completed → data: { annotations: [], count }
+  - nnotation:save:completed → data: { id, created?, updated? }
+  - nnotation:delete:completed → data: { ok }
+- 说明：前端 AnnotationManager 自动从 DI 容器获取 wsClient，可用即远程持久化；否则退化为 Mock。

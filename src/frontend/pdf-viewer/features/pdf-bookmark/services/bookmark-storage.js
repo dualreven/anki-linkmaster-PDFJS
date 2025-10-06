@@ -119,7 +119,7 @@ export class RemoteBookmarkStorage extends IBookmarkStorage {
   }
 
   async load(pdfId) {
-    if (!this.#canUseRemote() || !this.#wsClient.isConnected?.()) {
+    if (!this.#canUseRemote()) {
       this.#logger.debug('Remote storage unavailable, loading from fallback');
       return this.#fallbackLoad(pdfId);
     }
@@ -128,7 +128,7 @@ export class RemoteBookmarkStorage extends IBookmarkStorage {
       const response = await this.#wsClient.request(
         WEBSOCKET_MESSAGE_TYPES.BOOKMARK_LIST,
         { pdf_uuid: pdfId },
-        { timeout: 7000 }
+        { timeout: 12000 }
       );
 
       const normalized = {

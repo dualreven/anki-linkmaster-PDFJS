@@ -31,6 +31,35 @@ from src.backend.pdf_manager.manager import PDFManager
 
 logger = logging.getLogger(__name__)
 
+LEGACY_TYPE_MAPPING = {
+    MessageType.LEGACY_PDF_LIBRARY_LIST.value: MessageType.PDF_LIBRARY_LIST_REQUESTED.value,
+    MessageType.LEGACY_PDF_HOME_GET_PDF_LIST.value: MessageType.PDF_LIBRARY_LIST_REQUESTED.value,
+    "get_pdf_list": MessageType.PDF_LIBRARY_LIST_REQUESTED.value,
+    MessageType.LEGACY_PDF_LIBRARY_ADD.value: MessageType.PDF_LIBRARY_ADD_REQUESTED.value,
+    MessageType.LEGACY_PDF_HOME_ADD_PDF_FILES.value: MessageType.PDF_LIBRARY_ADD_REQUESTED.value,
+    "add_pdf": MessageType.PDF_LIBRARY_ADD_REQUESTED.value,
+    MessageType.LEGACY_PDF_LIBRARY_REMOVE.value: MessageType.PDF_LIBRARY_REMOVE_REQUESTED.value,
+    MessageType.LEGACY_PDF_HOME_REMOVE_PDF_FILES.value: MessageType.PDF_LIBRARY_REMOVE_REQUESTED.value,
+    "remove_pdf": MessageType.PDF_LIBRARY_REMOVE_REQUESTED.value,
+    "batch_remove_pdf": MessageType.PDF_LIBRARY_REMOVE_REQUESTED.value,
+    MessageType.LEGACY_PDF_LIBRARY_OPEN.value: MessageType.PDF_LIBRARY_VIEWER_REQUESTED.value,
+    MessageType.LEGACY_PDF_HOME_OPEN_PDF_FILE.value: MessageType.PDF_LIBRARY_VIEWER_REQUESTED.value,
+    "open_pdf": MessageType.PDF_LIBRARY_VIEWER_REQUESTED.value,
+    MessageType.LEGACY_PDF_LIBRARY_INFO.value: MessageType.PDF_LIBRARY_INFO_REQUESTED.value,
+    MessageType.LEGACY_PDF_HOME_GET_PDF_INFO.value: MessageType.PDF_LIBRARY_INFO_REQUESTED.value,
+    "pdf_detail_request": MessageType.PDF_LIBRARY_INFO_REQUESTED.value,
+    MessageType.LEGACY_PDF_HOME_UPDATE_PDF.value: MessageType.PDF_LIBRARY_RECORD_UPDATE_REQUESTED.value,
+    MessageType.LEGACY_PDF_LIBRARY_SEARCH.value: MessageType.PDF_LIBRARY_SEARCH_REQUESTED.value,
+    "pdf-home:search:pdf-files": MessageType.PDF_LIBRARY_SEARCH_REQUESTED.value,
+    MessageType.LEGACY_PDF_LIBRARY_GET_CONFIG.value: MessageType.PDF_LIBRARY_CONFIG_READ_REQUESTED.value,
+    "pdf-home:get:config": MessageType.PDF_LIBRARY_CONFIG_READ_REQUESTED.value,
+    MessageType.LEGACY_PDF_LIBRARY_UPDATE_CONFIG.value: MessageType.PDF_LIBRARY_CONFIG_WRITE_REQUESTED.value,
+    "pdf-home:update:config": MessageType.PDF_LIBRARY_CONFIG_WRITE_REQUESTED.value,
+    MessageType.LEGACY_BOOKMARK_LIST.value: MessageType.BOOKMARK_LIST_REQUESTED.value,
+    MessageType.LEGACY_BOOKMARK_SAVE.value: MessageType.BOOKMARK_SAVE_REQUESTED.value,
+}
+
+
 def setup_logging():
     """配置日志记录"""
     log_dir = "logs"
@@ -113,7 +142,7 @@ class StandardWebSocketServer(QObject):
         if self.pdf_library_api is None:
             try:
                 reg = service_registry if service_registry is not None else ServiceRegistry()
-                self.pdf_library_api = PDFLibraryAPI(service_registry=reg)
+                self.pdf_library_api = PDFLibraryAPI(service_registry=reg, pdf_manager=self.pdf_manager)
             except Exception as exc:
                 logger.warning("创建 PDFLibraryAPI 失败: %s", exc)
         
@@ -123,8 +152,12 @@ class StandardWebSocketServer(QObject):
         # 连接PDF管理器信号
         self.pdf_manager.file_added.connect(self.on_pdf_file_added)
         self.pdf_manager.file_removed.connect(self.on_pdf_file_removed)
-        self.pdf_manager.file_list_changed.connect(self.on_pdf_list_changed)
-        
+
+    def _normalize_message_type(self, message_type: Optional[str]) -> str:
+        if not message_type:
+            return ""
+        return LEGACY_TYPE_MAPPING.get(message_type, message_type)
+
     def start(self):
         """启动服务器"""
         if self.running:
@@ -173,7 +206,7 @@ class StandardWebSocketServer(QObject):
         
         # 发送欢迎消息
         welcome_msg = StandardMessageHandler.build_base_message(
-            MessageType.SYSTEM_STATUS.value,
+            MessageType.SYSTEM_STATUS_UPDATED.value,
             data={
                 "status": "connected",
                 "server_version": "1.0.0",
@@ -221,91 +254,1160 @@ class StandardWebSocketServer(QObject):
             
     def handle_message(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """处理具体消息"""
-        message_type = message.get("type")
+        original_type = message.get("type")
         request_id = message.get("request_id")
         data = message.get("data", {})
+        normalized_type = self._normalize_message_type(original_type)
 
-        logger.info(f"处理消息类型: {message_type}, 请求ID: {request_id}")
+        # 降低 console_log 的日志量
+        if original_type == "console_log":
+            logger.debug("处理消息类型: %s（归一化: %s）, 请求ID: %s", original_type, normalized_type, request_id)
+        else:
+            logger.info("处理消息类型: %s（归一化: %s）, 请求ID: %s", original_type, normalized_type, request_id)
 
-        # 获取PDF列表（将 v2 路由映射到 v1 响应）
-        if message_type == "pdf-library:list:records":
-            return self.handle_pdf_list_request(request_id, data)
-        elif message_type == "bookmark:list:records":
+        if normalized_type == MessageType.PDF_LIBRARY_LIST_REQUESTED.value:
+            return self.handle_pdf_list_request(request_id, data, original_type=original_type)
+        if normalized_type == MessageType.BOOKMARK_LIST_REQUESTED.value:
             return self.handle_bookmark_list_request(request_id, data)
-        elif message_type == "bookmark:save:record":
+        if normalized_type == MessageType.BOOKMARK_SAVE_REQUESTED.value:
             return self.handle_bookmark_save_request(request_id, data)
-        elif message_type in ["pdf-home:get:pdf-list", "get_pdf_list"]:
-            return self.handle_pdf_list_request(request_id, data)
-
-        # 添加PDF文件（支持单个/多个）
-        elif message_type in ["pdf-library:add:records", "pdf-home:add:pdf-files", "add_pdf"]:
-            return self.handle_pdf_upload_request(request_id, data)
-
-        # 删除PDF文件（统一批量处理）
-        elif message_type in ["pdf-library:remove:records", "pdf-home:remove:pdf-files", "remove_pdf", "batch_remove_pdf"]:
-            # 统一使用批量删除处理器
-            return self.handle_batch_pdf_remove_request(request_id, data)
-
-        # 打开PDF查看器
-        elif message_type in ["pdf-library:open:viewer", "pdf-home:open:pdf-file", "open_pdf"]:
-           return self.handle_open_pdf_request(request_id, data)
-
-        # 获取PDF详情
-        elif message_type in ["pdf-home:get:pdf-info", "pdf_detail_request"]:
+        if normalized_type == MessageType.PDF_LIBRARY_ADD_REQUESTED.value:
+            return self.handle_pdf_upload_request(request_id, data, original_type=original_type)
+        if normalized_type == MessageType.PDF_LIBRARY_REMOVE_REQUESTED.value:
+            return self.handle_batch_pdf_remove_request(request_id, data, original_type=original_type)
+        if normalized_type == MessageType.PDF_LIBRARY_VIEWER_REQUESTED.value:
+            return self.handle_open_pdf_request(request_id, data)
+        if normalized_type == MessageType.PDF_LIBRARY_INFO_REQUESTED.value:
             return self.handle_pdf_detail_request(request_id, data)
-
-        # 搜索（仅保留 v1）
-        elif message_type in ["pdf-home:search:pdf-files"]:
-            return self.handle_pdf_search_request(request_id, data, message)
-
-        # PDF-Home 配置读写（recent_search 持久化）
-        elif message_type in ["pdf-home:get:config"]:
-            return self.handle_pdf_home_get_config(request_id)
-        elif message_type in ["pdf-home:update:config"]:
-            return self.handle_pdf_home_update_config(request_id, data)
-
-        # 更新PDF元数据
-        elif message_type in ["pdf-home:update:pdf", "update_pdf"]:
+        if normalized_type == MessageType.PDF_LIBRARY_RECORD_UPDATE_REQUESTED.value:
             return self.handle_pdf_update_request(request_id, data)
-
-        # PDF页面请求
-        elif message_type == MessageType.PDF_PAGE_REQUEST.value:
+        if normalized_type == MessageType.PDF_LIBRARY_SEARCH_REQUESTED.value:
+            return self.handle_pdf_search_request(request_id, data, message)
+        if normalized_type == MessageType.PDF_LIBRARY_CONFIG_READ_REQUESTED.value:
+            return self.handle_pdf_home_get_config(request_id)
+        if normalized_type == MessageType.PDF_LIBRARY_CONFIG_WRITE_REQUESTED.value:
+            return self.handle_pdf_home_update_config(request_id, data)
+        # 能力注册中心
+        if normalized_type == MessageType.CAPABILITY_DISCOVER_REQUESTED.value:
+            return self.handle_capability_discover_request(request_id)
+        if normalized_type == MessageType.CAPABILITY_DESCRIBE_REQUESTED.value:
+            return self.handle_capability_describe_request(request_id, data)
+        # 存储服务（KV）
+        if normalized_type == MessageType.STORAGE_KV_GET_REQUESTED.value:
+            return self.handle_storage_kv_get_request(request_id, data)
+        if normalized_type == MessageType.STORAGE_KV_SET_REQUESTED.value:
+            return self.handle_storage_kv_set_request(request_id, data)
+        if normalized_type == MessageType.STORAGE_KV_DELETE_REQUESTED.value:
+            return self.handle_storage_kv_delete_request(request_id, data)
+        # 存储服务（FS）
+        if normalized_type == MessageType.STORAGE_FS_READ_REQUESTED.value:
+            return self.handle_storage_fs_read_request(request_id, data)
+        if normalized_type == MessageType.STORAGE_FS_WRITE_REQUESTED.value:
+            return self.handle_storage_fs_write_request(request_id, data)
+        if normalized_type == MessageType.PDF_PAGE_LOAD_REQUESTED.value or original_type == MessageType.LEGACY_PDF_PAGE_REQUEST.value:
             return self.handle_pdf_page_request(request_id, data)
-
-        # PDF页面预加载请求
-        elif message_type == MessageType.PDF_PAGE_PRELOAD.value:
+        if normalized_type == MessageType.PDF_PAGE_PRELOAD_REQUESTED.value or original_type == MessageType.LEGACY_PDF_PAGE_PRELOAD.value:
             return self.handle_pdf_page_preload_request(request_id, data)
-
-        # PDF页面缓存清理请求
-        elif message_type == MessageType.PDF_PAGE_CACHE_CLEAR.value:
+        if normalized_type == MessageType.PDF_PAGE_CACHE_CLEAR_REQUESTED.value or original_type == MessageType.LEGACY_PDF_PAGE_CACHE_CLEAR.value:
             return self.handle_pdf_page_cache_clear_request(request_id, data)
 
-        
-            return self.handle_pdf_detail_request(request_id, data)
-        
-        # Console日志消息
-        elif message_type == "console_log":
+        # Annotation domain
+        if normalized_type == MessageType.ANNOTATION_LIST_REQUESTED.value:
+            return self.handle_annotation_list_request(request_id, data)
+        if normalized_type == MessageType.ANNOTATION_SAVE_REQUESTED.value:
+            return self.handle_annotation_save_request(request_id, data)
+        if normalized_type == MessageType.ANNOTATION_DELETE_REQUESTED.value:
+            return self.handle_annotation_delete_request(request_id, data)
+
+        if original_type == "console_log":
             return self.handle_console_log_request(request_id, data)
 
-        # 心跳消息
-        elif message_type == "heartbeat":
+        if original_type in {MessageType.LEGACY_HEARTBEAT.value, MessageType.HEARTBEAT_REQUESTED.value, "heartbeat"}:
             return StandardMessageHandler.build_response(
-                "response",
-                request_id,
+                MessageType.HEARTBEAT_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
                 status="success",
                 code=200,
                 message="心跳响应",
                 data={"timestamp": int(time.time())}
             )
-        
-        else:
+
+        return StandardMessageHandler.build_error_response(
+            request_id or "unknown",
+            "unknown_message_type",
+            f"未知的消息类型: {original_type}",
+            message_type=MessageType.LEGACY_ERROR,
+            code=400
+        )
+    def handle_pdf_list_request(self, request_id: Optional[str], data: Dict[str, Any], *, original_type: Optional[str] = None) -> Dict[str, Any]:
+        try:
+            limit = None
+            offset = None
+            if isinstance(data, dict):
+                pg = data.get("pagination") or {}
+                try:
+                    limit = int(pg.get("limit")) if pg.get("limit") is not None else None
+                except Exception:
+                    limit = None
+                try:
+                    offset = int(pg.get("offset")) if pg.get("offset") is not None else None
+                except Exception:
+                    offset = None
+            if hasattr(self, "pdf_library_api") and self.pdf_library_api:
+                files = self.pdf_library_api.list_records(limit=limit, offset=offset)
+            else:
+                files = self.pdf_manager.get_files() if hasattr(self, "pdf_manager") and self.pdf_manager else []
+            return PDFMessageBuilder.build_pdf_list_response(
+                request_id or StandardMessageHandler.generate_request_id(),
+                files,
+                pagination={"limit": limit, "offset": offset} if (limit is not None or offset is not None) else None,
+            )
+        except Exception as exc:
+            logger.error("获取PDF列表失败: %s", exc, exc_info=True)
             return StandardMessageHandler.build_error_response(
-                request_id,
-                "unknown_message_type",
-                f"未知的消息类型: {message_type}",
-                code=400
+                request_id or "unknown",
+                "LIST_ERROR",
+                f"获取PDF列表失败: {exc}",
+                message_type=MessageType.PDF_LIBRARY_LIST_FAILED,
+                code=500,
             )
 
+    def handle_pdf_detail_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            pdf_id = None
+            if isinstance(data, dict):
+                pdf_id = data.get("pdf_id") or data.get("file_id") or data.get("uuid")
+            if not pdf_id:
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "INVALID_REQUEST",
+                    "缺少 pdf_id/file_id/uuid 参数",
+                    message_type=MessageType.PDF_LIBRARY_INFO_FAILED,
+                    code=400,
+                )
+            detail = None
+            if hasattr(self, "pdf_library_api") and self.pdf_library_api:
+                detail = self.pdf_library_api.get_record_detail(pdf_id)
+            if detail is None and hasattr(self, "pdf_manager") and self.pdf_manager:
+                detail = self.pdf_manager.get_file_detail(pdf_id)
+            if detail is None:
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "NOT_FOUND",
+                    f"未找到PDF: {pdf_id}",
+                    message_type=MessageType.PDF_LIBRARY_INFO_FAILED,
+                    code=404,
+                )
+            return StandardMessageHandler.build_response(
+                MessageType.PDF_LIBRARY_INFO_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
+                status="success",
+                code=200,
+                message="PDF详情获取成功",
+                data=detail,
+            )
+        except Exception as exc:
+            logger.error("获取PDF详情失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "DETAIL_ERROR",
+                f"获取PDF详情失败: {exc}",
+                message_type=MessageType.PDF_LIBRARY_INFO_FAILED,
+                code=500,
+            )
+
+    def handle_batch_pdf_remove_request(self, request_id: Optional[str], data: Dict[str, Any], *, original_type: Optional[str] = None) -> Dict[str, Any]:
+        try:
+            file_ids = []
+            if isinstance(data, dict):
+                file_ids = data.get("file_ids") or data.get("ids") or []
+            if not isinstance(file_ids, list) or not file_ids:
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "INVALID_REQUEST",
+                    "缺少 file_ids 列表",
+                    message_type=MessageType.PDF_LIBRARY_REMOVE_FAILED,
+                    code=400,
+                )
+            removed = []
+            failed = {}
+            for fid in file_ids:
+                ok = False
+                if hasattr(self, "pdf_library_api") and self.pdf_library_api:
+                    try:
+                        ok = bool(self.pdf_library_api.delete_record(fid))
+                    except Exception as exc:
+                        ok = False
+                        logger.warning("删除记录失败: %s", exc)
+                if not ok and hasattr(self, "pdf_manager") and self.pdf_manager:
+                    try:
+                        ok = bool(self.pdf_manager.remove_file(fid))
+                    except Exception as exc:
+                        ok = False
+                        logger.warning("删除文件失败: %s", exc)
+                if ok:
+                    removed.append(fid)
+                else:
+                    failed[str(fid)] = "删除失败"
+            return PDFMessageBuilder.build_batch_pdf_remove_response(
+                request_id or StandardMessageHandler.generate_request_id(),
+                removed,
+                failed_files=failed or None,
+            )
+        except Exception as exc:
+            logger.error("批量删除失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "REMOVE_ERROR",
+                f"批量删除失败: {exc}",
+                message_type=MessageType.PDF_LIBRARY_REMOVE_FAILED,
+                code=500,
+            )
+
+    def handle_open_pdf_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            pdf_id = (data or {}).get("pdf_id") or (data or {}).get("file_id")
+            payload = {"file_id": pdf_id} if pdf_id else {}
+            # 最小实现：仅回执完成。实际窗口打开应由上层应用集成。
+            return StandardMessageHandler.build_response(
+                MessageType.PDF_LIBRARY_VIEWER_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
+                status="success",
+                code=200,
+                message="查看器请求已接收",
+                data=payload,
+            )
+        except Exception as exc:
+            logger.error("打开查看器失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "VIEWER_ERROR",
+                f"打开查看器失败: {exc}",
+                message_type=MessageType.PDF_LIBRARY_VIEWER_FAILED,
+                code=500,
+            )
+
+    def _kv_store_load(self) -> Dict[str, Any]:
+        store_dir = os.path.join(project_root, "data")
+        os.makedirs(store_dir, exist_ok=True)
+        store_path = os.path.join(store_dir, "storage-kv.json")
+        store: Dict[str, Any] = {}
+        if os.path.exists(store_path):
+            with open(store_path, "r", encoding="utf-8") as f:
+                try:
+                    store = json.load(f) or {}
+                except Exception:
+                    store = {}
+        return store
+
+    def _kv_store_save(self, store: Dict[str, Any]) -> None:
+        store_dir = os.path.join(project_root, "data")
+        os.makedirs(store_dir, exist_ok=True)
+        store_path = os.path.join(store_dir, "storage-kv.json")
+        with open(store_path, "w", encoding="utf-8", newline='\n') as f:
+            json.dump(store, f, ensure_ascii=False, indent=2)
+    def handle_pdf_upload_request(self, request_id: Optional[str], data: Dict[str, Any], *, original_type: Optional[str] = None) -> Dict[str, Any]:
+        """处理 PDF 添加请求（兼容门面）。"""
+        try:
+            if not hasattr(self, "pdf_library_api") or not self.pdf_library_api:
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "SERVICE_UNAVAILABLE",
+                    "PDFLibraryAPI 未初始化",
+                    message_type=MessageType.PDF_LIBRARY_ADD_FAILED,
+                    code=503,
+                )
+            filepath = (data or {}).get("filepath")
+            if not filepath:
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "INVALID_REQUEST",
+                    "缺少 filepath 参数",
+                    message_type=MessageType.PDF_LIBRARY_ADD_FAILED,
+                    code=400,
+                )
+            result = self.pdf_library_api.add_pdf_from_file(filepath)
+            if result and result.get("success"):
+                file_payload = {
+                    "id": result.get("uuid"),
+                    "filename": result.get("filename"),
+                    "file_size": result.get("file_size"),
+                }
+                return StandardMessageHandler.build_response(
+                    MessageType.PDF_LIBRARY_ADD_COMPLETED,
+                    request_id or StandardMessageHandler.generate_request_id(),
+                    status="success",
+                    code=200,
+                    message="添加PDF成功",
+                    data={"file": file_payload, "original_type": original_type or MessageType.PDF_LIBRARY_ADD_REQUESTED.value},
+                )
+            else:
+                err_msg = (result or {}).get("error") or "添加 PDF 失败"
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "PDF_ADD_ERROR",
+                    err_msg,
+                    message_type=MessageType.PDF_LIBRARY_ADD_FAILED,
+                    code=400,
+                )
+        except Exception as exc:
+            logger.error("添加PDF失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "INTERNAL_ERROR",
+                f"添加PDF失败: {exc}",
+                message_type=MessageType.PDF_LIBRARY_ADD_FAILED,
+                code=500,
+            )
+
+    def handle_pdf_search_request(self, request_id: Optional[str], data: Dict[str, Any], raw_message: Dict[str, Any]) -> Dict[str, Any]:
+        """处理 PDF 搜索请求，适配统一契约。"""
+        try:
+            if not hasattr(self, "pdf_library_api") or not self.pdf_library_api:
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "SERVICE_UNAVAILABLE",
+                    "PDFLibraryAPI 未初始化",
+                    message_type=MessageType.PDF_LIBRARY_SEARCH_FAILED,
+                    code=503,
+                )
+            query = "" if not isinstance(data, dict) else str(data.get("query", "") or "")
+            try:
+                limit = int(data.get("limit", 50)) if isinstance(data, dict) else 50
+            except Exception:
+                limit = 50
+            try:
+                offset = int(data.get("offset", 0)) if isinstance(data, dict) else 0
+            except Exception:
+                offset = 0
+            payload = {
+                "query": query,
+                "pagination": {"limit": limit, "offset": offset, "need_total": True},
+            }
+            search_result = self.pdf_library_api.search_records(payload)
+            items = []
+            for rec in search_result.get("records", []):
+                items.append({
+                    "pdf_id": rec.get("id"),
+                    "title": rec.get("title"),
+                    "page_count": rec.get("page_count"),
+                    "tags": rec.get("tags", []),
+                })
+            data_payload = {"items": items}
+            if "total" in search_result:
+                data_payload["total"] = search_result.get("total")
+            return StandardMessageHandler.build_response(
+                MessageType.PDF_LIBRARY_SEARCH_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
+                status="success",
+                code=200,
+                message="搜索成功",
+                data=data_payload,
+            )
+        except Exception as exc:
+            logger.error("搜索失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "SEARCH_ERROR",
+                f"搜索失败: {exc}",
+                message_type=MessageType.PDF_LIBRARY_SEARCH_FAILED,
+                code=500,
+            )
+    def handle_capability_discover_request(self, request_id: Optional[str]) -> Dict[str, Any]:
+        try:
+            domains = [
+                {
+                    "name": "capability",
+                    "versions": ["1.0.0"],
+                    "events": [
+                        MessageType.CAPABILITY_DISCOVER_REQUESTED.value,
+                        MessageType.CAPABILITY_DISCOVER_COMPLETED.value,
+                        MessageType.CAPABILITY_DISCOVER_FAILED.value,
+                        MessageType.CAPABILITY_DESCRIBE_REQUESTED.value,
+                        MessageType.CAPABILITY_DESCRIBE_COMPLETED.value,
+                        MessageType.CAPABILITY_DESCRIBE_FAILED.value,
+                    ],
+                },
+                {
+                    "name": "pdf-library",
+                    "versions": ["1.0.0"],
+                    "events": [
+                        MessageType.PDF_LIBRARY_LIST_REQUESTED.value,
+                        MessageType.PDF_LIBRARY_LIST_COMPLETED.value,
+                        MessageType.PDF_LIBRARY_LIST_FAILED.value,
+                        MessageType.PDF_LIBRARY_SEARCH_REQUESTED.value,
+                        MessageType.PDF_LIBRARY_SEARCH_COMPLETED.value,
+                        MessageType.PDF_LIBRARY_SEARCH_FAILED.value,
+                        MessageType.PDF_LIBRARY_ADD_REQUESTED.value,
+                        MessageType.PDF_LIBRARY_ADD_COMPLETED.value,
+                        MessageType.PDF_LIBRARY_ADD_FAILED.value,
+                        MessageType.PDF_LIBRARY_REMOVE_REQUESTED.value,
+                        MessageType.PDF_LIBRARY_REMOVE_COMPLETED.value,
+                        MessageType.PDF_LIBRARY_REMOVE_FAILED.value,
+                        MessageType.PDF_LIBRARY_INFO_REQUESTED.value,
+                        MessageType.PDF_LIBRARY_INFO_COMPLETED.value,
+                        MessageType.PDF_LIBRARY_INFO_FAILED.value,
+                    ],
+                },
+                {
+                    "name": "storage-kv",
+                    "versions": ["1.0.0"],
+                    "events": [
+                        MessageType.STORAGE_KV_GET_REQUESTED.value,
+                        MessageType.STORAGE_KV_GET_COMPLETED.value,
+                        MessageType.STORAGE_KV_GET_FAILED.value,
+                        MessageType.STORAGE_KV_SET_REQUESTED.value,
+                        MessageType.STORAGE_KV_SET_COMPLETED.value,
+                        MessageType.STORAGE_KV_SET_FAILED.value,
+                        MessageType.STORAGE_KV_DELETE_REQUESTED.value,
+                        MessageType.STORAGE_KV_DELETE_COMPLETED.value,
+                        MessageType.STORAGE_KV_DELETE_FAILED.value,
+                    ],
+                },
+                {
+                    "name": "storage-fs",
+                    "versions": ["1.0.0"],
+                    "events": [
+                        MessageType.STORAGE_FS_READ_REQUESTED.value,
+                        MessageType.STORAGE_FS_READ_COMPLETED.value,
+                        MessageType.STORAGE_FS_READ_FAILED.value,
+                        MessageType.STORAGE_FS_WRITE_REQUESTED.value,
+                        MessageType.STORAGE_FS_WRITE_COMPLETED.value,
+                        MessageType.STORAGE_FS_WRITE_FAILED.value,
+                    ],
+                },
+                {
+                    "name": "bookmark",
+                    "versions": ["1.0.0"],
+                    "events": [
+                        MessageType.BOOKMARK_LIST_REQUESTED.value,
+                        MessageType.BOOKMARK_LIST_COMPLETED.value,
+                        MessageType.BOOKMARK_LIST_FAILED.value,
+                        MessageType.BOOKMARK_SAVE_REQUESTED.value,
+                        MessageType.BOOKMARK_SAVE_COMPLETED.value,
+                        MessageType.BOOKMARK_SAVE_FAILED.value,
+                    ],
+                },
+                {
+                    "name": "pdf-page",
+                    "versions": ["1.0.0"],
+                    "events": [
+                        MessageType.PDF_PAGE_LOAD_REQUESTED.value,
+                        MessageType.PDF_PAGE_LOAD_COMPLETED.value,
+                        MessageType.PDF_PAGE_LOAD_FAILED.value,
+                        MessageType.PDF_PAGE_PRELOAD_REQUESTED.value,
+                        MessageType.PDF_PAGE_CACHE_CLEAR_REQUESTED.value,
+                    ],
+                },
+                {
+                    "name": "system",
+                    "versions": ["1.0.0"],
+                    "events": [
+                        MessageType.HEARTBEAT_REQUESTED.value,
+                        MessageType.HEARTBEAT_COMPLETED.value,
+                        MessageType.SYSTEM_STATUS_UPDATED.value,
+                        MessageType.SYSTEM_ERROR_OCCURRED.value,
+                    ],
+                },
+            ]
+            return StandardMessageHandler.build_response(
+                MessageType.CAPABILITY_DISCOVER_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
+                status="success",
+                code=200,
+                message="capability discovered",
+                data={"domains": domains},
+            )
+        except Exception as exc:
+            logger.error("能力发现失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "CAPABILITY_DISCOVER_ERROR",
+                f"能力发现失败: {exc}",
+                message_type=MessageType.CAPABILITY_DISCOVER_FAILED,
+                code=500,
+            )
+
+    def handle_capability_describe_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            domain = (data or {}).get("domain")
+            if not domain:
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "INVALID_REQUEST",
+                    "缺少 domain 参数",
+                    message_type=MessageType.CAPABILITY_DESCRIBE_FAILED,
+                    code=400,
+                )
+
+            # 契约样例位置（与 todo-and-doing 目录保持一致）
+            schema_root = os.path.join(
+                project_root,
+                "todo-and-doing",
+                "1 doing",
+                "20251006182000-bus-contract-capability-registry",
+                "schemas",
+            )
+
+            def schema_info(rel_path: str) -> Dict[str, Any]:
+                full = os.path.join(schema_root, rel_path)
+                try:
+                    # 显式 UTF-8 读取并计算 sha256
+                    import hashlib
+                    with open(full, "r", encoding="utf-8") as f:
+                        content = f.read()
+                    sha = hashlib.sha256(content.encode("utf-8")).hexdigest()
+                except Exception:
+                    sha = None
+                return {"path": os.path.relpath(full, project_root).replace("\\", "/"), "schemaHash": sha}
+
+            described = {"domain": domain, "version": "1.0.0", "events": []}
+
+            if domain == "capability":
+                described["events"] = [
+                    {
+                        "type": MessageType.CAPABILITY_DISCOVER_REQUESTED.value,
+                        "schema": schema_info("capability/v1/messages/discover.request.schema.json"),
+                    },
+                    {
+                        "type": MessageType.CAPABILITY_DISCOVER_COMPLETED.value,
+                        "schema": schema_info("capability/v1/messages/discover.completed.schema.json"),
+                    },
+                ]
+            elif domain == "pdf-library":
+                described["events"] = [
+                    {"type": MessageType.PDF_LIBRARY_LIST_REQUESTED.value, "schema": schema_info("pdf-library/v1/messages/list.request.schema.json")},
+                    {"type": MessageType.PDF_LIBRARY_LIST_COMPLETED.value, "schema": schema_info("pdf-library/v1/messages/list.completed.schema.json")},
+                    {
+                        "type": MessageType.PDF_LIBRARY_SEARCH_REQUESTED.value,
+                        "schema": schema_info("pdf-library/v1/messages/search.request.schema.json"),
+                    },
+                    {
+                        "type": MessageType.PDF_LIBRARY_SEARCH_COMPLETED.value,
+                        "schema": schema_info("pdf-library/v1/messages/search.completed.schema.json"),
+                    },
+                    {"type": MessageType.PDF_LIBRARY_ADD_REQUESTED.value, "schema": schema_info("pdf-library/v1/messages/add.request.schema.json")},
+                    {"type": MessageType.PDF_LIBRARY_ADD_COMPLETED.value, "schema": schema_info("pdf-library/v1/messages/add.completed.schema.json")},
+                    {"type": MessageType.PDF_LIBRARY_REMOVE_REQUESTED.value, "schema": schema_info("pdf-library/v1/messages/remove.request.schema.json")},
+                    {"type": MessageType.PDF_LIBRARY_REMOVE_COMPLETED.value, "schema": schema_info("pdf-library/v1/messages/remove.completed.schema.json")},
+                    {"type": MessageType.PDF_LIBRARY_INFO_REQUESTED.value, "schema": schema_info("pdf-library/v1/messages/info.request.schema.json")},
+                    {"type": MessageType.PDF_LIBRARY_INFO_COMPLETED.value, "schema": schema_info("pdf-library/v1/messages/info.completed.schema.json")},
+                ]
+            elif domain == "storage-kv":
+                described["events"] = [
+                    {
+                        "type": MessageType.STORAGE_KV_GET_REQUESTED.value,
+                        "schema": schema_info("storage-kv/v1/messages/get.request.schema.json"),
+                    },
+                    {
+                        "type": MessageType.STORAGE_KV_GET_COMPLETED.value,
+                        "schema": schema_info("storage-kv/v1/messages/get.completed.schema.json"),
+                    },
+                    {"type": MessageType.STORAGE_KV_SET_REQUESTED.value, "schema": schema_info("storage-kv/v1/messages/set.request.schema.json")},
+                    {"type": MessageType.STORAGE_KV_SET_COMPLETED.value, "schema": schema_info("storage-kv/v1/messages/set.completed.schema.json")},
+                    {"type": MessageType.STORAGE_KV_DELETE_REQUESTED.value, "schema": schema_info("storage-kv/v1/messages/delete.request.schema.json")},
+                    {"type": MessageType.STORAGE_KV_DELETE_COMPLETED.value, "schema": schema_info("storage-kv/v1/messages/delete.completed.schema.json")},
+                ]
+            elif domain == "storage-fs":
+                described["events"] = [
+                    {"type": MessageType.STORAGE_FS_READ_REQUESTED.value, "schema": schema_info("storage-fs/v1/messages/read.request.schema.json")},
+                    {"type": MessageType.STORAGE_FS_READ_COMPLETED.value, "schema": schema_info("storage-fs/v1/messages/read.completed.schema.json")},
+                    {"type": MessageType.STORAGE_FS_WRITE_REQUESTED.value, "schema": schema_info("storage-fs/v1/messages/write.request.schema.json")},
+                    {"type": MessageType.STORAGE_FS_WRITE_COMPLETED.value, "schema": schema_info("storage-fs/v1/messages/write.completed.schema.json")},
+                ]
+            elif domain == "annotation":
+                described["events"] = [
+                    {"type": MessageType.ANNOTATION_LIST_REQUESTED.value, "schema": schema_info("annotation/v1/messages/list.request.schema.json")},
+                    {"type": MessageType.ANNOTATION_LIST_COMPLETED.value, "schema": schema_info("annotation/v1/messages/list.completed.schema.json")},
+                    {"type": MessageType.ANNOTATION_SAVE_REQUESTED.value, "schema": schema_info("annotation/v1/messages/save.request.schema.json")},
+                    {"type": MessageType.ANNOTATION_SAVE_COMPLETED.value, "schema": schema_info("annotation/v1/messages/save.completed.schema.json")},
+                    {"type": MessageType.ANNOTATION_DELETE_REQUESTED.value, "schema": schema_info("annotation/v1/messages/delete.request.schema.json")},
+                    {"type": MessageType.ANNOTATION_DELETE_COMPLETED.value, "schema": schema_info("annotation/v1/messages/delete.completed.schema.json")},
+                ]
+            elif domain == "bookmark":
+                described["events"] = [
+                    {"type": MessageType.BOOKMARK_LIST_REQUESTED.value},
+                    {"type": MessageType.BOOKMARK_LIST_COMPLETED.value},
+                    {"type": MessageType.BOOKMARK_LIST_FAILED.value},
+                    {"type": MessageType.BOOKMARK_SAVE_REQUESTED.value},
+                    {"type": MessageType.BOOKMARK_SAVE_COMPLETED.value},
+                    {"type": MessageType.BOOKMARK_SAVE_FAILED.value},
+                ]
+            elif domain == "pdf-page":
+                described["events"] = [
+                    {"type": MessageType.PDF_PAGE_LOAD_REQUESTED.value},
+                    {"type": MessageType.PDF_PAGE_LOAD_COMPLETED.value},
+                    {"type": MessageType.PDF_PAGE_LOAD_FAILED.value},
+                    {"type": MessageType.PDF_PAGE_PRELOAD_REQUESTED.value},
+                    {"type": MessageType.PDF_PAGE_CACHE_CLEAR_REQUESTED.value},
+                ]
+            elif domain == "system":
+                described["events"] = [
+                    {"type": MessageType.HEARTBEAT_REQUESTED.value},
+                    {"type": MessageType.HEARTBEAT_COMPLETED.value},
+                    {"type": MessageType.SYSTEM_STATUS_UPDATED.value},
+                    {"type": MessageType.SYSTEM_ERROR_OCCURRED.value},
+                ]
+            else:
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "DOMAIN_NOT_FOUND",
+                    f"未知 domain: {domain}",
+                    message_type=MessageType.CAPABILITY_DESCRIBE_FAILED,
+                    code=404,
+                )
+
+            return StandardMessageHandler.build_response(
+                MessageType.CAPABILITY_DESCRIBE_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
+                status="success",
+                code=200,
+                message="capability describe",
+                data=described,
+            )
+        except Exception as exc:
+            logger.error("能力描述失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "CAPABILITY_DESCRIBE_ERROR",
+                f"能力描述失败: {exc}",
+                message_type=MessageType.CAPABILITY_DESCRIBE_FAILED,
+                code=500,
+            )
+
+    def handle_storage_kv_get_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            ns = (data or {}).get("namespace")
+            key = (data or {}).get("key")
+            if not ns or not key:
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "INVALID_REQUEST",
+                    "缺少 namespace 或 key 参数",
+                    message_type=MessageType.STORAGE_KV_GET_FAILED,
+                    code=400,
+                )
+            store = self._kv_store_load()
+            value = (store.get(ns) or {}).get(key)
+            return StandardMessageHandler.build_response(
+                MessageType.STORAGE_KV_GET_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
+                status="success",
+                code=200,
+                message="kv get",
+                data={"value": value},
+            )
+        except Exception as exc:
+            logger.error("KV读取失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "STORAGE_KV_ERROR",
+                f"KV读取失败: {exc}",
+                message_type=MessageType.STORAGE_KV_GET_FAILED,
+                code=500,
+            )
+
+    def handle_storage_kv_set_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            ns = (data or {}).get("namespace")
+            key = (data or {}).get("key")
+            value = (data or {}).get("value")
+            if not ns or not key:
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "INVALID_REQUEST",
+                    "缺少 namespace 或 key 参数",
+                    message_type=MessageType.STORAGE_KV_SET_FAILED,
+                    code=400,
+                )
+            store = self._kv_store_load()
+            bucket = store.get(ns) or {}
+            bucket[key] = value
+            store[ns] = bucket
+            self._kv_store_save(store)
+            return StandardMessageHandler.build_response(
+                MessageType.STORAGE_KV_SET_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
+                status="success",
+                code=200,
+                message="kv set",
+                data={"ok": True},
+            )
+        except Exception as exc:
+            logger.error("KV写入失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "STORAGE_KV_ERROR",
+                f"KV写入失败: {exc}",
+                message_type=MessageType.STORAGE_KV_SET_FAILED,
+                code=500,
+            )
+
+    def handle_storage_kv_delete_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            ns = (data or {}).get("namespace")
+            key = (data or {}).get("key")
+            if not ns or not key:
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "INVALID_REQUEST",
+                    "缺少 namespace 或 key 参数",
+                    message_type=MessageType.STORAGE_KV_DELETE_FAILED,
+                    code=400,
+                )
+            store = self._kv_store_load()
+            if ns in store and isinstance(store[ns], dict) and key in store[ns]:
+                del store[ns][key]
+                if not store[ns]:
+                    del store[ns]
+                self._kv_store_save(store)
+            return StandardMessageHandler.build_response(
+                MessageType.STORAGE_KV_DELETE_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
+                status="success",
+                code=200,
+                message="kv delete",
+                data={"ok": True},
+            )
+        except Exception as exc:
+            logger.error("KV删除失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "STORAGE_KV_ERROR",
+                f"KV删除失败: {exc}",
+                message_type=MessageType.STORAGE_KV_DELETE_FAILED,
+                code=500,
+            )
+
+    def handle_storage_fs_read_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            import base64
+            rel_path = (data or {}).get("path")
+            if not rel_path:
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "INVALID_REQUEST",
+                    "缺少 path 参数",
+                    message_type=MessageType.STORAGE_FS_READ_FAILED,
+                    code=400,
+                )
+            base_dir = os.path.join(project_root, "data", "fs")
+            os.makedirs(base_dir, exist_ok=True)
+            norm = os.path.normpath(rel_path).replace("\\", "/")
+            if norm.startswith(".."):
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "INVALID_PATH",
+                    "禁止访问上级目录",
+                    message_type=MessageType.STORAGE_FS_READ_FAILED,
+                    code=400,
+                )
+            abs_path = os.path.join(base_dir, norm)
+            if not os.path.exists(abs_path):
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "NOT_FOUND",
+                    f"文件不存在: {norm}",
+                    message_type=MessageType.STORAGE_FS_READ_FAILED,
+                    code=404,
+                )
+            with open(abs_path, "rb") as f:
+                content = f.read()
+            b64 = base64.b64encode(content).decode("utf-8")
+            return StandardMessageHandler.build_response(
+                MessageType.STORAGE_FS_READ_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
+                status="success",
+                code=200,
+                message="fs read",
+                data={"path": norm, "content": b64},
+            )
+        except Exception as exc:
+            logger.error("FS读取失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "STORAGE_FS_ERROR",
+                f"FS读取失败: {exc}",
+                message_type=MessageType.STORAGE_FS_READ_FAILED,
+                code=500,
+            )
+
+    def handle_storage_fs_write_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            import base64
+            rel_path = (data or {}).get("path")
+            content_b64 = (data or {}).get("content")
+            overwrite = bool((data or {}).get("overwrite", True))
+            if not rel_path or content_b64 is None:
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "INVALID_REQUEST",
+                    "缺少 path 或 content 参数",
+                    message_type=MessageType.STORAGE_FS_WRITE_FAILED,
+                    code=400,
+                )
+            base_dir = os.path.join(project_root, "data", "fs")
+            os.makedirs(base_dir, exist_ok=True)
+            norm = os.path.normpath(rel_path).replace("\\", "/")
+            if norm.startswith(".."):
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "INVALID_PATH",
+                    "禁止写入上级目录",
+                    message_type=MessageType.STORAGE_FS_WRITE_FAILED,
+                    code=400,
+                )
+            abs_path = os.path.join(base_dir, norm)
+            if (not overwrite) and os.path.exists(abs_path):
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "ALREADY_EXISTS",
+                    f"文件已存在: {norm}",
+                    message_type=MessageType.STORAGE_FS_WRITE_FAILED,
+                    code=409,
+                )
+            os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+            content = base64.b64decode(content_b64.encode("utf-8"))
+            with open(abs_path, "wb") as f:
+                f.write(content)
+            return StandardMessageHandler.build_response(
+                MessageType.STORAGE_FS_WRITE_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
+                status="success",
+                code=200,
+                message="fs write",
+                data={"path": norm, "bytes": len(content)},
+            )
+        except Exception as exc:
+            logger.error("FS写入失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "STORAGE_FS_ERROR",
+                f"FS写入失败: {exc}",
+                message_type=MessageType.STORAGE_FS_WRITE_FAILED,
+                code=500,
+            )
+    def handle_bookmark_list_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        if not hasattr(self, "pdf_library_api") or not self.pdf_library_api:
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "SERVICE_UNAVAILABLE",
+                "PDFLibraryAPI 未初始化",
+                message_type=MessageType.BOOKMARK_LIST_FAILED,
+                code=503
+            )
+        pdf_uuid = (data or {}).get("pdf_uuid")
+        if not pdf_uuid:
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "INVALID_REQUEST",
+                "缺少 pdf_uuid 参数",
+                message_type=MessageType.BOOKMARK_LIST_FAILED,
+                code=400
+            )
+        try:
+            result = self.pdf_library_api.list_bookmarks(pdf_uuid)
+            return StandardMessageHandler.build_response(
+                MessageType.BOOKMARK_LIST_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
+                status="success",
+                code=200,
+                message="书签获取成功",
+                data=result
+            )
+        except Exception as exc:
+            logger.error("获取书签失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "BOOKMARK_LIST_ERROR",
+                f"获取书签失败: {exc}",
+                message_type=MessageType.BOOKMARK_LIST_FAILED,
+                code=500
+            )
+
+    def handle_bookmark_save_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        if not hasattr(self, "pdf_library_api") or not self.pdf_library_api:
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "SERVICE_UNAVAILABLE",
+                "PDFLibraryAPI 未初始化",
+                message_type=MessageType.BOOKMARK_SAVE_FAILED,
+                code=503
+            )
+        payload = data or {}
+        pdf_uuid = payload.get("pdf_uuid")
+        bookmarks = payload.get("bookmarks")
+        root_ids = payload.get("root_ids")
+        if not pdf_uuid:
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "INVALID_REQUEST",
+                "缺少 pdf_uuid 参数",
+                message_type=MessageType.BOOKMARK_SAVE_FAILED,
+                code=400
+            )
+        if not isinstance(bookmarks, list):
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "INVALID_REQUEST",
+                "bookmarks 必须为数组",
+                message_type=MessageType.BOOKMARK_SAVE_FAILED,
+                code=400
+            )
+        try:
+            saved = self.pdf_library_api.save_bookmarks(pdf_uuid, bookmarks, root_ids=root_ids)
+            return StandardMessageHandler.build_response(
+                MessageType.BOOKMARK_SAVE_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
+                status="success",
+                code=200,
+                message="书签保存成功",
+                data={"saved": saved}
+            )
+        except Exception as exc:
+            logger.error("保存书签失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "BOOKMARK_SAVE_ERROR",
+                f"保存书签失败: {exc}",
+                message_type=MessageType.BOOKMARK_SAVE_FAILED,
+                code=500
+            )
+
+    def handle_bookmark_reset_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        payload = data or {}
+        pdf_uuid = payload.get('pdf_uuid')
+        if not pdf_uuid:
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "INVALID_REQUEST",
+                "缺少 pdf_uuid 参数",
+                message_type=MessageType.BOOKMARK_LIST_FAILED,
+                code=400
+            )
+        try:
+            cleared = 0
+            if hasattr(self, "pdf_library_api") and self.pdf_library_api:
+                cleared = self.pdf_library_api.clear_bookmarks(pdf_uuid)
+            return StandardMessageHandler.build_response(
+                MessageType.BOOKMARK_LIST_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
+                status="success",
+                code=200,
+                message="书签已清空",
+                data={"cleared": int(cleared)}
+            )
+        except Exception as exc:
+            logger.error("重置书签失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "BOOKMARK_RESET_ERROR",
+                f"重置书签失败: {exc}",
+                message_type=MessageType.BOOKMARK_LIST_FAILED,
+                code=500
+            )
+
+    # ==================== Annotation handlers ====================
+    def _iso_to_ms(self, value: Optional[str]) -> int:
+        try:
+            if value is None:
+                return int(time.time() * 1000)
+            # If already integer-like
+            try:
+                return int(value)
+            except Exception:
+                pass
+            # Parse ISO 8601
+            from datetime import datetime
+            dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
+            return int(dt.timestamp() * 1000)
+        except Exception:
+            return int(time.time() * 1000)
+
+    def _ms_to_iso(self, ms: Optional[int]) -> str:
+        try:
+            if ms is None:
+                ms = int(time.time() * 1000)
+            from datetime import datetime, timezone
+            return datetime.fromtimestamp(int(ms)/1000.0, tz=timezone.utc).isoformat().replace('+00:00', 'Z')
+        except Exception:
+            return time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+
+    def handle_annotation_list_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            if not hasattr(self, "pdf_library_api") or not self.pdf_library_api:
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "SERVICE_UNAVAILABLE",
+                    "PDFLibraryAPI 未初始化",
+                    message_type=MessageType.ANNOTATION_LIST_FAILED,
+                    code=503,
+                )
+            pdf_uuid = (data or {}).get('pdf_uuid')
+            if not pdf_uuid:
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "INVALID_REQUEST",
+                    "缺少 pdf_uuid 参数",
+                    message_type=MessageType.ANNOTATION_LIST_FAILED,
+                    code=400,
+                )
+            rows = self.pdf_library_api._annotation_plugin.query_by_pdf(pdf_uuid)
+            annotations = []
+            for row in rows:
+                annotations.append({
+                    'id': row.get('ann_id'),
+                    'pdfId': row.get('pdf_uuid'),
+                    'type': row.get('type'),
+                    'pageNumber': row.get('page_number'),
+                    'data': row.get('data') or {},
+                    'comments': row.get('comments') or [],
+                    'createdAt': self._ms_to_iso(row.get('created_at')),
+                    'updatedAt': self._ms_to_iso(row.get('updated_at')),
+                })
+            return StandardMessageHandler.build_response(
+                MessageType.ANNOTATION_LIST_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
+                status='success',
+                code=200,
+                message='标注列表获取成功',
+                data={'annotations': annotations, 'count': len(annotations)}
+            )
+        except Exception as exc:
+            logger.error("获取标注失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "ANNOTATION_LIST_ERROR",
+                f"标注获取失败: {exc}",
+                message_type=MessageType.ANNOTATION_LIST_FAILED,
+                code=500,
+            )
+
+    def handle_annotation_save_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            if not hasattr(self, "pdf_library_api") or not self.pdf_library_api:
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "SERVICE_UNAVAILABLE",
+                    "PDFLibraryAPI 未初始化",
+                    message_type=MessageType.ANNOTATION_SAVE_FAILED,
+                    code=503,
+                )
+            payload = data or {}
+            pdf_uuid = payload.get('pdf_uuid')
+            annotation = payload.get('annotation') or {}
+            if not pdf_uuid:
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "INVALID_REQUEST",
+                    "缺少 pdf_uuid 参数",
+                    message_type=MessageType.ANNOTATION_SAVE_FAILED,
+                    code=400,
+                )
+            if not isinstance(annotation, dict) or not annotation:
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "INVALID_REQUEST",
+                    "缺少 annotation 对象",
+                    message_type=MessageType.ANNOTATION_SAVE_FAILED,
+                    code=400,
+                )
+
+            ann_id = annotation.get('id')
+            page_number = annotation.get('pageNumber')
+            ann_type = annotation.get('type')
+            json_data = {
+                'data': annotation.get('data') or {},
+                'comments': annotation.get('comments') or [],
+            }
+            created_ms = self._iso_to_ms(annotation.get('createdAt'))
+            updated_ms = self._iso_to_ms(annotation.get('updatedAt'))
+
+            created = False
+            updated = False
+
+            if ann_id and self.pdf_library_api._annotation_plugin.query_by_id(ann_id):
+                # update
+                updated = self.pdf_library_api._annotation_plugin.update(ann_id, {
+                    'pdf_uuid': pdf_uuid,
+                    'page_number': page_number,
+                    'type': ann_type,
+                    'created_at': created_ms,
+                    'updated_at': updated_ms,
+                    'json_data': json_data,
+                })
+            else:
+                # insert
+                import random, string
+                rand = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+                row = {
+                    'ann_id': ann_id or f"ann_{int(time.time()*1000)}_{rand}",
+                    'pdf_uuid': pdf_uuid,
+                    'page_number': page_number,
+                    'type': ann_type,
+                    'created_at': created_ms,
+                    'updated_at': updated_ms,
+                    'version': 1,
+                    'json_data': json_data,
+                }
+                ann_id = self.pdf_library_api._annotation_plugin.insert(row)
+                created = True
+
+            return StandardMessageHandler.build_response(
+                MessageType.ANNOTATION_SAVE_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
+                status='success',
+                code=200,
+                message='标注保存成功',
+                data={'id': ann_id, 'created': bool(created), 'updated': bool(updated)}
+            )
+        except Exception as exc:
+            logger.error("保存标注失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "ANNOTATION_SAVE_ERROR",
+                f"保存标注失败: {exc}",
+                message_type=MessageType.ANNOTATION_SAVE_FAILED,
+                code=500,
+            )
+
+    def handle_annotation_delete_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            if not hasattr(self, "pdf_library_api") or not self.pdf_library_api:
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "SERVICE_UNAVAILABLE",
+                    "PDFLibraryAPI 未初始化",
+                    message_type=MessageType.ANNOTATION_DELETE_FAILED,
+                    code=503,
+                )
+            ann_id = (data or {}).get('ann_id') or (data or {}).get('id')
+            if not ann_id:
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "INVALID_REQUEST",
+                    "缺少 ann_id 参数",
+                    message_type=MessageType.ANNOTATION_DELETE_FAILED,
+                    code=400,
+                )
+            ok = self.pdf_library_api._annotation_plugin.delete(ann_id)
+            return StandardMessageHandler.build_response(
+                MessageType.ANNOTATION_DELETE_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
+                status='success',
+                code=200,
+                message='标注删除成功',
+                data={'ok': bool(ok)}
+            )
+        except Exception as exc:
+            logger.error("删除标注失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "ANNOTATION_DELETE_ERROR",
+                f"删除标注失败: {exc}",
+                message_type=MessageType.ANNOTATION_DELETE_FAILED,
+                code=500,
+            )
     def _get_pdf_home_config_path(self) -> str:
         try:
             data_dir = getattr(self.pdf_manager, 'data_dir', 'data') or 'data'
@@ -330,30 +1432,30 @@ class StandardWebSocketServer(QObject):
                 with open(cfg_path, 'w', encoding='utf-8', newline='\n') as f:
                     json.dump(config_obj, f, ensure_ascii=False, indent=2)
 
-            return StandardMessageHandler.build_response(
-                'response',
-                request_id,
+            response = StandardMessageHandler.build_response(
+                MessageType.PDF_LIBRARY_CONFIG_READ_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
                 status='success',
                 code=200,
                 message='读取配置成功',
                 data={
-                    'original_type': 'pdf-home:get:config',
-                    'config': config_obj
+                    'config': config_obj,
+                    'original_type': MessageType.PDF_LIBRARY_CONFIG_READ_REQUESTED.value
                 }
             )
+            return response
         except Exception as e:
             logger.error("读取配置失败: %s", e, exc_info=True)
             return StandardMessageHandler.build_error_response(
-                request_id,
+                request_id or "unknown",
                 'INTERNAL_ERROR',
-                f'读取配置失败: {str(e)}',
+                f'读取配置失败: {e}',
+                message_type=MessageType.PDF_LIBRARY_CONFIG_READ_FAILED,
                 code=500
             )
-
     def handle_pdf_home_update_config(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
         try:
             cfg_path = self._get_pdf_home_config_path()
-            # 读旧配置
             config_obj = {"recent_search": []}
             if os.path.exists(cfg_path):
                 with open(cfg_path, 'r', encoding='utf-8') as f:
@@ -364,501 +1466,92 @@ class StandardWebSocketServer(QObject):
                     except Exception as exc:
                         logger.warning("配置文件解析失败，将覆盖为新配置: %s", exc, exc_info=True)
 
-            # 合并新数据（仅 recent_search）
             recent = (data or {}).get('recent_search')
             if isinstance(recent, list):
                 cleaned = []
                 for it in recent:
                     if isinstance(it, dict) and isinstance(it.get('text'), str):
-                        cleaned.append({
-                            'text': it.get('text', ''),
-                            'ts': it.get('ts') or 0
-                        })
+                        cleaned.append({'text': it.get('text', ''), 'ts': it.get('ts') or 0})
                 config_obj['recent_search'] = cleaned
 
             with open(cfg_path, 'w', encoding='utf-8', newline='\n') as f:
                 json.dump(config_obj, f, ensure_ascii=False, indent=2)
 
-            return StandardMessageHandler.build_response(
-                'response',
-                request_id,
+            response = StandardMessageHandler.build_response(
+                MessageType.PDF_LIBRARY_CONFIG_WRITE_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
                 status='success',
                 code=200,
                 message='更新配置成功',
                 data={
-                    'original_type': 'pdf-home:update:config',
-                    'config': config_obj
+                    'config': config_obj,
+                    'original_type': MessageType.PDF_LIBRARY_CONFIG_WRITE_REQUESTED.value
                 }
             )
+            return response
         except Exception as e:
             logger.error("更新配置失败: %s", e, exc_info=True)
             return StandardMessageHandler.build_error_response(
-                request_id,
+                request_id or "unknown",
                 'INTERNAL_ERROR',
-                f'更新配置失败: {str(e)}',
+                f'更新配置失败: {e}',
+                message_type=MessageType.PDF_LIBRARY_CONFIG_WRITE_FAILED,
                 code=500
             )
-    
-
-    def handle_bookmark_list_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
-        pdf_uuid = (data or {}).get('pdf_uuid')
-        if not pdf_uuid:
-            return {
-                "type": "error",
-                "timestamp": int(time.time()),
-                "request_id": request_id,
-                "data": {
-                    "message": "缺少必需的 pdf_uuid",
-                },
-            }
-        try:
-            result = {"bookmarks": [], "root_ids": []}
-            if hasattr(self, "pdf_library_api") and self.pdf_library_api:
-                result = self.pdf_library_api.list_bookmarks(pdf_uuid) or result
-            response = {
-                "type": "bookmark:list:records",
-                "timestamp": int(time.time()),
-                "data": result,
-            }
-            if request_id:
-                response["request_id"] = request_id
-            return response
-        except Exception as exc:
-            logger.error("获取书签失败: %s", exc, exc_info=True)
-            return {
-                "type": "error",
-                "timestamp": int(time.time()),
-                "request_id": request_id,
-                "data": {
-                    "message": "获取书签失败",
-                    "details": str(exc),
-                },
-            }
-
-    def handle_bookmark_save_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
-        pdf_uuid = (data or {}).get('pdf_uuid')
-        bookmarks = (data or {}).get('bookmarks')
-        root_ids = (data or {}).get('root_ids')
-        if not pdf_uuid:
-            return {
-                "type": "error",
-                "timestamp": int(time.time()),
-                "request_id": request_id,
-                "data": {
-                    "message": "缺少必需的 pdf_uuid",
-                },
-            }
-        if bookmarks is None:
-            return {
-                "type": "error",
-                "timestamp": int(time.time()),
-                "request_id": request_id,
-                "data": {
-                    "message": "缺少必需的 bookmarks",
-                },
-            }
-        try:
-            saved = 0
-            if hasattr(self, "pdf_library_api") and self.pdf_library_api:
-                saved = self.pdf_library_api.save_bookmarks(pdf_uuid, bookmarks, root_ids=root_ids)
-            response = {
-                "type": "bookmark:save:record",
-                "timestamp": int(time.time()),
-                "data": {"saved": saved},
-            }
-            if request_id:
-                response["request_id"] = request_id
-            return response
-        except Exception as exc:
-            logger.error("保存书签失败: %s", exc, exc_info=True)
-            return {
-                "type": "error",
-                "timestamp": int(time.time()),
-                "request_id": request_id,
-                "data": {
-                    "message": "保存书签失败",
-                    "details": str(exc),
-                },
-            }
-
-    def handle_pdf_list_v2(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
-        try:
-            include_hidden = data.get("include_hidden", True)
-            limit = data.get("limit")
-            offset = data.get("offset")
-            limit = int(limit) if limit is not None else None
-            offset = int(offset) if offset is not None else None
-            records: List[Dict[str, Any]] = []
-            if hasattr(self, "pdf_library_api") and self.pdf_library_api:
-                records = self.pdf_library_api.list_records(include_hidden=include_hidden, limit=limit, offset=offset)
-            response = {
-                "type": "pdf-library:list:records",
-                "timestamp": int(time.time()),
-                "data": {
-                    "records": records,
-                    "total": len(records),
-                },
-            }
-            if request_id:
-                response["request_id"] = request_id
-            return response
-        except Exception as exc:
-            logger.error("获取 PDF 列表失败(v2): %s", exc, exc_info=True)
-            return {
-                "type": "error",
-                "timestamp": int(time.time()),
-                "request_id": request_id,
-                "data": {
-                    "message": "获取PDF列表失败",
-                    "details": str(exc),
-                },
-            }
-    def handle_pdf_list_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-        """处理PDF列表请求"""
-        try:
-            files = self.pdf_manager.get_files()
-            return PDFMessageBuilder.build_pdf_list_response(request_id, files)
-        except Exception as e:
-            logger.error(f"获取PDF列表失败: {e}")
-            return StandardMessageHandler.build_error_response(
-                request_id,
-                "PDF_LIST_ERROR",
-                f"获取PDF列表失败: {str(e)}"
-            )
-
-    def handle_pdf_search_request(self, request_id: str, data: Dict[str, Any], raw_message: Dict[str, Any]) -> Dict[str, Any]:
-        """处理PDF搜索请求（v1/v2 兼容）
-
-        - v1: type = 'pdf-home:search:pdf-files', 顶层携带 search_text
-              响应使用标准 response 包，data = { files, search_text, total_count, original_type }
-        """
-        try:
-            # 兼容两种位置的 search_text
-            search_text = ''
-            if raw_message and isinstance(raw_message, dict) and isinstance(raw_message.get('search_text'), str):
-                search_text = (raw_message.get('search_text') or '').strip()
-            else:
-                search_text = (data or {}).get('search_text') or ''
-                if not isinstance(search_text, str):
-                    search_text = ''
-                search_text = search_text.strip()
-
-            # 当无数据库API时，回退到内存PDFManager
-            records: list = []
-            total: int = 0
-            used_backend = 'pdf_manager'
-
-            if hasattr(self, "pdf_library_api") and self.pdf_library_api:
-                try:
-                    # 构造 search payload
-                    tokens = [t for t in (search_text.split() if search_text else []) if t]
-                    limit = None
-                    offset = None
-                    if isinstance(data, dict):
-                        pagination = data.get('pagination') or {}
-                        limit = pagination.get('limit')
-                        offset = pagination.get('offset')
-                        # 兼容简化字段
-                        if limit is None:
-                            limit = data.get('limit')
-                        if offset is None:
-                            offset = data.get('offset')
-                    payload = {
-                        'query': search_text,
-                        'tokens': tokens,
-                        'pagination': {
-                            'limit': int(limit) if isinstance(limit, (int, str)) and str(limit).isdigit() else 500,
-                            'offset': int(offset) if isinstance(offset, (int, str)) and str(offset).isdigit() else 0,
-                            'need_total': True,
-                        }
-                    }
-                    result = self.pdf_library_api.search_records(payload) or { 'records': [], 'total': 0 }
-                    records = result.get('records') or []
-                    total = int(result.get('total') or len(records))
-                    used_backend = 'pdf_library_api'
-                except Exception as exc:
-                    logger.error("数据库搜索失败，回退到内存搜索: %s", exc, exc_info=True)
-
-            if used_backend == 'pdf_manager':
-                # 内存搜索：空搜索返回全部
-                if not search_text:
-                    records = self.pdf_manager.get_files()
-                else:
-                    # 仅支持单关键词模糊（保持最小可用）
-                    results = self.pdf_manager.search_files(search_text)
-                    # 转换为 records（结构与 list_records 接近）
-                    records = results
-                total = len(records)
-
-            # 仅返回 v1 标准 response 包
-            return StandardMessageHandler.build_response(
-                'response',
-                request_id,
-                status='success',
-                code=200,
-                message='搜索成功',
-                data={
-                    'files': records,
-                    'search_text': search_text,
-                    'total_count': total,
-                    'original_type': 'pdf-home:search:pdf-files'
-                }
-            )
-
-        except Exception as e:
-            logger.error("处理搜索请求时出错: %s", e, exc_info=True)
-            return StandardMessageHandler.build_error_response(
-                request_id,
-                'SEARCH_ERROR',
-                f'搜索失败: {str(e)}',
-                code=500
-            )
-    
-    def handle_pdf_upload_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-        """处理PDF上传请求"""
-        try:
-            filepath = data.get("filepath")
-            if not filepath:
-                return StandardMessageHandler.build_error_response(
-                    request_id,
-                    "INVALID_REQUEST",
-                    "缺少必需的filepath参数"
-                )
-            
-            success = self.pdf_manager.add_file(filepath)
-            if success:
-                # 获取刚添加的文件信息
-                file_id = None
-                filename = None
-                file_size = 0
-                
-                files = self.pdf_manager.get_files()
-                for file_info in files:
-                    if "original_path" in file_info and file_info["original_path"] == filepath:
-                        file_id = file_info["id"]
-                        filename = file_info["filename"]
-                        file_size = file_info.get("size", 0)
-                        break
-                
-                return PDFMessageBuilder.build_pdf_upload_response(
-                    request_id,
-                    file_id or "unknown",
-                    filename or os.path.basename(filepath),
-                    file_size
-                )
-            else:
-                return StandardMessageHandler.build_error_response(
-                    request_id,
-                    "UPLOAD_FAILED",
-                    "PDF文件上传失败"
-                )
-                
-        except Exception as e:
-            logger.error(f"上传PDF失败: {e}")
-            return StandardMessageHandler.build_error_response(
-                request_id,
-                "UPLOAD_ERROR",
-                f"上传PDF失败: {str(e)}"
-            )
-    
-    def handle_pdf_remove_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-        """处理PDF删除请求"""
-        try:
-            file_id = data.get("file_id")
-            if not file_id:
-                return StandardMessageHandler.build_error_response(
-                    request_id,
-                    "INVALID_REQUEST",
-                    "缺少必需的file_id参数"
-                )
-            
-            success = self.pdf_manager.remove_file(file_id)
-            if success:
-                return PDFMessageBuilder.build_pdf_remove_response(request_id, file_id)
-            else:
-                return StandardMessageHandler.build_error_response(
-                    request_id,
-                    "REMOVE_FAILED",
-                    "PDF文件删除失败"
-                )
-                
-        except Exception as e:
-            logger.error(f"删除PDF失败: {e}")
-            return StandardMessageHandler.build_error_response(
-                request_id,
-                "REMOVE_ERROR",
-                f"删除PDF失败: {str(e)}"
-            )
-    
-    def handle_batch_pdf_remove_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-        """处理PDF批量删除请求"""
-        try:
-            file_ids = data.get("file_ids")
-            if not file_ids or not isinstance(file_ids, list):
-                return StandardMessageHandler.build_error_response(
-                    request_id,
-                    "INVALID_REQUEST",
-                    "缺少必需的file_ids参数或参数类型错误"
-                )
-            
-            # 调用PDF管理器的批量删除方法
-            result = self.pdf_manager.batch_remove_files(file_ids)
-            success = result.get("success", False)
-            if success:
-                return PDFMessageBuilder.build_batch_pdf_remove_response(
-                    request_id,
-                    result["removed_files"],
-                    result.get("failed_files")
-                )
-            else:
-                return StandardMessageHandler.build_error_response(
-                    request_id,
-                    "BATCH_REMOVE_FAILED",
-                    result.get("message", "PDF文件批量删除失败")
-                )
-                
-        except Exception as e:
-            logger.error(f"批量删除PDF失败: {e}")
-            return StandardMessageHandler.build_error_response(
-                request_id,
-                "BATCH_REMOVE_ERROR",
-                f"批量删除PDF失败: {str(e)}"
-            )
-   
-    #!/usr/bin/env python3
-    """
-    这包含了正确的handle_open_pdf_request方法
-    """
-    def handle_open_pdf_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-        """处理打开PDF的请求"""
-        try:
-            file_id = data.get("file_id")
-            if not file_id:
-                return StandardMessageHandler.build_error_response(
-                    request_id,
-                    "INVALID_REQUEST",
-                    "Missing required file_id parameter"
-                )
-
-            # 调试应用引用状态
-            logger.info(f"[DEBUG] 检查应用引用 - hasattr(self, 'app'): {hasattr(self, 'app')}")
-            if hasattr(self, 'app'):
-                logger.info(f"[DEBUG] self.app 是否为None: {self.app is None}")
-                logger.info(f"[DEBUG] self.app 类型: {type(self.app)}")
-                if self.app is not None:
-                    logger.info(f"[DEBUG] self.app 具有 open_pdf_viewer_window 方法: {hasattr(self.app, 'open_pdf_viewer_window')}")
-            else:
-                logger.error("[DEBUG] self 对象没有 app 属性")
-            # 检查应用引用是否可用
-            if not hasattr(self, 'app') or self.app is None:
-                logger.error("应用引用丢失，无法打开PDF查看器")
-                return StandardMessageHandler.build_error_response(
-                    request_id,
-                    "APP_REFERENCE_ERROR",
-                    "Application reference not available"
-                )
-
-            # 直接调用应用打开PDF查看器窗口
-            success = self.app.open_pdf_viewer_window(file_id)
-
-            if success:
-                return StandardMessageHandler.build_response(
-                    "response",
-                    request_id,
-                    status="success",
-                    code=200,
-                    message=f"PDF viewer window opened successfully for {file_id}.",
-                    data={"file_id": file_id, "opened": True}
-                )
-            else:
-                return StandardMessageHandler.build_error_response(
-                    request_id,
-                    "OPEN_PDF_ERROR",
-                    f"Failed to open PDF viewer window for {file_id}"
-                )
-
-        except Exception as e:
-            logger.error(f"Failed to open PDF viewer: {e}")
-            return StandardMessageHandler.build_error_response(
-                request_id,
-                "OPEN_PDF_ERROR",
-                f"Failed to open PDF viewer: {str(e)}"
-            )
-
-    def handle_pdf_detail_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-        """处理PDF详情请求"""
-        try:
-            file_id = data.get("file_id")
-            if not file_id:
-                return StandardMessageHandler.build_error_response(
-                    request_id,
-                    "INVALID_REQUEST",
-                    "缺少必需的file_id参数"
-                )
-            
-            file_detail = self.pdf_manager.get_file_detail(file_id)
-            if file_detail:
-                return PDFMessageBuilder.build_pdf_detail_response(request_id, file_detail)
-            else:
-                return StandardMessageHandler.build_error_response(request_id, "FILE_NOT_FOUND", f"未找到文件ID为 {file_id} 的PDF文件")
-        except Exception as e:
-            logger.error(f"获取PDF详情失败: {e}")
-            return StandardMessageHandler.build_error_response(
-                request_id,
-                "DETAIL_ERROR",
-                f"获取PDF详情失败: {str(e)}"
-            )
-
-    def handle_pdf_update_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    def handle_pdf_update_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
         """处理PDF更新请求"""
         try:
-            file_id = data.get("file_id")
-            updates = data.get("updates", {})
+            file_id = data.get("file_id") if isinstance(data, dict) else None
+            updates = data.get("updates", {}) if isinstance(data, dict) else {}
 
             if not file_id:
                 return StandardMessageHandler.build_error_response(
-                    request_id,
+                    request_id or "unknown",
                     "INVALID_REQUEST",
-                    "缺少必需的file_id参数"
+                    "缺少必需的file_id参数",
+                    message_type=MessageType.PDF_LIBRARY_RECORD_UPDATE_FAILED,
+                    code=400
                 )
 
             if not updates:
                 return StandardMessageHandler.build_error_response(
-                    request_id,
+                    request_id or "unknown",
                     "INVALID_REQUEST",
-                    "缺少updates参数"
+                    "缺少updates参数",
+                    message_type=MessageType.PDF_LIBRARY_RECORD_UPDATE_FAILED,
+                    code=400
                 )
 
-            # 调用PDF管理器更新文件
             success = self.pdf_manager.update_file(file_id, updates)
 
             if success:
-                # 广播列表更新
                 self.on_pdf_list_changed()
-
                 return StandardMessageHandler.build_response(
-                    "response",
-                    request_id,
+                    MessageType.PDF_LIBRARY_RECORD_UPDATE_COMPLETED,
+                    request_id or StandardMessageHandler.generate_request_id(),
                     status="success",
                     code=200,
                     message="PDF文件更新成功",
                     data={"file_id": file_id, "updates": updates}
                 )
-            else:
-                return StandardMessageHandler.build_error_response(
-                    request_id,
-                    "UPDATE_FAILED",
-                    "PDF文件更新失败"
-                )
 
-        except Exception as e:
-            logger.error(f"更新PDF失败: {e}")
             return StandardMessageHandler.build_error_response(
-                request_id,
-                "UPDATE_ERROR",
-                f"更新PDF失败: {str(e)}"
+                request_id or "unknown",
+                "UPDATE_FAILED",
+                "PDF文件更新失败",
+                message_type=MessageType.PDF_LIBRARY_RECORD_UPDATE_FAILED,
+                code=500
             )
 
+        except Exception as e:
+            logger.error("更新PDF失败: %s", e, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "UPDATE_ERROR",
+                f"更新PDF失败: {e}",
+                message_type=MessageType.PDF_LIBRARY_RECORD_UPDATE_FAILED,
+                code=500
+            )
     def handle_pdf_page_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """处理PDF页面请求"""
         try:
@@ -972,6 +1665,40 @@ class StandardWebSocketServer(QObject):
                 f"清理缓存失败: {str(e)}"
             )
 
+    # ----------------------------- helpers ---------------------------------
+    def _resolve_pdf_uuid(self, value: Optional[str]) -> Optional[str]:
+        """尝试将前端传入的 pdf_id 映射为数据库的 uuid。
+
+        规则：
+        - 若满足12位十六进制，直接返回
+        - 否则尝试在 pdf_library_api.list_records 中按以下优先级匹配：
+          1) filename == f"{value}.pdf"
+          2) title == value
+        - 否则原样返回（交由后续校验/错误处理）
+        """
+        try:
+            if not value or not isinstance(value, str):
+                return value
+            v = value.strip()
+            if len(v) == 12 and all(c in '0123456789abcdef' for c in v.lower()):
+                return v
+            if hasattr(self, 'pdf_library_api') and self.pdf_library_api:
+                # 避免大批量：限制读取数量，假定前端数据规模在可控范围
+                records = self.pdf_library_api.list_records(include_hidden=True, limit=1000, offset=0) or []
+                target_filename = f"{v}.pdf"
+                for r in records:
+                    if r.get('filename') == target_filename:
+                        return r.get('id')
+                for r in records:
+                    if r.get('title') == v:
+                        return r.get('id')
+        except Exception as exc:
+            try:
+                logger.warning(f"_resolve_pdf_uuid failed for value={value}: {exc}")
+            except Exception:
+                pass
+        return value
+
     def handle_console_log_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """处理前端console日志消息"""
         try:
@@ -1056,7 +1783,7 @@ class StandardWebSocketServer(QObject):
                 logger.error("同步文件信息到数据库失败: %s", exc)
         # 可以广播给所有客户端
         message = StandardMessageHandler.build_base_message(
-            MessageType.SYSTEM_STATUS,
+            MessageType.SYSTEM_STATUS_UPDATED,
             data={
                 "event": "file_added",
                 "file_info": file_info,
@@ -1074,7 +1801,7 @@ class StandardWebSocketServer(QObject):
             except Exception as exc:
                 logger.error("删除PDF数据库记录失败: %s", exc)
         message = StandardMessageHandler.build_base_message(
-            MessageType.SYSTEM_STATUS,
+            MessageType.SYSTEM_STATUS_UPDATED,
             data={
                 "event": "file_removed",
                 "file_id": file_id,
@@ -1088,12 +1815,14 @@ class StandardWebSocketServer(QObject):
         logger.info("PDF列表变更事件")
         # 广播列表更新消息，让所有客户端重新获取列表
         try:
-            files = self.pdf_manager.get_files()
+            if hasattr(self, "pdf_library_api") and self.pdf_library_api:
+                files = self.pdf_library_api.list_records()
+            else:
+                files = self.pdf_manager.get_files()
             message = PDFMessageBuilder.build_pdf_list_response(
                 request_id=None,
                 files=files
             )
-            message["type"] = "pdf-library:list:records"
             self.broadcast_message(message)
             logger.info(f"已广播PDF列表更新消息，共 {len(files)} 个文件")
         except Exception as e:

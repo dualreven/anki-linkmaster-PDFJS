@@ -5,8 +5,8 @@
  */
 
 import { getLogger } from '../../../../common/utils/logger.js';
-
 const logger = getLogger('PDFList.ModalManager');
+
 
 /**
  * 模态框管理器类

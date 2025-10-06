@@ -4,8 +4,8 @@
  */
 
 import { getLogger } from '../../common/utils/logger.js';
-
 const logger = getLogger('CommunicationTester');
+
 
 /**
  * PDF 记录字段定义（用于验证）

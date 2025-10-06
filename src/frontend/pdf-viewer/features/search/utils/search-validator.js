@@ -5,8 +5,8 @@
  */
 
 import { getLogger } from '../../../../common/utils/logger.js';
-
 const logger = getLogger('SearchValidator');
+
 
 /**
  * 验证搜索关键词是否有效

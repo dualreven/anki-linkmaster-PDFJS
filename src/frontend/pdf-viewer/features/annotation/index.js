@@ -113,7 +113,7 @@ export class AnnotationFeature {
     this.#logger.info('[AnnotationFeature] ToolRegistry created');
 
     // 2. 创建标注管理器
-    this.#annotationManager = new AnnotationManager(this.#eventBus, this.#logger);
+    this.#annotationManager = new AnnotationManager(this.#eventBus, this.#logger, this.#container);
     this.#logger.info('[AnnotationFeature] AnnotationManager created');
 
     // 2.5. 从容器获取导航服务（由 core-navigation Feature 提供）

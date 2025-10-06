@@ -7,8 +7,8 @@ import eventBusSingleton from '../../common/event/event-bus.js';
 import { EventHandlers } from '../event-handlers.js';
 import { PDF_VIEWER_EVENTS } from '../../common/event/pdf-viewer-constants.js';
 import { getLogger } from '../../common/utils/logger.js';
-
 const logger = getLogger('EventHandlersRefactoringTest');
+
 
 /**
  * 创建模拟的应用对象

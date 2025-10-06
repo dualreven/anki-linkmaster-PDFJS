@@ -11,6 +11,7 @@ import {
   WEBSOCKET_MESSAGE_EVENTS,
   WEBSOCKET_MESSAGE_TYPES,
 } from "../event/event-constants.js";
+import { AllowedGlobalEvents } from "../event/global-event-registry.js";
 
 export class WSClient {
   #url;
@@ -39,8 +40,26 @@ export class WSClient {
     'response',
     'system_status',
     'bookmark:list:records',
-    'bookmark:save:record'
+    'bookmark:save:record',
+    // 新增：契约与能力/搜索/存储事件（减少告警）
+    'capability:discover:completed',
+    'capability:describe:completed',
+    'pdf-library:search:completed',
+    'pdf-library:search:failed',
+    'storage-kv:get:completed',
+    'storage-kv:get:failed',
+    'pdf-library:add:completed',
+    'pdf-library:add:failed'
   ];
+
+  static ALLOWED_OUTBOUND_TYPES = (() => {
+    const values = new Set();
+    // 收集所有 *:requested 作为可发送类型
+    Object.values(WEBSOCKET_MESSAGE_TYPES).forEach((v) => {
+      if (typeof v === 'string' && v.endsWith(':requested')) values.add(v);
+    });
+    return values;
+  })();
 
   constructor(url, eventBus) {
     this.#url = url;
@@ -291,22 +310,35 @@ export class WSClient {
         actorId: 'WSClient'
       });
 
-      if (!WSClient.VALID_MESSAGE_TYPES.includes(message.type)) {
-        this.#logger.warn(`⚠️ 未知WebSocket消息类型: ${message.type}`, JSON.stringify({
-          receivedType: message.type,
-          validTypes: WSClient.VALID_MESSAGE_TYPES,
-          message,
-          diagnostic: {
-            suggestion: '请检查后端消息协议是否更新，或前端VALID_MESSAGE_TYPES是否需要添加新类型',
-            action: '如果这是预期的新消息类型，请在WSClient.VALID_MESSAGE_TYPES中添加'
-          }
-        }, null, 2));
-        this.#eventBus.emit(WEBSOCKET_MESSAGE_EVENTS.UNKNOWN, {
-          error_code: 'UNKNOWN_MESSAGE_TYPE',
+      // 泛化的请求-响应结算：
+      // 任何带 request_id 的消息，若类型以 completed/failed 结尾或带有 status 字段，则结算对应 pending 请求
+      const rid = message?.request_id;
+      const typeStr = String(message?.type || '');
+      const status = message?.status;
+      const isTerminal = typeStr.endsWith(':completed') || typeStr.endsWith(':failed') || typeof status === 'string';
+      if (rid && this.#pendingRequests.has(rid) && isTerminal) {
+        if (status === 'error' || typeStr.endsWith(':failed')) {
+          this._settlePendingRequest(message, { error: message?.error || message?.data || { message: '请求失败' } });
+        } else {
+          this._settlePendingRequest(message);
+        }
+      }
+
+      if (!AllowedGlobalEvents.has(message.type)) {
+        // 未注册的消息类型：拦截并作为错误处理
+        const errInfo = {
+          error_code: 'UNREGISTERED_MESSAGE_TYPE',
           received_type: message.type,
-          valid_types: WSClient.VALID_MESSAGE_TYPES,
-          message
-        }, { actorId: 'WSClient' });
+          note: '该消息类型不在全局事件白名单中，已被拦截',
+        };
+        this.#logger.error('❌ 拦截未注册WebSocket消息类型', JSON.stringify(errInfo, null, 2));
+        // 如果有 pending 请求，按失败结算
+        if (message?.request_id && this.#pendingRequests.has(message.request_id)) {
+          this._settlePendingRequest(message, { error: errInfo });
+        }
+        // 广播错误
+        this.#eventBus.emit(WEBSOCKET_MESSAGE_EVENTS.ERROR, errInfo, { actorId: 'WSClient' });
+        return;
       }
 
       let targetEvent = null;
@@ -437,6 +469,12 @@ export class WSClient {
   }
 
   async request(messageType, payload = {}, options = {}) {
+    // 严格白名单：仅允许已注册的 *:requested 类型
+    if (!WSClient.ALLOWED_OUTBOUND_TYPES.has(messageType)) {
+      const err = new Error(`未注册的请求消息类型：${messageType}. 请使用 event-constants.js 中的 WEBSOCKET_MESSAGE_TYPES 或先合入契约文档`);
+      this.#logger.error('❌ WS 请求被拒绝（未注册类型）', { messageType });
+      throw err;
+    }
     const { timeout = 5000, maxRetries = 0 } = options;
     const requestId = this._generateRequestId();
     const message = {

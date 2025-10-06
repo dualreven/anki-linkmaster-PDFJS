@@ -13,6 +13,7 @@ import logging
 import json
 import os
 from pathlib import Path
+import time
 
 from src.qt.compat import QObject, pyqtSignal, pyqtSlot
 
@@ -84,6 +85,7 @@ class PdfViewerBridge(QObject):
                 payload = {
                     "type": "load_pdf_file",
                     "request_id": f"load_{path.name}",
+                    "timestamp": int(time.time() * 1000),
                     "data": {
                         "filename": path.name,
                         "file_path": self._current_file_path,

@@ -301,12 +301,294 @@ const service = new NavigationService();
 
 ---
 
-### 8️⃣ 重要参考文档
+### 8️⃣ 契约编程实践指导（必读）
+
+#### 什么是契约编程？
+
+项目采用**三层契约体系**确保前后端、模块间的强类型通信：
+
+```
+Layer 1: 前端内部契约 (EventBus 三段式)
+    ↓
+Layer 2: 前后端通信契约 (StandardMessageHandler)
+    ↓
+Layer 3: 能力注册契约 (Capability Registry + JSON Schema)
+```
+
+#### Layer 1: 前端事件契约
+
+**强制规则：**
+- 所有事件名称必须符合 `{module}:{action}:{status}` 格式
+- 违反契约的事件会被 **运行时阻止发布**
+- EventBus 会显示详细错误提示和修复建议
+
+**正确示例：**
+```javascript
+✅ 'pdf:load:completed'
+✅ 'bookmark:create:requested'
+✅ 'sidebar:open:success'
+```
+
+**错误示例（会被拦截）：**
+```javascript
+❌ 'loadData'                    // 缺少冒号
+❌ 'pdf:list:data:loaded'        // 超过3段
+❌ 'pdf_list_updated'            // 使用下划线
+❌ 'onButtonClick'               // 驼峰命名
+```
+
+#### Layer 2: 前后端消息契约
+
+**请求消息必须包含：**
+```javascript
+{
+  "type": "pdf-library:list:requested",  // 三段式
+  "request_id": "uuid-v4",               // 唯一标识
+  "timestamp": 1696300800000,            // 毫秒时间戳
+  "data": { /* 业务数据 */ }
+}
+```
+
+**响应消息必须包含：**
+```javascript
+{
+  "type": "response",
+  "request_id": "对应的请求ID",
+  "status": "success|error",
+  "code": 200,
+  "message": "操作结果描述",
+  "data": { /* 返回数据 */ }
+}
+```
+
+**消息类型定义：**
+- 位置：`src/backend/msgCenter_server/standard_protocol.py`
+- 所有消息类型必须在 `MessageType` 枚举中定义
+- 未定义的消息类型会被服务器拒绝
+
+#### Layer 3: 能力注册契约
+
+**能力发现流程：**
+```javascript
+// 1. 前端请求能力列表
+{
+  "type": "capability:discover:requested",
+  "data": { "pattern": "pdf-library.*" }
+}
+
+// 2. 后端返回能力清单
+{
+  "capabilities": [
+    {
+      "name": "pdf-library:list:records",
+      "version": "1.0.0",
+      "schema_path": "schemas/pdf-library/list-v1.json",
+      "schema_hash": "sha256:abc123..."
+    }
+  ]
+}
+```
+
+**Schema 验证：**
+- 所有消息必须符合对应的 JSON Schema
+- Schema 使用 SHA256 哈希防篡改
+- 版本变更遵循语义化版本号（major.minor.patch）
+
+#### 契约验证检查点
+
+开发时每条消息会经过 **5 个验证检查点**：
+
+1. **前端发送前**：EventBus 验证事件名格式（三段式）
+2. **消息中心接收后**：验证 type/request_id/timestamp 必需字段
+3. **后端处理前**：检查 MessageType 枚举、业务数据完整性
+4. **后端响应前**：构建标准响应格式（status/code/message）
+5. **前端接收后**：验证响应类型和数据完整性
+
+任何一个检查点失败，消息都会被拒绝并记录错误日志。
+
+#### 开发新功能时的契约清单
+
+**前端开发：**
+```javascript
+// ✅ 1. 使用三段式事件名
+scopedEventBus.emit('data:load:requested', payload);
+
+// ✅ 2. 监听全局事件时使用正确方法
+scopedEventBus.onGlobal('pdf:file:loaded', handler);
+
+// ✅ 3. 发送 WebSocket 消息时包含必需字段
+wsClient.send({
+  type: 'pdf-library:list:requested',
+  request_id: generateId(),
+  timestamp: Date.now(),
+  data: {}
+});
+```
+
+**后端开发：**
+```python
+# ✅ 1. 在 MessageType 枚举中定义新消息类型
+class MessageType(Enum):
+    MY_NEW_FEATURE_REQUESTED = "my-feature:action:requested"
+    MY_NEW_FEATURE_COMPLETED = "my-feature:action:completed"
+
+# ✅ 2. 使用标准响应构建器
+return StandardMessageHandler.build_response(
+    "response",
+    request_id,
+    status="success",
+    code=200,
+    message="操作成功",
+    data={"result": "数据"}
+)
+
+# ✅ 3. 错误时返回标准错误响应
+return StandardMessageHandler.build_error_response(
+    request_id,
+    "ERROR_TYPE",
+    "详细错误描述",
+    code=400
+)
+```
+
+#### 契约违规示例与修复
+
+**❌ 违规示例 1：事件名不符合三段式**
+```javascript
+// 错误
+eventBus.emit('loadData', data);
+
+// 修复
+eventBus.emit('data:load:completed', data);
+```
+
+**❌ 违规示例 2：缺少必需字段**
+```javascript
+// 错误
+wsClient.send({ type: 'pdf-library:list:requested' });
+
+// 修复
+wsClient.send({
+  type: 'pdf-library:list:requested',
+  request_id: generateId(),
+  timestamp: Date.now(),
+  data: {}
+});
+```
+
+**❌ 违规示例 3：使用未定义的消息类型**
+```javascript
+// 错误
+wsClient.send({ type: 'get_pdf_list', ... });
+
+// 修复：先在 standard_protocol.py 中定义枚举
+// MessageType.PDF_LIBRARY_LIST_REQUESTED = "pdf-library:list:requested"
+wsClient.send({ type: 'pdf-library:list:requested', ... });
+```
+
+#### 契约调试技巧
+
+**前端调试：**
+```javascript
+// 查看 EventBus 验证错误
+// 控制台会显示详细的错误提示和修复建议
+
+// 查看 WebSocket 消息
+wsClient.getDebugInfo();  // 获取连接信息
+wsClient.getConnectionHistory();  // 查看连接历史
+```
+
+**后端调试：**
+```python
+# 查看日志文件
+# logs/ws-server.log
+
+# 使用 request_id 追踪完整流程
+[前端] req_abc123 发送消息: pdf-library:list:requested
+    ↓
+[后端] req_abc123 接收到消息
+    ↓
+[后端] req_abc123 处理完成，返回响应
+    ↓
+[前端] req_abc123 收到响应
+```
+
+#### 契约文档索引
+
+**📋 核心规范：**
+- `src/frontend/CLAUDE.md:62-310` - 前端开发核心规范（EventBus 三段式、Feature 架构、依赖注入）
+- `src/frontend/pdf-home/docs/Communication-Protocol-Guide.md` - 完整通信协议（600+ 行详细说明）
+- `src/backend/msgCenter_server/standard_protocol.py:14-136` - MessageType 枚举（100+ 消息类型定义）
+- `todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/v001-spec.md` - 能力注册中心完整规范
+
+**🔧 契约执行核心文件：**
+
+*前端验证器：*
+- `src/frontend/common/event/event-bus.js:13-131` - EventNameValidator（三段式验证、错误提示生成）
+- `src/frontend/common/event/scoped-event-bus.js:1-200` - ScopedEventBus（命名空间管理、局部/全局事件）
+- `src/frontend/common/ws/ws-client.js:1-500` - WSClient（消息发送验证、request_id 管理）
+
+*后端验证器：*
+- `src/backend/msgCenter_server/standard_protocol.py:146-180` - validate_message_structure（消息结构验证）
+- `src/backend/msgCenter_server/standard_server.py:100-150` - handle_message（消息类型路由与验证）
+- `src/backend/api/service_registry.py:1-100` - ServiceRegistry（能力注册与查询）
+
+**📦 JSON Schema 契约定义：**
+```
+todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/schemas/
+├── capability/
+│   ├── discover-v1.json          # 能力发现协议
+│   └── describe-v1.json          # 能力描述协议
+├── pdf-library/
+│   ├── list-v1.json              # PDF 列表查询
+│   ├── add-v1.json               # PDF 文件添加
+│   ├── remove-v1.json            # PDF 文件删除
+│   ├── info-v1.json              # PDF 详情获取
+│   └── config-v1.json            # PDF 配置管理
+├── bookmark/
+│   ├── list-v1.json              # 书签列表查询
+│   └── save-v1.json              # 书签保存
+├── storage-kv/
+│   ├── get-v1.json               # KV 读取
+│   ├── set-v1.json               # KV 写入
+│   └── delete-v1.json            # KV 删除
+└── storage-fs/
+    ├── read-v1.json              # 文件读取
+    └── write-v1.json             # 文件写入
+```
+
+**🧪 测试示例：**
+
+*前端契约测试：*
+- `src/frontend/common/event/__tests__/event-bus.test.js` - EventBus 核心功能（50+ 用例）
+- `src/frontend/common/event/__tests__/event-name-validation.test.js` - 事件名称验证（错误提示、修复建议）
+- `src/frontend/common/event/__tests__/scoped-event-bus.test.js` - 作用域事件总线（命名空间隔离）
+
+*后端契约测试：*
+- `src/backend/msgCenter_server/__tests__/test_standard_server_messages.py` - 标准消息处理（文件入库、删除、查询）
+- `src/backend/msgCenter_server/__tests__/test_standard_server_bookmarks.py` - 书签消息处理（三段式命名验证）
+- `src/backend/msgCenter_server/__tests__/test_capability_registry.py` - 能力注册中心（discover/describe）
+- `src/backend/msgCenter_server/__tests__/test_storage_kv_and_fs.py` - 存储服务（KV/FS 完整链路）
+
+*集成测试：*
+- `src/backend/api/__tests__/test_bookmark_persistence.py` - 书签持久化闭环（前端→WS→API→DB→响应）
+- `src/backend/database/plugins/__tests__/test_pdf_info_plugin_search_records.py` - 搜索功能端到端
+
+**📊 契约统计数据：**
+- 前端事件验证器：1 个核心类（EventNameValidator）
+- 后端消息类型：100+ 枚举值（MessageType）
+- JSON Schema：11 个协议文件（v1 版本）
+- 测试覆盖：300+ 用例（前端 + 后端 + 集成）
+- 验证检查点：5 个（发送前、接收后、处理前、响应前、接收后）
+
+### 9️⃣ 重要参考文档
 
 1. **添加新Feature** → `src/frontend/HOW-TO-ADD-FEATURE.md`
 2. **EventBus完整指南** → `src/frontend/common/event/EVENTBUS-USAGE-GUIDE.md`
 3. **架构深度解析** → `src/frontend/ARCHITECTURE-EXPLAINED.md`
 4. **事件追踪调试** → `src/frontend/HOW-TO-ENABLE-EVENT-TRACING.md`
+5. **通信协议指南** → `src/frontend/pdf-home/docs/Communication-Protocol-Guide.md`
+6. **契约架构详解** → `.kilocode/rules/memory-bank/architecture.md` (契约编程三层体系)
 
 ## 模块职责
 - pdf-home：列表/选择/动作的 UI；QWebChannel 前端侧管理；前端日志 → `logs/pdf-home-js.log`。
@@ -954,3 +1236,160 @@ const service = new NavigationService();
   - src/backend/msgCenter_server/standard_server.py: 对 ServiceRegistry 采用可选导入与最小桩声明，维持注入接口不变。
 - 测试: 后端相关单测 17 通过（命令: PYTHONPATH=src python -m pytest -q src/backend/api/__tests__/test_pdf_library_api.py src/backend/msgCenter_server/__tests__/test_standard_server_bookmarks.py）。
 - 后续: 如需完整跟进 main 上的 API 插件隔离重构，请创建子任务落实 service_registry 与域服务实现（search/add/bookmark），当前仅提供兼容层避免功能回归。
+
+
+### 2025-10-06 前端构建错误修复
+- [pdf-viewer-manager] import 花括号内误插入 JSDoc 风格注释，触发 Babel 解析错误
+- 修复方式：移除该行，并在 import 之后声明模块级 logger 常量
+- 文件：src/frontend/pdf-viewer/features/ui-manager/components/pdf-viewer-manager.js:1
+
+### 2025-10-06 书签DB优先与CRUD同步
+- 前端 PDFBookmarkFeature 在 PDF 加载后：先远端拉取；若无数据则导入原生书签并远端保存，然后再次从远端加载。
+- 创建/更新/删除/排序：本地变更后立即远端保存并重新从远端加载，保证以数据库为单一真相。
+- 涉及文件：src/frontend/pdf-viewer/features/pdf-bookmark/index.js:1## 当前任务 (2025-10-06 16:28)
+- 目标：统一通信消息/事件三段式命名，修复 PDF-Home 新增文件无 toast，并同步资料
+- 相关模块：src/backend/msgCenter_server/*、src/backend/msgCenter_server/__tests__、src/backend/api/pdf_library_api.py、src/frontend/common/event/event-constants.js、src/frontend/common/ws/ws-client.js、src/frontend/pdf-home/features/pdf-list/index.js、src/frontend/pdf-home/index.js
+- 原子步骤：
+  1. 清点现有命名残留与依赖链路，整理需替换的消息常量/事件
+  2. 为后端命名重构与 toast 修复制定测试方案（后端pytest + 前端jest）
+  3. 重构后端消息处理（统一命名、接入 PDFLibraryAPI）并更新构建器
+  4. 调整前端常量/监听逻辑与依赖获取方式，确保 toast 触发
+  5. 运行对应测试，更新文档与 memory bank
+- 注意事项：禁止蛇形命名，确保所有新事件符合 {module}:{action}:{status}；保留旧协议兼容入口但默认走新命名；所有文件写入需 UTF-8
+
+---
+
+## 当前问题与目标（2025-10-06）
+- 问题：隔离插件事件总线模式下，多个前端需要与同一后端插件联动（含持久化读写），并行开发时容易出现事件线路与数据契约不一致，导致互相踩线和回归成本高。
+- 目标：建立“契约优先 + 能力注册中心 + 版本化”的协作机制，统一请求-响应语义、持久化访问接口与迁移策略，使前端可并行、后端可演进且不破坏现有功能。
+
+### 相关模块/文件
+- 事件与消息规范：docs/SPEC/FRONTEND-EVENT-NAMING-001.md、docs/SPEC/JSON-MESSAGE-FORMAT-001.md、docs/SPEC/SPEC-HEAD-communication.json
+- 后端 API 门面：src/backend/api/pdf_library_api.py（现为统一入口，已规划服务注册拆分）
+- 数据库插件层：src/backend/database/plugins/*（pdf_info/annotation/bookmark/search_condition）
+
+### 方案要点
+1) 契约与版本：三段式事件名 + JSON Schema 契约 + metadata.version，禁止未提主版本的破坏性变更。
+2) 能力注册中心：后端插件上报能力清单（事件、版本、特性），前端通过 discovery 获取并缓存，统一接入。
+3) 请求-响应语义：统一 requested/completed/failed；携带 request_id/correlationId 与 replyTo；响应含 code/message/error。
+4) 存储服务抽象：提供 storage:kv/fs:* 标准接口，业务插件通过 API 门面访问存储，前端不直连 DB。
+5) SDK 与适配器：由同一 Schema 生成前端/后端类型与常量；保留旧事件名的 adapter 以平滑迁移。
+6) 测试与门禁：新增契约一致性校验与端到端路由冒烟；CI 阶段阻断不合规变更。
+
+### 执行步骤（原子任务）
+A-1. 在 docs/contracts/ 下建立契约目录与基础 Schema（仅文档/样例）。
+A-2. 在 docs/architecture/ 新增 “Bus 能力注册中心与请求-响应约定” 文档。
+A-3. 在 docs/SPEC 增补三段式事件 + JSON 消息结构的对齐说明（type=事件名，metadata.version 版本）。
+A-4. 规划 storage:kv 与 storage:fs 的最小接口与错误模型。
+A-5. 设计契约一致性测试（后续落地脚本），并在 tech.md 记录使用方法。
+A-6. 为并行开发制定“提契约 PR→合并后再开发”的流程清单。
+
+### 注意与约束
+- 保持 UTF-8 与换行 \n；禁止下划线事件名；严格三段式。
+- 不立即改代码行为，本轮仅落地文档/样例与流程，避免打断现有开发。
+### 2025-10-06 消息命名治理进度
+- 后端 `standard_protocol` / `standard_server` 已引入 `pdf-library:*:requested|completed|failed` 三段式常量，并在 `StandardWebSocketServer.handle_message` 中兼容旧类型到新类型的映射
+- 新增测试 `test_standard_server_messages.py` 覆盖文件入库路径，`test_standard_server_bookmarks.py` 同步改为 `bookmark:*:requested|completed|failed`
+- 待办：重构 `pdfTable_server/application_subcode/response_handlers.py` 让成功/失败返回不再使用 `type=response`；同步更新 `pdfTable_server` 内 add/remove/search/config 分支，使 `send_success_response`/`send_error_response` 传入三段式请求并写入 `original_type`
+
+- 文档迁移：契约与能力注册中心相关文档已移动至 todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/ （含 v001-spec.md 与 schemas/）。
+
+### 2025-10-06 开发进展（并行契约闭环，最小实现）
+- 后端新增：capability:discover/describe 与 storage-kv:get 处理，均走 UTF-8 I/O；在 standard_protocol/standard_server 接入，事件三段式。
+- 前端增强：WSClient 泛化结算（任意 *:completed|failed 或带 status 的响应自动结算 pending）；新增若干 VALID_MESSAGE_TYPES。
+- 使用文档：todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/USAGE.md
+- 测试：src/backend/msgCenter_server/__tests__/test_capability_registry.py
+\n---\n
+## 2025-10-06 修复记录（前端Babel报错）
+- 症状：构建时报错 Private name #buildError is not defined，定位到 src/frontend/common/event/event-bus.js
+- 原因：在 EventBus.on()/emit() 中错误地调用了 EventNameValidator 的私有静态方法 #buildError（跨类访问私有方法，语法不合法）
+- 处理：改为直接构造错误提示字符串，不再跨类调用私有方法；EventNameValidator 内部的私有方法保持不变
+- 风险控制：搜索全仓库未发现其它 ClassName.#private 的跨类访问
+- 建议：若需对外复用，请将私有方法对等提供一个公开静态方法（如 buildError），或在调用处直接拼装文案
+\n---
+## 2025-10-06 事件白名单修复（pdf-viewer 打不开）
+- 现象：pdf-viewer 自启动时尝试触发 'pdf-viewer:file:load-requested'，被 EventBus 全局白名单拦截（未注册全局事件），导致不加载。
+- 影响：自动加载 PDF 中断；书签、侧栏等初始化日志正常。
+- 措施：global-event-registry 增加对 PDF_VIEWER_EVENTS 的白名单收集。未新增/改名事件，仅放行既有事件名。
+- 建议：后续如出现其它模块类似告警（如 pdf-translator），按相同方式放行或改用 scopedEventBus。
+\n---
+## 2025-10-06 PyQt 桥接补齐 timestamp
+- 变更：src/frontend/pdf-viewer/pyqt/pdf_viewer_bridge.py 的 loadPdfFile 发送消息增加 timestamp（毫秒）。
+- 背景：服务器 standard_protocol.validate_message_structure 要求消息必须包含 type 和 timestamp；此前日志出现缺少 timestamp。
+- 影响：避免 load_pdf_file 被服务器拒绝，提升打开 PDF 的稳定性。
+
+- 全域覆盖：已将 pdf-library（list/add/remove/info/config）、bookmark、pdf-page、storage-kv(set/delete/get)、storage-fs(read/write)、system(heartbeat) 纳入能力发现与白名单，契约位于 doing/schemas。
+\n---
+## 2025-10-06 PDF-Home 编辑器新增重置功能
+- 位置：pdf-home 编辑按钮弹窗（features/pdf-edit/index.js）
+- 重置书签：通过 bookmark:save:requested 发送空集合清空书签；下次打开查看器自动从PDF源导入
+- 重置阅读进度：通过 pdf-library:record-update:requested 将 visited_at/total_reading_time 清零
+- 重置标注：前端按钮占位，待后端提供批量清空注解接口/路由后启用（不新增事件名则需约定updates字段）
+
+---
+
+## 任务记录：2025-10-06 标注持久化修复（契约驱动）
+
+- 问题概述：pdf-viewer 标注（Annotation）仅实现了 Phase 1 的内存 Mock，未打通后端持久化；页面渲染日志显示恢复标注为 0。
+- 根因：
+  - 前端 AnnotationManager 的 #saveAnnotationToBackend/#loadAnnotationsFromBackend 未实现；
+  - WebSocket 协议缺少 annotation 域的消息类型与服务端处理；
+  - 能力注册与 JSON Schema 契约未覆盖 annotation 域。
+- 目标：按契约编程补齐 annotation 域的消息契约、后端处理、前端调用链路，实现创建/更新/删除/加载的持久化。
+
+### 相关模块与函数
+- 前端
+  - src/frontend/common/event/event-constants.js：新增 WS 消息常量 nnotation:list/save/delete（requested/completed/failed）
+  - src/frontend/pdf-viewer/features/annotation/core/annotation-manager.js：
+    - 接入 DI 容器获取 wsClient
+    - 实现 #saveAnnotationToBackend、#loadAnnotationsFromBackend、#deleteAnnotationFromBackend
+  - src/frontend/common/event/global-event-registry.js：自动白名单收敛（引入新常量后即放行）
+- 后端
+  - src/backend/msgCenter_server/standard_protocol.py：新增 Annotation 消息类型枚举
+  - src/backend/msgCenter_server/standard_server.py：
+    - handle_annotation_list_request
+    - handle_annotation_save_request
+    - handle_annotation_delete_request
+  - 复用 PDFAnnotationTablePlugin 完成 CRUD
+- 契约
+  - 	odo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/schemas/annotation/v1/messages/*.schema.json
+  - 在能力描述 capability:describe:requested 中暴露 annotation 域
+
+### 执行步骤（原子任务）
+1. 新增 WS 消息类型（前后端常量）
+2. 后端 StandardServer 增加处理分支与实现
+3. 前端 AnnotationManager 接入 wsClient 并落库/加载
+4. 添加后端消息往返测试（保存 → 列表）
+5. 补充 JSON Schema 契约与能力描述
+6. 自测：在 pdf-viewer 中创建高亮/截图/批注，刷新后可恢复
+
+### 设计约束
+- 三段式事件命名；所有写入/读取均显式 UTF-8 且换行 \n
+- 先设计测试再实现；若产生与主任务不强相关的子任务（如大范围文档重排），交由 subagent
+
+---
+
+## 当前问题（2025-10-06 22:54）
+
+- 现象：构建时报错 `[plugin:babel-plugin] Unexpected reserved word 'await'`，位置 `src/frontend/pdf-home/features/pdf-edit/index.js:671`。
+- 根因：在私有方法 `#sendEditRequestToBackend(fileId, updates)` 内使用了 `await`，但该方法未声明 `async`，Babel 无法解析。
+- 影响范围：PDF-Home 编辑对话框功能构建失败；运行逻辑涉及 WSClient 发送 `pdf-library:record-update:requested`。
+
+### 相关模块与函数
+- 模块：`pdf-home/features/pdf-edit`
+- 文件：`src/frontend/pdf-home/features/pdf-edit/index.js`
+- 函数：
+  - `#handleFormSubmit()`：提交表单后触发发送编辑请求与关闭模态框。
+  - `#sendEditRequestToBackend(fileId, updates)`：通过 `WSClient.request` 或全局事件发送更新请求。
+
+### 执行步骤（原子任务）
+1. 将 `#sendEditRequestToBackend` 声明为 `async`（最小改动）。
+2. 运行构建测试：`pnpm run build:pdf-home`，确认无 Babel 解析错误。
+3. 若构建仍失败，排查文件内其余 `await` 的上游函数是否为 `async`。
+
+### 备注
+- 维持 `#handleFormSubmit()` 的“提交即关闭”交互；错误由 `#sendEditRequestToBackend` 内部 try/catch 记录。
+
+### 修复记录（2025-10-06 22:56）
+- 修改 `src/frontend/pdf-home/features/pdf-edit/index.js`：`#sendEditRequestToBackend` → `async`，以允许内部 `await`。
+- 构建验证：`pnpm run build:pdf-home` 通过。

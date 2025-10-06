@@ -11,8 +11,8 @@ import { ListDataService } from '../services/list-data-service.js';
 import { ListLifecycleService } from '../services/list-lifecycle-service.js';
 import { PDF_LIST_EVENTS } from '../events.js';
 import { PDF_MANAGEMENT_EVENTS } from '../../../../common/event/event-constants.js';
-
 const logger = getLogger('PDFList.PDFTable');
+
 
 /**
  * PDF表格组件类

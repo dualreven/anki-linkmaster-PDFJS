@@ -11,6 +11,8 @@ export class ConsoleWebSocketBridge {
     this.originalConsole = {};
     this.enabled = false;
     this.skipPatterns = []; // 自定义过滤规则
+    this.minLevel = 'warn'; // 最低转发级别: debug|info|warn|error
+    this._levelOrder = { debug: 10, info: 20, warn: 30, error: 40, log: 15 };
 
     // 保存原始console方法
     this.originalConsole.log = console.log.bind(console);
@@ -65,6 +67,11 @@ export class ConsoleWebSocketBridge {
     // 先输出到本地console（保持原有行为）
     this.originalConsole[level](...args);
 
+    // 等级过滤（默认仅转发 warn/error），可通过 setLevel 动态调整
+    if (!this._shouldForwardLevel(level)) {
+      return;
+    }
+
     // 检查是否是WebSocket相关的日志，避免无限循环
     const messageText = args.map(arg => String(arg)).join(' ');
     if (this.shouldSkipMessage(messageText)) {
@@ -84,6 +91,23 @@ export class ConsoleWebSocketBridge {
   }
 
   /**
+   * 设置最低转发级别
+   * @param {'debug'|'info'|'warn'|'error'} level
+   */
+  setLevel(level) {
+    const v = String(level || '').toLowerCase();
+    if (this._levelOrder[v] !== undefined) {
+      this.minLevel = v;
+    }
+  }
+
+  _shouldForwardLevel(level) {
+    const lv = this._levelOrder[String(level || '').toLowerCase()] ?? 999;
+    const min = this._levelOrder[this.minLevel] ?? 30;
+    return lv >= min;
+  }
+
+  /**
    * 检查是否应该跳过某些消息以避免无限循环
    * @param {string} messageText - 消息文本
    * @returns {boolean} 是否跳过
@@ -91,7 +115,13 @@ export class ConsoleWebSocketBridge {
   shouldSkipMessage(messageText) {
     // 使用实例特定的过滤规则，如果没有设置则使用默认规则
     const skipPatterns = this.skipPatterns.length > 0 ? this.skipPatterns : [
-      // 默认过滤规则 - 暂时禁用所有过滤，观察完整日志
+      // 默认过滤常见噪声
+      'PDF\\.js.*worker.*ready',
+      'Canvas.*render.*progress',
+      'Page.*\\d+.*rendered',
+      'Zoom.*level',
+      'Scroll.*position',
+      'vite.*hmr',
     ];
 
     return skipPatterns.some(pattern => {

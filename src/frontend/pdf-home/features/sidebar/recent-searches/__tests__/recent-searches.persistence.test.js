@@ -65,12 +65,12 @@ describe('RecentSearchesFeature 持久化到后端', () => {
     document.body.innerHTML = '';
   });
 
-  it('安装后会请求后端配置（pdf-home:get:config）', () => {
+  it('安装后会请求后端配置（pdf-library:get:config）', () => {
     const hasGet = sentMessages.some(m => m && m.type === WEBSOCKET_MESSAGE_TYPES.GET_CONFIG);
     expect(hasGet).toBe(true);
   });
 
-  it('搜索后会通过 WebSocket 推送配置更新（pdf-home:update:config）', () => {
+  it('搜索后会通过 WebSocket 推送配置更新（pdf-library:update:config）', () => {
     globalEventBus.emit('search:query:requested', { searchText: 'abc' });
 
     // 推进防抖定时器

@@ -7,8 +7,8 @@
 import { getLogger } from '../../../common/utils/logger.js';
 import { createSidebarConfig } from './sidebar-config.js';
 import { BookmarkSidebarUI } from '../../ui/bookmark-sidebar-ui.js';
-
 const logger = getLogger('RealSidebars');
+
 
 /**
  * 注册所有真实侧边栏到SidebarManager

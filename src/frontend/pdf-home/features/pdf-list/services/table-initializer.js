@@ -6,8 +6,8 @@
 
 import { TabulatorFull as Tabulator } from 'tabulator-tables';
 import { getLogger } from '../../../../common/utils/logger.js';
-
 const logger = getLogger('PDFList.TableInitializer');
+
 
 /**
  * 表格初始化服务类

@@ -9,8 +9,8 @@ import { LayoutEngine } from './layout-engine.js';
 import { validateSidebarConfig } from './sidebar-config.js';
 import { registerRealSidebars, createRealSidebarButtons } from './real-sidebars.js';
 import { PDFLayoutAdapter } from './pdf-layout-adapter.js';
-
 const logger = getLogger('SidebarManager');
+
 
 export class SidebarManagerFeature {
     #eventBus;

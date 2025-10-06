@@ -5,6 +5,7 @@
  */
 
 import { getLogger } from "../utils/logger.js";
+import { isGlobalEventAllowed } from "./global-event-registry.js";
 import { MessageTracer } from "./message-tracer.js";
 
 const SUPPRESSED_EVENT_LOGS = new Set(['pdf-viewer:file:load-progress','websocket:message:received']);
@@ -434,6 +435,14 @@ export class EventBus {
    * unsubscribe();
    */
   on(event, callback, options = {}) {
+    // 全局事件白名单校验（局部事件 @ 开头跳过）
+    if (!event?.startsWith('@') && !isGlobalEventAllowed(event)) {
+      const err = `未注册的全局事件：'${event}'，已被禁止订阅` +
+        '\n请使用 event-constants.js 中已存在的事件，或先提交契约PR新增事件后再使用' +
+        (options?.subscriberId ? `\n订阅者ID: ${options.subscriberId}` : '');
+      this.#log("error", err, { event });
+      return () => {};
+    }
     const subscriberId = options.subscriberId || this.#inferActorId() || `sub_${this.#nextSubscriberId++}`;
     const actorId = options.actorId || this.#inferActorId();
 
@@ -576,6 +585,15 @@ export class EventBus {
 
         return;
       }
+    }
+
+    // 全局事件白名单校验（局部事件 @ 开头跳过）
+    if (!event?.startsWith('@') && !isGlobalEventAllowed(event)) {
+      const err = `未注册的全局事件：'${event}'，已被禁止发布` +
+        '\n请使用 event-constants.js 中已存在的事件，或先提交契约PR新增事件后再使用' +
+        (actorId ? `\n执行者ID: ${actorId}` : '');
+      this.#log("error", err, { event, data });
+      return;
     }
 
     const subscribers = this.#events[event];

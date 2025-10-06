@@ -7,6 +7,7 @@
 
 import { getLogger } from '../../../common/utils/logger.js';
 import { PDF_VIEWER_EVENTS } from '../../../common/event/pdf-viewer-constants.js';
+import { WEBSOCKET_EVENTS } from '../../../common/event/event-constants.js';
 import { PDFBookmarkFeatureConfig } from './feature.config.js';
 import { BookmarkManager } from './services/bookmark-manager.js';
 import { BookmarkDialog } from './components/bookmark-dialog.js';
@@ -81,6 +82,7 @@ export class PDFBookmarkFeature {
    * @private
    */
   #enabled = false;
+  #toastTimer = null;
 
   /**
    * 当前选中的书签ID和书签对象
@@ -148,6 +150,22 @@ export class PDFBookmarkFeature {
     });
     await this.#bookmarkManager.initialize();
 
+    // 当 WebSocket 建立后，尝试从后端重新拉取一次，避免首次加载时连接尚未就绪导致只读本地
+    try {
+      const unsubWsReady = this.#eventBus.onGlobal(
+        WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED,
+        async () => {
+          try {
+            await this.#bookmarkManager.loadFromStorage();
+            this.#refreshBookmarkList();
+            this.#toast('✓ 已连接服务器，书签已同步');
+          } catch (_) {}
+        },
+        { subscriberId: 'PDFBookmarkFeature' }
+      );
+      this.#unsubs.push(unsubWsReady);
+    } catch (_) {}
+
     // 初始化PDF原生书签提供者
     this.#bookmarkDataProvider = new BookmarkDataProvider();
 
@@ -164,6 +182,25 @@ export class PDFBookmarkFeature {
 
     this.#enabled = true;
     this.#logger.info(`${this.name} installed successfully`);
+  }
+
+  /** 显示简易 Toast 提示 */
+  #toast(message, type = 'success') {
+    try {
+      const toast = document.createElement('div');
+      toast.textContent = message;
+      toast.style.cssText = [
+        'position: fixed', 'top: 16px', 'right: 16px', 'z-index: 9999',
+        'padding: 10px 14px', 'border-radius: 6px', 'color: #fff',
+        'font-size: 14px', 'box-shadow: 0 2px 8px rgba(0,0,0,0.15)',
+        `background: ${type === 'error' ? '#d4380d' : type === 'info' ? '#1890ff' : '#52c41a'}`,
+        'opacity: 0', 'transform: translateY(-8px)', 'transition: all .2s ease'
+      ].join(';');
+      document.body.appendChild(toast);
+      requestAnimationFrame(() => { toast.style.opacity = '1'; toast.style.transform = 'translateY(0)'; });
+      clearTimeout(this.#toastTimer);
+      this.#toastTimer = setTimeout(() => { try { toast.remove(); } catch(_){} }, 2000);
+    } catch (_) {}
   }
 
   /**
@@ -411,13 +448,16 @@ export class PDFBookmarkFeature {
 
         if (result.success) {
           this.#logger.info(`Bookmark created: ${result.bookmarkId}`);
+          this.#toast('✓ 书签已添加');
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.CREATE.SUCCESS,
             { bookmarkId: result.bookmarkId, bookmark: bookmarkData },
             { actorId: 'PDFBookmarkFeature' }
           );
 
-          // 刷新书签列表显示
+          // 远端保存并从后端刷新
+          await this.#bookmarkManager.saveToStorage();
+          await this.#bookmarkManager.loadFromStorage();
           this.#refreshBookmarkList();
 
           // 自动选中新添加的书签（延迟执行，等待DOM渲染完成）
@@ -433,6 +473,7 @@ export class PDFBookmarkFeature {
           }
         } else {
           this.#logger.error(`Failed to create bookmark: ${result.error}`);
+          this.#toast(`添加书签失败: ${result.error}`, 'error');
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.CREATE.FAILED,
             { error: result.error },
@@ -469,16 +510,19 @@ export class PDFBookmarkFeature {
 
         if (result.success) {
           this.#logger.info(`Bookmark updated: ${bookmarkId}`);
+          this.#toast('✓ 书签已更新');
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.UPDATE.SUCCESS,
             { bookmarkId, updates },
             { actorId: 'PDFBookmarkFeature' }
           );
 
-          // 刷新书签列表显示
+          await this.#bookmarkManager.saveToStorage();
+          await this.#bookmarkManager.loadFromStorage();
           this.#refreshBookmarkList();
         } else {
           this.#logger.error(`Failed to update bookmark: ${result.error}`);
+          this.#toast(`更新书签失败: ${result.error}`, 'error');
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.UPDATE.FAILED,
             { bookmarkId, error: result.error },
@@ -518,16 +562,19 @@ export class PDFBookmarkFeature {
 
         if (result.success) {
           this.#logger.info(`Bookmark deleted: ${bookmarkId}, count: ${result.deletedIds.length}`);
+          this.#toast('✓ 书签已删除');
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.DELETE.SUCCESS,
             { bookmarkId, deletedIds: result.deletedIds },
             { actorId: 'PDFBookmarkFeature' }
           );
 
-          // 刷新书签列表显示
+          await this.#bookmarkManager.saveToStorage();
+          await this.#bookmarkManager.loadFromStorage();
           this.#refreshBookmarkList();
         } else {
           this.#logger.error(`Failed to delete bookmark: ${result.error}`);
+          this.#toast(`删除书签失败: ${result.error}`, 'error');
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.DELETE.FAILED,
             { bookmarkId, error: result.error },
@@ -553,16 +600,19 @@ export class PDFBookmarkFeature {
 
     if (result.success) {
       this.#logger.info(`Bookmark reordered: ${bookmarkId}`);
+      this.#toast('✓ 书签排序已更新');
       this.#eventBus.emitGlobal(
         PDF_VIEWER_EVENTS.BOOKMARK.REORDER.SUCCESS,
         { bookmarkId, newParentId, newIndex },
         { actorId: 'PDFBookmarkFeature' }
       );
 
-      // 刷新书签列表显示
+      await this.#bookmarkManager.saveToStorage();
+      await this.#bookmarkManager.loadFromStorage();
       this.#refreshBookmarkList();
     } else {
       this.#logger.error(`Failed to reorder bookmark: ${result.error}`);
+      this.#toast(`排序失败: ${result.error}`, 'error');
       this.#eventBus.emitGlobal(
         PDF_VIEWER_EVENTS.BOOKMARK.REORDER.FAILED,
         { bookmarkId, error: result.error },
@@ -586,30 +636,28 @@ export class PDFBookmarkFeature {
         return;
       }
 
-      // 检查本地是否已有书签
-      const localBookmarks = this.#bookmarkManager.getAllBookmarks();
-      const hasLocalBookmarks = localBookmarks.length > 0;
+      // DB-first：先从后端加载
+      this.#logger.info('🔄 Loading bookmarks from backend/storage (DB-first)...');
+      await this.#bookmarkManager.loadFromStorage();
+      let current = this.#bookmarkManager.getAllBookmarks();
+      this.#logger.info(`📦 Bookmarks from storage: ${current.length}`);
 
-      this.#logger.info(`📄 PDF loaded, local bookmarks count: ${localBookmarks.length}`);
-
-      if (!hasLocalBookmarks) {
-        // 本地为空时，尝试导入PDF原生书签
-        this.#logger.info('📚 No local bookmarks found, importing native bookmarks...');
-
+      // 如数据库无记录，导入PDF原生书签 → 远端保存 → 再从后端加载
+      if (current.length === 0) {
+        this.#logger.info('📚 No DB bookmarks, importing native PDF bookmarks then persisting to backend...');
         try {
-          // 获取PDF原生书签
           const nativeBookmarks = await this.#bookmarkDataProvider.getBookmarks(data.pdfDocument);
           this.#logger.info(`✅ Fetched ${nativeBookmarks.length} native bookmarks from PDF`);
-
           if (nativeBookmarks.length > 0) {
-            // 导入原生书签到BookmarkManager
             const result = await this.#bookmarkManager.importNativeBookmarks(
               nativeBookmarks,
               (bookmark) => this.#parseBookmarkDest(bookmark)
             );
-
             if (result.success) {
-              this.#logger.info(`✅ Successfully imported ${result.count} native bookmarks to local storage`);
+              this.#logger.info(`✅ Imported ${result.count} native bookmarks; reloading from backend...`);
+              await this.#bookmarkManager.loadFromStorage();
+              current = this.#bookmarkManager.getAllBookmarks();
+              this.#logger.info(`📦 Bookmarks after backend reload: ${current.length}`);
             } else {
               this.#logger.error(`❌ Failed to import native bookmarks: ${result.error}`);
             }
@@ -617,10 +665,8 @@ export class PDFBookmarkFeature {
             this.#logger.info('ℹ️ No native bookmarks found in PDF');
           }
         } catch (error) {
-          this.#logger.error('❌ Failed to fetch or import native bookmarks:', error);
+          this.#logger.error('❌ Failed to fetch/import native bookmarks:', error);
         }
-      } else {
-        this.#logger.info('ℹ️ Local bookmarks already exist, skipping native bookmark import');
       }
 
       // 刷新书签列表（从BookmarkManager读取）

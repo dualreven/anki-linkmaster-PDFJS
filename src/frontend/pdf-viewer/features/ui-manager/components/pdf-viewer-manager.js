@@ -22,12 +22,13 @@ import {
   SpreadMode
 } from "@pdfjs/web/pdf_viewer.mjs";
 
+// 模块级日志记录器（用于非实例化路径的快速日志）
+const logger = getLogger('PDFViewerManager');
+
 /**
- * @const logger = getLogger('PDFViewerManager');
 class PDFViewerManager
  * @description 管理PDF.js的PDFViewer组件，提供完整的PDF查看功能
  */
-export const logger = getLogger('PDFViewerManager');
 export class PDFViewerManager {
   #logger;
   #container = null;
@@ -396,4 +397,5 @@ export class PDFViewerManager {
     this.#logger.info("PDFViewer event bridge setup complete");
   }
 }
+
 

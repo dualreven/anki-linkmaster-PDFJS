@@ -1,4 +1,4 @@
-"""
+﻿"""
 Anki LinkMaster PDFJS - WebSocket消息处理器
 包含处理各种WebSocket消息的方法
 """
@@ -40,27 +40,27 @@ class WebSocketHandlers:
             if message_type == 'add_pdf':
                 # 保持向后兼容，但主要使用request_file_selection
                 self.handle_add_pdf(client, message)
-            elif message_type == 'get_pdf_list':
+            elif message_type in ('pdf-library:list:requested', 'get_pdf_list'):
                 self.handle_get_pdf_list(client, message)
-            elif message_type == 'pdf-home:search:pdf-files':
+            elif message_type in ('pdf-library:search:requested', 'pdf-library:search:records'):
                 self.handle_search_pdf(client, message)
-            elif message_type == 'pdf-home:get:config':
+            elif message_type in ('pdf-library:config-read:requested', 'pdf-home:get:config'):
                 self.handle_get_config(client, message)
-            elif message_type == 'pdf-home:update:config':
+            elif message_type in ('pdf-library:config-write:requested', 'pdf-home:update:config'):
                 self.handle_update_config(client, message)
-            elif message_type == 'remove_pdf':
+            elif message_type in ('pdf-library:remove:requested', 'remove_pdf'):
                 self.handle_remove_pdf(client, message)
-            elif message_type == 'batch_remove_pdf':
+            elif message_type in ('pdf-library:remove:requested', 'batch_remove_pdf'):
                 self.handle_batch_remove_pdf(client, message)
-            elif message_type == 'pdf_detail_request':
+            elif message_type in ('pdf-library:info:requested', 'pdf_detail_request'):
                 self.handle_pdf_detail_request(client, message)
             elif message_type == 'pdfjs_init_log':
                 self.handle_pdfjs_init_log(client, message)
-            elif message_type == 'open_pdf':
+            elif message_type in ('pdf-library:viewer:requested', 'open_pdf'):
                 self.handle_open_pdf_request(client, message)
             elif message_type == 'console_log':
                 self.handle_console_log(client, message)
-            elif message_type == 'update_pdf':
+            elif message_type in ('pdf-library:record-update:requested', 'update_pdf'):
                 self.handle_update_pdf(client, message)
             elif message_type == 'heartbeat':
                 # 心跳消息，不需要处理，只是保持连接
@@ -238,13 +238,13 @@ class WebSocketHandlers:
                 "files": pdfs,
                 "search_text": search_text,
                 "total_count": len(pdfs),
-                "original_type": "pdf-home:search:pdf-files"  # 前端需要此字段来识别响应类型
+                "original_type": "pdf-library:search:records"  # 前端需要此字段来识别响应类型
             }
 
             # 发送成功响应
             self.response.send_success_response(
                 client,
-                "pdf-home:search:pdf-files",
+                "pdf-library:search:records",
                 response_data,
                 message.get('request_id')
             )
@@ -254,7 +254,7 @@ class WebSocketHandlers:
             self.response.send_error_response(
                 client,
                 f"处理搜索请求时出错: {str(e)}",
-                "pdf-home:search:pdf-files",
+                "pdf-library:search:records",
                 "INTERNAL_ERROR",
                 message.get('request_id')
             )

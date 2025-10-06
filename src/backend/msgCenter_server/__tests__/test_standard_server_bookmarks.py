@@ -29,14 +29,14 @@ def server():
 
 def test_handle_bookmark_list_returns_tree(server):
     message = {
-        "type": "bookmark:list:records",
+        "type": "bookmark:list:requested",
         "request_id": "req-1",
         "data": {"pdf_uuid": "pdf-123"},
     }
 
     response = server.handle_message(message)
 
-    assert response["type"] == "bookmark:list:records"
+    assert response["type"] == "bookmark:list:completed"
     assert response["request_id"] == "req-1"
     assert response["data"]["bookmarks"][0]["id"] == "bookmark-1"
     assert response["data"]["root_ids"] == ["bookmark-1"]
@@ -44,7 +44,7 @@ def test_handle_bookmark_list_returns_tree(server):
 
 def test_handle_bookmark_save_persists_payload(server):
     payload = {
-        "type": "bookmark:save:record",
+        "type": "bookmark:save:requested",
         "request_id": "req-2",
         "data": {
             "pdf_uuid": "pdf-xyz",
@@ -57,7 +57,7 @@ def test_handle_bookmark_save_persists_payload(server):
 
     response = server.handle_message(payload)
 
-    assert response["type"] == "bookmark:save:record"
+    assert response["type"] == "bookmark:save:completed"
     assert response["request_id"] == "req-2"
     assert response["data"]["saved"] == 1
     assert server.pdf_library_api.saved_payloads == [
@@ -69,13 +69,13 @@ def test_handle_bookmark_save_persists_payload(server):
 
 def test_handle_bookmark_save_requires_pdf_id(server):
     payload = {
-        "type": "bookmark:save:record",
+        "type": "bookmark:save:requested",
         "request_id": "req-3",
         "data": {"bookmarks": []},
     }
 
     response = server.handle_message(payload)
 
-    assert response["type"] == "error"
+    assert response["type"] == "bookmark:save:failed"
     assert response["request_id"] == "req-3"
-    assert "缺少" in response["data"]["message"]
+    assert "缺少" in response["error"]["message"]

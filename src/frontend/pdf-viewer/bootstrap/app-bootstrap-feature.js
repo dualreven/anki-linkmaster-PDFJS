@@ -23,6 +23,7 @@ import { TextSelectionQuickActionsFeature } from "../features/text-selection-qui
 import { PDFBookmarkFeature } from "../features/pdf-bookmark/index.js";
 import { PDFCardFeature } from "../features/pdf-card/index.js";
 import { AiAssistantFeature } from "../features/ai-assistant/index.js";
+const logger = getLogger('pdf-viewer.bootstrap');
 
 /**
  * 解析WebSocket端口
@@ -66,7 +67,6 @@ function resolvePDFPath() {
  * @returns {Promise<FeatureRegistry>} Feature Registry 实例
  */
 export async function bootstrapPDFViewerAppFeature() {
-  const logger = getLogger('pdf-viewer.bootstrap');
   logger.info("[Bootstrap] Starting PDF Viewer App initialization (Feature-based)...");
 
   try {

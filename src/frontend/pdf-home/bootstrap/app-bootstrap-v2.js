@@ -10,6 +10,7 @@ import { PDFHomeAppV2 } from '../core/pdf-home-app-v2.js';
 import { setupAutoTestEnvironment } from '../core/auto-test-runner.js';
 import { resolveWebSocketPortSync, DEFAULT_WS_PORT } from '../utils/ws-port-resolver.js';
 import { getLogger } from '../../common/utils/logger.js';
+const logger = getLogger('pdf-home/app-v2');
 
 /**
  * 启动 PDF Home 应用（V2 功能域架构）
@@ -70,7 +71,6 @@ export async function bootstrapPDFHomeAppV2(options = {}) {
     };
 
     // 6. 记录启动成功
-    const logger = getLogger('pdf-home/app-v2');
     logger.info('PDF Home App V2 (Feature Domain Architecture) started successfully');
 
     // 记录功能域状态

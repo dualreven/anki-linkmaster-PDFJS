@@ -9,7 +9,7 @@
 
 import { PDF_EDIT_FEATURE_CONFIG } from './feature.config.js';
 import { PDF_EDIT_EVENTS, createEditRequestedData, createEditCompletedData } from './events.js';
-import { PDF_MANAGEMENT_EVENTS, WEBSOCKET_EVENTS } from '../../../common/event/event-constants.js';
+import { PDF_MANAGEMENT_EVENTS, WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from '../../../common/event/event-constants.js';
 import { getLogger } from '../../../common/utils/logger.js';
 import { ModalManager } from './components/modal-manager.js';
 import { StarRating } from './components/star-rating.js';
@@ -422,6 +422,8 @@ export class PDFEditFeature {
 
     // 初始化表单组件
     this.#initializeFormComponents(record);
+    // 绑定重置操作按钮
+    this.#bindResetActions(record);
   }
 
   /**
@@ -508,8 +510,84 @@ export class PDFEditFeature {
             placeholder="添加备注..."
           >${this.#escapeHtml(record.notes || '')}</textarea>
         </div>
+
+        <div class="form-group">
+          <label>重置工具</label>
+          <div class="reset-actions" style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" id="reset-bookmarks-btn" title="清空后端书签，下次打开查看器将自动从PDF源重新导入">重置书签</button>
+            <button type="button" id="reset-annotations-btn" disabled title="等待后端支持后启用">重置标注</button>
+            <button type="button" id="reset-reading-btn" title="将阅读进度与总时长清零">重置阅读进度</button>
+          </div>
+          <small style="color:#666; display:block; margin-top:6px;">重置书签会清空当前数据库书签；下次打开PDF查看器时，会自动从PDF原生书签导入并保存。</small>
+        </div>
       </form>
     `;
+  }
+
+  /**
+   * 绑定“重置”按钮行为
+   * @param {Object} record
+   * @private
+   */
+  #bindResetActions(record) {
+    const fileId = record?.pdf_id || record?.id || record?.filename;
+    const pdfUuid = record?.pdf_id || record?.id; // 期望是12位十六进制
+
+    const warnInvalidId = () => {
+      this.#showGlobalWarning('无法识别PDF ID，重置可能不会同步到后端');
+    };
+
+    // 重置书签：通过 BOOKMARK_SAVE 发送空集合
+    const btnBookmarks = document.getElementById('reset-bookmarks-btn');
+    if (btnBookmarks) {
+      btnBookmarks.addEventListener('click', async () => {
+        try {
+          if (!pdfUuid) {
+            warnInvalidId();
+          }
+          const ok = window.confirm('确定要重置书签吗？这将清空后端书签记录。\n下次打开PDF查看器时将从PDF原生书签重新导入。');
+          if (!ok) return;
+          if (!this.#wsClient) {
+            this.#showGlobalError('WebSocket未连接，无法执行重置');
+            return;
+          }
+          await this.#wsClient.request(
+            WEBSOCKET_MESSAGE_TYPES.BOOKMARK_SAVE,
+            { pdf_uuid: pdfUuid, bookmarks: [], root_ids: [] },
+            { timeout: 8000 }
+          );
+          this.#showGlobalWarning('书签已重置。请重新打开PDF查看器以从源导入书签。');
+        } catch (err) {
+          this.#showGlobalError(`重置书签失败: ${err?.message || err}`);
+        }
+      });
+    }
+
+    // 重置阅读进度：通过 pdf-library:record-update:requested 将 visited_at/total_reading_time 清零
+    const btnReading = document.getElementById('reset-reading-btn');
+    if (btnReading) {
+      btnReading.addEventListener('click', async () => {
+        try {
+          if (!fileId) {
+            warnInvalidId();
+          }
+          const ok = window.confirm('确定要重置阅读进度吗？这将清零阅读时长与最近访问时间。');
+          if (!ok) return;
+          if (!this.#wsClient) {
+            this.#showGlobalError('WebSocket未连接，无法执行重置');
+            return;
+          }
+          await this.#wsClient.request(
+            WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_REQUESTED,
+            { file_id: fileId, updates: { total_reading_time: 0, visited_at: 0 } },
+            { timeout: 8000 }
+          );
+          this.#showGlobalWarning('阅读进度已重置');
+        } catch (err) {
+          this.#showGlobalError(`重置阅读进度失败: ${err?.message || err}`);
+        }
+      });
+    }
   }
 
   /**
@@ -585,23 +663,27 @@ export class PDFEditFeature {
    * @param {string} fileId - 文件ID
    * @param {Object} updates - 更新数据
    */
-  #sendEditRequestToBackend(fileId, updates) {
+  async #sendEditRequestToBackend(fileId, updates) {
     this.#logger.info('=== Sending edit request to backend ===', { fileId, updates });
     try {
-      const message = {
-        type: 'update_pdf',
-        request_id: `edit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        data: {
-          file_id: fileId,
-          updates: updates
-        }
-      };
-      this.#logger.info('WebSocket message prepared:', message);
-
-      // 通过ScopedEventBus发送全局WebSocket消息（功能域架构标准方式）
-      this.#scopedEventBus.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, message, { actorId: 'PDFEditFeature' });
-
-      this.#logger.info('Message emitted via scopedEventBus.emitGlobal');
+      // 使用标准契约：pdf-library:record-update:requested
+      if (this.#wsClient) {
+        await this.#wsClient.request(
+          WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_REQUESTED,
+          { file_id: fileId, updates: updates },
+          { timeout: 8000 }
+        );
+        this.#logger.info('PDF record update request sent via WSClient');
+      } else {
+        // 兜底：通过全局事件发送（保持向后兼容）
+        const message = {
+          type: WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_REQUESTED,
+          request_id: `edit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          data: { file_id: fileId, updates }
+        };
+        this.#scopedEventBus.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, message, { actorId: 'PDFEditFeature' });
+        this.#logger.info('PDF record update emitted via EventBus');
+      }
 
     } catch (error) {
       this.#logger.error('Failed to send edit request:', error);

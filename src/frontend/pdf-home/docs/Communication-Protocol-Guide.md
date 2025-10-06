@@ -152,9 +152,9 @@ EventBus                            QWebSocket                          Qt Signa
 ```
 
 例如：
-- `pdf-home:get:pdf-list` - PDF Home 模块获取 PDF 列表
-- `pdf-home:add:pdf-files` - PDF Home 模块添加 PDF 文件
-- `pdf-home:remove:pdf-files` - PDF Home 模块删除 PDF 文件
+- `pdf-library:list:records` - PDF Home 模块获取 PDF 列表
+- `pdf-library:add:records` - PDF Home 模块添加 PDF 文件
+- `pdf-library:remove:records` - PDF Home 模块删除 PDF 文件
 
 ### 当前支持的消息类型
 
@@ -163,7 +163,7 @@ EventBus                            QWebSocket                          Qt Signa
 **请求**
 ```javascript
 {
-  "type": "pdf-home:get:pdf-list",
+  "type": "pdf-library:list:records",
   "request_id": "req_xxx",
   "timestamp": 1696300800000,
   "data": {}  // 无需额外参数
@@ -204,7 +204,7 @@ EventBus                            QWebSocket                          Qt Signa
 **请求**
 ```javascript
 {
-  "type": "pdf-home:add:pdf-files",
+  "type": "pdf-library:add:records",
   "request_id": "req_xxx",
   "timestamp": 1696300800000,
   "data": {
@@ -236,7 +236,7 @@ EventBus                            QWebSocket                          Qt Signa
 **请求**
 ```javascript
 {
-  "type": "pdf-home:remove:pdf-files",
+  "type": "pdf-library:remove:records",
   "request_id": "req_xxx",
   "timestamp": 1696300800000,
   "data": {
@@ -269,7 +269,7 @@ EventBus                            QWebSocket                          Qt Signa
 **请求**
 ```javascript
 {
-  "type": "pdf-home:open:pdf-file",
+  "type": "pdf-library:open:viewer",
   "request_id": "req_xxx",
   "timestamp": 1696300800000,
   "data": {
@@ -298,7 +298,7 @@ EventBus                            QWebSocket                          Qt Signa
 **请求**
 ```javascript
 {
-  "type": "pdf-home:update:pdf",
+  "type": "pdf-library:update:record",
   "request_id": "req_xxx",
   "timestamp": 1696300800000,
   "data": {
@@ -335,7 +335,7 @@ EventBus                            QWebSocket                          Qt Signa
 **请求**
 ```javascript
 {
-  "type": "pdf-home:get:pdf-info",
+  "type": "pdf-library:get:info",
   "request_id": "req_xxx",
   "timestamp": 1696300800000,
   "data": {
@@ -401,7 +401,7 @@ EventBus                            QWebSocket                          Qt Signa
 this.eventBus.emit(
   WEBSOCKET_EVENTS.MESSAGE.SEND,
   {
-    type: 'pdf-home:get:pdf-list',
+    type: 'pdf-library:list:records',
     data: {}
   },
   { actorId: 'PDFManager' }
@@ -473,7 +473,7 @@ def handle_message(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     data = message.get("data", {})
 
     # 根据消息类型路由
-    if message_type == "pdf-home:get:pdf-list":
+    if message_type == "pdf-library:list:records":
         return self.handle_pdf_list_request(request_id, data)
 
     # 其他消息类型...
@@ -590,7 +590,7 @@ logger.info(f"处理消息: {message_type}")
 使用 `request_id` 追踪完整的请求-响应流程：
 
 ```
-[前端] req_abc123 发送消息: pdf-home:get:pdf-list
+[前端] req_abc123 发送消息: pdf-library:list:records
     ↓
 [后端] req_abc123 接收到消息
     ↓
