@@ -716,9 +716,7 @@ export class WSClient {
   }
 }
 
+// 兼容默认导出（部分模块以 default 方式导入）
 export default WSClient;
-
-
-
 
 

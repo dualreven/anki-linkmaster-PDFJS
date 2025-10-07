@@ -856,6 +856,14 @@ export class AnnotationSidebarUI {
   addAnnotationCard(annotation) {
     this.#logger.debug(`Adding annotation card: ${annotation.id}`);
 
+    // 去重：如果已存在相同ID的卡片，直接更新而不是新增
+    if (this.#annotationCards.has(annotation.id)) {
+      try {
+        this.updateAnnotationCard(annotation);
+      } catch (_) {}
+      return;
+    }
+
     // 如果当前是空状态，先清空
     const empty = this.#sidebarContent.querySelector('.annotation-empty');
     if (empty) {
