@@ -29,6 +29,74 @@ function toTimeout(duration) {
   return duration === 0 ? false : duration;
 }
 
+// 记录 id -> toast DOM，便于仅关闭与当前业务相关的提示
+const toastMap = new Map();
+const toastShownAt = new Map();
+const toastTimers = new Map();
+const MIN_VISIBLE_MS = 1200; // 最短可见时长，避免“瞬间消失”的体验
+
+export function showInfoWithId(id, message, duration = 0) {
+  try {
+    // 若已存在同ID的提示，先关闭，避免叠加残留
+    try { dismissById(id); } catch (_) {}
+    iziToast.info({
+      message: String(message),
+      timeout: toTimeout(duration),
+      position: 'topRight',
+      close: true,
+      onOpening: (_instance, toast) => {
+        try {
+          toastMap.set(id, toast);
+          toastShownAt.set(id, Date.now());
+        } catch (_) {}
+      },
+      onClosing: (_instance, toast) => {
+        try {
+          const mapped = toastMap.get(id);
+          if (mapped === toast) {
+            toastMap.delete(id);
+            toastShownAt.delete(id);
+            const t = toastTimers.get(id);
+            if (t) { clearTimeout(t); toastTimers.delete(id); }
+          }
+        } catch (_) {}
+      }
+    });
+  } catch (e) {
+    notificationLogger.warn('iziToast.info (withId) failed, message=', message, e);
+  }
+  return id;
+}
+
+export function dismissById(id) {
+  const toast = toastMap.get(id);
+  if (!toast) return false;
+  try {
+    const shownAt = toastShownAt.get(id) || 0;
+    const elapsed = Date.now() - shownAt;
+    if (elapsed < MIN_VISIBLE_MS) {
+      // 保证最短可见时长后再关闭
+      const wait = MIN_VISIBLE_MS - elapsed;
+      const timer = setTimeout(() => {
+        try { iziToast.hide({}, toast); } catch (e) { notificationLogger.warn('iziToast.hide (delay) failed:', e); }
+        toastMap.delete(id);
+        toastShownAt.delete(id);
+        toastTimers.delete(id);
+      }, wait);
+      toastTimers.set(id, timer);
+    } else {
+      iziToast.hide({}, toast);
+      toastMap.delete(id);
+      toastShownAt.delete(id);
+    }
+  } catch (e) {
+    notificationLogger.warn('iziToast.hide (byId) failed:', e);
+    toastMap.delete(id);
+    toastShownAt.delete(id);
+  }
+  return true;
+}
+
 export function showSuccess(message, duration = 3000) {
   try {
     iziToast.success({ message: String(message), timeout: toTimeout(duration) });
