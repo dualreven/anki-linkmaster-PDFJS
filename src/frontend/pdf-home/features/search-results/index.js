@@ -1,4 +1,4 @@
-/**
+﻿/**
  * SearchResults Feature - 搜索结果展示功能
  * 显示和管理PDF搜索结果列表
  */
@@ -415,10 +415,7 @@ export class SearchResultsFeature {
         // ensure initialized (idempotent)
         try { await this.#qwcBridge.initialize?.(); } catch {}
 
-        if (this.#qwcBridge.isReady && !this.#qwcBridge.isReady()) {
-          this.#logger.warn('[SearchResultsFeature] QWebChannel not ready, cannot open viewer');
-          return;
-        }
+        if (this.#qwcBridge.isReady && !this.#qwcBridge.isReady()) {\n          await new Promise(r => setTimeout(r, 200));\n        }\n        if (this.#qwcBridge.isReady && !this.#qwcBridge.isReady()) {\n          this.#logger.warn('[SearchResultsFeature] QWebChannel not ready, cannot open viewer');\n          return;\n        }
 
         // 若缺少 file_path，尝试从后端查询一次详情（遵守隔离原则：通过 WS 访问）
         if (!filePath && this.#shouldFetchDetailFallback()) {
@@ -546,3 +543,5 @@ export class SearchResultsFeature {
 }
 
 export default SearchResultsFeature;
+
+

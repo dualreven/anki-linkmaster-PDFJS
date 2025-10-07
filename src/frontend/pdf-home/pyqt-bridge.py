@@ -294,6 +294,11 @@ class PyQtBridge(QObject):
                 logger.info(f"[PyQtBridge] 打开 pdf-viewer (pdf_id={pdf_id}) URL={url}")
                 viewer.load_frontend(url)
                 viewer.show()
+                try:
+                    viewer.raise_()  # type: ignore[attr-defined]
+                    viewer.activateWindow()
+                except Exception:
+                    pass
 
                 # 记录到父窗口字典，便于统一关闭；并在销毁时清理映射，避免下次误判
                 try:
@@ -471,6 +476,11 @@ class PyQtBridge(QObject):
                 logger.info(f"[PyQtBridge] 打开 pdf-viewer (pdf_id={pdf_id}) URL={url}")
                 viewer.load_frontend(url)
                 viewer.show()
+                try:
+                    viewer.raise_()  # type: ignore[attr-defined]
+                    viewer.activateWindow()
+                except Exception:
+                    pass
 
                 try:
                     parent_win.viewer_windows[pdf_id] = viewer
