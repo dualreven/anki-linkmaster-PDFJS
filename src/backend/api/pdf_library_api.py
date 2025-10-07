@@ -189,10 +189,32 @@ class PDFLibraryAPI:
                 and sort_rules_peek[0].get("field") == "visited_at"
                 and str(sort_rules_peek[0].get("direction", "desc")).lower() == "desc"
             )
+            only_created_desc = (
+                isinstance(sort_rules_peek, list)
+                and len(sort_rules_peek) >= 1
+                and sort_rules_peek[0].get("field") == "created_at"
+                and str(sort_rules_peek[0].get("direction", "desc")).lower() == "desc"
+            )
             no_filters = not bool(payload.get("filters"))
 
+            # 优化分支1：最近阅读（visited_at DESC）
             if (not tokens_peek) and only_visited_desc and no_filters:
                 rows = self._pdf_info_plugin.query_all_by_visited(
+                    limit=limit_peek if limit_peek is not None else None,
+                    offset=offset_peek if offset_peek is not None else None,
+                )
+                records = [self._map_to_frontend(r) for r in rows]
+                total = self._pdf_info_plugin.count_all() if need_total_peek else len(records)
+                return {
+                    "records": records,
+                    "total": total,
+                    "page": {"limit": limit_peek, "offset": offset_peek},
+                    "meta": {"query": payload.get("query", ""), "tokens": []},
+                }
+
+            # 优化分支2：最近添加（created_at DESC）
+            if (not tokens_peek) and only_created_desc and no_filters:
+                rows = self._pdf_info_plugin.query_all_by_created(
                     limit=limit_peek if limit_peek is not None else None,
                     offset=offset_peek if offset_peek is not None else None,
                 )

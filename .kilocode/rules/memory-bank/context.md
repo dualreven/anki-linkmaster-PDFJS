@@ -437,6 +437,29 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - **技术变更**: `.kilocode/rules/memory-bank/tech.md`
 - **架构变更**: `.kilocode/rules/memory-bank/architecture.md`
 
+## 当前任务（20251008025747）
+- 名称：优化侧边栏搜索性能 - SQL 层面截断记录
+- 问题背景：
+  - "最近阅读"和"最近添加"侧边栏每次点击都全量加载所有记录
+  - 后端存在性能问题：visited_at 走优化分支（SQL LIMIT），created_at 走通用分支（全量查询+Python排序）
+  - 当数据库记录增多时，通用分支会导致严重性能问题
+- 相关模块与函数：
+  - 后端插件：`src/backend/database/plugins/pdf_info_plugin.py`（query_all_by_visited, query_all_by_created）
+  - 后端API：`src/backend/api/pdf_library_api.py`（search_records 方法的优化分支）
+  - 前端：`src/frontend/pdf-home/features/sidebar/recent-opened/index.js`（最近阅读）
+  - 前端：`src/frontend/pdf-home/features/sidebar/recent-added/index.js`（最近添加）
+- 解决方案：
+  - 在 PDFInfoTablePlugin 添加 `query_all_by_created()` 方法，SQL 层面按 created_at DESC 排序并 LIMIT
+  - 在 search_records 添加 created_at 优化分支，条件：无 tokens + created_at desc + 无 filters
+  - 与 visited_at 优化分支保持一致的优化策略
+- 性能提升：
+  - 优化前：全表扫描 + Python 排序 + Python 分页（O(N log N)）
+  - 优化后：SQL LIMIT 查询（O(limit)）
+  - 10,000 条记录取前 10 条：提升约 1000 倍
+- 触发条件：无搜索关键词 + 无筛选 + 单字段降序排序（visited_at 或 created_at）+ 有分页
+- 测试：2 个新增单元测试通过（test_search_records_optimizes_visited_at_desc, test_search_records_optimizes_created_at_desc）
+- 影响范围：仅优化简单排序查询，不影响复杂搜索（关键词+筛选）的准确性
+
 ## 当前任务（20251008021430）
 - 名称：修复 pdf-home "最近添加"侧边栏高亮一闪而过的问题
 - 问题背景：
