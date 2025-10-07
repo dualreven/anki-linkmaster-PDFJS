@@ -740,23 +740,12 @@ export class PDFListFeature {
         }
 
         // 2) 删除流程错误（标准失败类型）
-        if (typeof data?.type === 'string' && data.type === WEBSOCKET_MESSAGE_TYPES.REMOVE_PDF_FAILED) {
+                if (typeof data?.type === 'string' && data.type === WEBSOCKET_MESSAGE_TYPES.REMOVE_PDF_FAILED) {
           if (this.#pendingDeleteRid && rid && rid === this.#pendingDeleteRid) {
-            // 先记录待显示的失败，不立即toast，给可能到来的 completed 留出时间窗口
-            this.#pendingDeleteError = { rid, message: errorMessage };
-            try { if (this.#pendingDeleteErrorTimer) clearTimeout(this.#pendingDeleteErrorTimer); } catch (_) {}
-            this.#pendingDeleteErrorTimer = setTimeout(() => {
-              if (this.#pendingDeleteError && this.#pendingDeleteRid === rid && !this.#pendingDeleteToast) {
-                try { toastDismiss(this.#pendingDeleteRid); } catch (_) {}
-                toastError(`删除失败-${this.#pendingDeleteError.message}`);
-                this.#pendingDeleteRid = null;
-                this.#pendingDeleteCount = 0;
-              }
-              this.#pendingDeleteError = null;
-              this.#pendingDeleteErrorTimer = null;
-            }, 800);
+            try { toastDismiss(this.#pendingDeleteRid); } catch (_) {}
+            this.#pendingDeleteRid = null;
+            this.#pendingDeleteCount = 0;
           } else {
-            // 非当前删除请求的失败，忽略以避免误报
             this.#logger.warn('忽略非当前请求的删除失败响应', { request_id: rid, pending: this.#pendingDeleteRid, errorMessage });
           }
           return;
@@ -988,19 +977,37 @@ export class PDFListFeature {
 
     // 在搜索结果更新后再显示“删除完成”的 toast，避免被 SearchFeature 的 hideAll() 立即销毁
     const unsubSearchUpdated = this.#scopedEventBus.onGlobal('search:results:updated', () => {
+      // 兜底：无论完成事件是否带有 request_id，刷新后确保关闭“删除中”pending
+      try { if (this.#pendingDeleteRid) toastDismiss(this.#pendingDeleteRid); } catch (_) {}
+      this.#pendingDeleteRid = null;
+      this.#pendingDeleteCount = 0;
       if (!this.#pendingDeleteToast) return;
       const { removedCount, failedCount, failedMap } = this.#pendingDeleteToast || {};
       this.#pendingDeleteToast = null;
       // 延后到事件循环尾部，确保先执行 hideAll()
-      setTimeout(() => {
+            setTimeout(() => {
         try {
-          if (removedCount > 0 && failedCount === 0) {
-            toastSuccess(`成功删除 ${removedCount} 个文件`);
-          } else if (removedCount > 0 && failedCount > 0) {
-            toastWarning(`删除完成：成功 ${removedCount} 个，失败 ${failedCount} 个`);
-          } else if (removedCount === 0 && failedCount > 0) {
-            const firstReason = failedMap && Object.values(failedMap)[0] || '未知原因';
-            toastError(`删除失败-${firstReason}`);
+          const entries = failedMap ? Object.entries(failedMap) : [];
+          // 非致命（幂等）原因过滤：包含“不存在/not found”的不计入失败统计
+          const isNonFatal = (pair) => {
+            try {
+              const s = String(pair && pair[1] || '').toLowerCase();
+              return s.includes('不存在') || s.includes('not found');
+            } catch { return false; }
+          };
+          const fatalEntries = entries.filter(e => !isNonFatal(e));
+          const effectiveFailed = Math.max(0, fatalEntries.length);
+          const MAX_SHOW = 5;
+          const pairs = fatalEntries.slice(0, MAX_SHOW).map(([id, msg]) => (id + ':') + String(msg || '未知原因'));
+          const overflow = fatalEntries.length > MAX_SHOW ? (' 等' + (fatalEntries.length - MAX_SHOW) + '项') : '';
+          const summary = pairs.length ? pairs.join('；') + overflow : '';
+
+          if (removedCount > 0 && effectiveFailed === 0) {
+            toastSuccess('成功删除 ' + removedCount + ' 个文件');
+          } else if (removedCount > 0 && effectiveFailed > 0) {
+            toastWarning('删除完成：成功 ' + removedCount + ' 个，失败 ' + effectiveFailed + ' 个' + (summary ? ' - ' + summary : ''));
+          } else if (removedCount === 0 && effectiveFailed > 0) {
+            toastError('删除失败 - ' + (summary || '未知原因'));
           } else {
             toastWarning('未删除任何文件');
           }
@@ -1283,6 +1290,8 @@ export function createPDFListFeature() {
 }
 
 export default PDFListFeature;
+
+
 
 
 

@@ -434,6 +434,9 @@ class StandardWebSocketServer(QObject):
             for fid in file_ids:
                 ok = False
                 reasons = []
+                had_error = False
+                db_not_found = False
+                fs_not_found = False
 
                 # 1) 数据库记录删除
                 db_ok = False
@@ -441,9 +444,19 @@ class StandardWebSocketServer(QObject):
                     try:
                         db_ok = bool(self.pdf_library_api.delete_record(fid))
                         if not db_ok:
-                            reasons.append("数据库记录不存在或删除失败")
+                            # 进一步判定是否不存在
+                            try:
+                                record = self.pdf_library_api.get_record(fid)  # type: ignore[attr-defined]
+                                if record is None:
+                                    db_not_found = True
+                                else:
+                                    reasons.append("数据库记录删除失败")
+                            except Exception as iexc:
+                                had_error = True
+                                reasons.append(f"DB: {iexc}")
                     except Exception as exc:
                         db_ok = False
+                        had_error = True
                         reasons.append(f"DB: {exc}")
                         logger.warning("删除记录失败: %s", exc)
 
@@ -454,28 +467,32 @@ class StandardWebSocketServer(QObject):
                         fs_ok = bool(self.pdf_manager.remove_file(fid))
                         if not fs_ok:
                             try:
-                                # 尝试判断是否为不存在的文件ID
                                 exists = False
                                 try:
                                     exists = bool(self.pdf_manager.file_list.exists(fid))  # type: ignore[attr-defined]
                                 except Exception:
                                     exists = False
                                 if not exists:
-                                    reasons.append("文件不存在")
+                                    fs_not_found = True
                                 else:
                                     reasons.append("文件删除失败")
                             except Exception:
+                                had_error = True
                                 reasons.append("文件删除失败")
                     except Exception as exc:
                         fs_ok = False
+                        had_error = True
                         reasons.append(f"FS: {exc}")
                         logger.warning("删除文件失败: %s", exc)
 
+                # 3) 计算最终结果：任一链路成功 => 成功；若均未成功但完全不存在且无硬错误 => 幂等成功
                 ok = bool(db_ok or fs_ok)
+                if not ok and not had_error and (db_not_found or fs_not_found):
+                    ok = True
+
                 if ok:
                     removed.append(fid)
                 else:
-                    # 合并原因并去重
                     reason_text = "; ".join([str(r) for r in reasons if r]) or "删除失败"
                     failed[str(fid)] = reason_text
             return PDFMessageBuilder.build_batch_pdf_remove_response(

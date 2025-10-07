@@ -373,6 +373,14 @@ export class WSClient {
           this._settlePendingRequest(message, { error: message?.error || message?.data });
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
           break;
+        case "batch_pdf_removed":
+          // 兼容旧批量删除完成事件
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
+          break;
+        case "pdf_removed":
+          // 兼容旧单个删除完成事件
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
+          break;
         case "bookmark:list:records":
           this._settlePendingRequest(message);
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.BOOKMARK_LIST;
