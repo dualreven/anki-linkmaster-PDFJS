@@ -546,3 +546,8 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
   - 支持拖动排序、重命名、复制、删除
   - 点击“确定”后保存顺序与名称变更，并更新后端配置（config-write）
   - 对话框复用 `.preset-save-dialog` 样式；列表项支持 HTML5 拖拽
+
+## 当前任务（20251008000121）
+- 名称：移除 pdf-home 页面中的 通信测试 按钮
+- 变更：src/frontend/pdf-home/index.js 删除通信测试开发UI的导入与调用
+- 验证：重启 pdf-home，按钮不再出现（dev/prod 均无）

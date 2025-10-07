@@ -10,7 +10,6 @@ import '../common/polyfills.js';
  */
 
 import { bootstrapPDFHomeAppV2 } from './bootstrap/app-bootstrap-v2.js';
-import { setupCommunicationTestUI } from './utils/communication-tester.js';
 // 提前创建 logger，确保在任何使用前已初始化
 const logger = getLogger('pdf-home.index');
 
@@ -49,19 +48,7 @@ async function startApp() {
 
     logger.info('[DEBUG] 黄集攀 App started successfully');
 
-    // 在开发环境下设置通信测试工具
-    const env = getEnvironment();
-    if (env === 'development') {
-      // 兼容 V2：使用显式 getter 获取依赖
-      const wsClient = app.getWSClient ? app.getWSClient() : null;
-      const eventBus = app.getEventBus ? app.getEventBus() : null;
-      if (wsClient && eventBus) {
-        setupCommunicationTestUI(wsClient, eventBus);
-        logger.info('[DEBUG] Communication test UI enabled (dev mode)');
-      } else {
-        logger.warn('[DEBUG] Dev UI not enabled: missing wsClient or eventBus');
-      }
-    }
+    // 已移除“通信测试”按钮与相关开发UI
 
     return app;
 
