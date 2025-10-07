@@ -248,6 +248,28 @@ registry.register(new MyFeature());
 ```javascript
 const { container } = context;
 const pdfManager = container.get('pdfManager');
+
+## 当前任务 - 侧边栏「最近添加」实现（2025-10-07）
+- 描述：在 pdf-home 侧边栏实现“最近添加”功能，捕捉后端添加完成回执，持久化并渲染最近添加列表，点击可打开 PDF。
+- 背景：侧边栏容器（v2）已渲染出 `#recent-added-section` 与 `#recent-added-list`，但 `recent-added/index.js` 仍为占位；需要补齐逻辑，遵循事件白名单与三段式命名。
+- 相关模块/文件：
+  - `src/frontend/pdf-home/features/sidebar/recent-added/index.js`
+  - `src/frontend/common/event/event-constants.js`（使用 `WEBSOCKET_MESSAGE_TYPES`）
+  - `src/frontend/common/ws/ws-client.js`（路由响应到 `websocket:message:response`）
+  - 侧边栏容器：`features/sidebar/components/sidebar-container.js`
+- 事件链路：
+  1) 后端完成添加 → WebSocket 推送 `pdf-library:add:completed`（WSClient 路由为 `websocket:message:response`）
+  2) RecentAddedFeature 监听 `websocket:message:response`，在 `type===add:completed & status===success` 时提取 `data.file | data.files` → 写入本地（LocalStorage：`pdf-home:recent-added`）、更新 UI。
+  3) 用户点击侧边栏项 → 通过 `websocket:message:send` 发送 `pdf-library:viewer:requested`（`data.file_id`）。
+- 数据结构：`{ id, filename, path, ts }`；去重规则：优先按 `id`，否则按 `(filename + path)`；最大条数 `maxItems=50`；显示条数保存在 `pdf-home:recent-added:display-limit`。
+ - 展示规则：优先显示 `title`（书名）；若尚未获取详情，则暂以 `filename` 展示，待 `pdf-library:info:completed` 回执后更新为书名。
+- 原子步骤：
+  1. 设计并新增 Jest 测试（首次安装占位、添加后渲染、点击打开、去重提升）
+  2. 实现 `index.js`：加载/保存、渲染、监听 WS 回执与点击、显示条数选择器
+  3. 运行测试验证；
+  4. 更新本文件与工作日志；如需可在 `feature-flags.json` 中启用功能。
+
+— 本段遵循 UTF-8 编码与 \n 换行 —
 ```
 
 **❌ 错误方式：硬编码依赖**
