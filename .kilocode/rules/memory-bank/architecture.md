@@ -38,6 +38,11 @@
 - 在 pp-bootstrap-feature.js 中注册顺序更新：PDFCardFeature 在 SidebarManagerFeature 之前装载，以确保卡片侧栏依赖被解析
 ### 2025-10-05 数据库系统
 - Stage1（抽象层）：src/backend/database/{config,connection,transaction,executor,exceptions}.py 提供连接池、事务、SQL 执行与统一异常封装。
+
+### 2025-10-07 UI 顶栏调整
+- 移除 pdf-home 的 `HeaderFeature`（功能域与渲染）以避免与搜索栏工具区重复；
+- 顶部操作统一由 `SearchFeature` 提供，“🔃 排序”通过 `search:sort:requested` 触发 `PDFSorterFeature` 面板切换；
+- 后续如需标题，仅以无交互的轻量标题组件替代。
 - Stage2（插件架构）：src/backend/database/plugin/* 定义 TablePlugin 抽象类、EventBus、PluginRegistry，实现表级插件隔离与事件驱动。
 - Stage3（表插件包）：src/backend/database/plugins/* 存放具体数据表插件；首个 pdf_info_plugin.py 已落地，配套测试在 plugins/__tests__，后续表插件需复用同目录结构与事件命名（table:pdf-info:*:*）。
 - Stage3 插件实例：pdf_annotation_plugin.py（标注表），与 PDFInfo 插件共享 SQLExecutor/EventBus，事件命名 	able:pdf-annotation:*:*，监听 pdf_info 删除事件执行级联清理。

@@ -58,6 +58,13 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
   - API：`PDFLibraryAPI.search_records(payload)` 优先分支匹配上述模式时，走插件方法，必要时通过 `count_all()` 获取总数
   - 目的：避免加载全量后在内存中切片，提高性能与响应速度
 
+## 事件与功能开关变更（2025-10-07）
+- 启用 `pdf-home` 的 `header` 功能（`config/feature-flags.json` → `header.enabled = true`）。
+- 排序按钮事件统一使用三段式 `*:requested`：
+  - `header:sort:requested`
+  - `search:sort:requested`
+  - 旧的 `*:clicked` 命名不再使用（测试与文档已同步更新）。
+
 ## 第三方 Toast 使用规范（pdf-home 添加流程）
 - 依赖：`izitoast`（已加入 package.json）
 - 统一通过适配器调用：`src/frontend/common/utils/thirdparty-toast.js`

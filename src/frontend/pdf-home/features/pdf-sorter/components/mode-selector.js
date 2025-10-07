@@ -106,7 +106,7 @@ export class ModeSelector {
         </div>
 
         <div class="mode-selector-options">
-          <label class="mode-option" data-mode="${SortMode.DEFAULT}">
+          <label class="mode-option" data-mode="${SortMode.DEFAULT}" title="默认排序：按标题字母升序；与筛选互不冲突">
             <input
               type="radio"
               name="sort-mode"

@@ -146,17 +146,17 @@ export class UIManagerCore {
         this.#stateManager.updateLoadingState(false, true);
         this.#domManager.setLoadingState(false);
 
-        // 更新 header 标题为书名（文件名）
-        if (filename) {
-          this.#updateHeaderTitle(filename);
-          // 若尚未获取到 pdfId，则从 filename 回填（移除 .pdf 扩展名）
+        // 显示策略：优先使用来自 search 的 title；无 title 时再回退 filename（不加载PDF元数据）
+        const displayTitle = this.#preferredTitle || filename || null;
+        if (displayTitle) {
+          this.#updateHeaderTitle(displayTitle);
           if (!this.#currentPdfId) {
-            const derivedId = filename.toLowerCase().endsWith('.pdf')
-              ? filename.slice(0, -4)
-              : filename;
+            const derivedId = displayTitle.toLowerCase().endsWith('.pdf')
+              ? displayTitle.slice(0, -4)
+              : displayTitle;
             this.#currentPdfId = derivedId;
             this.#updateCopyButtonVisibility();
-            this.#logger.info(`Derived PDF ID from filename: ${derivedId}`);
+            this.#logger.info(`Header title set to: ${displayTitle}; derived pdfId: ${derivedId}`);
           }
         }
 
@@ -204,9 +204,10 @@ export class UIManagerCore {
         } else {
           this.#logger.warn('[UIManagerCore] URL_PARAMS.PARSED event has no pdfId');
         }
-        // 若 URL 中包含 title，则优先更新 header 标题
+        // 若 URL 中包含 title，则优先更新 header 标题，并记录为首选标题
         if (data?.title && String(data.title).trim()) {
-          this.#updateHeaderTitle(String(data.title).trim());
+          this.#preferredTitle = String(data.title).trim();
+          this.#updateHeaderTitle(this.#preferredTitle);
         }
       },
       { subscriberId: 'UIManagerCore' }

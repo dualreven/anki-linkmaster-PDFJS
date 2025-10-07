@@ -18,8 +18,8 @@ export default {
     emits: [
       'search:query:requested',     // 请求搜索（携带搜索关键词）
       'search:clear:requested',     // 请求清除搜索
-      'search:add:clicked',         // 点击添加按钮
-      'search:sort:clicked'         // 点击排序按钮
+      'search:add:requested',       // 点击添加按钮
+      'search:sort:requested'       // 点击排序按钮
     ],
     // 监听的事件
     listens: [

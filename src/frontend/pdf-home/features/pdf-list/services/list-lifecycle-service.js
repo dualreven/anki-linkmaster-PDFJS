@@ -63,8 +63,16 @@ export class ListLifecycleService {
 
       this.#isInitialized = true;
 
-      // 发出就绪事件
-      this.#eventBus?.emit(PDF_LIST_EVENTS.TABLE_READY);
+      // 发出就绪事件，携带 Tabulator 实例，供其他功能（如排序器）获取表格引用
+      try {
+        this.#eventBus?.emit(PDF_LIST_EVENTS.TABLE_READY, {
+          table: this.#tabulator || null
+        });
+      } catch (e) {
+        logger.warn('Emit TABLE_READY with table failed:', e);
+        // 回退为不带负载的就绪事件
+        this.#eventBus?.emit(PDF_LIST_EVENTS.TABLE_READY);
+      }
 
       logger.info('PDF list initialized successfully');
 
