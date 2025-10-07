@@ -67,12 +67,19 @@ class StandardPDFManager(QObject):
                 self.error_occurred.emit(error_response)
                 return False, error_response
             
-            # 检查文件是否已存在
+            # 检查文件是否已存在（放宽为幂等：重复添加视为成功，返回现有记录）
             file_id = PDFFile.generate_file_id(filepath)
             if self.file_list.exists(file_id):
-                error_response = self._build_error_response("DUPLICATE_FILE", "文件已存在于列表中")
-                self.error_occurred.emit(error_response)
-                return False, error_response
+                existing = self.file_list.get_file(file_id)
+                if existing:
+                    file_info = self._build_standard_file_info(existing)
+                    logger.info(f"重复添加，同一ID已存在，返回现有记录: {file_id}")
+                    return True, file_info
+                # 如出现列表存在但取不到记录的异常状态，尝试移除后继续添加流程
+                try:
+                    self.file_list.remove_file(file_id)
+                except Exception:
+                    pass
             
             # 创建文件副本
             copy_path = self._create_file_copy(filepath, file_id)

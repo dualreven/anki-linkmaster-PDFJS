@@ -9,7 +9,7 @@ import { SearchManager } from './services/search-manager.js';
 // 导入样式
 import './styles/search-bar.css';
 import './styles/search-panel.css';
-import { showInfo, hideAll } from '../../../common/utils/notification.js';
+import { pending as toastPending, dismissById as toastDismiss } from '../../../common/utils/thirdparty-toast.js';
 
 export class SearchFeature {
   name = 'search';
@@ -169,9 +169,9 @@ export class SearchFeature {
     // 搜索开始：显示“搜索中”
     const unsubStarted = this.#globalEventBus.on('search:query:started', (data) => {
       try {
-        showInfo('搜索中', 0);
+        toastPending('search-loading', '搜索中', 0);
       } catch (e) {
-        this.#logger?.warn('[SearchFeature] showInfo failed', e);
+        this.#logger?.warn('[SearchFeature] toastPending failed', e);
       }
     });
     this.#unsubscribers.push(unsubStarted);
@@ -186,17 +186,13 @@ export class SearchFeature {
           hasResults: data.count > 0
         });
       }
-      try {
-        hideAll();
-      } catch {}
+      try { toastDismiss('search-loading'); } catch {}
     });
     this.#unsubscribers.push(unsubResults);
 
     // 搜索失败：隐藏进行中的提示
     const unsubFailed = this.#globalEventBus.on('search:results:failed', () => {
-      try {
-        hideAll();
-      } catch {}
+      try { toastDismiss('search-loading'); } catch {}
     });
     this.#unsubscribers.push(unsubFailed);
   }

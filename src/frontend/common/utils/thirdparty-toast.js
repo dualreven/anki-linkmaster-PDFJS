@@ -17,12 +17,13 @@ const pendingMap = new Map();
  * @param {string} message - 显示文案
  * @returns {string} 返回 id，便于链路统一
  */
-export function pending(id, message = '进行中') {
+export function pending(id, message = '进行中', timeoutMs = 0) {
   try {
     iziToast.info({
       message,
       position: 'topRight',
-      timeout: 5000, // 5秒自动关闭
+      // timeout: 0/false 表示不自动关闭
+      timeout: (timeoutMs === 0 ? false : timeoutMs),
       close: true,
       // 捕获 DOM 句柄，供后续关闭
       onOpening: (_instance, toast) => {

@@ -97,6 +97,11 @@ export class PDFListFeature {
   // 添加流程的 Toast 待结算映射（按 request_id 关联）
   #pendingToastsByRid = new Map();
 
+  // 删除流程的 pending 记录（一次仅允许一个批量删除在途）
+  #pendingDeleteRid = null;
+  #pendingDeleteCount = 0;
+  #pendingDeleteToast = null; // { removedCount:number, failedCount:number, failedMap?:object }
+
   // ==================== IFeature 接口实现 ====================
 
   /**
@@ -248,6 +253,51 @@ export class PDFListFeature {
     return idx >= 0 ? norm.slice(idx + 1) : norm;
   }
 
+  // 从多种来源收集当前选中的 PDF id 列表（兼容多种UI实现）
+  #collectSelectedIds() {
+    const ids = new Set();
+
+    // 1) 优先：状态管理的 selectedIndices → items
+    try {
+      const selectedIndices = this.#state?.selectedIndices || [];
+      const items = this.#state?.items || [];
+      if (Array.isArray(selectedIndices) && selectedIndices.length > 0 && Array.isArray(items)) {
+        selectedIndices.forEach(i => {
+          const it = items[i];
+          if (it && (it.id || it.filename)) ids.add(it.id || it.filename);
+        });
+      }
+    } catch (_) {}
+
+    // 2) 其次：Tabulator 的选中行（如果 UI 可用）
+    try {
+      const tabulator = this.#uiManager?.tabulator;
+      if (tabulator && ids.size === 0) {
+        const selectedRows = (typeof tabulator.getSelectedData === 'function') ? tabulator.getSelectedData() : [];
+        (selectedRows || []).forEach(r => { if (r?.id) ids.add(r.id); });
+      }
+    } catch (_) {}
+
+    // 3) 再次：搜索结果列表中的勾选框（.search-result-checkbox:checked）
+    try {
+      if (ids.size === 0) {
+        const checked = document.querySelectorAll('.search-result-checkbox:checked');
+        checked.forEach(el => { const id = el?.dataset?.id || el?.value; if (id) ids.add(id); });
+      }
+    } catch (_) {}
+
+    // 4) 兜底：搜索结果中被点击选中的单项（.search-result-item.selected[data-id]）
+    try {
+      if (ids.size === 0) {
+        const sel = document.querySelector('.search-result-item.selected');
+        const id = sel?.getAttribute?.('data-id');
+        if (id) ids.add(id);
+      }
+    } catch (_) {}
+
+    return Array.from(ids);
+  }
+
   /**
    * 设置服务依赖
    * @param {import('../../../common/micro-service/feature-registry.js').FeatureContext} context - 功能上下文
@@ -364,6 +414,7 @@ export class PDFListFeature {
     const addPdfBtn = document.getElementById('add-pdf-btn');
     const batchAddBtn = document.getElementById('batch-add-btn');
     const batchDeleteBtn = document.getElementById('batch-delete-btn');
+    const searchResultsDeleteBtn = document.querySelector('.batch-btn-delete');
 
     // 添加PDF按钮
     if (addPdfBtn) {
@@ -386,7 +437,14 @@ export class PDFListFeature {
       const handleBatchDeleteClick = () => this.#handleBatchDelete();
       batchDeleteBtn.addEventListener('click', handleBatchDeleteClick);
       this.#unsubscribers.push(() => batchDeleteBtn.removeEventListener('click', handleBatchDeleteClick));
-      this.#logger.debug('Batch delete button listener registered');
+      this.#logger.debug('Batch delete button listener registered (by id)');
+    }
+    // 搜索结果头部的“删除”按钮（🗑️ 删除）
+    if (searchResultsDeleteBtn) {
+      const handleBatchDeleteClick2 = () => this.#handleBatchDelete();
+      searchResultsDeleteBtn.addEventListener('click', handleBatchDeleteClick2);
+      this.#unsubscribers.push(() => searchResultsDeleteBtn.removeEventListener('click', handleBatchDeleteClick2));
+      this.#logger.debug('Batch delete button listener registered (.batch-btn-delete)');
     }
   }
 
@@ -543,45 +601,29 @@ export class PDFListFeature {
     this.#logger.info('Batch delete button clicked');
 
     // ==================== 第一步：获取选中的行数据 ====================
-    // 从响应式状态管理器中获取用户选中的行索引数组
-    // selectedIndices 是由 PDFTable 组件在用户勾选复选框时更新的
-    const selectedIndices = this.#state?.selectedIndices || [];
-
-    // 获取完整的PDF文件列表数据
-    // items 包含所有PDF记录的元数据（id、filename、path、size等）
-    const items = this.#state?.items || [];
+    const selectedIds = this.#collectSelectedIds();
 
     // ==================== 第二步：验证选中项 ====================
     // 检查用户是否选中了至少一个文件
-    if (selectedIndices.length === 0) {
+    if (!selectedIds || selectedIds.length === 0) {
       this.#logger.warn('No items selected for deletion');
-      showError('请先选择要删除的PDF文件');
+      try { toastError('请先选择要删除的PDF文件'); } catch (_) { showError('请先选择要删除的PDF文件'); }
       return;
     }
 
-    // 根据索引从完整列表中提取选中的项
-    // filter(Boolean) 过滤掉 undefined 值（防止索引越界）
-    const selectedItems = selectedIndices.map(index => items[index]).filter(Boolean);
-
-    // 二次验证：确保选中的索引对应的数据确实存在
-    // （防止状态不一致导致的空删除）
-    if (selectedItems.length === 0) {
-      this.#logger.warn('Selected items not found');
-      showError('无法获取选中的PDF文件');
-      return;
-    }
+    this.#logger.info(`Collected ${selectedIds.length} selected ids for deletion`);
 
     // ==================== 第三步：用户确认 ====================
     // 弹出原生确认对话框，显示将要删除的文件数量
     // 这是防止误操作的最后一道防线
-    const confirmMsg = `确定要删除选中的 ${selectedItems.length} 个PDF文件吗？`;
+    const confirmMsg = `确定要删除选中的 ${selectedIds.length} 个PDF文件吗？`;
     if (!confirm(confirmMsg)) {
       this.#logger.info('User cancelled deletion');
       return;
     }
 
     // 记录详细的删除日志，便于追踪和调试
-    this.#logger.info(`Deleting ${selectedItems.length} files:`, selectedItems.map(f => f.filename));
+    this.#logger.info(`Deleting ${selectedIds.length} files`, selectedIds);
 
     // ==================== 第四步：发送删除请求 ====================
     // 架构说明：
@@ -600,16 +642,22 @@ export class PDFListFeature {
     // 4. 本功能域的监听器（见 #registerEventListeners L640-678）处理响应
     // 5. 删除成功后使用 tabulator.deleteRow() 增量更新表格
     // 6. 清空选中状态（this.#state.selectedIndices = []）
-    this.#scopedEventBus?.emitGlobal('websocket:message:send', {
-      type: 'pdf-library:remove:records',
+    const rid = this.#generateRequestId();
+    this.#pendingDeleteRid = rid;
+    this.#pendingDeleteCount = selectedIds.length;
+    try { toastPending(rid, `删除中（${selectedIds.length}个文件）`); } catch (_) {}
+
+    this.#scopedEventBus?.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, {
+      type: WEBSOCKET_MESSAGE_TYPES.REMOVE_PDF,
+      request_id: rid,
       data: {
-        file_ids: selectedItems.map(item => item.id)  // 提取每个文件的唯一ID
-      }
+        file_ids: selectedIds
+      },
+      source: 'pdf-list-batch-delete'
     });
 
     // 注意：删除请求是异步的，不在此处等待响应
     // 响应处理在 #registerEventListeners 方法中的 'websocket:message:response' 监听器
-    // 见 L640-678 的删除响应处理逻辑
   }
 
   /**
@@ -682,6 +730,17 @@ export class PDFListFeature {
             this.#pendingToastsByRid.delete(rid);
           } else {
             toastError(`添加文件失败: ${errorMessage}`);
+          }
+        } else if (typeof data?.type === 'string' && data.type === WEBSOCKET_MESSAGE_TYPES.REMOVE_PDF_FAILED) {
+          // 删除失败专用分支：仅在与当前请求ID匹配时提示，避免误报
+          if (this.#pendingDeleteRid && data?.request_id === this.#pendingDeleteRid) {
+            try { toastDismiss(this.#pendingDeleteRid); } catch (_) {}
+            toastError(`删除失败-${errorMessage}`);
+            this.#pendingDeleteRid = null;
+            this.#pendingDeleteCount = 0;
+          } else {
+            // 非当前删除请求的失败，不弹“删除失败”，仅记录日志以免误导用户
+            this.#logger.warn('忽略非当前请求的删除失败响应', { request_id: data?.request_id, pending: this.#pendingDeleteRid });
           }
         } else {
           // 非添加流程保持原全局提示
@@ -792,47 +851,142 @@ export class PDFListFeature {
         }
       }
 
-      // 处理批量删除响应
-      if (data && data.data && Array.isArray(data.data.removed_files)) {
-        this.#logger.info(`Files removed: ${data.data.removed_files.length} successful`);
+      // 处理批量删除响应（标准协议）
+      if (typeof data?.type === 'string' && data.type === WEBSOCKET_MESSAGE_TYPES.REMOVE_PDF_COMPLETED) {
+        const removedIds = Array.isArray(data?.data?.removed_files) ? data.data.removed_files : [];
+        const failedMap = (data?.data && typeof data.data.failed_files === 'object') ? (data.data.failed_files || {}) : {};
+        const failedCount = Object.keys(failedMap).length;
+        const rid = data?.request_id;
 
-        // 显示删除结果
-        showSuccess(`成功删除 ${data.data.removed_files.length} 个文件`);
+        // 关闭“删除中”
+        if (this.#pendingDeleteRid && rid && rid === this.#pendingDeleteRid) {
+          try { toastDismiss(this.#pendingDeleteRid); } catch (_) {}
+          this.#pendingDeleteRid = null;
+        }
 
-        // 使用deleteRow增量删除行，而不是刷新整个列表
+        // 延后结果提示：避免立刻被 SearchFeature 的 hideAll() 清除
+        this.#pendingDeleteToast = { removedCount: removedIds.length, failedCount, failedMap };
+
+        // 表格增量更新
         const tabulator = this.#uiManager?.tabulator;
-        if (tabulator && data.data.removed_files.length > 0) {
+        if (tabulator && removedIds.length > 0) {
           try {
-            data.data.removed_files.forEach(fileId => {
-              // 通过文件ID删除行
+            removedIds.forEach(fileId => {
               const row = tabulator.getRow(fileId);
               if (row) {
                 row.delete();
                 this.#logger.debug(`Deleted row for file: ${fileId}`);
-              } else {
-                this.#logger.warn(`Row not found for file ID: ${fileId}`);
               }
             });
-            this.#logger.info(`Successfully deleted ${data.data.removed_files.length} rows from table`);
-
-            // 删除成功后清空选中状态，避免重复删除
-            if (this.#state) {
-              this.#state.selectedIndices = [];
-              // 从tabulator重新获取数据更新state
-              this.#state.items = tabulator.getData();
-              this.#logger.debug('Cleared selection state after deletion');
-            }
+            this.#logger.info(`Successfully deleted ${removedIds.length} rows from table`);
           } catch (error) {
             this.#logger.error('Error deleting rows from table:', error);
-            // 如果增量删除失败，回退到重新请求完整列表
-            this.#scopedEventBus?.emitGlobal('websocket:message:send', {
-              type: 'pdf-library:list:records'
-            });
           }
         }
+
+        // 清空选中并刷新当前视图（优先刷新搜索结果）
+        if (this.#state) {
+          this.#state.selectedIndices = [];
+        }
+        this.#refreshAfterDeletion();
+        return;
+      }
+
+      // 兼容：pdfTable_server 批量删除响应（type='batch_pdf_removed'，data.removed 为对象数组，data.failed 为数组）
+      if (typeof data?.type === 'string' && data.type === 'batch_pdf_removed') {
+        const removedArr = Array.isArray(data?.data?.removed) ? data.data.removed : [];
+        const removedIds = removedArr.map(r => r?.id || r).filter(Boolean);
+        const failedArr = Array.isArray(data?.data?.failed) ? data.data.failed : [];
+        // 转为 map 以复用提示逻辑
+        const failedMap = {};
+        failedArr.forEach((f, idx) => { failedMap[String(f?.id || f || idx)] = '删除失败'; });
+        const failedCount = Object.keys(failedMap).length;
+        const rid = data?.request_id;
+
+        if (this.#pendingDeleteRid && rid && rid === this.#pendingDeleteRid) {
+          try { toastDismiss(this.#pendingDeleteRid); } catch (_) {}
+          this.#pendingDeleteRid = null;
+        }
+
+        this.#pendingDeleteToast = { removedCount: removedIds.length, failedCount, failedMap };
+
+        const tabulator = this.#uiManager?.tabulator;
+        if (tabulator && removedIds.length > 0) {
+          try {
+            removedIds.forEach(fileId => {
+              const row = tabulator.getRow(fileId);
+              if (row) row.delete();
+            });
+          } catch (e) { this.#logger.error('Error deleting rows from table:', e); }
+        }
+        if (this.#state) this.#state.selectedIndices = [];
+        this.#refreshAfterDeletion();
+        return;
+      }
+
+      // 兼容：pdfTable_server 单文件删除响应（type='pdf_removed'，data.removed=true，data.file.id）
+      if (typeof data?.type === 'string' && data.type === 'pdf_removed') {
+        const removedOne = data?.data?.removed === true;
+        const fileId = data?.data?.file?.id;
+        const rid = data?.request_id;
+        if (this.#pendingDeleteRid && rid && rid === this.#pendingDeleteRid) {
+          try { toastDismiss(this.#pendingDeleteRid); } catch (_) {}
+          this.#pendingDeleteRid = null;
+        }
+        this.#pendingDeleteToast = { removedCount: removedOne ? 1 : 0, failedCount: removedOne ? 0 : 1 };
+        const tabulator = this.#uiManager?.tabulator;
+        if (tabulator && removedOne && fileId) {
+          try { const row = tabulator.getRow(fileId); if (row) row.delete(); } catch (e) {}
+        }
+        if (this.#state) this.#state.selectedIndices = [];
+        this.#refreshAfterDeletion();
+        return;
+      }
+
+      // 兼容旧逻辑：如果只看到 data.data.removed_files 也按删除成功处理
+      if (data && data.data && Array.isArray(data.data.removed_files)) {
+        const removed = data.data.removed_files;
+        try { if (this.#pendingDeleteRid) toastDismiss(this.#pendingDeleteRid); } catch (_) {}
+        this.#pendingDeleteRid = null;
+        // 延后结果提示
+        this.#pendingDeleteToast = { removedCount: removed.length, failedCount: 0 };
+        const tabulator = this.#uiManager?.tabulator;
+        if (tabulator && removed.length > 0) {
+          try {
+            removed.forEach(fileId => {
+              const row = tabulator.getRow(fileId);
+              if (row) row.delete();
+            });
+          } catch (e) { this.#logger.error('Error deleting rows from table:', e); }
+        }
+        if (this.#state) this.#state.selectedIndices = [];
+        this.#refreshAfterDeletion();
       }
     });
     this.#unsubscribers.push(unsubWebSocketResponse);
+
+    // 在搜索结果更新后再显示“删除完成”的 toast，避免被 SearchFeature 的 hideAll() 立即销毁
+    const unsubSearchUpdated = this.#scopedEventBus.onGlobal('search:results:updated', () => {
+      if (!this.#pendingDeleteToast) return;
+      const { removedCount, failedCount, failedMap } = this.#pendingDeleteToast || {};
+      this.#pendingDeleteToast = null;
+      // 延后到事件循环尾部，确保先执行 hideAll()
+      setTimeout(() => {
+        try {
+          if (removedCount > 0 && failedCount === 0) {
+            toastSuccess(`成功删除 ${removedCount} 个文件`);
+          } else if (removedCount > 0 && failedCount > 0) {
+            toastWarning(`删除完成：成功 ${removedCount} 个，失败 ${failedCount} 个`);
+          } else if (removedCount === 0 && failedCount > 0) {
+            const firstReason = failedMap && Object.values(failedMap)[0] || '未知原因';
+            toastError(`删除失败-${firstReason}`);
+          } else {
+            toastWarning('未删除任何文件');
+          }
+        } catch (_) {}
+      }, 0);
+    });
+    this.#unsubscribers.push(unsubSearchUpdated);
 
     // 兜底：将 WSClient 未专门路由的 add completed/failed 通过 unknown 转发到 response
     const unsubUnknown = this.#scopedEventBus.onGlobal('websocket:message:unknown', (msg) => {
@@ -1033,6 +1187,27 @@ export class PDFListFeature {
 
       throw error;
     }
+  }
+
+  // ==================== 辅助：删除后刷新 ====================
+  #refreshAfterDeletion() {
+    try {
+      // 若存在搜索框，则优先按照当前搜索词刷新结果列表
+      const input = document.querySelector('.search-input');
+      const searchText = input ? String(input.value || '').trim() : '';
+      if (searchText !== '' || input) {
+        // 触发搜索，以刷新“搜索结果列表”
+        this.#scopedEventBus?.emitGlobal('search:query:requested', { searchText });
+        this.#logger.info('Triggered search refresh after deletion', { searchText });
+        return;
+      }
+    } catch (e) {
+      this.#logger.warn('Search refresh after deletion failed, fallback to list reload', e);
+    }
+    // 兜底：请求完整列表
+    this.#scopedEventBus?.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, {
+      type: WEBSOCKET_MESSAGE_TYPES.GET_PDF_LIST
+    });
   }
 
   /**

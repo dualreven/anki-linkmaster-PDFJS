@@ -363,6 +363,16 @@ export class WSClient {
           this._settlePendingRequest(message, { error: message?.error || message?.data });
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
           break;
+        case "pdf-library:remove:completed":
+          // 标准删除完成事件：路由为通用 RESPONSE，供上层 PDFListFeature 统一处理
+          this._settlePendingRequest(message);
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
+          break;
+        case "pdf-library:remove:failed":
+          // 标准删除失败事件：同样路由为通用 RESPONSE，便于上层在同一监听中处理 error/status
+          this._settlePendingRequest(message, { error: message?.error || message?.data });
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
+          break;
         case "bookmark:list:records":
           this._settlePendingRequest(message);
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.BOOKMARK_LIST;

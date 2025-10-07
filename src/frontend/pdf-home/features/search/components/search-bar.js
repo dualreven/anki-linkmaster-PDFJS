@@ -55,9 +55,11 @@ export class SearchBar {
   #getTemplate() {
     return `
       <div class="search-bar">
-        <button id="add-pdf-btn" title="添加PDF文件">
-          ＋添加
-        </button>
+        <div class="search-actions-left">
+          <button id="add-pdf-btn" title="添加PDF文件">
+            ＋添加
+          </button>
+        </div>
         <div class="search-input-wrapper">
           <input
             type="text"
@@ -314,13 +316,6 @@ export class SearchBar {
   #handleSearch(searchText) {
     // 空搜索也是有效的搜索，应该显示所有记录
     this.#logger.info('[SearchBar] Search triggered', { searchText: searchText || '(empty)' });
-    // UI 立即反馈：显示“搜索中”，避免依赖后续 SearchManager 的 started 事件
-    try {
-      // 动态导入以避免循环依赖和初次加载开销
-      import('../../../../common/utils/notification.js').then(mod => {
-        try { mod.showInfo && mod.showInfo('搜索中', 0); } catch (_) {}
-      }).catch(() => {});
-    } catch (_) {}
     this.#eventBus.emit('search:query:requested', { searchText: searchText || '' });
   }
 
