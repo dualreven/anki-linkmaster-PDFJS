@@ -110,7 +110,7 @@
     }
   },
   "recent-opened": {
-    "enabled": false,
+    "enabled": true,
     "description": "最近阅读功能 - 显示阅读历史（开发中）",
     "version": "1.0.0",
     "meta": {
