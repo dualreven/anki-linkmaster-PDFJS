@@ -695,3 +695,48 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - 测试：新增注释持久化最小化单测（当前 Jest ESM 配置导致已有用例无法整体跑通，建议后续统一 ESM 配置）
 - 追加修复：删除 ws-client.js 重复 export default 导致的 Babel 错误
 - 备注：AnnotationManager.remote-save/remote-load 失败时降级处理，UI 乐观更新不受阻
+
+## 当前任务（20251008001139）
+- 名称：设计新表 pdf_bookanchor（锚点：uuid -> 页码/精确位置）
+- 问题背景：
+  - 需要一个“活动书签/锚点”实体，外部只需锚点 uuid，即可解析到所属 PDF 的页码与精确位置；还需展示友好名称 name。
+  - 项目已有层级书签表 `pdf_bookmark`（json_data 持久化 + json_extract 索引），新表需延续相同风格与事件体系，避免重复实现。
+- 相关模块与函数：
+  - 数据库：
+    - `src/backend/database/plugins/pdf_info_plugin.py`（pdf 基础信息表，外键引用）
+    - `src/backend/database/plugins/pdf_bookmark_plugin.py`（现有书签插件，命名/校验/索引风格参考）
+    - （新）`src/backend/database/plugins/pdf_bookanchor_plugin.py`
+  - 服务/API：
+    - `src/backend/api/pdf_library_api.py`（可扩展解析接口：anchor_uuid -> page+position）
+    - `src/backend/msgCenter_server/standard_server.py`（WS 路由，新增消息类型）
+  - 前端：
+    - `src/frontend/pdf-viewer/*`（消费解析结果并跳转定位）
+- 执行步骤（原子化）：
+  1) 读取历史与规范（已完成）：AItemp 最近 8 条 + SPEC-HEAD
+  2) 调研现有书签/DB 插件（进行中）：统一字段/索引/事件风格
+  3) 产出字段与 `position` 结构草案（本次目标）：核心列、json_data schema、索引与约束
+  4) 征求确认：主键命名（uuid/anchor_uuid）、position 单位、是否首批支持 textRange 等
+  5) 拆分实现计划：DB 插件 -> API/WS -> 前端消费 -> 测试
+  6) 回写工作日志与本文件，通知完成
+### 追加：pdf_bookanchor 表（2025-10-08）
+- 已创建插件：`src/backend/database/plugins/pdf_bookanchor_plugin.py`
+- 表字段（SQL）：`uuid, pdf_uuid, page_at, position, visited_at, created_at, updated_at, version, json_data`
+  - `position`：REAL，0~1（页内百分比高度）；`page_at`：INTEGER，>=1
+  - `visited_at`：转由 SQL 字段承载，不写入 json_data
+- 约束与索引：外键 pdf_info(uuid) 级联删除；`pdf_uuid`、`created_at`、`(pdf_uuid, page_at)`、`visited_at` 索引
+- json_data 建议：`name`(必填)、`description`、`is_active`、`use_count` 等
+### 追加：修复 pdf-viewer 标题覆盖（2025-10-08）
+- 现象：通过 pdf-home 启动时，窗口标题先为元数据 title，后被替换为文件名。
+- 方案：在 `src/frontend/pdf-viewer/pyqt/main_window.py:__init__` 中引入“标题锁定”。
+  - 重写 `setWindowTitle` 记录 `_locked_title`；
+  - 绑定 `self.web_view.titleChanged` 到 `_on_page_title_changed`，若与锁定值不一致则恢复；
+  - 宿主（pdf-home）后续设置的展示名将更新锁定值，确保标题稳定。
+- 验证：从 pdf-home 打开 viewer，标题在加载后不再被文件名覆盖。
+### 追加：修复 HTML 标题覆盖（2025-10-08）
+- 位置：`src/frontend/pdf-viewer/features/ui-manager/components/ui-manager-core.js`
+- 根因：URL 解析时未记录首选标题，文件加载成功后用 filename 覆盖 header。
+- 修复：
+  - 引入 `#preferredTitle`；
+  - `URL_PARAMS.PARSED` 记录并应用；
+  - `FILE.LOAD.SUCCESS` 优先使用 `#preferredTitle`，否则用 filename。
+- 验证：带 `&title=` 时 header 不再被文件名覆盖。

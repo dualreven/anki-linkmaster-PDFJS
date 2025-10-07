@@ -55,8 +55,10 @@ class MainWindow(QMainWindow):
         self.pdf_id = pdf_id
         self.has_host = has_host
 
-        # 窗口属性
-        self.setWindowTitle(f"Anki LinkMaster PDF Viewer - {pdf_id}")
+        # 窗口属性（引入“标题锁定”机制）
+        self._locked_title: str | None = f"Anki LinkMaster PDF Viewer - {pdf_id}"
+        # 初始标题使用 pdf_id；宿主（pdf-home）可调用 setHumanWindowTitle() 覆盖并锁定为人类可读标题。
+        super().setWindowTitle(self._locked_title)
         self.setGeometry(100, 100, 1200, 800)
 
         # QtWebEngine Inspector设置
@@ -86,6 +88,16 @@ class MainWindow(QMainWindow):
             self.web_view.loadFinished.connect(self._on_web_loaded)
             # 设置大小策略，确保自适应窗口大小变化
             self.web_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            # 绑定标题变更信号，避免被页面/加载流程覆盖为文件名
+            try:
+                self.web_view.titleChanged.connect(self._on_page_title_changed)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            try:
+                if hasattr(self, 'web_page') and self.web_page:
+                    self.web_page.titleChanged.connect(self._on_page_title_changed)  # type: ignore[attr-defined]
+            except Exception:
+                pass
 
         # 设置开发者工具属性
         if self.web_view and QWebEngineSettings:
@@ -188,6 +200,34 @@ class MainWindow(QMainWindow):
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage(f'准备就绪 (PDF: {self.pdf_id})')
+
+    # -------------------- 标题锁定机制 --------------------
+    def setWindowTitle(self, title: str):  # type: ignore[override]
+        """重写 setWindowTitle，但不更新锁定标题。
+
+        注意：页面或Qt内部可能调用 setWindowTitle 以同步 document.title。
+        为避免“锁定值被无意覆盖”，此重写仅透传到父类，不改动 _locked_title。
+        """
+        super().setWindowTitle(title)
+
+    def setHumanWindowTitle(self, title: str) -> None:
+        """由宿主调用以设置“人类可读标题”，并写入锁定值。"""
+        try:
+            self._locked_title = str(title)
+        except Exception:
+            self._locked_title = title
+        super().setWindowTitle(self._locked_title)
+
+    def _on_page_title_changed(self, new_title: str):
+        """当页面 title 变化时，保持窗口标题为“锁定标题”。"""
+        try:
+            locked = getattr(self, '_locked_title', None)
+            if locked and isinstance(new_title, str) and new_title != locked:
+                # 恢复为已锁定的标题，避免被文件名等覆盖
+                super().setWindowTitle(locked)
+        except Exception:
+            # 出现异常时不影响页面其它逻辑
+            pass
 
     def _on_web_loaded(self, success: bool):
         """网页加载完成处理"""

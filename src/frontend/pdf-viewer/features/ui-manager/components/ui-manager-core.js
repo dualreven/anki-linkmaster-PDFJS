@@ -146,17 +146,16 @@ export class UIManagerCore {
         this.#stateManager.updateLoadingState(false, true);
         this.#domManager.setLoadingState(false);
 
-        // 显示策略：优先使用来自 search 的 title；无 title 时再回退 filename（不加载PDF元数据）
-        const displayTitle = this.#preferredTitle || filename || null;
+        // 更新 header 标题与 pdfId：优先使用 #preferredTitle，其次回退到文件名
+        const preferred = (this.#preferredTitle && String(this.#preferredTitle).trim()) ? String(this.#preferredTitle).trim() : null;
+        const displayTitle = preferred || filename || null;
         if (displayTitle) {
           this.#updateHeaderTitle(displayTitle);
           if (!this.#currentPdfId) {
-            const derivedId = displayTitle.toLowerCase().endsWith('.pdf')
-              ? displayTitle.slice(0, -4)
-              : displayTitle;
-            this.#currentPdfId = derivedId;
+            const base = displayTitle.toLowerCase().endsWith('.pdf') ? displayTitle.slice(0, -4) : displayTitle;
+            this.#currentPdfId = base;
             this.#updateCopyButtonVisibility();
-            this.#logger.info(`Header title set to: ${displayTitle}; derived pdfId: ${derivedId}`);
+            this.#logger.info(`Header title set to: ${displayTitle}; derived pdfId: ${base}`);
           }
         }
 
@@ -204,7 +203,7 @@ export class UIManagerCore {
         } else {
           this.#logger.warn('[UIManagerCore] URL_PARAMS.PARSED event has no pdfId');
         }
-        // 若 URL 中包含 title，则优先更新 header 标题，并记录为首选标题
+        // 若 URL 中包含 title，则优先更新 header 标题并记录首选标题，避免后续被文件名覆盖
         if (data?.title && String(data.title).trim()) {
           this.#preferredTitle = String(data.title).trim();
           this.#updateHeaderTitle(this.#preferredTitle);

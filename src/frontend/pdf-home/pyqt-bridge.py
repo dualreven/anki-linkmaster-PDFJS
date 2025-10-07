@@ -462,7 +462,17 @@ class PyQtBridge(QObject):
                             display_title = str(filename)
                     else:
                         display_title = str(pdf_id)
-                    viewer.setWindowTitle(f"Anki LinkMaster PDF Viewer - {display_title}")
+                    # 优先使用“人类可读标题”API，保证标题锁定不被页面覆盖
+                    try:
+                        if hasattr(viewer, 'setHumanWindowTitle'):
+                            viewer.setHumanWindowTitle(f"Anki LinkMaster PDF Viewer - {display_title}")
+                        else:
+                            viewer.setWindowTitle(f"Anki LinkMaster PDF Viewer - {display_title}")
+                    except Exception:
+                        try:
+                            viewer.setWindowTitle(f"Anki LinkMaster PDF Viewer - {display_title}")
+                        except Exception:
+                            pass
                 except Exception:
                     pass
 
