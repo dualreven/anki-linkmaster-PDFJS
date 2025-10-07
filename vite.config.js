@@ -122,15 +122,16 @@ export default defineConfig(async () => {
     ],
     build: {
       rollupOptions: {
-        // 单页面构建：只构建 pdf-home
+        // 多入口构建：同时构建 pdf-home 与 pdf-viewer
         input: {
-          'pdf-home': path.resolve(__dirname, 'src/frontend/pdf-home/index.html')
+          'pdf-home': path.resolve(__dirname, 'src/frontend/pdf-home/index.html'),
+          'pdf-viewer': path.resolve(__dirname, 'src/frontend/pdf-viewer/index.html'),
         },
         external: [
           /__tests__/,
           /\.test\.js$/,
           /\.spec\.js$/,
-          'pdfjs-dist'  // ✅ 关键修复：阻止 Vite 打包 PDF.js
+          'pdfjs-dist'  // ✅ 避免将 pdfjs-dist 打包进主包，保持按需加载
         ]
       }
     }

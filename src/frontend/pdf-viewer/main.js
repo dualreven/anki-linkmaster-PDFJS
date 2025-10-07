@@ -17,7 +17,7 @@ import { bootstrapPDFViewerAppFeature } from "./bootstrap/app-bootstrap-feature.
 document.addEventListener("DOMContentLoaded", async () => {
   const indexLogger = getLogger("PDFViewer");
   indexLogger.info("DOMContentLoaded: Starting PDF Viewer App bootstrap...");
-  indexLogger.info("黄集攀-1 (Feature-based architecture)");
+  indexLogger.debug("PDF Viewer bootstrap (Feature-based architecture)");
 
   try {
     // 使用新的 Feature-based bootstrap

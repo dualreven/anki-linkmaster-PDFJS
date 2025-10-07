@@ -21,7 +21,7 @@ const logger = getLogger('pdf-home/bootstrap-v2');
  * @returns {Promise<PDFHomeAppV2>} 应用实例
  */
 export async function bootstrapPDFHomeAppV2(options = {}) {
-  logger.info('[DEBUG] DOMContentLoaded: bootstrap PDF Home App V2 (Feature Domain Architecture)...');
+  logger.debug('DOMContentLoaded: bootstrap PDF Home App V2 (Feature Domain Architecture)...');
 
   try {
     // 1. 解析 WebSocket 端口
@@ -35,7 +35,7 @@ export async function bootstrapPDFHomeAppV2(options = {}) {
       featureFlagConfigPath: options.featureFlagConfigPath || './config/feature-flags.json'
     };
 
-    logger.info('[DEBUG] Creating PDFHomeAppV2 with options:', {
+    logger.debug('Creating PDFHomeAppV2 with options:', {
       wsUrl,
       environment: appOptions.environment,
       featureFlagConfig: appOptions.featureFlagConfigPath
@@ -44,13 +44,13 @@ export async function bootstrapPDFHomeAppV2(options = {}) {
     // 3. 创建应用实例（功能域架构）
     const app = new PDFHomeAppV2(appOptions);
 
-    logger.info('[DEBUG] Starting app V2 initialization...');
+    logger.debug('Starting app V2 initialization...');
     await app.initialize();
 
     // 4. 设置自动化测试环境
     setupAutoTestEnvironment(app);
 
-    logger.info('[DEBUG] App V2 initialization completed, setting up window.app...');
+    logger.debug('App V2 initialization completed, setting up window.app...');
 
     // 5. 暴露全局接口（与 V1 兼容）
     window.app = {
@@ -80,13 +80,13 @@ export async function bootstrapPDFHomeAppV2(options = {}) {
     appLogger.info(`Installed Features: ${state.features.installed.join(', ')}`);
     appLogger.info('Use window.app.getState() for full status');
 
-    appLogger.info('[DEBUG] PDF Home App V2 fully started');
-    appLogger.info('[DEBUG] Available features:', state.features.installed);
+    appLogger.debug('PDF Home App V2 fully started');
+    appLogger.debug('Available features:', state.features.installed);
 
     return app;
 
   } catch (error) {
-    logger.error('[DEBUG] App V2 bootstrap/initialization failed:', error);
+    logger.error('App V2 bootstrap/initialization failed:', error);
 
     // 尝试记录错误
     try {

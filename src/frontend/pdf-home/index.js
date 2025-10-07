@@ -39,30 +39,30 @@ function getEnvironment() {
  * @returns {Promise<void>}
  */
 async function startApp() {
-  logger.info('[DEBUG] Starting PDF Home App...');
+  logger.debug('Starting PDF Home App...');
 
   try {
     const app = await bootstrapPDFHomeAppV2({
       environment: getEnvironment()
     });
 
-    logger.info('[DEBUG] 黄集攀 App started successfully');
+    logger.debug('App started successfully');
 
     // 已移除“通信测试”按钮与相关开发UI
 
     return app;
 
   } catch (error) {
-    logger.error('[DEBUG] App bootstrap failed:', error);
+    logger.error('App bootstrap failed:', error);
     throw error;
   }
 }
 
 // ===== 应用启动 =====
-logger.info('[DEBUG] Script loaded, waiting for DOMContentLoaded...');
+logger.debug('Script loaded, waiting for DOMContentLoaded...');
 document.addEventListener('DOMContentLoaded', async () => {
   await startApp();
 });
 
-logger.info('[DEBUG] Event listener registered for DOMContentLoaded');
+logger.debug('Event listener registered for DOMContentLoaded');
 
