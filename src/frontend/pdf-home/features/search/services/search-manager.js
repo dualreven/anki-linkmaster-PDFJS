@@ -40,7 +40,8 @@ export class SearchManager {
   #setupEventListeners() {
     // 监听搜索请求
     const unsubSearch = this.#eventBus.on('search:query:requested', (data) => {
-      this.#handleSearch(data.searchText);
+      // 兼容扩展参数：允许透传 sort/pagination，用于“最近阅读”等需要自定义排序/分页的场景
+      this.#handleSearch(data?.searchText, data);
     }, { subscriberId: 'SearchManager' });
     this.#unsubs.push(unsubSearch);
 
@@ -122,7 +123,7 @@ export class SearchManager {
    * @private
    * @param {string} searchText - 搜索文本
    */
-  #handleSearch(searchText) {
+  #handleSearch(searchText, extraParams = {}) {
     // 防止重复搜索
     if (this.#isSearching) {
       this.#logger.warn('[SearchManager] Search already in progress, ignoring new request');
@@ -141,7 +142,7 @@ export class SearchManager {
       });
 
       // 仅发送 v1 协议
-      this.#sendSearchRequest(searchText);
+      this.#sendSearchRequest(searchText, extraParams);
 
     } catch (error) {
       this.#logger.error('[SearchManager] Search failed', error);
@@ -159,7 +160,7 @@ export class SearchManager {
    * 发送具体模式的搜索请求，并设置超时与pending跟踪
    * @private
    */
-  #sendSearchRequest(searchText) {
+  #sendSearchRequest(searchText, extraParams = {}) {
     // 生成唯一请求ID
     const requestId = `search_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -171,7 +172,7 @@ export class SearchManager {
     });
 
     // 构建消息
-    const message = this.#buildMessage(searchText, requestId);
+    const message = this.#buildMessage(searchText, requestId, extraParams);
     this.#logger.info('[SearchManager] Sending search request', { type: message.type, request_id: requestId });
 
     // 发送
@@ -196,13 +197,13 @@ export class SearchManager {
    * 构建不同协议的消息
    * @private
    */
-  #buildMessage(searchText, requestId) {
+  #buildMessage(searchText, requestId, extraParams = {}) {
     // 标准协议：载荷放入 data，包含 query 与 tokens（按空格切分，AND 语义）
     const tokens = (searchText || '')
       .split(/\s+/)
       .map(t => t.trim())
       .filter(t => t.length > 0);
-    return {
+    const payload = {
       type: WEBSOCKET_MESSAGE_TYPES.SEARCH_PDF,
       request_id: requestId,
       data: {
@@ -210,6 +211,25 @@ export class SearchManager {
         tokens
       }
     };
+    try {
+      // 透传排序与分页（可选）
+      if (extraParams && typeof extraParams === 'object') {
+        if (Array.isArray(extraParams.sort) && extraParams.sort.length > 0) {
+          payload.data.sort = extraParams.sort;
+        }
+        if (extraParams.pagination && typeof extraParams.pagination === 'object') {
+          const p = extraParams.pagination;
+          const pg = {};
+          if (p.limit !== undefined) pg.limit = p.limit;
+          if (p.offset !== undefined) pg.offset = p.offset;
+          if (p.need_total !== undefined) pg.need_total = !!p.need_total;
+          if (Object.keys(pg).length > 0) payload.data.pagination = pg;
+        }
+      }
+    } catch (_) {
+      // 安全兜底：忽略非法扩展参数
+    }
+    return payload;
   }
 
   /**

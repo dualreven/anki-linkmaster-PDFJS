@@ -1,5 +1,29 @@
 ﻿# Memory Bank（精简版 / 权威）
 
+## 当前任务（20251007190618）
+- 名称：实现 pdf-home 侧边栏“最近阅读”（visited_at 降序）
+- 问题背景：
+  - 侧边栏 recent-opened 子功能为空实现，无法展示最近阅读列表；
+  - 需求：按 visited_at 字段降序获取前 N 条记录显示书名；点击任一项，等同于“搜索全部内容，并按 visited_at 降序排列”。
+- 相关模块与函数：
+  - 前端：
+    - `src/frontend/pdf-home/features/sidebar/recent-opened/index.js`（本次实现：请求、渲染、交互）
+    - `src/frontend/pdf-home/features/sidebar/components/sidebar-container.js`（容器 DOM）
+    - `src/frontend/pdf-home/features/search/services/search-manager.js`（需扩展：透传 sort/pagination）
+    - `src/frontend/common/event/event-constants.js`（消息常量）
+  - 后端：
+    - `src/backend/msgCenter_server/standard_server.py::handle_pdf_search_request`（标准搜索）
+    - `src/backend/api/pdf_library_api.py::search_records`（支持 payload.sort / pagination.limit=0）
+- 执行步骤（原子化）：
+  1) 设计测试：
+     - 安装 RecentOpened 时，发送 `pdf-library:search:requested`，data.sort 包含 `{field:'visited_at',direction:'desc'}`，pagination.limit=显示条数
+     - 收到 `search:completed` 响应后渲染列表（显示 title）
+     - 点击任一项，发出 `search:query:requested`，携带 sort 与 pagination.limit=0（全量）
+  2) 实现 RecentOpened：容器绑定、限数下拉、请求与渲染、点击触发
+  3) 扩展 SearchManager：透传 `sort` 与 `pagination` 到 WS 消息
+  4) 运行并修复测试
+  5) 回写本文件与 AI-Working-log，并通知完成
+
 ## 当前任务（20251007045101）
 - 名称：修复 pdf-home 的 PDF 编辑保存链路（前后端联通 + Toast 提示）
 - 问题背景：
