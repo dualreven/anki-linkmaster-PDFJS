@@ -749,16 +749,7 @@ export class PDFListFeature {
           return;
         }
 
-        // 3) 兼容：若通用 error 与当前删除请求ID匹配，按删除失败处理
-        if (this.#pendingDeleteRid && rid && rid === this.#pendingDeleteRid) {
-          try { toastDismiss(this.#pendingDeleteRid); } catch (_) {}
-          toastError(`删除失败-${errorMessage}`);
-          this.#pendingDeleteRid = null;
-          this.#pendingDeleteCount = 0;
-          return;
-        }
-
-        // 4) 其他非本功能域错误：仅记录日志，避免干扰用户（防止误报“删除失败”）
+        // 3) 其他非本功能域错误：仅记录日志，避免干扰用户（防止误报“删除失败”）
         this.#logger.warn('忽略非本流程的错误消息', { type: data?.type, request_id: rid, errorMessage });
         return;
       }
