@@ -745,7 +745,7 @@ export class PDFListFeature {
             this.#pendingDeleteErrorTimer = setTimeout(() => {
               if (this.#pendingDeleteError && this.#pendingDeleteRid === rid && !this.#pendingDeleteToast) {
                 try { toastDismiss(this.#pendingDeleteRid); } catch (_) {}
-                toastError(删除失败-);
+                toastError(`删除失败-${this.#pendingDeleteError.message}`);
                 this.#pendingDeleteRid = null;
                 this.#pendingDeleteCount = 0;
               }
