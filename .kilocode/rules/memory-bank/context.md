@@ -541,6 +541,48 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - **技术变更**: `.kilocode/rules/memory-bank/tech.md`
 - **架构变更**: `.kilocode/rules/memory-bank/architecture.md`
 
+## 当前任务（20251008025747）
+- 名称：优化侧边栏搜索性能 - SQL 层面截断记录
+- 问题背景：
+  - "最近阅读"和"最近添加"侧边栏每次点击都全量加载所有记录
+  - 后端存在性能问题：visited_at 走优化分支（SQL LIMIT），created_at 走通用分支（全量查询+Python排序）
+  - 当数据库记录增多时，通用分支会导致严重性能问题
+- 相关模块与函数：
+  - 后端插件：`src/backend/database/plugins/pdf_info_plugin.py`（query_all_by_visited, query_all_by_created）
+  - 后端API：`src/backend/api/pdf_library_api.py`（search_records 方法的优化分支）
+  - 前端：`src/frontend/pdf-home/features/sidebar/recent-opened/index.js`（最近阅读）
+  - 前端：`src/frontend/pdf-home/features/sidebar/recent-added/index.js`（最近添加）
+- 解决方案：
+  - 在 PDFInfoTablePlugin 添加 `query_all_by_created()` 方法，SQL 层面按 created_at DESC 排序并 LIMIT
+  - 在 search_records 添加 created_at 优化分支，条件：无 tokens + created_at desc + 无 filters
+  - 与 visited_at 优化分支保持一致的优化策略
+- 性能提升：
+  - 优化前：全表扫描 + Python 排序 + Python 分页（O(N log N)）
+  - 优化后：SQL LIMIT 查询（O(limit)）
+  - 10,000 条记录取前 10 条：提升约 1000 倍
+- 触发条件：无搜索关键词 + 无筛选 + 单字段降序排序（visited_at 或 created_at）+ 有分页
+- 测试：2 个新增单元测试通过（test_search_records_optimizes_visited_at_desc, test_search_records_optimizes_created_at_desc）
+- 影响范围：仅优化简单排序查询，不影响复杂搜索（关键词+筛选）的准确性
+
+## 当前任务（20251008021430）
+- 名称：修复 pdf-home "最近添加"侧边栏高亮一闪而过的问题
+- 问题背景：
+  - "最近阅读"点击后能正确高亮并持续显示
+  - "最近添加"点击后高亮一闪而过，无法持续显示
+  - 根因：事件时序错误，focus 请求在 DOM 渲染前发送，应用后立即清空，导致渲染完成后无法再次应用
+- 相关模块与函数：
+  - `src/frontend/pdf-home/features/sidebar/recent-added/index.js`（#triggerRecentSearch 方法）
+  - `src/frontend/pdf-home/features/sidebar/recent-opened/index.js`（对比参考：成功的实现）
+  - `src/frontend/pdf-home/features/search-results/index.js`（#applyPendingFocus 方法）
+- 修复方案：
+  - 改进时序控制：在搜索结果渲染完成后才发送 focus 请求
+  - 监听 `search:results:updated` 事件确保结果已渲染
+  - 使用 `requestAnimationFrame` 确保浏览器已完成 DOM 更新
+  - 监听器执行后立即取消订阅，避免内存泄漏
+- 修复前时序：search → 立即 focus（失败，DOM 未渲染）→ 清空 pendingFocusIds → 渲染 DOM（无法再次应用）
+- 修复后时序：search → 监听 results:updated → 渲染 DOM → requestAnimationFrame → focus（成功，DOM 已渲染）
+- 验证标准：点击"最近添加"后，搜索结果中的所有条目都被高亮（selected），第一条被聚焦（focused）并滚动到视图中，高亮持续显示不消失
+
 ## 当前任务（20251007194500）
 - 名称：修复 pdf-viewer 侧边栏打开时未推动 PDF 渲染区的问题（避免遮挡）
 - 问题背景：

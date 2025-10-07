@@ -513,3 +513,89 @@ def test_save_bookmarks_validation_error(api):
 
     with pytest.raises(DatabaseValidationError):
         api.save_bookmarks(pdf_uuid, invalid, root_ids=["bookmark-1728123470000-invalid"])
+
+
+def test_search_records_optimizes_visited_at_desc(api):
+    """测试 visited_at 降序优化分支（SQL 层面 LIMIT）"""
+    import time
+
+    # 插入测试数据，不同的 visited_at 时间戳（使用秒级）
+    base_time = int(time.time())
+    samples = [
+        ("111111111111", "PDF1", base_time - 300),
+        ("222222222222", "PDF2", base_time - 200),
+        ("333333333333", "PDF3", base_time - 100),
+        ("444444444444", "PDF4", base_time - 50),
+        ("555555555555", "PDF5", base_time - 10),
+    ]
+    for uuid, title, visited_at in samples:
+        sample = make_pdf_info_sample(uuid=uuid, title=title, visited_at=visited_at)
+        api.create_record(sample)
+
+    # 测试优化分支条件：无 tokens，visited_at desc，无 filters，有 pagination
+    payload = {
+        "tokens": [],
+        "sort": [{"field": "visited_at", "direction": "desc"}],
+        "pagination": {"limit": 3, "offset": 0, "need_total": True}
+    }
+
+    result = api.search_records(payload)
+
+    # 验证返回的记录数符合 limit
+    assert len(result["records"]) == 3
+    # 验证按 visited_at 降序排列（最近访问的在前）
+    assert result["records"][0]["title"] == "PDF5"
+    assert result["records"][1]["title"] == "PDF4"
+    assert result["records"][2]["title"] == "PDF3"
+    # 验证 total 返回总数
+    assert result["total"] == 5
+    # 验证 meta
+    assert result["meta"]["tokens"] == []
+
+
+def test_search_records_optimizes_created_at_desc(api):
+    """测试 created_at 降序优化分支（SQL 层面 LIMIT）"""
+    import time
+
+    # 插入测试数据，不同的 created_at 时间戳（使用毫秒级）
+    base_time = int(time.time() * 1000)
+    samples = [
+        ("aaaaaaaaaaaa", "PDFA", base_time - 500000),
+        ("bbbbbbbbbbbb", "PDFB", base_time - 400000),
+        ("cccccccccccc", "PDFC", base_time - 300000),
+        ("dddddddddddd", "PDFD", base_time - 200000),
+        ("eeeeeeeeeeee", "PDFE", base_time - 100000),
+    ]
+    for uuid, title, created_at in samples:
+        sample = make_pdf_info_sample(uuid=uuid, title=title, created_at=created_at, updated_at=created_at)
+        api.create_record(sample)
+
+    # 测试优化分支条件：无 tokens，created_at desc，无 filters，有 pagination
+    payload = {
+        "tokens": [],
+        "sort": [{"field": "created_at", "direction": "desc"}],
+        "pagination": {"limit": 2, "offset": 0, "need_total": False}
+    }
+
+    result = api.search_records(payload)
+
+    # 验证返回的记录数符合 limit
+    assert len(result["records"]) == 2
+    # 验证按 created_at 降序排列（最近添加的在前）
+    assert result["records"][0]["title"] == "PDFE"
+    assert result["records"][1]["title"] == "PDFD"
+    # 验证 meta
+    assert result["meta"]["tokens"] == []
+
+    # 测试分页偏移
+    payload2 = {
+        "tokens": [],
+        "sort": [{"field": "created_at", "direction": "desc"}],
+        "pagination": {"limit": 2, "offset": 2, "need_total": True}
+    }
+
+    result2 = api.search_records(payload2)
+    assert len(result2["records"]) == 2
+    assert result2["records"][0]["title"] == "PDFC"
+    assert result2["records"][1]["title"] == "PDFB"
+    assert result2["total"] == 5

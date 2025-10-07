@@ -141,7 +141,7 @@ export class RecentAddedFeature {
     }
   }
 
-  // 私有：触发“最近添加”搜索并请求结果聚焦/高亮（数量与侧边栏显示一致）
+  // 私有：触发"最近添加"搜索并请求结果聚焦/高亮（数量与侧边栏显示一致）
   #triggerRecentSearch(focusIds = null) {
     try {
       const limit = this.#displayLimit || 5;
@@ -149,14 +149,33 @@ export class RecentAddedFeature {
       const ids = Array.isArray(focusIds) && focusIds.length > 0
         ? focusIds.map(x => String(x)).filter(Boolean)
         : this.#recentAdded.slice(0, limit).map(x => String(x.id || '')).filter(Boolean);
+
+      // 发送搜索请求
       this.#scopedEventBus.emitGlobal('search:query:requested', {
         searchText: '',
         sort,
         pagination: { limit, offset: 0 }
       });
+
+      // 延迟发送 focus 请求，等待搜索结果渲染完成
+      // 监听一次搜索结果更新，然后再发送 focus 请求
       if (ids.length > 0) {
-        this.#scopedEventBus.emitGlobal('search-results:focus:requested', { ids });
+        const unsubOnce = this.#globalEventBus.on('search:results:updated', () => {
+          try {
+            // 使用 requestAnimationFrame 确保 DOM 已完成渲染
+            requestAnimationFrame(() => {
+              this.#scopedEventBus.emitGlobal('search-results:focus:requested', { ids });
+              this.#logger.info('[RecentAddedFeature] Focus request sent after results rendered', { idsCount: ids.length });
+            });
+          } catch (e) {
+            this.#logger.warn('[RecentAddedFeature] Failed to send focus request', e);
+          } finally {
+            // 取消订阅（只监听一次）
+            if (typeof unsubOnce === 'function') unsubOnce();
+          }
+        }, { subscriberId: 'RecentAddedFeature-FocusDelay' });
       }
+
       this.#logger.info('[RecentAddedFeature] Trigger RECENT search', { limit, idsCount: ids.length });
     } catch (e) {
       this.#logger.warn('[RecentAddedFeature] Failed to trigger RECENT search', e);
