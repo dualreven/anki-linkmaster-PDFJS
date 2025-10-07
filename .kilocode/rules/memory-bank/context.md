@@ -560,3 +560,11 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
   2) 评估影响：列影响模块、UI/行为差异与回滚方案
   3) 形成建议：删除/移动/加特性开关/构建排除项
   4) 汇报并征求确认；后续根据确认再执行删除与重构
+
+## 当前任务（20251008010127）
+- 名称：第2阶段清理（删除通信测试工具与legacy代码）
+- 变更：
+  * 删除 pdf-home/utils/communication-tester.js
+  * 移除 PDF-Viewer DOMElementManager 中 legacy DOM 创建/清理逻辑
+  * 移除 sidebar-manager 旧事件监听（统一使用 sidebar:layout:updated）
+- 回滚：9b65f48 基线

@@ -40,11 +40,6 @@ export class PDFLayoutAdapter {
             this.#updatePDFLayout(totalWidth);
         }, { subscriberId: 'PDFLayoutAdapter' });
 
-        // 兼容旧事件名（历史代码可能仍发送 changed）
-        this.#eventBus.on('sidebar:layout:changed', ({ totalWidth }) => {
-            this.#updatePDFLayout(totalWidth);
-        }, { subscriberId: 'PDFLayoutAdapter-legacy' });
-
         logger.info('PDFLayoutAdapter initialized');
     }
 
