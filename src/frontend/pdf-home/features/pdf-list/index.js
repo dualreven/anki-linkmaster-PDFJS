@@ -719,10 +719,11 @@ export class PDFListFeature {
 
       if (data?.status === 'error') {
         const errorMessage = data?.message || data?.error?.message || '操作失败';
-        const isAddFlow = typeof data?.type === 'string' && data.type.startsWith('pdf-library:add:');
         const rid = data?.request_id;
+        const isAddFlow = typeof data?.type === 'string' && data.type.startsWith('pdf-library:add:');
+
+        // 1) 添加流程错误（按 pendingToastsByRid 识别）
         if (isAddFlow || (rid && this.#pendingToastsByRid.has(rid))) {
-          // 使用第三方 toast 处理添加流程的错误
           if (rid && this.#pendingToastsByRid.has(rid)) {
             const { base } = this.#pendingToastsByRid.get(rid) || {};
             toastDismiss(rid);
@@ -731,21 +732,34 @@ export class PDFListFeature {
           } else {
             toastError(`添加文件失败: ${errorMessage}`);
           }
-        } else if (typeof data?.type === 'string' && data.type === WEBSOCKET_MESSAGE_TYPES.REMOVE_PDF_FAILED) {
-          // 删除失败专用分支：仅在与当前请求ID匹配时提示，避免误报
-          if (this.#pendingDeleteRid && data?.request_id === this.#pendingDeleteRid) {
+          return;
+        }
+
+        // 2) 删除流程错误（标准失败类型）
+        if (typeof data?.type === 'string' && data.type === WEBSOCKET_MESSAGE_TYPES.REMOVE_PDF_FAILED) {
+          if (this.#pendingDeleteRid && rid && rid === this.#pendingDeleteRid) {
             try { toastDismiss(this.#pendingDeleteRid); } catch (_) {}
             toastError(`删除失败-${errorMessage}`);
             this.#pendingDeleteRid = null;
             this.#pendingDeleteCount = 0;
           } else {
-            // 非当前删除请求的失败，不弹“删除失败”，仅记录日志以免误导用户
-            this.#logger.warn('忽略非当前请求的删除失败响应', { request_id: data?.request_id, pending: this.#pendingDeleteRid });
+            // 非当前删除请求的失败，忽略以避免误报
+            this.#logger.warn('忽略非当前请求的删除失败响应', { request_id: rid, pending: this.#pendingDeleteRid, errorMessage });
           }
-        } else {
-          // 非添加流程保持原全局提示
-          showError(errorMessage);
+          return;
         }
+
+        // 3) 兼容：若通用 error 与当前删除请求ID匹配，按删除失败处理
+        if (this.#pendingDeleteRid && rid && rid === this.#pendingDeleteRid) {
+          try { toastDismiss(this.#pendingDeleteRid); } catch (_) {}
+          toastError(`删除失败-${errorMessage}`);
+          this.#pendingDeleteRid = null;
+          this.#pendingDeleteCount = 0;
+          return;
+        }
+
+        // 4) 其他非本功能域错误：仅记录日志，避免干扰用户（防止误报“删除失败”）
+        this.#logger.warn('忽略非本流程的错误消息', { type: data?.type, request_id: rid, errorMessage });
         return;
       }
 
