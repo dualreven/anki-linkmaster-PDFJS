@@ -1,4 +1,4 @@
-/**
+﻿/**
  * SearchManager - 负责处理PDF搜索逻辑
  *
  * 职责：
@@ -120,12 +120,22 @@ export class SearchManager {
       const records = data?.files || [];
       const count = (typeof data?.total_count === 'number') ? data.total_count : records.length;
       const searchText = data?.search_text ?? requestInfo.searchText;
+      // 从响应或请求缓存中推断分页信息
+      let page = null;
+      try { page = (data && typeof data.page === 'object') ? data.page : null; } catch (_) { page = null; }
+      if (!page && requestInfo && requestInfo.pagination) {
+        const p = requestInfo.pagination;
+        const limit = (p && typeof p.limit !== 'undefined') ? p.limit : undefined;
+        const offset = (p && typeof p.offset !== 'undefined') ? p.offset : undefined;
+        if (typeof limit !== 'undefined' || typeof offset !== 'undefined') page = { limit, offset };
+      }
 
       this.#eventBus.emit('search:results:updated', {
         records,
         count,
         searchText,
-        focusId: requestInfo?.focusId
+        focusId: requestInfo?.focusId,
+        page
       });
       this.#logger.info('[SearchManager] Search (legacy response) completed successfully', { count });
       this.#isSearching = false;
@@ -190,12 +200,22 @@ export class SearchManager {
     // 生成唯一请求ID
     const requestId = `search_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // 记录待处理的请求
+    // 记录待处理的请求（附带分页信息，便于结果事件回传）
+    let usedPagination = null;
+    try {
+      if (extraParams && typeof extraParams === 'object' && extraParams.pagination) {
+        usedPagination = { ...extraParams.pagination };
+      } else if (this.#nextPagination && typeof this.#nextPagination === 'object') {
+        usedPagination = { ...this.#nextPagination };
+      }
+    } catch (_) { usedPagination = null; }
+
     this.#pendingRequests.set(requestId, {
       searchText,
       timestamp: Date.now(),
       retries: 0,
-      focusId: (extraParams && typeof extraParams === 'object') ? extraParams.focusId : undefined
+      focusId: (extraParams && typeof extraParams === 'object') ? extraParams.focusId : undefined,
+      pagination: usedPagination || null
     });
 
     // 构建消息

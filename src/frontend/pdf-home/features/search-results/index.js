@@ -41,6 +41,8 @@ export class SearchResultsFeature {
   #requestTimeoutMs = 3000;
   // 是否允许当缺少 file_path 时通过 WS 向后端补全（默认关闭，遵循隔离优先）
   #allowWsDetailFallback = false;
+  // 最近一次搜索请求的分页限制（兜底用）
+  #lastRequestedPageLimit = null;
 
   /**
    * 安装Feature
@@ -354,6 +356,14 @@ export class SearchResultsFeature {
    * @private
    */
   #subscribeToFilterEvents() {
+    // 监听搜索请求，记录最近一次的分页限制
+    const unsubSearchRequested = this.#globalEventBus.on('search:query:requested', (data) => {
+      try {
+        const lim = Number(data?.pagination?.limit);
+        if (!Number.isNaN(lim) && lim > 0) this.#lastRequestedPageLimit = lim;
+      } catch (_) {}
+    });
+    this.#unsubscribers.push(unsubSearchRequested);
     // 监听搜索结果更新（来自search插件）
     const unsubSearchResults = this.#globalEventBus.on('search:results:updated', (data) => {
       this.#logger.info('[SearchResultsFeature] Search results received', {
@@ -361,7 +371,7 @@ export class SearchResultsFeature {
         searchText: data.searchText
       });
 
-      this.#handleResultsUpdate(data.records, data.count, data.searchText, data.focusId);
+      this.#handleResultsUpdate(data.records, data.count, data.searchText, data.focusId, data.page);
     });
     this.#unsubscribers.push(unsubSearchResults);
 
@@ -526,21 +536,36 @@ export class SearchResultsFeature {
    * 处理结果更新
    * @private
    */
-  #handleResultsUpdate(results, count, searchText, focusId) {
-    this.#currentResults = results || [];
+  #handleResultsUpdate(results, count, searchText, focusId, page) {
+    // 兜底：若提供了分页限制或此前记录过 limit，则在前端对结果进行截断，避免超量渲染
+    try {
+      const limitFromPage = (page && typeof page.limit === 'number' && page.limit > 0) ? page.limit : null;
+      const fallbackLimit = (typeof this.#lastRequestedPageLimit === 'number' && this.#lastRequestedPageLimit > 0)
+        ? this.#lastRequestedPageLimit : null;
+      const effective = limitFromPage ?? fallbackLimit;
+      if (effective && Array.isArray(results)) {
+        this.#currentResults = results.slice(0, effective);
+      } else {
+        this.#currentResults = results || [];
+      }
+    } catch (_) {
+      this.#currentResults = results || [];
+    }
+
+    const displayCount = Array.isArray(this.#currentResults) ? this.#currentResults.length : 0;
 
     this.#logger.info('[SearchResultsFeature] ===== 处理结果更新 =====', {
-      count,
+      totalCount: count,
+      displayCount,
       searchText,
-      resultsLength: this.#currentResults.length,
       hasContainer: !!this.#resultsContainer,
       firstItem: this.#currentResults[0]
     });
 
-    // 更新header统计
-    this.#updateHeaderStats(count, searchText);
+    // 更新header统计（显示 N / 共 M 条）
+    this.#updateHeaderStats(count, searchText, displayCount);
 
-    // 渲染结果
+    // 渲染结果（已按分页限制截断）
     this.#resultsRenderer.render(this.#resultsContainer, this.#currentResults);
 
     // 若提供了单个 focusId，则先记录为待定聚焦集
@@ -583,10 +608,17 @@ export class SearchResultsFeature {
    * 更新header统计信息
    * @private
    */
-  #updateHeaderStats(count, searchText) {
+  #updateHeaderStats(count, searchText, displayCount) {
     const countBadge = this.#headerElement.querySelector('.result-count-badge');
     if (countBadge) {
-      countBadge.textContent = `共 ${count} 条`;
+      try {
+        const shown = (typeof displayCount === 'number' && displayCount >= 0)
+          ? displayCount : (Array.isArray(this.#currentResults) ? this.#currentResults.length : 0);
+        const total = (typeof count === 'number' && count >= 0) ? count : shown;
+        countBadge.textContent = `显示 ${shown} / 共 ${total} 条`;
+      } catch (_) {
+        countBadge.textContent = `共 ${count} 条`;
+      }
 
       // 添加搜索文本提示
       if (searchText) {

@@ -693,12 +693,12 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
   - 点击“确定”后保存顺序与名称变更，并更新后端配置（config-write）
   - 对话框复用 `.preset-save-dialog` 样式；列表项支持 HTML5 拖拽
 
-## 当前任务（20251008000121）
+## 历史任务（20251008000121）
 - 名称：移除 pdf-home 页面中的 通信测试 按钮
 - 变更：src/frontend/pdf-home/index.js 删除通信测试开发UI的导入与调用
 - 验证：重启 pdf-home，按钮不再出现（dev/prod 均无）
 
-## 当前任务（20251008000726）
+## 历史任务（20251008000726）
 - 名称：盘点并汇报冗余代码/配置，提出删除与改动建议
 - 范围：pdf-home / pdf-viewer / common / 构建与依赖
 - 原子步骤：
@@ -707,7 +707,7 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
   3) 形成建议：删除/移动/加特性开关/构建排除项
   4) 汇报并征求确认；后续根据确认再执行删除与重构
 
-## 当前任务（20251008010127）
+## 历史任务（20251008010127）
 - 名称：第2阶段清理（删除通信测试工具与legacy代码）
 - 变更：
   * 删除 pdf-home/utils/communication-tester.js
@@ -715,7 +715,7 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
   * 移除 sidebar-manager 旧事件监听（统一使用 sidebar:layout:updated）
 - 回滚：9b65f48 基线
 
-## 当前任务（20251008001859）
+## 历史任务（20251008001859）
 - 名称：修复 pdf-viewer 标注持久化（annotation persistence）
 - 问题背景：AnnotationManager 存在 Mock 模式，未连接 wsClient；且未在 PDF 加载后触发标注加载。
 - 相关模块与函数：
@@ -738,10 +738,10 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - 追加修复：删除 ws-client.js 重复 export default 导致的 Babel 错误
 - 备注：AnnotationManager.remote-save/remote-load 失败时降级处理，UI 乐观更新不受阻
 
-## 当前任务（20251008001139）
+## 历史任务（20251008001139）
 - 名称：设计新表 pdf_bookanchor（锚点：uuid -> 页码/精确位置）
 - 问题背景：
-  - 需要一个“活动书签/锚点”实体，外部只需锚点 uuid，即可解析到所属 PDF 的页码与精确位置；还需展示友好名称 name。
+  - 需要一个"活动书签/锚点"实体，外部只需锚点 uuid，即可解析到所属 PDF 的页码与精确位置；还需展示友好名称 name。
   - 项目已有层级书签表 `pdf_bookmark`（json_data 持久化 + json_extract 索引），新表需延续相同风格与事件体系，避免重复实现。
 - 相关模块与函数：
   - 数据库：
@@ -769,7 +769,7 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - json_data 建议：`name`(必填)、`description`、`is_active`、`use_count` 等
 ### 追加：修复 pdf-viewer 标题覆盖（2025-10-08）
 - 现象：通过 pdf-home 启动时，窗口标题先为元数据 title，后被替换为文件名。
-- 方案：在 `src/frontend/pdf-viewer/pyqt/main_window.py:__init__` 中引入“标题锁定”。
+- 方案：在 `src/frontend/pdf-viewer/pyqt/main_window.py:__init__` 中引入"标题锁定"。
   - 重写 `setWindowTitle` 记录 `_locked_title`；
   - 绑定 `self.web_view.titleChanged` 到 `_on_page_title_changed`，若与锁定值不一致则恢复；
   - 宿主（pdf-home）后续设置的展示名将更新锁定值，确保标题稳定。
@@ -782,3 +782,44 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
   - `URL_PARAMS.PARSED` 记录并应用；
   - `FILE.LOAD.SUCCESS` 优先使用 `#preferredTitle`，否则用 filename。
 - 验证：带 `&title=` 时 header 不再被文件名覆盖。
+
+## 历史任务（20251008033805 - 来自 worktree D）
+- 名称：修复侧边栏点击后搜索结果未按N条限制截断
+- 问题背景：
+  - 点击"最近阅读/最近添加"条目应触发空关键词搜索 + 指定排序 + 分页limit=N；
+  - 实际渲染出现18条（疑似全量），与侧边栏选择N=5不符；
+  - 初步推测：部分路径（或并发搜索）导致后端未应用limit；前端需要兜底保证只渲染前N条。
+- 相关模块与函数：
+  - 前端：
+    - src/frontend/pdf-home/features/search/services/search-manager.js（结果事件附带page信息）
+    - src/frontend/pdf-home/features/search-results/index.js（按page.limit截断显示）
+  - 后端（背景）：
+    - src/backend/msgCenter_server/standard_server.py::handle_pdf_search_request（已接入pagination，未回传page）
+    - src/backend/api/pdf_library_api.py::search_records（visited_at/created_at优化分支已具备SQL层LIMIT）
+- 执行步骤（原子化）：
+  1) 为 SearchManager 的 pending 请求缓存 pagination（limit/offset）
+  2) 在 search:results:updated 事件中附带 page 信息（若WS无page，用pending中pagination代替）
+  3) SearchResults 接收到 page.limit>0 时，对 records 执行 slice(0, limit) 再渲染
+  4) 增加测试：SearchManager请求负载与SearchResults截断逻辑
+  5) 更新本context与AI-Working-log
+— 本段UTF-8，换行\n —
+
+### 结果（2025-10-08 03:42:27）
+- 前端已对超量结果进行截断，保障显示条数与侧边栏选择一致；若后端严格应用 LIMIT，将不会影响当前逻辑。
+- 建议后续：服务器响应中回传 page(limit/offset)，当前已兼容此字段。
+— UTF-8 / \n —
+### 追加（日志分析后措施）
+- 根据 logs/pdf-home-js.log：搜索请求的 data.pagination.limit=5 已正确发送；
+- 但结果事件可能缺少 page 字段或存在竞态导致未截断渲染，已在 SearchResults 中增加"记录最近一次 limit 并兜底截断"的逻辑。
+- 预期：点击侧栏项后，无论响应是否携带 page，最终渲染条数均与 N 保持一致。
+— UTF-8 / \n —
+### UI 统计修正
+- 头部统计由"共 X 条"改为"显示 N / 共 M 条"，N=当前渲染条目数（可能受分页limit截断），M=总条数（服务端统计）。
+- 这样当仅显示5条而总计18条时，提示一致且不误导。
+— UTF-8 / \n —
+### 最近添加 组件行为修复
+- 取消标题/列表点击触发搜索，保持与"最近阅读"一致
+- 复用 SidebarPanel 渲染的下拉选择器，避免重复 select 导致的状态分裂
+- SidebarPanel 不再直接在 limit 变化时重渲染 added/opened 列表，由子功能自身渲染
+- 期望：点击"显示10个"仅侧栏显示变为10条，不触发搜索，不改变结果背景色
+— UTF-8 / \n —
