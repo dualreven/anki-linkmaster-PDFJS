@@ -469,6 +469,13 @@ emove_comment(ann_id, comment_id)。
 - 注意：duration=0 表示不自动关闭（iziToast 用 	imeout: false）。
 # 技术变更记录（SQLite 搜索+筛选）
 
+## UI 交互细则补充（2025-10-07）
+- pdf-home 侧边栏（宽度 280px）展开时不得遮挡搜索结果区域：
+  - 由 `SidebarContainer` 在交互层对 `.main-content` 施加行内样式，展开：`margin-left: 280px; width: calc(100% - 280px)`；收起：清空行内样式；
+  - 首次渲染根据当前状态立即应用，避免初始遮挡。
+  - 事件契约保持不变：仍发布 `sidebar:toggle:completed { collapsed: boolean }`。
+  - 若后续统一改回纯 CSS，请在 `style.css` 内为 `.sidebar:not(.collapsed) + .main-content` 定义等效规则，并移除行内样式逻辑。
+
 时间：2025-10-07 05:35
 
 ## 变更摘要

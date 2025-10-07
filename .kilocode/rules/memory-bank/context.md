@@ -220,6 +220,25 @@
 
 ---
 
+## 当前任务 - 侧边栏展开推开搜索结果避免遮挡（2025-10-07）
+- 描述：pdf-home 页面中，左侧侧边栏为 fixed 悬浮，展开时覆盖右侧搜索结果区域（`.main-content`）；期望点击展开按钮时将搜索结果“推开”而非遮挡。
+- 相关模块/文件：
+  - `src/frontend/pdf-home/features/sidebar/components/sidebar-container.js`（收起/展开按钮与交互）
+  - `src/frontend/pdf-home/index.html`（`.sidebar` 与 `.main-content` DOM 结构）
+  - `src/frontend/pdf-home/style.css`（侧边栏宽度 280px）
+- 方案（最小改动，遵循事件架构）：
+  - 在 SidebarContainer 内新增私有方法 `#updateMainContentLayout(collapsed)`，在展开时对 `.main-content` 设定 `margin-left: 280px; width: calc(100% - 280px)`，在收起时清空样式；
+  - 在 `render()` 完成后按当前状态应用一次，避免初始遮挡；
+  - 在点击切换时分别调用，保持布局同步；
+  - 保持既有事件 `sidebar:toggle:completed` 不变（仅用于状态广播）。
+- 原子步骤：
+  1) 设计测试：构造最小 DOM（`.sidebar` + `.main-content`），渲染 `SidebarContainer`，断言首次渲染推开；点击折叠恢复；再次展开再推开。
+  2) 编写 Jest 用例至 `features/sidebar/__tests__/sidebar-layout-push.test.js`。
+  3) 在 `sidebar-container.js` 实现私有方法并挂接到 `render()` 与点击逻辑。
+  4) 运行测试并通过（3/3）。
+  5) 更新本文件与工作日志，并通知完成。
+
+
 ## ⚠️ 前端开发核心规范（必读）
 
 ### 1️⃣ Logger 日志系统（强制使用）

@@ -58,6 +58,10 @@ export class SidebarContainer {
     // 创建收起/展开按钮
     this.#createToggleButton();
 
+    // 根据当前状态应用主内容布局（默认未折叠时应推开主内容，避免遮挡）
+    const isCollapsed = this.#container.classList.contains('collapsed');
+    this.#updateMainContentLayout(isCollapsed);
+
     this.#logger.info('[SidebarContainer] Rendered');
   }
 
@@ -90,17 +94,45 @@ export class SidebarContainer {
         toggleBtn.innerHTML = '◀';
         toggleBtn.title = '收起侧边栏';
         toggleBtn.classList.remove('collapsed');
+        // 展开：推开右侧内容，避免遮挡搜索结果
+        this.#updateMainContentLayout(false);
         this.#eventBus.emit('sidebar:toggle:completed', { collapsed: false });
       } else {
         sidebar.classList.add('collapsed');
         toggleBtn.innerHTML = '▶';
         toggleBtn.title = '展开侧边栏';
         toggleBtn.classList.add('collapsed');
+        // 收起：恢复右侧内容布局
+        this.#updateMainContentLayout(true);
         this.#eventBus.emit('sidebar:toggle:completed', { collapsed: true });
       }
     });
 
     this.#logger.info('[SidebarContainer] Toggle button created');
+  }
+
+  /**
+   * 根据侧边栏折叠状态，更新主内容区域布局，避免遮挡
+   * @param {boolean} collapsed - 是否处于折叠状态
+   * @private
+   */
+  #updateMainContentLayout(collapsed) {
+    try {
+      const main = document.querySelector('.main-content');
+      if (!main) return;
+
+      if (collapsed) {
+        // 恢复默认布局
+        main.style.marginLeft = '';
+        main.style.width = '';
+      } else {
+        // 与侧边栏宽度保持一致：280px
+        main.style.marginLeft = '280px';
+        main.style.width = 'calc(100% - 280px)';
+      }
+    } catch (_) {
+      // 忽略布局更新异常，避免影响主流程
+    }
   }
 
   /**
