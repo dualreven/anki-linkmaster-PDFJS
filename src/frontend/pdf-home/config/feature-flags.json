@@ -1,15 +1,5 @@
 {
-  "header": {
-    "enabled": false,
-    "description": "Header UI管理 - 应用标题和操作按钮（开发中）",
-    "version": "1.0.0",
-    "meta": {
-      "status": "development",
-      "owner": "pdf-home-team",
-      "dependencies": [],
-      "estimatedRelease": "2025-10-05"
-    }
-  },
+  
   "pdf-list": {
     "enabled": true,
     "description": "PDF 列表功能域",

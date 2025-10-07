@@ -368,12 +368,12 @@ export class PDFSorterFeature {
       this.#sorterPanel.toggle();
     };
 
-    const unsubSearchSort = this.#globalEventBus.on('search:sort:clicked', (payload = {}) => {
-      togglePanel(payload.source || 'search:sort:clicked');
+    const unsubSearchSort = this.#globalEventBus.on('search:sort:requested', (payload = {}) => {
+      togglePanel(payload.source || 'search:sort:requested');
     });
 
-    const unsubHeaderSort = this.#globalEventBus.on('header:sort:clicked', (payload = {}) => {
-      togglePanel(payload.source || 'header:sort:clicked');
+    const unsubHeaderSort = this.#globalEventBus.on('header:sort:requested', (payload = {}) => {
+      togglePanel(payload.source || 'header:sort:requested');
     });
 
     this.#unsubscribers.push(unsubSearchSort, unsubHeaderSort);
@@ -422,6 +422,12 @@ export class PDFSorterFeature {
       if (data.items) {
         this.#sortManager.setDataSource(data.items);
       }
+      // 数据刷新后（例如筛选/搜索结果更新），如果表格已就绪，则重应用当前排序
+      try {
+        if (this.#tabulatorAdapter?.isTableReady()) {
+          this.applySort();
+        }
+      } catch {}
     });
     this.#unsubscribers.push(unsubListLoaded);
 
@@ -430,6 +436,10 @@ export class PDFSorterFeature {
       this.#logger.info('[PDFSorterFeature] PDF table is ready');
       if (data.table) {
         this.#tabulatorAdapter.setTable(data.table);
+        // 表格就绪后立即应用当前排序（默认：title ASC）
+        try {
+          this.applySort();
+        } catch {}
       }
     });
     this.#unsubscribers.push(unsubTableReady);
@@ -452,6 +462,23 @@ export class PDFSorterFeature {
     if (this.#sortManager) {
       this.#sortManager.setMode(mode);
     }
+
+    // 当切换到“默认排序”模式（模式0）时，应用默认排序：按标题字母升序（SQL层）
+    if (mode === 0) {
+      try {
+        this.#initializeDefaultSort();
+        // 触发一次后端搜索（携带 sort 规则，交由 SQL 排序）
+        const sortRules = [{ field: 'title', direction: 'asc' }];
+        this.#globalEventBus.emit('search:query:requested', {
+          searchText: '', // 使用当前搜索词：由 SearchManager 读取内部状态
+          sort: sortRules
+        });
+        // 前端仍同步一次（以便本地表格状态一致），但核心排序由 SQL 执行
+        this.applySort();
+      } catch (e) {
+        this.#logger?.warn('[PDFSorterFeature] Failed to apply default sort on mode change', e);
+      }
+    }
   }
 
   /**
@@ -467,6 +494,18 @@ export class PDFSorterFeature {
         // 多级排序
         const sortedData = this.#sortManager.applyMultiSort(data.configs);
         this.#tabulatorAdapter.applyMultiSort(data.configs);
+        // 同步触发后端搜索（SQL层多级排序）
+        try {
+          if (Array.isArray(data.configs) && data.configs.length > 0) {
+            const sortRules = data.configs.map(c => ({
+              field: String(c.field || ''),
+              direction: String(c.direction || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc'
+            }));
+            this.#globalEventBus.emit('search:query:requested', { sort: sortRules });
+          }
+        } catch (e) {
+          this.#logger?.warn('[PDFSorterFeature] Failed to emit backend multi-sort request', e);
+        }
       } else if (data.type === 'weighted') {
         // 加权排序
         const sortedData = this.#sortManager.applyWeightedSort(data.formula);
@@ -602,16 +641,21 @@ export class PDFSorterFeature {
 
     this.#logger.info('Applying sort:', this.#currentSort);
 
-    // TODO: 实际的排序逻辑
-    // 1. 获取当前列表数据
-    // 2. 按照排序配置进行排序
-    // 3. 更新表格显示
+    try {
+      // 使用 SortManager 计算（保持内部状态一致）
+      this.#sortManager?.applyMultiSort(this.#currentSort);
 
-    // 触发全局事件（通知其他功能域）
-    this.#scopedEventBus?.emitGlobal(
-      PDFSorterFeatureConfig.config.events.global.SORT_APPLIED,
-      this.#currentSort
-    );
+      // 同步到表格（Tabulator）
+      this.#tabulatorAdapter?.applyMultiSort(this.#currentSort);
+
+      // 通知其他功能域
+      this.#scopedEventBus?.emitGlobal(
+        PDFSorterFeatureConfig.config.events.global.SORT_APPLIED,
+        this.#currentSort
+      );
+    } catch (error) {
+      this.#logger.error('[PDFSorterFeature] Failed to apply current sort', error);
+    }
   }
 
   /**

@@ -151,13 +151,13 @@ export class SearchBar {
     // 添加按钮
     this.#addBtn.addEventListener('click', () => {
       this.#logger.info('[SearchBar] Add button clicked');
-      this.#eventBus.emit('search:add:clicked');
+      this.#eventBus.emit('search:add:requested');
     });
 
     // 排序按钮
     this.#sortBtn.addEventListener('click', () => {
       this.#logger.info('[SearchBar] Sort button clicked');
-      this.#eventBus.emit('search:sort:clicked');
+      this.#eventBus.emit('search:sort:requested');
     });
 
     // 高级筛选按钮

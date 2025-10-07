@@ -205,6 +205,7 @@ class PDFLibraryAPI:
                 tokens,
                 filters,
                 search_fields=['title', 'author', 'filename', 'tags', 'notes', 'subject', 'keywords'],
+                sort_rules=sort_rules,
                 limit=None,
                 offset=None,
             )
@@ -227,19 +228,36 @@ class PDFLibraryAPI:
                 "score": match_info["score"],
             })
 
-        if not tokens and not sort_rules:
-            sort_rules = [{"field": "updated_at", "direction": "desc"}]
-        elif tokens and not sort_rules:
+        # 排序策略与服务层一致：仅当包含非SQL字段（如 match_score）时才在内存排序
+        sql_orderable_fields = {
+            'title', 'author', 'filename', 'modified_time', 'updated_at',
+            'created_time', 'created_at', 'page_count', 'file_size', 'size',
+            'rating', 'review_count', 'total_reading_time', 'last_accessed_at', 'due_date', 'star'
+        }
+
+        def needs_memory_sort(rules: List[Dict[str, Any]]) -> bool:  # type: ignore[name-defined]
+            if not rules:
+                return False
+            for r in rules:
+                f = str(r.get('field', '')).strip().lower()
+                if f == 'match_score':
+                    return True
+                if f not in sql_orderable_fields:
+                    return True
+            return False
+
+        if tokens and not sort_rules:
             sort_rules = [
                 {"field": "match_score", "direction": "desc"},
                 {"field": "updated_at", "direction": "desc"},
             ]
 
-        for rule in reversed(sort_rules):
-            field = rule.get("field", "")
-            direction = str(rule.get("direction", "asc")).lower()
-            reverse = direction == "desc"
-            matches.sort(key=lambda item: self._search_sort_value(item, field), reverse=reverse)
+        if needs_memory_sort(sort_rules):
+            for rule in reversed(sort_rules):
+                field = rule.get("field", "")
+                direction = str(rule.get("direction", "asc")).lower()
+                reverse = direction == "desc"
+                matches.sort(key=lambda item: self._search_sort_value(item, field), reverse=reverse)
 
         total = len(matches)
         if limit == 0:

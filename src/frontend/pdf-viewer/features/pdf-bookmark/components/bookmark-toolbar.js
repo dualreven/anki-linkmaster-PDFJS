@@ -268,7 +268,7 @@ export class BookmarkToolbar {
 
     // 发出排序模式切换事件
     this.#eventBus.emit(
-      'pdf-viewer:bookmark-sort:mode-changed',
+      PDF_VIEWER_EVENTS.BOOKMARK.SORT_MODE.CHANGED,
       { sortMode: this.#sortMode },
       { actorId: 'BookmarkToolbar' }
     );

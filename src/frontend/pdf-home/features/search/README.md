@@ -35,8 +35,8 @@ Search 插件（更新统计信息）
 **发出的事件（全局）**：
 - `search:query:requested` - 搜索请求（携带 searchText）
 - `search:clear:requested` - 清除搜索请求
-- `search:add:clicked` - 点击添加按钮
-- `search:sort:clicked` - 点击排序按钮
+- `search:add:requested` - 点击添加按钮
+- `search:sort:requested` - 点击排序按钮
 
 **监听的事件（全局）**：
 - `search:results:updated` - 搜索结果更新（用于更新统计）

@@ -20,7 +20,7 @@ class PDFInfoTablePlugin(TablePlugin):
 
     _UUID_PATTERN = re.compile(r"^[a-f0-9]{12}$")
     _FILENAME_PATTERN = re.compile(r"^[a-f0-9]{12}\.pdf$")
-    _ORDERABLE_COLUMNS = {"created_at", "updated_at", "title", "author"}
+    _ORDERABLE_COLUMNS = {"created_at", "updated_at", "title", "author", "filename", "page_count", "file_size"}
 
     def __init__(
         self,
@@ -390,7 +390,8 @@ class PDFInfoTablePlugin(TablePlugin):
         limit: Optional[int] = None,
         offset: Optional[int] = None
     ) -> List[Dict[str, Any]]:
-        sql = "SELECT * FROM pdf_info ORDER BY updated_at DESC"
+        # 默认以标题字母序（不区分大小写）排序
+        sql = "SELECT * FROM pdf_info ORDER BY title COLLATE NOCASE ASC"
         params: List[Any] = []
         if limit is not None:
             sql += " LIMIT ?"
@@ -780,10 +781,69 @@ class PDFInfoTablePlugin(TablePlugin):
         sql = "SELECT * FROM pdf_info"
         if where_clauses:
             sql += f" WHERE {' AND '.join(['(' + c + ')' for c in where_clauses])}"
-        # 不在此处强加排序/分页（排序可能依赖 match_score），交由上层处理
+        # 在 SQL 层应用排序：第一种模式（按标题字母升序）以及可选的其他字段
+        order_sql = self._build_order_by(sort_rules)
+        if order_sql:
+            sql += f" ORDER BY {order_sql}"
 
         rows = self._executor.execute_query(sql, tuple(params) if params else None)
         return [self._parse_row(row) for row in rows]
+
+    def _build_order_by(self, sort_rules: Optional[List[Dict[str, Any]]]) -> str:
+        """根据 sort_rules 生成安全的 ORDER BY 片段。
+
+        支持字段：title/author/filename/created_at/updated_at/page_count/file_size
+        - 文本字段使用 COLLATE NOCASE 做不区分大小写的字母序
+        - 未提供规则时，默认按 title ASC
+        """
+        if not sort_rules:
+            return "title COLLATE NOCASE ASC"
+
+        parts: List[str] = []
+        for rule in sort_rules:
+            if not isinstance(rule, dict):
+                continue
+            field = str(rule.get("field", "")).strip()
+            direction = str(rule.get("direction", "asc")).strip().lower()
+            if direction not in {"asc", "desc"}:
+                direction = "asc"
+
+            # 将允许的字段映射到安全的列/表达式
+            if field == "title":
+                parts.append(f"title COLLATE NOCASE {direction.upper()}")
+            elif field == "author":
+                parts.append(f"author COLLATE NOCASE {direction.upper()}")
+            elif field == "filename":
+                parts.append(f"json_extract(json_data, '$.filename') COLLATE NOCASE {direction.upper()}")
+            elif field in ("modified_time", "updated_at"):
+                parts.append(f"updated_at {direction.upper()}")
+            elif field in ("created_time", "created_at"):
+                parts.append(f"created_at {direction.upper()}")
+            elif field == "created_at":
+                parts.append(f"created_at {direction.upper()}")
+            elif field == "updated_at":
+                parts.append(f"updated_at {direction.upper()}")
+            elif field == "page_count":
+                parts.append(f"page_count {direction.upper()}")
+            elif field in ("file_size", "size"):
+                parts.append(f"file_size {direction.upper()}")
+            elif field == "rating":
+                parts.append(f"CAST(json_extract(json_data, '$.rating') AS INTEGER) {direction.upper()}")
+            elif field == "review_count":
+                parts.append(f"CAST(json_extract(json_data, '$.review_count') AS INTEGER) {direction.upper()}")
+            elif field == "total_reading_time":
+                parts.append(f"CAST(json_extract(json_data, '$.total_reading_time') AS INTEGER) {direction.upper()}")
+            elif field == "last_accessed_at":
+                parts.append(f"CAST(json_extract(json_data, '$.last_accessed_at') AS INTEGER) {direction.upper()}")
+            elif field == "due_date":
+                parts.append(f"CAST(json_extract(json_data, '$.due_date') AS INTEGER) {direction.upper()}")
+            elif field == "star":
+                parts.append(f"CAST(json_extract(json_data, '$.star') AS INTEGER) {direction.upper()}")
+            else:
+                # 忽略不在白名单的字段，避免注入
+                continue
+
+        return ", ".join(parts) if parts else "title COLLATE NOCASE ASC"
 
     def filter_by_tags(
         self,

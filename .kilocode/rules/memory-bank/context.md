@@ -1,4 +1,138 @@
-﻿# Memory Bank（精简版 / 权威）
+# Memory Bank（精简版 / 权威）
+
+## 当前任务（20251007170045）
+- 名称：移除 Header 功能域，启用并验证排序面板
+- 背景：旧版按钮来自 Header 渲染；现决定完全删除 Header，仅保留搜索栏工具区。
+- 已完成：
+  - 删除 Header 目录与全部文件；
+  - 移除 `pdf-home-app-v2.js` 中 Header 的导入与注册；
+  - 从 `feature-flags.json` 移除 `header` 配置块；
+  - 验证 `SearchFeature` 的“🔃 排序”按钮通过 `search:sort:requested` 触发 `PDFSorterFeature` 面板切换（监听位于 `features/pdf-sorter/index.js:371-379`）。
+- 新增修复：
+  - 由于全局事件白名单限制，`search:sort:requested` 未在白名单中导致被拦截；
+  - 已在 `src/frontend/common/event/event-constants.js` 中加入：
+    - `SEARCH_EVENTS.ACTIONS.SORT_REQUESTED = 'search:sort:requested'`
+    - `SEARCH_EVENTS.ACTIONS.ADD_REQUESTED = 'search:add:requested'`
+    - `FILTER_EVENTS.ADVANCED.OPEN = 'filter:advanced:open'`
+    - `FILTER_EVENTS.PRESET.SAVE = 'filter:preset:save'`
+    - `FILTER_EVENTS.PRESET.SAVED = 'filter:preset:saved'`
+  - 使排序/添加/筛选等按钮的全局事件不再被阻断。
+
+## 当前任务（20251007174000）
+- 名称：实现排序模式1（默认）为按标题字母升序，并作为默认排序
+- 实施：
+  - `features/pdf-sorter/feature.config.js`：`defaultSortField='title'`, `defaultSortDirection='asc'`；
+  - `features/pdf-sorter/index.js`：实现 `applySort()` 实际应用排序；在 `#handleModeChange(0)` 时重置并应用默认排序；在 `@pdf-list/table:readiness:completed` 与 `@pdf-list/data:load:completed` 钩子中调用 `applySort()`；
+- 冲突规避（Filter）：排序仅用 Tabulator `setSort`，不会改变过滤条件；数据刷新后自动重应用当前排序，避免筛选覆盖排序。
+
+## 当前任务（20251007180500）
+- 名称：修复“默认排序未生效”（Tabulator实例未注入）
+- 背景：Sorter 监听 `@pdf-list/table:readiness:completed`，但事件未携带表格实例，导致 `setTable()` 未执行。
+- 实施：
+  - `pdf-list/services/list-lifecycle-service.js` 在发出 `TABLE_READY` 时附带 `{ table: this.#tabulator }`；若失败回退为空负载。
+  - Sorter 原有监听逻辑在收到后 `setTable()` 并 `applySort()`，从而生效。
+
+## 当前任务（20251007175200）
+- 名称：为“默认排序”模式提供 Tooltip（不改文案）
+- 实施：
+  - `features/pdf-sorter/components/mode-selector.js` 默认模式标签增加 `title="默认排序：按标题字母升序；与筛选互不冲突"`；
+- 说明：
+  - 保持原 UI 文案不变，仅通过悬浮提示传达默认排序规则；
+
+## 当前任务（20251007182000）
+- 名称：将排序下沉到 SQL 层（标题字母升序），并与 Sorter 模式1 打通
+- 实施：
+  - 后端：
+    - `database/plugins/pdf_info_plugin.py`：
+      - `query_all()` 默认 `ORDER BY title COLLATE NOCASE ASC`
+      - `search_with_filters()` 添加 `ORDER BY` 构建：无 sort_rules → 默认标题升序；支持 `title/author/filename/created_at/updated_at/page_count/file_size`
+    - `api/pdf_library_api.py::search_records()` 默认排序改为 `title asc`，并保留内存二次排序一致性；
+  - 前端：
+    - `features/search/services/search-manager.js`：允许 `search:query:requested` 携带 `sort` 并下发至 WS；当未提供 searchText 时沿用当前词；
+    - `features/pdf-sorter/index.js`：模式0（默认排序）时触发一次 `search:query:requested`，携带 `sort: [{field:'title',direction:'asc'}]`；
+- 结果：
+  - 默认和模式1均由 SQL 执行“标题字母升序”排序；
+  - 与 Filter 不冲突，数据经过筛选后再按 SQL 排序返回；
+
+## 当前任务（20251007183500）
+- 名称：多级排序（后端）
+- 实施：
+  - SQLite 插件 `pdf_info_plugin.py` 新增 `_build_order_by(sort_rules)`，支持多字段与字段白名单（含同义词与 JSON 数值 CAST），`query_all/search_with_filters` 应用；
+  - API `pdf_library_api.py::search_records()` 传递 `sort_rules` 给 `search_with_filters`；
+  - DefaultSearchService 传递 `sort_rules` 并默认 `title asc`；
+  - 前端 `pdf-sorter/index.js` 在 `data.type==='multi'` 时 emit `search:query:requested` 携带 sort 数组；
+- 说明：
+  - 关键词为空或未指定排序 → 默认 `title asc`；
+  - 含“match_score”等非 SQL 字段仍在内存层保底排序；
+- 待办/后续：
+  - 若仍需标题区，将来以“纯标题”轻量组件替代 Header，不包含任何操作按钮；
+  - 如需，精简 pdf-sorter 测试中对 `header:sort:requested` 的兼容断言（可保留）。
+
+## 当前任务（20251007185247）
+- 名称：修复“搜索后结果未按多级排序”，仅在点击“应用排序”后前端排序才生效的问题；要求多级排序在 SQL 层执行。
+- 问题背景：
+  - 前端 SearchManager 在用户发起搜索时，未默认携带最近一次（或当前面板配置的）多级排序 `sort[]`；
+  - 后端 `DefaultSearchService` 与 `PDFLibraryAPI.search_records` 在 SQL 已 `ORDER BY` 的情况下，仍对返回集进行内存层二次排序，覆盖 SQL 顺序；
+  - 体感表现为：搜索出来的结果不是按多级排序；点击“应用排序”按钮（前端本地排序+携带 sort 再次请求）后才正确。
+- 涉及模块/函数：
+  - 后端：
+    - `src/backend/api/pdf-home/search/service.py::DefaultSearchService.search_records`
+    - `src/backend/api/pdf_library_api.py::search_records`
+    - `src/backend/database/plugins/pdf_info_plugin.py::search_with_filters`、`_build_order_by`
+  - 前端：
+    - `src/frontend/pdf-home/features/search/services/search-manager.js`（事件监听、WS载荷构建）
+    - `src/frontend/pdf-home/features/pdf-sorter/index.js`（应用排序时 emit `search:query:requested` 携带 sort）
+- 决策与方案：
+  1) SearchManager 持久化最近一次排序配置 `#currentSort`；当 `search:query:requested` 未显式给出 `sort` 时，自动将 `#currentSort` 注入 WS 载荷，实现“搜索默认沿用当前多级排序”。
+  2) 后端仅在存在“非SQL可排序字段”（如 `match_score`）时才在内存层进行排序；若 `sort` 全为 SQL 白名单字段，则完全信任 SQL 的 ORDER BY，不做二次排序。
+- 执行步骤：
+  1) 增加 SearchManager 对 `sort` 的记忆，并在 `#buildMessage` 缺省回填；
+  2) 后端两处 search_records 增加 `needs_memory_sort` 判定；
+  3) 保持默认：无 tokens 且无 sort → SQL 默认 `title ASC`；有 tokens 且无 sort → 内存 `match_score DESC, updated_at DESC`；
+  4) 验证“多列排序（如 rating desc, updated_at desc）”在不包含 `match_score` 时完全由 SQL 层排序；
+- 备注：
+  - 该变更不影响筛选 WHERE 行为；仅改变排序的归属层级与一致性。
+
+### 最小验证路径（人工）
+- 配置多级排序：rating 降序、updated_at 升序；
+- 在搜索框输入任意关键字触发搜索；
+- 观察结果顺序：应与 SQL ORDER BY 一致，无需再次点击“应用排序”。
+
+### 变更文件
+- 后端：
+  - src/backend/api/pdf-home/search/service.py:39, 72, 96
+  - src/backend/api/pdf_library_api.py:173, 217
+  - src/backend/database/plugins/__tests__/test_pdf_info_plugin_sorting_sql.py:1
+- 前端：
+  - src/frontend/pdf-home/features/search/services/search-manager.js:1
+
+## 当前任务（20251007162030）
+- 名称：修复 pdf-home 中 Header 排序按钮失灵（触发排序面板）
+- 问题背景：
+  - 用户反馈：pdf-home 顶部 header 的“🔃 排序”按钮无法打开排序面板。
+  - 现状排查：
+    1) HeaderFeature 存在但未实现渲染与事件绑定；
+    2) feature-flags.json 中 header 功能被禁用，导致 UI 不出现；
+    3) pdf-sorter 功能监听的事件为 `header:sort:requested` / `search:sort:requested`；
+    4) 旧测试仍使用 `*:clicked` 命名，已与三段式规范不一致。
+- 相关模块与文件：
+  - 前端：
+    - `src/frontend/pdf-home/features/header/index.js`（HeaderFeature 安装/卸载）
+    - `src/frontend/pdf-home/features/header/components/header-renderer.js`（Header 渲染与按钮事件）
+    - `src/frontend/pdf-home/config/feature-flags.json`（功能开关）
+    - `src/frontend/pdf-home/features/pdf-sorter/index.js`（监听 header/search 的 sort 请求）
+    - 测试：
+      - `src/frontend/pdf-home/features/header/__tests__/header-sort-button.test.js`
+      - `src/frontend/pdf-home/features/pdf-sorter/__tests__/sorter-panel-events.test.js`
+- 执行步骤（原子化）：
+  1) 设计测试：新增 Header 排序按钮事件测试；将 pdf-sorter 旧事件测试由 clicked→requested。
+  2) 开发实现：
+     - 实现 HeaderRenderer.render() 渲染 DOM 与按钮点击 emit 事件；
+     - 在 HeaderFeature.install() 中注入并渲染 Header；
+  3) 启用功能：开启 `feature-flags.json` 中 `header.enabled = true`；
+  4) 验证：运行单测（jest）验证事件触发及面板切换；
+  5) 更新文档：修正 search README 的事件名为 `*:requested`；
+  6) 回写本文件与 AI-Working-log，并通知完成。
 
 ## 当前任务（20251007045101）
 - 名称：修复 pdf-home 的 PDF 编辑保存链路（前后端联通 + Toast 提示）
@@ -159,46 +293,16 @@ python ai_launcher.py stop
 ```javascript
 'pdf:load:completed'          // PDF加载完成
 'bookmark:create:requested'   // 请求创建书签
-'sidebar:open:success'        // 侧边栏打开成功
+'sidebar:open:success'        
 ```
 
 **❌ 错误示例**:
 ```javascript
-'loadData'                    // ❌ 缺少冒号
-'pdf:list:data:loaded'        // ❌ 超过3段
-'pdf_list_updated'            // ❌ 使用下划线
-```
-
-**⚠️ 不符合格式会导致 EventBus 验证失败，代码无法运行！**
-
----
-
-### 4️⃣ 局部事件 vs 全局事件（严格区分）
-
-#### 🔹 局部事件（Feature内部通信）
-**使用方法**: `scopedEventBus.on()` / `scopedEventBus.emit()`
-- 自动添加命名空间 `@feature-name/`
-- 仅在同一Feature内传递
-
-```javascript
-// 发布局部事件
-scopedEventBus.emit('data:load:completed', data);
-// 实际事件名: @my-feature/data:load:completed
-```
-
-#### 🌐 全局事件（Feature间跨模块通信）
-**使用方法**: `scopedEventBus.onGlobal()` / `scopedEventBus.emitGlobal()`
-- 不添加命名空间前缀
-- 所有Feature都可以监听
-
-```javascript
-// 发布全局事件（其他Feature可监听）
-scopedEventBus.emitGlobal('pdf:bookmark:created', bookmark);
-
-// 监听全局事件（来自其他Feature）
-scopedEventBus.onGlobal('pdf:file:loaded', (data) => {
-  this.#loadBookmarks(data);
-});
+'loadData'                     // 只有1段
+'pdf:list:data:loaded'         // 超过3段
+'pdf_list_updated'            // 使用下划线
+'pdfListUpdated'              // 驼峰命名
+'pdf:loaded'                  // 只有2段
 ```
 
 ---

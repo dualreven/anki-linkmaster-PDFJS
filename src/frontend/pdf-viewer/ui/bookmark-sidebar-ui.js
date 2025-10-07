@@ -67,7 +67,7 @@ export class BookmarkSidebarUI {
 
     // 监听排序模式切换
     this.#unsubs.push(this.#eventBus.on(
-      'pdf-viewer:bookmark-sort:mode-changed',
+      PDF_VIEWER_EVENTS.BOOKMARK.SORT_MODE.CHANGED,
       (data) => this.#handleSortModeChanged(data),
       { subscriberId: 'BookmarkSidebarUI' }
     ));

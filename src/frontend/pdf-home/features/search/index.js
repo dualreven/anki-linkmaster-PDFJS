@@ -133,16 +133,16 @@ export class SearchFeature {
     this.#unsubscribers.push(unsubClear);
 
     // 添加按钮点击 -> 转发到全局
-    const unsubAdd = this.#scopedEventBus.on('search:add:clicked', () => {
-      this.#logger.info('[SearchFeature] Forwarding add click to global');
-      this.#globalEventBus.emit('search:add:clicked');
+    const unsubAdd = this.#scopedEventBus.on('search:add:requested', () => {
+      this.#logger.info('[SearchFeature] Forwarding add request to global');
+      this.#globalEventBus.emit('search:add:requested');
     });
     this.#unsubscribers.push(unsubAdd);
 
     // 排序按钮点击 -> 转发到全局
-    const unsubSort = this.#scopedEventBus.on('search:sort:clicked', () => {
-      this.#logger.info('[SearchFeature] Forwarding sort click to global');
-      this.#globalEventBus.emit('search:sort:clicked');
+    const unsubSort = this.#scopedEventBus.on('search:sort:requested', () => {
+      this.#logger.info('[SearchFeature] Forwarding sort request to global');
+      this.#globalEventBus.emit('search:sort:requested');
     });
     this.#unsubscribers.push(unsubSort);
 

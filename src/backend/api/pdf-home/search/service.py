@@ -73,6 +73,7 @@ class DefaultSearchService(SearchService):
                 tokens,
                 filters,
                 search_fields=['title', 'author', 'filename', 'tags', 'notes', 'subject', 'keywords'],
+                sort_rules=sort_rules,
                 limit=None,
                 offset=None,
             )
@@ -99,21 +100,44 @@ class DefaultSearchService(SearchService):
                 "score": match_info["score"],
             })
 
-        # default sorting
-        if not tokens and not sort_rules:
-            sort_rules = [{"field": "updated_at", "direction": "desc"}]
-        elif tokens and not sort_rules:
+        # 排序策略：
+        # - 若未提供 sort 且无关键词：依赖 SQL 默认（title ASC），不在内存排序
+        # - 若未提供 sort 且有关键词：按 match_score DESC, updated_at DESC 在内存排序
+        # - 若提供了 sort：仅当包含非 SQL 可排序字段（如 match_score）时，才在内存排序；
+        #                 否则完全信任 SQL 的 ORDER BY 顺序（不二次排序）。
+
+        # SQL 可排序字段白名单（与插件 _build_order_by 一致）
+        sql_orderable_fields = {
+            'title', 'author', 'filename', 'modified_time', 'updated_at',
+            'created_time', 'created_at', 'page_count', 'file_size', 'size',
+            'rating', 'review_count', 'total_reading_time', 'last_accessed_at', 'due_date', 'star'
+        }
+
+        def needs_memory_sort(rules: List[Dict[str, Any]]) -> bool:
+            if not rules:
+                return False
+            for r in rules:
+                f = str(r.get('field', '')).strip().lower()
+                if f == 'match_score':
+                    return True
+                if f not in sql_orderable_fields:
+                    return True
+            return False
+
+        # 为空时的默认规则
+        if tokens and not sort_rules:
             sort_rules = [
                 {"field": "match_score", "direction": "desc"},
                 {"field": "updated_at", "direction": "desc"},
             ]
 
-        for rule in reversed(sort_rules):
-            field = rule.get("field", "")
-            direction = str(rule.get("direction", "asc")).lower()
-            reverse = direction == "desc"
-            matches.sort(key=lambda item: context._search_sort_value(item, field), reverse=reverse)  # type: ignore[attr-defined]
-
+        if needs_memory_sort(sort_rules):
+            for rule in reversed(sort_rules):
+                field = rule.get("field", "")
+                direction = str(rule.get("direction", "asc")).lower()
+                reverse = direction == "desc"
+                matches.sort(key=lambda item: context._search_sort_value(item, field), reverse=reverse)  # type: ignore[attr-defined]
+        
         total = len(matches)
         if limit == 0:
             paginated = matches[offset:]

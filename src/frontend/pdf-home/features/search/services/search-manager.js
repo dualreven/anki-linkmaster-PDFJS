@@ -19,6 +19,7 @@ export class SearchManager {
   #unsubs = [];
   #pendingRequests = new Map();  // 存储待处理的请求
   #currentFilters = null;        // 当前激活的筛选条件（由 FilterFeature 管理）
+  #currentSort = null;           // 最近一次应用的排序规则（由 Sorter 触发或搜索显式携带）
   // 仅保留 v1 协议
 
   /**
@@ -42,7 +43,21 @@ export class SearchManager {
     // 监听搜索请求
     const unsubSearch = this.#eventBus.on('search:query:requested', (data) => {
       const filters = data && typeof data === 'object' ? data.filters : undefined;
-      this.#handleSearch(data.searchText, filters);
+      const sort = data && typeof data === 'object' ? data.sort : undefined;
+      try {
+        // 记忆最近一次显式传入的排序规则（为空数组视为清除）
+        if (typeof sort !== 'undefined') {
+          if (Array.isArray(sort) && sort.length > 0) {
+            this.#currentSort = sort.map(r => ({
+              field: String(r.field || ''),
+              direction: String(r.direction || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc'
+            }));
+          } else {
+            this.#currentSort = null;
+          }
+        }
+      } catch {}
+      this.#handleSearch(data.searchText, filters, sort);
     }, { subscriberId: 'SearchManager' });
     this.#unsubs.push(unsubSearch);
 
@@ -135,7 +150,7 @@ export class SearchManager {
    * @private
    * @param {string} searchText - 搜索文本
    */
-  #handleSearch(searchText, filters) {
+  #handleSearch(searchText, filters, sort) {
     // 防止重复搜索
     if (this.#isSearching) {
       this.#logger.warn('[SearchManager] Search already in progress, ignoring new request');
@@ -143,18 +158,19 @@ export class SearchManager {
     }
 
     this.#isSearching = true;
-    this.#currentSearchText = searchText;
+    const effectiveText = (typeof searchText === 'string') ? searchText : (this.#currentSearchText || '');
+    this.#currentSearchText = effectiveText;
 
     try {
-      this.#logger.info('[SearchManager] Starting search', { searchText });
+      this.#logger.info('[SearchManager] Starting search', { searchText: effectiveText });
 
       // 发布搜索开始事件
       this.#eventBus.emit('search:query:started', {
-        searchText: searchText
+        searchText: effectiveText
       });
 
       // 仅发送 v1 协议
-      this.#sendSearchRequest(searchText, filters);
+      this.#sendSearchRequest(effectiveText, filters, sort);
 
     } catch (error) {
       this.#logger.error('[SearchManager] Search failed', error);
@@ -163,7 +179,7 @@ export class SearchManager {
       // 发布搜索失败事件
       this.#eventBus.emit('search:results:failed', {
         error: error.message || '搜索请求失败',
-        searchText: searchText
+        searchText: effectiveText
       });
     }
   }
@@ -172,7 +188,7 @@ export class SearchManager {
    * 发送具体模式的搜索请求，并设置超时与pending跟踪
    * @private
    */
-  #sendSearchRequest(searchText, filters) {
+  #sendSearchRequest(searchText, filters, sort) {
     // 生成唯一请求ID
     const requestId = `search_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -184,7 +200,7 @@ export class SearchManager {
     });
 
     // 构建消息
-    const message = this.#buildMessage(searchText, requestId, filters);
+    const message = this.#buildMessage(searchText, requestId, filters, sort);
     this.#logger.info('[SearchManager] Sending search request', { type: message.type, request_id: requestId });
 
     // 发送
@@ -209,7 +225,7 @@ export class SearchManager {
    * 构建不同协议的消息
    * @private
    */
-  #buildMessage(searchText, requestId, filters) {
+  #buildMessage(searchText, requestId, filters, sort) {
     // 标准协议：载荷放入 data，包含 query 与 tokens（按空格切分，AND 语义）
     const tokens = (searchText || '')
       .split(/\s+/)
@@ -227,6 +243,16 @@ export class SearchManager {
     const effectiveFilters = (typeof filters !== 'undefined') ? filters : this.#currentFilters;
     if (effectiveFilters && typeof effectiveFilters === 'object') {
       payload.data.filters = effectiveFilters;
+    }
+    // 传递排序规则：优先使用调用方提供；否则回退到最近一次排序（#currentSort）
+    const normalize = (rules) => rules.map(rule => ({
+      field: String(rule.field || ''),
+      direction: String(rule.direction || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc'
+    }));
+    if (Array.isArray(sort) && sort.length > 0) {
+      payload.data.sort = normalize(sort);
+    } else if (Array.isArray(this.#currentSort) && this.#currentSort.length > 0) {
+      payload.data.sort = normalize(this.#currentSort);
     }
     return payload;
   }

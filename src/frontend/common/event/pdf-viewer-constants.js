@@ -751,6 +751,21 @@ export const PDF_VIEWER_EVENTS = {
        */
       CHANGED: 'pdf-viewer:bookmark-select:changed',
     },
+
+    /**
+     * 书签排序模式事件
+     * @namespace SORT_MODE
+     */
+    SORT_MODE: {
+      /**
+       * 排序模式改变
+       * @event pdf-viewer:bookmark:sortmode:changed
+       * @type {string}
+       * @payload {Object} data
+       * @payload {boolean} data.sortMode - 排序模式状态（true: 启用, false: 禁用）
+       */
+      CHANGED: 'pdf-viewer:bookmark-sortmode:changed',
+    },
   },
   
   /**
