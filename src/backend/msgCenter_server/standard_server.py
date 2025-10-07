@@ -433,27 +433,51 @@ class StandardWebSocketServer(QObject):
             failed = {}
             for fid in file_ids:
                 ok = False
+                reasons = []
+
+                # 1) 数据库记录删除
                 db_ok = False
-                fs_ok = False
-                # 优先删除数据库记录
                 if hasattr(self, "pdf_library_api") and self.pdf_library_api:
                     try:
                         db_ok = bool(self.pdf_library_api.delete_record(fid))
+                        if not db_ok:
+                            reasons.append("数据库记录不存在或删除失败")
                     except Exception as exc:
                         db_ok = False
+                        reasons.append(f"DB: {exc}")
                         logger.warning("删除记录失败: %s", exc)
-                # 同步尝试删除运行内存/文件管理器中的记录（最佳努力），避免残留导致后续重复添加受阻
+
+                # 2) 运行内存/文件管理器文件删除（最佳努力）
+                fs_ok = False
                 if hasattr(self, "pdf_manager") and self.pdf_manager:
                     try:
                         fs_ok = bool(self.pdf_manager.remove_file(fid))
+                        if not fs_ok:
+                            try:
+                                # 尝试判断是否为不存在的文件ID
+                                exists = False
+                                try:
+                                    exists = bool(self.pdf_manager.file_list.exists(fid))  # type: ignore[attr-defined]
+                                except Exception:
+                                    exists = False
+                                if not exists:
+                                    reasons.append("文件不存在")
+                                else:
+                                    reasons.append("文件删除失败")
+                            except Exception:
+                                reasons.append("文件删除失败")
                     except Exception as exc:
                         fs_ok = False
+                        reasons.append(f"FS: {exc}")
                         logger.warning("删除文件失败: %s", exc)
+
                 ok = bool(db_ok or fs_ok)
                 if ok:
                     removed.append(fid)
                 else:
-                    failed[str(fid)] = "删除失败"
+                    # 合并原因并去重
+                    reason_text = "; ".join([str(r) for r in reasons if r]) or "删除失败"
+                    failed[str(fid)] = reason_text
             return PDFMessageBuilder.build_batch_pdf_remove_response(
                 request_id or StandardMessageHandler.generate_request_id(),
                 removed,

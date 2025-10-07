@@ -31,6 +31,9 @@ import 'tabulator-tables';
  * @implements {IFeature}
  */
 export class PDFListFeature {
+  // 删除流程的 pending 记录（一次仅允许一个批量删除在途）
+  #pendingDeleteRid = null;
+  #pendingDeleteCount = 0;
   /**
    * 功能上下文（在 install 时注入）
    * @type {import('../../../common/micro-service/feature-registry.js').FeatureContext|null}
@@ -867,7 +870,12 @@ export class PDFListFeature {
       }
 
       // 处理批量删除响应（标准协议）
-      
+      if (typeof data?.type === 'string' && data.type === WEBSOCKET_MESSAGE_TYPES.REMOVE_PDF_COMPLETED) {
+        const removedIds = Array.isArray(data?.data?.removed_files) ? data.data.removed_files : [];
+        const failedMap = (data?.data && typeof data.data.failed_files === 'object') ? (data.data.failed_files || {}) : {};
+        const failedCount = Object.keys(failedMap).length;
+        const rid = data?.request_id;
+
         // 若先前记录了失败，且现在收到成功，则清理失败pending，优先以成功为准
         if (this.#pendingDeleteError && this.#pendingDeleteError.rid === rid) {
           this.#pendingDeleteError = null;
@@ -904,7 +912,15 @@ export class PDFListFeature {
       }
 
       // 兼容：pdfTable_server 批量删除响应（type='batch_pdf_removed'，data.removed 为对象数组，data.failed 为数组）
-      
+      if (typeof data?.type === 'string' && data.type === 'batch_pdf_removed') {
+        const removedArr = Array.isArray(data?.data?.removed) ? data.data.removed : [];
+        const removedIds = removedArr.map(r => r?.id || r).filter(Boolean);
+        const failedArr = Array.isArray(data?.data?.failed) ? data.data.failed : [];
+        const failedMap = {};
+        failedArr.forEach((f, idx) => { failedMap[String(f?.id || f || idx)] = '删除失败'; });
+        const failedCount = Object.keys(failedMap).length;
+        const rid = data?.request_id;
+
         if (this.#pendingDeleteError && this.#pendingDeleteError.rid === rid) {
           this.#pendingDeleteError = null;
           try { if (this.#pendingDeleteErrorTimer) clearTimeout(this.#pendingDeleteErrorTimer); } catch (_) {}
@@ -928,7 +944,11 @@ export class PDFListFeature {
       }
 
       // 兼容：pdfTable_server 单文件删除响应（type='pdf_removed'，data.removed=true，data.file.id）
-      
+      if (typeof data?.type === 'string' && data.type === 'pdf_removed') {
+        const removedOne = data?.data?.removed === true;
+        const fileId = data?.data?.file?.id;
+        const rid = data?.request_id;
+        if (this.#pendingDeleteRid && rid && rid === this.#pendingDeleteRid) { try { toastDismiss(this.#pendingDeleteRid); } catch (_) {} this.#pendingDeleteRid = null; }
         if (this.#pendingDeleteError && this.#pendingDeleteError.rid === rid) {
           this.#pendingDeleteError = null;
           try { if (this.#pendingDeleteErrorTimer) clearTimeout(this.#pendingDeleteErrorTimer); } catch (_) {}
@@ -1263,5 +1283,7 @@ export function createPDFListFeature() {
 }
 
 export default PDFListFeature;
+
+
 
 
