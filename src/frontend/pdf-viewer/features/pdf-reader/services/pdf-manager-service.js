@@ -49,8 +49,8 @@ export class PDFManager {
 
       // 动态导入PDF.js库（仅在未注入时）
       if (!this.#pdfjsLib) {
-        this.#logger.info("Loading PDF.js library...");
-        this.#pdfjsLib = await import('pdfjs-dist/build/pdf');
+        this.#logger.info("Loading PDF.js library (ESM)...");
+        this.#pdfjsLib = await import('pdfjs-dist');
       }
 
       // 记录PDF.js版本信息

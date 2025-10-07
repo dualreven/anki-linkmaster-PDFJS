@@ -9,6 +9,7 @@ import { LayoutEngine } from './layout-engine.js';
 import { validateSidebarConfig } from './sidebar-config.js';
 import { registerRealSidebars, createRealSidebarButtons } from './real-sidebars.js';
 import { PDFLayoutAdapter } from './pdf-layout-adapter.js';
+import { PDF_VIEWER_EVENTS } from '../../../common/event/pdf-viewer-constants.js';
 const logger = getLogger('SidebarManager');
 
 
@@ -167,8 +168,8 @@ export class SidebarManagerFeature {
         // 重新计算布局
         this.#recalculateLayout();
 
-        // 触发事件
-        this.#eventBus.emit('sidebar:open:completed', {
+        // 触发事件（与事件常量保持一致）
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPENED_COMPLETED, {
             sidebarId,
             order: this.#openOrder.length
         }, { actorId: 'SidebarManager' });
@@ -292,11 +293,11 @@ export class SidebarManagerFeature {
         const containerWidth = this.#containerElement.offsetWidth || 1200; // 默认宽度
 
         if (this.#openOrder.length === 0) {
-            // 没有侧边栏时，通知PDF容器恢复全宽
-            this.#eventBus.emit('sidebar:layout:changed', {
-                totalWidth: 0
-            }, { actorId: 'SidebarManager' });
-            return;
+        // 没有侧边栏时，通知PDF容器恢复全宽
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.LAYOUT_UPDATED, {
+            totalWidth: 0
+        }, { actorId: 'SidebarManager' });
+        return;
         }
 
         const layouts = this.#layoutEngine.calculateLayoutWithCustomWidths(
@@ -311,12 +312,13 @@ export class SidebarManagerFeature {
         const totalWidth = layouts.reduce((sum, layout) => sum + layout.width, 0);
 
         // 通知PDF容器调整布局
-        this.#eventBus.emit('sidebar:layout:changed', {
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.LAYOUT_UPDATED, {
             totalWidth,
             layouts
         }, { actorId: 'SidebarManager' });
 
-        this.#eventBus.emit('sidebar:update:completed', { layouts }, { actorId: 'SidebarManager' });
+        // 可选：布局更新完成（复用同一事件常量，订阅者根据数据结构区分即可）
+        // this.#eventBus.emit(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.LAYOUT_UPDATED, { layouts }, { actorId: 'SidebarManager' });
 
         logger.debug('Layout recalculated', {
             openCount: this.#openOrder.length,

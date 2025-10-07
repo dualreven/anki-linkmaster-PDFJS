@@ -1,37 +1,19 @@
-// Babel configuration file
-
 export default {
+  // 重要：保持模块为 ESM，避免在浏览器中生成 require()
   presets: [
     [
       '@babel/preset-env',
       {
-        targets: {
-          browsers: '> 0.25%, not dead'
-        },
-        useBuiltIns: false,
-        corejs: 3,
-        debug: false,
-        modules: false // 改为 'auto' 以便在测试环境中自动处理模块
+        modules: false,            // 不把 ESM 转成 CommonJS
+        targets: { esmodules: true } // 针对支持 ES Modules 的浏览器
       }
     ]
   ],
   plugins: [
-    // 启用类字段、私有方法等新语法
-    '@babel/plugin-transform-private-methods',
-    '@babel/plugin-transform-class-properties',
-    
-    // 启用动态 import 语法支持 (解决Vite启动时的报错)
-    '@babel/plugin-syntax-dynamic-import',
-    
-    // 启用可选链和空值合并运算符（使用兼容的Transform版本）
-    '@babel/plugin-transform-optional-chaining',
-    '@babel/plugin-transform-nullish-coalescing-operator'
-  ],
-  env: {
-    test: {
-      plugins: [
-        '@babel/plugin-transform-modules-commonjs'
-      ]
-    }
-  }
+    '@babel/plugin-syntax-import-meta',
+    ['@babel/plugin-transform-optional-chaining'],
+    ['@babel/plugin-transform-nullish-coalescing-operator'],
+    ['@babel/plugin-transform-private-methods', { loose: true }],
+    ['@babel/plugin-transform-class-properties', { loose: true }]
+  ]
 };

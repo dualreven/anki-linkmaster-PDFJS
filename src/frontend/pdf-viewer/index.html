@@ -6,6 +6,28 @@
     <title>PDF阅读器 - Anki LinkMaster</title>
     <link rel="stylesheet" href="assets/style.css">
     <link rel="stylesheet" href="features/sidebar-manager/styles/sidebar-layout.css">
+    <script>
+      // 全局错误钩子：用于定位早期脚本错误（如 require 未定义）
+      // 仅用于诊断，不依赖任何模块
+      window.addEventListener('error', function (e) {
+        try {
+          const loc = (e && (e.filename + ':' + e.lineno + ':' + e.colno)) || 'unknown';
+          console.error('[GlobalError]', e && e.message, 'at', loc);
+          if (e && e.error && e.error.stack) {
+            console.error('[GlobalErrorStack]', e.error.stack);
+          }
+        } catch (_) {}
+      });
+      window.addEventListener('unhandledrejection', function (e) {
+        try {
+          const msg = (e && e.reason && (e.reason.message || e.reason)) || 'unknown rejection';
+          console.error('[UnhandledRejection]', msg);
+          if (e && e.reason && e.reason.stack) {
+            console.error('[UnhandledRejectionStack]', e.reason.stack);
+          }
+        } catch (_) {}
+      });
+    </script>
     <!-- PDF.js CSS is loaded via JavaScript import in main.js (line 8) -->
 </head>
 <body>

@@ -5,6 +5,7 @@
  */
 
 import { getLogger } from '../../../common/utils/logger.js';
+import { PDF_VIEWER_EVENTS } from '../../../common/event/pdf-viewer-constants.js';
 const logger = getLogger('PDFLayoutAdapter');
 
 
@@ -34,10 +35,15 @@ export class PDFLayoutAdapter {
             return;
         }
 
-        // 监听侧边栏布局变化事件
-        this.#eventBus.on('sidebar:layout:changed', ({ totalWidth }) => {
+        // 监听侧边栏布局变化事件（使用常量，保持与白名单一致）
+        this.#eventBus.on(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.LAYOUT_UPDATED, ({ totalWidth }) => {
             this.#updatePDFLayout(totalWidth);
         }, { subscriberId: 'PDFLayoutAdapter' });
+
+        // 兼容旧事件名（历史代码可能仍发送 changed）
+        this.#eventBus.on('sidebar:layout:changed', ({ totalWidth }) => {
+            this.#updatePDFLayout(totalWidth);
+        }, { subscriberId: 'PDFLayoutAdapter-legacy' });
 
         logger.info('PDFLayoutAdapter initialized');
     }

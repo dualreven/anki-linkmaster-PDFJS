@@ -392,3 +392,42 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - **EventBus 使用**: `src/frontend/common/event/EVENTBUS-USAGE-GUIDE.md`
 - **技术变更**: `.kilocode/rules/memory-bank/tech.md`
 - **架构变更**: `.kilocode/rules/memory-bank/architecture.md`
+
+## 当前任务（20251007194500）
+- 名称：修复 pdf-viewer 侧边栏打开时未推动 PDF 渲染区的问题（避免遮挡）
+- 问题背景：
+  - 事件白名单与实现不一致：侧边栏管理器发布 `sidebar:layout:changed`，但白名单与常量仅允许 `sidebar:layout:updated`；
+  - 事件总线对未注册的全局事件会阻断发布/订阅；
+  - `PDFLayoutAdapter` 订阅的也是旧事件名，导致无法接收布局变化，从而 `#viewerContainer` 未右移。
+- 相关模块与函数：
+  - `src/frontend/pdf-viewer/features/sidebar-manager/index.js`（发布布局事件与容器创建）
+  - `src/frontend/pdf-viewer/features/sidebar-manager/pdf-layout-adapter.js`（订阅布局事件并设置 `.pdf-container.style.left`）
+  - `src/frontend/common/event/pdf-viewer-constants.js`（`SIDEBAR_MANAGER.LAYOUT_UPDATED` 常量）
+  - `src/frontend/common/event/event-bus.js`（全局事件白名单与验证）
+- 执行步骤（原子化）：
+  1) 设计测试：触发 `SIDEBAR_MANAGER.LAYOUT_UPDATED` 后 `#viewerContainer.style.left === totalWidth + 'px'`
+  2) 添加单测 `__tests__/pdf-layout-adapter.test.js`，覆盖移动与复位两种场景
+  3) 修复代码：
+     - 订阅与发布统一使用 `PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.LAYOUT_UPDATED`
+     - `open:completed` 事件名更正为 `opened:completed`（与常量一致）
+     - 兼容历史 `sidebar:layout:changed`（保留订阅，便于平滑过渡）
+  4) 运行 Jest 测试；如失败则回滚并修正
+  5) 更新本文件与工作日志，并通知完成
+
+## 当前任务（20251007213000）
+- 名称：启动 pdf-viewer（a7a8bbd39787）出现空白页的调查与修复
+- 现象与日志：
+  - JS 日志出现两次 `Uncaught ReferenceError: require is not defined`；Vite 已连接；随后窗口退出。
+  - Launcher 传入 URL 正常，含 `file=.../data/pdfs/a7a8bbd39787.pdf`，后端端口解析正常。
+- 根因：
+  - 前端多处使用 `pdfjs-dist/build/pdf`（UMD/CJS 包）在 QtWebEngine 环境下会触发 `require is not defined`；
+  - 应使用 ESM 入口 `pdfjs-dist` 并将 worker 指向 `@pdfjs/build/pdf.worker.min.mjs`；
+- 相关模块：
+  - `src/frontend/pdf-viewer/pdf/pdf-manager-refactored.js`
+  - `src/frontend/pdf-viewer/features/pdf-reader/services/pdf-manager-service.js`
+  - `src/frontend/pdf-viewer/features/ui-manager/components/pdf-viewer-manager.js`
+- 执行步骤：
+  1) 统一改为 ESM 入口 `pdfjs-dist`；
+  2) 保持 workerSrc 指向 `@pdfjs/build/pdf.worker.min.mjs`（mjs 版）
+  3) 启动验证：确保日志不再出现 `require is not defined`，并能看到 PDF.js 初始化成功日志；
+  4) 更新本文件与工作日志，并通知完成。

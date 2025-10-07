@@ -5,7 +5,7 @@
  */
 
 import { getLogger } from "../../../../common/utils/logger.js";
-import * as pdfjsLib from 'pdfjs-dist/build/pdf';
+import * as pdfjsLib from 'pdfjs-dist';
 
 // PDF.js Viewer组件需要全局pdfjsLib
 if (typeof globalThis !== 'undefined') {
