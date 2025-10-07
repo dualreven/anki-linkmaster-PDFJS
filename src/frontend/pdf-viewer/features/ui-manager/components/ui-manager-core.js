@@ -146,8 +146,10 @@ export class UIManagerCore {
         this.#stateManager.updateLoadingState(false, true);
         this.#domManager.setLoadingState(false);
 
-        // 更新 header 标题为书名（文件名）
-        if (filename) {
+        // 更新 header 标题：优先 URL/外部传入（#preferredTitle），否则回退到文件名
+        if (this.#preferredTitle && String(this.#preferredTitle).trim()) {
+          this.#updateHeaderTitle(String(this.#preferredTitle).trim());
+        } else if (filename) {
           this.#updateHeaderTitle(filename);
           // 若尚未获取到 pdfId，则从 filename 回填（移除 .pdf 扩展名）
           if (!this.#currentPdfId) {
@@ -204,9 +206,10 @@ export class UIManagerCore {
         } else {
           this.#logger.warn('[UIManagerCore] URL_PARAMS.PARSED event has no pdfId');
         }
-        // 若 URL 中包含 title，则优先更新 header 标题
+        // 若 URL 中包含 title，则优先更新 header 标题并记录首选标题，避免后续被文件名覆盖
         if (data?.title && String(data.title).trim()) {
-          this.#updateHeaderTitle(String(data.title).trim());
+          this.#preferredTitle = String(data.title).trim();
+          this.#updateHeaderTitle(this.#preferredTitle);
         }
       },
       { subscriberId: 'UIManagerCore' }
