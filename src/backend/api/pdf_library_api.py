@@ -253,11 +253,94 @@ class PDFLibraryAPI:
             ]
 
         if needs_memory_sort(sort_rules):
+            import ast
+            def _safe_eval_weighted(item, formula: str) -> float:
+                try:
+                    row = item.get("row", {}) or {}
+                    rec = item.get("record", {}) or {}
+                    def _val(name: str):
+                        name = str(name)
+                        if name == 'size': name = 'file_size'
+                        if name == 'modified_time': name = 'updated_at'
+                        if name == 'created_time': name = 'created_at'
+                        return row.get(name, rec.get(name))
+                    tags = row.get('tags') or rec.get('tags') or []
+                    def ifnull(x, y): return y if x is None else x
+                    def clamp(x, lo, hi):
+                        try: return max(min(float(x), float(hi)), float(lo))
+                        except Exception: return x
+                    def normalize(x, lo, hi):
+                        try:
+                            x, lo, hi = float(x), float(lo), float(hi)
+                            return (x - lo) / (hi - lo) if hi > lo else 0.0
+                        except Exception: return 0.0
+                    def length(x):
+                        try: return len(str(x) if x is not None else '')
+                        except Exception: return 0
+                    def tags_length():
+                        try: return len(tags if isinstance(tags, list) else [])
+                        except Exception: return 0
+                    def tags_has(tag):
+                        try: return 1 if tag in (tags or []) else 0
+                        except Exception: return 0
+                    def tags_has_any(*args):
+                        try: return 1 if any(t in (tags or []) for t in args) else 0
+                        except Exception: return 0
+                    def tags_has_all(*args):
+                        try: return 1 if all(t in (tags or []) for t in args) else 0
+                        except Exception: return 0
+                    allowed_funcs = {
+                        'abs': abs, 'round': round, 'min': min, 'max': max,
+                        'ifnull': ifnull, 'clamp': clamp, 'normalize': normalize,
+                        'length': length, 'tags_length': tags_length,
+                        'tags_has': tags_has, 'tags_has_any': tags_has_any, 'tags_has_all': tags_has_all,
+                    }
+                    allowed_names = {
+                        'updated_at','created_at','page_count','file_size','size',
+                        'rating','review_count','total_reading_time','last_accessed_at','due_date','star',
+                        'title','author','filename','modified_time','created_time'
+                    }
+                    node = ast.parse(formula, mode='eval')
+                    def _eval(n):
+                        if isinstance(n, ast.Expression):
+                            return _eval(n.body)
+                        if isinstance(n, ast.Num): return n.n
+                        if isinstance(n, ast.Constant): return n.value
+                        if isinstance(n, ast.BinOp) and isinstance(n.op, (ast.Add, ast.Sub, ast.Mult, ast.Div)):
+                            l = _eval(n.left); r = _eval(n.right)
+                            try:
+                                if isinstance(n.op, ast.Add): return (l or 0) + (r or 0)
+                                if isinstance(n.op, ast.Sub): return (l or 0) - (r or 0)
+                                if isinstance(n.op, ast.Mult): return (l or 0) * (r or 0)
+                                if isinstance(n.op, ast.Div): return float(l or 0) / float(r or 1)
+                            except Exception: return 0.0
+                        if isinstance(n, ast.UnaryOp) and isinstance(n.op, (ast.UAdd, ast.USub)):
+                            v = _eval(n.operand); return +v if isinstance(n.op, ast.UAdd) else -v
+                        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name):
+                            fname = n.func.id
+                            if fname not in allowed_funcs: raise ValueError('bad func')
+                            args = [_eval(a) for a in n.args]
+                            return allowed_funcs[fname](*args)
+                        if isinstance(n, ast.Name):
+                            ident = n.id
+                            if ident not in allowed_names: raise ValueError('bad ident')
+                            return _val(ident)
+                        raise ValueError('bad expr')
+                    v = _eval(node)
+                    try: return float(v)
+                    except Exception: return 0.0
+                except Exception:
+                    return 0.0
+
             for rule in reversed(sort_rules):
                 field = rule.get("field", "")
                 direction = str(rule.get("direction", "asc")).lower()
                 reverse = direction == "desc"
-                matches.sort(key=lambda item: self._search_sort_value(item, field), reverse=reverse)
+                if field == 'weighted':
+                    formula = str(rule.get('formula', '') or '')
+                    matches.sort(key=lambda item: _safe_eval_weighted(item, formula), reverse=reverse)
+                else:
+                    matches.sort(key=lambda item: self._search_sort_value(item, field), reverse=reverse)
 
         total = len(matches)
         if limit == 0:

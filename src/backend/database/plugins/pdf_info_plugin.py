@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 import time
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING, Tuple
 
 from ..exceptions import DatabaseValidationError
 from ..plugin.base_table_plugin import TablePlugin
@@ -781,25 +781,28 @@ class PDFInfoTablePlugin(TablePlugin):
         sql = "SELECT * FROM pdf_info"
         if where_clauses:
             sql += f" WHERE {' AND '.join(['(' + c + ')' for c in where_clauses])}"
-        # 在 SQL 层应用排序：第一种模式（按标题字母升序）以及可选的其他字段
-        order_sql = self._build_order_by(sort_rules)
+        # 在 SQL 层应用排序：包括 weighted 公式与多字段
+        order_sql, order_params = self._build_order_by(sort_rules)
         if order_sql:
             sql += f" ORDER BY {order_sql}"
+        if order_params:
+            params.extend(order_params)
 
         rows = self._executor.execute_query(sql, tuple(params) if params else None)
         return [self._parse_row(row) for row in rows]
 
-    def _build_order_by(self, sort_rules: Optional[List[Dict[str, Any]]]) -> str:
-        """根据 sort_rules 生成安全的 ORDER BY 片段。
+    def _build_order_by(self, sort_rules: Optional[List[Dict[str, Any]]]) -> Tuple[str, List[Any]]:
+        """根据 sort_rules 生成安全的 ORDER BY 片段（含参数）。
 
-        支持字段：title/author/filename/created_at/updated_at/page_count/file_size/tags
-        - 文本字段使用 COLLATE NOCASE 做不区分大小写的字母序
-        - 未提供规则时，默认按 title ASC
+        支持字段：title/author/filename/created_at/updated_at/page_count/file_size 等
+        以及 weighted(formula) 公式（使用 SQL 内置表达式和 JSON1）。
+        未提供规则时，默认按 title ASC。
         """
         if not sort_rules:
-            return "title COLLATE NOCASE ASC"
+            return "title COLLATE NOCASE ASC", []
 
         parts: List[str] = []
+        order_params: List[Any] = []
         for rule in sort_rules:
             if not isinstance(rule, dict):
                 continue
@@ -807,6 +810,15 @@ class PDFInfoTablePlugin(TablePlugin):
             direction = str(rule.get("direction", "asc")).strip().lower()
             if direction not in {"asc", "desc"}:
                 direction = "asc"
+
+            if field == "weighted":
+                formula = str(rule.get("formula", "")).strip()
+                if not formula:
+                    continue
+                expr_sql, expr_params = self._compile_weighted_expr(formula)
+                parts.append(f"({expr_sql}) {direction.upper()}")
+                order_params.extend(expr_params)
+                continue
 
             # 将允许的字段映射到安全的列/表达式
             if field == "title":
@@ -819,10 +831,6 @@ class PDFInfoTablePlugin(TablePlugin):
                 parts.append(f"updated_at {direction.upper()}")
             elif field in ("created_time", "created_at"):
                 parts.append(f"created_at {direction.upper()}")
-            elif field == "created_at":
-                parts.append(f"created_at {direction.upper()}")
-            elif field == "updated_at":
-                parts.append(f"updated_at {direction.upper()}")
             elif field == "page_count":
                 parts.append(f"page_count {direction.upper()}")
             elif field in ("file_size", "size"):
@@ -839,13 +847,222 @@ class PDFInfoTablePlugin(TablePlugin):
                 parts.append(f"CAST(json_extract(json_data, '$.due_date') AS INTEGER) {direction.upper()}")
             elif field == "star":
                 parts.append(f"CAST(json_extract(json_data, '$.star') AS INTEGER) {direction.upper()}")
-            elif field == "tags":
-                parts.append(f"IFNULL(json_array_length(json_extract(json_data, '$.tags')), 0) {direction.upper()}")
             else:
-                # 忽略不在白名单的字段，避免注入
                 continue
 
-        return ", ".join(parts) if parts else "title COLLATE NOCASE ASC"
+        if not parts:
+            return "title COLLATE NOCASE ASC", []
+        return ", ".join(parts), order_params
+
+    def _compile_weighted_expr(self, formula: str) -> Tuple[str, List[Any]]:
+        # 见设计：解析受限函数与字段，生成 SQL + 参数
+        expr = formula
+        params: List[Any] = []
+
+        def is_ident(ch: str) -> bool:
+            return ch.isalnum() or ch == '_'
+
+        def split_args(s: str) -> List[str]:
+            out: List[str] = []
+            buf = ''
+            depth = 0
+            in_str = False
+            i = 0
+            while i < len(s):
+                ch = s[i]
+                if in_str:
+                    buf += ch
+                    if ch == "'":
+                        in_str = False
+                    i += 1
+                    continue
+                if ch == "'":
+                    in_str = True
+                    buf += ch
+                    i += 1
+                    continue
+                if ch == '(':
+                    depth += 1
+                    buf += ch
+                    i += 1
+                    continue
+                if ch == ')':
+                    depth -= 1
+                    buf += ch
+                    i += 1
+                    continue
+                if ch == ',' and depth == 0:
+                    out.append(buf.strip())
+                    buf = ''
+                    i += 1
+                    continue
+                buf += ch
+                i += 1
+            if buf.strip():
+                out.append(buf.strip())
+            return out
+
+        def ident_sql(name: str) -> str:
+            n = name.strip()
+            mapping = {
+                'updated_at': 'updated_at',
+                'modified_time': 'updated_at',
+                'created_at': 'created_at',
+                'created_time': 'created_at',
+                'page_count': 'page_count',
+                'file_size': 'file_size',
+                'size': 'file_size',
+                'rating': "CAST(json_extract(json_data, '$.rating') AS INTEGER)",
+                'review_count': "CAST(json_extract(json_data, '$.review_count') AS INTEGER)",
+                'total_reading_time': "CAST(json_extract(json_data, '$.total_reading_time') AS INTEGER)",
+                'last_accessed_at': "CAST(json_extract(json_data, '$.last_accessed_at') AS INTEGER)",
+                'due_date': "CAST(json_extract(json_data, '$.due_date') AS INTEGER)",
+                'star': "CAST(json_extract(json_data, '$.star') AS INTEGER)",
+                'title': 'title',
+                'author': 'author',
+                'filename': "json_extract(json_data, '$.filename')",
+            }
+            if n == 'tags':
+                raise ValueError("'tags' 只能通过 tags_* 函数访问")
+            if n not in mapping:
+                raise ValueError(f"unsupported identifier: {n}")
+            return mapping[n]
+
+        def extract_str(a: str) -> str:
+            t = a.strip()
+            if len(t) >= 2 and t[0] == "'" and t[-1] == "'":
+                return t[1:-1]
+            raise ValueError("tag 参数必须是单引号字符串")
+
+        def compile_func(fname: str, args_raw: List[str], args_compiled: List[str]) -> Tuple[str, List[Any]]:
+            f = fname.lower()
+            if f == 'abs' and len(args_compiled) == 1:
+                return f"ABS({args_compiled[0]})", []
+            if f == 'round' and len(args_compiled) in (1, 2):
+                if len(args_compiled) == 1:
+                    return f"ROUND({args_compiled[0]})", []
+                return f"ROUND({args_compiled[0]}, {args_compiled[1]})", []
+            if f == 'min' and len(args_compiled) == 2:
+                return f"MIN({args_compiled[0]}, {args_compiled[1]})", []
+            if f == 'max' and len(args_compiled) == 2:
+                return f"MAX({args_compiled[0]}, {args_compiled[1]})", []
+            if f == 'ifnull' and len(args_compiled) == 2:
+                return f"IFNULL({args_compiled[0]}, {args_compiled[1]})", []
+            if f == 'length' and len(args_compiled) == 1:
+                return f"LENGTH({args_compiled[0]})", []
+            if f == 'clamp' and len(args_compiled) == 3:
+                x, lo, hi = args_compiled
+                return f"CASE WHEN ({x}) < ({lo}) THEN ({lo}) WHEN ({x}) > ({hi}) THEN ({hi}) ELSE ({x}) END", []
+            if f == 'normalize' and len(args_compiled) == 3:
+                x, lo, hi = args_compiled
+                return f"CASE WHEN (({hi}) > ({lo})) THEN (({x}) - ({lo})) * 1.0 / (({hi}) - ({lo})) ELSE 0 END", []
+            if f == 'tags_length' and len(args_compiled) == 0:
+                return "IFNULL(json_array_length(json_extract(json_data, '$.tags')), 0)", []
+            if f == 'tags_has' and len(args_raw) == 1:
+                tag = extract_str(args_raw[0])
+                sql = (
+                    "CASE WHEN EXISTS (SELECT 1 FROM json_each(json_extract(json_data, '$.tags')) je "
+                    "WHERE je.value = ?) THEN 1 ELSE 0 END"
+                )
+                return sql, [tag]
+            if f == 'tags_has_any' and len(args_raw) >= 1:
+                tags = [extract_str(a) for a in args_raw]
+                placeholders = ",".join(["?"] * len(tags))
+                sql = (
+                    "CASE WHEN EXISTS (SELECT 1 FROM json_each(json_extract(json_data, '$.tags')) je "
+                    f"WHERE je.value IN ({placeholders})) THEN 1 ELSE 0 END"
+                )
+                return sql, tags
+            if f == 'tags_has_all' and len(args_raw) >= 1:
+                tags = [extract_str(a) for a in args_raw]
+                exists_parts = [
+                    "EXISTS (SELECT 1 FROM json_each(json_extract(json_data, '$.tags')) je WHERE je.value = ?)"
+                    for _ in tags
+                ]
+                sql = f"CASE WHEN {' AND '.join(exists_parts)} THEN 1 ELSE 0 END"
+                return sql, tags
+            raise ValueError(f"unsupported function or arity: {fname}")
+
+        # 允许识别为函数的白名单
+        allowed_funcs = {
+            'abs', 'round', 'min', 'max', 'ifnull', 'length', 'clamp', 'normalize',
+            'tags_length', 'tags_has', 'tags_has_any', 'tags_has_all'
+        }
+
+        while True:
+            stack: List[int] = []
+            replaced = False
+            for idx, ch in enumerate(expr):
+                if ch == '(':
+                    stack.append(idx)
+                elif ch == ')' and stack:
+                    l = stack.pop()
+                    # 向左抓取函数名
+                    j = l - 1
+                    while j >= 0 and expr[j].isspace():
+                        j -= 1
+                    end = j + 1
+                    while j >= 0 and is_ident(expr[j]):
+                        j -= 1
+                    start = j + 1
+                    fname = expr[start:end]
+                    if fname and all(is_ident(c) for c in fname) and fname.lower() in allowed_funcs:
+                        inside = expr[l + 1:idx]
+                        raw_args = split_args(inside)
+                        args_compiled: List[str] = []
+                        # 先编译每个参数中的标识符（若有函数则递归由下一轮处理）
+                        for a in raw_args:
+                            if '(' in a:
+                                a_sql, a_params = self._compile_weighted_expr(a)
+                            else:
+                                a_sql = self._replace_identifiers(a)
+                                a_params = []
+                            args_compiled.append(a_sql)
+                            params.extend(a_params)
+                        func_sql, func_params = compile_func(fname, raw_args, args_compiled)
+                        params.extend(func_params)
+                        expr = expr[:start] + f"({func_sql})" + expr[idx + 1:]
+                        replaced = True
+                        break
+            if not replaced:
+                break
+
+        expr = self._replace_identifiers(expr)
+        return expr, params
+
+    def _replace_identifiers(self, s: str) -> str:
+        import re
+        mapping = {
+            'updated_at': 'updated_at',
+            'modified_time': 'updated_at',
+            'created_at': 'created_at',
+            'created_time': 'created_at',
+            'page_count': 'page_count',
+            'file_size': 'file_size',
+            'size': 'file_size',
+            'rating': "CAST(json_extract(json_data, '$.rating') AS INTEGER)",
+            'review_count': "CAST(json_extract(json_data, '$.review_count') AS INTEGER)",
+            'total_reading_time': "CAST(json_extract(json_data, '$.total_reading_time') AS INTEGER)",
+            'last_accessed_at': "CAST(json_extract(json_data, '$.last_accessed_at') AS INTEGER)",
+            'due_date': "CAST(json_extract(json_data, '$.due_date') AS INTEGER)",
+            'star': "CAST(json_extract(json_data, '$.star') AS INTEGER)",
+            'title': 'title',
+            'author': 'author',
+            'filename': "json_extract(json_data, '$.filename')",
+        }
+
+        # 仅在非字符串上下文中检查 'tags' 直出（避免误伤 '$.tags' 这类 JSON 路径）
+        s_wo_strings = re.sub(r"'[^']*'", '', s)
+        if re.search(r'(?<![A-Za-z0-9_])tags(?![A-Za-z0-9_])', s_wo_strings):
+            raise ValueError("不允许直接使用 'tags'，请使用 tags_length/tags_has/tags_has_any/tags_has_all")
+
+        def sub_word(word: str, repl: str, text: str) -> str:
+            return re.sub(rf'(?<![A-Za-z0-9_]){word}(?![A-Za-z0-9_])', repl, text)
+
+        out = s
+        for k, v in mapping.items():
+            out = sub_word(k, v, out)
+        return out
 
     def filter_by_tags(
         self,

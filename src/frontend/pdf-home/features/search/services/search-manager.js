@@ -50,7 +50,8 @@ export class SearchManager {
           if (Array.isArray(sort) && sort.length > 0) {
             this.#currentSort = sort.map(r => ({
               field: String(r.field || ''),
-              direction: String(r.direction || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc'
+              direction: String(r.direction || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc',
+              formula: (typeof r.formula === 'string' && r.formula.trim() !== '') ? r.formula : undefined
             }));
           } else {
             this.#currentSort = null;
@@ -249,10 +250,20 @@ export class SearchManager {
       field: String(rule.field || ''),
       direction: String(rule.direction || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc'
     }));
+    const normalizeWithFormula = (rules) => rules.map(rule => {
+      const obj = {
+        field: String(rule.field || ''),
+        direction: String(rule.direction || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc'
+      };
+      if (typeof rule.formula === 'string' && rule.formula.trim() !== '') {
+        obj.formula = rule.formula;
+      }
+      return obj;
+    });
     if (Array.isArray(sort) && sort.length > 0) {
-      payload.data.sort = normalize(sort);
+      payload.data.sort = normalizeWithFormula(sort);
     } else if (Array.isArray(this.#currentSort) && this.#currentSort.length > 0) {
-      payload.data.sort = normalize(this.#currentSort);
+      payload.data.sort = normalizeWithFormula(this.#currentSort);
     }
     return payload;
   }

@@ -510,6 +510,13 @@ export class PDFSorterFeature {
         // 加权排序
         const sortedData = this.#sortManager.applyWeightedSort(data.formula);
         this.#tabulatorAdapter.applyWeightedSort(sortedData);
+        // 同步触发后端搜索（SQL层加权排序：weighted 公式）
+        try {
+          const sortRules = [{ field: 'weighted', direction: 'desc', formula: String(data.formula || '') }];
+          this.#globalEventBus.emit('search:query:requested', { sort: sortRules });
+        } catch (e) {
+          this.#logger?.warn('[PDFSorterFeature] Failed to emit backend weighted sort request', e);
+        }
       }
     } catch (error) {
       this.#logger.error('[PDFSorterFeature] Failed to apply sort', error);

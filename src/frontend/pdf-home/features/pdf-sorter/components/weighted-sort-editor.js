@@ -65,7 +65,12 @@ export class WeightedSortEditor {
     min: { name: 'min', label: '最小值', display: 'min(a, b)', arity: 2 },
     length: { name: 'length', label: '长度(字符数)', display: 'length(x)', arity: 1 },
     clamp: { name: 'clamp', label: '范围限制', display: 'clamp(x, min, max)', arity: 3 },
-    normalize: { name: 'normalize', label: '归一化', display: 'normalize(x, min, max)', arity: 3 }
+    normalize: { name: 'normalize', label: '归一化', display: 'normalize(x, min, max)', arity: 3 },
+    // 标签相关（作用于 tags 列表，全部走 SQL JSON1 实现）
+    tags_length: { name: 'tags_length', label: '标签数量', display: 'tags_length()', arity: 0 },
+    tags_has: { name: 'tags_has', label: '包含标签', display: "tags_has('tag')", arity: 1 },
+    tags_has_any: { name: 'tags_has_any', label: '包含任一标签', display: "tags_has_any('t1','t2')", arity: 2 },
+    tags_has_all: { name: 'tags_has_all', label: '包含全部标签', display: "tags_has_all('t1','t2')", arity: 2 }
   };
 
   /**
@@ -383,7 +388,7 @@ export class WeightedSortEditor {
       return;
     }
 
-    if (!this.#hasFieldReference(this.#currentFormula)) {
+    if (!this.#hasSafeReference(this.#currentFormula)) {
       this.#validationStatusEl.textContent = '❌ 公式中缺少字段';
       this.#validationStatusEl.className = 'validation-status invalid';
       this.#validationResult = { valid: false, error: '公式缺少字段' };
@@ -395,16 +400,15 @@ export class WeightedSortEditor {
     this.#validationResult = { valid: true };
   }
 
-  #hasFieldReference(formula) {
+  #hasSafeReference(formula) {
     if (!formula) {
       return false;
     }
-
     const fieldNames = this.#availableFields.map((field) => field.field);
-    return fieldNames.some((fieldName) => {
-      const pattern = new RegExp(`\\b${this.#escapeRegExp(fieldName)}\\b`, 'i');
-      return pattern.test(formula);
-    });
+    const fnNames = Object.keys(this.#functionDefinitions);
+    const hasField = fieldNames.some((name) => new RegExp(`\\b${this.#escapeRegExp(name)}\\b`, 'i').test(formula));
+    const hasFunc = fnNames.some((name) => new RegExp(`\\b${this.#escapeRegExp(name)}\\s*\\(`, 'i').test(formula));
+    return hasField || hasFunc;
   }
 
   /**
