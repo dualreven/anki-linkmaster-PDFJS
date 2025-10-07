@@ -102,7 +102,6 @@ export class PDFListFeature {
   #pendingDeleteToast = null; // { removedCount:number, failedCount:number, failedMap?:object }
   #pendingDeleteError = null; // { rid:string, message:string }
   #pendingDeleteErrorTimer = null;
-  #pendingDeleteToast = null; // { removedCount:number, failedCount:number, failedMap?:object }
 
   // ==================== IFeature 接口实现 ====================
 
