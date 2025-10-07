@@ -27,6 +27,7 @@ export class FilterFeature {
   #filterBuilder = null;
   #presetDropdown = null;
   #unsubscribers = [];
+  #lastSearchText = '';
 
   /**
    * 安装插件
@@ -161,6 +162,19 @@ export class FilterFeature {
     });
     this.#unsubscribers.push(unsubSave);
 
+    // 监听筛选应用（来自 FilterBuilder）
+    const unsubApply = this.#scopedEventBus.on('filter:apply:completed', (data) => {
+      const condition = data && data.condition ? data.condition : null;
+      this.#logger.info('[FilterFeature] Received apply-completed from builder');
+      // 更新全局筛选状态
+      this.#globalEventBus.emit('filter:state:updated', { filters: condition });
+      this.#globalEventBus.emit('search:query:requested', {
+        searchText: this.#lastSearchText || '',
+        filters: condition,
+      });
+    });
+    this.#unsubscribers.push(unsubApply);
+
     this.#logger.info('[FilterFeature] Event listeners setup (listening to global events)');
   }
 
@@ -169,21 +183,23 @@ export class FilterFeature {
    * @private
    */
   #subscribeToSearchEvents() {
-    // 监听搜索请求（来自search插件）
+    // 监听搜索请求（记录最新搜索词，改由后端执行筛选）
     const unsubSearch = this.#globalEventBus.on('search:query:requested', (data) => {
-      this.#logger.info('[FilterFeature] Search query received', data);
-      this.#handleSearchQuery(data.searchText);
+      try {
+        this.#lastSearchText = (data && typeof data.searchText === 'string') ? data.searchText : '';
+      } catch {}
+      this.#logger.info('[FilterFeature] Search query received (record only)', { searchText: this.#lastSearchText });
     });
     this.#unsubscribers.push(unsubSearch);
 
-    // 监听清除请求
+    // 监听清除请求（仅记录）
     const unsubClear = this.#globalEventBus.on('search:clear:requested', () => {
-      this.#logger.info('[FilterFeature] Clear request received');
-      this.#handleClearFilter();
+      this.#logger.info('[FilterFeature] Clear request received (record only)');
+      this.#lastSearchText = '';
     });
     this.#unsubscribers.push(unsubClear);
 
-    this.#logger.info('[FilterFeature] Subscribed to search events (local mode)');
+    this.#logger.info('[FilterFeature] Subscribed to search events (delegated to backend)');
   }
 
   /**
@@ -213,44 +229,8 @@ export class FilterFeature {
    * @private
    */
   #handleSearchQuery(searchText) {
-    try {
-      const query = searchText?.trim() || '';
-
-      this.#logger.info('[FilterFeature] Processing search query (local filtering)', {
-        searchText: query || '(empty - will show all)'
-      });
-
-      // 使用本地FilterManager进行筛选
-      let filteredData;
-      if (!query) {
-        // 空搜索显示全部数据
-        filteredData = this.#filterManager.clearFilter();
-      } else {
-        // 执行关键词搜索（在filename, tags, notes字段中搜索）
-        filteredData = this.#filterManager.quickSearch(query);
-      }
-
-      this.#logger.info('[FilterFeature] Search completed', {
-        resultCount: filteredData.length,
-        searchText: query
-      });
-
-      // 发出筛选结果事件
-      this.#globalEventBus.emit('filter:results:updated', {
-        results: filteredData,
-        count: filteredData.length,
-        searchText: query
-      });
-
-    } catch (error) {
-      this.#logger.error('[FilterFeature] Search failed', error);
-      // 发出空结果
-      this.#globalEventBus.emit('filter:results:updated', {
-        results: [],
-        count: 0,
-        searchText: searchText || ''
-      });
-    }
+    // 已废弃本地搜索，保留函数避免调用点报错
+    this.#lastSearchText = searchText?.trim() || '';
   }
 
   /**
@@ -258,29 +238,9 @@ export class FilterFeature {
    * @private
    */
   #handleClearFilter() {
-    try {
-      this.#logger.info('[FilterFeature] Filter cleared, showing all data');
-
-      // 清除筛选，显示全部数据
-      const allData = this.#filterManager.clearFilter();
-
-      // 发出筛选结果事件
-      this.#globalEventBus.emit('filter:results:updated', {
-        results: allData,
-        count: allData.length,
-        searchText: ''
-      });
-
-      this.#logger.info('[FilterFeature] All data displayed', { count: allData.length });
-    } catch (error) {
-      this.#logger.error('[FilterFeature] Clear failed', error);
-      // 发出空结果
-      this.#globalEventBus.emit('filter:results:updated', {
-        results: [],
-        count: 0,
-        searchText: ''
-      });
-    }
+    // 前端不再本地清空结果，交由后端执行
+    this.#logger.info('[FilterFeature] Filter cleared (delegated to backend)');
+    this.#globalEventBus.emit('search:query:requested', { searchText: this.#lastSearchText, filters: null });
   }
 
   /**
@@ -313,5 +273,23 @@ export class FilterFeature {
 
     // TODO: 实现保存逻辑
     this.#globalEventBus.emit('filter:preset:saved', { presetName });
+  }
+
+  /**
+   * 对外：应用当前 FilterBuilder 条件并触发一次后端搜索
+   */
+  applyCurrentFilter() {
+    if (!this.#filterBuilder) {
+      this.#logger.error('[FilterFeature] Cannot apply filter: builder not initialized');
+      return;
+    }
+    const config = this.#filterBuilder.getConditionConfig();
+    this.#logger.info('[FilterFeature] Applying current filter via backend search');
+    // 更新全局筛选状态
+    this.#globalEventBus.emit('filter:state:updated', { filters: config });
+    this.#globalEventBus.emit('search:query:requested', {
+      searchText: this.#lastSearchText || '',
+      filters: config,
+    });
   }
 }

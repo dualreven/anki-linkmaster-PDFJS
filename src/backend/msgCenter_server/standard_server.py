@@ -433,27 +433,68 @@ class StandardWebSocketServer(QObject):
             failed = {}
             for fid in file_ids:
                 ok = False
+                reasons = []
+                had_error = False
+                db_not_found = False
+                fs_not_found = False
+
+                # 1) 数据库记录删除
                 db_ok = False
-                fs_ok = False
-                # 优先删除数据库记录
                 if hasattr(self, "pdf_library_api") and self.pdf_library_api:
                     try:
                         db_ok = bool(self.pdf_library_api.delete_record(fid))
+                        if not db_ok:
+                            # 进一步判定是否不存在
+                            try:
+                                record = self.pdf_library_api.get_record(fid)  # type: ignore[attr-defined]
+                                if record is None:
+                                    db_not_found = True
+                                else:
+                                    reasons.append("数据库记录删除失败")
+                            except Exception as iexc:
+                                had_error = True
+                                reasons.append(f"DB: {iexc}")
                     except Exception as exc:
                         db_ok = False
+                        had_error = True
+                        reasons.append(f"DB: {exc}")
                         logger.warning("删除记录失败: %s", exc)
-                # 同步尝试删除运行内存/文件管理器中的记录（最佳努力），避免残留导致后续重复添加受阻
+
+                # 2) 运行内存/文件管理器文件删除（最佳努力）
+                fs_ok = False
                 if hasattr(self, "pdf_manager") and self.pdf_manager:
                     try:
                         fs_ok = bool(self.pdf_manager.remove_file(fid))
+                        if not fs_ok:
+                            try:
+                                exists = False
+                                try:
+                                    exists = bool(self.pdf_manager.file_list.exists(fid))  # type: ignore[attr-defined]
+                                except Exception:
+                                    exists = False
+                                if not exists:
+                                    fs_not_found = True
+                                else:
+                                    reasons.append("文件删除失败")
+                            except Exception:
+                                had_error = True
+                                reasons.append("文件删除失败")
                     except Exception as exc:
                         fs_ok = False
+                        had_error = True
+                        reasons.append(f"FS: {exc}")
                         logger.warning("删除文件失败: %s", exc)
+
+                # 3) 计算最终结果：任一链路成功 => 成功；若均未成功但完全不存在且无硬错误 => 幂等成功
                 ok = bool(db_ok or fs_ok)
+                if not ok and not had_error and (db_not_found or fs_not_found):
+                    ok = True
+
                 if ok:
                     removed.append(fid)
                 else:
-                    failed[str(fid)] = "删除失败"
+                    reason_text = "; ".join([str(r) for r in reasons if r]) or "删除失败"
+                    failed[str(fid)] = reason_text
             return PDFMessageBuilder.build_batch_pdf_remove_response(
                 request_id or StandardMessageHandler.generate_request_id(),
                 removed,
@@ -592,9 +633,17 @@ class StandardWebSocketServer(QObject):
             # 使用小写匹配；具体字段匹配由 API 内部完成（标题/作者/文件名/标签/备注/主题/关键词）
             tokens = [t.strip().lower() for t in query.split() if str(t).strip()]
 
+            # 透传前端可选参数：filters/sort/search_fields（如有）
+            filters = (data or {}).get("filters") if isinstance(data, dict) else None
+            sort_rules = (data or {}).get("sort") if isinstance(data, dict) else None
+            search_fields = (data or {}).get("search_fields") if isinstance(data, dict) else None
+
             payload = {
                 "query": query,
                 "tokens": tokens,
+                "filters": filters,
+                "sort": sort_rules,
+                "search_fields": search_fields,
                 "pagination": {"limit": limit, "offset": offset, "need_total": True},
             }
 

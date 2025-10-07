@@ -43,9 +43,10 @@ export class ConditionEditor {
       { value: 'in_range', label: '范围内' }
     ],
     'tags': [
-      { value: 'contains', label: '包含' },
-      { value: 'not_contains', label: '不包含' },
-      { value: 'eq', label: '= (等于)' }
+      { value: 'contains', label: '包含任意' },
+      { value: 'not_contains', label: '不包含任意' },
+      { value: 'has_all', label: '包含全部' },
+      { value: 'eq', label: '= (集合相等)' }
     ]
   };
 

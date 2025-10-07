@@ -53,7 +53,76 @@
 - 文件 I/O：所有读写显式 UTF-8；确保换行 `\n` 正确。
 - 前端依赖：统一使用 `src/frontend/common/*`（EventBus / Logger / WSClient）。
 
+## 当前任务 - pdf-home Filter 功能分析（2025-10-07）
+- 描述：Filter 功能“未运作”，仅做代码与事件流分析，不修改代码。
+- 目标：定位未生效的原因，明确事件链路与缺口，给出验证与后续实现建议。
+- 相关模块/文件：
+  - `src/frontend/pdf-home/features/filter/index.js`
+  - `src/frontend/pdf-home/features/filter/components/filter-builder-v2.js`
+  - `src/frontend/pdf-home/features/filter/services/filter-manager.js`
+  - `src/frontend/pdf-home/features/filter/services/filter-tree.js`
+  - `src/frontend/pdf-home/features/filter/services/filter-condition-factory.js`
+  - `src/frontend/pdf-home/features/search-results/index.js`
+  - `src/frontend/pdf-home/features/pdf-list/index.js`
+  - `src/frontend/common/event/event-constants.js`
+- 结论（现状）：
+  - FilterFeature 本地缓存了 `@pdf-list/data:load:completed` 的数据，接入了搜索事件并能发布 `filter:results:updated`。
+  - SearchResultsFeature 监听 `filter:results:updated` 渲染结果卡片。
+  - FilterBuilder(V2) 的 `applyFilter()` 未将条件提交至 FilterManager，也未发布结果事件（按钮点击后无实际筛选行为）。
+  - PDFList 的 `setFilters()` 仅更新 state 并发布 `filter:change:completed`，表格侧未实现实际过滤应用。
+- 事件流（期望 vs 现状）：
+  - 期望：高级筛选 → 生成条件 → 应用（FilterManager.applyFilter）→ 发出 `filter:results:updated` → SearchResults 展示 或 Tabulator 行过滤。
+  - 现状：高级筛选仅日志与隐藏，无应用动作；导致用户无可见结果变化。
+- 原子步骤（执行记录）：
+  1. 收集最近 8 个 AI 日志（完成）
+  2. 创建本次 AI 工作日志（完成）
+  3. 阅读 memory bank 与规范头文件（完成）
+  4. 定位 Filter 相关代码与依赖（完成）
+  5. 梳理事件链路（完成）
+  6. 识别核心缺口与容器冲突风险（完成）
+  7. 给出验证与后续实现建议（完成）
+  8. 更新 context 与工作日志（完成）
+  9. 通知任务完成（待执行）
+
+## 当前任务 - 在SQLite内完成“先搜索后筛选”的检索（2025-10-07）
+- 描述：将搜索与筛选下沉到 SQLite（WHERE 条件）完成，前端以 WS 传入 `filters`，后端负责候选集收敛与兼容 `match_score` 计算。
+- 设计要点：
+  - tokens：字段内 OR，关键词间 AND；字段含 title/author/filename/tags/notes/subject/keywords。
+  - filters：`composite(AND/OR/NOT)` 与 `field`（rating gte / is_visible eq / tags has_any / total_reading_time gte）。
+  - SQL：通过 `json_extract` 提取 JSON 字段，`tags` 采用 LIKE 近似匹配（'%"tag"%'）。
+  - 排序：保留 Python 端的 `match_score` 排序逻辑，SQL 仅负责 WHERE 收敛；分页在排序后再应用。
+- 变更点：
+  - 后端插件：`pdf_info_plugin.search_with_filters`（新增）。
+  - API/Service：`PDFLibraryAPI.search_records` 与 `DefaultSearchService` 优先调用新方法。
+  - WS 路由：`standard_server.handle_pdf_search_request` 透传 `filters/sort/search_fields`。
+  - 前端：`SearchManager` 发送 `filters`；`FilterBuilder` 构建条件并发出 `filter:apply:completed`；`FilterFeature` 转发到 `search:query:requested`。
+- 验证：后端单测 14 通过；功能最小路径可用。
+
+## UI 修复 - Filter 面板定位（2025-10-07）
+- 问题：FilterBuilder 面板被固定顶部的搜索栏覆盖。
+- 方案：`.filter-container` 设为绝对定位，设置 `top: var(--search-panel-height, 88px)` 与左右撑满；`.filter-builder-wrapper` 增加 `margin-top: 12px`；z-index 低于搜索栏（1000→本容器900），通过 top 保证不重叠。
+- 文件：`src/frontend/pdf-home/features/filter/styles/filter-panel.css`
+
 ---
+
+## 当前任务 - 侧边栏展开推开搜索结果避免遮挡（2025-10-07）
+- 描述：pdf-home 页面中，左侧侧边栏为 fixed 悬浮，展开时覆盖右侧搜索结果区域（`.main-content`）；期望点击展开按钮时将搜索结果“推开”而非遮挡。
+- 相关模块/文件：
+  - `src/frontend/pdf-home/features/sidebar/components/sidebar-container.js`（收起/展开按钮与交互）
+  - `src/frontend/pdf-home/index.html`（`.sidebar` 与 `.main-content` DOM 结构）
+  - `src/frontend/pdf-home/style.css`（侧边栏宽度 280px）
+- 方案（最小改动，遵循事件架构）：
+  - 在 SidebarContainer 内新增私有方法 `#updateMainContentLayout(collapsed)`，在展开时对 `.main-content` 设定 `margin-left: 280px; width: calc(100% - 280px)`，在收起时清空样式；
+  - 在 `render()` 完成后按当前状态应用一次，避免初始遮挡；
+  - 在点击切换时分别调用，保持布局同步；
+  - 保持既有事件 `sidebar:toggle:completed` 不变（仅用于状态广播）。
+- 原子步骤：
+  1) 设计测试：构造最小 DOM（`.sidebar` + `.main-content`），渲染 `SidebarContainer`，断言首次渲染推开；点击折叠恢复；再次展开再推开。
+  2) 编写 Jest 用例至 `features/sidebar/__tests__/sidebar-layout-push.test.js`。
+  3) 在 `sidebar-container.js` 实现私有方法并挂接到 `render()` 与点击逻辑。
+  4) 运行测试并通过（3/3）。
+  5) 更新本文件与工作日志，并通知完成。
+
 
 ## ⚠️ 前端开发核心规范（必读）
 
