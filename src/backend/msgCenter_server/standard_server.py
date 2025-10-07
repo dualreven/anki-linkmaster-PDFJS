@@ -433,18 +433,23 @@ class StandardWebSocketServer(QObject):
             failed = {}
             for fid in file_ids:
                 ok = False
+                db_ok = False
+                fs_ok = False
+                # 优先删除数据库记录
                 if hasattr(self, "pdf_library_api") and self.pdf_library_api:
                     try:
-                        ok = bool(self.pdf_library_api.delete_record(fid))
+                        db_ok = bool(self.pdf_library_api.delete_record(fid))
                     except Exception as exc:
-                        ok = False
+                        db_ok = False
                         logger.warning("删除记录失败: %s", exc)
-                if not ok and hasattr(self, "pdf_manager") and self.pdf_manager:
+                # 同步尝试删除运行内存/文件管理器中的记录（最佳努力），避免残留导致后续重复添加受阻
+                if hasattr(self, "pdf_manager") and self.pdf_manager:
                     try:
-                        ok = bool(self.pdf_manager.remove_file(fid))
+                        fs_ok = bool(self.pdf_manager.remove_file(fid))
                     except Exception as exc:
-                        ok = False
+                        fs_ok = False
                         logger.warning("删除文件失败: %s", exc)
+                ok = bool(db_ok or fs_ok)
                 if ok:
                     removed.append(fid)
                 else:
