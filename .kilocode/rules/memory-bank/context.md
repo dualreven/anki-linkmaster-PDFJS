@@ -437,6 +437,25 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - **技术变更**: `.kilocode/rules/memory-bank/tech.md`
 - **架构变更**: `.kilocode/rules/memory-bank/architecture.md`
 
+## 当前任务（20251008021430）
+- 名称：修复 pdf-home "最近添加"侧边栏高亮一闪而过的问题
+- 问题背景：
+  - "最近阅读"点击后能正确高亮并持续显示
+  - "最近添加"点击后高亮一闪而过，无法持续显示
+  - 根因：事件时序错误，focus 请求在 DOM 渲染前发送，应用后立即清空，导致渲染完成后无法再次应用
+- 相关模块与函数：
+  - `src/frontend/pdf-home/features/sidebar/recent-added/index.js`（#triggerRecentSearch 方法）
+  - `src/frontend/pdf-home/features/sidebar/recent-opened/index.js`（对比参考：成功的实现）
+  - `src/frontend/pdf-home/features/search-results/index.js`（#applyPendingFocus 方法）
+- 修复方案：
+  - 改进时序控制：在搜索结果渲染完成后才发送 focus 请求
+  - 监听 `search:results:updated` 事件确保结果已渲染
+  - 使用 `requestAnimationFrame` 确保浏览器已完成 DOM 更新
+  - 监听器执行后立即取消订阅，避免内存泄漏
+- 修复前时序：search → 立即 focus（失败，DOM 未渲染）→ 清空 pendingFocusIds → 渲染 DOM（无法再次应用）
+- 修复后时序：search → 监听 results:updated → 渲染 DOM → requestAnimationFrame → focus（成功，DOM 已渲染）
+- 验证标准：点击"最近添加"后，搜索结果中的所有条目都被高亮（selected），第一条被聚焦（focused）并滚动到视图中，高亮持续显示不消失
+
 ## 当前任务（20251007194500）
 - 名称：修复 pdf-viewer 侧边栏打开时未推动 PDF 渲染区的问题（避免遮挡）
 - 问题背景：
