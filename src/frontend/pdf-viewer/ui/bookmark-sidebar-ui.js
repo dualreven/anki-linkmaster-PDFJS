@@ -21,6 +21,7 @@ export class BookmarkSidebarUI {
   #bookmarks = [];
   #selectedBookmarkId = null; // 当前选中的书签ID
   #sortMode = false; // 排序模式状态
+  #isDragging = false; // 是否正在拖拽（通过悬浮拖拽柄触发）
   #unsubs = [];
 
   constructor(eventBus, options = {}) {
@@ -169,15 +170,15 @@ export class BookmarkSidebarUI {
         flex-shrink: 0;
       `;
 
-      // Hover显示跳转按钮（仅在非排序模式下）
+      // Hover显示跳转按钮与拖拽柄
       itemContainer.addEventListener('mouseenter', () => {
-        if (!this.#sortMode) {
-          jumpBtn.style.display = 'block';
-        }
+        jumpBtn.style.display = 'block';
+        if (dragHandle) dragHandle.style.display = 'inline-flex';
       });
 
       itemContainer.addEventListener('mouseleave', () => {
         jumpBtn.style.display = 'none';
+        if (dragHandle) dragHandle.style.display = 'none';
       });
 
       // 跳转按钮点击
@@ -207,24 +208,52 @@ export class BookmarkSidebarUI {
         this.#selectBookmark(node.id, node);
       });
 
+      // 拖拽柄（默认隐藏，仅在 hover 时显示）
+      const dragHandle = document.createElement('div');
+      dragHandle.title = '拖动以排序';
+      dragHandle.textContent = '☰';
+      dragHandle.style.cssText = `
+        display: none;
+        width: 20px;
+        height: 20px;
+        align-items: center;
+        justify-content: center;
+        margin-left: 4px;
+        color: #666;
+        cursor: grab;
+        user-select: none;
+        border-radius: 4px;
+      `;
+      dragHandle.setAttribute('draggable', 'true');
+
+      dragHandle.addEventListener('dragstart', (e) => {
+        e.stopPropagation();
+        this.#isDragging = true;
+        try {
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', node.id);
+        } catch (_) {}
+        li.style.opacity = '0.4';
+      });
+
+      dragHandle.addEventListener('dragend', (e) => {
+        e.stopPropagation();
+        this.#isDragging = false;
+        li.style.opacity = '1';
+      });
+
       itemContainer.appendChild(btn);
       itemContainer.appendChild(jumpBtn);
+      itemContainer.appendChild(dragHandle);
       li.appendChild(itemContainer);
 
       // 拖拽排序功能
-      li.draggable = this.#sortMode;
+      li.draggable = false; // 统一通过拖拽柄触发
       li.dataset.bookmarkId = node.id;
       li.dataset.parentId = node.parentId || '';
 
       // 拖拽开始
-      li.addEventListener('dragstart', (e) => {
-        if (!this.#sortMode) return;
-        e.stopPropagation(); // 阻止事件冒泡到父节点
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', node.id);
-        li.style.opacity = '0.4';
-        this.#logger.debug(`Drag started: ${node.name}`);
-      });
+      // 取消 li 自身的拖拽开始，统一用拖拽柄
 
       // 拖拽结束
       li.addEventListener('dragend', (e) => {
@@ -234,7 +263,7 @@ export class BookmarkSidebarUI {
 
       // 拖拽经过
       li.addEventListener('dragover', (e) => {
-        if (!this.#sortMode) return;
+        if (!this.#isDragging) return;
         e.preventDefault();
         e.stopPropagation(); // 阻止事件冒泡到父节点
         e.dataTransfer.dropEffect = 'move';
@@ -280,7 +309,7 @@ export class BookmarkSidebarUI {
 
       // 放下
       li.addEventListener('drop', (e) => {
-        if (!this.#sortMode) return;
+        if (!this.#isDragging) return;
         e.preventDefault();
         e.stopPropagation();
 
@@ -303,6 +332,8 @@ export class BookmarkSidebarUI {
 
         this.#logger.info(`Drop: dragged=${draggedId}, target=${targetId}, zone=${dropZone}`);
         this.#handleDrop(draggedId, targetId, dropZone);
+        // 结束拖拽态
+        this.#isDragging = false;
       });
 
       // 子节点容器
