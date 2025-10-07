@@ -281,8 +281,8 @@ export class QWebChannelBridge {
      * @returns {Promise<boolean>} 是否成功触发打开动作
      */
     async openPdfViewers(options = {}) {
-        const { pdfIds = [] } = options;
-        this.#logger.info(`[阅读] 调用 openPdfViewers, 选中数量=${pdfIds.length}`);
+        const { pdfIds = [], items = null } = options;
+        this.#logger.info(`[阅读] 调用 openPdfViewers, 选中数量=${pdfIds.length}${items ? `, items=${items.length}` : ''}`);
 
         if (!this.#isReady) {
             throw new Error('QWebChannel 未初始化，请先调用 initialize()');
@@ -291,6 +291,11 @@ export class QWebChannelBridge {
         try {
             const ok = await new Promise((resolve, reject) => {
                 try {
+                    if (items && typeof this.#bridge.openPdfViewersEx === 'function') {
+                        const result = this.#bridge.openPdfViewersEx({ pdfIds, items });
+                        resolve(!!result);
+                        return;
+                    }
                     const result = this.#bridge.openPdfViewers(pdfIds);
                     resolve(!!result);
                 } catch (error) {
@@ -302,6 +307,38 @@ export class QWebChannelBridge {
         } catch (error) {
             this.#logger.error('[阅读] openPdfViewers 失败:', error);
             throw error;
+        }
+    }
+
+    /**
+     * 兼容方法：携带元信息的打开（优先调用 PyQt 的 openPdfViewersEx）
+     * @param {{ pdfIds?: string[], items: Array<{ id?: string, filename?: string, file_path?: string }> }} payload
+     * @returns {Promise<boolean>}
+     */
+    async openPdfViewersWithMeta(payload) {
+        if (!this.#isReady) {
+            throw new Error('QWebChannel 未初始化，请先调用 initialize()');
+        }
+        try {
+            const ok = await new Promise((resolve, reject) => {
+                try {
+                    if (typeof this.#bridge.openPdfViewersEx === 'function') {
+                        const result = this.#bridge.openPdfViewersEx(payload);
+                        resolve(!!result);
+                    } else if (Array.isArray(payload?.pdfIds)) {
+                        const result = this.#bridge.openPdfViewers(payload.pdfIds);
+                        resolve(!!result);
+                    } else {
+                        resolve(false);
+                    }
+                } catch (error) {
+                    reject(error);
+                }
+            });
+            return !!ok;
+        } catch (e) {
+            this.#logger.error('[阅读] openPdfViewersWithMeta 失败:', e);
+            throw e;
         }
     }
 }

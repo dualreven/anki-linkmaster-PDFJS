@@ -4,8 +4,7 @@
  */
 
 import { ResultsRenderer } from './components/results-renderer.js';
-import { QWebChannelBridge } from '../../qwebchannel/qwebchannel-bridge.js';
-import { PDF_MANAGEMENT_EVENTS } from '../../../common/event/event-constants.js';
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, PDF_MANAGEMENT_EVENTS } from '../../../common/event/event-constants.js';
 import { warning as toastWarning } from '../../../common/utils/thirdparty-toast.js';
 import './styles/search-results.css';
 
@@ -13,6 +12,9 @@ export class SearchResultsFeature {
   name = 'search-results';
   version = '1.0.0';
   dependencies = [];
+  // 测试可注入：桥接工厂（生产为 null => new QWebChannelBridge）
+  static bridgeFactory = null;
+  static setBridgeFactory(factory) { SearchResultsFeature.bridgeFactory = factory; }
 
   #context = null;
   #logger = null;
@@ -34,6 +36,11 @@ export class SearchResultsFeature {
   #layoutPreferenceKey = 'pdf-home:search-results:layout';
   #currentLayout = 'single';
 
+  // 内部请求超时时间
+  #requestTimeoutMs = 3000;
+  // 是否允许当缺少 file_path 时通过 WS 向后端补全（默认关闭，遵循隔离优先）
+  #allowWsDetailFallback = false;
+
   /**
    * 安装Feature
    */
@@ -54,7 +61,14 @@ export class SearchResultsFeature {
 
       // 2.1 初始化 QWebChannel 桥接（供“阅读”按钮调用 PyQt 打开窗口）
       try {
-        this.#qwcBridge = new QWebChannelBridge();
+        let factory = SearchResultsFeature.bridgeFactory;
+        if (!factory) {
+          // 动态导入，避免测试环境因 import.meta 等语法报错
+          const mod = await import('../../qwebchannel/qwebchannel-bridge.js');
+          const Bridge = mod?.QWebChannelBridge || mod?.default?.QWebChannelBridge || mod?.default;
+          factory = () => new Bridge();
+        }
+        this.#qwcBridge = factory();
         await this.#qwcBridge.initialize();
         this.#logger.info('[SearchResultsFeature] QWebChannelBridge 已就绪');
       } catch (e) {
@@ -193,12 +207,26 @@ export class SearchResultsFeature {
             this.#logger.info('[SearchResultsFeature] 未选择任何条目，阅读操作中止');
             return;
           }
-          if (!this.#qwcBridge || !this.#qwcBridge.isReady()) {
+          if (!this.#qwcBridge) {
+            this.#logger.warn('[SearchResultsFeature] QWebChannel 未初始化，无法打开阅读窗口');
+            return;
+          }
+          try { await this.#qwcBridge.initialize?.(); } catch {}
+          if (this.#qwcBridge.isReady && !this.#qwcBridge.isReady()) {
             this.#logger.warn('[SearchResultsFeature] QWebChannel 未就绪，无法打开阅读窗口');
             return;
           }
-          this.#logger.info('[SearchResultsFeature] 发起阅读，选中:', { count: selectedIds.length, ids: selectedIds });
-          await this.#qwcBridge.openPdfViewers({ pdfIds: selectedIds });
+          const idSet = new Set(selectedIds.map(String));
+          const items = (this.#currentResults || [])
+            .filter(r => idSet.has(String(r.id)))
+            .map(r => ({ id: String(r.id), filename: r.filename || undefined, file_path: r.path || r.file_path || undefined, title: r.title || undefined }));
+          this.#logger.info('[SearchResultsFeature] 发起阅读（批量）', { count: selectedIds.length, withMeta: items.length });
+          const payload = { pdfIds: selectedIds.map(String), items };
+          if (typeof this.#qwcBridge.openPdfViewersWithMeta === 'function') {
+            await this.#qwcBridge.openPdfViewersWithMeta(payload);
+          } else {
+            await this.#qwcBridge.openPdfViewers(payload);
+          }
         } catch (e) {
           this.#logger.error('[SearchResultsFeature] 执行阅读失败', e);
         }
@@ -363,13 +391,117 @@ export class SearchResultsFeature {
     this.#unsubscribers.push(unsubSelected);
 
     // 条目打开事件 -> 转发到全局
-    const unsubOpen = this.#scopedEventBus.on('results:item:open', (data) => {
+    const unsubOpen = this.#scopedEventBus.on('results:item:open', async (data) => {
       this.#logger.info('[SearchResultsFeature] Item open requested', data);
+      // 1) 转发为全局事件，便于其他模块感知
       this.#globalEventBus.emit('search-results:item:open', data);
+
+      // 2) 直接触发打开 pdf-viewer（通过 QWebChannelBridge -> PyQtBridge）
+      try {
+        const pdfId = data?.result?.id || data?.id || data?.pdfId;
+        const filename = data?.result?.filename || data?.filename || null;
+        const title = data?.result?.title || data?.title || null;
+        let filePath = data?.result?.path || data?.result?.file_path || data?.file_path || null;
+        if (!pdfId) {
+          this.#logger.warn('[SearchResultsFeature] Skip open: missing pdfId', { data });
+          return;
+        }
+
+        if (!this.#qwcBridge) {
+          this.#logger.warn('[SearchResultsFeature] QWebChannelBridge not available, cannot open viewer');
+          return;
+        }
+
+        // ensure initialized (idempotent)
+        try { await this.#qwcBridge.initialize?.(); } catch {}
+
+        if (this.#qwcBridge.isReady && !this.#qwcBridge.isReady()) {
+          this.#logger.warn('[SearchResultsFeature] QWebChannel not ready, cannot open viewer');
+          return;
+        }
+
+        // 若缺少 file_path，尝试从后端查询一次详情（遵守隔离原则：通过 WS 访问）
+        if (!filePath && this.#shouldFetchDetailFallback()) {
+          try {
+            const detail = await this.#fetchPdfDetail(String(pdfId));
+            filePath = detail?.file_path || filePath;
+          } catch (e) {
+            this.#logger.warn('[SearchResultsFeature] fetch detail failed, continue without file_path', e);
+          }
+        }
+
+        this.#logger.info('[SearchResultsFeature] Opening pdf-viewer by id', { pdfId, hasFile: !!filePath });
+        // 携带 filename / file_path 元信息，便于 PyQt 侧直接带 file 加载
+        const items = [{ id: String(pdfId), filename: filename || undefined, file_path: filePath || undefined, title: title || undefined }];
+        const payload = { pdfIds: [String(pdfId)], items };
+        if (typeof this.#qwcBridge.openPdfViewersWithMeta === 'function') {
+          await this.#qwcBridge.openPdfViewersWithMeta(payload);
+        } else {
+          await this.#qwcBridge.openPdfViewers(payload);
+        }
+      } catch (e) {
+        this.#logger.error('[SearchResultsFeature] Open viewer failed', e);
+      }
     });
     this.#unsubscribers.push(unsubOpen);
 
     this.#logger.info('[SearchResultsFeature] Event bridge setup');
+  }
+
+  /**
+   * 判断是否允许通过 WS 兜底查询 file_path（默认 false，可通过 localStorage 打开）
+   * 开关键: PDF_HOME_FETCH_DETAIL_IF_MISSING = 'true' | 'false'
+   * @private
+   */
+  #shouldFetchDetailFallback() {
+    try {
+      const v = window.localStorage.getItem('PDF_HOME_FETCH_DETAIL_IF_MISSING');
+      if (typeof v === 'string') {
+        return v === 'true';
+      }
+    } catch (_) {}
+    return this.#allowWsDetailFallback === true;
+  }
+
+  /**
+   * 通过 WS 请求获取 PDF 详情（包含 file_path）
+   * @param {string} pdfId
+   * @returns {Promise<{ file_path?: string, filename?: string }|null>}
+   * @private
+   */
+  async #fetchPdfDetail(pdfId) {
+    const rid = `sr-open-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    this.#logger.info('[SearchResultsFeature] Requesting pdf detail via WS', { pdfId, rid });
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const off = this.#globalEventBus.on(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, (message) => {
+        try {
+          if (!message || message.request_id !== rid) return;
+          if (message.type === WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST.replace(':requested', ':completed') || message.type === 'pdf-library:info:completed') {
+            settled = true;
+            off();
+            resolve(message.data || null);
+          } else if (message.type === WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST.replace(':requested', ':failed') || message.type === 'pdf-library:info:failed') {
+            settled = true;
+            off();
+            resolve(null);
+          }
+        } catch (_) {}
+      });
+
+      // 发送请求
+      const payload = { type: WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST, request_id: rid, data: { pdf_id: pdfId } };
+      this.#scopedEventBus?.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, payload);
+
+      // 超时兜底
+      setTimeout(() => {
+        if (!settled) {
+          try { off(); } catch {}
+          resolve(null);
+        }
+      }, this.#requestTimeoutMs);
+    });
   }
 
   /**

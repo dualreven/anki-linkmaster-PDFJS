@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file UI管理器核心（重构版）
  * @module UIManagerCore
  * @description 协调DOM元素、键盘事件和UI状态的主管理器
@@ -30,7 +30,8 @@ export class UIManagerCore {
   #uiLayoutControls;
   #resizeObserver;
   #unsubscribeFunctions = [];
-  #currentPdfId = null; // 当前 PDF 的 ID
+  #currentPdfId = null; // 当前 PDF 的ID
+  #preferredTitle = null; // 若URL传入title，则优先使用它作为header标题
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
@@ -133,7 +134,15 @@ export class UIManagerCore {
 
     const loadSuccessUnsub = this.#eventBus.on(
       PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
-      ({ pdfDocument, filename }) => {
+      (payload) => {
+        const pdfDocument = payload?.pdfDocument;
+        let filename = payload?.filename;
+        if (!filename && payload?.file) {
+          const file = payload.file || {};
+          try {
+            filename = file.filename || (()=>{ const s = (file.url||file.file_path)||''; const parts = s.split(/[\\\\\\/]/); const name = parts.pop() || ''; return decodeURIComponent(name.split('?')[0]); })();
+          } catch (_) { filename = file.filename || null; }
+        }
         this.#stateManager.updateLoadingState(false, true);
         this.#domManager.setLoadingState(false);
 
@@ -194,6 +203,10 @@ export class UIManagerCore {
           this.#logger.info(`✅ PDF ID captured and button shown: ${this.#currentPdfId}`);
         } else {
           this.#logger.warn('[UIManagerCore] URL_PARAMS.PARSED event has no pdfId');
+        }
+        // 若 URL 中包含 title，则优先更新 header 标题
+        if (data?.title && String(data.title).trim()) {
+          this.#updateHeaderTitle(String(data.title).trim());
         }
       },
       { subscriberId: 'UIManagerCore' }

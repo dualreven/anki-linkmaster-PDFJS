@@ -161,7 +161,7 @@ describe('URLNavigationFeature', () => {
 
       expect(loadRequestEvent).toBeDefined();
       expect(loadRequestEvent[1]).toMatchObject({
-        fileData: 'sample',
+        filename: 'sample',
         source: 'url-navigation',
       });
     });
