@@ -37,8 +37,14 @@ export const HighlightColor = {
  */
 function generateId() {
   const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 9);
-  return `ann_${timestamp}_${random}`;
+  // 后端正则要求：ann_<timestamp>_<rand6>
+  // _ANN_ID_PATTERN = r'^ann_[0-9]{6,}_[0-9a-zA-Z]{6}$'
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let rand = '';
+  for (let i = 0; i < 6; i++) {
+    rand += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return `ann_${timestamp}_${rand}`;
 }
 
 /**

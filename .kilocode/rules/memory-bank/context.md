@@ -546,3 +546,25 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
   - 支持拖动排序、重命名、复制、删除
   - 点击“确定”后保存顺序与名称变更，并更新后端配置（config-write）
   - 对话框复用 `.preset-save-dialog` 样式；列表项支持 HTML5 拖拽
+
+## 当前任务（20251008001859）
+- 名称：修复 pdf-viewer 标注持久化（annotation persistence）
+- 问题背景：AnnotationManager 存在 Mock 模式，未连接 wsClient；且未在 PDF 加载后触发标注加载。
+- 相关模块与函数：
+  - 前端：src/frontend/pdf-viewer/container/app-container.js（WSClient创建）、src/frontend/common/ws/ws-client.js（导出）、
+    src/frontend/pdf-viewer/features/annotation/index.js（安装与事件）、src/frontend/pdf-viewer/features/annotation/core/annotation-manager.js（CRUD与WS）、
+    src/frontend/common/event/event-constants.js（消息契约）
+  - 后端：src/backend/msgCenter_server/standard_server.py（ANNOTATION_* handlers）、src/backend/database/plugins/pdf_annotation_plugin.py
+- 执行步骤（原子化）：
+  1) 设计测试：构造ScopedEventBus + Mock wsClient，验证 CREATE 触发 annotation:save:requested
+  2) 修复 ws-client.js 导出：补充 export default WSClient，确保容器可实例化
+  3) 在 AnnotationFeature 安装时监听 FILE.LOAD.SUCCESS，解析 pdf-id 或 filename，发出 ANNOTATION.DATA.LOAD
+  4) 运行并修复测试
+  5) 更新文档与工作日志并通知完成
+### 本次修复要点
+- 根因：app-container 使用默认导入 WSClient，但 ws-client.js 未提供默认导出，导致 wsClient 未创建，AnnotationManager 落入 Mock 模式，无法持久化
+- 补救：在 ws-client.js 增加 export default WSClient，保证容器可实例化 wsClient 并注册到 DI 容器
+- 自动加载：AnnotationFeature 监听 pdf-viewer:file:load-success，解析 pdf-id 或 filename，发出 annotation-data:load:requested
+- 后端：standard_server.py 已实现 ANNOTATION_LIST/SAVE/DELETE，无需调整
+- 测试：新增注释持久化最小化单测（当前 Jest ESM 配置导致已有用例无法整体跑通，建议后续统一 ESM 配置）
+\n- 追加修复: 删除 ws-client.js 重复 export default 导致的 Babel 错误\n\n- 注: AnnotationManager.remote-save/remote-load 失败时降级处理，UI 乐观更新不受阻\n
