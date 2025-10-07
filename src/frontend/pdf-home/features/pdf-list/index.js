@@ -98,8 +98,10 @@ export class PDFListFeature {
   #pendingToastsByRid = new Map();
 
   // 删除流程的 pending 记录（一次仅允许一个批量删除在途）
-  #pendingDeleteRid = null;
-  #pendingDeleteCount = 0;
+  
+  #pendingDeleteToast = null; // { removedCount:number, failedCount:number, failedMap?:object }
+  #pendingDeleteError = null; // { rid:string, message:string }
+  #pendingDeleteErrorTimer = null;
   #pendingDeleteToast = null; // { removedCount:number, failedCount:number, failedMap?:object }
 
   // ==================== IFeature 接口实现 ====================
@@ -738,10 +740,19 @@ export class PDFListFeature {
         // 2) 删除流程错误（标准失败类型）
         if (typeof data?.type === 'string' && data.type === WEBSOCKET_MESSAGE_TYPES.REMOVE_PDF_FAILED) {
           if (this.#pendingDeleteRid && rid && rid === this.#pendingDeleteRid) {
-            try { toastDismiss(this.#pendingDeleteRid); } catch (_) {}
-            toastError(`删除失败-${errorMessage}`);
-            this.#pendingDeleteRid = null;
-            this.#pendingDeleteCount = 0;
+            // 先记录待显示的失败，不立即toast，给可能到来的 completed 留出时间窗口
+            this.#pendingDeleteError = { rid, message: errorMessage };
+            try { if (this.#pendingDeleteErrorTimer) clearTimeout(this.#pendingDeleteErrorTimer); } catch (_) {}
+            this.#pendingDeleteErrorTimer = setTimeout(() => {
+              if (this.#pendingDeleteError && this.#pendingDeleteRid === rid && !this.#pendingDeleteToast) {
+                try { toastDismiss(this.#pendingDeleteRid); } catch (_) {}
+                toastError(删除失败-);
+                this.#pendingDeleteRid = null;
+                this.#pendingDeleteCount = 0;
+              }
+              this.#pendingDeleteError = null;
+              this.#pendingDeleteErrorTimer = null;
+            }, 800);
           } else {
             // 非当前删除请求的失败，忽略以避免误报
             this.#logger.warn('忽略非当前请求的删除失败响应', { request_id: rid, pending: this.#pendingDeleteRid, errorMessage });
@@ -857,16 +868,12 @@ export class PDFListFeature {
       }
 
       // 处理批量删除响应（标准协议）
-      if (typeof data?.type === 'string' && data.type === WEBSOCKET_MESSAGE_TYPES.REMOVE_PDF_COMPLETED) {
-        const removedIds = Array.isArray(data?.data?.removed_files) ? data.data.removed_files : [];
-        const failedMap = (data?.data && typeof data.data.failed_files === 'object') ? (data.data.failed_files || {}) : {};
-        const failedCount = Object.keys(failedMap).length;
-        const rid = data?.request_id;
-
-        // 关闭“删除中”
-        if (this.#pendingDeleteRid && rid && rid === this.#pendingDeleteRid) {
-          try { toastDismiss(this.#pendingDeleteRid); } catch (_) {}
-          this.#pendingDeleteRid = null;
+      
+        // 若先前记录了失败，且现在收到成功，则清理失败pending，优先以成功为准
+        if (this.#pendingDeleteError && this.#pendingDeleteError.rid === rid) {
+          this.#pendingDeleteError = null;
+          try { if (this.#pendingDeleteErrorTimer) clearTimeout(this.#pendingDeleteErrorTimer); } catch (_) {}
+          this.#pendingDeleteErrorTimer = null;
         }
 
         // 延后结果提示：避免立刻被 SearchFeature 的 hideAll() 清除
@@ -898,19 +905,11 @@ export class PDFListFeature {
       }
 
       // 兼容：pdfTable_server 批量删除响应（type='batch_pdf_removed'，data.removed 为对象数组，data.failed 为数组）
-      if (typeof data?.type === 'string' && data.type === 'batch_pdf_removed') {
-        const removedArr = Array.isArray(data?.data?.removed) ? data.data.removed : [];
-        const removedIds = removedArr.map(r => r?.id || r).filter(Boolean);
-        const failedArr = Array.isArray(data?.data?.failed) ? data.data.failed : [];
-        // 转为 map 以复用提示逻辑
-        const failedMap = {};
-        failedArr.forEach((f, idx) => { failedMap[String(f?.id || f || idx)] = '删除失败'; });
-        const failedCount = Object.keys(failedMap).length;
-        const rid = data?.request_id;
-
-        if (this.#pendingDeleteRid && rid && rid === this.#pendingDeleteRid) {
-          try { toastDismiss(this.#pendingDeleteRid); } catch (_) {}
-          this.#pendingDeleteRid = null;
+      
+        if (this.#pendingDeleteError && this.#pendingDeleteError.rid === rid) {
+          this.#pendingDeleteError = null;
+          try { if (this.#pendingDeleteErrorTimer) clearTimeout(this.#pendingDeleteErrorTimer); } catch (_) {}
+          this.#pendingDeleteErrorTimer = null;
         }
 
         this.#pendingDeleteToast = { removedCount: removedIds.length, failedCount, failedMap };
@@ -930,13 +929,11 @@ export class PDFListFeature {
       }
 
       // 兼容：pdfTable_server 单文件删除响应（type='pdf_removed'，data.removed=true，data.file.id）
-      if (typeof data?.type === 'string' && data.type === 'pdf_removed') {
-        const removedOne = data?.data?.removed === true;
-        const fileId = data?.data?.file?.id;
-        const rid = data?.request_id;
-        if (this.#pendingDeleteRid && rid && rid === this.#pendingDeleteRid) {
-          try { toastDismiss(this.#pendingDeleteRid); } catch (_) {}
-          this.#pendingDeleteRid = null;
+      
+        if (this.#pendingDeleteError && this.#pendingDeleteError.rid === rid) {
+          this.#pendingDeleteError = null;
+          try { if (this.#pendingDeleteErrorTimer) clearTimeout(this.#pendingDeleteErrorTimer); } catch (_) {}
+          this.#pendingDeleteErrorTimer = null;
         }
         this.#pendingDeleteToast = { removedCount: removedOne ? 1 : 0, failedCount: removedOne ? 0 : 1 };
         const tabulator = this.#uiManager?.tabulator;
@@ -1267,4 +1264,5 @@ export function createPDFListFeature() {
 }
 
 export default PDFListFeature;
+
 
