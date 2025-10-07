@@ -25,7 +25,8 @@
 }
 
 /* 添加按钮 */
-.saved-filters-add-btn {
+.saved-filters-add-btn,
+.saved-filters-config-btn {
   width: 24px;
   height: 24px;
   border: 1px solid #1976d2;
@@ -42,10 +43,62 @@
   padding: 0;
 }
 
-.saved-filters-add-btn:hover {
+.saved-filters-add-btn:hover,
+.saved-filters-config-btn:hover {
   background: #1976d2;
   color: white;
 }
+
+.saved-filters-header .btn-group {
+  display: flex;
+  gap: 6px;
+}
+
+/* 管理对话框内部样式（简化） */
+.sf-manage-list {
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 6px;
+  background: #fafafa;
+}
+
+.sf-manage-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border: 1px dashed transparent;
+}
+
+.sf-manage-item.drag-over {
+  border-color: #1976d2;
+  background: #e3f2fd;
+}
+
+.sf-drag-handle {
+  cursor: move;
+  user-select: none;
+  color: #666;
+}
+
+.sf-name-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding: 4px 6px;
+}
+
+.sf-btn {
+  border: none;
+  background: transparent;
+  color: #666;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.sf-btn:hover { color: #1976d2; }
 
 /* 列表区域 */
 .saved-filters-list {

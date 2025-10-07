@@ -174,6 +174,40 @@ class PDFLibraryAPI:
         self,
         payload: Dict[str, Any],
     ) -> Dict[str, Any]:
+        # 优先分支：无关键词，且请求按 visited_at 降序排序 -> 走 SQL 层截断（性能更优）
+        try:
+            tokens_peek = [str(token).strip().lower() for token in (payload.get("tokens") or []) if str(token).strip()]
+            sort_rules_peek = payload.get("sort") or []
+            pagination_peek = payload.get("pagination") or {}
+            limit_peek = int(pagination_peek.get("limit", 50))
+            offset_peek = int(pagination_peek.get("offset", 0))
+            need_total_peek = bool(pagination_peek.get("need_total", False))
+
+            only_visited_desc = (
+                isinstance(sort_rules_peek, list)
+                and len(sort_rules_peek) >= 1
+                and sort_rules_peek[0].get("field") == "visited_at"
+                and str(sort_rules_peek[0].get("direction", "desc")).lower() == "desc"
+            )
+            no_filters = not bool(payload.get("filters"))
+
+            if (not tokens_peek) and only_visited_desc and no_filters:
+                rows = self._pdf_info_plugin.query_all_by_visited(
+                    limit=limit_peek if limit_peek is not None else None,
+                    offset=offset_peek if offset_peek is not None else None,
+                )
+                records = [self._map_to_frontend(r) for r in rows]
+                total = self._pdf_info_plugin.count_all() if need_total_peek else len(records)
+                return {
+                    "records": records,
+                    "total": total,
+                    "page": {"limit": limit_peek, "offset": offset_peek},
+                    "meta": {"query": payload.get("query", ""), "tokens": []},
+                }
+        except Exception:
+            # 兜底到通用路径（不影响原有行为）
+            pass
+
         # Delegate to registered service if available
         if self._services and self._services.has(SERVICE_PDF_HOME_SEARCH):
             service = self._services.get(SERVICE_PDF_HOME_SEARCH)
