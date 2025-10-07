@@ -7,7 +7,7 @@ export const RecentAddedFeatureConfig = {
   version: '1.0.0',
   description: '最近添加功能 - 显示和管理最近添加的PDF',
 
-  dependencies: [],
+  dependencies: ['sidebar'],
 
   config: {
     // 最大存储数量

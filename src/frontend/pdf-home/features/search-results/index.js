@@ -30,6 +30,7 @@ export class SearchResultsFeature {
 
   // 当前结果
   #currentResults = [];
+  #pendingFocusIds = null;
 
   // 布局控制
   #layoutButtons = [];
@@ -376,6 +377,20 @@ export class SearchResultsFeature {
     this.#unsubscribers.push(unsubResults);
 
     this.#logger.info('[SearchResultsFeature] Subscribed to search and filter events');
+
+    // 监听外部请求聚焦事件（如“最近添加”点击后要求高亮/聚焦这些ID）
+    const unsubFocusReq = this.#globalEventBus.on('search-results:focus:requested', (data) => {
+      try {
+        const ids = (data && Array.isArray(data.ids)) ? data.ids.map(x => String(x)) : [];
+        this.#logger.info('[SearchResultsFeature] Focus request received', { count: ids.length });
+        this.#pendingFocusIds = ids.length ? ids : null;
+        // 若已有结果，立即尝试应用
+        this.#applyPendingFocus();
+      } catch (e) {
+        this.#pendingFocusIds = null;
+      }
+    });
+    this.#unsubscribers.push(unsubFocusReq);
   }
 
   /**
@@ -528,19 +543,40 @@ export class SearchResultsFeature {
     // 渲染结果
     this.#resultsRenderer.render(this.#resultsContainer, this.#currentResults);
 
-    // 可选：聚焦并滚动到特定条目（用于“最近阅读”侧边栏点击后对齐显示）
+    // 若提供了单个 focusId，则先记录为待定聚焦集
     try {
-      if (focusId && this.#resultsContainer) {
-        const item = this.#resultsContainer.querySelector(`.search-result-item[data-id="${CSS.escape(String(focusId))}"]`);
-        if (item) {
-          // 设置聚焦样式
-          this.#resultsContainer.querySelectorAll('.search-result-item.focused').forEach(el => el.classList.remove('focused'));
-          item.classList.add('focused');
-          // 滚动至可视区域中间
-          item.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        }
+      if (focusId) {
+        const fid = String(focusId);
+        this.#pendingFocusIds = new Set([fid]);
       }
-    } catch (_) { /* ignore */ }
+    } catch (_) {}
+
+    // 渲染完成后应用待定聚焦/高亮
+    this.#applyPendingFocus();
+  }
+
+  // 私有：将待定的聚焦/高亮应用到当前结果
+  #applyPendingFocus() {
+    try {
+      if (!this.#pendingFocusIds || !this.#resultsContainer) return;
+      const ids = this.#pendingFocusIds;
+      let firstEl = null;
+      ids.forEach(id => {
+        const el = this.#resultsContainer.querySelector(`[data-id="${id}"]`);
+        if (el) {
+          el.classList.add('selected');
+          if (!firstEl) firstEl = el;
+        }
+      });
+      if (firstEl) {
+        // 清除其他聚焦并滚动至视图
+        try { this.#resultsContainer.querySelectorAll('.search-result-item.focused').forEach(it => it.classList.remove('focused')); } catch (_) {}
+        firstEl.classList.add('focused');
+        try { firstEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) {}
+      }
+      // 应用一次后清空
+      this.#pendingFocusIds = null;
+    } catch (_) {}
   }
 
   /**
