@@ -253,16 +253,26 @@ class PyQtBridge(QObject):
 
             for raw_id in pdf_ids:
                 pdf_id = str(raw_id)
-                # 若已存在则激活已有窗口
+                # 若已存在则激活已有窗口；若已不可见/失效则移除后重建
                 existing = parent_win.viewer_windows.get(pdf_id) if hasattr(parent_win, 'viewer_windows') else None
                 if existing:
                     try:
-                        existing.raise_()  # type: ignore[attr-defined]
-                        existing.activateWindow()
-                        logger.info(f"[PyQtBridge] 已存在窗口，激活: {pdf_id}")
-                        continue
+                        if hasattr(existing, 'isVisible') and not existing.isVisible():
+                            try:
+                                parent_win.viewer_windows.pop(pdf_id, None)
+                                logger.info(f"[PyQtBridge] 发现失效窗口条目，移除并重建: {pdf_id}")
+                            except Exception:
+                                pass
+                        else:
+                            existing.raise_()  # type: ignore[attr-defined]
+                            existing.activateWindow()
+                            logger.info(f"[PyQtBridge] 已存在窗口，激活: {pdf_id}")
+                            continue
                     except Exception:
-                        pass
+                        try:
+                            parent_win.viewer_windows.pop(pdf_id, None)
+                        except Exception:
+                            pass
 
                 debug_port = self._next_js_debug_port()
                 js_log_path = self._compute_js_log_path(pdf_id)
@@ -285,9 +295,13 @@ class PyQtBridge(QObject):
                 viewer.load_frontend(url)
                 viewer.show()
 
-                # 记录到父窗口字典，便于统一关闭
+                # 记录到父窗口字典，便于统一关闭；并在销毁时清理映射，避免下次误判
                 try:
                     parent_win.viewer_windows[pdf_id] = viewer
+                except Exception:
+                    pass
+                try:
+                    viewer.destroyed.connect(lambda _=None, _pid=pdf_id: parent_win.viewer_windows.pop(_pid, None))  # type: ignore[attr-defined]
                 except Exception:
                     pass
 
@@ -364,12 +378,22 @@ class PyQtBridge(QObject):
                 existing = parent_win.viewer_windows.get(pdf_id) if hasattr(parent_win, 'viewer_windows') else None
                 if existing:
                     try:
-                        existing.raise_()  # type: ignore[attr-defined]
-                        existing.activateWindow()
-                        logger.info(f"[PyQtBridge] 已存在窗口，激活: {pdf_id}")
-                        continue
+                        if hasattr(existing, 'isVisible') and not existing.isVisible():
+                            try:
+                                parent_win.viewer_windows.pop(pdf_id, None)
+                                logger.info(f"[PyQtBridge] 发现失效窗口条目，移除并重建: {pdf_id}")
+                            except Exception:
+                                pass
+                        else:
+                            existing.raise_()  # type: ignore[attr-defined]
+                            existing.activateWindow()
+                            logger.info(f"[PyQtBridge] 已存在窗口，激活: {pdf_id}")
+                            continue
                     except Exception:
-                        pass
+                        try:
+                            parent_win.viewer_windows.pop(pdf_id, None)
+                        except Exception:
+                            pass
 
                 debug_port = self._next_js_debug_port()
                 js_log_path = self._compute_js_log_path(pdf_id)
@@ -450,6 +474,10 @@ class PyQtBridge(QObject):
 
                 try:
                     parent_win.viewer_windows[pdf_id] = viewer
+                except Exception:
+                    pass
+                try:
+                    viewer.destroyed.connect(lambda _=None, _pid=pdf_id: parent_win.viewer_windows.pop(_pid, None))  # type: ignore[attr-defined]
                 except Exception:
                     pass
 
