@@ -47,8 +47,10 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
 - `search:query:requested` 支持可选字段透传至 WS：
   - `sort`: 例如 `[{ field: 'visited_at', direction: 'desc' }]`
   - `pagination`: 例如 `{ limit: 0, offset: 0, need_total: true }`（`limit=0` 表示全量）
+  - `focusId`: 例如 `'abc123'`，用于结果渲染后聚焦并滚动到特定条目
 - 由 `SearchManager` 构建消息：`data = { query, tokens, sort?, pagination? }`
-- 典型用法：侧边栏“最近阅读”点击 → 触发“全量按 visited_at 降序”的搜索
+- 由 `SearchManager` 在 `search:results:updated` 中回传 `{ focusId }`，供 `SearchResultsFeature` 聚焦并 `scrollIntoView`
+- 典型用法：侧边栏“最近阅读”点击 → 触发“全量按 visited_at 降序”的搜索，并在结果中高亮/定位到点击的条目
 
 ## 第三方 Toast 使用规范（pdf-home 添加流程）
 - 依赖：`izitoast`（已加入 package.json）

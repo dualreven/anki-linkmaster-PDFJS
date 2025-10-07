@@ -98,11 +98,13 @@ export class RecentOpenedFeature {
       const clickHandler = (e) => {
         const item = e.target.closest('.sidebar-item');
         if (!item) return;
-        this.#logger.info('[RecentOpenedFeature] Item clicked → trigger global sort search');
+        const focusId = item.getAttribute('data-id') || '';
+        this.#logger.info('[RecentOpenedFeature] Item clicked → trigger global sort search with focusId', { focusId });
         this.#globalEventBus.emit('search:query:requested', {
           searchText: '',
           sort: [{ field: 'visited_at', direction: 'desc' }],
-          pagination: { limit: 0, offset: 0, need_total: true }
+          pagination: { limit: 0, offset: 0, need_total: true },
+          focusId
         });
       };
       this.#listEl.addEventListener('click', clickHandler);

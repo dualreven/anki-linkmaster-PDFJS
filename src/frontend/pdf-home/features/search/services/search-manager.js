@@ -41,7 +41,7 @@ export class SearchManager {
   #setupEventListeners() {
     // 监听搜索请求
     const unsubSearch = this.#eventBus.on('search:query:requested', (data) => {
-      // 兼容扩展参数：允许透传 filters/sort/pagination
+      // 兼容扩展参数：允许透传 filters/sort/pagination/focusId
       this.#handleSearch(data?.searchText, data);
     }, { subscriberId: 'SearchManager' });
     this.#unsubs.push(unsubSearch);
@@ -114,7 +114,8 @@ export class SearchManager {
       this.#eventBus.emit('search:results:updated', {
         records,
         count,
-        searchText
+        searchText,
+        focusId: requestInfo?.focusId
       });
       this.#logger.info('[SearchManager] Search (legacy response) completed successfully', { count });
       this.#isSearching = false;
@@ -183,7 +184,8 @@ export class SearchManager {
     this.#pendingRequests.set(requestId, {
       searchText,
       timestamp: Date.now(),
-      retries: 0
+      retries: 0,
+      focusId: (extraParams && typeof extraParams === 'object') ? extraParams.focusId : undefined
     });
 
     // 构建消息

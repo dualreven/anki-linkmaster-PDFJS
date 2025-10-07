@@ -119,6 +119,7 @@ describe('RecentOpenedFeature 最近阅读', () => {
     expect(got[0]).toHaveProperty('searchText', '');
     expect(got[0].pagination).toEqual({ limit: 0, offset: 0, need_total: true });
     expect(got[0].sort[0]).toEqual({ field: 'visited_at', direction: 'desc' });
+    expect(got[0]).toHaveProperty('focusId', 'a');
 
     unsub();
   });

@@ -19,8 +19,8 @@
      - 安装 RecentOpened 时，发送 `pdf-library:search:requested`，data.sort 包含 `{field:'visited_at',direction:'desc'}`，pagination.limit=显示条数
      - 收到 `search:completed` 响应后渲染列表（显示 title）
      - 点击任一项，发出 `search:query:requested`，携带 sort 与 pagination.limit=0（全量）
-  2) 实现 RecentOpened：容器绑定、限数下拉、请求与渲染、点击触发
-  3) 扩展 SearchManager：透传 `sort` 与 `pagination` 到 WS 消息
+  2) 实现 RecentOpened：容器绑定、限数下拉、请求与渲染、点击触发；点击时携带 focusId
+  3) 扩展 SearchManager：透传 `sort`、`pagination` 到 WS 消息，并在 `search:results:updated` 附带 `focusId`
   4) 运行并修复测试
   5) 回写本文件与 AI-Working-log，并通知完成
 

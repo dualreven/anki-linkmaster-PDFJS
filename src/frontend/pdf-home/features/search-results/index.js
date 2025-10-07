@@ -360,7 +360,7 @@ export class SearchResultsFeature {
         searchText: data.searchText
       });
 
-      this.#handleResultsUpdate(data.records, data.count, data.searchText);
+      this.#handleResultsUpdate(data.records, data.count, data.searchText, data.focusId);
     });
     this.#unsubscribers.push(unsubSearchResults);
 
@@ -511,7 +511,7 @@ export class SearchResultsFeature {
    * 处理结果更新
    * @private
    */
-  #handleResultsUpdate(results, count, searchText) {
+  #handleResultsUpdate(results, count, searchText, focusId) {
     this.#currentResults = results || [];
 
     this.#logger.info('[SearchResultsFeature] ===== 处理结果更新 =====', {
@@ -527,6 +527,20 @@ export class SearchResultsFeature {
 
     // 渲染结果
     this.#resultsRenderer.render(this.#resultsContainer, this.#currentResults);
+
+    // 可选：聚焦并滚动到特定条目（用于“最近阅读”侧边栏点击后对齐显示）
+    try {
+      if (focusId && this.#resultsContainer) {
+        const item = this.#resultsContainer.querySelector(`.search-result-item[data-id="${CSS.escape(String(focusId))}"]`);
+        if (item) {
+          // 设置聚焦样式
+          this.#resultsContainer.querySelectorAll('.search-result-item.focused').forEach(el => el.classList.remove('focused'));
+          item.classList.add('focused');
+          // 滚动至可视区域中间
+          item.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }
+      }
+    } catch (_) { /* ignore */ }
   }
 
   /**
