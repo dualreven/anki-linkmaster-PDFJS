@@ -216,6 +216,19 @@ export const FILTER_EVENTS = {
   }
 };
 
+// 搜索结果控制（用于跨模块请求结果聚焦/高亮等）
+export const SEARCH_RESULTS_EVENTS = {
+  FOCUS: {
+    REQUESTED: 'search-results:focus:requested',
+  },
+};
+
+export const SIDEBAR_EVENTS = {
+  RENDER: {
+    COMPLETED: 'sidebar:render:completed'
+  }
+};
+
 export const validateEventName = (eventName) => {
   if (!eventName || typeof eventName !== 'string') return false;
   const parts = eventName.split(':');
@@ -231,7 +244,9 @@ export const EVENT_CONSTANTS = {
   WEBSOCKET_MESSAGE: WEBSOCKET_MESSAGE_EVENTS,
   WEBSOCKET_MESSAGE_TYPES,
   SEARCH: SEARCH_EVENTS,
-  FILTER: FILTER_EVENTS
+  FILTER: FILTER_EVENTS,
+  SEARCH_RESULTS: SEARCH_RESULTS_EVENTS,
+  SIDEBAR: SIDEBAR_EVENTS
 };
 
 export default EVENT_CONSTANTS;

@@ -90,6 +90,35 @@ describe('RecentAddedFeature 最近添加插件', () => {
     expect(stored.length).toBe(0);
   });
 
+  it('启动时会请求DB按创建时间降序加载最近添加，并以书名展示', () => {
+    // 捕获最近的 search 请求
+    const searchMsg = sentMessages.find(m => m && m.type === WEBSOCKET_MESSAGE_TYPES.SEARCH_PDF);
+    expect(searchMsg).toBeTruthy();
+    expect(Array.isArray(searchMsg?.data?.sort)).toBe(true);
+    expect(searchMsg.data.sort[0]).toEqual({ field: 'created_at', direction: 'desc' });
+
+    // 模拟后端回执（search:completed）
+    const resp = {
+      type: 'pdf-library:search:completed',
+      status: 'success',
+      request_id: searchMsg.request_id,
+      data: {
+        records: [
+          { id: 'id1', title: 'T1', filename: 'f1.pdf', created_at: 100 },
+          { id: 'id2', title: 'T2', filename: 'f2.pdf', created_at: 200 },
+          { id: 'id3', title: 'T3', filename: 'f3.pdf', created_at: 150 }
+        ]
+      }
+    };
+    globalEventBus.emit('websocket:message:response', resp);
+
+    const texts = Array.from(document.querySelectorAll('#recent-added-list .sidebar-item-text')).map(el => el.textContent);
+    // 应使用书名展示，且顺序来自后端（desc），这里验证存在即可
+    expect(texts).toContain('T1');
+    expect(texts).toContain('T2');
+    expect(texts).toContain('T3');
+  });
+
   it('收到 add:completed 后写入存储并渲染到UI，随后 info:completed 更新列表显示书名，点击触发打开', () => {
     const fakeFile = { id: 'abc123', filename: 'A.pdf', path: 'C:/A.pdf' };
     const msg = {

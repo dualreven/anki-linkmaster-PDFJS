@@ -19,6 +19,8 @@ export class SearchManager {
   #unsubs = [];
   #pendingRequests = new Map();  // 存储待处理的请求
   #currentFilters = null;        // 当前激活的筛选条件（由 FilterFeature 管理）
+  #nextSort = null;
+  #nextPagination = null;
   // 仅保留 v1 协议
 
   /**
@@ -42,6 +44,14 @@ export class SearchManager {
     // 监听搜索请求
     const unsubSearch = this.#eventBus.on('search:query:requested', (data) => {
       const filters = data && typeof data === 'object' ? data.filters : undefined;
+      // 兼容附加参数：sort/pagination/search_fields
+      try {
+        this.#nextSort = (data && Array.isArray(data.sort)) ? data.sort : null;
+        this.#nextPagination = (data && typeof data.pagination === 'object') ? data.pagination : null;
+      } catch (_) {
+        this.#nextSort = null;
+        this.#nextPagination = null;
+      }
       this.#handleSearch(data.searchText, filters);
     }, { subscriberId: 'SearchManager' });
     this.#unsubs.push(unsubSearch);
@@ -228,6 +238,23 @@ export class SearchManager {
     if (effectiveFilters && typeof effectiveFilters === 'object') {
       payload.data.filters = effectiveFilters;
     }
+    // 附加 sort/pagination（由调用方决定传入）
+    try {
+      if (this.#nextSort && Array.isArray(this.#nextSort)) {
+        payload.data.sort = this.#nextSort;
+      }
+      if (this.#nextPagination && typeof this.#nextPagination === 'object') {
+        const limit = Number(this.#nextPagination.limit ?? 0);
+        const offset = Number(this.#nextPagination.offset ?? 0);
+        payload.data.pagination = { ...this.#nextPagination };
+        // 兼容后端标准服务器读取顶层 limit/offset 的逻辑
+        if (!Number.isNaN(limit)) payload.data.limit = limit;
+        if (!Number.isNaN(offset)) payload.data.offset = offset;
+      }
+    } catch (_) {}
+    // 清理一次性参数
+    this.#nextSort = null;
+    this.#nextPagination = null;
     return payload;
   }
 

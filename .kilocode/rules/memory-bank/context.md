@@ -261,11 +261,12 @@ const pdfManager = container.get('pdfManager');
   1) 后端完成添加 → WebSocket 推送 `pdf-library:add:completed`（WSClient 路由为 `websocket:message:response`）
   2) RecentAddedFeature 监听 `websocket:message:response`，在 `type===add:completed & status===success` 时提取 `data.file | data.files` → 写入本地（LocalStorage：`pdf-home:recent-added`）、更新 UI。
   3) 用户点击侧边栏项 → 通过 `websocket:message:send` 发送 `pdf-library:viewer:requested`（`data.file_id`）。
+  4) 应用启动 → 发送 `pdf-library:search:requested`，参数 `sort=[{field:'created_at',direction:'desc'}]` 和 `pagination.limit = maxItems`；收到 `pdf-library:search:completed` 后渲染列表。
 - 数据结构：`{ id, filename, path, ts }`；去重规则：优先按 `id`，否则按 `(filename + path)`；最大条数 `maxItems=50`；显示条数保存在 `pdf-home:recent-added:display-limit`。
- - 展示规则：优先显示 `title`（书名）；若尚未获取详情，则暂以 `filename` 展示，待 `pdf-library:info:completed` 回执后更新为书名。
+- 展示规则：优先显示 `title`（书名）；若尚未获取详情，则暂以 `filename` 展示，待 `pdf-library:info:completed` 回执后更新为书名。
 - 原子步骤：
   1. 设计并新增 Jest 测试（首次安装占位、添加后渲染、点击打开、去重提升）
-  2. 实现 `index.js`：加载/保存、渲染、监听 WS 回执与点击、显示条数选择器
+  2. 实现 `index.js`：加载/保存、渲染、监听 WS 回执与点击、显示条数选择器、启动即从DB加载
   3. 运行测试验证；
   4. 更新本文件与工作日志；如需可在 `feature-flags.json` 中启用功能。
 

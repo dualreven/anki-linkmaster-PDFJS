@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Sidebar Feature - 侧边栏容器插件
  * 负责侧边栏整体布局和收起/展开功能
  * 三个子功能（最近搜索、最近阅读、最近添加）作为独立插件管理
@@ -65,6 +65,10 @@ export class SidebarFeature {
     this.#sidebarContainer.render(container);
 
     this.#logger.info('[SidebarFeature] Sidebar rendered');
+    // 通知全局：侧边栏已渲染完成，子功能可安全读取 DOM
+    try {
+      this.#scopedEventBus.emitGlobal('sidebar:render:completed', { ready: true });
+    } catch (_) {}
   }
 
   /**
