@@ -1,5 +1,24 @@
 ﻿# Memory Bank（精简版 / 权威）
 
+## 当前任务（20251007184430）
+- 名称：修复 pdf-home 关闭 pdf-viewer 后再次打开需双击两次的问题
+- 问题背景：
+  - 在搜索结果列表中双击打开 pdf-viewer，随后关闭该 viewer 窗口；再次尝试打开同一条记录时，需要先双击一次（pdf-home 闪一下），再双击第二次才会真正打开。
+  - 初步研判为 PyQt 窗口关闭未销毁导致的“旧引用残留”，`viewer_windows` 命中“已存在窗口，激活”分支但实际窗口已不可用。
+- 相关模块与函数：
+  - 前端：
+    - `src/frontend/pdf-home/features/search-results/index.js`（双击打开逻辑 -> QWebChannelBridge）
+    - `src/frontend/pdf-home/qwebchannel/qwebchannel-bridge.js`（桥接调用 `openPdfViewers(Ex)`）
+  - PyQt：
+    - `src/frontend/pdf-home/pyqt-bridge.py`（`viewer_windows` 映射与复用/重建逻辑）
+    - `src/frontend/pdf-viewer/pyqt/main_window.py`（viewer 窗口生命周期、closeEvent）
+- 执行步骤（原子化）：
+  1) 设计最小化测试：前端双击仅调用一次桥接；记录预期行为
+  2) 在 `pdf-viewer` MainWindow 构造中设置 `WA_DeleteOnClose`，确保关闭即销毁
+  3) 保持 `pyqt-bridge` 的 `isVisible()` 失效清理与 `destroyed.connect` 清理并存
+  4) 自测：打开-关闭-再次打开仅一次双击即可；检查 `logs/window-close.log` 与 `viewer_windows` 行为
+  5) 更新文档（tech.md）与工作日志，并通知完成
+
 ## 当前任务（20251007045101）
 - 名称：修复 pdf-home 的 PDF 编辑保存链路（前后端联通 + Toast 提示）
 - 问题背景：
@@ -277,3 +296,10 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - **EventBus 使用**: `src/frontend/common/event/EVENTBUS-USAGE-GUIDE.md`
 - **技术变更**: `.kilocode/rules/memory-bank/tech.md`
 - **架构变更**: `.kilocode/rules/memory-bank/architecture.md`
+
+---
+
+## 状态更新（20251007185127）
+- 修复目标：pdf-home 关闭 pdf-viewer 后再次打开需双击两次。
+- 关键改动：在 `pdf-viewer` PyQt MainWindow 中设置 `WA_DeleteOnClose`，并维持 `pyqt-bridge` 的可见性检查与 `destroyed` 清理同时存在。
+- 预期效果：viewer 关闭即销毁，`viewer_windows` 映射自动清理；再次打开一次双击即可生效，不再出现“闪一下”。

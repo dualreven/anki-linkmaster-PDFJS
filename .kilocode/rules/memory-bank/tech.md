@@ -249,6 +249,16 @@ ai_launcher.py 会自动将参数映射到各个服务：
 4. **开发后**：`python ai_launcher.py stop` 停止所有服务
 5. **切换模块**：先 `stop`，再 `start --module <新模块>`
 
+## PyQt 窗口生命周期策略（重要）
+- 关闭行为：所有前端窗口（尤其是 `pdf-viewer`）必须设置 `WA_DeleteOnClose`，确保用户关闭窗口时对象被销毁，触发 `destroyed` 信号，便于宿主侧（如 `pdf-home`）清理 `viewer_windows` 映射。
+- 设置方式（统一通过兼容层）：
+  - `from src.qt.compat import QtCore`
+  - `self.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose, True)`（PyQt6）；如不兼容，回退 `QtCore.Qt.WA_DeleteOnClose`
+- 映射清理：`pyqt-bridge.py` 必须同时保留两条清理路径：
+  - `viewer.destroyed.connect(lambda: pop(...))`
+  - 打开前检查 `existing.isVisible()`，不可见则先移除再重建
+- 目的：避免“关闭后再次打开需双击两次”的错误体验，提升窗口生命周期一致性。
+
 ### AI 开发环境特别注意
 
 ⚠️ **严禁直接运行以下命令**（会导致终端阻塞）：
