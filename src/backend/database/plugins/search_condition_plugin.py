@@ -157,7 +157,9 @@ class SearchConditionTablePlugin(TablePlugin):
         allowed = {
             'eq', 'ne', 'gt', 'lt', 'gte', 'lte',
             'contains', 'not_contains', 'starts_with', 'ends_with',
-            'in_range', 'has_tag', 'not_has_tag'
+            'in_range', 'has_tag', 'not_has_tag',
+            # 扩展：标签集合相关
+            'has_all', 'not_has_all', 'has_any', 'not_has_any'
         }
         if operator not in allowed:
             raise DatabaseValidationError('field condition operator invalid')

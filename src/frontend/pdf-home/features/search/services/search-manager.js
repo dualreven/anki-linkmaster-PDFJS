@@ -18,6 +18,7 @@ export class SearchManager {
   #isSearching = false;
   #unsubs = [];
   #pendingRequests = new Map();  // 存储待处理的请求
+  #currentFilters = null;        // 当前激活的筛选条件（由 FilterFeature 管理）
   // 仅保留 v1 协议
 
   /**
@@ -40,7 +41,7 @@ export class SearchManager {
   #setupEventListeners() {
     // 监听搜索请求
     const unsubSearch = this.#eventBus.on('search:query:requested', (data) => {
-      // 兼容扩展参数：允许透传 sort/pagination，用于“最近阅读”等需要自定义排序/分页的场景
+      // 兼容扩展参数：允许透传 filters/sort/pagination
       this.#handleSearch(data?.searchText, data);
     }, { subscriberId: 'SearchManager' });
     this.#unsubs.push(unsubSearch);
@@ -78,6 +79,17 @@ export class SearchManager {
       }
     }, { subscriberId: 'SearchManager' });
     this.#unsubs.push(unsubWsError);
+
+    // 监听筛选状态更新（持久化当前筛选条件）
+    const unsubFilterState = this.#eventBus.on('filter:state:updated', (data) => {
+      try {
+        this.#currentFilters = (data && typeof data === 'object') ? (data.filters ?? null) : null;
+        this.#logger.info('[SearchManager] Filter state updated', { hasFilters: !!this.#currentFilters });
+      } catch (e) {
+        this.#currentFilters = null;
+      }
+    }, { subscriberId: 'SearchManager' });
+    this.#unsubs.push(unsubFilterState);
 
     this.#logger.debug('[SearchManager] Event listeners set up');
   }
@@ -122,6 +134,7 @@ export class SearchManager {
    * 处理搜索请求
    * @private
    * @param {string} searchText - 搜索文本
+   * @param {Object} extraParams - 扩展参数（filters/sort/pagination）
    */
   #handleSearch(searchText, extraParams = {}) {
     // 防止重复搜索
@@ -159,6 +172,8 @@ export class SearchManager {
   /**
    * 发送具体模式的搜索请求，并设置超时与pending跟踪
    * @private
+   * @param {string} searchText - 搜索文本
+   * @param {Object} extraParams - 扩展参数（filters/sort/pagination）
    */
   #sendSearchRequest(searchText, extraParams = {}) {
     // 生成唯一请求ID
@@ -196,6 +211,9 @@ export class SearchManager {
   /**
    * 构建不同协议的消息
    * @private
+   * @param {string} searchText - 搜索文本
+   * @param {string} requestId - 请求ID
+   * @param {Object} extraParams - 扩展参数（filters/sort/pagination）
    */
   #buildMessage(searchText, requestId, extraParams = {}) {
     // 标准协议：载荷放入 data，包含 query 与 tokens（按空格切分，AND 语义）
@@ -211,12 +229,23 @@ export class SearchManager {
         tokens
       }
     };
+
     try {
-      // 透传排序与分页（可选）
       if (extraParams && typeof extraParams === 'object') {
+        // 1. 处理 filters：若调用方未提供，自动带上当前激活的筛选条件
+        const filters = extraParams.filters !== undefined
+          ? extraParams.filters
+          : this.#currentFilters;
+        if (filters && typeof filters === 'object') {
+          payload.data.filters = filters;
+        }
+
+        // 2. 透传排序（可选）
         if (Array.isArray(extraParams.sort) && extraParams.sort.length > 0) {
           payload.data.sort = extraParams.sort;
         }
+
+        // 3. 透传分页（可选）
         if (extraParams.pagination && typeof extraParams.pagination === 'object') {
           const p = extraParams.pagination;
           const pg = {};
@@ -229,6 +258,7 @@ export class SearchManager {
     } catch (_) {
       // 安全兜底：忽略非法扩展参数
     }
+
     return payload;
   }
 

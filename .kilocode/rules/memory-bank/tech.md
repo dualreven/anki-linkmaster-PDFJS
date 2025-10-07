@@ -467,3 +467,28 @@ emove_comment(ann_id, comment_id)。
   - hideAll()
 - 实现位置：src/frontend/common/utils/notification.js（内部 import 'izitoast/dist/css/iziToast.min.css' 全局引入样式）
 - 注意：duration=0 表示不自动关闭（iziToast 用 	imeout: false）。
+# 技术变更记录（SQLite 搜索+筛选）
+
+## UI 交互细则补充（2025-10-07）
+- pdf-home 侧边栏（宽度 280px）展开时不得遮挡搜索结果区域：
+  - 由 `SidebarContainer` 在交互层对 `.main-content` 施加行内样式，展开：`margin-left: 280px; width: calc(100% - 280px)`；收起：清空行内样式；
+  - 首次渲染根据当前状态立即应用，避免初始遮挡。
+  - 事件契约保持不变：仍发布 `sidebar:toggle:completed { collapsed: boolean }`。
+  - 若后续统一改回纯 CSS，请在 `style.css` 内为 `.sidebar:not(.collapsed) + .main-content` 定义等效规则，并移除行内样式逻辑。
+
+时间：2025-10-07 05:35
+
+## 变更摘要
+- 后端新增 `pdf_info_plugin.search_with_filters`：在 SQLite 内部执行“搜索 + 筛选”的 WHERE 条件。
+- API/Service 统一使用以上方法收敛候选集，再在 Python 端计算 `match_score` 与分页，兼容既有排序与单测。
+- WebSocket 路由 `pdf-library:search:requested` 负载扩展：可携带 `filters`、`sort`、`search_fields`。
+- 前端 `SearchManager` 发送时传入 `filters`；`FilterBuilder` 输出与 SearchCondition 一致的条件对象；`FilterFeature` 将“应用筛选”改为触发后端搜索。
+
+## 使用方式变更
+- 前端触发搜索：
+  - 原：`eventBus.emit('search:query:requested', { searchText })`
+  - 新（可选条件）：`eventBus.emit('search:query:requested', { searchText, filters })`
+
+## 注意事项
+- `tags has_any` 使用 LIKE 近似匹配，后续可升级 FTS/虚表优化。
+- `match_score` 排序仍在 Python 侧，若要纯 SQL 排序需设计打分公式或 FTS 排名函数。

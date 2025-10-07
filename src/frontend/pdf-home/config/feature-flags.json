@@ -121,7 +121,7 @@
     }
   },
   "recent-added": {
-    "enabled": false,
+    "enabled": true,
     "description": "最近添加功能 - 显示添加历史（开发中）",
     "version": "1.0.0",
     "meta": {

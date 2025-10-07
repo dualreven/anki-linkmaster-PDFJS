@@ -201,6 +201,16 @@ export const SEARCH_EVENTS = {
 };
 
 export const FILTER_EVENTS = {
+  ADVANCED: {
+    OPEN: 'filter:advanced:open',
+  },
+  PRESET: {
+    SAVE: 'filter:preset:save',
+    SAVED: 'filter:preset:saved',
+  },
+  STATE: {
+    UPDATED: 'filter:state:updated',
+  },
   RESULTS: {
     UPDATED: 'filter:results:updated',
   }
