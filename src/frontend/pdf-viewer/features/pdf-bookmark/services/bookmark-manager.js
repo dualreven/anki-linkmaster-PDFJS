@@ -239,6 +239,17 @@ export class BookmarkManager {
       // 更新书签
       bookmark.update(updates);
 
+      // 防御性同步：如父节点存在，则确保父.children 中的引用同步到最新对象
+      if (bookmark.parentId) {
+        const parent = this.#bookmarks.get(bookmark.parentId);
+        if (parent && Array.isArray(parent.children)) {
+          const idx = parent.children.findIndex(c => c && c.id === bookmark.id);
+          if (idx !== -1) {
+            parent.children[idx] = bookmark;
+          }
+        }
+      }
+
       // 验证更新后的数据
       const validation = bookmark.validate();
       if (!validation.valid) {
@@ -287,49 +298,81 @@ export class BookmarkManager {
       this.#logger.info(`  From: parent=${bookmark.parentId || 'root'}, order=${bookmark.order}`);
       this.#logger.info(`  To: parent=${newParentId || 'root'}, index=${newIndex}`);
 
-      // 从原位置移除
-      if (bookmark.parentId) {
-        const oldParent = this.#bookmarks.get(bookmark.parentId);
-        if (oldParent) {
-          this.#logger.info(`  Removing from parent: ${oldParent.name} (children count before: ${oldParent.children.length})`);
-          oldParent.removeChild(bookmarkId);
-          this.#logger.info(`  Removed (children count after: ${oldParent.children.length})`);
-        }
-      } else {
-        const index = this.#rootBookmarkIds.indexOf(bookmarkId);
-        this.#logger.info(`  Removing from root: index=${index}, root count before: ${this.#rootBookmarkIds.length}`);
-        if (index !== -1) {
-          this.#rootBookmarkIds.splice(index, 1);
-          this.#logger.info(`  Removed from root, count after: ${this.#rootBookmarkIds.length}`);
-        }
-      }
-
-      // 添加到新位置
-      bookmark.parentId = newParentId;
-      bookmark.order = newIndex;
-
+      // 预校验：父节点存在性与环路检查
       if (newParentId) {
         const newParent = this.#bookmarks.get(newParentId);
         if (!newParent) {
-          return {
-            success: false,
-            error: `New parent not found: ${newParentId}`
-          };
+          return { success: false, error: `New parent not found: ${newParentId}` };
         }
-        this.#logger.info(`  Adding to parent: ${newParent.name} (children count before: ${newParent.children.length})`);
-        // 插入到指定位置
-        newParent.children.splice(newIndex, 0, bookmark);
-        // 重新计算order
-        newParent.children.forEach((child, i) => {
-          child.order = i;
-        });
-        this.#logger.info(`  Added to parent (children count after: ${newParent.children.length})`);
+        // 环路检查：沿父链向上查找，不能把节点移到其子孙下面
+        let p = newParentId;
+        while (p) {
+          if (p === bookmarkId) {
+            return { success: false, error: 'Cannot move a node under its own descendant' };
+          }
+          const up = this.#bookmarks.get(p);
+          p = up ? (up.parentId || null) : null;
+        }
+      }
+
+      // 计算目标 siblings 与索引边界
+      const targetSiblings = newParentId
+        ? (this.#bookmarks.get(newParentId)?.children || [])
+        : this.#rootBookmarkIds.map(id => this.#bookmarks.get(id)).filter(Boolean);
+      let targetIndex = Math.max(0, Math.min(Number(newIndex ?? 0), targetSiblings.length));
+
+      // 同父移动时需要考虑移除后索引变化
+      const fromParentId = bookmark.parentId || null;
+      const movingWithinSameParent = fromParentId === (newParentId || null);
+
+      // 先从原位置安全移除（但在计算后一并执行）
+      const removeFromOriginal = () => {
+        if (bookmark.parentId) {
+          const oldParent = this.#bookmarks.get(bookmark.parentId);
+          if (oldParent) {
+            this.#logger.info(`  Removing from parent: ${oldParent.name} (children count before: ${oldParent.children.length})`);
+            const oldIdx = oldParent.children.findIndex(c => c && c.id === bookmarkId);
+            if (oldIdx !== -1) oldParent.children.splice(oldIdx, 1);
+            oldParent.children.forEach((child, i) => { child.order = i; });
+            this.#logger.info(`  Removed (children count after: ${oldParent.children.length})`);
+            // 同父移动且原位置在目标位置之前，移除后目标索引左移
+            if (movingWithinSameParent && oldIdx !== -1 && oldIdx < targetIndex) {
+              targetIndex = Math.max(0, targetIndex - 1);
+            }
+          }
+        } else {
+          const idx = this.#rootBookmarkIds.indexOf(bookmarkId);
+          this.#logger.info(`  Removing from root: index=${idx}, root count before: ${this.#rootBookmarkIds.length}`);
+          if (idx !== -1) this.#rootBookmarkIds.splice(idx, 1);
+          this.#logger.info(`  Removed from root, count after: ${this.#rootBookmarkIds.length}`);
+          if (movingWithinSameParent && idx !== -1 && idx < targetIndex) {
+            targetIndex = Math.max(0, targetIndex - 1);
+          }
+        }
+      };
+
+      // 执行移除
+      removeFromOriginal();
+
+      // 写入新位置
+      bookmark.parentId = newParentId || null;
+      if (newParentId) {
+        const np = this.#bookmarks.get(newParentId);
+        this.#logger.info(`  Adding to parent: ${np.name} (children count before: ${np.children.length})`);
+        np.children.splice(targetIndex, 0, bookmark);
+        np.children.forEach((child, i) => { child.order = i; });
+        bookmark.order = targetIndex;
+        this.#logger.info(`  Added to parent (children count after: ${np.children.length})`);
       } else {
-        this.#logger.info(`  Adding to root at index ${newIndex}, root count before: ${this.#rootBookmarkIds.length}`);
-        // 插入到根列表
-        this.#rootBookmarkIds.splice(newIndex, 0, bookmarkId);
+        this.#logger.info(`  Adding to root at index ${targetIndex}, root count before: ${this.#rootBookmarkIds.length}`);
+        this.#rootBookmarkIds.splice(targetIndex, 0, bookmarkId);
+        // 同步根级 order，保持内存一致
+        this.#rootBookmarkIds.forEach((id, i) => {
+          const node = this.#bookmarks.get(id);
+          if (node) node.order = i;
+        });
+        bookmark.order = targetIndex;
         this.#logger.info(`  Added to root, count after: ${this.#rootBookmarkIds.length}`);
-        this.#logger.info(`  Root IDs: ${this.#rootBookmarkIds.join(', ')}`);
       }
 
       // 保存到存储
@@ -377,16 +420,74 @@ export class BookmarkManager {
       }
 
       const { bookmarks, rootIds } = data;
-      this.#logger.info(`✅ Found stored data: ${bookmarks.length} bookmarks, ${rootIds.length} root IDs`);
+      const total = Array.isArray(bookmarks) ? bookmarks.length : 0;
+      this.#logger.info(`✅ Found stored data: ${total} bookmarks, ${(rootIds || []).length} root IDs`);
 
-      // 重建bookmarks Map
+      // 重建 Map
       this.#bookmarks.clear();
-      bookmarks.forEach(bookmarkData => {
-        const bookmark = Bookmark.fromJSON(bookmarkData);
-        this.#bookmarks.set(bookmark.id, bookmark);
-      });
 
-      this.#rootBookmarkIds = rootIds || [];
+      // 情况A：标准结构（bookmarks 为根节点树，rootIds 提供根顺序）
+      const isStandard = Array.isArray(rootIds) && rootIds.length > 0;
+
+      if (isStandard) {
+        const addRecursive = (bm) => {
+          if (!bm || !bm.id) return;
+          this.#bookmarks.set(bm.id, bm);
+          if (Array.isArray(bm.children) && bm.children.length > 0) {
+            bm.children.forEach(child => addRecursive(child));
+          }
+        };
+        (bookmarks || []).forEach(bm => addRecursive(Bookmark.fromJSON(bm)));
+        this.#rootBookmarkIds = rootIds || [];
+        this.#logger.info(`📦 Loaded standard tree: roots=${this.#rootBookmarkIds.length}, mapSize=${this.#bookmarks.size}`);
+      } else {
+        // 情况B：兼容旧格式（可能将所有节点平铺在顶层或混合）
+        this.#logger.warn('⚠️ Detected legacy bookmark format (no rootIds). Rebuilding tree from flat list...');
+        const map = new Map();
+        const shallow = (b) => {
+          // 使用 fromJSON 但清空 children，避免重复挂载
+          const inst = Bookmark.fromJSON(b);
+          inst.children = [];
+          return inst;
+        };
+        const list = Array.isArray(bookmarks) ? bookmarks : [];
+        list.forEach(b => {
+          try {
+            const inst = shallow(b);
+            map.set(inst.id, inst);
+          } catch (_) {
+            // ignore malformed entries
+          }
+        });
+
+        // 重新挂载父子关系
+        const roots = [];
+        Array.from(map.values()).forEach(node => {
+          const pid = node.parentId || null;
+          if (pid && map.has(pid)) {
+            const parent = map.get(pid);
+            parent.children.push(node);
+          } else {
+            roots.push(node);
+          }
+        });
+
+        // 根按 order 排序，降级容错
+        roots.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+        // 写入内部 Map 与根顺序
+        roots.forEach(root => {
+          const addRecursive = (bm) => {
+            if (!bm || !bm.id) return;
+            this.#bookmarks.set(bm.id, bm);
+            (bm.children || []).forEach(child => addRecursive(child));
+          };
+          addRecursive(root);
+        });
+
+        this.#rootBookmarkIds = roots.map(r => r.id);
+        this.#logger.info(`📦 Rebuilt legacy tree: roots=${this.#rootBookmarkIds.length}, mapSize=${this.#bookmarks.size}`);
+      }
 
       this.#logger.info(`✅ Loaded ${this.#bookmarks.size} bookmarks from storage`);
     } catch (error) {
@@ -400,8 +501,12 @@ export class BookmarkManager {
    */
   async saveToStorage() {
     try {
-      const bookmarks = Array.from(this.#bookmarks.values()).map(b => b.toJSON());
-      await this.#storage.save(this.#pdfId, bookmarks, this.#rootBookmarkIds);
+      // 仅序列化根节点树，符合后端 save_bookmarks 期望
+      const roots = this.#rootBookmarkIds
+        .map(id => this.#bookmarks.get(id))
+        .filter(Boolean)
+        .map(b => b.toJSON());
+      await this.#storage.save(this.#pdfId, roots, this.#rootBookmarkIds);
       this.#logger.info(`✅ Bookmarks saved to storage: PDF=${this.#pdfId}, count=${this.#bookmarks.size}`);
     } catch (error) {
       this.#logger.error('Failed to save bookmarks to storage:', error);

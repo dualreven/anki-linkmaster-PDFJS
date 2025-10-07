@@ -37,6 +37,17 @@ class MainWindow(QMainWindow):
             pdf_id: PDF标识符，用于日志文件命名
         """
         super().__init__()
+        # 确保窗口关闭时对象被销毁（触发 destroyed 信号），以便宿主映射清理
+        try:
+            from src.qt.compat import QtCore  # 统一兼容层
+            try:
+                # PyQt6 写法
+                self.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose, True)
+            except Exception:
+                # 旧版/兼容写法
+                self.setAttribute(QtCore.Qt.WA_DeleteOnClose, True)  # type: ignore[attr-defined]
+        except Exception:
+            pass
         self.parent = app
         self._remote_debug_port = remote_debug_port or 9223  # pdf-viewer默认端口
         self._js_log_file = js_log_file

@@ -511,15 +511,22 @@ export class PDFBookmarkFeature {
         if (result.success) {
           this.#logger.info(`Bookmark updated: ${bookmarkId}`);
           this.#toast('✓ 书签已更新');
+          // 先用本地内存状态立即刷新一次，避免远端回读延迟造成“看起来没更新”
+          this.#refreshBookmarkList();
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.UPDATE.SUCCESS,
             { bookmarkId, updates },
             { actorId: 'PDFBookmarkFeature' }
           );
 
-          await this.#bookmarkManager.saveToStorage();
-          await this.#bookmarkManager.loadFromStorage();
-          this.#refreshBookmarkList();
+          // 后台持久化 + 回读（若远端可用），完成后再刷新以保证一致性
+          try {
+            await this.#bookmarkManager.saveToStorage();
+            await this.#bookmarkManager.loadFromStorage();
+            this.#refreshBookmarkList();
+          } catch (_) {
+            // 忽略暂时的远端失败，保留已更新的本地视图
+          }
         } else {
           this.#logger.error(`Failed to update bookmark: ${result.error}`);
           this.#toast(`更新书签失败: ${result.error}`, 'error');
@@ -601,15 +608,31 @@ export class PDFBookmarkFeature {
     if (result.success) {
       this.#logger.info(`Bookmark reordered: ${bookmarkId}`);
       this.#toast('✓ 书签排序已更新');
+      // 立即用本地内存刷新一次，避免用户感知“无变化/消失”
+      try {
+        this.#refreshBookmarkList();
+        // 高亮并滚动到被移动的书签
+        const moved = this.#bookmarkManager.getBookmark(bookmarkId);
+        if (moved) {
+          this.#eventBus.emitGlobal(
+            PDF_VIEWER_EVENTS.BOOKMARK.SELECT.CHANGED,
+            { bookmarkId, bookmark: moved },
+            { actorId: 'PDFBookmarkFeature' }
+          );
+        }
+      } catch (_) {}
       this.#eventBus.emitGlobal(
         PDF_VIEWER_EVENTS.BOOKMARK.REORDER.SUCCESS,
         { bookmarkId, newParentId, newIndex },
         { actorId: 'PDFBookmarkFeature' }
       );
 
-      await this.#bookmarkManager.saveToStorage();
-      await this.#bookmarkManager.loadFromStorage();
-      this.#refreshBookmarkList();
+      // 后台持久化与回读，完成后再刷新一次以对齐远端
+      try {
+        await this.#bookmarkManager.saveToStorage();
+        await this.#bookmarkManager.loadFromStorage();
+        this.#refreshBookmarkList();
+      } catch (_) {}
     } else {
       this.#logger.error(`Failed to reorder bookmark: ${result.error}`);
       this.#toast(`排序失败: ${result.error}`, 'error');

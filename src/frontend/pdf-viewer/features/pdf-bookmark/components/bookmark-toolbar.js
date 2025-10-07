@@ -116,19 +116,19 @@ export class BookmarkToolbar {
     const separator = document.createElement('div');
     separator.style.cssText = 'width: 1px; height: 20px; background-color: #ccc; margin: 0 4px;';
 
-    // 排序按钮
+    // 排序按钮（已弃用：改为条目内拖拽柄）。保留占位但隐藏。
     this.#buttons.sort = this.#createButton({
       id: 'sort',
       icon: '⇅',
-      tooltip: '进入排序模式'
+      tooltip: '拖拽柄已启用，无需此按钮'
     });
+    this.#buttons.sort.style.display = 'none';
 
     // 组装工具栏
     toolbar.appendChild(this.#buttons.add);
     toolbar.appendChild(this.#buttons.delete);
     toolbar.appendChild(this.#buttons.edit);
     toolbar.appendChild(separator);
-    toolbar.appendChild(this.#buttons.sort);
 
     return toolbar;
   }
@@ -268,7 +268,7 @@ export class BookmarkToolbar {
 
     // 发出排序模式切换事件
     this.#eventBus.emit(
-      'pdf-viewer:bookmark-sort:mode-changed',
+      PDF_VIEWER_EVENTS.BOOKMARK.SORT.MODE_CHANGED,
       { sortMode: this.#sortMode },
       { actorId: 'BookmarkToolbar' }
     );

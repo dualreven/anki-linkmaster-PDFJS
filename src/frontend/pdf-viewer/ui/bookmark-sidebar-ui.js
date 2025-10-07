@@ -21,6 +21,7 @@ export class BookmarkSidebarUI {
   #bookmarks = [];
   #selectedBookmarkId = null; // 当前选中的书签ID
   #sortMode = false; // 排序模式状态
+  #isDragging = false; // 是否正在拖拽（通过悬浮拖拽柄触发）
   #unsubs = [];
 
   constructor(eventBus, options = {}) {
@@ -67,7 +68,7 @@ export class BookmarkSidebarUI {
 
     // 监听排序模式切换
     this.#unsubs.push(this.#eventBus.on(
-      'pdf-viewer:bookmark-sort:mode-changed',
+      PDF_VIEWER_EVENTS.BOOKMARK.SORT.MODE_CHANGED,
       (data) => this.#handleSortModeChanged(data),
       { subscriberId: 'BookmarkSidebarUI' }
     ));
@@ -99,6 +100,8 @@ export class BookmarkSidebarUI {
     this.#bookmarks = Array.isArray(bookmarks) ? bookmarks : [];
     if (!this.#bookmarkList) return;
 
+    // 记录并恢复滚动位置，避免重渲染时“跳到顶部”产生错觉
+    const prevScrollTop = this.#bookmarkList.scrollTop;
     // 清空列表区域
     this.#bookmarkList.innerHTML = '';
 
@@ -167,15 +170,15 @@ export class BookmarkSidebarUI {
         flex-shrink: 0;
       `;
 
-      // Hover显示跳转按钮（仅在非排序模式下）
+      // Hover显示跳转按钮与拖拽柄
       itemContainer.addEventListener('mouseenter', () => {
-        if (!this.#sortMode) {
-          jumpBtn.style.display = 'block';
-        }
+        jumpBtn.style.display = 'block';
+        if (dragHandle) dragHandle.style.display = 'inline-flex';
       });
 
       itemContainer.addEventListener('mouseleave', () => {
         jumpBtn.style.display = 'none';
+        if (dragHandle) dragHandle.style.display = 'none';
       });
 
       // 跳转按钮点击
@@ -205,24 +208,52 @@ export class BookmarkSidebarUI {
         this.#selectBookmark(node.id, node);
       });
 
+      // 拖拽柄（默认隐藏，仅在 hover 时显示）
+      const dragHandle = document.createElement('div');
+      dragHandle.title = '拖动以排序';
+      dragHandle.textContent = '☰';
+      dragHandle.style.cssText = `
+        display: none;
+        width: 20px;
+        height: 20px;
+        align-items: center;
+        justify-content: center;
+        margin-left: 4px;
+        color: #666;
+        cursor: grab;
+        user-select: none;
+        border-radius: 4px;
+      `;
+      dragHandle.setAttribute('draggable', 'true');
+
+      dragHandle.addEventListener('dragstart', (e) => {
+        e.stopPropagation();
+        this.#isDragging = true;
+        try {
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', node.id);
+        } catch (_) {}
+        li.style.opacity = '0.4';
+      });
+
+      dragHandle.addEventListener('dragend', (e) => {
+        e.stopPropagation();
+        this.#isDragging = false;
+        li.style.opacity = '1';
+      });
+
       itemContainer.appendChild(btn);
       itemContainer.appendChild(jumpBtn);
+      itemContainer.appendChild(dragHandle);
       li.appendChild(itemContainer);
 
       // 拖拽排序功能
-      li.draggable = this.#sortMode;
+      li.draggable = false; // 统一通过拖拽柄触发
       li.dataset.bookmarkId = node.id;
       li.dataset.parentId = node.parentId || '';
 
       // 拖拽开始
-      li.addEventListener('dragstart', (e) => {
-        if (!this.#sortMode) return;
-        e.stopPropagation(); // 阻止事件冒泡到父节点
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', node.id);
-        li.style.opacity = '0.4';
-        this.#logger.debug(`Drag started: ${node.name}`);
-      });
+      // 取消 li 自身的拖拽开始，统一用拖拽柄
 
       // 拖拽结束
       li.addEventListener('dragend', (e) => {
@@ -232,7 +263,7 @@ export class BookmarkSidebarUI {
 
       // 拖拽经过
       li.addEventListener('dragover', (e) => {
-        if (!this.#sortMode) return;
+        if (!this.#isDragging) return;
         e.preventDefault();
         e.stopPropagation(); // 阻止事件冒泡到父节点
         e.dataTransfer.dropEffect = 'move';
@@ -278,7 +309,7 @@ export class BookmarkSidebarUI {
 
       // 放下
       li.addEventListener('drop', (e) => {
-        if (!this.#sortMode) return;
+        if (!this.#isDragging) return;
         e.preventDefault();
         e.stopPropagation();
 
@@ -301,6 +332,8 @@ export class BookmarkSidebarUI {
 
         this.#logger.info(`Drop: dragged=${draggedId}, target=${targetId}, zone=${dropZone}`);
         this.#handleDrop(draggedId, targetId, dropZone);
+        // 结束拖拽态
+        this.#isDragging = false;
       });
 
       // 子节点容器
@@ -326,6 +359,8 @@ export class BookmarkSidebarUI {
 
     this.#bookmarks.forEach(n => list.appendChild(buildNode(n, 0)));
     this.#bookmarkList.appendChild(list);
+    // 尝试恢复滚动条位置（若后续有选中事件滚动，将被覆盖）
+    try { this.#bookmarkList.scrollTop = prevScrollTop; } catch(_) {}
   }
 
   /**
@@ -526,6 +561,74 @@ export class BookmarkSidebarUI {
     );
 
     this.#logger.info(`Reorder requested: ${draggedId} -> parent=${newParentId || 'root'}, index=${newIndex} (zone=${dropZone})`);
+
+    // 本地立即应用排序结果，避免用户误以为未生效
+    try {
+      const removed = this.#removeLocalNode(draggedId);
+      if (removed && removed.node) {
+        this.#insertLocalNode(removed.node, newParentId, newIndex);
+        this.#renderBookmarks(this.#bookmarks);
+        // 高亮并滚动到移动后的节点
+        this.#updateSelectionUI(draggedId, true);
+      }
+    } catch (e) {
+      this.#logger.warn('Local reorder preview failed:', e);
+    }
+  }
+
+  /**
+   * 从本地树中移除节点
+   * @param {string} bookmarkId
+   * @returns {{node: Object|null, parentId: string|null, index: number}}
+   * @private
+   */
+  #removeLocalNode(bookmarkId) {
+    const result = { node: null, parentId: null, index: -1 };
+
+    const removeFrom = (arr, pid=null) => {
+      if (!Array.isArray(arr)) return false;
+      const idx = arr.findIndex(x => x && x.id === bookmarkId);
+      if (idx !== -1) {
+        result.node = arr.splice(idx, 1)[0];
+        result.parentId = pid;
+        result.index = idx;
+        return true;
+      }
+      // 深度查找
+      for (const item of arr) {
+        if (item && Array.isArray(item.children) && removeFrom(item.children, item.id)) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    removeFrom(this.#bookmarks, null);
+    return result;
+  }
+
+  /**
+   * 将节点插入到本地树
+   * @param {Object} node - 要插入的节点
+   * @param {string|null} parentId - 目标父ID，null表示根
+   * @param {number} index - 目标索引
+   * @private
+   */
+  #insertLocalNode(node, parentId, index) {
+    if (!node) return;
+    const clamp = (i, len) => Math.max(0, Math.min(typeof i === 'number' ? i : 0, len));
+
+    if (!parentId) {
+      const i = clamp(index, this.#bookmarks.length);
+      this.#bookmarks.splice(i, 0, node);
+      return;
+    }
+
+    const parent = this.#findBookmarkById(this.#bookmarks, parentId);
+    if (!parent) return;
+    if (!Array.isArray(parent.children)) parent.children = [];
+    const i = clamp(index, parent.children.length);
+    parent.children.splice(i, 0, node);
   }
 
   /**

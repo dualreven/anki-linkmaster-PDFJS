@@ -258,6 +258,16 @@ ai_launcher.py 会自动将参数映射到各个服务：
 4. **开发后**：`python ai_launcher.py stop` 停止所有服务
 5. **切换模块**：先 `stop`，再 `start --module <新模块>`
 
+## PyQt 窗口生命周期策略（重要）
+- 关闭行为：所有前端窗口（尤其是 `pdf-viewer`）必须设置 `WA_DeleteOnClose`，确保用户关闭窗口时对象被销毁，触发 `destroyed` 信号，便于宿主侧（如 `pdf-home`）清理 `viewer_windows` 映射。
+- 设置方式（统一通过兼容层）：
+  - `from src.qt.compat import QtCore`
+  - `self.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose, True)`（PyQt6）；如不兼容，回退 `QtCore.Qt.WA_DeleteOnClose`
+- 映射清理：`pyqt-bridge.py` 必须同时保留两条清理路径：
+  - `viewer.destroyed.connect(lambda: pop(...))`
+  - 打开前检查 `existing.isVisible()`，不可见则先移除再重建
+- 目的：避免“关闭后再次打开需双击两次”的错误体验，提升窗口生命周期一致性。
+
 ### AI 开发环境特别注意
 
 ⚠️ **严禁直接运行以下命令**（会导致终端阻塞）：
@@ -494,3 +504,10 @@ emove_comment(ann_id, comment_id)。
 ## 注意事项
 - `tags has_any` 使用 LIKE 近似匹配，后续可升级 FTS/虚表优化。
 - `match_score` 排序仍在 Python 侧，若要纯 SQL 排序需设计打分公式或 FTS 排名函数。
+## 书签存储一致性（pdf-viewer）
+- 问题修复（2025-10-07）
+  - saveToStorage 仅序列化“根节点树”（`rootIds -> tree`），不再将 Map 中所有节点作为顶层提交，避免后端将所有节点当作根导致覆盖写入异常。
+  - loadFromStorage 递归将“根与所有子孙”写入内部 Map，保证 `getBookmark(id)` 可命中任意层级，排序/删除操作稳定。
+- 验收基线
+  - 删除根节点：仅该根及其子孙被移除；其它根不受影响；刷新后保持一致。
+  - 删除子节点：仅该节点（及其子孙）被移除；父与同级以及其它根不受影响；刷新后保持一致。

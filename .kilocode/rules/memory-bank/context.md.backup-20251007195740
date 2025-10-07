@@ -1,30 +1,5 @@
 ﻿# Memory Bank（精简版 / 权威）
 
- 
-## 当前任务（20251007190618）
-- 名称：实现 pdf-home 侧边栏“最近阅读”（visited_at 降序）
-- 问题背景：
-  - 侧边栏 recent-opened 子功能为空实现，无法展示最近阅读列表；
-  - 需求：按 visited_at 字段降序获取前 N 条记录显示书名；点击任一项，等同于“搜索全部内容，并按 visited_at 降序排列”。
-- 相关模块与函数：
-  - 前端：
-    - `src/frontend/pdf-home/features/sidebar/recent-opened/index.js`（本次实现：请求、渲染、交互）
-    - `src/frontend/pdf-home/features/sidebar/components/sidebar-container.js`（容器 DOM）
-    - `src/frontend/pdf-home/features/search/services/search-manager.js`（需扩展：透传 sort/pagination）
-    - `src/frontend/common/event/event-constants.js`（消息常量）
-  - 后端：
-    - `src/backend/msgCenter_server/standard_server.py::handle_pdf_search_request`（标准搜索）
-    - `src/backend/api/pdf_library_api.py::search_records`（支持 payload.sort / pagination.limit=0）
-- 执行步骤（原子化）：
-  1) 设计测试：
-     - 安装 RecentOpened 时，发送 `pdf-library:search:requested`，data.sort 包含 `{field:'visited_at',direction:'desc'}`，pagination.limit=显示条数
-     - 收到 `search:completed` 响应后渲染列表（显示 title）
-     - 点击任一项，发出 `search:query:requested`，携带 sort 与 pagination.limit=0（全量）
-  2) 实现 RecentOpened：容器绑定、限数下拉、请求与渲染、点击触发；点击时携带 focusId
-  3) 扩展 SearchManager：透传 `sort`、`pagination` 到 WS 消息，并在 `search:results:updated` 附带 `focusId`
-  4) 运行并修复测试
-  5) 回写本文件与 AI-Working-log，并通知完成
- 
 ## 当前任务（20251007184430）
 - 名称：修复 pdf-home 关闭 pdf-viewer 后再次打开需双击两次的问题
 - 问题背景：
@@ -43,7 +18,6 @@
   3) 保持 `pyqt-bridge` 的 `isVisible()` 失效清理与 `destroyed.connect` 清理并存
   4) 自测：打开-关闭-再次打开仅一次双击即可；检查 `logs/window-close.log` 与 `viewer_windows` 行为
   5) 更新文档（tech.md）与工作日志，并通知完成
- 
 
 ## 当前任务（20251007045101）
 - 名称：修复 pdf-home 的 PDF 编辑保存链路（前后端联通 + Toast 提示）
@@ -69,28 +43,6 @@
   5) 回写本文件与 AI-Working-log，并通知完成
 
 ## 总体目标
-## 当前任务（20251007195740）
-- 名称：修复 pdf-viewer 书签删除误删其它非子书签
-- 问题背景：
-  - 现象：删除某个书签后，除其子书签外，其他非子书签也被一起删除（或丢失）。
-  - 影响：用户误丢书签，列表刷新后出现缺失。
-  - 初步研判：前端 BookmarkManager 的保存/加载与后端期望不一致。saveToStorage 传输了所有 Map 节点而非根节点树；后端 save_bookmarks 会将列表中的每一项当作根节点进行扁平化与覆盖写入；同时 loadFromStorage 仅把根节点写入 Map，导致对子节点的操作/查找不稳定。
-- 相关模块与函数：
-  - 前端：
-    - src/frontend/pdf-viewer/features/pdf-bookmark/services/bookmark-manager.js（saveToStorage/loadFromStorage/deleteBookmark/reorder）
-    - src/frontend/pdf-viewer/features/pdf-bookmark/services/bookmark-storage.js（Remote/Local 存储协议）
-  - 后端：
-    - src/backend/api/pdf_library_api.py（save_bookmarks/list_bookmarks 期望根节点列表）
-- 执行步骤（原子化）：
-  1) 设计删除回归测试：构建 A,B,C 三个根节点，B 含子 b1，删除 B 后仅 A/C 存活；删除 b1 时仅 b1 消失，B 保留。
-  2) 修复 saveToStorage：仅序列化根节点树（rootIds -> tree），不再序列化 Map 全量。
-  3) 修复 loadFromStorage：递归写入 Map（根与所有子孙），确保 getBookmark 可命中任意层级。
-  4) 自测：本地 LocalStorage 与远端存储（如可）路径，验证删除后刷新仍保持非子树完好。
-  5) 更新日志并通知完成。
-- 验收标准：
-  - 删除任意根节点，仅其子树被移除；其他根节点不受影响。
-  - 删除任意子节点，仅该节点（及其子孙）被移除；其父及同级其他节点不受影响。
-  - 刷新后（loadFromStorage 或远端 round-trip）仍满足以上。
 - 前端（pdf-home、pdf-viewer）为纯 UI 模块，复用共享基础设施（EventBus / Logger / WSClient），仅在必要时通过 QWebChannel 与 Python 通信。
 - 后端分三类：WebSocket 转发器（仅收发转发）、HTTP 文件服务器（仅文件传输）、PDF 业务服务器（独立、接收指令执行业务）。
 - 日志分层：前端控制台经 DevTools 捕获写入 UTF-8 文件；后端统一用 Python logging（文件覆盖写，UTF-8）。
@@ -315,28 +267,6 @@ registry.register(new MyFeature());
 ```javascript
 const { container } = context;
 const pdfManager = container.get('pdfManager');
-
-## 当前任务 - 侧边栏「最近添加」实现（2025-10-07）
-- 描述：在 pdf-home 侧边栏实现“最近添加”功能，捕捉后端添加完成回执，持久化并渲染最近添加列表，点击可打开 PDF。
-- 背景：侧边栏容器（v2）已渲染出 `#recent-added-section` 与 `#recent-added-list`，但 `recent-added/index.js` 仍为占位；需要补齐逻辑，遵循事件白名单与三段式命名。
-- 相关模块/文件：
-  - `src/frontend/pdf-home/features/sidebar/recent-added/index.js`
-  - `src/frontend/common/event/event-constants.js`（使用 `WEBSOCKET_MESSAGE_TYPES`）
-  - `src/frontend/common/ws/ws-client.js`（路由响应到 `websocket:message:response`）
-  - 侧边栏容器：`features/sidebar/components/sidebar-container.js`
-- 事件链路：
-  1) 后端完成添加 → WebSocket 推送 `pdf-library:add:completed`（WSClient 路由为 `websocket:message:response`）
-  2) RecentAddedFeature 监听 `websocket:message:response`，在 `type===add:completed & status===success` 时提取 `data.file | data.files` → 写入本地（LocalStorage：`pdf-home:recent-added`）、更新 UI。
-  3) 用户点击侧边栏项 → 通过 `websocket:message:send` 发送 `pdf-library:viewer:requested`（`data.file_id`）。
-- 数据结构：`{ id, filename, path, ts }`；去重规则：优先按 `id`，否则按 `(filename + path)`；最大条数 `maxItems=50`；显示条数保存在 `pdf-home:recent-added:display-limit`。
- - 展示规则：优先显示 `title`（书名）；若尚未获取详情，则暂以 `filename` 展示，待 `pdf-library:info:completed` 回执后更新为书名。
-- 原子步骤：
-  1. 设计并新增 Jest 测试（首次安装占位、添加后渲染、点击打开、去重提升）
-  2. 实现 `index.js`：加载/保存、渲染、监听 WS 回执与点击、显示条数选择器
-  3. 运行测试验证；
-  4. 更新本文件与工作日志；如需可在 `feature-flags.json` 中启用功能。
-
-— 本段遵循 UTF-8 编码与 \n 换行 —
 ```
 
 **❌ 错误方式：硬编码依赖**
@@ -436,64 +366,9 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - **技术变更**: `.kilocode/rules/memory-bank/tech.md`
 - **架构变更**: `.kilocode/rules/memory-bank/architecture.md`
 
-<<<<<<< HEAD
-## 当前任务（20251007194500）
-- 名称：修复 pdf-viewer 侧边栏打开时未推动 PDF 渲染区的问题（避免遮挡）
-- 问题背景：
-  - 事件白名单与实现不一致：侧边栏管理器发布 `sidebar:layout:changed`，但白名单与常量仅允许 `sidebar:layout:updated`；
-  - 事件总线对未注册的全局事件会阻断发布/订阅；
-  - `PDFLayoutAdapter` 订阅的也是旧事件名，导致无法接收布局变化，从而 `#viewerContainer` 未右移。
-- 相关模块与函数：
-  - `src/frontend/pdf-viewer/features/sidebar-manager/index.js`（发布布局事件与容器创建）
-  - `src/frontend/pdf-viewer/features/sidebar-manager/pdf-layout-adapter.js`（订阅布局事件并设置 `.pdf-container.style.left`）
-  - `src/frontend/common/event/pdf-viewer-constants.js`（`SIDEBAR_MANAGER.LAYOUT_UPDATED` 常量）
-  - `src/frontend/common/event/event-bus.js`（全局事件白名单与验证）
-- 执行步骤（原子化）：
-  1) 设计测试：触发 `SIDEBAR_MANAGER.LAYOUT_UPDATED` 后 `#viewerContainer.style.left === totalWidth + 'px'`
-  2) 添加单测 `__tests__/pdf-layout-adapter.test.js`，覆盖移动与复位两种场景
-  3) 修复代码：
-     - 订阅与发布统一使用 `PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.LAYOUT_UPDATED`
-     - `open:completed` 事件名更正为 `opened:completed`（与常量一致）
-     - 兼容历史 `sidebar:layout:changed`（保留订阅，便于平滑过渡）
-  4) 运行 Jest 测试；如失败则回滚并修正
-  5) 更新本文件与工作日志，并通知完成
-
-## 当前任务（20251007213000）
-- 名称：启动 pdf-viewer（a7a8bbd39787）出现空白页的调查与修复
-- 现象与日志：
-  - JS 日志出现两次 `Uncaught ReferenceError: require is not defined`；Vite 已连接；随后窗口退出。
-  - Launcher 传入 URL 正常，含 `file=.../data/pdfs/a7a8bbd39787.pdf`，后端端口解析正常。
-- 根因：
-  - 前端多处使用 `pdfjs-dist/build/pdf`（UMD/CJS 包）在 QtWebEngine 环境下会触发 `require is not defined`；
-  - 应使用 ESM 入口 `pdfjs-dist` 并将 worker 指向 `@pdfjs/build/pdf.worker.min.mjs`；
-- 相关模块：
-  - `src/frontend/pdf-viewer/pdf/pdf-manager-refactored.js`
-  - `src/frontend/pdf-viewer/features/pdf-reader/services/pdf-manager-service.js`
-  - `src/frontend/pdf-viewer/features/ui-manager/components/pdf-viewer-manager.js`
-- 执行步骤：
-  1) 统一改为 ESM 入口 `pdfjs-dist`；
-  2) 保持 workerSrc 指向 `@pdfjs/build/pdf.worker.min.mjs`（mjs 版）
-  3) 启动验证：确保日志不再出现 `require is not defined`，并能看到 PDF.js 初始化成功日志；
-  4) 更新本文件与工作日志，并通知完成。
-=======
 ---
 
 ## 状态更新（20251007185127）
 - 修复目标：pdf-home 关闭 pdf-viewer 后再次打开需双击两次。
 - 关键改动：在 `pdf-viewer` PyQt MainWindow 中设置 `WA_DeleteOnClose`，并维持 `pyqt-bridge` 的可见性检查与 `destroyed` 清理同时存在。
-- 预期效果：viewer 关闭即销毁，`viewer_windows` 映射自动清理；再次打开一次双击即可生效，不再出现“闪一下”。### 回归兼容（2025-10-07）
-- loadFromStorage 增加“无 rootIds 旧格式”重建逻辑：按 parentId 重组树与根序；防止打开PDF后书签为空。
-- saveToStorage 仍仅保存根树，逐步将旧数据迁移为标准结构。
-### 书签编辑改进（2025-10-07）
-- 立即刷新：编辑成功后先本地刷新，再异步持久化与回读，避免远端回读延迟导致视觉“未更新”。
-- 防御性同步：更新时同步父.children 的引用，防止序列化根树时遗漏子节点更新。
-### 拖动排序修复（2025-10-07）
-- 根因：排序模式事件未在白名单，`emit` 被拦截，UI 收不到，导致 `draggable=false`。
-- 修复：新增 `PDF_VIEWER_EVENTS.BOOKMARK.SORT.MODE_CHANGED`，并全量替换发射与监听位置。
-- 现状：排序模式可切换，拖动排序可用；保存后刷新保持顺序。
-### 排序引擎稳健性（2025-10-07）
-- `reorderBookmarks()` 先预校验：父存在性、环路（沿父链上溯）；
-- 计算目标 siblings 与 index，考虑同父移动“移除后索引左移”；
-- 原子更新：安全移除→插入→同步根 order；
-- 失败不改动；成功再持久化与回读。
->>>>>>> feature-bookmark-fix
+- 预期效果：viewer 关闭即销毁，`viewer_windows` 映射自动清理；再次打开一次双击即可生效，不再出现“闪一下”。
