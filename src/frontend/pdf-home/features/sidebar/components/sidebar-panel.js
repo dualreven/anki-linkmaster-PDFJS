@@ -296,10 +296,10 @@ export class SidebarPanel {
         this.updateSearches(this.#recentSearches);
         break;
       case 'opened':
-        this.updateOpened(this.#recentOpened);
+        // 由对应子功能（recent-opened）处理自身的显示逻辑，容器不直接重渲染
         break;
       case 'added':
-        this.updateAdded(this.#recentAdded);
+        // 由对应子功能（recent-added）处理自身的显示逻辑，容器不直接重渲染
         break;
     }
   }

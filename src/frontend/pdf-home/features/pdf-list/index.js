@@ -764,8 +764,13 @@ export class PDFListFeature {
         this.#logger.debug('Has files:', 'files' in data.data);
       }
 
-      // 检查是否是PDF列表响应
-      if (data && data.data && Array.isArray(data.data.files)) {
+      // 检查是否是“列表完成”响应（严格按类型过滤，避免误将搜索结果当作列表数据渲染）
+      if (
+        data &&
+        typeof data.type === 'string' &&
+        data.type === WEBSOCKET_MESSAGE_TYPES.PDF_LIST_COMPLETED &&
+        data.data && Array.isArray(data.data.files)
+      ) {
         this.#logger.info(`Received PDF list from WebSocket: ${data.data.files.length} files`);
 
         // 更新状态中的items (直接设置属性，而不是调用set方法)

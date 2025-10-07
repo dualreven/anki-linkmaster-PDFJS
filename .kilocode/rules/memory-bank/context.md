@@ -588,3 +588,44 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
   - 支持拖动排序、重命名、复制、删除
   - 点击“确定”后保存顺序与名称变更，并更新后端配置（config-write）
   - 对话框复用 `.preset-save-dialog` 样式；列表项支持 HTML5 拖拽
+
+## 当前任务（20251008033805）
+- 名称：修复侧边栏点击后搜索结果未按N条限制截断
+- 问题背景：
+  - 点击“最近阅读/最近添加”条目应触发空关键词搜索 + 指定排序 + 分页limit=N；
+  - 实际渲染出现18条（疑似全量），与侧边栏选择N=5不符；
+  - 初步推测：部分路径（或并发搜索）导致后端未应用limit；前端需要兜底保证只渲染前N条。
+- 相关模块与函数：
+  - 前端：
+    - src/frontend/pdf-home/features/search/services/search-manager.js（结果事件附带page信息）
+    - src/frontend/pdf-home/features/search-results/index.js（按page.limit截断显示）
+  - 后端（背景）：
+    - src/backend/msgCenter_server/standard_server.py::handle_pdf_search_request（已接入pagination，未回传page）
+    - src/backend/api/pdf_library_api.py::search_records（visited_at/created_at优化分支已具备SQL层LIMIT）
+- 执行步骤（原子化）：
+  1) 为 SearchManager 的 pending 请求缓存 pagination（limit/offset）
+  2) 在 search:results:updated 事件中附带 page 信息（若WS无page，用pending中pagination代替）
+  3) SearchResults 接收到 page.limit>0 时，对 records 执行 slice(0, limit) 再渲染
+  4) 增加测试：SearchManager请求负载与SearchResults截断逻辑
+  5) 更新本context与AI-Working-log
+— 本段UTF-8，换行\n —
+
+### 结果（2025-10-08 03:42:27）
+- 前端已对超量结果进行截断，保障显示条数与侧边栏选择一致；若后端严格应用 LIMIT，将不会影响当前逻辑。
+- 建议后续：服务器响应中回传 page(limit/offset)，当前已兼容此字段。
+— UTF-8 / \n —
+### 追加（日志分析后措施）
+- 根据 logs/pdf-home-js.log：搜索请求的 data.pagination.limit=5 已正确发送；
+- 但结果事件可能缺少 page 字段或存在竞态导致未截断渲染，已在 SearchResults 中增加“记录最近一次 limit 并兜底截断”的逻辑。
+- 预期：点击侧栏项后，无论响应是否携带 page，最终渲染条数均与 N 保持一致。
+— UTF-8 / \n —
+### UI 统计修正
+- 头部统计由“共 X 条”改为“显示 N / 共 M 条”，N=当前渲染条目数（可能受分页limit截断），M=总条数（服务端统计）。
+- 这样当仅显示5条而总计18条时，提示一致且不误导。
+— UTF-8 / \n —
+### 最近添加 组件行为修复
+- 取消标题/列表点击触发搜索，保持与“最近阅读”一致
+- 复用 SidebarPanel 渲染的下拉选择器，避免重复 select 导致的状态分裂
+- SidebarPanel 不再直接在 limit 变化时重渲染 added/opened 列表，由子功能自身渲染
+- 期望：点击“显示10个”仅侧栏显示变为10条，不触发搜索，不改变结果背景色
+— UTF-8 / \n —

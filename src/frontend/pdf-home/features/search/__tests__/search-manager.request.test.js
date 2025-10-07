@@ -38,5 +38,34 @@ describe('SearchManager request payload', () => {
     expect(Array.isArray(msg.data.tokens)).toBe(true);
     expect(msg.data.tokens).toEqual(['deep', 'learn', 'RL']);
   });
+
+  test('携带 pagination.limit 时应在 data.pagination 与顶层 data.limit 中体现', () => {
+    const mgr = new SearchManager(eventBus);
+
+    const sent = [];
+    eventBus.on(
+      WEBSOCKET_EVENTS.MESSAGE.SEND,
+      (message) => {
+        sent.push(message);
+      },
+      { subscriberId: 'jest-search' }
+    );
+
+    // 触发带分页的空搜索（用于最近阅读/添加场景）
+    eventBus.emit('search:query:requested', {
+      searchText: '',
+      sort: [{ field: 'visited_at', direction: 'desc' }],
+      pagination: { limit: 5, offset: 0, need_total: true }
+    });
+
+    expect(sent.length).toBe(1);
+    const msg = sent[0];
+    expect(msg).toHaveProperty('type', 'pdf-library:search:requested');
+    expect(msg).toHaveProperty('data');
+    expect(msg.data).toHaveProperty('limit', 5);
+    expect(msg.data).toHaveProperty('offset', 0);
+    expect(msg.data).toHaveProperty('pagination');
+    expect(msg.data.pagination).toEqual({ limit: 5, offset: 0, need_total: true });
+  });
 });
 
