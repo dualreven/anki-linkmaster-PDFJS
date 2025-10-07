@@ -792,7 +792,7 @@ class PDFInfoTablePlugin(TablePlugin):
     def _build_order_by(self, sort_rules: Optional[List[Dict[str, Any]]]) -> str:
         """根据 sort_rules 生成安全的 ORDER BY 片段。
 
-        支持字段：title/author/filename/created_at/updated_at/page_count/file_size
+        支持字段：title/author/filename/created_at/updated_at/page_count/file_size/tags
         - 文本字段使用 COLLATE NOCASE 做不区分大小写的字母序
         - 未提供规则时，默认按 title ASC
         """
@@ -839,6 +839,8 @@ class PDFInfoTablePlugin(TablePlugin):
                 parts.append(f"CAST(json_extract(json_data, '$.due_date') AS INTEGER) {direction.upper()}")
             elif field == "star":
                 parts.append(f"CAST(json_extract(json_data, '$.star') AS INTEGER) {direction.upper()}")
+            elif field == "tags":
+                parts.append(f"IFNULL(json_array_length(json_extract(json_data, '$.tags')), 0) {direction.upper()}")
             else:
                 # 忽略不在白名单的字段，避免注入
                 continue

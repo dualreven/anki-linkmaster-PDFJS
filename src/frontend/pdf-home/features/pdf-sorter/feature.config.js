@@ -55,6 +55,7 @@ export const PDFSorterFeatureConfig = {
         { field: 'size', label: '文件大小', type: 'number' },
         { field: 'rating', label: '评分', type: 'number' },
         { field: 'review_count', label: '复习次数', type: 'number' },
+        { field: 'tags', label: '标签数', type: 'number' },
         { field: 'total_reading_time', label: '总阅读时长', type: 'number' },
         { field: 'page_count', label: '页数', type: 'number' },
         { field: 'star', label: '星标', type: 'number' },

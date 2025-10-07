@@ -52,7 +52,7 @@ export class WeightedSortEditor {
   #containerClickHandler = null;
 
   /** @type {ReadonlyArray<string>} */
-  #operators = ['+', '-', '*', '/', '%', '**', '(', ')'];
+  #operators = ['+', '-', '*', '/', '(', ')'];
 
   /** @type {ReadonlyArray<string>} */
   #numberPadDigits = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '0', '.'];
@@ -60,16 +60,10 @@ export class WeightedSortEditor {
   /** @type {Readonly<Record<string, { name: string, label: string, display: string, arity: number }>>} */
   #functionDefinitions = {
     abs: { name: 'abs', label: '绝对值', display: 'abs(x)', arity: 1 },
-    ceil: { name: 'ceil', label: '向上取整', display: 'ceil(x)', arity: 1 },
-    floor: { name: 'floor', label: '向下取整', display: 'floor(x)', arity: 1 },
     round: { name: 'round', label: '四舍五入', display: 'round(x)', arity: 1 },
     max: { name: 'max', label: '最大值', display: 'max(a, b)', arity: 2 },
     min: { name: 'min', label: '最小值', display: 'min(a, b)', arity: 2 },
-    sqrt: { name: 'sqrt', label: '平方根', display: 'sqrt(x)', arity: 1 },
-    pow: { name: 'pow', label: '乘方', display: 'pow(base, exp)', arity: 2 },
     length: { name: 'length', label: '长度(字符数)', display: 'length(x)', arity: 1 },
-    asc: { name: 'asc', label: '升序(原值)', display: 'asc(x)', arity: 1 },
-    desc: { name: 'desc', label: '降序(取反)', display: 'desc(x)', arity: 1 },
     clamp: { name: 'clamp', label: '范围限制', display: 'clamp(x, min, max)', arity: 3 },
     normalize: { name: 'normalize', label: '归一化', display: 'normalize(x, min, max)', arity: 3 }
   };
