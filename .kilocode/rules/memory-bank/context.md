@@ -498,3 +498,10 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - 原子更新：安全移除→插入→同步根 order；
 - 失败不改动；成功再持久化与回读。
 >>>>>>> feature-bookmark-fix
+
+## 当前任务（20251007223412）
+- 名称：合并 worktree A/C/D 已提交代码到 main
+- A: feature-bookmark-fix（发生冲突，已在 context.md 合并任务条目）
+- C: feature-pdf-processing（已最新）
+- D: d-main-20250927（冲突：search-results/index.js、search-manager.js；已融合 focusId 与 pendingFocus）
+- 备注：保持 UTF-8 与 \n；冲突均按保留双端能力的原则解决
