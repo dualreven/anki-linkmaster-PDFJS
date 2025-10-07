@@ -120,6 +120,8 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   PDF_DETAIL_REQUEST: 'pdf-library:info:requested',
   GET_CONFIG: 'pdf-library:config-read:requested',
   UPDATE_CONFIG: 'pdf-library:config-write:requested',
+  // 记录更新（编辑）
+  PDF_LIBRARY_RECORD_UPDATE_REQUESTED: 'pdf-library:record-update:requested',
   BOOKMARK_LIST: 'bookmark:list:requested',
   BOOKMARK_SAVE: 'bookmark:save:requested',
   PDF_PAGE_REQUEST: 'pdf-page:load:requested',
@@ -154,6 +156,9 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   CONFIG_READ_FAILED: 'pdf-library:config-read:failed',
   CONFIG_WRITE_COMPLETED: 'pdf-library:config-write:completed',
   CONFIG_WRITE_FAILED: 'pdf-library:config-write:failed',
+  // 记录更新（编辑）响应
+  PDF_LIBRARY_RECORD_UPDATE_COMPLETED: 'pdf-library:record-update:completed',
+  PDF_LIBRARY_RECORD_UPDATE_FAILED: 'pdf-library:record-update:failed',
   BOOKMARK_LIST_COMPLETED: 'bookmark:list:completed',
   BOOKMARK_LIST_FAILED: 'bookmark:list:failed',
   BOOKMARK_SAVE_COMPLETED: 'bookmark:save:completed',

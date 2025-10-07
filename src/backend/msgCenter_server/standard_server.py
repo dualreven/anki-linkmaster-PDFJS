@@ -433,18 +433,23 @@ class StandardWebSocketServer(QObject):
             failed = {}
             for fid in file_ids:
                 ok = False
+                db_ok = False
+                fs_ok = False
+                # 优先删除数据库记录
                 if hasattr(self, "pdf_library_api") and self.pdf_library_api:
                     try:
-                        ok = bool(self.pdf_library_api.delete_record(fid))
+                        db_ok = bool(self.pdf_library_api.delete_record(fid))
                     except Exception as exc:
-                        ok = False
+                        db_ok = False
                         logger.warning("删除记录失败: %s", exc)
-                if not ok and hasattr(self, "pdf_manager") and self.pdf_manager:
+                # 同步尝试删除运行内存/文件管理器中的记录（最佳努力），避免残留导致后续重复添加受阻
+                if hasattr(self, "pdf_manager") and self.pdf_manager:
                     try:
-                        ok = bool(self.pdf_manager.remove_file(fid))
+                        fs_ok = bool(self.pdf_manager.remove_file(fid))
                     except Exception as exc:
-                        ok = False
+                        fs_ok = False
                         logger.warning("删除文件失败: %s", exc)
+                ok = bool(db_ok or fs_ok)
                 if ok:
                     removed.append(fid)
                 else:
@@ -1518,48 +1523,72 @@ class StandardWebSocketServer(QObject):
                 code=500
             )
     def handle_pdf_update_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
-        """处理PDF更新请求"""
+        """处理PDF更新请求（优先更新数据库，失败时回退文件管理器）。"""
         try:
-            file_id = data.get("file_id") if isinstance(data, dict) else None
-            updates = data.get("updates", {}) if isinstance(data, dict) else {}
+            payload = data if isinstance(data, dict) else {}
+            file_id = (
+                payload.get("file_id")
+                or payload.get("pdf_id")
+                or payload.get("uuid")
+                or payload.get("id")
+            )
+            updates = payload.get("updates", {})
 
             if not file_id:
                 return StandardMessageHandler.build_error_response(
                     request_id or "unknown",
                     "INVALID_REQUEST",
-                    "缺少必需的file_id参数",
+                    "缺少必需的 file_id/uuid 参数",
                     message_type=MessageType.PDF_LIBRARY_RECORD_UPDATE_FAILED,
-                    code=400
+                    code=400,
                 )
 
-            if not updates:
+            if not isinstance(updates, dict) or not updates:
                 return StandardMessageHandler.build_error_response(
                     request_id or "unknown",
                     "INVALID_REQUEST",
-                    "缺少updates参数",
+                    "缺少 updates 参数",
                     message_type=MessageType.PDF_LIBRARY_RECORD_UPDATE_FAILED,
-                    code=400
+                    code=400,
                 )
 
-            success = self.pdf_manager.update_file(file_id, updates)
+            success = False
+            error_msg: Optional[str] = None
+
+            # 优先更新数据库（若可用）
+            if hasattr(self, "pdf_library_api") and self.pdf_library_api:
+                try:
+                    success = bool(self.pdf_library_api.update_record(str(file_id), updates))
+                except Exception as exc:
+                    success = False
+                    error_msg = f"数据库更新失败: {exc}"
+
+            # 回退到文件管理器（兼容旧实现/测试环境）
+            if not success and hasattr(self, "pdf_manager") and self.pdf_manager:
+                try:
+                    success = bool(self.pdf_manager.update_file(str(file_id), updates))
+                except Exception as exc:
+                    success = False
+                    error_msg = f"文件管理器更新失败: {exc}"
 
             if success:
+                # 广播列表变更（数据库优先）
                 self.on_pdf_list_changed()
                 return StandardMessageHandler.build_response(
                     MessageType.PDF_LIBRARY_RECORD_UPDATE_COMPLETED,
                     request_id or StandardMessageHandler.generate_request_id(),
                     status="success",
                     code=200,
-                    message="PDF文件更新成功",
-                    data={"file_id": file_id, "updates": updates}
+                    message="PDF记录更新成功",
+                    data={"id": str(file_id), "updates": updates},
                 )
 
             return StandardMessageHandler.build_error_response(
                 request_id or "unknown",
                 "UPDATE_FAILED",
-                "PDF文件更新失败",
+                error_msg or "PDF记录更新失败",
                 message_type=MessageType.PDF_LIBRARY_RECORD_UPDATE_FAILED,
-                code=500
+                code=500,
             )
 
         except Exception as e:
@@ -1569,7 +1598,7 @@ class StandardWebSocketServer(QObject):
                 "UPDATE_ERROR",
                 f"更新PDF失败: {e}",
                 message_type=MessageType.PDF_LIBRARY_RECORD_UPDATE_FAILED,
-                code=500
+                code=500,
             )
     def handle_pdf_page_request(self, request_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """处理PDF页面请求"""

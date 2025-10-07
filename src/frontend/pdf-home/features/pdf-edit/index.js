@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file PDF Edit 功能域入口
  * @module features/pdf-edit
  * @description
@@ -10,6 +10,7 @@
 import { PDF_EDIT_FEATURE_CONFIG } from './feature.config.js';
 import { PDF_EDIT_EVENTS, createEditRequestedData, createEditCompletedData } from './events.js';
 import { PDF_MANAGEMENT_EVENTS, WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from '../../../common/event/event-constants.js';
+import { showInfo as notifyInfo, showSuccess as notifySuccess, showError as notifyError } from '../../../common/utils/notification.js';
 import { getLogger } from '../../../common/utils/logger.js';
 import { ModalManager } from './components/modal-manager.js';
 import { StarRating } from './components/star-rating.js';
@@ -39,6 +40,8 @@ export class PDFEditFeature {
   #currentRecord = null;
   #formComponents = {};
   #editButton = null;
+  #awaitingSuccess = false;
+  #awaitingTimer = null;
 
   // ==================== IFeature 接口实现 ====================
 
@@ -222,6 +225,36 @@ export class PDFEditFeature {
       this.#handleEditCompleted.bind(this)
     );
     this.#unsubscribers.push(unsubEditCompleted);
+
+    // 监听通用 WebSocket 消息（仅处理失败；成功延后到搜索刷新后再提示）
+    const unsubWsAny = this.#globalEventBus.on(
+      WEBSOCKET_EVENTS.MESSAGE.RECEIVED,
+      (message) => {
+        try {
+          const t = String(message?.type || '');
+          if (t === WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_COMPLETED) {
+            // 标记等待在刷新后显示成功提示
+            this.#awaitingSuccess = true;
+          } else if (t === WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_FAILED) {
+            const msg = message?.message || message?.error?.message || '操作失败';
+            try { notifyError(`更新失败-${msg}`, 5000); } catch (_) {}
+            this.#awaitingSuccess = false;
+            if (this.#awaitingTimer) { clearTimeout(this.#awaitingTimer); this.#awaitingTimer = null; }
+          }
+        } catch (_) {}
+      }
+    );
+    this.#unsubscribers.push(unsubWsAny);
+
+    // 在搜索结果刷新后，再显示“更新完成”，避免被 SearchFeature.hideAll() 立即 destroy
+    const unsubSearchUpdated = this.#globalEventBus.on('search:results:updated', () => {
+      if (this.#awaitingSuccess) {
+        this.#awaitingSuccess = false;
+        if (this.#awaitingTimer) { clearTimeout(this.#awaitingTimer); this.#awaitingTimer = null; }
+        try { notifySuccess('更新完成', 3500); } catch (_) {}
+      }
+    });
+    this.#unsubscribers.push(unsubSearchUpdated);
 
     this.#logger.debug('Event listeners registered');
   }
@@ -645,15 +678,40 @@ export class PDFEditFeature {
         },
         { actorId: 'PDFEditFeature' }
       );
+      // Toast：更新中（与其他功能一致，短暂提示）
+      try { notifyInfo('更新中', 1200); } catch (_) {}
 
-      // 发送WebSocket消息到后端
-      this.#sendEditRequestToBackend(this.#currentRecord.pdf_id || this.#currentRecord.id, updates);
+      // 发送WebSocket消息到后端并等待结果
+      (async () => {
+        try {
+          await this.#sendEditRequestToBackend(this.#currentRecord.pdf_id || this.#currentRecord.id, updates);
+          // 刷新当前搜索结果（若存在搜索框），成功提示在刷新后显示
+          try {
+            const input = document.querySelector('.search-input');
+            const searchText = (input && typeof input.value === 'string') ? input.value.trim() : '';
+            this.#scopedEventBus.emitGlobal('search:query:requested', { searchText });
+          } catch (_e) {
+            // 忽略刷新异常
+          }
+          // 兜底：若未触发搜索刷新事件，延时显示成功
+          this.#awaitingTimer = setTimeout(() => {
+            if (this.#awaitingSuccess) {
+              this.#awaitingSuccess = false;
+              try { notifySuccess('更新完成', 3500); } catch (_) {}
+            }
+          }, 1200);
+        } catch (err) {
+          const msg = err?.message || '未知错误';
+          try { notifyError(`更新失败-${msg}`, 5000); } catch (_) {}
+        }
+      })();
 
-      // 关闭模态框
+      // 关闭模态框（不阻塞等待）
       this.#modalManager.hide();
 
     } catch (error) {
       this.#logger.error('Form submission failed:', error);
+      try { notifyError(`更新失败-${error?.message || '表单提交异常'}`, 5000); } catch (_) {}
     }
   }
 
@@ -687,7 +745,8 @@ export class PDFEditFeature {
 
     } catch (error) {
       this.#logger.error('Failed to send edit request:', error);
-      this.#logger.error('Error details:', error.stack);
+      try { this.#logger.error('Error details:', error.stack); } catch (_) {}
+      throw (error instanceof Error ? error : new Error(error?.message || '编辑请求失败'));
     }
   }
 
@@ -727,3 +786,5 @@ export class PDFEditFeature {
  * 导出功能实例（供FeatureRegistry使用）
  */
 export default PDFEditFeature;
+
+

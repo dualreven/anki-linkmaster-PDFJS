@@ -22,11 +22,25 @@
   transform: translateY(-1px);
 }
 
-/* 条目选中状态 */
+/* 条目聚焦状态（用于单项操作和键盘导航） */
+.search-result-item.focused {
+  border-color: #999;
+  background: #f5f5f5;
+  box-shadow: 0 0 0 2px rgba(153, 153, 153, 0.2);
+}
+
+/* 条目选中状态（用于批量操作） */
 .search-result-item.selected {
   border-color: #1976d2;
   background: #e3f2fd;
   box-shadow: 0 2px 12px rgba(25, 118, 210, 0.25);
+}
+
+/* 条目选中 + 聚焦状态（叠加效果） */
+.search-result-item.selected.focused {
+  border-color: #1976d2;
+  background: #bbdefb;
+  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.3), 0 2px 12px rgba(25, 118, 210, 0.4);
 }
 
 /* 顶部：多选框 + 图标 + 内容 */

@@ -72,9 +72,26 @@ class PDFManager(QObject):
                 
             # 检查文件是否已存在
             file_id = PDFFile.generate_file_id(filepath)
+            logger.debug(f"为文件生成ID: {filepath} -> {file_id}")
+            logger.debug(f"当前文件列表中的ID数量: {self.file_list.count()}")
+
             if self.file_list.exists(file_id):
-                self.error_occurred.emit("文件已存在于列表中")
-                return False
+                existing = self.file_list.get_file(file_id)
+                logger.warning(f"重复添加，同一ID已存在: {file_id}, 路径: {filepath}")
+                if existing:
+                    # 幂等：视为成功，发出 file_added 信号以便前端感知
+                    info = existing.get_file_info()
+                    try:
+                        self.file_added.emit(info)
+                        self.file_list_changed.emit()
+                    except Exception:
+                        pass
+                    return True
+                # 异常状态：记录存在但取不到，尝试移除并继续添加
+                try:
+                    self.file_list.remove_file(file_id)
+                except Exception:
+                    pass
                 
             # 创建文件副本
             copy_path = self._create_file_copy(filepath, file_id)
@@ -133,10 +150,18 @@ class PDFManager(QObject):
             
             success = self.file_list.remove_file(file_id)
             if success:
-                self.save_files()
+                logger.debug(f"从file_list中移除成功: {file_id}")
+                logger.debug(f"移除后文件列表中的ID数量: {self.file_list.count()}")
+                logger.debug(f"准备保存文件列表到: {self.config_file}")
+
+                save_result = self.save_files()
+                if save_result:
+                    logger.info(f"文件列表保存成功，文件移除成功: {file_id}")
+                else:
+                    logger.error(f"文件列表保存失败！文件: {file_id}")
+
                 self.file_removed.emit(file_id)
                 self.file_list_changed.emit()
-                logger.info(f"文件移除成功: {file_id}")
                 return True
             else:
                 self.error_occurred.emit("文件移除失败")
