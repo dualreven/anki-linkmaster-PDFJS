@@ -1,6 +1,27 @@
 # Memory Bank（精简版 / 权威）
 
-## 当前任务（20251007170045）
+## 当前任务（20251008061500）
+- 名称：合并 worktree D (d-main-20250927) 到 main
+- 背景：worktree D 包含侧边栏搜索结果截断、最近添加组件修复等改进，需要合并到主分支
+- 执行步骤：
+  1) 暂存当前未提交的 context.md 修改
+  2) 执行 `git merge d-main-20250927 --no-ff`
+  3) 解决 context.md 合并冲突（保留两个分支的所有历史任务）
+  4) 提交合并并清理 stash
+- 主要变更：
+  * 修复侧边栏点击后搜索结果未按N条限制截断
+  * SearchManager 缓存分页参数并在结果事件中附带 page 信息
+  * SearchResults 对超量结果进行截断
+  * UI 统计显示格式改为"显示 N / 共 M 条"
+  * 最近添加组件行为修复：取消点击触发搜索，复用下拉选择器
+  * 新增测试用例：search-results.limit.test.js
+- 合并结果：
+  * 冲突文件：.kilocode/rules/memory-bank/context.md（已解决）
+  * 变更文件：8 files changed, 294 insertions(+), 439 deletions(-)
+  * 提交 ID：90f1dbd
+- 验证：合并成功，无冲突遗留
+
+## 历史任务（20251007170045）
 - 名称：移除 Header 功能域，启用并验证排序面板
 - 背景：旧版按钮来自 Header 渲染；现决定完全删除 Header，仅保留搜索栏工具区。
 - 已完成：
