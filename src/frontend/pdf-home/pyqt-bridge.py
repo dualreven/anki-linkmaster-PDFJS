@@ -296,6 +296,168 @@ class PyQtBridge(QObject):
             logger.error(f"[PyQtBridge] 打开 pdf-viewer 失败: {e}", exc_info=True)
             return False
 
+    @pyqtSlot('QVariant', result=bool)
+    def openPdfViewersEx(self, payload) -> bool:
+        """增强版本：支持传入 { pdfIds, items }，items 可包含 filename 与 file_path。
+
+        payload 结构示例：
+          {
+            'pdfIds': ['id1', 'id2'],
+            'items': [
+               { 'id': 'id1', 'filename': 'a.pdf', 'file_path': 'C:/docs/a.pdf' },
+               { 'id': 'id2', 'filename': 'b.pdf' }
+            ]
+          }
+        """
+        try:
+            vite_port, msg_port, pdf_port, _extras = self._read_runtime_ports()
+
+            from src.qt.compat import QApplication
+            import importlib.util as _ilu
+            from pathlib import Path as _Path
+            _viewer_main_path = _Path(__file__).parent.parent / 'pdf-viewer' / 'pyqt' / 'main_window.py'
+            _spec = _ilu.spec_from_file_location('pdf_viewer_main_window', _viewer_main_path)
+            assert _spec and _spec.loader, "无法定位 pdf-viewer 主窗口模块"
+            _mod = _ilu.module_from_spec(_spec)
+            _spec.loader.exec_module(_mod)  # type: ignore[attr-defined]
+            ViewerMainWindow = getattr(_mod, 'MainWindow')
+
+            app = QApplication.instance()
+            if app is None:
+                logger.error("[PyQtBridge] QApplication 实例不存在，无法创建窗口")
+                return False
+
+            parent_win = self.parent
+            if getattr(parent_win, "viewer_windows", None) is None:
+                setattr(parent_win, "viewer_windows", {})
+
+            pdf_ids = []
+            try:
+                if isinstance(payload, dict):
+                    if isinstance(payload.get('pdfIds'), list):
+                        pdf_ids.extend([str(x) for x in payload.get('pdfIds') if x is not None])
+            except Exception:
+                pass
+
+            items_map = {}
+            try:
+                if isinstance(payload, dict) and isinstance(payload.get('items'), list):
+                    for it in payload.get('items'):
+                        try:
+                            _id = str(it.get('id') or '') if isinstance(it, dict) else ''
+                            if not _id:
+                                continue
+                            items_map[_id] = {
+                                'filename': it.get('filename') or None,
+                                'file_path': it.get('file_path') or None,
+                                'title': it.get('title') or None
+                            }
+                            if _id not in pdf_ids:
+                                pdf_ids.append(_id)
+                        except Exception:
+                            continue
+            except Exception:
+                pass
+
+            for raw_id in pdf_ids:
+                pdf_id = str(raw_id)
+                existing = parent_win.viewer_windows.get(pdf_id) if hasattr(parent_win, 'viewer_windows') else None
+                if existing:
+                    try:
+                        existing.raise_()  # type: ignore[attr-defined]
+                        existing.activateWindow()
+                        logger.info(f"[PyQtBridge] 已存在窗口，激活: {pdf_id}")
+                        continue
+                    except Exception:
+                        pass
+
+                debug_port = self._next_js_debug_port()
+                js_log_path = self._compute_js_log_path(pdf_id)
+
+                filename = None
+                provided_path = None
+                try:
+                    meta = items_map.get(pdf_id) or {}
+                    filename = meta.get('filename')
+                    provided_path = meta.get('file_path')
+                except Exception:
+                    pass
+
+                # 解析文件路径：优先 items.file_path，其次 filename 在常见目录中查找；最后回退原有解析逻辑（不直连数据库，遵循隔离原则）
+                file_path = None
+                try:
+                    from pathlib import Path as _P
+                    if provided_path and _P(provided_path).exists():
+                        file_path = provided_path
+                    elif filename:
+                        # 在常见目录中按文件名查找
+                        candidates_root = [
+                            _P(__file__).parent.parent.parent.parent / 'data' / 'pdfs',
+                            _P(__file__).parent.parent.parent.parent / 'public',
+                            _P(__file__).parent.parent.parent.parent / 'src' / 'data' / 'pdfs',
+                        ]
+                        for root in candidates_root:
+                            p = root / filename
+                            if p.exists():
+                                file_path = str(p)
+                                break
+                    if not file_path:
+                        file_path = self._resolve_pdf_file_path(pdf_id)
+                except Exception:
+                    file_path = self._resolve_pdf_file_path(pdf_id)
+
+                viewer = ViewerMainWindow(
+                    app,
+                    remote_debug_port=debug_port,
+                    js_log_file=js_log_path,
+                    js_logger=None,
+                    pdf_id=pdf_id,
+                    has_host=True
+                )
+
+                # 设置窗口标题：优先使用 title，其次 filename 去掉扩展名，最后用 pdf_id
+                try:
+                    title_meta = None
+                    try:
+                        title_meta = (items_map.get(pdf_id) or {}).get('title')
+                    except Exception:
+                        pass
+                    display_title = None
+                    if title_meta:
+                        display_title = str(title_meta)
+                    elif filename:
+                        try:
+                            import os as _os
+                            display_title = _os.path.splitext(str(filename))[0]
+                        except Exception:
+                            display_title = str(filename)
+                    else:
+                        display_title = str(pdf_id)
+                    viewer.setWindowTitle(f"Anki LinkMaster PDF Viewer - {display_title}")
+                except Exception:
+                    pass
+
+                url = self._build_pdf_viewer_url(vite_port, msg_port, pdf_port, pdf_id, file_path=file_path)
+                try:
+                    import urllib.parse as _up
+                    if title_meta:
+                        url = f"{url}&title={_up.quote(str(title_meta))}"
+                except Exception:
+                    pass
+                logger.info(f"[PyQtBridge] 打开 pdf-viewer (pdf_id={pdf_id}) URL={url}")
+                viewer.load_frontend(url)
+                viewer.show()
+
+                try:
+                    parent_win.viewer_windows[pdf_id] = viewer
+                except Exception:
+                    pass
+
+            return True
+        except Exception as e:
+            logger.error(f"[PyQtBridge] 打开 pdf-viewer(Ex) 失败: {e}", exc_info=True)
+            return False
+
     def _compute_js_log_path(self, pdf_id: str) -> str:
         """计算 pdf-viewer JS 日志文件路径（UTF-8）。"""
         try:

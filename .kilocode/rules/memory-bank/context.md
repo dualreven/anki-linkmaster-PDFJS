@@ -1619,3 +1619,37 @@ if (res?.status === 'success') { /* 使用 res.data */ }
   4) 编写并运行 Jest 测试验证适配器行为
   5) 更新本 context 与 tech 记录
 - 预期: 多文件添加时每个文件出现“导入中”→ 成功/失败后关闭并弹出结果；全部完成后显示汇总；位置右上角堆叠。
+
+## 2025-10-07 任务：pdf-home 阅读打开 pdf-viewer（带端口，has_host，记录字典）
+- 问题与目标：
+  - 在 pdf-home 的搜索结果页面，实现对“选中项 点击阅读”与“条目双击阅读”的打开 pdf-viewer-<pdf-id> 能力。
+  - 打开时需传递三大端口：vite | msgCenter | pdfFile（通过 Python 端构建 URL）。
+  - 新开的 pdf-viewer 需带 has_host 标记，保证其 closeEvent 不清理依赖服务（宿主管理）。
+  - 在 pdf-home 侧维护已打开的 pdf-viewer 字典，避免重复创建（Python 端已实现 `viewer_windows`）。
+- 相关模块与文件：
+  - JS 前端：
+    - src/frontend/pdf-home/features/search-results/index.js（新增监听 results:item:open -> 调用 QWebChannelBridge.openPdfViewers）
+    - src/frontend/pdf-home/qwebchannel/qwebchannel-bridge.js（JS 侧调用 PyQtBridge.openPdfViewers）
+  - Python 前端：
+    - src/frontend/pdf-home/pyqt-bridge.py（读取 logs/runtime-ports.json，创建 viewer MainWindow(has_host=True)，构造 URL 传递端口与 pdf-id，并登记到 parent.viewer_windows）
+    - src/frontend/pdf-home/main_window.py（持有 viewer_windows 字典，closeEvent 统一关闭子窗口）
+    - src/frontend/pdf-viewer/pyqt/main_window.py（closeEvent 按 has_host 判断是否清理后台）
+- 执行步骤（原子化）：
+  1. 阅读上述模块代码，确认现状与缺口（已完成）。
+  2. 在 SearchResultsFeature 增加对 scoped 事件 results:item:open 的监听，调用 QWebChannelBridge.openPdfViewers([id])。
+  3. 编写 Jest 测试，mock qwebchannel-bridge，断言调用参数正确。
+  4. 运行新增测试并确认通过。
+  5. 更新工作日志与此 context 条目，记录结果。
+- 注意事项：
+  - 严格使用 UTF-8 与正确换行 \n。
+  - 不重复造轮子，端口传递与 has_host 标记由 Python 端负责，JS 仅触发。
+### 结果与验证（2025-10-07 04:30）
+- 代码：SearchResultsFeature 新增对 `results:item:open` 的直接打开逻辑；并提供 `SearchResultsFeature.setBridgeFactory()` 便于测试注入；默认动态导入桥接避免 `import.meta` 在 Jest 中的解析问题。
+- 测试：`open-viewer.integration.test.js` 通过，验证触发事件后调用 `openPdfViewers([id])`。
+- 端口与 has_host：沿用 `pyqt-bridge.py` 和 `pdf-viewer/pyqt/main_window.py` 方案，无需 JS 复写。
+- 追加修复：修正 url-navigation 触发 `FILE.LOAD.REQUESTED` 的数据结构为 `{ filename, source }`，匹配 PDFManager(loadPDF) 的入参。若仅有 `pdf-id` 且非文件名，需服务端解析为 `file` 传入。
+- 增强桥接：JS `openPdfViewers({ items })` → PyQt `openPdfViewersEx`，传入 `{ id, filename, file_path }`，避免仅凭 `pdf-id` 无法定位文件的问题。
+- DB 现状：`pdf_info` 无 filename/filepath 列；路径信息存储在 `json_data` (JSON) 中，键为 `filename` 与 `filepath`。
+- PyQtBridge 已在 `openPdfViewersEx` 内回退查询 DB：`SELECT json_data FROM pdf_info WHERE uuid=?`，解析 `filepath` 作为 &file= 附加到 viewer URL。
+- 修正隔离：移除 PyQt 直连数据库；由前端通过 WS `pdf-library:info:requested` 获取 file_path 后再调用 QWebChannel 打开 viewer。
+- 标题修正：`openPdfViewersEx` 将窗口标题优先设为 `items.title`；否则用 `filename` 去扩展名；再否则用 `pdf_id`。前端 `search-results` 打开时已携带 `title` 字段。

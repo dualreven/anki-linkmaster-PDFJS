@@ -39,6 +39,7 @@ export class URLParamsParser {
 
       // 提取参数
       const pdfId = params.get('pdf-id');
+      const title = params.get('title');
       const pageAtStr = params.get('page-at');
       const positionStr = params.get('position');
 
@@ -50,6 +51,7 @@ export class URLParamsParser {
 
       const result = {
         pdfId,
+        title,
         pageAt,
         position,
         hasParams,

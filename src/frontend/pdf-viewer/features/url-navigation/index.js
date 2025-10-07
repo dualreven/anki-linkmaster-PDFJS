@@ -176,11 +176,12 @@ export class URLNavigationFeature {
 
     this.#logger.info(`启动URL导航: pdf-id=${this.#parsedParams.pdfId}`);
 
-    // 触发PDF加载请求
+    // 触发PDF加载请求（兼容 PDFManager 预期入参结构）
+    // 仅提供 filename；PDFManager 会基于 PATH_CONFIG.proxyPath 组装 URL
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
       {
-        fileData: this.#parsedParams.pdfId,
+        filename: this.#parsedParams.pdfId,
         source: 'url-navigation'
       },
       { actorId: 'URLNavigationFeature' }
@@ -296,7 +297,7 @@ export class URLNavigationFeature {
       if (params.pdfId) {
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
-          { fileData: params.pdfId },
+          { filename: params.pdfId, source: 'url-navigation' },
           { actorId: 'URLNavigationFeature' }
         );
 
