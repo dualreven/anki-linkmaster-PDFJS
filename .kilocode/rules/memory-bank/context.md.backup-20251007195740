@@ -43,28 +43,6 @@
   5) 回写本文件与 AI-Working-log，并通知完成
 
 ## 总体目标
-## 当前任务（20251007195740）
-- 名称：修复 pdf-viewer 书签删除误删其它非子书签
-- 问题背景：
-  - 现象：删除某个书签后，除其子书签外，其他非子书签也被一起删除（或丢失）。
-  - 影响：用户误丢书签，列表刷新后出现缺失。
-  - 初步研判：前端 BookmarkManager 的保存/加载与后端期望不一致。saveToStorage 传输了所有 Map 节点而非根节点树；后端 save_bookmarks 会将列表中的每一项当作根节点进行扁平化与覆盖写入；同时 loadFromStorage 仅把根节点写入 Map，导致对子节点的操作/查找不稳定。
-- 相关模块与函数：
-  - 前端：
-    - src/frontend/pdf-viewer/features/pdf-bookmark/services/bookmark-manager.js（saveToStorage/loadFromStorage/deleteBookmark/reorder）
-    - src/frontend/pdf-viewer/features/pdf-bookmark/services/bookmark-storage.js（Remote/Local 存储协议）
-  - 后端：
-    - src/backend/api/pdf_library_api.py（save_bookmarks/list_bookmarks 期望根节点列表）
-- 执行步骤（原子化）：
-  1) 设计删除回归测试：构建 A,B,C 三个根节点，B 含子 b1，删除 B 后仅 A/C 存活；删除 b1 时仅 b1 消失，B 保留。
-  2) 修复 saveToStorage：仅序列化根节点树（rootIds -> tree），不再序列化 Map 全量。
-  3) 修复 loadFromStorage：递归写入 Map（根与所有子孙），确保 getBookmark 可命中任意层级。
-  4) 自测：本地 LocalStorage 与远端存储（如可）路径，验证删除后刷新仍保持非子树完好。
-  5) 更新日志并通知完成。
-- 验收标准：
-  - 删除任意根节点，仅其子树被移除；其他根节点不受影响。
-  - 删除任意子节点，仅该节点（及其子孙）被移除；其父及同级其他节点不受影响。
-  - 刷新后（loadFromStorage 或远端 round-trip）仍满足以上。
 - 前端（pdf-home、pdf-viewer）为纯 UI 模块，复用共享基础设施（EventBus / Logger / WSClient），仅在必要时通过 QWebChannel 与 Python 通信。
 - 后端分三类：WebSocket 转发器（仅收发转发）、HTTP 文件服务器（仅文件传输）、PDF 业务服务器（独立、接收指令执行业务）。
 - 日志分层：前端控制台经 DevTools 捕获写入 UTF-8 文件；后端统一用 Python logging（文件覆盖写，UTF-8）。
@@ -393,18 +371,4 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 ## 状态更新（20251007185127）
 - 修复目标：pdf-home 关闭 pdf-viewer 后再次打开需双击两次。
 - 关键改动：在 `pdf-viewer` PyQt MainWindow 中设置 `WA_DeleteOnClose`，并维持 `pyqt-bridge` 的可见性检查与 `destroyed` 清理同时存在。
-- 预期效果：viewer 关闭即销毁，`viewer_windows` 映射自动清理；再次打开一次双击即可生效，不再出现“闪一下”。### 回归兼容（2025-10-07）
-- loadFromStorage 增加“无 rootIds 旧格式”重建逻辑：按 parentId 重组树与根序；防止打开PDF后书签为空。
-- saveToStorage 仍仅保存根树，逐步将旧数据迁移为标准结构。
-### 书签编辑改进（2025-10-07）
-- 立即刷新：编辑成功后先本地刷新，再异步持久化与回读，避免远端回读延迟导致视觉“未更新”。
-- 防御性同步：更新时同步父.children 的引用，防止序列化根树时遗漏子节点更新。
-### 拖动排序修复（2025-10-07）
-- 根因：排序模式事件未在白名单，`emit` 被拦截，UI 收不到，导致 `draggable=false`。
-- 修复：新增 `PDF_VIEWER_EVENTS.BOOKMARK.SORT.MODE_CHANGED`，并全量替换发射与监听位置。
-- 现状：排序模式可切换，拖动排序可用；保存后刷新保持顺序。
-### 排序引擎稳健性（2025-10-07）
-- `reorderBookmarks()` 先预校验：父存在性、环路（沿父链上溯）；
-- 计算目标 siblings 与 index，考虑同父移动“移除后索引左移”；
-- 原子更新：安全移除→插入→同步根 order；
-- 失败不改动；成功再持久化与回读。
+- 预期效果：viewer 关闭即销毁，`viewer_windows` 映射自动清理；再次打开一次双击即可生效，不再出现“闪一下”。

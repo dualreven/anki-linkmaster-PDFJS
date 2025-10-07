@@ -737,6 +737,21 @@ export const PDF_VIEWER_EVENTS = {
     },
 
     /**
+     * 书签排序模式（UI本地态）
+     * @namespace SORT
+     */
+    SORT: {
+      /**
+       * 排序模式开关变化（本地UI事件，用于允许拖拽）
+       * @event pdf-viewer:bookmark-sort:mode-changed
+       * @type {string}
+       * @payload {Object} data
+       * @payload {boolean} data.sortMode - 是否进入排序模式
+       */
+      MODE_CHANGED: 'pdf-viewer:bookmark-sort:mode-changed',
+    },
+
+    /**
      * 书签选择事件
      * @namespace SELECT
      */

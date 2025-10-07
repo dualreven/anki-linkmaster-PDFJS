@@ -67,7 +67,7 @@ export class BookmarkSidebarUI {
 
     // 监听排序模式切换
     this.#unsubs.push(this.#eventBus.on(
-      'pdf-viewer:bookmark-sort:mode-changed',
+      PDF_VIEWER_EVENTS.BOOKMARK.SORT.MODE_CHANGED,
       (data) => this.#handleSortModeChanged(data),
       { subscriberId: 'BookmarkSidebarUI' }
     ));
@@ -99,6 +99,8 @@ export class BookmarkSidebarUI {
     this.#bookmarks = Array.isArray(bookmarks) ? bookmarks : [];
     if (!this.#bookmarkList) return;
 
+    // 记录并恢复滚动位置，避免重渲染时“跳到顶部”产生错觉
+    const prevScrollTop = this.#bookmarkList.scrollTop;
     // 清空列表区域
     this.#bookmarkList.innerHTML = '';
 
@@ -326,6 +328,8 @@ export class BookmarkSidebarUI {
 
     this.#bookmarks.forEach(n => list.appendChild(buildNode(n, 0)));
     this.#bookmarkList.appendChild(list);
+    // 尝试恢复滚动条位置（若后续有选中事件滚动，将被覆盖）
+    try { this.#bookmarkList.scrollTop = prevScrollTop; } catch(_) {}
   }
 
   /**
@@ -526,6 +530,74 @@ export class BookmarkSidebarUI {
     );
 
     this.#logger.info(`Reorder requested: ${draggedId} -> parent=${newParentId || 'root'}, index=${newIndex} (zone=${dropZone})`);
+
+    // 本地立即应用排序结果，避免用户误以为未生效
+    try {
+      const removed = this.#removeLocalNode(draggedId);
+      if (removed && removed.node) {
+        this.#insertLocalNode(removed.node, newParentId, newIndex);
+        this.#renderBookmarks(this.#bookmarks);
+        // 高亮并滚动到移动后的节点
+        this.#updateSelectionUI(draggedId, true);
+      }
+    } catch (e) {
+      this.#logger.warn('Local reorder preview failed:', e);
+    }
+  }
+
+  /**
+   * 从本地树中移除节点
+   * @param {string} bookmarkId
+   * @returns {{node: Object|null, parentId: string|null, index: number}}
+   * @private
+   */
+  #removeLocalNode(bookmarkId) {
+    const result = { node: null, parentId: null, index: -1 };
+
+    const removeFrom = (arr, pid=null) => {
+      if (!Array.isArray(arr)) return false;
+      const idx = arr.findIndex(x => x && x.id === bookmarkId);
+      if (idx !== -1) {
+        result.node = arr.splice(idx, 1)[0];
+        result.parentId = pid;
+        result.index = idx;
+        return true;
+      }
+      // 深度查找
+      for (const item of arr) {
+        if (item && Array.isArray(item.children) && removeFrom(item.children, item.id)) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    removeFrom(this.#bookmarks, null);
+    return result;
+  }
+
+  /**
+   * 将节点插入到本地树
+   * @param {Object} node - 要插入的节点
+   * @param {string|null} parentId - 目标父ID，null表示根
+   * @param {number} index - 目标索引
+   * @private
+   */
+  #insertLocalNode(node, parentId, index) {
+    if (!node) return;
+    const clamp = (i, len) => Math.max(0, Math.min(typeof i === 'number' ? i : 0, len));
+
+    if (!parentId) {
+      const i = clamp(index, this.#bookmarks.length);
+      this.#bookmarks.splice(i, 0, node);
+      return;
+    }
+
+    const parent = this.#findBookmarkById(this.#bookmarks, parentId);
+    if (!parent) return;
+    if (!Array.isArray(parent.children)) parent.children = [];
+    const i = clamp(index, parent.children.length);
+    parent.children.splice(i, 0, node);
   }
 
   /**
