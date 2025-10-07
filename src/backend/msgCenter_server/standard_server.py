@@ -592,9 +592,17 @@ class StandardWebSocketServer(QObject):
             # 使用小写匹配；具体字段匹配由 API 内部完成（标题/作者/文件名/标签/备注/主题/关键词）
             tokens = [t.strip().lower() for t in query.split() if str(t).strip()]
 
+            # 透传前端可选参数：filters/sort/search_fields（如有）
+            filters = (data or {}).get("filters") if isinstance(data, dict) else None
+            sort_rules = (data or {}).get("sort") if isinstance(data, dict) else None
+            search_fields = (data or {}).get("search_fields") if isinstance(data, dict) else None
+
             payload = {
                 "query": query,
                 "tokens": tokens,
+                "filters": filters,
+                "sort": sort_rules,
+                "search_fields": search_fields,
                 "pagination": {"limit": limit, "offset": offset, "need_total": True},
             }
 

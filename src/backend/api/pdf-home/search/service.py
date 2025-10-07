@@ -67,7 +67,18 @@ class DefaultSearchService(SearchService):
         need_total = bool(pagination.get("need_total", False))
 
         query_text = str(payload.get("query", "") or "").strip().lower()
-        rows = context._pdf_info_plugin.query_all()  # type: ignore[attr-defined]
+        # 先在 SQLite 内部完成“搜索 + 筛选”的候选集选取
+        try:
+            rows = context._pdf_info_plugin.search_with_filters(  # type: ignore[attr-defined]
+                tokens,
+                filters,
+                search_fields=['title', 'author', 'filename', 'tags', 'notes', 'subject', 'keywords'],
+                limit=None,
+                offset=None,
+            )
+        except Exception:
+            # 回退到全量查询（极端情况下保持可用性）
+            rows = context._pdf_info_plugin.query_all()  # type: ignore[attr-defined]
         matches: List[Dict[str, Any]] = []
         for row in rows:
             if map_row_to_frontend is not None:

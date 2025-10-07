@@ -3,6 +3,27 @@
  * 高级筛选面板按钮样式
  */
 
+.filter-container {
+  /* 绝对定位，避免被固定在顶部的搜索面板遮挡 */
+  position: absolute;
+  /* 默认顶边距，约等于搜索面板高度（可按需在外部通过 CSS 变量覆盖） */
+  top: var(--search-panel-height, 88px);
+  left: 0;
+  right: 0;
+  /* 低于搜索面板（1000），以保证搜索栏位于上方；我们通过 top 避免覆盖 */
+  z-index: 900;
+  /* 与页面边距对齐 */
+  padding: 0 16px;
+}
+
+.filter-builder-wrapper {
+  /* 内容宽度与搜索栏保持一致 */
+  max-width: 1400px;
+  margin: 0 auto;
+  /* 额外的顶部外边距，用户需求：添加一些 margin-top */
+  margin-top: 12px;
+}
+
 .filter-panel {
   display: flex;
   gap: 8px;

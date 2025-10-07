@@ -360,6 +360,42 @@ def test_search_records_returns_empty_when_no_match(api):
     assert result["total"] == 0
 
 
+def test_search_records_filters_tags_not_contains(api):
+    # 有“垃圾”标签
+    _insert_sample(
+        api,
+        uuid="aaab00000001",
+        title="Doc With Bad Tag",
+        tags=["垃圾", "其他"],
+    )
+    # 无“垃圾”标签
+    _insert_sample(
+        api,
+        uuid="aaab00000002",
+        title="Doc Clean",
+        tags=["干净"],
+    )
+
+    payload = {
+        "query": "",  # 关键词留空
+        "tokens": [],
+        "filters": {
+            "type": "field",
+            "field": "tags",
+            "operator": "not_contains",
+            "value": "垃圾",
+        },
+        "sort": None,
+        "pagination": {"limit": 50, "offset": 0, "need_total": True},
+    }
+
+    result = api.search_records(payload)
+    ids = [item["id"] for item in result["records"]]
+
+    assert "aaab00000001" not in ids  # 含“垃圾”的不应出现
+    assert "aaab00000002" in ids       # 不含“垃圾”的应出现
+
+
 def _sample_bookmarks():
     created_at = "2025-10-06T00:00:00.000Z"
     return [
