@@ -45,6 +45,7 @@ export class FilterBuilder {
   #operatorToSymbol = {
     'contains': '包含',
     'not_contains': '不包含',
+    'has_all': '包含全部',
     'eq': '=',
     'ne': '≠',
     'gt': '>',
@@ -739,10 +740,53 @@ export class FilterBuilder {
    */
   applyFilter() {
     this.#logger.info('[FilterBuilder] Applying filter');
-    // TODO: 转换为FilterManager可用的条件对象
-    console.log('Tree JSON:', this.#filterTree.toJSON());
-    console.log('Python Expression:', this.#filterTree.toPythonExpression());
+    // 构建可序列化的条件配置（与后端 SearchCondition 格式兼容）
+    const config = this.getConditionConfig();
+    try {
+      console.log('Built Condition Config:', JSON.stringify(config));
+    } catch {}
+    // 通知 Feature 层：条件已构建
+    try {
+      this.#eventBus?.emit('filter:apply:completed', { condition: config });
+    } catch (e) { /* 忽略 */ }
+    // 仅隐藏面板，实际发送由上层 Feature 执行
     this.hide();
+  }
+
+  /**
+   * 获取当前条件配置（转换为后端可识别的结构）
+   * @returns {Object} 条件配置
+   */
+  getConditionConfig() {
+    const nodeToConfig = (node) => {
+      if (!node) return null;
+      if (node.type === 'logic') {
+        const children = (node.children || [])
+          .filter((c) => c && c.type !== 'placeholder')
+          .map((c) => nodeToConfig(c))
+          .filter(Boolean);
+        if (children.length === 0) return null;
+        return {
+          type: 'composite',
+          operator: node.value,
+          conditions: children,
+        };
+      }
+      if (node.type === 'condition') {
+        const { field, operator, value } = node.value || {};
+        if (!field || !operator) return null;
+        return {
+          type: 'field',
+          field,
+          operator,
+          value,
+        };
+      }
+      return null;
+    };
+    const cfg = nodeToConfig(this.#filterTree.root);
+    // 根若为 null，返回一个空的 AND 结构；由调用方决定是否传递
+    return cfg || { type: 'composite', operator: 'AND', conditions: [] };
   }
 
   /**

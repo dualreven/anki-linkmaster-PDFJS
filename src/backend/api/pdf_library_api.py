@@ -199,7 +199,17 @@ class PDFLibraryAPI:
         need_total = bool(pagination.get("need_total", False))
 
         query_text = str(payload.get("query", "") or "").strip().lower()
-        rows = self._pdf_info_plugin.query_all()
+        # 在 SQLite 内部优先执行“搜索 + 筛选”以缩小候选集
+        try:
+            rows = self._pdf_info_plugin.search_with_filters(
+                tokens,
+                filters,
+                search_fields=['title', 'author', 'filename', 'tags', 'notes', 'subject', 'keywords'],
+                limit=None,
+                offset=None,
+            )
+        except Exception:
+            rows = self._pdf_info_plugin.query_all()
         matches = []
         for row in rows:
             record = self._map_to_frontend(row)

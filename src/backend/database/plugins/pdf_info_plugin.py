@@ -591,6 +591,200 @@ class PDFInfoTablePlugin(TablePlugin):
 
         return result
 
+    def search_with_filters(
+        self,
+        keywords: List[str],
+        filters: Optional[Dict[str, Any]] = None,
+        search_fields: Optional[List[str]] = None,
+        sort_rules: Optional[List[Dict[str, Any]]] = None,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        使用 SQLite 在数据库内部完成“先搜索后筛选”的记录检索。
+
+        - 搜索：对每个关键词在多个字段进行 LIKE 匹配（字段内 OR，关键词间 AND）。
+        - 筛选：将简单字段条件与复合逻辑（AND/OR/NOT）转换为 SQL 片段并与搜索条件 AND 组合。
+
+        注意：为兼容 JSON 存储，部分字段通过 json_extract(...) 提取；
+        当前版本不在 SQL 中应用排序（sort_rules 预留，仅为后续扩展），排序与分页仍在上层完成；
+        后续如需在 SQL 端排序，将在本方法内根据白名单字段安全构建 ORDER BY，并在包含 match_score 的情况下回退到上层排序。
+        """
+        # 预处理关键词
+        keywords = [kw for kw in (keywords or []) if kw and str(kw).strip()]
+
+        # 默认搜索字段
+        if search_fields is None:
+            search_fields = ['title', 'author', 'filename', 'tags', 'notes', 'subject', 'keywords']
+
+        where_clauses: List[str] = []
+        params: List[Any] = []
+
+        # 1) 关键词条件（字段内 OR，关键词间 AND）
+        if keywords:
+            keyword_conditions: List[str] = []
+            for kw in keywords:
+                escaped = str(kw).replace('%', '\\%').replace('_', '\\_')
+                like_value = f"%{escaped}%"
+                parts: List[str] = []
+                if 'title' in search_fields:
+                    parts.append("title LIKE ? ESCAPE '\\'")
+                    params.append(like_value)
+                if 'author' in search_fields:
+                    parts.append("author LIKE ? ESCAPE '\\'")
+                    params.append(like_value)
+                if 'filename' in search_fields:
+                    parts.append("json_extract(json_data, '$.filename') LIKE ? ESCAPE '\\'")
+                    params.append(like_value)
+                if 'tags' in search_fields:
+                    parts.append("json_data LIKE ?")
+                    params.append(f'%"{escaped}"%')
+                if 'notes' in search_fields:
+                    parts.append("json_extract(json_data, '$.notes') LIKE ? ESCAPE '\\'")
+                    params.append(like_value)
+                if 'subject' in search_fields:
+                    parts.append("json_extract(json_data, '$.subject') LIKE ? ESCAPE '\\'")
+                    params.append(like_value)
+                if 'keywords' in search_fields:
+                    parts.append("json_extract(json_data, '$.keywords') LIKE ? ESCAPE '\\'")
+                    params.append(like_value)
+
+                if parts:
+                    keyword_conditions.append(f"({' OR '.join(parts)})")
+
+            if keyword_conditions:
+                where_clauses.append(' AND '.join(keyword_conditions))
+
+        # 2) 过滤条件（递归构建 SQL）
+        def build_filter_sql(node: Dict[str, Any]) -> Tuple[str, List[Any]]:
+            if not node or not isinstance(node, dict):
+                return "1=1", []
+            ntype = node.get('type')
+            if ntype == 'composite':
+                op = str(node.get('operator', 'AND')).upper()
+                conds = node.get('conditions') or []
+                parts: List[str] = []
+                p: List[Any] = []
+                for child in conds:
+                    sql_part, sql_params = build_filter_sql(child)
+                    parts.append(f"({sql_part})")
+                    p.extend(sql_params)
+                if not parts:
+                    return "1=1", []
+                if op == 'NOT':
+                    # NOT 仅对第一个子条件取反
+                    return f"NOT ({parts[0]})", p
+                joiner = ' AND ' if op == 'AND' else ' OR '
+                return joiner.join(parts), p
+            if ntype == 'field':
+                field = node.get('field')
+                operator = node.get('operator')
+                value = node.get('value')
+                # 映射支持的字段/操作符
+                if field == 'rating' and operator == 'gte':
+                    return "CAST(json_extract(json_data, '$.rating') AS INTEGER) >= ?", [int(value)]
+                if field == 'is_visible' and operator == 'eq':
+                    if bool(value):
+                        # 兼容 true/1
+                        return "(json_extract(json_data, '$.is_visible') = 1 OR json_extract(json_data, '$.is_visible') = true)", []
+                    else:
+                        return "(json_extract(json_data, '$.is_visible') = 0 OR json_extract(json_data, '$.is_visible') = false OR json_extract(json_data, '$.is_visible') IS NULL)", []
+                if field == 'tags':
+                    # 精确匹配：使用 JSON1 的 json_each 遍历数组元素，避免 'abc' 命中 'abcd'
+                    vals = value if isinstance(value, list) else [value]
+                    vals = [str(v) for v in vals if str(v)]
+                    if not vals and operator != 'eq':
+                        return "1=1", []
+                    json_each = "json_each(json_extract(json_data, '$.tags'))"
+
+                    def sql_exists_in(vs):
+                        placeholders = ','.join(['?'] * len(vs))
+                        return (
+                            f"EXISTS (SELECT 1 FROM {json_each} je WHERE je.value IN ({placeholders}))",
+                            vs,
+                        )
+
+                    def sql_not_exists_in(vs):
+                        placeholders = ','.join(['?'] * len(vs))
+                        return (
+                            f"NOT EXISTS (SELECT 1 FROM {json_each} je WHERE je.value IN ({placeholders}))",
+                            vs,
+                        )
+
+                    # has_any / contains / has_tag → 至少包含其中一个
+                    if operator in ('contains', 'has_tag', 'has_any'):
+                        return sql_exists_in(vals)
+
+                    # not_contains / not_has_tag / not_has_any → 不包含给定任意一个
+                    if operator in ('not_contains', 'not_has_tag', 'not_has_any'):
+                        return sql_not_exists_in(vals)
+
+                    # has_all → 必须全部包含：AND 链接每个 EXISTS
+                    if operator == 'has_all':
+                        parts = []
+                        p: List[Any] = []
+                        for v in vals:
+                            parts.append(f"EXISTS (SELECT 1 FROM {json_each} je WHERE je.value = ?)")
+                            p.append(v)
+                        return ' AND '.join(parts), p
+
+                    # not_has_all → 不是“全部包含” ≡ NOT(has_all)
+                    if operator == 'not_has_all':
+                        parts = []
+                        p: List[Any] = []
+                        for v in vals:
+                            parts.append(f"EXISTS (SELECT 1 FROM {json_each} je WHERE je.value = ?)")
+                            p.append(v)
+                        return f"NOT ( {' AND '.join(parts)} )", p
+
+                    # eq（标签集合相等，忽略顺序与去重）
+                    if operator == 'eq':
+                        # 特殊：空集合相等
+                        if not vals:
+                            return "json_array_length(json_extract(json_data, '$.tags')) = 0", []
+                        distinct_vals = list(dict.fromkeys(vals))
+                        length_check = f"json_array_length(json_extract(json_data, '$.tags')) = {len(distinct_vals)}"
+                        exists_parts = []
+                        p: List[Any] = []
+                        for v in distinct_vals:
+                            exists_parts.append(f"EXISTS (SELECT 1 FROM {json_each} je WHERE je.value = ?)")
+                            p.append(v)
+                        return f"( {length_check} AND {' AND '.join(exists_parts)} )", p
+
+                    # ne（集合不相等）
+                    if operator == 'ne':
+                        if not vals:
+                            return "json_array_length(json_extract(json_data, '$.tags')) <> 0", []
+                        distinct_vals = list(dict.fromkeys(vals))
+                        length_check = f"json_array_length(json_extract(json_data, '$.tags')) = {len(distinct_vals)}"
+                        exists_parts = []
+                        p: List[Any] = []
+                        for v in distinct_vals:
+                            exists_parts.append(f"EXISTS (SELECT 1 FROM {json_each} je WHERE je.value = ?)")
+                            p.append(v)
+                        eq_sql = f"( {length_check} AND {' AND '.join(exists_parts)} )"
+                        return f"NOT {eq_sql}", p
+                if field == 'total_reading_time' and operator == 'gte':
+                    return "CAST(json_extract(json_data, '$.total_reading_time') AS INTEGER) >= ?", [int(value)]
+                # 默认透传为真，避免误杀
+                return "1=1", []
+            return "1=1", []
+
+        if filters:
+            f_sql, f_params = build_filter_sql(filters)
+            if f_sql and f_sql.strip():
+                where_clauses.append(f_sql)
+                params.extend(f_params)
+
+        # 3) 组合 SQL
+        sql = "SELECT * FROM pdf_info"
+        if where_clauses:
+            sql += f" WHERE {' AND '.join(['(' + c + ')' for c in where_clauses])}"
+        # 不在此处强加排序/分页（排序可能依赖 match_score），交由上层处理
+
+        rows = self._executor.execute_query(sql, tuple(params) if params else None)
+        return [self._parse_row(row) for row in rows]
+
     def filter_by_tags(
         self,
         tags: List[str],

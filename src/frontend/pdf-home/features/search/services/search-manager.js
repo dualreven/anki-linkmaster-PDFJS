@@ -18,6 +18,7 @@ export class SearchManager {
   #isSearching = false;
   #unsubs = [];
   #pendingRequests = new Map();  // 存储待处理的请求
+  #currentFilters = null;        // 当前激活的筛选条件（由 FilterFeature 管理）
   // 仅保留 v1 协议
 
   /**
@@ -40,7 +41,8 @@ export class SearchManager {
   #setupEventListeners() {
     // 监听搜索请求
     const unsubSearch = this.#eventBus.on('search:query:requested', (data) => {
-      this.#handleSearch(data.searchText);
+      const filters = data && typeof data === 'object' ? data.filters : undefined;
+      this.#handleSearch(data.searchText, filters);
     }, { subscriberId: 'SearchManager' });
     this.#unsubs.push(unsubSearch);
 
@@ -77,6 +79,17 @@ export class SearchManager {
       }
     }, { subscriberId: 'SearchManager' });
     this.#unsubs.push(unsubWsError);
+
+    // 监听筛选状态更新（持久化当前筛选条件）
+    const unsubFilterState = this.#eventBus.on('filter:state:updated', (data) => {
+      try {
+        this.#currentFilters = (data && typeof data === 'object') ? (data.filters ?? null) : null;
+        this.#logger.info('[SearchManager] Filter state updated', { hasFilters: !!this.#currentFilters });
+      } catch (e) {
+        this.#currentFilters = null;
+      }
+    }, { subscriberId: 'SearchManager' });
+    this.#unsubs.push(unsubFilterState);
 
     this.#logger.debug('[SearchManager] Event listeners set up');
   }
@@ -122,7 +135,7 @@ export class SearchManager {
    * @private
    * @param {string} searchText - 搜索文本
    */
-  #handleSearch(searchText) {
+  #handleSearch(searchText, filters) {
     // 防止重复搜索
     if (this.#isSearching) {
       this.#logger.warn('[SearchManager] Search already in progress, ignoring new request');
@@ -141,7 +154,7 @@ export class SearchManager {
       });
 
       // 仅发送 v1 协议
-      this.#sendSearchRequest(searchText);
+      this.#sendSearchRequest(searchText, filters);
 
     } catch (error) {
       this.#logger.error('[SearchManager] Search failed', error);
@@ -159,7 +172,7 @@ export class SearchManager {
    * 发送具体模式的搜索请求，并设置超时与pending跟踪
    * @private
    */
-  #sendSearchRequest(searchText) {
+  #sendSearchRequest(searchText, filters) {
     // 生成唯一请求ID
     const requestId = `search_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -171,7 +184,7 @@ export class SearchManager {
     });
 
     // 构建消息
-    const message = this.#buildMessage(searchText, requestId);
+    const message = this.#buildMessage(searchText, requestId, filters);
     this.#logger.info('[SearchManager] Sending search request', { type: message.type, request_id: requestId });
 
     // 发送
@@ -196,13 +209,13 @@ export class SearchManager {
    * 构建不同协议的消息
    * @private
    */
-  #buildMessage(searchText, requestId) {
+  #buildMessage(searchText, requestId, filters) {
     // 标准协议：载荷放入 data，包含 query 与 tokens（按空格切分，AND 语义）
     const tokens = (searchText || '')
       .split(/\s+/)
       .map(t => t.trim())
       .filter(t => t.length > 0);
-    return {
+    const payload = {
       type: WEBSOCKET_MESSAGE_TYPES.SEARCH_PDF,
       request_id: requestId,
       data: {
@@ -210,6 +223,12 @@ export class SearchManager {
         tokens
       }
     };
+    // 若调用方未提供 filters，自动带上当前激活的筛选条件
+    const effectiveFilters = (typeof filters !== 'undefined') ? filters : this.#currentFilters;
+    if (effectiveFilters && typeof effectiveFilters === 'object') {
+      payload.data.filters = effectiveFilters;
+    }
+    return payload;
   }
 
   /**
