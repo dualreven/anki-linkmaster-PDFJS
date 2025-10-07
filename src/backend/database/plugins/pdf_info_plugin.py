@@ -402,6 +402,36 @@ class PDFInfoTablePlugin(TablePlugin):
         rows = self._executor.execute_query(sql, tuple(params) if params else None)
         return [self._parse_row(row) for row in rows]
 
+    def query_all_by_visited(
+        self,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """按 visited_at DESC 返回记录，可指定 LIMIT/OFFSET。
+
+        适用于“最近阅读”场景，将截断下推到 SQL 层以提高性能。
+        """
+        sql = "SELECT * FROM pdf_info ORDER BY visited_at DESC"
+        params: List[Any] = []
+        if limit is not None:
+            sql += " LIMIT ?"
+            params.append(int(limit))
+        if offset is not None:
+            sql += " OFFSET ?"
+            params.append(int(offset))
+
+        rows = self._executor.execute_query(sql, tuple(params) if params else None)
+        return [self._parse_row(row) for row in rows]
+
+    def count_all(self) -> int:
+        """返回 pdf_info 总记录数。"""
+        rows = self._executor.execute_query("SELECT COUNT(*) AS c FROM pdf_info")
+        if not rows:
+            return 0
+        row = rows[0]
+        # 兼容 sqlite3 Row / dict 两种返回
+        return int(row.get("c", list(row.values())[0] if isinstance(row, dict) and row else 0))
+
     def _parse_row(self, row: Dict[str, Any]) -> Dict[str, Any]:
         try:
             json_data = json.loads(row.get("json_data", "{}"))

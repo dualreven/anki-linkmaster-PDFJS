@@ -1492,7 +1492,11 @@ class StandardWebSocketServer(QObject):
     def handle_pdf_home_get_config(self, request_id: Optional[str]) -> Dict[str, Any]:
         try:
             cfg_path = self._get_pdf_home_config_path()
-            config_obj = {"recent_search": []}
+            # 默认配置对象，显式包含各配置项
+            config_obj = {
+                "recent_search": [],
+                "saved_filters": []  # 已存搜索条件（含关键词/筛选/排序）
+            }
             if os.path.exists(cfg_path):
                 with open(cfg_path, 'r', encoding='utf-8') as f:
                     try:
@@ -1529,7 +1533,10 @@ class StandardWebSocketServer(QObject):
     def handle_pdf_home_update_config(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
         try:
             cfg_path = self._get_pdf_home_config_path()
-            config_obj = {"recent_search": []}
+            config_obj = {
+                "recent_search": [],
+                "saved_filters": []
+            }
             if os.path.exists(cfg_path):
                 with open(cfg_path, 'r', encoding='utf-8') as f:
                     try:
@@ -1546,6 +1553,29 @@ class StandardWebSocketServer(QObject):
                     if isinstance(it, dict) and isinstance(it.get('text'), str):
                         cleaned.append({'text': it.get('text', ''), 'ts': it.get('ts') or 0})
                 config_obj['recent_search'] = cleaned
+
+            # 处理已存搜索条件（saved_filters）
+            saved_filters = (data or {}).get('saved_filters')
+            if isinstance(saved_filters, list):
+                cleaned_sf = []
+                for it in saved_filters:
+                    if not isinstance(it, dict):
+                        continue
+                    name = it.get('name') if isinstance(it.get('name'), str) else ''
+                    search_text = it.get('searchText') if isinstance(it.get('searchText'), str) else ''
+                    filters = it.get('filters') if isinstance(it.get('filters'), (dict, list)) or it.get('filters') is None else None
+                    sort = it.get('sort') if isinstance(it.get('sort'), list) else []
+                    ts = it.get('ts') or 0
+                    _id = it.get('id') if isinstance(it.get('id'), str) else None
+                    cleaned_sf.append({
+                        'id': _id or f"sf_{int(time.time()*1000)}",
+                        'name': name,
+                        'searchText': search_text,
+                        'filters': filters,
+                        'sort': sort,
+                        'ts': ts,
+                    })
+                config_obj['saved_filters'] = cleaned_sf
 
             with open(cfg_path, 'w', encoding='utf-8', newline='\n') as f:
                 json.dump(config_obj, f, ensure_ascii=False, indent=2)

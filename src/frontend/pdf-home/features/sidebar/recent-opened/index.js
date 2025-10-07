@@ -103,7 +103,8 @@ export class RecentOpenedFeature {
         this.#globalEventBus.emit('search:query:requested', {
           searchText: '',
           sort: [{ field: 'visited_at', direction: 'desc' }],
-          pagination: { limit: 0, offset: 0, need_total: true },
+          // 按当前“最近阅读”显示条数，截断结果（前5/前10/前20/前50）
+          pagination: { limit: this.#displayLimit, offset: 0, need_total: true },
           focusId
         });
       };

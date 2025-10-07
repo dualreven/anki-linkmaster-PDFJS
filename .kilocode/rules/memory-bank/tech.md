@@ -50,7 +50,13 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
   - `focusId`: 例如 `'abc123'`，用于结果渲染后聚焦并滚动到特定条目
 - 由 `SearchManager` 构建消息：`data = { query, tokens, sort?, pagination? }`
 - 由 `SearchManager` 在 `search:results:updated` 中回传 `{ focusId }`，供 `SearchResultsFeature` 聚焦并 `scrollIntoView`
-- 典型用法：侧边栏“最近阅读”点击 → 触发“全量按 visited_at 降序”的搜索，并在结果中高亮/定位到点击的条目
+- 典型用法：侧边栏“最近阅读”点击 → 触发“按 visited_at 降序 + SQL LIMIT 截断”的搜索，并在结果中高亮/定位到点击的条目
+
+### SQL 截断优化（2025-10-07）
+- 对于“无关键词 + sort=visited_at desc + 无 filters”的请求，截断在 SQL 层执行：
+  - 插件：`PDFInfoTablePlugin.query_all_by_visited(limit, offset)`，`ORDER BY visited_at DESC LIMIT ? OFFSET ?`
+  - API：`PDFLibraryAPI.search_records(payload)` 优先分支匹配上述模式时，走插件方法，必要时通过 `count_all()` 获取总数
+  - 目的：避免加载全量后在内存中切片，提高性能与响应速度
 
 ## 第三方 Toast 使用规范（pdf-home 添加流程）
 - 依赖：`izitoast`（已加入 package.json）
@@ -193,6 +199,21 @@ python ai_launcher.py status
   "http": 8080
 }
 ```
+
+---
+
+## PDF-Home 搜索与筛选补充（2025-10-07）
+
+- SearchManager 负责透传 query/tokens，并支持可选的 `filters`/`sort`/`pagination`。
+- FilterFeature 负责构建高级条件，应用后通过 `filter:state:updated` 更新全局状态。
+- RecentSearchesFeature 会持久化最近搜索词到配置（config-read/write）。
+
+### 已存搜索条件（SavedFilters）用法变更
+- 原“搜索栏上的‘保存条件’按钮”已移除。
+- 通过侧边栏“📌 已存搜索条件”的“＋”保存当前搜索条件：
+  - 内容：关键词 `searchText`、筛选 `filters`、排序 `sort`；
+  - 持久化：`pdf-library:config-write:requested → data/pdf-home-config.json.saved_filters`；
+  - 应用：点击保存项 → 填充搜索框 → 发送 `filter:state:updated` → `search:query:requested`（含 filters/sort）。
 
 #### logs/ai-launcher.log
 启动器运行日志（UTF-8 编码）：

@@ -392,3 +392,48 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - **EventBus 使用**: `src/frontend/common/event/EVENTBUS-USAGE-GUIDE.md`
 - **技术变更**: `.kilocode/rules/memory-bank/tech.md`
 - **架构变更**: `.kilocode/rules/memory-bank/architecture.md`
+
+---
+
+## 当前任务（20251007201657）
+- 名称：保存搜索条件到配置文件并在侧边栏展示/应用
+- 背景：
+  - 现有“已存搜索条件”功能（SavedFiltersFeature）仅有UI桩，未实现持久化与应用逻辑。
+  - 侧边栏已有“+”按钮，期望用于添加当前搜索条件；搜索栏上的“保存条件”按钮需要移除。
+  - 后端标准协议已支持 pdf-library:config-read/write，我们复用该配置文件(data/pdf-home-config.json) 持久化 saved_filters。
+- 相关模块：
+  - 前端：
+    - src/frontend/pdf-home/features/sidebar/saved-filters/index.js（实现保存/渲染/点击应用）
+    - src/frontend/pdf-home/features/search/components/search-bar.js（移除“保存条件”按钮）
+    - src/frontend/pdf-home/features/search/services/search-manager.js（已支持透传 filters/sort/pagination）
+  - 后端：
+    - src/backend/msgCenter_server/standard_server.py（扩展 config 读写，增加 saved_filters 字段）
+- 原子步骤：
+  1) 设计测试：
+     - 安装后发送 GET_CONFIG；点击“+”后发送 UPDATE_CONFIG(data.saved_filters 数组)
+     - 模拟 GET_CONFIG 回执包含 saved_filters；点击某项发出 search:query:requested，包含 searchText/filters/sort
+  2) 后端：在 handle_pdf_home_get_config / handle_pdf_home_update_config 增加 saved_filters 的读写与校验
+  3) 前端：完成 SavedFiltersFeature
+     - 加载本地(localStorage)并向后端同步；
+     - 监听 filter:state:updated 持久化最近 filters；
+     - 监听 @pdf-list/sort:change:completed 持久化最近排序；
+     - 点击“+”保存 {id,name,searchText,filters,sort,ts}；
+     - 列表渲染与点击应用：设置搜索框文本 -> emit filter:state:updated -> emit search:query:requested(透传 filters/sort)
+  4) 前端：移除搜索栏“保存条件”按钮（保留原弹窗代码但不可达）
+  5) 编写 jest 用例并跑通
+- 交付标准：
+  - 侧边栏“已存搜索条件”可添加/显示/点击应用；
+  - 后端配置文件包含 saved_filters 字段；
+  - 搜索栏不再显示“保存条件”按钮；
+  - 全过程 UTF-8 与 \n 规范。
+
+### 追加：保存条件命名对话框（2025-10-07）
+- 点击侧边栏“＋”时弹出对话框，填写名称并展示当前快照：
+  - 关键词、筛选逻辑、排序规则
+- 确认后以输入的名称保存；取消或点击遮罩关闭对话框。
+
+### 追加：已存搜索条件管理对话框（2025-10-07）
+- 在“＋”旁新增“⚙️ 管理”按钮；点击弹出管理对话框：
+  - 支持拖动排序、重命名、复制、删除
+  - 点击“确定”后保存顺序与名称变更，并更新后端配置（config-write）
+  - 对话框复用 `.preset-save-dialog` 样式；列表项支持 HTML5 拖拽
