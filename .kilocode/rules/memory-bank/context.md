@@ -1,4 +1,43 @@
-﻿# Memory Bank（精简版 / 权威）
+﻿## 当前任务（20251009061328）
+- 名称：提交并合并到远程 main（anki-linkmaster-B）
+- 背景：翻译功能修复已完成，需将当前分支 worker/branch-B 的更改合入 main。
+- 步骤：
+  1) 提交当前变更（allowlist 修复、测试、文档）
+  2) fetch 并确认已包含 origin/main 最新
+  3) 推送 HEAD → origin/main（fast-forward）
+  4) 验证远程 main 指向本次提交
+  5) 回写日志并通知完成
+- 状态：进行中
+
+## 当前任务（20251009060839）
+- 名称：修复 pdf-viewer 翻译功能“划词后点击翻译无反应”
+- 问题背景：点击翻译后未见侧栏反馈与结果，怀疑事件被 EventBus 全局白名单拦截导致功能未触发。
+- 相关模块与函数：
+  - features/text-selection-quick-actions/index.js（发出 pdf-translator:text:selected、sidebar:open:requested）
+  - features/pdf-translator/index.js、components/TranslatorSidebarUI.js（监听 TRANSLATE/ENGINE 相关事件）
+  - common/event/global-event-registry.js（全局事件白名单）
+- 执行步骤（原子化）：
+  1) 复核事件常量与监听/发布位置
+  2) 设计测试：验证 pdf-translator:* 事件在白名单中
+  3) 修复：将 PDF_TRANSLATOR_EVENTS 加入白名单收集
+  4) 运行 jest 测试验证
+  5) 回写日志并通知完成
+- 状态：已完成（加入 pdf-translator 事件白名单；新增最小测试验证）
+
+# Memory Bank（精简版 / 权威）
+
+## 当前任务（20251009060010）
+- 名称：合并最新 main 到当前分支（worker/branch-B）
+- 背景：保持工作分支与主线同步，降低冲突与回归风险。
+- 执行步骤（原子化）：
+  1) 记录 HEAD 与 origin/main 提交哈希
+  2) git fetch origin --prune
+  3) 若存在未提交修改，先提交以避免合并中断
+  4) git merge --no-ff --no-edit origin/main
+  5) 验证：git merge-base --is-ancestor origin/main HEAD 返回 0
+  6) 回写 AI 工作日志与 memory bank
+- 状态：已完成（验证通过）
+
 
 ## 当前任务（20251009050121）
 - 名称：再次从远程 main 合并到当前分支（anki-linkmaster-B）
@@ -1059,3 +1098,4 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - 问题：导入 Annotation 模型使用大小写不统一路径 `../annotation/models/Annotation.js`，在部分环境可能大小写敏感导致模块解析或双实例问题，触发“快速标注”报错；
 - 修复：改为统一小写路径 `../annotation/models/annotation.js`，与全局保持一致；
 - 复现/验证：在未进入高亮模式下，直接选择文本点击“标注”按钮应创建高亮标注，无报错。
+
