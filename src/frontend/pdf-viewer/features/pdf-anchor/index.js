@@ -23,6 +23,7 @@ export class PDFAnchorFeature {
   #pendingUrlAnchorId = null;
   #scrollHintShown = false;
   #scrollListeners = [];
+  #freezeUntilMs = 0;
 
   get name() { return "pdf-anchor"; }
   get version() { return "1.0.0"; }
@@ -108,6 +109,7 @@ export class PDFAnchorFeature {
             const pos = typeof a.position === "number" ? Math.max(0, Math.min(100, a.position * 100)) : null;
             if (this.#navigationService && pageAt >= 1) {
               this.#navigationService.navigateTo({ pageAt, position: pos });
+              this.#freezeUntilMs = Date.now() + 3000; // 冻结3秒，避免初始化误采样
             }
             // 启动后台更新（3秒节拍）
             this.#activeAnchorId = a.uuid;
@@ -261,6 +263,7 @@ export class PDFAnchorFeature {
       PDF_VIEWER_EVENTS.NAVIGATION.CHANGED,
       () => {
         if (this.#activeAnchorId) {
+          if (Date.now() < this.#freezeUntilMs) { return; }
           try { this.#snapshotAndUpdate(this.#activeAnchorId); } catch (e) { this.#logger.warn('anchor snapshot on navigation failed', e); }
         }
       },
@@ -302,6 +305,7 @@ export class PDFAnchorFeature {
     let debounceTimer = null;
     const onDocScroll = () => {
       if (!this.#activeAnchorId) return;
+      if (Date.now() < this.#freezeUntilMs) return;
       if (debounceTimer) { clearTimeout(debounceTimer); }
       debounceTimer = setTimeout(() => {
         try { this.#snapshotAndUpdate(this.#activeAnchorId); } catch (e) { this.#logger.warn('snapshot on doc scroll failed', e); }
@@ -420,6 +424,7 @@ export class PDFAnchorFeature {
     this.#stopUpdateTimer();
     if (!this.#activeAnchorId) {return;}
     this.#updateTimer = setInterval(() => {
+      if (Date.now() < this.#freezeUntilMs) { return; }
       this.#snapshotAndUpdate(this.#activeAnchorId);
     }, 3000);
   }
