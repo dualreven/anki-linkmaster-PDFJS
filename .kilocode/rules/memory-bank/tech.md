@@ -579,3 +579,11 @@ emove_comment(ann_id, comment_id)。
   - 数据层（BookmarkManager.reorderBookmarks）在同父且 `oldIdx < targetIndex` 时执行一次左移修正（`targetIndex -= 1`），最终效果与语义保持一致；
 - 这样可以消除“UI 与数据层双重修正”的叠加导致的偏移，避免回读后看起来“节点消失/跑飞”。
 - 术语统一：UI 中文展示统一由“书签”改为“大纲”，事件常量与模块命名保持不变。
+
+### 前端 Toast 统一规范（2025-10-09）
+- pdf-viewer 模块内统一引用 `src/frontend/common/utils/*` 提供的 Toast：
+  * `thirdparty-toast.js`：`pending/success/warning/error/dismissById`（右上角，带降级）
+  * `notification.js`：`showInfo/showSuccess/showError/dismissById/hideAll`
+- 约定：业务上 INFO 类提示使用 `notification.showInfo`，成功/警告/错误消息使用 `thirdparty-toast` 对应方法。
+- 禁止在功能域内再实现 `#showToast` 或直接构建 Toast DOM（`toast.textContent = ...`）
+- 测试：`src/frontend/pdf-viewer/__tests__/toast-usage.test.js` 用于守护此约定

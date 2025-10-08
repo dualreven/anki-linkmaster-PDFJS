@@ -5,6 +5,8 @@
  */
 
 import { getLogger } from '../../../../common/utils/logger.js';
+import { success as toastSuccess, error as toastError } from '../../../../common/utils/thirdparty-toast.js';
+import { showInfo as notifyInfo } from '../../../../common/utils/notification.js';
 import { PDF_TRANSLATOR_EVENTS } from '../events.js';
 
 /**
@@ -575,13 +577,13 @@ export class TranslatorSidebarUI {
 
     // 验证是否有位置信息和Range数据
     if (!translation.pageNumber || !translation.position) {
-      this.#showToast('无法创建标注：缺少位置信息', 'error');
+      toastError('无法创建标注：缺少位置信息');
       this.#logger.warn('Cannot create annotation: missing pageNumber or position', translation);
       return;
     }
 
     if (!translation.rangeData || translation.rangeData.length === 0) {
-      this.#showToast('无法创建标注：缺少文本选择数据', 'error');
+      toastError('无法创建标注：缺少文本选择数据');
       this.#logger.warn('Cannot create annotation: missing rangeData', translation);
       return;
     }
@@ -610,7 +612,7 @@ export class TranslatorSidebarUI {
     }, { actorId: 'TranslatorSidebarUI' });
 
     // 显示成功提示
-    this.#showToast('✅ 标注已创建');
+    toastSuccess('✅ 标注已创建');
     this.#logger.info('Annotation creation requested');
   }
 
@@ -634,8 +636,8 @@ export class TranslatorSidebarUI {
       source: 'translator'
     });
 
-    // 显示成功提示（临时）
-    this.#showToast('卡片创建请求已发送');
+    // 显示提示
+    notifyInfo('卡片创建请求已发送');
   }
 
   /**
@@ -646,10 +648,10 @@ export class TranslatorSidebarUI {
   #handleCopyTranslation(text) {
     navigator.clipboard.writeText(text).then(() => {
       this.#logger.info('Translation copied to clipboard');
-      this.#showToast('译文已复制到剪贴板');
+      toastSuccess('译文已复制到剪贴板');
     }).catch(err => {
       this.#logger.error('Failed to copy translation:', err);
-      this.#showToast('复制失败', 'error');
+      toastError('复制失败');
     });
   }
 
@@ -666,7 +668,7 @@ export class TranslatorSidebarUI {
       this.#logger.info('Speaking text:', text);
     } else {
       this.#logger.warn('Speech synthesis not supported');
-      this.#showToast('浏览器不支持语音朗读', 'error');
+      toastError('浏览器不支持语音朗读');
     }
   }
 
@@ -688,33 +690,7 @@ export class TranslatorSidebarUI {
    * @param {string} message - 消息内容
    * @param {string} type - 消息类型 (success|error)
    */
-  #showToast(message, type = 'success') {
-    // 简单的toast实现（后续可以替换为更好的UI组件）
-    const toast = document.createElement('div');
-    toast.textContent = message;
-    toast.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      padding: 12px 20px;
-      background: ${type === 'success' ? '#4CAF50' : '#f44336'};
-      color: white;
-      border-radius: 4px;
-      font-size: 14px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-      z-index: 10000;
-      animation: slideIn 0.3s ease-out;
-    `;
-
-    document.body.appendChild(toast);
-
-    setTimeout(() => {
-      toast.style.animation = 'slideOut 0.3s ease-in';
-      setTimeout(() => {
-        document.body.removeChild(toast);
-      }, 300);
-    }, 2000);
-  }
+  // 已移除自定义 toast 方法，改用 frontend/common 下的公共 toast 工具
 
   /**
    * 转义HTML

@@ -6,6 +6,7 @@
  */
 
 import { getLogger } from '../../../common/utils/logger.js';
+import { success as toastSuccess, error as toastError } from '../../../common/utils/thirdparty-toast.js';
 import { PDF_VIEWER_EVENTS } from '../../../common/event/pdf-viewer-constants.js';
 import { WEBSOCKET_EVENTS } from '../../../common/event/event-constants.js';
 import { PDFBookmarkFeatureConfig } from './feature.config.js';
@@ -158,7 +159,7 @@ export class PDFBookmarkFeature {
           try {
             await this.#bookmarkManager.loadFromStorage();
             this.#refreshBookmarkList();
-            this.#toast('✓ 已连接服务器，书签已同步');
+            toastSuccess('✓ 已连接服务器，书签已同步');
           } catch (_) {}
         },
         { subscriberId: 'PDFBookmarkFeature' }
@@ -184,24 +185,7 @@ export class PDFBookmarkFeature {
     this.#logger.info(`${this.name} installed successfully`);
   }
 
-  /** 显示简易 Toast 提示 */
-  #toast(message, type = 'success') {
-    try {
-      const toast = document.createElement('div');
-      toast.textContent = message;
-      toast.style.cssText = [
-        'position: fixed', 'top: 16px', 'right: 16px', 'z-index: 9999',
-        'padding: 10px 14px', 'border-radius: 6px', 'color: #fff',
-        'font-size: 14px', 'box-shadow: 0 2px 8px rgba(0,0,0,0.15)',
-        `background: ${type === 'error' ? '#d4380d' : type === 'info' ? '#1890ff' : '#52c41a'}`,
-        'opacity: 0', 'transform: translateY(-8px)', 'transition: all .2s ease'
-      ].join(';');
-      document.body.appendChild(toast);
-      requestAnimationFrame(() => { toast.style.opacity = '1'; toast.style.transform = 'translateY(0)'; });
-      clearTimeout(this.#toastTimer);
-      this.#toastTimer = setTimeout(() => { try { toast.remove(); } catch(_){} }, 2000);
-    } catch (_) {}
-  }
+  // 已移除自定义 toast 方法，改用 frontend/common 下的公共 toast 工具
 
   /**
    * 卸载功能（清理逻辑）
@@ -448,7 +432,7 @@ export class PDFBookmarkFeature {
 
         if (result.success) {
           this.#logger.info(`Outline created: ${result.bookmarkId}`);
-          this.#toast('✓ 大纲已添加');
+          toastSuccess('✓ 大纲已添加');
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.CREATE.SUCCESS,
             { bookmarkId: result.bookmarkId, bookmark: bookmarkData },
@@ -473,7 +457,7 @@ export class PDFBookmarkFeature {
           }
         } else {
           this.#logger.error(`Failed to create outline: ${result.error}`);
-          this.#toast(`添加大纲失败: ${result.error}`, 'error');
+          toastError(`添加大纲失败: ${result.error}`);
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.CREATE.FAILED,
             { error: result.error },
@@ -510,7 +494,7 @@ export class PDFBookmarkFeature {
 
         if (result.success) {
           this.#logger.info(`Outline updated: ${bookmarkId}`);
-          this.#toast('✓ 大纲已更新');
+          toastSuccess('✓ 大纲已更新');
           // 先用本地内存状态立即刷新一次，避免远端回读延迟造成“看起来没更新”
           this.#refreshBookmarkList();
           this.#eventBus.emitGlobal(
@@ -529,7 +513,7 @@ export class PDFBookmarkFeature {
           }
         } else {
           this.#logger.error(`Failed to update outline: ${result.error}`);
-          this.#toast(`更新大纲失败: ${result.error}`, 'error');
+          toastError(`更新大纲失败: ${result.error}`);
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.UPDATE.FAILED,
             { bookmarkId, error: result.error },
@@ -569,7 +553,7 @@ export class PDFBookmarkFeature {
 
         if (result.success) {
       this.#logger.info(`Outline deleted: ${bookmarkId}, count: ${result.deletedIds.length}`);
-      this.#toast('✓ 大纲已删除');
+      toastSuccess('✓ 大纲已删除');
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.DELETE.SUCCESS,
             { bookmarkId, deletedIds: result.deletedIds },
@@ -581,7 +565,7 @@ export class PDFBookmarkFeature {
           this.#refreshBookmarkList();
         } else {
           this.#logger.error(`Failed to delete bookmark: ${result.error}`);
-          this.#toast(`删除书签失败: ${result.error}`, 'error');
+          toastError(`删除书签失败: ${result.error}`);
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.DELETE.FAILED,
             { bookmarkId, error: result.error },
@@ -636,7 +620,7 @@ export class PDFBookmarkFeature {
 
     if (result.success) {
       this.#logger.info(`Bookmark reordered: ${bookmarkId}`);
-      this.#toast('✓ 书签排序已更新');
+      toastSuccess('✓ 书签排序已更新');
       // 立即用本地内存刷新一次，避免用户感知“无变化/消失”
       try {
         this.#refreshBookmarkList();
@@ -664,7 +648,7 @@ export class PDFBookmarkFeature {
       } catch (_) {}
     } else {
       this.#logger.error(`Failed to reorder outline: ${result.error}`);
-      this.#toast(`大纲排序失败: ${result.error}`, 'error');
+      toastError(`大纲排序失败: ${result.error}`);
       this.#eventBus.emitGlobal(
         PDF_VIEWER_EVENTS.BOOKMARK.REORDER.FAILED,
         { bookmarkId, error: result.error },
