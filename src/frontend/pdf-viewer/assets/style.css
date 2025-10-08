@@ -28,7 +28,8 @@ header {
   border-bottom: 1px solid #e0e0e0;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   min-height: 60px;
-}`n
+}
+
 
 .header-left {
   display: flex;
@@ -45,7 +46,8 @@ header {
   margin-left: auto;
   flex: 0 0 auto;
   white-space: nowrap;
-}`n
+}
+
 
 .btn {
     padding: 8px 16px;
@@ -86,7 +88,8 @@ h1 {
   text-overflow: ellipsis;
   flex: 1 1 auto;
   min-width: 0;
-}`n
+}
+
 
 /* 复制 PDF ID 按钮样式 */
 .copy-id-btn {
@@ -634,7 +637,8 @@ main {
   margin-left: auto;
   flex: 0 0 auto;
   white-space: nowrap;
-}`n
+}
+
 
     .zoom-controls,
     .page-controls {
@@ -654,3 +658,14 @@ main {
 
 
 
+
+/* 书名（标题）在 header 中的截断与省略号 */
+#pdf-title {
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 auto;
+  min-width: 0;
+}
