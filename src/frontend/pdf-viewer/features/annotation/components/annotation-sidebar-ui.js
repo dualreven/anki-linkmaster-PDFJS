@@ -6,6 +6,8 @@
 
 import { getLogger } from "../../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
+import { success as toastSuccess, warning as toastWarning, error as toastError } from "../../../../common/utils/thirdparty-toast.js";
+import { showInfo as notifyInfo } from "../../../../common/utils/notification.js";
 import { AnnotationType } from '../models/index.js';
 
 /**
@@ -272,7 +274,7 @@ export class AnnotationSidebarUI {
     };
 
     const message = modeNames[toolId] || `已启动${toolId}模式`;
-    this.#showToast(message, 'info');
+    notifyInfo(message);
   }
 
   /**
@@ -288,17 +290,17 @@ export class AnnotationSidebarUI {
       case 'filter':
         // 切换筛选面板显示状态（第二期功能）
         this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.FILTER_TOGGLE, {});
-        this.#showToast('筛选功能开发中...', 'info');
+        notifyInfo('筛选功能开发中...');
         break;
       case 'sort':
         // 切换排序面板显示状态（第二期功能）
         this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.SORT_TOGGLE, {});
-        this.#showToast('排序功能开发中...', 'info');
+        notifyInfo('排序功能开发中...');
         break;
       case 'settings':
         // 打开设置面板（预留功能）
         this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.SETTINGS_OPEN, {});
-        this.#showToast('设置功能开发中...', 'info');
+        notifyInfo('设置功能开发中...');
         break;
       default:
         this.#logger.warn(`Unknown utility button: ${buttonId}`);
@@ -446,9 +448,9 @@ export class AnnotationSidebarUI {
         'comment': '批注模式'
       };
       const modeName = modeNames[deactivatedTool] || '标注模式';
-      this.#showToast(`${modeName}已关闭`, 'info');
+      notifyInfo(`${modeName}已关闭`);
     } else {
-      this.#showToast('标注侧边栏已关闭', 'info');
+      notifyInfo('标注侧边栏已关闭');
     }
   }
 
@@ -773,7 +775,7 @@ export class AnnotationSidebarUI {
         await this.#handleCopyIdClick(annotation.id);
       } catch (error) {
         this.#logger.error('Copy click handler failed:', error);
-        this.#showToast('✗ 复制失败', 'error');
+        toastError('✗ 复制失败');
       }
     });
     copyIdBtn.addEventListener('mouseenter', () => {
@@ -1312,7 +1314,7 @@ export class AnnotationSidebarUI {
     const submitComment = () => {
       const content = textarea.value.trim();
       if (!content) {
-        this.#showToast('请输入评论内容', 'warning');
+        toastWarning('请输入评论内容');
         return;
       }
 
@@ -1337,7 +1339,7 @@ export class AnnotationSidebarUI {
       textarea.value = '';
 
       // 显示成功提示
-      this.#showToast('✓ 评论已添加', 'success');
+      toastSuccess('✓ 评论已添加');
 
       // 更新卡片显示（刷新评论数量）
       this.updateAnnotationCard(annotation);
@@ -1427,11 +1429,11 @@ export class AnnotationSidebarUI {
 
     // 显示结果
     if (success) {
-      this.#showCopyToast('✓ ID已复制');
+      toastSuccess('✓ ID已复制');
       // 发出ID复制事件（修正为3段格式）
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.ID_COPY_SUCCESS, { id: annotationId });
     } else {
-      this.#showCopyToast('✗ 复制失败');
+      toastError('✗ 复制失败');
     }
   }
 
@@ -1441,66 +1443,7 @@ export class AnnotationSidebarUI {
    * @param {string} type - 提示类型 (success|info|warning|error)
    * @private
    */
-  #showToast(message, type = 'success') {
-    // 根据类型选择背景色
-    const typeStyles = {
-      success: 'background: rgba(76, 175, 80, 0.9);', // 绿色
-      info: 'background: rgba(33, 150, 243, 0.9);',    // 蓝色
-      warning: 'background: rgba(255, 152, 0, 0.9);',  // 橙色
-      error: 'background: rgba(244, 67, 54, 0.9);'     // 红色
-    };
-
-    // 创建Toast提示
-    const toast = document.createElement('div');
-    toast.textContent = message;
-    toast.style.cssText = [
-      'position: fixed',
-      'top: 20px',
-      'left: 50%',
-      'transform: translateX(-50%)',
-      typeStyles[type] || typeStyles.success,
-      'color: #fff',
-      'padding: 10px 20px',
-      'border-radius: 4px',
-      'font-size: 14px',
-      'font-weight: 500',
-      'box-shadow: 0 2px 8px rgba(0,0,0,0.2)',
-      'z-index: 10000',
-      'animation: fadeInOut 2.5s ease-in-out'
-    ].join(';');
-
-    // 添加动画样式
-    if (!document.querySelector('#annotation-toast-animation')) {
-      const style = document.createElement('style');
-      style.id = 'annotation-toast-animation';
-      style.textContent = `
-        @keyframes fadeInOut {
-          0% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
-          10% { opacity: 1; transform: translateX(-50%) translateY(0); }
-          85% { opacity: 1; transform: translateX(-50%) translateY(0); }
-          100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
-        }
-      `;
-      document.head.appendChild(style);
-    }
-
-    document.body.appendChild(toast);
-
-    // 2.5秒后移除
-    setTimeout(() => {
-      toast.remove();
-    }, 2500);
-  }
-
-  /**
-   * 显示复制提示（第二期：调用通用toast方法）
-   * @param {string} message - 提示消息
-   * @private
-   */
-  #showCopyToast(message) {
-    const isSuccess = message.includes('✓');
-    this.#showToast(message, isSuccess ? 'success' : 'error');
-  }
+  // 已移除自定义 toast 方法，改用 frontend/common 下的公共 toast 工具
 
   /**
    * 高亮并滚动到指定的标注卡片

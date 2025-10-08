@@ -6,6 +6,7 @@
 
 import { getLogger } from '../../../../common/utils/logger.js';
 import { PDF_VIEWER_EVENTS } from '../../../../common/event/pdf-viewer-constants.js';
+import { showInfo as notifyInfo } from '../../../../common/utils/notification.js';
 
 /**
  * BookmarkToolbar 工具栏组件类
@@ -257,13 +258,13 @@ export class BookmarkToolbar {
       sortBtn.style.backgroundColor = '#4CAF50';
       sortBtn.style.borderColor = '#4CAF50';
       // 显示toast提醒
-      this.#showToast('拖动大纲进行排序');
+      notifyInfo('拖动大纲进行排序');
     } else {
       sortBtn.dataset.active = '';  // 移除激活状态
       sortBtn.style.backgroundColor = 'white';
       sortBtn.style.borderColor = '#ccc';
       // 显示toast提醒
-      this.#showToast('排序模式已关闭');
+      notifyInfo('排序模式已关闭');
     }
 
     // 发出排序模式切换事件
@@ -280,47 +281,8 @@ export class BookmarkToolbar {
    * @private
    */
   #showToast(message) {
-    // 创建toast元素
-    const toast = document.createElement('div');
-    toast.textContent = message;
-    toast.style.cssText = `
-      position: fixed;
-      top: 80px;
-      left: 50%;
-      transform: translateX(-50%);
-      background-color: rgba(0, 0, 0, 0.8);
-      color: white;
-      padding: 12px 24px;
-      border-radius: 4px;
-      font-size: 14px;
-      z-index: 10000;
-      animation: fadeInOut 2s ease-in-out;
-    `;
-
-    // 添加动画样式
-    const style = document.createElement('style');
-    style.textContent = `
-      @keyframes fadeInOut {
-        0% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
-        10% { opacity: 1; transform: translateX(-50%) translateY(0); }
-        90% { opacity: 1; transform: translateX(-50%) translateY(0); }
-        100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
-      }
-    `;
-    if (!document.querySelector('#toast-animation-style')) {
-      style.id = 'toast-animation-style';
-      document.head.appendChild(style);
-    }
-
-    // 添加到页面
-    document.body.appendChild(toast);
-
-    // 2秒后自动移除
-    setTimeout(() => {
-      if (toast.parentNode) {
-        toast.parentNode.removeChild(toast);
-      }
-    }, 2000);
+    // 统一使用公共通知
+    try { notifyInfo(String(message)); } catch (_) {}
   }
 
   /**

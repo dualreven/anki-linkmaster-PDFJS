@@ -6,6 +6,7 @@
 
 import { getLogger } from "../../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
+import { success as toastSuccess, error as toastError } from "../../../../common/utils/thirdparty-toast.js";
 import { DOMElementManager } from "../../../ui/dom-element-manager.js";
 import { KeyboardHandler } from "../../../ui/keyboard-handler.js";
 import { UIStateManager } from "../../../ui/ui-state-manager.js";
@@ -314,6 +315,8 @@ export class UIManagerCore {
       : filename;
 
     titleElement.textContent = displayName;
+    // 设置原生 tooltip，用于显示完整书名
+    try { titleElement.title = displayName; } catch (_) {}
     this.#logger.info(`Header title updated: ${displayName}`);
   }
 
@@ -356,9 +359,9 @@ export class UIManagerCore {
         // 视觉反馈：添加"已复制"状态
         copyBtn.classList.add('copied');
         copyBtn.title = `已复制: ${this.#currentPdfId}`;
-        this.#showToast('✓ PDF ID 已复制');
+        toastSuccess('✓ PDF ID 已复制');
 
-        this.#logger.info(`✅ PDF ID copied to clipboard: ${this.#currentPdfId}`);
+          this.#logger.info(`✅ PDF ID copied to clipboard: ${this.#currentPdfId}`);
 
         // 2秒后恢复原状态
         setTimeout(() => {
@@ -375,7 +378,7 @@ export class UIManagerCore {
           // 备用方法成功，也显示视觉反馈
           copyBtn.classList.add('copied');
           copyBtn.title = `已复制: ${this.#currentPdfId}`;
-          this.#showToast('✓ PDF ID 已复制');
+          toastSuccess('✓ PDF ID 已复制');
 
           setTimeout(() => {
             copyBtn.classList.remove('copied');
@@ -383,7 +386,7 @@ export class UIManagerCore {
           }, 2000);
         } catch (fallbackError) {
           this.#logger.error('Fallback copy also failed:', fallbackError);
-          this.#showToast('✗ 复制失败，已提供手动复制', 'error');
+          toastError('✗ 复制失败，已提供手动复制');
           // 最终兜底：显示手动复制对话框
           this.#showManualCopyDialog(this.#currentPdfId);
         }
@@ -421,52 +424,7 @@ export class UIManagerCore {
    * @param {'success'|'error'|'info'} [type='success'] - 提示类型
    * @private
    */
-  #showToast(message, type = 'success') {
-    const typeStyles = {
-      success: 'background: #2e7d32',
-      error: 'background: #c62828',
-      info: 'background: #1565c0'
-    };
-
-    const toast = document.createElement('div');
-    toast.textContent = message;
-    toast.style.cssText = [
-      'position: fixed',
-      'top: 20px',
-      'left: 50%',
-      'transform: translateX(-50%)',
-      typeStyles[type] || typeStyles.info,
-      'color: #fff',
-      'padding: 10px 20px',
-      'border-radius: 4px',
-      'font-size: 14px',
-      'font-weight: 500',
-      'box-shadow: 0 4px 12px rgba(0,0,0,0.2)',
-      'z-index: 10000',
-      'animation: slideDown 0.3s ease-out, fadeOut 0.3s ease-out 2.2s',
-      'pointer-events: none'
-    ].join(';');
-
-    // 添加动画样式（如无）
-    if (!document.getElementById('toast-animation-styles')) {
-      const style = document.createElement('style');
-      style.id = 'toast-animation-styles';
-      style.textContent = `
-        @keyframes slideDown {
-          from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
-          to { opacity: 1; transform: translateX(-50%) translateY(0); }
-        }
-        @keyframes fadeOut {
-          from { opacity: 1; }
-          to { opacity: 0; }
-        }
-      `;
-      document.head.appendChild(style);
-    }
-
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 2500);
-  }
+  // 已移除自定义 toast 方法，改用 frontend/common 下的公共 toast 工具
 
   /**
    * 显示手动复制对话框（最终兜底）
@@ -547,16 +505,16 @@ export class UIManagerCore {
     tryCopyBtn.addEventListener('click', async () => {
       try {
         await navigator.clipboard.writeText(input.value);
-        this.#showToast('✓ 已复制');
+        toastSuccess('✓ 已复制');
         overlay.remove();
       } catch (e) {
         // 尝试降级
         try {
           this.#fallbackCopyToClipboard(input.value);
-          this.#showToast('✓ 已复制');
+          toastSuccess('✓ 已复制');
           overlay.remove();
         } catch (e2) {
-          this.#showToast('✗ 复制失败，请手动 Ctrl+C', 'error');
+          toastError('✗ 复制失败，请手动 Ctrl+C');
           input.focus();
           input.select();
         }
