@@ -24,6 +24,7 @@ export class PDFAnchorFeature {
   #scrollHintShown = false;
   #scrollListeners = [];
   #freezeUntilMs = 0;
+  #autoUpdateEnabled = true;
 
   get name() { return "pdf-anchor"; }
   get version() { return "1.0.0"; }
@@ -110,6 +111,7 @@ export class PDFAnchorFeature {
             if (this.#navigationService && pageAt >= 1) {
               this.#navigationService.navigateTo({ pageAt, position: pos });
               this.#freezeUntilMs = Date.now() + 3000; // 冻结3秒，避免初始化误采样
+              this.#autoUpdateEnabled = false; // 等待用户滚动后再允许回写
             }
             // 启动后台更新（3秒节拍）
             this.#activeAnchorId = a.uuid;
@@ -250,6 +252,7 @@ export class PDFAnchorFeature {
           this.#activeAnchorId = id;
           this.#snapshotAndUpdate(id);
           this.#startUpdateTimer();
+          this.#autoUpdateEnabled = true;
         } else {
           if (this.#activeAnchorId === id) { this.#activeAnchorId = null; }
           this.#stopUpdateTimer();
@@ -263,6 +266,7 @@ export class PDFAnchorFeature {
       PDF_VIEWER_EVENTS.NAVIGATION.CHANGED,
       () => {
         if (this.#activeAnchorId) {
+          if (!this.#autoUpdateEnabled) { return; }
           if (Date.now() < this.#freezeUntilMs) { return; }
           try { this.#snapshotAndUpdate(this.#activeAnchorId); } catch (e) { this.#logger.warn('anchor snapshot on navigation failed', e); }
         }
@@ -305,6 +309,8 @@ export class PDFAnchorFeature {
     let debounceTimer = null;
     const onDocScroll = () => {
       if (!this.#activeAnchorId) return;
+      // 用户滚动后允许自动回写（解除 URL 启动保护）
+      this.#autoUpdateEnabled = true;
       if (Date.now() < this.#freezeUntilMs) return;
       if (debounceTimer) { clearTimeout(debounceTimer); }
       debounceTimer = setTimeout(() => {
@@ -424,6 +430,7 @@ export class PDFAnchorFeature {
     this.#stopUpdateTimer();
     if (!this.#activeAnchorId) {return;}
     this.#updateTimer = setInterval(() => {
+      if (!this.#autoUpdateEnabled) { return; }
       if (Date.now() < this.#freezeUntilMs) { return; }
       this.#snapshotAndUpdate(this.#activeAnchorId);
     }, 3000);
