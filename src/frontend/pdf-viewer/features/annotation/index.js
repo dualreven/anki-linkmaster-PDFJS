@@ -433,7 +433,20 @@ export class AnnotationFeature {
         return;
       }
 
-      const pageNumber = annotation.pageNumber;
+      // 计算应跳转的页码：优先DOM中已渲染的容器（更可靠，避免数据层页码异常时跳到错误页面）
+      let pageNumber = annotation.pageNumber;
+      try {
+        if (annotation.type === 'text-highlight' && annotation.id) {
+          const el = document.querySelector(`.text-highlight-container[data-annotation-id="${annotation.id}"]`);
+          const pageEl = el?.closest?.('.page');
+          const numAttr = pageEl?.getAttribute?.('data-page-number');
+          const pn = numAttr ? parseInt(numAttr, 10) : NaN;
+          if (Number.isInteger(pn) && pn > 0) {
+            pageNumber = pn;
+            this.#logger.info(`[AnnotationFeature] Page resolved from DOM for ${annotation.id}: ${pageNumber}`);
+          }
+        }
+      } catch (_) { /* ignore DOM resolution errors */ }
       if (!pageNumber) {
         this.#logger.warn('[AnnotationFeature] Annotation has no page number', annotation);
         return;
