@@ -696,6 +696,19 @@ export class ScreenshotTool extends IAnnotationTool {
   }
 
   /**
+   * 确保指定注释的截图标记框已渲染（用于侧边栏打开/数据加载后恢复）
+   * @param {Annotation} annotation
+   */
+  ensureOverlayFor(annotation) {
+    try {
+      if (!annotation || annotation.type !== 'screenshot') return;
+      this.renderScreenshotMarker(annotation);
+    } catch (e) {
+      this.#logger?.warn?.('[ScreenshotTool] ensureOverlayFor failed', e);
+    }
+  }
+
+  /**
    * 将百分比坐标转换为Canvas绝对坐标
    * @private
    * @param {number} pageNumber - 页码

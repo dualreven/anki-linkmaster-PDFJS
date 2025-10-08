@@ -359,15 +359,40 @@ export class AnnotationFeature {
       } catch (_) {}
     }, { subscriberId: 'AnnotationFeature' });
 
-    // 当标注侧边栏被打开时，若已知 pdfId 但尚未加载过，主动加载一次
+    // 当标注侧边栏被打开时，若已知 pdfId 但尚未加载过，主动加载一次；并确保叠加层渲染
     this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPENED_COMPLETED, (data) => {
       try {
         if (data?.sidebarId === 'annotation' && this.#currentPdfId) {
           this.#logger.info(`[AnnotationFeature] 侧边栏打开，尝试加载标注（pdfId=${this.#currentPdfId}）`);
           this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, { pdfId: this.#currentPdfId }, { actorId: 'AnnotationFeature' });
+          // 确保当前页面上已有的标注覆盖层可见
+          this.#ensureAllOverlays();
         }
       } catch (_) {}
     }, { subscriberId: 'AnnotationFeature' });
+  }
+
+  /**
+   * 确保所有已加载标注的覆盖层在页面上可见（用于侧边栏打开/数据加载后）
+   * @private
+   */
+  #ensureAllOverlays() {
+    try {
+      if (!this.#annotationManager || !this.#toolRegistry) return;
+      const anns = this.#annotationManager.getAllAnnotations();
+      if (!Array.isArray(anns) || anns.length === 0) return;
+      const screenshotTool = this.#toolRegistry.get?.('screenshot');
+      const highlightTool = this.#toolRegistry.get?.('text-highlight');
+      for (const ann of anns) {
+        if (ann.type === 'screenshot' && screenshotTool?.ensureOverlayFor) {
+          screenshotTool.ensureOverlayFor(ann);
+        } else if (ann.type === 'text-highlight' && highlightTool?.ensureOverlayFor) {
+          highlightTool.ensureOverlayFor(ann);
+        }
+      }
+    } catch (e) {
+      this.#logger?.warn?.('[AnnotationFeature] ensureAllOverlays failed', e);
+    }
   }
 
   /**

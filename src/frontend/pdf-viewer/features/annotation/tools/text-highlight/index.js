@@ -607,6 +607,20 @@ export class TextHighlightTool extends IAnnotationTool {
   }
 
   /**
+   * 确保指定高亮注释的覆盖层已渲染
+   * @param {Annotation} annotation
+   */
+  ensureOverlayFor(annotation) {
+    try {
+      if (!annotation || annotation.type !== 'text-highlight') return;
+      // 若页已渲染，直接尝试渲染；否则等待 pagerendered 钩子恢复
+      this.#renderHighlightForAnnotation(annotation);
+    } catch (e) {
+      this.#logger?.warn?.('[TextHighlightTool] ensureOverlayFor failed', e);
+    }
+  }
+
+  /**
    * 渲染（或确保）高亮注释在页面上可见
    * @param {Annotation} annotation
    * @private
