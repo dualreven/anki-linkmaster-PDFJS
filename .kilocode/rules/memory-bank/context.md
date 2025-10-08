@@ -1033,6 +1033,21 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - 仅影响 JS 日志（logs/pdf-viewer-<id>-js.log），Python 日志仍归 pdf-home
 
 ## 当前任务（20251009030905）
+
+## 当前任务（20251009051702）
+- 名称：后端停止监控 is_active（修复 anchor:update:failed）
+- 背景：
+  - 前端出现“is_active must be a boolean”错误；is_active 已为弃用字段，不应在通用更新流程强制校验；
+  - 仅在 anchor_activate 专职接口下维护单活语义，其余更新（名称/页码/位置等）不应涉及 is_active；
+- 修改要点：
+  1) API：anchor_create/anchor_update 均忽略 is_active 字段；
+  2) 插件：_validate_json_data 仅在 is_active 明确为布尔值时保留，其他类型一律忽略；
+  3) 解析：_parse_row 将 is_active 缺省值改为 False；
+- 相关文件：
+  - src/backend/api/pdf_library_api.py:739-784
+  - src/backend/database/plugins/pdf_bookanchor_plugin.py:241-260, 418
+- 结果：
+  - 普通更新不再触发 is_active 类型校验错误；激活/停用仍由 anchor_activate 控制。
 - 名称：修复 pdf-viewer 锚点侧边栏复制（复制ID/复制文内链接）不可用问题
 - 问题背景：
   - 部分环境（QtWebEngine/权限判定）下 `navigator.clipboard.writeText` 失败，`document.execCommand('copy')` 也可能不可用；

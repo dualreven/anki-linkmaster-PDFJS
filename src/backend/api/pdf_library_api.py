@@ -753,8 +753,7 @@ class PDFLibraryAPI:
         name = data.get('name') or (data.get('json_data') or {}).get('name') or '未命名锚点'
         jd = data.get('json_data') or {}
         jd['name'] = name
-        if 'is_active' in data:
-            jd['is_active'] = bool(data['is_active'])
+        # is_active 字段已弃用：在创建阶段忽略任何 is_active 输入，由专用的 anchor_activate 负责激活/停用
         data['json_data'] = jd
         return self._bookanchor_plugin.insert(data)
 
@@ -776,8 +775,7 @@ class PDFLibraryAPI:
         jd = {}
         if 'name' in update:
             jd['name'] = str(update['name'])
-        if 'is_active' in update:
-            jd['is_active'] = bool(update['is_active'])
+        # is_active 字段已弃用：在更新阶段忽略任何 is_active 输入，由专用的 anchor_activate 负责
         if jd:
             data['json_data'] = jd
         if 'visited_at' in update:

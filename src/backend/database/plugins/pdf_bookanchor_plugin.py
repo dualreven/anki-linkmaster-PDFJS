@@ -239,10 +239,11 @@ class PDFBookanchorTablePlugin(TablePlugin):
         if description is not None and not isinstance(description, str):
             raise DatabaseValidationError('description must be a string or null')
 
-        # 可选：is_active（默认 true）
-        is_active = json_data.get('is_active', True)
-        if not isinstance(is_active, bool):
-            raise DatabaseValidationError('is_active must be a boolean')
+        # 可选：is_active（已弃用的“监控”字段）
+        # 后端不再强制校验/监控此字段的类型；仅当明确为布尔值时予以保留，
+        # 其余情况（字符串/数字等）一律忽略，由专用的 anchor_activate 接口维护。
+        _is_active = json_data.get('is_active', None)
+        keep_is_active = isinstance(_is_active, bool)
 
         # 可选：use_count（默认 0）
         use_count = json_data.get('use_count', 0)
@@ -257,7 +258,8 @@ class PDFBookanchorTablePlugin(TablePlugin):
         result = dict(json_data)
         result['name'] = name
         result['description'] = description
-        result['is_active'] = is_active
+        if keep_is_active:
+            result['is_active'] = _is_active
         result['use_count'] = use_count
 
         # 强制：visited_at 不应放在 json 中（如出现则忽略，由 SQL 字段承载）
@@ -415,7 +417,7 @@ class PDFBookanchorTablePlugin(TablePlugin):
             # 便捷展开（常用展示字段）
             'name': json_data.get('name'),
             'description': json_data.get('description', ''),
-            'is_active': json_data.get('is_active', True),
+            'is_active': json_data.get('is_active', False),
             'use_count': json_data.get('use_count', 0),
         }
         return result
