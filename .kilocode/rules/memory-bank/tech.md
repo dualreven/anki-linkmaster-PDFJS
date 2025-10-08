@@ -43,6 +43,19 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
   - `ws/ws-client.js`
 - QWebChannel 逻辑由前端管理（如 `src/frontend/pdf-home/qwebchannel-manager.js`）。
 
+### Qt 剪贴板回退（2025-10-09）
+- 适用场景：Clipboard API 不可用或用户手势校验导致失败时，前端通过 QWebChannel 调用 Python 槽设置系统剪贴板。
+- Python 端：`src/frontend/pdf-viewer/pyqt/pdf_viewer_bridge.py#setClipboardText(text: str) -> bool`
+- JS 端：
+  - `features/pdf-anchor/components/anchor-sidebar-ui.js` 的 `copyTextRobust(text, label)` 在 Clipboard API 与 `execCommand('copy')` 失败后，尝试：
+    ```js
+    new QWebChannel(qt.webChannelTransport, (channel) => {
+      channel.objects.pdfViewerBridge.setClipboardText(String(text));
+    });
+    ```
+  - `features/pdf-anchor/index.js` 的 `#copyToClipboard(id)` 同步增加同样回退；
+  - 依赖：PyQt 主窗体在加载完成后自动注入 `qwebchannel.js`。
+
 ### 搜索透传参数（2025-10-07）
 - `search:query:requested` 支持可选字段透传至 WS：
   - `sort`: 例如 `[{ field: 'visited_at', direction: 'desc' }]`

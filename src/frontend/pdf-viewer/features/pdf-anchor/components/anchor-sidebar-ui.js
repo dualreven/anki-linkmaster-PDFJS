@@ -147,16 +147,7 @@ export class AnchorSidebarUI {
 
     // 复制下拉按钮
     const copyTextRobust = async (text, labelForToast) => {
-      try {
-        // 优先使用 Clipboard API（部分 QWebEngine 可能不支持）
-        if (navigator?.clipboard?.writeText) {
-          await navigator.clipboard.writeText(text);
-          try { toastSuccess(`已复制${labelForToast ? `(${labelForToast})` : ''}`); } catch(_) {}
-          return true;
-        }
-      } catch (e) {
-        // ignore and fallback
-      }
+      // 关键点：先在用户手势的同步栈内尝试 execCommand，避免因异步等待丢失“用户激活”导致失败
       try {
         const ta = document.createElement('textarea');
         ta.value = String(text);
@@ -166,7 +157,7 @@ export class AnchorSidebarUI {
         ta.style.left = '-1000px';
         ta.style.opacity = '0';
         document.body.appendChild(ta);
-        ta.focus();
+        try { ta.focus(); } catch(_) {}
         ta.select();
         const ok = document.execCommand('copy');
         document.body.removeChild(ta);
@@ -174,9 +165,43 @@ export class AnchorSidebarUI {
           try { toastSuccess(`已复制${labelForToast ? `(${labelForToast})` : ''}`); } catch(_) {}
           return true;
         }
-      } catch (e) {
-        // fall through
-      }
+      } catch (_) {}
+
+      // 次选：Clipboard API（某些浏览器/上下文可用）
+      try {
+        if (navigator?.clipboard?.writeText) {
+          await navigator.clipboard.writeText(String(text));
+          try { toastSuccess(`已复制${labelForToast ? `(${labelForToast})` : ''}`); } catch(_) {}
+          return true;
+        }
+      } catch (_) {}
+
+      // 最后：QWebChannel（仅 PyQt 环境可用）
+      try {
+        const ok = await new Promise((resolve) => {
+          try {
+            if (typeof qt === 'undefined' || !qt.webChannelTransport) { resolve(false); return; }
+            if (typeof QWebChannel === 'undefined') { resolve(false); return; }
+            new QWebChannel(qt.webChannelTransport, (channel) => {
+              try {
+                const bridge = channel?.objects?.pdfViewerBridge;
+                if (bridge && typeof bridge.setClipboardText === 'function') {
+                  Promise.resolve(bridge.setClipboardText(String(text)))
+                    .then((res) => resolve(!!res))
+                    .catch(() => resolve(false));
+                } else {
+                  resolve(false);
+                }
+              } catch(_) { resolve(false); }
+            });
+          } catch(_) { resolve(false); }
+        });
+        if (ok) {
+          try { toastSuccess(`已复制${labelForToast ? `(${labelForToast})` : ''}`); } catch(_) {}
+          return true;
+        }
+      } catch(_) {}
+
       try { toastError('复制失败，请手动选择并复制'); } catch(_) {}
       return false;
     };
@@ -240,6 +265,7 @@ export class AnchorSidebarUI {
     bar.appendChild(addBtn);
     bar.appendChild(delBtn);
     bar.appendChild(editBtn);
+
     bar.appendChild(copyWrap);
 
     return bar;
@@ -313,6 +339,12 @@ export class AnchorSidebarUI {
       tr.appendChild(tdActive);
       tbody.appendChild(tr);
     });
+
+    // 若无选中项则默认选中第一条，方便直接使用“复制ID/复制副本”等操作
+    if (!this.#selectedId && this.#anchors.length > 0) {
+      this.#selectedId = String(this.#anchors[0].uuid);
+      this.#highlightSelection(this.#selectedId);
+    }
   }
 
   #highlightSelection(id) {

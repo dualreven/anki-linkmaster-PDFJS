@@ -530,10 +530,14 @@ class PyQtBridge(QObject):
             logs_dir = project_root / 'logs'
             logs_dir.mkdir(parents=True, exist_ok=True)
             path = logs_dir / f"pdf-viewer-{pdf_id}-js.log"
-            # 确保文件存在（UTF-8 空文件，不创建 BOM）
-            if not path.exists():
+            # 每次启动 viewer 前清空旧日志（UTF-8，无 BOM）。
+            # 这样从 pdf-home 启动时行为与独立 launcher 截断一致。
+            try:
                 with open(path, 'w', encoding='utf-8', newline='\n') as f:
                     f.write('')
+            except Exception:
+                # 若清空失败，仍返回路径，避免影响启动流程
+                pass
             return str(path)
         except Exception:
             # 兜底返回相对路径名

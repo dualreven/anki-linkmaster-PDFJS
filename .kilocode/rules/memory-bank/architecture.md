@@ -19,6 +19,13 @@
 - pdf-home：`src/frontend/pdf-home/*`（容器、QWebChannel 管理、前端日志捕获到 `logs/pdf-home-js.log`）。
 - pdf-viewer：`src/frontend/pdf-viewer/*`（`ui-manager-core.js` 以 `#elements/#state` 为中心；按 `pdf_id` 输出 `logs/pdf-viewer-<pdf-id>-js.log`）。
 
+### pdf-viewer QWebChannel 扩展（Clipboard）
+- Python 端：`src/frontend/pdf-viewer/pyqt/pdf_viewer_bridge.py` 新增 `setClipboardText(text: str) -> bool` 槽，用于在 Clipboard API 失效时由前端通过 QWebChannel 设置系统剪贴板。
+- JS 端：
+  - `features/pdf-anchor/components/anchor-sidebar-ui.js` 的 `copyTextRobust` 在 Clipboard API 与 `execCommand('copy')` 失败后，尝试 `new QWebChannel(qt.webChannelTransport, ...)` 获取 `pdfViewerBridge` 并调用 `setClipboardText`。
+  - `features/pdf-anchor/index.js` 的 `#copyToClipboard` 同步增加上述回退逻辑。
+  - PyQt 主窗体（`pyqt/main_window.py`）已在页面加载完成后自动注入 `qwebchannel.js`，确保 JS 侧可用。
+
 ## 后端关键实现
 - WebSocket 转发器：`src/backend/websocket/standard_server.py`。
 - HTTP 文件服务器：`src/backend/http_server.py`。
