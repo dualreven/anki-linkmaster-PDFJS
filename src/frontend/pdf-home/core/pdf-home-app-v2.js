@@ -19,7 +19,6 @@ import eventBus from '../../common/event/event-bus.js';
 import WSClient from '../../common/ws/ws-client.js';
 
 // 导入功能域
-import { HeaderFeature } from '../features/header/index.js';
 import { PDFListFeature } from '../features/pdf-list/index.js';
 import { PDFEditorFeature } from '../features/pdf-editor/index.js';
 import { PDFSorterFeature } from '../features/pdf-sorter/index.js';
@@ -293,7 +292,6 @@ export class PDFHomeAppV2 {
     // 注册所有功能域（注册不等于安装）
     const features = [
       // UI布局功能
-      new HeaderFeature(),
       new SidebarFeature(),
 
       // 搜索和筛选功能（按优先级顺序）

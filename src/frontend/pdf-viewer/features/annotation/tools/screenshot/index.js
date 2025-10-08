@@ -10,7 +10,7 @@
 import { IAnnotationTool } from '../../interfaces/IAnnotationTool.js';
 import { ScreenshotCapturer } from './screenshot-capturer.js';
 import { QWebChannelScreenshotBridge } from './qwebchannel-bridge.js';
-import { AnnotationType } from '../../models/annotation.js';
+import { Annotation, AnnotationType } from '../../models/annotation.js';
 import { getLogger } from '../../../../../common/utils/logger.js';
 import { PDF_VIEWER_EVENTS } from '../../../../../common/event/pdf-viewer-constants.js';
 
@@ -455,30 +455,30 @@ export class ScreenshotTool extends IAnnotationTool {
         throw new Error('Failed to convert canvas coordinates to percentage');
       }
 
-      // 5. 创建标注数据
-      // 注意: Mock模式下imagePath是虚拟路径,需要同时保存base64以便显示
-      const annotationData = {
+      // 5. 创建 Annotation 实例（先生成稳定ID，便于后续事件/卡片去重）
+      const annotation = new Annotation({
         type: AnnotationType.SCREENSHOT,
         pageNumber,
         data: {
-          // 主要使用百分比坐标（缩放无关）
           rectPercent: percentRect,
-          // 保留绝对坐标用于兼容和调试
           rect: canvasRect,
           markerColor: DEFAULT_MARKER_COLOR,
           imagePath: saveResult.path,
           imageHash: saveResult.hash,
-          imageData: base64Image,  // Mock模式下需要base64数据才能显示图片
-          description
+          imageData: base64Image,
+          description,
         }
-      };
-
-      // 5. 发布创建事件 (包装成{annotation: ...}格式)
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, {
-        annotation: annotationData
       });
 
-      this.#logger.info('[ScreenshotTool] Annotation created', annotationData);
+      // 5.1 先进行乐观UI更新（立即显示在侧边栏）
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, { annotation });
+
+      // 5.2 再通知管理器进行持久化（携带相同ID，避免重复）
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, {
+        annotation: annotation.toJSON()
+      });
+
+      this.#logger.info('[ScreenshotTool] Annotation created (optimistic UI + persistence requested)', annotation);
 
     } catch (error) {
       this.#logger.error('[ScreenshotTool] Capture failed:', error);

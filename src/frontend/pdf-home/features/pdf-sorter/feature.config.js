@@ -38,11 +38,11 @@ export const PDFSorterFeatureConfig = {
      * 排序配置
      */
     sorter: {
-      // 默认排序字段
-      defaultSortField: 'modified_time',
+      // 默认排序字段（按标题字母序）
+      defaultSortField: 'title',
 
-      // 默认排序方向
-      defaultSortDirection: 'desc', // 'asc' or 'desc'
+      // 默认排序方向（升序）
+      defaultSortDirection: 'asc', // 'asc' or 'desc'
 
       // 支持的排序字段
       sortableFields: [

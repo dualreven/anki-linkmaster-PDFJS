@@ -49,12 +49,12 @@ describe('PDFSorterFeature 排序按钮交互', () => {
     document.body.innerHTML = '';
   });
 
-  it('接收到 search:sort:clicked 事件时应展示排序面板', () => {
+  it('接收到 search:sort:requested 事件时应展示排序面板', () => {
     const panel = document.querySelector('.sorter-panel');
     expect(panel).toBeTruthy();
     expect(panel.classList.contains('active')).toBe(false);
 
-    globalEventBus.emit('search:sort:clicked');
+    globalEventBus.emit('search:sort:requested');
 
     expect(panel.classList.contains('active')).toBe(true);
 
@@ -62,12 +62,12 @@ describe('PDFSorterFeature 排序按钮交互', () => {
     expect(multiSortContainer.style.display).toBe('block');
   });
 
-  it('接收到 header:sort:clicked 事件时应展示排序面板', () => {
+  it('接收到 header:sort:requested 事件时应展示排序面板', () => {
     const panel = document.querySelector('.sorter-panel');
     expect(panel).toBeTruthy();
     expect(panel.classList.contains('active')).toBe(false);
 
-    globalEventBus.emit('header:sort:clicked');
+    globalEventBus.emit('header:sort:requested');
 
     expect(panel.classList.contains('active')).toBe(true);
   });

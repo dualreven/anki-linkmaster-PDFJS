@@ -18,6 +18,8 @@ import { AnnotationSidebarUI } from "./components/annotation-sidebar-ui.js";
 import { ToolRegistry } from "./core/tool-registry.js";
 import { AnnotationManager } from "./core/annotation-manager.js";
 import { getCenterPercentFromRect } from "./utils/position-utils.js";
+import { URLParamsParser } from "../url-navigation/components/url-params-parser.js";
+import { WEBSOCKET_EVENTS } from "../../../common/event/event-constants.js";
 
 /**
  * 标注功能Feature（容器模式）
@@ -57,6 +59,9 @@ export class AnnotationFeature {
 
   /** @type {Object} */
   #pdfViewerManager;
+
+  /** @type {string|null} 最近一次解析到的 pdfId */
+  #currentPdfId = null;
 
   /** Feature名称 */
   get name() {
@@ -174,6 +179,28 @@ export class AnnotationFeature {
     this.#setupEventListeners();
 
     this.#logger.info(`[${this.name}] Installed successfully`);
+
+    // 在 PDF 加载成功后自动加载该 PDF 的标注
+    try {
+      this.#setupAutoLoadOnFileLoad();
+    } catch (e) {
+      this.#logger.warn('[AnnotationFeature] setup auto-load failed', e);
+    }
+
+    // 安装后兜底：延迟尝试一次从 URL 解析 pdfId 并加载（防止某些环境下 FILE.LOAD.SUCCESS 提前/丢失）
+    setTimeout(() => {
+      try {
+        if (!this.#currentPdfId) {
+          const parsed = URLParamsParser.parse();
+          const pdfId = parsed?.pdfId || null;
+          if (pdfId) {
+            this.#logger.info(`[AnnotationFeature] 兜底加载标注（install延迟，pdfId=${pdfId}）`);
+            this.#currentPdfId = pdfId;
+            this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, { pdfId }, { actorId: 'AnnotationFeature' });
+          }
+        }
+      } catch (_) {}
+    }, 600);
   }
 
   /**
@@ -182,22 +209,33 @@ export class AnnotationFeature {
    */
   async #registerTools() {
     this.#logger.debug('[AnnotationFeature] Registering tools...');
+    // Phase 1: 注册截图工具（出现错误不阻断后续工具）
+    try {
+      const { ScreenshotTool } = await import('./tools/screenshot/index.js');
+      const screenshotTool = new ScreenshotTool();
+      this.#toolRegistry.register(screenshotTool);
+      this.#logger.debug('[AnnotationFeature] Screenshot tool registered');
+    } catch (e) {
+      this.#logger.error('[AnnotationFeature] Failed to register ScreenshotTool', e);
+    }
 
-    // Phase 1: 注册截图工具
-    const { ScreenshotTool } = await import('./tools/screenshot/index.js');
-    const screenshotTool = new ScreenshotTool();
-    this.#toolRegistry.register(screenshotTool);
-    this.#logger.debug('[AnnotationFeature] Screenshot tool registered');
+    // Phase 2: 注册文字高亮工具（出错不中断）
+    try {
+      const { TextHighlightTool } = await import('./tools/text-highlight/index.js');
+      this.#toolRegistry.register(new TextHighlightTool());
+      this.#logger.debug('[AnnotationFeature] Text highlight tool registered');
+    } catch (e) {
+      this.#logger.error('[AnnotationFeature] Failed to register TextHighlightTool', e);
+    }
 
-    // Phase 2: 注册文字高亮工具
-    const { TextHighlightTool } = await import('./tools/text-highlight/index.js');
-    this.#toolRegistry.register(new TextHighlightTool());
-    this.#logger.debug('[AnnotationFeature] Text highlight tool registered');
-
-    // Phase 3: 注册批注工具 ✅
-    const { CommentTool } = await import('./tools/comment/index.js');
-    this.#toolRegistry.register(new CommentTool());
-    this.#logger.debug('[AnnotationFeature] Comment tool registered');
+    // Phase 3: 注册批注工具（出错不中断）
+    try {
+      const { CommentTool } = await import('./tools/comment/index.js');
+      this.#toolRegistry.register(new CommentTool());
+      this.#logger.debug('[AnnotationFeature] Comment tool registered');
+    } catch (e) {
+      this.#logger.error('[AnnotationFeature] Failed to register CommentTool', e);
+    }
 
     // 汇总一次性信息（信息级别）
     this.#logger.info('[AnnotationFeature] Registered tools: screenshot, text-highlight, comment');
@@ -272,6 +310,62 @@ export class AnnotationFeature {
       } catch (e) {
         this.#logger.warn('[AnnotationFeature] Failed to set PDF ID from LOAD.SUCCESS', e);
       }
+    }, { subscriberId: 'AnnotationFeature' });
+  }
+
+  /**
+   * 监听 PDF 加载成功事件，解析 pdf-id 并触发标注加载
+   * @private
+   */
+  #setupAutoLoadOnFileLoad() {
+    if (!this.#eventBus) return;
+    this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, (data) => {
+      try {
+        // 优先从 URL 参数解析 pdf-id（与 url-navigation 一致）
+        let pdfId = null;
+        try {
+          const parsed = URLParamsParser.parse();
+          if (parsed && parsed.pdfId) pdfId = parsed.pdfId;
+        } catch (_) {}
+
+        // 兼容：从事件数据中回退获取（pdf-manager 会透传 filename）
+        if (!pdfId && data && typeof data.filename === 'string') {
+          pdfId = data.filename.replace(/\.pdf$/i, '');
+        }
+
+        if (!pdfId) {
+          this.#logger.warn('[AnnotationFeature] 无法解析 pdfId，跳过自动加载');
+          return;
+        }
+
+        // 记录当前 pdfId，供 WS 建立后重试加载
+        this.#currentPdfId = pdfId;
+
+        this.#logger.info(`[AnnotationFeature] 文件加载完成，自动加载标注（pdfId=${pdfId}）`);
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, { pdfId }, { actorId: 'AnnotationFeature' });
+      } catch (err) {
+        this.#logger.warn('[AnnotationFeature] 自动加载标注失败', err);
+      }
+    }, { subscriberId: 'AnnotationFeature' });
+
+    // 当 WS 建立后，若已记录 pdfId，重试一次加载，避免首次加载时 WS 尚未就绪
+    this.#eventBus.onGlobal(WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED, () => {
+      try {
+        if (this.#currentPdfId) {
+          this.#logger.info(`[AnnotationFeature] WS 已连接，重试加载标注（pdfId=${this.#currentPdfId}）`);
+          this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, { pdfId: this.#currentPdfId }, { actorId: 'AnnotationFeature' });
+        }
+      } catch (_) {}
+    }, { subscriberId: 'AnnotationFeature' });
+
+    // 当标注侧边栏被打开时，若已知 pdfId 但尚未加载过，主动加载一次
+    this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPENED_COMPLETED, (data) => {
+      try {
+        if (data?.sidebarId === 'annotation' && this.#currentPdfId) {
+          this.#logger.info(`[AnnotationFeature] 侧边栏打开，尝试加载标注（pdfId=${this.#currentPdfId}）`);
+          this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, { pdfId: this.#currentPdfId }, { actorId: 'AnnotationFeature' });
+        }
+      } catch (_) {}
     }, { subscriberId: 'AnnotationFeature' });
   }
 

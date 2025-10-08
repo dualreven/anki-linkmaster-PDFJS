@@ -182,8 +182,7 @@ export class QWebChannelScreenshotBridge {
     await new Promise(resolve => setTimeout(resolve, 200));
 
     // 生成mock数据
-    const timestamp = Date.now();
-    const mockHash = this.#generateMockHash(base64Image);
+    const mockHash = await this.#generateHex32(base64Image);
 
     const result = {
       success: true,
@@ -200,20 +199,32 @@ export class QWebChannelScreenshotBridge {
    * 生成mock哈希值（模拟MD5）
    * @private
    */
-  #generateMockHash(base64Image) {
-    // 简单哈希算法（仅用于mock）
-    let hash = 0;
-    const str = base64Image.substring(0, 1000); // 只取前1000字符
+  async #generateHex32(base64Image) {
+    try {
+      // 优先使用 WebCrypto 生成 16 字节随机数 → 32位十六进制
+      if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+        const bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        return Array.from(bytes)
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('');
+      }
+    } catch (_) {}
 
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32bit integer
+    // 兼容回退：基于输入内容构造一个 32位十六进制（非加密，仅用于通过后端格式校验）
+    const src = (typeof base64Image === 'string' ? base64Image : String(base64Image)).slice(0, 1024);
+    let a = 0x12345678, b = 0x9abcdef0, c = 0xdeadbeef, d = 0x10203040;
+    for (let i = 0; i < src.length; i++) {
+      const ch = src.charCodeAt(i);
+      a = (a ^ ch) + ((a << 5) | (a >>> 27));
+      b = (b + ch) ^ ((b << 7) | (b >>> 25));
+      c = (c ^ (ch << 3)) + ((c << 9) | (c >>> 23));
+      d = (d + (ch << 1)) ^ ((d << 11) | (d >>> 21));
+      a |= 0; b |= 0; c |= 0; d |= 0;
     }
-
-    // 转换为16进制并添加时间戳
-    const timestamp = Date.now().toString(16).substr(-6);
-    return Math.abs(hash).toString(16) + timestamp;
+    const toHex8 = (n) => (n >>> 0).toString(16).padStart(8, '0');
+    const hex32 = (toHex8(a) + toHex8(b) + toHex8(c) + toHex8(d)).slice(0, 32).toLowerCase();
+    return hex32;
   }
 
   /**

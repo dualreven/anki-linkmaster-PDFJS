@@ -235,21 +235,34 @@ export class AnnotationManager {
    * @private
    */
   async #saveAnnotationToBackend(annotation) {
-    if (!this.#wsClient || typeof this.#wsClient.request !== 'function') {
-      throw new Error('wsClient not available');
+    // 若无可用 wsClient 或尚未连接，降级为本地保存但不报错
+    try {
+      if (!this.#wsClient || typeof this.#wsClient.request !== 'function') {
+        this.#logger.warn('[AnnotationManager] wsClient not available; fallback to local save');
+        return await this.#mockSaveAnnotation(annotation);
+      }
+      if (typeof this.#wsClient.isConnected === 'function' && !this.#wsClient.isConnected()) {
+        this.#logger.info('[AnnotationManager] WS not connected; fallback to local save (will not block UI)');
+        return await this.#mockSaveAnnotation(annotation);
+      }
+      if (!this.#pdfId) {
+        this.#logger.warn('[AnnotationManager] PDF ID not set; fallback to local save');
+        return await this.#mockSaveAnnotation(annotation);
+      }
+      const payload = {
+        pdf_uuid: this.#pdfId,
+        annotation: annotation.toJSON ? annotation.toJSON() : annotation,
+      };
+      return await this.#wsClient.request(
+        WEBSOCKET_MESSAGE_TYPES.ANNOTATION_SAVE,
+        payload,
+        { timeout: 8000 }
+      );
+    } catch (e) {
+      // 远端失败不阻塞创建流程
+      this.#logger.warn('[AnnotationManager] Remote save failed; fallback to local save', { error: e?.message });
+      return await this.#mockSaveAnnotation(annotation);
     }
-    if (!this.#pdfId) {
-      throw new Error('PDF ID not set');
-    }
-    const payload = {
-      pdf_uuid: this.#pdfId,
-      annotation: annotation.toJSON ? annotation.toJSON() : annotation,
-    };
-    await this.#wsClient.request(
-      WEBSOCKET_MESSAGE_TYPES.ANNOTATION_SAVE,
-      payload,
-      { timeout: 8000 }
-    );
   }
 
   /**
@@ -421,24 +434,34 @@ export class AnnotationManager {
    * @private
    */
   async #loadAnnotationsFromBackend(pdfId) {
-    if (!this.#wsClient || typeof this.#wsClient.request !== 'function') {
-      throw new Error('wsClient not available');
+    try {
+      if (!this.#wsClient || typeof this.#wsClient.request !== 'function') {
+        this.#logger.info('[AnnotationManager] WS unavailable during load; return empty');
+        return [];
+      }
+      if (typeof this.#wsClient.isConnected === 'function' && !this.#wsClient.isConnected()) {
+        this.#logger.info('[AnnotationManager] WS not connected during load; return empty');
+        return [];
+      }
+      const resp = await this.#wsClient.request(
+        WEBSOCKET_MESSAGE_TYPES.ANNOTATION_LIST,
+        { pdf_uuid: pdfId },
+        { timeout: 8000 }
+      );
+      const items = Array.isArray(resp?.annotations) ? resp.annotations : [];
+      return items.map(obj => Annotation.fromJSON({
+        id: obj.id,
+        type: obj.type,
+        pageNumber: obj.pageNumber,
+        data: obj.data || {},
+        comments: obj.comments || [],
+        createdAt: obj.createdAt,
+        updatedAt: obj.updatedAt,
+      }));
+    } catch (e) {
+      this.#logger.warn('[AnnotationManager] Remote load failed; return empty', { error: e?.message });
+      return [];
     }
-    const resp = await this.#wsClient.request(
-      WEBSOCKET_MESSAGE_TYPES.ANNOTATION_LIST,
-      { pdf_uuid: pdfId },
-      { timeout: 8000 }
-    );
-    const items = Array.isArray(resp?.annotations) ? resp.annotations : [];
-    return items.map(obj => Annotation.fromJSON({
-      id: obj.id,
-      type: obj.type,
-      pageNumber: obj.pageNumber,
-      data: obj.data || {},
-      comments: obj.comments || [],
-      createdAt: obj.createdAt,
-      updatedAt: obj.updatedAt,
-    }));
   }
 
   async #deleteAnnotationFromBackend(id) {

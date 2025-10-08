@@ -10,7 +10,7 @@ import { HighlightRenderer } from './highlight-renderer.js';
 import { FloatingColorToolbar } from './floating-color-toolbar.js';
 import { HighlightActionMenu } from './highlight-action-menu.js';
 import { PDF_TRANSLATOR_EVENTS } from '../../../pdf-translator/events.js';
-import { Annotation } from '../../models/Annotation.js';
+import { Annotation } from '../../models/annotation.js';
 import { PDF_VIEWER_EVENTS } from '../../../../../common/event/pdf-viewer-constants.js';
 
 const HIGHLIGHT_COLOR_PRESETS = ['#ffeb3b', '#4caf50', '#2196f3', '#ff9800', '#e91e63', '#9c27b0'];

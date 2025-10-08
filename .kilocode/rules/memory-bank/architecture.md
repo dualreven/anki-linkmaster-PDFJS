@@ -28,6 +28,22 @@
 - 位置：`ai-scripts/ai_launcher/*`
 - 组成：ServiceManager / ProcessManager / CLI / 示例服务（ws-forwarder、pdf-file-server、npm-dev-server）。
 
+## 稳定性治理 / 质量门禁
+- 契约层：
+  - 事件与消息负载 JSON Schema 化与版本化；
+  - 消费者驱动契约测试（CDC）：Producer/Consumer 以契约为边界，任何破坏性变更先报警再阻断；
+  - 契约文件建议位置：`docs/schema/events/*.schema.json`，测试位于 `tests/contract/*`。
+- 回归基线（BCT）：
+  - 固化关键用户旅程（搜索→分页→截断一致；双击打开 viewer；书签增删；pdf-edit 保存）；
+  - 在 `tests/bct/*` 维护可重复执行的端到端脚本，作为版本演进锚点。
+- 合并门禁（CI）：
+  - 任意合并需通过 契约 + 基线 + 冒烟（BVT）三类检查；
+  - 多 worktree 并行下，采用小步 PR + 特性开关 + 灰度（canary）策略；
+  - 破坏式变更仅在关闭开关的禁用路径合并，并提供迁移文档与兼容窗口。
+- 可观测性：
+  - 统一 UTF-8 结构化日志、事件失败率/Schema 校验失败计数、错误分级与告警；
+  - 支持快速回滚/切换特性开关，保障回归可控。
+
 ## 下一步
 1) 实现 PDF 业务服务器最小可用版本并接入 WS 转发。
 2) 校验 pdf-viewer 完整对齐共享 EventBus/WSClient 的模式。
@@ -38,6 +54,11 @@
 - 在 pp-bootstrap-feature.js 中注册顺序更新：PDFCardFeature 在 SidebarManagerFeature 之前装载，以确保卡片侧栏依赖被解析
 ### 2025-10-05 数据库系统
 - Stage1（抽象层）：src/backend/database/{config,connection,transaction,executor,exceptions}.py 提供连接池、事务、SQL 执行与统一异常封装。
+
+### 2025-10-07 UI 顶栏调整
+- 移除 pdf-home 的 `HeaderFeature`（功能域与渲染）以避免与搜索栏工具区重复；
+- 顶部操作统一由 `SearchFeature` 提供，“🔃 排序”通过 `search:sort:requested` 触发 `PDFSorterFeature` 面板切换；
+- 后续如需标题，仅以无交互的轻量标题组件替代。
 - Stage2（插件架构）：src/backend/database/plugin/* 定义 TablePlugin 抽象类、EventBus、PluginRegistry，实现表级插件隔离与事件驱动。
 - Stage3（表插件包）：src/backend/database/plugins/* 存放具体数据表插件；首个 pdf_info_plugin.py 已落地，配套测试在 plugins/__tests__，后续表插件需复用同目录结构与事件命名（table:pdf-info:*:*）。
 - Stage3 插件实例：pdf_annotation_plugin.py（标注表），与 PDFInfo 插件共享 SQLExecutor/EventBus，事件命名 	able:pdf-annotation:*:*，监听 pdf_info 删除事件执行级联清理。

@@ -5,6 +5,8 @@
  * 提供4种排序模式的选择：默认排序、手动拖拽、多级排序、加权排序
  */
 
+import { warning } from '../../../../common/utils/thirdparty-toast.js';
+
 /**
  * 排序模式枚举
  * @enum {number}
@@ -106,7 +108,7 @@ export class ModeSelector {
         </div>
 
         <div class="mode-selector-options">
-          <label class="mode-option" data-mode="${SortMode.DEFAULT}">
+          <label class="mode-option" data-mode="${SortMode.DEFAULT}" title="默认排序：按标题字母升序；与筛选互不冲突">
             <input
               type="radio"
               name="sort-mode"
@@ -122,18 +124,18 @@ export class ModeSelector {
             </span>
           </label>
 
-          <label class="mode-option" data-mode="${SortMode.MANUAL}">
+          <label class="mode-option disabled" data-mode="${SortMode.MANUAL}" data-disabled="true" title="手动拖拽：功能开发中">
             <input
               type="radio"
               name="sort-mode"
               value="${SortMode.MANUAL}"
-              ${this.#currentMode === SortMode.MANUAL ? 'checked' : ''}
+              disabled
             />
             <span class="mode-option-content">
               <span class="mode-option-icon">✋</span>
               <span class="mode-option-text">
                 <strong>手动拖拽</strong>
-                <small>拖动行调整顺序</small>
+                <small>拖动行调整顺序（开发中）</small>
               </span>
             </span>
           </label>
@@ -154,18 +156,18 @@ export class ModeSelector {
             </span>
           </label>
 
-          <label class="mode-option" data-mode="${SortMode.WEIGHTED}">
+          <label class="mode-option disabled" data-mode="${SortMode.WEIGHTED}" data-disabled="true" title="加权排序：功能开发中">
             <input
               type="radio"
               name="sort-mode"
               value="${SortMode.WEIGHTED}"
-              ${this.#currentMode === SortMode.WEIGHTED ? 'checked' : ''}
+              disabled
             />
             <span class="mode-option-content">
               <span class="mode-option-icon">⚖️</span>
               <span class="mode-option-text">
                 <strong>加权排序</strong>
-                <small>使用公式计算权重</small>
+                <small>使用公式计算权重（开发中）</small>
               </span>
             </span>
           </label>
@@ -190,6 +192,18 @@ export class ModeSelector {
     this.#radioButtons.forEach(radio => {
       radio.addEventListener('change', (e) => {
         this.#handleModeChange(parseInt(e.target.value));
+      });
+    });
+
+    // 为禁用的选项添加点击提示
+    const disabledLabels = this.#container.querySelectorAll('.mode-option[data-disabled="true"]');
+    disabledLabels.forEach(label => {
+      label.addEventListener('click', (e) => {
+        e.preventDefault();
+        const mode = parseInt(label.dataset.mode);
+        const modeName = this.#getModeName(mode);
+        warning(`${modeName}功能开发中，敬请期待`, 3000);
+        this.#logger.debug(`[ModeSelector] Disabled mode clicked: ${modeName}`);
       });
     });
 

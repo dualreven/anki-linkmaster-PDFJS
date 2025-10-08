@@ -197,6 +197,11 @@ export const SEARCH_EVENTS = {
   RESULTS: {
     UPDATED: 'search:results:updated',
     FAILED: 'search:results:failed',
+  },
+  ACTIONS: {
+    // 顶部搜索栏的操作按钮（全局事件白名单）
+    SORT_REQUESTED: 'search:sort:requested',
+    ADD_REQUESTED: 'search:add:requested'
   }
 };
 
@@ -213,6 +218,13 @@ export const FILTER_EVENTS = {
   },
   RESULTS: {
     UPDATED: 'filter:results:updated',
+  },
+  ADVANCED: {
+    OPEN: 'filter:advanced:open'
+  },
+  PRESET: {
+    SAVE: 'filter:preset:save',
+    SAVED: 'filter:preset:saved'
   }
 };
 
