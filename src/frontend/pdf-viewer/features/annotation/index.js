@@ -441,14 +441,28 @@ export class AnnotationFeature {
 
       this.#logger.info(`[AnnotationFeature] Navigating to annotation on page ${pageNumber}`, annotation.id);
 
-      // 计算位置百分比（批注使用position字段）
+      // 计算位置百分比（优先依据注释类型的数据特征）
       let position = null;
+      // 截图：使用矩形中心百分比
       if (annotation.type === 'screenshot' && annotation.data?.rectPercent) {
         const centerPercent = getCenterPercentFromRect(annotation.data.rectPercent);
         if (centerPercent !== null) {
           position = centerPercent;
           this.#logger.info(`[AnnotationFeature] Calculated position from rectPercent: ${centerPercent.toFixed(2)}%`);
         }
+      }
+      // 文本高亮：优先使用 lineRects 的首段中心（百分比），更贴近真实位置
+      if (position === null && annotation.type === 'text-highlight' && Array.isArray(annotation.data?.lineRects) && annotation.data.lineRects.length > 0) {
+        try {
+          const r0 = annotation.data.lineRects[0];
+          if (typeof r0?.yPercent === 'number' && typeof r0?.heightPercent === 'number') {
+            const center = Number((r0.yPercent + (r0.heightPercent / 2)).toFixed(6));
+            if (Number.isFinite(center)) {
+              position = Math.max(0, Math.min(100, center));
+              this.#logger.info(`[AnnotationFeature] Calculated position from lineRects: ${position.toFixed(2)}%`);
+            }
+          }
+        } catch (_) { /* ignore */ }
       }
 
       if (position === null && annotation.data && annotation.data.position) {
@@ -493,7 +507,10 @@ export class AnnotationFeature {
           const pageElement = viewerContainer.querySelector(`.page[data-page-number="${pageNumber}"]`);
           if (pageElement) {
             const pageHeight = pageElement.offsetHeight;
-            position = (boundingBox.y / pageHeight) * 100;
+            // 兼容 top 或 y 字段；使用中心位置（top + height/2）提高感知
+            const topPx = (typeof boundingBox.top === 'number') ? boundingBox.top : (boundingBox.y || 0);
+            const hPx = (typeof boundingBox.height === 'number') ? boundingBox.height : 0;
+            position = ((topPx + (hPx / 2)) / pageHeight) * 100;
             this.#logger.info(`[AnnotationFeature] Calculated position from boundingBox: ${position.toFixed(2)}%`);
           }
         }
