@@ -240,6 +240,24 @@ export class AnchorSidebarUI {
     bar.appendChild(addBtn);
     bar.appendChild(delBtn);
     bar.appendChild(editBtn);
+
+    // 直接“复制ID”快捷按钮，避免用户误以为点击“复制”立即复制
+    const copyIdQuickBtn = mkBtn('copy-id', '复制ID', '复制选中锚点的ID');
+    copyIdQuickBtn.addEventListener('click', async (e) => {
+      try { e.stopPropagation(); } catch(_) {}
+      // 若未选中则默认选中第一条
+      if (!this.#selectedId && this.#anchors.length > 0) {
+        this.#selectedId = String(this.#anchors[0].uuid);
+        this.#highlightSelection(this.#selectedId);
+      }
+      if (!this.#selectedId) { try { toastError('未选择锚点'); } catch(_) {} return; }
+      this.#logger.info('Anchor copy-id quick clicked', { id: this.#selectedId });
+      await (async () => { try { await copyTextRobust(this.#selectedId, '锚点ID'); } catch(_) {} })();
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPY, { anchorId: this.#selectedId }, { actorId: 'AnchorToolbar' });
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPIED, { anchorId: this.#selectedId }, { actorId: 'AnchorToolbar' });
+    });
+    bar.appendChild(copyIdQuickBtn);
+
     bar.appendChild(copyWrap);
 
     return bar;
@@ -313,6 +331,12 @@ export class AnchorSidebarUI {
       tr.appendChild(tdActive);
       tbody.appendChild(tr);
     });
+
+    // 若无选中项则默认选中第一条，方便直接使用“复制ID/复制副本”等操作
+    if (!this.#selectedId && this.#anchors.length > 0) {
+      this.#selectedId = String(this.#anchors[0].uuid);
+      this.#highlightSelection(this.#selectedId);
+    }
   }
 
   #highlightSelection(id) {
