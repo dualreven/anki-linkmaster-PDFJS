@@ -600,3 +600,12 @@ emove_comment(ann_id, comment_id)。
 - 约定：业务上 INFO 类提示使用 `notification.showInfo`，成功/警告/错误消息使用 `thirdparty-toast` 对应方法。
 - 禁止在功能域内再实现 `#showToast` 或直接构建 Toast DOM（`toast.textContent = ...`）
 - 测试：`src/frontend/pdf-viewer/__tests__/toast-usage.test.js` 用于守护此约定
+
+### 截图标注跳转渲染兜底（2025-10-09）
+- 兼容历史数据：当 screenshot 注释 data 无 `rectPercent` 但有 `rect` 时，前端在渲染前通过当前 canvas 尺寸换算百分比（`#convertCanvasToPercent`），保证跳转后仍能显示标记框；
+- 定位计算：使用 `canvas.getBoundingClientRect()` 的大小并加上相对 `pageDiv` 的偏移，映射 `x/y/width/height`，避免缩放/布局导致的偏移误差；
+- 颜色按钮：`MARKER_COLOR_PRESETS` 与 `DEFAULT_MARKER_COLOR` 保持可用，悬停删除按钮时出现颜色切换控件。
+
+### 文本选择快捷操作（快速标注）路径大小写统一（2025-10-09）
+- 模块解析在某些 HTTP/打包环境中大小写敏感，统一使用小写模块路径：`features/annotation/models/annotation.js`；
+- 避免因同一路径大小写混用导致的重复实例/构造异常。

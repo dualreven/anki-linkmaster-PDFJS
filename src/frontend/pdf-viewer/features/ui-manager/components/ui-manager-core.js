@@ -1032,3 +1032,4 @@ export class UIManagerCore {
     return this.#pdfViewerManager;
   }
 }
+
