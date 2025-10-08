@@ -1,5 +1,15 @@
 ﻿# Memory Bank（精简版 / 权威）
 
+## 当前任务（20251009050121）
+- 名称：再次从远程 main 合并到当前分支（anki-linkmaster-B）
+- 问题背景：保持工作分支与主线同步，按需快照并验证合并是否必要；当前分支为 worker/branch-B。
+- 相关模块与操作：Git fetch/merge、祖先验证（merge-base）、工作树一致性检查
+- 执行步骤（原子化）：
+  1) 获取远程：git fetch origin --prune。
+  2) 比对提交：HEAD 与 origin/main；如不同则合并。
+  3) 验证：合并后祖先关系与 commit 对齐；回写日志。
+- 状态：已完成（合并成功，详见本次 AI 工作日志）
+
 ## 当前任务（20251008190000）
 - 名称：阅读理解 annotation 插件（PDF Viewer 标注功能）
 - 问题背景：
