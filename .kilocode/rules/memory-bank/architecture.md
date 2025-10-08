@@ -28,6 +28,22 @@
 - 位置：`ai-scripts/ai_launcher/*`
 - 组成：ServiceManager / ProcessManager / CLI / 示例服务（ws-forwarder、pdf-file-server、npm-dev-server）。
 
+## 稳定性治理 / 质量门禁
+- 契约层：
+  - 事件与消息负载 JSON Schema 化与版本化；
+  - 消费者驱动契约测试（CDC）：Producer/Consumer 以契约为边界，任何破坏性变更先报警再阻断；
+  - 契约文件建议位置：`docs/schema/events/*.schema.json`，测试位于 `tests/contract/*`。
+- 回归基线（BCT）：
+  - 固化关键用户旅程（搜索→分页→截断一致；双击打开 viewer；书签增删；pdf-edit 保存）；
+  - 在 `tests/bct/*` 维护可重复执行的端到端脚本，作为版本演进锚点。
+- 合并门禁（CI）：
+  - 任意合并需通过 契约 + 基线 + 冒烟（BVT）三类检查；
+  - 多 worktree 并行下，采用小步 PR + 特性开关 + 灰度（canary）策略；
+  - 破坏式变更仅在关闭开关的禁用路径合并，并提供迁移文档与兼容窗口。
+- 可观测性：
+  - 统一 UTF-8 结构化日志、事件失败率/Schema 校验失败计数、错误分级与告警；
+  - 支持快速回滚/切换特性开关，保障回归可控。
+
 ## 下一步
 1) 实现 PDF 业务服务器最小可用版本并接入 WS 转发。
 2) 校验 pdf-viewer 完整对齐共享 EventBus/WSClient 的模式。

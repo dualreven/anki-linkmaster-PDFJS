@@ -1,5 +1,34 @@
 # Memory Bank（精简版 / 权威）
 
+## 当前任务（20251008150500）
+- 名称：稳定性治理（多 worktree 并行）
+- 问题背景：
+  - 5 个 AI 各自 worktree 并行开发，合并后出现历史功能失效与回归；
+  - 部分测试落后无人维护，缺少“兼容性守护测试（Baseline Compatibility Test, BCT）”与强制门禁；
+  - 已有插件隔离/事件总线/契约编程，但缺少“可执行契约 + 质量门禁 + 回归基线”的组合拳。
+- 目标：
+  - 事件/消息“Schema 化与版本化”，并以消费者驱动契约（CDC）保证 Producer/Consumer 协同；
+  - 建立“关键用户旅程”回归基线（BCT），作为演进期间的稳定锚点；
+  - 在 CI/合并流程上设置质量门禁（契约 + 基线 + 冒烟），小步合并、特性开关、灰度发布；
+  - 强化可观测性（统一日志、关键指标与告警），快速定位回归根因。
+- 相关模块与文件（非穷举）：
+  - 前端：`src/frontend/common/event/event-constants.js`、`src/frontend/common/ws/ws-client.js`、各功能域 Feature（search/pdf-sorter/pdf-edit/pdf-bookmark/...）
+  - 后端：`src/backend/msgCenter_server/standard_server.py`、`src/backend/msgCenter_server/standard_protocol.py`、`src/backend/api/pdf_library_api.py`
+  - 规范：`docs/SPEC/*`（事件命名/消息格式/测试方法等）
+- 执行步骤（原子化）：
+  1) 事件与消息 Schema 化 + 版本策略：为事件负载与 WS 消息建立 JSON Schema（`docs/schema/events/*.schema.json`），命名与版本遵循 `FRONTEND-EVENT-NAMING-001` 与 `VERSION-CONTROL-001`；新增字段为向后兼容，移除/重命名需走弃用窗口。
+  2) 消费者驱动契约测试（CDC）：在 `tests/contract/` 为每一类事件建立 Producer/Consumer 契约；变更前先跑下游消费者契约，失败即阻断合并。
+  3) 兼容性守护测试（BCT）：在 `tests/bct/` 固化关键用户旅程（示例：搜索→分页→结果截断一致；双击打开 viewer；书签增删仅影响子树；pdf-edit 保存链路成功 Toast）。
+  4) 质量门禁（CI）：合并前必须通过 契约+基线+BVT 冒烟 三类测试；核心插件组合走最小矩阵（pdf-home + pdf-viewer + ws-forwarder）。
+  5) 合并策略：小步 PR、开启特性开关默认关闭；破坏式变更需 `compat:false + 开关关闭` 路径合并，并在下一版本内提供迁移与兼容期。
+  6) 可观测性：统一结构化日志（UTF-8）、关键指标（事件失败率、消息 schema 校验失败计数）、快速回滚与告警；新增错误分类与速率限制配置。
+- 验收标准：
+  - 任一 PR/合并必须通过：契约（CDC）、基线（BCT）与冒烟三套测试；
+  - Schema 变更遵循版本策略并通过向后兼容校验；
+  - 回归基线一旦失败自动阻断合并；
+  - 合并后 24 小时内无新增 P0/P1 错误；
+  - `architecture.md`/`tech.md` 已记录方法论与操作要点。
+
 ## 当前任务（20251008061500）
 - 名称：合并 worktree D (d-main-20250927) 到 main
 - 背景：worktree D 包含侧边栏搜索结果截断、最近添加组件修复等改进，需要合并到主分支
