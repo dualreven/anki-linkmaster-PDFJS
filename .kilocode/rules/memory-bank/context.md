@@ -568,3 +568,26 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
   * 移除 PDF-Viewer DOMElementManager 中 legacy DOM 创建/清理逻辑
   * 移除 sidebar-manager 旧事件监听（统一使用 sidebar:layout:updated）
 - 回滚：9b65f48 基线
+# Memory Bank（精简版 / 权威）
+
+## 当前任务（20251008153710）
+- 名称：修复 pdf-viewer 截图后标注未出现在标注侧边栏
+- 问题背景：
+  - 用户反馈：点击截图按钮完成截图操作后，标注未加入侧边栏；
+  - 日志定位：`logs/pdf-viewer-c83c60c58ad2-js.log` 在截图保存后打印 `Annotation created` 随后 `AnnotationManager Failed to create annotation`；
+  - 根因分析：`AnnotationManager` 在容器检测到 `wsClient` 后切换为远端保存，但系统从未为其设置 `pdfId`，调用远端保存分支时报错 `PDF ID not set`，从而未发出 `ANNOTATION.CREATED` 事件，侧边栏无法接收并渲染；
+  - 现状：URL 导航模块能解析 `pdf-id`，但 `AnnotationManager` 未被赋值；
+- 相关模块与函数：
+  - 前端：
+    - `src/frontend/pdf-viewer/features/annotation/core/annotation-manager.js`（保存策略：本地Mock vs 远端WS）
+    - `src/frontend/pdf-viewer/features/annotation/index.js`（Feature容器与事件监听，负责设置 pdfId）
+    - `src/frontend/common/event/pdf-viewer-constants.js`（事件常量）
+- 执行步骤（原子化）：
+  1) 阅读并确认 pdf-viewer JS 日志中的异常链路（完成）
+  2) 在 `AnnotationManager.#handleCreateAnnotation` 中动态选择保存策略：仅当 `wsClient.isConnected()` 且 `pdfId` 已设置时走远端，否则回退 Mock（完成）
+  3) 在 `AnnotationFeature.#setupEventListeners` 中监听 `NAVIGATION.URL_PARAMS.PARSED` 与 `FILE.LOAD.SUCCESS`，为 `AnnotationManager` 设置 `pdfId`（完成）
+  4) 设计最小化手工测试脚本 `node AItemp/manual-tests/test-annotation-create-fallback.mjs` 验证无 `pdfId` 时依然能触发 `ANNOTATION.CREATED`（完成）
+  5) 更新工作日志与 memory bank，并通知完成（完成）
+- 验证方式：
+  - 运行 `node AItemp/manual-tests/test-annotation-create-fallback.mjs`：应输出 `[OK] CREATED emitted with screenshot annotation`；
+  - 实际界面：点击截图 → 保存 → 侧边栏应即时出现对应标注卡片。

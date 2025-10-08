@@ -70,6 +70,17 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
 - 位置：统一右上角（topRight），与既有规范一致
 - 适用范围：当前仅在 `pdf-home` 的“添加 PDF”流程中使用；其他模块暂不修改
 
+### 标注保存策略（pdf-viewer / 2025-10-08）
+- AnnotationManager 在创建标注时的保存路径：
+  - 远端保存：当 `wsClient.isConnected()` 为 true 且已设置 `pdfId` 时，调用 WS 接口保存；
+  - 本地回退：若未连接 WS 或未设置 `pdfId`，回退到本地 Mock 保存，确保 `ANNOTATION.CREATED` 事件仍然发出，侧边栏可及时展示。
+- pdfId 的设置：
+  - AnnotationFeature 监听 `NAVIGATION.URL_PARAMS.PARSED`（从 URL 解析到 `pdf-id`）与 `FILE.LOAD.SUCCESS`（从 `filename` 推断 id，去掉 .pdf 后缀），调用 `AnnotationManager.setPdfId()`；
+  - 建议 pdf-viewer 启动带上 `?pdf-id=xxx`，避免依赖文件名推断。
+- 验证方法：
+  - 运行 `node AItemp/manual-tests/test-annotation-create-fallback.mjs`，应输出 `[OK] CREATED emitted with screenshot annotation`；
+  - 界面手测：截图→保存→侧边栏出现新标注卡片。
+
 ## 启动与编排（AI Launcher）
 - 模块化服务管理：
   - `ai-scripts/ai_launcher/core/service_manager.py`
