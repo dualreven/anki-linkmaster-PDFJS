@@ -4,7 +4,7 @@
 import { Annotation, AnnotationType } from "../annotation.js";
 
 describe("Annotation ID generation", () => {
-  test("auto-generated ID matches new pattern", () => {
+  test("auto-generated ID matches base64url16 pattern", () => {
     const ann = new Annotation({
       type: AnnotationType.SCREENSHOT,
       pageNumber: 1,
@@ -15,9 +15,9 @@ describe("Annotation ID generation", () => {
       comments: []
     });
 
-    const pattern = /^pdfannotation-[0-9a-fA-F]{8}$/;
+    const pattern = /^pdfannotation-[A-Za-z0-9_-]{16}$/;
     expect(ann.id).toMatch(pattern);
     const randomPart = ann.id.split("-")[1];
-    expect(randomPart.length).toBe(8);
+    expect(randomPart.length).toBe(16);
   });
 });

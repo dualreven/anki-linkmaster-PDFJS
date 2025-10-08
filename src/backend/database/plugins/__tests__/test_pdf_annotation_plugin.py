@@ -454,7 +454,8 @@ def test_event_emission_on_insert(plugin, pdf_uuid, event_bus):
     event_bus.on('table:pdf-annotation:create:completed', listener, 'test-listener')
     plugin.insert(_make_sample('comment', pdf_uuid))
     assert len(received) == 1
-    assert received[0]['ann_id'].startswith('ann_')
+    ann_id_val = received[0]['ann_id']
+    assert ann_id_val.startswith('ann_') or ann_id_val.startswith('pdfannotation-')
 
 
 def test_event_emission_on_update(plugin, pdf_uuid, event_bus):

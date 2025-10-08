@@ -1099,3 +1099,27 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - 修复：改为统一小写路径 `../annotation/models/annotation.js`，与全局保持一致；
 - 复现/验证：在未进入高亮模式下，直接选择文本点击“标注”按钮应创建高亮标注，无报错。
 
+
+## 当前任务（20251009073406）
+- 名称：标注ID改为 pdfannotation-{base64url16}（分阶段）
+- 背景：统一全链路 ID 生成与校验，提升唯一性与可读性；在兼容旧数据的前提下，最小化改动与风险。
+- 执行步骤（原子化）：
+  1) 后端放开双格式校验（旧 ann_* 与新 pdfannotation-<base64url16>）
+  2) 前端统一 ID 生成器（base64url16）并引入特性开关
+  3) 接入截图/文本高亮两条创建链路
+  4) 添加最小化测试脚本并运行验证
+  5) 回写日志与 memory bank 并通知完成
+
+## 当前任务（20251009073406）
+- 名称：标注ID改为 pdfannotation-{base64url16}（分阶段）
+- 关键点：仅新建使用新ID；读改删兼容旧ID；严禁以 ann_id 代替 created_at 排序
+- 相关模块：
+  - 前端：src/frontend/pdf-viewer/features/annotation/models/annotation.js（生成器与构造）
+  - 后端：src/backend/database/plugins/pdf_annotation_plugin.py（校验双格式）
+  - 测试：models/__tests__/annotation-id.test.js（前端）；plugins/__tests__/test_pdf_annotation_plugin.py（后端事件断言放宽）
+- 执行与验证：
+  1) 后端放开双格式（已完成）
+  2) 前端统一生成器（已完成）
+  3) 创建链路接入（Annotation 构造默认使用新ID，已覆盖）
+  4) 最小化脚本测试（已通过）
+- 后续：如命中以 ann_id 排序的 SQL/逻辑，统一改为 created_at；如需回滚仅需关闭开关或恢复旧生成器调用
