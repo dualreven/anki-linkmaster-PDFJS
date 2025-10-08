@@ -285,9 +285,11 @@ export class AnnotationFeature {
     // 监听 URL 参数解析结果以设置 PDF ID（供 AnnotationManager 远端保存使用）
     this.#eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.PARSED, (data) => {
       try {
-        if (data?.pdfId && this.#annotationManager) {
-          this.#annotationManager.setPdfId(String(data.pdfId));
-          this.#logger.info(`[AnnotationFeature] PDF ID set from URL params: ${data.pdfId}`);
+        if (!this.#annotationManager) return;
+        const extracted = this.#extractPdfUUID({ pdfId: data?.pdfId, url: data?.url, filename: data?.filename });
+        if (extracted) {
+          this.#annotationManager.setPdfId(extracted);
+          this.#logger.info(`[AnnotationFeature] PDF ID set from URL params: ${extracted}`);
         }
       } catch (e) {
         this.#logger.warn('[AnnotationFeature] Failed to set PDF ID from URL params', e);
@@ -298,14 +300,12 @@ export class AnnotationFeature {
     this.#eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, (data) => {
       try {
         if (!this.#annotationManager) return;
-        // 优先使用 URL 解析设置的 pdfId；若尚未设置，则尝试从文件名推断
-        const filename = data?.filename;
-        if (filename && typeof filename === 'string') {
-          const inferred = filename.replace(/\.pdf$/i, '');
-          if (inferred) {
-            this.#annotationManager.setPdfId(inferred);
-            this.#logger.info(`[AnnotationFeature] PDF ID inferred from filename: ${inferred}`);
-          }
+        const extracted = this.#extractPdfUUID({ filename: data?.filename, url: data?.url });
+        if (extracted) {
+          this.#annotationManager.setPdfId(extracted);
+          this.#logger.info(`[AnnotationFeature] PDF ID inferred from file info: ${extracted}`);
+        } else {
+          this.#logger.warn("[AnnotationFeature] 未能从文件信息中解析出有效的 pdf_uuid (12位十六进制)");
         }
       } catch (e) {
         this.#logger.warn('[AnnotationFeature] Failed to set PDF ID from LOAD.SUCCESS', e);
@@ -329,8 +329,9 @@ export class AnnotationFeature {
         } catch (_) {}
 
         // 兼容：从事件数据中回退获取（pdf-manager 会透传 filename）
-        if (!pdfId && data && typeof data.filename === 'string') {
-          pdfId = data.filename.replace(/\.pdf$/i, '');
+        if (!pdfId && data) {
+          const extracted = this.#extractPdfUUID({ filename: data.filename, url: data.url });
+          if (extracted) pdfId = extracted;
         }
 
         if (!pdfId) {
@@ -367,6 +368,38 @@ export class AnnotationFeature {
         }
       } catch (_) {}
     }, { subscriberId: 'AnnotationFeature' });
+  }
+
+  /**
+   * 从多种来源提取标准 pdf_uuid（12位十六进制）
+   * @param {Object} src
+   * @param {string} [src.pdfId]
+   * @param {string} [src.filename]
+   * @param {string} [src.url]
+   * @returns {string|null}
+   * @private
+   */
+  #extractPdfUUID(src = {}) {
+    try {
+      const HEX12 = /([a-f0-9]{12})/i;
+      const tryMatch = (value) => {
+        if (!value || typeof value !== 'string') return null;
+        const m = value.match(HEX12);
+        return m ? m[1].toLowerCase() : null;
+      };
+      // 优先：显式 pdfId
+      const fromPdfId = tryMatch(src.pdfId);
+      if (fromPdfId) return fromPdfId;
+      // 其次：filename（剥离扩展名后匹配）
+      const fromFilename = tryMatch(src.filename);
+      if (fromFilename) return fromFilename;
+      // 再次：URL 路径中匹配
+      const fromUrl = tryMatch(src.url);
+      if (fromUrl) return fromUrl;
+      return null;
+    } catch (_) {
+      return null;
+    }
   }
 
   /**

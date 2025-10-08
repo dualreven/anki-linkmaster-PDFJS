@@ -20,6 +20,7 @@ export class URLParamsParser {
    * @returns {string|null} return.pdfId - PDF文件ID（不含.pdf扩展名）
    * @returns {number|null} return.pageAt - 目标页码（从1开始）
    * @returns {number|null} return.position - 页面内位置百分比（0-100）
+   * @returns {string|null} return.anchorId - 锚点ID（12位十六进制）
    * @returns {boolean} return.hasParams - 是否存在任何导航参数
    *
    * @example
@@ -40,6 +41,7 @@ export class URLParamsParser {
       // 提取参数
       const pdfId = params.get('pdf-id');
       const title = params.get('title');
+      const anchorId = params.get('anchor-id');
       const pageAtStr = params.get('page-at');
       const positionStr = params.get('position');
 
@@ -47,13 +49,14 @@ export class URLParamsParser {
       const pageAt = pageAtStr ? parseInt(pageAtStr, 10) : null;
       const position = positionStr ? parseFloat(positionStr) : null;
 
-      const hasParams = pdfId !== null || pageAt !== null || position !== null;
+      const hasParams = pdfId !== null || pageAt !== null || position !== null || anchorId !== null;
 
       const result = {
         pdfId,
         title,
         pageAt,
         position,
+        anchorId,
         hasParams,
       };
 
@@ -66,6 +69,7 @@ export class URLParamsParser {
         pdfId: null,
         pageAt: null,
         position: null,
+        anchorId: null,
         hasParams: false,
         error: error.message,
       };
@@ -78,6 +82,7 @@ export class URLParamsParser {
    * @param {string|null} params.pdfId - PDF文件ID
    * @param {number|null} params.pageAt - 目标页码
    * @param {number|null} params.position - 位置百分比
+   * @param {string|null} [params.anchorId] - 锚点ID
    * @returns {Object} 验证结果
    * @returns {boolean} return.isValid - 参数是否有效
    * @returns {string[]} return.errors - 错误信息数组
@@ -92,9 +97,14 @@ export class URLParamsParser {
     const errors = [];
     const warnings = [];
 
-    // 验证pdf-id（必填）
+    // 验证pdf-id（必填；当提供 anchorId 且缺少 pdfId 时，交由后端解析映射，此处仍警告但不强制失败）
     if (!params.pdfId) {
-      errors.push('缺少必填参数: pdf-id');
+      if (params.anchorId) {
+        // 允许仅携带 anchorId 的链接；后续由后端解析映射 pdfId
+        warnings.push('缺少 pdf-id，将尝试通过 anchor-id 解析');
+      } else {
+        errors.push('缺少必填参数: pdf-id');
+      }
     } else if (typeof params.pdfId !== 'string' || params.pdfId.trim() === '') {
       errors.push('pdf-id 必须是非空字符串');
     } else if (params.pdfId.includes('/') || params.pdfId.includes('\\')) {
@@ -118,6 +128,14 @@ export class URLParamsParser {
         errors.push('position 必须是数字');
       } else if (params.position < 0 || params.position > 100) {
         errors.push('position 必须在0-100之间');
+      }
+    }
+
+    // 验证 anchor-id（可选）
+    if (params.anchorId !== null && params.anchorId !== undefined) {
+      const v = String(params.anchorId).trim();
+      if (!/^pdfanchor-[a-f0-9]{12}$/i.test(v)) {
+        warnings.push("anchor-id 格式异常（期望 'pdfanchor-' + 12位十六进制），将忽略");
       }
     }
 
@@ -188,6 +206,7 @@ export class URLParamsParser {
    * @param {string} params.pdfId - PDF文件ID
    * @param {number} [params.pageAt] - 目标页码
    * @param {number} [params.position] - 位置百分比
+   * @param {string} [params.anchorId] - 锚点ID
    * @returns {string} URL查询字符串（不含?前缀）
    *
    * @example
@@ -211,6 +230,10 @@ export class URLParamsParser {
 
     if (params.position !== null && params.position !== undefined) {
       searchParams.set('position', params.position.toString());
+    }
+
+    if (params.anchorId) {
+      searchParams.set('anchor-id', params.anchorId);
     }
 
     return searchParams.toString();

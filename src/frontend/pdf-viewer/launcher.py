@@ -20,6 +20,9 @@ Usage:
   # 打开PDF并跳转到指定页码的特定位置（第5页的50%位置）
   python src/frontend/pdf-viewer/launcher.py --pdf-id sample --page-at 5 --position 50
 
+  # 携带锚点ID（用于前端 Anchor Feature，例如 DEV: pdfanchor-test 或正式: pdfanchor-xxxxxxxxxxxx）
+  python src/frontend/pdf-viewer/launcher.py --pdf-id sample --anchor-id pdfanchor-test
+
   # 完整示例：指定所有参数
   python src/frontend/pdf-viewer/launcher.py \\
     --file-path data/pdfs/document.pdf \\
@@ -30,6 +33,7 @@ URL Navigation Parameters:
   --pdf-id ID          PDF文件标识符（会自动解析为文件路径）
   --page-at PAGE       目标页码（从1开始）
   --position PERCENT   页面内垂直位置百分比（0-100）
+  --anchor-id ID       锚点ID（DEV: pdfanchor-test / 正式: pdfanchor- + 12位hex）
 
 Note:
   URL导航参数会传递给前端的url-navigation Feature处理。
@@ -233,6 +237,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--pdf-id", type=str, dest="pdf_id", help="PDF ID to resolve to file path")
     parser.add_argument("--page-at", type=int, dest="page_at", help="Target page number to navigate to (1-based index)")
     parser.add_argument("--position", type=float, dest="position", help="Vertical position percentage within the page (0-100)")
+    parser.add_argument("--anchor-id", type=str, dest="anchor_id", help="Anchor ID (e.g., pdfanchor-test or pdfanchor-<12-hex>)")
     parser.add_argument("--diagnose-only", action="store_true", help="Run initialization diagnostics and exit before starting the Qt event loop")
     parser.add_argument("--disable-webchannel", action="store_true", help="Skip QWebChannel bridge setup")
     parser.add_argument("--disable-websocket", action="store_true", help="Skip QWebSocket bridge connection")
@@ -464,6 +469,11 @@ def main() -> int:
         position = max(0.0, min(100.0, args.position))
         url += f"&position={position}"
         logger.info(f"URL navigation: target position = {position}%")
+
+    # 追加 anchor-id（可选）
+    if args.anchor_id:
+        url += f"&anchor-id={args.anchor_id}"
+        logger.info(f"URL navigation: anchor-id = {args.anchor_id}")
 
     frontend_enabled = not args.disable_frontend_load
     frontend_executed = False

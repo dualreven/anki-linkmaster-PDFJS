@@ -319,6 +319,20 @@ class StandardWebSocketServer(QObject):
         if normalized_type == MessageType.ANNOTATION_DELETE_REQUESTED.value:
             return self.handle_annotation_delete_request(request_id, data)
 
+        # Anchor domain
+        if normalized_type == MessageType.ANCHOR_GET_REQUESTED.value:
+            return self.handle_anchor_get_request(request_id, data)
+        if normalized_type == MessageType.ANCHOR_LIST_REQUESTED.value:
+            return self.handle_anchor_list_request(request_id, data)
+        if normalized_type == MessageType.ANCHOR_CREATE_REQUESTED.value:
+            return self.handle_anchor_create_request(request_id, data)
+        if normalized_type == MessageType.ANCHOR_UPDATE_REQUESTED.value:
+            return self.handle_anchor_update_request(request_id, data)
+        if normalized_type == MessageType.ANCHOR_DELETE_REQUESTED.value:
+            return self.handle_anchor_delete_request(request_id, data)
+        if normalized_type == MessageType.ANCHOR_ACTIVATE_REQUESTED.value:
+            return self.handle_anchor_activate_request(request_id, data)
+
         if original_type == "console_log":
             return self.handle_console_log_request(request_id, data)
 
@@ -1917,6 +1931,107 @@ class StandardWebSocketServer(QObject):
                 "file_count": self.pdf_manager.get_file_count()
             }
         )
+
+    # ---------------- Anchor handlers ----------------
+    def _ensure_api(self, request_id: Optional[str], failed_type: MessageType):
+        if not hasattr(self, "pdf_library_api") or not self.pdf_library_api:
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "SERVICE_UNAVAILABLE",
+                "PDFLibraryAPI 未初始化",
+                message_type=failed_type,
+                code=503,
+            )
+        return None
+
+    def handle_anchor_get_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        missing = self._ensure_api(request_id, MessageType.ANCHOR_GET_FAILED)
+        if missing:
+            return missing
+        anchor_id = (data or {}).get('anchor_id')
+        if not anchor_id:
+            return StandardMessageHandler.build_error_response(request_id or "unknown", "INVALID_REQUEST", "缺少 anchor_id", message_type=MessageType.ANCHOR_GET_FAILED, code=400)
+        row = self.pdf_library_api.anchor_get(anchor_id)
+        if not row:
+            return StandardMessageHandler.build_error_response(request_id or "unknown", "NOT_FOUND", f"未找到锚点: {anchor_id}", message_type=MessageType.ANCHOR_GET_FAILED, code=404)
+        return StandardMessageHandler.build_response(MessageType.ANCHOR_GET_COMPLETED, request_id or StandardMessageHandler.generate_request_id(), status='success', code=200, message='锚点获取成功', data={'anchor': row})
+
+    def handle_anchor_list_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        missing = self._ensure_api(request_id, MessageType.ANCHOR_LIST_FAILED)
+        if missing:
+            return missing
+        pdf_uuid = (data or {}).get('pdf_uuid')
+        if not pdf_uuid:
+            return StandardMessageHandler.build_error_response(request_id or "unknown", "INVALID_REQUEST", "缺少 pdf_uuid 参数", message_type=MessageType.ANCHOR_LIST_FAILED, code=400)
+        rows = self.pdf_library_api.anchor_list(pdf_uuid)
+        return StandardMessageHandler.build_response(MessageType.ANCHOR_LIST_COMPLETED, request_id or StandardMessageHandler.generate_request_id(), status='success', code=200, message='锚点列表获取成功', data={'anchors': rows, 'count': len(rows), 'pdf_uuid': pdf_uuid})
+
+    def handle_anchor_create_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        missing = self._ensure_api(request_id, MessageType.ANCHOR_CREATE_FAILED)
+        if missing:
+            return missing
+        payload = data or {}
+        pdf_uuid = payload.get('pdf_uuid')
+        anchor = payload.get('anchor') or {}
+        if not pdf_uuid:
+            return StandardMessageHandler.build_error_response(request_id or "unknown", "INVALID_REQUEST", "缺少 pdf_uuid 参数", message_type=MessageType.ANCHOR_CREATE_FAILED, code=400)
+        anchor['pdf_uuid'] = pdf_uuid
+        try:
+            anchor_id = self.pdf_library_api.anchor_create(anchor)
+            return StandardMessageHandler.build_response(MessageType.ANCHOR_CREATE_COMPLETED, request_id or StandardMessageHandler.generate_request_id(), status='success', code=200, message='锚点创建成功', data={'uuid': anchor_id, 'pdf_uuid': pdf_uuid})
+        except Exception as exc:
+            logger.error("锚点创建失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(request_id or "unknown", "ANCHOR_CREATE_ERROR", f"锚点创建失败: {exc}", message_type=MessageType.ANCHOR_CREATE_FAILED, code=500)
+
+    def handle_anchor_update_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        missing = self._ensure_api(request_id, MessageType.ANCHOR_UPDATE_FAILED)
+        if missing:
+            return missing
+        anchor_id = (data or {}).get('anchor_id')
+        update = (data or {}).get('update') or {}
+        if not anchor_id:
+            return StandardMessageHandler.build_error_response(request_id or "unknown", "INVALID_REQUEST", "缺少 anchor_id", message_type=MessageType.ANCHOR_UPDATE_FAILED, code=400)
+        try:
+            ok = self.pdf_library_api.anchor_update(anchor_id, update)
+            if not ok:
+                return StandardMessageHandler.build_error_response(request_id or "unknown", "ANCHOR_UPDATE_ERROR", "锚点未更新", message_type=MessageType.ANCHOR_UPDATE_FAILED, code=500)
+            return StandardMessageHandler.build_response(MessageType.ANCHOR_UPDATE_COMPLETED, request_id or StandardMessageHandler.generate_request_id(), status='success', code=200, message='锚点更新成功', data={'uuid': anchor_id})
+        except Exception as exc:
+            logger.error("锚点更新失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(request_id or "unknown", "ANCHOR_UPDATE_ERROR", f"锚点更新失败: {exc}", message_type=MessageType.ANCHOR_UPDATE_FAILED, code=500)
+
+    def handle_anchor_delete_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        missing = self._ensure_api(request_id, MessageType.ANCHOR_DELETE_FAILED)
+        if missing:
+            return missing
+        anchor_id = (data or {}).get('anchor_id')
+        if not anchor_id:
+            return StandardMessageHandler.build_error_response(request_id or "unknown", "INVALID_REQUEST", "缺少 anchor_id", message_type=MessageType.ANCHOR_DELETE_FAILED, code=400)
+        try:
+            ok = self.pdf_library_api.anchor_delete(anchor_id)
+            if not ok:
+                return StandardMessageHandler.build_error_response(request_id or "unknown", "ANCHOR_DELETE_ERROR", "锚点未删除", message_type=MessageType.ANCHOR_DELETE_FAILED, code=500)
+            return StandardMessageHandler.build_response(MessageType.ANCHOR_DELETE_COMPLETED, request_id or StandardMessageHandler.generate_request_id(), status='success', code=200, message='锚点删除成功', data={'uuid': anchor_id})
+        except Exception as exc:
+            logger.error("锚点删除失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(request_id or "unknown", "ANCHOR_DELETE_ERROR", f"锚点删除失败: {exc}", message_type=MessageType.ANCHOR_DELETE_FAILED, code=500)
+
+    def handle_anchor_activate_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        missing = self._ensure_api(request_id, MessageType.ANCHOR_ACTIVATE_FAILED)
+        if missing:
+            return missing
+        anchor_id = (data or {}).get('anchor_id')
+        active = bool((data or {}).get('active'))
+        if not anchor_id:
+            return StandardMessageHandler.build_error_response(request_id or "unknown", "INVALID_REQUEST", "缺少 anchor_id", message_type=MessageType.ANCHOR_ACTIVATE_FAILED, code=400)
+        try:
+            ok = self.pdf_library_api.anchor_update(anchor_id, {'is_active': active})
+            if not ok:
+                return StandardMessageHandler.build_error_response(request_id or "unknown", "ANCHOR_ACTIVATE_ERROR", "锚点未更新", message_type=MessageType.ANCHOR_ACTIVATE_FAILED, code=500)
+            return StandardMessageHandler.build_response(MessageType.ANCHOR_ACTIVATE_COMPLETED, request_id or StandardMessageHandler.generate_request_id(), status='success', code=200, message='锚点激活状态已更新', data={'uuid': anchor_id, 'active': active})
+        except Exception as exc:
+            logger.error("锚点激活更新失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(request_id or "unknown", "ANCHOR_ACTIVATE_ERROR", f"锚点激活更新失败: {exc}", message_type=MessageType.ANCHOR_ACTIVATE_FAILED, code=500)
         self.broadcast_message(message)
     
     def on_pdf_file_removed(self, file_id: str):

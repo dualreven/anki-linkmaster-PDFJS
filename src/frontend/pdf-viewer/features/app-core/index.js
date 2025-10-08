@@ -5,6 +5,7 @@
  */
 
 import { createPDFViewerContainer } from '../../container/app-container.js';
+import { createWebSocketAdapter } from '../../adapters/websocket-adapter.js';
 import { createConsoleWebSocketBridge } from '../../../common/utils/console-websocket-bridge.js';
 
 /**
@@ -15,6 +16,7 @@ import { createConsoleWebSocketBridge } from '../../../common/utils/console-webs
 export class AppCoreFeature {
   #appContainer = null;
   #wsClient = null;
+  #wsAdapter = null;
   #consoleBridge = null;
 
   /** 功能名称 */
@@ -86,6 +88,17 @@ export class AppCoreFeature {
     logger.info('Connecting WebSocket...');
     this.#appContainer.connect();
 
+    // 安装 WebSocketAdapter，将内部事件与WS契约桥接
+    try {
+      const { eventBus } = this.#appContainer.getDependencies();
+      if (this.#wsClient && eventBus) {
+        this.#wsAdapter = createWebSocketAdapter(this.#wsClient, eventBus);
+        this.#wsAdapter.setupMessageHandlers();
+      }
+    } catch (e) {
+      logger.warn('Failed to initialize WebSocketAdapter', e);
+    }
+
     // 不再创建独立的 Console 桥接器，避免与容器层冲突与重复日志
 
     logger.info('AppCoreFeature installed successfully');
@@ -116,6 +129,8 @@ export class AppCoreFeature {
       this.#appContainer.dispose();
       this.#appContainer = null;
     }
+
+    this.#wsAdapter = null;
 
     this.#wsClient = null;
 

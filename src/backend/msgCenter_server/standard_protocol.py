@@ -116,6 +116,31 @@ class MessageType(Enum):
     ANNOTATION_DELETE_COMPLETED = "annotation:delete:completed"
     ANNOTATION_DELETE_FAILED = "annotation:delete:failed"
 
+    # === Anchor（锚点） ===
+    ANCHOR_GET_REQUESTED = "anchor:get:requested"
+    ANCHOR_GET_COMPLETED = "anchor:get:completed"
+    ANCHOR_GET_FAILED = "anchor:get:failed"
+
+    ANCHOR_LIST_REQUESTED = "anchor:list:requested"
+    ANCHOR_LIST_COMPLETED = "anchor:list:completed"
+    ANCHOR_LIST_FAILED = "anchor:list:failed"
+
+    ANCHOR_CREATE_REQUESTED = "anchor:create:requested"
+    ANCHOR_CREATE_COMPLETED = "anchor:create:completed"
+    ANCHOR_CREATE_FAILED = "anchor:create:failed"
+
+    ANCHOR_UPDATE_REQUESTED = "anchor:update:requested"
+    ANCHOR_UPDATE_COMPLETED = "anchor:update:completed"
+    ANCHOR_UPDATE_FAILED = "anchor:update:failed"
+
+    ANCHOR_DELETE_REQUESTED = "anchor:delete:requested"
+    ANCHOR_DELETE_COMPLETED = "anchor:delete:completed"
+    ANCHOR_DELETE_FAILED = "anchor:delete:failed"
+
+    ANCHOR_ACTIVATE_REQUESTED = "anchor:activate:requested"
+    ANCHOR_ACTIVATE_COMPLETED = "anchor:activate:completed"
+    ANCHOR_ACTIVATE_FAILED = "anchor:activate:failed"
+
     # === 兼容旧版消息（保留常量以便查询与降级） ===
     LEGACY_PDF_HOME_GET_PDF_LIST = "pdf-home:get:pdf-list"
     LEGACY_PDF_HOME_ADD_PDF_FILES = "pdf-home:add:pdf-files"

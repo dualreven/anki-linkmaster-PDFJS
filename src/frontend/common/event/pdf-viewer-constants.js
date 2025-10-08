@@ -1078,6 +1078,48 @@ export const PDF_VIEWER_EVENTS = {
     },
   },
 
+  /**
+   * 锚点（Anchor）相关事件
+   * @namespace ANCHOR
+   */
+  ANCHOR: {
+    /** 数据加载事件 */
+    DATA: {
+      /** 请求加载锚点数据 */
+      LOAD: 'anchor-data:load:requested',
+      /** 锚点数据加载成功 */
+      LOADED: 'anchor-data:load:success',
+      /** 加载失败 */
+      LOAD_FAILED: 'anchor-data:load:failed',
+    },
+
+    /** CRUD 与操作事件 */
+    CREATE: 'anchor:create:requested',
+    CREATED: 'anchor:create:success',
+    CREATE_FAILED: 'anchor:create:failed',
+
+    UPDATE: 'anchor:update:requested',
+    UPDATED: 'anchor:update:success',
+    UPDATE_FAILED: 'anchor:update:failed',
+
+    DELETE: 'anchor:delete:requested',
+    DELETED: 'anchor:delete:success',
+    DELETE_FAILED: 'anchor:delete:failed',
+
+    COPY: 'anchor:copy:requested',
+    COPIED: 'anchor:copy:success',
+
+    ACTIVATE: 'anchor:activate:requested',
+    ACTIVATED: 'anchor:activate:success',
+
+    /** 跳转导航 */
+    NAVIGATE: {
+      REQUESTED: 'anchor-navigate:jump:requested',
+      SUCCESS: 'anchor-navigate:jump:success',
+      FAILED: 'anchor-navigate:jump:failed',
+    },
+  },
+
 };
 
 /**
