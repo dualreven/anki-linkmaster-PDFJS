@@ -175,12 +175,25 @@ export class AnnotationManager {
         ? annotation
         : Annotation.fromJSON(annotation);
 
-      // Phase 1: Mock保存（内存存储）
-      if (this.#mockMode) {
-        await this.#mockSaveAnnotation(annotationObj);
-      } else {
-        // Phase 2: 真实后端保存
+      // Phase 1/2: 根据运行态与依赖情况动态选择保存策略
+      // 优先条件保存到后端：wsClient 存在且已连接，并且已设置 pdfId
+      const canUseRemote = !!this.#wsClient
+        && typeof this.#wsClient.isConnected === 'function'
+        && this.#wsClient.isConnected()
+        && !!this.#pdfId;
+
+      if (canUseRemote) {
+        // 真实后端保存
         await this.#saveAnnotationToBackend(annotationObj);
+      } else {
+        // 兜底：在缺少 pdfId 或未建立WS连接时，本地Mock保存，确保功能不中断
+        if (!this.#pdfId) {
+          this.#logger.warn('[AnnotationManager] PDF ID not set, falling back to mock save');
+        }
+        if (!this.#wsClient || (typeof this.#wsClient.isConnected === 'function' && !this.#wsClient.isConnected())) {
+          this.#logger.warn('[AnnotationManager] wsClient not connected, falling back to mock save');
+        }
+        await this.#mockSaveAnnotation(annotationObj);
       }
 
       // 添加到内存

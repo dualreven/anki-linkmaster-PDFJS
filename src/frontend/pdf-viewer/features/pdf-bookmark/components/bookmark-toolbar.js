@@ -1,7 +1,7 @@
 ﻿/**
- * @file BookmarkToolbar 书签工具栏组件
+ * @file BookmarkToolbar 大纲工具栏组件
  * @module features/pdf-bookmark/components/bookmark-toolbar
- * @description 提供书签管理操作按钮（添加、删除、修改、拖动提示）
+ * @description 提供大纲管理操作按钮（添加、删除、修改、拖动提示）
  */
 
 import { getLogger } from '../../../../common/utils/logger.js';
@@ -95,21 +95,21 @@ export class BookmarkToolbar {
     this.#buttons.add = this.#createButton({
       id: 'add',
       icon: '➕',
-      tooltip: '将当前页添加为书签'
+      tooltip: '将当前页添加为大纲'
     });
 
     // 删除按钮
     this.#buttons.delete = this.#createButton({
       id: 'delete',
       icon: '🗑️',
-      tooltip: '删除选中的书签'
+      tooltip: '删除选中的大纲'
     });
 
     // 修改按钮
     this.#buttons.edit = this.#createButton({
       id: 'edit',
       icon: '✏️',
-      tooltip: '编辑选中的书签'
+      tooltip: '编辑选中的大纲'
     });
 
     // 分隔符
@@ -257,7 +257,7 @@ export class BookmarkToolbar {
       sortBtn.style.backgroundColor = '#4CAF50';
       sortBtn.style.borderColor = '#4CAF50';
       // 显示toast提醒
-      this.#showToast('拖动书签进行排序');
+      this.#showToast('拖动大纲进行排序');
     } else {
       sortBtn.dataset.active = '';  // 移除激活状态
       sortBtn.style.backgroundColor = 'white';

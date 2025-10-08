@@ -77,6 +77,17 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
 - 位置：统一右上角（topRight），与既有规范一致
 - 适用范围：当前仅在 `pdf-home` 的“添加 PDF”流程中使用；其他模块暂不修改
 
+### 标注保存策略（pdf-viewer / 2025-10-08）
+- AnnotationManager 在创建标注时的保存路径：
+  - 远端保存：当 `wsClient.isConnected()` 为 true 且已设置 `pdfId` 时，调用 WS 接口保存；
+  - 本地回退：若未连接 WS 或未设置 `pdfId`，回退到本地 Mock 保存，确保 `ANNOTATION.CREATED` 事件仍然发出，侧边栏可及时展示。
+- pdfId 的设置：
+  - AnnotationFeature 监听 `NAVIGATION.URL_PARAMS.PARSED`（从 URL 解析到 `pdf-id`）与 `FILE.LOAD.SUCCESS`（从 `filename` 推断 id，去掉 .pdf 后缀），调用 `AnnotationManager.setPdfId()`；
+  - 建议 pdf-viewer 启动带上 `?pdf-id=xxx`，避免依赖文件名推断。
+- 验证方法：
+  - 运行 `node AItemp/manual-tests/test-annotation-create-fallback.mjs`，应输出 `[OK] CREATED emitted with screenshot annotation`；
+  - 界面手测：截图→保存→侧边栏出现新标注卡片。
+
 ## 启动与编排（AI Launcher）
 - 模块化服务管理：
   - `ai-scripts/ai_launcher/core/service_manager.py`
@@ -555,3 +566,9 @@ emove_comment(ann_id, comment_id)。
 - 验收基线
   - 删除根节点：仅该根及其子孙被移除；其它根不受影响；刷新后保持一致。
   - 删除子节点：仅该节点（及其子孙）被移除；父与同级以及其它根不受影响；刷新后保持一致。
+### 大纲（原书签）拖拽排序索引策略（2025-10-08）
+- UI 与数据层的配合：
+  - UI 在 drop 事件中对同父情形计算 newIndex：`before => targetIndex`，`after => targetIndex + 1`；
+  - 数据层（BookmarkManager.reorderBookmarks）在同父且 `oldIdx < targetIndex` 时执行一次左移修正（`targetIndex -= 1`），最终效果与语义保持一致；
+- 这样可以消除“UI 与数据层双重修正”的叠加导致的偏移，避免回读后看起来“节点消失/跑飞”。
+- 术语统一：UI 中文展示统一由“书签”改为“大纲”，事件常量与模块命名保持不变。

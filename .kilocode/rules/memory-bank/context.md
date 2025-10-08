@@ -1,5 +1,20 @@
 # Memory Bank（精简版 / 权威）
 
+## 当前任务（20251008161957）
+- 名称：拉取 main 并合并到当前分支
+- 问题背景：
+  - 需要保持工作分支与主线 `main` 同步，降低后续集成冲突与回归风险。
+- 相关模块与操作：
+  - Git 仓库：`C:\Users\napretep\PycharmProjects\anki-linkmaster-A`
+  - 远程：`origin/main`
+- 执行步骤（原子化）：
+  1) 设计验证：记录 `HEAD` 与 `origin/main` 的提交哈希；合并后校验 `merge-base` 祖先关系。
+  2) 获取远程：`git fetch origin`，确保 `origin/main` 为最新。
+  3) 合并主线：在当前分支执行 `git merge --no-ff --no-edit origin/main`。
+  4) 若有冲突：列出冲突文件，逐一解决并提交 `git add ... && git commit`。
+  5) 验证：`git merge-base --is-ancestor origin/main HEAD` 返回码为 0；`git status` 干净。
+  6) 回写本文件与 AI-Working-log，并通知完成。
+
 ## 当前任务（20251008161500）
 - 名称：合并 worktree B 并推送到远程
 - 背景：worktree B (feature/pdf-home-add-delete-improvements) 包含排序模式优化和样式改进
@@ -890,3 +905,22 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - SidebarPanel 不再直接在 limit 变化时重渲染 added/opened 列表，由子功能自身渲染
 - 期望：点击"显示10个"仅侧栏显示变为10条，不触发搜索，不改变结果背景色
 — UTF-8 / \n —
+## 当前任务（20251008175825）
+- 名称：修复“大纲拖拽导致无关分支消失”，并统一中文“书签”→“大纲”
+- 问题背景：
+  - 用户反馈：在侧边栏进行拖拽排序后，大纲树中与本次操作无关的其他分支会“消失/跑飞”。
+  - 现状：BookmarkManager（数据层）在 reorder 时已做同父左移修正；UI 的拖拽 drop 逻辑对同父 after 的 newIndex 计算与管理器修正叠加，导致插入位置与预期偏离，回读后视觉表现为“节点消失”。
+- 相关模块与函数：
+  - UI：`src/frontend/pdf-viewer/ui/bookmark-sidebar-ui.js`（#handleDrop 索引计算）
+  - 服务：`src/frontend/pdf-viewer/features/pdf-bookmark/services/bookmark-manager.js`（reorderBookmarks、save/load）
+  - 组件：`src/frontend/pdf-viewer/features/pdf-bookmark/components/*`（对话框、工具栏文案）
+  - 侧边栏注册：`src/frontend/pdf-viewer/features/sidebar-manager/real-sidebars.js`
+- 执行步骤（原子化）：
+  1) 设计测试：编写手工脚本验证“跨父移动后根分支不丢失、同父 after 语义正确”（完成）
+  2) 修复 #handleDrop 中同父 before/after 的 newIndex 计算（完成）
+  3) 保持 BookmarkManager 的同父左移修正逻辑不变（完成）
+  4) 将 UI 中文“书签”统一替换为“大纲”，不改事件常量与模块名（完成）
+  5) 运行手工测试并通过（完成）
+- 验证方式：
+  - `node AItemp/manual-tests/test-outline-reorder.mjs` 输出 OK；
+  - 实际界面：拖拽重排后侧边栏列表稳定、无关分支不消失，toasts/对话框标题显示“大纲”。

@@ -1,7 +1,7 @@
 /**
- * @file BookmarkDialog 书签对话框组件
+ * @file BookmarkDialog 大纲对话框组件
  * @module features/pdf-bookmark/components/bookmark-dialog
- * @description 提供书签添加、编辑、删除确认的对话框UI
+ * @description 提供大纲添加、编辑、删除确认的对话框UI
  */
 
 import { getLogger } from '../../../../common/utils/logger.js';
@@ -33,7 +33,7 @@ export class BookmarkDialog {
   #mode = null;
 
   /**
-   * 当前书签数据（编辑/删除时使用）
+   * 当前大纲数据（编辑/删除时使用）
    * @type {Object|null}
    * @private
    */
@@ -54,7 +54,7 @@ export class BookmarkDialog {
   }
 
   /**
-   * 显示添加书签对话框
+   * 显示添加大纲对话框
    * @param {Object} options - 选项
    * @param {number} options.currentPage - 当前页码
    * @param {Function} options.onConfirm - 确认回调 (bookmarkData) => void
@@ -67,7 +67,7 @@ export class BookmarkDialog {
     this.#callbacks.onCancel = onCancel;
 
     this.#dialog = this.#createDialog({
-      title: '添加书签',
+      title: '添加大纲',
       content: this.#createAddEditForm({ pageNumber: currentPage }),
       buttons: [
         { text: '取消', onClick: () => this.#handleCancel() },
@@ -76,11 +76,11 @@ export class BookmarkDialog {
     });
 
     document.body.appendChild(this.#dialog);
-    this.#logger.info('Add bookmark dialog shown');
+    this.#logger.info('Add outline dialog shown');
   }
 
   /**
-   * 显示编辑书签对话框
+   * 显示编辑大纲对话框
    * @param {Object} options - 选项
    * @param {Object} options.bookmark - 书签对象
    * @param {Function} options.onConfirm - 确认回调 (updates) => void
@@ -94,7 +94,7 @@ export class BookmarkDialog {
     this.#callbacks.onCancel = onCancel;
 
     this.#dialog = this.#createDialog({
-      title: '编辑书签',
+      title: '编辑大纲',
       content: this.#createAddEditForm(bookmark),
       buttons: [
         { text: '取消', onClick: () => this.#handleCancel() },
@@ -103,14 +103,14 @@ export class BookmarkDialog {
     });
 
     document.body.appendChild(this.#dialog);
-    this.#logger.info(`Edit bookmark dialog shown: ${bookmark.id}`);
+    this.#logger.info(`Edit outline dialog shown: ${bookmark.id}`);
   }
 
   /**
    * 显示删除确认对话框
    * @param {Object} options - 选项
    * @param {Object} options.bookmark - 书签对象
-   * @param {number} [options.childCount] - 子书签数量
+   * @param {number} [options.childCount] - 子大纲数量
    * @param {Function} options.onConfirm - 确认回调 (cascadeDelete) => void
    * @param {Function} [options.onCancel] - 取消回调
    * @returns {void}
@@ -122,8 +122,8 @@ export class BookmarkDialog {
     this.#callbacks.onCancel = onCancel;
 
     const message = childCount > 0
-      ? `确定删除书签"${bookmark.name}"吗？\n该书签包含 ${childCount} 个子书签，将一起被删除。`
-      : `确定删除书签"${bookmark.name}"吗？`;
+      ? `确定删除大纲"${bookmark.name}"吗？\n该大纲包含 ${childCount} 个子大纲，将一起被删除。`
+      : `确定删除大纲"${bookmark.name}"吗？`;
 
     this.#dialog = this.#createDialog({
       title: '删除书签',
@@ -269,7 +269,7 @@ export class BookmarkDialog {
 
   /**
    * 创建添加/编辑表单
-   * @param {Object} data - 书签数据
+   * @param {Object} data - 大纲数据
    * @returns {HTMLElement} 表单元素
    * @private
    */
@@ -277,21 +277,21 @@ export class BookmarkDialog {
     const form = document.createElement('div');
     form.style.cssText = 'display: flex; flex-direction: column; gap: 16px;';
 
-    // 书签名称
+    // 大纲名称
     form.innerHTML = `
       <div style="display: flex; flex-direction: column; gap: 4px;">
-        <label style="font-weight: bold; font-size: 14px;">书签名称</label>
+        <label style="font-weight: bold; font-size: 14px;">大纲名称</label>
         <input
           type="text"
           id="bookmark-name"
           value="${data.name || (data.pageNumber ? `第 ${data.pageNumber} 页` : '')}"
-          placeholder="请输入书签名称"
+          placeholder="请输入大纲名称"
           style="padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;"
         />
       </div>
 
       <div style="display: flex; flex-direction: column; gap: 4px;">
-        <label style="font-weight: bold; font-size: 14px;">书签类型</label>
+        <label style="font-weight: bold; font-size: 14px;">大纲类型</label>
         <div style="display: flex; gap: 16px;">
           <label style="display: flex; align-items: center; gap: 4px;">
             <input type="radio" name="bookmark-type" value="page" ${(data.type === 'page' || !data.type) ? 'checked' : ''} />

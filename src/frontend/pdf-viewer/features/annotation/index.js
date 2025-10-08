@@ -281,6 +281,36 @@ export class AnnotationFeature {
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, (data) => {
       this.#handleNavigateToAnnotation(data);
     }, { subscriberId: 'AnnotationFeature' });
+
+    // 监听 URL 参数解析结果以设置 PDF ID（供 AnnotationManager 远端保存使用）
+    this.#eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.PARSED, (data) => {
+      try {
+        if (data?.pdfId && this.#annotationManager) {
+          this.#annotationManager.setPdfId(String(data.pdfId));
+          this.#logger.info(`[AnnotationFeature] PDF ID set from URL params: ${data.pdfId}`);
+        }
+      } catch (e) {
+        this.#logger.warn('[AnnotationFeature] Failed to set PDF ID from URL params', e);
+      }
+    }, { subscriberId: 'AnnotationFeature' });
+
+    // 监听文件加载成功事件，兜底设置 PDF ID（从文件名推断，无扩展名）
+    this.#eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, (data) => {
+      try {
+        if (!this.#annotationManager) return;
+        // 优先使用 URL 解析设置的 pdfId；若尚未设置，则尝试从文件名推断
+        const filename = data?.filename;
+        if (filename && typeof filename === 'string') {
+          const inferred = filename.replace(/\.pdf$/i, '');
+          if (inferred) {
+            this.#annotationManager.setPdfId(inferred);
+            this.#logger.info(`[AnnotationFeature] PDF ID inferred from filename: ${inferred}`);
+          }
+        }
+      } catch (e) {
+        this.#logger.warn('[AnnotationFeature] Failed to set PDF ID from LOAD.SUCCESS', e);
+      }
+    }, { subscriberId: 'AnnotationFeature' });
   }
 
   /**

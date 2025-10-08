@@ -1,12 +1,13 @@
 /**
  * 真实侧边栏注册
- * @file 注册实际使用的侧边栏（书签、批注、卡片、翻译）到SidebarManager
+ * @file 注册实际使用的侧边栏（大纲、批注、卡片、翻译）到SidebarManager
  * @module RealSidebars
  */
 
 import { getLogger } from '../../../common/utils/logger.js';
 import { createSidebarConfig } from './sidebar-config.js';
 import { BookmarkSidebarUI } from '../../ui/bookmark-sidebar-ui.js';
+import { AnchorSidebarUI } from '../../features/pdf-anchor/components/anchor-sidebar-ui.js';
 const logger = getLogger('RealSidebars');
 
 
@@ -19,15 +20,31 @@ const logger = getLogger('RealSidebars');
 export function registerRealSidebars(sidebarManager, eventBus, container) {
     logger.info('Registering real sidebars...');
 
-    // 1. 书签侧边栏
+    // 0. 锚点侧边栏（与书签并列）
+    const anchorUI = new AnchorSidebarUI(eventBus);
+    anchorUI.initialize();
+
+    const anchorConfig = createSidebarConfig({
+        id: 'anchor',
+        title: '锚点',
+        contentRenderer: () => anchorUI.getContentElement(),
+        defaultWidth: 320,
+        minWidth: 220,
+        maxWidth: 520,
+        resizable: true
+    });
+    sidebarManager.registerSidebar(anchorConfig);
+    logger.info('Anchor sidebar registered');
+
+    // 1. 大纲侧边栏
     const bookmarkUI = new BookmarkSidebarUI(eventBus);
     bookmarkUI.initialize();
 
     const bookmarkConfig = createSidebarConfig({
         id: 'bookmark',
-        title: '书签',
+        title: '大纲',
         contentRenderer: () => {
-            // 返回书签侧边栏的内容区域
+            // 返回大纲侧边栏的内容区域
             return bookmarkUI.getContentElement();
         },
         defaultWidth: 280,
@@ -36,7 +53,7 @@ export function registerRealSidebars(sidebarManager, eventBus, container) {
         resizable: true
     });
     sidebarManager.registerSidebar(bookmarkConfig);
-    logger.info('Bookmark sidebar registered');
+    logger.info('Outline sidebar registered');
 
     // 2. 批注侧边栏（延迟获取，首次调用时从容器获取并缓存）
     let annotationUIInstance = null;
@@ -220,7 +237,8 @@ export function createRealSidebarButtons(eventBus) {
 
     // 定义按钮配置
     const buttons = [
-        { id: 'bookmark', label: '≡ 书签', title: '打开书签侧边栏' },
+        { id: 'anchor', label: '⚓ 锚点', title: '打开锚点侧边栏' },
+        { id: 'bookmark', label: '≡ 大纲', title: '打开大纲侧边栏' },
         { id: 'annotation', label: '📝 标注', title: '打开标注侧边栏' },
         { id: 'card', label: '📇 卡片', title: '打开卡片侧边栏' },
         { id: 'ai-assistant', label: '🤖 AI', title: '打开AI助手侧边栏' },
