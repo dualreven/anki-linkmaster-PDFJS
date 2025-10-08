@@ -276,6 +276,14 @@ class PyQtBridge(QObject):
 
                 debug_port = self._next_js_debug_port()
                 js_log_path = self._compute_js_log_path(pdf_id)
+                # 清空对应 pdf-viewer 的 JS 日志文件，确保每次从 pdf-home 打开都是干净的日志
+                try:
+                    from io import TextIOWrapper  # 仅用于类型提示
+                    with open(js_log_path, 'w', encoding='utf-8', newline='\n') as _f:  # type: TextIOWrapper
+                        _f.write('')
+                    logger.info(f"[PyQtBridge] 已清空 JS 日志文件: {js_log_path}")
+                except Exception as _e:
+                    logger.warning(f"[PyQtBridge] 清空 JS 日志失败: {js_log_path} err={_e}")
                 # 解析文件路径（若无法解析则仍然仅传递 pdf-id）
                 file_path = self._resolve_pdf_file_path(pdf_id)
 
@@ -402,6 +410,14 @@ class PyQtBridge(QObject):
 
                 debug_port = self._next_js_debug_port()
                 js_log_path = self._compute_js_log_path(pdf_id)
+                # 清空对应 pdf-viewer 的 JS 日志文件
+                try:
+                    from io import TextIOWrapper  # 仅用于类型提示
+                    with open(js_log_path, 'w', encoding='utf-8', newline='\n') as _f:  # type: TextIOWrapper
+                        _f.write('')
+                    logger.info(f"[PyQtBridge] 已清空 JS 日志文件: {js_log_path}")
+                except Exception as _e:
+                    logger.warning(f"[PyQtBridge] 清空 JS 日志失败: {js_log_path} err={_e}")
 
                 filename = None
                 provided_path = None
