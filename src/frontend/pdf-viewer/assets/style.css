@@ -34,6 +34,8 @@ header {
     display: flex;
     align-items: center;
     gap: 16px;
+    flex: 1 1 auto;      /* 左侧可伸缩 */
+    min-width: 0;        /* 允许子元素收缩，否则省略号不生效 */
 }
 
 .header-right {
@@ -71,6 +73,15 @@ h1 {
     font-size: 18px;
     font-weight: 600;
     color: #333;
+}
+
+/* 书名（标题）在 header 中的截断与省略号 */
+#pdf-title {
+    display: block;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; /* 省略号表示 */
 }
 
 /* 复制 PDF ID 按钮样式 */
@@ -111,7 +122,7 @@ h1 {
     display: flex;
     align-items: center;
     gap: 8px;
-    flex-shrink: 0;
+    flex-shrink: 0;       /* 硬性不允许按钮组被挤压 */
 }
 
 /* 浮动控制面板样式 */
