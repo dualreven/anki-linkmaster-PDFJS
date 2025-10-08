@@ -50,8 +50,6 @@ import json
 import sys
 import logging
 import argparse
-import threading
-import time
 from pathlib import Path
 
 # Add project root to Python path
@@ -245,11 +243,6 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--anchor-id", type=str, dest="anchor_id", help="Anchor ID (e.g., pdfanchor-test or pdfanchor-<12-hex>)")
     parser.add_argument("--pdfanchor", type=str, dest="pdfanchor", help="Alias of --anchor-id for convenience")
     parser.add_argument("--diagnose-only", action="store_true", help="Run initialization diagnostics and exit before starting the Qt event loop")
-    # 启动来源与父进程PID：用于宿主崩溃时一并退出
-    parser.add_argument("--launcher-from", type=str, dest="launcher_from", default="standalone", help="Who launches this viewer: standalone|pdf-home")
-    parser.add_argument("--parent-pid", type=int, dest="parent_pid", help="Parent process PID for watchdog (viewer exits if parent terminates)")
-    # 可选人类可读标题
-    parser.add_argument("--title", type=str, dest="title", help="Human readable title to display in header and window")
     parser.add_argument("--disable-webchannel", action="store_true", help="Skip QWebChannel bridge setup")
     parser.add_argument("--disable-websocket", action="store_true", help="Skip QWebSocket bridge connection")
     parser.add_argument("--disable-js-console", action="store_true", help="Skip JavaScript console logger thread")
@@ -283,75 +276,6 @@ def _setup_logging(pdf_id: str = "empty") -> None:
     )
 
 
-def _start_parent_watchdog_if_needed(parent_pid: int | None, app, logger: logging.Logger) -> None:
-    """启动父进程看门狗：当 parent_pid 不存活时退出应用。"""
-    if not parent_pid or parent_pid <= 0:
-        return
-
-    try:
-        import platform
-        is_windows = platform.system().lower().startswith('win')
-    except Exception:
-        is_windows = False
-
-    def _watch():
-        try:
-            if is_windows:
-                import ctypes
-                import ctypes.wintypes as wt
-                SYNCHRONIZE = 0x00100000
-                WAIT_OBJECT_0 = 0x00000000
-                INFINITE = 0xFFFFFFFF
-                kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
-                OpenProcess = kernel32.OpenProcess
-                OpenProcess.argtypes = [wt.DWORD, wt.BOOL, wt.DWORD]
-                OpenProcess.restype = wt.HANDLE
-                WaitForSingleObject = kernel32.WaitForSingleObject
-                WaitForSingleObject.argtypes = [wt.HANDLE, wt.DWORD]
-                WaitForSingleObject.restype = wt.DWORD
-                CloseHandle = kernel32.CloseHandle
-                CloseHandle.argtypes = [wt.HANDLE]
-                CloseHandle.restype = wt.BOOL
-
-                hProc = OpenProcess(SYNCHRONIZE, False, wt.DWORD(parent_pid))
-                if hProc:
-                    logger.info(f"[watchdog] attached to parent PID={parent_pid}")
-                    WaitForSingleObject(hProc, INFINITE)
-                    try:
-                        CloseHandle(hProc)
-                    except Exception:
-                        pass
-                    logger.warning("[watchdog] parent terminated, quitting viewer")
-                    try:
-                        app.quit()
-                    except Exception:
-                        os._exit(0)
-                    return
-            # 非Windows或OpenProcess失败：轮询检测
-            while True:
-                try:
-                    if os.name == 'posix':
-                        os.kill(parent_pid, 0)
-                    elif sys.platform.startswith('linux'):
-                        if not os.path.exists(f"/proc/{parent_pid}"):
-                            raise ProcessLookupError()
-                    else:
-                        # 其他平台不可靠的兜底，等待一段时间
-                        pass
-                except Exception:
-                    logger.warning("[watchdog] parent missing, quitting viewer")
-                    try:
-                        app.quit()
-                    except Exception:
-                        os._exit(0)
-                    return
-                time.sleep(2.0)
-        except Exception:
-            return
-
-    threading.Thread(target=_watch, name="parent-watchdog", daemon=True).start()
-
-
 def main() -> int:
     # Parse args first to get file path for PDF ID extraction
     args = _parse_args(sys.argv[1:])
@@ -371,7 +295,7 @@ def main() -> int:
 
     # Setup logging with dynamic PDF ID
     _setup_logging(pdf_id)
-    logger.info(f"Launching pdf-viewer window (from={getattr(args, 'launcher_from', 'standalone')}, pdf_id: {pdf_id})")
+    logger.info(f"Launching pdf-viewer standalone window (pdf_id: {pdf_id})")
 
     # Create Qt app
     app = QApplication(sys.argv)
@@ -428,14 +352,12 @@ def main() -> int:
             logger.warning("Failed to initialize JS console logger: %s", exc)
 
     # Host window (pass JS remote debug port and logger)
-    has_host = (str(getattr(args, 'launcher_from', 'standalone')).lower() == 'pdf-home')
     window = MainWindow(
         app,
         remote_debug_port=js_debug_port,
         js_log_file=js_log,
         js_logger=js_console_logger,
-        pdf_id=pdf_id,
-        has_host=has_host
+        pdf_id=pdf_id
     )
     extras["pdf-viewer-js"] = js_debug_port
     logger.info("Resolved ports: vite=%s msgCenter=%s pdfFile=%s (pdf_id: %s)", vite_port, msgCenter_port, pdfFile_port, pdf_id)
@@ -556,14 +478,6 @@ def main() -> int:
         url += f"&position={position}"
         logger.info(f"URL navigation: target position = {position}%")
 
-    # 追加可选标题
-    if getattr(args, 'title', None):
-        try:
-            import urllib.parse as _up
-            url += f"&title={_up.quote(str(args.title))}"
-        except Exception:
-            pass
-
     # 追加 anchor-id（可选）
     if args.anchor_id:
         url += f"&anchor-id={args.anchor_id}"
@@ -592,29 +506,6 @@ def main() -> int:
         ws_client.close()
         return 0
 
-    # 前端进程登记
-    try:
-        info_path = project_root / 'logs' / 'frontend-process-info.json'
-        info_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            data = json.loads(info_path.read_text(encoding='utf-8') or '{}')
-        except Exception:
-            data = {}
-        data.setdefault('frontend', {})
-        key = f"pdf-viewer:{pdf_id}:{os.getpid()}"
-        data['frontend'][key] = {
-            'pid': os.getpid(),
-            'pdf_id': pdf_id,
-            'from': getattr(args, 'launcher_from', 'standalone'),
-            'started_at': time.time(),
-        }
-        info_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
-    except Exception:
-        pass
-
-    # 启动父进程看门狗
-    _start_parent_watchdog_if_needed(getattr(args, 'parent_pid', None), app, logger)
-
     rc = app.exec()
     logger.info("pdf-viewer window exited with code %s", rc)
 
@@ -626,22 +517,6 @@ def main() -> int:
 
     # 停止后台服务（复制closeEvent中的逻辑）
     _cleanup_backend_services(pdf_id, logger)
-
-    # 移除前端进程登记
-    try:
-        info_path = project_root / 'logs' / 'frontend-process-info.json'
-        if info_path.exists():
-            data = json.loads(info_path.read_text(encoding='utf-8') or '{}')
-            changed = False
-            if 'frontend' in data and isinstance(data['frontend'], dict):
-                rm_keys = [k for k in data['frontend'].keys() if k.startswith(f"pdf-viewer:{pdf_id}:")]
-                for k in rm_keys:
-                    data['frontend'].pop(k, None)
-                    changed = True
-            if changed:
-                info_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
-    except Exception:
-        pass
 
     logger.info(f"pdf-viewer window exited with code {rc} (pdf_id: {pdf_id})")
     return int(rc)
