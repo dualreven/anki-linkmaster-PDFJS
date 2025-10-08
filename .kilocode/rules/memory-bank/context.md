@@ -1,6 +1,23 @@
 # Memory Bank（精简版 / 权威）
 
-## 当前任务（20251008150500）
+## 当前任务（20251008161500）
+- 名称：合并 worktree B 并推送到远程
+- 背景：worktree B (feature/pdf-home-add-delete-improvements) 包含排序模式优化和样式改进
+- 执行步骤：
+  1) 提交 memory-bank 文档更新（稳定性治理方法论）
+  2) 合并 feature/pdf-home-add-delete-improvements 到 main
+  3) 更新 context.md 记录本次合并
+  4) 推送所有提交到 origin/main
+- 主要变更：
+  * 禁用手动拖拽和加权排序模式
+  * 优化排序模式选择器 UI
+  * 新增排序相关样式
+- 合并结果：
+  * 提交 ID：d77d4ff
+  * 变更文件：2 files changed, 41 insertions(+), 6 deletions(-)
+  * 无冲突
+
+## 历史任务（20251008150500）
 - 名称：稳定性治理（多 worktree 并行）
 - 问题背景：
   - 5 个 AI 各自 worktree 并行开发，合并后出现历史功能失效与回归；
@@ -29,7 +46,7 @@
   - 合并后 24 小时内无新增 P0/P1 错误；
   - `architecture.md`/`tech.md` 已记录方法论与操作要点。
 
-## 当前任务（20251008061500）
+## 历史任务（20251008061500）
 - 名称：合并 worktree D (d-main-20250927) 到 main
 - 背景：worktree D 包含侧边栏搜索结果截断、最近添加组件修复等改进，需要合并到主分支
 - 执行步骤：
