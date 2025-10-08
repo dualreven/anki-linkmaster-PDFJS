@@ -979,3 +979,5 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - 需求对齐（20251008075200）：参数优先的锚点模式——当 URL 携带 anchor-id 时，直接将其作为本次会话的跟踪锚点（无需依赖 is_active），启动导航与实时更新。
 
 - 启动参数增强（20251008081500）：launcher.py 新增 --pdfanchor 参数别名（等价 --anchor-id），解析后归一化为 anchor_id 并按原逻辑注入 URL。
+
+- UI 调整（20251008082000）：移除锚点侧栏"激活"按钮，改为复制下拉（拷贝副本/复制ID/复制文内链接 [[id]]）。

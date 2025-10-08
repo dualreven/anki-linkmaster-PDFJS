@@ -144,40 +144,74 @@ export class AnchorSidebarUI {
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.UPDATE, { anchorId: this.#selectedId, update: { name } }, { actorId: 'AnchorToolbar' });
     });
 
-    const copyBtn = mkBtn('copy', '复制', '复制锚点ID');
-    copyBtn.addEventListener('click', async () => {
+    // 复制下拉按钮
+    const copyWrap = document.createElement('div');
+    copyWrap.style.cssText = 'position:relative; display:inline-block;';
+    const copyBtn = mkBtn('copy', '复制', '复制/拷贝选项');
+    const menu = document.createElement('div');
+    menu.style.cssText = [
+      'display:none','position:absolute','top:100%','left:0',
+      'background:#fff','border:1px solid #ddd','border-radius:4px',
+      'box-shadow:0 2px 8px rgba(0,0,0,0.15)','min-width:140px','z-index:1000'
+    ].join(';');
+    const mkMenuItem = (text, title, onClick) => {
+      const item = document.createElement('div');
+      item.textContent = text; item.title = title;
+      item.style.cssText = 'padding:6px 10px; cursor:pointer; white-space:nowrap;';
+      item.addEventListener('mouseenter', () => item.style.background = '#f6f6f6');
+      item.addEventListener('mouseleave', () => item.style.background = '');
+      item.addEventListener('click', () => { menu.style.display = 'none'; onClick && onClick(); });
+      return item;
+    };
+    const toggleMenu = () => { menu.style.display = (menu.style.display === 'none' ? 'block' : 'none'); };
+    const hideMenu = () => { menu.style.display = 'none'; };
+
+    // 1) 拷贝副本
+    menu.appendChild(mkMenuItem('拷贝副本', '基于当前锚点创建副本', () => {
       if (!this.#selectedId) return;
-      this.#logger.info('Anchor copy clicked', { id: this.#selectedId });
+      const src = this.#anchors.find(a => a && a.uuid === this.#selectedId); if (!src) return;
+      const name = (src.name ? `${src.name}(副本)` : `${src.uuid}(副本)`);
+      const newAnchor = {
+        name,
+        page_at: parseInt(src.page_at || 1, 10),
+        position: (typeof src.position === 'number' ? (src.position > 1 ? (src.position / 100) : src.position) : 0)
+      };
+      this.#logger.info('Anchor clone requested', { from: this.#selectedId, newAnchor });
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATE, { anchor: newAnchor }, { actorId: 'AnchorToolbar' });
+    }));
+
+    // 2) 复制锚点ID
+    menu.appendChild(mkMenuItem('复制锚点ID', '复制选中锚点ID', async () => {
+      if (!this.#selectedId) return;
       try {
-        if (navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(this.#selectedId);
-        } else {
-          const ta = document.createElement('textarea');
-          ta.value = this.#selectedId;
-          document.body.appendChild(ta);
-          ta.select();
-          document.execCommand('copy');
-          ta.remove();
-        }
-      } catch (_) {}
+        if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(this.#selectedId); }
+        else { const ta = document.createElement('textarea'); ta.value = this.#selectedId; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
+      } catch(_) {}
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPY, { anchorId: this.#selectedId }, { actorId: 'AnchorToolbar' });
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPIED, { anchorId: this.#selectedId }, { actorId: 'AnchorToolbar' });
-    });
+    }));
 
-    const activateBtn = mkBtn('activate', '激活', '激活/停用锚点');
-    activateBtn.addEventListener('click', () => {
+    // 3) 复制文内链接 [[锚点id]]
+    menu.appendChild(mkMenuItem('复制文内链接', '复制 [[锚点id]]', async () => {
       if (!this.#selectedId) return;
-      const found = this.#anchors.find(a => a.uuid === this.#selectedId);
-      const next = !Boolean(found?.is_active);
-      this.#logger.info('Anchor activate clicked', { id: this.#selectedId, next });
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.ACTIVATE, { anchorId: this.#selectedId, active: next }, { actorId: 'AnchorToolbar' });
-    });
+      const link = `[[${this.#selectedId}]]`;
+      try {
+        if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(link); }
+        else { const ta = document.createElement('textarea'); ta.value = link; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
+      } catch(_) {}
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPY, { anchorId: this.#selectedId, wiki: true }, { actorId: 'AnchorToolbar' });
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPIED, { anchorId: this.#selectedId, wiki: true }, { actorId: 'AnchorToolbar' });
+    }));
+
+    copyBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleMenu(); });
+    document.addEventListener('click', hideMenu);
+    copyWrap.appendChild(copyBtn);
+    copyWrap.appendChild(menu);
 
     bar.appendChild(addBtn);
     bar.appendChild(delBtn);
     bar.appendChild(editBtn);
-    bar.appendChild(copyBtn);
-    bar.appendChild(activateBtn);
+    bar.appendChild(copyWrap);
 
     return bar;
   }
