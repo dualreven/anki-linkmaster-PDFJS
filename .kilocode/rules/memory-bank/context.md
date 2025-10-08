@@ -1008,6 +1008,22 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - 结果：合并成功，冲突仅限 context.md，已采用远端版本并追加本次记录；工作区其他变更已合并。
 - 校验：将执行 merge-base 祖先校验与工作区清理校验。
 
+### pdf-viewer 启动策略调整（2025-10-09）
+- 由 pdf-home 启动 viewer 改为调用 launcher（子进程）
+- 参数：--launcher-from=pdf-home, --parent-pid=<宿主PID>, --vite-port/--msgCenter-port/--pdfFile-port, --js-debug-port, --title
+- launcher 增加父进程看门狗：宿主退出/崩溃 → viewer 自退，避免游离进程
+- 每次启动日志以 mode=w 截断，统一日志治理
+- 进程登记：logs/frontend-process-info.json 记录/清理
+
+### 回滚说明（2025-10-09）
+- 因子进程启动速度慢、双击闪退与唯一性破坏，回滚子进程启动改造（revert db27fe9 → 6b436a0）
+- 恢复旧行为：pdf-home 直接在同进程内构造 viewer 窗口；日志文件沿用追加模式
+- 后续若仅需日志清空，可在 _compute_js_log_path 预清空文件（UTF-8 覆写）替代大改造
+
+### 日志清空（pdf-home 启动 viewer）
+- 每次在 _compute_js_log_path 中以 UTF-8 覆写空内容，保证新会话日志从空开始
+- 仅影响 JS 日志（logs/pdf-viewer-<id>-js.log），Python 日志仍归 pdf-home
+
 ## 当前任务（20251009030905）
 - 名称：修复 pdf-viewer 锚点侧边栏复制（复制ID/复制文内链接）不可用问题
 - 问题背景：
