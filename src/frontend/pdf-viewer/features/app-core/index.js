@@ -7,6 +7,8 @@
 import { createPDFViewerContainer } from '../../container/app-container.js';
 import { createWebSocketAdapter } from '../../adapters/websocket-adapter.js';
 import { createConsoleWebSocketBridge } from '../../../common/utils/console-websocket-bridge.js';
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS } from '../../../common/event/event-constants.js';
+import { error as toastError } from '../../../common/utils/thirdparty-toast.js';
 
 /**
  * 应用核心功能域
@@ -100,6 +102,30 @@ export class AppCoreFeature {
     }
 
     // 不再创建独立的 Console 桥接器，避免与容器层冲突与重复日志
+
+    // 全局后端错误 → toast 透传（便于调试）
+    try {
+      const bus = context.globalEventBus;
+      bus.on(WEBSOCKET_EVENTS.MESSAGE.SEND_FAILED, (err) => {
+        try {
+          const msg = (err && err.error_message) || 'WebSocket 消息发送失败';
+          const type = err && err.message_type;
+          toastError(type ? `${type}: ${msg}` : msg, 5000);
+        } catch (_) {}
+      }, { subscriberId: 'AppCoreFeature' });
+
+      bus.on(WEBSOCKET_MESSAGE_EVENTS.ERROR, (payload) => {
+        try {
+          const type = payload && (payload.type || payload.received_type);
+          const errMsg = (payload && (payload.message || payload.error_message))
+            || (payload && payload.error && (payload.error.message || payload.error.code))
+            || '操作失败';
+          toastError(type ? `${type}: ${errMsg}` : errMsg, 6000);
+        } catch (_) {}
+      }, { subscriberId: 'AppCoreFeature' });
+    } catch (e) {
+      logger.warn('注册全局错误 toast 失败', e);
+    }
 
     logger.info('AppCoreFeature installed successfully');
   }

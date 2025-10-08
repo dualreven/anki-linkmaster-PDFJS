@@ -99,6 +99,22 @@ export class WebSocketAdapter {
                 const anchors = message?.data?.anchors || (message?.data?.anchor ? [message.data.anchor] : []);
                 this.#logger.info("[anchor] inbound completed -> emit ANCHOR.DATA.LOADED", { type, count: Array.isArray(anchors) ? anchors.length : 0 });
                 this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED, { anchors }, { actorId: "WebSocketAdapter" });
+              } else if (type === "anchor:activate:completed") {
+                // 先就地更新当前项，再刷新列表以对齐“单选语义”的后端状态
+                try {
+                  const id = message?.data?.anchor_id || message?.data?.uuid || null;
+                  const active = !!(message?.data?.active ?? true);
+                  if (id) {
+                    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.ACTIVATED, { anchorId: String(id), active }, { actorId: "WebSocketAdapter" });
+                  }
+                } catch(e){ this.#logger.warn("anchor activate inbound mapping failed", e); }
+                try {
+                  const params = new URLSearchParams(window.location.search);
+                  const pdfId = params.get("pdf-id");
+                  if (pdfId) {
+                    this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId });
+                  }
+                } catch(e){ this.#logger.warn("noop", e); }
               } else {
                 // 其他完成事件后请求刷新列表（若可获取pdfId）
                 try {

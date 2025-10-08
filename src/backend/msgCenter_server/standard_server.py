@@ -2025,10 +2025,16 @@ class StandardWebSocketServer(QObject):
         if not anchor_id:
             return StandardMessageHandler.build_error_response(request_id or "unknown", "INVALID_REQUEST", "缺少 anchor_id", message_type=MessageType.ANCHOR_ACTIVATE_FAILED, code=400)
         try:
-            ok = self.pdf_library_api.anchor_update(anchor_id, {'is_active': active})
+            ok = self.pdf_library_api.anchor_activate(anchor_id, active)
             if not ok:
                 return StandardMessageHandler.build_error_response(request_id or "unknown", "ANCHOR_ACTIVATE_ERROR", "锚点未更新", message_type=MessageType.ANCHOR_ACTIVATE_FAILED, code=500)
-            return StandardMessageHandler.build_response(MessageType.ANCHOR_ACTIVATE_COMPLETED, request_id or StandardMessageHandler.generate_request_id(), status='success', code=200, message='锚点激活状态已更新', data={'uuid': anchor_id, 'active': active})
+            # 返回简明结果，并携带 anchor_id/active
+            return StandardMessageHandler.build_response(
+                MessageType.ANCHOR_ACTIVATE_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
+                status='success', code=200, message='锚点激活状态已更新',
+                data={'anchor_id': anchor_id, 'active': active}
+            )
         except Exception as exc:
             logger.error("锚点激活更新失败: %s", exc, exc_info=True)
             return StandardMessageHandler.build_error_response(request_id or "unknown", "ANCHOR_ACTIVATE_ERROR", f"锚点激活更新失败: {exc}", message_type=MessageType.ANCHOR_ACTIVATE_FAILED, code=500)

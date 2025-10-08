@@ -5,6 +5,7 @@
  */
 
 import { getLogger } from "../../../../common/utils/logger.js";
+import { showInfo as notifyInfo } from "../../../../common/utils/notification.js";
 import { PDFViewerManager } from "./pdf-viewer-manager.js";
 
 /**
@@ -230,7 +231,7 @@ export class UILayoutControls {
       1: '↔️ 水平滚动模式',
       3: '📃 单页模式'
     };
-    this.#showToast(modeNames[mode] || `滚动模式：${mode}`, 'info');
+    notifyInfo(modeNames[mode] || `滚动模式：${mode}`);
 
     // 同步更新隐藏的select（保持兼容性）
     if (this.#scrollModeSelect) {
@@ -280,7 +281,7 @@ export class UILayoutControls {
       0: '📄 单页模式',
       2: '📖 偶数双页'
     };
-    this.#showToast(modeNames[mode] || `跨页模式：${mode}`, 'info');
+    notifyInfo(modeNames[mode] || `跨页模式：${mode}`);
 
     // 同步更新隐藏的select（保持兼容性）
     if (this.#spreadModeSelect) {
@@ -356,69 +357,7 @@ export class UILayoutControls {
    * @param {string} type - 提示类型 (success|info|warning|error)
    * @private
    */
-  #showToast(message, type = 'info') {
-    // 根据类型选择背景色
-    const typeStyles = {
-      success: 'background: rgba(76, 175, 80, 0.9);', // 绿色
-      info: 'background: rgba(33, 150, 243, 0.9);',    // 蓝色
-      warning: 'background: rgba(255, 152, 0, 0.9);',  // 橙色
-      error: 'background: rgba(244, 67, 54, 0.9);'     // 红色
-    };
-
-    // 创建Toast提示
-    const toast = document.createElement('div');
-    toast.textContent = message;
-    toast.style.cssText = [
-      'position: fixed',
-      'top: 20px',
-      'left: 50%',
-      'transform: translateX(-50%)',
-      typeStyles[type] || typeStyles.info,
-      'color: #fff',
-      'padding: 10px 20px',
-      'border-radius: 4px',
-      'font-size: 14px',
-      'font-weight: 500',
-      'box-shadow: 0 4px 12px rgba(0,0,0,0.2)',
-      'z-index: 10000',
-      'animation: slideDown 0.3s ease-out, fadeOut 0.3s ease-out 2.2s',
-      'pointer-events: none'
-    ].join(';');
-
-    // 添加动画样式（如果还没有添加）
-    if (!document.getElementById('toast-animation-styles')) {
-      const style = document.createElement('style');
-      style.id = 'toast-animation-styles';
-      style.textContent = `
-        @keyframes slideDown {
-          from {
-            opacity: 0;
-            transform: translateX(-50%) translateY(-20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(-50%) translateY(0);
-          }
-        }
-        @keyframes fadeOut {
-          from {
-            opacity: 1;
-          }
-          to {
-            opacity: 0;
-          }
-        }
-      `;
-      document.head.appendChild(style);
-    }
-
-    document.body.appendChild(toast);
-
-    // 2.5秒后移除
-    setTimeout(() => {
-      toast.remove();
-    }, 2500);
-  }
+  // 已移除自定义 toast 方法，改用 frontend/common 下的公共 toast 工具
 
   /**
    * 切换鼠标模式
@@ -461,7 +400,7 @@ export class UILayoutControls {
       'text': '📝 文本选择模式',
       'drag': '🤚 拖拽浏览模式'
     };
-    this.#showToast(modeNames[mode] || `已切换到${mode}模式`, 'info');
+    notifyInfo(modeNames[mode] || `已切换到${mode}模式`);
 
     // 发出事件
     this.#eventBus.emit('pdf-viewer:mouse-mode:changed', {

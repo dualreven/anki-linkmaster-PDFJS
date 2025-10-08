@@ -1,4 +1,4 @@
-﻿/* PDF查看器样式文件 */
+/* PDF查看器样式文件 */
 * {
     margin: 0;
     padding: 0;
@@ -20,34 +20,34 @@ body {
 
 /* 头部样式 */
 header {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  padding: 12px 20px;
-  background-color: #fff;
-  border-bottom: 1px solid #e0e0e0;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  min-height: 60px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background-color: #fff;
+    border-bottom: 1px solid #e0e0e0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    min-height: 60px;
 }
 
-
 .header-left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex: 1 1 auto;
-  min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    /* 允许标题在剩余空间内收缩并触发省略号 */
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 .header-right {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  margin-left: auto;
-  flex: 0 0 auto;
-  white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    margin-left: auto;
+    /* 避免右侧工具区被标题挤压 */
+    flex: 0 0 auto;
+    flex-shrink: 0;
 }
-
 
 .btn {
     padding: 8px 16px;
@@ -79,17 +79,20 @@ h1 {
     color: #333;
 }
 
-/* 书名（标题）在 header 中的截断与省略号 */
+/* 标题省略策略：溢出尾部省略并悬浮显示完整 title */
 #pdf-title {
-  display: block;
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1 1 auto;
-  min-width: 0;
+    margin: 0;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    /* 参与 flex 分配，确保可压缩 */
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
+/* 复制 PDF ID 按钮不参与拉伸，避免影响标题省略 */
+.copy-id-btn { flex: 0 0 auto; }
 
 /* 复制 PDF ID 按钮样式 */
 .copy-id-btn {
@@ -129,7 +132,7 @@ h1 {
     display: flex;
     align-items: center;
     gap: 8px;
-    flex-shrink: 0;       /* 硬性不允许按钮组被挤压 */
+    flex-shrink: 0;
 }
 
 /* 浮动控制面板样式 */
@@ -619,26 +622,16 @@ main {
 /* 响应式设计 */
 @media (max-width: 768px) {
     header {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  padding: 12px 20px;
-  background-color: #fff;
-  border-bottom: 1px solid #e0e0e0;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  min-height: 60px;
-}
+        flex-direction: column;
+        gap: 12px;
+        padding: 8px;
+    }
 
     .header-left,
     .header-right {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  margin-left: auto;
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-
+        width: 100%;
+        justify-content: center;
+    }
 
     .zoom-controls,
     .page-controls {
@@ -650,22 +643,4 @@ main {
         padding: 6px 12px;
         font-size: 12px;
     }
-}
-
-
-
-
-
-
-
-
-/* 书名（标题）在 header 中的截断与省略号 */
-#pdf-title {
-  display: block;
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1 1 auto;
-  min-width: 0;
 }

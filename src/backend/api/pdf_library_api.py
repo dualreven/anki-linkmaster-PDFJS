@@ -787,6 +787,46 @@ class PDFLibraryAPI:
     def anchor_delete(self, anchor_uuid: str) -> bool:
         return self._bookanchor_plugin.delete(anchor_uuid)
 
+    # 事务性激活：同一 pdf_uuid 单活
+    def anchor_activate(self, anchor_uuid: str, active: bool = True) -> bool:
+        row = self._bookanchor_plugin.query_by_id(anchor_uuid)
+        if not row:
+            return False
+        pdf_uuid = row.get('pdf_uuid')
+        if not pdf_uuid:
+            return False
+        # 仅当设置为激活时才需要“先关后开”；停用直接更新自身
+        try:
+            now = int(time.time() * 1000)
+            if active:
+                # 先将同 pdf 下其他激活项取消
+                sql1 = (
+                    "UPDATE pdf_bookanchor "
+                    "SET json_data = json_set(json_data, '$.is_active', 0), updated_at = ?, version = version + 1 "
+                    "WHERE pdf_uuid = ? AND uuid <> ? AND json_extract(json_data, '$.is_active') = 1"
+                )
+                self._executor.execute_update(sql1, (now, pdf_uuid, anchor_uuid))
+                # 再激活目标
+                sql2 = (
+                    "UPDATE pdf_bookanchor "
+                    "SET json_data = json_set(json_data, '$.is_active', 1), visited_at = ?, updated_at = ?, version = version + 1 "
+                    "WHERE uuid = ?"
+                )
+                rows2 = self._executor.execute_update(sql2, (now, now, anchor_uuid))
+                return rows2 > 0
+            else:
+                # 直接停用自身
+                sql = (
+                    "UPDATE pdf_bookanchor "
+                    "SET json_data = json_set(json_data, '$.is_active', 0), updated_at = ?, version = version + 1 "
+                    "WHERE uuid = ?"
+                )
+                rows = self._executor.execute_update(sql, (now, anchor_uuid))
+                return rows > 0
+        except Exception:
+            # 由上层捕获具体错误并包装
+            raise
+
     @staticmethod
     def _ensure_ms(value: Optional[int]) -> int:
         if value is None:
