@@ -1,5 +1,20 @@
 # Memory Bank（精简版 / 权威）
 
+## 当前任务（20251008161957）
+- 名称：拉取 main 并合并到当前分支
+- 问题背景：
+  - 需要保持工作分支与主线 `main` 同步，降低后续集成冲突与回归风险。
+- 相关模块与操作：
+  - Git 仓库：`C:\Users\napretep\PycharmProjects\anki-linkmaster-A`
+  - 远程：`origin/main`
+- 执行步骤（原子化）：
+  1) 设计验证：记录 `HEAD` 与 `origin/main` 的提交哈希；合并后校验 `merge-base` 祖先关系。
+  2) 获取远程：`git fetch origin`，确保 `origin/main` 为最新。
+  3) 合并主线：在当前分支执行 `git merge --no-ff --no-edit origin/main`。
+  4) 若有冲突：列出冲突文件，逐一解决并提交 `git add ... && git commit`。
+  5) 验证：`git merge-base --is-ancestor origin/main HEAD` 返回码为 0；`git status` 干净。
+  6) 回写本文件与 AI-Working-log，并通知完成。
+
 ## 当前任务（20251008161500）
 - 名称：合并 worktree B 并推送到远程
 - 背景：worktree B (feature/pdf-home-add-delete-improvements) 包含排序模式优化和样式改进
