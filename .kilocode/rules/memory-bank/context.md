@@ -1065,3 +1065,8 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
   3) 移除侧边栏额外“复制ID”快捷按钮，仅保留下拉菜单项（复制ID/复制文内链接）；
   4) 新增/调整测试：保留菜单项复制测试，移除快捷按钮测试；
   5) 回写 AI-Working-log 与本文件，并通知完成。
+
+### 推送记录（20251009041000）
+- 分支：worker/branch-C → origin/worker/branch-C
+- 执行：git push origin HEAD
+- 结果：已推送成功
