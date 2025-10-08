@@ -161,6 +161,14 @@ export class CommentTool extends IAnnotationTool {
 
     this.#logger.info('CommentTool activated');
 
+    // 打开标注侧边栏（保持与历史行为一致：激活批注工具时自动弹出侧边栏）
+    try {
+      this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, { sidebarId: 'annotation' });
+      this.#logger.info('Requested opening annotation sidebar on comment tool activation');
+    } catch (e) {
+      this.#logger.warn('Failed to request sidebar open on activation', e);
+    }
+
     // 发布激活事件
     this.#eventBus.emit(
       'annotation-tool:activate:success',
