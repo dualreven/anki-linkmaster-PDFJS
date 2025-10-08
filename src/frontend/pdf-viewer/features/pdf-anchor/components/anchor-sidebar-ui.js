@@ -6,6 +6,7 @@
 
 import { getLogger } from '../../../../common/utils/logger.js';
 import { PDF_VIEWER_EVENTS } from '../../../../common/event/pdf-viewer-constants.js';
+import { success as toastSuccess, error as toastError } from '../../../../common/utils/thirdparty-toast.js';
 
 export class AnchorSidebarUI {
   #eventBus;
@@ -145,6 +146,40 @@ export class AnchorSidebarUI {
     });
 
     // 复制下拉按钮
+    const copyTextRobust = async (text, labelForToast) => {
+      try {
+        // 优先使用 Clipboard API（部分 QWebEngine 可能不支持）
+        if (navigator?.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+          try { toastSuccess(`已复制${labelForToast ? `(${labelForToast})` : ''}`); } catch(_) {}
+          return true;
+        }
+      } catch (e) {
+        // ignore and fallback
+      }
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = String(text);
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.top = '-1000px';
+        ta.style.left = '-1000px';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (ok) {
+          try { toastSuccess(`已复制${labelForToast ? `(${labelForToast})` : ''}`); } catch(_) {}
+          return true;
+        }
+      } catch (e) {
+        // fall through
+      }
+      try { toastError('复制失败，请手动选择并复制'); } catch(_) {}
+      return false;
+    };
     const copyWrap = document.createElement('div');
     copyWrap.style.cssText = 'position:relative; display:inline-block;';
     const copyBtn = mkBtn('copy', '复制', '复制/拷贝选项');
@@ -183,10 +218,7 @@ export class AnchorSidebarUI {
     // 2) 复制锚点ID
     menu.appendChild(mkMenuItem('复制锚点ID', '复制选中锚点ID', async () => {
       if (!this.#selectedId) return;
-      try {
-        if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(this.#selectedId); }
-        else { const ta = document.createElement('textarea'); ta.value = this.#selectedId; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
-      } catch(_) {}
+      await copyTextRobust(this.#selectedId, '锚点ID');
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPY, { anchorId: this.#selectedId }, { actorId: 'AnchorToolbar' });
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPIED, { anchorId: this.#selectedId }, { actorId: 'AnchorToolbar' });
     }));
@@ -195,10 +227,7 @@ export class AnchorSidebarUI {
     menu.appendChild(mkMenuItem('复制文内链接', '复制 [[锚点id]]', async () => {
       if (!this.#selectedId) return;
       const link = `[[${this.#selectedId}]]`;
-      try {
-        if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(link); }
-        else { const ta = document.createElement('textarea'); ta.value = link; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
-      } catch(_) {}
+      await copyTextRobust(link, '文内链接');
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPY, { anchorId: this.#selectedId, wiki: true }, { actorId: 'AnchorToolbar' });
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPIED, { anchorId: this.#selectedId, wiki: true }, { actorId: 'AnchorToolbar' });
     }));
