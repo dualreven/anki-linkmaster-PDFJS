@@ -422,12 +422,9 @@ export class PDFAnchorFeature {
   }
 
   #startUpdateTimer() {
+    // 暂停心跳机制：不再自动更新页码/位置（应用户要求）
     this.#stopUpdateTimer();
-    if (!this.#activeAnchorId) {return;}
-    this.#updateTimer = setInterval(() => {
-      // 1秒心跳，直接回写当前页码与位置（最简单暴力实现）
-      try { this.#snapshotAndUpdate(this.#activeAnchorId); } catch(e){ this.#logger.warn('heartbeat snapshot failed', e); }
-    }, 1000);
+    this.#updateTimer = null;
   }
 
   #stopUpdateTimer() {
