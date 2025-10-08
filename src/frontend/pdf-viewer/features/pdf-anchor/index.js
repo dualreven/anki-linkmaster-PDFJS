@@ -7,7 +7,8 @@
 import { getLogger } from "../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
 import { WEBSOCKET_EVENTS } from "../../../common/event/event-constants.js";
-import { success as toastSuccess, warning as toastWarning } from "../../../common/utils/thirdparty-toast.js";
+import { success as toastSuccess, warning as toastWarning, error as toastError } from "../../../common/utils/thirdparty-toast.js";
+import { WEBSOCKET_MESSAGE_EVENTS } from "../../../common/event/event-constants.js";
 import { URLParamsParser } from "../url-navigation/components/url-params-parser.js";
 
 export class PDFAnchorFeature {
@@ -20,6 +21,8 @@ export class PDFAnchorFeature {
   #activeAnchorId = null;
   #updateTimer = null;
   #pendingUrlAnchorId = null;
+  #scrollHintShown = false;
+  #scrollListeners = [];
 
   get name() { return "pdf-anchor"; }
   get version() { return "1.0.0"; }
@@ -35,6 +38,7 @@ export class PDFAnchorFeature {
     if (!this.#navigationService) {this.#logger.warn("navigationService not found, will fallback to DOM ops");}
 
     this.#setupEventListeners();
+    this.#ensureScrollDiagnostics();
     // 安装时主动检查 URL（避免错过 URL_PARAMS.PARSED 早期事件）
     try {
       this.#bootstrapFromURL();
@@ -44,6 +48,7 @@ export class PDFAnchorFeature {
 
   async uninstall() {
     this.#stopUpdateTimer();
+    try { this.#removeScrollDiagnostics(); } catch (_) {}
     this.#anchorsById.clear();
     this.#activeAnchorId = null;
     this.#eventBus = null;
@@ -93,11 +98,11 @@ export class PDFAnchorFeature {
           this.#anchorsById.set(String(anchors.uuid), anchors);
         }
 
-        // URL 携带 anchor-id 时的处理：如果记录标记为激活，则提示并导航
+        // URL 携带 anchor-id 时的处理：无须依赖“激活”属性，直接作为本次会话的跟踪锚点
         if (this.#pendingUrlAnchorId) {
           const a = this.#anchorsById.get(this.#pendingUrlAnchorId);
-          if (a && a.is_active) {
-            toastSuccess(`激活锚点, ${a.name || a.uuid}`);
+          if (a) {
+            toastSuccess(`跟踪锚点: ${a.name || a.uuid}`);
             // 导航到最近一次记录的位置
             const pageAt = parseInt(a.page_at || 1, 10);
             const pos = typeof a.position === "number" ? Math.max(0, Math.min(100, a.position * 100)) : null;
@@ -107,8 +112,6 @@ export class PDFAnchorFeature {
             // 启动后台更新（3秒节拍）
             this.#activeAnchorId = a.uuid;
             this.#startUpdateTimer();
-          } else if (a) {
-            toastWarning(`锚点未激活: ${a.name || a.uuid}`);
           }
           // 仅处理一次
           this.#pendingUrlAnchorId = null;
@@ -211,28 +214,114 @@ export class PDFAnchorFeature {
       { subscriberId: "PDFAnchorFeature" }
     );
 
-    // 激活锚点
+    // 激活锚点（单选语义：同时将其他锚点置为未激活）
     this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANCHOR.ACTIVATE,
       ({ anchorId, active = true }) => {
         const id = String(anchorId || "").trim();
         if (!id) {return;}
-        this.#activeAnchorId = id;
+        const nextActive = !!active;
+
+        // 更新选中项
         const a = this.#anchorsById.get(id) || { uuid: id };
-        a.is_active = !!active;
+        a.is_active = nextActive;
         this.#anchorsById.set(id, a);
+
+        // 单选：当设置为激活时，其它全部取消激活
+        if (nextActive) {
+          for (const [aid, item] of this.#anchorsById.entries()) {
+            if (aid !== id && item && item.is_active) {
+              item.is_active = false;
+              this.#anchorsById.set(aid, item);
+            }
+          }
+        }
+
+        // 广播当前项激活状态改变
         this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.ACTIVATED, { anchorId: id, active: a.is_active }, { actorId: "PDFAnchorFeature" });
-        try { toastSuccess(a.is_active ? `已激活锚点: ${a.name || id}` : `已停用锚点: ${a.name || id}`); } catch(e){ this.#logger.warn("noop", e); }
-        // 立即记录一次当前位置
-        this.#snapshotAndUpdate(id);
-        // 启动周期更新
-        this.#startUpdateTimer();
+        // 刷新整表，体现单选效果
+        this.#emitList();
+
+        // 提示 + 心跳
+        try { toastSuccess(nextActive ? `已激活锚点: ${a.name || id}` : `已停用锚点: ${a.name || id}`); } catch(e){ this.#logger.warn("noop", e); }
+        if (nextActive) {
+          this.#activeAnchorId = id;
+          this.#snapshotAndUpdate(id);
+          this.#startUpdateTimer();
+        } else {
+          if (this.#activeAnchorId === id) { this.#activeAnchorId = null; }
+          this.#stopUpdateTimer();
+        }
       },
       { subscriberId: "PDFAnchorFeature" }
     );
 
+    // 页面导航变更时，若存在已激活的锚点，则立即采样并更新一次（提升滚动时的即时性）
+    this.#eventBus.on(
+      PDF_VIEWER_EVENTS.NAVIGATION.CHANGED,
+      () => {
+        if (this.#activeAnchorId) {
+          try { this.#snapshotAndUpdate(this.#activeAnchorId); } catch (e) { this.#logger.warn('anchor snapshot on navigation failed', e); }
+        }
+      },
+      { subscriberId: 'PDFAnchorFeature' }
+    );
+
+    // WebSocket 错误提示：锚点域相关错误直接 toast 到前端，便于定位
+    this.#eventBus.on(
+      WEBSOCKET_MESSAGE_EVENTS.ERROR,
+      (err) => {
+        try {
+          const t = String(err?.received_type || err?.type || "");
+          if (t.startsWith('anchor:')) {
+            const msg = err?.error?.message || err?.message || '锚点相关操作失败';
+            toastError(`[锚点错误] ${msg}`);
+          }
+        } catch(_) {}
+      },
+      { subscriberId: 'PDFAnchorFeature' }
+    );
+
     // 页面销毁/关闭时清理
     window.addEventListener("beforeunload", () => this.#stopUpdateTimer());
+  }
+
+  #ensureScrollDiagnostics() {
+    let viewerContainer = null;
+    try { viewerContainer = document.getElementById("viewerContainer"); } catch (_) {}
+
+    if (!viewerContainer) {
+      if (!this.#scrollHintShown) {
+        this.#scrollHintShown = true;
+        toastWarning('未找到文档滚动容器，请在文档区域滚动以更新锚点位置');
+      }
+      return;
+    }
+
+    // 在文档区域滚动时，若存在激活锚点，立即采样更新（去抖动）
+    let debounceTimer = null;
+    const onDocScroll = () => {
+      if (!this.#activeAnchorId) return;
+      if (debounceTimer) { clearTimeout(debounceTimer); }
+      debounceTimer = setTimeout(() => {
+        try { this.#snapshotAndUpdate(this.#activeAnchorId); } catch (e) { this.#logger.warn('snapshot on doc scroll failed', e); }
+      }, 120);
+    };
+    viewerContainer.addEventListener('scroll', onDocScroll, { passive: true });
+    this.#scrollListeners.push(() => viewerContainer.removeEventListener('scroll', onDocScroll));
+
+    // 如果用户滚动了窗口而非文档容器，提示一次
+    const onWinScroll = () => {
+      if (this.#scrollHintShown) return;
+      this.#scrollHintShown = true;
+      toastWarning('检测到窗口滚动，请在文档区域内滚动以更新锚点位置');
+    };
+    window.addEventListener('scroll', onWinScroll, { passive: true });
+    this.#scrollListeners.push(() => window.removeEventListener('scroll', onWinScroll));
+  }
+
+  #removeScrollDiagnostics() {
+    try { this.#scrollListeners.forEach(off => { try { off(); } catch(_){} }); } finally { this.#scrollListeners = []; }
   }
 
   #bootstrapFromURL() {

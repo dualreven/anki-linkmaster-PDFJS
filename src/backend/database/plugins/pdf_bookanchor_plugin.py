@@ -49,7 +49,7 @@ class PDFBookanchorTablePlugin(TablePlugin):
     # ==================== 建表 ====================
 
     def create_table(self) -> None:
-        script = """
+        base_script = """
         PRAGMA foreign_keys = ON;
 
         CREATE TABLE IF NOT EXISTS pdf_bookanchor (
@@ -71,6 +71,8 @@ class PDFBookanchorTablePlugin(TablePlugin):
         CREATE INDEX IF NOT EXISTS idx_bookanchor_pdf_page ON pdf_bookanchor(pdf_uuid, page_at);
         CREATE INDEX IF NOT EXISTS idx_bookanchor_visited ON pdf_bookanchor(visited_at DESC);
 
+        -- 单活约束：每个 pdf_uuid 同时最多一个 is_active=true（存储在 json_data.is_active）
+        -- 使用表达式唯一索引（SQLite 支持）
         -- 触发器：额外保护 uuid 前缀与长度（兼容旧库无法直接添加更复杂 CHECK 的场景）
         CREATE TRIGGER IF NOT EXISTS trg_pdf_bookanchor_uuid_ins
         BEFORE INSERT ON pdf_bookanchor
@@ -89,7 +91,40 @@ class PDFBookanchorTablePlugin(TablePlugin):
         END;
         """
 
-        self._executor.execute_script(script)
+        # 先执行基础表与普通索引/触发器，避免因唯一索引触发历史数据冲突导致初始化失败
+        self._executor.execute_script(base_script)
+
+        # 规范化历史数据：为每个 pdf_uuid 保留“最近一次激活”的记录，其余激活置为 0
+        try:
+            normalize_sql = (
+                "UPDATE pdf_bookanchor AS a SET json_data = json_set(json_data, '$.is_active', 0) "
+                "WHERE json_extract(a.json_data, '$.is_active') = 1 "
+                "AND EXISTS ("
+                "  SELECT 1 FROM pdf_bookanchor AS b "
+                "  WHERE json_extract(b.json_data, '$.is_active') = 1 "
+                "    AND b.pdf_uuid = a.pdf_uuid "
+                "    AND (b.updated_at > a.updated_at "
+                "         OR (b.updated_at = a.updated_at AND b.created_at > a.created_at) "
+                "         OR (b.updated_at = a.updated_at AND b.created_at = a.created_at AND b.rowid > a.rowid))"
+                ")"
+            )
+            self._executor.execute_update(normalize_sql)
+        except Exception as exc:
+            if self._logger:
+                self._logger.warning('normalize single-active anchors failed: %s', exc)
+
+        # 再尝试创建“单活”唯一索引；若已有历史冲突未完全清理，忽略异常但记录警告，不阻断初始化
+        try:
+            idx_sql = (
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_bookanchor_single_active "
+                "ON pdf_bookanchor(pdf_uuid) "
+                "WHERE json_extract(json_data, '$.is_active') = 1"
+            )
+            self._executor.execute_update(idx_sql)
+        except Exception as exc:
+            if self._logger:
+                self._logger.warning('create unique index uq_bookanchor_single_active failed (will continue without hard constraint): %s', exc)
+
         self._emit_event('create', 'completed')
         if self._logger:
             self._logger.info('pdf_bookanchor table ensured')
