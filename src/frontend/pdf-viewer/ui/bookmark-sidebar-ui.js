@@ -1,6 +1,6 @@
 /**
- * 书签侧边栏UI
- * @file 渲染书签树并处理交互
+ * 大纲侧边栏UI
+ * @file 渲染大纲树并处理交互
  * @module BookmarkSidebarUI
  */
 
@@ -13,13 +13,13 @@ export class BookmarkSidebarUI {
   #logger;
   #container;
   #sidebar;
-  #sidebarHeader; // 书签侧边栏的header元素（包含关闭按钮）
-  #sidebarContent; // 书签侧边栏的内容区域（完整容器，包含工具栏+列表）
-  #bookmarkList; // 书签列表容器
+  #sidebarHeader; // 大纲侧边栏的header元素（包含关闭按钮）
+  #sidebarContent; // 大纲侧边栏的内容区域（完整容器，包含工具栏+列表）
+  #bookmarkList; // 大纲列表容器
   #toolbar; // 工具栏组件
   #toggleBtn;
   #bookmarks = [];
-  #selectedBookmarkId = null; // 当前选中的书签ID
+  #selectedBookmarkId = null; // 当前选中的大纲ID
   #sortMode = false; // 排序模式状态
   #isDragging = false; // 是否正在拖拽（通过悬浮拖拽柄触发）
   #unsubs = [];
@@ -383,7 +383,7 @@ export class BookmarkSidebarUI {
       { actorId: 'BookmarkSidebarUI' }
     );
 
-    this.#logger.debug(`Bookmark selected: ${bookmarkId}`);
+    this.#logger.debug(`Outline selected: ${bookmarkId}`);
   }
 
   /**
@@ -522,40 +522,23 @@ export class BookmarkSidebarUI {
       }
 
       newParentId = targetParentId;
-
-      // 如果在同一父级下移动
-      if (draggedParentId === targetParentId) {
-        const draggedIndex = siblings.findIndex(b => b.id === draggedId);
-
-        if (draggedIndex === -1) {
-          this.#logger.warn(`Dragged bookmark not found in siblings, treating as cross-parent move`);
-          newIndex = dropZone === 'before' ? targetIndex : targetIndex + 1;
-        } else {
-          if (dropZone === 'before') {
-            newIndex = targetIndex;
-            if (draggedIndex < targetIndex) {
-              newIndex = targetIndex - 1;
-            }
-          } else {
-            newIndex = targetIndex;
-            if (draggedIndex > targetIndex) {
-              newIndex = targetIndex + 1;
-            }
-          }
-        }
-      } else {
-        // 跨父级移动
-        newIndex = dropZone === 'before' ? targetIndex : targetIndex + 1;
-      }
+      // 统一的索引策略（与后端管理器的同父左移修正配合）：
+      // - before: 传递 targetIndex
+      // - after:  传递 targetIndex + 1
+      // BookmarkManager 在同父且 oldIdx < targetIndex 的情况下会将内部插入索引左移 1，
+      // 从而实现最终“before/after”语义的稳定结果。
+      newIndex = (dropZone === 'before') ? targetIndex : (targetIndex + 1);
     }
 
-    // 发出重新排序事件
+    // 发出重新排序事件（同时附带引用与位置，便于特性层重新计算更稳妥的索引）
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.BOOKMARK.REORDER.REQUESTED,
       {
         bookmarkId: draggedId,
         newParentId: newParentId,
-        newIndex
+        newIndex,
+        referenceId: targetId,
+        position: dropZone
       },
       { actorId: 'BookmarkSidebarUI' }
     );

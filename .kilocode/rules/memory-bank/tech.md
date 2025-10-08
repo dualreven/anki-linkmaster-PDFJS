@@ -566,3 +566,9 @@ emove_comment(ann_id, comment_id)。
 - 验收基线
   - 删除根节点：仅该根及其子孙被移除；其它根不受影响；刷新后保持一致。
   - 删除子节点：仅该节点（及其子孙）被移除；父与同级以及其它根不受影响；刷新后保持一致。
+### 大纲（原书签）拖拽排序索引策略（2025-10-08）
+- UI 与数据层的配合：
+  - UI 在 drop 事件中对同父情形计算 newIndex：`before => targetIndex`，`after => targetIndex + 1`；
+  - 数据层（BookmarkManager.reorderBookmarks）在同父且 `oldIdx < targetIndex` 时执行一次左移修正（`targetIndex -= 1`），最终效果与语义保持一致；
+- 这样可以消除“UI 与数据层双重修正”的叠加导致的偏移，避免回读后看起来“节点消失/跑飞”。
+- 术语统一：UI 中文展示统一由“书签”改为“大纲”，事件常量与模块命名保持不变。
