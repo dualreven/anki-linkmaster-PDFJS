@@ -21,7 +21,9 @@ Usage:
   python src/frontend/pdf-viewer/launcher.py --pdf-id sample --page-at 5 --position 50
 
   # 携带锚点ID（用于前端 Anchor Feature，例如 DEV: pdfanchor-test 或正式: pdfanchor-xxxxxxxxxxxx）
+  # 等价写法：--anchor-id 或 --pdfanchor
   python src/frontend/pdf-viewer/launcher.py --pdf-id sample --anchor-id pdfanchor-test
+  python src/frontend/pdf-viewer/launcher.py --pdf-id sample --pdfanchor pdfanchor-test
 
   # 完整示例：指定所有参数
   python src/frontend/pdf-viewer/launcher.py \\
@@ -34,6 +36,7 @@ URL Navigation Parameters:
   --page-at PAGE       目标页码（从1开始）
   --position PERCENT   页面内垂直位置百分比（0-100）
   --anchor-id ID       锚点ID（DEV: pdfanchor-test / 正式: pdfanchor- + 12位hex）
+  --pdfanchor ID       锚点ID（与 --anchor-id 等价的别名，便于记忆）
 
 Note:
   URL导航参数会传递给前端的url-navigation Feature处理。
@@ -238,12 +241,17 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--page-at", type=int, dest="page_at", help="Target page number to navigate to (1-based index)")
     parser.add_argument("--position", type=float, dest="position", help="Vertical position percentage within the page (0-100)")
     parser.add_argument("--anchor-id", type=str, dest="anchor_id", help="Anchor ID (e.g., pdfanchor-test or pdfanchor-<12-hex>)")
+    parser.add_argument("--pdfanchor", type=str, dest="pdfanchor", help="Alias of --anchor-id for convenience")
     parser.add_argument("--diagnose-only", action="store_true", help="Run initialization diagnostics and exit before starting the Qt event loop")
     parser.add_argument("--disable-webchannel", action="store_true", help="Skip QWebChannel bridge setup")
     parser.add_argument("--disable-websocket", action="store_true", help="Skip QWebSocket bridge connection")
     parser.add_argument("--disable-js-console", action="store_true", help="Skip JavaScript console logger thread")
     parser.add_argument("--disable-frontend-load", action="store_true", help="Skip loading the front-end URL into the WebEngine view")
-    return parser.parse_args(argv)
+    ns = parser.parse_args(argv)
+    # Normalize alias: --pdfanchor → --anchor-id
+    if getattr(ns, 'pdfanchor', None) and not getattr(ns, 'anchor_id', None):
+        setattr(ns, 'anchor_id', ns.pdfanchor)
+    return ns
 
 
 def _setup_logging(pdf_id: str = "empty") -> None:

@@ -356,6 +356,11 @@ export class WSClient {
       }
 
       let targetEvent = null;
+      const typeStrGeneric = String(message.type || '');
+      // 通用失败类型路由到 ERROR（例如 anchor:update:failed / pdf-library:*:failed 等）
+      if (typeStrGeneric.endsWith(':failed')) {
+        targetEvent = WEBSOCKET_MESSAGE_EVENTS.ERROR;
+      } else {
       switch (message.type) {
       case "pdf_list_updated":
         targetEvent = WEBSOCKET_MESSAGE_EVENTS.PDF_LIST_UPDATED;
@@ -463,8 +468,9 @@ export class WSClient {
       case "system_status":
         targetEvent = WEBSOCKET_MESSAGE_EVENTS.SYSTEM_STATUS;
         break;
-      default:
-        targetEvent = WEBSOCKET_MESSAGE_EVENTS.UNKNOWN;
+        default:
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.UNKNOWN;
+      }
       }
 
       if (targetEvent) {

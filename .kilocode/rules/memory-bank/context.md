@@ -1,4 +1,4 @@
-# Memory Bank（精简版 / 权威）
+﻿# Memory Bank（精简版 / 权威）
 
 ## 当前任务（20251008190000）
 - 名称：阅读理解 annotation 插件（PDF Viewer 标注功能）
@@ -957,3 +957,25 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - 验证：
   - 截图保存后应看到 `annotation:save:completed`；刷新后 `annotation:list:completed` 返回的数据能渲染至侧栏。
 - 影响范围：仅前端；后端插件与协议不变。
+## 当前任务（20251008100000）
+- 名称：合并远端 main 到当前分支(worker/branch-C)
+- 执行：
+  1) git fetch origin --prune（远端握手失败，使用本地已有远端引用）
+  2) git merge --no-ff --no-edit origin/main（Already up to date）
+- 结果：当前分支与 origin/main 一致，无需额外冲突处理。
+— UTF-8 / \n —
+## 当前任务（20251008101200）
+- 名称：修复锚点侧栏“激活导致其它行变成否”
+- 背景：入站 nchor:activate:completed 触发全量列表刷新，后端列表中的 is_active 被统一重置，UI 显示为“否”。
+- 改动：
+  - websocket-adapter：对 nchor:activate:completed 仅派发 ANCHOR.ACTIVATED，不刷新列表。
+- 结果：点击激活仅影响目标行，其他行保持原状态。
+— UTF-8 / \n —
+
+- 追加修复（20251008075200）：在 PDFAnchorFeature 中监听 NAVIGATION.CHANGED，当存在激活锚点时即时采样并触发 UPDATE，解决滚动时页码不及时更新的问题。
+
+- 错误提示增强（20251008075200）：PDFAnchorFeature 增加滚动诊断与 Anchor 域错误 toast（WS 错误收到 anchor:* 类型时直接前端提示）。
+
+- 需求对齐（20251008075200）：参数优先的锚点模式——当 URL 携带 anchor-id 时，直接将其作为本次会话的跟踪锚点（无需依赖 is_active），启动导航与实时更新。
+
+- 启动参数增强（20251008081500）：launcher.py 新增 --pdfanchor 参数别名（等价 --anchor-id），解析后归一化为 anchor_id 并按原逻辑注入 URL。
