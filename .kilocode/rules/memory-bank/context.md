@@ -1049,3 +1049,13 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - 问题：导入 Annotation 模型使用大小写不统一路径 `../annotation/models/Annotation.js`，在部分环境可能大小写敏感导致模块解析或双实例问题，触发“快速标注”报错；
 - 修复：改为统一小写路径 `../annotation/models/annotation.js`，与全局保持一致；
 - 复现/验证：在未进入高亮模式下，直接选择文本点击“标注”按钮应创建高亮标注，无报错。
+\n## 当前任务（20251009054530）
+- 名称：重新从远程 main 拉取并合并当前分支（worker/branch-A）
+- 执行记录：
+  - 拉取：`git fetch origin` 成功
+  - 合并：`git merge --no-ff --no-edit origin/main`（提交：30066cc）
+  - 冲突：无（自动合并完成）
+  - 验证：`git merge-base --is-ancestor origin/main HEAD` = 0 [OK]
+- 后续：
+  - 继续处理工作区未提交的开发改动（如有），按原子提交拆分
+  - 如需，推送当前分支：`git push origin worker/branch-A`
