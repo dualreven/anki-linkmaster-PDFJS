@@ -351,18 +351,66 @@ export class PDFAnchorFeature {
     const id = String(anchorId || "").trim();
     if (!id) {return;}
     try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(id);
-      } else {
-        const ta = document.createElement("textarea");
-        ta.value = id;
+      // 先同步尝试 execCommand，保留用户激活上下文
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = String(id);
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.top = '-1000px';
+        ta.style.left = '-1000px';
+        ta.style.opacity = '0';
         document.body.appendChild(ta);
+        try { ta.focus(); } catch(_) {}
         ta.select();
-        document.execCommand("copy");
-        ta.remove();
-      }
-      toastSuccess(`已复制锚点ID: ${id}`);
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPIED, { anchorId: id }, { actorId: "PDFAnchorFeature" });
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (ok) {
+          toastSuccess(`已复制锚点ID: ${id}`);
+          this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPIED, { anchorId: id }, { actorId: "PDFAnchorFeature" });
+          return;
+        }
+      } catch(_) {}
+
+      // Clipboard API
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(id);
+          toastSuccess(`已复制锚点ID: ${id}`);
+          this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPIED, { anchorId: id }, { actorId: "PDFAnchorFeature" });
+          return;
+        }
+      } catch(_) {}
+
+      // QWebChannel（PyQt）
+      try {
+        const ok = await new Promise((resolve) => {
+          try {
+            if (typeof qt === 'undefined' || !qt.webChannelTransport) { resolve(false); return; }
+            if (typeof QWebChannel === 'undefined') { resolve(false); return; }
+            new QWebChannel(qt.webChannelTransport, (channel) => {
+              try {
+                const bridge = channel?.objects?.pdfViewerBridge;
+                if (bridge && typeof bridge.setClipboardText === 'function') {
+                  Promise.resolve(bridge.setClipboardText(String(id)))
+                    .then((res) => resolve(!!res))
+                    .catch(() => resolve(false));
+                } else {
+                  resolve(false);
+                }
+              } catch(_) { resolve(false); }
+            });
+          } catch(_) { resolve(false); }
+        });
+        if (ok) {
+          toastSuccess(`已复制锚点ID: ${id}`);
+          this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPIED, { anchorId: id }, { actorId: "PDFAnchorFeature" });
+          return;
+        }
+      } catch(_) {}
+
+      // 全部失败
+      toastError('复制失败，请手动选择并复制');
     } catch (e) {
       this.#logger.error("复制锚点ID失败", e);
     }

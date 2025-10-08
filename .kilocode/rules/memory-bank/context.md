@@ -1,22 +1,5 @@
 ﻿# Memory Bank（精简版 / 权威）
 
-## 当前任务（20251009013556）
-- 名称：提交、合并 worktree C 并推送
-- 问题背景：
-  - 需要将 worktree C 的代码合入当前分支，保持分支间一致性并推进集成。
-- 相关操作：
-  - Git 仓库：`C:\Users\napretep\PycharmProjects\anki-linkmaster-PDFJS`
-  - 使用 `git worktree list` 定位 C 对应的工作树与分支
-- 执行步骤（原子化）：
-  1) 记录当前分支与 HEAD 提交（`git branch --show-current` / `git rev-parse --short HEAD`）
-  2) 提交未提交的改动：`git add -A && git commit -m "chore: save WIP before merging worktree C"`（若无改动则跳过）
-  3) 获取工作树列表：`git worktree list` 并识别“C”所对应的工作树路径与分支名
-  4) 在当前分支执行合并：`git merge --no-ff --no-edit <C-branch>`
-  5) 若有冲突：逐项解决后 `git add` 并 `git commit` 完成合并
-  6) 推送：`git push`（若当前分支未设置上游，则先 `git push --set-upstream origin <branch>`）
-  7) 校验：`git status` 干净；`git log --oneline -n 5` 可见合并提交
-  8) 回写本文件与 AI-Working-log，并通过 `notify-tts` 提示完成
-
 ## 当前任务（20251008190000）
 - 名称：阅读理解 annotation 插件（PDF Viewer 标注功能）
 - 问题背景：
@@ -974,40 +957,6 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - 验证：
   - 截图保存后应看到 `annotation:save:completed`；刷新后 `annotation:list:completed` 返回的数据能渲染至侧栏。
 - 影响范围：仅前端；后端插件与协议不变。
- 
-
-## 当前任务（20251009005807）
-- 名称：统一 pdf-viewer 模块内的 Toast 实现
-- 问题背景：
-  - pdf-viewer 下多处使用自定义 DOM 实现的 toast（#showToast/#toast），风格与位置不统一；
-  - 已存在公共工具：src/frontend/common/utils/thirdparty-toast.js（success/warning/error/pending/close）与 src/frontend/common/utils/notification.js（showInfo/showSuccess/showError）；
-- 决策：
-  - success/error/warning → 使用 thirdparty-toast（右上角、一致的风格）；
-  - info → 使用 notification.showInfo（右上角）；
-  - 已有引用 thirdparty-toast 的 pdf-anchor 保持不变；
-- 影响文件（计划变更）：
-  - annotation/components/annotation-sidebar-ui.js（移除自定义 #showToast/#showCopyToast，替换为公共方法）
-  - pdf-translator/components/TranslatorSidebarUI.js（移除自定义 #showToast，替换为公共方法）
-  - pdf-bookmark/index.js（移除 #toast，替换为公共方法）
-  - pdf-bookmark/components/bookmark-toolbar.js（移除 #showToast，替换为 showInfo）
-  - ui-manager/components/ui-manager-core.js（移除 #showToast，替换为 success/error）
-  - ui-manager/components/ui-layout-controls.js（移除 #showToast，替换为 showInfo）
-- 执行步骤（原子化）：
-  1) 扫描并列出 pdf-viewer 下所有 toast 使用点（完成）
-  2) 为各文件添加公共 toast import 并替换调用
-  3) 删除自定义 toast 方法与相关样式注入代码
-  4) 添加 Jest 文本断言测试：包含公共 import，且不包含 '#showToast(' / 'toast.textContent' 等自定义实现痕迹
-  5) 运行测试，回写日志与本文件，并通知完成
-
-
-### 执行结果（toast 统一化）
-- 已替换 annotation/pdf-translator/pdf-bookmark/ui-manager 中所有自定义 DOM toast 调用为公共 toast 工具
-- pdf-anchor 维持原有 thirdparty-toast 引用
-- 测试：src/frontend/pdf-viewer/__tests__/toast-usage.test.js 全部通过
-- 约定：
-  * success/error/warning -> thirdparty-toast
-  * info -> notification.showInfo
- 
 ## 当前任务（20251008100000）
 - 名称：合并远端 main 到当前分支(worker/branch-C)
 - 执行：
@@ -1031,18 +980,18 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 
 - 启动参数增强（20251008081500）：launcher.py 新增 --pdfanchor 参数别名（等价 --anchor-id），解析后归一化为 anchor_id 并按原逻辑注入 URL。
 
-- UI 调整（20251008082000）：移除锚点侧栏"激活"按钮，改为复制下拉（拷贝副本/复制ID/复制文内链接 [[id]]）。
- 
-
-## 当前任务（20251009020020）
-- 名称：优化 pdf-viewer header 标题显示
-- 背景：title 与右侧按钮工具栏在窄屏时争抢空间，影响可读性；期望当空间不足时标题自动尾部省略，并通过 tooltip 显示完整书名。
-- 方案：
-  - CSS：header-left 设为 flex:1; min-width:0；#pdf-title 设置 white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%；header-right 保持 flex-shrink:0
-  - JS：UIManagerCore.#updateHeaderTitle 写入 textContent 的同时设置 title 属性，供系统 tooltip 展示
-- 影响：index.html（结构已有，保持不变）、assets/style.css（追加覆盖样式）、ui-manager-core.js（更新标题时写 title）
-- 验证：添加静态守护测试断言 CSS/JS 片段存在
-
+- UI 调整（20251008082000）：移除锚点侧栏"激活"按钮，改为复制下拉（拷贝副本/复制ID/复制文内链接 [[id]]）。\n## 当前任务（20251009025517）
+- 名称：拉取 main 并合并到当前分支
+- 执行步骤（原子化）：
+  1) 设计验证：记录HEAD与origin/main哈希；合并后校验merge-base祖先关系
+  2) 获取远程：git fetch origin
+  3) 合并主线：git merge --no-ff --no-edit origin/main
+  4) 若有冲突：逐一解决并提交
+  5) 验证：git merge-base --is-ancestor origin/main HEAD=0；git status 干净
+\n## 当前任务（20251009025710）
+- 名称：拉取 main 并合并到当前分支（已完成）
+- 结果：合并成功，冲突仅限 context.md，已采用远端版本并追加本次记录；工作区其他变更已合并。
+- 校验：将执行 merge-base 祖先校验与工作区清理校验。
 
 ### pdf-viewer 启动策略调整（2025-10-09）
 - 由 pdf-home 启动 viewer 改为调用 launcher（子进程）
@@ -1059,3 +1008,22 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 ### 日志清空（pdf-home 启动 viewer）
 - 每次在 _compute_js_log_path 中以 UTF-8 覆写空内容，保证新会话日志从空开始
 - 仅影响 JS 日志（logs/pdf-viewer-<id>-js.log），Python 日志仍归 pdf-home
+
+## 当前任务（20251009030905）
+- 名称：修复 pdf-viewer 锚点侧边栏复制（复制ID/复制文内链接）不可用问题
+- 问题背景：
+  - 部分环境（QtWebEngine/权限判定）下 `navigator.clipboard.writeText` 失败，`document.execCommand('copy')` 也可能不可用；
+  - 现有侧栏 `AnchorSidebarUI` 与特性 `PDFAnchorFeature` 仅做浏览器侧回退，导致用户点击“复制ID/文内链接”无效；
+  - PyQt 主窗体已开启 `JavascriptCanAccessClipboard` 且页面自动注入 qwebchannel.js，可通过 QWebChannel 调用 Python 端设置剪贴板；
+- 相关模块与文件：
+  - 前端：
+    - `src/frontend/pdf-viewer/features/pdf-anchor/components/anchor-sidebar-ui.js`（复制菜单/快捷按钮逻辑）
+    - `src/frontend/pdf-viewer/features/pdf-anchor/index.js`（监听 `anchor:copy:requested` 并复制）
+  - Python/QWebChannel：
+    - `src/frontend/pdf-viewer/pyqt/pdf_viewer_bridge.py`（新增剪贴板槽：`setClipboardText`）
+- 执行步骤（原子化）：
+  1) 在 Python 端桥接对象新增 `setClipboardText(text: str) -> bool`，使用 Qt 剪贴板实现；
+  2) 在 AnchorSidebarUI 的 `copyTextRobust` 与 PDFAnchorFeature 的 `#copyToClipboard` 采用 header 同款顺序：同步 `execCommand('copy')` → Clipboard API → QWebChannel；
+  3) 移除侧边栏额外“复制ID”快捷按钮，仅保留下拉菜单项（复制ID/复制文内链接）；
+  4) 新增/调整测试：保留菜单项复制测试，移除快捷按钮测试；
+  5) 回写 AI-Working-log 与本文件，并通知完成。

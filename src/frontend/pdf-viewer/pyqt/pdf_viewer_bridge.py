@@ -51,6 +51,49 @@ class PdfViewerBridge(QObject):
         except Exception:
             pass
 
+    # -------------------- Clipboard API (QWebChannel) --------------------
+
+    @pyqtSlot(str, result=bool)
+    def setClipboardText(self, text: str) -> bool:
+        """Set system clipboard text from JS via QWebChannel.
+
+        返回 True 表示设置成功；异常返回 False。
+        """
+        try:
+            # 优先 PyQt6，再回退 PyQt5
+            try:
+                from PyQt6.QtGui import QGuiApplication  # type: ignore
+            except Exception:
+                try:
+                    from PyQt5.QtGui import QGuiApplication  # type: ignore
+                except Exception:
+                    QGuiApplication = None  # type: ignore
+
+            if QGuiApplication is None:
+                logger.error("QGuiApplication not available; cannot access clipboard")
+                return False
+
+            app = QGuiApplication.instance()
+            if app is None:
+                logger.error("No QGuiApplication instance; clipboard unavailable")
+                return False
+
+            clipboard = app.clipboard()
+            if clipboard is None:
+                logger.error("Clipboard object not available")
+                return False
+
+            try:
+                # 统一转为 str，Qt 内部使用 UTF-16；Python 侧保证传入为 Unicode 字符串
+                clipboard.setText(str(text))
+                return True
+            except Exception as e:
+                logger.error(f"Failed to set clipboard: {e}")
+                return False
+        except Exception as e:
+            logger.error(f"setClipboardText exception: {e}")
+            return False
+
     # -------------------- File Management API --------------------
 
     @pyqtSlot(str, result=bool)
