@@ -1043,3 +1043,28 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - 影响：index.html（结构已有，保持不变）、assets/style.css（追加覆盖样式）、ui-manager-core.js（更新标题时写 title）
 - 验证：添加静态守护测试断言 CSS/JS 片段存在
 
+
+## 当前任务（
+20251009050221
+）
+- 名称：修复截图标注跳转后未显示区域 + 恢复颜色控制
+- 问题背景：部分旧数据缺少 rectPercent，导致 ScreenshotTool 在跳转成功后无法渲染标记框（直接 return）；且定位计算基于 pageDiv 尺寸，对 canvas 偏移未校正。
+- 相关模块：
+  - 截图工具：src/frontend/pdf-viewer/features/annotation/tools/screenshot/index.js
+  - 跳转容器：src/frontend/pdf-viewer/features/annotation/index.js（发出 JUMP_SUCCESS）
+- 修复要点：
+  1) 渲染兜底：如果 annotation.data.rectPercent 缺失而 data.rect 存在，则用 #convertCanvasToPercent(pageNumber, data.rect) 计算百分比（基于当前 canvas 尺寸）；
+  2) 定位精度：渲染时用 canvas.getBoundingClientRect() 尺寸并计算相对 pageDiv 的偏移 (offsetLeft/Top)，确保标记框位置与缩放一致；
+  3) 颜色控制：保留原先颜色按钮与默认色（已存在代码 MARKER_COLOR_PRESETS/DEFAULT_MARKER_COLOR，无需变更）。
+- 测试设计：
+  - 手工：
+    1) 使用历史仅含 rect（无 rectPercent）的截图标注：点击卡片“跳转”→ 应显示标记框；
+    2) 新建截图标注：点击“跳转”→ 显示标记框；悬停删除按钮出现颜色按钮，切换颜色成功；
+  - 日志验证：logs/pdf-viewer-*-js.log 中应有 “[ScreenshotTool] rectPercent missing, fallback…” 与 “Marker rendered…”
+- 风险与回退：若仍无法定位，请检查 navigationService.navigateTo 是否滚动到正确页面；或在 ScreenshotTool 中增加更长延迟（>300ms）渲染。
+
+## 快捷标注修复记录（文本选择快捷操作）
+- 代码：src/frontend/pdf-viewer/features/text-selection-quick-actions/index.js
+- 问题：导入 Annotation 模型使用大小写不统一路径 `../annotation/models/Annotation.js`，在部分环境可能大小写敏感导致模块解析或双实例问题，触发“快速标注”报错；
+- 修复：改为统一小写路径 `../annotation/models/annotation.js`，与全局保持一致；
+- 复现/验证：在未进入高亮模式下，直接选择文本点击“标注”按钮应创建高亮标注，无报错。

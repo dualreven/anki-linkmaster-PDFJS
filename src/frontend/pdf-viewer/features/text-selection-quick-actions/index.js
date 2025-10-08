@@ -1,12 +1,14 @@
 ﻿import { getLogger } from '../../../common/utils/logger.js';
 import { PDF_VIEWER_EVENTS } from '../../../common/event/pdf-viewer-constants.js';
 import { PDF_TRANSLATOR_EVENTS } from '../pdf-translator/events.js';
-import { Annotation, AnnotationType } from '../annotation/models/Annotation.js';
+// 统一使用小写路径，避免在部分打包/HTTP服务中因大小写不一致导致的模块解析问题
+import { Annotation, AnnotationType } from '../annotation/models/annotation.js';
 import { QuickActionsToolbar } from './quick-actions-toolbar.js';
 import {
   findPageElement,
   extractPageNumber,
-  buildSelectionSnapshot
+  buildSelectionSnapshot,
+  computeTextRanges
 } from './selection-utils.js';
 
 const DEFAULT_HIGHLIGHT_COLOR = '#ffff00';
@@ -232,13 +234,17 @@ export class TextSelectionQuickActionsFeature {
     }
 
     try {
+      // 计算后端契约要求的 textRanges（非空）
+      const textRanges = computeTextRanges(selection.range, selection.pageElement);
+
       const annotation = new Annotation({
         type: AnnotationType.TEXT_HIGHLIGHT,
         pageNumber: selection.pageNumber,
         data: {
           selectedText: selection.text,
           highlightColor: DEFAULT_HIGHLIGHT_COLOR,
-          textRanges: [],
+          // 后端要求非空数组；若无法精确计算，则退化为 [0, text.length]
+          textRanges: Array.isArray(textRanges) && textRanges.length > 0 ? textRanges : [{ start: 0, end: selection.text.length }],
           lineRects: selection.lineRects,
           boundingBox: selection.boundingBox
         }
