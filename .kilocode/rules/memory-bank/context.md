@@ -992,3 +992,22 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - 名称：拉取 main 并合并到当前分支（已完成）
 - 结果：合并成功，冲突仅限 context.md，已采用远端版本并追加本次记录；工作区其他变更已合并。
 - 校验：将执行 merge-base 祖先校验与工作区清理校验。
+
+## 当前任务（20251009030905）
+- 名称：修复 pdf-viewer 锚点侧边栏复制（复制ID/复制文内链接）不可用问题
+- 问题背景：
+  - 部分环境（QtWebEngine/权限判定）下 `navigator.clipboard.writeText` 失败，`document.execCommand('copy')` 也可能不可用；
+  - 现有侧栏 `AnchorSidebarUI` 与特性 `PDFAnchorFeature` 仅做浏览器侧回退，导致用户点击“复制ID/文内链接”无效；
+  - PyQt 主窗体已开启 `JavascriptCanAccessClipboard` 且页面自动注入 qwebchannel.js，可通过 QWebChannel 调用 Python 端设置剪贴板；
+- 相关模块与文件：
+  - 前端：
+    - `src/frontend/pdf-viewer/features/pdf-anchor/components/anchor-sidebar-ui.js`（复制菜单/快捷按钮逻辑）
+    - `src/frontend/pdf-viewer/features/pdf-anchor/index.js`（监听 `anchor:copy:requested` 并复制）
+  - Python/QWebChannel：
+    - `src/frontend/pdf-viewer/pyqt/pdf_viewer_bridge.py`（新增剪贴板槽：`setClipboardText`）
+- 执行步骤（原子化）：
+  1) 在 Python 端桥接对象新增 `setClipboardText(text: str) -> bool`，使用 Qt 剪贴板实现；
+  2) 在 AnchorSidebarUI 的 `copyTextRobust` 与 PDFAnchorFeature 的 `#copyToClipboard` 采用 header 同款顺序：同步 `execCommand('copy')` → Clipboard API → QWebChannel；
+  3) 移除侧边栏额外“复制ID”快捷按钮，仅保留下拉菜单项（复制ID/复制文内链接）；
+  4) 新增/调整测试：保留菜单项复制测试，移除快捷按钮测试；
+  5) 回写 AI-Working-log 与本文件，并通知完成。
