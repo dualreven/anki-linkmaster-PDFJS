@@ -336,3 +336,10 @@ PDF_LIBRARY_LIST_REQUESTED = "pdf-library:list:requested"  # 新格式
 - ✅ system（heartbeat/status/config）
 
 所有能力均有对应 Schema 定义，位于 `todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/schemas/`。
+
+### 2025-10-08 Annotation 稳定性要点（必须遵守）
+- WebSocket 白名单与路由是两阶段：白名单只负责放行，路由（ws-client.js）必须为 `*:completed/*:failed` 提供显式分支并 `_settlePendingRequest`。
+- 类型字符串须与后端 standard_protocol.py 完全一致（三段式小写，如 `annotation:list:completed`），否则会走 UNKNOWN。
+- 管理器层（如 AnnotationManager）在列表解析时，建议“逐条 try/catch”，跳过不合规历史数据，避免整批失败导致 UI 空白。
+- 书签之所以稳定，是因采用“远端优先 + 本地兜底缓存”，标注后续也建议对齐该模式（不是替代白名单/路由，而是体验增强）。
+- 详细指引见：docs/TECH/WS-MESSAGE-ROUTING-GUIDE.md

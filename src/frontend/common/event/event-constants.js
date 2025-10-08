@@ -141,6 +141,14 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   ANNOTATION_SAVE: 'annotation:save:requested',
   ANNOTATION_DELETE: 'annotation:delete:requested',
 
+  // Anchor（锚点）消息
+  ANCHOR_GET: 'anchor:get:requested',
+  ANCHOR_LIST: 'anchor:list:requested',
+  ANCHOR_CREATE: 'anchor:create:requested',
+  ANCHOR_UPDATE: 'anchor:update:requested',
+  ANCHOR_DELETE: 'anchor:delete:requested',
+  ANCHOR_ACTIVATE: 'anchor:activate:requested',
+
   // 响应/广播消息
   PDF_LIST_COMPLETED: 'pdf-library:list:completed',
   PDF_LIST_FAILED: 'pdf-library:list:failed',
@@ -185,6 +193,18 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   ANNOTATION_SAVE_FAILED: 'annotation:save:failed',
   ANNOTATION_DELETE_COMPLETED: 'annotation:delete:completed',
   ANNOTATION_DELETE_FAILED: 'annotation:delete:failed'
+  ,ANCHOR_GET_COMPLETED: 'anchor:get:completed',
+  ANCHOR_GET_FAILED: 'anchor:get:failed',
+  ANCHOR_LIST_COMPLETED: 'anchor:list:completed',
+  ANCHOR_LIST_FAILED: 'anchor:list:failed',
+  ANCHOR_CREATE_COMPLETED: 'anchor:create:completed',
+  ANCHOR_CREATE_FAILED: 'anchor:create:failed',
+  ANCHOR_UPDATE_COMPLETED: 'anchor:update:completed',
+  ANCHOR_UPDATE_FAILED: 'anchor:update:failed',
+  ANCHOR_DELETE_COMPLETED: 'anchor:delete:completed',
+  ANCHOR_DELETE_FAILED: 'anchor:delete:failed',
+  ANCHOR_ACTIVATE_COMPLETED: 'anchor:activate:completed',
+  ANCHOR_ACTIVATE_FAILED: 'anchor:activate:failed'
 };
 
 // ====== 搜索与筛选（新增，为全局事件白名单注册）======

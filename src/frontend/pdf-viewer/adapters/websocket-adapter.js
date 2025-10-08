@@ -1,12 +1,12 @@
-/**
+﻿/**
  * @file WebSocket适配器
  * @module WebSocketAdapter
  * @description 负责将WebSocket消息转换为应用内部事件，实现外部通信与内部事件总线的适配
  */
 
-import { getLogger } from '../../common/utils/logger.js';
-import { PDF_VIEWER_EVENTS } from '../../common/event/pdf-viewer-constants.js';
-import { WEBSOCKET_MESSAGE_EVENTS } from '../../common/event/event-constants.js';
+import { getLogger } from "../../common/utils/logger.js";
+import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../common/event/event-constants.js";
 
 /**
  * WebSocket适配器类
@@ -49,17 +49,17 @@ export class WebSocketAdapter {
    */
   constructor(wsClient, eventBus) {
     if (!wsClient) {
-      throw new Error('WebSocketAdapter: wsClient is required');
+      throw new Error("WebSocketAdapter: wsClient is required");
     }
     if (!eventBus) {
-      throw new Error('WebSocketAdapter: eventBus is required');
+      throw new Error("WebSocketAdapter: eventBus is required");
     }
 
-    this.#logger = getLogger('WebSocketAdapter');
+    this.#logger = getLogger("WebSocketAdapter");
     this.#eventBus = eventBus;
     this.#wsClient = wsClient;
 
-    this.#logger.debug('WebSocketAdapter instance created');
+    this.#logger.debug("WebSocketAdapter instance created");
   }
 
   /**
@@ -69,7 +69,7 @@ export class WebSocketAdapter {
    * @public
    */
   setupMessageHandlers() {
-    this.#logger.info('Setting up WebSocket message handlers');
+    this.#logger.info("Setting up WebSocket message handlers");
 
     // 外部→内部：监听WebSocket消息事件
     this.#setupIncomingMessageHandlers();
@@ -77,7 +77,7 @@ export class WebSocketAdapter {
     // 内部→外部：监听应用事件并转发到WebSocket
     this.#setupOutgoingMessageHandlers();
 
-    this.#logger.debug('WebSocket message handlers setup complete');
+    this.#logger.debug("WebSocket message handlers setup complete");
   }
 
   /**
@@ -87,12 +87,33 @@ export class WebSocketAdapter {
   #setupIncomingMessageHandlers() {
     // 监听通用WebSocket消息接收事件
     const unsubscribe = this.#eventBus.on(
-      WEBSOCKET_MESSAGE_EVENTS.RECEIVED,
+      WEBSOCKET_EVENTS.MESSAGE.RECEIVED,
       (message) => {
         this.#logger.debug(`Received WebSocket message event: ${message?.type}`);
         this.handleMessage(message);
+        try {
+          const type = String(message?.type || "");
+          if (type.startsWith("anchor:")) {
+            if (type.endsWith(":completed")) {
+              if (type === "anchor:get:completed" || type === "anchor:list:completed") {
+                const anchors = message?.data?.anchors || (message?.data?.anchor ? [message.data.anchor] : []);
+                this.#logger.info("[anchor] inbound completed -> emit ANCHOR.DATA.LOADED", { type, count: Array.isArray(anchors) ? anchors.length : 0 });
+                this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED, { anchors }, { actorId: "WebSocketAdapter" });
+              } else {
+                // 其他完成事件后请求刷新列表（若可获取pdfId）
+                try {
+                  const params = new URLSearchParams(window.location.search);
+                  const pdfId = params.get("pdf-id");
+                  if (pdfId) {
+                    this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId });
+                  }
+                } catch(e){ this.#logger.warn("noop", e); }
+              }
+            }
+          }
+        } catch (e) { this.#logger.warn("anchor inbound bridge failed", e); }
       },
-      { subscriberId: 'WebSocketAdapter' }
+      { subscriberId: "WebSocketAdapter" }
     );
 
     this.#unsubscribeFunctions.push(unsubscribe);
@@ -110,10 +131,10 @@ export class WebSocketAdapter {
     // 作用: 通知后端PDF加载完成
     const unsubscribe1 = this.#eventBus.on(
       PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
-      (data, metadata) => {
-        this.#logger.debug('File loaded successfully, sending notification to backend', data);
+      (data) => {
+        this.#logger.debug("File loaded successfully, sending notification to backend", data);
         this.#wsClient.send({
-          type: 'pdf_loaded',
+          type: "pdf_loaded",
           data: {
             file_path: data.filePath,
             filename: data.filename,
@@ -122,7 +143,7 @@ export class WebSocketAdapter {
           }
         });
       },
-      { subscriberId: 'WebSocketAdapter' }
+      { subscriberId: "WebSocketAdapter" }
     );
 
     // 📥 监听事件: pdf-viewer:navigation:changed
@@ -130,17 +151,17 @@ export class WebSocketAdapter {
     // 作用: 通知后端页码变更
     const unsubscribe2 = this.#eventBus.on(
       PDF_VIEWER_EVENTS.NAVIGATION.CHANGED,
-      (data, metadata) => {
-        this.#logger.debug('Page changed, sending notification to backend', data);
+      (data) => {
+        this.#logger.debug("Page changed, sending notification to backend", data);
         this.#wsClient.send({
-          type: 'page_changed',
+          type: "page_changed",
           data: {
             page_number: data.pageNumber,
             total_pages: data.totalPages
           }
         });
       },
-      { subscriberId: 'WebSocketAdapter' }
+      { subscriberId: "WebSocketAdapter" }
     );
 
     // 📥 监听事件: pdf-viewer:zoom:changed
@@ -148,20 +169,85 @@ export class WebSocketAdapter {
     // 作用: 通知后端缩放级别变更
     const unsubscribe3 = this.#eventBus.on(
       PDF_VIEWER_EVENTS.ZOOM.CHANGED,
-      (data, metadata) => {
-        this.#logger.debug('Zoom changed, sending notification to backend', data);
+      (data) => {
+        this.#logger.debug("Zoom changed, sending notification to backend", data);
         this.#wsClient.send({
-          type: 'zoom_changed',
+          type: "zoom_changed",
           data: {
             level: data.level,
             scale: data.scale
           }
         });
       },
-      { subscriberId: 'WebSocketAdapter' }
+      { subscriberId: "WebSocketAdapter" }
     );
 
-    this.#unsubscribeFunctions.push(unsubscribe1, unsubscribe2, unsubscribe3);
+    // ===== Anchor outbound bridging =====
+    const getPdfId = () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        return params.get("pdf-id");
+      } catch { return null; }
+    };
+
+    const unsubA1 = this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD,
+      (data) => {
+        try {
+          const anchorId = data?.anchorId || null;
+          const pdfId = data?.pdf_uuid || getPdfId();
+          if (anchorId) {
+            this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_GET, { anchor_id: anchorId, pdf_uuid: pdfId });
+          } else if (pdfId) {
+            this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId });
+          }
+        } catch (e) { this.#logger.warn("ANCHOR.DATA.LOAD bridge failed", e); }
+      },
+      { subscriberId: "WebSocketAdapter" }
+    );
+
+    const unsubA2 = this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANCHOR.CREATE,
+      (data) => {
+        const pdfId = data?.pdf_uuid || getPdfId();
+        const anchor = data?.anchor;
+        if (!anchor) {return;}
+        try { this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_CREATE, { pdf_uuid: pdfId, anchor }); } catch(e){ this.#logger.warn("noop", e); }
+      },
+      { subscriberId: "WebSocketAdapter" }
+    );
+
+    const unsubA3 = this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANCHOR.UPDATE,
+      (data) => {
+        // 本地 UI 更新与后端更新共用事件，因此需要判断是否包含 update
+        const id = data?.anchorId || data?.uuid; const update = data?.update;
+        if (!id || !update) {return;}
+        try { this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_UPDATE, { anchor_id: id, update }); } catch(e){ this.#logger.warn("noop", e); }
+      },
+      { subscriberId: "WebSocketAdapter" }
+    );
+
+    const unsubA4 = this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANCHOR.DELETE,
+      (data) => {
+        const id = data?.anchorId || data?.uuid; if (!id) {return;}
+        try { this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_DELETE, { anchor_id: id }); } catch(e){ this.#logger.warn("noop", e); }
+      },
+      { subscriberId: "WebSocketAdapter" }
+    );
+
+    const unsubA5 = this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANCHOR.ACTIVATE,
+      (data) => {
+        const id = data?.anchorId || data?.uuid; if (!id) {return;}
+        const active = !!data?.active;
+        try { this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_ACTIVATE, { anchor_id: id, active }); } catch(e){ this.#logger.warn("noop", e); }
+      },
+      { subscriberId: "WebSocketAdapter" }
+    );
+
+    this.#unsubscribeFunctions.push(unsubscribe1, unsubscribe2, unsubscribe3, unsubA1, unsubA2, unsubA3, unsubA4, unsubA5);
   }
 
   /**
@@ -194,20 +280,20 @@ export class WebSocketAdapter {
     this.#logger.debug(`Routing WebSocket message: ${type}`, data);
 
     switch (type) {
-      case 'load_pdf_file':
-        this.#handleLoadPdfFile(data);
-        break;
+    case "load_pdf_file":
+      this.#handleLoadPdfFile(data);
+      break;
 
-      case 'navigate_page':
-        this.#handleNavigatePage(data);
-        break;
+    case "navigate_page":
+      this.#handleNavigatePage(data);
+      break;
 
-      case 'set_zoom':
-        this.#handleSetZoom(data);
-        break;
+    case "set_zoom":
+      this.#handleSetZoom(data);
+      break;
 
-      default:
-        this.#logger.warn(`Unhandled WebSocket message type: ${type}`);
+    default:
+      this.#logger.warn(`Unhandled WebSocket message type: ${type}`);
     }
   }
 
@@ -247,13 +333,13 @@ export class WebSocketAdapter {
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
           fileData,
-          { actorId: 'WebSocketAdapter' }
+          { actorId: "WebSocketAdapter" }
         );
       } else {
-        this.#logger.warn('Invalid load_pdf_file message format:', data);
+        this.#logger.warn("Invalid load_pdf_file message format:", data);
       }
     } else {
-      this.#logger.warn('Invalid load_pdf_file message format (missing required fields):', data);
+      this.#logger.warn("Invalid load_pdf_file message format (missing required fields):", data);
     }
   }
 
@@ -266,8 +352,8 @@ export class WebSocketAdapter {
   #handleNavigatePage(data) {
     const { page_number } = data;
 
-    if (typeof page_number !== 'number') {
-      this.#logger.warn('Invalid navigate_page message: page_number must be a number', data);
+    if (typeof page_number !== "number") {
+      this.#logger.warn("Invalid navigate_page message: page_number must be a number", data);
       return;
     }
 
@@ -276,7 +362,7 @@ export class WebSocketAdapter {
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.NAVIGATION.GOTO,
       { pageNumber: page_number },
-      { actorId: 'WebSocketAdapter' }
+      { actorId: "WebSocketAdapter" }
     );
   }
 
@@ -290,7 +376,7 @@ export class WebSocketAdapter {
     const { level, scale } = data;
 
     if (level === undefined && scale === undefined) {
-      this.#logger.warn('Invalid set_zoom message: must provide either level or scale', data);
+      this.#logger.warn("Invalid set_zoom message: must provide either level or scale", data);
       return;
     }
 
@@ -299,7 +385,7 @@ export class WebSocketAdapter {
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.ZOOM.CHANGED,
       { level, scale },
-      { actorId: 'WebSocketAdapter' }
+      { actorId: "WebSocketAdapter" }
     );
   }
 
@@ -321,7 +407,7 @@ export class WebSocketAdapter {
       this.#messageQueue = [];
     }
 
-    this.#logger.debug('WebSocketAdapter marked as initialized');
+    this.#logger.debug("WebSocketAdapter marked as initialized");
   }
 
   /**
@@ -330,14 +416,14 @@ export class WebSocketAdapter {
    * @public
    */
   destroy() {
-    this.#logger.info('Destroying WebSocketAdapter');
+    this.#logger.info("Destroying WebSocketAdapter");
 
     // 取消所有事件订阅
     this.#unsubscribeFunctions.forEach((unsubscribe) => {
       try {
         unsubscribe();
       } catch (error) {
-        this.#logger.warn('Error unsubscribing from event:', error);
+        this.#logger.warn("Error unsubscribing from event:", error);
       }
     });
 
@@ -345,7 +431,7 @@ export class WebSocketAdapter {
     this.#messageQueue = [];
     this.#initialized = false;
 
-    this.#logger.debug('WebSocketAdapter destroyed');
+    this.#logger.debug("WebSocketAdapter destroyed");
   }
 
   /**

@@ -23,6 +23,7 @@ import { TextSelectionQuickActionsFeature } from "../features/text-selection-qui
 import { PDFBookmarkFeature } from "../features/pdf-bookmark/index.js";
 import { PDFCardFeature } from "../features/pdf-card/index.js";
 import { AiAssistantFeature } from "../features/ai-assistant/index.js";
+import { PDFAnchorFeature } from "../features/pdf-anchor/index.js";
 const logger = getLogger('pdf-viewer.bootstrap');
 
 /**
@@ -99,6 +100,7 @@ export async function bootstrapPDFViewerAppFeature() {
     registry.register(new SearchFeature());  // 注册搜索功能
     registry.register(new URLNavigationFeature());
     registry.register(new PDFBookmarkFeature());  // 书签管理功能（需在sidebar-manager之前）
+    registry.register(new PDFAnchorFeature());    // 锚点功能（复制/激活/URL集成），在sidebar-manager之前
     registry.register(new AnnotationFeature());
     registry.register(new PDFTranslatorFeature());  // 翻译功能
     registry.register(new TextSelectionQuickActionsFeature());  // 文本选择快捷操作

@@ -1,0 +1,267 @@
+/**
+ * 锚点侧边栏 UI
+ * @file 渲染锚点工具栏与表格列表
+ * @module features/pdf-anchor/components/anchor-sidebar-ui
+ */
+
+import { getLogger } from '../../../../common/utils/logger.js';
+import { PDF_VIEWER_EVENTS } from '../../../../common/event/pdf-viewer-constants.js';
+
+export class AnchorSidebarUI {
+  #eventBus;
+  #logger;
+  #sidebarContent; // 整个侧栏内容容器（工具栏 + 表格）
+  #toolbar;
+  #table;
+  #emptyDiv;
+  #anchors = [];
+  #selectedId = null;
+  #unsubs = [];
+
+  constructor(eventBus) {
+    this.#eventBus = eventBus;
+    this.#logger = getLogger('AnchorSidebarUI');
+  }
+
+  initialize() {
+    // 内容容器
+    this.#sidebarContent = document.createElement('div');
+    this.#sidebarContent.style.cssText = 'height:100%;display:flex;flex-direction:column;box-sizing:border-box;';
+
+    // 工具栏
+    this.#toolbar = this.#createToolbar();
+    this.#sidebarContent.appendChild(this.#toolbar);
+
+    // 表格
+    this.#table = this.#createTable();
+    this.#sidebarContent.appendChild(this.#table);
+
+    // 初始渲染空态
+    try { this.#renderAnchors([]); } catch (_) {}
+
+    // 事件订阅：数据加载
+    this.#unsubs.push(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED,
+      ({ anchors }) => {
+        this.#logger.info('Anchor data loaded', { count: anchors?.length || 0 });
+        this.#renderAnchors(Array.isArray(anchors) ? anchors : []);
+      },
+      { subscriberId: 'AnchorSidebarUI' }
+    ));
+
+    // 监听锚点更新与激活状态变更以刷新表格
+    this.#unsubs.push(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANCHOR.UPDATED,
+      ({ anchorId, page_at }) => {
+        const idx = this.#anchors.findIndex(a => a.uuid === anchorId);
+        if (idx >= 0) {
+          this.#anchors[idx].page_at = page_at;
+          this.#renderAnchors(this.#anchors);
+        }
+      },
+      { subscriberId: 'AnchorSidebarUI' }
+    ));
+
+    this.#unsubs.push(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANCHOR.ACTIVATED,
+      ({ anchorId, active }) => {
+        const idx = this.#anchors.findIndex(a => a.uuid === anchorId);
+        if (idx >= 0) {
+          this.#anchors[idx].is_active = !!active;
+          this.#renderAnchors(this.#anchors);
+        }
+      },
+      { subscriberId: 'AnchorSidebarUI' }
+    ));
+
+    // 打开侧栏后基于 URL 的 pdf-id 主动请求一次列表，防止第一次列表在侧栏订阅前已发出
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const pdfId = params.get('pdf-id');
+      if (pdfId) {
+        this.#eventBus.emit(
+          PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD,
+          { pdf_uuid: pdfId },
+          { actorId: 'AnchorSidebarUI' }
+        );
+      }
+    } catch (e) { this.#logger.warn('request list on init failed', e); }
+
+    this.#logger.info('AnchorSidebarUI initialized');
+  }
+
+  getContentElement() { return this.#sidebarContent; }
+
+  destroy() {
+    if (Array.isArray(this.#unsubs)) {
+      try { this.#unsubs.forEach(off => { try { off && off(); } catch(_) {} }); } catch (_) {}
+    }
+    this.#unsubs = [];
+    this.#sidebarContent = null;
+    this.#toolbar = null;
+    this.#table = null;
+    this.#anchors = [];
+    this.#selectedId = null;
+    this.#logger.info('AnchorSidebarUI destroyed');
+  }
+
+  #createToolbar() {
+    const bar = document.createElement('div');
+    bar.className = 'anchor-toolbar';
+    bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #ddd;background:#f5f5f5;';
+
+    const mkBtn = (id, label, tooltip) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.dataset.action = id;
+      btn.textContent = label;
+      btn.title = tooltip || label;
+      btn.style.cssText = 'padding:4px 10px;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;';
+      return btn;
+    };
+
+    const addBtn = mkBtn('add', '添加', '添加锚点');
+    addBtn.addEventListener('click', () => {
+      this.#logger.info('Anchor add clicked');
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATE, { source: 'toolbar' }, { actorId: 'AnchorToolbar' });
+    });
+
+    const delBtn = mkBtn('delete', '删除', '删除选中锚点');
+    delBtn.addEventListener('click', () => {
+      if (!this.#selectedId) return;
+      this.#logger.info('Anchor delete clicked', { id: this.#selectedId });
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DELETE, { anchorId: this.#selectedId }, { actorId: 'AnchorToolbar' });
+    });
+
+    const editBtn = mkBtn('edit', '修改', '修改选中锚点');
+    editBtn.addEventListener('click', () => {
+      if (!this.#selectedId) return;
+      this.#logger.info('Anchor update clicked', { id: this.#selectedId });
+      const current = (this.#anchors.find(a => a.uuid === this.#selectedId)?.name) || '';
+      let name = '';
+      try { name = prompt('请输入新的锚点名称：', current) || ''; } catch(_) { name = current; }
+      if (!name.trim()) return;
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.UPDATE, { anchorId: this.#selectedId, update: { name } }, { actorId: 'AnchorToolbar' });
+    });
+
+    const copyBtn = mkBtn('copy', '复制', '复制锚点ID');
+    copyBtn.addEventListener('click', async () => {
+      if (!this.#selectedId) return;
+      this.#logger.info('Anchor copy clicked', { id: this.#selectedId });
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(this.#selectedId);
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = this.#selectedId;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          ta.remove();
+        }
+      } catch (_) {}
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPY, { anchorId: this.#selectedId }, { actorId: 'AnchorToolbar' });
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPIED, { anchorId: this.#selectedId }, { actorId: 'AnchorToolbar' });
+    });
+
+    const activateBtn = mkBtn('activate', '激活', '激活/停用锚点');
+    activateBtn.addEventListener('click', () => {
+      if (!this.#selectedId) return;
+      const found = this.#anchors.find(a => a.uuid === this.#selectedId);
+      const next = !Boolean(found?.is_active);
+      this.#logger.info('Anchor activate clicked', { id: this.#selectedId, next });
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.ACTIVATE, { anchorId: this.#selectedId, active: next }, { actorId: 'AnchorToolbar' });
+    });
+
+    bar.appendChild(addBtn);
+    bar.appendChild(delBtn);
+    bar.appendChild(editBtn);
+    bar.appendChild(copyBtn);
+    bar.appendChild(activateBtn);
+
+    return bar;
+  }
+
+  #createTable() {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'flex:1;overflow:auto;padding:8px;';
+
+    const table = document.createElement('table');
+    table.style.cssText = 'width:100%;border-collapse:collapse;font-size:13px;';
+
+    // 表头
+    const thead = document.createElement('thead');
+    const thr = document.createElement('tr');
+    const thName = document.createElement('th'); thName.textContent = '名称';
+    const thPage = document.createElement('th'); thPage.textContent = '页码';
+    const thActive = document.createElement('th'); thActive.textContent = '激活';
+    [thName, thPage, thActive].forEach(th => { th.style.cssText = 'text-align:left;border-bottom:1px solid #eee;padding:6px;color:#444;'; thr.appendChild(th); });
+    thead.appendChild(thr);
+
+    const tbody = document.createElement('tbody');
+    tbody.dataset.role = 'anchor-tbody';
+
+    table.appendChild(thead);
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    return wrap;
+  }
+
+  #renderAnchors(anchors) {
+    this.#anchors = anchors || [];
+    const tbody = this.#sidebarContent?.querySelector('tbody[data-role="anchor-tbody"]');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    if (!Array.isArray(this.#anchors) || this.#anchors.length === 0) {
+      if (!this.#emptyDiv) {
+        this.#emptyDiv = document.createElement('div');
+        this.#emptyDiv.className = 'anchor-empty';
+        this.#emptyDiv.textContent = '暂无锚点，点击“添加”创建';
+        this.#emptyDiv.style.cssText = 'margin:10px;color:#999;';
+        // 在表格容器上方提示
+        const wrap = this.#table;
+        wrap.insertBefore(this.#emptyDiv, wrap.firstChild);
+      }
+      return;
+    } else {
+      // 移除空态
+      if (this.#emptyDiv && this.#emptyDiv.parentNode) {
+        try { this.#emptyDiv.parentNode.removeChild(this.#emptyDiv); } catch(_) {}
+        this.#emptyDiv = null;
+      }
+    }
+
+    this.#anchors.forEach(a => {
+      const tr = document.createElement('tr');
+      tr.dataset.anchorId = a.uuid;
+      tr.style.cssText = 'cursor:pointer;';
+      tr.addEventListener('click', () => {
+        this.#selectedId = a.uuid;
+        this.#highlightSelection(a.uuid);
+      });
+
+      const tdName = document.createElement('td'); tdName.textContent = a.name || '(未命名)'; tdName.style.cssText = 'padding:6px;border-bottom:1px solid #f2f2f2;';
+      const tdPage = document.createElement('td'); tdPage.textContent = String(a.page_at || ''); tdPage.style.cssText = 'padding:6px;border-bottom:1px solid #f2f2f2;';
+      const tdActive = document.createElement('td'); tdActive.textContent = a.is_active ? '是' : '否'; tdActive.style.cssText = 'padding:6px;border-bottom:1px solid #f2f2f2;';
+
+      tr.appendChild(tdName);
+      tr.appendChild(tdPage);
+      tr.appendChild(tdActive);
+      tbody.appendChild(tr);
+    });
+  }
+
+  #highlightSelection(id) {
+    const rows = this.#sidebarContent?.querySelectorAll('tbody[data-role="anchor-tbody"] tr') || [];
+    rows.forEach(r => {
+      if (r.dataset.anchorId === id) {
+        r.style.background = '#e3f2fd';
+      } else {
+        r.style.background = '';
+      }
+    });
+  }
+}
+
+export default AnchorSidebarUI;

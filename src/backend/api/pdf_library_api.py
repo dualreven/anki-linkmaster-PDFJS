@@ -26,6 +26,7 @@ from ..database.plugin.plugin_registry import TablePluginRegistry
 from ..database.plugins.pdf_info_plugin import PDFInfoTablePlugin
 from ..database.plugins.pdf_annotation_plugin import PDFAnnotationTablePlugin
 from ..database.plugins.pdf_bookmark_plugin import PDFBookmarkTablePlugin
+from ..database.plugins.pdf_bookanchor_plugin import PDFBookanchorTablePlugin
 from ..database.plugins.search_condition_plugin import SearchConditionTablePlugin
 # Lazy imports for pdf_manager to avoid hard dependency during tests
 # 可选的服务注册表（在某些分支/环境中尚未提供时，采用本地降级桩）
@@ -83,6 +84,7 @@ class PDFLibraryAPI:
         self._pdf_info_plugin = PDFInfoTablePlugin(self._executor, self._event_bus, self._logger)
         self._annotation_plugin = PDFAnnotationTablePlugin(self._executor, self._event_bus, self._logger)
         self._bookmark_plugin = PDFBookmarkTablePlugin(self._executor, self._event_bus, self._logger)
+        self._bookanchor_plugin = PDFBookanchorTablePlugin(self._executor, self._event_bus, self._logger)
         self._search_condition_plugin = SearchConditionTablePlugin(self._executor, self._event_bus, self._logger)
 
         self._register_plugins()
@@ -717,6 +719,7 @@ class PDFLibraryAPI:
             self._pdf_info_plugin,
             self._annotation_plugin,
             self._bookmark_plugin,
+            self._bookanchor_plugin,
             self._search_condition_plugin,
         ):
             try:
@@ -725,6 +728,64 @@ class PDFLibraryAPI:
                 # 已注册时跳过
                 pass
         self._registry.enable_all()
+
+    # -------------------- Anchor API --------------------
+    def anchor_get(self, anchor_uuid: str) -> Optional[Dict[str, Any]]:
+        row = self._bookanchor_plugin.query_by_id(anchor_uuid)
+        return row
+
+    def anchor_list(self, pdf_uuid: str) -> List[Dict[str, Any]]:
+        return self._bookanchor_plugin.query_by_pdf(pdf_uuid)
+
+    def anchor_create(self, anchor: Dict[str, Any]) -> str:
+        import secrets, time as _time
+        data = dict(anchor or {})
+        # 生成默认 uuid
+        if not data.get('uuid'):
+            suffix = secrets.token_hex(6)
+            data['uuid'] = f"pdfanchor-{suffix}"
+        now = int(_time.time() * 1000)
+        data.setdefault('created_at', now)
+        data.setdefault('updated_at', now)
+        data.setdefault('visited_at', 0)
+        data.setdefault('version', 1)
+        # 包装 json_data/name 等
+        name = data.get('name') or (data.get('json_data') or {}).get('name') or '未命名锚点'
+        jd = data.get('json_data') or {}
+        jd['name'] = name
+        if 'is_active' in data:
+            jd['is_active'] = bool(data['is_active'])
+        data['json_data'] = jd
+        return self._bookanchor_plugin.insert(data)
+
+    def anchor_update(self, anchor_uuid: str, update: Dict[str, Any]) -> bool:
+        # 支持更新 page_at/position/json_data.name/is_active/visited_at
+        data: Dict[str, Any] = {}
+        if 'page_at' in update:
+            data['page_at'] = int(update['page_at'])
+        if 'position' in update:
+            # 允许传百分比或 0~1，统一处理
+            pos = update['position']
+            try:
+                pos = float(pos)
+            except Exception:
+                pos = 0.0
+            if pos > 1.0:
+                pos = pos / 100.0
+            data['position'] = pos
+        jd = {}
+        if 'name' in update:
+            jd['name'] = str(update['name'])
+        if 'is_active' in update:
+            jd['is_active'] = bool(update['is_active'])
+        if jd:
+            data['json_data'] = jd
+        if 'visited_at' in update:
+            data['visited_at'] = int(update['visited_at'])
+        return self._bookanchor_plugin.update(anchor_uuid, data)
+
+    def anchor_delete(self, anchor_uuid: str) -> bool:
+        return self._bookanchor_plugin.delete(anchor_uuid)
 
     @staticmethod
     def _ensure_ms(value: Optional[int]) -> int:

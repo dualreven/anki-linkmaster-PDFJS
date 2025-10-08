@@ -25,7 +25,11 @@ if TYPE_CHECKING:
 class PDFBookanchorTablePlugin(TablePlugin):
     """管理 pdf_bookanchor 表的数据库插件。"""
 
-    _UUID_PATTERN = re.compile(r"^[a-f0-9]{12}$")
+    # 要求：锚点 uuid 必须以 'pdfanchor-' 开头，后接 12 位十六进制
+    # 例如：pdfanchor-1a2b3c4d5e6f（总长度22）
+    _ANCHOR_UUID_PATTERN = re.compile(r"^pdfanchor-[a-f0-9]{12}$")
+    # PDF 记录 uuid（来自 pdf_info.uuid）仍为 12 位十六进制
+    _PDF_UUID_PATTERN = re.compile(r"^[a-f0-9]{12}$")
 
     # ==================== 元信息 ====================
 
@@ -49,7 +53,8 @@ class PDFBookanchorTablePlugin(TablePlugin):
         PRAGMA foreign_keys = ON;
 
         CREATE TABLE IF NOT EXISTS pdf_bookanchor (
-            uuid TEXT PRIMARY KEY NOT NULL,
+            uuid TEXT PRIMARY KEY NOT NULL
+                CHECK (length(uuid) = 22 AND substr(uuid,1,10) = 'pdfanchor-'),
             pdf_uuid TEXT NOT NULL,
             page_at INTEGER NOT NULL CHECK (page_at >= 1),
             position REAL NOT NULL DEFAULT 0 CHECK (position >= 0 AND position <= 1),
@@ -65,6 +70,23 @@ class PDFBookanchorTablePlugin(TablePlugin):
         CREATE INDEX IF NOT EXISTS idx_bookanchor_created ON pdf_bookanchor(created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_bookanchor_pdf_page ON pdf_bookanchor(pdf_uuid, page_at);
         CREATE INDEX IF NOT EXISTS idx_bookanchor_visited ON pdf_bookanchor(visited_at DESC);
+
+        -- 触发器：额外保护 uuid 前缀与长度（兼容旧库无法直接添加更复杂 CHECK 的场景）
+        CREATE TRIGGER IF NOT EXISTS trg_pdf_bookanchor_uuid_ins
+        BEFORE INSERT ON pdf_bookanchor
+        FOR EACH ROW
+        BEGIN
+            SELECT CASE WHEN (substr(NEW.uuid,1,10) != 'pdfanchor-' OR length(NEW.uuid) != 22)
+                THEN RAISE(ABORT, 'invalid uuid: must start with pdfanchor- and be 22 chars') END;
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS trg_pdf_bookanchor_uuid_upd
+        BEFORE UPDATE OF uuid ON pdf_bookanchor
+        FOR EACH ROW
+        BEGIN
+            SELECT CASE WHEN (substr(NEW.uuid,1,10) != 'pdfanchor-' OR length(NEW.uuid) != 22)
+                THEN RAISE(ABORT, 'invalid uuid: must start with pdfanchor- and be 22 chars') END;
+        END;
         """
 
         self._executor.execute_script(script)
@@ -112,8 +134,18 @@ class PDFBookanchorTablePlugin(TablePlugin):
             raise DatabaseValidationError(f'{field} is required')
         if not isinstance(value, str):
             raise DatabaseValidationError(f'{field} must be a string')
-        if not self._UUID_PATTERN.fullmatch(value):
-            raise DatabaseValidationError(f"{field} must be 12 hex characters")
+        if field == 'pdf_uuid':
+            # 引用 pdf_info.uuid（12位hex）
+            if not self._PDF_UUID_PATTERN.fullmatch(value):
+                raise DatabaseValidationError(
+                    f"{field} must be 12 hex characters"
+                )
+        else:
+            # 锚点自身 uuid
+            if not self._ANCHOR_UUID_PATTERN.fullmatch(value):
+                raise DatabaseValidationError(
+                    f"{field} must start with 'pdfanchor-' and be followed by 12 hex characters"
+                )
         return value
 
     def _validate_page_at(self, value: Any) -> int:
@@ -352,4 +384,3 @@ class PDFBookanchorTablePlugin(TablePlugin):
             'use_count': json_data.get('use_count', 0),
         }
         return result
-

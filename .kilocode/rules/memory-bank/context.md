@@ -1,5 +1,28 @@
 # Memory Bank（精简版 / 权威）
 
+## 当前任务（20251008190000）
+- 名称：阅读理解 annotation 插件（PDF Viewer 标注功能）
+- 问题背景：
+  - 需要系统性了解前端 annotation 模块的架构、事件、数据模型与与后端的持久化契约；为后续问题排查与改造打下基础。
+- 相关模块与文件（前端）：
+  - Feature 容器：`src/frontend/pdf-viewer/features/annotation/index.js`
+  - 管理器：`src/frontend/pdf-viewer/features/annotation/core/annotation-manager.js`
+  - 工具注册表：`src/frontend/pdf-viewer/features/annotation/core/tool-registry.js`
+  - 侧边栏 UI：`src/frontend/pdf-viewer/features/annotation/components/annotation-sidebar-ui.js`
+  - 工具接口：`src/frontend/pdf-viewer/features/annotation/interfaces/IAnnotationTool.js`
+  - 数据模型：`src/frontend/pdf-viewer/features/annotation/models/annotation.js`
+  - 工具示例：`tools/screenshot/*`, `tools/text-highlight/*`, `tools/comment/*`
+- 相关文档与契约：
+  - 规范头：`docs/SPEC/SPEC-HEAD-pdf-viewer.json`
+  - 事件/消息 Schema：`todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/schemas/annotation/v1/messages/*.schema.json`
+- 执行步骤（原子化）：
+  1) 回溯最近8条 AI 工作日志与 context（确认近期修复：pdfId 兜底、ann_id 随机段6位、评论链路统一持久化）。
+  2) 阅读 SPEC 头与事件/命名/WS 常量，确认约束与命名三段式规范。
+  3) 阅读 Feature/Manager/Sidebar/Registry/Model 主线代码，梳理事件与数据流。
+  4) 结合契约 Schema 核对 Annotation 保存/列表/删除 payload（`pdf_uuid`, `json_data` 等）。
+  5) 形成架构图/数据流要点与最小化测试建议（不落地改动）。
+  6) 回写本文件与 AI-Working-log，并通知完成。
+
 ## 当前任务（20251008161957）
 - 名称：拉取 main 并合并到当前分支
 - 问题背景：
@@ -924,3 +947,13 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - 验证方式：
   - `node AItemp/manual-tests/test-outline-reorder.mjs` 输出 OK；
   - 实际界面：拖拽重排后侧边栏列表稳定、无关分支不消失，toasts/对话框标题显示“大纲”。
+### 追加：修复持久化保存失败（20251008191500）
+- 变更：
+  1) `ws-client.js` 放行 annotation 标准消息（list/save/delete completed/failed）；
+  2) `features/annotation/index.js` 强化 `pdf_uuid` 推断，仅接受 12 位十六进制：从 `pdf-id`、`filename`、`url` 中提取，成功才 `setPdfId()`；
+- 目的：
+  - 避免 WSClient 将 annotation 消息标记为未注册导致 `request()` 误判失败；
+  - 避免传入非 12hex 的 pdf_uuid 触发后端正则校验失败。
+- 验证：
+  - 截图保存后应看到 `annotation:save:completed`；刷新后 `annotation:list:completed` 返回的数据能渲染至侧栏。
+- 影响范围：仅前端；后端插件与协议不变。

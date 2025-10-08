@@ -86,7 +86,14 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
   - 建议 pdf-viewer 启动带上 `?pdf-id=xxx`，避免依赖文件名推断。
 - 验证方法：
   - 运行 `node AItemp/manual-tests/test-annotation-create-fallback.mjs`，应输出 `[OK] CREATED emitted with screenshot annotation`；
-  - 界面手测：截图→保存→侧边栏出现新标注卡片。
+- 界面手测：截图→保存→侧边栏出现新标注卡片。
+
+## WebSocket 消息白名单与路由（annotation 案例 / 2025-10-08）
+
+- 白名单 vs 路由：白名单只负责“放行”（event-constants.js），路由（ws-client.js）负责“命名与结算”。缺任一都会出问题。
+- 必做：新增功能域消息时，同时补充白名单与 switch-case 路由分支，让 `*:completed/*:failed` 能触发 `_settlePendingRequest`。
+- 类型规范：三段式小写（例：`annotation:list:completed`），前后端需完全一致。
+- 详情参见：`docs/TECH/WS-MESSAGE-ROUTING-GUIDE.md`
 
 ## 启动与编排（AI Launcher）
 - 模块化服务管理：

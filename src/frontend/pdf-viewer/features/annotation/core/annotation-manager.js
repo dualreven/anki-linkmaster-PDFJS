@@ -1,4 +1,4 @@
-/**
+﻿/**
  * AnnotationManager - 标注数据管理器
  * @module features/annotation/core/annotation-manager
  * @description 管理标注数据的CRUD操作和持久化
@@ -14,10 +14,10 @@
  * Phase 2实现: 真实WebSocket通信和后端持久化
  */
 
-import { getLogger } from '../../../../common/utils/logger.js';
-import { Annotation, AnnotationType } from '../models/annotation.js';
-import { PDF_VIEWER_EVENTS } from '../../../../common/event/pdf-viewer-constants.js';
-import { WEBSOCKET_MESSAGE_TYPES } from '../../../../common/event/event-constants.js';
+import { getLogger } from "../../../../common/utils/logger.js";
+import { Annotation, AnnotationType } from "../models/annotation.js";
+import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
+import { WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_EVENTS } from "../../../../common/event/event-constants.js";
 
 /**
  * 标注管理器类
@@ -67,11 +67,11 @@ export class AnnotationManager {
    */
   constructor(eventBus, logger, container) {
     if (!eventBus) {
-      throw new Error('AnnotationManager requires eventBus');
+      throw new Error("AnnotationManager requires eventBus");
     }
 
     this.#eventBus = eventBus;
-    this.#logger = logger || getLogger('AnnotationManager');
+    this.#logger = logger || getLogger("AnnotationManager");
 
     // 从容器中获取 wsClient（若可用）
     this.#initWSClient(container);
@@ -79,32 +79,32 @@ export class AnnotationManager {
     // 设置事件监听器
     this.#setupEventListeners();
 
-    this.#logger.info(`[AnnotationManager] Created (${this.#mockMode ? 'Mock' : 'Remote'} Mode)`);
+    this.#logger.info(`[AnnotationManager] Created (${this.#mockMode ? "Mock" : "Remote"} Mode)`);
   }
 
   #wsClient = null;
 
   #initWSClient(container) {
     try {
-      if (!container) return;
+      if (!container) {return;}
       let ws = null;
-      if (typeof container.getWSClient === 'function') {
+      if (typeof container.getWSClient === "function") {
         ws = container.getWSClient();
-      } else if (typeof container.getDependencies === 'function') {
+      } else if (typeof container.getDependencies === "function") {
         const deps = container.getDependencies() || {};
         ws = deps.wsClient || null;
-      } else if (typeof container.get === 'function') {
-        try { ws = container.get('wsClient'); } catch (_) {}
+      } else if (typeof container.get === "function") {
+        try { ws = container.get("wsClient"); } catch {  /* ignore */ }
       }
-      if (ws && typeof ws.request === 'function') {
+      if (ws && typeof ws.request === "function") {
         this.#wsClient = ws;
         this.#mockMode = false;
-        this.#logger.info('[AnnotationManager] wsClient obtained from container; remote persistence enabled');
+        this.#logger.info("[AnnotationManager] wsClient obtained from container; remote persistence enabled");
       } else {
-        this.#logger.warn('[AnnotationManager] wsClient unavailable; fallback to mock mode');
+        this.#logger.warn("[AnnotationManager] wsClient unavailable; fallback to mock mode");
       }
     } catch (e) {
-      this.#logger.warn('[AnnotationManager] Failed to obtain wsClient', e);
+      this.#logger.warn("[AnnotationManager] Failed to obtain wsClient", e);
     }
   }
 
@@ -118,7 +118,7 @@ export class AnnotationManager {
     // 2. 全局事件：来自其他 feature（text-selection-quick-actions），仅处理高亮标注
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, (data) => {
       this.#handleCreateAnnotation(data);
-    }, { subscriberId: 'AnnotationManager-local' });
+    }, { subscriberId: "AnnotationManager-local" });
 
     this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, (data) => {
       // 全局事件仅处理高亮标注（text-selection-quick-actions 只发送此类型）
@@ -126,26 +126,26 @@ export class AnnotationManager {
       if (annotation?.type === AnnotationType.TEXT_HIGHLIGHT) {
         this.#handleCreateAnnotation(data);
       } else if (annotation) {
-        this.#logger.warn('[AnnotationManager] Global CREATE event ignored - not a TEXT_HIGHLIGHT', {
+        this.#logger.warn("[AnnotationManager] Global CREATE event ignored - not a TEXT_HIGHLIGHT", {
           type: annotation.type
         });
       }
-    }, { subscriberId: 'AnnotationManager-global' });
+    }, { subscriberId: "AnnotationManager-global" });
 
     // 更新标注 - 只需局部监听（仅内部工具会发送）
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.UPDATE, (data) => {
       this.#handleUpdateAnnotation(data);
-    }, { subscriberId: 'AnnotationManager' });
+    }, { subscriberId: "AnnotationManager" });
 
     // 删除标注 - 只需局部监听（仅内部工具会发送）
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DELETE, (data) => {
       this.#handleDeleteAnnotation(data);
-    }, { subscriberId: 'AnnotationManager' });
+    }, { subscriberId: "AnnotationManager" });
 
     // 加载标注 - 只需局部监听（内部操作）
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, (data) => {
       this.#handleLoadAnnotations(data);
-    }, { subscriberId: 'AnnotationManager' });
+    }, { subscriberId: "AnnotationManager" });
   }
 
   /**
@@ -167,7 +167,7 @@ export class AnnotationManager {
       const { annotation } = data;
 
       if (!annotation) {
-        throw new Error('Annotation data is required');
+        throw new Error("Annotation data is required");
       }
 
       // 创建Annotation实例
@@ -178,7 +178,7 @@ export class AnnotationManager {
       // Phase 1/2: 根据运行态与依赖情况动态选择保存策略
       // 优先条件保存到后端：wsClient 存在且已连接，并且已设置 pdfId
       const canUseRemote = !!this.#wsClient
-        && typeof this.#wsClient.isConnected === 'function'
+        && typeof this.#wsClient.isConnected === "function"
         && this.#wsClient.isConnected()
         && !!this.#pdfId;
 
@@ -188,10 +188,10 @@ export class AnnotationManager {
       } else {
         // 兜底：在缺少 pdfId 或未建立WS连接时，本地Mock保存，确保功能不中断
         if (!this.#pdfId) {
-          this.#logger.warn('[AnnotationManager] PDF ID not set, falling back to mock save');
+          this.#logger.warn("[AnnotationManager] PDF ID not set, falling back to mock save");
         }
-        if (!this.#wsClient || (typeof this.#wsClient.isConnected === 'function' && !this.#wsClient.isConnected())) {
-          this.#logger.warn('[AnnotationManager] wsClient not connected, falling back to mock save');
+        if (!this.#wsClient || (typeof this.#wsClient.isConnected === "function" && !this.#wsClient.isConnected())) {
+          this.#logger.warn("[AnnotationManager] wsClient not connected, falling back to mock save");
         }
         await this.#mockSaveAnnotation(annotationObj);
       }
@@ -207,7 +207,7 @@ export class AnnotationManager {
       this.#logger.info(`[AnnotationManager] Annotation created: ${annotationObj.id} (${annotationObj.type})`);
 
     } catch (error) {
-      this.#logger.error('[AnnotationManager] Failed to create annotation:', error);
+      this.#logger.error("[AnnotationManager] Failed to create annotation:", error);
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.CREATE_FAILED, {
         error: error.message
       });
@@ -237,16 +237,16 @@ export class AnnotationManager {
   async #saveAnnotationToBackend(annotation) {
     // 若无可用 wsClient 或尚未连接，降级为本地保存但不报错
     try {
-      if (!this.#wsClient || typeof this.#wsClient.request !== 'function') {
-        this.#logger.warn('[AnnotationManager] wsClient not available; fallback to local save');
+      if (!this.#wsClient || typeof this.#wsClient.request !== "function") {
+        this.#logger.warn("[AnnotationManager] wsClient not available; fallback to local save");
         return await this.#mockSaveAnnotation(annotation);
       }
-      if (typeof this.#wsClient.isConnected === 'function' && !this.#wsClient.isConnected()) {
-        this.#logger.info('[AnnotationManager] WS not connected; fallback to local save (will not block UI)');
+      if (typeof this.#wsClient.isConnected === "function" && !this.#wsClient.isConnected()) {
+        this.#logger.info("[AnnotationManager] WS not connected; fallback to local save (will not block UI)");
         return await this.#mockSaveAnnotation(annotation);
       }
       if (!this.#pdfId) {
-        this.#logger.warn('[AnnotationManager] PDF ID not set; fallback to local save');
+        this.#logger.warn("[AnnotationManager] PDF ID not set; fallback to local save");
         return await this.#mockSaveAnnotation(annotation);
       }
       const payload = {
@@ -260,7 +260,7 @@ export class AnnotationManager {
       );
     } catch (e) {
       // 远端失败不阻塞创建流程
-      this.#logger.warn('[AnnotationManager] Remote save failed; fallback to local save', { error: e?.message });
+      this.#logger.warn("[AnnotationManager] Remote save failed; fallback to local save", { error: e?.message });
       return await this.#mockSaveAnnotation(annotation);
     }
   }
@@ -275,7 +275,7 @@ export class AnnotationManager {
       const { id, changes } = data;
 
       if (!id) {
-        throw new Error('Annotation ID is required');
+        throw new Error("Annotation ID is required");
       }
 
       const annotation = this.#annotations.get(id);
@@ -301,7 +301,7 @@ export class AnnotationManager {
       this.#logger.info(`[AnnotationManager] Annotation updated: ${id}`);
 
     } catch (error) {
-      this.#logger.error('[AnnotationManager] Failed to update annotation:', error);
+      this.#logger.error("[AnnotationManager] Failed to update annotation:", error);
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.UPDATE_FAILED, {
         error: error.message
       });
@@ -318,7 +318,7 @@ export class AnnotationManager {
       const { id } = data;
 
       if (!id) {
-        throw new Error('Annotation ID is required');
+        throw new Error("Annotation ID is required");
       }
 
       const annotation = this.#annotations.get(id);
@@ -345,7 +345,7 @@ export class AnnotationManager {
       this.#logger.info(`[AnnotationManager] Annotation deleted: ${id}`);
 
     } catch (error) {
-      this.#logger.error('[AnnotationManager] Failed to delete annotation:', error);
+      this.#logger.error("[AnnotationManager] Failed to delete annotation:", error);
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DELETE_FAILED, {
         error: error.message
       });
@@ -378,7 +378,7 @@ export class AnnotationManager {
       const { pdfId } = data;
 
       if (!pdfId) {
-        throw new Error('PDF ID is required');
+        throw new Error("PDF ID is required");
       }
 
       this.setPdfId(pdfId);
@@ -406,7 +406,7 @@ export class AnnotationManager {
       this.#logger.info(`[AnnotationManager] Annotations loaded: ${annotations.length} items`);
 
     } catch (error) {
-      this.#logger.error('[AnnotationManager] Failed to load annotations:', error);
+      this.#logger.error("[AnnotationManager] Failed to load annotations:", error);
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD_FAILED, {
         error: error.message
       });
@@ -435,38 +435,93 @@ export class AnnotationManager {
    */
   async #loadAnnotationsFromBackend(pdfId) {
     try {
-      if (!this.#wsClient || typeof this.#wsClient.request !== 'function') {
-        this.#logger.info('[AnnotationManager] WS unavailable during load; return empty');
+      if (!this.#wsClient || typeof this.#wsClient.request !== "function") {
+        this.#logger.info("[AnnotationManager] WS unavailable during load; return empty");
         return [];
       }
-      if (typeof this.#wsClient.isConnected === 'function' && !this.#wsClient.isConnected()) {
-        this.#logger.info('[AnnotationManager] WS not connected during load; return empty');
+      if (typeof this.#wsClient.isConnected === "function" && !this.#wsClient.isConnected()) {
+        this.#logger.info("[AnnotationManager] WS not connected during load; return empty");
         return [];
       }
-      const resp = await this.#wsClient.request(
-        WEBSOCKET_MESSAGE_TYPES.ANNOTATION_LIST,
-        { pdf_uuid: pdfId },
-        { timeout: 8000 }
-      );
+      let resp;
+      try {
+        // 首选：标准请求-响应路径
+        resp = await this.#wsClient.request(
+          WEBSOCKET_MESSAGE_TYPES.ANNOTATION_LIST,
+          { pdf_uuid: pdfId },
+          { timeout: 8000 }
+        );
+      } catch (e) {
+        // 兼容兜底：某些环境下 WSClient 未正确结算 pending（如消息路由为 UNKNOWN），
+        // 从通用 inbound 事件中嗅探 annotation:list:completed 并提取 data
+        this.#logger.warn("[AnnotationManager] Request-reply failed, try sniffing inbound list:completed", { error: e?.message });
+        try {
+          resp = await this.#waitForListCompleted(pdfId, 1200);
+        } catch {
+          throw e; // 兜底也失败，抛出原始异常，进入上一层 catch → 返回空
+        }
+      }
       const items = Array.isArray(resp?.annotations) ? resp.annotations : [];
-      return items.map(obj => Annotation.fromJSON({
-        id: obj.id,
-        type: obj.type,
-        pageNumber: obj.pageNumber,
-        data: obj.data || {},
-        comments: obj.comments || [],
-        createdAt: obj.createdAt,
-        updatedAt: obj.updatedAt,
-      }));
+      const result = [];
+      for (const obj of items) {
+        try {
+          result.push(Annotation.fromJSON({
+            id: obj.id,
+            type: obj.type,
+            pageNumber: obj.pageNumber,
+            data: obj.data || {},
+            comments: obj.comments || [],
+            createdAt: obj.createdAt,
+            updatedAt: obj.updatedAt,
+          }));
+        } catch (err) {
+          // 跳过不符合当前模型校验的历史数据，避免整批加载失败
+          this.#logger.warn("[AnnotationManager] Skip invalid annotation from backend", {
+            id: obj?.id,
+            type: obj?.type,
+            error: err?.message
+          });
+        }
+      }
+      return result;
     } catch (e) {
-      this.#logger.warn('[AnnotationManager] Remote load failed; return empty', { error: e?.message });
+      this.#logger.warn("[AnnotationManager] Remote load failed; return empty", { error: e?.message });
       return [];
     }
   }
 
+  /**
+   * 嗅探 inbound 消息中的 annotation:list:completed（兜底策略）
+   * @param {string} pdfId
+   * @param {number} timeoutMs
+   * @returns {Promise<object>}
+   * @private
+   */
+  #waitForListCompleted(pdfId, timeoutMs = 1200) {
+    return new Promise((resolve, reject) => {
+      // 后端当前未在 data 中附带 pdf_uuid，这里接受首个 list:completed 作为兜底
+      const onMsg = (msg) => {
+        try {
+          const t = String(msg?.type || "");
+          if (t === "annotation:list:completed") {
+            const data = msg?.data || {};
+            try { off(); } catch { /* ignore */ }
+            clearTimeout(timer);
+            resolve(data);
+          }
+        } catch { /* ignore */ }
+      };
+      const off = this.#eventBus.on(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, onMsg, { subscriberId: "AnnotationManager-sniff" });
+      const timer = setTimeout(() => {
+        try { off(); } catch { /* ignore */ }
+        reject(new Error("sniff_timeout"));
+      }, timeoutMs);
+    });
+  }
+
   async #deleteAnnotationFromBackend(id) {
-    if (!this.#wsClient || typeof this.#wsClient.request !== 'function') {
-      throw new Error('wsClient not available');
+    if (!this.#wsClient || typeof this.#wsClient.request !== "function") {
+      throw new Error("wsClient not available");
     }
     await this.#wsClient.request(
       WEBSOCKET_MESSAGE_TYPES.ANNOTATION_DELETE,
@@ -525,7 +580,7 @@ export class AnnotationManager {
    */
   clear() {
     this.#annotations.clear();
-    this.#logger.info('[AnnotationManager] All annotations cleared');
+    this.#logger.info("[AnnotationManager] All annotations cleared");
   }
 
   /**
