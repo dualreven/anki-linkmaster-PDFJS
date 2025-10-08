@@ -254,19 +254,25 @@ class PyQtBridge(QObject):
             for raw_id in pdf_ids:
                 pdf_id = str(raw_id)
                 # 若已存在则激活已有窗口；若已不可见/失效则移除后重建
-                existing = parent_win.viewer_windows.get(pdf_id) if hasattr(parent_win, 'viewer_windows') else None
+                existing = getattr(parent_win, 'viewer_windows', {}).get(pdf_id) if hasattr(parent_win, 'viewer_windows') else None
                 if existing:
+                    # 兼容旧结构：existing 可能是 QMainWindow 或 进程记录(dict)
                     try:
-                        if hasattr(existing, 'isVisible') and not existing.isVisible():
-                            try:
-                                parent_win.viewer_windows.pop(pdf_id, None)
-                                logger.info(f"[PyQtBridge] 发现失效窗口条目，移除并重建: {pdf_id}")
-                            except Exception:
-                                pass
-                        else:
-                            existing.raise_()  # type: ignore[attr-defined]
-                            existing.activateWindow()
-                            logger.info(f"[PyQtBridge] 已存在窗口，激活: {pdf_id}")
+                        if hasattr(existing, 'isVisible'):
+                            if not existing.isVisible():
+                                try:
+                                    parent_win.viewer_windows.pop(pdf_id, None)
+                                    logger.info(f"[PyQtBridge] 发现失效窗口条目，移除并重建: {pdf_id}")
+                                except Exception:
+                                    pass
+                            else:
+                                existing.raise_()  # type: ignore[attr-defined]
+                                existing.activateWindow()
+                                logger.info(f"[PyQtBridge] 已存在窗口，激活: {pdf_id}")
+                                continue
+                        elif isinstance(existing, dict) and existing.get('pid'):
+                            # 子进程模式：若已记录PID，直接略过重复启动
+                            logger.info(f"[PyQtBridge] 已存在子进程窗口 (pid={existing.get('pid')}), 跳过重启: {pdf_id}")
                             continue
                     except Exception:
                         try:
@@ -435,71 +441,51 @@ class PyQtBridge(QObject):
                 except Exception:
                     file_path = self._resolve_pdf_file_path(pdf_id)
 
-                viewer = ViewerMainWindow(
-                    app,
-                    remote_debug_port=debug_port,
-                    js_log_file=js_log_path,
-                    js_logger=None,
-                    pdf_id=pdf_id,
-                    has_host=True
-                )
-
-                # 设置窗口标题：优先使用 title，其次 filename 去掉扩展名，最后用 pdf_id
+                # 以子进程方式启动 pdf-viewer 的 launcher（防游离：传 parent-pid）
                 try:
+                    import subprocess, sys as _sys, os as _os
+                    from pathlib import Path as _P
+                    project_root = _P(__file__).parent.parent.parent.parent
+                    launcher = project_root / 'src' / 'frontend' / 'pdf-viewer' / 'launcher.py'
+                    if not launcher.exists():
+                        logger.error(f"[PyQtBridge] 未找到 pdf-viewer launcher: {launcher}")
+                        continue
+                    # 标题优先级：items_map.title > filename去扩展名 > pdf_id
                     title_meta = None
                     try:
                         title_meta = (items_map.get(pdf_id) or {}).get('title')
                     except Exception:
                         pass
-                    display_title = None
-                    if title_meta:
-                        display_title = str(title_meta)
-                    elif filename:
-                        try:
-                            import os as _os
-                            display_title = _os.path.splitext(str(filename))[0]
-                        except Exception:
-                            display_title = str(filename)
-                    else:
-                        display_title = str(pdf_id)
-                    # 优先使用“人类可读标题”API，保证标题锁定不被页面覆盖
-                    try:
-                        if hasattr(viewer, 'setHumanWindowTitle'):
-                            viewer.setHumanWindowTitle(f"Anki LinkMaster PDF Viewer - {display_title}")
+                    if not title_meta:
+                        if filename:
+                            try:
+                                import os as _os
+                                title_meta = _os.path.splitext(str(filename))[0]
+                            except Exception:
+                                title_meta = str(filename)
                         else:
-                            viewer.setWindowTitle(f"Anki LinkMaster PDF Viewer - {display_title}")
+                            title_meta = str(pdf_id)
+                    cmd = [
+                        _sys.executable, str(launcher),
+                        '--launcher-from', 'pdf-home',
+                        '--parent-pid', str(_os.getpid()),
+                        '--pdf-id', str(pdf_id),
+                        '--vite-port', str(vite_port),
+                        '--msgCenter-port', str(msg_port),
+                        '--pdfFile-port', str(pdf_port),
+                        '--js-debug-port', str(debug_port),
+                        '--title', str(title_meta)
+                    ]
+                    if file_path:
+                        cmd.extend(['--file-path', str(file_path)])
+                    logger.info(f"[PyQtBridge] 启动子进程：{' '.join(cmd)}")
+                    proc = subprocess.Popen(cmd, cwd=str(project_root))
+                    try:
+                        parent_win.viewer_windows[pdf_id] = {'pid': proc.pid, 'process': 'pdf-viewer', 'debug_port': debug_port}
                     except Exception:
-                        try:
-                            viewer.setWindowTitle(f"Anki LinkMaster PDF Viewer - {display_title}")
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
-
-                url = self._build_pdf_viewer_url(vite_port, msg_port, pdf_port, pdf_id, file_path=file_path)
-                try:
-                    import urllib.parse as _up
-                    if title_meta:
-                        url = f"{url}&title={_up.quote(str(title_meta))}"
-                except Exception:
-                    pass
-                logger.info(f"[PyQtBridge] 打开 pdf-viewer (pdf_id={pdf_id}) URL={url}")
-                viewer.load_frontend(url)
-                viewer.show()
-                try:
-                    viewer.raise_()  # type: ignore[attr-defined]
-                    viewer.activateWindow()
-                except Exception:
-                    pass
-
-                try:
-                    parent_win.viewer_windows[pdf_id] = viewer
-                except Exception:
-                    pass
-                try:
-                    viewer.destroyed.connect(lambda _=None, _pid=pdf_id: parent_win.viewer_windows.pop(_pid, None))  # type: ignore[attr-defined]
-                except Exception:
-                    pass
+                        pass
+                except Exception as _e:
+                    logger.error(f"[PyQtBridge] 启动子进程失败: {_e}")
 
             return True
         except Exception as e:
