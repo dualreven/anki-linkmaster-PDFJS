@@ -1,4 +1,4 @@
-/* PDF查看器样式文件 */
+﻿/* PDF查看器样式文件 */
 * {
     margin: 0;
     padding: 0;
@@ -19,16 +19,7 @@ body {
 }
 
 /* 头部样式 */
-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 20px;
-    background-color: #fff;
-    border-bottom: 1px solid #e0e0e0;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    min-height: 60px;
-}
+header {\n    display: grid;\n    grid-template-columns: 1fr auto;\n    align-items: center;\n    padding: 12px 20px;\n    background-color: #fff;\n    border-bottom: 1px solid #e0e0e0;\n    box-shadow: 0 2px 4px rgba(0,0,0,0.1);\n    min-height: 60px;\n}\n
 
 .header-left {
     display: flex;
@@ -38,12 +29,7 @@ header {
     min-width: 0;        /* 允许子元素收缩，否则省略号不生效 */
 }
 
-.header-right {
-    display: flex;
-    align-items: center;
-    gap: 24px;
-    margin-left: auto;
-}
+.header-right {\n    display: flex;\n    align-items: center;\n    gap: 24px;\n    margin-left: auto;\n    flex: 0 0 auto;\n    white-space: nowrap;\n}\n
 
 .btn {
     padding: 8px 16px;
@@ -76,13 +62,7 @@ h1 {
 }
 
 /* 书名（标题）在 header 中的截断与省略号 */
-#pdf-title {
-    display: block;
-    max-width: 100%;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis; /* 省略号表示 */
-}
+#pdf-title {\n    display: block;\n    max-width: 100%;\n    white-space: nowrap;\n    overflow: hidden;\n    text-overflow: ellipsis;\n    flex: 1 1 auto;\n    min-width: 0;\n}\n
 
 /* 复制 PDF ID 按钮样式 */
 .copy-id-btn {
@@ -618,10 +598,7 @@ main {
     }
 
     .header-left,
-    .header-right {
-        width: 100%;
-        justify-content: center;
-    }
+    .header-right {\n    display: flex;\n    align-items: center;\n    gap: 24px;\n    margin-left: auto;\n    flex: 0 0 auto;\n    white-space: nowrap;\n}\n
 
     .zoom-controls,
     .page-controls {
@@ -634,3 +611,6 @@ main {
         font-size: 12px;
     }
 }
+
+
+
