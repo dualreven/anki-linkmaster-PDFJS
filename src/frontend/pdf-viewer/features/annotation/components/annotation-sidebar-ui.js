@@ -935,7 +935,13 @@ export class AnnotationSidebarUI {
    */
   #handleJumpClick(annotationId) {
     this.#logger.debug(`Jump to annotation: ${annotationId}`);
-    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.JUMP_TO, { id: annotationId });
+    // 为避免“乐观UI创建后，AnnotationManager尚未入库”导致的跳转失败，这里携带完整对象
+    const annotation = this.#annotations.find(a => a.id === annotationId) || null;
+    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.JUMP_TO, {
+      id: annotationId,
+      // 若能获取到对象则一并传递，AnnotationFeature 会优先使用对象
+      ...(annotation ? { annotation } : {})
+    });
   }
 
   /**

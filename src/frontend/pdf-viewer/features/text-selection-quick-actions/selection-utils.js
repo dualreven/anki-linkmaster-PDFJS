@@ -137,3 +137,65 @@ export function buildSelectionSnapshot(range, pageElement) {
     boundingBox
   };
 }
+
+/**
+ * 计算 textRanges（基于 textLayer 的字符偏移）
+ * - 若不存在 textLayer，则退化为 [ { start:0, end: selectionText.length } ]
+ * @param {Range} range - 浏览器 Range 对象
+ * @param {HTMLElement} pageElement - 页面元素（包含 .textLayer）
+ * @returns {Array<{start:number,end:number}>}
+ */
+export function computeTextRanges(range, pageElement) {
+  try {
+    if (!range || !pageElement) {
+      return [];
+    }
+    const textLayer = pageElement.querySelector('.textLayer');
+    if (!textLayer) {
+      const len = range.toString().length;
+      return len > 0 ? [{ start: 0, end: len }] : [];
+    }
+
+    // 收集 textLayer 下所有文本节点及其累计偏移
+    const textNodes = [];
+    let currentOffset = 0;
+    const walker = document.createTreeWalker(textLayer, NodeFilter.SHOW_TEXT, null);
+    let node;
+    while ((node = walker.nextNode())) {
+      const t = node.textContent || '';
+      textNodes.push({ node, offset: currentOffset, length: t.length });
+      currentOffset += t.length;
+    }
+
+    const calcOffset = (targetNode, nodeOffset) => {
+      for (const item of textNodes) {
+        if (item.node === targetNode) {
+          return item.offset + nodeOffset;
+        }
+        if (targetNode && targetNode.nodeType === Node.ELEMENT_NODE) {
+          const walker2 = document.createTreeWalker(targetNode, NodeFilter.SHOW_TEXT, null);
+          let tn;
+          let acc = 0;
+          while ((tn = walker2.nextNode())) {
+            if (tn === item.node) {
+              return item.offset + Math.min(nodeOffset, acc);
+            }
+            acc += (tn.textContent || '').length;
+          }
+        }
+      }
+      return -1;
+    };
+
+    const start = calcOffset(range.startContainer, range.startOffset);
+    const end = calcOffset(range.endContainer, range.endOffset);
+    if (start === -1 || end === -1) {
+      const len = range.toString().length;
+      return len > 0 ? [{ start: 0, end: len }] : [];
+    }
+    return [{ start: Math.min(start, end), end: Math.max(start, end) }];
+  } catch (_) {
+    const len = range?.toString()?.length || 0;
+    return len > 0 ? [{ start: 0, end: len }] : [];
+  }
+}
