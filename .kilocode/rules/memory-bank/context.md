@@ -61,6 +61,23 @@
   - HEAD(after)  = 5cd176efe136df045aab2819f8e24c73d4bd0627
 - 验证：merge-base 祖先检查通过（退出码 0）；工作区干净。
 
+## 当前任务（20251009043000）
+- 名称：排查“页码30变28”的原因（不改代码）
+- 相关对象：anchor `pdfanchor-c9f7a6d3aa87`
+- 现象：用户观察到页码从 30 变为 28。
+- 数据核对：查询 `data/anki_linkmaster.db` → 表 `pdf_bookanchor`，该 anchor 的 `page_at = 28`（json 内无 page 细节）。
+- 原理说明：
+  - PDF 同时存在物理页索引（1 基）与“页码标签”（Page Labels，可从任意值或罗马数字开始）。
+  - 数据库存储 `page_at` 语义更接近“物理页码（1 基）”，而 UI 可能使用“标签页码”展示。
+  - 若该 PDF 的标签从第 3 个物理页开始记为 1，则物理 28 对应标签 30（相差 2）。
+- 待验证步骤（不改代码）：
+  1) 在 PDF.js 环境执行 `pdfDocument.getPageLabels()`；核对 index=27 的 label 是否为 "30"；
+  2) 核对前端展示页码的实现是否调用 `getPageLabel(pageIndex)`；
+  3) 核对锚点创建时的页码来源（DOM `data-page-number` vs PageLabels）。
+- 决策建议：
+  - 对外展示统一用“标签页码”；
+  - 存储和跳转统一用“物理页码”，展示时做映射转换。
+
 ## 当前任务（20251008161500）
 - 名称：合并 worktree B 并推送到远程
 - 背景：worktree B (feature/pdf-home-add-delete-improvements) 包含排序模式优化和样式改进
@@ -1065,6 +1082,19 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
   3) 移除侧边栏额外“复制ID”快捷按钮，仅保留下拉菜单项（复制ID/复制文内链接）；
   4) 新增/调整测试：保留菜单项复制测试，移除快捷按钮测试；
   5) 回写 AI-Working-log 与本文件，并通知完成。
+
+## 当前任务（20251009063832）
+- 名称：放弃事件驱动采样，改为 1 秒心跳写回（锚点）
+- 背景：
+  - 页面事件（NAVIGATION.CHANGED/滚动）在初始化期会触发误采样，导致刷新后锚点页码向前倒退；
+  - 需求：先用最简单暴力方式改为“固定 1 秒心跳回写”，不依赖页面事件；
+- 实施：
+  1) 取消 `#ensureScrollDiagnostics()` 调用，不挂载滚动监听；
+  2) NAVIGATION.CHANGED 订阅改为 no-op；
+  3) `#startUpdateTimer()` 改为 1000ms 并直接 `#snapshotAndUpdate()`；
+- 文件：
+  - src/frontend/pdf-viewer/features/pdf-anchor/index.js
+- 备注：如需优化初始化首秒抖动或“谁是当前页”的算法，可后续升级。
 
 ### 推送记录（20251009041000）
 - 分支：worker/branch-C → origin/worker/branch-C

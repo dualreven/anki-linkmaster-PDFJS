@@ -40,7 +40,7 @@ export class PDFAnchorFeature {
     if (!this.#navigationService) {this.#logger.warn("navigationService not found, will fallback to DOM ops");}
 
     this.#setupEventListeners();
-    this.#ensureScrollDiagnostics();
+    // 简化模式：不依赖页面事件与滚动诊断，改为纯心跳回写
     // 安装时主动检查 URL（避免错过 URL_PARAMS.PARSED 早期事件）
     try {
       this.#bootstrapFromURL();
@@ -262,15 +262,10 @@ export class PDFAnchorFeature {
     );
 
     // 页面导航变更时，若存在已激活的锚点，则立即采样并更新一次（提升滚动时的即时性）
+    // 简化模式：不再基于 NAVIGATION.CHANGED 做自动采样
     this.#eventBus.on(
       PDF_VIEWER_EVENTS.NAVIGATION.CHANGED,
-      () => {
-        if (this.#activeAnchorId) {
-          if (!this.#autoUpdateEnabled) { return; }
-          if (Date.now() < this.#freezeUntilMs) { return; }
-          try { this.#snapshotAndUpdate(this.#activeAnchorId); } catch (e) { this.#logger.warn('anchor snapshot on navigation failed', e); }
-        }
-      },
+      () => { /* no-op: disable event-driven sampling */ },
       { subscriberId: 'PDFAnchorFeature' }
     );
 
@@ -430,10 +425,9 @@ export class PDFAnchorFeature {
     this.#stopUpdateTimer();
     if (!this.#activeAnchorId) {return;}
     this.#updateTimer = setInterval(() => {
-      if (!this.#autoUpdateEnabled) { return; }
-      if (Date.now() < this.#freezeUntilMs) { return; }
-      this.#snapshotAndUpdate(this.#activeAnchorId);
-    }, 3000);
+      // 1秒心跳，直接回写当前页码与位置（最简单暴力实现）
+      try { this.#snapshotAndUpdate(this.#activeAnchorId); } catch(e){ this.#logger.warn('heartbeat snapshot failed', e); }
+    }, 1000);
   }
 
   #stopUpdateTimer() {
