@@ -315,6 +315,8 @@ export class UIManagerCore {
       : filename;
 
     titleElement.textContent = displayName;
+    // 设置原生 tooltip，用于显示完整书名
+    try { titleElement.title = displayName; } catch (_) {}
     this.#logger.info(`Header title updated: ${displayName}`);
   }
 

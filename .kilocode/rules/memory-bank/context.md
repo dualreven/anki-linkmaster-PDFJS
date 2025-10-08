@@ -1033,3 +1033,13 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 
 - UI 调整（20251008082000）：移除锚点侧栏"激活"按钮，改为复制下拉（拷贝副本/复制ID/复制文内链接 [[id]]）。
  
+
+## 当前任务（20251009020020）
+- 名称：优化 pdf-viewer header 标题显示
+- 背景：title 与右侧按钮工具栏在窄屏时争抢空间，影响可读性；期望当空间不足时标题自动尾部省略，并通过 tooltip 显示完整书名。
+- 方案：
+  - CSS：header-left 设为 flex:1; min-width:0；#pdf-title 设置 white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%；header-right 保持 flex-shrink:0
+  - JS：UIManagerCore.#updateHeaderTitle 写入 textContent 的同时设置 title 属性，供系统 tooltip 展示
+- 影响：index.html（结构已有，保持不变）、assets/style.css（追加覆盖样式）、ui-manager-core.js（更新标题时写 title）
+- 验证：添加静态守护测试断言 CSS/JS 片段存在
+

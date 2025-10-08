@@ -34,6 +34,9 @@ header {
     display: flex;
     align-items: center;
     gap: 16px;
+    /* 允许标题在剩余空间内收缩并触发省略号 */
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 .header-right {
@@ -41,6 +44,9 @@ header {
     align-items: center;
     gap: 24px;
     margin-left: auto;
+    /* 避免右侧工具区被标题挤压 */
+    flex: 0 0 auto;
+    flex-shrink: 0;
 }
 
 .btn {
@@ -72,6 +78,21 @@ h1 {
     font-weight: 600;
     color: #333;
 }
+
+/* 标题省略策略：溢出尾部省略并悬浮显示完整 title */
+#pdf-title {
+    margin: 0;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    /* 参与 flex 分配，确保可压缩 */
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* 复制 PDF ID 按钮不参与拉伸，避免影响标题省略 */
+.copy-id-btn { flex: 0 0 auto; }
 
 /* 复制 PDF ID 按钮样式 */
 .copy-id-btn {
