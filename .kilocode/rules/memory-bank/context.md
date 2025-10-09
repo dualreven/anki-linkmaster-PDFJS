@@ -1212,3 +1212,9 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
   1) 激活锚点时启用 #ensureScrollDiagnostics()（滚动采样）；停用时 #removeScrollDiagnostics()
   2) AnchorSidebarUI 在 ANCHOR.UPDATED 同步 position
 - 预期：滚动 PDF 文档容器时，已激活锚点的页码与页内位置会即时刷新。
+
+## 当前任务（20251009203554）
+- 名称：锚点跳转改为通过 URL Navigation 实现
+- 变更：pdf-anchor/index.js 在 #performPendingNavIfReady() 中发出 NAVIGATION.URL_PARAMS.REQUESTED{ pdfId, pageAt, position }，替代直接调用 navigationService
+- 容错：缺少 pdf-id 时回退为直接 navigateTo，保证不丢跳转
+- 预期：复用 URL 导航的稳定链路，避免重复跳转等竞态
