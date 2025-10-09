@@ -120,6 +120,8 @@ export class PDFAnchorFeature {
             // 启动后台更新（3秒节拍）
             this.#activeAnchorId = a.uuid;
             this.#startUpdateTimer();
+            // URL 启动跟踪时也应启用滚动诊断，以便用户滚动即可回写位置
+            try { this.#ensureScrollDiagnostics(); } catch(_) {}
           }
           // 仅处理一次
           this.#pendingUrlAnchorId = null;
