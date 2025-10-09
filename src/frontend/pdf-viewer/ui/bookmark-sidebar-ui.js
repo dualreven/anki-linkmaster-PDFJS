@@ -155,7 +155,7 @@ export class BookmarkSidebarUI {
     // 使用全局 dnd 事件，并限定在本组件容器内生效
     const NS = ".bookmarkDnd";
     const self = this;
-    let lastEl = null; let lastZone = null;
+    let lastEl = null; let lastZone = null; let dragNodeId = null; let movedHandled = false;
     const clearHighlight = () => {
       if (!lastEl) return;
       try {
@@ -166,6 +166,15 @@ export class BookmarkSidebarUI {
       lastEl = null; lastZone = null;
     };
     try { $(document).off(NS); } catch (_) {}
+    // 捕获开始拖拽，记录被拖拽的节点ID
+    $(document).on("dnd_start.vakata" + NS, (evt, data) => {
+      try {
+        if (data && data.data && data.data.jstree && Array.isArray(data.data.nodes)) {
+          dragNodeId = data.data.nodes[0] || null;
+        } else { dragNodeId = null; }
+        movedHandled = false;
+      } catch (_) { dragNodeId = null; movedHandled = false; }
+    });
     $(document).on("dnd_move.vakata" + NS, (evt, data) => {
       try {
         const $li = $(data.event.target).closest("li.jstree-node");
@@ -184,7 +193,26 @@ export class BookmarkSidebarUI {
         }
       } catch (err) { /* ignore */ }
     });
-    $(document).on("dnd_stop.vakata" + NS, () => clearHighlight());
+    // move_node 已处理的标记
+    $container.on("move_node.jstree", () => { movedHandled = true; });
+    // 停止拖拽：如未触发 move_node 且在容器内空白区域，视为“放到根的末尾”
+    $(document).on("dnd_stop.vakata" + NS, (evt, data) => {
+      try {
+        const $target = $(data && data.event && data.event.target);
+        const inContainer = $target && $target.closest(self.#bookmarkList).length > 0;
+        const onNode = $target && $target.closest("li.jstree-node").length > 0;
+        if (inContainer && !onNode && !movedHandled && dragNodeId) {
+          // 作为根级最后一个插入
+          self.#eventBus.emit(
+            PDF_VIEWER_EVENTS.BOOKMARK.REORDER.REQUESTED,
+            { bookmarkId: dragNodeId, newParentId: null, newIndex: self.#bookmarks.length },
+            { actorId: 'BookmarkSidebarUI' }
+          );
+        }
+      } catch (_) { /* ignore */ }
+      clearHighlight();
+      dragNodeId = null; movedHandled = false;
+    });
   }
 
   #toJsTreeData(bookmarks) {
