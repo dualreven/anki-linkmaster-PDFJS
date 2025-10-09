@@ -429,7 +429,7 @@ export class PDFAnchorFeature {
           if (this.#navInitDelayTimer) { try { clearTimeout(this.#navInitDelayTimer); } catch(_){} this.#navInitDelayTimer = null; }
           if (this.#navReadyRetryTimer) { try { clearInterval(this.#navReadyRetryTimer); } catch(_){} this.#navReadyRetryTimer = null; }
         }
-      }, 2500); // 初始化等待后统一走 URL Navigation 链路
+      }, 1000); // 初始化等待后统一走 URL Navigation 链路（改为1s）
     } catch(_) {}
   }
 
@@ -479,7 +479,7 @@ export class PDFAnchorFeature {
           this.#pendingNav = null;
           this.#gateNavDone = true;
         } catch(_) {}
-      }, 2500);
+      }, 1000);
     } catch(_) {}
   }
 
