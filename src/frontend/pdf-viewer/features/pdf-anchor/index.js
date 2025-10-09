@@ -259,9 +259,12 @@ export class PDFAnchorFeature {
           // 不在激活瞬间写回页码，避免初始化期间采样到错误页面（导致倒退并被持久化）
           this.#startUpdateTimer();
           this.#autoUpdateEnabled = true;
+          // 启用滚动诊断：在文档区域滚动时采样并写回（心跳关闭的情况下，保持滚动驱动的即时性）
+          try { this.#ensureScrollDiagnostics(); } catch(_) {}
         } else {
           if (this.#activeAnchorId === id) { this.#activeAnchorId = null; }
           this.#stopUpdateTimer();
+          try { this.#removeScrollDiagnostics(); } catch(_) {}
         }
       },
       { subscriberId: "PDFAnchorFeature" }

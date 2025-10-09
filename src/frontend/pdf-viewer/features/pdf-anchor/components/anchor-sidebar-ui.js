@@ -84,10 +84,11 @@ export class AnchorSidebarUI {
     // 监听锚点更新与激活状态变更以刷新表格
     this.#unsubs.push(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANCHOR.UPDATED,
-      ({ anchorId, page_at }) => {
+      ({ anchorId, page_at, position }) => {
         const idx = this.#anchors.findIndex(a => a.uuid === anchorId);
         if (idx >= 0) {
           this.#anchors[idx].page_at = page_at;
+          if (typeof position === 'number') { this.#anchors[idx].position = position; }
           this.#renderAnchors(this.#anchors);
         }
       },
