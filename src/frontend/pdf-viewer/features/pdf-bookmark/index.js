@@ -640,8 +640,9 @@ export class PDFBookmarkFeature {
         { actorId: 'PDFBookmarkFeature' }
       );
 
-      // 回读远端数据，完成后再刷新一次以对齐远端（避免重复保存竞态）
+      // 后台持久化与回读，完成后再刷新一次以对齐远端
       try {
+        await this.#bookmarkManager.saveToStorage();
         await this.#bookmarkManager.loadFromStorage();
         this.#refreshBookmarkList();
       } catch (_) {}
