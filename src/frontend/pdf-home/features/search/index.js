@@ -33,6 +33,7 @@ export class SearchFeature {
     this.#logger = context.logger;
     this.#scopedEventBus = context.scopedEventBus;
     this.#globalEventBus = context.globalEventBus;
+    const sidBase = `se-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,6)}`;
 
     this.#logger.info('[SearchFeature] Installing...');
 
@@ -122,42 +123,42 @@ export class SearchFeature {
     const unsubSearch = this.#scopedEventBus.on('search:query:requested', (data) => {
       this.#logger.info('[SearchFeature] Forwarding search query to global', data);
       this.#globalEventBus.emit('search:query:requested', data);
-    });
+    }, { subscriberId: `${this.name}:${sidBase}:forward-search-query` });
     this.#unsubscribers.push(unsubSearch);
 
     // 清除请求 -> 转发到全局
     const unsubClear = this.#scopedEventBus.on('search:clear:requested', () => {
       this.#logger.info('[SearchFeature] Forwarding clear request to global');
       this.#globalEventBus.emit('search:clear:requested');
-    });
+    }, { subscriberId: `${this.name}:${sidBase}:forward-clear` });
     this.#unsubscribers.push(unsubClear);
 
     // 添加按钮点击 -> 转发到全局
     const unsubAdd = this.#scopedEventBus.on('search:add:requested', () => {
       this.#logger.info('[SearchFeature] Forwarding add request to global');
       this.#globalEventBus.emit('search:add:requested');
-    });
+    }, { subscriberId: `${this.name}:${sidBase}:forward-add` });
     this.#unsubscribers.push(unsubAdd);
 
     // 排序按钮点击 -> 转发到全局
     const unsubSort = this.#scopedEventBus.on('search:sort:requested', () => {
       this.#logger.info('[SearchFeature] Forwarding sort request to global');
       this.#globalEventBus.emit('search:sort:requested');
-    });
+    }, { subscriberId: `${this.name}:${sidBase}:forward-sort` });
     this.#unsubscribers.push(unsubSort);
 
     // 高级筛选按钮点击 -> 转发到全局
     const unsubAdvanced = this.#scopedEventBus.on('search:advanced:clicked', () => {
       this.#logger.info('[SearchFeature] Forwarding advanced click to global');
       this.#globalEventBus.emit('filter:advanced:open');
-    });
+    }, { subscriberId: `${this.name}:${sidBase}:forward-advanced` });
     this.#unsubscribers.push(unsubAdvanced);
 
     // 保存预设 -> 转发到全局
     const unsubPreset = this.#scopedEventBus.on('search:preset:save', (data) => {
       this.#logger.info('[SearchFeature] Forwarding preset save to global', data);
       this.#globalEventBus.emit('filter:preset:save', data);
-    });
+    }, { subscriberId: `${this.name}:${sidBase}:forward-preset-save` });
     this.#unsubscribers.push(unsubPreset);
   }
 
@@ -174,7 +175,7 @@ export class SearchFeature {
       } catch (e) {
         this.#logger?.warn('[SearchFeature] showInfoWithId failed', e);
       }
-    });
+    }, { subscriberId: `${this.name}:${sidBase}:search-query-started` });
     this.#unsubscribers.push(unsubStarted);
 
     // 监听搜索结果更新
@@ -188,13 +189,13 @@ export class SearchFeature {
         });
       }
       try { dismissById('search:busy'); } catch {}
-    });
+    }, { subscriberId: `${this.name}:${sidBase}:search-results-updated` });
     this.#unsubscribers.push(unsubResults);
 
     // 搜索失败：隐藏进行中的提示
     const unsubFailed = this.#globalEventBus.on('search:results:failed', () => {
       try { dismissById('search:busy'); } catch {}
-    });
+    }, { subscriberId: `${this.name}:${sidBase}:search-results-failed` });
     this.#unsubscribers.push(unsubFailed);
   }
 }

@@ -247,6 +247,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--disable-websocket", action="store_true", help="Skip QWebSocket bridge connection")
     parser.add_argument("--disable-js-console", action="store_true", help="Skip JavaScript console logger thread")
     parser.add_argument("--disable-frontend-load", action="store_true", help="Skip loading the front-end URL into the WebEngine view")
+    parser.add_argument("--prod", action="store_true", help="以生产模式运行，直接从 dist 静态文件加载页面")
     ns = parser.parse_args(argv)
     # Normalize alias: --pdfanchor → --anchor-id
     if getattr(ns, 'pdfanchor', None) and not getattr(ns, 'anchor_id', None):
@@ -454,34 +455,47 @@ def main() -> int:
 
     record_component("js_console", js_console_enabled, js_console_executed, js_console_note)
 
-    # Prepare front-end URL and optionally load
-    url = f"http://localhost:{vite_port}/pdf-viewer/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"
-    if file_path:
-        import urllib.parse
-        file_param = urllib.parse.quote(file_path)
-        url += f"&file={file_param}"
+    # Prepare front-end URL (dev vs prod)
+    is_prod = bool(
+        os.environ.get("APP_ENV") == "production"
+        or os.environ.get("PDFJS_ENV") == "production"
+        or os.environ.get("ENV") == "production"
+        or args.prod
+    )
 
-    # Add URL navigation parameters (for url-navigation Feature)
-    if args.pdf_id:
-        # 如果使用pdf-id，添加到URL（前端url-navigation Feature会处理）
-        url += f"&pdf-id={args.pdf_id}"
+    if is_prod:
+        # 生产模式：通过 pdfFile_server 提供静态资源
+        url = f"http://127.0.0.1:{pdfFile_port}/pdf-viewer/"
+        logger.info("Production mode: loading from static files")
+    else:
+        # 开发模式：使用 Vite dev server
+        url = f"http://localhost:{vite_port}/pdf-viewer/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"
+        if file_path:
+            import urllib.parse
+            file_param = urllib.parse.quote(file_path)
+            url += f"&file={file_param}"
 
-    if args.page_at is not None:
-        # 添加目标页码参数
-        url += f"&page-at={args.page_at}"
-        logger.info(f"URL navigation: target page = {args.page_at}")
+        # Add URL navigation parameters (for url-navigation Feature)
+        if args.pdf_id:
+            # 如果使用pdf-id，添加到URL（前端url-navigation Feature会处理）
+            url += f"&pdf-id={args.pdf_id}"
 
-    if args.position is not None:
-        # 添加页面内位置百分比参数
-        # 限制在0-100范围内
-        position = max(0.0, min(100.0, args.position))
-        url += f"&position={position}"
-        logger.info(f"URL navigation: target position = {position}%")
+        if args.page_at is not None:
+            # 添加目标页码参数
+            url += f"&page-at={args.page_at}"
+            logger.info(f"URL navigation: target page = {args.page_at}")
 
-    # 追加 anchor-id（可选）
-    if args.anchor_id:
-        url += f"&anchor-id={args.anchor_id}"
-        logger.info(f"URL navigation: anchor-id = {args.anchor_id}")
+        if args.position is not None:
+            # 添加页面内位置百分比参数
+            # 限制在0-100范围内
+            position = max(0.0, min(100.0, args.position))
+            url += f"&position={position}"
+            logger.info(f"URL navigation: target position = {position}%")
+
+        # 追加 anchor-id（可选）
+        if args.anchor_id:
+            url += f"&anchor-id={args.anchor_id}"
+            logger.info(f"URL navigation: anchor-id = {args.anchor_id}")
 
     frontend_enabled = not args.disable_frontend_load
     frontend_executed = False

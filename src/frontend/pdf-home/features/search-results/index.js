@@ -52,6 +52,8 @@ export class SearchResultsFeature {
     this.#logger = context.logger;
     this.#scopedEventBus = context.scopedEventBus;
     this.#globalEventBus = context.globalEventBus;
+    // 生成一次性订阅者ID前缀（避免跨多次安装冲突）
+    const sidBase = `sr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,6)}`;
 
     this.#logger.info('[SearchResultsFeature] Installing...');
 
@@ -362,7 +364,7 @@ export class SearchResultsFeature {
         const lim = Number(data?.pagination?.limit);
         if (!Number.isNaN(lim) && lim > 0) this.#lastRequestedPageLimit = lim;
       } catch (_) {}
-    });
+    }, { subscriberId: `${this.name}:${sidBase}:search-query-req` });
     this.#unsubscribers.push(unsubSearchRequested);
     // 监听搜索结果更新（来自search插件）
     const unsubSearchResults = this.#globalEventBus.on('search:results:updated', (data) => {
@@ -372,7 +374,7 @@ export class SearchResultsFeature {
       });
 
       this.#handleResultsUpdate(data.records, data.count, data.searchText, data.focusId, data.page);
-    });
+    }, { subscriberId: `${this.name}:${sidBase}:search-results-updated` });
     this.#unsubscribers.push(unsubSearchResults);
 
     // 监听筛选结果更新（来自filter插件）
@@ -383,7 +385,7 @@ export class SearchResultsFeature {
       });
 
       this.#handleResultsUpdate(data.results, data.count, data.searchText);
-    });
+    }, { subscriberId: `${this.name}:${sidBase}:filter-results-updated` });
     this.#unsubscribers.push(unsubResults);
 
     this.#logger.info('[SearchResultsFeature] Subscribed to search and filter events');
@@ -399,7 +401,7 @@ export class SearchResultsFeature {
       } catch (e) {
         this.#pendingFocusIds = null;
       }
-    });
+    }, { subscriberId: `${this.name}:${sidBase}:focus-requested` });
     this.#unsubscribers.push(unsubFocusReq);
   }
 
@@ -412,7 +414,7 @@ export class SearchResultsFeature {
     const unsubSelected = this.#scopedEventBus.on('results:item:selected', (data) => {
       this.#logger.debug('[SearchResultsFeature] Item selected', data);
       this.#globalEventBus.emit('search-results:item:selected', data);
-    });
+    }, { subscriberId: `${this.name}:${sidBase}:item-selected` });
     this.#unsubscribers.push(unsubSelected);
 
     // 条目打开事件 -> 转发到全局
@@ -470,7 +472,7 @@ export class SearchResultsFeature {
       } catch (e) {
         this.#logger.error('[SearchResultsFeature] Open viewer failed', e);
       }
-    });
+    }, { subscriberId: `${this.name}:${sidBase}:item-open` });
     this.#unsubscribers.push(unsubOpen);
 
     this.#logger.info('[SearchResultsFeature] Event bridge setup');
@@ -516,7 +518,7 @@ export class SearchResultsFeature {
             resolve(null);
           }
         } catch (_) {}
-      });
+      }, { subscriberId: `${this.name}:${sidBase}:ws-message-recv:${rid}` });
 
       // 发送请求
       const payload = { type: WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST, request_id: rid, data: { pdf_id: pdfId } };

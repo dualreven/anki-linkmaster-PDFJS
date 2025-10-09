@@ -253,7 +253,7 @@ export class PDFEditFeature {
         if (this.#awaitingTimer) { clearTimeout(this.#awaitingTimer); this.#awaitingTimer = null; }
         try { notifySuccess('更新完成', 3500); } catch (_) {}
       }
-    });
+    }, { subscriberId: `pdf-edit:${Date.now().toString(36)}:${Math.random().toString(36).slice(2,6)}:search-results-updated` });
     this.#unsubscribers.push(unsubSearchUpdated);
 
     this.#logger.debug('Event listeners registered');

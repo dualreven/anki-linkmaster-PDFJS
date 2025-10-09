@@ -955,7 +955,7 @@ export class PDFListFeature {
           }
         } catch (_) {}
       }, 0);
-    });
+    }, { subscriberId: `pdf-list:${Date.now().toString(36)}:${Math.random().toString(36).slice(2,6)}:search-results-updated` });
     this.#unsubscribers.push(unsubSearchUpdated);
 
     // 兜底：将 WSClient 未专门路由的 add completed/failed 通过 unknown 转发到 response

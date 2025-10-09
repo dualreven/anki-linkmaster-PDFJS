@@ -54,6 +54,8 @@
     </div>
     <!-- QWebChannel支持 -->
     <script src="/js/qwebchannel.js"></script>
+    <!-- 固定 iziToast 根容器，避免 target 为空导致的样式访问异常 -->
+    <div id="izi-toast-root" style="position:fixed;top:16px;right:16px;z-index:2147483647;pointer-events:none;display:flex;flex-direction:column;gap:8px"></div>
     <script>
       try {
         console.info('[BOOT] index.html mounted');

@@ -85,6 +85,7 @@ export class PDFTable {
     this._setupDOMEvents();
 
     logger.info("PDFTable component initialized successfully");
+    */
   }
 
   /**
