@@ -48,8 +48,8 @@ export class SidebarManagerFeature {
      * 依赖的Features
      */
     get dependencies() {
-        // 使用新的 pdf-outline 替代 pdf-bookmark
-        return ['annotation', 'pdf-translator', 'pdf-outline', 'pdf-card'];
+        // 恢复为依赖 pdf-bookmark，保证现有功能稳定
+        return ['annotation', 'pdf-translator', 'pdf-bookmark', 'pdf-card'];
     }
 
     /**

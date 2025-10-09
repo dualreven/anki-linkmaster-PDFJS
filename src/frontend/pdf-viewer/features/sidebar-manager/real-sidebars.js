@@ -6,8 +6,7 @@
 
 import { getLogger } from '../../../common/utils/logger.js';
 import { createSidebarConfig } from './sidebar-config.js';
-// import { BookmarkSidebarUI } from '../../ui/bookmark-sidebar-ui.js';
-import { OutlineSidebarUI } from '../../features/pdf-outline/components/outline-sidebar-ui.js';
+import { BookmarkSidebarUI } from '../../ui/bookmark-sidebar-ui.js';
 import { AnchorSidebarUI } from '../../features/pdf-anchor/components/anchor-sidebar-ui.js';
 const logger = getLogger('RealSidebars');
 
@@ -37,21 +36,21 @@ export function registerRealSidebars(sidebarManager, eventBus, container) {
     sidebarManager.registerSidebar(anchorConfig);
     logger.info('Anchor sidebar registered');
 
-    // 1. 大纲侧边栏（新的 pdf-outline 基于第三方树形库）
-    const outlineUI = new OutlineSidebarUI(eventBus, { container });
-    outlineUI.initialize();
+    // 1. 大纲侧边栏（恢复旧 UI，但内部已接入 jsTree 渲染）
+    const bookmarkUI = new BookmarkSidebarUI(eventBus);
+    bookmarkUI.initialize();
 
-    const outlineConfig = createSidebarConfig({
+    const bookmarkConfig = createSidebarConfig({
         id: 'bookmark',
         title: '大纲',
-        contentRenderer: () => outlineUI.getContentElement(),
+        contentRenderer: () => bookmarkUI.getContentElement(),
         defaultWidth: 280,
         minWidth: 200,
         maxWidth: 500,
         resizable: true
     });
-    sidebarManager.registerSidebar(outlineConfig);
-    logger.info('Outline sidebar registered (pdf-outline)');
+    sidebarManager.registerSidebar(bookmarkConfig);
+    logger.info('Outline sidebar registered');
 
     // 2. 批注侧边栏（延迟获取，首次调用时从容器获取并缓存）
     let annotationUIInstance = null;

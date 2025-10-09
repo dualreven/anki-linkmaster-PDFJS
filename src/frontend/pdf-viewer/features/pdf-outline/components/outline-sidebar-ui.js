@@ -8,6 +8,7 @@ import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants
 import $ from "jquery";
 import "jstree";
 import "jstree/dist/themes/default/style.css";
+import { BookmarkToolbar } from "../../pdf-bookmark/components/bookmark-toolbar.js";
 
 export class OutlineSidebarUI {
   #eventBus;
@@ -49,16 +50,14 @@ export class OutlineSidebarUI {
   getContentElement() { return this.#content; }
 
   #mountToolbar() {
-    // 动态加载旧的 BookmarkToolbar 并挂载到此处
-    import("../../pdf-bookmark/components/bookmark-toolbar.js")
-      .then(({ BookmarkToolbar }) => {
-        const toolbar = new BookmarkToolbar({ eventBus: this.#eventBus });
-        toolbar.initialize();
-        this.#toolbarEl.appendChild(toolbar.getElement());
-      })
-      .catch((e) => {
-        this.#logger.warn("Failed to mount BookmarkToolbar (fallback without toolbar):", e);
-      });
+    // 直接挂载现有 BookmarkToolbar，保证同步渲染
+    try {
+      const toolbar = new BookmarkToolbar({ eventBus: this.#eventBus });
+      toolbar.initialize();
+      this.#toolbarEl.appendChild(toolbar.getElement());
+    } catch (e) {
+      this.#logger.warn("Failed to mount BookmarkToolbar (fallback without toolbar):", e);
+    }
   }
 
   #toJsTreeData(bookmarks) {
