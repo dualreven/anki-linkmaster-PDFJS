@@ -14,6 +14,12 @@ importers:
       izitoast:
         specifier: ^1.4.0
         version: 1.4.0
+      jquery:
+        specifier: 3.7.1
+        version: 3.7.1
+      jstree:
+        specifier: ^3.3.17
+        version: 3.3.17
       pdfjs-dist:
         specifier: ^4.7.76
         version: 4.7.76
@@ -2163,6 +2169,9 @@ packages:
       node-notifier:
         optional: true
 
+  jquery@3.7.1:
+    resolution: {integrity: sha512-m4avr8yL8kmFN8psrbFFFmB/If14iN5o9nw/NgnnM+kybDJpRsAynV2BsfpTYrTRysYUdADVD7CkUUizgkpLfg==}
+
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
 
@@ -2208,6 +2217,9 @@ packages:
     resolution: {integrity: sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==}
     engines: {node: '>=6'}
     hasBin: true
+
+  jstree@3.3.17:
+    resolution: {integrity: sha512-V0Pl1B6BIaxHUQMiWkol37QlhlBKoZA9RUeUmm95+UnV2QeZsj2QP1sOQl/m2EIOyZXOOxOHvR0SYZLSDC7EFw==}
 
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
@@ -5436,6 +5448,8 @@ snapshots:
       - supports-color
       - ts-node
 
+  jquery@3.7.1: {}
+
   js-tokens@4.0.0: {}
 
   js-yaml@3.14.1:
@@ -5487,6 +5501,10 @@ snapshots:
   json-stable-stringify-without-jsonify@1.0.1: {}
 
   json5@2.2.3: {}
+
+  jstree@3.3.17:
+    dependencies:
+      jquery: 3.7.1
 
   keyv@4.5.4:
     dependencies:

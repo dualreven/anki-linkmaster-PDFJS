@@ -1,26 +1,34 @@
-﻿## 当前任务（20251009083956）
-- 名称：设计 MsgCenter→pdf-viewer 导航通信规范并实现最小落地
-- 背景：需要跨进程/窗口精确控制 viewer 导航到标注或页内位置
-- 方案：
-  - 新增 WS 消息类型：pdf-viewer:register:requested，pdf-viewer:navigate:requested/completed/failed
-  - 前端生成 session 级 viewer_id，连接建立后发送 register
-  - 导航请求按 viewer_id/pdf_uuid 路由，触发内部事件（JUMP_REQUESTED / NAVIGATION.GOTO）
-- 产物：规范文档与 JSON Schema + 适配器实现与常量
-- 状态：已完成
+﻿## 当前任务（20251010020347）
+- 名称：分析pdf-viewer代码清晰度，提出基于AI开发特点的改进建议
+- 问题背景：
+  - AI开发的特点：记忆有限（无法记住所有Feature细节）、理解能力有限（容易忽略隐式依赖）
+  - 目标：避免AI修改一个功能时引起另一个功能的错误
+- 相关模块与文件：
+  - 架构文档：`src/frontend/ARCHITECTURE-EXPLAINED.md`、`src/frontend/HOW-TO-ADD-FEATURE.md`
+  - 核心组件：`FeatureRegistry`、`EventBus`、`DependencyContainer`、`ScopedEventBus`
+  - 当前Feature：17个（app-core, pdf-manager, pdf-bookmark等）
+  - Bootstrap：`src/frontend/pdf-viewer/bootstrap/app-bootstrap-feature.js`
+- 分析结论：
+  - ✅ 优点：插件化架构清晰、事件驱动解耦、文档完善、命名规范严格
+  - ⚠️ 问题：隐式依赖难追踪、事件契约不明确、全局/局部事件易混淆、缺少改动影响分析工具
+- 核心改进建议（7个优先级）：
+  1. **服务契约注册表**：集中定义所有可注入服务及其接口，避免字符串拼写错误
+  2. **事件Payload Schema**：为每个事件定义明确的数据结构，运行时验证
+  3. **Feature依赖图可视化**：自动生成Mermaid依赖图，检测循环依赖
+  4. **事件流追踪工具**：开发模式下记录完整事件链路，生成序列图
+  5. **Feature职责边界检查**：定义允许/禁止行为清单，工具自动检测越界
+  6. **结构化日志**：引入Trace ID，串联跨Feature调用链
+  7. **契约测试**：为核心Feature编写"对外承诺"测试，CI强制通过
+- 实施路线图：
+  - 第一阶段（1周）：服务契约注册表 + 事件Schema + 运行时验证
+  - 第二阶段（1周）：依赖图生成 + 事件流追踪工具
+  - 第三阶段（2周）：契约测试 + 职责文档
+  - 第四阶段（持续）：AI辅助开发工具
+- 衡量标准：跨Feature bug减少50%、AI开发速度提升30%、代码审查时间减少40%
+- 状态：分析完成，已生成详细报告（`AItemp/20251010020347-AI-Working-log.md`）
 
 ## 当前任务（20251009061328）
-
-## 当前任务（20251009082433）
-- 名称：从远程 main 合并到当前分支（再次同步）
-- 背景：保持工作分支与主线一致，降低集成冲突；当前分支可能已有本地文档修改，需先暂存避免阻塞。
-- 步骤：
-  1) git fetch origin --prune
-  2) 记录 HEAD 与 origin/main 提交
-  3) 存在差异则合并：git merge --no-edit origin/main；冲突则解决
-  4) 验证祖先关系与状态干净
-  5) 回写日志并通知完成
-- 状态：已完成（fast-forward 合并成功；HEAD 与 origin/main 一致）
-
+- 名称：提交并合并到远程 main（anki-linkmaster-B）
 - 背景：翻译功能修复已完成，需将当前分支 worker/branch-B 的更改合入 main。
 - 步骤：
   1) 提交当前变更（allowlist 修复、测试、文档）
@@ -98,7 +106,7 @@
 - 问题背景：
   - 需要保持工作分支与主线 `main` 同步，降低后续集成冲突与回归风险。
 - 相关模块与操作：
-  - Git 仓库：`C:\Users\napretep\PycharmProjects\anki-linkmaster-A`
+  - Git 仓库：`C:\Users\napretep\PycharmProjects\anki-linkmaster-C`
   - 远程：`origin/main`
 - 执行步骤（原子化）：
   1) 设计验证：记录 `HEAD` 与 `origin/main` 的提交哈希；合并后校验 `merge-base` 祖先关系。
@@ -107,6 +115,46 @@
   4) 若有冲突：列出冲突文件，逐一解决并提交 `git add ... && git commit`。
   5) 验证：`git merge-base --is-ancestor origin/main HEAD` 返回码为 0；`git status` 干净。
   6) 回写本文件与 AI-Working-log，并通知完成。
+
+## 当前任务（20251009041000）
+- 名称：拉取 main 并合并到当前分支（anki-linkmaster-C）
+- 问题背景：
+  - 需要以最小风险方式将 `origin/main` 合入当前分支，确保功能分支与主线一致，减少未来合并冲突。
+- 相关模块与操作：
+  - Git 仓库：`C:\Users\napretep\PycharmProjects\anki-linkmaster-C`
+  - 远程：`origin/main`
+- 执行步骤（原子化）：
+  1) 设计验证：记录 `HEAD` 与 `origin/main` 的提交哈希，合并后验证祖先关系。
+  2) 获取远程：`git fetch origin`。
+  3) 合并主线：`git merge --no-ff --no-edit origin/main`。
+  4) 冲突处理：若出现冲突，列出并逐一解决，`git add` 后提交。
+  5) 验证：`git merge-base --is-ancestor origin/main HEAD` 为 0；`git status` 干净。
+  6) 文档回写：更新 AI-Working-log 与 memory-bank，并通知完成。
+
+### 执行结果（20251009041000）
+- 合并对象：`origin/main`
+- 合并前后：
+  - HEAD(before) = aeb4fd6091d10746180bd67fbdc3a046294a395a
+  - origin/main = e85c7c5b5790e633ed09b9e6b094c66b75277f82
+  - HEAD(after)  = 5cd176efe136df045aab2819f8e24c73d4bd0627
+- 验证：merge-base 祖先检查通过（退出码 0）；工作区干净。
+
+## 当前任务（20251009043000）
+- 名称：排查“页码30变28”的原因（不改代码）
+- 相关对象：anchor `pdfanchor-c9f7a6d3aa87`
+- 现象：用户观察到页码从 30 变为 28。
+- 数据核对：查询 `data/anki_linkmaster.db` → 表 `pdf_bookanchor`，该 anchor 的 `page_at = 28`（json 内无 page 细节）。
+- 原理说明：
+  - PDF 同时存在物理页索引（1 基）与“页码标签”（Page Labels，可从任意值或罗马数字开始）。
+  - 数据库存储 `page_at` 语义更接近“物理页码（1 基）”，而 UI 可能使用“标签页码”展示。
+  - 若该 PDF 的标签从第 3 个物理页开始记为 1，则物理 28 对应标签 30（相差 2）。
+- 待验证步骤（不改代码）：
+  1) 在 PDF.js 环境执行 `pdfDocument.getPageLabels()`；核对 index=27 的 label 是否为 "30"；
+  2) 核对前端展示页码的实现是否调用 `getPageLabel(pageIndex)`；
+  3) 核对锚点创建时的页码来源（DOM `data-page-number` vs PageLabels）。
+- 决策建议：
+  - 对外展示统一用“标签页码”；
+  - 存储和跳转统一用“物理页码”，展示时做映射转换。
 
 ## 当前任务（20251008161500）
 - 名称：合并 worktree B 并推送到远程
@@ -1080,6 +1128,21 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - 仅影响 JS 日志（logs/pdf-viewer-<id>-js.log），Python 日志仍归 pdf-home
 
 ## 当前任务（20251009030905）
+
+## 当前任务（20251009051702）
+- 名称：后端停止监控 is_active（修复 anchor:update:failed）
+- 背景：
+  - 前端出现“is_active must be a boolean”错误；is_active 已为弃用字段，不应在通用更新流程强制校验；
+  - 仅在 anchor_activate 专职接口下维护单活语义，其余更新（名称/页码/位置等）不应涉及 is_active；
+- 修改要点：
+  1) API：anchor_create/anchor_update 均忽略 is_active 字段；
+  2) 插件：_validate_json_data 仅在 is_active 明确为布尔值时保留，其他类型一律忽略；
+  3) 解析：_parse_row 将 is_active 缺省值改为 False；
+- 相关文件：
+  - src/backend/api/pdf_library_api.py:739-784
+  - src/backend/database/plugins/pdf_bookanchor_plugin.py:241-260, 418
+- 结果：
+  - 普通更新不再触发 is_active 类型校验错误；激活/停用仍由 anchor_activate 控制。
 - 名称：修复 pdf-viewer 锚点侧边栏复制（复制ID/复制文内链接）不可用问题
 - 问题背景：
   - 部分环境（QtWebEngine/权限判定）下 `navigator.clipboard.writeText` 失败，`document.execCommand('copy')` 也可能不可用；
@@ -1144,5 +1207,67 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
   3) 创建链路接入（Annotation 构造默认使用新ID，已覆盖）
   4) 最小化脚本测试（已通过）
 - 后续：如命中以 ann_id 排序的 SQL/逻辑，统一改为 created_at；如需回滚仅需关闭开关或恢复旧生成器调用
+## 当前任务（20251009190530）
+- 名称：增强锚点侧边栏加载约束（失败/超时提示 + 可重试）
+- 问题背景：用户确认当前提交版本侧边栏表格正常；为防止后续改动导致“无法从后端获取锚点数据而无提示”，需在 UI 与适配器层增加约束与反馈。
+- 相关模块与函数：
+  - AnchorSidebarUI（src/frontend/pdf-viewer/features/pdf-anchor/components/anchor-sidebar-ui.js）：监听 `ANCHOR.DATA.LOAD/LOADED/LOAD_FAILED`，渲染“加载中/错误/空态”与“重试”按钮。
+  - WebSocketAdapter（src/frontend/pdf-viewer/adapters/websocket-adapter.js）：将 `anchor:get|list:failed` 桥接为 `PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD_FAILED`。
+- 执行步骤（原子化）：
+  1) 设计测试：
+     - 收到 `LOAD_FAILED` 时 UI 渲染错误并可点击“重试”再次发出 `DATA.LOAD`。
+     - `DATA.LOAD` 后 5s 未到 `DATA.LOADED` 时触发超时错误提示（Jest fakeTimers）。
+  2) 实现 WS 适配器失败桥接（get/list → LOAD_FAILED）。
+  3) 实现 UI 加载/错误/超时与重试逻辑；初始化时若有 `pdf-id` 主动发出 `DATA.LOAD`。
+  4) 运行相关测试，确认通过。
+- 预期结果：
+  - 无论是后端报错还是长时间未返回，用户都能在侧边栏立即看到提示并可一键重试；正常返回空列表时仅显示“暂无锚点”。
 
+## 当前任务（20251009191330）
+- 名称：侧边栏表格新增“页内位置(%)”，移除“激活”
+- 影响模块：
+  - AnchorSidebarUI：表头与行渲染逻辑调整；名称列 tooltip 显示 uuid；position 百分比归一化显示。
+  - 测试：更新列名断言。
+- 执行：
+  1) 提交现有改动（加载失败/超时/重试与 WS 桥接）。
+  2) 修改表格与行渲染；更新测试；再次提交。
+- 备注：
+  - 现有 ESLint 风格规则较严格，历史代码存在大量 quotes 告警；本次仅改动必要逻辑，未统一风格，以免引入大范围 diff。
 
+## 当前任务（20251009193431）
+- 名称：修复“滚动后锚点页码/位置不更新”
+- 背景：心跳与 NAVIGATION.CHANGED 均关闭，滚动诊断未启用，导致无任何采样触发；侧边栏 UPDATED 仅更新了页码未更新位置。
+- 修复：
+  1) 激活锚点时启用 #ensureScrollDiagnostics()（滚动采样）；停用时 #removeScrollDiagnostics()
+  2) AnchorSidebarUI 在 ANCHOR.UPDATED 同步 position
+- 预期：滚动 PDF 文档容器时，已激活锚点的页码与页内位置会即时刷新。
+
+## 当前任务（20251009203554）
+- 名称：锚点跳转改为通过 URL Navigation 实现
+- 变更：pdf-anchor/index.js 在 #performPendingNavIfReady() 中发出 NAVIGATION.URL_PARAMS.REQUESTED{ pdfId, pageAt, position }，替代直接调用 navigationService
+- 容错：缺少 pdf-id 时回退为直接 navigateTo，保证不丢跳转
+- 预期：复用 URL 导航的稳定链路，避免重复跳转等竞态
+
+## 当前任务（20251009204657）
+- 名称：修复锚点→URL导航跳转失败（携带 pdfId 导致重新加载）
+- 修复：REQUESTED 改为携带 anchorId（不带 pdfId），避免 URLNavigationFeature 误触发重新加载流程
+- 兜底：无 anchorId 时直接调用 navigationService.navigateTo
+- 预期：跳转不再因重复加载被中断或失败
+
+## 当前任务（20251009205936）
+- 名称：锚点跳转状态 toast 化（识别/计划/执行/到达/失败）
+- 位置：features/pdf-anchor/index.js（引入 #lastNav 与多个事件 toast）
+- 注意：保留无心跳策略；此次仅增加可视反馈，不改变跳转与采样逻辑
+
+## 当前任务（20251009211025）
+- 名称：并发闸门（锚点+渲染）后再执行跳转
+- 设计：新增 RENDER.READY 事件；FileHandler 在渲染首页后发射；AnchorFeature 仅在 ANCHOR.DATA.LOADED & RENDER.READY 均满足时发出 URL_PARAMS.REQUESTED
+- 状态：已落地并提交；默认启用 gate（#useGateNav=true）
+
+## 当前任务（20251009221530）
+- 名称：锚点跳转改造收尾并提交
+- 说明：验证通过，URL 导航链路下锚点跳转稳定；收尾提交已完成。
+
+## 当前任务（20251009213847）
+- 名称：锚点跳转延迟由 2.5s 调整为 1s
+- 说明：闸门（锚点+渲染）满足后，延迟改为 1000ms 再发 URL_PARAMS.REQUESTED；兜底路径同样改为 1s

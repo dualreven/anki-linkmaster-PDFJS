@@ -565,6 +565,8 @@ def _cleanup_backend_services(pdf_id: str, logger) -> None:
                 cwd=str(project_root),
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='ignore',
                 timeout=10
             )
 
