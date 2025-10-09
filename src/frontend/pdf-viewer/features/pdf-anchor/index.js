@@ -144,12 +144,7 @@ export class PDFAnchorFeature {
       { subscriberId: "PDFAnchorFeature" }
     );
 
-    // 复制锚点ID
-    this.#eventBus.on(
-      PDF_VIEWER_EVENTS.ANCHOR.COPY,
-      ({ anchorId }) => this.#copyToClipboard(anchorId),
-      { subscriberId: "PDFAnchorFeature" }
-    );
+    // 复制动作在 UI 层处理（AnchorSidebarUI.copyTextRobust），此处不再重复处理
 
     // 在文件加载成功后，请求该PDF的锚点列表（确保重新打开能显示持久化数据）
     this.#eventBus.on(
@@ -533,74 +528,7 @@ export class PDFAnchorFeature {
     }
   }
 
-  async #copyToClipboard(anchorId) {
-    const id = String(anchorId || "").trim();
-    if (!id) {return;}
-    try {
-      // 先同步尝试 execCommand，保留用户激活上下文
-      try {
-        const ta = document.createElement('textarea');
-        ta.value = String(id);
-        ta.setAttribute('readonly', '');
-        ta.style.position = 'fixed';
-        ta.style.top = '-1000px';
-        ta.style.left = '-1000px';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        try { ta.focus(); } catch(_) {}
-        ta.select();
-        const ok = document.execCommand('copy');
-        document.body.removeChild(ta);
-        if (ok) {
-          toastSuccess(`已复制锚点ID: ${id}`);
-          this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPIED, { anchorId: id }, { actorId: "PDFAnchorFeature" });
-          return;
-        }
-      } catch(_) {}
-
-      // Clipboard API
-      try {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          await navigator.clipboard.writeText(id);
-          toastSuccess(`已复制锚点ID: ${id}`);
-          this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPIED, { anchorId: id }, { actorId: "PDFAnchorFeature" });
-          return;
-        }
-      } catch(_) {}
-
-      // QWebChannel（PyQt）
-      try {
-        const ok = await new Promise((resolve) => {
-          try {
-            if (typeof qt === 'undefined' || !qt.webChannelTransport) { resolve(false); return; }
-            if (typeof QWebChannel === 'undefined') { resolve(false); return; }
-            new QWebChannel(qt.webChannelTransport, (channel) => {
-              try {
-                const bridge = channel?.objects?.pdfViewerBridge;
-                if (bridge && typeof bridge.setClipboardText === 'function') {
-                  Promise.resolve(bridge.setClipboardText(String(id)))
-                    .then((res) => resolve(!!res))
-                    .catch(() => resolve(false));
-                } else {
-                  resolve(false);
-                }
-              } catch(_) { resolve(false); }
-            });
-          } catch(_) { resolve(false); }
-        });
-        if (ok) {
-          toastSuccess(`已复制锚点ID: ${id}`);
-          this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPIED, { anchorId: id }, { actorId: "PDFAnchorFeature" });
-          return;
-        }
-      } catch(_) {}
-
-      // 全部失败
-      toastError('复制失败，请手动选择并复制');
-    } catch (e) {
-      this.#logger.error("复制锚点ID失败", e);
-    }
-  }
+  // 复制动作已下沉到 UI 层，特性层不再提供复制实现，减少重复与环境差异
 
   #startUpdateTimer() {
     // 暂停心跳机制：不再自动更新页码/位置（应用户要求）
