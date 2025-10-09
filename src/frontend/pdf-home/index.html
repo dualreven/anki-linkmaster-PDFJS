@@ -9,6 +9,9 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div id="app-boot-banner" style="position:fixed;top:8px;left:8px;background:#222;color:#fff;padding:6px 10px;border-radius:4px;font-size:12px;z-index:99999">
+        正在加载 PDF-Home（生产）...
+    </div>
     <div class="container">
         <main>
             <!-- 左右两栏布局 -->
@@ -53,6 +56,31 @@
     </div>
     <!-- QWebChannel支持 -->
     <script src="/js/qwebchannel.js"></script>
-    <script type="module" src="index.js"></script>
+    <script>
+      try {
+        console.info('[BOOT] index.html mounted');
+      } catch(e) { }
+    </script>
+    <script type="module">
+      console.info('[BOOT] module loader start');
+      // 全局错误捕获，避免沉默失败
+      window.addEventListener('error', (ev) => {
+        try { console.error('[GLOBAL-ERROR]', ev.message, ev.filename, ev.lineno); } catch(e) {}
+      });
+      window.addEventListener('unhandledrejection', (ev) => {
+        try {
+          const msg = ev && ev.reason && (ev.reason.message || ev.reason);
+          console.error('[UNHANDLED-REJECTION]', msg);
+        } catch(e) {}
+      });
+      import('./index.js')
+        .then(() => {
+          console.info('[BOOT] imported index.js');
+        })
+        .catch((err) => {
+          console.error('[BOOT] import index.js failed', err);
+          try { alert('Import index.js 失败: ' + (err && err.message ? err.message : String(err))); } catch(e) {}
+        });
+    </script>
 </body>
 </html>

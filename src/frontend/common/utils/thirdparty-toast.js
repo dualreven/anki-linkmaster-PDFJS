@@ -113,6 +113,19 @@ export function success(message, ms = 3000) {
 }
 
 /**
+ * 信息提示（info）
+ * @param {string} message - 文案
+ * @param {number} ms - 显示时长（默认 3000ms）
+ */
+export function info(message, ms = 3000) {
+  try {
+    iziToast.info({ message, position: 'topRight', timeout: ms, close: true });
+  } catch (_) {
+    fallbackToast(message, { background: '#2b6cb0', color: '#fff', ms });
+  }
+}
+
+/**
  * 警告提示
  * @param {string} message - 文案
  * @param {number} ms - 显示时长（默认 4000ms）
@@ -161,4 +174,4 @@ export function dismissById(id) {
   return true;
 }
 
-export default { pending, success, warning, error, dismissById };
+export default { pending, success, info, warning, error, dismissById };

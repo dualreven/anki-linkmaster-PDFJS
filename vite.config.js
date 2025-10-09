@@ -121,6 +121,8 @@ export default defineConfig(async () => {
       })
     ],
     build: {
+      // 显式关闭生产构建的 source map，避免 DevTools 去探查 file:///node_modules 路径
+      sourcemap: false,
       rollupOptions: {
         // 多入口构建：同时构建 pdf-home 与 pdf-viewer
         input: {

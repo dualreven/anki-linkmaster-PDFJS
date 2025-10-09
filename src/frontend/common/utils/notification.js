@@ -1,132 +1,88 @@
 import { getLogger } from './logger.js';
-import iziToast from 'izitoast';
-import 'izitoast/dist/css/iziToast.min.css';
+import { getToastManager } from './toast-manager.js';
+import { pending as iziPending, success as iziSuccess, warning as iziWarning, error as iziError, info as iziInfo, dismissById as iziDismissById } from './thirdparty-toast.js';
 
 /**
- * @file 通知工具（使用三方库 iziToast）
+ * @file 通知工具（可切换引擎：优先使用 iziToast，失败时回退内建 ToastManager）
  * @module Notification
  * @description 提供统一的 toast 提示：成功、错误、信息、隐藏全部
  */
 
 const notificationLogger = getLogger('Notification');
 
-// 统一默认设置（可按需调整）
-try {
-  iziToast.settings({
-    position: 'topRight',
-    close: true,
-    progressBar: true,
-    transitionIn: 'fadeInDown',
-    transitionOut: 'fadeOutUp',
-  });
-} catch (e) {
-  // 静默：避免运行环境缺库时阻断页面
-  notificationLogger.warn('iziToast settings failed (non-fatal):', e);
-}
+// 内建 ToastManager 作为回退
+const TM = getToastManager();
+function toDuration(duration){ return typeof duration === 'number' ? duration : 3000; }
 
-function toTimeout(duration) {
-  // duration=0 表示不自动关闭；iziToast 使用 false
-  return duration === 0 ? false : duration;
+function getEngine() {
+  try {
+    // 允许通过全局开关切换：window.__NOTIFY_ENGINE in ('izi' | 'tm')
+    const e = typeof window !== 'undefined' ? (window.__NOTIFY_ENGINE || 'izi') : 'izi';
+    return (e === 'izi' || e === 'tm') ? e : 'izi';
+  } catch(_) { return 'izi'; }
 }
-
-// 记录 id -> toast DOM，便于仅关闭与当前业务相关的提示
-const toastMap = new Map();
-const toastShownAt = new Map();
-const toastTimers = new Map();
-const MIN_VISIBLE_MS = 1200; // 最短可见时长，避免“瞬间消失”的体验
 
 export function showInfoWithId(id, message, duration = 0) {
-  try {
-    // 若已存在同ID的提示，先关闭，避免叠加残留
-    try { dismissById(id); } catch (_) {}
-    iziToast.info({
-      message: String(message),
-      timeout: toTimeout(duration),
-      position: 'topRight',
-      close: true,
-      onOpening: (_instance, toast) => {
-        try {
-          toastMap.set(id, toast);
-          toastShownAt.set(id, Date.now());
-        } catch (_) {}
-      },
-      onClosing: (_instance, toast) => {
-        try {
-          const mapped = toastMap.get(id);
-          if (mapped === toast) {
-            toastMap.delete(id);
-            toastShownAt.delete(id);
-            const t = toastTimers.get(id);
-            if (t) { clearTimeout(t); toastTimers.delete(id); }
-          }
-        } catch (_) {}
-      }
-    });
-  } catch (e) {
-    notificationLogger.warn('iziToast.info (withId) failed, message=', message, e);
+  try { dismissById(id); } catch(_) {}
+  const engine = getEngine();
+  if (engine === 'izi') {
+    // 使用第三方 pending 作为可关闭的信息提示（可指定超时）
+    try { return iziPending(id, String(message), toDuration(duration)); } catch (e) {
+      notificationLogger.warn('iziToast pending failed, fallback to TM:', e?.message);
+    }
   }
-  return id;
+  // 回退到内建
+  try { TM.show(String(message), { type: 'info', duration: toDuration(duration) }); return id; }
+  catch(e){ notificationLogger.warn('ToastManager info(withId) failed:', e?.message); return id; }
 }
 
 export function dismissById(id) {
-  const toast = toastMap.get(id);
-  if (!toast) return false;
-  try {
-    const shownAt = toastShownAt.get(id) || 0;
-    const elapsed = Date.now() - shownAt;
-    if (elapsed < MIN_VISIBLE_MS) {
-      // 保证最短可见时长后再关闭
-      const wait = MIN_VISIBLE_MS - elapsed;
-      const timer = setTimeout(() => {
-        try { iziToast.hide({}, toast); } catch (e) { notificationLogger.warn('iziToast.hide (delay) failed:', e); }
-        toastMap.delete(id);
-        toastShownAt.delete(id);
-        toastTimers.delete(id);
-      }, wait);
-      toastTimers.set(id, timer);
-    } else {
-      iziToast.hide({}, toast);
-      toastMap.delete(id);
-      toastShownAt.delete(id);
-    }
-  } catch (e) {
-    notificationLogger.warn('iziToast.hide (byId) failed:', e);
-    toastMap.delete(id);
-    toastShownAt.delete(id);
+  const engine = getEngine();
+  if (engine === 'izi') {
+    try { return iziDismissById(id); } catch(_) { /* fallthrough */ }
   }
-  return true;
+  try { return TM.dismiss(id); } catch(_) { return false; }
 }
 
 export function showSuccess(message, duration = 3000) {
-  try {
-    iziToast.success({ message: String(message), timeout: toTimeout(duration) });
-  } catch (e) {
-    notificationLogger.warn('iziToast.success failed, message=', message, e);
+  const engine = getEngine();
+  if (engine === 'izi') {
+    try { return void iziSuccess(String(message), toDuration(duration)); } catch(e) {
+      notificationLogger.warn('iziToast success failed, fallback to TM:', e?.message);
+    }
   }
+  try { TM.show(String(message), { type: 'success', duration: toDuration(duration) }); }
+  catch(e){ notificationLogger.warn('ToastManager success failed:', e?.message); }
 }
 
 export function showError(message, duration = 5000) {
-  try {
-    iziToast.error({ message: String(message), timeout: toTimeout(duration) });
-  } catch (e) {
-    notificationLogger.warn('iziToast.error failed, message=', message, e);
+  const engine = getEngine();
+  if (engine === 'izi') {
+    try { return void iziError(String(message), toDuration(duration)); } catch(e) {
+      notificationLogger.warn('iziToast error failed, fallback to TM:', e?.message);
+    }
   }
+  try { TM.show(String(message), { type: 'error', duration: toDuration(duration) }); }
+  catch(e){ notificationLogger.warn('ToastManager error failed:', e?.message); }
 }
 
 export function showInfo(message, duration = 3000) {
-  try {
-    iziToast.info({ message: String(message), timeout: toTimeout(duration) });
-  } catch (e) {
-    notificationLogger.warn('iziToast.info failed, message=', message, e);
+  const engine = getEngine();
+  if (engine === 'izi') {
+    try { return void iziInfo(String(message), toDuration(duration)); } catch(e) {
+      notificationLogger.warn('iziToast info failed, fallback to TM:', e?.message);
+    }
   }
+  try { TM.show(String(message), { type: 'info', duration: toDuration(duration) }); }
+  catch(e){ notificationLogger.warn('ToastManager info failed:', e?.message); }
 }
 
 export function hideAll() {
-  try {
-    // 销毁所有 toast
-    iziToast.destroy();
-  } catch (e) {
-    notificationLogger.warn('iziToast.destroy failed:', e);
+  const engine = getEngine();
+  if (engine === 'izi') {
+    try { /* 软清理：多数场景用不到 */ }
+    catch(_) {}
   }
+  notificationLogger.info('hideAll invoked');
 }
 

@@ -147,6 +147,13 @@ class JSConsoleLogger(QObject):
             import re
             parsed_message = str(message)
 
+            # 过滤 Qt/DevTools 探查本地资源的噪音（不影响其它错误）
+            try:
+                if 'Not allowed to load local resource: file:///' in parsed_message:
+                    return
+            except Exception:
+                pass
+
             # 检查是否已有时间戳格式 [YYYY-MM-DDTHH:MM:SS.xxxZ]
             timestamp_pattern = r'^\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z)\]'
             timestamp_match = re.match(timestamp_pattern, parsed_message)

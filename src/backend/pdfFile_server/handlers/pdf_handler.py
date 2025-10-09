@@ -12,7 +12,7 @@ from pathlib import Path
 from ..config.settings import (
     HEALTH_CHECK_PATH, PDF_BASE_PATH, CORS_ENABLED,
     CORS_ORIGINS, CORS_METHODS, CORS_HEADERS,
-    DEFAULT_DATA_DIR, SERVER_NAME
+    DEFAULT_DATA_DIR, DEFAULT_DIST_DIR, STATIC_ROUTE_PREFIXES, SERVER_NAME
 )
 from ..utils.logging_config import get_logger
 
@@ -74,12 +74,24 @@ class PDFFileHandler(http.server.SimpleHTTPRequestHandler):
         - /pdfs/: PDF文件访问
         - 其他: 404错误
         """
-        self.logger.debug(f"处理GET请求: {self.path}")
+        try:
+            self.logger.info(f"[GET] {self.path}")
+        except Exception:
+            pass
+
+        # 将根路径重定向到 /pdf-home/
+        if self.path == "/":
+            self.send_response(302)
+            self.send_header("Location", "/pdf-home/")
+            self.end_headers()
+            return
 
         if self.path == HEALTH_CHECK_PATH:
             self.handle_health_check()
         elif self.path.startswith(PDF_BASE_PATH):
             self.handle_pdf_request()
+        elif self._is_static_request(self.path):
+            self.handle_static_request()
         else:
             self.logger.warning(f"请求的路径不存在: {self.path}")
             self.send_error(404, "Not Found")
@@ -118,6 +130,60 @@ class PDFFileHandler(http.server.SimpleHTTPRequestHandler):
             import traceback
             error_traceback = traceback.format_exc()
             self.logger.error(f"处理PDF请求时出错: {e}")
+            self.logger.error(f"错误堆栈: {error_traceback}")
+            self.send_error(500, "Internal Server Error")
+
+    def _is_static_request(self, path: str) -> bool:
+        try:
+            for prefix in STATIC_ROUTE_PREFIXES:
+                if path.startswith(prefix):
+                    return True
+            # 允许直接访问 /index.html（落在 dist 根）
+            if path == "/index.html":
+                return True
+        except Exception:
+            return False
+        return False
+
+    def handle_static_request(self):
+        """处理前端静态资源请求（生产 dist）。"""
+        try:
+            # 目录定位到 dist/latest
+            self.directory = str(DEFAULT_DIST_DIR)
+
+            # 规范化路径：/pdf-home/ 与 /pdf-viewer/ 目录请求默认转为 index.html
+            if self.path.endswith("/") and (self.path.startswith("/pdf-home/") or self.path.startswith("/pdf-viewer/")):
+                self.path = self.path + "index.html"
+
+            # 将 /pdf-home/assets/* → /assets/*、/pdf-viewer/assets/* → /assets/*
+            if self.path.startswith("/pdf-home/assets/"):
+                self.path = "/assets/" + self.path[len("/pdf-home/assets/"):]
+            elif self.path.startswith("/pdf-viewer/assets/"):
+                self.path = "/assets/" + self.path[len("/pdf-viewer/assets/"):]
+
+            # 将 /pdf-home/vendor/* → /vendor/*、/pdf-viewer/vendor/* → /vendor/*
+            if self.path.startswith("/pdf-home/vendor/"):
+                self.path = "/vendor/" + self.path[len("/pdf-home/vendor/"):]
+            elif self.path.startswith("/pdf-viewer/vendor/"):
+                self.path = "/vendor/" + self.path[len("/pdf-viewer/vendor/"):]
+
+            # 将 /pdf-home/js/* → /js/*、/pdf-viewer/js/* → /js/*
+            if self.path.startswith("/pdf-home/js/"):
+                self.path = "/js/" + self.path[len("/pdf-home/js/"):]
+            elif self.path.startswith("/pdf-viewer/js/"):
+                self.path = "/js/" + self.path[len("/pdf-viewer/js/"):]
+
+            # 记录映射后的目录与路径，便于调试
+            try:
+                self.logger.info(f"[STATIC] directory={self.directory} path={self.path}")
+            except Exception:
+                pass
+
+            super().do_GET()
+        except Exception as e:
+            import traceback
+            error_traceback = traceback.format_exc()
+            self.logger.error(f"处理静态资源请求时出错: {e}")
             self.logger.error(f"错误堆栈: {error_traceback}")
             self.send_error(500, "Internal Server Error")
 
@@ -182,34 +248,29 @@ class PDFFileHandler(http.server.SimpleHTTPRequestHandler):
 
     def guess_type(self, path):
         """
-        重写文件类型猜测方法
+        重写文件类型猜测方法：返回一个合法的 MIME 字符串（而非元组）。
 
-        确保PDF文件返回正确的MIME类型。
-
-        Args:
-            path (str): 文件路径
-
-        Returns:
-            tuple: (mime_type, encoding)
+        注意：SimpleHTTPRequestHandler 期望的是 str 类型的 MIME 值。
+        之前返回了 (mime, encoding) 元组，导致 Content-Type 形如
+        "('application/javascript'" 被浏览器当作非法，从而触发模块脚本加载失败。
         """
-        # 安全地调用父类方法，处理可能的返回值格式差异
         try:
-            result = super().guess_type(path)
-            if isinstance(result, tuple):
-                if len(result) >= 2:
-                    mime_type, encoding = result[0], result[1]
-                elif len(result) == 1:
-                    mime_type, encoding = result[0], None
-                else:
-                    mime_type, encoding = None, None
-            else:
-                mime_type, encoding = result, None
-        except (ValueError, TypeError) as e:
-            self.logger.warning(f"父类guess_type方法异常: {e}, 使用默认值")
-            mime_type, encoding = None, None
+            # 使用 mimetypes 直接推断（返回 (type, encoding)）
+            mime_type, _ = mimetypes.guess_type(path)
+        except Exception:
+            mime_type = None
 
-        # 确保PDF文件返回正确的MIME类型
-        if path.lower().endswith('.pdf'):
-            mime_type = 'application/pdf'
+        p = str(path).lower()
+        # 显式处理常见前端类型
+        if p.endswith('.mjs') or p.endswith('.js'):
+            return 'text/javascript'
+        if p.endswith('.css'):
+            return 'text/css'
+        if p.endswith('.json'):
+            return 'application/json'
+        if p.endswith('.map'):
+            return 'application/json'
+        if p.endswith('.pdf'):
+            return 'application/pdf'
 
-        return mime_type, encoding
+        return mime_type or 'application/octet-stream'

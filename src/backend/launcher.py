@@ -429,9 +429,33 @@ class BackendLauncher:
             if port and self.process_manager.start_service(service, port):
                 success_count += 1
             else:
-                logger.error(f"启动失败: {service}")
+                # 对 pdfFile-server 增强：若启动失败，自动尝试切换到下一个可用端口
+                if service == 'pdfFile-server':
+                    logger.warning("pdfFile-server 启动失败，尝试切换端口后重试…")
+                    try:
+                        # 基于当前端口向上查找优先可用端口
+                        retries = 3
+                        new_port = port
+                        for i in range(retries):
+                            preferred = (port + 1 + i) if port else None
+                            cand = self.port_manager.find_available_port('pdfFile_port', preferred_port=preferred)
+                            # 避免重复同一端口
+                            if cand == port:
+                                continue
+                            logger.info(f"重试使用端口 {cand} 启动 pdfFile-server …")
+                            if self.process_manager.start_service(service, cand):
+                                ports[port_key] = cand
+                                success_count += 1
+                                logger.info(f"✅ pdfFile-server 已改用端口 {cand} 启动成功")
+                                break
+                        else:
+                            logger.error("多次尝试切换端口后仍启动失败: pdfFile-server")
+                    except Exception as exc:
+                        logger.error(f"自动切换端口重试时出错: {exc}")
+                else:
+                    logger.error(f"启动失败: {service}")
 
-        # 保存端口配置
+        # 保存端口配置（可能包含自动切换后的端口）
         if success_count > 0:
             self.port_manager.save_runtime_ports(ports)
 

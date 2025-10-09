@@ -10,6 +10,7 @@ import '../common/polyfills.js';
  */
 
 import { bootstrapPDFHomeAppV2 } from './bootstrap/app-bootstrap-v2.js';
+console.info('[BOOT] pdf-home index.js start');
 // 提前创建 logger，确保在任何使用前已初始化
 const logger = getLogger('pdf-home.index');
 
@@ -39,6 +40,7 @@ function getEnvironment() {
  * @returns {Promise<void>}
  */
 async function startApp() {
+  try { document.getElementById('app-boot-banner').textContent = '加载脚本中...'; } catch(e) {}
   logger.debug('Starting PDF Home App...');
 
   try {
@@ -47,6 +49,7 @@ async function startApp() {
     });
 
     logger.debug('App started successfully');
+    try { const el = document.getElementById('app-boot-banner'); if (el) el.remove(); } catch(e) {}
 
     // 已移除“通信测试”按钮与相关开发UI
 
@@ -54,15 +57,33 @@ async function startApp() {
 
   } catch (error) {
     logger.error('App bootstrap failed:', error);
+    try { alert('启动失败: ' + (error && error.message ? error.message : String(error))); } catch(e) {}
+    try {
+      const el = document.getElementById('app-boot-banner');
+      if (el) el.textContent = '启动失败（详见日志）';
+    } catch(e) {}
     throw error;
   }
 }
 
 // ===== 应用启动 =====
-logger.debug('Script loaded, waiting for DOMContentLoaded...');
-document.addEventListener('DOMContentLoaded', async () => {
-  await startApp();
-});
+logger.debug('Script loaded, checking document readiness...');
+try { console.info('[BOOT] index.js readiness='+document.readyState); } catch(e) {}
+
+async function launch() {
+  try {
+    await startApp();
+  } catch(e) {
+    // 已在 startApp 中处理
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', launch);
+} else {
+  // DOMContentLoaded 已经触发，直接启动
+  launch();
+}
 
 logger.debug('Event listener registered for DOMContentLoaded');
 

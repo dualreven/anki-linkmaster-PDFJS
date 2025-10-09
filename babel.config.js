@@ -15,5 +15,13 @@ export default {
     ['@babel/plugin-transform-nullish-coalescing-operator'],
     ['@babel/plugin-transform-private-methods', { loose: true }],
     ['@babel/plugin-transform-class-properties', { loose: true }]
-  ]
+  ],
+  // 仅在生产构建关闭 source map；开发保留调试能力
+  env: {
+    production: {
+      sourceMaps: false,
+      // 某些插件可能会注入 //# sourceURL 注释；确保不产生映射
+      compact: true
+    }
+  }
 };

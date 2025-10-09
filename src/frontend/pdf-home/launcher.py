@@ -140,7 +140,7 @@ class PdfHomeApp:
 
         # Ports resolution
         args = _parse_args(self.argv[1:])
-        vite_json, msgCenter_json, pdfFile_json, extras = _read_runtime_ports()
+        vite_json, msgCenter_json, pdfFile_json, extras = _read_runtime_ports(project_root)
 
         vite_port = args.vite_port or vite_json
         if not args.vite_port:
@@ -181,13 +181,10 @@ class PdfHomeApp:
         is_prod = bool(os.environ.get("APP_ENV") == "production" or os.environ.get("PDFJS_ENV") == "production" or os.environ.get("ENV") == "production" or args.prod)
 
         if is_prod:
-            index_path = resolve_production_index(project_root)
-            if not index_path:
-                logger.error("未找到生产入口 index.html，请先构建前端或检查路径")
-                return 2
-            file_url = QUrl.fromLocalFile(str(index_path))
-            logger.info("Loading front-end (prod file): %s", file_url.toString())
-            self.window.load_frontend(file_url.toString())
+            # 生产模式：通过 pdfFile_server 提供静态资源
+            http_url = f"http://127.0.0.1:{pdfFile_port}/pdf-home/"
+            logger.info("Loading front-end (prod http): %s", http_url)
+            self.window.load_frontend(http_url)
         else:
             url = f"http://localhost:{vite_port}/pdf-home/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"
             logger.info("Loading front-end (dev): %s", url)

@@ -11,6 +11,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
 DEFAULT_DATA_DIR = PROJECT_ROOT / "data" / "pdfs"
 DEFAULT_LOG_DIR = PROJECT_ROOT / "logs"
+# 在运行于 dist 环境下，PROJECT_ROOT 即为 dist/latest 根目录
+DEFAULT_DIST_DIR = PROJECT_ROOT
 
 # 服务器配置
 DEFAULT_PORT = 8080
@@ -48,3 +50,16 @@ SOCKET_TIMEOUT = 30
 # 调试配置
 DEBUG_MODE = False
 VERBOSE_LOGGING = False
+
+# 前端静态资源路由（生产）：
+# - /pdf-home/ → dist/latest/pdf-home/
+# - /pdf-viewer/ → dist/latest/pdf-viewer/
+# - /assets/ → dist/latest/assets/
+# - /vendor/ → dist/latest/vendor/
+STATIC_ROUTE_PREFIXES = (
+    "/pdf-home/",
+    "/pdf-viewer/",
+    "/assets/",
+    "/vendor/",
+    "/js/",
+)

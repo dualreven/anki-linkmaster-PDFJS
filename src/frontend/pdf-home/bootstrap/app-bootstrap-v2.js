@@ -21,12 +21,16 @@ const logger = getLogger('pdf-home/bootstrap-v2');
  * @returns {Promise<PDFHomeAppV2>} 应用实例
  */
 export async function bootstrapPDFHomeAppV2(options = {}) {
-  logger.debug('DOMContentLoaded: bootstrap PDF Home App V2 (Feature Domain Architecture)...');
+  try { console.info('[BOOT] bootstrapV2: begin'); } catch(e) {}
+  logger.info('Bootstrap V2 starting...');
+  try { const el = document.getElementById('app-boot-banner'); if (el) el.textContent = '解析配置中...'; } catch(e) {}
 
   try {
     // 1. 解析 WebSocket 端口
     const wsPort = resolveWebSocketPortSync({ fallbackPort: DEFAULT_WS_PORT });
     const wsUrl = `ws://localhost:${wsPort}`;
+    try { console.info(`[BOOT] wsUrl=${wsUrl}`); } catch(e) {}
+    try { const el = document.getElementById('app-boot-banner'); if (el) el.textContent = `连接消息中心中(${wsPort})...`; } catch(e) {}
 
     // 2. 合并启动选项
     const appOptions = {
@@ -42,15 +46,19 @@ export async function bootstrapPDFHomeAppV2(options = {}) {
     });
 
     // 3. 创建应用实例（功能域架构）
+    console.info('[BOOT] new PDFHomeAppV2');
     const app = new PDFHomeAppV2(appOptions);
+    console.info('[BOOT] new PDFHomeAppV2 done');
 
-    logger.debug('Starting app V2 initialization...');
+    logger.info('Starting app V2 initialization...');
+    try { const el = document.getElementById('app-boot-banner'); if (el) el.textContent = '初始化界面中...'; } catch(e) {}
     await app.initialize();
+    console.info('[BOOT] app.initialize() completed');
 
     // 4. 设置自动化测试环境
     setupAutoTestEnvironment(app);
 
-    logger.debug('App V2 initialization completed, setting up window.app...');
+    logger.info('App V2 initialization completed, setting up window.app...');
 
     // 5. 暴露全局接口（与 V1 兼容）
     window.app = {
@@ -74,6 +82,11 @@ export async function bootstrapPDFHomeAppV2(options = {}) {
     // 6. 记录启动成功
     const appLogger = getLogger('pdf-home/app-v2');
     appLogger.info('PDF Home App V2 (Feature Domain Architecture) started successfully');
+    try {
+      const el = document.getElementById('app-boot-banner');
+      if (el) el.textContent = '启动完成';
+      setTimeout(() => { try { const n = document.getElementById('app-boot-banner'); if (n) n.remove(); } catch(_){} }, 800);
+    } catch(_) {}
 
     // 记录功能域状态
     const state = app.getState();
@@ -87,6 +100,8 @@ export async function bootstrapPDFHomeAppV2(options = {}) {
 
   } catch (error) {
     logger.error('App V2 bootstrap/initialization failed:', error);
+    try { alert('启动失败: ' + (error && error.message ? error.message : String(error))); } catch(_) {}
+    try { const el = document.getElementById('app-boot-banner'); if (el) el.textContent = '启动失败（详见日志）'; } catch(_) {}
 
     // 尝试记录错误
     try {

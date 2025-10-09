@@ -1,4 +1,25 @@
-﻿## 当前任务（20251009083956）
+﻿## 当前任务（20251010055153）
+- 名称：修复生产模式白屏（pdf-home 初始化/容器挂载诊断）
+- 问题背景：
+  - 生产加载已改为 HTTP（经 pdfFile_server），静态资源与 MIME 均正确；index.html 的动态 import 成功，index.js 已执行，但页面仍为空白。
+  - 初步判断：PDFHomeAppV2.initialize() 或挂载容器选择器不匹配导致 UI 未渲染。
+- 相关模块与文件：
+  - src/frontend/pdf-home/core/pdf-home-app-v2.js（initialize/mount 流程）
+  - src/frontend/pdf-home/index.html（根容器结构与 id/class）
+  - src/frontend/pdf-home/bootstrap/app-bootstrap-v2.js（启动顺序与日志）
+  - src/frontend/common/utils/notification.js（已替换为 ToastManager，避免 null.style 错误）
+- 执行步骤（原子化）：
+  1) 在 PDFHomeAppV2.initialize/mount 前后添加 Info 日志，输出容器选择器、query 结果与长度
+  2) 若容器不存在，输出 error 并创建最小回退容器（如 #app-root）并渲染占位 UI，防止白屏
+  3) 校正 index.html 中根容器 id/class 与代码一致；必要时新增 <div id="app-root"></div>
+  4) 增强 bootstrapV2 日志以标注 initialize() 进入与完成；捕获并上报异常
+  5) 构建并在生产模式运行，收集 js 日志与可见占位 UI
+  6) 根据日志精准修复选择器或初始化顺序问题，回归验证
+- 验收标准：
+  - 生产模式不再白屏，至少出现可见占位区或首页框架；
+  - 日志含有 initialize/mount 阶段的详细信息；
+  - 不影响开发模式（Vite）与现有后端启动流程。
+## 当前任务（20251009083956）
 - 名称：设计 MsgCenter→pdf-viewer 导航通信规范并实现最小落地
 - 背景：需要跨进程/窗口精确控制 viewer 导航到标注或页内位置
 - 方案：
@@ -1311,3 +1332,14 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
   5) 更新 tech.md 记录用法（待执行）
 - 产物：`dist/latest/pdf-home/index.html`、`dist/latest/pdf-viewer/index.html`、`dist/latest/vendor/pdfjs-dist/**`、`dist/latest/build.frontend.meta.json`
 - 状态：进行中
+
+## 当前任务（20251010021024）
+- 名称：后端启动器增强 —— pdfFile-server 端口占用时自动切换端口重试
+- 背景：生产环境端口可能被系统或其他进程临时占用，导致 pdfFile-server 进程立即退出，整体启动失败。
+- 相关模块：`src/backend/launcher.py#BackendLauncher.start_services`
+- 执行步骤（原子化）：
+  1) 检测 pdfFile-server 首次启动失败（子进程立即退出）
+  2) 使用 `BackendPortManager.find_available_port('pdfFile_port', preferred_port=当前端口+1)` 获取下一个可用端口
+  3) 自动重试最多3次；成功则更新 `ports['pdfFile_port']` 并保存 runtime-ports.json
+  4) 回写日志并通知
+- 状态：已完成

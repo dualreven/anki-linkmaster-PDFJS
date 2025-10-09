@@ -229,6 +229,23 @@ def publish_frontend(out_dir: Path, skip_build: bool = False) -> dict:
             changed = inject_pdfjs_vendor_base(hp)
             injected.append({"file": str(hp), "changed": changed})
 
+    # 复制 pdf-home 的运行时配置（例如 feature-flags.json）到 dist/pdf-home/config/
+    cfg_src = repo_root / "src" / "frontend" / "pdf-home" / "config"
+    cfg_dst = out_dir / "pdf-home" / "config"
+    cfg_stats = {"copied": 0}
+    if cfg_src.exists():
+        for root, _, files in os.walk(cfg_src):
+            r = Path(root)
+            rel = r.relative_to(cfg_src)
+            td = cfg_dst / rel
+            td.mkdir(parents=True, exist_ok=True)
+            for fn in files:
+                if fn.lower().endswith((".json", ".cfg", ".conf")):
+                    s = r / fn
+                    d = td / fn
+                    shutil.copy2(s, d)
+                    cfg_stats["copied"] += 1
+
     # 复制前端 Python 侧代码
     py_stats = copy_frontend_python(repo_root, out_dir)
 
@@ -237,6 +254,7 @@ def publish_frontend(out_dir: Path, skip_build: bool = False) -> dict:
         "out_dir": str(out_dir),
         "vendor_pdfjs": {"files": files, "dirs": dirs},
         "injected": injected,
+        "copied_config": cfg_stats,
         "frontend_python": py_stats,
     }
     meta_path = out_dir / "build.frontend.meta.json"
