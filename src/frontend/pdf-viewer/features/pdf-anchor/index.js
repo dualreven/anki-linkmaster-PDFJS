@@ -25,6 +25,9 @@ export class PDFAnchorFeature {
   #scrollListeners = [];
   #freezeUntilMs = 0;
   #autoUpdateEnabled = true;
+  #pendingNav = null; // 延迟到 FILE.LOAD.SUCCESS 后再执行的导航参数 { pageAt, position }
+  #navReadyRetryTimer = null; // 短暂重试定时器（处理LOAD.SUCCESS已过但pagesCount稍后才>0的竞态）
+  #navInitDelayTimer = null; // 等待PDFViewer完全初始化后的延迟导航定时器
 
   get name() { return "pdf-anchor"; }
   get version() { return "1.0.0"; }
@@ -51,6 +54,8 @@ export class PDFAnchorFeature {
   async uninstall() {
     this.#stopUpdateTimer();
     try { this.#removeScrollDiagnostics(); } catch (_) {}
+    if (this.#navReadyRetryTimer) { try { clearInterval(this.#navReadyRetryTimer); } catch(_){} this.#navReadyRetryTimer = null; }
+    if (this.#navInitDelayTimer) { try { clearTimeout(this.#navInitDelayTimer); } catch(_){} this.#navInitDelayTimer = null; }
     this.#anchorsById.clear();
     this.#activeAnchorId = null;
     this.#eventBus = null;
@@ -100,19 +105,18 @@ export class PDFAnchorFeature {
           this.#anchorsById.set(String(anchors.uuid), anchors);
         }
 
-        // URL 携带 anchor-id 时的处理：无须依赖“激活”属性，直接作为本次会话的跟踪锚点
+        // URL 携带 anchor-id 时的处理：无须依赖“激活”属性，作为本次会话的跟踪锚点
         if (this.#pendingUrlAnchorId) {
           const a = this.#anchorsById.get(this.#pendingUrlAnchorId);
           if (a) {
             toastSuccess(`跟踪锚点: ${a.name || a.uuid}`);
-            // 导航到最近一次记录的位置
+            // 记录最近一次位置，延迟到 FILE.LOAD.SUCCESS 后再导航，避免 PDF 未就绪时的无效 GOTO
             const pageAt = parseInt(a.page_at || 1, 10);
             const pos = typeof a.position === "number" ? Math.max(0, Math.min(100, a.position * 100)) : null;
-            if (this.#navigationService && pageAt >= 1) {
-              this.#navigationService.navigateTo({ pageAt, position: pos });
-              this.#freezeUntilMs = Date.now() + 3000; // 冻结3秒，避免初始化误采样
-              this.#autoUpdateEnabled = false; // 等待用户滚动后再允许回写
-            }
+            this.#pendingNav = (pageAt >= 1) ? { pageAt, position: pos } : null;
+            // 如果文件已加载完成（缓存命中导致 FILE.LOAD.SUCCESS 已经发射过），立即执行导航；否则短暂轮询等待pagesCount>0
+            this.#performPendingNavIfReady();
+            this.#ensureNavigateWhenLoaded();
             // 启动后台更新（3秒节拍）
             this.#activeAnchorId = a.uuid;
             this.#startUpdateTimer();
@@ -142,6 +146,8 @@ export class PDFAnchorFeature {
             this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD, { pdf_uuid: pdfId }, { actorId: "PDFAnchorFeature" });
           }
         } catch(e){ this.#logger.warn("noop", e); }
+        // 若存在待执行的锚点导航，此时（PDF 加载完成后）再执行，避免初始化期竞态
+        try { this.#performPendingNavIfReady(); } catch(_) {}
       },
       { subscriberId: "PDFAnchorFeature" }
     );
@@ -250,7 +256,7 @@ export class PDFAnchorFeature {
         try { toastSuccess(nextActive ? `已激活锚点: ${a.name || id}` : `已停用锚点: ${a.name || id}`); } catch(e){ this.#logger.warn("noop", e); }
         if (nextActive) {
           this.#activeAnchorId = id;
-          this.#snapshotAndUpdate(id);
+          // 不在激活瞬间写回页码，避免初始化期间采样到错误页面（导致倒退并被持久化）
           this.#startUpdateTimer();
           this.#autoUpdateEnabled = true;
         } else {
@@ -286,6 +292,57 @@ export class PDFAnchorFeature {
 
     // 页面销毁/关闭时清理
     window.addEventListener("beforeunload", () => this.#stopUpdateTimer());
+  }
+
+  // 若 PDF 已加载且存在待导航，则立即执行；否则等待 FILE.LOAD.SUCCESS
+  #performPendingNavIfReady() {
+    try {
+      if (!this.#pendingNav || !this.#navigationService) { return; }
+      const pvm = this.#container?.get?.('pdfViewerManager');
+      let loaded = !!(pvm && typeof pvm.pagesCount === 'number' && pvm.pagesCount > 0);
+      if (!loaded) {
+        try {
+          const vc = document.getElementById('viewerContainer');
+          loaded = !!(vc && vc.querySelector('.page'));
+        } catch(_) { /* no-op */ }
+      }
+      if (!loaded) { return; }
+      // 文件已加载，但为确保 PDFViewer 完全初始化，对齐 URL 导航策略：延迟执行导航
+      if (this.#navInitDelayTimer) { try { clearTimeout(this.#navInitDelayTimer); } catch(_){} this.#navInitDelayTimer = null; }
+      this.#navInitDelayTimer = setTimeout(() => {
+        try {
+          if (!this.#pendingNav) { return; }
+          const { pageAt, position } = this.#pendingNav;
+          this.#navigationService.navigateTo({ pageAt, position });
+          this.#freezeUntilMs = Date.now() + 3000; // 冻结3秒，避免初始化误采样
+          this.#autoUpdateEnabled = false; // 等待用户滚动后再允许回写
+          this.#pendingNav = null;
+        } catch(_) { /* no-op */ }
+        finally {
+          if (this.#navInitDelayTimer) { try { clearTimeout(this.#navInitDelayTimer); } catch(_){} this.#navInitDelayTimer = null; }
+          if (this.#navReadyRetryTimer) { try { clearInterval(this.#navReadyRetryTimer); } catch(_){} this.#navReadyRetryTimer = null; }
+        }
+      }, 2500); // 与 URLNavigationFeature 保持一致的初始化等待
+    } catch(_) {}
+  }
+
+  // 若未加载完成，短时间内轮询等待 pagesCount>0 再执行导航（解决事件先后竞态）
+  #ensureNavigateWhenLoaded() {
+    try {
+      if (!this.#pendingNav || this.#navReadyRetryTimer) { return; }
+      const deadline = Date.now() + 3000; // 最多等待3秒
+      this.#navReadyRetryTimer = setInterval(() => {
+        if (!this.#pendingNav) { clearInterval(this.#navReadyRetryTimer); this.#navReadyRetryTimer = null; return; }
+        const pvm = this.#container?.get?.('pdfViewerManager');
+        const loaded = !!(pvm && typeof pvm.pagesCount === 'number' && pvm.pagesCount > 0);
+        if (loaded) {
+          this.#performPendingNavIfReady();
+        } else if (Date.now() >= deadline) {
+          try { clearInterval(this.#navReadyRetryTimer); } catch(_){}
+          this.#navReadyRetryTimer = null;
+        }
+      }, 100);
+    } catch(_) {}
   }
 
   #ensureScrollDiagnostics() {

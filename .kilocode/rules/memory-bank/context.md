@@ -1100,3 +1100,33 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - 分支：worker/branch-C → origin/worker/branch-C
 - 执行：git push origin HEAD
 - 结果：已推送成功
+
+
+## 快照（20251009084336）
+- Git 分支：worker/branch-C（未能切换到上一个分支，缺少 @{-1} 记录）
+- Git HEAD：8bb3835（已切换到上一个提交 HEAD~1）
+## 当前任务（仅改触发时机 20251009091248）
+- 名称：锚点导航等待 PDF 加载成功后再触发
+- 背景：
+  - 现状：ANCHOR.DATA.LOADED 时立即导航，PDF 未就绪（pagesCount=0）会出现 Invalid GOTO 与后续倒退并被心跳回写污染。
+- 变更：
+  - `features/pdf-anchor/index.js`：新增 `#pendingNav`；ANCHOR.DATA.LOADED 记录待导航；`FILE.LOAD.SUCCESS` 执行导航并冻结 3 秒，避免初始化误采样。
+- 影响：
+  - URL 导航路径保持等待 `FILE.LOAD.SUCCESS` 的既有逻辑不变。
+- 备注：
+  - 本次仅改触发时机；不涉及心跳与标签页码逻辑。
+
+## 当前任务（20251009150530）
+- 名称：从 main 拉取并合并到当前分支（anki-linkmaster-C）
+- 背景：保持工作分支与主线 `main` 同步，降低后续集成冲突与回归风险；本次严格按流程规范执行并记录。
+- 相关仓库与远程：
+  - 仓库：`C:\Users\napretep\PycharmProjects\anki-linkmaster-C`
+  - 远程：`origin/main`
+- 执行步骤（原子化）：
+  1) 设计验证：记录 `HEAD` 与 `origin/main` 的提交哈希；合并后校验祖先关系。
+  2) 获取远程：`git fetch origin --prune`，确保 `origin/main` 最新。
+  3) 合并主线：在当前分支执行 `git merge --no-ff --no-edit origin/main`。
+  4) 若有冲突：列出冲突文件，逐一解决并提交 `git add ... && git commit`。
+  5) 验证：`git merge-base --is-ancestor origin/main HEAD` 为 0；`git status` 干净。
+  6) 文档回写：更新 AI-Working-log 与本文件，并通知完成。
+- 备注：所有文件读写遵循 UTF-8 与 `\n` 换行规范；文本编辑均通过 `apply_patch` 完成。
