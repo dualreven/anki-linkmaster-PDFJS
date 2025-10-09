@@ -315,8 +315,8 @@ export class AnchorSidebarUI {
     const thr = document.createElement('tr');
     const thName = document.createElement('th'); thName.textContent = '名称';
     const thPage = document.createElement('th'); thPage.textContent = '页码';
-    const thActive = document.createElement('th'); thActive.textContent = '激活';
-    [thName, thPage, thActive].forEach(th => { th.style.cssText = 'text-align:left;border-bottom:1px solid #eee;padding:6px;color:#444;'; thr.appendChild(th); });
+    const thPos = document.createElement('th'); thPos.textContent = '页内位置(%)';
+    [thName, thPage, thPos].forEach(th => { th.style.cssText = 'text-align:left;border-bottom:1px solid #eee;padding:6px;color:#444;'; thr.appendChild(th); });
     thead.appendChild(thr);
 
     const tbody = document.createElement('tbody');
@@ -450,13 +450,23 @@ export class AnchorSidebarUI {
         this.#highlightSelection(a.uuid);
       });
 
-      const tdName = document.createElement('td'); tdName.textContent = a.name || '(未命名)'; tdName.style.cssText = 'padding:6px;border-bottom:1px solid #f2f2f2;';
+      const tdName = document.createElement('td'); tdName.textContent = a.name || '(未命名)'; tdName.title = a?.uuid ? String(a.uuid) : ''; tdName.style.cssText = 'padding:6px;border-bottom:1px solid #f2f2f2;';
       const tdPage = document.createElement('td'); tdPage.textContent = String(a.page_at || ''); tdPage.style.cssText = 'padding:6px;border-bottom:1px solid #f2f2f2;';
-      const tdActive = document.createElement('td'); tdActive.textContent = a.is_active ? '是' : '否'; tdActive.style.cssText = 'padding:6px;border-bottom:1px solid #f2f2f2;';
+      const tdPos = document.createElement('td');
+      let posText = '';
+      try {
+        if (typeof a?.position === 'number' && !Number.isNaN(a.position)) {
+          let p = a.position;
+          if (p <= 1) { p = p * 100; }
+          posText = String(Math.round(p));
+        }
+      } catch(_) { posText = ''; }
+      tdPos.textContent = posText;
+      tdPos.style.cssText = 'padding:6px;border-bottom:1px solid #f2f2f2;';
 
       tr.appendChild(tdName);
       tr.appendChild(tdPage);
-      tr.appendChild(tdActive);
+      tr.appendChild(tdPos);
       tbody.appendChild(tr);
     });
 
