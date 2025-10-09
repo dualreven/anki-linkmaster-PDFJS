@@ -234,9 +234,15 @@ export class WebSocketAdapter {
       PDF_VIEWER_EVENTS.ANCHOR.CREATE,
       (data) => {
         const pdfId = data?.pdf_uuid || getPdfId();
-        const anchor = data?.anchor;
+        let anchor = data?.anchor;
         if (!anchor) {return;}
-        try { this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_CREATE, { pdf_uuid: pdfId, anchor }); } catch(e){ this.#logger.warn("noop", e); }
+        try {
+          // 规范化位置：确保 position 为 0..1 区间
+          if (typeof anchor.position === 'number') {
+            anchor = { ...anchor, position: (anchor.position > 1 ? (anchor.position / 100) : anchor.position) };
+          }
+          this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_CREATE, { pdf_uuid: pdfId, anchor });
+        } catch(e){ this.#logger.warn("noop", e); }
       },
       { subscriberId: "WebSocketAdapter" }
     );
@@ -245,9 +251,15 @@ export class WebSocketAdapter {
       PDF_VIEWER_EVENTS.ANCHOR.UPDATE,
       (data) => {
         // 本地 UI 更新与后端更新共用事件，因此需要判断是否包含 update
-        const id = data?.anchorId || data?.uuid; const update = data?.update;
+        const id = data?.anchorId || data?.uuid; let update = data?.update;
         if (!id || !update) {return;}
-        try { this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_UPDATE, { anchor_id: id, update }); } catch(e){ this.#logger.warn("noop", e); }
+        try {
+          // 规范化位置：确保 position 为 0..1 区间
+          if (typeof update.position === 'number') {
+            update = { ...update, position: (update.position > 1 ? (update.position / 100) : update.position) };
+          }
+          this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_UPDATE, { anchor_id: id, update });
+        } catch(e){ this.#logger.warn("noop", e); }
       },
       { subscriberId: "WebSocketAdapter" }
     );
