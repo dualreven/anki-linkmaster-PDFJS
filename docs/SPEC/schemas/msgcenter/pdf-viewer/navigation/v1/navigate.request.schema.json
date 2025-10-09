@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://schemas.anki-linkmaster/msgcenter/pdf-viewer/navigation/v1/navigate.request.schema.json",
+  "title": "pdf-viewer:navigate:requested",
+  "type": "object",
+  "required": ["type", "data"],
+  "properties": {
+    "type": { "const": "pdf-viewer:navigate:requested" },
+    "request_id": { "type": ["string", "null"] },
+    "to": {
+      "type": "object",
+      "properties": {
+        "viewer_id": { "type": ["string", "null"] },
+        "pdf_uuid": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "data": {
+      "type": "object",
+      "required": ["target"],
+      "properties": {
+        "target": {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": { "type": "string", "enum": ["annotation", "anchor", "page", "xy"] },
+            "annotation_id": { "type": ["string", "null"] },
+            "anchor_id": { "type": ["string", "null"] },
+            "page_number": { "type": ["number", "null"] },
+            "position": {
+              "type": ["object", "null"],
+              "properties": {
+                "x_percent": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+                "y_percent": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": false
+        },
+        "options": {
+          "type": ["object", "null"],
+          "properties": {
+            "highlight": { "type": ["boolean", "null"] },
+            "zoom": {
+              "type": ["object", "null"],
+              "properties": {
+                "level": { "type": ["string", "null"] },
+                "scale": { "type": ["number", "null"] }
+              },
+              "additionalProperties": false
+            },
+            "behavior": { "type": ["string", "null"], "enum": ["smooth", "instant", null] },
+            "align": { "type": ["string", "null"], "enum": ["center", "top", "bottom", null] }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "timestamp": { "type": ["integer", "null"] }
+  },
+  "additionalProperties": true
+}
+

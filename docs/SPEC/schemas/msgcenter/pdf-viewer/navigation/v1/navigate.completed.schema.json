@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://schemas.anki-linkmaster/msgcenter/pdf-viewer/navigation/v1/navigate.completed.schema.json",
+  "title": "pdf-viewer:navigate:completed",
+  "type": "object",
+  "required": ["type", "request_id"],
+  "properties": {
+    "type": { "const": "pdf-viewer:navigate:completed" },
+    "request_id": { "type": "string" },
+    "data": {
+      "type": ["object", "null"],
+      "properties": {
+        "viewer_id": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "timestamp": { "type": ["integer", "null"] }
+  },
+  "additionalProperties": true
+}
+

@@ -42,6 +42,9 @@ export class WebSocketAdapter {
   /** @type {Array<Function>} */
   #unsubscribeFunctions = [];
 
+  /** @type {string} */
+  #viewerInstanceId;
+
   /**
    * 创建WebSocket适配器实例
    * @param {import('../../common/ws/ws-client.js').WSClient} wsClient - WebSocket客户端实例
@@ -58,6 +61,7 @@ export class WebSocketAdapter {
     this.#logger = getLogger("WebSocketAdapter");
     this.#eventBus = eventBus;
     this.#wsClient = wsClient;
+    this.#viewerInstanceId = WebSocketAdapter.#resolveViewerInstanceId();
 
     this.#logger.debug("WebSocketAdapter instance created");
   }
@@ -142,6 +146,28 @@ export class WebSocketAdapter {
    * @private
    */
   #setupOutgoingMessageHandlers() {
+    // 连接建立后，向后端注册本 Viewer 实例信息（viewer_id 与 pdf_uuid 绑定）
+    const unsubConn = this.#eventBus.on(
+      WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED,
+      () => {
+        try {
+          const pdfId = (() => { try { return new URLSearchParams(window.location.search).get('pdf-id'); } catch { return null; } })();
+          this.#wsClient.send({
+            type: WEBSOCKET_MESSAGE_TYPES.VIEWER_REGISTER_REQUESTED,
+            data: {
+              viewer_id: this.#viewerInstanceId,
+              pdf_uuid: pdfId,
+              url: window?.location?.href || '',
+              title: document?.title || ''
+            }
+          });
+          this.#logger.info('[ViewerRegister] sent', { viewer_id: this.#viewerInstanceId, pdf_uuid: pdfId });
+        } catch (e) {
+          this.#logger.warn('failed to send viewer register', e);
+        }
+      },
+      { subscriberId: 'WebSocketAdapter' }
+    );
     // 📥 监听事件: pdf-viewer:file:load-success
     // 发射者: features/pdf
     // 作用: 通知后端PDF加载完成
@@ -263,7 +289,7 @@ export class WebSocketAdapter {
       { subscriberId: "WebSocketAdapter" }
     );
 
-    this.#unsubscribeFunctions.push(unsubscribe1, unsubscribe2, unsubscribe3, unsubA1, unsubA2, unsubA3, unsubA4, unsubA5);
+    this.#unsubscribeFunctions.push(unsubscribe1, unsubscribe2, unsubscribe3, unsubA1, unsubA2, unsubA3, unsubA4, unsubA5, unsubConn);
   }
 
   /**
@@ -306,6 +332,10 @@ export class WebSocketAdapter {
 
     case "set_zoom":
       this.#handleSetZoom(data);
+      break;
+
+    case WEBSOCKET_MESSAGE_TYPES.VIEWER_NAVIGATE_REQUESTED:
+      this.#handleViewerNavigate(data, message?.request_id);
       break;
 
     default:
@@ -403,6 +433,92 @@ export class WebSocketAdapter {
       { level, scale },
       { actorId: "WebSocketAdapter" }
     );
+  }
+
+  /**
+   * 处理跨实例导航消息（支持按 viewer_id 或 pdf_uuid 定向）
+   * @private
+   * @param {Object} data
+   * @param {string} [correlationId]
+   */
+  #handleViewerNavigate(data, correlationId) {
+    try {
+      const to = data?.to || {};
+      const targetViewer = to.viewer_id || null;
+      const targetPdf = to.pdf_uuid || null;
+
+      // 路由匹配：若指定 viewer_id 且不匹配则忽略；若指定 pdf_uuid 且不匹配也忽略
+      if (targetViewer && targetViewer !== this.#viewerInstanceId) {
+        this.#logger.debug('[Navigate] ignore message: viewer_id mismatch', { targetViewer, self: this.#viewerInstanceId });
+        return;
+      }
+      const currentPdf = (() => { try { return new URLSearchParams(window.location.search).get('pdf-id'); } catch { return null; } })();
+      if (targetPdf && currentPdf && targetPdf !== currentPdf) {
+        this.#logger.debug('[Navigate] ignore message: pdf_uuid mismatch', { targetPdf, currentPdf });
+        return;
+      }
+
+      const mode = data?.target?.type || data?.mode || 'page';
+      const opts = data?.options || {};
+
+      if (mode === 'annotation' || mode === 'anchor') {
+        const annotationId = data?.target?.annotation_id || data?.annotation_id || data?.target?.anchor_id || data?.anchor_id;
+        if (!annotationId) {
+          throw new Error('annotation_id/anchor_id required for annotation/anchor mode');
+        }
+        this.#eventBus.emit(
+          PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
+          { annotationId, highlight: !!opts.highlight },
+          { actorId: 'WebSocketAdapter' }
+        );
+      } else if (mode === 'page' || mode === 'xy') {
+        const pageNumber = Number(data?.target?.page_number ?? data?.page_number);
+        if (!Number.isFinite(pageNumber)) {
+          throw new Error('page_number must be a number');
+        }
+        const position = data?.target?.position || data?.position || null; // { y_percent, x_percent } or { x, y }
+        const payload = { pageNumber };
+        if (position) payload.position = position;
+        if (opts?.zoom) payload.zoom = opts.zoom;
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.GOTO, payload, { actorId: 'WebSocketAdapter' });
+      } else {
+        throw new Error(`unsupported navigate mode: ${mode}`);
+      }
+
+      // 回执（完成）
+      this.#wsClient.send({
+        type: WEBSOCKET_MESSAGE_TYPES.VIEWER_NAVIGATE_COMPLETED,
+        request_id: correlationId,
+        data: { viewer_id: this.#viewerInstanceId }
+      });
+    } catch (error) {
+      this.#logger.error('[Navigate] failed', error);
+      this.#wsClient.send({
+        type: WEBSOCKET_MESSAGE_TYPES.VIEWER_NAVIGATE_FAILED,
+        request_id: correlationId,
+        error: { message: error?.message || String(error) },
+        data: { viewer_id: this.#viewerInstanceId }
+      });
+    }
+  }
+
+  /**
+   * 解析/生成稳定的 Viewer 实例ID
+   * @private
+   * @returns {string}
+   */
+  static #resolveViewerInstanceId() {
+    try {
+      const key = 'pdf_viewer_instance_id';
+      let id = window?.sessionStorage?.getItem(key);
+      if (!id) {
+        id = 'vwr_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+        window?.sessionStorage?.setItem(key, id);
+      }
+      return id;
+    } catch {
+      return 'vwr_' + Math.random().toString(36).slice(2, 10);
+    }
   }
 
   /**
