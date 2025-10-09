@@ -204,7 +204,16 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   ANCHOR_DELETE_COMPLETED: 'anchor:delete:completed',
   ANCHOR_DELETE_FAILED: 'anchor:delete:failed',
   ANCHOR_ACTIVATE_COMPLETED: 'anchor:activate:completed',
-  ANCHOR_ACTIVATE_FAILED: 'anchor:activate:failed'
+  ANCHOR_ACTIVATE_FAILED: 'anchor:activate:failed',
+
+  // ====== PDF-Viewer 实例注册与导航（新增）======
+  // 前端→后端：PDF-Viewer 实例注册（包含 viewer_id 与 pdf_uuid 绑定）
+  VIEWER_REGISTER_REQUESTED: 'pdf-viewer:register:requested',
+  // 后端→前端：请求指定 viewer 导航到目标位置
+  VIEWER_NAVIGATE_REQUESTED: 'pdf-viewer:navigate:requested',
+  // 前端→后端：导航完成/失败回执（带 correlation_id）
+  VIEWER_NAVIGATE_COMPLETED: 'pdf-viewer:navigate:completed',
+  VIEWER_NAVIGATE_FAILED: 'pdf-viewer:navigate:failed'
 };
 
 // ====== 搜索与筛选（新增，为全局事件白名单注册）======

@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://schemas.anki-linkmaster/msgcenter/pdf-viewer/navigation/v1/register.request.schema.json",
+  "title": "pdf-viewer:register:requested",
+  "type": "object",
+  "required": ["type", "data"],
+  "properties": {
+    "type": { "const": "pdf-viewer:register:requested" },
+    "request_id": { "type": ["string", "null"] },
+    "data": {
+      "type": "object",
+      "required": ["viewer_id"],
+      "properties": {
+        "viewer_id": { "type": "string", "minLength": 4 },
+        "pdf_uuid": { "type": ["string", "null"] },
+        "url": { "type": ["string", "null"] },
+        "title": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "timestamp": { "type": ["integer", "null"] }
+  },
+  "additionalProperties": true
+}
+

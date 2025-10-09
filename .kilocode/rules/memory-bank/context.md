@@ -1,5 +1,26 @@
-﻿## 当前任务（20251009061328）
-- 名称：提交并合并到远程 main（anki-linkmaster-B）
+﻿## 当前任务（20251009083956）
+- 名称：设计 MsgCenter→pdf-viewer 导航通信规范并实现最小落地
+- 背景：需要跨进程/窗口精确控制 viewer 导航到标注或页内位置
+- 方案：
+  - 新增 WS 消息类型：pdf-viewer:register:requested，pdf-viewer:navigate:requested/completed/failed
+  - 前端生成 session 级 viewer_id，连接建立后发送 register
+  - 导航请求按 viewer_id/pdf_uuid 路由，触发内部事件（JUMP_REQUESTED / NAVIGATION.GOTO）
+- 产物：规范文档与 JSON Schema + 适配器实现与常量
+- 状态：已完成
+
+## 当前任务（20251009061328）
+
+## 当前任务（20251009082433）
+- 名称：从远程 main 合并到当前分支（再次同步）
+- 背景：保持工作分支与主线一致，降低集成冲突；当前分支可能已有本地文档修改，需先暂存避免阻塞。
+- 步骤：
+  1) git fetch origin --prune
+  2) 记录 HEAD 与 origin/main 提交
+  3) 存在差异则合并：git merge --no-edit origin/main；冲突则解决
+  4) 验证祖先关系与状态干净
+  5) 回写日志并通知完成
+- 状态：已完成（fast-forward 合并成功；HEAD 与 origin/main 一致）
+
 - 背景：翻译功能修复已完成，需将当前分支 worker/branch-B 的更改合入 main。
 - 步骤：
   1) 提交当前变更（allowlist 修复、测试、文档）
@@ -1178,6 +1199,7 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
   3) 创建链路接入（Annotation 构造默认使用新ID，已覆盖）
   4) 最小化脚本测试（已通过）
 - 后续：如命中以 ann_id 排序的 SQL/逻辑，统一改为 created_at；如需回滚仅需关闭开关或恢复旧生成器调用
+<<<<<<< HEAD
 ## 当前任务（20251009190530）
 - 名称：增强锚点侧边栏加载约束（失败/超时提示 + 可重试）
 - 问题背景：用户确认当前提交版本侧边栏表格正常；为防止后续改动导致“无法从后端获取锚点数据而无提示”，需在 UI 与适配器层增加约束与反馈。
