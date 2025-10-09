@@ -1,4 +1,33 @@
-﻿## 当前任务（20251009061328）
+﻿## 当前任务（20251010020347）
+- 名称：分析pdf-viewer代码清晰度，提出基于AI开发特点的改进建议
+- 问题背景：
+  - AI开发的特点：记忆有限（无法记住所有Feature细节）、理解能力有限（容易忽略隐式依赖）
+  - 目标：避免AI修改一个功能时引起另一个功能的错误
+- 相关模块与文件：
+  - 架构文档：`src/frontend/ARCHITECTURE-EXPLAINED.md`、`src/frontend/HOW-TO-ADD-FEATURE.md`
+  - 核心组件：`FeatureRegistry`、`EventBus`、`DependencyContainer`、`ScopedEventBus`
+  - 当前Feature：17个（app-core, pdf-manager, pdf-bookmark等）
+  - Bootstrap：`src/frontend/pdf-viewer/bootstrap/app-bootstrap-feature.js`
+- 分析结论：
+  - ✅ 优点：插件化架构清晰、事件驱动解耦、文档完善、命名规范严格
+  - ⚠️ 问题：隐式依赖难追踪、事件契约不明确、全局/局部事件易混淆、缺少改动影响分析工具
+- 核心改进建议（7个优先级）：
+  1. **服务契约注册表**：集中定义所有可注入服务及其接口，避免字符串拼写错误
+  2. **事件Payload Schema**：为每个事件定义明确的数据结构，运行时验证
+  3. **Feature依赖图可视化**：自动生成Mermaid依赖图，检测循环依赖
+  4. **事件流追踪工具**：开发模式下记录完整事件链路，生成序列图
+  5. **Feature职责边界检查**：定义允许/禁止行为清单，工具自动检测越界
+  6. **结构化日志**：引入Trace ID，串联跨Feature调用链
+  7. **契约测试**：为核心Feature编写"对外承诺"测试，CI强制通过
+- 实施路线图：
+  - 第一阶段（1周）：服务契约注册表 + 事件Schema + 运行时验证
+  - 第二阶段（1周）：依赖图生成 + 事件流追踪工具
+  - 第三阶段（2周）：契约测试 + 职责文档
+  - 第四阶段（持续）：AI辅助开发工具
+- 衡量标准：跨Feature bug减少50%、AI开发速度提升30%、代码审查时间减少40%
+- 状态：分析完成，已生成详细报告（`AItemp/20251010020347-AI-Working-log.md`）
+
+## 当前任务（20251009061328）
 - 名称：提交并合并到远程 main（anki-linkmaster-B）
 - 背景：翻译功能修复已完成，需将当前分支 worker/branch-B 的更改合入 main。
 - 步骤：
