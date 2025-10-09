@@ -15,6 +15,10 @@ export class AnchorSidebarUI {
   #toolbar;
   #table;
   #emptyDiv;
+  #loadingDiv;
+  #errorDiv;
+  #loadTimeoutTimer;
+  #lastRequestPayload;
   #anchors = [];
   #selectedId = null;
   #unsubs = [];
@@ -40,12 +44,39 @@ export class AnchorSidebarUI {
     // 初始渲染空态
     try { this.#renderAnchors([]); } catch (_) {}
 
+    // 事件订阅：加载请求（用于显示“加载中/超时”并记录最近一次请求参数）
+    this.#unsubs.push(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD,
+      (payload) => {
+        this.#lastRequestPayload = payload || {};
+        this.#showLoading();
+        this.#clearError();
+        this.#startLoadTimeout();
+      },
+      { subscriberId: 'AnchorSidebarUI' }
+    ));
+
     // 事件订阅：数据加载
     this.#unsubs.push(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED,
       ({ anchors }) => {
         this.#logger.info('Anchor data loaded', { count: anchors?.length || 0 });
+        this.#hideLoading();
+        this.#clearError();
+        this.#clearLoadTimeout();
         this.#renderAnchors(Array.isArray(anchors) ? anchors : []);
+      },
+      { subscriberId: 'AnchorSidebarUI' }
+    ));
+
+    // 事件订阅：数据加载失败（来自 WS 适配器桥接 anchor:get/list:failed）
+    this.#unsubs.push(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD_FAILED,
+      ({ error, type }) => {
+        this.#hideLoading();
+        this.#clearLoadTimeout();
+        const msg = (error && (error.message || error.err || error.detail)) ? (error.message || error.err || error.detail) : '无法加载锚点数据';
+        this.#showError(`[${type || 'anchor:load:failed'}] ${msg}`);
       },
       { subscriberId: 'AnchorSidebarUI' }
     ));
@@ -101,6 +132,7 @@ export class AnchorSidebarUI {
     this.#sidebarContent = null;
     this.#toolbar = null;
     this.#table = null;
+    if (this.#loadTimeoutTimer) { try { clearTimeout(this.#loadTimeoutTimer); } catch(_){} this.#loadTimeoutTimer = null; }
     this.#anchors = [];
     this.#selectedId = null;
     this.#logger.info('AnchorSidebarUI destroyed');
@@ -294,6 +326,94 @@ export class AnchorSidebarUI {
     table.appendChild(tbody);
     wrap.appendChild(table);
     return wrap;
+  }
+
+  #showLoading() {
+    try {
+      if (!this.#table) return;
+      if (!this.#loadingDiv) {
+        this.#loadingDiv = document.createElement('div');
+        this.#loadingDiv.className = 'anchor-loading';
+        this.#loadingDiv.textContent = '正在加载锚点…';
+        this.#loadingDiv.style.cssText = 'margin:10px;color:#666;';
+      }
+      // 插入到表格容器顶部（确保与空态/错误态同层级）
+      this.#table.insertBefore(this.#loadingDiv, this.#table.firstChild);
+    } catch(_) {}
+  }
+
+  #hideLoading() {
+    if (this.#loadingDiv && this.#loadingDiv.parentNode) {
+      try { this.#loadingDiv.parentNode.removeChild(this.#loadingDiv); } catch(_) {}
+    }
+  }
+
+  #showError(message) {
+    try {
+      if (!this.#table) return;
+      if (!this.#errorDiv) {
+        this.#errorDiv = document.createElement('div');
+        this.#errorDiv.className = 'anchor-error';
+        this.#errorDiv.style.cssText = 'margin:10px;color:#c00;background:#fff4f4;border:1px solid #f3c0c0;padding:8px;border-radius:4px;';
+      } else {
+        this.#errorDiv.innerHTML = '';
+      }
+
+      const msgSpan = document.createElement('span');
+      msgSpan.textContent = `加载锚点失败：${String(message || '未知错误')}`;
+      const retryBtn = document.createElement('button');
+      retryBtn.type = 'button';
+      retryBtn.textContent = '重试';
+      retryBtn.style.cssText = 'margin-left:8px;padding:2px 8px;';
+      retryBtn.addEventListener('click', () => this.#retryLastRequest());
+
+      this.#errorDiv.appendChild(msgSpan);
+      this.#errorDiv.appendChild(retryBtn);
+
+      this.#table.insertBefore(this.#errorDiv, this.#table.firstChild);
+    } catch(_) {}
+  }
+
+  #clearError() {
+    if (this.#errorDiv && this.#errorDiv.parentNode) {
+      try { this.#errorDiv.parentNode.removeChild(this.#errorDiv); } catch(_) {}
+    }
+  }
+
+  #startLoadTimeout() {
+    try { if (this.#loadTimeoutTimer) { clearTimeout(this.#loadTimeoutTimer); } } catch(_) {}
+    const timeoutMs = 5000;
+    this.#loadTimeoutTimer = setTimeout(() => {
+      // 若超时且仍未加载成功，显示错误提示
+      try {
+        // 仅当尚未有数据渲染时提示（以 #anchors 是否为空粗略判断）
+        if (!Array.isArray(this.#anchors) || this.#anchors.length === 0) {
+          this.#showError('请求超时，未能从后端获取锚点数据');
+        }
+      } catch(_) {}
+    }, timeoutMs);
+  }
+
+  #clearLoadTimeout() { if (this.#loadTimeoutTimer) { try { clearTimeout(this.#loadTimeoutTimer); } catch(_) {} this.#loadTimeoutTimer = null; } }
+
+  #retryLastRequest() {
+    try {
+      const payload = this.#lastRequestPayload || {};
+      // 优先复用最近一次请求；若无则从 URL 推断 pdf-id 发起列表请求
+      let req = payload;
+      if (!req || Object.keys(req).length === 0) {
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const pdfId = params.get('pdf-id');
+          if (pdfId) { req = { pdf_uuid: pdfId }; }
+        } catch(_) {}
+      }
+      // 清理错误并重新发起
+      this.#clearError();
+      this.#showLoading();
+      this.#startLoadTimeout();
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD, req || {}, { actorId: 'AnchorSidebarUI' });
+    } catch(_) {}
   }
 
   #renderAnchors(anchors) {

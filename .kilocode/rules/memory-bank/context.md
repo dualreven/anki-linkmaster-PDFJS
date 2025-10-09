@@ -1178,3 +1178,18 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
   3) 创建链路接入（Annotation 构造默认使用新ID，已覆盖）
   4) 最小化脚本测试（已通过）
 - 后续：如命中以 ann_id 排序的 SQL/逻辑，统一改为 created_at；如需回滚仅需关闭开关或恢复旧生成器调用
+## 当前任务（20251009190530）
+- 名称：增强锚点侧边栏加载约束（失败/超时提示 + 可重试）
+- 问题背景：用户确认当前提交版本侧边栏表格正常；为防止后续改动导致“无法从后端获取锚点数据而无提示”，需在 UI 与适配器层增加约束与反馈。
+- 相关模块与函数：
+  - AnchorSidebarUI（src/frontend/pdf-viewer/features/pdf-anchor/components/anchor-sidebar-ui.js）：监听 `ANCHOR.DATA.LOAD/LOADED/LOAD_FAILED`，渲染“加载中/错误/空态”与“重试”按钮。
+  - WebSocketAdapter（src/frontend/pdf-viewer/adapters/websocket-adapter.js）：将 `anchor:get|list:failed` 桥接为 `PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD_FAILED`。
+- 执行步骤（原子化）：
+  1) 设计测试：
+     - 收到 `LOAD_FAILED` 时 UI 渲染错误并可点击“重试”再次发出 `DATA.LOAD`。
+     - `DATA.LOAD` 后 5s 未到 `DATA.LOADED` 时触发超时错误提示（Jest fakeTimers）。
+  2) 实现 WS 适配器失败桥接（get/list → LOAD_FAILED）。
+  3) 实现 UI 加载/错误/超时与重试逻辑；初始化时若有 `pdf-id` 主动发出 `DATA.LOAD`。
+  4) 运行相关测试，确认通过。
+- 预期结果：
+  - 无论是后端报错还是长时间未返回，用户都能在侧边栏立即看到提示并可一键重试；正常返回空列表时仅显示“暂无锚点”。
