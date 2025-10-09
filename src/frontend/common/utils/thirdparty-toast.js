@@ -25,6 +25,7 @@ function fallbackContainer() {
       'pointer-events:none',
       'display:flex',
       'flex-direction:column',
+      'align-items:flex-end',  // 确保子元素右对齐
       'gap:8px',
     ].join(';');
     document.body.appendChild(c);
@@ -73,6 +74,12 @@ function fallbackToast(message, { background = '#323232', color = '#fff', ms = 3
 // 为 QtWebEngine 等环境提供稳定的挂载点，避免目标为空导致的 style 访问报错
 function ensureIziTarget() {
   try {
+    // 确保 document.body 已就绪
+    if (!document.body) {
+      console.warn('[thirdparty-toast] document.body not ready, using fallback');
+      return undefined;
+    }
+
     let c = document.getElementById('izi-toast-root');
     if (!c) {
       c = document.createElement('div');
@@ -85,13 +92,27 @@ function ensureIziTarget() {
         'pointer-events:none',
         'display:flex',
         'flex-direction:column',
+        'align-items:flex-end',  // 确保子元素右对齐
         'gap:8px',
+        'max-width:400px',       // 限制最大宽度
       ].join(';');
-      (document.body || document.documentElement).appendChild(c);
+      document.body.appendChild(c);
+
+      // 强制浏览器重排，确保元素已完全挂载
+      void c.offsetHeight;
     }
+
+    // 验证容器仍然存在于 DOM 中
+    const verify = document.getElementById('izi-toast-root');
+    if (!verify) {
+      console.warn('[thirdparty-toast] Container verification failed, using fallback');
+      return undefined;
+    }
+
     // 返回 CSS 选择器字符串，保证 iziToast 内部 querySelector 能正常解析
     return '#izi-toast-root';
-  } catch (_) {
+  } catch (err) {
+    console.warn('[thirdparty-toast] ensureIziTarget failed:', err);
     return undefined;
   }
 }
@@ -103,21 +124,35 @@ function ensureIziTarget() {
  * @returns {string} 返回 id，便于链路统一
  */
 export function pending(id, message = '进行中', timeoutMs = 0) {
+  const targetSelector = ensureIziTarget();
+
+  // 如果容器创建失败，直接使用降级渲染
+  if (!targetSelector) {
+    const fb = fallbackToast(message, { background: '#2b6cb0', color: '#fff', ms: 5000 });
+    if (fb && fb.el) {
+      pendingMap.set(id, fb.el);
+    }
+    return id;
+  }
+
   try {
     iziToast.info({
       message,
       position: 'topRight',
-      target: ensureIziTarget(),
+      target: targetSelector,
       // timeout: 0/false 表示不自动关闭
       timeout: (timeoutMs === 0 ? false : timeoutMs),
       close: true,
+      maxWidth: 400,
+      transitionIn: 'fadeInLeft',
       // 捕获 DOM 句柄，供后续关闭
       onOpening: (_instance, toast) => {
         pendingMap.set(id, toast);
       }
     });
-  } catch (_) {
+  } catch (err) {
     // 降级渲染
+    console.warn('[thirdparty-toast] iziToast.info failed, using fallback:', err);
     const fb = fallbackToast(message, { background: '#2b6cb0', color: '#fff', ms: 5000 });
     if (fb && fb.el) {
       pendingMap.set(id, fb.el);
@@ -132,9 +167,26 @@ export function pending(id, message = '进行中', timeoutMs = 0) {
  * @param {number} ms - 显示时长（默认 3000ms）
  */
 export function success(message, ms = 3000) {
+  const targetSelector = ensureIziTarget();
+
+  // 如果容器创建失败，直接使用降级渲染
+  if (!targetSelector) {
+    fallbackToast(message, { background: '#2f855a', color: '#fff', ms });
+    return;
+  }
+
   try {
-    iziToast.success({ message, position: 'topRight', target: ensureIziTarget(), timeout: ms, close: true });
-  } catch (_) {
+    iziToast.success({
+      message,
+      position: 'topRight',
+      target: targetSelector,
+      timeout: ms,
+      close: true,
+      maxWidth: 400,  // 强制限制最大宽度
+      transitionIn: 'fadeInLeft'  // 从左侧滑入，更符合右对齐
+    });
+  } catch (err) {
+    console.warn('[thirdparty-toast] iziToast.success failed, using fallback:', err);
     fallbackToast(message, { background: '#2f855a', color: '#fff', ms });
   }
 }
@@ -145,9 +197,26 @@ export function success(message, ms = 3000) {
  * @param {number} ms - 显示时长（默认 3000ms）
  */
 export function info(message, ms = 3000) {
+  const targetSelector = ensureIziTarget();
+
+  // 如果容器创建失败，直接使用降级渲染
+  if (!targetSelector) {
+    fallbackToast(message, { background: '#2b6cb0', color: '#fff', ms });
+    return;
+  }
+
   try {
-    iziToast.info({ message, position: 'topRight', target: ensureIziTarget(), timeout: ms, close: true });
-  } catch (_) {
+    iziToast.info({
+      message,
+      position: 'topRight',
+      target: targetSelector,
+      timeout: ms,
+      close: true,
+      maxWidth: 400,
+      transitionIn: 'fadeInLeft'
+    });
+  } catch (err) {
+    console.warn('[thirdparty-toast] iziToast.info failed, using fallback:', err);
     fallbackToast(message, { background: '#2b6cb0', color: '#fff', ms });
   }
 }
@@ -158,9 +227,26 @@ export function info(message, ms = 3000) {
  * @param {number} ms - 显示时长（默认 4000ms）
  */
 export function warning(message, ms = 4000) {
+  const targetSelector = ensureIziTarget();
+
+  // 如果容器创建失败，直接使用降级渲染
+  if (!targetSelector) {
+    fallbackToast(message, { background: '#b7791f', color: '#fff', ms });
+    return;
+  }
+
   try {
-    iziToast.warning({ message, position: 'topRight', target: ensureIziTarget(), timeout: ms, close: true });
-  } catch (_) {
+    iziToast.warning({
+      message,
+      position: 'topRight',
+      target: targetSelector,
+      timeout: ms,
+      close: true,
+      maxWidth: 400,
+      transitionIn: 'fadeInLeft'
+    });
+  } catch (err) {
+    console.warn('[thirdparty-toast] iziToast.warning failed, using fallback:', err);
     fallbackToast(message, { background: '#b7791f', color: '#fff', ms });
   }
 }
@@ -171,9 +257,26 @@ export function warning(message, ms = 4000) {
  * @param {number} ms - 显示时长（默认 5000ms）
  */
 export function error(message, ms = 5000) {
+  const targetSelector = ensureIziTarget();
+
+  // 如果容器创建失败，直接使用降级渲染
+  if (!targetSelector) {
+    fallbackToast(message, { background: '#c53030', color: '#fff', ms });
+    return;
+  }
+
   try {
-    iziToast.error({ message, position: 'topRight', target: ensureIziTarget(), timeout: ms, close: true });
-  } catch (_) {
+    iziToast.error({
+      message,
+      position: 'topRight',
+      target: targetSelector,
+      timeout: ms,
+      close: true,
+      maxWidth: 400,
+      transitionIn: 'fadeInLeft'
+    });
+  } catch (err) {
+    console.warn('[thirdparty-toast] iziToast.error failed, using fallback:', err);
     fallbackToast(message, { background: '#c53030', color: '#fff', ms });
   }
 }

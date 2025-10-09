@@ -648,3 +648,17 @@ emove_comment(ann_id, comment_id)。
 ### 文本选择快捷操作（快速标注）路径大小写统一（2025-10-09）
 - 模块解析在某些 HTTP/打包环境中大小写敏感，统一使用小写模块路径：`features/annotation/models/annotation.js`；
 - 避免因同一路径大小写混用导致的重复实例/构造异常。
+
+## 构建与运行（2025-10-10）
+- 文档：BUILDING.md（与构建脚本同目录）
+- 后端：
+  - 构建：python -X utf8 build.backend.py
+  - 启动：python -X utf8 dist/latest/src/backend/launcher.py start
+- 前端（分模块构建）：
+  - python -X utf8 build.frontend.pdf_home.py --out-dir dist/latest/pdf-home
+  - python -X utf8 build.frontend.pdf_viewer.py --out-dir dist/latest/pdf-viewer
+  - 两模块各自提供 ./assets 与 ./vendor（不共享），index.html 注入 window.__PDFJS_VENDOR_BASE__='./vendor/pdfjs-dist/'
+- 生产启动：
+  - pdf-home：python -X utf8 dist/latest/src/frontend/pdf-home/launcher.py --prod
+- 调试与日志：dist/latest/logs/pdf-home-js.log、ackend-launcher.log、untime-ports.json
+- 注意：不要使用 --emptyOutDir 清空 dist；所有 Python 命令以 UTF-8 执行。
