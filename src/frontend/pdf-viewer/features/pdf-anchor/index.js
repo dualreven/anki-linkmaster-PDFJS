@@ -29,6 +29,10 @@ export class PDFAnchorFeature {
   #navReadyRetryTimer = null; // 短暂重试定时器（处理LOAD.SUCCESS已过但pagesCount稍后才>0的竞态）
   #navInitDelayTimer = null; // 等待PDFViewer完全初始化后的延迟导航定时器
   #lastNav = null; // 最近一次导航请求 { pageAt, position, anchorId, t0, method }
+  #useGateNav = true; // 启用“并发闸门”
+  #gateAnchorReady = false; // 锚点数据已达
+  #gateRenderReady = false; // PDF渲染就绪
+  #gateNavDone = false; // 闸门导航已执行
 
   get name() { return "pdf-anchor"; }
   get version() { return "1.0.0"; }
@@ -117,11 +121,16 @@ export class PDFAnchorFeature {
             this.#pendingNav = (pageAt >= 1) ? { pageAt, position: pos, anchorId: a.uuid } : null;
             try {
               const posText = (pos === null || Number.isNaN(pos)) ? "(未提供)" : `${pos}%`;
-              toastWarning(`计划跳转: 第${pageAt}页 ${posText}（约2.5秒后执行）`);
+              toastWarning(`计划跳转: 第${pageAt}页 ${posText}`);
             } catch(_) {}
-            // 如果文件已加载完成（缓存命中导致 FILE.LOAD.SUCCESS 已经发射过），立即执行导航；否则短暂轮询等待pagesCount>0
-            this.#performPendingNavIfReady();
-            this.#ensureNavigateWhenLoaded();
+            if (this.#useGateNav) {
+              this.#gateAnchorReady = true;
+              this.#tryNavigateWhenGatesReady();
+            } else {
+              // 兼容旧路径：立即按加载就绪策略尝试
+              this.#performPendingNavIfReady();
+              this.#ensureNavigateWhenLoaded();
+            }
             // 启动后台更新（3秒节拍）
             this.#activeAnchorId = a.uuid;
             this.#startUpdateTimer();
@@ -153,12 +162,21 @@ export class PDFAnchorFeature {
             this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD, { pdf_uuid: pdfId }, { actorId: "PDFAnchorFeature" });
           }
         } catch(e){ this.#logger.warn("noop", e); }
-        // 若存在待执行的锚点导航，此时（PDF 加载完成后）再执行，避免初始化期竞态
-        try { this.#performPendingNavIfReady(); } catch(_) {}
         // 文件加载完成后安装滚动诊断（如果尚未安装），以便激活锚点后滚动能及时采样
         try { this.#ensureScrollDiagnostics(); } catch(_) {}
       },
       { subscriberId: "PDFAnchorFeature" }
+    );
+
+    // PDF 渲染就绪（首页渲染完成，DOM可用）
+    this.#eventBus.on(
+      PDF_VIEWER_EVENTS.RENDER.READY,
+      (info) => {
+        try { toastSuccess(`PDF渲染完成：总页数 ${info?.totalPages ?? ''}`); } catch(_) {}
+        this.#gateRenderReady = true;
+        this.#tryNavigateWhenGatesReady();
+      },
+      { subscriberId: 'PDFAnchorFeature' }
     );
 
     // 兜底：直接监听 WS 收到的消息（避免适配器初始化竞态导致首次列表错过）
@@ -412,6 +430,31 @@ export class PDFAnchorFeature {
           this.#navReadyRetryTimer = null;
         }
       }, 100);
+    } catch(_) {}
+  }
+
+  // 并发闸门：同时满足“锚点数据已达”与“PDF渲染就绪”后再执行 URL 导航
+  #tryNavigateWhenGatesReady() {
+    try {
+      if (!this.#useGateNav) { return; }
+      if (this.#gateNavDone) { return; }
+      if (!this.#gateAnchorReady || !this.#gateRenderReady) { return; }
+      if (!this.#pendingNav) { return; }
+      const { pageAt, position, anchorId } = this.#pendingNav;
+      try {
+        const posText = (position === null || Number.isNaN(position)) ? "(未提供)" : `${position}%`;
+        toastWarning(`执行跳转: 第${pageAt}页 ${posText}`);
+      } catch(_) {}
+      this.#lastNav = { pageAt, position, anchorId, t0: Date.now(), method: 'url' };
+      this.#eventBus.emit(
+        PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
+        { anchorId, pageAt, position },
+        { actorId: 'PDFAnchorFeature' }
+      );
+      this.#freezeUntilMs = Date.now() + 3000;
+      this.#autoUpdateEnabled = false;
+      this.#pendingNav = null;
+      this.#gateNavDone = true;
     } catch(_) {}
   }
 
