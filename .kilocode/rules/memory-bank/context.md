@@ -1224,3 +1224,8 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - 修复：REQUESTED 改为携带 anchorId（不带 pdfId），避免 URLNavigationFeature 误触发重新加载流程
 - 兜底：无 anchorId 时直接调用 navigationService.navigateTo
 - 预期：跳转不再因重复加载被中断或失败
+
+## 当前任务（20251009205936）
+- 名称：锚点跳转状态 toast 化（识别/计划/执行/到达/失败）
+- 位置：features/pdf-anchor/index.js（引入 #lastNav 与多个事件 toast）
+- 注意：保留无心跳策略；此次仅增加可视反馈，不改变跳转与采样逻辑
