@@ -7,6 +7,9 @@
 import { getLogger } from "../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
 import { BookmarkToolbar } from "../features/pdf-bookmark/components/bookmark-toolbar.js";
+import $ from "jquery";
+import "jstree";
+import "jstree/dist/themes/default/style.css";
 
 export class BookmarkSidebarUI {
   #eventBus;
@@ -100,267 +103,105 @@ export class BookmarkSidebarUI {
     this.#bookmarks = Array.isArray(bookmarks) ? bookmarks : [];
     if (!this.#bookmarkList) return;
 
-    // 记录并恢复滚动位置，避免重渲染时“跳到顶部”产生错觉
-    const prevScrollTop = this.#bookmarkList.scrollTop;
-    // 清空列表区域
+    // 使用 jsTree 渲染树形结构
+    const $container = $(this.#bookmarkList);
+    try { $container.jstree("destroy"); } catch {}
     this.#bookmarkList.innerHTML = '';
-
-    const list = document.createElement('ul');
-    list.style.listStyle = 'none';
-    list.style.margin = '0';
-    list.style.padding = '0';
-
-    const buildNode = (node, level = 0) => {
-      const li = document.createElement('li');
-      li.style.paddingLeft = `${level * 12}px`;
-      li.dataset.bookmarkId = node.id; // 存储书签ID用于选中
-      const hasChildren = Array.isArray(node.children) && node.children.length > 0;
-
-      // 展开/收起图标
-      if (hasChildren) {
-        const caret = document.createElement('span');
-        caret.textContent = '▾'; // 展开符号
-        caret.style.cssText = 'display:inline-block;width:14px;color:#444;cursor:pointer;margin-right:2px;';
-        li.appendChild(caret);
-      } else {
-        const spacer = document.createElement('span');
-        spacer.style.cssText = 'display:inline-block;width:14px;margin-right:2px;';
-        li.appendChild(spacer);
-      }
-
-      // 创建书签项容器
-      const itemContainer = document.createElement('div');
-      itemContainer.style.cssText = 'display:flex;align-items:center;position:relative;';
-
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'bookmark-title-btn';  // 添加class用于选择器
-      btn.textContent = node.name || '(未命名)';
-      btn.dataset.bookmarkId = node.id;
-      btn.style.display = 'block';
-      btn.style.flex = '1';
-      btn.style.textAlign = 'left';
-      btn.style.border = 'none';
-      btn.style.background = 'transparent';
-      btn.style.padding = '4px 6px';
-      btn.style.cursor = 'pointer';
-      btn.style.whiteSpace = 'nowrap';
-      btn.style.overflow = 'hidden';
-      btn.style.textOverflow = 'ellipsis';
-
-      // 创建跳转按钮（默认隐藏）
-      const jumpBtn = document.createElement('button');
-      jumpBtn.type = 'button';
-      jumpBtn.className = 'bookmark-jump-btn';  // 添加class区分
-      jumpBtn.textContent = '→';
-      jumpBtn.title = '跳转到此书签';
-      jumpBtn.style.cssText = `
-        display: none;
-        width: 24px;
-        height: 24px;
-        border: none;
-        background: #1976d2;
-        color: white;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 16px;
-        line-height: 24px;
-        padding: 0;
-        margin-right: 4px;
-        flex-shrink: 0;
-      `;
-
-      // Hover显示跳转按钮与拖拽柄
-      itemContainer.addEventListener('mouseenter', () => {
-        jumpBtn.style.display = 'block';
-        if (dragHandle) dragHandle.style.display = 'inline-flex';
-      });
-
-      itemContainer.addEventListener('mouseleave', () => {
-        jumpBtn.style.display = 'none';
-        if (dragHandle) dragHandle.style.display = 'none';
-      });
-
-      // 跳转按钮点击
-      jumpBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.#logger.info(`Bookmark jump button clicked: ${node.name}`);
+    const data = this.#toJsTreeData(this.#bookmarks);
+    $container.jstree({
+      core: { data, check_callback: true, themes: { stripes: true } },
+      plugins: ["dnd", "wholerow"],
+      dnd: { is_draggable: () => true }
+    });
+    // 选择节点 → 发出导航与选中事件
+    // eslint-disable-next-line custom/event-name-format
+    $container.on("select_node.jstree", (e, selected) => {
+      try {
+        const info = selected?.node?.data || {};
+        const pageNumber = info.pageNumber || 1;
+        const region = info.region || null;
+        const position = region && typeof region.scrollY === "number" ? region.scrollY : null;
+        // 更新内存的当前选中ID
+        this.#selectedBookmarkId = selected?.node?.id || null;
+        // 向工具栏等消费者广播“选中变化”，保证编辑/删除针对最新选中项
         this.#eventBus.emit(
-          PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.REQUESTED,
-          { bookmark: node, timestamp: Date.now() },
+          PDF_VIEWER_EVENTS.BOOKMARK.SELECT.CHANGED,
+          { bookmarkId: selected?.node?.id || null, bookmark: info.raw || null },
           { actorId: 'BookmarkSidebarUI' }
         );
-      });
-
-      // 双击导航（保留作为备选方式）
-      btn.addEventListener('dblclick', () => {
-        this.#logger.info(`Bookmark double-clicked (navigate): ${node.name}`);
         this.#eventBus.emit(
-          PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.REQUESTED,
-          { bookmark: node, timestamp: Date.now() },
+          PDF_VIEWER_EVENTS.NAVIGATION.GOTO,
+          { pageNumber, ...(position !== null ? { position } : {}) },
           { actorId: 'BookmarkSidebarUI' }
         );
-      });
+      } catch (err) { this.#logger.warn('select_node failed', err); }
+    });
+    // 拖拽重排 → 发出 REORDER
+    // eslint-disable-next-line custom/event-name-format
+    $container.on("move_node.jstree", (e, dataEvt) => {
+      try {
+        const movedId = dataEvt.node.id;
+        const newParent = dataEvt.parent === "#" ? null : dataEvt.parent;
+        const newIndex = dataEvt.position;
+        this.#eventBus.emit(
+          PDF_VIEWER_EVENTS.BOOKMARK.REORDER.REQUESTED,
+          { bookmarkId: movedId, newParentId: newParent, newIndex },
+          { actorId: 'BookmarkSidebarUI' }
+        );
+      } catch (err) { this.#logger.warn('move_node failed', err); }
+    });
 
-      // 单击选中
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.#selectBookmark(node.id, node);
-      });
-
-      // 拖拽柄（默认隐藏，仅在 hover 时显示）
-      const dragHandle = document.createElement('div');
-      dragHandle.title = '拖动以排序';
-      dragHandle.textContent = '☰';
-      dragHandle.style.cssText = `
-        display: none;
-        width: 20px;
-        height: 20px;
-        align-items: center;
-        justify-content: center;
-        margin-left: 4px;
-        color: #666;
-        cursor: grab;
-        user-select: none;
-        border-radius: 4px;
-      `;
-      dragHandle.setAttribute('draggable', 'true');
-
-      dragHandle.addEventListener('dragstart', (e) => {
-        e.stopPropagation();
-        this.#isDragging = true;
-        try {
-          e.dataTransfer.effectAllowed = 'move';
-          e.dataTransfer.setData('text/plain', node.id);
-        } catch (_) {}
-        li.style.opacity = '0.4';
-      });
-
-      dragHandle.addEventListener('dragend', (e) => {
-        e.stopPropagation();
-        this.#isDragging = false;
-        li.style.opacity = '1';
-      });
-
-      itemContainer.appendChild(btn);
-      itemContainer.appendChild(jumpBtn);
-      itemContainer.appendChild(dragHandle);
-      li.appendChild(itemContainer);
-
-      // 拖拽排序功能
-      li.draggable = false; // 统一通过拖拽柄触发
-      li.dataset.bookmarkId = node.id;
-      li.dataset.parentId = node.parentId || '';
-
-      // 拖拽开始
-      // 取消 li 自身的拖拽开始，统一用拖拽柄
-
-      // 拖拽结束
-      li.addEventListener('dragend', (e) => {
-        e.stopPropagation(); // 阻止事件冒泡
-        li.style.opacity = '1';
-      });
-
-      // 拖拽经过
-      li.addEventListener('dragover', (e) => {
-        if (!this.#isDragging) return;
-        e.preventDefault();
-        e.stopPropagation(); // 阻止事件冒泡到父节点
-        e.dataTransfer.dropEffect = 'move';
-
-        // 视觉反馈：根据鼠标位置显示不同的插入方式
-        const rect = li.getBoundingClientRect();
-        const relativeY = e.clientY - rect.top;
-        const height = rect.height;
-
-        // 划分三个区域：
-        // - 上方 30%：插入到前面（同级）
-        // - 中间 40%：成为子项
-        // - 下方 30%：插入到后面（同级）
-        if (relativeY < height * 0.3) {
-          // 上方区域 - 插入到前面
-          li.style.borderTop = '2px solid #4CAF50';
-          li.style.borderBottom = '';
-          li.style.backgroundColor = '';
-          li.dataset.dropZone = 'before';
-        } else if (relativeY > height * 0.7) {
-          // 下方区域 - 插入到后面
-          li.style.borderTop = '';
-          li.style.borderBottom = '2px solid #4CAF50';
-          li.style.backgroundColor = '';
-          li.dataset.dropZone = 'after';
-        } else {
-          // 中间区域 - 成为子项
-          li.style.borderTop = '';
-          li.style.borderBottom = '';
-          li.style.backgroundColor = 'rgba(76, 175, 80, 0.2)';
-          li.dataset.dropZone = 'child';
-        }
-      });
-
-      // 离开拖拽区域
-      li.addEventListener('dragleave', (e) => {
-        e.stopPropagation(); // 阻止事件冒泡
-        li.style.borderTop = '';
-        li.style.borderBottom = '';
-        li.style.backgroundColor = '';
-        delete li.dataset.dropZone;
-      });
-
-      // 放下
-      li.addEventListener('drop', (e) => {
-        if (!this.#isDragging) return;
-        e.preventDefault();
-        e.stopPropagation();
-
-        // 清除视觉反馈
-        li.style.borderTop = '';
-        li.style.borderBottom = '';
-        li.style.backgroundColor = '';
-
-        const draggedId = e.dataTransfer.getData('text/plain');
-        const targetId = node.id;
-
-        if (draggedId === targetId) {
-          delete li.dataset.dropZone;
-          return; // 不能拖到自己
-        }
-
-        // 获取放置区域类型
-        const dropZone = li.dataset.dropZone || 'before';
-        delete li.dataset.dropZone;
-
-        this.#logger.info(`Drop: dragged=${draggedId}, target=${targetId}, zone=${dropZone}`);
-        this.#handleDrop(draggedId, targetId, dropZone);
-        // 结束拖拽态
-        this.#isDragging = false;
-      });
-
-      // 子节点容器
-      let childContainer = null;
-      if (hasChildren) {
-        childContainer = document.createElement('ul');
-        childContainer.style.listStyle = 'none';
-        childContainer.style.margin = '0';
-        childContainer.style.padding = '0';
-        node.children.forEach(child => childContainer.appendChild(buildNode(child, level + 1)));
-        li.appendChild(childContainer);
-
-        // 切换展开/收起
-        const caretEl = li.firstChild;
-        caretEl.addEventListener('click', () => {
-          const visible = childContainer.style.display !== 'none';
-          childContainer.style.display = visible ? 'none' : 'block';
-          caretEl.textContent = visible ? '▸' : '▾';
-        });
-      }
-      return li;
+    // 自定义拖放视觉反馈：上边框=前插入、下边框=后插入、背景色=成为子节点
+    // 使用全局 dnd 事件，并限定在本组件容器内生效
+    const NS = ".bookmarkDnd";
+    const self = this;
+    let lastEl = null; let lastZone = null;
+    const clearHighlight = () => {
+      if (!lastEl) return;
+      try {
+        lastEl.style.borderTop = "";
+        lastEl.style.borderBottom = "";
+        lastEl.style.backgroundColor = "";
+      } catch (_) {}
+      lastEl = null; lastZone = null;
     };
+    try { $(document).off(NS); } catch (_) {}
+    $(document).on("dnd_move.vakata" + NS, (evt, data) => {
+      try {
+        const $li = $(data.event.target).closest("li.jstree-node");
+        if (!$li.length || !$li.closest(self.#bookmarkList).length) { clearHighlight(); return; }
+        const el = $li.get(0);
+        const rect = el.getBoundingClientRect();
+        const y = data.event.clientY - rect.top;
+        const h = rect.height || 1;
+        const zone = y < h * 0.3 ? "before" : (y > h * 0.7 ? "after" : "child");
+        if (el !== lastEl || zone !== lastZone) {
+          clearHighlight();
+          if (zone === "before") { el.style.borderTop = "2px solid #4CAF50"; }
+          if (zone === "after") { el.style.borderBottom = "2px solid #4CAF50"; }
+          if (zone === "child") { el.style.backgroundColor = "rgba(76, 175, 80, 0.2)"; }
+          lastEl = el; lastZone = zone;
+        }
+      } catch (err) { /* ignore */ }
+    });
+    $(document).on("dnd_stop.vakata" + NS, () => clearHighlight());
+  }
 
-    this.#bookmarks.forEach(n => list.appendChild(buildNode(n, 0)));
-    this.#bookmarkList.appendChild(list);
-    // 尝试恢复滚动条位置（若后续有选中事件滚动，将被覆盖）
-    try { this.#bookmarkList.scrollTop = prevScrollTop; } catch(_) {}
+  #toJsTreeData(bookmarks) {
+    const flat = [];
+    const walk = (nodes, parentId) => {
+      nodes.forEach((n) => {
+        flat.push({
+          id: n.id,
+          parent: parentId || "#",
+          text: n.name || "(未命名)",
+          data: { pageNumber: n.pageNumber || 1, region: n.region || null, raw: n }
+        });
+        if (n.children && n.children.length) { walk(n.children, n.id); }
+      });
+    };
+    walk(bookmarks, null);
+    return flat;
   }
 
   /**

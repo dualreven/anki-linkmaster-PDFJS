@@ -20,8 +20,8 @@ import { AnnotationFeature } from "../features/annotation/index.js";
 import { SidebarManagerFeature } from "../features/sidebar-manager/index.js";
 import { PDFTranslatorFeature } from "../features/pdf-translator/index.js";
 import { TextSelectionQuickActionsFeature } from "../features/text-selection-quick-actions/index.js";
-// import { PDFBookmarkFeature } from "../features/pdf-bookmark/index.js";
-import { PDFOutlineFeature } from "../features/pdf-outline/index.js";
+import { PDFBookmarkFeature } from "../features/pdf-bookmark/index.js";
+// import { PDFOutlineFeature } from "../features/pdf-outline/index.js";
 import { PDFCardFeature } from "../features/pdf-card/index.js";
 import { AiAssistantFeature } from "../features/ai-assistant/index.js";
 import { PDFAnchorFeature } from "../features/pdf-anchor/index.js";
@@ -100,8 +100,8 @@ export async function bootstrapPDFViewerAppFeature() {
     registry.register(new CoreNavigationFeature());  // 核心导航服务（需在url-navigation和annotation之前）
     registry.register(new SearchFeature());  // 注册搜索功能
     registry.register(new URLNavigationFeature());
-    // registry.register(new PDFBookmarkFeature());  // 取消注册旧的书签功能
-    registry.register(new PDFOutlineFeature());     // 注册新的大纲功能（基于第三方树形库）
+    registry.register(new PDFBookmarkFeature());  // 使用现有书签功能（工具栏与事件完整）
+    // registry.register(new PDFOutlineFeature()); // 暂不启用新 outline，先保证稳定
     registry.register(new PDFAnchorFeature());    // 锚点功能（复制/激活/URL集成），在sidebar-manager之前
     registry.register(new AnnotationFeature());
     registry.register(new PDFTranslatorFeature());  // 翻译功能
