@@ -342,7 +342,9 @@ export class PDFAnchorFeature {
   // 若 PDF 已加载且存在待导航，则立即执行；否则等待 FILE.LOAD.SUCCESS
   #performPendingNavIfReady() {
     try {
-      if (!this.#pendingNav || !this.#navigationService) { return; }
+      if (!this.#pendingNav) { return; }
+      const requiresDirect = !this.#pendingNav.anchorId; // 无 anchorId 时才需要直接导航服务
+      if (requiresDirect && !this.#navigationService) { return; }
       const pvm = this.#container?.get?.('pdfViewerManager');
       let loaded = !!(pvm && typeof pvm.pagesCount === 'number' && pvm.pagesCount > 0);
       if (!loaded) {
@@ -398,7 +400,7 @@ export class PDFAnchorFeature {
   #ensureNavigateWhenLoaded() {
     try {
       if (!this.#pendingNav || this.#navReadyRetryTimer) { return; }
-      const deadline = Date.now() + 3000; // 最多等待3秒
+      const deadline = Date.now() + 15000; // 最多等待15秒，适配大文档初始化
       this.#navReadyRetryTimer = setInterval(() => {
         if (!this.#pendingNav) { clearInterval(this.#navReadyRetryTimer); this.#navReadyRetryTimer = null; return; }
         const pvm = this.#container?.get?.('pdfViewerManager');
