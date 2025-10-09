@@ -155,56 +155,7 @@ export class AnchorSidebarUI {
     };
 
     const addBtn = mkBtn('add', '添加', '添加锚点（名称/页码/位置）');
-    addBtn.addEventListener('click', () => {
-      this.#logger.info('Anchor add clicked');
-      // 获取当前页码与位置作为默认值
-      const getCurrent = () => {
-        try {
-          const viewer = document.getElementById('viewerContainer');
-          if (!viewer) return { pageAt: 1, position: '' };
-          const centerY = viewer.scrollTop + viewer.clientHeight / 2;
-          const pages = Array.from(viewer.querySelectorAll('.page'));
-          let best = { pageAt: 1, position: '', dist: Number.POSITIVE_INFINITY };
-          for (const el of pages) {
-            const pageNo = parseInt(el.getAttribute('data-page-number') || '1', 10) || 1;
-            const top = el.offsetTop; const height = el.offsetHeight || 1; const bottom = top + height;
-            if (centerY >= top && centerY <= bottom) {
-              const rel = (centerY - top) / height;
-              return { pageAt: pageNo, position: String(Math.round(rel * 100)) };
-            } else {
-              const dist = Math.min(Math.abs(centerY - top), Math.abs(centerY - bottom));
-              if (dist < best.dist) { best = { pageAt: pageNo, position: centerY < top ? '0' : '100', dist }; }
-            }
-          }
-          return { pageAt: best.pageAt, position: best.position };
-        } catch (_) { return { pageAt: 1, position: '' }; }
-      };
-      const curr = getCurrent();
-
-      let name = '';
-      try { name = prompt('请输入锚点名称：', '') || ''; } catch(_) { name = ''; }
-      if (!name.trim()) { return; }
-
-      let pageInput = null;
-      try { pageInput = prompt('请输入页码（>=1）：', String(curr.pageAt)); } catch(_) { pageInput = null; }
-      if (pageInput === null) { return; }
-      const page_at = Math.max(1, parseInt(String(pageInput).trim() || '1', 10) || 1);
-
-      let posInput = null;
-      try { posInput = prompt('请输入页内位置百分比（0-100，可留空）：', String(curr.position)); } catch(_) { posInput = null; }
-      if (posInput === null) { return; }
-      const posStr = String(posInput).trim();
-      const position = posStr === '' ? undefined : Math.max(0, Math.min(100, Number(posStr)));
-
-      const anchor = { name, page_at };
-      if (typeof position === 'number') { anchor.position = position; }
-
-      this.#eventBus.emit(
-        PDF_VIEWER_EVENTS.ANCHOR.CREATE,
-        { anchor },
-        { actorId: 'AnchorToolbar' }
-      );
-    });
+    addBtn.addEventListener('click', () => this.#openCreateDialog());
 
     const delBtn = mkBtn('delete', '删除', '删除选中锚点');
     delBtn.addEventListener('click', () => {
@@ -214,63 +165,7 @@ export class AnchorSidebarUI {
     });
 
     const editBtn = mkBtn('edit', '修改', '修改选中锚点（名称/页码/位置）');
-    editBtn.addEventListener('click', () => {
-      if (!this.#selectedId) return;
-      const a = this.#anchors.find(x => x && x.uuid === this.#selectedId) || {};
-      const currName = (a.name || '');
-      const currPage = parseInt(a.page_at || 1, 10) || 1;
-      const currPosPct = (() => {
-        const p = a.position;
-        if (typeof p !== 'number') return '';
-        return (p <= 1 ? Math.round(p * 100) : Math.round(p));
-      })();
-
-      this.#logger.info('Anchor update clicked', { id: this.#selectedId });
-
-      // 依次提示：名称、页码、位置(%)
-      let nameInput = null;
-      try { nameInput = prompt('请输入新的锚点名称（留空不修改）：', currName ?? ''); } catch(_) { nameInput = null; }
-      if (nameInput === null) return; // 取消
-
-      let pageInput = null;
-      try { pageInput = prompt('请输入新的页码（>=1，留空不修改）：', String(currPage)); } catch(_) { pageInput = null; }
-      if (pageInput === null) return; // 取消
-
-      let posInput = null;
-      try { posInput = prompt('请输入新的页内位置百分比（0-100，留空不修改）：', (currPosPct === '' ? '' : String(currPosPct))); } catch(_) { posInput = null; }
-      if (posInput === null) return; // 取消
-
-      const update = {};
-      // 名称
-      const newName = String(nameInput || '').trim();
-      if (newName && newName !== currName) { update.name = newName; }
-      // 页码
-      const pageNum = (pageInput && String(pageInput).trim() !== '') ? parseInt(String(pageInput).trim(), 10) : NaN;
-      if (!Number.isNaN(pageNum)) { update.page_at = Math.max(1, pageNum); }
-      // 位置（百分比）
-      const posNum = (posInput && String(posInput).trim() !== '') ? Number(String(posInput).trim()) : NaN;
-      if (!Number.isNaN(posNum)) { update.position = Math.max(0, Math.min(100, posNum)); }
-
-      if (Object.keys(update).length === 0) { return; }
-
-      this.#eventBus.emit(
-        PDF_VIEWER_EVENTS.ANCHOR.UPDATE,
-        { anchorId: this.#selectedId, update },
-        { actorId: 'AnchorToolbar' }
-      );
-      // 立即在本地表格中反映变更（等待后端回读前的即时反馈）
-      try {
-        const idx = this.#anchors.findIndex(x => x && x.uuid === this.#selectedId);
-        if (idx >= 0) {
-          if (update.name) { this.#anchors[idx].name = update.name; }
-          if (typeof update.page_at === 'number') { this.#anchors[idx].page_at = update.page_at; }
-          if (typeof update.position === 'number') {
-            this.#anchors[idx].position = (update.position > 1 ? (update.position / 100) : update.position);
-          }
-          this.#renderAnchors(this.#anchors);
-        }
-      } catch (_) {}
-    });
+    editBtn.addEventListener('click', () => this.#openEditDialog());
 
     // 复制下拉按钮
     const copyTextRobust = async (text, labelForToast) => {
@@ -396,6 +291,135 @@ export class AnchorSidebarUI {
     bar.appendChild(copyWrap);
 
     return bar;
+  }
+
+  #openCreateDialog() {
+    const curr = (() => {
+      try {
+        const viewer = document.getElementById("viewerContainer");
+        if (!viewer) { return { pageAt: 1, position: "" }; }
+        const centerY = viewer.scrollTop + viewer.clientHeight / 2;
+        const pages = Array.from(viewer.querySelectorAll(".page"));
+        let best = { pageAt: 1, position: "", dist: Number.POSITIVE_INFINITY };
+        for (const el of pages) {
+          const pageNo = parseInt(el.getAttribute("data-page-number") || "1", 10) || 1;
+          const top = el.offsetTop; const height = el.offsetHeight || 1; const bottom = top + height;
+          if (centerY >= top && centerY <= bottom) {
+            const rel = (centerY - top) / height;
+            return { pageAt: pageNo, position: String(Math.round(rel * 100)) };
+          }
+          const dist = Math.min(Math.abs(centerY - top), Math.abs(centerY - bottom));
+          if (dist < best.dist) { best = { pageAt: pageNo, position: centerY < top ? "0" : "100", dist }; }
+        }
+        return { pageAt: best.pageAt, position: best.position };
+      } catch { return { pageAt: 1, position: "" }; }
+    })();
+
+    this.#showAnchorDialog({
+      title: "添加锚点",
+      initial: { name: "", page_at: String(curr.pageAt), position: String(curr.position) },
+      onConfirm: (vals) => {
+        const name = String(vals.name || "").trim();
+        if (!name) { return; }
+        let page_at = parseInt(String(vals.page_at || "1").trim(), 10); if (!Number.isFinite(page_at) || page_at < 1) { page_at = 1; }
+        const posStr = String(vals.position || "").trim();
+        const anchor = { name, page_at };
+        if (posStr !== "") {
+          let position = Number(posStr); if (!Number.isFinite(position)) { position = 0; }
+          position = Math.max(0, Math.min(100, position));
+          anchor.position = position;
+        }
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATE, { anchor }, { actorId: "AnchorToolbar" });
+      }
+    });
+  }
+
+  #openEditDialog() {
+    if (!this.#selectedId) { return; }
+    const a = this.#anchors.find(x => x && x.uuid === this.#selectedId) || {};
+    const currName = a.name || "";
+    const currPage = parseInt(a.page_at || 1, 10) || 1;
+    const currPos = (() => {
+      const p = a.position;
+      if (typeof p !== "number") return "";
+      return (p <= 1 ? String(Math.round(p * 100)) : String(Math.round(p)));
+    })();
+
+    this.#showAnchorDialog({
+      title: "修改锚点",
+      initial: { name: currName, page_at: String(currPage), position: String(currPos) },
+      onConfirm: (vals) => {
+        const update = {};
+        const name = String(vals.name || "").trim();
+        if (name && name !== currName) { update.name = name; }
+        let page_at = parseInt(String(vals.page_at || "").trim(), 10);
+        if (Number.isFinite(page_at) && page_at >= 1 && page_at !== currPage) { update.page_at = page_at; }
+        const posStr = String(vals.position || "").trim();
+        if (posStr !== "") {
+          let position = Number(posStr);
+          if (Number.isFinite(position)) {
+            position = Math.max(0, Math.min(100, position));
+            // 只有变化时才写入
+            const oldPct = (typeof a.position === "number" ? (a.position <= 1 ? Math.round(a.position * 100) : Math.round(a.position)) : null);
+            if (oldPct === null || oldPct !== Math.round(position)) { update.position = position; }
+          }
+        }
+        if (Object.keys(update).length === 0) { return; }
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.UPDATE, { anchorId: this.#selectedId, update }, { actorId: "AnchorToolbar" });
+        // 本地即时刷新
+        try {
+          const idx = this.#anchors.findIndex(x => x && x.uuid === this.#selectedId);
+          if (idx >= 0) {
+            if (update.name) { this.#anchors[idx].name = update.name; }
+            if (typeof update.page_at === "number") { this.#anchors[idx].page_at = update.page_at; }
+            if (typeof update.position === "number") { this.#anchors[idx].position = (update.position > 1 ? (update.position / 100) : update.position); }
+            this.#renderAnchors(this.#anchors);
+          }
+        } catch (_) {}
+      }
+    });
+  }
+
+  #showAnchorDialog({ title, initial, onConfirm }) {
+    const overlay = document.createElement("div");
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:9999;";
+    const dialog = document.createElement("div");
+    dialog.style.cssText = "background:#fff;border-radius:8px;min-width:320px;max-width:420px;padding:16px 16px 12px;box-shadow:0 8px 24px rgba(0,0,0,.2);";
+    const h3 = document.createElement("div"); h3.textContent = title || ""; h3.style.cssText = "font-size:16px;font-weight:bold;margin-bottom:12px;color:#333;";
+
+    const mkRow = (label, id, type, value, placeholder) => {
+      const row = document.createElement("div"); row.style.cssText = "display:flex;align-items:center;margin:8px 0;gap:8px;";
+      const lab = document.createElement("label"); lab.textContent = label; lab.style.cssText = "width:72px;color:#555;"; lab.setAttribute("for", id);
+      const inp = document.createElement("input"); inp.type = type; inp.id = id; inp.value = value ?? ""; inp.placeholder = placeholder || ""; inp.style.cssText = "flex:1;padding:6px 8px;border:1px solid #ccc;border-radius:4px;";
+      row.appendChild(lab); row.appendChild(inp);
+      return { row, inp };
+    };
+
+    const rName = mkRow("名称", "anchor-name", "text", initial?.name ?? "", "示例：章节A");
+    const rPage = mkRow("页码", "anchor-page", "number", initial?.page_at ?? "1", "例如：12"); rPage.inp.min = "1";
+    const rPos  = mkRow("位置(%)", "anchor-pos", "number", initial?.position ?? "", "0~100，可留空"); rPos.inp.min = "0"; rPos.inp.max = "100";
+
+    const btnRow = document.createElement("div"); btnRow.style.cssText = "display:flex;justify-content:flex-end;gap:8px;margin-top:14px;";
+    const cancelBtn = document.createElement("button"); cancelBtn.type = "button"; cancelBtn.textContent = "取消"; cancelBtn.style.cssText = "padding:6px 12px;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;";
+    const saveBtn   = document.createElement("button"); saveBtn.type = "button"; saveBtn.textContent = "保存"; saveBtn.style.cssText   = "padding:6px 12px;border:1px solid #1976d2;border-radius:4px;background:#1976d2;color:#fff;cursor:pointer;";
+
+    const close = () => { try { document.body.removeChild(overlay); } catch(_){} };
+    cancelBtn.addEventListener("click", close);
+    saveBtn.addEventListener("click", () => {
+      const vals = { name: rName.inp.value, page_at: rPage.inp.value, position: rPos.inp.value };
+      try { onConfirm && onConfirm(vals); } catch(_) {}
+      close();
+    });
+
+    dialog.appendChild(h3);
+    dialog.appendChild(rName.row);
+    dialog.appendChild(rPage.row);
+    dialog.appendChild(rPos.row);
+    btnRow.appendChild(cancelBtn); btnRow.appendChild(saveBtn);
+    dialog.appendChild(btnRow);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    try { rName.inp.focus(); } catch(_) {}
   }
 
   #createTable() {
