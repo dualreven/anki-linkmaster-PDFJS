@@ -167,15 +167,51 @@ export class AnchorSidebarUI {
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DELETE, { anchorId: this.#selectedId }, { actorId: 'AnchorToolbar' });
     });
 
-    const editBtn = mkBtn('edit', '修改', '修改选中锚点');
+    const editBtn = mkBtn('edit', '修改', '修改选中锚点（名称/页码/位置）');
     editBtn.addEventListener('click', () => {
       if (!this.#selectedId) return;
+      const a = this.#anchors.find(x => x && x.uuid === this.#selectedId) || {};
+      const currName = (a.name || '');
+      const currPage = parseInt(a.page_at || 1, 10) || 1;
+      const currPosPct = (() => {
+        const p = a.position;
+        if (typeof p !== 'number') return '';
+        return (p <= 1 ? Math.round(p * 100) : Math.round(p));
+      })();
+
       this.#logger.info('Anchor update clicked', { id: this.#selectedId });
-      const current = (this.#anchors.find(a => a.uuid === this.#selectedId)?.name) || '';
-      let name = '';
-      try { name = prompt('请输入新的锚点名称：', current) || ''; } catch(_) { name = current; }
-      if (!name.trim()) return;
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.UPDATE, { anchorId: this.#selectedId, update: { name } }, { actorId: 'AnchorToolbar' });
+
+      // 依次提示：名称、页码、位置(%)
+      let nameInput = null;
+      try { nameInput = prompt('请输入新的锚点名称（留空不修改）：', currName ?? ''); } catch(_) { nameInput = null; }
+      if (nameInput === null) return; // 取消
+
+      let pageInput = null;
+      try { pageInput = prompt('请输入新的页码（>=1，留空不修改）：', String(currPage)); } catch(_) { pageInput = null; }
+      if (pageInput === null) return; // 取消
+
+      let posInput = null;
+      try { posInput = prompt('请输入新的页内位置百分比（0-100，留空不修改）：', (currPosPct === '' ? '' : String(currPosPct))); } catch(_) { posInput = null; }
+      if (posInput === null) return; // 取消
+
+      const update = {};
+      // 名称
+      const newName = String(nameInput || '').trim();
+      if (newName && newName !== currName) { update.name = newName; }
+      // 页码
+      const pageNum = (pageInput && String(pageInput).trim() !== '') ? parseInt(String(pageInput).trim(), 10) : NaN;
+      if (!Number.isNaN(pageNum)) { update.page_at = Math.max(1, pageNum); }
+      // 位置（百分比）
+      const posNum = (posInput && String(posInput).trim() !== '') ? Number(String(posInput).trim()) : NaN;
+      if (!Number.isNaN(posNum)) { update.position = Math.max(0, Math.min(100, posNum)); }
+
+      if (Object.keys(update).length === 0) { return; }
+
+      this.#eventBus.emit(
+        PDF_VIEWER_EVENTS.ANCHOR.UPDATE,
+        { anchorId: this.#selectedId, update },
+        { actorId: 'AnchorToolbar' }
+      );
     });
 
     // 复制下拉按钮
