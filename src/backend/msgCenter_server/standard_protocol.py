@@ -141,6 +141,15 @@ class MessageType(Enum):
     ANCHOR_ACTIVATE_COMPLETED = "anchor:activate:completed"
     ANCHOR_ACTIVATE_FAILED = "anchor:activate:failed"
 
+    # === PDF-Viewer 实例注册与导航 ===
+    PDF_VIEWER_REGISTER_REQUESTED = "pdf-viewer:register:requested"
+    PDF_VIEWER_REGISTER_COMPLETED = "pdf-viewer:register:completed"
+    PDF_VIEWER_REGISTER_FAILED = "pdf-viewer:register:failed"
+
+    PDF_VIEWER_NAVIGATE_REQUESTED = "pdf-viewer:navigate:requested"
+    PDF_VIEWER_NAVIGATE_COMPLETED = "pdf-viewer:navigate:completed"
+    PDF_VIEWER_NAVIGATE_FAILED = "pdf-viewer:navigate:failed"
+
     # === 兼容旧版消息（保留常量以便查询与降级） ===
     LEGACY_PDF_HOME_GET_PDF_LIST = "pdf-home:get:pdf-list"
     LEGACY_PDF_HOME_ADD_PDF_FILES = "pdf-home:add:pdf-files"

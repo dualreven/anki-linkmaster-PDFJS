@@ -2,15 +2,127 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "docs/contracts/pdf-library/v1/messages/viewer.request.schema.json",
   "title": "pdf-library:viewer:requested",
+  "version": "1.1.0",
+  "description": "WebSocket 消息：请求打开 PDF Viewer 窗口（支持导航参数）",
   "type": "object",
   "properties": {
     "type": {"const": "pdf-library:viewer:requested"},
     "timestamp": {"type": "number"},
     "request_id": {"type": "string"},
-    "metadata": {"type": "object", "properties": {"version": {"type": "string"}}, "required": ["version"]},
-    "data": {"type": "object", "properties": {"pdf_id": {"type": "string"}}, "required": ["pdf_id"], "additionalProperties": true}
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "version": {"type": "string"}
+      },
+      "required": ["version"]
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "pdf_id": {
+          "type": "string",
+          "description": "PDF 文件 ID 或文件名"
+        },
+        "file_id": {
+          "type": "string",
+          "description": "PDF 文件 ID（与 pdf_id 同义，保留兼容性）"
+        },
+        "needNavigate": {
+          "type": "object",
+          "description": "可选的导航参数，用于在 PDF 打开后跳转到指定位置",
+          "properties": {
+            "pageAt": {
+              "type": "integer",
+              "description": "目标页码（从1开始）",
+              "minimum": 1,
+              "maximum": 10000
+            },
+            "position": {
+              "type": "number",
+              "description": "页面内垂直位置百分比（0-100）",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "pdfanchor": {
+              "type": "string",
+              "description": "PDF 锚点 ID（格式: pdfanchor-{12位十六进制}）",
+              "pattern": "^pdfanchor-[a-f0-9]{12}$"
+            },
+            "pdfannotation": {
+              "type": "string",
+              "description": "PDF 标注 ID（格式: pdfannotation-{base64url16}）",
+              "pattern": "^pdfannotation-[A-Za-z0-9_-]{16,}$"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "anyOf": [
+        {"required": ["pdf_id"]},
+        {"required": ["file_id"]}
+      ],
+      "additionalProperties": true
+    }
   },
   "required": ["type", "timestamp", "request_id", "metadata", "data"],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "examples": [
+    {
+      "description": "基本示例：仅打开 PDF",
+      "message": {
+        "type": "pdf-library:viewer:requested",
+        "timestamp": 1696845600000,
+        "request_id": "req_123456789",
+        "metadata": {"version": "1.0.0"},
+        "data": {"file_id": "sample"}
+      }
+    },
+    {
+      "description": "带导航参数示例1：跳转到页码",
+      "message": {
+        "type": "pdf-library:viewer:requested",
+        "timestamp": 1696845600000,
+        "request_id": "req_123456789",
+        "metadata": {"version": "1.0.0"},
+        "data": {
+          "file_id": "sample",
+          "needNavigate": {
+            "pageAt": 5
+          }
+        }
+      }
+    },
+    {
+      "description": "带导航参数示例2：跳转到页码+位置",
+      "message": {
+        "type": "pdf-library:viewer:requested",
+        "timestamp": 1696845600000,
+        "request_id": "req_123456789",
+        "metadata": {"version": "1.0.0"},
+        "data": {
+          "file_id": "sample",
+          "needNavigate": {
+            "pageAt": 5,
+            "position": 50
+          }
+        }
+      }
+    },
+    {
+      "description": "带导航参数示例3：跳转到锚点",
+      "message": {
+        "type": "pdf-library:viewer:requested",
+        "timestamp": 1696845600000,
+        "request_id": "req_123456789",
+        "metadata": {"version": "1.0.0"},
+        "data": {
+          "file_id": "sample",
+          "needNavigate": {
+            "pdfanchor": "pdfanchor-abc123def456"
+          }
+        }
+      }
+    }
+  ]
 }
 

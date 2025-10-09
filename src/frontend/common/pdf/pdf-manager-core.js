@@ -5,8 +5,6 @@
  */
 
 import {
-  PDF_MANAGEMENT_EVENTS,
-  WEBSOCKET_MESSAGE_EVENTS,
   WEBSOCKET_EVENTS,
   WEBSOCKET_MESSAGE_TYPES,
 } from "../event/event-constants.js";
@@ -114,11 +112,11 @@ export class PDFManagerCore {
     let filename = fileEntry
       ? fileEntry.filename
       : typeof identifier === "string"
-      ? identifier
-      : undefined;
-    if (filename && !filename.endsWith(".pdf")) filename = `${filename}.pdf`;
+        ? identifier
+        : undefined;
+    if (filename && !filename.endsWith(".pdf")) {filename = `${filename}.pdf`;}
     const data = { file_id: identifier };
-    if (filename) data.filename = filename;
+    if (filename) {data.filename = filename;}
     this.#eventBus.emit(
       WEBSOCKET_EVENTS.MESSAGE.SEND,
       {
@@ -131,14 +129,104 @@ export class PDFManagerCore {
 
   /**
    * 请求后端打开指定的 PDF 文件（以 file_id 为标识）。
-   * @param {string} filename - 要打开的文件标识。
+   *
+   * Schema 参考: docs/SPEC/schemas/eventbus/pdf-management/v1/open.requested.schema.json
+   *
+   * @param {string|Object} filenameOrData - 文件标识或包含完整信息的对象
+   *   - 旧格式（string）: 直接传递文件名，向后兼容
+   *   - 新格式（object）: { filename: string, needNavigate?: Object }
+   *
+   * @param {string} filenameOrData.filename - PDF 文件名或文件 ID
+   * @param {Object} [filenameOrData.needNavigate] - 可选的导航参数
+   * @param {number} [filenameOrData.needNavigate.pageAt] - 目标页码（从1开始，1-10000）
+   * @param {number} [filenameOrData.needNavigate.position] - 页面内位置百分比（0-100）
+   * @param {string} [filenameOrData.needNavigate.pdfanchor] - PDF锚点ID（格式: pdfanchor-{12位十六进制}）
+   * @param {string} [filenameOrData.needNavigate.pdfannotation] - PDF标注ID（格式: pdfannotation-{base64url16}）
+   *
    * @returns {void}
+   *
+   * @example
+   * // 旧格式：直接传递文件名
+   * pdfManager.openPDF('sample.pdf');
+   *
+   * @example
+   * // 新格式：仅打开文件
+   * pdfManager.openPDF({ filename: 'sample.pdf' });
+   *
+   * @example
+   * // 新格式：打开并跳转到页码
+   * pdfManager.openPDF({
+   *   filename: 'sample.pdf',
+   *   needNavigate: { pageAt: 5 }
+   * });
+   *
+   * @example
+   * // 新格式：打开并跳转到页码+位置
+   * pdfManager.openPDF({
+   *   filename: 'sample.pdf',
+   *   needNavigate: { pageAt: 5, position: 50 }
+   * });
+   *
+   * @example
+   * // 新格式：打开并跳转到锚点
+   * pdfManager.openPDF({
+   *   filename: 'sample.pdf',
+   *   needNavigate: { pdfanchor: 'pdfanchor-abc123def456' }
+   * });
    */
-  openPDF(filename) {
-    this.#logger.info(`Requesting to open PDF: ${filename}`);
+  openPDF(filenameOrData) {
+    // 参数解析：兼容旧格式（string）和新格式（object）
+    let filename;
+    let needNavigate = null;
+
+    if (typeof filenameOrData === "string") {
+      // 旧格式：直接传递文件名字符串
+      filename = filenameOrData;
+      this.#logger.info(`Requesting to open PDF (legacy format): ${filename}`);
+    } else if (typeof filenameOrData === "object" && filenameOrData !== null) {
+      // 新格式：传递完整的数据对象
+      filename = filenameOrData.filename;
+      needNavigate = filenameOrData.needNavigate || null;
+
+      this.#logger.info(`Requesting to open PDF (new format): ${filename}`, {
+        hasNavigate: !!needNavigate,
+        navigate: needNavigate
+      });
+    } else {
+      this.#logger.error("Invalid parameter type for openPDF:", typeof filenameOrData);
+      return;
+    }
+
+    // 验证文件名
+    if (!filename || typeof filename !== "string") {
+      this.#logger.error("Invalid filename for openPDF:", filename);
+      return;
+    }
+
+    // 构建发送给后端的数据
+    const data = { file_id: filename };
+
+    // 如果存在 needNavigate，添加到数据中
+    if (needNavigate && typeof needNavigate === "object") {
+      data.needNavigate = { ...needNavigate };
+
+      // 记录导航参数的详细信息
+      this.#logger.debug("Navigation parameters included:", {
+        hasPageAt: needNavigate.pageAt !== undefined,
+        hasPosition: needNavigate.position !== undefined,
+        hasPdfAnchor: needNavigate.pdfanchor !== undefined,
+        hasPdfAnnotation: needNavigate.pdfannotation !== undefined,
+        pageAt: needNavigate.pageAt,
+        position: needNavigate.position,
+        pdfanchor: needNavigate.pdfanchor,
+        pdfannotation: needNavigate.pdfannotation
+      });
+    }
+
+    // 发送 WebSocket 消息
     this.#eventBus.emit(
       WEBSOCKET_EVENTS.MESSAGE.SEND,
-      { type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF, data: { file_id: filename } },
+      { type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF, data },
       { actorId: "PDFManager" }
     );
   }

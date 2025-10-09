@@ -48,6 +48,7 @@ export class SidebarManagerFeature {
      * 依赖的Features
      */
     get dependencies() {
+        // 恢复为依赖 pdf-bookmark，保证现有功能稳定
         return ['annotation', 'pdf-translator', 'pdf-bookmark', 'pdf-card'];
     }
 

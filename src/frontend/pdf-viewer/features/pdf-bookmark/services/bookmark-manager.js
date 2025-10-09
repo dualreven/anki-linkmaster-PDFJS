@@ -502,11 +502,40 @@ export class BookmarkManager {
   async saveToStorage() {
     try {
       // 仅序列化根节点树，符合后端 save_bookmarks 期望
+      // 增加基于 id 的去重与防循环，避免同一 bookmark_id 在同一次保存载荷中出现两次
+      const visited = new Set();
+      const cloneAndDedup = (node) => {
+        if (!node || !node.id) return null;
+        if (visited.has(node.id)) return null;
+        visited.add(node.id);
+        const json = node.toJSON ? node.toJSON() : node;
+        const children = Array.isArray(node.children) ? node.children : [];
+        const deduped = [];
+        for (const child of children) {
+          const childId = child && (child.id || child.bookmark_id);
+          if (!childId) continue;
+          if (visited.has(childId)) continue;
+          const childNode = child.toJSON ? child : this.#bookmarks.get(childId);
+          const cloned = childNode ? cloneAndDedup(childNode) : null;
+          if (cloned) deduped.push(cloned);
+        }
+        json.children = deduped;
+        return json;
+      };
+
       const roots = this.#rootBookmarkIds
         .map(id => this.#bookmarks.get(id))
         .filter(Boolean)
-        .map(b => b.toJSON());
-      await this.#storage.save(this.#pdfId, roots, this.#rootBookmarkIds);
+        .map(b => cloneAndDedup(b))
+        .filter(Boolean);
+
+      // rootIds 仅包含当前无 parentId 的节点，且顺序与内部 root 列表一致
+      const rootIds = Array.from(this.#rootBookmarkIds).filter(id => {
+        const n = this.#bookmarks.get(id);
+        return n && (!n.parentId);
+      });
+
+      await this.#storage.save(this.#pdfId, roots, rootIds);
       this.#logger.info(`✅ Bookmarks saved to storage: PDF=${this.#pdfId}, count=${this.#bookmarks.size}`);
     } catch (error) {
       this.#logger.error('Failed to save bookmarks to storage:', error);

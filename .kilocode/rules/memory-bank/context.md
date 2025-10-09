@@ -1,47 +1,34 @@
-﻿## 当前任务（20251010055153）
-- 名称：修复生产模式白屏（pdf-home 初始化/容器挂载诊断）
+﻿## 当前任务（20251010020347）
+- 名称：分析pdf-viewer代码清晰度，提出基于AI开发特点的改进建议
 - 问题背景：
-  - 生产加载已改为 HTTP（经 pdfFile_server），静态资源与 MIME 均正确；index.html 的动态 import 成功，index.js 已执行，但页面仍为空白。
-  - 初步判断：PDFHomeAppV2.initialize() 或挂载容器选择器不匹配导致 UI 未渲染。
+  - AI开发的特点：记忆有限（无法记住所有Feature细节）、理解能力有限（容易忽略隐式依赖）
+  - 目标：避免AI修改一个功能时引起另一个功能的错误
 - 相关模块与文件：
-  - src/frontend/pdf-home/core/pdf-home-app-v2.js（initialize/mount 流程）
-  - src/frontend/pdf-home/index.html（根容器结构与 id/class）
-  - src/frontend/pdf-home/bootstrap/app-bootstrap-v2.js（启动顺序与日志）
-  - src/frontend/common/utils/notification.js（已替换为 ToastManager，避免 null.style 错误）
-- 执行步骤（原子化）：
-  1) 在 PDFHomeAppV2.initialize/mount 前后添加 Info 日志，输出容器选择器、query 结果与长度
-  2) 若容器不存在，输出 error 并创建最小回退容器（如 #app-root）并渲染占位 UI，防止白屏
-  3) 校正 index.html 中根容器 id/class 与代码一致；必要时新增 <div id="app-root"></div>
-  4) 增强 bootstrapV2 日志以标注 initialize() 进入与完成；捕获并上报异常
-  5) 构建并在生产模式运行，收集 js 日志与可见占位 UI
-  6) 根据日志精准修复选择器或初始化顺序问题，回归验证
-- 验收标准：
-  - 生产模式不再白屏，至少出现可见占位区或首页框架；
-  - 日志含有 initialize/mount 阶段的详细信息；
-  - 不影响开发模式（Vite）与现有后端启动流程。
-## 当前任务（20251009083956）
-- 名称：设计 MsgCenter→pdf-viewer 导航通信规范并实现最小落地
-- 背景：需要跨进程/窗口精确控制 viewer 导航到标注或页内位置
-- 方案：
-  - 新增 WS 消息类型：pdf-viewer:register:requested，pdf-viewer:navigate:requested/completed/failed
-  - 前端生成 session 级 viewer_id，连接建立后发送 register
-  - 导航请求按 viewer_id/pdf_uuid 路由，触发内部事件（JUMP_REQUESTED / NAVIGATION.GOTO）
-- 产物：规范文档与 JSON Schema + 适配器实现与常量
-- 状态：已完成
+  - 架构文档：`src/frontend/ARCHITECTURE-EXPLAINED.md`、`src/frontend/HOW-TO-ADD-FEATURE.md`
+  - 核心组件：`FeatureRegistry`、`EventBus`、`DependencyContainer`、`ScopedEventBus`
+  - 当前Feature：17个（app-core, pdf-manager, pdf-bookmark等）
+  - Bootstrap：`src/frontend/pdf-viewer/bootstrap/app-bootstrap-feature.js`
+- 分析结论：
+  - ✅ 优点：插件化架构清晰、事件驱动解耦、文档完善、命名规范严格
+  - ⚠️ 问题：隐式依赖难追踪、事件契约不明确、全局/局部事件易混淆、缺少改动影响分析工具
+- 核心改进建议（7个优先级）：
+  1. **服务契约注册表**：集中定义所有可注入服务及其接口，避免字符串拼写错误
+  2. **事件Payload Schema**：为每个事件定义明确的数据结构，运行时验证
+  3. **Feature依赖图可视化**：自动生成Mermaid依赖图，检测循环依赖
+  4. **事件流追踪工具**：开发模式下记录完整事件链路，生成序列图
+  5. **Feature职责边界检查**：定义允许/禁止行为清单，工具自动检测越界
+  6. **结构化日志**：引入Trace ID，串联跨Feature调用链
+  7. **契约测试**：为核心Feature编写"对外承诺"测试，CI强制通过
+- 实施路线图：
+  - 第一阶段（1周）：服务契约注册表 + 事件Schema + 运行时验证
+  - 第二阶段（1周）：依赖图生成 + 事件流追踪工具
+  - 第三阶段（2周）：契约测试 + 职责文档
+  - 第四阶段（持续）：AI辅助开发工具
+- 衡量标准：跨Feature bug减少50%、AI开发速度提升30%、代码审查时间减少40%
+- 状态：分析完成，已生成详细报告（`AItemp/20251010020347-AI-Working-log.md`）
 
 ## 当前任务（20251009061328）
-
-## 当前任务（20251009082433）
-- 名称：从远程 main 合并到当前分支（再次同步）
-- 背景：保持工作分支与主线一致，降低集成冲突；当前分支可能已有本地文档修改，需先暂存避免阻塞。
-- 步骤：
-  1) git fetch origin --prune
-  2) 记录 HEAD 与 origin/main 提交
-  3) 存在差异则合并：git merge --no-edit origin/main；冲突则解决
-  4) 验证祖先关系与状态干净
-  5) 回写日志并通知完成
-- 状态：已完成（fast-forward 合并成功；HEAD 与 origin/main 一致）
-
+- 名称：提交并合并到远程 main（anki-linkmaster-B）
 - 背景：翻译功能修复已完成，需将当前分支 worker/branch-B 的更改合入 main。
 - 步骤：
   1) 提交当前变更（allowlist 修复、测试、文档）
@@ -1220,7 +1207,6 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
   3) 创建链路接入（Annotation 构造默认使用新ID，已覆盖）
   4) 最小化脚本测试（已通过）
 - 后续：如命中以 ann_id 排序的 SQL/逻辑，统一改为 created_at；如需回滚仅需关闭开关或恢复旧生成器调用
-<<<<<<< HEAD
 ## 当前任务（20251009190530）
 - 名称：增强锚点侧边栏加载约束（失败/超时提示 + 可重试）
 - 问题背景：用户确认当前提交版本侧边栏表格正常；为防止后续改动导致“无法从后端获取锚点数据而无提示”，需在 UI 与适配器层增加约束与反馈。
@@ -1285,61 +1271,3 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 ## 当前任务（20251009213847）
 - 名称：锚点跳转延迟由 2.5s 调整为 1s
 - 说明：闸门（锚点+渲染）满足后，延迟改为 1000ms 再发 URL_PARAMS.REQUESTED；兜底路径同样改为 1s
-## 当前任务（20251009221707）
-- 名称：合并 worktree B 到 main
-- 背景：worktree C 已合并；继续同步 B 工作树（分支 `worker/branch-B`）的改动到主分支，降低分叉风险。
-- 相关分支/工作树：
-  - 本仓库：`main`
-  - B 工作树：`worker/branch-B`（路径：`C:\Users\napretep\PycharmProjects\anki-linkmaster-B`）
-- 执行步骤（原子化）：
-  1) 列出工作树与分支，确认 `worker/branch-B` 可见
-  2) 处理未提交改动（stash 或恢复至 HEAD）
-  3) `git merge --no-ff --no-edit worker/branch-B`
-  4) 验证合并提交、记录结果
-  5) 回写 AI 工作日志与本文件，通知完成
-- 结果：
-  - 合并提交：f3791afea8ddbc8740e48b80e4e56ed3d7c35458（main ← worker/branch-B）
-  - 冲突：`.kilocode/rules/memory-bank/context.md`（已手动解决，保留双方内容）
-- 状态：已完成
-## 当前任务（20251010003304）
-- 名称：发布构建系统 Step1 —— 后端构建到 dist/latest
-- 问题背景：需要建立三段式构建流程（1 后端、2 前端、3 总控）。后端阶段以“保持目录结构复制”为主，并确保运行时相对路径正确（launcher 依赖 project_root，需提供 core_utils 与 logs 目录）。
-- 相关模块与文件：
-  - 构建脚本：`build.backend.py`
-  - 启动器：`src/backend/launcher.py`（通过 parent.parent 解析 project_root）
-  - 公共库：`core_utils/process_utils.py`
-- 执行步骤（原子化）：
-  1) 回溯最近 8 条 AI 工作日志与 memory bank（完成）
-  2) 设计测试：验证复制结构、忽略清单与 core_utils 可导入（完成）
-  3) 实现脚本：复制 `src/backend`、`core_utils`，创建 `logs/`，输出元数据（完成）
-  4) 运行单测验证并修正（完成）
-  5) 更新 `tech.md` 记录用法（完成）
-  6) 产物：`dist/latest/src/backend/**`、`dist/latest/core_utils/**`、`dist/latest/logs/`（构建脚本就绪）
-- 状态：已完成
-
-## 当前任务（20251010005230）
-- 名称：发布构建系统 Step2 —— 前端构建到 dist/latest
-- 问题背景：需要以 Vite 多入口（pdf-home / pdf-viewer）构建前端，并在离线生产环境下以独立 vendor 形式提供 pdfjs-dist；运行时通过 window.__PDFJS_VENDOR_BASE__ 指定 vendor 根。
-- 相关模块与文件：
-  - 构建脚本：`build.frontend.py`
-  - Vite 配置：`vite.config.js`
-  - 依赖：`node_modules/pdfjs-dist/**`
-- 执行步骤（原子化）：
-  1) 阅读 package.json 与 vite.config.js（完成）
-  2) 设计测试：注入幂等、vendor 最小复制验证（完成）
-  3) 实现脚本：vite build 到 `dist/latest/`、复制 vendor、注入变量与元数据（完成）
-  4) 运行构建并校验入口与 vendor 存在（完成）
-  5) 更新 tech.md 记录用法（待执行）
-- 产物：`dist/latest/pdf-home/index.html`、`dist/latest/pdf-viewer/index.html`、`dist/latest/vendor/pdfjs-dist/**`、`dist/latest/build.frontend.meta.json`
-- 状态：进行中
-
-## 当前任务（20251010021024）
-- 名称：后端启动器增强 —— pdfFile-server 端口占用时自动切换端口重试
-- 背景：生产环境端口可能被系统或其他进程临时占用，导致 pdfFile-server 进程立即退出，整体启动失败。
-- 相关模块：`src/backend/launcher.py#BackendLauncher.start_services`
-- 执行步骤（原子化）：
-  1) 检测 pdfFile-server 首次启动失败（子进程立即退出）
-  2) 使用 `BackendPortManager.find_available_port('pdfFile_port', preferred_port=当前端口+1)` 获取下一个可用端口
-  3) 自动重试最多3次；成功则更新 `ports['pdfFile_port']` 并保存 runtime-ports.json
-  4) 回写日志并通知
-- 状态：已完成

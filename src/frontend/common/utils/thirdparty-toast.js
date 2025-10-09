@@ -70,6 +70,11 @@ function fallbackToast(message, { background = '#323232', color = '#fff', ms = 3
   }
 }
 
+// 为 QtWebEngine 等环境提供稳定的挂载点，避免目标为空导致的 style 访问报错
+function ensureIziTarget() {
+  try { return fallbackContainer(); } catch (_) { return undefined; }
+}
+
 /**
  * 显示"进行中"粘性提示
  * @param {string} id - 业务侧自定义ID（建议使用 request_id）
@@ -81,6 +86,7 @@ export function pending(id, message = '进行中', timeoutMs = 0) {
     iziToast.info({
       message,
       position: 'topRight',
+      target: ensureIziTarget(),
       // timeout: 0/false 表示不自动关闭
       timeout: (timeoutMs === 0 ? false : timeoutMs),
       close: true,
@@ -106,7 +112,7 @@ export function pending(id, message = '进行中', timeoutMs = 0) {
  */
 export function success(message, ms = 3000) {
   try {
-    iziToast.success({ message, position: 'topRight', timeout: ms, close: true });
+    iziToast.success({ message, position: 'topRight', target: ensureIziTarget(), timeout: ms, close: true });
   } catch (_) {
     fallbackToast(message, { background: '#2f855a', color: '#fff', ms });
   }
@@ -119,7 +125,7 @@ export function success(message, ms = 3000) {
  */
 export function info(message, ms = 3000) {
   try {
-    iziToast.info({ message, position: 'topRight', timeout: ms, close: true });
+    iziToast.info({ message, position: 'topRight', target: ensureIziTarget(), timeout: ms, close: true });
   } catch (_) {
     fallbackToast(message, { background: '#2b6cb0', color: '#fff', ms });
   }
@@ -132,7 +138,7 @@ export function info(message, ms = 3000) {
  */
 export function warning(message, ms = 4000) {
   try {
-    iziToast.warning({ message, position: 'topRight', timeout: ms, close: true });
+    iziToast.warning({ message, position: 'topRight', target: ensureIziTarget(), timeout: ms, close: true });
   } catch (_) {
     fallbackToast(message, { background: '#b7791f', color: '#fff', ms });
   }
@@ -145,7 +151,7 @@ export function warning(message, ms = 4000) {
  */
 export function error(message, ms = 5000) {
   try {
-    iziToast.error({ message, position: 'topRight', timeout: ms, close: true });
+    iziToast.error({ message, position: 'topRight', target: ensureIziTarget(), timeout: ms, close: true });
   } catch (_) {
     fallbackToast(message, { background: '#c53030', color: '#fff', ms });
   }

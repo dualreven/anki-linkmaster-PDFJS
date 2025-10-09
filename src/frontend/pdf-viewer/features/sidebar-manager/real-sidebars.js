@@ -36,17 +36,14 @@ export function registerRealSidebars(sidebarManager, eventBus, container) {
     sidebarManager.registerSidebar(anchorConfig);
     logger.info('Anchor sidebar registered');
 
-    // 1. 大纲侧边栏
+    // 1. 大纲侧边栏（恢复旧 UI，但内部已接入 jsTree 渲染）
     const bookmarkUI = new BookmarkSidebarUI(eventBus);
     bookmarkUI.initialize();
 
     const bookmarkConfig = createSidebarConfig({
         id: 'bookmark',
         title: '大纲',
-        contentRenderer: () => {
-            // 返回大纲侧边栏的内容区域
-            return bookmarkUI.getContentElement();
-        },
+        contentRenderer: () => bookmarkUI.getContentElement(),
         defaultWidth: 280,
         minWidth: 200,
         maxWidth: 500,
