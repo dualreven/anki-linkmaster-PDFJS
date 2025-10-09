@@ -333,6 +333,12 @@ class StandardWebSocketServer(QObject):
         if normalized_type == MessageType.ANCHOR_ACTIVATE_REQUESTED.value:
             return self.handle_anchor_activate_request(request_id, data)
 
+        # PDF-Viewer 实例注册与导航
+        if normalized_type == MessageType.PDF_VIEWER_REGISTER_REQUESTED.value:
+            return self.handle_viewer_register_request(request_id, data)
+        if normalized_type == MessageType.PDF_VIEWER_NAVIGATE_REQUESTED.value:
+            return self.handle_viewer_navigate_request(request_id, data)
+
         if original_type == "console_log":
             return self.handle_console_log_request(request_id, data)
 
@@ -2039,7 +2045,98 @@ class StandardWebSocketServer(QObject):
             logger.error("锚点激活更新失败: %s", exc, exc_info=True)
             return StandardMessageHandler.build_error_response(request_id or "unknown", "ANCHOR_ACTIVATE_ERROR", f"锚点激活更新失败: {exc}", message_type=MessageType.ANCHOR_ACTIVATE_FAILED, code=500)
         self.broadcast_message(message)
-    
+
+    def handle_viewer_register_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        """处理 PDF Viewer 实例注册请求
+
+        当 PDF Viewer 实例启动并建立 WebSocket 连接时，会发送此请求来注册自己。
+        前端会提供 viewer_id（实例唯一标识）和 pdf_uuid（当前打开的PDF）。
+
+        Args:
+            request_id: 请求ID
+            data: 包含 viewer_id, pdf_uuid, url, title 的字典
+
+        Returns:
+            响应消息字典
+        """
+        try:
+            viewer_id = data.get("viewer_id")
+            pdf_uuid = data.get("pdf_uuid")
+            url = data.get("url", "")
+            title = data.get("title", "")
+
+            logger.info(f"PDF Viewer 实例注册: viewer_id={viewer_id}, pdf_uuid={pdf_uuid}, url={url}")
+
+            # TODO: 如果需要，可以在这里存储 viewer_id 到 pdf_uuid 的映射关系
+            # 目前只需要确认注册即可
+
+            return StandardMessageHandler.build_response(
+                MessageType.PDF_VIEWER_REGISTER_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
+                status='success',
+                code=200,
+                message='PDF Viewer 实例注册成功',
+                data={
+                    "viewer_id": viewer_id,
+                    "pdf_uuid": pdf_uuid,
+                    "registered_at": StandardMessageHandler.get_timestamp()
+                }
+            )
+        except Exception as exc:
+            logger.error(f"PDF Viewer 实例注册失败: {exc}", exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id or StandardMessageHandler.generate_request_id(),
+                "VIEWER_REGISTRATION_FAILED",
+                str(exc),
+                message_type=MessageType.PDF_VIEWER_REGISTER_FAILED,
+                code=500
+            )
+
+    def handle_viewer_navigate_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        """处理 PDF Viewer 导航请求
+
+        此消息通常由前端 PDF Viewer 发送，用于通知后端用户导航到了新的位置。
+        后端可以记录这些导航事件用于分析或同步到其他系统。
+
+        Args:
+            request_id: 请求ID
+            data: 包含导航信息的字典（pageAt, position, pdfanchor, pdfannotation 等）
+
+        Returns:
+            响应消息字典
+        """
+        try:
+            viewer_id = data.get("viewer_id")
+            pdf_uuid = data.get("pdf_uuid")
+            navigate_data = data.get("navigate", {})
+
+            logger.info(f"PDF Viewer 导航请求: viewer_id={viewer_id}, pdf_uuid={pdf_uuid}, navigate={navigate_data}")
+
+            # TODO: 如果需要，可以在这里记录导航历史或触发其他操作
+            # 目前只需要确认收到即可
+
+            return StandardMessageHandler.build_response(
+                MessageType.PDF_VIEWER_NAVIGATE_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
+                status='success',
+                code=200,
+                message='导航请求已确认',
+                data={
+                    "viewer_id": viewer_id,
+                    "pdf_uuid": pdf_uuid,
+                    "acknowledged_at": StandardMessageHandler.get_timestamp()
+                }
+            )
+        except Exception as exc:
+            logger.error(f"处理 PDF Viewer 导航请求失败: {exc}", exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id or StandardMessageHandler.generate_request_id(),
+                "NAVIGATE_REQUEST_FAILED",
+                str(exc),
+                message_type=MessageType.PDF_VIEWER_NAVIGATE_FAILED,
+                code=500
+            )
+
     def on_pdf_file_removed(self, file_id: str):
         """处理PDF文件删除事件"""
         logger.info(f"PDF文件删除事件: {file_id}")
