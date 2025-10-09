@@ -22,8 +22,6 @@ import { PDF_LIST_EVENTS, EventDataFactory } from './events.js';
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from '../../../common/event/event-constants.js';
 import { showSuccess, showError } from '../../../common/utils/notification.js';
 import { pending as toastPending, success as toastSuccess, warning as toastWarning, error as toastError, dismissById as toastDismiss } from '../../../common/utils/thirdparty-toast.js';
-// 预先导入 Tabulator 以避免动态导入时的 CommonJS 问题
-import 'tabulator-tables';
 
 /**
  * PDF List 功能域类
@@ -153,9 +151,9 @@ export class PDFListFeature {
       this.#logger.debug('Step 2: Registering event listeners...');
       this.#registerEventListeners();
 
-      // 3. 初始化 UI
-      this.#logger.info('Step 3: Initializing UI...');
-      await this.#initializeUI();
+      // 3. 初始化 UI（暂时禁用以专注于搜索栏UI设计）
+      this.#logger.debug('Step 3: Initializing UI... (DISABLED for UI design phase)');
+      // await this.#initializeUI();
 
       // 4. 标记为已启用
       this.#enabled = true;
@@ -273,16 +271,7 @@ export class PDFListFeature {
       }
     } catch (_) {}
 
-    // 2) 其次：Tabulator 的选中行（如果 UI 可用）
-    try {
-      const tabulator = this.#uiManager?.tabulator;
-      if (tabulator && ids.size === 0) {
-        const selectedRows = (typeof tabulator.getSelectedData === 'function') ? tabulator.getSelectedData() : [];
-        (selectedRows || []).forEach(r => { if (r?.id) ids.add(r.id); });
-      }
-    } catch (_) {}
-
-    // 3) 再次：搜索结果列表中的勾选框（.search-result-checkbox:checked）
+    // 2) 搜索结果列表中的勾选框（.search-result-checkbox:checked）
     try {
       if (ids.size === 0) {
         const checked = document.querySelectorAll('.search-result-checkbox:checked');
@@ -290,7 +279,7 @@ export class PDFListFeature {
       }
     } catch (_) {}
 
-    // 4) 兜底：搜索结果中被点击选中的单项（.search-result-item.selected[data-id]）
+    // 3) 兜底：搜索结果中被点击选中的单项（.search-result-item.selected[data-id]）
     try {
       if (ids.size === 0) {
         const sel = document.querySelector('.search-result-item.selected');
@@ -844,23 +833,10 @@ export class PDFListFeature {
           toastSuccess(`成功添加 ${data.data.added_files.length} 个文件`);
         }
 
-        // 使用addRow增量添加新行，而不是刷新整个列表
-        const tabulator = this.#uiManager?.tabulator;
-        if (tabulator && data.data.added_files.length > 0) {
-          try {
-            data.data.added_files.forEach(file => {
-              tabulator.addRow(file);
-              this.#logger.debug(`Added row for file: ${file.filename || file.id}`);
-            });
-            this.#logger.info(`Successfully added ${data.data.added_files.length} rows to table`);
-          } catch (error) {
-            this.#logger.error('Error adding rows to table:', error);
-            // 如果增量添加失败，回退到重新请求完整列表
-            this.#scopedEventBus?.emitGlobal('websocket:message:send', {
-              type: 'pdf-library:list:records'
-            });
-          }
-        }
+        // 重新请求完整列表以更新视图
+        this.#scopedEventBus?.emitGlobal('websocket:message:send', {
+          type: 'pdf-library:list:records'
+        });
       }
 
       // 处理批量删除响应（标准协议）
@@ -879,23 +855,6 @@ export class PDFListFeature {
 
         // 延后结果提示：避免立刻被 SearchFeature 的 hideAll() 清除
         this.#pendingDeleteToast = { removedCount: removedIds.length, failedCount, failedMap };
-
-        // 表格增量更新
-        const tabulator = this.#uiManager?.tabulator;
-        if (tabulator && removedIds.length > 0) {
-          try {
-            removedIds.forEach(fileId => {
-              const row = tabulator.getRow(fileId);
-              if (row) {
-                row.delete();
-                this.#logger.debug(`Deleted row for file: ${fileId}`);
-              }
-            });
-            this.#logger.info(`Successfully deleted ${removedIds.length} rows from table`);
-          } catch (error) {
-            this.#logger.error('Error deleting rows from table:', error);
-          }
-        }
 
         // 清空选中并刷新当前视图（优先刷新搜索结果）
         if (this.#state) {
@@ -923,15 +882,6 @@ export class PDFListFeature {
 
         this.#pendingDeleteToast = { removedCount: removedIds.length, failedCount, failedMap };
 
-        const tabulator = this.#uiManager?.tabulator;
-        if (tabulator && removedIds.length > 0) {
-          try {
-            removedIds.forEach(fileId => {
-              const row = tabulator.getRow(fileId);
-              if (row) row.delete();
-            });
-          } catch (e) { this.#logger.error('Error deleting rows from table:', e); }
-        }
         if (this.#state) this.#state.selectedIndices = [];
         this.#refreshAfterDeletion();
         return;
@@ -949,10 +899,6 @@ export class PDFListFeature {
           this.#pendingDeleteErrorTimer = null;
         }
         this.#pendingDeleteToast = { removedCount: removedOne ? 1 : 0, failedCount: removedOne ? 0 : 1 };
-        const tabulator = this.#uiManager?.tabulator;
-        if (tabulator && removedOne && fileId) {
-          try { const row = tabulator.getRow(fileId); if (row) row.delete(); } catch (e) {}
-        }
         if (this.#state) this.#state.selectedIndices = [];
         this.#refreshAfterDeletion();
         return;
@@ -965,15 +911,6 @@ export class PDFListFeature {
         this.#pendingDeleteRid = null;
         // 延后结果提示
         this.#pendingDeleteToast = { removedCount: removed.length, failedCount: 0 };
-        const tabulator = this.#uiManager?.tabulator;
-        if (tabulator && removed.length > 0) {
-          try {
-            removed.forEach(fileId => {
-              const row = tabulator.getRow(fileId);
-              if (row) row.delete();
-            });
-          } catch (e) { this.#logger.error('Error deleting rows from table:', e); }
-        }
         if (this.#state) this.#state.selectedIndices = [];
         this.#refreshAfterDeletion();
       }
@@ -1114,11 +1051,7 @@ export class PDFListFeature {
       this.#uiManager = new PDFTable({
         container: tableContainer,
         state: this.#state,
-        eventBus: this.#scopedEventBus,
-        tabulatorOptions: {
-          // 从配置文件传递列定义
-          columns: PDFListFeatureConfig.config.table.columns
-        }
+        eventBus: this.#scopedEventBus
       });
 
       // 4. 初始化组件

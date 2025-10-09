@@ -6,7 +6,7 @@
 
 import { getLogger } from "../../../../common/utils/logger.js";
 import { DOMUtils } from "../../../../common/utils/dom-utils.js";
-import { TableInitializer } from "../services/table-initializer.js";
+// import { TableInitializer } from "../services/table-initializer.js"; // DISABLED: Tabulator removed
 import { ListDataService } from "../services/list-data-service.js";
 import { ListLifecycleService } from "../services/list-lifecycle-service.js";
 import { PDF_LIST_EVENTS } from "../events.js";
@@ -40,6 +40,13 @@ export class PDFTable {
     this.#state = state;
     this.#eventBus = eventBus;
 
+    logger.warn("PDFTable component is disabled (Tabulator removed)");
+    // DISABLED: Tabulator已移除，UI初始化已禁用
+    // 构造函数保留以避免代码解析错误，但实际不会被调用
+    return;
+
+    // 以下代码已禁用
+    /*
     logger.info("Initializing PDFTable component");
 
     // 准备Tabulator选项（添加事件处理器）

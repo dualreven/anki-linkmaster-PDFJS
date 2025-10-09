@@ -1271,3 +1271,19 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 ## 当前任务（20251009213847）
 - 名称：锚点跳转延迟由 2.5s 调整为 1s
 - 说明：闸门（锚点+渲染）满足后，延迟改为 1000ms 再发 URL_PARAMS.REQUESTED；兜底路径同样改为 1s
+## 当前任务（20251010064621）
+- 名称：继续使用 iziToast 并修复 Qt 环境下的挂载问题
+- 背景：生产运行中出现 Cannot read properties of null (reading 'style')（指向 notification-*.js）。需要保留 iziToast，而非切换掉。
+- 变更：
+  - common/utils/thirdparty-toast.js：
+    - 新增固定容器 #izi-toast-root，通过 	arget: '#izi-toast-root' 将所有 toast 挂载到稳定节点，避免 target 为空时访问 style 报错。
+    - 增加 info() 导出，统一与 pending/success/warning/error。
+  - common/utils/notification.js：
+    - 引入可切换引擎：优先 iziToast，失败时回退内建 ToastManager；允许 window.__NOTIFY_ENGINE='izi'|'tm' 覆盖。
+  - features/search/components/search-bar.js：
+    - 对 clear-search-btn 的 style 操作加防御判空，避免偶发空引用。
+- 验证：
+  - 构建并启动后端与 prod UI；原先 style 空引用错误不再出现，页面仍有其它事件订阅冲突（与通知无关）。
+- 结论：
+  - 生产环境可继续使用 iziToast；在 QtWebEngine 下通过固定容器保证稳定性；出现异常时自动降级到内建 ToastManager。
+

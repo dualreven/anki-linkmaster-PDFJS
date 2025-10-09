@@ -15,10 +15,10 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
       jquery:
-        specifier: 3.7.1
+        specifier: ^3.7.1
         version: 3.7.1
       jstree:
-        specifier: 3.3.17
+        specifier: ^3.3.17
         version: 3.3.17
       pdfjs-dist:
         specifier: ^4.7.76
@@ -26,9 +26,6 @@ importers:
       regenerator-runtime:
         specifier: ^0.14.1
         version: 0.14.1
-      tabulator-tables:
-        specifier: ^5.4.4
-        version: 5.6.1
     devDependencies:
       '@babel/core':
         specifier: ^7.22.0
@@ -2696,9 +2693,6 @@ packages:
   synckit@0.9.3:
     resolution: {integrity: sha512-JJoOEKTfL1urb1mDoEblhD9NhEbWmq9jHEMEnxoC4ujUaZ4itA8vKgwkFAyNClgxplLi9tsUKX+EduK0p/l7sg==}
     engines: {node: ^14.18.0 || >=16.0.0}
-
-  tabulator-tables@5.6.1:
-    resolution: {integrity: sha512-DsmaZqEmlQS/NL5ZJbVtoaeYjJgofEFp+2er7+uwKerGwd/E2rZbeQgux4+Ab1dxNJcbptiX7oUiTwogOnUdgQ==}
 
   tar@6.2.1:
     resolution: {integrity: sha512-DZ4yORTwrbTj/7MZYq2w+/ZFdI6OZ/f9SFHR+71gIVUZhOQPHzVCLpvRnPgyaMpfWxxk/4ONva3GQSyNIKRv6A==}
@@ -5959,8 +5953,6 @@ snapshots:
     dependencies:
       '@pkgr/core': 0.1.2
       tslib: 2.8.1
-
-  tabulator-tables@5.6.1: {}
 
   tar@6.2.1:
     dependencies:

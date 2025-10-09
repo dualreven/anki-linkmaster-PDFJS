@@ -65,15 +65,14 @@ export default defineConfig(async () => {
     resolve: {
       alias: {
         // 简化PDF.js资源路径访问
-        '@pdfjs': path.resolve(__dirname, 'node_modules/pdfjs-dist'),
-        // 强制使用 Tabulator 的 ESM 版本
-        'tabulator-tables': path.resolve(__dirname, 'node_modules/tabulator-tables/dist/js/tabulator_esm.js')
+        '@pdfjs': path.resolve(__dirname, 'node_modules/pdfjs-dist')
+        // REMOVED: 'tabulator-tables' - plugin已移除
       }
     },
     // 优化依赖预构建
     optimizeDeps: {
       include: [
-        'tabulator-tables'  // 强制预构建 Tabulator Tables，避免 CommonJS 问题
+        // REMOVED: 'tabulator-tables' - plugin已移除
       ],
       // 排除不需要预构建的包
       exclude: []

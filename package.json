@@ -56,7 +56,6 @@
     "jquery": "^3.7.1",
     "jstree": "^3.3.17",
     "pdfjs-dist": "^4.7.76",
-    "regenerator-runtime": "^0.14.1",
-    "tabulator-tables": "^5.4.4"
+    "regenerator-runtime": "^0.14.1"
   }
 }

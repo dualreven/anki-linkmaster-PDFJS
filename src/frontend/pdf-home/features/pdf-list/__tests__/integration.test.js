@@ -6,8 +6,8 @@
 import { PDFListFeature } from '../index.js';
 import { LIST_STATE_SCHEMA, ListStateHelpers } from '../state/list-state.js';
 import { PDF_LIST_EVENTS, EventDataFactory } from '../events.js';
-import { TableUtils } from '../services/table-utils.js';
-import { TableInitializer } from '../services/table-initializer.js';
+// import { TableUtils } from '../services/table-utils.js'; // DISABLED: Tabulator removed
+// import { TableInitializer } from '../services/table-initializer.js'; // DISABLED: Tabulator removed
 import { ListDataService } from '../services/list-data-service.js';
 import { ListLifecycleService } from '../services/list-lifecycle-service.js';
 import { PDFTable } from '../components/pdf-table.js';
@@ -32,8 +32,8 @@ describe('PDFListFeature Integration Tests', () => {
     });
 
     test('服务层模块应该可导入', () => {
-      expect(TableUtils).toBeDefined();
-      expect(TableInitializer).toBeDefined();
+      // expect(TableUtils).toBeDefined(); // DISABLED: Tabulator removed
+      // expect(TableInitializer).toBeDefined(); // DISABLED: Tabulator removed
       expect(ListDataService).toBeDefined();
       expect(ListLifecycleService).toBeDefined();
     });
@@ -150,6 +150,8 @@ describe('PDFListFeature Integration Tests', () => {
   });
 
   describe('服务层测试', () => {
+    // DISABLED: Tabulator removed
+    /*
     test('TableUtils 应该有必要的工具方法', () => {
       expect(typeof TableUtils.prepareData).toBe('function');
       expect(typeof TableUtils.ensureTabulatorRedraw).toBe('function');
@@ -177,6 +179,7 @@ describe('PDFListFeature Integration Tests', () => {
       expect(output2.length).toBe(0);
       expect(output3.length).toBe(0);
     });
+    */
   });
 });
 
@@ -188,8 +191,8 @@ if (typeof window !== 'undefined') {
     ListStateHelpers,
     PDF_LIST_EVENTS,
     EventDataFactory,
-    TableUtils,
-    TableInitializer,
+    // TableUtils, // DISABLED: Tabulator removed
+    // TableInitializer, // DISABLED: Tabulator removed
     ListDataService,
     ListLifecycleService,
     PDFTable

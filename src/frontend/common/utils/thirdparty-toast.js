@@ -72,7 +72,28 @@ function fallbackToast(message, { background = '#323232', color = '#fff', ms = 3
 
 // 为 QtWebEngine 等环境提供稳定的挂载点，避免目标为空导致的 style 访问报错
 function ensureIziTarget() {
-  try { return fallbackContainer(); } catch (_) { return undefined; }
+  try {
+    let c = document.getElementById('izi-toast-root');
+    if (!c) {
+      c = document.createElement('div');
+      c.id = 'izi-toast-root';
+      c.style.cssText = [
+        'position:fixed',
+        'top:16px',
+        'right:16px',
+        'z-index:2147483647',
+        'pointer-events:none',
+        'display:flex',
+        'flex-direction:column',
+        'gap:8px',
+      ].join(';');
+      (document.body || document.documentElement).appendChild(c);
+    }
+    // 返回 CSS 选择器字符串，保证 iziToast 内部 querySelector 能正常解析
+    return '#izi-toast-root';
+  } catch (_) {
+    return undefined;
+  }
 }
 
 /**

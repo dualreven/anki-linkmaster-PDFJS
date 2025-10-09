@@ -23,7 +23,6 @@ import { ModeSelector } from './components/mode-selector.js';
 import { MultiSortBuilder } from './components/multi-sort-builder.js';
 import { WeightedSortEditor } from './components/weighted-sort-editor.js';
 import { SortManager } from './services/sort-manager.js';
-import { TabulatorAdapter } from './services/tabulator-adapter.js';
 
 /**
  * PDF Sorter 功能域类
@@ -95,13 +94,6 @@ export class PDFSorterFeature {
   #sortManager = null;
 
   /**
-   * Tabulator适配器
-   * @type {TabulatorAdapter|null}
-   * @private
-   */
-  #tabulatorAdapter = null;
-
-  /**
    * 当前排序配置
    * @type {Array<{field: string, direction: 'asc'|'desc'}>}
    * @private
@@ -164,7 +156,6 @@ export class PDFSorterFeature {
     try {
       // 1. 初始化核心服务
       this.#sortManager = new SortManager(this.#logger, this.#globalEventBus);
-      this.#tabulatorAdapter = new TabulatorAdapter(this.#logger);
 
       // 2. 创建UI组件
       this.#createUIComponents();
@@ -219,13 +210,7 @@ export class PDFSorterFeature {
         this.#weightedSortEditor = null;
       }
 
-      // 3. 恢复Tabulator原始状态
-      if (this.#tabulatorAdapter) {
-        this.#tabulatorAdapter.restore();
-        this.#tabulatorAdapter = null;
-      }
-
-      // 4. 清理排序配置
+      // 3. 清理排序配置
       this.#currentSort = [];
       this.#sortManager = null;
 
@@ -422,27 +407,12 @@ export class PDFSorterFeature {
       if (data.items) {
         this.#sortManager.setDataSource(data.items);
       }
-      // 数据刷新后（例如筛选/搜索结果更新），如果表格已就绪，则重应用当前排序
+      // 数据刷新后（例如筛选/搜索结果更新），应用当前排序
       try {
-        if (this.#tabulatorAdapter?.isTableReady()) {
-          this.applySort();
-        }
+        this.applySort();
       } catch {}
     });
     this.#unsubscribers.push(unsubListLoaded);
-
-    // 监听表格就绪(用于获取table实例)
-    const unsubTableReady = this.#globalEventBus.on('@pdf-list/table:readiness:completed', (data) => {
-      this.#logger.info('[PDFSorterFeature] PDF table is ready');
-      if (data.table) {
-        this.#tabulatorAdapter.setTable(data.table);
-        // 表格就绪后立即应用当前排序（默认：title ASC）
-        try {
-          this.applySort();
-        } catch {}
-      }
-    });
-    this.#unsubscribers.push(unsubTableReady);
   }
 
   /**
@@ -452,11 +422,6 @@ export class PDFSorterFeature {
    */
   #handleModeChange(mode) {
     this.#logger.info(`[PDFSorterFeature] Handling mode change: ${mode}`);
-
-    // 更新Tabulator适配器
-    if (this.#tabulatorAdapter) {
-      this.#tabulatorAdapter.switchMode(mode);
-    }
 
     // 更新排序管理器模式
     if (this.#sortManager) {
@@ -493,7 +458,6 @@ export class PDFSorterFeature {
       if (data.type === 'multi') {
         // 多级排序
         const sortedData = this.#sortManager.applyMultiSort(data.configs);
-        this.#tabulatorAdapter.applyMultiSort(data.configs);
         // 同步触发后端搜索（SQL层多级排序）
         try {
           if (Array.isArray(data.configs) && data.configs.length > 0) {
@@ -509,7 +473,6 @@ export class PDFSorterFeature {
       } else if (data.type === 'weighted') {
         // 加权排序
         const sortedData = this.#sortManager.applyWeightedSort(data.formula);
-        this.#tabulatorAdapter.applyWeightedSort(sortedData);
         // 同步触发后端搜索（SQL层加权排序：weighted 公式）
         try {
           const sortRules = [{ field: 'weighted', direction: 'desc', formula: String(data.formula || '') }];
@@ -533,7 +496,6 @@ export class PDFSorterFeature {
 
     try {
       const originalData = this.#sortManager.clearSort();
-      this.#tabulatorAdapter.clearSort();
     } catch (error) {
       this.#logger.error('[PDFSorterFeature] Failed to clear sort', error);
     }
@@ -651,9 +613,6 @@ export class PDFSorterFeature {
     try {
       // 使用 SortManager 计算（保持内部状态一致）
       this.#sortManager?.applyMultiSort(this.#currentSort);
-
-      // 同步到表格（Tabulator）
-      this.#tabulatorAdapter?.applyMultiSort(this.#currentSort);
 
       // 通知其他功能域
       this.#scopedEventBus?.emitGlobal(

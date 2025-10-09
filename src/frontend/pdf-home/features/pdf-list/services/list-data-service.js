@@ -5,7 +5,7 @@
  */
 
 import { getLogger } from '../../../../common/utils/logger.js';
-import { TableUtils } from './table-utils.js';
+// import { TableUtils } from './table-utils.js'; // DISABLED: Tabulator removed
 import { PDF_LIST_EVENTS, EventDataFactory } from '../events.js';
 import { ListStateHelpers } from '../state/list-state.js';
 const logger = getLogger('PDFList.DataService');
@@ -45,7 +45,8 @@ export class ListDataService {
    * @returns {Promise<void>} Promise对象
    */
   async setData(data) {
-    const rows = TableUtils.prepareData(data);
+    // const rows = TableUtils.prepareData(data); // DISABLED: Tabulator removed
+    const rows = Array.isArray(data) ? [...data] : [];
 
     // 设置加载状态
     if (this.#state) {
@@ -125,7 +126,8 @@ export class ListDataService {
    * @returns {Promise<void>} Promise对象
    */
   async addRow(rowData, addToTop = true) {
-    const row = TableUtils.prepareData([rowData])[0];
+    // const row = TableUtils.prepareData([rowData])[0]; // DISABLED: Tabulator removed
+    const row = { ...rowData };
 
     // 发出添加请求事件
     this.#eventBus?.emit(PDF_LIST_EVENTS.PDF_ADD_REQUESTED, row);
@@ -509,13 +511,13 @@ export class ListDataService {
     }
 
     try {
-      TableUtils.ensureTabulatorRedraw(this.#tabulator);
-      TableUtils.logDOMDiagnostics(this.#tableWrapper, this.#tabulator);
-      TableUtils.handleMissingDOMElements(this.#tableWrapper, this.#tabulator);
-      TableUtils.logComputedStyles(this.#tableWrapper.parentElement, this.#tableWrapper);
-      TableUtils.logTabulatorInstanceInfo(this.#tabulator);
+      // TableUtils.ensureTabulatorRedraw(this.#tabulator); // DISABLED: Tabulator removed
+      // TableUtils.logDOMDiagnostics(this.#tableWrapper, this.#tabulator);
+      // TableUtils.handleMissingDOMElements(this.#tableWrapper, this.#tabulator);
+      // TableUtils.logComputedStyles(this.#tableWrapper.parentElement, this.#tableWrapper);
+      // TableUtils.logTabulatorInstanceInfo(this.#tabulator);
 
-      logger.debug('Table optimizations completed');
+      logger.debug('Table optimizations completed (Tabulator removed)');
     } catch (error) {
       logger.warn('Error during table optimizations:', error);
     }

@@ -116,8 +116,8 @@ export class SearchBar {
           this.#handleSearch(searchText);
         }, this.#config.debounceDelay);
 
-        // 显示/隐藏清除按钮
-        this.#clearBtn.style.display = searchText ? 'block' : 'none';
+        // 显示/隐藏清除按钮（容错：按钮可能未挂载）
+        try { if (this.#clearBtn) { this.#clearBtn.style.display = searchText ? 'block' : 'none'; } } catch(_) {}
       });
 
       // Enter键触发立即搜索
@@ -136,11 +136,13 @@ export class SearchBar {
     });
 
     // 清除按钮
-    this.#clearBtn.addEventListener('click', () => {
-      this.#searchInput.value = '';
-      this.#clearBtn.style.display = 'none';
-      this.#handleClear();
-    });
+    if (this.#clearBtn) {
+      this.#clearBtn.addEventListener('click', () => {
+        this.#searchInput.value = '';
+        try { if (this.#clearBtn) this.#clearBtn.style.display = 'none'; } catch(_) {}
+        this.#handleClear();
+      });
+    }
 
     // 添加按钮
     this.#addBtn.addEventListener('click', () => {
