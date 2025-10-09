@@ -198,21 +198,7 @@ export class PDFAnchorFeature {
       { subscriberId: 'PDFAnchorFeature' }
     );
 
-    // 兜底：直接监听 WS 收到的消息（避免适配器初始化竞态导致首次列表错过）
-    this.#eventBus.on(
-      WEBSOCKET_EVENTS.MESSAGE.RECEIVED,
-      (message) => {
-        try {
-          const type = String(message?.type || "");
-          if (type === "anchor:get:completed" || type === "anchor:list:completed") {
-            const anchors = message?.data?.anchors || (message?.data?.anchor ? [message.data.anchor] : []);
-            this.#logger.info("[anchor] RECEIVED fallback -> emit ANCHOR.DATA.LOADED", { type, count: Array.isArray(anchors) ? anchors.length : 0 });
-            this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED, { anchors }, { actorId: "PDFAnchorFeature" });
-          }
-        } catch(e){ this.#logger.warn("noop", e); }
-      },
-      { subscriberId: "PDFAnchorFeature" }
-    );
+    // 兜底 WS 监听已移除：WebSocketAdapter 会稳定发出 ANCHOR.DATA.LOADED，避免二次转发造成重复处理
 
     // 创建锚点
     this.#eventBus.on(
