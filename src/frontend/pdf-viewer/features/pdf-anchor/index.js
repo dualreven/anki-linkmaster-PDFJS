@@ -150,6 +150,8 @@ export class PDFAnchorFeature {
         } catch(e){ this.#logger.warn("noop", e); }
         // 若存在待执行的锚点导航，此时（PDF 加载完成后）再执行，避免初始化期竞态
         try { this.#performPendingNavIfReady(); } catch(_) {}
+        // 文件加载完成后安装滚动诊断（如果尚未安装），以便激活锚点后滚动能及时采样
+        try { this.#ensureScrollDiagnostics(); } catch(_) {}
       },
       { subscriberId: "PDFAnchorFeature" }
     );
