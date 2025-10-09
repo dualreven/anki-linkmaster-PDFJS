@@ -1234,3 +1234,7 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - 名称：并发闸门（锚点+渲染）后再执行跳转
 - 设计：新增 RENDER.READY 事件；FileHandler 在渲染首页后发射；AnchorFeature 仅在 ANCHOR.DATA.LOADED & RENDER.READY 均满足时发出 URL_PARAMS.REQUESTED
 - 状态：已落地并提交；默认启用 gate（#useGateNav=true）
+
+## 当前任务（20251009221530）
+- 名称：锚点跳转改造收尾并提交
+- 说明：验证通过，URL 导航链路下锚点跳转稳定；收尾提交已完成。
