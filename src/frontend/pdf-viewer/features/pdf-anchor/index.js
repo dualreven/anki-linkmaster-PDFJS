@@ -320,7 +320,22 @@ export class PDFAnchorFeature {
         try {
           if (!this.#pendingNav) { return; }
           const { pageAt, position } = this.#pendingNav;
-          this.#navigationService.navigateTo({ pageAt, position });
+          // 通过 URL Navigation 统一执行跳转
+          let pdfId = null;
+          try {
+            const params = new URLSearchParams(window.location.search);
+            pdfId = params.get('pdf-id');
+          } catch(_) {}
+          if (pdfId) {
+            this.#eventBus.emit(
+              PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
+              { pdfId, pageAt, position },
+              { actorId: 'PDFAnchorFeature' }
+            );
+          } else {
+            // 无 pdfId 时退回直接导航（避免因参数不足导致不跳转）
+            try { this.#navigationService && this.#navigationService.navigateTo({ pageAt, position }); } catch(_) {}
+          }
           this.#freezeUntilMs = Date.now() + 3000; // 冻结3秒，避免初始化误采样
           this.#autoUpdateEnabled = false; // 等待用户滚动后再允许回写
           this.#pendingNav = null;
@@ -329,7 +344,7 @@ export class PDFAnchorFeature {
           if (this.#navInitDelayTimer) { try { clearTimeout(this.#navInitDelayTimer); } catch(_){} this.#navInitDelayTimer = null; }
           if (this.#navReadyRetryTimer) { try { clearInterval(this.#navReadyRetryTimer); } catch(_){} this.#navReadyRetryTimer = null; }
         }
-      }, 2500); // 与 URLNavigationFeature 保持一致的初始化等待
+      }, 2500); // 初始化等待后统一走 URL Navigation 链路
     } catch(_) {}
   }
 
