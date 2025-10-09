@@ -1287,3 +1287,10 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - 结论：
   - 生产环境可继续使用 iziToast；在 QtWebEngine 下通过固定容器保证稳定性；出现异常时自动降级到内建 ToastManager。
 
+
+## 当前任务（拆分前端构建 - 记录）
+- 已完成：新增独立构建脚本（pdf-home/pdf-viewer），并调整静态资源路由以支持模块级 assets/vendor 独立。
+- 验收要点：
+  - /pdf-home/index.html 正常加载本模块 ./assets/*、./vendor/*
+  - /pdf-viewer/index.html 同理
+  - 后端不再依赖共享 /assets/* 路径

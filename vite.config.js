@@ -58,6 +58,9 @@ export default defineConfig(async () => {
 
   console.log(`[Vite] Using port: ${vitePort}, strict mode: ${strictPort}`)
 
+  // 读取仅构建目标（可选）：'pdf-home' | 'pdf-viewer'
+  const buildOnly = process.env.VITE_BUILD_ONLY && String(process.env.VITE_BUILD_ONLY).toLowerCase();
+
   return {
     // 统一根目录，单 Vite 服务器同时服务 /pdf-home/ 与 /pdf-viewer/
     root: `src/frontend`,
@@ -123,16 +126,21 @@ export default defineConfig(async () => {
       // 显式关闭生产构建的 source map，避免 DevTools 去探查 file:///node_modules 路径
       sourcemap: false,
       rollupOptions: {
-        // 多入口构建：同时构建 pdf-home 与 pdf-viewer
-        input: {
-          'pdf-home': path.resolve(__dirname, 'src/frontend/pdf-home/index.html'),
-          'pdf-viewer': path.resolve(__dirname, 'src/frontend/pdf-viewer/index.html'),
-        },
+        // 多入口构建：默认同时构建；当 VITE_BUILD_ONLY 指定时，仅构建对应入口
+        input: (() => {
+          const inputs = {
+            'pdf-home': path.resolve(__dirname, 'src/frontend/pdf-home/index.html'),
+            'pdf-viewer': path.resolve(__dirname, 'src/frontend/pdf-viewer/index.html'),
+          };
+          if (buildOnly === 'pdf-home') return { 'pdf-home': inputs['pdf-home'] };
+          if (buildOnly === 'pdf-viewer') return { 'pdf-viewer': inputs['pdf-viewer'] };
+          return inputs;
+        })(),
         external: [
           /__tests__/,
           /\.test\.js$/,
-          /\.spec\.js$/,
-          'pdfjs-dist'  // ✅ 避免将 pdfjs-dist 打包进主包，保持按需加载
+          /\.spec\.js$/
+          // REMOVED: 'pdfjs-dist' - 需要打包到生产版本中，否则浏览器无法解析裸模块导入
         ]
       }
     }

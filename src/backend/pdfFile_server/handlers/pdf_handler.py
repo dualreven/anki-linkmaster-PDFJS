@@ -155,17 +155,12 @@ class PDFFileHandler(http.server.SimpleHTTPRequestHandler):
             if self.path.endswith("/") and (self.path.startswith("/pdf-home/") or self.path.startswith("/pdf-viewer/")):
                 self.path = self.path + "index.html"
 
-            # 将 /pdf-home/assets/* → /assets/*、/pdf-viewer/assets/* → /assets/*
-            if self.path.startswith("/pdf-home/assets/"):
-                self.path = "/assets/" + self.path[len("/pdf-home/assets/"):]
-            elif self.path.startswith("/pdf-viewer/assets/"):
-                self.path = "/assets/" + self.path[len("/pdf-viewer/assets/"):]
+            # 不再重写 /pdf-home/assets 和 /pdf-viewer/assets 到共享 /assets
+            # 允许各自目录拥有独立的 assets 与 vendor（与独立构建保持一致）
+            # /pdf-home/assets/* → dist/latest/pdf-home/assets/*（通过 directory + path 解析）
+            # /pdf-viewer/assets/* → dist/latest/pdf-viewer/assets/*
 
-            # 将 /pdf-home/vendor/* → /vendor/*、/pdf-viewer/vendor/* → /vendor/*
-            if self.path.startswith("/pdf-home/vendor/"):
-                self.path = "/vendor/" + self.path[len("/pdf-home/vendor/"):]
-            elif self.path.startswith("/pdf-viewer/vendor/"):
-                self.path = "/vendor/" + self.path[len("/pdf-viewer/vendor/"):]
+            # 仍然保留 /pdf-home/js/* 与 /pdf-viewer/js/* 到 /js/* 的兼容重写（仅供 qwebchannel.js 等）
 
             # 将 /pdf-home/js/* → /js/*、/pdf-viewer/js/* → /js/*
             if self.path.startswith("/pdf-home/js/"):

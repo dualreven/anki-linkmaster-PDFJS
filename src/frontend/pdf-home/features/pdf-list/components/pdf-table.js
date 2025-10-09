@@ -7,8 +7,8 @@
 import { getLogger } from "../../../../common/utils/logger.js";
 import { DOMUtils } from "../../../../common/utils/dom-utils.js";
 // import { TableInitializer } from "../services/table-initializer.js"; // DISABLED: Tabulator removed
-import { ListDataService } from "../services/list-data-service.js";
-import { ListLifecycleService } from "../services/list-lifecycle-service.js";
+// import { ListDataService } from "../services/list-data-service.js"; // DISABLED: Tabulator removed
+// import { ListLifecycleService } from "../services/list-lifecycle-service.js"; // DISABLED: Tabulator removed
 import { PDF_LIST_EVENTS } from "../events.js";
 import { PDF_MANAGEMENT_EVENTS } from "../../../../common/event/event-constants.js";
 const logger = getLogger("PDFList.PDFTable");
@@ -33,9 +33,10 @@ export class PDFTable {
    * @param {HTMLElement|string} options.container - 容器元素或选择器
    * @param {Object} options.state - StateManager状态
    * @param {Object} options.eventBus - ScopedEventBus实例
-   * @param {Object} [options.tabulatorOptions] - Tabulator配置选项
+   * @param {Object} [options.tabulatorOptions] - Tabulator配置选项（已禁用，保留以兼容）
    */
-  constructor({ container, state, eventBus, tabulatorOptions = {} }) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  constructor({ container, state, eventBus, tabulatorOptions: _tabulatorOptions = {} }) {
     this.#container = this._resolveContainer(container);
     this.#state = state;
     this.#eventBus = eventBus;
@@ -144,6 +145,9 @@ export class PDFTable {
    */
   _setupTabulatorEvents(tabulator) {
     try {
+      /* eslint-disable custom/event-name-format */
+      // 注意：以下是 Tabulator 库的原生事件名，不需要遵循三段式格式
+
       // 行选中事件
       tabulator.on("rowSelectionChanged", (data, rows) => {
         const indices = rows.map(row => row.getPosition(true) - 1); // 0-based index
@@ -269,6 +273,7 @@ export class PDFTable {
         }
       });
 
+      /* eslint-enable custom/event-name-format */
       logger.debug("Tabulator event listeners set up");
 
     } catch (error) {
@@ -828,6 +833,7 @@ export class PDFTable {
    * @param {Object} _newOptions - 新的配置选项（未使用，保留以供将来扩展）
    * @returns {Promise<void>}
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async reinitialize(_newOptions = {}) {
     logger.info("Reinitializing PDFTable component");
 
