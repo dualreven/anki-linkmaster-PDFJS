@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "docs/SPEC/schemas/eventbus/pdf-management/v1/open.requested.schema.json",
+  "title": "pdf:open:requested EventBus Event Data Schema",
+  "description": "前端 EventBus 事件 'pdf:open:requested' 的 data 数据格式定义",
+  "version": "1.0.0",
+  "oneOf": [
+    {
+      "type": "string",
+      "description": "旧格式：直接传递文件名字符串（向后兼容）",
+      "pattern": "^.+$"
+    },
+    {
+      "type": "object",
+      "description": "新格式：包含文件名和可选的导航参数",
+      "properties": {
+        "filename": {
+          "type": "string",
+          "description": "PDF 文件名或文件 ID",
+          "minLength": 1
+        },
+        "needNavigate": {
+          "type": "object",
+          "description": "可选的导航参数，用于在 PDF 打开后跳转到指定位置",
+          "properties": {
+            "pageAt": {
+              "type": "integer",
+              "description": "目标页码（从1开始）",
+              "minimum": 1,
+              "maximum": 10000
+            },
+            "position": {
+              "type": "number",
+              "description": "页面内垂直位置百分比（0-100）",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "pdfanchor": {
+              "type": "string",
+              "description": "PDF 锚点 ID（格式: pdfanchor-{12位十六进制}）",
+              "pattern": "^pdfanchor-[a-f0-9]{12}$"
+            },
+            "pdfannotation": {
+              "type": "string",
+              "description": "PDF 标注 ID（格式: pdfannotation-{base64url16}）",
+              "pattern": "^pdfannotation-[A-Za-z0-9_-]{16,}$"
+            }
+          },
+          "additionalProperties": false,
+          "anyOf": [
+            {"required": ["pageAt"]},
+            {"required": ["position"]},
+            {"required": ["pdfanchor"]},
+            {"required": ["pdfannotation"]}
+          ]
+        }
+      },
+      "required": ["filename"],
+      "additionalProperties": false
+    }
+  ],
+  "examples": [
+    {
+      "description": "旧格式示例：直接传递文件名",
+      "data": "sample.pdf"
+    },
+    {
+      "description": "新格式示例1：仅打开文件，不导航",
+      "data": {
+        "filename": "sample.pdf"
+      }
+    },
+    {
+      "description": "新格式示例2：打开并跳转到指定页码",
+      "data": {
+        "filename": "sample.pdf",
+        "needNavigate": {
+          "pageAt": 5
+        }
+      }
+    },
+    {
+      "description": "新格式示例3：打开并跳转到页码+位置",
+      "data": {
+        "filename": "sample.pdf",
+        "needNavigate": {
+          "pageAt": 5,
+          "position": 50
+        }
+      }
+    },
+    {
+      "description": "新格式示例4：打开并跳转到锚点位置",
+      "data": {
+        "filename": "sample.pdf",
+        "needNavigate": {
+          "pdfanchor": "pdfanchor-abc123def456"
+        }
+      }
+    },
+    {
+      "description": "新格式示例5：打开并跳转到标注位置",
+      "data": {
+        "filename": "sample.pdf",
+        "needNavigate": {
+          "pdfannotation": "pdfannotation-base64url16val"
+        }
+      }
+    }
+  ],
+  "notes": [
+    "1. 优先级规则：如果 pageAt 存在，直接跳转到该页码；如果 position 也存在，进一步滚动到该位置",
+    "2. 如果 pageAt 和 position 都不存在，则检查 pdfanchor 或 pdfannotation",
+    "3. 如果 pdfanchor 或 pdfannotation 存在，需要先查询 pdf-viewer 中对应的数据是否已加载",
+    "4. 只有在锚点/标注数据已加载且 PDF 本身也加载完成后，才能从中提取 pageAt 和 position 信息进行跳转",
+    "5. 旧格式（string）保留是为了向后兼容，新代码应使用新格式（object）"
+  ]
+}
