@@ -359,15 +359,40 @@ export class AnnotationFeature {
       } catch (_) {}
     }, { subscriberId: 'AnnotationFeature' });
 
-    // 当标注侧边栏被打开时，若已知 pdfId 但尚未加载过，主动加载一次
+    // 当标注侧边栏被打开时，若已知 pdfId 但尚未加载过，主动加载一次；并确保叠加层渲染
     this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPENED_COMPLETED, (data) => {
       try {
         if (data?.sidebarId === 'annotation' && this.#currentPdfId) {
           this.#logger.info(`[AnnotationFeature] 侧边栏打开，尝试加载标注（pdfId=${this.#currentPdfId}）`);
           this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, { pdfId: this.#currentPdfId }, { actorId: 'AnnotationFeature' });
+          // 确保当前页面上已有的标注覆盖层可见
+          this.#ensureAllOverlays();
         }
       } catch (_) {}
     }, { subscriberId: 'AnnotationFeature' });
+  }
+
+  /**
+   * 确保所有已加载标注的覆盖层在页面上可见（用于侧边栏打开/数据加载后）
+   * @private
+   */
+  #ensureAllOverlays() {
+    try {
+      if (!this.#annotationManager || !this.#toolRegistry) return;
+      const anns = this.#annotationManager.getAllAnnotations();
+      if (!Array.isArray(anns) || anns.length === 0) return;
+      const screenshotTool = this.#toolRegistry.get?.('screenshot');
+      const highlightTool = this.#toolRegistry.get?.('text-highlight');
+      for (const ann of anns) {
+        if (ann.type === 'screenshot' && screenshotTool?.ensureOverlayFor) {
+          screenshotTool.ensureOverlayFor(ann);
+        } else if (ann.type === 'text-highlight' && highlightTool?.ensureOverlayFor) {
+          highlightTool.ensureOverlayFor(ann);
+        }
+      }
+    } catch (e) {
+      this.#logger?.warn?.('[AnnotationFeature] ensureAllOverlays failed', e);
+    }
   }
 
   /**
@@ -433,7 +458,20 @@ export class AnnotationFeature {
         return;
       }
 
-      const pageNumber = annotation.pageNumber;
+      // 计算应跳转的页码：优先DOM中已渲染的容器（更可靠，避免数据层页码异常时跳到错误页面）
+      let pageNumber = annotation.pageNumber;
+      try {
+        if (annotation.type === 'text-highlight' && annotation.id) {
+          const el = document.querySelector(`.text-highlight-container[data-annotation-id="${annotation.id}"]`);
+          const pageEl = el?.closest?.('.page');
+          const numAttr = pageEl?.getAttribute?.('data-page-number');
+          const pn = numAttr ? parseInt(numAttr, 10) : NaN;
+          if (Number.isInteger(pn) && pn > 0) {
+            pageNumber = pn;
+            this.#logger.info(`[AnnotationFeature] Page resolved from DOM for ${annotation.id}: ${pageNumber}`);
+          }
+        }
+      } catch (_) { /* ignore DOM resolution errors */ }
       if (!pageNumber) {
         this.#logger.warn('[AnnotationFeature] Annotation has no page number', annotation);
         return;
@@ -441,14 +479,28 @@ export class AnnotationFeature {
 
       this.#logger.info(`[AnnotationFeature] Navigating to annotation on page ${pageNumber}`, annotation.id);
 
-      // 计算位置百分比（批注使用position字段）
+      // 计算位置百分比（优先依据注释类型的数据特征）
       let position = null;
+      // 截图：使用矩形中心百分比
       if (annotation.type === 'screenshot' && annotation.data?.rectPercent) {
         const centerPercent = getCenterPercentFromRect(annotation.data.rectPercent);
         if (centerPercent !== null) {
           position = centerPercent;
           this.#logger.info(`[AnnotationFeature] Calculated position from rectPercent: ${centerPercent.toFixed(2)}%`);
         }
+      }
+      // 文本高亮：优先使用 lineRects 的首段中心（百分比），更贴近真实位置
+      if (position === null && annotation.type === 'text-highlight' && Array.isArray(annotation.data?.lineRects) && annotation.data.lineRects.length > 0) {
+        try {
+          const r0 = annotation.data.lineRects[0];
+          if (typeof r0?.yPercent === 'number' && typeof r0?.heightPercent === 'number') {
+            const center = Number((r0.yPercent + (r0.heightPercent / 2)).toFixed(6));
+            if (Number.isFinite(center)) {
+              position = Math.max(0, Math.min(100, center));
+              this.#logger.info(`[AnnotationFeature] Calculated position from lineRects: ${position.toFixed(2)}%`);
+            }
+          }
+        } catch (_) { /* ignore */ }
       }
 
       if (position === null && annotation.data && annotation.data.position) {
@@ -493,7 +545,10 @@ export class AnnotationFeature {
           const pageElement = viewerContainer.querySelector(`.page[data-page-number="${pageNumber}"]`);
           if (pageElement) {
             const pageHeight = pageElement.offsetHeight;
-            position = (boundingBox.y / pageHeight) * 100;
+            // 兼容 top 或 y 字段；使用中心位置（top + height/2）提高感知
+            const topPx = (typeof boundingBox.top === 'number') ? boundingBox.top : (boundingBox.y || 0);
+            const hPx = (typeof boundingBox.height === 'number') ? boundingBox.height : 0;
+            position = ((topPx + (hPx / 2)) / pageHeight) * 100;
             this.#logger.info(`[AnnotationFeature] Calculated position from boundingBox: ${position.toFixed(2)}%`);
           }
         }

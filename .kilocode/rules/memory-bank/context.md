@@ -1,4 +1,53 @@
-﻿# Memory Bank（精简版 / 权威）
+﻿## 当前任务（20251009061328）
+- 名称：提交并合并到远程 main（anki-linkmaster-B）
+- 背景：翻译功能修复已完成，需将当前分支 worker/branch-B 的更改合入 main。
+- 步骤：
+  1) 提交当前变更（allowlist 修复、测试、文档）
+  2) fetch 并确认已包含 origin/main 最新
+  3) 推送 HEAD → origin/main（fast-forward）
+  4) 验证远程 main 指向本次提交
+  5) 回写日志并通知完成
+- 状态：进行中
+
+## 当前任务（20251009060839）
+- 名称：修复 pdf-viewer 翻译功能“划词后点击翻译无反应”
+- 问题背景：点击翻译后未见侧栏反馈与结果，怀疑事件被 EventBus 全局白名单拦截导致功能未触发。
+- 相关模块与函数：
+  - features/text-selection-quick-actions/index.js（发出 pdf-translator:text:selected、sidebar:open:requested）
+  - features/pdf-translator/index.js、components/TranslatorSidebarUI.js（监听 TRANSLATE/ENGINE 相关事件）
+  - common/event/global-event-registry.js（全局事件白名单）
+- 执行步骤（原子化）：
+  1) 复核事件常量与监听/发布位置
+  2) 设计测试：验证 pdf-translator:* 事件在白名单中
+  3) 修复：将 PDF_TRANSLATOR_EVENTS 加入白名单收集
+  4) 运行 jest 测试验证
+  5) 回写日志并通知完成
+- 状态：已完成（加入 pdf-translator 事件白名单；新增最小测试验证）
+
+# Memory Bank（精简版 / 权威）
+
+## 当前任务（20251009060010）
+- 名称：合并最新 main 到当前分支（worker/branch-B）
+- 背景：保持工作分支与主线同步，降低冲突与回归风险。
+- 执行步骤（原子化）：
+  1) 记录 HEAD 与 origin/main 提交哈希
+  2) git fetch origin --prune
+  3) 若存在未提交修改，先提交以避免合并中断
+  4) git merge --no-ff --no-edit origin/main
+  5) 验证：git merge-base --is-ancestor origin/main HEAD 返回 0
+  6) 回写 AI 工作日志与 memory bank
+- 状态：已完成（验证通过）
+
+
+## 当前任务（20251009050121）
+- 名称：再次从远程 main 合并到当前分支（anki-linkmaster-B）
+- 问题背景：保持工作分支与主线同步，按需快照并验证合并是否必要；当前分支为 worker/branch-B。
+- 相关模块与操作：Git fetch/merge、祖先验证（merge-base）、工作树一致性检查
+- 执行步骤（原子化）：
+  1) 获取远程：git fetch origin --prune。
+  2) 比对提交：HEAD 与 origin/main；如不同则合并。
+  3) 验证：合并后祖先关系与 commit 对齐；回写日志。
+- 状态：已完成（合并成功，详见本次 AI 工作日志）
 
 ## 当前任务（20251008190000）
 - 名称：阅读理解 annotation 插件（PDF Viewer 标注功能）
@@ -1082,51 +1131,50 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
   3) 移除侧边栏额外“复制ID”快捷按钮，仅保留下拉菜单项（复制ID/复制文内链接）；
   4) 新增/调整测试：保留菜单项复制测试，移除快捷按钮测试；
   5) 回写 AI-Working-log 与本文件，并通知完成。
+## 当前任务（20251009050221）
+- 名称：修复截图标注跳转后未显示区域 + 恢复颜色控制
+- 问题背景：部分旧数据缺少 rectPercent，导致 ScreenshotTool 在跳转成功后无法渲染标记框（直接 return）；且定位计算基于 pageDiv 尺寸，对 canvas 偏移未校正。
+- 相关模块：
+  - 截图工具：src/frontend/pdf-viewer/features/annotation/tools/screenshot/index.js
+  - 跳转容器：src/frontend/pdf-viewer/features/annotation/index.js（发出 JUMP_SUCCESS）
+- 修复要点：
+  1) 渲染兜底：如果 annotation.data.rectPercent 缺失而 data.rect 存在，则用 #convertCanvasToPercent(pageNumber, data.rect) 计算百分比（基于当前 canvas 尺寸）；
+  2) 定位精度：渲染时用 canvas.getBoundingClientRect() 尺寸并计算相对 pageDiv 的偏移 (offsetLeft/Top)，确保标记框位置与缩放一致；
+  3) 颜色控制：保留原先颜色按钮与默认色（已存在代码 MARKER_COLOR_PRESETS/DEFAULT_MARKER_COLOR，无需变更）。
+- 测试设计：
+  - 手工：
+    1) 使用历史仅含 rect（无 rectPercent）的截图标注：点击卡片“跳转”→ 应显示标记框；
+    2) 新建截图标注：点击“跳转”→ 显示标记框；悬停删除按钮出现颜色按钮，切换颜色成功；
+  - 日志验证：logs/pdf-viewer-*-js.log 中应有 “[ScreenshotTool] rectPercent missing, fallback…” 与 “Marker rendered…”
+- 风险与回退：若仍无法定位，请检查 navigationService.navigateTo 是否滚动到正确页面；或在 ScreenshotTool 中增加更长延迟（>300ms）渲染。
 
-## 当前任务（20251009063832）
-- 名称：放弃事件驱动采样，改为 1 秒心跳写回（锚点）
-- 背景：
-  - 页面事件（NAVIGATION.CHANGED/滚动）在初始化期会触发误采样，导致刷新后锚点页码向前倒退；
-  - 需求：先用最简单暴力方式改为“固定 1 秒心跳回写”，不依赖页面事件；
-- 实施：
-  1) 取消 `#ensureScrollDiagnostics()` 调用，不挂载滚动监听；
-  2) NAVIGATION.CHANGED 订阅改为 no-op；
-  3) `#startUpdateTimer()` 改为 1000ms 并直接 `#snapshotAndUpdate()`；
-- 文件：
-  - src/frontend/pdf-viewer/features/pdf-anchor/index.js
-- 备注：如需优化初始化首秒抖动或“谁是当前页”的算法，可后续升级。
-
-### 推送记录（20251009041000）
-- 分支：worker/branch-C → origin/worker/branch-C
-- 执行：git push origin HEAD
-- 结果：已推送成功
+## 快捷标注修复记录（文本选择快捷操作）
+- 代码：src/frontend/pdf-viewer/features/text-selection-quick-actions/index.js
+- 问题：导入 Annotation 模型使用大小写不统一路径 `../annotation/models/Annotation.js`，在部分环境可能大小写敏感导致模块解析或双实例问题，触发“快速标注”报错；
+- 修复：改为统一小写路径 `../annotation/models/annotation.js`，与全局保持一致；
+- 复现/验证：在未进入高亮模式下，直接选择文本点击“标注”按钮应创建高亮标注，无报错。
 
 
-## 快照（20251009084336）
-- Git 分支：worker/branch-C（未能切换到上一个分支，缺少 @{-1} 记录）
-- Git HEAD：8bb3835（已切换到上一个提交 HEAD~1）
-## 当前任务（仅改触发时机 20251009091248）
-- 名称：锚点导航等待 PDF 加载成功后再触发
-- 背景：
-  - 现状：ANCHOR.DATA.LOADED 时立即导航，PDF 未就绪（pagesCount=0）会出现 Invalid GOTO 与后续倒退并被心跳回写污染。
-- 变更：
-  - `features/pdf-anchor/index.js`：新增 `#pendingNav`；ANCHOR.DATA.LOADED 记录待导航；`FILE.LOAD.SUCCESS` 执行导航并冻结 3 秒，避免初始化误采样。
-- 影响：
-  - URL 导航路径保持等待 `FILE.LOAD.SUCCESS` 的既有逻辑不变。
-- 备注：
-  - 本次仅改触发时机；不涉及心跳与标签页码逻辑。
-
-## 当前任务（20251009150530）
-- 名称：从 main 拉取并合并到当前分支（anki-linkmaster-C）
-- 背景：保持工作分支与主线 `main` 同步，降低后续集成冲突与回归风险；本次严格按流程规范执行并记录。
-- 相关仓库与远程：
-  - 仓库：`C:\Users\napretep\PycharmProjects\anki-linkmaster-C`
-  - 远程：`origin/main`
+## 当前任务（20251009073406）
+- 名称：标注ID改为 pdfannotation-{base64url16}（分阶段）
+- 背景：统一全链路 ID 生成与校验，提升唯一性与可读性；在兼容旧数据的前提下，最小化改动与风险。
 - 执行步骤（原子化）：
-  1) 设计验证：记录 `HEAD` 与 `origin/main` 的提交哈希；合并后校验祖先关系。
-  2) 获取远程：`git fetch origin --prune`，确保 `origin/main` 最新。
-  3) 合并主线：在当前分支执行 `git merge --no-ff --no-edit origin/main`。
-  4) 若有冲突：列出冲突文件，逐一解决并提交 `git add ... && git commit`。
-  5) 验证：`git merge-base --is-ancestor origin/main HEAD` 为 0；`git status` 干净。
-  6) 文档回写：更新 AI-Working-log 与本文件，并通知完成。
-- 备注：所有文件读写遵循 UTF-8 与 `\n` 换行规范；文本编辑均通过 `apply_patch` 完成。
+  1) 后端放开双格式校验（旧 ann_* 与新 pdfannotation-<base64url16>）
+  2) 前端统一 ID 生成器（base64url16）并引入特性开关
+  3) 接入截图/文本高亮两条创建链路
+  4) 添加最小化测试脚本并运行验证
+  5) 回写日志与 memory bank 并通知完成
+
+## 当前任务（20251009073406）
+- 名称：标注ID改为 pdfannotation-{base64url16}（分阶段）
+- 关键点：仅新建使用新ID；读改删兼容旧ID；严禁以 ann_id 代替 created_at 排序
+- 相关模块：
+  - 前端：src/frontend/pdf-viewer/features/annotation/models/annotation.js（生成器与构造）
+  - 后端：src/backend/database/plugins/pdf_annotation_plugin.py（校验双格式）
+  - 测试：models/__tests__/annotation-id.test.js（前端）；plugins/__tests__/test_pdf_annotation_plugin.py（后端事件断言放宽）
+- 执行与验证：
+  1) 后端放开双格式（已完成）
+  2) 前端统一生成器（已完成）
+  3) 创建链路接入（Annotation 构造默认使用新ID，已覆盖）
+  4) 最小化脚本测试（已通过）
+- 后续：如命中以 ann_id 排序的 SQL/逻辑，统一改为 created_at；如需回滚仅需关闭开关或恢复旧生成器调用

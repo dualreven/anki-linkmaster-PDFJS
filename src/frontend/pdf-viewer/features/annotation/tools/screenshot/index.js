@@ -696,6 +696,19 @@ export class ScreenshotTool extends IAnnotationTool {
   }
 
   /**
+   * 确保指定注释的截图标记框已渲染（用于侧边栏打开/数据加载后恢复）
+   * @param {Annotation} annotation
+   */
+  ensureOverlayFor(annotation) {
+    try {
+      if (!annotation || annotation.type !== 'screenshot') return;
+      this.renderScreenshotMarker(annotation);
+    } catch (e) {
+      this.#logger?.warn?.('[ScreenshotTool] ensureOverlayFor failed', e);
+    }
+  }
+
+  /**
    * 将百分比坐标转换为Canvas绝对坐标
    * @private
    * @param {number} pageNumber - 页码
@@ -845,7 +858,25 @@ export class ScreenshotTool extends IAnnotationTool {
       this.#logger.info('[ScreenshotTool] PageNumber:', pageNumber);
       this.#logger.info('[ScreenshotTool] Data:', data);
 
-      const { rectPercent } = data;
+      let { rectPercent } = data;
+
+      // 获取页面容器（尽早获取，供后续计算使用）
+      const pageView = this.#pdfViewerManager.getPageView(pageNumber);
+      if (!pageView || !pageView.div) {
+        this.#logger.error(`[ScreenshotTool] Cannot find page ${pageNumber}`);
+        return;
+      }
+      const pageDiv = pageView.div;
+
+      // 兜底：若后端老数据无 rectPercent，但包含 rect（基于当时 canvas 像素），则按当前画布尺寸换算为百分比
+      if (!rectPercent && data && data.rect) {
+        try {
+          this.#logger.warn(`[ScreenshotTool] rectPercent missing, fallback to compute from legacy rect for ${annotation.id}`);
+          rectPercent = this.#convertCanvasToPercent(pageNumber, data.rect);
+        } catch (e) {
+          this.#logger.warn('[ScreenshotTool] Fallback compute rectPercent failed', { error: e?.message });
+        }
+      }
 
       if (!rectPercent) {
         this.#logger.warn(`[ScreenshotTool] ❌ No rectPercent data for annotation ${annotation.id}`);
@@ -855,22 +886,19 @@ export class ScreenshotTool extends IAnnotationTool {
 
       this.#logger.info('[ScreenshotTool] RectPercent:', rectPercent);
 
-      // 获取页面容器
-      const pageView = this.#pdfViewerManager.getPageView(pageNumber);
-      if (!pageView || !pageView.div) {
-        this.#logger.error(`[ScreenshotTool] Cannot find page ${pageNumber}`);
-        return;
-      }
-
-      const pageDiv = pageView.div;
+      // 使用 canvas 的显示尺寸 + 相对 pageDiv 的偏移，保证定位精确
       const pageBounds = pageDiv.getBoundingClientRect();
+      const canvas = pageDiv.querySelector('canvas');
+      const canvasBounds = canvas ? canvas.getBoundingClientRect() : pageBounds;
+      const offsetLeft = canvasBounds.left - pageBounds.left;
+      const offsetTop = canvasBounds.top - pageBounds.top;
 
-      // 计算标记框的位置（基于百分比）
+      // 计算标记框的位置（基于百分比，映射到当前 canvas 显示大小）
       const markerRect = {
-        left: (rectPercent.xPercent / 100) * pageBounds.width,
-        top: (rectPercent.yPercent / 100) * pageBounds.height,
-        width: (rectPercent.widthPercent / 100) * pageBounds.width,
-        height: (rectPercent.heightPercent / 100) * pageBounds.height
+        left: offsetLeft + (rectPercent.xPercent / 100) * canvasBounds.width,
+        top: offsetTop + (rectPercent.yPercent / 100) * canvasBounds.height,
+        width: (rectPercent.widthPercent / 100) * canvasBounds.width,
+        height: (rectPercent.heightPercent / 100) * canvasBounds.height
       };
 
       // 创建标记框元素

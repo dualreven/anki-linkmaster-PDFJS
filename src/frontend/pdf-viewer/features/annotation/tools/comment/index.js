@@ -161,6 +161,14 @@ export class CommentTool extends IAnnotationTool {
 
     this.#logger.info('CommentTool activated');
 
+    // 打开标注侧边栏（保持与历史行为一致：激活批注工具时自动弹出侧边栏）
+    try {
+      this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, { sidebarId: 'annotation' });
+      this.#logger.info('Requested opening annotation sidebar on comment tool activation');
+    } catch (e) {
+      this.#logger.warn('Failed to request sidebar open on activation', e);
+    }
+
     // 发布激活事件
     this.#eventBus.emit(
       'annotation-tool:activate:success',
@@ -298,6 +306,14 @@ export class CommentTool extends IAnnotationTool {
 
     // 高亮标记
     this.#commentMarker.highlightMarker(annotationId);
+
+    // 打开标注侧边栏（与历史行为一致：点击批注对象时弹出侧边栏）
+    try {
+      this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, { sidebarId: 'annotation' });
+      this.#logger.info('Requested opening annotation sidebar on marker click');
+    } catch (e) {
+      this.#logger.warn('Failed to request sidebar open on marker click', e);
+    }
 
     // 发布选择事件
     this.#eventBus.emit(

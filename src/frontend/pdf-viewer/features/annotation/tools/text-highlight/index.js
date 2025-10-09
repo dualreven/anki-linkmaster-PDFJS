@@ -32,6 +32,12 @@ export class TextHighlightTool extends IAnnotationTool {
   /** @type {Object} */
   #pdfViewerManager = null;
 
+  /** @type {Object|null} PDF.js EventBus */
+  #pdfjsEventBus = null;
+
+  /** @type {Object|null} 依赖容器 */
+  #container = null;
+
   /** @type {TextSelectionHandler} */
   #selectionHandler = null;
 
@@ -122,11 +128,17 @@ export class TextHighlightTool extends IAnnotationTool {
    * @returns {Promise<void>}
    */
   async initialize(context) {
-    const { eventBus, logger, pdfViewerManager } = context;
+    const { eventBus, logger, pdfViewerManager, container } = context;
 
     this.#eventBus = eventBus;
     this.#logger = logger || console;
     this.#pdfViewerManager = pdfViewerManager;
+    this.#container = container || null;
+    try {
+      this.#pdfjsEventBus = this.#pdfViewerManager?.eventBus || null;
+    } catch (_) {
+      this.#pdfjsEventBus = null;
+    }
 
     // 创建工具特定的对象
     this.#selectionHandler = new TextSelectionHandler(this.#eventBus, this.#logger);
@@ -159,6 +171,29 @@ export class TextHighlightTool extends IAnnotationTool {
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, this.#onAnnotationCreatedHandler);
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.UPDATED, this.#onAnnotationUpdatedHandler);
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DELETED, this.#onAnnotationDeletedHandler);
+
+    // 页面渲染完成后恢复该页的高亮（确保跳转或翻页后可见）
+    if (this.#pdfjsEventBus && typeof this.#pdfjsEventBus.on === 'function') {
+      this.#pdfjsEventBus.on('pagerendered', (evt) => {
+        try {
+          const pn = evt?.pageNumber;
+          if (!pn) return;
+          this.#restoreHighlightsForPage(pn);
+        } catch (e) {
+          this.#logger?.warn?.('[TextHighlightTool] restore on pagerendered failed', e);
+        }
+      });
+    }
+
+    // 跳转成功后，若为高亮标注则确保渲染
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_SUCCESS, ({ annotation }) => {
+      try {
+        if (!annotation || annotation.type !== 'text-highlight') return;
+        setTimeout(() => this.#renderHighlightForAnnotation(annotation), 120);
+      } catch (e) {
+        this.#logger?.warn?.('[TextHighlightTool] ensure render on jump failed', e);
+      }
+    });
 
     this.#logger.info('[TextHighlightTool] Initialized successfully');
   }
@@ -569,6 +604,75 @@ export class TextHighlightTool extends IAnnotationTool {
     this.#highlightRenderer.removeHighlight(annotationId);
     this.#actionMenu?.detach(annotationId);
     this.#annotationHighlightRecords.delete(annotationId);
+  }
+
+  /**
+   * 确保指定高亮注释的覆盖层已渲染
+   * @param {Annotation} annotation
+   */
+  ensureOverlayFor(annotation) {
+    try {
+      if (!annotation || annotation.type !== 'text-highlight') return;
+      // 若页已渲染，直接尝试渲染；否则等待 pagerendered 钩子恢复
+      this.#renderHighlightForAnnotation(annotation);
+    } catch (e) {
+      this.#logger?.warn?.('[TextHighlightTool] ensureOverlayFor failed', e);
+    }
+  }
+
+  /**
+   * 渲染（或确保）高亮注释在页面上可见
+   * @param {Annotation} annotation
+   * @private
+   */
+  #renderHighlightForAnnotation(annotation) {
+    try {
+      if (!annotation || annotation.type !== 'text-highlight') return;
+      if (this.#annotationHighlightRecords.has(annotation.id)) {
+        if (annotation.data?.highlightColor) {
+          this.#highlightRenderer.updateHighlightColor(annotation.id, annotation.data.highlightColor);
+          this.#actionMenu?.updateColor(annotation.id, annotation.data.highlightColor);
+        }
+        return;
+      }
+      const result = this.#highlightRenderer.renderHighlight(
+        annotation.pageNumber,
+        annotation.data?.textRanges || [],
+        annotation.data?.highlightColor,
+        annotation.id,
+        annotation.data?.lineRects || null
+      );
+      if (result) {
+        this.#annotationHighlightRecords.set(annotation.id, {
+          annotation,
+          container: result.container,
+          boundingBox: result.boundingBox,
+        });
+        this.#actionMenu?.attach(result.container, annotation, { boundingBox: result.boundingBox });
+      }
+    } catch (e) {
+      this.#logger?.warn?.('[TextHighlightTool] renderHighlightForAnnotation failed', e);
+    }
+  }
+
+  /**
+   * 恢复某页所有高亮（从 AnnotationManager 获取）
+   * @param {number} pageNumber
+   * @private
+   */
+  #restoreHighlightsForPage(pageNumber) {
+    try {
+      const mgr = this.#container?.get ? this.#container.get('annotationManager') : null;
+      if (!mgr || typeof mgr.getAnnotationsByPage !== 'function') return;
+      const list = mgr.getAnnotationsByPage(pageNumber) || [];
+      list.forEach((ann) => {
+        if (ann?.type === 'text-highlight') {
+          this.#renderHighlightForAnnotation(ann);
+        }
+      });
+    } catch (e) {
+      this.#logger?.warn?.('[TextHighlightTool] restoreHighlightsForPage failed', e);
+    }
   }
 
   // ==================== UI方法 ====================
