@@ -24,7 +24,7 @@ describe('AnchorSidebarUI', () => {
     expect(labels).toEqual(['添加','删除','修改','复制','激活']);
   });
 
-  test('should render table with columns 名称/页码/激活 and rows', () => {
+  test('should render table with columns 名称/页码/页内位置(%) and rows', () => {
     // emit anchors loaded
     const anchors = [
       { uuid: 'aaaaaaaaaaaa', name: '示例锚点', page_at: 3, is_active: true },
@@ -33,7 +33,7 @@ describe('AnchorSidebarUI', () => {
     eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED, { anchors }, { actorId: 'test' });
 
     const ths = Array.from(document.querySelectorAll('thead th')).map(th => th.textContent.trim());
-    expect(ths).toEqual(['名称','页码','激活']);
+    expect(ths).toEqual(['名称','页码','页内位置(%)']);
 
     const rows = Array.from(document.querySelectorAll('tbody[data-role="anchor-tbody"] tr'));
     expect(rows.length).toBe(2);

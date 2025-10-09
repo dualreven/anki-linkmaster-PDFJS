@@ -97,6 +97,15 @@ export class FileHandler {
       // 渲染第一页
       await this.#renderInitialPage();
 
+      // 通知渲染就绪（至少首页已渲染，可进行依赖DOM的操作）
+      try {
+        this.#app.eventBus.emit(
+          PDF_VIEWER_EVENTS.RENDER.READY,
+          { firstPage: 1, totalPages: pdfDocument.numPages },
+          { actorId: 'FileHandler' }
+        );
+      } catch (_) {}
+
       this.#logger.info(`PDF loaded successfully: ${processedFileData.filename}`);
 
     } catch (error) {

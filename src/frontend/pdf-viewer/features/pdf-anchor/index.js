@@ -23,6 +23,16 @@ export class PDFAnchorFeature {
   #pendingUrlAnchorId = null;
   #scrollHintShown = false;
   #scrollListeners = [];
+  #freezeUntilMs = 0;
+  #autoUpdateEnabled = true;
+  #pendingNav = null; // 延迟到 FILE.LOAD.SUCCESS 后再执行的导航参数 { pageAt, position }
+  #navReadyRetryTimer = null; // 短暂重试定时器（处理LOAD.SUCCESS已过但pagesCount稍后才>0的竞态）
+  #navInitDelayTimer = null; // 等待PDFViewer完全初始化后的延迟导航定时器
+  #lastNav = null; // 最近一次导航请求 { pageAt, position, anchorId, t0, method }
+  #useGateNav = true; // 启用“并发闸门”
+  #gateAnchorReady = false; // 锚点数据已达
+  #gateRenderReady = false; // PDF渲染就绪
+  #gateNavDone = false; // 闸门导航已执行
 
   get name() { return "pdf-anchor"; }
   get version() { return "1.0.0"; }
@@ -38,7 +48,7 @@ export class PDFAnchorFeature {
     if (!this.#navigationService) {this.#logger.warn("navigationService not found, will fallback to DOM ops");}
 
     this.#setupEventListeners();
-    this.#ensureScrollDiagnostics();
+    // 简化模式：不依赖页面事件与滚动诊断，改为纯心跳回写
     // 安装时主动检查 URL（避免错过 URL_PARAMS.PARSED 早期事件）
     try {
       this.#bootstrapFromURL();
@@ -49,6 +59,8 @@ export class PDFAnchorFeature {
   async uninstall() {
     this.#stopUpdateTimer();
     try { this.#removeScrollDiagnostics(); } catch (_) {}
+    if (this.#navReadyRetryTimer) { try { clearInterval(this.#navReadyRetryTimer); } catch(_){} this.#navReadyRetryTimer = null; }
+    if (this.#navInitDelayTimer) { try { clearTimeout(this.#navInitDelayTimer); } catch(_){} this.#navInitDelayTimer = null; }
     this.#anchorsById.clear();
     this.#activeAnchorId = null;
     this.#eventBus = null;
@@ -98,20 +110,32 @@ export class PDFAnchorFeature {
           this.#anchorsById.set(String(anchors.uuid), anchors);
         }
 
-        // URL 携带 anchor-id 时的处理：无须依赖“激活”属性，直接作为本次会话的跟踪锚点
+        // URL 携带 anchor-id 时的处理：无须依赖“激活”属性，作为本次会话的跟踪锚点
         if (this.#pendingUrlAnchorId) {
           const a = this.#anchorsById.get(this.#pendingUrlAnchorId);
           if (a) {
-            toastSuccess(`跟踪锚点: ${a.name || a.uuid}`);
-            // 导航到最近一次记录的位置
+            toastSuccess(`已识别锚点: ${a.name || a.uuid}`);
+            // 记录最近一次位置，延迟到 FILE.LOAD.SUCCESS 后再导航，避免 PDF 未就绪时的无效 GOTO
             const pageAt = parseInt(a.page_at || 1, 10);
             const pos = typeof a.position === "number" ? Math.max(0, Math.min(100, a.position * 100)) : null;
-            if (this.#navigationService && pageAt >= 1) {
-              this.#navigationService.navigateTo({ pageAt, position: pos });
+            this.#pendingNav = (pageAt >= 1) ? { pageAt, position: pos, anchorId: a.uuid } : null;
+            try {
+              const posText = (pos === null || Number.isNaN(pos)) ? "(未提供)" : `${pos}%`;
+              toastWarning(`计划跳转: 第${pageAt}页 ${posText}`);
+            } catch(_) {}
+            if (this.#useGateNav) {
+              this.#gateAnchorReady = true;
+              this.#tryNavigateWhenGatesReady();
+            } else {
+              // 兼容旧路径：立即按加载就绪策略尝试
+              this.#performPendingNavIfReady();
+              this.#ensureNavigateWhenLoaded();
             }
             // 启动后台更新（3秒节拍）
             this.#activeAnchorId = a.uuid;
             this.#startUpdateTimer();
+            // URL 启动跟踪时也应启用滚动诊断，以便用户滚动即可回写位置
+            try { this.#ensureScrollDiagnostics(); } catch(_) {}
           }
           // 仅处理一次
           this.#pendingUrlAnchorId = null;
@@ -138,8 +162,40 @@ export class PDFAnchorFeature {
             this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD, { pdf_uuid: pdfId }, { actorId: "PDFAnchorFeature" });
           }
         } catch(e){ this.#logger.warn("noop", e); }
+        // Gate 兼容：部分环境不会发出 RENDER.READY，这里将 FILE.LOAD.SUCCESS 视作“加载完成”信号
+        if (this.#useGateNav) {
+          this.#gateRenderReady = true;
+          this.#tryNavigateWhenGatesReady();
+          // DOM 就绪兜底：短轮询检测 .page 出现后也视作渲染可用
+          try {
+            const deadline = Date.now() + 8000; // 最长 8s 轮询 DOM
+            const iv = setInterval(() => {
+              if (this.#gateRenderReady) { clearInterval(iv); return; }
+              try {
+                const vc = document.getElementById('viewerContainer');
+                if (vc && vc.querySelector('.page')) {
+                  this.#gateRenderReady = true; clearInterval(iv); this.#tryNavigateWhenGatesReady();
+                }
+              } catch(_) {}
+              if (Date.now() >= deadline) { try { clearInterval(iv); } catch(_) {} }
+            }, 150);
+          } catch(_) {}
+        }
+        // 文件加载完成后安装滚动诊断（如果尚未安装），以便激活锚点后滚动能及时采样
+        try { this.#ensureScrollDiagnostics(); } catch(_) {}
       },
       { subscriberId: "PDFAnchorFeature" }
+    );
+
+    // PDF 渲染就绪（首页渲染完成，DOM可用）
+    this.#eventBus.on(
+      PDF_VIEWER_EVENTS.RENDER.READY,
+      (info) => {
+        try { toastSuccess(`PDF渲染完成：总页数 ${info?.totalPages ?? ''}`); } catch(_) {}
+        this.#gateRenderReady = true;
+        this.#tryNavigateWhenGatesReady();
+      },
+      { subscriberId: 'PDFAnchorFeature' }
     );
 
     // 兜底：直接监听 WS 收到的消息（避免适配器初始化竞态导致首次列表错过）
@@ -246,23 +302,57 @@ export class PDFAnchorFeature {
         try { toastSuccess(nextActive ? `已激活锚点: ${a.name || id}` : `已停用锚点: ${a.name || id}`); } catch(e){ this.#logger.warn("noop", e); }
         if (nextActive) {
           this.#activeAnchorId = id;
-          this.#snapshotAndUpdate(id);
+          // 不在激活瞬间写回页码，避免初始化期间采样到错误页面（导致倒退并被持久化）
           this.#startUpdateTimer();
+          this.#autoUpdateEnabled = true;
+          // 启用滚动诊断：在文档区域滚动时采样并写回（心跳关闭的情况下，保持滚动驱动的即时性）
+          try { this.#ensureScrollDiagnostics(); } catch(_) {}
         } else {
           if (this.#activeAnchorId === id) { this.#activeAnchorId = null; }
           this.#stopUpdateTimer();
+          try { this.#removeScrollDiagnostics(); } catch(_) {}
         }
       },
       { subscriberId: "PDFAnchorFeature" }
     );
 
-    // 页面导航变更时，若存在已激活的锚点，则立即采样并更新一次（提升滚动时的即时性）
+    // 页面导航变更：仅用于到达提示（不做自动采样）
     this.#eventBus.on(
       PDF_VIEWER_EVENTS.NAVIGATION.CHANGED,
-      () => {
-        if (this.#activeAnchorId) {
-          try { this.#snapshotAndUpdate(this.#activeAnchorId); } catch (e) { this.#logger.warn('anchor snapshot on navigation failed', e); }
-        }
+      (data) => {
+        try {
+          if (!this.#lastNav) return;
+          if (this.#lastNav.method === 'direct') {
+            const pg = parseInt(data?.pageNumber || 0, 10);
+            if (pg && pg === this.#lastNav.pageAt) {
+              const dt = Date.now() - (this.#lastNav.t0 || Date.now());
+              toastSuccess(`跳转到达: 第${pg}页（~${dt}ms）`);
+              this.#lastNav = null;
+            }
+          }
+        } catch(_) {}
+      },
+      { subscriberId: 'PDFAnchorFeature' }
+    );
+
+    // URL 导航成功/失败提示（统一链路反馈）
+    this.#eventBus.on(
+      PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.SUCCESS,
+      (info) => {
+        try {
+          const pg = parseInt(info?.pageAt || 0, 10);
+          const pos = (typeof info?.position === 'number') ? `${info.position}%` : '(未提供)';
+          const dur = parseInt(info?.duration || 0, 10);
+          toastSuccess(`跳转到达: 第${pg}页 ${pos}（${dur}ms）`);
+          this.#lastNav = null;
+        } catch(_) {}
+      },
+      { subscriberId: 'PDFAnchorFeature' }
+    );
+    this.#eventBus.on(
+      PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.FAILED,
+      (err) => {
+        try { toastError(`[跳转失败] ${err?.message || '未知错误'}`); } catch(_) {}
       },
       { subscriberId: 'PDFAnchorFeature' }
     );
@@ -286,6 +376,113 @@ export class PDFAnchorFeature {
     window.addEventListener("beforeunload", () => this.#stopUpdateTimer());
   }
 
+  // 若 PDF 已加载且存在待导航，则立即执行；否则等待 FILE.LOAD.SUCCESS
+  #performPendingNavIfReady() {
+    try {
+      if (!this.#pendingNav) { return; }
+      const requiresDirect = !this.#pendingNav.anchorId; // 无 anchorId 时才需要直接导航服务
+      if (requiresDirect && !this.#navigationService) { return; }
+      const pvm = this.#container?.get?.('pdfViewerManager');
+      let loaded = !!(pvm && typeof pvm.pagesCount === 'number' && pvm.pagesCount > 0);
+      if (!loaded) {
+        try {
+          const vc = document.getElementById('viewerContainer');
+          loaded = !!(vc && vc.querySelector('.page'));
+        } catch(_) { /* no-op */ }
+      }
+      if (!loaded) { return; }
+      // 文件已加载，但为确保 PDFViewer 完全初始化，对齐 URL 导航策略：延迟执行导航
+      if (this.#navInitDelayTimer) { try { clearTimeout(this.#navInitDelayTimer); } catch(_){} this.#navInitDelayTimer = null; }
+      this.#navInitDelayTimer = setTimeout(() => {
+        try {
+          if (!this.#pendingNav) { return; }
+          const { pageAt, position, anchorId } = this.#pendingNav;
+          // 通过 URL Navigation 统一执行跳转（避免重复加载PDF）。
+          // 为通过校验且不触发再次加载PDF，优先携带 anchorId（缺省 pdfId）。
+          if (anchorId) {
+            try {
+              const posText = (position === null || Number.isNaN(position)) ? "(未提供)" : `${position}%`;
+              toastWarning(`执行跳转: 第${pageAt}页 ${posText}`);
+            } catch(_) {}
+            this.#lastNav = { pageAt, position, anchorId, t0: Date.now(), method: 'url' };
+            this.#eventBus.emit(
+              PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
+              { anchorId, pageAt, position },
+              { actorId: 'PDFAnchorFeature' }
+            );
+          } else {
+            // 兜底：若没有 anchorId（极少见），直接调用导航服务
+            try {
+              try {
+                const posText = (position === null || Number.isNaN(position)) ? "(未提供)" : `${position}%`;
+                toastWarning(`执行跳转: 第${pageAt}页 ${posText}`);
+              } catch(_) {}
+              this.#lastNav = { pageAt, position, anchorId: null, t0: Date.now(), method: 'direct' };
+              this.#navigationService && this.#navigationService.navigateTo({ pageAt, position });
+            } catch(_) {}
+          }
+          this.#freezeUntilMs = Date.now() + 3000; // 冻结3秒，避免初始化误采样
+          this.#autoUpdateEnabled = false; // 等待用户滚动后再允许回写
+          this.#pendingNav = null;
+        } catch(_) { /* no-op */ }
+        finally {
+          if (this.#navInitDelayTimer) { try { clearTimeout(this.#navInitDelayTimer); } catch(_){} this.#navInitDelayTimer = null; }
+          if (this.#navReadyRetryTimer) { try { clearInterval(this.#navReadyRetryTimer); } catch(_){} this.#navReadyRetryTimer = null; }
+        }
+      }, 1000); // 初始化等待后统一走 URL Navigation 链路（改为1s）
+    } catch(_) {}
+  }
+
+  // 若未加载完成，短时间内轮询等待 pagesCount>0 再执行导航（解决事件先后竞态）
+  #ensureNavigateWhenLoaded() {
+    try {
+      if (!this.#pendingNav || this.#navReadyRetryTimer) { return; }
+      const deadline = Date.now() + 15000; // 最多等待15秒，适配大文档初始化
+      this.#navReadyRetryTimer = setInterval(() => {
+        if (!this.#pendingNav) { clearInterval(this.#navReadyRetryTimer); this.#navReadyRetryTimer = null; return; }
+        const pvm = this.#container?.get?.('pdfViewerManager');
+        const loaded = !!(pvm && typeof pvm.pagesCount === 'number' && pvm.pagesCount > 0);
+        if (loaded) {
+          this.#performPendingNavIfReady();
+        } else if (Date.now() >= deadline) {
+          try { clearInterval(this.#navReadyRetryTimer); } catch(_){}
+          this.#navReadyRetryTimer = null;
+        }
+      }, 100);
+    } catch(_) {}
+  }
+
+  // 并发闸门：同时满足“锚点数据已达”与“PDF渲染就绪”后再执行 URL 导航
+  #tryNavigateWhenGatesReady() {
+    try {
+      if (!this.#useGateNav) { return; }
+      if (this.#gateNavDone) { return; }
+      if (!this.#gateAnchorReady || !this.#gateRenderReady) { return; }
+      if (!this.#pendingNav) { return; }
+      const { pageAt, position, anchorId } = this.#pendingNav;
+      // 对齐 URLNavigationFeature 的稳定窗口：延迟约 2.5 秒后再发起 REQUESTED
+      const t0 = Date.now();
+      setTimeout(() => {
+        try {
+          try {
+            const posText = (position === null || Number.isNaN(position)) ? "(未提供)" : `${position}%`;
+            toastWarning(`执行跳转: 第${pageAt}页 ${posText}`);
+          } catch(_) {}
+          this.#lastNav = { pageAt, position, anchorId, t0, method: 'url' };
+          this.#eventBus.emit(
+            PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
+            { anchorId, pageAt, position },
+            { actorId: 'PDFAnchorFeature' }
+          );
+          this.#freezeUntilMs = Date.now() + 3000;
+          this.#autoUpdateEnabled = false;
+          this.#pendingNav = null;
+          this.#gateNavDone = true;
+        } catch(_) {}
+      }, 1000);
+    } catch(_) {}
+  }
+
   #ensureScrollDiagnostics() {
     let viewerContainer = null;
     try { viewerContainer = document.getElementById("viewerContainer"); } catch (_) {}
@@ -302,6 +499,9 @@ export class PDFAnchorFeature {
     let debounceTimer = null;
     const onDocScroll = () => {
       if (!this.#activeAnchorId) return;
+      // 用户滚动后允许自动回写（解除 URL 启动保护）
+      this.#autoUpdateEnabled = true;
+      if (Date.now() < this.#freezeUntilMs) return;
       if (debounceTimer) { clearTimeout(debounceTimer); }
       debounceTimer = setTimeout(() => {
         try { this.#snapshotAndUpdate(this.#activeAnchorId); } catch (e) { this.#logger.warn('snapshot on doc scroll failed', e); }
@@ -417,11 +617,9 @@ export class PDFAnchorFeature {
   }
 
   #startUpdateTimer() {
+    // 暂停心跳机制：不再自动更新页码/位置（应用户要求）
     this.#stopUpdateTimer();
-    if (!this.#activeAnchorId) {return;}
-    this.#updateTimer = setInterval(() => {
-      this.#snapshotAndUpdate(this.#activeAnchorId);
-    }, 3000);
+    this.#updateTimer = null;
   }
 
   #stopUpdateTimer() {

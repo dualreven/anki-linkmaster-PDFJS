@@ -180,6 +180,15 @@ export const PDF_VIEWER_EVENTS = {
       FAILED: 'pdf-viewer:url-params:failed',
     },
   },
+
+  /**
+   * 渲染相关事件
+   * @namespace RENDER
+   */
+  RENDER: {
+    /** 渲染就绪（至少首页渲染完成，DOM可用） */
+    READY: 'pdf-viewer:render:ready',
+  },
   
   /**
    * 缩放控制相关事件

@@ -126,6 +126,14 @@ export class WebSocketAdapter {
                 } catch(e){ this.#logger.warn("noop", e); }
               }
             }
+            // 将失败消息桥接为前端的 LOAD_FAILED（仅限 get/list 两类）
+            else if (type.endsWith(":failed")) {
+              if (type === "anchor:get:failed" || type === "anchor:list:failed") {
+                const err = message?.error || message?.data?.error || message?.data || { message: "unknown error" };
+                this.#logger.warn("[anchor] inbound failed -> emit ANCHOR.DATA.LOAD_FAILED", { type, err: (err?.message || err) });
+                this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD_FAILED, { error: err, type }, { actorId: "WebSocketAdapter" });
+              }
+            }
           }
         } catch (e) { this.#logger.warn("anchor inbound bridge failed", e); }
       },
