@@ -290,7 +290,18 @@ export class SearchManager {
     } catch (_) {
       // 安全兜底：忽略非法扩展参数
     }
-    
+    // 空白搜索（来自搜索框）时，显式移除分页截断
+    try {
+      const src = (extraParams && typeof extraParams.source === 'string') ? extraParams.source : null;
+      const isBlank = (searchText || '').trim().length === 0;
+      if (src === 'search-box' && isBlank) {
+        if (payload.data.pagination) delete payload.data.pagination;
+        if ('limit' in payload.data) delete payload.data.limit;
+        if ('offset' in payload.data) delete payload.data.offset;
+        this.#logger.info('[SearchManager] Blank search from search-box: cleared pagination limit');
+      }
+    } catch (_) {}
+
     // 附加 sort/pagination（由调用方决定传入）
     try {
       if (this.#nextSort && Array.isArray(this.#nextSort)) {

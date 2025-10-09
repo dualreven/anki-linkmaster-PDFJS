@@ -359,8 +359,18 @@ export class SearchResultsFeature {
     // 监听搜索请求，记录最近一次的分页限制
     const unsubSearchRequested = this.#globalEventBus.on('search:query:requested', (data) => {
       try {
+        const src = (data && typeof data.source === 'string') ? data.source : null;
+        const st = (data && typeof data.searchText === 'string') ? data.searchText.trim() : '';
         const lim = Number(data?.pagination?.limit);
-        if (!Number.isNaN(lim) && lim > 0) this.#lastRequestedPageLimit = lim;
+        // 最近侧边栏点击：记录限制
+        if (!Number.isNaN(lim) && lim > 0) {
+          this.#lastRequestedPageLimit = lim;
+        }
+        // 搜索框的“空白搜索”：清除此前的限制（展示全量/默认分页）
+        if (src === 'search-box' && st.length === 0) {
+          this.#lastRequestedPageLimit = null;
+          this.#logger.info('[SearchResultsFeature] Cleared last page limit due to blank search from search-box');
+        }
       } catch (_) {}
     });
     this.#unsubscribers.push(unsubSearchRequested);

@@ -201,7 +201,7 @@ export class SearchBar {
     // 空搜索也是有效的搜索，应该显示所有记录
     this.#logger.info('[SearchBar] Search triggered', { searchText: searchText || '(empty)' });
     // 提示展示统一交给 SearchFeature 在 'search:query:started' 事件中处理
-    this.#eventBus.emit('search:query:requested', { searchText: searchText || '' });
+    this.#eventBus.emit('search:query:requested', { searchText: searchText || '', source: 'search-box' });
   }
 
   /**
