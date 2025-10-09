@@ -154,10 +154,56 @@ export class AnchorSidebarUI {
       return btn;
     };
 
-    const addBtn = mkBtn('add', '添加', '添加锚点');
+    const addBtn = mkBtn('add', '添加', '添加锚点（名称/页码/位置）');
     addBtn.addEventListener('click', () => {
       this.#logger.info('Anchor add clicked');
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATE, { source: 'toolbar' }, { actorId: 'AnchorToolbar' });
+      // 获取当前页码与位置作为默认值
+      const getCurrent = () => {
+        try {
+          const viewer = document.getElementById('viewerContainer');
+          if (!viewer) return { pageAt: 1, position: '' };
+          const centerY = viewer.scrollTop + viewer.clientHeight / 2;
+          const pages = Array.from(viewer.querySelectorAll('.page'));
+          let best = { pageAt: 1, position: '', dist: Number.POSITIVE_INFINITY };
+          for (const el of pages) {
+            const pageNo = parseInt(el.getAttribute('data-page-number') || '1', 10) || 1;
+            const top = el.offsetTop; const height = el.offsetHeight || 1; const bottom = top + height;
+            if (centerY >= top && centerY <= bottom) {
+              const rel = (centerY - top) / height;
+              return { pageAt: pageNo, position: String(Math.round(rel * 100)) };
+            } else {
+              const dist = Math.min(Math.abs(centerY - top), Math.abs(centerY - bottom));
+              if (dist < best.dist) { best = { pageAt: pageNo, position: centerY < top ? '0' : '100', dist }; }
+            }
+          }
+          return { pageAt: best.pageAt, position: best.position };
+        } catch (_) { return { pageAt: 1, position: '' }; }
+      };
+      const curr = getCurrent();
+
+      let name = '';
+      try { name = prompt('请输入锚点名称：', '') || ''; } catch(_) { name = ''; }
+      if (!name.trim()) { return; }
+
+      let pageInput = null;
+      try { pageInput = prompt('请输入页码（>=1）：', String(curr.pageAt)); } catch(_) { pageInput = null; }
+      if (pageInput === null) { return; }
+      const page_at = Math.max(1, parseInt(String(pageInput).trim() || '1', 10) || 1);
+
+      let posInput = null;
+      try { posInput = prompt('请输入页内位置百分比（0-100，可留空）：', String(curr.position)); } catch(_) { posInput = null; }
+      if (posInput === null) { return; }
+      const posStr = String(posInput).trim();
+      const position = posStr === '' ? undefined : Math.max(0, Math.min(100, Number(posStr)));
+
+      const anchor = { name, page_at };
+      if (typeof position === 'number') { anchor.position = position; }
+
+      this.#eventBus.emit(
+        PDF_VIEWER_EVENTS.ANCHOR.CREATE,
+        { anchor },
+        { actorId: 'AnchorToolbar' }
+      );
     });
 
     const delBtn = mkBtn('delete', '删除', '删除选中锚点');
@@ -212,6 +258,18 @@ export class AnchorSidebarUI {
         { anchorId: this.#selectedId, update },
         { actorId: 'AnchorToolbar' }
       );
+      // 立即在本地表格中反映变更（等待后端回读前的即时反馈）
+      try {
+        const idx = this.#anchors.findIndex(x => x && x.uuid === this.#selectedId);
+        if (idx >= 0) {
+          if (update.name) { this.#anchors[idx].name = update.name; }
+          if (typeof update.page_at === 'number') { this.#anchors[idx].page_at = update.page_at; }
+          if (typeof update.position === 'number') {
+            this.#anchors[idx].position = (update.position > 1 ? (update.position / 100) : update.position);
+          }
+          this.#renderAnchors(this.#anchors);
+        }
+      } catch (_) {}
     });
 
     // 复制下拉按钮
