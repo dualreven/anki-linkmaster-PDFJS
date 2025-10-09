@@ -11,6 +11,14 @@ import { success as toastSuccess, warning as toastWarning, error as toastError }
 import { WEBSOCKET_MESSAGE_EVENTS } from "../../../common/event/event-constants.js";
 import { URLParamsParser } from "../url-navigation/components/url-params-parser.js";
 
+// 仅在开发模式允许 DEV 测试锚点注入（pdfanchor-test）
+const isDevEnvironment = (() => {
+  try {
+    return (typeof import.meta !== 'undefined' && import.meta?.env && import.meta.env.DEV)
+      || (typeof process !== 'undefined' && process?.env?.NODE_ENV === 'development');
+  } catch (_) { return false; }
+})();
+
 export class PDFAnchorFeature {
   #logger = getLogger("PDFAnchorFeature");
   #eventBus = null;
@@ -71,8 +79,8 @@ export class PDFAnchorFeature {
         const anchorId = (data?.anchorId || "").toString().trim();
         if (!anchorId) {return;}
 
-        // 支持开发测试ID：pdfanchor-test；正式ID：pdfanchor- + 12hex
-        const isDevTest = /^pdfanchor-test$/i.test(anchorId);
+        // 支持开发测试ID：仅在开发模式可用；正式ID：pdfanchor- + 12hex
+        const isDevTest = isDevEnvironment && /^pdfanchor-test$/i.test(anchorId);
         const isValid = /^pdfanchor-[a-f0-9]{12}$/i.test(anchorId);
 
         if (isDevTest) {
