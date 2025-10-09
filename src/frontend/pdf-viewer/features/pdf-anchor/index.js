@@ -113,7 +113,7 @@ export class PDFAnchorFeature {
             // 记录最近一次位置，延迟到 FILE.LOAD.SUCCESS 后再导航，避免 PDF 未就绪时的无效 GOTO
             const pageAt = parseInt(a.page_at || 1, 10);
             const pos = typeof a.position === "number" ? Math.max(0, Math.min(100, a.position * 100)) : null;
-            this.#pendingNav = (pageAt >= 1) ? { pageAt, position: pos } : null;
+            this.#pendingNav = (pageAt >= 1) ? { pageAt, position: pos, anchorId: a.uuid } : null;
             // 如果文件已加载完成（缓存命中导致 FILE.LOAD.SUCCESS 已经发射过），立即执行导航；否则短暂轮询等待pagesCount>0
             this.#performPendingNavIfReady();
             this.#ensureNavigateWhenLoaded();
@@ -319,21 +319,17 @@ export class PDFAnchorFeature {
       this.#navInitDelayTimer = setTimeout(() => {
         try {
           if (!this.#pendingNav) { return; }
-          const { pageAt, position } = this.#pendingNav;
-          // 通过 URL Navigation 统一执行跳转
-          let pdfId = null;
-          try {
-            const params = new URLSearchParams(window.location.search);
-            pdfId = params.get('pdf-id');
-          } catch(_) {}
-          if (pdfId) {
+          const { pageAt, position, anchorId } = this.#pendingNav;
+          // 通过 URL Navigation 统一执行跳转（避免重复加载PDF）。
+          // 为通过校验且不触发再次加载PDF，优先携带 anchorId（缺省 pdfId）。
+          if (anchorId) {
             this.#eventBus.emit(
               PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
-              { pdfId, pageAt, position },
+              { anchorId, pageAt, position },
               { actorId: 'PDFAnchorFeature' }
             );
           } else {
-            // 无 pdfId 时退回直接导航（避免因参数不足导致不跳转）
+            // 兜底：若没有 anchorId（极少见），直接调用导航服务
             try { this.#navigationService && this.#navigationService.navigateTo({ pageAt, position }); } catch(_) {}
           }
           this.#freezeUntilMs = Date.now() + 3000; // 冻结3秒，避免初始化误采样
