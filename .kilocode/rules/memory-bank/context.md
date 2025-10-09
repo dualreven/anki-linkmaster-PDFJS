@@ -1204,3 +1204,11 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
   2) 修改表格与行渲染；更新测试；再次提交。
 - 备注：
   - 现有 ESLint 风格规则较严格，历史代码存在大量 quotes 告警；本次仅改动必要逻辑，未统一风格，以免引入大范围 diff。
+
+## 当前任务（20251009193431）
+- 名称：修复“滚动后锚点页码/位置不更新”
+- 背景：心跳与 NAVIGATION.CHANGED 均关闭，滚动诊断未启用，导致无任何采样触发；侧边栏 UPDATED 仅更新了页码未更新位置。
+- 修复：
+  1) 激活锚点时启用 #ensureScrollDiagnostics()（滚动采样）；停用时 #removeScrollDiagnostics()
+  2) AnchorSidebarUI 在 ANCHOR.UPDATED 同步 position
+- 预期：滚动 PDF 文档容器时，已激活锚点的页码与页内位置会即时刷新。
