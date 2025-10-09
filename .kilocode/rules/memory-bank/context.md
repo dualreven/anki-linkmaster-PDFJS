@@ -1218,3 +1218,9 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - 变更：pdf-anchor/index.js 在 #performPendingNavIfReady() 中发出 NAVIGATION.URL_PARAMS.REQUESTED{ pdfId, pageAt, position }，替代直接调用 navigationService
 - 容错：缺少 pdf-id 时回退为直接 navigateTo，保证不丢跳转
 - 预期：复用 URL 导航的稳定链路，避免重复跳转等竞态
+
+## 当前任务（20251009204657）
+- 名称：修复锚点→URL导航跳转失败（携带 pdfId 导致重新加载）
+- 修复：REQUESTED 改为携带 anchorId（不带 pdfId），避免 URLNavigationFeature 误触发重新加载流程
+- 兜底：无 anchorId 时直接调用 navigationService.navigateTo
+- 预期：跳转不再因重复加载被中断或失败
