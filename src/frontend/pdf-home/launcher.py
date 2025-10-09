@@ -103,6 +103,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--pdfFile-port", type=int, dest="pdfFile_port", help="PDF文件服务器端口")
     parser.add_argument("--js-debug-port", type=int, dest="js_debug_port", help="Remote debugging port for PDF-Home JS (QTWEBENGINE)")
     parser.add_argument("--no-persist", action="store_true", help="Do not persist ports back to logs/runtime-ports.json")
+    parser.add_argument("--prod", action="store_true", help="以生产模式运行，直接从 dist 静态文件加载页面")
     return parser.parse_args(argv)
 
 
@@ -176,10 +177,21 @@ class PdfHomeApp:
         # 设置 QWebChannel（用于 PyQt 和 JS 之间的桥接）
         self._setup_qwebchannel()
 
-        # Load frontend
-        url = f"http://localhost:{vite_port}/pdf-home/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"
-        logger.info("Loading front-end: %s", url)
-        self.window.load_frontend(url)
+        # Load frontend (dev vs prod)
+        is_prod = bool(os.environ.get("APP_ENV") == "production" or os.environ.get("PDFJS_ENV") == "production" or os.environ.get("ENV") == "production" or args.prod)
+
+        if is_prod:
+            index_path = resolve_production_index(project_root)
+            if not index_path:
+                logger.error("未找到生产入口 index.html，请先构建前端或检查路径")
+                return 2
+            file_url = QUrl.fromLocalFile(str(index_path))
+            logger.info("Loading front-end (prod file): %s", file_url.toString())
+            self.window.load_frontend(file_url.toString())
+        else:
+            url = f"http://localhost:{vite_port}/pdf-home/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"
+            logger.info("Loading front-end (dev): %s", url)
+            self.window.load_frontend(url)
         self.window.show()
 
         rc = self.app.exec()
@@ -196,6 +208,107 @@ class PdfHomeApp:
             cfg_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
         except Exception as exc:
             logger.warning("Failed persisting runtime-ports.json: %s", exc)
+
+    def _setup_websocket(self, msgCenter_port: int):
+        """设置 WebSocket 连接（不使用 QWebChannel）。"""
+        try:
+            logger.info("开始初始化WebSocket连接...")
+            ws_url = QUrl(f"ws://127.0.0.1:{msgCenter_port}")
+
+            # 事件处理
+            self.ws_client.connected.connect(lambda: logger.info(f"WebSocket连接成功到: {ws_url.toString()}"))
+            self.ws_client.disconnected.connect(lambda: logger.info(f"WebSocket断开连接从: {ws_url.toString()}"))
+            try:
+                self.ws_client.error.connect(lambda error: logger.warning(f"WebSocket发生错误: {error}"))
+            except Exception:
+                pass
+
+            self.ws_client.open(ws_url)
+            logger.info(f"WebSocket连接已启动到: {ws_url.toString()}")
+
+        except Exception as exc:
+            logger.error("WebSocket初始化失败: %s", exc, exc_info=True)
+            raise
+
+    def _setup_qwebchannel(self):
+        """设置 QWebChannel 桥接。"""
+        try:
+            logger.info("[QWebChannel] 开始初始化 QWebChannel...")
+            channel = QWebChannel(self.window)
+            self.pyqt_bridge = PyQtBridge(self.window)
+            channel.registerObject('pyqtBridge', self.pyqt_bridge)
+
+            if self.window.web_page:
+                self.window.web_page.setWebChannel(channel)
+                logger.info("[QWebChannel] QWebChannel 设置到 WebPage 成功")
+            else:
+                logger.warning("[QWebChannel] window.web_page 不存在，无法设置 QWebChannel")
+
+        except Exception as exc:
+            logger.error("[QWebChannel] 初始化失败: %s", exc, exc_info=True)
+            raise
+
+    def _create_js_logger(self, js_debug_port: int, log_file: str):
+        """创建 JS 控制台日志记录器实例（基于 Qt javaScriptConsoleMessage）。"""
+        try:
+            self.js_console_logger = JSConsoleLogger(debug_port=js_debug_port, log_file=log_file)
+            if self.js_console_logger.start():
+                logger.info(f"✅ JS控制台日志记录器创建成功 (端口: {js_debug_port})")
+            else:
+                logger.warning("⚠️ JS控制台日志记录器启动失败")
+        except Exception as exc:
+            logger.error("❌ 创建JS控制台日志记录器失败: %s", exc)
+            self.js_console_logger = None
+
+    def cleanup(self):
+        """清理资源与日志处理器。"""
+        logger.info("开始清理资源...")
+        if self.ws_client:
+            try:
+                self.ws_client.close()
+            except Exception:
+                pass
+        if self.js_console_logger:
+            try:
+                self.js_console_logger.stop()
+            except Exception:
+                pass
+        try:
+            for handler in logging.getLogger().handlers:
+                if hasattr(handler, 'flush'):
+                    handler.flush()
+            logging.shutdown()
+        except Exception:
+            pass
+
+
+def resolve_production_index(base: Path) -> Path | None:
+    """解析生产模式下的入口 index.html 路径。
+
+    按以下优先级查找：
+    1) base/pdf-home/index.html（适用于 dist/latest 作为 base）
+    2) base/dist/latest/pdf-home/index.html（适用于在仓库根以 --prod 启动）
+    3) base/dist/pdf-home/index.html
+    4) base/pdf-home.html（扁平化单文件备选）
+    5) base/dist/latest/pdf-home.html
+    6) base/dist/pdf-home.html
+    找到则返回路径，否则返回 None。
+    """
+    candidates = [
+        base / 'pdf-home' / 'index.html',
+        base / 'dist' / 'latest' / 'pdf-home' / 'index.html',
+        base / 'dist' / 'pdf-home' / 'index.html',
+        base / 'pdf-home.html',
+        base / 'dist' / 'latest' / 'pdf-home.html',
+        base / 'dist' / 'pdf-home.html',
+    ]
+    for p in candidates:
+        try:
+            if p.exists():
+                return p
+        except Exception:
+            continue
+    return None
 
 
     def _setup_websocket(self, msgCenter_port: int):

@@ -1264,3 +1264,50 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 ## 当前任务（20251009213847）
 - 名称：锚点跳转延迟由 2.5s 调整为 1s
 - 说明：闸门（锚点+渲染）满足后，延迟改为 1000ms 再发 URL_PARAMS.REQUESTED；兜底路径同样改为 1s
+## 当前任务（20251009221707）
+- 名称：合并 worktree B 到 main
+- 背景：worktree C 已合并；继续同步 B 工作树（分支 `worker/branch-B`）的改动到主分支，降低分叉风险。
+- 相关分支/工作树：
+  - 本仓库：`main`
+  - B 工作树：`worker/branch-B`（路径：`C:\Users\napretep\PycharmProjects\anki-linkmaster-B`）
+- 执行步骤（原子化）：
+  1) 列出工作树与分支，确认 `worker/branch-B` 可见
+  2) 处理未提交改动（stash 或恢复至 HEAD）
+  3) `git merge --no-ff --no-edit worker/branch-B`
+  4) 验证合并提交、记录结果
+  5) 回写 AI 工作日志与本文件，通知完成
+- 结果：
+  - 合并提交：f3791afea8ddbc8740e48b80e4e56ed3d7c35458（main ← worker/branch-B）
+  - 冲突：`.kilocode/rules/memory-bank/context.md`（已手动解决，保留双方内容）
+- 状态：已完成
+## 当前任务（20251010003304）
+- 名称：发布构建系统 Step1 —— 后端构建到 dist/latest
+- 问题背景：需要建立三段式构建流程（1 后端、2 前端、3 总控）。后端阶段以“保持目录结构复制”为主，并确保运行时相对路径正确（launcher 依赖 project_root，需提供 core_utils 与 logs 目录）。
+- 相关模块与文件：
+  - 构建脚本：`build.backend.py`
+  - 启动器：`src/backend/launcher.py`（通过 parent.parent 解析 project_root）
+  - 公共库：`core_utils/process_utils.py`
+- 执行步骤（原子化）：
+  1) 回溯最近 8 条 AI 工作日志与 memory bank（完成）
+  2) 设计测试：验证复制结构、忽略清单与 core_utils 可导入（完成）
+  3) 实现脚本：复制 `src/backend`、`core_utils`，创建 `logs/`，输出元数据（完成）
+  4) 运行单测验证并修正（完成）
+  5) 更新 `tech.md` 记录用法（完成）
+  6) 产物：`dist/latest/src/backend/**`、`dist/latest/core_utils/**`、`dist/latest/logs/`（构建脚本就绪）
+- 状态：已完成
+
+## 当前任务（20251010005230）
+- 名称：发布构建系统 Step2 —— 前端构建到 dist/latest
+- 问题背景：需要以 Vite 多入口（pdf-home / pdf-viewer）构建前端，并在离线生产环境下以独立 vendor 形式提供 pdfjs-dist；运行时通过 window.__PDFJS_VENDOR_BASE__ 指定 vendor 根。
+- 相关模块与文件：
+  - 构建脚本：`build.frontend.py`
+  - Vite 配置：`vite.config.js`
+  - 依赖：`node_modules/pdfjs-dist/**`
+- 执行步骤（原子化）：
+  1) 阅读 package.json 与 vite.config.js（完成）
+  2) 设计测试：注入幂等、vendor 最小复制验证（完成）
+  3) 实现脚本：vite build 到 `dist/latest/`、复制 vendor、注入变量与元数据（完成）
+  4) 运行构建并校验入口与 vendor 存在（完成）
+  5) 更新 tech.md 记录用法（待执行）
+- 产物：`dist/latest/pdf-home/index.html`、`dist/latest/pdf-viewer/index.html`、`dist/latest/vendor/pdfjs-dist/**`、`dist/latest/build.frontend.meta.json`
+- 状态：进行中

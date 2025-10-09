@@ -198,6 +198,45 @@ python ai_launcher.py status
 
 **端口冲突处理**：
 - 自动检测端口占用
+
+## 构建系统（Step1：后端 / 2025-10-10）
+- 脚本：`build.backend.py`
+- 目标：将后端源码发布到 `dist/latest/`，用于后续打包与运行。
+- 复制内容：
+  - `src/backend` → `dist/latest/src/backend`
+  - `core_utils` → `dist/latest/core_utils`
+  - 创建 `dist/latest/logs/`
+- 忽略清单：`__pycache__/ .pytest_cache/ .git/ .venv/ .vscode/ node_modules/ dist/ build/ coverage/ __tests__/ tests/`；文件后缀：`.pyc/.pyo/.pyd/.log`
+- 运行：
+  - `python build.backend.py --clean`（清理并重建 `dist/latest/`）
+  - `python build.backend.py --dist dist/latest`（自定义输出目录）
+- 说明：`src/backend/launcher.py` 会通过其父级目录两次向上解析 `project_root`，因此将 `core_utils` 与 `logs` 置于 `dist/latest/` 根即可满足相对路径依赖。
+
+## 构建系统（Step2：前端 / 2025-10-10）
+- 脚本：`build.frontend.py`
+- 目标：以 Vite 多入口（pdf-home / pdf-viewer）构建前端静态资源到 `dist/latest/`，并复制 `pdfjs-dist` 为独立 vendor；在 HTML 中注入 `window.__PDFJS_VENDOR_BASE__='./vendor/pdfjs-dist/'`。
+- 构建：使用本地 `node_modules/.bin/vite` 优先，其次 `pnpm exec vite`；参数 `--base=./ --outDir dist/latest`。
+- 复制：`node_modules/pdfjs-dist/**` → `dist/latest/vendor/pdfjs-dist/**`。
+- 注入：对以下文件进行注入（存在则注入，幂等）：
+  - `dist/latest/pdf-viewer/index.html`
+  - `dist/latest/pdf-viewer.html`
+  - `dist/latest/pdf-home/index.html`
+  - `dist/latest/pdf-home.html`
+- 元数据：`dist/latest/build.frontend.meta.json`（UTF-8；记录 vendor 复制统计与注入列表）。
+- 运行：
+  - `python build.frontend.py --out-dir dist/latest --skip-install`
+  - 跳过构建仅执行复制/注入：`python build.frontend.py --out-dir dist/latest --skip-build`
+
+### 前端 Python 目录结构复制（2025-10-10）
+- 复制到 `dist/latest/src/frontend/**`，用于从 dist 直接以 Python 启动器运行：
+  - `src/frontend/pyqtui/**` → `dist/latest/src/frontend/pyqtui/**`
+  - `src/frontend/pdf-home/**` → `dist/latest/src/frontend/pdf-home/**`
+  - `src/frontend/pdf-viewer/pyqt/**` → `dist/latest/src/frontend/pdf-viewer/pyqt/**`
+  - `src/frontend/pdf-viewer/launcher.py` → `dist/latest/src/frontend/pdf-viewer/launcher.py`
+- 启动（生产模式）：
+  - `python dist/latest/src/frontend/pdf-home/launcher.py --prod`
+  - `python dist/latest/src/frontend/pdf-viewer/launcher.py --prod --pdf-id sample`
+
 - 尝试杀死占用端口的旧进程
 - 如果无法释放，自动选择可用端口
 
