@@ -460,20 +460,26 @@ export class PDFAnchorFeature {
       if (!this.#gateAnchorReady || !this.#gateRenderReady) { return; }
       if (!this.#pendingNav) { return; }
       const { pageAt, position, anchorId } = this.#pendingNav;
-      try {
-        const posText = (position === null || Number.isNaN(position)) ? "(未提供)" : `${position}%`;
-        toastWarning(`执行跳转: 第${pageAt}页 ${posText}`);
-      } catch(_) {}
-      this.#lastNav = { pageAt, position, anchorId, t0: Date.now(), method: 'url' };
-      this.#eventBus.emit(
-        PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
-        { anchorId, pageAt, position },
-        { actorId: 'PDFAnchorFeature' }
-      );
-      this.#freezeUntilMs = Date.now() + 3000;
-      this.#autoUpdateEnabled = false;
-      this.#pendingNav = null;
-      this.#gateNavDone = true;
+      // 对齐 URLNavigationFeature 的稳定窗口：延迟约 2.5 秒后再发起 REQUESTED
+      const t0 = Date.now();
+      setTimeout(() => {
+        try {
+          try {
+            const posText = (position === null || Number.isNaN(position)) ? "(未提供)" : `${position}%`;
+            toastWarning(`执行跳转: 第${pageAt}页 ${posText}`);
+          } catch(_) {}
+          this.#lastNav = { pageAt, position, anchorId, t0, method: 'url' };
+          this.#eventBus.emit(
+            PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
+            { anchorId, pageAt, position },
+            { actorId: 'PDFAnchorFeature' }
+          );
+          this.#freezeUntilMs = Date.now() + 3000;
+          this.#autoUpdateEnabled = false;
+          this.#pendingNav = null;
+          this.#gateNavDone = true;
+        } catch(_) {}
+      }, 2500);
     } catch(_) {}
   }
 
