@@ -301,6 +301,15 @@ export class AnchorSidebarUI {
 
     bar.appendChild(copyWrap);
 
+    // 激活按钮（设为当前使用的锚点，以便滚动时更新页码/位置）
+    const activateBtn = mkBtn('activate', '激活', '激活选中锚点');
+    activateBtn.addEventListener('click', () => {
+      if (!this.#selectedId) return;
+      this.#logger.info('Anchor activate clicked', { id: this.#selectedId });
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.ACTIVATE, { anchorId: this.#selectedId, active: true }, { actorId: 'AnchorToolbar' });
+    });
+    bar.appendChild(activateBtn);
+
     return bar;
   }
 
