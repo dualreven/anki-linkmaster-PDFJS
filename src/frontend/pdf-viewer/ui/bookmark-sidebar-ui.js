@@ -142,13 +142,22 @@ export class BookmarkSidebarUI {
       try {
         const movedId = dataEvt.node.id;
         const newParent = dataEvt.parent === "#" ? null : dataEvt.parent;
-        const newIndex = dataEvt.position;
+        const newIndexFinal = dataEvt.position; // jsTree 提供的是“移动后”的最终索引
+        const sameParent = (dataEvt.old_parent === dataEvt.parent);
+        const oldIndex = dataEvt.old_position;
+        // BookmarkManager 期望的索引是“移动前兄弟数组中的目标插入位”，
+        // 且在“同父且 oldIndex < targetIndex”时会自行左移 1。
+        // 因此当同父且向后移动(newIndexFinal > oldIndex)时，需要先 +1，避免被再次左移后落到前面。
+        const preRemovalIndex = sameParent && (newIndexFinal > oldIndex)
+          ? (newIndexFinal + 1)
+          : newIndexFinal;
+
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.BOOKMARK.REORDER.REQUESTED,
-          { bookmarkId: movedId, newParentId: newParent, newIndex },
+          { bookmarkId: movedId, newParentId: newParent, newIndex: preRemovalIndex },
           { actorId: 'BookmarkSidebarUI' }
         );
-      } catch (err) { this.#logger.warn('move_node failed', err); }
+      } catch (err) { this.#logger.warn("move_node failed", err); }
     });
 
     // 自定义拖放视觉反馈：上边框=前插入、下边框=后插入、背景色=成为子节点
