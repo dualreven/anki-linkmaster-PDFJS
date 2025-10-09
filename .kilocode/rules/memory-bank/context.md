@@ -1229,3 +1229,8 @@ import { PDFManager } from '../pdf-manager/pdf-manager.js';
 - 名称：锚点跳转状态 toast 化（识别/计划/执行/到达/失败）
 - 位置：features/pdf-anchor/index.js（引入 #lastNav 与多个事件 toast）
 - 注意：保留无心跳策略；此次仅增加可视反馈，不改变跳转与采样逻辑
+
+## 当前任务（20251009211025）
+- 名称：并发闸门（锚点+渲染）后再执行跳转
+- 设计：新增 RENDER.READY 事件；FileHandler 在渲染首页后发射；AnchorFeature 仅在 ANCHOR.DATA.LOADED & RENDER.READY 均满足时发出 URL_PARAMS.REQUESTED
+- 状态：已落地并提交；默认启用 gate（#useGateNav=true）
