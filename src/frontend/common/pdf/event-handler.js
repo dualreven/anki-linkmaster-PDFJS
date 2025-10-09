@@ -79,9 +79,12 @@ export class EventHandler {
       ),
       this.#manager.eventBus.on(
         PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED,
-        (filename) => {
+        (filenameOrData) => {
           try {
-            this.#manager.openPDF(filename);
+            // 直接传递数据到 openPDF 方法
+            // openPDF 方法会处理两种格式：string（旧格式）或 object（新格式）
+            // Schema 参考: docs/SPEC/schemas/eventbus/pdf-management/v1/open.requested.schema.json
+            this.#manager.openPDF(filenameOrData);
           } catch (error) {
             this.#manager.logger.error("Error handling OPEN.REQUESTED event:", error);
             this.#manager.eventBus.emit(
@@ -129,12 +132,12 @@ export class EventHandler {
       let filename = fileEntry
         ? fileEntry.filename
         : typeof file === "string"
-        ? file
-        : undefined;
-      if (filename && !filename.endsWith(".pdf")) filename = `${filename}.pdf`;
+          ? file
+          : undefined;
+      if (filename && !filename.endsWith(".pdf")) {filename = `${filename}.pdf`;}
 
       const data = { file_id: fileId };
-      if (filename) data.filename = filename;
+      if (filename) {data.filename = filename;}
       data.batch_request_id = batchRequestId;
       data.batch_index = index + 1;
       data.batch_total = files.length;

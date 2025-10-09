@@ -4,15 +4,14 @@
  * @description PDF列表表格组件，整合表格初始化、数据管理、生命周期和事件处理
  */
 
-import { getLogger } from '../../../../common/utils/logger.js';
-import { DOMUtils } from '../../../../common/utils/dom-utils.js';
-import { TableInitializer } from '../services/table-initializer.js';
-import { ListDataService } from '../services/list-data-service.js';
-import { ListLifecycleService } from '../services/list-lifecycle-service.js';
-import { PDF_LIST_EVENTS } from '../events.js';
-import { PDF_MANAGEMENT_EVENTS } from '../../../../common/event/event-constants.js';
-const logger = getLogger('PDFList.PDFTable');
-
+import { getLogger } from "../../../../common/utils/logger.js";
+import { DOMUtils } from "../../../../common/utils/dom-utils.js";
+import { TableInitializer } from "../services/table-initializer.js";
+import { ListDataService } from "../services/list-data-service.js";
+import { ListLifecycleService } from "../services/list-lifecycle-service.js";
+import { PDF_LIST_EVENTS } from "../events.js";
+import { PDF_MANAGEMENT_EVENTS } from "../../../../common/event/event-constants.js";
+const logger = getLogger("PDFList.PDFTable");
 
 /**
  * PDF表格组件类
@@ -41,7 +40,7 @@ export class PDFTable {
     this.#state = state;
     this.#eventBus = eventBus;
 
-    logger.info('Initializing PDFTable component');
+    logger.info("Initializing PDFTable component");
 
     // 准备Tabulator选项（添加事件处理器）
     const options = this._prepareTabulatorOptions(tabulatorOptions);
@@ -78,7 +77,7 @@ export class PDFTable {
     // 6. 设置DOM事件监听器
     this._setupDOMEvents();
 
-    logger.info('PDFTable component initialized successfully');
+    logger.info("PDFTable component initialized successfully");
   }
 
   /**
@@ -88,14 +87,14 @@ export class PDFTable {
    * @private
    */
   _resolveContainer(container) {
-    if (typeof container === 'string') {
+    if (typeof container === "string") {
       const element = document.querySelector(container);
-      if (!element) throw new Error(`Container not found: ${container}`);
+      if (!element) {throw new Error(`Container not found: ${container}`);}
       return element;
     } else if (container instanceof HTMLElement) {
       return container;
     } else {
-      throw new Error('Container must be a valid DOM element or selector string');
+      throw new Error("Container must be a valid DOM element or selector string");
     }
   }
 
@@ -121,12 +120,12 @@ export class PDFTable {
    */
   _getDefaultColumns() {
     return [
-      { title: '文件名', field: 'filename', width: 300 },
-      { title: '路径', field: 'path', width: 400 },
-      { title: '大小', field: 'size', width: 100 },
-      { title: '最后修改', field: 'lastModified', width: 150 },
-      { title: '标签', field: 'tags', width: 200 },
-      { title: '评分', field: 'rating', width: 100 }
+      { title: "文件名", field: "filename", width: 300 },
+      { title: "路径", field: "path", width: 400 },
+      { title: "大小", field: "size", width: 100 },
+      { title: "最后修改", field: "lastModified", width: 150 },
+      { title: "标签", field: "tags", width: 200 },
+      { title: "评分", field: "rating", width: 100 }
     ];
   }
 
@@ -138,7 +137,7 @@ export class PDFTable {
   _setupTabulatorEvents(tabulator) {
     try {
       // 行选中事件
-      tabulator.on('rowSelectionChanged', (data, rows) => {
+      tabulator.on("rowSelectionChanged", (data, rows) => {
         const indices = rows.map(row => row.getPosition(true) - 1); // 0-based index
         this.#eventBus?.emit(PDF_LIST_EVENTS.SELECTION_CHANGED, {
           selectedIndices: indices,
@@ -150,12 +149,12 @@ export class PDFTable {
       });
 
       // 行点击事件
-      tabulator.on('rowClick', (e, row) => {
+      tabulator.on("rowClick", (e, row) => {
         const data = row.getData();
         const index = row.getPosition(true) - 1;
 
         // 阻止复选框点击事件冒泡到行点击
-        if (e.target && (e.target.type === 'checkbox' || e.target.closest('.tabulator-row-handle'))) {
+        if (e.target && (e.target.type === "checkbox" || e.target.closest(".tabulator-row-handle"))) {
           return;
         }
 
@@ -185,11 +184,11 @@ export class PDFTable {
           this._setFocusOnly(index);
         }
 
-        logger.debug('Row clicked:', data.filename || data.id);
+        logger.debug("Row clicked:", data.filename || data.id);
       });
 
       // 行双击事件
-      tabulator.on('rowDblClick', (e, row) => {
+      tabulator.on("rowDblClick", (e, row) => {
         const data = row.getData();
         this.#eventBus?.emit(PDF_LIST_EVENTS.ROW_DOUBLE_CLICKED, {
           index: row.getPosition(true) - 1,
@@ -205,15 +204,36 @@ export class PDFTable {
         });
 
         // 同时触发全局PDF打开请求事件
+        // Schema 参考: docs/SPEC/schemas/eventbus/pdf-management/v1/open.requested.schema.json
+        //
+        // 当前使用旧格式（向后兼容）：直接传递文件名字符串
         this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, data.filename || data.path, {
-          actorId: 'PDFTable'
+          actorId: "PDFTable"
         });
 
-        logger.debug('Row double-clicked, opening PDF:', data.filename || data.id);
+        // 新格式示例（带导航参数）：
+        // this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, {
+        //   filename: data.filename || data.path,
+        //   needNavigate: {
+        //     pageAt: 5,          // 跳转到第5页
+        //     position: 50        // 滚动到页面50%位置
+        //   }
+        // }, { actorId: 'PDFTable' });
+        //
+        // 或使用锚点/标注ID：
+        // this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, {
+        //   filename: data.filename || data.path,
+        //   needNavigate: {
+        //     pdfanchor: 'pdfanchor-abc123def456'      // 跳转到锚点
+        //     // 或 pdfannotation: 'pdfannotation-xyz789'  // 跳转到标注
+        //   }
+        // }, { actorId: 'PDFTable' });
+
+        logger.debug("Row double-clicked, opening PDF:", data.filename || data.id);
       });
 
       // 行上下文菜单事件
-      tabulator.on('rowContext', (e, row) => {
+      tabulator.on("rowContext", (e, row) => {
         const data = row.getData();
         this.#eventBus?.emit(PDF_LIST_EVENTS.ROW_CONTEXT_MENU, {
           index: row.getPosition(true) - 1,
@@ -225,11 +245,11 @@ export class PDFTable {
           },
           timestamp: Date.now()
         });
-        logger.debug('Row context menu:', data.filename || data.id);
+        logger.debug("Row context menu:", data.filename || data.id);
       });
 
       // 数据排序事件
-      tabulator.on('dataSorting', (sorters) => {
+      tabulator.on("dataSorting", (sorters) => {
         if (sorters.length > 0) {
           const sorter = sorters[0];
           this.#eventBus?.emit(PDF_LIST_EVENTS.SORT_CHANGED, {
@@ -241,10 +261,10 @@ export class PDFTable {
         }
       });
 
-      logger.debug('Tabulator event listeners set up');
+      logger.debug("Tabulator event listeners set up");
 
     } catch (error) {
-      logger.warn('Error setting up Tabulator events:', error);
+      logger.warn("Error setting up Tabulator events:", error);
     }
   }
 
@@ -256,12 +276,12 @@ export class PDFTable {
     try {
       // 处理表格内的按钮点击（打开、删除等操作）
       const handleTableAction = async (event) => {
-        const btn = event.target && event.target.closest ? event.target.closest('button') : null;
-        if (!btn) return;
+        const btn = event.target && event.target.closest ? event.target.closest("button") : null;
+        if (!btn) {return;}
 
-        const action = btn.getAttribute('data-action');
-        const rowId = btn.getAttribute('data-row-id') || btn.getAttribute('data-rowid');
-        const filename = btn.getAttribute('data-filename') || btn.getAttribute('data-filepath') || null;
+        const action = btn.getAttribute("data-action");
+        const rowId = btn.getAttribute("data-row-id") || btn.getAttribute("data-rowid");
+        const filename = btn.getAttribute("data-filename") || btn.getAttribute("data-filepath") || null;
 
         logger.info(`Table action triggered: action=${action}, rowId=${rowId}, filename=${filename}`);
 
@@ -270,13 +290,13 @@ export class PDFTable {
           event.stopPropagation();
 
           switch (action) {
-            case 'open':
-              this._handleOpenAction(rowId, filename);
-              break;
-            case 'delete':
-            case 'remove':
-              await this._handleDeleteAction(rowId, filename);
-              break;
+          case "open":
+            this._handleOpenAction(rowId, filename);
+            break;
+          case "delete":
+          case "remove":
+            await this._handleDeleteAction(rowId, filename);
+            break;
           }
         }
       };
@@ -287,22 +307,22 @@ export class PDFTable {
       };
 
       if (this.#container) {
-        DOMUtils.addEventListener(this.#container, 'click', handleTableAction);
+        DOMUtils.addEventListener(this.#container, "click", handleTableAction);
         this.#domEventUnsubscribers.push(() =>
-          DOMUtils.removeEventListener(this.#container, 'click', handleTableAction)
+          DOMUtils.removeEventListener(this.#container, "click", handleTableAction)
         );
 
         // 绑定键盘事件到document（因为表格可能不在焦点上）
-        DOMUtils.addEventListener(document, 'keydown', handleKeyDown);
+        DOMUtils.addEventListener(document, "keydown", handleKeyDown);
         this.#domEventUnsubscribers.push(() =>
-          DOMUtils.removeEventListener(document, 'keydown', handleKeyDown)
+          DOMUtils.removeEventListener(document, "keydown", handleKeyDown)
         );
       }
 
-      logger.debug('DOM event listeners set up');
+      logger.debug("DOM event listeners set up");
 
     } catch (error) {
-      logger.warn('Error setting up DOM events:', error);
+      logger.warn("Error setting up DOM events:", error);
     }
   }
 
@@ -314,56 +334,56 @@ export class PDFTable {
   _handleKeyboardShortcuts(event) {
     // 忽略在输入框、文本域等元素上的键盘事件
     const target = event.target;
-    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' ||
+    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" ||
                    target.isContentEditable)) {
       return;
     }
 
     const tabulator = this.#initializer?.tabulator;
-    if (!tabulator || !this.#state) return;
+    if (!tabulator || !this.#state) {return;}
 
     switch (event.key) {
-      case ' ': // 空格键：切换聚焦项的选中状态
+    case " ": // 空格键：切换聚焦项的选中状态
+      event.preventDefault();
+      if (this.#state.focusedIndex !== null && this.#state.focusedIndex !== undefined) {
+        this._toggleSelectionAndFocus(this.#state.focusedIndex);
+      }
+      break;
+
+    case "ArrowDown": // 下方向键：向下移动聚焦
+      event.preventDefault();
+      this._moveFocus(1);
+      break;
+
+    case "ArrowUp": // 上方向键：向上移动聚焦
+      event.preventDefault();
+      this._moveFocus(-1);
+      break;
+
+    case "a": // Ctrl+A：全选
+      if (event.ctrlKey || event.metaKey) {
         event.preventDefault();
-        if (this.#state.focusedIndex !== null && this.#state.focusedIndex !== undefined) {
-          this._toggleSelectionAndFocus(this.#state.focusedIndex);
+        this._selectAll();
+      }
+      break;
+
+    case "Enter": // 回车键：打开聚焦的PDF
+      event.preventDefault();
+      if (this.#state.focusedIndex !== null && this.#state.focusedIndex !== undefined) {
+        const row = tabulator.getRowFromPosition(this.#state.focusedIndex + 1);
+        if (row) {
+          const data = row.getData();
+          this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, data.filename || data.path, {
+            actorId: "PDFTable"
+          });
         }
-        break;
+      }
+      break;
 
-      case 'ArrowDown': // 下方向键：向下移动聚焦
-        event.preventDefault();
-        this._moveFocus(1);
-        break;
-
-      case 'ArrowUp': // 上方向键：向上移动聚焦
-        event.preventDefault();
-        this._moveFocus(-1);
-        break;
-
-      case 'a': // Ctrl+A：全选
-        if (event.ctrlKey || event.metaKey) {
-          event.preventDefault();
-          this._selectAll();
-        }
-        break;
-
-      case 'Enter': // 回车键：打开聚焦的PDF
-        event.preventDefault();
-        if (this.#state.focusedIndex !== null && this.#state.focusedIndex !== undefined) {
-          const row = tabulator.getRowFromPosition(this.#state.focusedIndex + 1);
-          if (row) {
-            const data = row.getData();
-            this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, data.filename || data.path, {
-              actorId: 'PDFTable'
-            });
-          }
-        }
-        break;
-
-      case 'Escape': // Esc键：清除选中和聚焦
-        event.preventDefault();
-        this._clearSelectionAndFocus();
-        break;
+    case "Escape": // Esc键：清除选中和聚焦
+      event.preventDefault();
+      this._clearSelectionAndFocus();
+      break;
     }
   }
 
@@ -374,12 +394,12 @@ export class PDFTable {
    */
   _moveFocus(direction) {
     const tabulator = this.#initializer?.tabulator;
-    if (!tabulator || !this.#state) return;
+    if (!tabulator || !this.#state) {return;}
 
     const currentFocus = this.#state.focusedIndex;
     const rowCount = tabulator.getDataCount();
 
-    if (rowCount === 0) return;
+    if (rowCount === 0) {return;}
 
     let newFocus;
     if (currentFocus === null || currentFocus === undefined) {
@@ -388,8 +408,8 @@ export class PDFTable {
     } else {
       newFocus = currentFocus + direction;
       // 边界检查
-      if (newFocus < 0) newFocus = 0;
-      if (newFocus >= rowCount) newFocus = rowCount - 1;
+      if (newFocus < 0) {newFocus = 0;}
+      if (newFocus >= rowCount) {newFocus = rowCount - 1;}
     }
 
     this._setFocusOnly(newFocus);
@@ -407,10 +427,10 @@ export class PDFTable {
    */
   _selectAll() {
     const tabulator = this.#initializer?.tabulator;
-    if (!tabulator || !this.#state) return;
+    if (!tabulator || !this.#state) {return;}
 
     const rowCount = tabulator.getDataCount();
-    if (rowCount === 0) return;
+    if (rowCount === 0) {return;}
 
     // 选中所有行
     tabulator.selectRow();
@@ -428,7 +448,7 @@ export class PDFTable {
    */
   _clearSelectionAndFocus() {
     const tabulator = this.#initializer?.tabulator;
-    if (!tabulator || !this.#state) return;
+    if (!tabulator || !this.#state) {return;}
 
     // 清除选中
     tabulator.deselectRow();
@@ -438,7 +458,7 @@ export class PDFTable {
     this._updateFocusedStyle(null);
     this.#state.focusedIndex = null;
 
-    logger.info('Cleared all selection and focus');
+    logger.info("Cleared all selection and focus");
   }
 
   /**
@@ -448,7 +468,7 @@ export class PDFTable {
    */
   _setFocusOnly(index) {
     const tabulator = this.#initializer?.tabulator;
-    if (!tabulator) return;
+    if (!tabulator) {return;}
 
     // 更新状态
     if (this.#state) {
@@ -472,7 +492,7 @@ export class PDFTable {
    */
   _toggleSelectionAndFocus(index) {
     const tabulator = this.#initializer?.tabulator;
-    if (!tabulator) return;
+    if (!tabulator) {return;}
 
     // 切换选中状态
     if (this.#state) {
@@ -504,7 +524,7 @@ export class PDFTable {
    */
   _rangeSelect(endIndex) {
     const tabulator = this.#initializer?.tabulator;
-    if (!tabulator || !this.#state) return;
+    if (!tabulator || !this.#state) {return;}
 
     const focusedIndex = this.#state.focusedIndex;
     if (focusedIndex === null || focusedIndex === undefined) {
@@ -544,14 +564,14 @@ export class PDFTable {
    */
   _updateFocusedStyle(focusedIndex) {
     const tabulator = this.#initializer?.tabulator;
-    if (!tabulator) return;
+    if (!tabulator) {return;}
 
     // 清除所有行的聚焦样式
     const allRows = tabulator.getRows();
     allRows.forEach(row => {
       const el = row.getElement();
       if (el) {
-        el.classList.remove('row-focused');
+        el.classList.remove("row-focused");
       }
     });
 
@@ -561,7 +581,7 @@ export class PDFTable {
       if (focusedRow) {
         const el = focusedRow.getElement();
         if (el) {
-          el.classList.add('row-focused');
+          el.classList.add("row-focused");
         }
       }
     }
@@ -575,7 +595,7 @@ export class PDFTable {
    */
   _handleOpenAction(rowId, filename) {
     this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, rowId || filename, {
-      actorId: 'PDFTable'
+      actorId: "PDFTable"
     });
   }
 
@@ -596,15 +616,15 @@ export class PDFTable {
         confirmed = confirm("确定要删除这个PDF文件吗？");
       }
 
-      if (!confirmed) return;
+      if (!confirmed) {return;}
 
       const payload = rowId || filename;
       this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.REMOVE.REQUESTED, payload, {
-        actorId: 'PDFTable'
+        actorId: "PDFTable"
       });
 
     } catch (error) {
-      logger.error('Error handling delete action:', error);
+      logger.error("Error handling delete action:", error);
     }
   }
 
@@ -619,7 +639,7 @@ export class PDFTable {
       // 从Tabulator获取完整的行数据
       const tabulator = this.#initializer?.tabulator;
       if (!tabulator) {
-        logger.warn('Tabulator not available for edit action');
+        logger.warn("Tabulator not available for edit action");
         return;
       }
 
@@ -634,19 +654,19 @@ export class PDFTable {
       }
 
       if (!rowData) {
-        logger.warn('Row data not found for edit action:', { rowId, filename });
+        logger.warn("Row data not found for edit action:", { rowId, filename });
         return;
       }
 
       // 发出全局编辑请求事件（供pdf-edit功能域监听）
       this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.EDIT.REQUESTED, rowData, {
-        actorId: 'PDFTable'
+        actorId: "PDFTable"
       });
 
-      logger.info('Edit action triggered for record:', rowData.filename || rowData.id);
+      logger.info("Edit action triggered for record:", rowData.filename || rowData.id);
 
     } catch (error) {
-      logger.error('Error handling edit action:', error);
+      logger.error("Error handling edit action:", error);
     }
   }
 
@@ -736,7 +756,7 @@ export class PDFTable {
    * @param {string} message - 空状态消息
    * @returns {Promise<void>}
    */
-  async displayEmptyState(message = '暂无数据') {
+  async displayEmptyState(message = "暂无数据") {
     return await this.#dataService.displayEmptyState(message);
   }
 
@@ -745,7 +765,7 @@ export class PDFTable {
    * @returns {Promise<void>}
    */
   async destroy() {
-    logger.info('Destroying PDFTable component');
+    logger.info("Destroying PDFTable component");
 
     try {
       // 1. 清理DOM事件监听器
@@ -765,10 +785,10 @@ export class PDFTable {
       this.#dataService = null;
       this.#lifecycleService = null;
 
-      logger.info('PDFTable component destroyed successfully');
+      logger.info("PDFTable component destroyed successfully");
 
     } catch (error) {
-      logger.error('Error destroying PDFTable component:', error);
+      logger.error("Error destroying PDFTable component:", error);
       throw error;
     }
   }
@@ -797,21 +817,21 @@ export class PDFTable {
 
   /**
    * 重新初始化表格
-   * @param {Object} newOptions - 新的配置选项
+   * @param {Object} _newOptions - 新的配置选项（未使用，保留以供将来扩展）
    * @returns {Promise<void>}
    */
-  async reinitialize(newOptions = {}) {
-    logger.info('Reinitializing PDFTable component');
+  async reinitialize(_newOptions = {}) {
+    logger.info("Reinitializing PDFTable component");
 
     try {
       // 1. 销毁现有实例
       await this.destroy();
 
       // 2. 重新创建组件（需要在外部重新创建PDFTable实例）
-      logger.warn('Reinitialize requires creating a new PDFTable instance');
+      logger.warn("Reinitialize requires creating a new PDFTable instance");
 
     } catch (error) {
-      logger.error('Error reinitializing PDFTable component:', error);
+      logger.error("Error reinitializing PDFTable component:", error);
       throw error;
     }
   }
