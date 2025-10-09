@@ -28,6 +28,7 @@ export class PDFAnchorFeature {
   #pendingNav = null; // 延迟到 FILE.LOAD.SUCCESS 后再执行的导航参数 { pageAt, position }
   #navReadyRetryTimer = null; // 短暂重试定时器（处理LOAD.SUCCESS已过但pagesCount稍后才>0的竞态）
   #navInitDelayTimer = null; // 等待PDFViewer完全初始化后的延迟导航定时器
+  #lastNav = null; // 最近一次导航请求 { pageAt, position, anchorId, t0, method }
 
   get name() { return "pdf-anchor"; }
   get version() { return "1.0.0"; }
@@ -109,11 +110,15 @@ export class PDFAnchorFeature {
         if (this.#pendingUrlAnchorId) {
           const a = this.#anchorsById.get(this.#pendingUrlAnchorId);
           if (a) {
-            toastSuccess(`跟踪锚点: ${a.name || a.uuid}`);
+            toastSuccess(`已识别锚点: ${a.name || a.uuid}`);
             // 记录最近一次位置，延迟到 FILE.LOAD.SUCCESS 后再导航，避免 PDF 未就绪时的无效 GOTO
             const pageAt = parseInt(a.page_at || 1, 10);
             const pos = typeof a.position === "number" ? Math.max(0, Math.min(100, a.position * 100)) : null;
             this.#pendingNav = (pageAt >= 1) ? { pageAt, position: pos, anchorId: a.uuid } : null;
+            try {
+              const posText = (pos === null || Number.isNaN(pos)) ? "(未提供)" : `${pos}%`;
+              toastWarning(`计划跳转: 第${pageAt}页 ${posText}（约2.5秒后执行）`);
+            } catch(_) {}
             // 如果文件已加载完成（缓存命中导致 FILE.LOAD.SUCCESS 已经发射过），立即执行导航；否则短暂轮询等待pagesCount>0
             this.#performPendingNavIfReady();
             this.#ensureNavigateWhenLoaded();
@@ -274,11 +279,44 @@ export class PDFAnchorFeature {
       { subscriberId: "PDFAnchorFeature" }
     );
 
-    // 页面导航变更时，若存在已激活的锚点，则立即采样并更新一次（提升滚动时的即时性）
-    // 简化模式：不再基于 NAVIGATION.CHANGED 做自动采样
+    // 页面导航变更：仅用于到达提示（不做自动采样）
     this.#eventBus.on(
       PDF_VIEWER_EVENTS.NAVIGATION.CHANGED,
-      () => { /* no-op: disable event-driven sampling */ },
+      (data) => {
+        try {
+          if (!this.#lastNav) return;
+          if (this.#lastNav.method === 'direct') {
+            const pg = parseInt(data?.pageNumber || 0, 10);
+            if (pg && pg === this.#lastNav.pageAt) {
+              const dt = Date.now() - (this.#lastNav.t0 || Date.now());
+              toastSuccess(`跳转到达: 第${pg}页（~${dt}ms）`);
+              this.#lastNav = null;
+            }
+          }
+        } catch(_) {}
+      },
+      { subscriberId: 'PDFAnchorFeature' }
+    );
+
+    // URL 导航成功/失败提示（统一链路反馈）
+    this.#eventBus.on(
+      PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.SUCCESS,
+      (info) => {
+        try {
+          const pg = parseInt(info?.pageAt || 0, 10);
+          const pos = (typeof info?.position === 'number') ? `${info.position}%` : '(未提供)';
+          const dur = parseInt(info?.duration || 0, 10);
+          toastSuccess(`跳转到达: 第${pg}页 ${pos}（${dur}ms）`);
+          this.#lastNav = null;
+        } catch(_) {}
+      },
+      { subscriberId: 'PDFAnchorFeature' }
+    );
+    this.#eventBus.on(
+      PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.FAILED,
+      (err) => {
+        try { toastError(`[跳转失败] ${err?.message || '未知错误'}`); } catch(_) {}
+      },
       { subscriberId: 'PDFAnchorFeature' }
     );
 
@@ -323,6 +361,11 @@ export class PDFAnchorFeature {
           // 通过 URL Navigation 统一执行跳转（避免重复加载PDF）。
           // 为通过校验且不触发再次加载PDF，优先携带 anchorId（缺省 pdfId）。
           if (anchorId) {
+            try {
+              const posText = (position === null || Number.isNaN(position)) ? "(未提供)" : `${position}%`;
+              toastWarning(`执行跳转: 第${pageAt}页 ${posText}`);
+            } catch(_) {}
+            this.#lastNav = { pageAt, position, anchorId, t0: Date.now(), method: 'url' };
             this.#eventBus.emit(
               PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
               { anchorId, pageAt, position },
@@ -330,7 +373,14 @@ export class PDFAnchorFeature {
             );
           } else {
             // 兜底：若没有 anchorId（极少见），直接调用导航服务
-            try { this.#navigationService && this.#navigationService.navigateTo({ pageAt, position }); } catch(_) {}
+            try {
+              try {
+                const posText = (position === null || Number.isNaN(position)) ? "(未提供)" : `${position}%`;
+                toastWarning(`执行跳转: 第${pageAt}页 ${posText}`);
+              } catch(_) {}
+              this.#lastNav = { pageAt, position, anchorId: null, t0: Date.now(), method: 'direct' };
+              this.#navigationService && this.#navigationService.navigateTo({ pageAt, position });
+            } catch(_) {}
           }
           this.#freezeUntilMs = Date.now() + 3000; // 冻结3秒，避免初始化误采样
           this.#autoUpdateEnabled = false; // 等待用户滚动后再允许回写
