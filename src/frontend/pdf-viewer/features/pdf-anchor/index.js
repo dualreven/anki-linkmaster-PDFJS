@@ -162,6 +162,25 @@ export class PDFAnchorFeature {
             this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD, { pdf_uuid: pdfId }, { actorId: "PDFAnchorFeature" });
           }
         } catch(e){ this.#logger.warn("noop", e); }
+        // Gate 兼容：部分环境不会发出 RENDER.READY，这里将 FILE.LOAD.SUCCESS 视作“加载完成”信号
+        if (this.#useGateNav) {
+          this.#gateRenderReady = true;
+          this.#tryNavigateWhenGatesReady();
+          // DOM 就绪兜底：短轮询检测 .page 出现后也视作渲染可用
+          try {
+            const deadline = Date.now() + 8000; // 最长 8s 轮询 DOM
+            const iv = setInterval(() => {
+              if (this.#gateRenderReady) { clearInterval(iv); return; }
+              try {
+                const vc = document.getElementById('viewerContainer');
+                if (vc && vc.querySelector('.page')) {
+                  this.#gateRenderReady = true; clearInterval(iv); this.#tryNavigateWhenGatesReady();
+                }
+              } catch(_) {}
+              if (Date.now() >= deadline) { try { clearInterval(iv); } catch(_) {} }
+            }, 150);
+          } catch(_) {}
+        }
         // 文件加载完成后安装滚动诊断（如果尚未安装），以便激活锚点后滚动能及时采样
         try { this.#ensureScrollDiagnostics(); } catch(_) {}
       },
