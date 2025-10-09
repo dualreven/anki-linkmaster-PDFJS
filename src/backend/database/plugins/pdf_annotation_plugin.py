@@ -21,6 +21,8 @@ class PDFAnnotationTablePlugin(TablePlugin):
 
     _UUID_PATTERN = re.compile(r"^[a-f0-9]{12}$")
     _ANN_ID_PATTERN = re.compile(r'^ann_[0-9]{6,}_[0-9a-zA-Z]{6}$')
+    # 迁移期新增：接受新格式 pdfannotation-<base64url16>
+    _ANN_ID_NEW_PATTERN = re.compile(r'^pdfannotation-[A-Za-z0-9_-]{16}$')
     _MD5_PATTERN = re.compile(r"^[a-f0-9]{32}$")
     _HEX_COLOR_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
     _ALLOWED_TYPES = {"screenshot", "text-highlight", "comment"}
@@ -166,8 +168,9 @@ class PDFAnnotationTablePlugin(TablePlugin):
             raise DatabaseValidationError('ann_id is required')
         if not isinstance(value, str):
             raise DatabaseValidationError('ann_id must be a string')
-        if not self._ANN_ID_PATTERN.fullmatch(value):
-            raise DatabaseValidationError('ann_id must match pattern ann_<timestamp>_<random>')
+        # 迁移期双格式兼容：旧 ann_<timestamp>_<random> 或 新 pdfannotation-<base64url16>
+        if not (self._ANN_ID_PATTERN.fullmatch(value) or self._ANN_ID_NEW_PATTERN.fullmatch(value)):
+            raise DatabaseValidationError('ann_id must match pattern ann_<timestamp>_<random> or pdfannotation-<base64url16>')
         return value
 
     def _validate_pdf_uuid(self, value: Any) -> str:
