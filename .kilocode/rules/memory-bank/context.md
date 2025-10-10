@@ -67,6 +67,15 @@
 
 状态：进行中（阶段一仅聚焦事件命名与直接使用处同步）
 
+### 追加备注（构建差异处理 / 20251010）
+- 发现“开发能跑、构建不能跑”的典型触发点：
+  1) 动态导入（FeatureRegistry → ScopedEventBus）的 Chunk 解析在生产下更易失败；
+  2) 事件白名单依赖对象递归收集，生产 Treeshaking 可能丢失部分分组（如 SYSTEM/HEADER/PDF_EDITOR）。
+- 修复策略：
+  - 改为静态导入 ScopedEventBus；
+  - 显式收集命名导出的事件常量（SEARCH/HEADER/PDF_EDITOR/SYSTEM 等）
+  - SearchBar 直接发全局事件，绕过桥接，确保“点击搜索”在构建产物下仍可工作。
+
 ### 当前任务（20251010064621）
 **名称**：继续使用 iziToast 并修复 Qt 环境下的挂载问题
 

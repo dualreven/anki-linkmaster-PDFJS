@@ -186,7 +186,9 @@ class PdfHomeApp:
             # ⚠️ 添加时间戳参数以破坏 PyQt WebView 缓存
             import time
             cache_buster = int(time.time() * 1000)  # 毫秒级时间戳
-            http_url = f"http://127.0.0.1:{pdfFile_port}/pdf-home/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}&_={cache_buster}"
+            # 为避免生产构建下可能存在的多入口产物（嵌套 index.html）被顶层 index 覆盖的问题
+            # 直接指向嵌套入口 /pdf-home/pdf-home/ ，确保引用到与本模块对应的最新 assets
+            http_url = f"http://127.0.0.1:{pdfFile_port}/pdf-home/pdf-home/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}&_={cache_buster}"
             logger.info("Loading front-end (prod http): %s", http_url)
             self.window.load_frontend(http_url)
         else:
