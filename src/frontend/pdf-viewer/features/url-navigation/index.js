@@ -128,16 +128,16 @@ export class URLNavigationFeature {
 
     // 6. 设置导航门闸：只有在“渲染就绪 + 标注数据加载完成”后才执行跳转
     //    - 渲染就绪：PDF_VIEWER_EVENTS.RENDER.READY（FileHandler 在第一页渲染后发出）
-    //    - 标注数据加载完成：AnnotationManager 在完成加载后通过 scoped 事件发出 '@annotation/annotation-data:load:success'
+    //    - 标注数据加载完成：AnnotationManager 完成加载后通过全局事件发出 annotation-data:load:success
     this.#eventBus.on(PDF_VIEWER_EVENTS.RENDER.READY, () => {
-      this.#logger.info('[url-navigation] 捕获渲染就绪事件');
+      this.#logger.info("[url-navigation] 捕获渲染就绪事件");
       this.#renderReady = true;
       this.#tryExecuteGatedNavigation();
     }, { subscriberId: 'URLNavigationFeature' });
 
-    // 监听作用域事件（annotation feature 通过 scopedEventBus.emit 发出，事件名带 '@annotation/' 前缀）
-    this.#eventBus.on('@annotation/annotation-data:load:success', () => {
-      this.#logger.info('[url-navigation] 捕获标注数据加载完成事件');
+    // 监听标注“数据加载完成”的全局事件
+    this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, () => {
+      this.#logger.info("[url-navigation] 捕获标注数据加载完成事件");
       this.#annotationDataLoaded = true;
       this.#tryExecuteGatedNavigation();
     }, { subscriberId: 'URLNavigationFeature' });
@@ -192,41 +192,22 @@ export class URLNavigationFeature {
     );
   }
 
-  /**
-   * 启动导航流程
-   * @private
-   */
-  #initiateNavigation() {
-    this.#navigationStartTime = performance.now();
-
-    this.#logger.info(`启动URL导航: pdf-id=${this.#parsedParams.pdfId}`);
-
-    // 触发PDF加载请求（兼容 PDFManager 预期入参结构）
-    // 仅提供 filename；PDFManager 会基于 PATH_CONFIG.proxyPath 组装 URL
-    this.#eventBus.emit(
-      PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
-      {
-        filename: this.#parsedParams.pdfId,
-        source: 'url-navigation'
-      },
-      { actorId: 'URLNavigationFeature' }
-    );
-  }
+  
 
   /**
    * 处理PDF加载成功事件
    * @param {Object} data - 事件数据
    * @private
    */
-  async #handlePDFLoadSuccess(data) {
+  async #handlePDFLoadSuccess() {
     // 文件加载成功后，不直接导航；改为等待“渲染就绪 + 标注数据加载完成”两个条件
-    if (this.#hasProcessedParams) return;
-    this.#logger.info('[url-navigation] 文件加载成功，等待渲染与标注数据加载门闸');
+    if (this.#hasProcessedParams) { return; }
+    this.#logger.info("[url-navigation] 文件加载成功，等待渲染与标注数据加载门闸");
   }
 
   async #tryExecuteGatedNavigation() {
-    if (this.#gatedNavigationDone) return;
-    if (!this.#renderReady || !this.#annotationDataLoaded) return;
+    if (this.#gatedNavigationDone) { return; }
+    if (!this.#renderReady || !this.#annotationDataLoaded) { return; }
 
     const { pageAt, position, annotationId } = this.#parsedParams || {};
     const hasNav = !(pageAt === null && position === null);
@@ -235,7 +216,7 @@ export class URLNavigationFeature {
     // 若两种参数都存在，优先用注释跳转（更精确）；否则使用页面导航
     try {
       if (hasAnn) {
-        this.#logger.info('[url-navigation] 门闸通过，触发标注跳转: %s', annotationId);
+        this.#logger.info("[url-navigation] 门闸通过，触发标注跳转: %s", annotationId);
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
           { id: annotationId },
@@ -262,13 +243,13 @@ export class URLNavigationFeature {
             duration: totalDuration,
           });
         } else {
-          this.#emitNavigationFailed(new Error(result.error || '导航失败'), 'navigate');
+          this.#emitNavigationFailed(new Error(result.error || "导航失败"), "navigate");
         }
       } else {
-        this.#logger.debug('[url-navigation] 门闸通过，但无导航参数，忽略');
+        this.#logger.debug("[url-navigation] 门闸通过，但无导航参数，忽略");
       }
     } catch (error) {
-      this.#logger.error('[url-navigation] 门闸导航执行失败:', error);
+      this.#logger.error("[url-navigation] 门闸导航执行失败:", error);
     } finally {
       this.#gatedNavigationDone = true;
       this.#hasProcessedParams = true;
