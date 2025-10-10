@@ -6,6 +6,15 @@
 import { getLogger } from "../../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 import $ from "jquery";
+// 确保 jstree 能正确挂到全局 jQuery（Vite/ESM 环境）
+try {
+  if (typeof window !== "undefined") {
+
+    window.$ = window.$ || $;
+
+    window.jQuery = window.jQuery || $;
+  }
+} catch { /* ignore */ }
 import "jstree";
 import "jstree/dist/themes/default/style.css";
 import { BookmarkToolbar } from "../../pdf-bookmark/components/bookmark-toolbar.js";
@@ -94,6 +103,11 @@ export class OutlineSidebarUI {
         themes: { stripes: true }
       },
       plugins: ["dnd", "wholerow"]
+    });
+    // 默认展开所有节点
+    // eslint-disable-next-line custom/event-name-format
+    $tree.on("ready.jstree", () => {
+      try { $tree.jstree(true).open_all(); } catch { /* ignore */ }
     });
 
     // 选择节点 → 导航

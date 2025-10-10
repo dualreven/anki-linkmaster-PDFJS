@@ -8,6 +8,15 @@ import { getLogger } from "../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
 import { BookmarkToolbar } from "../features/pdf-bookmark/components/bookmark-toolbar.js";
 import $ from "jquery";
+// 确保 jstree 能正确挂到全局 jQuery（Vite/ESM 环境）
+try {
+  if (typeof window !== "undefined") {
+
+    window.$ = window.$ || $;
+
+    window.jQuery = window.jQuery || $;
+  }
+} catch { /* ignore */ }
 import "jstree";
 import "jstree/dist/themes/default/style.css";
 
@@ -29,16 +38,16 @@ export class BookmarkSidebarUI {
 
   constructor(eventBus, options = {}) {
     this.#eventBus = eventBus;
-    this.#logger = getLogger('BookmarkSidebarUI');
+    this.#logger = getLogger("BookmarkSidebarUI");
     // 侧边栏应该添加到main元素，与viewerContainer并列
-    this.#container = options.container || document.querySelector('main');
+    this.#container = options.container || document.querySelector("main");
     this.#sidebar = null;
   }
 
   initialize() {
     // 创建完整内容容器
-    this.#sidebarContent = document.createElement('div');
-    this.#sidebarContent.style.cssText = 'height:100%;display:flex;flex-direction:column;box-sizing:border-box;';
+    this.#sidebarContent = document.createElement("div");
+    this.#sidebarContent.style.cssText = "height:100%;display:flex;flex-direction:column;box-sizing:border-box;";
 
     // 创建并初始化工具栏
     this.#toolbar = new BookmarkToolbar({ eventBus: this.#eventBus });
@@ -46,34 +55,34 @@ export class BookmarkSidebarUI {
     this.#sidebarContent.appendChild(this.#toolbar.getElement());
 
     // 创建书签列表容器
-    this.#bookmarkList = document.createElement('div');
-    this.#bookmarkList.style.cssText = 'flex:1;overflow-y:auto;padding:12px;';
+    this.#bookmarkList = document.createElement("div");
+    this.#bookmarkList.style.cssText = "flex:1;overflow-y:auto;padding:12px;";
     this.#sidebarContent.appendChild(this.#bookmarkList);
 
     // 监听书签加载
     this.#unsubs.push(this.#eventBus.on(
       PDF_VIEWER_EVENTS.BOOKMARK.LOAD.SUCCESS,
       (data) => {
-        this.#logger.info('🎯 [DEBUG] BookmarkSidebarUI received BOOKMARK.LOAD.SUCCESS', {
+        this.#logger.info("🎯 [DEBUG] BookmarkSidebarUI received BOOKMARK.LOAD.SUCCESS", {
           bookmarksCount: data?.bookmarks?.length || 0,
           eventName: PDF_VIEWER_EVENTS.BOOKMARK.LOAD.SUCCESS
         });
         this.#renderBookmarks(data?.bookmarks || []);
       },
-      { subscriberId: 'BookmarkSidebarUI' }
+      { subscriberId: "BookmarkSidebarUI" }
     ));
 
     this.#unsubs.push(this.#eventBus.on(
       PDF_VIEWER_EVENTS.BOOKMARK.LOAD.EMPTY,
       () => this.#renderEmpty(),
-      { subscriberId: 'BookmarkSidebarUI' }
+      { subscriberId: "BookmarkSidebarUI" }
     ));
 
     // 监听排序模式切换
     this.#unsubs.push(this.#eventBus.on(
       PDF_VIEWER_EVENTS.BOOKMARK.SORT.MODE_CHANGED,
       (data) => this.#handleSortModeChanged(data),
-      { subscriberId: 'BookmarkSidebarUI' }
+      { subscriberId: "BookmarkSidebarUI" }
     ));
 
     // 监听外部选中事件（来自 PDFBookmarkFeature）
@@ -81,14 +90,14 @@ export class BookmarkSidebarUI {
       PDF_VIEWER_EVENTS.BOOKMARK.SELECT.CHANGED,
       (data, metadata) => {
         // 只处理来自外部的选中事件（不是自己发出的）
-        if (metadata?.actorId !== 'BookmarkSidebarUI') {
+        if (metadata?.actorId !== "BookmarkSidebarUI") {
           this.#handleExternalSelection(data);
         }
       },
-      { subscriberId: 'BookmarkSidebarUI' }
+      { subscriberId: "BookmarkSidebarUI" }
     ));
 
-    this.#logger.info('BookmarkSidebarUI initialized with toolbar');
+    this.#logger.info("BookmarkSidebarUI initialized with toolbar");
   }
 
   /**
@@ -101,17 +110,22 @@ export class BookmarkSidebarUI {
 
   #renderBookmarks(bookmarks) {
     this.#bookmarks = Array.isArray(bookmarks) ? bookmarks : [];
-    if (!this.#bookmarkList) return;
+    if (!this.#bookmarkList) {return;}
 
     // 使用 jsTree 渲染树形结构
     const $container = $(this.#bookmarkList);
-    try { $container.jstree("destroy"); } catch {}
-    this.#bookmarkList.innerHTML = '';
+    try { $container.jstree("destroy"); } catch { /* ignore */ }
+    this.#bookmarkList.innerHTML = "";
     const data = this.#toJsTreeData(this.#bookmarks);
     $container.jstree({
       core: { data, check_callback: true, themes: { stripes: true } },
       plugins: ["dnd", "wholerow"],
       dnd: { is_draggable: () => true }
+    });
+    // 默认展开所有节点
+    // eslint-disable-next-line custom/event-name-format
+    $container.on("ready.jstree", () => {
+      try { $container.jstree(true).open_all(); } catch { /* ignore */ }
     });
     // 选择节点 → 发出导航与选中事件
     // eslint-disable-next-line custom/event-name-format
@@ -127,14 +141,14 @@ export class BookmarkSidebarUI {
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.BOOKMARK.SELECT.CHANGED,
           { bookmarkId: selected?.node?.id || null, bookmark: info.raw || null },
-          { actorId: 'BookmarkSidebarUI' }
+          { actorId: "BookmarkSidebarUI" }
         );
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.NAVIGATION.GOTO,
           { pageNumber, ...(position !== null ? { position } : {}) },
-          { actorId: 'BookmarkSidebarUI' }
+          { actorId: "BookmarkSidebarUI" }
         );
-      } catch (err) { this.#logger.warn('select_node failed', err); }
+      } catch (err) { this.#logger.warn("select_node failed", err); }
     });
     // 拖拽重排 → 发出 REORDER
     // eslint-disable-next-line custom/event-name-format
@@ -155,7 +169,7 @@ export class BookmarkSidebarUI {
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.BOOKMARK.REORDER.REQUESTED,
           { bookmarkId: movedId, newParentId: newParent, newIndex: preRemovalIndex },
-          { actorId: 'BookmarkSidebarUI' }
+          { actorId: "BookmarkSidebarUI" }
         );
       } catch (err) { this.#logger.warn("move_node failed", err); }
     });
@@ -166,7 +180,7 @@ export class BookmarkSidebarUI {
     const self = this;
     let lastEl = null; let lastZone = null; let dragNodeId = null; let movedHandled = false;
     const clearHighlight = () => {
-      if (!lastEl) return;
+      if (!lastEl) {return;}
       try {
         lastEl.style.borderTop = "";
         lastEl.style.borderBottom = "";
@@ -215,7 +229,7 @@ export class BookmarkSidebarUI {
           self.#eventBus.emit(
             PDF_VIEWER_EVENTS.BOOKMARK.REORDER.REQUESTED,
             { bookmarkId: dragNodeId, newParentId: null, newIndex: self.#bookmarks.length },
-            { actorId: 'BookmarkSidebarUI' }
+            { actorId: "BookmarkSidebarUI" }
           );
         }
       } catch (_) { /* ignore */ }
@@ -258,7 +272,7 @@ export class BookmarkSidebarUI {
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.BOOKMARK.SELECT.CHANGED,
       { bookmarkId, bookmark },
-      { actorId: 'BookmarkSidebarUI' }
+      { actorId: "BookmarkSidebarUI" }
     );
 
     this.#logger.debug(`Outline selected: ${bookmarkId}`);
@@ -272,20 +286,20 @@ export class BookmarkSidebarUI {
    */
   #updateSelectionUI(bookmarkId, scrollIntoView = false) {
     // 清除之前的选中状态（只选择书签标题按钮，不包括跳转按钮）
-    this.#bookmarkList.querySelectorAll('.bookmark-title-btn').forEach(btn => {
-      btn.style.backgroundColor = 'transparent';
-      btn.style.fontWeight = 'normal';
+    this.#bookmarkList.querySelectorAll(".bookmark-title-btn").forEach(btn => {
+      btn.style.backgroundColor = "transparent";
+      btn.style.fontWeight = "normal";
     });
 
     // 设置新的选中状态
     const selectedBtn = this.#bookmarkList.querySelector(`.bookmark-title-btn[data-bookmark-id="${bookmarkId}"]`);
     if (selectedBtn) {
-      selectedBtn.style.backgroundColor = '#e3f2fd';
-      selectedBtn.style.fontWeight = 'bold';
+      selectedBtn.style.backgroundColor = "#e3f2fd";
+      selectedBtn.style.fontWeight = "bold";
 
       // 滚动到可见区域
       if (scrollIntoView) {
-        selectedBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        selectedBtn.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     }
 
@@ -301,7 +315,7 @@ export class BookmarkSidebarUI {
   #handleExternalSelection(data) {
     const bookmarkId = data?.bookmarkId;
     if (!bookmarkId) {
-      this.#logger.warn('External selection event missing bookmarkId');
+      this.#logger.warn("External selection event missing bookmarkId");
       return;
     }
 
@@ -311,10 +325,10 @@ export class BookmarkSidebarUI {
   }
 
   #renderEmpty() {
-    if (!this.#bookmarkList) return;
+    if (!this.#bookmarkList) {return;}
 
     // 清空列表区域
-    this.#bookmarkList.innerHTML = '<div style="color:#666;padding:8px;text-align:center;">无书签</div>';
+    this.#bookmarkList.innerHTML = "<div style=\"color:#666;padding:8px;text-align:center;\">无书签</div>";
   }
 
   /**
@@ -328,22 +342,22 @@ export class BookmarkSidebarUI {
     this.#logger.info(`Sort mode changed: ${this.#sortMode}`);
 
     // 更新所有书签项的 draggable 属性
-    const bookmarkItems = this.#bookmarkList.querySelectorAll('li[data-bookmark-id]');
+    const bookmarkItems = this.#bookmarkList.querySelectorAll("li[data-bookmark-id]");
     bookmarkItems.forEach(li => {
       li.draggable = this.#sortMode;
       // 在排序模式下添加视觉提示
       if (this.#sortMode) {
-        li.style.cursor = 'move';
+        li.style.cursor = "move";
       } else {
-        li.style.cursor = '';
+        li.style.cursor = "";
       }
     });
 
     // 在排序模式下强制隐藏所有跳转按钮
     if (this.#sortMode) {
-      const jumpButtons = this.#bookmarkList.querySelectorAll('.bookmark-jump-btn');
+      const jumpButtons = this.#bookmarkList.querySelectorAll(".bookmark-jump-btn");
       jumpButtons.forEach(btn => {
-        btn.style.display = 'none';
+        btn.style.display = "none";
       });
     }
   }
@@ -361,20 +375,20 @@ export class BookmarkSidebarUI {
     const targetBookmark = this.#findBookmarkById(this.#bookmarks, targetId);
 
     if (!draggedBookmark || !targetBookmark) {
-      this.#logger.warn('Dragged or target bookmark not found');
+      this.#logger.warn("Dragged or target bookmark not found");
       return;
     }
 
     // 防止把父书签拖到自己的子孙书签中（会造成循环引用）
     if (this.#isDescendant(draggedId, targetId)) {
-      this.#logger.warn('Cannot move parent into its own descendant');
+      this.#logger.warn("Cannot move parent into its own descendant");
       return;
     }
 
     let newParentId;
     let newIndex;
 
-    if (dropZone === 'child') {
+    if (dropZone === "child") {
       // 成为目标书签的子项
       newParentId = targetId;
       newIndex = 0; // 插入到子项列表的开头
@@ -395,7 +409,7 @@ export class BookmarkSidebarUI {
       // 找到目标书签在同级列表中的索引
       const targetIndex = siblings.findIndex(b => b.id === targetId);
       if (targetIndex === -1) {
-        this.#logger.warn('Target bookmark not found in siblings');
+        this.#logger.warn("Target bookmark not found in siblings");
         return;
       }
 
@@ -405,7 +419,7 @@ export class BookmarkSidebarUI {
       // - after:  传递 targetIndex + 1
       // BookmarkManager 在同父且 oldIdx < targetIndex 的情况下会将内部插入索引左移 1，
       // 从而实现最终“before/after”语义的稳定结果。
-      newIndex = (dropZone === 'before') ? targetIndex : (targetIndex + 1);
+      newIndex = (dropZone === "before") ? targetIndex : (targetIndex + 1);
     }
 
     // 发出重新排序事件（同时附带引用与位置，便于特性层重新计算更稳妥的索引）
@@ -418,10 +432,10 @@ export class BookmarkSidebarUI {
         referenceId: targetId,
         position: dropZone
       },
-      { actorId: 'BookmarkSidebarUI' }
+      { actorId: "BookmarkSidebarUI" }
     );
 
-    this.#logger.info(`Reorder requested: ${draggedId} -> parent=${newParentId || 'root'}, index=${newIndex} (zone=${dropZone})`);
+    this.#logger.info(`Reorder requested: ${draggedId} -> parent=${newParentId || "root"}, index=${newIndex} (zone=${dropZone})`);
 
     // 本地立即应用排序结果，避免用户误以为未生效
     try {
@@ -433,7 +447,7 @@ export class BookmarkSidebarUI {
         this.#updateSelectionUI(draggedId, true);
       }
     } catch (e) {
-      this.#logger.warn('Local reorder preview failed:', e);
+      this.#logger.warn("Local reorder preview failed:", e);
     }
   }
 
@@ -447,7 +461,7 @@ export class BookmarkSidebarUI {
     const result = { node: null, parentId: null, index: -1 };
 
     const removeFrom = (arr, pid=null) => {
-      if (!Array.isArray(arr)) return false;
+      if (!Array.isArray(arr)) {return false;}
       const idx = arr.findIndex(x => x && x.id === bookmarkId);
       if (idx !== -1) {
         result.node = arr.splice(idx, 1)[0];
@@ -476,8 +490,8 @@ export class BookmarkSidebarUI {
    * @private
    */
   #insertLocalNode(node, parentId, index) {
-    if (!node) return;
-    const clamp = (i, len) => Math.max(0, Math.min(typeof i === 'number' ? i : 0, len));
+    if (!node) {return;}
+    const clamp = (i, len) => Math.max(0, Math.min(typeof i === "number" ? i : 0, len));
 
     if (!parentId) {
       const i = clamp(index, this.#bookmarks.length);
@@ -486,8 +500,8 @@ export class BookmarkSidebarUI {
     }
 
     const parent = this.#findBookmarkById(this.#bookmarks, parentId);
-    if (!parent) return;
-    if (!Array.isArray(parent.children)) parent.children = [];
+    if (!parent) {return;}
+    if (!Array.isArray(parent.children)) {parent.children = [];}
     const i = clamp(index, parent.children.length);
     parent.children.splice(i, 0, node);
   }
@@ -501,10 +515,10 @@ export class BookmarkSidebarUI {
    */
   #isDescendant(ancestorId, childId) {
     const ancestor = this.#findBookmarkById(this.#bookmarks, ancestorId);
-    if (!ancestor) return false;
+    if (!ancestor) {return false;}
 
     const checkChildren = (bookmark) => {
-      if (bookmark.id === childId) return true;
+      if (bookmark.id === childId) {return true;}
       if (bookmark.children && bookmark.children.length > 0) {
         return bookmark.children.some(child => checkChildren(child));
       }
@@ -528,7 +542,7 @@ export class BookmarkSidebarUI {
       }
       if (bookmark.children && bookmark.children.length > 0) {
         const found = this.#findBookmarkById(bookmark.children, bookmarkId);
-        if (found) return found;
+        if (found) {return found;}
       }
     }
     return null;
@@ -553,7 +567,7 @@ export class BookmarkSidebarUI {
 
     this.#sidebarContent = null;
     this.#bookmarkList = null;
-    this.#logger.info('BookmarkSidebarUI destroyed');
+    this.#logger.info("BookmarkSidebarUI destroyed");
   }
 }
 
