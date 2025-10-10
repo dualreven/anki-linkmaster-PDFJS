@@ -215,6 +215,7 @@ export class SearchResultsFeature {
             .filter(Boolean);
           if (!selectedIds || selectedIds.length === 0) {
             this.#logger.info("[SearchResultsFeature] 未选择任何条目，阅读操作中止");
+            toastWarning("请先选择要阅读的PDF");
             return;
           }
           if (!this.#qwcBridge) {
