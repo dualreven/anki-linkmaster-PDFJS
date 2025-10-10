@@ -159,22 +159,22 @@ export class WebSocketAdapter {
       WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED,
       () => {
         try {
-          const pdfId = (() => { try { return new URLSearchParams(window.location.search).get('pdf-id'); } catch { return null; } })();
+          const pdfId = (() => { try { return new URLSearchParams(window.location.search).get("pdf-id"); } catch { return null; } })();
           this.#wsClient.send({
             type: WEBSOCKET_MESSAGE_TYPES.VIEWER_REGISTER_REQUESTED,
             data: {
               viewer_id: this.#viewerInstanceId,
               pdf_uuid: pdfId,
-              url: window?.location?.href || '',
-              title: document?.title || ''
+              url: window?.location?.href || "",
+              title: document?.title || ""
             }
           });
-          this.#logger.info('[ViewerRegister] sent', { viewer_id: this.#viewerInstanceId, pdf_uuid: pdfId });
+          this.#logger.info("[ViewerRegister] sent", { viewer_id: this.#viewerInstanceId, pdf_uuid: pdfId });
         } catch (e) {
-          this.#logger.warn('failed to send viewer register', e);
+          this.#logger.warn("failed to send viewer register", e);
         }
       },
-      { subscriberId: 'WebSocketAdapter' }
+      { subscriberId: "WebSocketAdapter" }
     );
     // 📥 监听事件: pdf-viewer:file:load-success
     // 发射者: features/pdf
@@ -264,7 +264,7 @@ export class WebSocketAdapter {
         if (!anchor) {return;}
         try {
           // 规范化位置：确保 position 为 0..1 区间
-          if (typeof anchor.position === 'number') {
+          if (typeof anchor.position === "number") {
             anchor = { ...anchor, position: (anchor.position > 1 ? (anchor.position / 100) : anchor.position) };
           }
           this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_CREATE, { pdf_uuid: pdfId, anchor });
@@ -281,7 +281,7 @@ export class WebSocketAdapter {
         if (!id || !update) {return;}
         try {
           // 规范化位置：确保 position 为 0..1 区间
-          if (typeof update.position === 'number') {
+          if (typeof update.position === "number") {
             update = { ...update, position: (update.position > 1 ? (update.position / 100) : update.position) };
           }
           this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_UPDATE, { anchor_id: id, update });
@@ -469,38 +469,38 @@ export class WebSocketAdapter {
 
       // 路由匹配：若指定 viewer_id 且不匹配则忽略；若指定 pdf_uuid 且不匹配也忽略
       if (targetViewer && targetViewer !== this.#viewerInstanceId) {
-        this.#logger.debug('[Navigate] ignore message: viewer_id mismatch', { targetViewer, self: this.#viewerInstanceId });
+        this.#logger.debug("[Navigate] ignore message: viewer_id mismatch", { targetViewer, self: this.#viewerInstanceId });
         return;
       }
-      const currentPdf = (() => { try { return new URLSearchParams(window.location.search).get('pdf-id'); } catch { return null; } })();
+      const currentPdf = (() => { try { return new URLSearchParams(window.location.search).get("pdf-id"); } catch { return null; } })();
       if (targetPdf && currentPdf && targetPdf !== currentPdf) {
-        this.#logger.debug('[Navigate] ignore message: pdf_uuid mismatch', { targetPdf, currentPdf });
+        this.#logger.debug("[Navigate] ignore message: pdf_uuid mismatch", { targetPdf, currentPdf });
         return;
       }
 
-      const mode = data?.target?.type || data?.mode || 'page';
+      const mode = data?.target?.type || data?.mode || "page";
       const opts = data?.options || {};
 
-      if (mode === 'annotation' || mode === 'anchor') {
+      if (mode === "annotation" || mode === "anchor") {
         const annotationId = data?.target?.annotation_id || data?.annotation_id || data?.target?.anchor_id || data?.anchor_id;
         if (!annotationId) {
-          throw new Error('annotation_id/anchor_id required for annotation/anchor mode');
+          throw new Error("annotation_id/anchor_id required for annotation/anchor mode");
         }
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
           { annotationId, highlight: !!opts.highlight },
-          { actorId: 'WebSocketAdapter' }
+          { actorId: "WebSocketAdapter" }
         );
-      } else if (mode === 'page' || mode === 'xy') {
+      } else if (mode === "page" || mode === "xy") {
         const pageNumber = Number(data?.target?.page_number ?? data?.page_number);
         if (!Number.isFinite(pageNumber)) {
-          throw new Error('page_number must be a number');
+          throw new Error("page_number must be a number");
         }
         const position = data?.target?.position || data?.position || null; // { y_percent, x_percent } or { x, y }
         const payload = { pageNumber };
-        if (position) payload.position = position;
-        if (opts?.zoom) payload.zoom = opts.zoom;
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.GOTO, payload, { actorId: 'WebSocketAdapter' });
+        if (position) {payload.position = position;}
+        if (opts?.zoom) {payload.zoom = opts.zoom;}
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.GOTO, payload, { actorId: "WebSocketAdapter" });
       } else {
         throw new Error(`unsupported navigate mode: ${mode}`);
       }
@@ -512,7 +512,7 @@ export class WebSocketAdapter {
         data: { viewer_id: this.#viewerInstanceId }
       });
     } catch (error) {
-      this.#logger.error('[Navigate] failed', error);
+      this.#logger.error("[Navigate] failed", error);
       this.#wsClient.send({
         type: WEBSOCKET_MESSAGE_TYPES.VIEWER_NAVIGATE_FAILED,
         request_id: correlationId,
@@ -529,15 +529,15 @@ export class WebSocketAdapter {
    */
   static #resolveViewerInstanceId() {
     try {
-      const key = 'pdf_viewer_instance_id';
+      const key = "pdf_viewer_instance_id";
       let id = window?.sessionStorage?.getItem(key);
       if (!id) {
-        id = 'vwr_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+        id = "vwr_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
         window?.sessionStorage?.setItem(key, id);
       }
       return id;
     } catch {
-      return 'vwr_' + Math.random().toString(36).slice(2, 10);
+      return "vwr_" + Math.random().toString(36).slice(2, 10);
     }
   }
 
