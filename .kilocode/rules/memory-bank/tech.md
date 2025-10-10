@@ -198,6 +198,45 @@ python ai_launcher.py stop
 **功能**：按顺序停止所有正在运行的服务
 1. 前端模块窗口
 2. Vite 开发服务器
+
+## Anki 插件事件桥接（可选）
+
+模块：`src/integrations/anki_event_bridge.py`
+
+- 用途：在 Anki 插件环境中订阅插件侧事件总线（`hjp_linkmaster_dev.lib.common_tools.event_bus`），接收“打开 pdf-viewer / 打开 pdf-home”请求并启动对应窗口。
+- 事件命名（与本仓对齐）：
+  - 打开 viewer：`pdf-library:open:viewer`（兼容 `open_pdf` / `pdf-library:viewer:requested`）
+  - 打开 home：`pdf-library:open:home`
+- 插件侧用法：
+  ```python
+  from src.integrations.anki_event_bridge import setup_bridge
+  setup_bridge()  # 若 event_bus 可导入，则自动订阅 request 通道
+  ```
+- payload 示例：
+  ```python
+  { 'type': 'pdf-library:open:viewer', 'data': { 'file_id': 'sample', 'viewer_options': { 'page': 5, 'position': 50, 'anchor_id': 'pdfanchor-test' } } }
+  { 'type': 'pdf-library:open:home', 'data': {} }
+  ```
+
+## Integrations 构建脚本
+
+脚本：`build.integrations.py`
+
+- 作用：将 `src/integrations` 复制到目标构建目录（默认 `dist/latest/src/integrations`），并输出元信息 JSON（UTF-8 + \n）。
+- 用法：
+  ```bash
+  python build.integrations.py --dist dist/latest --clean
+  ```
+- 说明：默认还会确保 `dist/latest/logs` 目录存在（桥接模块日志目录）。
+
+### 与 rebuilda_all 集成
+- 在 `rebuilda_all.py:build_all()` 中，已追加：
+  ```bash
+  python -X utf8 build.integrations.py --dist dist/latest --clean
+  ```
+- 因此执行 `python rebuilda_all.py` 的构建流程后，产物将包含：
+  - `dist/latest/src/integrations/*`
+  - `dist/latest/build.integrations.meta.json`
 3. 后端服务器
 
 **清理操作**：

@@ -339,6 +339,61 @@ logger.error('错误信息', errorObject);
 - **详细历史**：参见 `AItemp/` 目录下的AI工作日志
 ---
 
+### 当前任务（20251011023000）
+名称：Anki 插件事件桥接（pdf-viewer / pdf-home 打开）
+
+背景：
+- 插件侧提供通用事件总线（request/response 信号，事件为 dict，建议包含 type/request_id）；
+- 需要在本仓内订阅插件的“打开窗口”类请求，并以与仓内一致的事件命名进行对齐；
+
+事件命名（对齐本仓三段式）：
+- 打开 viewer：`pdf-library:open:viewer`（兼容 `open_pdf` / `pdf-library:viewer:requested`）
+- 打开 home：`pdf-library:open:home`（新约定，待插件侧确认）
+
+涉及模块/文件：
+- 新增：`src/integrations/anki_event_bridge.py`
+- 测试：`tests/test_anki_event_bridge.py`
+
+执行步骤（原子）：
+1) 读取插件 `event_bus.py` 机制，确认 `on_request/emit_request`
+2) 设计桥接类：try 导入 → 订阅 → 解析 payload → 调用启动器
+3) 先编写测试（桩模块注入 `hjp_linkmaster_dev.lib.common_tools.event_bus`）
+4) 实现桥接模块，显式 UTF-8 日志输出
+5) 运行并通过测试
+
+状态：已完成（测试通过）。
+
+### 当前任务（20251011024500）
+名称：新增 integrations 构建脚本（build.integrations.py）
+
+背景：
+- 需要为插件侧分发 `src/integrations`（含 anki_event_bridge.py），以便在 dist 包中可直接 import。
+
+执行步骤（原子）：
+1) 对齐现有 build.* 风格与 dist 目录约定；
+2) 先写测试：调用脚本到临时 dist，断言 `src/integrations/anki_event_bridge.py` 与元信息 JSON 存在；
+3) 实现脚本：过滤复制、UTF-8 元信息写入、--clean 支持；
+4) 运行测试并通过。
+
+涉及文件：
+- 新增：`build.integrations.py`
+- 新增测试：`tests/test_build_integrations.py`
+
+状态：已完成（测试通过）。
+
+### 当前任务（20251011025500）
+名称：将 integrations 构建集成到 rebuilda_all.py
+
+背景：
+- 希望一键构建时自动包含 `src/integrations`，便于 Anki 插件侧直接引入 dist 包。
+
+执行步骤（原子）：
+1) 在 `rebuilda_all.py:build_all()` 中，pdf-home 构建之后追加调用 `build.integrations.py --dist dist/latest --clean`；
+2) 验证参数与编码标志与既有风格一致（`-X utf8`）。
+
+状态：已完成，并记录于 AItemp。
+
+
 ### 当前任务（20251010175226）
 名称：修复生产环境打开 pdf-viewer 显示目录而非 index.html（/pdf-viewer/ 路由与构建协作）
 
