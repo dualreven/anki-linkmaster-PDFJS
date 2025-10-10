@@ -417,8 +417,14 @@ def _start_vite(npm_port: int) -> Optional[int]:
             except Exception as e:
                 LOGGER.debug("Error parsing Vite log: %s", e)
 
-            # Check if process died
+            # Check if process died (Windows/pnpm may re-spawn child and the original PID exits quickly).
+            # Treat as running if the requested port is already listening, even if the tracked PID exited.
             if not is_process_running(pid):
+                # If the requested port is already listening, continue waiting for log stabilization.
+                if _port_is_listening(npm_port):
+                    LOGGER.info("Vite original PID %s exited, but port %s is listening; waiting for log confirmation...", pid, npm_port)
+                    # Do not return here; continue loop to parse log and capture actual_port
+                    continue
                 LOGGER.error("✗ Vite process exited prematurely (PID: %s)", pid)
                 _save_dev_process(None, npm_port, f"pnpm run dev -- --port {npm_port}")
                 return None
