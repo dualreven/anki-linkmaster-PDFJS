@@ -357,12 +357,32 @@ export class SearchResultsFeature {
    * @private
    */
   #subscribeToFilterEvents(sidBase) {
-    // 监听搜索请求，记录最近一次的分页限制
+    // 监听搜索请求，记录或清除分页限制
+    // - 如果请求明确提供了 pagination.limit，则记录（侧边栏快捷查询）
+    // - 如果请求未提供 pagination，则清除限制（普通搜索）
     const unsubSearchRequested = this.#globalEventBus.on("search:query:requested", (data) => {
       try {
-        const lim = Number(data?.pagination?.limit);
-        if (!Number.isNaN(lim) && lim > 0) {this.#lastRequestedPageLimit = lim;}
-      } catch { /* ignore pagination parsing errors */ }
+        // 如果请求中明确提供了 pagination 对象
+        if (data && typeof data.pagination === "object" && data.pagination !== null) {
+          const lim = Number(data.pagination.limit);
+          if (!Number.isNaN(lim) && lim > 0) {
+            // 有明确的正数限制，记录（侧边栏快捷查询）
+            this.#lastRequestedPageLimit = lim;
+            this.#logger.debug("[SearchResultsFeature] Pagination limit set", { limit: lim });
+          } else {
+            // pagination 存在但 limit 无效，清除缓存
+            this.#lastRequestedPageLimit = null;
+            this.#logger.debug("[SearchResultsFeature] Pagination limit cleared (invalid)");
+          }
+        } else {
+          // 没有提供 pagination，清除缓存（普通搜索）
+          this.#lastRequestedPageLimit = null;
+          this.#logger.debug("[SearchResultsFeature] Pagination limit cleared (no pagination)");
+        }
+      } catch {
+        /* ignore pagination parsing errors, clear cache */
+        this.#lastRequestedPageLimit = null;
+      }
     }, { subscriberId: `${this.name}:${sidBase}:search-query-req` });
     this.#unsubscribers.push(unsubSearchRequested);
     // 监听搜索结果更新（来自search插件）
