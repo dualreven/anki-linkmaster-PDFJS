@@ -16,7 +16,6 @@ export class SearchResultsFeature {
   static bridgeFactory = null;
   static setBridgeFactory(factory) { SearchResultsFeature.bridgeFactory = factory; }
 
-  #context = null;
   #logger = null;
   #scopedEventBus = null;
   #globalEventBus = null;
@@ -48,7 +47,6 @@ export class SearchResultsFeature {
    * 安装Feature
    */
   async install(context) {
-    this.#context = context;
     this.#logger = context.logger;
     this.#scopedEventBus = context.scopedEventBus;
     this.#globalEventBus = context.globalEventBus;
@@ -216,7 +214,7 @@ export class SearchResultsFeature {
             this.#logger.warn("[SearchResultsFeature] QWebChannel 未初始化，无法打开阅读窗口");
             return;
           }
-          try { await this.#qwcBridge.initialize?.(); } catch {}
+          try { await this.#qwcBridge.initialize?.(); } catch { /* ignore init errors */ }
           if (this.#qwcBridge.isReady && !this.#qwcBridge.isReady()) {
             this.#logger.warn("[SearchResultsFeature] QWebChannel 未就绪，无法打开阅读窗口");
             return;
@@ -364,7 +362,7 @@ export class SearchResultsFeature {
       try {
         const lim = Number(data?.pagination?.limit);
         if (!Number.isNaN(lim) && lim > 0) {this.#lastRequestedPageLimit = lim;}
-      } catch (_) {}
+      } catch { /* ignore pagination parsing errors */ }
     }, { subscriberId: `${this.name}:${sidBase}:search-query-req` });
     this.#unsubscribers.push(unsubSearchRequested);
     // 监听搜索结果更新（来自search插件）
@@ -399,7 +397,8 @@ export class SearchResultsFeature {
         this.#pendingFocusIds = ids.length ? ids : null;
         // 若已有结果，立即尝试应用
         this.#applyPendingFocus();
-      } catch (e) {
+      } catch {
+        /* ignore focus parsing errors, reset pending focus */
         this.#pendingFocusIds = null;
       }
     }, { subscriberId: `${this.name}:${sidBase}:focus-requested` });
@@ -442,7 +441,7 @@ export class SearchResultsFeature {
         }
 
         // ensure initialized (idempotent)
-        try { await this.#qwcBridge.initialize?.(); } catch {}
+        try { await this.#qwcBridge.initialize?.(); } catch { /* ignore init errors */ }
 
         if (this.#qwcBridge.isReady && !this.#qwcBridge.isReady()) {
           await new Promise(r => setTimeout(r, 200));
@@ -491,7 +490,7 @@ export class SearchResultsFeature {
       if (typeof v === "string") {
         return v === "true";
       }
-    } catch (_) {}
+    } catch { /* ignore localStorage access errors */ }
     return this.#allowWsDetailFallback === true;
   }
 
@@ -519,8 +518,8 @@ export class SearchResultsFeature {
             off();
             resolve(null);
           }
-        } catch (_) {
-          // ignore parse errors
+        } catch {
+          /* ignore message parsing errors */
         }
       }, { subscriberId: `${this.name}:fetch-detail:${rid}` });
 
@@ -531,7 +530,7 @@ export class SearchResultsFeature {
       // 超时兜底
       setTimeout(() => {
         if (!settled) {
-          try { off(); } catch {}
+          try { off(); } catch { /* ignore unsubscribe errors */ }
           resolve(null);
         }
       }, this.#requestTimeoutMs);
@@ -554,7 +553,8 @@ export class SearchResultsFeature {
       } else {
         this.#currentResults = results || [];
       }
-    } catch (_) {
+    } catch {
+      /* ignore slicing errors, fallback to full results */
       this.#currentResults = results || [];
     }
 
@@ -580,7 +580,7 @@ export class SearchResultsFeature {
         const fid = String(focusId);
         this.#pendingFocusIds = new Set([fid]);
       }
-    } catch (_) {}
+    } catch { /* ignore focus parsing errors */ }
 
     // 渲染完成后应用待定聚焦/高亮
     this.#applyPendingFocus();
@@ -601,13 +601,13 @@ export class SearchResultsFeature {
       });
       if (firstEl) {
         // 清除其他聚焦并滚动至视图
-        try { this.#resultsContainer.querySelectorAll(".search-result-item.focused").forEach(it => it.classList.remove("focused")); } catch (_) {}
+        try { this.#resultsContainer.querySelectorAll(".search-result-item.focused").forEach(it => it.classList.remove("focused")); } catch { /* ignore DOM errors */ }
         firstEl.classList.add("focused");
-        try { firstEl.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (_) {}
+        try { firstEl.scrollIntoView({ behavior: "smooth", block: "center" }); } catch { /* ignore scroll errors */ }
       }
       // 应用一次后清空
       this.#pendingFocusIds = null;
-    } catch (_) {}
+    } catch { /* ignore focus application errors */ }
   }
 
   /**
@@ -622,7 +622,8 @@ export class SearchResultsFeature {
           ? displayCount : (Array.isArray(this.#currentResults) ? this.#currentResults.length : 0);
         const total = (typeof count === "number" && count >= 0) ? count : shown;
         countBadge.textContent = `显示 ${shown} / 共 ${total} 条`;
-      } catch (_) {
+      } catch {
+        /* fallback to simple count display */
         countBadge.textContent = `共 ${count} 条`;
       }
 
