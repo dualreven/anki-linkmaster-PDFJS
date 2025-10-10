@@ -5,8 +5,9 @@
  * @implements {IFeature}
  */
 
-import { getLogger } from '../../../common/utils/logger.js';
-import { PDF_VIEWER_EVENTS } from '../../../common/event/pdf-viewer-constants.js';
+import { getLogger } from "../../../common/utils/logger.js";
+import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
+import { createScopedEventBus } from "../../../common/event/scoped-event-bus.js";
 import { URLParamsParser } from './components/url-params-parser.js';
 import { URLNavigationFeatureConfig } from './feature.config.js';
 
@@ -81,13 +82,13 @@ export class URLNavigationFeature {
 
     // 1. 从context中获取依赖
     const container = context.container || context;  // 兼容旧版本直接传container的情况
-    this.#eventBus = context.globalEventBus || container.get('eventBus');
+    this.#eventBus = context.globalEventBus || container.get("eventBus");
     if (!this.#eventBus) {
       throw new Error('EventBus未在容器或context中找到');
     }
 
     // 2. 从容器获取导航服务（由 core-navigation Feature 提供）
-    this.#navigationService = container.get('navigationService');
+    this.#navigationService = container.get("navigationService");
     if (!this.#navigationService) {
       throw new Error('[url-navigation] navigationService 未在容器中找到，请确保 core-navigation Feature 已安装');
     }
@@ -135,8 +136,9 @@ export class URLNavigationFeature {
       this.#tryExecuteGatedNavigation();
     }, { subscriberId: 'URLNavigationFeature' });
 
-    // 监听标注“数据加载完成”的全局事件
-    this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, () => {
+    // 监听标注“数据加载完成”的作用域事件（使用 annotation 作用域的 ScopedEventBus 订阅）
+    const annotationBus = createScopedEventBus(this.#eventBus, "annotation");
+    annotationBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, () => {
       this.#logger.info("[url-navigation] 捕获标注数据加载完成事件");
       this.#annotationDataLoaded = true;
       this.#tryExecuteGatedNavigation();
