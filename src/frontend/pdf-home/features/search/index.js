@@ -167,8 +167,8 @@ export class SearchFeature {
    * @private
    */
   #setupGlobalEventListeners(sidBase) {
-    // 搜索开始：显示“搜索中”
-    const unsubStarted = this.#globalEventBus.on("search:query:started", (data) => {
+    // 搜索开始：显示"搜索中"
+    const unsubStarted = this.#globalEventBus.on("search:query:started", () => {
       try {
         // 用户偏好：非粘性 3000ms
         showInfoWithId("search:busy", "搜索中", 3000);
@@ -188,13 +188,13 @@ export class SearchFeature {
           hasResults: data.count > 0
         });
       }
-      try { dismissById("search:busy"); } catch {}
+      try { dismissById("search:busy"); } catch { /* ignore dismiss errors */ }
     }, { subscriberId: `${this.name}:${sidBase}:search-results-updated` });
     this.#unsubscribers.push(unsubResults);
 
     // 搜索失败：隐藏进行中的提示
     const unsubFailed = this.#globalEventBus.on("search:results:failed", () => {
-      try { dismissById("search:busy"); } catch {}
+      try { dismissById("search:busy"); } catch { /* ignore dismiss errors */ }
     }, { subscriberId: `${this.name}:${sidBase}:search-results-failed` });
     this.#unsubscribers.push(unsubFailed);
   }
