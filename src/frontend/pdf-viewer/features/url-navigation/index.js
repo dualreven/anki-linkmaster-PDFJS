@@ -144,6 +144,19 @@ export class URLNavigationFeature {
       this.#tryExecuteGatedNavigation();
     }, { subscriberId: 'URLNavigationFeature' });
 
+    // 监听 pdf-reader 的首页渲染成功，作为渲染就绪的兜底信号（部分环境下未显式发 RENDER.READY）
+    const readerBus = createScopedEventBus(this.#eventBus, "pdf-reader");
+    readerBus.on('page:render:success', (data) => {
+      try {
+        // 首次页面渲染成功即可视为渲染就绪
+        if (!this.#renderReady) {
+          this.#logger.info("[url-navigation] 捕获 pdf-reader/page:render:success 事件，视作渲染就绪");
+          this.#renderReady = true;
+          this.#tryExecuteGatedNavigation();
+        }
+      } catch (_) {}
+    }, { subscriberId: 'URLNavigationFeature' });
+
     // 注意：不在这里触发PDF加载，因为Bootstrap会根据launcher.py传递的file参数自动加载PDF
     // URLNavigationFeature只需要监听FILE.LOAD.SUCCESS事件，等PDF加载完成后再执行导航即可
 
