@@ -393,6 +393,27 @@ logger.error('错误信息', errorObject);
 
 状态：已完成，并记录于 AItemp。
 
+### 当前任务（20251011032000）
+名称：URL 参数支持 annotation-id 并自动跳转标注（线路A）
+
+背景：
+- 需求：Anki 插件事件回调启动 viewer 时，携带需要聚焦的标注 ID；前端加载后自动定位并高亮该标注。
+
+执行步骤（原子）：
+1) 解析并传递 annotation-id（bridge → launcher CLI → URL）
+2) 扩展 URLParamsParser 解析 annotationId
+3) URLNavigationFeature 在 PDF 加载完成后尝试触发标注跳转（重试机制）
+4) 运行测试（bridge 层）
+
+涉及文件：
+- src/integrations/anki_event_bridge.py
+- src/frontend/pdf-viewer/launcher.py
+- src/frontend/pdf-viewer/features/url-navigation/components/url-params-parser.js
+- src/frontend/pdf-viewer/features/url-navigation/index.js
+- tests/test_anki_event_bridge.py
+
+状态：已完成（测试通过）。
+
 
 ### 当前任务（20251010175226）
 名称：修复生产环境打开 pdf-viewer 显示目录而非 index.html（/pdf-viewer/ 路由与构建协作）

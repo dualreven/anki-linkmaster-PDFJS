@@ -66,6 +66,7 @@ class LaunchOptions:
     page_at: Optional[int] = None
     position: Optional[float] = None
     anchor_id: Optional[str] = None
+    annotation_id: Optional[str] = None
 
 
 class AnkiEventBridge:
@@ -144,6 +145,8 @@ class AnkiEventBridge:
             cmd += ["--position", str(float(opts.position))]
         if opts.anchor_id:
             cmd += ["--anchor-id", str(opts.anchor_id)]
+        if opts.annotation_id:
+            cmd += ["--annotation-id", str(opts.annotation_id)]
 
         self._logger.info("启动 pdf-viewer：%s", " ".join(cmd))
         self._runner(cmd)
@@ -171,6 +174,10 @@ class AnkiEventBridge:
             or vopt.get("anchor_id")
             or vopt.get("pdfanchor")
         )
+        annotation_id = (
+            data.get("annotation_id")
+            or vopt.get("annotation_id")
+        )
 
         try:
             page_at = int(page) if page is not None else None
@@ -187,6 +194,7 @@ class AnkiEventBridge:
             page_at=page_at,
             position=pos_val,
             anchor_id=str(anchor_id) if anchor_id else None,
+            annotation_id=str(annotation_id) if annotation_id else None,
         )
 
 
@@ -201,4 +209,3 @@ def setup_bridge(project_root: Optional[Path] = None) -> Optional[AnkiEventBridg
     """便捷方法：创建桥接并尝试订阅。成功则返回实例，否则返回 None。"""
     bridge = AnkiEventBridge(project_root=project_root)
     return bridge if bridge.try_setup() else None
-

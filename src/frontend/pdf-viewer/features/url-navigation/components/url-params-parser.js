@@ -21,6 +21,7 @@ export class URLParamsParser {
    * @returns {number|null} return.pageAt - 目标页码（从1开始）
    * @returns {number|null} return.position - 页面内位置百分比（0-100）
    * @returns {string|null} return.anchorId - 锚点ID（12位十六进制）
+   * @returns {string|null} return.annotationId - 标注ID（字符串）
    * @returns {boolean} return.hasParams - 是否存在任何导航参数
    *
    * @example
@@ -42,6 +43,7 @@ export class URLParamsParser {
       const pdfId = params.get('pdf-id');
       const title = params.get('title');
       const anchorId = params.get('anchor-id');
+      const annotationId = params.get('annotation-id');
       const pageAtStr = params.get('page-at');
       const positionStr = params.get('position');
 
@@ -49,7 +51,7 @@ export class URLParamsParser {
       const pageAt = pageAtStr ? parseInt(pageAtStr, 10) : null;
       const position = positionStr ? parseFloat(positionStr) : null;
 
-      const hasParams = pdfId !== null || pageAt !== null || position !== null || anchorId !== null;
+      const hasParams = pdfId !== null || pageAt !== null || position !== null || anchorId !== null || annotationId !== null;
 
       const result = {
         pdfId,
@@ -57,6 +59,7 @@ export class URLParamsParser {
         pageAt,
         position,
         anchorId,
+        annotationId,
         hasParams,
       };
 
@@ -70,6 +73,7 @@ export class URLParamsParser {
         pageAt: null,
         position: null,
         anchorId: null,
+        annotationId: null,
         hasParams: false,
         error: error.message,
       };
@@ -83,6 +87,7 @@ export class URLParamsParser {
    * @param {number|null} params.pageAt - 目标页码
    * @param {number|null} params.position - 位置百分比
    * @param {string|null} [params.anchorId] - 锚点ID
+   * @param {string|null} [params.annotationId] - 标注ID
    * @returns {Object} 验证结果
    * @returns {boolean} return.isValid - 参数是否有效
    * @returns {string[]} return.errors - 错误信息数组
@@ -136,6 +141,14 @@ export class URLParamsParser {
       const v = String(params.anchorId).trim();
       if (!/^pdfanchor-[a-f0-9]{12}$/i.test(v)) {
         warnings.push("anchor-id 格式异常（期望 'pdfanchor-' + 12位十六进制），将忽略");
+      }
+    }
+
+    // 验证 annotation-id（可选）：放宽为非空字符串
+    if (params.annotationId !== null && params.annotationId !== undefined) {
+      const s = String(params.annotationId).trim();
+      if (s.length === 0) {
+        warnings.push('annotation-id 为空，将忽略');
       }
     }
 

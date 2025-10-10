@@ -199,56 +199,67 @@ export class URLNavigationFeature {
       return;
     }
 
-    // 检查是否有页面跳转需求
-    const { pageAt, position } = this.#parsedParams;
-    if (pageAt === null && position === null) {
-      this.#logger.debug('无页面导航参数，跳过导航');
+    const { pageAt, position, annotationId } = this.#parsedParams || {};
+    const needNav = !(pageAt === null && position === null);
+    const needAnn = !!annotationId;
+
+    if (!needNav && !needAnn) {
+      this.#logger.debug('无导航或标注跳转参数，跳过处理');
       this.#hasProcessedParams = true;
       return;
     }
 
-    this.#logger.info('PDF加载成功，等待PDFViewer完全初始化后执行页面导航');
-
+    this.#logger.info('PDF加载成功，等待PDFViewer初始化后处理导航/标注');
     // 等待PDFViewer完全初始化（pagesCount > 0）
-    // 根据日志，PDFViewer在setDocument后约2秒完成初始化
-    await new Promise(resolve => setTimeout(resolve, 2500));
-
-    this.#logger.info('PDFViewer初始化完成，开始执行页面导航');
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     try {
-      // 标准化参数（使用PDF的实际总页数）
-      const totalPages = this.#navigationService.getTotalPages();
-      const normalizedParams = URLParamsParser.normalize(
-        { pageAt, position },
-        { maxPages: totalPages }
-      );
-
-      // 执行导航
-      const result = await this.#navigationService.navigateTo({
-        pageAt: normalizedParams.pageAt || 1,
-        position: normalizedParams.position,
-      });
-
-      if (result.success) {
-        const totalDuration = this.#navigationStartTime
-          ? Math.round(performance.now() - this.#navigationStartTime)
-          : result.duration;
-
-        this.#emitNavigationSuccess({
-          pdfId: this.#parsedParams.pdfId,
-          pageAt: result.actualPage,
-          position: result.actualPosition,
-          duration: totalDuration,
-        });
-      } else {
-        this.#emitNavigationFailed(
-          new Error(result.error || '导航失败'),
-          'navigate'
+      let navOk = false;
+      if (needNav) {
+        const totalPages = this.#navigationService.getTotalPages();
+        const normalizedParams = URLParamsParser.normalize(
+          { pageAt, position },
+          { maxPages: totalPages }
         );
+        const result = await this.#navigationService.navigateTo({
+          pageAt: normalizedParams.pageAt || 1,
+          position: normalizedParams.position,
+        });
+        if (result.success) {
+          const totalDuration = this.#navigationStartTime
+            ? Math.round(performance.now() - this.#navigationStartTime)
+            : result.duration;
+          this.#emitNavigationSuccess({
+            pdfId: this.#parsedParams.pdfId,
+            pageAt: result.actualPage,
+            position: result.actualPosition,
+            duration: totalDuration,
+          });
+          navOk = true;
+        } else {
+          this.#emitNavigationFailed(new Error(result.error || '导航失败'), 'navigate');
+        }
+      }
+
+      // 若存在 annotationId，尝试触发标注跳转（重试几次，等待标注数据加载）
+      if (needAnn) {
+        const attempts = 3;
+        const gap = 800; // ms
+        for (let i = 0; i < attempts; i++) {
+          this.#logger.info(`[url-navigation] 触发标注跳转尝试(${i+1}/${attempts}): ${annotationId}`);
+          this.#eventBus.emit(
+            PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
+            { id: annotationId },
+            { actorId: 'URLNavigationFeature' }
+          );
+          // 简单等待一段时间，给 AnnotationFeature 加载数据的机会
+          // 若已经成功，重复发也无害（会再次聚焦同一标注）
+          // eslint-disable-next-line no-await-in-loop
+          await new Promise(resolve => setTimeout(resolve, gap));
+        }
       }
     } catch (error) {
-      this.#logger.error('导航执行失败:', error);
-      this.#emitNavigationFailed(error, 'navigate');
+      this.#logger.error('导航/标注处理失败:', error);
     } finally {
       this.#hasProcessedParams = true;
     }
