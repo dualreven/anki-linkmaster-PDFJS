@@ -121,7 +121,7 @@ export class SortManager {
     this.#logger.info('[SortManager] Multi-sort applied', { resultCount: sortedData.length });
 
     // 触发全局事件通知其他Feature
-    this.#globalEventBus.emit('@pdf-sorter/sort:applied', {
+    this.#globalEventBus.emit('sorter:sort:applied', {
       mode: 'multi',
       configs,
       resultCount: sortedData.length
@@ -166,7 +166,7 @@ export class SortManager {
       this.#logger.info('[SortManager] Weighted sort applied', { resultCount: sortedData.length });
 
       // 触发全局事件通知其他Feature
-      this.#globalEventBus.emit('@pdf-sorter/sort:applied', {
+      this.#globalEventBus.emit('sorter:sort:applied', {
         mode: 'weighted',
         formula,
         resultCount: sortedData.length
@@ -191,7 +191,7 @@ export class SortManager {
     this.#weightedFormula = '';
 
     // 触发全局事件
-    this.#globalEventBus.emit('@pdf-sorter/sort:cleared', {});
+    this.#globalEventBus.emit('sorter:sort:cleared', {});
 
     return this.#dataSource ? [...this.#dataSource] : [];
   }

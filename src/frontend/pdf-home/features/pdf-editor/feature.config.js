@@ -116,7 +116,7 @@ export const PDFEditorFeatureConfig = {
       // 全局事件（跨功能域通信）
       global: {
         // PDF 记录更新事件（通知其他功能域）
-        RECORD_UPDATED: 'pdf:editor:record:updated',
+        RECORD_UPDATED: 'editor:record:updated',
         // 编辑请求事件（监听来自 pdf-list 的请求）
         EDIT_REQUESTED: 'pdf:edit:requested'
       }

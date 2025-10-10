@@ -270,6 +270,28 @@ export const SIDEBAR_EVENTS = {
   }
 };
 
+// PDF编辑器事件（用于 pdf-editor 功能域）
+export const PDF_EDITOR_EVENTS = {
+  RECORD: {
+    UPDATED: 'editor:record:updated'
+  }
+};
+
+// 表头事件（用于排序等功能）
+export const HEADER_EVENTS = {
+  SORT: {
+    REQUESTED: 'header:sort:requested'
+  }
+};
+
+// 排序器事件（用于 pdf-sorter 功能域）
+export const SORTER_EVENTS = {
+  SORT: {
+    APPLIED: 'sorter:sort:applied',
+    CLEARED: 'sorter:sort:cleared'
+  }
+};
+
 export const validateEventName = (eventName) => {
   if (!eventName || typeof eventName !== 'string') return false;
   const parts = eventName.split(':');
@@ -287,7 +309,10 @@ export const EVENT_CONSTANTS = {
   SEARCH: SEARCH_EVENTS,
   FILTER: FILTER_EVENTS,
   SEARCH_RESULTS: SEARCH_RESULTS_EVENTS,
-  SIDEBAR: SIDEBAR_EVENTS
+  SIDEBAR: SIDEBAR_EVENTS,
+  PDF_EDITOR: PDF_EDITOR_EVENTS,
+  HEADER: HEADER_EVENTS,
+  SORTER: SORTER_EVENTS
 };
 
 export default EVENT_CONSTANTS;

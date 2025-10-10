@@ -91,7 +91,8 @@ export const PDFSorterFeatureConfig = {
       // 全局事件（跨功能域通信）
       global: {
         // 通知其他功能域排序已改变
-        SORT_APPLIED: 'pdf:sorter:sort:applied'
+        SORT_APPLIED: 'sorter:sort:applied',
+        SORT_CLEARED: 'sorter:sort:cleared'
       }
     },
 
