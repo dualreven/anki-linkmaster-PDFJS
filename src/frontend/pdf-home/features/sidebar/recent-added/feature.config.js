@@ -22,8 +22,8 @@ export const RecentAddedFeatureConfig = {
     // 事件定义
     events: {
       local: {
-        PDF_CLICKED: 'pdf:clicked',
-        LIMIT_CHANGED: 'limit:changed'
+        PDF_CLICKED: 'pdf:item:clicked',
+        LIMIT_CHANGED: 'limit:value:changed'
       },
       global: {
         PDF_ADDED: 'pdf:added'

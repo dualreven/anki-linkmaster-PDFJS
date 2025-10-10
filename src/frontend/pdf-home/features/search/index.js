@@ -47,7 +47,16 @@ export class SearchFeature {
       this.#searchManager = new SearchManager(this.#globalEventBus);
 
       // 4. 注册 SearchManager 到容器（可选，供其他 Feature 使用）
-      context.container.register("searchManager", this.#searchManager);
+      try {
+        if (typeof context.container?.has === 'function' && !context.container.has('searchManager')) {
+          context.container.register('searchManager', this.#searchManager);
+        } else {
+          this.#logger.warn('[SearchFeature] searchManager already registered in container, reusing existing');
+        }
+      } catch (e) {
+        // 避免重复注册导致安装失败，记录并继续
+        this.#logger.warn('[SearchFeature] Register searchManager failed (will continue)', e);
+      }
 
       // 5. 监听内部事件，转发到全局EventBus
       this.#setupEventBridge(sidBase);
@@ -57,7 +66,12 @@ export class SearchFeature {
 
       this.#logger.info("[SearchFeature] Installed successfully");
     } catch (error) {
-      this.#logger.error("[SearchFeature] Installation failed", error);
+      try {
+        const msg = (error && (error.stack || error.message)) ? (error.stack || error.message) : String(error);
+        this.#logger.error('[SearchFeature] Installation failed', msg);
+      } catch(_) {
+        this.#logger.error('[SearchFeature] Installation failed (logging error object)');
+      }
       throw error;
     }
   }

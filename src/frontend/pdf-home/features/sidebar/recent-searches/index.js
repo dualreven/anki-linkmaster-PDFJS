@@ -107,7 +107,7 @@ export class RecentSearchesFeature {
         if (!item) return;
         const text = item.getAttribute('data-text') || '';
         this.#logger.info('[RecentSearchesFeature] Item clicked, emit search', { searchText: text || '(empty)' });
-        this.#scopedEventBus.emit('search:clicked', { searchText: text });
+        this.#scopedEventBus.emit('search:item:clicked', { searchText: text });
         this.#globalEventBus.emit('search:query:requested', { searchText: text });
       };
       this.#listEl.addEventListener('click', clickHandler);
@@ -125,7 +125,7 @@ export class RecentSearchesFeature {
           } catch (err) {
             this.#logger.warn('[RecentSearchesFeature] Persist display limit failed', err);
           }
-          this.#scopedEventBus.emit('limit:changed', { value: val });
+          this.#scopedEventBus.emit('limit:value:changed', { value: val });
           this.#renderList();
         }
       };

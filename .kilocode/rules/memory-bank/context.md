@@ -41,6 +41,32 @@
 
 ## 📅 当前活跃任务（最近）
 
+### 当前任务（20251010102745）
+名称：修复 pdf-home 生产构建运行中的事件命名与白名单问题（阶段一）
+
+背景：已验证构建成功，但运行时多个 Feature 安装失败，日志显示事件命名未满足“三段式”规范（{module}:{action}:{status}），导致 EventBus 校验拦截；同时存在少量全局事件误判与重复订阅提示。
+
+相关模块/文件：
+- 本地事件（scoped）：
+  - src/frontend/pdf-home/features/sidebar/components/sidebar-panel.js（sidebar 按钮与列表交互）
+  - src/frontend/pdf-home/features/sidebar/recent-searches/index.js（最近搜索）
+  - src/frontend/pdf-home/features/sidebar/recent-searches/feature.config.js（事件常量）
+  - src/frontend/pdf-home/features/sidebar/recent-opened/feature.config.js（事件常量）
+  - src/frontend/pdf-home/features/sidebar/recent-added/feature.config.js（事件常量）
+- 全局事件白名单：src/frontend/common/event/event-constants.js、src/frontend/common/event/global-event-registry.js
+- 事件总线：src/frontend/common/event/event-bus.js、src/frontend/common/event/scoped-event-bus.js
+
+执行步骤（原子）：
+1) 将以下本地事件改为三段式并同步使用处：
+   - search:clicked → search:item:clicked
+   - limit:changed → limit:value:changed
+   - sidebar:toggled → sidebar:toggle:completed
+   - pdf:clicked → pdf:item:clicked
+2) 构建 pdf-home 并以 --prod 运行，检查 Feature 安装日志是否消除命名校验错误。
+3) 若仍有白名单/订阅重复问题，记录具体事件与订阅者ID，二阶段再修复（本阶段不处理跨域大改）。
+
+状态：进行中（阶段一仅聚焦事件命名与直接使用处同步）
+
 ### 当前任务（20251010064621）
 **名称**：继续使用 iziToast 并修复 Qt 环境下的挂载问题
 

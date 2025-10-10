@@ -67,13 +67,13 @@ export class SidebarPanel {
         toggleBtn.innerHTML = '◀';
         toggleBtn.title = '收起侧边栏';
         toggleBtn.classList.remove('collapsed');
-        this.#eventBus.emit('sidebar:toggled', { collapsed: false });
+        this.#eventBus.emit('sidebar:toggle:completed', { collapsed: false });
       } else {
         sidebar.classList.add('collapsed');
         toggleBtn.innerHTML = '▶';
         toggleBtn.title = '展开侧边栏';
         toggleBtn.classList.add('collapsed');
-        this.#eventBus.emit('sidebar:toggled', { collapsed: true });
+        this.#eventBus.emit('sidebar:toggle:completed', { collapsed: true });
       }
     });
 
@@ -238,7 +238,7 @@ export class SidebarPanel {
           const search = this.#recentSearches[index];
           if (search) {
             this.#logger.info('[SidebarPanel] Search clicked:', search.text);
-            this.#eventBus.emit('search:clicked', { searchText: search.text });
+            this.#eventBus.emit('search:item:clicked', { searchText: search.text });
           }
         }
       });
@@ -254,7 +254,7 @@ export class SidebarPanel {
           const pdf = this.#recentOpened[index];
           if (pdf) {
             this.#logger.info('[SidebarPanel] PDF clicked:', pdf.filename);
-            this.#eventBus.emit('pdf:clicked', { filename: pdf.filename, path: pdf.path });
+            this.#eventBus.emit('pdf:item:clicked', { filename: pdf.filename, path: pdf.path });
           }
         }
       });
@@ -270,7 +270,7 @@ export class SidebarPanel {
           const pdf = this.#recentAdded[index];
           if (pdf) {
             this.#logger.info('[SidebarPanel] Added PDF clicked:', pdf.filename);
-            this.#eventBus.emit('pdf:clicked', { filename: pdf.filename, path: pdf.path });
+            this.#eventBus.emit('pdf:item:clicked', { filename: pdf.filename, path: pdf.path });
           }
         }
       });
@@ -288,7 +288,7 @@ export class SidebarPanel {
     this.#displayLimits[type] = newLimit;
 
     // 触发事件通知外部
-    this.#eventBus.emit('limit:changed', { type, limit: newLimit });
+    this.#eventBus.emit('limit:value:changed', { type, limit: newLimit });
 
     // 重新渲染对应的列表
     switch (type) {

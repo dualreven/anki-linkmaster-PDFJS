@@ -27,6 +27,7 @@
  */
 
 import { getLogger } from '../utils/logger.js';
+import { ScopedEventBus } from '../../common/event/scoped-event-bus.js';
 
 // ==================== 类型定义 ====================
 
@@ -620,8 +621,7 @@ export class FeatureRegistry {
     // 创建功能域专用的 ScopedEventBus
     let scopedEventBus = null;
     if (this.#globalEventBus) {
-      // 动态导入 ScopedEventBus（避免循环依赖）
-      const { ScopedEventBus } = await import('../../common/event/scoped-event-bus.js');
+      // 改为静态导入，避免生产构建下动态导入路径解析问题
       scopedEventBus = new ScopedEventBus(this.#globalEventBus, featureName);
     }
 

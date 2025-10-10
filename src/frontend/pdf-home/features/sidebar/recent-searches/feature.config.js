@@ -22,8 +22,8 @@ export const RecentSearchesFeatureConfig = {
     // 事件定义
     events: {
       local: {
-        SEARCH_CLICKED: 'search:clicked',
-        LIMIT_CHANGED: 'limit:changed'
+        SEARCH_CLICKED: 'search:item:clicked',
+        LIMIT_CHANGED: 'limit:value:changed'
       },
       global: {
         // 与 SearchFeature 保持一致（严格三段式）

@@ -12,6 +12,9 @@ export const APP_EVENTS = {
 export const SYSTEM_EVENTS = {
   ERROR: {
     OCCURRED: 'system:error:occurred'
+  },
+  STATUS: {
+    UPDATED: 'system:status:updated'
   }
 };
 

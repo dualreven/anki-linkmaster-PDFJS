@@ -182,7 +182,11 @@ class PdfHomeApp:
 
         if is_prod:
             # 生产模式：通过 pdfFile_server 提供静态资源
-            http_url = f"http://127.0.0.1:{pdfFile_port}/pdf-home/"
+            # ⚠️ 必须添加查询参数，让前端能正确解析 WebSocket 端口
+            # ⚠️ 添加时间戳参数以破坏 PyQt WebView 缓存
+            import time
+            cache_buster = int(time.time() * 1000)  # 毫秒级时间戳
+            http_url = f"http://127.0.0.1:{pdfFile_port}/pdf-home/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}&_={cache_buster}"
             logger.info("Loading front-end (prod http): %s", http_url)
             self.window.load_frontend(http_url)
         else:

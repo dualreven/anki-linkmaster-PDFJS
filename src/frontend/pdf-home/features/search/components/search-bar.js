@@ -147,19 +147,20 @@ export class SearchBar {
     // 添加按钮
     this.#addBtn.addEventListener('click', () => {
       this.#logger.info('[SearchBar] Add button clicked');
-      this.#eventBus.emit('search:add:requested');
+      // 直接发全局事件，避免依赖 Feature 桥接（构建产物下更稳）
+      try { this.#eventBus.emitGlobal('search:add:requested'); } catch(_) { /* ignore */ }
     });
 
     // 排序按钮
     this.#sortBtn.addEventListener('click', () => {
       this.#logger.info('[SearchBar] Sort button clicked');
-      this.#eventBus.emit('search:sort:requested');
+      try { this.#eventBus.emitGlobal('search:sort:requested'); } catch(_) { /* ignore */ }
     });
 
     // 高级筛选按钮
     this.#advancedBtn.addEventListener('click', () => {
       this.#logger.info('[SearchBar] Advanced filter button clicked');
-      this.#eventBus.emit('search:advanced:clicked');
+      try { this.#eventBus.emitGlobal('filter:advanced:open'); } catch(_) { /* ignore */ }
     });
 
     // 保存条件按钮已在本版本移除
@@ -202,8 +203,13 @@ export class SearchBar {
   #handleSearch(searchText) {
     // 空搜索也是有效的搜索，应该显示所有记录
     this.#logger.info('[SearchBar] Search triggered', { searchText: searchText || '(empty)' });
-    // 提示展示统一交给 SearchFeature 在 'search:query:started' 事件中处理
-    this.#eventBus.emit('search:query:requested', { searchText: searchText || '' });
+    // 生产构建下，为避免桥接失败，直接发全局事件
+    try {
+      this.#eventBus.emitGlobal('search:query:requested', { searchText: searchText || '' });
+    } catch(_) {
+      // 兜底：仍发局部事件（开发模式兼容）
+      try { this.#eventBus.emit('search:query:requested', { searchText: searchText || '' }); } catch(_) {}
+    }
   }
 
   /**
@@ -212,7 +218,7 @@ export class SearchBar {
    */
   #handleClear() {
     this.#logger.info('[SearchBar] Clear triggered');
-    this.#eventBus.emit('search:clear:requested');
+    try { this.#eventBus.emitGlobal('search:clear:requested'); } catch(_) { try { this.#eventBus.emit('search:clear:requested'); } catch(_) {} }
     this.updateStats(null);
   }
 

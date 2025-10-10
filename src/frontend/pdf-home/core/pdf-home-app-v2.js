@@ -228,7 +228,7 @@ export class PDFHomeAppV2 {
 
       // 触发初始化完成事件
       // 事件名称格式：{module}:{action}:{status}
-      this.#eventBus.emit('app:initialize:completed', {
+      this.#eventBus.emit('app:initialization:completed', {
         version: 'v2',
         features: this.#registry.getInstalledFeatures()
       });

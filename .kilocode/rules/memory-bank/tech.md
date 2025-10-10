@@ -78,6 +78,19 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
   - `search:sort:requested`
   - 旧的 `*:clicked` 命名不再使用（测试与文档已同步更新）。
 
+## 事件命名调整（2025-10-10）
+- pdf-home（侧边栏与最近搜索）本地事件统一为三段式：
+  - `search:clicked` → `search:item:clicked`
+  - `limit:changed` → `limit:value:changed`
+  - `sidebar:toggled` → `sidebar:toggle:completed`
+  - `pdf:clicked` → `pdf:item:clicked`
+- 涉及文件：
+  - `src/frontend/pdf-home/features/sidebar/components/sidebar-panel.js`
+  - `src/frontend/pdf-home/features/sidebar/recent-searches/index.js`
+  - `src/frontend/pdf-home/features/sidebar/recent-searches/feature.config.js`
+  - `src/frontend/pdf-home/features/sidebar/recent-opened/feature.config.js`
+  - `src/frontend/pdf-home/features/sidebar/recent-added/feature.config.js`
+
 ## 第三方 Toast 使用规范（pdf-home 添加流程）
 - 依赖：`izitoast`（已加入 package.json）
 - 统一通过适配器调用：`src/frontend/common/utils/thirdparty-toast.js`

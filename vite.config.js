@@ -125,6 +125,21 @@ export default defineConfig(async () => {
     build: {
       // 显式关闭生产构建的 source map，避免 DevTools 去探查 file:///node_modules 路径
       sourcemap: false,
+      // 使用 terser 压缩，但保留变量名（不混淆）
+      minify: 'terser',
+      terserOptions: {
+        compress: {
+          // 保持代码压缩，但不做激进优化
+          drop_console: false,  // 保留 console
+          drop_debugger: false  // 保留 debugger
+        },
+        mangle: false,  // 🔑 关键：不混淆变量名
+        format: {
+          comments: false  // 移除注释以减小体积
+        },
+        keep_classnames: true,  // 保持类名
+        keep_fnames: true       // 保持函数名
+      },
       rollupOptions: {
         // 多入口构建：默认同时构建；当 VITE_BUILD_ONLY 指定时，仅构建对应入口
         input: (() => {
