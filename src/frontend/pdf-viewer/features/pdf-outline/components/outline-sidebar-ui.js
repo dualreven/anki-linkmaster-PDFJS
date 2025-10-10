@@ -104,11 +104,7 @@ export class OutlineSidebarUI {
       },
       plugins: ["dnd", "wholerow"]
     });
-    // 默认展开所有节点
-    // eslint-disable-next-line custom/event-name-format
-    $tree.on("ready.jstree", () => {
-      try { $tree.jstree(true).open_all(); } catch { /* ignore */ }
-    });
+    // 注：为避免大型树 open_all 卡顿，暂不默认全展开
 
     // 选择节点 → 导航
     // eslint-disable-next-line custom/event-name-format

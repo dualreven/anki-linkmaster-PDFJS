@@ -122,11 +122,7 @@ export class BookmarkSidebarUI {
       plugins: ["dnd", "wholerow"],
       dnd: { is_draggable: () => true }
     });
-    // 默认展开所有节点
-    // eslint-disable-next-line custom/event-name-format
-    $container.on("ready.jstree", () => {
-      try { $container.jstree(true).open_all(); } catch { /* ignore */ }
-    });
+    // 注：为避免大型树 open_all 卡顿，暂不默认全展开
     // 选择节点 → 发出导航与选中事件
     // eslint-disable-next-line custom/event-name-format
     $container.on("select_node.jstree", (e, selected) => {
