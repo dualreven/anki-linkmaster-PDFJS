@@ -31,6 +31,15 @@ export class URLNavigationFeature {
   /** @type {boolean} 是否已处理URL参数 */
   #hasProcessedParams = false;
 
+  /** @type {boolean} PDF渲染是否就绪（至少首页渲染完成） */
+  #renderReady = false;
+
+  /** @type {boolean} 标注数据是否已加载 */
+  #annotationDataLoaded = false;
+
+  /** @type {boolean} 是否已执行过受控导航（防止重复触发） */
+  #gatedNavigationDone = false;
+
   /** @type {number|null} 导航开始时间戳 */
   #navigationStartTime = null;
 
@@ -117,6 +126,22 @@ export class URLNavigationFeature {
     // 5. 设置事件监听器
     this.#setupEventListeners();
 
+    // 6. 设置导航门闸：只有在“渲染就绪 + 标注数据加载完成”后才执行跳转
+    //    - 渲染就绪：PDF_VIEWER_EVENTS.RENDER.READY（FileHandler 在第一页渲染后发出）
+    //    - 标注数据加载完成：AnnotationManager 在完成加载后通过 scoped 事件发出 '@annotation/annotation-data:load:success'
+    this.#eventBus.on(PDF_VIEWER_EVENTS.RENDER.READY, () => {
+      this.#logger.info('[url-navigation] 捕获渲染就绪事件');
+      this.#renderReady = true;
+      this.#tryExecuteGatedNavigation();
+    }, { subscriberId: 'URLNavigationFeature' });
+
+    // 监听作用域事件（annotation feature 通过 scopedEventBus.emit 发出，事件名带 '@annotation/' 前缀）
+    this.#eventBus.on('@annotation/annotation-data:load:success', () => {
+      this.#logger.info('[url-navigation] 捕获标注数据加载完成事件');
+      this.#annotationDataLoaded = true;
+      this.#tryExecuteGatedNavigation();
+    }, { subscriberId: 'URLNavigationFeature' });
+
     // 注意：不在这里触发PDF加载，因为Bootstrap会根据launcher.py传递的file参数自动加载PDF
     // URLNavigationFeature只需要监听FILE.LOAD.SUCCESS事件，等PDF加载完成后再执行导航即可
 
@@ -194,28 +219,29 @@ export class URLNavigationFeature {
    * @private
    */
   async #handlePDFLoadSuccess(data) {
-    // 只处理一次URL参数导航
-    if (this.#hasProcessedParams) {
-      return;
-    }
+    // 文件加载成功后，不直接导航；改为等待“渲染就绪 + 标注数据加载完成”两个条件
+    if (this.#hasProcessedParams) return;
+    this.#logger.info('[url-navigation] 文件加载成功，等待渲染与标注数据加载门闸');
+  }
+
+  async #tryExecuteGatedNavigation() {
+    if (this.#gatedNavigationDone) return;
+    if (!this.#renderReady || !this.#annotationDataLoaded) return;
 
     const { pageAt, position, annotationId } = this.#parsedParams || {};
-    const needNav = !(pageAt === null && position === null);
-    const needAnn = !!annotationId;
+    const hasNav = !(pageAt === null && position === null);
+    const hasAnn = !!annotationId;
 
-    if (!needNav && !needAnn) {
-      this.#logger.debug('无导航或标注跳转参数，跳过处理');
-      this.#hasProcessedParams = true;
-      return;
-    }
-
-    this.#logger.info('PDF加载成功，等待PDFViewer初始化后处理导航/标注');
-    // 等待PDFViewer完全初始化（pagesCount > 0）
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
+    // 若两种参数都存在，优先用注释跳转（更精确）；否则使用页面导航
     try {
-      let navOk = false;
-      if (needNav) {
+      if (hasAnn) {
+        this.#logger.info('[url-navigation] 门闸通过，触发标注跳转: %s', annotationId);
+        this.#eventBus.emit(
+          PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
+          { id: annotationId },
+          { actorId: 'URLNavigationFeature' }
+        );
+      } else if (hasNav) {
         const totalPages = this.#navigationService.getTotalPages();
         const normalizedParams = URLParamsParser.normalize(
           { pageAt, position },
@@ -235,32 +261,16 @@ export class URLNavigationFeature {
             position: result.actualPosition,
             duration: totalDuration,
           });
-          navOk = true;
         } else {
           this.#emitNavigationFailed(new Error(result.error || '导航失败'), 'navigate');
         }
-      }
-
-      // 若存在 annotationId，尝试触发标注跳转（重试几次，等待标注数据加载）
-      if (needAnn) {
-        const attempts = 3;
-        const gap = 800; // ms
-        for (let i = 0; i < attempts; i++) {
-          this.#logger.info(`[url-navigation] 触发标注跳转尝试(${i+1}/${attempts}): ${annotationId}`);
-          this.#eventBus.emit(
-            PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
-            { id: annotationId },
-            { actorId: 'URLNavigationFeature' }
-          );
-          // 简单等待一段时间，给 AnnotationFeature 加载数据的机会
-          // 若已经成功，重复发也无害（会再次聚焦同一标注）
-          // eslint-disable-next-line no-await-in-loop
-          await new Promise(resolve => setTimeout(resolve, gap));
-        }
+      } else {
+        this.#logger.debug('[url-navigation] 门闸通过，但无导航参数，忽略');
       }
     } catch (error) {
-      this.#logger.error('导航/标注处理失败:', error);
+      this.#logger.error('[url-navigation] 门闸导航执行失败:', error);
     } finally {
+      this.#gatedNavigationDone = true;
       this.#hasProcessedParams = true;
     }
   }
