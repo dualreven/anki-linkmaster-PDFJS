@@ -567,15 +567,33 @@ class PyQtBridge(QObject):
         except Exception:
             return None
 
-
 def build_pdf_viewer_url(vite_port: int, msgCenter_port: int, pdfFile_port: int,
                          pdf_id: str, page_at: int | None = None, position: float | None = None) -> str:
-    """纯函数：构建 pdf-viewer 前端 URL，便于测试。
+    """构建 pdf-viewer 前端 URL（生产优先，自动回退开发）。
 
-    确保参数通过查询字符串传递，且 position 限制在 0-100。
+    策略：
+    - 若 dist 已存在静态入口（支持两种布局：/pdf-viewer/index.html 或 /pdf-viewer/pdf-viewer/index.html），
+      则统一走 pdfFile_server：`http://127.0.0.1:{pdfFile_port}/pdf-viewer/?...`。
+      后端静态路由负责将该目录请求追加到正确的 index.html（含查询串）。
+    - 否则回退到 Vite 开发端口：`http://localhost:{vite_port}/pdf-viewer/?...`。
     """
     import urllib.parse
-    base = f"http://localhost:{int(vite_port)}/pdf-viewer/?msgCenter={int(msgCenter_port)}&pdfs={int(pdfFile_port)}"
+    from pathlib import Path as _Path
+
+    try:
+        project_root = _Path(__file__).parent.parent.parent.parent
+        # 新的集中静态入口：dist/latest/static/pdf-viewer/index.html
+        static_index = project_root / 'static' / 'pdf-viewer' / 'index.html'
+        use_static = static_index.exists()
+    except Exception:
+        use_static = False
+
+    if use_static:
+        # 统一交给 pdfFile_server 的 /pdf-viewer/ 路径，后端会映射到 /static/pdf-viewer/index.html
+        base = f"http://127.0.0.1:{int(pdfFile_port)}/pdf-viewer/?msgCenter={int(msgCenter_port)}&pdfs={int(pdfFile_port)}"
+    else:
+        base = f"http://localhost:{int(vite_port)}/pdf-viewer/?msgCenter={int(msgCenter_port)}&pdfs={int(pdfFile_port)}"
+
     if pdf_id:
         base += f"&pdf-id={urllib.parse.quote(str(pdf_id))}"
     if page_at is not None:

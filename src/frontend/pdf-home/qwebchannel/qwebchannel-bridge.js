@@ -48,16 +48,69 @@ export class QWebChannelBridge {
         // 开始初始化
         this.#logger.info("开始初始化 QWebChannel...");
 
-        this.#initPromise = new Promise((resolve, reject) => {
-            // 检查 QWebChannel 是否可用
-            if (typeof QWebChannel === 'undefined') {
-                const error = 'QWebChannel 未定义，请确保 qwebchannel.js 已加载';
-                this.#logger.error(error);
-                reject(new Error(error));
-                return;
+        const getGlobalQWebChannel = () => {
+            try { return (typeof window !== 'undefined' ? window.QWebChannel : undefined) || (typeof globalThis !== 'undefined' ? globalThis.QWebChannel : undefined); }
+            catch (_) { return undefined; }
+        };
+
+        const ensureQWebChannelScript = () => {
+            try {
+                // 若已存在全局对象，直接完成
+                if (getGlobalQWebChannel()) return Promise.resolve(true);
+                // 查找已存在的脚本标签
+                const exists = Array.from(document.getElementsByTagName('script')).some(sc => {
+                    const src = sc.getAttribute('src') || '';
+                    return src.includes('/js/qwebchannel.js') || src.endsWith('qwebchannel.js');
+                });
+                if (exists) return Promise.resolve(true);
+                // 动态注入脚本
+                const sc = document.createElement('script');
+                sc.src = '/js/qwebchannel.js';
+                sc.async = false; // 保持执行顺序
+                const p = new Promise((resolve) => {
+                    sc.onload = () => resolve(true);
+                    sc.onerror = () => resolve(false);
+                });
+                (document.head || document.body || document.documentElement).appendChild(sc);
+                return p;
+            } catch (_) {
+                return Promise.resolve(false);
+            }
+        };
+
+        this.#initPromise = new Promise(async (resolve, reject) => {
+            // 等待 QWebChannel 可用（在 ESM 模块中需从 window/globalThis 读取）
+            let QWC = getGlobalQWebChannel();
+            if (!QWC) {
+                this.#logger.warn('QWebChannel 未定义，尝试动态注入 /js/qwebchannel.js ...');
+                await ensureQWebChannelScript();
+                const maxWait = 10000; // 最多等待10秒
+                const step = 100;
+                let waited = 0;
+                const t = setInterval(() => {
+                    waited += step;
+                    QWC = getGlobalQWebChannel();
+                    if (QWC) {
+                        clearInterval(t);
+                        this.#logger.info('QWebChannel 已注入');
+                        // 继续后续传输层检查
+                        proceed();
+                    } else if (waited >= maxWait) {
+                        clearInterval(t);
+                        const error = 'QWebChannel 未定义：qwebchannel.js 未能注入或加载超时';
+                        this.#logger.error(error);
+                        reject(new Error(error));
+                    }
+                }, step);
+                return; // 等待回调继续
             }
 
             // 检查 Qt WebChannel 传输层是否可用
+            const proceed = () => {
+                // 传输层已就绪，直接连接
+                this.#connectToChannel(resolve, reject);
+            };
+
             if (!window.qt || !window.qt.webChannelTransport) {
                 this.#logger.warn("Qt WebChannel 传输层未就绪，等待...");
 
@@ -72,7 +125,7 @@ export class QWebChannelBridge {
                     if (window.qt && window.qt.webChannelTransport) {
                         clearInterval(checkTransport);
                         this.#logger.info("Qt WebChannel 传输层已就绪");
-                        this.#connectToChannel(resolve, reject);
+                        proceed();
                     } else if (elapsedTime >= maxWaitTime) {
                         clearInterval(checkTransport);
                         const error = 'Qt WebChannel 传输层超时未就绪';
@@ -85,7 +138,7 @@ export class QWebChannelBridge {
             }
 
             // 传输层已就绪，直接连接
-            this.#connectToChannel(resolve, reject);
+            proceed();
         });
 
         return this.#initPromise;
@@ -101,7 +154,9 @@ export class QWebChannelBridge {
         try {
             this.#logger.info("正在连接 QWebChannel...");
 
-            new QWebChannel(window.qt.webChannelTransport, (channel) => {
+            const QWC = (typeof window !== 'undefined' ? window.QWebChannel : undefined) || (typeof globalThis !== 'undefined' ? globalThis.QWebChannel : undefined);
+            if (!QWC) throw new Error('QWebChannel 全局对象缺失');
+            new QWC(window.qt.webChannelTransport, (channel) => {
                 this.#logger.info("QWebChannel 连接成功");
 
                 // 获取 pyqtBridge 对象

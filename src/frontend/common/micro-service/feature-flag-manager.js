@@ -163,16 +163,42 @@ export class FeatureFlagManager {
     this.#logger.info(`Loading feature flags from config: ${configPath}`);
 
     try {
-      const response = await fetch(configPath);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch config: ${response.status} ${response.statusText}`);
-      }
+      // 优先使用传入路径
+      const tryPaths = [configPath];
+      try {
+        const loc = typeof window !== 'undefined' ? (window.location || {}) : {};
+        const pathname = String(loc.pathname || '');
+        // 兼容生产构建下的嵌套路由：/pdf-home/pdf-home/
+        // 回退到上级 ../config/feature-flags.json 或根级 /pdf-home/config/feature-flags.json
+        if (pathname.includes('/pdf-home/pdf-home/')) {
+          tryPaths.push('../config/feature-flags.json');
+          tryPaths.push('/pdf-home/config/feature-flags.json');
+        }
+        // 通用回退（即使非嵌套场景）：
+        tryPaths.push('/config/feature-flags.json');
+      } catch (_) { /* ignore */ }
 
-      const config = await response.json();
-      this.loadFromObject(config);
+      let loaded = false;
+      let lastErr = null;
+      for (const p of tryPaths) {
+        try {
+          const resp = await fetch(p);
+          if (!resp.ok) { throw new Error(`Failed to fetch config: ${resp.status} ${resp.statusText}`); }
+          const cfg = await resp.json();
+          this.loadFromObject(cfg);
+          this.#logger.info(`[FeatureFlagManager] Loaded from ${p}`);
+          loaded = true;
+          break;
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      if (!loaded) {
+        throw lastErr || new Error('Failed to fetch any config path');
+      }
     } catch (error) {
-      this.#logger.error('Failed to load config file:', error);
-      throw error;
+      // 构建产物允许无配置文件，采用默认配置继续运行
+      this.#logger.warn('[FeatureFlagManager] Failed to load config file, using defaults:', error);
     }
   }
 

@@ -65,12 +65,22 @@
       console.info('[BOOT] module loader start');
       // 全局错误捕获，避免沉默失败
       window.addEventListener('error', (ev) => {
-        try { console.error('[GLOBAL-ERROR]', ev.message, ev.filename, ev.lineno); } catch(e) {}
+        try {
+          const msg = ev?.message;
+          const file = ev?.filename;
+          const line = ev?.lineno;
+          const stack = ev?.error?.stack || '(no stack)';
+          console.error('[GLOBAL-ERROR]', msg, file, line);
+          console.error('[GLOBAL-ERROR-STACK]', stack);
+        } catch(e) {}
       });
       window.addEventListener('unhandledrejection', (ev) => {
         try {
-          const msg = ev && ev.reason && (ev.reason.message || ev.reason);
+          const reason = ev?.reason;
+          const msg = reason && (reason.message || String(reason));
+          const stack = reason && reason.stack;
           console.error('[UNHANDLED-REJECTION]', msg);
+          if (stack) console.error('[UNHANDLED-STACK]', stack);
         } catch(e) {}
       });
       import('./index.js')

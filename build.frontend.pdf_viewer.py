@@ -2,12 +2,12 @@
 """
 前端构建（pdf-viewer 专用）
 
-- 仅构建 src/frontend/pdf-viewer，产出到 dist/latest/pdf-viewer/
+- 仅构建 src/frontend/pdf-viewer，产出到 dist/latest/src/frontend/pdf-viewer/
 - 复制 pdfjs-dist 到 vendor，并注入 window.__PDFJS_VENDOR_BASE__
 - 复制前端 Python 启动/桥接代码（仅 pdf-viewer 相关）到 dist/latest/src/frontend/
 
 使用：
-  python -X utf8 build.frontend.pdf_viewer.py [--out-dir dist/latest/pdf-viewer] [--skip-build]
+  python -X utf8 build.frontend.pdf_viewer.py [--out-dir dist/latest/src/frontend/pdf-viewer] [--skip-build]
 """
 from __future__ import annotations
 
@@ -20,7 +20,8 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parent
-DEFAULT_OUT_DIR = REPO_ROOT / "dist" / "latest" / "pdf-viewer"
+DEFAULT_OUT_DIR = REPO_ROOT / "dist" / "latest" / "src" / "frontend" / "pdf-viewer"
+STATIC_DIR = REPO_ROOT / "dist" / "latest" / "static"
 
 def _run(cmd: list[str], cwd: Optional[Path] = None, env: Optional[dict] = None) -> int:
     proc = subprocess.run(cmd, cwd=str(cwd) if cwd else None, env=env)
@@ -46,6 +47,26 @@ def inject_pdfjs_vendor_base(html_path: Path, vendor_rel: str = "./vendor/pdfjs-
     html_path.write_text(new_text, encoding="utf-8")
     return True
 
+def _rewrite_index_assets_to_static(html_path: Path, *, static_prefix: str = "/static/") -> bool:
+    """将 index.html 中的 ./assets 或 ../assets 引用改为 /static/ 前缀。
+
+    返回是否发生了修改。
+    """
+    text = html_path.read_text(encoding="utf-8")
+    new_text = text
+    # 常见三种前缀
+    for prefix in ("../assets/", "./assets/", "/assets/"):
+        new_text = new_text.replace(f"src=\"{prefix}", f"src=\"{static_prefix}")
+        new_text = new_text.replace(f"href=\"{prefix}", f"href=\"{static_prefix}")
+    # 额外：修正 qwebchannel.js 的路径，确保从 /static 加载（若 viewer 将来内置依赖）
+    new_text = new_text.replace('src="../js/qwebchannel.js"', 'src="/static/qwebchannel.js"')
+    new_text = new_text.replace('src="/js/qwebchannel.js"', 'src="/static/qwebchannel.js"')
+    new_text = new_text.replace('src="js/qwebchannel.js"', 'src="/static/qwebchannel.js"')
+    changed = new_text != text
+    if changed:
+        html_path.write_text(new_text, encoding="utf-8")
+    return changed
+
 def copy_pdfjs_vendor(node_modules_root: Path, out_dir: Path) -> Tuple[int, int]:
     src = node_modules_root / "pdfjs-dist"
     if not src.exists():
@@ -59,6 +80,32 @@ def copy_pdfjs_vendor(node_modules_root: Path, out_dir: Path) -> Tuple[int, int]
         root_path = Path(root)
         rel = root_path.relative_to(src)
         target_dir = dst / rel
+        if not target_dir.exists():
+            target_dir.mkdir(parents=True, exist_ok=True)
+            dirs += 1
+        for fn in filenames:
+            s = root_path / fn
+            d = target_dir / fn
+            d.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(s, d)
+            files += 1
+    return files, dirs
+
+def copy_assets_to_static(out_dir: Path, static_dir: Path) -> Tuple[int, int]:
+    """将 out_dir 下的 assets/* 复制到 static_dir 根下（不分模块）。"""
+    assets = out_dir / "assets"
+    if not assets.exists():
+        # 兼容嵌套布局：out_dir/pdf-viewer/assets
+        assets = out_dir / "pdf-viewer" / "assets"
+    files = 0
+    dirs = 0
+    if not assets.exists():
+        return files, dirs
+    static_dir.mkdir(parents=True, exist_ok=True)
+    for root, dirnames, filenames in os.walk(assets):
+        root_path = Path(root)
+        rel = root_path.relative_to(assets)
+        target_dir = static_dir / rel
         if not target_dir.exists():
             target_dir.mkdir(parents=True, exist_ok=True)
             dirs += 1
@@ -145,11 +192,23 @@ def main(argv: list[str] | None = None) -> int:
     if not args.skip_build:
         run_vite_build(REPO_ROOT, out_dir, base="./")
 
-    files, dirs = copy_pdfjs_vendor(REPO_ROOT / "node_modules", out_dir)
+    files, dirs = copy_pdfjs_vendor(REPO_ROOT / "node_modules", STATIC_DIR)  # vendor 统一放入 /static
     injected = False
+    # 兼容扁平与嵌套 index.html
     index_html = out_dir / "index.html"
+    if not index_html.exists():
+        index_html = out_dir / "pdf-viewer" / "index.html"
     if index_html.exists():
-        injected = inject_pdfjs_vendor_base(index_html, "./vendor/pdfjs-dist/")
+        # 将 index.html 的 assets 引用改写到 /static/
+        _rewrite_index_assets_to_static(index_html, static_prefix="/static/")
+        # 注入 vendor 基础路径为 /static/vendor/pdfjs-dist/
+        injected = inject_pdfjs_vendor_base(index_html, "/static/vendor/pdfjs-dist/")
+        # 复制一份到 /static/pdf-viewer/index.html（作为唯一入口）
+        target_index = STATIC_DIR / "pdf-viewer" / "index.html"
+        target_index.parent.mkdir(parents=True, exist_ok=True)
+        target_index.write_text(index_html.read_text(encoding="utf-8"), encoding="utf-8")
+    # 复制 assets/* 到 dist/latest/static
+    copy_assets_to_static(out_dir, STATIC_DIR)
     py_stats = copy_frontend_python_pdf_viewer(REPO_ROOT, REPO_ROOT / "dist" / "latest")
 
     meta = {
@@ -159,6 +218,16 @@ def main(argv: list[str] | None = None) -> int:
         "injected_vendor_base": injected,
         "frontend_python": py_stats,
     }
+    # 为了避免在 dist/latest 下残留多余的 pdf-viewer 目录，可在复制后清理 out_dir 的静态子目录，保留 Python 运行部件
+    try:
+        import shutil as _sh
+        # 删除 out_dir 下的 assets 与嵌套网页，仅保留 pyqt 与 launcher 等 Python 文件
+        for p in (out_dir / 'assets', out_dir / 'pdf-viewer'):
+            if p.exists():
+                _sh.rmtree(p)
+    except Exception:
+        pass
+
     meta_path = out_dir / "build.frontend.pdf_viewer.meta.json"
     meta_path.write_text(__import__("json").dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     sys.stdout.write(__import__("json").dumps(meta, ensure_ascii=False, indent=2) + "\n")
@@ -167,4 +236,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

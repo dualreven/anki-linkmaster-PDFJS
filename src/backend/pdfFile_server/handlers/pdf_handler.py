@@ -90,6 +90,9 @@ class PDFFileHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_health_check()
         elif self.path.startswith(PDF_BASE_PATH):
             self.handle_pdf_request()
+        elif self.path.startswith("/pdf-files/"):
+            # 兼容前端使用 /pdf-files/ 路径的请求（Vite dev proxy 使用）
+            self.handle_pdf_request_alternative()
         elif self._is_static_request(self.path):
             self.handle_static_request()
         else:
@@ -133,6 +136,28 @@ class PDFFileHandler(http.server.SimpleHTTPRequestHandler):
             self.logger.error(f"错误堆栈: {error_traceback}")
             self.send_error(500, "Internal Server Error")
 
+    def handle_pdf_request_alternative(self):
+        """
+        处理 /pdf-files/ 路径的PDF文件请求（Vite代理使用）
+
+        将 /pdf-files/xxx.pdf 转换为 /xxx.pdf 后委托给父类。
+        """
+        original_path = self.path
+        # 移除 /pdf-files 前缀，保留文件名部分
+        self.path = self.path[len("/pdf-files"):]  # 结果如 /556c9d58eca1.pdf
+
+        self.logger.debug(f"PDF请求路径转换 (alternative): {original_path} -> {self.path}")
+
+        try:
+            # 委托给父类处理文件请求
+            super().do_GET()
+        except Exception as e:
+            import traceback
+            error_traceback = traceback.format_exc()
+            self.logger.error(f"处理PDF请求时出错 (alternative): {e}")
+            self.logger.error(f"错误堆栈: {error_traceback}")
+            self.send_error(500, "Internal Server Error")
+
     def _is_static_request(self, path: str) -> bool:
         try:
             for prefix in STATIC_ROUTE_PREFIXES:
@@ -148,25 +173,22 @@ class PDFFileHandler(http.server.SimpleHTTPRequestHandler):
     def handle_static_request(self):
         """处理前端静态资源请求（生产 dist）。"""
         try:
-            # 目录定位到 dist/latest
+            # 目录定位到 dist 根（由配置动态探测）
             self.directory = str(DEFAULT_DIST_DIR)
 
-            # 规范化路径：/pdf-home/ 与 /pdf-viewer/ 目录请求默认转为 index.html
-            if self.path.endswith("/") and (self.path.startswith("/pdf-home/") or self.path.startswith("/pdf-viewer/")):
-                self.path = self.path + "index.html"
+            # 将查询串与路径解耦，保证带有查询串也能正确命中入口
+            try:
+                import urllib.parse as _url
+                _parts = _url.urlsplit(self.path)
+                _path_only = _parts.path or "/"
+                _query = ("?" + _parts.query) if _parts.query else ""
+            except Exception:
+                _path_only = self.path
+                _query = ""
 
-            # 不再重写 /pdf-home/assets 和 /pdf-viewer/assets 到共享 /assets
-            # 允许各自目录拥有独立的 assets 与 vendor（与独立构建保持一致）
-            # /pdf-home/assets/* → dist/latest/pdf-home/assets/*（通过 directory + path 解析）
-            # /pdf-viewer/assets/* → dist/latest/pdf-viewer/assets/*
-
-            # 仍然保留 /pdf-home/js/* 与 /pdf-viewer/js/* 到 /js/* 的兼容重写（仅供 qwebchannel.js 等）
-
-            # 将 /pdf-home/js/* → /js/*、/pdf-viewer/js/* → /js/*
-            if self.path.startswith("/pdf-home/js/"):
-                self.path = "/js/" + self.path[len("/pdf-home/js/"):]
-            elif self.path.startswith("/pdf-viewer/js/"):
-                self.path = "/js/" + self.path[len("/pdf-viewer/js/"):]
+            # 解析并重写路径（含入口回退）
+            resolved_path = resolve_static_path(_path_only, Path(self.directory))
+            self.path = resolved_path + _query
 
             # 记录映射后的目录与路径，便于调试
             try:
@@ -269,3 +291,87 @@ class PDFFileHandler(http.server.SimpleHTTPRequestHandler):
             return 'application/pdf'
 
         return mime_type or 'application/octet-stream'
+
+
+def _file_exists(dist_root: Path, rel: str) -> bool:
+    try:
+        return (dist_root / rel.lstrip("/\\")).is_file()
+    except Exception:
+        return False
+
+
+def resolve_static_path(request_path: str, dist_root: Path) -> str:
+    """将浏览器请求路径解析为实际可服务的静态路径（包含回退策略）。
+
+    规则概要（结合图片中的结论）：
+    - 集中静态：/static/* → dist/latest/static/*
+    - 入口映射：
+      - /pdf-viewer[/] → 优先 /static/pdf-viewer/index.html；
+        若不存在，回退 /src/frontend/pdf-viewer/pdf-viewer/index.html；
+        再回退 /pdf-viewer/pdf-viewer/index.html 或 /pdf-viewer/index.html（历史产物）。
+      - /pdf-home[/] → 优先 /static/pdf-home/index.html；
+        若不存在，回退 /pdf-home/pdf-home/index.html 或 /pdf-home/index.html。
+    - 资源重写：
+      - /pdf-(home|viewer)/assets/* → /static/*
+      - /js/* → /static/*（如 qwebchannel.js）
+      - /pdf-(home|viewer)/js/* → /js/*（兼容旧引用）
+      - /pdf-(home|viewer)/config/* → /static/pdf-(home|viewer)/config/*
+    """
+    p = request_path or "/"
+
+    # 资源重写（尽早处理）
+    if p.startswith("/pdf-home/assets/"):
+        return "/static/" + p[len("/pdf-home/assets/"):]
+    if p.startswith("/pdf-viewer/assets/"):
+        return "/static/" + p[len("/pdf-viewer/assets/"):]
+
+    if p.startswith("/js/"):
+        return "/static/" + p[len("/js/"):]
+    if p.startswith("/pdf-home/js/"):
+        return "/js/" + p[len("/pdf-home/js/"):]
+    if p.startswith("/pdf-viewer/js/"):
+        return "/js/" + p[len("/pdf-viewer/js/"):]
+
+    if p.startswith("/pdf-home/config/"):
+        return "/static/pdf-home/config/" + p[len("/pdf-home/config/"):]
+    if p.startswith("/pdf-viewer/config/"):
+        return "/static/pdf-viewer/config/" + p[len("/pdf-viewer/config/"):]
+
+    # 入口映射与回退
+    def _map_index(module: str) -> str:
+        # 仅当访问模块根时执行 index 重写（/module 或 /module/）
+        norm = p
+        if not norm.endswith("/") and norm.count("/") == 1:
+            norm += "/"
+        if not norm.endswith("/"):
+            return p  # 不是模块根，原样返回
+
+        # 优先集中静态入口
+        static_index = f"/static/{module}/index.html"
+        if _file_exists(dist_root, static_index):
+            return static_index
+
+        # 次选：新目录（src/frontend）
+        if module == "pdf-viewer":
+            new_index = "/src/frontend/pdf-viewer/pdf-viewer/index.html"
+            if _file_exists(dist_root, new_index):
+                return new_index
+
+        # 历史产物（老目录）
+        nested_old = f"/{module}/{module}/index.html"
+        if _file_exists(dist_root, nested_old):
+            return nested_old
+        flat_old = f"/{module}/index.html"
+        if _file_exists(dist_root, flat_old):
+            return flat_old
+
+        # 若均不存在，仍返回集中静态入口（让上层产生 404，便于日志观察）
+        return static_index
+
+    if p.startswith("/pdf-viewer"):
+        return _map_index("pdf-viewer")
+    if p.startswith("/pdf-home"):
+        return _map_index("pdf-home")
+
+    # 其他保持不变
+    return p

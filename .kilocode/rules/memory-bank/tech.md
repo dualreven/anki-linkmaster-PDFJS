@@ -175,6 +175,21 @@ python ai_launcher.py start --module pdf-home --vite-port 3001 --msgServer-port 
 python ai_launcher.py start
 ```
 
+## 静态资源提供规则（后端 /static 集中化与回退，2025-10-10）
+- dist 根动态探测：
+  - 若当前运行目录为打包产物（`dist/latest/src/backend/...`），则 `DEFAULT_DIST_DIR = dist/latest`；
+  - 否则优先使用 `<repo>/dist/latest`；找不到则回退 `<repo>`（便于日志定位）。
+- 统一入口：
+  - `/pdf-viewer` 与 `/pdf-viewer/`：优先返回 `/static/pdf-viewer/index.html`；若缺失回退 `src/frontend/pdf-viewer/pdf-viewer/index.html`，再回退 `/<old>/pdf-viewer/(pdf-viewer/)?index.html`。
+  - `/pdf-home` 与 `/pdf-home/`：优先返回 `/static/pdf-home/index.html`；若缺失回退 `/pdf-home/pdf-home/index.html` 或 `/pdf-home/index.html`。
+- 资源重写：
+  - `/pdf-(home|viewer)/assets/*` → `/static/*`
+  - `/js/*` → `/static/*`；`/pdf-(home|viewer)/js/*` → `/js/*`
+  - `/pdf-(home|viewer)/config/*` → `/static/<module>/config/*`
+- MIME 修正：`.js|.mjs → text/javascript`、`.css → text/css`，避免模块脚本被拒绝。
+- 调试日志：每次静态请求输出 `[STATIC] directory=<dist-root> path=<resolved-path>`。
+
+
 #### 2. stop - 停止服务
 ```bash
 python ai_launcher.py stop
@@ -675,3 +690,23 @@ emove_comment(ann_id, comment_id)。
   - pdf-home：python -X utf8 dist/latest/src/frontend/pdf-home/launcher.py --prod
 - 调试与日志：dist/latest/logs/pdf-home-js.log、ackend-launcher.log、untime-ports.json
 - 注意：不要使用 --emptyOutDir 清空 dist；所有 Python 命令以 UTF-8 执行。
+
+## 生产静态路由（/pdf-home 与 /pdf-viewer）更新（2025-10-10）
+- 新增：当请求为目录根但带查询串或无尾随斜杠时（如 /pdf-viewer?x=1、/pdf-viewer/?y=2），后端会自动映射到对应的 index.html 并保留原查询串；
+- 支持两种构建布局：
+  - 扁平：dist/latest/pdf-viewer/index.html
+  - 嵌套：dist/latest/pdf-viewer/pdf-viewer/index.html
+- 兼容配置路径重写：
+  - /pdf-home/pdf-home/config/* → /pdf-home/config/*
+  - /pdf-viewer/pdf-viewer/config/* → /pdf-viewer/config/*
+- 影响：
+  - 前端统一可以使用 http://127.0.0.1:{pdfFile_port}/pdf-viewer/?... 访问，无需关心实际 index.html 布局；
+  - 开发模式下仍可回退到 http://localhost:{vite_port}/pdf-viewer/?...。
+
+## 路由/构建输出路径调整（2025-10-10）
+- 期望产物位置：dist/latest/src/frontend/pdf-viewer；
+- 服务器路由：访问 /pdf-viewer/?... 时，自动映射到新目录的 index.html；若新目录不存在则回退到旧路径 dist/latest/pdf-viewer；
+- 静态资源：若请求 /pdf-viewer/assets/* 且新目录存在，则改写到 /src/frontend/pdf-viewer/assets/*；
+- 配置兼容：/pdf-viewer/pdf-viewer/config/* → /src/frontend/pdf-viewer/config/*；
+- URL 构造：uild_pdf_viewer_url 保持 /pdf-viewer/?...，并以新目录存在性判断生产/开发。
+- 构建：uild.frontend.pdf_viewer.py 默认输出更改为上述新路径（可覆盖）。

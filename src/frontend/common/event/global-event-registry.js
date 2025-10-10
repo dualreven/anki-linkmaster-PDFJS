@@ -25,7 +25,9 @@ import EVENT_CONSTANTS, {
 import { PDF_VIEWER_EVENTS } from './pdf-viewer-constants.js';
 // 引入 PDF-Translator 事件常量，补充翻译功能域的全局事件白名单
 // 注意：仅用于白名单收集，不产生运行时依赖耦合
-import { PDF_TRANSLATOR_EVENTS } from '../../pdf-viewer/features/pdf-translator/events.js';
+// 备注：pdf-viewer 子仓库源码在某些环境下可能未同步到当前工作区，
+// 为避免构建 pdf-home 时因找不到翻译模块事件常量而失败，暂不直接静态导入。
+// 若运行环境包含 pdf-viewer 模块，其事件常量可通过该模块自身注册或后续构建阶段补齐白名单。
 
 function collectStrings(obj, out) {
   if (!obj) return;
@@ -62,7 +64,8 @@ collectStrings(SORTER_EVENTS, AllowedGlobalEvents);
 // 收集 PDF-Viewer 模块事件常量：仅放行已有事件名，避免“未注册的全局事件”阻塞合法事件
 collectStrings(PDF_VIEWER_EVENTS, AllowedGlobalEvents);
 // 收集 PDF-Translator 模块事件常量：确保 pdf-translator:* 事件被允许
-collectStrings(PDF_TRANSLATOR_EVENTS, AllowedGlobalEvents);
+// 如果需要在同一仓库下启用 pdf-translator 事件白名单，请在 pdf-viewer 模块内完成注册，
+// 或在合并子仓库后恢复以下收集逻辑。
 
 export function isGlobalEventAllowed(eventName) {
   // 仅针对“全局事件”进行白名单检查；局部事件以 @feature/ 开头不在此限制

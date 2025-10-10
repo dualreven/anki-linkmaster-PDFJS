@@ -58,9 +58,11 @@ export class SearchResultsFeature {
     try {
       // 1. 创建结果容器
       this.#createResultsContainer();
+      this.#logger.info('[SearchResultsFeature] Step1: Container created');
 
       // 2. 初始化渲染器
       this.#resultsRenderer = new ResultsRenderer(this.#logger, this.#scopedEventBus);
+      this.#logger.info('[SearchResultsFeature] Step2: Renderer constructed');
 
       // 2.1 初始化 QWebChannel 桥接（供“阅读”按钮调用 PyQt 打开窗口）
       try {
@@ -80,16 +82,21 @@ export class SearchResultsFeature {
 
       // 3. 监听筛选结果更新事件（来自filter插件）
       this.#subscribeToFilterEvents(sidBase);
+      this.#logger.info('[SearchResultsFeature] Step3: Subscribed to filter events');
 
       // 4. 监听条目事件（转发到全局）
       this.#setupEventBridge(sidBase);
+      this.#logger.info('[SearchResultsFeature] Step4: Event bridge set up');
 
       // 5. 渲染初始空状态
       this.#resultsRenderer.render(this.#resultsContainer, []);
+      this.#logger.info('[SearchResultsFeature] Step5: Initial render completed');
 
       this.#logger.info("[SearchResultsFeature] Installed successfully");
     } catch (error) {
-      this.#logger.error("[SearchResultsFeature] Installation failed", error);
+      try { this.#logger.error('[SearchResultsFeature] Installation failed (stack)', error?.stack || '(no stack)'); } catch(_) {}
+      try { this.#logger.error('[SearchResultsFeature] Installation failed (message)', error?.message || String(error)); } catch(_) {}
+      try { this.#logger.error('[SearchResultsFeature] Installation failed (object)', error); } catch(_) {}
       throw error;
     }
   }

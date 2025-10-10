@@ -56,6 +56,13 @@
 2) 校验 pdf-viewer 完整对齐共享 EventBus/WSClient 的模式。
 3) 为 AI Launcher 增加健康检查与 E2E 脚本。
 
+### 2025-10-10 通信层策略建议（结论性记录）
+- 保留 WebSocket 作为跨环境的默认通信通道，继续承载标准消息契约（前端浏览器/Dev 环境可用）。
+- 在 PyQt/QWebEngine 环境下，增加 `QWebChannelTransport` 适配器，优先承载“本地能力/小负载/低时延”的请求；
+  - 示例：剪贴板、截图、文件对话框、窗口控制等。
+- 事件总线保持不变，上层以“传输抽象（Transport Adapter）”实现 WS ↔ QWC 的可切换；
+- 提供显式开关（配置/URL Query），并在运行期记录“通道选择/回退”指标以便灰度与观测。
+
 ### 2025-10-05 更新
 - pdf-viewer 新增 eatures/pdf-card 模块：提供 PDFCardFeature、CardSidebarUI，通过依赖容器延迟获取 UI 并在 SidebarManager 注册卡片侧栏
 - 在 pp-bootstrap-feature.js 中注册顺序更新：PDFCardFeature 在 SidebarManagerFeature 之前装载，以确保卡片侧栏依赖被解析

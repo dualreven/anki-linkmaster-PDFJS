@@ -120,6 +120,7 @@ def copy_backend_sources(repo_root: Path, dist_root: Path) -> dict:
         "backend": {"files": 0, "dirs": 0},
         "qt": {"files": 0, "dirs": 0},
         "core_utils": {"files": 0, "dirs": 0},
+        "public_js": {"files": 0, "dirs": 0},
     }
 
     # 复制后端
@@ -138,6 +139,13 @@ def copy_backend_sources(repo_root: Path, dist_root: Path) -> dict:
         files_cu, dirs_cu = _copytree_filtered(src_core_utils, dist_root / "core_utils")
         stats["core_utils"]["files"] = files_cu
         stats["core_utils"]["dirs"] = dirs_cu
+
+    # 复制 public/js（如 qwebchannel.js）到 dist/static，供生产静态服务器提供
+    public_js = repo_root / "public" / "js"
+    if public_js.exists():
+        files_pj, dirs_pj = _copytree_filtered(public_js, dist_root / "static")
+        stats["public_js"]["files"] = files_pj
+        stats["public_js"]["dirs"] = dirs_pj
 
     # 写入构建元数据
     meta = {
