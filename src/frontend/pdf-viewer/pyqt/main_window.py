@@ -26,7 +26,7 @@ class MainWindow(QMainWindow):
     send_debug_message_requested = pyqtSignal()
     web_loaded = pyqtSignal()
 
-    def __init__(self, app, remote_debug_port: int | None = None, js_log_file: str | None = None, js_logger=None, pdf_id: str = "empty", has_host: bool = False):
+    def __init__(self, app, remote_debug_port: int | None = None, js_log_file: str | None = None, js_logger=None, pdf_id: str = "empty", stop_backend_on_close: bool = True):
         """初始化主窗口
 
         Args:
@@ -35,6 +35,7 @@ class MainWindow(QMainWindow):
             js_log_file: JS日志文件路径
             js_logger: JSConsoleLogger实例（可选）
             pdf_id: PDF标识符，用于日志文件命名
+            stop_backend_on_close: 窗口关闭时是否停止后端服务（默认True）
         """
         super().__init__()
         # 确保窗口关闭时对象被销毁（触发 destroyed 信号），以便宿主映射清理
@@ -53,7 +54,7 @@ class MainWindow(QMainWindow):
         self._js_log_file = js_log_file
         self.js_logger = js_logger  # 简化版Logger实例
         self.pdf_id = pdf_id
-        self.has_host = has_host
+        self.stop_backend_on_close = stop_backend_on_close  # 后端服务停止开关
 
         # 窗口属性（引入“标题锁定”机制）
         self._locked_title: str | None = f"Anki LinkMaster PDF Viewer - {pdf_id}"
@@ -280,7 +281,8 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         """窗口关闭事件。
 
-        当 has_host=True（由 pdf-home 启动）时，仅做前端进程跟踪文件清理与日志记录，
+        根据 stop_backend_on_close 参数决定是否停止后端服务。
+        当 stop_backend_on_close=False（由 pdf-home 启动时）时，仅做前端进程跟踪文件清理与日志记录，
         不触发后台服务的停止，避免影响宿主（pdf-home）。
         """
         import subprocess
@@ -339,8 +341,8 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 log_message(f"[MainWindow-{self.pdf_id}] ✗ 清理前端进程信息失败: {e}")
 
-            # 第二步：根据 has_host 决定是否停止后台服务
-            if not self.has_host:
+            # 第二步：根据 stop_backend_on_close 决定是否停止后台服务
+            if self.stop_backend_on_close:
                 ai_launcher_path = project_root / 'ai_launcher.py'
                 if ai_launcher_path.exists():
                     log_message(f"[MainWindow-{self.pdf_id}] 正在停止后端服务...")
@@ -363,7 +365,7 @@ class MainWindow(QMainWindow):
                 else:
                     log_message(f"[MainWindow-{self.pdf_id}] ✗ 未找到 ai_launcher.py: {ai_launcher_path}")
             else:
-                log_message(f"[MainWindow-{self.pdf_id}] has_host=True，跳过后台服务停止（由宿主管理）")
+                log_message(f"[MainWindow-{self.pdf_id}] stop_backend_on_close=False，跳过后台服务停止（由宿主管理）")
 
         except subprocess.TimeoutExpired:
             log_message(f"[MainWindow-{self.pdf_id}] ✗ 停止服务超时")

@@ -355,15 +355,15 @@ def main() -> int:
             logger.warning("Failed to initialize JS console logger: %s", exc)
 
     # Host window (pass JS remote debug port and logger)
-    # 如果使用 --keep-backend 参数，则设置 has_host=True（不停止后端）
-    has_host = args.keep_backend  # 默认False，使用--keep-backend时为True
+    # 如果使用 --keep-backend 参数，则设置 stop_backend_on_close=False（不停止后端）
+    stop_backend_on_close = not args.keep_backend  # 默认True，使用--keep-backend时为False
     window = MainWindow(
         app,
         remote_debug_port=js_debug_port,
         js_log_file=js_log,
         js_logger=js_console_logger,
         pdf_id=pdf_id,
-        has_host=has_host
+        stop_backend_on_close=stop_backend_on_close
     )
     extras["pdf-viewer-js"] = js_debug_port
     logger.info("Resolved ports: vite=%s msgCenter=%s pdfFile=%s (pdf_id: %s)", vite_port, msgCenter_port, pdfFile_port, pdf_id)
