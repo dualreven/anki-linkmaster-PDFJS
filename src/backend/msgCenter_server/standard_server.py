@@ -25,7 +25,7 @@ import argparse
 import sys
 
 from src.backend.msgCenter_server.standard_protocol import StandardMessageHandler, PDFMessageBuilder, MessageType
-from src.backend.pdf_manager.manager import PDFManager
+from src.backend.pdf_manager.standard_manager import StandardPDFManager as PDFManager
 # 移除传输优化模块的依赖
 # from src.backend.pdf_manager.page_transfer_manager import page_transfer_manager
 
