@@ -279,14 +279,7 @@ class MainWindow(QMainWindow):
             self.web_view.updateGeometry()
 
     def closeEvent(self, event):
-        """窗口关闭事件。
-
-        根据 stop_backend_on_close 参数决定是否停止后端服务。
-        当 stop_backend_on_close=False（由 pdf-home 启动时）时，仅做前端进程跟踪文件清理与日志记录，
-        不触发后台服务的停止，避免影响宿主（pdf-home）。
-        """
-        import subprocess
-        import sys
+        """窗口关闭事件 - 仅清理前端进程跟踪文件"""
         import json
         from pathlib import Path
         from datetime import datetime
@@ -310,8 +303,7 @@ class MainWindow(QMainWindow):
             project_root = Path(__file__).parent.parent.parent.parent.parent
             log_message(f"[MainWindow-{self.pdf_id}] 项目根目录: {project_root}")
 
-            # 第一步：从 frontend-process-info.json 中移除当前窗口的记录
-            # 这样 ai_launcher.py stop 就不会杀掉窗口自己
+            # 从 frontend-process-info.json 中移除当前窗口的记录
             try:
                 frontend_info_path = project_root / 'logs' / 'frontend-process-info.json'
                 log_message(f"[MainWindow-{self.pdf_id}] 检查文件: {frontend_info_path}")
@@ -341,34 +333,6 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 log_message(f"[MainWindow-{self.pdf_id}] ✗ 清理前端进程信息失败: {e}")
 
-            # 第二步：根据 stop_backend_on_close 决定是否停止后台服务
-            if self.stop_backend_on_close:
-                ai_launcher_path = project_root / 'ai_launcher.py'
-                if ai_launcher_path.exists():
-                    log_message(f"[MainWindow-{self.pdf_id}] 正在停止后端服务...")
-                    result = subprocess.run(
-                        [sys.executable, str(ai_launcher_path), 'stop'],
-                        cwd=str(project_root),
-                        capture_output=True,
-                        text=True,
-                        encoding='utf-8',
-                        errors='ignore',
-                        timeout=10
-                    )
-
-                    if result.returncode == 0:
-                        log_message(f"[MainWindow-{self.pdf_id}] ✓ 后端服务已停止")
-                    else:
-                        log_message(f"[MainWindow-{self.pdf_id}] ✗ 停止后端服务失败 (code={result.returncode})")
-                        if result.stderr:
-                            log_message(f"[MainWindow-{self.pdf_id}] 错误输出: {result.stderr[:200]}")
-                else:
-                    log_message(f"[MainWindow-{self.pdf_id}] ✗ 未找到 ai_launcher.py: {ai_launcher_path}")
-            else:
-                log_message(f"[MainWindow-{self.pdf_id}] stop_backend_on_close=False，跳过后台服务停止（由宿主管理）")
-
-        except subprocess.TimeoutExpired:
-            log_message(f"[MainWindow-{self.pdf_id}] ✗ 停止服务超时")
         except Exception as e:
             log_message(f"[MainWindow-{self.pdf_id}] ✗ 关闭窗口时发生错误: {e}")
             import traceback

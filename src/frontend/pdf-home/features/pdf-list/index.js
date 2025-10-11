@@ -804,9 +804,8 @@ export class PDFListFeature {
         }
 
         // 重新请求完整列表以更新表格（因为后端返回的信息不完整）
-        this.#scopedEventBus?.emitGlobal('websocket:message:send', {
-          type: 'pdf-library:list:records'
-        });
+        this.#logger.info('[PDFListFeature] ✨ PDF添加成功，触发搜索刷新');
+        this.#scopedEventBus?.emitGlobal('search:query:requested', { searchText: '' });
       }
 
       // 处理添加失败

@@ -287,14 +287,14 @@ class PyQtBridge(QObject):
                 # 解析文件路径（若无法解析则仍然仅传递 pdf-id）
                 file_path = self._resolve_pdf_file_path(pdf_id)
 
-                # 创建 viewer 窗口，标记 has_host=True 以避免其关闭时停止后台服务
+                # 创建 viewer 窗口，设置 stop_backend_on_close=False 避免关闭窗口时停止后台服务
                 viewer = ViewerMainWindow(
                     app,
                     remote_debug_port=debug_port,
                     js_log_file=js_log_path,
                     js_logger=None,
                     pdf_id=pdf_id,
-                    has_host=True
+                    stop_backend_on_close=False
                 )
 
                 # 构建并加载前端 URL
@@ -323,8 +323,8 @@ class PyQtBridge(QObject):
             logger.error(f"[PyQtBridge] 打开 pdf-viewer 失败: {e}", exc_info=True)
             return False
 
-    @pyqtSlot('QVariant', result=bool)
-    def openPdfViewersEx(self, payload) -> bool:
+    @pyqtSlot('QVariant', result='QVariant')
+    def openPdfViewersEx(self, payload):
         """增强版本：支持传入 { pdfIds, items }，items 可包含 filename 与 file_path。
 
         payload 结构示例：
@@ -335,36 +335,53 @@ class PyQtBridge(QObject):
                { 'id': 'id2', 'filename': 'b.pdf' }
             ]
           }
+
+        Returns:
+            dict: {'success': True} 或 {'success': False, 'error': '错误消息', 'traceback': '详细堆栈'}
         """
         try:
+            logger.info("[PyQtBridge] [步骤PyQt-1] openPdfViewersEx 被调用")
+            logger.info(f"[PyQtBridge] [步骤PyQt-1] payload: {payload}")
+
             vite_port, msg_port, pdf_port, _extras = self._read_runtime_ports()
+            logger.info(f"[PyQtBridge] [步骤PyQt-2] 读取端口配置: vite={vite_port}, msg={msg_port}, pdf={pdf_port}")
 
             from src.qt.compat import QApplication
             import importlib.util as _ilu
             from pathlib import Path as _Path
             _viewer_main_path = _Path(__file__).parent.parent / 'pdf-viewer' / 'pyqt' / 'main_window.py'
+            logger.info(f"[PyQtBridge] [步骤PyQt-3] 查找 pdf-viewer MainWindow: {_viewer_main_path}")
+
             _spec = _ilu.spec_from_file_location('pdf_viewer_main_window', _viewer_main_path)
-            assert _spec and _spec.loader, "无法定位 pdf-viewer 主窗口模块"
+            if not _spec or not _spec.loader:
+                error_msg = f"无法定位 pdf-viewer 主窗口模块: {_viewer_main_path}"
+                logger.error(f"[PyQtBridge] [步骤PyQt-3] {error_msg}")
+                return {'success': False, 'error': error_msg, 'step': 'load_module'}
+
             _mod = _ilu.module_from_spec(_spec)
             _spec.loader.exec_module(_mod)  # type: ignore[attr-defined]
             ViewerMainWindow = getattr(_mod, 'MainWindow')
+            logger.info("[PyQtBridge] [步骤PyQt-4] 成功加载 pdf-viewer MainWindow 类")
 
             app = QApplication.instance()
             if app is None:
-                logger.error("[PyQtBridge] QApplication 实例不存在，无法创建窗口")
-                return False
+                error_msg = "QApplication 实例不存在，无法创建窗口"
+                logger.error(f"[PyQtBridge] [步骤PyQt-5] {error_msg}")
+                return {'success': False, 'error': error_msg, 'step': 'qapp_check'}
 
+            logger.info("[PyQtBridge] [步骤PyQt-5] 检查父窗口状态")
             parent_win = self.parent
             if getattr(parent_win, "viewer_windows", None) is None:
                 setattr(parent_win, "viewer_windows", {})
 
+            logger.info("[PyQtBridge] [步骤PyQt-6] 解析 payload")
             pdf_ids = []
             try:
                 if isinstance(payload, dict):
                     if isinstance(payload.get('pdfIds'), list):
                         pdf_ids.extend([str(x) for x in payload.get('pdfIds') if x is not None])
-            except Exception:
-                pass
+            except Exception as parse_err:
+                logger.warning(f"[PyQtBridge] [步骤PyQt-6] 解析 pdfIds 失败: {parse_err}")
 
             items_map = {}
             try:
@@ -381,26 +398,32 @@ class PyQtBridge(QObject):
                             }
                             if _id not in pdf_ids:
                                 pdf_ids.append(_id)
-                        except Exception:
-                            continue
-            except Exception:
-                pass
+                        except Exception as item_err:
+                            logger.warning(f"[PyQtBridge] [步骤PyQt-6] 解析 item 失败: {item_err}")
+            except Exception as items_err:
+                logger.warning(f"[PyQtBridge] [步骤PyQt-6] 解析 items 失败: {items_err}")
 
-            for raw_id in pdf_ids:
+            logger.info(f"[PyQtBridge] [步骤PyQt-7] 准备打开 {len(pdf_ids)} 个PDF窗口: {pdf_ids}")
+
+            opened_count = 0
+            for idx, raw_id in enumerate(pdf_ids, 1):
                 pdf_id = str(raw_id)
+                logger.info(f"[PyQtBridge] [步骤PyQt-8.{idx}] 处理PDF: {pdf_id}")
+
                 existing = parent_win.viewer_windows.get(pdf_id) if hasattr(parent_win, 'viewer_windows') else None
                 if existing:
                     try:
                         if hasattr(existing, 'isVisible') and not existing.isVisible():
                             try:
                                 parent_win.viewer_windows.pop(pdf_id, None)
-                                logger.info(f"[PyQtBridge] 发现失效窗口条目，移除并重建: {pdf_id}")
+                                logger.info(f"[PyQtBridge] [步骤PyQt-8.{idx}] 发现失效窗口，移除并重建: {pdf_id}")
                             except Exception:
                                 pass
                         else:
                             existing.raise_()  # type: ignore[attr-defined]
                             existing.activateWindow()
-                            logger.info(f"[PyQtBridge] 已存在窗口，激活: {pdf_id}")
+                            logger.info(f"[PyQtBridge] [步骤PyQt-8.{idx}] 窗口已存在，激活: {pdf_id}")
+                            opened_count += 1
                             continue
                     except Exception:
                         try:
@@ -408,32 +431,39 @@ class PyQtBridge(QObject):
                         except Exception:
                             pass
 
+                logger.info(f"[PyQtBridge] [步骤PyQt-9.{idx}] 分配调试端口和日志路径")
                 debug_port = self._next_js_debug_port()
                 js_log_path = self._compute_js_log_path(pdf_id)
+                logger.info(f"[PyQtBridge] [步骤PyQt-9.{idx}] debug_port={debug_port}, js_log={js_log_path}")
+
                 # 清空对应 pdf-viewer 的 JS 日志文件
                 try:
                     from io import TextIOWrapper  # 仅用于类型提示
                     with open(js_log_path, 'w', encoding='utf-8', newline='\n') as _f:  # type: TextIOWrapper
                         _f.write('')
-                    logger.info(f"[PyQtBridge] 已清空 JS 日志文件: {js_log_path}")
+                    logger.info(f"[PyQtBridge] [步骤PyQt-10.{idx}] 已清空 JS 日志文件")
                 except Exception as _e:
-                    logger.warning(f"[PyQtBridge] 清空 JS 日志失败: {js_log_path} err={_e}")
+                    logger.warning(f"[PyQtBridge] [步骤PyQt-10.{idx}] 清空 JS 日志失败: {_e}")
 
+                logger.info(f"[PyQtBridge] [步骤PyQt-11.{idx}] 解析元信息")
                 filename = None
                 provided_path = None
                 try:
                     meta = items_map.get(pdf_id) or {}
                     filename = meta.get('filename')
                     provided_path = meta.get('file_path')
-                except Exception:
-                    pass
+                    logger.info(f"[PyQtBridge] [步骤PyQt-11.{idx}] 元信息: filename={filename}, path={provided_path}")
+                except Exception as meta_err:
+                    logger.warning(f"[PyQtBridge] [步骤PyQt-11.{idx}] 解析元信息失败: {meta_err}")
 
                 # 解析文件路径：优先 items.file_path，其次 filename 在常见目录中查找；最后回退原有解析逻辑（不直连数据库，遵循隔离原则）
+                logger.info(f"[PyQtBridge] [步骤PyQt-12.{idx}] 解析文件路径")
                 file_path = None
                 try:
                     from pathlib import Path as _P
                     if provided_path and _P(provided_path).exists():
                         file_path = provided_path
+                        logger.info(f"[PyQtBridge] [步骤PyQt-12.{idx}] 使用提供的路径: {file_path}")
                     elif filename:
                         # 在常见目录中按文件名查找
                         candidates_root = [
@@ -445,22 +475,33 @@ class PyQtBridge(QObject):
                             p = root / filename
                             if p.exists():
                                 file_path = str(p)
+                                logger.info(f"[PyQtBridge] [步骤PyQt-12.{idx}] 在 {root} 找到文件: {filename}")
                                 break
                     if not file_path:
                         file_path = self._resolve_pdf_file_path(pdf_id)
-                except Exception:
+                        logger.info(f"[PyQtBridge] [步骤PyQt-12.{idx}] 通过解析器获取路径: {file_path}")
+                except Exception as path_err:
+                    logger.warning(f"[PyQtBridge] [步骤PyQt-12.{idx}] 路径解析失败: {path_err}")
                     file_path = self._resolve_pdf_file_path(pdf_id)
 
-                viewer = ViewerMainWindow(
-                    app,
-                    remote_debug_port=debug_port,
-                    js_log_file=js_log_path,
-                    js_logger=None,
-                    pdf_id=pdf_id,
-                    has_host=True
-                )
+                logger.info(f"[PyQtBridge] [步骤PyQt-13.{idx}] 创建 pdf-viewer 窗口实例")
+                try:
+                    viewer = ViewerMainWindow(
+                        app,
+                        remote_debug_port=debug_port,
+                        js_log_file=js_log_path,
+                        js_logger=None,
+                        pdf_id=pdf_id,
+                        stop_backend_on_close=False
+                    )
+                    logger.info(f"[PyQtBridge] [步骤PyQt-13.{idx}] 窗口实例创建成功")
+                except Exception as create_err:
+                    error_msg = f"创建窗口实例失败: {create_err}"
+                    logger.error(f"[PyQtBridge] [步骤PyQt-13.{idx}] {error_msg}", exc_info=True)
+                    return {'success': False, 'error': error_msg, 'step': 'create_window', 'pdf_id': pdf_id}
 
                 # 设置窗口标题：优先使用 title，其次 filename 去掉扩展名，最后用 pdf_id
+                logger.info(f"[PyQtBridge] [步骤PyQt-14.{idx}] 设置窗口标题")
                 try:
                     title_meta = None
                     try:
@@ -478,20 +519,23 @@ class PyQtBridge(QObject):
                             display_title = str(filename)
                     else:
                         display_title = str(pdf_id)
-                    # 优先使用“人类可读标题”API，保证标题锁定不被页面覆盖
+                    # 优先使用"人类可读标题"API，保证标题锁定不被页面覆盖
                     try:
                         if hasattr(viewer, 'setHumanWindowTitle'):
                             viewer.setHumanWindowTitle(f"Anki LinkMaster PDF Viewer - {display_title}")
                         else:
                             viewer.setWindowTitle(f"Anki LinkMaster PDF Viewer - {display_title}")
-                    except Exception:
+                        logger.info(f"[PyQtBridge] [步骤PyQt-14.{idx}] 窗口标题: {display_title}")
+                    except Exception as title_err:
+                        logger.warning(f"[PyQtBridge] [步骤PyQt-14.{idx}] 设置标题失败: {title_err}")
                         try:
                             viewer.setWindowTitle(f"Anki LinkMaster PDF Viewer - {display_title}")
                         except Exception:
                             pass
-                except Exception:
-                    pass
+                except Exception as title_outer_err:
+                    logger.warning(f"[PyQtBridge] [步骤PyQt-14.{idx}] 标题处理失败: {title_outer_err}")
 
+                logger.info(f"[PyQtBridge] [步骤PyQt-15.{idx}] 构建前端 URL")
                 url = self._build_pdf_viewer_url(vite_port, msg_port, pdf_port, pdf_id, file_path=file_path)
                 try:
                     import urllib.parse as _up
@@ -499,28 +543,51 @@ class PyQtBridge(QObject):
                         url = f"{url}&title={_up.quote(str(title_meta))}"
                 except Exception:
                     pass
-                logger.info(f"[PyQtBridge] 打开 pdf-viewer (pdf_id={pdf_id}) URL={url}")
-                viewer.load_frontend(url)
-                viewer.show()
-                try:
-                    viewer.raise_()  # type: ignore[attr-defined]
-                    viewer.activateWindow()
-                except Exception:
-                    pass
+                logger.info(f"[PyQtBridge] [步骤PyQt-15.{idx}] URL: {url}")
 
+                logger.info(f"[PyQtBridge] [步骤PyQt-16.{idx}] 加载前端并显示窗口")
+                try:
+                    viewer.load_frontend(url)
+                    viewer.show()
+                    try:
+                        viewer.raise_()  # type: ignore[attr-defined]
+                        viewer.activateWindow()
+                    except Exception:
+                        pass
+                    logger.info(f"[PyQtBridge] [步骤PyQt-16.{idx}] 窗口显示成功")
+                except Exception as show_err:
+                    error_msg = f"加载和显示窗口失败: {show_err}"
+                    logger.error(f"[PyQtBridge] [步骤PyQt-16.{idx}] {error_msg}", exc_info=True)
+                    return {'success': False, 'error': error_msg, 'step': 'show_window', 'pdf_id': pdf_id}
+
+                logger.info(f"[PyQtBridge] [步骤PyQt-17.{idx}] 注册窗口到父窗口字典")
                 try:
                     parent_win.viewer_windows[pdf_id] = viewer
-                except Exception:
-                    pass
+                except Exception as reg_err:
+                    logger.warning(f"[PyQtBridge] [步骤PyQt-17.{idx}] 注册窗口失败: {reg_err}")
                 try:
                     viewer.destroyed.connect(lambda _=None, _pid=pdf_id: parent_win.viewer_windows.pop(_pid, None))  # type: ignore[attr-defined]
-                except Exception:
-                    pass
+                except Exception as conn_err:
+                    logger.warning(f"[PyQtBridge] [步骤PyQt-17.{idx}] 连接销毁信号失败: {conn_err}")
 
-            return True
+                opened_count += 1
+                logger.info(f"[PyQtBridge] [步骤PyQt-18.{idx}] PDF窗口打开完成: {pdf_id}")
+
+            logger.info(f"[PyQtBridge] [步骤PyQt-19] 所有窗口打开完成，共 {opened_count}/{len(pdf_ids)} 个")
+            return {'success': True, 'opened_count': opened_count, 'total_count': len(pdf_ids)}
+
         except Exception as e:
-            logger.error(f"[PyQtBridge] 打开 pdf-viewer(Ex) 失败: {e}", exc_info=True)
-            return False
+            import traceback
+            error_msg = str(e)
+            error_traceback = traceback.format_exc()
+            logger.error(f"[PyQtBridge] [ERROR] openPdfViewersEx 失败: {error_msg}", exc_info=True)
+            logger.error(f"[PyQtBridge] [ERROR] 堆栈跟踪:\n{error_traceback}")
+            return {
+                'success': False,
+                'error': error_msg,
+                'traceback': error_traceback,
+                'step': 'unknown'
+            }
 
     def _compute_js_log_path(self, pdf_id: str) -> str:
         """计算 pdf-viewer JS 日志文件路径（UTF-8）。"""

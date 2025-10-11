@@ -256,9 +256,7 @@ class MainWindow(QMainWindow):
             self.web_view.updateGeometry()
 
     def closeEvent(self, event):
-        """窗口关闭事件 - 先关闭由本窗口打开的 pdf-viewer，再处理后台服务清理"""
-        import subprocess
-        import sys
+        """窗口关闭事件 - 先关闭由本窗口打开的 pdf-viewer，再清理前端进程跟踪信息"""
         import json
         from pathlib import Path
         from datetime import datetime
@@ -291,8 +289,7 @@ class MainWindow(QMainWindow):
             # 获取项目根目录
             project_root = Path(__file__).parent.parent.parent.parent
 
-            # 第一步：从 frontend-process-info.json 中移除当前窗口的 PID
-            # 这样 ai_launcher.py stop 就不会杀掉窗口自己
+            # 从 frontend-process-info.json 中移除当前窗口的 PID
             try:
                 frontend_info_path = project_root / 'logs' / 'frontend-process-info.json'
                 if frontend_info_path.exists():
@@ -311,32 +308,8 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 print(f"[MainWindow] 清理前端进程信息失败: {e}")
 
-            # 第二步：根据 stop_backend_on_close 决定是否停止后台服务
-            if self.stop_backend_on_close:
-                ai_launcher_path = project_root / 'ai_launcher.py'
-                if ai_launcher_path.exists():
-                    print(f"[MainWindow] 正在停止后台服务...")
-                    result = subprocess.run(
-                        [sys.executable, str(ai_launcher_path), 'stop'],
-                        cwd=str(project_root),
-                        capture_output=True,
-                        text=True,
-                        encoding='utf-8',
-                        errors='ignore',
-                        timeout=10
-                    )
-
-                    if result.returncode == 0:
-                        print(f"[MainWindow] 后台服务已停止")
-                    else:
-                        print(f"[MainWindow] 停止服务时出现警告: {result.stderr}")
-                else:
-                    print(f"[MainWindow] 找不到 ai_launcher.py，跳过服务停止")
-            else:
-                print(f"[MainWindow] stop_backend_on_close=False，跳过后端服务停止")
-
         except Exception as e:
-            print(f"[MainWindow] 停止服务失败: {e}")
+            print(f"[MainWindow] 清理过程失败: {e}")
         finally:
             # 接受关闭事件，让窗口优雅关闭
             event.accept()

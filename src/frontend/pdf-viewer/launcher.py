@@ -51,12 +51,15 @@ import sys
 import logging
 import argparse
 from pathlib import Path
+from typing import Optional
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.qt.compat import QApplication, QUrl, QWebChannel, QWebSocket
+from src.frontend.common.launch_config import LaunchConfig
+
 # 使用MainWindow支持JS日志记录
 from pyqt.main_window import MainWindow
 
@@ -279,7 +282,299 @@ def _setup_logging(pdf_id: str = "empty") -> None:
     )
 
 
+class PdfViewerApp:
+    """
+    PDF-Viewer Application Launcher
+
+    支持两种运行模式：
+    1. 子进程模式（parent_app=None）：独立运行，自己创建 QApplication
+    2. 寄宿模式（parent_app=QApplication）：使用外部 QApplication（如 Anki）
+
+    示例：
+        # 子进程模式（CLI）
+        config = LaunchConfig(pdf_id="sample", page_at=5)
+        app = PdfViewerApp(config)
+        sys.exit(app.run())
+
+        # 寄宿模式（Anki集成）
+        from aqt import mw
+        config = LaunchConfig(pdf_id="sample", is_prod=True, source="anki")
+        app = PdfViewerApp(config, parent_app=mw.app)
+        app.run()
+    """
+
+    def __init__(self, config: LaunchConfig, parent_app: Optional[QApplication] = None):
+        """
+        初始化 PDF-Viewer 应用
+
+        Args:
+            config: 启动配置对象
+            parent_app: 父 QApplication（None = 子进程模式）
+        """
+        self.config = config
+        self.parent_app = parent_app
+        self.mode = "hosted" if parent_app else "subprocess"
+
+        # QApplication 实例
+        self.app: Optional[QApplication] = None
+
+        # 组件实例
+        self.window = None
+        self.ws_client = None
+        self.js_console_logger = None
+        self.bridge = None
+        self.screenshot_handler = None
+
+        # PDF 信息
+        self.file_path: Optional[str] = None
+        self.pdf_id: str = "empty"
+
+        logger.info(f"PdfViewerApp initialized in {self.mode} mode")
+        logger.info(f"Config: {self.config}")
+
+    def run(self) -> int:
+        """
+        运行应用
+
+        Returns:
+            退出码（子进程模式）或 0（寄宿模式）
+        """
+        # 步骤 1: 解析 PDF ID
+        self.file_path = self.config.file_path
+        if self.config.pdf_id and not self.file_path:
+            self.file_path = resolve_pdf_id_to_file_path(self.config.pdf_id)
+            if self.file_path:
+                logger.info(f"Resolved PDF ID '{self.config.pdf_id}' to file path: {self.file_path}")
+            else:
+                logger.warning(f"Could not resolve PDF ID '{self.config.pdf_id}' to a valid file path")
+
+        self.pdf_id = extract_pdf_id(self.file_path) if self.file_path else (self.config.pdf_id or "empty")
+        python_log, js_log = get_log_file_paths(self.pdf_id)
+
+        # 步骤 2: 设置日志
+        _setup_logging(self.pdf_id)
+        logger.info(f"Launching pdf-viewer ({self.mode} mode, pdf_id: {self.pdf_id})")
+
+        # 步骤 3: 创建或使用 QApplication
+        if self.mode == "subprocess":
+            self.app = QApplication(sys.argv)
+            logger.info("✅ Created QApplication (subprocess mode)")
+        else:
+            self.app = self.parent_app
+            logger.info("✅ Using parent QApplication (hosted mode)")
+
+        # 步骤 4: 解析端口配置
+        vite_json, msgCenter_json, pdfFile_json, extras = _read_runtime_ports()
+
+        vite_port = self.config.vite_port or vite_json
+        if not self.config.vite_port:
+            try:
+                vite_port = get_vite_port() or vite_port
+            except Exception:
+                pass
+
+        msgCenter_port = self.config.msgCenter_port or msgCenter_json
+        pdfFile_port = self.config.pdfFile_port or pdfFile_json
+        js_debug_port = self.config.js_debug_port or int(extras.get("pdf-viewer-js", 9223))
+
+        logger.info(f"Resolved ports: vite={vite_port} msgCenter={msgCenter_port} pdfFile={pdfFile_port} (pdf_id: {self.pdf_id})")
+        logger.info(f"JS remote debug port: {js_debug_port}")
+
+        # 步骤 5: 持久化端口配置
+        extras["pdf-viewer-js"] = js_debug_port
+        if not self.config.no_persist:
+            self._persist_ports(vite_port, msgCenter_port, pdfFile_port, extras)
+
+        # 步骤 6: 创建 JS Console Logger
+        if not self.config.disable_js_console:
+            self._create_js_logger(js_debug_port, js_log)
+
+        # 步骤 7: 创建主窗口
+        stop_backend_on_close = not self.config.keep_backend
+        self.window = MainWindow(
+            self.app,
+            remote_debug_port=js_debug_port,
+            js_log_file=js_log,
+            js_logger=self.js_console_logger,
+            pdf_id=self.pdf_id,
+            stop_backend_on_close=stop_backend_on_close
+        )
+        logger.info("✅ MainWindow created")
+
+        # 步骤 8: 创建 WebSocket 客户端
+        self.ws_client = QWebSocket()
+
+        # 步骤 9: 设置 QWebChannel 桥接
+        if not self.config.disable_webchannel:
+            self._setup_qwebchannel()
+
+        # 步骤 10: 设置 WebSocket 连接
+        if not self.config.disable_websocket:
+            self._setup_websocket(msgCenter_port)
+
+        # 步骤 11: 加载前端
+        if not self.config.disable_frontend_load:
+            url = self._build_frontend_url(vite_port, msgCenter_port, pdfFile_port)
+            logger.info(f"Loading front-end: {url}")
+
+            if not self.config.diagnose_only:
+                self.window.load_frontend(url)
+                self.window.show()
+
+        # 步骤 12: 诊断模式检查
+        if self.config.diagnose_only:
+            logger.info("Diagnostic mode complete - skipping Qt event loop")
+            self.ws_client.close()
+            return 0
+
+        # 步骤 13: 运行事件循环（仅子进程模式）
+        if self.mode == "subprocess":
+            rc = self.app.exec()
+            logger.info(f"pdf-viewer window exited with code {rc} (pdf_id: {self.pdf_id})")
+            self.cleanup()
+            return rc
+        else:
+            logger.info("pdf-viewer window started (hosted mode, no event loop)")
+            return 0
+
+    def _build_frontend_url(self, vite_port: int, msgCenter_port: int, pdfFile_port: int) -> str:
+        """构建前端 URL"""
+        if self.config.is_prod:
+            # 生产模式
+            url = f"http://127.0.0.1:{pdfFile_port}/pdf-viewer/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"
+        else:
+            # 开发模式
+            url = f"http://localhost:{vite_port}/pdf-viewer/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"
+            if self.file_path:
+                import urllib.parse
+                file_param = urllib.parse.quote(self.file_path)
+                url += f"&file={file_param}"
+
+        # 添加 URL 导航参数
+        if self.config.pdf_id:
+            url += f"&pdf-id={self.config.pdf_id}"
+        if self.config.page_at is not None:
+            url += f"&page-at={self.config.page_at}"
+        if self.config.position is not None:
+            position = max(0.0, min(100.0, self.config.position))
+            url += f"&position={position}"
+        if self.config.anchor_id:
+            url += f"&anchor-id={self.config.anchor_id}"
+        if self.config.annotation_id:
+            url += f"&annotation-id={self.config.annotation_id}"
+
+        return url
+
+    def _persist_ports(self, vite_port: int, msgCenter_port: int, pdfFile_port: int, extras: dict):
+        """持久化端口配置"""
+        try:
+            logs_dir = project_root / 'logs'
+            logs_dir.mkdir(parents=True, exist_ok=True)
+            cfg_path = logs_dir / 'runtime-ports.json'
+            payload = {"vite_port": vite_port, "msgCenter_port": msgCenter_port, "pdfFile_port": pdfFile_port}
+            payload.update(extras or {})
+            cfg_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
+        except Exception as exc:
+            logger.warning(f"Failed persisting runtime-ports.json: {exc}")
+
+    def _create_js_logger(self, js_debug_port: int, log_file: str):
+        """创建 JS 控制台日志记录器"""
+        try:
+            self.js_console_logger = JSConsoleLogger(
+                debug_port=js_debug_port,
+                log_file=log_file,
+                pdf_id=self.pdf_id
+            )
+            if self.js_console_logger.start():
+                logger.info(f"✅ JS console logger started for pdf_id: {self.pdf_id} on port {js_debug_port}")
+            else:
+                logger.warning("Failed to start JS console logger")
+        except Exception as exc:
+            logger.warning(f"Failed to initialize JS console logger: {exc}")
+            self.js_console_logger = None
+
+    def _setup_qwebchannel(self):
+        """设置 QWebChannel 桥接"""
+        try:
+            channel = QWebChannel(self.window)
+            self.bridge = PdfViewerBridge(self.ws_client, self.window, self.file_path)
+            self.screenshot_handler = ScreenshotHandler(self.window, project_root)
+            channel.registerObject('pdfViewerBridge', self.bridge)
+            channel.registerObject('screenshotHandler', self.screenshot_handler)
+            if self.window.web_page:
+                self.window.web_page.setWebChannel(channel)
+            logger.info("✅ QWebChannel initialized: pdfViewerBridge and screenshotHandler registered")
+        except Exception as exc:
+            logger.warning(f"Failed to initialize QWebChannel bridge: {exc}")
+
+    def _setup_websocket(self, msgCenter_port: int):
+        """设置 WebSocket 连接"""
+        ws_url = QUrl(f"ws://127.0.0.1:{msgCenter_port}")
+
+        def on_connected():
+            logger.info(f"WebSocket connected to {ws_url.toString()}")
+            if self.bridge and self.file_path:
+                self.bridge.loadPdfFile(self.file_path)
+
+        def on_disconnected():
+            logger.info(f"WebSocket disconnected from {ws_url.toString()}")
+
+        def on_error(error):
+            logger.warning(f"WebSocket error: {error}")
+
+        self.ws_client.connected.connect(on_connected)
+        self.ws_client.disconnected.connect(on_disconnected)
+        self.ws_client.error.connect(on_error)
+
+        if not self.config.diagnose_only:
+            self.ws_client.open(ws_url)
+            logger.info(f"WebSocket connection initiated to {ws_url.toString()}")
+
+    def cleanup(self):
+        """清理资源"""
+        logger.info("开始清理资源...")
+
+        if self.ws_client:
+            try:
+                self.ws_client.close()
+            except Exception:
+                pass
+
+        if self.js_console_logger:
+            try:
+                self.js_console_logger.stop()
+                logger.info(f"JS console logger stopped for pdf_id: {self.pdf_id}")
+            except Exception:
+                pass
+
+        # 停止后台服务
+        if not self.config.keep_backend:
+            _cleanup_backend_services(self.pdf_id, logger)
+
+
 def main() -> int:
+    """
+    CLI 入口函数（向后兼容）
+
+    从命令行参数创建配置并启动 pdf-viewer（子进程模式）
+    """
+    # 解析命令行参数
+    args = _parse_args(sys.argv[1:])
+
+    # 构造配置对象
+    config = LaunchConfig.from_args(args)
+
+    # 创建并运行应用（子进程模式）
+    app_instance = PdfViewerApp(config, parent_app=None)
+    return app_instance.run()
+
+
+def main_legacy() -> int:
+    """
+    Legacy CLI 入口函数（保留原有逻辑，仅用于调试）
+
+    ⚠️ 已废弃：请使用 main() 函数
+    """
     # Parse args first to get file path for PDF ID extraction
     args = _parse_args(sys.argv[1:])
 

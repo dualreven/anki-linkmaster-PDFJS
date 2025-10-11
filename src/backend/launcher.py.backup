@@ -417,13 +417,8 @@ class BackendProcessManager:
             return False, None
 
 
-class LegacyBackendLauncher:
-    """
-    后端服务启动器主类（子进程模式 - Legacy）
-
-    此类保留原有的子进程启动方式，用于向后兼容和CLI命令。
-    新的 PyQt 集成模式请使用 BackendLauncher 类。
-    """
+class BackendLauncher:
+    """后端服务启动器主类"""
 
     def __init__(self):
         self.project_root = project_root
@@ -605,200 +600,8 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-class BackendLauncher:
-    """
-    后端服务启动器（PyQt 集成版）
-
-    支持两种模式:
-    1. 子进程模式: 无 parent_app，自动创建测试 QApplication
-    2. 寄宿模式: 传入 parent_app，共享父应用事件循环
-
-    示例:
-        # 子进程模式（开发调试）
-        launcher = BackendLauncher(parent_app=None)
-        launcher.start()
-
-        # 寄宿模式（Anki 集成）
-        from aqt import mw
-        launcher = BackendLauncher(parent_app=mw)
-        launcher.start()
-    """
-
-    def __init__(self, parent_app=None, show_ui: bool = False):
-        """
-        初始化后端启动器
-
-        Args:
-            parent_app: 父 QApplication（Anki 的 mw 或 None）
-            show_ui: 是否显示测试 UI（仅在子进程模式有效，默认 False）
-        """
-        self.parent_app = parent_app
-        self.mode = "hosted" if parent_app else "subprocess"
-        self.show_ui = show_ui
-
-        # 服务器实例
-        self.ws_server = None
-        self.http_server = None
-
-        # 子进程模式专用
-        self.test_app = None
-        self.test_ui = None
-
-        # 端口管理器（复用现有代码）
-        self.port_manager = BackendPortManager(project_root)
-
-        # 日志记录
-        self.logger = logging.getLogger(f'BackendLauncher[{self.mode}]')
-
-    def start(self, msgCenter_port: Optional[int] = None,
-              pdfFile_port: Optional[int] = None) -> bool:
-        """
-        启动后端服务
-
-        Args:
-            msgCenter_port: WebSocket 端口（None=自动分配）
-            pdfFile_port: HTTP 端口（None=自动分配）
-
-        Returns:
-            bool: 启动成功返回 True
-        """
-        self.logger.info(f"=== 启动后端服务 ({self.mode} 模式) ===")
-
-        try:
-            # 1. 子进程模式: 创建 QApplication
-            if self.mode == "subprocess":
-                from PyQt6.QtWidgets import QApplication
-                self.test_app = QApplication(sys.argv)
-                parent = self.test_app
-                self.logger.info("✅ 已创建测试 QApplication")
-
-                # 可选: 显示测试 UI
-                if self._should_show_test_ui():
-                    self.logger.info("启动测试 UI...")
-                    from src.backend.test_ui import TestUI
-                    self.test_ui = TestUI(launcher=self)
-                    self.test_ui.show()
-                    self.logger.info("✅ 测试 UI 已显示")
-            else:
-                parent = self.parent_app
-                self.logger.info("✅ 使用父应用 QApplication")
-
-            # 2. 端口分配
-            ws_port = self._allocate_port('msgCenter_port', msgCenter_port)
-            http_port = self._allocate_port('pdfFile_port', pdfFile_port)
-
-            if not (ws_port and http_port):
-                self.logger.error("❌ 端口分配失败")
-                return False
-
-            # 3. 启动 WebSocket 服务器
-            from src.backend.msgCenter_server.embed_msgcenter import EmbedMsgCenterServer
-
-            self.ws_server = EmbedMsgCenterServer(
-                host="127.0.0.1",
-                port=ws_port,
-                parent=parent
-            )
-
-            if not self.ws_server.start():
-                self.logger.error(f"❌ WebSocket 服务器启动失败: {ws_port}")
-                return False
-
-            self.logger.info(f"✅ WebSocket 服务器已启动: ws://127.0.0.1:{ws_port}")
-
-            # 4. 启动 HTTP 文件服务器
-            from src.backend.pdfFile_server.embed_fileserver import EmbedFileServer
-
-            root_dir = project_root / "data" / "pdfs"
-            self.http_server = EmbedFileServer(
-                root_dir=str(root_dir),
-                host="127.0.0.1",
-                port=http_port,
-                parent=parent
-            )
-
-            if not self.http_server.start():
-                self.logger.error(f"❌ HTTP 服务器启动失败: {http_port}")
-                self.ws_server.stop()
-                return False
-
-            self.logger.info(f"✅ HTTP 文件服务器已启动: http://127.0.0.1:{http_port}")
-
-            # 5. 保存端口配置（合并写入）
-            self._save_ports(ws_port, http_port)
-
-            # 6. 子进程模式: 运行事件循环
-            if self.test_app:
-                self.logger.info("\n📌 按 Ctrl+C 或关闭窗口停止服务器\n")
-                sys.exit(self.test_app.exec())
-
-            return True
-
-        except Exception as e:
-            self.logger.error(f"❌ 启动服务异常: {e}", exc_info=True)
-            return False
-
-    def stop(self):
-        """停止所有服务"""
-        self.logger.info("=== 停止后端服务 ===")
-
-        if self.ws_server:
-            self.ws_server.stop()
-            self.logger.info("✅ WebSocket 服务器已停止")
-
-        if self.http_server:
-            self.http_server.stop()
-            self.logger.info("✅ HTTP 服务器已停止")
-
-    def is_ws_running(self) -> bool:
-        """检查 WebSocket 服务器状态"""
-        return self.ws_server and self.ws_server.is_running()
-
-    def is_http_running(self) -> bool:
-        """检查 HTTP 服务器状态"""
-        return self.http_server and self.http_server.is_running()
-
-    def get_status(self) -> Dict[str, Any]:
-        """获取服务状态"""
-        return {
-            "mode": self.mode,
-            "websocket": {
-                "running": self.is_ws_running(),
-                "port": self.ws_server.port if self.ws_server else None,
-                "clients": self.ws_server.get_client_count() if self.ws_server else 0
-            },
-            "http": {
-                "running": self.is_http_running(),
-                "port": self.http_server.port if self.http_server else None
-            }
-        }
-
-    # ---- 私有方法 ----
-
-    def _allocate_port(self, service_name: str, preferred_port: Optional[int]) -> Optional[int]:
-        """分配端口（复用现有逻辑）"""
-        try:
-            return self.port_manager.find_available_port(service_name, preferred_port)
-        except RuntimeError as e:
-            self.logger.error(f"❌ {e}")
-            return None
-
-    def _save_ports(self, ws_port: int, http_port: int):
-        """保存端口配置到 runtime-ports.json（合并模式）"""
-        ports = {
-            "msgCenter_port": ws_port,
-            "pdfFile_port": http_port
-        }
-        self.port_manager.save_runtime_ports(ports)
-
-    def _should_show_test_ui(self) -> bool:
-        """判断是否显示测试 UI"""
-        # 实例属性控制（仅在子进程模式有效）
-        return self.mode == "subprocess" and self.show_ui
-
-
 def main():
-    """主函数（CLI 入口）"""
+    """主函数"""
     args = parse_arguments()
 
     if not args.command:
@@ -806,8 +609,7 @@ def main():
         print("使用 --help 查看详细帮助")
         return 1
 
-    # 使用 Legacy 模式（子进程）
-    launcher = LegacyBackendLauncher()
+    launcher = BackendLauncher()
 
     try:
         if args.command == 'start':

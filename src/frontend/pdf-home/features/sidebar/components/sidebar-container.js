@@ -7,6 +7,8 @@ export class SidebarContainer {
   #logger = null;
   #eventBus = null;
   #container = null;
+  #resizeHandler = null;
+  #lastLayoutState = null; // 缓存上次的布局状态，避免重复调整
 
   constructor(logger, eventBus) {
     this.#logger = logger;
@@ -58,9 +60,14 @@ export class SidebarContainer {
     // 创建收起/展开按钮
     this.#createToggleButton();
 
-    // 根据当前状态应用主内容布局（默认未折叠时应推开主内容，避免遮挡）
-    const isCollapsed = this.#container.classList.contains('collapsed');
-    this.#updateMainContentLayout(isCollapsed);
+    // 监听窗口大小变化，动态调整布局（先设置监听器）
+    this.#setupResizeHandler();
+
+    // 根据当前状态应用主内容布局（延迟执行，确保DOM已渲染）
+    setTimeout(() => {
+      const isCollapsed = this.#container.classList.contains('collapsed');
+      this.#updateMainContentLayout(isCollapsed);
+    }, 0);
 
     this.#logger.info('[SidebarContainer] Rendered');
   }
@@ -113,25 +120,90 @@ export class SidebarContainer {
 
   /**
    * 根据侧边栏折叠状态，更新主内容区域布局，避免遮挡
+   * 只有当侧边栏实际遮挡主内容时，才调整布局
    * @param {boolean} collapsed - 是否处于折叠状态
    * @private
    */
   #updateMainContentLayout(collapsed) {
     try {
       const main = document.querySelector('.main-content');
-      if (!main) return;
+      const sidebar = document.getElementById('sidebar');
+      if (!main || !sidebar) return;
+
+      let shouldPushContent = false;
 
       if (collapsed) {
-        // 恢复默认布局
+        // 侧边栏收起，不需要推开内容
+        shouldPushContent = false;
+      } else {
+        // 侧边栏展开，检测是否遮挡主内容
+        // 重要：先临时清除 inline style，获取原始位置
+        const originalMargin = main.style.marginLeft;
+        const originalWidth = main.style.width;
         main.style.marginLeft = '';
         main.style.width = '';
-      } else {
-        // 与侧边栏宽度保持一致：280px
+
+        // 强制重新计算布局
+        void main.offsetWidth;
+
+        const sidebarRect = sidebar.getBoundingClientRect();
+        const mainRect = main.getBoundingClientRect();
+
+        // 检测水平方向是否重叠（考虑1px的误差容忍）
+        const isOverlapping = sidebarRect.right > mainRect.left + 1;
+
+        // 恢复之前的样式
+        main.style.marginLeft = originalMargin;
+        main.style.width = originalWidth;
+
+        shouldPushContent = isOverlapping;
+      }
+
+      // 检查是否需要更新（避免重复设置相同样式）
+      const layoutStateKey = `${collapsed}-${shouldPushContent}`;
+      if (this.#lastLayoutState === layoutStateKey) {
+        return; // 状态未变化，跳过
+      }
+      this.#lastLayoutState = layoutStateKey;
+
+      // 应用布局调整
+      if (shouldPushContent) {
         main.style.marginLeft = '280px';
         main.style.width = 'calc(100% - 280px)';
+        this.#logger.debug('[SidebarContainer] Layout adjusted: content pushed');
+      } else {
+        main.style.marginLeft = '';
+        main.style.width = '';
+        this.#logger.debug('[SidebarContainer] Layout adjusted: content restored');
       }
-    } catch (_) {
-      // 忽略布局更新异常，避免影响主流程
+    } catch (error) {
+      this.#logger.warn('[SidebarContainer] Layout update failed', error);
+    }
+  }
+
+  /**
+   * 监听窗口大小变化，动态调整布局
+   * @private
+   */
+  #setupResizeHandler() {
+    try {
+      // 防抖处理，避免频繁触发
+      let resizeTimer = null;
+      this.#resizeHandler = () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          const sidebar = document.getElementById('sidebar');
+          if (!sidebar) return;
+
+          const isCollapsed = sidebar.classList.contains('collapsed');
+          this.#updateMainContentLayout(isCollapsed);
+        }, 150); // 150ms 防抖
+      };
+
+      window.addEventListener('resize', this.#resizeHandler);
+      this.#logger.info('[SidebarContainer] Window resize handler setup completed');
+    } catch (error) {
+      this.#logger.warn('[SidebarContainer] Failed to setup resize handler', error);
     }
   }
 
@@ -139,6 +211,12 @@ export class SidebarContainer {
    * 销毁组件
    */
   destroy() {
+    // 移除窗口 resize 监听器
+    if (this.#resizeHandler) {
+      window.removeEventListener('resize', this.#resizeHandler);
+      this.#resizeHandler = null;
+    }
+
     // 移除toggle按钮
     const toggleBtn = document.getElementById('sidebar-toggle-btn');
     if (toggleBtn) {
@@ -148,6 +226,10 @@ export class SidebarContainer {
     if (this.#container) {
       this.#container.innerHTML = '';
     }
+
+    // 清除缓存状态
+    this.#lastLayoutState = null;
+
     this.#logger.info('[SidebarContainer] Destroyed');
   }
 }

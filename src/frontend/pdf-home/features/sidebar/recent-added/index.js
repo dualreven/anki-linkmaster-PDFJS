@@ -83,7 +83,7 @@ export class RecentAddedFeature {
         const rid = message?.request_id;
         if (!rid || rid !== this.#pendingReqId) return;
         const files = message?.data?.files || [];
-        this.#logger.info('[RecentAddedFeature] Search completed for recent-added', { count: files.length });
+        this.#logger.info('[RecentAddedFeature] 🎯 收到搜索响应，更新列表', { count: files.length });
         this.#recentAdded = Array.isArray(files) ? files : [];
         this.#renderList();
         this.#pendingReqId = null;
@@ -92,6 +92,13 @@ export class RecentAddedFeature {
       }
     }, { subscriberId: 'RecentAddedFeature' });
     this.#unsubscribers.push(unsubResp);
+
+    // 监听搜索结果更新事件：当PDF添加/删除/搜索导致数据变更时自动刷新
+    const unsubSearchUpdated = this.#globalEventBus.on('search:results:updated', () => {
+      this.#logger.info('[RecentAddedFeature] 🔄 监听到搜索结果更新，开始刷新最近添加');
+      this.#requestRecentAdded();
+    }, { subscriberId: 'RecentAddedFeature:search-results-updated' });
+    this.#unsubscribers.push(unsubSearchUpdated);
 
     // 列表点击：触发“全量、按 created_at 降序”的标准搜索（交由 SearchManager 发起与派发结果）
     if (this.#listEl) {
@@ -187,7 +194,7 @@ export class RecentAddedFeature {
         pagination: { limit: this.#displayLimit, offset: 0, need_total: false }
       }
     };
-    this.#logger.debug('[RecentAddedFeature] Sending recent-added request', { request_id: reqId, limit: this.#displayLimit });
+    this.#logger.info('[RecentAddedFeature] 📤 发送刷新请求', { request_id: reqId, limit: this.#displayLimit });
     this.#globalEventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, payload);
   }
 

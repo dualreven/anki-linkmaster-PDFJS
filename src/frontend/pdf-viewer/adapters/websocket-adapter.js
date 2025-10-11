@@ -192,6 +192,33 @@ export class WebSocketAdapter {
             url: data.url
           }
         });
+
+        // 同步更新 pdf_info.visited_at（若 URL 中提供了 pdf-id）
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const pdfId = params.get("pdf-id");
+          if (pdfId && typeof pdfId === "string" && pdfId.trim()) {
+            const now = Date.now();
+            const reqId = `update_visited_${now}_${Math.random().toString(36).slice(2, 8)}`;
+            this.#logger.info("[VisitedAt] Updating visited_at for pdf-id", { pdfId, now });
+            this.#wsClient.send({
+              type: WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_REQUESTED,
+              request_id: reqId,
+              data: {
+                file_id: pdfId,
+                updates: {
+                  visited_at: now,
+                  // 同步写入 json_data.last_accessed_at，便于前端一处消费
+                  json_data: { last_accessed_at: now }
+                }
+              }
+            });
+          } else {
+            this.#logger.info("[VisitedAt] Skip update: pdf-id not present in URL");
+          }
+        } catch (e) {
+          this.#logger.warn("[VisitedAt] Failed to send visited_at update", e);
+        }
       },
       { subscriberId: "WebSocketAdapter" }
     );

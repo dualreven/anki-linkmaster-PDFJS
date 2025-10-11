@@ -231,11 +231,19 @@ class PortManager:
                 # 使用默认端口作为后备
                 allocated_ports[service_name] = self.default_ports[service_name]
 
+        # 同步 npm_port 和 vite_port（它们应该始终指向同一个端口）
+        if "npm_port" in allocated_ports:
+            allocated_ports["vite_port"] = allocated_ports["npm_port"]
+        elif "vite_port" in current_ports:
+            # 如果只有 vite_port，同步到 npm_port
+            allocated_ports["npm_port"] = current_ports["vite_port"]
+            allocated_ports["vite_port"] = current_ports["vite_port"]
+
         # 保留非核心端口配置（如pdf-home-js），但不进行验证分配
         for service_name, port in current_ports.items():
             if service_name.startswith('_'):  # 跳过元数据
                 continue
-            if service_name not in self.default_ports:
+            if service_name not in self.default_ports and service_name != "vite_port":  # vite_port 已经处理过了
                 allocated_ports[service_name] = port  # 直接保留，不验证
 
         # 4. 保存更新的配置

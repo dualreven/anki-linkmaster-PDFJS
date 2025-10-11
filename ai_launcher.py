@@ -444,23 +444,65 @@ def _start_vite(npm_port: int) -> Optional[int]:
     return pid if ok else None
 
 
+def _save_backend_process(pid: Optional[int], msgCenter_port: int, pdfFile_port: int) -> None:
+    """保存后端进程信息以便后续停止"""
+    info = {
+        "backend": {
+            "pid": int(pid) if pid else None,
+            "status": "running" if pid else "stopped",
+            "ports": {
+                "msgCenter_port": int(msgCenter_port),
+                "pdfFile_port": int(pdfFile_port),
+            },
+        },
+        "_meta": {
+            "updated": time.strftime("%Y-%m-%d %H:%M:%S"),
+        },
+    }
+    write_json_atomic(LOGS_DIR / "backend-process-info.json", info)
+
+
 def _start_backend(msgCenter_port: int | None, pdfFile_port: int | None) -> bool:
+    """启动后端服务（非阻塞方式）"""
     if os.environ.get("AI_LAUNCHER_TEST_MODE") == "1":
         return True
+
+    # 构建启动命令
     cmd = [sys.executable, str(PROJECT_ROOT / "src" / "backend" / "launcher.py"), "start"]
     if msgCenter_port:
         cmd += ["--msgCenter-port", str(msgCenter_port)]
     if pdfFile_port:
         cmd += ["--pdfFileServer-port", str(pdfFile_port)]
-    LOGGER.info("Starting backend: %s", " ".join(cmd))
+
+    LOGGER.info("Starting backend (non-blocking): %s", " ".join(cmd))
+
     try:
-        rc = subprocess.run(cmd, cwd=str(PROJECT_ROOT)).returncode
-        if rc != 0:
-            LOGGER.error("Backend start returned non-zero: %s", rc)
+        # 使用 Popen 非阻塞启动
+        proc = subprocess.Popen(
+            cmd,
+            cwd=str(PROJECT_ROOT),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
+        )
+
+        # 等待短时间确保启动成功（PyQt 模式 < 1秒）
+        time.sleep(1.5)
+
+        # 检查进程是否还在运行
+        if proc.poll() is None:
+            LOGGER.info("✅ Backend started successfully (PID: %s)", proc.pid)
+            _save_backend_process(proc.pid, msgCenter_port or 8765, pdfFile_port or 8080)
+            return True
+        else:
+            LOGGER.error("❌ Backend process exited prematurely (return code: %s)", proc.returncode)
+            _save_backend_process(None, msgCenter_port or 8765, pdfFile_port or 8080)
             return False
-        return True
+
     except Exception as exc:
-        LOGGER.error("Backend start failed: %s", exc)
+        LOGGER.error("❌ Backend start failed: %s", exc)
+        _save_backend_process(None, msgCenter_port or 8765, pdfFile_port or 8080)
         return False
 
 
@@ -582,18 +624,29 @@ def _stop_frontend(module_filter: Optional[str] = None) -> bool:
 
 
 def _stop_backend() -> bool:
+    """停止后端服务（使用进程信息文件）"""
     if os.environ.get("AI_LAUNCHER_TEST_MODE") == "1":
         return True
-    cmd = [sys.executable, str(PROJECT_ROOT / "src" / "backend" / "launcher.py"), "stop"]
-    try:
-        rc = subprocess.run(cmd, cwd=str(PROJECT_ROOT)).returncode
-        if rc != 0:
-            LOGGER.warning("Backend stop returned non-zero: %s", rc)
-            return False
+
+    # 读取后端进程信息
+    backend_info = read_json(LOGS_DIR / "backend-process-info.json")
+    pid = backend_info.get("backend", {}).get("pid")
+
+    if pid and is_process_running(pid):
+        LOGGER.info("Stopping backend process (PID: %s)", pid)
+        success = kill_process(int(pid))
+        if success:
+            LOGGER.info("✅ Backend stopped successfully")
+        else:
+            LOGGER.warning("⚠️ Failed to stop backend process")
+
+        # 清理进程信息
+        ports = backend_info.get("backend", {}).get("ports", {})
+        _save_backend_process(None, ports.get("msgCenter_port", 8765), ports.get("pdfFile_port", 8080))
+        return success
+    else:
+        LOGGER.info("Backend not running or already stopped")
         return True
-    except Exception as exc:
-        LOGGER.warning("Backend stop failed: %s", exc)
-        return False
 
 
 # ---- CLI ----
@@ -631,19 +684,22 @@ def cmd_start(args: argparse.Namespace) -> int:
         vite_pid = _start_vite(vite_port)
 
         # Update ports with actual Vite port (may differ if auto-incremented)
-        if vite_pid:
-            dev_info = read_json(LOGS_DIR / "dev-process-info.json")
-            actual_vite_port = dev_info.get("vite", {}).get("port", vite_port)
-            ports["vite_port"] = actual_vite_port
-            ports["npm_port"] = actual_vite_port
-            if actual_vite_port != vite_port:
-                LOGGER.info("Updated ports dict with actual Vite port: %s", actual_vite_port)
-                # Update runtime-ports.json so frontend can read the correct port
-                runtime_ports = read_json(LOGS_DIR / "runtime-ports.json")
-                runtime_ports["vite_port"] = actual_vite_port
-                runtime_ports["npm_port"] = actual_vite_port
-                write_json_atomic(LOGS_DIR / "runtime-ports.json", runtime_ports)
-                LOGGER.info("Updated runtime-ports.json with actual Vite port")
+        # Always check dev-process-info.json for actual port, regardless of vite_pid
+        dev_info = read_json(LOGS_DIR / "dev-process-info.json")
+        actual_vite_port = dev_info.get("vite", {}).get("port", vite_port)
+        if actual_vite_port != vite_port:
+            LOGGER.info("Vite actual port (%s) differs from requested port (%s)", actual_vite_port, vite_port)
+
+        # Always update ports dict with actual Vite port
+        ports["vite_port"] = actual_vite_port
+        ports["npm_port"] = actual_vite_port
+
+        # Always update runtime-ports.json so frontend can read the correct port
+        runtime_ports = read_json(LOGS_DIR / "runtime-ports.json")
+        runtime_ports["vite_port"] = actual_vite_port
+        runtime_ports["npm_port"] = actual_vite_port
+        write_json_atomic(LOGS_DIR / "runtime-ports.json", runtime_ports)
+        LOGGER.info("Updated runtime-ports.json with actual Vite port: %s", actual_vite_port)
 
         # 2) backend
         _start_backend(msgCenter_port, pdfFile_port)

@@ -2079,7 +2079,7 @@ class StandardWebSocketServer(QObject):
                 data={
                     "viewer_id": viewer_id,
                     "pdf_uuid": pdf_uuid,
-                    "registered_at": StandardMessageHandler.get_timestamp()
+                    "registered_at": int(time.time() * 1000)  # 毫秒级时间戳
                 }
             )
         except Exception as exc:
@@ -2124,7 +2124,7 @@ class StandardWebSocketServer(QObject):
                 data={
                     "viewer_id": viewer_id,
                     "pdf_uuid": pdf_uuid,
-                    "acknowledged_at": StandardMessageHandler.get_timestamp()
+                    "acknowledged_at": int(time.time() * 1000)  # 毫秒级时间戳
                 }
             )
         except Exception as exc:

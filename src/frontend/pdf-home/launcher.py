@@ -19,12 +19,15 @@ import sys
 import logging
 import argparse
 from pathlib import Path
+from typing import Optional
 
 # Add project root to Python path
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.qt.compat import QApplication, QUrl, QWebSocket, QWebChannel
+from src.frontend.common.launch_config import LaunchConfig
+
 # 使用本地MainWindow模块
 from main_window import MainWindow
 
@@ -124,53 +127,96 @@ def _setup_logging() -> None:
 
 
 class PdfHomeApp:
-    """Encapsulates the pdf-home application logic."""
+    """
+    PDF-Home Application Launcher
 
-    def __init__(self, argv: list[str] | None = None):
-        self.argv = argv if argv is not None else sys.argv
-        self.app = QApplication(self.argv)
+    支持两种运行模式：
+    1. 子进程模式（parent_app=None）：独立运行，自己创建 QApplication
+    2. 寄宿模式（parent_app=QApplication）：使用外部 QApplication（如 Anki）
+
+    示例：
+        # 子进程模式（CLI）
+        config = LaunchConfig(is_prod=False)
+        app = PdfHomeApp(config)
+        sys.exit(app.run())
+
+        # 寄宿模式（Anki集成）
+        from aqt import mw
+        config = LaunchConfig(is_prod=True, source="anki")
+        app = PdfHomeApp(config, parent_app=mw.app)
+        app.run()
+    """
+
+    def __init__(self, config: LaunchConfig, parent_app: Optional[QApplication] = None):
+        """
+        初始化 PDF-Home 应用
+
+        Args:
+            config: 启动配置对象
+            parent_app: 父 QApplication（None = 子进程模式）
+        """
+        self.config = config
+        self.parent_app = parent_app
+        self.mode = "hosted" if parent_app else "subprocess"
+
+        # QApplication 实例
+        self.app: Optional[QApplication] = None
+
+        # 组件实例
         self.window = None
         self.ws_client = None
         self.js_console_logger = None
         self.pyqt_bridge = None
 
-    def run(self) -> int:
-        """Initializes and runs the application."""
-        _setup_logging()
-        logger.info("Launching pdf-home standalone window")
+        logger.info(f"PdfHomeApp initialized in {self.mode} mode")
+        logger.info(f"Config: {self.config}")
 
-        # Ports resolution
-        args = _parse_args(self.argv[1:])
+    def run(self) -> int:
+        """
+        运行应用
+
+        Returns:
+            退出码（子进程模式）或 0（寄宿模式）
+        """
+        _setup_logging()
+        logger.info(f"Launching pdf-home ({self.mode} mode)")
+
+        # 步骤 1: 创建或使用 QApplication
+        if self.mode == "subprocess":
+            self.app = QApplication(sys.argv)
+            logger.info("✅ Created QApplication (subprocess mode)")
+        else:
+            self.app = self.parent_app
+            logger.info("✅ Using parent QApplication (hosted mode)")
+
+        # 步骤 2: 解析端口配置
         vite_json, msgCenter_json, pdfFile_json, extras = _read_runtime_ports(project_root)
 
-        vite_port = args.vite_port or vite_json
-        if not args.vite_port:
+        vite_port = self.config.vite_port or vite_json
+        if not self.config.vite_port:
             try:
                 vite_port = get_vite_port() or vite_port
             except Exception:
                 pass
 
-        msgCenter_port = args.msgCenter_port or msgCenter_json
-        pdfFile_port = args.pdfFile_port or pdfFile_json
-        js_debug_port = args.js_debug_port or int(extras.get("pdf-home-js", 9222))
+        msgCenter_port = self.config.msgCenter_port or msgCenter_json
+        pdfFile_port = self.config.pdfFile_port or pdfFile_json
+        js_debug_port = self.config.js_debug_port or int(extras.get("pdf-home-js", 9222))
 
-        logger.info("Resolved ports: vite=%s msgCenter=%s pdfFile=%s", vite_port, msgCenter_port, pdfFile_port)
-        logger.info("JS remote debug port: %s", js_debug_port)
+        logger.info(f"Resolved ports: vite={vite_port} msgCenter={msgCenter_port} pdfFile={pdfFile_port}")
+        logger.info(f"JS remote debug port: {js_debug_port}")
 
-        # Persist ports
+        # 步骤 3: 持久化端口配置
         extras["pdf-home-js"] = js_debug_port
-        if not args.no_persist:
+        if not self.config.no_persist:
             self._persist_ports(vite_port, msgCenter_port, pdfFile_port, extras)
 
-        # Setup main window and bridges
+        # 步骤 4: 创建 JS Logger
         js_log_file = str(_get_js_log_path())
-
-        # 先创建JS Logger
         self._create_js_logger(js_debug_port, js_log_file)
 
-        # 创建MainWindow，传入logger实例和后端停止开关
-        # 如果使用 --keep-backend 参数，则设置 stop_backend_on_close=False
-        stop_backend = not args.keep_backend  # 默认True，使用--keep-backend时为False
+        # 步骤 5: 创建主窗口
+        stop_backend = not self.config.keep_backend
         self.window = MainWindow(
             self.app,
             remote_debug_port=js_debug_port,
@@ -178,38 +224,41 @@ class PdfHomeApp:
             js_logger=self.js_console_logger,
             stop_backend_on_close=stop_backend
         )
+        logger.info("✅ MainWindow created")
 
-        # 创建WebSocket客户端（不使用QWebChannel，直接用于前后端通信）
+        # 步骤 6: 创建 WebSocket 客户端
         self.ws_client = QWebSocket()
         self._setup_websocket(msgCenter_port)
 
-        # 设置 QWebChannel（用于 PyQt 和 JS 之间的桥接）
+        # 步骤 7: 设置 QWebChannel 桥接
         self._setup_qwebchannel()
 
-        # Load frontend (dev vs prod)
-        is_prod = bool(os.environ.get("APP_ENV") == "production" or os.environ.get("PDFJS_ENV") == "production" or os.environ.get("ENV") == "production" or args.prod)
-
-        if is_prod:
-            # 生产模式：通过 pdfFile_server 提供静态资源
-            # ⚠️ 必须添加查询参数，让前端能正确解析 WebSocket 端口
-            # ⚠️ 添加时间戳参数以破坏 PyQt WebView 缓存
-            import time
-            cache_buster = int(time.time() * 1000)  # 毫秒级时间戳
-            # 为避免生产构建下可能存在的多入口产物（嵌套 index.html）被顶层 index 覆盖的问题
-            # 直接指向嵌套入口 /pdf-home/pdf-home/ ，确保引用到与本模块对应的最新 assets
-            http_url = f"http://127.0.0.1:{pdfFile_port}/pdf-home/pdf-home/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}&_={cache_buster}"
-            logger.info("Loading front-end (prod http): %s", http_url)
-            self.window.load_frontend(http_url)
-        else:
-            url = f"http://localhost:{vite_port}/pdf-home/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"
-            logger.info("Loading front-end (dev): %s", url)
-            self.window.load_frontend(url)
+        # 步骤 8: 加载前端
+        url = self._build_frontend_url(vite_port, msgCenter_port, pdfFile_port)
+        logger.info(f"Loading front-end: {url}")
+        self.window.load_frontend(url)
         self.window.show()
 
-        rc = self.app.exec()
-        logger.info("pdf-home window exited with code %s", rc)
-        self.cleanup()
-        return rc
+        # 步骤 9: 运行事件循环（仅子进程模式）
+        if self.mode == "subprocess":
+            rc = self.app.exec()
+            logger.info(f"pdf-home window exited with code {rc}")
+            self.cleanup()
+            return rc
+        else:
+            logger.info("pdf-home window started (hosted mode, no event loop)")
+            return 0
+
+    def _build_frontend_url(self, vite_port: int, msgCenter_port: int, pdfFile_port: int) -> str:
+        """构建前端 URL"""
+        if self.config.is_prod:
+            # 生产模式：通过 pdfFile_server 提供静态资源
+            import time
+            cache_buster = int(time.time() * 1000)
+            return f"http://127.0.0.1:{pdfFile_port}/pdf-home/pdf-home/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}&_={cache_buster}"
+        else:
+            # 开发模式：使用 Vite dev server
+            return f"http://localhost:{vite_port}/pdf-home/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"
 
     def _persist_ports(self, vite_port, msgCenter_port, pdfFile_port, extras):
         try:
@@ -436,8 +485,19 @@ def resolve_production_index(base: Path) -> Path | None:
 
 
 def main() -> int:
-    """Main entry point for standalone execution."""
-    app_instance = PdfHomeApp(sys.argv)
+    """
+    CLI 入口函数（向后兼容）
+
+    从命令行参数创建配置并启动 pdf-home（子进程模式）
+    """
+    # 解析命令行参数
+    args = _parse_args(sys.argv[1:])
+
+    # 构造配置对象
+    config = LaunchConfig.from_args(args)
+
+    # 创建并运行应用（子进程模式）
+    app_instance = PdfHomeApp(config, parent_app=None)
     return app_instance.run()
 
 

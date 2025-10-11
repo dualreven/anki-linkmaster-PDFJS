@@ -4,7 +4,7 @@
  */
 
 import { RecentOpenedFeatureConfig } from './feature.config.js';
-import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from '../../../../common/event/event-constants.js';
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, PDF_MANAGEMENT_EVENTS } from '../../../../common/event/event-constants.js';
 import './styles/recent-opened.css';
 
 export class RecentOpenedFeature {
@@ -25,6 +25,7 @@ export class RecentOpenedFeature {
   #listEl = null;
   #limitSelectEl = null;
   #pendingReqId = null;
+  #refreshTimer = null;
 
   async install(context) {
     this.#context = context;
@@ -61,6 +62,13 @@ export class RecentOpenedFeature {
 
   async uninstall() {
     this.#logger.info('[RecentOpenedFeature] Uninstalling...');
+
+    // 清除定时器
+    if (this.#refreshTimer) {
+      clearTimeout(this.#refreshTimer);
+      this.#refreshTimer = null;
+    }
+
     this.#unsubscribers.forEach(fn => fn && fn());
     this.#unsubscribers = [];
     if (this.#listEl) {
@@ -93,7 +101,26 @@ export class RecentOpenedFeature {
     }, { subscriberId: 'RecentOpenedFeature' });
     this.#unsubscribers.push(unsubResp);
 
-    // 列表点击：触发“全量、按 visited_at 降序”的标准搜索（交由 SearchManager 发起与派发结果）
+    // 监听 PDF 打开事件：延迟3秒后刷新最近阅读列表
+    const unsubPdfOpen = this.#globalEventBus.on(PDF_MANAGEMENT_EVENTS.OPEN.COMPLETED, (data) => {
+      this.#logger.info('[RecentOpenedFeature] 📖 PDF打开事件触发，3秒后刷新最近阅读');
+
+      // 清除之前的定时器（防止频繁打开时重复刷新）
+      if (this.#refreshTimer) {
+        clearTimeout(this.#refreshTimer);
+        this.#refreshTimer = null;
+      }
+
+      // 延迟3秒刷新
+      this.#refreshTimer = setTimeout(() => {
+        this.#logger.info('[RecentOpenedFeature] ⏰ 延迟结束，开始刷新最近阅读');
+        this.#requestRecentOpened();
+        this.#refreshTimer = null;
+      }, 3000);
+    }, { subscriberId: 'RecentOpenedFeature:pdf-opened' });
+    this.#unsubscribers.push(unsubPdfOpen);
+
+    // 列表点击：触发"全量、按 visited_at 降序"的标准搜索（交由 SearchManager 发起与派发结果）
     if (this.#listEl) {
       const clickHandler = (e) => {
         const item = e.target.closest('.sidebar-item');

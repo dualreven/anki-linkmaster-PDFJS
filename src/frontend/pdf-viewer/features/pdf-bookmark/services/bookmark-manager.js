@@ -506,19 +506,52 @@ export class BookmarkManager {
       const visited = new Set();
       const cloneAndDedup = (node) => {
         if (!node || !node.id) return null;
-        if (visited.has(node.id)) return null;
+        if (visited.has(node.id)) {
+          this.#logger.warn(`⚠️ Duplicate node detected during serialization: ${node.id} (${node.name})`);
+          return null;
+        }
         visited.add(node.id);
-        const json = node.toJSON ? node.toJSON() : node;
+
+        // 手动构建 JSON 对象，避免 toJSON() 递归序列化导致的冲突
+        // 只序列化当前节点的属性（不包括 children）
+        const json = {
+          id: node.id,
+          name: node.name,
+          type: node.type,
+          pageNumber: node.pageNumber,
+          region: node.region,
+          parentId: node.parentId,
+          order: node.order,
+          createdAt: node.createdAt,
+          updatedAt: node.updatedAt,
+          children: [] // 稍后递归填充
+        };
+
+        // 递归处理 children，应用 visited 检查
         const children = Array.isArray(node.children) ? node.children : [];
         const deduped = [];
         for (const child of children) {
-          const childId = child && (child.id || child.bookmark_id);
-          if (!childId) continue;
-          if (visited.has(childId)) continue;
-          const childNode = child.toJSON ? child : this.#bookmarks.get(childId);
-          const cloned = childNode ? cloneAndDedup(childNode) : null;
-          if (cloned) deduped.push(cloned);
+          if (!child) continue;
+          const childId = child.id || child.bookmark_id;
+          if (!childId) {
+            this.#logger.warn(`⚠️ Child node without ID found in ${node.name}, skipping`);
+            continue;
+          }
+
+          // 如果 child 已经被访问过，说明存在引用残留或循环引用
+          if (visited.has(childId)) {
+            this.#logger.warn(`⚠️ Child ${childId} already visited, skipping to prevent duplication`);
+            continue;
+          }
+
+          // 获取 child 节点实例（优先使用 Map 中的实例，确保状态最新）
+          const childNode = this.#bookmarks.get(childId) || child;
+          const cloned = cloneAndDedup(childNode);
+          if (cloned) {
+            deduped.push(cloned);
+          }
         }
+
         json.children = deduped;
         return json;
       };

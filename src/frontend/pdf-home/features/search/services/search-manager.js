@@ -137,7 +137,7 @@ export class SearchManager {
         focusId: requestInfo?.focusId,
         page
       });
-      this.#logger.info('[SearchManager] Search (legacy response) completed successfully', { count });
+      this.#logger.info('[SearchManager] 🔔 触发search:results:updated事件', { count });
       this.#isSearching = false;
     } else {
       const errorMsg = message?.message || message?.error?.message || '搜索失败';
