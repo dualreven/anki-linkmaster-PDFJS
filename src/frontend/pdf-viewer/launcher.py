@@ -249,6 +249,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--disable-js-console", action="store_true", help="Skip JavaScript console logger thread")
     parser.add_argument("--disable-frontend-load", action="store_true", help="Skip loading the front-end URL into the WebEngine view")
     parser.add_argument("--prod", action="store_true", help="以生产模式运行，直接从 dist 静态文件加载页面")
+    parser.add_argument("--keep-backend", action="store_true", help="窗口关闭时保持后端服务运行（不停止）")
     ns = parser.parse_args(argv)
     # Normalize alias: --pdfanchor → --anchor-id
     if getattr(ns, 'pdfanchor', None) and not getattr(ns, 'anchor_id', None):
@@ -354,12 +355,15 @@ def main() -> int:
             logger.warning("Failed to initialize JS console logger: %s", exc)
 
     # Host window (pass JS remote debug port and logger)
+    # 如果使用 --keep-backend 参数，则设置 has_host=True（不停止后端）
+    has_host = args.keep_backend  # 默认False，使用--keep-backend时为True
     window = MainWindow(
         app,
         remote_debug_port=js_debug_port,
         js_log_file=js_log,
         js_logger=js_console_logger,
-        pdf_id=pdf_id
+        pdf_id=pdf_id,
+        has_host=has_host
     )
     extras["pdf-viewer-js"] = js_debug_port
     logger.info("Resolved ports: vite=%s msgCenter=%s pdfFile=%s (pdf_id: %s)", vite_port, msgCenter_port, pdfFile_port, pdf_id)
