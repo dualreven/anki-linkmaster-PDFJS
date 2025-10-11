@@ -33,6 +33,8 @@ export class OutlineSidebarUI {
   }
 
   initialize() {
+    this.#logger.info("[DEBUG] OutlineSidebarUI initialize() called", { toast: true });
+
     this.#content = document.createElement("div");
     this.#content.style.cssText = "height:100%;display:flex;flex-direction:column;box-sizing:border-box;";
 
@@ -48,12 +50,19 @@ export class OutlineSidebarUI {
     this.#treeContainer.style.cssText = "flex:1;overflow:auto;padding:8px;";
     this.#content.appendChild(this.#treeContainer);
 
+    this.#logger.info(`[DEBUG] Subscribing to event: ${PDF_VIEWER_EVENTS.BOOKMARK.LOAD.SUCCESS}`, { toast: true });
+
     // 监听数据加载事件
     this.#unsubs.push(this.#eventBus.on(
       PDF_VIEWER_EVENTS.BOOKMARK.LOAD.SUCCESS,
-      (data) => this.#renderTree(data?.bookmarks || []),
+      (data) => {
+        this.#logger.info(`[DEBUG] BOOKMARK.LOAD.SUCCESS event received! Bookmarks count: ${data?.bookmarks?.length || 0}`, { toast: true });
+        this.#renderTree(data?.bookmarks || []);
+      },
       { subscriberId: "OutlineSidebarUI" }
     ));
+
+    this.#logger.info("[DEBUG] OutlineSidebarUI initialized successfully", { toast: true });
   }
 
   getContentElement() { return this.#content; }
@@ -96,6 +105,8 @@ export class OutlineSidebarUI {
     try { $tree.jstree("destroy"); } catch { /* ignore */ }
 
     const data = this.#toJsTreeData(bookmarks);
+    this.#logger.info(`[DEBUG] Creating jstree with ${data.length} nodes`, { toast: true });
+
     $tree.jstree({
       core: {
         data,
@@ -104,7 +115,20 @@ export class OutlineSidebarUI {
       },
       plugins: ["dnd", "wholerow"]
     });
-    // 注：为避免大型树 open_all 卡顿，暂不默认全展开
+
+    this.#logger.info("[DEBUG] jsTree created, waiting for ready event...", { toast: true });
+
+    // 等待 jsTree 渲染完成后展开所有节点
+    // eslint-disable-next-line custom/event-name-format
+    $tree.on("ready.jstree", () => {
+      this.#logger.info("[DEBUG] jsTree ready event fired!", { toast: true });
+      try {
+        $tree.jstree("open_all");
+        this.#logger.info("✅ Outline tree expanded automatically", { toast: true });
+      } catch (err) {
+        this.#logger.error("❌ Failed to expand outline tree: " + err.message, { toast: true });
+      }
+    });
 
     // 选择节点 → 导航
     // eslint-disable-next-line custom/event-name-format

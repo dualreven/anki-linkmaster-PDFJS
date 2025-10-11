@@ -363,6 +363,102 @@ logger.error('错误信息', errorObject);
 
 状态：已完成（测试通过）。
 
+### 当前任务（20251011060000）
+名称：大纲（outline）自动展开功能
+
+背景：
+- 用户希望打开 Outline 侧边栏时，所有书签节点自动展开
+- 原代码为避免大型树卡顿，禁用了自动展开
+
+⚠️ 关键发现：错误的文件！
+- 最初修改了 `outline-sidebar-ui.js`，但系统实际使用的是 `bookmark-sidebar-ui.js`
+- 通过用户反馈"没有toast弹出"，追踪 `real-sidebars.js` 发现真相
+- 教训：修改前要先确认组件是否真正在运行（追溯注册点）
+
+实现方案：
+- 在 jsTree 初始化后监听 `ready.jstree` 事件
+- 调用 `$container.jstree("open_all")` 展开所有节点
+- 添加详细的 toast 调试日志和错误处理
+
+涉及文件：
+- ❌ src/frontend/pdf-viewer/features/pdf-outline/components/outline-sidebar-ui.js（误修改，系统未使用）
+- ✅ src/frontend/pdf-viewer/ui/bookmark-sidebar-ui.js（正确文件，已修改）
+- 📖 src/frontend/pdf-viewer/features/sidebar-manager/real-sidebars.js（确认实际使用的组件）
+
+验证方法：
+- 打开 pdf-viewer 的 Outline 侧边栏
+- 应该看到以下 toast 消息（按顺序）：
+  1. "Creating jstree with X nodes"
+  2. "jsTree created, waiting for ready event..."
+  3. "jsTree ready event fired!"
+  4. "✅ Outline tree expanded automatically"
+
+状态：✅ 已完成修改（正确文件），等待用户测试验证
+
+---
+
+### 当前任务（20251011054500）
+名称：修复 outline 插件 jstree 拖拽节点丢失问题
+
+背景：
+- 将节点拖入到另一个节点成为子节点时，操作失败
+- 子节点彻底消失（从数据库返回的数据就没有这个节点）
+- 推测是前端操作逻辑问题
+
+根因分析：
+- `BookmarkManager.saveToStorage()` 中的 `cloneAndDedup()` 函数存在逻辑缺陷
+- 问题1：调用 `node.toJSON()` 会递归序列化整个子树，与 `cloneAndDedup` 的递归逻辑冲突
+- 问题2：如果节点引用残留在旧位置，`visited` Set 检查会导致节点在新位置被跳过
+- 致命场景：节点先被旧位置序列化（添加到 visited），后在新位置被跳过，导致丢失
+
+修复方案：
+1. 重写 `cloneAndDedup()` 函数，不再调用 `toJSON()`
+2. 手动构建 JSON 对象，只序列化当前节点属性
+3. 递归处理 children 时应用 `visited` 检查
+4. 优先使用 `this.#bookmarks.get(childId)` 获取最新状态
+5. 添加警告日志便于调试
+
+涉及文件：
+- src/frontend/pdf-viewer/features/pdf-bookmark/services/bookmark-manager.js（已修复）
+- src/frontend/pdf-viewer/features/pdf-bookmark/models/bookmark.js（无需修改）
+- src/frontend/pdf-viewer/features/pdf-outline/components/outline-sidebar-ui.js（无需修改）
+- src/frontend/pdf-viewer/features/pdf-bookmark/services/__tests__/bookmark-manager.reorder-to-child.test.js（已创建测试）
+
+验证方法：
+- 手动测试：拖拽节点到另一个节点下，刷新后验证节点是否保留
+- 检查浏览器控制台是否有重复节点警告
+- 检查 localStorage 中保存的数据是否有重复节点
+
+状态：✅ 已完成修复，等待用户手动测试验证
+
+---
+
+### 当前任务（20251011053000）
+名称：修复 pdf-viewer translate 模块事件未注册问题
+
+背景：
+- translate 模块划词翻译功能无反应
+- 日志显示多个 pdf-translator:* 事件"未注册的全局事件"被拦截
+- 根因：PDF_TRANSLATOR_EVENTS 未导入到 global-event-registry.js 白名单
+
+修复内容：
+1. 在 `global-event-registry.js` 中导入 `PDF_TRANSLATOR_EVENTS`
+2. 调用 `collectStrings(PDF_TRANSLATOR_EVENTS, AllowedGlobalEvents)` 收集事件
+3. 新增测试文件验证事件注册（translator-events-registration.test.js）
+
+涉及文件：
+- src/frontend/common/event/global-event-registry.js（已修改）
+- src/frontend/pdf-viewer/features/pdf-translator/events.js（无需修改）
+- src/frontend/pdf-viewer/features/pdf-translator/__tests__/translator-events-registration.test.js（已创建）
+
+验证方法：
+- 重新运行 pdf-viewer，检查日志中是否还有 "未注册的全局事件" 错误
+- 测试划词翻译功能是否正常工作
+
+状态：✅ 已完成修复，等待用户实际运行验证
+
+---
+
 ### 当前任务（20251011024500）
 名称：新增 integrations 构建脚本（build.integrations.py）
 
@@ -457,3 +553,67 @@ logger.error('错误信息', errorObject);
   - pdf-home：dist/latest/pdf-home
   - pdf-viewer：待补（源码缺失）
 - 路由：/pdf-viewer/?... 自动映射 index.html（新目录优先，旧目录回退）；因此一旦补齐 viewer 产物，无需改 URL。
+
+### 新增任务（20251011035030）
+名称：pdf-viewer 启动时自动刷新 visited_at
+
+背景：
+- 侧边栏“最近阅读”依赖 `pdf_info.visited_at` 降序展示。
+- 现在仅在特定交互（如编辑/阅读统计）会更新，首次从 pdf-home 打开 viewer 后未必能及时刷新。
+
+目标：
+- 每次 pdf-viewer 成功加载 PDF 时，自动向后端发送记录更新消息，将对应 PDF 的 `visited_at` 更新为当前时间（毫秒）。
+
+涉及模块/文件：
+- 前端（viewer）：`src/frontend/pdf-viewer/adapters/websocket-adapter.js:183`
+- 事件常量：`src/frontend/common/event/event-constants.js`
+- 后端（标准WS）：`src/backend/msgCenter_server/standard_server.py:1624` 处理 `pdf-library:record-update:requested` → `PDFLibraryAPI.update_record`（优先 `pdf_info_plugin.update`）
+
+实现要点：
+- 监听 `PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS`（viewer加载成功）。
+- 从 URL 查询串解析 `pdf-id`（来自 pdf-home/launcher/pyqt-bridge）。
+- 若存在 `pdf-id`，通过 WS 发送 `pdf-library:record-update:requested`，载荷：
+  - `file_id: <pdf-id>`（uuid/兼容title/filename的解析由后端兜底）
+  - `updates: { visited_at: Date.now(), json_data: { last_accessed_at: Date.now() } }`
+- 与现有 `pdf_loaded` 旁路日志消息并存，不影响。
+
+测试设计（单测）：
+- 新增 `src/frontend/pdf-viewer/adapters/__tests__/websocket-adapter.update-visited.test.js`
+- 伪造 `window.location.search='?pdf-id=abc123def456'`；触发 `FILE.LOAD.SUCCESS`；断言 `WSClient.send` 被调用一次 `pdf_loaded`，一次 `pdf-library:record-update:requested`，且包含 `file_id` 与数值型 `visited_at/last_accessed_at`。
+
+注意事项：
+- 当 URL 缺少 `pdf-id`（例如独立 launcher 仅传 `file`）时，跳过更新（无法可靠映射 uuid）。
+- 该实现不引入新契约；严格复用 `WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_REQUESTED`。
+
+状态：已实现前端桥接与单元测试文件；CI/Jest 在本地环境可能需要 ESM 配置修复后再跑。
+
+### 新增任务（20251011041030）
+名称：修复 URL 导航“未跳转”——捕获作用域 RENDER.READY 事件
+
+背景：
+- JS 日志（如 `logs/pdf-viewer-c83c60c58ad2-js.log`）显示 URLNavigationFeature 多次捕获“标注数据加载完成”，但未捕获“渲染就绪/门闸通过”，因此未执行跳转。
+- 根因：RENDER.READY 由 pdf-reader 作用域事件总线发出（@pdf-reader/ 前缀），URLNavigationFeature 仅监听了全局事件，未收到。
+
+措施：
+- 在 `src/frontend/pdf-viewer/features/url-navigation/index.js` 中，新增对 pdf-reader 作用域 `PDF_VIEWER_EVENTS.RENDER.READY` 的监听；一旦收到将 `#renderReady=true` 并调用 `#tryExecuteGatedNavigation()`。
+
+影响：
+- 低风险增强；当 URL 含 `page-at/position/annotation-id` 时，加载后应能自动跳转。
+
+备注：
+- 若 URL 仅有 `pdf-id`，按设计不会跳转，这是预期行为。
+
+### 新增任务（20251011043800）
+名称：去除 URL 导航中的“渲染就绪”门闸，仅依赖“标注就绪”
+
+背景与动机：
+- 实际运行中，标注数据加载完成通常发生在渲染就绪之后；且原有“双门闸”让导航在某些环境下未能触发。
+
+措施：
+- 修改 `src/frontend/pdf-viewer/features/url-navigation/index.js`：
+  - `#tryExecuteGatedNavigation()` 仅检查 `#annotationDataLoaded`；不再判断 `#renderReady`。
+  - 移除对 `RENDER.READY` 的监听作为门闸触发点（保留字段但不依赖）。
+  - 日志“等待渲染与标注数据加载门闸”改为“等待标注数据加载门闸”。
+
+预期：
+- 当 URL 含 `page-at` 或 `annotation-id` 时，标注加载完成后立即执行跳转。
