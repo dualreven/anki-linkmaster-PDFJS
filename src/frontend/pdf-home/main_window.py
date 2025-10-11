@@ -23,7 +23,7 @@ class MainWindow(QMainWindow):
     send_debug_message_requested = pyqtSignal()
     web_loaded = pyqtSignal()
 
-    def __init__(self, app, remote_debug_port: int | None = None, js_log_file: str | None = None, js_logger=None):
+    def __init__(self, app, remote_debug_port: int | None = None, js_log_file: str | None = None, js_logger=None, stop_backend_on_close: bool = True):
         """初始化主窗口
 
         Args:
@@ -31,10 +31,12 @@ class MainWindow(QMainWindow):
             remote_debug_port: 远程调试端口
             js_log_file: JS日志文件路径
             js_logger: JSConsoleLogger实例（可选）
+            stop_backend_on_close: 窗口关闭时是否停止后端服务（默认True）
         """
         super().__init__()
         self.parent = app
         self._remote_debug_port = remote_debug_port or 9222
+        self.stop_backend_on_close = stop_backend_on_close  # 后端服务停止开关
         # 若未显式传入日志文件，则使用默认路径 logs/pdf-home-js.log（UTF-8）
         if js_log_file:
             self._js_log_file = js_log_file
@@ -309,26 +311,29 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 print(f"[MainWindow] 清理前端进程信息失败: {e}")
 
-            # 第二步：调用 ai_launcher.py stop 停止后台服务
-            ai_launcher_path = project_root / 'ai_launcher.py'
-            if ai_launcher_path.exists():
-                print(f"[MainWindow] 正在停止后台服务...")
-                result = subprocess.run(
-                    [sys.executable, str(ai_launcher_path), 'stop'],
-                    cwd=str(project_root),
-                    capture_output=True,
-                    text=True,
-                    encoding='utf-8',
-                    errors='ignore',
-                    timeout=10
-                )
+            # 第二步：根据 stop_backend_on_close 决定是否停止后台服务
+            if self.stop_backend_on_close:
+                ai_launcher_path = project_root / 'ai_launcher.py'
+                if ai_launcher_path.exists():
+                    print(f"[MainWindow] 正在停止后台服务...")
+                    result = subprocess.run(
+                        [sys.executable, str(ai_launcher_path), 'stop'],
+                        cwd=str(project_root),
+                        capture_output=True,
+                        text=True,
+                        encoding='utf-8',
+                        errors='ignore',
+                        timeout=10
+                    )
 
-                if result.returncode == 0:
-                    print(f"[MainWindow] 后台服务已停止")
+                    if result.returncode == 0:
+                        print(f"[MainWindow] 后台服务已停止")
+                    else:
+                        print(f"[MainWindow] 停止服务时出现警告: {result.stderr}")
                 else:
-                    print(f"[MainWindow] 停止服务时出现警告: {result.stderr}")
+                    print(f"[MainWindow] 找不到 ai_launcher.py，跳过服务停止")
             else:
-                print(f"[MainWindow] 找不到 ai_launcher.py，跳过服务停止")
+                print(f"[MainWindow] stop_backend_on_close=False，跳过后端服务停止")
 
         except Exception as e:
             print(f"[MainWindow] 停止服务失败: {e}")

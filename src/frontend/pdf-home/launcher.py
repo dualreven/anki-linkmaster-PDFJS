@@ -104,6 +104,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--js-debug-port", type=int, dest="js_debug_port", help="Remote debugging port for PDF-Home JS (QTWEBENGINE)")
     parser.add_argument("--no-persist", action="store_true", help="Do not persist ports back to logs/runtime-ports.json")
     parser.add_argument("--prod", action="store_true", help="以生产模式运行，直接从 dist 静态文件加载页面")
+    parser.add_argument("--keep-backend", action="store_true", help="窗口关闭时保持后端服务运行（不停止）")
     return parser.parse_args(argv)
 
 
@@ -167,8 +168,16 @@ class PdfHomeApp:
         # 先创建JS Logger
         self._create_js_logger(js_debug_port, js_log_file)
 
-        # 创建MainWindow，传入logger实例
-        self.window = MainWindow(self.app, remote_debug_port=js_debug_port, js_log_file=js_log_file, js_logger=self.js_console_logger)
+        # 创建MainWindow，传入logger实例和后端停止开关
+        # 如果使用 --keep-backend 参数，则设置 stop_backend_on_close=False
+        stop_backend = not args.keep_backend  # 默认True，使用--keep-backend时为False
+        self.window = MainWindow(
+            self.app,
+            remote_debug_port=js_debug_port,
+            js_log_file=js_log_file,
+            js_logger=self.js_console_logger,
+            stop_backend_on_close=stop_backend
+        )
 
         # 创建WebSocket客户端（不使用QWebChannel，直接用于前后端通信）
         self.ws_client = QWebSocket()
