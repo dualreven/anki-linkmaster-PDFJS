@@ -123,7 +123,7 @@ class StandardWebSocketServer(QObject):
     client_disconnected = pyqtSignal(QWebSocket)
     message_received = pyqtSignal(QWebSocket, dict)
     
-    def __init__(self, host="127.0.0.1", port=8765, app=None, *, pdf_library_api: Optional[PDFLibraryAPI] = None, service_registry: Optional[ServiceRegistry] = None):
+    def __init__(self, host="127.0.0.1", port=8765, app=None, *, pdf_library_api: Optional[PDFLibraryAPI] = None, service_registry: Optional[ServiceRegistry] = None, db_path: Optional[str] = None):
         super().__init__()
         self.host = host
         self.port = port
@@ -134,15 +134,40 @@ class StandardWebSocketServer(QObject):
         self.clients = []
         self.running = False
         
-        # PDF管理器
-        self.pdf_manager = PDFManager()
+        # PDF管理器：将数据目录锚定到 project_root/data，避免相对路径受 CWD 影响
+        try:
+            data_dir_abs = os.path.join(str(project_root), "data")
+        except Exception:
+            data_dir_abs = "data"
+        self.pdf_manager = PDFManager(data_dir=data_dir_abs)
+        try:
+            logger.info("pdf_manager.data_dir=%s", getattr(self.pdf_manager, 'data_dir', None))
+        except Exception:
+            pass
 
         # API 门面/服务注册表（可注入）
         self.pdf_library_api = pdf_library_api
+        self._db_path = db_path
+        try:
+            import os as _os, sys as _sys
+            from src.backend.database import config as _cfg
+            logger.info("diagnose(WS): init with db_path param=%s, cfg_file=%s, cwd=%s, sys.path[0]=%s",
+                        str(self._db_path), str(getattr(_cfg, '__file__', '?')), str(_os.getcwd()), str(_sys.path[0]))
+            # 预读取一次推导路径用于对比
+            try:
+                _auto = str(_cfg.get_db_path())
+                logger.info("diagnose(WS): auto_db_path=%s", _auto)
+            except Exception as _e:
+                logger.warning("diagnose(WS): auto_db_path error: %s", _e)
+        except Exception:
+            pass
         if self.pdf_library_api is None:
             try:
                 reg = service_registry if service_registry is not None else ServiceRegistry()
-                self.pdf_library_api = PDFLibraryAPI(service_registry=reg, pdf_manager=self.pdf_manager)
+                if self._db_path:
+                    self.pdf_library_api = PDFLibraryAPI(db_path=self._db_path, service_registry=reg, pdf_manager=self.pdf_manager)
+                else:
+                    self.pdf_library_api = PDFLibraryAPI(service_registry=reg, pdf_manager=self.pdf_manager)
             except Exception as exc:
                 logger.warning("创建 PDFLibraryAPI 失败: %s", exc)
         
@@ -2226,6 +2251,7 @@ def main():
     """主函数"""
     parser = argparse.ArgumentParser(description="Standard WebSocket Server")
     parser.add_argument("--port", type=int, help="Port to run the server on")
+    parser.add_argument("--db-path", dest="db_path", type=str, default=None, help="SQLite database file path (optional)")
     args = parser.parse_args()
 
     # 必须先创建 QCoreApplication 实例
@@ -2234,7 +2260,7 @@ def main():
     setup_logging()
     port = get_port(args.port)
 
-    server = StandardWebSocketServer(port=port, app=app)
+    server = StandardWebSocketServer(port=port, app=app, db_path=args.db_path)
     if server.start():
         logger.info("Starting Qt event loop.")
         sys.exit(app.exec())

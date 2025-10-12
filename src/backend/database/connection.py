@@ -8,8 +8,9 @@
 """
 
 import sqlite3
-from typing import Optional, Any, List
+from typing import Optional, Any, List, Dict
 from pathlib import Path
+import logging
 
 from .config import PRAGMA_SETTINGS
 from .exceptions import DatabaseConnectionError
@@ -38,13 +39,36 @@ class DatabaseConnectionManager:
         >>> manager.close_all()
     """
 
-    _instance: Optional['DatabaseConnectionManager'] = None
+    # 以“绝对路径”为键的单例池，避免不同数据库文件相互污染
+    _instances: Dict[str, 'DatabaseConnectionManager'] = {}
 
     def __new__(cls, *args, **kwargs):
-        """单例模式：确保只有一个实例"""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+        """按数据库文件路径进行单例隔离。
+
+        说明：
+        - 过去的全局单例会导致先创建的 db_path 被全局固定，后续传入的新 db_path 被忽略，
+          在多运行环境（源码/发行/插件）下表现为“日志显示路径对，但实际连接到旧库”。
+        - 新实现使用“绝对路径字符串”作为键，不同 db 文件获得独立的连接管理器，
+          相同路径复用同一实例以保留连接池行为。
+        """
+        # 从参数解析 db_path
+        db_arg = None
+        if args:
+            # 第一个位置参数即 db_path
+            db_arg = args[0]
+        if db_arg is None:
+            db_arg = kwargs.get('db_path')
+        key = None
+        try:
+            key = str(Path(str(db_arg)).resolve()) if db_arg is not None else '__default__'
+        except Exception:
+            key = str(db_arg) if db_arg is not None else '__default__'
+
+        inst = cls._instances.get(key)
+        if inst is None:
+            inst = super().__new__(cls)
+            cls._instances[key] = inst
+        return inst
 
     def __init__(
         self,
@@ -73,7 +97,11 @@ class DatabaseConnectionManager:
         if hasattr(self, '_initialized') and self._initialized:
             return
 
-        self._db_path = Path(db_path)
+        # 使用绝对规范路径，避免相对路径受 CWD 干扰
+        try:
+            self._db_path = Path(db_path).resolve()
+        except Exception:
+            self._db_path = Path(db_path)
         self._timeout = options.get('timeout', 10.0)
         self._check_same_thread = options.get('check_same_thread', False)
         self._isolation_level = options.get('isolation_level', 'DEFERRED')
@@ -183,12 +211,30 @@ class DatabaseConnectionManager:
             DatabaseConnectionError: 连接失败
         """
         try:
+            logging.getLogger('database.connection').info(
+                "sqlite3.connect path=%s", str(self._db_path)
+            )
             conn = sqlite3.connect(
                 str(self._db_path),
                 timeout=self._timeout,
                 check_same_thread=self._check_same_thread,
                 isolation_level=self._isolation_level
             )
+            # 诊断：记录 SQLite 实际打开的主库文件路径（避免路径混淆）
+            try:
+                cur = conn.cursor()
+                cur.execute("PRAGMA database_list")
+                db_rows = cur.fetchall() or []
+                # 形如 [(0,'main','C:\\...\\anki_linkmaster.db'), ...]
+                for row in db_rows:
+                    try:
+                        logging.getLogger('database.connection').info(
+                            "sqlite3.database_list name=%s file=%s", str(row[1]), str(row[2])
+                        )
+                    except Exception:
+                        pass
+            except Exception:
+                pass
 
             # 初始化连接（设置 PRAGMA）
             self._initialize_connection(conn)

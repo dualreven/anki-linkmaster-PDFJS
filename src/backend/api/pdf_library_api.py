@@ -73,12 +73,25 @@ class PDFLibraryAPI:
     ) -> None:
         self._logger = logger or logging.getLogger("pdf.library.api")
         self._db_path = db_path or str(get_db_path())
+        try:
+            (logging.getLogger("pdf.library.api") if logger is None else logger).info(
+                "Using DB path: %s", self._db_path
+            )
+        except Exception:
+            pass
         options = get_connection_options()
 
         self._connection_manager = DatabaseConnectionManager(self._db_path, **options)
         self._executor = SQLExecutor(self._connection_manager.get_connection())
         self._event_bus = event_bus or EventBus()
 
+        # 关键修复：确保插件注册中心与本次连接绑定
+        # 旧实现是全局单例，可能拿到上一次（不同数据库文件）的 executor，
+        # 从而导致“打印路径对，但实际操作落到旧库”。
+        try:
+            TablePluginRegistry.reset_instance()
+        except Exception:
+            pass
         self._registry = TablePluginRegistry.get_instance(self._executor, self._event_bus, self._logger)
 
         self._pdf_info_plugin = PDFInfoTablePlugin(self._executor, self._event_bus, self._logger)
