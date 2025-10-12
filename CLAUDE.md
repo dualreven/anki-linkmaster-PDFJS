@@ -343,8 +343,7 @@ const eventName = createEventName('pdf', 'load', 'completed');
 
 基本规则:
    - 总是使用中文回复.
-   - 询问用户时,使用Python脚本发出声音提醒: `python quick_beep.py`
-     (备用方法: PowerShell API调用，如果Python不可用)
+   - 询问用户时,使用通知/语音提示工具: `notify-tts "文本"` 或 `notify "文本"`
 
 项目技术栈和开发工具:
    - 前端构建工具: Vite 5.0.0 (开发服务器 + 构建工具)
@@ -714,14 +713,14 @@ AI 接管开发时的具体规则:
       - 开发后：使用 `python ai_launcher.py stop` 停止所有服务
       - 原因：直接启动会导致终端阻塞，无法进行 AI 自动化开发
 
-   14. AI声音提醒系统:
-      - 主要命令：`python quick_beep.py` (三音节上升提醒音)
-      - 测试脚本：`python beep_reminder.py` (测试5种声音方法)
-      - 技术方案：
-        * 主要方法：winsound.Beep() - Windows内置模块
-        * 备用方法：ctypes + Windows API
-        * 最后备用：系统铃声 echo \a
-      - 使用场景：询问用户、完成重要任务、需要注意时
+   14. 通知/语音提醒系统:
+      - 主要命令：
+        * 语音播报：`notify-tts "要播报的中文文本"`
+        * 系统通知：`notify "要显示的通知文本"`
+      - 用法示例：
+        * 任务完成提醒：`notify-tts "构建完成，请检查结果"`
+        * 需要确认：`notify "需要你确认：是否继续部署？"`
+      - 适用场景：询问用户、完成重要任务、需要人工确认/关注时
 
    15. Claude Code 强化工作流 (借鉴Kilocode smart-agent):
       - 基于事实的决策机制：
