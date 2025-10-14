@@ -185,18 +185,27 @@ def copy_to_anki_plugin() -> dict:
             src_path = item
             dst_path = ANKI_PLUGIN_DIR / item.name
 
+            # 跳过运行时目录（logs 不应随构建复制）
+            if item.is_dir() and item.name.lower() == 'logs':
+                print(f"  [SKIP DIR] {item.name} (runtime)\n", flush=True)
+                continue
+
             if src_path.is_dir():
-                # 复制目录
-                if dst_path.exists():
-                    shutil.rmtree(dst_path, onerror=_on_rm_error)
-                shutil.copytree(src_path, dst_path)
+                # 复制目录（容忍目标已存在，合并内容）
+                try:
+                    shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
+                except TypeError:
+                    # 兼容旧 Python：先确保目标不存在，再 copytree
+                    if dst_path.exists():
+                        shutil.rmtree(dst_path, onerror=_on_rm_error)
+                    shutil.copytree(src_path, dst_path)
                 # 统计目录中的文件数
                 for root, dirs, files in os.walk(dst_path):
                     dirs_created += len(dirs)
                     files_copied += len(files)
                 print(f"  [COPY DIR] {item.name} ({files_copied} files)", flush=True)
             else:
-                # 复制文件
+                # 复制文件（覆盖）
                 shutil.copy2(src_path, dst_path)
                 files_copied += 1
                 print(f"  [COPY FILE] {item.name}", flush=True)

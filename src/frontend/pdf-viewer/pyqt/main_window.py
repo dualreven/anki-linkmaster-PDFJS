@@ -25,8 +25,9 @@ class MainWindow(QMainWindow):
     """主窗口 for PDF-Viewer - 集成JSConsoleLogger"""
     send_debug_message_requested = pyqtSignal()
     web_loaded = pyqtSignal()
+    window_closing = pyqtSignal()  # 窗口关闭信号，用于触发资源清理
 
-    def __init__(self, app, remote_debug_port: int | None = None, js_log_file: str | None = None, js_logger=None, pdf_id: str = "empty", stop_backend_on_close: bool = True):
+    def __init__(self, app, remote_debug_port: int | None = None, js_log_file: str | None = None, js_logger=None, pdf_id: str = "empty", stop_backend_on_close: bool = True, enable_close_event_debug: bool = False):
         """初始化主窗口
 
         Args:
@@ -36,8 +37,10 @@ class MainWindow(QMainWindow):
             js_logger: JSConsoleLogger实例（可选）
             pdf_id: PDF标识符，用于日志文件命名
             stop_backend_on_close: 窗口关闭时是否停止后端服务（默认True）
+            enable_close_event_debug: 是否启用closeEvent详细日志（默认False，影响性能）
         """
         super().__init__()
+        self.enable_close_event_debug = enable_close_event_debug  # 日志开关
         # 确保窗口关闭时对象被销毁（触发 destroyed 信号），以便宿主映射清理
         try:
             from src.qt.compat import QtCore  # 统一兼容层
@@ -279,66 +282,262 @@ class MainWindow(QMainWindow):
             self.web_view.updateGeometry()
 
     def closeEvent(self, event):
-        """窗口关闭事件 - 仅清理前端进程跟踪文件"""
-        import json
-        from pathlib import Path
-        from datetime import datetime
+        """窗口关闭事件（最小化实现）。
 
-        # 创建日志函数，同时输出到控制台和文件
-        def log_message(msg):
-            print(msg, flush=True)  # 强制刷新输出
-            try:
-                log_path = Path(__file__).parent.parent.parent.parent / 'logs' / 'window-close.log'
-                log_path.parent.mkdir(parents=True, exist_ok=True)
-                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-                with open(log_path, 'a', encoding='utf-8') as f:
-                    f.write(f"[{timestamp}] {msg}\n")
-            except:
-                pass
-
-        log_message(f"[MainWindow-{self.pdf_id}] closeEvent触发，开始清理...")
-
+        仅发出 window_closing 信号并接受事件；其余清理逻辑在 PdfViewerApp.cleanup 中完成。
+        """
         try:
-            # 获取项目根目录 (main_window.py -> pyqt -> pdf-viewer -> frontend -> src -> 项目根目录)
-            project_root = Path(__file__).parent.parent.parent.parent.parent
-            log_message(f"[MainWindow-{self.pdf_id}] 项目根目录: {project_root}")
+            if hasattr(self, 'window_closing'):
+                self.window_closing.emit()
+        except Exception:
+            pass
+        try:
+            event.accept()
+        except Exception:
+            pass
+        try:
+            super().closeEvent(event)
+        except Exception:
+            pass
 
-            # 从 frontend-process-info.json 中移除当前窗口的记录
-            try:
-                frontend_info_path = project_root / 'logs' / 'frontend-process-info.json'
-                log_message(f"[MainWindow-{self.pdf_id}] 检查文件: {frontend_info_path}")
+    # def closeEvent(self, event):
+    #     """窗口关闭事件 - 增强版日志追踪每一步
 
-                if frontend_info_path.exists():
-                    with open(frontend_info_path, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
+    #     注意：详细日志默认关闭以提升性能。需要调试时设置 enable_close_event_debug=True
+    #     """
+    #     import json
+    #     from pathlib import Path
+    #     from datetime import datetime
+    #     import sys
+    #     import traceback as tb
 
-                    # 从 frontend 记录中移除 pdf-viewer 相关的实例
-                    # pdf-viewer 使用 pdf-viewer-{pdf_id} 作为键名
-                    if 'frontend' in data and isinstance(data['frontend'], dict):
-                        # 查找并移除所有包含当前pdf_id的键
-                        keys_to_remove = [
-                            key for key in data['frontend'].keys()
-                            if key.startswith('pdf-viewer') and self.pdf_id in key
-                        ]
-                        for key in keys_to_remove:
-                            del data['frontend'][key]
-                            log_message(f"[MainWindow-{self.pdf_id}] 已从跟踪列表中移除窗口: {key}")
+    #     # 检查是否启用详细日志
+    #     enable_debug = getattr(self, 'enable_close_event_debug', False)
 
-                    # 写回文件
-                    with open(frontend_info_path, 'w', encoding='utf-8') as f:
-                        json.dump(data, f, ensure_ascii=False, indent=2)
-                    log_message(f"[MainWindow-{self.pdf_id}] ✓ 清理前端进程信息成功")
-                else:
-                    log_message(f"[MainWindow-{self.pdf_id}] 文件不存在，跳过清理")
-            except Exception as e:
-                log_message(f"[MainWindow-{self.pdf_id}] ✗ 清理前端进程信息失败: {e}")
+    #     # 创建日志函数，同时输出到控制台和文件（增强版）
+    #     def log_message(msg, level="INFO"):
+    #         if not enable_debug:
+    #             return  # 日志关闭时直接返回
 
-        except Exception as e:
-            log_message(f"[MainWindow-{self.pdf_id}] ✗ 关闭窗口时发生错误: {e}")
-            import traceback
-            log_message(f"[MainWindow-{self.pdf_id}] 堆栈: {traceback.format_exc()}")
+    #         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+    #         formatted_msg = f"[{timestamp}] [{level}] {msg}"
+    #         print(formatted_msg, flush=True)  # 强制刷新输出
+    #         try:
+    #             log_path = Path(__file__).parent.parent.parent.parent / 'logs' / 'window-close.log'
+    #             log_path.parent.mkdir(parents=True, exist_ok=True)
+    #             with open(log_path, 'a', encoding='utf-8') as f:
+    #                 f.write(formatted_msg + "\n")
+    #                 f.flush()  # 立即写入磁盘
+    #         except Exception as log_error:
+    #             print(f"[日志写入失败] {log_error}", flush=True)
 
-        log_message(f"[MainWindow-{self.pdf_id}] closeEvent完成，窗口即将关闭")
+    #     log_message(f"========== [MainWindow-{self.pdf_id}] closeEvent 开始 ==========", "START")
+    #     log_message(f"Python版本: {sys.version}")
+    #     log_message(f"进程PID: {os.getpid()}")
 
-        # 接受关闭事件
-        event.accept()
+    #     # 步骤 0: 检查对象状态
+    #     try:
+    #         log_message("步骤0: 检查MainWindow对象状态")
+    #         log_message(f"  - pdf_id: {getattr(self, 'pdf_id', 'MISSING')}")
+    #         log_message(f"  - web_view存在: {hasattr(self, 'web_view') and self.web_view is not None}")
+    #         log_message(f"  - web_page存在: {hasattr(self, 'web_page') and self.web_page is not None}")
+    #         log_message(f"  - js_logger存在: {hasattr(self, 'js_logger') and self.js_logger is not None}")
+    #         log_message(f"  - parent存在: {hasattr(self, 'parent') and self.parent is not None}")
+    #         log_message("步骤0: ✓ 对象状态检查完成")
+    #     except Exception as e:
+    #         log_message(f"步骤0: ✗ 对象状态检查失败: {e}", "ERROR")
+    #         log_message(f"  堆栈: {tb.format_exc()}", "ERROR")
+
+    #     # 步骤 1: 发出窗口关闭信号
+    #     log_message("步骤1: 准备发出 window_closing 信号")
+    #     try:
+    #         # 检查信号是否存在
+    #         if not hasattr(self, 'window_closing'):
+    #             log_message("步骤1: ✗ window_closing 信号不存在!", "ERROR")
+    #         else:
+    #             log_message(f"步骤1: window_closing 信号存在，准备 emit()")
+    #             self.window_closing.emit()
+    #             log_message(f"步骤1: ✓ 已成功发出 window_closing 信号", "SUCCESS")
+    #     except Exception as e:
+    #         log_message(f"步骤1: ✗ 发出 window_closing 信号失败: {e}", "ERROR")
+    #         log_message(f"  异常类型: {type(e).__name__}", "ERROR")
+    #         log_message(f"  堆栈: {tb.format_exc()}", "ERROR")
+
+    #     # 步骤 1.5: 先解绑页面与通道、停止页面活动，降低后续清理时序压力
+    #     try:
+    #         if hasattr(self, 'web_page') and self.web_page is not None:
+    #             try:
+    #                 # 解除 QWebChannel 绑定，避免桥接对象在销毁过程中收到调用
+    #                 self.web_page.setWebChannel(None)
+    #             except Exception:
+    #                 pass
+    #             try:
+    #                 # 断开页面标题变更等信号，减少关闭过程中的回调触发
+    #                 if hasattr(self.web_page, 'titleChanged'):
+    #                     try:
+    #                         self.web_page.titleChanged.disconnect()
+    #                     except Exception:
+    #                         pass
+    #             except Exception:
+    #                 pass
+    #             try:
+    #                 # 断开 JS 日志器引用，避免在关闭过程中继续写日志
+    #                 if hasattr(self.web_page, 'js_logger'):
+    #                     self.web_page.js_logger = None
+    #             except Exception:
+    #                 pass
+    #     except Exception:
+    #         pass
+
+    #     # 停止 WebView 的活动脚本/加载（优先切换到 about:blank）
+    #     try:
+    #         if hasattr(self, 'web_view') and self.web_view is not None:
+    #             try:
+    #                 self.web_view.stop()
+    #             except Exception:
+    #                 pass
+    #             try:
+    #                 from src.qt.compat import QUrl as _QUrl
+    #                 self.web_view.setUrl(_QUrl('about:blank'))
+    #             except Exception:
+    #                 pass
+    #     except Exception:
+    #         pass
+
+    #     # 步骤 2: 清理 JSON 文件中的窗口记录（采用原子写）
+    #     log_message("步骤2: 开始清理 frontend-process-info.json")
+    #     try:
+    #         # 获取项目根目录 (main_window.py -> pyqt -> pdf-viewer -> frontend -> src -> 项目根目录)
+    #         project_root = Path(__file__).parent.parent.parent.parent.parent
+    #         log_message(f"步骤2: 项目根目录: {project_root}")
+
+    #         # 从 frontend-process-info.json 中移除当前窗口的记录
+    #         try:
+    #             frontend_info_path = project_root / 'logs' / 'frontend-process-info.json'
+    #             log_message(f"步骤2: 目标文件路径: {frontend_info_path}")
+    #             log_message(f"步骤2: 文件是否存在: {frontend_info_path.exists()}")
+
+    #             if frontend_info_path.exists():
+    #                 log_message(f"步骤2: 准备读取文件...")
+    #                 with open(frontend_info_path, 'r', encoding='utf-8') as f:
+    #                     data = json.load(f)
+    #                 log_message(f"步骤2: ✓ 文件读取成功，数据键: {list(data.keys())}")
+
+    #                 # 从 frontend 记录中移除 pdf-viewer 相关的实例
+    #                 # pdf-viewer 使用 pdf-viewer-{pdf_id} 作为键名
+    #                 if 'frontend' in data and isinstance(data['frontend'], dict):
+    #                     log_message(f"步骤2: frontend 键存在，包含 {len(data['frontend'])} 个条目")
+    #                     log_message(f"步骤2: 现有键列表: {list(data['frontend'].keys())}")
+
+    #                     # 查找并移除所有包含当前pdf_id的键
+    #                     keys_to_remove = [
+    #                         key for key in data['frontend'].keys()
+    #                         if key.startswith('pdf-viewer') and self.pdf_id in key
+    #                     ]
+    #                     log_message(f"步骤2: 找到 {len(keys_to_remove)} 个需要删除的键: {keys_to_remove}")
+
+    #                     for key in keys_to_remove:
+    #                         del data['frontend'][key]
+    #                         log_message(f"步骤2: ✓ 已删除键: {key}")
+
+    #                 # 写回文件
+    #                 log_message(f"步骤2: 准备写回文件...")
+    #                 try:
+    #                     tmp_path = frontend_info_path.with_suffix(frontend_info_path.suffix + '.tmp')
+    #                     payload = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+    #                     with open(tmp_path, 'w', encoding='utf-8', newline='\n') as f:
+    #                         f.write(payload)
+    #                     tmp_path.replace(frontend_info_path)
+    #                 except Exception as e:
+    #                     # 回退到直接写入（尽量不影响关闭流程）
+    #                     with open(frontend_info_path, 'w', encoding='utf-8') as f:
+    #                         json.dump(data, f, ensure_ascii=False, indent=2)
+    #                 log_message(f"步骤2: ✓ 清理前端进程信息成功", "SUCCESS")
+    #             else:
+    #                 log_message(f"步骤2: 文件不存在，跳过清理", "WARN")
+    #         except Exception as e:
+    #             log_message(f"步骤2: ✗ 清理前端进程信息失败: {e}", "ERROR")
+    #             log_message(f"  异常类型: {type(e).__name__}", "ERROR")
+    #             log_message(f"  堆栈: {tb.format_exc()}", "ERROR")
+
+    #     except Exception as e:
+    #         log_message(f"步骤2: ✗ 步骤2总体异常: {e}", "ERROR")
+    #         log_message(f"  堆栈: {tb.format_exc()}", "ERROR")
+
+    #     # 步骤 3: 清理Qt资源 (web_view, web_page, js_logger)
+    #     log_message("步骤3: 开始清理Qt资源")
+    #     try:
+    #         # 3.1: 清理 web_view
+    #         if hasattr(self, 'web_view') and self.web_view is not None:
+    #             log_message("步骤3.1: 准备清理 web_view")
+    #             try:
+    #                 log_message(f"步骤3.1: web_view 类型: {type(self.web_view).__name__}")
+    #                 # 停止加载
+    #                 self.web_view.stop()
+    #                 log_message("步骤3.1: ✓ web_view.stop() 调用成功")
+    #                 # 不主动删除，让Qt管理生命周期
+    #                 log_message("步骤3.1: ✓ web_view 清理完成", "SUCCESS")
+    #             except Exception as e:
+    #                 log_message(f"步骤3.1: ✗ 清理 web_view 失败: {e}", "ERROR")
+    #                 log_message(f"  堆栈: {tb.format_exc()}", "ERROR")
+    #         else:
+    #             log_message("步骤3.1: web_view 不存在或已为 None，跳过")
+
+    #         # 3.2: 清理 web_page
+    #         if hasattr(self, 'web_page') and self.web_page is not None:
+    #             log_message("步骤3.2: 准备清理 web_page")
+    #             try:
+    #                 log_message(f"步骤3.2: web_page 类型: {type(self.web_page).__name__}")
+    #                 # 不主动删除，让Qt管理生命周期
+    #                 log_message("步骤3.2: ✓ web_page 清理完成", "SUCCESS")
+    #             except Exception as e:
+    #                 log_message(f"步骤3.2: ✗ 清理 web_page 失败: {e}", "ERROR")
+    #                 log_message(f"  堆栈: {tb.format_exc()}", "ERROR")
+    #         else:
+    #             log_message("步骤3.2: web_page 不存在或已为 None，跳过")
+
+    #         # 3.3: 清理 js_logger
+    #         if hasattr(self, 'js_logger') and self.js_logger is not None:
+    #             log_message("步骤3.3: 准备清理 js_logger")
+    #             try:
+    #                 log_message(f"步骤3.3: js_logger 类型: {type(self.js_logger).__name__}")
+    #                 if hasattr(self.js_logger, 'stop'):
+    #                     log_message("步骤3.3: 调用 js_logger.stop()...")
+    #                     self.js_logger.stop()
+    #                     log_message("步骤3.3: ✓ js_logger.stop() 调用成功")
+    #                 else:
+    #                     log_message("步骤3.3: js_logger 没有 stop() 方法")
+    #                 log_message("步骤3.3: ✓ js_logger 清理完成", "SUCCESS")
+    #             except Exception as e:
+    #                 log_message(f"步骤3.3: ✗ 清理 js_logger 失败: {e}", "ERROR")
+    #                 log_message(f"  堆栈: {tb.format_exc()}", "ERROR")
+    #         else:
+    #             log_message("步骤3.3: js_logger 不存在或已为 None，跳过")
+
+    #         log_message("步骤3: ✓ Qt资源清理完成", "SUCCESS")
+
+    #     except Exception as e:
+    #         log_message(f"步骤3: ✗ Qt资源清理总体异常: {e}", "ERROR")
+    #         log_message(f"  堆栈: {tb.format_exc()}", "ERROR")
+
+    #     # 步骤 4: 接受关闭事件
+    #     log_message("步骤4: 准备调用 event.accept()")
+    #     try:
+    #         log_message(f"步骤4: event 类型: {type(event).__name__}")
+    #         log_message(f"步骤4: event.isAccepted() (调用前): {event.isAccepted()}")
+    #         event.accept()
+    #         log_message(f"步骤4: event.isAccepted() (调用后): {event.isAccepted()}")
+    #         log_message(f"步骤4: ✓ event.accept() 调用成功", "SUCCESS")
+    #     except Exception as e:
+    #         log_message(f"步骤4: ✗ event.accept() 失败: {e}", "ERROR")
+    #         log_message(f"  异常类型: {type(e).__name__}", "ERROR")
+    #         log_message(f"  堆栈: {tb.format_exc()}", "ERROR")
+
+    #     log_message(f"========== [MainWindow-{self.pdf_id}] closeEvent 完成 ==========", "END")
+    #     log_message("")  # 空行分隔
+
+    #     # 调用父类 closeEvent，确保 Qt 内部资源正确清理
+    #     try:
+    #         super().closeEvent(event)
+    #     except Exception:
+    #         pass

@@ -449,14 +449,14 @@ export class SearchResultsFeature {
     // 条目打开事件 -> 转发到全局
     const unsubOpen = this.#scopedEventBus.on("results:item:open", async (data) => {
       // 导入 toast 函数
-      const { info: toastInfo, success: toastSuccess, error: toastError } = await import("../../../common/utils/thirdparty-toast.js");
+      const { info: toastInfo, success: toastSuccess, error: toastError, warning: toastWarning } = await import("../../../common/utils/thirdparty-toast.js");
 
-      toastInfo("🔍 [步骤1] 收到打开请求");
+      // 初始阶段 toast（保留）
+      toastInfo("🔍 正在打开PDF...");
       this.#logger.info("[SearchResultsFeature] [步骤1] Item open requested", data);
 
       // 1) 转发为全局事件，便于其他模块感知
       this.#globalEventBus.emit("search-results:item:open", data);
-      toastInfo("📡 [步骤2] 已发布全局事件");
       this.#logger.info("[SearchResultsFeature] [步骤2] Global event emitted");
 
       // 2) 直接触发打开 pdf-viewer（通过 QWebChannelBridge -> PyQtBridge）
@@ -466,7 +466,6 @@ export class SearchResultsFeature {
         const title = data?.result?.title || data?.title || null;
         let filePath = data?.result?.path || data?.result?.file_path || data?.file_path || null;
 
-        toastInfo(`📦 [步骤3] 解析参数: id=${pdfId}, filename=${filename}`);
         this.#logger.info("[SearchResultsFeature] [步骤3] Parsed params", { pdfId, filename, title, filePath });
 
         if (!pdfId) {
@@ -481,21 +480,20 @@ export class SearchResultsFeature {
           return;
         }
 
-        toastInfo("🔌 [步骤4] 检查 QWebChannel 状态...");
         this.#logger.info("[SearchResultsFeature] [步骤4] Checking QWebChannel status");
 
         // ensure initialized (idempotent)
         try {
           await this.#qwcBridge.initialize?.();
-          toastInfo("✅ [步骤5] QWebChannel 初始化完成");
           this.#logger.info("[SearchResultsFeature] [步骤5] QWebChannel initialized");
         } catch (e) {
           toastError("❌ QWebChannel 初始化失败");
           this.#logger.error("[SearchResultsFeature] QWebChannel init failed", e);
+          return;
         }
 
         if (this.#qwcBridge.isReady && !this.#qwcBridge.isReady()) {
-          toastInfo("⏳ [步骤6] 等待 QWebChannel 就绪...");
+          this.#logger.info("[SearchResultsFeature] [步骤6] Waiting for QWebChannel ready");
           await new Promise(r => setTimeout(r, 200));
         }
         if (this.#qwcBridge.isReady && !this.#qwcBridge.isReady()) {
@@ -506,25 +504,23 @@ export class SearchResultsFeature {
 
         // 若缺少 file_path，尝试从后端查询一次详情（遵守隔离原则：通过 WS 访问）
         if (!filePath && this.#shouldFetchDetailFallback()) {
-          toastInfo("🔍 [步骤7] 查询文件路径...");
+          this.#logger.info("[SearchResultsFeature] [步骤7] Fetching file path");
           try {
             const detail = await this.#fetchPdfDetail(String(pdfId));
             filePath = detail?.file_path || filePath;
-            toastInfo(`✅ [步骤8] 文件路径: ${filePath || '(未找到)'}`);
+            this.#logger.info("[SearchResultsFeature] [步骤8] File path retrieved", { filePath });
           } catch (e) {
-            toastWarning("⚠️ 文件路径查询失败");
+            // 仅在查询失败且影响后续流程时显示警告
             this.#logger.warn("[SearchResultsFeature] fetch detail failed, continue without file_path", e);
           }
         }
 
-        toastInfo("🚀 [步骤9] 准备调用 PyQt 打开窗口...");
         this.#logger.info("[SearchResultsFeature] [步骤9] Opening pdf-viewer by id", { pdfId, hasFile: !!filePath });
 
         // 携带 filename / file_path 元信息，便于 PyQt 侧直接带 file 加载
         const items = [{ id: String(pdfId), filename: filename || undefined, file_path: filePath || undefined, title: title || undefined }];
         const payload = { pdfIds: [String(pdfId)], items };
 
-        toastInfo(`📤 [步骤10] 调用方法: ${typeof this.#qwcBridge.openPdfViewersWithMeta === "function" ? 'openPdfViewersWithMeta' : 'openPdfViewers'}`);
         this.#logger.info("[SearchResultsFeature] [步骤10] Calling PyQt bridge", {
           hasWithMeta: typeof this.#qwcBridge.openPdfViewersWithMeta === "function",
           payload
@@ -536,8 +532,8 @@ export class SearchResultsFeature {
           await this.#qwcBridge.openPdfViewers(payload);
         }
 
-        toastSuccess("✅ [步骤11] PyQt 调用完成！");
         this.#logger.info("[SearchResultsFeature] [步骤11] PyQt bridge call completed");
+        // 最终成功阶段的 toast 由 QWebChannelBridge 显示
 
       } catch (e) {
         toastError(`❌ 打开失败: ${e.message}`);

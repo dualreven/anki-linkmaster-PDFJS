@@ -249,6 +249,24 @@ def publish_frontend(out_dir: Path, skip_build: bool = False) -> dict:
     # 复制前端 Python 侧代码
     py_stats = copy_frontend_python(repo_root, out_dir)
 
+    # 复制 GUI 启动器到 dist/latest 根目录：复用源码根的 gui_launcher.py 作为 gui_launcher_dist.py
+    try:
+        src_launcher = repo_root / "gui_launcher.py"
+        dst_launcher = out_dir / "gui_launcher_dist.py"
+        if src_launcher.exists():
+            shutil.copy2(src_launcher, dst_launcher)
+    except Exception:
+        pass
+
+    # 复制 AI 启动器到 dist/latest 根目录：复用源码根的 ai_launcher.py 作为 ai_launcher_dist.py
+    try:
+        src_ai = repo_root / "ai_launcher.py"
+        dst_ai = out_dir / "ai_launcher_dist.py"
+        if src_ai.exists():
+            shutil.copy2(src_ai, dst_ai)
+    except Exception:
+        pass
+
     meta = {
         "name": "frontend",
         "out_dir": str(out_dir),

@@ -10,15 +10,12 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
-import logging
-logger = logging.getLogger('pdf-home.main_window')
 
 from src.qt.compat import (
     QMainWindow, QVBoxLayout, QWidget, QStatusBar,
     QWebEngineView, QWebEnginePage, QWebEngineSettings,
     QUrl, pyqtSignal, QAction, QSizePolicy
 )
-import importlib
 
 
 class MainWindow(QMainWindow):
@@ -63,11 +60,9 @@ class MainWindow(QMainWindow):
         self.inspector_window = None
 
         # 初始化UI
-        logger.info('MainWindow.__init__ start, remote_debug_port=%s', self._remote_debug_port)
         self._init_ui()
         self._init_menu()
         self._init_status_bar()
-        logger.info('MainWindow.__init__ done')
 
     def set_js_logger(self, js_logger):
         """设置JS日志记录器实例"""
@@ -79,63 +74,35 @@ class MainWindow(QMainWindow):
         import os
         os.environ['QTWEBENGINE_REMOTE_DEBUGGING'] = str(self._remote_debug_port)
 
-        # 选择可用的 WebEngine 类（本地变量，不污染模块级绑定）
-        view_cls = QWebEngineView
-        page_cls = QWebEnginePage
-        settings_cls = QWebEngineSettings
-
-        try:
-            if (view_cls is None) or (page_cls is None) or (settings_cls is None):
-                _compat = importlib.import_module('src.qt.compat')
-                _view = getattr(_compat, 'QWebEngineView', None)
-                _page = getattr(_compat, 'QWebEnginePage', None)
-                _settings = getattr(_compat, 'QWebEngineSettings', None)
-                if _view and _page and _settings:
-                    view_cls, page_cls, settings_cls = _view, _page, _settings
-                    logger.info('Refreshed WebEngine bindings from compat (late-binding)')
-                if (view_cls is None) or (page_cls is None) or (settings_cls is None):
-                    try:
-                        from PyQt6.QtWebEngineWidgets import QWebEngineView as _DirectView  # type: ignore
-                        from PyQt6.QtWebEngineCore import QWebEngineSettings as _DirectSettings, QWebEnginePage as _DirectPage  # type: ignore
-                        view_cls, page_cls, settings_cls = _DirectView, _DirectPage, _DirectSettings
-                        logger.info('Direct-imported WebEngine classes from PyQt6 (fallback)')
-                    except Exception as _e:
-                        logger.warning('Direct PyQt6 WebEngine import failed: %s', _e)
-        except Exception:
-            pass
-
         # 创建WebEngine视图
-        self.web_view = view_cls() if view_cls else None
-        logger.info('WebView created? %s', bool(self.web_view))
+        self.web_view = QWebEngineView() if QWebEngineView else None
         if self.web_view:
-            try:
-                self.web_view.loadStarted.connect(self._on_load_started)
-                self.web_view.loadProgress.connect(self._on_load_progress)
-            except Exception:
-                pass
             self.web_view.loadFinished.connect(self._on_web_loaded)
             # 设置大小策略，确保自适应窗口大小变化
             self.web_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         # 设置开发者工具属性
-        if self.web_view and settings_cls:
+        if self.web_view and QWebEngineSettings:
             settings = self.web_view.settings()
-            settings.setAttribute(settings_cls.WebAttribute.JavascriptEnabled, True)
-            settings.setAttribute(settings_cls.WebAttribute.LocalStorageEnabled, True)
+            settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
+            settings.setAttribute(QWebEngineSettings.WebAttribute.LocalStorageEnabled, True)
 
         # 设置安全选项
-        if self.web_view and settings_cls:
-            settings.setAttribute(settings_cls.WebAttribute.AllowRunningInsecureContent, False)
-            settings.setAttribute(settings_cls.WebAttribute.LocalContentCanAccessRemoteUrls, False)
-            settings.setAttribute(settings_cls.WebAttribute.LocalContentCanAccessFileUrls, False)
-            settings.setAttribute(settings_cls.WebAttribute.JavascriptCanAccessClipboard, False)
-            settings.setAttribute(settings_cls.WebAttribute.XSSAuditingEnabled, True)
+        if self.web_view and QWebEngineSettings:
+            settings.setAttribute(QWebEngineSettings.WebAttribute.AllowRunningInsecureContent, False)
+            settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, False)
+            settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, False)
+            settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanAccessClipboard, False)
+            settings.setAttribute(QWebEngineSettings.WebAttribute.XSSAuditingEnabled, True)
 
         # 创建自定义页面
-        if self.web_view and page_cls:
-            base_page = page_cls
+        if self.web_view and QWebEnginePage:
+            try:
+                from PyQt6.QtWebEngineCore import QWebEnginePage as _QWEP  # type: ignore
+            except Exception:
+                _QWEP = QWebEnginePage
 
-            class LoggingWebPage(base_page):
+            class LoggingWebPage(_QWEP):
                 def __init__(self, parent, log_file_path: str | None, js_logger=None):
                     super().__init__(parent)
                     self._log_file_path = log_file_path
@@ -224,10 +191,8 @@ class MainWindow(QMainWindow):
 
             self.web_page = LoggingWebPage(self.web_view, self._js_log_file, self.js_logger)
             self.web_view.setPage(self.web_page)
-            logger.info('WebPage created and set on WebView')
         else:
             self.web_page = None
-            logger.warning('WebPage is None (either no WebView or no QWebEnginePage)')
 
         # 设置主布局
         layout = QVBoxLayout()
@@ -237,8 +202,6 @@ class MainWindow(QMainWindow):
 
         if self.web_view:
             layout.addWidget(self.web_view)
-        else:
-            logger.warning('No WebView added to layout')
 
         # 创建中心部件
         container = QWidget()
@@ -267,33 +230,17 @@ class MainWindow(QMainWindow):
 
     def _on_web_loaded(self, success: bool):
         """网页加载完成处理"""
-        logger.info('WebView loadFinished: success=%s', success)
         if success:
             self.status_bar.showMessage('页面加载完成')
             self.web_loaded.emit()
         else:
             self.status_bar.showMessage('页面加载失败')
 
-    def _on_load_started(self):
-        try:
-            logger.info('WebView loadStarted')
-        except Exception:
-            pass
-
-    def _on_load_progress(self, value: int):
-        try:
-            logger.info('WebView loadProgress: %s', value)
-        except Exception:
-            pass
-
     def load_frontend(self, url: str):
         """加载前端URL"""
         if self.web_view:
-            logger.info('load_frontend called with url=%s', url)
             self.web_view.load(QUrl(url))
             self.status_bar.showMessage(f'正在加载: {url}')
-        else:
-            logger.error('load_frontend: WebView is None, cannot load URL')
 
     def update_js_logger_reference(self):
         """更新WebPage中的js_logger引用"""
@@ -311,58 +258,3 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         """窗口关闭事件 - 先关闭由本窗口打开的 pdf-viewer，再清理前端进程跟踪信息"""
         import json
-        from pathlib import Path
-        from datetime import datetime
-
-        try:
-            # 先尝试关闭所有由 pdf-home 打开的 pdf-viewer 窗口
-            try:
-                if getattr(self, 'viewer_windows', None):
-                    for k, win in list(self.viewer_windows.items()):
-                        try:
-                            # 记录一条日志到 logs/window-close.log
-                            log_path = Path(__file__).parent.parent.parent.parent / 'logs' / 'window-close.log'
-                            log_path.parent.mkdir(parents=True, exist_ok=True)
-                            ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-                            with open(log_path, 'a', encoding='utf-8', newline='\n') as f:
-                                f.write(f"[{ts}] [pdf-home] 关闭子窗口: pdf-viewer({k})\n")
-                        except Exception:
-                            pass
-                        try:
-                            win.close()
-                        except Exception:
-                            pass
-                    try:
-                        self.viewer_windows.clear()
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-
-            # 获取项目根目录
-            project_root = Path(__file__).parent.parent.parent.parent
-
-            # 从 frontend-process-info.json 中移除当前窗口的 PID
-            try:
-                frontend_info_path = project_root / 'logs' / 'frontend-process-info.json'
-                if frontend_info_path.exists():
-                    with open(frontend_info_path, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-
-                    # 从 frontend 记录中移除 pdf-home
-                    if 'frontend' in data and isinstance(data['frontend'], dict):
-                        if 'pdf-home' in data['frontend']:
-                            del data['frontend']['pdf-home']
-                            print(f"[MainWindow] 已从跟踪列表中移除当前窗口")
-
-                    # 写回文件
-                    with open(frontend_info_path, 'w', encoding='utf-8') as f:
-                        json.dump(data, f, ensure_ascii=False, indent=2)
-            except Exception as e:
-                print(f"[MainWindow] 清理前端进程信息失败: {e}")
-
-        except Exception as e:
-            print(f"[MainWindow] 清理过程失败: {e}")
-        finally:
-            # 接受关闭事件，让窗口优雅关闭
-            event.accept()

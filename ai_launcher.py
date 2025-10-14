@@ -257,23 +257,60 @@ def kill_process(pid: int) -> bool:
 
 
 def is_process_running(pid: Optional[int]) -> bool:
-    """Cross-platform check if a process is running."""
+    """Cross-platform check if a process is running.
+
+    Windows fast path avoids spawning external processes (tasklist) by using
+    Win32 API via ctypes. Falls back to the previous method if ctypes fails.
+    """
     if pid is None:
         return False
     try:
+        pid_int = int(pid)
+    except Exception:
+        return False
+
+    try:
         if os.name == "nt":
-            # tasklist is slow but reliable. Findstr is used for speed.
-            res = subprocess.run(
-                ["tasklist", "/FI", f"PID eq {pid}"],
-                capture_output=True,
-                check=False,
-                text=True,
-                creationflags=subprocess.CREATE_NO_WINDOW,
-            )
-            return str(pid) in res.stdout
+            # Fast path: use Win32 API OpenProcess to test existence
+            try:
+                import ctypes
+                from ctypes import wintypes
+
+                PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+                kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+                kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+                kernel32.OpenProcess.restype = wintypes.HANDLE
+                kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+                kernel32.CloseHandle.restype = wintypes.BOOL
+
+                handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, wintypes.DWORD(pid_int))
+                if handle:
+                    # Process handle opened; treat as running
+                    kernel32.CloseHandle(handle)
+                    return True
+                # If handle is NULL, either process doesn't exist or access denied.
+                # Fall through to fallback method for a definitive answer.
+            except Exception:
+                # If ctypes path fails for any reason, fallback below
+                pass
+
+            # Fallback: tasklist (slower)
+            try:
+                res = subprocess.run(
+                    ["tasklist", "/FI", f"PID eq {pid_int}"],
+                    capture_output=True,
+                    check=False,
+                    text=True,
+                    encoding='utf-8',      # 明确指定 UTF-8 编码
+                    errors='replace',      # 遇到无法解码的字符时替换为 �
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+                return str(pid_int) in res.stdout
+            except Exception:
+                return False
         else:
-            # kill -0 pid checks existence without sending a signal
-            os.kill(int(pid), 0)
+            # POSIX: kill -0 pid checks existence without sending a signal
+            os.kill(pid_int, 0)
             return True
     except (OSError, subprocess.CalledProcessError):
         return False
@@ -462,7 +499,13 @@ def _save_backend_process(pid: Optional[int], msgCenter_port: int, pdfFile_port:
     write_json_atomic(LOGS_DIR / "backend-process-info.json", info)
 
 
-def _start_backend(msgCenter_port: int | None, pdfFile_port: int | None) -> bool:
+def _start_backend(msgCenter_port: int | None, pdfFile_port: int | None,
+                   *, runtime_mode: Optional[str] = None,
+                   ankiaddon_root_path: Optional[str] = None,
+                   data_dir: Optional[str] = None,
+                   db_path: Optional[str] = None,
+                   static_dir: Optional[str] = None,
+                   pdfs_dir: Optional[str] = None) -> bool:
     """启动后端服务（非阻塞方式）"""
     if os.environ.get("AI_LAUNCHER_TEST_MODE") == "1":
         return True
@@ -473,6 +516,18 @@ def _start_backend(msgCenter_port: int | None, pdfFile_port: int | None) -> bool
         cmd += ["--msgCenter-port", str(msgCenter_port)]
     if pdfFile_port:
         cmd += ["--pdfFileServer-port", str(pdfFile_port)]
+    if db_path:
+        cmd += ["--db-path", str(db_path)]
+    if data_dir:
+        cmd += ["--data-dir", str(data_dir)]
+    if static_dir:
+        cmd += ["--static-dir", str(static_dir)]
+    if pdfs_dir:
+        cmd += ["--pdfs-dir", str(pdfs_dir)]
+    if runtime_mode:
+        cmd += ["--runtime-mode", str(runtime_mode)]
+        if runtime_mode == 'anki' and ankiaddon_root_path:
+            cmd += ["--ankiaddon-root-path", str(ankiaddon_root_path)]
 
     LOGGER.info("Starting backend (non-blocking): %s", " ".join(cmd))
 
@@ -663,6 +718,13 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         sp.add_argument("--pdf-id", type=str, dest="pdf_id")
         sp.add_argument("--page-at", type=int, dest="page_at", help="Target page number (1-based index)")
         sp.add_argument("--position", type=float, dest="position", help="Vertical position percentage within page (0-100)")
+        sp.add_argument("--runtime-mode", type=str, dest="runtime_mode", choices=["anki", "single"], help="Runtime mode for backend path resolution")
+        sp.add_argument("--ankiaddon-root-path", type=str, dest="ankiaddon_root_path", help="Anki add-on root path (required when runtime-mode=anki)")
+        sp.add_argument("--data-dir", type=str, dest="data_dir", help="Explicit backend data directory")
+        sp.add_argument("--db-path", type=str, dest="db_path", help="Explicit backend database file path")
+        sp.add_argument("--static-dir", type=str, dest="static_dir", help="Explicit backend static directory")
+        sp.add_argument("--pdfs-dir", type=str, dest="pdfs_dir", help="Explicit backend PDFs directory")
+        sp.add_argument("--logs-dir", type=str, dest="logs_dir", help="Logs directory for process info files")
 
     add_common(sub.add_parser("start", help="Start vite, backend, and optional frontend"))
     sub.add_parser("stop", help="Stop vite, frontend, and backend")
@@ -674,6 +736,16 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 def cmd_start(args: argparse.Namespace) -> int:
     LOGGER.info("=== ai-launcher start ===")
     try:
+        # 允许通过 --logs-dir 自定义日志目录
+        global LOGS_DIR
+        if getattr(args, "logs_dir", None):
+            try:
+                LOGS_DIR = Path(getattr(args, "logs_dir")).resolve()
+                LOGS_DIR.mkdir(parents=True, exist_ok=True)
+                LOGGER.info("Using custom LOGS_DIR: %s", str(LOGS_DIR))
+            except Exception as e:
+                LOGGER.warning("Failed to apply custom logs dir: %s", e)
+
         ports = _allocate_ports(args)
         vite_port = int(ports.get("vite_port") or ports.get("npm_port") or 3000)
         msgCenter_port = int(ports.get("msgCenter_port") or ports.get("ws_port") or 8765)
@@ -702,7 +774,16 @@ def cmd_start(args: argparse.Namespace) -> int:
         LOGGER.info("Updated runtime-ports.json with actual Vite port: %s", actual_vite_port)
 
         # 2) backend
-        _start_backend(msgCenter_port, pdfFile_port)
+        _start_backend(
+            msgCenter_port,
+            pdfFile_port,
+            runtime_mode=getattr(args, "runtime_mode", None),
+            ankiaddon_root_path=getattr(args, "ankiaddon_root_path", None),
+            data_dir=getattr(args, "data_dir", None),
+            db_path=getattr(args, "db_path", None),
+            static_dir=getattr(args, "static_dir", None),
+            pdfs_dir=getattr(args, "pdfs_dir", None),
+        )
 
         # 3) frontend module if requested
         if getattr(args, "module", None):

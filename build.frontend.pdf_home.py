@@ -268,11 +268,67 @@ def main(argv: list[str] | None = None) -> int:
         target_index.parent.mkdir(parents=True, exist_ok=True)
         # 始终以 UTF-8 明确写入
         target_index.write_text(index_html.read_text(encoding="utf-8"), encoding="utf-8")
+        # 复制配置到 /static/pdf-home/config（生产运行从 /pdf-home/config/* 访问）
+        try:
+            src_cfg_dir = REPO_ROOT / "src" / "frontend" / "pdf-home" / "config"
+            if src_cfg_dir.exists():
+                dst_cfg_dir = STATIC_DIR / "pdf-home" / "config"
+                _copytree_filtered(src_cfg_dir, dst_cfg_dir)
+        except Exception:
+            pass
     # 复制 assets/* 到 /static
     copy_assets_to_static(out_dir, STATIC_DIR)
     py_stats = copy_frontend_python_pdf_home(REPO_ROOT, REPO_ROOT / "dist" / "latest")
     # 复制 pdf-viewer 的 Python 运行部件，供 pdf-home 调用 viewer 窗口
     viewer_py_stats = copy_frontend_python_pdf_viewer(REPO_ROOT, REPO_ROOT / "dist" / "latest")
+    # 复制 common 模块（供前端 launcher 导入）
+    try:
+        src_common = REPO_ROOT / "src" / "frontend" / "common"
+        dst_common = REPO_ROOT / "dist" / "latest" / "src" / "frontend" / "common"
+        if src_common.exists():
+            # 仅复制 .py 文件，保持目录结构
+            def _copy_py_files(src: Path, dst: Path) -> tuple[int, int]:
+                files_copied = 0
+                dirs_created = 0
+                for root, dirnames, filenames in os.walk(src):
+                    root_path = Path(root)
+                    # 排除 __pycache__ 与测试目录
+                    dirnames[:] = [d for d in dirnames if d not in {"__pycache__", "__tests__", "tests"}]
+                    rel = root_path.relative_to(src)
+                    target_dir = dst / rel
+                    if not target_dir.exists():
+                        target_dir.mkdir(parents=True, exist_ok=True)
+                        dirs_created += 1
+                    for fn in filenames:
+                        if not fn.lower().endswith('.py'):
+                            continue
+                        sf = root_path / fn
+                        df = target_dir / fn
+                        df.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(sf, df)
+                        files_copied += 1
+                return files_copied, dirs_created
+            _copy_py_files(src_common, dst_common)
+    except Exception:
+        pass
+
+    # 复制 GUI 启动器脚本到 dist/latest 根目录：复用源码根的 gui_launcher.py
+    try:
+        src_launcher = REPO_ROOT / "gui_launcher.py"
+        dst_launcher = REPO_ROOT / "dist" / "latest" / "gui_launcher_dist.py"
+        if src_launcher.exists():
+            shutil.copy2(src_launcher, dst_launcher)
+    except Exception:
+        pass
+
+    # 复制 AI 启动器脚本到 dist/latest 根目录：复用源码根的 ai_launcher.py
+    try:
+        src_ai = REPO_ROOT / "ai_launcher.py"
+        dst_ai = REPO_ROOT / "dist" / "latest" / "ai_launcher_dist.py"
+        if src_ai.exists():
+            shutil.copy2(src_ai, dst_ai)
+    except Exception:
+        pass
 
     # 构建完成后清理 out_dir（避免在 dist/latest 下保留 pdf-home 目录）
     try:

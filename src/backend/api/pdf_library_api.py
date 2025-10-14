@@ -13,7 +13,7 @@ import importlib.util
 
 import time
 
-from ..database.config import get_db_path, get_connection_options
+from ..database.config import get_db_path, get_connection_options, resolve_db_base_dir
 from ..database.connection import DatabaseConnectionManager
 from ..database.executor import SQLExecutor
 from ..database.exceptions import (
@@ -111,8 +111,17 @@ class PDFLibraryAPI:
             try:
                 # Lazy import to avoid hard dependency during headless tests
                 from ..pdf_manager.standard_manager import StandardPDFManager as _StdMgr  # type: ignore
-
-                self._pdf_manager = _StdMgr()
+                # 与数据库根保持一致：优先显式环境变量，其次自动解析
+                from pathlib import Path as _Path
+                base_dir = resolve_db_base_dir()
+                data_dir_abs = str(_Path(base_dir) / 'data')
+                self._pdf_manager = _StdMgr(data_dir=data_dir_abs)
+                try:
+                    (self._logger or logging.getLogger("pdf.library.api")).info(
+                        "PDFManager fallback init with data_dir=%s", data_dir_abs
+                    )
+                except Exception:
+                    pass
             except Exception as exc:  # pragma: no cover - fallback path
                 self._logger.warning("StandardPDFManager init failed: %s", exc)
                 self._pdf_manager = None

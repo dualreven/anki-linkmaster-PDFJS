@@ -104,9 +104,6 @@ export class URLNavigationFeature {
         hasParams: !!this.#parsedParams?.hasParams
       };
       this.#logger.info("[url-navigation] 解析URL参数", dbg);
-      try {
-        toastInfo(`URL导航参数: pdf=${dbg.pdfId || "(无)"} page=${dbg.pageAt ?? "-"} pos=${dbg.position ?? "-"} ann=${dbg.annotationId || "-"}`);
-      } catch (e) { void e; }
     } catch (e) { void e; }
 
     // 4. 如果有URL参数，发出解析完成事件
@@ -143,14 +140,12 @@ export class URLNavigationFeature {
     // 6. 设置导航门闸：仅在“标注数据加载完成”后执行跳转
     //    - 标注数据加载完成：AnnotationManager 完成加载后通过全局事件发出 annotation-data:load:success
 
-    // 监听标注“数据加载完成”的作用域事件（使用 annotation 作用域的 ScopedEventBus 订阅）
+    // 监听标注"数据加载完成"的作用域事件（使用 annotation 作用域的 ScopedEventBus 订阅）
     const annotationBus = createScopedEventBus(this.#eventBus, "annotation");
     annotationBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, (data) => {
-      this.#logger.info("[url-navigation] 捕获标注数据加载完成事件");
-      try {
-        const c = (data && typeof data.count === "number") ? data.count : undefined;
-        toastInfo(`标注数据加载完成${typeof c === "number" ? `（${c} 条）` : ""}`);
-      } catch (e) { void e; }
+      this.#logger.info("[url-navigation] 捕获标注数据加载完成事件", {
+        count: (data && typeof data.count === "number") ? data.count : undefined
+      });
       this.#annotationDataLoaded = true;
       this.#tryExecuteGatedNavigation();
     }, { subscriberId: "URLNavigationFeature" });
@@ -213,10 +208,9 @@ export class URLNavigationFeature {
    * @private
    */
   async #handlePDFLoadSuccess() {
-    // 文件加载成功后，不直接导航；等待“标注数据加载完成”
+    // 文件加载成功后，不直接导航；等待"标注数据加载完成"
     if (this.#hasProcessedParams) { return; }
     this.#logger.info("[url-navigation] 文件加载成功，等待标注数据加载门闸");
-    try { toastInfo("文件加载成功：等待标注数据…"); } catch (e) { void e; }
   }
 
   async #tryExecuteGatedNavigation() {
@@ -236,9 +230,6 @@ export class URLNavigationFeature {
         position,
         annotationId
       });
-      try {
-        toastInfo(`门闸检查: ann=${hasAnn} nav=${hasNav}${hasNav ? ` page=${pageAt ?? "-"} pos=${position ?? "-"}` : ""}`);
-      } catch (e) { void e; }
       if (hasAnn) {
         this.#logger.info("[url-navigation] 门闸通过，触发标注跳转: %s", annotationId);
         let rid = null;
@@ -283,7 +274,6 @@ export class URLNavigationFeature {
         }
       } else {
         this.#logger.info("[url-navigation] 门闸通过，但无 page-at/position/annotation-id 参数，跳过自动跳转");
-        try { toastInfo("无跳转参数（仅 pdf-id），跳过自动跳转"); } catch (e) { void e; }
       }
     } catch (error) {
       this.#logger.error("[url-navigation] 门闸导航执行失败:", error);

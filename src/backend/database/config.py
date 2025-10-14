@@ -1,21 +1,30 @@
 """
-数据库配置模块
+数据库配置模块（简化版）
 
-定义数据库连接配置、PRAGMA 优化设置等。
+目标：
+- 路径解析尽量简单稳定；默认相对当前模块的项目根，使用 <root>/data 作为数据目录；
+- 若目录不存在则直接创建；
+- 提供可选的全局数据目录覆盖（set_data_dir），以支持特殊部署场景；
+- get_db_path 始终返回 <data_dir>/anki_linkmaster.db。
 
 创建日期: 2025-10-05
-版本: v1.0
+版本: v2.0（简化路径解析）
 """
 
 from pathlib import Path
 from typing import Dict, Any, Optional
-import os
+import logging
 
 # 项目根目录（向上3级：database -> backend -> src -> root）
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
+# 允许外部设置数据目录（可选）；未设置时使用默认：<PROJECT_ROOT>/data
+_DATA_DIR: Optional[Path] = None
+_DB_PATH: Optional[Path] = None
+
 # 数据库配置
 DATABASE_CONFIG: Dict[str, Any] = {
+    # 兼容保留：支持原先的键名，但实际只取文件名部分
     'db_path': 'data/anki_linkmaster.db',
     'timeout': 10.0,
     'check_same_thread': False,
@@ -31,113 +40,88 @@ PRAGMA_SETTINGS: Dict[str, str] = {
     'temp_store': 'MEMORY',         # 临时表存储在内存
     'cache_size': '-64000',         # 缓存大小（-64000 = 64MB）
 }
+def set_data_dir(data_dir: Optional[str]) -> None:
+    """可选：设置自定义数据目录（形如 "/path/to/data"）。
 
-
-def _env_dist_root() -> Optional[Path]:
-    """通过环境变量解析发行根目录。
-
-    支持的环境变量（按优先级）：
-    - LINKMASTER_BASE_DIR
-    - LINKMASTER_DIST_ROOT
-    - LINKMASTER_ROOT
-
-    Returns:
-        若存在有效目录则返回 Path，否则 None。
+    说明：
+    - 若不调用此函数，将使用默认目录：<PROJECT_ROOT>/data；
+    - 若传入 None，将恢复为默认目录；
+    - 该函数不会立即创建目录，创建逻辑在 get_data_dir()/get_db_path() 中。
     """
-    keys = ("LINKMASTER_BASE_DIR", "LINKMASTER_DIST_ROOT", "LINKMASTER_ROOT")
-    for k in keys:
-        val = os.environ.get(k)
-        if not val:
-            continue
-        try:
-            p = Path(val).resolve()
-            if p.exists():
-                return p
-        except Exception:
-            continue
-    return None
+    global _DATA_DIR
+    _DATA_DIR = Path(data_dir).resolve() if data_dir else None
 
 
-def _find_dist_root_from_cwd(cwd: Optional[Path] = None) -> Optional[Path]:
-    """在当前工作目录向上查找可用的发行/插件根目录。
+def set_db_path(db_path: Optional[str]) -> None:
+    """可选：设置自定义数据库文件绝对路径。"""
+    global _DB_PATH
+    _DB_PATH = Path(db_path).resolve() if db_path else None
 
-    优先匹配：
-    - .../dist/latest
-    - .../pdf_sys
-    - 父层存在子目录 lib/pdf_sys（Anki 插件打包常见结构）
+
+def compute_component_root(runtime_mode: str, *, ankiaddon_root_path: Optional[str] = None, project_root: Optional[Path] = None) -> Path:
+    """基于运行模式计算组件根目录（参数式，无环境变量）。
 
     Args:
-        cwd: 当前工作目录（可注入以便测试）；默认使用 Path.cwd()
+        runtime_mode: 'anki' | 'single'
+        ankiaddon_root_path: 当 runtime_mode='anki' 时必须提供插件根目录
+        project_root: 可选，默认使用模块推导的 PROJECT_ROOT
 
     Returns:
-        若找到匹配目录则返回 Path，否则 None。
+        组件根目录 Path
     """
-    current = (cwd or Path.cwd()).resolve()
-    for p in [current] + list(current.parents):
+    mode = (runtime_mode or '').lower()
+    prj = project_root or PROJECT_ROOT
+    if mode == 'anki':
+        if not ankiaddon_root_path:
+            raise RuntimeError("Anki 模式需要提供 ankiaddon_root_path")
+        return Path(ankiaddon_root_path).resolve() / 'lib' / 'pdf_sys'
+    elif mode == 'single':
+        return prj
+    else:
+        raise RuntimeError("未知的 runtime_mode，期望 'anki' 或 'single'")
+
+
+def get_data_dir() -> Path:
+    """获取数据目录（默认单机模式）。
+
+    优先级：
+    1) `set_data_dir(dir)` 显式设置；
+    2) `set_db_path(file)` 显式设置（返回其父目录）；
+    3) 兜底：`<PROJECT_ROOT>/data`。
+    """
+    if _DATA_DIR is not None:
+        base = _DATA_DIR
+    elif _DB_PATH is not None:
+        base = _DB_PATH.parent
+    else:
+        base = PROJECT_ROOT / 'data'
+
+    if not base.exists():
         try:
-            # 直接命中：dist/latest
-            if p.name == 'latest' and p.parent.name == 'dist':
-                return p
-            # 直接命中：pdf_sys（Anki 插件布局）
-            if p.name == 'pdf_sys':
-                return p
-            # 父层包含子目录 lib/pdf_sys → 选择该子目录为根
-            candidate = p / 'lib' / 'pdf_sys'
-            if candidate.exists():
-                return candidate
+            base.mkdir(parents=True, exist_ok=True)
+            try:
+                logging.getLogger('database.config').info('created data directory: %s', str(base))
+            except Exception:
+                pass
         except Exception:
-            # 防御性：路径遍历过程中保持健壮
             pass
-    return None
+    return base
 
 
 def resolve_db_base_dir(this_file: Optional[Path] = None, cwd: Optional[Path] = None) -> Path:
-    """解析数据库根目录（用于拼接 data/anki_linkmaster.db）。
-
-    优先级：
-    0) 若存在环境变量 LINKMASTER_BASE_DIR/LINKMASTER_DIST_ROOT/LINKMASTER_ROOT → 优先使用；
-    1) 若当前模块文件路径位于 dist/latest/src/... 或 pdf_sys/src/... 下 → 使用其上层作为根；
-    2) 否则，如当前工作目录向上可找到 dist/latest 或 lib/pdf_sys → 使用该目录；
-    3) 否则，回退到基于源码位置推导的 PROJECT_ROOT。
-
-    该设计确保：
-    - 源码运行时，路径为 <repo>/data/...
-    - dist 运行时（即便导入到了源码包），路径为 <repo>/dist/latest/data/...
-
-    Args:
-        this_file: 当前模块文件路径（可注入以便测试）；默认使用 __file__
-        cwd: 当前工作目录（可注入以便测试）；默认使用 Path.cwd()
-
-    Returns:
-        数据库根目录（不包含 data/... 子目录）
-    """
-    # 情况 0：显式环境变量覆盖（最可靠，避免受 cwd 影响）
-    env_root = _env_dist_root()
-    if env_root is not None:
-        return env_root
-
-    fpath = (this_file or Path(__file__).resolve())
-    # 情况 1：模块实际来自 dist 路径
-    posix_path = fpath.as_posix()
-    if (
-        '/dist/latest/src/' in posix_path or
-        '\\dist\\latest\\src\\' in str(fpath) or
-        '/pdf_sys/src/' in posix_path or
-        '\\pdf_sys\\src\\' in str(fpath)
-    ):
-        # four-level parents from .../dist/latest/src/backend/database/config.py → dist/latest
-        try:
-            return fpath.parent.parent.parent.parent
-        except Exception:
-            pass
-
-    # 情况 2：通过 CWD 反推出 dist/latest 根
-    dist_from_cwd = _find_dist_root_from_cwd(cwd=cwd)
-    if dist_from_cwd is not None:
-        return dist_from_cwd
-
-    # 情况 3：回退源码根
+    """兼容接口：返回默认项目根（单机模式）。"""
     return PROJECT_ROOT
+
+
+def compute_data_dir(runtime_mode: str, *, ankiaddon_root_path: Optional[str] = None, project_root: Optional[Path] = None) -> Path:
+    """基于运行模式计算数据目录（参数式）。"""
+    return compute_component_root(runtime_mode, ankiaddon_root_path=ankiaddon_root_path, project_root=project_root) / 'data'
+
+
+def compute_db_path(runtime_mode: str, *, ankiaddon_root_path: Optional[str] = None, project_root: Optional[Path] = None,
+                    db_file_name: str = 'anki_linkmaster.db') -> Path:
+    """基于运行模式计算数据库文件路径（参数式）。"""
+    return compute_data_dir(runtime_mode, ankiaddon_root_path=ankiaddon_root_path, project_root=project_root) / db_file_name
 
 
 def get_db_path() -> Path:
@@ -152,8 +136,20 @@ def get_db_path() -> Path:
         >>> print(db_path)
         C:/Users/napretep/PycharmProjects/anki-linkmaster-PDFJS/data/anki_linkmaster.db
     """
-    base_dir = resolve_db_base_dir()
-    return base_dir / DATABASE_CONFIG['db_path']
+    # 兼容：从配置项提取文件名部分
+    rel = Path(DATABASE_CONFIG.get('db_path', 'anki_linkmaster.db'))
+    db_name = rel.name or 'anki_linkmaster.db'
+    path = get_data_dir() / db_name
+    if not path.parent.exists():
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                logging.getLogger('database.config').info('created db directory: %s', str(path.parent))
+            except Exception:
+                pass
+        except Exception:
+            pass
+    return path
 
 
 def get_connection_options() -> Dict[str, Any]:

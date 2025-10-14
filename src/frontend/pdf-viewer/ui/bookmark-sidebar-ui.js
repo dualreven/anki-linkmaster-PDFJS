@@ -117,24 +117,24 @@ export class BookmarkSidebarUI {
     try { $container.jstree("destroy"); } catch { /* ignore */ }
     this.#bookmarkList.innerHTML = "";
     const data = this.#toJsTreeData(this.#bookmarks);
-    this.#logger.info(`[DEBUG] Creating jstree with ${data.length} nodes`, { toast: true });
+    this.#logger.info(`[DEBUG] Creating jstree with ${data.length} nodes`);
     $container.jstree({
       core: { data, check_callback: true, themes: { stripes: true } },
       plugins: ["dnd", "wholerow"],
       dnd: { is_draggable: () => true }
     });
 
-    this.#logger.info("[DEBUG] jsTree created, waiting for ready event...", { toast: true });
+    this.#logger.info("[DEBUG] jsTree created, waiting for ready event...");
 
     // 等待 jsTree 渲染完成后展开所有节点
     // eslint-disable-next-line custom/event-name-format
     $container.on("ready.jstree", () => {
-      this.#logger.info("[DEBUG] jsTree ready event fired!", { toast: true });
+      this.#logger.info("[DEBUG] jsTree ready event fired!");
       try {
         $container.jstree("open_all");
-        this.#logger.info("✅ Outline tree expanded automatically", { toast: true });
+        this.#logger.info("✅ Outline tree expanded automatically");
       } catch (err) {
-        this.#logger.error("❌ Failed to expand outline tree: " + err.message, { toast: true });
+        this.#logger.error("❌ Failed to expand outline tree: " + err.message);
       }
     });
     // 选择节点 → 发出导航与选中事件

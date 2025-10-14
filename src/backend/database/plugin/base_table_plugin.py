@@ -388,7 +388,18 @@ class TablePlugin(ABC):
         Example:
             >>> self._emit_event('create', 'completed', {'uuid': 'abc123'})
         """
-        event_name = f"table:{self.table_name}:{action}:{status}"
+        # 事件名规范化：table:<kebab-table-name>:<action>:<status>
+        def _kebab(s: Any) -> str:
+            try:
+                text = str(s)
+            except Exception:
+                text = ""
+            return text.strip().replace("_", "-").lower()
+
+        topic = _kebab(self.table_name)
+        evt_action = _kebab(action)
+        evt_status = _kebab(status)
+        event_name = f"table:{topic}:{evt_action}:{evt_status}"
 
         try:
             self._event_bus.emit(event_name, data)

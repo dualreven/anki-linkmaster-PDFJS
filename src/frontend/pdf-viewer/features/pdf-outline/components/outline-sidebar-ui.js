@@ -33,7 +33,7 @@ export class OutlineSidebarUI {
   }
 
   initialize() {
-    this.#logger.info("[DEBUG] OutlineSidebarUI initialize() called", { toast: true });
+    this.#logger.info("[DEBUG] OutlineSidebarUI initialize() called");
 
     this.#content = document.createElement("div");
     this.#content.style.cssText = "height:100%;display:flex;flex-direction:column;box-sizing:border-box;";
@@ -50,19 +50,19 @@ export class OutlineSidebarUI {
     this.#treeContainer.style.cssText = "flex:1;overflow:auto;padding:8px;";
     this.#content.appendChild(this.#treeContainer);
 
-    this.#logger.info(`[DEBUG] Subscribing to event: ${PDF_VIEWER_EVENTS.BOOKMARK.LOAD.SUCCESS}`, { toast: true });
+    this.#logger.info(`[DEBUG] Subscribing to event: ${PDF_VIEWER_EVENTS.BOOKMARK.LOAD.SUCCESS}`);
 
     // 监听数据加载事件
     this.#unsubs.push(this.#eventBus.on(
       PDF_VIEWER_EVENTS.BOOKMARK.LOAD.SUCCESS,
       (data) => {
-        this.#logger.info(`[DEBUG] BOOKMARK.LOAD.SUCCESS event received! Bookmarks count: ${data?.bookmarks?.length || 0}`, { toast: true });
+        this.#logger.info(`[DEBUG] BOOKMARK.LOAD.SUCCESS event received! Bookmarks count: ${data?.bookmarks?.length || 0}`);
         this.#renderTree(data?.bookmarks || []);
       },
       { subscriberId: "OutlineSidebarUI" }
     ));
 
-    this.#logger.info("[DEBUG] OutlineSidebarUI initialized successfully", { toast: true });
+    this.#logger.info("[DEBUG] OutlineSidebarUI initialized successfully");
   }
 
   getContentElement() { return this.#content; }
@@ -105,7 +105,7 @@ export class OutlineSidebarUI {
     try { $tree.jstree("destroy"); } catch { /* ignore */ }
 
     const data = this.#toJsTreeData(bookmarks);
-    this.#logger.info(`[DEBUG] Creating jstree with ${data.length} nodes`, { toast: true });
+    this.#logger.info(`[DEBUG] Creating jstree with ${data.length} nodes`);
 
     $tree.jstree({
       core: {
@@ -116,17 +116,17 @@ export class OutlineSidebarUI {
       plugins: ["dnd", "wholerow"]
     });
 
-    this.#logger.info("[DEBUG] jsTree created, waiting for ready event...", { toast: true });
+    this.#logger.info("[DEBUG] jsTree created, waiting for ready event...");
 
     // 等待 jsTree 渲染完成后展开所有节点
     // eslint-disable-next-line custom/event-name-format
     $tree.on("ready.jstree", () => {
-      this.#logger.info("[DEBUG] jsTree ready event fired!", { toast: true });
+      this.#logger.info("[DEBUG] jsTree ready event fired!");
       try {
         $tree.jstree("open_all");
-        this.#logger.info("✅ Outline tree expanded automatically", { toast: true });
+        this.#logger.info("✅ Outline tree expanded automatically");
       } catch (err) {
-        this.#logger.error("❌ Failed to expand outline tree: " + err.message, { toast: true });
+        this.#logger.error("❌ Failed to expand outline tree: " + err.message);
       }
     });
 

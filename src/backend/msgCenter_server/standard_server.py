@@ -26,6 +26,7 @@ import sys
 
 from src.backend.msgCenter_server.standard_protocol import StandardMessageHandler, PDFMessageBuilder, MessageType
 from src.backend.pdf_manager.standard_manager import StandardPDFManager as PDFManager
+from src.backend.database.config import compute_data_dir, compute_db_path  # 参数式路径解析
 # 移除传输优化模块的依赖
 # from src.backend.pdf_manager.page_transfer_manager import page_transfer_manager
 
@@ -123,7 +124,15 @@ class StandardWebSocketServer(QObject):
     client_disconnected = pyqtSignal(QWebSocket)
     message_received = pyqtSignal(QWebSocket, dict)
     
-    def __init__(self, host="127.0.0.1", port=8765, app=None, *, pdf_library_api: Optional[PDFLibraryAPI] = None, service_registry: Optional[ServiceRegistry] = None, db_path: Optional[str] = None):
+    def __init__(self, host="127.0.0.1", port=8765, app=None, *,
+                 pdf_library_api: Optional[PDFLibraryAPI] = None,
+                 service_registry: Optional[ServiceRegistry] = None,
+                 db_path: Optional[str] = None,
+                 runtime_mode: Optional[str] = None,
+                 ankiaddon_root_path: Optional[str] = None,
+                 data_dir: Optional[str] = None,
+                 static_dir: Optional[str] = None,
+                 pdfs_dir: Optional[str] = None):
         super().__init__()
         self.host = host
         self.port = port
@@ -134,11 +143,23 @@ class StandardWebSocketServer(QObject):
         self.clients = []
         self.running = False
         
-        # PDF管理器：将数据目录锚定到 project_root/data，避免相对路径受 CWD 影响
-        try:
-            data_dir_abs = os.path.join(str(project_root), "data")
-        except Exception:
-            data_dir_abs = "data"
+        # 参数式路径解析（无环境变量）：
+        # 1) 优先显式 data_dir
+        # 2) 其次 runtime_mode + anki_root_path
+        # 3) 如果 app 为 None（测试/子进程），允许回退到 project_root/data；否则在缺参时抛错
+        selected_data_dir: Optional[Path] = None
+        if data_dir:
+            selected_data_dir = Path(data_dir).resolve()
+        elif runtime_mode:
+            selected_data_dir = compute_data_dir(runtime_mode, ankiaddon_root_path=ankiaddon_root_path)
+        else:
+            if app is None:
+                selected_data_dir = project_root / 'data'
+                logger.info("[paths] fallback single-mode data_dir=%s", str(selected_data_dir))
+            else:
+                raise RuntimeError("缺少路径参数：请在构造 StandardWebSocketServer 时传入 runtime_mode/ankiaddon_root_path 或 data_dir/db_path")
+
+        data_dir_abs = str(selected_data_dir)
         self.pdf_manager = PDFManager(data_dir=data_dir_abs)
         try:
             logger.info("pdf_manager.data_dir=%s", getattr(self.pdf_manager, 'data_dir', None))
@@ -147,27 +168,24 @@ class StandardWebSocketServer(QObject):
 
         # API 门面/服务注册表（可注入）
         self.pdf_library_api = pdf_library_api
-        self._db_path = db_path
+        # 计算 DB 路径（参数式）
+        if db_path:
+            self._db_path = db_path
+        else:
+            if runtime_mode:
+                self._db_path = str(compute_db_path(runtime_mode, ankiaddon_root_path=ankiaddon_root_path))
+            else:
+                # 与 data_dir 一致：在测试/子进程场景，允许回退到 <data_dir>/anki_linkmaster.db
+                self._db_path = str(Path(data_dir_abs) / 'anki_linkmaster.db')
         try:
-            import os as _os, sys as _sys
-            from src.backend.database import config as _cfg
-            logger.info("diagnose(WS): init with db_path param=%s, cfg_file=%s, cwd=%s, sys.path[0]=%s",
-                        str(self._db_path), str(getattr(_cfg, '__file__', '?')), str(_os.getcwd()), str(_sys.path[0]))
-            # 预读取一次推导路径用于对比
-            try:
-                _auto = str(_cfg.get_db_path())
-                logger.info("diagnose(WS): auto_db_path=%s", _auto)
-            except Exception as _e:
-                logger.warning("diagnose(WS): auto_db_path error: %s", _e)
+            logger.info("diagnose(WS): resolved db_path=%s data_dir=%s static_dir_param=%s pdfs_dir_param=%s",
+                        str(self._db_path), data_dir_abs, str(static_dir), str(pdfs_dir))
         except Exception:
             pass
         if self.pdf_library_api is None:
             try:
                 reg = service_registry if service_registry is not None else ServiceRegistry()
-                if self._db_path:
-                    self.pdf_library_api = PDFLibraryAPI(db_path=self._db_path, service_registry=reg, pdf_manager=self.pdf_manager)
-                else:
-                    self.pdf_library_api = PDFLibraryAPI(service_registry=reg, pdf_manager=self.pdf_manager)
+                self.pdf_library_api = PDFLibraryAPI(db_path=self._db_path, service_registry=reg, pdf_manager=self.pdf_manager)
             except Exception as exc:
                 logger.warning("创建 PDFLibraryAPI 失败: %s", exc)
         
@@ -2252,6 +2270,16 @@ def main():
     parser = argparse.ArgumentParser(description="Standard WebSocket Server")
     parser.add_argument("--port", type=int, help="Port to run the server on")
     parser.add_argument("--db-path", dest="db_path", type=str, default=None, help="SQLite database file path (optional)")
+    parser.add_argument("--runtime-mode", dest="runtime_mode", type=str, choices=["anki", "single"], default=None,
+                        help="Runtime mode for path resolution: anki|single")
+    parser.add_argument("--ankiaddon-root-path", dest="ankiaddon_root_path", type=str, default=None,
+                        help="Anki add-on root path (required when runtime-mode=anki)")
+    parser.add_argument("--data-dir", dest="data_dir", type=str, default=None,
+                        help="Explicit data directory; overrides runtime-mode resolution if provided")
+    parser.add_argument("--static-dir", dest="static_dir", type=str, default=None,
+                        help="Explicit static directory (for diagnostics only in WS server)")
+    parser.add_argument("--pdfs-dir", dest="pdfs_dir", type=str, default=None,
+                        help="Explicit pdfs directory (for diagnostics only in WS server)")
     args = parser.parse_args()
 
     # 必须先创建 QCoreApplication 实例
@@ -2260,7 +2288,16 @@ def main():
     setup_logging()
     port = get_port(args.port)
 
-    server = StandardWebSocketServer(port=port, app=app, db_path=args.db_path)
+    server = StandardWebSocketServer(
+        port=port,
+        app=app,
+        db_path=args.db_path,
+        runtime_mode=args.runtime_mode,
+        ankiaddon_root_path=args.ankiaddon_root_path,
+        data_dir=args.data_dir,
+        static_dir=args.static_dir,
+        pdfs_dir=args.pdfs_dir,
+    )
     if server.start():
         logger.info("Starting Qt event loop.")
         sys.exit(app.exec())

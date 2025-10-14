@@ -210,6 +210,54 @@ def main(argv: list[str] | None = None) -> int:
     # 复制 assets/* 到 dist/latest/static
     copy_assets_to_static(out_dir, STATIC_DIR)
     py_stats = copy_frontend_python_pdf_viewer(REPO_ROOT, REPO_ROOT / "dist" / "latest")
+    # 复制 common 模块（供前端 launcher 导入）
+    try:
+        src_common = REPO_ROOT / "src" / "frontend" / "common"
+        dst_common = REPO_ROOT / "dist" / "latest" / "src" / "frontend" / "common"
+        if src_common.exists():
+            # 仅复制 .py 文件，保持目录结构
+            def _copy_py_files(src: Path, dst: Path) -> tuple[int, int]:
+                files_copied = 0
+                dirs_created = 0
+                for root, dirnames, filenames in os.walk(src):
+                    root_path = Path(root)
+                    # 排除 __pycache__ 与测试目录
+                    dirnames[:] = [d for d in dirnames if d not in {"__pycache__", "__tests__", "tests"}]
+                    rel = root_path.relative_to(src)
+                    target_dir = dst / rel
+                    if not target_dir.exists():
+                        target_dir.mkdir(parents=True, exist_ok=True)
+                        dirs_created += 1
+                    for fn in filenames:
+                        if not fn.lower().endswith('.py'):
+                            continue
+                        sf = root_path / fn
+                        df = target_dir / fn
+                        df.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(sf, df)
+                        files_copied += 1
+                return files_copied, dirs_created
+            _copy_py_files(src_common, dst_common)
+    except Exception:
+        pass
+
+    # 复制 GUI 启动器脚本到 dist/latest 根目录：复用源码根的 gui_launcher.py
+    try:
+        src_launcher = REPO_ROOT / "gui_launcher.py"
+        dst_launcher = REPO_ROOT / "dist" / "latest" / "gui_launcher_dist.py"
+        if src_launcher.exists():
+            shutil.copy2(src_launcher, dst_launcher)
+    except Exception:
+        pass
+
+    # 复制 AI 启动器脚本到 dist/latest 根目录：复用源码根的 ai_launcher.py
+    try:
+        src_ai = REPO_ROOT / "ai_launcher.py"
+        dst_ai = REPO_ROOT / "dist" / "latest" / "ai_launcher_dist.py"
+        if src_ai.exists():
+            shutil.copy2(src_ai, dst_ai)
+    except Exception:
+        pass
 
     meta = {
         "name": "frontend-pdf-viewer",

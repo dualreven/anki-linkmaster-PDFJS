@@ -211,6 +211,14 @@ class DatabaseConnectionManager:
             DatabaseConnectionError: 连接失败
         """
         try:
+            # 在真正连接数据库前，尽量弹出一次提示，标明将要连接的数据库地址；
+            # 该代码运行于 Anki 宿主时可用，否则静默。
+            try:
+                from aqt.utils import showInfo as _aqt_showInfo  # type: ignore
+                _aqt_showInfo(f"即将连接数据库: {str(self._db_path)}")
+            except Exception:
+                pass
+
             logging.getLogger('database.connection').info(
                 "sqlite3.connect path=%s", str(self._db_path)
             )

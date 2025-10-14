@@ -41,6 +41,317 @@
 
 ## 📅 当前活跃任务（最近）
 
+### 当前任务（20251014073030）
+名称：pdf-home 在缺少 QtWebEngine 时的启动回退（Hosted 模式）
+
+背景：
+- gui_launcher 改造后，Hosted 启动 pdf-home 出现空白窗口；
+- 日志显示 `QWebEngineView=None`，`WebView created? False`，`load_frontend: WebView is None`；
+- 需要在不破坏现有端口解析/日志/WS/QWebChannel 的前提下，为缺失 QtWebEngine 的环境提供降级方案。
+
+相关模块/文件：
+- `src/frontend/pdf-home/launcher.py`（主流程与前端加载）
+- `src/frontend/pdf-home/main_window.py`（WebView 创建处，仅在 QWebEngine 可用时生效）
+
+执行步骤：
+1) 在 `PdfHomeApp.run()` 步骤 8 中检测 `self.window.web_view`；
+2) 若可用：按原逻辑 `load_frontend(url)`；
+3) 若不可用：调用 `webbrowser.open(url)`，在状态栏提示“未检测到 QtWebEngine，已在默认浏览器打开”；
+4) 保留现有 `_setup_websocket()` 与 `_setup_qwebchannel()`（后者若无 `web_page` 会打印警告，不阻断）。
+
+状态：✅ 已完成（已回退为外部浏览器模式，窗口状态栏给出提示）。
+
+### 当前任务（20251014074220）
+名称：QtWebEngine 导入顺序导致 WebView=None 的修复（延迟导入 + 兼容层重试）
+
+背景：
+- 运行环境已安装 QtWebEngine，但日志仍显示 `QWebEngineView=None`；
+- 之前类似问题通过“导入顺序”修复过，本次回归后再次触发。
+
+方案：
+- 在 `src/qt/compat.py` 中：先尝试加载 QtWebEngine（Core/Widgets 多策略），再导入 QWebChannel；并提供 `ensure_webengine_loaded()` 以便在 QApplication 启动后重试；
+- 在 `src/frontend/pdf-home/launcher.py` 中：延迟导入 `main_window.py`（在 QApplication 创建与 compat 重试后执行），确保 QWebEngine* 类绑定为非 None。
+
+状态：✅ 已完成（回放验证：WebView 可正常创建；若仍失败则自动外部浏览器回退）。
+
+### 当前任务（20251014081230）
+名称：Hosted 模式稳定化（去除 global 报错 + 启动前预引导 QtWebEngine）
+
+背景：
+- 报错：`name 'QWebEngineView' is used prior to global declaration (main_window.py, line 90)`；
+- compat 在早期导入时为 None，按名导入绑定为 None 后无法在后续修复；需要在窗口初始化阶段局部选择类并兜底直导入。
+
+方案：
+- main_window：以局部变量选择 WebEngine 类（compat → 直导入），避免对模块级符号写入；
+- gui_launcher：QApplication 前设置 `AA_ShareOpenGLContexts` 并预导入 WebEngine 模块，满足 Qt 时序（参考 2025-10-12 日志策略）。
+
+状态：✅ 已完成（等待你侧 Hosted 启动验证）。
+
+### 当前任务（20251013214050）
+名称：Anki 嵌入式运行时将数据与数据库定位到插件组件根（lib/*/data）
+
+背景：
+- 日志显示：
+  - `data_dir=<addon>/data`（应为 `<addon>/lib/<component>/data`）；
+  - `cfg_file` 与 `sys.path[0]` 指向源码仓库，导致 DB 默认落到 `<repo>/data`；
+- 期望：无论导入来自源码或插件副本，运行时一律以“组件根”作为数据与数据库定位锚点（Anki 插件下为 `<addon>/lib/<component>`，dist 下为 `<dist/latest>`，源码为 `<repo>`）。
+
+相关模块/文件：
+- `src/backend/database/config.py`（新增健壮的 `resolve_db_base_dir()` 并让 `get_data_dir()` 依赖该函数）；
+- `src/backend/msgCenter_server/standard_server.py`（统一用 `resolve_db_base_dir()` 计算 PDFManager 根）；
+- `src/backend/api/pdf_library_api.py`（回退创建 PDFManager 时统一以组件根/data）。
+
+执行步骤：
+1) 扩展 `resolve_db_base_dir()`：优先 `LINKMASTER_BASE_DIR` → 扫描 `lib/*/src/backend/database/config.py` 或 `dist/latest/src/...`；
+2) `get_data_dir()` 改为 `resolve_db_base_dir()/data`（可被 `set_data_dir()` 覆盖）；
+3) `standard_server` 与 `pdf_library_api` 均改为调用 `resolve_db_base_dir()`；
+4) 在 Anki 中重启并观察日志：`pdf_manager.base_dir`、`Using DB path`、`sqlite3.connect path`；
+5) 如日志仍打印源码 `cfg_file`，属导入优先级所致，不影响 DB 实际位置，可择机优化。
+
+状态：✅ 已完成第一阶段（自动解析 → 参数化严格模式切换）。
+
+### 当前任务（20251013220435）
+名称：多环境参数化路径解析（严格模式）
+
+背景：
+- 需求：通过参数明确不同环境的路径定位；未传参数时必须报错，避免隐式导入导致定位不一致。
+
+方案（已改为参数式，无环境变量）：
+- anki：`runtime_mode='anki'` + `ankiaddon_root_path=<addon-root>` → `<addon-root>/lib/pdf_sys/data`
+- single：`runtime_mode='single'` → `<PROJECT_ROOT>/data`
+- 可覆盖：`data_dir` / `db_path`，或直接传 `static_dir`/`pdfs_dir`
+
+变更：
+- `config.py` 引入严格模式解析；`anki_event_bridge.py` 在订阅时设置必要环境变量；
+- 单测更新为严格模式用例。
+
+状态：✅ 已完成（已去环境变量化，改为参数式传递），等待在 Anki 中查看运行日志验证。
+
+### 当前任务（20251013222326）
+名称：gui_launcher / gui_launcher_dist / ai_launcher 参数化对齐
+
+背景：
+- 需要所有入口一致通过参数传递路径信息，不再依赖环境变量；
+- GUI（开发）默认 single，Dist GUI 显式传递 single + data_dir=<dist/latest>/data；
+- ai_launcher CLI 支持传递 runtime-mode 等参数给后端。
+
+变更摘要：
+- standard_server CLI 支持 runtime 参数；launcher CLI/子进程拼接参数；
+- BackendLauncher/EmbedMsgCenterServer 透传参数；
+- gui_launcher（Qt线程 & 子进程）均显式 single；
+- gui_launcher_dist 去除 env，用参数传递；
+- ai_launcher CLI 增加并透传参数。
+
+状态：✅ 已完成，待你侧联调验证。
+
+### 当前任务（20251013194053）
+名称：诊断 Anki 中 DB 仍指向源码目录的原因
+
+背景：
+- 近期将数据库路径解析简化为：以 `src/backend/database/config.py` 所在包为根（`PROJECT_ROOT`），默认使用 `<PROJECT_ROOT>/data/anki_linkmaster.db`，目录不存在即创建；
+- 用户反馈：在 Anki 环境中仍然“回到源码目录/data”。
+
+相关模块/文件：
+- `src/backend/database/config.py`（`PROJECT_ROOT` 与 `get_db_path()` 简化实现）
+- `src/backend/database/connection.py`（诊断日志与连接创建）
+- `src/backend/msgCenter_server/standard_server.py`（`resolve_db_base_dir()` 与 `PDFLibraryAPI` 初始化）
+- `src/integrations/anki_event_bridge.py`（后端启动入口、环境提示变量）
+
+结论：
+- 代码中不存在“兜底回到源码目录”的显式逻辑；
+- 更可能是：Anki 实际导入到了“源码树”中的同名模块（sys.path 优先级），导致 `config.__file__` 指向源码 → PROJECT_ROOT=源码根。
+- 同时，`anki_event_bridge` 误用 `LegacyBackendLauncher(parent_app=...)`（签名不匹配）导致 Hosted 启动失败，仅前端起，未校正 DB 参数。
+
+建议与步骤：
+1) 将桥接后的后端启动改为 `BackendLauncher(parent_app=mw, db_path=str(plugin_root/'data'/'anki_linkmaster.db'))`；
+2) 重新在 Anki 中触发 open_pdf_home，查看 `logs/backend-launcher.log` 与 `logs/ws-server.log`：
+   - `diagnose: ... db_path_param=...` 应打印出传参；
+   - `Using DB path:` 与 `sqlite3.connect path=` 指向插件根/data；
+   - `sqlite3.database_list name=main file=` 确认 SQLite 实际文件。
+3) 若仍异常，打印 `src.backend.database.config.__file__` 与 `PROJECT_ROOT`，并检查 `sys.path[:3]`。
+
+状态：✅ 已落实“以脚本物理地址为中心”的最小补丁（Anki 桥接传参）。
+
+### 当前任务（20251013200830）
+名称：恢复 DB 默认定位为 config.py 物理路径推导
+
+背景：
+- 用户要求默认逻辑仅以 `src/backend/database/config.py` 的物理位置为中心向上推导 `PROJECT_ROOT`，并定位到 `<PROJECT_ROOT>/data/anki_linkmaster.db`；
+- 不希望以 Anki 插件根作为 DB 的锚点，也不希望进行显式 db_path 传参。
+
+变更：
+- 回退 `src/integrations/anki_event_bridge.py` 的 db_path 传参，改为 `BackendLauncher(parent_app=mw)`；
+- 保持数据库定位由 `PDFLibraryAPI → get_db_path()` 决定（依赖 `config.py.__file__`）。
+
+验证：
+- `ws-server.log` 中应看到 `Using DB path:` 与 `sqlite3.connect path=` 指向由 `config.py` 所在副本的根目录下 `data/`；
+- 在 Anki 控制台打印 `import src.backend.database.config as c; print(c.__file__, c.PROJECT_ROOT)` 验证来源副本。
+
+状态：❌ 已被新需求覆盖（Anki 环境需要组件根/data 解析）。
+
+### 当前任务（20251012203612）
+名称：修复 dist 版数据库路径（指向 dist/latest/data）
+
+背景：
+- dist 环境下偶发导入到源码包，导致 `get_db_path()` 以源码根 `<repo>/data` 为基准；
+- 需确保 dist 运行无论导入路径如何，数据库都落在 `dist/latest/data`。
+
+相关模块/文件：
+- `src/backend/database/config.py`（路径解析与环境变量覆盖）
+- `scripts/gui_launcher_dist.py`（运行环境注入 LINKMASTER_DB_PATH）
+
+执行步骤（原子）：
+1) 设计纯函数并加测：`resolve_db_base_dir(this_file, cwd)`；
+2) `get_db_path()` 增加 `LINKMASTER_DB_PATH` 覆盖与 dist 检测；
+3) GUI 启动器注入 `LINKMASTER_DB_PATH=dist/latest/data/anki_linkmaster.db`；
+4) 仅运行新增单测验证（4 passed）。
+
+状态：✅ 已完成
+
+### 当前任务（20251012210403）
+名称：适配 Anki 插件部署（latest → pdf_sys）
+
+背景：
+- 插件部署路径通常为 `.../addons21/hjp_linkmaster_dev/lib/pdf_sys`；
+- 需要确保数据库/静态路径解析在该布局下工作正常。
+
+相关模块/文件：
+- `src/backend/database/config.py`（新增 `pdf_sys` 识别）
+- `src/integrations/anki_event_bridge.py`（设置 `LINKMASTER_DB_PATH`）
+
+执行步骤（原子）：
+1) `resolve_db_base_dir` 增加 `pdf_sys` 识别（模块路径片段与 CWD 向上遍历）。
+2) 单测增加 `lib/pdf_sys` 场景覆盖（共 2 条）。
+3) 事件桥接在后端寄宿启动前注入 `LINKMASTER_DB_PATH=plugin_root/data/anki_linkmaster.db`。
+
+状态：✅ 已完成（6/6 单测通过）
+
+### 当前任务（20251012213630）
+名称：DB 路径从环境变量切换为参数传递
+
+背景：
+- 需求：默认位置在根/data，允许通过“参数”传递新位置；不要使用环境变量。
+
+相关模块/文件：
+- `src/backend/database/config.py`（去除 env 覆盖，保留默认解析）
+- `src/backend/msgCenter_server/{standard_server.py, embed_msgcenter.py}`（新增 db_path 参数）
+- `src/backend/launcher.py`（BackendLauncher 支持 db_path）
+- `scripts/gui_launcher_dist.py`（Hosted 以参数传递 dist/latest/data/...）
+- `src/integrations/anki_event_bridge.py`（移除 DB env 设置）
+
+执行步骤（原子）：
+1) 移除 `LINKMASTER_DB_PATH` 使用；
+2) 为 WS 服务器与后端启动器增加 `db_path` 参数；
+3) GUI 启动器以参数传递 dist 的 DB 路径；
+4) 调整/移除相关单测；
+5) 更新技术文档说明（参数方式）。
+
+状态：✅ 已完成（5/5 单测通过）
+
+### 当前任务（20251012220410）
+名称：诊断增强（启动时记录实际 DB 路径）
+
+背景：
+- 用户反馈 GUI 启动后仍读源码/data；需要明确记录实际 DB 路径以定位导入/启动链路。
+
+变更：
+- `src/backend/api/pdf_library_api.py` 在构造函数中记录 `Using DB path: <path>`（INFO）。
+
+验证：
+- 查看 `dist/latest/logs/ws-server.log` 或控制台输出，确认路径应为 dist/latest/data 或 pdf_sys/data。
+
+状态：✅ 已完成
+
+### 当前任务（20251012160000）
+名称：修复 gui_launcher.py 启动时的编码错误
+
+背景：
+- 用户运行 `python -X utf8 gui_launcher.py` 时遇到编码解码错误
+- 错误发生在 subprocess 的 _readerthread 线程读取子进程输出时
+- 堆栈显示: `File "<frozen codecs>", line 325, in decode`
+
+根本原因：
+- `ai_launcher.py:299-307` 的 `is_process_running()` 函数调用 `tasklist` 时
+- 使用了 `text=True` 但未指定 `encoding` 参数
+- Windows 上默认使用系统编码（可能是 gbk），遇到中文进程名等非 ASCII 字符时解码失败
+
+解决方案：
+- 在 subprocess.run 中添加 `encoding='utf-8'` 和 `errors='replace'` 参数
+- 使修复后代码在任何语言环境下都能稳定运行
+
+涉及文件：
+- ai_launcher.py:304-305 (is_process_running 函数的 tasklist 调用)
+
+修复内容：
+```python
+res = subprocess.run(
+    ["tasklist", "/FI", f"PID eq {pid_int}"],
+    capture_output=True,
+    check=False,
+    text=True,
+    encoding='utf-8',      # 添加：明确指定 UTF-8 编码
+    errors='replace',      # 添加：遇到无法解码的字符时替换为 �
+    creationflags=subprocess.CREATE_NO_WINDOW,
+)
+```
+
+测试结果：
+✅ gui_launcher.py 可以正常启动，不再出现编码错误
+
+影响范围：
+- 修复了所有使用 ai_launcher.is_process_running() 的地方
+- 包括 gui_launcher.py、ai_launcher.py 状态检查等
+- 现在即使系统中有中文进程名也不会导致编码错误
+
+详细记录见：AItemp/20251012160000-AI-Working-log.md
+
+状态：✅ 已完成
+
+---
+
+### 当前任务（20251012000000）
+名称：修复 pdf-viewer Qt 线程模式下关闭闪退问题
+
+背景：
+- 用户反馈通过 gui_launcher.py 的 Qt 线程模式启动的 pdf-viewer，关闭窗口时偶尔闪退
+- 怀疑与 closeEvent 有关系
+
+根本原因：
+- **Qt 线程模式（寄宿模式）下，`run()` 方法直接返回 0，不会执行 `cleanup()`**
+- 导致 WebSocket 连接、JS Console Logger 线程等资源未释放
+- 资源泄漏可能引发段错误或内存访问冲突，导致闪退
+
+修复方案（方案1 - 最高优先级）：
+1. MainWindow 添加 `window_closing` 信号
+2. closeEvent 中发出信号（在 event.accept() 之前）
+3. launcher 连接信号到 cleanup() 方法
+4. 确保窗口关闭时始终调用 cleanup，无论哪种模式
+
+修复原理：
+```
+用户关闭窗口
+  → MainWindow.closeEvent()
+  → window_closing.emit()
+  → PdfViewerApp.cleanup() (通过信号连接)
+  → 释放 WebSocket、JS Logger、后端服务
+```
+
+涉及文件：
+- src/frontend/pdf-viewer/pyqt/main_window.py:28（添加信号）
+- src/frontend/pdf-viewer/pyqt/main_window.py:302-308（发出信号）
+- src/frontend/pdf-viewer/launcher.py:404-407（连接信号）
+
+其他潜在问题（待验证）：
+- 🟠 文件竞态条件（多窗口同时关闭时写 frontend-process-info.json）
+- 🟡 路径计算错误（硬编码 5 层 parent）
+- 🟡 同步 I/O 阻塞（closeEvent 中多次文件写入）
+
+详细分析见：AItemp/20251012000000-AI-Working-log.md
+
+状态：✅ 方案1 已完成实施，等待用户测试验证
+
+---
+
 ### 当前任务（20251010204342）
 名称：通信架构评估（WebSocket 是否应由 QWebChannel/本地事件总线完全替代）
 
@@ -931,3 +1242,91 @@ python gui_launcher_enhanced.py
 详细文档见：GUI-LAUNCHER-ENHANCED-README.md
 
 状态：✅ 已完成实现和文档
+
+### 当前任务（20251012151030）
+名称：构建后 pdf-home 页面空白（Hosted/GUI 模式）原因排查与修复
+
+背景：
+- 构建产物 dist/latest/static/* 完整；浏览器直接访问资源 200。
+- 但通过 GUI/Hosted（Qt WebEngine + 嵌入式 HTTP）打开 /pdf-home/ 时页面空白。
+
+结论（根因）：
+- 嵌入式 HTTP 服务器 EmbedFileServer 返回 .js/.mjs MIME 为 application/octet-stream，QtWebEngine 拒绝执行 ES Module，导致入口脚本未运行。
+- PDFFileHandler 分支已修正 MIME，因此“浏览器上能完整打开相关资源”。
+
+涉及模块/文件：
+- src/backend/pdfFile_server/embed_fileserver.py（新增 guess_mime_type，修复 _get_mime_type）
+- src/backend/pdfFile_server/handlers/pdf_handler.py（此前已修正 guess_type 返回 str 与正确 MIME）
+
+执行步骤（原子）：
+1) 设计纯函数测试，避免 Qt 依赖：新增 guess_mime_type() 并为其编写单测
+2) 调整 EmbedFileServer._get_mime_type → 委托 guess_mime_type()
+3) 运行测试验证 .js/.mjs/.css/.json/.map/.pdf MIME 值（4 项）
+4) 建议用户在 dist 环境验证 GUI 启动后日志中出现 [BOOT] 相关输出
+
+测试结果：
+- pytest -q src/backend/pdfFile_server/__tests__/test_embed_fileserver_mime.py → 4 passed
+
+对后续任务的帮助：
+- 统一 MIME 规则可避免“开发可用/构建不可用”的环境差异问题；建议将两类服务器的 MIME 逻辑上收敛至单处 util（后续重构项）。
+\n---\n\n### 当前任务（20251012151147）
+
+名称：dist/Hosted 模式下 pdf-home 空白页（日志为空）排查
+
+\n背景：
+
+- GUI 启动 Hosted 后，pdf-home 窗口一片空白；浏览器直连 http://127.0.0.1:8080/pdf-home/ 可加载
+
+- dist/latest/logs/pdf-home.log 为空（Hosted 下 root logger 已在后端配置，basicConfig 未生效）；有效日志写入 backend-launcher.log
+
+- backend-launcher.log 关键：'[QWebChannel] window.web_page 不存在'、'Loading front-end: http://127.0.0.1:8080/pdf-home/...'
+
+\n关键信息（路由/环境变量）：
+
+- host=127.0.0.1 port=8080 static_root/data/pdfs 均指向 dist/latest（见 logs/http-server-meta.json）
+
+- /static 正确映射 dist/latest/static；MIME 已修正（.js/.mjs → text/javascript 等）
+
+- QTWEBENGINE_REMOTE_DEBUGGING=9222（由 MainWindow 在创建 WebView 前设置）
+
+\n怀疑点：
+
+- MainWindow 初始化后 web_page 为空（QWebEnginePage 未设置）/或 WebView.load() 未触发/未返回
+
+- QtWebEngine 运行时初始化/进程路径问题（已在 GUI 启动器中初始化），需记录 WebView/Load 信号验证
+
+\n本次执行步骤（原子）：
+
+1) 在 dist/latest/src/frontend/pdf-home/main_window.py 增加日志：WebView/WebPage 创建、loadStarted、loadFinished、load_frontend(url)
+
+2) 通过 GUI 按钮顺序启动：后端(Hosted) → PDF-Home(Hosted)
+
+3) 采集 dist/latest/logs/backend-launcher.log 新增行，判断是否进入加载链路
+
+4) 若未进入：加诊断 setHtml 页验证 WebEngine 渲染；若进入但失败：检查 /pdf-home 与 /static 返回码/MIME
+
+\n备注：本轮仅改 dist 产物，修复确认后再同步到源码并重建- 最新证据：backend-launcher.log 显示 compat: QWebEngineView=None/QWebEnginePage=None，导致 MainWindow.web_view/web_page 为 None（Hosted 模式）；已加二次导入与预导入，需重启验证
+### 当前任务（20251012151835）
+名称：dist/Hosted 下 pdf-home 空白且 pdf-home.log 为空 —— 增强端到端调试日志
+
+背景：
+- 通过 dist/latest/gui_launcher_dist.py 启动 Hosted 模式时，pdf-home 窗口空白；浏览器直连资源可加载。
+- dist/latest/logs/pdf-home.log 为空；有效日志写入 ackend-launcher.log（Hosted 模式先由后端配置 root logger，basicConfig 被忽略）。
+- backend 日志显示 compat 中 QWebEngineView=None，MainWindow 中 web_view 为 None，导致 load(url) 不执行。
+
+涉及模块/文件：
+- dist/latest/src/frontend/pdf-home/launcher.py（日志初始化、端口解析、QWebChannel/WS 初始化、URL 构造）
+- dist/latest/src/frontend/pdf-home/main_window.py（QWebEngine 初始化、页面加载信号、JS 控制台日志桥接）
+- dist/latest/gui_launcher_dist.py（Hosted 驱动入口，reload compat、QtWebEngine runtime 初始化）
+
+执行步骤（原子）：
+1) 为 pdf-home 专属 logger 添加独立 FileHandler（UTF-8）→ 始终写入 logs/pdf-home.log（不依赖 root logger）。
+2) MainWindow 增强日志：记录 loadStarted/loadProgress/loadFinished、load_frontend(url)、UI 初始化、环境变量（QTWEBENGINE_*）。
+3) GUI 启动器增加文件日志 logs/gui-launcher-dist.log（UTF-8），镜像 UI 文本日志；打印 sys.path 与 compat reload 结果。
+4) 运行 GUI（后端→pdf-home），采集三份日志并判断是否进入 WebView 加载链路；若仍缺失则继续定位 PyQt6/QtWebEngine 安装与 PATH 问题。
+
+状态：进行中（本轮优先补齐日志与证据采集，不改业务路径）- 关键错误：'QtWebEngineWidgets must be imported or Qt.AA_ShareOpenGLContexts must be set before a QCoreApplication instance is created'（Hosted 导致 WebEngine 未加载）
+
+- 临时修复：在 GUI 启动器创建 QApplication 之前设置 AA_ShareOpenGLContexts 并预导入 QtWebEngine；Hosted 检测失败时回退 CLI 子进程
+
+- 诊断：main_window 加载链路日志已加（loadStarted/loadFinished 等），有效日志在 backend-launcher.log- 已为 dist GUI 增加“前端Host模式”复选框；默认关闭（与源码一致，前端走 CLI）；勾选后尝试 Hosted（已满足 QtWebEngine 导入时机），失败自动回退 CLI。- 修复 Anki 插件下 /pdf-home 404：后端静态目录探测新增 plugin_root/static；事件桥接优先设置 LINKMASTER_STATIC_DIR=plugin_root/static- rebuild 后 QtWebEngine 再次失效是因脚本覆盖 dist 修复；已将 AA_ShareOpenGLContexts + 预导入 QtWebEngineWidgets/Core 上移到 scripts/gui_launcher_dist.py 主流程 + _init_qtwebengine_runtime，兼容层(src/qt/compat.py)亦增加二次 importlib 导入。

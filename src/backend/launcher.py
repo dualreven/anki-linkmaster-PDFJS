@@ -36,6 +36,13 @@ logs_dir.mkdir(parents=True, exist_ok=True)
 
 # 配置日志 - 同时输出到控制台和文件
 log_file = logs_dir / 'backend-launcher.log'
+# 兼容修复：避免日志文件出现大量前导 NUL(\x00) 字节（某些环境的预分配/误写导致）。
+# 在配置 FileHandler 之前，先尝试以二进制写模式截断文件，确保干净的 UTF-8 文本开头。
+try:
+    with open(log_file, 'wb') as _f:
+        pass
+except Exception:
+    pass
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -45,6 +52,27 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger('backend-launcher')
+
+# 在宿主（如 Anki）可能已配置 logging 的情况下，basicConfig 可能不生效。
+# 强制补充根 logger 的 FileHandler，确保写入 backend-launcher.log。
+try:
+    root = logging.getLogger()
+    def _has_same_filehandler(lg: logging.Logger, path: Path) -> bool:
+        for h in getattr(lg, 'handlers', []) or []:
+            try:
+                if isinstance(h, logging.FileHandler) and getattr(h, 'baseFilename', '') == str(path):
+                    return True
+            except Exception:
+                continue
+        return False
+    log_file = logs_dir / 'backend-launcher.log'
+    if not _has_same_filehandler(root, log_file):
+        fh = logging.FileHandler(log_file, mode='a', encoding='utf-8')
+        fmt = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        fh.setFormatter(fmt)
+        root.addHandler(fh)
+except Exception:
+    pass
 
 
 class BackendPortManager:
@@ -323,15 +351,25 @@ class BackendProcessManager:
         """终止进程"""
         return kill_process_tree(pid)
 
-    def start_service(self, service_name: str, port: int) -> bool:
+    def start_service(self, service_name: str, port: int, *, db_path: Optional[str] = None,
+                      runtime_mode: Optional[str] = None,
+                      ankiaddon_root_path: Optional[str] = None,
+                      data_dir: Optional[str] = None) -> bool:
         """启动服务
 
         注意: 调用此方法前应确保没有同名服务在运行
         """
         # 构建启动命令
         if service_name == 'msgCenter_server':
-            cmd = [sys.executable, '-m', 'src.backend.msgCenter_server.standard_server',
-                   '--port', str(port)]
+            cmd = [sys.executable, '-m', 'src.backend.msgCenter_server.standard_server', '--port', str(port)]
+            if db_path:
+                cmd += ['--db-path', str(db_path)]
+            if data_dir:
+                cmd += ['--data-dir', str(data_dir)]
+            if runtime_mode:
+                cmd += ['--runtime-mode', str(runtime_mode)]
+                if runtime_mode == 'anki' and ankiaddon_root_path:
+                    cmd += ['--ankiaddon-root-path', str(ankiaddon_root_path)]
         elif service_name == 'pdfFile-server':
             cmd = [sys.executable, '-m', 'src.backend.pdfFile_server',
                    '--port', str(port)]
@@ -462,7 +500,20 @@ class LegacyBackendLauncher:
                 port_key = f"{service}_port"
             port = ports.get(port_key)
 
-            if port and self.process_manager.start_service(service, port):
+            db_path = getattr(args, 'db_path', None)
+            runtime_mode = getattr(args, 'runtime_mode', None)
+            ankiaddon_root_path = getattr(args, 'ankiaddon_root_path', None)
+            data_dir = getattr(args, 'data_dir', None)
+            static_dir = getattr(args, 'static_dir', None)
+            pdfs_dir = getattr(args, 'pdfs_dir', None)
+            if port and self.process_manager.start_service(
+                service,
+                port,
+                db_path=db_path if service == 'msgCenter_server' else None,
+                runtime_mode=runtime_mode if service == 'msgCenter_server' else None,
+                ankiaddon_root_path=ankiaddon_root_path if service == 'msgCenter_server' else None,
+                data_dir=data_dir if service == 'msgCenter_server' else None,
+            ):
                 success_count += 1
             else:
                 # 对 pdfFile-server 增强：若启动失败，自动尝试切换到下一个可用端口
@@ -479,7 +530,14 @@ class LegacyBackendLauncher:
                             if cand == port:
                                 continue
                             logger.info(f"重试使用端口 {cand} 启动 pdfFile-server …")
-                            if self.process_manager.start_service(service, cand):
+                            if self.process_manager.start_service(
+                                service,
+                                cand,
+                                db_path=db_path if service == 'msgCenter_server' else None,
+                                runtime_mode=runtime_mode if service == 'msgCenter_server' else None,
+                                ankiaddon_root_path=ankiaddon_root_path if service == 'msgCenter_server' else None,
+                                data_dir=data_dir if service == 'msgCenter_server' else None,
+                            ):
                                 ports[port_key] = cand
                                 success_count += 1
                                 logger.info(f"✅ pdfFile-server 已改用端口 {cand} 启动成功")
@@ -595,6 +653,12 @@ def parse_arguments() -> argparse.Namespace:
     start_parser = subparsers.add_parser('start', help='启动后端服务')
     start_parser.add_argument('--msgCenter-port', type=int, dest='msgCenter_port', help='消息中心服务器端口')
     start_parser.add_argument('--pdfFileServer-port', type=int, dest='pdfFileServer_port', help='PDF文件服务器端口')
+    start_parser.add_argument('--db-path', type=str, dest='db_path', help='数据库文件绝对路径（可选）')
+    start_parser.add_argument('--runtime-mode', type=str, dest='runtime_mode', choices=['anki', 'single'], help='运行模式（anki|single）')
+    start_parser.add_argument('--ankiaddon-root-path', type=str, dest='ankiaddon_root_path', help='Anki 插件根目录（当 runtime-mode=anki 时必填）')
+    start_parser.add_argument('--data-dir', type=str, dest='data_dir', help='显式数据目录（可选，优先于 runtime-mode）')
+    start_parser.add_argument('--static-dir', type=str, dest='static_dir', help='显式静态目录（可选）')
+    start_parser.add_argument('--pdfs-dir', type=str, dest='pdfs_dir', help='显式 PDF 库目录（可选）')
 
     # stop 命令
     subparsers.add_parser('stop', help='停止后端服务')
@@ -624,7 +688,10 @@ class BackendLauncher:
         launcher.start()
     """
 
-    def __init__(self, parent_app=None, show_ui: bool = False):
+    def __init__(self, parent_app=None, show_ui: bool = False, *, db_path: Optional[str] = None,
+                 runtime_mode: Optional[str] = None, ankiaddon_root_path: Optional[str] = None,
+                 data_dir: Optional[str] = None, static_dir: Optional[str] = None,
+                 pdfs_dir: Optional[str] = None):
         """
         初始化后端启动器
 
@@ -635,6 +702,12 @@ class BackendLauncher:
         self.parent_app = parent_app
         self.mode = "hosted" if parent_app else "subprocess"
         self.show_ui = show_ui
+        self.db_path = db_path
+        self.runtime_mode = runtime_mode
+        self.ankiaddon_root_path = ankiaddon_root_path
+        self.data_dir = data_dir
+        self.static_dir = static_dir
+        self.pdfs_dir = pdfs_dir
 
         # 服务器实例
         self.ws_server = None
@@ -663,6 +736,13 @@ class BackendLauncher:
             bool: 启动成功返回 True
         """
         self.logger.info(f"=== 启动后端服务 ({self.mode} 模式) ===")
+        try:
+            import sys as _sys
+            from pathlib import Path as _Path
+            self.logger.info("diagnose: cwd=%s sys.path[0]=%s backend.project_root=%s db_path_param=%s",
+                             str(_Path.cwd()), str(_sys.path[0]), str(project_root), str(self.db_path))
+        except Exception:
+            pass
 
         try:
             # 1. 子进程模式: 创建 QApplication
@@ -697,7 +777,11 @@ class BackendLauncher:
             self.ws_server = EmbedMsgCenterServer(
                 host="127.0.0.1",
                 port=ws_port,
-                parent=parent
+                parent=parent,
+                db_path=self.db_path,
+                runtime_mode=self.runtime_mode,
+                ankiaddon_root_path=self.ankiaddon_root_path,
+                data_dir=self.data_dir,
             )
 
             if not self.ws_server.start():
@@ -709,12 +793,68 @@ class BackendLauncher:
             # 4. 启动 HTTP 文件服务器
             from src.backend.pdfFile_server.embed_fileserver import EmbedFileServer
 
-            root_dir = project_root / "data" / "pdfs"
+            # 参数式选择 data_dir
+            try:
+                from src.backend.database.config import compute_data_dir
+                if self.data_dir:
+                    _data_dir = Path(self.data_dir).resolve()
+                elif self.runtime_mode:
+                    _data_dir = compute_data_dir(self.runtime_mode, ankiaddon_root_path=self.ankiaddon_root_path)
+                else:
+                    _data_dir = project_root / 'data'
+            except Exception:
+                _data_dir = project_root / 'data'
+
+            # 允许通过构造参数显式覆盖 PDF 库目录
+            root_dir = Path(self.pdfs_dir).resolve() if self.pdfs_dir else (_data_dir / 'pdfs')
+
+            # 自动探测静态目录（参数式优先，遵循组件根）：
+            # 目标：优先使用 <component_root>/static 或 <component_root>/dist/latest/static
+            # 回退：<project_root>/dist/latest/static → <project_root>/static → <project_root>
+            static_dir: Optional[str] = None
+            try:
+                component_root = _data_dir.parent if _data_dir.name.lower() == 'data' else _data_dir
+                if self.static_dir:
+                    static_dir = str(Path(self.static_dir).resolve())
+                else:
+                    cand = [
+                        component_root / 'static',            # 插件规范：lib/pdf_sys/static
+                        project_root / 'dist' / 'latest' / 'static',  # 工程回退
+                        project_root / 'static',
+                        project_root,
+                    ]
+                    for c in cand:
+                        if c.exists():
+                            static_dir = str(c)
+                            break
+            except Exception:
+                # 最后兜底 project_root
+                static_dir = str(project_root)
+            pdfs_dir = str(root_dir)
+
+            # 为前端页面提供挂载点（仅当存在静态目录时）
+            mounts = None
+            if static_dir:
+                s = Path(static_dir)
+                # 兼容两种构建布局
+                viewer_a = s / "src" / "frontend" / "pdf-viewer"
+                viewer_b = s / "pdf-viewer"
+                home_a = s / "pdf-home"
+                # 增加 /static 映射，指向静态根目录，确保 /static/*.js / *.css 正常解析
+                mounts = {
+                "/static": str(s),
+                "/pdf-viewer": str(viewer_a if viewer_a.exists() else viewer_b),
+                "/pdf-home": str(home_a),
+            }
+
             self.http_server = EmbedFileServer(
                 root_dir=str(root_dir),
                 host="127.0.0.1",
                 port=http_port,
-                parent=parent
+                parent=parent,
+                pdfs_dir=pdfs_dir,
+                static_dir=static_dir,
+                mounts=mounts,
             )
 
             if not self.http_server.start():

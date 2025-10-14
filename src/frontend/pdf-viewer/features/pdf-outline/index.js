@@ -214,6 +214,7 @@ export class PDFOutlineFeature {
         if (result.success) {
           try { await this.#bookmarkManager.saveToStorage(); await this.#bookmarkManager.loadFromStorage(); } catch { /* ignore */ }
           this.#refreshList();
+          this.#logger.info(`✅ 书签已更新: ${updates.name || bm.name}`, { toast: true });
         }
       }
     });

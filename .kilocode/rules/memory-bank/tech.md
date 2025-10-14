@@ -36,6 +36,29 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
 ## 后端日志规范
 - 统一使用 Python `logging`，显式 UTF-8；必要时采用覆盖写并确保行尾正确。
 
+## 数据库路径解析规范（2025-10-13 更新：参数式，无环境变量）
+- 参数式 API：`src/backend/database/config.py`
+  - `compute_component_root(runtime_mode, ankiaddon_root_path?)`
+  - `compute_data_dir(runtime_mode, ankiaddon_root_path?)`
+  - `compute_db_path(runtime_mode, ankiaddon_root_path?)`
+- 运行模式：
+  - anki：传 `runtime_mode='anki'` 与 `anki_root_path=<addon-root>`；
+    - 组件根：`<addon-root>/lib/pdf_sys`
+    - 数据目录：`<addon-root>/lib/pdf_sys/data`
+  - single：传 `runtime_mode='single'`；
+    - 组件根：`<PROJECT_ROOT>`
+    - 数据目录：`<PROJECT_ROOT>/data`
+- 服务端用法：
+  - `StandardWebSocketServer(..., runtime_mode, ankiaddon_root_path, data_dir?, db_path?, static_dir?, pdfs_dir?)`
+  - `EmbedMsgCenterServer(..., runtime_mode, ankiaddon_root_path, data_dir?, db_path?)`
+  - `BackendLauncher(parent_app, ..., runtime_mode, ankiaddon_root_path, data_dir?, db_path?, static_dir?, pdfs_dir?)`
+  - CLI（WS）：`python -m src.backend.msgCenter_server.standard_server --port 8765 --runtime-mode single|anki [--ankiaddon-root-path <path>] [--data-dir <dir>] [--db-path <file>] [--static-dir <dir>] [--pdfs-dir <dir>]`
+  - CLI（Launcher）：`python src/backend/launcher.py start --runtime-mode single|anki [--ankiaddon-root-path <path>] [--data-dir <dir>] [--db-path <file>] [--static-dir <dir>] [--pdfs-dir <dir>]`
+  - CLI（ai_launcher）：`python ai_launcher.py start --module pdf-home --runtime-mode single [--data-dir <dir>] [--db-path <file>] [--static-dir <dir>] [--pdfs-dir <dir>]`
+- 兼容：
+  - `get_data_dir()/get_db_path()` 默认走 single（PROJECT_ROOT/data），可用 `set_data_dir()/set_db_path()` 覆盖；
+  - 不再使用任何环境变量作为定位依据。
+
 ## 前端基础设施
 - 统一依赖 `src/frontend/common/*`：
   - `event/event-bus.js`
@@ -44,6 +67,13 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
 - QWebChannel 逻辑由前端管理（如 `src/frontend/pdf-home/qwebchannel-manager.js`）。
 
 ### Qt 剪贴板回退（2025-10-09）
+### PDF-Home 启动回退（2025-10-14）
+- 场景：环境未安装 QtWebEngine（`QWebEngineView=None`），无法在 Qt 窗口内嵌前端。
+- 行为：`src/frontend/pdf-home/launcher.py` 在构建 URL 后检测 `self.window.web_view`，若为空则调用 `webbrowser.open(url)` 在系统默认浏览器打开；状态栏同步提示“未检测到 QtWebEngine，已在默认浏览器打开：<url>”。
+- 影响：
+  - QWebChannel 桥接若无 `web_page` 将记录警告但不阻断；
+  - JSConsoleLogger 仍初始化，但仅在嵌入式模式下通过 `javaScriptConsoleMessage` 捕获；外部浏览器模式下不捕获 JS 控制台到 `logs/pdf-home-js.log`（可忽略）。
+- 无需额外配置；行为自动生效。
 - 适用场景：Clipboard API 不可用或用户手势校验导致失败时，前端通过 QWebChannel 调用 Python 槽设置系统剪贴板。
 - Python 端：`src/frontend/pdf-viewer/pyqt/pdf_viewer_bridge.py#setClipboardText(text: str) -> bool`
 - JS 端：
@@ -175,19 +205,20 @@ python ai_launcher.py start --module pdf-home --vite-port 3001 --msgServer-port 
 python ai_launcher.py start
 ```
 
-## 静态资源提供规则（后端 /static 集中化与回退，2025-10-10）
-- dist 根动态探测：
-  - 若当前运行目录为打包产物（`dist/latest/src/backend/...`），则 `DEFAULT_DIST_DIR = dist/latest`；
-  - 否则优先使用 `<repo>/dist/latest`；找不到则回退 `<repo>`（便于日志定位）。
-- 统一入口：
-  - `/pdf-viewer` 与 `/pdf-viewer/`：优先返回 `/static/pdf-viewer/index.html`；若缺失回退 `src/frontend/pdf-viewer/pdf-viewer/index.html`，再回退 `/<old>/pdf-viewer/(pdf-viewer/)?index.html`。
-  - `/pdf-home` 与 `/pdf-home/`：优先返回 `/static/pdf-home/index.html`；若缺失回退 `/pdf-home/pdf-home/index.html` 或 `/pdf-home/index.html`。
+## 静态资源提供规则（参数式组件根，2025-10-14）
+- 插件（Anki）环境：
+  - 组件根：`<addon_root>/lib/pdf_sys`
+  - 静态目录：仅 `<component_root>/static`
+- 工程回退（桌面开发 / dist）：
+  - 优先 `<project_root>/dist/latest/static`，再 `<project_root>/static`，最后 `<project_root>`（兜底）
+- 路由：
+  - `/pdf-viewer` 与 `/pdf-viewer/`：优先 `/static/pdf-viewer/index.html`
+  - `/pdf-home` 与 `/pdf-home/`：优先 `/static/pdf-home/index.html`
 - 资源重写：
   - `/pdf-(home|viewer)/assets/*` → `/static/*`
   - `/js/*` → `/static/*`；`/pdf-(home|viewer)/js/*` → `/js/*`
   - `/pdf-(home|viewer)/config/*` → `/static/<module>/config/*`
-- MIME 修正：`.js|.mjs → text/javascript`、`.css → text/css`，避免模块脚本被拒绝。
-- 调试日志：每次静态请求输出 `[STATIC] directory=<dist-root> path=<resolved-path>`。
+- MIME 修正：`.js|.mjs → text/javascript`、`.css → text/css`
 
 
 #### 2. stop - 停止服务
@@ -248,6 +279,23 @@ python ai_launcher.py stop
 ```bash
 python ai_launcher.py status
 ```
+
+## 后端数据库路径解析与参数（2025-10-12 更新）
+
+- 默认数据库位置：
+  - 源码运行：`<repo>/data/anki_linkmaster.db`
+  - dist 运行：`<repo>/dist/latest/data/anki_linkmaster.db`
+  - Anki 插件（lib/pdf_sys）：`<anki_addons>/.../lib/pdf_sys/data/anki_linkmaster.db`
+- 解析规则（优先级）：
+  1) 模块路径在 `dist/latest/src` 或 `pdf_sys/src` 下 → 使用其根目录；
+  2) 否则，若 CWD 向上可找到 `dist/latest` 或 `pdf_sys` → 使用该目录；
+  3) 否则回退 `<repo>`；
+  最终与 `data/anki_linkmaster.db` 拼接。
+- 参数传递（覆盖路径）：
+  - Python API：`PDFLibraryAPI(db_path='绝对路径')`
+  - 嵌入式 WS 服务器：`EmbedMsgCenterServer(db_path='绝对路径')`
+  - 标准 WS 服务器（子进程）：`python -m src.backend.msgCenter_server.standard_server --port 8765 --db-path 绝对路径`
+  - 后端启动器（Hosted）：`BackendLauncher(parent_app=..., db_path='绝对路径')`
 
 **输出信息**：
 - Vite 开发服务器状态（PID、端口、运行时间）
@@ -749,3 +797,11 @@ emove_comment(ann_id, comment_id)。
 - 配置兼容：/pdf-viewer/pdf-viewer/config/* → /src/frontend/pdf-viewer/config/*；
 - URL 构造：uild_pdf_viewer_url 保持 /pdf-viewer/?...，并以新目录存在性判断生产/开发。
 - 构建：uild.frontend.pdf_viewer.py 默认输出更改为上述新路径（可覆盖）。
+## Anki 桥接后端启动与 DB 定位（2025-10-13 更新）
+- 目标：默认逻辑严格依赖 `src/backend/database/config.py` 的物理位置推导 `PROJECT_ROOT`，不显式传入 db_path。
+- 实施：
+  - 桥接使用 `BackendLauncher(parent_app=mw)`；不传 `db_path`；
+  - `PDFLibraryAPI` 内部通过 `get_db_path()` 获取 `<PROJECT_ROOT>/data/anki_linkmaster.db`（`PROJECT_ROOT` 由 `config.py.__file__` 计算）。
+- 影响：
+  - 若在 Anki 环境导入插件副本，则 DB 落在插件库根的 `data/`；
+  - 若导入到源码副本，则 DB 落在源码仓库根的 `data/`；此为预期（以模块物理路径为准）。

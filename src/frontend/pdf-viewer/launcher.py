@@ -60,12 +60,18 @@ sys.path.insert(0, str(project_root))
 from src.qt.compat import QApplication, QUrl, QWebChannel, QWebSocket
 from src.frontend.common.launch_config import LaunchConfig
 
-# 使用MainWindow支持JS日志记录
-from pyqt.main_window import MainWindow
-
-# Import PdfViewerBridge and JSConsoleLogger from pyqt directory
+# Import modules from pyqt directory by absolute file path to avoid cwd/sys.path issues in Hosted mode
 import importlib.util
 pyqt_dir = Path(__file__).parent / "pyqt"
+
+# MainWindow
+mw_spec = importlib.util.spec_from_file_location("pdf_viewer_main_window", pyqt_dir / "main_window.py")
+mw_module = importlib.util.module_from_spec(mw_spec)
+assert mw_spec and mw_spec.loader, "Failed to load pyqt/main_window.py"
+mw_spec.loader.exec_module(mw_module)  # type: ignore
+MainWindow = mw_module.MainWindow
+
+# Import PdfViewerBridge and JSConsoleLogger from pyqt directory
 bridge_spec = importlib.util.spec_from_file_location("pdf_viewer_bridge", pyqt_dir / "pdf_viewer_bridge.py")
 bridge_module = importlib.util.module_from_spec(bridge_spec)
 bridge_spec.loader.exec_module(bridge_module)
@@ -328,6 +334,7 @@ class PdfViewerApp:
         # PDF 信息
         self.file_path: Optional[str] = None
         self.pdf_id: str = "empty"
+        self._cleaned: bool = False  # 防重复清理
 
         logger.info(f"PdfViewerApp initialized in {self.mode} mode")
         logger.info(f"Config: {self.config}")
@@ -401,8 +408,16 @@ class PdfViewerApp:
         )
         logger.info("✅ MainWindow created")
 
-        # 步骤 8: 创建 WebSocket 客户端
-        self.ws_client = QWebSocket()
+        # 🔥 连接窗口关闭信号到 cleanup 方法（修复资源泄漏）
+        # 确保窗口关闭时始终调用 cleanup，无论是子进程模式还是寄宿模式
+        self.window.window_closing.connect(self.cleanup)
+        logger.info("✅ Connected window_closing signal to cleanup()")
+
+        # 步骤 8: 创建 WebSocket 客户端（设置父对象为窗口，便于随窗口生命周期销毁）
+        try:
+            self.ws_client = QWebSocket(self.window)  # 使 Qt 对象层级一致，减少悬挂对象
+        except Exception:
+            self.ws_client = QWebSocket()
 
         # 步骤 9: 设置 QWebChannel 桥接
         if not self.config.disable_webchannel:
@@ -431,7 +446,11 @@ class PdfViewerApp:
         if self.mode == "subprocess":
             rc = self.app.exec()
             logger.info(f"pdf-viewer window exited with code {rc} (pdf_id: {self.pdf_id})")
-            self.cleanup()
+            # closeEvent 中已触发 cleanup，这里增加保护避免重复重重清理
+            try:
+                self.cleanup()
+            except Exception:
+                pass
             return rc
         else:
             logger.info("pdf-viewer window started (hosted mode, no event loop)")
@@ -496,13 +515,13 @@ class PdfViewerApp:
     def _setup_qwebchannel(self):
         """设置 QWebChannel 桥接"""
         try:
-            channel = QWebChannel(self.window)
+            self.channel = QWebChannel(self.window)  # 持有引用，避免被GC
             self.bridge = PdfViewerBridge(self.ws_client, self.window, self.file_path)
             self.screenshot_handler = ScreenshotHandler(self.window, project_root)
-            channel.registerObject('pdfViewerBridge', self.bridge)
-            channel.registerObject('screenshotHandler', self.screenshot_handler)
+            self.channel.registerObject('pdfViewerBridge', self.bridge)
+            self.channel.registerObject('screenshotHandler', self.screenshot_handler)
             if self.window.web_page:
-                self.window.web_page.setWebChannel(channel)
+                self.window.web_page.setWebChannel(self.channel)
             logger.info("✅ QWebChannel initialized: pdfViewerBridge and screenshotHandler registered")
         except Exception as exc:
             logger.warning(f"Failed to initialize QWebChannel bridge: {exc}")
@@ -522,34 +541,174 @@ class PdfViewerApp:
         def on_error(error):
             logger.warning(f"WebSocket error: {error}")
 
-        self.ws_client.connected.connect(on_connected)
-        self.ws_client.disconnected.connect(on_disconnected)
-        self.ws_client.error.connect(on_error)
+        try:
+            self.ws_client.connected.connect(on_connected)
+        except Exception:
+            pass
+        try:
+            self.ws_client.disconnected.connect(on_disconnected)
+        except Exception:
+            pass
+        # 兼容 PyQt6: errorOccurred；兼容旧名 error
+        try:
+            if hasattr(self.ws_client, 'errorOccurred'):
+                self.ws_client.errorOccurred.connect(on_error)  # type: ignore[attr-defined]
+            else:
+                self.ws_client.error.connect(on_error)  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
         if not self.config.diagnose_only:
             self.ws_client.open(ws_url)
             logger.info(f"WebSocket connection initiated to {ws_url.toString()}")
 
     def cleanup(self):
-        """清理资源"""
+        """清理资源（稳态、可重复调用）"""
+        if getattr(self, "_cleaned", False):
+            return
         logger.info("开始清理资源...")
 
+        # 1) 优先断开 WebSocket 信号，避免销毁期间回调触发
         if self.ws_client:
             try:
-                self.ws_client.close()
+                try:
+                    # 尝试断开已连接的槽函数
+                    self.ws_client.connected.disconnect()
+                except Exception:
+                    pass
+                try:
+                    self.ws_client.disconnected.disconnect()
+                except Exception:
+                    pass
+                try:
+                    self.ws_client.error.disconnect()
+                except Exception:
+                    pass
             except Exception:
                 pass
 
+        # 2) 关闭 WebSocket（优先 close，必要时 abort），并安排销毁
+        if self.ws_client:
+            try:
+                try:
+                    # 优先走优雅关闭，通常是异步、不会阻塞UI
+                    self.ws_client.close()
+                except Exception:
+                    pass
+                try:
+                    # 如仍存在活动套接字，尝试强制中止
+                    if hasattr(self.ws_client, 'abort'):
+                        self.ws_client.abort()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            try:
+                self.ws_client.deleteLater()
+            except Exception:
+                pass
+            self.ws_client = None
+
+        # 3) 拆除 QWebChannel 桥接，释放引用
+        try:
+            if self.window and hasattr(self.window, "web_page") and self.window.web_page:
+                try:
+                    # 解除页面上的 channel 引用，避免悬挂对象
+                    self.window.web_page.setWebChannel(None)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        try:
+            self.channel = None
+        except Exception:
+            pass
+        self.bridge = None
+        self.screenshot_handler = None
+
+        # 4) 停止 JS 控制台日志
         if self.js_console_logger:
             try:
                 self.js_console_logger.stop()
                 logger.info(f"JS console logger stopped for pdf_id: {self.pdf_id}")
             except Exception:
                 pass
+            self.js_console_logger = None
 
-        # 停止后台服务
-        if not self.config.keep_backend:
-            _cleanup_backend_services(self.pdf_id, logger)
+        # 5) 后端生命周期：GUI 模式下通常保持后端不动；仅在明确未指定 keep_backend 时尝试后台清理
+        try:
+            # 无论是否 keep_backend，均先移除前端进程信息
+            _remove_viewer_from_frontend_info(project_root, self.pdf_id, logger)
+            # 仅在未指定 keep_backend 时尝试后台清理（停止后端）
+            if not getattr(self.config, "keep_backend", False):
+                _stop_backend_services(project_root, logger)
+        except Exception:
+            pass
+
+        # 6) 主视图资源释放（交给 Qt 管理，但尽量在此安排异步销毁）
+        try:
+            if self.window and hasattr(self.window, 'web_view') and self.window.web_view:
+                try:
+                    # 请求页面与视图异步销毁，减少关闭过程中的风险
+                    if hasattr(self.window, 'web_page') and self.window.web_page:
+                        self.window.web_page.deleteLater()
+                except Exception:
+                    pass
+                try:
+                    self.window.web_view.deleteLater()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        self._cleaned = True
+
+
+def _remove_viewer_from_frontend_info(project_root: Path, pdf_id: str, logger) -> None:
+    """从 frontend-process-info.json 中移除本窗口记录（原子写）。"""
+    import json
+    from pathlib import Path as _Path
+    try:
+        frontend_info_path = project_root / 'logs' / 'frontend-process-info.json'
+        if not frontend_info_path.exists():
+            return
+        with open(frontend_info_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        if 'frontend' in data and isinstance(data['frontend'], dict):
+            keys_to_remove = [k for k in list(data['frontend'].keys()) if k.startswith('pdf-viewer') and pdf_id in k]
+            for k in keys_to_remove:
+                del data['frontend'][k]
+        tmp = _Path(str(frontend_info_path) + '.tmp')
+        payload = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+        with open(tmp, 'w', encoding='utf-8', newline='\n') as f:
+            f.write(payload)
+        tmp.replace(frontend_info_path)
+        logger.info("✓ 已从 frontend-process-info.json 移除本窗口记录")
+    except Exception as exc:
+        logger.warning(f"✗ 移除前端进程信息失败: {exc}")
+
+
+def _stop_backend_services(project_root: Path, logger) -> None:
+    """调用 ai_launcher.py stop 停止后端服务。"""
+    import subprocess
+    import sys as _sys
+    ai_launcher_path = project_root / 'ai_launcher.py'
+    if not ai_launcher_path.exists():
+        logger.warning(f"✗ 未找到 ai_launcher.py: {ai_launcher_path}")
+        return
+    try:
+        logger.info("正在停止后端服务...")
+        result = subprocess.run([
+            _sys.executable, str(ai_launcher_path), 'stop'
+        ], cwd=str(project_root), capture_output=True, text=True, encoding='utf-8', errors='ignore', timeout=10)
+        if result.returncode == 0:
+            logger.info("✓ 后端服务已停止")
+        else:
+            logger.warning(f"✗ 停止后端服务失败 (code={result.returncode})")
+    except subprocess.TimeoutExpired:
+        logger.error("✗ 停止服务超时")
+    except Exception as exc:
+        logger.error(f"✗ 停止后端服务异常: {exc}")
 
 
 def main() -> int:

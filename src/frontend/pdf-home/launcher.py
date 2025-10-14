@@ -28,12 +28,17 @@ sys.path.insert(0, str(project_root))
 from src.qt.compat import QApplication, QUrl, QWebSocket, QWebChannel
 from src.frontend.common.launch_config import LaunchConfig
 
-# 使用本地MainWindow模块
-from main_window import MainWindow
-
 # Import PyQtBridge and JSConsoleLogger from current directory
 import importlib.util
 current_dir = Path(__file__).parent
+
+# 延迟导入 MainWindow（避免在 QApplication 之前初始化 QtWebEngine）
+def _load_main_window_class():
+    spec = importlib.util.spec_from_file_location("main_window", current_dir / "main_window.py")
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader, "Failed to load main_window module spec"
+    spec.loader.exec_module(module)  # type: ignore
+    return module.MainWindow
 
 # Import PyQtBridge
 bridge_spec = importlib.util.spec_from_file_location("pyqt_bridge", current_dir / "pyqt-bridge.py")
@@ -57,6 +62,48 @@ logger = logging.getLogger("pdf-home.launcher")
 
 def _get_js_log_path() -> Path:
     return project_root / 'logs' / 'pdf-home-js.log'
+
+
+def _ensure_pdf_home_file_logger() -> None:
+    """为 pdf-home 系列 logger 增加独立文件输出，避免 Hosted 模式下 basicConfig 被忽略。
+
+    - 日志文件: logs/pdf-home.log（UTF-8）
+    - 作用范围: `pdf-home` 及其子 logger（launcher/main_window 等）
+    - 不依赖 root logger，防止被后端的 logging.basicConfig 覆盖
+    """
+    try:
+        logs_dir = project_root / 'logs'
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        log_path = logs_dir / 'pdf-home.log'
+
+        fmt = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
+
+        def attach(handler_logger_name: str) -> None:
+            lg = logging.getLogger(handler_logger_name)
+            # 避免重复添加相同文件处理器
+            already = False
+            for h in lg.handlers:
+                try:
+                    if getattr(h, 'baseFilename', None) and str(getattr(h, 'baseFilename')) == str(log_path):
+                        already = True
+                        break
+                except Exception:
+                    continue
+            if not already:
+                fh = logging.FileHandler(log_path, mode='a', encoding='utf-8')
+                fh.setFormatter(fmt)
+                lg.addHandler(fh)
+            # 允许日志同时冒泡到其他 handler（如 GUI/后端日志）
+            lg.propagate = True
+            # 直接设置为 INFO，避免受 root logger 影响
+            lg.setLevel(logging.INFO)
+
+        # 顶层域与常见子域
+        for name in ("pdf-home", "pdf-home.launcher", "pdf-home.main_window"):
+            attach(name)
+    except Exception:
+        # 诊断日志初始化失败不应阻断主流程
+        pass
 
 def get_vite_port():
     """Get Vite port from runtime-ports.json.
@@ -112,18 +159,21 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def _setup_logging() -> None:
-    # Use project root for logs directory
-    logs_dir = project_root / 'logs'
-    os.makedirs(logs_dir, exist_ok=True)
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-        handlers=[
-            logging.FileHandler(logs_dir / 'pdf-home.log', encoding='utf-8', mode='w'),
-            logging.StreamHandler(sys.stdout),
-        ],
-    )
+    # 始终保证专属日志文件可写
+    _ensure_pdf_home_file_logger()
+    # 同时确保 stdout 也有输出，便于调试
+    try:
+        fmt = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
+        sh = logging.StreamHandler(sys.stdout)
+        sh.setFormatter(fmt)
+        lg = logging.getLogger("pdf-home")
+        # 避免重复添加
+        if not any(isinstance(h, logging.StreamHandler) for h in lg.handlers):
+            lg.addHandler(sh)
+        if lg.level > logging.INFO:
+            lg.setLevel(logging.INFO)
+    except Exception:
+        pass
 
 
 class PdfHomeApp:
@@ -205,6 +255,21 @@ class PdfHomeApp:
 
         logger.info(f"Resolved ports: vite={vite_port} msgCenter={msgCenter_port} pdfFile={pdfFile_port}")
         logger.info(f"JS remote debug port: {js_debug_port}")
+        # 在记录 compat 之前，尝试加载/重试 QtWebEngine
+        try:
+            import importlib as _il
+            _compat = _il.import_module('src.qt.compat')
+            if getattr(_compat, 'QWebEngineView', None) is None and hasattr(_compat, 'ensure_webengine_loaded'):
+                try:
+                    _compat.ensure_webengine_loaded()
+                except Exception:
+                    pass
+            logger.info("compat: QWebEngineView=%s QWebEnginePage=%s QWebEngineSettings=%s",
+                        getattr(_compat, 'QWebEngineView', None),
+                        getattr(_compat, 'QWebEnginePage', None),
+                        getattr(_compat, 'QWebEngineSettings', None))
+        except Exception as _e:
+            logger.warning("compat import failed: %s", _e)
 
         # 步骤 3: 持久化端口配置
         extras["pdf-home-js"] = js_debug_port
@@ -215,7 +280,19 @@ class PdfHomeApp:
         js_log_file = str(_get_js_log_path())
         self._create_js_logger(js_debug_port, js_log_file)
 
-        # 步骤 5: 创建主窗口
+        # 步骤 5: 再次确保 QtWebEngine 加载（A QApplication 已就绪），然后创建主窗口（延迟导入）
+        try:
+            import importlib as _il
+            _compat = _il.import_module('src.qt.compat')
+            if hasattr(_compat, 'ensure_webengine_loaded'):
+                try:
+                    _compat.ensure_webengine_loaded()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        MainWindow = _load_main_window_class()
         stop_backend = not self.config.keep_backend
         self.window = MainWindow(
             self.app,
@@ -233,10 +310,34 @@ class PdfHomeApp:
         # 步骤 7: 设置 QWebChannel 桥接
         self._setup_qwebchannel()
 
-        # 步骤 8: 加载前端
+        # 步骤 8: 加载前端（若无 QtWebEngine，回退为外部浏览器）
         url = self._build_frontend_url(vite_port, msgCenter_port, pdfFile_port)
         logger.info(f"Loading front-end: {url}")
-        self.window.load_frontend(url)
+
+        try:
+            has_webview = bool(getattr(self.window, 'web_view', None))
+        except Exception:
+            has_webview = False
+
+        if has_webview:
+            # 常规：嵌入式 WebEngine 视图
+            self.window.load_frontend(url)
+        else:
+            # 回退：未安装/不可用 QtWebEngine 时，改用系统默认浏览器打开
+            logger.warning("QWebEngineView is not available. Falling back to external browser mode.")
+            try:
+                import webbrowser
+                opened = webbrowser.open(url)
+                logger.info("Opened external browser for pdf-home: %s (opened=%s)", url, opened)
+            except Exception as e:
+                logger.error("Failed to open external browser: %s", e, exc_info=True)
+            try:
+                # 在状态栏提示当前回退模式
+                if getattr(self.window, 'status_bar', None):
+                    self.window.status_bar.showMessage(f"未检测到 QtWebEngine，已在默认浏览器打开：{url}")
+            except Exception:
+                pass
+
         self.window.show()
 
         # 步骤 9: 运行事件循环（仅子进程模式）
@@ -255,7 +356,9 @@ class PdfHomeApp:
             # 生产模式：通过 pdfFile_server 提供静态资源
             import time
             cache_buster = int(time.time() * 1000)
-            return f"http://127.0.0.1:{pdfFile_port}/pdf-home/pdf-home/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}&_={cache_buster}"
+            # 注意：静态资源位于 root/static/pdf-home/index.html
+            # 这里的 URL 只应包含一次 "/pdf-home/" 前缀，否则会导致 404
+            return f"http://127.0.0.1:{pdfFile_port}/pdf-home/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}&_={cache_buster}"
         else:
             # 开发模式：使用 Vite dev server
             return f"http://localhost:{vite_port}/pdf-home/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"

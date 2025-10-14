@@ -25,6 +25,13 @@ from typing import Any, Callable, Dict, Optional
 
 
 Logger = logging.getLogger("anki-integration.event-bridge")
+def _resolve_plugin_root() -> Optional[Path]:
+    """返回插件根目录（用于日志、可选环境变量设置）。"""
+    try:
+        import hjp_linkmaster_dev as _plugin  # type: ignore
+        return Path(_plugin.__file__).resolve().parent
+    except Exception:
+        return None
 
 
 def _ensure_logger(project_root: Path) -> logging.Logger:
@@ -78,6 +85,7 @@ class AnkiEventBridge:
         process_runner: Optional[Callable[[list[str]], Any]] = None,
         logger: Optional[logging.Logger] = None,
     ) -> None:
+        # 项目根用于日志/子进程 cwd；与数据目录无强绑定
         self._project_root = project_root or Path(os.getcwd())
         self._runner = process_runner or _default_runner
         self._logger = logger or _ensure_logger(self._project_root)
@@ -94,6 +102,9 @@ class AnkiEventBridge:
             return False
 
         try:
+            # 可选：为后续组件提供插件根（不影响数据库默认规则，仅作为 hint）
+            # 不再设置环境变量；仅订阅事件
+
             anki_event_bus.on_request(self._handle_request)
             self._anki_bus = anki_event_bus
             self._logger.info("已订阅 Anki event_bus.request 事件")
@@ -152,8 +163,27 @@ class AnkiEventBridge:
         self._runner(cmd)
 
     def _open_pdf_home(self) -> None:
+        # 1) 确保后端 (WS + HTTP) 已启动（寄宿在 Anki QApplication 中）
+        try:
+            from aqt import mw  # Anki 主窗口 / 应用
+            from src.backend.launcher import BackendLauncher
+
+            # 路径：采用严格参数模式（通过环境变量传递），无需显式 db_path
+            # 可选：静态与 PDF 目录提示（非 DB 定位相关，可移除不影响数据库路径）
+            # 静态与 PDF 目录（若需要可由 HTTP 文件服务器自行探测），不依赖环境变量。
+
+            plugin_root = _resolve_plugin_root()
+            be = BackendLauncher(parent_app=mw, runtime_mode='anki', ankiaddon_root_path=str(plugin_root) if plugin_root else None)
+            if not be.start():
+                self._logger.error("后端启动失败（Anki寄宿模式）")
+            else:
+                self._logger.info("后端启动完成（Anki寄宿模式）")
+        except Exception as exc:
+            self._logger.warning("后端寄宿启动失败，尝试继续启动前端：%s", exc)
+
+        # 2) 启动 pdf-home 前端（子进程，避免阻塞 Anki）
         launcher = self._project_root / "src" / "frontend" / "pdf-home" / "launcher.py"
-        cmd = [sys.executable, "-u", str(launcher)]
+        cmd = [sys.executable, "-u", str(launcher), "--prod"]
         self._logger.info("启动 pdf-home：%s", " ".join(cmd))
         self._runner(cmd)
 
