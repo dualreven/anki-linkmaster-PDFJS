@@ -258,16 +258,17 @@ class PyQtBridge(QObject):
             # 端口解析
             vite_port, msg_port, pdf_port, _extras = self._read_runtime_ports()
 
-            # 延迟导入 Qt 与 viewer MainWindow（通过文件路径加载，避免模块名中的连字符问题）
+            # 统一接口：通过 PdfViewerApp + FE LaunchConfig 启动（与 Anki/GUI 一致）
             from src.qt.compat import QApplication
             import importlib.util as _ilu
             from pathlib import Path as _Path
-            _viewer_main_path = _Path(__file__).parent.parent / 'pdf-viewer' / 'pyqt' / 'main_window.py'
-            _spec = _ilu.spec_from_file_location('pdf_viewer_main_window', _viewer_main_path)
-            assert _spec and _spec.loader, "无法定位 pdf-viewer 主窗口模块"
+            _viewer_launcher_path = _Path(__file__).parent.parent / 'pdf-viewer' / 'launcher.py'
+            _spec = _ilu.spec_from_file_location('pdf_viewer_launcher', _viewer_launcher_path)
+            assert _spec and _spec.loader, "无法定位 pdf-viewer 启动器模块"
             _mod = _ilu.module_from_spec(_spec)
             _spec.loader.exec_module(_mod)  # type: ignore[attr-defined]
-            ViewerMainWindow = getattr(_mod, 'MainWindow')
+            PdfViewerApp = getattr(_mod, 'PdfViewerApp')
+            FE_LaunchConfig = getattr(_mod, 'LaunchConfig')
 
             app = QApplication.instance()
             if app is None:
@@ -315,24 +316,27 @@ class PyQtBridge(QObject):
                 # 解析文件路径（若无法解析则仍然仅传递 pdf-id）
                 file_path = self._resolve_pdf_file_path(pdf_id)
 
-                # 创建 viewer 窗口，设置 stop_backend_on_close=False 避免关闭窗口时停止后台服务
-                viewer = ViewerMainWindow(
-                    app,
-                    remote_debug_port=debug_port,
-                    js_log_file=js_log_path,
-                    js_logger=None,
+                # 通过 PdfViewerApp 启动（hosted），保持一致
+                fe_cfg = FE_LaunchConfig(
+                    is_prod=True,
+                    keep_backend=True,
+                    msgCenter_port=msg_port,
+                    pdfFile_port=pdf_port,
+                    vite_port=vite_port,
                     pdf_id=pdf_id,
-                    stop_backend_on_close=False
+                    file_path=file_path,
+                    source='pdf-home'
                 )
-
-                # 构建并加载前端 URL
-                url = self._build_pdf_viewer_url(vite_port, msg_port, pdf_port, pdf_id, file_path=file_path)
-                logger.info(f"[PyQtBridge] 打开 pdf-viewer (pdf_id={pdf_id}) URL={url}")
-                viewer.load_frontend(url)
-                viewer.show()
+                viewer_app = PdfViewerApp(fe_cfg, parent_app=app)
+                viewer_app.run()
                 try:
-                    viewer.raise_()  # type: ignore[attr-defined]
-                    viewer.activateWindow()
+                    w = getattr(viewer_app, 'window', None)
+                    if w is not None:
+                        parent_win.viewer_windows[pdf_id] = w
+                        try:
+                            w.destroyed.connect(lambda _=None, _pid=pdf_id: parent_win.viewer_windows.pop(_pid, None))  # type: ignore[attr-defined]
+                        except Exception:
+                            pass
                 except Exception:
                     pass
 
