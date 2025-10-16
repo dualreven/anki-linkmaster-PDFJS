@@ -114,6 +114,29 @@ def build_all() -> None:
     if rc != 0:
         raise SystemExit(rc)
 
+    # 复制 launcher（src/launcher）到 dist/latest/src/launcher，供插件打包运行时导入
+    print("== 复制 src/launcher 到 dist/latest/src/launcher ==", flush=True)
+    src_launcher = REPO_ROOT / 'src' / 'launcher'
+    dst_launcher = DIST_LATEST / 'src' / 'launcher'
+    if src_launcher.exists():
+        # 清理目标后复制
+        if dst_launcher.exists():
+            shutil.rmtree(dst_launcher)
+        for root, dirnames, filenames in os.walk(src_launcher):
+            root_path = Path(root)
+            # 跳过缓存与测试目录
+            dirnames[:] = [d for d in dirnames if d not in {"__pycache__", "__tests__", "tests"}]
+            rel = root_path.relative_to(src_launcher)
+            target_dir = dst_launcher / rel
+            target_dir.mkdir(parents=True, exist_ok=True)
+            for fn in filenames:
+                if not fn.lower().endswith('.py'):
+                    continue
+                sf = root_path / fn
+                df = target_dir / fn
+                df.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(sf, df)
+
     print("== 构建 integrations（桥接模块） ==", flush=True)
     rc = _run([sys.executable, "-X", "utf8", str(REPO_ROOT / "build.integrations.py"), "--dist", str(DIST_LATEST), "--clean"])
     if rc != 0:

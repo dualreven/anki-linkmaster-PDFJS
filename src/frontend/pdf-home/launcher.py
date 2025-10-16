@@ -57,11 +57,28 @@ JSConsoleLogger = logger_module.JSConsoleLogger
 
 logger = logging.getLogger("pdf-home.launcher")
 
+def _resolve_logs_dir(base: Path) -> Path:
+    """解析日志目录，支持通过 logs/gui-launcher-config.json 覆盖（与后端一致）。"""
+    try:
+        cfg = base / 'logs' / 'gui-launcher-config.json'
+        if cfg.exists():
+            data = json.loads(cfg.read_text(encoding='utf-8') or '{}')
+            logs_dir_decl = ((data.get('paths') or {}).get('logs_dir') or '').strip()
+            if logs_dir_decl and logs_dir_decl.lower() not in ('none', 'null', 'undefined'):
+                p = Path(logs_dir_decl).expanduser()
+                p.mkdir(parents=True, exist_ok=True)
+                return p
+    except Exception:
+        pass
+    d = base / 'logs'
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
 
 
 
 def _get_js_log_path() -> Path:
-    return project_root / 'logs' / 'pdf-home-js.log'
+    return _resolve_logs_dir(project_root) / 'pdf-home-js.log'
 
 
 def _ensure_pdf_home_file_logger() -> None:
@@ -72,8 +89,7 @@ def _ensure_pdf_home_file_logger() -> None:
     - 不依赖 root logger，防止被后端的 logging.basicConfig 覆盖
     """
     try:
-        logs_dir = project_root / 'logs'
-        logs_dir.mkdir(parents=True, exist_ok=True)
+        logs_dir = _resolve_logs_dir(project_root)
         log_path = logs_dir / 'pdf-home.log'
 
         fmt = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
@@ -399,7 +415,7 @@ class PdfHomeApp:
         try:
             logger.info("[QWebChannel] 开始初始化 QWebChannel...")
             channel = QWebChannel(self.window)
-            self.pyqt_bridge = PyQtBridge(self.window)
+            self.pyqt_bridge = PyQtBridge(self.window, is_prod=self.config.is_prod)
             channel.registerObject('pyqtBridge', self.pyqt_bridge)
 
             if self.window.web_page:
@@ -504,7 +520,7 @@ def resolve_production_index(base: Path) -> Path | None:
             logger.info("[QWebChannel] QWebChannel 创建成功")
 
             # 创建 PyQtBridge 实例
-            self.pyqt_bridge = PyQtBridge(self.window)
+            self.pyqt_bridge = PyQtBridge(self.window, is_prod=self.config.is_prod)
             logger.info("[QWebChannel] PyQtBridge 创建成功")
 
             # 注册 PyQtBridge 到 QWebChannel

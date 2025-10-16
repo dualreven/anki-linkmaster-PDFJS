@@ -30,9 +30,29 @@ sys.path.insert(0, str(project_root))
 
 from core_utils.process_utils import kill_process_tree, is_process_running
 
-# 确保logs目录存在
-logs_dir = project_root / 'logs'
-logs_dir.mkdir(parents=True, exist_ok=True)
+def _resolve_logs_dir(base: Path) -> Path:
+    """解析日志目录，支持通过 logs/gui-launcher-config.json 覆盖。
+
+    优先读取 base/logs/gui-launcher-config.json 中的 paths.logs_dir，
+    若声明有效路径则使用该目录；否则回退 base/logs。
+    """
+    try:
+        cfg = base / 'logs' / 'gui-launcher-config.json'
+        if cfg.exists():
+            data = json.loads(cfg.read_text(encoding='utf-8') or '{}')
+            logs_dir_decl = ((data.get('paths') or {}).get('logs_dir') or '').strip()
+            if logs_dir_decl and logs_dir_decl.lower() not in ('none', 'null', 'undefined'):
+                p = Path(logs_dir_decl).expanduser()
+                p.mkdir(parents=True, exist_ok=True)
+                return p
+    except Exception:
+        pass
+    d = base / 'logs'
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+# 确保logs目录存在（可被配置覆盖）
+logs_dir = _resolve_logs_dir(project_root)
 
 # 配置日志 - 同时输出到控制台和文件
 log_file = logs_dir / 'backend-launcher.log'
@@ -277,10 +297,10 @@ class BackendPortManager:
 class BackendProcessManager:
     """后端进程管理器"""
 
-    def __init__(self, project_root: Path, port_manager: Optional['BackendPortManager'] = None):
+    def __init__(self, project_root: Path, port_manager: Optional['BackendPortManager'] = None, logs_dir: Optional[Path] = None):
         self.project_root = project_root
-        self.logs_dir = project_root / 'logs'
-        self.logs_dir.mkdir(parents=True, exist_ok=True)
+        # 统一使用解析后的日志目录（与顶层 logs_dir 同策略），允许调用方覆盖
+        self.logs_dir = Path(logs_dir) if logs_dir else _resolve_logs_dir(self.project_root)
         self.port_manager = port_manager
 
         # 进程信息文件路径
@@ -362,6 +382,7 @@ class BackendProcessManager:
         # 构建启动命令
         if service_name == 'msgCenter_server':
             cmd = [sys.executable, '-m', 'src.backend.msgCenter_server.standard_server', '--port', str(port)]
+            # 参数式路径：优先数据/模式/DB 参数
             if db_path:
                 cmd += ['--db-path', str(db_path)]
             if data_dir:
@@ -370,6 +391,9 @@ class BackendProcessManager:
                 cmd += ['--runtime-mode', str(runtime_mode)]
                 if runtime_mode == 'anki' and ankiaddon_root_path:
                     cmd += ['--ankiaddon-root-path', str(ankiaddon_root_path)]
+            # 兜底：若未提供任一路径参数，则默认 single 模式，避免在 app!=None 时触发缺参异常
+            if not db_path and not data_dir and not runtime_mode:
+                cmd += ['--runtime-mode', 'single']
         elif service_name == 'pdfFile-server':
             cmd = [sys.executable, '-m', 'src.backend.pdfFile_server',
                    '--port', str(port)]
@@ -691,7 +715,7 @@ class BackendLauncher:
     def __init__(self, parent_app=None, show_ui: bool = False, *, db_path: Optional[str] = None,
                  runtime_mode: Optional[str] = None, ankiaddon_root_path: Optional[str] = None,
                  data_dir: Optional[str] = None, static_dir: Optional[str] = None,
-                 pdfs_dir: Optional[str] = None):
+                 pdfs_dir: Optional[str] = None, logs_dir: Optional[str] = None):
         """
         初始化后端启动器
 
@@ -708,6 +732,8 @@ class BackendLauncher:
         self.data_dir = data_dir
         self.static_dir = static_dir
         self.pdfs_dir = pdfs_dir
+        # 日志目录覆盖（参数优先）；若未提供，维持模块内解析逻辑
+        self.logs_dir_override: Optional[Path] = Path(logs_dir).expanduser() if logs_dir else None
 
         # 服务器实例
         self.ws_server = None
@@ -722,6 +748,32 @@ class BackendLauncher:
 
         # 日志记录
         self.logger = logging.getLogger(f'BackendLauncher[{self.mode}]')
+        # 若提供了 logs_dir 覆盖，则调整已有 FileHandler 指向新目录
+        try:
+            if self.logs_dir_override:
+                self.logs_dir_override.mkdir(parents=True, exist_ok=True)
+                new_path = self.logs_dir_override / 'backend-launcher.log'
+                def _retarget(lg: logging.Logger):
+                    to_remove = []
+                    for h in getattr(lg, 'handlers', []) or []:
+                        try:
+                            if isinstance(h, logging.FileHandler) and 'backend-launcher.log' in str(getattr(h, 'baseFilename', '')):
+                                to_remove.append(h)
+                        except Exception:
+                            continue
+                    for h in to_remove:
+                        try:
+                            lg.removeHandler(h)
+                        except Exception:
+                            pass
+                    fh = logging.FileHandler(new_path, mode='a', encoding='utf-8')
+                    fmt = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+                    fh.setFormatter(fmt)
+                    lg.addHandler(fh)
+                _retarget(logging.getLogger())
+                _retarget(self.logger)
+        except Exception:
+            pass
 
     def start(self, msgCenter_port: Optional[int] = None,
               pdfFile_port: Optional[int] = None) -> bool:
@@ -805,8 +857,31 @@ class BackendLauncher:
             except Exception:
                 _data_dir = project_root / 'data'
 
-            # 允许通过构造参数显式覆盖 PDF 库目录
-            root_dir = Path(self.pdfs_dir).resolve() if self.pdfs_dir else (_data_dir / 'pdfs')
+            # 允许通过构造参数显式覆盖 PDF 库目录；
+            # 未显式提供时：当 anki 模式优先使用 <ankiaddon_root_path>/user_files/pdfs；否则回退到 <data_dir>/pdfs。
+            try:
+                if self.pdfs_dir:
+                    _pdfs_dir_path = Path(self.pdfs_dir).expanduser().resolve()
+                else:
+                    if (self.runtime_mode == 'anki') and self.ankiaddon_root_path:
+                        _pdfs_dir_path = Path(self.ankiaddon_root_path).expanduser().resolve() / 'user_files' / 'pdfs'
+                    else:
+                        _pdfs_dir_path = (_data_dir / 'pdfs')
+                # 确保目录存在
+                if not _pdfs_dir_path.exists():
+                    _pdfs_dir_path.mkdir(parents=True, exist_ok=True)
+                    try:
+                        self.logger.info("created pdfs_dir: %s", str(_pdfs_dir_path))
+                    except Exception:
+                        pass
+            except Exception:
+                _pdfs_dir_path = (_data_dir / 'pdfs')
+                try:
+                    _pdfs_dir_path.mkdir(parents=True, exist_ok=True)
+                except Exception:
+                    pass
+
+            root_dir = _pdfs_dir_path
 
             # 自动探测静态目录（参数式优先，遵循组件根）：
             # 目标：优先使用 <component_root>/static 或 <component_root>/dist/latest/static
@@ -855,6 +930,7 @@ class BackendLauncher:
                 pdfs_dir=pdfs_dir,
                 static_dir=static_dir,
                 mounts=mounts,
+                logs_dir=str(self.logs_dir_override) if self.logs_dir_override else None,
             )
 
             if not self.http_server.start():

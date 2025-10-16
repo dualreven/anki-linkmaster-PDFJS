@@ -1,10 +1,12 @@
+﻿
 #!/usr/bin/env python3
 """
 前端构建（pdf-viewer 专用）
 
 - 仅构建 src/frontend/pdf-viewer，产出到 dist/latest/src/frontend/pdf-viewer/
 - 复制 pdfjs-dist 到 vendor，并注入 window.__PDFJS_VENDOR_BASE__
-- 复制前端 Python 启动/桥接代码（仅 pdf-viewer 相关）到 dist/latest/src/frontend/
+- 复制前端 Python 启动/桥接代码到 dist/latest/src/frontend/pdf-viewer/
+- 复制 src/launcher/*.py 到 dist/latest/src/launcher（供插件打包运行时导入）
 
 使用：
   python -X utf8 build.frontend.pdf_viewer.py [--out-dir dist/latest/src/frontend/pdf-viewer] [--skip-build]
@@ -48,17 +50,11 @@ def inject_pdfjs_vendor_base(html_path: Path, vendor_rel: str = "./vendor/pdfjs-
     return True
 
 def _rewrite_index_assets_to_static(html_path: Path, *, static_prefix: str = "/static/") -> bool:
-    """将 index.html 中的 ./assets 或 ../assets 引用改为 /static/ 前缀。
-
-    返回是否发生了修改。
-    """
     text = html_path.read_text(encoding="utf-8")
     new_text = text
-    # 常见三种前缀
     for prefix in ("../assets/", "./assets/", "/assets/"):
         new_text = new_text.replace(f"src=\"{prefix}", f"src=\"{static_prefix}")
         new_text = new_text.replace(f"href=\"{prefix}", f"href=\"{static_prefix}")
-    # 额外：修正 qwebchannel.js 的路径，确保从 /static 加载（若 viewer 将来内置依赖）
     new_text = new_text.replace('src="../js/qwebchannel.js"', 'src="/static/qwebchannel.js"')
     new_text = new_text.replace('src="/js/qwebchannel.js"', 'src="/static/qwebchannel.js"')
     new_text = new_text.replace('src="js/qwebchannel.js"', 'src="/static/qwebchannel.js"')
@@ -92,10 +88,8 @@ def copy_pdfjs_vendor(node_modules_root: Path, out_dir: Path) -> Tuple[int, int]
     return files, dirs
 
 def copy_assets_to_static(out_dir: Path, static_dir: Path) -> Tuple[int, int]:
-    """将 out_dir 下的 assets/* 复制到 static_dir 根下（不分模块）。"""
     assets = out_dir / "assets"
     if not assets.exists():
-        # 兼容嵌套布局：out_dir/pdf-viewer/assets
         assets = out_dir / "pdf-viewer" / "assets"
     files = 0
     dirs = 0
@@ -130,32 +124,22 @@ def run_vite_build(repo_root: Path, out_dir: Path, base: str = "./") -> None:
     if rc != 0:
         raise RuntimeError(f"Vite 构建失败：return code {rc}")
 
-IGNORE_DIR_NAMES = {"__pycache__", ".pytest_cache", ".git", ".vscode", "node_modules", "dist", "build", "coverage", "__tests__", "tests"}
-IGNORE_FILE_SUFFIXES = {".pyc", ".pyo", ".pyd", ".log"}
-
-def _should_ignore(path: Path) -> bool:
-    name = path.name
-    if path.is_dir() and name in IGNORE_DIR_NAMES:
-        return True
-    if path.is_file() and any(name.endswith(suf) for suf in IGNORE_FILE_SUFFIXES):
-        return True
-    return False
-
-def _copytree_filtered(src: Path, dst: Path) -> Tuple[int, int]:
+def _copy_py_files(src: Path, dst: Path):
     files_copied = 0
     dirs_created = 0
+    IGNORE_DIRS = {"__pycache__", "__tests__", "tests"}
     for root, dirnames, filenames in os.walk(src):
         root_path = Path(root)
-        dirnames[:] = [d for d in dirnames if not _should_ignore(root_path / d)]
+        dirnames[:] = [d for d in dirnames if d not in IGNORE_DIRS]
         rel = root_path.relative_to(src)
         target_dir = dst / rel
         if not target_dir.exists():
             target_dir.mkdir(parents=True, exist_ok=True)
             dirs_created += 1
         for fn in filenames:
-            sf = root_path / fn
-            if _should_ignore(sf):
+            if not fn.lower().endswith('.py'):
                 continue
+            sf = root_path / fn
             df = target_dir / fn
             df.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(sf, df)
@@ -163,26 +147,38 @@ def _copytree_filtered(src: Path, dst: Path) -> Tuple[int, int]:
     return files_copied, dirs_created
 
 def copy_frontend_python_pdf_viewer(repo_root: Path, dist_root: Path) -> dict:
-    stats = {"pdf_viewer_pyqt": {"files": 0, "dirs": 0}, "pdf_viewer_launcher": {"files": 0, "dirs": 0}}
-    dst_root = dist_root / "src" / "frontend"
+    stats = {"pdf_viewer": {"files": 0, "dirs": 0}}
+    dst_root = dist_root / "src" / "frontend" / "pdf-viewer"
     dst_root.mkdir(parents=True, exist_ok=True)
-    # viewer/pyqt
-    src_pyqt = repo_root / "src" / "frontend" / "pdf-viewer" / "pyqt"
-    if src_pyqt.exists():
-        f, d = _copytree_filtered(src_pyqt, dst_root / "pdf-viewer" / "pyqt")
-        stats["pdf_viewer_pyqt"].update(files=f, dirs=d)
-    # viewer/launcher.py
-    src_launcher = repo_root / "src" / "frontend" / "pdf-viewer" / "launcher.py"
-    if src_launcher.exists():
-        td = dst_root / "pdf-viewer"
-        td.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src_launcher, td / "launcher.py")
-        stats["pdf_viewer_launcher"].update(files=1, dirs=0)
+    src_pdf_viewer_pyqt = repo_root / "src" / "frontend" / "pdf-viewer" / "pyqt"
+    if src_pdf_viewer_pyqt.exists():
+        f, d = _copy_py_files(src_pdf_viewer_pyqt, dst_root / "pyqt")
+        stats["pdf_viewer"].update(files=f, dirs=d)
+    launcher_py = repo_root / "src" / "frontend" / "pdf-viewer" / "launcher.py"
+    if launcher_py.exists():
+        target = dst_root / "launcher.py"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(launcher_py, target)
+        stats["pdf_viewer"]["files"] = stats["pdf_viewer"].get("files", 0) + 1
     return stats
 
+def copy_frontend_common(repo_root: Path, dist_root: Path):
+    src_common = repo_root / "src" / "frontend" / "common"
+    dst_common = dist_root / "src" / "frontend" / "common"
+    if not src_common.exists():
+        return 0, 0
+    return _copy_py_files(src_common, dst_common)
+
+def copy_launcher_python(repo_root: Path, dist_root: Path):
+    src = repo_root / "src" / "launcher"
+    dst = dist_root / "src" / "launcher"
+    if not src.exists():
+        return 0, 0
+    return _copy_py_files(src, dst)
+
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(description="构建 pdf-viewer 到 dist/latest/pdf-viewer/")
-    p.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR), help="输出目录（默认 dist/latest/pdf-viewer）")
+    p = argparse.ArgumentParser(description="构建 pdf-viewer 到 dist/latest/src/frontend/pdf-viewer/")
+    p.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR), help="输出目录（默认 dist/latest/src/frontend/pdf-viewer）")
     p.add_argument("--skip-build", action="store_true", help="跳过 vite build，仅执行 vendor/py 复制")
     args = p.parse_args(argv if argv is not None else sys.argv[1:])
 
@@ -192,70 +188,28 @@ def main(argv: list[str] | None = None) -> int:
     if not args.skip_build:
         run_vite_build(REPO_ROOT, out_dir, base="./")
 
-    files, dirs = copy_pdfjs_vendor(REPO_ROOT / "node_modules", STATIC_DIR)  # vendor 统一放入 /static
-    injected = False
-    # 兼容扁平与嵌套 index.html
+    files, dirs = copy_pdfjs_vendor(REPO_ROOT / "node_modules", STATIC_DIR)
     index_html = out_dir / "index.html"
     if not index_html.exists():
         index_html = out_dir / "pdf-viewer" / "index.html"
+    injected = False
     if index_html.exists():
-        # 将 index.html 的 assets 引用改写到 /static/
         _rewrite_index_assets_to_static(index_html, static_prefix="/static/")
-        # 注入 vendor 基础路径为 /static/vendor/pdfjs-dist/
         injected = inject_pdfjs_vendor_base(index_html, "/static/vendor/pdfjs-dist/")
-        # 复制一份到 /static/pdf-viewer/index.html（作为唯一入口）
         target_index = STATIC_DIR / "pdf-viewer" / "index.html"
         target_index.parent.mkdir(parents=True, exist_ok=True)
         target_index.write_text(index_html.read_text(encoding="utf-8"), encoding="utf-8")
-    # 复制 assets/* 到 dist/latest/static
     copy_assets_to_static(out_dir, STATIC_DIR)
-    py_stats = copy_frontend_python_pdf_viewer(REPO_ROOT, REPO_ROOT / "dist" / "latest")
-    # 复制 common 模块（供前端 launcher 导入）
-    try:
-        src_common = REPO_ROOT / "src" / "frontend" / "common"
-        dst_common = REPO_ROOT / "dist" / "latest" / "src" / "frontend" / "common"
-        if src_common.exists():
-            # 仅复制 .py 文件，保持目录结构
-            def _copy_py_files(src: Path, dst: Path) -> tuple[int, int]:
-                files_copied = 0
-                dirs_created = 0
-                for root, dirnames, filenames in os.walk(src):
-                    root_path = Path(root)
-                    # 排除 __pycache__ 与测试目录
-                    dirnames[:] = [d for d in dirnames if d not in {"__pycache__", "__tests__", "tests"}]
-                    rel = root_path.relative_to(src)
-                    target_dir = dst / rel
-                    if not target_dir.exists():
-                        target_dir.mkdir(parents=True, exist_ok=True)
-                        dirs_created += 1
-                    for fn in filenames:
-                        if not fn.lower().endswith('.py'):
-                            continue
-                        sf = root_path / fn
-                        df = target_dir / fn
-                        df.parent.mkdir(parents=True, exist_ok=True)
-                        shutil.copy2(sf, df)
-                        files_copied += 1
-                return files_copied, dirs_created
-            _copy_py_files(src_common, dst_common)
-    except Exception:
-        pass
 
-    # 复制 GUI 启动器脚本到 dist/latest 根目录：复用源码根的 gui_launcher.py
-    try:
-        src_launcher = REPO_ROOT / "gui_launcher.py"
-        dst_launcher = REPO_ROOT / "dist" / "latest" / "gui_launcher_dist.py"
-        if src_launcher.exists():
-            shutil.copy2(src_launcher, dst_launcher)
-    except Exception:
-        pass
+    dist_root = REPO_ROOT / "dist" / "latest"
+    py_stats = copy_frontend_python_pdf_viewer(REPO_ROOT, dist_root)
+    common_files, common_dirs = copy_frontend_common(REPO_ROOT, dist_root)
 
-    # 复制 AI 启动器脚本到 dist/latest 根目录：复用源码根的 ai_launcher.py
+    # 清理 out_dir 的静态子目录，仅保留 Python 运行部件
     try:
-        src_ai = REPO_ROOT / "ai_launcher.py"
-        dst_ai = REPO_ROOT / "dist" / "latest" / "ai_launcher_dist.py"
-        if src_ai.exists():
-            shutil.copy2(src_ai, dst_ai)
+        for p in (out_dir / 'assets', out_dir / 'pdf-viewer'):
+            if p.exists():
+                shutil.rmtree(p)
     except Exception:
         pass
 
@@ -265,17 +219,8 @@ def main(argv: list[str] | None = None) -> int:
         "vendor_pdfjs": {"files": files, "dirs": dirs},
         "injected_vendor_base": injected,
         "frontend_python": py_stats,
+        "common": {"files": common_files, "dirs": common_dirs},
     }
-    # 为了避免在 dist/latest 下残留多余的 pdf-viewer 目录，可在复制后清理 out_dir 的静态子目录，保留 Python 运行部件
-    try:
-        import shutil as _sh
-        # 删除 out_dir 下的 assets 与嵌套网页，仅保留 pyqt 与 launcher 等 Python 文件
-        for p in (out_dir / 'assets', out_dir / 'pdf-viewer'):
-            if p.exists():
-                _sh.rmtree(p)
-    except Exception:
-        pass
-
     meta_path = out_dir / "build.frontend.pdf_viewer.meta.json"
     meta_path.write_text(__import__("json").dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     sys.stdout.write(__import__("json").dumps(meta, ensure_ascii=False, indent=2) + "\n")
@@ -284,3 +229,31 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+def copy_launcher_python(repo_root: Path, dist_root: Path):
+    src = repo_root / 'src' / 'launcher'
+    dst = dist_root / 'src' / 'launcher'
+    if not src.exists():
+        return 0, 0
+    def _copy_py_files(src: Path, dst: Path):
+        files_copied = 0
+        dirs_created = 0
+        IGNORE_DIRS = {'__pycache__','__tests__','tests'}
+        for root, dirnames, filenames in os.walk(src):
+            root_path = Path(root)
+            dirnames[:] = [d for d in dirnames if d not in IGNORE_DIRS]
+            rel = root_path.relative_to(src)
+            target_dir = dst / rel
+            if not target_dir.exists():
+                target_dir.mkdir(parents=True, exist_ok=True)
+                dirs_created += 1
+            for fn in filenames:
+                if not fn.lower().endswith('.py'):
+                    continue
+                sf = root_path / fn
+                df = target_dir / fn
+                df.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(sf, df)
+                files_copied += 1
+        return files_copied, dirs_created
+    return _copy_py_files(src, dst)

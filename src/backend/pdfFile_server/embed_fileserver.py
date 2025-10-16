@@ -75,7 +75,8 @@ class EmbedFileServer(QObject):
                  parent: Optional[QObject] = None,
                  pdfs_dir: Optional[str] = None,
                  static_dir: Optional[str] = None,
-                 mounts: Optional[dict] = None):
+                 mounts: Optional[dict] = None,
+                 logs_dir: Optional[str] = None):
         """初始化嵌入式文件服务器
 
         Args:
@@ -105,10 +106,28 @@ class EmbedFileServer(QObject):
         self.server = QTcpServer(self)
         # 用户可见提示仅展示一次
         self._has_notified_user: bool = False
+        # 日志目录覆盖（参数优先）
+        self._logs_dir_override: Optional[Path] = Path(logs_dir).expanduser() if logs_dir else None
         # 独立诊断日志（不依赖 logging 配置），便于插件环境排查
+        def _resolve_logs_dir(base: Path) -> Path:
+            try:
+                cfg = base / 'logs' / 'gui-launcher-config.json'
+                if cfg.exists():
+                    import json as _json
+                    data = _json.loads(cfg.read_text(encoding='utf-8') or '{}')
+                    logs_dir_decl = ((data.get('paths') or {}).get('logs_dir') or '').strip()
+                    if logs_dir_decl and logs_dir_decl.lower() not in ('none', 'null', 'undefined'):
+                        p = Path(logs_dir_decl).expanduser()
+                        p.mkdir(parents=True, exist_ok=True)
+                        return p
+            except Exception:
+                pass
+            d = base / 'logs'
+            d.mkdir(parents=True, exist_ok=True)
+            return d
+
         try:
-            self._logs_dir = project_root / 'logs'
-            self._logs_dir.mkdir(parents=True, exist_ok=True)
+            self._logs_dir = self._logs_dir_override if self._logs_dir_override else _resolve_logs_dir(project_root)
             meta = {
                 "host": self.host,
                 "port": int(self.port),

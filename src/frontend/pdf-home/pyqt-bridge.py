@@ -17,6 +17,24 @@ from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
 logger = logging.getLogger("pdf-home.pyqt-bridge")
 
+def _resolve_logs_dir(base: Path) -> Path:
+    """解析日志目录（与后端/launcher一致）：支持 logs/gui-launcher-config.json 覆盖。"""
+    try:
+        cfg = base / 'logs' / 'gui-launcher-config.json'
+        if cfg.exists():
+            import json as _json
+            data = _json.loads(cfg.read_text(encoding='utf-8') or '{}')
+            logs_dir_decl = ((data.get('paths') or {}).get('logs_dir') or '').strip()
+            if logs_dir_decl and logs_dir_decl.lower() not in ('none', 'null', 'undefined'):
+                p = Path(logs_dir_decl).expanduser()
+                p.mkdir(parents=True, exist_ok=True)
+                return p
+    except Exception:
+        pass
+    d = base / 'logs'
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
 
 class PyQtBridge(QObject):
     """
@@ -28,7 +46,7 @@ class PyQtBridge(QObject):
         parent: 父窗口对象，用于显示对话框
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, is_prod: bool | None = None):
         """
         初始化 PyQtBridge
 
@@ -37,6 +55,8 @@ class PyQtBridge(QObject):
         """
         super().__init__(parent)
         self.parent = parent
+        # 运行模式标记（由调用方传入，避免依赖环境变量）
+        self._is_prod: bool | None = is_prod
         logger.info("[PyQtBridge] PyQtBridge 初始化")
 
         # 记录已打开的 pdf-viewer 窗口（由 pdf-home MainWindow 统一管理）
@@ -205,8 +225,16 @@ class PyQtBridge(QObject):
     def _build_pdf_viewer_url(self, vite_port: int, msgCenter_port: int, pdfFile_port: int,
                                pdf_id: str, page_at: int | None = None, position: float | None = None,
                                file_path: str | None = None) -> str:
-        """构建 pdf-viewer 前端 URL（供测试与调用）。"""
-        url = build_pdf_viewer_url(vite_port, msgCenter_port, pdfFile_port, pdf_id, page_at, position)
+        """构建 pdf-viewer 前端 URL（供测试与调用）。
+
+        规则：
+        - 若初始化时传入 is_prod=True，则强制走文件服务器端口；
+        - 若 is_prod=False，则走 Vite；
+        - 若 is_prod=None，则按静态入口存在性回退（原有行为）。
+        """
+        url = build_pdf_viewer_url(
+            vite_port, msgCenter_port, pdfFile_port, pdf_id, page_at, position, prod=self._is_prod
+        )
         if file_path:
             import urllib.parse
             url += f"&file={urllib.parse.quote(str(file_path))}"
@@ -594,8 +622,7 @@ class PyQtBridge(QObject):
         try:
             from pathlib import Path
             project_root = Path(__file__).parent.parent.parent.parent
-            logs_dir = project_root / 'logs'
-            logs_dir.mkdir(parents=True, exist_ok=True)
+            logs_dir = _resolve_logs_dir(project_root)
             path = logs_dir / f"pdf-viewer-{pdf_id}-js.log"
             # 每次启动 viewer 前清空旧日志（UTF-8，无 BOM）。
             # 这样从 pdf-home 启动时行为与独立 launcher 截断一致。
@@ -635,31 +662,34 @@ class PyQtBridge(QObject):
             return None
 
 def build_pdf_viewer_url(vite_port: int, msgCenter_port: int, pdfFile_port: int,
-                         pdf_id: str, page_at: int | None = None, position: float | None = None) -> str:
-    """构建 pdf-viewer 前端 URL（生产优先，自动回退开发）。
+                         pdf_id: str, page_at: int | None = None, position: float | None = None,
+                         prod: bool | None = None) -> str:
+    """构建 pdf-viewer 前端 URL（复用“生产标记”）。
 
-    策略：
-    - 若 dist 已存在静态入口（支持两种布局：/pdf-viewer/index.html 或 /pdf-viewer/pdf-viewer/index.html），
-      则统一走 pdfFile_server：`http://127.0.0.1:{pdfFile_port}/pdf-viewer/?...`。
-      后端静态路由负责将该目录请求追加到正确的 index.html（含查询串）。
-    - 否则回退到 Vite 开发端口：`http://localhost:{vite_port}/pdf-viewer/?...`。
+    决策顺序：
+      1) 若 prod 为 True → 使用文件服务器；
+      2) 若 prod 为 False → 使用 Vite；
+      3) 若 prod 为 None → 按静态入口存在性回退（保持历史行为）。
     """
     import urllib.parse
     from pathlib import Path as _Path
 
-    try:
-        project_root = _Path(__file__).parent.parent.parent.parent
-        # 新的集中静态入口：dist/latest/static/pdf-viewer/index.html
-        static_index = project_root / 'static' / 'pdf-viewer' / 'index.html'
-        use_static = static_index.exists()
-    except Exception:
-        use_static = False
-
-    if use_static:
-        # 统一交给 pdfFile_server 的 /pdf-viewer/ 路径，后端会映射到 /static/pdf-viewer/index.html
+    if prod is True:
         base = f"http://127.0.0.1:{int(pdfFile_port)}/pdf-viewer/?msgCenter={int(msgCenter_port)}&pdfs={int(pdfFile_port)}"
-    else:
+    elif prod is False:
         base = f"http://localhost:{int(vite_port)}/pdf-viewer/?msgCenter={int(msgCenter_port)}&pdfs={int(pdfFile_port)}"
+    else:
+        try:
+            project_root = _Path(__file__).parent.parent.parent.parent
+            static_index = project_root / 'static' / 'pdf-viewer' / 'index.html'
+            use_static = static_index.exists()
+        except Exception:
+            use_static = False
+        base = (
+            f"http://127.0.0.1:{int(pdfFile_port)}/pdf-viewer/?msgCenter={int(msgCenter_port)}&pdfs={int(pdfFile_port)}"
+            if use_static else
+            f"http://localhost:{int(vite_port)}/pdf-viewer/?msgCenter={int(msgCenter_port)}&pdfs={int(pdfFile_port)}"
+        )
 
     if pdf_id:
         base += f"&pdf-id={urllib.parse.quote(str(pdf_id))}"

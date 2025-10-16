@@ -36,6 +36,33 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
 ## 后端日志规范
 - 统一使用 Python `logging`，显式 UTF-8；必要时采用覆盖写并确保行尾正确。
 
+### 日志目录与文件（2025-10-14 更新）
+- 日志根目录：默认 `logs/`；GUI 在调用 `ai_launcher start` 时注入 `--logs-dir`，确保与 GUI “日志目录”一致；
+- 主要文件：
+  - `logs/gui-launcher.log`（GUI 启动器界面日志，已启用落盘）
+  - `logs/ai-launcher.log`（顶层编排器）
+  - `logs/backend-launcher.log`（后端启动器）
+  - `logs/ws-server.log`（WebSocket 服务）
+  - `logs/http-server*.log`（HTTP 文件服务：启动/请求/主日志）
+  - `logs/pdf-home.log`（pdf-home 应用）
+  - `logs/pdf-home-js.log`（pdf-home 前端 JS 控制台）
+  - `logs/pdf-viewer-*.log`、`logs/pdf-viewer-*-js.log`
+  - `logs/runtime-ports.json`、`*-process-info.json`（状态文件）
+
+### GUI 运行约定（2025-10-15 更新）
+- 组件根解析（自动）：
+  - 以 gui_launcher.py 自身为起点，寻找最近包含 `src/` 的上层目录作为 `component_root`；
+  - `sys.path` 前置 `component_root` 与其 `src/`；优先 `ai_launcher`，失败回退 `ai_launcher_dist`。
+- 前端生产/开发：
+  - 由“前端生产模式”复选框控制；
+  - 生产（--prod）：页面从 HTTP 静态路由加载；
+  - 开发（--vite-port <n>）：页面从 Vite URL 加载。
+- 目录与端口：
+  - 日志默认 `<component_root>/logs`；
+  - 数据、静态、PDF 库路径可在 UI 中显式指定；
+  - 端口（vite|ws|http）可在 UI 中指定；运行时实际端口写入 `runtime-ports.json`。
+
+
 ## 数据库路径解析规范（2025-10-13 更新：参数式，无环境变量）
 - 参数式 API：`src/backend/database/config.py`
   - `compute_component_root(runtime_mode, ankiaddon_root_path?)`
@@ -74,6 +101,15 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
   - QWebChannel 桥接若无 `web_page` 将记录警告但不阻断；
   - JSConsoleLogger 仍初始化，但仅在嵌入式模式下通过 `javaScriptConsoleMessage` 捕获；外部浏览器模式下不捕获 JS 控制台到 `logs/pdf-home-js.log`（可忽略）。
 - 无需额外配置；行为自动生效。
+
+### Hosted QtWebEngine 初始化顺序（2025-10-14）
+- 目的：在 Hosted（同进程）模式下稳定创建 QWebEngineView。
+- 要点：
+  - 在创建 `QApplication` 之前设置 `QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts, True)`；
+  - 预导入 `PyQt6.QtWebEngineCore` 与 `PyQt6.QtWebEngineWidgets`；
+  - 如需，`QApplication` 创建后可预创建一次 `QWebEngineView` 以稳定 WebEngine 插件链（可选）。
+- 代码位置：`gui_launcher.py` 的 `main()` 内已实现上述预引导；
+- 运行时自愈：`src/frontend/pdf-home/main_window.py` 在 `_init_ui()` 局部选择 WebEngine 类（先 compat，再直导入兜底），避免早期值拷贝导入为 None。
 - 适用场景：Clipboard API 不可用或用户手势校验导致失败时，前端通过 QWebChannel 调用 Python 槽设置系统剪贴板。
 - Python 端：`src/frontend/pdf-viewer/pyqt/pdf_viewer_bridge.py#setClipboardText(text: str) -> bool`
 - JS 端：

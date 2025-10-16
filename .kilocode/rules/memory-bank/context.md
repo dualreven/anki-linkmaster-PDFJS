@@ -41,6 +41,110 @@
 
 ## 📅 当前活跃任务（最近）
 
+### 当前任务（20251014093040）
+名称：GUI 启动器日志落盘情况确认（已落实）
+
+背景：
+- 用户在 gui_launcher 中点击“启动后台”或“启动 PDF-Home”时，界面会打印大量信息；
+- 需确认这些信息是否保存到本地日志文件，以及日志路径与查看方式。
+
+相关模块/文件：
+- 界面日志输出：gui_launcher.py:1041（`_log()` 仅写入界面，不落盘）
+- CLI/ai_launcher 日志：ai_launcher.py:38, 66-87（`logs/ai-launcher.log`）、ai_launcher.py:727, 739-747（支持 `--logs-dir`）
+- 后端启动器日志：src/backend/launcher.py:30-74（`logs/backend-launcher.log`）
+- WebSocket 服务日志：src/backend/msgCenter_server/standard_server.py:66-68（`logs/ws-server.log`）
+- HTTP 文件服务日志：src/backend/pdfFile_server/embed_fileserver.py:121, 138, 176, 268（`logs/http-server*.log`）
+- pdf-home 应用日志：src/frontend/pdf-home/launcher.py:56-87, 116-134（`logs/pdf-home.log`）
+- pdf-home JS 控制台日志：src/frontend/pdf-home/main_window.py:151-175, 206-215（`logs/pdf-home-js.log`）
+
+结论：
+- 组件日志均落盘到 `logs/`：`ai-launcher.log`、`backend-launcher.log`、`ws-server.log`、`http-server*.log`、`pdf-home.log`、`pdf-home-js.log` 等；
+- 新增实现：GUI 界面日志现已同步写入 `logs/gui-launcher.log`（或当前 GUI 选择的日志目录），实现位置：`gui_launcher.py:1041-1060`；
+- GUI 在调用 ai_launcher start 时会注入 `--logs-dir`（gui_launcher.py:1377-1385），ai_launcher 会据此在同一目录落盘（ai_launcher.py:739-747）。
+
+建议：
+- 已实现，后续如需滚动/分级可在 `gui_launcher.py:_log()` 外抽象 Logger 并引入旋转策略，但当前不做超范围改造。
+
+### 变更记录（20251014101925）
+- 增强：`gui_launcher.py:_log()` 同步写入 `gui-launcher.log`（UTF-8，强制 `\n`）。
+
+### 当前任务（20251014103650）
+名称：从 GUI 启动 pdf-home 闪退排查
+
+背景：
+- 用户反馈：点击 GUI 中“启动 PDF-Home”后闪退（疑似非 Hosted 模式）；
+- 先前 GUI 增强仅影响 `_log()` 落盘，理论上不应致崩，但需通过子进程输出定位问题。
+
+定位与临时手段：
+- gui_launcher.py: `_start_pdf_home()` 现已将子进程 stdout/stderr 重定向到 `logs/pdf-home-boot.log`（UTF-8，`\n`），用于捕获早期异常；
+- 请复现后提供 `logs/pdf-home-boot.log` 尾部内容。
+
+后续可能方向：
+- 若异常为 QtWebEngine 初始化/导入顺序问题，继续核实 pdf-home 子进程路径与 Qt 环境；
+- 若端口/依赖未就绪，补充启动顺序/重试；
+    - 若是参数传递问题（如 `--msgCenter-port` 等），调整 GUI 注入参数与 pdf-home Launcher 解析。
+
+### 修复记录（20251014103052）
+- 现象：CLI 选项卡点击 Start 报错 `QThread: Destroyed while thread '' is still running`，导致闪退；
+- 根因：`_run_ai_launcher()` 未持有 `_AiThread` 的对象引用；
+- 修复：
+  - `GUILauncher.__init__` 增加 `self._ai_threads: list = []`；
+    - `_run_ai_launcher()` 将线程加入列表，并在 `_on_ai_thread_finished()` 中移除并 `deleteLater()`；
+    - 规避 QThread 在运行中被销毁。
+
+### 修复记录（20251014110230）
+名称：ai_launcher stop 后 pdfFile_server 仍 running
+
+原因：
+- ai_launcher 仅记录并停止了 `launcher.py start` 的短生命周期 PID，未关闭由其启动的 `msgCenter_server` 与 `pdfFile-server`；
+
+修复：
+- `ai_launcher._stop_backend()` 改为调用 `src/backend/launcher.py stop` 统一停止后台服务，并将 `backend-process-info.json` 标记为 stopped；
+
+验证：
+    - `ai_launcher start` → `stop` → `status`，`backend status` 中两个服务应为 stopped。
+
+### 修复记录（20251014111740）
+名称：ai_launcher start 后 status 显示 msgCenter_server 为 stopped
+
+原因：
+- `standard_server` 在 app 非空时要求提供 `runtime_mode/data_dir/db_path` 参数；
+- `backend/launcher.py start` 未传入路径参数，导致初始化阶段抛错并退出。
+
+修复：
+- 在 `BackendProcessManager.start_service('msgCenter_server', ...)` 中，当未提供任何路径参数时自动追加 `--runtime-mode single` 作为兜底；
+
+验证：
+    - 重新执行 `ai_launcher start/status`，应看到 `msgCenter_server` 运行；`logs/ws-server.log` 有“启动成功”日志。
+
+### 调整记录（20251014114020）
+名称：GUI Hosted 启动默认改为源码开发模式
+
+背景：
+- 用户期望：在 GUI 的 Hosted 启动 pdf-home 时，应当使用源码与 Vite（开发模式），而非 dist 构建产物；同时应自动确保 Vite 与后端已启动。
+
+变更：
+- gui_launcher.py：
+  - `_start_backend_hosted()` 默认使用源码（`runtime_mode='single'`），不再强制 dist/latest；支持从“高级设置”传入路径覆盖；
+  - `_start_pdf_home_hosted()` 改为 `is_prod=False`（开发模式），并在 Vite 未运行时调用 `ai_launcher._start_vite(vite_port)` 启动；若 Hosted 后端未运行则自动启动；
+  - 新增 `_is_port_listening()` 判断端口监听；
+
+### 增强记录（20251014111606）
+名称：Hosted 面板新增“启动 Vite (Dev)”按钮
+
+变更：
+- gui_launcher.py：
+  - Hosted 页新增按钮，调用 `_start_vite_dev()`；
+  - `_start_vite_dev()`：优先 ai_launcher._start_vite；无 _ai 回退 pnpm；更新 `runtime-ports.json` 与 `dev-process-info.json`；
+
+价值：
+- 手动拉起 Vite，便于开发态快速恢复；与 Hosted pdf-home 的开发模式联动使用。
+
+预期：
+- 日志不再出现 dist/static 路径；
+- `pdf-home.log` 的前端 URL 指向 `http://localhost:{vite_port}/pdf-home/`；
+- Vite 未启动时由 GUI 自动拉起（输出到 `logs/npm-dev.log`，状态在 `dev-process-info.json`）。
+
 ### 当前任务（20251014073030）
 名称：pdf-home 在缺少 QtWebEngine 时的启动回退（Hosted 模式）
 
@@ -85,7 +189,7 @@
 - main_window：以局部变量选择 WebEngine 类（compat → 直导入），避免对模块级符号写入；
 - gui_launcher：QApplication 前设置 `AA_ShareOpenGLContexts` 并预导入 WebEngine 模块，满足 Qt 时序（参考 2025-10-12 日志策略）。
 
-状态：✅ 已完成（等待你侧 Hosted 启动验证）。
+状态：✅ 已完成并提交代码（Hosted/子进程双模式可用）。
 
 ### 当前任务（20251013214050）
 名称：Anki 嵌入式运行时将数据与数据库定位到插件组件根（lib/*/data）
@@ -1330,3 +1434,29 @@ python gui_launcher_enhanced.py
 - 临时修复：在 GUI 启动器创建 QApplication 之前设置 AA_ShareOpenGLContexts 并预导入 QtWebEngine；Hosted 检测失败时回退 CLI 子进程
 
 - 诊断：main_window 加载链路日志已加（loadStarted/loadFinished 等），有效日志在 backend-launcher.log- 已为 dist GUI 增加“前端Host模式”复选框；默认关闭（与源码一致，前端走 CLI）；勾选后尝试 Hosted（已满足 QtWebEngine 导入时机），失败自动回退 CLI。- 修复 Anki 插件下 /pdf-home 404：后端静态目录探测新增 plugin_root/static；事件桥接优先设置 LINKMASTER_STATIC_DIR=plugin_root/static- rebuild 后 QtWebEngine 再次失效是因脚本覆盖 dist 修复；已将 AA_ShareOpenGLContexts + 预导入 QtWebEngineWidgets/Core 上移到 scripts/gui_launcher_dist.py 主流程 + _init_qtwebengine_runtime，兼容层(src/qt/compat.py)亦增加二次 importlib 导入。
+### 规范更新（20251015051454）
+名称：移除“源码/分发”模式切换，采用“相对位置 + 参数化”
+
+背景：
+- 不需要手动切换运行形态；应根据 GUI 脚本相对位置自动选择代码根，并用参数控制生产/开发、端口与路径。
+
+改动要点：
+- gui_launcher.py：
+  - 通过 `_resolve_component_root()` 寻找最近包含 `src` 的目录作为组件根（兼容 `<repo>` 与 `dist/latest`）；
+  - `sys.path` 前置组件根与其 `src/`；优先 import `ai_launcher`，失败回退 `ai_launcher_dist`；
+  - 移除“运行形态”UI与所有判断分支；
+  - 新增“前端生产模式”复选框：
+    - 子进程：`--prod` 或 `--vite-port` 由复选框决定；
+    - Hosted：LaunchConfig `is_prod` 由复选框决定；
+  - 默认日志与状态文件位于 `<component_root>/logs`；可在 UI 中覆盖。
+
+与 Anki 的兼容性（结论）：
+- Anki 插件根通常包含自身 `lib/pdf_sys/src`；若 GUI 嵌入到插件目录运行，可被 `_resolve_component_root()` 正确识别；
+- 生产/开发、端口与数据/静态/日志目录均为参数式控制，与宿主（Anki）无强耦合，可无损迁移。
+
+### 增强记录（20251015053130）
+名称：GUI 面板展示当前源码根路径
+
+说明：
+- 在 GUI 标题下方新增标签，显示当前使用的源码根（`component_root`），便于快速确认加载来源。
+- 文案：`当前源码根: <path>`；支持选中复制。

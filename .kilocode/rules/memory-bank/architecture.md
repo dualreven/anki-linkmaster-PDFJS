@@ -11,6 +11,17 @@
 - 日志：前端经 DevTools 捕获到 UTF-8 日志文件；后端统一 Python logging。
 - 启动：AI Launcher 模块化，服务皆可独立运行与测试。
 
+### GUI 启动器运行形态（2025-10-14）
+- 源码模式（Source）：
+  - import 根：`<repo>/src`
+  - 前端：Vite 提供资源；Hosted pdf-home 以 `is_prod=False` 运行
+  - 目录：`<repo>/data`、`<repo>/logs`
+- 分发模式（Dist）：
+  - import 根：`dist/latest/src`（sys.path 前置 dist 根）
+  - 前端：不使用 Vite；由 pdfFile_server 映射 `/static`、`/pdf-home`、`/pdf-viewer`
+  - 目录：`dist/latest/data`、`dist/latest/logs`；`static_dir=dist/latest/static`
+  - ai_launcher：优先使用 `ai_launcher_dist`（若存在）
+
 ## 命名与 IO 规范
 - 目录用 kebab-case（如 `pdf-home` / `pdf-viewer`），禁止 `pdf_home`。
 - 所有文件读写必须显式 UTF-8，且确保换行 `\n` 正确。
