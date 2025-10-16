@@ -6,11 +6,11 @@ GUI Launcher Enhanced - 增强版图形化项目启动器
 提供友好的GUI界面来启动项目的各个组件：
 - PDF-Home 模块
 - PDF-Viewer 模块（支持各种参数）
-- 后端服务器（支持两种启动模式）
+- 后端服务器
 - Vite 开发服务器
 
 新功能：
-- 支持后端启动模式切换：子进程模式 / Qt线程模式
+- 后端启动方式由选项卡决定：Hosted=Qt线程，CLI=子进程
 - 为Anki插件集成做准备
 """
 
@@ -18,7 +18,6 @@ import sys
 import os
 from pathlib import Path
 from typing import Optional, Dict, Any
-from enum import Enum
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QGroupBox, QPushButton, QLabel, QLineEdit, QTextEdit, QComboBox,
@@ -32,18 +31,68 @@ from PyQt6.QtGui import QFont, QTextCursor
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-# 导入 ai_launcher 的功能
+# ===== 组件根解析（基于相对位置）=====
+from typing import Tuple
+
+def _resolve_component_root() -> Path:
+    """根据当前脚本的相对位置解析组件根（包含 src 的最近上层目录）。"""
+    here = Path(__file__).resolve().parent
+    if (here / 'src').exists():
+        return here
+    for ancestor in here.parents:
+        if (ancestor / 'src').exists():
+            return ancestor
+    return here
+
+def _ensure_sys_path_for(root: Path) -> Tuple[Path, Path]:
+    """确保给定 root 及其 src 在 sys.path 中优先。返回 (root, root/src)。"""
+    src_root = root / 'src'
+    for p in [str(root), str(src_root)]:
+        if p not in sys.path:
+            sys.path.insert(0, p)
+    return root, src_root
+
+# 导入 ai_launcher 的功能（相对位置优先）
+def _load_ai_module():
+    try:
+        import importlib
+        return importlib.import_module('ai_launcher')
+    except Exception:
+        try:
+            import importlib
+            return importlib.import_module('ai_launcher_dist')
+        except Exception:
+            return None
+
+_COMPONENT_ROOT, _SRC_ROOT = _ensure_sys_path_for(_resolve_component_root())
 try:
-    import ai_launcher as _ai
+    _ai = _load_ai_module()
 except Exception:
     _ai = None
 
 # 导入启动配置（用于参数传递）
 from src.frontend.common.launch_config import LaunchConfig
 from pathlib import Path as _Path
+from src.backend.database.config import (
+    compute_component_root as _db_compute_component_root,
+    compute_data_dir as _db_compute_data_dir,
+    compute_db_path as _db_compute_db_path,
+)
+from src.launcher.config import (
+    LauncherConfig as _LConfig,
+    LauncherOptions as _LOpts,
+    LauncherPorts as _LPorts,
+    LauncherPaths as _LPaths,
+)
+from src.launcher.runner import (
+    start_backend_hosted as _run_backend_hosted,
+    start_backend_cli as _run_backend_cli,
+    start_pdf_home_hosted as _run_pdf_home_hosted,
+    start_pdf_viewer_hosted as _run_pdf_viewer_hosted,
+)
 
 # 统一日志目录（默认不强制指定，由运行时自动推断；此常量仅作回退参考）
-LOGS_DIR = (_ai.LOGS_DIR if _ai and hasattr(_ai, 'LOGS_DIR') else (PROJECT_ROOT / 'logs'))
+LOGS_DIR = (_ai.LOGS_DIR if _ai and hasattr(_ai, 'LOGS_DIR') else (_COMPONENT_ROOT / 'logs'))
 try:
     # 不强制创建，让运行时自行推断；仅在需要写入配置时再创建
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -98,10 +147,9 @@ def _is_process_running(pid: Optional[int]) -> bool:
         return False
 
 
-class BackendMode(Enum):
-    """后端启动模式枚举"""
-    SUBPROCESS = "subprocess"  # 子进程模式（Legacy）
-    QTHREAD = "qthread"        # Qt线程模式（PyQt集成）
+# 后端启动方式由所选选项卡决定：
+# - Hosted 选项卡：Qt 线程模式（同进程 BackendLauncher）
+# - CLI 选项卡：子进程（通过 ai_launcher 调用后端启动器）
 
 
 class LauncherThread(QThread):
@@ -109,12 +157,13 @@ class LauncherThread(QThread):
     log_signal = pyqtSignal(str)
     finished_signal = pyqtSignal(bool, str)
 
-    def __init__(self, task_type: str, params: Dict[str, Any], backend_mode: BackendMode = BackendMode.SUBPROCESS):
+    def __init__(self, task_type: str, params: Dict[str, Any]):
         super().__init__()
         self.task_type = task_type
         self.params = params
-        self.backend_mode = backend_mode
         self.backend_launcher = None  # 保存BackendLauncher实例
+        # 组件根（相对位置）
+        self.component_root: Path = _COMPONENT_ROOT
 
     def run(self):
         """执行启动任务"""
@@ -140,7 +189,7 @@ class LauncherThread(QThread):
 
         vite_port = self.params.get("vite_port", 3000)
         if _ai is None or not hasattr(_ai, '_start_vite'):
-            self.log_signal.emit("⚠️ ai_launcher 不可用：跳过 Vite 启动（dist/Hosted 环境无需 dev server）")
+            self.log_signal.emit("⚠️ ai_launcher 不可用：跳过 Vite 启动")
             self.finished_signal.emit(True, "Vite 启动跳过")
             return
 
@@ -154,16 +203,16 @@ class LauncherThread(QThread):
 
     def _start_backend(self):
         """启动后端服务器"""
-        mode_name = "子进程模式" if self.backend_mode == BackendMode.SUBPROCESS else "Qt线程模式"
-        self.log_signal.emit(f"🚀 正在启动后端服务器 ({mode_name})...")
+        self.log_signal.emit(f"🚀 正在启动后端服务器 (子进程模式)...")
 
         msgCenter_port = self.params.get("msgCenter_port")
         pdfFile_port = self.params.get("pdfFile_port")
 
-        if self.backend_mode == BackendMode.SUBPROCESS:
-            # Legacy方式：使用subprocess
+        # 始终使用子进程方式（CLI 启动风格）
+        if True:
             # 从 params 收集运行模式与路径覆盖
             runtime_mode = self.params.get("runtime_mode") or 'single'
+            component_root = self.component_root
             if _ai is not None and hasattr(_ai, '_start_backend'):
                 success = _ai._start_backend(
                     msgCenter_port,
@@ -178,7 +227,7 @@ class LauncherThread(QThread):
             else:
                 # Fallback：直接调用 launcher.py start 子进程
                 import subprocess
-                cmd = [sys.executable, str(PROJECT_ROOT / 'src' / 'backend' / 'launcher.py'), 'start']
+                cmd = [sys.executable, str(component_root / 'src' / 'backend' / 'launcher.py'), 'start']
                 if msgCenter_port:
                     cmd += ['--msgCenter-port', str(msgCenter_port)]
                 if pdfFile_port:
@@ -197,73 +246,18 @@ class LauncherThread(QThread):
                 if self.params.get('pdfs_dir'):
                     cmd += ['--pdfs-dir', str(self.params['pdfs_dir'])]
                 try:
-                    subprocess.Popen(cmd, cwd=str(PROJECT_ROOT), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    subprocess.Popen(cmd, cwd=str(component_root), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     success = True
                 except Exception as e:
                     self.log_signal.emit(f"❌ 后端启动失败（fallback CLI）: {e}")
                     success = False
             if success:
-                self.log_signal.emit(f"✅ 后端启动成功 [{mode_name}] (WebSocket: {msgCenter_port or 8765}, HTTP: {pdfFile_port or 8080})")
-                self.finished_signal.emit(True, f"后端启动成功 [{mode_name}]")
+                self.log_signal.emit(f"✅ 后端启动成功 (WebSocket: {msgCenter_port or 8765}, HTTP: {pdfFile_port or 8080})")
+                self.finished_signal.emit(True, f"后端启动成功")
             else:
-                self.log_signal.emit(f"❌ 后端启动失败 [{mode_name}]")
-                self.finished_signal.emit(False, f"后端启动失败 [{mode_name}]")
+                self.log_signal.emit(f"❌ 后端启动失败")
+                self.finished_signal.emit(False, f"后端启动失败")
 
-        else:  # QTHREAD
-            # PyQt集成方式：使用BackendLauncher
-            try:
-                from src.backend.launcher import BackendLauncher
-                from PyQt6.QtWidgets import QApplication
-
-                self.log_signal.emit(f"📌 使用 BackendLauncher (Qt线程模式)...")
-
-                # 获取当前的QApplication实例（避免创建新的）
-                current_app = QApplication.instance()
-
-                # 创建BackendLauncher实例，传入当前QApplication
-                runtime_mode = self.params.get("runtime_mode") or 'single'
-                self.backend_launcher = BackendLauncher(
-                    parent_app=current_app,  # 使用GUI的QApplication
-                    show_ui=False,           # 不显示测试UI
-                    runtime_mode=runtime_mode,
-                    ankiaddon_root_path=self.params.get("ankiaddon_root_path"),
-                    data_dir=self.params.get("data_dir"),
-                    db_path=self.params.get("db_path"),
-                    static_dir=self.params.get("static_dir"),
-                    pdfs_dir=self.params.get("pdfs_dir"),
-                )
-
-                # 启动服务器
-                success = self.backend_launcher.start(
-                    msgCenter_port=msgCenter_port,
-                    pdfFile_port=pdfFile_port
-                )
-
-                if success:
-                    # 获取实际使用的端口
-                    ws_port = self.backend_launcher.ws_server.port if self.backend_launcher.ws_server else msgCenter_port
-                    http_port = self.backend_launcher.http_server.port if self.backend_launcher.http_server else pdfFile_port
-
-                    self.log_signal.emit(f"✅ 后端启动成功 [{mode_name}]")
-                    self.log_signal.emit(f"   WebSocket: ws://127.0.0.1:{ws_port}")
-                    self.log_signal.emit(f"   HTTP: http://127.0.0.1:{http_port}")
-                    self.log_signal.emit(f"   特性: 无子进程、Qt事件循环、信号槽通信")
-
-                    # 保存BackendLauncher实例到params，以便后续停止
-                    self.params['_backend_launcher_instance'] = self.backend_launcher
-
-                    self.finished_signal.emit(True, f"后端启动成功 [{mode_name}]")
-                else:
-                    self.log_signal.emit(f"❌ 后端启动失败 [{mode_name}]")
-                    self.finished_signal.emit(False, f"后端启动失败 [{mode_name}]")
-
-            except ImportError as e:
-                self.log_signal.emit(f"❌ 无法导入 BackendLauncher: {e}")
-                self.log_signal.emit("💡 提示: 确保 src/backend/launcher.py 存在")
-                self.finished_signal.emit(False, f"后端启动失败: 无法导入 BackendLauncher")
-            except Exception as e:
-                self.log_signal.emit(f"❌ BackendLauncher 启动异常: {e}")
-                self.finished_signal.emit(False, f"后端启动失败: {e}")
 
     def _start_pdf_home(self):
         """启动 PDF-Home（使用launcher脚本）"""
@@ -273,8 +267,9 @@ class LauncherThread(QThread):
             import subprocess
             import json
 
-            # 读取后端实际使用的端口配置（基于可配置 logs_dir）
-            base_logs = Path(self.params.get('logs_dir') or (PROJECT_ROOT / 'logs'))
+            # 读取后端实际使用的端口配置（基于可配置 logs_dir 与组件根）
+            component_root = self.component_root
+            base_logs = Path(self.params.get('logs_dir') or (component_root / 'logs'))
             runtime_ports_file = base_logs / "runtime-ports.json"
             actual_ports = {}
             if runtime_ports_file.exists():
@@ -285,15 +280,19 @@ class LauncherThread(QThread):
                 except Exception as e:
                     self.log_signal.emit(f"⚠️ 读取端口配置失败: {e}，将使用GUI配置")
 
-            # 构建命令行参数
-            cmd = [sys.executable, "src/frontend/pdf-home/launcher.py"]
+            # 构建命令行参数（基于组件根）
+            launcher_path = component_root / 'src' / 'frontend' / 'pdf-home' / 'launcher.py'
+            cmd = [sys.executable, str(launcher_path)]
 
             # 优先使用后端实际端口，否则使用GUI配置
             vite_port = actual_ports.get("vite_port") or self.params.get("vite_port")
             msgCenter_port = actual_ports.get("msgCenter_port") or self.params.get("msgCenter_port")
             pdfFile_port = actual_ports.get("pdfFile_port") or self.params.get("pdfFile_port")
 
-            if vite_port:
+            # 生产/开发模式控制：生产→ --prod；开发→ 传递 --vite-port
+            if self.params.get('is_prod'):
+                cmd.append('--prod')
+            elif vite_port:
                 cmd.extend(["--vite-port", str(vite_port)])
             if msgCenter_port:
                 cmd.extend(["--msgCenter-port", str(msgCenter_port)])
@@ -307,12 +306,20 @@ class LauncherThread(QThread):
                 pass
 
             # 使用subprocess.Popen在后台启动
+            # 将子进程的 stdout/stderr 重定向到日志文件，便于诊断闪退等问题
+            try:
+                boot_log = base_logs / 'pdf-home-boot.log'
+                boot_log.parent.mkdir(parents=True, exist_ok=True)
+                log_fp = open(boot_log, 'a', encoding='utf-8', newline='\n')
+            except Exception:
+                log_fp = subprocess.DEVNULL  # 回退：无法写文件时仍然不中断
+
             process = subprocess.Popen(
                 cmd,
-                cwd=str(PROJECT_ROOT),
+                cwd=str(component_root),
                 stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=log_fp,
+                stderr=log_fp,
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
             )
 
@@ -368,8 +375,9 @@ class LauncherThread(QThread):
             import subprocess
             import json
 
-            # 读取后端实际使用的端口配置（基于可配置 logs_dir）
-            base_logs = Path(self.params.get('logs_dir') or (PROJECT_ROOT / 'logs'))
+            # 读取后端实际使用的端口配置（基于可配置 logs_dir 与组件根）
+            component_root = self.component_root
+            base_logs = Path(self.params.get('logs_dir') or (component_root / 'logs'))
             runtime_ports_file = base_logs / "runtime-ports.json"
             actual_ports = {}
             if runtime_ports_file.exists():
@@ -380,15 +388,19 @@ class LauncherThread(QThread):
                 except Exception as e:
                     self.log_signal.emit(f"⚠️ 读取端口配置失败: {e}，将使用GUI配置")
 
-            # 构建命令行参数
-            cmd = [sys.executable, "src/frontend/pdf-viewer/launcher.py"]
+            # 构建命令行参数（基于组件根）
+            launcher_path = component_root / 'src' / 'frontend' / 'pdf-viewer' / 'launcher.py'
+            cmd = [sys.executable, str(launcher_path)]
 
             # 优先使用后端实际端口，否则使用GUI配置
             vite_port = actual_ports.get("vite_port") or self.params.get("vite_port")
             msgCenter_port = actual_ports.get("msgCenter_port") or self.params.get("msgCenter_port")
             pdfFile_port = actual_ports.get("pdfFile_port") or self.params.get("pdfFile_port")
 
-            if vite_port:
+            # 生产/开发控制：生产→ --prod；开发→ 传递 --vite-port
+            if self.params.get('is_prod'):
+                cmd.append('--prod')
+            elif vite_port:
                 cmd.extend(["--vite-port", str(vite_port)])
             if msgCenter_port:
                 cmd.extend(["--msgCenter-port", str(msgCenter_port)])
@@ -410,7 +422,7 @@ class LauncherThread(QThread):
             # 使用subprocess.Popen在后台启动
             process = subprocess.Popen(
                 cmd,
-                cwd=str(PROJECT_ROOT),
+                cwd=str(component_root),
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -518,14 +530,13 @@ class GUILauncher(QMainWindow):
         # 当前运行的线程
         self.current_thread: Optional[LauncherThread] = None
 
-        # 后端启动模式（默认使用 Qt 线程模式）
-        self.backend_mode = BackendMode.QTHREAD
+        # CLI 子命令线程（_AiThread）引用，避免 QThread 在运行中被回收
+        self._ai_threads: list = []
 
         # 保存BackendLauncher实例（Qt线程模式）
         self.backend_launcher_instance = None
 
-        # 运行时日志目录（可变，来源于配置），以及配置文件路径
-        # 初始不强制 logs_dir，保持为空以让运行时自动推断；若配置中提供则应用
+        # 配置：初始不强制 logs_dir，保持为空以让运行时自动推断；若配置中提供则应用
         self._logs_dir: Path = None  # type: ignore
         self._config_path: Path = (LOGS_DIR / "gui-launcher-config.json")
         self._config: Dict[str, Any] = {}
@@ -562,6 +573,16 @@ class GUILauncher(QMainWindow):
         title_label.setFont(title_font)
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         main_layout.addWidget(title_label)
+
+        # 显示当前使用的源码根路径（基于相对位置解析的 component_root）
+        try:
+            self.component_root_label = QLabel(f"当前源码根: {_COMPONENT_ROOT}")
+            self.component_root_label.setStyleSheet("color: #555; padding: 4px 8px;")
+            # 允许用户选择复制路径
+            self.component_root_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            main_layout.addWidget(self.component_root_label)
+        except Exception:
+            pass
 
         # 主区域：左右布局，右侧用于日志
         content_row = QHBoxLayout()
@@ -669,44 +690,17 @@ class GUILauncher(QMainWindow):
         info_label.setStyleSheet("padding: 10px; background-color: #f0f0f0; border-radius: 5px;")
         layout.addWidget(info_label)
 
-        # ========== 新增：后端启动模式选择 ==========
-        backend_mode_group = QGroupBox("后端启动模式")
-        backend_mode_layout = QVBoxLayout()
-        backend_mode_group.setLayout(backend_mode_layout)
+        # 后端启动方式：由所属选项卡决定（Hosted=Qt线程；CLI=子进程），无需在此选择
 
-        # 说明文字
-        mode_desc = QLabel(
-            "选择后端服务器的启动方式：\n"
-            "• 子进程模式：使用独立子进程（兼容性好，资源占用较高）\n"
-            "• Qt线程模式：使用PyQt组件（推荐，无子进程，适合Anki集成）"
-        )
-        mode_desc.setStyleSheet("font-size: 11px; color: #666; padding: 5px;")
-        backend_mode_layout.addWidget(mode_desc)
-
-        # RadioButton组
-        radio_layout = QHBoxLayout()
-        self.backend_mode_group = QButtonGroup(self)
-
-        self.subprocess_radio = QRadioButton("子进程模式（Legacy）")
-        self.subprocess_radio.toggled.connect(self._on_backend_mode_changed)
-        self.backend_mode_group.addButton(self.subprocess_radio, 0)
-        radio_layout.addWidget(self.subprocess_radio)
-
-        self.qthread_radio = QRadioButton("Qt线程模式（PyQt集成）")
-        self.qthread_radio.setChecked(True)  # 默认选中 Qt 线程模式
-        self.qthread_radio.toggled.connect(self._on_backend_mode_changed)
-        self.backend_mode_group.addButton(self.qthread_radio, 1)
-        radio_layout.addWidget(self.qthread_radio)
-
-        radio_layout.addStretch()
-        backend_mode_layout.addLayout(radio_layout)
-
-        # 模式说明标签（默认显示 Qt 线程模式）
-        self.mode_info_label = QLabel("✅ 当前: Qt线程模式（使用BackendLauncher，无子进程）")
-        self.mode_info_label.setStyleSheet("color: blue; font-weight: bold; padding: 5px;")
-        backend_mode_layout.addWidget(self.mode_info_label)
-
-        layout.addWidget(backend_mode_group)
+        # 前端模式（生产/开发）
+        fe_group = QGroupBox("前端模式（生产/开发）")
+        fe_layout = QHBoxLayout()
+        fe_group.setLayout(fe_layout)
+        self.frontend_prod_checkbox = QCheckBox("生产模式 (--prod)")
+        self.frontend_prod_checkbox.setToolTip("勾选后，前端以生产模式运行（由 HTTP 静态文件提供资源）；未勾选则使用 Vite 端口作为开发模式。")
+        fe_layout.addWidget(self.frontend_prod_checkbox)
+        fe_layout.addStretch()
+        layout.addWidget(fe_group)
 
         # Vite 端口
         vite_layout = QHBoxLayout()
@@ -840,6 +834,16 @@ class GUILauncher(QMainWindow):
         except Exception:
             pass
 
+        # 根据当前选择的运行模式与 ankiaddon_root，刷新路径占位符为“实际默认路径”
+        try:
+            # 信号联动：当运行模式或 anki 根改变时，更新占位符
+            self.runtime_mode_select.currentTextChanged.connect(self._refresh_path_placeholders)
+            self.ankiaddon_root_input.textChanged.connect(self._refresh_path_placeholders)
+            # 首次刷新
+            self._refresh_path_placeholders()
+        except Exception:
+            pass
+
         return widget
 
     def _collect_path_overrides(self) -> Dict[str, Any]:
@@ -916,6 +920,85 @@ class GUILauncher(QMainWindow):
 
         return group
 
+    # ===== 路径默认值占位符刷新 =====
+    def _compute_default_paths(self) -> Dict[str, str]:
+        """计算各路径的实际默认值（基于当前 UI 的运行模式与 ankiaddon_root）。"""
+        try:
+            mode = (self.runtime_mode_select.currentText() or 'single').strip().lower()
+        except Exception:
+            mode = 'single'
+        try:
+            anki_root = (self.ankiaddon_root_input.text() or '').strip() or None
+        except Exception:
+            anki_root = None
+
+        # 组件根：当 mode=anki 时使用 database.config 的规则；否则使用当前进程的 _COMPONENT_ROOT
+        try:
+            if mode == 'anki' and anki_root:
+                comp_root = _db_compute_component_root('anki', ankiaddon_root_path=anki_root, project_root=_COMPONENT_ROOT)
+            else:
+                comp_root = _COMPONENT_ROOT
+        except Exception:
+            comp_root = _COMPONENT_ROOT
+
+        # data_dir / db_path（遵循 database.config 的参数式规则）
+        try:
+            data_dir = _db_compute_data_dir(mode if mode in ('single', 'anki') else 'single', ankiaddon_root_path=anki_root, project_root=_COMPONENT_ROOT)
+        except Exception:
+            data_dir = comp_root / 'data'
+        try:
+            db_path = _db_compute_db_path(mode if mode in ('single', 'anki') else 'single', ankiaddon_root_path=anki_root, project_root=_COMPONENT_ROOT)
+        except Exception:
+            db_path = data_dir / 'anki_linkmaster.db'
+
+        # pdfs_dir 默认：<data_dir>/pdfs
+        pdfs_dir = data_dir / 'pdfs'
+
+        # static_dir 默认：与后端一致的探测策略（存在即用，顺序优先）
+        static_candidates = [
+            comp_root / 'static',
+            _COMPONENT_ROOT / 'static',
+            _COMPONENT_ROOT / 'dist' / 'latest' / 'static',
+        ]
+        static_dir = None
+        for c in static_candidates:
+            try:
+                if c.exists():
+                    static_dir = c
+                    break
+            except Exception:
+                continue
+        if static_dir is None:
+            static_dir = comp_root  # 兜底与后端一致（回退项目根）
+
+        # logs_dir 默认：<component_root>/logs
+        logs_dir = comp_root / 'logs'
+
+        return {
+            'data_dir': str(data_dir),
+            'db_path': str(db_path),
+            'pdfs_dir': str(pdfs_dir),
+            'static_dir': str(static_dir),
+            'logs_dir': str(logs_dir),
+        }
+
+    def _refresh_path_placeholders(self) -> None:
+        """将路径 LineEdit 的 placeholderText 替换为计算出的实际默认路径。"""
+        try:
+            defaults = self._compute_default_paths()
+            if getattr(self, 'data_dir_input', None):
+                self.data_dir_input.setPlaceholderText(defaults['data_dir'])
+            if getattr(self, 'db_path_input', None):
+                self.db_path_input.setPlaceholderText(defaults['db_path'])
+            if getattr(self, 'pdfs_dir_input', None):
+                self.pdfs_dir_input.setPlaceholderText(defaults['pdfs_dir'])
+            if getattr(self, 'static_dir_input', None):
+                self.static_dir_input.setPlaceholderText(defaults['static_dir'])
+            if getattr(self, 'logs_dir_input', None):
+                self.logs_dir_input.setPlaceholderText(defaults['logs_dir'])
+        except Exception:
+            pass
+
     # ================= 事件驱动：状态文件监听 =================
     def _init_status_watchers(self):
         """初始化文件系统监听，基于现有状态文件实现事件驱动刷新。"""
@@ -923,7 +1006,7 @@ class GUILauncher(QMainWindow):
             self.fs_watcher = QFileSystemWatcher(self)
             # 监听日志目录（新增/删除文件时触发）
             try:
-                base = (self._logs_dir or (PROJECT_ROOT / 'logs'))
+                base = (self._logs_dir or (_COMPONENT_ROOT / 'logs'))
                 self.fs_watcher.addPath(str(base))
             except Exception:
                 pass
@@ -955,7 +1038,7 @@ class GUILauncher(QMainWindow):
 
         for name in ("dev-process-info.json", "backend-process-info.json", "frontend-process-info.json"):
             try:
-                base = (self._logs_dir or LOGS_DIR)
+                base = (self._logs_dir or (_COMPONENT_ROOT / 'logs'))
                 path = base / name
                 if path.exists():
                     spath = str(path)
@@ -1019,18 +1102,7 @@ class GUILauncher(QMainWindow):
 
         return layout
 
-    def _on_backend_mode_changed(self):
-        """后端模式切换事件"""
-        if self.subprocess_radio.isChecked():
-            self.backend_mode = BackendMode.SUBPROCESS
-            self.mode_info_label.setText("✅ 当前: 子进程模式（使用subprocess创建独立进程）")
-            self.mode_info_label.setStyleSheet("color: green; font-weight: bold; padding: 5px;")
-        else:
-            self.backend_mode = BackendMode.QTHREAD
-            self.mode_info_label.setText("✅ 当前: Qt线程模式（使用BackendLauncher，无子进程）")
-            self.mode_info_label.setStyleSheet("color: blue; font-weight: bold; padding: 5px;")
-
-        self._log(f"后端启动模式已切换: {self.backend_mode.value}")
+    # 后端模式由选项卡决定，无需额外事件
 
     def _switch_to_tab(self, index: int):
         """切换到指定选项卡"""
@@ -1039,15 +1111,34 @@ class GUILauncher(QMainWindow):
             tabs.setCurrentIndex(index)
 
     def _log(self, message: str):
-        """添加日志"""
-        self.log_text.append(message)
-        # 自动滚动到底部
-        self.log_text.moveCursor(QTextCursor.MoveOperation.End)
+        """添加日志，并同步写入本地日志文件（UTF-8, \n）。"""
+        # 1) 界面输出
+        try:
+            self.log_text.append(message)
+            # 自动滚动到底部
+            self.log_text.moveCursor(QTextCursor.MoveOperation.End)
+        except Exception:
+            pass
+
+        # 2) 本地落盘到 logs/gui-launcher.log
+        try:
+            base = (self._logs_dir or (_COMPONENT_ROOT / 'logs'))
+            base.mkdir(parents=True, exist_ok=True)
+            log_path = base / 'gui-launcher.log'
+            # 规范化换行并确保以 \n 结尾
+            msg = str(message).replace('\r\n', '\n').replace('\r', '\n')
+            if not msg.endswith('\n'):
+                msg = msg + '\n'
+            with open(log_path, 'a', encoding='utf-8', newline='\n') as fp:
+                fp.write(msg)
+        except Exception:
+            # 日志写入失败不应影响GUI使用
+            pass
 
     def _update_status(self):
         """更新服务状态"""
         # 读取状态文件（兼容无 ai_launcher 环境）
-        base = (self._logs_dir or (PROJECT_ROOT / 'logs'))
+        base = (self._logs_dir or (_COMPONENT_ROOT / 'logs'))
         dev_info = _read_json_safe(base / "dev-process-info.json")
         backend_info = _read_json_safe(base / "backend-process-info.json")
         frontend_info = _read_json_safe(base / "frontend-process-info.json")
@@ -1118,11 +1209,10 @@ class GUILauncher(QMainWindow):
 
         self._log(f"开始任务: {task_type}")
 
-        # 传递后端启动模式
         # 注入 logs_dir 供子线程读写统一日志文件
         params = dict(params)
-        params['logs_dir'] = str(self._logs_dir or (PROJECT_ROOT / 'logs'))
-        self.current_thread = LauncherThread(task_type, params, self.backend_mode)
+        params['logs_dir'] = str(self._logs_dir or (_COMPONENT_ROOT / 'logs'))
+        self.current_thread = LauncherThread(task_type, params)
         self.current_thread.log_signal.connect(self._log)
         self.current_thread.finished_signal.connect(self._on_task_finished)
         self.current_thread.start()
@@ -1131,13 +1221,6 @@ class GUILauncher(QMainWindow):
         """任务完成"""
         if success:
             self._log(f"✅ {message}")
-
-            # 如果是后端Qt线程模式启动成功，保存实例引用
-            if self.backend_mode == BackendMode.QTHREAD and self.current_thread:
-                launcher_instance = self.current_thread.params.get('_backend_launcher_instance')
-                if launcher_instance:
-                    self.backend_launcher_instance = launcher_instance
-                    self._log("📌 BackendLauncher 实例已保存")
         else:
             self._log(f"❌ {message}")
             QMessageBox.critical(self, "错误", message)
@@ -1184,17 +1267,25 @@ class GUILauncher(QMainWindow):
         row2.addWidget(btn_viewer)
         layout.addLayout(row2)
 
+        # 第三行：Vite 控制
+        row3 = QHBoxLayout()
+        btn_vite = QPushButton('启动 Vite (Dev)')
+        btn_vite.clicked.connect(self._start_vite_dev)
+        row3.addWidget(btn_vite)
+        layout.addLayout(row3)
+
         return widget
 
     # ---- Dist 工具：Hosted 后端/前端 ----
     def _dist_root(self) -> Path:
-        return PROJECT_ROOT / 'dist' / 'latest'
+        # 兼容：返回当前组件根
+        return _COMPONENT_ROOT
 
     def _runtime_ports(self) -> Dict[str, Any]:
         """读取后端实际端口配置，来源于当前 logs_dir（留空则 <component_root>/logs）。"""
         try:
             import json
-            base = (self._logs_dir or (PROJECT_ROOT / 'logs'))
+            base = (self._logs_dir or (_COMPONENT_ROOT / 'logs'))
             p = base / 'runtime-ports.json'
             if p.exists():
                 return json.loads(p.read_text(encoding='utf-8') or '{}')
@@ -1203,28 +1294,42 @@ class GUILauncher(QMainWindow):
         return {}
 
     def _start_backend_hosted(self) -> None:
+        """以源码开发模式启动后端（Hosted，同进程）。
+
+        默认使用源码目录（single 模式）作为数据定位，不强制使用 dist 路径；
+        如在高级设置中明确了 data_dir/db_path/static_dir/pdfs_dir，则按设置覆盖。
+        """
         try:
             from PyQt6.QtWidgets import QApplication
             from src.backend.launcher import BackendLauncher
-            app = QApplication.instance()
-            dist_root = self._dist_root()
-            data_dir = str(dist_root / 'data')
-            db_path = str(dist_root / 'data' / 'anki_linkmaster.db')
 
-            self.backend_launcher_instance = BackendLauncher(
-                parent_app=app,
-                show_ui=False,
-                runtime_mode='single',
-                data_dir=data_dir,
-                db_path=db_path,
-                static_dir=str(dist_root / 'static'),
-                pdfs_dir=str(dist_root / 'data' / 'pdfs'),
-            )
-            ok = self.backend_launcher_instance.start(
-                msgCenter_port=self.msgCenter_port_input.value() or None,
-                pdfFile_port=self.pdfFile_port_input.value() or None,
-            )
-            self._log(f"后端 Hosted 启动: {ok}")
+            app = QApplication.instance()
+            cfg = _LConfig(
+                ports=_LPorts(
+                    msgCenter_port=int(self.msgCenter_port_input.value() or 0) or None,
+                    pdfFile_port=int(self.pdfFile_port_input.value() or 0) or None,
+                ),
+                paths=_LPaths(
+                    data_dir=(self.data_dir_input.text().strip() or None),
+                    db_path=(self.db_path_input.text().strip() or None),
+                    static_dir=(self.static_dir_input.text().strip() or None),
+                    pdfs_dir=(self.pdfs_dir_input.text().strip() or None),
+                    logs_dir=(self.logs_dir_input.text().strip() or None),
+                ),
+                options=_LOpts(
+                    runtime_mode=(self.runtime_mode_select.currentText() or 'single'),
+                    ankiaddon_root_path=(self.ankiaddon_root_input.text().strip() or None),
+                    frontend_prod=bool(self.frontend_prod_checkbox.isChecked()),
+                    keep_backend=True,
+                )
+            ).with_defaults(_COMPONENT_ROOT)
+
+            inst = _run_backend_hosted(cfg, parent_app=app, on_log=self._log)
+            if inst:
+                self.backend_launcher_instance = inst
+                self._log('后端 Hosted 启动: True')
+            else:
+                self._log('后端 Hosted 启动: False')
         except Exception as e:
             self._log(f"[ERROR] 后端 Hosted 启动异常: {e}")
 
@@ -1252,47 +1357,215 @@ class GUILauncher(QMainWindow):
             self._log(f"[WARN] Hosted 状态异常: {e}")
 
     def _start_pdf_home_hosted(self) -> None:
+        """启动 pdf-home（Hosted，同进程）。
+
+        - 若“生产模式”已勾选（frontend_prod=True）：
+          不尝试启动 Vite，直接走文件服务器端口。
+        - 若为开发模式（frontend_prod=False）：
+          使用 Vite dev server，若未运行则尝试启动，并写入 runtime-ports.json。
+        - 若后端 Hosted 未运行，自动尝试启动（端口来自“高级设置”或 runtime-ports.json）。
+        """
         try:
             from PyQt6.QtWidgets import QApplication
             import importlib.util as _il
-            launcher_path = PROJECT_ROOT / 'src' / 'frontend' / 'pdf-home' / 'launcher.py'
+            launcher_path = _COMPONENT_ROOT / 'src' / 'frontend' / 'pdf-home' / 'launcher.py'
             spec = _il.spec_from_file_location('pdf_home_launcher', str(launcher_path))
             if spec is None or spec.loader is None:
                 raise ImportError('无法定位 pdf-home launcher 模块')
             mod = _il.module_from_spec(spec)
             spec.loader.exec_module(mod)  # type: ignore
             from src.frontend.common.launch_config import LaunchConfig  # type: ignore
-            ports = self._runtime_ports()
-            cfg = LaunchConfig(is_prod=True, keep_backend=True,
-                               msgCenter_port=ports.get('msgCenter_port'),
-                               pdfFile_port=ports.get('pdfFile_port'), source='gui')
+
+            # 读取端口；仅在开发模式下确保 Vite 已运行
+            ports = self._runtime_ports() or {}
+            vite_port = int(ports.get('vite_port') or ports.get('npm_port') or (self.vite_port_input.value() or 3000))
+            if not bool(self.frontend_prod_checkbox.isChecked()):
+                if not self._is_port_listening('127.0.0.1', int(vite_port)):
+                    # 仅在开发模式下尝试启动 Vite
+                    try:
+                        if _ai is not None and hasattr(_ai, '_start_vite'):
+                            pid = _ai._start_vite(int(vite_port))
+                            self._log(f"尝试启动 Vite 开发服务器: PID={pid} 端口={vite_port}")
+                            # 同步更新 runtime-ports.json，确保前端解析到正确端口
+                            try:
+                                base = (self._logs_dir or (_COMPONENT_ROOT / 'logs'))
+                                base.mkdir(parents=True, exist_ok=True)
+                                cfg = _read_json_safe(base / 'runtime-ports.json') or {}
+                                cfg['vite_port'] = int(vite_port)
+                                cfg['npm_port'] = int(vite_port)
+                                (base / 'runtime-ports.json').write_text(__import__('json').dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding='utf-8')
+                            except Exception:
+                                pass
+                    except Exception as e:
+                        self._log(f"[WARN] 无法自动启动 Vite: {e}")
+
+            # 若 Hosted 后端未运行，自动启动
+            need_start_backend = False
+            try:
+                if not getattr(self, 'backend_launcher_instance', None):
+                    need_start_backend = True
+                else:
+                    alive = bool(self.backend_launcher_instance.is_ws_running() or self.backend_launcher_instance.is_http_running())
+                    need_start_backend = not alive
+            except Exception:
+                need_start_backend = True
+            if need_start_backend:
+                self._log("未检测到 Hosted 后端，尝试自动启动…")
+                self._start_backend_hosted()
+
+            # 构造配置并启动（解耦 runner）
+            ports = self._runtime_ports() or {}
+            cfg = _LConfig(
+                ports=_LPorts(
+                    vite_port=int(ports.get('vite_port') or ports.get('npm_port') or (self.vite_port_input.value() or 0)) or None,
+                    msgCenter_port=int(ports.get('msgCenter_port') or (self.msgCenter_port_input.value() or 0)) or None,
+                    pdfFile_port=int(ports.get('pdfFile_port') or (self.pdfFile_port_input.value() or 0)) or None,
+                ),
+                paths=_LPaths(
+                    data_dir=(self.data_dir_input.text().strip() or None),
+                    db_path=(self.db_path_input.text().strip() or None),
+                    static_dir=(self.static_dir_input.text().strip() or None),
+                    pdfs_dir=(self.pdfs_dir_input.text().strip() or None),
+                    logs_dir=(self.logs_dir_input.text().strip() or None),
+                ),
+                options=_LOpts(
+                    runtime_mode=(self.runtime_mode_select.currentText() or 'single'),
+                    ankiaddon_root_path=(self.ankiaddon_root_input.text().strip() or None),
+                    frontend_prod=bool(self.frontend_prod_checkbox.isChecked()),
+                    keep_backend=True,
+                )
+            ).with_defaults(_COMPONENT_ROOT)
             app = QApplication.instance()
-            PdfHomeApp = getattr(mod, 'PdfHomeApp')
-            inst = PdfHomeApp(cfg, parent_app=app)
-            rc = inst.run()
+            rc = _run_pdf_home_hosted(cfg, parent_app=app, on_log=self._log)
             self._log(f"PDF-Home (Hosted) 启动 rc={rc}")
         except Exception as e:
             self._log(f"[ERROR] 启动 pdf-home (Hosted) 异常: {e}")
 
+    def _is_port_listening(self, host: str, port: int, timeout: float = 0.8) -> bool:
+        try:
+            import socket
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(timeout)
+                return s.connect_ex((host, int(port))) == 0
+        except Exception:
+            return False
+
+    def _start_vite_dev(self) -> None:
+        """显式启动 Vite 开发服务器（Dev）。
+
+        逻辑：
+        - 优先使用高级设置端口或 runtime-ports.json 中的 vite_port/npm_port；
+        - 若端口未监听，优先调用 ai_launcher._start_vite；
+        - 无 _ai 回退到直接调用 pnpm；
+        - 同步更新 runtime-ports.json 与 dev-process-info.json。
+        """
+        try:
+            base = (self._logs_dir or (_COMPONENT_ROOT / 'logs'))
+            base.mkdir(parents=True, exist_ok=True)
+
+            ports = self._runtime_ports() or {}
+            vite_port = int(self.vite_port_input.value() or ports.get('vite_port') or ports.get('npm_port') or 3000)
+
+            # 已在监听则跳过
+            if self._is_port_listening('127.0.0.1', vite_port):
+                self._log(f"Vite 已在端口 {vite_port} 监听，跳过启动")
+                return
+
+            # 优先使用 ai_launcher
+            pid = None
+            used_port = vite_port
+            try:
+                if _ai is not None and hasattr(_ai, '_start_vite'):
+                    pid = _ai._start_vite(vite_port)
+                    # 读取实际端口（可能自增）
+                    try:
+                        import json as _json
+                        dev_info = _read_json_safe(base / 'dev-process-info.json')
+                        used_port = int(dev_info.get('vite', {}).get('port') or vite_port)
+                    except Exception:
+                        used_port = vite_port
+            except Exception as e:
+                self._log(f"[WARN] 调用 ai_launcher._start_vite 失败: {e}")
+
+            # 回退：直接调用 pnpm
+            if pid is None:
+                try:
+                    import subprocess
+                    log_path = base / 'npm-dev.log'
+                    cmd = ['pnpm', 'run', 'dev', '--', '--port', str(vite_port)]
+                    self._log(f"直接启动 Vite: {' '.join(cmd)}，日志: {log_path}")
+                    log_fp = open(log_path, 'a', encoding='utf-8', newline='\n')
+                    creation = subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == 'win32' else 0
+                    proc = subprocess.Popen(
+                        cmd,
+                        cwd=str(PROJECT_ROOT),
+                        stdin=subprocess.DEVNULL,
+                        stdout=log_fp,
+                        stderr=log_fp,
+                        shell=(sys.platform == 'win32'),
+                        creationflags=creation,
+                    )
+                    pid = proc.pid
+                except Exception as e:
+                    self._log(f"[ERROR] 启动 Vite 失败: {e}")
+                    pid = None
+
+            # 更新 runtime-ports.json 与 dev-process-info.json
+            try:
+                import json as _json
+                # runtime-ports
+                rp = _read_json_safe(base / 'runtime-ports.json') or {}
+                rp['vite_port'] = int(used_port)
+                rp['npm_port'] = int(used_port)
+                (base / 'runtime-ports.json').write_text(_json.dumps(rp, ensure_ascii=False, indent=2) + "\n", encoding='utf-8')
+                # dev-process-info
+                info = _read_json_safe(base / 'dev-process-info.json') or {}
+                info['vite'] = {
+                    'pid': int(pid) if pid else None,
+                    'port': int(used_port),
+                    'cmd': f"pnpm run dev -- --port {used_port}",
+                    'status': 'running' if pid else 'unknown'
+                }
+                info['_meta'] = {'updated': __import__('time').strftime('%Y-%m-%d %H:%M:%S')}
+                (base / 'dev-process-info.json').write_text(_json.dumps(info, ensure_ascii=False, indent=2) + "\n", encoding='utf-8')
+            except Exception as e:
+                self._log(f"[WARN] 更新 Vite 状态文件失败: {e}")
+
+            self._log(f"Vite 启动完成: PID={pid} 端口={used_port}")
+            self._update_status()
+        except Exception as e:
+            self._log(f"[ERROR] 启动 Vite(Dev) 异常: {e}")
+
     def _start_pdf_viewer_hosted(self) -> None:
         try:
             from PyQt6.QtWidgets import QApplication
-            import importlib.util as _il
-            launcher_path = PROJECT_ROOT / 'src' / 'frontend' / 'pdf-viewer' / 'launcher.py'
-            spec = _il.spec_from_file_location('pdf_viewer_launcher', str(launcher_path))
-            if spec is None or spec.loader is None:
-                raise ImportError('无法定位 pdf-viewer launcher 模块')
-            mod = _il.module_from_spec(spec)
-            spec.loader.exec_module(mod)  # type: ignore
-            from src.frontend.common.launch_config import LaunchConfig  # type: ignore
-            ports = self._runtime_ports()
-            cfg = LaunchConfig(is_prod=True, keep_backend=True,
-                               msgCenter_port=ports.get('msgCenter_port'),
-                               pdfFile_port=ports.get('pdfFile_port'), source='gui')
+            ports = self._runtime_ports() or {}
+            cfg = _LConfig(
+                ports=_LPorts(
+                    vite_port=int(ports.get('vite_port') or ports.get('npm_port') or (self.vite_port_input.value() or 0)) or None,
+                    msgCenter_port=int(ports.get('msgCenter_port') or (self.msgCenter_port_input.value() or 0)) or None,
+                    pdfFile_port=int(ports.get('pdfFile_port') or (self.pdfFile_port_input.value() or 0)) or None,
+                ),
+                paths=_LPaths(
+                    data_dir=(self.data_dir_input.text().strip() or None),
+                    db_path=(self.db_path_input.text().strip() or None),
+                    static_dir=(self.static_dir_input.text().strip() or None),
+                    pdfs_dir=(self.pdfs_dir_input.text().strip() or None),
+                    logs_dir=(self.logs_dir_input.text().strip() or None),
+                ),
+                options=_LOpts(
+                    runtime_mode=(self.runtime_mode_select.currentText() or 'single'),
+                    ankiaddon_root_path=(self.ankiaddon_root_input.text().strip() or None),
+                    frontend_prod=bool(self.frontend_prod_checkbox.isChecked()),
+                    keep_backend=True,
+                )
+            ).with_defaults(_COMPONENT_ROOT)
             app = QApplication.instance()
-            PdfViewerApp = getattr(mod, 'PdfViewerApp')
-            inst = PdfViewerApp(cfg, parent_app=app)
-            rc = inst.run()
+            rc = _run_pdf_viewer_hosted(cfg, parent_app=app,
+                                        pdf_id=(self.pdf_id_input.text().strip() or None),
+                                        page_at=(self.page_at_input.value() or None),
+                                        position=(self.position_input.value() or None),
+                                        on_log=self._log)
             self._log(f"PDF-Viewer (Hosted) 启动 rc={rc}")
         except Exception as e:
             self._log(f"[ERROR] 启动 pdf-viewer (Hosted) 异常: {e}")
@@ -1376,31 +1649,40 @@ class GUILauncher(QMainWindow):
             return
         # 注入 --logs-dir 以与 GUI 当前日志目录保持一致
         argv = list(argv)
-        base = str(self._logs_dir or (PROJECT_ROOT / 'logs'))
+        base = str(self._logs_dir or (_COMPONENT_ROOT / 'logs'))
         if argv and argv[0] == 'start':
             argv += ['--logs-dir', base]
         t = _AiThread(argv)
         t.log_signal.connect(self._log)
-        t.finished_signal.connect(lambda rc: self._update_status())
+        # 保存引用，避免 QThread 在运行中被销毁
+        self._ai_threads.append(t)
+        # 结束时更新状态并清理引用
+        t.finished_signal.connect(lambda rc, tt=t: self._on_ai_thread_finished(rc, tt))
         t.start()
 
+    def _on_ai_thread_finished(self, rc: int, thread_obj) -> None:
+        try:
+            # 从列表移除并请求 Qt 清理
+            if thread_obj in self._ai_threads:
+                self._ai_threads.remove(thread_obj)
+            try:
+                thread_obj.deleteLater()
+            except Exception:
+                pass
+        except Exception:
+            pass
+        # 刷新界面状态
+        self._update_status()
+
     def _on_start_backend(self):
-        """启动后端"""
-        # Qt线程模式：直接在主线程启动（避免线程安全问题）
-        if self.backend_mode == BackendMode.QTHREAD:
-            self._start_backend_qt_mode()
-        else:
-            # 子进程模式：使用后台线程
-            params = {
-                "msgCenter_port": self.msgCenter_port_input.value() or None,
-                "pdfFile_port": self.pdfFile_port_input.value() or None,
-                **self._collect_path_overrides(),
-            }
-            self._start_task("backend", params)
+        """启动后端（由选项卡语义决定）"""
+        # 在 Hosted 语义下调用（Qt线程模式）
+        self._start_backend_qt_mode()
 
     def _start_backend_qt_mode(self):
         """在主线程中启动Qt线程模式的后端"""
         try:
+            _ensure_sys_path_for(_COMPONENT_ROOT)
             from src.backend.launcher import BackendLauncher
             from PyQt6.QtWidgets import QApplication
 
@@ -1464,7 +1746,8 @@ class GUILauncher(QMainWindow):
         params = {
             "vite_port": self.vite_port_input.value() or 3000,
             "msgCenter_port": self.msgCenter_port_input.value() or 8765,
-            "pdfFile_port": self.pdfFile_port_input.value() or 8080
+            "pdfFile_port": self.pdfFile_port_input.value() or 8080,
+            "is_prod": bool(self.frontend_prod_checkbox.isChecked())
         }
         self._start_task("pdf-home", params)
 
@@ -1480,6 +1763,7 @@ class GUILauncher(QMainWindow):
             "vite_port": self.vite_port_input.value() or 3000,
             "msgCenter_port": self.msgCenter_port_input.value() or 8765,
             "pdfFile_port": self.pdfFile_port_input.value() or 8080,
+            "is_prod": bool(self.frontend_prod_checkbox.isChecked()),
             "pdf_id": pdf_id if pdf_id else None,  # 空字符串转为 None
             "page_at": self.page_at_input.value() if self.page_at_input.value() > 0 else None,
             "position": self.position_input.value() if self.position_input.value() > 0 else None
@@ -1531,6 +1815,12 @@ class GUILauncher(QMainWindow):
             self.static_dir_input.setText(str(paths.get("static_dir") or ""))
             self.pdfs_dir_input.setText(str(paths.get("pdfs_dir") or ""))
             self.logs_dir_input.setText(str(paths.get("logs_dir") or ""))
+            # 前端模式
+            try:
+                is_prod = bool((cfg.get('frontend', {}) or {}).get('is_prod'))
+                self.frontend_prod_checkbox.setChecked(is_prod)
+            except Exception:
+                pass
         except Exception:
             pass
 
@@ -1540,6 +1830,9 @@ class GUILauncher(QMainWindow):
                 "vite_port": int(self.vite_port_input.value() or 0),
                 "msgCenter_port": int(self.msgCenter_port_input.value() or 0),
                 "pdfFile_port": int(self.pdfFile_port_input.value() or 0),
+            },
+            "frontend": {
+                "is_prod": bool(self.frontend_prod_checkbox.isChecked())
             },
             "paths": {
                 "runtime_mode": (self.runtime_mode_select.currentText() or "single").strip(),
@@ -1621,6 +1914,39 @@ class _AiThread(QThread):
             for line in out.splitlines():
                 self.log_signal.emit(line)
         self.finished_signal.emit(int(rc))
+
+
+class LauncherPanel(QWidget):
+    """可嵌入的启动器面板组件。
+
+    将现有 GUILauncher 的中心面板复用为一个可嵌入的 QWidget，
+    以便在已有的 QApplication 循环（如 Anki）中作为子组件使用。
+    """
+    def __init__(self, parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        # 复用现有的窗口逻辑，但不显示窗口；提取其中央内容作为本组件的子控件
+        self._window = GUILauncher()  # 不 show
+        try:
+            central = self._window.centralWidget()
+            if central is not None:
+                # 重置父子关系并嵌入自身
+                central.setParent(self)
+                lay = QVBoxLayout()
+                lay.setContentsMargins(0, 0, 0, 0)
+                self.setLayout(lay)
+                lay.addWidget(central)
+        except Exception:
+            # 兜底：若无法复用，构建一个简单提示
+            lay = QVBoxLayout()
+            self.setLayout(lay)
+            lab = QLabel("Launcher 面板加载失败")
+            lab.setStyleSheet("color:#a00")
+            lay.addWidget(lab)
+
+
+def create_launcher_panel(parent: Optional[QWidget] = None) -> QWidget:
+    """工厂方法：获取可嵌入的启动器面板（QWidget）。"""
+    return LauncherPanel(parent)
 
 
 def main():
