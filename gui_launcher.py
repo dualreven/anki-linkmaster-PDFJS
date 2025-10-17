@@ -33,16 +33,15 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 # ===== 组件根解析（基于相对位置）=====
 from typing import Tuple
+from src.launcher.config import resolve_component_root as _cfg_resolve_component_root
 
 def _resolve_component_root() -> Path:
-    """根据当前脚本的相对位置解析组件根（包含 src 的最近上层目录）。"""
-    here = Path(__file__).resolve().parent
-    if (here / 'src').exists():
+    """委托到 src.launcher.config.resolve_component_root，统一组件根解析。"""
+    try:
+        return _cfg_resolve_component_root()
+    except Exception:
+        here = Path(__file__).resolve().parent
         return here
-    for ancestor in here.parents:
-        if (ancestor / 'src').exists():
-            return ancestor
-    return here
 
 def _ensure_sys_path_for(root: Path) -> Tuple[Path, Path]:
     """确保给定 root 及其 src 在 sys.path 中优先。返回 (root, root/src)。"""
@@ -89,7 +88,11 @@ from src.launcher.runner import (
     start_backend_cli as _run_backend_cli,
     start_pdf_home_hosted as _run_pdf_home_hosted,
     start_pdf_viewer_hosted as _run_pdf_viewer_hosted,
+    start_pdf_home_cli as _run_pdf_home_cli,
+    start_pdf_viewer_cli as _run_pdf_viewer_cli,
 )
+from src.launcher.ports import read_runtime_ports as _read_runtime_ports_unified
+from src.launcher.dev_server import ensure_vite as _ensure_vite
 
 # 统一日志目录（默认不强制指定，由运行时自动推断；此常量仅作回退参考）
 LOGS_DIR = (_ai.LOGS_DIR if _ai and hasattr(_ai, 'LOGS_DIR') else (_COMPONENT_ROOT / 'logs'))
@@ -202,158 +205,72 @@ class LauncherThread(QThread):
             self.finished_signal.emit(False, "Vite 启动失败")
 
     def _start_backend(self):
-        """启动后端服务器"""
-        self.log_signal.emit(f"🚀 正在启动后端服务器 (子进程模式)...")
-
-        msgCenter_port = self.params.get("msgCenter_port")
-        pdfFile_port = self.params.get("pdfFile_port")
-
-        # 始终使用子进程方式（CLI 启动风格）
-        if True:
-            # 从 params 收集运行模式与路径覆盖
-            runtime_mode = self.params.get("runtime_mode") or 'single'
-            component_root = self.component_root
-            if _ai is not None and hasattr(_ai, '_start_backend'):
-                success = _ai._start_backend(
-                    msgCenter_port,
-                    pdfFile_port,
-                    runtime_mode=runtime_mode,
-                    ankiaddon_root_path=self.params.get("ankiaddon_root_path"),
-                    data_dir=self.params.get("data_dir"),
-                    db_path=self.params.get("db_path"),
-                    static_dir=self.params.get("static_dir"),
-                    pdfs_dir=self.params.get("pdfs_dir"),
-                )
-            else:
-                # Fallback：直接调用 launcher.py start 子进程
-                import subprocess
-                cmd = [sys.executable, str(component_root / 'src' / 'backend' / 'launcher.py'), 'start']
-                if msgCenter_port:
-                    cmd += ['--msgCenter-port', str(msgCenter_port)]
-                if pdfFile_port:
-                    cmd += ['--pdfFileServer-port', str(pdfFile_port)]
-                # 路径参数
-                if self.params.get('db_path'):
-                    cmd += ['--db-path', str(self.params['db_path'])]
-                if self.params.get('data_dir'):
-                    cmd += ['--data-dir', str(self.params['data_dir'])]
-                if runtime_mode:
-                    cmd += ['--runtime-mode', str(runtime_mode)]
-                    if runtime_mode == 'anki' and self.params.get('ankiaddon_root_path'):
-                        cmd += ['--ankiaddon-root-path', str(self.params['ankiaddon_root_path'])]
-                if self.params.get('static_dir'):
-                    cmd += ['--static-dir', str(self.params['static_dir'])]
-                if self.params.get('pdfs_dir'):
-                    cmd += ['--pdfs-dir', str(self.params['pdfs_dir'])]
-                try:
-                    subprocess.Popen(cmd, cwd=str(component_root), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    success = True
-                except Exception as e:
-                    self.log_signal.emit(f"❌ 后端启动失败（fallback CLI）: {e}")
-                    success = False
-            if success:
-                self.log_signal.emit(f"✅ 后端启动成功 (WebSocket: {msgCenter_port or 8765}, HTTP: {pdfFile_port or 8080})")
-                self.finished_signal.emit(True, f"后端启动成功")
-            else:
-                self.log_signal.emit(f"❌ 后端启动失败")
-                self.finished_signal.emit(False, f"后端启动失败")
+        """启动后端服务器（统一调用 runner.start_backend_cli）。"""
+        self.log_signal.emit("🚀 正在启动后端服务器 (子进程模式)...")
+        # 组装 LauncherConfig 并调用 runner
+        cfg = _LConfig(
+            ports=_LPorts(
+                msgCenter_port=self.params.get('msgCenter_port'),
+                pdfFile_port=self.params.get('pdfFile_port'),
+            ),
+            paths=_LPaths(
+                data_dir=self.params.get('data_dir'),
+                db_path=self.params.get('db_path'),
+                static_dir=self.params.get('static_dir'),
+                pdfs_dir=self.params.get('pdfs_dir'),
+                logs_dir=self.params.get('logs_dir'),
+            ),
+            options=_LOpts(
+                runtime_mode=self.params.get('runtime_mode') or 'single',
+                ankiaddon_root_path=self.params.get('ankiaddon_root_path'),
+                keep_backend=True,
+            ),
+        ).with_defaults(self.component_root)
+        ok = _run_backend_cli(cfg, on_log=lambda m: self.log_signal.emit(m))
+        if ok:
+            self.log_signal.emit("✅ 后端启动成功 (CLI)")
+            self.finished_signal.emit(True, "后端启动成功")
+        else:
+            self.log_signal.emit("❌ 后端启动失败 (CLI)")
+            self.finished_signal.emit(False, "后端启动失败")
 
 
     def _start_pdf_home(self):
         """启动 PDF-Home（使用launcher脚本）"""
         self.log_signal.emit("🏠 正在启动 PDF-Home...")
-
         try:
-            import subprocess
-            import json
-
-            # 读取后端实际使用的端口配置（基于可配置 logs_dir 与组件根）
             component_root = self.component_root
             base_logs = Path(self.params.get('logs_dir') or (component_root / 'logs'))
-            runtime_ports_file = base_logs / "runtime-ports.json"
-            actual_ports = {}
-            if runtime_ports_file.exists():
-                try:
-                    with open(runtime_ports_file, 'r', encoding='utf-8') as f:
-                        actual_ports = json.load(f)
-                    self.log_signal.emit(f"📌 读取到后端实际端口配置: {actual_ports}")
-                except Exception as e:
-                    self.log_signal.emit(f"⚠️ 读取端口配置失败: {e}，将使用GUI配置")
-
-            # 构建命令行参数（基于组件根）
-            launcher_path = component_root / 'src' / 'frontend' / 'pdf-home' / 'launcher.py'
-            cmd = [sys.executable, str(launcher_path)]
-
-            # 优先使用后端实际端口，否则使用GUI配置
-            vite_port = actual_ports.get("vite_port") or self.params.get("vite_port")
-            msgCenter_port = actual_ports.get("msgCenter_port") or self.params.get("msgCenter_port")
-            pdfFile_port = actual_ports.get("pdfFile_port") or self.params.get("pdfFile_port")
-
-            # 生产/开发模式控制：生产→ --prod；开发→ 传递 --vite-port
-            if self.params.get('is_prod'):
-                cmd.append('--prod')
-            elif vite_port:
-                cmd.extend(["--vite-port", str(vite_port)])
-            if msgCenter_port:
-                cmd.extend(["--msgCenter-port", str(msgCenter_port)])
-            if pdfFile_port:
-                cmd.extend(["--pdfFile-port", str(pdfFile_port)])
-
-            # 默认保持后端不被前端窗口关闭时停止
+            cfg = _LConfig(
+                ports=_LPorts(
+                    vite_port=self.params.get('vite_port'),
+                    msgCenter_port=self.params.get('msgCenter_port'),
+                    pdfFile_port=self.params.get('pdfFile_port'),
+                ),
+                paths=_LPaths(
+                    logs_dir=str(base_logs),
+                    data_dir=self.params.get('data_dir'),
+                    db_path=self.params.get('db_path'),
+                    static_dir=self.params.get('static_dir'),
+                    pdfs_dir=self.params.get('pdfs_dir'),
+                ),
+                options=_LOpts(
+                    runtime_mode=self.params.get('runtime_mode') or 'single',
+                    ankiaddon_root_path=self.params.get('ankiaddon_root_path'),
+                    keep_backend=True,
+                ),
+            ).with_defaults(component_root)
             try:
-                cmd.append("--keep-backend")
+                self.log_signal.emit(f"[TRACE:CLI] pdf-home cfg → ports(vite={cfg.ports.vite_port}, ws={cfg.ports.msgCenter_port}, http={cfg.ports.pdfFile_port}) options(runtime_mode={cfg.options.runtime_mode}) is_prod={bool(self.params.get('is_prod'))} logs_dir={cfg.paths.logs_dir}")
             except Exception:
                 pass
-
-            # 使用subprocess.Popen在后台启动
-            # 将子进程的 stdout/stderr 重定向到日志文件，便于诊断闪退等问题
-            try:
-                boot_log = base_logs / 'pdf-home-boot.log'
-                boot_log.parent.mkdir(parents=True, exist_ok=True)
-                log_fp = open(boot_log, 'a', encoding='utf-8', newline='\n')
-            except Exception:
-                log_fp = subprocess.DEVNULL  # 回退：无法写文件时仍然不中断
-
-            process = subprocess.Popen(
-                cmd,
-                cwd=str(component_root),
-                stdin=subprocess.DEVNULL,
-                stdout=log_fp,
-                stderr=log_fp,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
-            )
-
-            # 记录进程信息（写入可配置 logs_dir）
-            import json
-            from pathlib import Path
-            frontend_info_path = base_logs / "frontend-process-info.json"
-            frontend_info_path.parent.mkdir(exist_ok=True)
-
-            if frontend_info_path.exists():
-                with open(frontend_info_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
+            ok = _run_pdf_home_cli(cfg, is_prod=bool(self.params.get('is_prod')), on_log=lambda m: self.log_signal.emit(m))
+            if ok:
+                self.log_signal.emit("✅ PDF-Home 启动成功 (CLI)")
+                self.finished_signal.emit(True, "PDF-Home 启动成功")
             else:
-                data = {"frontend": {}}
-
-            data.setdefault("frontend", {})["pdf-home"] = {
-                "pid": process.pid,
-                "command": " ".join(cmd),
-                "started_at": str(Path(__file__).stat().st_mtime)
-            }
-
-            with open(frontend_info_path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-
-            self.log_signal.emit(f"✅ PDF-Home 启动成功 (PID: {process.pid})")
-            if vite_port:
-                self.log_signal.emit(f"   Vite端口: {vite_port}")
-            if msgCenter_port:
-                port_source = "（实际端口）" if actual_ports.get("msgCenter_port") else "（GUI配置）"
-                self.log_signal.emit(f"   WebSocket端口: {msgCenter_port} {port_source}")
-            if pdfFile_port:
-                self.log_signal.emit(f"   HTTP文件服务器端口: {pdfFile_port}")
-            self.finished_signal.emit(True, "PDF-Home 启动成功")
-
+                self.log_signal.emit("❌ PDF-Home 启动失败 (CLI)")
+                self.finished_signal.emit(False, "PDF-Home 启动失败")
         except Exception as e:
             self.log_signal.emit(f"❌ PDF-Home 启动失败: {e}")
             import traceback
@@ -372,100 +289,45 @@ class LauncherThread(QThread):
             self.log_signal.emit("💡 提示: 未指定 PDF ID，将启动空白查看器")
 
         try:
-            import subprocess
-            import json
-
-            # 读取后端实际使用的端口配置（基于可配置 logs_dir 与组件根）
             component_root = self.component_root
             base_logs = Path(self.params.get('logs_dir') or (component_root / 'logs'))
-            runtime_ports_file = base_logs / "runtime-ports.json"
-            actual_ports = {}
-            if runtime_ports_file.exists():
-                try:
-                    with open(runtime_ports_file, 'r', encoding='utf-8') as f:
-                        actual_ports = json.load(f)
-                    self.log_signal.emit(f"📌 读取到后端实际端口配置: {actual_ports}")
-                except Exception as e:
-                    self.log_signal.emit(f"⚠️ 读取端口配置失败: {e}，将使用GUI配置")
-
-            # 构建命令行参数（基于组件根）
-            launcher_path = component_root / 'src' / 'frontend' / 'pdf-viewer' / 'launcher.py'
-            cmd = [sys.executable, str(launcher_path)]
-
-            # 优先使用后端实际端口，否则使用GUI配置
-            vite_port = actual_ports.get("vite_port") or self.params.get("vite_port")
-            msgCenter_port = actual_ports.get("msgCenter_port") or self.params.get("msgCenter_port")
-            pdfFile_port = actual_ports.get("pdfFile_port") or self.params.get("pdfFile_port")
-
-            # 生产/开发控制：生产→ --prod；开发→ 传递 --vite-port
-            if self.params.get('is_prod'):
-                cmd.append('--prod')
-            elif vite_port:
-                cmd.extend(["--vite-port", str(vite_port)])
-            if msgCenter_port:
-                cmd.extend(["--msgCenter-port", str(msgCenter_port)])
-            if pdfFile_port:
-                cmd.extend(["--pdfFile-port", str(pdfFile_port)])
-            if pdf_id:
-                cmd.extend(["--pdf-id", pdf_id])
-            if page_at:
-                cmd.extend(["--page-at", str(page_at)])
-            if position:
-                cmd.extend(["--position", str(position)])
-
-            # 默认保持后端不被前端窗口关闭时停止
+            cfg = _LConfig(
+                ports=_LPorts(
+                    vite_port=self.params.get('vite_port'),
+                    msgCenter_port=self.params.get('msgCenter_port'),
+                    pdfFile_port=self.params.get('pdfFile_port'),
+                ),
+                paths=_LPaths(
+                    logs_dir=str(base_logs),
+                    data_dir=self.params.get('data_dir'),
+                    db_path=self.params.get('db_path'),
+                    static_dir=self.params.get('static_dir'),
+                    pdfs_dir=self.params.get('pdfs_dir'),
+                ),
+                options=_LOpts(
+                    runtime_mode=self.params.get('runtime_mode') or 'single',
+                    ankiaddon_root_path=self.params.get('ankiaddon_root_path'),
+                    keep_backend=True,
+                ),
+            ).with_defaults(component_root)
             try:
-                cmd.append("--keep-backend")
+                self.log_signal.emit(f"[TRACE:CLI] pdf-viewer cfg → ports(vite={cfg.ports.vite_port}, ws={cfg.ports.msgCenter_port}, http={cfg.ports.pdfFile_port}) options(runtime_mode={cfg.options.runtime_mode}) is_prod={bool(self.params.get('is_prod'))} pdf_id={pdf_id} page_at={page_at} position={position} logs_dir={cfg.paths.logs_dir}")
             except Exception:
                 pass
-
-            # 使用subprocess.Popen在后台启动
-            process = subprocess.Popen(
-                cmd,
-                cwd=str(component_root),
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0
+            ok = _run_pdf_viewer_cli(
+                cfg,
+                is_prod=bool(self.params.get('is_prod')),
+                pdf_id=pdf_id,
+                page_at=page_at,
+                position=position,
+                on_log=lambda m: self.log_signal.emit(m)
             )
-
-            # 记录进程信息（写入可配置 logs_dir）
-            import json
-            from pathlib import Path
-            frontend_info_path = base_logs / "frontend-process-info.json"
-            frontend_info_path.parent.mkdir(exist_ok=True)
-
-            if frontend_info_path.exists():
-                with open(frontend_info_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
+            if ok:
+                self.log_signal.emit("✅ PDF-Viewer 启动成功 (CLI)")
+                self.finished_signal.emit(True, "PDF-Viewer 启动成功")
             else:
-                data = {"frontend": {}}
-
-            viewer_key = f"pdf-viewer-{pdf_id}" if pdf_id else "pdf-viewer"
-            data.setdefault("frontend", {})[viewer_key] = {
-                "pid": process.pid,
-                "command": " ".join(cmd),
-                "started_at": str(Path(__file__).stat().st_mtime)
-            }
-
-            with open(frontend_info_path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-
-            self.log_signal.emit(f"✅ PDF-Viewer 启动成功 (PID: {process.pid})")
-            if pdf_id:
-                self.log_signal.emit(f"   PDF ID: {pdf_id}")
-            if page_at:
-                self.log_signal.emit(f"   目标页码: {page_at}")
-            if position:
-                self.log_signal.emit(f"   页面位置: {position}%")
-            if vite_port:
-                self.log_signal.emit(f"   Vite端口: {vite_port}")
-            if msgCenter_port:
-                port_source = "（实际端口）" if actual_ports.get("msgCenter_port") else "（GUI配置）"
-                self.log_signal.emit(f"   WebSocket端口: {msgCenter_port} {port_source}")
-            if pdfFile_port:
-                self.log_signal.emit(f"   HTTP文件服务器端口: {pdfFile_port}")
-            self.finished_signal.emit(True, "PDF-Viewer 启动成功")
+                self.log_signal.emit("❌ PDF-Viewer 启动失败 (CLI)")
+                self.finished_signal.emit(False, "PDF-Viewer 启动失败")
 
         except Exception as e:
             self.log_signal.emit(f"❌ PDF-Viewer 启动失败: {e}")
@@ -673,13 +535,16 @@ class GUILauncher(QMainWindow):
         row2.addWidget(sbtn); row2.addWidget(pbtn); row2.addWidget(stbtn)
         layout.addLayout(row2)
 
-        layout.addWidget(self._create_advanced_settings_panel())
+        # 注意：高级设置面板仅创建一次并放置在 Hosted 页签，避免重复创建导致控件引用被覆盖
+        # layout.addWidget(self._create_advanced_settings_panel())
 
         layout.addStretch()
         return widget
 
     def _create_advanced_settings_panel(self) -> QWidget:
-        """统一的高级设置（端口/路径/后端模式），供多个 Tab 复用"""
+        """统一的高级设置（端口/路径/后端模式），仅创建一次，避免多次创建覆盖控件引用。"""
+        if hasattr(self, '_advanced_panel') and getattr(self, '_advanced_panel') is not None:
+            return self._advanced_panel  # type: ignore
         widget = QGroupBox("高级设置（端口/路径/模式）")
         layout = QVBoxLayout()
         widget.setLayout(layout)
@@ -844,6 +709,8 @@ class GUILauncher(QMainWindow):
         except Exception:
             pass
 
+        # 缓存唯一实例，避免被后续其它 Tab 的创建覆盖控件指针
+        self._advanced_panel = widget
         return widget
 
     def _collect_path_overrides(self) -> Dict[str, Any]:
@@ -1282,16 +1149,9 @@ class GUILauncher(QMainWindow):
         return _COMPONENT_ROOT
 
     def _runtime_ports(self) -> Dict[str, Any]:
-        """读取后端实际端口配置，来源于当前 logs_dir（留空则 <component_root>/logs）。"""
-        try:
-            import json
-            base = (self._logs_dir or (_COMPONENT_ROOT / 'logs'))
-            p = base / 'runtime-ports.json'
-            if p.exists():
-                return json.loads(p.read_text(encoding='utf-8') or '{}')
-        except Exception:
-            pass
-        return {}
+        """读取 runtime-ports.json（统一调用 src.launcher.ports）。"""
+        base = (self._logs_dir or (_COMPONENT_ROOT / 'logs'))
+        return _read_runtime_ports_unified(base) or {}
 
     def _start_backend_hosted(self) -> None:
         """以源码开发模式启动后端（Hosted，同进程）。
@@ -1379,6 +1239,7 @@ class GUILauncher(QMainWindow):
             # 读取端口；仅在开发模式下确保 Vite 已运行
             ports = self._runtime_ports() or {}
             vite_port = int(ports.get('vite_port') or ports.get('npm_port') or (self.vite_port_input.value() or 3000))
+            self._log(f"[TRACE:HOSTED] pdf-home pre-check → is_prod={bool(self.frontend_prod_checkbox.isChecked())} runtime={ports} ui(vite={self.vite_port_input.value() or 0}, ws={self.msgCenter_port_input.value() or 0}, http={self.pdfFile_port_input.value() or 0})")
             if not bool(self.frontend_prod_checkbox.isChecked()):
                 if not self._is_port_listening('127.0.0.1', int(vite_port)):
                     # 仅在开发模式下尝试启动 Vite
@@ -1435,6 +1296,10 @@ class GUILauncher(QMainWindow):
                     keep_backend=True,
                 )
             ).with_defaults(_COMPONENT_ROOT)
+            try:
+                self._log(f"[TRACE:HOSTED] pdf-home cfg → ports(vite={cfg.ports.vite_port}, ws={cfg.ports.msgCenter_port}, http={cfg.ports.pdfFile_port}) options(frontend_prod={cfg.options.frontend_prod}, runtime_mode={cfg.options.runtime_mode})")
+            except Exception:
+                pass
             app = QApplication.instance()
             rc = _run_pdf_home_hosted(cfg, parent_app=app, on_log=self._log)
             self._log(f"PDF-Home (Hosted) 启动 rc={rc}")
@@ -1451,86 +1316,13 @@ class GUILauncher(QMainWindow):
             return False
 
     def _start_vite_dev(self) -> None:
-        """显式启动 Vite 开发服务器（Dev）。
-
-        逻辑：
-        - 优先使用高级设置端口或 runtime-ports.json 中的 vite_port/npm_port；
-        - 若端口未监听，优先调用 ai_launcher._start_vite；
-        - 无 _ai 回退到直接调用 pnpm；
-        - 同步更新 runtime-ports.json 与 dev-process-info.json。
-        """
+        """显式启动 Vite 开发服务器（Dev）——委托统一 dev_server 工具。"""
         try:
             base = (self._logs_dir or (_COMPONENT_ROOT / 'logs'))
             base.mkdir(parents=True, exist_ok=True)
-
             ports = self._runtime_ports() or {}
             vite_port = int(self.vite_port_input.value() or ports.get('vite_port') or ports.get('npm_port') or 3000)
-
-            # 已在监听则跳过
-            if self._is_port_listening('127.0.0.1', vite_port):
-                self._log(f"Vite 已在端口 {vite_port} 监听，跳过启动")
-                return
-
-            # 优先使用 ai_launcher
-            pid = None
-            used_port = vite_port
-            try:
-                if _ai is not None and hasattr(_ai, '_start_vite'):
-                    pid = _ai._start_vite(vite_port)
-                    # 读取实际端口（可能自增）
-                    try:
-                        import json as _json
-                        dev_info = _read_json_safe(base / 'dev-process-info.json')
-                        used_port = int(dev_info.get('vite', {}).get('port') or vite_port)
-                    except Exception:
-                        used_port = vite_port
-            except Exception as e:
-                self._log(f"[WARN] 调用 ai_launcher._start_vite 失败: {e}")
-
-            # 回退：直接调用 pnpm
-            if pid is None:
-                try:
-                    import subprocess
-                    log_path = base / 'npm-dev.log'
-                    cmd = ['pnpm', 'run', 'dev', '--', '--port', str(vite_port)]
-                    self._log(f"直接启动 Vite: {' '.join(cmd)}，日志: {log_path}")
-                    log_fp = open(log_path, 'a', encoding='utf-8', newline='\n')
-                    creation = subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == 'win32' else 0
-                    proc = subprocess.Popen(
-                        cmd,
-                        cwd=str(PROJECT_ROOT),
-                        stdin=subprocess.DEVNULL,
-                        stdout=log_fp,
-                        stderr=log_fp,
-                        shell=(sys.platform == 'win32'),
-                        creationflags=creation,
-                    )
-                    pid = proc.pid
-                except Exception as e:
-                    self._log(f"[ERROR] 启动 Vite 失败: {e}")
-                    pid = None
-
-            # 更新 runtime-ports.json 与 dev-process-info.json
-            try:
-                import json as _json
-                # runtime-ports
-                rp = _read_json_safe(base / 'runtime-ports.json') or {}
-                rp['vite_port'] = int(used_port)
-                rp['npm_port'] = int(used_port)
-                (base / 'runtime-ports.json').write_text(_json.dumps(rp, ensure_ascii=False, indent=2) + "\n", encoding='utf-8')
-                # dev-process-info
-                info = _read_json_safe(base / 'dev-process-info.json') or {}
-                info['vite'] = {
-                    'pid': int(pid) if pid else None,
-                    'port': int(used_port),
-                    'cmd': f"pnpm run dev -- --port {used_port}",
-                    'status': 'running' if pid else 'unknown'
-                }
-                info['_meta'] = {'updated': __import__('time').strftime('%Y-%m-%d %H:%M:%S')}
-                (base / 'dev-process-info.json').write_text(_json.dumps(info, ensure_ascii=False, indent=2) + "\n", encoding='utf-8')
-            except Exception as e:
-                self._log(f"[WARN] 更新 Vite 状态文件失败: {e}")
-
+            pid, used_port = _ensure_vite(vite_port, component_root=_COMPONENT_ROOT, logs_dir=base, ai_module=_ai)
             self._log(f"Vite 启动完成: PID={pid} 端口={used_port}")
             self._update_status()
         except Exception as e:
@@ -1540,6 +1332,7 @@ class GUILauncher(QMainWindow):
         try:
             from PyQt6.QtWidgets import QApplication
             ports = self._runtime_ports() or {}
+            self._log(f"[TRACE:HOSTED] pdf-viewer pre-build → is_prod={bool(self.frontend_prod_checkbox.isChecked())} runtime={ports} ui(vite={self.vite_port_input.value() or 0}, ws={self.msgCenter_port_input.value() or 0}, http={self.pdfFile_port_input.value() or 0})")
             cfg = _LConfig(
                 ports=_LPorts(
                     vite_port=int(ports.get('vite_port') or ports.get('npm_port') or (self.vite_port_input.value() or 0)) or None,
@@ -1560,6 +1353,10 @@ class GUILauncher(QMainWindow):
                     keep_backend=True,
                 )
             ).with_defaults(_COMPONENT_ROOT)
+            try:
+                self._log(f"[TRACE:HOSTED] pdf-viewer cfg → ports(vite={cfg.ports.vite_port}, ws={cfg.ports.msgCenter_port}, http={cfg.ports.pdfFile_port}) options(frontend_prod={cfg.options.frontend_prod}, runtime_mode={cfg.options.runtime_mode})")
+            except Exception:
+                pass
             app = QApplication.instance()
             rc = _run_pdf_viewer_hosted(cfg, parent_app=app,
                                         pdf_id=(self.pdf_id_input.text().strip() or None),
@@ -1743,11 +1540,20 @@ class GUILauncher(QMainWindow):
 
     def _on_start_pdf_home(self):
         """启动 PDF-Home"""
+        ui_vite = int(self.vite_port_input.value() or 0) or 3000
+        ui_ws = int(self.msgCenter_port_input.value() or 0) or 8765
+        ui_http = int(self.pdfFile_port_input.value() or 0) or 8080
+        is_prod = bool(self.frontend_prod_checkbox.isChecked())
+        try:
+            rp = self._runtime_ports() or {}
+            self._log(f"[TRACE:UI] start pdf-home → is_prod={is_prod} ui(vite={ui_vite}, ws={ui_ws}, http={ui_http}) runtime={rp}")
+        except Exception:
+            pass
         params = {
-            "vite_port": self.vite_port_input.value() or 3000,
-            "msgCenter_port": self.msgCenter_port_input.value() or 8765,
-            "pdfFile_port": self.pdfFile_port_input.value() or 8080,
-            "is_prod": bool(self.frontend_prod_checkbox.isChecked())
+            "vite_port": ui_vite,
+            "msgCenter_port": ui_ws,
+            "pdfFile_port": ui_http,
+            "is_prod": is_prod
         }
         self._start_task("pdf-home", params)
 
@@ -1759,11 +1565,20 @@ class GUILauncher(QMainWindow):
         if not pdf_id:
             self._log("💡 提示: 未指定 PDF ID，将启动空白查看器")
 
+        ui_vite = int(self.vite_port_input.value() or 0) or 3000
+        ui_ws = int(self.msgCenter_port_input.value() or 0) or 8765
+        ui_http = int(self.pdfFile_port_input.value() or 0) or 8080
+        is_prod = bool(self.frontend_prod_checkbox.isChecked())
+        try:
+            rp = self._runtime_ports() or {}
+            self._log(f"[TRACE:UI] start pdf-viewer → is_prod={is_prod} ui(vite={ui_vite}, ws={ui_ws}, http={ui_http}) pdf_id={pdf_id or None} runtime={rp}")
+        except Exception:
+            pass
         params = {
-            "vite_port": self.vite_port_input.value() or 3000,
-            "msgCenter_port": self.msgCenter_port_input.value() or 8765,
-            "pdfFile_port": self.pdfFile_port_input.value() or 8080,
-            "is_prod": bool(self.frontend_prod_checkbox.isChecked()),
+            "vite_port": ui_vite,
+            "msgCenter_port": ui_ws,
+            "pdfFile_port": ui_http,
+            "is_prod": is_prod,
             "pdf_id": pdf_id if pdf_id else None,  # 空字符串转为 None
             "page_at": self.page_at_input.value() if self.page_at_input.value() > 0 else None,
             "position": self.position_input.value() if self.position_input.value() > 0 else None

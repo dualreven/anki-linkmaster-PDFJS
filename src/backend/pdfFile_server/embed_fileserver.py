@@ -322,6 +322,12 @@ class EmbedFileServer(QObject):
 
         # 优先匹配已配置的挂载点（最长前缀优先）
         mounts = dict(self.mounts)
+        # 显式将 /static 映射到静态根（index.html 内引用 /static/*）
+        try:
+            if self.static_root and Path(self.static_root).exists():
+                mounts.setdefault('/static', Path(self.static_root))
+        except Exception:
+            pass
         # 默认内置挂载：前端静态资源（指向具体子目录，而不是静态根本身）
         try:
             home_base = (self.static_root / 'pdf-home')

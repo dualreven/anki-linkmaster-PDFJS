@@ -57,10 +57,18 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
   - 由“前端生产模式”复选框控制；
   - 生产（--prod）：页面从 HTTP 静态路由加载；
   - 开发（--vite-port <n>）：页面从 Vite URL 加载。
+  - Hosted 启动 pdf-home：仅在开发模式下尝试探测/拉起 Vite；生产模式不触发任何 Vite 相关动作（避免误用 dev 端口）。
 - 目录与端口：
   - 日志默认 `<component_root>/logs`；
   - 数据、静态、PDF 库路径可在 UI 中显式指定；
   - 端口（vite|ws|http）可在 UI 中指定；运行时实际端口写入 `runtime-ports.json`。
+
+### 启动/端口/Vite 管理集中（2025-10-16 更新）
+- 统一入口：
+  - 端口文件：`src/launcher/ports.py`（读/写 runtime-ports.json、dev-process-info.json）
+  - Vite 启动：`src/launcher/dev_server.py.ensure_vite()`（优先 ai_launcher，回退 pnpm）
+  - CLI 启动：`src/launcher/runner.py`（`start_backend_cli`、`start_pdf_home_cli`、`start_pdf_viewer_cli`）
+- GUI 仅组装 `LauncherConfig` 并调用 `runner`；不直接写运行时状态文件。
 
 
 ## 数据库路径解析规范（2025-10-13 更新：参数式，无环境变量）

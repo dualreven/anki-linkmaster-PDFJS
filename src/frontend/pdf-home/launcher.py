@@ -27,6 +27,7 @@ sys.path.insert(0, str(project_root))
 
 from src.qt.compat import QApplication, QUrl, QWebSocket, QWebChannel
 from src.frontend.common.launch_config import LaunchConfig
+from src.launcher.ports import read_runtime_ports as _ports_read, write_runtime_ports as _ports_write
 
 # Import PyQtBridge and JSConsoleLogger from current directory
 import importlib.util
@@ -144,22 +145,18 @@ def get_vite_port():
 
 
 def _read_runtime_ports(cwd: Path | None = None) -> tuple[int, int, int, dict]:
-    """Read logs/runtime-ports.json and return (vite_port, msgCenter_port, pdfFile_port, extras).
-    Fallback to (8765, 8080) if missing or malformed.
-    """
+    """读取 logs/runtime-ports.json（统一从 src.launcher.ports 调用）。"""
     try:
         base = Path(cwd) if cwd else Path(os.getcwd())
-        cfg_path = base / 'logs' / 'runtime-ports.json'
-        if cfg_path.exists():
-            data = json.loads(cfg_path.read_text(encoding='utf-8') or '{}')
-            vite_port = int(data.get('vite_port') or data.get('npm_port') or 3000)
-            msgCenter_port = int(data.get('msgCenter_port') or data.get('ws_port') or 8765)
-            pdfFile_port = int(data.get('pdfFile_port') or data.get('pdf_port') or 8080)
-            extras = {k: v for k, v in data.items() if k not in ("vite_port", "npm_port", "msgCenter_port", "ws_port", "pdfFile_port", "pdf_port")}
-            return vite_port, msgCenter_port, pdfFile_port, extras
+        data = _ports_read(base / 'logs') or {}
+        vite_port = int(data.get('vite_port') or data.get('npm_port') or 3000)
+        msgCenter_port = int(data.get('msgCenter_port') or data.get('ws_port') or 8765)
+        pdfFile_port = int(data.get('pdfFile_port') or data.get('pdf_port') or 8080)
+        extras = {k: v for k, v in data.items() if k not in ("vite_port", "npm_port", "msgCenter_port", "ws_port", "pdfFile_port", "pdf_port")}
+        return vite_port, msgCenter_port, pdfFile_port, extras
     except Exception as exc:  # pragma: no cover - defensive
         logger.warning("Failed reading runtime-ports.json: %s", exc)
-    return 3000, 8765, 8080, {}
+        return 3000, 8765, 8080, {}
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -269,6 +266,7 @@ class PdfHomeApp:
         pdfFile_port = self.config.pdfFile_port or pdfFile_json
         js_debug_port = self.config.js_debug_port or int(extras.get("pdf-home-js", 9222))
 
+        logger.info(f"Mode: is_prod={self.config.is_prod} keep_backend={self.config.keep_backend}")
         logger.info(f"Resolved ports: vite={vite_port} msgCenter={msgCenter_port} pdfFile={pdfFile_port}")
         logger.info(f"JS remote debug port: {js_debug_port}")
         # 在记录 compat 之前，尝试加载/重试 QtWebEngine
@@ -328,6 +326,7 @@ class PdfHomeApp:
 
         # 步骤 8: 加载前端（若无 QtWebEngine，回退为外部浏览器）
         url = self._build_frontend_url(vite_port, msgCenter_port, pdfFile_port)
+        logger.info(f"Front-end URL built: {url}")
         logger.info(f"Loading front-end: {url}")
 
         try:
@@ -380,12 +379,12 @@ class PdfHomeApp:
             return f"http://localhost:{vite_port}/pdf-home/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"
 
     def _persist_ports(self, vite_port, msgCenter_port, pdfFile_port, extras):
+        """持久化端口（委托给 src.launcher.ports.write_runtime_ports）。"""
         try:
             logs_dir = project_root / 'logs'
             logs_dir.mkdir(parents=True, exist_ok=True)
-            cfg_path = logs_dir / 'runtime-ports.json'
             payload = {"vite_port": vite_port, "msgCenter_port": msgCenter_port, "pdfFile_port": pdfFile_port, **(extras or {})}
-            cfg_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding='utf-8')
+            _ports_write(logs_dir, payload)
         except Exception as exc:
             logger.warning("Failed persisting runtime-ports.json: %s", exc)
 

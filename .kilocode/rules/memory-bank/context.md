@@ -191,6 +191,71 @@
 
 状态：✅ 已完成并提交代码（Hosted/子进程双模式可用）。
 
+### 当前任务（20251016171909）
+名称：勾选“生产模式”后仍然请求 Vite 端口的成因与参数传递路径确认
+
+背景：
+- 运行 `python dist/latest/gui_launcher.py`，用户勾选“生产模式（--prod）”后观察到仍有对 Vite 端口的请求/探测。
+
+参数传递路径（前端模式 dev/prod）
+- GUI（dist/latest/gui_launcher.py）
+  - CLI 启动：`_on_start_pdf_home/_viewer` → `LauncherThread._start_pdf_home/_viewer` → `--prod` 或 `--vite-port <n>` 注入。
+  - Hosted 启动：`_start_pdf_home_hosted/_viewer_hosted` → `_LConfig.options.frontend_prod` → `runner` → FE LaunchConfig(`is_prod`).
+- Runner（src/launcher/runner.py）
+  - 将 `frontend_prod` 正确映射为 FE 端 `LaunchConfig.is_prod`。
+- FE 前端（pdf-home/pdf-viewer launcher）
+  - `is_prod=True` → URL 基址使用 HTTP 文件服务器；`is_prod=False` → 使用 Vite URL。
+
+问题根因（历史逻辑）
+- Hosted 启动 pdf-home 的早期实现会“无条件尝试确保 Vite 运行”，即便勾选了生产模式也会做端口探测/拉起操作，造成“请求 Vite 端口”的观感。
+- 已修复：现仅在开发模式（未勾选生产）下，才会 `_is_port_listening()` 并按需 `ai_launcher._start_vite(...)`。生产模式分支不再触发任何 Vite 相关动作。
+  - 参考：`dist/latest/gui_launcher.py:1379-1399`（分支判断）。
+
+注意事项
+- pdf-home 运行后，内部 `PyQtBridge` 的 `is_prod` 值固定为启动时注入；GUI 复选框后续切换不会影响已运行实例。因此从已运行的 pdf-home 内再打开 pdf-viewer，仍按该实例启动时的模式构造 URL。
+
+验证要点
+- 生产模式下启动 pdf-home：`logs/pdf-home.log` 中应看到 URL 基址为 `http://127.0.0.1:<pdfFile_port>/pdf-home/`；`logs/dev-process-info.json` 不应更新 `vite`。
+
+结论
+- 生产模式参数在两条路径均传递正确；历史问题在于 Hosted pdf-home 启动前“确保 Vite 运行”的无条件动作，已改为仅限开发模式触发。
+
+### 当前任务（20251016233032）
+名称：gui_launcher 脚本重复实现与逻辑评审（不修改 dist）
+
+要点：
+- 重复实现：
+  - 组件根解析：gui 自实现 vs src.launcher.config.resolve_component_root（gui_launcher.py:37；src/launcher/config.py:21）。
+  - 后端 CLI 启动：gui 手写 subprocess vs runner.start_backend_cli（gui_launcher.py:204；src/launcher/runner.py:24）。
+  - Vite 启动与状态：gui 自管 vs ai_launcher/服务（gui_launcher.py:1453 等）。
+  - 端口读写：GUI 与 FE launcher 均读写 runtime-ports.json（gui_launcher.py:1284,1513；pdf-home:146,382；pdf-viewer:222,487）。
+- 职责混杂：GUI 既做 UI 又编排端口/进程/状态文件，偏离“UI 与 runner 解耦”的目标。
+
+建议：
+- 在 `src/launcher` 新增 `ports.py` 与 `dev_server.py`，集中端口与 Vite 管理；
+- GUI 统一走 `runner.*`（含新增 `start_pdf_home_cli/start_pdf_viewer_cli`）以去除 subprocess 细节；
+- GUI 使用 `resolve_component_root()`，不再本地实现；
+- GUI 主要“读状态、展示”，尽量不写运行时状态文件。
+
+### 执行结果（20251016235606）
+已按建议在源码侧落地：
+- 新增 `src/launcher/ports.py`、`src/launcher/dev_server.py`；
+- 扩展 `src/launcher/runner.py`：新增 FE CLI 启动函数；
+- 更新 `gui_launcher.py`（源码）：
+  - 组件根解析委托给 `src.launcher.config.resolve_component_root`；
+  - `_start_backend/_start_pdf_home/_start_pdf_viewer` 调用 runner；
+  - `_runtime_ports` 使用 `ports.read_runtime_ports`；
+  - `_start_vite_dev` 使用 `dev_server.ensure_vite`；
+  - 不修改 dist/；
+效果：去除重复、统一行为与状态写入位置（UTF-8, \n）。
+
+### 追踪增强（20251017003540）
+为定位“仍然走 vite_port”的链路问题，新增逐级 Trace 日志：
+- GUI：`[TRACE:UI]`、`[TRACE:HOSTED]`、`[TRACE:CLI]` 打印 is_prod、UI端口、runtime-ports、拼装 cfg 等；
+- Runner：`[TRACE:RUNNER:CLI]` 打印输入 cfg、runtime-ports、最终命令；
+- 前端：在 pdf-home/pdf-viewer 日志中打印 Mode 与最终 URL。
+查看：`logs/gui-launcher.log`、`logs/pdf-home.log`、`logs/pdf-viewer-*.log`。
+
 ### 当前任务（20251013214050）
 名称：Anki 嵌入式运行时将数据与数据库定位到插件组件根（lib/*/data）
 

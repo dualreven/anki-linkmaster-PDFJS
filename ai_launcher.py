@@ -679,29 +679,28 @@ def _stop_frontend(module_filter: Optional[str] = None) -> bool:
 
 
 def _stop_backend() -> bool:
-    """停止后端服务（使用进程信息文件）"""
+    """停止后端服务（委托给 src/backend/launcher.py stop）。"""
     if os.environ.get("AI_LAUNCHER_TEST_MODE") == "1":
         return True
 
-    # 读取后端进程信息
-    backend_info = read_json(LOGS_DIR / "backend-process-info.json")
-    pid = backend_info.get("backend", {}).get("pid")
+    try:
+        cmd = [sys.executable, str(PROJECT_ROOT / "src" / "backend" / "launcher.py"), "stop"]
+        LOGGER.info("Stopping backend services via backend/launcher.py: %s", " ".join(cmd))
+        res = subprocess.run(cmd, cwd=str(PROJECT_ROOT))
+        ok = (res.returncode == 0)
+    except Exception as exc:
+        LOGGER.error("Failed to invoke backend stop: %s", exc)
+        ok = False
 
-    if pid and is_process_running(pid):
-        LOGGER.info("Stopping backend process (PID: %s)", pid)
-        success = kill_process(int(pid))
-        if success:
-            LOGGER.info("✅ Backend stopped successfully")
-        else:
-            LOGGER.warning("⚠️ Failed to stop backend process")
-
-        # 清理进程信息
-        ports = backend_info.get("backend", {}).get("ports", {})
+    # 无论是否成功，尽量将本地跟踪文件标记为 stopped（不再依赖短生命周期的 launcher 进程 PID）
+    try:
+        backend_info = read_json(LOGS_DIR / "backend-process-info.json")
+        ports = backend_info.get("backend", {}).get("ports", {}) if isinstance(backend_info, dict) else {}
         _save_backend_process(None, ports.get("msgCenter_port", 8765), ports.get("pdfFile_port", 8080))
-        return success
-    else:
-        LOGGER.info("Backend not running or already stopped")
-        return True
+    except Exception:
+        pass
+
+    return ok
 
 
 # ---- CLI ----
