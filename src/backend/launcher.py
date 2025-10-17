@@ -841,6 +841,17 @@ class BackendLauncher:
                 return False
 
             self.logger.info(f"✅ WebSocket 服务器已启动: ws://127.0.0.1:{ws_port}")
+            # 将消息中心作为纯转发层：在此连接其 message_received 信号，由后端执行实际动作
+            try:
+                # 标准服务器实例位于 self.ws_server._server
+                if hasattr(self.ws_server, '_server') and hasattr(self.ws_server._server, 'message_received'):
+                    self.ws_server._server.message_received.connect(self._on_msgcenter_message)  # type: ignore[attr-defined]
+                    self.logger.info("[BackendLauncher] 已连接 msgCenter.message_received → BackendLauncher._on_msgcenter_message")
+                elif hasattr(self.ws_server, 'message_received'):
+                    self.ws_server.message_received.connect(self._on_msgcenter_message)  # type: ignore[attr-defined]
+                    self.logger.info("[BackendLauncher] 已连接（兼容封装） msgCenter.message_received → BackendLauncher._on_msgcenter_message")
+            except Exception as _e:
+                self.logger.warning("[BackendLauncher] 连接 msgCenter.message_received 信号失败: %s", str(_e))
 
             # 4. 启动 HTTP 文件服务器
             from src.backend.pdfFile_server.embed_fileserver import EmbedFileServer
@@ -988,6 +999,68 @@ class BackendLauncher:
                 "port": self.http_server.port if self.http_server else None
             }
         }
+
+    # === 消息分发：由后端执行实际启动动作，msgCenter 仅负责收发 ===
+    def _on_msgcenter_message(self, client, message: Dict[str, Any]) -> None:
+        try:
+            msg_type = (message or {}).get('type') or ''
+            data = (message or {}).get('data') or {}
+            req_id = (message or {}).get('request_id') or None
+
+            # 兼容别名
+            if msg_type not in {"pdf-library:viewer:requested", "pdf-library:open:viewer", "open_pdf"}:
+                return
+
+            from src.launcher.config import LauncherConfig as _LConfig, LauncherOptions as _LOpts, LauncherPorts as _LPorts
+            from src.launcher.ports import read_runtime_ports as _read_ports
+            from src.launcher.runner import start_pdf_viewer_hosted as _run_viewer
+            from src.backend.msgCenter_server.standard_protocol import StandardMessageHandler, MessageType
+            from PyQt6.QtWidgets import QApplication
+
+            pdf_id = str(data.get('pdf_id') or data.get('file_id') or '') or None
+            page_at = data.get('page_at')
+            position = data.get('position')
+
+            ports = _read_ports(project_root / 'logs') or {}
+            vite_port = int(ports.get('vite_port') or ports.get('npm_port') or 0) or None
+            msg_port = int(ports.get('msgCenter_port') or 0) or None
+            pdf_port = int(ports.get('pdfFile_port') or 0) or None
+
+            cfg = _LConfig(
+                ports=_LPorts(vite_port=vite_port, msgCenter_port=msg_port, pdfFile_port=pdf_port),
+                options=_LOpts(frontend_prod=True, keep_backend=True),
+            )
+
+            app = QApplication.instance()
+            rc = _run_viewer(cfg, parent_app=app, pdf_id=pdf_id, page_at=page_at, position=position)
+            self.logger.info("[MsgDispatch] viewer hosted run rc=%s for pdf_id=%s", rc, pdf_id)
+
+            # 回执
+            ack = StandardMessageHandler.build_response(
+                MessageType.PDF_LIBRARY_VIEWER_COMPLETED,
+                req_id or StandardMessageHandler.generate_request_id(),
+                status="success",
+                code=200,
+                message="查看器已启动",
+                data={"pdf_id": pdf_id, "rc": int(rc or 0)},
+            )
+            try:
+                if hasattr(self.ws_server, '_server') and hasattr(self.ws_server._server, 'send_message'):
+                    self.ws_server._server.send_message(client, ack)  # type: ignore[attr-defined]
+                elif hasattr(self.ws_server, 'send_message'):
+                    self.ws_server.send_message(client, ack)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        except Exception as e:
+            try:
+                from src.backend.msgCenter_server.standard_protocol import StandardMessageHandler, MessageType
+                err = StandardMessageHandler.build_error_response(req_id or "unknown", "VIEWER_ERROR", str(e), message_type=MessageType.PDF_LIBRARY_VIEWER_FAILED, code=500)
+                if hasattr(self.ws_server, '_server') and hasattr(self.ws_server._server, 'send_message'):
+                    self.ws_server._server.send_message(client, err)  # type: ignore[attr-defined]
+                elif hasattr(self.ws_server, 'send_message'):
+                    self.ws_server.send_message(client, err)  # type: ignore[attr-defined]
+            except Exception:
+                pass
 
     # ---- 私有方法 ----
 
