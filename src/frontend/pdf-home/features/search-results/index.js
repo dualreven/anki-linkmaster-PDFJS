@@ -64,20 +64,16 @@ export class SearchResultsFeature {
       this.#resultsRenderer = new ResultsRenderer(this.#logger, this.#scopedEventBus);
       this.#logger.info('[SearchResultsFeature] Step2: Renderer constructed');
 
-      // 2.1 初始化 QWebChannel 桥接（供“阅读”按钮调用 PyQt 打开窗口）
+      // 2.1 移除 QWebChannel 作为强依赖；改为通过 WebSocket 向 msgCenter 发送“打开查看器”请求
+      // 如需兼容旧版桥接，可在测试工厂中注入 bridge，但生产默认不再依赖 QWebChannel。
       try {
-        let factory = SearchResultsFeature.bridgeFactory;
-        if (!factory) {
-          // 动态导入，避免测试环境因 import.meta 等语法报错
-          const mod = await import("../../qwebchannel/qwebchannel-bridge.js");
-          const Bridge = mod?.QWebChannelBridge || mod?.default?.QWebChannelBridge || mod?.default;
-          factory = () => new Bridge();
+        if (SearchResultsFeature.bridgeFactory) {
+          this.#qwcBridge = SearchResultsFeature.bridgeFactory();
+          await this.#qwcBridge?.initialize?.();
+          this.#logger.info("[SearchResultsFeature] QWebChannelBridge（可选）已初始化");
         }
-        this.#qwcBridge = factory();
-        await this.#qwcBridge.initialize();
-        this.#logger.info("[SearchResultsFeature] QWebChannelBridge 已就绪");
       } catch (e) {
-        this.#logger.warn("[SearchResultsFeature] QWebChannelBridge 初始化失败，阅读功能不可用", e);
+        this.#logger.warn("[SearchResultsFeature] QWebChannelBridge 初始化（可选）失败，忽略", e);
       }
 
       // 3. 监听筛选结果更新事件（来自filter插件）
@@ -218,25 +214,15 @@ export class SearchResultsFeature {
             toastWarning("请先选择要阅读的PDF");
             return;
           }
-          if (!this.#qwcBridge) {
-            this.#logger.warn("[SearchResultsFeature] QWebChannel 未初始化，无法打开阅读窗口");
-            return;
-          }
-          try { await this.#qwcBridge.initialize?.(); } catch { /* ignore init errors */ }
-          if (this.#qwcBridge.isReady && !this.#qwcBridge.isReady()) {
-            this.#logger.warn("[SearchResultsFeature] QWebChannel 未就绪，无法打开阅读窗口");
-            return;
-          }
           const idSet = new Set(selectedIds.map(String));
           const items = (this.#currentResults || [])
             .filter(r => idSet.has(String(r.id)))
             .map(r => ({ id: String(r.id), filename: r.filename || undefined, file_path: r.path || r.file_path || undefined, title: r.title || undefined }));
-          this.#logger.info("[SearchResultsFeature] 发起阅读（批量）", { count: selectedIds.length, withMeta: items.length });
-          const payload = { pdfIds: selectedIds.map(String), items };
-          if (typeof this.#qwcBridge.openPdfViewersWithMeta === "function") {
-            await this.#qwcBridge.openPdfViewersWithMeta(payload);
-          } else {
-            await this.#qwcBridge.openPdfViewers(payload);
+          this.#logger.info("[SearchResultsFeature] 发起阅读（批量，WS）", { count: selectedIds.length, withMeta: items.length });
+          for (const id of selectedIds.map(String)) {
+            const rid = `open-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+            const msg = { type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF, request_id: rid, data: { pdf_id: id } };
+            this.#scopedEventBus?.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, msg);
           }
         } catch (e) {
           this.#logger.error("[SearchResultsFeature] 执行阅读失败", e);
@@ -521,18 +507,11 @@ export class SearchResultsFeature {
         const items = [{ id: String(pdfId), filename: filename || undefined, file_path: filePath || undefined, title: title || undefined }];
         const payload = { pdfIds: [String(pdfId)], items };
 
-        this.#logger.info("[SearchResultsFeature] [步骤10] Calling PyQt bridge", {
-          hasWithMeta: typeof this.#qwcBridge.openPdfViewersWithMeta === "function",
-          payload
-        });
-
-        if (typeof this.#qwcBridge.openPdfViewersWithMeta === "function") {
-          await this.#qwcBridge.openPdfViewersWithMeta(payload);
-        } else {
-          await this.#qwcBridge.openPdfViewers(payload);
-        }
-
-        this.#logger.info("[SearchResultsFeature] [步骤11] PyQt bridge call completed");
+        this.#logger.info("[SearchResultsFeature] [步骤10] 通过 WebSocket 请求打开viewer", { pdfId });
+        const rid = `open-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+        const msg = { type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF, request_id: rid, data: { pdf_id: String(pdfId) } };
+        this.#scopedEventBus?.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, msg);
+        this.#logger.info("[SearchResultsFeature] [步骤11] WS 消息已发送");
         // 最终成功阶段的 toast 由 QWebChannelBridge 显示
 
       } catch (e) {
@@ -704,4 +683,3 @@ export class SearchResultsFeature {
 }
 
 export default SearchResultsFeature;
-

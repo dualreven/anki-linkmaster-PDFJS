@@ -574,16 +574,49 @@ class StandardWebSocketServer(QObject):
             )
 
     def handle_open_pdf_request(self, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+        """处理“打开查看器”请求：经由 runner 在 Hosted 下启动 pdf-viewer 窗口。
+
+        契约（前端 → 后端）:
+          type: 'pdf-library:viewer:requested'
+          data: { pdf_id: string, page_at?: number, position?: number }
+
+        响应（后端 → 前端）:
+          type: 'pdf-library:viewer:completed' | 'pdf-library:viewer:failed'
+        """
         try:
+            from PyQt6.QtWidgets import QApplication  # 延迟导入
+            from src.launcher.config import LauncherConfig as _LConfig, LauncherOptions as _LOpts, LauncherPorts as _LPorts, LauncherPaths as _LPaths
+            from src.launcher.runner import start_pdf_viewer_hosted as _run_viewer
+            from src.launcher.ports import read_runtime_ports as _read_ports
+
             pdf_id = (data or {}).get("pdf_id") or (data or {}).get("file_id")
-            payload = {"file_id": pdf_id} if pdf_id else {}
-            # 最小实现：仅回执完成。实际窗口打开应由上层应用集成。
+            page_at = (data or {}).get("page_at")
+            position = (data or {}).get("position")
+
+            # 读取端口（以 logs/runtime-ports.json 为准）
+            ports = _read_ports(project_root / 'logs') or {}
+            vite_port = int(ports.get('vite_port') or ports.get('npm_port') or 0) or None
+            msg_port = int(ports.get('msgCenter_port') or 0) or None
+            pdf_port = int(ports.get('pdfFile_port') or 0) or None
+
+            # 组装配置：统一以生产模式打开 viewer（页面资源来自 HTTP 文件服务）
+            cfg = _LConfig(
+                ports=_LPorts(vite_port=vite_port, msgCenter_port=msg_port, pdfFile_port=pdf_port),
+                paths=_LPaths(),
+                options=_LOpts(frontend_prod=True, keep_backend=True),
+            )
+
+            app = QApplication.instance()
+            rc = _run_viewer(cfg, parent_app=app, pdf_id=str(pdf_id) if pdf_id else None, page_at=page_at, position=position)
+            logger.info("viewer hosted run rc=%s for pdf_id=%s", rc, pdf_id)
+
+            payload = {"pdf_id": pdf_id, "rc": int(rc or 0)} if pdf_id else {"rc": int(rc or 0)}
             return StandardMessageHandler.build_response(
                 MessageType.PDF_LIBRARY_VIEWER_COMPLETED,
                 request_id or StandardMessageHandler.generate_request_id(),
                 status="success",
                 code=200,
-                message="查看器请求已接收",
+                message="查看器启动请求已执行",
                 data=payload,
             )
         except Exception as exc:

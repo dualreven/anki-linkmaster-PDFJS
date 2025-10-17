@@ -414,7 +414,7 @@ class PdfHomeApp:
         try:
             logger.info("[QWebChannel] 开始初始化 QWebChannel...")
             channel = QWebChannel(self.window)
-            self.pyqt_bridge = PyQtBridge(self.window, is_prod=self.config.is_prod)
+            self.pyqt_bridge = PyQtBridge(self.window, is_prod=self.config.is_prod, ws_client=self.ws_client)
             channel.registerObject('pyqtBridge', self.pyqt_bridge)
 
             if self.window.web_page:
@@ -519,7 +519,7 @@ def resolve_production_index(base: Path) -> Path | None:
             logger.info("[QWebChannel] QWebChannel 创建成功")
 
             # 创建 PyQtBridge 实例
-            self.pyqt_bridge = PyQtBridge(self.window, is_prod=self.config.is_prod)
+            self.pyqt_bridge = PyQtBridge(self.window, is_prod=self.config.is_prod, ws_client=self.ws_client)
             logger.info("[QWebChannel] PyQtBridge 创建成功")
 
             # 注册 PyQtBridge 到 QWebChannel
