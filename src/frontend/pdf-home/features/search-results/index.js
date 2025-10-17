@@ -460,32 +460,15 @@ export class SearchResultsFeature {
           return;
         }
 
-        if (!this.#qwcBridge) {
-          toastError("❌ QWebChannelBridge 未初始化");
-          this.#logger.warn("[SearchResultsFeature] QWebChannelBridge not available, cannot open viewer");
-          return;
-        }
-
-        this.#logger.info("[SearchResultsFeature] [步骤4] Checking QWebChannel status");
-
-        // ensure initialized (idempotent)
+        // 可选：若存在桥接则尝试初始化，但不作为必需条件（采用 WS 发送 viewer 请求）
         try {
-          await this.#qwcBridge.initialize?.();
-          this.#logger.info("[SearchResultsFeature] [步骤5] QWebChannel initialized");
+          await this.#qwcBridge?.initialize?.();
+          if (this.#qwcBridge?.isReady && !this.#qwcBridge.isReady()) {
+            this.#logger.info("[SearchResultsFeature] [步骤6] Waiting for optional QWebChannel ready");
+            await new Promise(r => setTimeout(r, 200));
+          }
         } catch (e) {
-          toastError("❌ QWebChannel 初始化失败");
-          this.#logger.error("[SearchResultsFeature] QWebChannel init failed", e);
-          return;
-        }
-
-        if (this.#qwcBridge.isReady && !this.#qwcBridge.isReady()) {
-          this.#logger.info("[SearchResultsFeature] [步骤6] Waiting for QWebChannel ready");
-          await new Promise(r => setTimeout(r, 200));
-        }
-        if (this.#qwcBridge.isReady && !this.#qwcBridge.isReady()) {
-          toastError("❌ QWebChannel 未就绪");
-          this.#logger.warn("[SearchResultsFeature] QWebChannel not ready, cannot open viewer");
-          return;
+          this.#logger.warn("[SearchResultsFeature] 可选的 QWebChannel 初始化失败，忽略", e);
         }
 
         // 若缺少 file_path，尝试从后端查询一次详情（遵守隔离原则：通过 WS 访问）
