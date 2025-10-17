@@ -77,6 +77,7 @@ def start_backend_hosted(cfg: LauncherConfig, *, parent_app, on_log: Optional[Ca
         db_path=cfg.paths.db_path,
         static_dir=cfg.paths.static_dir,
         pdfs_dir=cfg.paths.pdfs_dir,
+        logs_dir=str(cfg.paths.logs_dir) if getattr(cfg.paths, 'logs_dir', None) else None,
     )
     ok = inst.start(msgCenter_port=cfg.ports.msgCenter_port, pdfFile_port=cfg.ports.pdfFile_port)
     if on_log:

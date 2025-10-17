@@ -58,11 +58,11 @@ export class SearchResultsFeature {
     try {
       // 1. 创建结果容器
       this.#createResultsContainer();
-      this.#logger.info('[SearchResultsFeature] Step1: Container created');
+      this.#logger.info("[SearchResultsFeature] Step1: Container created");
 
       // 2. 初始化渲染器
       this.#resultsRenderer = new ResultsRenderer(this.#logger, this.#scopedEventBus);
-      this.#logger.info('[SearchResultsFeature] Step2: Renderer constructed');
+      this.#logger.info("[SearchResultsFeature] Step2: Renderer constructed");
 
       // 2.1 移除 QWebChannel 作为强依赖；改为通过 WebSocket 向 msgCenter 发送“打开查看器”请求
       // 如需兼容旧版桥接，可在测试工厂中注入 bridge，但生产默认不再依赖 QWebChannel。
@@ -78,21 +78,21 @@ export class SearchResultsFeature {
 
       // 3. 监听筛选结果更新事件（来自filter插件）
       this.#subscribeToFilterEvents(sidBase);
-      this.#logger.info('[SearchResultsFeature] Step3: Subscribed to filter events');
+      this.#logger.info("[SearchResultsFeature] Step3: Subscribed to filter events");
 
       // 4. 监听条目事件（转发到全局）
       this.#setupEventBridge(sidBase);
-      this.#logger.info('[SearchResultsFeature] Step4: Event bridge set up');
+      this.#logger.info("[SearchResultsFeature] Step4: Event bridge set up");
 
       // 5. 渲染初始空状态
       this.#resultsRenderer.render(this.#resultsContainer, []);
-      this.#logger.info('[SearchResultsFeature] Step5: Initial render completed');
+      this.#logger.info("[SearchResultsFeature] Step5: Initial render completed");
 
       this.#logger.info("[SearchResultsFeature] Installed successfully");
     } catch (error) {
-      try { this.#logger.error('[SearchResultsFeature] Installation failed (stack)', error?.stack || '(no stack)'); } catch(_) {}
-      try { this.#logger.error('[SearchResultsFeature] Installation failed (message)', error?.message || String(error)); } catch(_) {}
-      try { this.#logger.error('[SearchResultsFeature] Installation failed (object)', error); } catch(_) {}
+      try { this.#logger.error("[SearchResultsFeature] Installation failed (stack)", error?.stack || "(no stack)"); } catch { /* ignore */ }
+      try { this.#logger.error("[SearchResultsFeature] Installation failed (message)", error?.message || String(error)); } catch { /* ignore */ }
+      try { this.#logger.error("[SearchResultsFeature] Installation failed (object)", error); } catch { /* ignore */ }
       throw error;
     }
   }
@@ -435,7 +435,7 @@ export class SearchResultsFeature {
     // 条目打开事件 -> 转发到全局
     const unsubOpen = this.#scopedEventBus.on("results:item:open", async (data) => {
       // 导入 toast 函数
-      const { info: toastInfo, success: toastSuccess, error: toastError, warning: toastWarning } = await import("../../../common/utils/thirdparty-toast.js");
+      const { info: toastInfo, error: toastError } = await import("../../../common/utils/thirdparty-toast.js");
 
       // 初始阶段 toast（保留）
       toastInfo("🔍 正在打开PDF...");
@@ -486,9 +486,7 @@ export class SearchResultsFeature {
 
         this.#logger.info("[SearchResultsFeature] [步骤9] Opening pdf-viewer by id", { pdfId, hasFile: !!filePath });
 
-        // 携带 filename / file_path 元信息，便于 PyQt 侧直接带 file 加载
-        const items = [{ id: String(pdfId), filename: filename || undefined, file_path: filePath || undefined, title: title || undefined }];
-        const payload = { pdfIds: [String(pdfId)], items };
+        // 携带 filename / file_path 元信息（当前WS契约仅使用 pdf_id；如需扩展，可随契约调整）
 
         this.#logger.info("[SearchResultsFeature] [步骤10] 通过 WebSocket 请求打开viewer", { pdfId });
         const rid = `open-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
