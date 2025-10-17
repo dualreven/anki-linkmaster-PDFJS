@@ -427,8 +427,8 @@ class PdfViewerApp:
 
         # 步骤 11: 加载前端
         if not self.config.disable_frontend_load:
-        url = self._build_frontend_url(vite_port, msgCenter_port, pdfFile_port)
-        logger.info(f"Front-end URL built: {url}")
+            url = self._build_frontend_url(vite_port, msgCenter_port, pdfFile_port)
+            logger.info(f"Front-end URL built: {url}")
             logger.info(f"Loading front-end: {url}")
 
             if not self.config.diagnose_only:
