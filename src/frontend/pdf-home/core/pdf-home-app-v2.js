@@ -17,6 +17,8 @@ import { FeatureFlagManager } from '../../common/micro-service/feature-flag-mana
 import { getLogger } from '../../common/utils/logger.js';
 import eventBus from '../../common/event/event-bus.js';
 import WSClient from '../../common/ws/ws-client.js';
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS } from '../../common/event/event-constants.js';
+import { error as toastError } from '../../common/utils/thirdparty-toast.js';
 
 // 导入功能域
 import { PDFListFeature } from '../features/pdf-list/index.js';
@@ -102,6 +104,13 @@ export class PDFHomeAppV2 {
   #status = 'uninitialized'; // uninitialized | initializing | ready | error
 
   /**
+   * 是否已注册全局错误 toast 监听
+   * @type {boolean}
+   * @private
+   */
+  #errorToastsRegistered = false;
+
+  /**
    * 构造函数
    * @param {Object} options - 配置选项
    * @param {string} [options.wsUrl] - WebSocket URL
@@ -118,6 +127,9 @@ export class PDFHomeAppV2 {
 
     // 2. 注册全局服务到容器
     this.#registerGlobalServices(options);
+
+    // 3. 注册全局错误 → toast 监听（一次性）
+    this.#registerGlobalErrorToasts();
 
     this.#logger.info('PDF Home App V2 constructed (not yet initialized)');
   }
@@ -237,6 +249,56 @@ export class PDFHomeAppV2 {
       this.#status = 'error';
       this.#logger.error('App initialization failed:', error);
       throw error;
+    }
+  }
+
+  /**
+   * 注册全局 WS 错误事件，将后端与消息中心的错误透传为右上角 toast
+   * 参考 pdf-viewer AppCoreFeature 的实现，保持一致体验
+   * @private
+   */
+  #registerGlobalErrorToasts() {
+    if (this.#errorToastsRegistered) return;
+    try {
+      const bus = this.#eventBus;
+      const subscriberOpts = { subscriberId: 'PDFHomeAppV2' };
+
+      // 发送失败 → 错误 toast（例如 WS 未连接/网络错误）
+      bus.on(WEBSOCKET_EVENTS.MESSAGE.SEND_FAILED, (err) => {
+        try {
+          const msg = (err && (err.error_message || err.message)) || 'WebSocket 消息发送失败';
+          const type = err && (err.message_type || err.type);
+          toastError(type ? `${type}: ${msg}` : msg, 5000);
+        } catch (_) {}
+      }, subscriberOpts);
+
+      // 后端响应错误/未注册类型/解析失败等 → 错误 toast
+      bus.on(WEBSOCKET_MESSAGE_EVENTS.ERROR, (payload) => {
+        try {
+          const type = payload && (payload.type || payload.received_type);
+          const errMsg = (payload && (payload.message || payload.error_message))
+            || (payload && payload.error && (payload.error.message || payload.error.code))
+            || (payload && payload.data && payload.data.message)
+            || '操作失败';
+          toastError(type ? `${type}: ${errMsg}` : errMsg, 6000);
+        } catch (_) {}
+      }, subscriberOpts);
+
+      // 兼容：凡是通用响应里标注失败（type 以 :failed 结尾）未被上层消费时，也做兜底 toast
+      bus.on(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, (message) => {
+        try {
+          const t = String(message?.type || '');
+          if (t.endsWith(':failed')) {
+            const errMsg = (message?.error?.message) || (message?.data?.message) || message?.message || '请求失败';
+            toastError(`${t}: ${errMsg}`, 6000);
+          }
+        } catch (_) {}
+      }, subscriberOpts);
+
+      this.#errorToastsRegistered = true;
+      this.#logger?.info?.('Registered global WS error→toast listeners');
+    } catch (e) {
+      this.#logger?.warn?.('注册全局错误 toast 失败', e);
     }
   }
 

@@ -1011,9 +1011,11 @@ class BackendLauncher:
             if msg_type not in {"pdf-library:viewer:requested", "pdf-library:open:viewer", "open_pdf"}:
                 return
 
+            self.logger.info("[MsgDispatch] received request -> type=%s data=%s", msg_type, json.dumps(data, ensure_ascii=False))
+
             from src.launcher.config import LauncherConfig as _LConfig, LauncherOptions as _LOpts, LauncherPorts as _LPorts
             from src.launcher.ports import read_runtime_ports as _read_ports
-            from src.launcher.runner import start_pdf_viewer_hosted as _run_viewer
+            from src.launcher.runner import start_pdf_viewer_hosted as _run_viewer, start_pdf_viewer_cli as _run_viewer_cli
             from src.backend.msgCenter_server.standard_protocol import StandardMessageHandler, MessageType
             from PyQt6.QtWidgets import QApplication
 
@@ -1032,8 +1034,19 @@ class BackendLauncher:
             )
 
             app = QApplication.instance()
-            rc = _run_viewer(cfg, parent_app=app, pdf_id=pdf_id, page_at=page_at, position=position)
-            self.logger.info("[MsgDispatch] viewer hosted run rc=%s for pdf_id=%s", rc, pdf_id)
+            rc = None
+            try:
+                if app is not None:
+                    rc = _run_viewer(cfg, parent_app=app, pdf_id=pdf_id, page_at=page_at, position=position)
+                    self.logger.info("[MsgDispatch] viewer hosted run rc=%s for pdf_id=%s", rc, pdf_id)
+                else:
+                    # 兜底：无父应用（非Hosted）时走 CLI 子进程
+                    self.logger.warning("[MsgDispatch] QApplication.instance() is None, fallback to CLI launch")
+                    ok = _run_viewer_cli(cfg, is_prod=True, pdf_id=pdf_id, page_at=page_at, position=position, on_log=lambda m: self.logger.info("[MsgDispatch/CLI] %s", m))
+                    rc = 0 if ok else 1
+            except Exception as e:
+                self.logger.error("[MsgDispatch] Launch error: %s", str(e), exc_info=True)
+                raise
 
             # 回执
             ack = StandardMessageHandler.build_response(
