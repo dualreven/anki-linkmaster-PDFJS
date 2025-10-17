@@ -1524,4 +1524,31 @@ python gui_launcher_enhanced.py
 
 说明：
 - 在 GUI 标题下方新增标签，显示当前使用的源码根（`component_root`），便于快速确认加载来源。
-- 文案：`当前源码根: <path>`；支持选中复制。
+ - 文案：`当前源码根: <path>`；支持选中复制。
+
+### 当前任务（20251017171322）
+名称：pdf-home 透传后端与消息中心错误信息为 toast（参考 pdf-viewer）
+
+背景：
+- 用户期望在 pdf-home 中收到与 pdf-viewer 一致的错误反馈体验：后端或消息中心的错误信息在前端自动弹出 toast，便于快速感知与定位。
+
+相关模块/文件：
+- 事件常量：`src/frontend/common/event/event-constants.js`
+- WS 路由与结算：`src/frontend/common/ws/ws-client.js`
+- pdf-viewer 参考实现：`src/frontend/pdf-viewer/features/app-core/index.js:113,117-123`
+- pdf-home 实施点：`src/frontend/pdf-home/core/pdf-home-app-v2.js`
+- toast 适配器：`src/frontend/common/utils/thirdparty-toast.js`
+
+执行方案：
+- 在 `PDFHomeAppV2` 中注册全局事件监听（一次性）：
+  - `WEBSOCKET_EVENTS.MESSAGE.SEND_FAILED` → 提示“WebSocket 消息发送失败（含类型与消息）”。
+  - `WEBSOCKET_MESSAGE_EVENTS.ERROR` → 提取 `type/received_type` 与 `message/error_message/error.code/data.message`，错误 toast。
+  - 兜底：`WEBSOCKET_EVENTS.MESSAGE.RECEIVED` 中对 `type` 以 `:failed` 结尾的响应，toast 错误（防漏）。
+- Toast 统一使用 `thirdparty-toast.js`（iziToast，右上角，降级 DOM 兜底）。
+
+执行状态：
+- ✅ 已实现并合入：`src/frontend/pdf-home/core/pdf-home-app-v2.js` 新增 `#registerGlobalErrorToasts()` 并在构造时调用；引入 `WEBSOCKET_EVENTS/WEBSOCKET_MESSAGE_EVENTS` 与 `toastError`。
+
+验证建议：
+- 断开 WS 或关闭消息中心，触发需要后端的操作，预期出现“消息发送失败” toast。
+- 强制后端返回标准 `*:failed`/`websocket:message:error`，观察右上角 toast 展示 "<type>: <message>"。

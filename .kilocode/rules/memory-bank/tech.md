@@ -177,6 +177,15 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
 - 位置：统一右上角（topRight），与既有规范一致
 - 适用范围：当前仅在 `pdf-home` 的“添加 PDF”流程中使用；其他模块暂不修改
 
+###（新增 2025-10-17）pdf-home 全局 WS 错误 → toast 透传
+- 位置：`src/frontend/pdf-home/core/pdf-home-app-v2.js`
+- 监听事件：
+  - `WEBSOCKET_EVENTS.MESSAGE.SEND_FAILED` → `toast.error('<type>: <msg>')`
+  - `WEBSOCKET_MESSAGE_EVENTS.ERROR` → 从 `payload.message/error_message/error.code/data.message` 提取文案
+  - 兜底：在 `WEBSOCKET_EVENTS.MESSAGE.RECEIVED` 中捕获所有以 `:failed` 结尾的 `type`，toast 错误
+- 适配器：`src/frontend/common/utils/thirdparty-toast.js`（iziToast；固定右上角；提供降级 DOM）
+- 目的：统一 pdf-home 的错误可视化体验，与 pdf-viewer 保持一致，减少定位成本
+
 ### 标注保存策略（pdf-viewer / 2025-10-08）
 - AnnotationManager 在创建标注时的保存路径：
   - 远端保存：当 `wsClient.isConnected()` 为 true 且已设置 `pdfId` 时，调用 WS 接口保存；
