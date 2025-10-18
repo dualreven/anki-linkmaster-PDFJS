@@ -191,7 +191,8 @@ export class MyMemoryEngine extends ITranslationEngine {
       };
 
     } catch (error) {
-      this.#logger.error('Translation failed:', error);
+      // 底层引擎错误仅记录，不触发自动 toast（交由上层UI统一提示）
+      this.#logger.error('Translation failed:', error, { toast: { type: 'debug' } });
       throw new Error(`翻译失败: ${error.message}`);
     }
   }

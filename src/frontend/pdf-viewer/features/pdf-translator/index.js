@@ -9,6 +9,7 @@ import { TranslatorSidebarUI } from './components/TranslatorSidebarUI.js';
 import { TranslationService } from './services/TranslationService.js';
 import { SelectionMonitor } from './services/SelectionMonitor.js';
 import { PDF_TRANSLATOR_EVENTS } from './events.js';
+import { PDF_VIEWER_EVENTS } from '../../../common/event/pdf-viewer-constants.js';
 
 /**
  * PDF翻译功能Feature
@@ -99,13 +100,14 @@ export class PDFTranslatorFeature {
 
     // 2. 创建文本选择监听器（传入container以使用依赖注入）
     this.#selectionMonitor = new SelectionMonitor(this.#eventBus, this.#container, {
-      enabled: true,
+      // 默认关闭自动翻译：仅在“翻译侧边栏打开”或“点击翻译按钮”时触发
+      enabled: false,
       minLength: 3,
       maxLength: 500,
       debounceDelay: 300
     });
-    this.#selectionMonitor.startMonitoring();
-    this.#logger.info(`[${this.name}] Selection monitor started`);
+    // 不在安装阶段启动监听器；由侧边栏开/关事件控制
+    this.#logger.info(`[${this.name}] Selection monitor initialized (disabled by default)`);
 
     // 3. 创建侧边栏UI
     this.#sidebarUI = new TranslatorSidebarUI(this.#eventBus);
@@ -121,6 +123,9 @@ export class PDFTranslatorFeature {
 
     // 5. 设置事件监听
     this.#setupEventListeners();
+
+    // 6. 绑定侧边栏开关与自动翻译启停
+    this.#bindSidebarAutoTranslateToggle();
 
     this.#logger.info(`[${this.name}] Installation completed`);
   }
@@ -202,13 +207,76 @@ export class PDFTranslatorFeature {
   }
 
   /**
+   * 绑定侧边栏开关与自动翻译启停（仅当翻译侧边栏打开时，才允许“划词自动翻译”）
+   * 同时发布领域内的 OPENED/CLOSED 事件，便于其他组件感知。
+   * @private
+   */
+  #bindSidebarAutoTranslateToggle() {
+    // 侧边栏打开 -> 启用 SelectionMonitor
+    this.#unsubs.push(
+      this.#eventBus.on(
+        PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPENED_COMPLETED,
+        ({ sidebarId }) => {
+          if (sidebarId === 'translate') {
+            try {
+              this.#selectionMonitor?.setEnabled(true);
+              // 避免复用上一次选择导致的误触发
+              this.#selectionMonitor?.clearLastSelection?.();
+              // 广播领域事件
+              this.#eventBus.emitGlobal(PDF_TRANSLATOR_EVENTS.SIDEBAR.OPENED, { sidebarId: 'translate' }, { actorId: 'PDFTranslatorFeature' });
+              this.#logger.info('[PDFTranslator] Auto-translate enabled because translate sidebar opened');
+            } catch (e) {
+              this.#logger.warn('[PDFTranslator] Failed to enable SelectionMonitor on sidebar open', e);
+            }
+          }
+        },
+        { subscriberId: 'PDFTranslatorFeature' }
+      )
+    );
+
+    // 侧边栏关闭 -> 禁用 SelectionMonitor
+    this.#unsubs.push(
+      this.#eventBus.on(
+        PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.CLOSED_COMPLETED,
+        ({ sidebarId }) => {
+          if (sidebarId === 'translate') {
+            try {
+              this.#selectionMonitor?.setEnabled(false);
+              this.#selectionMonitor?.clearLastSelection?.();
+              this.#eventBus.emitGlobal(PDF_TRANSLATOR_EVENTS.SIDEBAR.CLOSED, { sidebarId: 'translate' }, { actorId: 'PDFTranslatorFeature' });
+              this.#logger.info('[PDFTranslator] Auto-translate disabled because translate sidebar closed');
+            } catch (e) {
+              this.#logger.warn('[PDFTranslator] Failed to disable SelectionMonitor on sidebar close', e);
+            }
+          }
+        },
+        { subscriberId: 'PDFTranslatorFeature' }
+      )
+    );
+  }
+
+  /**
    * 处理文本选择事件
    * @private
    * @param {Object} data - 选择数据
    */
   async #handleTextSelected(data) {
-    const { text, pageNumber, position, rangeData } = data;
-    this.#logger.info(`Text selected on page ${pageNumber}: "${text.substring(0, 50)}..."`);
+    const { text, pageNumber, position, rangeData, source } = data || {};
+
+    // 仅在以下两种场景触发翻译：
+    // 1) 用户显式点击了“翻译”动作（来源：quick-actions 或 text-highlight）
+    // 2) 翻译侧边栏已打开（SelectionMonitor 启用状态）
+    const isExplicitUserAction = source === 'quick-actions' || source === 'text-highlight';
+    const isAutoModeEnabled = !!this.#selectionMonitor?.isEnabled?.();
+    if (!isExplicitUserAction && !isAutoModeEnabled) {
+      this.#logger.info('[PDFTranslator] Ignore TEXT.SELECTED because auto-translate is disabled and no explicit user action');
+      return;
+    }
+
+    this.#logger.info(`Text selected on page ${pageNumber}: "${(text || '').substring(0, 50)}..."`, {
+      source: source || 'unknown',
+      autoEnabled: isAutoModeEnabled
+    });
 
     // 自动触发翻译（传递位置信息和Range数据）
     await this.#translateText(text, null, 'auto', { pageNumber, position, rangeData });
@@ -287,7 +355,8 @@ export class PDFTranslatorFeature {
       this.#logger.info('Translation completed:', resultWithContext);
 
     } catch (error) {
-      this.#logger.error('Translation failed:', error);
+      // Feature 层错误仅记录，不触发自动 toast（交由侧边栏统一 toast）
+      this.#logger.error('Translation failed:', error, { toast: { type: 'debug' } });
 
       // 发送翻译失败事件
       this.#eventBus.emit(

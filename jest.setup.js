@@ -1,25 +1,18 @@
-/**
- * Jest 设置文件
- * @file 为 Jest 测试环境提供全局设置
- */
+const { jest: jestGlobal } = require('@jest/globals');
 
-// 引入 fake-indexeddb 为测试环境提供 IndexedDB 支持
 try {
   require('fake-indexeddb/auto');
 } catch (e) {
-  // fake-indexeddb 可能未安装，某些测试不需要 IndexedDB
   console.warn('fake-indexeddb not found, skipping IndexedDB mock');
 }
 
-// 模拟全局对象，以便在测试环境中使用
-global.fetch = jest.fn();
+global.fetch = jestGlobal.fn();
 
-// 模拟 WebSocket
-global.WebSocket = jest.fn().mockImplementation(() => ({
-  send: jest.fn(),
-  close: jest.fn(),
-  addEventListener: jest.fn(),
-  removeEventListener: jest.fn(),
+global.WebSocket = jestGlobal.fn().mockImplementation(() => ({
+  send: jestGlobal.fn(),
+  close: jestGlobal.fn(),
+  addEventListener: jestGlobal.fn(),
+  removeEventListener: jestGlobal.fn(),
   readyState: 1,
   CONNECTING: 0,
   OPEN: 1,
@@ -27,36 +20,31 @@ global.WebSocket = jest.fn().mockImplementation(() => ({
   CLOSED: 3
 }));
 
-// 模拟 console 方法以减少测试输出噪音
 global.console = {
   ...console,
-  log: jest.fn(),
-  debug: jest.fn(),
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn()
+  log: jestGlobal.fn(),
+  debug: jestGlobal.fn(),
+  info: jestGlobal.fn(),
+  warn: jestGlobal.fn(),
+  error: jestGlobal.fn()
 };
 
-// 设置全局的 requestAnimationFrame
-global.requestAnimationFrame = jest.fn().mockImplementation(callback => {
+global.requestAnimationFrame = jestGlobal.fn().mockImplementation((callback) => {
   return setTimeout(callback, 0);
 });
 
-// 设置全局的 cancelAnimationFrame
-global.cancelAnimationFrame = jest.fn().mockImplementation(id => {
+global.cancelAnimationFrame = jestGlobal.fn().mockImplementation((id) => {
   clearTimeout(id);
 });
 
-// 模拟 ResizeObserver
-global.ResizeObserver = jest.fn().mockImplementation(() => ({
-  observe: jest.fn(),
-  unobserve: jest.fn(),
-  disconnect: jest.fn()
+global.ResizeObserver = jestGlobal.fn().mockImplementation(() => ({
+  observe: jestGlobal.fn(),
+  unobserve: jestGlobal.fn(),
+  disconnect: jestGlobal.fn()
 }));
 
-// 模拟 IntersectionObserver
-global.IntersectionObserver = jest.fn().mockImplementation(() => ({
-  observe: jest.fn(),
-  unobserve: jest.fn(),
-  disconnect: jest.fn()
+global.IntersectionObserver = jestGlobal.fn().mockImplementation(() => ({
+  observe: jestGlobal.fn(),
+  unobserve: jestGlobal.fn(),
+  disconnect: jestGlobal.fn()
 }));

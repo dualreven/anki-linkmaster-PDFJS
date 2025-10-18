@@ -945,3 +945,22 @@ emove_comment(ann_id, comment_id)。
 - 发送端规范：
   - 所有 emit 位置统一将空值规范化为 `null`，不要传 `undefined`；
   - 示例：`position: (typeof pos === "number" ? pos : null)`。
+
+###（新增 2025-10-18）翻译功能的自动模式与触发方式
+- 行为变更：`SelectionMonitor` 默认关闭自动翻译，仅在“翻译侧边栏打开”时启用；关闭侧边栏即禁用。
+- 显式触发：
+  - 划词快捷操作“翻译”按钮（source=`quick-actions`）；
+  - 高亮标注菜单“翻译”按钮（source=`text-highlight`）。
+- 自动触发：
+  - 仅当翻译侧边栏打开时，划词会自动触发翻译（监听 `sidebar:opened:completed/closed:completed` 联动）。
+- 受影响文件：`features/pdf-translator/index.js`、`features/pdf-translator/services/SelectionMonitor.js`。
+- 兼容性：既有入口不变；仅抑制“侧边栏关闭时的误触发”。
+## 标注渲染加载策略（2025-10-18 更新）
+- 高亮标注：
+  - `TextHighlightTool` 统一通过 `PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED` 接管初始渲染，清空旧 overlay 与菜单后重新渲染；
+  - 新增 `pendingHighlightsByPage` 队列：若 `.textLayer` 尚未插入则暂存（以 page + annotationId 去重），待 `pagerendered/textlayerrendered` 时调用 `#flushPendingHighlightsForPage`；
+  - `renderHighlightForAnnotation` 在成功时才落盘到 `#annotationHighlightRecords`，失败会自动重新排队；删除事件会清除 DOM、菜单与队列。
+- 截图标注：
+  - `ScreenshotTool` 监听 `ANNOTATION.DATA.LOADED`，对比新列表删除遗留方框，并为所有截图标注执行 `renderScreenshotMarker`；
+  - 方框渲染仍内置 `MutationObserver` 兜底，当 canvas 未就绪时会延迟直到出现。
+- 验证：`text-highlight-tool.test.js` 覆盖“数据加载→立即渲染”和“无 TextLayer→事件回补”两种情况；`screenshot-tool.test.js` 验证批量渲染及过滤。

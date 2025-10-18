@@ -41,6 +41,82 @@
 
 ## 📅 当前活跃任务（最近）
 
+### 当前任务（20251018214348）
+名称：划词选中时翻译应默认静默，仅在显式操作时触发
+
+背景：
+- 现状：`pdf-translator` 的 `SelectionMonitor` 在安装后默认启用，任何划词都会自动发送 `pdf-translator:text:selected`，从而触发翻译；
+- 期望：只有两种情况触发翻译：
+  1) 用户点击“划词弹出的翻译按钮”（来源于 TextSelectionQuickActions 或 TextHighlightTool 的 Translate 操作）；
+  2) 用户打开“翻译侧边栏”后，才开启“划词→自动翻译”的联动；
+  其他情况下，划词应保持静默不触发翻译。
+
+相关模块/文件：
+- 翻译功能域：`src/frontend/pdf-viewer/features/pdf-translator/index.js`
+- 文本选择监听器：`src/frontend/pdf-viewer/features/pdf-translator/services/SelectionMonitor.js`
+- 侧边栏管理：`src/frontend/pdf-viewer/features/sidebar-manager/index.js`
+- 划词快捷操作：`src/frontend/pdf-viewer/features/text-selection-quick-actions/index.js`
+- 高亮工具→翻译：`src/frontend/pdf-viewer/features/annotation/tools/text-highlight/index.js`
+
+执行步骤：
+1) 将 `SelectionMonitor` 默认配置改为 `enabled: false`，安装阶段不调用 `startMonitoring()`；
+2) 在 `PDFTranslatorFeature` 绑定侧边栏事件：
+   - `sidebar:opened:completed` 且 `sidebarId==='translate'` → `selectionMonitor.setEnabled(true)` 并清理上次选择；
+   - `sidebar:closed:completed` 且 `sidebarId==='translate'` → `selectionMonitor.setEnabled(false)` 并清理上次选择；
+   - 同时向全局广播领域侧边栏事件 `pdf-translator:sidebar:opened/closed`（可选消费）；
+3) 在 `#handleTextSelected()` 增加保护：仅当 `source in {'quick-actions','text-highlight'}` 或 `selectionMonitor.isEnabled()` 时才执行翻译；否则忽略。
+
+验收标准：
+- 未打开翻译侧边栏时，普通划词不会出现任何翻译输出；
+- 打开翻译侧边栏后，划词将自动翻译；
+- 点击“翻译”按钮（快捷操作/高亮菜单）时，无论侧边栏是否已开，均会触发翻译（并请求打开侧边栏）；
+- 关闭翻译侧边栏后，划词不再自动翻译。
+
+注意：
+- UI 文案“选中文本即可自动翻译”位于翻译侧边栏内，仅在打开侧边栏的场景出现，语义仍成立。
+
+### 修复记录（20251018215730）
+名称：中文划词出现四个错误 toast（B2：底层禁用 toast）
+
+---
+
+## 📦 文件体量评估与清理建议（20251018220157）
+
+背景：
+- 用户询问 memory-bank 关键文件体量现状与是否需要清理归纳。
+
+扫描结果（2025-10-18 22:01:57）：
+- 目录：`.kilocode/rules/memory-bank` 总体量 ≈ 425.11 KB（435,310 B）
+- `context.md`：97.78 KB（100,129 B）
+- `tech.md`：58.04 KB（59,435 B）
+- `architecture.md`：20.17 KB（20,659 B）
+- 其它：存在若干 `context.md.backup-*`、`archive/` 与 `updates/` 文件，体量在可控范围。
+
+结论：
+- 容量层面无需清理（总体 < 1 MB）。
+- 可读性层面建议做“结构化归纳”，重点是 `context.md` 接近 100 KB，适合拆分“当前活跃任务/长期约定/历史归档”三段。
+
+建议（最小改动）：
+- `context.md`：顶部保留「当前活跃任务」与「长期约定」，历史条目周期性迁移到 `archive/` 月度文件。
+- `tech.md`：补充「目录索引」与「最近更新（10 条）」小节，控制增量记录。
+- `architecture.md`：体量健康，无需动作；如后续加入架构图/契约清单，再考虑拆分为 `architecture/` 子目录。
+
+待决策项：
+- 若同意执行整理：按上述结构移动历史段落并生成目录，不改动内容语义，严格保持 UTF-8 与 `\n`。
+
+背景：
+- 入口启用了“error 自动 toast”；同一次翻译失败被引擎层、服务层、Feature 层、UI 层各自 `logger.error` 记录，导致 4 条 toast。
+- 其中 3 条因 Error 对象不可枚举，被 Logger 摘要为 `{}`。
+
+措施：
+- 在三处底层 `logger.error` 显式传入 `{ toast: { type: 'debug' } }`，不弹 toast，仅保留 UI 层一处 toast：
+  - features/pdf-translator/services/MyMemoryEngine.js
+  - features/pdf-translator/services/TranslationService.js
+  - features/pdf-translator/index.js
+
+效果：
+- 同一失败仅出现 1 条 toast；控制台保留完整错误栈。
+
 ### 当前任务（20251017210830）
 名称：修复 PDF.js CMap/标准字体资源 404（中文字体无法解析）
 
@@ -1910,6 +1986,20 @@ python gui_launcher_enhanced.py
 
 影响：
 - 关闭侧边栏不再弹窗；其它地方的模式开启提示不受影响。
+
+## 🧠 知识卡（20251018213427）— 标注渲染的加载与兜底策略更新
+
+事实（2025-10-18）：
+- `TextHighlightTool` 现已监听 `PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED`，在新数据抵达时会清理历史高亮与菜单，并依据当前页即时渲染；当文本层尚未生成时，会将标注加入 `pendingHighlightsByPage` 队列。
+- 高亮渲染依赖 `#isTextLayerReady` 检查，只有当页面已挂载 `.textLayer` DOM 时才会调用 `HighlightRenderer.renderHighlight`，否则等待 `pagerendered` 或 `textlayerrendered` 事件再次触发 `#flushPendingHighlightsForPage`。
+- 队列去重以 `pageNumber + annotationId` 为 key，渲染成功后会同步更新 `#annotationHighlightRecords` 与 action menu 绑定，删除标注时也会移出队列。
+- `ScreenshotTool` 同样订阅 `ANNOTATION.DATA.LOADED`：会删除不再存在的标记框，并为每个截图标注执行 `renderScreenshotMarker`（内部已处理 canvas 未就绪时的延迟观察）。
+
+测试补充：
+- `text-highlight-tool.test.js` 新增用例覆盖数据加载下的即时渲染与队列刷新场景；`screenshot-tool.test.js` 验证列表加载后能批量挂载标记框。
+
+影响：
+- 打开标注侧边栏时不再出现“TextLayer not found”错误；截图、高亮类标注在初始载入后即会展现视觉占位。
 
 验收：
 - 打开/关闭标注侧边栏时无 toast，仅有日志。

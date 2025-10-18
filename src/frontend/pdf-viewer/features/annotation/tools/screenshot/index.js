@@ -44,6 +44,7 @@ export class ScreenshotTool extends IAnnotationTool {
   #endPos = null;
   #mouseListeners = null;
   #renderedMarkers = new Map();  // 存储已渲染的截图标记框 (annotationId -> markerElement)
+  #onAnnotationDataLoadedHandler = null;
 
   /**
    * 初始化工具
@@ -65,6 +66,10 @@ export class ScreenshotTool extends IAnnotationTool {
 
     // 监听标注跳转成功事件，用于渲染截图标记框
     this.#setupJumpEventListener();
+
+    // 标注列表加载完成后恢复截图标记框
+    this.#onAnnotationDataLoadedHandler = this.#handleAnnotationsLoaded.bind(this);
+    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, this.#onAnnotationDataLoadedHandler);
 
     this.#logger.info('[ScreenshotTool] Initialized', {
       qwebChannelMode: this.#qwebChannelBridge.getMode()
@@ -215,7 +220,12 @@ export class ScreenshotTool extends IAnnotationTool {
    * 销毁工具
    */
   destroy() {
+    if (this.#eventBus && this.#onAnnotationDataLoadedHandler) {
+      this.#eventBus.off?.(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, this.#onAnnotationDataLoadedHandler);
+    }
+    this.#onAnnotationDataLoadedHandler = null;
     this.deactivate();
+    this.clearAllMarkers();
     this.#capturer = null;
     this.#qwebChannelBridge = null;
     this.#logger.info('[ScreenshotTool] Destroyed');
@@ -267,6 +277,31 @@ export class ScreenshotTool extends IAnnotationTool {
     });
 
     this.#logger.info('[ScreenshotTool] Annotation event listeners registered');
+  }
+
+  /**
+   * 标注数据加载完成后恢复截图标记
+   * @param {{ annotations?: Annotation[] }} data
+   * @private
+   */
+  #handleAnnotationsLoaded(data) {
+    try {
+      const annotations = Array.isArray(data?.annotations) ? data.annotations : [];
+      const screenshotAnnotations = annotations.filter((ann) => ann?.type === AnnotationType.SCREENSHOT);
+      const validIds = new Set(screenshotAnnotations.map((ann) => ann.id));
+
+      Array.from(this.#renderedMarkers.keys()).forEach((annotationId) => {
+        if (!validIds.has(annotationId)) {
+          this.removeScreenshotMarker(annotationId);
+        }
+      });
+
+      screenshotAnnotations.forEach((annotation) => {
+        this.renderScreenshotMarker(annotation);
+      });
+    } catch (error) {
+      this.#logger.error('[ScreenshotTool] Failed to hydrate screenshot markers from annotation list', error);
+    }
   }
 
   // ===== 私有方法：截图流程 =====
