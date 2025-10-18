@@ -871,8 +871,31 @@ export class ScreenshotTool extends IAnnotationTool {
       // 兜底：若后端老数据无 rectPercent，但包含 rect（基于当时 canvas 像素），则按当前画布尺寸换算为百分比
       if (!rectPercent && data && data.rect) {
         try {
-          this.#logger.warn(`[ScreenshotTool] rectPercent missing, fallback to compute from legacy rect for ${annotation.id}`);
-          rectPercent = this.#convertCanvasToPercent(pageNumber, data.rect);
+          const canvasNow = pageDiv.querySelector('canvas');
+          if (canvasNow && canvasNow.width > 0 && canvasNow.height > 0) {
+            this.#logger.warn(`[ScreenshotTool] rectPercent missing, compute from legacy rect for ${annotation.id}`);
+            rectPercent = this.#convertCanvasToPercent(pageNumber, data.rect);
+          } else {
+            // Canvas 尚未渲染（页面未滚动到可见区域）。挂载监听，待 canvas 出现后再渲染，避免报错。
+            this.#logger.warn(`[ScreenshotTool] Canvas not ready for page ${pageNumber}; defer overlay until canvas appears`);
+            const observer = new MutationObserver(() => {
+              try {
+                const c = pageDiv.querySelector('canvas');
+                if (c && c.width > 0 && c.height > 0) {
+                  observer.disconnect();
+                  // 重新进入渲染流程（此时可以进行 rect → percent 的换算）
+                  try {
+                    data.rectPercent = this.#convertCanvasToPercent(pageNumber, data.rect);
+                  } catch (_) { /* ignore */ }
+                  this.renderScreenshotMarker(annotation);
+                }
+              } catch (_) { /* ignore */ }
+            });
+            observer.observe(pageDiv, { childList: true, subtree: true });
+            // 同时添加一个超时保护，避免长时间监听
+            setTimeout(() => { try { observer.disconnect(); } catch {} }, 8000);
+            return; // 先退出，等待 canvas 出现后再渲染
+          }
         } catch (e) {
           this.#logger.warn('[ScreenshotTool] Fallback compute rectPercent failed', { error: e?.message });
         }
