@@ -214,23 +214,16 @@ describe('WebSocketAdapter', () => {
       adapter.onInitialized();
     });
 
-    test('应该发送 pdf_loaded 消息', () => {
+    test('文件加载完成后不再发送 pdf_loaded 消息（已移除）', () => {
       eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, {
         filePath: '/path/to/file.pdf',
         filename: 'file.pdf',
         totalPages: 10,
         url: 'http://localhost/file.pdf'
       });
-
-      expect(mockWSClient.send).toHaveBeenCalledWith({
-        type: 'pdf_loaded',
-        data: {
-          file_path: '/path/to/file.pdf',
-          filename: 'file.pdf',
-          total_pages: 10,
-          url: 'http://localhost/file.pdf'
-        }
-      });
+      // 不应发送任何 pdf_loaded 类型的消息
+      const calls = mockWSClient.send.mock.calls.map(c => c[0]);
+      expect(calls.find(m => m && m.type === 'pdf_loaded')).toBeUndefined();
     });
 
     test('应该发送 page_changed 消息', () => {
@@ -450,32 +443,25 @@ describe('WebSocketAdapter', () => {
 
       adapter.onInitialized();
 
-      // 场景3: 文件加载完成，发送通知到后端
-      setTimeout(() => {
-        expect(loadHandler).toHaveBeenCalled();
+        // 场景3: 文件加载完成，不再发送 legacy 的 pdf_loaded 消息
+        setTimeout(() => {
+          expect(loadHandler).toHaveBeenCalled();
 
-        mockWSClient.send.mockClear();
+          mockWSClient.send.mockClear();
 
-        eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, {
-          filePath: '/document.pdf',
-          filename: 'document.pdf',
-          totalPages: 100,
-          url: 'http://localhost/document.pdf'
-        });
-
-        expect(mockWSClient.send).toHaveBeenCalledWith({
-          type: 'pdf_loaded',
-          data: {
-            file_path: '/document.pdf',
+          eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, {
+            filePath: '/document.pdf',
             filename: 'document.pdf',
-            total_pages: 100,
+            totalPages: 100,
             url: 'http://localhost/document.pdf'
-          }
-        });
+          });
 
-        done();
-      }, 10);
-    });
+          // 未提供 pdf-id 场景下不会发送 visited_at 更新；也不应发送 pdf_loaded
+          expect(mockWSClient.send).not.toHaveBeenCalled();
+
+          done();
+        }, 10);
+      });
 
     test('模拟页面导航流程', () => {
       adapter = new WebSocketAdapter(mockWSClient, eventBus);

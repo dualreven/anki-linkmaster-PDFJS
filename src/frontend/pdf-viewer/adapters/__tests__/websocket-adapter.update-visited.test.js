@@ -30,7 +30,7 @@ describe('WebSocketAdapter visited_at 更新', () => {
     eventBus && eventBus.destroy();
   });
 
-  it('在文件加载成功后应发送记录更新消息（visited_at）', () => {
+  it('在文件加载成功后应发送记录更新消息（visited_at），不再发送 pdf_loaded', () => {
     // 触发文件加载成功事件
     eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, {
       filePath: '/abs/path/sample.pdf',
@@ -39,14 +39,9 @@ describe('WebSocketAdapter visited_at 更新', () => {
       url: 'http://localhost:3000/static/sample.pdf'
     });
 
-    // 断言：除了 pdf_loaded 以外，还应发送一次记录更新请求
     const calls = mockWSClient.send.mock.calls.map((c) => c[0]);
-    // 先确保有 pdf_loaded
-    expect(calls).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ type: 'pdf_loaded' })
-      ])
-    );
+    // 不应包含 legacy 的 pdf_loaded 消息
+    expect(calls.find((m) => m && m.type === 'pdf_loaded')).toBeUndefined();
 
     // 查找更新消息
     const updateMsg = calls.find((m) => m && m.type === WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_REQUESTED);
@@ -62,4 +57,3 @@ describe('WebSocketAdapter visited_at 更新', () => {
     );
   });
 });
-

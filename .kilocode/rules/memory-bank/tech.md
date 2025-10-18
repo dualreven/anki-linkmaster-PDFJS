@@ -16,6 +16,13 @@
   - pdf-viewer：写入 `logs/pdf-viewer-<pdf-id>-js.log`
 - JS 层可使用共享 Logger 输出到控制台；由 Python 捕获程序写入日志（UTF-8）。
 
+消息契约（2025-10-18 更新）
+- 已移除 legacy `pdf_loaded` WebSocket 消息（此前仅作旁路日志用途，后端无消费）；
+- 替代路径：
+  - 连接建立时：`pdf-viewer:register:requested`（VIEWER_REGISTER_REQUESTED）；
+  - 文件加载成功后：`pdf-library:record-update:requested`（PDF_LIBRARY_RECORD_UPDATE_REQUESTED，更新 visited_at/last_accessed_at）；
+  - 其他：`page_changed`、`zoom_changed` 保持不变（若后续需要也可转为三段式）。
+
 日志治理（配置项与默认）
 - 生产默认：`WARN` 级别、事件采样 20%、JSON 不美化
 - 运行时可通过 localStorage 调整（无需改代码）：

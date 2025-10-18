@@ -178,19 +178,14 @@ export class WebSocketAdapter {
     );
     // 📥 监听事件: pdf-viewer:file:load-success
     // 发射者: features/pdf
-    // 作用: 通知后端PDF加载完成
+    // 作用: 加载完成后执行必要的后续动作（如 visited_at 更新）
     const unsubscribe1 = this.#eventBus.on(
       PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
       (data) => {
-        this.#logger.debug("File loaded successfully, sending notification to backend", data);
-        this.#wsClient.send({
-          type: "pdf_loaded",
-          data: {
-            file_path: data.filePath,
-            filename: data.filename,
-            total_pages: data.totalPages,
-            url: data.url
-          }
+        this.#logger.debug("File loaded successfully; legacy 'pdf_loaded' message suppressed", {
+          filename: data?.filename,
+          totalPages: data?.totalPages,
+          url: data?.url
         });
 
         // 同步更新 pdf_info.visited_at（若 URL 中提供了 pdf-id）
@@ -423,6 +418,10 @@ export class WebSocketAdapter {
 
         // 📤 发射事件: pdf-viewer:file:load-requested
         // 监听者: features/pdf
+        // 以 warn 级别输出一次“将要触发加载”的跟踪日志，便于生产环境观察触发来源
+        try {
+          this.#logger.warn("[TRACE] Emitting FILE.LOAD.REQUESTED from WebSocketAdapter", fileData);
+        } catch (e) { /* noop */ }
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
           fileData,

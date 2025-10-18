@@ -137,6 +137,13 @@ export async function bootstrapPDFViewerAppFeature() {
 
       // 通过事件系统请求加载PDF
       const { PDF_VIEWER_EVENTS } = await import("../../common/event/pdf-viewer-constants.js");
+      // 以 warn 级别输出一次“将要触发加载”的跟踪日志，便于生产环境观察两次触发来源
+      try {
+        logger.warn("[TRACE] Emitting FILE.LOAD.REQUESTED from Bootstrap", {
+          filename,
+          pdfPath
+        });
+      } catch (_) {}
       eventBusSingleton.emit(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, {
         filename: filename,
         file_path: pdfPath

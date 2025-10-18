@@ -1221,11 +1221,11 @@ logger.error('错误信息', errorObject);
 - 若存在 `pdf-id`，通过 WS 发送 `pdf-library:record-update:requested`，载荷：
   - `file_id: <pdf-id>`（uuid/兼容title/filename的解析由后端兜底）
   - `updates: { visited_at: Date.now(), json_data: { last_accessed_at: Date.now() } }`
-- 与现有 `pdf_loaded` 旁路日志消息并存，不影响。
+- 2025-10-18 更新：已移除 legacy `pdf_loaded` 旁路日志消息的发送。
 
 测试设计（单测）：
 - 新增 `src/frontend/pdf-viewer/adapters/__tests__/websocket-adapter.update-visited.test.js`
-- 伪造 `window.location.search='?pdf-id=abc123def456'`；触发 `FILE.LOAD.SUCCESS`；断言 `WSClient.send` 被调用一次 `pdf_loaded`，一次 `pdf-library:record-update:requested`，且包含 `file_id` 与数值型 `visited_at/last_accessed_at`。
+- 伪造 `window.location.search='?pdf-id=abc123def456'`；触发 `FILE.LOAD.SUCCESS`；断言 `WSClient.send` 被调用一次 `pdf-library:record-update:requested`，且包含 `file_id` 与数值型 `visited_at/last_accessed_at`；同时断言未出现 `pdf_loaded`。
 
 注意事项：
 - 当 URL 缺少 `pdf-id`（例如独立 launcher 仅传 `file`）时，跳过更新（无法可靠映射 uuid）。
@@ -1881,6 +1881,25 @@ python gui_launcher_enhanced.py
 - 事件单一来源：统一由 `PDFManager`（全局）发 `FILE.LOAD.SUCCESS`；`FileHandler` 不再向全局发同名成功事件；
 - 发送侧去重：WebSocketAdapter 对同一 `filename+url` 在 300~500ms 内只发送一次 `pdf_loaded`；
 - 入口收敛：URL 导航对“同文档”的判断更严格，避免 `file` 与 `pdf-id` 并存时重复加载。
+
+---
+
+## 🧠 知识卡（20251018205848）— 为复现两次 FILE.LOAD.REQUESTED 添加 warn 级别 TRACE 日志
+
+目的：
+- 在生产默认 WARN 级别下，也能清晰看到两次触发 `FILE.LOAD.REQUESTED` 的来源与载荷。
+
+实现：
+- 在以下发射点新增 `warn` 级别日志（关键字含 `[TRACE] Emitting FILE.LOAD.REQUESTED from ...`）：
+  - Bootstrap 自动加载：`src/frontend/pdf-viewer/bootstrap/app-bootstrap-feature.js`（from Bootstrap）。
+  - URL 导航加载：`src/frontend/pdf-viewer/features/url-navigation/index.js`（from URLNavigationFeature）。
+  - WS 触发加载：`src/frontend/pdf-viewer/adapters/websocket-adapter.js`（from WebSocketAdapter）。
+
+验证：
+- 打开 `dist/latest/logs/pdf-viewer-*-js.log`，应能看到两条（或三条，如含 WS 触发） TRACE 日志，对应两次触发来源。
+
+影响：
+- 不改动业务逻辑，仅新增 WARN 级别日志；满足生产环境可见性要求。
 ### 当前任务（20251018203035）
 名称：移除“标注侧边栏已关闭”toast（静默处理）
 

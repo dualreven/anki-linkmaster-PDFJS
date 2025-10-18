@@ -132,6 +132,10 @@ export class URLNavigationFeature {
         const pdfId = this.#parsedParams?.pdfId;
         if (pdfId && typeof pdfId === 'string' && pdfId.trim().length > 0) {
           this.#logger.info("[url-navigation] 触发文件加载 (from url params)", { pdfId });
+          // 以 warn 级别输出一次“将要触发加载”的跟踪日志，便于生产环境观察两次触发来源
+          try {
+            this.#logger.warn("[TRACE] Emitting FILE.LOAD.REQUESTED from URLNavigationFeature", { pdfId, source: "url-params" });
+          } catch (_) { /* no-op */ }
           this.#eventBus.emit(
             PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
             { filename: pdfId, source: 'url-navigation' },
