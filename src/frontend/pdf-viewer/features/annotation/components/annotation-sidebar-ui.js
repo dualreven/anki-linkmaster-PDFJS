@@ -528,18 +528,8 @@ export class AnnotationSidebarUI {
     this.#activeTool = null;
     this.#updateToolbarState();
 
-    // 显示提示（无论是否有激活工具都显示）
-    if (deactivatedTool) {
-      const modeNames = {
-        'screenshot': '截图模式',
-        'text-highlight': '选字模式',
-        'comment': '批注模式'
-      };
-      const modeName = modeNames[deactivatedTool] || '标注模式';
-      notifyInfo(`${modeName}已关闭`);
-    } else {
-      notifyInfo('标注侧边栏已关闭');
-    }
+    // 业务要求：关闭侧边栏时不再弹出任何 toast 提示（静默处理）
+    this.#logger.info('Annotation sidebar closed (silent, no toast)');
   }
 
   /**

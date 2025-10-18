@@ -1839,3 +1839,58 @@ python gui_launcher_enhanced.py
 
 建议（不立即实施）：
 - 为 `FILE.LOAD.SUCCESS` 建立明确的 Payload Schema（含 `filename/url/totalPages/filePath/pdfDocument`），并在适配器侧做字段兜底以降低来源差异影响。
+
+## 🧠 知识卡（20251018200255）— pdf_loaded 是否已弃用/被替代
+
+结论（基于仓库现状）：
+- `pdf_loaded` 不在前端 `WEBSOCKET_MESSAGE_TYPES` 白名单中，且后端 `standard_server.py/standard_protocol.py` 无任何处理分支，说明它并非受支持的标准契约消息；
+- 当前行为：仅在前端 `WebSocketAdapter` 监听 `FILE.LOAD.SUCCESS` 后发送，更多用于旁路日志/可观测性（单测中也仅校验“有发送”）；
+- 实际业务语义已由两条标准消息承担：
+  1) `pdf-viewer:register:requested`（注册 viewer 实例与 pdf_uuid 绑定）；
+  2) `pdf-library:record-update:requested`（更新 `visited_at/last_accessed_at`，代表“已加载/访问”）。
+
+证据位置：
+- 发送点：`src/frontend/pdf-viewer/adapters/websocket-adapter.js:~187`；
+- 前端契约：`src/frontend/common/event/event-constants.js`（无 `pdf_loaded`，有 `PDF_LIBRARY_RECORD_UPDATE_REQUESTED`、`VIEWER_REGISTER_REQUESTED`）；
+- 后端契约/处理：`src/backend/msgCenter_server/standard_protocol.py`、`src/backend/msgCenter_server/standard_server.py`（无 `pdf_loaded` 处理，存在 viewer 注册与记录更新处理）；
+- 全局检索：除单测与历史规格文档示例外，无消费者。
+
+建议：
+- 将 `pdf_loaded` 标注为 deprecated（仅日志用途）；若需长期保留，建议改为标准三段式命名并在后端显式记录为“观测信号”，否则可逐步移除以减少噪音。
+
+## 🧠 知识卡（20251018201255）— 初始化阶段为何会“加载两次”并发送两次 pdf_loaded
+
+现象：
+- 启动日志中出现两次 `FILE.LOAD.SUCCESS` 与两次 `pdf_loaded`；
+
+可能路径与根因：
+- 路径1（单次加载但双重“成功”事件）：
+  - `PDFManager`（全局EventBus）在 `pdf/pdf-manager-refactored.js:150` 发出 `FILE.LOAD.SUCCESS`；
+  - `FileHandler.#emitLoadSuccess()`（作用域EventBus）在 `features/pdf-reader/services/file-service.js:336-352` 同时发出带命名空间的“成功”事件；
+  - 历史上存在“作用域事件桥接到全局”的实现/监听混用，导致 WebSocketAdapter 能两次感知“成功”，进而两次发送 `pdf_loaded`。
+- 路径2（启动双入口触发两次“请求加载”）：
+  - 入口A：`bootstrap/app-bootstrap-feature.js` 在 URL 含 `file=` 时自动发 `FILE.LOAD.REQUESTED`（全局）；
+  - 入口B：`features/url-navigation/index.js` 在 URL 含 `pdf-id` 且判断与“当前已开文档不同”时，再次发 `FILE.LOAD.REQUESTED`；
+  - 两次请求 → 两次成功 → 两次 `pdf_loaded`。
+
+验证方法：
+- 查看 `dist/latest/logs/pdf-viewer-*-js.log`，按时间线查找 `FILE.LOAD.REQUESTED/SUCCESS`，关注 `metadata.actorId`（PDFManager vs FileHandler）；
+- 对照启动URL是否同时包含 `file` 与 `pdf-id`，以及 URLNavigationFeature 的“同文档判断”日志。
+
+建议（不立即实施）：
+- 事件单一来源：统一由 `PDFManager`（全局）发 `FILE.LOAD.SUCCESS`；`FileHandler` 不再向全局发同名成功事件；
+- 发送侧去重：WebSocketAdapter 对同一 `filename+url` 在 300~500ms 内只发送一次 `pdf_loaded`；
+- 入口收敛：URL 导航对“同文档”的判断更严格，避免 `file` 与 `pdf-id` 并存时重复加载。
+### 当前任务（20251018203035）
+名称：移除“标注侧边栏已关闭”toast（静默处理）
+
+背景：关闭标注侧边栏时，会出现信息类toast，用户希望移除。
+
+改动：
+- annotation/components/annotation-sidebar-ui.js：在 `#handleSidebarClosed` 中删除 `notifyInfo` 提示；保留 `logger.info` 日志，避免打扰。
+
+影响：
+- 关闭侧边栏不再弹窗；其它地方的模式开启提示不受影响。
+
+验收：
+- 打开/关闭标注侧边栏时无 toast，仅有日志。
