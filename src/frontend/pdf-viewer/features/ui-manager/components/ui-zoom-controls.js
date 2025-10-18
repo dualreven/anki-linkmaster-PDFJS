@@ -193,12 +193,24 @@ export class UIZoomControls {
 
     // 如果页码与当前页不同，触发导航事件
     if (validPage !== this.#currentPage) {
-      this.#logger.info(`Page input changed to ${validPage}, navigating...`);
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.GOTO, {
-        pageNumber: validPage
-      }, {
-        actorId: 'UIZoomControls.PageInput'
-      });
+      this.#logger.info(`Page input changed to ${validPage}, navigating via URL params...`);
+      // 使用全局URL导航请求，统一入口
+      try {
+        const pdfId = (() => { try { return new URLSearchParams(window.location.search).get('pdf-id'); } catch { return null; } })();
+        this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED, {
+          pdfId: pdfId || undefined,
+          pageAt: validPage,
+          position: null
+        }, { actorId: 'UIZoomControls.PageInput' });
+      } catch (_) {
+        // 兼容：若eventBus不支持emitGlobal（极旧环境），退回本地导航
+        const pdfId2 = (() => { try { return new URLSearchParams(window.location.search).get('pdf-id'); } catch { return null; } })();
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED, {
+          pdfId: pdfId2 || undefined,
+          pageAt: validPage,
+          position: null
+        }, { actorId: 'UIZoomControls.PageInput' });
+      }
     }
   }
 

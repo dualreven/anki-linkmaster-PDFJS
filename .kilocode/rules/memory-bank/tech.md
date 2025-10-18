@@ -186,6 +186,71 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
 - 适配器：`src/frontend/common/utils/thirdparty-toast.js`（iziToast；固定右上角；提供降级 DOM）
 - 目的：统一 pdf-home 的错误可视化体验，与 pdf-viewer 保持一致，减少定位成本
 
+###（新增 2025-10-17）pdf-viewer 注册消息与事件白名单更新
+- 变更：
+  - `src/frontend/common/event/event-constants.js`
+    - 新增 `WEBSOCKET_MESSAGE_TYPES.VIEWER_REGISTER_COMPLETED = "pdf-viewer:register:completed"`
+    - 新增 `WEBSOCKET_MESSAGE_TYPES.VIEWER_REGISTER_FAILED = "pdf-viewer:register:failed"`
+  - `src/frontend/common/ws/ws-client.js`
+    - `VALID_MESSAGE_TYPES` 追加允许入站：
+      - `pdf-viewer:register:completed`、`pdf-viewer:register:failed`
+      - `pdf-viewer:navigate:requested|completed|failed`
+  - `src/frontend/common/event/pdf-viewer-constants.js`
+    - 新增 VIEW_MODE 组：
+      - `pdf-viewer:render-mode:changed`
+
+###（新增 2025-10-18）PDF 目的地解析统一
+- 新增工具：`src/frontend/pdf-viewer/pdf/pdf-dest-utils.js`
+  - 导出 `resolvePdfDest(pdfDocument, dest)` → `{ pageNumber(1-based), x|null, y|null, zoom|null }`
+  - 支持三类输入：
+    - 字符串命名目的地：`pdfDocument.getDestination(name)`→数组→解析；
+    - 数组：`[pageRef, destType, left, top, zoom]`（`pageRef` 为 number 时视为 0-based 索引，统一 +1）；
+    - 页面引用对象：通过 `pdfDocument.getPageIndex(ref)+1`。
+- 调整调用点：
+  - `features/pdf-bookmark/index.js#parseBookmarkDest()` 改为调用上述工具（消除与旧解析的重复）；
+  - `bookmark/bookmark-data-provider.js#parseDestination()` 改为调用上述工具，并修复“pageRef 为 number 未 +1”的偏移问题。
+- 行为增强：
+  - `ui/bookmark-sidebar-ui.js`、`features/pdf-outline/components/outline-sidebar-ui.js` 在具备 `region.scrollY`（百分比）时，向 `NAVIGATION.URL_PARAMS.REQUESTED` 一并传递 `position`，提升落点准确性；缺省仍为纯页级跳转。
+
+
+###（新增 2025-10-17）PDF.js 资源路径（生产）使用规范
+- 构建脚本会在 `index.html` 注入：`window.__PDFJS_VENDOR_BASE__='/static/vendor/pdfjs-dist/'`；
+- 运行时优先从该基址解析 PDF.js 资源：
+  - `workerSrc = ${base}build/pdf.worker.min.mjs`
+  - `cMapUrl = ${base}cmaps/`
+  - `standardFontDataUrl = ${base}standard_fonts/`
+- 回退策略（开发环境）：
+  - 若未注入上述变量，则通过 `new URL('@pdfjs/...', import.meta.url).href` 解析（依赖 Vite alias）。
+- 受影响文件：
+  - `src/frontend/pdf-viewer/features/pdf-reader/components/pdf-loader.js`
+  - `src/frontend/pdf-viewer/features/pdf-reader/services/pdf-manager-service.js`
+  - `src/frontend/pdf-viewer/pdf/pdf-config.js`
+  - `src/frontend/pdf-viewer/pdf/pdf-loader.js`
+- 目的：避免生产环境出现 `/static/@pdfjs/...` 404，统一走 `/static/vendor/pdfjs-dist/...`。
+
+###（新增 2025-10-17）前端错误自动 Toast 策略
+- 背景：仅 WS 错误会 toast，前端模块自身 `logger.error()` 默认不 toast；
+- 方案：在 pdf-viewer 入口启用 Logger 的全局自动 toast，仅对 `error` 级别生效：
+  - 位置：`src/frontend/pdf-viewer/main.js`
+  - 代码：`enableAutoToast({ levels: [LogLevel.ERROR], defaultMs: 6000 })`
+- 说明：
+  - 仍可在单次日志调用时通过追加参数 `{ toast: true | { type, ms } }` 覆盖行为；
+  - 可用 `window.disableAutoToast()` 临时关闭（开发调试）。
+      - `pdf-viewer:mouse-mode:changed`
+
+- 目的：
+  - 避免后端返回 `pdf-viewer:register:completed` 被前端拦截为未注册类型，导致注册链路中断→ viewer 空白。
+  - 将 UI 模式类事件纳入全局事件白名单，消除“未注册的全局事件”错误噪音。
+
+###（新增 2025-10-17）QtWebEngine 远程调试端口（Hosted 模式）
+- 约束：同一进程只能启用一个 `QTWEBENGINE_REMOTE_DEBUGGING` 端口。
+- 规范：
+  - pdf-home 优先设置端口（默认 9222），并在启动前设置环境变量；
+  - pdf-viewer 在创建 `QWebEngineView` 之前检测该环境变量：
+    - 已存在 → 复用端口，并记录日志 `[RemoteDebug] 已检测到进程级端口，复用 ...`；
+    - 不存在 → 设置 `self._remote_debug_port` （默认 9223，但在 Hosted 场景通常不会生效）。
+- 效果：Hosted 下统一使用 pdf-home 端口（通常 9222）；Standalone 下各自设置。
+
 ### 标注保存策略（pdf-viewer / 2025-10-08）
 - AnnotationManager 在创建标注时的保存路径：
   - 远端保存：当 `wsClient.isConnected()` 为 true 且已设置 `pdfId` 时，调用 WS 接口保存；
@@ -858,3 +923,18 @@ emove_comment(ann_id, comment_id)。
 - 影响：
   - 若在 Anki 环境导入插件副本，则 DB 落在插件库根的 `data/`；
   - 若导入到源码副本，则 DB 落在源码仓库根的 `data/`；此为预期（以模块物理路径为准）。
+## 事件契约更新（20251018085714）
+
+- 事件：`PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED`
+  - `pdfId: string`（必填，若由 URL/上下文提供则透传）
+  - `pageAt: number|null`（可选；提供时需为 >=1 的整数）
+  - `position: number|null`（可选；表示页面内垂直位置百分比 0-100；不提供请传 null，避免 undefined）
+  - `anchorId?: string`（可选；`pdfanchor-` + 12 hex 或开发测试 `pdfanchor-test`）
+
+- 校验器：`URLParamsParser.validate()`
+  - 将 `undefined` 视为“未提供”，仅对 `number|null` 做校验；
+  - 允许仅携带 `anchorId`（缺少 `pdfId` 时发出警告，交由后端解析映射）。
+
+- 发送端规范：
+  - 所有 emit 位置统一将空值规范化为 `null`，不要传 `undefined`；
+  - 示例：`position: (typeof pos === "number" ? pos : null)`。

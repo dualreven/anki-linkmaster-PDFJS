@@ -249,9 +249,39 @@ export class AnnotationManager {
         this.#logger.warn("[AnnotationManager] PDF ID not set; fallback to local save");
         return await this.#mockSaveAnnotation(annotation);
       }
+      // 构造后端所需 payload，并做向后兼容映射（例如 comment 需要 position{x,y}）
+      const annJson = annotation.toJSON ? annotation.toJSON() : annotation;
+      try {
+        if (annJson && annJson.type === AnnotationType.COMMENT) {
+          const data = annJson.data = annJson.data || {};
+          // 若缺少像素 position，且提供了百分比 positionPercent，则在保存前换算生成 position（满足后端校验）
+          if ((!data.position || typeof data.position.x !== "number" || typeof data.position.y !== "number")
+              && data.positionPercent && typeof data.positionPercent.yPercent === "number") {
+            const xPercent = Number(data.positionPercent.xPercent ?? 0);
+            const yPercent = Number(data.positionPercent.yPercent ?? 0);
+            try {
+              const pageNum = Number(annJson.pageNumber || 1);
+              const pageEl = document?.getElementById?.('viewerContainer')?.querySelector?.(`.page[data-page-number="${pageNum}"]`) || null;
+              const w = pageEl ? (pageEl.clientWidth || pageEl.offsetWidth || 0) : 0;
+              const h = pageEl ? (pageEl.clientHeight || pageEl.offsetHeight || 0) : 0;
+              const xPx = Math.max(0, Math.round((xPercent / 100) * (w || 1)));
+              const yPx = Math.max(0, Math.round((yPercent / 100) * (h || 1)));
+              data.position = { x: xPx, y: yPx };
+              this.#logger.info("[AnnotationManager] Filled legacy position from percent for comment", { xPx, yPx, w, h });
+            } catch (e) {
+              this.#logger.warn("[AnnotationManager] Failed to compute legacy position from percent", e);
+              // 仍确保 position 存在，避免后端直接拒绝（保守为 0,0）
+              data.position = data.position || { x: 0, y: 0 };
+            }
+          }
+        }
+      } catch (mapErr) {
+        this.#logger.warn("[AnnotationManager] Compatibility mapping error", mapErr);
+      }
+
       const payload = {
         pdf_uuid: this.#pdfId,
-        annotation: annotation.toJSON ? annotation.toJSON() : annotation,
+        annotation: annJson,
       };
       return await this.#wsClient.request(
         WEBSOCKET_MESSAGE_TYPES.ANNOTATION_SAVE,

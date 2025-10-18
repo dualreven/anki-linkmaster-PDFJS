@@ -57,6 +57,14 @@ export class AnnotationSidebarUI {
 
     // 监听事件
     this.#setupEventListeners();
+
+    // 统一为所有标注卡片绑定跳转按钮的委托点击（避免各工具各自实现导致不一致）
+    try {
+      this.#setupCardClickDelegation();
+      this.#logger.info('Card click delegation for jump initialized');
+    } catch (e) {
+      this.#logger.warn('Failed to setup card click delegation', e);
+    }
   }
 
   /**
@@ -110,6 +118,86 @@ export class AnnotationSidebarUI {
       this.#createContent();
     }
     return this.#container;
+  }
+
+  /**
+   * 统一为侧边栏中的卡片绑定跳转点击（事件委托）
+   * @private
+   */
+  #setupCardClickDelegation() {
+    const root = this.#sidebarContent || this.#container;
+    if (!root) return;
+
+    root.addEventListener('click', (evt) => {
+      try {
+        const target = /** @type {HTMLElement} */(evt.target);
+        const jumpBtn = target?.closest ? target.closest('.jump-btn') : null;
+        if (!jumpBtn) return;
+
+        const annId = jumpBtn.getAttribute('data-annotation-id') || jumpBtn.dataset.annotationId;
+        if (!annId) {
+          this.#logger.warn('[AnnotationSidebarUI] jump-btn clicked but no data-annotation-id');
+          return;
+        }
+        this.#handleCardJump(String(annId));
+      } catch (e) {
+        this.#logger.warn('Card jump handler failed', e);
+      }
+    }, { passive: true });
+  }
+
+  /**
+   * 执行统一的跳转逻辑：优先页码跳转；若可用则滚动到大致位置
+   * @param {string} annotationId
+   * @private
+   */
+  #handleCardJump(annotationId) {
+    try {
+      const ann = (this.#annotations || []).find(a => a?.id === annotationId);
+      if (!ann) {
+        this.#logger.warn(`[AnnotationSidebarUI] annotation not found for id=${annotationId}`);
+        return;
+      }
+
+      // 计算滚动百分比（可选）
+      let positionPercent = null;
+      try {
+        if (ann?.type === 'text-highlight' && Array.isArray(ann?.data?.lineRects) && ann.data.lineRects.length > 0) {
+          const r0 = ann.data.lineRects[0];
+          if (typeof r0.yPercent === 'number' && typeof r0.heightPercent === 'number') {
+            const mid = r0.yPercent + (r0.heightPercent / 2);
+            positionPercent = Math.max(0, Math.min(100, mid));
+          }
+        }
+      } catch (_) {}
+
+      // 按你的要求：批注型也使用 URL 导航入口（避免当前 GOTO 跳到第一页的问题）
+      let pdfId = null;
+      try {
+        pdfId = new URLSearchParams(window.location.search).get('pdf-id');
+      } catch (_) {}
+      this.#eventBus.emitGlobal(
+        PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
+        { pdfId: pdfId || undefined, pageAt: ann.pageNumber, position: positionPercent ?? null, annotationId: ann.id },
+        { actorId: 'AnnotationSidebarUI' }
+      );
+
+      // 通知各工具跳转成功（用于渲染标记等），尽量兼容已有监听方
+      try {
+        this.#eventBus.emit(
+          PDF_VIEWER_EVENTS.ANNOTATION?.NAVIGATION?.JUMP_SUCCESS || 'annotation:navigation:jump:success',
+          { annotation: ann },
+          { actorId: 'AnnotationSidebarUI' }
+        );
+      } catch (_) {}
+
+      // 高亮对应卡片
+      try { this.highlightAndScrollToCard(ann.id); } catch (_) {}
+
+      this.#logger.info(`[AnnotationSidebarUI] Jump requested: id=${ann.id} page=${ann.pageNumber} pos=${positionPercent ?? 'n/a'}`);
+    } catch (e) {
+      this.#logger.error('Failed to handle card jump', e);
+    }
   }
 
   /**

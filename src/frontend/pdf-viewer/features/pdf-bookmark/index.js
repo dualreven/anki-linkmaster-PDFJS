@@ -854,54 +854,27 @@ export class PDFBookmarkFeature {
    */
   async #parseBookmarkDest(bookmark) {
     try {
-      // 优先使用 Bookmark 模型的 pageNumber 字段
+      // 优先使用 Bookmark 模型的 pageNumber 字段（1-based）
       if (bookmark.pageNumber && typeof bookmark.pageNumber === 'number') {
-        return bookmark.pageNumber;  // Bookmark 模型已经是从1开始的页码
+        return bookmark.pageNumber;
       }
 
-      // 兼容旧格式：如果有 dest 字段，尝试解析
+      // 兼容旧格式：存在 dest 时使用通用解析
       const dest = bookmark.dest;
-
-      // 情况1：dest直接是数字（本地导入的书签，已经是页码）
-      if (typeof dest === 'number') {
-        return dest;  // 已经是从1开始的页码
-      }
-
-      // 情况2：dest是数组（PDF原生书签）
-      if (!dest || !Array.isArray(dest) || dest.length === 0) {
-        this.#logger.warn('书签dest无效或为空');
+      if (dest === null || dest === undefined) {
+        this.#logger.warn('书签缺少 dest 与 pageNumber，无法解析');
         return null;
       }
 
-      // dest格式: [pageRef, destType, ...params]
-      // pageRef可能是: {num: xx, gen: yy} 或直接是页码数字
-      const pageRef = dest[0];
-
-      // 如果pageRef直接是数字，就是页码（从0开始）
-      if (typeof pageRef === 'number') {
-        return pageRef + 1;  // 转换为从1开始
+      const pdfDocument = getCurrentPDFDocument();
+      if (!pdfDocument) {
+        this.#logger.warn('PDF文档对象不可用，无法解析书签目的地');
+        return null;
       }
 
-      // 如果pageRef是对象，需要通过PDFDocument解析
-      if (pageRef && typeof pageRef === 'object' && 'num' in pageRef) {
-        const pdfDocument = getCurrentPDFDocument();
-        if (!pdfDocument) {
-          this.#logger.warn('PDF文档对象不可用，无法解析页面引用');
-          return null;
-        }
-
-        try {
-          // 使用PDFDocument的getPageIndex方法将引用转换为索引
-          const pageIndex = await pdfDocument.getPageIndex(pageRef);
-          return pageIndex + 1;  // 转换为从1开始的页码
-        } catch (error) {
-          this.#logger.error('解析页面引用失败:', error);
-          return null;
-        }
-      }
-
-      this.#logger.warn('未知的pageRef格式:', pageRef);
-      return null;
+      const { resolvePdfDest } = await import('../../pdf/pdf-dest-utils.js');
+      const resolved = await resolvePdfDest(pdfDocument, dest);
+      return resolved?.pageNumber || null;
     } catch (error) {
       this.#logger.error('解析书签dest时出错:', error);
       return null;

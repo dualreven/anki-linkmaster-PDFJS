@@ -40,6 +40,22 @@ export class PDFLoader {
       }
     }
 
+    // 计算 PDF.js 资源基址（生产优先 vendor 基址，开发回退 alias）
+    let cMapUrlResolved = null;
+    let standardFontDataUrlResolved = null;
+    try {
+      if (typeof window !== 'undefined' && window.__PDFJS_VENDOR_BASE__) {
+        const base = String(window.__PDFJS_VENDOR_BASE__).endsWith('/') ? window.__PDFJS_VENDOR_BASE__ : `${window.__PDFJS_VENDOR_BASE__}/`;
+        cMapUrlResolved = `${base}cmaps/`;
+        standardFontDataUrlResolved = `${base}standard_fonts/`;
+      }
+    } catch (_) {}
+    if (!cMapUrlResolved || !standardFontDataUrlResolved) {
+      // 回退到 import.meta + 别名（主要用于开发环境）
+      cMapUrlResolved = new URL('@pdfjs/cmaps/', import.meta.url).href;
+      standardFontDataUrlResolved = new URL('@pdfjs/standard_fonts/', import.meta.url).href;
+    }
+
     // 创建加载配置
     const loadingTask = this.#pdfjsLib.getDocument({
       url: url,
@@ -47,11 +63,11 @@ export class PDFLoader {
       disableAutoFetch: false,
       disableStream: false,
       disableRange: false,
-      // 启用CMap支持中文等CJK字符（使用Vite别名，简单且本地化）
-      cMapUrl: new URL('@pdfjs/cmaps/', import.meta.url).href,
+      // 启用CMap支持中文等CJK字符
+      cMapUrl: cMapUrlResolved,
       cMapPacked: true,
-      // 启用标准字体（使用Vite别名）
-      standardFontDataUrl: new URL('@pdfjs/standard_fonts/', import.meta.url).href
+      // 启用标准字体
+      standardFontDataUrl: standardFontDataUrlResolved
     });
 
     this.#currentLoadTask = loadingTask;
@@ -95,16 +111,32 @@ export class PDFLoader {
       }
     }
 
+    // 计算 PDF.js 资源基址（生产优先 vendor 基址，开发回退 alias）
+    let cMapUrlResolved2 = null;
+    let standardFontDataUrlResolved2 = null;
+    try {
+      if (typeof window !== 'undefined' && window.__PDFJS_VENDOR_BASE__) {
+        const base = String(window.__PDFJS_VENDOR_BASE__).endsWith('/') ? window.__PDFJS_VENDOR_BASE__ : `${window.__PDFJS_VENDOR_BASE__}/`;
+        cMapUrlResolved2 = `${base}cmaps/`;
+        standardFontDataUrlResolved2 = `${base}standard_fonts/`;
+      }
+    } catch (_) {}
+    if (!cMapUrlResolved2 || !standardFontDataUrlResolved2) {
+      // 回退到 import.meta + 别名（主要用于开发环境）
+      cMapUrlResolved2 = new URL('@pdfjs/cmaps/', import.meta.url).href;
+      standardFontDataUrlResolved2 = new URL('@pdfjs/standard_fonts/', import.meta.url).href;
+    }
+
     const loadingTask = this.#pdfjsLib.getDocument({
       data: arrayBuffer,
       disableAutoFetch: false,
       disableStream: false,
       disableRange: false,
-      // 启用CMap支持中文等CJK字符（使用Vite别名，简单且本地化）
-      cMapUrl: new URL('@pdfjs/cmaps/', import.meta.url).href,
+      // 启用CMap支持中文等CJK字符
+      cMapUrl: cMapUrlResolved2,
       cMapPacked: true,
-      // 启用标准字体（使用Vite别名）
-      standardFontDataUrl: new URL('@pdfjs/standard_fonts/', import.meta.url).href
+      // 启用标准字体
+      standardFontDataUrl: standardFontDataUrlResolved2
     });
 
     this.#currentLoadTask = loadingTask;

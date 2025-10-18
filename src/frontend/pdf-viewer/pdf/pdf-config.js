@@ -10,6 +10,13 @@
  */
 function getWorkerSrc() {
   try {
+    // 1) 优先读取构建时注入的 vendor 基址（生产环境）
+    if (typeof window !== 'undefined' && window.__PDFJS_VENDOR_BASE__) {
+      const base = String(window.__PDFJS_VENDOR_BASE__).endsWith('/') ? window.__PDFJS_VENDOR_BASE__ : `${window.__PDFJS_VENDOR_BASE__}/`;
+      return `${base}build/pdf.worker.min.mjs`;
+    }
+
+    // 2) 回退到 import.meta + Vite 别名（开发环境）
     const getImportMetaUrl = new Function('return import.meta.url');
     const metaUrl = getImportMetaUrl();
     if (metaUrl) {
@@ -89,7 +96,8 @@ export const PATH_CONFIG = {
   defaultPdfPath: '/pdf/',
 
   // 代理路径配置
-  proxyPath: '/pdf-files/',
+  // 与嵌入式 HTTP 文件服务器保持一致：其暴露的 PDF 路由为 /pdfs/
+  proxyPath: '/pdfs/',
 
   // 支持的文件扩展名
   supportedExtensions: ['.pdf', '.PDF']

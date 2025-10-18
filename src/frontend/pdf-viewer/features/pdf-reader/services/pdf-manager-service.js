@@ -66,16 +66,22 @@ export class PDFManager {
       this.#pdfjsLib.GlobalWorkerOptions.workerSrc = config.workerSrc;
 
       // 启用标准字体映射，支持中文等非拉丁字符（使用Vite别名，简单且本地化）
-      // 使用Function构造器避开Babel的静态分析
+      // 优先使用构建脚本注入的 vendor 基址，其次回退 import.meta（测试环境可能不可用）
       try {
-        const getImportMetaUrl = new Function('return import.meta.url');
-        const metaUrl = getImportMetaUrl();
-        if (metaUrl) {
-          this.#pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = new URL('@pdfjs/standard_fonts/', metaUrl).href;
+        if (typeof window !== 'undefined' && window.__PDFJS_VENDOR_BASE__) {
+          const base = String(window.__PDFJS_VENDOR_BASE__).endsWith('/') ? window.__PDFJS_VENDOR_BASE__ : `${window.__PDFJS_VENDOR_BASE__}/`;
+          this.#pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = `${base}standard_fonts/`;
+        } else {
+          // 使用Function构造器避开Babel的静态分析
+          const getImportMetaUrl = new Function('return import.meta.url');
+          const metaUrl = getImportMetaUrl();
+          if (metaUrl) {
+            this.#pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = new URL('@pdfjs/standard_fonts/', metaUrl).href;
+          }
         }
       } catch (e) {
-        // 测试环境中import.meta不可用，跳过
-        this.#logger.debug('import.meta.url not available, skipping standardFontDataUrl config');
+        // 测试环境中import.meta不可用，或 window 访问失败，跳过
+        this.#logger.debug('standardFontDataUrl config skipped (no vendor base/import.meta)');
       }
 
       this.#logger.info("PDF.js worker configured", {

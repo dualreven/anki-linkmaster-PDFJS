@@ -46,6 +46,9 @@ export class WSClient {
     "capability:describe:completed",
     "pdf-library:search:completed",
     "pdf-library:search:failed",
+    // 查看器启动回执（pdf-home侧接收）
+    "pdf-library:viewer:completed",
+    "pdf-library:viewer:failed",
     "storage-kv:get:completed",
     "storage-kv:get:failed",
     "pdf-library:add:completed",
@@ -57,6 +60,13 @@ export class WSClient {
     "annotation:save:failed",
     "annotation:delete:completed",
     "annotation:delete:failed"
+    ,
+    // PDF-Viewer 契约消息（服务端→前端）
+    "pdf-viewer:register:completed",
+    "pdf-viewer:register:failed",
+    "pdf-viewer:navigate:requested",
+    "pdf-viewer:navigate:completed",
+    "pdf-viewer:navigate:failed"
   ];
 
   static ALLOWED_OUTBOUND_TYPES = (() => {
@@ -575,14 +585,11 @@ export class WSClient {
     return new Promise((resolve, reject) => {
       let retryCount = 0;
 
-      const sendOnce = () => {
-        if (!this.isConnected()) {
-          handleError(new Error("WebSocket连接未建立"));
-          return;
-        }
-
+      const doRegisterPending = () => {
         const timeoutId = setTimeout(() => {
-          handleError(new Error("请求超时"));
+          this.#pendingRequests.delete(requestId);
+          this.#requestRetries.delete(requestId);
+          reject(new Error("请求超时"));
         }, timeout);
 
         this.#pendingRequests.set(requestId, {
@@ -595,30 +602,38 @@ export class WSClient {
             reject(error);
           }
         });
+      };
 
+      const sendOnce = () => {
+        if (!this.isConnected()) {
+          // 未连接：注册 pending，消息入队，等待连接后由 flush 发送
+          doRegisterPending();
+          this.#messageQueue.push(message);
+          this.#logger.debug(`📥 请求已排队（连接未建立）: ${messageType}`, {
+            request_id: requestId,
+            queue_length: this.#messageQueue.length,
+            ready_state_name: this.#getReadyStateName()
+          });
+          return;
+        }
+
+        doRegisterPending();
         try {
           message.timestamp = Date.now();
           this.#socket.send(JSON.stringify(message));
           this.#logger.debug(`WS request sent: ${messageType}`, message);
         } catch (error) {
-          clearTimeout(timeoutId);
-          handleError(error);
-        }
-      };
-
-      const handleError = (error) => {
-        if (retryCount < maxRetries) {
-          retryCount += 1;
-          this.#requestRetries.set(requestId, retryCount);
-          this.#logger.warn(`WS请求失败，第${retryCount}次重试: ${error.message}`);
-          setTimeout(() => {
-            sendOnce();
-          }, 1000 * retryCount);
-        } else {
-          this.#pendingRequests.delete(requestId);
-          this.#requestRetries.delete(requestId);
-          const err = error instanceof Error ? error : new Error(error?.message || "WebSocket请求失败");
-          reject(err);
+          if (retryCount < maxRetries) {
+            retryCount += 1;
+            this.#requestRetries.set(requestId, retryCount);
+            this.#logger.warn(`WS请求发送失败，第${retryCount}次重试: ${error.message}`);
+            setTimeout(() => sendOnce(), 1000 * retryCount);
+          } else {
+            this.#pendingRequests.delete(requestId);
+            this.#requestRetries.delete(requestId);
+            const err = error instanceof Error ? error : new Error(error?.message || "WebSocket请求失败");
+            reject(err);
+          }
         }
       };
 

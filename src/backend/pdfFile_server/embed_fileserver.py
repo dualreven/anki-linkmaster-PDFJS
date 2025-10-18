@@ -43,7 +43,8 @@ if str(project_root) not in sys.path:
 
 from src.qt.compat import QObject, pyqtSignal
 from PyQt6.QtNetwork import QTcpServer, QTcpSocket, QHostAddress
-from PyQt6.QtCore import QFile, QIODevice
+from PyQt6.QtCore import QFile, QIODevice, QCoreApplication
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -398,6 +399,17 @@ class EmbedFileServer(QObject):
                 return None
             return candidate if candidate.exists() and candidate.is_file() else None
 
+        # 兼容历史路由：/pdf-files/* → 映射到 pdfs_root
+        if url_path.startswith('/pdf-files/') and self.pdfs_root is not None:
+            relative_path = url_path[len('/pdf-files/'):]
+            candidate = (self.pdfs_root / relative_path.lstrip('/')).resolve()
+            try:
+                candidate.relative_to(self.pdfs_root)
+            except ValueError:
+                logger.warning(f"⚠️ 路径穿越尝试: {url_path}")
+                return None
+            return candidate if candidate.exists() and candidate.is_file() else None
+
         # 默认回退到 root_dir
         relative_path = url_path.lstrip('/')
         file_path = (self.root_dir / relative_path).resolve()
@@ -478,15 +490,36 @@ class EmbedFileServer(QObject):
                 bytes_sent += len(chunk)  # 使用 len() 兼容 QByteArray 和 bytes
                 chunk_count += 1
 
-                # 流控制：等待缓冲区有空间（避免内存溢出）
+                # 流控制：等待缓冲区有空间（避免阻塞同进程的 QWebEngine 读取）
+                # 在 Hosted 同进程/同线程场景，阻塞等待可能会饿死事件循环，
+                # 因此使用短等待 + processEvents 让 QWebEngine 有机会读取。
                 if socket.bytesToWrite() > MAX_BUFFER_SIZE:
-                    # 等待最多 5 秒让数据发送出去
-                    if not socket.waitForBytesWritten(5000):
-                        logger.warning(f"⚠️ Socket 写入超时，已发送 {bytes_sent}/{file_size} bytes")
-                        break
+                    start = time.perf_counter()
+                    while socket.bytesToWrite() > MAX_BUFFER_SIZE:
+                        # 短等待，避免长时间阻塞
+                        socket.waitForBytesWritten(50)
+                        try:
+                            QCoreApplication.processEvents()
+                        except Exception:
+                            pass
+                        if time.perf_counter() - start > 30.0:  # 最长等待 30 秒以防极端情况
+                            logger.warning(
+                                f"⚠️ Socket 写入阻塞超过30秒，缓冲区仍有 {socket.bytesToWrite()} bytes 待写，"
+                                f"已发送 {bytes_sent}/{file_size} bytes"
+                            )
+                            # 不立即中断传输，继续尝试发送后续数据以便客户端尽量读取
+                            break
 
             # 确保所有数据发送完成
             socket.flush()
+            # 确保缓冲区尽可能发送完成
+            start_flush = time.perf_counter()
+            while socket.bytesToWrite() > 0 and (time.perf_counter() - start_flush) <= 30.0:
+                socket.waitForBytesWritten(50)
+                try:
+                    QCoreApplication.processEvents()
+                except Exception:
+                    pass
 
             # 日志记录
             if bytes_sent == file_size:

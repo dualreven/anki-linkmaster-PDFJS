@@ -265,7 +265,7 @@ export class CommentTool extends IAnnotationTool {
       x: displayX,
       y: displayY,
       pageNumber,
-      onConfirm: (content) => this.#createComment(x, y, pageNumber, content),
+      onConfirm: (content) => this.#createComment(x, y, pageNumber, pageRect.width, pageRect.height, content),
       onCancel: () => {
         this.#logger.info('Comment creation cancelled');
       },
@@ -278,13 +278,19 @@ export class CommentTool extends IAnnotationTool {
    * @param {number} x - X坐标
    * @param {number} y - Y坐标
    * @param {number} pageNumber - 页码
+   * @param {number} pageWidth - 页面宽度(px)
+   * @param {number} pageHeight - 页面高度(px)
    * @param {string} content - 批注内容
    */
-  #createComment(x, y, pageNumber, content) {
+  #createComment(x, y, pageNumber, pageWidth, pageHeight, content) {
     this.#logger.info(`Creating comment at (${x}, ${y}) on page ${pageNumber}: "${content}"`);
 
-    // 创建标注对象（使用静态工厂方法）
-    const annotation = Annotation.createComment(pageNumber, { x, y }, content);
+    // 将像素坐标换算为百分比存储
+    const xPercent = Math.max(0, Math.min(100, (x / (pageWidth || 1)) * 100));
+    const yPercent = Math.max(0, Math.min(100, (y / (pageHeight || 1)) * 100));
+
+    // 创建标注对象（使用静态工厂方法，传入百分比坐标）
+    const annotation = Annotation.createComment(pageNumber, { xPercent, yPercent }, content);
 
     // 发布创建事件（标记渲染会在annotation:create:success事件中统一处理）
     this.#eventBus.emit(

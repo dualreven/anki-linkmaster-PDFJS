@@ -7,7 +7,7 @@
 // 导入PDF.js viewer的CSS样式（用于文字层）
 import 'pdfjs-dist/web/pdf_viewer.css';
 
-import { getLogger } from "../common/utils/logger.js";
+import { getLogger, enableAutoToast, LogLevel } from "../common/utils/logger.js";
 
 // ===== 应用启动 =====
 // 使用 Feature-based bootstrap 模式启动应用（插件化架构）
@@ -16,6 +16,12 @@ import { bootstrapPDFViewerAppFeature } from "./bootstrap/app-bootstrap-feature.
 
 document.addEventListener("DOMContentLoaded", async () => {
   const indexLogger = getLogger("PDFViewer");
+
+  // 启用全局自动 Toast：仅对 error 级别弹出（避免信息轰炸）
+  try {
+    enableAutoToast({ levels: [LogLevel.ERROR], defaultMs: 6000 });
+  } catch (_) {}
+
   indexLogger.info("DOMContentLoaded: Starting PDF Viewer App bootstrap...");
   indexLogger.debug("PDF Viewer bootstrap (Feature-based architecture)");
 

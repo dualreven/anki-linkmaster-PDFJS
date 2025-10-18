@@ -505,6 +505,14 @@ export class AnnotationFeature {
         } catch (e) { void e; /* ignore */ }
       }
 
+      // 批注：优先使用百分比坐标
+      if (position === null && annotation.type === "comment" && annotation.data && annotation.data.positionPercent) {
+        const yp = Number(annotation.data.positionPercent.yPercent);
+        if (Number.isFinite(yp)) {
+          position = Math.max(0, Math.min(100, yp));
+          this.#logger.info(`[AnnotationFeature] Using comment positionPercent: ${position.toFixed(2)}%`);
+        }
+      }
       if (position === null && annotation.data && annotation.data.position) {
         const annotationPosition = annotation.data.position;
 
@@ -569,7 +577,8 @@ export class AnnotationFeature {
           position: (position !== null && Number.isFinite(position)) ? position : null,
           annotationId: annotation?.id || undefined
         };
-        this.#eventBus.emit(
+        // 重要：必须发到全局事件总线，URLNavigationFeature 在全局总线上监听
+        this.#eventBus.emitGlobal(
           PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
           req,
           { actorId: "AnnotationFeature" }

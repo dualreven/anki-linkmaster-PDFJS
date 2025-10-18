@@ -450,11 +450,11 @@ export class WebSocketAdapter {
       return;
     }
 
-    // 📤 发射事件: pdf-viewer:navigation:goto
-    // 监听者: features/pdf
+    // 📤 统一走 URL 导航入口
+    const pdfId = (() => { try { return new URLSearchParams(window.location.search).get("pdf-id"); } catch { return null; } })();
     this.#eventBus.emit(
-      PDF_VIEWER_EVENTS.NAVIGATION.GOTO,
-      { pageNumber: page_number },
+      PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
+      { pdfId: pdfId || undefined, pageAt: page_number },
       { actorId: "WebSocketAdapter" }
     );
   }
@@ -523,11 +523,21 @@ export class WebSocketAdapter {
         if (!Number.isFinite(pageNumber)) {
           throw new Error("page_number must be a number");
         }
-        const position = data?.target?.position || data?.position || null; // { y_percent, x_percent } or { x, y }
-        const payload = { pageNumber };
-        if (position) {payload.position = position;}
-        if (opts?.zoom) {payload.zoom = opts.zoom;}
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.GOTO, payload, { actorId: "WebSocketAdapter" });
+        // 统一经由 URL 导航入口；若 position 为百分比则透传，否则省略
+        const pos = data?.target?.position || data?.position || null; // { y_percent, x_percent } or { x, y } or number
+        let positionPercent = null;
+        try {
+          if (pos && typeof pos === "object" && typeof pos.y_percent === "number") {
+            positionPercent = pos.y_percent;
+          } else if (typeof pos === "number" && pos >= 0 && pos <= 100) {
+            positionPercent = pos;
+          }
+        } catch (_) {}
+        const req = { pageAt: pageNumber };
+        const pdfId = to?.pdf_uuid || (() => { try { return new URLSearchParams(window.location.search).get("pdf-id"); } catch { return null; } })();
+        if (pdfId) { req.pdfId = pdfId; }
+        if (positionPercent !== null) { req.position = positionPercent; }
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED, req, { actorId: "WebSocketAdapter" });
       } else {
         throw new Error(`unsupported navigate mode: ${mode}`);
       }

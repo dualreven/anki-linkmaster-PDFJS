@@ -127,6 +127,21 @@ export class URLNavigationFeature {
         return;
       }
 
+      // 立即触发加载：当仅携带 pdf-id 时，先加载文档，再由门闸处理后续定位/滚动
+      try {
+        const pdfId = this.#parsedParams?.pdfId;
+        if (pdfId && typeof pdfId === 'string' && pdfId.trim().length > 0) {
+          this.#logger.info("[url-navigation] 触发文件加载 (from url params)", { pdfId });
+          this.#eventBus.emit(
+            PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
+            { filename: pdfId, source: 'url-navigation' },
+            { actorId: 'URLNavigationFeature' }
+          );
+        }
+      } catch (e) {
+        this.#logger.warn('[url-navigation] 触发加载失败（忽略并继续门闸流程）', e);
+      }
+
       if (validation.warnings.length > 0) {
         this.#logger.warn("URL参数警告:", validation.warnings);
       }
@@ -323,16 +338,24 @@ export class URLNavigationFeature {
     const startTime = performance.now();
 
     try {
-      // 如果指定了pdfId，先加载PDF
+      // 如果指定了 pdfId：仅当与当前已打开的文档不同才触发重新加载；
+      // 否则视为“同文档内导航”，直接执行页面跳转，避免刷新到第1页。
       if (params.pdfId) {
-        this.#eventBus.emit(
-          PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
-          { filename: params.pdfId, source: "url-navigation" },
-          { actorId: "URLNavigationFeature" }
-        );
-
-        // 等待PDF加载（通过事件监听器处理后续导航）
-        return;
+        let currentId = null;
+        try { currentId = new URLSearchParams(window.location.search).get("pdf-id"); } catch (_) {}
+        const sameDoc = currentId && (String(currentId).trim() === String(params.pdfId).trim());
+        if (!sameDoc) {
+          this.#logger.info("[url-navigation] 检测到不同的 pdfId，触发重新加载", { currentId, target: params.pdfId });
+          this.#eventBus.emit(
+            PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
+            { filename: params.pdfId, source: "url-navigation" },
+            { actorId: "URLNavigationFeature" }
+          );
+          // 等待PDF加载（通过事件监听器处理后续导航）
+          return;
+        } else {
+          this.#logger.info("[url-navigation] 目标 pdfId 与当前一致，直接页内导航（不重载）");
+        }
       }
 
       // 否则直接执行页面导航

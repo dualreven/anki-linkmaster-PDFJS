@@ -153,11 +153,22 @@ export class BookmarkSidebarUI {
           { bookmarkId: selected?.node?.id || null, bookmark: info.raw || null },
           { actorId: "BookmarkSidebarUI" }
         );
-        this.#eventBus.emit(
-          PDF_VIEWER_EVENTS.NAVIGATION.GOTO,
-          { pageNumber, ...(position !== null ? { position } : {}) },
-          { actorId: "BookmarkSidebarUI" }
-        );
+        // 统一使用 URL 导航入口；若存在百分比位置（region.scrollY），一并传递
+        try {
+          const pdfId = (() => { try { return new URLSearchParams(window.location.search).get('pdf-id'); } catch { return null; } })();
+          this.#eventBus.emitGlobal(
+            PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
+            { pdfId: pdfId || undefined, pageAt: pageNumber, position: (position ?? undefined) },
+            { actorId: "BookmarkSidebarUI" }
+          );
+        } catch {
+          const pdfId2 = (() => { try { return new URLSearchParams(window.location.search).get('pdf-id'); } catch { return null; } })();
+          this.#eventBus.emit(
+            PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
+            { pdfId: pdfId2 || undefined, pageAt: pageNumber, position: (position ?? undefined) },
+            { actorId: "BookmarkSidebarUI" }
+          );
+        }
       } catch (err) { this.#logger.warn("select_node failed", err); }
     });
     // 拖拽重排 → 发出 REORDER

@@ -153,6 +153,9 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   ANCHOR_ACTIVATE: 'anchor:activate:requested',
 
   // 响应/广播消息
+  // 查看器启动回执（pdf-home 侧接收）
+  OPEN_PDF_COMPLETED: 'pdf-library:viewer:completed',
+  OPEN_PDF_FAILED: 'pdf-library:viewer:failed',
   PDF_LIST_COMPLETED: 'pdf-library:list:completed',
   PDF_LIST_FAILED: 'pdf-library:list:failed',
   ADD_PDF_COMPLETED: 'pdf-library:add:completed',
@@ -212,6 +215,9 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   // ====== PDF-Viewer 实例注册与导航（新增）======
   // 前端→后端：PDF-Viewer 实例注册（包含 viewer_id 与 pdf_uuid 绑定）
   VIEWER_REGISTER_REQUESTED: 'pdf-viewer:register:requested',
+  // 后端→前端：PDF-Viewer 实例注册完成/失败回执
+  VIEWER_REGISTER_COMPLETED: 'pdf-viewer:register:completed',
+  VIEWER_REGISTER_FAILED: 'pdf-viewer:register:failed',
   // 后端→前端：请求指定 viewer 导航到目标位置
   VIEWER_NAVIGATE_REQUESTED: 'pdf-viewer:navigate:requested',
   // 前端→后端：导航完成/失败回执（带 correlation_id）
@@ -264,6 +270,9 @@ export const FILTER_EVENTS = {
 export const SEARCH_RESULTS_EVENTS = {
   FOCUS: {
     REQUESTED: 'search-results:focus:requested',
+  },
+  ACTIONS: {
+    OPEN: 'search-results:item:open',
   },
 };
 

@@ -138,12 +138,22 @@ export class OutlineSidebarUI {
         const info = node?.data || {};
         const pageNumber = info.pageNumber || 1;
         const region = info.region || null;
-        const position = region && typeof region.scrollY === "number" ? region.scrollY : null;
-        this.#eventBus.emit(
-          PDF_VIEWER_EVENTS.NAVIGATION.GOTO,
-          { pageNumber, ...(position !== null ? { position } : {}) },
-          { actorId: "OutlineSidebarUI" }
-        );
+        const position = (region && typeof region.scrollY === "number") ? region.scrollY : null;
+        // 统一使用 URL 导航入口（若存在位置百分比，一并携带）
+        try {
+          // 重要：同文档内跳转不应携带 pdfId，避免被 URLNavigationFeature 误判为“需要重新加载PDF”
+          this.#eventBus.emitGlobal(
+            PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
+            { pageAt: pageNumber, position: (typeof position === "number" ? position : null) },
+            { actorId: "OutlineSidebarUI" }
+          );
+        } catch {
+          this.#eventBus.emit(
+            PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
+            { pageAt: pageNumber, position: (typeof position === "number" ? position : null) },
+            { actorId: "OutlineSidebarUI" }
+          );
+        }
       } catch (err) {
         this.#logger.warn("select_node failed", err);
       }

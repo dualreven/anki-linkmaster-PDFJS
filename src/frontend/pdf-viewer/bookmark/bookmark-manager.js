@@ -118,10 +118,10 @@ export class BookmarkManager {
       const result = await this.#dataProvider.parseDestination(bookmark.dest);
       this.#logger.info('Parsed destination result:', result);
 
-      // 触发页面跳转（由导航模块处理）
+      // 统一通过 URL 导航入口（按页级跳转；如需位置百分比，可在上游解析时提供）
       this.#eventBus.emit(
-        PDF_VIEWER_EVENTS.NAVIGATION.GOTO,
-        { pageNumber: result.pageNumber, position: { x: result.x, y: result.y }, zoom: result.zoom },
+        PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
+        { pageAt: result.pageNumber },
         { actorId: 'BookmarkManager' }
       );
 

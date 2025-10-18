@@ -31,6 +31,18 @@ export class PDFLoader {
   #getPDFJSResourceUrls() {
     const urls = {};
 
+    // 1) 首选由构建脚本注入的 vendor 基址（生产环境）
+    try {
+      if (typeof window !== 'undefined' && window.__PDFJS_VENDOR_BASE__) {
+        const base = String(window.__PDFJS_VENDOR_BASE__).endsWith('/') ? window.__PDFJS_VENDOR_BASE__ : `${window.__PDFJS_VENDOR_BASE__}/`;
+        urls.cMapUrl = `${base}cmaps/`;
+        urls.standardFontDataUrl = `${base}standard_fonts/`;
+        return urls;
+      }
+    } catch (e) {
+      // ignore and fallback
+    }
+
     // 使用Function构造器避开Babel的静态分析
     // 在测试环境中import.meta不可用，返回空对象
     try {

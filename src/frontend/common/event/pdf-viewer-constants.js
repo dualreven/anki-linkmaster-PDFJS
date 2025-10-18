@@ -246,6 +246,21 @@ export const PDF_VIEWER_EVENTS = {
   },
   
   /**
+   * 视图/模式相关事件（补充全局白名单）
+   * @namespace VIEW_MODE
+   */
+  VIEW_MODE: {
+    /**
+     * 渲染模式改变（如：pdfviewer <-> image 等）
+     */
+    RENDER_MODE_CHANGED: 'pdf-viewer:render-mode:changed',
+    /**
+     * 鼠标模式改变（text | drag）
+     */
+    MOUSE_MODE_CHANGED: 'pdf-viewer:mouse-mode:changed',
+  },
+  
+  /**
    * 视图渲染相关事件
    * @namespace RENDER
    */

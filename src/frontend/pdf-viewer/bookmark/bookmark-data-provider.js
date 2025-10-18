@@ -155,45 +155,15 @@ export class BookmarkDataProvider {
     }
 
     try {
-      let destArray = dest;
-
-      // 如果是字符串，需要先解析命名目的地
-      if (typeof dest === 'string') {
-        this.#logger.debug(`Resolving named destination: ${dest}`);
-        destArray = await this.#pdfDocument.getDestination(dest);
-
-        if (!destArray) {
-          throw new Error(`Named destination not found: ${dest}`);
-        }
-      }
-
-      // destArray格式: [pageRef, {name: 'XYZ'}, left, top, zoom]
-      if (!Array.isArray(destArray) || destArray.length === 0) {
-        throw new Error('Invalid destination format');
-      }
-
-      const [pageRef, location, left, top, zoom] = destArray;
-
-      // 将页面引用转换为页码
-      let pageNumber;
-      if (typeof pageRef === 'object' && pageRef !== null) {
-        // 页面引用对象，需要转换
-        pageNumber = await this.#pdfDocument.getPageIndex(pageRef) + 1; // PDF.js使用0-based索引
-      } else if (typeof pageRef === 'number') {
-        // 直接是页码
-        pageNumber = pageRef;
-      } else {
-        throw new Error('Invalid page reference in destination');
-      }
-
+      const { resolvePdfDest } = await import('../pdf/pdf-dest-utils.js');
+      const { pageNumber, x, y, zoom } = await resolvePdfDest(this.#pdfDocument, dest);
       const result = {
         pageNumber,
-        x: left !== null && left !== undefined ? left : 0,
-        y: top !== null && top !== undefined ? top : 0,
-        zoom: zoom !== null && zoom !== undefined ? zoom : null
+        x: (typeof x === 'number') ? x : 0,
+        y: (typeof y === 'number') ? y : 0,
+        zoom: (typeof zoom === 'number') ? zoom : null
       };
-
-      this.#logger.debug(`Parsed destination:`, result);
+      this.#logger.debug('Parsed destination:', result);
       return result;
     } catch (error) {
       this.#logger.error('Failed to parse destination:', error);

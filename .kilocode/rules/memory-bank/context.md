@@ -41,6 +41,110 @@
 
 ## 📅 当前活跃任务（最近）
 
+### 当前任务（20251017210830）
+名称：修复 PDF.js CMap/标准字体资源 404（中文字体无法解析）
+
+背景：
+- 控制台报错 `fetchBuiltInCMap Not Found`，请求路径为 `/static/@pdfjs/cmaps/...`；
+- 构建脚本将 `pdfjs-dist` 复制到了 `dist/latest/static/vendor/pdfjs-dist/`，但运行时代码仍用 `@pdfjs` 别名生成路径，导致生产环境 404。
+
+相关模块/文件：
+- 构建与别名：`vite.config.js`（`@pdfjs`→`node_modules/pdfjs-dist`，开发态）、`build.frontend.pdf_viewer.py`（注入 `window.__PDFJS_VENDOR_BASE__`）；
+- 运行时代码：
+  - `src/frontend/pdf-viewer/features/pdf-reader/components/pdf-loader.js`
+  - `src/frontend/pdf-viewer/features/pdf-reader/services/pdf-manager-service.js`
+  - `src/frontend/pdf-viewer/pdf/pdf-config.js`
+  - `src/frontend/pdf-viewer/pdf/pdf-loader.js`
+
+执行步骤：
+1. 在运行时优先读取 `window.__PDFJS_VENDOR_BASE__`（由构建脚本注入为 `/static/vendor/pdfjs-dist/`）；\n
+2. 若存在则设置：
+   - `cMapUrl = ${base}cmaps/`
+   - `standardFontDataUrl = ${base}standard_fonts/`
+   - `workerSrc = ${base}build/pdf.worker.min.mjs`
+3. 否则回退到 `new URL('@pdfjs/...', import.meta.url).href`（保留开发态体验）；
+4. 重新构建 pdf-viewer 并发布到 `dist/latest/static`；
+5. 验证控制台无 404，CJK 字体正常渲染。
+
+验收标准：
+- 不再出现对 `/static/@pdfjs/cmaps/*` 的请求；
+- 资源实际从 `/static/vendor/pdfjs-dist/(cmaps|standard_fonts|build)` 加载成功；
+- 中文 PDF 可正常显示文本层与字体。
+
+### 当前任务（20251017212720）
+名称：pdf-viewer 前端错误未通过 toast 展示（仅后端WS错误有toast）
+
+背景：
+- 现有实现仅对 WebSocket 层错误通过 `AppCoreFeature` 做了 toast 透传；
+- 其他由前端各模块调用 `logger.error()` 输出的错误默认不 toast，用户体验不一致。
+
+定位：
+- 公共 Logger（`src/frontend/common/utils/logger.js`）已内建自动 toast 能力（`enableAutoToast`），但未在 pdf-viewer 中启用；
+- 因此需要在应用入口启用自动 toast（限定 error 级别即可）。
+
+措施：
+- 在 `src/frontend/pdf-viewer/main.js` 引入并调用：
+  - `enableAutoToast({ levels: [LogLevel.ERROR], defaultMs: 6000 })`
+- 保持 WS 错误透传逻辑不变；
+- 不改动业务处的 `logger.error()` 调用点，避免大范围侵入。
+
+验收标准：
+- 制造前端 error 日志（如 bootstrap 捕获异常），应看到右上角红色 toast，消息与控制台一致；
+- 后端 WS 错误仍能显示 toast（不回退、不冲突）。
+
+### 当前任务（20251017214140）
+名称：全局未捕获错误（非 logger）也 toast
+
+背景：
+- 旧 `index.html` 仅注册了全局监听并 `console.error`，未弹 toast；
+- 你要求“没有 logger 捕获的错误也 toast 出来”。
+
+措施：
+- 新增 `src/frontend/pdf-viewer/assets/global-error-toast.js`（ESM）并在 `<head>` 早期加载；
+- 监听 `window.onerror` 与 `unhandledrejection`，统一使用第三方 toast 适配器展示；
+- 内置去重与速率限制，避免 toast 风暴；提供 `localStorage.GLOBAL_ERROR_TOAST_DISABLED='true'` 关闭开关。
+
+验收标准：
+- 手动触发 `throw Error()` 或 `Promise.reject(...)`，应看到右上角红色 toast；
+- 控制台仍保留栈与错误详情。
+
+### 当前任务（20251017215810）
+名称：修复 Bookmark 导入时“Skipping bookmark with invalid dest”警告
+
+背景：
+- 导入 PDF 原生大纲时，部分书签的 `dest` 为“命名目的地”（字符串），当前解析逻辑未覆盖 → 被视为 invalid。
+
+措施：
+- 更新 `src/frontend/pdf-viewer/features/pdf-bookmark/index.js:#parseBookmarkDest()`：
+  - 新增 `typeof dest === 'string'` 分支：先 `pdfDocument.getDestination(dest)` → 解析为数组后与数组分支一致处理；
+  - 放宽对象判断：`pageRef` 只要是对象即尝试 `pdfDocument.getPageIndex(pageRef)`（不再强依赖 `num` in pageRef）。
+
+验收标准：
+- 打开先前触发告警的 PDF，观察日志不再大量出现“Skipping bookmark with invalid dest”；\n
+- 对应书签可被导入或至少解析页码成功（可点击跳转）。
+
+### 当前任务（20251017221450）
+名称：标注坐标定位与卡片跳转失效排查 + 修复跨模块事件
+
+背景：
+- 用户反馈：点击标注卡片“跳转”无反应；需确认标注坐标是百分比还是绝对值；并排查是否存在重复实现。
+
+定位与结论：
+- 坐标体系：\n
+  - 截图：百分比矩形 `rectPercent{xPercent,yPercent,widthPercent,heightPercent}`（tools/screenshot/index.js）；\n
+  - 高亮：`lineRects[*].{xPercent,yPercent,widthPercent,heightPercent}`（annotation/index.js 用首段中心 percent 导航）；\n
+  - 批注：`data.position{x,y}` 像素定位（comment-marker.js 渲染为绝对定位）；导航时按页面高度换算为百分比。\n
+  - 兼容：若仅有像素 rect，会在渲染时换算为百分比；整体策略为“存百分比、用百分比，必要时从像素换算”。\n
+- 跳转失效根因：标注模块在作用域 EventBus 上 emit `NAVIGATION.GOTO`/`NAVIGATION.URL_PARAMS.REQUESTED`，而 UI/URL 导航监听的是全局 EventBus → 事件未被消费。\n
+
+修复：
+- `features/annotation/components/annotation-sidebar-ui.js`：将跳转事件改为 `emitGlobal(PDF_VIEWER_EVENTS.NAVIGATION.GOTO, ...)`；\n
+- `features/annotation/index.js`：将 `NAVIGATION.URL_PARAMS.REQUESTED` 改为 `emitGlobal(...)`；\n
+- 已构建到 dist（生产模式生效）。\n
+
+重复实现说明：
+- 导航存在两条路径：直接 `NAVIGATION.GOTO` 与 URL 导航 `NAVIGATION.URL_PARAMS.REQUESTED`；建议长期统一到 `NavigationService.navigateTo()`，减少语义重复与链路分叉。\n
+
 ### 当前任务（20251014093040）
 名称：GUI 启动器日志落盘情况确认（已落实）
 
@@ -91,6 +195,37 @@
   - `GUILauncher.__init__` 增加 `self._ai_threads: list = []`；
     - `_run_ai_launcher()` 将线程加入列表，并在 `_on_ai_thread_finished()` 中移除并 `deleteLater()`；
     - 规避 QThread 在运行中被销毁。
+
+### 当前任务（20251018080434）
+名称：Outline 跳转失败（命名目的地需要转页码）
+
+背景：
+- 用户反馈个别 PDF 的大纲节点点击无效；经排查，部分大纲项的 `dest` 并非直接页码，可能是：
+  1) 字符串命名目的地（需 `pdfDocument.getDestination(name)` 解析）；
+  2) 目的地数组，首位为页面引用对象 `{num,gen}`；
+  3) 目的地数组，首位为 0-based 页索引 number（需要 +1 转成 1-based 页码）。
+- 代码里存在两处重复解析实现，且旧解析在 number 分支未 +1，存在 off-by-one 风险：
+  - `src/frontend/pdf-viewer/bookmark/bookmark-data-provider.js#parseDestination()`
+  - `src/frontend/pdf-viewer/features/pdf-bookmark/index.js#parseBookmarkDest()`
+
+相关模块/文件：
+- 侧边栏 UI：`src/frontend/pdf-viewer/ui/bookmark-sidebar-ui.js`
+- 新书签域：`src/frontend/pdf-viewer/features/pdf-bookmark/*`
+- 旧书签域：`src/frontend/pdf-viewer/bookmark/*`
+- 导航服务：`src/frontend/pdf-viewer/features/core-navigation/services/navigation-service.js`
+
+执行步骤：
+1. 新增工具 `src/frontend/pdf-viewer/pdf/pdf-dest-utils.js`：统一解析 `dest` → 1-based 页码；返回 `{pageNumber, position?, zoom?}`。
+2. 修改两处调用：
+   - `features/pdf-bookmark/index.js` 内部 `#parseBookmarkDest()` 改为调用工具；
+   - `bookmark/bookmark-data-provider.js#parseDestination()` 改为调用工具，并修复 numeric 分支的 +1。
+3. 提升准确性：`ui/bookmark-sidebar-ui.js` 在点击时若存在 `region.scrollY`，同时传递 `position` 给 `NAVIGATION.URL_PARAMS.REQUESTED`。
+4. 验证：打开含命名目的地的大纲 PDF，点击应正确跳转到对应页（必要时带位置）；控制台不再出现“无法解析书签dest”等告警。
+
+验收标准：
+- 对命名目的地/页面引用的节点点击可稳定到达目标页；
+- 旧实现的 number 分支页码偏移修复；
+- 侧边栏点击在具备 region 的节点时携带 position，落点更准确。
 
 ### 修复记录（20251014110230）
 名称：ai_launcher stop 后 pdfFile_server 仍 running
@@ -1552,3 +1687,155 @@ python gui_launcher_enhanced.py
 验证建议：
 - 断开 WS 或关闭消息中心，触发需要后端的操作，预期出现“消息发送失败” toast。
 - 强制后端返回标准 `*:failed`/`websocket:message:error`，观察右上角 toast 展示 "<type>: <message>"。
+
+### 当前任务（20251017181530）
+名称：pdf-viewer 空白页排查（由 pdf-home 启动，pdf-id=90d95881f8b9）
+
+背景：
+- 从 dist/latest 运行 GUI（Hosted），pdf-home 点击打开 pdf-viewer 后，窗口渲染区域空白。
+- 用户要求检查日志定位问题。
+
+相关模块/文件：
+- 后端启动链：`src/backend/launcher.py`（Hosted MsgDispatch → `runner.start_pdf_viewer_hosted`）
+- 前端契约：`src/frontend/common/event/event-constants.js`、`src/frontend/common/ws/ws-client.js`
+- Viewer 事件白名单：`src/frontend/common/event/global-event-registry.js`、`src/frontend/common/event/pdf-viewer-constants.js`
+- 日志：`dist/latest/logs/pdf-viewer-<id>-js.log`、`backend-launcher.log`、`http-requests.log`
+
+发现与结论：
+- 后端按约已启动 viewer（is_prod=True，URL 使用 `pdfFile_port=8080`，WS=8765），并收到 `pdf-viewer:register:requested`，返回 `pdf-viewer:register:completed`。
+- 前端 viewer JS 报错：拦截未注册的 WebSocket 消息类型 `pdf-viewer:register:completed`，导致注册流程未完成→ 未拉取 PDF → 空白。
+- 同时，`pdf-viewer:mouse-mode:changed`、`pdf-viewer:render-mode:changed` 等 UI 事件未纳入全局白名单，产生额外告警（非根因）。
+
+处置与修复：
+- event-constants.js：新增 `VIEWER_REGISTER_COMPLETED`、`VIEWER_REGISTER_FAILED`。
+- ws-client.js：`VALID_MESSAGE_TYPES` 允许 `pdf-viewer:register:completed/failed` 与 `pdf-viewer:navigate:*`。
+- pdf-viewer-constants.js：补充 `pdf-viewer:render-mode:changed`、`pdf-viewer:mouse-mode:changed` 进入白名单收集集。
+
+执行步骤（待完结）：
+1) rebuild 前端并从 dist 验证 viewer 加载；
+2) 检查 `pdf-viewer-*-js.log` 是否不再出现 UNREGISTERED_MESSAGE_TYPE；
+3) 确认首次加载已请求 PDF 页面资源（`http-requests.log` 出现对应条目）。
+
+### 当前任务（20251017190620）
+名称：二次排查“仍然打不开”与新增日志错误处理
+
+新增日志发现：
+- viewer JS：未捕获拒绝 `WebSocket连接未建立`（连接前调用 request）
+- pdf-home JS：`search-results:item:open` 未注册；`pdf-library:viewer:completed` 被 WS 白名单拦截
+- HTTP：仍无 `/pdf-files/<id>.pdf` 请求
+
+修复要点（源码，需 rebuild）：
+- event-constants.js：增加 `OPEN_PDF_COMPLETED/FAILED`，增加 `SEARCH_RESULTS_EVENTS.ACTIONS.OPEN`
+- ws-client.js：VALID_MESSAGE_TYPES 允许 `pdf-library:viewer:completed|failed`
+- ws-client.js：`request()` 未连接时“注册pending+入队”，避免立即抛 `WebSocket连接未建立`
+
+待验证：
+- 重建后，确认上述错误消失，并出现 PDF 数据请求
+
+### 当前任务（20251017194855）
+名称：进一步兼容现有 dist 的 PDF 路由与 viewer 启动参数
+
+新增修复：
+- 后端：embed_fileserver 增加 `/pdf-files/*` 路由别名（映射到 `pdfs_root`）。
+- 前端（Python launcher）：生产模式下若有 pdf-id，则附加 `&file=/pdfs/<id>.pdf`，前端据此自动加载。
+
+目的：
+- 在未 rebuild 的情况下，尽可能让现有 dist 前端成功加载 PDF。
+
+### 线上运行问题定位补充（20251018082134）
+问题描述：从 pdf-home 双击搜索结果不再弹出 pdf-viewer 窗口（dist/latest/ 环境）。
+
+综合日志结论：端口分裂与订阅错配导致“只 ACK 不启动”。
+- 同时存在两套后端：旧（ws=8765/http=8080）与新（ws=8766/http=8081）。
+- pdf-home 连接旧端口（8765），向该标准服务器发送 `pdf-library:viewer:requested`；标准服务器按契约立即回 `viewer:completed`（快速 ACK），但真实启动动作需由 `BackendLauncher._on_msgcenter_message` 执行，而 BackendLauncher 绑定在新端口（8766）实例上，未收到旧端口的 `message_received` 事件，导致未启动 pdf-viewer。
+- `logs/runtime-ports.json` 被多个组件回写，存在竞态覆盖；当前文件显示旧端口（8765/8080），与 backend-launcher 的新端口不一致。
+
+临时恢复建议：
+- 关闭所有 GUI/后端残留进程 → 删除 `dist/latest/logs/runtime-ports.json` → 重新启动 `gui_launcher.py`，仅启动一次后台与 pdf-home，确保双方读取并使用同一组端口；再次双击应弹出 viewer。
+
+源码层面建议（待后续实现）：
+- BackendLauncher 优先复用现有 `runtime-ports.json` 所指向的标准服务器（若已运行），并对该实例绑定 `message_received`，避免另起端口。
+- pdf-home 在 `keep_backend=True` 时避免不必要的端口文件回写或引入“写入锁/时间戳优先”策略，规避端口竞态。
+
+### 增强记录（20251018084822）
+名称：gui_launcher - 后端已运行时禁用“启动后端(Hosted)”按钮
+
+背景：
+- 多次出现误触重复启动后台导致端口分裂（如 8765/8080 与 8766/8081 并存）的情况；
+- GUI 已具备状态文件/进程 PID 的检测逻辑（_update_status），可用于联动控件状态；
+
+变更：
+- 文件：`gui_launcher.py`、`dist/latest/gui_launcher.py`
+  - 在 `_create_hosted_tab()` 中将“启动后端(Hosted)”按钮保存为 `self.hosted_backend_start_btn`；
+  - 在 `_update_status()` 计算 `backend_running` 后：
+    - `self.hosted_backend_start_btn.setEnabled(not backend_running)`；
+    - 运行中时设置 ToolTip 为“后端正在运行，已禁用启动按钮”；
+
+影响：
+- 当后端处于运行状态（包括 CLI 子进程模式与 Qt 线程模式），该按钮会变灰且不可点击，避免重复拉起；
+- 当停止所有服务后，按钮自动恢复可用。
+
+相关模块/函数：
+- `gui_launcher.py::_create_hosted_tab()`、`gui_launcher.py::_update_status()`
+- `dist/latest/gui_launcher.py` 同步修改，便于直接运行发行版脚本也生效。
+### 当前任务（20251018085714）
+名称：Outline/URL 导航参数校验导致“position 必须是数字”——修复与契约统一
+
+背景与现象：
+- 日志（2025-10-18 08:46~08:51）：`dist/latest/logs/pdf-viewer-c83c60c58ad2-js.log`
+  - `[URLParamsParser] 参数验证失败`
+  - `[URLNavigationFeature] 导航参数验证失败: position 必须是数字`
+- 反馈：PDF 原生大纲（outline）点击无任何跳转（多种 dest 形态均无效）。
+
+根因（基于事实）：
+- `URLParamsParser.validate()` 使用条件 `params.position !== null` 判断是否需要校验，但当上游 emit 传 `position: undefined` 时，该条件仍为真，进而判定“必须是数字”；
+- `features/pdf-outline/components/outline-sidebar-ui.js` 在没有 region.scrollY 时构造 `{ position: undefined }` 触发 `NAVIGATION.URL_PARAMS.REQUESTED`；
+- 因此被 URL 校验层拦截，导航未下发到 `NavigationService`。
+
+修复（执行步骤与结果）：
+1) 校验层放宽：`URLParamsParser.validate()`
+   - `pageAt/position` 的判断改为 `!== null && !== undefined`；
+   - `undefined` 被视为“未提供”，不再报错。
+2) 事件源规范化：`OutlineSidebarUI`
+   - 发事件时 `position` 统一为 `number|null`，无值传 `null`，避免 `undefined`。
+
+相关模块与文件：
+- `src/frontend/pdf-viewer/features/url-navigation/components/url-params-parser.js`
+- `src/frontend/pdf-viewer/features/pdf-outline/components/outline-sidebar-ui.js`
+
+验收要点：
+- 无 region 的大纲节点 → 能按页跳转；
+- 含 region.scrollY 的节点 → 能按百分比定位；
+- 命名目的地/引用对象/数字索引 → 由 `pdf/pdf-dest-utils.js#resolvePdfDest` 正确解析并跳转；
+- 日志不再出现“position 必须是数字”。
+
+后续跟进：
+- 在“事件契约/Schema”层统一 nullable 语义：`position?: number|null`；建议在 emit 侧做就地规范化。
+
+---
+
+## 🧠 知识卡（20251018165341）— pdf_loaded 消息来源与调用链
+
+描述：
+- 目标：明确 `pdf_loaded` 在 pdf-viewer 中由谁发送、何时发送、数据从何而来；仅做定位与记录，不更改任何密码或配置。
+
+结论：
+- 发送者：`WebSocketAdapter`（前端适配器）。
+- 发送位置：`src/frontend/pdf-viewer/adapters/websocket-adapter.js:170`（附近，`#setupOutgoingMessageHandlers` 内）。
+- 触发条件：监听全局事件 `PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS`，在回调中调用 `this.#wsClient.send({ type: 'pdf_loaded', data: {...} })`。
+- 典型载荷：`{ file_path, filename, total_pages, url }`（字段由上游发出成功事件的 payload 决定）。
+
+相关模块与文件：
+- 发送点：`src/frontend/pdf-viewer/adapters/websocket-adapter.js:170`
+- 触发事件（PDFManager 路径）：`src/frontend/pdf-viewer/pdf/pdf-manager-refactored.js:150`
+- 触发事件（FileService 路径）：`src/frontend/pdf-viewer/features/pdf-reader/services/file-service.js:338`
+- 事件常量：`src/frontend/common/event/pdf-viewer-constants.js`
+
+事件链路：
+- PDF 加载成功 → 发出 `FILE.LOAD.SUCCESS`（PDFManager 或 FileService） → WebSocketAdapter 收到后 `WSClient.send({ type: 'pdf_loaded' })`。
+
+补充说明：
+- 同一回调在存在 `pdf-id` 时还会发送 `pdf-library:record-update:requested` 更新 `visited_at/last_accessed_at`，与 `pdf_loaded` 并行，不冲突（已有单测覆盖）。
+
+建议（不立即实施）：
+- 为 `FILE.LOAD.SUCCESS` 建立明确的 Payload Schema（含 `filename/url/totalPages/filePath/pdfDocument`），并在适配器侧做字段兜底以降低来源差异影响。

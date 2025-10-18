@@ -117,7 +117,7 @@ export class URLParamsParser {
     }
 
     // 验证page-at（可选）
-    if (params.pageAt !== null) {
+    if (params.pageAt !== null && params.pageAt !== undefined) {
       if (!Number.isInteger(params.pageAt)) {
         errors.push('page-at 必须是整数');
       } else if (params.pageAt < 1) {
@@ -128,7 +128,7 @@ export class URLParamsParser {
     }
 
     // 验证position（可选）
-    if (params.position !== null) {
+    if (params.position !== null && params.position !== undefined) {
       if (typeof params.position !== 'number' || isNaN(params.position)) {
         errors.push('position 必须是数字');
       } else if (params.position < 0 || params.position > 100) {

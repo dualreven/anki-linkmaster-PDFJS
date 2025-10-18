@@ -495,11 +495,14 @@ class GUILauncher(QMainWindow):
 
         # 操作
         row = QHBoxLayout()
-        btn_b_start = QPushButton('启动后端(Hosted)'); btn_b_start.clicked.connect(self._start_backend_hosted)
+        # 保存为实例属性，便于根据后台运行状态动态禁用/启用
+        self.hosted_backend_start_btn = QPushButton('启动后端(Hosted)')
+        self.hosted_backend_start_btn.setToolTip("启动 Qt 线程模式的后端（已运行时将自动禁用）")
+        self.hosted_backend_start_btn.clicked.connect(self._start_backend_hosted)
         btn_home = QPushButton('启动 PDF-Home (Hosted)'); btn_home.clicked.connect(self._start_pdf_home_hosted)
         btn_viewer = QPushButton('启动 PDF-Viewer (Hosted)'); btn_viewer.clicked.connect(self._start_pdf_viewer_hosted)
         btn_stop = QPushButton('停止所有'); btn_stop.clicked.connect(self._on_stop_all)
-        row.addWidget(btn_b_start); row.addWidget(btn_home); row.addWidget(btn_viewer); row.addWidget(btn_stop)
+        row.addWidget(self.hosted_backend_start_btn); row.addWidget(btn_home); row.addWidget(btn_viewer); row.addWidget(btn_stop)
         layout.addLayout(row)
 
         # 高级设置（端口/路径）
@@ -1050,6 +1053,18 @@ class GUILauncher(QMainWindow):
         else:
             self.backend_status_label.setText("🚀 后端: ⚪ 未运行")
             self.backend_status_label.setStyleSheet("color: gray;")
+
+        # 根据后端状态禁用/启用“启动后端(Hosted)”按钮，避免重复拉起导致端口分裂
+        try:
+            if hasattr(self, 'hosted_backend_start_btn') and self.hosted_backend_start_btn is not None:
+                self.hosted_backend_start_btn.setEnabled(not backend_running)
+                if backend_running:
+                    self.hosted_backend_start_btn.setToolTip("后端正在运行，已禁用启动按钮")
+                else:
+                    self.hosted_backend_start_btn.setToolTip("启动 Qt 线程模式的后端（已运行时将自动禁用）")
+        except Exception:
+            # UI 控件不存在或设置失败不应影响其它状态更新
+            pass
 
         # 更新前端状态
         frontend_processes = frontend_info.get("frontend", {})

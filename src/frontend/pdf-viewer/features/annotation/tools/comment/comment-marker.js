@@ -36,7 +36,7 @@ export class CommentMarker {
    */
   createMarker(annotation) {
     const { id, pageNumber, data } = annotation;
-    const { position, content } = data;
+    const { positionPercent, position, content } = data;
 
     // 创建标记元素
     const marker = document.createElement('div');
@@ -45,10 +45,21 @@ export class CommentMarker {
     marker.dataset.pageNumber = pageNumber;
     marker.title = content || '批注';
 
+    // 保存百分比或像素信息到 dataset，渲染时换算
+    try {
+      if (positionPercent && typeof positionPercent.xPercent === 'number' && typeof positionPercent.yPercent === 'number') {
+        marker.dataset.xPercent = String(positionPercent.xPercent);
+        marker.dataset.yPercent = String(positionPercent.yPercent);
+      } else if (position && typeof position.x === 'number' && typeof position.y === 'number') {
+        marker.dataset.x = String(position.x);
+        marker.dataset.y = String(position.y);
+      }
+    } catch(_) {}
+
     marker.style.cssText = `
       position: absolute;
-      left: ${position.x}px;
-      top: ${position.y}px;
+      left: 0px;
+      top: 0px;
       width: 32px;
       height: 32px;
       background: #FFC107;
@@ -107,6 +118,32 @@ export class CommentMarker {
 
     // 添加到页面
     pageElement.appendChild(marker);
+
+    // 根据百分比（优先）或像素设置位置
+    try {
+      const w = pageElement.clientWidth || pageElement.offsetWidth || 1;
+      const h = pageElement.clientHeight || pageElement.offsetHeight || 1;
+
+      let leftPx = 0, topPx = 0;
+      if (marker.dataset.xPercent && marker.dataset.yPercent) {
+        const xp = parseFloat(marker.dataset.xPercent);
+        const yp = parseFloat(marker.dataset.yPercent);
+        if (Number.isFinite(xp) && Number.isFinite(yp)) {
+          leftPx = (xp / 100) * w;
+          topPx = (yp / 100) * h;
+        }
+      } else if (marker.dataset.x && marker.dataset.y) {
+        const x = parseFloat(marker.dataset.x);
+        const y = parseFloat(marker.dataset.y);
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+          leftPx = x; topPx = y;
+        }
+      }
+      marker.style.left = `${Math.round(leftPx)}px`;
+      marker.style.top = `${Math.round(topPx)}px`;
+    } catch (e) {
+      this.#logger.warn('Failed to compute marker position', e);
+    }
 
     this.#logger.info(`Marker ${annotationId} rendered to page`);
     return true;

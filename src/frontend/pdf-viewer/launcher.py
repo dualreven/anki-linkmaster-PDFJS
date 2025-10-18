@@ -460,6 +460,14 @@ class PdfViewerApp:
         if self.config.is_prod:
             # 生产模式
             url = f"http://127.0.0.1:{pdfFile_port}/pdf-viewer/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"
+            # 若已提供 pdf-id，则直接拼接 file 参数指向 /pdfs/<id>.pdf，避免依赖 WS 下发
+            try:
+                if self.config.pdf_id:
+                    from urllib.parse import quote
+                    file_param = quote(f"/pdfs/{self.config.pdf_id}.pdf")
+                    url += f"&file={file_param}"
+            except Exception:
+                pass
         else:
             # 开发模式
             url = f"http://localhost:{vite_port}/pdf-viewer/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"
@@ -958,6 +966,42 @@ def main_legacy() -> int:
     if getattr(args, 'annotation_id', None):
         url += f"&annotation-id={args.annotation_id}"
         logger.info(f"URL navigation: annotation-id = {args.annotation_id}")
+
+    # 在加载前，确保为本 viewer 配置独立的 Python 日志文件，避免 dist/latest/pdf-viewer-<id>.log 为空
+    try:
+        # 计算本次 pdf_id（优先命令行，其次从 file_path 提取）
+        _pdf_id_for_log = None
+        if args.pdf_id:
+            _pdf_id_for_log = args.pdf_id
+        elif file_path:
+            _pdf_id_for_log = extract_pdf_id(file_path)
+        else:
+            _pdf_id_for_log = 'empty'
+
+        py_log, _ = get_log_file_paths(_pdf_id_for_log)
+        # 避免重复添加 FileHandler
+        need_attach = True
+        for h in logger.handlers:
+            try:
+                if getattr(h, 'baseFilename', '').endswith(f"pdf-viewer-{_pdf_id_for_log}.log"):
+                    need_attach = False
+                    break
+            except Exception:
+                pass
+        if need_attach:
+            from logging import FileHandler, Formatter
+            Path(py_log).parent.mkdir(parents=True, exist_ok=True)
+            fh = FileHandler(py_log, encoding='utf-8')
+            fh.setFormatter(Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+            logger.addHandler(fh)
+            # 不改变现有 root logger 行为，允许同时写入 backend-launcher.log
+            logger.propagate = True
+            logger.info(f"Per-viewer python log attached: {py_log}")
+    except Exception as _e:
+        try:
+            logger.warning(f"Failed to attach per-viewer log file: {_e}")
+        except Exception:
+            pass
 
     frontend_enabled = not args.disable_frontend_load
     frontend_executed = False

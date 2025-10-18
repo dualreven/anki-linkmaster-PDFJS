@@ -19,6 +19,8 @@ from src.qt.compat import (
 )
 
 from src.frontend.pyqtui.main_window import write_js_console_message
+import logging
+logger = logging.getLogger('pdf-viewer.main_window')
 
 
 class MainWindow(QMainWindow):
@@ -84,7 +86,27 @@ class MainWindow(QMainWindow):
         """初始化用户界面"""
         # 启用远程调试端口 - 必须在创建WebEngineView之前设置
         import os
-        os.environ['QTWEBENGINE_REMOTE_DEBUGGING'] = str(self._remote_debug_port)
+        try:
+            existing = os.environ.get('QTWEBENGINE_REMOTE_DEBUGGING')
+            if existing:
+                # 若进程中已设置（例如 Hosted 场景由 pdf-home 先行设置），复用该端口
+                try:
+                    self._remote_debug_port = int(str(existing).strip())
+                except Exception:
+                    pass
+                try:
+                    logger.info("[RemoteDebug] 已检测到进程级端口，复用 QTWEBENGINE_REMOTE_DEBUGGING=%s", existing)
+                except Exception:
+                    pass
+            else:
+                os.environ['QTWEBENGINE_REMOTE_DEBUGGING'] = str(self._remote_debug_port)
+                try:
+                    logger.info("[RemoteDebug] 启用远程调试端口: %s", self._remote_debug_port)
+                except Exception:
+                    pass
+        except Exception:
+            # 安静失败，不影响后续
+            pass
 
         # 创建WebEngine视图
         self.web_view = QWebEngineView() if QWebEngineView else None

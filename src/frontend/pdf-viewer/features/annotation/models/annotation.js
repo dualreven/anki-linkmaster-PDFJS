@@ -227,8 +227,12 @@ export class Annotation {
       }
 
       case AnnotationType.COMMENT:
-        if (!data.position || typeof data.position.x !== 'number' || typeof data.position.y !== 'number') {
-          throw new Error('Comment annotation requires position with x, y');
+        // 新机制：优先使用百分比坐标 positionPercent { xPercent, yPercent }
+        // 兼容旧数据：允许 position { x, y }（像素），运行时会换算
+        const hasPercent = data.positionPercent && typeof data.positionPercent.xPercent === 'number' && typeof data.positionPercent.yPercent === 'number';
+        const hasPixel = data.position && typeof data.position.x === 'number' && typeof data.position.y === 'number';
+        if (!hasPercent && !hasPixel) {
+          throw new Error('Comment annotation requires positionPercent{xPercent,yPercent} or legacy position{x,y}');
         }
         if (!data.content || typeof data.content !== 'string') {
           throw new Error('Comment annotation requires content');
@@ -459,13 +463,16 @@ export class Annotation {
    * @static
    */
   static createComment(pageNumber, position, content) {
+    // position 可以是 {xPercent,yPercent} 或 {x,y}
+    const isPercent = position && typeof position.xPercent === 'number' && typeof position.yPercent === 'number';
+    const data = isPercent
+      ? { positionPercent: { xPercent: position.xPercent, yPercent: position.yPercent }, content }
+      : { position: position, content };
+
     return new Annotation({
       type: AnnotationType.COMMENT,
       pageNumber,
-      data: {
-        position,
-        content
-      }
+      data
     });
   }
 }
