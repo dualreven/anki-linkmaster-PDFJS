@@ -63,6 +63,9 @@ export class AnnotationFeature {
   /** @type {string|null} 最近一次解析到的 pdfId */
   #currentPdfId = null;
 
+  /** @type {boolean} 本次会话是否已成功加载过标注数据 */
+  #hasLoadedOnce = false;
+
   /** Feature名称 */
   get name() {
     return "annotation";
@@ -104,6 +107,7 @@ export class AnnotationFeature {
       setModuleLogLevel("AnnotationFeature", lv);
       setModuleLogLevel("ScreenshotTool", lv);
       setModuleLogLevel("TextHighlightTool", lv);
+      setModuleLogLevel("CommentTool", lv);
       this.#logger.info("[AnnotationFeature] Log level override for annotation modules", { level: lv });
     } catch (e) {
       // 忽略日志覆盖失败，不影响功能
@@ -216,6 +220,7 @@ export class AnnotationFeature {
           if (pdfId) {
             this.#logger.info(`[AnnotationFeature] 兜底加载标注（install延迟，pdfId=${pdfId}）`);
             this.#currentPdfId = pdfId;
+            this.#hasLoadedOnce = false;
             this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, { pdfId }, { actorId: "AnnotationFeature" });
           }
         }
@@ -331,6 +336,13 @@ export class AnnotationFeature {
         this.#logger.warn("[AnnotationFeature] Failed to set PDF ID from LOAD.SUCCESS", e);
       }
     }, { subscriberId: "AnnotationFeature" });
+
+    // 标注数据加载成功标记
+    try {
+      this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, () => {
+        this.#hasLoadedOnce = true;
+      }, { subscriberId: "AnnotationFeature" });
+    } catch (e) { void e; }
   }
 
   /**
@@ -361,6 +373,7 @@ export class AnnotationFeature {
 
         // 记录当前 pdfId，供 WS 建立后重试加载
         this.#currentPdfId = pdfId;
+        this.#hasLoadedOnce = false;
 
         this.#logger.info(`[AnnotationFeature] 文件加载完成，自动加载标注（pdfId=${pdfId}）`);
         this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, { pdfId }, { actorId: "AnnotationFeature" });
@@ -379,12 +392,16 @@ export class AnnotationFeature {
       } catch (e) { void e; }
     }, { subscriberId: "AnnotationFeature" });
 
-    // 当标注侧边栏被打开时，若已知 pdfId 但尚未加载过，主动加载一次；并确保叠加层渲染
+    // 当标注侧边栏被打开时：若已知 pdfId 且从未加载过，则主动加载一次；否则仅确保叠加层渲染
     this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPENED_COMPLETED, (data) => {
       try {
         if (data?.sidebarId === "annotation" && this.#currentPdfId) {
-          this.#logger.info(`[AnnotationFeature] 侧边栏打开，尝试加载标注（pdfId=${this.#currentPdfId}）`);
-          this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, { pdfId: this.#currentPdfId }, { actorId: "AnnotationFeature" });
+          if (!this.#hasLoadedOnce) {
+            this.#logger.info(`[AnnotationFeature] 侧边栏打开，首次加载标注（pdfId=${this.#currentPdfId}）`);
+            this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, { pdfId: this.#currentPdfId }, { actorId: "AnnotationFeature" });
+          } else {
+            this.#logger.info("[AnnotationFeature] 侧边栏打开，已加载过标注，跳过二次加载");
+          }
           // 确保当前页面上已有的标注覆盖层可见
           this.#ensureAllOverlays();
         }
@@ -403,11 +420,14 @@ export class AnnotationFeature {
       if (!Array.isArray(anns) || anns.length === 0) {return;}
       const screenshotTool = this.#toolRegistry.get?.("screenshot");
       const highlightTool = this.#toolRegistry.get?.("text-highlight");
+      const commentTool = this.#toolRegistry.get?.("comment");
       for (const ann of anns) {
         if (ann.type === "screenshot" && screenshotTool?.ensureOverlayFor) {
           screenshotTool.ensureOverlayFor(ann);
         } else if (ann.type === "text-highlight" && highlightTool?.ensureOverlayFor) {
           highlightTool.ensureOverlayFor(ann);
+        } else if (ann.type === "comment" && commentTool?.ensureOverlayFor) {
+          commentTool.ensureOverlayFor(ann);
         }
       }
     } catch (e) {

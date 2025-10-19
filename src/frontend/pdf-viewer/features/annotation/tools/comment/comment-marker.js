@@ -125,19 +125,24 @@ export class CommentMarker {
       const h = pageElement.clientHeight || pageElement.offsetHeight || 1;
 
       let leftPx = 0, topPx = 0;
+      let xp = null, yp = null;
       if (marker.dataset.xPercent && marker.dataset.yPercent) {
-        const xp = parseFloat(marker.dataset.xPercent);
-        const yp = parseFloat(marker.dataset.yPercent);
-        if (Number.isFinite(xp) && Number.isFinite(yp)) {
-          leftPx = (xp / 100) * w;
-          topPx = (yp / 100) * h;
-        }
+        xp = parseFloat(marker.dataset.xPercent);
+        yp = parseFloat(marker.dataset.yPercent);
       } else if (marker.dataset.x && marker.dataset.y) {
+        // 允许从像素推导百分比并回写，统一缩放行为
         const x = parseFloat(marker.dataset.x);
         const y = parseFloat(marker.dataset.y);
         if (Number.isFinite(x) && Number.isFinite(y)) {
-          leftPx = x; topPx = y;
+          xp = Math.max(0, Math.min(100, (x / Math.max(1, w)) * 100));
+          yp = Math.max(0, Math.min(100, (y / Math.max(1, h)) * 100));
+          marker.dataset.xPercent = String(xp);
+          marker.dataset.yPercent = String(yp);
         }
+      }
+      if (Number.isFinite(xp) && Number.isFinite(yp)) {
+        leftPx = (xp / 100) * w;
+        topPx = (yp / 100) * h;
       }
       marker.style.left = `${Math.round(leftPx)}px`;
       marker.style.top = `${Math.round(topPx)}px`;

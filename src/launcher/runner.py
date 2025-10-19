@@ -113,6 +113,7 @@ def start_pdf_home_hosted(cfg: LauncherConfig, *, parent_app, on_log: Optional[C
 
 def start_pdf_viewer_hosted(cfg: LauncherConfig, *, parent_app, pdf_id: Optional[str] = None,
                             page_at: Optional[int] = None, position: Optional[float] = None,
+                            anchor_id: Optional[str] = None, annotation_id: Optional[str] = None,
                             on_log: Optional[Callable[[str], None]] = None) -> int:
     root = resolve_component_root()
     import importlib.util as _il
@@ -133,6 +134,8 @@ def start_pdf_viewer_hosted(cfg: LauncherConfig, *, parent_app, pdf_id: Optional
         pdf_id=pdf_id,
         page_at=page_at,
         position=position,
+        anchor_id=anchor_id,
+        annotation_id=annotation_id,
     )
     PdfViewerApp = getattr(mod, 'PdfViewerApp')
     inst = PdfViewerApp(fe_cfg, parent_app=parent_app)
@@ -196,6 +199,7 @@ def start_pdf_home_cli(cfg: LauncherConfig, *, is_prod: bool, on_log: Optional[C
 
 def start_pdf_viewer_cli(cfg: LauncherConfig, *, is_prod: bool, pdf_id: Optional[str] = None,
                          page_at: Optional[int] = None, position: Optional[float] = None,
+                         anchor_id: Optional[str] = None, annotation_id: Optional[str] = None,
                          on_log: Optional[Callable[[str], None]] = None) -> bool:
     """以子进程方式启动 pdf-viewer 前端 launcher（统一在 runner）。"""
     root = resolve_component_root()
@@ -227,6 +231,10 @@ def start_pdf_viewer_cli(cfg: LauncherConfig, *, is_prod: bool, pdf_id: Optional
         cmd += ['--page-at', str(int(page_at))]
     if position is not None:
         cmd += ['--position', str(float(position))]
+    if anchor_id:
+        cmd += ['--anchor-id', str(anchor_id)]
+    if annotation_id:
+        cmd += ['--annotation-id', str(annotation_id)]
     cmd.append('--keep-backend')
 
     try:

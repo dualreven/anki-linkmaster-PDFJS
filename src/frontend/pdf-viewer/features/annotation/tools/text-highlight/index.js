@@ -71,6 +71,11 @@ export class TextHighlightTool extends IAnnotationTool {
   /** @type {Function|null} */
   #pdfjsTextLayerRenderedHandler = null;
 
+  /** @type {Function|null} */
+  #pdfjsScaleChangingHandler = null;
+
+  /** @type {Function|null} */
+  #pdfjsScaleChangedHandler = null;
   /** @type {boolean} */
   #isActive = false;
 
@@ -215,6 +220,27 @@ export class TextHighlightTool extends IAnnotationTool {
         }
       };
       this.#pdfjsEventBus.on('textlayerrendered', this.#pdfjsTextLayerRenderedHandler);
+
+      // 缩放阶段：先清空可见高亮，待 textlayerrendered/pagerendered 到来时重建
+      this.#pdfjsScaleChangingHandler = () => {
+        try {
+          // 只清DOM，高亮记录保留；重建时会检测容器有效性并重画
+          this.#highlightRenderer.clearAllHighlights();
+        } catch (e) { this.#logger?.debug?.('[TextHighlightTool] scalechanging clearAllHighlights failed', e); }
+      };
+      try { this.#pdfjsEventBus.on('scalechanging', this.#pdfjsScaleChangingHandler); } catch (_) {}
+
+      this.#pdfjsScaleChangedHandler = () => {
+        try {
+          // 可选：对当前页面触发一次恢复；其余页面依赖后续 pagerendered/textlayerrendered
+          const pn = Number(this.#pdfViewerManager?.currentPageNumber || 0);
+          if (pn) {
+            this.#restoreHighlightsForPage(pn);
+            this.#flushPendingHighlightsForPage(pn);
+          }
+        } catch (e) { this.#logger?.debug?.('[TextHighlightTool] scalechange restore failed', e); }
+      };
+      try { this.#pdfjsEventBus.on('scalechange', this.#pdfjsScaleChangedHandler); } catch (_) {}
     }
 
     // 统一事件信号：应用级 RENDER.PAGE_COMPLETED（由 PDFViewerManager 桥接）
@@ -665,15 +691,30 @@ export class TextHighlightTool extends IAnnotationTool {
       }
 
       if (this.#annotationHighlightRecords.has(annotation.id)) {
-        if (annotation.data?.highlightColor) {
-          this.#highlightRenderer.updateHighlightColor(annotation.id, annotation.data.highlightColor);
-          this.#actionMenu?.updateColor(annotation.id, annotation.data.highlightColor);
+        // 校验容器是否仍然挂在正确的页面DOM上；若已脱挂/错页，则强制重渲染
+        const rec = this.#annotationHighlightRecords.get(annotation.id);
+        const container = rec?.container || null;
+        let stillValid = false;
+        try {
+          if (container && container.isConnected) {
+            const pageEl = container.closest?.('.page') || null;
+            const pageNo = pageEl ? Number(pageEl.dataset.pageNumber || 0) : 0;
+            stillValid = (pageNo === Number(annotation.pageNumber || 0));
+          }
+        } catch (_) { stillValid = false; }
+
+        if (stillValid) {
+          // 在位更新颜色与记录，不必重建
+          if (annotation.data?.highlightColor) {
+            this.#highlightRenderer.updateHighlightColor(annotation.id, annotation.data.highlightColor);
+            this.#actionMenu?.updateColor(annotation.id, annotation.data.highlightColor);
+          }
+          this.#annotationHighlightRecords.set(annotation.id, { ...rec, annotation });
+          return true;
         }
-        const existing = this.#annotationHighlightRecords.get(annotation.id);
-        if (existing) {
-          this.#annotationHighlightRecords.set(annotation.id, { ...existing, annotation });
-        }
-        return true;
+
+        // 容器已失效：移除旧容器，继续执行下面的渲染流程
+        try { this.#highlightRenderer.removeHighlight(annotation.id); } catch (_) {}
       }
 
       if (!this.#isTextLayerReady(annotation.pageNumber)) {
@@ -1108,6 +1149,12 @@ export class TextHighlightTool extends IAnnotationTool {
       }
       if (this.#pdfjsTextLayerRenderedHandler) {
         this.#pdfjsEventBus.off('textlayerrendered', this.#pdfjsTextLayerRenderedHandler);
+      }
+      if (this.#pdfjsScaleChangingHandler) {
+        try { this.#pdfjsEventBus.off('scalechanging', this.#pdfjsScaleChangingHandler); } catch (_) {}
+      }
+      if (this.#pdfjsScaleChangedHandler) {
+        try { this.#pdfjsEventBus.off('scalechange', this.#pdfjsScaleChangedHandler); } catch (_) {}
       }
     }
 

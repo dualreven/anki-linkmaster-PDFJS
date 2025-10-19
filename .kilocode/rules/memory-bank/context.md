@@ -48,6 +48,64 @@
 
 ## 📅 当前活跃任务（最近）
 
+### 当前任务（20251019091530）
+名称：统一三种标注类型（截图/文字高亮/批注）的渲染流程（先梳理差异）
+
+问题与背景：
+- 现状：三种标注类型在“事件触发→页面/图层就绪→坐标换算→DOM渲染→更新/清理”的实现上不一致，导致体验不统一、维护成本高；
+- 近期已对 ScreenshotTool 引入“延迟渲染队列 + pagerendered 回放 + 多种坐标兜底（rect / rectPercent / boundingBox）”并加强日志；TextHighlightTool 也有待渲染队列且依赖 textLayer；CommentTool 依靠 `CommentMarker` 直接定位；
+- 期望：提炼统一的渲染管线和就绪判定、坐标体系、事件挂载与销毁、更新与清理策略，降低各插件的分叉实现。
+
+相关模块/文件（UTF-8 与 `\\n`）：
+- 截图：`src/frontend/pdf-viewer/features/annotation/tools/screenshot/index.js`
+- 高亮：`src/frontend/pdf-viewer/features/annotation/tools/text-highlight/index.js`、`.../highlight-renderer.js`
+- 批注：`src/frontend/pdf-viewer/features/annotation/tools/comment/index.js`、`.../comment-marker.js`
+- 接口与管理：`src/frontend/pdf-viewer/features/annotation/interfaces/IAnnotationTool.js`、`.../core/annotation-manager.js`
+
+三类渲染流程（概览）：
+- 统一点：
+  - 都订阅 `PDF_VIEWER_EVENTS.ANNOTATION` 领域事件，含 `CREATED`、`DELETED`、`DATA.LOADED`、`NAVIGATION.JUMP_SUCCESS`；
+  - 都要获取页元素或图层并将 UI 覆盖层（或标记）追加至该页；
+  - 都需要在缩放/翻页后具备恢复能力（截图/高亮已实现；批注通过 `pagerendered` 恢复）。
+- 不一致点（核心）：
+  - 就绪判定：截图/批注以 `pageView.div` 就绪为准；高亮要求 `textLayer` 就绪（并监听 `textlayerrendered`）；
+  - 坐标体系：截图优先 `rectPercent`（可由 `rect`/`boundingBox`推导），批注用 `positionPercent|position`；高亮使用 `lineRects%` 或从 `textRanges` 动态计算；
+  - 队列回放：截图与高亮均实现了“未就绪→入队→pagerendered 回放”；批注当前未显式维护按页队列；
+  - DOM 容器：截图/批注挂 `.page`；高亮挂 `textLayer` 的自建 `highlightLayer`；
+  - 颜色与交互：截图有颜色预设与圆角控制条；高亮有 action menu；批注是圆点图标（hover/点击）。
+
+统一改造方向（草案，后续执行）：
+1) 统一“渲染就绪判定”接口：抽象 `PageReadyPolicy`（pageDiv / textLayer / canvas 可选组合），工具声明所需资源；由通用渲染协调器调度；
+2) 统一“待渲染队列”机制：在 AnnotationFeature 侧提供按页 bucket + `pagerendered/textlayerrendered` 驱动的回放能力，工具注册自己的 `ensureOverlayFor(annotation)`；
+3) 统一“坐标数据规范”：数据层要求优先存储百分比坐标；提供标准化的推导函数（rect/boundingBox→percent），并在首次渲染时回写以便后续跳转与缩放的一致性；
+4) 统一“更新/清理”约定：提供通用 `removeOverlay(id)`、`clearOverlays(page?)` 钩子，由各工具实现内部细节但复用同一生命周期；
+5) 统一“日志与可观测性”：沿用 ScreenshotTool 的分步日志模式（禁用强制 toast），可通过 localStorage 调整。
+
+本次输出：
+- 仅梳理流程与差异并沉淀建议，不改动实现；待用户确认后推进统一改造。
+
+执行进展（20251019093000）：
+- 已完成第一步改造（最小侵入式统一）：
+  1) AnnotationFeature：`#ensureAllOverlays()` 统一调用三类工具的 `ensureOverlayFor`；安装时加入 `setModuleLogLevel("CommentTool", ...)`；
+  2) CommentTool：补齐 `ensureOverlayFor` + 待渲染队列（按页）+ `ANNOTATION.DATA.LOADED` 监听；`pagerendered/RENDER.PAGE_COMPLETED` 先 flush 再 restore；渲染前将像素坐标换算为百分比；
+  3) CommentMarker：在 `renderToPage()` 中允许从像素推导百分比并回写 dataset，保证缩放/跳转一致；
+  4) 新增静态测试：验证统一入口与注入点存在；
+
+验证建议：
+- 场景A：刷新→打开标注侧边栏（存在 comment + screenshot + text-highlight 三类数据）→逐页滚动；预期三类标注均可补画，队列在 pagerendered 后回放；
+- 场景B：仅存老数据（comment 只有 position 像素坐标）→ 任意缩放后点击“跳转到标注”→ 标记应正确定位不漂移（已转换为百分比）；
+- 场景C：删除 comment 标注→ 对应标记移除，待队列中（如果有）也移除。
+
+补充（20251019095820）：
+- 用户反馈“缩放后高亮消失/截图不随动”的行为，定位结论：
+  - 高亮：`#renderHighlightForAnnotation()` 在已有记录时提前返回，未检测容器是否仍连到 DOM；textLayer 重建后高亮层被移除但不会重建；
+  - 截图：仅监听 `pagerendered/RENDER.PAGE_COMPLETED`，未覆盖 `scalechanging/scalechange`；缩放后未重算 `markerRect`；
+  - 侧边栏打开会无条件触发二次加载，失败/空返回会清空内存态，导致随后的恢复无数据；
+- 修复计划：
+  1) 高亮：已有记录分支增加容器有效性判断，不满足则重渲染；
+  2) 三类工具统一监听缩放信号，执行“清空→重建”或“就地重算”；
+  3) 侧边栏加载改为“按需加载/失败不清空旧态”。
+
 ### 当前任务（20251019065146）
 名称：刷新后截图型标注框未显示（延迟渲染修复）
 

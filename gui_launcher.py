@@ -284,6 +284,8 @@ class LauncherThread(QThread):
         pdf_id = self.params.get("pdf_id")
         page_at = self.params.get("page_at")
         position = self.params.get("position")
+        anchor_id = self.params.get("anchor_id") or self.params.get("pdfanchor_id")
+        annotation_id = self.params.get("annotation_id") or self.params.get("pdfannotation_id")
 
         if not pdf_id:
             self.log_signal.emit("💡 提示: 未指定 PDF ID，将启动空白查看器")
@@ -311,7 +313,7 @@ class LauncherThread(QThread):
                 ),
             ).with_defaults(component_root)
             try:
-                self.log_signal.emit(f"[TRACE:CLI] pdf-viewer cfg → ports(vite={cfg.ports.vite_port}, ws={cfg.ports.msgCenter_port}, http={cfg.ports.pdfFile_port}) options(runtime_mode={cfg.options.runtime_mode}) is_prod={bool(self.params.get('is_prod'))} pdf_id={pdf_id} page_at={page_at} position={position} logs_dir={cfg.paths.logs_dir}")
+                self.log_signal.emit(f"[TRACE:CLI] pdf-viewer cfg → ports(vite={cfg.ports.vite_port}, ws={cfg.ports.msgCenter_port}, http={cfg.ports.pdfFile_port}) options(runtime_mode={cfg.options.runtime_mode}) is_prod={bool(self.params.get('is_prod'))} pdf_id={pdf_id} page_at={page_at} position={position} anchor_id={anchor_id} annotation_id={annotation_id} logs_dir={cfg.paths.logs_dir}")
             except Exception:
                 pass
             ok = _run_pdf_viewer_cli(
@@ -320,6 +322,8 @@ class LauncherThread(QThread):
                 pdf_id=pdf_id,
                 page_at=page_at,
                 position=position,
+                anchor_id=anchor_id,
+                annotation_id=annotation_id,
                 on_log=lambda m: self.log_signal.emit(m)
             )
             if ok:
@@ -487,9 +491,19 @@ class GUILauncher(QMainWindow):
         self.h_page_at = QSpinBox(); self.h_page_at.setRange(0, 999999); self.h_page_at.setSpecialValueText("不指定")
         self.h_position = QDoubleSpinBox(); self.h_position.setRange(0.0, 100.0); self.h_position.setDecimals(1); self.h_position.setSingleStep(5.0)
         self.h_keep_backend = QCheckBox("关闭窗口保留后端")
+        # 新增导航扩展参数
+        self.h_pdfanchor_id = QLineEdit(); self.h_pdfanchor_id.setPlaceholderText("pdfanchor-<12hex> 或 pdfanchor-test")
+        self.h_pdfannotation_id = QLineEdit(); self.h_pdfannotation_id.setPlaceholderText("pdfannotation-<base64url16>")
+        self.h_pdfoutline_item_id = QLineEdit(); self.h_pdfoutline_item_id.setPlaceholderText("outline-item-id（暂未启用）")
+        self.h_pdfanchor_id.setToolTip("锚点ID，将映射为前端 URL 参数 anchor-id")
+        self.h_pdfannotation_id.setToolTip("标注ID，将映射为前端 URL 参数 annotation-id")
+        self.h_pdfoutline_item_id.setToolTip("书签/大纲项ID（前端未启用，暂仅记录）")
         gl.addWidget(QLabel("pdf_id")); gl.addWidget(self.h_pdf_id)
         gl.addWidget(QLabel("page_at")); gl.addWidget(self.h_page_at)
         gl.addWidget(QLabel("position%")); gl.addWidget(self.h_position)
+        gl.addWidget(QLabel("pdfanchor-id")); gl.addWidget(self.h_pdfanchor_id)
+        gl.addWidget(QLabel("pdfannotation-id")); gl.addWidget(self.h_pdfannotation_id)
+        gl.addWidget(QLabel("pdfoutline-item-id")); gl.addWidget(self.h_pdfoutline_item_id)
         gl.addWidget(self.h_keep_backend)
         layout.addWidget(grp)
 
@@ -1373,11 +1387,26 @@ class GUILauncher(QMainWindow):
             except Exception:
                 pass
             app = QApplication.instance()
-            rc = _run_pdf_viewer_hosted(cfg, parent_app=app,
-                                        pdf_id=(self.pdf_id_input.text().strip() or None),
-                                        page_at=(self.page_at_input.value() or None),
-                                        position=(self.position_input.value() or None),
-                                        on_log=self._log)
+            # 读取 Hosted Tab 的参数
+            _pdf_id = (self.h_pdf_id.text().strip() or None)
+            _page_at = int(self.h_page_at.value() or 0) or None
+            _position = float(self.h_position.value() or 0) or None
+            _anchor_id = (self.h_pdfanchor_id.text().strip() or None)
+            _annotation_id = (self.h_pdfannotation_id.text().strip() or None)
+            _outline_item = (self.h_pdfoutline_item_id.text().strip() or None)
+            try:
+                self._log(f"[TRACE:HOSTED] pdf-viewer args → pdf_id={_pdf_id} page_at={_page_at} position={_position} anchor_id={_anchor_id} annotation_id={_annotation_id} outline_item_id={_outline_item}")
+            except Exception:
+                pass
+            rc = _run_pdf_viewer_hosted(
+                cfg, parent_app=app,
+                pdf_id=_pdf_id,
+                page_at=_page_at,
+                position=_position,
+                anchor_id=_anchor_id,
+                annotation_id=_annotation_id,
+                on_log=self._log
+            )
             self._log(f"PDF-Viewer (Hosted) 启动 rc={rc}")
         except Exception as e:
             self._log(f"[ERROR] 启动 pdf-viewer (Hosted) 异常: {e}")

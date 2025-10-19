@@ -49,6 +49,8 @@ export class ScreenshotTool extends IAnnotationTool {
   #onAnnotationDataLoadedHandler = null;
   #pendingMarkersByPage = new Map(); // pageNumber -> Map<annotationId, annotation>
   #pdfjsPageRenderedHandler = null;
+  #pdfjsScaleChangingHandler = null;
+  #pdfjsScaleChangedHandler = null;
 
   /**
    * 内部：统一输出分步日志（含可选 toast）
@@ -114,6 +116,23 @@ export class ScreenshotTool extends IAnnotationTool {
         }
       };
       this.#pdfjsEventBus.on('pagerendered', this.#pdfjsPageRenderedHandler);
+
+      // 缩放阶段：先清除可见标记，避免旧像素矩形残留
+      this.#pdfjsScaleChangingHandler = () => {
+        try { this.clearAllMarkers(); } catch (_) {}
+      };
+      try { this.#pdfjsEventBus.on('scalechanging', this.#pdfjsScaleChangingHandler); } catch (_) {}
+
+      // 缩放完成：对当前页触发一次恢复，其它页依赖后续 pagerendered 回调
+      this.#pdfjsScaleChangedHandler = () => {
+        try {
+          const pn = Number(this.#pdfViewerManager?.currentPageNumber || 0);
+          if (pn) {
+            this.#restoreScreenshotMarkersForPage(pn);
+          }
+        } catch (e) { this.#logger?.debug?.('[ScreenshotTool] scalechange restore failed', e); }
+      };
+      try { this.#pdfjsEventBus.on('scalechange', this.#pdfjsScaleChangedHandler); } catch (_) {}
     }
 
     // 统一事件信号：监听应用级 RENDER.PAGE_COMPLETED（由 PDFViewerManager 桥接）
@@ -291,6 +310,12 @@ export class ScreenshotTool extends IAnnotationTool {
     }
     this.#onAnnotationDataLoadedHandler = null;
     this.#pdfjsPageRenderedHandler = null;
+    if (this.#pdfjsEventBus && this.#pdfjsScaleChangingHandler) {
+      try { this.#pdfjsEventBus.off?.('scalechanging', this.#pdfjsScaleChangingHandler); } catch (_) {}
+    }
+    if (this.#pdfjsEventBus && this.#pdfjsScaleChangedHandler) {
+      try { this.#pdfjsEventBus.off?.('scalechange', this.#pdfjsScaleChangedHandler); } catch (_) {}
+    }
     this.deactivate();
     this.clearAllMarkers();
     this.#pendingMarkersByPage.clear();

@@ -56,6 +56,12 @@ export class CommentTool extends IAnnotationTool {
   /** @type {Object} PDF.js EventBus (用于监听页面渲染事件) */
   #pdfjsEventBus = null;
 
+  /** @type {Function|null} PDF.js 缩放开始回调 */
+  #pdfjsScaleChangingHandler = null;
+
+  /** @type {Function|null} PDF.js 缩放完成回调 */
+  #pdfjsScaleChangedHandler = null;
+
   /** @type {Object} 标注管理器 (用于获取标注数据) */
   #annotationManager = null;
 
@@ -73,6 +79,12 @@ export class CommentTool extends IAnnotationTool {
 
   /** @type {string} 原始鼠标样式 */
   #originalCursor = '';
+
+  /** @type {Map<number, Map<string, any>>} 待渲染队列（按页） */
+  #pendingMarkersByPage = new Map();
+
+  /** @type {Function|null} 数据加载后的处理器 */
+  #onAnnotationDataLoadedHandler = null;
 
   // ==================== 生命周期方法 ====================
 
@@ -126,7 +138,22 @@ export class CommentTool extends IAnnotationTool {
     this.#logger.info('Step 4: Setting up page rendering listener...');
     this.#setupPageRenderingListener();
 
-    // 设置标注创建事件监听
+    // 监听标注数据加载完成（用于补画/入队）
+    this.#onAnnotationDataLoadedHandler = (data) => {
+      try {
+        const anns = Array.isArray(data?.annotations) ? data.annotations : [];
+        const comments = anns.filter(a => a?.type === 'comment');
+        this.#logger.info(`📥 [DataLoaded] total=${anns.length}, comments=${comments.length}`);
+        comments.forEach((ann) => this.ensureOverlayFor(ann));
+      } catch (e) {
+        this.#logger?.warn?.('[CommentTool] handleAnnotationsLoaded failed', e);
+      }
+    };
+    try {
+      this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, this.#onAnnotationDataLoadedHandler, { subscriberId: 'CommentTool' });
+    } catch (e) { void e; }
+
+    // 设置标注事件监听
     this.#logger.info('Step 5: Setting up annotation event listeners...');
     this.#setupAnnotationEventListeners();
 
@@ -347,16 +374,35 @@ export class CommentTool extends IAnnotationTool {
     // 监听PDF.js的pagerendered事件
     this.#pdfjsEventBus.on('pagerendered', (evt) => {
       const pageNumber = evt.pageNumber;
+      // 先刷队列再恢复
+      this.#flushPendingForPage(pageNumber);
       this.#logger.info(`📄 [PageRendered Event] Page ${pageNumber} rendered, restoring markers...`);
       // 恢复该页面的所有标记
       this.#restoreMarkersForPage(pageNumber);
     });
+
+    // 监听缩放：缩放开始清空标记，缩放结束恢复当前页
+    this.#pdfjsScaleChangingHandler = () => {
+      try { this.#commentMarker?.clear?.(); } catch (_) {}
+    };
+    try { this.#pdfjsEventBus.on('scalechanging', this.#pdfjsScaleChangingHandler); } catch (_) {}
+
+    this.#pdfjsScaleChangedHandler = () => {
+      try {
+        const pn = Number(this.#pdfViewerManager?.currentPageNumber || 0);
+        if (pn) {
+          this.#restoreMarkersForPage(pn);
+        }
+      } catch (_) {}
+    };
+    try { this.#pdfjsEventBus.on('scalechange', this.#pdfjsScaleChangedHandler); } catch (_) {}
 
     // 统一事件信号：应用级 RENDER.PAGE_COMPLETED（由 PDFViewerManager 桥接）
     try {
       this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.RENDER.PAGE_COMPLETED, (data) => {
         const pn = Number(data?.pageNumber || 0);
         if (!pn) { return; }
+        this.#flushPendingForPage(pn);
         this.#logger.info(`📄 [PageRendered Event - bridged] Page ${pn} rendered, restoring markers...`);
         this.#restoreMarkersForPage(pn);
       }, { subscriberId: 'CommentTool' });
@@ -389,8 +435,8 @@ export class CommentTool extends IAnnotationTool {
 
       this.#logger.info(`  ✅ Comment annotation created successfully, rendering marker...`);
 
-      // 渲染标记
-      this.#renderMarkerForAnnotation(annotation);
+      // 渲染标记（若页面未就绪则入队）
+      this.ensureOverlayFor(annotation);
     }, { subscriberId: 'CommentTool' });
 
     // 监听标注删除成功事件
@@ -404,9 +450,77 @@ export class CommentTool extends IAnnotationTool {
         this.#commentMarker.removeMarker(id);
         this.#logger.info(`  ✅ Marker removed for deleted annotation: ${id}`);
       }
+
+      // 从待渲染队列移除
+      try {
+        this.#pendingMarkersByPage.forEach((bucket, page) => {
+          if (bucket?.has?.(id)) {
+            bucket.delete(id);
+            if (bucket.size === 0) this.#pendingMarkersByPage.delete(page);
+          }
+        });
+      } catch (_) {}
     }, { subscriberId: 'CommentTool' });
 
     this.#logger.info('✅ Annotation event listeners setup complete');
+  }
+
+  /**
+   * 若页面就绪则立即渲染，否则加入待渲染队列
+   * @param {Annotation} annotation
+   */
+  ensureOverlayFor(annotation) {
+    try {
+      if (!annotation || annotation.type !== 'comment') return;
+      const page = Number(annotation.pageNumber || 0);
+      if (this.#isPageReady(page)) {
+        this.#logger.debug(`[CommentTool] Page ready → render now`, { id: annotation.id, page });
+        this.#renderMarkerForAnnotation(annotation);
+        return;
+      }
+      let bucket = this.#pendingMarkersByPage.get(page);
+      if (!bucket) {
+        bucket = new Map();
+        this.#pendingMarkersByPage.set(page, bucket);
+      }
+      bucket.set(annotation.id, annotation);
+      this.#logger.debug(`[CommentTool] Page not ready → queued`, { id: annotation.id, page });
+    } catch (e) {
+      this.#logger?.warn?.('[CommentTool] ensureOverlayFor failed', e);
+    }
+  }
+
+  /**
+   * 刷新某页的待渲染批注标记
+   * @param {number} pageNumber
+   * @private
+   */
+  #flushPendingForPage(pageNumber) {
+    try {
+      const bucket = this.#pendingMarkersByPage.get(pageNumber);
+      if (!bucket || bucket.size === 0) return;
+      const items = Array.from(bucket.values());
+      this.#pendingMarkersByPage.delete(pageNumber);
+      this.#logger.info(`🔁 [FlushPending] page=${pageNumber} count=${items.length}`);
+      items.forEach((ann) => { try { this.#renderMarkerForAnnotation(ann); } catch (_) {} });
+    } catch (e) {
+      this.#logger?.warn?.('[CommentTool] flushPendingForPage failed', e);
+    }
+  }
+
+  /**
+   * 判断页面是否就绪（存在 pageView.div）
+   * @param {number} pageNumber
+   * @returns {boolean}
+   * @private
+   */
+  #isPageReady(pageNumber) {
+    try {
+      const pageView = (pageNumber > 0) ? this.#pdfViewerManager?.getPageView?.(pageNumber) : null;
+      return !!(pageView && pageView.div);
+    } catch (_) {
+      return false;
+    }
   }
 
   /**
@@ -482,6 +596,21 @@ export class CommentTool extends IAnnotationTool {
       return;
     }
     this.#logger.debug(`  ✅ Page element found`);
+
+    // 若仅有像素坐标，则换算百分比以便后续缩放/跳转一致
+    try {
+      const data = annotation?.data || {};
+      const hasPercent = data?.positionPercent && typeof data.positionPercent.xPercent === 'number' && typeof data.positionPercent.yPercent === 'number';
+      const hasPixel = data?.position && typeof data.position.x === 'number' && typeof data.position.y === 'number';
+      if (!hasPercent && hasPixel) {
+        const w = pageElement.clientWidth || pageElement.offsetWidth || 1;
+        const h = pageElement.clientHeight || pageElement.offsetHeight || 1;
+        const xp = Math.max(0, Math.min(100, (data.position.x / Math.max(1, w)) * 100));
+        const yp = Math.max(0, Math.min(100, (data.position.y / Math.max(1, h)) * 100));
+        annotation.data.positionPercent = { xPercent: xp, yPercent: yp };
+        this.#logger.debug(`  ↻ position→percent: (${data.position.x},${data.position.y}) → (${xp.toFixed(2)}%,${yp.toFixed(2)}%)`);
+      }
+    } catch (_) { /* ignore */ }
 
     // 渲染标记到页面
     this.#logger.debug(`  Appending marker to page...`);
@@ -690,11 +819,27 @@ export class CommentTool extends IAnnotationTool {
       this.#commentMarker = null;
     }
 
+    // 解绑 PDF.js 缩放事件
+    if (this.#pdfjsEventBus && typeof this.#pdfjsEventBus.off === 'function') {
+      try {
+        if (this.#pdfjsScaleChangingHandler) {
+          this.#pdfjsEventBus.off('scalechanging', this.#pdfjsScaleChangingHandler);
+        }
+      } catch (_) {}
+      try {
+        if (this.#pdfjsScaleChangedHandler) {
+          this.#pdfjsEventBus.off('scalechange', this.#pdfjsScaleChangedHandler);
+        }
+      } catch (_) {}
+    }
+
     // 清空引用
     this.#eventBus = null;
     this.#logger = null;
     this.#pdfViewerManager = null;
     this.#container = null;
+    this.#pendingMarkersByPage.clear();
+    this.#onAnnotationDataLoadedHandler = null;
 
     this.#logger.info('CommentTool destroyed');
   }
