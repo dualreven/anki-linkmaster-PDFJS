@@ -114,6 +114,42 @@ class MainWindow(QMainWindow):
             self.web_view.loadFinished.connect(self._on_web_loaded)
             # 设置大小策略，确保自适应窗口大小变化
             self.web_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            # 强制固定初始缩放因子为1.0，避免遗留缩放影响
+            try:
+                self.web_view.setZoomFactor(1.0)
+            except Exception:
+                pass
+            # 安装事件过滤器：拦截 Ctrl+滚轮 的页面缩放（Qt WebEngine 默认行为）
+            try:
+                from src.qt.compat import QObject, QEvent, Qt as _Qt
+
+                class _ZoomBlocker(QObject):
+                    def eventFilter(self, obj, event):  # type: ignore[override]
+                        try:
+                            if event and event.type() == QEvent.Type.Wheel:
+                                mods = event.modifiers() if hasattr(event, 'modifiers') else _Qt.KeyboardModifier.NoModifier
+                                if mods & _Qt.KeyboardModifier.ControlModifier:
+                                    # 阻止默认页面缩放
+                                    return True
+                        except Exception:
+                            pass
+                        # 交由默认处理
+                        try:
+                            return super().eventFilter(obj, event)
+                        except Exception:
+                            return False
+
+                self._zoom_blocker = _ZoomBlocker(self)
+                self.web_view.installEventFilter(self._zoom_blocker)
+                try:
+                    logger.info("Installed Ctrl+Wheel zoom blocker on QWebEngineView")
+                except Exception:
+                    pass
+            except Exception as _e:
+                try:
+                    logger.warning("Failed to install zoom blocker: %s", _e)
+                except Exception:
+                    pass
             # 绑定标题变更信号，避免被页面/加载流程覆盖为文件名
             try:
                 self.web_view.titleChanged.connect(self._on_page_title_changed)  # type: ignore[attr-defined]

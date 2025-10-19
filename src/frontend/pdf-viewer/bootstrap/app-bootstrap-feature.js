@@ -114,6 +114,49 @@ export async function bootstrapPDFViewerAppFeature() {
     logger.info("[Bootstrap] Installing features...");
     await registry.installAll();
 
+    // 5.1 禁用浏览器层面的 Ctrl+滚轮页面缩放（Qt WebEngine/Chromium 默认行为），避免 devicePixelRatio 变动影响标注坐标
+    try {
+      const shouldDisablePageZoom = true; // 可按需改为从 localStorage 读取
+      if (shouldDisablePageZoom) {
+        const wheelHandler = (e) => {
+          try {
+            if (e && e.ctrlKey) {
+              e.preventDefault();
+              e.stopPropagation();
+              logger.info('[Bootstrap] Ctrl+Wheel page zoom prevented');
+            }
+          } catch (_) {}
+        };
+        const keydownHandler = (e) => {
+          try {
+            if (!e) return;
+            const ctrl = !!(e.ctrlKey || e.metaKey); // macOS 下 meta 也可能触发
+            const k = e.key || '';
+            if (ctrl && (k === '+' || k === '-' || k === '0')) {
+              e.preventDefault();
+              e.stopPropagation();
+              logger.info('[Bootstrap] Ctrl+Key page zoom prevented', { key: k });
+            }
+            // 处理部分键位编码（等号/减号/数字键盘）
+            const code = e.code || '';
+            if (ctrl && (code === 'Equal' || code === 'Minus' || code === 'Digit0' || code === 'NumpadAdd' || code === 'NumpadSubtract' || code === 'Numpad0')) {
+              e.preventDefault();
+              e.stopPropagation();
+              logger.info('[Bootstrap] Ctrl+Key(code) page zoom prevented', { code });
+            }
+          } catch (_) {}
+        };
+        // 使用 passive:false 以允许 preventDefault 生效
+        window.addEventListener('wheel', wheelHandler, { passive: false, capture: true });
+        window.addEventListener('keydown', keydownHandler, { capture: true });
+        // 保存到全局以便调试/卸载
+        window.__PDFVIEWER_DISABLE_PAGE_ZOOM_GUARD__ = { wheelHandler, keydownHandler };
+        logger.info('[Bootstrap] Page zoom (Ctrl+Wheel/Key) disabled at JS layer');
+      }
+    } catch (e) {
+      logger.warn('[Bootstrap] Failed to install page-zoom guard (non-fatal)', e);
+    }
+
     // 6. 设置全局引用（便于调试）
     window.pdfViewerApp = {
       registry,
