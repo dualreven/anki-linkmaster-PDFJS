@@ -5,6 +5,7 @@
  */
 
 import { getLogger } from "../../../../common/utils/logger.js";
+import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 import * as pdfjsLib from 'pdfjs-dist';
 
 // PDF.js Viewer组件需要全局pdfjsLib
@@ -400,7 +401,7 @@ export class PDFViewerManager {
         const pn = evt?.pageNumber;
         if (!pn) { return; }
         if (this.#eventBus) {
-          this.#eventBus.emit('pdf-viewer:render:page:completed', { pageNumber: pn }, { actorId: 'PDFViewerManager' });
+          this.#eventBus.emit(PDF_VIEWER_EVENTS.RENDER.PAGE_COMPLETED, { pageNumber: pn }, { actorId: 'PDFViewerManager' });
         }
       });
     } catch (e) {

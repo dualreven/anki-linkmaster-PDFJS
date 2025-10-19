@@ -188,6 +188,8 @@ export const PDF_VIEWER_EVENTS = {
   RENDER: {
     /** 渲染就绪（至少首页渲染完成，DOM可用） */
     READY: 'pdf-viewer:render:ready',
+    /** 单页渲染完成（由 PDFViewerManager 桥接 pdfjs 'pagerendered'） */
+    PAGE_COMPLETED: 'pdf-viewer:render-page:completed',
   },
   
   /**
