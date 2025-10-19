@@ -354,7 +354,6 @@ export class CommentTool extends IAnnotationTool {
 
     // 统一事件信号：应用级 RENDER.PAGE_COMPLETED（由 PDFViewerManager 桥接）
     try {
-      const { PDF_VIEWER_EVENTS } = await import('../../../../../common/event/pdf-viewer-constants.js');
       this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.RENDER.PAGE_COMPLETED, (data) => {
         const pn = Number(data?.pageNumber || 0);
         if (!pn) { return; }
