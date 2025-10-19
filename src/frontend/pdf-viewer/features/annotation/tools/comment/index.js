@@ -348,10 +348,19 @@ export class CommentTool extends IAnnotationTool {
     this.#pdfjsEventBus.on('pagerendered', (evt) => {
       const pageNumber = evt.pageNumber;
       this.#logger.info(`📄 [PageRendered Event] Page ${pageNumber} rendered, restoring markers...`);
-
       // 恢复该页面的所有标记
       this.#restoreMarkersForPage(pageNumber);
     });
+
+    // 统一事件信号：应用级 RENDER.PAGE_COMPLETED（由 PDFViewerManager 桥接）
+    try {
+      this.#eventBus.onGlobal('pdf-viewer:render:page:completed', (data) => {
+        const pn = Number(data?.pageNumber || 0);
+        if (!pn) { return; }
+        this.#logger.info(`📄 [PageRendered Event - bridged] Page ${pn} rendered, restoring markers...`);
+        this.#restoreMarkersForPage(pn);
+      }, { subscriberId: 'CommentTool' });
+    } catch (e) { void e; }
 
     this.#logger.info('✅ Page rendering listener setup complete');
   }

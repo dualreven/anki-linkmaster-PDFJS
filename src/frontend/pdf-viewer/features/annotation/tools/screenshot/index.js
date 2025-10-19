@@ -116,6 +116,17 @@ export class ScreenshotTool extends IAnnotationTool {
       this.#pdfjsEventBus.on('pagerendered', this.#pdfjsPageRenderedHandler);
     }
 
+    // 统一事件信号：监听应用级 RENDER.PAGE_COMPLETED（由 PDFViewerManager 桥接）
+    try {
+      this.#eventBus.onGlobal('pdf-viewer:render:page:completed', (data) => {
+        const pn = Number(data?.pageNumber || 0);
+        if (!pn) { return; }
+        this.#logStep('04.bridge', 'RENDER.PAGE_COMPLETED (app) received', { page: pn });
+        this.#flushPendingForPage(pn);
+        this.#restoreScreenshotMarkersForPage(pn);
+      }, { subscriberId: 'ScreenshotTool' });
+    } catch (e) { void e; }
+
     this.#logStep('01', 'Initialize begin', {
       qwebChannelMode: this.#qwebChannelBridge.getMode()
     }, 'info', 1800);

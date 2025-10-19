@@ -394,6 +394,19 @@ export class PDFViewerManager {
       }
     });
 
+    // 监听页面渲染完成（统一翻译为应用事件：RENDER.PAGE_COMPLETED）
+    try {
+      pdfjsEventBus.on('pagerendered', (evt) => {
+        const pn = evt?.pageNumber;
+        if (!pn) { return; }
+        if (this.#eventBus) {
+          this.#eventBus.emit('pdf-viewer:render:page:completed', { pageNumber: pn }, { actorId: 'PDFViewerManager' });
+        }
+      });
+    } catch (e) {
+      this.#logger.warn('Failed to bridge pagerendered to app event', e);
+    }
+
     this.#logger.info("PDFViewer event bridge setup complete");
   }
 }

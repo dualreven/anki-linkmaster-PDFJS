@@ -217,6 +217,18 @@ export class TextHighlightTool extends IAnnotationTool {
       this.#pdfjsEventBus.on('textlayerrendered', this.#pdfjsTextLayerRenderedHandler);
     }
 
+    // 统一事件信号：应用级 RENDER.PAGE_COMPLETED（由 PDFViewerManager 桥接）
+    try {
+      this.#eventBus.onGlobal('pdf-viewer:render:page:completed', (data) => {
+        try {
+          const pn = Number(data?.pageNumber || 0);
+          if (!pn) return;
+          this.#restoreHighlightsForPage(pn);
+          this.#flushPendingHighlightsForPage(pn);
+        } catch (e) { this.#logger?.warn?.('[TextHighlightTool] restore on app PAGE_COMPLETED failed', e); }
+      }, { subscriberId: 'TextHighlightTool' });
+    } catch (e) { void e; }
+
     // 跳转成功后，若为高亮标注则确保渲染
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_SUCCESS, ({ annotation }) => {
       try {
