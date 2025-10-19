@@ -687,6 +687,14 @@ export class ScreenshotTool extends IAnnotationTool {
         data: {
           rectPercent: percentRect,
           rect: canvasRect,
+          // 记录捕获时的 canvas 像素尺寸（用于跨“浏览器缩放/设备像素比变化”的稳定换算）
+          canvasPixelSize: (() => {
+            try {
+              const pv = this.#pdfViewerManager?.getPageView?.(pageNumber);
+              const cv = pv?.div?.querySelector?.('canvas');
+              return (cv && cv.width && cv.height) ? { width: cv.width, height: cv.height } : null;
+            } catch (_) { return null; }
+          })(),
           markerColor: DEFAULT_MARKER_COLOR,
           imagePath: saveResult.path,
           imageHash: saveResult.hash,
@@ -1091,32 +1099,45 @@ export class ScreenshotTool extends IAnnotationTool {
       const pageDiv = pageView.div;
 
       // 兜底方案 A：rectPercent 缺失但包含 rect（通常为 canvas 像素），换算为百分比
+      // 优先使用“捕获时的 canvas 像素尺寸”（避免页面整体缩放导致 devicePixelRatio 改变而引入误差）
       if (!rectPercent && data && data.rect) {
         try {
-          const canvasNow = pageDiv.querySelector('canvas');
-          if (canvasNow && canvasNow.width > 0 && canvasNow.height > 0) {
-            this.#logStep('05.2A', 'rectPercent missing → compute from rect (canvas)', { id: annotation.id });
-            rectPercent = this.#convertCanvasToPercent(pageNumber, data.rect);
+          const cap = data.canvasPixelSize;
+          if (cap && Number(cap.width) > 0 && Number(cap.height) > 0) {
+            const w0 = Number(cap.width), h0 = Number(cap.height);
+            rectPercent = {
+              xPercent: Math.max(0, Math.min(100, (data.rect.x / w0) * 100)),
+              yPercent: Math.max(0, Math.min(100, (data.rect.y / h0) * 100)),
+              widthPercent: Math.max(0, Math.min(100, (data.rect.width / w0) * 100)),
+              heightPercent: Math.max(0, Math.min(100, (data.rect.height / h0) * 100))
+            };
+            this.#logStep('05.2A-cap', 'rect→percent using captured canvasPixelSize', { id: annotation.id, rectPercent });
           } else {
-            // Canvas 尚未渲染（页面未滚动到可见区域）。挂载监听，待 canvas 出现后再渲染，避免报错。
-            this.#logStep('05.2A-wait', 'Canvas not ready → wait (MutationObserver)', { page: pageNumber }, 'info', 1500);
-            const observer = new MutationObserver(() => {
-              try {
-                const c = pageDiv.querySelector('canvas');
-                if (c && c.width > 0 && c.height > 0) {
-                  observer.disconnect();
-                  // 重新进入渲染流程（此时可以进行 rect → percent 的换算）
-                  try {
-                    data.rectPercent = this.#convertCanvasToPercent(pageNumber, data.rect);
-                  } catch (_) { /* ignore */ }
-                  this.renderScreenshotMarker(annotation);
-                }
-              } catch (_) { /* ignore */ }
-            });
-            observer.observe(pageDiv, { childList: true, subtree: true });
-            // 同时添加一个超时保护，避免长时间监听
-            setTimeout(() => { try { observer.disconnect(); } catch {} }, 8000);
-            return; // 先退出，等待 canvas 出现后再渲染
+            const canvasNow = pageDiv.querySelector('canvas');
+            if (canvasNow && canvasNow.width > 0 && canvasNow.height > 0) {
+              this.#logStep('05.2A', 'rectPercent missing → compute from rect (canvas)', { id: annotation.id });
+              rectPercent = this.#convertCanvasToPercent(pageNumber, data.rect);
+            } else {
+              // Canvas 尚未渲染（页面未滚动到可见区域）。挂载监听，待 canvas 出现后再渲染，避免报错。
+              this.#logStep('05.2A-wait', 'Canvas not ready → wait (MutationObserver)', { page: pageNumber }, 'info', 1500);
+              const observer = new MutationObserver(() => {
+                try {
+                  const c = pageDiv.querySelector('canvas');
+                  if (c && c.width > 0 && c.height > 0) {
+                    observer.disconnect();
+                    // 重新进入渲染流程（此时可以进行 rect → percent 的换算）
+                    try {
+                      data.rectPercent = this.#convertCanvasToPercent(pageNumber, data.rect);
+                    } catch (_) { /* ignore */ }
+                    this.renderScreenshotMarker(annotation);
+                  }
+                } catch (_) { /* ignore */ }
+              });
+              observer.observe(pageDiv, { childList: true, subtree: true });
+              // 同时添加一个超时保护，避免长时间监听
+              setTimeout(() => { try { observer.disconnect(); } catch {} }, 8000);
+              return; // 先退出，等待 canvas 出现后再渲染
+            }
           }
         } catch (e) {
           this.#logStep('05.2A-err', 'Compute rectPercent from rect failed', { err: e?.message }, 'warn', 2500);
