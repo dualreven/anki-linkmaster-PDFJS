@@ -36,6 +36,7 @@ export class ScreenshotTool extends IAnnotationTool {
   #eventBus;
   #logger;
   #pdfViewerManager;
+  #pdfjsEventBus = null;
   #qwebChannelBridge;
   #capturer;
   #isActive = false;
@@ -45,6 +46,27 @@ export class ScreenshotTool extends IAnnotationTool {
   #mouseListeners = null;
   #renderedMarkers = new Map();  // 存储已渲染的截图标记框 (annotationId -> markerElement)
   #onAnnotationDataLoadedHandler = null;
+  #pendingMarkersByPage = new Map(); // pageNumber -> Map<annotationId, annotation>
+  #pdfjsPageRenderedHandler = null;
+
+  /**
+   * 内部：统一输出分步日志（含可选 toast）
+   * @param {string} step - 步骤编号，如 'SM-01.1'
+   * @param {string} message - 消息文本
+   * @param {Object} [data] - 附加数据
+   * @param {('info'|'warn'|'error'|'success'|'debug')|null} [toastType] - toast 类型（不传则仅console）
+   * @param {number} [toastMs] - toast 时长毫秒
+   */
+  #logStep(step, message, data = undefined, toastType = null, toastMs = 5000) {
+    const head = `[SM-${step}] ${message}`;
+    const meta = data === undefined ? undefined : data;
+    const toast = toastType ? { toast: { type: toastType, ms: toastMs } } : undefined;
+    if (toast) {
+      this.#logger.info(head, meta, toast);
+    } else {
+      this.#logger.info(head, meta);
+    }
+  }
 
   /**
    * 初始化工具
@@ -57,6 +79,11 @@ export class ScreenshotTool extends IAnnotationTool {
     this.#eventBus = context.eventBus;
     this.#logger = context.logger || getLogger('ScreenshotTool');
     this.#pdfViewerManager = context.pdfViewerManager;
+    try {
+      this.#pdfjsEventBus = this.#pdfViewerManager?.eventBus || null;
+    } catch (_) {
+      this.#pdfjsEventBus = null;
+    }
 
     // 初始化截图捕获器
     this.#capturer = new ScreenshotCapturer(this.#pdfViewerManager);
@@ -71,9 +98,30 @@ export class ScreenshotTool extends IAnnotationTool {
     this.#onAnnotationDataLoadedHandler = this.#handleAnnotationsLoaded.bind(this);
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, this.#onAnnotationDataLoadedHandler);
 
-    this.#logger.info('[ScreenshotTool] Initialized', {
+    // 监听 PDF.js 页面渲染完成事件，刷写等待中的标记（解决“刷新后侧边栏打开时未出现截图框”）
+    if (this.#pdfjsEventBus && typeof this.#pdfjsEventBus.on === 'function') {
+      this.#pdfjsPageRenderedHandler = (evt) => {
+        try {
+          const pn = evt?.pageNumber;
+          if (!pn) return;
+          this.#flushPendingForPage(pn);
+        } catch (e) {
+          this.#logger?.warn?.('[ScreenshotTool] flush pending on pagerendered failed', e);
+        }
+      };
+      this.#pdfjsEventBus.on('pagerendered', this.#pdfjsPageRenderedHandler);
+    }
+
+    this.#logStep('01', 'Initialize begin', {
       qwebChannelMode: this.#qwebChannelBridge.getMode()
-    });
+    }, 'info', 1800);
+    this.#logStep('01.1', 'Event listeners ready: JUMP/CREATED/DELETED + DATA.LOADED');
+    if (this.#pdfjsEventBus) {
+      this.#logStep('01.2', 'PDF.js pagerendered hook registered');
+    } else {
+      this.#logStep('01.2', 'PDF.js EventBus not available (pagerendered not hooked)', null, 'warn', 2500);
+    }
+    this.#logStep('01.done', 'Initialize completed');
   }
 
   /**
@@ -223,9 +271,14 @@ export class ScreenshotTool extends IAnnotationTool {
     if (this.#eventBus && this.#onAnnotationDataLoadedHandler) {
       this.#eventBus.off?.(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, this.#onAnnotationDataLoadedHandler);
     }
+    if (this.#pdfjsEventBus && this.#pdfjsPageRenderedHandler) {
+      try { this.#pdfjsEventBus.off?.('pagerendered', this.#pdfjsPageRenderedHandler); } catch (_) {}
+    }
     this.#onAnnotationDataLoadedHandler = null;
+    this.#pdfjsPageRenderedHandler = null;
     this.deactivate();
     this.clearAllMarkers();
+    this.#pendingMarkersByPage.clear();
     this.#capturer = null;
     this.#qwebChannelBridge = null;
     this.#logger.info('[ScreenshotTool] Destroyed');
@@ -289,18 +342,86 @@ export class ScreenshotTool extends IAnnotationTool {
       const annotations = Array.isArray(data?.annotations) ? data.annotations : [];
       const screenshotAnnotations = annotations.filter((ann) => ann?.type === AnnotationType.SCREENSHOT);
       const validIds = new Set(screenshotAnnotations.map((ann) => ann.id));
+      this.#logStep('02', 'ANNOTATION.DATA.LOADED received', {
+        total: annotations.length,
+        screenshots: screenshotAnnotations.length
+      }, 'info', 1800);
 
       Array.from(this.#renderedMarkers.keys()).forEach((annotationId) => {
         if (!validIds.has(annotationId)) {
+          this.#logStep('02.1', 'Removing stale marker (not in loaded list)', { annotationId });
           this.removeScreenshotMarker(annotationId);
         }
       });
 
+      // 对每条截图标注尝试渲染/入队；若页面未就绪则入队，待 pagerendered 后再渲染
       screenshotAnnotations.forEach((annotation) => {
-        this.renderScreenshotMarker(annotation);
+        this.#logStep('02.2', 'Schedule render (enqueue or immediate)', {
+          id: annotation.id,
+          page: annotation.pageNumber
+        });
+        this.#enqueueOrRender(annotation);
       });
     } catch (error) {
       this.#logger.error('[ScreenshotTool] Failed to hydrate screenshot markers from annotation list', error);
+    }
+  }
+
+  /**
+   * 若页面就绪则立即渲染，否则加入待渲染队列
+   * @param {Annotation} annotation
+   * @private
+   */
+  #enqueueOrRender(annotation) {
+    try {
+      if (!annotation || annotation.type !== AnnotationType.SCREENSHOT) return;
+
+      const pageNumber = Number(annotation.pageNumber || 0);
+      const pageView = (pageNumber > 0) ? this.#pdfViewerManager?.getPageView?.(pageNumber) : null;
+      const ready = !!(pageView && pageView.div);
+
+      if (ready) {
+        this.#logStep('03.1', 'Page ready → render now', { id: annotation.id, page: pageNumber }, 'success', 1500);
+        this.renderScreenshotMarker(annotation);
+        return;
+      }
+
+      // 页面未就绪：保存到待渲染队列
+      let pageMap = this.#pendingMarkersByPage.get(pageNumber);
+      if (!pageMap) {
+        pageMap = new Map();
+        this.#pendingMarkersByPage.set(pageNumber, pageMap);
+      }
+      pageMap.set(annotation.id, annotation);
+      this.#logStep('03.2', 'Page not ready → queued', { id: annotation.id, page: pageNumber }, 'info', 1500);
+    } catch (e) {
+      this.#logger?.warn?.('[ScreenshotTool] enqueueOrRender failed', e);
+    }
+  }
+
+  /**
+   * 刷新某页的待渲染截图标记
+   * @param {number} pageNumber
+   * @private
+   */
+  #flushPendingForPage(pageNumber) {
+    try {
+      const pageMap = this.#pendingMarkersByPage.get(pageNumber);
+      if (!pageMap || pageMap.size === 0) return;
+
+      const items = Array.from(pageMap.values());
+      // 清空以避免重复渲染
+      this.#pendingMarkersByPage.delete(pageNumber);
+      this.#logStep('04', 'pagerendered → flush pending', { page: pageNumber, count: items.length }, 'info', 1800);
+      items.forEach((ann) => {
+        try {
+          this.#logStep('04.1', 'Flushing item', { id: ann.id, page: pageNumber });
+          this.renderScreenshotMarker(ann);
+        } catch (_) { /* ignore item error */ }
+      });
+      this.#logStep('04.done', 'Flush completed', { page: pageNumber, count: items.length });
+    } catch (e) {
+      this.#logger?.warn?.('[ScreenshotTool] flushPendingForPage failed', e);
     }
   }
 
@@ -737,7 +858,8 @@ export class ScreenshotTool extends IAnnotationTool {
   ensureOverlayFor(annotation) {
     try {
       if (!annotation || annotation.type !== 'screenshot') return;
-      this.renderScreenshotMarker(annotation);
+      // 若页面未就绪则入队，由 pagerendered 时机再渲染
+      this.#enqueueOrRender(annotation);
     } catch (e) {
       this.#logger?.warn?.('[ScreenshotTool] ensureOverlayFor failed', e);
     }
@@ -880,39 +1002,35 @@ export class ScreenshotTool extends IAnnotationTool {
    */
   renderScreenshotMarker(annotation) {
     try {
-      this.#logger.info('[ScreenshotTool] ========== renderScreenshotMarker called ==========');
-      this.#logger.info('[ScreenshotTool] Annotation:', annotation);
+      this.#logStep('05', 'Render marker begin', { id: annotation?.id, page: annotation?.pageNumber }, 'info', 1800);
 
-      // 检查是否已经渲染过
-      if (this.#renderedMarkers.has(annotation.id)) {
-        this.#logger.info(`[ScreenshotTool] Marker already rendered for ${annotation.id}`);
-        return;
-      }
+      // 若已存在DOM标记，需校验是否仍然挂载在当前页，且仍在文档中；
+      // - 若在其他容器或已被PDF.js重绘清空 → 先移除并重建
+      // - 若仍在当前页 → 仅重算并更新位置/样式（避免误判“已渲染而不可见”）
+      const existing = this.#renderedMarkers.get(annotation.id) || null;
 
       const { pageNumber, data } = annotation;
-      this.#logger.info('[ScreenshotTool] PageNumber:', pageNumber);
-      this.#logger.info('[ScreenshotTool] Data:', data);
 
       let { rectPercent } = data;
 
       // 获取页面容器（尽早获取，供后续计算使用）
       const pageView = this.#pdfViewerManager.getPageView(pageNumber);
       if (!pageView || !pageView.div) {
-        this.#logger.error(`[ScreenshotTool] Cannot find page ${pageNumber}`);
+        this.#logStep('05.1', 'PageView not found', { page: pageNumber }, 'warn', 2500);
         return;
       }
       const pageDiv = pageView.div;
 
-      // 兜底：若后端老数据无 rectPercent，但包含 rect（基于当时 canvas 像素），则按当前画布尺寸换算为百分比
+      // 兜底方案 A：rectPercent 缺失但包含 rect（通常为 canvas 像素），换算为百分比
       if (!rectPercent && data && data.rect) {
         try {
           const canvasNow = pageDiv.querySelector('canvas');
           if (canvasNow && canvasNow.width > 0 && canvasNow.height > 0) {
-            this.#logger.warn(`[ScreenshotTool] rectPercent missing, compute from legacy rect for ${annotation.id}`);
+            this.#logStep('05.2A', 'rectPercent missing → compute from rect (canvas)', { id: annotation.id });
             rectPercent = this.#convertCanvasToPercent(pageNumber, data.rect);
           } else {
             // Canvas 尚未渲染（页面未滚动到可见区域）。挂载监听，待 canvas 出现后再渲染，避免报错。
-            this.#logger.warn(`[ScreenshotTool] Canvas not ready for page ${pageNumber}; defer overlay until canvas appears`);
+            this.#logStep('05.2A-wait', 'Canvas not ready → wait (MutationObserver)', { page: pageNumber }, 'info', 1500);
             const observer = new MutationObserver(() => {
               try {
                 const c = pageDiv.querySelector('canvas');
@@ -932,17 +1050,42 @@ export class ScreenshotTool extends IAnnotationTool {
             return; // 先退出，等待 canvas 出现后再渲染
           }
         } catch (e) {
-          this.#logger.warn('[ScreenshotTool] Fallback compute rectPercent failed', { error: e?.message });
+          this.#logStep('05.2A-err', 'Compute rectPercent from rect failed', { err: e?.message }, 'warn', 2500);
+        }
+      }
+
+      // 兜底方案 B：rectPercent 与 rect 均缺失，但存在 boundingBox（通常为相对 pageDiv 的像素）
+      if (!rectPercent && data && data.boundingBox) {
+        try {
+          const bounds = pageDiv.getBoundingClientRect();
+          const bb = data.boundingBox || {};
+          const leftPx = Number(bb.left ?? bb.x ?? 0);
+          const topPx = Number(bb.top ?? bb.y ?? 0);
+          const widthPx = Number(bb.width ?? 0);
+          const heightPx = Number(bb.height ?? 0);
+          const pageW = Math.max(1, bounds.width || pageDiv.clientWidth || pageDiv.offsetWidth || 1);
+          const pageH = Math.max(1, bounds.height || pageDiv.clientHeight || pageDiv.offsetHeight || 1);
+          rectPercent = {
+            xPercent: Math.max(0, Math.min(100, (leftPx / pageW) * 100)),
+            yPercent: Math.max(0, Math.min(100, (topPx / pageH) * 100)),
+            widthPercent: Math.max(0, Math.min(100, (widthPx / pageW) * 100)),
+            heightPercent: Math.max(0, Math.min(100, (heightPx / pageH) * 100))
+          };
+          this.#logStep('05.2B', 'rectPercent missing → compute from boundingBox (pageDiv)', { id: annotation.id, rectPercent });
+          // 写回，便于后续跳转计算使用
+          data.rectPercent = rectPercent;
+        } catch (e) {
+          this.#logStep('05.2B-err', 'Compute rectPercent from boundingBox failed', { err: e?.message }, 'warn', 2500);
         }
       }
 
       if (!rectPercent) {
-        this.#logger.warn(`[ScreenshotTool] ❌ No rectPercent data for annotation ${annotation.id}`);
-        this.#logger.warn('[ScreenshotTool] Available data keys:', Object.keys(data));
+        this.#logStep('05.x', 'No rectPercent → give up render for this item', {
+          id: annotation.id,
+          keys: Object.keys(data)
+        }, 'warn', 3000);
         return;
       }
-
-      this.#logger.info('[ScreenshotTool] RectPercent:', rectPercent);
 
       // 使用 canvas 的显示尺寸 + 相对 pageDiv 的偏移，保证定位精确
       const pageBounds = pageDiv.getBoundingClientRect();
@@ -950,6 +1093,12 @@ export class ScreenshotTool extends IAnnotationTool {
       const canvasBounds = canvas ? canvas.getBoundingClientRect() : pageBounds;
       const offsetLeft = canvasBounds.left - pageBounds.left;
       const offsetTop = canvasBounds.top - pageBounds.top;
+      this.#logStep('06.1', 'Bounds computed', {
+        page: annotation.pageNumber,
+        pageBounds: { w: pageBounds.width, h: pageBounds.height },
+        canvasBounds: { w: canvasBounds.width, h: canvasBounds.height },
+        offsetLeft, offsetTop
+      });
 
       // 计算标记框的位置（基于百分比，映射到当前 canvas 显示大小）
       const markerRect = {
@@ -958,6 +1107,32 @@ export class ScreenshotTool extends IAnnotationTool {
         width: (rectPercent.widthPercent / 100) * canvasBounds.width,
         height: (rectPercent.heightPercent / 100) * canvasBounds.height
       };
+      this.#logStep('06.2', 'MarkerRect computed', markerRect);
+
+      const applyRectToMarker = (el) => {
+        el.style.left = `${markerRect.left}px`;
+        el.style.top = `${markerRect.top}px`;
+        el.style.width = `${markerRect.width}px`;
+        el.style.height = `${markerRect.height}px`;
+      };
+
+      // 若已有元素并仍连接到当前页，执行“就地更新”并返回
+      if (existing) {
+        const connected = !!existing.isConnected;
+        const inSamePage = !!existing.closest && (existing.closest('.page') === pageDiv);
+        if (connected && inSamePage) {
+          this.#logStep('05.0u', 'Already rendered → update in-place', { id: annotation.id, page: pageNumber });
+          applyRectToMarker(existing);
+          const initialColor = data.markerColor || DEFAULT_MARKER_COLOR;
+          data.markerColor = initialColor;
+          this.#applyMarkerColor(existing, initialColor);
+          return;
+        }
+        // 否则先移除旧元素，再重建
+        try { existing.remove(); } catch (_) { /* ignore */ }
+        this.#renderedMarkers.delete(annotation.id);
+        this.#logStep('05.0r', 'Existing marker detached or wrong page → rebuild', { id: annotation.id, page: pageNumber });
+      }
 
       // 创建标记框元素
       const marker = document.createElement('div');
@@ -971,7 +1146,7 @@ export class ScreenshotTool extends IAnnotationTool {
         `height: ${markerRect.height}px`,
         'pointer-events: none',
         'box-sizing: border-box',
-        'z-index: 10',
+        'z-index: 100',  // 提高层级，避免被canvas/textLayer覆盖
         'transition: border-color 0.2s ease, background-color 0.2s ease'
       ].join(';');
 
@@ -1150,10 +1325,10 @@ export class ScreenshotTool extends IAnnotationTool {
       // 保存引用
       this.#renderedMarkers.set(annotation.id, marker);
 
-      this.#logger.info(`[ScreenshotTool] Marker rendered for annotation ${annotation.id} on page ${pageNumber}`);
+      this.#logStep('06.done', 'Marker rendered', { id: annotation.id, page: pageNumber }, 'success', 1600);
 
     } catch (error) {
-      this.#logger.error('[ScreenshotTool] Failed to render marker:', error);
+      this.#logger.error('[ScreenshotTool] Failed to render marker:', error, { toast: { type: 'error', ms: 4500 } });
     }
   }
 
@@ -1196,7 +1371,7 @@ export class ScreenshotTool extends IAnnotationTool {
   removeScreenshotMarker(annotationId) {
     const marker = this.#renderedMarkers.get(annotationId);
     if (!marker) {
-      this.#logger.debug(`[ScreenshotTool] No marker found for ${annotationId}`);
+      this.#logStep('07', 'Remove marker requested but not found', { id: annotationId });
       return;
     }
 
@@ -1208,7 +1383,7 @@ export class ScreenshotTool extends IAnnotationTool {
     // 移除引用
     this.#renderedMarkers.delete(annotationId);
 
-    this.#logger.info(`[ScreenshotTool] Marker removed for annotation ${annotationId}`);
+    this.#logStep('07.done', 'Marker removed', { id: annotationId }, 'info', 1400);
   }
 
   /**
@@ -1221,7 +1396,7 @@ export class ScreenshotTool extends IAnnotationTool {
       }
     });
     this.#renderedMarkers.clear();
-    this.#logger.info('[ScreenshotTool] All markers cleared');
+    this.#logStep('08', 'All markers cleared', null, 'info', 1400);
   }
 
   /**

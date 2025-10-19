@@ -11,7 +11,7 @@
  * - 各工具作为独立插件实现IAnnotationTool接口
  */
 
-import { getLogger } from "../../../common/utils/logger.js";
+import { getLogger, setModuleLogLevel, LogLevel } from "../../../common/utils/logger.js";
 import { createScopedEventBus } from "../../../common/event/scoped-event-bus.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
 import { AnnotationSidebarUI } from "./components/annotation-sidebar-ui.js";
@@ -91,6 +91,24 @@ export class AnnotationFeature {
 
     this.#logger = logger || getLogger("AnnotationFeature");
     this.#logger.info(`[${this.name}] Installing (v${this.version})...`);
+
+    // 放开 Annotation 模块相关日志过滤（可被 localStorage.ANNOTATION_LOG_LEVEL 覆盖）
+    try {
+      const lvStr = (typeof window !== "undefined" && window.localStorage)
+        ? (window.localStorage.getItem("ANNOTATION_LOG_LEVEL") || "debug").toLowerCase()
+        : "debug";
+      const allowed = [LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR];
+      const lv = allowed.includes(lvStr) ? lvStr : LogLevel.DEBUG;
+      // 针对不同命名的模块名做覆盖，避免模块名不统一导致的观测缺失
+      setModuleLogLevel("Feature.annotation", lv);
+      setModuleLogLevel("AnnotationFeature", lv);
+      setModuleLogLevel("ScreenshotTool", lv);
+      setModuleLogLevel("TextHighlightTool", lv);
+      this.#logger.info("[AnnotationFeature] Log level override for annotation modules", { level: lv });
+    } catch (e) {
+      // 忽略日志覆盖失败，不影响功能
+      try { this.#logger.warn("[AnnotationFeature] Failed to override module log levels", { error: e?.message }); } catch { /* no-op */ }
+    }
 
     if (!globalEventBus) {
       throw new Error(`[${this.name}] Global EventBus not found in context`);
@@ -490,6 +508,45 @@ export class AnnotationFeature {
           position = centerPercent;
           this.#logger.info(`[AnnotationFeature] Calculated position from rectPercent: ${centerPercent.toFixed(2)}%`);
         }
+      }
+      // 截图（兜底1）：无 rectPercent，但有 rect（canvas 像素），用 canvas 高度换算为百分比
+      if (position === null && annotation.type === "screenshot" && annotation.data?.rect) {
+        try {
+          // 先导航到页面，确保 PageView 可取到
+          await this.#navigationService.navigateTo({ pageAt: pageNumber, position: null });
+          await new Promise(resolve => setTimeout(resolve, 80));
+          const pageView = this.#pdfViewerManager?.getPageView?.(pageNumber) || null;
+          const canvas = pageView?.div?.querySelector?.('canvas') || null;
+          const canvasH = canvas ? (canvas.height || canvas.getBoundingClientRect()?.height || 0) : 0;
+          const r = annotation.data.rect;
+          if (canvasH > 0 && typeof r?.y === "number" && typeof r?.height === "number") {
+            const center = ((r.y + (r.height / 2)) / canvasH) * 100;
+            if (Number.isFinite(center)) {
+              position = Math.max(0, Math.min(100, Number(center.toFixed(6))));
+              this.#logger.info(`[AnnotationFeature] Calculated position from legacy rect: ${position.toFixed(2)}%`);
+            }
+          }
+        } catch (e) { void e; }
+      }
+      // 截图（兜底2）：无 rectPercent/rect，但有 boundingBox（pageDiv 像素），用页面高度换算为百分比
+      if (position === null && annotation.type === "screenshot" && annotation.data?.boundingBox) {
+        try {
+          await this.#navigationService.navigateTo({ pageAt: pageNumber, position: null });
+          await new Promise(resolve => setTimeout(resolve, 80));
+          const viewerContainer = document.getElementById("viewerContainer");
+          const pageElement = viewerContainer?.querySelector?.(`.page[data-page-number="${pageNumber}"]`) || null;
+          const pageH = pageElement ? (pageElement.offsetHeight || pageElement.clientHeight || 0) : 0;
+          const bb = annotation.data.boundingBox;
+          const topPx = (typeof bb.top === "number") ? bb.top : (bb.y || 0);
+          const hPx = (typeof bb.height === "number") ? bb.height : 0;
+          if (pageH > 0) {
+            const center = ((topPx + (hPx / 2)) / pageH) * 100;
+            if (Number.isFinite(center)) {
+              position = Math.max(0, Math.min(100, Number(center.toFixed(6))));
+              this.#logger.info(`[AnnotationFeature] Calculated position from boundingBox: ${position.toFixed(2)}%`);
+            }
+          }
+        } catch (e) { void e; }
       }
       // 文本高亮：优先使用 lineRects 的首段中心（百分比），更贴近真实位置
       if (position === null && annotation.type === "text-highlight" && Array.isArray(annotation.data?.lineRects) && annotation.data.lineRects.length > 0) {

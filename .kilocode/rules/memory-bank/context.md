@@ -1,5 +1,12 @@
 # Memory Bank - Context（精简版）
 
+> 目录（快速索引）
+- [🎯 AI开发架构改进指南（重要 - 长期参考）](#-ai开发架构改进指南重要---长期参考)
+- [📅 当前活跃任务（最近）](#-当前活跃任务最近)
+- [📦 文件体量评估与清理建议（20251018220157）](#-文件体量评估与清理建议20251018220157)
+- [🧠 知识卡/问题记录（若干）](#-知识卡问题记录若干)
+- [🗄️ 历史归档策略说明](#️-历史归档策略说明)
+
 ## 🎯 AI开发架构改进指南（重要 - 长期参考）
 
 ### PDF-Viewer 架构分析与改进建议（20251010020347）
@@ -40,6 +47,130 @@
 ---
 
 ## 📅 当前活跃任务（最近）
+
+### 当前任务（20251019065146）
+名称：刷新后截图型标注框未显示（延迟渲染修复）
+
+问题与背景：
+- 现象：在 pdf-viewer 中使用截图工具保存标注后，刷新页面并打开“标注侧边栏”，应显示批注圆点、文字高亮、截图框等；实际仅截图框缺失；
+- 触发链：标注数据加载完成（annotation-data:load:success）→ ScreenshotTool 尝试渲染 → 若对应页 PageView/Canvas 尚未就绪则直接返回；缺少重试逻辑；
+- 已有能力：
+  - JUMP_SUCCESS 与 CREATED 事件路径会渲染截图框；
+  - 当 rectPercent 缺失、canvas 未就绪时存在 MutationObserver 兜底，但对“pageView 不存在”未覆盖。
+
+结论（根因）：
+- 标注数据加载事件早于页面渲染完成，ScreenshotTool 在页面未就绪时早退且不重试，导致“刷新后首次打开侧边栏”看不到截图框。
+
+改动要点（2025-10-19）：
+- ScreenshotTool 引入“延迟渲染”机制：
+  - 新增队列 `#pendingMarkersByPage` 保存待渲染的截图标注；
+  - 监听 PDF.js `pagerendered`，在对应页渲染完成后 `#flushPendingForPage(pageNumber)`；
+  - `#handleAnnotationsLoaded` 改为 `#enqueueOrRender`，页面就绪→立即渲染，否则入队；
+  - 销毁时解绑监听并清空队列，避免泄漏；
+  - 保持既有 canvas 未就绪时的 MutationObserver 兜底逻辑。
+
+涉及模块/文件：
+- `src/frontend/pdf-viewer/features/annotation/tools/screenshot/index.js`（新增字段/监听/队列与回放）
+- `src/frontend/pdf-viewer/features/annotation/tools/screenshot/screenshot-tool.defer.test.js`（新增单测）
+
+验收标准：
+- 刷新后打开标注侧边栏，滚动到目标页或点击“跳转”，截图标记框应出现；控制台可见“Flushed pending marker(s)”日志；
+- 与文字高亮、批注等类型互不影响。
+
+注意：
+- 此变更不影响对外契约（无 API/事件名调整），仅改善渲染时序与健壮性。
+
+### 当前任务（20251019074604）
+名称：截图标注仍未显示与跳转无 position 的进一步修复
+
+问题与背景：
+- 反馈：刷新后打开侧边栏仍看不到截图框；标注“跳转”只定位到页码，没有 position 百分比。
+- 可能原因：后端返回的老数据缺少 `rectPercent`，而前端渲染/跳转在 screenshot 类型上主要依赖 `rectPercent`；若仅有 `rect`（canvas 像素）或 `boundingBox`（pageDiv 像素），则会放弃渲染或无法计算 position。
+
+改动要点（2025-10-19）：
+- ScreenshotTool.renderScreenshotMarker：
+  - 若仅有 `rect`：以 canvas 尺寸换算 `rectPercent`（canvas 就绪前入队等待）；
+  - 若仅有 `boundingBox`：以 pageDiv 尺寸换算 `rectPercent` 并写回 data；
+  - ensureOverlayFor 改为“入队或即时渲染”，避免 PageView 未就绪时失败。
+- AnnotationFeature.#handleNavigateToAnnotation：
+  - screenshot 在无 `rectPercent` 时，优先从 `rect` 的中心 y → 百分比，其次从 `boundingBox` 的中心 y → 百分比；
+  - 这样“跳转”可以带上 position 百分比，实现精确滚动。
+
+验证关注点：
+- 侧边栏打开后截图框出现；点击跳转 URL 导航包含 position。
+
+### 当前任务（20251019074911）
+名称：核对三种标注类型的保存数据格式差异
+
+结论：三种类型保存数据格式存在差异（均在 `data` 字段内体现必填/可选不同）：
+- screenshot：必有 `rect` 与 `imagePath|imageData` 至少其一；可选 `rectPercent/markerColor/description/imageHash`；
+- text-highlight：必有 `selectedText` 与 `highlightColor`，且 `textRanges` 与 `lineRects` 二选一；
+- comment：必有 `content`，以及 `positionPercent{xPercent,yPercent}` 与 `position{x,y}` 二选一（保存前若仅有百分比，会补像素）。
+
+证据：
+- 模型校验（Annotation.#validateTypeSpecificData）：annotation.js:185、190、199、206、224、235、238
+- 保存映射（仅对 comment 做 position 百分比→像素换算）：annotation-manager.js:257、259、260、261、269、284
+- 类型声明（d.ts 仍是旧版、缺少若干字段）：annotation.d.ts:46、50、167
+
+建议：
+- 更新 d.ts 同步实现字段；如需后端统一约束，也可在保存前对 screenshot 做对称换算（例如统一提供 rectPercent）。
+
+### 当前任务（20251019081229）
+名称：为截图标注“全流程绘制”加分步编号日志与 toast 参数
+
+动机：
+- 现场仍反馈“截图框未出现/跳转无 position”，需要更细的可观测性以定位数据/时序/坐标/DOM 任一环。
+
+做法：
+- 在 ScreenshotTool 中增设 `#logStep()`，并在“加载→入队→回放→绘制→结果/错误”路径加入带编号的日志与 toast（SM-xx）。
+- 编号覆盖：SM-01（初始化）、SM-02（数据加载）、SM-03（入队/即时）、SM-04（pagerendered 回放）、SM-05（数据兜底/起始）、SM-06（坐标与插入）、SM-07/08（移除/清空）。
+
+使用：
+- 观察 console 与 toast 即可快速定位：数据缺失（05.x）、页未就绪（03.2/04）、坐标转换（05.2*）、最终插入（06.*）。
+
+### 当前任务（20251019082238）
+名称：取消/定向放开日志过滤（Annotation 模块）
+
+目的：
+- 现场确认为“日志级别被过滤”，导致 SM-xx（INFO）不可见；需要放开 Annotation 模块的日志级别。
+
+做法：
+- 在 AnnotationFeature.install 读取 `localStorage.ANNOTATION_LOG_LEVEL`（默认 debug），覆盖模块级日志级别：
+  - Feature.annotation / AnnotationFeature / ScreenshotTool / TextHighlightTool
+- 可用键：`ANNOTATION_LOG_LEVEL = debug|info|warn|error`。
+
+影响范围：
+- 仅限 Annotation 相关模块，避免全局日志过量；可随时通过 localStorage 调整。
+
+### 当前任务（20251018222030）
+名称：gui_launcher 为 PDF-Viewer 启动参数新增 pdfanchor-id / pdfoutline-item-id / pdfannotation-id
+
+问题与背景：
+- 需求来自用户：在 GUI 启动器中，支持为 pdf-viewer 传入三类导航参数；
+- 现状：前端 pdf-viewer 已支持 `--anchor-id/--pdfanchor` 与 `--annotation-id`（最终注入 URL 为 `anchor-id` / `annotation-id`），暂未提供 outline-item-id 的 CLI 参数；
+- gui_launcher 的 Hosted Tab 存在 PDF 参数输入（`h_pdf_id/h_page_at/h_position`），但 `_start_pdf_viewer_hosted()` 误用不存在的 `pdf_id_input/page_at_input/position_input`，应修正为使用 Hosted Tab 的控件值。
+
+改动要点（2025-10-18）：
+- GUI（Hosted Tab）新增 3 个输入框：
+  - `pdfanchor-id`（映射为 `anchor_id` → 前端 URL `anchor-id`）
+  - `pdfannotation-id`（映射为 `annotation_id` → 前端 URL `annotation-id`）
+  - `pdfoutline-item-id`（先占位，仅记录与日志，前端暂未启用）
+- 修复 Hosted 启动实现的控件引用：改用 `h_pdf_id/h_page_at/h_position`；
+- LauncherThread._start_pdf_viewer：支持从 `params` 读取 `anchor_id/annotation_id` 并传入 runner；
+- runner.start_pdf_viewer_hosted/cli：函数签名扩展，分别通过 FE LaunchConfig 或 CLI `--anchor-id/--annotation-id` 透传至前端。
+
+已知限制：
+- outline-item-id 仅在 GUI 中录入与日志记录，未注入 CLI（避免前端 argparse 报“未知参数”）。待前端支持后再贯通。
+
+相关文件/函数：
+- `gui_launcher.py`：`_create_hosted_tab()`、`_start_pdf_viewer_hosted()`、`LauncherThread._start_pdf_viewer()`
+- `src/launcher/runner.py`：`start_pdf_viewer_hosted()`、`start_pdf_viewer_cli()`
+- 前端：`src/frontend/pdf-viewer/launcher.py`（已支持 anchor/annotation）
+
+验证建议：
+1) Hosted Tab 填写：`pdf_id=test`、`pdfanchor-id=pdfanchor-test`、勾选“生产模式”，点击“启动 PDF-Viewer (Hosted)”；
+2) 查看 `logs/pdf-viewer-*-python.log` 与 `dist/latest/logs/pdf-viewer-*-js.log`（或项目 logs），应出现包含 `anchor-id=pdfanchor-test` 的 URL；
+3) CLI 方式（ai_launcher Tab）暂不支持 anchor/annotation 直通（不传入未知参数以避免 argparse 报错）。
 
 ### 当前任务（20251018214348）
 名称：划词选中时翻译应默认静默，仅在显式操作时触发
@@ -103,6 +234,19 @@
 
 待决策项：
 - 若同意执行整理：按上述结构移动历史段落并生成目录，不改动内容语义，严格保持 UTF-8 与 `\n`。
+
+---
+
+## 🧠 知识卡/问题记录（若干）
+
+(保留原有知识卡条目；如需迁移，按日期阈值归档到 `archive/`。)
+
+---
+
+## 🗄️ 历史归档策略说明
+
+- 归档阈值：将早于 2025-10-10 的历史条目迁移到 `archive/context-2025-01-01_to_2025-10-10.md`，并在此处留下指向归档文件的说明。
+- 本次检查结果：未发现早于 2025-10-10 的条目，未发生迁移。
 
 背景：
 - 入口启用了“error 自动 toast”；同一次翻译失败被引擎层、服务层、Feature 层、UI 层各自 `logger.error` 记录，导致 4 条 toast。

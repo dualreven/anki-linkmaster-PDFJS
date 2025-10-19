@@ -1,5 +1,30 @@
 ﻿# 技术规范（清理版）
 
+> 目录（快速索引）
+- [命名规范](#命名规范)
+- [文件 I/O 规范](#文件-io-规范)
+- [前端日志规范](#前端日志规范)
+- [后端日志规范](#后端日志规范)
+- [数据库路径解析规范（2025-10-13 更新：参数式，无环境变量）](#数据库路径解析规范2025-10-13-更新参数式无环境变量)
+- [前端基础设施](#前端基础设施)
+- [构建与运行/生产静态路由/路径调整](#构建与运行生产静态路由路径调整)
+- [事件与功能开关/命名调整/契约更新](#事件与功能开关命名调整契约更新)
+- [UI/Toast/剪贴板与 Hosted 初始化](#uitoast剪贴板与-hosted-初始化)
+- [Babel/Vite/AI Launcher](#babelviteai-launcher)
+
+> 最近更新（10条，按日期倒序）
+- 2025-10-19 截图标注延迟渲染（新增）
+- 2025-10-18 消息契约（更新）
+- 2025-10-18 标注渲染加载策略（更新）
+- 2025-10-16 启动/端口/Vite 管理集中（更新）
+- 2025-10-15 GUI 运行约定（更新）
+- 2025-10-14 日志目录与文件（更新）
+- 2025-10-14 PDF-Home 启动回退；Hosted 初始化顺序（更新）
+- 2025-10-13 数据库路径解析规范（更新）
+- 2025-10-12 后端数据库路径解析与参数（更新）
+- 2025-10-10 构建与运行；生产静态路由；路径调整（更新）
+- 2025-10-09 前端 Toast 统一规范；截图/快捷操作统一（更新）
+
 本文件汇总当前权威的技术与使用规范，过时内容已清理。
 
 ## 命名规范
@@ -76,6 +101,23 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
   - Vite 启动：`src/launcher/dev_server.py.ensure_vite()`（优先 ai_launcher，回退 pnpm）
   - CLI 启动：`src/launcher/runner.py`（`start_backend_cli`、`start_pdf_home_cli`、`start_pdf_viewer_cli`）
 - GUI 仅组装 `LauncherConfig` 并调用 `runner`；不直接写运行时状态文件。
+
+### GUI 启动器 → PDF-Viewer 参数映射（2025-10-18 更新）
+- Hosted Tab 新增输入：
+  - `pdfanchor-id` → 映射为前端 URL 参数 `anchor-id`（通过 `LaunchConfig.anchor_id` 或 CLI `--anchor-id`）
+  - `pdfannotation-id` → 映射为前端 URL 参数 `annotation-id`（通过 `LaunchConfig.annotation_id` 或 CLI `--annotation-id`）
+  - `pdfoutline-item-id` → 仅 GUI 侧记录到日志，暂不注入 CLI（前端 argparse 未定义该参数）
+- 代码位置：
+  - `gui_launcher.py`: `_create_hosted_tab()`、`_start_pdf_viewer_hosted()`、`LauncherThread._start_pdf_viewer()`
+  - `src/launcher/runner.py`: `start_pdf_viewer_hosted/cli` 扩展签名并透传参数
+
+### 标注渲染加载策略（截图标注延迟渲染，2025-10-19 新增）
+- 背景：在“标注数据加载完成”时，目标页的 PageView/Canvas 可能尚未渲染，导致 `ScreenshotTool.renderScreenshotMarker()` 直接返回、后续不再重试；
+- 改进：
+  - `ScreenshotTool` 引入队列 `pendingMarkersByPage`；
+  - 绑定 PDF.js `pagerendered` 事件，在对应页渲染完成后刷新待渲染截图标记；
+  - `#handleAnnotationsLoaded` 调整为“就绪即渲染，否则入队”；
+  - 仍保留当 `rectPercent` 缺失时基于 `rect` 的 MutationObserver 兜底以等待 canvas 出现。
 
 
 ## 数据库路径解析规范（2025-10-13 更新：参数式，无环境变量）
