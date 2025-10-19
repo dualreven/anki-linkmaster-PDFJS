@@ -37,6 +37,7 @@ export class ScreenshotTool extends IAnnotationTool {
   #logger;
   #pdfViewerManager;
   #pdfjsEventBus = null;
+  #container = null;
   #qwebChannelBridge;
   #capturer;
   #isActive = false;
@@ -79,6 +80,7 @@ export class ScreenshotTool extends IAnnotationTool {
     this.#eventBus = context.eventBus;
     this.#logger = context.logger || getLogger('ScreenshotTool');
     this.#pdfViewerManager = context.pdfViewerManager;
+    this.#container = context.container || null;
     try {
       this.#pdfjsEventBus = this.#pdfViewerManager?.eventBus || null;
     } catch (_) {
@@ -105,6 +107,8 @@ export class ScreenshotTool extends IAnnotationTool {
           const pn = evt?.pageNumber;
           if (!pn) return;
           this.#flushPendingForPage(pn);
+          // 缩放或页面重绘后，主动按页恢复已渲染的截图标记（与 CommentTool 行为对齐）
+          this.#restoreScreenshotMarkersForPage(pn);
         } catch (e) {
           this.#logger?.warn?.('[ScreenshotTool] flush pending on pagerendered failed', e);
         }
@@ -364,6 +368,35 @@ export class ScreenshotTool extends IAnnotationTool {
       });
     } catch (error) {
       this.#logger.error('[ScreenshotTool] Failed to hydrate screenshot markers from annotation list', error);
+    }
+  }
+
+  /**
+   * 恢复指定页上的所有截图标记（在 pagerendered 后调用）
+   * @param {number} pageNumber
+   * @private
+   */
+  #restoreScreenshotMarkersForPage(pageNumber) {
+    try {
+      const mgr = this.#container?.get ? this.#container.get('annotationManager') : null;
+      if (!mgr) { return; }
+      let items = [];
+      if (typeof mgr.getAnnotationsByPage === 'function') {
+        items = mgr.getAnnotationsByPage(pageNumber) || [];
+      } else if (typeof mgr.getAllAnnotations === 'function') {
+        items = (mgr.getAllAnnotations() || []).filter(a => a?.pageNumber === pageNumber);
+      }
+      const screenshots = items.filter(a => a && a.type === 'screenshot');
+      if (screenshots.length === 0) { return; }
+      this.#logStep('04.rest', 'Restoring screenshot markers for page', { page: pageNumber, count: screenshots.length });
+      screenshots.forEach((ann) => {
+        try {
+          this.#logStep('04.rest.each', 'Restore item', { id: ann.id, page: ann.pageNumber });
+          this.renderScreenshotMarker(ann);
+        } catch (_) { /* ignore per-item error */ }
+      });
+    } catch (e) {
+      this.#logger?.warn?.('[ScreenshotTool] restoreScreenshotMarkersForPage failed', e);
     }
   }
 
