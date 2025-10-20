@@ -5,12 +5,13 @@
  * @implements {IFeature}
  */
 
-import { getLogger } from "../../../common/utils/logger.js";
+import { getLogger, setModuleLogLevel, LogLevel } from "../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
 import { createScopedEventBus } from "../../../common/event/scoped-event-bus.js";
 import { URLParamsParser } from "./components/url-params-parser.js";
 import { URLNavigationFeatureConfig } from "./feature.config.js";
-import { pending as toastPending, success as toastSuccess, error as toastError, info as toastInfo, dismissById as toastDismiss } from "../../../common/utils/thirdparty-toast.js";
+import { success as toastSuccess, error as toastError } from "../../../common/utils/thirdparty-toast.js";
+import { URLJumpDispatcher } from "./components/url-jump-dispatcher.js";
 
 /**
  * URL导航功能Feature
@@ -80,6 +81,13 @@ export class URLNavigationFeature {
   async install(context) {
     this.#logger.info(`安装 ${this.name} Feature v${this.version}...`);
 
+    // 开启 URL 跳转检查相关模块的日志（模块级）：默认 DEBUG（可被 localStorage 覆盖）
+    try {
+      setModuleLogLevel("URLNavigationFeature", LogLevel.DEBUG);
+      setModuleLogLevel("URLJumpDispatcher", LogLevel.DEBUG);
+      setModuleLogLevel("URLParamsParser", LogLevel.DEBUG);
+    } catch (e) { void e; }
+
     // 1. 从context中获取依赖
     const container = context.container || context;  // 兼容旧版本直接传container的情况
     this.#eventBus = context.globalEventBus || container.get("eventBus");
@@ -93,7 +101,7 @@ export class URLNavigationFeature {
       throw new Error("[url-navigation] navigationService 未在容器中找到，请确保 core-navigation Feature 已安装");
     }
 
-    // 3. 解析URL参数
+    // 3. 解析URL参数（仅解析与广播，跳转由 URLJumpDispatcher 执行）
     this.#parsedParams = URLParamsParser.parse();
     try {
       const dbg = {
@@ -116,7 +124,7 @@ export class URLNavigationFeature {
         { actorId: "URLNavigationFeature" }
       );
 
-      // 验证参数
+      // 验证参数（解析与校验职责内聚于 Parser；跳转逻辑在 Dispatcher）
       const validation = URLParamsParser.validate(this.#parsedParams);
       if (!validation.isValid) {
         this.#logger.error("URL参数验证失败:", validation.errors);
@@ -130,20 +138,20 @@ export class URLNavigationFeature {
       // 立即触发加载：当仅携带 pdf-id 时，先加载文档，再由门闸处理后续定位/滚动
       try {
         const pdfId = this.#parsedParams?.pdfId;
-        if (pdfId && typeof pdfId === 'string' && pdfId.trim().length > 0) {
+        if (pdfId && typeof pdfId === "string" && pdfId.trim().length > 0) {
           this.#logger.info("[url-navigation] 触发文件加载 (from url params)", { pdfId });
           // 以 warn 级别输出一次“将要触发加载”的跟踪日志，便于生产环境观察两次触发来源
           try {
             this.#logger.warn("[TRACE] Emitting FILE.LOAD.REQUESTED from URLNavigationFeature", { pdfId, source: "url-params" });
-          } catch (_) { /* no-op */ }
+          } catch (e) { void e; }
           this.#eventBus.emit(
             PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
-            { filename: pdfId, source: 'url-navigation' },
-            { actorId: 'URLNavigationFeature' }
+            { filename: pdfId, source: "url-navigation" },
+            { actorId: "URLNavigationFeature" }
           );
         }
       } catch (e) {
-        this.#logger.warn('[url-navigation] 触发加载失败（忽略并继续门闸流程）', e);
+        this.#logger.warn("[url-navigation] 触发加载失败（忽略并继续门闸流程）", e);
       }
 
       if (validation.warnings.length > 0) {
@@ -236,63 +244,34 @@ export class URLNavigationFeature {
     if (this.#gatedNavigationDone) { return; }
     if (!this.#annotationDataLoaded) { return; }
 
-    const { pageAt, position, annotationId } = this.#parsedParams || {};
-    const hasNav = !(pageAt === null && position === null);
-    const hasAnn = !!annotationId;
+    const dispatcher = new URLJumpDispatcher({
+      eventBus: this.#eventBus,
+      navigationService: this.#navigationService
+    });
 
-    // 若两种参数都存在，优先用注释跳转（更精确）；否则使用页面导航
     try {
-      this.#logger.info("[url-navigation] 门闸检查", {
-        hasAnn,
-        hasNav,
-        pageAt,
-        position,
-        annotationId
-      });
-      if (hasAnn) {
-        this.#logger.info("[url-navigation] 门闸通过，触发标注跳转: %s", annotationId);
-        let rid = null;
-        try { rid = `urlnav_jump_${Date.now()}`; toastPending(rid, `执行标注跳转: ${annotationId}`, 0); } catch (e) { void e; }
-        this.#eventBus.emit(
-          PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
-          { id: annotationId },
-          { actorId: "URLNavigationFeature" }
-        );
-        // 标注跳转由其他 Feature 完成，这里仅提示开始，成功/失败由对方再吐司；若无对方提示，这里给出轻量提示
-        try { if (rid) { toastDismiss(rid); toastSuccess("已触发标注跳转"); } } catch (e) { void e; }
-      } else if (hasNav) {
-        const totalPages = this.#navigationService.getTotalPages();
-        const normalizedParams = URLParamsParser.normalize(
-          { pageAt, position },
-          { maxPages: totalPages }
-        );
-        let rid = null;
-        try {
-          rid = `urlnav_nav_${Date.now()}`;
-          const posText = (normalizedParams.position ?? "-") + "%";
-          toastPending(rid, `开始导航: 第${normalizedParams.pageAt || 1}页 ${((normalizedParams.position !== null && normalizedParams.position !== undefined) ? posText : "")}`.trim(), 0);
-        } catch (e) { void e; }
-        const result = await this.#navigationService.navigateTo({
-          pageAt: normalizedParams.pageAt || 1,
-          position: normalizedParams.position,
-        });
-        if (result.success) {
-          const totalDuration = this.#navigationStartTime
-            ? Math.round(performance.now() - this.#navigationStartTime)
-            : result.duration;
+      const res = await dispatcher.tryExecute(this.#parsedParams, { annotationDataLoaded: this.#annotationDataLoaded });
+
+      // 仅对“页面导航”分支在此输出统一成功/失败提示（annotation 跳转交由对应 Feature 提示）
+      if (res.type === "page") {
+        // 无法从 dispatcher 获取 duration，这里只做简化提示；详细性能请在 NavigationService 内记录
+        if (res.success) {
           this.#emitNavigationSuccess({
             pdfId: this.#parsedParams.pdfId,
-            pageAt: result.actualPage,
-            position: result.actualPosition,
-            duration: totalDuration,
+            pageAt: this.#parsedParams.pageAt,
+            position: this.#parsedParams.position,
+            duration: this.#navigationStartTime ? Math.round(performance.now() - this.#navigationStartTime) : undefined,
           });
-          try { if (rid) { toastDismiss(rid); toastSuccess(`导航完成: 第${result.actualPage}页${((result.actualPosition !== null && result.actualPosition !== undefined) ? ` ${result.actualPosition}%` : "")}（${totalDuration}ms）`); } } catch (e) { void e; }
+          try { toastSuccess("页面导航完成"); } catch (e) { void e; }
         } else {
-          this.#emitNavigationFailed(new Error(result.error || "导航失败"), "navigate");
-          try { if (rid) { toastDismiss(rid); toastError(`导航失败: ${result.error || "未知错误"}`); } } catch (e) { void e; }
+          this.#emitNavigationFailed(new Error(res.reason || "导航失败"), "navigate");
+          try { toastError(`导航失败: ${res.reason || "未知错误"}`); } catch (e) { void e; }
         }
+      } else if (res.type === "annotation") {
+        // 轻提示：标注跳转由 AnnotationFeature/工具链负责实际提示
+        if (res.success) { try { toastSuccess("已触发标注跳转"); } catch (e) { void e; } }
       } else {
-        this.#logger.info("[url-navigation] 门闸通过，但无 page-at/position/annotation-id 参数，跳过自动跳转");
+        this.#logger.info("[url-navigation] 门闸通过，但无可执行跳转（或仅记录 outline-item-id）");
       }
     } catch (error) {
       this.#logger.error("[url-navigation] 门闸导航执行失败:", error);
@@ -327,7 +306,7 @@ export class URLNavigationFeature {
    * @private
    */
   async #handleNavigationRequested(params) {
-    this.#logger.info("收到手动导航请求:", params);
+    try { this.#logger.info(`[url-navigation] 收到手动导航请求: ${JSON.stringify(params)}`); } catch { this.#logger.info("收到手动导航请求:", params); }
 
     const validation = URLParamsParser.validate(params);
     if (!validation.isValid) {
@@ -339,6 +318,15 @@ export class URLNavigationFeature {
       return;
     }
 
+    // 不做任何 fallback：缺少 pageAt 直接失败
+    if (params.pageAt === null || params.pageAt === undefined) {
+      this.#logger.error("[url-navigation] 缺少 pageAt，拒绝导航（严格模式）");
+      this.#emitNavigationFailed(new Error("missing pageAt"), "parse");
+      return;
+    }
+
+    // 注：pageAt===1 是一个有效页码（第一页），不可拦截。仅缺少 pageAt 时由分发器拒绝执行。
+
     const startTime = performance.now();
 
     try {
@@ -346,7 +334,7 @@ export class URLNavigationFeature {
       // 否则视为“同文档内导航”，直接执行页面跳转，避免刷新到第1页。
       if (params.pdfId) {
         let currentId = null;
-        try { currentId = new URLSearchParams(window.location.search).get("pdf-id"); } catch (_) {}
+        try { currentId = new URLSearchParams(window.location.search).get("pdf-id"); } catch (e) { void e; }
         const sameDoc = currentId && (String(currentId).trim() === String(params.pdfId).trim());
         if (!sameDoc) {
           this.#logger.info("[url-navigation] 检测到不同的 pdfId，触发重新加载", { currentId, target: params.pdfId });

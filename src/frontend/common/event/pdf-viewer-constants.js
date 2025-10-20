@@ -651,6 +651,21 @@ export const PDF_VIEWER_EVENTS = {
     },
 
     /**
+     * 书签按ID导航事件
+     * @namespace NAVIGATE_BY_ID
+     */
+    NAVIGATE_BY_ID: {
+      /**
+       * 按ID请求导航到书签
+       * @event pdf-viewer:bookmark-navigate-by-id:requested
+       * @type {string}
+       * @payload {Object} data
+       * @payload {string} data.outlineItemId - 目标大纲节点ID（规范：outlineItem-<8位Base64URL>）
+       */
+      REQUESTED: 'pdf-viewer:bookmark-navigate-by-id:requested',
+    },
+
+    /**
      * 书签创建事件（v002+ 预留）
      * @namespace CREATE
      */

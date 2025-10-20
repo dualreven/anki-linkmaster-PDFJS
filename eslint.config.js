@@ -103,6 +103,13 @@ export default [
     ignores: [
       "dist/**",
       "build/**",
+      "logs/**",
+      "AItemp/**",
+      "coverage/**",
+      ".venv/**",
+      ".idea/**",
+      ".vscode/**",
+      "public/vendor/**",
       "node_modules/**",
       "**/*.min.js",
     ],

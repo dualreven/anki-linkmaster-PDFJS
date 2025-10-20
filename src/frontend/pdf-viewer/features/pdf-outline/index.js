@@ -184,15 +184,16 @@ export class PDFOutlineFeature {
 
   #handleCreate() {
     const currentPage = this.#getCurrentPage();
-    const defaultRegion = { scrollX: 0, scrollY: this.#getCurrentScrollPercent(), zoom: 1 };
     this.#dialog.showAdd({
       currentPage,
       onConfirm: async (data) => {
+        // 统一模型：pageAt + position（百分比或 null）
         const payload = {
           name: data.name,
-          type: data.precise ? "region" : "page",
-          pageNumber: data.pageNumber || currentPage,
-          region: data.precise ? defaultRegion : null,
+          pageAt: (Number.isInteger(data.pageAt) && data.pageAt > 0) ? data.pageAt : currentPage,
+          position: (typeof data.position === "number" && isFinite(data.position))
+            ? Math.max(0, Math.min(100, Math.round(data.position)))
+            : null,
         };
         const result = await this.#bookmarkManager.addBookmark(payload);
         if (result.success) {

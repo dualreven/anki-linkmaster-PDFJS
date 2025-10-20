@@ -1027,6 +1027,7 @@ class PDFLibraryAPI:
             'name': row['json_data']['name'],
             'type': row['json_data']['type'],
             'pageNumber': row['json_data']['pageNumber'],
+            'position': row['json_data'].get('position'),
             'region': row['json_data']['region'],
             'children': child_summaries,
             'parentId': parent_id,
@@ -1048,11 +1049,13 @@ class PDFLibraryAPI:
         name = bookmark.get('name')
         if not isinstance(name, str) or not name.strip():
             raise DatabaseValidationError('bookmark name is required')
-        bookmark_type = bookmark.get('type', 'page')
+        # 兼容前端破坏性更新：默认使用 'page'，不强制要求 type 字段
+        bookmark_type = str(bookmark.get('type') or 'page')
         if bookmark_type not in {'page', 'region'}:
             raise DatabaseValidationError("bookmark type must be 'page' or 'region'")
         try:
-            page_number = int(bookmark.get('pageNumber', 1))
+            # 兼容：新模型使用 pageAt，旧模型使用 pageNumber
+            page_number = int(bookmark.get('pageAt') or bookmark.get('pageNumber', 1))
         except (TypeError, ValueError):
             raise DatabaseValidationError('pageNumber must be an integer >= 1')
         if page_number < 1:
@@ -1069,6 +1072,8 @@ class PDFLibraryAPI:
             'name': name.strip(),
             'type': bookmark_type,
             'pageNumber': page_number,
+            # 新模型的 position（0~100）作为补充字段存入 json_data（不改变既有 region 结构）
+            'position': bookmark.get('position'),
             'region': self._normalize_region(bookmark.get('region'), bookmark_type),
             'children': child_summaries,
             'parentId': parent_id,

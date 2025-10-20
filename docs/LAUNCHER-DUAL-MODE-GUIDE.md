@@ -118,6 +118,11 @@ python src/frontend/pdf-viewer/launcher.py \
     --pdf-id sample \
     --annotation-id ann-123456
 
+# 指定大纲项（仅传参到 URL；跳转由 Outline 模块消费，当前未实现自动跳转）
+python src/frontend/pdf-viewer/launcher.py \
+    --pdf-id sample \
+    --outline-item-id outlineitem-xyz
+
 # 生产模式
 python src/frontend/pdf-viewer/launcher.py \
     --pdf-id sample \

@@ -286,6 +286,7 @@ class LauncherThread(QThread):
         position = self.params.get("position")
         anchor_id = self.params.get("anchor_id") or self.params.get("pdfanchor_id")
         annotation_id = self.params.get("annotation_id") or self.params.get("pdfannotation_id")
+        outline_item_id = self.params.get("outline_item_id") or self.params.get("pdfoutline_item_id")
 
         if not pdf_id:
             self.log_signal.emit("💡 提示: 未指定 PDF ID，将启动空白查看器")
@@ -313,7 +314,7 @@ class LauncherThread(QThread):
                 ),
             ).with_defaults(component_root)
             try:
-                self.log_signal.emit(f"[TRACE:CLI] pdf-viewer cfg → ports(vite={cfg.ports.vite_port}, ws={cfg.ports.msgCenter_port}, http={cfg.ports.pdfFile_port}) options(runtime_mode={cfg.options.runtime_mode}) is_prod={bool(self.params.get('is_prod'))} pdf_id={pdf_id} page_at={page_at} position={position} anchor_id={anchor_id} annotation_id={annotation_id} logs_dir={cfg.paths.logs_dir}")
+                self.log_signal.emit(f"[TRACE:CLI] pdf-viewer cfg → ports(vite={cfg.ports.vite_port}, ws={cfg.ports.msgCenter_port}, http={cfg.ports.pdfFile_port}) options(runtime_mode={cfg.options.runtime_mode}) is_prod={bool(self.params.get('is_prod'))} pdf_id={pdf_id} page_at={page_at} position={position} anchor_id={anchor_id} annotation_id={annotation_id} outline_item_id={outline_item_id} logs_dir={cfg.paths.logs_dir}")
             except Exception:
                 pass
             ok = _run_pdf_viewer_cli(
@@ -324,6 +325,7 @@ class LauncherThread(QThread):
                 position=position,
                 anchor_id=anchor_id,
                 annotation_id=annotation_id,
+                outline_item_id=outline_item_id,
                 on_log=lambda m: self.log_signal.emit(m)
             )
             if ok:
@@ -494,10 +496,10 @@ class GUILauncher(QMainWindow):
         # 新增导航扩展参数
         self.h_pdfanchor_id = QLineEdit(); self.h_pdfanchor_id.setPlaceholderText("pdfanchor-<12hex> 或 pdfanchor-test")
         self.h_pdfannotation_id = QLineEdit(); self.h_pdfannotation_id.setPlaceholderText("pdfannotation-<base64url16>")
-        self.h_pdfoutline_item_id = QLineEdit(); self.h_pdfoutline_item_id.setPlaceholderText("outline-item-id（暂未启用）")
+        self.h_pdfoutline_item_id = QLineEdit(); self.h_pdfoutline_item_id.setPlaceholderText("outline-item-id（透传到URL）")
         self.h_pdfanchor_id.setToolTip("锚点ID，将映射为前端 URL 参数 anchor-id")
         self.h_pdfannotation_id.setToolTip("标注ID，将映射为前端 URL 参数 annotation-id")
-        self.h_pdfoutline_item_id.setToolTip("书签/大纲项ID（前端未启用，暂仅记录）")
+        self.h_pdfoutline_item_id.setToolTip("书签/大纲项ID，将映射为前端 URL 参数 outline-item-id（当前仅透传，不触发跳转）")
         gl.addWidget(QLabel("pdf_id")); gl.addWidget(self.h_pdf_id)
         gl.addWidget(QLabel("page_at")); gl.addWidget(self.h_page_at)
         gl.addWidget(QLabel("position%")); gl.addWidget(self.h_position)
@@ -1405,6 +1407,7 @@ class GUILauncher(QMainWindow):
                 position=_position,
                 anchor_id=_anchor_id,
                 annotation_id=_annotation_id,
+                outline_item_id=_outline_item,
                 on_log=self._log
             )
             self._log(f"PDF-Viewer (Hosted) 启动 rc={rc}")

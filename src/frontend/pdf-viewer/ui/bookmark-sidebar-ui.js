@@ -98,6 +98,13 @@ export class BookmarkSidebarUI {
     ));
 
     this.#logger.info("BookmarkSidebarUI initialized with toolbar");
+
+    // 主动请求当前书签列表，避免在我们订阅之前发射过一次导致的“空白”
+    try {
+      this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.LOAD.REQUESTED, {}, { actorId: 'BookmarkSidebarUI' });
+    } catch (_) {
+      try { this.#eventBus.emit(PDF_VIEWER_EVENTS.BOOKMARK.LOAD.REQUESTED, {}, { actorId: 'BookmarkSidebarUI' }); } catch { /* ignore */ }
+    }
   }
 
   /**
@@ -142,30 +149,30 @@ export class BookmarkSidebarUI {
     $container.on("select_node.jstree", (e, selected) => {
       try {
         const info = selected?.node?.data || {};
-        const pageNumber = info.pageNumber || 1;
-        const region = info.region || null;
-        const position = region && typeof region.scrollY === "number" ? region.scrollY : null;
+        const bookmarkId = selected?.node?.id || null;
+
         // 更新内存的当前选中ID
-        this.#selectedBookmarkId = selected?.node?.id || null;
+        this.#selectedBookmarkId = bookmarkId;
         // 向工具栏等消费者广播“选中变化”，保证编辑/删除针对最新选中项
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.BOOKMARK.SELECT.CHANGED,
-          { bookmarkId: selected?.node?.id || null, bookmark: info.raw || null },
+          { bookmarkId: bookmarkId, bookmark: info.raw || null },
           { actorId: "BookmarkSidebarUI" }
         );
-        // 统一使用 URL 导航入口；若存在百分比位置（region.scrollY），一并传递
+
+        // 改为：按大纲ID请求导航，由 PDFBookmarkFeature.#handleNavigateByIdRequest 统一处理
+        const payload = { outlineItemId: bookmarkId };
         try {
-          const pdfId = (() => { try { return new URLSearchParams(window.location.search).get('pdf-id'); } catch { return null; } })();
+          try { this.#logger.info(`[BookmarkSidebarUI] emit BOOKMARK.NAVIGATE_BY_ID.REQUESTED ${JSON.stringify(payload)}`); } catch {}
           this.#eventBus.emitGlobal(
-            PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
-            { pdfId: pdfId || undefined, pageAt: pageNumber, position: (position ?? undefined) },
+            PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED,
+            payload,
             { actorId: "BookmarkSidebarUI" }
           );
         } catch {
-          const pdfId2 = (() => { try { return new URLSearchParams(window.location.search).get('pdf-id'); } catch { return null; } })();
           this.#eventBus.emit(
-            PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
-            { pdfId: pdfId2 || undefined, pageAt: pageNumber, position: (position ?? undefined) },
+            PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED,
+            payload,
             { actorId: "BookmarkSidebarUI" }
           );
         }
@@ -267,7 +274,14 @@ export class BookmarkSidebarUI {
           id: n.id,
           parent: parentId || "#",
           text: n.name || "(未命名)",
-          data: { pageNumber: n.pageNumber || 1, region: n.region || null, raw: n }
+          // 兼容新旧字段：优先使用 pageAt/position，其次回退 pageNumber/region.scrollY
+          data: {
+            pageAt: (typeof n.pageAt === "number") ? n.pageAt : undefined,
+            pageNumber: (typeof n.pageNumber === "number") ? n.pageNumber : undefined,
+            position: (typeof n.position === "number") ? n.position : undefined,
+            region: n.region || null,
+            raw: n
+          }
         });
         if (n.children && n.children.length) { walk(n.children, n.id); }
       });

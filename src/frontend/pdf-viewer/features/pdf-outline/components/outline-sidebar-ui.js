@@ -82,13 +82,18 @@ export class OutlineSidebarUI {
     const flat = [];
     const walk = (nodes, parentId) => {
       nodes.forEach((n) => {
+        // 统一读取 pageAt/position，兼容旧字段 pageNumber/region.scrollY
+        const pageAt = (typeof n.pageAt === "number" && n.pageAt > 0) ? n.pageAt : null;
+        const position = (typeof n.position === "number") ? n.position : null;
         flat.push({
           id: n.id,
           parent: parentId || "#",
           text: n.name || "(未命名)",
           data: {
-            pageNumber: n.pageNumber || 1,
-            region: n.region || null,
+            // 仅保留标准字段；缺失即为无效节点
+            pageAt,
+            position,
+            invalid: !(typeof n.pageAt === "number" && n.pageAt > 0),
             raw: n
           }
         });
@@ -136,21 +141,20 @@ export class OutlineSidebarUI {
       try {
         const node = selected.node;
         const info = node?.data || {};
-        const pageNumber = info.pageNumber || 1;
-        const region = info.region || null;
-        const position = (region && typeof region.scrollY === "number") ? region.scrollY : null;
-        // 统一使用 URL 导航入口（若存在位置百分比，一并携带）
+        const outlineItemId = node?.id || null;
+        // 统一改为按ID发射导航请求
+        const payload = { outlineItemId };
         try {
-          // 重要：同文档内跳转不应携带 pdfId，避免被 URLNavigationFeature 误判为“需要重新加载PDF”
+          try { this.#logger.info(`[OutlineSidebarUI] emit BOOKMARK.NAVIGATE_BY_ID.REQUESTED ${JSON.stringify(payload)}`); } catch {}
           this.#eventBus.emitGlobal(
-            PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
-            { pageAt: pageNumber, position: (typeof position === "number" ? position : null) },
+            PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED,
+            payload,
             { actorId: "OutlineSidebarUI" }
           );
         } catch {
           this.#eventBus.emit(
-            PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
-            { pageAt: pageNumber, position: (typeof position === "number" ? position : null) },
+            PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED,
+            payload,
             { actorId: "OutlineSidebarUI" }
           );
         }

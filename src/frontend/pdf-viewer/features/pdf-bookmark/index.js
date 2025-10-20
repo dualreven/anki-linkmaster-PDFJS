@@ -6,6 +6,7 @@
  */
 
 import { getLogger } from '../../../common/utils/logger.js';
+import { setModuleLogLevel, LogLevel as __LogLevelForFeature } from '../../../common/utils/logger.js';
 import { success as toastSuccess, error as toastError } from '../../../common/utils/thirdparty-toast.js';
 import { PDF_VIEWER_EVENTS } from '../../../common/event/pdf-viewer-constants.js';
 import { WEBSOCKET_EVENTS } from '../../../common/event/event-constants.js';
@@ -108,6 +109,16 @@ export class PDFBookmarkFeature {
     this.#eventBus = context.scopedEventBus || context.globalEventBus;
     this.#container = context.container;
 
+    // 开启与大纲相关模块的 DEBUG 日志，便于排查（可被 localStorage 覆盖）
+    try {
+      setModuleLogLevel('Feature.pdf-bookmark', __LogLevelForFeature.DEBUG);
+      setModuleLogLevel('BookmarkManager', __LogLevelForFeature.DEBUG);
+      setModuleLogLevel('BookmarkDataProvider', __LogLevelForFeature.DEBUG);
+      setModuleLogLevel('BookmarkSidebarUI', __LogLevelForFeature.DEBUG);
+      setModuleLogLevel('OutlineSidebarUI', __LogLevelForFeature.DEBUG);
+      setModuleLogLevel('PdfDestUtils', __LogLevelForFeature.DEBUG);
+    } catch (_) {}
+
     this.#logger.info(`🚀 [DEBUG] Installing ${this.name}...`);
     this.#logger.info('🔍 [DEBUG] EventBus type:', {
       hasScopedEventBus: !!context.scopedEventBus,
@@ -183,6 +194,57 @@ export class PDFBookmarkFeature {
 
     this.#enabled = true;
     this.#logger.info(`${this.name} installed successfully`);
+  }
+
+  /**
+   * 处理“按ID导航”请求
+   * @param {Object} data
+   * @param {string} [data.id] - 目标大纲ID（兼容字段）
+   * @param {string} [data.bookmarkId] - 目标大纲ID（推荐字段）
+   * @param {string} [data.outlineItemId] - 目标大纲ID（URL参数命名，亦兼容）
+   * @private
+   */
+  async #handleNavigateByIdRequest(data) {
+    try {
+      // 首选规范字段 outlineItemId；兼容历史 bookmarkId/id
+      const raw = data?.outlineItemId || data?.bookmarkId || data?.id;
+      const id = typeof raw === 'string' ? raw.trim() : '';
+      if (!id) {
+        this.#logger.warn('[Bookmark] NAVIGATE_BY_ID 缺少有效 outlineItemId');
+        return;
+      }
+
+      // 允许新旧ID并存：仅提示规范推荐前缀 outlineItem-
+      if (!/^outlineItem-[A-Za-z0-9\-_]{8}$/.test(id)) {
+        this.#logger.warn(`[Bookmark] 非规范ID（推荐 outlineItem-<8位Base64URL>）: ${id}`);
+      }
+
+      if (!this.#bookmarkManager) {
+        this.#logger.error('[Bookmark] BookmarkManager 不可用，无法按ID导航');
+        return;
+      }
+
+      const bookmark = this.#bookmarkManager.getBookmark(id);
+      if (!bookmark) {
+        this.#logger.warn(`[Bookmark] 未找到指定ID的大纲: ${id}`);
+        this.#eventBus.emitGlobal(
+          PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED,
+          { error: `Outline not found: ${id}` },
+          { actorId: 'PDFBookmarkFeature' }
+        );
+        return;
+      }
+
+      // 复用点击导航流程
+      await this.#handleNavigateRequest({ bookmark });
+    } catch (e) {
+      this.#logger.error('[Bookmark] 按ID导航失败', e);
+      this.#eventBus.emitGlobal(
+        PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED,
+        { error: e?.message || 'navigate by id failed' },
+        { actorId: 'PDFBookmarkFeature' }
+      );
+    }
   }
 
   // 已移除自定义 toast 方法，改用 frontend/common 下的公共 toast 工具
@@ -375,11 +437,31 @@ export class PDFBookmarkFeature {
       )
     );
 
+    // 监听“按ID导航”请求（全局事件，使用onGlobal）
+    this.#unsubs.push(
+      this.#eventBus.onGlobal(
+        PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED,
+        (data) => this.#handleNavigateByIdRequest(data),
+        { subscriberId: 'PDFBookmarkFeature' }
+      )
+    );
+
     // 监听大纲选中变化（全局事件，使用onGlobal）
     this.#unsubs.push(
       this.#eventBus.onGlobal(
         PDF_VIEWER_EVENTS.BOOKMARK.SELECT.CHANGED,
         (data) => this.#handleSelectionChanged(data),
+        { subscriberId: 'PDFBookmarkFeature' }
+      )
+    );
+
+    // 监听“请求刷新书签列表”，用于晚于首次发射的UI订阅方主动拉取
+    this.#unsubs.push(
+      this.#eventBus.onGlobal(
+        PDF_VIEWER_EVENTS.BOOKMARK.LOAD.REQUESTED,
+        () => {
+          try { this.#refreshBookmarkList(); } catch (_) {}
+        },
         { subscriberId: 'PDFBookmarkFeature' }
       )
     );
@@ -428,7 +510,13 @@ export class PDFBookmarkFeature {
         bookmarkData.parentId = parentId;
         bookmarkData.order = order;
 
-        const result = await this.#bookmarkManager.addBookmark(bookmarkData);
+        const result = await this.#bookmarkManager.addBookmark({
+          name: bookmarkData.name,
+          pageAt: bookmarkData.pageAt,
+          position: (typeof bookmarkData.position === 'number') ? bookmarkData.position : null,
+          parentId: bookmarkData.parentId,
+          order: bookmarkData.order
+        });
 
         if (result.success) {
           this.#logger.info(`Outline created: ${result.bookmarkId}`);
@@ -677,6 +765,11 @@ export class PDFBookmarkFeature {
       await this.#bookmarkManager.loadFromStorage();
       let current = this.#bookmarkManager.getAllBookmarks();
       this.#logger.info(`📦 Outlines from storage: ${current.length}`);
+      // 追加：从数据库读出的拍平样本，便于与UI侧核对pageAt
+      try {
+        const sample = (current || []).slice(0, 12).map(b => ({ id: b.id, name: b.name, pageAt: b.pageAt, pos: b.position, childrenLen: (b.children||[]).length }));
+        try { this.#logger.info(`[DB] Outlines sample after load ${JSON.stringify(sample)}`); } catch { this.#logger.info('[DB] Outlines sample after load'); }
+      } catch (_) {}
 
       // 如数据库无记录，导入PDF原生书签 → 远端保存 → 再从后端加载
       if (current.length === 0) {
@@ -687,10 +780,12 @@ export class PDFBookmarkFeature {
           if (nativeBookmarks.length > 0) {
             const result = await this.#bookmarkManager.importNativeBookmarks(
               nativeBookmarks,
-              (bookmark) => this.#parseBookmarkDest(bookmark)
+              (native) => this.#parseBookmarkNormalizedDest(native, data.pdfDocument)
             );
             if (result.success) {
-              this.#logger.info(`✅ Imported ${result.count} native outlines; reloading from backend...`);
+              this.#logger.info(`✅ Imported ${result.count} native outlines; refreshing UI from memory, then reloading from backend...`);
+              // 先直接用内存状态刷新一次，避免后端写入/读取失败导致 UI 空白
+              try { this.#refreshBookmarkList(); } catch (_) {}
               await this.#bookmarkManager.loadFromStorage();
               current = this.#bookmarkManager.getAllBookmarks();
               this.#logger.info(`📦 Outlines after backend reload: ${current.length}`);
@@ -724,6 +819,11 @@ export class PDFBookmarkFeature {
 
     // 直接发送 Bookmark 模型数据（不再转换）
     this.#logger.info('🔍 [DEBUG] Total outlines to emit:', bookmarks.length, 'Event:', PDF_VIEWER_EVENTS.BOOKMARK.LOAD.SUCCESS);
+    // 打印样本（便于与 UI 侧对齐）
+    try {
+      const sample = (bookmarks || []).slice(0, 8).map(b => ({ id: b.id, name: b.name, pageAt: b.pageAt, pos: b.position, childrenLen: (b.children||[]).length }));
+      try { this.#logger.info(`[DEBUG] Outline sample before emit ${JSON.stringify(sample)}`); } catch { this.#logger.info('[DEBUG] Outline sample before emit'); }
+    } catch (_) {}
 
     // 发出全局事件（跨Feature通信，不使用命名空间）
     // 注意：BookmarkSidebarUI 使用全局EventBus监听，所以这里必须用 emitGlobal()
@@ -798,9 +898,9 @@ export class PDFBookmarkFeature {
 
       this.#logger.info(`开始导航到书签: ${bookmark.name}`);
 
-      // 解析书签dest获取页码
-      const pageNumber = await this.#parseBookmarkDest(bookmark);
-      if (!pageNumber) {
+      // 解析标准化页码/位置
+      const pageAt = await this.#parseBookmarkPageAt(bookmark);
+      if (!pageAt) {
         this.#logger.warn(`无法解析书签dest: ${bookmark.name}`);
         this.#eventBus.emitGlobal(
           PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED,
@@ -810,12 +910,13 @@ export class PDFBookmarkFeature {
         return;
       }
 
-      this.#logger.info(`书签目标页码: ${pageNumber}`);
+      const position = (typeof bookmark.position === 'number') ? bookmark.position : null;
+      this.#logger.info(`书签目标: page=${pageAt}, position=${position ?? '(null)'}%`);
 
       // 调用导航服务
       const result = await this.#navigationService.navigateTo({
-        pageAt: pageNumber,
-        position: null  // PDF书签通常不指定具体位置百分比
+        pageAt,
+        position
       });
 
       if (result.success) {
@@ -852,32 +953,91 @@ export class PDFBookmarkFeature {
    * @returns {Promise<number|null>} 页码（从1开始），失败返回null
    * @private
    */
-  async #parseBookmarkDest(bookmark) {
+  async #parseBookmarkPageAt(bookmark) {
     try {
-      // 优先使用 Bookmark 模型的 pageNumber 字段（1-based）
-      if (bookmark.pageNumber && typeof bookmark.pageNumber === 'number') {
-        return bookmark.pageNumber;
+      // 严格模式：仅接受标准字段 pageAt
+      if (typeof bookmark?.pageAt === 'number' && bookmark.pageAt > 0) {
+        return bookmark.pageAt;
       }
-
-      // 兼容旧格式：存在 dest 时使用通用解析
-      const dest = bookmark.dest;
-      if (dest === null || dest === undefined) {
-        this.#logger.warn('书签缺少 dest 与 pageNumber，无法解析');
-        return null;
-      }
-
-      const pdfDocument = getCurrentPDFDocument();
-      if (!pdfDocument) {
-        this.#logger.warn('PDF文档对象不可用，无法解析书签目的地');
-        return null;
-      }
-
-      const { resolvePdfDest } = await import('../../pdf/pdf-dest-utils.js');
-      const resolved = await resolvePdfDest(pdfDocument, dest);
-      return resolved?.pageNumber || null;
+      this.#logger.warn('书签缺少标准字段 pageAt，无法解析页码');
+      return null;
     } catch (error) {
       this.#logger.error('解析书签dest时出错:', error);
       return null;
+    }
+  }
+
+  /**
+   * 解析原生书签目的地为统一的 { pageAt, position }
+   * @param {Object} nativeBookmark - 来自 BookmarkDataProvider 的原生书签节点
+   * @returns {Promise<{pageAt:number|null, position:number|null}>}
+   * @private
+   */
+  async #parseBookmarkNormalizedDest(nativeBookmark, pdfDocumentArg = null) {
+    try {
+      const dest = nativeBookmark?.dest;
+      if (dest === null || dest === undefined) {
+        this.#logger.info('[IMPORT] dest missing; skip', { title: nativeBookmark?.title });
+        return { pageAt: null, position: null };
+      }
+      // 打印目的地类型，便于排查
+      try {
+        const kind = Array.isArray(dest) ? 'array' : (typeof dest);
+        const detail = (() => {
+          try {
+            if (Array.isArray(dest)) {
+              const first = dest[0];
+              const firstKind = (first && typeof first === 'object')
+                ? (('num' in first || 'gen' in first) ? 'ref-object' : 'object')
+                : typeof first;
+              return { length: dest.length, firstKind };
+            } else if (typeof dest === 'string') {
+              return { length: dest.length, preview: dest.slice(0, 80) };
+            } else if (dest && typeof dest === 'object') {
+              return { keys: Object.keys(dest).slice(0, 6) };
+            }
+          } catch (_) { /* ignore */ }
+          return {};
+        })();
+        this.#logger.info('[IMPORT] dest detected', { title: nativeBookmark?.title, kind, detail });
+      } catch (_) {}
+      // 优先使用从 FILE.LOAD.SUCCESS 传入的 pdfDocument，避免并发切换导致的“Transport destroyed”
+      const pdfDocument = pdfDocumentArg || getCurrentPDFDocument();
+      if (!pdfDocument) {
+        this.#logger.info('[IMPORT] pdfDocument missing during parse; skip', { title: nativeBookmark?.title });
+        return { pageAt: null, position: null };
+      }
+      // 优先通过 BookmarkDataProvider（已持有同一 pdfDocument）解析
+      try {
+        if (this.#bookmarkDataProvider && typeof this.#bookmarkDataProvider.parseDestination === 'function') {
+          const parsed = await this.#bookmarkDataProvider.parseDestination(dest);
+          const pageAt = parsed?.pageNumber || null;
+          let position = null;
+          // 仅在明确为 'XYZ' 并且提供了 y 时，计算 position；否则保持 null
+          if (pageAt && parsed?.type === 'XYZ' && typeof parsed?.y === 'number') {
+            const { yToPositionPercent } = await import('../../pdf/pdf-dest-utils.js');
+            position = await yToPositionPercent(pdfDocument, pageAt, parsed.y);
+          }
+          // 统一串到字符串，避免后端日志把对象打印为 [object Object]
+          try { this.#logger.info(`[IMPORT] parsed via provider ${JSON.stringify({ title: nativeBookmark?.title, type: parsed?.type ?? null, pageAt, position })}`); } catch { this.#logger.info('[IMPORT] parsed via provider'); }
+          return { pageAt, position };
+        }
+      } catch (e) {
+        // 回退到通用解析
+        try { this.#logger.info(`[IMPORT] provider.parseDestination failed, fallback to resolvePdfDest ${JSON.stringify({ title: nativeBookmark?.title, error: e?.message })}`); } catch { this.#logger.info('[IMPORT] provider.parseDestination failed, fallback to resolvePdfDest'); }
+      }
+      const { resolvePdfDest, yToPositionPercent } = await import('../../pdf/pdf-dest-utils.js');
+      const resolved = await resolvePdfDest(pdfDocument, dest);
+      const pageAt = resolved?.pageNumber || null;
+      let position = null;
+      if (pageAt && resolved?.type === 'XYZ' && typeof resolved?.y === 'number') {
+        position = await yToPositionPercent(pdfDocument, pageAt, resolved.y);
+      }
+      try { this.#logger.info(`[IMPORT] parsed via resolvePdfDest ${JSON.stringify({ title: nativeBookmark?.title, type: resolved?.type ?? null, pageAt, position })}`); } catch { this.#logger.info('[IMPORT] parsed via resolvePdfDest'); }
+      return { pageAt, position };
+    } catch (e) {
+      try { this.#logger.warn(`[IMPORT] parse normalized dest failed ${JSON.stringify({ title: nativeBookmark?.title, error: e?.message })}`); } catch { this.#logger.warn('[IMPORT] parse normalized dest failed'); }
+      return { pageAt: null, position: null };
     }
   }
 }

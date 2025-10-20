@@ -48,6 +48,217 @@
 
 ## 📅 当前活跃任务（最近）
 
+### 当前任务（20251020141335）
+名称：Outline 插件点击改为“按ID导航事件”
+
+背景/原因：
+- UI 先前在点击大纲节点时直接发射 `NAVIGATION.URL_PARAMS.REQUESTED`，由 URL 导航模块根据 `{ pageAt, position }` 跳转；
+- 为统一导航入口、降低 UI 与数据字段的耦合，并接入现有消费端 `PDFBookmarkFeature.#handleNavigateByIdRequest`，现改为在点击后发射 `PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED`（负载 `{ outlineItemId }`）。
+
+涉及文件（UTF-8 与 `\n`）：
+- ✅ 系统实际使用：`src/frontend/pdf-viewer/ui/bookmark-sidebar-ui.js`（已改为发射 `BOOKMARK.NAVIGATE_BY_ID.REQUESTED`）；
+- ⛳ 一致性更新：`src/frontend/pdf-viewer/features/pdf-outline/components/outline-sidebar-ui.js`（同步改为发射 `BOOKMARK.NAVIGATE_BY_ID.REQUESTED`）；
+- 消费端（已存在）：`src/frontend/pdf-viewer/features/pdf-bookmark/index.js:#handleNavigateByIdRequest`；
+- 事件常量：`src/frontend/common/event/pdf-viewer-constants.js`。
+
+实现要点：
+- 点击节点时：
+  - 先发 `BOOKMARK.SELECT.CHANGED`（保持工具栏等状态一致）；
+  - 再发 `BOOKMARK.NAVIGATE_BY_ID.REQUESTED({ outlineItemId: <节点id> })`；
+- 由 `PDFBookmarkFeature` 内部通过 `BookmarkManager.getBookmark(id)` 获取节点并执行 `#handleNavigateRequest()`；
+- UI 不再在点击阶段解析/校验 `{ pageAt, position }`，失败与告警集中在 Feature 层处理。
+
+测试：
+- 新增 `src/frontend/pdf-viewer/features/pdf-bookmark/__tests__/navigate-by-id.request.test.js`：
+  - Mock `BookmarkManager` 与 `navigationService`；
+  - 发射 `BOOKMARK.NAVIGATE_BY_ID.REQUESTED` 后应触发 `navigationService.navigateTo({ pageAt, position })`。
+
+后续建议：
+- URL 分发器检测到 `outlineItemId` 时也发射 `BOOKMARK.NAVIGATE_BY_ID.REQUESTED`，完成 URL → Outline 的闭环（参见 2025-10-20 的工作日志）。
+
+### 当前任务（20251019230030）
+名称：修复 Outline 插件点击大纲均跳转到第一页
+
+问题/背景：
+- 已统一书签/大纲数据结构为 `{ pageAt, position }`，并在首次导入 PDF 原生大纲时完成标准化；
+- 用户反馈：任意点击大纲节点都会跳到第 1 页。
+
+定位结论（根因）：
+- 第一阶段（已修复）：OutlineSidebarUI 与 BookmarkSidebarUI 读取了旧字段并带默认 1，导致跳到第一页；
+- 深层次问题（本次全面收敛为严格模式）：
+  - Bookmark 模型与加载流程存在“默认 pageAt=1 / 旧字段回退”，即使导入失败也会生成“看似可跳转”的节点。
+  - URL 手动导航校验需要 `pdf-id`；UI 两处存在是否携带 `pdf-id` 的不一致。
+
+涉及模块/文件（UTF-8 与 `\n`）：
+- Outline UI：`src/frontend/pdf-viewer/features/pdf-outline/components/outline-sidebar-ui.js`
+- 书签统一模型与导入：`src/frontend/pdf-viewer/features/pdf-bookmark/**`、`src/frontend/pdf-viewer/pdf/pdf-dest-utils.js`
+- 导航统一入口：`src/frontend/pdf-viewer/features/url-navigation/index.js`（监听 `URL_PARAMS.REQUESTED`）
+
+计划与步骤：
+1) 严格模式改造（不保留旧格式、不做默认）：
+   - Bookmark 模型：去掉默认 `pageAt=1`；无效置 `null`；`fromJSON` 仅接受 `pageAt/position`。
+   - BookmarkManager.loadFromStorage：标准/旧格式路径均仅接收含有效 `pageAt` 的节点，其余跳过并记录警告；标准路径增加 try/catch。
+   - pdf-bookmark/index.js：`#parseBookmarkPageAt` 仅读取 `bookmark.pageAt`，不再解析 `dest`；无效即报错。
+2) UI 收敛到标准字段：
+   - OutlineSidebarUI：仅使用 `pageAt/position`；缺失直接报错（alert + 日志），不再使用旧字段和任何默认；触发导航时统一携带 `pdf-id`。
+   - BookmarkSidebarUI：同上，严格校验并报错；触发导航时统一携带 `pdf-id`。
+3) 导入路径保持严格且修复解析短路：
+   - 将导入解析绑定到同一轮加载的 `pdfDocument`：`importNativeBookmarks(native, nb => #parseBookmarkNormalizedDest(nb, data.pdfDocument))`；
+   - `#parseBookmarkNormalizedDest()` 优先用 `BookmarkDataProvider.parseDestination()`（内部已持有同一 `pdfDocument`），失败再回退 `resolvePdfDest()`；
+   - 解析不到 `pageAt` 的节点继续跳过并记录 warn（不做默认/回退）。
+4) 验证：点击多个节点，URL 导航成功日志中的 `pageAt` 应与节点一致；不存在统一为 1 的情况。若节点无效，应弹窗并不跳转。
+
+验收要点：
+- 点击不同大纲节点应跳到对应页；如有 position，则滚动到对应百分比；
+- `dist/latest/logs/pdf-viewer-*-js.log` 中不再出现“URL导航成功: pageAt:1” 的统一现象（除非节点确实是第1页）。
+
+（新增 20251019235055）日志与过滤：
+- 已在 `Feature.pdf-bookmark` 安装阶段启用模块级 DEBUG：`Feature.pdf-bookmark / BookmarkManager / BookmarkDataProvider / BookmarkSidebarUI / OutlineSidebarUI / PdfDestUtils`；
+- 导入解析处增加 `[IMPORT]` 详细日志（provider/resolvePdfDest 路径与结果）；
+- 过滤日志输出文件：`AItemp/filtered-outline-log.txt`（当前会话已导出，可用于对比刷新前后差异）。
+
+### 当前任务（20251019183703）
+名称：巡检 pdf-viewer 的 URL 解析与“按参数类型跳转”现状（不改代码）
+
+问题/背景：
+- 需要确认前端 viewer 在启动后，能否依据不同 URL 参数类型（pdf-id/page-at/position/anchor-id/annotation-id/outline-item-id）完成解析与正确的跳转分流；同时明确门闸、事件链与反馈。
+
+结论（现状汇总）：
+- 解析支持：`pdf-id`(必)、`page-at`、`position`、`anchor-id`、`annotation-id`、`outline-item-id`；含校验/标准化与告警（url-navigation/components/url-params-parser.js）。
+- 类型分流：`annotation-id` 优先（发 `ANNOTATION.NAVIGATION.JUMP_REQUESTED`）；其次 `page-at/position` → `navigationService.navigateTo`；`anchor-id` 由 PDFAnchorFeature 消费（监听 `URL_PARAMS.PARSED`）；`outline-item-id` 暂仅日志记录。
+- 门闸：统一等待 `ANNOTATION.DATA.LOADED` 后执行 URL 导航（保证标注相关跳转有数据；纯页码跳转因此也会等待一次标注数据加载）。
+- 反馈：发 `URL_PARAMS.SUCCESS/FAILED` 事件并弹出 toast；失败阶段区分 `parse/load/navigate`。
+- 日志：对 URL 导航三模块默认 DEBUG；Annotation 模块默认 `error`（可用 `localStorage.ANNOTATION_LOG_LEVEL` 覆盖）。
+
+验证要点（人工）：
+1) `?pdf-id=sample&page-at=5&position=50` → 加载PDF → 标注就绪后跳到第5页并滚动50%，成功toast与 SUCCESS 事件；
+2) `?pdf-id=sample&annotation-id=<id>` → 等标注数据 → 跳到标注位置（AnnotationFeature 负责计算 position）；
+3) `?pdf-id=sample&anchor-id=pdfanchor-xxxxxxxxxxxx` → PDFAnchorFeature 加载并导航到锚点；
+4) `?pdf-id=sample&outline-item-id=abc` → 仅日志，无跳转（待 Outline 接入）。
+
+相关文件（UTF-8 与 `\n`）：
+- URL 解析与分发：`src/frontend/pdf-viewer/features/url-navigation/components/url-params-parser.js`、`.../url-jump-dispatcher.js`、`.../index.js`
+- 基础导航：`src/frontend/pdf-viewer/features/core-navigation/services/navigation-service.js`
+- 锚点消费：`src/frontend/pdf-viewer/features/pdf-anchor/index.js`
+- 事件常量：`src/frontend/common/event/pdf-viewer-constants.js`
+- URL 拼接：`src/frontend/pdf-viewer/launcher.py`
+
+风险与后续：
+- `outline-item-id` 未接入实际跳转，需要 Outline 子系统暴露统一入口（事件或服务）。
+- 统一等待 `ANNOTATION.DATA.LOADED` 可能略增首跳延迟；如需“无标注场景最快页跳”，可增加条件化门闸（本次仅记录，未改代码）。
+- `TOTAL_PAGES_UPDATED` 事件来源未检出，`NavigationService` 的越界修正主要依赖 DOM 兜底，后续可补发此事件。
+
+#### 分流执行 → 导航插件（调用路径补充 20251019190403）
+- page-at/position：URLJumpDispatcher.tryExecute() → CoreNavigationFeature.NavigationService.navigateTo() → emit NAVIGATION.GOTO → UIManagerCore/NavigationHandler 设置 PDFViewerManager.currentPageNumber → NavigationService.scrollToPosition() 平滑滚动 → URL_PARAMS.SUCCESS/FAILED。
+- annotation-id：URLJumpDispatcher.tryExecute() → emit ANNOTATION.NAVIGATION.JUMP_REQUESTED → AnnotationFeature.#handleNavigateToAnnotation() 解析页与位置 → NavigationService.navigateTo() → 同上事件链与滚动 → 工具链自理高亮。
+- anchor-id：PDFAnchorFeature 在锚点数据与渲染就绪后，emit URL_PARAMS.REQUESTED({ pageAt, position, anchorId }) → URLNavigationFeature.#handleNavigationRequested() → NavigationService.navigateTo() → 同上事件链。
+- outline-item-id：当前仅日志记录，未触发导航。
+
+#### 辅助发现与建议（20251019191344）
+- URL 参数统一门闸：为保证“标注/锚点跳转”的稳定性，URL 导航默认等待 ANNOTATION.DATA.LOADED；若后续要优化纯页面跳转时延，可在 URLNavigationFeature 中改为条件化门闸（仅当存在 annotation-id/anchor-id 时等待）。
+- 导航成功定义：NavigationService 在 GOTO 后通过 DOM 轮询确认页面有高度即视为就绪，再进行 position 平滑滚动；不依赖 PDF.js 的事件稳定性，具备可靠性。
+- outline 跳转接入位：URLJumpDispatcher 已识别 outline-item-id，但未发送跳转事件；建议 Outline 模块暴露“按 outlineItemId 跳转”的统一事件（如 OUTLINE.NAVIGATION.JUMP_REQUESTED），并在 dispatcher 中对接。
+
+### 变更记录（202510191930）
+名称：Outline（大纲）节点ID规范化与“按ID导航”接口
+
+改动：
+- 节点ID规范：新建节点改为 `outlineItem-<8位Base64URL>`（文件：`features/pdf-bookmark/models/bookmark.js`，随机6字节 → Base64URL 8字符）；
+- 新事件：`PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED`（`pdf-viewer:bookmark-navigate-by-id:requested`），负载 `{ bookmarkId }`（兼容 `{ id | outlineItemId }`）；
+- 消费实现：`features/pdf-bookmark/index.js` 监听上述事件，`BookmarkManager.getBookmark(id)` 查找节点，复用点击导航逻辑调用 `navigationService.navigateTo()`；
+- 兼容性：老 ID（如 `bookmark-...`）仍可使用；按ID导航未作强校验，仅记录非规范前缀告警。
+
+后续接入点（建议）：
+- URL 跳转：在 `URLJumpDispatcher.tryExecute()` 检测到 `outlineItemId` 时，emit `BOOKMARK.NAVIGATE_BY_ID.REQUESTED` 以打通 URL → Outline 导航闭环（当前未改动 dispatcher，保留日志）。
+
+### 破坏性更新（202510192030）
+名称：统一大纲数据结构为“pageAt + position（%）”，并在“首次从 PDF 导入原生大纲”时落库为统一格式
+
+改动摘要：
+- Bookmark 模型（破坏性）：移除 `type/region/pageNumber`，统一为
+  - `pageAt: number`（1-based 页码，必填）
+  - `position: number|null`（0~100 的百分比，选填；无法从 dest 精确解析时为 null）
+  - 位置：`features/pdf-bookmark/models/bookmark.js`
+- 导入流程：当 DB 无数据、需要从 PDF 原生 outline 导入时，解析 `dest` → 计算 `{ pageAt, position? }` 并以新模型入库
+  - 位置：`features/pdf-bookmark/index.js` → `#handlePdfLoaded()` → `BookmarkManager.importNativeBookmarks(..., #parseBookmarkNormalizedDest)`
+  - 解析：`pdf/pdf-dest-utils.js` 新增 `yToPositionPercent(pdfDocument, pageAt, y)`（估算 top→百分比），失败则 position=null
+- 导航：优先使用 `bookmark.pageAt/position` 调用 `navigationService.navigateTo()`；兼容旧数据仅保留“解析 dest”兜底路径
+  - 位置：`features/pdf-bookmark/index.js` → `#handleNavigateRequest/#parseBookmarkPageAt`
+- UI 对话框：添加/编辑使用 `pageAt` 与 `position` 字段（移除“类型/区域”）
+  - 位置：`features/pdf-bookmark/components/bookmark-dialog.js`
+- 存储序列化：`saveToStorage()` 序列化为 `{ id,name,pageAt,position,children,... }`
+  - 位置：`features/pdf-bookmark/services/bookmark-manager.js`
+
+注意：
+- 该更新为破坏性：不再兼容历史多格式字段（type/region/pageNumber）；你已声明会清空旧数据以便测试。
+- 若 `dest` 无 y 或无法推导百分比，position 将存为 null；导航仍可使用页码精确到页。
+
+### 当前任务（20251019172922）
+名称：核查 pdf-viewer 启动路径参数到最终 URL 的传递情况
+
+背景与问题：
+- 用户关心 `pdfoutline-item-id`、`pdfannotation-id`、`pdfanchor-id` 三项是否从启动路径贯通到最终 URL（供前端 url-navigation/相关 Feature 消费）。
+
+相关模块/文件（UTF-8 与 `\n`）：
+- Runner 传参：
+  - `src/launcher/runner.py:235`（CLI 追加 `--anchor-id`）
+  - `src/launcher/runner.py:237`（CLI 追加 `--annotation-id`）
+  - `src/launcher/runner.py:325`（Hosted 传入 `anchor_id`/`annotation_id`）
+- 前端 Launcher（最终 URL 拼接）：
+  - `src/frontend/pdf-viewer/launcher.py:962`（`&anchor-id=...`）
+  - `src/frontend/pdf-viewer/launcher.py:967`（`&annotation-id=...`）
+- URL 解析（url-navigation）：
+  - `src/frontend/pdf-viewer/features/url-navigation/components/url-params-parser.js:45`（读取 `anchor-id`）
+  - `src/frontend/pdf-viewer/features/url-navigation/components/url-params-parser.js:46`（读取 `annotation-id`）
+- GUI（Hosted Tab）参数来源：
+  - `gui_launcher.py:1394`（读取 `h_pdfanchor_id`）
+  - `gui_launcher.py:1395`（读取 `h_pdfannotation_id`）
+  - `gui_launcher.py:1396`（读取 `h_pdfoutline_item_id`，仅日志打印，未向 runner 传递）
+
+结论（2025-10-19）：
+- `pdfanchor-id`（最终 URL 键：`anchor-id`）→ 已贯通，最终 URL 含该参数；
+- `pdfannotation-id`（最终 URL 键：`annotation-id`）→ 已贯通，最终 URL 含该参数；
+- `pdfoutline-item-id` → 已完成“前三步”贯通：GUI → runner（CLI/Hosted）→ 前端 launcher（URL 追加）→ url-params-parser 解析；尚未实现“第四步”的消费与跳转。
+
+建议/后续：
+1) 第四步（暂缓实施）：在识别到 `outline-item-id` 时，向 Outline 子系统发送统一“跳转请求”事件；当前需先调查 Outline 是否已暴露“接受 outlineItemId 并跳转”的统一机制（事件/服务 API）。
+2) tech.md 已更新当前映射：`pdfanchor-id`→`anchor-id`、`pdfannotation-id`→`annotation-id`、`pdfoutline-item-id`→`outline-item-id`（已贯通到 URL）。
+
+### 当前任务（20251019175530）
+名称：annotation 日志关闭（模块级过滤）与 URL 跳转检查日志开启；解耦“解析→跳转”
+
+背景：
+- 需要临时关闭 annotation 域的调试日志（上一轮维修后的大量输出影响观测）；
+- 需要开启 URL 导航链路的检查日志（便于后续问题排查与扩展）；
+- 希望将“参数解析（URLParamsParser）”与“根据类型 id 执行跳转”的逻辑解耦，以便后续支持直接传入跳转请求。
+
+改动要点：
+- annotation 日志过滤：`AnnotationFeature.install()` 读取 `localStorage.ANNOTATION_LOG_LEVEL`，默认降到 `error`，通过 `setModuleLogLevel()` 覆盖 `Feature.annotation/AnnotationFeature/ScreenshotTool/TextHighlightTool/CommentTool`。
+- URL 跳转检查日志：在 `URLNavigationFeature.install()` 中对 `URLNavigationFeature/URLJumpDispatcher/URLParamsParser` 设置 `debug` 级别（模块级覆盖，可被 LocalStorage/全局策略再覆盖）。
+- 职责解耦：新增 `URLJumpDispatcher`（`features/url-navigation/components/url-jump-dispatcher.js`），`URLNavigationFeature` 只做“解析/校验/广播/门闸”，跳转执行改由 Dispatcher 完成（annotationId 触发 `ANNOTATION.NAVIGATION.JUMP_REQUESTED`；pageAt/position 直接调用导航服务；outlineItemId 暂仅日志记录）。
+
+说明：
+- 未实现 outline-item-id 的跳转，仅完成记录；待 Outline 暴露统一跳转接口后接入。
+
+### 配置更新（20251019181408）
+名称：ESLint 忽略与默认扫描范围收敛
+
+变更：
+- 新增 `.eslintignore`：忽略 `dist/ build/ node_modules/ .venv/ *.min.js logs/ *.log AItemp/ coverage/ .idea/ .vscode/ public/vendor/`。
+- 更新 `package.json` 脚本：
+  - `lint`: `pnpm exec eslint src scripts eslint-rules --ext .js,.cjs,.mjs`
+  - `lint:fix`: `pnpm exec eslint src scripts eslint-rules --ext .js,.cjs,.mjs --fix`
+
+目的：
+- 降低 ESLint 输出噪音，聚焦源码与脚本目录，提升检查速度。
+
+后续分阶段 --fix 计划：
+1) `src/frontend/pdf-viewer/features/**`（先自动 --fix，再人工项）
+2) `src/frontend/pdf-viewer/{ui,bootstrap,adapters,pdf}/**` 与 `src/frontend/common/**`
+3) `src/frontend/pdf-home/**`、`scripts/**`、`eslint-rules/**`
+4) 其他零散 JS（若有）
+
+
 ### 当前任务（20251019091530）
 名称：统一三种标注类型（截图/文字高亮/批注）的渲染流程（先梳理差异）
 
@@ -2205,3 +2416,73 @@ python gui_launcher_enhanced.py
 
 验收：
 - 打开/关闭标注侧边栏时无 toast，仅有日志。
+
+## 🧩 后端“数据格式回退机制”盘点（20251020093214）
+
+目标：梳理后端代码中与“数据格式/协议”相关的 fallback/兼容策略，形成工程内可追溯清单，指导前后端协作与测试覆盖。
+
+范围：仅后端（`src/backend/**`）；不含前端 UI 回退。
+
+结论（按类别归纳，含定位；2025-10-20 已切换为严格模式的项已标注“[严格]”）：
+- 消息类型旧→新映射（协议格式兼容）
+  - `src/backend/msgCenter_server/standard_server.py:161`（`LEGACY_TYPE_MAPPING`）
+  - `src/backend/msgCenter_server/standard_server.py:199`（`_normalize_message_type` 应用）
+- 消息数据字段名别名（同义字段回退）
+  - `src/backend/msgCenter_server/standard_server.py:444`（`pdf_id | file_id | uuid`）
+  - `src/backend/msgCenter_server/standard_server.py:486`（`file_ids | ids`）
+  - `src/backend/msgCenter_server/standard_server.py:1677`（`file_id | pdf_id | uuid | id`）
+  - `src/backend/api/pdf-viewer/bookmark/service.py:156`（`pageAt` 缺省时回退 `pageNumber`）
+  - `src/backend/api/pdf_library_api.py:1241`（`uuid | id`）
+- ID/主键格式兼容（双格式）
+  - 标注 ann_id：`src/backend/database/plugins/pdf_annotation_plugin.py:170`（旧 `ann_*` 与新 `pdfannotation-*`）
+  - 书签 bookmark_id：`src/backend/database/plugins/pdf_bookmark_plugin.py:21`（`bookmark-*` 与 `outlineItem-*`）
+- 旧 JSON → 新结构迁移/读取回退 → [严格] 已取消自动迁移与读取回退
+  - 自动迁移调用已移除：`src/backend/database/plugins/pdf_bookmark_plugin.py:enable()` 不再调用 `_migrate_legacy_schema()`（2025-10-20）
+  - 保存/导入：仅接受 `pageAt`，不再从 `pageNumber` 回退（`src/backend/api/pdf-viewer/bookmark/service.py:_build_bookmark_row`，2025-10-20）
+  - 读取：`list_bookmarks()` 若发现缺少合法 `pageAt`，直接抛出 `DatabaseValidationError`（2025-10-20）
+- MIME 类型推断修正与兜底
+  - `src/backend/pdfFile_server/embed_fileserver.py:704`（`guess_mime_type()` → `application/octet-stream` 兜底）
+  - `src/backend/pdfFile_server/handlers/pdf_handler.py:260`（重写 `guess_type()` + 兜底）
+  - 验证：`src/backend/pdfFile_server/__tests__/test_embed_fileserver_mime.py:18`
+- 布尔/数值表达兼容
+  - `src/backend/database/plugins/pdf_info_plugin.py:740`（`is_visible` 兼容 `true/1`）
+- 时间戳单位自动识别
+  - `src/backend/api/utils/datetime.py:15`（`ensure_ms`）
+  - `src/backend/api/utils/datetime.py:24`（`ensure_seconds`）
+- PDF 页面传输压缩编码默认值
+  - `src/backend/msgCenter_server/standard_server.py:1757`（缺省回退 `zlib_base64`）
+- 搜索失败兜底策略
+  - `src/backend/api/pdf-home/search/service.py:66`（异常回退全量查询）
+
+建议与后续：
+- 在 `docs/SPEC` 增补“后端数据格式兼容矩阵”；覆盖单测聚焦：字段别名、ID 双格式、时间单位与 MIME 兜底、压缩编码默认值。
+
+---
+
+## ✅ 检查结论（20251020125039）— outline item-id 导航与 URL 初始化统一性
+
+问题与目的：
+- 判定“pdf-viewer 中 outline 的按 item-id 导航”是否完善；
+- 判定 URL 解析阶段调用该导航的可行性；
+- 判定初始化阶段自动导航在 `annotation-id / anchor-id / outline-item-id` 三者是否统一。
+
+关键发现（UTF-8 与 `\n`）：
+- 消费端已就绪：`src/frontend/pdf-viewer/features/pdf-bookmark/index.js:#handleNavigateByIdRequest()` 监听 `PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED`，可通过 `BookmarkManager.getBookmark(id)` 获取节点并调用导航服务（严格读取 `pageAt/position`）。
+- Outline 点击：`features/pdf-outline/components/outline-sidebar-ui.js` 直接以 `{ pageAt, position }` 发起 `NAVIGATION.URL_PARAMS.REQUESTED`，不基于 id，属设计选择。
+- URL 解析：`features/url-navigation/components/url-params-parser.js` 已解析 `outline-item-id` 并保留到 `parsed.outlineItemId`。
+- URL 分发：`features/url-navigation/components/url-jump-dispatcher.js` 对 `outlineItemId` 仅记录日志，不触发跳转事件。
+- Anchor：`features/pdf-anchor/index.js` 独立监听 `URL_PARAMS.PARSED` 并具备自身门闸（数据与渲染就绪）。
+- Annotation：`URLJumpDispatcher` 具备门闸（annotationDataLoaded）并触发 `ANNOTATION.NAVIGATION.JUMP_REQUESTED`。
+
+结论：
+- Q1 完善度：按 item-id 导航的“执行端”完善，但“触发端”（从 URL 或其它来源发出 `BOOKMARK.NAVIGATE_BY_ID.REQUESTED`）缺失，端到端链路未闭环。
+- Q2 可行性：具备；需要在 URL 分发器/Feature 门闸通过后实际发出导航事件，并考虑书签数据加载的门闸。
+- Q3 统一性：未统一。anchor（独立门闸）、annotation（分发器门闸）、outline（未接入）。
+
+建议步骤（待实施）：
+- S1 在 `URLJumpDispatcher.tryExecute()` 中检测到 `outlineItemId` 时，发出 `PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED`（替代“仅日志”）。
+- S2 在 `URLNavigationFeature` 内监听 `PDF_VIEWER_EVENTS.BOOKMARK.LOAD.SUCCESS`，设置 `bookmarkDataLoaded=true`；当 URL 含 `outlineItemId` 时与 `annotationDataLoaded` 一起作为门闸条件，门闸通过后执行一次分发。
+- S3 失败时（ID 未命中）在 `BOOKMARK.LOAD.SUCCESS` 到达时重试一次；同时输出 info 级日志与 toast（严格模式不做默认页回退）。
+
+备注：
+- 以上为设计与连通性检查结论；尚未改动代码。实施时需补充最小单测覆盖：URL→Dispatcher→事件→BookmarkFeature 命中与未命中分支。

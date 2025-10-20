@@ -398,6 +398,40 @@ export class BookmarkManager {
   }
 
   /**
+   * 解析并返回指定书签ID对应的“标准页码”（1-based）
+   * - 优先使用 Bookmark.pageNumber
+   * - 如无 pageNumber 而有 dest，则解析为页码（依赖当前 PDF 文档）
+   * @param {string} id
+   * @returns {Promise<number|null>}
+   */
+  async getPageNumber(id) {
+    try {
+      const node = this.getBookmark(id);
+      if (!node) return null;
+      if (Number.isInteger(node.pageAt) && node.pageAt > 0) {
+        return node.pageAt;
+      }
+      // 兼容旧节点：尝试解析 dest
+      if (node.dest) {
+        try {
+          const { getCurrentPDFDocument } = await import('../../../pdf/current-document-registry.js');
+          const pdfDocument = getCurrentPDFDocument();
+          if (!pdfDocument) return null;
+          const { resolvePdfDest } = await import('../../../pdf/pdf-dest-utils.js');
+          const resolved = await resolvePdfDest(pdfDocument, node.dest);
+          const pageNumber = resolved?.pageNumber || null;
+          return (Number.isInteger(pageNumber) && pageNumber > 0) ? pageNumber : null;
+        } catch (_) {
+          return null;
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /**
    * 获取指定书签
    * @param {string} bookmarkId - 书签ID
    * @returns {Bookmark|null} 书签实例，未找到则返回null
@@ -423,6 +457,26 @@ export class BookmarkManager {
       const total = Array.isArray(bookmarks) ? bookmarks.length : 0;
       this.#logger.info(`✅ Found stored data: ${total} bookmarks, ${(rootIds || []).length} root IDs`);
 
+      // 打印原始样本，便于排查读回格式（仅前10条，摘要字段）
+      try {
+        const summarize = (n) => ({
+          id: n?.id ?? n?.bookmark_id ?? null,
+          name: n?.name ?? n?.title ?? null,
+          pageAt: n?.pageAt,
+          page_at: n?.page_at,
+          pageNumber: n?.pageNumber,
+          position: n?.position,
+          parentId: n?.parentId ?? n?.parent_id ?? null,
+          order: n?.order ?? null,
+          childrenLen: Array.isArray(n?.children) ? n.children.length : (Array.isArray(n?.items) ? n.items.length : 0)
+        });
+        const rawSamples = (Array.isArray(bookmarks) ? bookmarks.slice(0, 10) : []).map(summarize);
+        try { this.#logger.info(`[Storage] Raw sample (first ${rawSamples.length}) ${JSON.stringify(rawSamples)}`); } catch { this.#logger.info(`[Storage] Raw sample (first ${rawSamples.length})`); }
+      } catch (_) {}
+
+      // 破坏性修改：不再做任何旧字段归一化，严格要求存储返回 pageAt/position
+      const normalizedBookmarks = Array.isArray(bookmarks) ? bookmarks : [];
+
       // 重建 Map
       this.#bookmarks.clear();
 
@@ -432,21 +486,66 @@ export class BookmarkManager {
       if (isStandard) {
         const addRecursive = (bm) => {
           if (!bm || !bm.id) return;
+          // 严格模式：必须具有有效 pageAt，否则跳过并记录
+          // 允许将字符串数字规范化为整数
+          let p = bm.pageAt;
+          if (typeof p === 'string' && /^[0-9]+$/.test(p)) { try { p = parseInt(p, 10); } catch { p = bm.pageAt; } }
+          if (!(Number.isInteger(p) && p > 0)) {
+            try {
+              const brief = { id: bm.id, name: bm.name, pageAt: bm.pageAt, page_at: bm.page_at, pageNumber: bm.pageNumber, position: bm.position };
+              this.#logger.warn(`⚠️ Skip invalid bookmark (missing/invalid pageAt): ${bm.name || bm.id}`, brief);
+            } catch {
+              this.#logger.warn(`⚠️ Skip invalid bookmark (missing/invalid pageAt): ${bm.name || bm.id}`);
+            }
+            return;
+          }
+          bm.pageAt = p;
           this.#bookmarks.set(bm.id, bm);
           if (Array.isArray(bm.children) && bm.children.length > 0) {
             bm.children.forEach(child => addRecursive(child));
           }
         };
-        (bookmarks || []).forEach(bm => addRecursive(Bookmark.fromJSON(bm)));
-        this.#rootBookmarkIds = rootIds || [];
-        this.#logger.info(`📦 Loaded standard tree: roots=${this.#rootBookmarkIds.length}, mapSize=${this.#bookmarks.size}`);
+        (normalizedBookmarks || []).forEach(bmJson => {
+          try {
+            const inst = Bookmark.fromJSON(bmJson);
+            addRecursive(inst);
+          } catch (e) {
+            this.#logger.warn(`⚠️ Skip malformed bookmark JSON during load: ${bmJson?.id || '(no-id)'}`, e);
+          }
+        });
+        // 仅保留有效 rootIds（存在且为根的）
+        this.#rootBookmarkIds = (rootIds || []).filter(id => {
+          const n = this.#bookmarks.get(id);
+          return n && (!n.parentId);
+        });
+        // 打印已载入根节点样本
+        try {
+          const rootSamples = this.#rootBookmarkIds.slice(0, 10).map(id => {
+            const n = this.#bookmarks.get(id);
+            return n ? { id: n.id, name: n.name, pageAt: n.pageAt, position: n.position, childrenLen: (n.children||[]).length } : { id };
+          });
+          try { this.#logger.info(`📦 Loaded standard tree (strict): roots=${this.#rootBookmarkIds.length}, mapSize=${this.#bookmarks.size} ${JSON.stringify({ roots: rootSamples })}`); } catch { this.#logger.info(`📦 Loaded standard tree (strict): roots=${this.#rootBookmarkIds.length}, mapSize=${this.#bookmarks.size}`); }
+        } catch {
+          this.#logger.info(`📦 Loaded standard tree (strict): roots=${this.#rootBookmarkIds.length}, mapSize=${this.#bookmarks.size}`);
+        }
       } else {
         // 情况B：兼容旧格式（可能将所有节点平铺在顶层或混合）
-        this.#logger.warn('⚠️ Detected legacy bookmark format (no rootIds). Rebuilding tree from flat list...');
+        this.#logger.warn('⚠️ Detected legacy bookmark format (no rootIds). Rebuilding tree from flat list (strict, no legacy fields)...');
         const map = new Map();
         const shallow = (b) => {
-          // 使用 fromJSON 但清空 children，避免重复挂载
-          const inst = Bookmark.fromJSON(b);
+          // 使用 fromJSON（仅接受新字段），清空 children 避免重复挂载
+          const nb = normalizeNodeJson(b);
+          const inst = Bookmark.fromJSON({
+            id: nb.id,
+            name: nb.name,
+            pageAt: nb.pageAt,
+            position: nb.position,
+            parentId: nb.parentId,
+            order: nb.order,
+            createdAt: nb.createdAt,
+            updatedAt: nb.updatedAt,
+            children: nb.children
+          });
           inst.children = [];
           return inst;
         };
@@ -454,7 +553,12 @@ export class BookmarkManager {
         list.forEach(b => {
           try {
             const inst = shallow(b);
-            map.set(inst.id, inst);
+            // 严格模式：跳过无效 pageAt
+            if (!(Number.isInteger(inst.pageAt) && inst.pageAt > 0)) {
+              this.#logger.warn(`⚠️ Skip legacy/invalid node without valid pageAt: ${b?.name || b?.id}`);
+            } else {
+              map.set(inst.id, inst);
+            }
           } catch (_) {
             // ignore malformed entries
           }
@@ -486,10 +590,38 @@ export class BookmarkManager {
         });
 
         this.#rootBookmarkIds = roots.map(r => r.id);
-        this.#logger.info(`📦 Rebuilt legacy tree: roots=${this.#rootBookmarkIds.length}, mapSize=${this.#bookmarks.size}`);
+        // 打印已载入根节点样本
+        try {
+          const rootSamples = this.#rootBookmarkIds.slice(0, 10).map(id => {
+            const n = this.#bookmarks.get(id);
+            return n ? { id: n.id, name: n.name, pageAt: n.pageAt, position: n.position, childrenLen: (n.children||[]).length } : { id };
+          });
+          try { this.#logger.info(`📦 Rebuilt legacy tree (strict): roots=${this.#rootBookmarkIds.length}, mapSize=${this.#bookmarks.size} ${JSON.stringify({ roots: rootSamples })}`); } catch { this.#logger.info(`📦 Rebuilt legacy tree (strict): roots=${this.#rootBookmarkIds.length}, mapSize=${this.#bookmarks.size}`); }
+        } catch {
+          this.#logger.info(`📦 Rebuilt legacy tree (strict): roots=${this.#rootBookmarkIds.length}, mapSize=${this.#bookmarks.size}`);
+        }
       }
 
       this.#logger.info(`✅ Loaded ${this.#bookmarks.size} bookmarks from storage`);
+
+      // 追加：从“数据库读取后的最终节点列表”日志（拍平样本，便于核对pageAt）
+      try {
+        const flatten = [];
+        const push = (n, depth=0) => {
+          if (!n) return;
+          flatten.push({ id: n.id, name: n.name, pageAt: n.pageAt, position: n.position, parentId: n.parentId, order: n.order, depth });
+          (Array.isArray(n.children) ? n.children : []).forEach(ch => push(ch, depth+1));
+        };
+        const rootsNow = this.#rootBookmarkIds.map(id => this.#bookmarks.get(id)).filter(Boolean);
+        rootsNow.forEach(r => push(r, 0));
+        const sampleCount = Math.min(flatten.length, 60);
+        try {
+          this.#logger.info(`[DB] Final outline flat list count=${flatten.length}`);
+          this.#logger.info(`[DB] Final outline flat sample (first ${sampleCount}) ${JSON.stringify(flatten.slice(0, sampleCount))}`);
+        } catch {
+          this.#logger.info(`[DB] Final outline flat list count=${flatten.length}`);
+        }
+      } catch (_) {}
     } catch (error) {
       this.#logger.error('Failed to load bookmarks from storage:', error);
     }
@@ -517,9 +649,8 @@ export class BookmarkManager {
         const json = {
           id: node.id,
           name: node.name,
-          type: node.type,
-          pageNumber: node.pageNumber,
-          region: node.region,
+          pageAt: node.pageAt,
+          position: node.position,
           parentId: node.parentId,
           order: node.order,
           createdAt: node.createdAt,
@@ -637,18 +768,20 @@ export class BookmarkManager {
 
     for (const nativeBookmark of nativeBookmarks) {
       try {
-        // 解析dest获取页码
-        const pageNumber = await parseDestFunc(nativeBookmark);
-        if (!pageNumber) {
+        // 解析标准化目标：{ pageAt, position }
+        const norm = await parseDestFunc(nativeBookmark);
+        const pageAt = norm?.pageAt || null;
+        const position = (typeof norm?.position === 'number') ? norm.position : null;
+        if (!pageAt) {
           this.#logger.warn(`Skipping bookmark with invalid dest: ${nativeBookmark.title}`);
           continue;
         }
 
-        // 创建Bookmark实例
+        // 创建 Bookmark（统一页码+位置）
         const bookmark = new Bookmark({
           name: nativeBookmark.title || '(未命名)',
-          type: 'page',
-          pageNumber: pageNumber,
+          pageAt,
+          position,
           parentId: parentId,
           order: currentOrder
         });

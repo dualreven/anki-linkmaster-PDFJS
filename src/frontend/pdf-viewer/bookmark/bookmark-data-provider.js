@@ -156,12 +156,14 @@ export class BookmarkDataProvider {
 
     try {
       const { resolvePdfDest } = await import('../pdf/pdf-dest-utils.js');
-      const { pageNumber, x, y, zoom } = await resolvePdfDest(this.#pdfDocument, dest);
+      const { pageNumber, x, y, zoom, type } = await resolvePdfDest(this.#pdfDocument, dest);
+      // 严格：x/y 未提供时使用 null（不要默认 0，否则会被误判为“顶部/位置0%”）
       const result = {
         pageNumber,
-        x: (typeof x === 'number') ? x : 0,
-        y: (typeof y === 'number') ? y : 0,
-        zoom: (typeof zoom === 'number') ? zoom : null
+        x: (typeof x === 'number') ? x : null,
+        y: (typeof y === 'number') ? y : null,
+        zoom: (typeof zoom === 'number') ? zoom : null,
+        type: (typeof type === 'string') ? type : null
       };
       this.#logger.debug('Parsed destination:', result);
       return result;

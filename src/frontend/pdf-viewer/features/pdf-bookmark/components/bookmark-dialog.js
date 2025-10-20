@@ -68,7 +68,7 @@ export class BookmarkDialog {
 
     this.#dialog = this.#createDialog({
       title: '添加大纲',
-      content: this.#createAddEditForm({ pageNumber: currentPage }),
+      content: this.#createAddEditForm({ pageAt: currentPage, position: null }),
       buttons: [
         { text: '取消', onClick: () => this.#handleCancel() },
         { text: '添加', onClick: () => this.#handleAddConfirm(), primary: true }
@@ -284,24 +284,10 @@ export class BookmarkDialog {
         <input
           type="text"
           id="bookmark-name"
-          value="${data.name || (data.pageNumber ? `第 ${data.pageNumber} 页` : '')}"
+          value="${data.name || (data.pageAt ? `第 ${data.pageAt} 页` : '')}"
           placeholder="请输入大纲名称"
           style="padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;"
         />
-      </div>
-
-      <div style="display: flex; flex-direction: column; gap: 4px;">
-        <label style="font-weight: bold; font-size: 14px;">大纲类型</label>
-        <div style="display: flex; gap: 16px;">
-          <label style="display: flex; align-items: center; gap: 4px;">
-            <input type="radio" name="bookmark-type" value="page" ${(data.type === 'page' || !data.type) ? 'checked' : ''} />
-            <span>当前页</span>
-          </label>
-          <label style="display: flex; align-items: center; gap: 4px;">
-            <input type="radio" name="bookmark-type" value="region" ${data.type === 'region' ? 'checked' : ''} />
-            <span>精确区域</span>
-          </label>
-        </div>
       </div>
 
       <div style="display: flex; flex-direction: column; gap: 4px;">
@@ -309,9 +295,21 @@ export class BookmarkDialog {
         <input
           type="number"
           id="bookmark-page"
-          value="${data.pageNumber || 1}"
+          value="${data.pageAt || 1}"
           min="1"
           style="padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;"
+        />
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <label style="font-weight: bold; font-size: 14px;">位置百分比（0-100，可留空）</label>
+        <input
+          type="number"
+          id="bookmark-position"
+          value="${typeof data.position === 'number' ? data.position : ''}"
+          min="0" max="100"
+          style="padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;"
+          placeholder="留空表示未指定"
         />
       </div>
     `;
@@ -338,33 +336,25 @@ export class BookmarkDialog {
    */
   #handleAddConfirm() {
     const name = document.getElementById('bookmark-name').value.trim();
-    const type = document.querySelector('input[name="bookmark-type"]:checked').value;
-    const pageNumber = parseInt(document.getElementById('bookmark-page').value, 10);
+    const pageAt = parseInt(document.getElementById('bookmark-page').value, 10);
+    const posRaw = document.getElementById('bookmark-position')?.value ?? '';
+    const position = posRaw === '' ? null : Math.max(0, Math.min(100, parseInt(posRaw, 10)));
 
     if (!name) {
       alert('请输入书签名称');
       return;
     }
 
-    if (!pageNumber || pageNumber < 1) {
+    if (!pageAt || pageAt < 1) {
       alert('请输入有效的页码');
       return;
     }
 
     const bookmarkData = {
       name,
-      type,
-      pageNumber
+      pageAt,
+      position
     };
-
-    // 如果是region类型，添加区域信息（当前实现使用默认值）
-    if (type === 'region') {
-      bookmarkData.region = {
-        scrollX: 0,
-        scrollY: 0,
-        zoom: 1
-      };
-    }
 
     if (this.#callbacks.onConfirm) {
       this.#callbacks.onConfirm(bookmarkData);
@@ -379,32 +369,25 @@ export class BookmarkDialog {
    */
   #handleEditConfirm() {
     const name = document.getElementById('bookmark-name').value.trim();
-    const type = document.querySelector('input[name="bookmark-type"]:checked').value;
-    const pageNumber = parseInt(document.getElementById('bookmark-page').value, 10);
+    const pageAt = parseInt(document.getElementById('bookmark-page').value, 10);
+    const posRaw = document.getElementById('bookmark-position')?.value ?? '';
+    const position = posRaw === '' ? null : Math.max(0, Math.min(100, parseInt(posRaw, 10)));
 
     if (!name) {
       alert('请输入书签名称');
       return;
     }
 
-    if (!pageNumber || pageNumber < 1) {
+    if (!pageAt || pageAt < 1) {
       alert('请输入有效的页码');
       return;
     }
 
     const updates = {
       name,
-      type,
-      pageNumber
+      pageAt,
+      position
     };
-
-    if (type === 'region') {
-      updates.region = this.#currentBookmark.region || {
-        scrollX: 0,
-        scrollY: 0,
-        zoom: 1
-      };
-    }
 
     if (this.#callbacks.onConfirm) {
       this.#callbacks.onConfirm(updates);

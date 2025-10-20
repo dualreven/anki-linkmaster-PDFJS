@@ -4,14 +4,14 @@
  * @description 负责解析和验证URL查询参数，提取PDF导航相关的参数
  */
 
-import { getLogger } from '../../../../common/utils/logger.js';
+import { getLogger } from "../../../../common/utils/logger.js";
 
 /**
  * URL参数解析器类
  * @class URLParamsParser
  */
 export class URLParamsParser {
-  static #logger = getLogger('URLParamsParser');
+  static #logger = getLogger("URLParamsParser");
 
   /**
    * 解析URL并提取PDF导航参数
@@ -40,18 +40,19 @@ export class URLParamsParser {
       const params = urlObj.searchParams;
 
       // 提取参数
-      const pdfId = params.get('pdf-id');
-      const title = params.get('title');
-      const anchorId = params.get('anchor-id');
-      const annotationId = params.get('annotation-id');
-      const pageAtStr = params.get('page-at');
-      const positionStr = params.get('position');
+      const pdfId = params.get("pdf-id");
+      const title = params.get("title");
+      const anchorId = params.get("anchor-id");
+      const annotationId = params.get("annotation-id");
+      const outlineItemId = params.get("outline-item-id");
+      const pageAtStr = params.get("page-at");
+      const positionStr = params.get("position");
 
       // 解析数值参数
       const pageAt = pageAtStr ? parseInt(pageAtStr, 10) : null;
       const position = positionStr ? parseFloat(positionStr) : null;
 
-      const hasParams = pdfId !== null || pageAt !== null || position !== null || anchorId !== null || annotationId !== null;
+      const hasParams = pdfId !== null || pageAt !== null || position !== null || anchorId !== null || annotationId !== null || outlineItemId !== null;
 
       const result = {
         pdfId,
@@ -60,20 +61,22 @@ export class URLParamsParser {
         position,
         anchorId,
         annotationId,
+        outlineItemId,
         hasParams,
       };
 
-      this.#logger.debug('URL参数解析结果:', result);
+      this.#logger.debug("URL参数解析结果:", result);
 
       return result;
     } catch (error) {
-      this.#logger.error('URL解析失败:', error);
+      this.#logger.error("URL解析失败:", error);
       return {
         pdfId: null,
         pageAt: null,
         position: null,
         anchorId: null,
         annotationId: null,
+        outlineItemId: null,
         hasParams: false,
         error: error.message,
       };
@@ -88,6 +91,7 @@ export class URLParamsParser {
    * @param {number|null} params.position - 位置百分比
    * @param {string|null} [params.anchorId] - 锚点ID
    * @param {string|null} [params.annotationId] - 标注ID
+   * @param {string|null} [params.outlineItemId] - 大纲项ID
    * @returns {Object} 验证结果
    * @returns {boolean} return.isValid - 参数是否有效
    * @returns {string[]} return.errors - 错误信息数组
@@ -106,33 +110,33 @@ export class URLParamsParser {
     if (!params.pdfId) {
       if (params.anchorId) {
         // 允许仅携带 anchorId 的链接；后续由后端解析映射 pdfId
-        warnings.push('缺少 pdf-id，将尝试通过 anchor-id 解析');
+        warnings.push("缺少 pdf-id，将尝试通过 anchor-id 解析");
       } else {
-        errors.push('缺少必填参数: pdf-id');
+        errors.push("缺少必填参数: pdf-id");
       }
-    } else if (typeof params.pdfId !== 'string' || params.pdfId.trim() === '') {
-      errors.push('pdf-id 必须是非空字符串');
-    } else if (params.pdfId.includes('/') || params.pdfId.includes('\\')) {
-      errors.push('pdf-id 不能包含路径分隔符');
+    } else if (typeof params.pdfId !== "string" || params.pdfId.trim() === "") {
+      errors.push("pdf-id 必须是非空字符串");
+    } else if (params.pdfId.includes("/") || params.pdfId.includes("\\")) {
+      errors.push("pdf-id 不能包含路径分隔符");
     }
 
     // 验证page-at（可选）
     if (params.pageAt !== null && params.pageAt !== undefined) {
       if (!Number.isInteger(params.pageAt)) {
-        errors.push('page-at 必须是整数');
+        errors.push("page-at 必须是整数");
       } else if (params.pageAt < 1) {
-        errors.push('page-at 必须大于等于1');
+        errors.push("page-at 必须大于等于1");
       } else if (params.pageAt > 10000) {
-        warnings.push('page-at 超过10000，可能超出PDF总页数');
+        warnings.push("page-at 超过10000，可能超出PDF总页数");
       }
     }
 
     // 验证position（可选）
     if (params.position !== null && params.position !== undefined) {
-      if (typeof params.position !== 'number' || isNaN(params.position)) {
-        errors.push('position 必须是数字');
+      if (typeof params.position !== "number" || isNaN(params.position)) {
+        errors.push("position 必须是数字");
       } else if (params.position < 0 || params.position > 100) {
-        errors.push('position 必须在0-100之间');
+        errors.push("position 必须在0-100之间");
       }
     }
 
@@ -148,7 +152,15 @@ export class URLParamsParser {
     if (params.annotationId !== null && params.annotationId !== undefined) {
       const s = String(params.annotationId).trim();
       if (s.length === 0) {
-        warnings.push('annotation-id 为空，将忽略');
+        warnings.push("annotation-id 为空，将忽略");
+      }
+    }
+
+    // 验证 outline-item-id（可选）：放宽为非空字符串（暂不校验格式，后续由消费方处理）
+    if (params.outlineItemId !== null && params.outlineItemId !== undefined) {
+      const o = String(params.outlineItemId).trim();
+      if (o.length === 0) {
+        warnings.push("outline-item-id 为空，将忽略");
       }
     }
 
@@ -161,9 +173,9 @@ export class URLParamsParser {
     };
 
     if (!isValid) {
-      this.#logger.warn('参数验证失败:', result);
+      this.#logger.warn("参数验证失败:", result);
     } else if (warnings.length > 0) {
-      this.#logger.warn('参数验证警告:', result);
+      this.#logger.warn("参数验证警告:", result);
     }
 
     return result;
@@ -220,6 +232,7 @@ export class URLParamsParser {
    * @param {number} [params.pageAt] - 目标页码
    * @param {number} [params.position] - 位置百分比
    * @param {string} [params.anchorId] - 锚点ID
+   * @param {string} [params.outlineItemId] - 大纲项ID
    * @returns {string} URL查询字符串（不含?前缀）
    *
    * @example
@@ -234,19 +247,23 @@ export class URLParamsParser {
     const searchParams = new URLSearchParams();
 
     if (params.pdfId) {
-      searchParams.set('pdf-id', params.pdfId);
+      searchParams.set("pdf-id", params.pdfId);
     }
 
     if (params.pageAt !== null && params.pageAt !== undefined) {
-      searchParams.set('page-at', params.pageAt.toString());
+      searchParams.set("page-at", params.pageAt.toString());
     }
 
     if (params.position !== null && params.position !== undefined) {
-      searchParams.set('position', params.position.toString());
+      searchParams.set("position", params.position.toString());
     }
 
     if (params.anchorId) {
-      searchParams.set('anchor-id', params.anchorId);
+      searchParams.set("anchor-id", params.anchorId);
+    }
+
+    if (params.outlineItemId) {
+      searchParams.set("outline-item-id", params.outlineItemId);
     }
 
     return searchParams.toString();

@@ -17,10 +17,10 @@
     "check:deps": "depcruise --config src/frontend/pdf-viewer/.dependency-cruiser.js src/frontend/pdf-viewer",
     "test:pre-commit": "pnpm run check:deps && pnpm run test",
     "test:format": "node scripts/test-formatting.mjs",
-    "lint": "pnpm exec eslint . --ext .js,.cjs,.mjs",
+    "lint": "pnpm exec eslint src scripts eslint-rules --ext .js,.cjs,.mjs",
     "format:check": "node scripts/run-prettier.mjs --check",
     "format": "node scripts/run-prettier.mjs --write",
-    "lint:fix": "pnpm exec eslint . --ext .js,.cjs,.mjs --fix"
+    "lint:fix": "pnpm exec eslint src scripts eslint-rules --ext .js,.cjs,.mjs --fix"
   },
   "engines": {
     "node": ">=14.0.0",

@@ -37,15 +37,25 @@ class DefaultBookmarkService(BookmarkService):
         node_map: Dict[str, Dict[str, Any]] = {}
         for row in rows:
             bookmark_id = row['bookmark_id']
+            page_at = row.get('pageAt')
+            if not isinstance(page_at, int) or page_at < 1:
+                # 严格模式：缺少或非法 pageAt 直接报错，不再回退任何旧字段
+                raise DatabaseValidationError('pageAt is required and must be >= 1')
+            position = row.get('position', None)
+            if isinstance(position, (int, float)):
+                position = int(round(position))
+                if position < 0: position = 0
+                if position > 100: position = 100
+            else:
+                position = None
             node_map[bookmark_id] = {
                 "id": bookmark_id,
                 "name": row.get('name', ''),
-                "type": row.get('type', 'page'),
-                "pageNumber": row.get('pageNumber', 1),
-                "region": row.get('region'),
+                "pageAt": page_at,
+                "position": position,
                 "children": [],
                 "parentId": row.get('parentId'),
-                "order": row.get('order', 0),
+                "order": row.get('order', 0) or 0,
                 "createdAt": context._ms_to_iso(row.get('created_at')),  # type: ignore[attr-defined]
                 "updatedAt": context._ms_to_iso(row.get('updated_at')),  # type: ignore[attr-defined]
             }
@@ -147,9 +157,8 @@ class DefaultBookmarkService(BookmarkService):
         summary = {
             'bookmark_id': row['bookmark_id'],
             'name': row['json_data']['name'],
-            'type': row['json_data']['type'],
-            'pageNumber': row['json_data']['pageNumber'],
-            'region': row['json_data']['region'],
+            'pageAt': row['json_data']['pageAt'],
+            'position': row['json_data']['position'],
             'children': child_summaries,
             'parentId': row['json_data']['parentId'],
             'order': row['json_data']['order'],
@@ -170,15 +179,26 @@ class DefaultBookmarkService(BookmarkService):
         name = bookmark.get('name')
         if not isinstance(name, str) or not name.strip():
             raise ValueError('bookmark name is required')
-        bookmark_type = bookmark.get('type', 'page')
-        if bookmark_type not in {'page', 'region'}:
-            raise ValueError("bookmark type must be 'page' or 'region'")
-        try:
-            page_number = int(bookmark.get('pageNumber', 1))
-        except (TypeError, ValueError):
-            raise ValueError('pageNumber must be an integer >= 1')
-        if page_number < 1:
-            raise ValueError('pageNumber must be an integer >= 1')
+        # 统一为 pageAt/position（严格模式：取消对 pageNumber/region 的任何回退）
+        def _int_ge1(name_: str, v: Any) -> int:
+            try:
+                iv = int(v)
+            except Exception:
+                raise ValueError(f'{name_} must be an integer >= 1')
+            if iv < 1:
+                raise ValueError(f'{name_} must be an integer >= 1')
+            return iv
+        # 仅接受 pageAt，不再从 pageNumber 回退
+        page_at = _int_ge1('pageAt', bookmark.get('pageAt', None))
+        position = bookmark.get('position', None)
+        if position is not None:
+            try:
+                fv = float(position)
+                if fv < 0 or fv > 100:
+                    raise ValueError('position must be between 0 and 100')
+                position = int(round(fv))
+            except Exception:
+                raise ValueError('position must be a number between 0 and 100')
 
         created_ms = self._iso_to_ms(bookmark.get('createdAt'))
         updated_ms = self._iso_to_ms(bookmark.get('updatedAt'))
@@ -189,9 +209,8 @@ class DefaultBookmarkService(BookmarkService):
 
         json_data = {
             'name': name.strip(),
-            'type': bookmark_type,
-            'pageNumber': page_number,
-            'region': self._normalize_region(bookmark.get('region'), bookmark_type),
+            'pageAt': page_at,
+            'position': position,
             'children': child_summaries,
             'parentId': parent_id,
             'order': order if isinstance(order, int) and order >= 0 else 0,
@@ -206,22 +225,7 @@ class DefaultBookmarkService(BookmarkService):
             'json_data': json_data,
         }
 
-    @staticmethod
-    def _normalize_region(region: Any, bookmark_type: str) -> Optional[Dict[str, Any]]:
-        if bookmark_type != 'region':
-            return None
-        if not isinstance(region, dict):
-            raise ValueError('region bookmark requires region object')
-        required_keys = ('scrollX', 'scrollY', 'zoom')
-        normalized: Dict[str, Any] = {}
-        for key in required_keys:
-            value = region.get(key)
-            if not isinstance(value, (int, float)):
-                raise ValueError('region requires numeric scrollX, scrollY, zoom')
-            normalized[key] = float(value)
-        if normalized['zoom'] <= 0:
-            raise ValueError('region.zoom must be greater than 0')
-        return normalized
+    # 不再使用 region/type；统一为 pageAt/position
 
     @staticmethod
     def _iso_to_ms(value: Optional[str]) -> int:

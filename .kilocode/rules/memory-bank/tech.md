@@ -13,6 +13,12 @@
 - [Babel/Vite/AI Launcher](#babelviteai-launcher)
 
 > 最近更新（10条，按日期倒序）
+- 2025-10-20 Outline 点击改为按ID导航事件：侧边栏点击发射 `BOOKMARK.NAVIGATE_BY_ID.REQUESTED`，由 Feature 层统一消费
+- 2025-10-20 书签严格模式（后端）：仅接受 `pageAt/position`，移除 `pageNumber/region` 兼容与自动迁移；缺失 `pageAt` 直接报错
+- 2025-10-19 书签/大纲严格模式：仅 pageAt/position，旧字段不兼容；无效即报错
+- 2025-10-20 后端书签Schema统一：pageAt/position（移除 pageNumber/region/type）
+- 2025-10-19 OutlineSidebarUI 适配统一字段 pageAt/position（重要）
+- 2025-10-19 Outline（大纲）节点ID规范与“按ID导航”事件（新增）
 - 2025-10-19 截图标注延迟渲染（新增）
 - 2025-10-18 消息契约（更新）
 - 2025-10-18 标注渲染加载策略（更新）
@@ -106,7 +112,9 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
 - Hosted Tab 新增输入：
   - `pdfanchor-id` → 映射为前端 URL 参数 `anchor-id`（通过 `LaunchConfig.anchor_id` 或 CLI `--anchor-id`）
   - `pdfannotation-id` → 映射为前端 URL 参数 `annotation-id`（通过 `LaunchConfig.annotation_id` 或 CLI `--annotation-id`）
-  - `pdfoutline-item-id` → 仅 GUI 侧记录到日志，暂不注入 CLI（前端 argparse 未定义该参数）
+  - `pdfoutline-item-id` → 现已贯通到前端，映射为 URL 参数 `outline-item-id`
+    - CLI：`--outline-item-id <id>`
+    - Hosted：通过 `LaunchConfig.extra_params = { outline_item_id: '<id>' }` 注入，前端 launcher 追加到 URL
 - 代码位置：
   - `gui_launcher.py`: `_create_hosted_tab()`、`_start_pdf_viewer_hosted()`、`LauncherThread._start_pdf_viewer()`
   - `src/launcher/runner.py`: `start_pdf_viewer_hosted/cli` 扩展签名并透传参数
@@ -196,6 +204,30 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
 
 ## 事件与功能开关变更（2025-10-07）
 - 启用 `pdf-home` 的 `header` 功能（`config/feature-flags.json` → `header.enabled = true`）。
+
+## Outline（大纲）节点与导航（2025-10-19 新增）
+- 节点 ID 规范
+  - 新增节点采用：`outlineItem-<8位Base64URL>`，例如 `outlineItem-1aB_CdEf`；
+  - 生成规则：6 字节随机源，经 Base64 编码为 8 字符，并进行 URL-safe 处理（`+`→`-`，`/`→`_`，去除`=`）；来源：`features/pdf-bookmark/models/bookmark.js`。
+  - 兼容：历史 ID（如 `bookmark-...`）仍可在存储/渲染中使用，但推荐逐步迁移为新前缀。
+- “按ID导航”事件
+  - 新事件：`PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED`（`pdf-viewer:bookmark-navigate-by-id:requested`）；
+  - 负载：`{ outlineItemId: string }`（兼容 `{ id }` 或 `{ bookmarkId }`）；
+  - 消费方：`features/pdf-bookmark/index.js`（找到对应节点 → 复用点击导航流程 → 调用 `navigationService.navigateTo`）；
+  - 成功/失败：继续复用 `BOOKMARK.NAVIGATE.SUCCESS/FAILED`。
+
+### 统一数据模型（破坏性更新 2025-10-19）
+- 模型统一：Bookmark 统一为“页码 + 位置百分比”
+  - `pageAt: number`（1-based）
+  - `position: number|null`（0~100，null 表示未指定）
+  - 移除：`type/region/pageNumber`
+  - 文件：`features/pdf-bookmark/models/bookmark.js`
+- 导入规则（无 DB 大纲时从 PDF 原生导入）：
+  - 解析 `dest` → `resolvePdfDest(pdfDocument, dest)` 得到 `{ pageNumber, x,y,zoom }`
+  - 位置百分比估算：`yToPositionPercent(pdfDocument, pageAt, y)`；失败则置 `null`
+  - 文件：`features/pdf-bookmark/index.js`（`#parseBookmarkNormalizedDest`）与 `pdf/pdf-dest-utils.js`
+- 导航优先使用：`bookmark.pageAt/position`；旧数据仍可通过 `dest` 解析兜底
+- UI：对话框改为 `name/pageAt/position` 三项，移除“类型/区域”输入
 - 排序按钮事件统一使用三段式 `*:requested`：
   - `header:sort:requested`
   - `search:sort:requested`
@@ -260,6 +292,9 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
   - `bookmark/bookmark-data-provider.js#parseDestination()` 改为调用上述工具，并修复“pageRef 为 number 未 +1”的偏移问题。
 - 行为增强：
   - `ui/bookmark-sidebar-ui.js`、`features/pdf-outline/components/outline-sidebar-ui.js` 在具备 `region.scrollY`（百分比）时，向 `NAVIGATION.URL_PARAMS.REQUESTED` 一并传递 `position`，提升落点准确性；缺省仍为纯页级跳转。
+  - 2025-10-19 修正（严格）：`features/pdf-outline/components/outline-sidebar-ui.js` 与 `ui/bookmark-sidebar-ui.js` 仅读取 `pageAt/position`；无效即报错并拒绝跳转；不再做 `pageNumber/region.scrollY` 的回退。
+  - 2025-10-19 严格：`features/pdf-bookmark/models/bookmark.js` 去掉默认 `pageAt=1`；`fromJSON` 不再接受旧字段；`loadFromStorage` 跳过无效节点。
+  - 2025-10-20 后端统一：`backend/api/pdf-viewer/bookmark/service.py` 的 `list_bookmarks/save_bookmarks` 读写 `pageAt/position`；兼容旧数据读取（pageNumber/region.scrollY→pageAt/position），写入仅保存 `pageAt/position`。
 
 
 ###（新增 2025-10-17）PDF.js 资源路径（生产）使用规范
@@ -973,6 +1008,16 @@ emove_comment(ann_id, comment_id)。
   - 若在 Anki 环境导入插件副本，则 DB 落在插件库根的 `data/`；
   - 若导入到源码副本，则 DB 落在源码仓库根的 `data/`；此为预期（以模块物理路径为准）。
 ## 事件契约更新（20251018085714）
+
+- （新增 2025-10-20）侧边栏点击改为“按ID导航事件”
+  - 事件：`PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED`
+    - 负载：`{ outlineItemId: string }`（兼容 `bookmarkId/id`，消费端会自动兼容取值）
+  - 发送端：
+    - `ui/bookmark-sidebar-ui.js`、`features/pdf-outline/components/outline-sidebar-ui.js` 在 `select_node.jstree` 中发射该事件；
+    - 同时发出 `BOOKMARK.SELECT.CHANGED({ bookmarkId, bookmark })` 保持工具栏等状态一致；
+  - 消费端：`features/pdf-bookmark/index.js:#handleNavigateByIdRequest()`
+    - 通过 `BookmarkManager.getBookmark(id)` 定位节点；复用 `#handleNavigateRequest()` 导航；
+    - 失败时发 `BOOKMARK.NAVIGATE.FAILED` 并记录日志。
 
 - 事件：`PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED`
   - `pdfId: string`（必填，若由 URL/上下文提供则透传）

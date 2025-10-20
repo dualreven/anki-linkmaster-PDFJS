@@ -344,11 +344,13 @@ export class FileHandler {
       { actorId: 'FileHandler' }
     );
 
-    this.#app.eventBus.emit(
-      PDF_VIEWER_EVENTS.NAVIGATION.TOTAL_PAGES_UPDATED,
-      pdfDocument.numPages,
-      { actorId: 'FileHandler' }
-    );
+    try {
+      this.#app.eventBus.emit(
+        PDF_VIEWER_EVENTS.NAVIGATION.TOTAL_PAGES_UPDATED,
+        { totalPages: pdfDocument.numPages },
+        { actorId: 'FileHandler' }
+      );
+    } catch (_) {}
   }
 
   /**

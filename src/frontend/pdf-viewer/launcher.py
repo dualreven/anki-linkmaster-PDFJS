@@ -249,6 +249,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--anchor-id", type=str, dest="anchor_id", help="Anchor ID (e.g., pdfanchor-test or pdfanchor-<12-hex>)")
     parser.add_argument("--pdfanchor", type=str, dest="pdfanchor", help="Alias of --anchor-id for convenience")
     parser.add_argument("--annotation-id", type=str, dest="annotation_id", help="Annotation ID to focus after loading (optional)")
+    parser.add_argument("--outline-item-id", type=str, dest="outline_item_id", help="Outline item ID to navigate after loading (optional)")
     parser.add_argument("--diagnose-only", action="store_true", help="Run initialization diagnostics and exit before starting the Qt event loop")
     parser.add_argument("--disable-webchannel", action="store_true", help="Skip QWebChannel bridge setup")
     parser.add_argument("--disable-websocket", action="store_true", help="Skip QWebSocket bridge connection")
@@ -488,6 +489,13 @@ class PdfViewerApp:
             url += f"&anchor-id={self.config.anchor_id}"
         if self.config.annotation_id:
             url += f"&annotation-id={self.config.annotation_id}"
+        try:
+            extra = getattr(self.config, 'extra_params', {}) or {}
+            oi = extra.get('outline_item_id')
+            if oi:
+                url += f"&outline-item-id={oi}"
+        except Exception:
+            pass
 
         return url
 
@@ -966,6 +974,11 @@ def main_legacy() -> int:
     if getattr(args, 'annotation_id', None):
         url += f"&annotation-id={args.annotation_id}"
         logger.info(f"URL navigation: annotation-id = {args.annotation_id}")
+
+    # 追加 outline-item-id（可选）
+    if getattr(args, 'outline_item_id', None):
+        url += f"&outline-item-id={args.outline_item_id}"
+        logger.info(f"URL navigation: outline-item-id = {args.outline_item_id}")
 
     # 在加载前，确保为本 viewer 配置独立的 Python 日志文件，避免 dist/latest/pdf-viewer-<id>.log 为空
     try:

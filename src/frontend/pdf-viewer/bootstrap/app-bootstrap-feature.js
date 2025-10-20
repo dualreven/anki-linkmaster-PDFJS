@@ -123,7 +123,16 @@ export async function bootstrapPDFViewerAppFeature() {
             if (e && e.ctrlKey) {
               e.preventDefault();
               e.stopPropagation();
-              logger.info('[Bootstrap] Ctrl+Wheel page zoom prevented');
+              // 将 Ctrl+滚轮 转译为应用内的 PDF 缩放事件（避免浏览器层 page zoom）
+              import("../../common/event/pdf-viewer-constants.js").then(({ PDF_VIEWER_EVENTS }) => {
+                const direction = (e.deltaY || 0) < 0 ? 'in' : 'out';
+                const evt = direction === 'in' ? PDF_VIEWER_EVENTS.ZOOM.IN : PDF_VIEWER_EVENTS.ZOOM.OUT;
+                // 使用较小的步进以获得平滑体验
+                eventBusSingleton.emit(evt, { delta: 0.15 }, { actorId: 'BootstrapZoomGuard' });
+                logger.info(`[Bootstrap] Ctrl+Wheel intercepted → zoom ${direction}`);
+              }).catch(() => {
+                logger.warn('[Bootstrap] Failed to emit zoom event on Ctrl+Wheel');
+              });
             }
           } catch (_) {}
         };
@@ -169,8 +178,9 @@ export async function bootstrapPDFViewerAppFeature() {
       eventBus: eventBusSingleton
     };
 
-    // 7. 如果有PDF路径，自动加载
-    if (pdfPath) {
+    // 7. 如果有PDF路径，自动加载（但当URL已提供 pdf-id 时，避免与 URLNavigationFeature 重复触发）
+    const hasPdfIdParam = (() => { try { return !!new URLSearchParams(window.location.search).get('pdf-id'); } catch { return false; } })();
+    if (pdfPath && !hasPdfIdParam) {
       logger.info(`[Bootstrap] Auto-loading PDF: ${pdfPath}`);
 
       // 从完整路径中提取文件名
@@ -191,6 +201,8 @@ export async function bootstrapPDFViewerAppFeature() {
         filename: filename,
         file_path: pdfPath
       }, { actorId: 'Bootstrap' });
+    } else if (pdfPath && hasPdfIdParam) {
+      logger.warn("[TRACE] Skip Bootstrap auto-load because 'pdf-id' present; URLNavigationFeature will handle loading.");
     }
 
     logger.info("[Bootstrap] PDF Viewer App started successfully");

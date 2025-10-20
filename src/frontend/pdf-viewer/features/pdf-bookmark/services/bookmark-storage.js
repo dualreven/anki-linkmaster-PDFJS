@@ -132,6 +132,7 @@ export class RemoteBookmarkStorage extends IBookmarkStorage {
       );
 
       const normalized = {
+        // 后端与前端统一：使用 pageAt/position
         bookmarks: Array.isArray(response?.bookmarks) ? response.bookmarks : [],
         rootIds: response?.rootIds ?? response?.root_ids ?? []
       };
@@ -147,6 +148,7 @@ export class RemoteBookmarkStorage extends IBookmarkStorage {
   async save(pdfId, bookmarks, rootIds) {
     const payload = {
       pdf_uuid: pdfId,
+      // 前端与后端统一：使用 pageAt/position
       bookmarks: bookmarks || [],
       root_ids: rootIds || []
     };

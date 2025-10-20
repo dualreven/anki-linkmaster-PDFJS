@@ -95,11 +95,11 @@ export class AnnotationFeature {
     this.#logger = logger || getLogger("AnnotationFeature");
     this.#logger.info(`[${this.name}] Installing (v${this.version})...`);
 
-    // 放开 Annotation 模块相关日志过滤（可被 localStorage.ANNOTATION_LOG_LEVEL 覆盖）
+    // Annotation 模块级日志过滤（可被 localStorage.ANNOTATION_LOG_LEVEL 覆盖）
     try {
       const lvStr = (typeof window !== "undefined" && window.localStorage)
-        ? (window.localStorage.getItem("ANNOTATION_LOG_LEVEL") || "debug").toLowerCase()
-        : "debug";
+        ? (window.localStorage.getItem("ANNOTATION_LOG_LEVEL") || "error").toLowerCase()
+        : "error";
       const allowed = [LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR];
       const lv = allowed.includes(lvStr) ? lvStr : LogLevel.DEBUG;
       // 针对不同命名的模块名做覆盖，避免模块名不统一导致的观测缺失
@@ -536,7 +536,7 @@ export class AnnotationFeature {
           await this.#navigationService.navigateTo({ pageAt: pageNumber, position: null });
           await new Promise(resolve => setTimeout(resolve, 80));
           const pageView = this.#pdfViewerManager?.getPageView?.(pageNumber) || null;
-          const canvas = pageView?.div?.querySelector?.('canvas') || null;
+          const canvas = pageView?.div?.querySelector?.("canvas") || null;
           const canvasH = canvas ? (canvas.height || canvas.getBoundingClientRect()?.height || 0) : 0;
           const r = annotation.data.rect;
           if (canvasH > 0 && typeof r?.y === "number" && typeof r?.height === "number") {

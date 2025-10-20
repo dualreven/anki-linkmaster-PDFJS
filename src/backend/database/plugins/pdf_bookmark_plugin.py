@@ -19,7 +19,10 @@ class PDFBookmarkTablePlugin(TablePlugin):
     """管理 pdf_bookmark 表的数据库插件。"""
 
     _UUID_PATTERN = re.compile(r"^[a-f0-9]{12}$")
-    _BOOKMARK_ID_PATTERN = re.compile(r"^bookmark-[0-9]+-[a-z0-9]+$")
+    # 兼容两种前端ID格式：
+    # - 旧：bookmark-<timestamp>-<random>
+    # - 新：outlineItem-<8位Base64URL>（A-Za-z0-9_-）
+    _BOOKMARK_ID_PATTERN = re.compile(r"^(bookmark-[0-9]+-[a-z0-9]+|outlineItem-[A-Za-z0-9_-]{8})$")
 
     def __init__(
         self,
@@ -52,6 +55,7 @@ class PDFBookmarkTablePlugin(TablePlugin):
             super().enable()
             self.register_events()
             self._events_registered = True
+            # 严格模式：禁用旧数据自动迁移，要求数据已为标准结构（pageAt/position），否则在上层流程中报错
 
     def disable(self) -> None:
         if self._enabled and self._events_registered:
@@ -82,8 +86,10 @@ class PDFBookmarkTablePlugin(TablePlugin):
 
         CREATE INDEX IF NOT EXISTS idx_bookmark_pdf_uuid ON pdf_bookmark(pdf_uuid);
         CREATE INDEX IF NOT EXISTS idx_bookmark_created ON pdf_bookmark(created_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_bookmark_page
-            ON pdf_bookmark(json_extract(json_data, '$.pageNumber'));
+        -- 破坏性更新：切换到 pageAt 索引；删除旧索引（如果存在）
+        DROP INDEX IF EXISTS idx_bookmark_page;
+        CREATE INDEX IF NOT EXISTS idx_bookmark_page_at
+            ON pdf_bookmark(json_extract(json_data, '$.pageAt'));
         """
         self._executor.execute_script(script)
         self._emit_event('create', 'completed')
@@ -91,6 +97,72 @@ class PDFBookmarkTablePlugin(TablePlugin):
             self._logger.info('pdf_bookmark table ensured')
 
     # ==================== 验证 ====================
+    def _migrate_legacy_schema(self) -> None:
+        """
+        将旧数据(json_data 内包含 pageNumber/region/type)迁移为新结构(pageAt/position)，递归处理 children。
+        仅在 json_data 缺少 pageAt 时执行。
+        """
+        sql = """
+        SELECT bookmark_id, json_data
+        FROM pdf_bookmark
+        WHERE json_valid(json_data)
+          AND (json_extract(json_data, '$.pageAt') IS NULL)
+        """
+        rows = self._executor.execute_query(sql, ())
+        if not rows:
+            if self._logger:
+                self._logger.info("[pdf_bookmark] migration: no legacy rows detected")
+            return
+
+        def transform(node: Dict[str, Any]) -> Dict[str, Any]:
+            name = node.get('name') or ''
+            try:
+                page_at = int(node.get('pageAt', node.get('pageNumber', 1)))
+            except Exception:
+                page_at = 1
+            if page_at < 1:
+                page_at = 1
+            pos = node.get('position', None)
+            if pos is None:
+                region = node.get('region')
+                if isinstance(region, dict):
+                    try:
+                        pos = int(round(float(region.get('scrollY', 0))))
+                    except Exception:
+                        pos = None
+            if isinstance(pos, (int, float)):
+                pos = int(round(pos))
+                if pos < 0: pos = 0
+                if pos > 100: pos = 100
+            else:
+                pos = None
+            children = node.get('children', [])
+            new_children = []
+            if isinstance(children, list):
+                for ch in children:
+                    if isinstance(ch, dict):
+                        new_children.append(transform(ch))
+            return {
+                'name': name,
+                'pageAt': page_at,
+                'position': pos,
+                'children': new_children,
+                'parentId': node.get('parentId'),
+                'order': node.get('order', 0),
+            }
+
+        migrated = 0
+        for row in rows:
+            try:
+                jd = json.loads(row.get('json_data', '{}'))
+            except json.JSONDecodeError:
+                continue
+            new_json = transform(jd)
+            ok = self.update(row['bookmark_id'], {'json_data': new_json})
+            if ok:
+                migrated += 1
+        if self._logger:
+            self._logger.info(f"[pdf_bookmark] migration completed: migrated_rows={migrated}")
 
     def validate_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
         if data is None:
@@ -159,29 +231,27 @@ class PDFBookmarkTablePlugin(TablePlugin):
         if not isinstance(name, str) or not name.strip():
             raise DatabaseValidationError('name must be a non-empty string')
 
-        bookmark_type = json_data.get('type')
-        if bookmark_type not in {'page', 'region'}:
-            raise DatabaseValidationError("type must be either 'page' or 'region'")
+        # 破坏性更新：不再使用 type/region，统一 pageAt/position
 
-        page_number = json_data.get('pageNumber')
+        page_at = json_data.get('pageAt')
         try:
-            page_number = int(page_number)
+            page_at = int(page_at)
         except (TypeError, ValueError):
-            raise DatabaseValidationError('pageNumber must be an integer')
-        if page_number < 1:
-            raise DatabaseValidationError('pageNumber must be >= 1')
+            raise DatabaseValidationError('pageAt must be an integer')
+        if page_at < 1:
+            raise DatabaseValidationError('pageAt must be >= 1')
 
-        region = json_data.get('region')
-        if bookmark_type == 'region':
-            if not isinstance(region, dict):
-                raise DatabaseValidationError('region is required when type=region')
-            validated_region = {
-                'scrollX': self._validate_number(region.get('scrollX'), 'region.scrollX'),
-                'scrollY': self._validate_number(region.get('scrollY'), 'region.scrollY'),
-                'zoom': self._validate_strict_positive(region.get('zoom'), 'region.zoom'),
-            }
+        # 可选 position（0~100 的整数百分比）
+        position_value = json_data.get('position', None)
+        if position_value is not None:
+            try:
+                position_value = int(position_value)
+            except (TypeError, ValueError):
+                raise DatabaseValidationError('position must be an integer between 0 and 100')
+            if position_value < 0 or position_value > 100:
+                raise DatabaseValidationError('position must be in range 0~100')
         else:
-            validated_region = None
+            position_value = None
 
         parent_id = json_data.get('parentId')
         if parent_id is not None and (not isinstance(parent_id, str) or not parent_id.strip()):
@@ -200,9 +270,8 @@ class PDFBookmarkTablePlugin(TablePlugin):
 
         return {
             'name': name,
-            'type': bookmark_type,
-            'pageNumber': page_number,
-            'region': validated_region,
+            'pageAt': page_at,
+            'position': position_value,
             'children': validated_children,
             'parentId': parent_id,
             'order': order_value,
@@ -229,27 +298,25 @@ class PDFBookmarkTablePlugin(TablePlugin):
         if not isinstance(name, str) or not name.strip():
             raise DatabaseValidationError('child bookmark name must be a non-empty string')
 
-        bookmark_type = bookmark.get('type')
-        if bookmark_type not in {'page', 'region'}:
-            raise DatabaseValidationError("child bookmark type must be 'page' or 'region'")
-
-        page_number = bookmark.get('pageNumber')
+        # 破坏性更新：子节点也统一 pageAt/position
+        page_at = bookmark.get('pageAt')
         try:
-            page_number = int(page_number)
+            page_at = int(page_at)
         except (TypeError, ValueError):
-            raise DatabaseValidationError('child bookmark pageNumber must be an integer')
-        if page_number < 1:
-            raise DatabaseValidationError('child bookmark pageNumber must be >= 1')
+            raise DatabaseValidationError('child bookmark pageAt must be an integer')
+        if page_at < 1:
+            raise DatabaseValidationError('child bookmark pageAt must be >= 1')
 
-        region = bookmark.get('region') if bookmark_type == 'region' else None
-        if bookmark_type == 'region':
-            if not isinstance(region, dict):
-                raise DatabaseValidationError('child region is required when type=region')
-            region = {
-                'scrollX': self._validate_number(region.get('scrollX'), 'child.region.scrollX'),
-                'scrollY': self._validate_number(region.get('scrollY'), 'child.region.scrollY'),
-                'zoom': self._validate_strict_positive(region.get('zoom'), 'child.region.zoom'),
-            }
+        position_value = bookmark.get('position', None)
+        if position_value is not None:
+            try:
+                position_value = int(position_value)
+            except (TypeError, ValueError):
+                raise DatabaseValidationError('child position must be an integer between 0 and 100')
+            if position_value < 0 or position_value > 100:
+                raise DatabaseValidationError('child position must be in range 0~100')
+        else:
+            position_value = None
 
         parent_id = bookmark.get('parentId')
         if parent_id is not None and (not isinstance(parent_id, str) or not parent_id.strip()):
@@ -269,9 +336,8 @@ class PDFBookmarkTablePlugin(TablePlugin):
         return {
             'bookmark_id': child_id,
             'name': name,
-            'type': bookmark_type,
-            'pageNumber': page_number,
-            'region': region,
+            'pageAt': page_at,
+            'position': position_value,
             'children': validated_children,
             'parentId': parent_id,
             'order': order_value,
@@ -328,9 +394,8 @@ class PDFBookmarkTablePlugin(TablePlugin):
             'version': existing.get('version', 1) + 1,
             'json_data': {
                 'name': existing['name'],
-                'type': existing['type'],
-                'pageNumber': existing['pageNumber'],
-                'region': json.loads(json.dumps(existing.get('region'))),
+                'pageAt': existing.get('pageAt'),
+                'position': existing.get('position'),
                 'children': json.loads(json.dumps(existing.get('children', []))),
                 'parentId': existing.get('parentId'),
                 'order': existing.get('order', 0),
@@ -349,7 +414,7 @@ class PDFBookmarkTablePlugin(TablePlugin):
                 raise DatabaseValidationError('version must be >= 1')
             merged['version'] = version
 
-        json_fields = ['name', 'type', 'pageNumber', 'region', 'children', 'parentId', 'order']
+        json_fields = ['name', 'pageAt', 'position', 'children', 'parentId', 'order']
         for field in json_fields:
             if field in data:
                 merged['json_data'][field] = data[field]
@@ -424,9 +489,8 @@ class PDFBookmarkTablePlugin(TablePlugin):
             'updated_at': row['updated_at'],
             'version': row['version'],
             'name': json_data.get('name'),
-            'type': json_data.get('type'),
-            'pageNumber': json_data.get('pageNumber'),
-            'region': json_data.get('region'),
+            'pageAt': json_data.get('pageAt'),
+            'position': json_data.get('position'),
             'children': json_data.get('children', []),
             'parentId': json_data.get('parentId'),
             'order': json_data.get('order', 0),
@@ -459,7 +523,7 @@ class PDFBookmarkTablePlugin(TablePlugin):
         sql = """
         SELECT * FROM pdf_bookmark
         WHERE pdf_uuid = ?
-          AND json_extract(json_data, '$.pageNumber') = ?
+          AND json_extract(json_data, '$.pageAt') = ?
         """
         rows = self._executor.execute_query(sql, (pdf_uuid, page_number))
         return [self._parse_row(row) for row in rows]

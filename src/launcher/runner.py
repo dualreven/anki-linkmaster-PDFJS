@@ -114,6 +114,7 @@ def start_pdf_home_hosted(cfg: LauncherConfig, *, parent_app, on_log: Optional[C
 def start_pdf_viewer_hosted(cfg: LauncherConfig, *, parent_app, pdf_id: Optional[str] = None,
                             page_at: Optional[int] = None, position: Optional[float] = None,
                             anchor_id: Optional[str] = None, annotation_id: Optional[str] = None,
+                            outline_item_id: Optional[str] = None,
                             on_log: Optional[Callable[[str], None]] = None) -> int:
     root = resolve_component_root()
     import importlib.util as _il
@@ -136,6 +137,7 @@ def start_pdf_viewer_hosted(cfg: LauncherConfig, *, parent_app, pdf_id: Optional
         position=position,
         anchor_id=anchor_id,
         annotation_id=annotation_id,
+        extra_params={"outline_item_id": outline_item_id} if outline_item_id else {},
     )
     PdfViewerApp = getattr(mod, 'PdfViewerApp')
     inst = PdfViewerApp(fe_cfg, parent_app=parent_app)
@@ -200,6 +202,7 @@ def start_pdf_home_cli(cfg: LauncherConfig, *, is_prod: bool, on_log: Optional[C
 def start_pdf_viewer_cli(cfg: LauncherConfig, *, is_prod: bool, pdf_id: Optional[str] = None,
                          page_at: Optional[int] = None, position: Optional[float] = None,
                          anchor_id: Optional[str] = None, annotation_id: Optional[str] = None,
+                         outline_item_id: Optional[str] = None,
                          on_log: Optional[Callable[[str], None]] = None) -> bool:
     """以子进程方式启动 pdf-viewer 前端 launcher（统一在 runner）。"""
     root = resolve_component_root()
@@ -235,6 +238,8 @@ def start_pdf_viewer_cli(cfg: LauncherConfig, *, is_prod: bool, pdf_id: Optional
         cmd += ['--anchor-id', str(anchor_id)]
     if annotation_id:
         cmd += ['--annotation-id', str(annotation_id)]
+    if outline_item_id:
+        cmd += ['--outline-item-id', str(outline_item_id)]
     cmd.append('--keep-backend')
 
     try:

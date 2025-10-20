@@ -91,17 +91,17 @@ export class NavigationService {
     try {
       const { pageAt, position = null } = params;
 
-      // 1. 验证并标准化页码
-      let actualPage = pageAt;
-      if (this.#totalPages !== null) {
-        if (pageAt > this.#totalPages) {
-          this.#logger.warn(`请求页码 ${pageAt} 超出总页数 ${this.#totalPages}，跳转到最后一页`);
-          actualPage = this.#totalPages;
-        } else if (pageAt < 1) {
-          this.#logger.warn(`请求页码 ${pageAt} < 1，跳转到第1页`);
-          actualPage = 1;
-        }
+      // 1. 验证页码（严格，无fallback/clamp）
+      if (!Number.isInteger(pageAt)) {
+        throw new Error(`Invalid pageAt (not integer): ${pageAt}`);
       }
+      if (pageAt < 1) {
+        throw new Error(`Invalid pageAt (<1): ${pageAt}`);
+      }
+      if (this.#totalPages !== null && pageAt > this.#totalPages) {
+        throw new Error(`Invalid pageAt (>totalPages ${this.#totalPages}): ${pageAt}`);
+      }
+      const actualPage = pageAt;
 
       // 2. 触发页面跳转事件
       this.#logger.info(`开始导航到第 ${actualPage} 页`);
