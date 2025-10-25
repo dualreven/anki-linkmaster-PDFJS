@@ -1,37 +1,28 @@
 /**
- * @file PDF表格组件
- * @module PDFTable
- * @description PDF列表表格组件，整合表格初始化、数据管理、生命周期和事件处理
- *
- * ⚠️ 重要提醒：Tabulator表格库已被移除，所有相关功能已禁用
- * - 表格事件监听器已被注释
- * - 数据操作方法已被禁用
- * - UI交互功能不可用
- * - 保留此文件仅作为兼容性占位符
+ * @file PDF列表组件（原生HTML实现）
+ * @module PDFList
+ * @description PDF列表显示组件，使用原生HTML表格实现，不依赖第三方表格库
  */
 
 import { getLogger } from "../../../../common/utils/logger.js";
 import { DOMUtils } from "../../../../common/utils/dom-utils.js";
-// import { TableInitializer } from "../services/table-initializer.js"; // DISABLED: Tabulator removed
-// import { ListDataService } from "../services/list-data-service.js"; // DISABLED: Tabulator removed
-// import { ListLifecycleService } from "../services/list-lifecycle-service.js"; // DISABLED: Tabulator removed
 import { PDF_LIST_EVENTS } from "../events.js";
 import { PDF_MANAGEMENT_EVENTS } from "../../../../common/event/event-constants.js";
-const logger = getLogger("PDFList.PDFTable");
+
+const logger = getLogger("PDFList.PDFList");
 
 /**
- * PDF表格组件类
- * @class PDFTable
+ * PDF列表组件类
+ * @class PDFList
  */
-export class PDFTable {
+export class PDFList {
   #container;
-  #initializer;
-  #dataService;
-  #lifecycleService;
   #state;
   #eventBus;
-  #tabulatorEventUnsubscribers = [];
   #domEventUnsubscribers = [];
+  #currentData = [];
+  #tableElement;
+  #tbodyElement;
 
   /**
    * 构造函数
@@ -39,60 +30,16 @@ export class PDFTable {
    * @param {HTMLElement|string} options.container - 容器元素或选择器
    * @param {Object} options.state - StateManager状态
    * @param {Object} options.eventBus - ScopedEventBus实例
-   * @param {Object} [options.tabulatorOptions] - Tabulator配置选项（已禁用，保留以兼容）
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  constructor({ container, state, eventBus, tabulatorOptions: _tabulatorOptions = {} }) {
+  constructor({ container, state, eventBus }) {
     this.#container = this._resolveContainer(container);
     this.#state = state;
     this.#eventBus = eventBus;
 
-    logger.warn("PDFTable component is disabled (Tabulator removed)");
-    // DISABLED: Tabulator已移除，UI初始化已禁用
-    // 构造函数保留以避免代码解析错误，但实际不会被调用
-    return;
-
-    // 以下代码已禁用
-    /*
-    logger.info("Initializing PDFTable component");
-
-    // 准备Tabulator选项（添加事件处理器）
-    const options = this._prepareTabulatorOptions(tabulatorOptions);
-
-    // 1. 创建表格初始化器
-    this.#initializer = new TableInitializer(this.#container, options);
-
-    // 2. 同步初始化Tabulator
-    const tabulator = this.#initializer.initializeSync();
-
-    // 3. 创建数据服务
-    this.#dataService = new ListDataService({
-      tabulator: tabulator,
-      tableWrapper: this.#initializer.tableWrapper,
-      fallbackMode: this.#initializer.fallbackMode,
-      state: this.#state,
-      eventBus: this.#eventBus
-    });
-
-    // 4. 创建生命周期服务
-    this.#lifecycleService = new ListLifecycleService({
-      tabulator: tabulator,
-      tableWrapper: this.#initializer.tableWrapper,
-      container: this.#container,
-      state: this.#state,
-      eventBus: this.#eventBus
-    });
-
-    // 5. 设置Tabulator事件监听器
-    if (tabulator) {
-      this._setupTabulatorEvents(tabulator);
-    }
-
-    // 6. 设置DOM事件监听器
+    logger.info("Initializing PDFList component");
+    this._createTableStructure();
     this._setupDOMEvents();
-
-    logger.info("PDFTable component initialized successfully");
-    */
+    logger.info("PDFList component initialized successfully");
   }
 
   /**
@@ -104,7 +51,9 @@ export class PDFTable {
   _resolveContainer(container) {
     if (typeof container === "string") {
       const element = document.querySelector(container);
-      if (!element) {throw new Error(`Container not found: ${container}`);}
+      if (!element) {
+        throw new Error(`Container not found: ${container}`);
+      }
       return element;
     } else if (container instanceof HTMLElement) {
       return container;
@@ -114,177 +63,41 @@ export class PDFTable {
   }
 
   /**
-   * 准备Tabulator配置选项
-   * @param {Object} userOptions - 用户提供的选项
-   * @returns {Object} 合并后的选项
+   * 创建表格结构
    * @private
    */
-  _prepareTabulatorOptions(userOptions) {
-    // 合并默认选项和用户选项
-    return {
-      ...userOptions,
-      // 保留用户提供的列定义
-      columns: userOptions.columns || this._getDefaultColumns(),
-    };
-  }
+  _createTableStructure() {
+    this.#container.innerHTML = `
+      <div class="pdf-list-container">
+        <table class="pdf-list-table">
+          <thead>
+            <tr>
+              <th class="col-select">
+                <input type="checkbox" id="select-all-checkbox" title="全选/取消全选">
+              </th>
+              <th class="col-filename">文件名</th>
+              <th class="col-path">路径</th>
+              <th class="col-size">大小</th>
+              <th class="col-modified">最后修改</th>
+              <th class="col-tags">标签</th>
+              <th class="col-rating">评分</th>
+              <th class="col-actions">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- 数据行将动态插入这里 -->
+          </tbody>
+        </table>
+        <div class="pdf-list-empty-state" style="display: none;">
+          <div class="empty-icon">📄</div>
+          <div class="empty-message">暂无PDF文件</div>
+          <div class="empty-hint">请添加PDF文件到列表中</div>
+        </div>
+      </div>
+    `;
 
-  /**
-   * 获取默认列定义
-   * @returns {Array} 列定义数组
-   * @private
-   */
-  _getDefaultColumns() {
-    return [
-      { title: "文件名", field: "filename", width: 300 },
-      { title: "路径", field: "path", width: 400 },
-      { title: "大小", field: "size", width: 100 },
-      { title: "最后修改", field: "lastModified", width: 150 },
-      { title: "标签", field: "tags", width: 200 },
-      { title: "评分", field: "rating", width: 100 }
-    ];
-  }
-
-  /**
-   * 设置Tabulator事件监听器
-   * @param {Tabulator} tabulator - Tabulator实例
-   * @private
-   */
-  _setupTabulatorEvents(tabulator) {
-    try {
-      /* eslint-disable custom/event-name-format */
-      // 注意：以下是 Tabulator 库的原生事件名，不需要遵循三段式格式
-
-      // DISABLED: Tabulator removed - 行选中事件已禁用
-      // tabulator.on("rowSelectionChanged", (data, rows) => {
-      //   const indices = rows.map(row => row.getPosition(true) - 1); // 0-based index
-      //   this.#eventBus?.emit(PDF_LIST_EVENTS.SELECTION_CHANGED, {
-      //     selectedIndices: indices,
-      //     selectedItems: data,
-      //     count: indices.length,
-      //     timestamp: Date.now()
-      //   });
-      //   logger.debug(`Row selection changed: ${indices.length} rows selected`);
-      // });
-
-      // DISABLED: Tabulator removed - 行点击事件已禁用
-      // tabulator.on("rowClick", (e, row) => {
-      //   const data = row.getData();
-      //   const index = row.getPosition(true) - 1;
-
-      //   // 阻止复选框点击事件冒泡到行点击
-      //   if (e.target && (e.target.type === "checkbox" || e.target.closest(".tabulator-row-handle"))) {
-      //     return;
-      //   }
-
-      //   // 发出行点击事件
-      //   this.#eventBus?.emit(PDF_LIST_EVENTS.ROW_CLICKED, {
-      //     index,
-      //     row: data,
-      //     nativeEvent: {
-      //       type: e.type,
-      //       button: e.button,
-      //       ctrlKey: e.ctrlKey,
-      //       shiftKey: e.shiftKey,
-      //       altKey: e.altKey
-      //     },
-      //     timestamp: Date.now()
-      //   });
-
-      //   // 处理聚焦和选中逻辑
-      //   if (e.ctrlKey || e.metaKey) {
-      //     // Ctrl+Click: 切换选中 + 设置聚焦
-      //     this._toggleSelectionAndFocus(index);
-      //   } else if (e.shiftKey) {
-      //     // Shift+Click: 范围选择
-      //     this._rangeSelect(index);
-      //   } else {
-      //     // 普通点击: 仅设置聚焦（不改变选中状态）
-      //     this._setFocusOnly(index);
-      //   }
-
-      //   logger.debug("Row clicked:", data.filename || data.id);
-      // });
-
-      // DISABLED: Tabulator removed - 行双击事件已禁用
-      // tabulator.on("rowDblClick", (e, row) => {
-      //   const data = row.getData();
-      //   this.#eventBus?.emit(PDF_LIST_EVENTS.ROW_DOUBLE_CLICKED, {
-      //     index: row.getPosition(true) - 1,
-      //     row: data,
-      //     nativeEvent: {
-      //       type: e.type,
-      //       button: e.button,
-      //       ctrlKey: e.ctrlKey,
-      //       shiftKey: e.shiftKey,
-      //       altKey: e.altKey
-      //     },
-      //     timestamp: Date.now()
-      //   });
-
-      //   // 同时触发全局PDF打开请求事件
-      //   // Schema 参考: docs/SPEC/schemas/eventbus/pdf-management/v1/open.requested.schema.json
-      //   //
-      //   // 当前使用旧格式（向后兼容）：直接传递文件名字符串
-      //   this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, data.filename || data.path, {
-      //     actorId: "PDFTable"
-      //   });
-
-      //   // 新格式示例（带导航参数）：
-      //   // this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, {
-      //   //   filename: data.filename || data.path,
-      //   //   needNavigate: {
-      //   //     pageAt: 5,          // 跳转到第5页
-      //   //     position: 50        // 滚动到页面50%位置
-      //   //   }
-      //   // }, { actorId: 'PDFTable' });
-      //   //
-      //   // 或使用锚点/标注ID：
-      //   // this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, {
-      //   //   filename: data.filename || data.path,
-      //   //   needNavigate: {
-      //   //     pdfanchor: 'pdfanchor-abc123def456'      // 跳转到锚点
-      //   //     // 或 pdfannotation: 'pdfannotation-xyz789'  // 跳转到标注
-      //   //   }
-      //   // }, { actorId: 'PDFTable' });
-
-      //   logger.debug("Row double-clicked, opening PDF:", data.filename || data.id);
-      // });
-
-      // DISABLED: Tabulator removed - 行上下文菜单事件已禁用
-      // tabulator.on("rowContext", (e, row) => {
-      //   const data = row.getData();
-      //   this.#eventBus?.emit(PDF_LIST_EVENTS.ROW_CONTEXT_MENU, {
-      //     index: row.getPosition(true) - 1,
-      //     row: data,
-      //     nativeEvent: {
-      //       type: e.type,
-      //       clientX: e.clientX,
-      //       clientY: e.clientY
-      //     },
-      //     timestamp: Date.now()
-      //   });
-      //   logger.debug("Row context menu:", data.filename || data.id);
-      // });
-
-      // DISABLED: Tabulator removed - 数据排序事件已禁用
-      // tabulator.on("dataSorting", (sorters) => {
-      //   if (sorters.length > 0) {
-      //     const sorter = sorters[0];
-      //     this.#eventBus?.emit(PDF_LIST_EVENTS.SORT_CHANGED, {
-      //       column: sorter.field,
-      //       direction: sorter.dir,
-      //       timestamp: Date.now()
-      //     });
-      //     logger.debug(`Data sorting: ${sorter.field} ${sorter.dir}`);
-      //   }
-      // });
-
-      /* eslint-enable custom/event-name-format */
-      logger.debug("Tabulator event listeners setup skipped (Tabulator removed)");
-
-    } catch (error) {
-      logger.warn("Error setting up Tabulator events:", error);
-    }
+    this.#tableElement = this.#container.querySelector('.pdf-list-table');
+    this.#tbodyElement = this.#container.querySelector('.pdf-list-table tbody');
   }
 
   /**
@@ -293,31 +106,49 @@ export class PDFTable {
    */
   _setupDOMEvents() {
     try {
-      // 处理表格内的按钮点击（打开、删除等操作）
-      const handleTableAction = async (event) => {
-        const btn = event.target && event.target.closest ? event.target.closest("button") : null;
-        if (!btn) {return;}
+      // 处理表格点击事件
+      const handleTableClick = async (event) => {
+        const row = event.target.closest('tr');
+        if (!row || row.tagName !== 'TR' || row.parentElement.tagName !== 'TBODY') {
+          return;
+        }
 
-        const action = btn.getAttribute("data-action");
-        const rowId = btn.getAttribute("data-row-id") || btn.getAttribute("data-rowid");
-        const filename = btn.getAttribute("data-filename") || btn.getAttribute("data-filepath") || null;
+        const rowIndex = Array.from(this.#tbodyElement.children).indexOf(row);
+        const rowData = this.#currentData[rowIndex];
+        if (!rowData) return;
 
-        logger.info(`Table action triggered: action=${action}, rowId=${rowId}, filename=${filename}`);
+        // 处理checkbox点击
+        if (event.target.type === 'checkbox') {
+          this._handleSelectionChange(rowIndex, event.target.checked);
+          return;
+        }
 
-        if (action) {
+        // 处理按钮点击
+        const button = event.target.closest('button');
+        if (button) {
+          const action = button.getAttribute('data-action');
           event.preventDefault();
           event.stopPropagation();
 
           switch (action) {
-          case "open":
-            this._handleOpenAction(rowId, filename);
-            break;
-          case "delete":
-          case "remove":
-            await this._handleDeleteAction(rowId, filename);
-            break;
+            case 'open':
+              this._handleOpenAction(rowData);
+              break;
+            case 'delete':
+              await this._handleDeleteAction(rowData);
+              break;
           }
+          return;
         }
+
+        // 处理行双击
+        if (event.detail === 2) {
+          this._handleRowDoubleClick(rowData, rowIndex);
+          return;
+        }
+
+        // 处理行单击
+        this._handleRowClick(rowData, rowIndex, event);
       };
 
       // 处理键盘快捷键
@@ -325,18 +156,29 @@ export class PDFTable {
         this._handleKeyboardShortcuts(event);
       };
 
-      if (this.#container) {
-        DOMUtils.addEventListener(this.#container, "click", handleTableAction);
-        this.#domEventUnsubscribers.push(() =>
-          DOMUtils.removeEventListener(this.#container, "click", handleTableAction)
-        );
+      // 处理全选checkbox
+      const handleSelectAll = (event) => {
+        this._handleSelectAll(event.target.checked);
+      };
 
-        // 绑定键盘事件到document（因为表格可能不在焦点上）
-        DOMUtils.addEventListener(document, "keydown", handleKeyDown);
+      // 绑定事件
+      DOMUtils.addEventListener(this.#tableElement, "click", handleTableClick);
+      this.#domEventUnsubscribers.push(() =>
+        DOMUtils.removeEventListener(this.#tableElement, "click", handleTableClick)
+      );
+
+      const selectAllCheckbox = this.#container.querySelector('#select-all-checkbox');
+      if (selectAllCheckbox) {
+        DOMUtils.addEventListener(selectAllCheckbox, "change", handleSelectAll);
         this.#domEventUnsubscribers.push(() =>
-          DOMUtils.removeEventListener(document, "keydown", handleKeyDown)
+          DOMUtils.removeEventListener(selectAllCheckbox, "change", handleSelectAll)
         );
       }
+
+      DOMUtils.addEventListener(document, "keydown", handleKeyDown);
+      this.#domEventUnsubscribers.push(() =>
+        DOMUtils.removeEventListener(document, "keydown", handleKeyDown)
+      );
 
       logger.debug("DOM event listeners set up");
 
@@ -346,63 +188,285 @@ export class PDFTable {
   }
 
   /**
+   * 处理行点击
+   * @param {Object} rowData - 行数据
+   * @param {number} rowIndex - 行索引
+   * @param {Event} event - 点击事件
+   * @private
+   */
+  _handleRowClick(rowData, rowIndex, event) {
+    // 发出行点击事件
+    this.#eventBus?.emit(PDF_LIST_EVENTS.ROW_CLICKED, {
+      index: rowIndex,
+      row: rowData,
+      nativeEvent: {
+        type: event.type,
+        button: event.button,
+        ctrlKey: event.ctrlKey,
+        shiftKey: event.shiftKey,
+        altKey: event.altKey
+      },
+      timestamp: Date.now()
+    });
+
+    // 处理选中逻辑
+    if (event.ctrlKey || event.metaKey) {
+      // Ctrl+Click: 切换选中
+      this._toggleSelection(rowIndex);
+    } else if (event.shiftKey) {
+      // Shift+Click: 范围选择
+      this._rangeSelect(rowIndex);
+    } else {
+      // 普通点击: 仅设置聚焦
+      this._setFocusOnly(rowIndex);
+    }
+
+    logger.debug("Row clicked:", rowData.filename || rowData.id);
+  }
+
+  /**
+   * 处理行双击
+   * @param {Object} rowData - 行数据
+   * @param {number} rowIndex - 行索引
+   * @private
+   */
+  _handleRowDoubleClick(rowData, rowIndex) {
+    this.#eventBus?.emit(PDF_LIST_EVENTS.ROW_DOUBLE_CLICKED, {
+      index: rowIndex,
+      row: rowData,
+      timestamp: Date.now()
+    });
+
+    // 触发PDF打开请求
+    this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, rowData.filename || rowData.path, {
+      actorId: "PDFList"
+    });
+
+    logger.debug("Row double-clicked, opening PDF:", rowData.filename || rowData.id);
+  }
+
+  /**
+   * 处理选择变化
+   * @param {number} rowIndex - 行索引
+   * @param {boolean} selected - 是否选中
+   * @private
+   */
+  _handleSelectionChange(rowIndex, selected) {
+    if (!this.#state) return;
+
+    let selectedIndices = [...(this.#state.selectedIndices || [])];
+
+    if (selected) {
+      if (!selectedIndices.includes(rowIndex)) {
+        selectedIndices.push(rowIndex);
+      }
+    } else {
+      selectedIndices = selectedIndices.filter(i => i !== rowIndex);
+    }
+
+    this.#state.selectedIndices = selectedIndices;
+    this._updateSelectAllCheckbox();
+
+    // 发出选择变化事件
+    const selectedItems = selectedIndices.map(i => this.#currentData[i]);
+    this.#eventBus?.emit(PDF_LIST_EVENTS.SELECTION_CHANGED, {
+      selectedIndices,
+      selectedItems,
+      count: selectedIndices.length,
+      timestamp: Date.now()
+    });
+  }
+
+  /**
+   * 处理全选
+   * @param {boolean} selected - 是否全选
+   * @private
+   */
+  _handleSelectAll(selected) {
+    if (!this.#state) return;
+
+    const allIndices = selected ? Array.from({ length: this.#currentData.length }, (_, i) => i) : [];
+    this.#state.selectedIndices = allIndices;
+
+    // 更新所有行的checkbox状态
+    const checkboxes = this.#tbodyElement.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach((checkbox, index) => {
+      checkbox.checked = selected;
+    });
+
+    // 发出选择变化事件
+    const selectedItems = allIndices.map(i => this.#currentData[i]);
+    this.#eventBus?.emit(PDF_LIST_EVENTS.SELECTION_CHANGED, {
+      selectedIndices: allIndices,
+      selectedItems,
+      count: allIndices.length,
+      timestamp: Date.now()
+    });
+
+    logger.info(`${selected ? 'Selected all' : 'Deselected all'} ${this.#currentData.length} rows`);
+  }
+
+  /**
+   * 切换选中状态
+   * @param {number} rowIndex - 行索引
+   * @private
+   */
+  _toggleSelection(rowIndex) {
+    const checkbox = this.#tbodyElement.children[rowIndex]?.querySelector('input[type="checkbox"]');
+    if (checkbox) {
+      checkbox.checked = !checkbox.checked;
+      this._handleSelectionChange(rowIndex, checkbox.checked);
+    }
+  }
+
+  /**
+   * 范围选择
+   * @param {number} endIndex - 结束索引
+   * @private
+   */
+  _rangeSelect(endIndex) {
+    if (!this.#state) return;
+
+    const focusedIndex = this.#state.focusedIndex;
+    if (focusedIndex === null || focusedIndex === undefined) {
+      this._toggleSelection(endIndex);
+      return;
+    }
+
+    const startIndex = Math.min(focusedIndex, endIndex);
+    const end = Math.max(focusedIndex, endIndex);
+
+    for (let i = startIndex; i <= end; i++) {
+      const checkbox = this.#tbodyElement.children[i]?.querySelector('input[type="checkbox"]');
+      if (checkbox && !checkbox.checked) {
+        checkbox.checked = true;
+      }
+    }
+
+    // 更新状态
+    const newSelected = Array.from({ length: end - startIndex + 1 }, (_, i) => startIndex + i);
+    const existingSelected = this.#state.selectedIndices || [];
+    const mergedSelected = [...new Set([...existingSelected, ...newSelected])];
+    this.#state.selectedIndices = mergedSelected;
+    this._updateSelectAllCheckbox();
+
+    // 发出选择变化事件
+    const selectedItems = mergedSelected.map(i => this.#currentData[i]);
+    this.#eventBus?.emit(PDF_LIST_EVENTS.SELECTION_CHANGED, {
+      selectedIndices: mergedSelected,
+      selectedItems,
+      count: mergedSelected.length,
+      timestamp: Date.now()
+    });
+  }
+
+  /**
+   * 仅设置聚焦
+   * @param {number} index - 行索引
+   * @private
+   */
+  _setFocusOnly(index) {
+    if (!this.#state) return;
+
+    // 清除所有聚焦样式
+    this._clearFocusStyles();
+
+    // 设置当前聚焦
+    if (index >= 0 && index < this.#currentData.length) {
+      const row = this.#tbodyElement.children[index];
+      if (row) {
+        row.classList.add('row-focused');
+        row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+      this.#state.focusedIndex = index;
+    }
+
+    // 发出聚焦变化事件
+    this.#eventBus?.emit(PDF_LIST_EVENTS.FOCUS_CHANGED, {
+      focusedIndex: index,
+      timestamp: Date.now()
+    });
+  }
+
+  /**
+   * 清除聚焦样式
+   * @private
+   */
+  _clearFocusStyles() {
+    const rows = this.#tbodyElement.querySelectorAll('tr');
+    rows.forEach(row => row.classList.remove('row-focused'));
+  }
+
+  /**
+   * 更新全选checkbox状态
+   * @private
+   */
+  _updateSelectAllCheckbox() {
+    const selectAllCheckbox = this.#container.querySelector('#select-all-checkbox');
+    if (selectAllCheckbox && this.#state) {
+      const selectedCount = (this.#state.selectedIndices || []).length;
+      selectAllCheckbox.checked = selectedCount === this.#currentData.length && this.#currentData.length > 0;
+      selectAllCheckbox.indeterminate = selectedCount > 0 && selectedCount < this.#currentData.length;
+    }
+  }
+
+  /**
    * 处理键盘快捷键
    * @param {KeyboardEvent} event - 键盘事件
    * @private
    */
   _handleKeyboardShortcuts(event) {
-    // 忽略在输入框、文本域等元素上的键盘事件
+    // 忽略在输入框等元素上的键盘事件
     const target = event.target;
-    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" ||
-                   target.isContentEditable)) {
+    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
       return;
     }
 
-    const tabulator = this.#initializer?.tabulator;
-    if (!tabulator || !this.#state) {return;}
+    if (!this.#state || this.#currentData.length === 0) return;
 
     switch (event.key) {
-    case " ": // 空格键：切换聚焦项的选中状态
-      event.preventDefault();
-      if (this.#state.focusedIndex !== null && this.#state.focusedIndex !== undefined) {
-        this._toggleSelectionAndFocus(this.#state.focusedIndex);
-      }
-      break;
-
-    case "ArrowDown": // 下方向键：向下移动聚焦
-      event.preventDefault();
-      this._moveFocus(1);
-      break;
-
-    case "ArrowUp": // 上方向键：向上移动聚焦
-      event.preventDefault();
-      this._moveFocus(-1);
-      break;
-
-    case "a": // Ctrl+A：全选
-      if (event.ctrlKey || event.metaKey) {
+      case " ":
         event.preventDefault();
-        this._selectAll();
-      }
-      break;
-
-    case "Enter": // 回车键：打开聚焦的PDF
-      event.preventDefault();
-      if (this.#state.focusedIndex !== null && this.#state.focusedIndex !== undefined) {
-        const row = tabulator.getRowFromPosition(this.#state.focusedIndex + 1);
-        if (row) {
-          const data = row.getData();
-          this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, data.filename || data.path, {
-            actorId: "PDFTable"
-          });
+        if (this.#state.focusedIndex !== null && this.#state.focusedIndex !== undefined) {
+          this._toggleSelection(this.#state.focusedIndex);
         }
-      }
-      break;
+        break;
 
-    case "Escape": // Esc键：清除选中和聚焦
-      event.preventDefault();
-      this._clearSelectionAndFocus();
-      break;
+      case "ArrowDown":
+        event.preventDefault();
+        this._moveFocus(1);
+        break;
+
+      case "ArrowUp":
+        event.preventDefault();
+        this._moveFocus(-1);
+        break;
+
+      case "a":
+        if (event.ctrlKey || event.metaKey) {
+          event.preventDefault();
+          this._handleSelectAll(true);
+        }
+        break;
+
+      case "Enter":
+        event.preventDefault();
+        if (this.#state.focusedIndex !== null && this.#state.focusedIndex !== undefined) {
+          const rowData = this.#currentData[this.#state.focusedIndex];
+          if (rowData) {
+            this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, rowData.filename || rowData.path, {
+              actorId: "PDFList"
+            });
+          }
+        }
+        break;
+
+      case "Escape":
+        event.preventDefault();
+        this._handleSelectAll(false);
+        this._clearFocusStyles();
+        this.#state.focusedIndex = null;
+        break;
     }
   }
 
@@ -412,234 +476,54 @@ export class PDFTable {
    * @private
    */
   _moveFocus(direction) {
-    const tabulator = this.#initializer?.tabulator;
-    if (!tabulator || !this.#state) {return;}
+    if (!this.#state) return;
 
     const currentFocus = this.#state.focusedIndex;
-    const rowCount = tabulator.getDataCount();
+    const rowCount = this.#currentData.length;
 
-    if (rowCount === 0) {return;}
+    if (rowCount === 0) return;
 
     let newFocus;
     if (currentFocus === null || currentFocus === undefined) {
-      // 如果没有聚焦项，聚焦到第一项或最后一项
       newFocus = direction > 0 ? 0 : rowCount - 1;
     } else {
       newFocus = currentFocus + direction;
-      // 边界检查
-      if (newFocus < 0) {newFocus = 0;}
-      if (newFocus >= rowCount) {newFocus = rowCount - 1;}
+      if (newFocus < 0) newFocus = 0;
+      if (newFocus >= rowCount) newFocus = rowCount - 1;
     }
 
     this._setFocusOnly(newFocus);
-
-    // 滚动到聚焦行
-    const row = tabulator.getRowFromPosition(newFocus + 1);
-    if (row) {
-      row.scrollTo();
-    }
-  }
-
-  /**
-   * 全选
-   * @private
-   */
-  _selectAll() {
-    const tabulator = this.#initializer?.tabulator;
-    if (!tabulator || !this.#state) {return;}
-
-    const rowCount = tabulator.getDataCount();
-    if (rowCount === 0) {return;}
-
-    // DISABLED: Tabulator removed - 选中所有行功能已禁用
-    // tabulator.selectRow();
-
-    // 更新状态
-    const allIndices = Array.from({ length: rowCount }, (_, i) => i);
-    this.#state.selectedIndices = allIndices;
-
-    logger.info(`Selected all ${rowCount} rows`);
-  }
-
-  /**
-   * 清除选中和聚焦
-   * @private
-   */
-  _clearSelectionAndFocus() {
-    const tabulator = this.#initializer?.tabulator;
-    if (!tabulator || !this.#state) {return;}
-
-    // DISABLED: Tabulator removed - 清除选中功能已禁用
-    // tabulator.deselectRow();
-    this.#state.selectedIndices = [];
-
-    // 清除聚焦
-    this._updateFocusedStyle(null);
-    this.#state.focusedIndex = null;
-
-    logger.info("Cleared all selection and focus");
-  }
-
-  /**
-   * 仅设置聚焦（不改变选中状态）
-   * @param {number} index - 行索引
-   * @private
-   */
-  _setFocusOnly(index) {
-    const tabulator = this.#initializer?.tabulator;
-    if (!tabulator) {return;}
-
-    // 更新状态
-    if (this.#state) {
-      this.#state.focusedIndex = index;
-    }
-
-    // 更新视觉样式
-    this._updateFocusedStyle(index);
-
-    // 发出聚焦事件
-    this.#eventBus?.emit(PDF_LIST_EVENTS.FOCUS_CHANGED, {
-      focusedIndex: index,
-      timestamp: Date.now()
-    });
-  }
-
-  /**
-   * 切换选中并设置聚焦（Ctrl+Click）
-   * @param {number} index - 行索引
-   * @private
-   */
-  _toggleSelectionAndFocus(index) {
-    const tabulator = this.#initializer?.tabulator;
-    if (!tabulator) {return;}
-
-    // 切换选中状态
-    if (this.#state) {
-      const selectedIndices = [...(this.#state.selectedIndices || [])];
-      const indexPos = selectedIndices.indexOf(index);
-      if (indexPos >= 0) {
-        selectedIndices.splice(indexPos, 1);
-      } else {
-        selectedIndices.push(index);
-      }
-      this.#state.selectedIndices = selectedIndices;
-      this.#state.focusedIndex = index;
-    }
-
-    // 更新Tabulator选中状态
-    const row = tabulator.getRowFromPosition(index + 1);
-    if (row) {
-      row.toggleSelect();
-    }
-
-    // 更新视觉样式
-    this._updateFocusedStyle(index);
-  }
-
-  /**
-   * 范围选择（Shift+Click）
-   * @param {number} endIndex - 结束索引
-   * @private
-   */
-  _rangeSelect(endIndex) {
-    const tabulator = this.#initializer?.tabulator;
-    if (!tabulator || !this.#state) {return;}
-
-    const focusedIndex = this.#state.focusedIndex;
-    if (focusedIndex === null || focusedIndex === undefined) {
-      // 如果没有聚焦项，单独选中当前项
-      this._toggleSelectionAndFocus(endIndex);
-      return;
-    }
-
-    // 计算范围
-    const startIndex = Math.min(focusedIndex, endIndex);
-    const endIndexActual = Math.max(focusedIndex, endIndex);
-
-    // 选中范围内的所有行
-    const selectedIndices = [];
-    for (let i = startIndex; i <= endIndexActual; i++) {
-      selectedIndices.push(i);
-      const row = tabulator.getRowFromPosition(i + 1);
-      if (row) {
-        row.select();
-      }
-    }
-
-    // 更新状态（合并现有选中和新范围）
-    const existingSelected = this.#state.selectedIndices || [];
-    const mergedSelected = [...new Set([...existingSelected, ...selectedIndices])];
-    this.#state.selectedIndices = mergedSelected;
-    this.#state.focusedIndex = endIndex;
-
-    // 更新视觉样式
-    this._updateFocusedStyle(endIndex);
-  }
-
-  /**
-   * 更新聚焦样式
-   * @param {number} focusedIndex - 聚焦的索引
-   * @private
-   */
-  _updateFocusedStyle(focusedIndex) {
-    const tabulator = this.#initializer?.tabulator;
-    if (!tabulator) {return;}
-
-    // 清除所有行的聚焦样式
-    const allRows = tabulator.getRows();
-    allRows.forEach(row => {
-      const el = row.getElement();
-      if (el) {
-        el.classList.remove("row-focused");
-      }
-    });
-
-    // 添加当前聚焦行的样式
-    if (focusedIndex !== null && focusedIndex !== undefined) {
-      const focusedRow = tabulator.getRowFromPosition(focusedIndex + 1);
-      if (focusedRow) {
-        const el = focusedRow.getElement();
-        if (el) {
-          el.classList.add("row-focused");
-        }
-      }
-    }
   }
 
   /**
    * 处理打开操作
-   * @param {string} rowId - 行ID
-   * @param {string} filename - 文件名
+   * @param {Object} rowData - 行数据
    * @private
    */
-  _handleOpenAction(rowId, filename) {
-    this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, rowId || filename, {
-      actorId: "PDFTable"
+  _handleOpenAction(rowData) {
+    this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, rowData.filename || rowData.path, {
+      actorId: "PDFList"
     });
   }
 
   /**
    * 处理删除操作
-   * @param {string} rowId - 行ID
-   * @param {string} filename - 文件名
+   * @param {Object} rowData - 行数据
    * @private
    */
-  async _handleDeleteAction(rowId, filename) {
+  async _handleDeleteAction(rowData) {
     try {
-      // 使用对话框管理器确认
       let confirmed = false;
       if (window.dialogManager) {
         confirmed = await window.dialogManager.confirm("确定要删除这个PDF文件吗？");
       } else {
-        // 降级到原生confirm
         confirmed = confirm("确定要删除这个PDF文件吗？");
       }
 
-      if (!confirmed) {return;}
+      if (!confirmed) return;
 
-      const payload = rowId || filename;
-      this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.REMOVE.REQUESTED, payload, {
-        actorId: "PDFTable"
+      this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.REMOVE.REQUESTED, rowData.filename || rowData.path, {
+        actorId: "PDFList"
       });
 
     } catch (error) {
@@ -648,118 +532,245 @@ export class PDFTable {
   }
 
   /**
-   * 处理编辑操作
-   * @param {string} rowId - 行ID
-   * @param {string} filename - 文件名
+   * 格式化文件大小
+   * @param {number} bytes - 字节数
+   * @returns {string} 格式化后的大小
    * @private
    */
-  _handleEditAction(rowId, filename) {
-    try {
-      // 从Tabulator获取完整的行数据
-      const tabulator = this.#initializer?.tabulator;
-      if (!tabulator) {
-        logger.warn("Tabulator not available for edit action");
-        return;
-      }
+  _formatFileSize(bytes) {
+    if (!bytes || bytes === 0) return '-';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let size = bytes;
+    let unitIndex = 0;
 
-      // 根据rowId或filename查找行数据
-      let rowData = null;
-      const allData = tabulator.getData();
-
-      if (rowId) {
-        rowData = allData.find(row => row.id === rowId || row.filename === rowId);
-      } else if (filename) {
-        rowData = allData.find(row => row.filename === filename);
-      }
-
-      if (!rowData) {
-        logger.warn("Row data not found for edit action:", { rowId, filename });
-        return;
-      }
-
-      // 发出全局编辑请求事件（供pdf-edit功能域监听）
-      this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.EDIT.REQUESTED, rowData, {
-        actorId: "PDFTable"
-      });
-
-      logger.info("Edit action triggered for record:", rowData.filename || rowData.id);
-
-    } catch (error) {
-      logger.error("Error handling edit action:", error);
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex++;
     }
+
+    return `${size.toFixed(1)} ${units[unitIndex]}`;
+  }
+
+  /**
+   * 格式化日期
+   * @param {string|Date} date - 日期
+   * @returns {string} 格式化后的日期
+   * @private
+   */
+  _formatDate(date) {
+    if (!date) return '-';
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '-';
+
+    return d.toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   }
 
   // ==================== 公开 API ====================
 
   /**
-   * 初始化组件
-   * @returns {Promise<void>}
-   */
-  async initialize() {
-    return await this.#lifecycleService.initialize();
-  }
-
-  /**
-   * 刷新列表
-   * @returns {Promise<void>}
-   */
-  async refresh() {
-    return await this.#lifecycleService.refresh();
-  }
-
-  /**
-   * 设置表格数据
+   * 设置数据
    * @param {Array<Object>} data - 数据数组
    * @returns {Promise<void>}
    */
   async setData(data) {
-    return await this.#dataService.setData(data);
+    if (!Array.isArray(data)) {
+      logger.warn("setData expects an array, received:", typeof data);
+      return;
+    }
+
+    this.#currentData = data;
+    this._renderTable();
+    logger.info(`Set ${data.length} items in PDF list`);
   }
 
   /**
-   * 加载数据（兼容性API）
-   * @param {Array<Object>} data - 数据数组
-   * @returns {Promise<void>}
+   * 渲染表格
+   * @private
    */
-  async loadData(data) {
-    return await this.#dataService.loadData(data);
+  _renderTable() {
+    // 清空现有内容
+    this.#tbodyElement.innerHTML = '';
+
+    if (this.#currentData.length === 0) {
+      // 显示空状态
+      this.#tableElement.style.display = 'none';
+      const emptyState = this.#container.querySelector('.pdf-list-empty-state');
+      if (emptyState) {
+        emptyState.style.display = 'flex';
+      }
+      return;
+    }
+
+    // 隐藏空状态
+    this.#tableElement.style.display = 'table';
+    const emptyState = this.#container.querySelector('.pdf-list-empty-state');
+    if (emptyState) {
+      emptyState.style.display = 'none';
+    }
+
+    // 渲染数据行
+    this.#currentData.forEach((item, index) => {
+      const row = this._createTableRow(item, index);
+      this.#tbodyElement.appendChild(row);
+    });
+
+    // 更新全选checkbox状态
+    this._updateSelectAllCheckbox();
   }
 
   /**
-   * 添加单行数据
+   * 创建表格行
+   * @param {Object} item - 数据项
+   * @param {number} index - 索引
+   * @returns {HTMLTableRowElement} 表格行元素
+   * @private
+   */
+  _createTableRow(item, index) {
+    const row = document.createElement('tr');
+
+    // 检查是否应该被选中
+    const isSelected = this.#state?.selectedIndices?.includes(index) || false;
+
+    row.innerHTML = `
+      <td class="col-select">
+        <input type="checkbox" data-index="${index}" ${isSelected ? 'checked' : ''}>
+      </td>
+      <td class="col-filename" title="${item.filename || item.id || ''}">
+        <div class="filename-text">${this._escapeHtml(item.filename || item.id || '')}</div>
+      </td>
+      <td class="col-path" title="${item.path || ''}">
+        <div class="path-text">${this._escapeHtml(item.path || '')}</div>
+      </td>
+      <td class="col-size">${this._formatFileSize(item.size)}</td>
+      <td class="col-modified">${this._formatDate(item.lastModified)}</td>
+      <td class="col-tags">
+        <div class="tags-container">
+          ${(item.tags || []).map(tag => `<span class="tag">${this._escapeHtml(tag)}</span>`).join('')}
+        </div>
+      </td>
+      <td class="col-rating">
+        <div class="rating-container">
+          ${this._renderRating(item.rating || 0)}
+        </div>
+      </td>
+      <td class="col-actions">
+        <div class="action-buttons">
+          <button type="button" class="btn-open" data-action="open" title="打开PDF">
+            📖
+          </button>
+          <button type="button" class="btn-delete" data-action="delete" title="删除">
+            🗑️
+          </button>
+        </div>
+      </td>
+    `;
+
+    return row;
+  }
+
+  /**
+   * 渲染评分
+   * @param {number} rating - 评分
+   * @returns {string} 评分HTML
+   * @private
+   */
+  _renderRating(rating) {
+    const maxRating = 5;
+    let html = '';
+
+    for (let i = 1; i <= maxRating; i++) {
+      if (i <= rating) {
+        html += '<span class="star filled">★</span>';
+      } else {
+        html += '<span class="star empty">☆</span>';
+      }
+    }
+
+    return html;
+  }
+
+  /**
+   * HTML转义
+   * @param {string} text - 文本
+   * @returns {string} 转义后的文本
+   * @private
+   */
+  _escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  /**
+   * 添加行
    * @param {Object} rowData - 行数据
    * @param {boolean} addToTop - 是否添加到顶部
    * @returns {Promise<void>}
    */
   async addRow(rowData, addToTop = true) {
-    return await this.#dataService.addRow(rowData, addToTop);
+    if (addToTop) {
+      this.#currentData.unshift(rowData);
+    } else {
+      this.#currentData.push(rowData);
+    }
+
+    this._renderTable();
+    logger.info(`Added row: ${rowData.filename || rowData.id}`);
   }
 
   /**
-   * 删除指定行
+   * 删除行
    * @param {string} rowId - 行ID
    * @returns {Promise<void>}
    */
   async deleteRow(rowId) {
-    return await this.#dataService.deleteRow(rowId);
+    const index = this.#currentData.findIndex(item =>
+      item.id === rowId || item.filename === rowId
+    );
+
+    if (index >= 0) {
+      this.#currentData.splice(index, 1);
+      this._renderTable();
+      logger.info(`Deleted row: ${rowId}`);
+    } else {
+      logger.warn(`Row not found for deletion: ${rowId}`);
+    }
   }
 
   /**
-   * 更新指定行
+   * 更新行
    * @param {string} rowId - 行ID
    * @param {Object} updates - 更新数据
    * @returns {Promise<void>}
    */
   async updateRow(rowId, updates) {
-    return await this.#dataService.updateRow(rowId, updates);
+    const index = this.#currentData.findIndex(item =>
+      item.id === rowId || item.filename === rowId
+    );
+
+    if (index >= 0) {
+      this.#currentData[index] = { ...this.#currentData[index], ...updates };
+      this._renderTable();
+      logger.info(`Updated row: ${rowId}`);
+    } else {
+      logger.warn(`Row not found for update: ${rowId}`);
+    }
   }
 
   /**
-   * 清空表格数据
+   * 清空数据
    * @returns {Promise<void>}
    */
   async clear() {
-    return await this.#dataService.clear();
+    this.#currentData = [];
+    this._renderTable();
+    logger.info("Cleared all data");
   }
 
   /**
@@ -767,16 +778,16 @@ export class PDFTable {
    * @returns {Array<Object>} 当前数据
    */
   getData() {
-    return this.#dataService.getData();
+    return [...this.#currentData];
   }
 
   /**
-   * 显示空状态
-   * @param {string} message - 空状态消息
-   * @returns {Promise<void>}
+   * 获取选中的数据
+   * @returns {Array<Object>} 选中的数据
    */
-  async displayEmptyState(message = "暂无数据") {
-    return await this.#dataService.displayEmptyState(message);
+  getSelectedData() {
+    if (!this.#state?.selectedIndices) return [];
+    return this.#state.selectedIndices.map(i => this.#currentData[i]).filter(Boolean);
   }
 
   /**
@@ -784,81 +795,31 @@ export class PDFTable {
    * @returns {Promise<void>}
    */
   async destroy() {
-    logger.info("Destroying PDFTable component");
+    logger.info("Destroying PDFList component");
 
     try {
-      // 1. 清理DOM事件监听器
+      // 清理事件监听器
       this.#domEventUnsubscribers.forEach(unsub => unsub());
       this.#domEventUnsubscribers = [];
 
-      // 2. 清理Tabulator事件监听器
-      this.#tabulatorEventUnsubscribers.forEach(unsub => unsub());
-      this.#tabulatorEventUnsubscribers = [];
+      // 清理DOM
+      this.#container.innerHTML = '';
 
-      // 3. 销毁生命周期服务（会销毁Tabulator实例）
-      await this.#lifecycleService.destroy();
+      // 清理引用
+      this.#tableElement = null;
+      this.#tbodyElement = null;
+      this.#currentData = [];
 
-      // 4. 清理服务引用
-      this.#initializer.destroy();
-      this.#initializer = null;
-      this.#dataService = null;
-      this.#lifecycleService = null;
-
-      logger.info("PDFTable component destroyed successfully");
+      logger.info("PDFList component destroyed successfully");
 
     } catch (error) {
-      logger.error("Error destroying PDFTable component:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * 软重置 - 清理内容但不销毁结构
-   * @returns {Promise<void>}
-   */
-  async softReset() {
-    return await this.#lifecycleService.softReset();
-  }
-
-  /**
-   * 获取组件状态
-   * @returns {Object} 状态信息
-   */
-  getStatus() {
-    return {
-      initialization: this.#initializer.getInitializationStatus(),
-      dataService: this.#dataService.getStatus(),
-      lifecycle: this.#lifecycleService.getLifecycleStatus(),
-      domEventListeners: this.#domEventUnsubscribers.length,
-      tabulatorEventListeners: this.#tabulatorEventUnsubscribers.length
-    };
-  }
-
-  /**
-   * 重新初始化表格
-   * @param {Object} _newOptions - 新的配置选项（未使用，保留以供将来扩展）
-   * @returns {Promise<void>}
-   */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async reinitialize(_newOptions = {}) {
-    logger.info("Reinitializing PDFTable component");
-
-    try {
-      // 1. 销毁现有实例
-      await this.destroy();
-
-      // 2. 重新创建组件（需要在外部重新创建PDFTable实例）
-      logger.warn("Reinitialize requires creating a new PDFTable instance");
-
-    } catch (error) {
-      logger.error("Error reinitializing PDFTable component:", error);
+      logger.error("Error destroying PDFList component:", error);
       throw error;
     }
   }
 
   // Getters
-  get tabulator() { return this.#initializer?.tabulator; }
-  get tableWrapper() { return this.#initializer?.tableWrapper; }
   get container() { return this.#container; }
-  get fallbackMode() { return this.#dataService?.fallbackMode || false; }
+  get tableElement() { return this.#tableElement; }
+  get currentData() { return [...this.#currentData]; }
 }

@@ -6,11 +6,9 @@
 import { PDFListFeature } from "../index.js";
 import { LIST_STATE_SCHEMA, ListStateHelpers } from "../state/list-state.js";
 import { PDF_LIST_EVENTS, EventDataFactory } from "../events.js";
-// import { TableUtils } from '../services/table-utils.js'; // DISABLED: Tabulator removed
-// import { TableInitializer } from '../services/table-initializer.js'; // DISABLED: Tabulator removed
 import { ListDataService } from "../services/list-data-service.js";
 import { ListLifecycleService } from "../services/list-lifecycle-service.js";
-import { PDFTable } from "../components/pdf-table.js";
+import { PDFList } from "../components/pdf-table.js";
 
 describe("PDFListFeature Integration Tests", () => {
   describe("模块导入测试", () => {
@@ -32,15 +30,13 @@ describe("PDFListFeature Integration Tests", () => {
     });
 
     test("服务层模块应该可导入", () => {
-      // expect(TableUtils).toBeDefined(); // DISABLED: Tabulator removed
-      // expect(TableInitializer).toBeDefined(); // DISABLED: Tabulator removed
       expect(ListDataService).toBeDefined();
       expect(ListLifecycleService).toBeDefined();
     });
 
     test("组件层模块应该可导入", () => {
-      expect(PDFTable).toBeDefined();
-      expect(typeof PDFTable).toBe("function");
+      expect(PDFList).toBeDefined();
+      expect(typeof PDFList).toBe("function");
     });
   });
 
@@ -150,36 +146,19 @@ describe("PDFListFeature Integration Tests", () => {
   });
 
   describe("服务层测试", () => {
-    // DISABLED: Tabulator removed
-    /*
-    test('TableUtils 应该有必要的工具方法', () => {
-      expect(typeof TableUtils.prepareData).toBe('function');
-      expect(typeof TableUtils.ensureTabulatorRedraw).toBe('function');
-      expect(typeof TableUtils.validateTabulatorInstance).toBe('function');
+    test('ListDataService 应该正确标记为废弃', () => {
+      const dataService = new ListDataService({ state: null, eventBus: null });
+      const status = dataService.getStatus();
+      expect(status.deprecated).toBe(true);
+      expect(status.message).toContain('deprecated');
     });
 
-    test('TableUtils.prepareData 应该正确处理数组', () => {
-      const input = [{ id: 1, name: 'test' }];
-      const output = TableUtils.prepareData(input);
-
-      expect(Array.isArray(output)).toBe(true);
-      expect(output.length).toBe(1);
-      expect(output[0]).not.toBe(input[0]); // 应该是拷贝
+    test('ListLifecycleService 应该正确标记为废弃', () => {
+      const lifecycleService = new ListLifecycleService();
+      const status = lifecycleService.getLifecycleStatus();
+      expect(status.deprecated).toBe(true);
+      expect(status.message).toContain('deprecated');
     });
-
-    test('TableUtils.prepareData 应该处理空输入', () => {
-      const output1 = TableUtils.prepareData(null);
-      const output2 = TableUtils.prepareData(undefined);
-      const output3 = TableUtils.prepareData('invalid');
-
-      expect(Array.isArray(output1)).toBe(true);
-      expect(Array.isArray(output2)).toBe(true);
-      expect(Array.isArray(output3)).toBe(true);
-      expect(output1.length).toBe(0);
-      expect(output2.length).toBe(0);
-      expect(output3.length).toBe(0);
-    });
-    */
   });
 });
 
@@ -191,11 +170,9 @@ if (typeof window !== "undefined") {
     ListStateHelpers,
     PDF_LIST_EVENTS,
     EventDataFactory,
-    // TableUtils, // DISABLED: Tabulator removed
-    // TableInitializer, // DISABLED: Tabulator removed
     ListDataService,
     ListLifecycleService,
-    PDFTable
+    PDFList
   };
 
   // ✅ PDFListFeature 测试模块已加载到 window.PDFListFeatureTests

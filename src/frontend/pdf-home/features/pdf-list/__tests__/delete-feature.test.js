@@ -5,7 +5,7 @@ jest.mock('../../../../common/utils/logger.js', () => ({
 jest.mock('../../../../common/utils/thirdparty-toast.js', () => ({
   pending: jest.fn(), success: jest.fn(), warning: jest.fn(), error: jest.fn(), dismissById: jest.fn()
 }));
-jest.mock('tabulator-tables', () => ({}), { virtual: true });
+// Tabulator mock removed - Tabulator library has been removed from the project
 
 import { PDFListFeature } from '../../pdf-list/index.js';
 import { ScopedEventBus } from '../../../../common/event/scoped-event-bus.js';

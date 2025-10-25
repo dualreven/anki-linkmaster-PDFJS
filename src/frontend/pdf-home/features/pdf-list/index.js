@@ -1043,11 +1043,11 @@ export class PDFListFeature {
         return;
       }
 
-      // 2. 动态导入 PDFTable 组件
-      const { PDFTable } = await import('./components/pdf-table.js');
+      // 2. 动态导入 PDFList 组件
+      const { PDFList } = await import('./components/pdf-table.js');
 
-      // 3. 创建 PDFTable 实例
-      this.#uiManager = new PDFTable({
+      // 3. 创建 PDFList 实例
+      this.#uiManager = new PDFList({
         container: tableContainer,
         state: this.#state,
         eventBus: this.#scopedEventBus
