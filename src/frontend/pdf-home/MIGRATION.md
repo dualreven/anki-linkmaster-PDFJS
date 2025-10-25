@@ -84,7 +84,7 @@ pdf-home/
 - ✅ FeatureRegistry
 - ✅ StateManager
 - ✅ FeatureFlagManager
-- ✅ 功能域框架（PDFListFeature, PDFEditorFeature, PDFSorterFeature）
+- ✅ 功能域框架（PDFEditorFeature, PDFSorterFeature, PDFListFeature已移除）
 
 ### 阶段 2: 新应用类实现（当前阶段）
 **目标**: 创建新的启动流程，使功能域架构可运行
@@ -102,18 +102,15 @@ pdf-home/
 - [ ] 修改 `index.js` - 支持双模式启动
 
 ### 阶段 3: PDF 列表功能迁移
-**目标**: 将 PDF 列表相关代码迁移到 PDFListFeature
+**目标**: ~~将 PDF 列表相关代码迁移到 PDFListFeature~~
 
-**迁移内容**:
-- `table-wrapper.js` → `features/pdf-list/components/pdf-table.js`
-- `table-data-handler.js` → `features/pdf-list/services/list-data-service.js`
-- `table-lifecycle-manager.js` → `features/pdf-list/services/list-lifecycle-service.js`
-- 表格配置逻辑 → `features/pdf-list/state/list-state.js`
+**状态**: ✅ **已完成 - PDFListFeature已移除**
+**原因**: SearchResultsFeature 已经完整实现了PDF列表的展示功能，PDFListFeature是重复的实现
 
-**关键点**:
-- 使用 ScopedEventBus 替代全局 EventBus
-- 使用 StateManager 管理表格状态
-- 事件命名：`@pdf-list/table:row:selected` 等
+**实际使用**:
+- 搜索结果展示由 `SearchResultsFeature` 负责
+- PDF列表增删改查功能通过事件系统与后端通信
+- 无需额外的PDFListFeature
 
 ### 阶段 4: PDF 编辑功能迁移
 **目标**: 实现 PDFEditorFeature 的实际功能

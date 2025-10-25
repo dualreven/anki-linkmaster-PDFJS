@@ -21,7 +21,6 @@ import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS } from '../../common/event/e
 import { error as toastError } from '../../common/utils/thirdparty-toast.js';
 
 // 导入功能域
-import { PDFListFeature } from '../features/pdf-list/index.js';
 import { PDFEditorFeature } from '../features/pdf-editor/index.js';
 import { PDFSorterFeature } from '../features/pdf-sorter/index.js';
 import { PDFEditFeature } from '../features/pdf-edit/index.js';
@@ -362,7 +361,6 @@ export class PDFHomeAppV2 {
       new SearchResultsFeature(),  // 最后：结果展示
 
       // 核心功能
-      new PDFListFeature(),
       new PDFEditorFeature(),
       new PDFSorterFeature(),
       new PDFEditFeature(),

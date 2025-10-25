@@ -11,8 +11,8 @@
  * import { FeatureRegistry } from './core/feature-registry.js';
  *
  * const registry = new FeatureRegistry({ container });
- * registry.register(new PDFListFeature());
- * registry.register(new PDFSorterFeature()); // 依赖 pdf-list
+ * PDFListFeature 已移除 - 现在使用 SearchResultsFeature
+ * registry.register(new PDFSorterFeature()); // 依赖 search-results
  * await registry.installAll();
  */
 

@@ -420,7 +420,7 @@ wsClient.send({ type: 'get_pdf_list' });  // 缺少必需字段
 **在 Feature 中监听事件：**
 
 ```javascript
-class PDFListFeature {
+class SearchResultsFeature {
   install(container) {
     const eventBus = container.resolve('eventBus');
 
@@ -428,7 +428,7 @@ class PDFListFeature {
     eventBus.on(
       WEBSOCKET_MESSAGE_EVENTS.PDF_LIST,
       (message) => this.#handlePDFListUpdate(message),
-      { subscriberId: 'PDFListFeature' }
+      { subscriberId: 'SearchResultsFeature' }
     );
   }
 
@@ -439,8 +439,8 @@ class PDFListFeature {
       return;
     }
 
-    // 更新 UI
-    this.#updateTable(message.data.files);
+    // 更新搜索结果 UI
+    this.#updateSearchResults(message.data.files);
   }
 }
 ```
