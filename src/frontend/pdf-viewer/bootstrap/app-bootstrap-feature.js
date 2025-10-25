@@ -247,12 +247,17 @@ export async function bootstrapPDFViewerAppFeature() {
 
     logger.info("[Bootstrap] PDF Viewer App started successfully");
 
-    // 如果启用了 Outline（URL 参数 / localStorage），提示一次
+    // 如果启用了 Outline（debug 覆盖 / localStorage），提示一次
     try {
-      const useOutline = isOutlineEnabled();
-      if (useOutline) {
-        toastInfo("当前为 Outline 模式", 3000);
-        logger.warn("[Bootstrap] Outline mode is active (toast shown)");
+      const finalUseOutline = (isOutlineEnabled() || overrideOutline);
+      if (finalUseOutline) {
+        if (overrideOutline) {
+          toastInfo("当前为 debug 模式, json参数 outline=1", 3000);
+          logger.warn("[Bootstrap] Debug mode active via WS flags (toast shown: outline=1)");
+        } else {
+          toastInfo("当前为 Outline 模式", 3000);
+          logger.warn("[Bootstrap] Outline mode is active (toast shown)");
+        }
       }
     } catch (_) {}
     return registry;
