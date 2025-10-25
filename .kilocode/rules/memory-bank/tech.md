@@ -363,6 +363,13 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
   - 避免后端返回 `pdf-viewer:register:completed` 被前端拦截为未注册类型，导致注册链路中断→ viewer 空白。
   - 将 UI 模式类事件纳入全局事件白名单，消除“未注册的全局事件”错误噪音。
 
+###（新增 2025-10-25）outline=1 透传规范（WS 与 QWebChannel 一致）
+- GUI 勾选“启用 Outline”后写入 `logs/debug-info.json: { outline: 1 }`；  
+- 两条打开 viewer 路径都需统一把 `outline=1` 追加到 URL：  
+  - QWebChannel：`src/frontend/pdf-home/pyqt-bridge.py` 读取 debug-info 并在 URL `&outline=1`；  
+  - WebSocket：`src/backend/launcher.py (BackendLauncher)` 读取 debug-info / runtime-ports 并在调用 `start_pdf_viewer_hosted(..., enable_outline=True)` 时透传；前端 launcher 统一将 `&outline=1` 追加到 URL；  
+- 前端判断：`common/utils/feature-flags.isOutlineEnabled()` 优先 URL 参数，其次 localStorage；  
+- UI 提示：`pdf-viewer/bootstrap/app-bootstrap-feature.js` 检测到启用时 toast “当前为 Outline 模式”。
 ###（新增 2025-10-17）QtWebEngine 远程调试端口（Hosted 模式）
 - 约束：同一进程只能启用一个 `QTWEBENGINE_REMOTE_DEBUGGING` 端口。
 - 规范：
@@ -1140,3 +1147,18 @@ WS 适配（msgcenter → front）：
   - `ScreenshotTool` 监听 `ANNOTATION.DATA.LOADED`，对比新列表删除遗留方框，并为所有截图标注执行 `renderScreenshotMarker`；
   - 方框渲染仍内置 `MutationObserver` 兜底，当 canvas 未就绪时会延迟直到出现。
 - 验证：`text-highlight-tool.test.js` 覆盖“数据加载→立即渲染”和“无 TextLayer→事件回补”两种情况；`screenshot-tool.test.js` 验证批量渲染及过滤。
+
+---
+
+### 技术更新（2025-10-25）
+- 事件契约：添加 PDF 入口调整为全局事件 search:add:requested → Feature.add-files → WS pdf-library:add:requested（逐文件）。
+- 桥接实现：优先使用 src/frontend/pdf-home/qwebchannel/qwebchannel-bridge.js；如未注入 qwebchannel.js，桥接会尝试动态加载并等待 window.qt.webChannelTransport 就绪。
+- Feature Flag：dd-files 默认启用；eature-flags.json 去除 pdf-list 项，pdf-editor/pdf-sorter/pdf-edit 改为依赖 search-results。
+- 注意：所有文件读写统一 UTF-8，显式保证 \n 换行；前端发送 WS 消息统一走 WEBSOCKET_EVENTS.MESSAGE.SEND。
+
+---
+
+### 技术更新（FilterFeature 收敛）
+- 事件替换：@pdf-list/data:load:completed → search:results:updated。
+- 事件负载：标准结果事件包含 { records, count, searchText, focusId, page }；为兼容性暂保留 iles/items 回退读取。
+- 缓存策略：仅用于本地筛选的源数据缓存，不再要求“全量列表广播”。

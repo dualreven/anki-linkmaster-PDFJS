@@ -24,7 +24,8 @@ export class PDFOutlineFeature {
 
   get name() { return "pdf-outline"; }
   get version() { return "1.0.0"; }
-  get dependencies() { return ["pdf-reader", "ui", "core-navigation"]; }
+  // 与实际已注册的基础Feature对齐：pdf-manager、ui-manager、core-navigation
+  get dependencies() { return ["pdf-manager", "ui-manager", "core-navigation"]; }
 
   async install(context) {
     this.#logger = context.logger || getLogger("Feature.pdf-outline");

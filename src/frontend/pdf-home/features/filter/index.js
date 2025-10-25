@@ -207,18 +207,21 @@ export class FilterFeature {
    * @private
    */
   #subscribeToPdfList() {
-    // 监听PDF列表加载完成事件
-    const unsubListLoaded = this.#globalEventBus.on('@pdf-list/data:load:completed', (data) => {
-      this.#logger.info('[FilterFeature] PDF list data received', {
-        count: data.items?.length || 0
-      });
-
-      // 将数据存储到FilterManager供本地筛选使用
-      if (data.items) {
-        this.#filterManager.setDataSource(data.items);
-        this.#logger.info('[FilterFeature] Data cached for local filtering');
+    // 监听“标准搜索结果更新”事件，替代 legacy 的 @pdf-list/data:load:completed
+    const unsubListLoaded = this.#globalEventBus.on('search:results:updated', (data) => {
+      try {
+        const records = (data && (data.records || data.files || data.items)) || [];
+        this.#logger.info('[FilterFeature] Search results received (cache for local filtering)', {
+          count: Array.isArray(records) ? records.length : 0
+        });
+        if (Array.isArray(records) && records.length >= 0) {
+          this.#filterManager.setDataSource(records);
+          this.#logger.info('[FilterFeature] Data cached for local filtering');
+        }
+      } catch (e) {
+        this.#logger.warn('[FilterFeature] Failed to cache search results', e);
       }
-    });
+    }, { subscriberId: 'FilterFeature:results-updated' });
     this.#unsubscribers.push(unsubListLoaded);
 
     this.#logger.info('[FilterFeature] Subscribed to PDF list events (local caching mode)');

@@ -2643,3 +2643,72 @@ python gui_launcher_enhanced.py
 
 备注：
 - 以上为设计与连通性检查结论；尚未改动代码。实施时需补充最小单测覆盖：URL→Dispatcher→事件→BookmarkFeature 命中与未命中分支。
+
+---
+
+### 当前任务（20251025162609）
+名称：会话初始化与状态同步
+
+说明（UTF-8 与 \\n）：
+- 已加载最近 8 条 AI Working Log 与规范头，未发现未完成的强制执行步骤。
+- 等待用户指定新的明确任务；若继续推进 pdf-outline，请给出复现步骤或目标。
+
+下一步候选：
+- 根据用户目标，先编写/补充测试（占位或真实用例），再进行最小变更实现。
+- 变更后同步更新 architecture/tech，并记录到 AItemp。
+
+---
+
+### 当前任务（2025-10-25 16:41:20）
+名称：修复 pdf-home “添加PDF”按钮失效 & 清理 legacy 依赖
+
+背景：
+- 最近删除了 legacy 的 pdf-list 功能；点击“添加PDF”按钮无效，无法打开文件选择器。
+- dist/latest/logs/pdf-home-js.log 显示部分功能安装失败（pdf-editor / pdf-sorter），疑因仍依赖 pdf-list。
+
+本次变更（UTF-8 与 \n）：
+- 新增 Feature：dd-files，监听 search:add:requested，通过 QWebChannelBridge.selectFiles() 调用原生对话框，选择后发送 pdf-library:add:requested。
+- 在 core/pdf-home-app-v2.js 注册 AddFilesFeature；默认启用。
+- 修正依赖：pdf-editor、pdf-sorter 的 eature.config.js 依赖从 pdf-list 改为 search-results。
+- 更新 config/feature-flags.json：去除 pdf-list 依赖链，新增 dd-files。
+
+影响评估：
+- “添加PDF”按钮功能恢复；对外事件/WS契约保持不变（仍用 pdf-library:add:requested）。
+- 启动阶段 pdf-editor/pdf-sorter 因依赖不存在而报错的问题应收敛（若仍报错，多半因 DOM 容器未就绪，非依赖问题）。
+- FilterFeature 仍监听 @pdf-list/data:load:completed（缓存用途），短期不影响主流程，建议后续改为监听标准搜索结果事件或移除。
+
+验收要点：
+- 点击“＋添加”弹出文件对话框；选择 .pdf 后 WS 侧收到 pdf-library:add:requested。
+- “最近添加”可刷新看到新文件（由后端完成入库与广播）。
+
+---
+
+### 追加（2025-10-25 16:58:08）
+名称：FilterFeature 遗留监听收敛
+
+内容：
+- 将 FilterFeature.#subscribeToPdfList() 的监听从 @pdf-list/data:load:completed 替换为标准事件 search:results:updated；
+- 读取 data.records || data.files || data.items 作为缓存源，写入 FilterManager.setDataSource(...)；
+- 目的：去除 legacy 命名依赖，与“搜索→结果”主链路对齐。
+
+影响：
+- 需要有一次搜索结果发布后才会填充缓存；不再依赖旧的“全量列表广播”。
+- 与现有 SearchManager/SearchResultsFeature 事件流一致。
+
+---
+
+### 修复（2025-10-25 18:40:00）— outline=1 透传（WS 打开 viewer）
+
+问题：GUI（Hosted）勾选“启用 Outline”后，在 pdf-home 双击搜索结果通过 WebSocket 打开 pdf-viewer 未出现“当前为 Outline 模式” toast。
+
+原因：QWebChannel 路径会读取 `logs/debug-info.json` 并在 URL 追加 `&outline=1`；但 WebSocket 路径由 `BackendLauncher._on_msgcenter_message` 调用 `start_pdf_viewer_hosted()` 时未传递 `enable_outline`，导致 URL 未追加该参数。
+
+改动（UTF-8 与 `\n`）：
+- `src/backend/launcher.py (BackendLauncher)` 新增：
+  - `_read_debug_info_flags()`：读取 `logs/debug-info.json`（过滤 `_metadata`）；
+  - `_is_outline_enabled_flag()`：优先 `debug-info.json`，回退 `runtime-ports.json`，判断 `outline/feature_outline`；
+  - `_on_msgcenter_message()` 调用 `start_pdf_viewer_hosted(..., enable_outline=flag)`，由前端 launcher 统一把 `&outline=1` 追加到 URL。
+- 新增测试占位（skip）：`src/backend/__tests__/outline_flag_pass_through.test.py`。
+
+验收：
+- 勾选开关→启动 pdf-home（Hosted）→ 双击搜索结果打开 viewer，即可看到 toast “当前为 Outline 模式”；日志包含 `[Bootstrap] Outline mode is active (toast shown)`；URL 含 `&outline=1`。

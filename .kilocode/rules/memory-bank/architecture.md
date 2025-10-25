@@ -449,3 +449,10 @@ NavigationIntent（统一数据模型）：
 安全与治理：
 - WS 来源可加白名单与速率限制；可选用户交互确认（toast/弹框）以避免远端恶意跳转。
 - 日志统一：入口、门闸、执行、结果全链路带 `traceId`。
+
+---
+
+### 变更（2025-10-25）
+- 新增 Feature.add-files（pdf-home）：负责监听 search:add:requested 并调用 QWebChannelBridge.selectFiles()；将结果逐个通过 WEBSOCKET_EVENTS.MESSAGE.SEND 发送 WEBSOCKET_MESSAGE_TYPES.ADD_PDF 到 msgCenter。
+- PDFHomeAppV2 注册顺序：Search → Filter → SearchResults → AddFiles → 其余功能。
+- 依赖收敛：pdf-editor、pdf-sorter 的 eature.config.js 依赖从 pdf-list 改为 search-results，避免 legacy 功能删除后安装失败。

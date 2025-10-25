@@ -22,6 +22,7 @@ import logging
 import locale
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
+import json as _json
 
 # 设置项目根目录
 backend_dir = Path(__file__).resolve().parent
@@ -1000,6 +1001,100 @@ class BackendLauncher:
             }
         }
 
+    # ---- 工具：读取 debug-info.json（调试标志，如 outline）----
+    def _read_debug_info_flags(self) -> Dict[str, Any]:
+        """
+        读取 logs/debug-info.json，返回调试标志字典（UTF-8）。
+        - 仅返回纯标志位键值（过滤 _metadata）
+        - 失败返回空 dict
+        """
+        # 尝试多候选 base：当前模块推断的 project_root、组件根（resolve_component_root）、以及 logs_dir_override
+        candidates = []
+        try:
+            # 1) 来自 BackendLauncher.__init__ 的 logs_dir_override（若有）
+            if getattr(self, "logs_dir_override", None):
+                candidates.append(Path(self.logs_dir_override))
+        except Exception:
+            pass
+        try:
+            # 2) 模块级 project_root/logs
+            candidates.append((project_root / "logs"))
+        except Exception:
+            pass
+        try:
+            # 3) 组件根（与 GUI/Runner 同源），回退读取
+            from src.launcher.config import resolve_component_root as _resolve_component_root  # type: ignore
+            _comp = _resolve_component_root()
+            candidates.append(Path(_comp) / "logs")
+        except Exception:
+            # ignore if resolve_component_root is unavailable
+            pass
+
+        # 去重并按出现顺序尝试
+        seen = set()
+        unique_dirs = []
+        for d in candidates:
+            try:
+                key = str(Path(d).resolve())
+            except Exception:
+                key = str(d)
+            if key in seen:
+                continue
+            seen.add(key)
+            unique_dirs.append(Path(d))
+
+        for base in unique_dirs:
+            try:
+                p = Path(base) / "debug-info.json"
+                if p.exists():
+                    data = _json.loads(p.read_text(encoding="utf-8") or "{}")
+                    flags = {k: v for k, v in (data or {}).items() if not str(k).startswith("_")}
+                    # 日志跟踪（info 级别，便于问题定位）
+                    try:
+                        self.logger.info("[MsgDispatch] debug-info loaded from: %s -> %s", str(p), str(list(flags.keys())))
+                    except Exception:
+                        pass
+                    if flags:
+                        return flags
+            except Exception as _e:
+                try:
+                    self.logger.warning("[MsgDispatch] failed reading debug-info from %s: %s", str(base), str(_e))
+                except Exception:
+                    pass
+        return {}
+
+    def _is_outline_enabled_flag(self) -> bool:
+        """
+        统一判断是否启用 Outline：
+        - 优先读取 logs/debug-info.json 中的 outline 或 feature_outline
+        - 再尝试 logs/runtime-ports.json 中的同名扩展键（与前端保持一致）
+        """
+        try:
+            # 1) debug-info.json
+            flags = self._read_debug_info_flags()
+            v = flags.get('outline')
+            if v in (True, 1, '1', 'true', 'yes', 'on'):
+                return True
+            v = flags.get('feature_outline')
+            if v in (True, 1, '1', 'true', 'yes', 'on'):
+                return True
+        except Exception:
+            pass
+        try:
+            # 2) runtime-ports.json extras
+            rp_path = project_root / 'logs' / 'runtime-ports.json'
+            if rp_path.exists():
+                data = _json.loads(rp_path.read_text(encoding='utf-8') or '{}')
+                v = data.get('outline')
+                if v in (True, 1, '1', 'true', 'yes', 'on'):
+                    return True
+                v = data.get('feature_outline')
+                if v in (True, 1, '1', 'true', 'yes', 'on'):
+                    return True
+        except Exception:
+            pass
+        return False
+
     # === 消息分发：由后端执行实际启动动作，msgCenter 仅负责收发 ===
     def _on_msgcenter_message(self, client, message: Dict[str, Any]) -> None:
         try:
@@ -1033,16 +1128,37 @@ class BackendLauncher:
                 options=_LOpts(frontend_prod=True, keep_backend=True),
             )
 
+            # 读取 Outline 调试开关（与 gui_launcher/pyqt-bridge 一致）
+            enable_outline = self._is_outline_enabled_flag()
+            try:
+                self.logger.info("[MsgDispatch] outline flag (from debug/runtime): %s", "ON" if enable_outline else "OFF")
+            except Exception:
+                pass
+
             app = QApplication.instance()
             rc = None
             try:
                 if app is not None:
-                    rc = _run_viewer(cfg, parent_app=app, pdf_id=pdf_id, page_at=page_at, position=position)
+                    rc = _run_viewer(
+                        cfg,
+                        parent_app=app,
+                        pdf_id=pdf_id,
+                        page_at=page_at,
+                        position=position,
+                        enable_outline=enable_outline
+                    )
                     self.logger.info("[MsgDispatch] viewer hosted run rc=%s for pdf_id=%s", rc, pdf_id)
                 else:
                     # 兜底：无父应用（非Hosted）时走 CLI 子进程
                     self.logger.warning("[MsgDispatch] QApplication.instance() is None, fallback to CLI launch")
-                    ok = _run_viewer_cli(cfg, is_prod=True, pdf_id=pdf_id, page_at=page_at, position=position, on_log=lambda m: self.logger.info("[MsgDispatch/CLI] %s", m))
+                    ok = _run_viewer_cli(
+                        cfg,
+                        is_prod=True,
+                        pdf_id=pdf_id,
+                        page_at=page_at,
+                        position=position,
+                        on_log=lambda m: self.logger.info("[MsgDispatch/CLI] %s", m)
+                    )
                     rc = 0 if ok else 1
             except Exception as e:
                 self.logger.error("[MsgDispatch] Launch error: %s", str(e), exc_info=True)

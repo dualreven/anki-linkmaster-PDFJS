@@ -16,9 +16,9 @@ export const PDFSorterFeatureConfig = {
 
   /**
    * 功能依赖
-   * - 依赖 pdf-list 功能域（需要访问列表数据）
+   * - 依赖 search-results 功能域（复用统一的结果与选择模型）
    */
-  dependencies: ['pdf-list'],
+  dependencies: ['search-results'],
 
   /**
    * 功能描述

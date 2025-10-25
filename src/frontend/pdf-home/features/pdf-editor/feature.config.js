@@ -16,9 +16,9 @@ export const PDFEditorFeatureConfig = {
 
   /**
    * 功能依赖
-   * - 依赖 pdf-list 功能域（需要知道哪些记录被选中）
+   * - 依赖 search-results 功能域（从搜索结果中读取选中项）
    */
-  dependencies: ['pdf-list'],
+  dependencies: ['search-results'],
 
   /**
    * 功能描述

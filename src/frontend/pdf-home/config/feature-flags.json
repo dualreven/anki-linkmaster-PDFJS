@@ -1,24 +1,12 @@
 {
-  
-  "pdf-list": {
-    "enabled": true,
-    "description": "PDF 列表功能域",
-    "version": "1.0.0",
-    "meta": {
-      "status": "stable",
-      "owner": "pdf-home-team",
-      "dependencies": [],
-      "releasedAt": "2025-10-02"
-    }
-  },
   "pdf-editor": {
-    "enabled": false,
+    "enabled": true,
     "description": "PDF 编辑功能域（开发中）",
     "version": "0.1.0",
     "meta": {
       "status": "development",
       "owner": "pdf-home-team",
-      "dependencies": ["pdf-list"],
+      "dependencies": ["search-results"],
       "estimatedRelease": "2025-10-15"
     }
   },
@@ -29,7 +17,7 @@
     "meta": {
       "status": "stable",
       "owner": "pdf-home-team",
-      "dependencies": ["pdf-list"],
+      "dependencies": ["search-results"],
       "releasedAt": "2025-10-04"
     }
   },
@@ -40,8 +28,19 @@
     "meta": {
       "status": "stable",
       "owner": "pdf-home-team",
-      "dependencies": ["pdf-list"],
+      "dependencies": ["search-results"],
       "releasedAt": "2025-10-03"
+    }
+  },
+  "add-files": {
+    "enabled": true,
+    "description": "添加PDF - 打开文件选择器并通过WS请求添加",
+    "version": "1.0.0",
+    "meta": {
+      "status": "stable",
+      "owner": "pdf-home-team",
+      "dependencies": [],
+      "releasedAt": "2025-10-25"
     }
   },
   "search": {

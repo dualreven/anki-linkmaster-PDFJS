@@ -29,6 +29,8 @@ import { SidebarFeature } from '../features/sidebar/index.js';
 // 搜索和筛选功能
 import { SearchFeature } from '../features/search/index.js';
 import { FilterFeature } from '../features/filter/index.js';
+import { SearchResultsFeature } from '../features/search-results/index.js';
+import { SearchResultItemFeature } from '../features/search-result-item/index.js';
 
 // 侧边栏子功能
 import { SavedFiltersFeature } from '../features/sidebar/saved-filters/index.js';
@@ -36,9 +38,8 @@ import { RecentSearchesFeature } from '../features/sidebar/recent-searches/index
 import { RecentOpenedFeature } from '../features/sidebar/recent-opened/index.js';
 import { RecentAddedFeature } from '../features/sidebar/recent-added/index.js';
 
-// 搜索结果功能
-import { SearchResultsFeature } from '../features/search-results/index.js';
-import { SearchResultItemFeature } from '../features/search-result-item/index.js';
+// 添加文件功能
+import { AddFilesFeature } from '../features/add-files/index.js';
 const logger = getLogger('PDFHomeAppV2');
 
 /**
@@ -361,6 +362,7 @@ export class PDFHomeAppV2 {
       new SearchResultsFeature(),  // 最后：结果展示
 
       // 核心功能
+      new AddFilesFeature(),       // 新增：添加PDF（桥接文件选择 -> WS）
       new PDFEditorFeature(),
       new PDFSorterFeature(),
       new PDFEditFeature(),

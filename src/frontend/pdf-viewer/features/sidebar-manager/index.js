@@ -48,8 +48,10 @@ export class SidebarManagerFeature {
      * 依赖的Features
      */
     get dependencies() {
-        // 恢复为依赖 pdf-bookmark，保证现有功能稳定
-        return ['annotation', 'pdf-translator', 'pdf-bookmark', 'pdf-card'];
+        // 不再强制依赖 pdf-bookmark（以便在启用 outline 时不触发缺依赖）
+        // 侧边栏 UI 会在 real-sidebars.js 中按开关动态选择 OutlineSidebarUI 或 BookmarkSidebarUI
+        // 保留与侧边栏内容相关的通用功能依赖
+        return ['annotation', 'pdf-translator', 'pdf-card'];
     }
 
     /**
