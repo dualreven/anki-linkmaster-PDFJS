@@ -71,9 +71,11 @@ export class PDFAnchorFeature {
   }
 
   #setupEventListeners() {
-    // URL 参数解析：捕捉 anchor-id
-    this.#eventBus.on(
-      PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.PARSED,
+    // URL 参数解析：捕捉 anchor-id（防御：事件名必须为字符串）
+    const EVT_URL_PARSED = PDF_VIEWER_EVENTS?.NAVIGATION?.URL_PARAMS?.PARSED;
+    if (typeof EVT_URL_PARSED === "string") {
+      this.#eventBus.on(
+      EVT_URL_PARSED,
       (data) => {
         const anchorId = (data?.anchorId || "").toString().trim();
         if (!anchorId) {return;}
@@ -102,6 +104,9 @@ export class PDFAnchorFeature {
       },
       { subscriberId: "PDFAnchorFeature" }
     );
+    } else {
+      this.#logger.warn("URL_PARAMS.PARSED event undefined; skip subscription");
+    }
 
     // 收到锚点数据（数组或单条）
     this.#eventBus.on(

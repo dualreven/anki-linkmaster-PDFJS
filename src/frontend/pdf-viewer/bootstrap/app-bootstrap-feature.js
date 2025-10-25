@@ -7,7 +7,7 @@
 import { getLogger } from "../../common/utils/logger.js";
 import { FeatureRegistry } from "../../common/micro-service/feature-registry.js";
 import { SimpleDependencyContainer } from "../container/simple-dependency-container.js";
-import eventBusSingleton from "../../common/event/event-bus.js";
+import eventBusSingleton, { getEventBus } from "../../common/event/event-bus.js";
 
 // 导入 Features
 import { AppCoreFeature } from "../features/app-core/index.js";
@@ -110,7 +110,9 @@ export async function bootstrapPDFViewerAppFeature() {
       if (hasDebugParam && !hasOutlineParam) {
         const { default: WSClient } = await import("../../common/ws/ws-client.js");
         const { WEBSOCKET_MESSAGE_TYPES } = await import("../../common/event/event-constants.js");
-        const tmpClient = new WSClient(wsUrl, eventBusSingleton);
+        // 使用隔离的临时 EventBus，避免与主 WSClient 的订阅冲突
+        const tempBus = getEventBus("debug-preflight", { enableValidation: false });
+        const tmpClient = new WSClient(wsUrl, tempBus);
         await tmpClient.connect();
         try {
           const resp = await tmpClient.request(WEBSOCKET_MESSAGE_TYPES.DEBUG_INFO_READ, {}, { timeout: 1000 });
