@@ -52,17 +52,15 @@ export function readBoolFromLocalStorage(keys) {
 
 /**
  * 判断是否启用 Outline（大纲新实现）
- * 优先级：URL 参数 > localStorage；默认 false
- * URL 参数：?outline=1 | ?feature_outline=1
- * localStorage：FEATURE_OUTLINE=1|true
+ * 说明：
+ * - 去掉 URL 参数 (?outline=1 / ?feature_outline=1) 的直接支持；
+ * - 优先使用调试预检（bootstrap 中的 debug=1 → WS 拉取 debug-info）覆盖；
+ * - 此函数仅读取 localStorage（FEATURE_OUTLINE）作为本地开关；默认 false。
  * @returns {boolean}
  */
 export function isOutlineEnabled() {
-  const url = readBoolFromUrl(['outline', 'feature_outline']);
-  if (url) return true;
   const ls = readBoolFromLocalStorage(['FEATURE_OUTLINE']);
   return !!ls;
 }
 
 export default { isOutlineEnabled, readBoolFromUrl, readBoolFromLocalStorage };
-

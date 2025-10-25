@@ -341,11 +341,11 @@ class PyQtBridge(QObject):
                 file_path = self._resolve_pdf_file_path(pdf_id)
 
                 # 通过 PdfViewerApp 启动（hosted），保持一致
-                # 从 runtime-ports.json 的 extras 透传 Outline 开关到前端 URL
+                # 从 runtime-ports.json 的 extras 透传 Debug 开关到前端 URL（由前端 WS 读取 debug-info 决定是否启用 Outline）
                 extra_params = {}
                 try:
                     if (_extras.get('outline') in (True, 1, '1', 'true', 'yes', 'on')) or (_extras.get('feature_outline') in (True, 1, '1', 'true', 'yes', 'on')):
-                        extra_params['outline'] = '1'
+                        extra_params['debug'] = '1'
                 except Exception:
                     pass
 
