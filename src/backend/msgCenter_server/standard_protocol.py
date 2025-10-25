@@ -112,6 +112,11 @@ class MessageType(Enum):
     ANNOTATION_SAVE_COMPLETED = "annotation:save:completed"
     ANNOTATION_SAVE_FAILED = "annotation:save:failed"
 
+    # === Debug / Flags ===
+    DEBUG_INFO_READ_REQUESTED = "debug-info:read:requested"
+    DEBUG_INFO_READ_COMPLETED = "debug-info:read:completed"
+    DEBUG_INFO_READ_FAILED = "debug-info:read:failed"
+
     ANNOTATION_DELETE_REQUESTED = "annotation:delete:requested"
     ANNOTATION_DELETE_COMPLETED = "annotation:delete:completed"
     ANNOTATION_DELETE_FAILED = "annotation:delete:failed"

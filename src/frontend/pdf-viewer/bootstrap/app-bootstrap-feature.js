@@ -21,7 +21,7 @@ import { SidebarManagerFeature } from "../features/sidebar-manager/index.js";
 import { PDFTranslatorFeature } from "../features/pdf-translator/index.js";
 import { TextSelectionQuickActionsFeature } from "../features/text-selection-quick-actions/index.js";
 import { PDFBookmarkFeature } from "../features/pdf-bookmark/index.js";
-import { isOutlineEnabled } from "../../common/utils/feature-flags.js";
+import { isOutlineEnabled, readBoolFromUrl } from "../../common/utils/feature-flags.js";
 import { PDFCardFeature } from "../features/pdf-card/index.js";
 import { AiAssistantFeature } from "../features/ai-assistant/index.js";
 import { PDFAnchorFeature } from "../features/pdf-anchor/index.js";
@@ -101,9 +101,34 @@ export async function bootstrapPDFViewerAppFeature() {
     registry.register(new CoreNavigationFeature());  // 核心导航服务（需在url-navigation和annotation之前）
     registry.register(new SearchFeature());  // 注册搜索功能
     registry.register(new URLNavigationFeature());
-    // 按开关选择性注册 Bookmark 或 Outline（默认 Bookmark）
+
+    // 4.1 Debug 开关：若 URL 有 debug=1 且未显式指定 outline，则通过 WS 请求 debug-info 决定是否启用 Outline
+    let overrideOutline = false;
     try {
-      const useOutline = isOutlineEnabled();
+      const hasDebugParam = readBoolFromUrl(['debug']);
+      const hasOutlineParam = readBoolFromUrl(['outline','feature_outline']);
+      if (hasDebugParam && !hasOutlineParam) {
+        const { default: WSClient } = await import("../../common/ws/ws-client.js");
+        const { WEBSOCKET_MESSAGE_TYPES } = await import("../../common/event/event-constants.js");
+        const tmpClient = new WSClient(wsUrl, eventBusSingleton);
+        await tmpClient.connect();
+        try {
+          const resp = await tmpClient.request(WEBSOCKET_MESSAGE_TYPES.DEBUG_INFO_READ, {}, { timeout: 1000 });
+          const flags = (resp && (resp.flags || resp)) || {};
+          overrideOutline = !!(flags.outline === 1 || String(flags.outline).toLowerCase() === 'true');
+          logger.info(`[Bootstrap] Debug flags loaded via WS: outline=${overrideOutline}`);
+        } catch (e) {
+          logger.warn("[Bootstrap] Debug flags WS request failed (non-fatal)", e);
+        }
+        try { tmpClient.disconnect(); } catch { /* ignore */ }
+      }
+    } catch (e) {
+      logger.warn("[Bootstrap] Debug preflight failed (non-fatal)", e);
+    }
+
+    // 按开关（URL/localStorage 或 debug 覆盖）选择性注册 Bookmark 或 Outline（默认 Bookmark）
+    try {
+      const useOutline = isOutlineEnabled() || overrideOutline;
       if (useOutline) {
         const { PDFOutlineFeature } = await import("../features/pdf-outline/index.js");
         registry.register(new PDFOutlineFeature());

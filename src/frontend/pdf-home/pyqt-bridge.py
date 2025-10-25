@@ -605,10 +605,10 @@ class PyQtBridge(QObject):
 
                 logger.info(f"[PyQtBridge] [步骤PyQt-15.{idx}] 构建前端 URL")
                 url = self._build_pdf_viewer_url(vite_port, msg_port, pdf_port, pdf_id, file_path=file_path)
-                # 追加 Outline 开关（若存在）
+                # 追加 Debug 开关（若存在）：前端将据此通过 WS 拉取 debug-info 决定是否启用 Outline
                 try:
                     if (_extras.get('outline') in (True, 1, '1', 'true', 'yes', 'on')) or (_extras.get('feature_outline') in (True, 1, '1', 'true', 'yes', 'on')):
-                        url = f"{url}&outline=1"
+                        url = f"{url}&debug=1"
                 except Exception:
                     pass
                 try:

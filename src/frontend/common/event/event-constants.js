@@ -152,6 +152,9 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   ANCHOR_DELETE: 'anchor:delete:requested',
   ANCHOR_ACTIVATE: 'anchor:activate:requested',
 
+  // Debug / Flags
+  DEBUG_INFO_READ: 'debug-info:read:requested',
+
   // 响应/广播消息
   // 查看器启动回执（pdf-home 侧接收）
   OPEN_PDF_COMPLETED: 'pdf-library:viewer:completed',
@@ -211,6 +214,10 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   ANCHOR_DELETE_FAILED: 'anchor:delete:failed',
   ANCHOR_ACTIVATE_COMPLETED: 'anchor:activate:completed',
   ANCHOR_ACTIVATE_FAILED: 'anchor:activate:failed',
+
+  // Debug / Flags
+  DEBUG_INFO_READ_COMPLETED: 'debug-info:read:completed',
+  DEBUG_INFO_READ_FAILED: 'debug-info:read:failed',
 
   // ====== PDF-Viewer 实例注册与导航（新增）======
   // 前端→后端：PDF-Viewer 实例注册（包含 viewer_id 与 pdf_uuid 绑定）

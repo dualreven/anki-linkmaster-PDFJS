@@ -130,8 +130,8 @@ def start_pdf_viewer_hosted(cfg: LauncherConfig, *, parent_app, pdf_id: Optional
     if outline_item_id:
         _extra["outline_item_id"] = outline_item_id
     if enable_outline:
-        # 前端解析时优先 URL 参数；值无所谓，存在即真。使用 outline=1 以便直观。
-        _extra["outline"] = "1"
+        # 改为通过 debug=1 触发前端 WS 读取 debug-info（其中 outline=1 决定是否启用 Outline）
+        _extra["debug"] = "1"
 
     fe_cfg = FEConfig(
         is_prod=bool(cfg.options.frontend_prod),

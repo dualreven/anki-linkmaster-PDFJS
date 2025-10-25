@@ -495,9 +495,9 @@ class PdfViewerApp:
             oi = extra.get('outline_item_id')
             if oi:
                 url += f"&outline-item-id={oi}"
-            # 追加 outline 开关：存在即真（值使用1便于直观）
-            if extra.get('outline') in (True, '1', 'true', 'yes', 'on', 1):
-                url += f"&outline=1"
+            # 追加 debug 开关：存在即真（值使用1便于直观）
+            if extra.get('debug') in (True, '1', 'true', 'yes', 'on', 1):
+                url += f"&debug=1"
         except Exception:
             pass
 

@@ -61,6 +61,10 @@ export class WSClient {
     "annotation:delete:completed",
     "annotation:delete:failed"
     ,
+    // Debug / Flags
+    "debug-info:read:completed",
+    "debug-info:read:failed"
+    ,
     // PDF-Viewer 契约消息（服务端→前端）
     "pdf-viewer:register:completed",
     "pdf-viewer:register:failed",

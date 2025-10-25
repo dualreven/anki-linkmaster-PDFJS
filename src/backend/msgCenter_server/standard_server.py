@@ -354,6 +354,10 @@ class StandardWebSocketServer(QObject):
         if normalized_type == MessageType.PDF_PAGE_CACHE_CLEAR_REQUESTED.value or original_type == MessageType.LEGACY_PDF_PAGE_CACHE_CLEAR.value:
             return self.handle_pdf_page_cache_clear_request(request_id, data)
 
+        # Debug / Flags
+        if normalized_type == MessageType.DEBUG_INFO_READ_REQUESTED.value:
+            return self.handle_debug_info_read_request(request_id)
+
         # Annotation domain
         if normalized_type == MessageType.ANNOTATION_LIST_REQUESTED.value:
             return self.handle_annotation_list_request(request_id, data)
@@ -402,6 +406,59 @@ class StandardWebSocketServer(QObject):
             message_type=MessageType.LEGACY_ERROR,
             code=400
         )
+    def handle_debug_info_read_request(self, request_id: Optional[str]) -> Dict[str, Any]:
+        """读取 logs/debug-info.json（仅返回非 _metadata 字段）"""
+        try:
+            import json as _json
+            from pathlib import Path as _Path
+            # 优先当前 project_root/logs
+            candidates = []
+            try:
+                candidates.append(_Path(project_root) / 'logs' / 'debug-info.json')
+            except Exception:
+                pass
+            # 回退 dist/latest/logs（当 project_root 指到源码根时）
+            try:
+                candidates.append(_Path('dist/latest/logs/debug-info.json'))
+            except Exception:
+                pass
+            flags = None
+            source = None
+            for p in candidates:
+                try:
+                    if p.exists():
+                        txt = p.read_text(encoding='utf-8')
+                        data = _json.loads(txt or '{}')
+                        flags = {k: v for k, v in (data or {}).items() if not str(k).startswith('_')}
+                        source = str(p)
+                        break
+                except Exception:
+                    continue
+            if flags is None:
+                return StandardMessageHandler.build_error_response(
+                    request_id or "unknown",
+                    "NOT_FOUND",
+                    "debug-info.json 不存在",
+                    message_type=MessageType.DEBUG_INFO_READ_FAILED,
+                    code=404
+                )
+            return StandardMessageHandler.build_response(
+                MessageType.DEBUG_INFO_READ_COMPLETED,
+                request_id or StandardMessageHandler.generate_request_id(),
+                status="success",
+                code=200,
+                message="调试信息读取成功",
+                data={"flags": flags, "source": source}
+            )
+        except Exception as exc:
+            logger.error("读取 debug-info 失败: %s", exc, exc_info=True)
+            return StandardMessageHandler.build_error_response(
+                request_id or "unknown",
+                "INTERNAL_ERROR",
+                f"读取 debug-info 失败: {exc}",
+                message_type=MessageType.DEBUG_INFO_READ_FAILED,
+                code=500
+            )
     def handle_pdf_list_request(self, request_id: Optional[str], data: Dict[str, Any], *, original_type: Optional[str] = None) -> Dict[str, Any]:
         try:
             limit = None
