@@ -21,10 +21,11 @@ import { SidebarManagerFeature } from "../features/sidebar-manager/index.js";
 import { PDFTranslatorFeature } from "../features/pdf-translator/index.js";
 import { TextSelectionQuickActionsFeature } from "../features/text-selection-quick-actions/index.js";
 import { PDFBookmarkFeature } from "../features/pdf-bookmark/index.js";
-// import { PDFOutlineFeature } from "../features/pdf-outline/index.js";
+import { isOutlineEnabled } from "../../common/utils/feature-flags.js";
 import { PDFCardFeature } from "../features/pdf-card/index.js";
 import { AiAssistantFeature } from "../features/ai-assistant/index.js";
 import { PDFAnchorFeature } from "../features/pdf-anchor/index.js";
+import { info as toastInfo } from "../../common/utils/thirdparty-toast.js";
 const logger = getLogger('pdf-viewer.bootstrap');
 
 /**
@@ -100,8 +101,22 @@ export async function bootstrapPDFViewerAppFeature() {
     registry.register(new CoreNavigationFeature());  // 核心导航服务（需在url-navigation和annotation之前）
     registry.register(new SearchFeature());  // 注册搜索功能
     registry.register(new URLNavigationFeature());
-    registry.register(new PDFBookmarkFeature());  // 使用现有书签功能（工具栏与事件完整）
-    // registry.register(new PDFOutlineFeature()); // 暂不启用新 outline，先保证稳定
+    // 按开关选择性注册 Bookmark 或 Outline（默认 Bookmark）
+    try {
+      const useOutline = isOutlineEnabled();
+      if (useOutline) {
+        const { PDFOutlineFeature } = await import("../features/pdf-outline/index.js");
+        registry.register(new PDFOutlineFeature());
+        logger.warn("[Bootstrap] Outline feature enabled by flag; pdf-outline registered");
+      } else {
+        registry.register(new PDFBookmarkFeature());
+        logger.info("[Bootstrap] Bookmark feature registered (default)");
+      }
+    } catch (e) {
+      // 任何异常都回退到 Bookmark，保障稳定
+      logger.warn("[Bootstrap] Failed to load pdf-outline, falling back to pdf-bookmark", e);
+      registry.register(new PDFBookmarkFeature());
+    }
     registry.register(new PDFAnchorFeature());    // 锚点功能（复制/激活/URL集成），在sidebar-manager之前
     registry.register(new AnnotationFeature());
     registry.register(new PDFTranslatorFeature());  // 翻译功能
@@ -206,6 +221,15 @@ export async function bootstrapPDFViewerAppFeature() {
     }
 
     logger.info("[Bootstrap] PDF Viewer App started successfully");
+
+    // 如果启用了 Outline（URL 参数 / localStorage），提示一次
+    try {
+      const useOutline = isOutlineEnabled();
+      if (useOutline) {
+        toastInfo("当前为 Outline 模式", 3000);
+        logger.warn("[Bootstrap] Outline mode is active (toast shown)");
+      }
+    } catch (_) {}
     return registry;
 
   } catch (error) {

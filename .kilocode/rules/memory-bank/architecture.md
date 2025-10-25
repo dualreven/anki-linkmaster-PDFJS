@@ -29,6 +29,7 @@
 ## 前端关键实现
 - pdf-home：`src/frontend/pdf-home/*`（容器、QWebChannel 管理、前端日志捕获到 `logs/pdf-home-js.log`）。
 - pdf-viewer：`src/frontend/pdf-viewer/*`（`ui-manager-core.js` 以 `#elements/#state` 为中心；按 `pdf_id` 输出 `logs/pdf-viewer-<pdf-id>-js.log`）。
+  - Outline 路径（灰度开关）：`features/pdf-outline/index.js` 复用 `BookmarkManager/BookmarkDialog/BookmarkDataProvider`；事件契约仍使用 `PDF_VIEWER_EVENTS.BOOKMARK.*`；导航通过容器内 `navigationService` 实现。
 
 ### pdf-viewer QWebChannel 扩展（Clipboard）
 - Python 端：`src/frontend/pdf-viewer/pyqt/pdf_viewer_bridge.py` 新增 `setClipboardText(text: str) -> bool` 槽，用于在 Clipboard API 失效时由前端通过 QWebChannel 设置系统剪贴板。
@@ -368,3 +369,83 @@ PDF_LIBRARY_LIST_REQUESTED = "pdf-library:list:requested"  # 新格式
 - 管理器层（如 AnnotationManager）在列表解析时，建议“逐条 try/catch”，跳过不合规历史数据，避免整批失败导致 UI 空白。
 - 书签之所以稳定，是因采用“远端优先 + 本地兜底缓存”，标注后续也建议对齐该模式（不是替代白名单/路由，而是体验增强）。
 - 详细指引见：docs/TECH/WS-MESSAGE-ROUTING-GUIDE.md
+
+---
+
+## 统一跳转架构（提案，2025‑10‑20）
+
+目的：将 annotation-id / anchor-id / outline-item-id 与 page 导航统一为“单一跳转意图（Navigation Intent）”，实现多来源（URL/WS/UI/内部）→ 单入口 → 门闸 → 分发 → 统一结果的稳定链路；为未来 msgcenter WS 要求跳转的场景提供直接接入点。
+
+关键组件：
+- Navigation Orchestrator（新 Feature）
+  - 职责：接收统一入口事件、聚合门闸状态、调度到具体领域、统一产出结果事件。
+  - 只处理“何时、调度到哪类目标”，不接入具体领域数据层。
+- GateTracker
+  - 监听并维护就绪态：`FILE.LOAD.SUCCESS`、`RENDER.READY`、`ANNOTATION.DATA.LOADED`、`ANCHOR.DATA.LOADED`、`BOOKMARK.LOAD.SUCCESS`。
+  - 提供 `isReadyFor(kind)` 判定：page/annotation/anchor/outline 各自要求不同门闸。
+- IntentQueue
+  - 存放未满足门闸的意图；支持 `priority` 与 `replace`（同类/同 traceId 覆盖），防止堆积与抖动。
+- Source Adapters
+  - URLAdapter：将 `URL_PARAMS.PARSED` 或现有 URL 导航参数转换为 `INTENT.REQUESTED`（含 traceId、source=url）。
+- WSAdapter：将 msgcenter 的 `pdf-viewer:navigation-intent:requested` 消息映射为 `INTENT.REQUESTED`（source=ws）。
+  - UIAdapter：将 UI 的点击/菜单操作（包括按ID导航与按页导航）统一转换为 `INTENT.REQUESTED`（source=ui）。
+  - InternalAdapter：保留内部模块通过统一入口发起跨域跳转。
+- Domain Executors
+  - AnnotationExecutor：转发 `ANNOTATION.NAVIGATION.JUMP_REQUESTED` 并等待对应成功/失败回执或超时。
+  - AnchorExecutor：转发到 AnchorFeature 的专用事件（沿用现状）。
+  - OutlineExecutor：转发 `BOOKMARK.NAVIGATE_BY_ID.REQUESTED`（按ID），或直接 page 执行（按页）。
+  - PageExecutor：直接调用 `navigationService.navigateTo({pageAt, position})`。
+
+统一事件（草案，遵循现有命名规范）：
+- 入口
+  - `PDF_VIEWER_EVENTS.NAVIGATION.INTENT.REQUESTED`（负载：`NavigationIntent`）
+- 中间态（可选）
+  - `PDF_VIEWER_EVENTS.NAVIGATION.INTENT.GATE.WAITING`（列出缺失门闸）
+  - `PDF_VIEWER_EVENTS.NAVIGATION.INTENT.ACCEPTED`（入队/去重后）
+  - `PDF_VIEWER_EVENTS.NAVIGATION.EXECUTE.REQUESTED`（内部：发往具体领域前）
+- 结果
+  - `PDF_VIEWER_EVENTS.NAVIGATION.INTENT.RESULT.SUCCESS`
+  - `PDF_VIEWER_EVENTS.NAVIGATION.INTENT.RESULT.FAILED`
+
+NavigationIntent（统一数据模型）：
+```json
+{
+  "traceId": "uuid-like or ws-msg-id",
+  "source": "url|ws|ui|internal|test",
+  "pdfId": "optional-12-hex",
+  "target": {
+    "kind": "annotation|anchor|outline|page",
+    "id": "for annotation/anchor/outline",
+    "pageAt": 12,
+    "position": 33.5
+  },
+  "priority": "normal|high",
+  "replace": true
+}
+```
+说明：
+- kind=page 时使用 `pageAt/position`；其余使用 `id`，如果同时给出 `pageAt/position` 仅作为“提示”，是否使用由领域执行器决定。
+- `pdfId` 存在且与当前不同 → Orchestrator 先发起文件加载，待 `FILE.LOAD.SUCCESS` 后再进入门闸判断。
+
+门闸策略：
+- page：`FILE.LOAD.SUCCESS`；如携带 `position`，建议等待 `RENDER.READY`（或允许先跳页再微调）。
+- annotation：`FILE.LOAD.SUCCESS` + `ANNOTATION.DATA.LOADED`（必要）；渲染可选（工具内部已处理）。
+- anchor：`FILE.LOAD.SUCCESS` + `ANCHOR.DATA.LOADED`（必要） + `RENDER.READY`（通常需要 DOM 定位）。
+- outline：`FILE.LOAD.SUCCESS` + `BOOKMARK.LOAD.SUCCESS`（必要）。
+
+结果与回执：
+- 成功：包含 `resolved: { pageAt, position }`、`actual: { page, position }`、耗时、executor 与 source，透传 `traceId`。
+- 失败：错误码（`missing_gate/not_found/invalid/timeout/denied`）、上下文与 `traceId`。
+- WSAdapter 可选择向 msgcenter 回写 ACK（front→ws），带上 `traceId` 与结果。
+
+优先级与抢占：
+- 门闸等待期间收到新的高优先级意图可替换当前排队意图。
+- 同一 source 且目标等价（相同 kind/id 或相同 pageAt/position）默认去重。
+
+兼容策略（增量落地）：
+- 保留现有领域事件与行为；Orchestrator 仅作为“聚合入口 + 调度者”，优先接入 URL 与 WS 来源。
+- UI 点击仍可直接调用现有路径；后续逐步统一到 Intent 入口（低风险迁移）。
+
+安全与治理：
+- WS 来源可加白名单与速率限制；可选用户交互确认（toast/弹框）以避免远端恶意跳转。
+- 日志统一：入口、门闸、执行、结果全链路带 `traceId`。

@@ -114,8 +114,10 @@ export class PDFBookmarkFeature {
       setModuleLogLevel('Feature.pdf-bookmark', __LogLevelForFeature.DEBUG);
       setModuleLogLevel('BookmarkManager', __LogLevelForFeature.DEBUG);
       setModuleLogLevel('BookmarkDataProvider', __LogLevelForFeature.DEBUG);
-      setModuleLogLevel('BookmarkSidebarUI', __LogLevelForFeature.DEBUG);
-      setModuleLogLevel('OutlineSidebarUI', __LogLevelForFeature.DEBUG);
+      // 按需求：关闭 outline 相关模块级日志，仅保留 error
+      setModuleLogLevel('BookmarkSidebarUI', __LogLevelForFeature.ERROR);
+      setModuleLogLevel('OutlineSidebarUI', __LogLevelForFeature.ERROR);
+      setModuleLogLevel('Feature.pdf-outline', __LogLevelForFeature.ERROR);
       setModuleLogLevel('PdfDestUtils', __LogLevelForFeature.DEBUG);
     } catch (_) {}
 

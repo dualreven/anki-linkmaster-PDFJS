@@ -211,6 +211,27 @@ class PyQtBridge(QObject):
             logger.warning(f"[PyQtBridge] 读取运行端口失败: {exc}")
         return 3000, 8765, 8080, {}
 
+    def _read_debug_info(self) -> dict:
+        """读取 logs/debug-info.json 以获取调试标志（如 outline 等）。
+
+        Returns:
+            dict: 调试信息字典，如 {'outline': 1, ...}
+        """
+        try:
+            from pathlib import Path
+            import json
+            # 项目根目录: pyqt-bridge.py -> pdf-home -> frontend -> src -> 项目根
+            project_root = Path(__file__).parent.parent.parent.parent
+            debug_info_path = project_root / 'logs' / 'debug-info.json'
+            if debug_info_path.exists():
+                text = debug_info_path.read_text(encoding='utf-8')
+                data = json.loads(text or '{}')
+                # 过滤掉元数据
+                return {k: v for k, v in data.items() if not k.startswith('_')}
+        except Exception as exc:
+            logger.warning(f"[PyQtBridge] 读取调试信息失败: {exc}")
+        return {}
+
     def _next_js_debug_port(self, base: int = 9223) -> int:
         """分配下一个可用的 JS 远程调试端口（pdf-viewer）。
 
@@ -257,6 +278,9 @@ class PyQtBridge(QObject):
 
             # 端口解析
             vite_port, msg_port, pdf_port, _extras = self._read_runtime_ports()
+            # 读取调试信息（outline 等标志），优先级高于 runtime-ports
+            debug_info = self._read_debug_info()
+            _extras.update(debug_info)  # debug-info 覆盖 runtime-ports 中的同名字段
 
             # 统一接口：通过 PdfViewerApp + FE LaunchConfig 启动（与 Anki/GUI 一致）
             from src.qt.compat import QApplication
@@ -317,6 +341,14 @@ class PyQtBridge(QObject):
                 file_path = self._resolve_pdf_file_path(pdf_id)
 
                 # 通过 PdfViewerApp 启动（hosted），保持一致
+                # 从 runtime-ports.json 的 extras 透传 Outline 开关到前端 URL
+                extra_params = {}
+                try:
+                    if (_extras.get('outline') in (True, 1, '1', 'true', 'yes', 'on')) or (_extras.get('feature_outline') in (True, 1, '1', 'true', 'yes', 'on')):
+                        extra_params['outline'] = '1'
+                except Exception:
+                    pass
+
                 fe_cfg = FE_LaunchConfig(
                     is_prod=True,
                     keep_backend=True,
@@ -325,7 +357,8 @@ class PyQtBridge(QObject):
                     vite_port=vite_port,
                     pdf_id=pdf_id,
                     file_path=file_path,
-                    source='pdf-home'
+                    source='pdf-home',
+                    extra_params=extra_params
                 )
                 viewer_app = PdfViewerApp(fe_cfg, parent_app=app)
                 viewer_app.run()
@@ -376,7 +409,10 @@ class PyQtBridge(QObject):
             logger.info(f"[PyQtBridge] [步骤PyQt-1] payload: {payload}")
 
             vite_port, msg_port, pdf_port, _extras = self._read_runtime_ports()
-            logger.info(f"[PyQtBridge] [步骤PyQt-2] 读取端口配置: vite={vite_port}, msg={msg_port}, pdf={pdf_port}")
+            # 读取调试信息（outline 等标志），优先级高于 runtime-ports
+            debug_info = self._read_debug_info()
+            _extras.update(debug_info)  # debug-info 覆盖 runtime-ports 中的同名字段
+            logger.info(f"[PyQtBridge] [步骤PyQt-2] 读取端口配置: vite={vite_port}, msg={msg_port}, pdf={pdf_port}, debug_flags={debug_info}")
 
             from src.qt.compat import QApplication
             import importlib.util as _ilu
@@ -569,6 +605,12 @@ class PyQtBridge(QObject):
 
                 logger.info(f"[PyQtBridge] [步骤PyQt-15.{idx}] 构建前端 URL")
                 url = self._build_pdf_viewer_url(vite_port, msg_port, pdf_port, pdf_id, file_path=file_path)
+                # 追加 Outline 开关（若存在）
+                try:
+                    if (_extras.get('outline') in (True, 1, '1', 'true', 'yes', 'on')) or (_extras.get('feature_outline') in (True, 1, '1', 'true', 'yes', 'on')):
+                        url = f"{url}&outline=1"
+                except Exception:
+                    pass
                 try:
                     import urllib.parse as _up
                     if title_meta:

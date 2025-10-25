@@ -7,6 +7,7 @@
 import { getLogger } from '../../../common/utils/logger.js';
 import { createSidebarConfig } from './sidebar-config.js';
 import { BookmarkSidebarUI } from '../../ui/bookmark-sidebar-ui.js';
+import { isOutlineEnabled } from '../../../common/utils/feature-flags.js';
 import { AnchorSidebarUI } from '../../features/pdf-anchor/components/anchor-sidebar-ui.js';
 const logger = getLogger('RealSidebars');
 
@@ -17,7 +18,7 @@ const logger = getLogger('RealSidebars');
  * @param {EventBus} eventBus - 全局事件总线
  * @param {Object} container - 依赖容器
  */
-export function registerRealSidebars(sidebarManager, eventBus, container) {
+export async function registerRealSidebars(sidebarManager, eventBus, container) {
     logger.info('Registering real sidebars...');
 
     // 0. 锚点侧边栏（与书签并列）
@@ -36,8 +37,30 @@ export function registerRealSidebars(sidebarManager, eventBus, container) {
     sidebarManager.registerSidebar(anchorConfig);
     logger.info('Anchor sidebar registered');
 
-    // 1. 大纲侧边栏（恢复旧 UI，但内部已接入 jsTree 渲染）
-    const bookmarkUI = new BookmarkSidebarUI(eventBus);
+    // 1. 大纲侧边栏（按开关选择 UI 实现：OutlineSidebarUI 或 BookmarkSidebarUI）
+    let bookmarkUI = null;
+    const useOutline = (() => {
+        try { return isOutlineEnabled(); } catch { return false; }
+    })();
+
+    if (useOutline) {
+        try {
+            const mod = await import('../../features/pdf-outline/components/outline-sidebar-ui.js');
+            const OutlineSidebarUI = mod?.OutlineSidebarUI || mod?.default;
+            if (OutlineSidebarUI) {
+                bookmarkUI = new OutlineSidebarUI(eventBus);
+                logger.warn('Using OutlineSidebarUI (flag enabled)');
+            } else {
+                logger.warn('OutlineSidebarUI module missing export; fallback to BookmarkSidebarUI');
+            }
+        } catch (e) {
+            logger.warn('Failed to load OutlineSidebarUI, fallback to BookmarkSidebarUI', e);
+        }
+    }
+    if (!bookmarkUI) {
+        bookmarkUI = new BookmarkSidebarUI(eventBus);
+        logger.info('Using BookmarkSidebarUI (default)');
+    }
     bookmarkUI.initialize();
 
     const bookmarkConfig = createSidebarConfig({
@@ -50,7 +73,7 @@ export function registerRealSidebars(sidebarManager, eventBus, container) {
         resizable: true
     });
     sidebarManager.registerSidebar(bookmarkConfig);
-    logger.info('Outline sidebar registered');
+    logger.info('Outline/Bookmark sidebar registered');
 
     // 2. 批注侧边栏（延迟获取，首次调用时从容器获取并缓存）
     let annotationUIInstance = null;

@@ -241,6 +241,25 @@ class LauncherThread(QThread):
         try:
             component_root = self.component_root
             base_logs = Path(self.params.get('logs_dir') or (component_root / 'logs'))
+
+            # 将 Outline 开关状态同步到 logs/runtime-ports.json 的扩展字段，供 pdf-home → pdf-viewer 透传使用
+            enable_outline = bool(self.params.get('enable_outline', False))
+            try:
+                base_logs.mkdir(parents=True, exist_ok=True)
+                rp_path = base_logs / 'runtime-ports.json'
+                cfg_json = _read_json_safe(rp_path) or {}
+                # 勾选则写入 outline=1；未勾选则移除，避免残留
+                if enable_outline:
+                    cfg_json['outline'] = 1
+                    self.log_signal.emit(f"[TRACE:CLI] 同步 outline=1 到 runtime-ports.json")
+                else:
+                    if 'outline' in cfg_json:
+                        cfg_json.pop('outline', None)
+                        self.log_signal.emit(f"[TRACE:CLI] 从 runtime-ports.json 移除 outline 标志")
+                rp_path.write_text(__import__('json').dumps(cfg_json, ensure_ascii=False, indent=2) + "\n", encoding='utf-8')
+            except Exception as _e:
+                self.log_signal.emit(f"[WARN] 同步 outline 标志到 runtime-ports.json 失败: {_e}")
+
             cfg = _LConfig(
                 ports=_LPorts(
                     vite_port=self.params.get('vite_port'),
@@ -261,7 +280,7 @@ class LauncherThread(QThread):
                 ),
             ).with_defaults(component_root)
             try:
-                self.log_signal.emit(f"[TRACE:CLI] pdf-home cfg → ports(vite={cfg.ports.vite_port}, ws={cfg.ports.msgCenter_port}, http={cfg.ports.pdfFile_port}) options(runtime_mode={cfg.options.runtime_mode}) is_prod={bool(self.params.get('is_prod'))} logs_dir={cfg.paths.logs_dir}")
+                self.log_signal.emit(f"[TRACE:CLI] pdf-home cfg → ports(vite={cfg.ports.vite_port}, ws={cfg.ports.msgCenter_port}, http={cfg.ports.pdfFile_port}) options(runtime_mode={cfg.options.runtime_mode}) is_prod={bool(self.params.get('is_prod'))} outline={enable_outline} logs_dir={cfg.paths.logs_dir}")
             except Exception:
                 pass
             ok = _run_pdf_home_cli(cfg, is_prod=bool(self.params.get('is_prod')), on_log=lambda m: self.log_signal.emit(m))
@@ -497,15 +516,18 @@ class GUILauncher(QMainWindow):
         self.h_pdfanchor_id = QLineEdit(); self.h_pdfanchor_id.setPlaceholderText("pdfanchor-<12hex> 或 pdfanchor-test")
         self.h_pdfannotation_id = QLineEdit(); self.h_pdfannotation_id.setPlaceholderText("pdfannotation-<base64url16>")
         self.h_pdfoutline_item_id = QLineEdit(); self.h_pdfoutline_item_id.setPlaceholderText("outline-item-id（透传到URL）")
+        self.h_enable_outline = QCheckBox("启用 Outline（构造 outline=1）")
         self.h_pdfanchor_id.setToolTip("锚点ID，将映射为前端 URL 参数 anchor-id")
         self.h_pdfannotation_id.setToolTip("标注ID，将映射为前端 URL 参数 annotation-id")
         self.h_pdfoutline_item_id.setToolTip("书签/大纲项ID，将映射为前端 URL 参数 outline-item-id（当前仅透传，不触发跳转）")
+        self.h_enable_outline.setToolTip("勾选后在启动 URL 中追加 outline=1（仅 Hosted 模式生效）；用于灰度启用新的 Outline 实现。")
         gl.addWidget(QLabel("pdf_id")); gl.addWidget(self.h_pdf_id)
         gl.addWidget(QLabel("page_at")); gl.addWidget(self.h_page_at)
         gl.addWidget(QLabel("position%")); gl.addWidget(self.h_position)
         gl.addWidget(QLabel("pdfanchor-id")); gl.addWidget(self.h_pdfanchor_id)
         gl.addWidget(QLabel("pdfannotation-id")); gl.addWidget(self.h_pdfannotation_id)
         gl.addWidget(QLabel("pdfoutline-item-id")); gl.addWidget(self.h_pdfoutline_item_id)
+        gl.addWidget(self.h_enable_outline)
         gl.addWidget(self.h_keep_backend)
         layout.addWidget(grp)
 
@@ -1327,6 +1349,34 @@ class GUILauncher(QMainWindow):
                     keep_backend=True,
                 )
             ).with_defaults(_COMPONENT_ROOT)
+
+            # 将 Outline 开关状态写入独立的 logs/debug-info.json，避免被后端覆盖
+            try:
+                base = (self._logs_dir or (_COMPONENT_ROOT / 'logs'))
+                base.mkdir(parents=True, exist_ok=True)
+                debug_info_path = base / 'debug-info.json'
+
+                # 读取现有 debug-info（保留其他调试标志）
+                debug_info = _read_json_safe(debug_info_path) or {}
+
+                # 更新 outline 标志
+                if bool(self.h_enable_outline.isChecked()):
+                    debug_info['outline'] = 1
+                else:
+                    if 'outline' in debug_info:
+                        debug_info.pop('outline', None)
+
+                # 添加元数据
+                debug_info['_metadata'] = {
+                    'last_updated': __import__('time').strftime('%Y-%m-%d %H:%M:%S'),
+                    'updated_by': 'gui-launcher',
+                    'version': '1.0'
+                }
+
+                debug_info_path.write_text(__import__('json').dumps(debug_info, ensure_ascii=False, indent=2) + "\n", encoding='utf-8')
+                self._log(f"[TRACE:HOSTED] debug-info.json 同步 outline 标志 → {('1' if bool(self.h_enable_outline.isChecked()) else '0')}")
+            except Exception as _e:
+                self._log(f"[WARN] 同步 outline 标志到 debug-info.json 失败: {_e}")
             try:
                 self._log(f"[TRACE:HOSTED] pdf-home cfg → ports(vite={cfg.ports.vite_port}, ws={cfg.ports.msgCenter_port}, http={cfg.ports.pdfFile_port}) options(frontend_prod={cfg.options.frontend_prod}, runtime_mode={cfg.options.runtime_mode})")
             except Exception:
@@ -1396,8 +1446,9 @@ class GUILauncher(QMainWindow):
             _anchor_id = (self.h_pdfanchor_id.text().strip() or None)
             _annotation_id = (self.h_pdfannotation_id.text().strip() or None)
             _outline_item = (self.h_pdfoutline_item_id.text().strip() or None)
+            _enable_outline = bool(self.h_enable_outline.isChecked())
             try:
-                self._log(f"[TRACE:HOSTED] pdf-viewer args → pdf_id={_pdf_id} page_at={_page_at} position={_position} anchor_id={_anchor_id} annotation_id={_annotation_id} outline_item_id={_outline_item}")
+                self._log(f"[TRACE:HOSTED] pdf-viewer args → pdf_id={_pdf_id} page_at={_page_at} position={_position} anchor_id={_anchor_id} annotation_id={_annotation_id} outline_item_id={_outline_item} outline_flag={_enable_outline}")
             except Exception:
                 pass
             rc = _run_pdf_viewer_hosted(
@@ -1408,6 +1459,7 @@ class GUILauncher(QMainWindow):
                 anchor_id=_anchor_id,
                 annotation_id=_annotation_id,
                 outline_item_id=_outline_item,
+                enable_outline=_enable_outline,
                 on_log=self._log
             )
             self._log(f"PDF-Viewer (Hosted) 启动 rc={rc}")
@@ -1591,16 +1643,19 @@ class GUILauncher(QMainWindow):
         ui_ws = int(self.msgCenter_port_input.value() or 0) or 8765
         ui_http = int(self.pdfFile_port_input.value() or 0) or 8080
         is_prod = bool(self.frontend_prod_checkbox.isChecked())
+        # 读取 Outline 开关状态（供 CLI 模式透传）
+        enable_outline = bool(self.h_enable_outline.isChecked())
         try:
             rp = self._runtime_ports() or {}
-            self._log(f"[TRACE:UI] start pdf-home → is_prod={is_prod} ui(vite={ui_vite}, ws={ui_ws}, http={ui_http}) runtime={rp}")
+            self._log(f"[TRACE:UI] start pdf-home → is_prod={is_prod} ui(vite={ui_vite}, ws={ui_ws}, http={ui_http}) outline={enable_outline} runtime={rp}")
         except Exception:
             pass
         params = {
             "vite_port": ui_vite,
             "msgCenter_port": ui_ws,
             "pdfFile_port": ui_http,
-            "is_prod": is_prod
+            "is_prod": is_prod,
+            "enable_outline": enable_outline
         }
         self._start_task("pdf-home", params)
 

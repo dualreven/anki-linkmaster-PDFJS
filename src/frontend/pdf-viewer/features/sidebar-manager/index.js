@@ -78,8 +78,8 @@ export class SidebarManagerFeature {
             this.#pdfLayoutAdapter.initialize();
         }, 100);
 
-        // 注册真实侧边栏（书签、批注、卡片、翻译）
-        registerRealSidebars(this, this.#eventBus, this.#container);
+        // 注册真实侧边栏（书签/大纲、批注、卡片、翻译）
+        await registerRealSidebars(this, this.#eventBus, this.#container);
 
         // 创建侧边栏切换按钮
         setTimeout(() => {

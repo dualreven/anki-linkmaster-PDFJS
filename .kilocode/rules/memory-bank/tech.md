@@ -33,6 +33,43 @@
 
 本文件汇总当前权威的技术与使用规范，过时内容已清理。
 
+## 命名迁移指南：bookmark → outline（2025-10-21 新增）
+- 目标：在“对外契约稳定”的前提下，逐步把视觉与模块命名从 bookmark 过渡到 outline。
+- 禁止事项：严禁直接全局替换 `bookmark(s)` 为 `outline(s)`；需采用别名与灰度策略。
+- 契约原则：
+  - 事件：继续对外暴露 `PDF_VIEWER_EVENTS.BOOKMARK.*`；允许新增 `PDF_VIEWER_EVENTS.OUTLINE.*` 作为别名常量（指向相同值）。
+  - 字段：接受 `{ outlineItemId | bookmarkId | id }`，内部统一映射 `outlineItemId`；反向发射事件/URL 时优先使用 `outlineItemId`。
+  - 容器：保留 `bookmarkManager` 等键；可额外注册 `outlineManager` 作为同义别名。
+- 路由：保留 `/api/pdf-viewer/bookmark/*`；可为新调用侧提供 `/outline/*` 别名，指向同一服务。
+- 数据：数据库表/插件文件名不改动，不做重命名迁移。
+- 灰度开关：
+  - 在 `app-bootstrap-feature` 中通过 localStorage/URL 参数启用 `PDFOutlineFeature` 与 `OutlineSidebarUI`，默认关闭以保障稳定。
+  - 必配观测项：跳转正确率（按ID/按页）、错误率、首次渲染时间、事件耗时 P95/P99。
+- 回滚策略：开关关闭即回退到 `PDFBookmarkFeature + BookmarkSidebarUI` 路径；事件/路由/数据无破坏性变更。
+  
+### 后端“别名”决策（2025-10-21 更新）
+- 决策：默认不提供 `/outline/*` 或 `outline:*` 消息/路由别名，保持 bookmark 命名为唯一对外协议主语。
+- 理由：当前前端主要经由 WebSocket 与 `pdf_library_api` 的 bookmark 服务交互，引入别名收益有限且增加维护面。
+- 例外：仅当外部生态强制要求统一术语或避免冲突时，再评估是否添加只读别名，并明确弃用周期。
+
+### 前端开关（2025-10-22 新增）
+- `FEATURE_OUTLINE`（localStorage）或 URL `?outline=1`：启用 Outline 路径（`PDFOutlineFeature + OutlineSidebarUI`）；默认关闭时使用 Bookmark 路径（稳定）。  
+- 读取工具：`src/frontend/common/utils/feature-flags.js:isOutlineEnabled()`；优先 URL，再读 localStorage。  
+- 挂载点：
+  - 启动注册：`src/frontend/pdf-viewer/bootstrap/app-bootstrap-feature.js` 按开关选择注册 `pdf-outline` 或 `pdf-bookmark` Feature；任何异常回退到 `pdf-bookmark`。  
+  - 侧边栏：`src/frontend/pdf-viewer/features/sidebar-manager/real-sidebars.js` 按开关动态导入 `OutlineSidebarUI`，失败回退到 `BookmarkSidebarUI`。  
+- 兼容性：侧边栏 id 仍为 `bookmark`，按钮“≡ 大纲”不变；事件契约继续使用 `BOOKMARK.*`（Outline 外壳内部已复用）。  
+  - OutlineFeature 实现细节（2025-10-22 更新）：
+    - 复用 `BookmarkManager/BookmarkDialog/BookmarkDataProvider`；
+    - 监听 `BOOKMARK.NAVIGATE(_BY_ID).REQUESTED / LOAD.REQUESTED`；
+    - 在 `FILE.LOAD.SUCCESS` 后尝试以严格模式导入 PDF 原生大纲（仅 `{ pageAt, position }`），失败不影响现有列表展示。
+  - GUI → Home → Viewer 透传（2025-10-22 更新）：
+    - gui_launcher 勾选“启用 Outline”后，写入 `logs/runtime-ports.json` 的扩展键 `outline=1`；
+    - pdf-home：
+      - `openPdfViewers`（Hosted）使用 `LaunchConfig.extra_params.outline=1` 注入 URL；
+      - `openPdfViewersEx`（直接 URL）在最终 URL 追加 `&outline=1`；
+    - pdf-viewer：Bootstrap 检测启用时使用 toast 提示“当前为 Outline 模式”。
+
 ## 命名规范
 - 目录统一使用 kebab-case：示例 `pdf-home`、`pdf-viewer`。
 - 禁止使用 `pdf_home`（snake_case）。
@@ -1042,6 +1079,58 @@ emove_comment(ann_id, comment_id)。
   - 仅当翻译侧边栏打开时，划词会自动触发翻译（监听 `sidebar:opened:completed/closed:completed` 联动）。
 - 受影响文件：`features/pdf-translator/index.js`、`features/pdf-translator/services/SelectionMonitor.js`。
 - 兼容性：既有入口不变；仅抑制“侧边栏关闭时的误触发”。
+
+## 统一跳转技术规范（提案，2025‑10‑20）
+
+目的：将 URL/WS/UI/内部来源的跳转请求统一为单一“跳转意图（NavigationIntent）”数据结构，并通过统一事件完成调度与回执。所有示例均为 UTF-8，换行 `\n`。
+
+事件（入口/中间态/结果）：
+- `PDF_VIEWER_EVENTS.NAVIGATION.INTENT.REQUESTED`
+- `PDF_VIEWER_EVENTS.NAVIGATION.INTENT.GATE.WAITING`（可选）
+- `PDF_VIEWER_EVENTS.NAVIGATION.INTENT.ACCEPTED`（可选）
+- `PDF_VIEWER_EVENTS.NAVIGATION.EXECUTE.REQUESTED`（可选）
+- `PDF_VIEWER_EVENTS.NAVIGATION.INTENT.RESULT.SUCCESS`
+- `PDF_VIEWER_EVENTS.NAVIGATION.INTENT.RESULT.FAILED`
+
+数据模型：
+```json
+{
+  "traceId": "uuid-like or ws-msg-id",
+  "source": "url|ws|ui|internal|test",
+  "pdfId": "optional-12-hex",
+  "target": {
+    "kind": "annotation|anchor|outline|page",
+    "id": "optional string for id-based",
+    "pageAt": 1,
+    "position": 25.0
+  },
+  "priority": "normal|high",
+  "replace": true
+}
+```
+
+门闸矩阵（由 GateTracker 维护）：
+- page：`FILE.LOAD.SUCCESS`；presence(position)→建议等待 `RENDER.READY`
+- outline：`FILE.LOAD.SUCCESS` + `BOOKMARK.LOAD.SUCCESS`
+- annotation：`FILE.LOAD.SUCCESS` + `ANNOTATION.DATA.LOADED`
+- anchor：`FILE.LOAD.SUCCESS` + `ANCHOR.DATA.LOADED` + `RENDER.READY`
+
+执行与回执：
+- annotation：发 `ANNOTATION.NAVIGATION.JUMP_REQUESTED`，等待回执→包装为 `INTENT.RESULT.*`。
+- anchor：发 AnchorFeature 既有跳转事件→包装回执。
+- outline：发 `BOOKMARK.NAVIGATE_BY_ID.REQUESTED`（或按页执行）→包装回执。
+- page：直接 `navigationService.navigateTo` → 包装回执。
+
+WS 适配（msgcenter → front）：
+```json
+{ "action": "pdf-viewer:navigation-intent:requested", "payload": { /* NavigationIntent */ } }
+```
+- 由 `WsNavigationAdapter` 转为 `INTENT.REQUESTED`；按需回写 ACK（`pdf-viewer:navigation-intent:{completed|failed}`），透传 `traceId`。
+
+验收：
+- `traceId` 贯穿入口→门闸→执行→结果。
+- 缺失门闸不回退默认页；仅等待或失败并报 `missing_gate`。
+- 重复/抖动有去重与替换策略。
 ## 标注渲染加载策略（2025-10-18 更新）
 - 高亮标注：
   - `TextHighlightTool` 统一通过 `PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED` 接管初始渲染，清空旧 overlay 与菜单后重新渲染；

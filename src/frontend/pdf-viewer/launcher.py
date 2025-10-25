@@ -491,9 +491,13 @@ class PdfViewerApp:
             url += f"&annotation-id={self.config.annotation_id}"
         try:
             extra = getattr(self.config, 'extra_params', {}) or {}
+            # 追加 outline-item-id（若有）
             oi = extra.get('outline_item_id')
             if oi:
                 url += f"&outline-item-id={oi}"
+            # 追加 outline 开关：存在即真（值使用1便于直观）
+            if extra.get('outline') in (True, '1', 'true', 'yes', 'on', 1):
+                url += f"&outline=1"
         except Exception:
             pass
 

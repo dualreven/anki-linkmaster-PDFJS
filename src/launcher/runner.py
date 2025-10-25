@@ -114,7 +114,7 @@ def start_pdf_home_hosted(cfg: LauncherConfig, *, parent_app, on_log: Optional[C
 def start_pdf_viewer_hosted(cfg: LauncherConfig, *, parent_app, pdf_id: Optional[str] = None,
                             page_at: Optional[int] = None, position: Optional[float] = None,
                             anchor_id: Optional[str] = None, annotation_id: Optional[str] = None,
-                            outline_item_id: Optional[str] = None,
+                            outline_item_id: Optional[str] = None, enable_outline: Optional[bool] = None,
                             on_log: Optional[Callable[[str], None]] = None) -> int:
     root = resolve_component_root()
     import importlib.util as _il
@@ -125,6 +125,14 @@ def start_pdf_viewer_hosted(cfg: LauncherConfig, *, parent_app, pdf_id: Optional
     mod = _il.module_from_spec(spec)
     spec.loader.exec_module(mod)  # type: ignore
     from src.frontend.common.launch_config import LaunchConfig as FEConfig  # type: ignore
+    # 组装额外 URL 参数
+    _extra: Dict[str, Any] = {}
+    if outline_item_id:
+        _extra["outline_item_id"] = outline_item_id
+    if enable_outline:
+        # 前端解析时优先 URL 参数；值无所谓，存在即真。使用 outline=1 以便直观。
+        _extra["outline"] = "1"
+
     fe_cfg = FEConfig(
         is_prod=bool(cfg.options.frontend_prod),
         keep_backend=bool(cfg.options.keep_backend),
@@ -137,7 +145,7 @@ def start_pdf_viewer_hosted(cfg: LauncherConfig, *, parent_app, pdf_id: Optional
         position=position,
         anchor_id=anchor_id,
         annotation_id=annotation_id,
-        extra_params={"outline_item_id": outline_item_id} if outline_item_id else {},
+        extra_params=_extra,
     )
     PdfViewerApp = getattr(mod, 'PdfViewerApp')
     inst = PdfViewerApp(fe_cfg, parent_app=parent_app)

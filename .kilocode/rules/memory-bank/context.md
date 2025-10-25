@@ -48,6 +48,145 @@
 
 ## 📅 当前活跃任务（最近）
 
+### 当前任务（20251022101046）
+名称：完成 pdf-outline 具体实现（通过 URL 参数一键切换 bookmark↔outline）
+
+说明（UTF-8 与 `\n`）：
+- 目标：以“对外契约稳定（BOOKMARK.* 事件常量不改）”为前提，完善 `features/pdf-outline`，实现与 bookmark 对齐的关键行为：列表加载（含首次原生导入）、按 ID 导航、CRUD、拖拽重排、LOAD.REQUESTED 主动刷新。
+- 现状：
+  - 已有开关：`src/frontend/common/utils/feature-flags.js:isOutlineEnabled()`；Bootstrap/SidebarManager 已按开关装配 Outline。
+  - `features/pdf-outline/index.js` 仅复用 `BookmarkManager` 并回灌 `BOOKMARK.LOAD.SUCCESS`，尚缺：`BOOKMARK.NAVIGATE(_BY_ID).REQUESTED` 处理、原生大纲导入（`BookmarkDataProvider`）、`BOOKMARK.LOAD.REQUESTED` 订阅刷新。
+- 本次改动要点：
+  1) 在 OutlineFeature 中获取 `navigationService`（来自 `CoreNavigationFeature` 容器注册），并订阅：
+     - `BOOKMARK.NAVIGATE.REQUESTED` → 解析 `bookmark.pageAt/position`，调用 `navigationService.navigateTo(...)`
+     - `BOOKMARK.NAVIGATE_BY_ID.REQUESTED` → 通过 `BookmarkManager.getBookmark(id)` 取节点后复用同一导航逻辑
+     - `BOOKMARK.LOAD.REQUESTED` → 主动 `#refreshList()`
+  2) 引入 `BookmarkDataProvider`，在 `FILE.LOAD.SUCCESS` 时尝试导入 PDF 原生大纲，按统一模型 `{ pageAt, position }` 写入并 `saveToStorage()`，随后 `#refreshList()`。
+  3) 新增 `features/pdf-outline/feature.config.js`，与 pdf-bookmark 配置对齐（名称为 `pdf-outline`）。
+  4) 先写测试占位（`describe.skip`），满足流程与规范，避免当前 Jest 环境差异造成误报。
+  5) gui_launcher → pdf-home → pdf-viewer 的 Outline 开关透传：
+     - gui_launcher 启动 pdf-home 前将 UI 勾选状态写入 `logs/runtime-ports.json`（`outline=1`）；
+     - pdf-home 在 `openPdfViewers`（Hosted）路径通过 `LaunchConfig.extra_params` 将 `outline=1` 注入 URL；
+     - pdf-home 在 `openPdfViewersEx`（直接 URL 路径）在构造 URL 后追加 `&outline=1`；
+     - pdf-viewer Bootstrap 检测 `isOutlineEnabled()` 后以 toast 提示“当前为 Outline 模式”。
+- 不做事项：
+  - 不改动事件常量命名（继续使用 `PDF_VIEWER_EVENTS.BOOKMARK.*`），不重命名后端/存储键。
+  - 不做全仓库“bookmark→outline”字符串替换，避免破坏兼容与测试。
+
+涉及模块与文件：
+- `src/frontend/pdf-viewer/features/pdf-outline/index.js`（补全导航/导入/事件监听）
+- `src/frontend/pdf-viewer/features/pdf-outline/feature.config.js`（新增）
+- `src/frontend/pdf-viewer/features/pdf-outline/__tests__/outline-feature.install.test.js`（新增占位，skip）
+
+验收要点：
+- 打开时（`?outline=1`），侧边栏为 `OutlineSidebarUI`，点击任一节点发射 `BOOKMARK.NAVIGATE_BY_ID.REQUESTED`，由 `PDFOutlineFeature` 统一处理并调用 `navigationService` 正确跳转。
+- 首次加载 PDF 时，能将原生大纲导入为标准模型并展示；CRUD/重排事件路径保持可用。
+
+记录时间：2025-10-22 10:10:46
+
+### 当前任务（20251021084613）
+名称：核查 pdf-viewer 同时存在 outline 与 bookmark 两个插件的原因，并确认当前工作中的插件（经历“bookmark → outline”命名迁移）。
+
+结论（UTF-8 与 `\n`）：
+- 当前生效：`PDFBookmarkFeature`；`PDFOutlineFeature` 存在但未被注册安装。
+  - 引导装配：`src/frontend/pdf-viewer/bootstrap/app-bootstrap-feature.js:23` 引入并注册 `PDFBookmarkFeature`；`PDFOutlineFeature` 的引入与注册被注释（稳定性优先）。
+  - 侧边栏来源：`src/frontend/pdf-viewer/features/sidebar-manager/real-sidebars.js:9,40` 使用 `BookmarkSidebarUI` 注册“大纲”侧边栏；未使用 `OutlineSidebarUI`。
+  - 点击导航链路：`src/frontend/pdf-viewer/ui/bookmark-sidebar-ui.js:166-176` 发射 `BOOKMARK.NAVIGATE_BY_ID.REQUESTED`；由 `features/pdf-bookmark/index.js:445` 统一消费 → 调用导航服务。
+- 双插件并存原因：处于“命名迁移中的并存阶段”。`pdf-outline` 作为新名外壳，内部复用 `BookmarkManager/BookmarkDialog/BOOKMARK.*` 事件契约，保证与后端/存量数据一致，但暂未启用以降低风险。
+  - 代码佐证：`src/frontend/pdf-viewer/features/pdf-outline/index.js:9-12` 复用 `BookmarkManager/BookmarkDialog`；`index.js:57` 使用 `BOOKMARK.LOAD.SUCCESS` 对外回灌列表。
+- 日志策略：按 2025-10-20 的变更，`BookmarkSidebarUI/OutlineSidebarUI/Feature.pdf-outline` 日志级别下调为 `ERROR`，减少噪音（参考 `features/pdf-bookmark/index.js:118-120`）。
+
+建议：
+- 若要启用 `pdf-outline`：在 `app-bootstrap-feature.js` 放开 `PDFOutlineFeature` 注册，并在 `sidebar-manager` 切换 UI 为 `OutlineSidebarUI`；以灰度开关推进，保留快速回滚。
+
+记录时间：2025-10-21 08:46:13
+
+### 评估（20251021101421）
+名称：从“bookmark”切换到“outline”的风险与可行迁移策略
+
+要点（UTF-8 与 `\n`）：
+- 不可做“全局同名替换”（把所有 `bookmark(s)` 文本替换为 `outline(s)`），高风险：事件名/容器键/后端路由/DB 插件/URL 参数/本地存储/日志模块名/测试选择器均受影响。
+- 继续以 BOOKMARK.* 为对外契约；逐步引入 OUTLINE 外壳与别名（常量别名、字段别名、容器别名、后端路由别名）。
+- 灰度策略：提供运行时开关启用 `PDFOutlineFeature` 与 `OutlineSidebarUI`，保留快速回滚；监控跳转正确率、错误率与性能。
+- 数据层暂不重命名（不动 DB 表与插件文件名），避免跨层迁移成本。
+
+参考统计（仓库范围）：
+- bookmark 相关匹配 ≈603 处/56 文件；outline 相关匹配 ≈85 处/27 文件（rg 统计）。
+
+建议落地顺序：
+1) 常量别名：`PDF_VIEWER_EVENTS.OUTLINE.* → BOOKMARK.*`（新增映射，旧名保留）
+2) 字段别名：接受 `{ outlineItemId | bookmarkId | id }`，统一内部为 `outlineItemId`
+3) 容器别名：`outlineManager` 同指向 `bookmarkManager`
+4) 后端路由/消息别名：不启用（决策更新，见 20251021141332）；保持 bookmark 命名，未来如有强需求再评估
+5) 灰度启用 OutlineFeature + OutlineSidebarUI（开关控制），观测指标达标后扩大覆盖
+
+记录时间：2025-10-21 10:14:21
+
+### 决策更新（20251021141332）
+名称：后端路由/消息是否需要 outline 别名
+
+决定：
+- 不做别名：后端仍使用 bookmark 命名（服务名/消息类型/DB 插件/可能的 HTTP 路径），不新增 `/outline/*` 或 `outline:*` 别名。
+
+理由：
+- 前端交互以 WebSocket 消息为主（`bookmark:list|save`）；`pdf_library_api.py` 与 `standard_protocol.py`/`standard_server.py` 的主语为 bookmark，引入别名收益有限，提升维护面。
+
+边界：
+- 前端字段/URL 参数继续兼容 `outlineItemId`（内部映射）；对外协议名、后端实现不变。
+
+记录时间：2025-10-21 14:13:32
+
+### 分析（20251021141911）
+名称：`bookmark:list` 非三段式为何“没有报错”
+
+要点（仅分析，不改代码）：
+- 结构校验未强制三段式：`standard_protocol.validate_message_structure()` 仅校验字段类型，不校验 `type` 段数 → `bookmark:list` 结构上可通过；  
+- 服务端归一化仅覆盖 `bookmark:list:records` → `bookmark:list:requested`，不含 `bookmark:list`；若收到纯 `bookmark:list`，将落入 `unknown_message_type` 分支（`standard_server.py:397-403`）。  
+- “没有报错”的原因：
+  1) 正常书签读取路径使用三段式：`WEBSOCKET_MESSAGE_TYPES.BOOKMARK_LIST='bookmark:list:requested'`，通过 `wsClient.request()` 白名单发送，不会发出 `bookmark:list`；  
+  2) 若有代码用 `wsClient.send({type:'bookmark:list'})`，服务端会返回错误，但 UI 可能未监听 `WEBSOCKET_MESSAGE_EVENTS.ERROR`，或被“本地回退”掩盖（`RemoteBookmarkStorage` 失败后读 localStorage），导致用户无感错误；  
+  3) 客户端接收端对 legacy 回执 `bookmark:list:records` 做了兼容路由（`ws-client.js`），因此整体功能可用，进一步降低错误感知。
+
+建议（不改代码，仅记录）：服务端可加严格三段式校验（可开关）；前端对非 *:requested 出站消息打印 `WARN`，并为 `ERROR` 事件加默认告警。
+
+记录时间：2025-10-21 14:19:11
+
+### 决策（20251021210405）
+名称：暂缓改动（不启用 outline 灰度与协议守卫）
+
+结论：
+- 暂不改代码，保持现网：`PDFBookmarkFeature + BookmarkSidebarUI` 与 BOOKMARK.* 协议；`PDFOutlineFeature` 与严格协议校验不开启。
+
+观察与触发条件（仅日志侧，不改代码）：
+- 观察：ws-server 的 `unknown_message_type`、书签远端失败→本地回退日志；必要时通过 localStorage 临时提升级别。
+- 触发条件：① 远端失败率>5%；② 大纲跳转错误复现；③ 产品确定启用 Outline UI。
+
+记录时间：2025-10-21 21:04:05
+
+### 变更（20251022081651）
+名称：增加运行时开关（默认不启用）以便未来灰度启用 Outline
+
+内容（不改变默认行为，默认仍为 Bookmark 路径）：
+- 新增：`src/frontend/common/utils/feature-flags.js`（读取 URL `?outline=1` 或 localStorage `FEATURE_OUTLINE=1|true`）。  
+- 启动装配切换：`src/frontend/pdf-viewer/bootstrap/app-bootstrap-feature.js` 按开关选择注册 `pdf-outline` 或 `pdf-bookmark`（失败自动回退到 `pdf-bookmark`）。  
+- 侧边栏切换：`src/frontend/pdf-viewer/features/sidebar-manager/real-sidebars.js` 改为 `async` 并按开关动态导入 `OutlineSidebarUI`（失败回退 `BookmarkSidebarUI`）；调用处同步调整为 `await`。  
+- 侧边栏 id 保持 `bookmark`，按钮“≡ 大纲”不变；事件契约继续 `BOOKMARK.*`。  
+
+默认值与回滚：
+- 默认不开启（仍走 Bookmark）；一旦设置 URL 或 localStorage 开关为真，才启用 Outline；任何异常自动回退 Bookmark。  
+
+记录时间：2025-10-22 08:16:51
+
+### 变更（20251022083012）
+名称：GUI 启用 Outline 的复选框（自动构造 URL 参数）
+
+内容：
+- gui_launcher（Hosted）新增“启用 Outline”复选框；勾选后在启动 URL 追加 `outline=1`。  
+- runner（Hosted）支持将 `enable_outline` 写入 `LaunchConfig.extra_params`；前端 launcher 在 `_build_frontend_url()` 中识别并附加 URL 参数。  
+- 不影响默认行为（未勾选不改变现网）；失败回退保持 Bookmark 路径。
+
+记录时间：2025-10-22 08:30:12
+
 ### 当前任务（20251020141335）
 名称：Outline 插件点击改为“按ID导航事件”
 
@@ -76,6 +215,24 @@
 后续建议：
 - URL 分发器检测到 `outlineItemId` 时也发射 `BOOKMARK.NAVIGATE_BY_ID.REQUESTED`，完成 URL → Outline 的闭环（参见 2025-10-20 的工作日志）。
 
+### 当前任务（20251020143057)
+名称：关闭 outline 模块级日志，仅保留 error
+
+背景/原因：
+- 大纲侧边栏近期启用过 DEBUG 级别日志，开发期便于排查，但在日常使用中噪音较大；
+- 需求：仅保留错误输出（error），其余级别关闭。
+
+变更：
+- `src/frontend/pdf-viewer/features/pdf-bookmark/index.js` 安装阶段设置：
+  - `setModuleLogLevel('BookmarkSidebarUI', ERROR)`
+  - `setModuleLogLevel('OutlineSidebarUI', ERROR)`
+  - `setModuleLogLevel('Feature.pdf-outline', ERROR)`
+  - 其他模块（bookmark 管线等）保持原有级别。
+
+影响：
+- 控制台与日志文件中不再出现大纲相关的 info/debug 输出；错误仍会记录，排障不受影响。
+
+---
 ### 当前任务（20251019230030）
 名称：修复 Outline 插件点击大纲均跳转到第一页
 

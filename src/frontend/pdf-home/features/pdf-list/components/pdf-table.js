@@ -2,6 +2,12 @@
  * @file PDF表格组件
  * @module PDFTable
  * @description PDF列表表格组件，整合表格初始化、数据管理、生命周期和事件处理
+ *
+ * ⚠️ 重要提醒：Tabulator表格库已被移除，所有相关功能已禁用
+ * - 表格事件监听器已被注释
+ * - 数据操作方法已被禁用
+ * - UI交互功能不可用
+ * - 保留此文件仅作为兼容性占位符
  */
 
 import { getLogger } from "../../../../common/utils/logger.js";
@@ -148,133 +154,133 @@ export class PDFTable {
       /* eslint-disable custom/event-name-format */
       // 注意：以下是 Tabulator 库的原生事件名，不需要遵循三段式格式
 
-      // 行选中事件
-      tabulator.on("rowSelectionChanged", (data, rows) => {
-        const indices = rows.map(row => row.getPosition(true) - 1); // 0-based index
-        this.#eventBus?.emit(PDF_LIST_EVENTS.SELECTION_CHANGED, {
-          selectedIndices: indices,
-          selectedItems: data,
-          count: indices.length,
-          timestamp: Date.now()
-        });
-        logger.debug(`Row selection changed: ${indices.length} rows selected`);
-      });
+      // DISABLED: Tabulator removed - 行选中事件已禁用
+      // tabulator.on("rowSelectionChanged", (data, rows) => {
+      //   const indices = rows.map(row => row.getPosition(true) - 1); // 0-based index
+      //   this.#eventBus?.emit(PDF_LIST_EVENTS.SELECTION_CHANGED, {
+      //     selectedIndices: indices,
+      //     selectedItems: data,
+      //     count: indices.length,
+      //     timestamp: Date.now()
+      //   });
+      //   logger.debug(`Row selection changed: ${indices.length} rows selected`);
+      // });
 
-      // 行点击事件
-      tabulator.on("rowClick", (e, row) => {
-        const data = row.getData();
-        const index = row.getPosition(true) - 1;
+      // DISABLED: Tabulator removed - 行点击事件已禁用
+      // tabulator.on("rowClick", (e, row) => {
+      //   const data = row.getData();
+      //   const index = row.getPosition(true) - 1;
 
-        // 阻止复选框点击事件冒泡到行点击
-        if (e.target && (e.target.type === "checkbox" || e.target.closest(".tabulator-row-handle"))) {
-          return;
-        }
+      //   // 阻止复选框点击事件冒泡到行点击
+      //   if (e.target && (e.target.type === "checkbox" || e.target.closest(".tabulator-row-handle"))) {
+      //     return;
+      //   }
 
-        // 发出行点击事件
-        this.#eventBus?.emit(PDF_LIST_EVENTS.ROW_CLICKED, {
-          index,
-          row: data,
-          nativeEvent: {
-            type: e.type,
-            button: e.button,
-            ctrlKey: e.ctrlKey,
-            shiftKey: e.shiftKey,
-            altKey: e.altKey
-          },
-          timestamp: Date.now()
-        });
+      //   // 发出行点击事件
+      //   this.#eventBus?.emit(PDF_LIST_EVENTS.ROW_CLICKED, {
+      //     index,
+      //     row: data,
+      //     nativeEvent: {
+      //       type: e.type,
+      //       button: e.button,
+      //       ctrlKey: e.ctrlKey,
+      //       shiftKey: e.shiftKey,
+      //       altKey: e.altKey
+      //     },
+      //     timestamp: Date.now()
+      //   });
 
-        // 处理聚焦和选中逻辑
-        if (e.ctrlKey || e.metaKey) {
-          // Ctrl+Click: 切换选中 + 设置聚焦
-          this._toggleSelectionAndFocus(index);
-        } else if (e.shiftKey) {
-          // Shift+Click: 范围选择
-          this._rangeSelect(index);
-        } else {
-          // 普通点击: 仅设置聚焦（不改变选中状态）
-          this._setFocusOnly(index);
-        }
+      //   // 处理聚焦和选中逻辑
+      //   if (e.ctrlKey || e.metaKey) {
+      //     // Ctrl+Click: 切换选中 + 设置聚焦
+      //     this._toggleSelectionAndFocus(index);
+      //   } else if (e.shiftKey) {
+      //     // Shift+Click: 范围选择
+      //     this._rangeSelect(index);
+      //   } else {
+      //     // 普通点击: 仅设置聚焦（不改变选中状态）
+      //     this._setFocusOnly(index);
+      //   }
 
-        logger.debug("Row clicked:", data.filename || data.id);
-      });
+      //   logger.debug("Row clicked:", data.filename || data.id);
+      // });
 
-      // 行双击事件
-      tabulator.on("rowDblClick", (e, row) => {
-        const data = row.getData();
-        this.#eventBus?.emit(PDF_LIST_EVENTS.ROW_DOUBLE_CLICKED, {
-          index: row.getPosition(true) - 1,
-          row: data,
-          nativeEvent: {
-            type: e.type,
-            button: e.button,
-            ctrlKey: e.ctrlKey,
-            shiftKey: e.shiftKey,
-            altKey: e.altKey
-          },
-          timestamp: Date.now()
-        });
+      // DISABLED: Tabulator removed - 行双击事件已禁用
+      // tabulator.on("rowDblClick", (e, row) => {
+      //   const data = row.getData();
+      //   this.#eventBus?.emit(PDF_LIST_EVENTS.ROW_DOUBLE_CLICKED, {
+      //     index: row.getPosition(true) - 1,
+      //     row: data,
+      //     nativeEvent: {
+      //       type: e.type,
+      //       button: e.button,
+      //       ctrlKey: e.ctrlKey,
+      //       shiftKey: e.shiftKey,
+      //       altKey: e.altKey
+      //     },
+      //     timestamp: Date.now()
+      //   });
 
-        // 同时触发全局PDF打开请求事件
-        // Schema 参考: docs/SPEC/schemas/eventbus/pdf-management/v1/open.requested.schema.json
-        //
-        // 当前使用旧格式（向后兼容）：直接传递文件名字符串
-        this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, data.filename || data.path, {
-          actorId: "PDFTable"
-        });
+      //   // 同时触发全局PDF打开请求事件
+      //   // Schema 参考: docs/SPEC/schemas/eventbus/pdf-management/v1/open.requested.schema.json
+      //   //
+      //   // 当前使用旧格式（向后兼容）：直接传递文件名字符串
+      //   this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, data.filename || data.path, {
+      //     actorId: "PDFTable"
+      //   });
 
-        // 新格式示例（带导航参数）：
-        // this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, {
-        //   filename: data.filename || data.path,
-        //   needNavigate: {
-        //     pageAt: 5,          // 跳转到第5页
-        //     position: 50        // 滚动到页面50%位置
-        //   }
-        // }, { actorId: 'PDFTable' });
-        //
-        // 或使用锚点/标注ID：
-        // this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, {
-        //   filename: data.filename || data.path,
-        //   needNavigate: {
-        //     pdfanchor: 'pdfanchor-abc123def456'      // 跳转到锚点
-        //     // 或 pdfannotation: 'pdfannotation-xyz789'  // 跳转到标注
-        //   }
-        // }, { actorId: 'PDFTable' });
+      //   // 新格式示例（带导航参数）：
+      //   // this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, {
+      //   //   filename: data.filename || data.path,
+      //   //   needNavigate: {
+      //   //     pageAt: 5,          // 跳转到第5页
+      //   //     position: 50        // 滚动到页面50%位置
+      //   //   }
+      //   // }, { actorId: 'PDFTable' });
+      //   //
+      //   // 或使用锚点/标注ID：
+      //   // this.#eventBus?.emitGlobal(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, {
+      //   //   filename: data.filename || data.path,
+      //   //   needNavigate: {
+      //   //     pdfanchor: 'pdfanchor-abc123def456'      // 跳转到锚点
+      //   //     // 或 pdfannotation: 'pdfannotation-xyz789'  // 跳转到标注
+      //   //   }
+      //   // }, { actorId: 'PDFTable' });
 
-        logger.debug("Row double-clicked, opening PDF:", data.filename || data.id);
-      });
+      //   logger.debug("Row double-clicked, opening PDF:", data.filename || data.id);
+      // });
 
-      // 行上下文菜单事件
-      tabulator.on("rowContext", (e, row) => {
-        const data = row.getData();
-        this.#eventBus?.emit(PDF_LIST_EVENTS.ROW_CONTEXT_MENU, {
-          index: row.getPosition(true) - 1,
-          row: data,
-          nativeEvent: {
-            type: e.type,
-            clientX: e.clientX,
-            clientY: e.clientY
-          },
-          timestamp: Date.now()
-        });
-        logger.debug("Row context menu:", data.filename || data.id);
-      });
+      // DISABLED: Tabulator removed - 行上下文菜单事件已禁用
+      // tabulator.on("rowContext", (e, row) => {
+      //   const data = row.getData();
+      //   this.#eventBus?.emit(PDF_LIST_EVENTS.ROW_CONTEXT_MENU, {
+      //     index: row.getPosition(true) - 1,
+      //     row: data,
+      //     nativeEvent: {
+      //       type: e.type,
+      //       clientX: e.clientX,
+      //       clientY: e.clientY
+      //     },
+      //     timestamp: Date.now()
+      //   });
+      //   logger.debug("Row context menu:", data.filename || data.id);
+      // });
 
-      // 数据排序事件
-      tabulator.on("dataSorting", (sorters) => {
-        if (sorters.length > 0) {
-          const sorter = sorters[0];
-          this.#eventBus?.emit(PDF_LIST_EVENTS.SORT_CHANGED, {
-            column: sorter.field,
-            direction: sorter.dir,
-            timestamp: Date.now()
-          });
-          logger.debug(`Data sorting: ${sorter.field} ${sorter.dir}`);
-        }
-      });
+      // DISABLED: Tabulator removed - 数据排序事件已禁用
+      // tabulator.on("dataSorting", (sorters) => {
+      //   if (sorters.length > 0) {
+      //     const sorter = sorters[0];
+      //     this.#eventBus?.emit(PDF_LIST_EVENTS.SORT_CHANGED, {
+      //       column: sorter.field,
+      //       direction: sorter.dir,
+      //       timestamp: Date.now()
+      //     });
+      //     logger.debug(`Data sorting: ${sorter.field} ${sorter.dir}`);
+      //   }
+      // });
 
       /* eslint-enable custom/event-name-format */
-      logger.debug("Tabulator event listeners set up");
+      logger.debug("Tabulator event listeners setup skipped (Tabulator removed)");
 
     } catch (error) {
       logger.warn("Error setting up Tabulator events:", error);
@@ -445,8 +451,8 @@ export class PDFTable {
     const rowCount = tabulator.getDataCount();
     if (rowCount === 0) {return;}
 
-    // 选中所有行
-    tabulator.selectRow();
+    // DISABLED: Tabulator removed - 选中所有行功能已禁用
+    // tabulator.selectRow();
 
     // 更新状态
     const allIndices = Array.from({ length: rowCount }, (_, i) => i);
@@ -463,8 +469,8 @@ export class PDFTable {
     const tabulator = this.#initializer?.tabulator;
     if (!tabulator || !this.#state) {return;}
 
-    // 清除选中
-    tabulator.deselectRow();
+    // DISABLED: Tabulator removed - 清除选中功能已禁用
+    // tabulator.deselectRow();
     this.#state.selectedIndices = [];
 
     // 清除聚焦
