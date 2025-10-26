@@ -94,8 +94,15 @@ from src.launcher.runner import (
 from src.launcher.ports import read_runtime_ports as _read_runtime_ports_unified
 from src.launcher.dev_server import ensure_vite as _ensure_vite
 
-# 统一日志目录（默认不强制指定，由运行时自动推断；此常量仅作回退参考）
-LOGS_DIR = (_ai.LOGS_DIR if _ai and hasattr(_ai, 'LOGS_DIR') else (_COMPONENT_ROOT / 'logs'))
+# 统一日志目录（默认值）：
+# - 当从 dist/latest 运行时，默认使用 <dist/latest>/logs（与打包产物同层）；
+# - 否则（源码模式），默认使用 <component_root>/logs；
+# - 后续用户在 UI 中修改后，将以 UI 指定目录为准（并透传给所有子模块/子进程）。
+_DIST_OR_SCRIPT_DIR = Path(__file__).resolve().parent
+if 'dist' in [p.name for p in _DIST_OR_SCRIPT_DIR.parents] or _DIST_OR_SCRIPT_DIR.name == 'latest':
+    LOGS_DIR = _DIST_OR_SCRIPT_DIR / 'logs'
+else:
+    LOGS_DIR = (_COMPONENT_ROOT / 'logs')
 try:
     # 不强制创建，让运行时自行推断；仅在需要写入配置时再创建
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -208,24 +215,31 @@ class LauncherThread(QThread):
         """启动后端服务器（统一调用 runner.start_backend_cli）。"""
         self.log_signal.emit("🚀 正在启动后端服务器 (子进程模式)...")
         # 组装 LauncherConfig 并调用 runner
+        # 严格要求路径通过参数传入，不依赖回退
+        if not self.params.get('logs_dir'):
+            self.finished_signal.emit(False, "缺少路径参数：logs_dir")
+            return
+        if not all(self.params.get(k) for k in ('data_dir', 'db_path', 'static_dir', 'pdfs_dir')):
+            self.finished_signal.emit(False, "缺少路径参数：data_dir/db_path/static_dir/pdfs_dir")
+            return
         cfg = _LConfig(
             ports=_LPorts(
                 msgCenter_port=self.params.get('msgCenter_port'),
                 pdfFile_port=self.params.get('pdfFile_port'),
             ),
             paths=_LPaths(
-                data_dir=self.params.get('data_dir'),
-                db_path=self.params.get('db_path'),
-                static_dir=self.params.get('static_dir'),
-                pdfs_dir=self.params.get('pdfs_dir'),
-                logs_dir=self.params.get('logs_dir'),
+                data_dir=str(self.params.get('data_dir')),
+                db_path=str(self.params.get('db_path')),
+                static_dir=str(self.params.get('static_dir')),
+                pdfs_dir=str(self.params.get('pdfs_dir')),
+                logs_dir=str(self.params.get('logs_dir')),
             ),
             options=_LOpts(
                 runtime_mode=self.params.get('runtime_mode') or 'single',
                 ankiaddon_root_path=self.params.get('ankiaddon_root_path'),
                 keep_backend=True,
             ),
-        ).with_defaults(self.component_root)
+        )
         ok = _run_backend_cli(cfg, on_log=lambda m: self.log_signal.emit(m))
         if ok:
             self.log_signal.emit("✅ 后端启动成功 (CLI)")
@@ -240,7 +254,9 @@ class LauncherThread(QThread):
         self.log_signal.emit("🏠 正在启动 PDF-Home...")
         try:
             component_root = self.component_root
-            base_logs = Path(self.params.get('logs_dir') or (component_root / 'logs'))
+            if not self.params.get('logs_dir'):
+                raise RuntimeError("缺少必需参数：logs_dir")
+            base_logs = Path(self.params.get('logs_dir'))
 
             # 将 Outline 开关状态同步到 logs/runtime-ports.json 的扩展字段，供 pdf-home → pdf-viewer 透传使用
             enable_outline = bool(self.params.get('enable_outline', False))
@@ -268,17 +284,17 @@ class LauncherThread(QThread):
                 ),
                 paths=_LPaths(
                     logs_dir=str(base_logs),
-                    data_dir=self.params.get('data_dir'),
-                    db_path=self.params.get('db_path'),
-                    static_dir=self.params.get('static_dir'),
-                    pdfs_dir=self.params.get('pdfs_dir'),
+                    data_dir=str(self.params.get('data_dir')),
+                    db_path=str(self.params.get('db_path')),
+                    static_dir=str(self.params.get('static_dir')),
+                    pdfs_dir=str(self.params.get('pdfs_dir')),
                 ),
                 options=_LOpts(
                     runtime_mode=self.params.get('runtime_mode') or 'single',
                     ankiaddon_root_path=self.params.get('ankiaddon_root_path'),
                     keep_backend=True,
                 ),
-            ).with_defaults(component_root)
+            )
             try:
                 self.log_signal.emit(f"[TRACE:CLI] pdf-home cfg → ports(vite={cfg.ports.vite_port}, ws={cfg.ports.msgCenter_port}, http={cfg.ports.pdfFile_port}) options(runtime_mode={cfg.options.runtime_mode}) is_prod={bool(self.params.get('is_prod'))} outline={enable_outline} logs_dir={cfg.paths.logs_dir}")
             except Exception:
@@ -312,7 +328,9 @@ class LauncherThread(QThread):
 
         try:
             component_root = self.component_root
-            base_logs = Path(self.params.get('logs_dir') or (component_root / 'logs'))
+            if not self.params.get('logs_dir'):
+                raise RuntimeError("缺少必需参数：logs_dir")
+            base_logs = Path(self.params.get('logs_dir'))
             cfg = _LConfig(
                 ports=_LPorts(
                     vite_port=self.params.get('vite_port'),
@@ -321,17 +339,17 @@ class LauncherThread(QThread):
                 ),
                 paths=_LPaths(
                     logs_dir=str(base_logs),
-                    data_dir=self.params.get('data_dir'),
-                    db_path=self.params.get('db_path'),
-                    static_dir=self.params.get('static_dir'),
-                    pdfs_dir=self.params.get('pdfs_dir'),
+                    data_dir=str(self.params.get('data_dir')),
+                    db_path=str(self.params.get('db_path')),
+                    static_dir=str(self.params.get('static_dir')),
+                    pdfs_dir=str(self.params.get('pdfs_dir')),
                 ),
                 options=_LOpts(
                     runtime_mode=self.params.get('runtime_mode') or 'single',
                     ankiaddon_root_path=self.params.get('ankiaddon_root_path'),
                     keep_backend=True,
                 ),
-            ).with_defaults(component_root)
+            )
             try:
                 self.log_signal.emit(f"[TRACE:CLI] pdf-viewer cfg → ports(vite={cfg.ports.vite_port}, ws={cfg.ports.msgCenter_port}, http={cfg.ports.pdfFile_port}) options(runtime_mode={cfg.options.runtime_mode}) is_prod={bool(self.params.get('is_prod'))} pdf_id={pdf_id} page_at={page_at} position={position} anchor_id={anchor_id} annotation_id={annotation_id} outline_item_id={outline_item_id} logs_dir={cfg.paths.logs_dir}")
             except Exception:
@@ -423,8 +441,12 @@ class GUILauncher(QMainWindow):
         # 保存BackendLauncher实例（Qt线程模式）
         self.backend_launcher_instance = None
 
-        # 配置：初始不强制 logs_dir，保持为空以让运行时自动推断；若配置中提供则应用
-        self._logs_dir: Path = None  # type: ignore
+        # 配置：初始化即解析出明确的日志目录，后续不再依赖运行时回退
+        self._logs_dir: Path = (_COMPONENT_ROOT / 'logs')
+        try:
+            self._logs_dir.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
         self._config_path: Path = (LOGS_DIR / "gui-launcher-config.json")
         self._config: Dict[str, Any] = {}
 
@@ -439,6 +461,29 @@ class GUILauncher(QMainWindow):
 
         # 初始状态检查
         self._update_status()
+
+    def _resolved_paths_from_ui(self) -> Dict[str, str]:
+        """解析 UI 的路径输入，未填写则使用计算的默认值，确保均为显式参数传递。"""
+        defaults = self._compute_default_paths()
+        def _get_text(name: str) -> str:
+            try:
+                w = getattr(self, name)
+                return (w.text().strip() if hasattr(w, 'text') else '') or ''
+            except Exception:
+                return ''
+        resolved = {
+            'data_dir': _get_text('data_dir_input') or defaults['data_dir'],
+            'db_path': _get_text('db_path_input') or defaults['db_path'],
+            'static_dir': _get_text('static_dir_input') or defaults['static_dir'],
+            'pdfs_dir': _get_text('pdfs_dir_input') or defaults['pdfs_dir'],
+            'logs_dir': _get_text('logs_dir_input') or str(self._logs_dir) or defaults['logs_dir'],
+        }
+        try:
+            Path(resolved['logs_dir']).mkdir(parents=True, exist_ok=True)
+            self._logs_dir = Path(resolved['logs_dir'])
+        except Exception:
+            pass
+        return resolved
 
     def _init_ui(self):
         """初始化UI"""
@@ -920,8 +965,7 @@ class GUILauncher(QMainWindow):
             self.fs_watcher = QFileSystemWatcher(self)
             # 监听日志目录（新增/删除文件时触发）
             try:
-                base = (self._logs_dir or (_COMPONENT_ROOT / 'logs'))
-                self.fs_watcher.addPath(str(base))
+                self.fs_watcher.addPath(str(self._logs_dir))
             except Exception:
                 pass
 
@@ -952,8 +996,7 @@ class GUILauncher(QMainWindow):
 
         for name in ("dev-process-info.json", "backend-process-info.json", "frontend-process-info.json"):
             try:
-                base = (self._logs_dir or (_COMPONENT_ROOT / 'logs'))
-                path = base / name
+                path = self._logs_dir / name
                 if path.exists():
                     spath = str(path)
                     if spath not in files_now:
@@ -1036,9 +1079,8 @@ class GUILauncher(QMainWindow):
 
         # 2) 本地落盘到 logs/gui-launcher.log
         try:
-            base = (self._logs_dir or (_COMPONENT_ROOT / 'logs'))
-            base.mkdir(parents=True, exist_ok=True)
-            log_path = base / 'gui-launcher.log'
+            self._logs_dir.mkdir(parents=True, exist_ok=True)
+            log_path = self._logs_dir / 'gui-launcher.log'
             # 规范化换行并确保以 \n 结尾
             msg = str(message).replace('\r\n', '\n').replace('\r', '\n')
             if not msg.endswith('\n'):
@@ -1052,10 +1094,9 @@ class GUILauncher(QMainWindow):
     def _update_status(self):
         """更新服务状态"""
         # 读取状态文件（兼容无 ai_launcher 环境）
-        base = (self._logs_dir or (_COMPONENT_ROOT / 'logs'))
-        dev_info = _read_json_safe(base / "dev-process-info.json")
-        backend_info = _read_json_safe(base / "backend-process-info.json")
-        frontend_info = _read_json_safe(base / "frontend-process-info.json")
+        dev_info = _read_json_safe(self._logs_dir / "dev-process-info.json")
+        backend_info = _read_json_safe(self._logs_dir / "backend-process-info.json")
+        frontend_info = _read_json_safe(self._logs_dir / "frontend-process-info.json")
 
         # 更新 Vite 状态
         vite_pid = dev_info.get("vite", {}).get("pid")
@@ -1135,9 +1176,14 @@ class GUILauncher(QMainWindow):
 
         self._log(f"开始任务: {task_type}")
 
-        # 注入 logs_dir 供子线程读写统一日志文件
+        # 注入显式目录参数（含 logs_dir），供子线程与子进程统一使用
         params = dict(params)
-        params['logs_dir'] = str(self._logs_dir or (_COMPONENT_ROOT / 'logs'))
+        paths = self._resolved_paths_from_ui()
+        params.setdefault('data_dir', paths['data_dir'])
+        params.setdefault('db_path', paths['db_path'])
+        params.setdefault('static_dir', paths['static_dir'])
+        params.setdefault('pdfs_dir', paths['pdfs_dir'])
+        params['logs_dir'] = paths['logs_dir']
         self.current_thread = LauncherThread(task_type, params)
         self.current_thread.log_signal.connect(self._log)
         self.current_thread.finished_signal.connect(self._on_task_finished)
@@ -1209,8 +1255,7 @@ class GUILauncher(QMainWindow):
 
     def _runtime_ports(self) -> Dict[str, Any]:
         """读取 runtime-ports.json（统一调用 src.launcher.ports）。"""
-        base = (self._logs_dir or (_COMPONENT_ROOT / 'logs'))
-        return _read_runtime_ports_unified(base) or {}
+        return _read_runtime_ports_unified(self._logs_dir) or {}
 
     def _start_backend_hosted(self) -> None:
         """以源码开发模式启动后端（Hosted，同进程）。
@@ -1306,14 +1351,13 @@ class GUILauncher(QMainWindow):
                         if _ai is not None and hasattr(_ai, '_start_vite'):
                             pid = _ai._start_vite(int(vite_port))
                             self._log(f"尝试启动 Vite 开发服务器: PID={pid} 端口={vite_port}")
-                            # 同步更新 runtime-ports.json，确保前端解析到正确端口
+                            # 同步更新 runtime-ports.json，确保前端解析到正确端口（显式日志目录）
                             try:
-                                base = (self._logs_dir or (_COMPONENT_ROOT / 'logs'))
-                                base.mkdir(parents=True, exist_ok=True)
-                                cfg = _read_json_safe(base / 'runtime-ports.json') or {}
+                                self._logs_dir.mkdir(parents=True, exist_ok=True)
+                                cfg = _read_json_safe(self._logs_dir / 'runtime-ports.json') or {}
                                 cfg['vite_port'] = int(vite_port)
                                 cfg['npm_port'] = int(vite_port)
-                                (base / 'runtime-ports.json').write_text(__import__('json').dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding='utf-8')
+                                (self._logs_dir / 'runtime-ports.json').write_text(__import__('json').dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding='utf-8')
                             except Exception:
                                 pass
                     except Exception as e:
@@ -1335,6 +1379,7 @@ class GUILauncher(QMainWindow):
 
             # 构造配置并启动（解耦 runner）
             ports = self._runtime_ports() or {}
+            path_resolved_home = self._resolved_paths_from_ui()
             cfg = _LConfig(
                 ports=_LPorts(
                     vite_port=int(ports.get('vite_port') or ports.get('npm_port') or (self.vite_port_input.value() or 0)) or None,
@@ -1342,11 +1387,11 @@ class GUILauncher(QMainWindow):
                     pdfFile_port=int(ports.get('pdfFile_port') or (self.pdfFile_port_input.value() or 0)) or None,
                 ),
                 paths=_LPaths(
-                    data_dir=(self.data_dir_input.text().strip() or None),
-                    db_path=(self.db_path_input.text().strip() or None),
-                    static_dir=(self.static_dir_input.text().strip() or None),
-                    pdfs_dir=(self.pdfs_dir_input.text().strip() or None),
-                    logs_dir=(self.logs_dir_input.text().strip() or None),
+                    data_dir=path_resolved_home['data_dir'],
+                    db_path=path_resolved_home['db_path'],
+                    static_dir=path_resolved_home['static_dir'],
+                    pdfs_dir=path_resolved_home['pdfs_dir'],
+                    logs_dir=path_resolved_home['logs_dir'],
                 ),
                 options=_LOpts(
                     runtime_mode=(self.runtime_mode_select.currentText() or 'single'),
@@ -1354,7 +1399,7 @@ class GUILauncher(QMainWindow):
                     frontend_prod=bool(self.frontend_prod_checkbox.isChecked()),
                     keep_backend=True,
                 )
-            ).with_defaults(_COMPONENT_ROOT)
+            )
 
             # Outline 切换已停用：不再写入 logs/debug-info.json
             try:
@@ -1383,7 +1428,7 @@ class GUILauncher(QMainWindow):
     def _start_vite_dev(self) -> None:
         """显式启动 Vite 开发服务器（Dev）——委托统一 dev_server 工具。"""
         try:
-            base = (self._logs_dir or (_COMPONENT_ROOT / 'logs'))
+            base = self._logs_dir
             base.mkdir(parents=True, exist_ok=True)
             ports = self._runtime_ports() or {}
             vite_port = int(self.vite_port_input.value() or ports.get('vite_port') or ports.get('npm_port') or 3000)
@@ -1398,6 +1443,7 @@ class GUILauncher(QMainWindow):
             from PyQt6.QtWidgets import QApplication
             ports = self._runtime_ports() or {}
             self._log(f"[TRACE:HOSTED] pdf-viewer pre-build → is_prod={bool(self.frontend_prod_checkbox.isChecked())} runtime={ports} ui(vite={self.vite_port_input.value() or 0}, ws={self.msgCenter_port_input.value() or 0}, http={self.pdfFile_port_input.value() or 0})")
+            path_resolved = self._resolved_paths_from_ui()
             cfg = _LConfig(
                 ports=_LPorts(
                     vite_port=int(ports.get('vite_port') or ports.get('npm_port') or (self.vite_port_input.value() or 0)) or None,
@@ -1405,11 +1451,11 @@ class GUILauncher(QMainWindow):
                     pdfFile_port=int(ports.get('pdfFile_port') or (self.pdfFile_port_input.value() or 0)) or None,
                 ),
                 paths=_LPaths(
-                    data_dir=(self.data_dir_input.text().strip() or None),
-                    db_path=(self.db_path_input.text().strip() or None),
-                    static_dir=(self.static_dir_input.text().strip() or None),
-                    pdfs_dir=(self.pdfs_dir_input.text().strip() or None),
-                    logs_dir=(self.logs_dir_input.text().strip() or None),
+                    data_dir=path_resolved['data_dir'],
+                    db_path=path_resolved['db_path'],
+                    static_dir=path_resolved['static_dir'],
+                    pdfs_dir=path_resolved['pdfs_dir'],
+                    logs_dir=path_resolved['logs_dir'],
                 ),
                 options=_LOpts(
                     runtime_mode=(self.runtime_mode_select.currentText() or 'single'),
@@ -1417,7 +1463,7 @@ class GUILauncher(QMainWindow):
                     frontend_prod=bool(self.frontend_prod_checkbox.isChecked()),
                     keep_backend=True,
                 )
-            ).with_defaults(_COMPONENT_ROOT)
+            )
             try:
                 self._log(f"[TRACE:HOSTED] pdf-viewer cfg → ports(vite={cfg.ports.vite_port}, ws={cfg.ports.msgCenter_port}, http={cfg.ports.pdfFile_port}) options(frontend_prod={cfg.options.frontend_prod}, runtime_mode={cfg.options.runtime_mode})")
             except Exception:
@@ -1499,18 +1545,17 @@ class GUILauncher(QMainWindow):
                 argv += ["--runtime-mode", mode]
             except Exception:
                 pass
-            for flag, widget in (
-                ("--ankiaddon-root-path", getattr(self, 'ankiaddon_root_input', None)),
-                ("--data-dir", getattr(self, 'data_dir_input', None)),
-                ("--db-path", getattr(self, 'db_path_input', None)),
-                ("--static-dir", getattr(self, 'static_dir_input', None)),
-                ("--pdfs-dir", getattr(self, 'pdfs_dir_input', None)),
-            ):
-                try:
-                    if widget and widget.text().strip():
-                        argv += [flag, widget.text().strip()]
-                except Exception:
-                    pass
+            # 目录参数：无论 UI 是否填写，始终显式传入解析后的值（禁止运行时回退）
+            paths = self._resolved_paths_from_ui()
+            if getattr(self, 'ankiaddon_root_input', None):
+                ank = self.ankiaddon_root_input.text().strip()
+                if ank:
+                    argv += ["--ankiaddon-root-path", ank]
+            argv += ["--data-dir", paths["data_dir"]]
+            argv += ["--db-path", paths["db_path"]]
+            argv += ["--static-dir", paths["static_dir"]]
+            argv += ["--pdfs-dir", paths["pdfs_dir"]]
+            argv += ["--logs-dir", paths["logs_dir"]]
         return argv
 
     def _cli_start(self) -> None:
@@ -1529,9 +1574,9 @@ class GUILauncher(QMainWindow):
             return
         # 注入 --logs-dir 以与 GUI 当前日志目录保持一致
         argv = list(argv)
-        base = str(self._logs_dir or (_COMPONENT_ROOT / 'logs'))
-        if argv and argv[0] == 'start':
-            argv += ['--logs-dir', base]
+        base = str(self._logs_dir)
+        # 严格：所有子命令均必须显式携带 --logs-dir（start/stop/status）
+        argv += ['--logs-dir', base]
         t = _AiThread(argv)
         t.log_signal.connect(self._log)
         # 保存引用，避免 QThread 在运行中被销毁
@@ -1576,17 +1621,18 @@ class GUILauncher(QMainWindow):
             # 获取当前的QApplication实例
             current_app = QApplication.instance()
 
-            # 创建BackendLauncher实例（传入路径与模式覆盖）
-            overrides = self._collect_path_overrides()
+            # 创建BackendLauncher实例（传入路径与模式覆盖，所有目录显式传入）
+            paths = self._resolved_paths_from_ui()
             self.backend_launcher_instance = BackendLauncher(
                 parent_app=current_app,
                 show_ui=False,
-                runtime_mode=overrides.get("runtime_mode") or "single",
-                ankiaddon_root_path=overrides.get("ankiaddon_root_path"),
-                data_dir=overrides.get("data_dir"),
-                db_path=overrides.get("db_path"),
-                static_dir=overrides.get("static_dir"),
-                pdfs_dir=overrides.get("pdfs_dir"),
+                runtime_mode=(self.runtime_mode_select.currentText() or "single"),
+                ankiaddon_root_path=(self.ankiaddon_root_input.text().strip() or None),
+                data_dir=paths.get("data_dir"),
+                db_path=paths.get("db_path"),
+                static_dir=paths.get("static_dir"),
+                pdfs_dir=paths.get("pdfs_dir"),
+                logs_dir=paths.get("logs_dir"),
             )
 
             # 启动服务器
@@ -1639,7 +1685,12 @@ class GUILauncher(QMainWindow):
             "msgCenter_port": ui_ws,
             "pdfFile_port": ui_http,
             "is_prod": is_prod,
-            "enable_outline": enable_outline
+            "enable_outline": enable_outline,
+            # 显式传入目录参数
+            "data_dir": self._resolved_paths_from_ui()['data_dir'],
+            "db_path": self._resolved_paths_from_ui()['db_path'],
+            "static_dir": self._resolved_paths_from_ui()['static_dir'],
+            "pdfs_dir": self._resolved_paths_from_ui()['pdfs_dir'],
         }
         self._start_task("pdf-home", params)
 
@@ -1667,7 +1718,12 @@ class GUILauncher(QMainWindow):
             "is_prod": is_prod,
             "pdf_id": pdf_id if pdf_id else None,  # 空字符串转为 None
             "page_at": self.page_at_input.value() if self.page_at_input.value() > 0 else None,
-            "position": self.position_input.value() if self.position_input.value() > 0 else None
+            "position": self.position_input.value() if self.position_input.value() > 0 else None,
+            # 显式传入目录参数
+            "data_dir": self._resolved_paths_from_ui()['data_dir'],
+            "db_path": self._resolved_paths_from_ui()['db_path'],
+            "static_dir": self._resolved_paths_from_ui()['static_dir'],
+            "pdfs_dir": self._resolved_paths_from_ui()['pdfs_dir'],
         }
         self._start_task("pdf-viewer", params)
 
@@ -1758,11 +1814,20 @@ class GUILauncher(QMainWindow):
         if text:
             self._set_logs_dir(Path(text))
         else:
-            # 清空为自动推断模式
-            self._logs_dir = None  # type: ignore
-            self._config_path = (LOGS_DIR / "gui-launcher-config.json")
+            # 清空为解析后的默认目录，不再使用运行时回退
+            try:
+                defaults = self._compute_default_paths()
+                self._logs_dir = Path(defaults.get('logs_dir') or str(_COMPONENT_ROOT / 'logs'))
+                self._logs_dir.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                self._logs_dir = (_COMPONENT_ROOT / 'logs')
+                try:
+                    self._logs_dir.mkdir(parents=True, exist_ok=True)
+                except Exception:
+                    pass
+            self._config_path = (self._logs_dir / "gui-launcher-config.json")
             self._init_status_watchers()
-            self._log("📁 日志目录恢复自动推断")
+            self._log(f"📁 日志目录恢复默认: {self._logs_dir}")
         self._save_config_from_ui()
         self._update_status()
 

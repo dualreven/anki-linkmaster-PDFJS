@@ -102,6 +102,7 @@ def start_pdf_home_hosted(cfg: LauncherConfig, *, parent_app, on_log: Optional[C
         pdfFile_port=cfg.ports.pdfFile_port,
         vite_port=cfg.ports.vite_port,
         source='gui',
+        logs_dir=str(cfg.paths.logs_dir) if getattr(cfg.paths, 'logs_dir', None) else None,
     )
     PdfHomeApp = getattr(mod, 'PdfHomeApp')
     inst = PdfHomeApp(fe_cfg, parent_app=parent_app)
@@ -140,6 +141,7 @@ def start_pdf_viewer_hosted(cfg: LauncherConfig, *, parent_app, pdf_id: Optional
         pdfFile_port=cfg.ports.pdfFile_port,
         vite_port=cfg.ports.vite_port,
         source='gui',
+        logs_dir=str(cfg.paths.logs_dir) if getattr(cfg.paths, 'logs_dir', None) else None,
         pdf_id=pdf_id,
         page_at=page_at,
         position=position,
@@ -187,6 +189,8 @@ def start_pdf_home_cli(cfg: LauncherConfig, *, is_prod: bool, on_log: Optional[C
     if pdf_port:
         cmd += ['--pdfFile-port', str(int(pdf_port))]
     cmd.append('--keep-backend')
+    if getattr(cfg.paths, 'logs_dir', None):
+        cmd += ['--logs-dir', str(cfg.paths.logs_dir)]
 
     try:
         creation = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
@@ -249,6 +253,8 @@ def start_pdf_viewer_cli(cfg: LauncherConfig, *, is_prod: bool, pdf_id: Optional
     if outline_item_id:
         cmd += ['--outline-item-id', str(outline_item_id)]
     cmd.append('--keep-backend')
+    if getattr(cfg.paths, 'logs_dir', None):
+        cmd += ['--logs-dir', str(cfg.paths.logs_dir)]
 
     try:
         creation = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0

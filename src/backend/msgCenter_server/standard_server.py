@@ -26,7 +26,7 @@ import sys
 
 from src.backend.msgCenter_server.standard_protocol import StandardMessageHandler, PDFMessageBuilder, MessageType
 from src.backend.pdf_manager.standard_manager import StandardPDFManager as PDFManager
-from src.backend.database.config import compute_data_dir, compute_db_path  # 参数式路径解析
+from src.backend.database.config import compute_data_dir, compute_db_path  # 参数式路径解析（弃用兜底，仅用于兼容明确传参时的校验）
 # 移除传输优化模块的依赖
 # from src.backend.pdf_manager.page_transfer_manager import page_transfer_manager
 
@@ -143,21 +143,12 @@ class StandardWebSocketServer(QObject):
         self.clients = []
         self.running = False
         
-        # 参数式路径解析（无环境变量）：
-        # 1) 优先显式 data_dir
-        # 2) 其次 runtime_mode + anki_root_path
-        # 3) 如果 app 为 None（测试/子进程），允许回退到 project_root/data；否则在缺参时抛错
-        selected_data_dir: Optional[Path] = None
-        if data_dir:
-            selected_data_dir = Path(data_dir).resolve()
-        elif runtime_mode:
-            selected_data_dir = compute_data_dir(runtime_mode, ankiaddon_root_path=ankiaddon_root_path)
-        else:
-            if app is None:
-                selected_data_dir = project_root / 'data'
-                logger.info("[paths] fallback single-mode data_dir=%s", str(selected_data_dir))
-            else:
-                raise RuntimeError("缺少路径参数：请在构造 StandardWebSocketServer 时传入 runtime_mode/ankiaddon_root_path 或 data_dir/db_path")
+        # 严格参数策略：必须显式传入 data_dir 与 db_path，禁止任何兜底/自动推断
+        if not data_dir:
+            raise RuntimeError("缺少必要参数 data_dir（禁止兜底）；请在 BackendLauncher/EmbedMsgCenterServer 构造时显式传入")
+        if not db_path:
+            raise RuntimeError("缺少必要参数 db_path（禁止兜底）；请在 BackendLauncher/EmbedMsgCenterServer 构造时显式传入")
+        selected_data_dir = Path(data_dir).resolve()
 
         data_dir_abs = str(selected_data_dir)
         self.pdf_manager = PDFManager(data_dir=data_dir_abs)
@@ -180,15 +171,8 @@ class StandardWebSocketServer(QObject):
 
         # API 门面/服务注册表（可注入）
         self.pdf_library_api = pdf_library_api
-        # 计算 DB 路径（参数式）
-        if db_path:
-            self._db_path = db_path
-        else:
-            if runtime_mode:
-                self._db_path = str(compute_db_path(runtime_mode, ankiaddon_root_path=ankiaddon_root_path))
-            else:
-                # 与 data_dir 一致：在测试/子进程场景，允许回退到 <data_dir>/anki_linkmaster.db
-                self._db_path = str(Path(data_dir_abs) / 'anki_linkmaster.db')
+        # DB 路径：仅接受显式传入
+        self._db_path = db_path
         try:
             logger.info("diagnose(WS): resolved db_path=%s data_dir=%s static_dir_param=%s pdfs_dir_param=%s",
                         str(self._db_path), data_dir_abs, str(static_dir), str(pdfs_dir))

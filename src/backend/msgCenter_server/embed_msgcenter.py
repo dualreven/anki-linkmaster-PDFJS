@@ -55,8 +55,6 @@ class EmbedMsgCenterServer(QObject):
 
     def __init__(self, host: str = "127.0.0.1", port: int = 8765, parent: Optional[QObject] = None, *,
                  db_path: Optional[str] = None,
-                 runtime_mode: Optional[str] = None,
-                 ankiaddon_root_path: Optional[str] = None,
                  data_dir: Optional[str] = None):
         """初始化嵌入式服务器
 
@@ -70,8 +68,6 @@ class EmbedMsgCenterServer(QObject):
         self.port = port
         self._server: Optional[StandardWebSocketServer] = None
         self._db_path = db_path
-        self._runtime_mode = runtime_mode
-        self._ankiaddon_root_path = ankiaddon_root_path
         self._data_dir = data_dir
 
         logger.info(f"初始化嵌入式 WebSocket 服务器: {host}:{port}")
@@ -88,13 +84,14 @@ class EmbedMsgCenterServer(QObject):
 
         try:
             # 创建服务器实例（不传递独立的 QCoreApplication）
+            # 严格参数：必须显式传入 data_dir 与 db_path（由 BackendLauncher 提供）
+            if not self._data_dir or not self._db_path:
+                raise RuntimeError("EmbedMsgCenterServer 启动缺少必要参数（data_dir 或 db_path），禁止兜底。")
             self._server = StandardWebSocketServer(
                 host=self.host,
                 port=self.port,
                 app=None,  # 不创建独立的 QApplication
                 db_path=self._db_path,
-                runtime_mode=self._runtime_mode,
-                ankiaddon_root_path=self._ankiaddon_root_path,
                 data_dir=self._data_dir,
             )
 

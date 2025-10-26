@@ -58,28 +58,21 @@ JSConsoleLogger = logger_module.JSConsoleLogger
 
 logger = logging.getLogger("pdf-home.launcher")
 
-def _resolve_logs_dir(base: Path) -> Path:
-    """解析日志目录，支持通过 logs/gui-launcher-config.json 覆盖（与后端一致）。"""
-    try:
-        cfg = base / 'logs' / 'gui-launcher-config.json'
-        if cfg.exists():
-            data = json.loads(cfg.read_text(encoding='utf-8') or '{}')
-            logs_dir_decl = ((data.get('paths') or {}).get('logs_dir') or '').strip()
-            if logs_dir_decl and logs_dir_decl.lower() not in ('none', 'null', 'undefined'):
-                p = Path(logs_dir_decl).expanduser()
-                p.mkdir(parents=True, exist_ok=True)
-                return p
-    except Exception:
-        pass
-    d = base / 'logs'
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+# 强制日志目录（由参数传入；不允许回退）
+_FORCED_LOGS_DIR: Optional[Path] = None
 
+def _set_logs_dir(p: str | Path) -> None:
+    global _FORCED_LOGS_DIR
+    _FORCED_LOGS_DIR = Path(p).resolve()
+    _FORCED_LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-
+def _require_logs_dir() -> Path:
+    if _FORCED_LOGS_DIR is None:
+        raise RuntimeError("logs_dir 未指定，请通过参数 --logs-dir 传入或在 LaunchConfig.logs_dir 指定")
+    return _FORCED_LOGS_DIR
 
 def _get_js_log_path() -> Path:
-    return _resolve_logs_dir(project_root) / 'pdf-home-js.log'
+    return _require_logs_dir() / 'pdf-home-js.log'
 
 
 def _ensure_pdf_home_file_logger() -> None:
@@ -90,7 +83,7 @@ def _ensure_pdf_home_file_logger() -> None:
     - 不依赖 root logger，防止被后端的 logging.basicConfig 覆盖
     """
     try:
-        logs_dir = _resolve_logs_dir(project_root)
+        logs_dir = _require_logs_dir()
         log_path = logs_dir / 'pdf-home.log'
 
         fmt = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
@@ -129,7 +122,7 @@ def get_vite_port():
     Do NOT parse log files - runtime-ports.json is the single source of truth.
     """
     try:
-        ports_file = Path(__file__).parent.parent.parent.parent / 'logs' / 'runtime-ports.json'
+        ports_file = _require_logs_dir() / 'runtime-ports.json'
         if ports_file.exists():
             with open(ports_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
@@ -139,24 +132,29 @@ def get_vite_port():
     except Exception as e:
         logger.warning("Failed to read Vite port from runtime-ports.json: %s", e)
 
-    # Fallback to default
-    logger.info("Using default Vite port 3000")
-    return 3000
+    raise RuntimeError("未能从 logs_dir/runtime-ports.json 解析到 vite_port；请确保 --logs-dir 正确且文件存在")
 
 
 def _read_runtime_ports(cwd: Path | None = None) -> tuple[int, int, int, dict]:
     """读取 logs/runtime-ports.json（统一从 src.launcher.ports 调用）。"""
     try:
-        base = Path(cwd) if cwd else Path(os.getcwd())
-        data = _ports_read(base / 'logs') or {}
-        vite_port = int(data.get('vite_port') or data.get('npm_port') or 3000)
-        msgCenter_port = int(data.get('msgCenter_port') or data.get('ws_port') or 8765)
-        pdfFile_port = int(data.get('pdfFile_port') or data.get('pdf_port') or 8080)
+        base = _require_logs_dir()
+        data = _ports_read(base) or {}
+        def _pick_int(d: dict, keys: list[str]) -> int | None:
+            for k in keys:
+                if k in d and d[k] is not None:
+                    try:
+                        return int(d[k])
+                    except Exception:
+                        pass
+            return None
+        vite_port = _pick_int(data, ['vite_port', 'npm_port'])
+        msgCenter_port = _pick_int(data, ['msgCenter_port', 'ws_port'])
+        pdfFile_port = _pick_int(data, ['pdfFile_port', 'pdf_port'])
         extras = {k: v for k, v in data.items() if k not in ("vite_port", "npm_port", "msgCenter_port", "ws_port", "pdfFile_port", "pdf_port")}
         return vite_port, msgCenter_port, pdfFile_port, extras
     except Exception as exc:  # pragma: no cover - defensive
-        logger.warning("Failed reading runtime-ports.json: %s", exc)
-        return 3000, 8765, 8080, {}
+        raise RuntimeError(f"读取 runtime-ports.json 失败：{exc}")
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -168,6 +166,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--no-persist", action="store_true", help="Do not persist ports back to logs/runtime-ports.json")
     parser.add_argument("--prod", action="store_true", help="以生产模式运行，直接从 dist 静态文件加载页面")
     parser.add_argument("--keep-backend", action="store_true", help="窗口关闭时保持后端服务运行（不停止）")
+    parser.add_argument("--logs-dir", type=str, dest="logs_dir", help="显式日志目录（必填）", required=True)
     return parser.parse_args(argv)
 
 
@@ -241,6 +240,10 @@ class PdfHomeApp:
         Returns:
             退出码（子进程模式）或 0（寄宿模式）
         """
+        # 要求 logs_dir 已设置
+        if not self.config.logs_dir:
+            raise RuntimeError("缺少 logs_dir：请在 LaunchConfig.logs_dir 指定或 CLI 传入 --logs-dir")
+        _set_logs_dir(self.config.logs_dir)
         _setup_logging()
         logger.info(f"Launching pdf-home ({self.mode} mode)")
 
@@ -252,19 +255,38 @@ class PdfHomeApp:
             self.app = self.parent_app
             logger.info("✅ Using parent QApplication (hosted mode)")
 
-        # 步骤 2: 解析端口配置
+        # 步骤 2: 解析端口配置（严格校验，禁止兜底）
         vite_json, msgCenter_json, pdfFile_json, extras = _read_runtime_ports(project_root)
 
-        vite_port = self.config.vite_port or vite_json
-        if not self.config.vite_port:
+        def _to_int_or_none(v):
             try:
-                vite_port = get_vite_port() or vite_port
+                return int(v) if v is not None else None
             except Exception:
-                pass
+                return None
 
-        msgCenter_port = self.config.msgCenter_port or msgCenter_json
-        pdfFile_port = self.config.pdfFile_port or pdfFile_json
-        js_debug_port = self.config.js_debug_port or int(extras.get("pdf-home-js", 9222))
+        vite_port = _to_int_or_none(self.config.vite_port or vite_json)
+        msgCenter_port = _to_int_or_none(self.config.msgCenter_port or msgCenter_json)
+        pdfFile_port = _to_int_or_none(self.config.pdfFile_port or pdfFile_json)
+        js_debug_port = _to_int_or_none(self.config.js_debug_port or extras.get("pdf-home-js")) or 9222
+
+        # 严格模式：不可为 None。开发模式要求三者；生产模式至少要求消息中心与文件服务器端口
+        missing = []
+        if not self.config.is_prod:
+            if vite_port is None:
+                missing.append("vite_port")
+            if msgCenter_port is None:
+                missing.append("msgCenter_port")
+            if pdfFile_port is None:
+                missing.append("pdfFile_port")
+        else:
+            if msgCenter_port is None:
+                missing.append("msgCenter_port")
+            if pdfFile_port is None:
+                missing.append("pdfFile_port")
+        if missing:
+            logs_dir = getattr(self.config, 'logs_dir', None)
+            where = f"{logs_dir}/runtime-ports.json" if logs_dir else "runtime-ports.json"
+            raise RuntimeError(f"端口缺失：{', '.join(missing)}；请确保 {where} 包含所需键或通过 CLI 显式传入对应 --*-port 参数")
 
         logger.info(f"Mode: is_prod={self.config.is_prod} keep_backend={self.config.keep_backend}")
         logger.info(f"Resolved ports: vite={vite_port} msgCenter={msgCenter_port} pdfFile={pdfFile_port}")
@@ -381,7 +403,7 @@ class PdfHomeApp:
     def _persist_ports(self, vite_port, msgCenter_port, pdfFile_port, extras):
         """持久化端口（委托给 src.launcher.ports.write_runtime_ports）。"""
         try:
-            logs_dir = project_root / 'logs'
+            logs_dir = _require_logs_dir()
             logs_dir.mkdir(parents=True, exist_ok=True)
             payload = {"vite_port": vite_port, "msgCenter_port": msgCenter_port, "pdfFile_port": pdfFile_port, **(extras or {})}
             _ports_write(logs_dir, payload)
@@ -414,7 +436,7 @@ class PdfHomeApp:
         try:
             logger.info("[QWebChannel] 开始初始化 QWebChannel...")
             channel = QWebChannel(self.window)
-            self.pyqt_bridge = PyQtBridge(self.window, is_prod=self.config.is_prod)
+            self.pyqt_bridge = PyQtBridge(self.window, is_prod=self.config.is_prod, logs_dir=self.config.logs_dir)
             channel.registerObject('pyqtBridge', self.pyqt_bridge)
 
             if self.window.web_page:

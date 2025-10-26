@@ -46,7 +46,7 @@ class PyQtBridge(QObject):
         parent: 父窗口对象，用于显示对话框
     """
 
-    def __init__(self, parent=None, is_prod: bool | None = None):
+    def __init__(self, parent=None, is_prod: bool | None = None, logs_dir: str | None = None):
         """
         初始化 PyQtBridge
 
@@ -58,6 +58,15 @@ class PyQtBridge(QObject):
         # 运行模式标记（由调用方传入，避免依赖环境变量）
         self._is_prod: bool | None = is_prod
         logger.info("[PyQtBridge] PyQtBridge 初始化")
+
+        # 显式日志目录（必需）
+        if not logs_dir:
+            raise RuntimeError("PyQtBridge 缺少 logs_dir 参数（请从 gui/runner/hosted 传入）")
+        try:
+            self._logs_dir = Path(logs_dir).resolve()
+            self._logs_dir.mkdir(parents=True, exist_ok=True)
+        except Exception as _e:
+            raise RuntimeError(f"PyQtBridge 无法创建日志目录: {logs_dir} err={_e}")
 
         # 记录已打开的 pdf-viewer 窗口（由 pdf-home MainWindow 统一管理）
         # 若 parent(MainWindow) 未初始化该字典，则在此做兜底
@@ -666,10 +675,7 @@ class PyQtBridge(QObject):
     def _compute_js_log_path(self, pdf_id: str) -> str:
         """计算 pdf-viewer JS 日志文件路径（UTF-8）。"""
         try:
-            from pathlib import Path
-            project_root = Path(__file__).parent.parent.parent.parent
-            logs_dir = _resolve_logs_dir(project_root)
-            path = logs_dir / f"pdf-viewer-{pdf_id}-js.log"
+            path = self._logs_dir / f"pdf-viewer-{pdf_id}-js.log"
             # 每次启动 viewer 前清空旧日志（UTF-8，无 BOM）。
             # 这样从 pdf-home 启动时行为与独立 launcher 截断一致。
             try:

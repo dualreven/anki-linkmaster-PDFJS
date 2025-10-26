@@ -88,12 +88,19 @@ class EmbedFileServer(QObject):
         """
         super().__init__(parent)
 
-        # 默认根：用于未命中挂载规则时的回退
+        # 严格参数：必须显式传入 pdfs_dir、static_dir、logs_dir，禁止兜底/自动推断
+        if not pdfs_dir or not static_dir:
+            raise RuntimeError("EmbedFileServer 缺少必要参数：pdfs_dir 或 static_dir（禁止兜底）。")
+        if logs_dir is None:
+            raise RuntimeError("EmbedFileServer 缺少必要参数：logs_dir（禁止兜底）。")
+
+        # 根目录：应与 pdfs_dir 保持一致（服务 PDF 文件根）
         self.root_dir = Path(root_dir).resolve()
-        # 专用目录：PDF 文件库与静态前端资源
-        self.static_root = Path(static_dir).resolve() if static_dir else self.root_dir
-        # 兼容性：若未显式指定 pdfs_dir，则默认与 root_dir 相同，保证 /pdfs/* 路由可用
-        self.pdfs_root = Path(pdfs_dir).resolve() if pdfs_dir else self.root_dir
+        self.pdfs_root = Path(pdfs_dir).resolve()
+        self.static_root = Path(static_dir).resolve()
+        if self.root_dir != self.pdfs_root:
+            # 避免隐式回退，保持语义一致性
+            raise RuntimeError(f"root_dir({self.root_dir}) 必须与 pdfs_dir({self.pdfs_root}) 一致。")
         # 额外挂载点，形如 {"/pdf-home": Path(...), "/pdf-viewer": Path(...)}
         self.mounts = { }
         if mounts:
@@ -107,28 +114,10 @@ class EmbedFileServer(QObject):
         self.server = QTcpServer(self)
         # 用户可见提示仅展示一次
         self._has_notified_user: bool = False
-        # 日志目录覆盖（参数优先）
-        self._logs_dir_override: Optional[Path] = Path(logs_dir).expanduser() if logs_dir else None
-        # 独立诊断日志（不依赖 logging 配置），便于插件环境排查
-        def _resolve_logs_dir(base: Path) -> Path:
-            try:
-                cfg = base / 'logs' / 'gui-launcher-config.json'
-                if cfg.exists():
-                    import json as _json
-                    data = _json.loads(cfg.read_text(encoding='utf-8') or '{}')
-                    logs_dir_decl = ((data.get('paths') or {}).get('logs_dir') or '').strip()
-                    if logs_dir_decl and logs_dir_decl.lower() not in ('none', 'null', 'undefined'):
-                        p = Path(logs_dir_decl).expanduser()
-                        p.mkdir(parents=True, exist_ok=True)
-                        return p
-            except Exception:
-                pass
-            d = base / 'logs'
-            d.mkdir(parents=True, exist_ok=True)
-            return d
-
+        # 日志目录（显式）
         try:
-            self._logs_dir = self._logs_dir_override if self._logs_dir_override else _resolve_logs_dir(project_root)
+            self._logs_dir = Path(logs_dir).expanduser().resolve()
+            self._logs_dir.mkdir(parents=True, exist_ok=True)
             meta = {
                 "host": self.host,
                 "port": int(self.port),

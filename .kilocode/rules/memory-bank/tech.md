@@ -13,6 +13,8 @@
 - [Babel/Vite/AI Launcher](#babelviteai-launcher)
 
 > 最近更新（10条，按日期倒序）
+- 2025-10-26 pdf-home 启动端口严格校验：缺失 `vite/msgCenter/pdfFile`（dev）或缺失 `msgCenter/pdfFile`（prod）直接抛错；禁止 URL 中出现 `:None`
+- 2025-10-26 Backend 路径严格化：后端仅接受参数传入的 `logs_dir/data_dir/db_path/static_dir/pdfs_dir`；移除所有回退/自动推断；HTTP 与 WS 服务器均按参数运行
 - 2025-10-25 Annotation（截图）后端扩容：`PDFAnnotationTablePlugin` 允许并持久化 `rectPercent/canvasPixelSize/markerColor`，刷新后定位稳定
 - 2025-10-26 截图严格模式：仅接受 `rectPercent`，移除所有基于 `rect/boundingBox` 的前端回退；后端保存不再要求 `rect`
 - 2025-10-26 运行时 Schema 校验：`standard_server` 在路由前对 `*:requested` 入站消息按本仓库 schemas 目录统一校验，校验失败直接返回 `*:failed`
@@ -133,6 +135,7 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
   - 日志默认 `<component_root>/logs`；
   - 数据、静态、PDF 库路径可在 UI 中显式指定；
   - 端口（vite|ws|http）可在 UI 中指定；运行时实际端口写入 `runtime-ports.json`。
+  - 2025-10-26 补充：GUI 启动时总是以“参数形式”显式传入 `data_dir/db_path/static_dir/pdfs_dir/logs_dir` 到后端/前端启动链路；gui_launcher 内部不再使用任何路径回退（例如 `or (_COMPONENT_ROOT / 'logs')`）。
 
 ### 启动/端口/Vite 管理集中（2025-10-16 更新）
 - 统一入口：

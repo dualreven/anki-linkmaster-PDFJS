@@ -94,6 +94,17 @@ ScreenshotHandler = screenshot_module.ScreenshotHandler
 
 logger = logging.getLogger("pdf-viewer.launcher")
 
+# 强制日志目录（参数传入；无回退）
+_FORCED_LOGS_DIR: Optional[Path] = None
+def _set_logs_dir(p: str | Path) -> None:
+    global _FORCED_LOGS_DIR
+    _FORCED_LOGS_DIR = Path(p).resolve()
+    _FORCED_LOGS_DIR.mkdir(parents=True, exist_ok=True)
+def _require_logs_dir() -> Path:
+    if _FORCED_LOGS_DIR is None:
+        raise RuntimeError("logs_dir 未指定：请在 --logs-dir 或 LaunchConfig.logs_dir 传入")
+    return _FORCED_LOGS_DIR
+
 
 def resolve_pdf_id_to_file_path(pdf_id: str) -> str | None:
     """将PDF ID解析为实际的PDF文件路径.
@@ -192,7 +203,7 @@ def get_log_file_paths(pdf_id: str) -> tuple[str, str]:
     Returns:
         tuple[str, str]: (python日志文件路径, js日志文件路径)
     """
-    logs_dir = project_root / 'logs'
+    logs_dir = _require_logs_dir()
     python_log = str(logs_dir / f'pdf-viewer-{pdf_id}.log')
     js_log = str(logs_dir / f'pdf-viewer-{pdf_id}-js.log')
     return python_log, js_log
@@ -205,34 +216,39 @@ def get_vite_port():
     Do NOT parse log files - runtime-ports.json is the single source of truth.
     """
     try:
-        ports_file = Path(__file__).parent.parent.parent.parent / 'logs' / 'runtime-ports.json'
+        ports_file = _require_logs_dir() / 'runtime-ports.json'
         if ports_file.exists():
             with open(ports_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            port = int(data.get('vite_port') or data.get('npm_port') or 3000)
+            port = int(data['vite_port'] if 'vite_port' in data else data['npm_port'])
             logger.info("Found Vite port %d from runtime-ports.json", port)
             return port
     except Exception as e:
         logger.warning("Failed to read Vite port from runtime-ports.json: %s", e)
 
-    # Fallback to default
-    logger.info("Using default Vite port 3000")
-    return 3000
+    raise RuntimeError("未能从 logs_dir/runtime-ports.json 解析 vite_port")
 
 
 def _read_runtime_ports(cwd: Path | None = None) -> tuple[int, int, int, dict]:
     """读取 logs/runtime-ports.json（统一从 src.launcher.ports 调用）。"""
     try:
-        base = Path(cwd) if cwd else Path(os.getcwd())
-        data = _ports_read(base / 'logs') or {}
-        vite_port = int(data.get('vite_port') or data.get('npm_port') or 3000)
-        msgCenter_port = int(data.get('msgCenter_port') or data.get('ws_port') or 8765)
-        pdfFile_port = int(data.get('pdfFile_port') or data.get('pdf_port') or 8080)
+        base = _require_logs_dir()
+        data = _ports_read(base) or {}
+        def _pick_int(d: dict, keys: list[str]) -> int | None:
+            for k in keys:
+                if k in d and d[k] is not None:
+                    try:
+                        return int(d[k])
+                    except Exception:
+                        pass
+            return None
+        vite_port = _pick_int(data, ['vite_port', 'npm_port'])
+        msgCenter_port = _pick_int(data, ['msgCenter_port', 'ws_port'])
+        pdfFile_port = _pick_int(data, ['pdfFile_port', 'pdf_port'])
         extras = {k: v for k, v in data.items() if k not in ("vite_port", "npm_port", "msgCenter_port", "ws_port", "pdfFile_port", "pdf_port")}
         return vite_port, msgCenter_port, pdfFile_port, extras
     except Exception as exc:  # pragma: no cover - defensive
-        logger.warning("Failed reading runtime-ports.json: %s", exc)
-        return 3000, 8765, 8080, {}
+        raise RuntimeError(f"读取 runtime-ports.json 失败：{exc}")
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -257,6 +273,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--disable-frontend-load", action="store_true", help="Skip loading the front-end URL into the WebEngine view")
     parser.add_argument("--prod", action="store_true", help="以生产模式运行，直接从 dist 静态文件加载页面")
     parser.add_argument("--keep-backend", action="store_true", help="窗口关闭时保持后端服务运行（不停止）")
+    parser.add_argument("--logs-dir", type=str, dest="logs_dir", help="显式日志目录（必填）", required=True)
     ns = parser.parse_args(argv)
     # Normalize alias: --pdfanchor → --anchor-id
     if getattr(ns, 'pdfanchor', None) and not getattr(ns, 'anchor_id', None):
@@ -270,8 +287,8 @@ def _setup_logging(pdf_id: str = "empty") -> None:
     Args:
         pdf_id: PDF标识符，用于生成日志文件名
     """
-    # Use project root for logs directory
-    logs_dir = project_root / 'logs'
+    # 使用显式 logs_dir
+    logs_dir = _require_logs_dir()
     os.makedirs(logs_dir, exist_ok=True)
 
     python_log, _ = get_log_file_paths(pdf_id)
@@ -344,6 +361,11 @@ class PdfViewerApp:
         Returns:
             退出码（子进程模式）或 0（寄宿模式）
         """
+        # 要求 logs_dir 存在（由参数传入）
+        if not getattr(self.config, 'logs_dir', None):
+            raise RuntimeError("缺少 logs_dir：请在 LaunchConfig.logs_dir 指定或通过 CLI --logs-dir 传入")
+        _set_logs_dir(self.config.logs_dir)
+
         # 步骤 1: 解析 PDF ID
         self.file_path = self.config.file_path
         if self.config.pdf_id and not self.file_path:
@@ -372,11 +394,9 @@ class PdfViewerApp:
         vite_json, msgCenter_json, pdfFile_json, extras = _read_runtime_ports()
 
         vite_port = self.config.vite_port or vite_json
-        if not self.config.vite_port:
-            try:
-                vite_port = get_vite_port() or vite_port
-            except Exception:
-                pass
+        # 开发模式要求 vite_port（无兜底）；生产模式无需 vite_port
+        if not self.config.is_prod and (vite_port is None):
+            raise RuntimeError("开发模式需要 vite_port：请先通过 ai_launcher 启动写入 runtime-ports.json 或显式传入 --vite-port")
 
         msgCenter_port = self.config.msgCenter_port or msgCenter_json
         pdfFile_port = self.config.pdfFile_port or pdfFile_json
@@ -506,7 +526,7 @@ class PdfViewerApp:
     def _persist_ports(self, vite_port: int, msgCenter_port: int, pdfFile_port: int, extras: dict):
         """持久化端口配置（委托 src.launcher.ports.write_runtime_ports）。"""
         try:
-            logs_dir = project_root / 'logs'
+            logs_dir = _require_logs_dir()
             logs_dir.mkdir(parents=True, exist_ok=True)
             payload = {"vite_port": vite_port, "msgCenter_port": msgCenter_port, "pdfFile_port": pdfFile_port}
             payload.update(extras or {})

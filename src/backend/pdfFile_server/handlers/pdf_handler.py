@@ -301,21 +301,14 @@ def _file_exists(dist_root: Path, rel: str) -> bool:
 
 
 def resolve_static_path(request_path: str, dist_root: Path) -> str:
-    """将浏览器请求路径解析为实际可服务的静态路径（包含回退策略）。
+    """将浏览器请求路径解析为实际可服务的静态路径（严格，无回退）。
 
-    规则概要（结合图片中的结论）：
+    规则：
     - 集中静态：/static/* → dist/latest/static/*
-    - 入口映射：
-      - /pdf-viewer[/] → 优先 /static/pdf-viewer/index.html；
-        若不存在，回退 /src/frontend/pdf-viewer/pdf-viewer/index.html；
-        再回退 /pdf-viewer/pdf-viewer/index.html 或 /pdf-viewer/index.html（历史产物）。
-      - /pdf-home[/] → 优先 /static/pdf-home/index.html；
-        若不存在，回退 /pdf-home/pdf-home/index.html 或 /pdf-home/index.html。
-    - 资源重写：
-      - /pdf-(home|viewer)/assets/* → /static/*
-      - /js/* → /static/*（如 qwebchannel.js）
-      - /pdf-(home|viewer)/js/* → /js/*（兼容旧引用）
-      - /pdf-(home|viewer)/config/* → /static/pdf-(home|viewer)/config/*
+    - 入口映射（严格）：
+      - /pdf-viewer[/] → /static/pdf-viewer/index.html（若不存在，交由上层返回404）
+      - /pdf-home[/] → /static/pdf-home/index.html（若不存在，交由上层返回404）
+    - 资源重写：保持与现有一致（非回退性质）
     """
     p = request_path or "/"
 
@@ -346,27 +339,8 @@ def resolve_static_path(request_path: str, dist_root: Path) -> str:
         if not norm.endswith("/"):
             return p  # 不是模块根，原样返回
 
-        # 优先集中静态入口
-        static_index = f"/static/{module}/index.html"
-        if _file_exists(dist_root, static_index):
-            return static_index
-
-        # 次选：新目录（src/frontend）
-        if module == "pdf-viewer":
-            new_index = "/src/frontend/pdf-viewer/pdf-viewer/index.html"
-            if _file_exists(dist_root, new_index):
-                return new_index
-
-        # 历史产物（老目录）
-        nested_old = f"/{module}/{module}/index.html"
-        if _file_exists(dist_root, nested_old):
-            return nested_old
-        flat_old = f"/{module}/index.html"
-        if _file_exists(dist_root, flat_old):
-            return flat_old
-
-        # 若均不存在，仍返回集中静态入口（让上层产生 404，便于日志观察）
-        return static_index
+        # 严格：仅允许集中静态入口，不做任何历史/源码路径回退
+        return f"/static/{module}/index.html"
 
     if p.startswith("/pdf-viewer"):
         return _map_index("pdf-viewer")

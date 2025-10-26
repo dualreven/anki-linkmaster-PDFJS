@@ -103,6 +103,10 @@ class LaunchConfig:
     disable_frontend_load: bool = False
     """禁用前端加载（用于测试）"""
 
+    # ===== 日志目录（新增） =====
+    logs_dir: Optional[str] = None
+    """显式日志目录（用于 runtime-ports 与前端日志落盘）；必须由调用方传入"""
+
     @classmethod
     def from_args(cls, args: argparse.Namespace) -> 'LaunchConfig':
         """
@@ -134,6 +138,7 @@ class LaunchConfig:
         # 控制参数
         keep_backend = getattr(args, 'keep_backend', False)
         no_persist = getattr(args, 'no_persist', False)
+        logs_dir = getattr(args, 'logs_dir', None)
 
         # 诊断模式参数
         diagnose_only = getattr(args, 'diagnose_only', False)
@@ -162,7 +167,7 @@ class LaunchConfig:
             disable_js_console=disable_js_console,
             disable_frontend_load=disable_frontend_load,
             source="cli"
-        )
+        , logs_dir=logs_dir)
 
     def to_dict(self) -> dict:
         """
@@ -192,7 +197,8 @@ class LaunchConfig:
             'disable_websocket': self.disable_websocket,
             'disable_js_console': self.disable_js_console,
             'disable_frontend_load': self.disable_frontend_load,
-            'extra_params': self.extra_params
+            'extra_params': self.extra_params,
+            'logs_dir': self.logs_dir
         }
 
     def __repr__(self) -> str:

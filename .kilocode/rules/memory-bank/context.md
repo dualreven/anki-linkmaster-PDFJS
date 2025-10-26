@@ -229,6 +229,92 @@
 
 记录时间：2025-10-22 08:30:12
 
+### 变更（20251026191436）
+名称：GUI 启动器目录参数显式传递，移除运行时回退（fallback）
+
+背景：
+- 需要确保静态目录、PDF 目录、数据库文件、日志目录均通过“参数形式”从 gui_launcher 传入，而非运行时在代码中回退到 `<component_root>/...`。
+
+改动要点（仅 gui_launcher 与测试，UTF-8 与 `\n`）：
+- 初始化：`self._logs_dir` 在 GUI 启动时即解析为明确目录（默认 `<component_root>/logs`），不再以 `None` 表示“待回退”。  
+- 新函数：`_resolved_paths_from_ui()` 统一解析 UI 输入与默认值，返回非空的 `data_dir/db_path/static_dir/pdfs_dir/logs_dir`。  
+- Hosted：`_start_backend_qt_mode/_start_pdf_home_hosted/_start_pdf_viewer_hosted` 显式传入路径，移除 `.with_defaults()` 对路径的补齐依赖。  
+- CLI：`_cli_build_argv("start")` 总是拼接 `--data-dir/--db-path/--static-dir/--pdfs-dir/--logs-dir`；`_start_task()` 将 5 个路径注入子线程参数。  
+- 子线程：`LauncherThread._start_*` 对 `logs_dir` 与其余路径做显式校验，删除 `Path(self.params.get('logs_dir') or (component_root / 'logs'))` 等回退。
+
+一致性：
+- runner/config 作为库层仍具备默认路径计算能力，但 GUI 层不再依赖其“路径回退”；  
+- UI 仅在占位符中显示默认路径，不等同于运行时回退。
+
+验证：
+- CLI 与 Hosted 均能在指定 `logs_dir` 下生成 `runtime-ports.json/xxx-process-info.json`；  
+
+### 修复（20251026211317）
+名称：pdf-home 日志出现端口为 None（应当报错而非兜底）
+
+现象与日志（UTF-8 与 `\n`）：
+- 路径：`dist/latest/logs/pdf-home.log`
+- 典型记录：`Resolved ports: vite=None msgCenter=None pdfFile=None`；随后构造的 URL 为 `http://127.0.0.1:None/pdf-home/?msgCenter=None&pdfs=None`。
+
+根因：
+- `src/frontend/pdf-home/launcher.py` 在生产模式下未强制校验 `msgCenter_port/pdfFile_port`，导致缺失值以字符串 `None` 进入 URL；
+- 违反“禁止设计兜底原则”，应立即抛错。
+
+修复要点：
+- `src/frontend/pdf-home/launcher.py`: 在解析端口后进行严格校验：
+  - 开发模式：必须提供 `vite_port/msgCenter_port/pdfFile_port`，缺失即抛 `RuntimeError`；
+  - 生产模式：必须提供 `msgCenter_port/pdfFile_port`，缺失即抛 `RuntimeError`；
+  - 统一从 `logs_dir/runtime-ports.json` 读取并尝试 `int()` 归一；不做任何默认端口兜底；
+  - 异常消息包含缺失键名与 `runtime-ports.json` 路径提示。
+- 同步更新 `dist/latest/src/frontend/pdf-home/launcher.py` 以便 Hosted/打包环境立即生效。
+ - 后端修复（统一 logs_dir）：`src/backend/launcher.py` 中 `BackendPortManager` 支持传入 `logs_dir`，`BackendLauncher` 将 GUI 传入的 `logs_dir` 透传给端口写入逻辑；`_is_outline_enabled_flag()` 读取 `runtime-ports.json` 也改为使用相同的 logs_dir。避免后端写到 `<project_root>/logs` 而前端读 `<dist/latest/logs>` 的错位。
+
+测试：
+- 新增 `__tests__/test_pdf_home_port_validation.py`：
+  - `test_prod_missing_msgcenter_or_pdf_port_should_raise`
+  - `test_dev_missing_vite_port_should_raise`
+  - `test_dev_missing_msgcenter_or_pdf_port_also_raise`
+  - 均通过（pytest，本地桩替代 PyQt）。
+
+影响范围：
+- 仅限 pdf-home 启动端口校验；不影响 pdf-viewer（其端口校验后续可按相同策略增强）。
+
+操作建议：
+- 通过 `ai_launcher` 正确写入 `runtime-ports.json`，或 CLI 显式传参 `--msgCenter-port/--pdfFile-port[/--vite-port]`；
+- 若依旧出现异常，请检查 `--logs-dir` 指向的 `runtime-ports.json` 是否存在且键名正确。
+
+### 后端严禁兜底（20251026213942）
+名称：Backend 全链路路径改造——仅参数输入，删除所有回退
+
+背景：
+- 报错显示 pdf-home 从 `<dist/latest/logs>` 读取端口文件，而后端写在 `<project_root>/logs`，原因是后端内部存在对 logs/data/static/pdfs 路径的回退/推断逻辑，未严格使用 GUI 传入值。
+
+改动摘要（严格、无回退）：
+- `src/backend/launcher.py`
+  - BackendLauncher.start() 在启动前强校验 `logs_dir/data_dir/db_path/static_dir/pdfs_dir`，缺失即抛错（禁止兜底）；
+  - EmbedMsgCenterServer 仅以显式 `data_dir/db_path` 启动（移除 runtime_mode/anki 推断参数传递）；
+  - HTTP 文件服务仅以显式 `pdfs_dir/static_dir` 启动；强校验 `static_dir/pdf-home` 与 `static_dir/pdf-viewer` 子目录存在；显式传入 `logs_dir`；
+  - 统一写入端口文件到 GUI 传入的 `logs_dir`（见前一条修复）。
+- `src/backend/msgCenter_server/embed_msgcenter.py`
+  - 缺少 `data_dir` 或 `db_path` 直接抛错；启动时仅传入上述两参数到 StandardWebSocketServer。
+- `src/backend/msgCenter_server/standard_server.py`
+  - 移除 `project_root/data` 与 `compute_db_path/compute_data_dir` 的兜底路径逻辑；必须显式传入 `data_dir` 与 `db_path`。
+- `src/backend/pdfFile_server/embed_fileserver.py`
+  - 移除内部 logs_dir 解析（`gui-launcher-config.json`/`project_root/logs` 回退）；必须显式传入 `logs_dir`；
+  - `pdfs_dir/static_dir` 必须传入；`root_dir` 必须与 `pdfs_dir` 一致；否则抛错；
+  - 诊断与日志落盘显式写入 `logs_dir`（UTF-8 + \\n）。
+- `src/backend/pdfFile_server/handlers/pdf_handler.py`
+  - `resolve_static_path()` 去除所有历史/源码目录回退；仅将 `/pdf-home` 与 `/pdf-viewer` 严格映射到 `/static/<module>/index.html`（不存在则 404）。
+
+补充（viewer 启动链路携带 logs_dir）：
+- 后端接收 `pdf-library:viewer:requested` 时，`BackendLauncher._on_msgcenter_message()` 构造的 Viewer 启动配置已显式注入 `paths.logs_dir = BackendLauncher.logs_dir_override`，CLI 与 Hosted 两路径都会把 `--logs-dir` 传到前端 viewer（修复“缺少 logs_dir”的错误）。***
+
+结果：
+- 后端所有关键路径均“只接受参数”，与 GUI/runner 显式传参策略完全一致；任何缺省值依赖/目录猜测均被删除。
+- `gui_launcher.py` 中不存在 `or (_COMPONENT_ROOT / 'logs')` 等回退片段（新增测试覆盖）。
+
+记录时间：2025-10-26 19:14:36
+
 ### 当前任务（20251020141335）
 名称：Outline 插件点击改为“按ID导航事件”
 

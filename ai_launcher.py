@@ -43,8 +43,8 @@ from typing import Any, Dict, Optional
 
 # Project paths
 PROJECT_ROOT = Path(os.getcwd())
-LOGS_DIR = PROJECT_ROOT / "logs"
-LOGS_DIR.mkdir(parents=True, exist_ok=True)
+# 日志目录不在导入时决定，延后到解析完参数后再设置（禁止导入副作用）
+LOGS_DIR: Optional[Path] = None
 
 
 # Import modular helpers if available
@@ -66,31 +66,51 @@ except Exception:  # pragma: no cover - allow fallback without crashing tests
 
 # ---- Logging ----
 def _setup_logging() -> Any:
-    """Create main logger writing to logs/ai-launcher.log (UTF-8)."""
-    if LoggingManager is None:
-        # Fallback minimal logging if modules missing
-        import logging
-
-        log_file = LOGS_DIR / "ai-launcher.log"
-        # Ensure a clean file with explicit LF newline
-        with open(log_file, "w", encoding="utf-8", newline="\n") as fp:
-            fp.write("AI Launcher start\n")
-
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-            handlers=[
-                logging.FileHandler(log_file, encoding="utf-8"),
-                logging.StreamHandler(sys.stdout),
-            ],
-        )
+    """Initialize console logger only; file logger configured after --logs-dir is provided."""
+    import logging
+    # 基础控制台日志，避免导入阶段写入文件系统
+    if logging.getLogger().handlers:
         return logging.getLogger("ai-launcher")
-
-    lm = LoggingManager(LOGS_DIR)
-    return lm.setup_main_logging("ai-launcher")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        handlers=[logging.StreamHandler(sys.stdout)],
+    )
+    return logging.getLogger("ai-launcher")
 
 
 LOGGER = _setup_logging()
+
+def _configure_logs_dir(dir_path: Path) -> None:
+    """在获取到 --logs-dir 后配置文件日志与全局 LOGS_DIR（UTF-8, LF）。"""
+    import logging
+    global LOGS_DIR
+    LOGS_DIR = dir_path.resolve()
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    # 清理已有文件处理器，统一切换到指定目录
+    root = logging.getLogger()
+    to_remove = []
+    for h in root.handlers:
+        try:
+            from logging import FileHandler
+            if isinstance(h, FileHandler):
+                to_remove.append(h)
+        except Exception:
+            continue
+    for h in to_remove:
+        try:
+            root.removeHandler(h)
+        except Exception:
+            pass
+    # 若可用，使用 LoggingManager 统一配置；否则加文件处理器
+    if LoggingManager is not None:
+        lm = LoggingManager(LOGS_DIR)
+        lm.setup_main_logging("ai-launcher")
+    else:
+        fh = logging.FileHandler(LOGS_DIR / "ai-launcher.log", encoding="utf-8")
+        fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+        fh.setFormatter(fmt)
+        root.addHandler(fh)
 
 
 # ---- JSON helpers (UTF-8 + LF) ----
@@ -723,11 +743,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         sp.add_argument("--db-path", type=str, dest="db_path", help="Explicit backend database file path")
         sp.add_argument("--static-dir", type=str, dest="static_dir", help="Explicit backend static directory")
         sp.add_argument("--pdfs-dir", type=str, dest="pdfs_dir", help="Explicit backend PDFs directory")
-        sp.add_argument("--logs-dir", type=str, dest="logs_dir", help="Logs directory for process info files")
+        sp.add_argument("--logs-dir", type=str, dest="logs_dir", required=True, help="Logs directory for process info files (required)")
 
     add_common(sub.add_parser("start", help="Start vite, backend, and optional frontend"))
-    sub.add_parser("stop", help="Stop vite, frontend, and backend")
-    sub.add_parser("status", help="Show status for dev/frontend/backend")
+    # stop/status 同样必须传入 --logs-dir（严格，无回退）
+    add_common(sub.add_parser("stop", help="Stop vite, frontend, and backend"))
+    add_common(sub.add_parser("status", help="Show status for dev/frontend/backend"))
 
     return p.parse_args(argv)
 
@@ -735,15 +756,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 def cmd_start(args: argparse.Namespace) -> int:
     LOGGER.info("=== ai-launcher start ===")
     try:
-        # 允许通过 --logs-dir 自定义日志目录
-        global LOGS_DIR
-        if getattr(args, "logs_dir", None):
-            try:
-                LOGS_DIR = Path(getattr(args, "logs_dir")).resolve()
-                LOGS_DIR.mkdir(parents=True, exist_ok=True)
-                LOGGER.info("Using custom LOGS_DIR: %s", str(LOGS_DIR))
-            except Exception as e:
-                LOGGER.warning("Failed to apply custom logs dir: %s", e)
+        # 严格：必须提供 --logs-dir
+        _configure_logs_dir(Path(args.logs_dir))
 
         ports = _allocate_ports(args)
         vite_port = int(ports.get("vite_port") or ports.get("npm_port") or 3000)
@@ -800,10 +814,11 @@ def cmd_start(args: argparse.Namespace) -> int:
         return 1
 
 
-def cmd_stop() -> int:
+def cmd_stop(args: argparse.Namespace) -> int:
     LOGGER.info("=== ai-launcher stop ===")
     rc = 0
     try:
+        _configure_logs_dir(Path(args.logs_dir))
         if not _stop_vite():
             rc = 1
         if not _stop_frontend():
@@ -816,7 +831,8 @@ def cmd_stop() -> int:
         return 1
 
 
-def cmd_status() -> int:
+def cmd_status(args: argparse.Namespace) -> int:
+    _configure_logs_dir(Path(args.logs_dir))
     # Dev process status
     dev_path = LOGS_DIR / "dev-process-info.json"
     dev_info = read_json(dev_path)
@@ -861,9 +877,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.command == "start":
         return cmd_start(args)
     if args.command == "stop":
-        return cmd_stop()
+        return cmd_stop(args)
     if args.command == "status":
-        return cmd_status()
+        return cmd_status(args)
     print("Unknown command")
     return 1
 

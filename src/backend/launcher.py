@@ -99,9 +99,11 @@ except Exception:
 class BackendPortManager:
     """后端服务端口管理器"""
 
-    def __init__(self, project_root: Path):
+    def __init__(self, project_root: Path, *, logs_dir: Optional[Path] = None):
         self.project_root = project_root
-        self.runtime_ports_file = project_root / 'logs' / 'runtime-ports.json'
+        # 统一：若调用方提供 logs_dir，则 runtime-ports.json 必须写入该目录；否则回退到项目根 logs
+        base_logs = Path(logs_dir) if logs_dir else (project_root / 'logs')
+        self.runtime_ports_file = Path(base_logs) / 'runtime-ports.json'
 
         # 默认端口配置
         self.default_ports = {
@@ -744,8 +746,8 @@ class BackendLauncher:
         self.test_app = None
         self.test_ui = None
 
-        # 端口管理器（复用现有代码）
-        self.port_manager = BackendPortManager(project_root)
+        # 端口管理器（复用现有代码）：严格使用 logs_dir_override（若提供）
+        self.port_manager = BackendPortManager(project_root, logs_dir=self.logs_dir_override or None)
 
         # 日志记录
         self.logger = logging.getLogger(f'BackendLauncher[{self.mode}]')
@@ -827,13 +829,26 @@ class BackendLauncher:
             # 3. 启动 WebSocket 服务器
             from src.backend.msgCenter_server.embed_msgcenter import EmbedMsgCenterServer
 
+            # 严格参数校验
+            missing = []
+            if not self.logs_dir_override:
+                missing.append("logs_dir")
+            if not self.data_dir:
+                missing.append("data_dir")
+            if not self.db_path:
+                missing.append("db_path")
+            if not self.pdfs_dir:
+                missing.append("pdfs_dir")
+            if not self.static_dir:
+                missing.append("static_dir")
+            if missing:
+                raise RuntimeError(f"缺少必要路径参数：{', '.join(missing)}（禁止兜底）。请在 GUI 或 CLI 显式传入。")
+
             self.ws_server = EmbedMsgCenterServer(
                 host="127.0.0.1",
                 port=ws_port,
                 parent=parent,
                 db_path=self.db_path,
-                runtime_mode=self.runtime_mode,
-                ankiaddon_root_path=self.ankiaddon_root_path,
                 data_dir=self.data_dir,
             )
 
@@ -857,81 +872,25 @@ class BackendLauncher:
             # 4. 启动 HTTP 文件服务器
             from src.backend.pdfFile_server.embed_fileserver import EmbedFileServer
 
-            # 参数式选择 data_dir
-            try:
-                from src.backend.database.config import compute_data_dir
-                if self.data_dir:
-                    _data_dir = Path(self.data_dir).resolve()
-                elif self.runtime_mode:
-                    _data_dir = compute_data_dir(self.runtime_mode, ankiaddon_root_path=self.ankiaddon_root_path)
-                else:
-                    _data_dir = project_root / 'data'
-            except Exception:
-                _data_dir = project_root / 'data'
-
-            # 允许通过构造参数显式覆盖 PDF 库目录；
-            # 未显式提供时：当 anki 模式优先使用 <ankiaddon_root_path>/user_files/pdfs；否则回退到 <data_dir>/pdfs。
-            try:
-                if self.pdfs_dir:
-                    _pdfs_dir_path = Path(self.pdfs_dir).expanduser().resolve()
-                else:
-                    if (self.runtime_mode == 'anki') and self.ankiaddon_root_path:
-                        _pdfs_dir_path = Path(self.ankiaddon_root_path).expanduser().resolve() / 'user_files' / 'pdfs'
-                    else:
-                        _pdfs_dir_path = (_data_dir / 'pdfs')
-                # 确保目录存在
-                if not _pdfs_dir_path.exists():
-                    _pdfs_dir_path.mkdir(parents=True, exist_ok=True)
-                    try:
-                        self.logger.info("created pdfs_dir: %s", str(_pdfs_dir_path))
-                    except Exception:
-                        pass
-            except Exception:
-                _pdfs_dir_path = (_data_dir / 'pdfs')
-                try:
-                    _pdfs_dir_path.mkdir(parents=True, exist_ok=True)
-                except Exception:
-                    pass
-
+            # 严格参数：使用显式 data_dir/pdf_dir/static_dir
+            _data_dir = Path(self.data_dir).expanduser().resolve()
+            _pdfs_dir_path = Path(self.pdfs_dir).expanduser().resolve()
+            s = Path(self.static_dir).expanduser().resolve()
+            if not _pdfs_dir_path.exists():
+                raise RuntimeError(f"指定的 pdfs_dir 不存在：{_pdfs_dir_path}")
+            if not s.exists():
+                raise RuntimeError(f"指定的 static_dir 不存在：{s}")
+            # 入口目录存在性校验（严格）
+            if not (s / "pdf-home").exists():
+                raise RuntimeError(f"static_dir 缺少子目录：pdf-home（{s / 'pdf-home'}）")
+            if not (s / "pdf-viewer").exists():
+                raise RuntimeError(f"static_dir 缺少子目录：pdf-viewer（{s / 'pdf-viewer'}）")
             root_dir = _pdfs_dir_path
-
-            # 自动探测静态目录（参数式优先，遵循组件根）：
-            # 目标：优先使用 <component_root>/static 或 <component_root>/dist/latest/static
-            # 回退：<project_root>/dist/latest/static → <project_root>/static → <project_root>
-            static_dir: Optional[str] = None
-            try:
-                component_root = _data_dir.parent if _data_dir.name.lower() == 'data' else _data_dir
-                if self.static_dir:
-                    static_dir = str(Path(self.static_dir).resolve())
-                else:
-                    cand = [
-                        component_root / 'static',            # 插件规范：lib/pdf_sys/static
-                        project_root / 'dist' / 'latest' / 'static',  # 工程回退
-                        project_root / 'static',
-                        project_root,
-                    ]
-                    for c in cand:
-                        if c.exists():
-                            static_dir = str(c)
-                            break
-            except Exception:
-                # 最后兜底 project_root
-                static_dir = str(project_root)
-            pdfs_dir = str(root_dir)
-
-            # 为前端页面提供挂载点（仅当存在静态目录时）
-            mounts = None
-            if static_dir:
-                s = Path(static_dir)
-                # 兼容两种构建布局
-                viewer_a = s / "src" / "frontend" / "pdf-viewer"
-                viewer_b = s / "pdf-viewer"
-                home_a = s / "pdf-home"
-                # 增加 /static 映射，指向静态根目录，确保 /static/*.js / *.css 正常解析
-                mounts = {
+            pdfs_dir = str(_pdfs_dir_path)
+            mounts = {
                 "/static": str(s),
-                "/pdf-viewer": str(viewer_a if viewer_a.exists() else viewer_b),
-                "/pdf-home": str(home_a),
+                "/pdf-viewer": str(s / "pdf-viewer"),
+                "/pdf-home": str(s / "pdf-home"),
             }
 
             self.http_server = EmbedFileServer(
@@ -940,9 +899,9 @@ class BackendLauncher:
                 port=http_port,
                 parent=parent,
                 pdfs_dir=pdfs_dir,
-                static_dir=static_dir,
+                static_dir=str(s),
                 mounts=mounts,
-                logs_dir=str(self.logs_dir_override) if self.logs_dir_override else None,
+                logs_dir=str(self.logs_dir_override),
             )
 
             if not self.http_server.start():
@@ -1081,8 +1040,9 @@ class BackendLauncher:
         except Exception:
             pass
         try:
-            # 2) runtime-ports.json extras
-            rp_path = project_root / 'logs' / 'runtime-ports.json'
+            # 2) runtime-ports.json extras（使用统一 logs_dir 覆盖）
+            rp_base = self.logs_dir_override if self.logs_dir_override else (project_root / 'logs')
+            rp_path = Path(rp_base) / 'runtime-ports.json'
             if rp_path.exists():
                 data = _json.loads(rp_path.read_text(encoding='utf-8') or '{}')
                 v = data.get('outline')
@@ -1108,7 +1068,7 @@ class BackendLauncher:
 
             self.logger.info("[MsgDispatch] received request -> type=%s data=%s", msg_type, json.dumps(data, ensure_ascii=False))
 
-            from src.launcher.config import LauncherConfig as _LConfig, LauncherOptions as _LOpts, LauncherPorts as _LPorts
+            from src.launcher.config import LauncherConfig as _LConfig, LauncherOptions as _LOpts, LauncherPorts as _LPorts, LauncherPaths as _LPaths
             from src.launcher.ports import read_runtime_ports as _read_ports
             from src.launcher.runner import start_pdf_viewer_hosted as _run_viewer, start_pdf_viewer_cli as _run_viewer_cli
             from src.backend.msgCenter_server.standard_protocol import StandardMessageHandler, MessageType
@@ -1118,7 +1078,10 @@ class BackendLauncher:
             page_at = data.get('page_at')
             position = data.get('position')
 
-            ports = _read_ports(project_root / 'logs') or {}
+            # 统一：端口从 BackendLauncher 的 logs_dir_override 指定目录读取
+            if not getattr(self, 'logs_dir_override', None):
+                raise RuntimeError("缺少 logs_dir（BackendLauncher.logs_dir_override 未设置）")
+            ports = _read_ports(self.logs_dir_override) or {}
             vite_port = int(ports.get('vite_port') or ports.get('npm_port') or 0) or None
             msg_port = int(ports.get('msgCenter_port') or 0) or None
             pdf_port = int(ports.get('pdfFile_port') or 0) or None
@@ -1126,6 +1089,7 @@ class BackendLauncher:
             cfg = _LConfig(
                 ports=_LPorts(vite_port=vite_port, msgCenter_port=msg_port, pdfFile_port=pdf_port),
                 options=_LOpts(frontend_prod=True, keep_backend=True),
+                paths=_LPaths(logs_dir=str(self.logs_dir_override))
             )
 
             # 读取 Outline 调试开关（与 gui_launcher/pyqt-bridge 一致）
