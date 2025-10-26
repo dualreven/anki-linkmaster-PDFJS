@@ -7,30 +7,29 @@
  * - 通过QWebChannel保存图片到PyQt端
  * - 创建截图标注并添加到侧边栏
  */
-import { IAnnotationTool } from '../../interfaces/IAnnotationTool.js';
-import { ScreenshotCapturer } from './screenshot-capturer.js';
-import { QWebChannelScreenshotBridge } from './qwebchannel-bridge.js';
-import { Annotation, AnnotationType } from '../../models/annotation.js';
-import { getLogger } from '../../../../../common/utils/logger.js';
-import { PDF_VIEWER_EVENTS } from '../../../../../common/event/pdf-viewer-constants.js';
+import { IAnnotationTool } from "../../interfaces/IAnnotationTool.js";
+import { ScreenshotCapturer } from "./screenshot-capturer.js";
+import { QWebChannelScreenshotBridge } from "./qwebchannel-bridge.js";
+import { Annotation, AnnotationType } from "../../models/annotation.js";
+import { getLogger } from "../../../../../common/utils/logger.js";
+import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
 
 const MARKER_COLOR_PRESETS = [
-  { name: 'orange', label: '橙色', value: '#ff9800' },
-  { name: 'teal', label: '青色', value: '#26a69a' },
-  { name: 'blue', label: '蓝色', value: '#2196f3' },
-  { name: 'purple', label: '紫色', value: '#ab47bc' }
+  { name: "orange", label: "橙色", value: "#ff9800" },
+  { name: "teal", label: "青色", value: "#26a69a" },
+  { name: "blue", label: "蓝色", value: "#2196f3" },
+  { name: "purple", label: "紫色", value: "#ab47bc" }
 ];
 
 const DEFAULT_MARKER_COLOR = MARKER_COLOR_PRESETS[0].value;
 
-
 export class ScreenshotTool extends IAnnotationTool {
   // ===== 元数据 (getter方法) =====
-  get name() { return 'screenshot'; }
-  get displayName() { return '截图'; }
-  get icon() { return '📷'; }
-  get version() { return '1.0.0'; }
-  get dependencies() { return ['pdfViewerManager', 'eventBus', 'logger']; }
+  get name() { return "screenshot"; }
+  get displayName() { return "截图"; }
+  get icon() { return "📷"; }
+  get version() { return "1.0.0"; }
+  get dependencies() { return ["pdfViewerManager", "eventBus", "logger"]; }
 
   // ===== 私有字段 =====
   #eventBus;
@@ -80,14 +79,12 @@ export class ScreenshotTool extends IAnnotationTool {
    */
   async initialize(context) {
     this.#eventBus = context.eventBus;
-    this.#logger = context.logger || getLogger('ScreenshotTool');
+    this.#logger = context.logger || getLogger("ScreenshotTool");
     this.#pdfViewerManager = context.pdfViewerManager;
     this.#container = context.container || null;
     try {
       this.#pdfjsEventBus = this.#pdfViewerManager?.eventBus || null;
-    } catch (_) {
-      this.#pdfjsEventBus = null;
-    }
+    } catch { /* no-op */ }
 
     // 初始化截图捕获器
     this.#capturer = new ScreenshotCapturer(this.#pdfViewerManager);
@@ -103,25 +100,27 @@ export class ScreenshotTool extends IAnnotationTool {
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, this.#onAnnotationDataLoadedHandler);
 
     // 监听 PDF.js 页面渲染完成事件，刷写等待中的标记（解决“刷新后侧边栏打开时未出现截图框”）
-    if (this.#pdfjsEventBus && typeof this.#pdfjsEventBus.on === 'function') {
+    if (this.#pdfjsEventBus && typeof this.#pdfjsEventBus.on === "function") {
       this.#pdfjsPageRenderedHandler = (evt) => {
         try {
           const pn = evt?.pageNumber;
-          if (!pn) return;
+          if (!pn) {return;}
           this.#flushPendingForPage(pn);
           // 缩放或页面重绘后，主动按页恢复已渲染的截图标记（与 CommentTool 行为对齐）
           this.#restoreScreenshotMarkersForPage(pn);
         } catch (e) {
-          this.#logger?.warn?.('[ScreenshotTool] flush pending on pagerendered failed', e);
+          this.#logger?.warn?.("[ScreenshotTool] flush pending on pagerendered failed", e);
         }
       };
-      this.#pdfjsEventBus.on('pagerendered', this.#pdfjsPageRenderedHandler);
+      // eslint-disable-next-line custom/event-name-format
+      this.#pdfjsEventBus.on("pagerendered", this.#pdfjsPageRenderedHandler);
 
       // 缩放阶段：先清除可见标记，避免旧像素矩形残留
       this.#pdfjsScaleChangingHandler = () => {
-        try { this.clearAllMarkers(); } catch (_) {}
+        try { this.clearAllMarkers(); } catch { /* no-op */ }
       };
-      try { this.#pdfjsEventBus.on('scalechanging', this.#pdfjsScaleChangingHandler); } catch (_) {}
+      // eslint-disable-next-line custom/event-name-format
+      try { this.#pdfjsEventBus.on("scalechanging", this.#pdfjsScaleChangingHandler); } catch { /* no-op */ }
 
       // 缩放完成：对当前页触发一次恢复，其它页依赖后续 pagerendered 回调
       this.#pdfjsScaleChangedHandler = () => {
@@ -130,9 +129,10 @@ export class ScreenshotTool extends IAnnotationTool {
           if (pn) {
             this.#restoreScreenshotMarkersForPage(pn);
           }
-        } catch (e) { this.#logger?.debug?.('[ScreenshotTool] scalechange restore failed', e); }
+        } catch (e) { this.#logger?.debug?.("[ScreenshotTool] scalechange restore failed", e); }
       };
-      try { this.#pdfjsEventBus.on('scalechange', this.#pdfjsScaleChangedHandler); } catch (_) {}
+      // eslint-disable-next-line custom/event-name-format
+      try { this.#pdfjsEventBus.on("scalechange", this.#pdfjsScaleChangedHandler); } catch { /* no-op */ }
     }
 
     // 统一事件信号：监听应用级 RENDER.PAGE_COMPLETED（由 PDFViewerManager 桥接）
@@ -140,22 +140,22 @@ export class ScreenshotTool extends IAnnotationTool {
       this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.RENDER.PAGE_COMPLETED, (data) => {
         const pn = Number(data?.pageNumber || 0);
         if (!pn) { return; }
-        this.#logStep('04.bridge', 'RENDER.PAGE_COMPLETED (app) received', { page: pn });
+        this.#logStep("04.bridge", "RENDER.PAGE_COMPLETED (app) received", { page: pn });
         this.#flushPendingForPage(pn);
         this.#restoreScreenshotMarkersForPage(pn);
-      }, { subscriberId: 'ScreenshotTool' });
-    } catch (e) { void e; }
+      }, { subscriberId: "ScreenshotTool" });
+    } catch { /* no-op */ }
 
-    this.#logStep('01', 'Initialize begin', {
+    this.#logStep("01", "Initialize begin", {
       qwebChannelMode: this.#qwebChannelBridge.getMode()
-    }, 'info', 1800);
-    this.#logStep('01.1', 'Event listeners ready: JUMP/CREATED/DELETED + DATA.LOADED');
+    }, "info", 1800);
+    this.#logStep("01.1", "Event listeners ready: JUMP/CREATED/DELETED + DATA.LOADED");
     if (this.#pdfjsEventBus) {
-      this.#logStep('01.2', 'PDF.js pagerendered hook registered');
+      this.#logStep("01.2", "PDF.js pagerendered hook registered");
     } else {
-      this.#logStep('01.2', 'PDF.js EventBus not available (pagerendered not hooked)', null, 'warn', 2500);
+      this.#logStep("01.2", "PDF.js EventBus not available (pagerendered not hooked)", null, "warn", 2500);
     }
-    this.#logStep('01.done', 'Initialize completed');
+    this.#logStep("01.done", "Initialize completed");
   }
 
   /**
@@ -163,7 +163,7 @@ export class ScreenshotTool extends IAnnotationTool {
    */
   activate() {
     if (this.#isActive) {
-      this.#logger.warn('[ScreenshotTool] Already active');
+      this.#logger.warn("[ScreenshotTool] Already active");
       return;
     }
 
@@ -176,31 +176,31 @@ export class ScreenshotTool extends IAnnotationTool {
     this.#setupMouseEvents();
 
     // 3. 改变鼠标样式
-    document.body.style.cursor = 'crosshair';
+    document.body.style.cursor = "crosshair";
 
     // 4. 发布激活事件
-    this.#eventBus.emit('annotation-tool:activate:success', {
+    this.#eventBus.emit("annotation-tool:activate:success", {
       tool: this.name
     });
 
-    this.#logger.info('[ScreenshotTool] Activated');
+    this.#logger.info("[ScreenshotTool] Activated");
   }
 
   /**
    * 停用截图模式
    */
   deactivate() {
-    if (!this.#isActive) return;
+    if (!this.#isActive) {return;}
 
     this.#cleanup();
     this.#isActive = false;
-    document.body.style.cursor = 'default';
+    document.body.style.cursor = "default";
 
-    this.#eventBus.emit('annotation-tool:deactivate:success', {
+    this.#eventBus.emit("annotation-tool:deactivate:success", {
       tool: this.name
     });
 
-    this.#logger.info('[ScreenshotTool] Deactivated');
+    this.#logger.info("[ScreenshotTool] Deactivated");
   }
 
   /**
@@ -214,28 +214,28 @@ export class ScreenshotTool extends IAnnotationTool {
    * 创建工具按钮
    */
   createToolButton() {
-    const button = document.createElement('button');
-    button.className = 'annotation-tool-btn screenshot-tool-btn';
+    const button = document.createElement("button");
+    button.className = "annotation-tool-btn screenshot-tool-btn";
     button.dataset.tool = this.name;
     button.innerHTML = `${this.icon} ${this.displayName}`;
     button.title = `${this.displayName}工具`;
 
     button.style.cssText = [
-      'padding: 8px 12px',
-      'border: 1px solid #ddd',
-      'border-radius: 4px',
-      'background: white',
-      'cursor: pointer',
-      'font-size: 13px',
-      'transition: all 0.2s'
-    ].join(';');
+      "padding: 8px 12px",
+      "border: 1px solid #ddd",
+      "border-radius: 4px",
+      "background: white",
+      "cursor: pointer",
+      "font-size: 13px",
+      "transition: all 0.2s"
+    ].join(";");
 
     // 悬停效果
-    button.addEventListener('mouseenter', () => {
-      button.style.background = '#f5f5f5';
+    button.addEventListener("mouseenter", () => {
+      button.style.background = "#f5f5f5";
     });
-    button.addEventListener('mouseleave', () => {
-      button.style.background = 'white';
+    button.addEventListener("mouseleave", () => {
+      button.style.background = "white";
     });
 
     return button;
@@ -245,8 +245,8 @@ export class ScreenshotTool extends IAnnotationTool {
    * 创建标注卡片
    */
   createAnnotationCard(annotation) {
-    const card = document.createElement('div');
-    card.className = 'annotation-card screenshot-card';
+    const card = document.createElement("div");
+    card.className = "annotation-card screenshot-card";
     card.dataset.annotationId = annotation.id;
     card.dataset.annotationType = annotation.type;
 
@@ -271,7 +271,7 @@ export class ScreenshotTool extends IAnnotationTool {
           style="max-width: 100%; border-radius: 4px; margin-bottom: 8px; display: block;"
           onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22100%22><rect fill=%22%23ddd%22 width=%22200%22 height=%22100%22/><text x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 fill=%22%23999%22>加载失败</text></svg>'"
         >
-        ${annotation.data.description ? `<p class="annotation-description" style="color: #666; font-size: 14px; margin: 8px 0;">${this.#escapeHtml(annotation.data.description)}</p>` : ''}
+        ${annotation.data.description ? `<p class="annotation-description" style="color: #666; font-size: 14px; margin: 8px 0;">${this.#escapeHtml(annotation.data.description)}</p>` : ""}
         <div class="annotation-meta" style="display: flex; gap: 12px; font-size: 12px; color: #999; margin-top: 8px;">
           <span>📄 P.${annotation.pageNumber}</span>
           <span>🕒 ${this.#formatDate(annotation.createdAt)}</span>
@@ -286,12 +286,12 @@ export class ScreenshotTool extends IAnnotationTool {
     // 绑定事件
     // 注意：实际使用中，AnnotationSidebarUI 有自己的 #createAnnotationCard 方法
     // 这个方法保留是为了实现 IAnnotationTool 接口，但可能不会被实际调用
-    card.querySelector('.jump-btn').addEventListener('click', () => {
+    card.querySelector(".jump-btn").addEventListener("click", () => {
       this.#handleJumpToAnnotation(annotation.id);
       // 标记框的渲染现在由事件监听器处理 (#setupJumpEventListener)
     });
 
-    card.querySelector('.comment-btn').addEventListener('click', () => {
+    card.querySelector(".comment-btn").addEventListener("click", () => {
       this.#handleAddComment(annotation.id);
     });
 
@@ -306,22 +306,25 @@ export class ScreenshotTool extends IAnnotationTool {
       this.#eventBus.off?.(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, this.#onAnnotationDataLoadedHandler);
     }
     if (this.#pdfjsEventBus && this.#pdfjsPageRenderedHandler) {
-      try { this.#pdfjsEventBus.off?.('pagerendered', this.#pdfjsPageRenderedHandler); } catch (_) {}
+      // eslint-disable-next-line custom/event-name-format
+      try { this.#pdfjsEventBus.off?.("pagerendered", this.#pdfjsPageRenderedHandler); } catch { /* no-op */ }
     }
     this.#onAnnotationDataLoadedHandler = null;
     this.#pdfjsPageRenderedHandler = null;
     if (this.#pdfjsEventBus && this.#pdfjsScaleChangingHandler) {
-      try { this.#pdfjsEventBus.off?.('scalechanging', this.#pdfjsScaleChangingHandler); } catch (_) {}
+      // eslint-disable-next-line custom/event-name-format
+      try { this.#pdfjsEventBus.off?.("scalechanging", this.#pdfjsScaleChangingHandler); } catch { /* no-op */ }
     }
     if (this.#pdfjsEventBus && this.#pdfjsScaleChangedHandler) {
-      try { this.#pdfjsEventBus.off?.('scalechange', this.#pdfjsScaleChangedHandler); } catch (_) {}
+      // eslint-disable-next-line custom/event-name-format
+      try { this.#pdfjsEventBus.off?.("scalechange", this.#pdfjsScaleChangedHandler); } catch { /* no-op */ }
     }
     this.deactivate();
     this.clearAllMarkers();
     this.#pendingMarkersByPage.clear();
     this.#capturer = null;
     this.#qwebChannelBridge = null;
-    this.#logger.info('[ScreenshotTool] Destroyed');
+    this.#logger.info("[ScreenshotTool] Destroyed");
   }
 
   // ===== 私有方法：事件监听 =====
@@ -336,12 +339,12 @@ export class ScreenshotTool extends IAnnotationTool {
   #setupJumpEventListener() {
     // 监听标注跳转成功事件
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_SUCCESS, ({ annotation }) => {
-      this.#logger.info('[ScreenshotTool] ===== Jump success event received =====');
-      this.#logger.info('[ScreenshotTool] Annotation type:', annotation?.type);
+      this.#logger.info("[ScreenshotTool] ===== Jump success event received =====");
+      this.#logger.info("[ScreenshotTool] Annotation type:", annotation?.type);
 
       // 只处理截图类型的标注
       if (annotation && annotation.type === AnnotationType.SCREENSHOT) {
-        this.#logger.info('[ScreenshotTool] This is a screenshot annotation, rendering marker...');
+        this.#logger.info("[ScreenshotTool] This is a screenshot annotation, rendering marker...");
 
         // 延迟渲染，确保页面已经跳转并渲染完成
         setTimeout(() => {
@@ -354,7 +357,7 @@ export class ScreenshotTool extends IAnnotationTool {
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, ({ annotation }) => {
       // 只处理截图类型的标注
       if (annotation && annotation.type === AnnotationType.SCREENSHOT) {
-        this.#logger.info('[ScreenshotTool] Screenshot annotation created, rendering marker immediately');
+        this.#logger.info("[ScreenshotTool] Screenshot annotation created, rendering marker immediately");
 
         // 立即渲染标记框（无需延迟，因为页面没有跳转）
         setTimeout(() => {
@@ -369,7 +372,7 @@ export class ScreenshotTool extends IAnnotationTool {
       this.removeScreenshotMarker(id);
     });
 
-    this.#logger.info('[ScreenshotTool] Annotation event listeners registered');
+    this.#logger.info("[ScreenshotTool] Annotation event listeners registered");
   }
 
   /**
@@ -382,28 +385,28 @@ export class ScreenshotTool extends IAnnotationTool {
       const annotations = Array.isArray(data?.annotations) ? data.annotations : [];
       const screenshotAnnotations = annotations.filter((ann) => ann?.type === AnnotationType.SCREENSHOT);
       const validIds = new Set(screenshotAnnotations.map((ann) => ann.id));
-      this.#logStep('02', 'ANNOTATION.DATA.LOADED received', {
+      this.#logStep("02", "ANNOTATION.DATA.LOADED received", {
         total: annotations.length,
         screenshots: screenshotAnnotations.length
-      }, 'info', 1800);
+      }, "info", 1800);
 
       Array.from(this.#renderedMarkers.keys()).forEach((annotationId) => {
         if (!validIds.has(annotationId)) {
-          this.#logStep('02.1', 'Removing stale marker (not in loaded list)', { annotationId });
+          this.#logStep("02.1", "Removing stale marker (not in loaded list)", { annotationId });
           this.removeScreenshotMarker(annotationId);
         }
       });
 
       // 对每条截图标注尝试渲染/入队；若页面未就绪则入队，待 pagerendered 后再渲染
       screenshotAnnotations.forEach((annotation) => {
-        this.#logStep('02.2', 'Schedule render (enqueue or immediate)', {
+        this.#logStep("02.2", "Schedule render (enqueue or immediate)", {
           id: annotation.id,
           page: annotation.pageNumber
         });
         this.#enqueueOrRender(annotation);
       });
     } catch (error) {
-      this.#logger.error('[ScreenshotTool] Failed to hydrate screenshot markers from annotation list', error);
+      this.#logger.error("[ScreenshotTool] Failed to hydrate screenshot markers from annotation list", error);
     }
   }
 
@@ -414,25 +417,25 @@ export class ScreenshotTool extends IAnnotationTool {
    */
   #restoreScreenshotMarkersForPage(pageNumber) {
     try {
-      const mgr = this.#container?.get ? this.#container.get('annotationManager') : null;
+      const mgr = this.#container?.get ? this.#container.get("annotationManager") : null;
       if (!mgr) { return; }
       let items = [];
-      if (typeof mgr.getAnnotationsByPage === 'function') {
+      if (typeof mgr.getAnnotationsByPage === "function") {
         items = mgr.getAnnotationsByPage(pageNumber) || [];
-      } else if (typeof mgr.getAllAnnotations === 'function') {
+      } else if (typeof mgr.getAllAnnotations === "function") {
         items = (mgr.getAllAnnotations() || []).filter(a => a?.pageNumber === pageNumber);
       }
-      const screenshots = items.filter(a => a && a.type === 'screenshot');
+      const screenshots = items.filter(a => a && a.type === "screenshot");
       if (screenshots.length === 0) { return; }
-      this.#logStep('04.rest', 'Restoring screenshot markers for page', { page: pageNumber, count: screenshots.length });
+      this.#logStep("04.rest", "Restoring screenshot markers for page", { page: pageNumber, count: screenshots.length });
       screenshots.forEach((ann) => {
         try {
-          this.#logStep('04.rest.each', 'Restore item', { id: ann.id, page: ann.pageNumber });
+          this.#logStep("04.rest.each", "Restore item", { id: ann.id, page: ann.pageNumber });
           this.renderScreenshotMarker(ann);
-        } catch (_) { /* ignore per-item error */ }
+        } catch { /* no-op */ }
       });
     } catch (e) {
-      this.#logger?.warn?.('[ScreenshotTool] restoreScreenshotMarkersForPage failed', e);
+      this.#logger?.warn?.("[ScreenshotTool] restoreScreenshotMarkersForPage failed", e);
     }
   }
 
@@ -443,14 +446,14 @@ export class ScreenshotTool extends IAnnotationTool {
    */
   #enqueueOrRender(annotation) {
     try {
-      if (!annotation || annotation.type !== AnnotationType.SCREENSHOT) return;
+      if (!annotation || annotation.type !== AnnotationType.SCREENSHOT) {return;}
 
       const pageNumber = Number(annotation.pageNumber || 0);
       const pageView = (pageNumber > 0) ? this.#pdfViewerManager?.getPageView?.(pageNumber) : null;
       const ready = !!(pageView && pageView.div);
 
       if (ready) {
-        this.#logStep('03.1', 'Page ready → render now', { id: annotation.id, page: pageNumber }, 'success', 1500);
+        this.#logStep("03.1", "Page ready → render now", { id: annotation.id, page: pageNumber }, "success", 1500);
         this.renderScreenshotMarker(annotation);
         return;
       }
@@ -462,9 +465,9 @@ export class ScreenshotTool extends IAnnotationTool {
         this.#pendingMarkersByPage.set(pageNumber, pageMap);
       }
       pageMap.set(annotation.id, annotation);
-      this.#logStep('03.2', 'Page not ready → queued', { id: annotation.id, page: pageNumber }, 'info', 1500);
+      this.#logStep("03.2", "Page not ready → queued", { id: annotation.id, page: pageNumber }, "info", 1500);
     } catch (e) {
-      this.#logger?.warn?.('[ScreenshotTool] enqueueOrRender failed', e);
+      this.#logger?.warn?.("[ScreenshotTool] enqueueOrRender failed", e);
     }
   }
 
@@ -476,21 +479,21 @@ export class ScreenshotTool extends IAnnotationTool {
   #flushPendingForPage(pageNumber) {
     try {
       const pageMap = this.#pendingMarkersByPage.get(pageNumber);
-      if (!pageMap || pageMap.size === 0) return;
+      if (!pageMap || pageMap.size === 0) {return;}
 
       const items = Array.from(pageMap.values());
       // 清空以避免重复渲染
       this.#pendingMarkersByPage.delete(pageNumber);
-      this.#logStep('04', 'pagerendered → flush pending', { page: pageNumber, count: items.length }, 'info', 1800);
+      this.#logStep("04", "pagerendered → flush pending", { page: pageNumber, count: items.length }, "info", 1800);
       items.forEach((ann) => {
         try {
-          this.#logStep('04.1', 'Flushing item', { id: ann.id, page: pageNumber });
+          this.#logStep("04.1", "Flushing item", { id: ann.id, page: pageNumber });
           this.renderScreenshotMarker(ann);
-        } catch (_) { /* ignore item error */ }
+        } catch { /* no-op */ }
       });
-      this.#logStep('04.done', 'Flush completed', { page: pageNumber, count: items.length });
+      this.#logStep("04.done", "Flush completed", { page: pageNumber, count: items.length });
     } catch (e) {
-      this.#logger?.warn?.('[ScreenshotTool] flushPendingForPage failed', e);
+      this.#logger?.warn?.("[ScreenshotTool] flushPendingForPage failed", e);
     }
   }
 
@@ -501,28 +504,28 @@ export class ScreenshotTool extends IAnnotationTool {
    * @private
    */
   #createSelectionOverlay() {
-    const overlay = document.createElement('div');
-    overlay.id = 'screenshot-selection-overlay';
+    const overlay = document.createElement("div");
+    overlay.id = "screenshot-selection-overlay";
     overlay.style.cssText = [
-      'position: fixed',
-      'top: 0',
-      'left: 0',
-      'width: 100%',
-      'height: 100%',
-      'z-index: 9999',
-      'pointer-events: none'  // 默认不拦截事件，允许页面滚动
-    ].join(';');
+      "position: fixed",
+      "top: 0",
+      "left: 0",
+      "width: 100%",
+      "height: 100%",
+      "z-index: 9999",
+      "pointer-events: none"  // 默认不拦截事件，允许页面滚动
+    ].join(";");
 
     // 选择矩形
-    const rect = document.createElement('div');
-    rect.className = 'selection-rect';
+    const rect = document.createElement("div");
+    rect.className = "selection-rect";
     rect.style.cssText = [
-      'position: absolute',
-      'border: 2px dashed #2196f3',
-      'background: rgba(33, 150, 243, 0.1)',
-      'display: none',
-      'pointer-events: none'
-    ].join(';');
+      "position: absolute",
+      "border: 2px dashed #2196f3",
+      "background: rgba(33, 150, 243, 0.1)",
+      "display: none",
+      "pointer-events: none"
+    ].join(";");
 
     overlay.appendChild(rect);
     document.body.appendChild(overlay);
@@ -538,16 +541,16 @@ export class ScreenshotTool extends IAnnotationTool {
     const onMouseMove = (e) => this.#handleMouseMove(e);
     const onMouseUp = (e) => this.#handleMouseUp(e);
     const onKeyDown = (e) => {
-      if (e.key === 'Escape' && this.#isActive) {
+      if (e.key === "Escape" && this.#isActive) {
         this.deactivate();
       }
     };
 
     // 在document上监听，这样可以捕获所有鼠标事件
-    document.addEventListener('mousedown', onMouseDown);
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+    document.addEventListener("keydown", onKeyDown);
 
     // 保存引用以便清理
     this.#mouseListeners = { onMouseDown, onMouseMove, onMouseUp, onKeyDown };
@@ -559,12 +562,12 @@ export class ScreenshotTool extends IAnnotationTool {
    */
   #handleMouseDown(e) {
     // 如果不是激活状态，不处理
-    if (!this.#isActive) return;
+    if (!this.#isActive) {return;}
 
     // 检查点击位置是否在PDF页面元素内
-    const pageElement = e.target.closest('.page');
+    const pageElement = e.target.closest(".page");
     if (!pageElement) {
-      this.#logger.debug('[ScreenshotTool] Click not within a PDF page element, ignoring');
+      this.#logger.debug("[ScreenshotTool] Click not within a PDF page element, ignoring");
       return;
     }
 
@@ -576,12 +579,12 @@ export class ScreenshotTool extends IAnnotationTool {
     this.#startPos = { x: e.clientX, y: e.clientY };
     this.#endPos = null;
 
-    const rect = this.#selectionOverlay.querySelector('.selection-rect');
-    rect.style.display = 'block';
+    const rect = this.#selectionOverlay.querySelector(".selection-rect");
+    rect.style.display = "block";
     rect.style.left = `${e.clientX}px`;
     rect.style.top = `${e.clientY}px`;
-    rect.style.width = '0px';
-    rect.style.height = '0px';
+    rect.style.width = "0px";
+    rect.style.height = "0px";
   }
 
   /**
@@ -590,14 +593,14 @@ export class ScreenshotTool extends IAnnotationTool {
    */
   #handleMouseMove(e) {
     // 只有在正在绘制时（startPos存在）才处理移动事件
-    if (!this.#startPos || !this.#isActive) return;
+    if (!this.#startPos || !this.#isActive) {return;}
 
     // 阻止默认行为（防止触发其他交互）
     e.preventDefault();
 
     this.#endPos = { x: e.clientX, y: e.clientY };
 
-    const rect = this.#selectionOverlay.querySelector('.selection-rect');
+    const rect = this.#selectionOverlay.querySelector(".selection-rect");
     const bounds = this.#getRectFromPoints(this.#startPos, this.#endPos);
 
     rect.style.left = `${bounds.x}px`;
@@ -611,14 +614,14 @@ export class ScreenshotTool extends IAnnotationTool {
    * @private
    */
   async #handleMouseUp(e) {
-    if (!this.#startPos || !this.#isActive) return;
+    if (!this.#startPos || !this.#isActive) {return;}
 
     this.#endPos = { x: e.clientX, y: e.clientY };
     const rect = this.#getRectFromPoints(this.#startPos, this.#endPos);
 
     // 最小尺寸检查
     if (rect.width < 10 || rect.height < 10) {
-      this.#logger.warn('[ScreenshotTool] Selection too small, ignoring');
+      this.#logger.warn("[ScreenshotTool] Selection too small, ignoring");
       this.#resetSelection();
       return;
     }
@@ -644,40 +647,40 @@ export class ScreenshotTool extends IAnnotationTool {
       // 1. 将viewport坐标转换为Canvas坐标
       const canvasRect = this.#convertViewportToCanvasRect(pageNumber, viewportRect);
       if (!canvasRect) {
-        throw new Error('Failed to convert viewport coordinates to canvas coordinates');
+        throw new Error("Failed to convert viewport coordinates to canvas coordinates");
       }
 
-      this.#logger.info('[ScreenshotTool] Converted to canvas coordinates', canvasRect);
+      this.#logger.info("[ScreenshotTool] Converted to canvas coordinates", canvasRect);
 
       // 2. 使用Canvas捕获截图（base64）
       const base64Image = await this.#capturer.capture(pageNumber, canvasRect);
-      this.#logger.info('[ScreenshotTool] base64Image captured, length:', base64Image?.length);
+      this.#logger.info("[ScreenshotTool] base64Image captured, length:", base64Image?.length);
 
       // 2. 显示预览对话框
-      this.#logger.info('[ScreenshotTool] Showing preview dialog...');
+      this.#logger.info("[ScreenshotTool] Showing preview dialog...");
       const description = await this.#showPreviewDialog(base64Image);
-      this.#logger.info('[ScreenshotTool] Preview dialog closed, description:', description);
+      this.#logger.info("[ScreenshotTool] Preview dialog closed, description:", description);
 
       if (description === null) {
-        this.#logger.info('[ScreenshotTool] User cancelled');
+        this.#logger.info("[ScreenshotTool] User cancelled");
         return;
       }
 
       // 3. 通过QWebChannel保存到PyQt
-      this.#logger.info('[ScreenshotTool] Calling saveImageToPyQt...');
+      this.#logger.info("[ScreenshotTool] Calling saveImageToPyQt...");
       const saveResult = await this.#saveImageToPyQt(base64Image);
-      this.#logger.info('[ScreenshotTool] saveImageToPyQt returned:', saveResult);
+      this.#logger.info("[ScreenshotTool] saveImageToPyQt returned:", saveResult);
 
       if (!saveResult.success) {
-        throw new Error(saveResult.error || 'Failed to save image');
+        throw new Error(saveResult.error || "Failed to save image");
       }
 
-      this.#logger.info('[ScreenshotTool] Image saved', saveResult);
+      this.#logger.info("[ScreenshotTool] Image saved", saveResult);
 
       // 4. 转换为百分比坐标
       const percentRect = this.#convertCanvasToPercent(pageNumber, canvasRect);
       if (!percentRect) {
-        throw new Error('Failed to convert canvas coordinates to percentage');
+        throw new Error("Failed to convert canvas coordinates to percentage");
       }
 
       // 5. 创建 Annotation 实例（先生成稳定ID，便于后续事件/卡片去重）
@@ -686,15 +689,6 @@ export class ScreenshotTool extends IAnnotationTool {
         pageNumber,
         data: {
           rectPercent: percentRect,
-          rect: canvasRect,
-          // 记录捕获时的 canvas 像素尺寸（用于跨“浏览器缩放/设备像素比变化”的稳定换算）
-          canvasPixelSize: (() => {
-            try {
-              const pv = this.#pdfViewerManager?.getPageView?.(pageNumber);
-              const cv = pv?.div?.querySelector?.('canvas');
-              return (cv && cv.width && cv.height) ? { width: cv.width, height: cv.height } : null;
-            } catch (_) { return null; }
-          })(),
           markerColor: DEFAULT_MARKER_COLOR,
           imagePath: saveResult.path,
           imageHash: saveResult.hash,
@@ -711,18 +705,18 @@ export class ScreenshotTool extends IAnnotationTool {
         annotation: annotation.toJSON()
       });
 
-      this.#logger.info('[ScreenshotTool] Annotation created (optimistic UI + persistence requested)', annotation);
+      this.#logger.info("[ScreenshotTool] Annotation created (optimistic UI + persistence requested)", annotation);
 
     } catch (error) {
-      this.#logger.error('[ScreenshotTool] Capture failed:', error);
-      this.#logger.error('[ScreenshotTool] Error details:', {
+      this.#logger.error("[ScreenshotTool] Capture failed:", error);
+      this.#logger.error("[ScreenshotTool] Error details:", {
         message: error.message,
         stack: error.stack
       });
 
       // 显示错误提示 (修复事件名称格式)
       this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.NOTIFICATION.ERROR.TRIGGERED, {
-        message: '截图失败: ' + error.message
+        message: "截图失败: " + error.message
       });
     }
   }
@@ -741,22 +735,22 @@ export class ScreenshotTool extends IAnnotationTool {
    */
   async #showPreviewDialog(imageData) {
     return new Promise((resolve) => {
-      const dialog = document.createElement('div');
-      dialog.className = 'screenshot-preview-dialog';
+      const dialog = document.createElement("div");
+      dialog.className = "screenshot-preview-dialog";
       dialog.style.cssText = [
-        'position: fixed',
-        'top: 50%',
-        'left: 50%',
-        'transform: translate(-50%, -50%)',
-        'background: white',
-        'border-radius: 8px',
-        'box-shadow: 0 4px 20px rgba(0,0,0,0.3)',
-        'padding: 20px',
-        'z-index: 10000',
-        'max-width: 600px',
-        'max-height: 80vh',
-        'overflow: auto'
-      ].join(';');
+        "position: fixed",
+        "top: 50%",
+        "left: 50%",
+        "transform: translate(-50%, -50%)",
+        "background: white",
+        "border-radius: 8px",
+        "box-shadow: 0 4px 20px rgba(0,0,0,0.3)",
+        "padding: 20px",
+        "z-index: 10000",
+        "max-width: 600px",
+        "max-height: 80vh",
+        "overflow: auto"
+      ].join(";");
 
       dialog.innerHTML = `
         <h3 style="margin: 0 0 16px 0; font-size: 16px; color: #333;">截图预览</h3>
@@ -779,32 +773,32 @@ export class ScreenshotTool extends IAnnotationTool {
 
       document.body.appendChild(dialog);
 
-      const textarea = dialog.querySelector('#screenshot-description');
-      const saveBtn = dialog.querySelector('#screenshot-save-btn');
-      const cancelBtn = dialog.querySelector('#screenshot-cancel-btn');
+      const textarea = dialog.querySelector("#screenshot-description");
+      const saveBtn = dialog.querySelector("#screenshot-save-btn");
+      const cancelBtn = dialog.querySelector("#screenshot-cancel-btn");
 
       textarea.focus();
 
-      saveBtn.addEventListener('click', () => {
+      saveBtn.addEventListener("click", () => {
         const description = textarea.value.trim();
         dialog.remove();
         resolve(description);
       });
 
-      cancelBtn.addEventListener('click', () => {
+      cancelBtn.addEventListener("click", () => {
         dialog.remove();
         resolve(null);
       });
 
       // ESC关闭
       const onKeyDown = (e) => {
-        if (e.key === 'Escape') {
+        if (e.key === "Escape") {
           dialog.remove();
-          document.removeEventListener('keydown', onKeyDown);
+          document.removeEventListener("keydown", onKeyDown);
           resolve(null);
         }
       };
-      document.addEventListener('keydown', onKeyDown);
+      document.addEventListener("keydown", onKeyDown);
     });
   }
 
@@ -845,7 +839,7 @@ export class ScreenshotTool extends IAnnotationTool {
    * @private
    */
   #escapeHtml(text) {
-    const div = document.createElement('div');
+    const div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML;
   }
@@ -856,12 +850,12 @@ export class ScreenshotTool extends IAnnotationTool {
    */
   #formatDate(isoString) {
     const date = new Date(isoString);
-    return date.toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
+    return date.toLocaleString("zh-CN", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
     });
   }
 
@@ -900,7 +894,7 @@ export class ScreenshotTool extends IAnnotationTool {
         return null;
       }
 
-      const canvas = pageView.div?.querySelector('canvas');
+      const canvas = pageView.div?.querySelector("canvas");
       if (!canvas) {
         this.#logger.error(`[ScreenshotTool] Cannot find canvas for page ${pageNumber}`);
         return null;
@@ -914,7 +908,7 @@ export class ScreenshotTool extends IAnnotationTool {
         heightPercent: (canvasRect.height / canvas.height) * 100
       };
 
-      this.#logger.info('[ScreenshotTool] Canvas to Percent conversion:', {
+      this.#logger.info("[ScreenshotTool] Canvas to Percent conversion:", {
         canvas: canvasRect,
         canvasSize: { width: canvas.width, height: canvas.height },
         percent: percentRect
@@ -923,7 +917,7 @@ export class ScreenshotTool extends IAnnotationTool {
       return percentRect;
 
     } catch (error) {
-      this.#logger.error('[ScreenshotTool] Canvas to Percent conversion failed:', error);
+      this.#logger.error("[ScreenshotTool] Canvas to Percent conversion failed:", error);
       return null;
     }
   }
@@ -934,11 +928,11 @@ export class ScreenshotTool extends IAnnotationTool {
    */
   ensureOverlayFor(annotation) {
     try {
-      if (!annotation || annotation.type !== 'screenshot') return;
+      if (!annotation || annotation.type !== "screenshot") {return;}
       // 若页面未就绪则入队，由 pagerendered 时机再渲染
       this.#enqueueOrRender(annotation);
     } catch (e) {
-      this.#logger?.warn?.('[ScreenshotTool] ensureOverlayFor failed', e);
+      this.#logger?.warn?.("[ScreenshotTool] ensureOverlayFor failed", e);
     }
   }
 
@@ -949,6 +943,7 @@ export class ScreenshotTool extends IAnnotationTool {
    * @param {Object} percentRect - 百分比坐标 { xPercent, yPercent, widthPercent, heightPercent }
    * @returns {Object|null} Canvas坐标系的矩形 { x, y, width, height }
    */
+  /* eslint-disable no-unused-private-class-members */
   #convertPercentToCanvas(pageNumber, percentRect) {
     try {
       // 获取Canvas元素
@@ -958,7 +953,7 @@ export class ScreenshotTool extends IAnnotationTool {
         return null;
       }
 
-      const canvas = pageView.div?.querySelector('canvas');
+      const canvas = pageView.div?.querySelector("canvas");
       if (!canvas) {
         this.#logger.error(`[ScreenshotTool] Cannot find canvas for page ${pageNumber}`);
         return null;
@@ -972,7 +967,7 @@ export class ScreenshotTool extends IAnnotationTool {
         height: Math.round((percentRect.heightPercent / 100) * canvas.height)
       };
 
-      this.#logger.info('[ScreenshotTool] Percent to Canvas conversion:', {
+      this.#logger.info("[ScreenshotTool] Percent to Canvas conversion:", {
         percent: percentRect,
         canvasSize: { width: canvas.width, height: canvas.height },
         canvas: canvasRect
@@ -981,7 +976,7 @@ export class ScreenshotTool extends IAnnotationTool {
       return canvasRect;
 
     } catch (error) {
-      this.#logger.error('[ScreenshotTool] Percent to Canvas conversion failed:', error);
+      this.#logger.error("[ScreenshotTool] Percent to Canvas conversion failed:", error);
       return null;
     }
   }
@@ -1017,7 +1012,7 @@ export class ScreenshotTool extends IAnnotationTool {
       const relativeY = viewportRect.y - pageBounds.top;
 
       // 5. 获取Canvas元素
-      const canvas = pageDiv.querySelector('canvas');
+      const canvas = pageDiv.querySelector("canvas");
       if (!canvas) {
         this.#logger.error(`[ScreenshotTool] Cannot find canvas for page ${pageNumber}`);
         return null;
@@ -1036,7 +1031,7 @@ export class ScreenshotTool extends IAnnotationTool {
         height: Math.round(viewportRect.height * scaleY)
       };
 
-      this.#logger.info('[ScreenshotTool] Coordinate conversion:', {
+      this.#logger.info("[ScreenshotTool] Coordinate conversion:", {
         viewport: viewportRect,
         pageBounds: { left: pageBounds.left, top: pageBounds.top, width: pageBounds.width, height: pageBounds.height },
         canvasSize: { width: canvas.width, height: canvas.height },
@@ -1047,7 +1042,7 @@ export class ScreenshotTool extends IAnnotationTool {
       return canvasRect;
 
     } catch (error) {
-      this.#logger.error('[ScreenshotTool] Coordinate conversion failed:', error);
+      this.#logger.error("[ScreenshotTool] Coordinate conversion failed:", error);
       return null;
     }
   }
@@ -1064,13 +1059,13 @@ export class ScreenshotTool extends IAnnotationTool {
 
     // 隐藏选择框
     if (this.#selectionOverlay) {
-      const rect = this.#selectionOverlay.querySelector('.selection-rect');
+      const rect = this.#selectionOverlay.querySelector(".selection-rect");
       if (rect) {
-        rect.style.display = 'none';
+        rect.style.display = "none";
       }
     }
 
-    this.#logger.info('[ScreenshotTool] Selection reset, ready for next capture');
+    this.#logger.info("[ScreenshotTool] Selection reset, ready for next capture");
   }
 
   /**
@@ -1079,7 +1074,7 @@ export class ScreenshotTool extends IAnnotationTool {
    */
   renderScreenshotMarker(annotation) {
     try {
-      this.#logStep('05', 'Render marker begin', { id: annotation?.id, page: annotation?.pageNumber }, 'info', 1800);
+      this.#logStep("05", "Render marker begin", { id: annotation?.id, page: annotation?.pageNumber }, "info", 1800);
 
       // 若已存在DOM标记，需校验是否仍然挂载在当前页，且仍在文档中；
       // - 若在其他容器或已被PDF.js重绘清空 → 先移除并重建
@@ -1093,97 +1088,28 @@ export class ScreenshotTool extends IAnnotationTool {
       // 获取页面容器（尽早获取，供后续计算使用）
       const pageView = this.#pdfViewerManager.getPageView(pageNumber);
       if (!pageView || !pageView.div) {
-        this.#logStep('05.1', 'PageView not found', { page: pageNumber }, 'warn', 2500);
+        this.#logStep("05.1", "PageView not found", { page: pageNumber }, "warn", 2500);
         return;
       }
       const pageDiv = pageView.div;
 
-      // 兜底方案 A：rectPercent 缺失但包含 rect（通常为 canvas 像素），换算为百分比
-      // 优先使用“捕获时的 canvas 像素尺寸”（避免页面整体缩放导致 devicePixelRatio 改变而引入误差）
-      if (!rectPercent && data && data.rect) {
-        try {
-          const cap = data.canvasPixelSize;
-          if (cap && Number(cap.width) > 0 && Number(cap.height) > 0) {
-            const w0 = Number(cap.width), h0 = Number(cap.height);
-            rectPercent = {
-              xPercent: Math.max(0, Math.min(100, (data.rect.x / w0) * 100)),
-              yPercent: Math.max(0, Math.min(100, (data.rect.y / h0) * 100)),
-              widthPercent: Math.max(0, Math.min(100, (data.rect.width / w0) * 100)),
-              heightPercent: Math.max(0, Math.min(100, (data.rect.height / h0) * 100))
-            };
-            this.#logStep('05.2A-cap', 'rect→percent using captured canvasPixelSize', { id: annotation.id, rectPercent });
-          } else {
-            const canvasNow = pageDiv.querySelector('canvas');
-            if (canvasNow && canvasNow.width > 0 && canvasNow.height > 0) {
-              this.#logStep('05.2A', 'rectPercent missing → compute from rect (canvas)', { id: annotation.id });
-              rectPercent = this.#convertCanvasToPercent(pageNumber, data.rect);
-            } else {
-              // Canvas 尚未渲染（页面未滚动到可见区域）。挂载监听，待 canvas 出现后再渲染，避免报错。
-              this.#logStep('05.2A-wait', 'Canvas not ready → wait (MutationObserver)', { page: pageNumber }, 'info', 1500);
-              const observer = new MutationObserver(() => {
-                try {
-                  const c = pageDiv.querySelector('canvas');
-                  if (c && c.width > 0 && c.height > 0) {
-                    observer.disconnect();
-                    // 重新进入渲染流程（此时可以进行 rect → percent 的换算）
-                    try {
-                      data.rectPercent = this.#convertCanvasToPercent(pageNumber, data.rect);
-                    } catch (_) { /* ignore */ }
-                    this.renderScreenshotMarker(annotation);
-                  }
-                } catch (_) { /* ignore */ }
-              });
-              observer.observe(pageDiv, { childList: true, subtree: true });
-              // 同时添加一个超时保护，避免长时间监听
-              setTimeout(() => { try { observer.disconnect(); } catch {} }, 8000);
-              return; // 先退出，等待 canvas 出现后再渲染
-            }
-          }
-        } catch (e) {
-          this.#logStep('05.2A-err', 'Compute rectPercent from rect failed', { err: e?.message }, 'warn', 2500);
-        }
-      }
-
-      // 兜底方案 B：rectPercent 与 rect 均缺失，但存在 boundingBox（通常为相对 pageDiv 的像素）
-      if (!rectPercent && data && data.boundingBox) {
-        try {
-          const bounds = pageDiv.getBoundingClientRect();
-          const bb = data.boundingBox || {};
-          const leftPx = Number(bb.left ?? bb.x ?? 0);
-          const topPx = Number(bb.top ?? bb.y ?? 0);
-          const widthPx = Number(bb.width ?? 0);
-          const heightPx = Number(bb.height ?? 0);
-          const pageW = Math.max(1, bounds.width || pageDiv.clientWidth || pageDiv.offsetWidth || 1);
-          const pageH = Math.max(1, bounds.height || pageDiv.clientHeight || pageDiv.offsetHeight || 1);
-          rectPercent = {
-            xPercent: Math.max(0, Math.min(100, (leftPx / pageW) * 100)),
-            yPercent: Math.max(0, Math.min(100, (topPx / pageH) * 100)),
-            widthPercent: Math.max(0, Math.min(100, (widthPx / pageW) * 100)),
-            heightPercent: Math.max(0, Math.min(100, (heightPx / pageH) * 100))
-          };
-          this.#logStep('05.2B', 'rectPercent missing → compute from boundingBox (pageDiv)', { id: annotation.id, rectPercent });
-          // 写回，便于后续跳转计算使用
-          data.rectPercent = rectPercent;
-        } catch (e) {
-          this.#logStep('05.2B-err', 'Compute rectPercent from boundingBox failed', { err: e?.message }, 'warn', 2500);
-        }
-      }
+      // 严格模式：rectPercent 必须存在且有效，不进行任何像素或 boundingBox 的回退换算
 
       if (!rectPercent) {
-        this.#logStep('05.x', 'No rectPercent → give up render for this item', {
+        this.#logStep("05.x", "No rectPercent → give up render for this item", {
           id: annotation.id,
           keys: Object.keys(data)
-        }, 'warn', 3000);
+        }, "warn", 3000);
         return;
       }
 
       // 使用 canvas 的显示尺寸 + 相对 pageDiv 的偏移，保证定位精确
       const pageBounds = pageDiv.getBoundingClientRect();
-      const canvas = pageDiv.querySelector('canvas');
+      const canvas = pageDiv.querySelector("canvas");
       const canvasBounds = canvas ? canvas.getBoundingClientRect() : pageBounds;
       const offsetLeft = canvasBounds.left - pageBounds.left;
       const offsetTop = canvasBounds.top - pageBounds.top;
-      this.#logStep('06.1', 'Bounds computed', {
+      this.#logStep("06.1", "Bounds computed", {
         page: annotation.pageNumber,
         pageBounds: { w: pageBounds.width, h: pageBounds.height },
         canvasBounds: { w: canvasBounds.width, h: canvasBounds.height },
@@ -1197,7 +1123,7 @@ export class ScreenshotTool extends IAnnotationTool {
         width: (rectPercent.widthPercent / 100) * canvasBounds.width,
         height: (rectPercent.heightPercent / 100) * canvasBounds.height
       };
-      this.#logStep('06.2', 'MarkerRect computed', markerRect);
+      this.#logStep("06.2", "MarkerRect computed", markerRect);
 
       const applyRectToMarker = (el) => {
         el.style.left = `${markerRect.left}px`;
@@ -1209,9 +1135,9 @@ export class ScreenshotTool extends IAnnotationTool {
       // 若已有元素并仍连接到当前页，执行“就地更新”并返回
       if (existing) {
         const connected = !!existing.isConnected;
-        const inSamePage = !!existing.closest && (existing.closest('.page') === pageDiv);
+        const inSamePage = !!existing.closest && (existing.closest(".page") === pageDiv);
         if (connected && inSamePage) {
-          this.#logStep('05.0u', 'Already rendered → update in-place', { id: annotation.id, page: pageNumber });
+          this.#logStep("05.0u", "Already rendered → update in-place", { id: annotation.id, page: pageNumber });
           applyRectToMarker(existing);
           const initialColor = data.markerColor || DEFAULT_MARKER_COLOR;
           data.markerColor = initialColor;
@@ -1219,86 +1145,86 @@ export class ScreenshotTool extends IAnnotationTool {
           return;
         }
         // 否则先移除旧元素，再重建
-        try { existing.remove(); } catch (_) { /* ignore */ }
+        try { existing.remove(); } catch { /* no-op */ }
         this.#renderedMarkers.delete(annotation.id);
-        this.#logStep('05.0r', 'Existing marker detached or wrong page → rebuild', { id: annotation.id, page: pageNumber });
+        this.#logStep("05.0r", "Existing marker detached or wrong page → rebuild", { id: annotation.id, page: pageNumber });
       }
 
       // 创建标记框元素
-      const marker = document.createElement('div');
-      marker.className = 'screenshot-marker';
+      const marker = document.createElement("div");
+      marker.className = "screenshot-marker";
       marker.dataset.annotationId = annotation.id;
       marker.style.cssText = [
-        'position: absolute',
+        "position: absolute",
         `left: ${markerRect.left}px`,
         `top: ${markerRect.top}px`,
         `width: ${markerRect.width}px`,
         `height: ${markerRect.height}px`,
-        'pointer-events: none',
-        'box-sizing: border-box',
-        'z-index: 100',  // 提高层级，避免被canvas/textLayer覆盖
-        'transition: border-color 0.2s ease, background-color 0.2s ease'
-      ].join(';');
+        "pointer-events: none",
+        "box-sizing: border-box",
+        "z-index: 100",  // 提高层级，避免被canvas/textLayer覆盖
+        "transition: border-color 0.2s ease, background-color 0.2s ease"
+      ].join(";");
 
       const initialColor = data.markerColor || DEFAULT_MARKER_COLOR;
       data.markerColor = initialColor;
       this.#applyMarkerColor(marker, initialColor);
 
       const baseCircleStyle = [
-        'position: absolute',
-        'top: -10px',
-        'right: -10px',
-        'width: 24px',
-        'height: 24px',
-        'border: 2px solid white',
-        'border-radius: 50%',
-        'cursor: pointer',
-        'pointer-events: auto',
-        'display: flex',
-        'align-items: center',
-        'justify-content: center',
-        'font-size: 14px',
-        'font-weight: bold',
-        'transition: all 0.2s',
-        'z-index: 12',
-        'box-shadow: 0 2px 6px rgba(0,0,0,0.2)'
+        "position: absolute",
+        "top: -10px",
+        "right: -10px",
+        "width: 24px",
+        "height: 24px",
+        "border: 2px solid white",
+        "border-radius: 50%",
+        "cursor: pointer",
+        "pointer-events: auto",
+        "display: flex",
+        "align-items: center",
+        "justify-content: center",
+        "font-size: 14px",
+        "font-weight: bold",
+        "transition: all 0.2s",
+        "z-index: 12",
+        "box-shadow: 0 2px 6px rgba(0,0,0,0.2)"
       ];
 
       // 删除按钮（右上角）
-      const deleteBtn = document.createElement('div');
-      deleteBtn.className = 'screenshot-marker-delete';
+      const deleteBtn = document.createElement("div");
+      deleteBtn.className = "screenshot-marker-delete";
       deleteBtn.style.cssText = baseCircleStyle.concat([
-        'background: #f44336',
-        'color: white'
-      ]).join(';');
-      deleteBtn.innerHTML = '×';
-      deleteBtn.title = '删除此截图标注';
+        "background: #f44336",
+        "color: white"
+      ]).join(";");
+      deleteBtn.innerHTML = "×";
+      deleteBtn.title = "删除此截图标注";
 
       // 控制面板容器（初始收起）
-      const controlsContainer = document.createElement('div');
-      controlsContainer.className = 'screenshot-marker-controls';
+      const controlsContainer = document.createElement("div");
+      controlsContainer.className = "screenshot-marker-controls";
       controlsContainer.style.cssText = [
-        'position: absolute',
-        'top: -10px',
-        'right: 18px',
-        'display: flex',
-        'gap: 6px',
-        'pointer-events: none',
-        'opacity: 0',
-        'transform: translateX(8px)',
-        'transition: opacity 0.2s ease, transform 0.2s ease',
-        'z-index: 11'
-      ].join(';');
+        "position: absolute",
+        "top: -10px",
+        "right: 18px",
+        "display: flex",
+        "gap: 6px",
+        "pointer-events: none",
+        "opacity: 0",
+        "transform: translateX(8px)",
+        "transition: opacity 0.2s ease, transform 0.2s ease",
+        "z-index: 11"
+      ].join(";");
 
       const colorButtons = [];
       const updateActiveColorButton = (color) => {
         colorButtons.forEach((btn) => {
           if (btn.dataset.color === color) {
-            btn.style.transform = 'scale(1.1)';
-            btn.style.boxShadow = '0 0 0 2px white, 0 2px 6px rgba(0,0,0,0.3)';
+            btn.style.transform = "scale(1.1)";
+            btn.style.boxShadow = "0 0 0 2px white, 0 2px 6px rgba(0,0,0,0.3)";
           } else {
-            btn.style.transform = 'scale(1)';
-            btn.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
+            btn.style.transform = "scale(1)";
+            btn.style.boxShadow = "0 2px 6px rgba(0,0,0,0.2)";
           }
         });
       };
@@ -1310,24 +1236,24 @@ export class ScreenshotTool extends IAnnotationTool {
       };
 
       MARKER_COLOR_PRESETS.forEach((preset) => {
-        const colorBtn = document.createElement('button');
-        colorBtn.type = 'button';
+        const colorBtn = document.createElement("button");
+        colorBtn.type = "button";
         colorBtn.dataset.color = preset.value;
         colorBtn.title = `切换为${preset.label}`;
         colorBtn.style.cssText = [
-          'width: 24px',
-          'height: 24px',
-          'border-radius: 50%',
-          'border: 2px solid white',
+          "width: 24px",
+          "height: 24px",
+          "border-radius: 50%",
+          "border: 2px solid white",
           `background: ${preset.value}`,
-          'cursor: pointer',
-          'pointer-events: auto',
-          'display: flex',
-          'align-items: center',
-          'justify-content: center',
-          'transition: transform 0.2s ease, box-shadow 0.2s ease'
-        ].join(';');
-        colorBtn.addEventListener('click', (event) => {
+          "cursor: pointer",
+          "pointer-events: auto",
+          "display: flex",
+          "align-items: center",
+          "justify-content: center",
+          "transition: transform 0.2s ease, box-shadow 0.2s ease"
+        ].join(";");
+        colorBtn.addEventListener("click", (event) => {
           event.stopPropagation();
           applyColor(preset.value);
         });
@@ -1338,29 +1264,29 @@ export class ScreenshotTool extends IAnnotationTool {
       updateActiveColorButton(initialColor);
 
       // 跳转按钮
-      const jumpBtn = document.createElement('button');
-      jumpBtn.type = 'button';
-      jumpBtn.title = '查看标注卡片';
-      jumpBtn.innerHTML = '↗';
+      const jumpBtn = document.createElement("button");
+      jumpBtn.type = "button";
+      jumpBtn.title = "查看标注卡片";
+      jumpBtn.innerHTML = "↗";
       jumpBtn.style.cssText = [
-        'width: 24px',
-        'height: 24px',
-        'border-radius: 50%',
-        'border: 2px solid white',
-        'background: #2196f3',
-        'color: white',
-        'cursor: pointer',
-        'pointer-events: auto',
-        'display: flex',
-        'align-items: center',
-        'justify-content: center',
-        'font-size: 14px',
-        'transition: transform 0.2s ease, box-shadow 0.2s ease'
-      ].join(';');
-      jumpBtn.addEventListener('click', (event) => {
+        "width: 24px",
+        "height: 24px",
+        "border-radius: 50%",
+        "border: 2px solid white",
+        "background: #2196f3",
+        "color: white",
+        "cursor: pointer",
+        "pointer-events: auto",
+        "display: flex",
+        "align-items: center",
+        "justify-content: center",
+        "font-size: 14px",
+        "transition: transform 0.2s ease, box-shadow 0.2s ease"
+      ].join(";");
+      jumpBtn.addEventListener("click", (event) => {
         event.stopPropagation();
         this.#handleJumpToAnnotation(annotation.id);
-        this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, { sidebarId: 'annotation' });
+        this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, { sidebarId: "annotation" });
         setTimeout(() => {
           this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SELECT, { id: annotation.id });
         }, 150);
@@ -1374,34 +1300,34 @@ export class ScreenshotTool extends IAnnotationTool {
           clearTimeout(hideTimer);
           hideTimer = null;
         }
-        controlsContainer.style.opacity = '1';
-        controlsContainer.style.pointerEvents = 'auto';
-        controlsContainer.style.transform = 'translateX(0)';
-        deleteBtn.style.transform = 'scale(1.1)';
-        deleteBtn.style.background = '#d32f2f';
+        controlsContainer.style.opacity = "1";
+        controlsContainer.style.pointerEvents = "auto";
+        controlsContainer.style.transform = "translateX(0)";
+        deleteBtn.style.transform = "scale(1.1)";
+        deleteBtn.style.background = "#d32f2f";
       };
       const scheduleHide = () => {
         if (hideTimer) {
           clearTimeout(hideTimer);
         }
         hideTimer = setTimeout(() => {
-          controlsContainer.style.opacity = '0';
-          controlsContainer.style.pointerEvents = 'none';
-          controlsContainer.style.transform = 'translateX(8px)';
-          deleteBtn.style.transform = 'scale(1)';
-          deleteBtn.style.background = '#f44336';
+          controlsContainer.style.opacity = "0";
+          controlsContainer.style.pointerEvents = "none";
+          controlsContainer.style.transform = "translateX(8px)";
+          deleteBtn.style.transform = "scale(1)";
+          deleteBtn.style.background = "#f44336";
         }, 120);
       };
 
-      deleteBtn.addEventListener('mouseenter', showControls);
-      deleteBtn.addEventListener('mouseleave', scheduleHide);
-      controlsContainer.addEventListener('mouseenter', showControls);
-      controlsContainer.addEventListener('mouseleave', scheduleHide);
+      deleteBtn.addEventListener("mouseenter", showControls);
+      deleteBtn.addEventListener("mouseleave", scheduleHide);
+      controlsContainer.addEventListener("mouseenter", showControls);
+      controlsContainer.addEventListener("mouseleave", scheduleHide);
 
       // 点击删除 - 删除标注（需要确认）
-      deleteBtn.addEventListener('click', (e) => {
+      deleteBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        if (confirm('确定要删除此截图标注吗？')) {
+        if (confirm("确定要删除此截图标注吗？")) {
           this.#logger.info(`[ScreenshotTool] Requesting deletion of annotation ${annotation.id}`);
           this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DELETE, { id: annotation.id });
         }
@@ -1415,10 +1341,10 @@ export class ScreenshotTool extends IAnnotationTool {
       // 保存引用
       this.#renderedMarkers.set(annotation.id, marker);
 
-      this.#logStep('06.done', 'Marker rendered', { id: annotation.id, page: pageNumber }, 'success', 1600);
+      this.#logStep("06.done", "Marker rendered", { id: annotation.id, page: pageNumber }, "success", 1600);
 
     } catch (error) {
-      this.#logger.error('[ScreenshotTool] Failed to render marker:', error, { toast: { type: 'error', ms: 4500 } });
+      this.#logger.error("[ScreenshotTool] Failed to render marker:", error, { toast: { type: "error", ms: 4500 } });
     }
   }
 
@@ -1433,12 +1359,12 @@ export class ScreenshotTool extends IAnnotationTool {
   }
 
   #hexToRgb(hex) {
-    if (typeof hex !== 'string') {
+    if (typeof hex !== "string") {
       return null;
     }
-    let normalized = hex.trim().replace('#', '');
+    let normalized = hex.trim().replace("#", "");
     if (normalized.length === 3) {
-      normalized = normalized.split('').map((ch) => ch + ch).join('');
+      normalized = normalized.split("").map((ch) => ch + ch).join("");
     }
     if (normalized.length !== 6) {
       return null;
@@ -1461,7 +1387,7 @@ export class ScreenshotTool extends IAnnotationTool {
   removeScreenshotMarker(annotationId) {
     const marker = this.#renderedMarkers.get(annotationId);
     if (!marker) {
-      this.#logStep('07', 'Remove marker requested but not found', { id: annotationId });
+      this.#logStep("07", "Remove marker requested but not found", { id: annotationId });
       return;
     }
 
@@ -1473,20 +1399,20 @@ export class ScreenshotTool extends IAnnotationTool {
     // 移除引用
     this.#renderedMarkers.delete(annotationId);
 
-    this.#logStep('07.done', 'Marker removed', { id: annotationId }, 'info', 1400);
+    this.#logStep("07.done", "Marker removed", { id: annotationId }, "info", 1400);
   }
 
   /**
    * 清除所有截图标记框
    */
   clearAllMarkers() {
-    this.#renderedMarkers.forEach((marker, id) => {
+    this.#renderedMarkers.forEach((marker) => {
       if (marker.parentNode) {
         marker.remove();
       }
     });
     this.#renderedMarkers.clear();
-    this.#logStep('08', 'All markers cleared', null, 'info', 1400);
+    this.#logStep("08", "All markers cleared", null, "info", 1400);
   }
 
   /**
@@ -1500,10 +1426,10 @@ export class ScreenshotTool extends IAnnotationTool {
 
     // 移除事件监听（现在都在document上）
     if (this.#mouseListeners) {
-      document.removeEventListener('mousedown', this.#mouseListeners.onMouseDown);
-      document.removeEventListener('mousemove', this.#mouseListeners.onMouseMove);
-      document.removeEventListener('mouseup', this.#mouseListeners.onMouseUp);
-      document.removeEventListener('keydown', this.#mouseListeners.onKeyDown);
+      document.removeEventListener("mousedown", this.#mouseListeners.onMouseDown);
+      document.removeEventListener("mousemove", this.#mouseListeners.onMouseMove);
+      document.removeEventListener("mouseup", this.#mouseListeners.onMouseUp);
+      document.removeEventListener("keydown", this.#mouseListeners.onKeyDown);
       this.#mouseListeners = null;
     }
 
@@ -1517,3 +1443,4 @@ export class ScreenshotTool extends IAnnotationTool {
     this.#endPos = null;
   }
 }
+

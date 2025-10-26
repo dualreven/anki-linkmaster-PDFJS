@@ -17,7 +17,7 @@ _BASE_SCREENSHOT: Dict[str, Any] = {
     'version': 1,
     'json_data': {
         'data': {
-            'rect': {'x': 10.5, 'y': 12.0, 'width': 120.0, 'height': 80.0},
+            'rectPercent': {'xPercent': 10.0, 'yPercent': 12.0, 'widthPercent': 24.0, 'heightPercent': 16.0},
             'imagePath': '/data/screenshots/ann_001.png',
             'imageHash': '0123456789abcdef0123456789abcdef',
             'description': '截图描述'

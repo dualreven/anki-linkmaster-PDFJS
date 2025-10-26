@@ -34,6 +34,7 @@ export class OutlineSidebarUI {
 
   initialize() {
     this.#logger.info("[DEBUG] OutlineSidebarUI initialize() called");
+    this.#logger.info("[OutlineUI] 初始化", { toast: { type: "info", ms: 1500 } });
 
     this.#content = document.createElement("div");
     this.#content.style.cssText = "height:100%;display:flex;flex-direction:column;box-sizing:border-box;";
@@ -57,12 +58,24 @@ export class OutlineSidebarUI {
       PDF_VIEWER_EVENTS.BOOKMARK.LOAD.SUCCESS,
       (data) => {
         this.#logger.info(`[DEBUG] BOOKMARK.LOAD.SUCCESS event received! Bookmarks count: ${data?.bookmarks?.length || 0}`);
+        try {
+          const cnt = Array.isArray(data?.bookmarks) ? data.bookmarks.length : 0;
+          if (cnt > 0) { this.#logger.info(`[OutlineUI] 收到大纲：${cnt} 项`, { toast: true }); }
+          else { this.#logger.warn("[OutlineUI] 当前无大纲（可通过＋创建或自动导入）", { toast: { type: "warn", ms: 3500 } }); }
+        } catch {}
         this.#renderTree(data?.bookmarks || []);
       },
       { subscriberId: "OutlineSidebarUI" }
     ));
 
     this.#logger.info("[DEBUG] OutlineSidebarUI initialized successfully");
+
+    // UI 初始化后，主动请求一次大纲列表，避免错过早先发射的加载事件
+    try {
+      // 使用全局事件名（与 Feature 对齐）
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.BOOKMARK.LOAD.REQUESTED, {}, { actorId: "OutlineSidebarUI" });
+      this.#logger.info("[OutlineUI] 请求刷新大纲列表", { toast: true });
+    } catch {}
   }
 
   getContentElement() { return this.#content; }
@@ -111,6 +124,7 @@ export class OutlineSidebarUI {
 
     const data = this.#toJsTreeData(bookmarks);
     this.#logger.info(`[DEBUG] Creating jstree with ${data.length} nodes`);
+    try { this.#logger.info(`[OutlineUI] 构建树：${data.length} 节点`, { toast: true }); } catch {}
 
     $tree.jstree({
       core: {
@@ -130,8 +144,10 @@ export class OutlineSidebarUI {
       try {
         $tree.jstree("open_all");
         this.#logger.info("✅ Outline tree expanded automatically");
+        try { this.#logger.info("[OutlineUI] 大纲树渲染完成并已展开", { toast: true }); } catch {}
       } catch (err) {
         this.#logger.error("❌ Failed to expand outline tree: " + err.message);
+        try { this.#logger.error(`[OutlineUI] 展开失败：${err?.message || 'error'}`, { toast: { type: "error", ms: 4500 } }); } catch {}
       }
     });
 
@@ -146,12 +162,14 @@ export class OutlineSidebarUI {
         const payload = { outlineItemId };
         try {
           try { this.#logger.info(`[OutlineSidebarUI] emit BOOKMARK.NAVIGATE_BY_ID.REQUESTED ${JSON.stringify(payload)}`); } catch {}
+          try { this.#logger.info(`[OutlineUI] 选择节点：${outlineItemId}`, { toast: true }); } catch {}
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED,
             payload,
             { actorId: "OutlineSidebarUI" }
           );
         } catch {
+          try { this.#logger.info(`[OutlineUI] (scoped) 选择节点：${outlineItemId}`, { toast: true }); } catch {}
           this.#eventBus.emit(
             PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED,
             payload,
@@ -160,6 +178,7 @@ export class OutlineSidebarUI {
         }
       } catch (err) {
         this.#logger.warn("select_node failed", err);
+        try { this.#logger.error(`[OutlineUI] 选择失败：${err?.message || 'error'}`, { toast: { type: "error", ms: 4500 } }); } catch {}
       }
     });
 
@@ -170,6 +189,7 @@ export class OutlineSidebarUI {
         const movedId = dataEvt.node.id;
         const newParent = dataEvt.parent === "#" ? null : dataEvt.parent;
         const newIndex = dataEvt.position; // 0-based index under parent
+        try { this.#logger.info(`[OutlineUI] 拖拽：${movedId} → parent=${newParent || 'root'} pos=${newIndex}`, { toast: true }); } catch {}
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.BOOKMARK.REORDER.REQUESTED,
           { bookmarkId: movedId, newParentId: newParent, newIndex },
@@ -177,6 +197,7 @@ export class OutlineSidebarUI {
         );
       } catch (err) {
         this.#logger.warn("move_node failed", err);
+        try { this.#logger.error(`[OutlineUI] 拖拽失败：${err?.message || 'error'}`, { toast: { type: "error", ms: 4500 } }); } catch {}
       }
     });
   }

@@ -72,3 +72,20 @@ export function isGlobalEventAllowed(eventName) {
 }
 
 export { AllowedGlobalEvents };
+
+/**
+ * 计算给定事件集合与白名单的差异（用于CI报告）
+ * @param {Iterable<string>} usedEvents - 实际使用/捕获到的事件名集合
+ * @returns {{unknown: string[], allowed: string[]}} 差异结果
+ */
+export function diffAllowed(usedEvents) {
+  const unknown = [];
+  const allowed = [];
+  for (const ev of usedEvents || []) {
+    if (typeof ev !== 'string') continue;
+    if (ev.startsWith('@')) { allowed.push(ev); continue; }
+    if (AllowedGlobalEvents.has(ev)) { allowed.push(ev); }
+    else { unknown.push(ev); }
+  }
+  return { unknown, allowed };
+}

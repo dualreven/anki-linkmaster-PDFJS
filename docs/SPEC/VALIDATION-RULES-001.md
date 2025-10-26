@@ -94,3 +94,30 @@
   | 类型验证 | 字段数据类型 | timestamp: number, type: string |
   | 格式验证 | 特定格式要求 | UUID格式、时间戳格式 |
   | 业务规则 | 业务逻辑约束 | 文件大小限制、权限检查 |
+
+---
+
+## 实施位置与统一形式（重要）
+
+- 入站消息（WebSocket）契约：
+  - 契约样例位于 `todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/schemas/**`；
+  - 服务器 `src/backend/msgCenter_server/standard_server.py` 会在“能力描述”中引用这些 schema 路径（用于对外说明与工具联动）；
+  - 运行时强校验（新增）：标准服务器在路由前对 `*:requested` 消息按上述目录的 schema 做统一校验；找不到 schema 的消息将跳过校验但记录日志；若校验失败，直接返回 `*:failed` 错误响应并阻断后续处理。
+
+- 后端数据层（统一入口）：
+  - 所有写数据库的数据格式校验统一放在 `src/backend/database/plugins/*_plugin.py` 中；
+  - 入口为 `TablePlugin.validate_data()` 及其各类型的 `_validate_*_payload()`；
+  - 本层校验为“权威校验”，任何不满足约束的数据会以 `DatabaseValidationError` 直接拒绝。
+
+- 前端模型（早期失败）：
+  - 关键模型会在构造时做轻量校验（如 `src/frontend/pdf-viewer/features/annotation/models/annotation.js`）；
+  - 目的在于尽早暴露问题，避免不合规数据进入交互链路。
+
+## 域内特例（当前约束快照）
+
+- Annotation（截图，2025-10-26 严格模式）
+  - 前端与后端均要求：截图标注必须提供 `data.rectPercent{xPercent,yPercent,widthPercent,heightPercent}`，范围 [0,100]；
+  - 必须包含 `imagePath`（非空字符串）与 `imageHash`（32位十六进制）；
+  - 不再支持仅凭 `rect{x,y,width,height}` 入库或渲染；也不做任何像素/包围盒的换算回退；
+  - 后端校验位置：`src/backend/database/plugins/pdf_annotation_plugin.py::_validate_screenshot_payload`；
+  - 前端校验位置：`src/frontend/pdf-viewer/features/annotation/models/annotation.js::#validateTypeSpecificData`。

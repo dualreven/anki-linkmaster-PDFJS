@@ -516,11 +516,17 @@ class GUILauncher(QMainWindow):
         self.h_pdfanchor_id = QLineEdit(); self.h_pdfanchor_id.setPlaceholderText("pdfanchor-<12hex> 或 pdfanchor-test")
         self.h_pdfannotation_id = QLineEdit(); self.h_pdfannotation_id.setPlaceholderText("pdfannotation-<base64url16>")
         self.h_pdfoutline_item_id = QLineEdit(); self.h_pdfoutline_item_id.setPlaceholderText("outline-item-id（透传到URL）")
-        self.h_enable_outline = QCheckBox("启用 Outline（构造 outline=1）")
+        self.h_enable_outline = QCheckBox("启用 Outline（已停用，统一强制 Outline）")
         self.h_pdfanchor_id.setToolTip("锚点ID，将映射为前端 URL 参数 anchor-id")
         self.h_pdfannotation_id.setToolTip("标注ID，将映射为前端 URL 参数 annotation-id")
         self.h_pdfoutline_item_id.setToolTip("书签/大纲项ID，将映射为前端 URL 参数 outline-item-id（当前仅透传，不触发跳转）")
-        self.h_enable_outline.setToolTip("勾选后在启动 URL 中追加 outline=1（仅 Hosted 模式生效）；用于灰度启用新的 Outline 实现。")
+        self.h_enable_outline.setToolTip("此开关已关闭：系统始终强制使用 Outline，不再透传 outline/debug 标志。")
+        try:
+            self.h_enable_outline.setChecked(False)
+            self.h_enable_outline.setEnabled(False)
+            self.h_enable_outline.setVisible(False)
+        except Exception:
+            pass
         gl.addWidget(QLabel("pdf_id")); gl.addWidget(self.h_pdf_id)
         gl.addWidget(QLabel("page_at")); gl.addWidget(self.h_page_at)
         gl.addWidget(QLabel("position%")); gl.addWidget(self.h_position)
@@ -1350,33 +1356,11 @@ class GUILauncher(QMainWindow):
                 )
             ).with_defaults(_COMPONENT_ROOT)
 
-            # 将 Outline 开关状态写入独立的 logs/debug-info.json，避免被后端覆盖
+            # Outline 切换已停用：不再写入 logs/debug-info.json
             try:
-                base = (self._logs_dir or (_COMPONENT_ROOT / 'logs'))
-                base.mkdir(parents=True, exist_ok=True)
-                debug_info_path = base / 'debug-info.json'
-
-                # 读取现有 debug-info（保留其他调试标志）
-                debug_info = _read_json_safe(debug_info_path) or {}
-
-                # 更新 outline 标志
-                if bool(self.h_enable_outline.isChecked()):
-                    debug_info['outline'] = 1
-                else:
-                    if 'outline' in debug_info:
-                        debug_info.pop('outline', None)
-
-                # 添加元数据
-                debug_info['_metadata'] = {
-                    'last_updated': __import__('time').strftime('%Y-%m-%d %H:%M:%S'),
-                    'updated_by': 'gui-launcher',
-                    'version': '1.0'
-                }
-
-                debug_info_path.write_text(__import__('json').dumps(debug_info, ensure_ascii=False, indent=2) + "\n", encoding='utf-8')
-                self._log(f"[TRACE:HOSTED] debug-info.json 同步 outline 标志 → {('1' if bool(self.h_enable_outline.isChecked()) else '0')}")
-            except Exception as _e:
-                self._log(f"[WARN] 同步 outline 标志到 debug-info.json 失败: {_e}")
+                self._log("[TRACE:HOSTED] 跳过 debug-info.json 同步（Outline 开关已停用，统一强制 Outline）")
+            except Exception:
+                pass
             try:
                 self._log(f"[TRACE:HOSTED] pdf-home cfg → ports(vite={cfg.ports.vite_port}, ws={cfg.ports.msgCenter_port}, http={cfg.ports.pdfFile_port}) options(frontend_prod={cfg.options.frontend_prod}, runtime_mode={cfg.options.runtime_mode})")
             except Exception:
@@ -1446,7 +1430,7 @@ class GUILauncher(QMainWindow):
             _anchor_id = (self.h_pdfanchor_id.text().strip() or None)
             _annotation_id = (self.h_pdfannotation_id.text().strip() or None)
             _outline_item = (self.h_pdfoutline_item_id.text().strip() or None)
-            _enable_outline = bool(self.h_enable_outline.isChecked())
+            _enable_outline = False  # 统一强制 Outline，UI 开关停用
             try:
                 self._log(f"[TRACE:HOSTED] pdf-viewer args → pdf_id={_pdf_id} page_at={_page_at} position={_position} anchor_id={_anchor_id} annotation_id={_annotation_id} outline_item_id={_outline_item} outline_flag={_enable_outline}")
             except Exception:
@@ -1644,7 +1628,7 @@ class GUILauncher(QMainWindow):
         ui_http = int(self.pdfFile_port_input.value() or 0) or 8080
         is_prod = bool(self.frontend_prod_checkbox.isChecked())
         # 读取 Outline 开关状态（供 CLI 模式透传）
-        enable_outline = bool(self.h_enable_outline.isChecked())
+        enable_outline = False  # 统一强制 Outline，UI 开关停用
         try:
             rp = self._runtime_ports() or {}
             self._log(f"[TRACE:UI] start pdf-home → is_prod={is_prod} ui(vite={ui_vite}, ws={ui_ws}, http={ui_http}) outline={enable_outline} runtime={rp}")

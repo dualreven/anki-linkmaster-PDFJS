@@ -149,9 +149,10 @@ export class AddFilesFeature {
       const request_id = this.#genReqId();
       const payload = {
         type: WEBSOCKET_MESSAGE_TYPES.ADD_PDF,
+        timestamp: Date.now(),
         request_id,
+        metadata: { version: '1.0.0' },
         data: {
-          name,
           filepath: filePath
         }
       };

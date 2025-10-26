@@ -1,4 +1,4 @@
-﻿{
+{
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "docs/contracts/pdf-library/v1/messages/search.request.schema.json",
   "title": "pdf-library:search:requested",

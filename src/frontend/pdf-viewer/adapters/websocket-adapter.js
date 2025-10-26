@@ -116,7 +116,7 @@ export class WebSocketAdapter {
                   const params = new URLSearchParams(window.location.search);
                   const pdfId = params.get("pdf-id");
                   if (pdfId) {
-                    this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId });
+                    this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
                   }
                 } catch(e){ this.#logger.warn("noop", e); }
               } else {
@@ -125,7 +125,7 @@ export class WebSocketAdapter {
                   const params = new URLSearchParams(window.location.search);
                   const pdfId = params.get("pdf-id");
                   if (pdfId) {
-                    this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId });
+                    this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
                   }
                 } catch(e){ this.#logger.warn("noop", e); }
               }
@@ -162,6 +162,7 @@ export class WebSocketAdapter {
           const pdfId = (() => { try { return new URLSearchParams(window.location.search).get("pdf-id"); } catch { return null; } })();
           this.#wsClient.send({
             type: WEBSOCKET_MESSAGE_TYPES.VIEWER_REGISTER_REQUESTED,
+            metadata: { version: "1.0.0" },
             data: {
               viewer_id: this.#viewerInstanceId,
               pdf_uuid: pdfId,
@@ -199,6 +200,7 @@ export class WebSocketAdapter {
             this.#wsClient.send({
               type: WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_REQUESTED,
               request_id: reqId,
+              metadata: { version: "1.0.0" },
               data: {
                 file_id: pdfId,
                 updates: {
@@ -227,6 +229,7 @@ export class WebSocketAdapter {
         this.#logger.debug("Page changed, sending notification to backend", data);
         this.#wsClient.send({
           type: "page_changed",
+          metadata: { version: "1.0.0" },
           data: {
             page_number: data.pageNumber,
             total_pages: data.totalPages
@@ -245,6 +248,7 @@ export class WebSocketAdapter {
         this.#logger.debug("Zoom changed, sending notification to backend", data);
         this.#wsClient.send({
           type: "zoom_changed",
+          metadata: { version: "1.0.0" },
           data: {
             level: data.level,
             scale: data.scale
@@ -269,9 +273,9 @@ export class WebSocketAdapter {
           const anchorId = data?.anchorId || null;
           const pdfId = data?.pdf_uuid || getPdfId();
           if (anchorId) {
-            this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_GET, { anchor_id: anchorId, pdf_uuid: pdfId });
+            this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_GET, { anchor_id: anchorId, pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
           } else if (pdfId) {
-            this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId });
+            this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
           }
         } catch (e) { this.#logger.warn("ANCHOR.DATA.LOAD bridge failed", e); }
       },
@@ -289,7 +293,7 @@ export class WebSocketAdapter {
           if (typeof anchor.position === "number") {
             anchor = { ...anchor, position: (anchor.position > 1 ? (anchor.position / 100) : anchor.position) };
           }
-          this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_CREATE, { pdf_uuid: pdfId, anchor });
+          this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_CREATE, { pdf_uuid: pdfId, anchor }, { metadata: { version: "1.0.0" } });
         } catch(e){ this.#logger.warn("noop", e); }
       },
       { subscriberId: "WebSocketAdapter" }
@@ -306,7 +310,7 @@ export class WebSocketAdapter {
           if (typeof update.position === "number") {
             update = { ...update, position: (update.position > 1 ? (update.position / 100) : update.position) };
           }
-          this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_UPDATE, { anchor_id: id, update });
+          this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_UPDATE, { anchor_id: id, update }, { metadata: { version: "1.0.0" } });
         } catch(e){ this.#logger.warn("noop", e); }
       },
       { subscriberId: "WebSocketAdapter" }
@@ -316,7 +320,7 @@ export class WebSocketAdapter {
       PDF_VIEWER_EVENTS.ANCHOR.DELETE,
       (data) => {
         const id = data?.anchorId || data?.uuid; if (!id) {return;}
-        try { this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_DELETE, { anchor_id: id }); } catch(e){ this.#logger.warn("noop", e); }
+        try { this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_DELETE, { anchor_id: id }, { metadata: { version: "1.0.0" } }); } catch(e){ this.#logger.warn("noop", e); }
       },
       { subscriberId: "WebSocketAdapter" }
     );
@@ -326,7 +330,7 @@ export class WebSocketAdapter {
       (data) => {
         const id = data?.anchorId || data?.uuid; if (!id) {return;}
         const active = !!data?.active;
-        try { this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_ACTIVATE, { anchor_id: id, active }); } catch(e){ this.#logger.warn("noop", e); }
+        try { this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_ACTIVATE, { anchor_id: id, active }, { metadata: { version: "1.0.0" } }); } catch(e){ this.#logger.warn("noop", e); }
       },
       { subscriberId: "WebSocketAdapter" }
     );

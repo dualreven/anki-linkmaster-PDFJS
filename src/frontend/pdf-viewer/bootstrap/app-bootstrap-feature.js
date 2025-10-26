@@ -4,10 +4,10 @@
  * @description 使用插件化架构启动PDF查看器应用
  */
 
-import { getLogger } from "../../common/utils/logger.js";
+import { getLogger, setModuleLogLevel, LogLevel } from "../../common/utils/logger.js";
 import { FeatureRegistry } from "../../common/micro-service/feature-registry.js";
 import { SimpleDependencyContainer } from "../container/simple-dependency-container.js";
-import eventBusSingleton, { getEventBus } from "../../common/event/event-bus.js";
+import eventBusSingleton from "../../common/event/event-bus.js";
 
 // 导入 Features
 import { AppCoreFeature } from "../features/app-core/index.js";
@@ -20,8 +20,7 @@ import { AnnotationFeature } from "../features/annotation/index.js";
 import { SidebarManagerFeature } from "../features/sidebar-manager/index.js";
 import { PDFTranslatorFeature } from "../features/pdf-translator/index.js";
 import { TextSelectionQuickActionsFeature } from "../features/text-selection-quick-actions/index.js";
-import { PDFBookmarkFeature } from "../features/pdf-bookmark/index.js";
-import { isOutlineEnabled, readBoolFromUrl } from "../../common/utils/feature-flags.js";
+import { PDFOutlineFeature } from "../features/pdf-outline/index.js";
 import { PDFCardFeature } from "../features/pdf-card/index.js";
 import { AiAssistantFeature } from "../features/ai-assistant/index.js";
 import { PDFAnchorFeature } from "../features/pdf-anchor/index.js";
@@ -94,6 +93,12 @@ export async function bootstrapPDFViewerAppFeature() {
       logger
     });
 
+    // 打开 Outline 相关模块的“模块级日志过滤”并设为较详细级别，便于问题排查
+    try {
+      setModuleLogLevel('Feature.pdf-outline', LogLevel.ERROR);
+      setModuleLogLevel('OutlineSidebarUI', LogLevel.ERROR);
+    } catch (_) {}
+
     // 4. 注册核心 Features
     registry.register(new AppCoreFeature());
     registry.register(new PDFManagerFeature());
@@ -102,47 +107,12 @@ export async function bootstrapPDFViewerAppFeature() {
     registry.register(new SearchFeature());  // 注册搜索功能
     registry.register(new URLNavigationFeature());
 
-    // 4.1 Debug 开关：若 URL 有 debug=1 且未显式指定 outline，则通过 WS 请求 debug-info 决定是否启用 Outline
-    let overrideOutline = false;
+    // 4.1 强制 Outline：关闭切换逻辑与回退路径，始终注册 pdf-outline
     try {
-      const hasDebugParam = readBoolFromUrl(['debug']);
-      const hasOutlineParam = readBoolFromUrl(['outline','feature_outline']);
-      if (hasDebugParam && !hasOutlineParam) {
-        const { default: WSClient } = await import("../../common/ws/ws-client.js");
-        const { WEBSOCKET_MESSAGE_TYPES } = await import("../../common/event/event-constants.js");
-        // 使用隔离的临时 EventBus，避免与主 WSClient 的订阅冲突
-        const tempBus = getEventBus("debug-preflight", { enableValidation: false });
-        const tmpClient = new WSClient(wsUrl, tempBus);
-        await tmpClient.connect();
-        try {
-          const resp = await tmpClient.request(WEBSOCKET_MESSAGE_TYPES.DEBUG_INFO_READ, {}, { timeout: 1000 });
-          const flags = (resp && (resp.flags || resp)) || {};
-          overrideOutline = !!(flags.outline === 1 || String(flags.outline).toLowerCase() === 'true');
-          logger.info(`[Bootstrap] Debug flags loaded via WS: outline=${overrideOutline}`);
-        } catch (e) {
-          logger.warn("[Bootstrap] Debug flags WS request failed (non-fatal)", e);
-        }
-        try { tmpClient.disconnect(); } catch { /* ignore */ }
-      }
+      registry.register(new PDFOutlineFeature());
+      logger.warn("[Bootstrap] Outline feature enforced; pdf-outline registered (bookmark disabled)");
     } catch (e) {
-      logger.warn("[Bootstrap] Debug preflight failed (non-fatal)", e);
-    }
-
-    // 按开关（URL/localStorage 或 debug 覆盖）选择性注册 Bookmark 或 Outline（默认 Bookmark）
-    try {
-      const useOutline = isOutlineEnabled() || overrideOutline;
-      if (useOutline) {
-        const { PDFOutlineFeature } = await import("../features/pdf-outline/index.js");
-        registry.register(new PDFOutlineFeature());
-        logger.warn("[Bootstrap] Outline feature enabled by flag; pdf-outline registered");
-      } else {
-        registry.register(new PDFBookmarkFeature());
-        logger.info("[Bootstrap] Bookmark feature registered (default)");
-      }
-    } catch (e) {
-      // 任何异常都回退到 Bookmark，保障稳定
-      logger.warn("[Bootstrap] Failed to load pdf-outline, falling back to pdf-bookmark", e);
-      registry.register(new PDFBookmarkFeature());
+      logger.error("[Bootstrap] Failed to register pdf-outline (enforced). Viewer may be degraded.", e);
     }
     registry.register(new PDFAnchorFeature());    // 锚点功能（复制/激活/URL集成），在sidebar-manager之前
     registry.register(new AnnotationFeature());
@@ -249,18 +219,10 @@ export async function bootstrapPDFViewerAppFeature() {
 
     logger.info("[Bootstrap] PDF Viewer App started successfully");
 
-    // 如果启用了 Outline（debug 覆盖 / localStorage），提示一次
+    // 提示：当前为 Outline 模式（固定）
     try {
-      const finalUseOutline = (isOutlineEnabled() || overrideOutline);
-      if (finalUseOutline) {
-        if (overrideOutline) {
-          toastInfo("当前为 debug 模式, json参数 outline=1", 3000);
-          logger.warn("[Bootstrap] Debug mode active via WS flags (toast shown: outline=1)");
-        } else {
-          toastInfo("当前为 Outline 模式", 3000);
-          logger.warn("[Bootstrap] Outline mode is active (toast shown)");
-        }
-      }
+      toastInfo("当前为 Outline 模式", 3000);
+      logger.warn("[Bootstrap] Outline mode is active (enforced)");
     } catch (_) {}
     return registry;
 

@@ -1,0 +1,39 @@
+ * - AnnotationSidebarUI管理侧边栏UI和标注列表
+ * - 各工具作为独立插件实现IAnnotationTool接口
+ */
+import { AnnotationSidebarUI } from "./components/annotation-sidebar-ui.js";
+import { ToolRegistry } from "./core/tool-registry.js";
+import { AnnotationManager } from "./core/annotation-manager.js";
+  /** @type {AnnotationSidebarUI} */
+  #sidebarUI;
+
+    this.#sidebarUI = new AnnotationSidebarUI(this.#eventBus, {
+      container: mainContainer
+    });
+    this.#logger.debug("[AnnotationFeature] AnnotationSidebarUI initialized");
+
+    // 4. 【关键修复】使用 registerGlobal() 注册服务到根容器
+      container.registerGlobal("annotationSidebarUI", this.#sidebarUI);
+      container.registerGlobal("toolRegistry", this.#toolRegistry);
+      container.registerGlobal("annotationManager", this.#annotationManager);
+      const testGet = container.get("annotationSidebarUI");
+      this.#logger.debug(`[AnnotationFeature] Verification: annotationSidebarUI retrievable = ${!!testGet}`);
+    } else {
+      this.#logger.debug(`[AnnotationFeature] Verification: annotationSidebarUI retrievable = ${!!testGet}`);
+    } else {
+      this.#logger.error("[AnnotationFeature] Container is null! Cannot register services");
+      this.#setupAutoLoadOnFileLoad();
+    } catch (e) {
+      this.#logger.warn("[AnnotationFeature] setup auto-load failed", e);
+    // 注意：标注CRUD事件的UI更新已由AnnotationSidebarUI自己监听处理
+    // 这里不需要重复监听，避免重复添加/删除卡片
+
+    // 标注卡片的添加/删除由AnnotationSidebarUI负责监听和处理
+    // 参考：annotation-sidebar-ui.js:322-338
+
+      this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, () => {
+        this.#hasLoadedOnce = true;
+      }, { subscriberId: "AnnotationFeature" });
+  #setupAutoLoadOnFileLoad() {
+    if (!this.#eventBus) {return;}
+    this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, (data) => {

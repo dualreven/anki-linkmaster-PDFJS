@@ -44,10 +44,16 @@ export interface TextRange {
  * 截图标注数据
  */
 export interface ScreenshotAnnotationData {
-  /** 截图区域 */
-  rect: Rect;
-  /** base64图片数据 */
-  imageData: string;
+  /** 截图区域（百分比） */
+  rectPercent: { xPercent: number; yPercent: number; widthPercent: number; heightPercent: number };
+  /** 图片文件路径 */
+  imagePath: string;
+  /** 图片MD5 */
+  imageHash: string;
+  /** base64图片数据（可选） */
+  imageData?: string;
+  /** 标记颜色（可选） */
+  markerColor?: string;
   /** 描述文字 */
   description?: string;
 }
@@ -163,9 +169,10 @@ export class Annotation implements IAnnotation {
   // 静态工厂方法
   static createScreenshot(
     pageNumber: number,
-    rect: Rect,
-    imageData: string,
-    description?: string
+    rectPercent: { xPercent: number; yPercent: number; widthPercent: number; heightPercent: number },
+    imagePath: string,
+    imageHash: string,
+    description?: string,
   ): Annotation;
 
   static createTextHighlight(

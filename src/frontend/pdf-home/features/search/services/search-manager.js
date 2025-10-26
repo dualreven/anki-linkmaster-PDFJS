@@ -256,6 +256,7 @@ export class SearchManager {
     const payload = {
       type: WEBSOCKET_MESSAGE_TYPES.SEARCH_PDF,
       request_id: requestId,
+      metadata: { version: '1.0.0' },
       data: {
         query: searchText || '',
         tokens

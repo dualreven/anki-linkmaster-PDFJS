@@ -9,6 +9,48 @@ import { getLogger } from '../../../../common/utils/logger.js';
 import { createDefaultBookmarkStorage } from './bookmark-storage.js';
 
 /**
+ * 归一化可能来自旧版/后端的书签节点JSON（仅做字段映射与基本容错，不做深度修复）
+ * 目标：返回仅包含新字段的扁平节点数据，供 Bookmark.fromJSON 使用
+ * @param {any} b
+ * @returns {{id:string,name:string,pageAt:number|null,position:number|null,parentId:string|null,order:number|null,createdAt?:string,updatedAt?:string,children?:Array}}
+ */
+function normalizeNodeJson(b) {
+  const safe = (v) => (v === undefined || v === null) ? null : v;
+  const pickId = () => {
+    const raw = (b && (b.id || b.bookmark_id)) || null;
+    if (typeof raw === 'string' && raw.trim()) return raw.trim();
+    // 兜底：生成一次性ID（非持久一致，但可用于即时重建树展示）
+    return `outlineItem-${Math.random().toString(36).slice(2, 10)}`;
+  };
+  const toInt = (x) => {
+    if (typeof x === 'number' && Number.isFinite(x)) return Math.trunc(x);
+    if (typeof x === 'string' && /^[0-9]+$/.test(x)) return parseInt(x, 10);
+    return NaN;
+  };
+  const clampPos = (p) => {
+    if (typeof p === 'number' && Number.isFinite(p)) return Math.max(0, Math.min(100, Math.round(p)));
+    if (typeof p === 'string' && /^[0-9]+(\.[0-9]+)?$/.test(p)) return Math.max(0, Math.min(100, Math.round(parseFloat(p))));
+    return null;
+  };
+
+  // 字段映射
+  const id = pickId();
+  const name = safe(b?.name) || safe(b?.title) || '未命名大纲';
+  const pageAtRaw = b?.pageAt ?? b?.page_at ?? b?.pageNumber ?? null;
+  const pageAtNum = toInt(pageAtRaw);
+  const pageAt = (Number.isInteger(pageAtNum) && pageAtNum > 0) ? pageAtNum : null;
+  const position = clampPos(b?.position);
+  const parentId = safe(b?.parentId) || safe(b?.parent_id) || null;
+  const orderNum = toInt(b?.order ?? b?.index);
+  const order = Number.isFinite(orderNum) ? orderNum : null;
+  const children = Array.isArray(b?.children) ? b.children : (Array.isArray(b?.items) ? b.items : []);
+  const createdAt = (typeof b?.createdAt === 'string') ? b.createdAt : undefined;
+  const updatedAt = (typeof b?.updatedAt === 'string') ? b.updatedAt : undefined;
+
+  return { id, name, pageAt, position, parentId, order, createdAt, updatedAt, children };
+}
+
+/**
  * BookmarkManager 书签管理类
  * @class BookmarkManager
  */

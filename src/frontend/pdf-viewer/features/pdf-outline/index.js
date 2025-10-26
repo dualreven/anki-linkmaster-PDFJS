@@ -106,12 +106,20 @@ export class PDFOutlineFeature {
   async #tryInitialLoad() {
     try {
       const pdfDocument = getCurrentPDFDocument();
-      if (pdfDocument) {
-        await this.#bookmarkManager.loadFromStorage();
-        this.#refreshList();
-      } else {
-        this.#refreshList();
-      }
+      // 先尝试读取存储
+      await this.#bookmarkManager.loadFromStorage();
+      try { this.#logger.info(`[Outline] 存储加载完成: ${(this.#bookmarkManager.getAllBookmarks()||[]).length} 条`, { toast: true }); } catch {}
+      // 若当前无大纲且已拿到 pdfDocument，则尝试从 PDF 原生大纲导入
+      try {
+        const hasAny = (this.#bookmarkManager.getAllBookmarks() || []).length > 0;
+        if (!hasAny && pdfDocument) {
+          try { this.#logger.info("[Outline] 尝试从PDF导入原生大纲…", { toast: true }); } catch {}
+          await this.#importNativeBookmarksIfEmpty(pdfDocument);
+        }
+      } catch { /* ignore auto-import errors to keep viewer usable */ }
+      // 最终刷新一次列表（无论是否导入）
+      this.#refreshList();
+      try { this.#logger.info(`[Outline] 列表已刷新: ${(this.#bookmarkManager.getAllBookmarks()||[]).length} 条`, { toast: true }); } catch {}
     } catch (e) {
       this.#logger.warn("initial load failed", e);
       this.#refreshList();
@@ -125,36 +133,19 @@ export class PDFOutlineFeature {
       async (data) => {
         // 1) 先从存储加载，避免空白
         try { await this.#bookmarkManager.loadFromStorage(); } catch { /* ignore */ }
-        this.#refreshList();
-        // 2) 尝试从 PDF 原生大纲导入
+        try { this.#logger.info(`[Outline] FILE.LOAD.SUCCESS → 存储加载完成: ${(this.#bookmarkManager.getAllBookmarks()||[]).length} 条`, { toast: true }); } catch {}
+        // 2) 若存储为空，执行一次“原生大纲导入”
         try {
+          const hasAny = (this.#bookmarkManager.getAllBookmarks() || []).length > 0;
           const pdfDocument = data?.pdfDocument || getCurrentPDFDocument();
-          if (pdfDocument && this.#bookmarkDataProvider) {
-            const native = await this.#bookmarkDataProvider.getBookmarks(pdfDocument);
-            if (Array.isArray(native) && native.length > 0) {
-              const parseDestFunc = async (nativeBookmark) => {
-                try {
-                  const parsed = await this.#bookmarkDataProvider.parseDestination(nativeBookmark?.dest);
-                  const pageAt = parsed?.pageNumber || null;
-                  let position = null;
-                  if (pageAt && parsed?.type === 'XYZ' && typeof parsed?.y === 'number') {
-                    const { yToPositionPercent } = await import('../../pdf/pdf-dest-utils.js');
-                    position = await yToPositionPercent(pdfDocument, pageAt, parsed.y);
-                  }
-                  return { pageAt, position };
-                } catch (_) {
-                  return { pageAt: null, position: null };
-                }
-              };
-              const result = await this.#bookmarkManager.importNativeBookmarks(native, parseDestFunc);
-              if (result?.success) {
-                this.#refreshList();
-              }
-            }
+          if (!hasAny && pdfDocument) {
+            try { this.#logger.info("[Outline] FILE.LOAD.SUCCESS → 自动导入原生大纲…", { toast: true }); } catch {}
+            await this.#importNativeBookmarksIfEmpty(pdfDocument);
           }
-        } catch (e) {
-          this.#logger.warn('Import native bookmarks failed (non-fatal)', e);
-        }
+        } catch { /* ignore auto-import errors */ }
+        // 3) 刷新列表
+        this.#refreshList();
+        try { this.#logger.info(`[Outline] FILE.LOAD.SUCCESS → 列表已刷新: ${(this.#bookmarkManager.getAllBookmarks()||[]).length} 条`, { toast: true }); } catch {}
       },
       { subscriberId: "PDFOutlineFeature" }
     ));
@@ -211,6 +202,92 @@ export class PDFOutlineFeature {
       () => { try { this.#refreshList(); } catch { /* ignore */ } },
       { subscriberId: "PDFOutlineFeature" }
     ));
+  }
+
+  /**
+   * 当存储为空时，从 PDF 原生大纲导入并持久化
+   * @param {any} pdfDocument - PDF.js 文档对象
+   * @returns {Promise<void>}
+   * @private
+   */
+  async #importNativeBookmarksIfEmpty(pdfDocument) {
+    try {
+      const current = this.#bookmarkManager.getAllBookmarks() || [];
+      if (current.length > 0) {
+        return; // 已有大纲，跳过导入
+      }
+      // 提取 PDF 原生大纲
+      const nativeBookmarks = await this.#bookmarkDataProvider.getBookmarks(pdfDocument);
+      if (!Array.isArray(nativeBookmarks) || nativeBookmarks.length === 0) {
+        this.#logger.info("[Outline] No native PDF outlines found; skip import");
+        return;
+      }
+      // 导入并标准化 dest → { pageAt, position }
+      const result = await this.#bookmarkManager.importNativeBookmarks(
+        nativeBookmarks,
+        (native) => this.#parseBookmarkNormalizedDest(native, pdfDocument)
+      );
+      if (result?.success) {
+        this.#logger.info(`[Outline] Imported ${result.count} native outlines; reloading from storage...`);
+        try { await this.#bookmarkManager.loadFromStorage(); } catch { /* ignore */ }
+      } else {
+        this.#logger.warn(`[Outline] Import native outlines failed: ${result?.error || "unknown"}`);
+      }
+    } catch (e) {
+      this.#logger.warn("[Outline] Auto-import native outlines failed", e);
+    }
+  }
+
+  /**
+   * 解析原生书签目的地为统一的 { pageAt, position }
+   * 与 BookmarkFeature 中的解析逻辑保持一致（严格字段与容错策略）。
+   * @param {Object} nativeBookmark - 来自 BookmarkDataProvider 的原生书签节点
+   * @param {any} pdfDocumentArg - 可选的 PDF.js 文档对象
+   * @returns {Promise<{pageAt:number|null, position:number|null}>}
+   * @private
+   */
+  async #parseBookmarkNormalizedDest(nativeBookmark, pdfDocumentArg = null) {
+    try {
+      const dest = nativeBookmark?.dest;
+      if (dest === null || dest === undefined) {
+        this.#logger.info("[Outline][IMPORT] dest missing; skip", { title: nativeBookmark?.title });
+        return { pageAt: null, position: null };
+      }
+      // 优先使用从事件传入的 pdfDocument，避免并发导致解析失败
+      const pdfDocument = pdfDocumentArg || getCurrentPDFDocument();
+      if (!pdfDocument) {
+        this.#logger.info("[Outline][IMPORT] pdfDocument missing during parse; skip", { title: nativeBookmark?.title });
+        return { pageAt: null, position: null };
+      }
+      // 优先通过 BookmarkDataProvider（已持有同一 pdfDocument）解析
+      try {
+        if (this.#bookmarkDataProvider && typeof this.#bookmarkDataProvider.parseDestination === "function") {
+          const parsed = await this.#bookmarkDataProvider.parseDestination(dest);
+          const pageAt = parsed?.pageNumber || null;
+          let position = null;
+          if (pageAt && parsed?.type === "XYZ" && typeof parsed?.y === "number") {
+            const { yToPositionPercent } = await import("../../pdf/pdf-dest-utils.js");
+            position = await yToPositionPercent(pdfDocument, pageAt, parsed.y);
+          }
+          try { this.#logger.info(`[Outline][IMPORT] parsed via provider ${JSON.stringify({ title: nativeBookmark?.title, type: parsed?.type ?? null, pageAt, position })}`); } catch {}
+          return { pageAt, position };
+        }
+      } catch (e) {
+        try { this.#logger.info(`[Outline][IMPORT] provider.parseDestination failed; fallback`, { title: nativeBookmark?.title, err: e?.message }); } catch {}
+      }
+      const { resolvePdfDest, yToPositionPercent } = await import("../../pdf/pdf-dest-utils.js");
+      const resolved = await resolvePdfDest(pdfDocument, dest);
+      const pageAt = resolved?.pageNumber || null;
+      let position = null;
+      if (pageAt && resolved?.type === "XYZ" && typeof resolved?.y === "number") {
+        position = await yToPositionPercent(pdfDocument, pageAt, resolved.y);
+      }
+      try { this.#logger.info(`[Outline][IMPORT] parsed via resolvePdfDest ${JSON.stringify({ title: nativeBookmark?.title, type: resolved?.type ?? null, pageAt, position })}`); } catch {}
+      return { pageAt, position };
+    } catch (e) {
+      try { this.#logger.warn(`[Outline][IMPORT] parse normalized dest failed ${JSON.stringify({ title: nativeBookmark?.title, error: e?.message })}`); } catch {}
+      return { pageAt: null, position: null };
+    }
   }
 
   #refreshList() {

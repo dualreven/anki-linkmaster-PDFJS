@@ -72,7 +72,7 @@ export class PDFManagerCore {
     this.#logger.info("Requesting PDF list from server.");
     this.#eventBus.emit(
       WEBSOCKET_EVENTS.MESSAGE.SEND,
-      { type: WEBSOCKET_MESSAGE_TYPES.GET_PDF_LIST },
+      { type: WEBSOCKET_MESSAGE_TYPES.GET_PDF_LIST, request_id: this.generateRequestId(), metadata: { version: "1.0.0" }, data: {} },
       { actorId: "PDFManager" }
     );
   }
@@ -91,6 +91,7 @@ export class PDFManagerCore {
       {
         type: WEBSOCKET_MESSAGE_TYPES.REQUEST_FILE_SELECTION,
         request_id: this.generateRequestId(),
+        metadata: { version: "1.0.0" },
         data: { prompt: "请选择要添加的PDF文件" },
       },
       { actorId: "PDFManager" }
@@ -121,6 +122,8 @@ export class PDFManagerCore {
       WEBSOCKET_EVENTS.MESSAGE.SEND,
       {
         type: WEBSOCKET_MESSAGE_TYPES.REMOVE_PDF,
+        request_id: this.generateRequestId(),
+        metadata: { version: "1.0.0" },
         data,
       },
       { actorId: "PDFManager" }
@@ -226,7 +229,7 @@ export class PDFManagerCore {
     // 发送 WebSocket 消息
     this.#eventBus.emit(
       WEBSOCKET_EVENTS.MESSAGE.SEND,
-      { type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF, data },
+      { type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF, request_id: this.generateRequestId(), metadata: { version: "1.0.0" }, data },
       { actorId: "PDFManager" }
     );
   }

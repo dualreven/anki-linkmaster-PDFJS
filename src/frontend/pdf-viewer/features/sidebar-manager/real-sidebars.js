@@ -39,9 +39,8 @@ export async function registerRealSidebars(sidebarManager, eventBus, container) 
 
     // 1. 大纲侧边栏（按开关选择 UI 实现：OutlineSidebarUI 或 BookmarkSidebarUI）
     let bookmarkUI = null;
-    const useOutline = (() => {
-        try { return isOutlineEnabled(); } catch { return false; }
-    })();
+    // 强制使用 OutlineSidebarUI（与 bootstrap 一致，废止 BookmarkSidebarUI）
+    const useOutline = true;
 
     if (useOutline) {
         try {
@@ -57,9 +56,10 @@ export async function registerRealSidebars(sidebarManager, eventBus, container) 
             logger.warn('Failed to load OutlineSidebarUI, fallback to BookmarkSidebarUI', e);
         }
     }
+    // BookmarkSidebarUI 已废止；若 Outline 加载失败，仍回退到 BookmarkSidebarUI 以避免完全空白
     if (!bookmarkUI) {
         bookmarkUI = new BookmarkSidebarUI(eventBus);
-        logger.info('Using BookmarkSidebarUI (default)');
+        logger.warn('OutlineSidebarUI load failed; fallback to BookmarkSidebarUI (temporary)');
     }
     bookmarkUI.initialize();
 

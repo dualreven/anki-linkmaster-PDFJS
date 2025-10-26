@@ -12,6 +12,7 @@
     "build:all": "pnpm run build:pdf-home && pnpm run build:pdf-viewer",
     "preview": "vite preview",
     "test": "jest",
+    "test:smoke": "jest --testPathPattern=__smoke__ -i",
     "test:watch": "jest --watch",
     "benchmark": "node AItemp/performance-benchmark.js",
     "check:deps": "depcruise --config src/frontend/pdf-viewer/.dependency-cruiser.js src/frontend/pdf-viewer",

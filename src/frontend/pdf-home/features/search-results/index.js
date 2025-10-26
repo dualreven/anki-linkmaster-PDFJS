@@ -221,7 +221,7 @@ export class SearchResultsFeature {
           this.#logger.info("[SearchResultsFeature] 发起阅读（批量，WS）", { count: selectedIds.length, withMeta: items.length });
           for (const id of selectedIds.map(String)) {
             const rid = `open-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-            const msg = { type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF, request_id: rid, data: { pdf_id: id } };
+            const msg = { type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF, request_id: rid, metadata: { version: '1.0.0' }, data: { pdf_id: id } };
             this.#scopedEventBus?.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, msg);
           }
         } catch (e) {
@@ -490,7 +490,7 @@ export class SearchResultsFeature {
 
         this.#logger.info("[SearchResultsFeature] [步骤10] 通过 WebSocket 请求打开viewer", { pdfId });
         const rid = `open-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-        const msg = { type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF, request_id: rid, data: { pdf_id: String(pdfId) } };
+        const msg = { type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF, request_id: rid, metadata: { version: '1.0.0' }, data: { pdf_id: String(pdfId) } };
         this.#scopedEventBus?.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, msg);
         this.#logger.info("[SearchResultsFeature] [步骤11] WS 消息已发送");
         // 最终成功阶段的 toast 由 QWebChannelBridge 显示
@@ -550,7 +550,7 @@ export class SearchResultsFeature {
       }, { subscriberId: `${this.name}:fetch-detail:${rid}` });
 
       // 发送请求
-      const payload = { type: WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST, request_id: rid, data: { pdf_id: pdfId } };
+      const payload = { type: WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST, request_id: rid, metadata: { version: '1.0.0' }, data: { pdf_id: pdfId } };
       this.#scopedEventBus?.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, payload);
 
       // 超时兜底

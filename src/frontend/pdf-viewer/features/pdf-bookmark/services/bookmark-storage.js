@@ -128,7 +128,7 @@ export class RemoteBookmarkStorage extends IBookmarkStorage {
       const response = await this.#wsClient.request(
         WEBSOCKET_MESSAGE_TYPES.BOOKMARK_LIST,
         { pdf_uuid: pdfId },
-        { timeout: 12000 }
+        { timeout: 12000, metadata: { version: '1.0.0' } }
       );
 
       const normalized = {
@@ -158,7 +158,7 @@ export class RemoteBookmarkStorage extends IBookmarkStorage {
         await this.#wsClient.request(
           WEBSOCKET_MESSAGE_TYPES.BOOKMARK_SAVE,
           payload,
-          { timeout: 7000 }
+          { timeout: 7000, metadata: { version: '1.0.0' } }
         );
       } catch (error) {
         this.#logger.error('Failed to persist bookmarks remotely, falling back to local cache:', error);
@@ -176,7 +176,7 @@ export class RemoteBookmarkStorage extends IBookmarkStorage {
         await this.#wsClient.request(
           WEBSOCKET_MESSAGE_TYPES.BOOKMARK_SAVE,
           { pdf_uuid: pdfId, bookmarks: [], root_ids: [] },
-          { timeout: 5000 }
+          { timeout: 5000, metadata: { version: '1.0.0' } }
         );
       } catch (error) {
         this.#logger.warn('Failed to clear remote bookmarks, delegating to fallback:', error);

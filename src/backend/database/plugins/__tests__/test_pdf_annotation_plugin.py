@@ -129,14 +129,14 @@ def test_validate_screenshot_data_success(plugin, pdf_uuid):
     sample = _make_sample('screenshot', pdf_uuid)
     validated = plugin.validate_data(sample)
     assert validated['type'] == 'screenshot'
-    assert validated['json_data']['data']['rect']['width'] > 0
+    assert validated['json_data']['data']['rectPercent']['widthPercent'] > 0
 
 
-def test_validate_screenshot_missing_rect(plugin, pdf_uuid):
+def test_validate_screenshot_missing_rectPercent(plugin, pdf_uuid):
     sample = _make_sample('screenshot', pdf_uuid)
-    del sample['json_data']['data']['rect']
+    del sample['json_data']['data']['rectPercent']
 
-    with pytest.raises(DatabaseValidationError, match='rect is required'):
+    with pytest.raises(DatabaseValidationError, match='rectPercent is required'):
         plugin.validate_data(sample)
 
 

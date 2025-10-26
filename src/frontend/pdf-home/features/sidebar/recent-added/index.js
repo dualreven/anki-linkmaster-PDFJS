@@ -187,6 +187,7 @@ export class RecentAddedFeature {
     const payload = {
       type: WEBSOCKET_MESSAGE_TYPES.SEARCH_PDF,
       request_id: reqId,
+      metadata: { version: '1.0.0' },
       data: {
         query: '',
         tokens: [],

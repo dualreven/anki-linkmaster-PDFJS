@@ -187,6 +187,7 @@ export class WSClient {
     const message = {
       ...messageInput,  // 保留所有原始字段
       timestamp: messageInput.timestamp || Date.now()  // 添加时间戳（如果没有）
+      // 注意：根据项目决策，WSClient 不再自动补齐 metadata，需在业务侧显式提供
     };
 
     if (this.isConnected()) {
@@ -564,6 +565,7 @@ export class WSClient {
       type: WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST,
       request_id: requestId,
       timestamp: Date.now(),
+      metadata: { version: "1.0.0" },
       data: {
         pdf_id: pdfId
       }
@@ -577,14 +579,15 @@ export class WSClient {
       this.#logger.error("❌ WS 请求被拒绝（未注册类型）", { messageType });
       throw err;
     }
-    const { timeout = 5000, maxRetries = 0 } = options;
+    const { timeout = 5000, maxRetries = 0, metadata = undefined } = options;
     const requestId = this._generateRequestId();
     const message = {
       type: messageType,
       request_id: requestId,
       timestamp: Date.now(),
-      data: payload,
+      data: payload
     };
+    if (metadata) { message.metadata = metadata; }
 
     return new Promise((resolve, reject) => {
       let retryCount = 0;

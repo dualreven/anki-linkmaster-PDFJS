@@ -295,6 +295,15 @@ export class EventBus {
   /** @type {boolean} 是否启用消息追踪 */
   #enableTracing = false;
 
+  // ========== 事件负载（payload）契约校验（可选） ==========
+  /** @type {boolean} 是否启用负载校验 */
+  #payloadValidationEnabled = false;
+  /**
+   * @type {(event:string, data:any)=>({valid:boolean, errors?:any})|null}
+   * 负载校验函数（返回 { valid:false, errors } 时阻止发布）
+   */
+  #payloadValidateFn = null;
+
   /**
    * 创建事件总线实例
    * @param {Object} [options={}] - 配置选项
@@ -620,6 +629,27 @@ export class EventBus {
       return;
     }
 
+    // 事件负载契约校验（仅对全局事件启用；局部事件以 @ 开头的跳过）
+    if (!event?.startsWith('@') && this.#payloadValidationEnabled && typeof this.#payloadValidateFn === "function") {
+      try {
+        const result = this.#payloadValidateFn(event, data);
+        if (result && result.valid === false) {
+          const errMsg = [
+            "❌ 事件负载契约校验失败，已阻止发布",
+            `事件: ${event}`,
+            this.#moduleName ? `模块: ${this.#moduleName}` : "",
+            actorId ? `执行者: ${actorId}` : "",
+            result.errors ? `错误: ${JSON.stringify(result.errors).slice(0, 300)}` : ""
+          ].filter(Boolean).join("\n");
+          this.#log("error", errMsg, { event });
+          return;
+        }
+      } catch (e) {
+        // 校验器异常不影响发布，仅记录警告
+        this.#log("warn", `事件负载校验器执行异常（已放行）：${e?.message || e}`, { event });
+      }
+    }
+
     const subscribers = this.#events[event];
 
     // 消息追踪功能 - 即使没有订阅者也要生成追踪信息
@@ -895,6 +925,26 @@ export class EventBus {
 
     this.#log("info", `事件总线 [${this.#moduleName}] 已销毁。`);
   }
+
+  /**
+   * 启用或禁用事件负载校验
+   * @param {boolean} enable - 是否启用
+   * @param {(event:string, data:any)=>({valid:boolean, errors?:any})} [validateFn] - 校验函数
+   */
+  setPayloadValidation(enable, validateFn) {
+    this.#payloadValidationEnabled = !!enable;
+    if (typeof validateFn === "function") {
+      this.#payloadValidateFn = validateFn;
+    }
+  }
+
+  /**
+   * 获取负载校验开关状态
+   * @returns {boolean}
+   */
+  getPayloadValidationStatus() {
+    return this.#payloadValidationEnabled === true;
+  }
 }
 
 export { EventNameValidator };
@@ -902,4 +952,3 @@ export { EventNameValidator };
 // 为保持向后兼容性，导出默认的EventBus实例
 // 但推荐使用 getEventBus() 函数获取模块特定的实例
 export default getEventBus("App", { enableValidation: true });
-

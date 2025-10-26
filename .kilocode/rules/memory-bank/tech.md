@@ -13,6 +13,11 @@
 - [Babel/Vite/AI Launcher](#babelviteai-launcher)
 
 > 最近更新（10条，按日期倒序）
+- 2025-10-25 Annotation（截图）后端扩容：`PDFAnnotationTablePlugin` 允许并持久化 `rectPercent/canvasPixelSize/markerColor`，刷新后定位稳定
+- 2025-10-26 截图严格模式：仅接受 `rectPercent`，移除所有基于 `rect/boundingBox` 的前端回退；后端保存不再要求 `rect`
+- 2025-10-26 运行时 Schema 校验：`standard_server` 在路由前对 `*:requested` 入站消息按本仓库 schemas 目录统一校验，校验失败直接返回 `*:failed`
+- 2025-10-25 强制 Outline：viewer 启动始终装配 `pdf-outline`，移除 Bookmark 回退与 URL/LocalStorage 开关影响；GUI “启用 Outline”开关已停用/隐藏
+- 2025-10-25 修复 Anchor 订阅：对 URL/FILE/RENDER/ANCHOR/NAVIGATION 等订阅统一加 `safeOn` 防御；避免传入 `undefined` 触发 EventBus 白名单错误
 - 2025-10-20 Outline 点击改为按ID导航事件：侧边栏点击发射 `BOOKMARK.NAVIGATE_BY_ID.REQUESTED`，由 Feature 层统一消费
 - 2025-10-20 书签严格模式（后端）：仅接受 `pageAt/position`，移除 `pageNumber/region` 兼容与自动迁移；缺失 `pageAt` 直接报错
 - 2025-10-19 书签/大纲严格模式：仅 pageAt/position，旧字段不兼容；无效即报错
@@ -52,23 +57,14 @@
 - 理由：当前前端主要经由 WebSocket 与 `pdf_library_api` 的 bookmark 服务交互，引入别名收益有限且增加维护面。
 - 例外：仅当外部生态强制要求统一术语或避免冲突时，再评估是否添加只读别名，并明确弃用周期。
 
-### 前端开关（2025-10-22 新增）
-- `FEATURE_OUTLINE`（localStorage）或 URL `?outline=1`：启用 Outline 路径（`PDFOutlineFeature + OutlineSidebarUI`）；默认关闭时使用 Bookmark 路径（稳定）。  
-- 读取工具：`src/frontend/common/utils/feature-flags.js:isOutlineEnabled()`；优先 URL，再读 localStorage。  
-- 挂载点：
-  - 启动注册：`src/frontend/pdf-viewer/bootstrap/app-bootstrap-feature.js` 按开关选择注册 `pdf-outline` 或 `pdf-bookmark` Feature；任何异常回退到 `pdf-bookmark`。  
-  - 侧边栏：`src/frontend/pdf-viewer/features/sidebar-manager/real-sidebars.js` 按开关动态导入 `OutlineSidebarUI`，失败回退到 `BookmarkSidebarUI`。  
-- 兼容性：侧边栏 id 仍为 `bookmark`，按钮“≡ 大纲”不变；事件契约继续使用 `BOOKMARK.*`（Outline 外壳内部已复用）。  
-  - OutlineFeature 实现细节（2025-10-22 更新）：
-    - 复用 `BookmarkManager/BookmarkDialog/BookmarkDataProvider`；
-    - 监听 `BOOKMARK.NAVIGATE(_BY_ID).REQUESTED / LOAD.REQUESTED`；
-    - 在 `FILE.LOAD.SUCCESS` 后尝试以严格模式导入 PDF 原生大纲（仅 `{ pageAt, position }`），失败不影响现有列表展示。
-  - GUI → Home → Viewer 透传（2025-10-22 更新）：
-    - gui_launcher 勾选“启用 Outline”后，写入 `logs/runtime-ports.json` 的扩展键 `outline=1`；
-    - pdf-home：
-      - `openPdfViewers`（Hosted）使用 `LaunchConfig.extra_params.outline=1` 注入 URL；
-      - `openPdfViewersEx`（直接 URL）在最终 URL 追加 `&outline=1`；
-    - pdf-viewer：Bootstrap 检测启用时使用 toast 提示“当前为 Outline 模式”。
+### 前端开关（2025-10-25 调整：停用）
+- 现状：已废止 bookmark 回路与开关判定，viewer 启动固定注册 `PDFOutlineFeature`（见 `src/frontend/pdf-viewer/bootstrap/app-bootstrap-feature.js`）。
+- GUI：`gui_launcher.py` 的“启用 Outline”复选框已禁用并隐藏；不再写入 `logs/debug-info.json` 或向 URL 透传 `outline/debug`。
+- 兼容性：对外事件契约仍沿用 `PDF_VIEWER_EVENTS.BOOKMARK.*`（Outline 外壳复用）；侧边栏按钮文案与 id 保持兼容。
+- 说明：`feature-flags.js:isOutlineEnabled()` 与 `?debug=1` 预检逻辑对装配决策不再生效；后续如需恢复灰度策略，再引入 `PreflightFeature` 实现集中预检与下发。
+
+### 侧边栏选择（2025-10-25 调整）
+- `features/sidebar-manager/real-sidebars.js` 固定 `useOutline = true`，优先加载 `OutlineSidebarUI`；若加载失败，出于可用性临时回退 `BookmarkSidebarUI` 并打印 `warn`。
 
 ## 命名规范
 - 目录统一使用 kebab-case：示例 `pdf-home`、`pdf-viewer`。
@@ -163,6 +159,23 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
   - 绑定 PDF.js `pagerendered` 事件，在对应页渲染完成后刷新待渲染截图标记；
   - `#handleAnnotationsLoaded` 调整为“就绪即渲染，否则入队”；
   - 仍保留当 `rectPercent` 缺失时基于 `rect` 的 MutationObserver 兜底以等待 canvas 出现。
+
+### 截图标注数据契约（2025-10-25 更新）
+- 后端表插件：`src/backend/database/plugins/pdf_annotation_plugin.py`
+  - 允许并持久化的字段：\n
+    - 必填：`rectPercent{xPercent,yPercent,widthPercent,heightPercent}`, `imagePath`, `imageHash`\n
+    - 可选：`imageData`, `description`, `canvasPixelSize{width,height}`, `markerColor`\n
+  - 校验：`rectPercent` 各值限定 [0,100]；`canvasPixelSize.width/height` 为正数；`markerColor` 为 `#rrggbb`。\n
+- 前端使用策略：\n
+  - 渲染严格依赖 `rectPercent`；缺失即报错并放弃渲染；\n
+  - 不再进行 `rect/canvas/boundingBox` 的回退换算；\n
+  - `canvasPixelSize` 仅作为调试信息可选保存。\n
+
+### 运行时 Schema 校验（2025-10-26 新增）
+- 路径解析：`todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/schemas/<domain>/v1/messages/<action>.request.schema.json`\n
+- 校验范围：所有 `*:requested` 入站消息；未找到 schema 的消息跳过且记录；\n
+- 失败处理：直接返回 `*:failed`，错误类型 `SCHEMA_VALIDATION_FAILED`；\n
+- 实现位置：`src/backend/msgCenter_server/standard_server.py::_validate_message_by_schema/_jsonschema_validate`。\n
 
 
 ## 数据库路径解析规范（2025-10-13 更新：参数式，无环境变量）
@@ -269,6 +282,14 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
   - `header:sort:requested`
   - `search:sort:requested`
   - 旧的 `*:clicked` 命名不再使用（测试与文档已同步更新）。
+
+## 测试与命令（2025-10-25 新增）
+- 冒烟测试（Jest，前端）：`pnpm test:smoke`（仅匹配 `__smoke__` 目录；执行极快、不依赖真实网络/GUI）
+- 冒烟测试（PyTest，后端）：`pytest -m smoke -q`（根级 `pytest.ini` 已注册 `smoke` 标记）
+- 全量测试：
+  - 前端：`pnpm test`；
+  - 后端：`pytest -q`；
+- 预提交建议：`pnpm run test:pre-commit && pytest -m smoke -q`（先依赖图/快测，再按需跑全量）。
 
 ## 事件命名调整（2025-10-10）
 - pdf-home（侧边栏与最近搜索）本地事件统一为三段式：
@@ -1162,3 +1183,24 @@ WS 适配（msgcenter → front）：
 - 事件替换：@pdf-list/data:load:completed → search:results:updated。
 - 事件负载：标准结果事件包含 { records, count, searchText, focusId, page }；为兼容性暂保留 iles/items 回退读取。
 - 缓存策略：仅用于本地筛选的源数据缓存，不再要求“全量列表广播”。
+
+---
+
+### 用法变动（2025-10-26 15:25:40）— pdf-library:add:requested 契约对齐
+- 出站消息必须包含：`type/timestamp/request_id/metadata/data`；其中 `metadata.version='1.0.0'`；`timestamp` 可由 `WSClient.send()` 兜底补充，但推荐显式设置；
+- `data` 结构：仅 `{ filepath }`，不允许额外字段（如 `name`）。UI 可自行用于 toast 展示，不随 WS 上送；
+- 参考实现：`src/frontend/pdf-home/features/add-files/index.js` 在发送时注入 `timestamp` 与 `metadata`，并保障 `data` 仅包含 `filepath`。
+
+### 决策更新（2025-10-26 15:34:47）— 禁止 WSClient 自动补齐 metadata
+- 原变更撤回：`WSClient.send()` 不再自动注入 `metadata`，仅补齐 `timestamp`；
+- 代码位置：`src/frontend/common/ws/ws-client.js`；
+- 规范要求：所有 `*:requested` 出站消息必须在业务侧显式提供 `metadata: { version: '1.0.0' }`；平台层不得兜底补齐；
+- 风险与收益：若业务遗漏，将在后端 Schema 校验阶段暴露并快速定位到具体出站点，保证契约严格性。
+
+### 能力扩展（2025-10-26 15:48:18）— wsClient.request 支持显式传入 metadata（非自动化）
+- 改动：`wsClient.request(type, payload, { timeout, maxRetries, metadata })`；仅当调用方传入 `metadata` 时并入消息体；默认不注入；
+- 影响：使依赖 `wsClient.request` 的调用点（pdf-edit、annotation、bookmark、anchor等）无需手写完整消息构造即可满足“显式 metadata”的要求；
+- 配套更新：
+  - pdf-viewer/adapters/websocket-adapter.js 对所有 `ANCHOR_*` 请求传入 `{ metadata:{version:'1.0.0'} }`；
+  - annotation-manager.js 与 bookmark-storage.js 的 `request()` 调用均传入 metadata；
+  - viewer 注册/visited_at/page_changed/zoom_changed 等通过 `send()` 的消息也显式加上 `metadata`。

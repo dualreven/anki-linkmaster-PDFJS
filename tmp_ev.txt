@@ -1,0 +1,162 @@
+   * @namespace ANNOTATION
+   * @description 事件格式说明：使用 'annotation-sidebar:xxx:xxx' 或 'annotation-tool:xxx:xxx' 等来符合3段格式要求
+   */
+   * @description 事件格式说明：使用 'annotation-sidebar:xxx:xxx' 或 'annotation-tool:xxx:xxx' 等来符合3段格式要求
+   */
+  ANNOTATION: {
+  ANNOTATION: {
+    /**
+     * 侧边栏控制事件 - 使用 annotation-sidebar 作为模块名
+     * 侧边栏控制事件 - 使用 annotation-sidebar 作为模块名
+     */
+    SIDEBAR: {
+      OPEN: 'annotation-sidebar:toggle:open',
+      /** 关闭标注侧边栏 */
+      CLOSE: 'annotation-sidebar:toggle:close',
+      CLOSE: 'annotation-sidebar:toggle:close',
+      /** 切换标注侧边栏显示/隐藏 */
+      TOGGLE: 'annotation-sidebar:toggle:requested',
+      TOGGLE: 'annotation-sidebar:toggle:requested',
+      /** 侧边栏已打开 */
+      OPENED: 'annotation-sidebar:toggle:opened',
+      OPENED: 'annotation-sidebar:toggle:opened',
+      /** 侧边栏已关闭 */
+      CLOSED: 'annotation-sidebar:toggle:closed',
+      CLOSED: 'annotation-sidebar:toggle:closed',
+      /** 过滤器开关 */
+      FILTER_TOGGLE: 'annotation-sidebar:filter:toggle',
+      FILTER_TOGGLE: 'annotation-sidebar:filter:toggle',
+      /** 排序方式开关 */
+      SORT_TOGGLE: 'annotation-sidebar:sort:toggle',
+      SORT_TOGGLE: 'annotation-sidebar:sort:toggle',
+      /** 打开侧边栏设置 */
+      SETTINGS_OPEN: 'annotation-sidebar:settings:open',
+      SETTINGS_OPEN: 'annotation-sidebar:settings:open',
+      /** 标注ID复制成功通知 */
+      ID_COPY_SUCCESS: 'annotation:id-copy:success',
+      ID_COPY_SUCCESS: 'annotation:id-copy:success',
+    },
+
+      /** 激活工具 - data: { tool: 'screenshot'|'text-highlight'|'comment' } */
+      ACTIVATE: 'annotation-tool:activate:requested',
+      /** 停用工具 */
+      ACTIVATE: 'annotation-tool:activate:requested',
+      /** 停用工具 */
+      DEACTIVATE: 'annotation-tool:deactivate:requested',
+      DEACTIVATE: 'annotation-tool:deactivate:requested',
+      /** 工具已激活 */
+      ACTIVATED: 'annotation-tool:activate:success',
+      ACTIVATED: 'annotation-tool:activate:success',
+      /** 工具已停用 */
+      DEACTIVATED: 'annotation-tool:deactivate:success',
+      DEACTIVATED: 'annotation-tool:deactivate:success',
+    },
+
+    CREATE: 'annotation:create:requested',
+    /** 标注已创建 */
+    CREATED: 'annotation:create:success',
+    CREATED: 'annotation:create:success',
+    /** 创建标注失败 */
+    CREATE_FAILED: 'annotation:create:failed',
+    CREATE_FAILED: 'annotation:create:failed',
+    /** 更新标注请求 */
+    UPDATE: 'annotation:update:requested',
+    UPDATE: 'annotation:update:requested',
+    /** 标注已更新 */
+    UPDATED: 'annotation:update:success',
+    UPDATED: 'annotation:update:success',
+    /** 更新标注失败 */
+    UPDATE_FAILED: 'annotation:update:failed',
+    UPDATE_FAILED: 'annotation:update:failed',
+    /** 删除标注请求 */
+    DELETE: 'annotation:delete:requested',
+    DELETE: 'annotation:delete:requested',
+    /** 标注已删除 */
+    DELETED: 'annotation:delete:success',
+    DELETED: 'annotation:delete:success',
+    /** 删除标注失败 */
+    DELETE_FAILED: 'annotation:delete:failed',
+    DELETE_FAILED: 'annotation:delete:failed',
+
+    /**
+    SELECT: 'annotation:select:requested',
+    /** 标注已选中 */
+    SELECTED: 'annotation:select:success',
+    SELECTED: 'annotation:select:success',
+    /** 标注导航事件 */
+    NAVIGATION: {
+      JUMP_REQUESTED: 'annotation-navigation:jump:requested',
+      /** 标注跳转成功 */
+      JUMP_SUCCESS: 'annotation-navigation:jump:success',
+      JUMP_SUCCESS: 'annotation-navigation:jump:success',
+      /** 标注跳转失败 */
+      JUMP_FAILED: 'annotation-navigation:jump:failed',
+      JUMP_FAILED: 'annotation-navigation:jump:failed',
+    },
+    /** 跳转到标注位置（兼容旧常量命名） */
+    JUMP_TO: 'annotation-navigation:jump:requested',
+    /** 高亮标注（闪烁效果） */
+    HIGHLIGHT: 'annotation:highlight:requested',
+    HIGHLIGHT: 'annotation:highlight:requested',
+
+    /**
+      ADD: 'annotation-comment:add:requested',
+      /** 评论已添加 */
+      ADDED: 'annotation-comment:add:success',
+      ADDED: 'annotation-comment:add:success',
+      /** 删除评论请求 */
+      DELETE: 'annotation-comment:delete:requested',
+      DELETE: 'annotation-comment:delete:requested',
+      /** 评论已删除 */
+      DELETED: 'annotation-comment:delete:success',
+      DELETED: 'annotation-comment:delete:success',
+    },
+
+      LOAD: 'annotation-data:load:requested',
+      /** 标注已加载 */
+      LOADED: 'annotation-data:load:success',
+      LOADED: 'annotation-data:load:success',
+      /** 保存标注请求 */
+      SAVE: 'annotation-data:save:requested',
+      SAVE: 'annotation-data:save:requested',
+      /** 标注已保存 */
+      SAVED: 'annotation-data:save:success',
+      SAVED: 'annotation-data:save:success',
+      /** 加载失败 */
+      LOAD_FAILED: 'annotation-data:load:failed',
+      LOAD_FAILED: 'annotation-data:load:failed',
+      /** 保存失败 */
+      SAVE_FAILED: 'annotation-data:save:failed',
+      SAVE_FAILED: 'annotation-data:save:failed',
+    },
+
+    SCREENSHOT: {
+      /** 开始截图 */
+      START: 'annotation-screenshot:start:requested',
+      START: 'annotation-screenshot:start:requested',
+      /** 区域已选择 */
+      AREA_SELECTED: 'annotation-screenshot:area:selected',
+      AREA_SELECTED: 'annotation-screenshot:area:selected',
+      /** 截图已捕获 */
+      CAPTURED: 'annotation-screenshot:capture:success',
+      CAPTURED: 'annotation-screenshot:capture:success',
+      /** 取消截图 */
+      CANCEL: 'annotation-screenshot:cancel:requested',
+      CANCEL: 'annotation-screenshot:cancel:requested',
+    },
+
+      SELECTION_START: 'annotation-highlight:selection:started',
+      /** 文本已选择 */
+      TEXT_SELECTED: 'annotation-highlight:text:selected',
+      TEXT_SELECTED: 'annotation-highlight:text:selected',
+      /** 高亮已应用 */
+      HIGHLIGHT_APPLIED: 'annotation-highlight:apply:success',
+      HIGHLIGHT_APPLIED: 'annotation-highlight:apply:success',
+    },
+
+      ACTIVE: 'annotation-comment-tool:activate:success',
+      /** 位置已选择 */
+      POSITION_SELECTED: 'annotation-comment-tool:position:selected',
+      POSITION_SELECTED: 'annotation-comment-tool:position:selected',
+    },
+  },

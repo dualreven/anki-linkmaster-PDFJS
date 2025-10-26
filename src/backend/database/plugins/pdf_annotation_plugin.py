@@ -218,14 +218,20 @@ class PDFAnnotationTablePlugin(TablePlugin):
         return num
 
     def _validate_screenshot_payload(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        rect = payload.get('rect')
-        if not isinstance(rect, dict):
-            raise DatabaseValidationError('rect is required')
-        validated_rect = {
-            'x': self._validate_non_negative_number(rect.get('x'), 'rect.x'),
-            'y': self._validate_non_negative_number(rect.get('y'), 'rect.y'),
-            'width': self._validate_positive_number(rect.get('width'), 'rect.width'),
-            'height': self._validate_positive_number(rect.get('height'), 'rect.height'),
+        # 严格模式：要求 rectPercent，拒绝仅有 rect 的旧格式
+        rect_percent = payload.get('rectPercent')
+        if not isinstance(rect_percent, dict):
+            raise DatabaseValidationError('rectPercent is required')
+        def clamp01pct(v: Any, field: str) -> float:
+            num = self._validate_non_negative_number(v, field)
+            if num > 100:
+                num = 100.0
+            return num
+        validated_rect_percent = {
+            'xPercent': clamp01pct(rect_percent.get('xPercent'), 'rectPercent.xPercent'),
+            'yPercent': clamp01pct(rect_percent.get('yPercent'), 'rectPercent.yPercent'),
+            'widthPercent': clamp01pct(rect_percent.get('widthPercent'), 'rectPercent.widthPercent'),
+            'heightPercent': clamp01pct(rect_percent.get('heightPercent'), 'rectPercent.heightPercent'),
         }
 
         image_path = payload.get('imagePath')
@@ -245,8 +251,24 @@ class PDFAnnotationTablePlugin(TablePlugin):
         if description is not None and not isinstance(description, str):
             raise DatabaseValidationError('description must be a string')
 
+        # 可选：截图时 canvas 像素尺寸（不再用于兜底换算，仅作为调试信息）
+        canvas_pixel_size = payload.get('canvasPixelSize')
+        validated_canvas_pixel_size = None
+        if canvas_pixel_size is not None:
+            if not isinstance(canvas_pixel_size, dict):
+                raise DatabaseValidationError('canvasPixelSize must be an object')
+            w = self._validate_positive_number(canvas_pixel_size.get('width'), 'canvasPixelSize.width')
+            h = self._validate_positive_number(canvas_pixel_size.get('height'), 'canvasPixelSize.height')
+            validated_canvas_pixel_size = {'width': w, 'height': h}
+
+        # 可选：标记框颜色（#rrggbb）
+        marker_color = payload.get('markerColor')
+        if marker_color is not None:
+            if not isinstance(marker_color, str) or not self._HEX_COLOR_PATTERN.fullmatch(marker_color):
+                raise DatabaseValidationError('markerColor must be a HEX color (#rrggbb)')
+
         result = {
-            'rect': validated_rect,
+            'rectPercent': validated_rect_percent,
             'imagePath': image_path,
             'imageHash': image_hash,
         }
@@ -254,6 +276,10 @@ class PDFAnnotationTablePlugin(TablePlugin):
             result['imageData'] = image_data
         if description is not None:
             result['description'] = description
+        if validated_canvas_pixel_size is not None:
+            result['canvasPixelSize'] = validated_canvas_pixel_size
+        if marker_color is not None:
+            result['markerColor'] = marker_color
         return result
 
     def _validate_text_highlight_payload(self, payload: Dict[str, Any]) -> Dict[str, Any]:

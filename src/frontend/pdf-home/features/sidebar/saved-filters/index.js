@@ -330,7 +330,8 @@ export class SavedFiltersFeature {
       this.#pendingGetConfigReqId = rid;
       this.#scopedEventBus.emitGlobal('websocket:message:send', {
         type: WEBSOCKET_MESSAGE_TYPES.GET_CONFIG,
-        request_id: rid
+        request_id: rid,
+        metadata: { version: '1.0.0' }
       });
     } catch (e) {
       this.#logger.warn('[SavedFiltersFeature] Request backend config failed', e);
@@ -346,6 +347,7 @@ export class SavedFiltersFeature {
         this.#scopedEventBus.emitGlobal('websocket:message:send', {
           type: WEBSOCKET_MESSAGE_TYPES.UPDATE_CONFIG,
           request_id: rid,
+          metadata: { version: '1.0.0' },
           data: { saved_filters: this.#savedFilters }
         });
       }, 300);
@@ -744,3 +746,4 @@ export class SavedFiltersFeature {
     }
   }
 }
+

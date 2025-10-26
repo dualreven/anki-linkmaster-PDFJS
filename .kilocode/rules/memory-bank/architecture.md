@@ -29,7 +29,7 @@
 ## 前端关键实现
 - pdf-home：`src/frontend/pdf-home/*`（容器、QWebChannel 管理、前端日志捕获到 `logs/pdf-home-js.log`）。
 - pdf-viewer：`src/frontend/pdf-viewer/*`（`ui-manager-core.js` 以 `#elements/#state` 为中心；按 `pdf_id` 输出 `logs/pdf-viewer-<pdf-id>-js.log`）。
-  - Outline 路径（灰度开关）：`features/pdf-outline/index.js` 复用 `BookmarkManager/BookmarkDialog/BookmarkDataProvider`；事件契约仍使用 `PDF_VIEWER_EVENTS.BOOKMARK.*`；导航通过容器内 `navigationService` 实现。
+  - Outline 路径（2025-10-25 起固定）：`features/pdf-outline/index.js` 复用 `BookmarkManager/BookmarkDialog/BookmarkDataProvider`；事件契约仍使用 `PDF_VIEWER_EVENTS.BOOKMARK.*`；导航通过容器内 `navigationService` 实现。Bootstrap 不再根据开关选择插件，统一注册 `pdf-outline`，不再注册 `pdf-bookmark`。
 
 ### pdf-viewer QWebChannel 扩展（Clipboard）
 - Python 端：`src/frontend/pdf-viewer/pyqt/pdf_viewer_bridge.py` 新增 `setClipboardText(text: str) -> bool` 槽，用于在 Clipboard API 失效时由前端通过 QWebChannel 设置系统剪贴板。

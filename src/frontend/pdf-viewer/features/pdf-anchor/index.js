@@ -71,10 +71,19 @@ export class PDFAnchorFeature {
   }
 
   #setupEventListeners() {
+    const safeOn = (evt, handler, opts) => {
+      if (typeof evt === "string" && evt.length > 0) {
+        return this.#eventBus.on(evt, handler, opts);
+      } else {
+        try { this.#logger.warn(`[PDFAnchorFeature] 跳过订阅：事件未定义或非字符串`, { evt, subscriberId: opts?.subscriberId }); } catch(_) {}
+        return () => {};
+      }
+    };
+
     // URL 参数解析：捕捉 anchor-id（防御：事件名必须为字符串）
     const EVT_URL_PARSED = PDF_VIEWER_EVENTS?.NAVIGATION?.URL_PARAMS?.PARSED;
     if (typeof EVT_URL_PARSED === "string") {
-      this.#eventBus.on(
+      safeOn(
       EVT_URL_PARSED,
       (data) => {
         const anchorId = (data?.anchorId || "").toString().trim();
@@ -109,7 +118,7 @@ export class PDFAnchorFeature {
     }
 
     // 收到锚点数据（数组或单条）
-    this.#eventBus.on(
+    safeOn(
       PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED,
       ({ anchors }) => {
         if (Array.isArray(anchors)) {
@@ -150,7 +159,7 @@ export class PDFAnchorFeature {
     // 复制动作在 UI 层处理（AnchorSidebarUI.copyTextRobust），此处不再重复处理
 
     // 在文件加载成功后，请求该PDF的锚点列表（确保重新打开能显示持久化数据）
-    this.#eventBus.on(
+    safeOn(
       PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
       () => {
         try {
@@ -186,8 +195,9 @@ export class PDFAnchorFeature {
     );
 
     // PDF 渲染就绪（首页渲染完成，DOM可用）
-    this.#eventBus.on(
-      PDF_VIEWER_EVENTS.RENDER.READY,
+    const EVT_RENDER_READY = PDF_VIEWER_EVENTS?.RENDER?.READY;
+    safeOn(
+      EVT_RENDER_READY,
       (info) => {
         try { toastSuccess(`PDF渲染完成：总页数 ${info?.totalPages ?? ''}`); } catch(_) {}
         this.#gateRenderReady = true;
@@ -199,7 +209,7 @@ export class PDFAnchorFeature {
     // 兜底 WS 监听已移除：WebSocketAdapter 会稳定发出 ANCHOR.DATA.LOADED，避免二次转发造成重复处理
 
     // 创建锚点
-    this.#eventBus.on(
+    safeOn(
       PDF_VIEWER_EVENTS.ANCHOR.CREATE,
       (data) => {
         if (data && data.anchor) {return;} // 避免递归
@@ -217,7 +227,7 @@ export class PDFAnchorFeature {
     );
 
     // 删除锚点
-    this.#eventBus.on(
+    safeOn(
       PDF_VIEWER_EVENTS.ANCHOR.DELETE,
       ({ anchorId }) => {
         const id = String(anchorId || "").trim();
@@ -231,7 +241,7 @@ export class PDFAnchorFeature {
     );
 
     // 修改锚点名称（简单对话框）
-    this.#eventBus.on(
+    safeOn(
       PDF_VIEWER_EVENTS.ANCHOR.UPDATE,
       ({ anchorId, update }) => {
         const id = String(anchorId || "").trim();
@@ -255,7 +265,7 @@ export class PDFAnchorFeature {
     );
 
     // 激活锚点（单选语义：同时将其他锚点置为未激活）
-    this.#eventBus.on(
+    safeOn(
       PDF_VIEWER_EVENTS.ANCHOR.ACTIVATE,
       ({ anchorId, active = true }) => {
         const id = String(anchorId || "").trim();
@@ -301,7 +311,7 @@ export class PDFAnchorFeature {
     );
 
     // 页面导航变更：仅用于到达提示（不做自动采样）
-    this.#eventBus.on(
+    safeOn(
       PDF_VIEWER_EVENTS.NAVIGATION.CHANGED,
       (data) => {
         try {

@@ -48,6 +48,48 @@
 
 ## 📅 当前活跃任务（最近）
 
+### 问题修复（20251025235859）
+名称：annotation 截图在缩放后截图、刷新回默认缩放时标记错位
+
+背景与现象（UTF-8 与 `\n`）：
+- 场景：在非默认缩放（放大/缩小）执行截图 → 当次标记位置正确；刷新页面（恢复默认缩放）后，同一截图标注的可视标记发生偏移；
+- 近期前端 ScreenshotTool 已在创建时写入 `rect（canvas 像素）` + `rectPercent（百分比）` + `canvasPixelSize（截图时 canvas 尺寸）`；
+- 但刷新后从后端取回的数据缺少 `rectPercent/canvasPixelSize`，导致只能以“当前 canvas 尺寸”从旧像素 rect 反推百分比，出现错位。
+
+根因：
+- 后端 `PDFAnnotationTablePlugin._validate_screenshot_payload()` 白名单过窄，仅保留 `rect/imagePath/imageHash(/imageData/description)`，丢弃 `rectPercent/canvasPixelSize/markerColor`；
+- 刷新后回读缺少稳定定位基准（rectPercent 或 canvasPixelSize），从而发生比例换算偏差。
+
+修复：
+- 扩容服务端截图负载校验并持久化：
+  - 文件：`src/backend/database/plugins/pdf_annotation_plugin.py`
+  - 方法：`_validate_screenshot_payload`
+  - 新增可选字段：`rectPercent{ xPercent,yPercent,widthPercent,heightPercent }`（0~100 截断）；`canvasPixelSize{ width,height }`（正数）；`markerColor`（#rrggbb）。
+  - 结果：后端不再丢弃上述字段；前端能稳定复原标记位置（优先 rectPercent；兜底 canvasPixelSize 反推）。
+
+相关模块/函数：
+- 前端：`features/annotation/tools/screenshot/index.js`（`#captureAndSave`、`renderScreenshotMarker`）；
+- 后端：`database/plugins/pdf_annotation_plugin.py::_validate_screenshot_payload`；
+- 消息：`annotation:save:requested` / `annotation:list:completed`（标准 WS 服务器透传 `json_data.data`）。
+
+验证要点：
+- 缩放（如 150%）截图→刷新→标记仍对齐；
+- 后端保存记录的数据中存在 `rectPercent/canvasPixelSize`；
+- 前端渲染日志无 `rectPercent missing` 的兜底告警路径。
+
+风险与兼容：
+- 仅扩容白名单，不改变既有字段含义；旧数据仍按原兜底路径可渲染；
+- 已做数值范围/类型校验，防止污染。
+
+（补充 20251026000530）关于 rect/canvasPixelSize 的保留与迁移：
+- 现状：前端 Annotation 和后端插件把 screenshot.data.rect 视为必填；渲染优先用 rectPercent；canvasPixelSize 仅用于从旧 rect 反推百分比；
+- 结论：短期保留 rect/canvasPixelSize（兼容与兜底），长期可逐步迁移至“rectPercent 为唯一真值；rect 降为可选”。
+- 建议迁移步骤：前端先改校验（rectPercent 必填），后端跟进；加载旧数据时回填 rectPercent 并 update，最终把 rect 调整为可选。
+
+（更新 20251026001840）实施“严格模式/不兼容旧数据”：
+- 前端：强制 `rectPercent` 必填；ScreenshotTool 保存时不再写 `rect/canvasPixelSize`；渲染移除一切回退换算；AnnotationFeature 导航计算移除截图回退。\n
+- 后端：`_validate_screenshot_payload` 要求 `rectPercent`，不再要求 `rect`；老 payload（仅有 rect）的保存会被拒绝；\n
+- 影响：旧数据不会渲染与保存（主动报错/跳过），新数据稳定使用百分比定位。\n
 ### 当前任务（20251022101046）
 名称：完成 pdf-outline 具体实现（通过 URL 参数一键切换 bookmark↔outline）
 
@@ -238,12 +280,131 @@
 
 问题/背景：
 - 已统一书签/大纲数据结构为 `{ pageAt, position }`，并在首次导入 PDF 原生大纲时完成标准化；
+
+---
+
+## 🛡️ 针对“新增/改动功能导致无关功能失效”的项目级措施（20251025222445）
+
+目标（不改业务代码，仅给出可实施计划）：
+- 在现有“模块/插件隔离 + 事件总线 + 常量白名单”的基础上，补齐“行为契约可验证、依赖可静态检查、关键链路可快速回归”的三条防线。
+
+仓库现状要点（与代码对应）：
+- 事件总线与命名校验：前端 `src/frontend/common/event/event-bus.js` 已强制三段式事件名并有全局白名单（`global-event-registry.js`）；ScopedEventBus 已普及模块内事件（@scope/）。后端（Python）在 `src/backend/database/plugin/event_bus.py` 使用四段式 `table:*:*:*` 约定（作用于DB插件域）。  
+- 事件常量集中：`src/frontend/common/event/event-constants.js` 与 `pdf-viewer-constants.js`。  
+- WS 适配层：`src/frontend/pdf-viewer/adapters/websocket-adapter.js` 负责类型映射与桥接。  
+- Feature 依赖与生命周期：`src/frontend/common/micro-service/feature-registry.js`。  
+- 契约雏形：`todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/schemas/**` 已有 JSON Schema 草案。
+
+措施一：事件 Payload 契约校验（前端运行时 + CI）
+- 落点：为 `event-bus.js` 增加可选 `enablePayloadValidation`（默认仅测试/开发启用），在 `emit()` 时按事件名匹配 JSON Schema 校验 `data`。  
+- Schema 来源：短期复用 `todo-and-doing/.../schemas/**`；中期迁移到 `src/frontend/common/contracts/{domain}/v1/messages/*.schema.json` 并以“事件名→schema”映射表导出。  
+- 工具：Ajv（严格模式），对 `...:completed` 与 `...:failed` 分别建模。  
+- 价值：避免因字段名/类型/默认值变更而引发“下游静默失败”。  
+- 兼容策略：生产仅采样校验并上报（避免性能抖动）；局部事件（@scope/）默认跳过。
+
+措施二：Consumer‑Driven Contract（WS 消息 CDC）
+- 落点：新增 `tests/contract/ws/*.test.js`，以 `websocket-adapter.js` 为中心，mock `wsClient`：  
+  - 断言前端发出的 `WEBSOCKET_MESSAGE_TYPES.*` 请求符合对应 Schema；  
+  - 断言收到 `...:completed/failed` 时，适配器能正确转为 `PDF_VIEWER_EVENTS.*` 并包含关键字段。  
+- 覆盖优先：`pdf-library:list/search/add/remove`、`annotation:*`、`anchor:*`、`debug-info:read`。
+
+措施三：全局事件白名单差异报告 + ESLint 禁止字面量事件
+- 落点：在 `global-event-registry.js` 暴露 `diffUsedEvents()`（扫描运行期或测试期采集到的事件集合，和 `event-constants.js` 求差），CI 输出报告；  
+- ESLint：在现有 `eslint-rules/event-name-format.js` 基础上，新增“禁止字面量事件名（必须来自常量）”规则，覆盖 `emit/on/once/off`。
+
+措施四：Feature 依赖静态校验与拓扑图
+- 落点：脚本（测试阶段执行）遍历 `features/**/feature.config.js`：  
+  - 校验 `dependencies[]` 是否为“已注册 Feature 名称”或“容器 token”；  
+  - 输出缺失依赖、循环依赖；生成 Mermaid 依赖图存入 `logs/feature-deps.mmd` 以审阅。  
+- 直接对症：近期多起“名称不一致导致安装失败”的问题。
+
+措施五：黄金路径冒烟套件（5–10 条）
+- 建议路径：  
+  1) 打开PDF → `visited_at` 更新（URL 含 `pdf-id`）；  
+  2) 书签按ID导航（`BOOKMARK.NAVIGATE_BY_ID.REQUESTED` → `navigationService.navigateTo`）；  
+  3) 搜索 → 结果事件 → FilterFeature 缓存；  
+  4) Viewer 在 `outline off/on` 两种启动下侧边栏装配正常；  
+  5) WebSocket 断线重连后关键监听恢复。  
+- 技术：Jest + jsdom，运行 < 60s，CI 阻断合并。
+
+措施六：默认值与配置变更闸门
+- 落点：集中 `src/frontend/common/utils/feature-flags.js` 暴露“配置版本号 + 变更日志”；PR 模板新增“默认值变更”清单；变更需附冒烟结果。
+
+最小试点（建议下一迭代实施）：
+- 为 `BOOKMARK.NAVIGATE_BY_ID.REQUESTED` 与 `pdf-library:list:requested/completed` 各落地一套 Schema + 运行时校验 + 合约测试；仅在测试/开发启用运行时验证，收集告警并产出差异报告。
+
+说明：本节仅为措施与计划沉淀，未包含“执行步骤”指令，后续经确认再落地实施。
+
+---
+
+## 🧪 落地进展（20251026133054）
+
+已提交的最小样板（不改变现有业务行为）：
+- 事件负载校验开关（默认关闭）：`src/frontend/common/event/event-bus.js` 新增 `setPayloadValidation()`；在 `emit()` 对全局事件可选校验并阻断非法负载；
+- 契约注册表（样板）：`src/frontend/common/contracts/contract-registry.js` 提供 `createDefaultValidator()`，首批覆盖 `PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED`；
+- 全局事件白名单差异：`diffAllowed()` 方法，供日后 CI 报告使用；
+- 测试：新增 2 组用例（负载校验、WebSocketAdapter Anchor 入站 CDC）。
+
+默认状态不启用运行时校验；后续若需要，我将把更多事件与 WS 消息纳入 schema，并在 CI 中增加差异报告与冒烟集合。
+
+### 快速修复（20251026151609）
+- 背景：后端仅对 `*:requested` 入站消息做 Schema 校验；若缺少 `metadata` 则返回 `*:failed`。用户反馈 `pdf-library:search:failed` 与 `pdf-library:config-read:failed`。
+- 变更（仅补齐出站 metadata，不改语义）：  
+  - `recent-added`、`recent-opened` 两处搜索请求增加 `metadata:{version:'1.0.0'}`；  
+  - `recent-searches` 的 `GET_CONFIG` 与 `UPDATE_CONFIG` 请求增加 `metadata:{version:'1.0.0'}`；  
+  - `SearchManager` 路径原已包含 metadata，无需变更。
 - 用户反馈：任意点击大纲节点都会跳到第 1 页。
 
 定位结论（根因）：
 - 第一阶段（已修复）：OutlineSidebarUI 与 BookmarkSidebarUI 读取了旧字段并带默认 1，导致跳到第一页；
 - 深层次问题（本次全面收敛为严格模式）：
   - Bookmark 模型与加载流程存在“默认 pageAt=1 / 旧字段回退”，即使导入失败也会生成“看似可跳转”的节点。
+
+---
+
+## 🔎 实现索引：debug=1 预检 → WS 读取 debug‑info.json → Outline 装配（20251025230530）
+
+用途：运行时通过 URL `?debug=1` 触发一次 WebSocket 读取 `logs/debug-info.json`，以 `flags.outline` 覆盖是否启用 `pdf-outline` 插件（否则回退 `pdf-bookmark`）。
+
+- 前端（装配决策/预检）：
+  - `src/frontend/pdf-viewer/bootstrap/app-bootstrap-feature.js:105` 起
+    - 读取 `debug=1`（未显式 `outline/feature_outline`）→ 创建临时 `WSClient`（隔离 EventBus `debug-preflight`）→ `request(WEBSOCKET_MESSAGE_TYPES.DEBUG_INFO_READ)`；
+    - 解析 `flags.outline` → 设置 `overrideOutline`；
+    - `isOutlineEnabled() || overrideOutline` → 选择 `PDFOutlineFeature` 或 `PDFBookmarkFeature` 注册。
+  - `src/frontend/common/utils/feature-flags.js`
+    - `isOutlineEnabled()` 仅读 `localStorage('FEATURE_OUTLINE')`；URL 不再直读，保持“读取来源”与“装配决策”分离。
+
+- 前端（消息常量）：
+  - `src/frontend/common/event/event-constants.js`
+    - `WEBSOCKET_MESSAGE_TYPES.DEBUG_INFO_READ = 'debug-info:read:requested'`
+    - `...COMPLETED/FAILED` 对应回执常量。
+
+- 前端（URL 注入入口）：
+  - `src/frontend/pdf-viewer/launcher.py`：构造 viewer URL 追加 `&debug=1`。
+  - `src/frontend/pdf-home/pyqt-bridge.py`：Hosted 打开 viewer 时追加 `debug=1`（并维护 `logs/debug-info.json`）。
+
+- 后端（协议与处理）：
+  - `src/backend/msgCenter_server/standard_protocol.py`
+    - 定义 `debug-info:read:{requested|completed|failed}`。
+  - `src/backend/msgCenter_server/standard_server.py`
+    - `handle_debug_info_read_request()`：读取 `logs/debug-info.json`（UTF-8），过滤 `_metadata`，返回 `{ flags, source }`。
+
+职责评估：预检逻辑放在 bootstrap（装配决策前），临时 WS 不干扰主连接；职责边界清晰。若后续预检项增多，可抽象为 `PreflightFeature` 以保持 bootstrap 精简。
+
+### 变更（2025-10-25 23:20:00）— 关闭开关，强制 Outline
+- 需求：关闭切换按钮，直接指定加载 Outline，废止加载 Bookmark。
+- 实施：
+  - `src/frontend/pdf-viewer/bootstrap/app-bootstrap-feature.js` 移除 `debug=1` 预检与条件分支，固定 `registry.register(new PDFOutlineFeature())`；不再注册 `PDFBookmarkFeature`；toast 固定提示“当前为 Outline 模式”。
+  - `gui_launcher.py` 隐藏/禁用“启用 Outline”复选框；不再写入 `logs/debug-info.json`，Host/CLI 传参中的 `enable_outline` 统一置为 `False`（仅日志展示）。
+- 兼容：对外事件常量继续使用 `BOOKMARK.*`（Outline 外壳复用）；后续若需要灰度，可引入独立 `PreflightFeature` 恢复预检能力。
+
+### 修复（2025-10-25 23:50:20）— Outline 模式空白屏（日志：pdf-viewer-c83c60c58ad2-js.log）
+- 现象：Toast 提示 Outline 模式，但打开空白；日志包含 `未注册的全局事件：'undefined'，订阅者ID: PDFAnchorFeature`。
+- 原因：`features/pdf-anchor/index.js` 中对若干事件直接 `eventBus.on(...)`，当某常量未按预期可用时传入了 `undefined`，被 EventBus 白名单拦截；该错误可能打断部分初始化链路。
+- 修复：
+  - 为 Anchor 的所有订阅使用 `safeOn(evt, handler, opts)` 防御包装（事件名需为非空字符串，否则跳过并 warn）。
+  - 与“强制 Outline”保持一致：`real-sidebars.js` 固定 `useOutline = true`，优先加载 `OutlineSidebarUI`；若模块加载失败临时回退 `BookmarkSidebarUI` 以避免完全空白。
+- 复测要点：构建后重试，日志中应出现 `Loading PDF document into PDFViewerManager`、`PDFViewer initialized`、`Page info initialized`，且不再出现 `未注册的全局事件：'undefined'`。
   - URL 手动导航校验需要 `pdf-id`；UI 两处存在是否携带 `pdf-id` 的不一致。
 
 涉及模块/文件（UTF-8 与 `\n`）：
@@ -2712,3 +2873,133 @@ python gui_launcher_enhanced.py
 
 验收：
 - 勾选开关→启动 pdf-home（Hosted）→ 双击搜索结果打开 viewer，即可看到 toast “当前为 Outline 模式”；日志包含 `[Bootstrap] Outline mode is active (toast shown)`；URL 含 `&outline=1`。
+
+---
+
+### 新增（2025-10-25 23:40:00）— 冒烟测试与可持续测试系统
+
+目标：将“冒烟测试（Smoke Test）”纳入正式规范与项目结构，提供统一执行入口，保证每次改动后可在 ≤60 秒完成关键面验证（构建/导入正常、关键常量存在、最小注册表可创建）。
+
+落地内容（UTF-8 与 `\n`）：
+- 规范：扩充《docs/SPEC/TEST-EXECUTION-TYPES-001.md》，新增“冒烟测试（Smoke Test）”定义、退出准则与反模式；版本号升至 v1.1。
+- Python：新增根级 `pytest.ini` 注册 `smoke` 标记；已为以下稳定用例打标：
+  - tests/test_pdf_home_launcher_prod_mode.py::test_resolve_production_index_priority
+  - tests/backend/test_static_path_resolution.py（模块级标记）
+- 前端：新增极速 Jest 用例：
+  - src/frontend/common/__smoke__/core.smoke.test.js（可创建 DependencyContainer/FeatureRegistry 并注册最小特性）
+  - src/frontend/pdf-viewer/__smoke__/events.smoke.test.js（关键 WS 事件常量存在性校验）
+- 命令：`pnpm test:smoke`（Jest 仅匹配 `__smoke__` 目录）；Python 使用 `pytest -m smoke -q`。
+
+阶段计划：
+1) 今日：最小 smoke 就位（已完成）。
+2) 48 小时内：补充轻量集成 smoke（pdf-home WS 错误 toast 透传、viewer bootstrap 最小依赖注入验证）。
+3) 随后：在 CI 中强制 smoke 通过；慢测移至 nightly。
+4) 长期：沉淀事件/服务契约测试（schema/契约清单），减少跨 Feature 回归风险。
+
+验收要点：
+- `pnpm test:smoke` 通过；
+- `pytest -m smoke -q` 通过；
+- 规范与命令在 memory bank 可检索到（本条即索引）。
+
+---
+
+### 修复（2025-10-26 15:25:40）— pdf-library:add:requested 补齐 metadata 并对齐 data 结构
+
+问题：后端严格 Schema 校验开启后，`pdf-library:add:requested` 报错“$: missing required property 'metadata'”，同时出站 `data` 携带了 schema 未定义的 `name` 字段。
+
+原因：
+- 校验入口：`standard_server._validate_message_by_schema()`（轻量 JSON Schema 实现，覆盖 required/properties/const 等）；
+- 所用 schema：`todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/schemas/pdf-library/v1/messages/add.request.schema.json`；
+- 该 schema 要求：`type/timestamp/request_id/metadata/data{filepath}` 必填；`metadata.version` 为必填；`data` 不允许额外字段。
+
+改动（UTF-8 与 `\n`）：
+- 文件：`src/frontend/pdf-home/features/add-files/index.js`
+  - 出站消息新增 `timestamp: Date.now()` 与 `metadata: { version: '1.0.0' }`；
+  - `data` 仅保留 `{ filepath }`，移除 `name`（仍用于本地 toast 展示，不上送）。
+
+验证：
+- 选择 PDF 文件添加 → WS 发送的请求包含 `type/timestamp/request_id/metadata{version}/data{filepath}`；
+- 后端不再因 `metadata` 缺失报 `pdf-library:add:failed`；成功回执触发“最近添加”刷新与成功 toast。
+
+后续：
+- 建议统一为所有 `*:requested` 出站消息显式携带 `metadata.version='1.0.0'`；`timestamp` 由 `WSClient.send()` 兜底补充，但推荐显式设置以提升可观测性。
+
+记录时间：2025-10-26 15:25:40
+
+---
+
+### 决策（2025-10-26 15:34:47）— 禁止自动补齐 metadata（平台层）
+
+结论：
+- 不允许在 WSClient 或其他平台层对缺失的 `metadata` 进行自动补齐；
+- 生产者（各 Feature/Service 的出站构造点）必须显式提供符合 schema 的 `metadata`（至少包含 `version: '1.0.0'`）。
+
+实施：
+- 已移除 `src/frontend/common/ws/ws-client.js` 中 `send()` 的 metadata 自动注入；仅保留 `timestamp` 补齐；
+- `add-files` 路径已合规（显式携带 `metadata` 与 `timestamp`）。
+
+预期：
+- 业务遗漏会被后端 schema 严格校验捕获，从而推动出站路径逐一对齐契约。
+
+记录时间：2025-10-26 15:34:47
+
+---
+
+### 变更（2025-10-26 15:48:18）— 全仓出站消息显式携带 metadata；wsClient.request 支持传入 metadata
+
+背景：按照“禁止平台自动补齐”的决策，需确保所有出站路径显式携带 `metadata`；`wsClient.request` 原实现无法让调用方传递 `metadata`，导致 annotation/anchor/bookmark 等域难以达成一致。
+
+实施要点：
+- `wsClient.request` 新增可选参数 `options.metadata`（仅透传，不默认注入）；`_buildPDFDetailRequestMessage` 显式附带 `metadata`；
+- 已巡检并修正以下出站：
+  - pdf-home：search-results 的 OPEN/INFO 请求；debug 工具的测试消息；（recent-*、saved-filters 已在先前补齐）
+  - pdf-viewer：WebSocketAdapter 的 viewer 注册/visited/page/zoom 消息、所有 ANCHOR_* 请求；
+  - annotation：AnnotationManager 的 LIST/SAVE/DELETE 请求；
+  - bookmark：RemoteBookmarkStorage 的 LIST/SAVE/CLEAR 请求；
+  - legacy（最小改动）：PDFManagerCore 与 EventHandler 的 add/remove/list/open 路径补 `request_id/metadata`，并移除 add 的 `data.name`；其余 data 结构待后续统一按 schema 调整。
+
+验证：打开/编辑/标注/书签全链路均可见出站消息含 `metadata.version='1.0.0'`；后端不再报“missing required property 'metadata'”。
+
+记录时间：2025-10-26 15:48:18
+
+---
+
+### 分析（2025-10-26 16:14:07）— prod 模式 Outline 侧边栏空白（PDF: c83c60c58ad2）
+
+现象：通过 gui_launcher.py（prod）打开 pdf-home，双击搜索结果后 pdf-viewer 的“大纲”侧边栏为空白。
+
+日志与代码要点：
+- pdf-viewer JS 日志（dist/latest/logs/pdf-viewer-c83c60c58ad2-js.log）显示：Bootstrap 强制启用 pdf-outline，并禁用 bookmark 功能域；侧边栏使用 OutlineSidebarUI；未见 OutlineSidebarUI 的 INFO 日志（模块级别 ERROR）。
+- http-requests.log 显示已加载 outline-sidebar-ui 脚本，无 404；viewer URL 未含 outline=1，但 Bootstrap 已强制 Outline。
+- 代码：
+  - 强制 Outline：src/frontend/pdf-viewer/bootstrap/app-bootstrap-feature.js
+  - OutlineFeature（数据广播）：src/frontend/pdf-viewer/features/pdf-outline/index.js::#refreshList()
+  - BookmarkFeature（含“DB 为空 → 导入原生大纲”）：src/frontend/pdf-viewer/features/pdf-bookmark/index.js::#handlePdfLoaded()
+
+结论（原因）：
+- 因强制启用 `pdf-outline` 并禁用 `pdf-bookmark`，当前不再触发 BookmarkFeature 中“当 DB 无大纲时自动从 PDF 原生大纲导入”的逻辑；
+- `PDFOutlineFeature` 仅负责“从存储读取并广播”，未实现“DB 为空时自动导入”；
+- 对于未在后端存储过大纲的 PDF，`bookmarkManager.getAllBookmarks()` 返回空数组，OutlineSidebarUI 渲染空树，表现为空白。
+
+修复建议：在 `PDFOutlineFeature` 增补“自动导入 PDF 原生大纲”流程（与 BookmarkFeature 对齐）；或临时在 UI 初始化时发 `BOOKMARK.LOAD.REQUESTED` 并在 Feature 侧抓取 PDF 原生大纲填充。
+
+记录时间：2025-10-26 16:14:07
+
+---
+
+### 修复（2025-10-26 16:23:04）— Outline 模式：DB为空时自动导入原生大纲
+
+内容：落实“DB 为空 → 自动导入原生大纲”的逻辑，复用 BookmarkFeature 的提取与转换实现，避免首次打开 PDF 时侧边栏空白。
+
+文件与要点：
+- `src/frontend/pdf-viewer/features/pdf-outline/index.js`
+  - 新增 `#importNativeBookmarksIfEmpty(pdfDocument)`：当 `BookmarkManager.getAllBookmarks()` 为空时，从 `BookmarkDataProvider.getBookmarks()` 提取原生大纲，使用 `BookmarkManager.importNativeBookmarks(native, parseDest)` 导入并保存，再 `loadFromStorage()` 和刷新；
+  - 新增 `#parseBookmarkNormalizedDest(native, pdfDocument)`：与 BookmarkFeature 一致的严格解析与回退策略（provider.parseDestination → resolvePdfDest + yToPositionPercent）；
+  - `#tryInitialLoad()`：先加载存储，若为空则尝试导入，最后刷新；
+  - `#setupEventListeners()` 的 `FILE.LOAD.SUCCESS`：加载存储→若为空且有 pdfDocument 则导入→刷新（删除原先无条件导入逻辑）。
+
+行为影响：
+- 对于未曾保存过自定义大纲的 PDF，首次打开将从 PDF 原生书签自动导入并持久化；
+- 已有大纲的 PDF 不受影响；避免重复导入导致的数据重复。
+
+记录时间：2025-10-26 16:23:04

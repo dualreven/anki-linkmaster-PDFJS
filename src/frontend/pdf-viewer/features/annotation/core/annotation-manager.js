@@ -286,7 +286,7 @@ export class AnnotationManager {
       return await this.#wsClient.request(
         WEBSOCKET_MESSAGE_TYPES.ANNOTATION_SAVE,
         payload,
-        { timeout: 8000 }
+        { timeout: 8000, metadata: { version: "1.0.0" } }
       );
     } catch (e) {
       // 远端失败不阻塞创建流程
@@ -479,7 +479,7 @@ export class AnnotationManager {
         resp = await this.#wsClient.request(
           WEBSOCKET_MESSAGE_TYPES.ANNOTATION_LIST,
           { pdf_uuid: pdfId },
-          { timeout: 8000 }
+          { timeout: 8000, metadata: { version: "1.0.0" } }
         );
       } catch (e) {
         // 兼容兜底：某些环境下 WSClient 未正确结算 pending（如消息路由为 UNKNOWN），
@@ -556,7 +556,7 @@ export class AnnotationManager {
     await this.#wsClient.request(
       WEBSOCKET_MESSAGE_TYPES.ANNOTATION_DELETE,
       { pdf_uuid: this.#pdfId, ann_id: id },
-      { timeout: 5000 }
+      { timeout: 5000, metadata: { version: "1.0.0" } }
     );
   }
 

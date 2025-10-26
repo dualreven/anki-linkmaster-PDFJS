@@ -145,6 +145,8 @@ export class EventHandler {
         WEBSOCKET_EVENTS.MESSAGE.SEND,
         {
           type: WEBSOCKET_MESSAGE_TYPES.REMOVE_PDF,
+          request_id: this.#manager.generateRequestId(),
+          metadata: { version: "1.0.0" },
           data,
         },
         { actorId: "PDFManager" }
@@ -181,8 +183,9 @@ export class EventHandler {
           WEBSOCKET_EVENTS.MESSAGE.SEND,
           {
             type: WEBSOCKET_MESSAGE_TYPES.ADD_PDF,
+            request_id: this.#manager.generateRequestId(),
+            metadata: { version: "1.0.0" },
             data: {
-              name: fileName,
               filepath: filePath
             }
           },

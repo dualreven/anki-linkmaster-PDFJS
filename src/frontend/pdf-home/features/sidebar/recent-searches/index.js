@@ -189,7 +189,8 @@ export class RecentSearchesFeature {
       this.#pendingGetConfigReqId = reqId;
       this.#scopedEventBus.emitGlobal('websocket:message:send', {
         type: WEBSOCKET_MESSAGE_TYPES.GET_CONFIG,
-        request_id: reqId
+        request_id: reqId,
+        metadata: { version: '1.0.0' }
       });
       this.#logger.debug('[RecentSearchesFeature] Requesting backend config', { request_id: reqId });
     } catch (e) {
@@ -246,6 +247,7 @@ export class RecentSearchesFeature {
         const payload = {
           type: WEBSOCKET_MESSAGE_TYPES.UPDATE_CONFIG,
           request_id: reqId,
+          metadata: { version: '1.0.0' },
           data: {
             recent_search: this.#recentSearches.slice(0, RecentSearchesFeatureConfig.config.maxItems)
           }

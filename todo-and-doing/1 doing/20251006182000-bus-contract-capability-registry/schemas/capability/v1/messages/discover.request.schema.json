@@ -1,4 +1,4 @@
-﻿{
+{
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "docs/contracts/capability/v1/messages/discover.request.schema.json",
   "title": "capability:discover:requested",

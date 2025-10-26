@@ -529,45 +529,7 @@ export class AnnotationFeature {
           this.#logger.info(`[AnnotationFeature] Calculated position from rectPercent: ${centerPercent.toFixed(2)}%`);
         }
       }
-      // 截图（兜底1）：无 rectPercent，但有 rect（canvas 像素），用 canvas 高度换算为百分比
-      if (position === null && annotation.type === "screenshot" && annotation.data?.rect) {
-        try {
-          // 先导航到页面，确保 PageView 可取到
-          await this.#navigationService.navigateTo({ pageAt: pageNumber, position: null });
-          await new Promise(resolve => setTimeout(resolve, 80));
-          const pageView = this.#pdfViewerManager?.getPageView?.(pageNumber) || null;
-          const canvas = pageView?.div?.querySelector?.("canvas") || null;
-          const canvasH = canvas ? (canvas.height || canvas.getBoundingClientRect()?.height || 0) : 0;
-          const r = annotation.data.rect;
-          if (canvasH > 0 && typeof r?.y === "number" && typeof r?.height === "number") {
-            const center = ((r.y + (r.height / 2)) / canvasH) * 100;
-            if (Number.isFinite(center)) {
-              position = Math.max(0, Math.min(100, Number(center.toFixed(6))));
-              this.#logger.info(`[AnnotationFeature] Calculated position from legacy rect: ${position.toFixed(2)}%`);
-            }
-          }
-        } catch (e) { void e; }
-      }
-      // 截图（兜底2）：无 rectPercent/rect，但有 boundingBox（pageDiv 像素），用页面高度换算为百分比
-      if (position === null && annotation.type === "screenshot" && annotation.data?.boundingBox) {
-        try {
-          await this.#navigationService.navigateTo({ pageAt: pageNumber, position: null });
-          await new Promise(resolve => setTimeout(resolve, 80));
-          const viewerContainer = document.getElementById("viewerContainer");
-          const pageElement = viewerContainer?.querySelector?.(`.page[data-page-number="${pageNumber}"]`) || null;
-          const pageH = pageElement ? (pageElement.offsetHeight || pageElement.clientHeight || 0) : 0;
-          const bb = annotation.data.boundingBox;
-          const topPx = (typeof bb.top === "number") ? bb.top : (bb.y || 0);
-          const hPx = (typeof bb.height === "number") ? bb.height : 0;
-          if (pageH > 0) {
-            const center = ((topPx + (hPx / 2)) / pageH) * 100;
-            if (Number.isFinite(center)) {
-              position = Math.max(0, Math.min(100, Number(center.toFixed(6))));
-              this.#logger.info(`[AnnotationFeature] Calculated position from boundingBox: ${position.toFixed(2)}%`);
-            }
-          }
-        } catch (e) { void e; }
-      }
+      // 严格模式：截图不再基于 rect 或 boundingBox 回退换算位置
       // 文本高亮：优先使用 lineRects 的首段中心（百分比），更贴近真实位置
       if (position === null && annotation.type === "text-highlight" && Array.isArray(annotation.data?.lineRects) && annotation.data.lineRects.length > 0) {
         try {

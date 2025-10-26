@@ -587,7 +587,7 @@ export class PDFEditFeature {
           await this.#wsClient.request(
             WEBSOCKET_MESSAGE_TYPES.BOOKMARK_SAVE,
             { pdf_uuid: pdfUuid, bookmarks: [], root_ids: [] },
-            { timeout: 8000 }
+            { timeout: 8000, metadata: { version: '1.0.0' } }
           );
           this.#showGlobalWarning('书签已重置。请重新打开PDF查看器以从源导入书签。');
         } catch (err) {
@@ -613,7 +613,7 @@ export class PDFEditFeature {
           await this.#wsClient.request(
             WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_REQUESTED,
             { file_id: fileId, updates: { total_reading_time: 0, visited_at: 0 } },
-            { timeout: 8000 }
+            { timeout: 8000, metadata: { version: '1.0.0' } }
           );
           this.#showGlobalWarning('阅读进度已重置');
         } catch (err) {
@@ -729,7 +729,7 @@ export class PDFEditFeature {
         await this.#wsClient.request(
           WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_REQUESTED,
           { file_id: fileId, updates: updates },
-          { timeout: 8000 }
+          { timeout: 8000, metadata: { version: '1.0.0' } }
         );
         this.#logger.info('PDF record update request sent via WSClient');
       } else {
@@ -737,6 +737,7 @@ export class PDFEditFeature {
         const message = {
           type: WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_REQUESTED,
           request_id: `edit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          metadata: { version: '1.0.0' },
           data: { file_id: fileId, updates }
         };
         this.#scopedEventBus.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, message, { actorId: 'PDFEditFeature' });

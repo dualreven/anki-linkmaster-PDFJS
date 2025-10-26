@@ -1,4 +1,4 @@
-﻿{
+{
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "docs/contracts/storage-kv/v1/messages/get.completed.schema.json",
   "title": "storage-kv:get:completed",
