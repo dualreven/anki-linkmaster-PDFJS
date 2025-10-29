@@ -18,6 +18,7 @@ try {
 import "jstree";
 import "jstree/dist/themes/default/style.css";
 import { BookmarkToolbar } from "../../pdf-bookmark/components/bookmark-toolbar.js";
+import { success as toastSuccess, error as toastError } from "../../../../common/utils/thirdparty-toast.js";
 
 export class OutlineSidebarUI {
   #eventBus;
@@ -86,6 +87,28 @@ export class OutlineSidebarUI {
       const toolbar = new BookmarkToolbar({ eventBus: this.#eventBus });
       toolbar.initialize();
       this.#toolbarEl.appendChild(toolbar.getElement());
+
+      // 添加“复制选中大纲ID”按钮（与 Annotation 的复制方案一致：单次 execCommand）
+      const extraBar = document.createElement("div");
+      extraBar.style.cssText = "display:flex;align-items:center;gap:6px;padding:6px 8px;border-top:1px solid #eee;";
+
+      const copyBtn = document.createElement("button");
+      copyBtn.type = "button";
+      copyBtn.textContent = "复制ID";
+      copyBtn.title = "复制选中的大纲项ID";
+      copyBtn.className = "outline-copy-id-btn";
+      copyBtn.style.cssText = [
+        "padding:4px 8px",
+        "font-size:12px",
+        "border:1px solid #d0d0d0",
+        "border-radius:4px",
+        "background:#f8f8f8",
+        "cursor:pointer"
+      ].join(";");
+      copyBtn.addEventListener("click", () => this.#handleCopySelectedOutlineId());
+
+      extraBar.appendChild(copyBtn);
+      this.#toolbarEl.appendChild(extraBar);
     } catch (e) {
       this.#logger.warn("Failed to mount BookmarkToolbar (fallback without toolbar):", e);
     }
@@ -147,7 +170,7 @@ export class OutlineSidebarUI {
         try { this.#logger.info("[OutlineUI] 大纲树渲染完成并已展开", { toast: true }); } catch {}
       } catch (err) {
         this.#logger.error("❌ Failed to expand outline tree: " + err.message);
-        try { this.#logger.error(`[OutlineUI] 展开失败：${err?.message || 'error'}`, { toast: { type: "error", ms: 4500 } }); } catch {}
+        try { this.#logger.error(`[OutlineUI] 展开失败：${err?.message || "error"}`, { toast: { type: "error", ms: 4500 } }); } catch {}
       }
     });
 
@@ -178,7 +201,7 @@ export class OutlineSidebarUI {
         }
       } catch (err) {
         this.#logger.warn("select_node failed", err);
-        try { this.#logger.error(`[OutlineUI] 选择失败：${err?.message || 'error'}`, { toast: { type: "error", ms: 4500 } }); } catch {}
+        try { this.#logger.error(`[OutlineUI] 选择失败：${err?.message || "error"}`, { toast: { type: "error", ms: 4500 } }); } catch {}
       }
     });
 
@@ -189,7 +212,7 @@ export class OutlineSidebarUI {
         const movedId = dataEvt.node.id;
         const newParent = dataEvt.parent === "#" ? null : dataEvt.parent;
         const newIndex = dataEvt.position; // 0-based index under parent
-        try { this.#logger.info(`[OutlineUI] 拖拽：${movedId} → parent=${newParent || 'root'} pos=${newIndex}`, { toast: true }); } catch {}
+        try { this.#logger.info(`[OutlineUI] 拖拽：${movedId} → parent=${newParent || "root"} pos=${newIndex}`, { toast: true }); } catch {}
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.BOOKMARK.REORDER.REQUESTED,
           { bookmarkId: movedId, newParentId: newParent, newIndex },
@@ -197,9 +220,65 @@ export class OutlineSidebarUI {
         );
       } catch (err) {
         this.#logger.warn("move_node failed", err);
-        try { this.#logger.error(`[OutlineUI] 拖拽失败：${err?.message || 'error'}`, { toast: { type: "error", ms: 4500 } }); } catch {}
+        try { this.#logger.error(`[OutlineUI] 拖拽失败：${err?.message || "error"}`, { toast: { type: "error", ms: 4500 } }); } catch {}
       }
     });
+  }
+
+  #handleCopySelectedOutlineId() {
+    try {
+      const $tree = $(this.#treeContainer);
+      // jsTree API: get_selected(true) 返回包含节点对象的数组
+      const inst = $tree.jstree(true);
+      const selected = inst ? inst.get_selected(true) : [];
+      const node = Array.isArray(selected) && selected.length > 0 ? selected[0] : null;
+      const id = node?.id || null;
+      if (!id) {
+        toastError("✗ 请先选中一个大纲项");
+        try { this.#logger.warn("[OutlineUI] 复制失败：未选中节点", { toast: { type: "warn", ms: 2500 } }); } catch {}
+        return;
+      }
+      const ok = this.#copyUsingExecCommand(id);
+      if (ok) {
+        toastSuccess("✓ 已复制大纲ID");
+        this.#logger.info(`[OutlineUI] 已复制大纲ID: ${id}`);
+      } else {
+        toastError("✗ 复制失败");
+        this.#logger.error("[OutlineUI] 复制失败：execCommand 返回 false");
+      }
+    } catch (e) {
+      this.#logger.error("[OutlineUI] 复制失败（异常）", e);
+      try { toastError("✗ 复制失败"); } catch {}
+    }
+  }
+
+  #copyUsingExecCommand(text) {
+    try {
+      const textarea = document.createElement("textarea");
+      textarea.value = String(text ?? "");
+      textarea.style.cssText = [
+        "position: fixed",
+        "top: 0",
+        "left: 0",
+        "width: 2em",
+        "height: 2em",
+        "padding: 0",
+        "border: none",
+        "outline: none",
+        "boxShadow: none",
+        "background: transparent",
+        "opacity: 0",
+        "pointer-events: none"
+      ].join(";");
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      return !!ok;
+    } catch {
+      return false;
+    }
   }
 
   destroy() {
