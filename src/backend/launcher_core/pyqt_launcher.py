@@ -369,6 +369,45 @@ class BackendLauncher:
                         on_log=lambda s: self.logger.info("[ViewerHost] %s", s)
                     )
                     self.logger.info("[MsgDispatch] PdfViewer ensure-hosted rc=%s", str(rc))
+
+                    # 若包含导航目标（annotation/anchor/page/outline），在激活/创建后追加一次定向导航请求
+                    try:
+                        if any([annotation_id, anchor_id, page_at, position]):
+                            from src.backend.msgCenter_server.handlers.pdf_viewer.viewer import navigate_viewer  # type: ignore
+                            nav_target = None
+                            if annotation_id:
+                                nav_target = {"type": "annotation", "annotation_id": str(annotation_id)}
+                            elif anchor_id:
+                                nav_target = {"type": "anchor", "anchor_id": str(anchor_id)}
+                            elif page_at:
+                                t = {"type": "page", "page_number": int(page_at)}
+                                try:
+                                    if position is not None:
+                                        # 统一用 y_percent 表示百分比
+                                        t["position"] = {"y_percent": float(position)}
+                                except Exception:
+                                    pass
+                                nav_target = t
+                            # outline_item_id 暂未从 viewer_options 透传，这里按需扩展
+                            if nav_target:
+                                nav_req = {
+                                    "to": {"pdf_uuid": str(pdf_id)},
+                                    "target": nav_target,
+                                    "options": {}
+                                }
+                                try:
+                                    rid = f"nav_{int(time.time()*1000)}"
+                                except Exception:
+                                    rid = None
+                                # 直接调用 handler，内部会通过 _forward_viewer_navigate 定向发送到目标 viewer
+                                _server = getattr(self.ws_server, "_server", None) if self.ws_server else None
+                                if _server is not None:
+                                    resp = navigate_viewer(_server, rid, nav_req)
+                                    self.logger.info("[MsgDispatch] Forward navigate → %s", str(resp.get("status") or resp.get("type")))
+                                else:
+                                    self.logger.warning("[MsgDispatch] 无法导航：ws_server._server 不可用")
+                    except Exception as _nav_exc:
+                        self.logger.warning("[MsgDispatch] 导航追加失败（已激活窗口）：%s", _nav_exc)
                 except Exception as e:
                     self.logger.error("[MsgDispatch] 启动 pdf-viewer 失败: %s", e, exc_info=True)
                 return
