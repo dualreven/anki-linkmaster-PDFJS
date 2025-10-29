@@ -1600,7 +1600,9 @@ class GUILauncher(QMainWindow):
                     payload = _json2.dumps(message, ensure_ascii=False)
                     ws.sendTextMessage(payload)
                     self._log(f"[WS] sent (tag={tag}): {payload[:180]}{'...' if len(payload)>180 else ''}")
-                    ws.close()
+                    # 延迟关闭，避免在部分平台上“发送后立即 close”导致数据未出站
+                    from PyQt6.QtCore import QTimer
+                    QTimer.singleShot(80, lambda: ws.close())
                 except Exception as _e:
                     self._log(f"[WS] send failed (tag={tag}): {_e}")
                     try:
