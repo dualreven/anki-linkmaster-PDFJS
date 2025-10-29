@@ -21,6 +21,7 @@ export class PDFOutlineFeature {
   #navigationService = null;
   #unsubs = [];
   #enabled = false;
+  #pendingNavigateId = null;
 
   get name() { return "pdf-outline"; }
   get version() { return "1.0.0"; }
