@@ -120,6 +120,8 @@ export class PDFOutlineFeature {
       // 最终刷新一次列表（无论是否导入）
       this.#refreshList();
       try { this.#logger.info(`[Outline] 列表已刷新: ${(this.#bookmarkManager.getAllBookmarks()||[]).length} 条`, { toast: true }); } catch {}
+      // 列表就绪后尝试处理挂起的按ID导航请求
+      try { this.#tryPendingNavigate(); } catch {}
     } catch (e) {
       this.#logger.warn("initial load failed", e);
       this.#refreshList();
@@ -146,6 +148,8 @@ export class PDFOutlineFeature {
         // 3) 刷新列表
         this.#refreshList();
         try { this.#logger.info(`[Outline] FILE.LOAD.SUCCESS → 列表已刷新: ${(this.#bookmarkManager.getAllBookmarks()||[]).length} 条`, { toast: true }); } catch {}
+        // 4) 处理可能在加载前收到的“按ID导航”请求
+        try { this.#tryPendingNavigate(); } catch {}
       },
       { subscriberId: "PDFOutlineFeature" }
     ));
@@ -338,8 +342,9 @@ export class PDFOutlineFeature {
       }
       const bm = this.#bookmarkManager.getBookmark(targetId);
       if (!bm) {
-        this.#logger.warn(`Outline bookmark not found by id: ${targetId}`);
-        this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED, { error: 'not-found' }, { actorId: 'PDFOutlineFeature' });
+        // 可能是因为列表尚未加载完成：记录挂起ID，待列表准备后再尝试
+        this.#pendingNavigateId = targetId;
+        this.#logger.info(`[Outline] 记录挂起的按ID导航请求: ${targetId}`);
         return;
       }
       await this.#handleNavigate({ bookmark: bm });
@@ -347,6 +352,18 @@ export class PDFOutlineFeature {
       this.#logger.warn('Outline navigate-by-id failed', e);
       this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED, { error: e?.message || 'exception' }, { actorId: 'PDFOutlineFeature' });
     }
+  }
+
+  #tryPendingNavigate() {
+    try {
+      const id = this.#pendingNavigateId;
+      if (!id) return;
+      const bm = this.#bookmarkManager.getBookmark(id);
+      if (!bm) return;
+      this.#pendingNavigateId = null;
+      this.#logger.info(`[Outline] 处理挂起的按ID导航: ${id}`);
+      this.#handleNavigate({ bookmark: bm });
+    } catch { /* ignore */ }
   }
 
   #count(nodes) {

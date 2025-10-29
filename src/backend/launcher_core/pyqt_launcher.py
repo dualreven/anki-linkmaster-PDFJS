@@ -329,6 +329,7 @@ class BackendLauncher:
                     position = None
                 anchor_id = viewer_opts.get('anchor_id') or data.get('anchor_id')
                 annotation_id = viewer_opts.get('annotation_id') or data.get('annotation_id')
+                outline_item_id = viewer_opts.get('outline_item_id') or data.get('outline_item_id')
 
                 if not pdf_id:
                     self.logger.warning("[MsgDispatch] 忽略打开请求：缺少 pdf_id")
@@ -372,13 +373,15 @@ class BackendLauncher:
 
                     # 若包含导航目标（annotation/anchor/page/outline），在激活/创建后追加一次定向导航请求
                     try:
-                        if any([annotation_id, anchor_id, page_at, position]):
+                        if any([annotation_id, anchor_id, page_at, position, outline_item_id]):
                             from src.backend.msgCenter_server.handlers.pdf_viewer.viewer import navigate_viewer  # type: ignore
                             nav_target = None
                             if annotation_id:
                                 nav_target = {"type": "annotation", "annotation_id": str(annotation_id)}
                             elif anchor_id:
                                 nav_target = {"type": "anchor", "anchor_id": str(anchor_id)}
+                            elif outline_item_id:
+                                nav_target = {"type": "outline", "outline_item_id": str(outline_item_id)}
                             elif page_at:
                                 t = {"type": "page", "page_number": int(page_at)}
                                 try:
