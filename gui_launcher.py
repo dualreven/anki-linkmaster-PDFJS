@@ -27,6 +27,13 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QFileSystemWatcher
 from PyQt6.QtGui import QFont, QTextCursor
 
+# Qt WebSocket 兼容导入（用于在 anki 模式通过 WS 触发后端）
+try:
+    from src.qt.compat import QWebSocket, QUrl  # type: ignore
+except Exception:
+    QWebSocket = None  # type: ignore
+    QUrl = None  # type: ignore
+
 # 添加项目根目录到路径
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -1342,6 +1349,24 @@ class GUILauncher(QMainWindow):
         - 若后端 Hosted 未运行，自动尝试启动（端口来自“高级设置”或 runtime-ports.json）。
         """
         try:
+            # 在 anki 模式下：改为通过 WS 请求后端进行启动（由后端执行单例判断并激活）
+            mode = (self.runtime_mode_select.currentText() or 'single').strip()
+            if mode == 'anki':
+                ws_port = int((self._runtime_ports() or {}).get('msgCenter_port') or (self.msgCenter_port_input.value() or 0))
+                if not ws_port:
+                    self._log("[ERROR] anki 模式下未提供 WebSocket 端口，无法发送启动请求")
+                    return
+                rid = f"home_{int(__import__('time').time()*1000)}"
+                payload = {
+                    "type": "pdf-library:open:home",
+                    "request_id": rid,
+                    "metadata": {"version": "1.0.0"},
+                    "data": {}
+                }
+                self._log(f"[WS] → pdf-home open requested (port={ws_port}) rid={rid}")
+                self._send_ws_message(ws_port, payload, tag="open-home")
+                return
+
             from PyQt6.QtWidgets import QApplication
             import importlib.util as _il
             launcher_path = _COMPONENT_ROOT / 'src' / 'frontend' / 'pdf-home' / 'launcher.py'
@@ -1455,6 +1480,47 @@ class GUILauncher(QMainWindow):
             from PyQt6.QtWidgets import QApplication
             ports = self._runtime_ports() or {}
             self._log(f"[TRACE:HOSTED] pdf-viewer pre-build → is_prod={bool(self.frontend_prod_checkbox.isChecked())} runtime={ports} ui(vite={self.vite_port_input.value() or 0}, ws={self.msgCenter_port_input.value() or 0}, http={self.pdfFile_port_input.value() or 0})")
+
+            # anki 模式下：通过 WS 请求后端进行启动/激活
+            mode = (self.runtime_mode_select.currentText() or 'single').strip()
+            if mode == 'anki':
+                ws_port = int(ports.get('msgCenter_port') or (self.msgCenter_port_input.value() or 0) or 0)
+                if not ws_port:
+                    self._log("[ERROR] anki 模式下未提供 WebSocket 端口，无法发送启动请求")
+                    return
+                # 读取 Hosted Tab 的参数
+                _pdf_id = (self.h_pdf_id.text().strip() or None)
+                _page_at = int(self.h_page_at.value() or 0) or None
+                _position = float(self.h_position.value() or 0) or None
+                _sel_type = None
+                try:
+                    _sel_type = self.h_id_type.currentData()
+                except Exception:
+                    _sel_type = None
+                _val = (self.h_id_value.text().strip() or None)
+                _anchor_id = _val if (_sel_type == "anchor" and _val) else None
+                _annotation_id = _val if (_sel_type == "annotation" and _val) else None
+                _outline_item = _val if (_sel_type == "outline" and _val) else None
+                rid = f"viewer_{int(__import__('time').time()*1000)}"
+                payload = {
+                    "type": "pdf-library:viewer:requested",
+                    "request_id": rid,
+                    "metadata": {"version": "1.0.0"},
+                    "data": {
+                        "pdf_id": _pdf_id,
+                        "viewer_options": {
+                            "page_at": _page_at,
+                            "position": _position,
+                            "anchor_id": _anchor_id,
+                            "annotation_id": _annotation_id,
+                            "outline_item_id": _outline_item
+                        }
+                    }
+                }
+                self._log(f"[WS] → pdf-viewer requested (pdf_id={_pdf_id}) rid={rid} port={ws_port}")
+                self._send_ws_message(ws_port, payload, tag="open-viewer")
+                return
+
             path_resolved = self._resolved_paths_from_ui()
             cfg = _LConfig(
                 ports=_LPorts(
@@ -1514,6 +1580,63 @@ class GUILauncher(QMainWindow):
             self._log(f"PDF-Viewer (Hosted) 启动 rc={rc}")
         except Exception as e:
             self._log(f"[ERROR] 启动 pdf-viewer (Hosted) 异常: {e}")
+
+    # ---- WS 工具 ----
+    def _send_ws_message(self, port: int, message: dict, tag: str = "ws") -> None:
+        """最小 WS 发送：短连发送后即主动关闭。"""
+        if not QWebSocket or not QUrl:
+            self._log(f"[ERROR] 不支持 QWebSocket，无法发送 WS 消息（tag={tag}）")
+            return
+        try:
+            ws = QWebSocket()
+            url = QUrl(f"ws://127.0.0.1:{int(port)}")
+            self._log(f"[WS] connecting → {url.toString()} (tag={tag})")
+            # 捕获到 self 以延长生命周期
+            self._ws_client = ws  # type: ignore[attr-defined]
+
+            def _on_open():
+                try:
+                    import json as _json2
+                    payload = _json2.dumps(message, ensure_ascii=False)
+                    ws.sendTextMessage(payload)
+                    self._log(f"[WS] sent (tag={tag}): {payload[:180]}{'...' if len(payload)>180 else ''}")
+                    ws.close()
+                except Exception as _e:
+                    self._log(f"[WS] send failed (tag={tag}): {_e}")
+                    try:
+                        ws.close()
+                    except Exception:
+                        pass
+
+            def _on_error(err):
+                try:
+                    self._log(f"[WS] error (tag={tag}): {err}")
+                except Exception:
+                    pass
+
+            def _on_close(_code=None):
+                try:
+                    self._log(f"[WS] closed (tag={tag})")
+                except Exception:
+                    pass
+                try:
+                    if getattr(self, '_ws_client', None) is ws:
+                        delattr(self, '_ws_client')
+                except Exception:
+                    pass
+
+            ws.connected.connect(_on_open)
+            try:
+                ws.error.connect(_on_error)  # PyQt5
+            except Exception:
+                try:
+                    ws.errorOccurred.connect(_on_error)  # PyQt6
+                except Exception:
+                    pass
+            ws.disconnected.connect(_on_close)
+            ws.open(url)
+        except Exception as e:
+            self._log(f"[WS] 发送失败 (tag={tag}): {e}")
 
     def _on_start_vite(self):
         """启动 Vite"""

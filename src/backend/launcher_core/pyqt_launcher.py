@@ -308,7 +308,7 @@ class BackendLauncher:
             if msg_type == 'pdf-library:viewer:requested':
                 try:
                     from src.launcher.config import LauncherConfig, LauncherPorts, LauncherPaths, LauncherOptions  # type: ignore
-                    from src.launcher.runner import start_pdf_viewer_hosted  # type: ignore
+                    from src.launcher.runner import ensure_pdf_viewer_hosted, ensure_pdf_home_hosted  # type: ignore
                 except Exception as e:
                     self.logger.error("[MsgDispatch] 无法导入启动器模块: %s", e)
                     return
@@ -358,7 +358,7 @@ class BackendLauncher:
                 self.logger.info("[MsgDispatch] 打开 pdf-viewer (hosted): pdf_id=%s page_at=%s pos=%s anchor=%s annot=%s",
                                  str(pdf_id), str(page_at), str(position), str(anchor_id), str(annotation_id))
                 try:
-                    rc = start_pdf_viewer_hosted(
+                    rc = ensure_pdf_viewer_hosted(
                         cfg,
                         parent_app=self.parent_app or getattr(self, 'app', None),
                         pdf_id=str(pdf_id),
@@ -368,9 +368,48 @@ class BackendLauncher:
                         annotation_id=annotation_id,
                         on_log=lambda s: self.logger.info("[ViewerHost] %s", s)
                     )
-                    self.logger.info("[MsgDispatch] PdfViewer hosted run rc=%s", str(rc))
+                    self.logger.info("[MsgDispatch] PdfViewer ensure-hosted rc=%s", str(rc))
                 except Exception as e:
                     self.logger.error("[MsgDispatch] 启动 pdf-viewer 失败: %s", e, exc_info=True)
+                return
+
+            # 通过 WS 触发的 pdf-home 打开请求（单例化 + 激活）
+            if msg_type in ('pdf-library:open:home', 'pdf-home:open:requested'):
+                try:
+                    from src.launcher.config import LauncherConfig, LauncherPorts, LauncherPaths, LauncherOptions  # type: ignore
+                    from src.launcher.runner import ensure_pdf_home_hosted  # type: ignore
+                except Exception as e:
+                    self.logger.error("[MsgDispatch] 无法导入启动器模块: %s", e)
+                    return
+
+                ports = LauncherPorts(
+                    msgCenter_port=getattr(self.ws_server, 'port', None) if self.ws_server else None,
+                    pdfFile_port=getattr(self.http_server, 'port', None) if self.http_server else None,
+                    vite_port=None
+                )
+                paths = LauncherPaths(
+                    data_dir=str(self.data_dir),
+                    db_path=str(self.db_path),
+                    static_dir=str(self.static_dir) if getattr(self, 'static_dir', None) else None,
+                    pdfs_dir=str(self.pdfs_dir) if getattr(self, 'pdfs_dir', None) else None,
+                    logs_dir=str(self.logs_dir_override) if getattr(self, 'logs_dir_override', None) else None,
+                )
+                options = LauncherOptions(
+                    runtime_mode=self.runtime_mode or 'single',
+                    ankiaddon_root_path=self.ankiaddon_root_path,
+                    keep_backend=True,
+                    frontend_prod=True
+                )
+                cfg = LauncherConfig(ports=ports, paths=paths, options=options)
+                try:
+                    rc = ensure_pdf_home_hosted(
+                        cfg,
+                        parent_app=self.parent_app or getattr(self, 'app', None),
+                        on_log=lambda s: self.logger.info("[PdfHomeHost] %s", s)
+                    )
+                    self.logger.info("[MsgDispatch] PdfHome ensure-hosted rc=%s", str(rc))
+                except Exception as e:
+                    self.logger.error("[MsgDispatch] 启动 pdf-home 失败: %s", e, exc_info=True)
                 return
         except Exception as e:
             self.logger.warning("[MsgDispatch] 处理消息失败: %s", str(e))

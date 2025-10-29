@@ -60,6 +60,14 @@
 - 结果预期：viewer 收到 `pdf-library:info:completed` 后，标题更新为 DB `data.title`；失败出现 toast；无 URL 回退、无 ID 回退。
 - 验证：查看 `dist/latest/logs/pdf-viewer-*-js.log` 有 `[Injected] info request sent for title` 后跟 `Header title updated from DB` 或 `[UIManagerCore] 标题已从数据库更新`；失败时出现 `toast`。
 
+### 2025-10-29（新增）— 启动器单例化（pdf-home / pdf-viewer）
+- 目标：pdf-home 全局单例；pdf-viewer 按 pdf-id 单例。收到启动指令时优先激活已存在窗口，否则创建。
+- 变更：
+  - 新增 `src/backend/launcher_core/session_registry.py`（运行时注册表 + `activate_window()`）。
+  - `src/launcher/runner.py` 新增 `ensure_pdf_home_hosted()` / `ensure_pdf_viewer_hosted()`；原 `start_*_hosted` 保留（标注已废弃建议）。
+  - `src/backend/launcher_core/pyqt_launcher.py`：WS `pdf-library:viewer:requested` 改为调用 `ensure_pdf_viewer_hosted()`。
+- 边界：激活仅前置窗口，不做“激活即导航”。关闭窗口后的清理可后续接入。
+
 ## 2025-10-28 结论：gui_launcher 启动参数的跳转支持
 - 结论（URL 启动路径）：
   - 支持：`pdf-id`、`page-at`、`position(需与page-at合用)`、`anchor-id`、`annotation-id`。

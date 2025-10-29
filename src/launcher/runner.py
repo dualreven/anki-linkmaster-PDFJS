@@ -18,6 +18,7 @@ from typing import Optional, Dict, Any, Callable
 
 from .config import LauncherConfig, resolve_component_root
 from .ports import read_runtime_ports
+from src.backend.launcher_core.session_registry import get_registry, activate_window
 
 
 def _py_exe() -> str:
@@ -86,6 +87,9 @@ def start_backend_hosted(cfg: LauncherConfig, *, parent_app, on_log: Optional[Ca
 
 
 def start_pdf_home_hosted(cfg: LauncherConfig, *, parent_app, on_log: Optional[Callable[[str], None]] = None) -> int:
+    """
+    已废弃：建议使用 ensure_pdf_home_hosted（具有单例化与激活能力）。
+    """
     root = resolve_component_root()
     import importlib.util as _il
     launcher_path = root / 'src' / 'frontend' / 'pdf-home' / 'launcher.py'
@@ -117,6 +121,9 @@ def start_pdf_viewer_hosted(cfg: LauncherConfig, *, parent_app, pdf_id: Optional
                             anchor_id: Optional[str] = None, annotation_id: Optional[str] = None,
                             outline_item_id: Optional[str] = None, enable_outline: Optional[bool] = None,
                             on_log: Optional[Callable[[str], None]] = None) -> int:
+    """
+    已废弃：建议使用 ensure_pdf_viewer_hosted（具有按 pdf_id 单例化与激活能力）。
+    """
     root = resolve_component_root()
     import importlib.util as _il
     launcher_path = root / 'src' / 'frontend' / 'pdf-viewer' / 'launcher.py'
@@ -154,6 +161,111 @@ def start_pdf_viewer_hosted(cfg: LauncherConfig, *, parent_app, pdf_id: Optional
     rc = inst.run()
     if on_log:
         on_log(f"PdfViewer hosted run rc={rc}")
+    return int(rc or 0)
+
+
+# ------------------------- 单例化（Hosted）-------------------------
+def ensure_pdf_home_hosted(cfg: LauncherConfig, *, parent_app, on_log: Optional[Callable[[str], None]] = None) -> int:
+    """
+    确保 pdf-home 仅一个实例：
+    - 已存在 → 激活窗口并返回 0
+    - 不存在 → 按 Hosted 路径创建并运行初始化，注册到单例表
+    """
+    reg = get_registry()
+    existing = reg.get_pdf_home()
+    if existing and getattr(existing, "window", None):
+        try:
+            activate_window(existing.window)
+            if on_log: on_log("[Singleton] pdf-home already running, activated window")
+            return 0
+        except Exception:
+            pass
+    # 创建新实例（与 start_pdf_home_hosted 相同路径）
+    root = resolve_component_root()
+    import importlib.util as _il
+    launcher_path = root / 'src' / 'frontend' / 'pdf-home' / 'launcher.py'
+    spec = _il.spec_from_file_location('pdf_home_launcher', str(launcher_path))
+    if spec is None or spec.loader is None:
+        raise ImportError('无法定位 pdf-home launcher 模块')
+    mod = _il.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore
+    from src.frontend.common.launch_config import LaunchConfig as FEConfig  # type: ignore
+    fe_cfg = FEConfig(
+        is_prod=bool(cfg.options.frontend_prod),
+        keep_backend=bool(cfg.options.keep_backend),
+        msgCenter_port=cfg.ports.msgCenter_port,
+        pdfFile_port=cfg.ports.pdfFile_port,
+        vite_port=cfg.ports.vite_port,
+        source='gui',
+        logs_dir=str(cfg.paths.logs_dir) if getattr(cfg.paths, 'logs_dir', None) else None,
+    )
+    PdfHomeApp = getattr(mod, 'PdfHomeApp')
+    app_inst = PdfHomeApp(fe_cfg, parent_app=parent_app)
+    rc = app_inst.run()
+    reg.set_pdf_home(app_inst)
+    if on_log: on_log(f"[Singleton] PdfHome hosted run rc={rc}")
+    return int(rc or 0)
+
+
+def ensure_pdf_viewer_hosted(cfg: LauncherConfig, *, parent_app, pdf_id: Optional[str] = None,
+                             page_at: Optional[int] = None, position: Optional[float] = None,
+                             anchor_id: Optional[str] = None, annotation_id: Optional[str] = None,
+                             outline_item_id: Optional[str] = None, enable_outline: Optional[bool] = None,
+                             on_log: Optional[Callable[[str], None]] = None) -> int:
+    """
+    确保每个 pdf-id 对应单例 pdf-viewer：
+    - 已存在 → 激活窗口并返回 0（不做跳转变更；后续如需实现“激活并导航”，可在此追加定向事件）
+    - 不存在 → 按 Hosted 路径创建并运行初始化，注册到单例表
+    """
+    reg = get_registry()
+    if pdf_id:
+        existing = reg.get_viewer(str(pdf_id))
+        if existing and getattr(existing, "window", None):
+            try:
+                activate_window(existing.window)
+                if on_log: on_log(f"[Singleton] pdf-viewer({pdf_id}) already running, activated window")
+                return 0
+            except Exception:
+                pass
+
+    # 创建新实例（与 start_pdf_viewer_hosted 相同路径）
+    root = resolve_component_root()
+    import importlib.util as _il
+    launcher_path = root / 'src' / 'frontend' / 'pdf-viewer' / 'launcher.py'
+    spec = _il.spec_from_file_location('pdf_viewer_launcher', str(launcher_path))
+    if spec is None or spec.loader is None:
+        raise ImportError('无法定位 pdf-viewer launcher 模块')
+    mod = _il.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore
+    from src.frontend.common.launch_config import LaunchConfig as FEConfig  # type: ignore
+    # 额外 URL 参数
+    _extra: Dict[str, Any] = {}
+    if outline_item_id:
+        _extra["outline_item_id"] = outline_item_id
+    if enable_outline:
+        _extra["debug"] = "1"
+    fe_cfg = FEConfig(
+        is_prod=bool(cfg.options.frontend_prod),
+        keep_backend=bool(cfg.options.keep_backend),
+        msgCenter_port=cfg.ports.msgCenter_port,
+        pdfFile_port=cfg.ports.pdfFile_port,
+        vite_port=cfg.ports.vite_port,
+        source='gui',
+        logs_dir=str(cfg.paths.logs_dir) if getattr(cfg.paths, 'logs_dir', None) else None,
+        pdf_id=pdf_id,
+        page_at=page_at,
+        position=position,
+        anchor_id=anchor_id,
+        annotation_id=annotation_id,
+        extra_params=_extra,
+    )
+    PdfViewerApp = getattr(mod, 'PdfViewerApp')
+    viewer = PdfViewerApp(fe_cfg, parent_app=parent_app)
+    # 执行初始化与（hosted）run
+    rc = viewer.run()
+    if pdf_id:
+        reg.set_viewer(str(pdf_id), viewer)
+    if on_log: on_log(f"[Singleton] PdfViewer hosted run rc={rc}")
     return int(rc or 0)
 
 
