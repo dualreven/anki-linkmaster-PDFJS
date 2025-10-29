@@ -1352,7 +1352,13 @@ class GUILauncher(QMainWindow):
             # 在 anki 模式下：改为通过 WS 请求后端进行启动（由后端执行单例判断并激活）
             mode = (self.runtime_mode_select.currentText() or 'single').strip()
             if mode == 'anki':
-                ws_port = int((self._runtime_ports() or {}).get('msgCenter_port') or (self.msgCenter_port_input.value() or 0))
+                ports = self._runtime_ports() or {}
+                ws_port = int(ports.get('msgCenter_port') or (self.msgCenter_port_input.value() or 0) or 0)
+                try:
+                    if not ws_port and getattr(self, 'backend_launcher_instance', None):
+                        ws_port = int(getattr(self.backend_launcher_instance.ws_server, 'port', 0) or 0)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
                 if not ws_port:
                     self._log("[ERROR] anki 模式下未提供 WebSocket 端口，无法发送启动请求")
                     return
@@ -1485,6 +1491,11 @@ class GUILauncher(QMainWindow):
             mode = (self.runtime_mode_select.currentText() or 'single').strip()
             if mode == 'anki':
                 ws_port = int(ports.get('msgCenter_port') or (self.msgCenter_port_input.value() or 0) or 0)
+                try:
+                    if not ws_port and getattr(self, 'backend_launcher_instance', None):
+                        ws_port = int(getattr(self.backend_launcher_instance.ws_server, 'port', 0) or 0)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
                 if not ws_port:
                     self._log("[ERROR] anki 模式下未提供 WebSocket 端口，无法发送启动请求")
                     return
