@@ -86,29 +86,30 @@ export class OutlineSidebarUI {
     try {
       const toolbar = new BookmarkToolbar({ eventBus: this.#eventBus });
       toolbar.initialize();
-      this.#toolbarEl.appendChild(toolbar.getElement());
+      const tbEl = toolbar.getElement();
+      this.#toolbarEl.appendChild(tbEl);
 
-      // 添加“复制选中大纲ID”按钮（与 Annotation 的复制方案一致：单次 execCommand）
-      const extraBar = document.createElement("div");
-      extraBar.style.cssText = "display:flex;align-items:center;gap:6px;padding:6px 8px;border-top:1px solid #eee;";
-
+      // 在同一行工具栏末尾添加“复制ID”按钮（样式对齐现有按钮）
       const copyBtn = document.createElement("button");
       copyBtn.type = "button";
-      copyBtn.textContent = "复制ID";
+      copyBtn.dataset.action = "copy-outline-id";
       copyBtn.title = "复制选中的大纲项ID";
-      copyBtn.className = "outline-copy-id-btn";
+      copyBtn.innerHTML = `<span style="font-size:18px;">📋</span>`;
       copyBtn.style.cssText = [
-        "padding:4px 8px",
-        "font-size:12px",
-        "border:1px solid #d0d0d0",
-        "border-radius:4px",
-        "background:#f8f8f8",
-        "cursor:pointer"
+        "display:flex","align-items:center","justify-content:center",
+        "width:36px","height:36px","padding:0",
+        "border:1px solid #ccc","border-radius:4px",
+        "background-color:white","cursor:pointer","transition:all .2s"
       ].join(";");
+      copyBtn.addEventListener("mouseenter", () => {
+        if (!copyBtn.disabled) { copyBtn.style.backgroundColor = "#e8e8e8"; copyBtn.style.borderColor = "#aaa"; }
+      });
+      copyBtn.addEventListener("mouseleave", () => {
+        if (!copyBtn.disabled) { copyBtn.style.backgroundColor = "white"; copyBtn.style.borderColor = "#ccc"; }
+      });
       copyBtn.addEventListener("click", () => this.#handleCopySelectedOutlineId());
 
-      extraBar.appendChild(copyBtn);
-      this.#toolbarEl.appendChild(extraBar);
+      tbEl.appendChild(copyBtn);
     } catch (e) {
       this.#logger.warn("Failed to mount BookmarkToolbar (fallback without toolbar):", e);
     }
