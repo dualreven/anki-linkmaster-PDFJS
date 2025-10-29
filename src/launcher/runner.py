@@ -20,6 +20,28 @@ from .config import LauncherConfig, resolve_component_root
 from .ports import read_runtime_ports
 from src.backend.launcher_core.session_registry import get_registry, activate_window
 
+def _is_qobject_alive(obj: object) -> bool:
+    """最佳努力地判断 Qt 对象是否仍然存活。"""
+    if obj is None:
+        return False
+    try:
+        import sip  # type: ignore
+        try:
+            if sip.isdeleted(obj):
+                return False
+        except Exception:
+            pass
+    except Exception:
+        # sip 不可用时，尝试一次轻量访问
+        pass
+    try:
+        # 访问一个轻量属性以触发潜在的已销毁异常
+        if hasattr(obj, "objectName"):
+            _ = obj.objectName()  # type: ignore[attr-defined]
+        return True
+    except Exception:
+        return False
+
 
 def _py_exe() -> str:
     return sys.executable
@@ -203,6 +225,22 @@ def ensure_pdf_home_hosted(cfg: LauncherConfig, *, parent_app, on_log: Optional[
     app_inst = PdfHomeApp(fe_cfg, parent_app=parent_app)
     rc = app_inst.run()
     reg.set_pdf_home(app_inst)
+    # 尝试绑定 window 关闭以清理单例（若提供了 window_closing）
+    try:
+        win = getattr(app_inst, "window", None)
+        if win and hasattr(win, "window_closing"):
+            def _on_home_close(*_a, **_k):
+                try:
+                    reg.set_pdf_home(None)
+                    if on_log: on_log("[Singleton] pdf-home closed → unregistered")
+                except Exception:
+                    pass
+            try:
+                win.window_closing.connect(_on_home_close)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+    except Exception:
+        pass
     if on_log: on_log(f"[Singleton] PdfHome hosted run rc={rc}")
     return int(rc or 0)
 
@@ -220,13 +258,21 @@ def ensure_pdf_viewer_hosted(cfg: LauncherConfig, *, parent_app, pdf_id: Optiona
     reg = get_registry()
     if pdf_id:
         existing = reg.get_viewer(str(pdf_id))
-        if existing and getattr(existing, "window", None):
-            try:
-                activate_window(existing.window)
-                if on_log: on_log(f"[Singleton] pdf-viewer({pdf_id}) already running, activated window")
-                return 0
-            except Exception:
-                pass
+        if existing:
+            win = getattr(existing, "window", None)
+            if win and _is_qobject_alive(win):
+                try:
+                    activate_window(win)
+                    if on_log: on_log(f"[Singleton] pdf-viewer({pdf_id}) already running, activated window")
+                    return 0
+                except Exception:
+                    # 若激活异常，丢弃并走创建分支
+                    try: reg.discard_viewer(str(pdf_id))
+                    except Exception: pass
+            else:
+                # 窗口已被销毁/无效，丢弃注册表记录
+                try: reg.discard_viewer(str(pdf_id))
+                except Exception: pass
 
     # 创建新实例（与 start_pdf_viewer_hosted 相同路径）
     root = resolve_component_root()
@@ -265,6 +311,26 @@ def ensure_pdf_viewer_hosted(cfg: LauncherConfig, *, parent_app, pdf_id: Optiona
     rc = viewer.run()
     if pdf_id:
         reg.set_viewer(str(pdf_id), viewer)
+        # 绑定窗口关闭信号以便及时清理注册表，避免陈旧记录阻塞再次打开
+        try:
+            win = getattr(viewer, "window", None)
+            if win:
+                def _on_win_close(*_args, **_kwargs):
+                    try:
+                        reg.discard_viewer(str(pdf_id))
+                        if on_log: on_log(f"[Singleton] viewer({pdf_id}) closed → unregistered")
+                    except Exception:
+                        pass
+                try:
+                    win.window_closing.connect(_on_win_close)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                try:
+                    win.destroyed.connect(lambda *_: reg.discard_viewer(str(pdf_id)))  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+        except Exception:
+            pass
     if on_log: on_log(f"[Singleton] PdfViewer hosted run rc={rc}")
     return int(rc or 0)
 
