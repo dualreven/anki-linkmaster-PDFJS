@@ -1612,6 +1612,17 @@ class GUILauncher(QMainWindow):
             # 捕获到 self 以延长生命周期
             self._ws_client = ws  # type: ignore[attr-defined]
 
+            def _on_text(txt: str):
+                try:
+                    import json as _json3
+                    msg = _json3.loads(txt)
+                    mtype = msg.get("type") or msg.get("received_type") or "unknown"
+                    self._log(f"[WS] recv (tag={tag}): type={mtype}")
+                    # 对于 open-home 这类“控制消息”，标准服务器会返回 unknown_message_type（走路由），
+                    # 但 BackendLauncher 仍会通过 message_received 消费并启动/激活窗口；这里只做信息性日志。
+                except Exception as _e:
+                    self._log(f"[WS] recv parse failed (tag={tag}): {_e}")
+
             def _on_open():
                 try:
                     import json as _json2
@@ -1646,6 +1657,10 @@ class GUILauncher(QMainWindow):
                     pass
 
             ws.connected.connect(_on_open)
+            try:
+                ws.textMessageReceived.connect(_on_text)
+            except Exception:
+                pass
             try:
                 ws.error.connect(_on_error)  # PyQt5
             except Exception:
