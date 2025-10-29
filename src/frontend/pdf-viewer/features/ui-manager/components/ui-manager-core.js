@@ -405,48 +405,59 @@ export class UIManagerCore {
         return;
       }
 
-      try {
-        // 复制到剪贴板（带超时保护）
-        await this.#copyWithTimeout(this.#currentPdfId, 800);
-
-        // 视觉反馈：添加"已复制"状态
+      const ok = this.#copyUsingExecCommand(this.#currentPdfId);
+      if (ok) {
         copyBtn.classList.add('copied');
         copyBtn.title = `已复制: ${this.#currentPdfId}`;
         toastSuccess('✓ PDF ID 已复制');
-
-          this.#logger.info(`✅ PDF ID copied to clipboard: ${this.#currentPdfId}`);
-
-        // 2秒后恢复原状态
+        this.#logger.info(`✅ PDF ID copied (execCommand): ${this.#currentPdfId}`);
         setTimeout(() => {
           copyBtn.classList.remove('copied');
           copyBtn.title = '复制 PDF ID';
           this.#logger.debug('Copy button state reset');
         }, 2000);
-      } catch (error) {
-        this.#logger.error('Failed to copy PDF ID to clipboard:', error);
-        // 如果剪贴板 API 不可用或超时，尝试使用旧方法
-        try {
-          this.#fallbackCopyToClipboard(this.#currentPdfId);
-
-          // 备用方法成功，也显示视觉反馈
-          copyBtn.classList.add('copied');
-          copyBtn.title = `已复制: ${this.#currentPdfId}`;
-          toastSuccess('✓ PDF ID 已复制');
-
-          setTimeout(() => {
-            copyBtn.classList.remove('copied');
-            copyBtn.title = '复制 PDF ID';
-          }, 2000);
-        } catch (fallbackError) {
-          this.#logger.error('Fallback copy also failed:', fallbackError);
-          toastError('✗ 复制失败，已提供手动复制');
-          // 最终兜底：显示手动复制对话框
-          this.#showManualCopyDialog(this.#currentPdfId);
-        }
+      } else {
+        this.#logger.error('Copy via execCommand failed');
+        toastError('✗ 复制失败');
       }
     });
 
     this.#logger.info('Copy PDF ID button initialized');
+  }
+
+  /**
+   * 使用隐藏 textarea + document.execCommand('copy') 复制文本（与 AnnotationSidebar 一致）
+   * @param {string} text
+   * @returns {boolean} 是否成功
+   * @private
+   */
+  #copyUsingExecCommand(text) {
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = String(text ?? '');
+      textarea.style.cssText = [
+        'position: fixed',
+        'top: 0',
+        'left: 0',
+        'width: 2em',
+        'height: 2em',
+        'padding: 0',
+        'border: none',
+        'outline: none',
+        'boxShadow: none',
+        'background: transparent',
+        'opacity: 0',
+        'pointer-events: none'
+      ].join(';');
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      return !!successful;
+    } catch {
+      return false;
+    }
   }
 
   /**
