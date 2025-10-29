@@ -1599,6 +1599,13 @@ class GUILauncher(QMainWindow):
             self._log(f"[ERROR] 不支持 QWebSocket，无法发送 WS 消息（tag={tag}）")
             return
         try:
+            # 确保基本字段（server 解析要求包含 timestamp）
+            try:
+                import time as _t
+                if "timestamp" not in message:
+                    message = {**message, "timestamp": int(_t.time() * 1000)}
+            except Exception:
+                pass
             ws = QWebSocket()
             url = QUrl(f"ws://127.0.0.1:{int(port)}")
             self._log(f"[WS] connecting → {url.toString()} (tag={tag})")
