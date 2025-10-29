@@ -475,9 +475,7 @@ def test_save_bookmarks_overwrite_existing(api):
         {
             "id": "bookmark-1728123460000-new",
             "name": "新章节",
-            "type": "page",
-            "pageNumber": 9,
-            "region": None,
+            "pageAt": 9,
             "children": [],
             "parentId": None,
             "order": 0,
@@ -490,7 +488,7 @@ def test_save_bookmarks_overwrite_existing(api):
     result = api.list_bookmarks(pdf_uuid)
     assert result["root_ids"] == ["bookmark-1728123460000-new"]
     assert len(result["bookmarks"]) == 1
-    assert result["bookmarks"][0]["pageNumber"] == 9
+    assert result["bookmarks"][0]["pageAt"] == 9
 
 
 def test_save_bookmarks_validation_error(api):
@@ -501,8 +499,7 @@ def test_save_bookmarks_validation_error(api):
         {
             "id": "bookmark-1728123470000-invalid",
             "name": "",
-            "type": "page",
-            "pageNumber": 1,
+            "pageAt": 1,
             "children": [],
             "parentId": None,
             "order": 0,

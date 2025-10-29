@@ -11,6 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+import json
 
 from src.qt.compat import (
     QMainWindow, QVBoxLayout, QWidget, QStatusBar,
@@ -314,6 +315,112 @@ class MainWindow(QMainWindow):
                 })();
                 """
                 self.web_view.page().runJavaScript(script)
+
+            # 注入脚本：页面就绪后，使用全局 EventBus 通过 WebSocket 请求 pdf-library:info:requested，
+            # 成功后将 header(#pdf-title) 更新为数据库中的 title（严格：不从 URL 与文件名获取）。
+            try:
+                pid = str(self.pdf_id)
+            except Exception:
+                pid = ""
+            if pid:
+                js_title_script = f"""
+                (function() {{
+                    try {{
+                        var pdfId = {json.dumps(pid)};
+                        function ensureEventBus() {{
+                            try {{
+                                return (window.pdfViewerApp && window.pdfViewerApp.eventBus) ? window.pdfViewerApp.eventBus : null;
+                            }} catch (e) {{ return null; }}
+                        }}
+                        function ensureLogger() {{
+                            try {{
+                                return (window.__logger || console);
+                            }} catch (e) {{ return console; }}
+                        }}
+                        var logger = ensureLogger();
+                        function requestInfo() {{
+                            var bus = ensureEventBus();
+                            if (!bus) {{
+                                setTimeout(requestInfo, 120);
+                                return;
+                            }}
+                            var rid = 'info_' + Date.now() + '_' + Math.random().toString(36).slice(2,10);
+                            // 统一响应处理（RESPONSE/RECEIVED 兼容）
+                            function handleInfoCompleted(message) {{
+                                try {{
+                                    if (!message || message.request_id !== rid) return;
+                                    var t = (message.type || message.received_type || '');
+                                    if (t === 'pdf-library:info:completed') {{
+                                        var title = (message.data && message.data.title) ? String(message.data.title).trim() : '';
+                                        if (title) {{
+                                            try {{
+                                                var el = document.getElementById('pdf-title');
+                                                if (el) {{
+                                                    el.textContent = title;
+                                                    el.title = title;
+                                                }}
+                                            }} catch (e) {{}}
+                                            logger.info('[Injected] Header title updated from DB');
+                                        }} else {{
+                                            logger.error('[Injected] DB record missing title (strict)');
+                                            try {{
+                                                var bus = ensureEventBus();
+                                                if (bus && bus.emit) {{
+                                                    bus.emit('websocket:message:error', {{
+                                                        type: 'pdf-library:info:failed',
+                                                        request_id: rid,
+                                                        message: '数据库记录缺少标题，请补全后重试'
+                                                    }}, {{ actorId: 'InjectedTitle' }});
+                                                }}
+                                            }} catch(_){{
+                                                /* ignore bus error */
+                                            }}
+                                        }}
+                                    }}
+                                }} catch(e) {{ }}
+                            }}
+                            // 注册一次性回调（RESPONSE + RECEIVED 兼容，避免旧包未路由的问题）
+                            var onResp = function(message) {{ handleInfoCompleted(message); bus.off && bus.off('websocket:message:response', onResp); }};
+                            var onRecv = function(message) {{ handleInfoCompleted(message); bus.off && bus.off('websocket:message:received', onRecv); }};
+                            var onErr = function(message) {{
+                                try {{
+                                    if (!message || message.request_id !== rid) return;
+                                    var emsg = (message && (message.message || (message.error && message.error.message))) || '请求失败';
+                                    logger.error('[Injected] info request failed:', emsg);
+                                    try {{
+                                        var bus = ensureEventBus();
+                                        if (bus && bus.emit) {{
+                                            bus.emit('websocket:message:error', {{
+                                                type: 'pdf-library:info:failed',
+                                                request_id: rid,
+                                                message: emsg
+                                            }}, {{ actorId: 'InjectedTitle' }});
+                                        }}
+                                    }} catch(_){{
+                                        /* ignore bus error */
+                                    }}
+                                }} catch(e) {{}}
+                            }};
+                            bus.on && bus.on('websocket:message:response', onResp, {{ subscriberId: 'InjectedTitle' }});
+                            bus.on && bus.on('websocket:message:received', onRecv, {{ subscriberId: 'InjectedTitle' }});
+                            bus.on && bus.on('websocket:message:error', onErr, {{ subscriberId: 'InjectedTitle' }});
+                            // 发送请求（严格携带 metadata）
+                            var msg = {{
+                                type: 'pdf-library:info:requested',
+                                request_id: rid,
+                                metadata: {{ version: '1.0.0' }},
+                                data: {{ pdf_id: pdfId }}
+                            }};
+                            bus.emit && bus.emit('websocket:message:send', msg, {{ actorId: 'InjectedTitle' }});
+                            logger.info('[Injected] info request sent for title');
+                        }}
+                        requestInfo();
+                    }} catch (e) {{
+                        try {{ console.error('[Injected] title script error', e); }} catch(_) {{}}
+                    }}
+                }})();"""
+                if self.web_view and self.web_view.page():
+                    self.web_view.page().runJavaScript(js_title_script)
 
             self.status_bar.showMessage(f'页面加载完成 (PDF: {self.pdf_id})')
             self.web_loaded.emit()

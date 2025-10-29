@@ -1,0 +1,40 @@
+"""
+标准JSON通信协议处理器
+基于docs/SPEC/json_communication_standard.md实现
+"""
+import json
+import uuid
+import time
+import logging
+from typing import Dict, Any, Optional, Union, List
+from enum import Enum
+from src.backend.msgCenter_server.core.message_types import MessageType
+
+logger = logging.getLogger(__name__)
+
+class StandardMessageHandler:
+    """标准消息处理器 - 符合JSON通信标准"""
+    
+    @staticmethod
+    def generate_request_id() -> str:
+        """生成唯一的请求ID"""
+        return str(uuid.uuid4())
+    
+    @staticmethod
+    def validate_message_structure(message: Dict[str, Any]) -> tuple[bool, str]:
+        """
+        验证消息结构是否符合标准
+        
+        Args:
+            message: 待验证的消息字典
+            
+        Returns:
+            tuple: (是否有效, 错误信息)
+        """
+        if not isinstance(message, dict):
+            return False, "消息必须是字典类型"
+        
+        # 检查必需字段
+        required_fields = ["type", "timestamp"]
+        for field in required_fields:
+            if field not in message:

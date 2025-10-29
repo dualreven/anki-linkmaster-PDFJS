@@ -43,8 +43,10 @@ class FakePDFManager:
 
 
 @pytest.fixture()
-def server_with_fakes():
-    server = StandardWebSocketServer()
+def server_with_fakes(tmp_path):
+    data_dir = str(tmp_path / "data")
+    db_path = str(tmp_path / "test-db.sqlite")
+    server = StandardWebSocketServer(data_dir=data_dir, db_path=db_path)
     server.pdf_library_api = FakePDFLibraryAPI()
     server.pdf_manager = FakePDFManager()
     return server
@@ -54,6 +56,8 @@ def test_handle_pdf_upload_request_uses_api_and_returns_new_type(server_with_fak
     payload = {
         "type": "pdf-library:add:requested",
         "request_id": "req-upload",
+        "timestamp": 0,
+        "metadata": {"version": "1.0.0"},
         "data": {
             "filepath": "C:/fake/path/sample.pdf"
         }

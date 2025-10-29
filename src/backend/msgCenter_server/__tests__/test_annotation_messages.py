@@ -6,8 +6,10 @@ from src.backend.database.exceptions import DatabaseConstraintError
 
 
 @pytest.fixture()
-def server():
-    return StandardWebSocketServer()
+def server(tmp_path):
+    data_dir = str(tmp_path / "data")
+    db_path = str(tmp_path / "test-db.sqlite")
+    return StandardWebSocketServer(data_dir=data_dir, db_path=db_path)
 
 
 def _ensure_pdf_record(server, pdf_uuid: str):
@@ -47,6 +49,8 @@ def test_annotation_save_list_delete_roundtrip(server):
     resp_save = server.handle_message({
         "type": "annotation:save:requested",
         "request_id": "req-ann-1",
+        "timestamp": 0,
+        "metadata": {"version": "1.0.0"},
         "data": {
             "pdf_uuid": pdf_uuid,
             "annotation": {
@@ -72,6 +76,8 @@ def test_annotation_save_list_delete_roundtrip(server):
     resp_list = server.handle_message({
         "type": "annotation:list:requested",
         "request_id": "req-ann-2",
+        "timestamp": 0,
+        "metadata": {"version": "1.0.0"},
         "data": {"pdf_uuid": pdf_uuid}
     })
     assert resp_list["type"] == "annotation:list:completed"
@@ -85,6 +91,8 @@ def test_annotation_save_list_delete_roundtrip(server):
     resp_del = server.handle_message({
         "type": "annotation:delete:requested",
         "request_id": "req-ann-3",
+        "timestamp": 0,
+        "metadata": {"version": "1.0.0"},
         "data": {"ann_id": ann_id}
     })
     assert resp_del["type"] == "annotation:delete:completed"
@@ -94,6 +102,8 @@ def test_annotation_save_list_delete_roundtrip(server):
     resp_list2 = server.handle_message({
         "type": "annotation:list:requested",
         "request_id": "req-ann-4",
+        "timestamp": 0,
+        "metadata": {"version": "1.0.0"},
         "data": {"pdf_uuid": pdf_uuid}
     })
     assert resp_list2["type"] == "annotation:list:completed"

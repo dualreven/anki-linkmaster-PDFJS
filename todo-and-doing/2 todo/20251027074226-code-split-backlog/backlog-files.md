@@ -1,0 +1,99 @@
+# 大文件拆分清单（阈值 400 行）
+
+- 统计时间: 2025-10-27 07:42:26
+- 扫描范围: `src/**`, `gui_launcher/**`
+- 文件总数: 499
+- 超阈值文件数: 65（均位于 `src/`；`gui_launcher/` 为 0）
+- 使用方式: 勾选进度并在“状态/负责人/备注”中补充信息；每个文件单独立项进入 `todo-and-doing/2 todo/` 或转入 `1 doing/` 执行。
+
+> 字段约定：`[ ]` 未开始 / `[x]` 完成；状态：未开始|设计中|拆分中|评审中|已完成
+
+## 任务清单（按行数降序）
+- [x] 2370 行 — src/backend/msgCenter_server/standard_server.py — 状态: 已完成 — 负责人: AI — 备注: Phase-1/2 拆分完成（core/handlers/router），入口精简；严格拒绝 legacy 类型
+- [ ] 1967 行 — src/frontend/pdf-home/style.css — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 1412 行 — src/frontend/pdf-viewer/features/annotation/components/annotation-sidebar-ui.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 1268 行 — src/frontend/pdf-viewer/features/annotation/tools/screenshot/index.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [x] 1221→1 行 — src/backend/api/pdf_library_api.py — 状态: 已完成 — 负责人: AI — 备注: 重导出至 impl；实现文件 406 行（src/backend/api/pdf_library_api_impl.py）
+- [x] 1154→163 行 — src/backend/database/plugins/pdf_info_plugin.py — 状态: 已完成 — 负责人: AI — 备注: 入口精简；抽出子模块 pdf_info/{ddl,validate,read_ops,write_ops}
+- [ ] 1079 行 — src/frontend/common/event/pdf-viewer-constants.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 1063 行 — src/backend/launcher.py — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 1040 行 — src/frontend/pdf-viewer/features/annotation/tools/text-highlight/index.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 991 行 — src/frontend/pdf-viewer/launcher.py — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 941 行 — src/frontend/pdf-viewer/features/pdf-bookmark/index.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 904 行 — src/frontend/pdf-viewer/features/ui-manager/components/ui-manager-core.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 847 行 — src/frontend/common/event/event-bus.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 790 行 — src/frontend/pdf-viewer/features/pdf-bookmark/services/bookmark-manager.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 764 行 — src/frontend/pdf-home/core/feature-registry-demo.html — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 744 行 — src/frontend/pdf-home/features/filter/components/filter-builder-v2.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 715 行 — src/frontend/pdf-viewer/features/annotation/tools/comment/index.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 708 行 — src/frontend/common/ws/ws-client.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 696 行 — src/frontend/pdf-home/features/pdf-edit/index.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 686 行 — src/frontend/pdf-home/features/sidebar/saved-filters/index.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 686 行 — src/frontend/pdf-viewer/features/annotation/index.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 662 行 — src/frontend/pdf-home/pyqt-bridge.py — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 661 行 — src/frontend/pdf-viewer/features/pdf-translator/components/TranslatorSidebarUI.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 609 行 — src/frontend/common/utils/logger.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 608 行 — src/frontend/pdf-viewer/assets/style.css — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 604 行 — src/frontend/pdf-home/features/pdf-sorter/index.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 600 行 — src/frontend/pdf-home/features/pdf-sorter/components/weighted-sort-editor.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 599 行 — src/backend/pdfFile_server/embed_fileserver.py — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 597 行 — src/frontend/pdf-viewer/adapters/websocket-adapter.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 585 行 — src/frontend/pdf-home/features/search-results/index.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 565 行 — src/frontend/common/micro-service/__tests__/feature-registry.test.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 563 行 — src/frontend/common/micro-service/feature-registry.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 558 行 — src/frontend/pdf-home/launcher.py — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 558 行 — src/backend/msgCenter_server/crypto.py — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 556 行 — src/frontend/pdf-viewer/features/annotation/core/annotation-manager.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 556 行 — src/backend/database/plugins/pdf_annotation_plugin.py — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 554 行 — src/backend/database/plugins/pdf_bookmark_plugin.py — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 554 行 — src/frontend/common/micro-service/state-manager.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 546 行 — src/frontend/pdf-viewer/features/pdf-anchor/components/anchor-sidebar-ui.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 543 行 — src/frontend/pdf-viewer/ui/bookmark-sidebar-ui.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 533 行 — src/backend/msgCenter_server/standard_protocol.py — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 531 行 — src/frontend/pdf-viewer/pyqt/main_window.py — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 525 行 — src/frontend/common/micro-service/__tests__/feature-flag-manager.test.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 504 行 — src/backend/api/standard_error_handler.py — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 503 行 — src/backend/api/__tests__/test_pdf_library_api.py — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 503 行 — src/backend/pdf_manager/standard_manager.py — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 502 行 — src/frontend/pdf-viewer/features/pdf-anchor/index.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 494 行 — src/frontend/pdf-home/core/pdf-home-app-v2.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 485 行 — src/frontend/pdf-viewer/features/search/components/search-box.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 478 行 — src/frontend/common/event/event-bus-with-tracing.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 474 行 — src/frontend/common/micro-service/feature-flag-manager.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 473 行 — src/frontend/pdf-viewer/features/ui-manager/components/ui-layout-controls.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 450 行 — src/frontend/pdf-home/features/filter/components/filter-builder.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 448 行 — src/frontend/pdf-viewer/ui/text-layer-manager.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 447 行 — src/frontend/pdf-viewer/features/annotation/tools/text-highlight/highlight-renderer.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 445 行 — src/frontend/pdf-viewer/features/annotation/models/annotation.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 442 行 — src/backend/database/plugin/__tests__/test_plugin_registry.py — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 436 行 — src/frontend/common/micro-service/__tests__/state-manager.test.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 429 行 — src/frontend/pdf-home/qwebchannel/qwebchannel-bridge.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 427 行 — src/frontend/common/utils/indexeddb-cache-manager.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 421 行 — src/frontend/pdf-viewer/features/sidebar-manager/index.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 414 行 — src/frontend/common/utils/__tests__/indexeddb-cache-manager.test.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 411 行 — src/frontend/pdf-viewer/features/search/services/search-engine.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 405 行 — src/frontend/pdf-viewer/adapters/__tests__/websocket-adapter.test.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+- [ ] 405 行 — src/frontend/pdf-viewer/features/pdf-outline/index.js — 状态: 未开始 — 负责人: 待定 — 备注: 
+
+## Top 20（参考优先级）
+> 建议先从 Top 20 着手拆分，便于尽快降低维护风险与修改成本。
+- 2370 行 — src/backend/msgCenter_server/standard_server.py
+- 1967 行 — src/frontend/pdf-home/style.css
+- 1412 行 — src/frontend/pdf-viewer/features/annotation/components/annotation-sidebar-ui.js
+- 1268 行 — src/frontend/pdf-viewer/features/annotation/tools/screenshot/index.js
+- 1221 行 — src/backend/api/pdf_library_api.py
+- 1154 行 — src/backend/database/plugins/pdf_info_plugin.py
+- 1079 行 — src/frontend/common/event/pdf-viewer-constants.js
+- 1063 行 — src/backend/launcher.py
+- 1040 行 — src/frontend/pdf-viewer/features/annotation/tools/text-highlight/index.js
+- 991 行 — src/frontend/pdf-viewer/launcher.py
+- 941 行 — src/frontend/pdf-viewer/features/pdf-bookmark/index.js
+- 904 行 — src/frontend/pdf-viewer/features/ui-manager/components/ui-manager-core.js
+- 847 行 — src/frontend/common/event/event-bus.js
+- 790 行 — src/frontend/pdf-viewer/features/pdf-bookmark/services/bookmark-manager.js
+- 764 行 — src/frontend/pdf-home/core/feature-registry-demo.html
+- 744 行 — src/frontend/pdf-home/features/filter/components/filter-builder-v2.js
+- 715 行 — src/frontend/pdf-viewer/features/annotation/tools/comment/index.js
+- 708 行 — src/frontend/common/ws/ws-client.js
+- 696 行 — src/frontend/pdf-home/features/pdf-edit/index.js
+- 686 行 — src/frontend/pdf-home/features/sidebar/saved-filters/index.js

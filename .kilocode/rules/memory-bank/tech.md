@@ -12,6 +12,10 @@
 - [UI/Toast/剪贴板与 Hosted 初始化](#uitoast剪贴板与-hosted-初始化)
 - [Babel/Vite/AI Launcher](#babelviteai-launcher)
 
+### 用法补充（2025-10-28）— pdf_library_api 书签兼容输出
+- 过渡期策略：API 门面对外仍按历史契约输出 `pageNumber` 字段，内部（DB）存储统一为 `pageAt/position`；
+- 保存时严格校验：仅接受 `pageNumber`（≥1）与 `position`（0~100），禁止旧字段 `region/type`；
+- 迁移建议：前端尽快切换到 `pageAt/position`，完成后可去除门面层兼容映射。
 > 最近更新（10条，按日期倒序）
 - 2025-10-26 pdf-home 启动端口严格校验：缺失 `vite/msgCenter/pdfFile`（dev）或缺失 `msgCenter/pdfFile`（prod）直接抛错；禁止 URL 中出现 `:None`
 - 2025-10-26 Backend 路径严格化：后端仅接受参数传入的 `logs_dir/data_dir/db_path/static_dir/pdfs_dir`；移除所有回退/自动推断；HTTP 与 WS 服务器均按参数运行
@@ -1207,3 +1211,25 @@ WS 适配（msgcenter → front）：
   - pdf-viewer/adapters/websocket-adapter.js 对所有 `ANCHOR_*` 请求传入 `{ metadata:{version:'1.0.0'} }`；
   - annotation-manager.js 与 bookmark-storage.js 的 `request()` 调用均传入 metadata；
   - viewer 注册/visited_at/page_changed/zoom_changed 等通过 `send()` 的消息也显式加上 `metadata`。
+
+### 消息类型使用约束（2025-10-27）
+- 禁止使用任何 legacy 类型（如 pdf-home:get:pdf-list / pdf_page_request 等）；一律使用三段式 *:requested/*:completed/*:failed
+- 违反将得到 400 LEGACY_MESSAGE_TYPE_NOT_SUPPORTED
+
+### 用法变动（2025-10-27 19:33:01）— 标准服务器路由直连与依赖注入
+- `standard_server.py` 不再保留大批 `handle_*` 包装；消息统一由 `core/msg_router.py` 绑定闭包直连各处理器；
+- 特例：`pdf-library:search:requested` 仍由入口方法注入 `raw_message` 后转给处理器（用于严格过滤与兼容）；调用方无需感知；
+- `pdf-page:*` 功能要求在构造 `StandardWebSocketServer(data_dir, db_path, page_transfer=...)` 时显式注入 `page_transfer`；缺失将返回带 `PAGE_EXTRACTION_ERROR` 的 `pdf-page:load:failed`；
+- 测试与独立运行需显式传参 `data_dir` 与 `db_path`；禁止兜底。
+
+### 用法补充（2025-10-27 21:53:57）— ServerAPIMixin
+- 新增 `src/backend/msgCenter_server/core/server_api.py`，`StandardWebSocketServer` 继承该 Mixin；
+- 公共方法未改名：`send_message/broadcast_message/get_client_count/get_client_ids/on_client_disconnected/on_socket_error`；
+- 外部调用不受影响；仅实现位置从入口文件迁出。
+
+
+## 2025-10-28 22:23:09 — Backend Launcher 技术要点
+- 文件读写统一 ncoding='utf-8'；日志文件先二进制截断，确保纯 UTF-8 文本。
+- CLI 仍支持 start|stop|status；LegacyBackendLauncher 负责子进程管理。
+- PyQt 集成的 BackendLauncher 保持严格参数校验：缺少 logs_dir|data_dir|db_path|pdfs_dir|static_dir 直接报错（禁止兜底）。
+- 端口合并写回 logs/runtime-ports.json，保留其他端口键。

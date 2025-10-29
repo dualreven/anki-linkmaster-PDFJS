@@ -6,6 +6,7 @@
 
 import { getLogger } from "../../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_EVENTS } from "../../../../common/event/event-constants.js";
 import { success as toastSuccess, error as toastError } from "../../../../common/utils/thirdparty-toast.js";
 import { DOMElementManager } from "../../../ui/dom-element-manager.js";
 import { KeyboardHandler } from "../../../ui/keyboard-handler.js";
@@ -32,7 +33,7 @@ export class UIManagerCore {
   #resizeObserver;
   #unsubscribeFunctions = [];
   #currentPdfId = null; // 当前 PDF 的ID
-  #preferredTitle = null; // 若URL传入title，则优先使用它作为header标题
+  #pendingDetailRequestId = null; // 等待中的详情请求ID（用于严格匹配回执）
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
@@ -137,28 +138,8 @@ export class UIManagerCore {
       PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
       (payload) => {
         const pdfDocument = payload?.pdfDocument;
-        let filename = payload?.filename;
-        if (!filename && payload?.file) {
-          const file = payload.file || {};
-          try {
-            filename = file.filename || (()=>{ const s = (file.url||file.file_path)||''; const parts = s.split(/[\\\\\\/]/); const name = parts.pop() || ''; return decodeURIComponent(name.split('?')[0]); })();
-          } catch (_) { filename = file.filename || null; }
-        }
         this.#stateManager.updateLoadingState(false, true);
         this.#domManager.setLoadingState(false);
-
-        // 更新 header 标题与 pdfId：优先使用 #preferredTitle，其次回退到文件名
-        const preferred = (this.#preferredTitle && String(this.#preferredTitle).trim()) ? String(this.#preferredTitle).trim() : null;
-        const displayTitle = preferred || filename || null;
-        if (displayTitle) {
-          this.#updateHeaderTitle(displayTitle);
-          if (!this.#currentPdfId) {
-            const base = displayTitle.toLowerCase().endsWith('.pdf') ? displayTitle.slice(0, -4) : displayTitle;
-            this.#currentPdfId = base;
-            this.#updateCopyButtonVisibility();
-            this.#logger.info(`Header title set to: ${displayTitle}; derived pdfId: ${base}`);
-          }
-        }
 
         // 加载PDF到PDFViewerManager
         if (this.#pdfViewerManager && pdfDocument) {
@@ -201,20 +182,93 @@ export class UIManagerCore {
           this.#currentPdfId = data.pdfId;
           this.#updateCopyButtonVisibility();
           this.#logger.info(`✅ PDF ID captured and button shown: ${this.#currentPdfId}`);
+          // 严格要求：标题仅来自数据库，不从 URL 获取
+          try { this.#requestPdfTitleFromDB(this.#currentPdfId); } catch (e) { this.#logger.error("requestPdfTitleFromDB failed", e); }
         } else {
           this.#logger.warn('[UIManagerCore] URL_PARAMS.PARSED event has no pdfId');
-        }
-        // 若 URL 中包含 title，则优先更新 header 标题并记录首选标题，避免后续被文件名覆盖
-        if (data?.title && String(data.title).trim()) {
-          this.#preferredTitle = String(data.title).trim();
-          this.#updateHeaderTitle(this.#preferredTitle);
         }
       },
       { subscriberId: 'UIManagerCore' }
     );
     this.#unsubscribeFunctions.push(urlParamsParsedUnsub);
 
+    // 监听 WS 回执：严格匹配 request_id，仅处理当前 pending 的详情回执
+    const wsRespUnsub = this.#eventBus.on(
+      WEBSOCKET_MESSAGE_EVENTS.RESPONSE,
+      (message) => {
+        try {
+          const type = message?.type || message?.received_type;
+          if (type === 'pdf-library:info:completed') {
+            // 若是当前pending请求，清理标记；否则也允许处理（只要匹配当前pdfId）
+            if (this.#pendingDetailRequestId && message?.request_id === this.#pendingDetailRequestId) {
+              this.#pendingDetailRequestId = null;
+            }
+            const data = message?.data || {};
+            const respId = (data.id || data.pdf_id || '').toString();
+            const t = (data.title || '').toString().trim();
+            // 只在匹配当前 pdfId 时更新标题（禁止兜底）
+            if (this.#currentPdfId && respId && respId !== this.#currentPdfId) {
+              return;
+            }
+            if (t) {
+              this.#updateHeaderTitle(t);
+              this.#logger.info('[UIManagerCore] 标题已从数据库更新');
+            } else {
+              this.#logger.error('数据库记录缺少标题，请补全后重试', { toast: { type: 'error', ms: 6000 } });
+            }
+          }
+        } catch (e) {
+          this.#logger.error('处理详情回执失败', e);
+        }
+      },
+      { subscriberId: 'UIManagerCore' }
+    );
+    this.#unsubscribeFunctions.push(wsRespUnsub);
+
+    const wsErrUnsub = this.#eventBus.on(
+      WEBSOCKET_MESSAGE_EVENTS.ERROR,
+      (message) => {
+        try {
+          const rid = message?.request_id;
+          const type = message?.type || message?.received_type;
+          if (!rid || rid !== this.#pendingDetailRequestId) return;
+          this.#pendingDetailRequestId = null;
+          if (type === 'pdf-library:info:failed') {
+            const msg = message?.message || message?.error?.message || '获取PDF信息失败';
+            this.#logger.error(`获取PDF信息失败：${msg}`, { toast: { type: 'error', ms: 6000 } });
+          }
+        } catch (e) {
+          this.#logger.error('处理详情失败回执异常', e);
+        }
+      },
+      { subscriberId: 'UIManagerCore' }
+    );
+    this.#unsubscribeFunctions.push(wsErrUnsub);
+
     this.#logger.info("Event listeners setup complete");
+  }
+
+  /**
+   * 严格从数据库请求标题（禁止兜底）
+   * @param {string} pdfId
+   * @private
+   */
+  #requestPdfTitleFromDB(pdfId) {
+    if (!pdfId || typeof pdfId !== 'string' || !pdfId.trim()) {
+      this.#logger.error('[UIManagerCore] 无法请求标题：缺少有效 pdfId');
+      toastError('❌ 缺少有效的 PDF ID，无法获取标题');
+      return;
+    }
+    const rid = `info_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    this.#pendingDetailRequestId = rid;
+    const message = {
+      type: WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST,
+      request_id: rid,
+      metadata: { version: '1.0.0' },
+      data: { pdf_id: pdfId }
+    };
+    this.#logger.info('[UIManagerCore] 请求数据库标题', { pdfId, request_id: rid });
+    this.#eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, message, { actorId: 'UIManagerCore' });
   }
 
   /**
@@ -347,8 +401,7 @@ export class UIManagerCore {
       this.#logger.info(`Copy button clicked, currentPdfId: ${this.#currentPdfId}`);
 
       if (!this.#currentPdfId) {
-        this.#logger.warn('No PDF ID available to copy');
-        alert('无法复制：PDF ID 不可用\n请确保 URL 中包含 pdf-id 参数');
+        this.#logger.error('无法复制：PDF ID 不可用，请确保 URL 中包含 pdf-id 参数', { toast: { type: 'error', ms: 5000 } });
         return;
       }
 

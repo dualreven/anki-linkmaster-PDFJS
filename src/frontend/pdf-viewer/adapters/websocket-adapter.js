@@ -521,6 +521,17 @@ export class WebSocketAdapter {
           { annotationId, highlight: !!opts.highlight },
           { actorId: "WebSocketAdapter" }
         );
+      } else if (mode === "outline") {
+        // 通过大纲节点ID跳转（对齐 BOOKMARK/Outline 的统一入口）
+        const outlineItemId = data?.target?.outline_item_id || data?.outline_item_id || data?.target?.id || data?.id;
+        if (!outlineItemId) {
+          throw new Error("outline_item_id/id required for outline mode");
+        }
+        this.#eventBus.emit(
+          PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED,
+          { outlineItemId },
+          { actorId: "WebSocketAdapter" }
+        );
       } else if (mode === "page" || mode === "xy") {
         const pageNumber = Number(data?.target?.page_number ?? data?.page_number);
         if (!Number.isFinite(pageNumber)) {

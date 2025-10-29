@@ -557,14 +557,27 @@ class GUILauncher(QMainWindow):
         self.h_page_at = QSpinBox(); self.h_page_at.setRange(0, 999999); self.h_page_at.setSpecialValueText("不指定")
         self.h_position = QDoubleSpinBox(); self.h_position.setRange(0.0, 100.0); self.h_position.setDecimals(1); self.h_position.setSingleStep(5.0)
         self.h_keep_backend = QCheckBox("关闭窗口保留后端")
-        # 新增导航扩展参数
-        self.h_pdfanchor_id = QLineEdit(); self.h_pdfanchor_id.setPlaceholderText("pdfanchor-<12hex> 或 pdfanchor-test")
-        self.h_pdfannotation_id = QLineEdit(); self.h_pdfannotation_id.setPlaceholderText("pdfannotation-<base64url16>")
-        self.h_pdfoutline_item_id = QLineEdit(); self.h_pdfoutline_item_id.setPlaceholderText("outline-item-id（透传到URL）")
+        # 新增导航扩展参数（合并：类型下拉 + 单一 ID 输入框）
+        self.h_id_type = QComboBox()
+        # 使用 userData 标识类型：anchor|annotation|outline
+        self.h_id_type.addItem("anchor-id（锚点）", userData="anchor")
+        self.h_id_type.addItem("annotation-id（标注）", userData="annotation")
+        self.h_id_type.addItem("outline-item-id（大纲）", userData="outline")
+        self.h_id_value = QLineEdit()
+        def _update_id_placeholder():
+            t = self.h_id_type.currentData()
+            if t == "anchor":
+                self.h_id_value.setPlaceholderText("pdfanchor-<12hex>（生产环境）")
+                self.h_id_value.setToolTip("锚点ID，将映射为 URL 参数 anchor-id（生产环境需 pdfanchor-<12hex>）")
+            elif t == "annotation":
+                self.h_id_value.setPlaceholderText("annotation-id（字符串）")
+                self.h_id_value.setToolTip("标注ID，将映射为 URL 参数 annotation-id")
+            else:
+                self.h_id_value.setPlaceholderText("outline-item-id（字符串）")
+                self.h_id_value.setToolTip("书签/大纲项ID，将映射为 URL 参数 outline-item-id（当前 URL 路径仅透传/记录）")
+        self.h_id_type.currentIndexChanged.connect(_update_id_placeholder)
+        _update_id_placeholder()
         self.h_enable_outline = QCheckBox("启用 Outline（已停用，统一强制 Outline）")
-        self.h_pdfanchor_id.setToolTip("锚点ID，将映射为前端 URL 参数 anchor-id")
-        self.h_pdfannotation_id.setToolTip("标注ID，将映射为前端 URL 参数 annotation-id")
-        self.h_pdfoutline_item_id.setToolTip("书签/大纲项ID，将映射为前端 URL 参数 outline-item-id（当前仅透传，不触发跳转）")
         self.h_enable_outline.setToolTip("此开关已关闭：系统始终强制使用 Outline，不再透传 outline/debug 标志。")
         try:
             self.h_enable_outline.setChecked(False)
@@ -575,9 +588,8 @@ class GUILauncher(QMainWindow):
         gl.addWidget(QLabel("pdf_id")); gl.addWidget(self.h_pdf_id)
         gl.addWidget(QLabel("page_at")); gl.addWidget(self.h_page_at)
         gl.addWidget(QLabel("position%")); gl.addWidget(self.h_position)
-        gl.addWidget(QLabel("pdfanchor-id")); gl.addWidget(self.h_pdfanchor_id)
-        gl.addWidget(QLabel("pdfannotation-id")); gl.addWidget(self.h_pdfannotation_id)
-        gl.addWidget(QLabel("pdfoutline-item-id")); gl.addWidget(self.h_pdfoutline_item_id)
+        gl.addWidget(QLabel("跳转类型")); gl.addWidget(self.h_id_type)
+        gl.addWidget(QLabel("ID 值")); gl.addWidget(self.h_id_value)
         gl.addWidget(self.h_enable_outline)
         gl.addWidget(self.h_keep_backend)
         layout.addWidget(grp)
@@ -1473,9 +1485,16 @@ class GUILauncher(QMainWindow):
             _pdf_id = (self.h_pdf_id.text().strip() or None)
             _page_at = int(self.h_page_at.value() or 0) or None
             _position = float(self.h_position.value() or 0) or None
-            _anchor_id = (self.h_pdfanchor_id.text().strip() or None)
-            _annotation_id = (self.h_pdfannotation_id.text().strip() or None)
-            _outline_item = (self.h_pdfoutline_item_id.text().strip() or None)
+            # 合并后的“类型 + 值”互斥映射
+            _sel_type = None
+            try:
+                _sel_type = self.h_id_type.currentData()
+            except Exception:
+                _sel_type = None
+            _val = (self.h_id_value.text().strip() or None)
+            _anchor_id = _val if (_sel_type == "anchor" and _val) else None
+            _annotation_id = _val if (_sel_type == "annotation" and _val) else None
+            _outline_item = _val if (_sel_type == "outline" and _val) else None
             _enable_outline = False  # 统一强制 Outline，UI 开关停用
             try:
                 self._log(f"[TRACE:HOSTED] pdf-viewer args → pdf_id={_pdf_id} page_at={_page_at} position={_position} anchor_id={_anchor_id} annotation_id={_annotation_id} outline_item_id={_outline_item} outline_flag={_enable_outline}")

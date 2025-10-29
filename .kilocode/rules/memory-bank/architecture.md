@@ -29,7 +29,7 @@
 ## 前端关键实现
 - pdf-home：`src/frontend/pdf-home/*`（容器、QWebChannel 管理、前端日志捕获到 `logs/pdf-home-js.log`）。
 - pdf-viewer：`src/frontend/pdf-viewer/*`（`ui-manager-core.js` 以 `#elements/#state` 为中心；按 `pdf_id` 输出 `logs/pdf-viewer-<pdf-id>-js.log`）。
-  - Outline 路径（2025-10-25 起固定）：`features/pdf-outline/index.js` 复用 `BookmarkManager/BookmarkDialog/BookmarkDataProvider`；事件契约仍使用 `PDF_VIEWER_EVENTS.BOOKMARK.*`；导航通过容器内 `navigationService` 实现。Bootstrap 不再根据开关选择插件，统一注册 `pdf-outline`，不再注册 `pdf-bookmark`。
+- Outline 路径（2025-10-25 起固定）：`features/pdf-outline/index.js` 复用 `BookmarkManager/BookmarkDialog/BookmarkDataProvider`；事件契约仍使用 `PDF_VIEWER_EVENTS.BOOKMARK.*`；导航通过容器内 `navigationService` 实现。Bootstrap 不再根据开关选择插件，统一注册 `pdf-outline`，不再注册 `pdf-bookmark`。
 
 ### pdf-viewer QWebChannel 扩展（Clipboard）
 - Python 端：`src/frontend/pdf-viewer/pyqt/pdf_viewer_bridge.py` 新增 `setClipboardText(text: str) -> bool` 槽，用于在 Clipboard API 失效时由前端通过 QWebChannel 设置系统剪贴板。
@@ -376,6 +376,19 @@ PDF_LIBRARY_LIST_REQUESTED = "pdf-library:list:requested"  # 新格式
 
 目的：将 annotation-id / anchor-id / outline-item-id 与 page 导航统一为“单一跳转意图（Navigation Intent）”，实现多来源（URL/WS/UI/内部）→ 单入口 → 门闸 → 分发 → 统一结果的稳定链路；为未来 msgcenter WS 要求跳转的场景提供直接接入点。
 
+## 2025-10-28 新增：MsgCenter Viewer 实例注册与定向转发
+- 组件：`src/backend/msgCenter_server/standard_server.py`
+- 设计：
+  - 维护注册表：
+    - `socket → { viewer_id, pdf_uuid }`
+    - `viewer_id → socket`
+    - `pdf_uuid → set[socket]`
+  - 在 `_process_incoming()` 捕捉：
+    - `pdf-viewer:register:requested` → 更新注册表；
+    - `pdf-viewer:navigate:requested` → 在回执后按 `to.viewer_id|to.pdf_uuid` 定向转发“requested”到目标 viewer；
+  - 断开连接自动清理映射，避免泄漏。
+- 前端配合：`WebSocketAdapter` 负责消费 `pdf-viewer:navigate:requested` 并发射内部事件，其中 `outline` 分支映射为 `BOOKMARK.NAVIGATE_BY_ID.REQUESTED`。
+
 关键组件：
 - Navigation Orchestrator（新 Feature）
   - 职责：接收统一入口事件、聚合门闸状态、调度到具体领域、统一产出结果事件。
@@ -456,3 +469,39 @@ NavigationIntent（统一数据模型）：
 - 新增 Feature.add-files（pdf-home）：负责监听 search:add:requested 并调用 QWebChannelBridge.selectFiles()；将结果逐个通过 WEBSOCKET_EVENTS.MESSAGE.SEND 发送 WEBSOCKET_MESSAGE_TYPES.ADD_PDF 到 msgCenter。
 - PDFHomeAppV2 注册顺序：Search → Filter → SearchResults → AddFiles → 其余功能。
 - 依赖收敛：pdf-editor、pdf-sorter 的 eature.config.js 依赖从 pdf-list 改为 search-results，避免 legacy 功能删除后安装失败。
+
+### 后端消息中心重构（Phase-1）
+- 新增子包：src/backend/msgCenter_server/core（schema_validation）
+- 入口 standard_server 仅负责：Qt 启停/连接/收发 + 早期校验 + 路由（后续）
+- Legacy 类型：统一拒绝，不再兼容映射
+
+
+- Phase-1.1：新增 handlers 子包，抽离 storage-kv / storage-fs；入口方法保持委托，便于逐步迁移路由到注册表。
+
+
+### 目录规范（pdf-viewer 分层，$(Get-Date -Format "yyyyMMddHHmmss")）
+- pdf-viewer：handlers/pdf_viewer/{annotation,anchor,bookmark,viewer,pdf_pages}.py
+- pdf-home：handlers/pdf_library.py
+- infra：handlers/storage_*.py, handlers/infra/debug.py, handlers/misc.py
+- utils：utils/{time,config_path}.py
+- core：core/{server_core,msg_router,schema_validation}.py
+
+### 变更（2025-10-27）
+- `standard_server.py` 入口移除冗余 `handle_*` 包装与未使用助手（时间换算、uuid 解析等），统一通过 `core/msg_router.py` 的闭包直连各领域处理器；
+- 特例：`pdf-library:search:requested` 仍由入口方法注入原始消息（用于严格过滤与兼容），路由层以分支调用；
+- `pdf-page:*` 功能要求在构造 `StandardWebSocketServer` 时显式注入 `page_transfer`，缺失时按“禁止兜底”返回错误；
+- 其余消息均采用三段式类型并由处理器直接处理，入口不再承担业务逻辑。
+
+### 追加（2025-10-27 21:53）
+- 新增 `core/server_api.py::ServerAPIMixin`，承载发送/广播/统计/错误处理通用 API；`standard_server.py` 继承该 Mixin 以进一步瘦身。
+
+### 变更（2025-10-28）— 后端 API 拆分（pdf_library_api）
+- 结构：`src/backend/api/pdf_library_api.py` 改为门面重导出；实现迁入 `src/backend/api/pdf_library_api_impl.py`（~406 行），并委托 `src/backend/api/pdf_library/*` 子模块。
+- 依赖注入：支持 `ServiceRegistry`（搜索/添加/书签），未注入时回退到本地实现模块（非兜底逻辑，仅限已实现的路径）。
+- 书签契约：DB 内部使用 `pageAt/position`；API 对外保持 `pageNumber` 兼容字段（过渡期），保存时严格校验与规范化。
+- 锚点：直接使用 `pdf_bookanchor` 插件，规避对 `pdf-viewer` 连字符目录的导入依赖。
+
+## 2025-10-28 22:23:09 — Backend Launcher 架构调整
+- 将 src/backend/launcher.py 拆分为 launcher_core/* 模块，入口文件仅做委托与日志初始化。
+- 依赖关系：launcher.py → launcher_core.(ports|processes|legacy|pyqt_launcher)，避免 PyQt 在 CLI 路径上的硬依赖。
+- 产物：更清晰的职责划分（端口/进程/CLI/PyQt）。

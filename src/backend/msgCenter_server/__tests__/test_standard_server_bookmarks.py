@@ -21,8 +21,10 @@ class FakePDFLibraryAPI:
 
 
 @pytest.fixture()
-def server():
-    svc = StandardWebSocketServer()
+def server(tmp_path):
+    data_dir = str(tmp_path / "data")
+    db_path = str(tmp_path / "test-db.sqlite")
+    svc = StandardWebSocketServer(data_dir=data_dir, db_path=db_path)
     svc.pdf_library_api = FakePDFLibraryAPI()
     return svc
 
@@ -31,6 +33,8 @@ def test_handle_bookmark_list_returns_tree(server):
     message = {
         "type": "bookmark:list:requested",
         "request_id": "req-1",
+        "timestamp": 0,
+        "metadata": {"version": "1.0.0"},
         "data": {"pdf_uuid": "pdf-123"},
     }
 
@@ -46,6 +50,8 @@ def test_handle_bookmark_save_persists_payload(server):
     payload = {
         "type": "bookmark:save:requested",
         "request_id": "req-2",
+        "timestamp": 0,
+        "metadata": {"version": "1.0.0"},
         "data": {
             "pdf_uuid": "pdf-xyz",
             "bookmarks": [
@@ -71,6 +77,8 @@ def test_handle_bookmark_save_requires_pdf_id(server):
     payload = {
         "type": "bookmark:save:requested",
         "request_id": "req-3",
+        "timestamp": 0,
+        "metadata": {"version": "1.0.0"},
         "data": {"bookmarks": []},
     }
 
@@ -78,4 +86,4 @@ def test_handle_bookmark_save_requires_pdf_id(server):
 
     assert response["type"] == "bookmark:save:failed"
     assert response["request_id"] == "req-3"
-    assert "缺少" in response["error"]["message"]
+    assert response["code"] == 400

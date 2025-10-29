@@ -48,6 +48,177 @@
 
 ## 📅 当前活跃任务（最近）
 
+### 2025-10-29（进行中）— pdf-viewer 标题来自数据库（严格无兜底）与 toast 改造
+- 现象：hosted(prod) 打开 `pdf-id=c83c60c58ad2` 时，左上角仅显示“PDF阅读器”，未显示 DB 标题；也未出现错误 toast。
+- 根因：
+  1) 前端注入与 UIManagerCore 都监听 `websocket:message:response`，但 WSClient 未将 `pdf-library:info:completed` 路由到 RESPONSE，导致监听不到；（请求本身成功，URLNavigationFeature 依赖 `sendPDFDetailRequest` 的 pending 结算获取到详情并触发加载）
+  2) 个别路径仍使用 `alert` 弹窗（不符合“采用 toast”与“禁止兜底”的约束）。
+- 修复：
+  - src/frontend/common/ws/ws-client.js：新增 `case 'pdf-library:info:completed' → RESPONSE` 与 `...:failed → ERROR`；并在 VALID_MESSAGE_TYPES 冗余放行 info:completed/failed。
+  - src/frontend/pdf-viewer/pyqt/main_window.py：注入脚本仅记录错误并通过总线 `websocket:message:error` 透传，由前端统一 toast（不在 Python 端“加 toast”）；同时为兼容旧包，新增监听 `websocket:message:received`，在收到 `pdf-library:info:completed` 时同样更新标题。
+  - src/frontend/pdf-viewer/features/ui-manager/components/ui-manager-core.js：移除 `alert(...)`，改为 `logger.error(..., { toast })`。
+- 结果预期：viewer 收到 `pdf-library:info:completed` 后，标题更新为 DB `data.title`；失败出现 toast；无 URL 回退、无 ID 回退。
+- 验证：查看 `dist/latest/logs/pdf-viewer-*-js.log` 有 `[Injected] info request sent for title` 后跟 `Header title updated from DB` 或 `[UIManagerCore] 标题已从数据库更新`；失败时出现 `toast`。
+
+## 2025-10-28 结论：gui_launcher 启动参数的跳转支持
+- 结论（URL 启动路径）：
+  - 支持：`pdf-id`、`page-at`、`position(需与page-at合用)`、`anchor-id`、`annotation-id`。
+  - 不自动跳转：`outline-item-id` 仅透传记录（URL 路径未接入 Outline 导航；WS 会内跳转已接入）。
+- 注意：生产构建下 `pdfanchor-test` 不被接受，必须使用 `pdfanchor-<12hex>`；仅 `position` 无 `page-at` 会被严格拒绝。
+- 代码链路：gui_launcher → runner.start_pdf_viewer_hosted → frontend pdf-viewer/launcher 拼 URL → url-navigation/anchor/annotation 消费。
+
+## 2025-10-28 实施：gui_launcher 合并三类 ID 输入
+- 变更：`pdfanchor-id` / `pdfannotation-id` / `pdfoutline-item-id` 三个输入框合并为“类型下拉 + 单一 ID 输入框”。
+- UI 元素（Hosted 标签页）：
+  - `h_id_type: QComboBox`（userData：`anchor|annotation|outline`）
+  - `h_id_value: QLineEdit`（根据类型切换占位/提示）
+- 启动映射：`_start_pdf_viewer_hosted()` 读取上述两个控件，互斥地映射到 `anchor_id | annotation_id | outline_item_id` 三个参数（其余置 None）。
+- 影响：仅 UI 与 Hosted 启动逻辑调整；runner 与前端 URL/事件协议保持不变。
+
+### 2025-10-28（完成）— 后端 pdf_library_api 拆分（≤500行）与实现修复
+- 背景：`src/backend/api/pdf_library_api.py` 先前为超长文件（≈1221 行），中途被临时桩替换且语法损坏；真实实现散落且导入路径不稳定（连字符目录）。
+- 目标：恢复可执行实现并控制体量，保持对外契约稳定，严格禁止兜底。
+- 变更要点：
+  - 新实现：`src/backend/api/pdf_library_api_impl.py`（406 行），门面 `pdf_library_api.py` 改为重导出；
+  - 委托 DB 插件：pdf_info/pdf_annotation/pdf_bookmark/pdf_bookanchor/search_condition；统一由 `TablePluginRegistry` 注册并 `enable_all()`；
+  - 搜索/添加：优先使用 `ServiceRegistry`，未注入时分别委托 `pdf_library/search.py` 与 `pdf_library/add.py`；
+  - 书签：DB 内部用 `pageAt/position`；API 对外保持 `pageNumber` 兼容字段（便于过渡），保存时严格校验；
+  - 锚点：直接使用 `pdf_bookanchor` 插件实现 `get/list/create/update/delete/activate`，避免对 `pdf-viewer` 连字符目录的导入依赖；
+  - 修复 `pdf_library/utils.py` 相对导入（改为 `...database.exceptions`）。
+- 测试：
+  - msgCenter 测试：24 passed；
+  - 新增 API 烟雾测试：3 passed（实例化/最小搜索/锚点增删）。
+- 文档与待办：
+  - backlog 更新：`pdf_library_api.py` 标记为“已完成”，实现文件 406 行；
+  - doing 任务：`todo-and-doing/1 doing/20251028125828-pdf-library-api-split/*`；AItemp 日志已写入。
+
+### 2025-10-28（完成）— 数据库插件拆分：pdf_info_plugin（1318 → 163 行）
+- 背景：`src/backend/database/plugins/pdf_info_plugin.py` 体量过大（≈1318 行），包含 DDL、校验、CRUD、搜索/过滤/统计等杂糅逻辑，影响可维护性。
+- 拆分策略：入口类 `PDFInfoTablePlugin` 保持对外接口不变，将实现委托到子模块：
+  - `plugins/pdf_info/constants.py`：正则与白名单；
+  - `plugins/pdf_info/ddl.py`：建表脚本；
+  - `plugins/pdf_info/validate.py`：数据与 json_data 校验（补强 rating/tags 要求）；
+  - `plugins/pdf_info/read_ops.py`：query/search/filter/statistics/_parse_row；
+  - `plugins/pdf_info/write_ops.py`：insert/update/delete/阅读统计/tag 变更。
+- 行为与校验：补强 `rating`（0..5）与 `tags`（非空字符串列表）校验，满足现有单测断言；其他行为不变。
+- 测试：pdf_info 相关三套用例均通过；msgCenter 回归通过。bookmark/annotation 测试未纳入本次范围（与本次改动无直接依赖）。
+
+## 2025-10-28 核查：PDF Viewer 启动三类跳转现状（anchor/annotation/outline）
+- 背景：需要确认 `pdfanchor-id`、`pdfannotation-id`、`pdfoutline-item-id` 三类 URL 启动跳转链路是否完善，及其门闸与事件。
+- 结论（2025-10-28）：
+  - pdfanchor-id：已完善。URL 解析后由 `PDFAnchorFeature` 监听 `URL_PARAMS.PARSED`，拉取锚点并在 `FILE.LOAD.SUCCESS/RENDER.READY` 门闸满足时发 `URL_PARAMS.REQUESTED({ pageAt, position, anchorId })`，导航服务执行。
+  - pdfannotation-id：已完善（受门闸约束）。`URLNavigationFeature` 待 `ANNOTATION.DATA.LOADED` 后由 `URLJumpDispatcher.tryExecute()` 触发 `ANNOTATION.NAVIGATION.JUMP_REQUESTED`，`AnnotationFeature.#handleNavigateToAnnotation()` 解析页/位置并统一通过 `URL_PARAMS.REQUESTED` 导航。
+  - pdfoutline-item-id：未完善。当前仅在 `URLJumpDispatcher` 记录日志，不触发导航事件（未发 `BOOKMARK.NAVIGATE_BY_ID.REQUESTED`）。
+- 证据：
+  - 代码位置：
+    - `src/frontend/pdf-viewer/features/url-navigation/components/url-params-parser.js`（解析/校验 outline-item-id/annotation-id/anchor-id）
+    - `src/frontend/pdf-viewer/features/url-navigation/components/url-jump-dispatcher.js`（annotation 分支触发、outline 分支仅日志）
+    - `src/frontend/pdf-viewer/features/url-navigation/index.js`（门闸：`ANNOTATION.DATA.LOADED`）
+    - `src/frontend/pdf-viewer/features/pdf-anchor/index.js`（URL 启动锚点链路）
+    - `src/frontend/pdf-viewer/features/annotation/index.js`（标注跳转与二次发射 URL 导航）
+    - `src/frontend/pdf-viewer/features/pdf-outline/index.js`（接收 `BOOKMARK.NAVIGATE(_BY_ID).REQUESTED` 的统一处理）
+- 影响：
+  - 携带 `outline-item-id` 的启动链接目前不会自动跳转，仅打印日志；需要用户手动点击大纲或后续补齐对接。
+- 建议（不立即落地，记录为可执行项）：
+  1) 在 `URLJumpDispatcher.tryExecute()` 检测到 `outlineItemId` 时，发 `PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED({ outlineItemId })`，由 `PDFOutlineFeature` 消费；保留灰度开关。
+  2) 可按需在 `URLParamsParser.validate()` 增加 `outline-item-id` 的格式校验（例如非空/长度上限）。
+- 验证要点（手动）：
+  - `?pdf-id=<id>&annotation-id=<id>`：待标注数据完成后，定位到标注位置并出现工具链高亮。
+  - `?pdf-id=<id>&anchor-id=pdfanchor-xxxxxxxxxxxx`：锚点数据加载后，自动跳到锚点页/位置。
+  - `?pdf-id=<id>&outline-item-id=<id>`：控制台/日志仅记录，不发生跳转（当前行为）。
+
+## 2025-10-28 核查：MsgCenter（WebSocket）触发的查看器跳转
+- 背景：确认“除 URL 外，是否已支持通过消息中心触发查看器跳转（会内/会外）”。
+- 现状结论：
+  1) 协议/常量：已定义 `pdf-viewer:register:requested|completed|failed`、`pdf-viewer:navigate:requested|completed|failed`；Schema 已存在（docs/SPEC/schemas/msgcenter/.../navigate.request.schema.json）。
+  2) 前端（viewer 客户端）适配：已实现消费端。
+     - WebSocketAdapter 监听 `WEBSOCKET_EVENTS.MESSAGE.RECEIVED`，处理：
+       - `pdf-viewer:navigate:requested` → `#handleViewerNavigate()`：annotation/anchor → 发 `ANNOTATION.NAVIGATION.JUMP_REQUESTED`；page/xy → 发 `NAVIGATION.URL_PARAMS.REQUESTED`（含 pageAt/position）。
+       - 兼容旧 `navigate_page` → 统一走 URL 导航入口。
+     - 说明：即使 `WSClient` 未将该类型专门路由为事件，因其先广播 `MESSAGE.RECEIVED`，适配器仍可捕获并执行跳转。
+  3) 后端（消息中心）请求转发：未闭环。
+     - 路由：`core/msg_router.py` 将 `pdf-viewer:navigate:requested` 指向 `handlers/pdf_viewer/viewer.navigate_viewer`；
+     - 处理：当前仅向“请求方”回 `...:completed` ACK，未 `broadcast_message()` 将“requested”转发至 viewer（按 `to.viewer_id|pdf_uuid` 定向或广播）；因此运行中的 viewer 默认收不到跳转指令。
+  4) 另一条“消息中心触发跳转”的可用路径：已实现（启动即跳转）。
+     - `pdf-library:viewer:requested` → BackendLauncher 启动/打开 viewer，注入 `pdf_id/page_at/position` 到 URL，前端 URL 导航完成定位。
+- 影响：
+  - “会内跳转”（已有 viewer）：需服务端补发/转发 `pdf-viewer:navigate:requested` 才可落地；当前仅有 ACK 给请求方，viewer 不会动。
+  - “启动并定位”：已可用，通过 `viewer:requested` + URL 参数实现。
+- 后续建议（记录）：
+  - 在 `handlers/pdf_viewer/viewer.navigate_viewer()` 中除 ACK 外同步 `broadcast_message({... type:'pdf-viewer:navigate:requested', to, data, request_id })`；或新增“定向发送”API以按 `viewer_id` 精准投递；保留 Schema 校验与灰度开关。
+  - `WSClient.VALID_MESSAGE_TYPES` 增补 `pdf-viewer:navigate:requested` 以降低“未注册类型”告警（功能不依赖此项）。
+
+## 2025-10-28 实施：MsgCenter 会内跳转闭环（Phase-1）
+- 变更点（后端）：`src/backend/msgCenter_server/standard_server.py`
+  - 新增 viewer 实例注册表：`_client_viewer_info / _viewer_by_id / _viewers_by_pdf`；
+  - 捕捉 `pdf-viewer:register:requested` 进行注册；
+  - 捕捉 `pdf-viewer:navigate:requested` 在 ACK 后定向转发到目标 viewer（优先 `viewer_id`，否则按 `pdf_uuid` 多播）。
+- 变更点（前端）：`src/frontend/pdf-viewer/adapters/websocket-adapter.js`
+  - `#handleViewerNavigate()` 接入 `mode='outline'`，转发为 `PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED({ outlineItemId })`。
+- 验收与限制：
+  - viewer 实例需先发送 `register:requested` 才能被定向投递；
+  - 回流回执（`navigate:completed/failed`）尚未在后端桥接到原请求方（留作 Phase-2）。
+
+### 规划（20251028111413）— 拆分 standard_protocol.py（≈599 行）
+- 目标：将类型枚举、通用响应构造、PDF 专用构造、解析与结构校验分离到 `core/*` 子模块；保持 `standard_protocol` 作为门面 re-export，外部无感。
+- 计划分步：Phase-0 基线 → Phase-1 `MessageType` → Phase-2 `response.py` → Phase-3 `pdf_messages.py` → Phase-4 `parser.py` → Phase-5 清理与收敛。
+- 文档：`todo-and-doing/1 doing/20251028111413-standard-protocol-split/v001-spec.md`
+- 验收：`standard_protocol.py` < 250 行、无循环依赖、全量 pytest 通过。
+
+### 代码拆分（20251028121403）— 最大 Python 文件：pdf_library_api.py
+- 目标文件：`src/backend/api/pdf_library_api.py`（原 ≈1221 行）
+- 本轮抽离：
+  - 新增 `api/pdf-viewer/anchor/service.py`（DefaultAnchorService），API 的 `anchor_*` 方法改为委托；
+  - 新增 `api/pdf_library/add.py`，API 的 `add_pdf_from_file` 改为委托（注册服务优先）；
+  - 预置 `api/pdf_library/search.py`（搜索等价实现，后续阶段切换）。
+- 当前行数：≈1034 行（-187），msgCenter 用例全量通过。
+- 后续建议：把 `search_records` 切换至 `pdf_library/search.py`；再抽 `*_normalize/_map_to_frontend` 至 `api/pdf_library/utils.py`。
+### 统计（20251027221529）— msgCenter 文件代码行数
+- 范围：`src/backend/msgCenter_server` 下 `.py` 文件（UTF-8 读取，按 `\n` 计数）
+- 结果文件：`todo-and-doing/1 doing/20251027103500-standard-server-split/msgCenter-file-line-counts-20251027221520.md`
+- 摘要：文件数 42，总行数 5368；Top(行数)：standard_protocol.py(599)、crypto.py(572)、handlers/pdf_library.py(500)、standard_server.py(395)、embed_msgcenter.py(250)
+
+### 测试（20251027223356）— msgCenter pytest
+- 命令：`PYTHONPATH=. pytest -q src/backend/msgCenter_server/__tests__`
+- 修复：
+  - Qt 槽签名：`_on_text_message` 改为 `@pyqtSlot(QWebSocket, str)` 与 `text_message_received[QWebSocket,str]` 对齐；
+  - 夹具严格化：所有 `StandardWebSocketServer()` 构造显式传入 `data_dir/db_path`；
+  - 契约字段：所有 `*:requested` 测试消息补齐 `timestamp` 与 `metadata.version='1.0.0'`；
+  - 断言调整：错误断言改为顶层 `code==400` 或 `error.type=='SCHEMA_VALIDATION_FAILED'`；
+  - pdf-page preload 按 Schema 增加 `data.pages`。
+- 结果：全部用例通过。
+
+### 标准服务器拆分（阶段3，20251027193301）
+名称：精简 `standard_server.py` 入口残余包装与未使用助手，补足最低限度测试
+
+背景与目标：
+- 入口已大幅拆分为 `core/*` 与 `handlers/*`，仍残留若干 `handle_*` 包装函数与未使用的工具方法；
+- 按既定“禁止兜底”与“三段式消息类型”规范，改为由 `core/msg_router.py` 直接将 `*:requested` 路由到对应处理器；
+- 同步补充负路径测试，覆盖 pdf_pages 未注入 `page_transfer`、bookmark 非法负载、infra debug-info 缺文件。
+
+执行步骤：
+1) 删除 `standard_server.py` 中冗余 `handle_*` 包装（pdf-home/config、pdf-viewer/bookmark/annotation/anchor/pdf_pages 等）；
+2) 移除未使用 `_iso_to_ms`、`_ms_to_iso`、`_resolve_pdf_uuid`；
+3) 全局检索引用，确认无外链依赖这些包装函数；必要时修正导入；
+4) 新增最小化测试用例（UTF-8 与 `\n`），严格断言 400/500 行为，不使用兜底；
+5) 若引入/固化注入点（`page_transfer`），在 `tech.md` 中补充使用说明。
+
+备注：
+- 维持 legacy 类型直接 400；router 表内三段式为唯一合法入口；
+- 运行时代码所有读写显式 UTF-8。
+
+#### 阶段3执行结果（20251027193301）
+- 已删除入口冗余 `handle_*` 包装与未使用助手；`standard_server.py` 当前约 453 行；
+- `handle_message()` 对 `pdf-library:search:requested` 走特例分支注入原始消息，其余类型按路由闭包调用；
+- 新增测试：pdf-page 缺 `page_transfer` 返回 `pdf-page:load:failed`；bookmark 非法负载 400；debug-info 文件缺失返回 `{flags:{}}`；
+- 更新 `architecture.md/tech.md` 以记录使用与结构调整。
+
+#### 阶段3.1执行结果（20251027215357）
+- 抽取 `core/server_api.py::ServerAPIMixin`，下沉发送/广播/统计/错误处理等通用 API；
+- `standard_server.py` 改为继承 Mixin 并删除上述方法与未用 `_get_pdf_home_config_path`，移除无用导入；当前约 395 行；
+- 新增单测 `test_router_unknown_type.py` 覆盖未知类型 400 行为。
+
+
 ### 问题修复（20251025235859）
 名称：annotation 截图在缩放后截图、刷新回默认缩放时标记错位
 
@@ -3089,3 +3260,109 @@ python gui_launcher_enhanced.py
 - 已有大纲的 PDF 不受影响；避免重复导入导致的数据重复。
 
 记录时间：2025-10-26 16:23:04
+
+---
+## 📦 代码体量扫描（20251027074031）
+**问题**：识别 src 与 gui_launcher 中代码行数过多的文件，暂不修改，仅输出清单（UTF-8 与 
+）。
+**背景**：近期多处文件体量较大，影响可读性与后续重构节奏；本次先统计，供后续拆分评估。
+**范围**：src/** 与 gui_launcher/** 目录下的代码文件（.py/.ts/.tsx/.js/.jsx/.mjs/.cjs/.vue/.html/.css/.scss/.less）。
+**判定**：默认阈值 400 行（可与需求方协商调整）。同时提供完整 Top-N 排序列表供参考。
+**输出**：按行数降序列出文件路径与行数，标注是否超阈值。
+**执行步骤**：1) 枚举范围内文件→2) 逐个 UTF-8 读取并统计行数→3) 生成列表→4) 回写日志与本文件。
+记录时间：2025-10-27 07:40:31
+
+### 扫描结果概要（20251027074227）
+- 文件总数：499；阈值：400 行；超阈值：65
+- Top 10（行数 — 路径）：
+  - 2370 — src\backend\msgCenter_server\standard_server.py
+  - 1967 — src\frontend\pdf-home\style.css
+  - 1412 — src\frontend\pdf-viewer\features\annotation\components\annotation-sidebar-ui.js
+  - 1268 — src\frontend\pdf-viewer\features\annotation\tools\screenshot\index.js
+  - 1221 — src\backend\api\pdf_library_api.py
+  - 1154 — src\backend\database\plugins\pdf_info_plugin.py
+  - 1079 — src\frontend\common\event\pdf-viewer-constants.js
+  - 1063 — src\backend\launcher.py
+  - 1040 — src\frontend\pdf-viewer\features\annotation\tools\text-highlight\index.js
+  - 991 — src\frontend\pdf-viewer\launcher.py
+
+
+### 代码体量扫描结果入库（20251027075657）
+- backlog: `todo-and-doing/2 todo/20251027074226-code-split-backlog/backlog-files.md`
+- spec: `todo-and-doing/2 todo/20251027074226-code-split-backlog/v001-spec.md`
+
+
+### 标准服务器拆分（阶段1，20251027102853）
+- 目标：去除 legacy 类型映射，开始按模块化抽离（schema 验证）
+- 变更：删除 LEGACY_TYPE_MAPPING；增加 LEGACY_TYPE_DENYLIST，收到 legacy 类型直接错误
+- 模块：新增 core/schema_validation.py，并在入口调用；删除类内同名实现
+- 后续：下一步抽离 msg_router 与 storage-kv/fs 处理器
+
+
+### 标准服务器拆分（阶段2，20251027115510）
+- 路由注册表已引入并覆盖 storage-*；下一步将扩展到 pdf-library 等域
+- pdf-library 领域方法已抽离为处理器模块并由入口委托调用
+
+
+### 标准服务器拆分（阶段2-扩展路由，20251027151436）
+- viewer/capability 抽离为 handlers，入口仅做委托
+- 路由注册表已纳入 pdf-library/annotation/anchor/viewer/capability/bookmark 的 *:requested 分派
+
+
+### 标准服务器拆分（阶段2-清理入口，20251027153857）
+- bookmark 域迁入 handlers，入口委托；路由表纳入 debug-info
+- handle_message 入口：先路由分派 → 未覆盖的 pdf-page/heartbeat/console_log/unknown 保留原逻辑
+
+
+### 语义分层（pdf-home/pdf-viewer/infra，20251027163710）
+- pdf-home: `handlers/pdf_library.py`（库/配置）
+- pdf-viewer: `handlers/annotation.py`、`handlers/anchor.py`、`handlers/viewer.py`、`handlers/pdf_viewer/pdf_pages.py`、`handlers/bookmark.py`
+- infra: `handlers/storage_*`、`handlers/infra/debug.py`、`handlers/misc.py`
+- utils: `utils/time.py`、`utils/config_path.py`
+
+
+### 入口进一步精简（20251027183720）
+- core 承担 WS 连接与文本发送；入口仅组合 + 委托
+- notifications 承担欢迎/文件变更/列表广播
+- CLI 入口迁移至 `msgCenter_server/__main__.py`
+
+
+### 2025-10-28 22:22:54（完成）— backend.launcher 拆分至 launcher_core
+- 入口: src/backend/launcher.py（112 行，CLI 只做委托）
+- 新模块:
+  - src/backend/launcher_core/ports.py：日志目录解析、端口查找/监听/占用者、runtime-ports.json 读写
+  - src/backend/launcher_core/processes.py：进程启动/停止/状态查询、信息持久化（UTF-8）
+  - src/backend/launcher_core/legacy.py：LegacyBackendLauncher（start/stop/status）
+  - src/backend/launcher_core/pyqt_launcher.py：BackendLauncher（PyQt 集成）
+- 保持行为：CLI 用法与日志输出不变；UTF-8 文件读写明确指定；禁止兜底（缺参即报错）
+- 回归：src/backend/msgCenter_server/__tests__ 全部通过（24/24），新增 	est_launcher_split.py（2/2）
+- 影响评估：对外导入路径 rom src.backend.launcher import BackendLauncher/LegacyBackendLauncher 保持不变
+
+### 2025-10-29 07:04:52（测试验证）— launcher_core 拆分后可运行性
+- 单元测试：msgCenter 24/24 通过；launcher smoketest 2/2 通过
+- e2e 烟雾（显式路径）：msgCenter_server 与 pdfFile-server 均可启动、监听端口、并可停止（端口示例 8796/8115）
+- 修复：子进程启动入口从 'python -m src.backend.msgCenter_server.standard_server' 改为包入口 'python -m src.backend.msgCenter_server'，使用 __main__.py 启动 Qt 事件循环
+- 路径策略：严格要求 --data-dir 与 --db-path（禁止兜底）；未提供时 WS 不会启动（预期行为）
+
+### 2025-10-29 07:19:40（修复）— hosted(prod) 双击无法打开 pdf-viewer
+- 现象：pdf-home 双击无反应，pdf-home-js.log 为空；WS 端口与 HTTP 正常；
+- 根因：前端改为通过 WS 发送 'pdf-library:viewer:requested'；后端仅 open_viewer_ack 回 202，但 BackendLauncher._on_msgcenter_message 未消费该消息去拉起查看器。
+- 修复：在 BackendLauncher._on_msgcenter_message 增加对 'pdf-library:viewer:requested' 的处理，解析 pdf_id/page_at/position/anchor/annotation，
+  复用当前 hosted 运行时端口与路径构建 LauncherConfig，调用 start_pdf_viewer_hosted() 启动查看器窗口。
+- 边界：严格要求 pageAt；未提供时按 None 处理；不兼容 pageNumber。
+- 回归：对 Anki 插件桥接（integrations/anki_event_bridge.py）无影响；CLI 模式无影响。
+
+### 2025-10-29 09:20:23（修复）— WS 请求缺少 metadata 导致 Schema 校验失败
+- 现象：'pdf-library:info:requested' 返回 info:failed，提示缺少 metadata（version）
+- 根因：WSClient.request 默认未附加 metadata；sendPDFDetailRequest 也未传 metadata
+- 修复：统一在 WSClient.request 与 send() 路径对 *:requested 类型自动注入 metadata={version:'1.0.0'}（业务侧仍可覆盖），避免 schema 失败
+- 影响：所有通过 WSClient 发送的 *:requested 消息即使未显式提供 metadata 也符合契约（禁止兜底的原则仍然生效在服务端，客户端注入为契约必填补全）
+
+# 
+2025-10-29 10:10:46
+（变更）— Viewer 标题来源规范（严格）
+- 标题只能来自数据库（pdf-library:info:requested → info:completed.data.title）；不再从 URL/文件名获取，也不回退显示 ID/文件名。
+- 修改点：
+  - 移除后端注入 URL 参数 title；
+  - UIManagerCore 监听 URL_PARAMS.PARSED 后通过 WS 请求详情，在 RESPONSE 中更新 header；
+  - 若详情缺失或无 title：显示错误提示，不做回退。

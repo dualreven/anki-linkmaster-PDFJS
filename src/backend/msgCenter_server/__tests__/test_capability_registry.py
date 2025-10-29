@@ -4,14 +4,18 @@ from src.backend.msgCenter_server.standard_server import StandardWebSocketServer
 
 
 @pytest.fixture()
-def server():
-    return StandardWebSocketServer()
+def server(tmp_path):
+    data_dir = str(tmp_path / "data")
+    db_path = str(tmp_path / "test-db.sqlite")
+    return StandardWebSocketServer(data_dir=data_dir, db_path=db_path)
 
 
 def test_capability_discover_returns_domains(server):
     payload = {
         "type": "capability:discover:requested",
         "request_id": "req-cap-1",
+        "timestamp": 0,
+        "metadata": {"version": "1.0.0"},
         "data": {}
     }
     resp = server.handle_message(payload)
@@ -27,6 +31,8 @@ def test_capability_describe_pdf_library(server):
     payload = {
         "type": "capability:describe:requested",
         "request_id": "req-cap-2",
+        "timestamp": 0,
+        "metadata": {"version": "1.0.0"},
         "data": {"domain": "pdf-library"}
     }
     resp = server.handle_message(payload)

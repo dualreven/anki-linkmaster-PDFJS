@@ -36,14 +36,12 @@ def test_bookmark_persist_and_list_roundtrip():
         {
             'id': 'bookmark-1-abc',
             'name': 'Root',
-            'type': 'page',
-            'pageNumber': 1,
+            'pageAt': 1,
             'children': [
                 {
                     'id': 'bookmark-2-def',
                     'name': 'Child',
-                    'type': 'page',
-                    'pageNumber': 2,
+                    'pageAt': 2,
                     'parentId': 'bookmark-1-abc',
                     'order': 0,
                 }
@@ -60,3 +58,30 @@ def test_bookmark_persist_and_list_roundtrip():
     # flatten check
     ids = {node['id'] for node in res['bookmarks']}
     assert {'bookmark-1-abc', 'bookmark-2-def'} <= ids
+
+
+def test_bookmark_save_with_pageAt():
+    api = PDFLibraryAPI()
+    uuid = '112233aabbcc'
+    try:
+        api.create_record(make_pdf_record(uuid))
+    except Exception:
+        pass
+
+    bookmarks = [
+        {
+            'id': 'bookmark-1728123460000-root',
+            'name': 'RootByPageAt',
+            'pageAt': 3,
+            'children': [
+                {'id': 'bookmark-1728123460001-child', 'name': 'ChildByPageAt', 'pageAt': 5, 'parentId': 'bookmark-1728123460000-root', 'order': 0}
+            ],
+            'order': 0,
+        }
+    ]
+    saved = api.save_bookmarks(uuid, bookmarks, root_ids=['bookmark-1728123460000-root'])
+    assert saved >= 1
+    res = api.list_bookmarks(uuid)
+    assert res['root_ids'] == ['bookmark-1728123460000-root']
+    ids = {node['id'] for node in res['bookmarks']}
+    assert {'bookmark-1728123460000-root', 'bookmark-1728123460001-child'} <= ids

@@ -23,8 +23,10 @@ class FakePDFLibraryAPI:
 
 
 @pytest.fixture()
-def server():
-    svc = StandardWebSocketServer()
+def server(tmp_path):
+    data_dir = str(tmp_path / "data")
+    db_path = str(tmp_path / "test-db.sqlite")
+    svc = StandardWebSocketServer(data_dir=data_dir, db_path=db_path)
     svc.pdf_library_api = FakePDFLibraryAPI()
     return svc
 
@@ -33,6 +35,8 @@ def test_list_request(server):
     resp = server.handle_message({
         "type": "pdf-library:list:requested",
         "request_id": "req-list",
+        "timestamp": 0,
+        "metadata": {"version": "1.0.0"},
         "data": {"pagination": {"limit": 10}}
     })
     assert resp["type"] == "pdf-library:list:completed"
@@ -43,6 +47,8 @@ def test_info_request(server):
     resp = server.handle_message({
         "type": "pdf-library:info:requested",
         "request_id": "req-info",
+        "timestamp": 0,
+        "metadata": {"version": "1.0.0"},
         "data": {"pdf_id": "id-1"}
     })
     assert resp["type"] == "pdf-library:info:completed"
@@ -53,6 +59,8 @@ def test_remove_batch(server):
     resp = server.handle_message({
         "type": "pdf-library:remove:requested",
         "request_id": "req-rm",
+        "timestamp": 0,
+        "metadata": {"version": "1.0.0"},
         "data": {"file_ids": ["id-1", "id-2"]}
     })
     assert resp["type"] == "pdf-library:remove:completed"

@@ -135,18 +135,42 @@ export class URLNavigationFeature {
         return;
       }
 
-      // 立即触发加载：当仅携带 pdf-id 时，先加载文档，再由门闸处理后续定位/滚动
+      // 立即触发加载：当仅携带 pdf-id 时，优先通过 WS 查询详情以获得真实文件名，再触发加载
       try {
         const pdfId = this.#parsedParams?.pdfId;
         if (pdfId && typeof pdfId === "string" && pdfId.trim().length > 0) {
           this.#logger.info("[url-navigation] 触发文件加载 (from url params)", { pdfId });
-          // 以 warn 级别输出一次“将要触发加载”的跟踪日志，便于生产环境观察两次触发来源
+
+          let filenameForLoad = pdfId; // 回退：若无法获取详情则使用 pdfId（可能退化为以ID命名的文件）
+          let filePath = null;
           try {
-            this.#logger.warn("[TRACE] Emitting FILE.LOAD.REQUESTED from URLNavigationFeature", { pdfId, source: "url-params" });
+            const wsClient = context?.container?.get?.("wsClient") || context?.container?.getGlobal?.("wsClient");
+            if (wsClient && typeof wsClient.sendPDFDetailRequest === "function") {
+              const resp = await wsClient.sendPDFDetailRequest(String(pdfId), 4000, 1);
+              const data = resp?.data || {};
+              // 标准字段优先：filename / file_path；兼容 title/path
+              const fname = (typeof data.filename === "string" && data.filename.trim()) ? data.filename.trim() : null;
+              const title = (typeof data.title === "string" && data.title.trim()) ? data.title.trim() : null;
+              filenameForLoad = fname || title || filenameForLoad;
+              filePath = (typeof data.file_path === "string" && data.file_path.trim()) ? data.file_path.trim()
+                        : (typeof data.path === "string" && data.path.trim()) ? data.path.trim()
+                        : null;
+              this.#logger.info("[url-navigation] 详情查询成功，使用真实文件名加载", { filename: filenameForLoad, file_path: filePath });
+            } else {
+              this.#logger.warn("[url-navigation] wsClient 不可用或不支持 sendPDFDetailRequest，回退为使用 pdfId 作为文件名");
+            }
+          } catch (detailErr) {
+            this.#logger.warn("[url-navigation] 获取文件详情失败，回退使用 pdfId 作为文件名继续加载", detailErr);
+          }
+
+          // 以 warn 级别输出一次“将要触发加载”的跟踪日志，便于生产观察来源
+          try {
+            this.#logger.warn("[TRACE] Emitting FILE.LOAD.REQUESTED from URLNavigationFeature", { pdfId, filename: filenameForLoad, source: "url-params" });
           } catch (e) { void e; }
+
           this.#eventBus.emit(
             PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
-            { filename: pdfId, source: "url-navigation" },
+            { filename: filenameForLoad, file_path: filePath, source: "url-navigation" },
             { actorId: "URLNavigationFeature" }
           );
         }
@@ -268,8 +292,7 @@ export class URLNavigationFeature {
           try { toastError(`导航失败: ${res.reason || "未知错误"}`); } catch (e) { void e; }
         }
       } else if (res.type === "annotation") {
-        // 轻提示：标注跳转由 AnnotationFeature/工具链负责实际提示
-        if (res.success) { try { toastSuccess("已触发标注跳转"); } catch (e) { void e; } }
+        // 标注跳转的提示交由 AnnotationFeature 输出，避免“已触发”但实际未跳转的误导
       } else {
         this.#logger.info("[url-navigation] 门闸通过，但无可执行跳转（或仅记录 outline-item-id）");
       }

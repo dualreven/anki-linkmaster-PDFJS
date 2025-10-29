@@ -302,8 +302,8 @@ export class AnnotationFeature {
     // 标注卡片的添加/删除由AnnotationSidebarUI负责监听和处理
     // 参考：annotation-sidebar-ui.js:322-338
 
-    // 监听标注导航请求
-    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, (data) => {
+    // 监听标注导航请求（来自 URL/WS 等全局来源，需监听全局总线）
+    this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, (data) => {
       this.#handleNavigateToAnnotation(data);
     }, { subscriberId: "AnnotationFeature" });
 
@@ -495,6 +495,14 @@ export class AnnotationFeature {
 
       if (!annotation) {
         this.#logger.warn("[AnnotationFeature] Annotation not found for navigation", data);
+        try {
+          const { error: toastError } = await import("../../../common/utils/thirdparty-toast.js");
+          toastError("标注不存在或未加载，无法跳转");
+        } catch (_) {}
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_FAILED, {
+          error: "not_found",
+          id: data?.annotation || data?.id
+        }, { actorId: "AnnotationFeature" });
         return;
       }
 
@@ -514,6 +522,14 @@ export class AnnotationFeature {
       } catch (e) { void e; /* ignore DOM resolution errors */ }
       if (!pageNumber) {
         this.#logger.warn("[AnnotationFeature] Annotation has no page number", annotation);
+        try {
+          const { error: toastError } = await import("../../../common/utils/thirdparty-toast.js");
+          toastError("标注缺少页码信息，无法跳转");
+        } catch (_) {}
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_FAILED, {
+          error: "missing_page_number",
+          id: annotation?.id
+        }, { actorId: "AnnotationFeature" });
         return;
       }
 
