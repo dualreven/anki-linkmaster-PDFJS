@@ -44,6 +44,25 @@
 
 本文件汇总当前权威的技术与使用规范，过时内容已清理。
 
+## Toast 使用规范 v2（统一入口 + Lint）
+- 引擎依赖：`izitoast`（仅适配器内部直接依赖）。
+- 公共入口（业务代码仅允许二选一）：
+  - Logger：`import { getLogger } from 'src/frontend/common/utils/logger.js'`
+    - 用法：`getLogger('Module').error('消息', { toast: { type: 'error', ms: 4000 } })`
+  - Notification：`import { showError, showSuccess, showInfo, showInfoWithId, dismissById } from 'src/frontend/common/utils/notification.js'`
+- 禁止事项：
+  - 任何功能代码直接导入 `common/utils/thirdparty-toast.js`（静态或动态 `import()`）；
+  - 使用 `alert(...)`；
+  - 直接使用第三方全局（如 `iziToast.*`）或私造 DOM/样式实现 toast；
+- Lint 守护：
+  - 自定义规则 `custom/no-direct-toast-import`: 禁止直接导入 `thirdparty-toast.js`（白名单仅限适配器与公共封装）；
+  - 自定义规则 `custom/no-izi-toast-global`: 禁止直接使用 `iziToast` 或从 `izitoast` 导入；
+  - 自定义规则 `custom/notification-allowed-apis`: 限定 `notification.js` 仅允许导入 `showInfo/showSuccess/showError/showInfoWithId/dismissById/hideAll`，禁止默认导入与别名；
+  - 自定义规则 `custom/no-dynamic-notification-import`: 禁止对 `notification.js/thirdparty-toast.js` 使用动态 `import()`；
+  - 自定义规则 `custom/logger-toast-shape`（默认 warn）：校验 `logger.*(..., { toast })` 的结构（允许 `true` 或 `{ type, ms }`）；
+  - 启用 `no-alert: error`：彻底禁止 `alert()`；
+  - 过渡策略：按“error”执行，增量修复历史代码；必要时对个别遗留文件临时 `// eslint-disable-next-line` 并在任务中清零。
+
 ## 命名迁移指南：bookmark → outline（2025-10-21 新增）
 - 目标：在“对外契约稳定”的前提下，逐步把视觉与模块命名从 bookmark 过渡到 outline。
 - 禁止事项：严禁直接全局替换 `bookmark(s)` 为 `outline(s)`；需采用别名与灰度策略。
@@ -183,6 +202,12 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
 - 校验范围：所有 `*:requested` 入站消息；未找到 schema 的消息跳过且记录；\n
 - 失败处理：直接返回 `*:failed`，错误类型 `SCHEMA_VALIDATION_FAILED`；\n
 - 实现位置：`src/backend/msgCenter_server/standard_server.py::_validate_message_by_schema/_jsonschema_validate`。\n
+
+### 注释卡片跳转严格化（2025-10-29 新增；2025-10-30 完成工具端替换）
+- 全局契约事件：`PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED`（`JUMP_TO` 为别名）必须使用 `eventBus.emitGlobal(...)` 触发，监听使用 `onGlobal(...)`；禁止局部 `emit()`。
+- 守卫：`src/frontend/common/event/scoped-event-bus.js` 对上述事件的局部 `emit()` 直接 `logger.error + toast` 并抛异常。
+- 侧边栏委托：`AnnotationSidebarUI` 的 `.jump-btn` 点击统一发射全局 `JUMP_REQUESTED`；移除 URL 导航兜底路径。
+- 工具迁移（已实施）：TextHighlight / Comment / Screenshot 工具的标注跳转已由局部 `emit()` 改为 `emitGlobal()`；点击三类卡片能触发全局监听链路。
 
 
 ## 数据库路径解析规范（2025-10-13 更新：参数式，无环境变量）
@@ -1226,6 +1251,12 @@ WS 适配（msgcenter → front）：
 - 新增 `src/backend/msgCenter_server/core/server_api.py`，`StandardWebSocketServer` 继承该 Mixin；
 - 公共方法未改名：`send_message/broadcast_message/get_client_count/get_client_ids/on_client_disconnected/on_socket_error`；
 - 外部调用不受影响；仅实现位置从入口文件迁出。
+
+### 用法变动（2025-10-29 23:59:40）— 前端 Jest 冒烟命令调整（Jest v30）
+- 变更：`package.json` 将 `test:smoke` 从 `--testPathPattern=__smoke__` 调整为 `--runTestsByPath src/frontend/pdf-viewer/__smoke__/annotation-card-jump.smoke.test.js -i`（Jest v30 废弃旧参数）。
+- 影响：调用侧统一执行 `pnpm run test:smoke` 即可，仅跑注释卡片跳转冒烟；全量测试仍为 `pnpm run test`。
+- 新增文件：
+  - `src/frontend/pdf-viewer/__smoke__/annotation-card-jump.smoke.test.js`（严格 UTF-8 与 `\n`）。
 
 
 ## 2025-10-28 22:23:09 — Backend Launcher 技术要点

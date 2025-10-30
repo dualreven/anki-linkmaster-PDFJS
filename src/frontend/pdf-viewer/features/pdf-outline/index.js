@@ -22,6 +22,7 @@ export class PDFOutlineFeature {
   #unsubs = [];
   #enabled = false;
   #pendingNavigateId = null;
+  #listReady = false;
 
   get name() { return "pdf-outline"; }
   get version() { return "1.0.0"; }
@@ -121,6 +122,8 @@ export class PDFOutlineFeature {
       // 最终刷新一次列表（无论是否导入）
       this.#refreshList();
       try { this.#logger.info(`[Outline] 列表已刷新: ${(this.#bookmarkManager.getAllBookmarks()||[]).length} 条`, { toast: true }); } catch {}
+      // 标记列表就绪
+      this.#listReady = true;
       // 列表就绪后尝试处理挂起的按ID导航请求
       try { this.#tryPendingNavigate(); } catch {}
     } catch (e) {
@@ -149,6 +152,7 @@ export class PDFOutlineFeature {
         // 3) 刷新列表
         this.#refreshList();
         try { this.#logger.info(`[Outline] FILE.LOAD.SUCCESS → 列表已刷新: ${(this.#bookmarkManager.getAllBookmarks()||[]).length} 条`, { toast: true }); } catch {}
+        this.#listReady = true;
         // 4) 处理可能在加载前收到的“按ID导航”请求
         try { this.#tryPendingNavigate(); } catch {}
       },
@@ -343,9 +347,14 @@ export class PDFOutlineFeature {
       }
       const bm = this.#bookmarkManager.getBookmark(targetId);
       if (!bm) {
-        // 可能是因为列表尚未加载完成：记录挂起ID，待列表准备后再尝试
-        this.#pendingNavigateId = targetId;
-        this.#logger.info(`[Outline] 记录挂起的按ID导航请求: ${targetId}`);
+        // 未找到：若列表尚未就绪，则暂存等待；若已就绪，则直接给出 toast 提示
+        if (!this.#listReady) {
+          this.#pendingNavigateId = targetId;
+          this.#logger.info(`[Outline] 记录挂起的按ID导航请求: ${targetId}`);
+        } else {
+          this.#logger.error(`[Outline] 大纲项不存在或未加载：${targetId}`, { toast: { type: "error", ms: 4500 } });
+          this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED, { error: 'not_found', id: targetId }, { actorId: 'PDFOutlineFeature' });
+        }
         return;
       }
       await this.#handleNavigate({ bookmark: bm });
@@ -360,7 +369,15 @@ export class PDFOutlineFeature {
       const id = this.#pendingNavigateId;
       if (!id) return;
       const bm = this.#bookmarkManager.getBookmark(id);
-      if (!bm) return;
+      if (!bm) {
+        // 列表已就绪但仍未找到 → 提示不存在
+        if (this.#listReady) {
+          this.#logger.error(`[Outline] 大纲项不存在或未加载：${id}`, { toast: { type: "error", ms: 4500 } });
+          this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED, { error: 'not_found', id }, { actorId: 'PDFOutlineFeature' });
+          this.#pendingNavigateId = null;
+        }
+        return;
+      }
       this.#pendingNavigateId = null;
       this.#logger.info(`[Outline] 处理挂起的按ID导航: ${id}`);
       this.#handleNavigate({ bookmark: bm });

@@ -47,12 +47,13 @@ def detail(ctx, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, An
     try:
         pdf_id = None
         if isinstance(data, dict):
-            pdf_id = data.get("pdf_id") or data.get("file_id") or data.get("uuid")
+            # 严格模式：仅接受 pdf_id，不再兼容 file_id/uuid
+            pdf_id = data.get("pdf_id")
         if not pdf_id:
             return StandardMessageHandler.build_error_response(
                 request_id or "unknown",
                 "INVALID_REQUEST",
-                "缺少 pdf_id/file_id/uuid 参数",
+                "缺少必填参数: pdf_id",
                 message_type=MessageType.PDF_LIBRARY_INFO_FAILED,
                 code=400,
             )

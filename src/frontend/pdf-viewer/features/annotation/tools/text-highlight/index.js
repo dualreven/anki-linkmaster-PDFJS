@@ -590,7 +590,7 @@ export class TextHighlightTool extends IAnnotationTool {
     this.#logger.info(`[TextHighlightTool] Jump requested for annotation ${annotation.id}`);
     this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, { sidebarId: 'annotation' });
     this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SELECT, { id: annotation.id });
-    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, { annotation });
+    this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, { annotation });
   }
 
   /**
@@ -1074,7 +1074,7 @@ export class TextHighlightTool extends IAnnotationTool {
     });
     jumpButton.addEventListener('click', (e) => {
       e.stopPropagation();
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, {
+      this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, {
         annotation: annotation
       });
     });
@@ -1114,7 +1114,7 @@ export class TextHighlightTool extends IAnnotationTool {
 
     // 卡片点击跳转
     card.addEventListener('click', () => {
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, {
+      this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, {
         annotation: annotation
       });
     });

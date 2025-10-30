@@ -10,6 +10,7 @@ import { PDFHomeAppV2 } from '../core/pdf-home-app-v2.js';
 import { setupAutoTestEnvironment } from '../core/auto-test-runner.js';
 import { resolveWebSocketPortSync, DEFAULT_WS_PORT } from '../utils/ws-port-resolver.js';
 import { getLogger } from '../../common/utils/logger.js';
+import { showError as notifyError } from '../../common/utils/notification.js';
 // 提前创建引导日志器，避免在函数中使用前未定义
 const logger = getLogger('pdf-home/bootstrap-v2');
 
@@ -100,7 +101,7 @@ export async function bootstrapPDFHomeAppV2(options = {}) {
 
   } catch (error) {
     logger.error('App V2 bootstrap/initialization failed:', error);
-    try { alert('启动失败: ' + (error && error.message ? error.message : String(error))); } catch(_) {}
+    try { notifyError('启动失败: ' + (error && error.message ? error.message : String(error)), 5000); } catch(_) {}
     try { const el = document.getElementById('app-boot-banner'); if (el) el.textContent = '启动失败（详见日志）'; } catch(_) {}
 
     // 尝试记录错误

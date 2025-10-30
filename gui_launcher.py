@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QFileSystemWatcher
 from PyQt6.QtGui import QFont, QTextCursor
+import re
 
 # Qt WebSocket 兼容导入（用于在 anki 模式通过 WS 触发后端）
 try:
@@ -1512,6 +1513,32 @@ class GUILauncher(QMainWindow):
                 _anchor_id = _val if (_sel_type == "anchor" and _val) else None
                 _annotation_id = _val if (_sel_type == "annotation" and _val) else None
                 _outline_item = _val if (_sel_type == "outline" and _val) else None
+
+                # 严格 ID 校验（禁止兜底）：选择的类型与粘贴的ID必须匹配
+                try:
+                    if _sel_type == "anchor":
+                        # 约定：pdfanchor- 后跟 12 位十六进制
+                        if not (_anchor_id and re.fullmatch(r"pdfanchor-[0-9a-fA-F]{12}", _anchor_id)):
+                            self._log("[ERROR] ID 与类型不匹配：期望 anchor 形如 pdfanchor-<12hex>")
+                            return
+                    elif _sel_type == "annotation":
+                        # 约定：pdfannotation- 后跟 16 位 URL 安全 base64/短ID（字母数字 _ -）
+                        if not (_annotation_id and re.fullmatch(r"pdfannotation-[A-Za-z0-9_-]{16}", _annotation_id)):
+                            self._log("[ERROR] ID 与类型不匹配：期望 annotation 形如 pdfannotation-<16>（仅 [A-Za-z0-9_-]）")
+                            return
+                    elif _sel_type == "outline":
+                        # 大纲项ID采用任意非空字符串，但建议以 'bmk_' 或 'out_' 开头；此处只做“非空”+“无空白”校验
+                        if not (_outline_item and _outline_item.strip() and not _outline_item.strip().isspace()):
+                            self._log("[ERROR] 无效的大纲项 ID：不能为空或空白")
+                            return
+                    # 若未选择类型但填写了值：强制报错，避免发送不确定语义的请求
+                    if (not _sel_type) and _val:
+                        self._log("[ERROR] 已填写 ID 但未选择类型（anchor/annotation/outline），请先选择类型")
+                        return
+                except Exception as _v_exc:
+                    self._log(f"[ERROR] 启动前参数校验失败：{_v_exc}")
+                    return
+
                 rid = f"viewer_{int(__import__('time').time()*1000)}"
                 payload = {
                     "type": "pdf-library:viewer:requested",

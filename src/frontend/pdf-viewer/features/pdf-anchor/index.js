@@ -206,6 +206,39 @@ export class PDFAnchorFeature {
       { subscriberId: 'PDFAnchorFeature' }
     );
 
+    // 统一处理：来自 URLJumpDispatcher/WS 的 anchor 导航请求
+    safeOn(
+      PDF_VIEWER_EVENTS.ANCHOR.NAVIGATE.REQUESTED,
+      (data) => {
+        try {
+          const anchorId = (data?.anchorId || '').toString().trim();
+          if (!anchorId) return;
+          const a = this.#anchorsById.get(anchorId);
+          if (a) {
+            // 直接计算并发出 URL 导航请求（统一入口）
+            const pageAt = parseInt(a.page_at || 1, 10);
+            const pos = typeof a.position === "number" ? Math.max(0, Math.min(100, Math.round(a.position * 100))) : null;
+            if (pageAt >= 1) {
+              this.#eventBus.emit(
+                PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
+                { pageAt, position: pos },
+                { actorId: 'PDFAnchorFeature' }
+              );
+              return;
+            }
+          }
+          // 未加载：请求加载并走闸门
+          this.#pendingUrlAnchorId = anchorId;
+          this.#gateAnchorReady = false;
+          this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD, { anchorId }, { actorId: "PDFAnchorFeature" });
+        } catch (e) {
+          try { toastError("锚点导航失败"); } catch(_) {}
+          this.#logger.warn("anchor navigate failed", e);
+        }
+      },
+      { subscriberId: "PDFAnchorFeature" }
+    );
+
     // 兜底 WS 监听已移除：WebSocketAdapter 会稳定发出 ANCHOR.DATA.LOADED，避免二次转发造成重复处理
 
     // 创建锚点

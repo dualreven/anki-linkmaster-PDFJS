@@ -8,7 +8,7 @@ import { createPDFViewerContainer } from '../../container/app-container.js';
 import { createWebSocketAdapter } from '../../adapters/websocket-adapter.js';
 import { createConsoleWebSocketBridge } from '../../../common/utils/console-websocket-bridge.js';
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS } from '../../../common/event/event-constants.js';
-import { error as toastError } from '../../../common/utils/thirdparty-toast.js';
+import { showError as notifyError } from '../../../common/utils/notification.js';
 
 /**
  * 应用核心功能域
@@ -110,7 +110,7 @@ export class AppCoreFeature {
         try {
           const msg = (err && err.error_message) || 'WebSocket 消息发送失败';
           const type = err && err.message_type;
-          toastError(type ? `${type}: ${msg}` : msg, 5000);
+          notifyError(type ? `${type}: ${msg}` : msg, 5000);
         } catch (_) {}
       }, { subscriberId: 'AppCoreFeature' });
 
@@ -120,7 +120,7 @@ export class AppCoreFeature {
           const errMsg = (payload && (payload.message || payload.error_message))
             || (payload && payload.error && (payload.error.message || payload.error.code))
             || '操作失败';
-          toastError(type ? `${type}: ${errMsg}` : errMsg, 6000);
+          notifyError(type ? `${type}: ${errMsg}` : errMsg, 6000);
         } catch (_) {}
       }, { subscriberId: 'AppCoreFeature' });
     } catch (e) {

@@ -864,7 +864,7 @@ export class ScreenshotTool extends IAnnotationTool {
    * @private
    */
   #handleJumpToAnnotation(annotationId) {
-    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.JUMP_TO, {
+    this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.ANNOTATION.JUMP_TO, {
       id: annotationId,
       toolName: this.name  // 标识是截图工具的跳转请求
     });

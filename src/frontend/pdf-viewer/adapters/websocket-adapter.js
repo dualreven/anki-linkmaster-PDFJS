@@ -511,14 +511,26 @@ export class WebSocketAdapter {
       const mode = data?.target?.type || data?.mode || "page";
       const opts = data?.options || {};
 
-      if (mode === "annotation" || mode === "anchor") {
-        const annotationId = data?.target?.annotation_id || data?.annotation_id || data?.target?.anchor_id || data?.anchor_id;
+      if (mode === "annotation") {
+        const annotationId = data?.target?.annotation_id || data?.annotation_id;
         if (!annotationId) {
-          throw new Error("annotation_id/anchor_id required for annotation/anchor mode");
+          throw new Error("annotation_id required for annotation mode");
         }
+        try { this.#logger.info(`[WS] 导航·标注：请求跳转 id=${annotationId}`, { toast: { type: "info", ms: 2000 } }); } catch(_) {}
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
-          { annotationId, highlight: !!opts.highlight },
+          { id: annotationId, highlight: !!opts.highlight },
+          { actorId: "WebSocketAdapter" }
+        );
+      } else if (mode === "anchor") {
+        const anchorId = data?.target?.anchor_id || data?.anchor_id;
+        if (!anchorId) {
+          throw new Error("anchor_id required for anchor mode");
+        }
+        try { this.#logger.info(`[WS] 导航·锚点：请求跳转 id=${anchorId}`, { toast: { type: "info", ms: 2000 } }); } catch(_) {}
+        this.#eventBus.emit(
+          PDF_VIEWER_EVENTS.ANCHOR.NAVIGATE.REQUESTED,
+          { anchorId },
           { actorId: "WebSocketAdapter" }
         );
       } else if (mode === "outline") {
@@ -527,6 +539,7 @@ export class WebSocketAdapter {
         if (!outlineItemId) {
           throw new Error("outline_item_id/id required for outline mode");
         }
+        try { this.#logger.info(`[WS] 导航·大纲：请求跳转 id=${outlineItemId}`, { toast: { type: "info", ms: 2000 } }); } catch(_) {}
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED,
           { outlineItemId },
@@ -537,6 +550,7 @@ export class WebSocketAdapter {
         if (!Number.isFinite(pageNumber)) {
           throw new Error("page_number must be a number");
         }
+        try { this.#logger.info(`[WS] 导航·页面：跳转第 ${pageNumber} 页`, { toast: { type: "info", ms: 2000 } }); } catch(_) {}
         // 统一经由 URL 导航入口；若 position 为百分比则透传，否则省略
         const pos = data?.target?.position || data?.position || null; // { y_percent, x_percent } or { x, y } or number
         let positionPercent = null;

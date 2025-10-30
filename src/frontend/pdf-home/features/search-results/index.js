@@ -5,7 +5,7 @@
 
 import { ResultsRenderer } from "./components/results-renderer.js";
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, PDF_MANAGEMENT_EVENTS } from "../../../common/event/event-constants.js";
-import { warning as toastWarning } from "../../../common/utils/thirdparty-toast.js";
+import { showInfo as notifyInfo, showError as notifyError } from "../../../common/utils/notification.js";
 import "./styles/search-results.css";
 
 export class SearchResultsFeature {
@@ -211,7 +211,7 @@ export class SearchResultsFeature {
             .filter(Boolean);
           if (!selectedIds || selectedIds.length === 0) {
             this.#logger.info("[SearchResultsFeature] 未选择任何条目，阅读操作中止");
-            toastWarning("请先选择要阅读的PDF");
+            this.#logger.warn("请先选择要阅读的PDF", { toast: { type: "warn", ms: 3000 } });
             return;
           }
           const idSet = new Set(selectedIds.map(String));
@@ -239,7 +239,7 @@ export class SearchResultsFeature {
             .filter(Boolean);
           if (!selectedIds || selectedIds.length === 0) {
             this.#logger.info("[SearchResultsFeature] 未选择任何条目，编辑操作中止");
-            toastWarning("未选择任何条目");
+            this.#logger.warn("未选择任何条目", { toast: { type: "warn", ms: 3000 } });
             return;
           }
 
@@ -248,7 +248,7 @@ export class SearchResultsFeature {
           const record = (this.#currentResults || []).find(r => String(r?.id) === firstId);
           if (!record) {
             this.#logger.warn("[SearchResultsFeature] 选中记录未在当前结果中找到", { id: firstId });
-            toastWarning("无法获取选中的PDF记录");
+            this.#logger.warn("无法获取选中的PDF记录", { toast: { type: "warn", ms: 3000 } });
             return;
           }
 
@@ -434,11 +434,8 @@ export class SearchResultsFeature {
 
     // 条目打开事件 -> 转发到全局
     const unsubOpen = this.#scopedEventBus.on("results:item:open", async (data) => {
-      // 导入 toast 函数
-      const { info: toastInfo, error: toastError } = await import("../../../common/utils/thirdparty-toast.js");
-
-      // 初始阶段 toast（保留）
-      toastInfo("🔍 正在打开PDF...");
+      // 初始阶段提示
+      notifyInfo("🔍 正在打开PDF...", 2500);
       this.#logger.info("[SearchResultsFeature] [步骤1] Item open requested", data);
 
       // 1) 转发为全局事件，便于其他模块感知
@@ -455,7 +452,7 @@ export class SearchResultsFeature {
         this.#logger.info("[SearchResultsFeature] [步骤3] Parsed params", { pdfId, filename, title, filePath });
 
         if (!pdfId) {
-          toastError("❌ 缺少PDF ID");
+          notifyError("❌ 缺少PDF ID", 5000);
           this.#logger.warn("[SearchResultsFeature] Skip open: missing pdfId", { data });
           return;
         }
@@ -496,7 +493,7 @@ export class SearchResultsFeature {
         // 最终成功阶段的 toast 由 QWebChannelBridge 显示
 
       } catch (e) {
-        toastError(`❌ 打开失败: ${e.message}`);
+        notifyError(`❌ 打开失败: ${e.message}`, 5000);
         this.#logger.error("[SearchResultsFeature] Open viewer failed", e);
       }
     }, { subscriberId: `${this.name}:${sidBase}:item-open` });

@@ -10,6 +10,7 @@ import '../common/polyfills.js';
  */
 
 import { bootstrapPDFHomeAppV2 } from './bootstrap/app-bootstrap-v2.js';
+import { showError as notifyError } from '../common/utils/notification.js';
 console.info('[BOOT] pdf-home index.js start');
 // 提前创建 logger，确保在任何使用前已初始化
 const logger = getLogger('pdf-home.index');
@@ -57,7 +58,7 @@ async function startApp() {
 
   } catch (error) {
     logger.error('App bootstrap failed:', error);
-    try { alert('启动失败: ' + (error && error.message ? error.message : String(error))); } catch(e) {}
+    try { notifyError('启动失败: ' + (error && error.message ? error.message : String(error)), 5000); } catch(e) {}
     try {
       const el = document.getElementById('app-boot-banner');
       if (el) el.textContent = '启动失败（详见日志）';

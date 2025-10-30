@@ -4,6 +4,11 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 import jsdoc from "eslint-plugin-jsdoc";
 import eventNameFormat from "./eslint-rules/event-name-format.js";
+import noDirectToastImport from "./eslint-rules/no-direct-toast-import.js";
+import noIziToastGlobal from "./eslint-rules/no-izi-toast-global.js";
+import notificationAllowedApis from "./eslint-rules/notification-allowed-apis.js";
+import noDynamicNotificationImport from "./eslint-rules/no-dynamic-notification-import.js";
+import loggerToastShape from "./eslint-rules/logger-toast-shape.js";
 
 const hasTsconfig = existsSync(new URL("./tsconfig.json", import.meta.url));
 const tsParserOptions = hasTsconfig ? { project: "./tsconfig.json" } : {};
@@ -19,7 +24,12 @@ export default [
       jsdoc,
       custom: {
         rules: {
-          "event-name-format": eventNameFormat
+          "event-name-format": eventNameFormat,
+          "no-direct-toast-import": noDirectToastImport,
+          "no-izi-toast-global": noIziToastGlobal,
+          "notification-allowed-apis": notificationAllowedApis,
+          "no-dynamic-notification-import": noDynamicNotificationImport,
+          "logger-toast-shape": loggerToastShape,
         }
       }
     },
@@ -34,6 +44,13 @@ export default [
     rules: {
       // 🚨 事件名称格式检查（自定义规则）
       "custom/event-name-format": "error",    // 强制三段式事件名称
+      // 🚨 禁止直接导入第三方 toast 适配器（要求走统一入口）
+      "custom/no-direct-toast-import": "error",
+      "custom/no-izi-toast-global": "error",
+      "custom/notification-allowed-apis": "error",
+      "custom/no-dynamic-notification-import": "error",
+      // 可先以 warning 形式上线，成熟后再升级为 error
+      "custom/logger-toast-shape": "warn",
 
       // 风格与质量控制
       "eqeqeq": ["error", "always"],          // 强制使用 ===
@@ -48,6 +65,7 @@ export default [
       // 质量问题
       "no-unused-vars": ["warn", { args: "none", ignoreRestSiblings: true }],
       "no-console": "warn",
+      "no-alert": "error",                    // 禁止使用 alert
       "no-debugger": "error",
       "no-undef": "error",
     },

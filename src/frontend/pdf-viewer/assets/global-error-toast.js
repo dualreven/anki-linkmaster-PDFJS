@@ -2,7 +2,7 @@
 // - 依赖第三方 toast 适配器；若失败则使用最小降级 UI
 // - 提供简单去抖与速率限制，避免错误风暴
 
-import { error as toastError } from "../../common/utils/thirdparty-toast.js";
+import { showError as notifyError } from "../../common/utils/notification.js";
 
 const STATE = {
   lastText: null,
@@ -47,7 +47,7 @@ function fallbackToast(text) {
 }
 
 function showToast(text) {
-  try { toastError(text, 6000); }
+  try { notifyError(text, 6000); }
   catch(_) { fallbackToast(text); }
 }
 
@@ -114,4 +114,3 @@ window.addEventListener('unhandledrejection', (e) => {
     if (shouldToast(text)) showToast(text);
   } catch(_) {}
 }, true);
-

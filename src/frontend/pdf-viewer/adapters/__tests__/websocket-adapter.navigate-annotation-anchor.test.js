@@ -1,9 +1,16 @@
 /**
  * WebSocketAdapter - annotation/anchor 导航消息处理测试
  */
-import { WebSocketAdapter } from '../websocket-adapter.js';
-import { EventBus } from '../../../common/event/event-bus.js';
-import { PDF_VIEWER_EVENTS } from '../../../common/event/pdf-viewer-constants.js';
+// 避免 logger 内 import.meta 在 Jest 中报错：用最小 stub 替代（配合 moduleNameMapper 去掉 .js 扩展）
+jest.mock('../../common/utils/logger', () => ({
+  getLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn() })
+}), { virtual: true });
+jest.mock('../../../common/utils/logger', () => ({
+  getLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn() })
+}), { virtual: true });
+
+let WebSocketAdapter;
+const { PDF_VIEWER_EVENTS } = require('../../../common/event/pdf-viewer-constants.js');
 
 describe('WebSocketAdapter navigate (annotation/anchor)', () => {
   let eventBus;
@@ -11,7 +18,18 @@ describe('WebSocketAdapter navigate (annotation/anchor)', () => {
   let adapter;
 
   beforeEach(() => {
-    eventBus = new EventBus({ enableValidation: false });
+    // 按需加载被测模块（确保先完成 jest.mock）
+    jest.isolateModules(() => {
+      WebSocketAdapter = require('../websocket-adapter.js').WebSocketAdapter;
+    });
+    // 轻量事件总线 stub（避免引入真实 EventBus 触发 import.meta）
+    eventBus = {
+      _h: {},
+      on: function (evt, fn) { this._h[evt] = fn; return () => {}; },
+      onGlobal: function (evt, fn) { this._h[evt] = fn; return () => {}; },
+      emit: function (evt, data, meta) { if (this._h[evt]) this._h[evt](data, meta); },
+      destroy: function () { this._h = {}; }
+    };
     mockWSClient = {
       send: jest.fn(),
       isConnected: jest.fn(() => true)
@@ -26,7 +44,7 @@ describe('WebSocketAdapter navigate (annotation/anchor)', () => {
     eventBus?.destroy();
   });
 
-  test('annotation 模式应发射 ANNOTATION.NAVIGATION.JUMP_REQUESTED（annotation_id）', () => {
+  test('annotation 模式应发射 ANNOTATION.NAVIGATION.JUMP_REQUESTED（id）', () => {
     const spy = jest.fn();
     eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, spy);
 
@@ -41,14 +59,14 @@ describe('WebSocketAdapter navigate (annotation/anchor)', () => {
     });
 
     expect(spy).toHaveBeenCalledWith(
-      { annotationId: 'ann-xyz', highlight: true },
+      { id: 'ann-xyz', highlight: true },
       expect.any(Object)
     );
   });
 
-  test('anchor 模式应发射 ANNOTATION.NAVIGATION.JUMP_REQUESTED（从 anchor_id 提取）', () => {
+  test('anchor 模式应发射 ANCHOR.NAVIGATE.REQUESTED（anchorId）', () => {
     const spy = jest.fn();
-    eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, spy);
+    eventBus.on(PDF_VIEWER_EVENTS.ANCHOR.NAVIGATE.REQUESTED, spy);
 
     adapter.handleMessage({
       type: 'pdf-viewer:navigate:requested',
@@ -60,9 +78,8 @@ describe('WebSocketAdapter navigate (annotation/anchor)', () => {
     });
 
     expect(spy).toHaveBeenCalledWith(
-      { annotationId: 'pdfanchor-aaaaaaaaaaaa', highlight: false },
+      { anchorId: 'pdfanchor-aaaaaaaaaaaa' },
       expect.any(Object)
     );
   });
 });
-

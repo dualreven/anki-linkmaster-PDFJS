@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Annotation Feature - PDF标注功能（模块化容器版）
  * @module features/annotation
  * @description 提供PDF标注功能，采用插件化架构
@@ -494,8 +494,11 @@ export class AnnotationFeature {
       }
 
       if (!annotation) {
-        this.#logger.warn("[AnnotationFeature] Annotation not found for navigation", data, { toast: { type: "warn", ms: 4000 } });
-        this.#logger.error("标注不存在或未加载，无法跳转", { toast: { type: "error", ms: 5000 } });
+        this.#logger.warn("[AnnotationFeature] Annotation not found for navigation", data);
+        try {
+          const { error: toastError } = await import("../../../common/utils/thirdparty-toast.js");
+          toastError("标注不存在或未加载，无法跳转");
+        } catch (_) {}
         this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_FAILED, {
           error: "not_found",
           id: data?.annotation || data?.id
@@ -518,8 +521,11 @@ export class AnnotationFeature {
         }
       } catch (e) { void e; /* ignore DOM resolution errors */ }
       if (!pageNumber) {
-        this.#logger.warn("[AnnotationFeature] Annotation has no page number", annotation, { toast: { type: "warn", ms: 4000 } });
-        this.#logger.error("标注缺少页码信息，无法跳转", { toast: { type: "error", ms: 5000 } });
+        this.#logger.warn("[AnnotationFeature] Annotation has no page number", annotation);
+        try {
+          const { error: toastError } = await import("../../../common/utils/thirdparty-toast.js");
+          toastError("标注缺少页码信息，无法跳转");
+        } catch (_) {}
         this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_FAILED, {
           error: "missing_page_number",
           id: annotation?.id

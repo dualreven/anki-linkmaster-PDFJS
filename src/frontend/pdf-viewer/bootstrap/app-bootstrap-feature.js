@@ -24,7 +24,7 @@ import { PDFOutlineFeature } from "../features/pdf-outline/index.js";
 import { PDFCardFeature } from "../features/pdf-card/index.js";
 import { AiAssistantFeature } from "../features/ai-assistant/index.js";
 import { PDFAnchorFeature } from "../features/pdf-anchor/index.js";
-import { info as toastInfo } from "../../common/utils/thirdparty-toast.js";
+import { showInfo as notifyInfo } from "../../common/utils/notification.js";
 const logger = getLogger('pdf-viewer.bootstrap');
 
 /**
@@ -221,7 +221,7 @@ export async function bootstrapPDFViewerAppFeature() {
 
     // 提示：当前为 Outline 模式（固定）
     try {
-      toastInfo("当前为 Outline 模式", 3000);
+      notifyInfo("当前为 Outline 模式", 3000);
       logger.warn("[Bootstrap] Outline mode is active (enforced)");
     } catch (_) {}
     return registry;

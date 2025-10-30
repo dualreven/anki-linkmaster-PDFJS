@@ -772,7 +772,7 @@ export class CommentTool extends IAnnotationTool {
     const jumpBtn = card.querySelector('.jump-btn');
     jumpBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      this.#eventBus.emit(
+      this.#eventBus.emitGlobal(
         PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
         { id: annotation.id },
         { actorId: 'CommentTool' }

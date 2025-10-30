@@ -33,8 +33,8 @@ export class URLJumpDispatcher {
   /**
    * 基于解析结果尝试执行跳转
    * - 优先级：annotationId > pageAt/position
-   * - anchorId 由 PDFAnchorFeature 自行处理（监听 URL_PARAMS.PARSED）
-   * - outlineItemId 暂不触发，只记录日志
+   * - anchorId：统一发射 ANCHOR.NAVIGATE.REQUESTED
+   * - outlineItemId：统一发射 BOOKMARK.NAVIGATE_BY_ID.REQUESTED
    *
    * @param {Object} parsed 已解析参数（URLParamsParser.parse 的返回）
    * @param {Object} [opts]
@@ -57,9 +57,11 @@ export class URLJumpDispatcher {
     if (annotationId) {
       if (!annotationDataLoaded) {
         this.#logger.info("[dispatcher] 标注数据未就绪，暂不触发 annotation 跳转", { annotationId });
+        try { this.#logger.error("URL 导航·标注：数据未就绪，稍后再试", { toast: { type: "error", ms: 3000 } }); } catch(_) {}
         return { type: "annotation", success: false, reason: "gate:annotationData" };
       }
       this.#logger.info("[dispatcher] 触发 annotation 跳转请求", { annotationId });
+      try { this.#logger.info(`URL 导航·标注：请求跳转 id=${annotationId}`, { toast: { type: "info", ms: 2000 } }); } catch(_) {}
       this.#eventBus.emit(
         PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
         { id: annotationId },
@@ -68,24 +70,44 @@ export class URLJumpDispatcher {
       return { type: "annotation", success: true };
     }
 
-    // 2) outlineItemId：当前不触发，仅记录
-    if (outlineItemId) {
-      this.#logger.info("[dispatcher] 检测到 outline-item-id，但暂未启用自动跳转", { outlineItemId });
-      return { type: "none", success: true };
+    // 2) anchorId：交由 AnchorFeature 统一处理
+    if (anchorId) {
+      this.#logger.info("[dispatcher] 触发 anchor 跳转请求", { anchorId });
+      try { this.#logger.info(`URL 导航·锚点：请求跳转 id=${anchorId}`, { toast: { type: "info", ms: 2000 } }); } catch(_) {}
+      this.#eventBus.emit(
+        PDF_VIEWER_EVENTS.ANCHOR.NAVIGATE.REQUESTED,
+        { anchorId },
+        { actorId: "URLJumpDispatcher" }
+      );
+      return { type: "anchor", success: true };
     }
 
-    // 3) 页面导航（pageAt/position）
+    // 3) outlineItemId：统一走书签/大纲入口
+    if (outlineItemId) {
+      this.#logger.info("[dispatcher] 触发 outline 跳转请求", { outlineItemId });
+      try { this.#logger.info(`URL 导航·大纲：请求跳转 id=${outlineItemId}`, { toast: { type: "info", ms: 2000 } }); } catch(_) {}
+      this.#eventBus.emit(
+        PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED,
+        { outlineItemId },
+        { actorId: "URLJumpDispatcher" }
+      );
+      return { type: "outline", success: true };
+    }
+
+    // 4) 页面导航（pageAt/position）
     if (pageAt !== null || position !== null) {
       if (pageAt === null) {
         this.#logger.warn("[dispatcher] 缺少 pageAt，按照严格模式拒绝默认到第1页", { pageAt, position });
+        try { this.#logger.error("URL 导航·页面：缺少 pageAt，已拒绝跳转", { toast: { type: "error", ms: 3000 } }); } catch(_) {}
         return { type: "page", success: false, reason: "missing:pageAt" };
       }
       this.#logger.info("[dispatcher] 执行页面导航", { pageAt, position });
+      try { this.#logger.info(`URL 导航·页面：跳转第 ${pageAt} 页${(position!==null)?` @${position}%`:''}`, { toast: { type: "info", ms: 2000 } }); } catch(_) {}
       const result = await this.#navigationService.navigateTo({ pageAt, position });
       return { type: "page", success: !!result?.success, reason: result?.error };
     }
 
-    // 4) 无需跳转
+    // 5) 无需跳转
     return { type: "none", success: true };
   }
 }

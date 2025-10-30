@@ -5,6 +5,7 @@
  */
 
 import { getLogger } from "../../common/utils/logger.js";
+import { showInfo as notifyInfo, showSuccess as notifySuccess, showError as notifyError } from "../../common/utils/notification.js";
 
 /**
  * QWebChannel 桥接类
@@ -371,13 +372,12 @@ export class QWebChannelBridge {
      * @returns {Promise<boolean>}
      */
     async openPdfViewersWithMeta(payload) {
-        // 动态导入 toast 工具
-        const { info: toastInfo, success: toastSuccess, error: toastError, warning: toastWarning } = await import("../../common/utils/thirdparty-toast.js");
+        // 通知：统一使用 notification/logger（禁止直接导入 thirdparty-toast）
 
         this.#logger.info('[QWC步骤1] openPdfViewersWithMeta 被调用', { payload });
 
         if (!this.#isReady) {
-            toastError("❌ [QWC] QWebChannel 未初始化");
+            notifyError("❌ [QWC] QWebChannel 未初始化", 5000);
             throw new Error('QWebChannel 未初始化，请先调用 initialize()');
         }
 
@@ -401,12 +401,12 @@ export class QWebChannelBridge {
                         this.#logger.info('[QWC步骤4] openPdfViewers 返回', { result: ret });
                         resolve(ret);
                     } else {
-                        toastError("❌ 无可用的PyQt方法");
+                        notifyError("❌ 无可用的PyQt方法", 5000);
                         this.#logger.error('[QWC] 无可用方法', { payload });
                         resolve({ success: false, error: '无可用的PyQt方法' });
                     }
                 } catch (error) {
-                    toastError(`❌ PyQt 调用异常: ${error.message}`);
+                    notifyError(`❌ PyQt 调用异常: ${error.message}`, 5000);
                     this.#logger.error('[QWC] PyQt 调用失败', error);
                     reject(error);
                 }
@@ -435,10 +435,10 @@ export class QWebChannelBridge {
             if (success) {
                 // 最终成功阶段 toast（保留）
                 if (typeof result === 'object' && result.opened_count !== undefined) {
-                    toastSuccess(`✅ 成功打开 ${result.opened_count}/${result.total_count} 个PDF窗口`);
+                    notifySuccess(`✅ 成功打开 ${result.opened_count}/${result.total_count} 个PDF窗口`, 3000);
                     this.#logger.info('[QWC步骤5] openPdfViewersWithMeta 完成', { result });
                 } else {
-                    toastSuccess("✅ PDF窗口已打开");
+                    notifySuccess("✅ PDF窗口已打开", 3000);
                     this.#logger.info('[QWC步骤5] openPdfViewersWithMeta 完成', { success });
                 }
             } else {
@@ -448,7 +448,7 @@ export class QWebChannelBridge {
                     const step = errorInfo.step || 'unknown';
                     const pdfId = errorInfo.pdf_id || '';
 
-                    toastError(`❌ ${errorMsg}`);
+                    notifyError(`❌ ${errorMsg}`, 5000);
                     this.#logger.error('[QWC] PyQt 返回错误', errorInfo);
 
                     // 如果有堆栈跟踪，在控制台输出详细信息
@@ -464,23 +464,23 @@ export class QWebChannelBridge {
 
                     // 显示建议性的 toast
                     if (step === 'load_module') {
-                        toastWarning("⚠️ 无法加载 pdf-viewer 模块，请检查项目结构");
+                        this.#logger.warn("⚠️ 无法加载 pdf-viewer 模块，请检查项目结构", { toast: { type: "warn", ms: 4000 } });
                     } else if (step === 'qapp_check') {
-                        toastWarning("⚠️ QApplication 未初始化，请检查 PyQt 环境");
+                        this.#logger.warn("⚠️ QApplication 未初始化，请检查 PyQt 环境", { toast: { type: "warn", ms: 4000 } });
                     } else if (step === 'create_window') {
-                        toastWarning(`⚠️ 创建窗口失败 (PDF: ${pdfId})`);
+                        this.#logger.warn(`⚠️ 创建窗口失败 (PDF: ${pdfId})`, { toast: { type: "warn", ms: 4000 } });
                     } else if (step === 'show_window') {
-                        toastWarning(`⚠️ 显示窗口失败 (PDF: ${pdfId})`);
+                        this.#logger.warn(`⚠️ 显示窗口失败 (PDF: ${pdfId})`, { toast: { type: "warn", ms: 4000 } });
                     }
                 } else {
-                    toastError("❌ PyQt 返回失败");
+                    notifyError("❌ PyQt 返回失败", 5000);
                     this.#logger.warn('[QWC] openPdfViewersWithMeta 返回 false');
                 }
             }
 
             return success;
         } catch (e) {
-            toastError(`❌ 打开失败: ${e.message}`);
+            notifyError(`❌ 打开失败: ${e.message}`, 5000);
             this.#logger.error('[阅读] openPdfViewersWithMeta 失败:', e);
             throw e;
         }

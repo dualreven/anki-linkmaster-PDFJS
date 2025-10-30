@@ -10,7 +10,7 @@ import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js
 import { createScopedEventBus } from "../../../common/event/scoped-event-bus.js";
 import { URLParamsParser } from "./components/url-params-parser.js";
 import { URLNavigationFeatureConfig } from "./feature.config.js";
-import { success as toastSuccess, error as toastError } from "../../../common/utils/thirdparty-toast.js";
+import { showSuccess as notifySuccess, showError as notifyError } from "../../../common/utils/notification.js";
 import { URLJumpDispatcher } from "./components/url-jump-dispatcher.js";
 
 /**
@@ -286,10 +286,10 @@ export class URLNavigationFeature {
             position: this.#parsedParams.position,
             duration: this.#navigationStartTime ? Math.round(performance.now() - this.#navigationStartTime) : undefined,
           });
-          try { toastSuccess("页面导航完成"); } catch (e) { void e; }
+          try { notifySuccess("页面导航完成", 2500); } catch (e) { void e; }
         } else {
           this.#emitNavigationFailed(new Error(res.reason || "导航失败"), "navigate");
-          try { toastError(`导航失败: ${res.reason || "未知错误"}`); } catch (e) { void e; }
+          try { notifyError(`导航失败: ${res.reason || "未知错误"}`, 5000); } catch (e) { void e; }
         }
       } else if (res.type === "annotation") {
         // 标注跳转的提示交由 AnnotationFeature 输出，避免“已触发”但实际未跳转的误导
@@ -298,7 +298,7 @@ export class URLNavigationFeature {
       }
     } catch (error) {
       this.#logger.error("[url-navigation] 门闸导航执行失败:", error);
-      try { toastError(`[URL导航] 执行失败: ${error?.message || "未知错误"}`); } catch (e) { void e; }
+      try { notifyError(`[URL导航] 执行失败: ${error?.message || "未知错误"}`, 5000); } catch (e) { void e; }
     } finally {
       this.#gatedNavigationDone = true;
       this.#hasProcessedParams = true;

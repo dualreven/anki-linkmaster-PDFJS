@@ -5,7 +5,7 @@
  * 提供4种排序模式的选择：默认排序、手动拖拽、多级排序、加权排序
  */
 
-import { warning } from '../../../../common/utils/thirdparty-toast.js';
+// 统一入口：告警使用 logger.warn + { toast }, 不直接导入第三方 toast
 
 /**
  * 排序模式枚举
@@ -202,7 +202,7 @@ export class ModeSelector {
         e.preventDefault();
         const mode = parseInt(label.dataset.mode);
         const modeName = this.#getModeName(mode);
-        warning(`${modeName}功能开发中，敬请期待`, 3000);
+        try { this.#logger?.warn?.(`${modeName}功能开发中，敬请期待`, { toast: { type: 'warn', ms: 3000 } }); } catch {}
         this.#logger.debug(`[ModeSelector] Disabled mode clicked: ${modeName}`);
       });
     });

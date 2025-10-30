@@ -26,6 +26,44 @@
 - 目录用 kebab-case（如 `pdf-home` / `pdf-viewer`），禁止 `pdf_home`。
 - 所有文件读写必须显式 UTF-8，且确保换行 `\n` 正确。
 
+## 无兜底原则（Fail-Fast，禁止默认回退）
+为避免隐性错误与不可预期行为，本项目在全栈范围内坚持“无兜底原则”：任何缺失、异常或不一致都不得静默回退或采用默认值，必须立即失败并给出可操作的纠正信息。
+
+- 原则定义
+  - 禁止隐式默认值：任何配置、参数、ID、事件名、消息类型等缺失或不合法，不得替换为默认值继续执行。
+  - 禁止静默降级：检测到异常时，不得悄然切换到“备用路径”或“兼容路径”。
+  - 立即失败并提示：抛出异常或发出错误事件，UI 以 toast 呈现并记录结构化日志；后端返回 `*:failed`，携带清晰错误码与 message。
+
+- 适用范围（非穷举）
+  - 前端
+    - 事件总线：事件名严格三段式 `{module}:{action}:{status}`，不符合即阻断（见 `src/frontend/common/event/event-bus.js` 的 EventNameValidator）。
+    - URL/参数导航：缺失 `pdfId/pageAt/position` 等关键参数时，不做任何“猜测”；发出失败事件并提示如何更正。
+    - 标注/锚点跳转：ID 不符合规范或未加载到内存时，直接报错并给出“刷新标注数据/检查 ID 形态”的纠正建议；不得跳转首页或页码 1 代替。
+    - 标题显示：pdf-viewer 标题只能来自 DB `pdf-library:info:completed`，禁止回退为文件名或 URL 片段。
+  - 后端
+    - WebSocket/HTTP 路由：消息缺字段/类型不在白名单/Schema 校验失败，立即返回 `*:failed`，禁止尝试“推断修补”。
+    - 配置/路径：缺少 `logs_dir/data_dir/db_path/static_dir/pdfs_dir` 等必需参数时直接报错退出。
+    - 数据契约：书签/标注等仅接受规定字段（如 `pageAt/position`），旧字段不做映射回退。
+
+- 错误提示与纠正信息（前后端一致）
+  - 人类可读 message：简洁明确指出“哪里错了、为什么错”。
+  - 纠正建议 hint：给出“应当提供/修正的具体字段或格式”（如“提供 12 位 hex 的 pdfId，如 abc123...”“annotationId 形如 pdfannotation-XXXXXXXXXXXXXX”）。
+  - 诊断参考 trace：包含 `actorId/request_id/trace_id`，便于追踪；必要时附加“相关文档/规范 ID”。
+  - 前端呈现：统一以 `logger.error(..., { toast:true })` 触发 toast；禁止 `alert(...)`。
+
+- 实施与检查
+  - 代码层强制：
+    - 事件名校验：不合格直接阻断发布/订阅（EventBus）。
+    - WS 消息类型白名单：未列入的类型按“未知消息”处理，统一转失败通道并记录。
+    - 参数/ID 正则：GUI/前端在入口处对 `anchor/annotation/outline/pdfId` 做严格匹配，失败不发送。
+  - 测试门禁：
+    - 单测/集成测需断言异常路径确实失败（不发生回退），且包含纠正信息。
+    - 冒烟测试确保关键用户旅程（如“注释卡片跳转”）在契约变动时快速报警。
+  - 变更管理：
+    - 任何“兼容窗口/灰度”只能在特性开关保护下实施，且默认关闭；不得将“兼容”作为默认路径。
+
+> 关联规范：`docs/SPEC/SPEC-HEAD-pdf-viewer.json` / “FRONTEND-EVENT-NAMING-001”“PDF-VIEWER-EVENT-HANDLING-001”。
+
 ## 前端关键实现
 - pdf-home：`src/frontend/pdf-home/*`（容器、QWebChannel 管理、前端日志捕获到 `logs/pdf-home-js.log`）。
 - pdf-viewer：`src/frontend/pdf-viewer/*`（`ui-manager-core.js` 以 `#elements/#state` 为中心；按 `pdf_id` 输出 `logs/pdf-viewer-<pdf-id>-js.log`）。

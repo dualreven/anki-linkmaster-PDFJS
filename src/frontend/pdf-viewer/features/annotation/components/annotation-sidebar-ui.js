@@ -6,7 +6,7 @@
 
 import { getLogger } from "../../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
-import { success as toastSuccess, warning as toastWarning, error as toastError } from "../../../../common/utils/thirdparty-toast.js";
+import { showSuccess as notifySuccess, showError as notifyError } from "../../../../common/utils/notification.js";
 import { showInfo as notifyInfo } from "../../../../common/utils/notification.js";
 import { AnnotationType } from '../models/index.js';
 
@@ -136,18 +136,20 @@ export class AnnotationSidebarUI {
 
         const annId = jumpBtn.getAttribute('data-annotation-id') || jumpBtn.dataset.annotationId;
         if (!annId) {
-          this.#logger.warn('[AnnotationSidebarUI] jump-btn clicked but no data-annotation-id');
+          // 严格模式：不合规立即报错 + toast（统一使用 logger 的 toast）
+          this.#logger.error('[AnnotationSidebarUI] 跳转按钮缺少 data-annotation-id', { btn: jumpBtn }, { toast: { type: 'error', ms: 4000 } });
           return;
         }
         this.#handleCardJump(String(annId));
       } catch (e) {
-        this.#logger.warn('Card jump handler failed', e);
+        // 严格模式：异常即报错 + toast（统一使用 logger 的 toast）
+        try { this.#logger.error('Card jump handler failed', e, { toast: { type: 'error', ms: 4000 } }); } catch { /* no-op */ }
       }
     }, { passive: true });
   }
 
   /**
-   * 执行统一的跳转逻辑：优先页码跳转；若可用则滚动到大致位置
+   * 执行严格的跳转逻辑：仅通过“全局契约事件”发起跳转，不再走 URL 导航兜底
    * @param {string} annotationId
    * @private
    */
@@ -155,36 +157,21 @@ export class AnnotationSidebarUI {
     try {
       const ann = (this.#annotations || []).find(a => a?.id === annotationId);
       if (!ann) {
-        this.#logger.warn(`[AnnotationSidebarUI] annotation not found for id=${annotationId}`);
+        // 严格模式：未找到标注即报错 + toast
+      this.#logger.error(`[AnnotationSidebarUI] 未找到标注，无法跳转 id=${annotationId}`, null, { toast: { type: 'error', ms: 4000 } });
         return;
       }
 
-      // 计算滚动百分比（可选）
-      let positionPercent = null;
-      try {
-        if (ann?.type === 'text-highlight' && Array.isArray(ann?.data?.lineRects) && ann.data.lineRects.length > 0) {
-          const r0 = ann.data.lineRects[0];
-          if (typeof r0.yPercent === 'number' && typeof r0.heightPercent === 'number') {
-            const mid = r0.yPercent + (r0.heightPercent / 2);
-            positionPercent = Math.max(0, Math.min(100, mid));
-          }
-        }
-      } catch (_) {}
-
-      // 按你的要求：批注型也使用 URL 导航入口（避免当前 GOTO 跳到第一页的问题）
-      let pdfId = null;
-      try {
-        pdfId = new URLSearchParams(window.location.search).get('pdf-id');
-      } catch (_) {}
+      // 严格路径：仅通过“全局契约事件”通知协调者处理跳转
       this.#eventBus.emitGlobal(
-        PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
-        { pdfId: pdfId || undefined, pageAt: ann.pageNumber, position: positionPercent ?? null, annotationId: ann.id },
+        PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
+        { annotation: ann },
         { actorId: 'AnnotationSidebarUI' }
       );
 
       // 通知各工具跳转成功（用于渲染标记等），尽量兼容已有监听方
       try {
-        this.#eventBus.emit(
+        this.#eventBus.emitGlobal(
           PDF_VIEWER_EVENTS.ANNOTATION?.NAVIGATION?.JUMP_SUCCESS || 'annotation:navigation:jump:success',
           { annotation: ann },
           { actorId: 'AnnotationSidebarUI' }
@@ -194,9 +181,9 @@ export class AnnotationSidebarUI {
       // 高亮对应卡片
       try { this.highlightAndScrollToCard(ann.id); } catch (_) {}
 
-      this.#logger.info(`[AnnotationSidebarUI] Jump requested: id=${ann.id} page=${ann.pageNumber} pos=${positionPercent ?? 'n/a'}`);
+      this.#logger.info(`[AnnotationSidebarUI] Jump requested (strict): id=${ann.id} page=${ann.pageNumber}`);
     } catch (e) {
-      this.#logger.error('Failed to handle card jump', e);
+      this.#logger.error('Failed to handle card jump (strict)', e, { toast: { type: 'error', ms: 4000 } });
     }
   }
 
@@ -853,7 +840,7 @@ export class AnnotationSidebarUI {
         await this.#handleCopyIdClick(annotation.id);
       } catch (error) {
         this.#logger.error('Copy click handler failed:', error);
-        toastError('✗ 复制失败');
+        notifyError('✗ 复制失败', 3000);
       }
     });
     copyIdBtn.addEventListener('mouseenter', () => {
@@ -1012,14 +999,21 @@ export class AnnotationSidebarUI {
    * @private
    */
   #handleJumpClick(annotationId) {
-    this.#logger.debug(`Jump to annotation: ${annotationId}`);
+    this.#logger.debug(`Jump to annotation (strict): ${annotationId}`);
     // 为避免“乐观UI创建后，AnnotationManager尚未入库”导致的跳转失败，这里携带完整对象
     const annotation = this.#annotations.find(a => a.id === annotationId) || null;
-    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.JUMP_TO, {
-      id: annotationId,
-      // 若能获取到对象则一并传递，AnnotationFeature 会优先使用对象
-      ...(annotation ? { annotation } : {})
-    });
+    if (!annotation) {
+      this.#logger.error(`[AnnotationSidebarUI] 未找到标注，无法跳转 id=${annotationId}`, null, { toast: { type: 'error', ms: 4000 } });
+      return;
+    }
+    this.#eventBus.emitGlobal(
+      PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
+      {
+        id: annotationId,
+        annotation
+      },
+      { actorId: 'AnnotationSidebarUI' }
+    );
   }
 
   /**
@@ -1398,7 +1392,7 @@ export class AnnotationSidebarUI {
     const submitComment = () => {
       const content = textarea.value.trim();
       if (!content) {
-        toastWarning('请输入评论内容');
+        this.#logger.warn('请输入评论内容', { toast: { type: 'warn', ms: 3000 } });
         return;
       }
 
@@ -1423,7 +1417,7 @@ export class AnnotationSidebarUI {
       textarea.value = '';
 
       // 显示成功提示
-      toastSuccess('✓ 评论已添加');
+      notifySuccess('✓ 评论已添加', 2000);
 
       // 更新卡片显示（刷新评论数量）
       this.updateAnnotationCard(annotation);
@@ -1513,11 +1507,11 @@ export class AnnotationSidebarUI {
 
     // 显示结果
     if (success) {
-      toastSuccess('✓ ID已复制');
+      notifySuccess('✓ ID已复制', 2000);
       // 发出ID复制事件（修正为3段格式）
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.ID_COPY_SUCCESS, { id: annotationId });
     } else {
-      toastError('✗ 复制失败');
+      notifyError('✗ 复制失败', 3000);
     }
   }
 

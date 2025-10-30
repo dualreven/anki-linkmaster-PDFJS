@@ -6,7 +6,7 @@
 
 import { getLogger } from '../../../../common/utils/logger.js';
 import { PDF_VIEWER_EVENTS } from '../../../../common/event/pdf-viewer-constants.js';
-import { success as toastSuccess, error as toastError } from '../../../../common/utils/thirdparty-toast.js';
+import { showSuccess as notifySuccess, showError as notifyError } from '../../../../common/utils/notification.js';
 
 export class AnchorSidebarUI {
   #eventBus;
@@ -184,7 +184,7 @@ export class AnchorSidebarUI {
         const ok = document.execCommand('copy');
         document.body.removeChild(ta);
         if (ok) {
-          try { toastSuccess(`已复制${labelForToast ? `(${labelForToast})` : ''}`); } catch(_) {}
+          try { notifySuccess(`已复制${labelForToast ? `(${labelForToast})` : ''}`, 2000); } catch(_) {}
           return true;
         }
       } catch (_) {}
@@ -193,7 +193,7 @@ export class AnchorSidebarUI {
       try {
         if (navigator?.clipboard?.writeText) {
           await navigator.clipboard.writeText(String(text));
-          try { toastSuccess(`已复制${labelForToast ? `(${labelForToast})` : ''}`); } catch(_) {}
+          try { notifySuccess(`已复制${labelForToast ? `(${labelForToast})` : ''}`, 2000); } catch(_) {}
           return true;
         }
       } catch (_) {}
@@ -219,12 +219,12 @@ export class AnchorSidebarUI {
           } catch(_) { resolve(false); }
         });
         if (ok) {
-          try { toastSuccess(`已复制${labelForToast ? `(${labelForToast})` : ''}`); } catch(_) {}
+          try { notifySuccess(`已复制${labelForToast ? `(${labelForToast})` : ''}`, 2000); } catch(_) {}
           return true;
         }
       } catch(_) {}
 
-      try { toastError('复制失败，请手动选择并复制'); } catch(_) {}
+      try { notifyError('复制失败，请手动选择并复制', 4000); } catch(_) {}
       return false;
     };
     const copyWrap = document.createElement('div');

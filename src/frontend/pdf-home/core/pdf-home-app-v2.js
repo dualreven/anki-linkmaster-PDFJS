@@ -18,7 +18,7 @@ import { getLogger } from '../../common/utils/logger.js';
 import eventBus from '../../common/event/event-bus.js';
 import WSClient from '../../common/ws/ws-client.js';
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS } from '../../common/event/event-constants.js';
-import { error as toastError } from '../../common/utils/thirdparty-toast.js';
+import { showError as notifyError } from '../../common/utils/notification.js';
 
 // 导入功能域
 import { PDFEditorFeature } from '../features/pdf-editor/index.js';
@@ -268,7 +268,7 @@ export class PDFHomeAppV2 {
         try {
           const msg = (err && (err.error_message || err.message)) || 'WebSocket 消息发送失败';
           const type = err && (err.message_type || err.type);
-          toastError(type ? `${type}: ${msg}` : msg, 5000);
+          notifyError(type ? `${type}: ${msg}` : msg, 5000);
         } catch (_) {}
       }, subscriberOpts);
 
@@ -280,7 +280,7 @@ export class PDFHomeAppV2 {
             || (payload && payload.error && (payload.error.message || payload.error.code))
             || (payload && payload.data && payload.data.message)
             || '操作失败';
-          toastError(type ? `${type}: ${errMsg}` : errMsg, 6000);
+          notifyError(type ? `${type}: ${errMsg}` : errMsg, 6000);
         } catch (_) {}
       }, subscriberOpts);
 
@@ -290,7 +290,7 @@ export class PDFHomeAppV2 {
           const t = String(message?.type || '');
           if (t.endsWith(':failed')) {
             const errMsg = (message?.error?.message) || (message?.data?.message) || message?.message || '请求失败';
-            toastError(`${t}: ${errMsg}`, 6000);
+            notifyError(`${t}: ${errMsg}`, 6000);
           }
         } catch (_) {}
       }, subscriberOpts);

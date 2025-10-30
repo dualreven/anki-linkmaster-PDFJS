@@ -5,8 +5,7 @@
  */
 
 import { getLogger } from '../../../../common/utils/logger.js';
-import { success as toastSuccess, error as toastError } from '../../../../common/utils/thirdparty-toast.js';
-import { showInfo as notifyInfo } from '../../../../common/utils/notification.js';
+import { showSuccess as notifySuccess, showError as notifyError, showInfo as notifyInfo } from '../../../../common/utils/notification.js';
 import { PDF_TRANSLATOR_EVENTS } from '../events.js';
 
 /**
@@ -577,13 +576,13 @@ export class TranslatorSidebarUI {
 
     // 验证是否有位置信息和Range数据
     if (!translation.pageNumber || !translation.position) {
-      toastError('无法创建标注：缺少位置信息');
+      notifyError('无法创建标注：缺少位置信息', 4000);
       this.#logger.warn('Cannot create annotation: missing pageNumber or position', translation);
       return;
     }
 
     if (!translation.rangeData || translation.rangeData.length === 0) {
-      toastError('无法创建标注：缺少文本选择数据');
+      notifyError('无法创建标注：缺少文本选择数据', 4000);
       this.#logger.warn('Cannot create annotation: missing rangeData', translation);
       return;
     }
@@ -612,7 +611,7 @@ export class TranslatorSidebarUI {
     }, { actorId: 'TranslatorSidebarUI' });
 
     // 显示成功提示
-    toastSuccess('✅ 标注已创建');
+    notifySuccess('✅ 标注已创建', 2000);
     this.#logger.info('Annotation creation requested');
   }
 
@@ -648,10 +647,10 @@ export class TranslatorSidebarUI {
   #handleCopyTranslation(text) {
     navigator.clipboard.writeText(text).then(() => {
       this.#logger.info('Translation copied to clipboard');
-      toastSuccess('译文已复制到剪贴板');
+      notifySuccess('译文已复制到剪贴板', 2000);
     }).catch(err => {
       this.#logger.error('Failed to copy translation:', err);
-      toastError('复制失败');
+      notifyError('复制失败', 3000);
     });
   }
 
@@ -668,7 +667,7 @@ export class TranslatorSidebarUI {
       this.#logger.info('Speaking text:', text);
     } else {
       this.#logger.warn('Speech synthesis not supported');
-      toastError('浏览器不支持语音朗读');
+      notifyError('浏览器不支持语音朗读', 3000);
     }
   }
 

@@ -1,9 +1,16 @@
 /**
  * WebSocketAdapter - outline 导航消息处理测试
  */
-import { WebSocketAdapter } from '../websocket-adapter.js';
-import { EventBus } from '../../../common/event/event-bus.js';
-import { PDF_VIEWER_EVENTS } from '../../../common/event/pdf-viewer-constants.js';
+// stub logger to avoid import.meta in jest（配合 moduleNameMapper 去掉 .js 扩展）
+jest.mock('../../common/utils/logger', () => ({
+  getLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn() })
+}), { virtual: true });
+jest.mock('../../../common/utils/logger', () => ({
+  getLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn() })
+}), { virtual: true });
+
+let WebSocketAdapter;
+const { PDF_VIEWER_EVENTS } = require('../../../common/event/pdf-viewer-constants.js');
 
 describe('WebSocketAdapter navigate (outline)', () => {
   let eventBus;
@@ -11,7 +18,16 @@ describe('WebSocketAdapter navigate (outline)', () => {
   let adapter;
 
   beforeEach(() => {
-    eventBus = new EventBus({ enableValidation: false });
+    jest.isolateModules(() => {
+      WebSocketAdapter = require('../websocket-adapter.js').WebSocketAdapter;
+    });
+    eventBus = {
+      _h: {},
+      on: function (evt, fn) { this._h[evt] = fn; return () => {}; },
+      onGlobal: function (evt, fn) { this._h[evt] = fn; return () => {}; },
+      emit: function (evt, data, meta) { if (this._h[evt]) this._h[evt](data, meta); },
+      destroy: function () { this._h = {}; }
+    };
     mockWSClient = {
       send: jest.fn(),
       isConnected: jest.fn(() => true)
@@ -46,4 +62,3 @@ describe('WebSocketAdapter navigate (outline)', () => {
     );
   });
 });
-

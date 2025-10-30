@@ -37,8 +37,8 @@ const eventNameFormatRule = {
       // 检查段数
       if (parts.length < 3) {
         const missing = [];
-        if (parts.length === 1) missing.push("action", "status");
-        if (parts.length === 2) missing.push("status");
+        if (parts.length === 1) { missing.push("action", "status"); }
+        if (parts.length === 2) { missing.push("status"); }
         return {
           valid: false,
           messageId: "tooFewSegments",

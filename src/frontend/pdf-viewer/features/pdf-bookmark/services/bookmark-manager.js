@@ -19,8 +19,8 @@ function normalizeNodeJson(b) {
   const pickId = () => {
     const raw = (b && (b.id || b.bookmark_id)) || null;
     if (typeof raw === 'string' && raw.trim()) return raw.trim();
-    // 兜底：生成一次性ID（非持久一致，但可用于即时重建树展示）
-    return `outlineItem-${Math.random().toString(36).slice(2, 10)}`;
+    // 严格模式：不再生成临时ID（禁止兜底），由上层决定是否丢弃该节点
+    throw new Error('invalid outline node: missing id');
   };
   const toInt = (x) => {
     if (typeof x === 'number' && Number.isFinite(x)) return Math.trunc(x);
@@ -36,7 +36,8 @@ function normalizeNodeJson(b) {
   // 字段映射
   const id = pickId();
   const name = safe(b?.name) || safe(b?.title) || '未命名大纲';
-  const pageAtRaw = b?.pageAt ?? b?.page_at ?? b?.pageNumber ?? null;
+  // 严格字段：仅接受 pageAt，不再兼容 page_at/pageNumber
+  const pageAtRaw = (b?.pageAt !== undefined) ? b.pageAt : null;
   const pageAtNum = toInt(pageAtRaw);
   const pageAt = (Number.isInteger(pageAtNum) && pageAtNum > 0) ? pageAtNum : null;
   const position = clampPos(b?.position);

@@ -7,7 +7,7 @@
 
 import { getLogger } from '../../../common/utils/logger.js';
 import { setModuleLogLevel, LogLevel as __LogLevelForFeature } from '../../../common/utils/logger.js';
-import { success as toastSuccess, error as toastError } from '../../../common/utils/thirdparty-toast.js';
+import { showSuccess as notifySuccess, showError as notifyError } from '../../../common/utils/notification.js';
 import { PDF_VIEWER_EVENTS } from '../../../common/event/pdf-viewer-constants.js';
 import { WEBSOCKET_EVENTS } from '../../../common/event/event-constants.js';
 import { PDFBookmarkFeatureConfig } from './feature.config.js';
@@ -172,7 +172,7 @@ export class PDFBookmarkFeature {
           try {
             await this.#bookmarkManager.loadFromStorage();
             this.#refreshBookmarkList();
-            toastSuccess('✓ 已连接服务器，书签已同步');
+            notifySuccess('✓ 已连接服务器，书签已同步', 2000);
           } catch (_) {}
         },
         { subscriberId: 'PDFBookmarkFeature' }
@@ -522,7 +522,7 @@ export class PDFBookmarkFeature {
 
         if (result.success) {
           this.#logger.info(`Outline created: ${result.bookmarkId}`);
-          toastSuccess('✓ 大纲已添加');
+          notifySuccess('✓ 大纲已添加', 2000);
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.CREATE.SUCCESS,
             { bookmarkId: result.bookmarkId, bookmark: bookmarkData },
@@ -547,7 +547,7 @@ export class PDFBookmarkFeature {
           }
         } else {
           this.#logger.error(`Failed to create outline: ${result.error}`);
-          toastError(`添加大纲失败: ${result.error}`);
+          notifyError(`添加大纲失败: ${result.error}`, 4000);
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.CREATE.FAILED,
             { error: result.error },
@@ -573,7 +573,7 @@ export class PDFBookmarkFeature {
 
     if (!bookmark) {
       this.#logger.warn(`Outline not found: ${bookmarkId}`);
-      alert('大纲不存在');
+      try { notifyError('大纲不存在', 3000); } catch {}
       return;
     }
 
@@ -584,7 +584,7 @@ export class PDFBookmarkFeature {
 
         if (result.success) {
           this.#logger.info(`Outline updated: ${bookmarkId}`);
-          toastSuccess('✓ 大纲已更新');
+          notifySuccess('✓ 大纲已更新', 2000);
           // 先用本地内存状态立即刷新一次，避免远端回读延迟造成“看起来没更新”
           this.#refreshBookmarkList();
           this.#eventBus.emitGlobal(
@@ -603,7 +603,7 @@ export class PDFBookmarkFeature {
           }
         } else {
           this.#logger.error(`Failed to update outline: ${result.error}`);
-          toastError(`更新大纲失败: ${result.error}`);
+          notifyError(`更新大纲失败: ${result.error}`, 4000);
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.UPDATE.FAILED,
             { bookmarkId, error: result.error },
@@ -629,7 +629,7 @@ export class PDFBookmarkFeature {
 
     if (!bookmark) {
       this.#logger.warn(`Outline not found: ${bookmarkId}`);
-      alert('大纲不存在');
+      try { notifyError('大纲不存在', 3000); } catch {}
       return;
     }
 
@@ -643,7 +643,7 @@ export class PDFBookmarkFeature {
 
         if (result.success) {
       this.#logger.info(`Outline deleted: ${bookmarkId}, count: ${result.deletedIds.length}`);
-      toastSuccess('✓ 大纲已删除');
+      notifySuccess('✓ 大纲已删除', 2000);
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.DELETE.SUCCESS,
             { bookmarkId, deletedIds: result.deletedIds },
@@ -655,7 +655,7 @@ export class PDFBookmarkFeature {
           this.#refreshBookmarkList();
         } else {
           this.#logger.error(`Failed to delete bookmark: ${result.error}`);
-          toastError(`删除书签失败: ${result.error}`);
+          notifyError(`删除书签失败: ${result.error}`, 4000);
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.DELETE.FAILED,
             { bookmarkId, error: result.error },
@@ -710,7 +710,7 @@ export class PDFBookmarkFeature {
 
     if (result.success) {
       this.#logger.info(`Bookmark reordered: ${bookmarkId}`);
-      toastSuccess('✓ 书签排序已更新');
+      notifySuccess('✓ 书签排序已更新', 2000);
       // 立即用本地内存刷新一次，避免用户感知“无变化/消失”
       try {
         this.#refreshBookmarkList();
@@ -738,7 +738,7 @@ export class PDFBookmarkFeature {
       } catch (_) {}
     } else {
       this.#logger.error(`Failed to reorder outline: ${result.error}`);
-      toastError(`大纲排序失败: ${result.error}`);
+      notifyError(`大纲排序失败: ${result.error}`, 4000);
       this.#eventBus.emitGlobal(
         PDF_VIEWER_EVENTS.BOOKMARK.REORDER.FAILED,
         { bookmarkId, error: result.error },

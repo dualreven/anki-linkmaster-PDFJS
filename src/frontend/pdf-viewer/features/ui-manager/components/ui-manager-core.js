@@ -7,7 +7,7 @@
 import { getLogger } from "../../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_EVENTS } from "../../../../common/event/event-constants.js";
-import { success as toastSuccess, error as toastError } from "../../../../common/utils/thirdparty-toast.js";
+import { showSuccess as notifySuccess, showError as notifyError } from "../../../../common/utils/notification.js";
 import { DOMElementManager } from "../../../ui/dom-element-manager.js";
 import { KeyboardHandler } from "../../../ui/keyboard-handler.js";
 import { UIStateManager } from "../../../ui/ui-state-manager.js";
@@ -256,7 +256,7 @@ export class UIManagerCore {
   #requestPdfTitleFromDB(pdfId) {
     if (!pdfId || typeof pdfId !== 'string' || !pdfId.trim()) {
       this.#logger.error('[UIManagerCore] 无法请求标题：缺少有效 pdfId');
-      toastError('❌ 缺少有效的 PDF ID，无法获取标题');
+      notifyError('❌ 缺少有效的 PDF ID，无法获取标题', 5000);
       return;
     }
     const rid = `info_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -409,7 +409,7 @@ export class UIManagerCore {
       if (ok) {
         copyBtn.classList.add('copied');
         copyBtn.title = `已复制: ${this.#currentPdfId}`;
-        toastSuccess('✓ PDF ID 已复制');
+        notifySuccess('✓ PDF ID 已复制', 2000);
         this.#logger.info(`✅ PDF ID copied (execCommand): ${this.#currentPdfId}`);
         setTimeout(() => {
           copyBtn.classList.remove('copied');
@@ -418,7 +418,7 @@ export class UIManagerCore {
         }, 2000);
       } else {
         this.#logger.error('Copy via execCommand failed');
-        toastError('✗ 复制失败');
+        notifyError('✗ 复制失败', 3000);
       }
     });
 
@@ -569,16 +569,16 @@ export class UIManagerCore {
     tryCopyBtn.addEventListener('click', async () => {
       try {
         await navigator.clipboard.writeText(input.value);
-        toastSuccess('✓ 已复制');
+        notifySuccess('✓ 已复制', 2000);
         overlay.remove();
       } catch (e) {
         // 尝试降级
         try {
           this.#fallbackCopyToClipboard(input.value);
-          toastSuccess('✓ 已复制');
+          notifySuccess('✓ 已复制', 2000);
           overlay.remove();
         } catch (e2) {
-          toastError('✗ 复制失败，请手动 Ctrl+C');
+          notifyError('✗ 复制失败，请手动 Ctrl+C', 4000);
           input.focus();
           input.select();
         }

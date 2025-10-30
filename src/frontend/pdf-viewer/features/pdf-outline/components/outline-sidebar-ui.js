@@ -18,7 +18,7 @@ try {
 import "jstree";
 import "jstree/dist/themes/default/style.css";
 import { BookmarkToolbar } from "../../pdf-bookmark/components/bookmark-toolbar.js";
-import { success as toastSuccess, error as toastError } from "../../../../common/utils/thirdparty-toast.js";
+import { showSuccess as notifySuccess, showError as notifyError } from "../../../../common/utils/notification.js";
 
 export class OutlineSidebarUI {
   #eventBus;
@@ -235,21 +235,21 @@ export class OutlineSidebarUI {
       const node = Array.isArray(selected) && selected.length > 0 ? selected[0] : null;
       const id = node?.id || null;
       if (!id) {
-        toastError("✗ 请先选中一个大纲项");
+        notifyError("✗ 请先选中一个大纲项", 3000);
         try { this.#logger.warn("[OutlineUI] 复制失败：未选中节点", { toast: { type: "warn", ms: 2500 } }); } catch {}
         return;
       }
       const ok = this.#copyUsingExecCommand(id);
       if (ok) {
-        toastSuccess("✓ 已复制大纲ID");
+        notifySuccess("✓ 已复制大纲ID", 2000);
         this.#logger.info(`[OutlineUI] 已复制大纲ID: ${id}`);
       } else {
-        toastError("✗ 复制失败");
+        notifyError("✗ 复制失败", 3000);
         this.#logger.error("[OutlineUI] 复制失败：execCommand 返回 false");
       }
     } catch (e) {
       this.#logger.error("[OutlineUI] 复制失败（异常）", e);
-      try { toastError("✗ 复制失败"); } catch {}
+      try { notifyError("✗ 复制失败", 3000); } catch {}
     }
   }
 

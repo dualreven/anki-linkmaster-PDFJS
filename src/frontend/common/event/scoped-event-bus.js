@@ -5,6 +5,15 @@
  */
 
 import { getLogger } from '../utils/logger.js';
+import { PDF_VIEWER_EVENTS } from './pdf-viewer-constants.js';
+
+// 全局契约事件清单：这些事件必须使用 emitGlobal() 触发，禁止局部 emit()
+const CONTRACT_GLOBAL_EVENTS = new Set(
+  [
+    PDF_VIEWER_EVENTS?.ANNOTATION?.NAVIGATION?.JUMP_REQUESTED,
+    PDF_VIEWER_EVENTS?.ANNOTATION?.JUMP_TO,
+  ].filter(Boolean)
+);
 
 /**
  * @typedef {import('../../pdf-viewer/types/events').EventBus} EventBus
@@ -121,6 +130,18 @@ export class ScopedEventBus {
    * // 实际发射的事件名：@pdf-manager/file:loading
    */
   emit(event, data, metadata = {}) {
+    // 严格模式：对“全局契约事件”禁止局部 emit
+    if (CONTRACT_GLOBAL_EVENTS.has(event)) {
+      try {
+        this.#logger.error(
+          `禁止以局部事件发布全局契约事件: ${event}，请改用 emitGlobal()`,
+          { scope: this.#scope, event },
+          { toast: { type: 'error', ms: 5000 } }
+        );
+      } catch { /* no-op */ }
+      throw new Error(`ScopedEventBus.emit 被禁止用于全局契约事件: ${event}（请使用 emitGlobal）`);
+    }
+
     const scopedEvent = this.#scopedEvent(event);
     this.#logger.debug(`Emitting: ${event} → ${scopedEvent}`);
 
