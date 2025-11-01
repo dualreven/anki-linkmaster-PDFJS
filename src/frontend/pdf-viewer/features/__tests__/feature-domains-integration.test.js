@@ -9,7 +9,7 @@ import { DependencyContainer, FeatureRegistry } from "../../../common/micro-serv
 // 导入4个功能域
 import { PDFReaderFeature } from "../pdf-reader/index.js";
 import { PDFUIFeature } from "../pdf-ui/index.js";
-import { PDFBookmarkFeature } from "../pdf-bookmark/index.js";
+// pdf-bookmark 已废弃，相关验证移除
 import { WebSocketAdapterFeature } from "../websocket-adapter/index.js";
 
 describe("功能域集成测试", () => {
@@ -45,16 +45,7 @@ describe("功能域集成测试", () => {
       expect(feature.dependencies).toContain("pdf-reader");
     });
 
-    it("应该成功注册pdf-bookmark功能", () => {
-      const feature = new PDFBookmarkFeature();
-
-      expect(() => {
-        registry.register(feature);
-      }).not.toThrow();
-
-      expect(feature.name).toBe("pdf-bookmark");
-      expect(feature.dependencies).toEqual(["pdf-reader", "pdf-ui"]);
-    });
+    // pdf-bookmark 功能已废弃，此处不再验证
 
     it("应该成功注册websocket-adapter功能", () => {
       const feature = new WebSocketAdapterFeature();
@@ -66,11 +57,10 @@ describe("功能域集成测试", () => {
       expect(feature.name).toBe("websocket-adapter");
     });
 
-    it("应该一次性注册所有4个功能", () => {
+    it("应该一次性注册核心功能", () => {
       expect(() => {
         registry.register(new PDFReaderFeature());
         registry.register(new PDFUIFeature());
-        registry.register(new PDFBookmarkFeature());
         registry.register(new WebSocketAdapterFeature());
       }).not.toThrow();
     });
@@ -82,11 +72,7 @@ describe("功能域集成测试", () => {
       expect(feature.dependencies).toContain("pdf-reader");
     });
 
-    it("pdf-bookmark应该依赖pdf-reader和pdf-ui", () => {
-      const feature = new PDFBookmarkFeature();
-      expect(feature.dependencies).toContain("pdf-reader");
-      expect(feature.dependencies).toContain("pdf-ui");
-    });
+    // pdf-bookmark 功能已废弃，此处不再验证
 
     it("websocket-adapter应该无依赖", () => {
       const feature = new WebSocketAdapterFeature();
@@ -134,8 +120,7 @@ describe("功能域集成测试", () => {
     });
 
     it("应该按依赖顺序安装功能", async () => {
-      // 注册所有功能（注意：故意乱序）
-      registry.register(new PDFBookmarkFeature());
+      // 注册所有功能（注意：故意乱序，去除已废弃模块）
       registry.register(new PDFUIFeature());
       registry.register(new PDFReaderFeature());
 
@@ -145,7 +130,7 @@ describe("功能域集成测试", () => {
       // 验证都已安装
       expect(registry.getStatus("pdf-reader")).toBe("installed");
       expect(registry.getStatus("pdf-ui")).toBe("installed");
-      expect(registry.getStatus("pdf-bookmark")).toBe("installed");
+      // 不再校验已废弃模块
     });
   });
 
@@ -158,10 +143,9 @@ describe("功能域集成测试", () => {
       };
       container.register("stateManager", mockStateManager);
 
-      // 注册所有功能域
+      // 注册核心功能域
       registry.register(new PDFReaderFeature());
       registry.register(new PDFUIFeature());
-      registry.register(new PDFBookmarkFeature());
       registry.register(new WebSocketAdapterFeature());
 
       // 安装所有功能
@@ -170,7 +154,7 @@ describe("功能域集成测试", () => {
       // 验证都已安装
       expect(registry.getStatus("pdf-reader")).toBe("installed");
       expect(registry.getStatus("pdf-ui")).toBe("installed");
-      expect(registry.getStatus("pdf-bookmark")).toBe("installed");
+      // 不再校验已废弃模块
       expect(registry.getStatus("websocket-adapter")).toBe("installed");
     });
 
@@ -181,10 +165,9 @@ describe("功能域集成测试", () => {
       };
       container.register("stateManager", mockStateManager);
 
-      // 注册所有功能
+      // 注册所有核心功能
       registry.register(new PDFReaderFeature());
       registry.register(new PDFUIFeature());
-      registry.register(new PDFBookmarkFeature());
       registry.register(new WebSocketAdapterFeature());
 
       // 只安装核心功能
@@ -194,7 +177,7 @@ describe("功能域集成测试", () => {
       // 验证
       expect(registry.getStatus("pdf-reader")).toBe("installed");
       expect(registry.getStatus("pdf-ui")).toBe("installed");
-      expect(registry.getStatus("pdf-bookmark")).toBe("registered"); // 未安装
+      // 不再校验已废弃模块
       expect(registry.getStatus("websocket-adapter")).toBe("registered"); // 未安装
     });
   });

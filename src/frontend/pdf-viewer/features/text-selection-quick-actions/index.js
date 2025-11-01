@@ -1,8 +1,8 @@
 ﻿import { getLogger } from "../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
-import { PDF_TRANSLATOR_EVENTS } from "../pdf-translator/events.js";
+import { PDF_TRANSLATOR_EVENTS } from "../pdf-translator/public.js";
 // 统一使用小写路径，避免在部分打包/HTTP服务中因大小写不一致导致的模块解析问题
-import { Annotation, AnnotationType } from "../annotation/models/annotation.js";
+import { Annotation, AnnotationType } from "../annotation/public.js";
 import { QuickActionsToolbar } from "./quick-actions-toolbar.js";
 import {
   findPageElement,
