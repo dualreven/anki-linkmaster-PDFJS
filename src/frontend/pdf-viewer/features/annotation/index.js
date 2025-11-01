@@ -28,6 +28,8 @@ import { WEBSOCKET_EVENTS } from "../../../common/event/event-constants.js";
  * @implements {IFeature}
  */
 export class AnnotationFeature {
+  // 作用域固定为 "annotation"；后续即便重命名 Feature.name，事件前缀保持 @annotation/...
+  static SCOPE_ID = "annotation";
   /** @type {Logger} */
   #logger;
 
@@ -124,7 +126,9 @@ export class AnnotationFeature {
     if (scopedEventBus) {
       this.#eventBus = scopedEventBus;
     } else {
-      this.#eventBus = createScopedEventBus(globalEventBus, this.name);
+      // 兜底：在未使用 FeatureRegistry 的场景下，仍按 SCOPE_ID 创建作用域事件总线
+      const scope = (this.constructor?.SCOPE_ID || this.SCOPE_ID || this.name);
+      this.#eventBus = createScopedEventBus(globalEventBus, scope);
       this.#ownsScopedEventBus = true;
     }
 

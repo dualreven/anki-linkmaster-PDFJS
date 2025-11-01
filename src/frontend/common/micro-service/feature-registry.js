@@ -572,7 +572,10 @@ export class FeatureRegistry {
   #checkDependencies(feature) {
     const missing = [];
 
-    for (const dep of feature.dependencies) {
+    for (const depRaw of feature.dependencies) {
+      // 统一通过别名解析为规范名
+      const dep = this.#resolveName(depRaw);
+
       // 检查依赖是否已注册并已安装
       const depRecord = this.#features.get(dep);
 
