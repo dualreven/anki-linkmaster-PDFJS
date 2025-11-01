@@ -33,6 +33,16 @@
 
 ## 当前任务（只保留核心信息）
 
+### 16) 2025-11-01 — 跨特性 import 整治与门禁（已完成）
+- 目标：禁止 features/* 跨特性内部 import；强制通过 public.js/index.js 或 DI 容器。
+- 结果：新增 ESLint 规则 `custom/no-cross-feature-internals`（已升级为 error）；GitHub Actions `lint.yml` 启用 CI 门禁（features 范围）；侧边栏装配容器化（anchor/outline）。
+- 公共 API：新增 `url-navigation/public.js`、`pdf-translator/public.js`、`annotation/public.js`；调用方已切换。
+- 废弃插件：删除 `features/pdf-bookmark`；Toolbar/Dialog 迁至 `bookmark/components/*`；相关引用与用例已修复。
+
+### 15) 2025-11-01 — Feature 命名规范与别名机制（筹备）
+- 目标：采用三段式 `{layer}-{domain}[-{capability}]`（如 `infra-app`、`infra-nav-url`、`pdf-annotation`、`pdf-translate`）；以“别名映射 + 事件作用域解耦(SCOPE_ID)”平滑迁移。
+- 待办：先改 FeatureRegistry 支持 alias 与 scopeId，再批量改名与依赖。
+
 ### 15) 2025-11-01 — Annotation 插件冒烟与单测补充（已执行）
 - 目标：补齐“自动加载与导航”关键路径的最小冒烟；与现有契约对齐（rectPercent/imagePath/imageHash）。
 - 交付：

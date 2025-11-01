@@ -548,3 +548,9 @@ NavigationIntent（统一数据模型）：
 - 将 src/backend/launcher.py 拆分为 launcher_core/* 模块，入口文件仅做委托与日志初始化。
 - 依赖关系：launcher.py → launcher_core.(ports|processes|legacy|pyqt_launcher)，避免 PyQt 在 CLI 路径上的硬依赖。
 - 产物：更清晰的职责划分（端口/进程/CLI/PyQt）。
+## 2025-11-01 — 侧边栏装配与书签域重构（增量）
+- 移除废弃插件：`src/frontend/pdf-viewer/features/pdf-bookmark`。
+- 迁移公共组件：`bookmark/components/bookmark-toolbar.js`、`bookmark/components/bookmark-dialog.js`；统一由 `pdf-outline` 与 `ui/bookmark-sidebar-ui` 使用。
+- 容器装配：`pdf-anchor`/`pdf-outline` 在 install 时注册各自 SidebarUI 到 DI 容器；`sidebar-manager/real-sidebars.js` 仅通过容器获取并装配，避免跨特性 import。
+- 公共 API：新增 `features/url-navigation/public.js`、`features/pdf-translator/public.js`、`features/annotation/public.js`，对外暴露稳定入口。
+- 约束：新增 ESLint 规则 `custom/no-cross-feature-internals` 并在 CI 门禁强制，禁止跨特性内部依赖。

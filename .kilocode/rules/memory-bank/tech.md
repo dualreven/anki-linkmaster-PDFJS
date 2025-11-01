@@ -1331,3 +1331,14 @@ WS 适配（msgcenter → front）：
 - CLI 仍支持 start|stop|status；LegacyBackendLauncher 负责子进程管理。
 - PyQt 集成的 BackendLauncher 保持严格参数校验：缺少 logs_dir|data_dir|db_path|pdfs_dir|static_dir 直接报错（禁止兜底）。
 - 端口合并写回 logs/runtime-ports.json，保留其他端口键。
+## 2025-11-01 — 工程守护与公共入口规范
+- 新增 ESLint 规则：`custom/no-cross-feature-internals`（error；CI 门禁生效）
+  - 目的：禁止 `features/<A>/**` 直接导入 `features/<B>/**` 内部文件；仅允许 `<B>/index.js` 或 `<B>/public.js`。
+  - 例外：`__tests__/`、`__smoke__/`、`*.test.js` 允许跨特性引用（构造场景）。
+- GitHub Actions：`.github/workflows/lint.yml` 执行 `pnpm run lint:features`，将上述规则作为 PR 门禁。
+- 公共入口（public.js）约定：
+  - 每个 feature 若需对外暴露 API/常量，增加 `public.js` 聚合导出，避免外部依赖内部目录结构。
+  - 已落地：`features/url-navigation/public.js`、`features/pdf-translator/public.js`、`features/annotation/public.js`。
+- DI/容器键名（约定）
+  - `navigationService`、`pdfViewerManager`、`anchorSidebarUI`、`outlineSidebarUI`、`translatorSidebarUI`、`translationService`。
+  - 原则：UI/服务由提供方在 install 时 `registerGlobal(<key>, instance)`，消费方从容器读取。
