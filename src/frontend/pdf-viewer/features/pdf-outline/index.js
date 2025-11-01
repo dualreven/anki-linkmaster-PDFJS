@@ -6,8 +6,8 @@
 import { getLogger } from "../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
 import { WEBSOCKET_EVENTS } from "../../../common/event/event-constants.js";
-import { BookmarkManager } from "../pdf-bookmark/services/bookmark-manager.js";
-import { BookmarkDialog } from "../pdf-bookmark/components/bookmark-dialog.js";
+import { BookmarkManager } from "../../bookmark/bookmark-manager.js";
+import { BookmarkDialog } from "../../bookmark/components/bookmark-dialog.js";
 import { BookmarkDataProvider } from "../../bookmark/bookmark-data-provider.js";
 import { getCurrentPDFDocument } from "../../pdf/current-document-registry.js";
 
@@ -49,13 +49,9 @@ export class PDFOutlineFeature {
       ? this.#container.getWSClient()
       : (this.#container.get?.("wsClient") || null);
 
-    const pdfId = this.#getPdfId();
-    this.#bookmarkManager = new BookmarkManager({
-      eventBus: this.#eventBus,
-      pdfId: pdfId || "default",
-      storageOptions: { wsClient }
-    });
-    await this.#bookmarkManager.initialize();
+    // 使用公共域 BookmarkManager（事件驱动，无需 wsClient 参数）
+    this.#bookmarkManager = new BookmarkManager(this.#eventBus, { dataProvider: new BookmarkDataProvider() });
+    await this.#bookmarkManager.initialize?.();
 
     // 原生大纲提供者
     this.#bookmarkDataProvider = new BookmarkDataProvider();

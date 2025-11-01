@@ -6,7 +6,7 @@
 
 import { getLogger } from "../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
-import { BookmarkToolbar } from "../features/pdf-bookmark/components/bookmark-toolbar.js";
+import { BookmarkToolbar } from "../bookmark/components/bookmark-toolbar.js";
 import $ from "jquery";
 // 确保 jstree 能正确挂到全局 jQuery（Vite/ESM 环境）
 try {

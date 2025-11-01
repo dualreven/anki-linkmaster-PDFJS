@@ -19,8 +19,7 @@ describe("pdf-viewer toast usage", () => {
   const targets = [
     "features/annotation/components/annotation-sidebar-ui.js",
     "features/pdf-translator/components/TranslatorSidebarUI.js",
-    "features/pdf-bookmark/index.js",
-    "features/pdf-bookmark/components/bookmark-toolbar.js",
+    "bookmark/components/bookmark-toolbar.js",
     "features/ui-manager/components/ui-manager-core.js",
     "features/ui-manager/components/ui-layout-controls.js",
   ];

@@ -17,7 +17,7 @@ try {
 } catch { /* ignore */ }
 import "jstree";
 import "jstree/dist/themes/default/style.css";
-import { BookmarkToolbar } from "../../pdf-bookmark/components/bookmark-toolbar.js";
+import { BookmarkToolbar } from "../../../bookmark/components/bookmark-toolbar.js";
 import { showSuccess, showError } from "../../../../common/utils/notification.js";
 
 export class OutlineSidebarUI {
