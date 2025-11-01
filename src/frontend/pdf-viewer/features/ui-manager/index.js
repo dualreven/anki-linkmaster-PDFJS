@@ -15,7 +15,7 @@ export class UIManagerFeature {
 
   /** 功能名称 */
   get name() {
-    return "ui-manager";
+    return "infra-ui";
   }
 
   /** 版本号 */

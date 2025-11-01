@@ -1,105 +1,83 @@
 # PDF-Home Features 目录
 
-此目录包含所有pdf-home模块的功能域（Features）。
+此目录包含 pdf-home 模块的功能域（Features）。
 
 ---
 
-## ⚠️ 重要提醒
+## ⚠️ 重要提醒（公共入口 / 容器 / 事件 规范）
 
-**开发新Feature前必读：**
-- 📖 **完整指南**: [../../HOW-TO-ADD-FEATURE.md](../../HOW-TO-ADD-FEATURE.md)
-- 📋 **标准模板**: 见指南中的"第二步"
-- ✅ **检查清单**: 见指南末尾
-
-**严禁自创注册方式！必须严格遵循标准流程！**
+- 只允许从另一个 Feature 的 `index.js` 或 `public.js` 导入；严禁跨特性内部深层导入（components/services/core/...）。
+  - 已由 ESLint 规则 `custom/no-cross-feature-internals` 强制（CI 门禁）。
+  - 需要复用的能力请在目标 Feature 新增 `public.js`，或在其 `install()` 中向 DI 容器注册工厂/实例。
+- 跨域通信统一走 EventBus（三段式事件名：`{module}:{action}:{status}`），严禁函数级直呼。
+- 只允许通过容器（DependencyContainer）访问全局服务（如 `eventBus`、`wsClient`、`stateManager`）。
 
 ---
 
-## 现有Features列表
+## 现有 Features（示例）
 
-| Feature名称 | 功能描述 | 依赖 | 状态 |
-|------------|---------|------|------|
-| pdf-list | PDF列表管理 | 无 | ✅ 稳定 |
-| pdf-editor | PDF编辑功能 | pdf-list | ✅ 稳定 |
-| pdf-sorter | PDF排序功能 | pdf-list | ✅ 稳定 |
+| 名称 | 说明 | 依赖 | 备注 |
+|---|---|---|---|
+| search | 搜索框与请求转发 | 无 | 稳定 |
+| filter | 高级筛选 | search | 稳定 |
+| search-results | 结果展示与交互 | filter | 稳定 |
+| search-result-item | 单条结果渲染 | search-results | 提供 `public.js` 出口 |
+| pdf-edit | 记录编辑（生产版） | search-results | 已启用 |
+| pdf-editor | 记录编辑（实验版） | search-results | 已禁用（flag） |
+| sidebar | 侧边栏容器与子域 | 无 | 稳定 |
 
 ---
 
 ## 快速开始
 
-### 1. 创建新Feature
-
+1) 目录
 ```bash
-# 在features目录下创建
 mkdir -p features/my-feature/{components,services,__tests__}
 touch features/my-feature/index.js
 ```
 
-### 2. 复制标准模板到index.js
-
-参考 [HOW-TO-ADD-FEATURE.md](../../HOW-TO-ADD-FEATURE.md) 第二步的完整模板。
-
-### 3. 在bootstrap注册
-
-```javascript
-// bootstrap/app-bootstrap-v2.js 或 index.js
-import { MyFeature } from "./features/my-feature/index.js";
-
-const registry = new FeatureRegistry({ ... });
-registry.register(new MyFeature());
-await registry.installAll();
-```
-
----
-
-## Feature开发规范
-
-### 必须实现的接口
-
+2) index.js（最小接口）
 ```javascript
 export class MyFeature {
-  get name() { return 'my-feature'; }         // 必需
-  get version() { return '1.0.0'; }           // 必需
-  get dependencies() { return []; }           // 必需
-  async install(context) { ... }              // 必需
-  async uninstall(context) { ... }            // 必需
+  get name() { return "my-feature"; }
+  get version() { return "1.0.0"; }
+  get dependencies() { return []; }
+  async install(context) { /* ... */ }
+  async uninstall() { /* ... */ }
 }
 ```
 
-### 禁止事项
+3) 公共 API（如需被他域使用）
+```javascript
+// features/my-feature/public.js
+export function createSomething(...) { /* ... */ }
+export const MY_FEATURE_CONSTS = { /* ... */ };
+```
 
-❌ 直接import其他Feature的类
-❌ 在Feature外部创建Feature实例
-❌ 绕过EventBus直接调用其他Feature
-❌ 在install()中做阻塞性同步操作
-❌ 忘记在uninstall()中清理资源
-
-### 推荐做法
-
-✅ 通过EventBus与其他Feature通信
-✅ 在dependencies中声明依赖关系
-✅ 使用私有字段（#前缀）封装内部状态
-✅ 在uninstall()中取消所有订阅
-✅ 编写单元测试验证Feature隔离性
+> 注意：他域只能从 `public.js` 或 `index.js` 导入；禁止 `../my-feature/components/*` 之类路径。
 
 ---
 
-## 依赖关系图
+## 禁止事项
 
-```
-pdf-list (核心列表管理)
-  ├── pdf-editor (编辑功能)
-  └── pdf-sorter (排序功能)
-```
+- ❌ 直接 import 其他 Feature 的内部实现（components/services/...）。
+- ❌ 绕过 EventBus 直接调用其他 Feature。
+- ❌ 在 `install()` 中做阻塞性同步操作。
+- ❌ 忘记在 `uninstall()` 中清理订阅和 DOM 资源。
+
+## 推荐做法
+
+- ✅ 用 EventBus 进行跨域事件交互；事件命名三段式并通过常量文件集中管理。
+- ✅ 在 `dependencies` 声明依赖；通过容器获取全局服务。
+- ✅ 公开能力通过 `public.js` 或容器注册的工厂/实例。
 
 ---
 
 ## 参考资料
 
-- 📖 [完整开发指南](../../HOW-TO-ADD-FEATURE.md)
-- 📋 [CLAUDE.md - 功能域架构章节](../../../CLAUDE.md#功能域模块化架构)
-- 🔍 参考现有Feature源码学习最佳实践
+- 📖 [HOW-TO-ADD-FEATURE.md](../../HOW-TO-ADD-FEATURE.md)
+- 📋 项目 ESLint 规则：`eslint.config.js` 与 `eslint-rules/`
 
 ---
 
-**记住：统一的架构 = 更少的bug + 更快的开发 + 更好的协作**
+统一架构 ⇒ 更少回归、更快交付。请严格遵守“公共入口/容器/事件”三件套。

@@ -21,7 +21,8 @@ function isTestFile(filename) {
 
 function getCurrentFeature(filename) {
   const f = norm(filename);
-  const m = f.match(/\/src\/frontend\/pdf-viewer\/features\/([^/]+)\//);
+  // 支持 pdf-viewer 与 pdf-home 两个前端模块
+  const m = f.match(/(?:^|\/)src\/frontend\/(?:pdf-viewer|pdf-home)\/features\/([^/]+)\//);
   return m ? m[1] : null;
 }
 
@@ -36,7 +37,8 @@ function resolveImport(filename, source) {
 }
 
 function parseTargetFeature(resolved) {
-  const m = norm(resolved).match(/\/src\/frontend\/pdf-viewer\/features\/([^/]+)\/(.+)/);
+  // 解析被导入目标是否位于 features/* 且属于其他特性域
+  const m = norm(resolved).match(/(?:^|\/)src\/frontend\/(?:pdf-viewer|pdf-home)\/features\/([^/]+)\/(.+)/);
   if (!m) { return null; }
   return { feature: m[1], subpath: m[2] };
 }
@@ -129,4 +131,3 @@ const rule = {
 };
 
 export default rule;
-

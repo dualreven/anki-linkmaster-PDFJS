@@ -173,11 +173,11 @@ export class URLNavigationFeature {
             this.#logger.warn("[TRACE] Emitting FILE.LOAD.REQUESTED from URLNavigationFeature", { pdfId, filename: filenameForLoad, source: "url-params" });
           } catch (e) { void e; }
 
-          this.#eventBus.emit(
-            PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
-            { filename: filenameForLoad, file_path: filePath, source: "url-navigation" },
-            { actorId: "URLNavigationFeature" }
-          );
+      this.#eventBus.emit(
+        PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
+        { filename: filenameForLoad, file_path: filePath, source: "infra-nav-url" },
+        { actorId: "URLNavigationFeature" }
+      );
         }
       } catch (e) {
         this.#logger.warn("[url-navigation] 触发加载失败（忽略并继续门闸流程）", e);
@@ -405,7 +405,7 @@ export class URLNavigationFeature {
           this.#logger.info("[url-navigation] 检测到不同的 pdfId，触发重新加载", { currentId, target: params.pdfId });
           this.#eventBus.emit(
             PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
-            { filename: params.pdfId, source: "url-navigation" },
+            { filename: params.pdfId, source: "infra-nav-url" },
             { actorId: "URLNavigationFeature" }
           );
           // 等待PDF加载（通过事件监听器处理后续导航）

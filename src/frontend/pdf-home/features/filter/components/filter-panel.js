@@ -3,6 +3,8 @@
  * 提供高级筛选和保存条件按钮
  */
 
+import { showError } from "../../../../common/utils/notification.js";
+
 export class FilterPanel {
   #logger = null;
   #eventBus = null;
@@ -206,7 +208,7 @@ export class FilterPanel {
     const presetName = this.#presetNameInput.value.trim();
 
     if (!presetName) {
-      alert("请输入预设名称");
+      try { showError("请输入预设名称", 3000); } catch(_) {}
       return;
     }
 

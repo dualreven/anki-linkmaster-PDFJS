@@ -2,6 +2,8 @@
  * 简单搜索框UI组件
  */
 
+import { showError } from "../../../../common/utils/notification.js";
+
 export class FilterSearchBar {
   #logger = null;
   #eventBus = null;
@@ -346,7 +348,7 @@ export class FilterSearchBar {
     const presetName = this.#presetNameInput.value.trim();
 
     if (!presetName) {
-      alert("请输入预设名称");
+      try { showError("请输入预设名称", 3000); } catch(_) {}
       return;
     }
 

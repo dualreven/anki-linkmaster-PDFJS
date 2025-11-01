@@ -301,6 +301,17 @@ export class FeatureRegistry {
   }
 
   /**
+   * 获取指定功能的安装状态（便于测试/调试）
+   * @param {string} name - 功能名称（支持别名）
+   * @returns {string} FeatureStatus 值；未注册返回 'unregistered'
+   */
+  getStatus(name) {
+    const canonical = this.#resolveName(name);
+    const record = this.#features.get(canonical);
+    return record ? record.status : "unregistered";
+  }
+
+  /**
    * 安装单个功能
    * @param {string} name - 功能名称
    * @returns {Promise<void>}

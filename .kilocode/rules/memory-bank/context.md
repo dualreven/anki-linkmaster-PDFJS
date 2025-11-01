@@ -53,6 +53,24 @@
 - 契约与行为：对外 API 不变（类名/方法/日志）；路径解析逻辑与历史兼容路径保持一致；严格 UTF-8 与 `\n`。
 - 风险与TODO：为 `stream_sender` 增加套接字桩测试；评估移除自动“打包路径回退”的时机，改为启动参数显式声明（避免兜底）。
 
+### 20) 2025-11-02 — 后端 pdf_annotation_plugin 拆分（已执行）
+- 背景：`src/backend/database/plugins/pdf_annotation_plugin.py` 645 行，校验逻辑冗长。
+- 拆分：新增 `src/backend/database/plugins/pdf_annotation/validate.py`（纯函数），插件类调用 `validate_data`；删除类内 `_validate_*` 私有方法。
+- 行数：645 → 375（<500）。
+- 测试：新增 2 个用例：
+  - `test_pdf_annotation_validate.py`（MIME/字段/载荷严格校验）；
+  - `test_pdf_annotation_crud_smoke.py`（内存 SQLite 冒烟，含外键约束）。
+- 契约：对外 API/事件/数据结构不变；严格 UTF-8 与 `\n`。
+
+### 21) 2025-11-02 — 书签域对齐为 Outline（兼容 + 拆分 Phase-1，已执行）
+- 诉求：前端已用 outline 取代 bookmark；后端需要对齐事件前缀与命名。
+- 实施：
+  - 新增插件：`src/backend/database/plugins/pdf_outline_plugin.py`（事件名使用 `table:pdf-outline:*`，DB 仍写入 `pdf_bookmark` 表以兼容数据）。
+  - 校验外提：`src/backend/database/plugins/pdf_outline/validate.py`（纯函数，接受 `outlineItemId/outline_item_id/bookmark_id` 三种键名，ID 允许 `outlineItem-********` 与旧 `bookmark-*`）。
+  - 兼容导出：`src/backend/database/plugins/pdf_bookmark_plugin.py` 改为最薄兼容层，导出 `PDFBookmarkTablePlugin = PDFOutlineTablePlugin`。
+- 测试：`test_pdf_outline_basic.py` 验证事件名为 `table:pdf-outline:create:completed` 且 CRUD 正常（1/1 通过）。
+- 行为：对外 API/数据结构保持；事件前缀对齐前端；严格 UTF-8 与 `\n`。
+
 ### 16) 2025-11-01 — 跨特性 import 整治与门禁（已完成）
 - 目标：禁止 features/* 跨特性内部 import；强制通过 public.js/index.js 或 DI 容器。
 - 结果：新增 ESLint 规则 `custom/no-cross-feature-internals`（已升级为 error）；GitHub Actions `lint.yml` 启用 CI 门禁（features 范围）；侧边栏装配容器化（anchor/outline）。
@@ -93,6 +111,17 @@
   - 触发 `pdf:edit:requested`，断言仅出现一个 `.pdf-modal`，存在 `#pdf-edit-form`，且无 `#pdf-editor-modal`。
   - 运行：`pnpm exec jest src/frontend/pdf-home/__tests__/pdf-home.edit-exclusive.smoke.test.js -i` → 通过。
 - 预期收益：避免双弹窗/状态分裂；保留生产化的 pdf-edit 流程（含 WS 交互与结果刷新）。
+
+### 19) 2025-11-02 — 规则与门禁扩展 + 公共 API 出口（本次）
+- 规则扩展：
+  - 更新 `eslint-rules/no-cross-feature-internals.js` 支持 `pdf-home`；正则兼容相对/绝对路径。
+  - CI 范围扩大：`package.json` 将 `lint:features` 覆盖 `src/frontend/pdf-viewer/features` 与 `src/frontend/pdf-home/features`。
+  - 端到端 fixtures 校验：`eslint-rules/fixtures/**` + `eslint-rules/__tests__/no-cross-feature-internals.fixtures.test.js`。
+- 公共 API：
+  - 新增 `features/search-result-item/public.js`，并将 `search-results/components/results-renderer.js` 改为从公共入口导入。
+  - 新增 `features/filter/public.js`（导出条件类型与工厂），为后续复用准备出口。
+- 文档：更新 `src/frontend/pdf-home/features/README.md`，明确“公共入口/容器/事件”三件套与 ESLint 门禁。
+- 备注：`filter` 子域现存历史 ESLint 错误较多，后续分批治理；对当前改动不构成功能风险。
 
 ### 19) 2025-11-01 — Feature 重命名 Step 1 进展（别名 + 作用域解耦）
 - 目标：为后续“特性重命名”做零行为变更的底座改造：别名映射（兼容旧名）+ 作用域解耦（SCOPE_ID）。

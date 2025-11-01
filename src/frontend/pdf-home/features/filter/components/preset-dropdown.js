@@ -5,6 +5,7 @@
  * 提供预设筛选条件的下拉菜单UI组件
  */
 
+import { showInfo } from "../../../../common/utils/notification.js";
 /**
  * 预设下拉菜单类
  * @class PresetDropdown
@@ -169,7 +170,7 @@ export class PresetDropdown {
     });
 
     // TODO: 临时提示，后续实现实际筛选逻辑
-    alert(`预设"${preset.name}"功能开发中...`);
+    try { showInfo(`预设"${preset.name}"功能开发中...`, 2500); } catch(_) {}
   }
 
   /**

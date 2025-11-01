@@ -22,8 +22,8 @@ export class FilterConditionFactory {
     case "fuzzy":
       return new FuzzySearchCondition(config);
 
-    case "composite":
-      // 递归创建子条件
+    case "composite": {
+      // 递归创建子条件（包裹块，避免 no-case-declarations）
       const childConditions = (config.conditions || []).map(childConfig =>
         FilterConditionFactory.createCondition(childConfig)
       );
@@ -31,6 +31,7 @@ export class FilterConditionFactory {
         operator: config.operator,
         conditions: childConditions
       });
+    }
 
     default:
       throw new Error(`Unknown condition type: ${config.type}`);

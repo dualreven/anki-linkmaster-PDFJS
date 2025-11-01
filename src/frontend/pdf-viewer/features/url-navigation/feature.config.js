@@ -8,7 +8,7 @@ export const URLNavigationFeatureConfig = {
    * Feature名称
    * @type {string}
    */
-  name: "url-navigation",
+  name: "infra-nav-url",
 
   /**
    * Feature版本号

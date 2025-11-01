@@ -33,7 +33,7 @@ export class SidebarManagerFeature {
      * Feature名称
      */
   get name() {
-    return "sidebar-manager";
+    return "infra-sidebar";
   }
 
   /**

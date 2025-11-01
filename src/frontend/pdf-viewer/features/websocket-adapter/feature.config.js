@@ -1,5 +1,5 @@
 export const WebSocketAdapterFeatureConfig = {
-  name: "websocket-adapter",
+  name: "infra-ws-adapter",
   version: "1.0.0",
   dependencies: [],
   description: "WebSocket适配器 - 连接管理和消息路由",

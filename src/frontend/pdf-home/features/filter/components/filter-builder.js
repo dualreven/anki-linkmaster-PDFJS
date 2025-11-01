@@ -5,6 +5,7 @@
 
 import { FieldCondition } from "../services/filter-conditions.js";
 import { CompositeCondition } from "../services/filter-conditions.js";
+import { showError } from "../../../../common/utils/notification.js";
 
 export class FilterBuilder {
   #logger = null;
@@ -412,7 +413,7 @@ export class FilterBuilder {
       this.hide();
     } catch (error) {
       this.#logger.error("[FilterBuilder] Failed to apply filter", error);
-      alert(`筛选条件错误: ${error.message}`);
+      try { showError(`筛选条件错误: ${error.message}`, 5000); } catch(_) {}
     }
   }
 

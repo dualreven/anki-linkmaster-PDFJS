@@ -1,6 +1,9 @@
 /**
  * 条件编辑器对话框
  */
+import { showError } from "../../../../common/utils/notification.js";
+
+// 统一 toast 提示入口（使用公共通知API，符合 notification-allowed-apis 规则）
 export class ConditionEditor {
   #logger = null;
   #container = null;
@@ -256,7 +259,7 @@ export class ConditionEditor {
     }
 
     if (!value) {
-      alert("请输入值");
+      try { showError("请输入值", 3000); } catch(_) {}
       return;
     }
 

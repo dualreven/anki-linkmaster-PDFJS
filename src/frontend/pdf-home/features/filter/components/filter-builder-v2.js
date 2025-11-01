@@ -4,6 +4,7 @@
  */
 
 import { FilterTree, FilterTreeNode } from "../services/filter-tree.js";
+import { showError, showInfo } from "../../../../common/utils/notification.js";
 import { ConditionEditor } from "./condition-editor.js";
 
 export class FilterBuilder {
@@ -434,13 +435,13 @@ export class FilterBuilder {
    */
   #addLogicNode(logicType) {
     if (!this.#selectedNode) {
-      alert("请先选择一个节点");
+      try { showError("请先选择一个节点", 3000); } catch(_) {}
       return;
     }
 
     // 检查是否是根节点
     if (this.#isRootNode(this.#selectedNode)) {
-      alert("根节点不能被替换，请选择根节点下的占位符来添加条件");
+      try { showInfo("根节点不能被替换，请选择根节点下的占位符来添加条件", 3500); } catch(_) {}
       return;
     }
 
@@ -450,7 +451,7 @@ export class FilterBuilder {
       if (parent && parent.value === "NOT") {
         const nonPlaceholderCount = parent.children.filter(c => c.type !== "placeholder").length;
         if (nonPlaceholderCount >= 1) {
-          alert("NOT逻辑词只能包含一个条件或逻辑词");
+          try { showError("NOT逻辑词只能包含一个条件或逻辑词", 3500); } catch(_) {}
           return;
         }
       }
@@ -499,13 +500,13 @@ export class FilterBuilder {
    */
   #addConditionNode() {
     if (!this.#selectedNode) {
-      alert("请先选择一个节点");
+      try { showError("请先选择一个节点", 3000); } catch(_) {}
       return;
     }
 
     // 检查是否是根节点
     if (this.#isRootNode(this.#selectedNode)) {
-      alert("根节点不能被替换，请选择根节点下的占位符来添加条件");
+      try { showInfo("根节点不能被替换，请选择根节点下的占位符来添加条件", 3500); } catch(_) {}
       return;
     }
 
@@ -515,7 +516,7 @@ export class FilterBuilder {
       if (parent && parent.value === "NOT") {
         const nonPlaceholderCount = parent.children.filter(c => c.type !== "placeholder").length;
         if (nonPlaceholderCount >= 1) {
-          alert("NOT逻辑词只能包含一个条件或逻辑词");
+          try { showError("NOT逻辑词只能包含一个条件或逻辑词", 3500); } catch(_) {}
           return;
         }
       }
@@ -567,7 +568,7 @@ export class FilterBuilder {
   #deleteNode(nodeId) {
     const node = this.#filterTree.findNodeById(nodeId);
     if (!node || !node.parent) {
-      alert("无法删除根节点");
+      try { showInfo("无法删除根节点", 3000); } catch(_) {}
       return;
     }
 

@@ -8,7 +8,7 @@ export const CoreNavigationFeatureConfig = {
   /**
    * Feature 名称
    */
-  name: "core-navigation",
+  name: "infra-nav-core",
 
   /**
    * Feature 版本

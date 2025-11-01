@@ -3,7 +3,7 @@
  * 负责渲染搜索结果列表
  */
 
-import { ResultItemRenderer } from "../../search-result-item/components/result-item-renderer.js";
+import { ResultItemRenderer } from "../../search-result-item/public.js";
 
 export class ResultsRenderer {
   #logger = null;

@@ -560,3 +560,29 @@ NavigationIntent（统一数据模型）：
 - 容器装配：`pdf-anchor`/`pdf-outline` 在 install 时注册各自 SidebarUI 到 DI 容器；`sidebar-manager/real-sidebars.js` 仅通过容器获取并装配，避免跨特性 import。
 - 公共 API：新增 `features/url-navigation/public.js`、`features/pdf-translator/public.js`、`features/annotation/public.js`，对外暴露稳定入口。
 - 约束：新增 ESLint 规则 `custom/no-cross-feature-internals` 并在 CI 门禁强制，禁止跨特性内部依赖。
+
+## 2025-11-02 — 后端 Embedded File Server 架构拆分（Phase-1）
+- 背景：`src/backend/pdfFile_server/embed_fileserver.py` 体量过大（703 行），职责混杂（MIME/路径解析/流式发送/入口编排）。
+- 结构调整：
+  - 入口：`embed_fileserver.py`（类定义与编排，行数降至 ~488）
+  - 工具：`utils/http_utils.py`（`guess_mime_type`、`build_http_ok_headers`、`build_http_error_response`）
+  - 工具：`utils/path_resolver.py`（纯函数 `resolve_path(url_path, ...)`）
+  - 内核：`server_core/stream_sender.py`（`stream_send_file(socket, file_path, ...)`，承载分块与流控）
+- 契约：类的对外 API 不变；路径解析兼容历史候选路径；所有 I/O 显式 UTF-8 且使用 `\n`。
+- 测试：新增 `src/backend/pdfFile_server/__tests__/test_utils_path_and_http.py` 覆盖 MIME/头构造/路径解析（3/3 通过）。
+
+## 2025-11-02 — 后端 DB 插件拆分（pdf_annotation，Phase-1）
+- 背景：`src/backend/database/plugins/pdf_annotation_plugin.py` 行数超阈值（645 行），校验逻辑与 CRUD 混杂。
+- 结构调整：
+  - 插件入口：`pdf_annotation_plugin.py` 保留 DDL/CRUD/事件注册，验证委托纯函数；行数降至 ~375。
+  - 纯函数：`plugins/pdf_annotation/validate.py` 提供 `validate_data` 及子校验；便于单测与复用。
+- 契约：外部调用路径与类 API 不变；严禁兜底。
+- 测试：新增 `src/backend/database/plugins/__tests__/test_pdf_annotation_validate.py` 与 `.../test_pdf_annotation_crud_smoke.py`（5/5 通过）。
+
+## 2025-11-02 — 后端 DB 插件命名对齐（bookmark → outline，Phase-1）
+- 背景：前端已完全采用 outline 域；需要后端事件命名对齐且不中断现有数据。
+- 结构调整：
+  - 新增 `plugins/pdf_outline_plugin.py`（事件统一 `pdf-outline`）；底层继续使用 `pdf_bookmark` 表（兼容）。
+  - 校验抽出至 `plugins/pdf_outline/validate.py`，支持 `outlineItemId/outline_item_id/bookmark_id` 键名。
+  - 兼容层：`plugins/pdf_bookmark_plugin.py` 仅保留别名类，引用 `PDFOutlineTablePlugin`。
+- 测试：`test_pdf_outline_basic.py` 验证事件前缀与 CRUD（1/1 通过）。

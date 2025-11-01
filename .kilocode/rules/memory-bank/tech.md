@@ -37,6 +37,19 @@
 - 2025-11-01 启动器导航互斥：新建窗口仅用 URL 导航；已存在窗口仅用 WS 导航；禁止双通路并发
 - 2025-11-01 Logger 增强：新增 Feature/模块级 toast 过滤策略（setToastPolicy/getToastPolicy/setDefaultToastEnabled）；URLNavigationFeature 统一用 logger+toast 出提示（保障“有 toast 必有日志”）
 
+## 数据库命名与表结构调整（2025-11-02）
+- 变更：后端 Bookmark 域全面对齐 Outline 命名：
+  - 表名：`pdf_bookmark` → `pdf_outline`（无历史数据，本次直接切换）
+  - 主键：`bookmark_id` → `outline_id`
+  - 事件前缀：`table:pdf-bookmark:*` → `table:pdf-outline:*`
+  - 插件类：优先使用 `PDFOutlineTablePlugin`；`PDFBookmarkTablePlugin` 仅作兼容别名
+- JSON 结构保持：`name/pageAt/position/children/parentId/order`
+- 校验输入：兼容 `outlineItemId/outline_item_id/bookmark_id` 三种键名，输出规范化为 `outline_id`
+- 影响面：
+  - 如有外部 SQL 或直接读取列名，需替换为新表/列名；
+  - 事件订阅方应改订阅 `table:pdf-outline:*`
+- 测试：`test_pdf_outline_basic.py` 已覆盖事件与 CRUD；若新增接口或批量导入，请补充相应用例。
+
 ## SMOKE-RUN-POLICY（冒烟测试运行约定）
 - 目标：在 1–2 分钟内验证关键用户旅程未回归；不求全、求快。
 - 触发条件（任一成立必须运行）：

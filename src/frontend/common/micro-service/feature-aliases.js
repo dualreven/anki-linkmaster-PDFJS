@@ -14,10 +14,12 @@
  * @type {Record<string, string>}
  */
 export const FEATURE_ALIASES = {
-  // 示例（Step 2 开始按需启用）：
-  // "annotation": "pdf-annotation",
-  // "pdf-outline": "pdf-outline", // 自映射通常不需要；仅示例
+  // Step 2（基础设施侧首批改名）
+  "url-navigation": "infra-nav-url",
+  "core-navigation": "infra-nav-core",
+  "ui-manager": "infra-ui",
+  "sidebar-manager": "infra-sidebar",
+  "websocket-adapter": "infra-ws-adapter",
 };
 
 export default FEATURE_ALIASES;
-
