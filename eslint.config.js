@@ -9,6 +9,7 @@ import noIziToastGlobal from "./eslint-rules/no-izi-toast-global.js";
 import notificationAllowedApis from "./eslint-rules/notification-allowed-apis.js";
 import noDynamicNotificationImport from "./eslint-rules/no-dynamic-notification-import.js";
 import loggerToastShape from "./eslint-rules/logger-toast-shape.js";
+import noCrossFeatureInternals from "./eslint-rules/no-cross-feature-internals.js";
 
 const hasTsconfig = existsSync(new URL("./tsconfig.json", import.meta.url));
 const tsParserOptions = hasTsconfig ? { project: "./tsconfig.json" } : {};
@@ -30,6 +31,7 @@ export default [
           "notification-allowed-apis": notificationAllowedApis,
           "no-dynamic-notification-import": noDynamicNotificationImport,
           "logger-toast-shape": loggerToastShape,
+          "no-cross-feature-internals": noCrossFeatureInternals,
         }
       }
     },
@@ -51,6 +53,8 @@ export default [
       "custom/no-dynamic-notification-import": "error",
       // 可先以 warning 形式上线，成熟后再升级为 error
       "custom/logger-toast-shape": "warn",
+      // 新增：禁止跨特性内部深层 import（先以 warning 观察）
+      "custom/no-cross-feature-internals": "warn",
 
       // 风格与质量控制
       "eqeqeq": ["error", "always"],          // 强制使用 ===

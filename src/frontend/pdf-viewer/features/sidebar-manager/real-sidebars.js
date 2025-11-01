@@ -8,7 +8,6 @@ import { getLogger } from "../../../common/utils/logger.js";
 import { createSidebarConfig } from "./sidebar-config.js";
 import { BookmarkSidebarUI } from "../../ui/bookmark-sidebar-ui.js";
 import { isOutlineEnabled } from "../../../common/utils/feature-flags.js";
-import { AnchorSidebarUI } from "../../features/pdf-anchor/components/anchor-sidebar-ui.js";
 const logger = getLogger("RealSidebars");
 
 /**
@@ -20,14 +19,29 @@ const logger = getLogger("RealSidebars");
 export async function registerRealSidebars(sidebarManager, eventBus, container) {
   logger.info("Registering real sidebars...");
 
-  // 0. 锚点侧边栏（与书签并列）
-  const anchorUI = new AnchorSidebarUI(eventBus);
-  anchorUI.initialize();
+  // 0. 锚点侧边栏（与书签并列）→ 从容器获取（避免跨特性直接 import）
+  let anchorUI = null;
+  try {
+    anchorUI = container?.get?.("anchorSidebarUI") || null;
+    if (!anchorUI) {
+      logger.warn("anchorSidebarUI not found in container; skip anchor sidebar registration");
+    } else {
+      anchorUI.initialize?.();
+    }
+  } catch (e) {
+    logger.warn("Failed to get anchorSidebarUI from container; skip", e);
+  }
 
   const anchorConfig = createSidebarConfig({
     id: "anchor",
     title: "锚点",
-    contentRenderer: () => anchorUI.getContentElement(),
+    contentRenderer: () => {
+      if (anchorUI?.getContentElement) { return anchorUI.getContentElement(); }
+      const placeholder = document.createElement("div");
+      placeholder.style.cssText = "padding: 20px; color: #999; text-align: center;";
+      placeholder.innerHTML = "<div>锚点功能未启用</div>";
+      return placeholder;
+    },
     defaultWidth: 320,
     minWidth: 220,
     maxWidth: 520,
@@ -36,29 +50,17 @@ export async function registerRealSidebars(sidebarManager, eventBus, container) 
   sidebarManager.registerSidebar(anchorConfig);
   logger.info("Anchor sidebar registered");
 
-  // 1. 大纲侧边栏（按开关选择 UI 实现：OutlineSidebarUI 或 BookmarkSidebarUI）
+  // 1. 大纲侧边栏（优先从容器获取 OutlineSidebarUI；缺失则回退 BookmarkSidebarUI）
   let bookmarkUI = null;
-  // 强制使用 OutlineSidebarUI（与 bootstrap 一致，废止 BookmarkSidebarUI）
-  const useOutline = true;
-
-  if (useOutline) {
-    try {
-      const mod = await import("../../features/pdf-outline/components/outline-sidebar-ui.js");
-      const OutlineSidebarUI = mod?.OutlineSidebarUI || mod?.default;
-      if (OutlineSidebarUI) {
-        bookmarkUI = new OutlineSidebarUI(eventBus);
-        logger.warn("Using OutlineSidebarUI (flag enabled)");
-      } else {
-        logger.warn("OutlineSidebarUI module missing export; fallback to BookmarkSidebarUI");
-      }
-    } catch (e) {
-      logger.warn("Failed to load OutlineSidebarUI, fallback to BookmarkSidebarUI", e);
-    }
+  try {
+    bookmarkUI = container?.get?.("outlineSidebarUI") || null;
+  } catch (e) {
+    logger.warn("Failed to get outlineSidebarUI from container", e);
   }
-  // BookmarkSidebarUI 已废止；若 Outline 加载失败，仍回退到 BookmarkSidebarUI 以避免完全空白
   if (!bookmarkUI) {
+    // 回退：使用 BookmarkSidebarUI（临时）
     bookmarkUI = new BookmarkSidebarUI(eventBus);
-    logger.warn("OutlineSidebarUI load failed; fallback to BookmarkSidebarUI (temporary)");
+    logger.warn("outlineSidebarUI not found; fallback to BookmarkSidebarUI (temporary)");
   }
   bookmarkUI.initialize();
 

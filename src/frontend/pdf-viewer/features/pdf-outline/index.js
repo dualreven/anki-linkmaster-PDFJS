@@ -74,6 +74,17 @@ export class PDFOutlineFeature {
 
     this.#enabled = true;
     this.#logger.info("pdf-outline installed");
+
+    // 注册 Outline 侧边栏 UI 到容器（供 SidebarManager 获取）
+    try {
+      const { OutlineSidebarUI } = await import("./components/outline-sidebar-ui.js");
+      const outlineUI = new OutlineSidebarUI(this.#eventBus);
+      outlineUI.initialize();
+      this.#container.registerGlobal?.("outlineSidebarUI", outlineUI);
+      this.#logger.info("outlineSidebarUI registered globally");
+    } catch (e) {
+      this.#logger.warn("Failed to initialize/register outlineSidebarUI", e);
+    }
   }
 
   async uninstall() {

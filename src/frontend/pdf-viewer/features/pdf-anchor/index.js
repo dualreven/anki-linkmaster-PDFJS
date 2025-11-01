@@ -62,6 +62,17 @@ export class PDFAnchorFeature {
     this.#navigationService = this.#container.get("navigationService");
     if (!this.#navigationService) {this.#logger.warn("navigationService not found, will fallback to DOM ops");}
 
+    // 注册 Anchor 侧边栏 UI 到容器（供 SidebarManager 获取）
+    try {
+      const { AnchorSidebarUI } = await import("./components/anchor-sidebar-ui.js");
+      const anchorUI = new AnchorSidebarUI(this.#eventBus);
+      anchorUI.initialize();
+      this.#container.registerGlobal?.("anchorSidebarUI", anchorUI);
+      this.#logger.info("anchorSidebarUI registered globally");
+    } catch (e) {
+      this.#logger.warn("Failed to initialize/register anchorSidebarUI", e);
+    }
+
     this.#setupEventListeners();
     // 简化模式：不依赖页面事件与滚动诊断，改为纯心跳回写
     // 安装时主动检查 URL（避免错过 URL_PARAMS.PARSED 早期事件）
