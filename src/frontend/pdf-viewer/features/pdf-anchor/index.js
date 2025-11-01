@@ -8,25 +8,8 @@ import { getLogger } from "../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
 import { showSuccess, showError, showInfo } from "../../../common/utils/notification.js";
 import { WEBSOCKET_MESSAGE_EVENTS } from "../../../common/event/event-constants.js";
-// 本地轻量 URL 解析（避免跨特性直接依赖 url-navigation 内部实现）
-function __parseUrlParams() {
-  try {
-    const params = new URLSearchParams(window.location.search || "");
-    const pdfId = params.get("pdf-id");
-    const anchorId = params.get("anchor-id");
-    const pageAtStr = params.get("page-at");
-    const positionStr = params.get("position");
-    return {
-      pdfId: pdfId || null,
-      anchorId: anchorId || null,
-      pageAt: pageAtStr ? parseInt(pageAtStr, 10) : null,
-      position: positionStr ? parseFloat(positionStr) : null,
-      hasParams: !!(pdfId || anchorId || pageAtStr || positionStr)
-    };
-  } catch (_) {
-    return { pdfId: null, anchorId: null, pageAt: null, position: null, hasParams: false };
-  }
-}
+// 使用 url-navigation 公共 API，避免跨特性直接依赖内部实现
+import { parseUrlParams } from "../url-navigation/public.js";
 
 // 仅在开发模式允许 DEV 测试锚点注入（pdfanchor-test）
 // 注：为兼容 Jest 与部分打包环境，避免直接访问 import.meta；
@@ -564,7 +547,7 @@ export class PDFAnchorFeature {
   }
 
   #bootstrapFromURL() {
-    const parsed = __parseUrlParams();
+    const parsed = parseUrlParams();
     const anchorId = (parsed?.anchorId || "").toString().trim();
     if (!anchorId) {return;}
 

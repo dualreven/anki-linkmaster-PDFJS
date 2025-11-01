@@ -18,23 +18,8 @@ import { AnnotationSidebarUI } from "./components/annotation-sidebar-ui.js";
 import { ToolRegistry } from "./core/tool-registry.js";
 import { AnnotationManager } from "./core/annotation-manager.js";
 import { getCenterPercentFromRect } from "./utils/position-utils.js";
-// 本地轻量 URL 解析（避免跨特性直接依赖 url-navigation 内部实现）
-function __parseUrlParams() {
-  try {
-    const params = new URLSearchParams(window.location.search || "");
-    const pdfId = params.get("pdf-id");
-    const pageAtStr = params.get("page-at");
-    const positionStr = params.get("position");
-    return {
-      pdfId: pdfId || null,
-      pageAt: pageAtStr ? parseInt(pageAtStr, 10) : null,
-      position: positionStr ? parseFloat(positionStr) : null,
-      hasParams: !!(pdfId || pageAtStr || positionStr)
-    };
-  } catch (_) {
-    return { pdfId: null, pageAt: null, position: null, hasParams: false };
-  }
-}
+// 使用 url-navigation 公共 API，避免跨特性直接依赖内部实现
+import { parseUrlParams } from "../url-navigation/public.js";
 import { WEBSOCKET_EVENTS } from "../../../common/event/event-constants.js";
 
 /**
@@ -231,7 +216,7 @@ export class AnnotationFeature {
     setTimeout(() => {
       try {
         if (!this.#currentPdfId) {
-          const parsed = __parseUrlParams();
+          const parsed = parseUrlParams();
           const pdfId = parsed?.pdfId || null;
           if (pdfId) {
             this.#logger.info(`[AnnotationFeature] 兜底加载标注（install延迟，pdfId=${pdfId}）`);
@@ -372,7 +357,7 @@ export class AnnotationFeature {
         // 优先从 URL 参数解析 pdf-id（与 url-navigation 一致）
         let pdfId = null;
         try {
-          const parsed = __parseUrlParams();
+          const parsed = parseUrlParams();
           if (parsed && parsed.pdfId) {pdfId = parsed.pdfId;}
         } catch (e) { void e; }
 
