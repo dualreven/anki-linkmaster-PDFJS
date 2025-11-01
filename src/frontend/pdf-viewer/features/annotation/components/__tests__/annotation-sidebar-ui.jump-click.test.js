@@ -72,7 +72,7 @@ describe("AnnotationSidebarUI jump actions", () => {
     });
   }
 
-  test("点击卡片右上角跳转按钮，应发射 ANNOTATION.JUMP_TO（JUMP_REQUESTED）", () => {
+  test("点击卡片右上角跳转按钮，应发射全局 ANNOTATION.NAVIGATION.JUMP_REQUESTED", () => {
     const annotation = createHighlightAnnotation();
     ui.addAnnotationCard(annotation);
 
@@ -82,21 +82,19 @@ describe("AnnotationSidebarUI jump actions", () => {
 
     expect(jumpBtn).not.toBeNull();
 
-    eventBus.emit.mockClear();
+    eventBus.emitGlobal.mockClear();
     jumpBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
-    expect(eventBus.emit).toHaveBeenCalledTimes(1);
-    // 验证事件名与载荷
-    const [evtName, payload] = eventBus.emit.mock.calls[0];
-    expect(evtName).toBe(PDF_VIEWER_EVENTS.ANNOTATION.JUMP_TO);
-    expect(payload).toMatchObject({
-      id: annotation.id,
-      // 为避免“乐观 UI 先行、数据未入库”的落空，这里会尽量携带完整对象
-      annotation: expect.any(Object),
-    });
+    // 至少一次发射（JUMP_REQUESTED + JUMP_SUCCESS）
+    expect(eventBus.emitGlobal.mock.calls.length).toBeGreaterThanOrEqual(1);
+    // 第一次应为 JUMP_REQUESTED，载荷包含完整 annotation 对象
+    const [evtName, payload] = eventBus.emitGlobal.mock.calls[0];
+    expect(evtName).toBe(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED);
+    expect(payload).toMatchObject({ annotation: expect.any(Object) });
+    expect(payload.annotation.id).toBe(annotation.id);
   });
 
-  test("点击委托跳转按钮(.jump-btn[data-annotation-id])，应发射全局 URL_PARAMS.REQUESTED", () => {
+  test("点击委托跳转按钮(.jump-btn[data-annotation-id])，应发射全局 ANNOTATION.NAVIGATION.JUMP_REQUESTED", () => {
     const annotation = createHighlightAnnotation({
       pageNumber: 7,
       lineRects: [{ xPercent: 0, yPercent: 33.3, widthPercent: 100, heightPercent: 12.4 }],
@@ -116,21 +114,13 @@ describe("AnnotationSidebarUI jump actions", () => {
     eventBus.emitGlobal.mockClear();
     delegatedBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
-    expect(eventBus.emitGlobal).toHaveBeenCalledTimes(1);
+    // 可能发出两次（REQUESTED + SUCCESS），此处校验至少一次，且首条为 REQUESTED
+    expect(eventBus.emitGlobal.mock.calls.length).toBeGreaterThanOrEqual(1);
     const [evtName, payload] = eventBus.emitGlobal.mock.calls[0];
-    expect(evtName).toBe(PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED);
-    expect(payload).toMatchObject({
-      annotationId: annotation.id,
-      pageAt: annotation.pageNumber,
-    });
-    // 位置百分比（若 lineRects 可用，会计算中心点）
-    if (Array.isArray(annotation.data?.lineRects) && annotation.data.lineRects.length > 0) {
-      const r0 = annotation.data.lineRects[0];
-      const expected = r0.yPercent + (r0.heightPercent / 2);
-      expect(typeof payload.position === "number").toBe(true);
-      expect(Math.abs(payload.position - expected)).toBeLessThan(1e-6);
-    } else {
-      expect(payload.position === null || typeof payload.position === "number").toBe(true);
-    }
+    expect(evtName).toBe(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED);
+    // 载荷包含 annotation 对象（内含 pageNumber 等）
+    expect(payload).toMatchObject({ annotation: expect.any(Object) });
+    expect(payload.annotation.id).toBe(annotation.id);
+    expect(payload.annotation.pageNumber).toBe(annotation.pageNumber);
   });
 });

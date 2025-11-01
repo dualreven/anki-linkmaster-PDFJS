@@ -9,7 +9,9 @@ describe("Annotation ID generation", () => {
       type: AnnotationType.SCREENSHOT,
       pageNumber: 1,
       data: {
-        rect: { x: 10, y: 10, width: 100, height: 50 },
+        // 新规范：截图标注必须提供百分比矩形 rectPercent（禁止像素 rect 兜底）
+        rectPercent: { xPercent: 10, yPercent: 10, widthPercent: 25, heightPercent: 12.5 },
+        imageHash: "1234567890abcdef1234567890abcdef",
         imagePath: "C:/tmp/test.png"
       },
       comments: []

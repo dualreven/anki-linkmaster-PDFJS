@@ -190,7 +190,7 @@ describe("TextHighlightTool integration with action menu", () => {
       PDF_VIEWER_EVENTS.ANNOTATION.SELECT,
       { id: annotation.id }
     );
-    expect(eventBus.emit).toHaveBeenCalledWith(
+    expect(eventBus.emitGlobal).toHaveBeenCalledWith(
       PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
       { annotation }
     );
