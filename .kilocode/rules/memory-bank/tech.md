@@ -82,6 +82,13 @@
   - 单元：避免断言私有实现；通过可观察接口或 spy 计数断言交互；
   - Logger/Toast：所有 toast 必须来源 `logger.*(..., { toast })`；测试断言 `feature` + `level` 是否触发与是否被策略过滤。
 
+## Jest 配置要点（前端）
+- 目的：在 Node/Jest（CJS）环境下运行 ESM 源码，并屏蔽 `import.meta/env` 差异。
+- 约定：
+  - `jest.config.js` 使用 `babel-jest` 转换，`moduleNameMapper` 将任意 `*logger.js` 映射到 `tests/__mocks__/logger.js`；
+  - `babel.config.js` 在测试环境包含 `@babel/preset-env({ modules:'commonjs' })`，并启用 `babel-plugin-transform-import-meta`（`{ module:'CommonJS' }`）。
+  - jsdom 环境下的 DOM 依赖最小化：测试只构造必要节点（如 `main`, `#viewerContainer`, `.page[data-page-number]`）。
+
 ## Toast 使用规范 v2（统一入口 + Lint）
 - 引擎依赖：`izitoast`（仅适配器内部直接依赖）。
 - 公共入口（业务代码仅允许二选一）：

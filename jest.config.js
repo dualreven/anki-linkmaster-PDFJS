@@ -8,8 +8,8 @@ export default {
     }
   },
   moduleNameMapper: {
-    // 将 logger.js 映射为测试友好的 mock，避免 import.meta 与环境差异影响
-    '.*/common/utils/logger\\.js$': '<rootDir>/tests/__mocks__/logger.js',
+    // 将各处相对导入到的 logger.js 映射为测试友好的 mock，避免 import.meta/env 影响
+    '.*logger\\.js$': '<rootDir>/tests/__mocks__/logger.js',
     '\\.(css|less|sass|scss)$': '<rootDir>/tests/__mocks__/styleMock.js'
   },
   transform: {

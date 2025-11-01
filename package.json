@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "test": "jest",
     "test:smoke": "jest --runTestsByPath src/frontend/pdf-viewer/__smoke__/annotation-card-jump.smoke.test.js src/frontend/pdf-viewer/__smoke__/anchor-create.smoke.test.js -i",
+    "test:impact": "node -e \"process.exitCode=0\" && node scripts/impact/changed-tests.mjs --run",
     "test:watch": "jest --watch",
     "benchmark": "node AItemp/performance-benchmark.js",
     "check:deps": "depcruise --config src/frontend/pdf-viewer/.dependency-cruiser.js src/frontend/pdf-viewer",

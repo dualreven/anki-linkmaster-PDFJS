@@ -2,7 +2,7 @@
 import { getEventBus } from "../../../../common/event/event-bus.js";
 import { createScopedEventBus } from "../../../../common/event/scoped-event-bus.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
-import { AnnotationType } from "../models/annotation.js";
+import { Annotation, AnnotationType } from "../models/annotation.js";
 import { AnnotationManager } from "../core/annotation-manager.js";
 
 function waitForEvent(eventBus, eventName, timeoutMs = 2000) {
@@ -35,16 +35,14 @@ describe("AnnotationManager create fallback", () => {
     // Instantiate manager (will detect wsClient), but we do NOT set pdfId
     const manager = new AnnotationManager(scopedBus, undefined, containerStub);
 
-    // Prepare valid screenshot annotation payload (uses legacy base64 to avoid FS dependency)
-    const payload = {
-      type: AnnotationType.SCREENSHOT,
-      pageNumber: 1,
-      data: {
-        rect: { x: 10, y: 10, width: 100, height: 60 },
-        imageData: "data:image/png;base64,iVBORw0KGgo=",
-        description: "unit-test"
-      }
-    };
+    // 构造符合 v003 新契约的截图标注（使用 rectPercent + imagePath + imageHash）
+    const payload = Annotation.createScreenshot(
+      1,
+      { xPercent: 10, yPercent: 10, widthPercent: 20, heightPercent: 10 },
+      "/data/screens/mock.png",
+      "0123456789abcdef0123456789abcdef",
+      "unit-test"
+    ).toJSON();
 
     // Act: emit CREATE and wait for CREATED
     const waitCreated = waitForEvent(scopedBus, PDF_VIEWER_EVENTS.ANNOTATION.CREATED, 3000);

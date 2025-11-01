@@ -2,10 +2,10 @@
  * @file Annotation 持久化行为测试
  */
 
-import { EventBus } from "../../../../../common/event/event-bus.js";
-import { createScopedEventBus } from "../../../../../common/event/scoped-event-bus.js";
-import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
-import { WEBSOCKET_MESSAGE_TYPES } from "../../../../../common/event/event-constants.js";
+import { EventBus } from "../../../../common/event/event-bus.js";
+import { createScopedEventBus } from "../../../../common/event/scoped-event-bus.js";
+import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
+import { WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constants.js";
 
 import { AnnotationManager } from "../core/annotation-manager.js";
 import { Annotation } from "../models/annotation.js";
@@ -23,7 +23,8 @@ describe("AnnotationManager 持久化", () => {
 
     // Mock wsClient
     wsClient = {
-      request: jest.fn().mockResolvedValue({})
+      isConnected: () => true,
+      request: jest.fn().mockResolvedValue({ ok: true })
     };
 
     const container = {

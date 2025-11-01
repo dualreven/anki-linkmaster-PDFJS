@@ -106,10 +106,27 @@ describe("AnnotationFeature — 导航 URL 参数冒烟", () => {
     const pageEl = document.querySelector('.page[data-page-number="2"]');
     pageEl.appendChild(highlightEl);
 
-    // 通过事件创建（AnnotationManager 会接收并加入内存）
+    // 通过事件创建（AnnotationManager 会接收并加入内存），并等待 CREATED 结算
+    const waitCreated = (id) => new Promise((resolve, reject) => {
+      const off = scopedBus.on(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, (data) => {
+        if (data?.annotation?.id === id) {
+          try { off(); } catch { /* ignore */ }
+          clearTimeout(timer);
+          resolve(data);
+        }
+      }, { subscriberId: `test-created-${id}` });
+      const timer = setTimeout(() => {
+        try { off(); } catch { /* ignore */ }
+        reject(new Error("timeout waiting for annotation:create:success"));
+      }, 1200);
+    });
+    const p1 = waitCreated(annScreenshot.id);
+    const p2 = waitCreated(annHighlight.id);
+    const p3 = waitCreated(annComment.id);
     scopedBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, { annotation: annScreenshot });
     scopedBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, { annotation: annHighlight });
     scopedBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, { annotation: annComment });
+    await Promise.all([p1, p2, p3]);
 
     // 监听全局 URL 参数请求（3 次）
     const wait3 = waitForGlobalEvents(
@@ -120,9 +137,9 @@ describe("AnnotationFeature — 导航 URL 参数冒烟", () => {
     );
 
     // 触发跳转（均按 id 传入）
-    scopedBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, { annotation: annScreenshot.id });
-    scopedBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, { annotation: annHighlight.id });
-    scopedBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, { annotation: annComment.id });
+    scopedBus.emitGlobal(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, { annotation: annScreenshot.id });
+    scopedBus.emitGlobal(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, { annotation: annHighlight.id });
+    scopedBus.emitGlobal(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, { annotation: annComment.id });
 
     const reqs = await wait3;
     expect(Array.isArray(reqs)).toBe(true);
@@ -145,4 +162,3 @@ describe("AnnotationFeature — 导航 URL 参数冒烟", () => {
     await feature.uninstall();
   });
 });
-

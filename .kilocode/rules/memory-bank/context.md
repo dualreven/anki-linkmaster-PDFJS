@@ -33,6 +33,18 @@
 
 ## 当前任务（只保留核心信息）
 
+### 15) 2025-11-01 — Annotation 插件冒烟与单测补充（已执行）
+- 目标：补齐“自动加载与导航”关键路径的最小冒烟；与现有契约对齐（rectPercent/imagePath/imageHash）。
+- 交付：
+  - 新增冒烟（Jest/jsdom）：
+    - `annotation-feature.nav.urlparams.smoke.test.js`（三种标注跳转 → 产生 URL 参数事件，校验 pageAt/position）
+    - `annotation-feature.autoload.smoke.test.js`（FILE.LOAD.SUCCESS → DATA.LOAD → DATA.LOADED）
+  - 维护：修复旧用例 `annotation-manager.create.fallback.test.js`（改用新截图契约）；`annotation-persistence.test.js` 补齐 `wsClient.isConnected()` 与相对路径。
+  - 工具链适配：
+    - `tests/__mocks__/logger.js` + `jest.config.js` 映射所有 `logger.js` 至 mock，避免 import.meta/env 在 CJS 下的解析问题；
+    - `babel.config.js` 增加 `babel-plugin-transform-import-meta`（CommonJS 目标）。
+- 运行结果：`pnpm exec jest src/frontend/pdf-viewer/features/annotation/__tests__ -i` → 5/5 通过。
+
 ### 14) 2025-11-01 — 测试演进策略（何时改测试）
 - 诉求：当源代码调整（函数签名/事件/日志策略变更）时，如何判断“应改测试”还是“应修代码”。
 - 结论（契约优先）：
