@@ -30,7 +30,6 @@
 """
 
 import logging
-import mimetypes
 from pathlib import Path
 from typing import Optional
 from urllib.parse import unquote
@@ -51,6 +50,14 @@ logger = logging.getLogger(__name__)
 # 流式传输配置
 CHUNK_SIZE = 64 * 1024  # 64KB 分块大小（平衡性能和内存）
 MAX_BUFFER_SIZE = CHUNK_SIZE * 4  # 最大缓冲区大小（256KB）
+
+# 拆分：纯函数工具（HTTP 与路径解析）
+from src.backend.pdfFile_server.utils.http_utils import (
+    guess_mime_type,
+    build_http_ok_headers,
+    build_http_error_response,
+)
+from src.backend.pdfFile_server.utils.path_resolver import resolve_path as _resolve_path_pure
 
 
 class EmbedFileServer(QObject):
@@ -303,118 +310,14 @@ class EmbedFileServer(QObject):
         Returns:
             Path: 文件系统路径，如果无效则返回 None
         """
-        # URL 解码
-        url_path = unquote(url_path)
-
-        # 去除查询参数
-        if '?' in url_path:
-            url_path = url_path.split('?')[0]
-
-        # 优先匹配已配置的挂载点（最长前缀优先）
-        mounts = dict(self.mounts)
-        # 显式将 /static 映射到静态根（index.html 内引用 /static/*）
-        try:
-            if self.static_root and Path(self.static_root).exists():
-                mounts.setdefault('/static', Path(self.static_root))
-        except Exception:
-            pass
-        # 默认内置挂载：前端静态资源（指向具体子目录，而不是静态根本身）
-        try:
-            home_base = (self.static_root / 'pdf-home')
-            viewer_a = self.static_root / 'src' / 'frontend' / 'pdf-viewer'
-            viewer_b = self.static_root / 'pdf-viewer'
-            viewer_base = viewer_a if viewer_a.exists() else viewer_b
-        except Exception:
-            home_base = self.static_root
-            viewer_base = self.static_root
-        mounts.setdefault('/pdf-home', home_base)
-        mounts.setdefault('/pdf-viewer', viewer_base)
-
-        for prefix, base in sorted(mounts.items(), key=lambda kv: len(kv[0]), reverse=True):
-            if url_path == prefix or url_path.startswith(prefix + '/'):
-                # 基础目录存在性与兼容性回退（适配不同打包布局）
-                base_path = Path(base)
-                if not base_path.exists():
-                    fallback_candidates = []
-                    if prefix == '/pdf-home':
-                        fallback_candidates = [
-                            # 常规位置（源码/插件）
-                            self.static_root / 'pdf-home',
-                            self.static_root / 'src' / 'frontend' / 'pdf-home',
-                            project_root / 'pdf-home',
-                            project_root / 'src' / 'frontend' / 'pdf-home',
-                            # 构建产物集中到 /static 时的路径
-                            self.static_root / 'static' / 'pdf-home',
-                        ]
-                    elif prefix == '/pdf-viewer':
-                        fallback_candidates = [
-                            # 常规位置（源码/插件）
-                            self.static_root / 'src' / 'frontend' / 'pdf-viewer',
-                            self.static_root / 'pdf-viewer',
-                            project_root / 'src' / 'frontend' / 'pdf-viewer',
-                            project_root / 'pdf-viewer',
-                            # 构建产物集中到 /static 时的路径
-                            self.static_root / 'static' / 'pdf-viewer',
-                            self.static_root / 'static' / 'src' / 'frontend' / 'pdf-viewer',
-                        ]
-                    for fb in fallback_candidates:
-                        if fb.exists():
-                            base_path = fb.resolve()
-                            break
-
-                remainder = url_path[len(prefix):]
-                relative_path = remainder.lstrip('/')
-                candidate = (base_path / relative_path).resolve()
-                try:
-                    candidate.relative_to(base_path)
-                except ValueError:
-                    logger.warning(f"⚠️ 路径穿越尝试: {url_path}")
-                    return None
-
-                # 目录则尝试 index.html
-                if candidate.exists() and candidate.is_dir():
-                    index_path = candidate / "index.html"
-                    return index_path if index_path.exists() and index_path.is_file() else None
-                return candidate if candidate.exists() and candidate.is_file() else None
-
-        # 专用 PDF 库：/pdfs/*
-        if url_path.startswith('/pdfs/') and self.pdfs_root is not None:
-            relative_path = url_path[6:]  # 去掉 '/pdfs/' 前缀
-            candidate = (self.pdfs_root / relative_path.lstrip('/')).resolve()
-            try:
-                candidate.relative_to(self.pdfs_root)
-            except ValueError:
-                logger.warning(f"⚠️ 路径穿越尝试: {url_path}")
-                return None
-            return candidate if candidate.exists() and candidate.is_file() else None
-
-        # 兼容历史路由：/pdf-files/* → 映射到 pdfs_root
-        if url_path.startswith('/pdf-files/') and self.pdfs_root is not None:
-            relative_path = url_path[len('/pdf-files/'):]
-            candidate = (self.pdfs_root / relative_path.lstrip('/')).resolve()
-            try:
-                candidate.relative_to(self.pdfs_root)
-            except ValueError:
-                logger.warning(f"⚠️ 路径穿越尝试: {url_path}")
-                return None
-            return candidate if candidate.exists() and candidate.is_file() else None
-
-        # 默认回退到 root_dir
-        relative_path = url_path.lstrip('/')
-        file_path = (self.root_dir / relative_path).resolve()
-
-        try:
-            file_path.relative_to(self.root_dir)
-        except ValueError:
-            logger.warning(f"⚠️ 路径穿越尝试: {url_path}")
-            return None
-
-        # 目录则尝试 index.html
-        if file_path.exists() and file_path.is_dir():
-            index_path = file_path / "index.html"
-            return index_path if index_path.exists() and index_path.is_file() else None
-
-        return file_path if file_path.exists() and file_path.is_file() else None
+        return _resolve_path_pure(
+            url_path,
+            static_root=self.static_root,
+            pdfs_root=self.pdfs_root,
+            root_dir=self.root_dir,
+            mounts=self.mounts,
+            project_root=project_root,
+        )
 
     def _send_file(self, socket: QTcpSocket, file_path: Path):
         """发送文件响应（流式传输版本）
@@ -438,18 +341,8 @@ class EmbedFileServer(QObject):
 
             # 构建 HTTP 响应头（保留 Content-Length 确保前端进度显示）
             mime_type = self._get_mime_type(file_path)
-            response_headers = [
-                "HTTP/1.1 200 OK",
-                f"Content-Length: {file_size}",  # 前端进度显示需要这个！
-                f"Content-Type: {mime_type}",
-                "Access-Control-Allow-Origin: *",  # CORS
-                "Cache-Control: max-age=3600",
-                "Connection: close",
-                ""
-            ]
-
             # 发送响应头
-            header_data = "\r\n".join(response_headers).encode('utf-8') + b"\r\n"
+            header_data = build_http_ok_headers(file_size, mime_type, cors=True, cache_control="max-age=3600")
             socket.write(header_data)
 
             # 使用 Qt QFile 打开文件（C++ 实现，性能更好）
@@ -562,16 +455,7 @@ class EmbedFileServer(QObject):
             status: 状态描述
             message: 错误消息
         """
-        body = f"<h1>{code} {status}</h1><p>{message}</p>"
-        response = [
-            f"HTTP/1.1 {code} {status}",
-            "Content-Type: text/html; charset=utf-8",
-            f"Content-Length: {len(body)}",
-            "Connection: close",
-            "",
-            body
-        ]
-        socket.write("\r\n".join(response).encode('utf-8'))
+        socket.write(build_http_error_response(code, status, message))
         socket.flush()
 
     def __del__(self):
@@ -679,25 +563,3 @@ if __name__ == "__main__":
     else:
         print("❌ 服务器启动失败")
         sys.exit(1)
-def guess_mime_type(file_path: Path | str) -> str:
-    """模块级 MIME 猜测（供类与测试复用）。
-
-    显式修正常见前端类型在部分平台下的错误 MIME（如 Windows 下 .js 未注册）。
-    """
-    p = str(file_path).lower()
-    if p.endswith('.mjs') or p.endswith('.js'):
-        return 'text/javascript'
-    if p.endswith('.css'):
-        return 'text/css'
-    if p.endswith('.json'):
-        return 'application/json'
-    if p.endswith('.map'):
-        return 'application/json'
-    if p.endswith('.pdf'):
-        return 'application/pdf'
-
-    try:
-        mime_type, _ = mimetypes.guess_type(str(file_path))
-    except Exception:
-        mime_type = None
-    return mime_type or 'application/octet-stream'

@@ -6,6 +6,7 @@
 
 import { getLogger, setModuleLogLevel, LogLevel } from "../../common/utils/logger.js";
 import { FeatureRegistry } from "../../common/micro-service/feature-registry.js";
+import { FEATURE_ALIASES } from "../../common/micro-service/feature-aliases.js";
 import { SimpleDependencyContainer } from "../container/simple-dependency-container.js";
 import eventBusSingleton from "../../common/event/event-bus.js";
 
@@ -90,7 +91,9 @@ export async function bootstrapPDFViewerAppFeature() {
     const registry = new FeatureRegistry({
       container,
       globalEventBus: eventBusSingleton,
-      logger
+      logger,
+      // Step 1：注入（当前为空映射，零行为变更）；Step 2 再填充别名
+      aliases: FEATURE_ALIASES
     });
 
     // 打开 Outline 相关模块的“模块级日志过滤”并设为较详细级别，便于问题排查

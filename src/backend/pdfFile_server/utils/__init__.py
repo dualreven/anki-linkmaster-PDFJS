@@ -1,5 +1,5 @@
 """
-PDF文件服务器工具模块
+实用工具包（HTTP 与路径解析）
+所有方法应保持纯函数特性，便于单元测试与复用。
 """
 
-from .logging_config import setup_logging

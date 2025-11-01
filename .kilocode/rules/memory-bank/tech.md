@@ -12,6 +12,23 @@
 - [UI/Toast/剪贴板与 Hosted 初始化](#uitoast剪贴板与-hosted-初始化)
 - [Babel/Vite/AI Launcher](#babelviteai-launcher)
 
+## Feature 重命名过渡策略（SCOPE_ID + 别名） — 2025-11-01
+- 背景：逐步统一特性命名（如 `{layer}-{domain}[-{capability}]`）时，需要保持事件作用域与依赖装配零行为变更。
+- 设计：
+  - 事件作用域解耦：每个 Feature 可声明 `static SCOPE_ID = "<legacy-scope>"`；FeatureRegistry 在创建 `scopedEventBus` 时优先取 `SCOPE_ID`，与 `Feature.name` 解耦。
+  - 别名映射：FeatureRegistry 支持 `aliases: Record<oldName,string>`，在 `register/has/get/install/拓扑排序/依赖检查` 全路径统一走 `#resolveName()`。
+  - 兜底要求：如特性内自行创建作用域事件总线，必须使用 `this.constructor?.SCOPE_ID || this.SCOPE_ID || this.name` 作为 scope。
+- 约束：
+  - 禁止别名环（A→B, B→A）；当前实现只做一次映射，不解析链路。
+  - 重复注册：若旧名与新名映射到同一规范名，重复注册将抛出 “already registered”。
+- 测试：
+  - `src/frontend/common/micro-service/__tests__/feature-registry.aliases.test.js`
+  - `src/frontend/common/micro-service/__tests__/feature-scoped-bus.scopeid.test.js`
+- 迁移步骤（建议）：
+  1) 给使用 ScopedEventBus 的特性声明 `SCOPE_ID`（annotation 已完成）。
+  2) 在装配根（创建 FeatureRegistry 处）按需注入 `aliases`（仅在过渡期）。
+  3) 单测/冒烟通过后，再开始批量重命名与依赖文本替换。
+
 ### 用法补充（2025-10-28）— pdf_library_api 书签兼容输出
 - 过渡期策略：API 门面对外仍按历史契约输出 `pageNumber` 字段，内部（DB）存储统一为 `pageAt/position`；
 - 保存时严格校验：仅接受 `pageNumber`（≥1）与 `position`（0~100），禁止旧字段 `region/type`；

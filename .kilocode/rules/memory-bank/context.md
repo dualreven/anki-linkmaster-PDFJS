@@ -33,6 +33,16 @@
 
 ## 当前任务（只保留核心信息）
 
+### 18) 2025-11-02 — 大文件拆分状态梳理（本次）
+- 背景：`todo-and-doing/2 todo/20251027074226-code-split-backlog` 已定义长期工程与清单；部分状态与代码实际行数存在偏差。
+- 现状抽样（UTF-8 行数）：`pdf-viewer/launcher.py` 1165；`pdf-home/pyqt-bridge.py` 753；`backend/pdfFile_server/embed_fileserver.py` 703；`backend/msgCenter_server/crypto.py` 572；`pdf-home/launcher.py` 663；`backend/launcher.py` 129（已瘦身）。
+- 结论：短期优先拆分 `src/frontend/pdf-viewer/launcher.py`；保持对外契约不变（URL 参数/事件/导航互斥策略）。
+- 执行建议（下一轮进入“先测后拆”）：
+  - P0 测试基线：启动参数解析；“已有窗口 vs 初次启动”互斥导航；事件与 toast 统一出口。
+  - 拆分草案：新增 `src/frontend/pdf-viewer/launcher_core/{boot,params,ws,ui}.js`，入口仅编排；纯函数 + 依赖注入，避免全局状态。
+  - 文档：同步修正 backlog-files.md 行数/状态；将 backend.launcher 标注为“已完成”。
+  - 规范：全程 UTF-8；禁止兜底；任何失败必须 toast/错误返回，测试断言按错误码/类型而非文案。
+
 ### 16) 2025-11-01 — 跨特性 import 整治与门禁（已完成）
 - 目标：禁止 features/* 跨特性内部 import；强制通过 public.js/index.js 或 DI 容器。
 - 结果：新增 ESLint 规则 `custom/no-cross-feature-internals`（已升级为 error）；GitHub Actions `lint.yml` 启用 CI 门禁（features 范围）；侧边栏装配容器化（anchor/outline）。
@@ -66,6 +76,17 @@
   - P0：为 `search-result-item` 增加 `public.js`（或容器注册渲染器工厂），`search-results` 改为从公共入口获取渲染器。
   - P1：评估 `pdf-edit` vs `pdf-editor` 的并行必要性；若仅保留其一，调整 feature-flags 并补最小冒烟。
 - 产出：`AItemp/reports/pdf-home-feature-purity-20251101235152.md`（详述扫描方法、样例与修复计划）。
+
+### 19) 2025-11-01 — Feature 重命名 Step 1 进展（别名 + 作用域解耦）
+- 目标：为后续“特性重命名”做零行为变更的底座改造：别名映射（兼容旧名）+ 作用域解耦（SCOPE_ID）。
+- 本次变更：
+  - 单测新增：
+    - `feature-registry.aliases.test.js`（register/has/installAll 在旧名/新名混用场景可用；拓扑排序按别名解析）。
+    - `feature-scoped-bus.scopeid.test.js`（ScopedEventBus 作用域来自 `Feature.SCOPE_ID`，与 `Feature.name` 解耦）。
+  - 缺陷修复：`FeatureRegistry.#checkDependencies()` 对依赖项统一走 `#resolveName()`，避免旧名依赖被误判为缺失。
+  - 注解插件：`AnnotationFeature` 引入 `static SCOPE_ID = "annotation"`，并在未提供 `scopedEventBus` 时以 SCOPE_ID 创建兜底作用域。
+- 影响面：零行为变更；事件前缀仍为 `@annotation/*`；现有调用与测试通过。
+- 验收：局部 Jest 用例通过；annotation 相关 5/5 通过。下一步仅在更多使用 ScopedEventBus 的特性中声明 `SCOPE_ID`（若有）。
 
 ### 14) 2025-11-01 — 测试演进策略（何时改测试）
 - 诉求：当源代码调整（函数签名/事件/日志策略变更）时，如何判断“应改测试”还是“应修代码”。

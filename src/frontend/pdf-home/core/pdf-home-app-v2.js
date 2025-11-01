@@ -12,6 +12,7 @@
 
 import { DependencyContainer } from "../../common/micro-service/dependency-container.js";
 import { FeatureRegistry } from "../../common/micro-service/feature-registry.js";
+import { FEATURE_ALIASES } from "../../common/micro-service/feature-aliases.js";
 import { StateManager } from "../../common/micro-service/state-manager.js";
 import { FeatureFlagManager } from "../../common/micro-service/feature-flag-manager.js";
 import { getLogger } from "../../common/utils/logger.js";
@@ -155,7 +156,9 @@ export class PDFHomeAppV2 {
     // 创建功能注册中心
     this.#registry = new FeatureRegistry({
       container: this.#container,
-      globalEventBus: eventBus
+      globalEventBus: eventBus,
+      // Step 1：注入（当前为空映射，零行为变更）；Step 2 再填充别名
+      aliases: FEATURE_ALIASES
     });
 
     // 使用全局事件总线（保持向后兼容）

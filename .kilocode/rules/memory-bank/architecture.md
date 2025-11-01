@@ -31,6 +31,12 @@
 - 目录用 kebab-case（如 `pdf-home` / `pdf-viewer`），禁止 `pdf_home`。
 - 所有文件读写必须显式 UTF-8，且确保换行 `\n` 正确。
 
+## Feature 注册与事件作用域（2025-11-01）
+- 注册中心：`FeatureRegistry` 负责特性注册/拓扑排序安装/上下文创建（容器/Logger/ScopedEventBus）。
+- 别名机制：支持 `aliases: oldName -> canonical`，在 `register/has/get/install/resolve-order/check-deps` 全链路统一解析，保障“旧名/新名混用”平滑过渡。
+- 作用域解耦：`ScopedEventBus` 的 scope 优先取 `Feature.SCOPE_ID`；即便 `Feature.name` 后续重命名，事件前缀仍保持稳定（例如 `@annotation/*`）。
+- 兜底策略：若某特性内部自行创建 scoped bus，必须使用 `this.constructor?.SCOPE_ID || this.SCOPE_ID || this.name`，避免在不走注册中心时出现前缀漂移。
+
 ## 无兜底原则（Fail-Fast，禁止默认回退）
 为避免隐性错误与不可预期行为，本项目在全栈范围内坚持“无兜底原则”：任何缺失、异常或不一致都不得静默回退或采用默认值，必须立即失败并给出可操作的纠正信息。
 
