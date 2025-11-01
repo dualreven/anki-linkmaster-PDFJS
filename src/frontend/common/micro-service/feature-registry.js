@@ -176,6 +176,9 @@ export class FeatureRegistry {
   /** @type {Map<string, FeatureRecord>} */
   #features = new Map();
 
+  /** @type {Map<string, string>} 别名映射：old -> canonical */
+  #aliases = new Map();
+
   /** @type {import('./dependency-container.js').DependencyContainer} */
   #container = null;
 
@@ -192,7 +195,7 @@ export class FeatureRegistry {
    * @param {import('../../common/utils/logger.js').Logger} [options.logger] - 日志记录器（可选）
    * @param {import('../../common/event/event-bus.js').EventBus} [options.globalEventBus] - 全局事件总线（可选）
    */
-  constructor({ container, logger, globalEventBus } = {}) {
+  constructor({ container, logger, globalEventBus, aliases } = {}) {
     if (!container) {
       throw new Error("FeatureRegistry requires a DependencyContainer instance");
     }
@@ -201,7 +204,38 @@ export class FeatureRegistry {
     this.#logger = logger || getLogger("FeatureRegistry");
     this.#globalEventBus = globalEventBus || null;
 
+    // 初始化别名映射（可选）
+    if (aliases && typeof aliases === "object") {
+      for (const [k, v] of Object.entries(aliases)) {
+        if (typeof k === "string" && typeof v === "string" && k && v) {
+          this.#aliases.set(k, v);
+        }
+      }
+    }
+
     this.#logger.debug("FeatureRegistry created");
+  }
+
+  /**
+   * 设置/追加别名映射（运行期可调用）
+   * @param {Record<string,string>} aliases
+   */
+  setAliases(aliases = {}) {
+    for (const [k, v] of Object.entries(aliases)) {
+      if (typeof k === "string" && typeof v === "string" && k && v) {
+        this.#aliases.set(k, v);
+      }
+    }
+  }
+
+  /**
+   * 将输入名称映射为规范名（若存在别名）；否则原样返回
+   * @param {string} name
+   * @returns {string}
+   */
+  #resolveName(name) {
+    if (!name) { return name; }
+    return this.#aliases.get(name) || name;
   }
 
   /**
@@ -216,18 +250,18 @@ export class FeatureRegistry {
     // 验证功能接口
     this.#validateFeature(feature);
 
-    const { name } = feature;
+    const canonical = this.#resolveName(feature.name);
 
     // 检查是否已注册
-    if (this.#features.has(name)) {
-      throw new Error(`Feature "${name}" is already registered`);
+    if (this.#features.has(canonical)) {
+      throw new Error(`Feature "${canonical}" is already registered`);
     }
 
     // 创建功能记录
     const record = new FeatureRecord(feature);
-    this.#features.set(name, record);
+    this.#features.set(canonical, record);
 
-    this.#logger.info(`Feature registered: ${name} (v${feature.version})`);
+    this.#logger.info(`Feature registered: ${canonical} (v${feature.version})`);
   }
 
   /**
@@ -236,7 +270,7 @@ export class FeatureRegistry {
    * @returns {boolean}
    */
   has(name) {
-    return this.#features.has(name);
+    return this.#features.has(this.#resolveName(name));
   }
 
   /**
@@ -245,7 +279,7 @@ export class FeatureRegistry {
    * @returns {FeatureRecord|null}
    */
   get(name) {
-    return this.#features.get(name) || null;
+    return this.#features.get(this.#resolveName(name)) || null;
   }
 
   /**
@@ -276,15 +310,16 @@ export class FeatureRegistry {
    * await registry.install('pdf-list');
    */
   async install(name) {
-    const record = this.#features.get(name);
+    const canonical = this.#resolveName(name);
+    const record = this.#features.get(canonical);
 
     if (!record) {
-      throw new Error(`Feature "${name}" is not registered`);
+      throw new Error(`Feature "${canonical}" is not registered`);
     }
 
     // 如果已安装，跳过
     if (record.status === FeatureStatus.INSTALLED) {
-      this.#logger.debug(`Feature "${name}" is already installed, skipping`);
+      this.#logger.debug(`Feature "${canonical}" is already installed, skipping`);
       return;
     }
 
@@ -294,7 +329,7 @@ export class FeatureRegistry {
 
     if (missingDeps.length > 0) {
       throw new Error(
-        `Feature "${name}" has missing dependencies: ${missingDeps.join(", ")}`
+        `Feature "${canonical}" has missing dependencies: ${missingDeps.join(", ")}`
       );
     }
 
@@ -303,22 +338,22 @@ export class FeatureRegistry {
 
     try {
       // 创建功能上下文
-      const context = await this.#createFeatureContext(name);
+      const context = await this.#createFeatureContext(canonical);
       record.setContext(context);
 
       // 调用安装方法
-      this.#logger.info(`Installing feature: ${name}...`);
+      this.#logger.info(`Installing feature: ${canonical}...`);
       await feature.install(context);
 
       // 标记为已安装
       record.markInstalled();
-      this.#logger.info(`Feature installed successfully: ${name}`);
+      this.#logger.info(`Feature installed successfully: ${canonical}`);
 
     } catch (error) {
       // 安装失败
       record.setStatus(FeatureStatus.FAILED);
       record.setError(error);
-      this.#logger.error(`Feature installation failed: ${name}`, error);
+      this.#logger.error(`Feature installation failed: ${canonical}`, error);
       throw error;
     }
   }
@@ -571,20 +606,22 @@ export class FeatureRegistry {
      * @param {string} name - 功能名称
      */
     const dfs = (name) => {
-      if (visited.has(name)) {return;}
+      const canonical = this.#resolveName(name);
+      if (visited.has(canonical)) {return;}
 
-      if (visiting.has(name)) {
-        throw new Error(`Circular dependency detected: ${name}`);
+      if (visiting.has(canonical)) {
+        throw new Error(`Circular dependency detected: ${canonical}`);
       }
 
-      visiting.add(name);
+      visiting.add(canonical);
 
-      const record = this.#features.get(name);
+      const record = this.#features.get(canonical);
       if (record) {
         const { feature } = record;
 
         // 先处理依赖
-        for (const dep of feature.dependencies) {
+        for (const depRaw of feature.dependencies) {
+          const dep = this.#resolveName(depRaw);
           if (this.#features.has(dep)) {
             dfs(dep);
           }
@@ -592,14 +629,14 @@ export class FeatureRegistry {
         }
       }
 
-      visiting.delete(name);
-      visited.add(name);
-      order.push(name);
+      visiting.delete(canonical);
+      visited.add(canonical);
+      order.push(canonical);
     };
 
     // 对所有功能执行 DFS
-    for (const name of this.#features.keys()) {
-      dfs(name);
+    for (const fname of this.#features.keys()) {
+      dfs(fname);
     }
 
     return order;
@@ -621,8 +658,12 @@ export class FeatureRegistry {
     // 创建功能域专用的 ScopedEventBus
     let scopedEventBus = null;
     if (this.#globalEventBus) {
-      // 改为静态导入，避免生产构建下动态导入路径解析问题
-      scopedEventBus = new ScopedEventBus(this.#globalEventBus, featureName);
+      // 作用域与功能名解耦：优先取功能的 SCOPE_ID（静态），否则回退功能名
+      const record = this.#features.get(featureName);
+      const scopeId =
+        (record && record.feature && (record.feature.constructor?.SCOPE_ID || record.feature.SCOPE_ID)) ||
+        featureName;
+      scopedEventBus = new ScopedEventBus(this.#globalEventBus, scopeId);
     }
 
     return {

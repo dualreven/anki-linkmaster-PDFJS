@@ -55,6 +55,18 @@
     - `babel.config.js` 增加 `babel-plugin-transform-import-meta`（CommonJS 目标）。
 - 运行结果：`pnpm exec jest src/frontend/pdf-viewer/features/annotation/__tests__ -i` → 5/5 通过。
 
+### 17) 2025-11-01 — pdf-home 模块 feature 纯净性审计（本次）
+- 诉求：检查 pdf-home 模块的代码结构与“特性域边界”是否纯净（禁止跨特性内部 import；只经由 index.js/public.js 或 DI 容器交互）。
+- 发现：
+  - search-results 存在跨域内部依赖：`features/search-results/components/results-renderer.js` 直接导入 `features/search-result-item/components/result-item-renderer.js`。
+  - ESLint 门禁 `custom/no-cross-feature-internals` 仅匹配 pdf-viewer 路径，未覆盖 pdf-home，导致上述问题未被规则拦截。
+  - 两个近名域并行启用：`pdf-edit` 与 `pdf-editor`，功能重叠需明确分工或择一启用。
+- 建议：
+  - P0：将规则匹配路径扩展为 `/src/frontend/(pdf-viewer|pdf-home)/features/`；新增负向用例确保命中。
+  - P0：为 `search-result-item` 增加 `public.js`（或容器注册渲染器工厂），`search-results` 改为从公共入口获取渲染器。
+  - P1：评估 `pdf-edit` vs `pdf-editor` 的并行必要性；若仅保留其一，调整 feature-flags 并补最小冒烟。
+- 产出：`AItemp/reports/pdf-home-feature-purity-20251101235152.md`（详述扫描方法、样例与修复计划）。
+
 ### 14) 2025-11-01 — 测试演进策略（何时改测试）
 - 诉求：当源代码调整（函数签名/事件/日志策略变更）时，如何判断“应改测试”还是“应修代码”。
 - 结论（契约优先）：
