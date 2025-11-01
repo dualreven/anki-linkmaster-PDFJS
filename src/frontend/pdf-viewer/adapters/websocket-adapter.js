@@ -103,6 +103,18 @@ export class WebSocketAdapter {
                 const anchors = message?.data?.anchors || (message?.data?.anchor ? [message.data.anchor] : []);
                 this.#logger.info("[anchor] inbound completed -> emit ANCHOR.DATA.LOADED", { type, count: Array.isArray(anchors) ? anchors.length : 0 });
                 this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED, { anchors }, { actorId: "WebSocketAdapter" });
+              } else if (type === "anchor:create:completed") {
+                const id = message?.data?.uuid || message?.data?.anchor_id || null;
+                this.#logger.info("[anchor] create completed", { id });
+                try { this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATED, { anchorId: id }, { actorId: "WebSocketAdapter" }); } catch(_) {}
+                // 创建成功后刷新列表
+                try {
+                  const params = new URLSearchParams(window.location.search);
+                  const pdfId = params.get("pdf-id");
+                  if (pdfId) {
+                    this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
+                  }
+                } catch(e){ this.#logger.warn("noop", e); }
               } else if (type === "anchor:activate:completed") {
                 // 先就地更新当前项，再刷新列表以对齐“单选语义”的后端状态
                 try {
@@ -136,6 +148,10 @@ export class WebSocketAdapter {
                 const err = message?.error || message?.data?.error || message?.data || { message: "unknown error" };
                 this.#logger.warn("[anchor] inbound failed -> emit ANCHOR.DATA.LOAD_FAILED", { type, err: (err?.message || err) });
                 this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD_FAILED, { error: err, type }, { actorId: "WebSocketAdapter" });
+              } else if (type === "anchor:create:failed") {
+                const err = message?.error || message?.data?.error || message?.data || { message: "unknown error" };
+                this.#logger.warn("[anchor] create failed", { err: (err?.message || err) });
+                try { this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATE_FAILED, { error: err }, { actorId: "WebSocketAdapter" }); } catch(_) {}
               }
             }
           }
@@ -289,10 +305,26 @@ export class WebSocketAdapter {
         let anchor = data?.anchor;
         if (!anchor) {return;}
         try {
+          // 仅转发“来自特性层补齐”的事件，避免 UI 直发（缺失 uuid）造成重复创建
+          const fromFeature = data && data.__fromFeature === true;
+          const hasValidId = typeof anchor.uuid === "string" && /^pdfanchor-[a-f0-9]{12}$/i.test(anchor.uuid);
+          if (!fromFeature && !hasValidId) {
+            // 丢弃不合规的创建事件，等待 PDFAnchorFeature 重新发布带 uuid 的事件
+            return;
+          }
+          if (!pdfId) {
+            this.#logger.warn("[anchor] create aborted: missing pdf_uuid", { source: fromFeature ? "feature" : "ui" });
+            // 显式发失败事件，便于 UI/日志观察
+            try {
+              this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATE_FAILED, { error: { message: "缺少 pdf_uuid" } }, { actorId: "WebSocketAdapter" });
+            } catch(_) {}
+            return;
+          }
           // 规范化位置：确保 position 为 0..1 区间
           if (typeof anchor.position === "number") {
             anchor = { ...anchor, position: (anchor.position > 1 ? (anchor.position / 100) : anchor.position) };
           }
+          this.#logger.info("[anchor] create → WS request", { pdf_uuid: pdfId, id: anchor.uuid, name: anchor.name, page_at: anchor.page_at });
           this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_CREATE, { pdf_uuid: pdfId, anchor }, { metadata: { version: "1.0.0" } });
         } catch(e){ this.#logger.warn("noop", e); }
       },

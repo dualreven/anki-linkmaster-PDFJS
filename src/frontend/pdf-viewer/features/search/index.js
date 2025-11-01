@@ -4,14 +4,14 @@
  * @description PDF全文搜索功能的Feature入口，实现IFeature接口
  */
 
-import { getLogger } from '../../../common/utils/logger.js';
-import { PDF_VIEWER_EVENTS } from '../../../common/event/pdf-viewer-constants.js';
-import { SearchEngine } from './services/search-engine.js';
-import { SearchStateManager } from './services/search-state-manager.js';
-import { SearchBox } from './components/search-box.js';
+import { getLogger } from "../../../common/utils/logger.js";
+import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
+import { SearchEngine } from "./services/search-engine.js";
+import { SearchStateManager } from "./services/search-state-manager.js";
+import { SearchBox } from "./components/search-box.js";
 
 // 导入样式
-import './styles/search.css';
+import "./styles/search.css";
 
 /**
  * 搜索功能Feature类
@@ -21,7 +21,7 @@ import './styles/search.css';
  */
 export class SearchFeature {
   /** @type {import('../../../common/utils/logger.js').Logger} */
-  #logger = getLogger('SearchFeature');
+  #logger = getLogger("SearchFeature");
 
   /** @type {import('../../types/events').EventBus} */
   #eventBus = null;
@@ -46,7 +46,7 @@ export class SearchFeature {
    * @returns {string}
    */
   get name() {
-    return 'search';
+    return "search";
   }
 
   /**
@@ -54,7 +54,7 @@ export class SearchFeature {
    * @returns {string}
    */
   get version() {
-    return '1.0.0';
+    return "1.0.0";
   }
 
   /**
@@ -62,7 +62,7 @@ export class SearchFeature {
    * @returns {string[]}
    */
   get dependencies() {
-    return ['app-core', 'ui-manager'];
+    return ["app-core", "ui-manager"];
   }
 
   /**
@@ -70,7 +70,7 @@ export class SearchFeature {
    * @returns {string}
    */
   get description() {
-    return 'PDF全文搜索功能，支持关键词搜索、结果高亮、导航和快捷键';
+    return "PDF全文搜索功能，支持关键词搜索、结果高亮、导航和快捷键";
   }
 
   /**
@@ -83,11 +83,11 @@ export class SearchFeature {
    */
   async install(context) {
     if (this.#installed) {
-      this.#logger.warn('SearchFeature already installed');
+      this.#logger.warn("SearchFeature already installed");
       return;
     }
 
-    this.#logger.info('Installing SearchFeature...');
+    this.#logger.info("Installing SearchFeature...");
 
     // 从 context 中解构依赖
     const { container, globalEventBus, logger } = context;
@@ -100,35 +100,35 @@ export class SearchFeature {
       // 1. 从 context 获取全局 EventBus
       this.#eventBus = globalEventBus;
       if (!this.#eventBus) {
-        throw new Error('GlobalEventBus not found in context');
+        throw new Error("GlobalEventBus not found in context");
       }
 
       // 获取PDFViewerManager（来自ui-manager feature）
-      const pdfViewerManager = container.resolve('pdfViewerManager');
+      const pdfViewerManager = container.resolve("pdfViewerManager");
       if (!pdfViewerManager) {
-        throw new Error('PDFViewerManager not found in container. Ensure ui-manager is installed first.');
+        throw new Error("PDFViewerManager not found in container. Ensure ui-manager is installed first.");
       }
 
       // 2. 创建状态管理器
       this.#stateManager = new SearchStateManager();
-      this.#logger.info('SearchStateManager created');
+      this.#logger.info("SearchStateManager created");
 
       // 3. 创建搜索引擎
       this.#searchEngine = new SearchEngine(this.#eventBus);
-      this.#logger.info('SearchEngine created');
+      this.#logger.info("SearchEngine created");
 
       // 4. 创建搜索框UI
       this.#searchBox = new SearchBox(this.#eventBus);
       await this.#searchBox.initialize();
-      this.#logger.info('SearchBox initialized');
+      this.#logger.info("SearchBox initialized");
 
       // 5. 设置事件监听器
       this.#setupEventListeners();
 
       // 6. 注册到容器（供其他Feature使用）
-      container.register('searchEngine', this.#searchEngine);
-      container.register('searchStateManager', this.#stateManager);
-      container.register('searchBox', this.#searchBox);
+      container.register("searchEngine", this.#searchEngine);
+      container.register("searchStateManager", this.#stateManager);
+      container.register("searchBox", this.#searchBox);
 
       // 7. 监听PDF加载完成，初始化搜索引擎
       this.#eventBus.on(
@@ -136,17 +136,17 @@ export class SearchFeature {
         async ({ pdfDocument }) => {
           await this.#initializeSearchEngine(pdfViewerManager);
         },
-        { subscriberId: 'SearchFeature' }
+        { subscriberId: "SearchFeature" }
       );
 
       // 8. 设置全局快捷键（Ctrl+F）
       this.#setupGlobalShortcuts();
 
       this.#installed = true;
-      this.#logger.info('SearchFeature installed successfully');
+      this.#logger.info("SearchFeature installed successfully");
 
     } catch (error) {
-      this.#logger.error('Failed to install SearchFeature:', error);
+      this.#logger.error("Failed to install SearchFeature:", error);
       throw error;
     }
   }
@@ -164,15 +164,15 @@ export class SearchFeature {
       const pdfLinkService = pdfViewerManager.linkService;
 
       if (!pdfViewer || !pdfEventBus || !pdfLinkService) {
-        throw new Error('PDF.js components not available from PDFViewerManager');
+        throw new Error("PDF.js components not available from PDFViewerManager");
       }
 
       // 初始化搜索引擎
       await this.#searchEngine.initialize(pdfViewer, pdfEventBus, pdfLinkService);
 
-      this.#logger.info('SearchEngine initialized with PDF document');
+      this.#logger.info("SearchEngine initialized with PDF document");
     } catch (error) {
-      this.#logger.error('Failed to initialize SearchEngine:', error);
+      this.#logger.error("Failed to initialize SearchEngine:", error);
     }
   }
 
@@ -187,7 +187,7 @@ export class SearchFeature {
       ({ query, options }) => {
         this.#handleSearchQuery(query, options);
       },
-      { subscriberId: 'SearchFeature' }
+      { subscriberId: "SearchFeature" }
     );
 
     // 监听搜索清空请求
@@ -196,7 +196,7 @@ export class SearchFeature {
       () => {
         this.#handleSearchClear();
       },
-      { subscriberId: 'SearchFeature' }
+      { subscriberId: "SearchFeature" }
     );
 
     // 监听导航到下一个结果
@@ -205,7 +205,7 @@ export class SearchFeature {
       () => {
         this.#handleNavigateNext();
       },
-      { subscriberId: 'SearchFeature' }
+      { subscriberId: "SearchFeature" }
     );
 
     // 监听导航到上一个结果
@@ -214,7 +214,7 @@ export class SearchFeature {
       () => {
         this.#handleNavigatePrev();
       },
-      { subscriberId: 'SearchFeature' }
+      { subscriberId: "SearchFeature" }
     );
 
     // 监听选项改变
@@ -223,7 +223,7 @@ export class SearchFeature {
       ({ option, value }) => {
         this.#handleOptionChange(option, value);
       },
-      { subscriberId: 'SearchFeature' }
+      { subscriberId: "SearchFeature" }
     );
 
     // 监听搜索结果更新（从SearchEngine）
@@ -232,10 +232,10 @@ export class SearchFeature {
       ({ current, total, query }) => {
         this.#handleSearchResultUpdated(current, total, query);
       },
-      { subscriberId: 'SearchFeature' }
+      { subscriberId: "SearchFeature" }
     );
 
-    this.#logger.info('Event listeners attached');
+    this.#logger.info("Event listeners attached");
   }
 
   /**
@@ -243,20 +243,20 @@ export class SearchFeature {
    * @private
    */
   #setupGlobalShortcuts() {
-    document.addEventListener('keydown', (e) => {
+    document.addEventListener("keydown", (e) => {
       // Ctrl+F (Cmd+F on Mac) - 打开搜索框
-      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
         e.preventDefault();
 
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.SEARCH.UI.OPEN,
           {},
-          { actorId: 'SearchFeature:GlobalShortcut' }
+          { actorId: "SearchFeature:GlobalShortcut" }
         );
       }
     });
 
-    this.#logger.info('Global shortcuts registered (Ctrl+F)');
+    this.#logger.info("Global shortcuts registered (Ctrl+F)");
   }
 
   /**
@@ -278,7 +278,7 @@ export class SearchFeature {
       await this.#searchEngine.executeSearch(query, options);
 
     } catch (error) {
-      this.#logger.error('Search query failed:', error);
+      this.#logger.error("Search query failed:", error);
       this.#stateManager.setSearching(false);
     }
   }
@@ -288,7 +288,7 @@ export class SearchFeature {
    * @private
    */
   #handleSearchClear() {
-    this.#logger.info('Handling search clear');
+    this.#logger.info("Handling search clear");
 
     this.#searchEngine.clearSearch();
     this.#stateManager.reset();
@@ -299,10 +299,10 @@ export class SearchFeature {
    * @private
    */
   async #handleNavigateNext() {
-    this.#logger.info('Handling navigate to next match');
+    this.#logger.info("Handling navigate to next match");
 
     if (!this.#stateManager.hasResults) {
-      this.#logger.warn('No search results to navigate');
+      this.#logger.warn("No search results to navigate");
       return;
     }
 
@@ -310,7 +310,7 @@ export class SearchFeature {
       await this.#searchEngine.highlightNextMatch();
       this.#stateManager.nextMatch();
     } catch (error) {
-      this.#logger.error('Navigate next failed:', error);
+      this.#logger.error("Navigate next failed:", error);
     }
   }
 
@@ -319,10 +319,10 @@ export class SearchFeature {
    * @private
    */
   async #handleNavigatePrev() {
-    this.#logger.info('Handling navigate to previous match');
+    this.#logger.info("Handling navigate to previous match");
 
     if (!this.#stateManager.hasResults) {
-      this.#logger.warn('No search results to navigate');
+      this.#logger.warn("No search results to navigate");
       return;
     }
 
@@ -330,7 +330,7 @@ export class SearchFeature {
       await this.#searchEngine.highlightPreviousMatch();
       this.#stateManager.previousMatch();
     } catch (error) {
-      this.#logger.error('Navigate previous failed:', error);
+      this.#logger.error("Navigate previous failed:", error);
     }
   }
 
@@ -388,11 +388,11 @@ export class SearchFeature {
    */
   async uninstall(context) {
     if (!this.#installed) {
-      this.#logger.warn('SearchFeature not installed');
+      this.#logger.warn("SearchFeature not installed");
       return;
     }
 
-    this.#logger.info('Uninstalling SearchFeature...');
+    this.#logger.info("Uninstalling SearchFeature...");
 
     try {
       // 销毁各个组件
@@ -416,10 +416,10 @@ export class SearchFeature {
       this.#pdfViewer = null;
       this.#installed = false;
 
-      this.#logger.info('SearchFeature uninstalled successfully');
+      this.#logger.info("SearchFeature uninstalled successfully");
 
     } catch (error) {
-      this.#logger.error('Failed to uninstall SearchFeature:', error);
+      this.#logger.error("Failed to uninstall SearchFeature:", error);
       throw error;
     }
   }

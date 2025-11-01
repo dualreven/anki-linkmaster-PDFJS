@@ -4,7 +4,7 @@
  * @description 所有功能模块的事件处理器都应继承此类，提供统一的事件监听和清理机制
  */
 
-import { getLogger } from '../../common/utils/logger.js';
+import { getLogger } from "../../common/utils/logger.js";
 
 /**
  * 事件处理器基类
@@ -59,11 +59,11 @@ export class BaseEventHandler {
   constructor(context, eventBus, name) {
     // 防止直接实例化抽象类
     if (new.target === BaseEventHandler) {
-      throw new Error('BaseEventHandler is abstract and cannot be instantiated directly');
+      throw new Error("BaseEventHandler is abstract and cannot be instantiated directly");
     }
 
     if (!eventBus) {
-      throw new Error('EventBus is required');
+      throw new Error("EventBus is required");
     }
 
     this.context = context;
@@ -106,8 +106,8 @@ export class BaseEventHandler {
    * this._on(PDF_EVENTS.FILE.LOADED, this.handleFileLoaded, { once: true });
    */
   _on(event, callback, options = {}) {
-    if (typeof callback !== 'function') {
-      throw new TypeError('Callback must be a function');
+    if (typeof callback !== "function") {
+      throw new TypeError("Callback must be a function");
     }
 
     // 包装回调函数以捕获异常

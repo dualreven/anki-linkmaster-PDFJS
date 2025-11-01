@@ -22,6 +22,11 @@
   - 目录：`dist/latest/data`、`dist/latest/logs`；`static_dir=dist/latest/static`
   - ai_launcher：优先使用 `ai_launcher_dist`（若存在）
 
+### 导航路径互斥（2025-11-01）
+- 启动/创建新窗口 → 仅通过 URL 参数（`pdf-id/anchor-id/annotation-id/outline-item-id/page-at/position`）由前端解析并完成导航；
+- 已存在且窗口存活 → 抑制 URL 导航参数，仅通过 WS 指令 `navigate_viewer` 进行定向导航；
+- 二者互斥，禁止并发触发以避免“导航正在进行中/Forward navigate → error”类时序问题。
+
 ## 命名与 IO 规范
 - 目录用 kebab-case（如 `pdf-home` / `pdf-viewer`），禁止 `pdf_home`。
 - 所有文件读写必须显式 UTF-8，且确保换行 `\n` 正确。

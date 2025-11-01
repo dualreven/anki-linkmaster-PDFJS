@@ -38,7 +38,7 @@ const rule = {
               data: { module: arg.value },
             });
           }
-        } catch (_) { /* noop */ }
+        } catch (e) { void e; }
       },
     };
   },

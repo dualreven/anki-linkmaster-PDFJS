@@ -4,8 +4,8 @@
  * @description 负责执行PDF页面导航和位置滚动操作
  */
 
-import { getLogger } from '../../../../common/utils/logger.js';
-import { PDF_VIEWER_EVENTS } from '../../../../common/event/pdf-viewer-constants.js';
+import { getLogger } from "../../../../common/utils/logger.js";
+import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 
 /**
  * 导航服务类
@@ -13,7 +13,7 @@ import { PDF_VIEWER_EVENTS } from '../../../../common/event/pdf-viewer-constants
  */
 export class NavigationService {
   /** @type {import('../../../../common/utils/logger.js').Logger} */
-  #logger = getLogger('NavigationService');
+  #logger = getLogger("NavigationService");
 
   /** @type {EventBus} */
   #eventBus;
@@ -56,7 +56,7 @@ export class NavigationService {
         this.#totalPages = totalPages;
         this.#logger.debug(`总页数更新: ${totalPages}`);
       },
-      { subscriberId: 'NavigationService' }
+      { subscriberId: "NavigationService" }
     );
   }
 
@@ -78,10 +78,10 @@ export class NavigationService {
    */
   async navigateTo(params) {
     if (this.#isNavigating) {
-      this.#logger.warn('已有导航正在进行中，忽略新的导航请求');
+      this.#logger.warn("已有导航正在进行中，忽略新的导航请求");
       return {
         success: false,
-        error: '导航正在进行中',
+        error: "导航正在进行中",
       };
     }
 
@@ -108,7 +108,7 @@ export class NavigationService {
       this.#eventBus.emit(
         PDF_VIEWER_EVENTS.NAVIGATION.GOTO,
         { pageNumber: actualPage },
-        { actorId: 'NavigationService' }
+        { actorId: "NavigationService" }
       );
 
       // 3. 等待页面跳转完成（使用固定延迟而非事件监听，更可靠）
@@ -132,7 +132,7 @@ export class NavigationService {
       };
     } catch (error) {
       const duration = Math.round(performance.now() - startTime);
-      this.#logger.error('导航失败:', error);
+      this.#logger.error("导航失败:", error);
 
       return {
         success: false,
@@ -161,9 +161,9 @@ export class NavigationService {
         const clampedPercentage = Math.max(0, Math.min(100, percentage));
 
         // 获取viewer容器
-        const viewerContainer = document.getElementById('viewerContainer');
+        const viewerContainer = document.getElementById("viewerContainer");
         if (!viewerContainer) {
-          this.#logger.warn('未找到viewerContainer元素，跳过位置滚动');
+          this.#logger.warn("未找到viewerContainer元素，跳过位置滚动");
           resolve(0);
           return;
         }
@@ -207,7 +207,7 @@ export class NavigationService {
           `  - 视口高度: ${viewportHeight}px\n` +
           `  - 理想滚动位置: ${targetScrollTop.toFixed(0)}px (目标位置 - 视口高度/2)\n` +
           `  - 实际滚动位置: ${boundedScrollTop.toFixed(0)}px\n` +
-          `  - 居中状态: ${isCentered ? '✓ 完全居中' : `偏移 ${centerOffset.toFixed(0)}px (${centerOffset > 0 ? '偏下' : '偏上'})`}\n` +
+          `  - 居中状态: ${isCentered ? "✓ 完全居中" : `偏移 ${centerOffset.toFixed(0)}px (${centerOffset > 0 ? "偏下" : "偏上"})`}\n` +
           `  - 边界限制: [0, ${maxScrollTop.toFixed(0)}px]`
         );
 
@@ -217,11 +217,11 @@ export class NavigationService {
             resolve(clampedPercentage);
           })
           .catch((error) => {
-            this.#logger.error('滚动失败:', error);
+            this.#logger.error("滚动失败:", error);
             resolve(0);
           });
       } catch (error) {
-        this.#logger.error('scrollToPosition错误:', error);
+        this.#logger.error("scrollToPosition错误:", error);
         resolve(0);
       }
     });
@@ -277,9 +277,9 @@ export class NavigationService {
         const elapsed = performance.now() - startTime;
 
         // 检查页面元素是否存在且已加载
-        const viewerContainer = document.getElementById('viewerContainer');
+        const viewerContainer = document.getElementById("viewerContainer");
         if (!viewerContainer) {
-          this.#logger.warn('未找到viewerContainer，使用固定延迟');
+          this.#logger.warn("未找到viewerContainer，使用固定延迟");
           setTimeout(resolve, 200);
           return;
         }
@@ -325,7 +325,7 @@ export class NavigationService {
    * 清理资源
    */
   destroy() {
-    this.#logger.info('NavigationService销毁');
+    this.#logger.info("NavigationService销毁");
     this.#totalPages = null;
     this.#isNavigating = false;
   }

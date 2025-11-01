@@ -244,13 +244,13 @@ export class WebSocketHandler {
           const processedSummary = respData?.summary || respData?.result || {};
           const processedCount = processedSummary?.processed || processedSummary?.deleted || processedSummary?.removed || processedSummary?.added || null;
 
-          if (batchIndex != null) {
+          if (batchIndex !== null && batchIndex !== undefined) {
             // 单文件回显，减少1
             entry.pending = Math.max(0, entry.pending - 1);
           } else if (filesArray && filesArray.length === batchTotal) {
             // 后端一次性返回了全部文件 -> 批次全部完成
             entry.pending = 0;
-          } else if (typeof processedCount === 'number') {
+          } else if (typeof processedCount === "number") {
             // 如果 summary 中包含处理计数，按计数减少（保护性约束）
             const toReduce = Math.min(entry.pending, processedCount);
             entry.pending = Math.max(0, entry.pending - toReduce);
@@ -273,7 +273,7 @@ export class WebSocketHandler {
               this.#manager.lastListRequestTs = now;
               this.#manager.loadPDFList();
             } else {
-              this.#manager.logger.info('Skipping immediate list reload due to cooldown to avoid refresh loop');
+              this.#manager.logger.info("Skipping immediate list reload due to cooldown to avoid refresh loop");
             }
             this.#manager.eventBus.emit(
               PDF_MANAGEMENT_EVENTS.BATCH.COMPLETED,
@@ -282,7 +282,7 @@ export class WebSocketHandler {
             );
           }
         } catch (e) {
-          this.#manager.logger.warn('Error updating batch tracking for ' + batchId, e);
+          this.#manager.logger.warn("Error updating batch tracking for " + batchId, e);
         }
       } else {
         // 移除聚合批处理响应的误判逻辑

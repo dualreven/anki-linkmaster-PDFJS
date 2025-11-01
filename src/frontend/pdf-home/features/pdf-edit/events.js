@@ -10,23 +10,23 @@
  */
 export const PDF_EDIT_EVENTS = {
   // 编辑操作事件
-  EDIT_REQUESTED: 'edit:requested',
-  EDIT_STARTED: 'edit:started',
-  EDIT_COMPLETED: 'edit:completed',
-  EDIT_FAILED: 'edit:failed',
-  EDIT_CANCELLED: 'edit:cancelled',
+  EDIT_REQUESTED: "edit:requested",
+  EDIT_STARTED: "edit:started",
+  EDIT_COMPLETED: "edit:completed",
+  EDIT_FAILED: "edit:failed",
+  EDIT_CANCELLED: "edit:cancelled",
 
   // 模态框事件
-  MODAL_OPENED: 'modal:opened',
-  MODAL_CLOSED: 'modal:closed',
+  MODAL_OPENED: "modal:opened",
+  MODAL_CLOSED: "modal:closed",
 
   // 表单事件
-  FORM_CHANGED: 'form:changed',
-  FORM_VALIDATED: 'form:validated',
-  FORM_SUBMITTED: 'form:submitted',
+  FORM_CHANGED: "form:changed",
+  FORM_VALIDATED: "form:validated",
+  FORM_SUBMITTED: "form:submitted",
 
   // 错误事件
-  ERROR_OCCURRED: 'error:occurred',
+  ERROR_OCCURRED: "error:occurred",
 };
 
 /**

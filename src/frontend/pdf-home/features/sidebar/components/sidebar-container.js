@@ -65,11 +65,11 @@ export class SidebarContainer {
 
     // 根据当前状态应用主内容布局（延迟执行，确保DOM已渲染）
     setTimeout(() => {
-      const isCollapsed = this.#container.classList.contains('collapsed');
+      const isCollapsed = this.#container.classList.contains("collapsed");
       this.#updateMainContentLayout(isCollapsed);
     }, 0);
 
-    this.#logger.info('[SidebarContainer] Rendered');
+    this.#logger.info("[SidebarContainer] Rendered");
   }
 
   /**
@@ -78,44 +78,44 @@ export class SidebarContainer {
    */
   #createToggleButton() {
     // 检查按钮是否已存在
-    if (document.getElementById('sidebar-toggle-btn')) {
+    if (document.getElementById("sidebar-toggle-btn")) {
       return;
     }
 
-    const toggleBtn = document.createElement('button');
-    toggleBtn.id = 'sidebar-toggle-btn';
-    toggleBtn.className = 'sidebar-toggle-btn';
-    toggleBtn.innerHTML = '◀';
-    toggleBtn.title = '收起侧边栏';
+    const toggleBtn = document.createElement("button");
+    toggleBtn.id = "sidebar-toggle-btn";
+    toggleBtn.className = "sidebar-toggle-btn";
+    toggleBtn.innerHTML = "◀";
+    toggleBtn.title = "收起侧边栏";
 
     // 添加到body（fixed定位）
     document.body.appendChild(toggleBtn);
 
     // 绑定点击事件
-    toggleBtn.addEventListener('click', () => {
-      const sidebar = document.getElementById('sidebar');
-      const isCollapsed = sidebar.classList.contains('collapsed');
+    toggleBtn.addEventListener("click", () => {
+      const sidebar = document.getElementById("sidebar");
+      const isCollapsed = sidebar.classList.contains("collapsed");
 
       if (isCollapsed) {
-        sidebar.classList.remove('collapsed');
-        toggleBtn.innerHTML = '◀';
-        toggleBtn.title = '收起侧边栏';
-        toggleBtn.classList.remove('collapsed');
+        sidebar.classList.remove("collapsed");
+        toggleBtn.innerHTML = "◀";
+        toggleBtn.title = "收起侧边栏";
+        toggleBtn.classList.remove("collapsed");
         // 展开：推开右侧内容，避免遮挡搜索结果
         this.#updateMainContentLayout(false);
-        this.#eventBus.emit('sidebar:toggle:completed', { collapsed: false });
+        this.#eventBus.emit("sidebar:toggle:completed", { collapsed: false });
       } else {
-        sidebar.classList.add('collapsed');
-        toggleBtn.innerHTML = '▶';
-        toggleBtn.title = '展开侧边栏';
-        toggleBtn.classList.add('collapsed');
+        sidebar.classList.add("collapsed");
+        toggleBtn.innerHTML = "▶";
+        toggleBtn.title = "展开侧边栏";
+        toggleBtn.classList.add("collapsed");
         // 收起：恢复右侧内容布局
         this.#updateMainContentLayout(true);
-        this.#eventBus.emit('sidebar:toggle:completed', { collapsed: true });
+        this.#eventBus.emit("sidebar:toggle:completed", { collapsed: true });
       }
     });
 
-    this.#logger.info('[SidebarContainer] Toggle button created');
+    this.#logger.info("[SidebarContainer] Toggle button created");
   }
 
   /**
@@ -126,9 +126,9 @@ export class SidebarContainer {
    */
   #updateMainContentLayout(collapsed) {
     try {
-      const main = document.querySelector('.main-content');
-      const sidebar = document.getElementById('sidebar');
-      if (!main || !sidebar) return;
+      const main = document.querySelector(".main-content");
+      const sidebar = document.getElementById("sidebar");
+      if (!main || !sidebar) {return;}
 
       let shouldPushContent = false;
 
@@ -140,8 +140,8 @@ export class SidebarContainer {
         // 重要：先临时清除 inline style，获取原始位置
         const originalMargin = main.style.marginLeft;
         const originalWidth = main.style.width;
-        main.style.marginLeft = '';
-        main.style.width = '';
+        main.style.marginLeft = "";
+        main.style.width = "";
 
         // 强制重新计算布局
         void main.offsetWidth;
@@ -168,16 +168,16 @@ export class SidebarContainer {
 
       // 应用布局调整
       if (shouldPushContent) {
-        main.style.marginLeft = '280px';
-        main.style.width = 'calc(100% - 280px)';
-        this.#logger.debug('[SidebarContainer] Layout adjusted: content pushed');
+        main.style.marginLeft = "280px";
+        main.style.width = "calc(100% - 280px)";
+        this.#logger.debug("[SidebarContainer] Layout adjusted: content pushed");
       } else {
-        main.style.marginLeft = '';
-        main.style.width = '';
-        this.#logger.debug('[SidebarContainer] Layout adjusted: content restored');
+        main.style.marginLeft = "";
+        main.style.width = "";
+        this.#logger.debug("[SidebarContainer] Layout adjusted: content restored");
       }
     } catch (error) {
-      this.#logger.warn('[SidebarContainer] Layout update failed', error);
+      this.#logger.warn("[SidebarContainer] Layout update failed", error);
     }
   }
 
@@ -192,18 +192,18 @@ export class SidebarContainer {
       this.#resizeHandler = () => {
         clearTimeout(resizeTimer);
         resizeTimer = setTimeout(() => {
-          const sidebar = document.getElementById('sidebar');
-          if (!sidebar) return;
+          const sidebar = document.getElementById("sidebar");
+          if (!sidebar) {return;}
 
-          const isCollapsed = sidebar.classList.contains('collapsed');
+          const isCollapsed = sidebar.classList.contains("collapsed");
           this.#updateMainContentLayout(isCollapsed);
         }, 150); // 150ms 防抖
       };
 
-      window.addEventListener('resize', this.#resizeHandler);
-      this.#logger.info('[SidebarContainer] Window resize handler setup completed');
+      window.addEventListener("resize", this.#resizeHandler);
+      this.#logger.info("[SidebarContainer] Window resize handler setup completed");
     } catch (error) {
-      this.#logger.warn('[SidebarContainer] Failed to setup resize handler', error);
+      this.#logger.warn("[SidebarContainer] Failed to setup resize handler", error);
     }
   }
 
@@ -213,23 +213,23 @@ export class SidebarContainer {
   destroy() {
     // 移除窗口 resize 监听器
     if (this.#resizeHandler) {
-      window.removeEventListener('resize', this.#resizeHandler);
+      window.removeEventListener("resize", this.#resizeHandler);
       this.#resizeHandler = null;
     }
 
     // 移除toggle按钮
-    const toggleBtn = document.getElementById('sidebar-toggle-btn');
+    const toggleBtn = document.getElementById("sidebar-toggle-btn");
     if (toggleBtn) {
       toggleBtn.remove();
     }
 
     if (this.#container) {
-      this.#container.innerHTML = '';
+      this.#container.innerHTML = "";
     }
 
     // 清除缓存状态
     this.#lastLayoutState = null;
 
-    this.#logger.info('[SidebarContainer] Destroyed');
+    this.#logger.info("[SidebarContainer] Destroyed");
   }
 }

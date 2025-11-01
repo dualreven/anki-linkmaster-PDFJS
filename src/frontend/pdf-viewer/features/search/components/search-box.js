@@ -4,10 +4,10 @@
  * @description 搜索框UI的主容器，管理所有子组件和用户交互
  */
 
-import { getLogger } from '../../../../common/utils/logger.js';
-import { PDF_VIEWER_EVENTS } from '../../../../common/event/pdf-viewer-constants.js';
-import { debounce } from '../utils/debounce.js';
-import { validateSearchQuery } from '../utils/search-validator.js';
+import { getLogger } from "../../../../common/utils/logger.js";
+import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
+import { debounce } from "../utils/debounce.js";
+import { validateSearchQuery } from "../utils/search-validator.js";
 
 /**
  * 搜索框组件类
@@ -16,7 +16,7 @@ import { validateSearchQuery } from '../utils/search-validator.js';
  */
 export class SearchBox {
   /** @type {import('../../../../common/utils/logger.js').Logger} */
-  #logger = getLogger('SearchBox');
+  #logger = getLogger("SearchBox");
 
   /** @type {import('../../../types/events').EventBus} */
   #eventBus = null;
@@ -60,11 +60,11 @@ export class SearchBox {
    */
   constructor(eventBus) {
     if (!eventBus) {
-      throw new Error('EventBus is required for SearchBox');
+      throw new Error("EventBus is required for SearchBox");
     }
 
     this.#eventBus = eventBus;
-    this.#logger.info('SearchBox created');
+    this.#logger.info("SearchBox created");
   }
 
   /**
@@ -73,11 +73,11 @@ export class SearchBox {
    */
   async initialize() {
     if (this.#initialized) {
-      this.#logger.warn('SearchBox already initialized');
+      this.#logger.warn("SearchBox already initialized");
       return;
     }
 
-    this.#logger.info('Initializing SearchBox...');
+    this.#logger.info("Initializing SearchBox...");
 
     // 创建搜索框DOM
     this.#createDOM();
@@ -94,7 +94,7 @@ export class SearchBox {
     this.#setupAppEventListeners();
 
     this.#initialized = true;
-    this.#logger.info('SearchBox initialized');
+    this.#logger.info("SearchBox initialized");
   }
 
   /**
@@ -103,11 +103,11 @@ export class SearchBox {
    */
   #createDOM() {
     // 创建容器
-    this.#container = document.createElement('div');
-    this.#container.id = 'pdf-search-box';
-    this.#container.className = 'pdf-search-box hidden';
-    this.#container.setAttribute('role', 'search');
-    this.#container.setAttribute('aria-label', 'PDF搜索');
+    this.#container = document.createElement("div");
+    this.#container.id = "pdf-search-box";
+    this.#container.className = "pdf-search-box hidden";
+    this.#container.setAttribute("role", "search");
+    this.#container.setAttribute("aria-label", "PDF搜索");
 
     // 创建HTML结构
     this.#container.innerHTML = `
@@ -183,15 +183,15 @@ export class SearchBox {
     document.body.appendChild(this.#container);
 
     // 获取DOM元素引用
-    this.#searchInput = document.getElementById('pdf-search-input');
-    this.#prevButton = document.getElementById('pdf-search-prev');
-    this.#nextButton = document.getElementById('pdf-search-next');
-    this.#closeButton = document.getElementById('pdf-search-close');
-    this.#resultCounter = document.getElementById('pdf-search-counter');
-    this.#caseSensitiveCheckbox = document.getElementById('pdf-search-case-sensitive');
-    this.#wholeWordsCheckbox = document.getElementById('pdf-search-whole-words');
+    this.#searchInput = document.getElementById("pdf-search-input");
+    this.#prevButton = document.getElementById("pdf-search-prev");
+    this.#nextButton = document.getElementById("pdf-search-next");
+    this.#closeButton = document.getElementById("pdf-search-close");
+    this.#resultCounter = document.getElementById("pdf-search-counter");
+    this.#caseSensitiveCheckbox = document.getElementById("pdf-search-case-sensitive");
+    this.#wholeWordsCheckbox = document.getElementById("pdf-search-whole-words");
 
-    this.#logger.info('DOM created successfully');
+    this.#logger.info("DOM created successfully");
   }
 
   /**
@@ -200,7 +200,7 @@ export class SearchBox {
    */
   #attachEventListeners() {
     // 搜索输入事件
-    this.#searchInput.addEventListener('input', (e) => {
+    this.#searchInput.addEventListener("input", (e) => {
       const query = e.target.value;
       const options = this.#getCurrentOptions();
 
@@ -209,8 +209,8 @@ export class SearchBox {
     });
 
     // Enter键 - 下一个结果
-    this.#searchInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
+    this.#searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
         e.preventDefault();
 
         if (e.shiftKey) {
@@ -220,41 +220,41 @@ export class SearchBox {
           // Enter - 下一个
           this.#handleNextClick();
         }
-      } else if (e.key === 'Escape') {
+      } else if (e.key === "Escape") {
         // Esc - 关闭
         this.#handleCloseClick();
       }
     });
 
     // 上一个按钮
-    this.#prevButton.addEventListener('click', () => {
+    this.#prevButton.addEventListener("click", () => {
       this.#handlePrevClick();
     });
 
     // 下一个按钮
-    this.#nextButton.addEventListener('click', () => {
+    this.#nextButton.addEventListener("click", () => {
       this.#handleNextClick();
     });
 
     // 关闭按钮
-    this.#closeButton.addEventListener('click', () => {
+    this.#closeButton.addEventListener("click", () => {
       this.#handleCloseClick();
     });
 
     // 区分大小写复选框
-    this.#caseSensitiveCheckbox.addEventListener('change', (e) => {
-      this.#handleOptionChange('caseSensitive', e.target.checked);
+    this.#caseSensitiveCheckbox.addEventListener("change", (e) => {
+      this.#handleOptionChange("caseSensitive", e.target.checked);
     });
 
     // 全词匹配复选框
-    this.#wholeWordsCheckbox.addEventListener('change', (e) => {
-      this.#handleOptionChange('wholeWords', e.target.checked);
+    this.#wholeWordsCheckbox.addEventListener("change", (e) => {
+      this.#handleOptionChange("wholeWords", e.target.checked);
     });
 
     // Header上的搜索按钮
     this.#attachHeaderSearchButton();
 
-    this.#logger.info('Event listeners attached');
+    this.#logger.info("Event listeners attached");
   }
 
   /**
@@ -262,27 +262,27 @@ export class SearchBox {
    * @private
    */
   #attachHeaderSearchButton() {
-    this.#logger.info('[DEBUG] Attempting to attach search button...');
-    this.#logger.info('[DEBUG] document.readyState:', document.readyState);
-    this.#logger.info('[DEBUG] document.body exists:', !!document.body);
+    this.#logger.info("[DEBUG] Attempting to attach search button...");
+    this.#logger.info("[DEBUG] document.readyState:", document.readyState);
+    this.#logger.info("[DEBUG] document.body exists:", !!document.body);
 
-    const searchToggleBtn = document.getElementById('search-toggle-btn');
+    const searchToggleBtn = document.getElementById("search-toggle-btn");
 
-    this.#logger.info('[DEBUG] Button element found:', !!searchToggleBtn);
-    this.#logger.info('[DEBUG] Button:', searchToggleBtn);
+    this.#logger.info("[DEBUG] Button element found:", !!searchToggleBtn);
+    this.#logger.info("[DEBUG] Button:", searchToggleBtn);
 
     if (searchToggleBtn) {
-      searchToggleBtn.addEventListener('click', () => {
-        this.#logger.info('Header search button clicked');
+      searchToggleBtn.addEventListener("click", () => {
+        this.#logger.info("Header search button clicked");
         this.toggle();
       });
-      this.#logger.info('Header search button listener attached successfully');
+      this.#logger.info("Header search button listener attached successfully");
     } else {
-      this.#logger.error('❌ Header search button NOT FOUND (#search-toggle-btn)');
+      this.#logger.error("❌ Header search button NOT FOUND (#search-toggle-btn)");
 
       // 列出所有button元素的id
-      const allButtons = document.querySelectorAll('button[id]');
-      this.#logger.info('[DEBUG] All buttons with id:', Array.from(allButtons).map(b => b.id));
+      const allButtons = document.querySelectorAll("button[id]");
+      this.#logger.info("[DEBUG] All buttons with id:", Array.from(allButtons).map(b => b.id));
     }
   }
 
@@ -297,7 +297,7 @@ export class SearchBox {
       ({ current, total }) => {
         this.updateResultCounter(current, total);
       },
-      { subscriberId: 'SearchBox' }
+      { subscriberId: "SearchBox" }
     );
 
     // 监听搜索结果找到
@@ -306,7 +306,7 @@ export class SearchBox {
       ({ current, total }) => {
         this.updateResultCounter(current, total);
       },
-      { subscriberId: 'SearchBox' }
+      { subscriberId: "SearchBox" }
     );
 
     // 监听搜索结果未找到
@@ -315,7 +315,7 @@ export class SearchBox {
       () => {
         this.updateResultCounter(0, 0);
       },
-      { subscriberId: 'SearchBox' }
+      { subscriberId: "SearchBox" }
     );
 
     // 监听打开搜索框事件
@@ -324,7 +324,7 @@ export class SearchBox {
       () => {
         this.show();
       },
-      { subscriberId: 'SearchBox' }
+      { subscriberId: "SearchBox" }
     );
 
     // 监听关闭搜索框事件
@@ -333,7 +333,7 @@ export class SearchBox {
       () => {
         this.hide();
       },
-      { subscriberId: 'SearchBox' }
+      { subscriberId: "SearchBox" }
     );
 
     // 监听切换搜索框事件
@@ -342,10 +342,10 @@ export class SearchBox {
       () => {
         this.toggle();
       },
-      { subscriberId: 'SearchBox' }
+      { subscriberId: "SearchBox" }
     );
 
-    this.#logger.info('App event listeners attached');
+    this.#logger.info("App event listeners attached");
   }
 
   /**
@@ -375,7 +375,7 @@ export class SearchBox {
     if (!validation.valid) {
       if (query.trim().length > 0) {
         // 仅在用户实际输入了内容但无效时才显示错误
-        this.#logger.warn('Invalid search query:', validation.error);
+        this.#logger.warn("Invalid search query:", validation.error);
       }
       // 清空结果显示
       this.updateResultCounter(0, 0);
@@ -391,7 +391,7 @@ export class SearchBox {
         query: validation.cleaned,
         options,
       },
-      { actorId: 'SearchBox' }
+      { actorId: "SearchBox" }
     );
   }
 
@@ -400,12 +400,12 @@ export class SearchBox {
    * @private
    */
   #handlePrevClick() {
-    this.#logger.info('Previous button clicked');
+    this.#logger.info("Previous button clicked");
 
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.SEARCH.NAVIGATE.PREV,
       {},
-      { actorId: 'SearchBox' }
+      { actorId: "SearchBox" }
     );
   }
 
@@ -414,12 +414,12 @@ export class SearchBox {
    * @private
    */
   #handleNextClick() {
-    this.#logger.info('Next button clicked');
+    this.#logger.info("Next button clicked");
 
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.SEARCH.NAVIGATE.NEXT,
       {},
-      { actorId: 'SearchBox' }
+      { actorId: "SearchBox" }
     );
   }
 
@@ -428,7 +428,7 @@ export class SearchBox {
    * @private
    */
   #handleCloseClick() {
-    this.#logger.info('Close button clicked');
+    this.#logger.info("Close button clicked");
     this.hide();
   }
 
@@ -445,7 +445,7 @@ export class SearchBox {
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.SEARCH.OPTION.CHANGED,
       { option: optionName, value },
-      { actorId: 'SearchBox' }
+      { actorId: "SearchBox" }
     );
 
     // 如果有活跃的搜索，重新执行
@@ -464,9 +464,9 @@ export class SearchBox {
       return;
     }
 
-    this.#logger.info('Showing search box');
+    this.#logger.info("Showing search box");
 
-    this.#container.classList.remove('hidden');
+    this.#container.classList.remove("hidden");
     this.#searchInput.focus();
     this.#searchInput.select();
     this.#isVisible = true;
@@ -480,16 +480,16 @@ export class SearchBox {
       return;
     }
 
-    this.#logger.info('Hiding search box');
+    this.#logger.info("Hiding search box");
 
-    this.#container.classList.add('hidden');
+    this.#container.classList.add("hidden");
     this.#isVisible = false;
 
     // 清空搜索（发出清空事件）
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.SEARCH.EXECUTE.CLEAR,
       {},
-      { actorId: 'SearchBox' }
+      { actorId: "SearchBox" }
     );
   }
 
@@ -514,7 +514,7 @@ export class SearchBox {
       return;
     }
 
-    const text = total > 0 ? `${current}/${total}` : '0/0';
+    const text = total > 0 ? `${current}/${total}` : "0/0";
     this.#resultCounter.textContent = text;
 
     // 更新按钮启用状态
@@ -531,7 +531,7 @@ export class SearchBox {
    */
   setQuery(query) {
     if (this.#searchInput) {
-      this.#searchInput.value = query || '';
+      this.#searchInput.value = query || "";
     }
   }
 
@@ -540,14 +540,14 @@ export class SearchBox {
    * @returns {string}
    */
   getQuery() {
-    return this.#searchInput ? this.#searchInput.value : '';
+    return this.#searchInput ? this.#searchInput.value : "";
   }
 
   /**
    * 销毁搜索框
    */
   destroy() {
-    this.#logger.info('Destroying SearchBox');
+    this.#logger.info("Destroying SearchBox");
 
     // 移除DOM
     if (this.#container && this.#container.parentNode) {
@@ -569,6 +569,6 @@ export class SearchBox {
     this.#initialized = false;
     this.#isVisible = false;
 
-    this.#logger.info('SearchBox destroyed');
+    this.#logger.info("SearchBox destroyed");
   }
 }

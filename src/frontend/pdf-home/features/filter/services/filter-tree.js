@@ -16,7 +16,7 @@ export class FilterTreeNode {
    */
   constructor(config = {}) {
     this.#id = `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    this.#type = config.type || 'placeholder';
+    this.#type = config.type || "placeholder";
     this.#value = config.value || null;
     this.#parent = config.parent || null;
     this.#children = [];
@@ -71,7 +71,7 @@ export class FilterTreeNode {
    * 获取同级节点中的位置
    */
   getIndexInParent() {
-    if (!this.#parent) return 0;
+    if (!this.#parent) {return 0;}
     return this.#parent.children.findIndex(n => n.id === this.#id);
   }
 
@@ -80,7 +80,7 @@ export class FilterTreeNode {
    */
   insertSiblingAfter(node) {
     if (!this.#parent) {
-      throw new Error('Cannot insert sibling for root node');
+      throw new Error("Cannot insert sibling for root node");
     }
 
     const index = this.getIndexInParent();
@@ -105,65 +105,65 @@ export class FilterTreeNode {
    * 转换为Python表达式
    */
   toPythonExpression() {
-    if (this.#type === 'condition') {
+    if (this.#type === "condition") {
       const { field, operator, value } = this.#value;
 
       // 根据操作符生成Python表达式
       switch (operator) {
-        case 'contains':
-          return `"${value}" in ${field}`;
-        case 'not_contains':
-          return `"${value}" not in ${field}`;
-        case 'eq':
-          return `${field} == "${value}"`;
-        case 'ne':
-          return `${field} != "${value}"`;
-        case 'gt':
-          return `${field} > ${value}`;
-        case 'lt':
-          return `${field} < ${value}`;
-        case 'gte':
-          return `${field} >= ${value}`;
-        case 'lte':
-          return `${field} <= ${value}`;
-        case 'starts_with':
-          return `${field}.startswith("${value}")`;
-        case 'ends_with':
-          return `${field}.endswith("${value}")`;
-        case 'in_range':
-          // 假设value格式为 "min,max"
-          const [min, max] = value.split(',');
-          return `${min} <= ${field} <= ${max}`;
-        default:
-          return `${field} ${operator} "${value}"`;
+      case "contains":
+        return `"${value}" in ${field}`;
+      case "not_contains":
+        return `"${value}" not in ${field}`;
+      case "eq":
+        return `${field} == "${value}"`;
+      case "ne":
+        return `${field} != "${value}"`;
+      case "gt":
+        return `${field} > ${value}`;
+      case "lt":
+        return `${field} < ${value}`;
+      case "gte":
+        return `${field} >= ${value}`;
+      case "lte":
+        return `${field} <= ${value}`;
+      case "starts_with":
+        return `${field}.startswith("${value}")`;
+      case "ends_with":
+        return `${field}.endswith("${value}")`;
+      case "in_range":
+        // 假设value格式为 "min,max"
+        const [min, max] = value.split(",");
+        return `${min} <= ${field} <= ${max}`;
+      default:
+        return `${field} ${operator} "${value}"`;
       }
     }
 
-    if (this.#type === 'logic') {
+    if (this.#type === "logic") {
       const childExpressions = this.#children
-        .filter(child => child.type !== 'placeholder')
+        .filter(child => child.type !== "placeholder")
         .map(child => child.toPythonExpression());
 
-      if (childExpressions.length === 0) return '';
+      if (childExpressions.length === 0) {return "";}
 
-      if (this.#value === 'NOT') {
-        return `not (${childExpressions[0] || ''})`;
+      if (this.#value === "NOT") {
+        return `not (${childExpressions[0] || ""})`;
       }
 
-      if (this.#value === 'AND') {
+      if (this.#value === "AND") {
         return childExpressions.length === 1
           ? childExpressions[0]
-          : `(${childExpressions.join(' and ')})`;
+          : `(${childExpressions.join(" and ")})`;
       }
 
-      if (this.#value === 'OR') {
+      if (this.#value === "OR") {
         return childExpressions.length === 1
           ? childExpressions[0]
-          : `(${childExpressions.join(' or ')})`;
+          : `(${childExpressions.join(" or ")})`;
       }
     }
 
-    return '';
+    return "";
   }
 }
 
@@ -176,13 +176,13 @@ export class FilterTree {
   constructor() {
     // 根节点默认为AND逻辑
     this.#root = new FilterTreeNode({
-      type: 'logic',
-      value: 'AND'
+      type: "logic",
+      value: "AND"
     });
 
     // 添加初始占位符
     this.#root.addChild(new FilterTreeNode({
-      type: 'placeholder',
+      type: "placeholder",
       parent: this.#root
     }));
   }
@@ -193,11 +193,11 @@ export class FilterTree {
    * 根据ID查找节点
    */
   findNodeById(nodeId, startNode = this.#root) {
-    if (startNode.id === nodeId) return startNode;
+    if (startNode.id === nodeId) {return startNode;}
 
     for (const child of startNode.children) {
       const found = this.findNodeById(nodeId, child);
-      if (found) return found;
+      if (found) {return found;}
     }
 
     return null;
@@ -220,7 +220,7 @@ export class FilterTree {
   toPythonExpression() {
     const rootExpr = this.#root.toPythonExpression();
     // 移除最外层的括号
-    return rootExpr.replace(/^\((.*)\)$/, '$1');
+    return rootExpr.replace(/^\((.*)\)$/, "$1");
   }
 
   /**

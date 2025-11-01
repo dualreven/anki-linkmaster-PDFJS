@@ -4,7 +4,7 @@
  * @description 管理搜索功能的状态数据，包括当前查询、结果索引、选项等
  */
 
-import { getLogger } from '../../../../common/utils/logger.js';
+import { getLogger } from "../../../../common/utils/logger.js";
 
 /**
  * 搜索状态管理器类
@@ -13,10 +13,10 @@ import { getLogger } from '../../../../common/utils/logger.js';
  */
 export class SearchStateManager {
   /** @type {import('../../../../common/utils/logger.js').Logger} */
-  #logger = getLogger('SearchStateManager');
+  #logger = getLogger("SearchStateManager");
 
   /** @type {string} 当前搜索关键词 */
-  #query = '';
+  #query = "";
 
   /** @type {number} 当前匹配索引（从1开始，0表示无匹配） */
   #currentIndex = 0;
@@ -45,7 +45,7 @@ export class SearchStateManager {
   #lastSearchTimestamp = 0;
 
   constructor() {
-    this.#logger.info('SearchStateManager created');
+    this.#logger.info("SearchStateManager created");
   }
 
   /**
@@ -54,7 +54,7 @@ export class SearchStateManager {
    */
   updateQuery(query) {
     const oldQuery = this.#query;
-    this.#query = query || '';
+    this.#query = query || "";
 
     if (oldQuery !== this.#query) {
       this.#logger.info(`Query updated: "${oldQuery}" -> "${this.#query}"`);
@@ -82,7 +82,7 @@ export class SearchStateManager {
    */
   updateOptions(options) {
     this.#options = { ...this.#options, ...options };
-    this.#logger.info('Options updated:', this.#options);
+    this.#logger.info("Options updated:", this.#options);
   }
 
   /**
@@ -124,7 +124,7 @@ export class SearchStateManager {
    */
   nextMatch() {
     if (this.#totalMatches === 0) {
-      this.#logger.warn('No matches to navigate');
+      this.#logger.warn("No matches to navigate");
       return 0;
     }
 
@@ -141,7 +141,7 @@ export class SearchStateManager {
    */
   previousMatch() {
     if (this.#totalMatches === 0) {
-      this.#logger.warn('No matches to navigate');
+      this.#logger.warn("No matches to navigate");
       return 0;
     }
 
@@ -159,7 +159,7 @@ export class SearchStateManager {
    */
   goToMatch(index) {
     if (this.#totalMatches === 0) {
-      this.#logger.warn('No matches to navigate');
+      this.#logger.warn("No matches to navigate");
       return false;
     }
 
@@ -178,9 +178,9 @@ export class SearchStateManager {
    * 重置搜索状态
    */
   reset() {
-    this.#logger.info('Resetting search state');
+    this.#logger.info("Resetting search state");
 
-    this.#query = '';
+    this.#query = "";
     this.#currentIndex = 0;
     this.#totalMatches = 0;
     this.#matches = [];
@@ -194,7 +194,7 @@ export class SearchStateManager {
    * 重置所有状态（包括选项）
    */
   resetAll() {
-    this.#logger.info('Resetting all search state');
+    this.#logger.info("Resetting all search state");
 
     this.reset();
 
@@ -313,13 +313,13 @@ export class SearchStateManager {
    */
   restoreFromSnapshot(snapshot) {
     if (!snapshot) {
-      this.#logger.warn('Cannot restore from null/undefined snapshot');
+      this.#logger.warn("Cannot restore from null/undefined snapshot");
       return;
     }
 
-    this.#logger.info('Restoring state from snapshot');
+    this.#logger.info("Restoring state from snapshot");
 
-    this.#query = snapshot.query || '';
+    this.#query = snapshot.query || "";
     this.#currentIndex = snapshot.currentIndex || 0;
     this.#totalMatches = snapshot.totalMatches || 0;
     this.#options = { ...this.#options, ...snapshot.options };
@@ -328,14 +328,14 @@ export class SearchStateManager {
     this.#isVisible = !!snapshot.isVisible;
     this.#lastSearchTimestamp = snapshot.lastSearchTimestamp || 0;
 
-    this.#logger.info('State restored successfully');
+    this.#logger.info("State restored successfully");
   }
 
   /**
    * 销毁状态管理器
    */
   destroy() {
-    this.#logger.info('Destroying SearchStateManager');
+    this.#logger.info("Destroying SearchStateManager");
     this.resetAll();
   }
 }

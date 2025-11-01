@@ -36,12 +36,12 @@ export class PDFOutlineFeature {
 
     // 导航服务（由 CoreNavigationFeature 注册）
     try {
-      this.#navigationService = this.#container.get('navigationService');
+      this.#navigationService = this.#container.get("navigationService");
       if (!this.#navigationService) {
-        this.#logger.warn('NavigationService not found in container, outline navigation will not work');
+        this.#logger.warn("NavigationService not found in container, outline navigation will not work");
       }
     } catch (e) {
-      this.#logger.warn('Failed to resolve navigationService from container', e);
+      this.#logger.warn("Failed to resolve navigationService from container", e);
     }
 
     // 初始化存储管理器（沿用 BookmarkManager，保证后端契约与数据结构一致）
@@ -201,7 +201,10 @@ export class PDFOutlineFeature {
     ));
     this.#unsubs.push(this.#eventBus.onGlobal(
       PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED,
-      (data) => this.#handleNavigateById(data),
+      (data) => {
+        this.#logger.info("[Outline] 收到BOOKMARK.NAVIGATE_BY_ID.REQUESTED事件", data, { toast: { type: "info", ms: 2000 } });
+        this.#handleNavigateById(data);
+      },
       { subscriberId: "PDFOutlineFeature" }
     ));
 
@@ -282,7 +285,7 @@ export class PDFOutlineFeature {
           return { pageAt, position };
         }
       } catch (e) {
-        try { this.#logger.info(`[Outline][IMPORT] provider.parseDestination failed; fallback`, { title: nativeBookmark?.title, err: e?.message }); } catch {}
+        try { this.#logger.info("[Outline][IMPORT] provider.parseDestination failed; fallback", { title: nativeBookmark?.title, err: e?.message }); } catch {}
       }
       const { resolvePdfDest, yToPositionPercent } = await import("../../pdf/pdf-dest-utils.js");
       const resolved = await resolvePdfDest(pdfDocument, dest);
@@ -311,69 +314,89 @@ export class PDFOutlineFeature {
   async #handleNavigate({ bookmark }) {
     try {
       if (!bookmark) {
-        this.#logger.warn('Outline navigate request missing bookmark');
+        this.#logger.warn("Outline navigate request missing bookmark");
         return;
       }
       if (!this.#navigationService) {
-        this.#logger.error('NavigationService not available for outline');
-        this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED, { error: 'nav-unavailable' }, { actorId: 'PDFOutlineFeature' });
+        this.#logger.error("NavigationService not available for outline");
+        this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED, { error: "nav-unavailable" }, { actorId: "PDFOutlineFeature" });
         return;
       }
-      const pageAt = (typeof bookmark?.pageAt === 'number' && bookmark.pageAt > 0) ? bookmark.pageAt : null;
+      const pageAt = (typeof bookmark?.pageAt === "number" && bookmark.pageAt > 0) ? bookmark.pageAt : null;
       if (!pageAt) {
-        this.#logger.warn('Outline bookmark missing pageAt');
-        this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED, { error: 'invalid-destination' }, { actorId: 'PDFOutlineFeature' });
+        this.#logger.warn("Outline bookmark missing pageAt");
+        this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED, { error: "invalid-destination" }, { actorId: "PDFOutlineFeature" });
         return;
       }
-      const position = (typeof bookmark?.position === 'number') ? bookmark.position : null;
+      const position = (typeof bookmark?.position === "number") ? bookmark.position : null;
       const result = await this.#navigationService.navigateTo({ pageAt, position });
       if (result?.success) {
-        this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.SUCCESS, { pageNumber: result.actualPage, position: result.actualPosition }, { actorId: 'PDFOutlineFeature' });
+        this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.SUCCESS, { pageNumber: result.actualPage, position: result.actualPosition }, { actorId: "PDFOutlineFeature" });
       } else {
-        this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED, { error: result?.error || 'unknown' }, { actorId: 'PDFOutlineFeature' });
+        this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED, { error: result?.error || "unknown" }, { actorId: "PDFOutlineFeature" });
       }
     } catch (e) {
-      this.#logger.warn('Outline navigate failed', e);
-      this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED, { error: e?.message || 'exception' }, { actorId: 'PDFOutlineFeature' });
+      this.#logger.warn("Outline navigate failed", e);
+      this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED, { error: e?.message || "exception" }, { actorId: "PDFOutlineFeature" });
     }
   }
 
   async #handleNavigateById({ outlineItemId, bookmarkId, id }) {
     try {
-      const targetId = (outlineItemId || bookmarkId || id || '').trim();
+      this.#logger.info("[Outline] 开始处理按ID导航请求", {
+        outlineItemId: outlineItemId,
+        bookmarkId: bookmarkId,
+        id: id,
+        listReady: this.#listReady
+      }, { toast: { type: "info", ms: 2000 } });
+      const targetId = (outlineItemId || bookmarkId || id || "").trim();
+      this.#logger.info("[Outline] 提取的目标ID", {
+        targetId: targetId,
+        targetIdLength: targetId.length,
+        targetIdType: typeof targetId
+      }, { toast: { type: "info", ms: 2000 } });
       if (!targetId) {
-        this.#logger.warn('Outline navigate-by-id missing id');
+        this.#logger.warn("[Outline] 导航请求缺少ID", { receivedData: { outlineItemId, bookmarkId, id } }, { toast: { type: "error", ms: 3000 } });
         return;
       }
       const bm = this.#bookmarkManager.getBookmark(targetId);
+      this.#logger.info("[Outline] 查找书签结果", {
+        targetId: targetId,
+        bookmarkFound: !!bm,
+        bookmark: bm,
+        listReady: this.#listReady,
+        allBookmarksCount: this.#bookmarkManager.getAllBookmarks().length
+      }, { toast: { type: "info", ms: 2000 } });
       if (!bm) {
         // 未找到：若列表尚未就绪，则暂存等待；若已就绪，则直接给出 toast 提示
         if (!this.#listReady) {
           this.#pendingNavigateId = targetId;
-          this.#logger.info(`[Outline] 记录挂起的按ID导航请求: ${targetId}`);
+          this.#logger.info(`[Outline] 记录挂起的按ID导航请求: ${targetId}`, { toast: { type: "info", ms: 2000 } });
         } else {
           this.#logger.error(`[Outline] 大纲项不存在或未加载：${targetId}`, { toast: { type: "error", ms: 4500 } });
-          this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED, { error: 'not_found', id: targetId }, { actorId: 'PDFOutlineFeature' });
+          this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED, { error: "not_found", id: targetId }, { actorId: "PDFOutlineFeature" });
         }
         return;
       }
+      this.#logger.info("[Outline] 找到书签，准备导航", { bookmark: bm }, { toast: { type: "info", ms: 2000 } });
       await this.#handleNavigate({ bookmark: bm });
+      this.#logger.info("[Outline] 导航完成", { bookmarkId: bm.id }, { toast: { type: "success", ms: 2000 } });
     } catch (e) {
-      this.#logger.warn('Outline navigate-by-id failed', e);
-      this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED, { error: e?.message || 'exception' }, { actorId: 'PDFOutlineFeature' });
+      this.#logger.warn("Outline navigate-by-id failed", e, { toast: { type: "error", ms: 3000 } });
+      this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED, { error: e?.message || "exception" }, { actorId: "PDFOutlineFeature" });
     }
   }
 
   #tryPendingNavigate() {
     try {
       const id = this.#pendingNavigateId;
-      if (!id) return;
+      if (!id) {return;}
       const bm = this.#bookmarkManager.getBookmark(id);
       if (!bm) {
         // 列表已就绪但仍未找到 → 提示不存在
         if (this.#listReady) {
           this.#logger.error(`[Outline] 大纲项不存在或未加载：${id}`, { toast: { type: "error", ms: 4500 } });
-          this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED, { error: 'not_found', id }, { actorId: 'PDFOutlineFeature' });
+          this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED, { error: "not_found", id }, { actorId: "PDFOutlineFeature" });
           this.#pendingNavigateId = null;
         }
         return;

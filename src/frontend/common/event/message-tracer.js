@@ -56,7 +56,7 @@ export class MessageTracer {
     this.#enablePerformanceTracking = options.enablePerformanceTracking !== false;
     this.#idCounter = 1;
 
-    this.#log('info', `MessageTracer已初始化，最大记录数: ${this.#maxTraceSize}`);
+    this.#log("info", `MessageTracer已初始化，最大记录数: ${this.#maxTraceSize}`);
   }
 
   // 私有属性
@@ -83,7 +83,7 @@ export class MessageTracer {
    */
   recordMessage(messageTrace) {
     if (!messageTrace || !messageTrace.messageId) {
-      this.#log('warn', '无效的消息追踪记录，忽略', messageTrace);
+      this.#log("warn", "无效的消息追踪记录，忽略", messageTrace);
       return;
     }
 
@@ -91,12 +91,12 @@ export class MessageTracer {
     const trace = {
       messageId: messageTrace.messageId,
       traceId: messageTrace.traceId || messageTrace.messageId,
-      event: messageTrace.event || 'unknown:event:occurred',
-      publisher: messageTrace.publisher || 'unknown',
+      event: messageTrace.event || "unknown:event:occurred",
+      publisher: messageTrace.publisher || "unknown",
       subscribers: messageTrace.subscribers || [],
       timestamp: messageTrace.timestamp || Date.now(),
       parentMessageId: messageTrace.parentMessageId,
-      data: messageTrace.data ? messageTrace.data.substring(0, 500) : '', // 限制数据长度
+      data: messageTrace.data ? messageTrace.data.substring(0, 500) : "", // 限制数据长度
       executionResults: messageTrace.executionResults || [],
       totalExecutionTime: messageTrace.totalExecutionTime || 0
     };
@@ -107,10 +107,10 @@ export class MessageTracer {
     if (this.#messageTraces.size > this.#maxTraceSize) {
       const firstKey = this.#messageTraces.keys().next().value;
       this.#messageTraces.delete(firstKey);
-      this.#log('debug', `删除最老的追踪记录: ${firstKey}`);
+      this.#log("debug", `删除最老的追踪记录: ${firstKey}`);
     }
 
-    this.#log('debug', `记录消息追踪: ${trace.event} (${trace.messageId})`);
+    this.#log("debug", `记录消息追踪: ${trace.event} (${trace.messageId})`);
   }
 
   /**
@@ -121,7 +121,7 @@ export class MessageTracer {
   getTrace(messageId) {
     const trace = this.#messageTraces.get(messageId);
     if (!trace) {
-      this.#log('warn', `未找到消息追踪记录: ${messageId}`);
+      this.#log("warn", `未找到消息追踪记录: ${messageId}`);
       return null;
     }
 
@@ -141,7 +141,7 @@ export class MessageTracer {
       .sort((a, b) => a.timestamp - b.timestamp);
 
     if (traceMessages.length === 0) {
-      this.#log('warn', `未找到调用链: ${traceId}`);
+      this.#log("warn", `未找到调用链: ${traceId}`);
       return null;
     }
 
@@ -194,7 +194,7 @@ export class MessageTracer {
     const lastMessage = traceMessages[traceMessages.length - 1];
     tree.totalDuration = lastMessage.timestamp + lastMessage.totalExecutionTime - tree.startTime;
 
-    this.#log('debug', `构建调用链树: ${traceId}，包含 ${traceMessages.length} 个消息`);
+    this.#log("debug", `构建调用链树: ${traceId}，包含 ${traceMessages.length} 个消息`);
 
     return tree;
   }
@@ -253,7 +253,7 @@ export class MessageTracer {
       }
     }
 
-    this.#log('info', `清理了 ${deletedCount} 条追踪记录，早于 ${new Date(olderThan).toISOString()}`);
+    this.#log("info", `清理了 ${deletedCount} 条追踪记录，早于 ${new Date(olderThan).toISOString()}`);
 
     return deletedCount;
   }
@@ -291,7 +291,7 @@ export class MessageTracer {
    * @private
    */
   #log(level, message, ...args) {
-    if (typeof console !== 'undefined' && console[level]) {
+    if (typeof console !== "undefined" && console[level]) {
       console[level](`[MessageTracer] ${message}`, ...args);
     }
   }
@@ -302,7 +302,7 @@ export class MessageTracer {
   destroy() {
     const messageCount = this.#messageTraces.size;
     this.#messageTraces.clear();
-    this.#log('info', `MessageTracer已销毁，清理了 ${messageCount} 条记录`);
+    this.#log("info", `MessageTracer已销毁，清理了 ${messageCount} 条记录`);
   }
 }
 

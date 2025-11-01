@@ -20,7 +20,7 @@ export class PDFDocumentManager {
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
-    this.#logger = getLogger('PDFViewer.Document');
+    this.#logger = getLogger("PDFViewer.Document");
   }
 
   /**
@@ -36,7 +36,7 @@ export class PDFDocumentManager {
     try { setCurrentPDFDocument(pdfDocument); } catch (_) {}
     this.#extractDocumentInfo();
 
-    this.#logger.info(`Document loaded: ${this.#documentInfo.title || 'Untitled'}`);
+    this.#logger.info(`Document loaded: ${this.#documentInfo.title || "Untitled"}`);
 
     // ⚠️ 不在这里发射FILE.LOAD.SUCCESS事件，由FileHandler统一发射
     // 此事件之前传递documentInfo而非pdfDocument，会导致app-core收到undefined的pdfDocument
@@ -122,7 +122,7 @@ export class PDFDocumentManager {
       try { clearCurrentPDFDocument(); } catch (_) {}
 
       // 发布文档关闭事件
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.CLOSE, {}, { actorId: 'PDFDocumentManager' });
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.CLOSE, {}, { actorId: "PDFDocumentManager" });
     }
   }
 
@@ -144,14 +144,14 @@ export class PDFDocumentManager {
     this.#documentInfo = {
       numPages: this.#currentDocument.numPages,
       fingerprint: fingerprint,
-      title: info.info?.Title || '',
-      author: info.info?.Author || '',
-      subject: info.info?.Subject || '',
-      keywords: info.info?.Keywords || '',
-      creator: info.info?.Creator || '',
-      producer: info.info?.Producer || '',
-      creationDate: info.info?.CreationDate || '',
-      modificationDate: info.info?.ModDate || '',
+      title: info.info?.Title || "",
+      author: info.info?.Author || "",
+      subject: info.info?.Subject || "",
+      keywords: info.info?.Keywords || "",
+      creator: info.info?.Creator || "",
+      producer: info.info?.Producer || "",
+      creationDate: info.info?.CreationDate || "",
+      modificationDate: info.info?.ModDate || "",
       metadata: info.metadata || null
     };
   }

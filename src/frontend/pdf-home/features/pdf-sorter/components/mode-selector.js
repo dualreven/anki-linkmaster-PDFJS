@@ -86,12 +86,12 @@ export class ModeSelector {
     this.#updateRadioState();
 
     // 触发初始模式事件，通知其他组件当前模式（三段式格式）
-    this.#eventBus.emit('sorter:mode:changed', {
+    this.#eventBus.emit("sorter:mode:changed", {
       mode: this.#currentMode,
       modeName: this.#getModeName(this.#currentMode)
     });
 
-    this.#logger.info('[ModeSelector] Rendered');
+    this.#logger.info("[ModeSelector] Rendered");
   }
 
   /**
@@ -113,7 +113,7 @@ export class ModeSelector {
               type="radio"
               name="sort-mode"
               value="${SortMode.DEFAULT}"
-              ${this.#currentMode === SortMode.DEFAULT ? 'checked' : ''}
+              ${this.#currentMode === SortMode.DEFAULT ? "checked" : ""}
             />
             <span class="mode-option-content">
               <span class="mode-option-icon">🔢</span>
@@ -145,7 +145,7 @@ export class ModeSelector {
               type="radio"
               name="sort-mode"
               value="${SortMode.MULTI}"
-              ${this.#currentMode === SortMode.MULTI ? 'checked' : ''}
+              ${this.#currentMode === SortMode.MULTI ? "checked" : ""}
             />
             <span class="mode-option-content">
               <span class="mode-option-icon">📋</span>
@@ -181,7 +181,7 @@ export class ModeSelector {
    * @private
    */
   #bindElements() {
-    this.#radioButtons = this.#container.querySelectorAll('input[name="sort-mode"]');
+    this.#radioButtons = this.#container.querySelectorAll("input[name=\"sort-mode\"]");
   }
 
   /**
@@ -190,24 +190,24 @@ export class ModeSelector {
    */
   #attachEventListeners() {
     this.#radioButtons.forEach(radio => {
-      radio.addEventListener('change', (e) => {
+      radio.addEventListener("change", (e) => {
         this.#handleModeChange(parseInt(e.target.value));
       });
     });
 
     // 为禁用的选项添加点击提示
-    const disabledLabels = this.#container.querySelectorAll('.mode-option[data-disabled="true"]');
+    const disabledLabels = this.#container.querySelectorAll(".mode-option[data-disabled=\"true\"]");
     disabledLabels.forEach(label => {
-      label.addEventListener('click', (e) => {
+      label.addEventListener("click", (e) => {
         e.preventDefault();
         const mode = parseInt(label.dataset.mode);
         const modeName = this.#getModeName(mode);
-        try { this.#logger?.warn?.(`${modeName}功能开发中，敬请期待`, { toast: { type: 'warn', ms: 3000 } }); } catch {}
+        try { this.#logger?.warn?.(`${modeName}功能开发中，敬请期待`, { toast: { type: "warn", ms: 3000 } }); } catch {}
         this.#logger.debug(`[ModeSelector] Disabled mode clicked: ${modeName}`);
       });
     });
 
-    this.#logger.debug('[ModeSelector] Event listeners attached');
+    this.#logger.debug("[ModeSelector] Event listeners attached");
   }
 
   /**
@@ -228,7 +228,7 @@ export class ModeSelector {
     this.#updateRadioState();
 
     // 触发模式变更事件（三段式格式）
-    this.#eventBus.emit('sorter:mode:changed', {
+    this.#eventBus.emit("sorter:mode:changed", {
       mode: this.#currentMode,
       modeName: this.#getModeName(this.#currentMode)
     });
@@ -239,13 +239,13 @@ export class ModeSelector {
    * @private
    */
   #updateRadioState() {
-    const labels = this.#container.querySelectorAll('.mode-option');
+    const labels = this.#container.querySelectorAll(".mode-option");
     labels.forEach(label => {
       const mode = parseInt(label.dataset.mode);
       if (mode === this.#currentMode) {
-        label.classList.add('active');
+        label.classList.add("active");
       } else {
-        label.classList.remove('active');
+        label.classList.remove("active");
       }
     });
   }
@@ -258,12 +258,12 @@ export class ModeSelector {
    */
   #getModeName(mode) {
     const names = {
-      [SortMode.DEFAULT]: '默认排序',
-      [SortMode.MANUAL]: '手动拖拽',
-      [SortMode.MULTI]: '多级排序',
-      [SortMode.WEIGHTED]: '加权排序'
+      [SortMode.DEFAULT]: "默认排序",
+      [SortMode.MANUAL]: "手动拖拽",
+      [SortMode.MULTI]: "多级排序",
+      [SortMode.WEIGHTED]: "加权排序"
     };
-    return names[mode] || '未知模式';
+    return names[mode] || "未知模式";
   }
 
   /**
@@ -295,7 +295,7 @@ export class ModeSelector {
     });
 
     // 触发事件（三段式格式）
-    this.#eventBus.emit('sorter:mode:changed', {
+    this.#eventBus.emit("sorter:mode:changed", {
       mode: this.#currentMode,
       modeName: this.#getModeName(this.#currentMode)
     });
@@ -307,8 +307,8 @@ export class ModeSelector {
    */
   destroy() {
     if (this.#container) {
-      this.#container.innerHTML = '';
+      this.#container.innerHTML = "";
     }
-    this.#logger.info('[ModeSelector] Destroyed');
+    this.#logger.info("[ModeSelector] Destroyed");
   }
 }

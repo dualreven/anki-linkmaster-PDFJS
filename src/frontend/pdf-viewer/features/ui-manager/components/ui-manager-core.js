@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file UI管理器核心（重构版）
  * @module UIManagerCore
  * @description 协调DOM元素、键盘事件和UI状态的主管理器
@@ -7,7 +7,7 @@
 import { getLogger } from "../../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_EVENTS } from "../../../../common/event/event-constants.js";
-import { showSuccess as notifySuccess, showError as notifyError } from "../../../../common/utils/notification.js";
+import { showSuccess, showError } from "../../../../common/utils/notification.js";
 import { DOMElementManager } from "../../../ui/dom-element-manager.js";
 import { KeyboardHandler } from "../../../ui/keyboard-handler.js";
 import { UIStateManager } from "../../../ui/ui-state-manager.js";
@@ -60,7 +60,7 @@ export class UIManagerCore {
       const elements = this.#domManager.initializeElements();
 
       // 初始化文字层管理器
-      const textLayerContainer = this.#domManager.getElement('textLayer');
+      const textLayerContainer = this.#domManager.getElement("textLayer");
       if (textLayerContainer) {
         this.#textLayerManager = new TextLayerManager({
           container: textLayerContainer
@@ -71,7 +71,7 @@ export class UIManagerCore {
       }
 
       // 初始化PDFViewerManager
-      const viewerContainer = document.getElementById('viewerContainer');
+      const viewerContainer = document.getElementById("viewerContainer");
       if (viewerContainer) {
         this.#pdfViewerManager = new PDFViewerManager(this.#eventBus);
         this.#pdfViewerManager.initialize(viewerContainer);
@@ -119,7 +119,7 @@ export class UIManagerCore {
       (data) => {
         this.#stateManager.updateScale(data.scale, data.mode);
       },
-      { subscriberId: 'UIManagerCore' }
+      { subscriberId: "UIManagerCore" }
     );
     this.#unsubscribeFunctions.push(zoomChangeUnsub);
 
@@ -130,7 +130,7 @@ export class UIManagerCore {
         this.#stateManager.updateLoadingState(true, false);
         this.#domManager.setLoadingState(true);
       },
-      { subscriberId: 'UIManagerCore' }
+      { subscriberId: "UIManagerCore" }
     );
     this.#unsubscribeFunctions.push(loadRequestedUnsub);
 
@@ -159,7 +159,7 @@ export class UIManagerCore {
           this.#logger.warn("Cannot load PDF: pdfViewerManager or pdfDocument is missing");
         }
       },
-      { subscriberId: 'UIManagerCore' }
+      { subscriberId: "UIManagerCore" }
     );
     this.#unsubscribeFunctions.push(loadSuccessUnsub);
 
@@ -169,7 +169,7 @@ export class UIManagerCore {
         this.#stateManager.updateErrorState(true, data.error);
         this.#domManager.setLoadingState(false);
       },
-      { subscriberId: 'UIManagerCore' }
+      { subscriberId: "UIManagerCore" }
     );
     this.#unsubscribeFunctions.push(loadFailedUnsub);
 
@@ -177,7 +177,7 @@ export class UIManagerCore {
     const urlParamsParsedUnsub = this.#eventBus.on(
       PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.PARSED,
       (data) => {
-        this.#logger.info('[UIManagerCore] URL_PARAMS.PARSED event received:', data);
+        this.#logger.info("[UIManagerCore] URL_PARAMS.PARSED event received:", data);
         if (data?.pdfId) {
           this.#currentPdfId = data.pdfId;
           this.#updateCopyButtonVisibility();
@@ -185,10 +185,10 @@ export class UIManagerCore {
           // 严格要求：标题仅来自数据库，不从 URL 获取
           try { this.#requestPdfTitleFromDB(this.#currentPdfId); } catch (e) { this.#logger.error("requestPdfTitleFromDB failed", e); }
         } else {
-          this.#logger.warn('[UIManagerCore] URL_PARAMS.PARSED event has no pdfId');
+          this.#logger.warn("[UIManagerCore] URL_PARAMS.PARSED event has no pdfId");
         }
       },
-      { subscriberId: 'UIManagerCore' }
+      { subscriberId: "UIManagerCore" }
     );
     this.#unsubscribeFunctions.push(urlParamsParsedUnsub);
 
@@ -198,30 +198,30 @@ export class UIManagerCore {
       (message) => {
         try {
           const type = message?.type || message?.received_type;
-          if (type === 'pdf-library:info:completed') {
+          if (type === "pdf-library:info:completed") {
             // 若是当前pending请求，清理标记；否则也允许处理（只要匹配当前pdfId）
             if (this.#pendingDetailRequestId && message?.request_id === this.#pendingDetailRequestId) {
               this.#pendingDetailRequestId = null;
             }
             const data = message?.data || {};
-            const respId = (data.id || data.pdf_id || '').toString();
-            const t = (data.title || '').toString().trim();
+            const respId = (data.id || data.pdf_id || "").toString();
+            const t = (data.title || "").toString().trim();
             // 只在匹配当前 pdfId 时更新标题（禁止兜底）
             if (this.#currentPdfId && respId && respId !== this.#currentPdfId) {
               return;
             }
             if (t) {
               this.#updateHeaderTitle(t);
-              this.#logger.info('[UIManagerCore] 标题已从数据库更新');
+              this.#logger.info("[UIManagerCore] 标题已从数据库更新");
             } else {
-              this.#logger.error('数据库记录缺少标题，请补全后重试', { toast: { type: 'error', ms: 6000 } });
+              this.#logger.error("数据库记录缺少标题，请补全后重试", { toast: { type: "error", ms: 6000 } });
             }
           }
         } catch (e) {
-          this.#logger.error('处理详情回执失败', e);
+          this.#logger.error("处理详情回执失败", e);
         }
       },
-      { subscriberId: 'UIManagerCore' }
+      { subscriberId: "UIManagerCore" }
     );
     this.#unsubscribeFunctions.push(wsRespUnsub);
 
@@ -231,17 +231,17 @@ export class UIManagerCore {
         try {
           const rid = message?.request_id;
           const type = message?.type || message?.received_type;
-          if (!rid || rid !== this.#pendingDetailRequestId) return;
+          if (!rid || rid !== this.#pendingDetailRequestId) {return;}
           this.#pendingDetailRequestId = null;
-          if (type === 'pdf-library:info:failed') {
-            const msg = message?.message || message?.error?.message || '获取PDF信息失败';
-            this.#logger.error(`获取PDF信息失败：${msg}`, { toast: { type: 'error', ms: 6000 } });
+          if (type === "pdf-library:info:failed") {
+            const msg = message?.message || message?.error?.message || "获取PDF信息失败";
+            this.#logger.error(`获取PDF信息失败：${msg}`, { toast: { type: "error", ms: 6000 } });
           }
         } catch (e) {
-          this.#logger.error('处理详情失败回执异常', e);
+          this.#logger.error("处理详情失败回执异常", e);
         }
       },
-      { subscriberId: 'UIManagerCore' }
+      { subscriberId: "UIManagerCore" }
     );
     this.#unsubscribeFunctions.push(wsErrUnsub);
 
@@ -254,9 +254,9 @@ export class UIManagerCore {
    * @private
    */
   #requestPdfTitleFromDB(pdfId) {
-    if (!pdfId || typeof pdfId !== 'string' || !pdfId.trim()) {
-      this.#logger.error('[UIManagerCore] 无法请求标题：缺少有效 pdfId');
-      notifyError('❌ 缺少有效的 PDF ID，无法获取标题', 5000);
+    if (!pdfId || typeof pdfId !== "string" || !pdfId.trim()) {
+      this.#logger.error("[UIManagerCore] 无法请求标题：缺少有效 pdfId");
+      showError("❌ 缺少有效的 PDF ID，无法获取标题", 5000);
       return;
     }
     const rid = `info_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -264,11 +264,11 @@ export class UIManagerCore {
     const message = {
       type: WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST,
       request_id: rid,
-      metadata: { version: '1.0.0' },
+      metadata: { version: "1.0.0" },
       data: { pdf_id: pdfId }
     };
-    this.#logger.info('[UIManagerCore] 请求数据库标题', { pdfId, request_id: rid });
-    this.#eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, message, { actorId: 'UIManagerCore' });
+    this.#logger.info("[UIManagerCore] 请求数据库标题", { pdfId, request_id: rid });
+    this.#eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, message, { actorId: "UIManagerCore" });
   }
 
   /**
@@ -276,8 +276,8 @@ export class UIManagerCore {
    * @private
    */
   #setupResizeObserver() {
-    if (typeof ResizeObserver === 'function') {
-      const container = this.#domManager.getElement('container');
+    if (typeof ResizeObserver === "function") {
+      const container = this.#domManager.getElement("container");
       if (container) {
         this.#resizeObserver = new ResizeObserver((entries) => {
           for (const entry of entries) {
@@ -292,7 +292,7 @@ export class UIManagerCore {
       }
     } else {
       // 降级到window resize事件
-      window.addEventListener('resize', this.#handleResize.bind(this));
+      window.addEventListener("resize", this.#handleResize.bind(this));
       this.#logger.warn("ResizeObserver not available, using window resize");
     }
   }
@@ -303,9 +303,9 @@ export class UIManagerCore {
    */
   #setupWheelListener() {
     // 使用viewerContainer而不是旧的container（已隐藏）
-    const container = document.getElementById('viewerContainer');
+    const container = document.getElementById("viewerContainer");
     if (container) {
-      container.addEventListener('wheel', this.#handleWheel.bind(this), { passive: false });
+      container.addEventListener("wheel", this.#handleWheel.bind(this), { passive: false });
       this.#logger.info("Wheel event listener setup on viewerContainer");
     } else {
       this.#logger.error("viewerContainer not found for wheel listener");
@@ -334,8 +334,8 @@ export class UIManagerCore {
     if (event.ctrlKey || event.metaKey) {
       event.preventDefault();
 
-      const direction = event.deltaY < 0 ? 'in' : 'out';
-      const zoomEvent = direction === 'in'
+      const direction = event.deltaY < 0 ? "in" : "out";
+      const zoomEvent = direction === "in"
         ? PDF_VIEWER_EVENTS.ZOOM.IN
         : PDF_VIEWER_EVENTS.ZOOM.OUT;
 
@@ -345,7 +345,7 @@ export class UIManagerCore {
 
       this.#eventBus.emit(zoomEvent, {
         delta: smoothStep
-      }, { actorId: 'UIManagerCore.Wheel' });
+      }, { actorId: "UIManagerCore.Wheel" });
 
       this.#logger.debug(`Wheel zoom ${direction} (step: ${smoothStep})`);
     }
@@ -357,14 +357,14 @@ export class UIManagerCore {
    * @private
    */
   #updateHeaderTitle(filename) {
-    const titleElement = document.getElementById('pdf-title');
+    const titleElement = document.getElementById("pdf-title");
     if (!titleElement) {
-      this.#logger.warn('Header title element not found');
+      this.#logger.warn("Header title element not found");
       return;
     }
 
     // 移除 .pdf 扩展名（如果存在）
-    const displayName = filename.endsWith('.pdf')
+    const displayName = filename.endsWith(".pdf")
       ? filename.slice(0, -4)
       : filename;
 
@@ -379,50 +379,50 @@ export class UIManagerCore {
    * @private
    */
   #setupCopyPdfIdButton() {
-    const copyBtn = document.getElementById('copy-pdf-id-btn');
+    const copyBtn = document.getElementById("copy-pdf-id-btn");
     if (!copyBtn) {
-      this.#logger.warn('Copy PDF ID button not found');
+      this.#logger.warn("Copy PDF ID button not found");
       return;
     }
 
     // 尝试从 URL 直接获取 pdf-id 作为备选
     const urlParams = new URLSearchParams(window.location.search);
-    const pdfIdFromUrl = urlParams.get('pdf-id');
+    const pdfIdFromUrl = urlParams.get("pdf-id");
     if (pdfIdFromUrl && !this.#currentPdfId) {
       this.#currentPdfId = pdfIdFromUrl;
       this.#updateCopyButtonVisibility();
       this.#logger.info(`PDF ID obtained directly from URL: ${pdfIdFromUrl}`);
     }
 
-    copyBtn.addEventListener('click', async (event) => {
+    copyBtn.addEventListener("click", async (event) => {
       event.preventDefault();
       event.stopPropagation();
 
       this.#logger.info(`Copy button clicked, currentPdfId: ${this.#currentPdfId}`);
 
       if (!this.#currentPdfId) {
-        this.#logger.error('无法复制：PDF ID 不可用，请确保 URL 中包含 pdf-id 参数', { toast: { type: 'error', ms: 5000 } });
+        this.#logger.error("无法复制：PDF ID 不可用，请确保 URL 中包含 pdf-id 参数", { toast: { type: "error", ms: 5000 } });
         return;
       }
 
       const ok = this.#copyUsingExecCommand(this.#currentPdfId);
       if (ok) {
-        copyBtn.classList.add('copied');
+        copyBtn.classList.add("copied");
         copyBtn.title = `已复制: ${this.#currentPdfId}`;
-        notifySuccess('✓ PDF ID 已复制', 2000);
+        showSuccess("✓ PDF ID 已复制", 2000);
         this.#logger.info(`✅ PDF ID copied (execCommand): ${this.#currentPdfId}`);
         setTimeout(() => {
-          copyBtn.classList.remove('copied');
-          copyBtn.title = '复制 PDF ID';
-          this.#logger.debug('Copy button state reset');
+          copyBtn.classList.remove("copied");
+          copyBtn.title = "复制 PDF ID";
+          this.#logger.debug("Copy button state reset");
         }, 2000);
       } else {
-        this.#logger.error('Copy via execCommand failed');
-        notifyError('✗ 复制失败', 3000);
+        this.#logger.error("Copy via execCommand failed");
+        showError("✗ 复制失败", 3000);
       }
     });
 
-    this.#logger.info('Copy PDF ID button initialized');
+    this.#logger.info("Copy PDF ID button initialized");
   }
 
   /**
@@ -433,26 +433,26 @@ export class UIManagerCore {
    */
   #copyUsingExecCommand(text) {
     try {
-      const textarea = document.createElement('textarea');
-      textarea.value = String(text ?? '');
+      const textarea = document.createElement("textarea");
+      textarea.value = String(text ?? "");
       textarea.style.cssText = [
-        'position: fixed',
-        'top: 0',
-        'left: 0',
-        'width: 2em',
-        'height: 2em',
-        'padding: 0',
-        'border: none',
-        'outline: none',
-        'boxShadow: none',
-        'background: transparent',
-        'opacity: 0',
-        'pointer-events: none'
-      ].join(';');
+        "position: fixed",
+        "top: 0",
+        "left: 0",
+        "width: 2em",
+        "height: 2em",
+        "padding: 0",
+        "border: none",
+        "outline: none",
+        "boxShadow: none",
+        "background: transparent",
+        "opacity: 0",
+        "pointer-events: none"
+      ].join(";");
       document.body.appendChild(textarea);
       textarea.focus();
       textarea.select();
-      const successful = document.execCommand('copy');
+      const successful = document.execCommand("copy");
       document.body.removeChild(textarea);
       return !!successful;
     } catch {
@@ -467,15 +467,15 @@ export class UIManagerCore {
    * @private
    */
   async #copyWithTimeout(text, timeoutMs = 800) {
-    if (!(navigator && navigator.clipboard && typeof navigator.clipboard.writeText === 'function')) {
-      throw new Error('clipboard-api-not-available');
+    if (!(navigator && navigator.clipboard && typeof navigator.clipboard.writeText === "function")) {
+      throw new Error("clipboard-api-not-available");
     }
 
     const writePromise = navigator.clipboard.writeText(text);
     const timeoutPromise = new Promise((_, reject) => {
       const id = setTimeout(() => {
         clearTimeout(id);
-        reject(new Error('clipboard-timeout'));
+        reject(new Error("clipboard-timeout"));
       }, timeoutMs);
     });
 
@@ -497,88 +497,88 @@ export class UIManagerCore {
    */
   #showManualCopyDialog(text) {
     // 避免重复创建
-    if (document.getElementById('manual-copy-overlay')) {
-      const input = document.getElementById('manual-copy-input');
+    if (document.getElementById("manual-copy-overlay")) {
+      const input = document.getElementById("manual-copy-input");
       if (input) {
-        input.value = text || '';
+        input.value = text || "";
         input.focus();
         input.select();
       }
       return;
     }
 
-    const overlay = document.createElement('div');
-    overlay.id = 'manual-copy-overlay';
+    const overlay = document.createElement("div");
+    overlay.id = "manual-copy-overlay";
     overlay.style.cssText = [
-      'position: fixed',
-      'inset: 0',
-      'background: rgba(0,0,0,0.35)',
-      'display: flex',
-      'align-items: center',
-      'justify-content: center',
-      'z-index: 10001'
-    ].join(';');
+      "position: fixed",
+      "inset: 0",
+      "background: rgba(0,0,0,0.35)",
+      "display: flex",
+      "align-items: center",
+      "justify-content: center",
+      "z-index: 10001"
+    ].join(";");
 
-    const dialog = document.createElement('div');
+    const dialog = document.createElement("div");
     dialog.style.cssText = [
-      'background: #fff',
-      'padding: 16px',
-      'border-radius: 8px',
-      'min-width: 320px',
-      'max-width: 80vw',
-      'box-shadow: 0 8px 24px rgba(0,0,0,0.2)',
-      'font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif'
-    ].join(';');
+      "background: #fff",
+      "padding: 16px",
+      "border-radius: 8px",
+      "min-width: 320px",
+      "max-width: 80vw",
+      "box-shadow: 0 8px 24px rgba(0,0,0,0.2)",
+      "font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+    ].join(";");
 
-    const title = document.createElement('div');
-    title.textContent = '手动复制 PDF ID';
-    title.style.cssText = 'font-size:16px;font-weight:600;margin-bottom:8px;color:#333;';
+    const title = document.createElement("div");
+    title.textContent = "手动复制 PDF ID";
+    title.style.cssText = "font-size:16px;font-weight:600;margin-bottom:8px;color:#333;";
 
-    const tip = document.createElement('div');
-    tip.textContent = '内容已选中，按 Ctrl+C 复制（或右键复制）';
-    tip.style.cssText = 'font-size:12px;color:#666;margin-bottom:8px;';
+    const tip = document.createElement("div");
+    tip.textContent = "内容已选中，按 Ctrl+C 复制（或右键复制）";
+    tip.style.cssText = "font-size:12px;color:#666;margin-bottom:8px;";
 
-    const input = document.createElement('input');
-    input.id = 'manual-copy-input';
-    input.type = 'text';
-    input.value = text || '';
+    const input = document.createElement("input");
+    input.id = "manual-copy-input";
+    input.type = "text";
+    input.value = text || "";
     input.readOnly = true;
     input.style.cssText = [
-      'width: 100%',
-      'padding: 8px 10px',
-      'border: 1px solid #ddd',
-      'border-radius: 4px',
-      'font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, \'Liberation Mono\', monospace',
-      'font-size: 13px',
-      'color: #333'
-    ].join(';');
+      "width: 100%",
+      "padding: 8px 10px",
+      "border: 1px solid #ddd",
+      "border-radius: 4px",
+      "font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace",
+      "font-size: 13px",
+      "color: #333"
+    ].join(";");
 
-    const actions = document.createElement('div');
-    actions.style.cssText = 'display:flex;gap:8px;justify-content:flex-end;margin-top:12px;';
+    const actions = document.createElement("div");
+    actions.style.cssText = "display:flex;gap:8px;justify-content:flex-end;margin-top:12px;";
 
-    const closeBtn = document.createElement('button');
-    closeBtn.textContent = '关闭';
-    closeBtn.className = 'btn';
-    closeBtn.style.cssText = 'padding:6px 12px;border:1px solid #ccc;background:#f8f9fa;border-radius:4px;cursor:pointer;';
-    closeBtn.addEventListener('click', () => overlay.remove());
+    const closeBtn = document.createElement("button");
+    closeBtn.textContent = "关闭";
+    closeBtn.className = "btn";
+    closeBtn.style.cssText = "padding:6px 12px;border:1px solid #ccc;background:#f8f9fa;border-radius:4px;cursor:pointer;";
+    closeBtn.addEventListener("click", () => overlay.remove());
 
-    const tryCopyBtn = document.createElement('button');
-    tryCopyBtn.textContent = '复制';
-    tryCopyBtn.className = 'btn';
-    tryCopyBtn.style.cssText = 'padding:6px 12px;border:1px solid #1976d2;background:#1976d2;color:#fff;border-radius:4px;cursor:pointer;';
-    tryCopyBtn.addEventListener('click', async () => {
+    const tryCopyBtn = document.createElement("button");
+    tryCopyBtn.textContent = "复制";
+    tryCopyBtn.className = "btn";
+    tryCopyBtn.style.cssText = "padding:6px 12px;border:1px solid #1976d2;background:#1976d2;color:#fff;border-radius:4px;cursor:pointer;";
+    tryCopyBtn.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(input.value);
-        notifySuccess('✓ 已复制', 2000);
+        showSuccess("✓ 已复制", 2000);
         overlay.remove();
       } catch (e) {
         // 尝试降级
         try {
           this.#fallbackCopyToClipboard(input.value);
-          notifySuccess('✓ 已复制', 2000);
+          showSuccess("✓ 已复制", 2000);
           overlay.remove();
         } catch (e2) {
-          notifyError('✗ 复制失败，请手动 Ctrl+C', 4000);
+          showError("✗ 复制失败，请手动 Ctrl+C", 4000);
           input.focus();
           input.select();
         }
@@ -602,8 +602,8 @@ export class UIManagerCore {
     }, 0);
 
     // 点击遮罩关闭
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) overlay.remove();
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) {overlay.remove();}
     });
   }
 
@@ -613,24 +613,24 @@ export class UIManagerCore {
    * @private
    */
   #fallbackCopyToClipboard(text) {
-    const textArea = document.createElement('textarea');
+    const textArea = document.createElement("textarea");
     textArea.value = text;
-    textArea.style.position = 'fixed';
-    textArea.style.left = '-999999px';
-    textArea.style.top = '-999999px';
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
     document.body.appendChild(textArea);
     textArea.focus();
     textArea.select();
 
     try {
-      const successful = document.execCommand('copy');
+      const successful = document.execCommand("copy");
       if (successful) {
         this.#logger.info(`✅ PDF ID copied using fallback method: ${text}`);
       } else {
-        throw new Error('execCommand returned false');
+        throw new Error("execCommand returned false");
       }
     } catch (error) {
-      this.#logger.error('Fallback copy method failed:', error);
+      this.#logger.error("Fallback copy method failed:", error);
       throw error;
     } finally {
       document.body.removeChild(textArea);
@@ -642,18 +642,18 @@ export class UIManagerCore {
    * @private
    */
   #updateCopyButtonVisibility() {
-    const copyBtn = document.getElementById('copy-pdf-id-btn');
+    const copyBtn = document.getElementById("copy-pdf-id-btn");
     if (!copyBtn) {
-      this.#logger.warn('Cannot update button visibility: button not found');
+      this.#logger.warn("Cannot update button visibility: button not found");
       return;
     }
 
     if (this.#currentPdfId) {
-      copyBtn.style.display = 'flex';
+      copyBtn.style.display = "flex";
       this.#logger.info(`✅ Copy button shown (PDF ID: ${this.#currentPdfId})`);
     } else {
-      copyBtn.style.display = 'none';
-      this.#logger.debug('Copy button hidden (no PDF ID)');
+      copyBtn.style.display = "none";
+      this.#logger.debug("Copy button hidden (no PDF ID)");
     }
   }
 
@@ -699,8 +699,8 @@ export class UIManagerCore {
    * @param {Object} viewport - 视口对象
    */
   async renderPage(page, viewport) {
-    this.#logger.warn('renderPage() is deprecated. PDFViewer component handles rendering automatically.');
-    throw new Error('Canvas rendering mode is no longer supported. Use PDFViewer mode instead.');
+    this.#logger.warn("renderPage() is deprecated. PDFViewer component handles rendering automatically.");
+    throw new Error("Canvas rendering mode is no longer supported. Use PDFViewer mode instead.");
 
     /* Canvas rendering code (deprecated) - 保留以备将来参考
     const canvas = this.#domManager.getElement('canvas');
@@ -750,8 +750,8 @@ export class UIManagerCore {
    * @param {number} percent - 进度百分比
    * @param {string} statusText - 状态文本
    */
-  updateProgress(percent, statusText = '加载中...') {
-    const progressBar = this.#domManager.getElement('progressBar');
+  updateProgress(percent, statusText = "加载中...") {
+    const progressBar = this.#domManager.getElement("progressBar");
     if (progressBar) {
       progressBar.style.width = `${percent}%`;
     }
@@ -762,9 +762,9 @@ export class UIManagerCore {
    * 隐藏进度条
    */
   hideProgress() {
-    const progressBar = this.#domManager.getElement('progressBar');
+    const progressBar = this.#domManager.getElement("progressBar");
     if (progressBar && progressBar.parentElement) {
-      progressBar.parentElement.style.display = 'none';
+      progressBar.parentElement.style.display = "none";
     }
   }
 
@@ -773,21 +773,21 @@ export class UIManagerCore {
    * @param {Error|Object} errorData - 错误数据
    */
   showError(errorData) {
-    const errorMessage = this.#domManager.getElement('errorMessage');
+    const errorMessage = this.#domManager.getElement("errorMessage");
     if (errorMessage) {
-      errorMessage.textContent = errorData.message || '加载失败';
-      errorMessage.style.display = 'block';
+      errorMessage.textContent = errorData.message || "加载失败";
+      errorMessage.style.display = "block";
     }
-    this.#logger.error('Error displayed:', errorData);
+    this.#logger.error("Error displayed:", errorData);
   }
 
   /**
    * 隐藏错误
    */
   hideError() {
-    const errorMessage = this.#domManager.getElement('errorMessage');
+    const errorMessage = this.#domManager.getElement("errorMessage");
     if (errorMessage) {
-      errorMessage.style.display = 'none';
+      errorMessage.style.display = "none";
     }
   }
 
@@ -796,7 +796,7 @@ export class UIManagerCore {
    * @param {number} scale - 缩放比例
    */
   setScale(scale) {
-    this.#stateManager.updateScale(scale, 'custom');
+    this.#stateManager.updateScale(scale, "custom");
     this.#logger.debug(`Scale set to: ${scale}`);
   }
 
@@ -805,7 +805,7 @@ export class UIManagerCore {
    * @returns {number} 缩放比例
    */
   getScale() {
-    return this.#stateManager.get('currentScale');
+    return this.#stateManager.get("currentScale");
   }
 
   /**
@@ -814,8 +814,8 @@ export class UIManagerCore {
    * @returns {HTMLCanvasElement} Canvas元素
    */
   getCanvas() {
-    this.#logger.warn('getCanvas() is deprecated. Canvas rendering mode is no longer supported.');
-    return this.#domManager.getElement('canvas');
+    this.#logger.warn("getCanvas() is deprecated. Canvas rendering mode is no longer supported.");
+    return this.#domManager.getElement("canvas");
   }
 
   /**
@@ -824,9 +824,9 @@ export class UIManagerCore {
    * @returns {CanvasRenderingContext2D} 2D上下文
    */
   getContext() {
-    this.#logger.warn('getContext() is deprecated. Canvas rendering mode is no longer supported.');
+    this.#logger.warn("getContext() is deprecated. Canvas rendering mode is no longer supported.");
     const canvas = this.getCanvas();
-    return canvas ? canvas.getContext('2d') : null;
+    return canvas ? canvas.getContext("2d") : null;
   }
 
   /**
@@ -834,7 +834,7 @@ export class UIManagerCore {
    * @returns {HTMLElement} 容器元素
    */
   getContainer() {
-    return this.#domManager.getElement('container');
+    return this.#domManager.getElement("container");
   }
 
   /**
@@ -894,7 +894,6 @@ export class UIManagerCore {
     this.#logger.info("UI cleaned up");
   }
 
-
   /**
    * 初始化UI控件（缩放控件和布局控件）
    * @private
@@ -926,7 +925,7 @@ export class UIManagerCore {
         if (this.#uiZoomControls) {
           this.#uiZoomControls.setScale(scale);
         }
-      }, { subscriberId: 'UIManagerCore' });
+      }, { subscriberId: "UIManagerCore" });
 
       // 监听页面变化事件，更新页码显示
       this.#eventBus.on(PDF_VIEWER_EVENTS.PAGE.CHANGING, ({ pageNumber }) => {
@@ -935,7 +934,7 @@ export class UIManagerCore {
           this.#uiZoomControls.updatePageInfo(pageNumber, totalPages);
           this.#logger.debug(`Page info updated: ${pageNumber}/${totalPages}`);
         }
-      }, { subscriberId: 'UIManagerCore.PageSync' });
+      }, { subscriberId: "UIManagerCore.PageSync" });
 
     } catch (error) {
       this.#logger.error("Failed to initialize UI controls:", error);
@@ -959,7 +958,7 @@ export class UIManagerCore {
       const newScale = Math.min((this.#pdfViewerManager.currentScale || 1.0) + delta, 5.0);
       this.#pdfViewerManager.currentScale = newScale;
       this.#logger.info(`Zoom in: ${newScale.toFixed(2)}`);
-    }, { subscriberId: 'UIManagerCore.ZoomIn' });
+    }, { subscriberId: "UIManagerCore.ZoomIn" });
 
     // 缩小
     this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.OUT, (data) => {
@@ -967,25 +966,25 @@ export class UIManagerCore {
       const newScale = Math.max((this.#pdfViewerManager.currentScale || 1.0) - delta, 0.25);
       this.#pdfViewerManager.currentScale = newScale;
       this.#logger.info(`Zoom out: ${newScale.toFixed(2)}`);
-    }, { subscriberId: 'UIManagerCore.ZoomOut' });
+    }, { subscriberId: "UIManagerCore.ZoomOut" });
 
     // 实际大小（重置缩放到100%）
     this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.ACTUAL_SIZE, () => {
       this.#pdfViewerManager.currentScale = 1.0;
-      this.#logger.info('Zoom reset to actual size (100%)');
-    }, { subscriberId: 'UIManagerCore.ZoomActualSize' });
+      this.#logger.info("Zoom reset to actual size (100%)");
+    }, { subscriberId: "UIManagerCore.ZoomActualSize" });
 
     // 适应宽度
     this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.FIT_WIDTH, () => {
-      this.#pdfViewerManager.currentScaleValue = 'page-width';
-      this.#logger.info('Zoom to fit width');
-    }, { subscriberId: 'UIManagerCore.ZoomFitWidth' });
+      this.#pdfViewerManager.currentScaleValue = "page-width";
+      this.#logger.info("Zoom to fit width");
+    }, { subscriberId: "UIManagerCore.ZoomFitWidth" });
 
     // 适应高度
     this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.FIT_HEIGHT, () => {
-      this.#pdfViewerManager.currentScaleValue = 'page-height';
-      this.#logger.info('Zoom to fit height');
-    }, { subscriberId: 'UIManagerCore.ZoomFitHeight' });
+      this.#pdfViewerManager.currentScaleValue = "page-height";
+      this.#logger.info("Zoom to fit height");
+    }, { subscriberId: "UIManagerCore.ZoomFitHeight" });
 
     // 上一页
     this.#eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.PREVIOUS, () => {
@@ -994,7 +993,7 @@ export class UIManagerCore {
         this.#pdfViewerManager.currentPageNumber = currentPage - 1;
         this.#logger.info(`Navigate to previous page: ${currentPage - 1}`);
       }
-    }, { subscriberId: 'UIManagerCore.NavPrev' });
+    }, { subscriberId: "UIManagerCore.NavPrev" });
 
     // 下一页
     this.#eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.NEXT, () => {
@@ -1004,7 +1003,7 @@ export class UIManagerCore {
         this.#pdfViewerManager.currentPageNumber = currentPage + 1;
         this.#logger.info(`Navigate to next page: ${currentPage + 1}`);
       }
-    }, { subscriberId: 'UIManagerCore.NavNext' });
+    }, { subscriberId: "UIManagerCore.NavNext" });
 
     // 跳转到指定页
     this.#eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.GOTO, (data) => {
@@ -1017,7 +1016,7 @@ export class UIManagerCore {
       } else {
         this.#logger.warn(`Invalid page number for GOTO: ${targetPage} (total: ${totalPages})`);
       }
-    }, { subscriberId: 'UIManagerCore.NavGoto' });
+    }, { subscriberId: "UIManagerCore.NavGoto" });
   }
 
   /**
@@ -1037,9 +1036,9 @@ export class UIManagerCore {
     }
 
     // 移除滚轮事件
-    const container = document.getElementById('viewerContainer');
+    const container = document.getElementById("viewerContainer");
     if (container) {
-      container.removeEventListener('wheel', this.#handleWheel.bind(this));
+      container.removeEventListener("wheel", this.#handleWheel.bind(this));
     }
 
     // 销毁子模块

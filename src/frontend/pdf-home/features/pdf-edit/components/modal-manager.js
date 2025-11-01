@@ -4,9 +4,8 @@
  * @description 管理模态框的创建、显示和隐藏，提供统一的模态框接口
  */
 
-import { getLogger } from '../../../../common/utils/logger.js';
-const logger = getLogger('PDFList.ModalManager');
-
+import { getLogger } from "../../../../common/utils/logger.js";
+const logger = getLogger("PDFList.ModalManager");
 
 /**
  * 模态框管理器类
@@ -25,7 +24,7 @@ export class ModalManager {
    */
   constructor({ eventBus } = {}) {
     this.#eventBus = eventBus;
-    logger.debug('ModalManager initialized');
+    logger.debug("ModalManager initialized");
   }
 
   /**
@@ -42,7 +41,7 @@ export class ModalManager {
    */
   async show(config) {
     if (this.#isOpen) {
-      logger.warn('Modal is already open, closing previous modal');
+      logger.warn("Modal is already open, closing previous modal");
       await this.hide();
     }
 
@@ -64,10 +63,10 @@ export class ModalManager {
       // 添加显示动画
       await this.#animateShow();
 
-      logger.info('Modal shown:', config.title);
+      logger.info("Modal shown:", config.title);
 
     } catch (error) {
-      logger.error('Error showing modal:', error);
+      logger.error("Error showing modal:", error);
       throw error;
     }
   }
@@ -99,10 +98,10 @@ export class ModalManager {
       this.#overlay = null;
       this.#isOpen = false;
 
-      logger.info('Modal hidden');
+      logger.info("Modal hidden");
 
     } catch (error) {
-      logger.error('Error hiding modal:', error);
+      logger.error("Error hiding modal:", error);
       throw error;
     }
   }
@@ -113,8 +112,8 @@ export class ModalManager {
    * @private
    */
   #createOverlay() {
-    const overlay = document.createElement('div');
-    overlay.className = 'pdf-modal-overlay';
+    const overlay = document.createElement("div");
+    overlay.className = "pdf-modal-overlay";
     overlay.style.cssText = `
       position: fixed;
       top: 0;
@@ -136,8 +135,8 @@ export class ModalManager {
    * @private
    */
   #createModal(config) {
-    const modal = document.createElement('div');
-    modal.className = 'pdf-modal';
+    const modal = document.createElement("div");
+    modal.className = "pdf-modal";
     modal.style.cssText = `
       position: fixed;
       top: 50%;
@@ -160,15 +159,15 @@ export class ModalManager {
     modal.appendChild(header);
 
     // 创建内容区域
-    const contentWrapper = document.createElement('div');
-    contentWrapper.className = 'pdf-modal-content';
+    const contentWrapper = document.createElement("div");
+    contentWrapper.className = "pdf-modal-content";
     contentWrapper.style.cssText = `
       padding: 20px;
       max-height: 60vh;
       overflow-y: auto;
     `;
 
-    if (typeof config.content === 'string') {
+    if (typeof config.content === "string") {
       contentWrapper.innerHTML = config.content;
     } else if (config.content instanceof HTMLElement) {
       contentWrapper.appendChild(config.content);
@@ -192,8 +191,8 @@ export class ModalManager {
    * @private
    */
   #createModalHeader(title) {
-    const header = document.createElement('div');
-    header.className = 'pdf-modal-header';
+    const header = document.createElement("div");
+    header.className = "pdf-modal-header";
     header.style.cssText = `
       display: flex;
       justify-content: space-between;
@@ -202,7 +201,7 @@ export class ModalManager {
       border-bottom: 1px solid #e0e0e0;
     `;
 
-    const titleElement = document.createElement('h3');
+    const titleElement = document.createElement("h3");
     titleElement.textContent = title;
     titleElement.style.cssText = `
       margin: 0;
@@ -211,9 +210,9 @@ export class ModalManager {
       color: #333;
     `;
 
-    const closeButton = document.createElement('button');
-    closeButton.className = 'pdf-modal-close';
-    closeButton.innerHTML = '&times;';
+    const closeButton = document.createElement("button");
+    closeButton.className = "pdf-modal-close";
+    closeButton.innerHTML = "&times;";
     closeButton.style.cssText = `
       background: none;
       border: none;
@@ -242,8 +241,8 @@ export class ModalManager {
    * @private
    */
   #createModalFooter(config) {
-    const footer = document.createElement('div');
-    footer.className = 'pdf-modal-footer';
+    const footer = document.createElement("div");
+    footer.className = "pdf-modal-footer";
     footer.style.cssText = `
       display: flex;
       justify-content: flex-end;
@@ -252,9 +251,9 @@ export class ModalManager {
       border-top: 1px solid #e0e0e0;
     `;
 
-    const cancelButton = document.createElement('button');
-    cancelButton.className = 'pdf-modal-btn-cancel';
-    cancelButton.textContent = config.cancelText || '取消';
+    const cancelButton = document.createElement("button");
+    cancelButton.className = "pdf-modal-btn-cancel";
+    cancelButton.textContent = config.cancelText || "取消";
     cancelButton.style.cssText = `
       padding: 8px 16px;
       border: 1px solid #ddd;
@@ -265,9 +264,9 @@ export class ModalManager {
       font-size: 14px;
     `;
 
-    const confirmButton = document.createElement('button');
-    confirmButton.className = 'pdf-modal-btn-confirm';
-    confirmButton.textContent = config.confirmText || '确定';
+    const confirmButton = document.createElement("button");
+    confirmButton.className = "pdf-modal-btn-confirm";
+    confirmButton.textContent = config.confirmText || "确定";
     confirmButton.style.cssText = `
       padding: 8px 16px;
       border: none;
@@ -291,9 +290,9 @@ export class ModalManager {
    */
   #bindEvents(config) {
     // 关闭按钮事件
-    const closeButton = this.#currentModal.querySelector('.pdf-modal-close');
+    const closeButton = this.#currentModal.querySelector(".pdf-modal-close");
     if (closeButton) {
-      closeButton.addEventListener('click', async () => {
+      closeButton.addEventListener("click", async () => {
         if (config.onCancel) {
           await config.onCancel();
         }
@@ -302,9 +301,9 @@ export class ModalManager {
     }
 
     // 取消按钮事件
-    const cancelButton = this.#currentModal.querySelector('.pdf-modal-btn-cancel');
+    const cancelButton = this.#currentModal.querySelector(".pdf-modal-btn-cancel");
     if (cancelButton) {
-      cancelButton.addEventListener('click', async () => {
+      cancelButton.addEventListener("click", async () => {
         if (config.onCancel) {
           await config.onCancel();
         }
@@ -313,9 +312,9 @@ export class ModalManager {
     }
 
     // 确认按钮事件
-    const confirmButton = this.#currentModal.querySelector('.pdf-modal-btn-confirm');
+    const confirmButton = this.#currentModal.querySelector(".pdf-modal-btn-confirm");
     if (confirmButton) {
-      confirmButton.addEventListener('click', async () => {
+      confirmButton.addEventListener("click", async () => {
         if (config.onConfirm) {
           const result = await config.onConfirm();
           // 如果回调返回false，不关闭模态框（用于表单验证失败的情况）
@@ -329,7 +328,7 @@ export class ModalManager {
 
     // 遮罩层点击事件（点击遮罩层关闭）
     if (this.#overlay) {
-      this.#overlay.addEventListener('click', async () => {
+      this.#overlay.addEventListener("click", async () => {
         if (config.onCancel) {
           await config.onCancel();
         }
@@ -339,15 +338,15 @@ export class ModalManager {
 
     // ESC键事件
     const handleEscape = async (e) => {
-      if (e.key === 'Escape' && this.#isOpen) {
+      if (e.key === "Escape" && this.#isOpen) {
         if (config.onCancel) {
           await config.onCancel();
         }
         await this.hide();
-        document.removeEventListener('keydown', handleEscape);
+        document.removeEventListener("keydown", handleEscape);
       }
     };
-    document.addEventListener('keydown', handleEscape);
+    document.addEventListener("keydown", handleEscape);
   }
 
   /**
@@ -360,11 +359,11 @@ export class ModalManager {
       // 使用requestAnimationFrame确保样式已应用
       requestAnimationFrame(() => {
         if (this.#overlay) {
-          this.#overlay.style.opacity = '1';
+          this.#overlay.style.opacity = "1";
         }
         if (this.#currentModal) {
-          this.#currentModal.style.opacity = '1';
-          this.#currentModal.style.transform = 'translate(-50%, -50%) scale(1)';
+          this.#currentModal.style.opacity = "1";
+          this.#currentModal.style.transform = "translate(-50%, -50%) scale(1)";
         }
         setTimeout(resolve, 300);
       });
@@ -379,11 +378,11 @@ export class ModalManager {
   async #animateHide() {
     return new Promise(resolve => {
       if (this.#overlay) {
-        this.#overlay.style.opacity = '0';
+        this.#overlay.style.opacity = "0";
       }
       if (this.#currentModal) {
-        this.#currentModal.style.opacity = '0';
-        this.#currentModal.style.transform = 'translate(-50%, -50%) scale(0.9)';
+        this.#currentModal.style.opacity = "0";
+        this.#currentModal.style.transform = "translate(-50%, -50%) scale(0.9)";
       }
       setTimeout(resolve, 300);
     });

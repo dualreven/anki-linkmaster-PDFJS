@@ -48,7 +48,7 @@ const rule = {
           if (obj && obj.type === "Identifier" && obj.name === "iziToast") {
             context.report({ node, messageId: "noIzi" });
           }
-        } catch (_) { /* noop */ }
+        } catch (e) { void e; }
       },
     };
   },

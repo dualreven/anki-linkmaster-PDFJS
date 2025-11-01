@@ -67,9 +67,14 @@ export class URLParamsParser {
 
       this.#logger.debug("URL参数解析结果:", result);
 
+      const infoMsg = `[URLParamsParser] 解析结果: pdfId=${result.pdfId}, outlineItemId=${result.outlineItemId}, pageAt=${result.pageAt}, hasParams=${result.hasParams}`;
+      this.#logger.info(infoMsg, { toast: { type: "info", ms: 3000 } });
+
+      const detailMsg = `[URLParamsParser] outlineItemId类型: ${typeof result.outlineItemId}, 值: ${result.outlineItemId === null ? 'null' : `"${result.outlineItemId}"`}`;
+      this.#logger.info(detailMsg, { toast: { type: "info", ms: 3000 } });
       return result;
     } catch (error) {
-      this.#logger.error("URL解析失败:", error);
+      this.#logger.error("URL解析失败:", error, { toast: { type: "error", ms: 3000 } });
       return {
         pdfId: null,
         pageAt: null,
@@ -173,9 +178,9 @@ export class URLParamsParser {
     };
 
     if (!isValid) {
-      this.#logger.warn("参数验证失败:", result);
+      this.#logger.warn("参数验证失败:", result, { toast: { type: "error", ms: 3000 } });
     } else if (warnings.length > 0) {
-      this.#logger.warn("参数验证警告:", result);
+      this.#logger.warn("参数验证警告:", result, { toast: { type: "warn", ms: 3000 } });
     }
 
     return result;

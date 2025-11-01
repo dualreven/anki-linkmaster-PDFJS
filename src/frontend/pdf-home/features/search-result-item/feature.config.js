@@ -3,9 +3,9 @@
  */
 
 export const SearchResultItemFeatureConfig = {
-  name: 'search-result-item',
-  version: '1.0.0',
-  description: '搜索结果条目 - 渲染单个PDF搜索结果项',
+  name: "search-result-item",
+  version: "1.0.0",
+  description: "搜索结果条目 - 渲染单个PDF搜索结果项",
 
   dependencies: [],
 
@@ -13,12 +13,12 @@ export const SearchResultItemFeatureConfig = {
     // 事件定义
     events: {
       local: {
-        ITEM_CLICKED: 'item:click:completed',
-        ITEM_SELECTED: 'item:select:completed'
+        ITEM_CLICKED: "item:click:completed",
+        ITEM_SELECTED: "item:select:completed"
       },
       global: {
-        RESULT_ITEM_CLICKED: 'search:result:item:clicked',
-        RESULT_ITEM_SELECTED: 'search:result:item:selected'
+        RESULT_ITEM_CLICKED: "search:result:item:clicked",
+        RESULT_ITEM_SELECTED: "search:result:item:selected"
       }
     },
 

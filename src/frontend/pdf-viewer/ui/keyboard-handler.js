@@ -29,30 +29,30 @@ export class KeyboardHandler {
    */
   #initializeKeyBindings() {
     // 导航快捷键
-    this.#keyBindings['ArrowLeft'] = () => this.#navigatePage('previous');
-    this.#keyBindings['ArrowRight'] = () => this.#navigatePage('next');
-    this.#keyBindings['PageUp'] = () => this.#navigatePage('previous');
-    this.#keyBindings['PageDown'] = () => this.#navigatePage('next');
-    this.#keyBindings['Home'] = () => this.#navigatePage('first');
-    this.#keyBindings['End'] = () => this.#navigatePage('last');
+    this.#keyBindings["ArrowLeft"] = () => this.#navigatePage("previous");
+    this.#keyBindings["ArrowRight"] = () => this.#navigatePage("next");
+    this.#keyBindings["PageUp"] = () => this.#navigatePage("previous");
+    this.#keyBindings["PageDown"] = () => this.#navigatePage("next");
+    this.#keyBindings["Home"] = () => this.#navigatePage("first");
+    this.#keyBindings["End"] = () => this.#navigatePage("last");
 
     // 缩放快捷键（需要Ctrl/Cmd）
-    this.#keyBindings['ctrl+0'] = () => this.#setZoom('actual');
-    this.#keyBindings['ctrl+='] = () => this.#adjustZoom('in');
-    this.#keyBindings['ctrl+-'] = () => this.#adjustZoom('out');
+    this.#keyBindings["ctrl+0"] = () => this.#setZoom("actual");
+    this.#keyBindings["ctrl+="] = () => this.#adjustZoom("in");
+    this.#keyBindings["ctrl+-"] = () => this.#adjustZoom("out");
 
     // 其他功能键
-    this.#keyBindings['Escape'] = () => this.#exitFullscreen();
-    this.#keyBindings['F11'] = () => this.#toggleFullscreen();
-    this.#keyBindings['ctrl+f'] = () => this.#openSearch();
-    this.#keyBindings['ctrl+p'] = () => this.#print();
+    this.#keyBindings["Escape"] = () => this.#exitFullscreen();
+    this.#keyBindings["F11"] = () => this.#toggleFullscreen();
+    this.#keyBindings["ctrl+f"] = () => this.#openSearch();
+    this.#keyBindings["ctrl+p"] = () => this.#print();
   }
 
   /**
    * 设置键盘事件监听
    */
   setupEventListener() {
-    document.addEventListener('keydown', this.#handleKeyDown.bind(this));
+    document.addEventListener("keydown", this.#handleKeyDown.bind(this));
     this.#logger.info("Keyboard event listener setup");
   }
 
@@ -60,7 +60,7 @@ export class KeyboardHandler {
    * 移除键盘事件监听
    */
   removeEventListener() {
-    document.removeEventListener('keydown', this.#handleKeyDown.bind(this));
+    document.removeEventListener("keydown", this.#handleKeyDown.bind(this));
     this.#logger.info("Keyboard event listener removed");
   }
 
@@ -95,9 +95,9 @@ export class KeyboardHandler {
    */
   #isInputFocused(event) {
     const target = event.target;
-    return target.tagName === 'INPUT' ||
-           target.tagName === 'TEXTAREA' ||
-           target.contentEditable === 'true';
+    return target.tagName === "INPUT" ||
+           target.tagName === "TEXTAREA" ||
+           target.contentEditable === "true";
   }
 
   /**
@@ -109,15 +109,15 @@ export class KeyboardHandler {
   #buildKeyCombo(event) {
     const parts = [];
 
-    if (event.ctrlKey || event.metaKey) parts.push('ctrl');
-    if (event.altKey) parts.push('alt');
-    if (event.shiftKey) parts.push('shift');
+    if (event.ctrlKey || event.metaKey) {parts.push("ctrl");}
+    if (event.altKey) {parts.push("alt");}
+    if (event.shiftKey) {parts.push("shift");}
 
     // 特殊键映射
-    const key = event.key === '+' ? '=' : event.key;
+    const key = event.key === "+" ? "=" : event.key;
     parts.push(key);
 
-    return parts.join('+');
+    return parts.join("+");
   }
 
   /**
@@ -126,17 +126,24 @@ export class KeyboardHandler {
    * @private
    */
   #navigatePage(direction) {
-    const eventMap = {
-      'previous': PDF_VIEWER_EVENTS.NAVIGATION.PREVIOUS,
-      'next': PDF_VIEWER_EVENTS.NAVIGATION.NEXT,
-      'first': PDF_VIEWER_EVENTS.NAVIGATION.FIRST,
-      'last': PDF_VIEWER_EVENTS.NAVIGATION.LAST
-    };
-
-    const event = eventMap[direction];
-    if (event) {
-      this.#eventBus.emit(event, {}, { actorId: 'KeyboardHandler' });
-      this.#logger.info(`Navigate: ${direction}`);
+    if (direction === "previous") {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.PREVIOUS, {}, { actorId: "KeyboardHandler" });
+      this.#logger.info("Navigate: previous");
+      return;
+    }
+    if (direction === "next") {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.NEXT, {}, { actorId: "KeyboardHandler" });
+      this.#logger.info("Navigate: next");
+      return;
+    }
+    if (direction === "first") {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.FIRST, {}, { actorId: "KeyboardHandler" });
+      this.#logger.info("Navigate: first");
+      return;
+    }
+    if (direction === "last") {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.LAST, {}, { actorId: "KeyboardHandler" });
+      this.#logger.info("Navigate: last");
     }
   }
 
@@ -146,12 +153,13 @@ export class KeyboardHandler {
    * @private
    */
   #adjustZoom(direction) {
-    const event = direction === 'in'
-      ? PDF_VIEWER_EVENTS.ZOOM.IN
-      : PDF_VIEWER_EVENTS.ZOOM.OUT;
-
-    this.#eventBus.emit(event, {}, { actorId: 'KeyboardHandler' });
-    this.#logger.info(`Zoom ${direction}`);
+    if (direction === "in") {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.IN, {}, { actorId: "KeyboardHandler" });
+      this.#logger.info("Zoom in");
+    } else {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.OUT, {}, { actorId: "KeyboardHandler" });
+      this.#logger.info("Zoom out");
+    }
   }
 
   /**
@@ -160,16 +168,19 @@ export class KeyboardHandler {
    * @private
    */
   #setZoom(level) {
-    const eventMap = {
-      'actual': PDF_VIEWER_EVENTS.ZOOM.ACTUAL_SIZE,
-      'width': PDF_VIEWER_EVENTS.ZOOM.FIT_WIDTH,
-      'height': PDF_VIEWER_EVENTS.ZOOM.FIT_HEIGHT
-    };
-
-    const event = eventMap[level];
-    if (event) {
-      this.#eventBus.emit(event, {}, { actorId: 'KeyboardHandler' });
-      this.#logger.info(`Set zoom: ${level}`);
+    if (level === "actual") {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.ACTUAL_SIZE, {}, { actorId: "KeyboardHandler" });
+      this.#logger.info("Set zoom: actual");
+      return;
+    }
+    if (level === "width") {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.FIT_WIDTH, {}, { actorId: "KeyboardHandler" });
+      this.#logger.info("Set zoom: width");
+      return;
+    }
+    if (level === "height") {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.FIT_HEIGHT, {}, { actorId: "KeyboardHandler" });
+      this.#logger.info("Set zoom: height");
     }
   }
 
@@ -203,7 +214,7 @@ export class KeyboardHandler {
    * @private
    */
   #openSearch() {
-    this.#eventBus.emit(PDF_VIEWER_EVENTS.SEARCH.UI.OPEN, {}, { actorId: 'KeyboardHandler' });
+    this.#eventBus.emit(PDF_VIEWER_EVENTS.SEARCH.UI.OPEN, {}, { actorId: "KeyboardHandler" });
     this.#logger.info("Open search");
   }
 
@@ -212,7 +223,7 @@ export class KeyboardHandler {
    * @private
    */
   #print() {
-    this.#eventBus.emit(PDF_VIEWER_EVENTS.PRINT.REQUEST, {}, { actorId: 'KeyboardHandler' });
+    this.#eventBus.emit(PDF_VIEWER_EVENTS.PRINT.REQUEST, {}, { actorId: "KeyboardHandler" });
     this.#logger.info("Print requested");
   }
 
@@ -241,7 +252,7 @@ export class KeyboardHandler {
    */
   setEnabled(enabled) {
     this.#enabled = enabled;
-    this.#logger.info(`Keyboard handler ${enabled ? 'enabled' : 'disabled'}`);
+    this.#logger.info(`Keyboard handler ${enabled ? "enabled" : "disabled"}`);
   }
 
   /**

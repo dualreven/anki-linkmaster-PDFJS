@@ -5,9 +5,9 @@
  * - 返回 toastId，可用于更新/关闭
  */
 
-import { getLogger } from './logger.js';
+import { getLogger } from "./logger.js";
 
-const logger = getLogger('ToastManager');
+const logger = getLogger("ToastManager");
 
 class ToastManager {
   constructor() {
@@ -19,27 +19,27 @@ class ToastManager {
   }
 
   _ensureContainer() {
-    if (this._container && document.body.contains(this._container)) return;
-    const container = document.createElement('div');
+    if (this._container && document.body.contains(this._container)) {return;}
+    const container = document.createElement("div");
     // 统一右上角堆叠
-    container.id = 'toast-container-top-right';
-    container.setAttribute('role', 'status');
-    container.style.position = 'fixed';
-    container.style.right = '12px';
-    container.style.top = '12px';
-    container.style.zIndex = '9999';
-    container.style.display = 'flex';
-    container.style.flexDirection = 'column';
-    container.style.gap = '8px';
+    container.id = "toast-container-top-right";
+    container.setAttribute("role", "status");
+    container.style.position = "fixed";
+    container.style.right = "12px";
+    container.style.top = "12px";
+    container.style.zIndex = "9999";
+    container.style.display = "flex";
+    container.style.flexDirection = "column";
+    container.style.gap = "8px";
     document.body.appendChild(container);
     this._container = container;
   }
 
   _injectStylesOnce() {
-    if (document.getElementById('toast-manager-styles')) return;
-    const style = document.createElement('style');
-    style.id = 'toast-manager-styles';
-    style.type = 'text/css';
+    if (document.getElementById("toast-manager-styles")) {return;}
+    const style = document.createElement("style");
+    style.id = "toast-manager-styles";
+    style.type = "text/css";
     // 保持样式尽量轻量，避免全局污染
     style.appendChild(document.createTextNode(`
       .toast-item{min-width:200px;max-width:420px;padding:10px 12px;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.15);color:#fff;font-size:13px;line-height:1.4;opacity:0;transform:translateY(-6px);transition:opacity .16s ease,transform .16s ease}
@@ -55,18 +55,18 @@ class ToastManager {
   }
 
   _createNode(message, type) {
-    const el = document.createElement('div');
+    const el = document.createElement("div");
     el.className = `toast-item toast-${type}`;
-    const row = document.createElement('div');
-    row.className = 'toast-row';
-    const span = document.createElement('span');
-    span.className = 'toast-msg';
+    const row = document.createElement("div");
+    row.className = "toast-row";
+    const span = document.createElement("span");
+    span.className = "toast-msg";
     span.textContent = message;
-    const close = document.createElement('span');
-    close.className = 'toast-close';
-    close.textContent = '×';
-    close.title = '关闭';
-    close.addEventListener('click', () => {
+    const close = document.createElement("span");
+    close.className = "toast-close";
+    close.textContent = "×";
+    close.title = "关闭";
+    close.addEventListener("click", () => {
       try { this.dismiss(el._toastId); } catch (e) { /* ignore */ }
     });
     row.appendChild(span);
@@ -75,7 +75,7 @@ class ToastManager {
     return el;
   }
 
-  show(message, { type = 'info', duration = 3000 } = {}) {
+  show(message, { type = "info", duration = 3000 } = {}) {
     try {
       this._ensureContainer();
       const id = this._seq++;
@@ -83,7 +83,7 @@ class ToastManager {
       node._toastId = id;
       this._container.appendChild(node);
       // 触发进入动画
-      requestAnimationFrame(() => node.classList.add('show'));
+      requestAnimationFrame(() => node.classList.add("show"));
       let timer = null;
       if (duration > 0) {
         timer = setTimeout(() => this.dismiss(id), duration);
@@ -91,25 +91,25 @@ class ToastManager {
       this._toasts.set(id, { node, timer });
       return id;
     } catch (e) {
-      logger.warn('Toast show failed', { error: e?.message });
+      logger.warn("Toast show failed", { error: e?.message });
       return -1;
     }
   }
 
   update(id, { message, type, duration } = {}) {
     const t = this._toasts.get(id);
-    if (!t) return false;
+    if (!t) {return false;}
     const { node, timer } = t;
-    if (typeof message === 'string') {
-      const span = node.querySelector('.toast-msg');
-      if (span) span.textContent = message;
+    if (typeof message === "string") {
+      const span = node.querySelector(".toast-msg");
+      if (span) {span.textContent = message;}
     }
     if (type) {
-      node.classList.remove('toast-info', 'toast-success', 'toast-error');
+      node.classList.remove("toast-info", "toast-success", "toast-error");
       node.classList.add(`toast-${this._normalizeType(type)}`);
     }
-    if (typeof duration === 'number') {
-      if (timer) clearTimeout(timer);
+    if (typeof duration === "number") {
+      if (timer) {clearTimeout(timer);}
       t.timer = duration > 0 ? setTimeout(() => this.dismiss(id), duration) : null;
     }
     return true;
@@ -117,10 +117,10 @@ class ToastManager {
 
   dismiss(id) {
     const t = this._toasts.get(id);
-    if (!t) return false;
+    if (!t) {return false;}
     const { node, timer } = t;
-    if (timer) clearTimeout(timer);
-    node.classList.remove('show');
+    if (timer) {clearTimeout(timer);}
+    node.classList.remove("show");
     // 等动画结束再移除
     setTimeout(() => {
       try {
@@ -133,19 +133,19 @@ class ToastManager {
 
   _normalizeType(type) {
     switch (String(type)) {
-      case 'success':
-      case 'error':
-      case 'info':
-        return type;
-      default:
-        return 'info';
+    case "success":
+    case "error":
+    case "info":
+      return type;
+    default:
+      return "info";
     }
   }
 }
 
 let _singleton = null;
 export function getToastManager() {
-  if (!_singleton) _singleton = new ToastManager();
+  if (!_singleton) {_singleton = new ToastManager();}
   return _singleton;
 }
 

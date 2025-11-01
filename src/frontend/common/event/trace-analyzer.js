@@ -10,25 +10,25 @@ export class TraceAnalyzer {
    * @returns {boolean} 是否为终点事件
    */
   static isTerminalEvent(eventName) {
-    if (!eventName || typeof eventName !== 'string') return false;
+    if (!eventName || typeof eventName !== "string") {return false;}
 
     // 终点状态关键词
     const terminalStatuses = [
-      'success',
-      'completed',
-      'complete',
-      'done',
-      'failed',
-      'error',
-      'cancelled',
-      'timeout',
-      'finished',
-      'resolved',
-      'rejected'
+      "success",
+      "completed",
+      "complete",
+      "done",
+      "failed",
+      "error",
+      "cancelled",
+      "timeout",
+      "finished",
+      "resolved",
+      "rejected"
     ];
 
-    const parts = eventName.split(':');
-    if (parts.length !== 3) return false;
+    const parts = eventName.split(":");
+    if (parts.length !== 3) {return false;}
 
     const status = parts[2].toLowerCase();
     return terminalStatuses.includes(status);
@@ -40,7 +40,7 @@ export class TraceAnalyzer {
    * @returns {Array} 终点节点列表
    */
   static findTerminalNodes(traceTree) {
-    if (!traceTree || !traceTree.messages) return [];
+    if (!traceTree || !traceTree.messages) {return [];}
 
     const terminals = [];
 
@@ -79,22 +79,22 @@ export class TraceAnalyzer {
    * @returns {Object} 完成状态分析
    */
   static analyzeCompletion(traceTree) {
-    if (!traceTree) return null;
+    if (!traceTree) {return null;}
 
     const terminals = TraceAnalyzer.findTerminalNodes(traceTree);
     const allNodes = TraceAnalyzer.getAllNodes(traceTree);
 
     // 统计成功和失败的终点
     const successTerminals = terminals.filter(t =>
-      t.event.includes('success') ||
-      t.event.includes('completed') ||
-      t.event.includes('done')
+      t.event.includes("success") ||
+      t.event.includes("completed") ||
+      t.event.includes("done")
     );
 
     const failureTerminals = terminals.filter(t =>
-      t.event.includes('failed') ||
-      t.event.includes('error') ||
-      t.event.includes('rejected')
+      t.event.includes("failed") ||
+      t.event.includes("error") ||
+      t.event.includes("rejected")
     );
 
     // 找出未完成的分支（非终点事件但没有子节点）
@@ -117,7 +117,7 @@ export class TraceAnalyzer {
         event: n.event,
         hint: `Event '${n.event}' appears to be incomplete (no children, not a terminal status)`
       })),
-      completionRate: ((terminals.length / allNodes.length) * 100).toFixed(2) + '%'
+      completionRate: ((terminals.length / allNodes.length) * 100).toFixed(2) + "%"
     };
   }
 
@@ -127,7 +127,7 @@ export class TraceAnalyzer {
    * @returns {Array} 关键路径上的节点
    */
   static getCriticalPath(traceTree) {
-    if (!traceTree || !traceTree.messages) return [];
+    if (!traceTree || !traceTree.messages) {return [];}
 
     let longestPath = [];
     let maxDepth = 0;
@@ -178,10 +178,10 @@ export class TraceAnalyzer {
     Object.entries(eventCounts).forEach(([event, count]) => {
       if (count > 3) {  // 同一事件触发超过3次可能是异常
         anomalies.push({
-          type: 'potential_loop',
+          type: "potential_loop",
           event: event,
           count: count,
-          severity: count > 10 ? 'high' : 'medium',
+          severity: count > 10 ? "high" : "medium",
           message: `Event '${event}' was triggered ${count} times`
         });
       }
@@ -191,31 +191,31 @@ export class TraceAnalyzer {
     allNodes.forEach(node => {
       if (node.executionTime > 1000) {  // 执行超过1秒
         anomalies.push({
-          type: 'slow_execution',
+          type: "slow_execution",
           event: node.event,
           messageId: node.messageId,
           executionTime: node.executionTime,
-          severity: node.executionTime > 5000 ? 'high' : 'medium',
+          severity: node.executionTime > 5000 ? "high" : "medium",
           message: `Event '${node.event}' took ${node.executionTime}ms to execute`
         });
       }
     });
 
     // 检测3：孤立节点（requested但没有对应的response）
-    const requestedEvents = allNodes.filter(n => n.event.includes('requested'));
+    const requestedEvents = allNodes.filter(n => n.event.includes("requested"));
     requestedEvents.forEach(reqNode => {
-      const baseName = reqNode.event.replace('requested', '');
+      const baseName = reqNode.event.replace("requested", "");
       const hasResponse = allNodes.some(n =>
         n.event.includes(baseName) &&
-        (n.event.includes('success') || n.event.includes('failed'))
+        (n.event.includes("success") || n.event.includes("failed"))
       );
 
       if (!hasResponse) {
         anomalies.push({
-          type: 'missing_response',
+          type: "missing_response",
           event: reqNode.event,
           messageId: reqNode.messageId,
-          severity: 'high',
+          severity: "high",
           message: `Request '${reqNode.event}' has no corresponding response`
         });
       }
@@ -226,16 +226,16 @@ export class TraceAnalyzer {
       anomalyCount: anomalies.length,
       anomalies: anomalies,
       summary: {
-        loops: anomalies.filter(a => a.type === 'potential_loop').length,
-        slowExecutions: anomalies.filter(a => a.type === 'slow_execution').length,
-        missingResponses: anomalies.filter(a => a.type === 'missing_response').length
+        loops: anomalies.filter(a => a.type === "potential_loop").length,
+        slowExecutions: anomalies.filter(a => a.type === "slow_execution").length,
+        missingResponses: anomalies.filter(a => a.type === "missing_response").length
       }
     };
   }
 
   // 辅助函数：获取所有节点
   static getAllNodes(traceTree) {
-    if (!traceTree || !traceTree.messages) return [];
+    if (!traceTree || !traceTree.messages) {return [];}
 
     const nodes = [];
 

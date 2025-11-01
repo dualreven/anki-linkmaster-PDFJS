@@ -24,8 +24,8 @@ import { PDFOutlineFeature } from "../features/pdf-outline/index.js";
 import { PDFCardFeature } from "../features/pdf-card/index.js";
 import { AiAssistantFeature } from "../features/ai-assistant/index.js";
 import { PDFAnchorFeature } from "../features/pdf-anchor/index.js";
-import { showInfo as notifyInfo } from "../../common/utils/notification.js";
-const logger = getLogger('pdf-viewer.bootstrap');
+import { showInfo } from "../../common/utils/notification.js";
+const logger = getLogger("pdf-viewer.bootstrap");
 
 /**
  * 解析WebSocket端口
@@ -34,7 +34,7 @@ const logger = getLogger('pdf-viewer.bootstrap');
 function resolveWebSocketPort() {
   // 1. 优先从URL参数获取
   const urlParams = new URLSearchParams(window.location.search);
-  const msgCenterPort = urlParams.get('msgCenter');
+  const msgCenterPort = urlParams.get("msgCenter");
   if (msgCenterPort) {
     return parseInt(msgCenterPort, 10);
   }
@@ -56,7 +56,7 @@ function resolvePDFPath() {
   }
 
   // 2. 检查URL参数file（通过launcher.py传递）
-  const fileParam = urlParams.get('file');
+  const fileParam = urlParams.get("file");
   if (fileParam) {
     return decodeURIComponent(fileParam);
   }
@@ -80,11 +80,11 @@ export async function bootstrapPDFViewerAppFeature() {
     logger.info(`[Bootstrap] Configuration: wsUrl=${wsUrl}, pdfPath=${pdfPath}`);
 
     // 2. 创建依赖注入容器
-    const container = new SimpleDependencyContainer('pdf-viewer');
+    const container = new SimpleDependencyContainer("pdf-viewer");
 
     // 注册核心服务
-    container.register('eventBus', eventBusSingleton);
-    container.register('logger', logger);
+    container.register("eventBus", eventBusSingleton);
+    container.register("logger", logger);
 
     // 3. 创建 Feature Registry
     const registry = new FeatureRegistry({
@@ -95,8 +95,8 @@ export async function bootstrapPDFViewerAppFeature() {
 
     // 打开 Outline 相关模块的“模块级日志过滤”并设为较详细级别，便于问题排查
     try {
-      setModuleLogLevel('Feature.pdf-outline', LogLevel.ERROR);
-      setModuleLogLevel('OutlineSidebarUI', LogLevel.ERROR);
+      setModuleLogLevel("Feature.pdf-outline", LogLevel.ERROR);
+      setModuleLogLevel("OutlineSidebarUI", LogLevel.ERROR);
     } catch (_) {}
 
     // 4. 注册核心 Features
@@ -137,45 +137,45 @@ export async function bootstrapPDFViewerAppFeature() {
               e.stopPropagation();
               // 将 Ctrl+滚轮 转译为应用内的 PDF 缩放事件（避免浏览器层 page zoom）
               import("../../common/event/pdf-viewer-constants.js").then(({ PDF_VIEWER_EVENTS }) => {
-                const direction = (e.deltaY || 0) < 0 ? 'in' : 'out';
-                const evt = direction === 'in' ? PDF_VIEWER_EVENTS.ZOOM.IN : PDF_VIEWER_EVENTS.ZOOM.OUT;
+                const direction = (e.deltaY || 0) < 0 ? "in" : "out";
+                const evt = direction === "in" ? PDF_VIEWER_EVENTS.ZOOM.IN : PDF_VIEWER_EVENTS.ZOOM.OUT;
                 // 使用较小的步进以获得平滑体验
-                eventBusSingleton.emit(evt, { delta: 0.15 }, { actorId: 'BootstrapZoomGuard' });
+                eventBusSingleton.emit(evt, { delta: 0.15 }, { actorId: "BootstrapZoomGuard" });
                 logger.info(`[Bootstrap] Ctrl+Wheel intercepted → zoom ${direction}`);
               }).catch(() => {
-                logger.warn('[Bootstrap] Failed to emit zoom event on Ctrl+Wheel');
+                logger.warn("[Bootstrap] Failed to emit zoom event on Ctrl+Wheel");
               });
             }
           } catch (_) {}
         };
         const keydownHandler = (e) => {
           try {
-            if (!e) return;
+            if (!e) {return;}
             const ctrl = !!(e.ctrlKey || e.metaKey); // macOS 下 meta 也可能触发
-            const k = e.key || '';
-            if (ctrl && (k === '+' || k === '-' || k === '0')) {
+            const k = e.key || "";
+            if (ctrl && (k === "+" || k === "-" || k === "0")) {
               e.preventDefault();
               e.stopPropagation();
-              logger.info('[Bootstrap] Ctrl+Key page zoom prevented', { key: k });
+              logger.info("[Bootstrap] Ctrl+Key page zoom prevented", { key: k });
             }
             // 处理部分键位编码（等号/减号/数字键盘）
-            const code = e.code || '';
-            if (ctrl && (code === 'Equal' || code === 'Minus' || code === 'Digit0' || code === 'NumpadAdd' || code === 'NumpadSubtract' || code === 'Numpad0')) {
+            const code = e.code || "";
+            if (ctrl && (code === "Equal" || code === "Minus" || code === "Digit0" || code === "NumpadAdd" || code === "NumpadSubtract" || code === "Numpad0")) {
               e.preventDefault();
               e.stopPropagation();
-              logger.info('[Bootstrap] Ctrl+Key(code) page zoom prevented', { code });
+              logger.info("[Bootstrap] Ctrl+Key(code) page zoom prevented", { code });
             }
           } catch (_) {}
         };
         // 使用 passive:false 以允许 preventDefault 生效
-        window.addEventListener('wheel', wheelHandler, { passive: false, capture: true });
-        window.addEventListener('keydown', keydownHandler, { capture: true });
+        window.addEventListener("wheel", wheelHandler, { passive: false, capture: true });
+        window.addEventListener("keydown", keydownHandler, { capture: true });
         // 保存到全局以便调试/卸载
         window.__PDFVIEWER_DISABLE_PAGE_ZOOM_GUARD__ = { wheelHandler, keydownHandler };
-        logger.info('[Bootstrap] Page zoom (Ctrl+Wheel/Key) disabled at JS layer');
+        logger.info("[Bootstrap] Page zoom (Ctrl+Wheel/Key) disabled at JS layer");
       }
     } catch (e) {
-      logger.warn('[Bootstrap] Failed to install page-zoom guard (non-fatal)', e);
+      logger.warn("[Bootstrap] Failed to install page-zoom guard (non-fatal)", e);
     }
 
     // 6. 设置全局引用（便于调试）
@@ -191,12 +191,12 @@ export async function bootstrapPDFViewerAppFeature() {
     };
 
     // 7. 如果有PDF路径，自动加载（但当URL已提供 pdf-id 时，避免与 URLNavigationFeature 重复触发）
-    const hasPdfIdParam = (() => { try { return !!new URLSearchParams(window.location.search).get('pdf-id'); } catch { return false; } })();
+    const hasPdfIdParam = (() => { try { return !!new URLSearchParams(window.location.search).get("pdf-id"); } catch { return false; } })();
     if (pdfPath && !hasPdfIdParam) {
       logger.info(`[Bootstrap] Auto-loading PDF: ${pdfPath}`);
 
       // 从完整路径中提取文件名
-      const filename = pdfPath.includes('\\') || pdfPath.includes('/')
+      const filename = pdfPath.includes("\\") || pdfPath.includes("/")
         ? pdfPath.split(/[\\\/]/).pop()
         : pdfPath;
 
@@ -212,7 +212,7 @@ export async function bootstrapPDFViewerAppFeature() {
       eventBusSingleton.emit(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, {
         filename: filename,
         file_path: pdfPath
-      }, { actorId: 'Bootstrap' });
+      }, { actorId: "Bootstrap" });
     } else if (pdfPath && hasPdfIdParam) {
       logger.warn("[TRACE] Skip Bootstrap auto-load because 'pdf-id' present; URLNavigationFeature will handle loading.");
     }
@@ -221,7 +221,7 @@ export async function bootstrapPDFViewerAppFeature() {
 
     // 提示：当前为 Outline 模式（固定）
     try {
-      notifyInfo("当前为 Outline 模式", 3000);
+      showInfo("当前为 Outline 模式", 3000);
       logger.warn("[Bootstrap] Outline mode is active (enforced)");
     } catch (_) {}
     return registry;

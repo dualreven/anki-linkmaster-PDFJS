@@ -1,11 +1,11 @@
-﻿/**
+/**
  * SearchResults Feature - 搜索结果展示功能
  * 显示和管理PDF搜索结果列表
  */
 
 import { ResultsRenderer } from "./components/results-renderer.js";
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, PDF_MANAGEMENT_EVENTS } from "../../../common/event/event-constants.js";
-import { showInfo as notifyInfo, showError as notifyError } from "../../../common/utils/notification.js";
+import { showInfo, showError } from "../../../common/utils/notification.js";
 import "./styles/search-results.css";
 
 export class SearchResultsFeature {
@@ -221,7 +221,7 @@ export class SearchResultsFeature {
           this.#logger.info("[SearchResultsFeature] 发起阅读（批量，WS）", { count: selectedIds.length, withMeta: items.length });
           for (const id of selectedIds.map(String)) {
             const rid = `open-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-            const msg = { type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF, request_id: rid, metadata: { version: '1.0.0' }, data: { pdf_id: id } };
+            const msg = { type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF, request_id: rid, metadata: { version: "1.0.0" }, data: { pdf_id: id } };
             this.#scopedEventBus?.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, msg);
           }
         } catch (e) {
@@ -435,7 +435,7 @@ export class SearchResultsFeature {
     // 条目打开事件 -> 转发到全局
     const unsubOpen = this.#scopedEventBus.on("results:item:open", async (data) => {
       // 初始阶段提示
-      notifyInfo("🔍 正在打开PDF...", 2500);
+      showInfo("🔍 正在打开PDF...", 2500);
       this.#logger.info("[SearchResultsFeature] [步骤1] Item open requested", data);
 
       // 1) 转发为全局事件，便于其他模块感知
@@ -452,7 +452,7 @@ export class SearchResultsFeature {
         this.#logger.info("[SearchResultsFeature] [步骤3] Parsed params", { pdfId, filename, title, filePath });
 
         if (!pdfId) {
-          notifyError("❌ 缺少PDF ID", 5000);
+          showError("❌ 缺少PDF ID", 5000);
           this.#logger.warn("[SearchResultsFeature] Skip open: missing pdfId", { data });
           return;
         }
@@ -487,13 +487,13 @@ export class SearchResultsFeature {
 
         this.#logger.info("[SearchResultsFeature] [步骤10] 通过 WebSocket 请求打开viewer", { pdfId });
         const rid = `open-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-        const msg = { type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF, request_id: rid, metadata: { version: '1.0.0' }, data: { pdf_id: String(pdfId) } };
+        const msg = { type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF, request_id: rid, metadata: { version: "1.0.0" }, data: { pdf_id: String(pdfId) } };
         this.#scopedEventBus?.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, msg);
         this.#logger.info("[SearchResultsFeature] [步骤11] WS 消息已发送");
         // 最终成功阶段的 toast 由 QWebChannelBridge 显示
 
       } catch (e) {
-        notifyError(`❌ 打开失败: ${e.message}`, 5000);
+        showError(`❌ 打开失败: ${e.message}`, 5000);
         this.#logger.error("[SearchResultsFeature] Open viewer failed", e);
       }
     }, { subscriberId: `${this.name}:${sidBase}:item-open` });
@@ -547,7 +547,7 @@ export class SearchResultsFeature {
       }, { subscriberId: `${this.name}:fetch-detail:${rid}` });
 
       // 发送请求
-      const payload = { type: WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST, request_id: rid, metadata: { version: '1.0.0' }, data: { pdf_id: pdfId } };
+      const payload = { type: WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST, request_id: rid, metadata: { version: "1.0.0" }, data: { pdf_id: pdfId } };
       this.#scopedEventBus?.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, payload);
 
       // 超时兜底

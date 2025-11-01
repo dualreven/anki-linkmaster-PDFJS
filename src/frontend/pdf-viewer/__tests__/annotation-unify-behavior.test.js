@@ -18,16 +18,16 @@ describe("annotation unify behavior (static checks)", () => {
   test("AnnotationFeature ensures overlays for screenshot/highlight/comment", () => {
     const p = resolve(base, "features/annotation/index.js");
     const text = readUtf8(p);
-    expect(text.includes('toolRegistry.get?.("screenshot")')).toBe(true);
-    expect(text.includes('toolRegistry.get?.("text-highlight")')).toBe(true);
-    expect(text.includes('toolRegistry.get?.("comment")')).toBe(true);
+    expect(text.includes("toolRegistry.get?.(\"screenshot\")")).toBe(true);
+    expect(text.includes("toolRegistry.get?.(\"text-highlight\")")).toBe(true);
+    expect(text.includes("toolRegistry.get?.(\"comment\")")).toBe(true);
     expect(/commentTool\?\.\s*ensureOverlayFor/.test(text)).toBe(true);
   });
 
   test("AnnotationFeature sets log level override for CommentTool", () => {
     const p = resolve(base, "features/annotation/index.js");
     const text = readUtf8(p);
-    expect(text.includes('setModuleLogLevel("CommentTool"')).toBe(true);
+    expect(text.includes("setModuleLogLevel(\"CommentTool\"")).toBe(true);
   });
 
   test("CommentTool implements ensureOverlayFor + pending queue + DATA.LOADED listener", () => {

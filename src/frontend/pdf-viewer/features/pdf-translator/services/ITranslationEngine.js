@@ -31,7 +31,7 @@ export class ITranslationEngine {
    * @returns {string}
    */
   get name() {
-    throw new Error('Method "name" must be implemented');
+    throw new Error("Method \"name\" must be implemented");
   }
 
   /**
@@ -39,7 +39,7 @@ export class ITranslationEngine {
    * @returns {string}
    */
   get displayName() {
-    throw new Error('Method "displayName" must be implemented');
+    throw new Error("Method \"displayName\" must be implemented");
   }
 
   /**
@@ -47,7 +47,7 @@ export class ITranslationEngine {
    * @returns {boolean}
    */
   get requiresApiKey() {
-    throw new Error('Method "requiresApiKey" must be implemented');
+    throw new Error("Method \"requiresApiKey\" must be implemented");
   }
 
   /**
@@ -55,7 +55,7 @@ export class ITranslationEngine {
    * @returns {string[]} 语言代码数组（如 ['en', 'zh', 'ja']）
    */
   getSupportedLanguages() {
-    throw new Error('Method "getSupportedLanguages" must be implemented');
+    throw new Error("Method \"getSupportedLanguages\" must be implemented");
   }
 
   /**
@@ -64,7 +64,7 @@ export class ITranslationEngine {
    * @returns {Promise<string>} 语言代码
    */
   async detectLanguage(text) {
-    throw new Error('Method "detectLanguage" must be implemented');
+    throw new Error("Method \"detectLanguage\" must be implemented");
   }
 
   /**
@@ -74,8 +74,8 @@ export class ITranslationEngine {
    * @param {string} [sourceLang='auto'] - 源语言代码，默认自动检测
    * @returns {Promise<TranslationResult>}
    */
-  async translate(text, targetLang, sourceLang = 'auto') {
-    throw new Error('Method "translate" must be implemented');
+  async translate(text, targetLang, sourceLang = "auto") {
+    throw new Error("Method \"translate\" must be implemented");
   }
 
   /**
@@ -84,7 +84,7 @@ export class ITranslationEngine {
    */
   setApiKey(apiKey) {
     if (this.requiresApiKey) {
-      throw new Error('Method "setApiKey" must be implemented');
+      throw new Error("Method \"setApiKey\" must be implemented");
     }
   }
 
@@ -104,6 +104,6 @@ export class ITranslationEngine {
    * @returns {number} [.dailyLimit] - 每日限制（可选）
    */
   getLimits() {
-    throw new Error('Method "getLimits" must be implemented');
+    throw new Error("Method \"getLimits\" must be implemented");
   }
 }

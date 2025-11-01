@@ -4,8 +4,8 @@
  * @module TranslationService
  */
 
-import { getLogger } from '../../../../common/utils/logger.js';
-import { MyMemoryEngine } from './MyMemoryEngine.js';
+import { getLogger } from "../../../../common/utils/logger.js";
+import { MyMemoryEngine } from "./MyMemoryEngine.js";
 
 /**
  * 翻译服务类
@@ -32,13 +32,13 @@ export class TranslationService {
    * @param {Object} [options.cacheConfig] - 缓存配置
    */
   constructor(options = {}) {
-    this.#logger = getLogger('TranslationService');
+    this.#logger = getLogger("TranslationService");
 
     // 注册默认引擎
     this.registerEngine(new MyMemoryEngine());
 
     // 设置默认引擎
-    const defaultEngine = options.defaultEngine || 'mymemory';
+    const defaultEngine = options.defaultEngine || "mymemory";
     this.setEngine(defaultEngine);
 
     // 应用缓存配置
@@ -46,7 +46,7 @@ export class TranslationService {
       this.#cacheConfig = { ...this.#cacheConfig, ...options.cacheConfig };
     }
 
-    this.#logger.info('TranslationService initialized', {
+    this.#logger.info("TranslationService initialized", {
       defaultEngine,
       cacheEnabled: this.#cacheConfig.enabled
     });
@@ -58,7 +58,7 @@ export class TranslationService {
    */
   registerEngine(engine) {
     if (!engine || !engine.name) {
-      throw new Error('Invalid translation engine');
+      throw new Error("Invalid translation engine");
     }
 
     this.#engines.set(engine.name, engine);
@@ -111,24 +111,24 @@ export class TranslationService {
    * @param {boolean} [options.useCache=true] - 是否使用缓存
    * @returns {Promise<TranslationResult>}
    */
-  async translate(text, targetLang, sourceLang = 'auto', options = {}) {
+  async translate(text, targetLang, sourceLang = "auto", options = {}) {
     const useCache = options.useCache !== false;
 
     try {
       // 参数验证
       if (!text || text.trim().length === 0) {
-        throw new Error('文本不能为空');
+        throw new Error("文本不能为空");
       }
 
       if (!this.#currentEngine) {
-        throw new Error('未设置翻译引擎');
+        throw new Error("未设置翻译引擎");
       }
 
       // 检查缓存
       if (useCache && this.#cacheConfig.enabled) {
         const cached = this.#getFromCache(text, targetLang, sourceLang);
         if (cached) {
-          this.#logger.info('Translation result from cache');
+          this.#logger.info("Translation result from cache");
           return cached;
         }
       }
@@ -146,7 +146,7 @@ export class TranslationService {
 
     } catch (error) {
       // 服务层错误仅记录，不触发自动 toast（交由上层UI统一提示）
-      this.#logger.error('Translation failed:', error, { toast: { type: 'debug' } });
+      this.#logger.error("Translation failed:", error, { toast: { type: "debug" } });
       throw error;
     }
   }
@@ -158,7 +158,7 @@ export class TranslationService {
    * @param {string} [sourceLang='auto'] - 源语言代码
    * @returns {Promise<TranslationResult[]>}
    */
-  async translateBatch(texts, targetLang, sourceLang = 'auto') {
+  async translateBatch(texts, targetLang, sourceLang = "auto") {
     const results = [];
 
     for (const text of texts) {
@@ -188,7 +188,7 @@ export class TranslationService {
    */
   async detectLanguage(text) {
     if (!this.#currentEngine) {
-      throw new Error('未设置翻译引擎');
+      throw new Error("未设置翻译引擎");
     }
 
     return await this.#currentEngine.detectLanguage(text);
@@ -226,7 +226,7 @@ export class TranslationService {
     const now = Date.now();
     if (now - cached.timestamp > this.#cacheConfig.ttl) {
       this.#cache.delete(key);
-      this.#logger.debug('Cache expired:', key);
+      this.#logger.debug("Cache expired:", key);
       return null;
     }
 
@@ -249,7 +249,7 @@ export class TranslationService {
       // 删除最旧的条目（FIFO策略）
       const firstKey = this.#cache.keys().next().value;
       this.#cache.delete(firstKey);
-      this.#logger.debug('Cache size limit reached, removed oldest entry');
+      this.#logger.debug("Cache size limit reached, removed oldest entry");
     }
 
     this.#cache.set(key, {
@@ -257,7 +257,7 @@ export class TranslationService {
       timestamp: Date.now()
     });
 
-    this.#logger.debug('Added to cache:', key);
+    this.#logger.debug("Added to cache:", key);
   }
 
   /**
@@ -277,7 +277,7 @@ export class TranslationService {
     } else {
       // 清除所有缓存
       this.#cache.clear();
-      this.#logger.info('All cache cleared');
+      this.#logger.info("All cache cleared");
     }
   }
 
@@ -315,7 +315,7 @@ export class TranslationService {
     try {
       return await this.#currentEngine.validateConfig();
     } catch (error) {
-      this.#logger.error('Engine validation failed:', error);
+      this.#logger.error("Engine validation failed:", error);
       return false;
     }
   }
@@ -336,7 +336,7 @@ export class TranslationService {
    * 销毁服务
    */
   destroy() {
-    this.#logger.info('Destroying TranslationService...');
+    this.#logger.info("Destroying TranslationService...");
     this.clearCache();
     this.#engines.clear();
     this.#currentEngine = null;

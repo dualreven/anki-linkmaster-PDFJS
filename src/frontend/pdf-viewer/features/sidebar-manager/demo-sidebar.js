@@ -3,10 +3,9 @@
  * @file demo-sidebar.js
  */
 
-import { getLogger } from '../../../common/utils/logger.js';
-import { createSidebarConfig } from './sidebar-config.js';
-const logger = getLogger('DemoSidebar');
-
+import { getLogger } from "../../../common/utils/logger.js";
+import { createSidebarConfig } from "./sidebar-config.js";
+const logger = getLogger("DemoSidebar");
 
 /**
  * 创建测试侧边栏1的配置
@@ -14,17 +13,17 @@ const logger = getLogger('DemoSidebar');
  * @returns {SidebarConfig}
  */
 export function createDemoSidebar1(eventBus) {
-    return createSidebarConfig({
-        id: 'demo-sidebar-1',
-        title: '测试侧边栏 1',
-        priority: 100,
-        defaultWidth: 300,
-        resizable: true,
-        contentRenderer: () => {
-            const content = document.createElement('div');
-            content.style.cssText = 'padding: 20px; color: #333;';
+  return createSidebarConfig({
+    id: "demo-sidebar-1",
+    title: "测试侧边栏 1",
+    priority: 100,
+    defaultWidth: 300,
+    resizable: true,
+    contentRenderer: () => {
+      const content = document.createElement("div");
+      content.style.cssText = "padding: 20px; color: #333;";
 
-            content.innerHTML = `
+      content.innerHTML = `
                 <h3 style="margin-top:0;color:#2196f3;">演示侧边栏 1</h3>
                 <p>这是第一个演示侧边栏，用于测试 SidebarManager 的功能。</p>
                 <ul style="line-height: 1.8;">
@@ -43,22 +42,22 @@ export function createDemoSidebar1(eventBus) {
                 ">打开测试侧边栏 2</button>
             `;
 
-            // 添加按钮事件
-            setTimeout(() => {
-                const btn = content.querySelector('#demo-open-sidebar-2');
-                if (btn) {
-                    btn.addEventListener('click', () => {
-                        logger.info('Opening demo sidebar 2');
-                        eventBus.emit('sidebar:toggle:requested', {
-                            sidebarId: 'demo-sidebar-2'
-                        }, { actorId: 'DemoSidebar1' });
-                    });
-                }
-            }, 0);
-
-            return content;
+      // 添加按钮事件
+      setTimeout(() => {
+        const btn = content.querySelector("#demo-open-sidebar-2");
+        if (btn) {
+          btn.addEventListener("click", () => {
+            logger.info("Opening demo sidebar 2");
+            eventBus.emit("sidebar:toggle:requested", {
+              sidebarId: "demo-sidebar-2"
+            }, { actorId: "DemoSidebar1" });
+          });
         }
-    });
+      }, 0);
+
+      return content;
+    }
+  });
 }
 
 /**
@@ -67,17 +66,17 @@ export function createDemoSidebar1(eventBus) {
  * @returns {SidebarConfig}
  */
 export function createDemoSidebar2(eventBus) {
-    return createSidebarConfig({
-        id: 'demo-sidebar-2',
-        title: '测试侧边栏 2',
-        priority: 200,
-        defaultWidth: 350,
-        resizable: true,
-        contentRenderer: () => {
-            const content = document.createElement('div');
-            content.style.cssText = 'padding: 20px; background: #f5f5f5; color: #333; height: 100%;';
+  return createSidebarConfig({
+    id: "demo-sidebar-2",
+    title: "测试侧边栏 2",
+    priority: 200,
+    defaultWidth: 350,
+    resizable: true,
+    contentRenderer: () => {
+      const content = document.createElement("div");
+      content.style.cssText = "padding: 20px; background: #f5f5f5; color: #333; height: 100%;";
 
-            content.innerHTML = `
+      content.innerHTML = `
                 <h3 style="margin-top:0;color:#ff5722;">演示侧边栏 2</h3>
                 <p>这是第二个演示侧边栏，可以与第一个同时显示。</p>
                 <div style="
@@ -101,9 +100,9 @@ export function createDemoSidebar2(eventBus) {
                 </div>
             `;
 
-            return content;
-        }
-    });
+      return content;
+    }
+  });
 }
 
 /**
@@ -112,17 +111,17 @@ export function createDemoSidebar2(eventBus) {
  * @param {EventBus} eventBus - 事件总线
  */
 export function registerDemoSidebars(sidebarManager, eventBus) {
-    try {
-        const sidebar1 = createDemoSidebar1(eventBus);
-        const sidebar2 = createDemoSidebar2(eventBus);
+  try {
+    const sidebar1 = createDemoSidebar1(eventBus);
+    const sidebar2 = createDemoSidebar2(eventBus);
 
-        sidebarManager.registerSidebar(sidebar1);
-        sidebarManager.registerSidebar(sidebar2);
+    sidebarManager.registerSidebar(sidebar1);
+    sidebarManager.registerSidebar(sidebar2);
 
-        logger.info('Demo sidebars registered successfully');
-    } catch (error) {
-        logger.error('Failed to register demo sidebars:', error);
-    }
+    logger.info("Demo sidebars registered successfully");
+  } catch (error) {
+    logger.error("Failed to register demo sidebars:", error);
+  }
 }
 
 /**
@@ -130,38 +129,38 @@ export function registerDemoSidebars(sidebarManager, eventBus) {
  * @param {EventBus} eventBus - 事件总线
  */
 export function createDemoButtons(eventBus) {
-    const buttonContainer = document.getElementById('pdf-viewer-button-container');
-    if (!buttonContainer) {
-        logger.warn('Button container not found');
-        return;
-    }
+  const buttonContainer = document.getElementById("pdf-viewer-button-container");
+  if (!buttonContainer) {
+    logger.warn("Button container not found");
+    return;
+  }
 
-    // 创建测试按钮1
-    const demoBtn1 = document.createElement('button');
-    demoBtn1.id = 'demo-sidebar-1-toggle';
-    demoBtn1.textContent = '📝 测试1';
-    demoBtn1.className = 'btn';
-    demoBtn1.title = '打开测试侧边栏 1';
-    demoBtn1.addEventListener('click', () => {
-        eventBus.emit('sidebar:toggle:requested', {
-            sidebarId: 'demo-sidebar-1'
-        }, { actorId: 'DemoButton' });
-    });
+  // 创建测试按钮1
+  const demoBtn1 = document.createElement("button");
+  demoBtn1.id = "demo-sidebar-1-toggle";
+  demoBtn1.textContent = "📝 测试1";
+  demoBtn1.className = "btn";
+  demoBtn1.title = "打开测试侧边栏 1";
+  demoBtn1.addEventListener("click", () => {
+    eventBus.emit("sidebar:toggle:requested", {
+      sidebarId: "demo-sidebar-1"
+    }, { actorId: "DemoButton" });
+  });
 
-    // 创建测试按钮2
-    const demoBtn2 = document.createElement('button');
-    demoBtn2.id = 'demo-sidebar-2-toggle';
-    demoBtn2.textContent = '📌 测试2';
-    demoBtn2.className = 'btn';
-    demoBtn2.title = '打开测试侧边栏 2';
-    demoBtn2.addEventListener('click', () => {
-        eventBus.emit('sidebar:toggle:requested', {
-            sidebarId: 'demo-sidebar-2'
-        }, { actorId: 'DemoButton' });
-    });
+  // 创建测试按钮2
+  const demoBtn2 = document.createElement("button");
+  demoBtn2.id = "demo-sidebar-2-toggle";
+  demoBtn2.textContent = "📌 测试2";
+  demoBtn2.className = "btn";
+  demoBtn2.title = "打开测试侧边栏 2";
+  demoBtn2.addEventListener("click", () => {
+    eventBus.emit("sidebar:toggle:requested", {
+      sidebarId: "demo-sidebar-2"
+    }, { actorId: "DemoButton" });
+  });
 
-    buttonContainer.appendChild(demoBtn1);
-    buttonContainer.appendChild(demoBtn2);
+  buttonContainer.appendChild(demoBtn1);
+  buttonContainer.appendChild(demoBtn2);
 
-    logger.info('Demo buttons created');
+  logger.info("Demo buttons created");
 }

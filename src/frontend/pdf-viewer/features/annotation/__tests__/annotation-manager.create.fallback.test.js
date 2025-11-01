@@ -1,13 +1,13 @@
 /* eslint-env jest */
-import { getEventBus } from '../../../../common/event/event-bus.js';
-import { createScopedEventBus } from '../../../../common/event/scoped-event-bus.js';
-import { PDF_VIEWER_EVENTS } from '../../../../common/event/pdf-viewer-constants.js';
-import { AnnotationType } from '../models/annotation.js';
-import { AnnotationManager } from '../core/annotation-manager.js';
+import { getEventBus } from "../../../../common/event/event-bus.js";
+import { createScopedEventBus } from "../../../../common/event/scoped-event-bus.js";
+import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
+import { AnnotationType } from "../models/annotation.js";
+import { AnnotationManager } from "../core/annotation-manager.js";
 
 function waitForEvent(eventBus, eventName, timeoutMs = 2000) {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('timeout waiting for ' + eventName)), timeoutMs);
+    const timer = setTimeout(() => reject(new Error("timeout waiting for " + eventName)), timeoutMs);
     const off = eventBus.on(eventName, (data) => {
       clearTimeout(timer);
       try { off(); } catch {}
@@ -16,11 +16,11 @@ function waitForEvent(eventBus, eventName, timeoutMs = 2000) {
   });
 }
 
-describe('AnnotationManager create fallback', () => {
-  test('falls back to mock save and emits CREATED when pdfId missing', async () => {
+describe("AnnotationManager create fallback", () => {
+  test("falls back to mock save and emits CREATED when pdfId missing", async () => {
     // Arrange: create isolated event bus scope
-    const globalBus = getEventBus('TestAnnotation', { enableValidation: true });
-    const scopedBus = createScopedEventBus(globalBus, 'annotation');
+    const globalBus = getEventBus("TestAnnotation", { enableValidation: true });
+    const scopedBus = createScopedEventBus(globalBus, "annotation");
 
     // Container stub with a wsClient to simulate presence of WS (but no pdfId set)
     const wsClientStub = {
@@ -28,7 +28,7 @@ describe('AnnotationManager create fallback', () => {
       request: jest.fn().mockResolvedValue({ ok: true })
     };
     const containerStub = {
-      get: (name) => (name === 'wsClient' ? wsClientStub : null),
+      get: (name) => (name === "wsClient" ? wsClientStub : null),
       getDependencies: () => ({ wsClient: wsClientStub })
     };
 
@@ -41,8 +41,8 @@ describe('AnnotationManager create fallback', () => {
       pageNumber: 1,
       data: {
         rect: { x: 10, y: 10, width: 100, height: 60 },
-        imageData: 'data:image/png;base64,iVBORw0KGgo=',
-        description: 'unit-test'
+        imageData: "data:image/png;base64,iVBORw0KGgo=",
+        description: "unit-test"
       }
     };
 

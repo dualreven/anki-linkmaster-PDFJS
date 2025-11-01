@@ -38,42 +38,42 @@ export class SearchFeature {
     try {
       // 1. 创建搜索面板DOM
       this.#createSearchPanel();
-      this.#logger.info('[SearchFeature] Step1: Search panel created');
+      this.#logger.info("[SearchFeature] Step1: Search panel created");
 
       // 2. 初始化SearchBar组件（使用scopedEventBus用于内部事件）
       this.#searchBar = new SearchBar(this.#logger, this.#scopedEventBus);
       this.#searchBar.render(this.#searchPanel.querySelector(".search-panel-content"));
-      this.#logger.info('[SearchFeature] Step2: SearchBar rendered');
+      this.#logger.info("[SearchFeature] Step2: SearchBar rendered");
 
       // 3. 创建 SearchManager（使用全局 EventBus）
       this.#searchManager = new SearchManager(this.#globalEventBus);
 
       // 4. 注册 SearchManager 到容器（可选，供其他 Feature 使用）
       try {
-        if (typeof context.container?.has === 'function' && !context.container.has('searchManager')) {
-          context.container.register('searchManager', this.#searchManager);
-          this.#logger.info('[SearchFeature] Step3: searchManager registered in container');
+        if (typeof context.container?.has === "function" && !context.container.has("searchManager")) {
+          context.container.register("searchManager", this.#searchManager);
+          this.#logger.info("[SearchFeature] Step3: searchManager registered in container");
         } else {
-          this.#logger.warn('[SearchFeature] searchManager already registered in container, reusing existing');
+          this.#logger.warn("[SearchFeature] searchManager already registered in container, reusing existing");
         }
       } catch (e) {
         // 避免重复注册导致安装失败，记录并继续
-        this.#logger.warn('[SearchFeature] Register searchManager failed (will continue)', e);
+        this.#logger.warn("[SearchFeature] Register searchManager failed (will continue)", e);
       }
 
       // 5. 监听内部事件，转发到全局EventBus
       this.#setupEventBridge(sidBase);
-      this.#logger.info('[SearchFeature] Step4: Event bridge set up');
+      this.#logger.info("[SearchFeature] Step4: Event bridge set up");
 
       // 6. 监听全局事件（搜索结果更新）
       this.#setupGlobalEventListeners(sidBase);
-      this.#logger.info('[SearchFeature] Step5: Global listeners set up');
+      this.#logger.info("[SearchFeature] Step5: Global listeners set up");
 
       this.#logger.info("[SearchFeature] Installed successfully");
     } catch (error) {
-      try { this.#logger.error('[SearchFeature] Installation failed (stack)', error?.stack || '(no stack)'); } catch(_) {}
-      try { this.#logger.error('[SearchFeature] Installation failed (message)', error?.message || String(error)); } catch(_) {}
-      try { this.#logger.error('[SearchFeature] Installation failed (object)', error); } catch(_) {}
+      try { this.#logger.error("[SearchFeature] Installation failed (stack)", error?.stack || "(no stack)"); } catch(_) {}
+      try { this.#logger.error("[SearchFeature] Installation failed (message)", error?.message || String(error)); } catch(_) {}
+      try { this.#logger.error("[SearchFeature] Installation failed (object)", error); } catch(_) {}
       throw error;
     }
   }

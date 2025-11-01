@@ -3,8 +3,8 @@
  * 支持逻辑词嵌套和树状结构
  */
 
-import { FilterTree, FilterTreeNode } from '../services/filter-tree.js';
-import { ConditionEditor } from './condition-editor.js';
+import { FilterTree, FilterTreeNode } from "../services/filter-tree.js";
+import { ConditionEditor } from "./condition-editor.js";
 
 export class FilterBuilder {
   #logger = null;
@@ -30,33 +30,33 @@ export class FilterBuilder {
    * 字段名到显示标签的映射
    */
   #fieldLabels = {
-    'filename': '文件名',
-    'tags': '标签',
-    'rating': '评分',
-    'review_count': '复习次数',
-    'file_size': '文件大小',
-    'created_at': '创建时间',
-    'last_accessed_at': '访问时间'
+    "filename": "文件名",
+    "tags": "标签",
+    "rating": "评分",
+    "review_count": "复习次数",
+    "file_size": "文件大小",
+    "created_at": "创建时间",
+    "last_accessed_at": "访问时间"
   };
 
   /**
    * 操作符到显示符号的映射
    */
   #operatorToSymbol = {
-    'contains': '包含',
-    'not_contains': '不包含',
-    'has_all': '包含全部',
-    'eq': '=',
-    'ne': '≠',
-    'gt': '>',
-    'lt': '<',
-    'gte': '≥',
-    'lte': '≤',
-    'starts_with': '开头是',
-    'ends_with': '结尾是',
-    'in_range': '范围内',
-    'has_tag': '包含',
-    'not_has_tag': '不包含'
+    "contains": "包含",
+    "not_contains": "不包含",
+    "has_all": "包含全部",
+    "eq": "=",
+    "ne": "≠",
+    "gt": ">",
+    "lt": "<",
+    "gte": "≥",
+    "lte": "≤",
+    "starts_with": "开头是",
+    "ends_with": "结尾是",
+    "in_range": "范围内",
+    "has_tag": "包含",
+    "not_has_tag": "不包含"
   };
 
   /**
@@ -67,7 +67,7 @@ export class FilterBuilder {
     this.#container.innerHTML = this.#getTemplate();
     this.#setupEventListeners();
     this.#renderTree();
-    this.#logger.info('[FilterBuilder] Rendered');
+    this.#logger.info("[FilterBuilder] Rendered");
   }
 
   /**
@@ -116,13 +116,13 @@ export class FilterBuilder {
    * 显示构建器
    */
   show() {
-    const builderElement = this.#container.querySelector('.filter-builder');
+    const builderElement = this.#container.querySelector(".filter-builder");
     if (builderElement) {
       builderElement.hidden = false;
       this.#loadAvailableTags();
       this.#renderTree();
       this.#updatePreview();
-      this.#logger.info('[FilterBuilder] Shown');
+      this.#logger.info("[FilterBuilder] Shown");
     }
   }
 
@@ -141,11 +141,11 @@ export class FilterBuilder {
       });
 
       this.#availableTags = Array.from(tagsSet).sort();
-      this.#logger.debug('[FilterBuilder] Available tags loaded', {
+      this.#logger.debug("[FilterBuilder] Available tags loaded", {
         count: this.#availableTags.length
       });
     } catch (error) {
-      this.#logger.error('[FilterBuilder] Failed to load tags', error);
+      this.#logger.error("[FilterBuilder] Failed to load tags", error);
       this.#availableTags = [];
     }
   }
@@ -154,10 +154,10 @@ export class FilterBuilder {
    * 隐藏构建器
    */
   hide() {
-    const builderElement = this.#container.querySelector('.filter-builder');
+    const builderElement = this.#container.querySelector(".filter-builder");
     if (builderElement) {
       builderElement.hidden = true;
-      this.#logger.info('[FilterBuilder] Hidden');
+      this.#logger.info("[FilterBuilder] Hidden");
     }
   }
 
@@ -166,7 +166,7 @@ export class FilterBuilder {
    * @returns {boolean} 是否可见
    */
   isVisible() {
-    const builderElement = this.#container.querySelector('.filter-builder');
+    const builderElement = this.#container.querySelector(".filter-builder");
     return builderElement ? !builderElement.hidden : false;
   }
 
@@ -174,8 +174,8 @@ export class FilterBuilder {
    * 渲染树状结构
    */
   #renderTree() {
-    const treeContainer = this.#container.querySelector('#filter-tree-container');
-    if (!treeContainer) return;
+    const treeContainer = this.#container.querySelector("#filter-tree-container");
+    if (!treeContainer) {return;}
 
     const rootNode = this.#filterTree.root;
     treeContainer.innerHTML = this.#renderNode(rootNode, 0);
@@ -194,11 +194,11 @@ export class FilterBuilder {
     const indent = depth * 24; // 每层缩进24px
     const isSelected = this.#selectedNode && this.#selectedNode.id === node.id;
 
-    if (node.type === 'logic') {
+    if (node.type === "logic") {
       // NOT特殊处理：子节点显示在同一行
-      if (node.value === 'NOT') {
-        const child = node.children.find(c => c.type !== 'placeholder');
-        const placeholder = node.children.find(c => c.type === 'placeholder');
+      if (node.value === "NOT") {
+        const child = node.children.find(c => c.type !== "placeholder");
+        const placeholder = node.children.find(c => c.type === "placeholder");
 
         if (child) {
           // 获取子节点的显示内容（不带外层括号）
@@ -206,12 +206,12 @@ export class FilterBuilder {
           const childSelected = this.#selectedNode && this.#selectedNode.id === child.id;
 
           return `
-            <div class="tree-node logic-node not-inline ${isSelected ? 'selected' : ''}"
+            <div class="tree-node logic-node not-inline ${isSelected ? "selected" : ""}"
                  data-node-id="${node.id}"
                  style="margin-left: ${indent}px">
               <div class="node-content">
                 <span class="logic-label">NOT:</span>
-                <span class="inline-child ${childSelected ? 'child-selected' : ''}"
+                <span class="inline-child ${childSelected ? "child-selected" : ""}"
                       data-node-id="${child.id}">
                   ${childContent}
                   <button class="btn-delete-inline-child" data-node-id="${child.id}" title="删除此条件">×</button>
@@ -224,12 +224,12 @@ export class FilterBuilder {
           // 空的NOT节点：显示带NOT标签的placeholder
           const placeholderSelected = this.#selectedNode && this.#selectedNode.id === placeholder.id;
           return `
-            <div class="tree-node logic-node not-inline ${isSelected ? 'selected' : ''}"
+            <div class="tree-node logic-node not-inline ${isSelected ? "selected" : ""}"
                  data-node-id="${node.id}"
                  style="margin-left: ${indent}px">
               <div class="node-content">
                 <span class="logic-label">NOT:</span>
-                <span class="inline-child placeholder-inline ${placeholderSelected ? 'child-selected' : ''}"
+                <span class="inline-child placeholder-inline ${placeholderSelected ? "child-selected" : ""}"
                       data-node-id="${placeholder.id}">
                   [ 点击选中，然后添加逻辑词或条件 ]
                 </span>
@@ -243,14 +243,14 @@ export class FilterBuilder {
       // AND/OR：正常显示子节点在下一行
       const childrenHTML = node.children.map(child =>
         this.#renderNode(child, depth + 1)
-      ).join('');
+      ).join("");
 
       // 检查是否是根节点
       const isRoot = this.#isRootNode(node);
-      const deleteBtn = !isRoot ? `<button class="btn-delete-node" data-node-id="${node.id}" title="删除">🗑️</button>` : '';
+      const deleteBtn = !isRoot ? `<button class="btn-delete-node" data-node-id="${node.id}" title="删除">🗑️</button>` : "";
 
       return `
-        <div class="tree-node logic-node logic-switchable ${isSelected ? 'selected' : ''}"
+        <div class="tree-node logic-node logic-switchable ${isSelected ? "selected" : ""}"
              data-node-id="${node.id}"
              style="margin-left: ${indent}px">
           <div class="node-content">
@@ -266,13 +266,13 @@ export class FilterBuilder {
       `;
     }
 
-    if (node.type === 'condition') {
+    if (node.type === "condition") {
       const { field, operator, value } = node.value;
       const fieldLabel = this.#fieldLabels[field] || field;
       const operatorSymbol = this.#operatorToSymbol[operator] || operator;
 
       return `
-        <div class="tree-node condition-node ${isSelected ? 'selected' : ''}"
+        <div class="tree-node condition-node ${isSelected ? "selected" : ""}"
              data-node-id="${node.id}"
              style="margin-left: ${indent}px">
           <div class="node-content">
@@ -285,9 +285,9 @@ export class FilterBuilder {
       `;
     }
 
-    if (node.type === 'placeholder') {
+    if (node.type === "placeholder") {
       return `
-        <div class="tree-node placeholder-node ${isSelected ? 'selected' : ''}"
+        <div class="tree-node placeholder-node ${isSelected ? "selected" : ""}"
              data-node-id="${node.id}"
              style="margin-left: ${indent}px">
           <div class="node-content">
@@ -297,14 +297,14 @@ export class FilterBuilder {
       `;
     }
 
-    return '';
+    return "";
   }
 
   /**
    * 渲染逻辑节点切换菜单（AND <-> OR）
    */
   #renderLogicSwitchMenu(node) {
-    const oppositeLogic = node.value === 'AND' ? 'OR' : 'AND';
+    const oppositeLogic = node.value === "AND" ? "OR" : "AND";
     return `
       <div class="logic-switch-menu" data-menu-for="${node.id}" style="display: none;">
         <div class="logic-switch-option" data-switch-to="${oppositeLogic}" data-node-id="${node.id}">
@@ -320,19 +320,19 @@ export class FilterBuilder {
    * @param {boolean} stripOuterParens - 是否去除外层括号（用于NOT子节点）
    */
   #getNodeContentText(node, stripOuterParens = false) {
-    if (node.type === 'condition') {
+    if (node.type === "condition") {
       const { field, operator, value } = node.value;
       const fieldLabel = this.#fieldLabels[field] || field;
       const operatorSymbol = this.#operatorToSymbol[operator] || operator;
       return `${fieldLabel} ${operatorSymbol} "${value}"`;
     }
 
-    if (node.type === 'logic') {
+    if (node.type === "logic") {
       // 如果是逻辑节点，显示为嵌套形式
       const childTexts = node.children
-        .filter(c => c.type !== 'placeholder')
+        .filter(c => c.type !== "placeholder")
         .map(c => this.#getNodeContentText(c))
-        .join(node.value === 'AND' ? ' AND ' : ' OR ');
+        .join(node.value === "AND" ? " AND " : " OR ");
 
       const result = `(${childTexts})`;
 
@@ -344,7 +344,7 @@ export class FilterBuilder {
       return result;
     }
 
-    return '';
+    return "";
   }
 
   /**
@@ -352,9 +352,9 @@ export class FilterBuilder {
    */
   #bindNodeEvents() {
     // 节点选中
-    this.#container.querySelectorAll('.tree-node').forEach(nodeEl => {
-      nodeEl.addEventListener('click', (e) => {
-        if (e.target.classList.contains('btn-delete-node')) return;
+    this.#container.querySelectorAll(".tree-node").forEach(nodeEl => {
+      nodeEl.addEventListener("click", (e) => {
+        if (e.target.classList.contains("btn-delete-node")) {return;}
 
         const nodeId = nodeEl.dataset.nodeId;
         const node = this.#filterTree.findNodeById(nodeId);
@@ -362,18 +362,18 @@ export class FilterBuilder {
         if (node) {
           this.#selectedNode = node;
           this.#renderTree();
-          this.#logger.debug('[FilterBuilder] Node selected', { nodeId });
+          this.#logger.debug("[FilterBuilder] Node selected", { nodeId });
         }
       });
     });
 
     // NOT内联子节点选中
-    this.#container.querySelectorAll('.inline-child').forEach(childEl => {
-      childEl.addEventListener('click', (e) => {
+    this.#container.querySelectorAll(".inline-child").forEach(childEl => {
+      childEl.addEventListener("click", (e) => {
         e.stopPropagation();
         // 如果点击的是删除按钮，不触发选中
-        if (e.target.classList.contains('btn-delete-node') ||
-            e.target.classList.contains('btn-delete-inline-child')) {
+        if (e.target.classList.contains("btn-delete-node") ||
+            e.target.classList.contains("btn-delete-inline-child")) {
           return;
         }
 
@@ -383,14 +383,14 @@ export class FilterBuilder {
         if (node) {
           this.#selectedNode = node;
           this.#renderTree();
-          this.#logger.debug('[FilterBuilder] Inline child selected', { nodeId });
+          this.#logger.debug("[FilterBuilder] Inline child selected", { nodeId });
         }
       });
     });
 
     // 删除节点
-    this.#container.querySelectorAll('.btn-delete-node').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+    this.#container.querySelectorAll(".btn-delete-node").forEach(btn => {
+      btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const nodeId = btn.dataset.nodeId;
         this.#deleteNode(nodeId);
@@ -398,8 +398,8 @@ export class FilterBuilder {
     });
 
     // 删除NOT内联子节点
-    this.#container.querySelectorAll('.btn-delete-inline-child').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+    this.#container.querySelectorAll(".btn-delete-inline-child").forEach(btn => {
+      btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const nodeId = btn.dataset.nodeId;
         this.#deleteInlineChild(nodeId);
@@ -407,8 +407,8 @@ export class FilterBuilder {
     });
 
     // AND/OR逻辑切换
-    this.#container.querySelectorAll('.switchable-logic-label').forEach(label => {
-      label.addEventListener('click', (e) => {
+    this.#container.querySelectorAll(".switchable-logic-label").forEach(label => {
+      label.addEventListener("click", (e) => {
         e.stopPropagation();
         const nodeId = label.dataset.switchNodeId;
         this.#toggleLogicSwitchMenu(nodeId);
@@ -416,8 +416,8 @@ export class FilterBuilder {
     });
 
     // 逻辑切换选项
-    this.#container.querySelectorAll('.logic-switch-option').forEach(option => {
-      option.addEventListener('click', (e) => {
+    this.#container.querySelectorAll(".logic-switch-option").forEach(option => {
+      option.addEventListener("click", (e) => {
         e.stopPropagation();
         const nodeId = option.dataset.nodeId;
         const switchTo = option.dataset.switchTo;
@@ -426,7 +426,7 @@ export class FilterBuilder {
     });
 
     // 点击其他地方关闭菜单
-    document.addEventListener('click', this.#closeMenusHandler);
+    document.addEventListener("click", this.#closeMenusHandler);
   }
 
   /**
@@ -434,39 +434,39 @@ export class FilterBuilder {
    */
   #addLogicNode(logicType) {
     if (!this.#selectedNode) {
-      alert('请先选择一个节点');
+      alert("请先选择一个节点");
       return;
     }
 
     // 检查是否是根节点
     if (this.#isRootNode(this.#selectedNode)) {
-      alert('根节点不能被替换，请选择根节点下的占位符来添加条件');
+      alert("根节点不能被替换，请选择根节点下的占位符来添加条件");
       return;
     }
 
     // 检查父节点是否为NOT且已有子节点
-    if (this.#selectedNode.type !== 'placeholder') {
+    if (this.#selectedNode.type !== "placeholder") {
       const parent = this.#selectedNode.parent;
-      if (parent && parent.value === 'NOT') {
-        const nonPlaceholderCount = parent.children.filter(c => c.type !== 'placeholder').length;
+      if (parent && parent.value === "NOT") {
+        const nonPlaceholderCount = parent.children.filter(c => c.type !== "placeholder").length;
         if (nonPlaceholderCount >= 1) {
-          alert('NOT逻辑词只能包含一个条件或逻辑词');
+          alert("NOT逻辑词只能包含一个条件或逻辑词");
           return;
         }
       }
     }
 
     const newNode = new FilterTreeNode({
-      type: 'logic',
+      type: "logic",
       value: logicType
     });
 
     // 添加占位符子节点
     newNode.addChild(new FilterTreeNode({
-      type: 'placeholder'
+      type: "placeholder"
     }));
 
-    if (this.#selectedNode.type === 'placeholder') {
+    if (this.#selectedNode.type === "placeholder") {
       // 替换占位符
       const parent = this.#selectedNode.parent;
       const index = this.#selectedNode.getIndexInParent();
@@ -475,13 +475,13 @@ export class FilterBuilder {
       newNode.parent = parent;
 
       // 如果父节点是NOT，移除其他占位符
-      if (parent.value === 'NOT') {
-        parent.children.filter(c => c.type === 'placeholder' && c.id !== newNode.children[0].id)
+      if (parent.value === "NOT") {
+        parent.children.filter(c => c.type === "placeholder" && c.id !== newNode.children[0].id)
           .forEach(c => parent.removeChild(c));
       } else {
         // 如果父节点是AND/OR，且还没有placeholder，添加一个
-        if (!parent.children.some(c => c.type === 'placeholder')) {
-          parent.addChild(new FilterTreeNode({ type: 'placeholder' }));
+        if (!parent.children.some(c => c.type === "placeholder")) {
+          parent.addChild(new FilterTreeNode({ type: "placeholder" }));
         }
       }
     } else {
@@ -499,23 +499,23 @@ export class FilterBuilder {
    */
   #addConditionNode() {
     if (!this.#selectedNode) {
-      alert('请先选择一个节点');
+      alert("请先选择一个节点");
       return;
     }
 
     // 检查是否是根节点
     if (this.#isRootNode(this.#selectedNode)) {
-      alert('根节点不能被替换，请选择根节点下的占位符来添加条件');
+      alert("根节点不能被替换，请选择根节点下的占位符来添加条件");
       return;
     }
 
     // 检查父节点是否为NOT且已有子节点
-    if (this.#selectedNode.type !== 'placeholder') {
+    if (this.#selectedNode.type !== "placeholder") {
       const parent = this.#selectedNode.parent;
-      if (parent && parent.value === 'NOT') {
-        const nonPlaceholderCount = parent.children.filter(c => c.type !== 'placeholder').length;
+      if (parent && parent.value === "NOT") {
+        const nonPlaceholderCount = parent.children.filter(c => c.type !== "placeholder").length;
         if (nonPlaceholderCount >= 1) {
-          alert('NOT逻辑词只能包含一个条件或逻辑词');
+          alert("NOT逻辑词只能包含一个条件或逻辑词");
           return;
         }
       }
@@ -524,11 +524,11 @@ export class FilterBuilder {
     // 显示条件编辑对话框
     this.#showConditionDialog((conditionData) => {
       const newNode = new FilterTreeNode({
-        type: 'condition',
+        type: "condition",
         value: conditionData
       });
 
-      if (this.#selectedNode.type === 'placeholder') {
+      if (this.#selectedNode.type === "placeholder") {
         // 替换占位符
         const parent = this.#selectedNode.parent;
         const index = this.#selectedNode.getIndexInParent();
@@ -537,8 +537,8 @@ export class FilterBuilder {
         newNode.parent = parent;
 
         // 如果父节点还没有占位符，添加一个（但NOT只能有一个子节点）
-        if (parent.value !== 'NOT' && !parent.children.some(c => c.type === 'placeholder')) {
-          parent.addChild(new FilterTreeNode({ type: 'placeholder' }));
+        if (parent.value !== "NOT" && !parent.children.some(c => c.type === "placeholder")) {
+          parent.addChild(new FilterTreeNode({ type: "placeholder" }));
         }
       } else {
         // 在选中节点后添加同级节点
@@ -567,7 +567,7 @@ export class FilterBuilder {
   #deleteNode(nodeId) {
     const node = this.#filterTree.findNodeById(nodeId);
     if (!node || !node.parent) {
-      alert('无法删除根节点');
+      alert("无法删除根节点");
       return;
     }
 
@@ -578,16 +578,16 @@ export class FilterBuilder {
 
     // 如果父节点没有子节点了，添加占位符
     if (parent.children.length === 0) {
-      parent.addChild(new FilterTreeNode({ type: 'placeholder' }));
-      this.#logger.debug('[FilterBuilder] Added placeholder after deleting last child');
+      parent.addChild(new FilterTreeNode({ type: "placeholder" }));
+      this.#logger.debug("[FilterBuilder] Added placeholder after deleting last child");
     } else {
       // 如果父节点还有子节点，但没有placeholder（且不是NOT节点），也要添加一个
-      const hasPlaceholder = parent.children.some(c => c.type === 'placeholder');
-      const isNotNode = parent.value === 'NOT';
+      const hasPlaceholder = parent.children.some(c => c.type === "placeholder");
+      const isNotNode = parent.value === "NOT";
 
       if (!hasPlaceholder && !isNotNode) {
-        parent.addChild(new FilterTreeNode({ type: 'placeholder' }));
-        this.#logger.debug('[FilterBuilder] Added placeholder to maintain availability');
+        parent.addChild(new FilterTreeNode({ type: "placeholder" }));
+        this.#logger.debug("[FilterBuilder] Added placeholder to maintain availability");
       }
     }
 
@@ -606,7 +606,7 @@ export class FilterBuilder {
     // 切换当前菜单
     const menu = this.#container.querySelector(`.logic-switch-menu[data-menu-for="${nodeId}"]`);
     if (menu) {
-      menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+      menu.style.display = menu.style.display === "none" ? "block" : "none";
     }
   }
 
@@ -614,8 +614,8 @@ export class FilterBuilder {
    * 关闭所有逻辑节点菜单
    */
   #closeAllLogicMenus() {
-    this.#container.querySelectorAll('.logic-switch-menu').forEach(menu => {
-      menu.style.display = 'none';
+    this.#container.querySelectorAll(".logic-switch-menu").forEach(menu => {
+      menu.style.display = "none";
     });
   }
 
@@ -624,14 +624,14 @@ export class FilterBuilder {
    */
   #switchLogic(nodeId, newLogic) {
     const node = this.#filterTree.findNodeById(nodeId);
-    if (!node || node.type !== 'logic') {
-      this.#logger.warn('[FilterBuilder] Cannot switch logic: not a logic node');
+    if (!node || node.type !== "logic") {
+      this.#logger.warn("[FilterBuilder] Cannot switch logic: not a logic node");
       return;
     }
 
     // NOT节点不能切换
-    if (node.value === 'NOT') {
-      this.#logger.warn('[FilterBuilder] Cannot switch NOT node');
+    if (node.value === "NOT") {
+      this.#logger.warn("[FilterBuilder] Cannot switch NOT node");
       return;
     }
 
@@ -654,7 +654,7 @@ export class FilterBuilder {
   #deleteInlineChild(childNodeId) {
     const childNode = this.#filterTree.findNodeById(childNodeId);
     if (!childNode || !childNode.parent) {
-      this.#logger.warn('[FilterBuilder] Cannot delete inline child node');
+      this.#logger.warn("[FilterBuilder] Cannot delete inline child node");
       return;
     }
 
@@ -664,9 +664,9 @@ export class FilterBuilder {
     notNode.removeChild(childNode);
 
     // NOT节点下必须添加placeholder
-    if (!notNode.children.some(c => c.type === 'placeholder')) {
-      notNode.addChild(new FilterTreeNode({ type: 'placeholder' }));
-      this.#logger.debug('[FilterBuilder] Added placeholder to NOT after deleting child');
+    if (!notNode.children.some(c => c.type === "placeholder")) {
+      notNode.addChild(new FilterTreeNode({ type: "placeholder" }));
+      this.#logger.debug("[FilterBuilder] Added placeholder to NOT after deleting child");
     }
 
     this.#selectedNode = null;
@@ -678,11 +678,11 @@ export class FilterBuilder {
    * 更新预览
    */
   #updatePreview() {
-    const previewEl = this.#container.querySelector('#python-preview');
-    if (!previewEl) return;
+    const previewEl = this.#container.querySelector("#python-preview");
+    if (!previewEl) {return;}
 
     const expression = this.#filterTree.toPythonExpression();
-    previewEl.textContent = expression || '无条件';
+    previewEl.textContent = expression || "无条件";
   }
 
   /**
@@ -700,27 +700,27 @@ export class FilterBuilder {
     const noSelection = !this.#selectedNode;
 
     // 禁用/启用逻辑词按钮
-    this.#container.querySelectorAll('.btn-add-logic').forEach(btn => {
+    this.#container.querySelectorAll(".btn-add-logic").forEach(btn => {
       btn.disabled = isRootSelected || noSelection;
       if (isRootSelected || noSelection) {
-        btn.classList.add('disabled');
-        btn.title = isRootSelected ? '根节点不能被替换' : '请先选择一个节点';
+        btn.classList.add("disabled");
+        btn.title = isRootSelected ? "根节点不能被替换" : "请先选择一个节点";
       } else {
-        btn.classList.remove('disabled');
+        btn.classList.remove("disabled");
         btn.title = `添加 ${btn.dataset.logic} 逻辑词`;
       }
     });
 
     // 禁用/启用条件按钮
-    const addConditionBtn = this.#container.querySelector('.btn-add-condition');
+    const addConditionBtn = this.#container.querySelector(".btn-add-condition");
     if (addConditionBtn) {
       addConditionBtn.disabled = isRootSelected || noSelection;
       if (isRootSelected || noSelection) {
-        addConditionBtn.classList.add('disabled');
-        addConditionBtn.title = isRootSelected ? '根节点不能被替换' : '请先选择一个节点';
+        addConditionBtn.classList.add("disabled");
+        addConditionBtn.title = isRootSelected ? "根节点不能被替换" : "请先选择一个节点";
       } else {
-        addConditionBtn.classList.remove('disabled');
-        addConditionBtn.title = '添加筛选条件';
+        addConditionBtn.classList.remove("disabled");
+        addConditionBtn.title = "添加筛选条件";
       }
     }
   }
@@ -739,15 +739,15 @@ export class FilterBuilder {
    * 应用筛选
    */
   applyFilter() {
-    this.#logger.info('[FilterBuilder] Applying filter');
+    this.#logger.info("[FilterBuilder] Applying filter");
     // 构建可序列化的条件配置（与后端 SearchCondition 格式兼容）
     const config = this.getConditionConfig();
     try {
-      console.log('Built Condition Config:', JSON.stringify(config));
+      console.log("Built Condition Config:", JSON.stringify(config));
     } catch {}
     // 通知 Feature 层：条件已构建
     try {
-      this.#eventBus?.emit('filter:apply:completed', { condition: config });
+      this.#eventBus?.emit("filter:apply:completed", { condition: config });
     } catch (e) { /* 忽略 */ }
     // 仅隐藏面板，实际发送由上层 Feature 执行
     this.hide();
@@ -759,24 +759,24 @@ export class FilterBuilder {
    */
   getConditionConfig() {
     const nodeToConfig = (node) => {
-      if (!node) return null;
-      if (node.type === 'logic') {
+      if (!node) {return null;}
+      if (node.type === "logic") {
         const children = (node.children || [])
-          .filter((c) => c && c.type !== 'placeholder')
+          .filter((c) => c && c.type !== "placeholder")
           .map((c) => nodeToConfig(c))
           .filter(Boolean);
-        if (children.length === 0) return null;
+        if (children.length === 0) {return null;}
         return {
-          type: 'composite',
+          type: "composite",
           operator: node.value,
           conditions: children,
         };
       }
-      if (node.type === 'condition') {
+      if (node.type === "condition") {
         const { field, operator, value } = node.value || {};
-        if (!field || !operator) return null;
+        if (!field || !operator) {return null;}
         return {
-          type: 'field',
+          type: "field",
           field,
           operator,
           value,
@@ -786,7 +786,7 @@ export class FilterBuilder {
     };
     const cfg = nodeToConfig(this.#filterTree.root);
     // 根若为 null，返回一个空的 AND 结构；由调用方决定是否传递
-    return cfg || { type: 'composite', operator: 'AND', conditions: [] };
+    return cfg || { type: "composite", operator: "AND", conditions: [] };
   }
 
   /**
@@ -794,37 +794,37 @@ export class FilterBuilder {
    */
   #setupEventListeners() {
     // 收起按钮
-    const collapseBtn = this.#container.querySelector('.btn-collapse');
+    const collapseBtn = this.#container.querySelector(".btn-collapse");
     if (collapseBtn) {
-      collapseBtn.addEventListener('click', () => this.hide());
+      collapseBtn.addEventListener("click", () => this.hide());
     }
 
     // 添加逻辑词按钮
-    this.#container.querySelectorAll('.btn-add-logic').forEach(btn => {
-      btn.addEventListener('click', () => {
+    this.#container.querySelectorAll(".btn-add-logic").forEach(btn => {
+      btn.addEventListener("click", () => {
         const logicType = btn.dataset.logic;
         this.#addLogicNode(logicType);
       });
     });
 
     // 添加条件按钮
-    const addConditionBtn = this.#container.querySelector('.btn-add-condition');
+    const addConditionBtn = this.#container.querySelector(".btn-add-condition");
     if (addConditionBtn) {
-      addConditionBtn.addEventListener('click', () => {
+      addConditionBtn.addEventListener("click", () => {
         this.#addConditionNode();
       });
     }
 
     // 重置按钮
-    const resetBtn = this.#container.querySelector('.btn-reset');
+    const resetBtn = this.#container.querySelector(".btn-reset");
     if (resetBtn) {
-      resetBtn.addEventListener('click', () => this.#reset());
+      resetBtn.addEventListener("click", () => this.#reset());
     }
 
     // 应用按钮
-    const applyBtn = this.#container.querySelector('.btn-apply');
+    const applyBtn = this.#container.querySelector(".btn-apply");
     if (applyBtn) {
-      applyBtn.addEventListener('click', () => this.applyFilter());
+      applyBtn.addEventListener("click", () => this.applyFilter());
     }
   }
 
@@ -834,12 +834,12 @@ export class FilterBuilder {
   destroy() {
     // 移除全局事件监听器
     if (this.#closeMenusHandler) {
-      document.removeEventListener('click', this.#closeMenusHandler);
+      document.removeEventListener("click", this.#closeMenusHandler);
     }
 
     if (this.#container) {
-      this.#container.innerHTML = '';
+      this.#container.innerHTML = "";
     }
-    this.#logger.info('[FilterBuilder] Destroyed');
+    this.#logger.info("[FilterBuilder] Destroyed");
   }
 }

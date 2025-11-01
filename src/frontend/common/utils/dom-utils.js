@@ -1,4 +1,4 @@
-﻿import { getLogger } from './logger.js';
+﻿import { getLogger } from "./logger.js";
 /**
  * @file DOM操作工具类，提供一组静态方法来简化和封装常用的DOM操作。
  * @module DOMUtils
@@ -19,13 +19,13 @@ export class DOMUtils {
   static createElement(tagName, attributes = {}, content = null) {
     const element = document.createElement(tagName);
     Object.entries(attributes).forEach(([key, value]) => {
-      if (key === "className") element.className = value;
-      else if (key === "innerHTML") element.innerHTML = value;
-      else element.setAttribute(key, value);
+      if (key === "className") {element.className = value;}
+      else if (key === "innerHTML") {element.innerHTML = value;}
+      else {element.setAttribute(key, value);}
     });
     if (content) {
-      if (content instanceof Node) element.appendChild(content);
-      else element.textContent = content;
+      if (content instanceof Node) {element.appendChild(content);}
+      else {element.textContent = content;}
     }
     return element;
   }
@@ -49,7 +49,7 @@ export class DOMUtils {
   static findAllElements(selector, parent = document) {
     return parent.querySelectorAll(selector);
   }
-  
+
   /**
    * 通过ID快速获取元素。
    * @param {string} id - 元素的ID。
@@ -105,7 +105,7 @@ export class DOMUtils {
    */
   static show(elements) {
     const a = Array.isArray(elements) ? elements : (elements instanceof NodeList ? Array.from(elements) : [elements]);
-    a.forEach(el => { if(el) el.style.display = ""; });
+    a.forEach(el => { if(el) {el.style.display = "";} });
   }
 
   /**
@@ -114,9 +114,9 @@ export class DOMUtils {
    */
   static hide(elements) {
     const a = Array.isArray(elements) ? elements : (elements instanceof NodeList ? Array.from(elements) : [elements]);
-    a.forEach(el => { if(el) el.style.display = "none"; });
+    a.forEach(el => { if(el) {el.style.display = "none";} });
   }
-  
+
   /**
    * 检查元素当前是否可见。
    * @param {HTMLElement} element - 目标元素。
@@ -162,14 +162,14 @@ export class DOMUtils {
    */
   static showError(message) {
     try {
-      const errEl = document.getElementById('global-error');
+      const errEl = document.getElementById("global-error");
       if (errEl) {
         errEl.textContent = message;
-        errEl.style.display = 'block';
+        errEl.style.display = "block";
 
         // 自动隐藏消息（5秒后，错误消息显示时间长一些）
         setTimeout(() => {
-          errEl.style.display = 'none';
+          errEl.style.display = "none";
         }, 5000);
         return;
       }
@@ -184,14 +184,14 @@ export class DOMUtils {
    */
   static showSuccess(message) {
     try {
-      const okEl = document.getElementById('global-success');
+      const okEl = document.getElementById("global-success");
       if (okEl) {
         okEl.textContent = message;
-        okEl.style.display = 'block';
+        okEl.style.display = "block";
 
         // 自动隐藏消息（3秒后）
         setTimeout(() => {
-          okEl.style.display = 'none';
+          okEl.style.display = "none";
         }, 3000);
         return;
       }
@@ -199,7 +199,7 @@ export class DOMUtils {
     try { logger.info(message); } catch (e) {}
     // try { alert(message); } catch (e) {}
   }
-  
+
   /**
    * 获取元素的指定data-*属性值。
    * @param {HTMLElement} element - 目标元素。
@@ -207,9 +207,9 @@ export class DOMUtils {
    * @returns {string|null} 属性值。
    */
   static getAttribute(element, key) {
-      return element?.getAttribute(key);
+    return element?.getAttribute(key);
   }
-  
+
   /**
    * 从事件目标开始，向上查找第一个匹配选择器的祖先元素。
    * @param {HTMLElement} element - 起始元素。
@@ -242,7 +242,7 @@ export class DOMUtils {
   static removeEventListener(elements, eventType, handler, options = {}) {
     const els = (elements instanceof NodeList) ? Array.from(elements) : [elements];
     els.forEach(el => el?.removeEventListener(eventType, handler, options));
-   }
+  }
 }
 
 export default DOMUtils;

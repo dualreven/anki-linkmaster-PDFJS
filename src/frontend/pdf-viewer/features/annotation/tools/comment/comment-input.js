@@ -4,7 +4,7 @@
  * @description 提供批注文本输入界面
  */
 
-import { getLogger } from '../../../../../common/utils/logger.js';
+import { getLogger } from "../../../../../common/utils/logger.js";
 
 /**
  * 批注输入组件类
@@ -12,7 +12,7 @@ import { getLogger } from '../../../../../common/utils/logger.js';
  */
 export class CommentInput {
   /** @type {import('../../../../../common/utils/logger.js').Logger} */
-  #logger = getLogger('CommentInput');
+  #logger = getLogger("CommentInput");
 
   /** @type {HTMLElement} 输入框容器 */
   #container = null;
@@ -36,7 +36,7 @@ export class CommentInput {
    * 构造函数
    */
   constructor() {
-    this.#logger.info('CommentInput created');
+    this.#logger.info("CommentInput created");
   }
 
   /**
@@ -60,8 +60,8 @@ export class CommentInput {
     const adjustedY = Math.min(y, window.innerHeight - 200); // 200px是输入框大致高度
 
     // 创建输入框容器
-    this.#container = document.createElement('div');
-    this.#container.className = 'comment-input-container';
+    this.#container = document.createElement("div");
+    this.#container.className = "comment-input-container";
     this.#container.style.cssText = `
       position: fixed;
       left: ${adjustedX}px;
@@ -77,9 +77,9 @@ export class CommentInput {
     `;
 
     // 创建文本输入框
-    this.#textarea = document.createElement('textarea');
-    this.#textarea.className = 'comment-input-textarea';
-    this.#textarea.placeholder = '输入批注内容...';
+    this.#textarea = document.createElement("textarea");
+    this.#textarea.className = "comment-input-textarea";
+    this.#textarea.placeholder = "输入批注内容...";
     this.#textarea.style.cssText = `
       width: 100%;
       min-height: 80px;
@@ -94,7 +94,7 @@ export class CommentInput {
     `;
 
     // 创建按钮容器
-    const buttonContainer = document.createElement('div');
+    const buttonContainer = document.createElement("div");
     buttonContainer.style.cssText = `
       display: flex;
       gap: 8px;
@@ -102,8 +102,8 @@ export class CommentInput {
     `;
 
     // 取消按钮
-    const cancelBtn = document.createElement('button');
-    cancelBtn.textContent = '取消';
+    const cancelBtn = document.createElement("button");
+    cancelBtn.textContent = "取消";
     cancelBtn.style.cssText = `
       padding: 6px 16px;
       border: 1px solid #ddd;
@@ -112,11 +112,11 @@ export class CommentInput {
       cursor: pointer;
       font-size: 14px;
     `;
-    cancelBtn.addEventListener('click', () => this.#handleCancel());
+    cancelBtn.addEventListener("click", () => this.#handleCancel());
 
     // 确认按钮
-    const confirmBtn = document.createElement('button');
-    confirmBtn.textContent = '确认';
+    const confirmBtn = document.createElement("button");
+    confirmBtn.textContent = "确认";
     confirmBtn.style.cssText = `
       padding: 6px 16px;
       border: none;
@@ -126,7 +126,7 @@ export class CommentInput {
       cursor: pointer;
       font-size: 14px;
     `;
-    confirmBtn.addEventListener('click', () => this.#handleConfirm());
+    confirmBtn.addEventListener("click", () => this.#handleConfirm());
 
     // 组装UI
     buttonContainer.appendChild(cancelBtn);
@@ -142,13 +142,13 @@ export class CommentInput {
 
     // 监听ESC键取消
     this.#handleKeydown = (e) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         this.#handleCancel();
-      } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      } else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
         this.#handleConfirm();
       }
     };
-    document.addEventListener('keydown', this.#handleKeydown);
+    document.addEventListener("keydown", this.#handleKeydown);
 
     this.#logger.info(`Comment input shown at (${x}, ${y}) on page ${pageNumber}`);
   }
@@ -161,7 +161,7 @@ export class CommentInput {
     const content = this.#textarea.value.trim();
 
     if (!content) {
-      this.#logger.warn('Comment content is empty');
+      this.#logger.warn("Comment content is empty");
       this.#textarea.focus();
       return;
     }
@@ -180,7 +180,7 @@ export class CommentInput {
    * @private
    */
   #handleCancel() {
-    this.#logger.info('Comment input cancelled');
+    this.#logger.info("Comment input cancelled");
 
     if (this.#onCancel) {
       this.#onCancel();
@@ -199,7 +199,7 @@ export class CommentInput {
     }
 
     if (this.#handleKeydown) {
-      document.removeEventListener('keydown', this.#handleKeydown);
+      document.removeEventListener("keydown", this.#handleKeydown);
       this.#handleKeydown = null;
     }
 
@@ -208,7 +208,7 @@ export class CommentInput {
     this.#onCancel = null;
     this.#position = null;
 
-    this.#logger.info('Comment input hidden');
+    this.#logger.info("Comment input hidden");
   }
 
   /**
@@ -224,7 +224,7 @@ export class CommentInput {
    */
   destroy() {
     this.hide();
-    this.#logger.info('CommentInput destroyed');
+    this.#logger.info("CommentInput destroyed");
   }
 }
 

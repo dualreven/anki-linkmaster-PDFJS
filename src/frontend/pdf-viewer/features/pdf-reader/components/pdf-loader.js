@@ -20,7 +20,7 @@ export class PDFLoader {
   constructor(eventBus, pdfjsLib) {
     this.#eventBus = eventBus;
     this.#pdfjsLib = pdfjsLib;
-    this.#logger = getLogger('PDFViewer.Loader');
+    this.#logger = getLogger("PDFViewer.Loader");
   }
 
   /**
@@ -33,8 +33,8 @@ export class PDFLoader {
 
     // 1) 首选由构建脚本注入的 vendor 基址（生产环境）
     try {
-      if (typeof window !== 'undefined' && window.__PDFJS_VENDOR_BASE__) {
-        const base = String(window.__PDFJS_VENDOR_BASE__).endsWith('/') ? window.__PDFJS_VENDOR_BASE__ : `${window.__PDFJS_VENDOR_BASE__}/`;
+      if (typeof window !== "undefined" && window.__PDFJS_VENDOR_BASE__) {
+        const base = String(window.__PDFJS_VENDOR_BASE__).endsWith("/") ? window.__PDFJS_VENDOR_BASE__ : `${window.__PDFJS_VENDOR_BASE__}/`;
         urls.cMapUrl = `${base}cmaps/`;
         urls.standardFontDataUrl = `${base}standard_fonts/`;
         return urls;
@@ -46,15 +46,15 @@ export class PDFLoader {
     // 使用Function构造器避开Babel的静态分析
     // 在测试环境中import.meta不可用，返回空对象
     try {
-      const getImportMetaUrl = new Function('return import.meta.url');
+      const getImportMetaUrl = new Function("return import.meta.url");
       const metaUrl = getImportMetaUrl();
       if (metaUrl) {
-        urls.cMapUrl = new URL('@pdfjs/cmaps/', metaUrl).href;
-        urls.standardFontDataUrl = new URL('@pdfjs/standard_fonts/', metaUrl).href;
+        urls.cMapUrl = new URL("@pdfjs/cmaps/", metaUrl).href;
+        urls.standardFontDataUrl = new URL("@pdfjs/standard_fonts/", metaUrl).href;
       }
     } catch (e) {
       // 测试环境中import.meta不可用，跳过
-      this.#logger.debug('import.meta.url not available, skipping CMap and StandardFonts config');
+      this.#logger.debug("import.meta.url not available, skipping CMap and StandardFonts config");
     }
 
     return urls;
@@ -103,7 +103,7 @@ export class PDFLoader {
         loaded: progressData.loaded,
         total: progressData.total,
         percent: percent
-      }, { actorId: 'PDFLoader' });
+      }, { actorId: "PDFLoader" });
     };
 
     try {
@@ -154,7 +154,7 @@ export class PDFLoader {
         loaded: progressData.loaded,
         total: progressData.total,
         percent: percent
-      }, { actorId: 'PDFLoader' });
+      }, { actorId: "PDFLoader" });
     };
 
     try {

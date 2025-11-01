@@ -35,7 +35,7 @@ export class ToggleSwitch {
     this.#container = options.container;
     this.#checked = options.checked || false;
     this.#disabled = options.disabled || false;
-    this.#label = options.label || '';
+    this.#label = options.label || "";
     this.#onChange = options.onChange;
 
     this.#init();
@@ -46,7 +46,7 @@ export class ToggleSwitch {
    * @private
    */
   #init() {
-    this.#container.classList.add('toggle-switch-wrapper');
+    this.#container.classList.add("toggle-switch-wrapper");
     this.#render();
     this.#bindEvents();
   }
@@ -57,20 +57,20 @@ export class ToggleSwitch {
    */
   #render() {
     this.#container.innerHTML = `
-      <label class="toggle-switch ${this.#disabled ? 'disabled' : ''}">
+      <label class="toggle-switch ${this.#disabled ? "disabled" : ""}">
         <input
           type="checkbox"
           class="toggle-input"
-          ${this.#checked ? 'checked' : ''}
-          ${this.#disabled ? 'disabled' : ''}
+          ${this.#checked ? "checked" : ""}
+          ${this.#disabled ? "disabled" : ""}
         />
         <span class="toggle-slider"></span>
-        ${this.#label ? `<span class="toggle-label">${this.#escapeHtml(this.#label)}</span>` : ''}
+        ${this.#label ? `<span class="toggle-label">${this.#escapeHtml(this.#label)}</span>` : ""}
       </label>
     `;
 
-    this.#switchElement = this.#container.querySelector('.toggle-switch');
-    this.#input = this.#container.querySelector('.toggle-input');
+    this.#switchElement = this.#container.querySelector(".toggle-switch");
+    this.#input = this.#container.querySelector(".toggle-input");
   }
 
   /**
@@ -78,11 +78,11 @@ export class ToggleSwitch {
    * @private
    */
   #bindEvents() {
-    this.#input.addEventListener('change', this.#handleChange.bind(this));
+    this.#input.addEventListener("change", this.#handleChange.bind(this));
 
     // 支持键盘操作
-    this.#input.addEventListener('keydown', (event) => {
-      if (event.key === ' ' || event.key === 'Enter') {
+    this.#input.addEventListener("keydown", (event) => {
+      if (event.key === " " || event.key === "Enter") {
         event.preventDefault();
         if (!this.#disabled) {
           this.toggle();
@@ -96,7 +96,7 @@ export class ToggleSwitch {
    * @private
    */
   #handleChange() {
-    if (this.#disabled) return;
+    if (this.#disabled) {return;}
 
     const oldValue = this.#checked;
     this.#checked = this.#input.checked;
@@ -111,7 +111,7 @@ export class ToggleSwitch {
    * @public
    */
   toggle() {
-    if (this.#disabled) return;
+    if (this.#disabled) {return;}
 
     this.#checked = !this.#checked;
     this.#input.checked = this.#checked;
@@ -155,9 +155,9 @@ export class ToggleSwitch {
     this.#input.disabled = disabled;
 
     if (disabled) {
-      this.#switchElement.classList.add('disabled');
+      this.#switchElement.classList.add("disabled");
     } else {
-      this.#switchElement.classList.remove('disabled');
+      this.#switchElement.classList.remove("disabled");
     }
   }
 
@@ -177,16 +177,16 @@ export class ToggleSwitch {
    */
   setLabel(label) {
     this.#label = label;
-    const labelElement = this.#container.querySelector('.toggle-label');
+    const labelElement = this.#container.querySelector(".toggle-label");
 
     if (labelElement) {
       labelElement.textContent = label;
     } else if (label) {
-      const slider = this.#container.querySelector('.toggle-slider');
-      const newLabel = document.createElement('span');
-      newLabel.className = 'toggle-label';
+      const slider = this.#container.querySelector(".toggle-slider");
+      const newLabel = document.createElement("span");
+      newLabel.className = "toggle-label";
       newLabel.textContent = label;
-      slider.insertAdjacentElement('afterend', newLabel);
+      slider.insertAdjacentElement("afterend", newLabel);
     }
   }
 
@@ -197,7 +197,7 @@ export class ToggleSwitch {
    * @returns {string} 转义后的文本
    */
   #escapeHtml(text) {
-    const div = document.createElement('div');
+    const div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML;
   }
@@ -207,7 +207,7 @@ export class ToggleSwitch {
    * @public
    */
   destroy() {
-    this.#container.innerHTML = '';
+    this.#container.innerHTML = "";
   }
 }
 

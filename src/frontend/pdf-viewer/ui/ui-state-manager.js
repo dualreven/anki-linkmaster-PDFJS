@@ -28,7 +28,7 @@ export class UIStateManager {
     this.#state = {
       // 视图状态
       currentScale: 1.0,
-      scaleMode: 'auto', // auto, page-width, page-height, custom
+      scaleMode: "auto", // auto, page-width, page-height, custom
       rotation: 0, // 0, 90, 180, 270
 
       // 页面状态
@@ -44,7 +44,7 @@ export class UIStateManager {
       isLoading: false,
       isLoaded: false,
       hasError: false,
-      errorMessage: '',
+      errorMessage: "",
 
       // UI显示状态
       showToolbar: true,
@@ -92,7 +92,7 @@ export class UIStateManager {
   set(keyOrUpdates, value) {
     const oldState = { ...this.#state };
 
-    if (typeof keyOrUpdates === 'object') {
+    if (typeof keyOrUpdates === "object") {
       // 批量更新
       Object.assign(this.#state, keyOrUpdates);
       this.#logger.debug("Batch state update:", keyOrUpdates);
@@ -111,7 +111,7 @@ export class UIStateManager {
    * @param {number} scale - 缩放级别
    * @param {string} [mode] - 缩放模式
    */
-  updateScale(scale, mode = 'custom') {
+  updateScale(scale, mode = "custom") {
     this.set({
       currentScale: scale,
       scaleMode: mode
@@ -144,7 +144,7 @@ export class UIStateManager {
       updates.isLoaded = isLoaded;
       if (isLoaded) {
         updates.hasError = false;
-        updates.errorMessage = '';
+        updates.errorMessage = "";
       }
     }
     this.set(updates);
@@ -155,7 +155,7 @@ export class UIStateManager {
    * @param {boolean} hasError - 是否有错误
    * @param {string} [errorMessage] - 错误消息
    */
-  updateErrorState(hasError, errorMessage = '') {
+  updateErrorState(hasError, errorMessage = "") {
     this.set({
       hasError,
       errorMessage,
@@ -198,7 +198,7 @@ export class UIStateManager {
   addToRenderQueue(pageNumber) {
     if (!this.#state.renderQueue.includes(pageNumber)) {
       const queue = [...this.#state.renderQueue, pageNumber];
-      this.set('renderQueue', queue);
+      this.set("renderQueue", queue);
       this.#logger.debug(`Added page ${pageNumber} to render queue`);
     }
   }
@@ -209,7 +209,7 @@ export class UIStateManager {
    */
   removeFromRenderQueue(pageNumber) {
     const queue = this.#state.renderQueue.filter(p => p !== pageNumber);
-    this.set('renderQueue', queue);
+    this.set("renderQueue", queue);
     this.#logger.debug(`Removed page ${pageNumber} from render queue`);
   }
 
@@ -217,7 +217,7 @@ export class UIStateManager {
    * 清空渲染队列
    */
   clearRenderQueue() {
-    this.set('renderQueue', []);
+    this.set("renderQueue", []);
     this.#logger.debug("Render queue cleared");
   }
 

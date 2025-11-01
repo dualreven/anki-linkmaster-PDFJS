@@ -74,6 +74,9 @@ export class WSClient {
     "pdf-viewer:navigate:requested",
     "pdf-viewer:navigate:completed",
     "pdf-viewer:navigate:failed"
+    ,
+    // System / heartbeat
+    "system:heartbeat:completed"
   ];
 
   static ALLOWED_OUTBOUND_TYPES = (() => {
@@ -665,6 +668,19 @@ export class WSClient {
       WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST,
       { pdf_id: pdfId },
       { timeout, maxRetries, metadata: { version: "1.0.0" } }
+    );
+  }
+
+  /**
+   * 发送系统心跳请求（严格契约）
+   * @param {number} timeout - 超时（毫秒）
+   * @returns {Promise<object>} 心跳返回数据（包含 timestamp ）
+   */
+  async sendHeartbeat(timeout = 4000) {
+    return this.request(
+      WEBSOCKET_MESSAGE_TYPES.HEARTBEAT_REQUESTED,
+      {},
+      { timeout, metadata: { version: "1.0.0" } }
     );
   }
   #attemptReconnect() {

@@ -17,6 +17,8 @@
 - 保存时严格校验：仅接受 `pageNumber`（≥1）与 `position`（0~100），禁止旧字段 `region/type`；
 - 迁移建议：前端尽快切换到 `pageAt/position`，完成后可去除门面层兼容映射。
 > 最近更新（10条，按日期倒序）
+- 2025-11-01 启动器导航互斥：新建窗口仅用 URL 导航；已存在窗口仅用 WS 导航；禁止双通路并发
+- 2025-11-01 Logger 增强：新增 Feature/模块级 toast 过滤策略（setToastPolicy/getToastPolicy/setDefaultToastEnabled）；URLNavigationFeature 统一用 logger+toast 出提示（保障“有 toast 必有日志”）
 - 2025-10-26 pdf-home 启动端口严格校验：缺失 `vite/msgCenter/pdfFile`（dev）或缺失 `msgCenter/pdfFile`（prod）直接抛错；禁止 URL 中出现 `:None`
 - 2025-10-26 Backend 路径严格化：后端仅接受参数传入的 `logs_dir/data_dir/db_path/static_dir/pdfs_dir`；移除所有回退/自动推断；HTTP 与 WS 服务器均按参数运行
 - 2025-10-25 Annotation（截图）后端扩容：`PDFAnnotationTablePlugin` 允许并持久化 `rectPercent/canvasPixelSize/markerColor`，刷新后定位稳定
@@ -51,13 +53,25 @@
     - 用法：`getLogger('Module').error('消息', { toast: { type: 'error', ms: 4000 } })`
   - Notification：`import { showError, showSuccess, showInfo, showInfoWithId, dismissById } from 'src/frontend/common/utils/notification.js'`
 - 禁止事项：
-  - 任何功能代码直接导入 `common/utils/thirdparty-toast.js`（静态或动态 `import()`）；
+- 任何功能代码直接导入 `common/utils/thirdparty-toast.js`（静态或动态 `import()`）；
   - 使用 `alert(...)`；
   - 直接使用第三方全局（如 `iziToast.*`）或私造 DOM/样式实现 toast；
 - Lint 守护：
   - 自定义规则 `custom/no-direct-toast-import`: 禁止直接导入 `thirdparty-toast.js`（白名单仅限适配器与公共封装）；
   - 自定义规则 `custom/no-izi-toast-global`: 禁止直接使用 `iziToast` 或从 `izitoast` 导入；
   - 自定义规则 `custom/notification-allowed-apis`: 限定 `notification.js` 仅允许导入 `showInfo/showSuccess/showError/showInfoWithId/dismissById/hideAll`，禁止默认导入与别名；
+
+## WebSocket 心跳契约（2025-10-30 新增）
+- 事件常量：
+  - 前端：`system:heartbeat:requested` / `system:heartbeat:completed`（见 `event-constants.js`）；
+  - 后端：`MessageType.HEARTBEAT_REQUESTED/COMPLETED`（路由 `system:heartbeat:requested` → handlers.misc.heartbeat）。
+- 发送用法：
+  - 通过 `WSClient.request()` 或便捷方法 `WSClient.sendHeartbeat(timeout=4000)`；
+  - 必须包含 `metadata: { version: '1.0.0' }`；
+  - 严禁任何兜底或静默成功。
+- 入站处理：
+  - `WSClient` 将 `system:heartbeat:completed` 纳入兼容白名单，收到后按 `request_id` 结算 pending；
+  - 非白名单事件将触发 `websocket:message:error` 并拒收（Fail-Fast）。
   - 自定义规则 `custom/no-dynamic-notification-import`: 禁止对 `notification.js/thirdparty-toast.js` 使用动态 `import()`；
   - 自定义规则 `custom/logger-toast-shape`（默认 warn）：校验 `logger.*(..., { toast })` 的结构（允许 `true` 或 `{ type, ms }`）；
   - 启用 `no-alert: error`：彻底禁止 `alert()`；
@@ -198,6 +212,16 @@ setModuleLogLevel('Feature.annotation', LogLevel.WARN);
   - `canvasPixelSize` 仅作为调试信息可选保存。\n
 
 ### 运行时 Schema 校验（2025-10-26 新增）
+
+### PDF Anchor 创建契约（2025-10-30 新增, 2025-10-30 晚修订）
+- 事件：`PDF_VIEWER_EVENTS.ANCHOR.CREATE`（`anchor:create:requested`）
+- 触发方式（两种皆可，推荐方式A）：
+  - A. UI 侧带负载：`{ anchor: { uuid: 'pdfanchor-<12hex>', name: string, page_at: number, position?: number(0~100|0~1) } }`
+    - 必须包含合法 `uuid`；若缺失/非法，前端直接报错（禁止补齐/兜底）；
+    - `position` 若传入 0~100，将在入库前归一化到 0~1（适配器处理）。
+  - B. 无负载（快捷创建，仅此路径允许生成 ID）：特性层采样当前位置并生成 `uuid`，随后以 `__fromFeature=true` 转发同名事件交由 WS 持久化。
+- UI 刷新：由 `PDFAnchorFeature` 在本地 Map 更新后统一 `emit(ANCHOR.DATA.LOADED, { anchors })`，侧边栏订阅此事件刷新表格。
+- 禁止兜底：任一异常即时 toast 告警并记录 warn，不做静默降级或字段推断。
 - 路径解析：`todo-and-doing/1 doing/20251006182000-bus-contract-capability-registry/schemas/<domain>/v1/messages/<action>.request.schema.json`\n
 - 校验范围：所有 `*:requested` 入站消息；未找到 schema 的消息跳过且记录；\n
 - 失败处理：直接返回 `*:failed`，错误类型 `SCHEMA_VALIDATION_FAILED`；\n

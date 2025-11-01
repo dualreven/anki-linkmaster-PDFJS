@@ -20,25 +20,25 @@ import EVENT_CONSTANTS, {
   PDF_EDITOR_EVENTS,
   HEADER_EVENTS,
   SORTER_EVENTS,
-} from './event-constants.js';
+} from "./event-constants.js";
 // 引入 PDF-Viewer 事件常量，仅用于白名单收集（不新增事件名）
-import { PDF_VIEWER_EVENTS } from './pdf-viewer-constants.js';
+import { PDF_VIEWER_EVENTS } from "./pdf-viewer-constants.js";
 // 引入 PDF-Translator 事件常量，补充翻译功能域的全局事件白名单
 // 注意：仅用于白名单收集，不产生运行时依赖耦合
-import { PDF_TRANSLATOR_EVENTS } from '../../pdf-viewer/features/pdf-translator/events.js';
+import { PDF_TRANSLATOR_EVENTS } from "../../pdf-viewer/features/pdf-translator/events.js";
 
 function collectStrings(obj, out) {
-  if (!obj) return;
-  if (typeof obj === 'string') {
+  if (!obj) {return;}
+  if (typeof obj === "string") {
     out.add(obj);
     return;
   }
   if (Array.isArray(obj)) {
-    for (const v of obj) collectStrings(v, out);
+    for (const v of obj) {collectStrings(v, out);}
     return;
   }
-  if (typeof obj === 'object') {
-    for (const k of Object.keys(obj)) collectStrings(obj[k], out);
+  if (typeof obj === "object") {
+    for (const k of Object.keys(obj)) {collectStrings(obj[k], out);}
   }
 }
 
@@ -66,8 +66,8 @@ collectStrings(PDF_TRANSLATOR_EVENTS, AllowedGlobalEvents);
 
 export function isGlobalEventAllowed(eventName) {
   // 仅针对“全局事件”进行白名单检查；局部事件以 @feature/ 开头不在此限制
-  if (typeof eventName !== 'string') return false;
-  if (eventName.startsWith('@')) return true;
+  if (typeof eventName !== "string") {return false;}
+  if (eventName.startsWith("@")) {return true;}
   return AllowedGlobalEvents.has(eventName);
 }
 
@@ -82,8 +82,8 @@ export function diffAllowed(usedEvents) {
   const unknown = [];
   const allowed = [];
   for (const ev of usedEvents || []) {
-    if (typeof ev !== 'string') continue;
-    if (ev.startsWith('@')) { allowed.push(ev); continue; }
+    if (typeof ev !== "string") {continue;}
+    if (ev.startsWith("@")) { allowed.push(ev); continue; }
     if (AllowedGlobalEvents.has(ev)) { allowed.push(ev); }
     else { unknown.push(ev); }
   }

@@ -27,7 +27,7 @@ export class IAnnotationTool {
    * get name() { return 'screenshot'; }
    */
   get name() {
-    throw new Error('IAnnotationTool.name must be implemented');
+    throw new Error("IAnnotationTool.name must be implemented");
   }
 
   /**
@@ -37,7 +37,7 @@ export class IAnnotationTool {
    * get displayName() { return '截图'; }
    */
   get displayName() {
-    throw new Error('IAnnotationTool.displayName must be implemented');
+    throw new Error("IAnnotationTool.displayName must be implemented");
   }
 
   /**
@@ -47,7 +47,7 @@ export class IAnnotationTool {
    * get icon() { return '📷'; }
    */
   get icon() {
-    throw new Error('IAnnotationTool.icon must be implemented');
+    throw new Error("IAnnotationTool.icon must be implemented");
   }
 
   /**
@@ -57,7 +57,7 @@ export class IAnnotationTool {
    * get version() { return '1.0.0'; }
    */
   get version() {
-    throw new Error('IAnnotationTool.version must be implemented');
+    throw new Error("IAnnotationTool.version must be implemented");
   }
 
   /**
@@ -67,7 +67,7 @@ export class IAnnotationTool {
    * get dependencies() { return ['qwebchannel']; }
    */
   get dependencies() {
-    throw new Error('IAnnotationTool.dependencies must be implemented');
+    throw new Error("IAnnotationTool.dependencies must be implemented");
   }
 
   // ==================== 生命周期方法 ====================
@@ -101,7 +101,7 @@ export class IAnnotationTool {
    * }
    */
   async initialize(context) {
-    throw new Error('IAnnotationTool.initialize must be implemented');
+    throw new Error("IAnnotationTool.initialize must be implemented");
   }
 
   /**
@@ -126,7 +126,7 @@ export class IAnnotationTool {
    * }
    */
   activate() {
-    throw new Error('IAnnotationTool.activate must be implemented');
+    throw new Error("IAnnotationTool.activate must be implemented");
   }
 
   /**
@@ -150,7 +150,7 @@ export class IAnnotationTool {
    * }
    */
   deactivate() {
-    throw new Error('IAnnotationTool.deactivate must be implemented');
+    throw new Error("IAnnotationTool.deactivate must be implemented");
   }
 
   /**
@@ -163,7 +163,7 @@ export class IAnnotationTool {
    * }
    */
   isActive() {
-    throw new Error('IAnnotationTool.isActive must be implemented');
+    throw new Error("IAnnotationTool.isActive must be implemented");
   }
 
   // ==================== UI方法 ====================
@@ -192,7 +192,7 @@ export class IAnnotationTool {
    * }
    */
   createToolButton() {
-    throw new Error('IAnnotationTool.createToolButton must be implemented');
+    throw new Error("IAnnotationTool.createToolButton must be implemented");
   }
 
   /**
@@ -227,7 +227,7 @@ export class IAnnotationTool {
    * }
    */
   createAnnotationCard(annotation) {
-    throw new Error('IAnnotationTool.createAnnotationCard must be implemented');
+    throw new Error("IAnnotationTool.createAnnotationCard must be implemented");
   }
 
   // ==================== 清理方法 ====================
@@ -256,7 +256,7 @@ export class IAnnotationTool {
    * }
    */
   destroy() {
-    throw new Error('IAnnotationTool.destroy must be implemented');
+    throw new Error("IAnnotationTool.destroy must be implemented");
   }
 }
 
@@ -268,15 +268,15 @@ export class IAnnotationTool {
  */
 export function validateAnnotationTool(tool) {
   const requiredMethods = [
-    'name', 'displayName', 'icon', 'version', 'dependencies',
-    'initialize', 'activate', 'deactivate', 'isActive',
-    'createToolButton', 'createAnnotationCard', 'destroy'
+    "name", "displayName", "icon", "version", "dependencies",
+    "initialize", "activate", "deactivate", "isActive",
+    "createToolButton", "createAnnotationCard", "destroy"
   ];
 
   for (const method of requiredMethods) {
     // 检查getter属性
     const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(tool), method);
-    if (!descriptor || (typeof descriptor.get !== 'function' && typeof tool[method] !== 'function')) {
+    if (!descriptor || (typeof descriptor.get !== "function" && typeof tool[method] !== "function")) {
       throw new Error(`AnnotationTool '${tool.constructor.name}' must implement ${method}`);
     }
   }

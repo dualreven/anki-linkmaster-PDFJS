@@ -10,7 +10,7 @@ import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js
 import { createScopedEventBus } from "../../../common/event/scoped-event-bus.js";
 import { URLParamsParser } from "./components/url-params-parser.js";
 import { URLNavigationFeatureConfig } from "./feature.config.js";
-import { showSuccess as notifySuccess, showError as notifyError } from "../../../common/utils/notification.js";
+import { showSuccess, showError } from "../../../common/utils/notification.js";
 import { URLJumpDispatcher } from "./components/url-jump-dispatcher.js";
 
 /**
@@ -44,6 +44,11 @@ export class URLNavigationFeature {
 
   /** @type {number|null} 导航开始时间戳 */
   #navigationStartTime = null;
+
+  /** @type {boolean} 导航进行中（用于抑制重复载荷二次触发） */
+  #navInProgress = false;
+  /** @type {string|null} 进行中载荷指纹 */
+  #inflightNavKey = null;
 
   /**
    * Feature名称
@@ -153,8 +158,8 @@ export class URLNavigationFeature {
               const title = (typeof data.title === "string" && data.title.trim()) ? data.title.trim() : null;
               filenameForLoad = fname || title || filenameForLoad;
               filePath = (typeof data.file_path === "string" && data.file_path.trim()) ? data.file_path.trim()
-                        : (typeof data.path === "string" && data.path.trim()) ? data.path.trim()
-                        : null;
+                : (typeof data.path === "string" && data.path.trim()) ? data.path.trim()
+                  : null;
               this.#logger.info("[url-navigation] 详情查询成功，使用真实文件名加载", { filename: filenameForLoad, file_path: filePath });
             } else {
               this.#logger.warn("[url-navigation] wsClient 不可用或不支持 sendPDFDetailRequest，回退为使用 pdfId 作为文件名");
@@ -268,15 +273,25 @@ export class URLNavigationFeature {
     if (this.#gatedNavigationDone) { return; }
     if (!this.#annotationDataLoaded) { return; }
 
+    this.#logger.info(`[URLNavigationFeature] 准备执行门闸导航, parsedParams.outlineItemId=${this.#parsedParams?.outlineItemId}`, {
+      toast: { type: "info", ms: 2000 }
+    });
+
     const dispatcher = new URLJumpDispatcher({
       eventBus: this.#eventBus,
       navigationService: this.#navigationService
     });
 
     try {
+      this.#logger.info(`[URLNavigationFeature] 调用dispatcher.tryExecute, 参数: outlineItemId=${this.#parsedParams?.outlineItemId}`, {
+        toast: { type: "info", ms: 2000 }
+      });
       const res = await dispatcher.tryExecute(this.#parsedParams, { annotationDataLoaded: this.#annotationDataLoaded });
+      this.#logger.info(`[URLNavigationFeature] dispatcher返回: type=${res.type}, success=${res.success}`, {
+        toast: { type: "info", ms: 2000 }
+      });
 
-      // 仅对“页面导航”分支在此输出统一成功/失败提示（annotation 跳转交由对应 Feature 提示）
+      // 仅对"页面导航"分支在此输出统一成功/失败提示（annotation 跳转交由对应 Feature 提示）
       if (res.type === "page") {
         // 无法从 dispatcher 获取 duration，这里只做简化提示；详细性能请在 NavigationService 内记录
         if (res.success) {
@@ -286,19 +301,28 @@ export class URLNavigationFeature {
             position: this.#parsedParams.position,
             duration: this.#navigationStartTime ? Math.round(performance.now() - this.#navigationStartTime) : undefined,
           });
-          try { notifySuccess("页面导航完成", 2500); } catch (e) { void e; }
+          // 方案3：使用 logger 记录并弹 toast（保证“有 toast 必有日志”）
+          this.#logger.info("页面导航完成", { toast: { type: "success", ms: 2500 } });
         } else {
           this.#emitNavigationFailed(new Error(res.reason || "导航失败"), "navigate");
-          try { notifyError(`导航失败: ${res.reason || "未知错误"}`, 5000); } catch (e) { void e; }
+          this.#logger.error(`导航失败: ${res.reason || "未知错误"}`, { toast: { type: "error", ms: 5000 } });
         }
       } else if (res.type === "annotation") {
-        // 标注跳转的提示交由 AnnotationFeature 输出，避免“已触发”但实际未跳转的误导
+        // 标注跳转的提示交由 AnnotationFeature 输出，避免"已触发"但实际未跳转的误导
+        this.#logger.info("[URLNavigationFeature] 标注导航已触发，等待AnnotationFeature处理", res, { toast: { type: "info", ms: 2000 } });
+      } else if (res.type === "outline") {
+        this.#logger.info("[URLNavigationFeature] outline导航已触发，等待BookmarkFeature处理", res, { toast: { type: "info", ms: 2000 } });
       } else {
-        this.#logger.info("[url-navigation] 门闸通过，但无可执行跳转（或仅记录 outline-item-id）");
+        this.#logger.info("[URLNavigationFeature] 门闸通过，但无可执行跳转（或仅记录 outline-item-id）", {
+          type: res.type,
+          reason: res.reason,
+          parsedParams: this.#parsedParams
+        }, { toast: { type: "warn", ms: 3000 } });
       }
     } catch (error) {
-      this.#logger.error("[url-navigation] 门闸导航执行失败:", error);
-      try { notifyError(`[URL导航] 执行失败: ${error?.message || "未知错误"}`, 5000); } catch (e) { void e; }
+      this.#logger.error("[url-navigation] 门闸导航执行失败:", error, { toast: { type: "error", ms: 5000 } });
+      // 方案3：统一通过 logger 输出与 toast
+      this.#logger.error(`[URL导航] 执行失败: ${error?.message || "未知错误"}`, { toast: { type: "error", ms: 5000 } });
     } finally {
       this.#gatedNavigationDone = true;
       this.#hasProcessedParams = true;
@@ -352,7 +376,25 @@ export class URLNavigationFeature {
 
     const startTime = performance.now();
 
+    // 去重：若与进行中的载荷完全一致，则忽略（避免“正在进行中”错误与重复 toast）
     try {
+      const key = JSON.stringify({
+        pdfId: params.pdfId || null,
+        anchorId: params.anchorId || null,
+        annotationId: params.annotationId || null,
+        outlineItemId: params.outlineItemId || null,
+        pageAt: params.pageAt,
+        position: (params.position ?? null)
+      });
+      if (this.#navInProgress && this.#inflightNavKey === key) {
+        this.#logger.warn("[url-navigation] 忽略重复导航请求（相同载荷且正在进行中）", { key });
+        return;
+      }
+      this.#inflightNavKey = key;
+    } catch (_) {}
+
+    try {
+      this.#navInProgress = true;
       // 如果指定了 pdfId：仅当与当前已打开的文档不同才触发重新加载；
       // 否则视为“同文档内导航”，直接执行页面跳转，避免刷新到第1页。
       if (params.pdfId) {
@@ -395,6 +437,9 @@ export class URLNavigationFeature {
     } catch (error) {
       this.#logger.error("手动导航失败:", error);
       this.#emitNavigationFailed(error, "navigate");
+    } finally {
+      this.#navInProgress = false;
+      this.#inflightNavKey = null;
     }
   }
 

@@ -20,22 +20,22 @@
  */
 export const EventStatus = {
   // 请求类
-  REQUESTED: 'requested',      // 请求执行某操作
+  REQUESTED: "requested",      // 请求执行某操作
 
   // 完成类
-  COMPLETED: 'completed',      // 操作成功完成
-  SUCCESS: 'success',          // 操作成功（语义同completed）
-  FAILED: 'failed',            // 操作失败
-  ERROR: 'error',              // 发生错误
+  COMPLETED: "completed",      // 操作成功完成
+  SUCCESS: "success",          // 操作成功（语义同completed）
+  FAILED: "failed",            // 操作失败
+  ERROR: "error",              // 发生错误
 
   // 进行类
-  STARTED: 'started',          // 操作开始
-  PROGRESS: 'progress',        // 操作进行中
-  UPDATED: 'updated',          // 状态已更新
+  STARTED: "started",          // 操作开始
+  PROGRESS: "progress",        // 操作进行中
+  UPDATED: "updated",          // 状态已更新
 
   // 取消类
-  CANCELED: 'canceled',        // 操作被取消
-  ABORTED: 'aborted',          // 操作被中止
+  CANCELED: "canceled",        // 操作被取消
+  ABORTED: "aborted",          // 操作被中止
 };
 
 /**
@@ -43,15 +43,15 @@ export const EventStatus = {
  * @enum {string}
  */
 export const EventModule = {
-  PDF: 'pdf',
-  PDF_VIEWER: 'pdf-viewer',
-  BOOKMARK: 'bookmark',
-  ANNOTATION: 'annotation',
-  SIDEBAR: 'sidebar',
-  SEARCH: 'search',
-  NAVIGATION: 'navigation',
-  WEBSOCKET: 'websocket',
-  UI: 'ui',
+  PDF: "pdf",
+  PDF_VIEWER: "pdf-viewer",
+  BOOKMARK: "bookmark",
+  ANNOTATION: "annotation",
+  SIDEBAR: "sidebar",
+  SEARCH: "search",
+  NAVIGATION: "navigation",
+  WEBSOCKET: "websocket",
+  UI: "ui",
 };
 
 /**
@@ -59,17 +59,17 @@ export const EventModule = {
  * @enum {string}
  */
 export const EventAction = {
-  LOAD: 'load',
-  SAVE: 'save',
-  DELETE: 'delete',
-  CREATE: 'create',
-  UPDATE: 'update',
-  TOGGLE: 'toggle',
-  OPEN: 'open',
-  CLOSE: 'close',
-  NAVIGATE: 'navigate',
-  SEARCH: 'search',
-  RENDER: 'render',
+  LOAD: "load",
+  SAVE: "save",
+  DELETE: "delete",
+  CREATE: "create",
+  UPDATE: "update",
+  TOGGLE: "toggle",
+  OPEN: "open",
+  CLOSE: "close",
+  NAVIGATE: "navigate",
+  SEARCH: "search",
+  RENDER: "render",
 };
 
 /**
@@ -98,20 +98,20 @@ export const EventAction = {
 export function createEventName(module, action, status) {
   // 验证参数
   const parts = [module, action, status];
-  const partNames = ['module', 'action', 'status'];
+  const partNames = ["module", "action", "status"];
 
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i];
     const name = partNames[i];
 
-    if (!part || typeof part !== 'string') {
+    if (!part || typeof part !== "string") {
       throw new Error(
         `❌ createEventName() 错误：${name} 必须是非空字符串，但收到了：${typeof part} (${part})`
       );
     }
 
     // 检查是否包含冒号
-    if (part.includes(':')) {
+    if (part.includes(":")) {
       throw new Error(
         `❌ createEventName() 错误：${name} 不能包含冒号，但收到了：'${part}'`
       );
@@ -143,14 +143,14 @@ export function createEventName(module, action, status) {
  * // { valid: false, error: '事件名称格式不正确...' }
  */
 export function validateEventName(eventName) {
-  if (typeof eventName !== 'string' || !eventName) {
+  if (typeof eventName !== "string" || !eventName) {
     return {
       valid: false,
       error: `事件名称必须是非空字符串，但收到了：${typeof eventName} (${eventName})`
     };
   }
 
-  const parts = eventName.split(':');
+  const parts = eventName.split(":");
 
   if (parts.length !== 3) {
     return {
@@ -187,7 +187,7 @@ export function parseEventName(eventName) {
     throw new Error(`❌ parseEventName() 错误：${result.error}`);
   }
 
-  const [module, action, status] = eventName.split(':');
+  const [module, action, status] = eventName.split(":");
 
   return { module, action, status };
 }

@@ -29,9 +29,9 @@
  * ```
  */
 
-import { getLogger } from '../../../../common/utils/logger.js';
-import { validateAnnotationTool } from '../interfaces/IAnnotationTool.js';
-import { PDF_VIEWER_EVENTS } from '../../../../common/event/pdf-viewer-constants.js';
+import { getLogger } from "../../../../common/utils/logger.js";
+import { validateAnnotationTool } from "../interfaces/IAnnotationTool.js";
+import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 
 /**
  * 工具注册表类
@@ -80,16 +80,16 @@ export class ToolRegistry {
    */
   constructor(eventBus, logger) {
     if (!eventBus) {
-      throw new Error('ToolRegistry requires eventBus');
+      throw new Error("ToolRegistry requires eventBus");
     }
 
     this.#eventBus = eventBus;
-    this.#logger = logger || getLogger('ToolRegistry');
+    this.#logger = logger || getLogger("ToolRegistry");
 
     // 监听工具激活/停用事件
     this.#setupEventListeners();
 
-    this.#logger.info('[ToolRegistry] Created');
+    this.#logger.info("[ToolRegistry] Created");
   }
 
   /**
@@ -101,12 +101,12 @@ export class ToolRegistry {
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.TOOL.ACTIVATE, (data) => {
       const { tool } = data;
       this.activateTool(tool);
-    }, { subscriberId: 'ToolRegistry' });
+    }, { subscriberId: "ToolRegistry" });
 
     // 监听工具停用请求
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.TOOL.DEACTIVATE, () => {
       this.deactivateCurrentTool();
-    }, { subscriberId: 'ToolRegistry' });
+    }, { subscriberId: "ToolRegistry" });
   }
 
   /**
@@ -183,7 +183,7 @@ export class ToolRegistry {
    */
   async initializeAll(context) {
     if (this.#initialized) {
-      this.#logger.warn('[ToolRegistry] Already initialized');
+      this.#logger.warn("[ToolRegistry] Already initialized");
       return;
     }
 
@@ -205,7 +205,7 @@ export class ToolRegistry {
     await Promise.all(promises);
 
     this.#initialized = true;
-    this.#logger.info('[ToolRegistry] All tools initialized');
+    this.#logger.info("[ToolRegistry] All tools initialized");
   }
 
   /**
@@ -222,7 +222,7 @@ export class ToolRegistry {
    */
   activateTool(name) {
     if (!this.#initialized) {
-      throw new Error('ToolRegistry not initialized. Call initializeAll() first');
+      throw new Error("ToolRegistry not initialized. Call initializeAll() first");
     }
 
     // 检查工具是否存在
@@ -260,7 +260,7 @@ export class ToolRegistry {
    */
   deactivateCurrentTool() {
     if (!this.#activeTool) {
-      this.#logger.debug('[ToolRegistry] No active tool to deactivate');
+      this.#logger.debug("[ToolRegistry] No active tool to deactivate");
       return;
     }
 
@@ -310,7 +310,7 @@ export class ToolRegistry {
    * 销毁所有工具，清理资源
    */
   destroyAll() {
-    this.#logger.info('[ToolRegistry] Destroying all tools...');
+    this.#logger.info("[ToolRegistry] Destroying all tools...");
 
     // 先停用所有工具
     this.deactivateAll();
@@ -330,7 +330,7 @@ export class ToolRegistry {
     this.#activeTool = null;
     this.#initialized = false;
 
-    this.#logger.info('[ToolRegistry] All tools destroyed');
+    this.#logger.info("[ToolRegistry] All tools destroyed");
   }
 
   /**

@@ -46,9 +46,9 @@ export class StarRating {
    * @private
    */
   #init() {
-    this.#container.classList.add('star-rating');
+    this.#container.classList.add("star-rating");
     if (this.#readonly) {
-      this.#container.classList.add('readonly');
+      this.#container.classList.add("readonly");
     }
 
     this.#render();
@@ -60,14 +60,14 @@ export class StarRating {
    * @private
    */
   #render() {
-    this.#container.innerHTML = '';
+    this.#container.innerHTML = "";
     this.#stars = [];
 
     for (let i = 1; i <= this.#maxStars; i++) {
-      const star = document.createElement('span');
-      star.classList.add('star');
+      const star = document.createElement("span");
+      star.classList.add("star");
       star.dataset.value = i;
-      star.innerHTML = '★';
+      star.innerHTML = "★";
 
       this.#container.appendChild(star);
       this.#stars.push(star);
@@ -81,11 +81,11 @@ export class StarRating {
    * @private
    */
   #bindEvents() {
-    if (this.#readonly) return;
+    if (this.#readonly) {return;}
 
-    this.#container.addEventListener('click', this.#handleClick.bind(this));
-    this.#container.addEventListener('mousemove', this.#handleMouseMove.bind(this));
-    this.#container.addEventListener('mouseleave', this.#handleMouseLeave.bind(this));
+    this.#container.addEventListener("click", this.#handleClick.bind(this));
+    this.#container.addEventListener("mousemove", this.#handleMouseMove.bind(this));
+    this.#container.addEventListener("mouseleave", this.#handleMouseLeave.bind(this));
   }
 
   /**
@@ -94,8 +94,8 @@ export class StarRating {
    * @param {MouseEvent} event - 鼠标事件
    */
   #handleClick(event) {
-    const star = event.target.closest('.star');
-    if (!star) return;
+    const star = event.target.closest(".star");
+    if (!star) {return;}
 
     const value = parseInt(star.dataset.value);
     const rect = star.getBoundingClientRect();
@@ -114,8 +114,8 @@ export class StarRating {
    * @param {MouseEvent} event - 鼠标事件
    */
   #handleMouseMove(event) {
-    const star = event.target.closest('.star');
-    if (!star) return;
+    const star = event.target.closest(".star");
+    if (!star) {return;}
 
     const value = parseInt(star.dataset.value);
     const rect = star.getBoundingClientRect();
@@ -144,18 +144,18 @@ export class StarRating {
     this.#stars.forEach((star, index) => {
       const starValue = index + 1;
 
-      star.classList.remove('full', 'half', 'empty', 'preview');
+      star.classList.remove("full", "half", "empty", "preview");
 
       if (isPreview) {
-        star.classList.add('preview');
+        star.classList.add("preview");
       }
 
       if (value >= starValue) {
-        star.classList.add('full');
+        star.classList.add("full");
       } else if (value >= starValue - 0.5) {
-        star.classList.add('half');
+        star.classList.add("half");
       } else {
-        star.classList.add('empty');
+        star.classList.add("empty");
       }
     });
   }
@@ -193,9 +193,9 @@ export class StarRating {
     this.#readonly = readonly;
 
     if (readonly) {
-      this.#container.classList.add('readonly');
+      this.#container.classList.add("readonly");
     } else {
-      this.#container.classList.remove('readonly');
+      this.#container.classList.remove("readonly");
     }
   }
 
@@ -204,7 +204,7 @@ export class StarRating {
    * @public
    */
   destroy() {
-    this.#container.innerHTML = '';
+    this.#container.innerHTML = "";
     this.#stars = [];
   }
 }

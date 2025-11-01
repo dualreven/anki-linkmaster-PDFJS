@@ -5,7 +5,7 @@
  * @description 第一期实现：仅包含UI容器和占位内容，不实现实际功能
  */
 
-import { getLogger } from '../../../../common/utils/logger.js';
+import { getLogger } from "../../../../common/utils/logger.js";
 
 export class CardSidebarUI {
   #eventBus;
@@ -21,19 +21,19 @@ export class CardSidebarUI {
    */
   constructor(eventBus) {
     this.#eventBus = eventBus;
-    this.#logger = getLogger('CardSidebarUI');
+    this.#logger = getLogger("CardSidebarUI");
   }
 
   /**
    * 初始化UI组件
    */
   initialize() {
-    this.#logger.info('Initializing CardSidebarUI...');
+    this.#logger.info("Initializing CardSidebarUI...");
 
     // 创建完整内容容器
-    this.#sidebarContent = document.createElement('div');
-    this.#sidebarContent.className = 'card-sidebar-content';
-    this.#sidebarContent.style.cssText = 'height:100%;display:flex;flex-direction:column;box-sizing:border-box;';
+    this.#sidebarContent = document.createElement("div");
+    this.#sidebarContent.className = "card-sidebar-content";
+    this.#sidebarContent.style.cssText = "height:100%;display:flex;flex-direction:column;box-sizing:border-box;";
 
     // 创建Header区域
     this.#header = this.#createHeader();
@@ -43,7 +43,7 @@ export class CardSidebarUI {
     this.#body = this.#createBody();
     this.#sidebarContent.appendChild(this.#body);
 
-    this.#logger.info('CardSidebarUI initialized successfully');
+    this.#logger.info("CardSidebarUI initialized successfully");
   }
 
   /**
@@ -52,8 +52,8 @@ export class CardSidebarUI {
    * @private
    */
   #createHeader() {
-    const header = document.createElement('div');
-    header.className = 'card-sidebar-header';
+    const header = document.createElement("div");
+    header.className = "card-sidebar-header";
     header.style.cssText = `
       display: flex;
       flex-wrap: wrap;
@@ -65,16 +65,16 @@ export class CardSidebarUI {
 
     // 定义按钮配置
     const buttons = [
-      { id: 'quick-create', text: '快速制卡', icon: '⚡', title: '快速制作Anki卡片（第2期）' },
-      { id: 'create', text: '制卡', icon: '➕', title: '打开完整制卡窗口（第3期）' },
-      { id: 'review', text: '复习', icon: '📖', title: '开始复习卡片（第4期）' },
-      { id: 'filter', text: '筛选', icon: '🔽', title: '排序和筛选卡片（第2期）' },
-      { id: 'auto-create-all', text: '整书制卡', icon: '📚', title: '一键整书自动制卡（第3期）' }
+      { id: "quick-create", text: "快速制卡", icon: "⚡", title: "快速制作Anki卡片（第2期）" },
+      { id: "create", text: "制卡", icon: "➕", title: "打开完整制卡窗口（第3期）" },
+      { id: "review", text: "复习", icon: "📖", title: "开始复习卡片（第4期）" },
+      { id: "filter", text: "筛选", icon: "🔽", title: "排序和筛选卡片（第2期）" },
+      { id: "auto-create-all", text: "整书制卡", icon: "📚", title: "一键整书自动制卡（第3期）" }
     ];
 
     // 创建按钮
     buttons.forEach(({ id, text, icon, title }) => {
-      const btn = document.createElement('button');
+      const btn = document.createElement("button");
       btn.className = `card-header-btn card-header-btn-${id}`;
       btn.title = title;
       btn.style.cssText = `
@@ -94,27 +94,27 @@ export class CardSidebarUI {
       `;
 
       // 添加hover效果
-      btn.addEventListener('mouseenter', () => {
-        btn.style.background = '#f0f0f0';
-        btn.style.borderColor = '#1976d2';
+      btn.addEventListener("mouseenter", () => {
+        btn.style.background = "#f0f0f0";
+        btn.style.borderColor = "#1976d2";
       });
-      btn.addEventListener('mouseleave', () => {
-        btn.style.background = '#ffffff';
-        btn.style.borderColor = '#d0d0d0';
+      btn.addEventListener("mouseleave", () => {
+        btn.style.background = "#ffffff";
+        btn.style.borderColor = "#d0d0d0";
       });
 
       // 点击事件（第一期仅显示提示）
-      btn.addEventListener('click', () => {
+      btn.addEventListener("click", () => {
         this.#handleButtonClick(id, text);
       });
 
-      const iconSpan = document.createElement('span');
-      iconSpan.className = 'icon';
+      const iconSpan = document.createElement("span");
+      iconSpan.className = "icon";
       iconSpan.textContent = icon;
-      iconSpan.style.fontSize = '16px';
+      iconSpan.style.fontSize = "16px";
 
-      const textSpan = document.createElement('span');
-      textSpan.className = 'text';
+      const textSpan = document.createElement("span");
+      textSpan.className = "text";
       textSpan.textContent = text;
 
       btn.appendChild(iconSpan);
@@ -131,8 +131,8 @@ export class CardSidebarUI {
    * @private
    */
   #createBody() {
-    const body = document.createElement('div');
-    body.className = 'card-sidebar-body';
+    const body = document.createElement("div");
+    body.className = "card-sidebar-body";
     body.style.cssText = `
       flex: 1;
       overflow-y: auto;
@@ -141,8 +141,8 @@ export class CardSidebarUI {
     `;
 
     // 创建占位内容
-    const placeholder = document.createElement('div');
-    placeholder.className = 'card-placeholder';
+    const placeholder = document.createElement("div");
+    placeholder.className = "card-placeholder";
     placeholder.style.cssText = `
       text-align: center;
       padding: 40px 20px;
@@ -150,18 +150,18 @@ export class CardSidebarUI {
     `;
 
     // 图标
-    const icon = document.createElement('div');
-    icon.className = 'placeholder-icon';
-    icon.textContent = '📇';
+    const icon = document.createElement("div");
+    icon.className = "placeholder-icon";
+    icon.textContent = "📇";
     icon.style.cssText = `
       font-size: 64px;
       margin-bottom: 16px;
     `;
 
     // 标题
-    const title = document.createElement('div');
-    title.className = 'placeholder-title';
-    title.textContent = '卡片功能开发中...';
+    const title = document.createElement("div");
+    title.className = "placeholder-title";
+    title.textContent = "卡片功能开发中...";
     title.style.cssText = `
       font-size: 18px;
       font-weight: 500;
@@ -170,8 +170,8 @@ export class CardSidebarUI {
     `;
 
     // 功能说明
-    const features = document.createElement('div');
-    features.className = 'placeholder-features';
+    const features = document.createElement("div");
+    features.className = "placeholder-features";
     features.innerHTML = `
       <p style="font-size: 14px; margin-bottom: 12px; color: #666;">即将支持：</p>
       <ul style="text-align: left; list-style: none; padding: 0; font-size: 13px;">
@@ -209,11 +209,11 @@ export class CardSidebarUI {
 
     // 第一期：仅显示提示信息
     const messages = {
-      'quick-create': '快速制卡功能开发中，敬请期待！\n预计第二期（2025-10-15）发布',
-      'create': '完整制卡功能开发中，敬请期待！\n预计第三期（2025-10-22）发布',
-      'review': '复习功能开发中，敬请期待！\n预计第四期（2025-11-01）发布',
-      'filter': '筛选功能开发中，敬请期待！\n预计第二期（2025-10-15）发布',
-      'auto-create-all': '一键整书自动制卡功能开发中，敬请期待！\n预计第三期（2025-10-22）发布'
+      "quick-create": "快速制卡功能开发中，敬请期待！\n预计第二期（2025-10-15）发布",
+      "create": "完整制卡功能开发中，敬请期待！\n预计第三期（2025-10-22）发布",
+      "review": "复习功能开发中，敬请期待！\n预计第四期（2025-11-01）发布",
+      "filter": "筛选功能开发中，敬请期待！\n预计第二期（2025-10-15）发布",
+      "auto-create-all": "一键整书自动制卡功能开发中，敬请期待！\n预计第三期（2025-10-22）发布"
     };
 
     alert(messages[buttonId] || `${buttonText}功能开发中...`);
@@ -231,7 +231,7 @@ export class CardSidebarUI {
    * 销毁UI组件
    */
   destroy() {
-    this.#logger.info('Destroying CardSidebarUI...');
+    this.#logger.info("Destroying CardSidebarUI...");
 
     // 取消所有事件订阅
     this.#unsubs.forEach(unsub => unsub());
@@ -242,6 +242,6 @@ export class CardSidebarUI {
       this.#sidebarContent.remove();
     }
 
-    this.#logger.info('CardSidebarUI destroyed');
+    this.#logger.info("CardSidebarUI destroyed");
   }
 }

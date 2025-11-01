@@ -2,10 +2,10 @@
  * @file PDFLoader单元测试
  */
 
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { PDFLoader } from '../components/pdf-loader.js';
+import { describe, it, expect, beforeEach, jest } from "@jest/globals";
+import { PDFLoader } from "../components/pdf-loader.js";
 
-describe('PDFLoader', () => {
+describe("PDFLoader", () => {
   let loader;
   let mockEventBus;
   let mockPdfjsLib;
@@ -32,23 +32,23 @@ describe('PDFLoader', () => {
     loader = new PDFLoader(mockEventBus, mockPdfjsLib);
   });
 
-  describe('构造函数', () => {
-    it('应该正确初始化', () => {
+  describe("构造函数", () => {
+    it("应该正确初始化", () => {
       expect(loader).toBeDefined();
     });
   });
 
-  describe('loadFromURL', () => {
-    it('应该成功从URL加载PDF', async () => {
-      const url = 'http://example.com/test.pdf';
+  describe("loadFromURL", () => {
+    it("应该成功从URL加载PDF", async () => {
+      const url = "http://example.com/test.pdf";
       const result = await loader.loadFromURL(url);
 
       expect(mockPdfjsLib.getDocument).toHaveBeenCalled();
       expect(result).toEqual({ numPages: 10 });
     });
 
-    it('应该使用正确的配置参数', async () => {
-      const url = 'http://example.com/test.pdf';
+    it("应该使用正确的配置参数", async () => {
+      const url = "http://example.com/test.pdf";
       await loader.loadFromURL(url);
 
       const config = mockPdfjsLib.getDocument.mock.calls[0][0];
@@ -58,8 +58,8 @@ describe('PDFLoader', () => {
       expect(config.cMapPacked).toBe(true);
     });
 
-    it('应该发送加载进度事件', async () => {
-      const url = 'http://example.com/test.pdf';
+    it("应该发送加载进度事件", async () => {
+      const url = "http://example.com/test.pdf";
 
       // 模拟进度回调
       mockPdfjsLib.getDocument.mockImplementation((config) => {
@@ -86,9 +86,9 @@ describe('PDFLoader', () => {
       );
     });
 
-    it('应该取消之前的加载任务', async () => {
-      const url1 = 'http://example.com/test1.pdf';
-      const url2 = 'http://example.com/test2.pdf';
+    it("应该取消之前的加载任务", async () => {
+      const url1 = "http://example.com/test1.pdf";
+      const url2 = "http://example.com/test2.pdf";
 
       const firstTask = { ...mockLoadingTask };
       const secondTask = { ...mockLoadingTask };
@@ -106,8 +106,8 @@ describe('PDFLoader', () => {
     });
   });
 
-  describe('loadFromArrayBuffer', () => {
-    it('应该成功从ArrayBuffer加载PDF', async () => {
+  describe("loadFromArrayBuffer", () => {
+    it("应该成功从ArrayBuffer加载PDF", async () => {
       const arrayBuffer = new ArrayBuffer(100);
       const result = await loader.loadFromArrayBuffer(arrayBuffer);
 
@@ -115,7 +115,7 @@ describe('PDFLoader', () => {
       expect(result).toEqual({ numPages: 10 });
     });
 
-    it('应该使用data参数', async () => {
+    it("应该使用data参数", async () => {
       const arrayBuffer = new ArrayBuffer(100);
       await loader.loadFromArrayBuffer(arrayBuffer);
 
@@ -124,9 +124,9 @@ describe('PDFLoader', () => {
     });
   });
 
-  describe('loadFromBlob', () => {
-    it('应该成功从Blob加载PDF', async () => {
-      const blob = new Blob(['test'], { type: 'application/pdf' });
+  describe("loadFromBlob", () => {
+    it("应该成功从Blob加载PDF", async () => {
+      const blob = new Blob(["test"], { type: "application/pdf" });
       // Mock arrayBuffer method for older jsdom environments
       blob.arrayBuffer = jest.fn().mockResolvedValue(new ArrayBuffer(4));
 
@@ -137,9 +137,9 @@ describe('PDFLoader', () => {
     });
   });
 
-  describe('cancelLoading', () => {
-    it('应该取消当前的加载任务', async () => {
-      const url = 'http://example.com/test.pdf';
+  describe("cancelLoading", () => {
+    it("应该取消当前的加载任务", async () => {
+      const url = "http://example.com/test.pdf";
 
       const loadPromise = loader.loadFromURL(url);
       await loader.cancelLoading();
@@ -147,14 +147,14 @@ describe('PDFLoader', () => {
       expect(mockLoadingTask.destroy).toHaveBeenCalled();
     });
 
-    it('在没有加载任务时不应抛出错误', async () => {
+    it("在没有加载任务时不应抛出错误", async () => {
       await expect(loader.cancelLoading()).resolves.not.toThrow();
     });
   });
 
-  describe('destroy', () => {
-    it('应该取消当前加载并清理资源', async () => {
-      const url = 'http://example.com/test.pdf';
+  describe("destroy", () => {
+    it("应该取消当前加载并清理资源", async () => {
+      const url = "http://example.com/test.pdf";
 
       const loadPromise = loader.loadFromURL(url);
       loader.destroy();

@@ -8,7 +8,7 @@
 const ALLOWED_TYPES = new Set(["error", "warn", "info", "success", "debug"]);
 
 function getProperty(node, name) {
-  if (!node || node.type !== "ObjectExpression") return null;
+  if (!node || node.type !== "ObjectExpression") { return null; }
   return node.properties.find(
     (p) =>
       p.type === "Property" &&
@@ -53,12 +53,12 @@ const rule = {
           }
           // 无参数，或最后一个不是对象，跳过
           const args = node.arguments || [];
-          if (args.length === 0) return;
+          if (args.length === 0) { return; }
           const last = args[args.length - 1];
-          if (last.type !== "ObjectExpression") return;
+          if (last.type !== "ObjectExpression") { return; }
 
           const toastProp = getProperty(last, "toast");
-          if (!toastProp) return;
+          if (!toastProp) { return; }
 
           const value = toastProp.value;
           if (value.type === "Literal") {
@@ -87,11 +87,10 @@ const rule = {
               context.report({ node: mv, messageId: "msInvalid" });
             }
           }
-        } catch (_) {}
+        } catch (e) { void e; }
       },
     };
   },
 };
 
 export default rule;
-

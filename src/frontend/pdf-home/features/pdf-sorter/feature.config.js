@@ -7,28 +7,28 @@ export const PDFSorterFeatureConfig = {
   /**
    * 功能名称（唯一标识）
    */
-  name: 'pdf-sorter',
+  name: "pdf-sorter",
 
   /**
    * 功能版本（遵循 SemVer 规范）
    */
-  version: '1.0.0',
+  version: "1.0.0",
 
   /**
    * 功能依赖
    * - 依赖 search-results 功能域（复用统一的结果与选择模型）
    */
-  dependencies: ['search-results'],
+  dependencies: ["search-results"],
 
   /**
    * 功能描述
    */
-  description: 'PDF 排序功能域 - 提供 PDF 列表的多字段排序、自定义排序、保存排序方案等功能',
+  description: "PDF 排序功能域 - 提供 PDF 列表的多字段排序、自定义排序、保存排序方案等功能",
 
   /**
    * 功能作者
    */
-  author: 'PDF-Home Team',
+  author: "PDF-Home Team",
 
   /**
    * 功能配置
@@ -39,29 +39,29 @@ export const PDFSorterFeatureConfig = {
      */
     sorter: {
       // 默认排序字段（按标题字母序）
-      defaultSortField: 'title',
+      defaultSortField: "title",
 
       // 默认排序方向（升序）
-      defaultSortDirection: 'asc', // 'asc' or 'desc'
+      defaultSortDirection: "asc", // 'asc' or 'desc'
 
       // 支持的排序字段
       sortableFields: [
-        { field: 'filename', label: '文件名', type: 'string' },
-        { field: 'title', label: '书名', type: 'string' },
-        { field: 'author', label: '作者', type: 'string' },
-        { field: 'subject', label: '主题', type: 'string' },
-        { field: 'keywords', label: '关键词', type: 'string' },
-        { field: 'notes', label: '备注', type: 'string' },
-        { field: 'size', label: '文件大小', type: 'number' },
-        { field: 'rating', label: '评分', type: 'number' },
-        { field: 'review_count', label: '复习次数', type: 'number' },
-        { field: 'total_reading_time', label: '总阅读时长', type: 'number' },
-        { field: 'page_count', label: '页数', type: 'number' },
-        { field: 'star', label: '星标', type: 'number' },
-        { field: 'created_time', label: '创建时间', type: 'datetime' },
-        { field: 'modified_time', label: '修改时间', type: 'datetime' },
-        { field: 'last_accessed_at', label: '最后访问时间', type: 'datetime' },
-        { field: 'due_date', label: '截止日期', type: 'datetime' }
+        { field: "filename", label: "文件名", type: "string" },
+        { field: "title", label: "书名", type: "string" },
+        { field: "author", label: "作者", type: "string" },
+        { field: "subject", label: "主题", type: "string" },
+        { field: "keywords", label: "关键词", type: "string" },
+        { field: "notes", label: "备注", type: "string" },
+        { field: "size", label: "文件大小", type: "number" },
+        { field: "rating", label: "评分", type: "number" },
+        { field: "review_count", label: "复习次数", type: "number" },
+        { field: "total_reading_time", label: "总阅读时长", type: "number" },
+        { field: "page_count", label: "页数", type: "number" },
+        { field: "star", label: "星标", type: "number" },
+        { field: "created_time", label: "创建时间", type: "datetime" },
+        { field: "modified_time", label: "修改时间", type: "datetime" },
+        { field: "last_accessed_at", label: "最后访问时间", type: "datetime" },
+        { field: "due_date", label: "截止日期", type: "datetime" }
       ],
 
       // 是否支持多字段排序
@@ -76,23 +76,23 @@ export const PDFSorterFeatureConfig = {
      */
     events: {
       // 事件命名空间（由 ScopedEventBus 自动添加）
-      namespace: '@pdf-sorter/',
+      namespace: "@pdf-sorter/",
 
       // 本地事件（功能域内部事件）
       local: {
         // 排序方案改变事件
-        SORT_CHANGED: 'sort:changed',
+        SORT_CHANGED: "sort:changed",
         // 排序方案保存事件
-        SORT_SAVED: 'sort:saved',
+        SORT_SAVED: "sort:saved",
         // 排序方案加载事件
-        SORT_LOADED: 'sort:loaded'
+        SORT_LOADED: "sort:loaded"
       },
 
       // 全局事件（跨功能域通信）
       global: {
         // 通知其他功能域排序已改变
-        SORT_APPLIED: 'sorter:sort:applied',
-        SORT_CLEARED: 'sorter:sort:cleared'
+        SORT_APPLIED: "sorter:sort:applied",
+        SORT_CLEARED: "sorter:sort:cleared"
       }
     },
 
@@ -101,13 +101,13 @@ export const PDFSorterFeatureConfig = {
      */
     ui: {
       // 排序面板容器 ID
-      containerId: 'pdf-sorter-panel',
+      containerId: "pdf-sorter-panel",
 
       // 显示位置（'toolbar' | 'sidebar' | 'popup'）
-      position: 'toolbar',
+      position: "toolbar",
 
       // 主题
-      theme: 'default'
+      theme: "default"
     }
   }
 };

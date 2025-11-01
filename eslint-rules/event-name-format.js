@@ -87,8 +87,36 @@ const eventNameFormatRule = {
     /**
      * 检查函数调用
      */
+    function isEventBusLike(objExpr) {
+      try {
+        let cur = objExpr;
+        // 判定链条上是否有 eventBus/…EventBus/私有 #eventBus
+        while (cur) {
+          if (cur.type === "Identifier") {
+            const n = cur.name || "";
+            if (/eventbus|event_bus|^bus$/i.test(n)) { return true; }
+            return false;
+          }
+          if (cur.type === "MemberExpression") {
+            const prop = cur.property;
+            if (prop && prop.type === "Identifier" && /eventbus|event_bus/i.test(prop.name)) { return true; }
+            if (prop && prop.type === "PrivateIdentifier") { return true; } // 识别 this.#eventBus
+            cur = cur.object;
+            continue;
+          }
+          if (cur.type === "ThisExpression") {
+            // 继续向外一层 MemberExpression 检查 PrivateIdentifier
+            return false;
+          }
+          // 其他类型放过
+          return false;
+        }
+      } catch (e) { void e; }
+      return false;
+    }
+
     function checkCallExpression(node) {
-      // 只检查 eventBus.emit() 和 eventBus.on() 调用
+      // 只检查“像 EventBus 的 emit/on/once/off 调用”
       if (node.callee.type !== "MemberExpression") {
         return;
       }
@@ -102,6 +130,11 @@ const eventNameFormatRule = {
         return;
       }
 
+      if (!isEventBusLike(node.callee.object)) {
+        // 非 EventBus 的 on/emit（例如 jQuery.on('ready.jstree', ...)）跳过
+        return;
+      }
+
       // 第一个参数应该是事件名称
       if (node.arguments.length === 0) {
         return;
@@ -109,27 +142,46 @@ const eventNameFormatRule = {
 
       const firstArg = node.arguments[0];
 
-      // 只检查字符串字面量
-      if (firstArg.type !== "Literal" || typeof firstArg.value !== "string") {
-        // 如果使用了变量或模板字符串，给出提示
-        if (firstArg.type === "Identifier" || firstArg.type === "TemplateLiteral") {
+      // 允许两种形式：1) 字符串字面量；2) 来自常量命名空间的成员表达式（如 PDF_VIEWER_EVENTS.X.Y）
+      if (firstArg.type === "Literal" && typeof firstArg.value === "string") {
+        const eventName = firstArg.value;
+        const result = validateEventName(eventName);
+        if (!result.valid) {
           context.report({
             node: firstArg,
-            messageId: "notString"
+            messageId: result.messageId,
+            data: result.data
           });
         }
         return;
       }
 
-      const eventName = firstArg.value;
+      if (firstArg.type === "MemberExpression") {
+        // 允许从命名空间常量读取：PDF_VIEWER_EVENTS / WEBSOCKET_EVENTS / ..._EVENTS / *_MESSAGE_TYPES
+        const walk = (expr) => {
+          let cur = expr;
+          while (cur && cur.type === "MemberExpression") {
+            cur = cur.object;
+          }
+          return cur;
+        };
+        const root = walk(firstArg);
+        if (root && root.type === "Identifier") {
+          const name = root.name || "";
+          if (/_EVENTS$/.test(name) || /_MESSAGE_TYPES$/.test(name) || name === "PDF_VIEWER_EVENTS" || name === "WEBSOCKET_EVENTS") {
+            return; // 合法：来自常量命名空间
+          }
+        }
+        // 其他 MemberExpression 视为不合规（例如某对象临时属性）
+        context.report({ node: firstArg, messageId: "notString" });
+        return;
+      }
 
-      // 验证事件名称
-      const result = validateEventName(eventName);
-      if (!result.valid) {
+      // 变量/模板字符串一律提示改为常量或字面量
+      if (firstArg.type === "Identifier" || firstArg.type === "TemplateLiteral") {
         context.report({
           node: firstArg,
-          messageId: result.messageId,
-          data: result.data
+          messageId: "notString"
         });
       }
     }

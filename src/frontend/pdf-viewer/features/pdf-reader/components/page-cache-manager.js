@@ -18,7 +18,7 @@ export class PageCacheManager {
   #accessCounter = 0; // 访问计数器，用于LRU排序
 
   constructor(options = {}) {
-    this.#logger = getLogger('PDFViewer.Cache');
+    this.#logger = getLogger("PDFViewer.Cache");
     this.#maxCacheSize = options.maxCacheSize || 10;
   }
 

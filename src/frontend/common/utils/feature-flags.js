@@ -18,11 +18,11 @@ export function readBoolFromUrl(keys) {
     const names = Array.isArray(keys) ? keys : [keys];
     for (const k of names) {
       if (params.has(k)) {
-        const v = String(params.get(k) || '').toLowerCase();
-        if (v === '1' || v === 'true' || v === 'yes' || v === 'on') return true;
-        if (v === '0' || v === 'false' || v === 'no' || v === 'off') return false;
+        const v = String(params.get(k) || "").toLowerCase();
+        if (v === "1" || v === "true" || v === "yes" || v === "on") {return true;}
+        if (v === "0" || v === "false" || v === "no" || v === "off") {return false;}
         // 存在但为空，视为启用
-        if (v === '') return true;
+        if (v === "") {return true;}
       }
     }
   } catch (_) {}
@@ -39,11 +39,11 @@ export function readBoolFromLocalStorage(keys) {
     const names = Array.isArray(keys) ? keys : [keys];
     for (const k of names) {
       if (Object.prototype.hasOwnProperty.call(window.localStorage, k)) {
-        const v = String(window.localStorage.getItem(k) || '').toLowerCase();
-        if (v === '1' || v === 'true' || v === 'yes' || v === 'on') return true;
-        if (v === '0' || v === 'false' || v === 'no' || v === 'off') return false;
+        const v = String(window.localStorage.getItem(k) || "").toLowerCase();
+        if (v === "1" || v === "true" || v === "yes" || v === "on") {return true;}
+        if (v === "0" || v === "false" || v === "no" || v === "off") {return false;}
         // 存在但空字符串，视为启用
-        if (v === '') return true;
+        if (v === "") {return true;}
       }
     }
   } catch (_) {}
@@ -59,7 +59,7 @@ export function readBoolFromLocalStorage(keys) {
  * @returns {boolean}
  */
 export function isOutlineEnabled() {
-  const ls = readBoolFromLocalStorage(['FEATURE_OUTLINE']);
+  const ls = readBoolFromLocalStorage(["FEATURE_OUTLINE"]);
   return !!ls;
 }
 

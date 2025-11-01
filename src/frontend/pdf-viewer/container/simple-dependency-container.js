@@ -5,7 +5,7 @@
  * @version 1.0.1
  */
 
-import { getLogger } from '../../common/utils/logger.js';
+import { getLogger } from "../../common/utils/logger.js";
 
 /**
  * 简化的依赖注入容器
@@ -21,7 +21,7 @@ export class SimpleDependencyContainer {
    * @param {string} name - 容器名称
    * @param {SimpleDependencyContainer} parent - 父容器（可选）
    */
-  constructor(name = 'default', parent = null) {
+  constructor(name = "default", parent = null) {
     this.#name = name;
     this.#parent = parent;
     this.#logger = getLogger(`Container.${name}`);
@@ -123,6 +123,6 @@ export class SimpleDependencyContainer {
    */
   dispose() {
     this.#services.clear();
-    this.#logger.debug('Container disposed');
+    this.#logger.debug("Container disposed");
   }
 }

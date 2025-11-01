@@ -4,7 +4,7 @@ Qt 兼容层：优先使用 Anki 的 aqt.qt 导出；若不可用再回退到 Py
 专注于网络服务器功能和桌面集成组件：
 from src.qt.compat import (
     QtCore, QtNetwork, QtWebSockets,
-    QObject, QUrl, pyqtSignal, pyqtSlot, QTimer,
+    QObject, QUrl, pyqtSignal, pyqtSlot, QTimer, QEvent, Qt,
     QTcpServer, QTcpSocket, QHostAddress, QAbstractSocket,
     QWebSocketServer, QWebSocket, QApplication, QWebChannel, QFileDialog,
 )
@@ -33,7 +33,7 @@ try:
     from aqt.qt import (
         QObject, QUrl, pyqtSignal, pyqtSlot, QTimer,
         QTcpServer, QTcpSocket, QHostAddress, QAbstractSocket,
-        QWebSocketServer, QWebSocket,
+        QWebSocketServer, QWebSocket, QEvent, Qt,
     )
     from aqt.qt import (
         QApplication, QWebChannel, QFileDialog,
@@ -50,7 +50,10 @@ except Exception:
             QApplication, QFileDialog, QMainWindow, QWidget, QVBoxLayout, QStatusBar, QSizePolicy
         )
         from PyQt6.QtGui import QAction
-        from PyQt6.QtCore import QUrl, pyqtSignal, pyqtSlot, QTimer, QByteArray, QObject, QCoreApplication
+        from PyQt6.QtCore import (
+            QUrl, pyqtSignal, pyqtSlot, QTimer, QByteArray, QObject, QCoreApplication,
+            QEvent, Qt
+        )
         from PyQt6.QtNetwork import QTcpServer, QTcpSocket, QHostAddress, QAbstractSocket
         from PyQt6.QtWebSockets import QWebSocketServer, QWebSocket
 

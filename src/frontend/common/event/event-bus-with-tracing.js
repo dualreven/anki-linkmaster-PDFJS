@@ -12,7 +12,7 @@ const SUPPRESSED_EVENT_LOGS = new Set(["websocket:message:received"]);
 
 class EventNameValidator {
   static validate(event) {
-    if (typeof event !== "string" || !event) return false;
+    if (typeof event !== "string" || !event) {return false;}
 
     const parts = event.split(":");
 
@@ -21,15 +21,15 @@ class EventNameValidator {
 
   static getValidationError(event, context = {}) {
     if (typeof event !== "string" || !event)
-      return `事件名称必须是非空字符串，但收到了：${event}${this.#formatContext(context)}`;
+    {return `事件名称必须是非空字符串，但收到了：${event}${this.#formatContext(context)}`;}
 
     const parts = event.split(":");
 
     if (parts.length !== 3)
-      return `事件名称 '${event}' 格式不正确，应为 {module}:{action}:{status}${this.#formatContext(context)}`;
+    {return `事件名称 '${event}' 格式不正确，应为 {module}:{action}:{status}${this.#formatContext(context)}`;}
 
     if (parts.some((p) => p.length === 0))
-      return `事件名称 '${event}' 的各个部分不能为空${this.#formatContext(context)}`;
+    {return `事件名称 '${event}' 的各个部分不能为空${this.#formatContext(context)}`;}
 
     return null;
   }
@@ -37,11 +37,11 @@ class EventNameValidator {
   static #formatContext(context) {
     const { subscriberId, actorId } = context;
     const parts = [];
-    
-    if (subscriberId) parts.push(`订阅者ID: ${subscriberId}`);
-    if (actorId) parts.push(`执行者ID: ${actorId}`);
-    
-    return parts.length > 0 ? ` [${parts.join(', ')}]` : '';
+
+    if (subscriberId) {parts.push(`订阅者ID: ${subscriberId}`);}
+    if (actorId) {parts.push(`执行者ID: ${actorId}`);}
+
+    return parts.length > 0 ? ` [${parts.join(", ")}]` : "";
   }
 }
 
@@ -184,7 +184,7 @@ export class EventBus {
    * 刷新早期日志队列
    */
   #flushEarlyLogQueue() {
-    if (!this.#logger || this.#earlyLogQueue.length === 0) return;
+    if (!this.#logger || this.#earlyLogQueue.length === 0) {return;}
 
     this.#earlyLogQueue.forEach(entry => {
       const { level, message, args, timestamp } = entry;
@@ -260,7 +260,7 @@ export class EventBus {
 
   on(event, callback, options = {}) {
     // 全局事件白名单校验（局部事件 @ 开头跳过）
-    if (!event?.startsWith('@') && !isGlobalEventAllowed(event)) {
+    if (!event?.startsWith("@") && !isGlobalEventAllowed(event)) {
       const err = EventNameValidator.getValidationError(event, { subscriberId: options?.subscriberId })
         || `未注册的全局事件：'${event}'，已被禁止订阅`;
       this.#log("error", err, { event });
@@ -268,7 +268,7 @@ export class EventBus {
     }
     const subscriberId = options.subscriberId || this.#inferActorId() || `sub_${this.#nextSubscriberId++}`;
     const actorId = options.actorId || this.#inferActorId();
-    
+
     if (this.#enableValidation) {
       const error = EventNameValidator.getValidationError(event, { subscriberId, actorId });
 
@@ -279,11 +279,11 @@ export class EventBus {
       }
     }
 
-    if (!this.#events[event]) this.#events[event] = new Map();
+    if (!this.#events[event]) {this.#events[event] = new Map();}
 
     this.#events[event].set(subscriberId, callback);
 
-    this.#log("event", `${event}`, `订阅`, {
+    this.#log("event", `${event}`, "订阅", {
       subscriberId,
       actorId,
     });
@@ -293,7 +293,7 @@ export class EventBus {
 
   off(event, callbackOrId) {
     const subscribers = this.#events[event];
-    if (!subscribers) return;
+    if (!subscribers) {return;}
     let removedId = null;
     if (typeof callbackOrId === "function") {
       for (const [id, cb] of subscribers.entries()) {
@@ -310,7 +310,7 @@ export class EventBus {
       }
     }
     if (removedId !== null) {
-      if (subscribers.size === 0) delete this.#events[event];
+      if (subscribers.size === 0) {delete this.#events[event];}
       this.#log("event", `${event} (取消订阅 by ${removedId})`);
     }
   }
@@ -329,8 +329,8 @@ export class EventBus {
     }
 
     // 全局事件白名单校验（局部事件 @ 开头跳过）
-    if (!event?.startsWith('@') && !isGlobalEventAllowed(event)) {
-      const err = EventNameValidator.getValidationError(event, { actorId }) 
+    if (!event?.startsWith("@") && !isGlobalEventAllowed(event)) {
+      const err = EventNameValidator.getValidationError(event, { actorId })
         || `未注册的全局事件：'${event}'，已被禁止发布`;
       this.#log("error", err, { event, data });
       return;
@@ -467,7 +467,7 @@ export class EventBus {
     }
 
     this.#enableTracing = enable;
-    this.#log("info", `消息追踪${enable ? '已启用' : '已禁用'}`);
+    this.#log("info", `消息追踪${enable ? "已启用" : "已禁用"}`);
   }
 
   /**
@@ -476,7 +476,7 @@ export class EventBus {
    * @returns {Object|null} 消息追踪对象
    */
   getMessageTrace(messageId) {
-    if (!this.#messageTracer) return null;
+    if (!this.#messageTracer) {return null;}
     return this.#messageTracer.getTrace(messageId);
   }
 
@@ -486,7 +486,7 @@ export class EventBus {
    * @returns {Object|null} 调用链树
    */
   getTraceTree(traceId) {
-    if (!this.#messageTracer) return null;
+    if (!this.#messageTracer) {return null;}
     return this.#messageTracer.buildTraceTree(traceId);
   }
 
@@ -496,7 +496,7 @@ export class EventBus {
    * @returns {number} 清理的记录数
    */
   clearTraceData(olderThan) {
-    if (!this.#messageTracer) return 0;
+    if (!this.#messageTracer) {return 0;}
     return this.#messageTracer.clearTraceData(olderThan);
   }
 
@@ -506,7 +506,7 @@ export class EventBus {
    * @returns {Object} 性能统计
    */
   getStats(event = null) {
-    if (!this.#messageTracer) return null;
+    if (!this.#messageTracer) {return null;}
     return this.#messageTracer.getStats(event);
   }
 
@@ -515,7 +515,7 @@ export class EventBus {
    * @returns {Array<string>} 调用链ID数组
    */
   getAllTraceIds() {
-    if (!this.#messageTracer) return [];
+    if (!this.#messageTracer) {return [];}
     return this.#messageTracer.getAllTraceIds();
   }
 

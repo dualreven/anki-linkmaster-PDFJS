@@ -44,7 +44,7 @@ export class HighlightActionMenu {
    */
   constructor(options = {}) {
     this.#logger = options.logger || console;
-    this.#colorPresets = options.colorPresets || ['#ffeb3b', '#4caf50', '#2196f3', '#ff9800', '#e91e63', '#9c27b0'];
+    this.#colorPresets = options.colorPresets || ["#ffeb3b", "#4caf50", "#2196f3", "#ff9800", "#e91e63", "#9c27b0"];
     this.#onDelete = options.onDelete || (() => {});
     this.#onCopy = options.onCopy || (() => {});
     this.#onColorChange = options.onColorChange || (() => {});
@@ -63,13 +63,13 @@ export class HighlightActionMenu {
   attach(highlightContainer, annotation, meta = {}) {
     const annotationId = annotation?.id;
     if (!highlightContainer || !annotationId) {
-      this.#logger?.warn?.('[HighlightActionMenu] Missing container or annotation id');
+      this.#logger?.warn?.("[HighlightActionMenu] Missing container or annotation id");
       return null;
     }
 
     const parentLayer = highlightContainer.parentElement;
     if (!parentLayer) {
-      this.#logger?.warn?.('[HighlightActionMenu] Highlight layer not found');
+      this.#logger?.warn?.("[HighlightActionMenu] Highlight layer not found");
       return null;
     }
 
@@ -79,55 +79,55 @@ export class HighlightActionMenu {
     const width = Math.max(32, Math.floor(bounding.width));
     const height = Math.max(18, Math.floor(bounding.height));
 
-    const hitbox = document.createElement('div');
-    hitbox.className = 'text-highlight-action-hitbox';
+    const hitbox = document.createElement("div");
+    hitbox.className = "text-highlight-action-hitbox";
     hitbox.style.cssText = [
-      'position: absolute',
+      "position: absolute",
       `left: ${Math.max(0, bounding.left)}px`,
       `top: ${Math.max(0, bounding.top)}px`,
       `width: ${width}px`,
       `height: ${height}px`,
-      'pointer-events: auto',
-      'background: rgba(0,0,0,0)',
-      'z-index: 6'
-    ].join(';');
+      "pointer-events: auto",
+      "background: rgba(0,0,0,0)",
+      "z-index: 6"
+    ].join(";");
 
-    const toolbar = document.createElement('div');
-    toolbar.className = 'text-highlight-action-bar';
+    const toolbar = document.createElement("div");
+    toolbar.className = "text-highlight-action-bar";
     toolbar.style.cssText = [
-      'position: absolute',
-      'top: -44px',
-      'left: 0',
-      'display: flex',
-      'gap: 6px',
-      'padding: 4px 8px',
-      'border-radius: 6px',
-      'background: rgba(33, 33, 33, 0.92)',
-      'box-shadow: 0 4px 12px rgba(0,0,0,0.25)',
-      'opacity: 0',
-      'pointer-events: none',
-      'transition: opacity 0.2s ease',
-      'color: #fff'
-    ].join(';');
+      "position: absolute",
+      "top: -44px",
+      "left: 0",
+      "display: flex",
+      "gap: 6px",
+      "padding: 4px 8px",
+      "border-radius: 6px",
+      "background: rgba(33, 33, 33, 0.92)",
+      "box-shadow: 0 4px 12px rgba(0,0,0,0.25)",
+      "opacity: 0",
+      "pointer-events: none",
+      "transition: opacity 0.2s ease",
+      "color: #fff"
+    ].join(";");
 
     if (bounding.top < 50) {
       toolbar.style.top = `${height + 12}px`;
     }
 
-    const palette = document.createElement('div');
-    palette.className = 'text-highlight-action-palette';
+    const palette = document.createElement("div");
+    palette.className = "text-highlight-action-palette";
     palette.style.cssText = [
-      'position: absolute',
-      'top: 50%',
-      'left: 100%',
-      'transform: translate(8px, -50%)',
-      'display: none',
-      'gap: 6px',
-      'background: rgba(33, 33, 33, 0.92)',
-      'padding: 4px 6px',
-      'border-radius: 6px',
-      'box-shadow: 0 4px 12px rgba(0,0,0,0.25)'
-    ].join(';');
+      "position: absolute",
+      "top: 50%",
+      "left: 100%",
+      "transform: translate(8px, -50%)",
+      "display: none",
+      "gap: 6px",
+      "background: rgba(33, 33, 33, 0.92)",
+      "padding: 4px 6px",
+      "border-radius: 6px",
+      "box-shadow: 0 4px 12px rgba(0,0,0,0.25)"
+    ].join(";");
 
     const state = {
       hideTimer: null,
@@ -140,14 +140,14 @@ export class HighlightActionMenu {
         clearTimeout(state.hideTimer);
         state.hideTimer = null;
       }
-      toolbar.style.opacity = '1';
-      toolbar.style.pointerEvents = 'auto';
+      toolbar.style.opacity = "1";
+      toolbar.style.pointerEvents = "auto";
     };
 
     const hideToolbar = () => {
-      palette.style.display = 'none';
-      toolbar.style.opacity = '0';
-      toolbar.style.pointerEvents = 'none';
+      palette.style.display = "none";
+      toolbar.style.opacity = "0";
+      toolbar.style.pointerEvents = "none";
     };
 
     const scheduleHide = () => {
@@ -160,81 +160,81 @@ export class HighlightActionMenu {
       }, 180);
     };
 
-    hitbox.addEventListener('mouseenter', showToolbar);
-    hitbox.addEventListener('mouseleave', scheduleHide);
-    toolbar.addEventListener('mouseenter', showToolbar);
-    toolbar.addEventListener('mouseleave', scheduleHide);
+    hitbox.addEventListener("mouseenter", showToolbar);
+    hitbox.addEventListener("mouseleave", scheduleHide);
+    toolbar.addEventListener("mouseenter", showToolbar);
+    toolbar.addEventListener("mouseleave", scheduleHide);
 
-    const createButton = ({ label, title, action, background = 'rgba(255,255,255,0.16)' }) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'text-highlight-action-btn';
+    const createButton = ({ label, title, action, background = "rgba(255,255,255,0.16)" }) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "text-highlight-action-btn";
       btn.dataset.action = action;
       btn.title = title;
       btn.textContent = label;
       btn.style.cssText = [
-        'min-width: 28px',
-        'height: 28px',
-        'border-radius: 6px',
-        'border: none',
-        'cursor: pointer',
-        'font-size: 13px',
-        'background: ' + background,
-        'color: inherit',
-        'padding: 0 8px'
-      ].join(';');
+        "min-width: 28px",
+        "height: 28px",
+        "border-radius: 6px",
+        "border: none",
+        "cursor: pointer",
+        "font-size: 13px",
+        "background: " + background,
+        "color: inherit",
+        "padding: 0 8px"
+      ].join(";");
       return btn;
     };
 
-    const deleteBtn = createButton({ label: '🗑️', title: '删除标注', action: 'delete', background: '#f44336' });
-    deleteBtn.addEventListener('click', (event) => {
+    const deleteBtn = createButton({ label: "🗑️", title: "删除标注", action: "delete", background: "#f44336" });
+    deleteBtn.addEventListener("click", (event) => {
       event.stopPropagation();
       hideToolbar();
       this.#onDelete?.(annotation);
     });
 
-    const copyBtn = createButton({ label: '📋', title: '复制文本', action: 'copy' });
-    copyBtn.addEventListener('click', (event) => {
+    const copyBtn = createButton({ label: "📋", title: "复制文本", action: "copy" });
+    copyBtn.addEventListener("click", (event) => {
       event.stopPropagation();
       hideToolbar();
       this.#onCopy?.(annotation);
     });
 
-    const colorBtn = createButton({ label: '🎨', title: '切换颜色', action: 'color' });
-    colorBtn.addEventListener('click', (event) => {
+    const colorBtn = createButton({ label: "🎨", title: "切换颜色", action: "color" });
+    colorBtn.addEventListener("click", (event) => {
       event.stopPropagation();
-      palette.style.display = palette.style.display === 'flex' ? 'none' : 'flex';
+      palette.style.display = palette.style.display === "flex" ? "none" : "flex";
     });
 
     const updateActiveColor = (color) => {
       state.activeColor = color;
       state.colorButtons.forEach((button) => {
         if (button.dataset.color === color) {
-          button.style.transform = 'scale(1.15)';
-          button.style.boxShadow = '0 0 0 2px #fff';
+          button.style.transform = "scale(1.15)";
+          button.style.boxShadow = "0 0 0 2px #fff";
         } else {
-          button.style.transform = 'scale(1)';
-          button.style.boxShadow = 'none';
+          button.style.transform = "scale(1)";
+          button.style.boxShadow = "none";
         }
       });
     };
 
     this.#colorPresets.forEach((color) => {
-      const colorOption = document.createElement('button');
-      colorOption.type = 'button';
+      const colorOption = document.createElement("button");
+      colorOption.type = "button";
       colorOption.dataset.color = color;
       colorOption.style.cssText = [
-        'width: 22px',
-        'height: 22px',
-        'border-radius: 50%',
-        'border: 2px solid rgba(255,255,255,0.8)',
+        "width: 22px",
+        "height: 22px",
+        "border-radius: 50%",
+        "border: 2px solid rgba(255,255,255,0.8)",
         `background: ${color}`,
-        'cursor: pointer',
-        'padding: 0'
-      ].join(';');
-      colorOption.addEventListener('click', (event) => {
+        "cursor: pointer",
+        "padding: 0"
+      ].join(";");
+      colorOption.addEventListener("click", (event) => {
         event.stopPropagation();
-        palette.style.display = 'none';
+        palette.style.display = "none";
         updateActiveColor(color);
         this.#onColorChange?.(annotation, color);
       });
@@ -244,15 +244,15 @@ export class HighlightActionMenu {
 
     updateActiveColor(state.activeColor);
 
-    const jumpBtn = createButton({ label: '🧭', title: '打开标注栏定位卡片', action: 'jump' });
-    jumpBtn.addEventListener('click', (event) => {
+    const jumpBtn = createButton({ label: "🧭", title: "打开标注栏定位卡片", action: "jump" });
+    jumpBtn.addEventListener("click", (event) => {
       event.stopPropagation();
       hideToolbar();
       this.#onJump?.(annotation);
     });
 
-    const translateBtn = createButton({ label: '🌐', title: '发送到翻译栏', action: 'translate' });
-    translateBtn.addEventListener('click', (event) => {
+    const translateBtn = createButton({ label: "🌐", title: "发送到翻译栏", action: "translate" });
+    translateBtn.addEventListener("click", (event) => {
       event.stopPropagation();
       hideToolbar();
       this.#onTranslate?.(annotation);
@@ -291,11 +291,11 @@ export class HighlightActionMenu {
     menu.activeColor = color;
     menu.colorButtons.forEach((button) => {
       if (button.dataset.color === color) {
-        button.style.transform = 'scale(1.15)';
-        button.style.boxShadow = '0 0 0 2px #fff';
+        button.style.transform = "scale(1.15)";
+        button.style.boxShadow = "0 0 0 2px #fff";
       } else {
-        button.style.transform = 'scale(1)';
-        button.style.boxShadow = 'none';
+        button.style.transform = "scale(1)";
+        button.style.boxShadow = "none";
       }
     });
   }

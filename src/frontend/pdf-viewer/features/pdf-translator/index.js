@@ -4,12 +4,12 @@
  * @description 提供PDF文本翻译功能，支持多翻译引擎和Anki卡片集成
  */
 
-import { getLogger } from '../../../common/utils/logger.js';
-import { TranslatorSidebarUI } from './components/TranslatorSidebarUI.js';
-import { TranslationService } from './services/TranslationService.js';
-import { SelectionMonitor } from './services/SelectionMonitor.js';
-import { PDF_TRANSLATOR_EVENTS } from './events.js';
-import { PDF_VIEWER_EVENTS } from '../../../common/event/pdf-viewer-constants.js';
+import { getLogger } from "../../../common/utils/logger.js";
+import { TranslatorSidebarUI } from "./components/TranslatorSidebarUI.js";
+import { TranslationService } from "./services/TranslationService.js";
+import { SelectionMonitor } from "./services/SelectionMonitor.js";
+import { PDF_TRANSLATOR_EVENTS } from "./events.js";
+import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
 
 /**
  * PDF翻译功能Feature
@@ -36,7 +36,7 @@ export class PDFTranslatorFeature {
   #container;
 
   /** @type {string} */
-  #targetLanguage = 'zh'; // 默认翻译为中文
+  #targetLanguage = "zh"; // 默认翻译为中文
 
   /** @type {Array<Function>} */
   #unsubs = [];
@@ -46,7 +46,7 @@ export class PDFTranslatorFeature {
    * @returns {string}
    */
   get name() {
-    return 'pdf-translator';
+    return "pdf-translator";
   }
 
   /**
@@ -54,7 +54,7 @@ export class PDFTranslatorFeature {
    * @returns {string}
    */
   get version() {
-    return '1.0.0';
+    return "1.0.0";
   }
 
   /**
@@ -62,7 +62,7 @@ export class PDFTranslatorFeature {
    * @returns {string[]}
    */
   get dependencies() {
-    return ['app-core', 'ui-manager'];  // 移除 sidebar-manager 避免循环依赖
+    return ["app-core", "ui-manager"];  // 移除 sidebar-manager 避免循环依赖
   }
 
   /**
@@ -76,7 +76,7 @@ export class PDFTranslatorFeature {
   async install(context) {
     const { globalEventBus, logger, container } = context;
 
-    this.#logger = logger || getLogger('PDFTranslatorFeature');
+    this.#logger = logger || getLogger("PDFTranslatorFeature");
     this.#logger.info(`[${this.name}] Installing (v${this.version})...`);
 
     // 获取事件总线
@@ -89,7 +89,7 @@ export class PDFTranslatorFeature {
 
     // 1. 创建翻译服务
     this.#translationService = new TranslationService({
-      defaultEngine: 'mymemory',
+      defaultEngine: "mymemory",
       cacheConfig: {
         enabled: true,
         maxSize: 1000,
@@ -116,8 +116,8 @@ export class PDFTranslatorFeature {
 
     // 4. 注册到全局容器（供SidebarManager使用）
     if (this.#container) {
-      this.#container.registerGlobal('translatorSidebarUI', this.#sidebarUI);
-      this.#container.registerGlobal('translationService', this.#translationService);
+      this.#container.registerGlobal("translatorSidebarUI", this.#sidebarUI);
+      this.#container.registerGlobal("translationService", this.#translationService);
       this.#logger.info(`[${this.name}] Services registered to global container`);
     }
 
@@ -142,7 +142,7 @@ export class PDFTranslatorFeature {
       try {
         unsub();
       } catch (error) {
-        this.#logger.warn('Failed to unsubscribe:', error);
+        this.#logger.warn("Failed to unsubscribe:", error);
       }
     });
     this.#unsubs = [];
@@ -181,7 +181,7 @@ export class PDFTranslatorFeature {
       this.#eventBus.on(
         PDF_TRANSLATOR_EVENTS.TEXT.SELECTED,
         (data) => this.#handleTextSelected(data),
-        { subscriberId: 'PDFTranslatorFeature' }
+        { subscriberId: "PDFTranslatorFeature" }
       )
     );
 
@@ -190,7 +190,7 @@ export class PDFTranslatorFeature {
       this.#eventBus.on(
         PDF_TRANSLATOR_EVENTS.ENGINE.CHANGED,
         (data) => this.#handleEngineChanged(data),
-        { subscriberId: 'PDFTranslatorFeature' }
+        { subscriberId: "PDFTranslatorFeature" }
       )
     );
 
@@ -199,7 +199,7 @@ export class PDFTranslatorFeature {
       this.#eventBus.on(
         PDF_TRANSLATOR_EVENTS.TRANSLATE.REQUESTED,
         (data) => this.#handleTranslateRequested(data),
-        { subscriberId: 'PDFTranslatorFeature' }
+        { subscriberId: "PDFTranslatorFeature" }
       )
     );
 
@@ -217,20 +217,20 @@ export class PDFTranslatorFeature {
       this.#eventBus.on(
         PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPENED_COMPLETED,
         ({ sidebarId }) => {
-          if (sidebarId === 'translate') {
+          if (sidebarId === "translate") {
             try {
               this.#selectionMonitor?.setEnabled(true);
               // 避免复用上一次选择导致的误触发
               this.#selectionMonitor?.clearLastSelection?.();
               // 广播领域事件
-              this.#eventBus.emitGlobal(PDF_TRANSLATOR_EVENTS.SIDEBAR.OPENED, { sidebarId: 'translate' }, { actorId: 'PDFTranslatorFeature' });
-              this.#logger.info('[PDFTranslator] Auto-translate enabled because translate sidebar opened');
+              this.#eventBus.emitGlobal(PDF_TRANSLATOR_EVENTS.SIDEBAR.OPENED, { sidebarId: "translate" }, { actorId: "PDFTranslatorFeature" });
+              this.#logger.info("[PDFTranslator] Auto-translate enabled because translate sidebar opened");
             } catch (e) {
-              this.#logger.warn('[PDFTranslator] Failed to enable SelectionMonitor on sidebar open', e);
+              this.#logger.warn("[PDFTranslator] Failed to enable SelectionMonitor on sidebar open", e);
             }
           }
         },
-        { subscriberId: 'PDFTranslatorFeature' }
+        { subscriberId: "PDFTranslatorFeature" }
       )
     );
 
@@ -239,18 +239,18 @@ export class PDFTranslatorFeature {
       this.#eventBus.on(
         PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.CLOSED_COMPLETED,
         ({ sidebarId }) => {
-          if (sidebarId === 'translate') {
+          if (sidebarId === "translate") {
             try {
               this.#selectionMonitor?.setEnabled(false);
               this.#selectionMonitor?.clearLastSelection?.();
-              this.#eventBus.emitGlobal(PDF_TRANSLATOR_EVENTS.SIDEBAR.CLOSED, { sidebarId: 'translate' }, { actorId: 'PDFTranslatorFeature' });
-              this.#logger.info('[PDFTranslator] Auto-translate disabled because translate sidebar closed');
+              this.#eventBus.emitGlobal(PDF_TRANSLATOR_EVENTS.SIDEBAR.CLOSED, { sidebarId: "translate" }, { actorId: "PDFTranslatorFeature" });
+              this.#logger.info("[PDFTranslator] Auto-translate disabled because translate sidebar closed");
             } catch (e) {
-              this.#logger.warn('[PDFTranslator] Failed to disable SelectionMonitor on sidebar close', e);
+              this.#logger.warn("[PDFTranslator] Failed to disable SelectionMonitor on sidebar close", e);
             }
           }
         },
-        { subscriberId: 'PDFTranslatorFeature' }
+        { subscriberId: "PDFTranslatorFeature" }
       )
     );
   }
@@ -266,20 +266,20 @@ export class PDFTranslatorFeature {
     // 仅在以下两种场景触发翻译：
     // 1) 用户显式点击了“翻译”动作（来源：quick-actions 或 text-highlight）
     // 2) 翻译侧边栏已打开（SelectionMonitor 启用状态）
-    const isExplicitUserAction = source === 'quick-actions' || source === 'text-highlight';
+    const isExplicitUserAction = source === "quick-actions" || source === "text-highlight";
     const isAutoModeEnabled = !!this.#selectionMonitor?.isEnabled?.();
     if (!isExplicitUserAction && !isAutoModeEnabled) {
-      this.#logger.info('[PDFTranslator] Ignore TEXT.SELECTED because auto-translate is disabled and no explicit user action');
+      this.#logger.info("[PDFTranslator] Ignore TEXT.SELECTED because auto-translate is disabled and no explicit user action");
       return;
     }
 
-    this.#logger.info(`Text selected on page ${pageNumber}: "${(text || '').substring(0, 50)}..."`, {
-      source: source || 'unknown',
+    this.#logger.info(`Text selected on page ${pageNumber}: "${(text || "").substring(0, 50)}..."`, {
+      source: source || "unknown",
       autoEnabled: isAutoModeEnabled
     });
 
     // 自动触发翻译（传递位置信息和Range数据）
-    await this.#translateText(text, null, 'auto', { pageNumber, position, rangeData });
+    await this.#translateText(text, null, "auto", { pageNumber, position, rangeData });
   }
 
   /**
@@ -298,7 +298,7 @@ export class PDFTranslatorFeature {
         // 发送失败事件
         this.#eventBus.emit(
           PDF_TRANSLATOR_EVENTS.ENGINE.CHANGED,
-          { engine, success: false, error: 'Engine not found' }
+          { engine, success: false, error: "Engine not found" }
         );
       }
     }
@@ -324,7 +324,7 @@ export class PDFTranslatorFeature {
    * @param {string} [sourceLang='auto'] - 源语言
    * @param {Object} [context] - 上下文信息（pageNumber, position等）
    */
-  async #translateText(text, targetLang, sourceLang = 'auto', context = {}) {
+  async #translateText(text, targetLang, sourceLang = "auto", context = {}) {
     try {
       // 使用默认目标语言（如果未指定）
       const target = targetLang || this.#targetLanguage;
@@ -333,7 +333,7 @@ export class PDFTranslatorFeature {
       this.#eventBus.emit(
         PDF_TRANSLATOR_EVENTS.TRANSLATE.STARTED,
         { text, targetLang: target, sourceLang, ...context },
-        { actorId: 'PDFTranslatorFeature' }
+        { actorId: "PDFTranslatorFeature" }
       );
 
       // 调用翻译服务
@@ -349,14 +349,14 @@ export class PDFTranslatorFeature {
       this.#eventBus.emit(
         PDF_TRANSLATOR_EVENTS.TRANSLATE.COMPLETED,
         resultWithContext,
-        { actorId: 'PDFTranslatorFeature' }
+        { actorId: "PDFTranslatorFeature" }
       );
 
-      this.#logger.info('Translation completed:', resultWithContext);
+      this.#logger.info("Translation completed:", resultWithContext);
 
     } catch (error) {
       // Feature 层错误仅记录，不触发自动 toast（交由侧边栏统一 toast）
-      this.#logger.error('Translation failed:', error, { toast: { type: 'debug' } });
+      this.#logger.error("Translation failed:", error, { toast: { type: "debug" } });
 
       // 发送翻译失败事件
       this.#eventBus.emit(
@@ -368,7 +368,7 @@ export class PDFTranslatorFeature {
           error: error.message,
           ...context
         },
-        { actorId: 'PDFTranslatorFeature' }
+        { actorId: "PDFTranslatorFeature" }
       );
     }
   }

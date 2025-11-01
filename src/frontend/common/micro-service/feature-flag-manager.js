@@ -41,7 +41,7 @@
  * }
  */
 
-import { getLogger } from '../utils/logger.js';
+import { getLogger } from "../utils/logger.js";
 
 /**
  * 特性标志配置接口
@@ -80,7 +80,7 @@ export class FeatureFlagManager {
    * @type {string}
    * @private
    */
-  #environment = 'production';
+  #environment = "production";
 
   /**
    * 当前用户
@@ -121,10 +121,10 @@ export class FeatureFlagManager {
    */
   constructor(options = {}) {
     this.#defaultEnabled = options.defaultEnabled ?? false;
-    this.#environment = options.environment ?? 'production';
+    this.#environment = options.environment ?? "production";
     this.#currentUser = options.currentUser ?? null;
     this.#currentUserRoles = options.currentUserRoles ?? [];
-    this.#logger = options.logger || getLogger('FeatureFlagManager');
+    this.#logger = options.logger || getLogger("FeatureFlagManager");
   }
 
   /**
@@ -133,12 +133,12 @@ export class FeatureFlagManager {
    * @returns {void}
    */
   loadFromObject(config) {
-    if (!config || typeof config !== 'object') {
-      this.#logger.error('Invalid config object:', config);
-      throw new TypeError('Config must be an object');
+    if (!config || typeof config !== "object") {
+      this.#logger.error("Invalid config object:", config);
+      throw new TypeError("Config must be an object");
     }
 
-    this.#logger.info('Loading feature flags from object...');
+    this.#logger.info("Loading feature flags from object...");
 
     let loadedCount = 0;
     for (const [featureName, flagConfig] of Object.entries(config)) {
@@ -166,16 +166,16 @@ export class FeatureFlagManager {
       // 优先使用传入路径
       const tryPaths = [configPath];
       try {
-        const loc = typeof window !== 'undefined' ? (window.location || {}) : {};
-        const pathname = String(loc.pathname || '');
+        const loc = typeof window !== "undefined" ? (window.location || {}) : {};
+        const pathname = String(loc.pathname || "");
         // 兼容生产构建下的嵌套路由：/pdf-home/pdf-home/
         // 回退到上级 ../config/feature-flags.json 或根级 /pdf-home/config/feature-flags.json
-        if (pathname.includes('/pdf-home/pdf-home/')) {
-          tryPaths.push('../config/feature-flags.json');
-          tryPaths.push('/pdf-home/config/feature-flags.json');
+        if (pathname.includes("/pdf-home/pdf-home/")) {
+          tryPaths.push("../config/feature-flags.json");
+          tryPaths.push("/pdf-home/config/feature-flags.json");
         }
         // 通用回退（即使非嵌套场景）：
-        tryPaths.push('/config/feature-flags.json');
+        tryPaths.push("/config/feature-flags.json");
       } catch (_) { /* ignore */ }
 
       let loaded = false;
@@ -194,11 +194,11 @@ export class FeatureFlagManager {
         }
       }
       if (!loaded) {
-        throw lastErr || new Error('Failed to fetch any config path');
+        throw lastErr || new Error("Failed to fetch any config path");
       }
     } catch (error) {
       // 构建产物允许无配置文件，采用默认配置继续运行
-      this.#logger.warn('[FeatureFlagManager] Failed to load config file, using defaults:', error);
+      this.#logger.warn("[FeatureFlagManager] Failed to load config file, using defaults:", error);
     }
   }
 
@@ -209,24 +209,24 @@ export class FeatureFlagManager {
    * @private
    */
   #validateFlagConfig(config) {
-    if (typeof config !== 'object' || config === null) {
-      throw new TypeError('Flag config must be an object');
+    if (typeof config !== "object" || config === null) {
+      throw new TypeError("Flag config must be an object");
     }
 
-    if (typeof config.enabled !== 'boolean') {
-      throw new TypeError('Flag config.enabled must be a boolean');
+    if (typeof config.enabled !== "boolean") {
+      throw new TypeError("Flag config.enabled must be a boolean");
     }
 
     if (config.conditions) {
       const { environment, percentage } = config.conditions;
 
-      if (environment !== undefined && typeof environment !== 'string') {
-        throw new TypeError('conditions.environment must be a string');
+      if (environment !== undefined && typeof environment !== "string") {
+        throw new TypeError("conditions.environment must be a string");
       }
 
       if (percentage !== undefined) {
-        if (typeof percentage !== 'number' || percentage < 0 || percentage > 100) {
-          throw new TypeError('conditions.percentage must be a number between 0 and 100');
+        if (typeof percentage !== "number" || percentage < 0 || percentage > 100) {
+          throw new TypeError("conditions.percentage must be a number between 0 and 100");
         }
       }
     }
@@ -393,7 +393,7 @@ export class FeatureFlagManager {
    */
   clear() {
     this.#flags.clear();
-    this.#logger.info('All feature flags cleared');
+    this.#logger.info("All feature flags cleared");
   }
 
   /**

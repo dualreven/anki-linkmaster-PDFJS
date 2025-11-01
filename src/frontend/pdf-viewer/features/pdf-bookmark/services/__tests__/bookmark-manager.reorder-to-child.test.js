@@ -3,11 +3,11 @@
  * 验证修复：节点拖拽到另一个节点下时不会丢失
  */
 
-import { describe, it, expect, beforeEach } from '@jest/globals';
-import { BookmarkManager } from '../bookmark-manager.js';
-import { Bookmark } from '../../models/bookmark.js';
+import { describe, it, expect, beforeEach } from "@jest/globals";
+import { BookmarkManager } from "../bookmark-manager.js";
+import { Bookmark } from "../../models/bookmark.js";
 
-describe('BookmarkManager - Reorder to Child Node', () => {
+describe("BookmarkManager - Reorder to Child Node", () => {
   let manager;
   let mockEventBus;
   let mockStorage;
@@ -29,25 +29,25 @@ describe('BookmarkManager - Reorder to Child Node', () => {
     // 创建 BookmarkManager 实例
     manager = new BookmarkManager({
       eventBus: mockEventBus,
-      pdfId: 'test-pdf',
+      pdfId: "test-pdf",
       storage: mockStorage
     });
   });
 
-  it('应该正确处理：根节点 A 拖拽到根节点 B 下成为子节点', async () => {
+  it("应该正确处理：根节点 A 拖拽到根节点 B 下成为子节点", async () => {
     // 1. 创建初始树结构
     // Root A (pageNumber: 1)
     // Root B (pageNumber: 2)
 
     const bookmarkA = await manager.addBookmark({
-      name: 'Node A',
-      type: 'page',
+      name: "Node A",
+      type: "page",
       pageNumber: 1
     });
 
     const bookmarkB = await manager.addBookmark({
-      name: 'Node B',
-      type: 'page',
+      name: "Node B",
+      type: "page",
       pageNumber: 2
     });
 
@@ -115,28 +115,28 @@ describe('BookmarkManager - Reorder to Child Node', () => {
     expect(countA).toBe(1); // A 应该只出现一次
   });
 
-  it('应该正确处理：节点 A 拖拽到其兄弟节点 B 下成为子节点', async () => {
+  it("应该正确处理：节点 A 拖拽到其兄弟节点 B 下成为子节点", async () => {
     // 1. 创建初始树结构
     // Root C
     //   ├─ Node A (pageNumber: 1)
     //   └─ Node B (pageNumber: 2)
 
     const bookmarkC = await manager.addBookmark({
-      name: 'Root C',
-      type: 'page',
+      name: "Root C",
+      type: "page",
       pageNumber: 0
     });
 
     const bookmarkA = await manager.addBookmark({
-      name: 'Node A',
-      type: 'page',
+      name: "Node A",
+      type: "page",
       pageNumber: 1,
       parentId: bookmarkC.bookmarkId
     });
 
     const bookmarkB = await manager.addBookmark({
-      name: 'Node B',
-      type: 'page',
+      name: "Node B",
+      type: "page",
       pageNumber: 2,
       parentId: bookmarkC.bookmarkId
     });
@@ -188,20 +188,20 @@ describe('BookmarkManager - Reorder to Child Node', () => {
     expect(savedRoots[0].children[0].children[0].id).toBe(idA);
   });
 
-  it('应该防止循环引用：不允许将节点拖拽到自己的后代下', async () => {
+  it("应该防止循环引用：不允许将节点拖拽到自己的后代下", async () => {
     // 1. 创建初始树结构
     // Root A
     //   └─ Node B
 
     const bookmarkA = await manager.addBookmark({
-      name: 'Node A',
-      type: 'page',
+      name: "Node A",
+      type: "page",
       pageNumber: 1
     });
 
     const bookmarkB = await manager.addBookmark({
-      name: 'Node B',
-      type: 'page',
+      name: "Node B",
+      type: "page",
       pageNumber: 2,
       parentId: bookmarkA.bookmarkId
     });
@@ -214,10 +214,10 @@ describe('BookmarkManager - Reorder to Child Node', () => {
 
     // 应该失败
     expect(reorderResult.success).toBe(false);
-    expect(reorderResult.error).toContain('descendant');
+    expect(reorderResult.error).toContain("descendant");
   });
 
-  it('应该处理复杂的多级拖拽场景', async () => {
+  it("应该处理复杂的多级拖拽场景", async () => {
     // 1. 创建复杂的树结构
     // Root A
     //   ├─ Node A1
@@ -226,12 +226,12 @@ describe('BookmarkManager - Reorder to Child Node', () => {
     // Root B
     //   └─ Node B1
 
-    const bookmarkA = await manager.addBookmark({ name: 'A', type: 'page', pageNumber: 1 });
-    const bookmarkA1 = await manager.addBookmark({ name: 'A1', type: 'page', pageNumber: 2, parentId: bookmarkA.bookmarkId });
-    const bookmarkA1a = await manager.addBookmark({ name: 'A1a', type: 'page', pageNumber: 3, parentId: bookmarkA1.bookmarkId });
-    const bookmarkA2 = await manager.addBookmark({ name: 'A2', type: 'page', pageNumber: 4, parentId: bookmarkA.bookmarkId });
-    const bookmarkB = await manager.addBookmark({ name: 'B', type: 'page', pageNumber: 5 });
-    const bookmarkB1 = await manager.addBookmark({ name: 'B1', type: 'page', pageNumber: 6, parentId: bookmarkB.bookmarkId });
+    const bookmarkA = await manager.addBookmark({ name: "A", type: "page", pageNumber: 1 });
+    const bookmarkA1 = await manager.addBookmark({ name: "A1", type: "page", pageNumber: 2, parentId: bookmarkA.bookmarkId });
+    const bookmarkA1a = await manager.addBookmark({ name: "A1a", type: "page", pageNumber: 3, parentId: bookmarkA1.bookmarkId });
+    const bookmarkA2 = await manager.addBookmark({ name: "A2", type: "page", pageNumber: 4, parentId: bookmarkA.bookmarkId });
+    const bookmarkB = await manager.addBookmark({ name: "B", type: "page", pageNumber: 5 });
+    const bookmarkB1 = await manager.addBookmark({ name: "B1", type: "page", pageNumber: 6, parentId: bookmarkB.bookmarkId });
 
     const idA1 = bookmarkA1.bookmarkId;
     const idB1 = bookmarkB1.bookmarkId;

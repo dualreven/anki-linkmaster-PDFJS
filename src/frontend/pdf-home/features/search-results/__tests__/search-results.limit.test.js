@@ -2,7 +2,7 @@
  * @jest-environment jsdom
  */
 
-import { SearchResultsFeature } from '../index.js';
+import { SearchResultsFeature } from "../index.js";
 
 const createLogger = () => ({
   info: jest.fn(),
@@ -14,18 +14,18 @@ const createLogger = () => ({
 class MockBus {
   constructor() { this._handlers = new Map(); }
   on(event, handler) {
-    if (!this._handlers.has(event)) this._handlers.set(event, new Set());
+    if (!this._handlers.has(event)) {this._handlers.set(event, new Set());}
     this._handlers.get(event).add(handler);
     return () => { this._handlers.get(event)?.delete(handler); };
   }
   emit(event, payload) {
     const set = this._handlers.get(event);
-    if (!set) return;
+    if (!set) {return;}
     for (const h of Array.from(set)) { try { h(payload); } catch {} }
   }
 }
 
-describe('SearchResults 前端截断渲染（page.limit）', () => {
+describe("SearchResults 前端截断渲染（page.limit）", () => {
   let feature;
   let globalEventBus;
   let scopedEventBus;
@@ -52,20 +52,20 @@ describe('SearchResults 前端截断渲染（page.limit）', () => {
 
   afterEach(async () => {
     try { await feature.uninstall(); } catch {}
-    document.body.innerHTML = '';
+    document.body.innerHTML = "";
   });
 
-  it('当搜索结果包含18条且page.limit=5时，仅渲染5条', () => {
+  it("当搜索结果包含18条且page.limit=5时，仅渲染5条", () => {
     const records = Array.from({ length: 18 }, (_, i) => ({ id: `id-${i}`, title: `书籍${i}` }));
-    globalEventBus.emit('search:results:updated', {
+    globalEventBus.emit("search:results:updated", {
       records,
       count: records.length,
-      searchText: '',
+      searchText: "",
       page: { limit: 5, offset: 0 }
     });
 
-    const container = document.querySelector('.search-results');
-    const items = container ? container.querySelectorAll('.search-result-item') : [];
+    const container = document.querySelector(".search-results");
+    const items = container ? container.querySelectorAll(".search-result-item") : [];
     expect(items.length).toBe(5);
   });
 });

@@ -4,8 +4,8 @@
  * @description 负责管理应用的全局状态，提供状态访问和变更通知
  */
 
-import { getLogger } from '../../common/utils/logger.js';
-import { PDF_VIEWER_EVENTS } from '../../common/event/pdf-viewer-constants.js';
+import { getLogger } from "../../common/utils/logger.js";
+import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
 
 /**
  * 应用状态管理器类
@@ -41,7 +41,7 @@ export class StateManager {
    * @param {import('../../common/event/event-bus.js').EventBus} [eventBus] - 事件总线（可选）
    */
   constructor(eventBus = null) {
-    this.#logger = getLogger('StateManager');
+    this.#logger = getLogger("StateManager");
     this.#eventBus = eventBus;
   }
 
@@ -70,7 +70,7 @@ export class StateManager {
     this.#initialized = value;
 
     if (oldValue !== value) {
-      this.#emitStateChange('initialized', oldValue, value);
+      this.#emitStateChange("initialized", oldValue, value);
     }
   }
 
@@ -93,7 +93,7 @@ export class StateManager {
     this.#currentFile = filePath;
 
     if (oldValue !== filePath) {
-      this.#emitStateChange('currentFile', oldValue, filePath);
+      this.#emitStateChange("currentFile", oldValue, filePath);
     }
   }
 
@@ -116,7 +116,7 @@ export class StateManager {
     this.#currentPage = pageNumber;
 
     if (oldValue !== pageNumber) {
-      this.#emitStateChange('currentPage', oldValue, pageNumber);
+      this.#emitStateChange("currentPage", oldValue, pageNumber);
     }
   }
 
@@ -139,7 +139,7 @@ export class StateManager {
     this.#totalPages = totalPages;
 
     if (oldValue !== totalPages) {
-      this.#emitStateChange('totalPages', oldValue, totalPages);
+      this.#emitStateChange("totalPages", oldValue, totalPages);
     }
   }
 
@@ -162,7 +162,7 @@ export class StateManager {
     this.#zoomLevel = level;
 
     if (oldValue !== level) {
-      this.#emitStateChange('zoomLevel', oldValue, level);
+      this.#emitStateChange("zoomLevel", oldValue, level);
     }
   }
 
@@ -179,7 +179,7 @@ export class StateManager {
    * 重置状态到初始值
    */
   reset() {
-    this.#logger.info('Resetting state to initial values');
+    this.#logger.info("Resetting state to initial values");
 
     this.#initialized = false;
     this.#currentFile = null;
@@ -189,7 +189,7 @@ export class StateManager {
 
     if (this.#eventBus) {
       this.#eventBus.emit(PDF_VIEWER_EVENTS.STATE.RESET, undefined, {
-        actorId: 'StateManager'
+        actorId: "StateManager"
       });
     }
   }
@@ -212,7 +212,7 @@ export class StateManager {
         newValue,
         state: this.getState()
       }, {
-        actorId: 'StateManager'
+        actorId: "StateManager"
       });
     }
   }

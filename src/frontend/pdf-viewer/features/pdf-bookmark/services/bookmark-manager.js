@@ -4,9 +4,9 @@
  * @description 负责书签的 CRUD 操作和 LocalStorage 持久化
  */
 
-import { Bookmark } from '../models/bookmark.js';
-import { getLogger } from '../../../../common/utils/logger.js';
-import { createDefaultBookmarkStorage } from './bookmark-storage.js';
+import { Bookmark } from "../models/bookmark.js";
+import { getLogger } from "../../../../common/utils/logger.js";
+import { createDefaultBookmarkStorage } from "./bookmark-storage.js";
 
 /**
  * 归一化可能来自旧版/后端的书签节点JSON（仅做字段映射与基本容错，不做深度修复）
@@ -18,24 +18,24 @@ function normalizeNodeJson(b) {
   const safe = (v) => (v === undefined || v === null) ? null : v;
   const pickId = () => {
     const raw = (b && (b.id || b.bookmark_id)) || null;
-    if (typeof raw === 'string' && raw.trim()) return raw.trim();
+    if (typeof raw === "string" && raw.trim()) {return raw.trim();}
     // 严格模式：不再生成临时ID（禁止兜底），由上层决定是否丢弃该节点
-    throw new Error('invalid outline node: missing id');
+    throw new Error("invalid outline node: missing id");
   };
   const toInt = (x) => {
-    if (typeof x === 'number' && Number.isFinite(x)) return Math.trunc(x);
-    if (typeof x === 'string' && /^[0-9]+$/.test(x)) return parseInt(x, 10);
+    if (typeof x === "number" && Number.isFinite(x)) {return Math.trunc(x);}
+    if (typeof x === "string" && /^[0-9]+$/.test(x)) {return parseInt(x, 10);}
     return NaN;
   };
   const clampPos = (p) => {
-    if (typeof p === 'number' && Number.isFinite(p)) return Math.max(0, Math.min(100, Math.round(p)));
-    if (typeof p === 'string' && /^[0-9]+(\.[0-9]+)?$/.test(p)) return Math.max(0, Math.min(100, Math.round(parseFloat(p))));
+    if (typeof p === "number" && Number.isFinite(p)) {return Math.max(0, Math.min(100, Math.round(p)));}
+    if (typeof p === "string" && /^[0-9]+(\.[0-9]+)?$/.test(p)) {return Math.max(0, Math.min(100, Math.round(parseFloat(p))));}
     return null;
   };
 
   // 字段映射
   const id = pickId();
-  const name = safe(b?.name) || safe(b?.title) || '未命名大纲';
+  const name = safe(b?.name) || safe(b?.title) || "未命名大纲";
   // 严格字段：仅接受 pageAt，不再兼容 page_at/pageNumber
   const pageAtRaw = (b?.pageAt !== undefined) ? b.pageAt : null;
   const pageAtNum = toInt(pageAtRaw);
@@ -45,8 +45,8 @@ function normalizeNodeJson(b) {
   const orderNum = toInt(b?.order ?? b?.index);
   const order = Number.isFinite(orderNum) ? orderNum : null;
   const children = Array.isArray(b?.children) ? b.children : (Array.isArray(b?.items) ? b.items : []);
-  const createdAt = (typeof b?.createdAt === 'string') ? b.createdAt : undefined;
-  const updatedAt = (typeof b?.updatedAt === 'string') ? b.updatedAt : undefined;
+  const createdAt = (typeof b?.createdAt === "string") ? b.createdAt : undefined;
+  const updatedAt = (typeof b?.updatedAt === "string") ? b.updatedAt : undefined;
 
   return { id, name, pageAt, position, parentId, order, createdAt, updatedAt, children };
 }
@@ -104,13 +104,13 @@ export class BookmarkManager {
    * @param {string} options.pdfId - PDF文档ID
    */
   constructor({ eventBus, pdfId, storage, storageFactory, storageOptions } = {}) {
-    this.#logger = getLogger('BookmarkManager');
+    this.#logger = getLogger("BookmarkManager");
     this.#eventBus = eventBus;
     this.#pdfId = pdfId;
 
     if (storage) {
       this.#storage = storage;
-    } else if (typeof storageFactory === 'function') {
+    } else if (typeof storageFactory === "function") {
       this.#storage = storageFactory();
     } else {
       this.#storage = createDefaultBookmarkStorage(storageOptions);
@@ -139,10 +139,10 @@ export class BookmarkManager {
       // 验证书签数据
       const validation = bookmark.validate();
       if (!validation.valid) {
-        this.#logger.warn('Bookmark validation failed:', validation.errors);
+        this.#logger.warn("Bookmark validation failed:", validation.errors);
         return {
           success: false,
-          error: validation.errors.join('; ')
+          error: validation.errors.join("; ")
         };
       }
 
@@ -152,7 +152,7 @@ export class BookmarkManager {
       // 如果是根级书签，添加到根列表
       if (!bookmark.parentId) {
         // 如果指定了order，插入到指定位置；否则添加到末尾
-        const insertIndex = typeof bookmark.order === 'number' && bookmark.order >= 0
+        const insertIndex = typeof bookmark.order === "number" && bookmark.order >= 0
           ? bookmark.order
           : this.#rootBookmarkIds.length;
 
@@ -163,7 +163,7 @@ export class BookmarkManager {
         const parent = this.#bookmarks.get(bookmark.parentId);
         if (parent) {
           // 如果指定了order，插入到指定位置；否则添加到末尾
-          const insertIndex = typeof bookmark.order === 'number' && bookmark.order >= 0
+          const insertIndex = typeof bookmark.order === "number" && bookmark.order >= 0
             ? bookmark.order
             : parent.children.length;
 
@@ -188,7 +188,7 @@ export class BookmarkManager {
         bookmarkId: bookmark.id
       };
     } catch (error) {
-      this.#logger.error('Failed to add bookmark:', error);
+      this.#logger.error("Failed to add bookmark:", error);
       return {
         success: false,
         error: error.message
@@ -255,7 +255,7 @@ export class BookmarkManager {
         deletedIds
       };
     } catch (error) {
-      this.#logger.error('Failed to delete bookmark:', error);
+      this.#logger.error("Failed to delete bookmark:", error);
       return {
         success: false,
         error: error.message
@@ -296,10 +296,10 @@ export class BookmarkManager {
       // 验证更新后的数据
       const validation = bookmark.validate();
       if (!validation.valid) {
-        this.#logger.warn('Updated bookmark validation failed:', validation.errors);
+        this.#logger.warn("Updated bookmark validation failed:", validation.errors);
         return {
           success: false,
-          error: validation.errors.join('; ')
+          error: validation.errors.join("; ")
         };
       }
 
@@ -312,7 +312,7 @@ export class BookmarkManager {
         updatedBookmark: bookmark
       };
     } catch (error) {
-      this.#logger.error('Failed to update bookmark:', error);
+      this.#logger.error("Failed to update bookmark:", error);
       return {
         success: false,
         error: error.message
@@ -338,8 +338,8 @@ export class BookmarkManager {
       }
 
       this.#logger.info(`📋 Reorder start: ${bookmark.name} (${bookmarkId})`);
-      this.#logger.info(`  From: parent=${bookmark.parentId || 'root'}, order=${bookmark.order}`);
-      this.#logger.info(`  To: parent=${newParentId || 'root'}, index=${newIndex}`);
+      this.#logger.info(`  From: parent=${bookmark.parentId || "root"}, order=${bookmark.order}`);
+      this.#logger.info(`  To: parent=${newParentId || "root"}, index=${newIndex}`);
 
       // 预校验：父节点存在性与环路检查
       if (newParentId) {
@@ -351,7 +351,7 @@ export class BookmarkManager {
         let p = newParentId;
         while (p) {
           if (p === bookmarkId) {
-            return { success: false, error: 'Cannot move a node under its own descendant' };
+            return { success: false, error: "Cannot move a node under its own descendant" };
           }
           const up = this.#bookmarks.get(p);
           p = up ? (up.parentId || null) : null;
@@ -375,7 +375,7 @@ export class BookmarkManager {
           if (oldParent) {
             this.#logger.info(`  Removing from parent: ${oldParent.name} (children count before: ${oldParent.children.length})`);
             const oldIdx = oldParent.children.findIndex(c => c && c.id === bookmarkId);
-            if (oldIdx !== -1) oldParent.children.splice(oldIdx, 1);
+            if (oldIdx !== -1) {oldParent.children.splice(oldIdx, 1);}
             oldParent.children.forEach((child, i) => { child.order = i; });
             this.#logger.info(`  Removed (children count after: ${oldParent.children.length})`);
             // 同父移动且原位置在目标位置之前，移除后目标索引左移
@@ -386,7 +386,7 @@ export class BookmarkManager {
         } else {
           const idx = this.#rootBookmarkIds.indexOf(bookmarkId);
           this.#logger.info(`  Removing from root: index=${idx}, root count before: ${this.#rootBookmarkIds.length}`);
-          if (idx !== -1) this.#rootBookmarkIds.splice(idx, 1);
+          if (idx !== -1) {this.#rootBookmarkIds.splice(idx, 1);}
           this.#logger.info(`  Removed from root, count after: ${this.#rootBookmarkIds.length}`);
           if (movingWithinSameParent && idx !== -1 && idx < targetIndex) {
             targetIndex = Math.max(0, targetIndex - 1);
@@ -412,7 +412,7 @@ export class BookmarkManager {
         // 同步根级 order，保持内存一致
         this.#rootBookmarkIds.forEach((id, i) => {
           const node = this.#bookmarks.get(id);
-          if (node) node.order = i;
+          if (node) {node.order = i;}
         });
         bookmark.order = targetIndex;
         this.#logger.info(`  Added to root, count after: ${this.#rootBookmarkIds.length}`);
@@ -421,10 +421,10 @@ export class BookmarkManager {
       // 保存到存储
       await this.saveToStorage();
 
-      this.#logger.info(`✅ Bookmark reordered successfully: ${bookmarkId} to ${newParentId || 'root'}[${newIndex}]`);
+      this.#logger.info(`✅ Bookmark reordered successfully: ${bookmarkId} to ${newParentId || "root"}[${newIndex}]`);
       return { success: true };
     } catch (error) {
-      this.#logger.error('Failed to reorder bookmark:', error);
+      this.#logger.error("Failed to reorder bookmark:", error);
       return {
         success: false,
         error: error.message
@@ -450,17 +450,17 @@ export class BookmarkManager {
   async getPageNumber(id) {
     try {
       const node = this.getBookmark(id);
-      if (!node) return null;
+      if (!node) {return null;}
       if (Number.isInteger(node.pageAt) && node.pageAt > 0) {
         return node.pageAt;
       }
       // 兼容旧节点：尝试解析 dest
       if (node.dest) {
         try {
-          const { getCurrentPDFDocument } = await import('../../../pdf/current-document-registry.js');
+          const { getCurrentPDFDocument } = await import("../../../pdf/current-document-registry.js");
           const pdfDocument = getCurrentPDFDocument();
-          if (!pdfDocument) return null;
-          const { resolvePdfDest } = await import('../../../pdf/pdf-dest-utils.js');
+          if (!pdfDocument) {return null;}
+          const { resolvePdfDest } = await import("../../../pdf/pdf-dest-utils.js");
           const resolved = await resolvePdfDest(pdfDocument, node.dest);
           const pageNumber = resolved?.pageNumber || null;
           return (Number.isInteger(pageNumber) && pageNumber > 0) ? pageNumber : null;
@@ -528,11 +528,11 @@ export class BookmarkManager {
 
       if (isStandard) {
         const addRecursive = (bm) => {
-          if (!bm || !bm.id) return;
+          if (!bm || !bm.id) {return;}
           // 严格模式：必须具有有效 pageAt，否则跳过并记录
           // 允许将字符串数字规范化为整数
           let p = bm.pageAt;
-          if (typeof p === 'string' && /^[0-9]+$/.test(p)) { try { p = parseInt(p, 10); } catch { p = bm.pageAt; } }
+          if (typeof p === "string" && /^[0-9]+$/.test(p)) { try { p = parseInt(p, 10); } catch { p = bm.pageAt; } }
           if (!(Number.isInteger(p) && p > 0)) {
             try {
               const brief = { id: bm.id, name: bm.name, pageAt: bm.pageAt, page_at: bm.page_at, pageNumber: bm.pageNumber, position: bm.position };
@@ -553,7 +553,7 @@ export class BookmarkManager {
             const inst = Bookmark.fromJSON(bmJson);
             addRecursive(inst);
           } catch (e) {
-            this.#logger.warn(`⚠️ Skip malformed bookmark JSON during load: ${bmJson?.id || '(no-id)'}`, e);
+            this.#logger.warn(`⚠️ Skip malformed bookmark JSON during load: ${bmJson?.id || "(no-id)"}`, e);
           }
         });
         // 仅保留有效 rootIds（存在且为根的）
@@ -573,7 +573,7 @@ export class BookmarkManager {
         }
       } else {
         // 情况B：兼容旧格式（可能将所有节点平铺在顶层或混合）
-        this.#logger.warn('⚠️ Detected legacy bookmark format (no rootIds). Rebuilding tree from flat list (strict, no legacy fields)...');
+        this.#logger.warn("⚠️ Detected legacy bookmark format (no rootIds). Rebuilding tree from flat list (strict, no legacy fields)...");
         const map = new Map();
         const shallow = (b) => {
           // 使用 fromJSON（仅接受新字段），清空 children 避免重复挂载
@@ -625,7 +625,7 @@ export class BookmarkManager {
         // 写入内部 Map 与根顺序
         roots.forEach(root => {
           const addRecursive = (bm) => {
-            if (!bm || !bm.id) return;
+            if (!bm || !bm.id) {return;}
             this.#bookmarks.set(bm.id, bm);
             (bm.children || []).forEach(child => addRecursive(child));
           };
@@ -651,7 +651,7 @@ export class BookmarkManager {
       try {
         const flatten = [];
         const push = (n, depth=0) => {
-          if (!n) return;
+          if (!n) {return;}
           flatten.push({ id: n.id, name: n.name, pageAt: n.pageAt, position: n.position, parentId: n.parentId, order: n.order, depth });
           (Array.isArray(n.children) ? n.children : []).forEach(ch => push(ch, depth+1));
         };
@@ -666,7 +666,7 @@ export class BookmarkManager {
         }
       } catch (_) {}
     } catch (error) {
-      this.#logger.error('Failed to load bookmarks from storage:', error);
+      this.#logger.error("Failed to load bookmarks from storage:", error);
     }
   }
 
@@ -680,7 +680,7 @@ export class BookmarkManager {
       // 增加基于 id 的去重与防循环，避免同一 bookmark_id 在同一次保存载荷中出现两次
       const visited = new Set();
       const cloneAndDedup = (node) => {
-        if (!node || !node.id) return null;
+        if (!node || !node.id) {return null;}
         if (visited.has(node.id)) {
           this.#logger.warn(`⚠️ Duplicate node detected during serialization: ${node.id} (${node.name})`);
           return null;
@@ -705,7 +705,7 @@ export class BookmarkManager {
         const children = Array.isArray(node.children) ? node.children : [];
         const deduped = [];
         for (const child of children) {
-          if (!child) continue;
+          if (!child) {continue;}
           const childId = child.id || child.bookmark_id;
           if (!childId) {
             this.#logger.warn(`⚠️ Child node without ID found in ${node.name}, skipping`);
@@ -745,7 +745,7 @@ export class BookmarkManager {
       await this.#storage.save(this.#pdfId, roots, rootIds);
       this.#logger.info(`✅ Bookmarks saved to storage: PDF=${this.#pdfId}, count=${this.#bookmarks.size}`);
     } catch (error) {
-      this.#logger.error('Failed to save bookmarks to storage:', error);
+      this.#logger.error("Failed to save bookmarks to storage:", error);
     }
   }
 
@@ -757,7 +757,7 @@ export class BookmarkManager {
     this.#bookmarks.clear();
     this.#rootBookmarkIds = [];
     await this.#storage.clear(this.#pdfId);
-    this.#logger.info('All bookmarks cleared');
+    this.#logger.info("All bookmarks cleared");
   }
 
   /**
@@ -787,7 +787,7 @@ export class BookmarkManager {
         count: importedCount
       };
     } catch (error) {
-      this.#logger.error('Failed to import native bookmarks:', error);
+      this.#logger.error("Failed to import native bookmarks:", error);
       return {
         success: false,
         count: 0,
@@ -814,7 +814,7 @@ export class BookmarkManager {
         // 解析标准化目标：{ pageAt, position }
         const norm = await parseDestFunc(nativeBookmark);
         const pageAt = norm?.pageAt || null;
-        const position = (typeof norm?.position === 'number') ? norm.position : null;
+        const position = (typeof norm?.position === "number") ? norm.position : null;
         if (!pageAt) {
           this.#logger.warn(`Skipping bookmark with invalid dest: ${nativeBookmark.title}`);
           continue;
@@ -822,7 +822,7 @@ export class BookmarkManager {
 
         // 创建 Bookmark（统一页码+位置）
         const bookmark = new Bookmark({
-          name: nativeBookmark.title || '(未命名)',
+          name: nativeBookmark.title || "(未命名)",
           pageAt,
           position,
           parentId: parentId,
@@ -871,7 +871,7 @@ export class BookmarkManager {
   destroy() {
     this.#bookmarks.clear();
     this.#rootBookmarkIds = [];
-    this.#logger.info('BookmarkManager destroyed');
+    this.#logger.info("BookmarkManager destroyed");
   }
 }
 

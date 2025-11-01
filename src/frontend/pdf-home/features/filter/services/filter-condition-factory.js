@@ -2,7 +2,7 @@
  * 筛选条件工厂 - 负责创建和反序列化筛选条件
  */
 
-import { FieldCondition, FuzzySearchCondition, CompositeCondition } from './filter-conditions.js';
+import { FieldCondition, FuzzySearchCondition, CompositeCondition } from "./filter-conditions.js";
 
 export class FilterConditionFactory {
   /**
@@ -12,28 +12,28 @@ export class FilterConditionFactory {
    */
   static createCondition(config) {
     if (!config || !config.type) {
-      throw new Error('Invalid condition config: missing type');
+      throw new Error("Invalid condition config: missing type");
     }
 
     switch (config.type) {
-      case 'field':
-        return new FieldCondition(config);
+    case "field":
+      return new FieldCondition(config);
 
-      case 'fuzzy':
-        return new FuzzySearchCondition(config);
+    case "fuzzy":
+      return new FuzzySearchCondition(config);
 
-      case 'composite':
-        // 递归创建子条件
-        const childConditions = (config.conditions || []).map(childConfig =>
-          FilterConditionFactory.createCondition(childConfig)
-        );
-        return new CompositeCondition({
-          operator: config.operator,
-          conditions: childConditions
-        });
+    case "composite":
+      // 递归创建子条件
+      const childConditions = (config.conditions || []).map(childConfig =>
+        FilterConditionFactory.createCondition(childConfig)
+      );
+      return new CompositeCondition({
+        operator: config.operator,
+        conditions: childConditions
+      });
 
-      default:
-        throw new Error(`Unknown condition type: ${config.type}`);
+    default:
+      throw new Error(`Unknown condition type: ${config.type}`);
     }
   }
 
@@ -57,12 +57,12 @@ export class FilterConditionFactory {
    * @param {Array<string>} searchFields - 要搜索的字段列表
    * @returns {FuzzySearchCondition} 模糊搜索条件
    */
-  static createFuzzySearch(searchText, searchFields = ['filename', 'tags', 'notes']) {
+  static createFuzzySearch(searchText, searchFields = ["filename", "tags", "notes"]) {
     const keywords = FuzzySearchCondition.parseKeywords(searchText);
     return new FuzzySearchCondition({
       keywords,
       searchFields,
-      matchMode: 'any'
+      matchMode: "any"
     });
   }
 
@@ -75,7 +75,7 @@ export class FilterConditionFactory {
   static createFieldEquals(field, value) {
     return new FieldCondition({
       field,
-      operator: 'eq',
+      operator: "eq",
       value
     });
   }
@@ -89,7 +89,7 @@ export class FilterConditionFactory {
   static createFieldContains(field, value) {
     return new FieldCondition({
       field,
-      operator: 'contains',
+      operator: "contains",
       value
     });
   }
@@ -101,7 +101,7 @@ export class FilterConditionFactory {
    */
   static createAnd(...conditions) {
     return new CompositeCondition({
-      operator: 'AND',
+      operator: "AND",
       conditions
     });
   }
@@ -113,7 +113,7 @@ export class FilterConditionFactory {
    */
   static createOr(...conditions) {
     return new CompositeCondition({
-      operator: 'OR',
+      operator: "OR",
       conditions
     });
   }
@@ -125,7 +125,7 @@ export class FilterConditionFactory {
    */
   static createNot(condition) {
     return new CompositeCondition({
-      operator: 'NOT',
+      operator: "NOT",
       conditions: [condition]
     });
   }

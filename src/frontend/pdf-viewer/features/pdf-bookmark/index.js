@@ -5,16 +5,16 @@
  * PDF 大纲管理功能域，提供用户自定义大纲的添加、编辑、删除功能
  */
 
-import { getLogger } from '../../../common/utils/logger.js';
-import { setModuleLogLevel, LogLevel as __LogLevelForFeature } from '../../../common/utils/logger.js';
-import { showSuccess as notifySuccess, showError as notifyError } from '../../../common/utils/notification.js';
-import { PDF_VIEWER_EVENTS } from '../../../common/event/pdf-viewer-constants.js';
-import { WEBSOCKET_EVENTS } from '../../../common/event/event-constants.js';
-import { PDFBookmarkFeatureConfig } from './feature.config.js';
-import { BookmarkManager } from './services/bookmark-manager.js';
-import { BookmarkDialog } from './components/bookmark-dialog.js';
-import { BookmarkDataProvider } from '../../bookmark/bookmark-data-provider.js';
-import { getCurrentPDFDocument } from '../../pdf/current-document-registry.js';
+import { getLogger } from "../../../common/utils/logger.js";
+import { setModuleLogLevel, LogLevel as __LogLevelForFeature } from "../../../common/utils/logger.js";
+import { showSuccess, showError } from "../../../common/utils/notification.js";
+import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
+import { WEBSOCKET_EVENTS } from "../../../common/event/event-constants.js";
+import { PDFBookmarkFeatureConfig } from "./feature.config.js";
+import { BookmarkManager } from "./services/bookmark-manager.js";
+import { BookmarkDialog } from "./components/bookmark-dialog.js";
+import { BookmarkDataProvider } from "../../bookmark/bookmark-data-provider.js";
+import { getCurrentPDFDocument } from "../../pdf/current-document-registry.js";
 
 /**
  * PDF Bookmark 功能域类
@@ -111,18 +111,18 @@ export class PDFBookmarkFeature {
 
     // 开启与大纲相关模块的 DEBUG 日志，便于排查（可被 localStorage 覆盖）
     try {
-      setModuleLogLevel('Feature.pdf-bookmark', __LogLevelForFeature.DEBUG);
-      setModuleLogLevel('BookmarkManager', __LogLevelForFeature.DEBUG);
-      setModuleLogLevel('BookmarkDataProvider', __LogLevelForFeature.DEBUG);
+      setModuleLogLevel("Feature.pdf-bookmark", __LogLevelForFeature.DEBUG);
+      setModuleLogLevel("BookmarkManager", __LogLevelForFeature.DEBUG);
+      setModuleLogLevel("BookmarkDataProvider", __LogLevelForFeature.DEBUG);
       // 按需求：关闭 outline 相关模块级日志，仅保留 error
-      setModuleLogLevel('BookmarkSidebarUI', __LogLevelForFeature.ERROR);
-      setModuleLogLevel('OutlineSidebarUI', __LogLevelForFeature.ERROR);
-      setModuleLogLevel('Feature.pdf-outline', __LogLevelForFeature.ERROR);
-      setModuleLogLevel('PdfDestUtils', __LogLevelForFeature.DEBUG);
+      setModuleLogLevel("BookmarkSidebarUI", __LogLevelForFeature.ERROR);
+      setModuleLogLevel("OutlineSidebarUI", __LogLevelForFeature.ERROR);
+      setModuleLogLevel("Feature.pdf-outline", __LogLevelForFeature.ERROR);
+      setModuleLogLevel("PdfDestUtils", __LogLevelForFeature.DEBUG);
     } catch (_) {}
 
     this.#logger.info(`🚀 [DEBUG] Installing ${this.name}...`);
-    this.#logger.info('🔍 [DEBUG] EventBus type:', {
+    this.#logger.info("🔍 [DEBUG] EventBus type:", {
       hasScopedEventBus: !!context.scopedEventBus,
       hasGlobalEventBus: !!context.globalEventBus,
       usingScoped: !!context.scopedEventBus
@@ -131,35 +131,35 @@ export class PDFBookmarkFeature {
     // 获取PDF ID
     const pdfId = this.#getPdfId();
     if (!pdfId) {
-      this.#logger.warn('PDF ID not available, using default');
+      this.#logger.warn("PDF ID not available, using default");
     }
 
     // 获取导航服务
-    this.#navigationService = this.#container.get('navigationService');
+    this.#navigationService = this.#container.get("navigationService");
     if (!this.#navigationService) {
-      this.#logger.warn('NavigationService not found in container, outline navigation will not work');
+      this.#logger.warn("NavigationService not found in container, outline navigation will not work");
     }
 
     // 初始化书签管理器
     let wsClient = null;
     if (this.#container) {
-      if (typeof this.#container.getWSClient === 'function') {
+      if (typeof this.#container.getWSClient === "function") {
         wsClient = this.#container.getWSClient();
-      } else if (typeof this.#container.getDependencies === 'function') {
+      } else if (typeof this.#container.getDependencies === "function") {
         const deps = this.#container.getDependencies() || {};
         wsClient = deps.wsClient || null;
-      } else if (typeof this.#container.get === 'function') {
+      } else if (typeof this.#container.get === "function") {
         try {
-          wsClient = this.#container.get('wsClient');
+          wsClient = this.#container.get("wsClient");
         } catch (error) {
-          this.#logger.debug('wsClient not available in container', error);
+          this.#logger.debug("wsClient not available in container", error);
         }
       }
     }
 
     this.#bookmarkManager = new BookmarkManager({
       eventBus: this.#eventBus,
-      pdfId: pdfId || 'default',
+      pdfId: pdfId || "default",
       storageOptions: { wsClient }
     });
     await this.#bookmarkManager.initialize();
@@ -172,10 +172,10 @@ export class PDFBookmarkFeature {
           try {
             await this.#bookmarkManager.loadFromStorage();
             this.#refreshBookmarkList();
-            notifySuccess('✓ 已连接服务器，书签已同步', 2000);
+            showSuccess("✓ 已连接服务器，书签已同步", 2000);
           } catch (_) {}
         },
-        { subscriberId: 'PDFBookmarkFeature' }
+        { subscriberId: "PDFBookmarkFeature" }
       );
       this.#unsubs.push(unsubWsReady);
     } catch (_) {}
@@ -208,13 +208,33 @@ export class PDFBookmarkFeature {
    */
   async #handleNavigateByIdRequest(data) {
     try {
+      this.#logger.info("[Bookmark] 开始处理按ID导航请求", data);
+      this.#logger.info("[Bookmark] 原始事件数据", {
+        rawData: data,
+        hasOutlineItemId: data && 'outlineItemId' in data,
+        hasBookmarkId: data && 'bookmarkId' in data,
+        hasId: data && 'id' in data
+      });
       // 首选规范字段 outlineItemId；兼容历史 bookmarkId/id
       const raw = data?.outlineItemId || data?.bookmarkId || data?.id;
-      const id = typeof raw === 'string' ? raw.trim() : '';
+      this.#logger.info("[Bookmark] 提取的原始ID", {
+        raw: raw,
+        rawType: typeof raw,
+        rawIsNull: raw === null,
+        rawIsUndefined: raw === undefined,
+        rawIsEmpty: raw === "" || raw === null
+      });
+      const id = typeof raw === "string" ? raw.trim() : "";
       if (!id) {
-        this.#logger.warn('[Bookmark] NAVIGATE_BY_ID 缺少有效 outlineItemId');
+        this.#logger.warn("[Bookmark] NAVIGATE_BY_ID 缺少有效 outlineItemId", { receivedData: data });
         return;
       }
+
+      this.#logger.info("[Bookmark] 处理导航请求", {
+        id: id,
+        idLength: id.length,
+        idChars: id.substring(0, 10)
+      });
 
       // 允许新旧ID并存：仅提示规范推荐前缀 outlineItem-
       if (!/^outlineItem-[A-Za-z0-9\-_]{8}$/.test(id)) {
@@ -222,17 +242,26 @@ export class PDFBookmarkFeature {
       }
 
       if (!this.#bookmarkManager) {
-        this.#logger.error('[Bookmark] BookmarkManager 不可用，无法按ID导航');
+        this.#logger.error("[Bookmark] BookmarkManager 不可用，无法按ID导航");
         return;
       }
 
       const bookmark = this.#bookmarkManager.getBookmark(id);
+      this.#logger.info("[Bookmark] getBookmark结果", {
+        id: id,
+        bookmarkFound: !!bookmark,
+        bookmark: bookmark,
+        bookmarksCount: this.#bookmarkManager.getAllBookmarks().length
+      });
       if (!bookmark) {
         this.#logger.warn(`[Bookmark] 未找到指定ID的大纲: ${id}`);
+        this.#logger.warn("[Bookmark] 当前所有书签ID", {
+          allIds: this.#bookmarkManager.getAllBookmarks().map(b => ({ id: b.id, name: b.name }))
+        });
         this.#eventBus.emitGlobal(
           PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED,
           { error: `Outline not found: ${id}` },
-          { actorId: 'PDFBookmarkFeature' }
+          { actorId: "PDFBookmarkFeature" }
         );
         return;
       }
@@ -240,11 +269,11 @@ export class PDFBookmarkFeature {
       // 复用点击导航流程
       await this.#handleNavigateRequest({ bookmark });
     } catch (e) {
-      this.#logger.error('[Bookmark] 按ID导航失败', e);
+      this.#logger.error("[Bookmark] 按ID导航失败", e);
       this.#eventBus.emitGlobal(
         PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED,
-        { error: e?.message || 'navigate by id failed' },
-        { actorId: 'PDFBookmarkFeature' }
+        { error: e?.message || "navigate by id failed" },
+        { actorId: "PDFBookmarkFeature" }
       );
     }
   }
@@ -306,13 +335,13 @@ export class PDFBookmarkFeature {
     try {
       // 优先从URL参数获取pdf-id（最可靠）
       const urlParams = new URLSearchParams(window.location.search);
-      const pdfId = urlParams.get('pdf-id');
+      const pdfId = urlParams.get("pdf-id");
       if (pdfId) {
         return pdfId;
       }
 
       // 尝试从container获取pdfManager
-      const pdfManager = this.#container?.resolve('pdfManager');
+      const pdfManager = this.#container?.resolve("pdfManager");
       if (pdfManager && pdfManager.currentPdfId) {
         return pdfManager.currentPdfId;
       }
@@ -320,13 +349,13 @@ export class PDFBookmarkFeature {
       // 尝试从window.PDF_PATH获取
       if (window.PDF_PATH) {
         // 从路径提取文件名作为ID
-        const filename = window.PDF_PATH.split('/').pop().split('.')[0];
+        const filename = window.PDF_PATH.split("/").pop().split(".")[0];
         return filename;
       }
 
       return null;
     } catch (error) {
-      this.#logger.warn('Failed to get PDF ID:', error);
+      this.#logger.warn("Failed to get PDF ID:", error);
       return null;
     }
   }
@@ -338,13 +367,13 @@ export class PDFBookmarkFeature {
    */
   #getCurrentPage() {
     try {
-      const pdfManager = this.#container?.resolve('pdfManager');
+      const pdfManager = this.#container?.resolve("pdfManager");
       if (pdfManager && pdfManager.currentPageNumber) {
         return pdfManager.currentPageNumber;
       }
       return 1;
     } catch (error) {
-      this.#logger.warn('Failed to get current page:', error);
+      this.#logger.warn("Failed to get current page:", error);
       return 1;
     }
   }
@@ -356,20 +385,20 @@ export class PDFBookmarkFeature {
    */
   async #tryLoadNativeBookmarks() {
     try {
-      this.#logger.info('🔍 [DEBUG] tryLoadNativeBookmarks called');
+      this.#logger.info("🔍 [DEBUG] tryLoadNativeBookmarks called");
       const pdfDocument = getCurrentPDFDocument();
-      this.#logger.info('🔍 [DEBUG] getCurrentPDFDocument result:', { hasPdfDocument: !!pdfDocument });
+      this.#logger.info("🔍 [DEBUG] getCurrentPDFDocument result:", { hasPdfDocument: !!pdfDocument });
 
       if (pdfDocument) {
-      this.#logger.info('✅ PDF already loaded, checking if native outlines need to be imported...');
+        this.#logger.info("✅ PDF already loaded, checking if native outlines need to be imported...");
         await this.#handlePdfLoaded({ pdfDocument });
       } else {
-        this.#logger.info('⏳ PDF not yet loaded, waiting for load event');
+        this.#logger.info("⏳ PDF not yet loaded, waiting for load event");
         // PDF未加载时，显示本地存储的大纲（如果有的话）
         this.#refreshBookmarkList();
       }
     } catch (error) {
-      this.#logger.error('❌ Failed to try load native bookmarks:', error);
+      this.#logger.error("❌ Failed to try load native bookmarks:", error);
       // 出错时也刷新列表
       this.#refreshBookmarkList();
     }
@@ -386,10 +415,10 @@ export class PDFBookmarkFeature {
       this.#eventBus.onGlobal(
         PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
         (data) => {
-          this.#logger.info('🎯 [DEBUG] FILE.LOAD.SUCCESS event received!', { hasData: !!data });
+          this.#logger.info("🎯 [DEBUG] FILE.LOAD.SUCCESS event received!", { hasData: !!data });
           this.#handlePdfLoaded(data);
         },
-        { subscriberId: 'PDFBookmarkFeature' }
+        { subscriberId: "PDFBookmarkFeature" }
       )
     );
 
@@ -399,7 +428,7 @@ export class PDFBookmarkFeature {
       this.#eventBus.onGlobal(
         PDF_VIEWER_EVENTS.BOOKMARK.CREATE.REQUESTED,
         (data) => this.#handleCreateRequest(data),
-        { subscriberId: 'PDFBookmarkFeature' }
+        { subscriberId: "PDFBookmarkFeature" }
       )
     );
 
@@ -408,7 +437,7 @@ export class PDFBookmarkFeature {
       this.#eventBus.onGlobal(
         PDF_VIEWER_EVENTS.BOOKMARK.UPDATE.REQUESTED,
         (data) => this.#handleUpdateRequest(data),
-        { subscriberId: 'PDFBookmarkFeature' }
+        { subscriberId: "PDFBookmarkFeature" }
       )
     );
 
@@ -417,7 +446,7 @@ export class PDFBookmarkFeature {
       this.#eventBus.onGlobal(
         PDF_VIEWER_EVENTS.BOOKMARK.DELETE.REQUESTED,
         (data) => this.#handleDeleteRequest(data),
-        { subscriberId: 'PDFBookmarkFeature' }
+        { subscriberId: "PDFBookmarkFeature" }
       )
     );
 
@@ -426,7 +455,7 @@ export class PDFBookmarkFeature {
       this.#eventBus.onGlobal(
         PDF_VIEWER_EVENTS.BOOKMARK.REORDER.REQUESTED,
         (data) => this.#handleReorderRequest(data),
-        { subscriberId: 'PDFBookmarkFeature' }
+        { subscriberId: "PDFBookmarkFeature" }
       )
     );
 
@@ -435,16 +464,19 @@ export class PDFBookmarkFeature {
       this.#eventBus.onGlobal(
         PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.REQUESTED,
         (data) => this.#handleNavigateRequest(data),
-        { subscriberId: 'PDFBookmarkFeature' }
+        { subscriberId: "PDFBookmarkFeature" }
       )
     );
 
-    // 监听“按ID导航”请求（全局事件，使用onGlobal）
+    // 监听"按ID导航"请求（全局事件，使用onGlobal）
     this.#unsubs.push(
       this.#eventBus.onGlobal(
         PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED,
-        (data) => this.#handleNavigateByIdRequest(data),
-        { subscriberId: 'PDFBookmarkFeature' }
+        (data) => {
+          this.#logger.info("[PDFBookmarkFeature] 收到BOOKMARK.NAVIGATE_BY_ID.REQUESTED事件", data);
+          this.#handleNavigateByIdRequest(data);
+        },
+        { subscriberId: "PDFBookmarkFeature" }
       )
     );
 
@@ -453,7 +485,7 @@ export class PDFBookmarkFeature {
       this.#eventBus.onGlobal(
         PDF_VIEWER_EVENTS.BOOKMARK.SELECT.CHANGED,
         (data) => this.#handleSelectionChanged(data),
-        { subscriberId: 'PDFBookmarkFeature' }
+        { subscriberId: "PDFBookmarkFeature" }
       )
     );
 
@@ -464,11 +496,11 @@ export class PDFBookmarkFeature {
         () => {
           try { this.#refreshBookmarkList(); } catch (_) {}
         },
-        { subscriberId: 'PDFBookmarkFeature' }
+        { subscriberId: "PDFBookmarkFeature" }
       )
     );
 
-    this.#logger.info('Event listeners registered');
+    this.#logger.info("Event listeners registered");
   }
 
   /**
@@ -502,7 +534,7 @@ export class PDFBookmarkFeature {
       // 新书签插入到选中书签后面
       order = selectedIndex !== -1 ? selectedIndex + 1 : siblings.length;
 
-      this.#logger.info(`Adding outline after selected: parent=${parentId || 'root'}, order=${order}`);
+      this.#logger.info(`Adding outline after selected: parent=${parentId || "root"}, order=${order}`);
     }
 
     this.#dialog.showAdd({
@@ -515,18 +547,18 @@ export class PDFBookmarkFeature {
         const result = await this.#bookmarkManager.addBookmark({
           name: bookmarkData.name,
           pageAt: bookmarkData.pageAt,
-          position: (typeof bookmarkData.position === 'number') ? bookmarkData.position : null,
+          position: (typeof bookmarkData.position === "number") ? bookmarkData.position : null,
           parentId: bookmarkData.parentId,
           order: bookmarkData.order
         });
 
         if (result.success) {
           this.#logger.info(`Outline created: ${result.bookmarkId}`);
-          notifySuccess('✓ 大纲已添加', 2000);
+          showSuccess("✓ 大纲已添加", 2000);
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.CREATE.SUCCESS,
             { bookmarkId: result.bookmarkId, bookmark: bookmarkData },
-            { actorId: 'PDFBookmarkFeature' }
+            { actorId: "PDFBookmarkFeature" }
           );
 
           // 远端保存并从后端刷新
@@ -541,23 +573,23 @@ export class PDFBookmarkFeature {
               this.#eventBus.emitGlobal(
                 PDF_VIEWER_EVENTS.BOOKMARK.SELECT.CHANGED,
                 { bookmarkId: result.bookmarkId, bookmark: newBookmark },
-                { actorId: 'PDFBookmarkFeature' }
+                { actorId: "PDFBookmarkFeature" }
               );
             }, 50); // 延迟50ms，确保DOM已渲染
           }
         } else {
           this.#logger.error(`Failed to create outline: ${result.error}`);
-          notifyError(`添加大纲失败: ${result.error}`, 4000);
+          showError(`添加大纲失败: ${result.error}`, 4000);
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.CREATE.FAILED,
             { error: result.error },
-            { actorId: 'PDFBookmarkFeature' }
+            { actorId: "PDFBookmarkFeature" }
           );
           alert(`添加大纲失败: ${result.error}`);
         }
       },
       onCancel: () => {
-        this.#logger.debug('Create bookmark cancelled');
+        this.#logger.debug("Create bookmark cancelled");
       }
     });
   }
@@ -573,7 +605,7 @@ export class PDFBookmarkFeature {
 
     if (!bookmark) {
       this.#logger.warn(`Outline not found: ${bookmarkId}`);
-      try { notifyError('大纲不存在', 3000); } catch {}
+      try { showError("大纲不存在", 3000); } catch {}
       return;
     }
 
@@ -584,13 +616,13 @@ export class PDFBookmarkFeature {
 
         if (result.success) {
           this.#logger.info(`Outline updated: ${bookmarkId}`);
-          notifySuccess('✓ 大纲已更新', 2000);
+          showSuccess("✓ 大纲已更新", 2000);
           // 先用本地内存状态立即刷新一次，避免远端回读延迟造成“看起来没更新”
           this.#refreshBookmarkList();
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.UPDATE.SUCCESS,
             { bookmarkId, updates },
-            { actorId: 'PDFBookmarkFeature' }
+            { actorId: "PDFBookmarkFeature" }
           );
 
           // 后台持久化 + 回读（若远端可用），完成后再刷新以保证一致性
@@ -603,17 +635,17 @@ export class PDFBookmarkFeature {
           }
         } else {
           this.#logger.error(`Failed to update outline: ${result.error}`);
-          notifyError(`更新大纲失败: ${result.error}`, 4000);
+          showError(`更新大纲失败: ${result.error}`, 4000);
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.UPDATE.FAILED,
             { bookmarkId, error: result.error },
-            { actorId: 'PDFBookmarkFeature' }
+            { actorId: "PDFBookmarkFeature" }
           );
           alert(`更新大纲失败: ${result.error}`);
         }
       },
       onCancel: () => {
-        this.#logger.debug('Update bookmark cancelled');
+        this.#logger.debug("Update bookmark cancelled");
       }
     });
   }
@@ -629,7 +661,7 @@ export class PDFBookmarkFeature {
 
     if (!bookmark) {
       this.#logger.warn(`Outline not found: ${bookmarkId}`);
-      try { notifyError('大纲不存在', 3000); } catch {}
+      try { showError("大纲不存在", 3000); } catch {}
       return;
     }
 
@@ -642,12 +674,12 @@ export class PDFBookmarkFeature {
         const result = await this.#bookmarkManager.deleteBookmark(bookmarkId, cascadeDelete);
 
         if (result.success) {
-      this.#logger.info(`Outline deleted: ${bookmarkId}, count: ${result.deletedIds.length}`);
-      notifySuccess('✓ 大纲已删除', 2000);
+          this.#logger.info(`Outline deleted: ${bookmarkId}, count: ${result.deletedIds.length}`);
+          showSuccess("✓ 大纲已删除", 2000);
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.DELETE.SUCCESS,
             { bookmarkId, deletedIds: result.deletedIds },
-            { actorId: 'PDFBookmarkFeature' }
+            { actorId: "PDFBookmarkFeature" }
           );
 
           await this.#bookmarkManager.saveToStorage();
@@ -655,17 +687,17 @@ export class PDFBookmarkFeature {
           this.#refreshBookmarkList();
         } else {
           this.#logger.error(`Failed to delete bookmark: ${result.error}`);
-          notifyError(`删除书签失败: ${result.error}`, 4000);
+          showError(`删除书签失败: ${result.error}`, 4000);
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.DELETE.FAILED,
             { bookmarkId, error: result.error },
-            { actorId: 'PDFBookmarkFeature' }
+            { actorId: "PDFBookmarkFeature" }
           );
           alert(`删除书签失败: ${result.error}`);
         }
       },
       onCancel: () => {
-        this.#logger.debug('Delete bookmark cancelled');
+        this.#logger.debug("Delete bookmark cancelled");
       }
     });
   }
@@ -680,12 +712,12 @@ export class PDFBookmarkFeature {
 
     // 若携带 position/referenceId，则以 BookmarkManager 当前状态重新计算索引，更稳妥
     try {
-      if (data && typeof data.position === 'string' && data.referenceId) {
+      if (data && typeof data.position === "string" && data.referenceId) {
         const target = this.#bookmarkManager.getBookmark(data.referenceId);
         if (target) {
           const targetParentId = target.parentId || null;
-          newParentId = (data.position === 'child') ? target.id : targetParentId;
-          if (data.position === 'child') {
+          newParentId = (data.position === "child") ? target.id : targetParentId;
+          if (data.position === "child") {
             newIndex = 0;
           } else {
             // 取同级 siblings（来源于 Manager 内存状态）
@@ -698,19 +730,19 @@ export class PDFBookmarkFeature {
             }
             const tIdx = siblings.findIndex(b => b && b.id === target.id);
             const base = tIdx < 0 ? 0 : tIdx;
-            newIndex = (data.position === 'before') ? base : base + 1;
+            newIndex = (data.position === "before") ? base : base + 1;
           }
         }
       }
     } catch (e) {
-      this.#logger.warn('Failed to recalc reorder index from reference/position, fallback to payload', e);
+      this.#logger.warn("Failed to recalc reorder index from reference/position, fallback to payload", e);
     }
 
     const result = await this.#bookmarkManager.reorderBookmarks(bookmarkId, newParentId, newIndex);
 
     if (result.success) {
       this.#logger.info(`Bookmark reordered: ${bookmarkId}`);
-      notifySuccess('✓ 书签排序已更新', 2000);
+      showSuccess("✓ 书签排序已更新", 2000);
       // 立即用本地内存刷新一次，避免用户感知“无变化/消失”
       try {
         this.#refreshBookmarkList();
@@ -720,14 +752,14 @@ export class PDFBookmarkFeature {
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.SELECT.CHANGED,
             { bookmarkId, bookmark: moved },
-            { actorId: 'PDFBookmarkFeature' }
+            { actorId: "PDFBookmarkFeature" }
           );
         }
       } catch (_) {}
       this.#eventBus.emitGlobal(
         PDF_VIEWER_EVENTS.BOOKMARK.REORDER.SUCCESS,
         { bookmarkId, newParentId, newIndex },
-        { actorId: 'PDFBookmarkFeature' }
+        { actorId: "PDFBookmarkFeature" }
       );
 
       // 后台持久化与回读，完成后再刷新一次以对齐远端
@@ -738,11 +770,11 @@ export class PDFBookmarkFeature {
       } catch (_) {}
     } else {
       this.#logger.error(`Failed to reorder outline: ${result.error}`);
-      notifyError(`大纲排序失败: ${result.error}`, 4000);
+      showError(`大纲排序失败: ${result.error}`, 4000);
       this.#eventBus.emitGlobal(
         PDF_VIEWER_EVENTS.BOOKMARK.REORDER.FAILED,
         { bookmarkId, error: result.error },
-        { actorId: 'PDFBookmarkFeature' }
+        { actorId: "PDFBookmarkFeature" }
       );
     }
   }
@@ -755,27 +787,27 @@ export class PDFBookmarkFeature {
    */
   async #handlePdfLoaded(data) {
     try {
-      this.#logger.info('🔍 [DEBUG] #handlePdfLoaded called with data:', { hasData: !!data, hasPdfDocument: !!(data && data.pdfDocument) });
+      this.#logger.info("🔍 [DEBUG] #handlePdfLoaded called with data:", { hasData: !!data, hasPdfDocument: !!(data && data.pdfDocument) });
 
       if (!data || !data.pdfDocument) {
-        this.#logger.warn('❌ PDF document not available in load event');
+        this.#logger.warn("❌ PDF document not available in load event");
         return;
       }
 
       // DB-first：先从后端加载
-      this.#logger.info('🔄 Loading outlines from backend/storage (DB-first)...');
+      this.#logger.info("🔄 Loading outlines from backend/storage (DB-first)...");
       await this.#bookmarkManager.loadFromStorage();
       let current = this.#bookmarkManager.getAllBookmarks();
       this.#logger.info(`📦 Outlines from storage: ${current.length}`);
       // 追加：从数据库读出的拍平样本，便于与UI侧核对pageAt
       try {
         const sample = (current || []).slice(0, 12).map(b => ({ id: b.id, name: b.name, pageAt: b.pageAt, pos: b.position, childrenLen: (b.children||[]).length }));
-        try { this.#logger.info(`[DB] Outlines sample after load ${JSON.stringify(sample)}`); } catch { this.#logger.info('[DB] Outlines sample after load'); }
+        try { this.#logger.info(`[DB] Outlines sample after load ${JSON.stringify(sample)}`); } catch { this.#logger.info("[DB] Outlines sample after load"); }
       } catch (_) {}
 
       // 如数据库无记录，导入PDF原生书签 → 远端保存 → 再从后端加载
       if (current.length === 0) {
-        this.#logger.info('📚 No DB outlines, importing native PDF outlines then persisting to backend...');
+        this.#logger.info("📚 No DB outlines, importing native PDF outlines then persisting to backend...");
         try {
           const nativeBookmarks = await this.#bookmarkDataProvider.getBookmarks(data.pdfDocument);
           this.#logger.info(`✅ Fetched ${nativeBookmarks.length} native outlines from PDF`);
@@ -795,17 +827,17 @@ export class PDFBookmarkFeature {
               this.#logger.error(`❌ Failed to import native bookmarks: ${result.error}`);
             }
           } else {
-            this.#logger.info('ℹ️ No native bookmarks found in PDF');
+            this.#logger.info("ℹ️ No native bookmarks found in PDF");
           }
         } catch (error) {
-          this.#logger.error('❌ Failed to fetch/import native bookmarks:', error);
+          this.#logger.error("❌ Failed to fetch/import native bookmarks:", error);
         }
       }
 
       // 刷新大纲列表（从BookmarkManager读取）
       this.#refreshBookmarkList();
     } catch (error) {
-      this.#logger.error('❌ Failed to handle PDF loaded event:', error);
+      this.#logger.error("❌ Failed to handle PDF loaded event:", error);
       // 即使失败也要刷新列表
       this.#refreshBookmarkList();
     }
@@ -817,14 +849,14 @@ export class PDFBookmarkFeature {
    */
   #refreshBookmarkList() {
     const bookmarks = this.#bookmarkManager.getAllBookmarks();
-    this.#logger.info('🔍 [DEBUG] #refreshBookmarkList called, outlines from manager:', bookmarks.length);
+    this.#logger.info("🔍 [DEBUG] #refreshBookmarkList called, outlines from manager:", bookmarks.length);
 
     // 直接发送 Bookmark 模型数据（不再转换）
-    this.#logger.info('🔍 [DEBUG] Total outlines to emit:', bookmarks.length, 'Event:', PDF_VIEWER_EVENTS.BOOKMARK.LOAD.SUCCESS);
+    this.#logger.info("🔍 [DEBUG] Total outlines to emit:", bookmarks.length, "Event:", PDF_VIEWER_EVENTS.BOOKMARK.LOAD.SUCCESS);
     // 打印样本（便于与 UI 侧对齐）
     try {
       const sample = (bookmarks || []).slice(0, 8).map(b => ({ id: b.id, name: b.name, pageAt: b.pageAt, pos: b.position, childrenLen: (b.children||[]).length }));
-      try { this.#logger.info(`[DEBUG] Outline sample before emit ${JSON.stringify(sample)}`); } catch { this.#logger.info('[DEBUG] Outline sample before emit'); }
+      try { this.#logger.info(`[DEBUG] Outline sample before emit ${JSON.stringify(sample)}`); } catch { this.#logger.info("[DEBUG] Outline sample before emit"); }
     } catch (_) {}
 
     // 发出全局事件（跨Feature通信，不使用命名空间）
@@ -834,9 +866,9 @@ export class PDFBookmarkFeature {
       {
         bookmarks: bookmarks,  // 直接使用 Bookmark 模型（展示为“大纲”）
         count: this.#countBookmarks(bookmarks),
-        source: 'local'
+        source: "local"
       },
-      { actorId: 'PDFBookmarkFeature' }
+      { actorId: "PDFBookmarkFeature" }
     );
 
     this.#logger.info(`✅ Outline list refreshed: ${bookmarks.length} items, event emitted`);
@@ -883,17 +915,17 @@ export class PDFBookmarkFeature {
     try {
       const bookmark = data?.bookmark;
       if (!bookmark) {
-        this.#logger.warn('书签导航请求缺少bookmark对象');
+        this.#logger.warn("书签导航请求缺少bookmark对象");
         return;
       }
 
       // 检查导航服务是否可用
       if (!this.#navigationService) {
-        this.#logger.error('NavigationService未初始化，无法导航');
+        this.#logger.error("NavigationService未初始化，无法导航");
         this.#eventBus.emitGlobal(
           PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED,
-          { error: 'NavigationService不可用' },
-          { actorId: 'PDFBookmarkFeature' }
+          { error: "NavigationService不可用" },
+          { actorId: "PDFBookmarkFeature" }
         );
         return;
       }
@@ -906,14 +938,14 @@ export class PDFBookmarkFeature {
         this.#logger.warn(`无法解析书签dest: ${bookmark.name}`);
         this.#eventBus.emitGlobal(
           PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED,
-          { error: '无法解析书签目标页码' },
-          { actorId: 'PDFBookmarkFeature' }
+          { error: "无法解析书签目标页码" },
+          { actorId: "PDFBookmarkFeature" }
         );
         return;
       }
 
-      const position = (typeof bookmark.position === 'number') ? bookmark.position : null;
-      this.#logger.info(`书签目标: page=${pageAt}, position=${position ?? '(null)'}%`);
+      const position = (typeof bookmark.position === "number") ? bookmark.position : null;
+      this.#logger.info(`书签目标: page=${pageAt}, position=${position ?? "(null)"}%`);
 
       // 调用导航服务
       const result = await this.#navigationService.navigateTo({
@@ -929,22 +961,22 @@ export class PDFBookmarkFeature {
             pageNumber: result.actualPage,
             position: result.actualPosition
           },
-          { actorId: 'PDFBookmarkFeature' }
+          { actorId: "PDFBookmarkFeature" }
         );
       } else {
         this.#logger.error(`书签导航失败: ${result.error}`);
         this.#eventBus.emitGlobal(
           PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED,
           { error: result.error },
-          { actorId: 'PDFBookmarkFeature' }
+          { actorId: "PDFBookmarkFeature" }
         );
       }
     } catch (error) {
-      this.#logger.error('处理书签导航请求时出错:', error);
+      this.#logger.error("处理书签导航请求时出错:", error);
       this.#eventBus.emitGlobal(
         PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED,
         { error: error.message },
-        { actorId: 'PDFBookmarkFeature' }
+        { actorId: "PDFBookmarkFeature" }
       );
     }
   }
@@ -958,13 +990,13 @@ export class PDFBookmarkFeature {
   async #parseBookmarkPageAt(bookmark) {
     try {
       // 严格模式：仅接受标准字段 pageAt
-      if (typeof bookmark?.pageAt === 'number' && bookmark.pageAt > 0) {
+      if (typeof bookmark?.pageAt === "number" && bookmark.pageAt > 0) {
         return bookmark.pageAt;
       }
-      this.#logger.warn('书签缺少标准字段 pageAt，无法解析页码');
+      this.#logger.warn("书签缺少标准字段 pageAt，无法解析页码");
       return null;
     } catch (error) {
-      this.#logger.error('解析书签dest时出错:', error);
+      this.#logger.error("解析书签dest时出错:", error);
       return null;
     }
   }
@@ -979,66 +1011,66 @@ export class PDFBookmarkFeature {
     try {
       const dest = nativeBookmark?.dest;
       if (dest === null || dest === undefined) {
-        this.#logger.info('[IMPORT] dest missing; skip', { title: nativeBookmark?.title });
+        this.#logger.info("[IMPORT] dest missing; skip", { title: nativeBookmark?.title });
         return { pageAt: null, position: null };
       }
       // 打印目的地类型，便于排查
       try {
-        const kind = Array.isArray(dest) ? 'array' : (typeof dest);
+        const kind = Array.isArray(dest) ? "array" : (typeof dest);
         const detail = (() => {
           try {
             if (Array.isArray(dest)) {
               const first = dest[0];
-              const firstKind = (first && typeof first === 'object')
-                ? (('num' in first || 'gen' in first) ? 'ref-object' : 'object')
+              const firstKind = (first && typeof first === "object")
+                ? (("num" in first || "gen" in first) ? "ref-object" : "object")
                 : typeof first;
               return { length: dest.length, firstKind };
-            } else if (typeof dest === 'string') {
+            } else if (typeof dest === "string") {
               return { length: dest.length, preview: dest.slice(0, 80) };
-            } else if (dest && typeof dest === 'object') {
+            } else if (dest && typeof dest === "object") {
               return { keys: Object.keys(dest).slice(0, 6) };
             }
           } catch (_) { /* ignore */ }
           return {};
         })();
-        this.#logger.info('[IMPORT] dest detected', { title: nativeBookmark?.title, kind, detail });
+        this.#logger.info("[IMPORT] dest detected", { title: nativeBookmark?.title, kind, detail });
       } catch (_) {}
       // 优先使用从 FILE.LOAD.SUCCESS 传入的 pdfDocument，避免并发切换导致的“Transport destroyed”
       const pdfDocument = pdfDocumentArg || getCurrentPDFDocument();
       if (!pdfDocument) {
-        this.#logger.info('[IMPORT] pdfDocument missing during parse; skip', { title: nativeBookmark?.title });
+        this.#logger.info("[IMPORT] pdfDocument missing during parse; skip", { title: nativeBookmark?.title });
         return { pageAt: null, position: null };
       }
       // 优先通过 BookmarkDataProvider（已持有同一 pdfDocument）解析
       try {
-        if (this.#bookmarkDataProvider && typeof this.#bookmarkDataProvider.parseDestination === 'function') {
+        if (this.#bookmarkDataProvider && typeof this.#bookmarkDataProvider.parseDestination === "function") {
           const parsed = await this.#bookmarkDataProvider.parseDestination(dest);
           const pageAt = parsed?.pageNumber || null;
           let position = null;
           // 仅在明确为 'XYZ' 并且提供了 y 时，计算 position；否则保持 null
-          if (pageAt && parsed?.type === 'XYZ' && typeof parsed?.y === 'number') {
-            const { yToPositionPercent } = await import('../../pdf/pdf-dest-utils.js');
+          if (pageAt && parsed?.type === "XYZ" && typeof parsed?.y === "number") {
+            const { yToPositionPercent } = await import("../../pdf/pdf-dest-utils.js");
             position = await yToPositionPercent(pdfDocument, pageAt, parsed.y);
           }
           // 统一串到字符串，避免后端日志把对象打印为 [object Object]
-          try { this.#logger.info(`[IMPORT] parsed via provider ${JSON.stringify({ title: nativeBookmark?.title, type: parsed?.type ?? null, pageAt, position })}`); } catch { this.#logger.info('[IMPORT] parsed via provider'); }
+          try { this.#logger.info(`[IMPORT] parsed via provider ${JSON.stringify({ title: nativeBookmark?.title, type: parsed?.type ?? null, pageAt, position })}`); } catch { this.#logger.info("[IMPORT] parsed via provider"); }
           return { pageAt, position };
         }
       } catch (e) {
         // 回退到通用解析
-        try { this.#logger.info(`[IMPORT] provider.parseDestination failed, fallback to resolvePdfDest ${JSON.stringify({ title: nativeBookmark?.title, error: e?.message })}`); } catch { this.#logger.info('[IMPORT] provider.parseDestination failed, fallback to resolvePdfDest'); }
+        try { this.#logger.info(`[IMPORT] provider.parseDestination failed, fallback to resolvePdfDest ${JSON.stringify({ title: nativeBookmark?.title, error: e?.message })}`); } catch { this.#logger.info("[IMPORT] provider.parseDestination failed, fallback to resolvePdfDest"); }
       }
-      const { resolvePdfDest, yToPositionPercent } = await import('../../pdf/pdf-dest-utils.js');
+      const { resolvePdfDest, yToPositionPercent } = await import("../../pdf/pdf-dest-utils.js");
       const resolved = await resolvePdfDest(pdfDocument, dest);
       const pageAt = resolved?.pageNumber || null;
       let position = null;
-      if (pageAt && resolved?.type === 'XYZ' && typeof resolved?.y === 'number') {
+      if (pageAt && resolved?.type === "XYZ" && typeof resolved?.y === "number") {
         position = await yToPositionPercent(pdfDocument, pageAt, resolved.y);
       }
-      try { this.#logger.info(`[IMPORT] parsed via resolvePdfDest ${JSON.stringify({ title: nativeBookmark?.title, type: resolved?.type ?? null, pageAt, position })}`); } catch { this.#logger.info('[IMPORT] parsed via resolvePdfDest'); }
+      try { this.#logger.info(`[IMPORT] parsed via resolvePdfDest ${JSON.stringify({ title: nativeBookmark?.title, type: resolved?.type ?? null, pageAt, position })}`); } catch { this.#logger.info("[IMPORT] parsed via resolvePdfDest"); }
       return { pageAt, position };
     } catch (e) {
-      try { this.#logger.warn(`[IMPORT] parse normalized dest failed ${JSON.stringify({ title: nativeBookmark?.title, error: e?.message })}`); } catch { this.#logger.warn('[IMPORT] parse normalized dest failed'); }
+      try { this.#logger.warn(`[IMPORT] parse normalized dest failed ${JSON.stringify({ title: nativeBookmark?.title, error: e?.message })}`); } catch { this.#logger.warn("[IMPORT] parse normalized dest failed"); }
       return { pageAt: null, position: null };
     }
   }

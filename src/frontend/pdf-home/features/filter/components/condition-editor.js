@@ -10,43 +10,43 @@ export class ConditionEditor {
 
   // 字段定义
   #fields = {
-    'filename': { label: '文件名', type: 'string' },
-    'tags': { label: '标签', type: 'tags' },
-    'rating': { label: '评分', type: 'number' },
-    'review_count': { label: '复习次数', type: 'number' },
-    'file_size': { label: '文件大小', type: 'number' },
-    'created_at': { label: '创建时间', type: 'date' },
-    'last_accessed_at': { label: '访问时间', type: 'date' }
+    "filename": { label: "文件名", type: "string" },
+    "tags": { label: "标签", type: "tags" },
+    "rating": { label: "评分", type: "number" },
+    "review_count": { label: "复习次数", type: "number" },
+    "file_size": { label: "文件大小", type: "number" },
+    "created_at": { label: "创建时间", type: "date" },
+    "last_accessed_at": { label: "访问时间", type: "date" }
   };
 
   // 操作符定义
   #operators = {
-    'string': [
-      { value: 'contains', label: '包含' },
-      { value: 'not_contains', label: '不包含' },
-      { value: 'eq', label: '= (等于)' },
-      { value: 'starts_with', label: '开头是' },
-      { value: 'ends_with', label: '结尾是' }
+    "string": [
+      { value: "contains", label: "包含" },
+      { value: "not_contains", label: "不包含" },
+      { value: "eq", label: "= (等于)" },
+      { value: "starts_with", label: "开头是" },
+      { value: "ends_with", label: "结尾是" }
     ],
-    'number': [
-      { value: 'eq', label: '= (等于)' },
-      { value: 'ne', label: '≠ (不等于)' },
-      { value: 'gt', label: '> (大于)' },
-      { value: 'lt', label: '< (小于)' },
-      { value: 'gte', label: '≥ (大于等于)' },
-      { value: 'lte', label: '≤ (小于等于)' }
+    "number": [
+      { value: "eq", label: "= (等于)" },
+      { value: "ne", label: "≠ (不等于)" },
+      { value: "gt", label: "> (大于)" },
+      { value: "lt", label: "< (小于)" },
+      { value: "gte", label: "≥ (大于等于)" },
+      { value: "lte", label: "≤ (小于等于)" }
     ],
-    'date': [
-      { value: 'eq', label: '= (等于)' },
-      { value: 'gt', label: '> (之后)' },
-      { value: 'lt', label: '< (之前)' },
-      { value: 'in_range', label: '范围内' }
+    "date": [
+      { value: "eq", label: "= (等于)" },
+      { value: "gt", label: "> (之后)" },
+      { value: "lt", label: "< (之前)" },
+      { value: "in_range", label: "范围内" }
     ],
-    'tags': [
-      { value: 'contains', label: '包含任意' },
-      { value: 'not_contains', label: '不包含任意' },
-      { value: 'has_all', label: '包含全部' },
-      { value: 'eq', label: '= (集合相等)' }
+    "tags": [
+      { value: "contains", label: "包含任意" },
+      { value: "not_contains", label: "不包含任意" },
+      { value: "has_all", label: "包含全部" },
+      { value: "eq", label: "= (集合相等)" }
     ]
   };
 
@@ -61,7 +61,7 @@ export class ConditionEditor {
   show(callback) {
     this.#callback = callback;
     this.#createDialog();
-    this.#logger.info('[ConditionEditor] Shown');
+    this.#logger.info("[ConditionEditor] Shown");
   }
 
   /**
@@ -83,8 +83,8 @@ export class ConditionEditor {
               <label>字段:</label>
               <select id="condition-field" class="form-control">
                 ${Object.entries(this.#fields).map(([key, field]) =>
-                  `<option value="${key}">${field.label}</option>`
-                ).join('')}
+    `<option value="${key}">${field.label}</option>`
+  ).join("")}
               </select>
             </div>
 
@@ -113,7 +113,7 @@ export class ConditionEditor {
       </div>
     `;
 
-    const tempDiv = document.createElement('div');
+    const tempDiv = document.createElement("div");
     tempDiv.innerHTML = html.trim();
     this.#container = tempDiv.firstChild;
     document.body.appendChild(this.#container);
@@ -128,106 +128,106 @@ export class ConditionEditor {
    */
   #setupEventListeners() {
     // 关闭按钮
-    const closeBtn = this.#container.querySelector('.condition-editor-close');
-    closeBtn.addEventListener('click', () => this.#close());
+    const closeBtn = this.#container.querySelector(".condition-editor-close");
+    closeBtn.addEventListener("click", () => this.#close());
 
     // 遮罩层点击
-    const overlay = this.#container.querySelector('.condition-editor-overlay');
-    overlay.addEventListener('click', () => this.#close());
+    const overlay = this.#container.querySelector(".condition-editor-overlay");
+    overlay.addEventListener("click", () => this.#close());
 
     // 取消按钮
-    const cancelBtn = this.#container.querySelector('.condition-editor-cancel');
-    cancelBtn.addEventListener('click', () => this.#close());
+    const cancelBtn = this.#container.querySelector(".condition-editor-cancel");
+    cancelBtn.addEventListener("click", () => this.#close());
 
     // 保存按钮
-    const saveBtn = this.#container.querySelector('.condition-editor-save');
-    saveBtn.addEventListener('click', () => this.#save());
+    const saveBtn = this.#container.querySelector(".condition-editor-save");
+    saveBtn.addEventListener("click", () => this.#save());
 
     // 字段变化
-    const fieldSelect = this.#container.querySelector('#condition-field');
-    fieldSelect.addEventListener('change', () => {
+    const fieldSelect = this.#container.querySelector("#condition-field");
+    fieldSelect.addEventListener("change", () => {
       this.#updateOperators();
       this.#updateValueInput();
     });
 
     // ESC键关闭
     this.#escHandler = (e) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         this.#close();
       }
     };
-    document.addEventListener('keydown', this.#escHandler);
+    document.addEventListener("keydown", this.#escHandler);
   }
 
   /**
    * 更新操作符选项
    */
   #updateOperators() {
-    const fieldSelect = this.#container.querySelector('#condition-field');
-    const operatorSelect = this.#container.querySelector('#condition-operator');
+    const fieldSelect = this.#container.querySelector("#condition-field");
+    const operatorSelect = this.#container.querySelector("#condition-operator");
 
     const fieldKey = fieldSelect.value;
     const fieldType = this.#fields[fieldKey].type;
-    const operators = this.#operators[fieldType] || this.#operators['string'];
+    const operators = this.#operators[fieldType] || this.#operators["string"];
 
     operatorSelect.innerHTML = operators.map(op =>
       `<option value="${op.value}">${op.label}</option>`
-    ).join('');
+    ).join("");
   }
 
   /**
    * 更新值输入框
    */
   #updateValueInput() {
-    const fieldSelect = this.#container.querySelector('#condition-field');
-    const valueContainer = this.#container.querySelector('#condition-value-container');
+    const fieldSelect = this.#container.querySelector("#condition-field");
+    const valueContainer = this.#container.querySelector("#condition-value-container");
 
     const fieldKey = fieldSelect.value;
     const fieldType = this.#fields[fieldKey].type;
 
-    let inputHTML = '';
+    let inputHTML = "";
 
     switch (fieldType) {
-      case 'string':
-        inputHTML = `
+    case "string":
+      inputHTML = `
           <input type="text" id="condition-value" class="form-control"
                  placeholder="请输入文本..." />
         `;
-        break;
+      break;
 
-      case 'number':
-        inputHTML = `
+    case "number":
+      inputHTML = `
           <input type="number" id="condition-value" class="form-control"
                  placeholder="请输入数值..." />
         `;
-        break;
+      break;
 
-      case 'date':
-        inputHTML = `
+    case "date":
+      inputHTML = `
           <input type="date" id="condition-value" class="form-control" />
         `;
-        break;
+      break;
 
-      case 'tags':
-        if (this.#availableTags.length > 0) {
-          inputHTML = `
+    case "tags":
+      if (this.#availableTags.length > 0) {
+        inputHTML = `
             <select id="condition-value" class="form-control">
               <option value="">请选择标签...</option>
               ${this.#availableTags.map(tag =>
-                `<option value="${tag}">${tag}</option>`
-              ).join('')}
+    `<option value="${tag}">${tag}</option>`
+  ).join("")}
             </select>
             <small class="form-hint">或输入自定义标签:</small>
             <input type="text" id="condition-value-custom" class="form-control"
                    placeholder="输入自定义标签..." style="margin-top: 8px;" />
           `;
-        } else {
-          inputHTML = `
+      } else {
+        inputHTML = `
             <input type="text" id="condition-value" class="form-control"
                    placeholder="请输入标签..." />
           `;
-        }
-        break;
+      }
+      break;
     }
 
     valueContainer.innerHTML = inputHTML;
@@ -237,32 +237,32 @@ export class ConditionEditor {
    * 保存条件
    */
   #save() {
-    const fieldSelect = this.#container.querySelector('#condition-field');
-    const operatorSelect = this.#container.querySelector('#condition-operator');
+    const fieldSelect = this.#container.querySelector("#condition-field");
+    const operatorSelect = this.#container.querySelector("#condition-operator");
 
     const field = fieldSelect.value;
     const operator = operatorSelect.value;
 
-    let value = '';
+    let value = "";
     const fieldType = this.#fields[field].type;
 
-    if (fieldType === 'tags') {
-      const selectValue = this.#container.querySelector('#condition-value')?.value;
-      const customValue = this.#container.querySelector('#condition-value-custom')?.value;
+    if (fieldType === "tags") {
+      const selectValue = this.#container.querySelector("#condition-value")?.value;
+      const customValue = this.#container.querySelector("#condition-value-custom")?.value;
       value = customValue || selectValue;
     } else {
-      const valueInput = this.#container.querySelector('#condition-value');
-      value = valueInput?.value || '';
+      const valueInput = this.#container.querySelector("#condition-value");
+      value = valueInput?.value || "";
     }
 
     if (!value) {
-      alert('请输入值');
+      alert("请输入值");
       return;
     }
 
     const conditionData = { field, operator, value };
 
-    this.#logger.info('[ConditionEditor] Condition saved', conditionData);
+    this.#logger.info("[ConditionEditor] Condition saved", conditionData);
 
     if (this.#callback) {
       this.#callback(conditionData);
@@ -281,11 +281,11 @@ export class ConditionEditor {
     }
 
     if (this.#escHandler) {
-      document.removeEventListener('keydown', this.#escHandler);
+      document.removeEventListener("keydown", this.#escHandler);
       this.#escHandler = null;
     }
 
-    this.#logger.info('[ConditionEditor] Closed');
+    this.#logger.info("[ConditionEditor] Closed");
   }
 
   /**

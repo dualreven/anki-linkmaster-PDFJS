@@ -3,7 +3,7 @@
  * @file types/events.d.ts
  */
 
-import { EventOptions, EventMetadata } from './common';
+import type { EventOptions, EventMetadata } from './common';
 
 /**
  * 事件总线接口

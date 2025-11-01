@@ -17,7 +17,7 @@ export class PageCacheManager {
   #accessHistory = new Map(); // 记录页面访问历史
 
   constructor(options = {}) {
-    this.#logger = getLogger('PDFViewer.Cache');
+    this.#logger = getLogger("PDFViewer.Cache");
     this.#maxCacheSize = options.maxCacheSize || 10;
   }
 

@@ -2,43 +2,43 @@
  * @file PageCacheManager单元测试
  */
 
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { PageCacheManager } from '../components/page-cache-manager.js';
+import { describe, it, expect, beforeEach, jest } from "@jest/globals";
+import { PageCacheManager } from "../components/page-cache-manager.js";
 
-describe('PageCacheManager', () => {
+describe("PageCacheManager", () => {
   let cacheManager;
 
   beforeEach(() => {
     cacheManager = new PageCacheManager({ maxCacheSize: 5 });
   });
 
-  describe('构造函数', () => {
-    it('应该正确初始化', () => {
+  describe("构造函数", () => {
+    it("应该正确初始化", () => {
       expect(cacheManager).toBeDefined();
     });
 
-    it('应该使用自定义maxCacheSize', () => {
+    it("应该使用自定义maxCacheSize", () => {
       const custom = new PageCacheManager({ maxCacheSize: 20 });
       const stats = custom.getStats();
       expect(stats.maxCacheSize).toBe(20);
     });
 
-    it('应该使用默认maxCacheSize', () => {
+    it("应该使用默认maxCacheSize", () => {
       const defaultManager = new PageCacheManager();
       const stats = defaultManager.getStats();
       expect(stats.maxCacheSize).toBe(10);
     });
   });
 
-  describe('addPage', () => {
-    it('应该添加页面到缓存', () => {
+  describe("addPage", () => {
+    it("应该添加页面到缓存", () => {
       const page = { number: 1 };
       cacheManager.addPage(1, page);
 
       expect(cacheManager.hasPage(1)).toBe(true);
     });
 
-    it('应该在缓存满时移除LRU页面', () => {
+    it("应该在缓存满时移除LRU页面", () => {
       // 添加5个页面填满缓存
       for (let i = 1; i <= 5; i++) {
         cacheManager.addPage(i, { number: i });
@@ -58,8 +58,8 @@ describe('PageCacheManager', () => {
     });
   });
 
-  describe('getPage', () => {
-    it('应该返回缓存中的页面', () => {
+  describe("getPage", () => {
+    it("应该返回缓存中的页面", () => {
       const page = { number: 1 };
       cacheManager.addPage(1, page);
 
@@ -67,12 +67,12 @@ describe('PageCacheManager', () => {
       expect(result).toBe(page);
     });
 
-    it('不存在时应该返回null', () => {
+    it("不存在时应该返回null", () => {
       const result = cacheManager.getPage(999);
       expect(result).toBeNull();
     });
 
-    it('应该更新访问时间', () => {
+    it("应该更新访问时间", () => {
       cacheManager.addPage(1, { number: 1 });
       cacheManager.addPage(2, { number: 2 });
 
@@ -90,18 +90,18 @@ describe('PageCacheManager', () => {
     });
   });
 
-  describe('hasPage', () => {
-    it('存在时应该返回true', () => {
+  describe("hasPage", () => {
+    it("存在时应该返回true", () => {
       cacheManager.addPage(1, { number: 1 });
       expect(cacheManager.hasPage(1)).toBe(true);
     });
 
-    it('不存在时应该返回false', () => {
+    it("不存在时应该返回false", () => {
       expect(cacheManager.hasPage(999)).toBe(false);
     });
   });
 
-  describe('cleanupCache', () => {
+  describe("cleanupCache", () => {
     beforeEach(() => {
       // 添加页面1-10
       cacheManager = new PageCacheManager({ maxCacheSize: 15 });
@@ -110,7 +110,7 @@ describe('PageCacheManager', () => {
       }
     });
 
-    it('应该保留指定范围内的页面', () => {
+    it("应该保留指定范围内的页面", () => {
       cacheManager.cleanupCache(5, 2); // 保留3-7页
 
       expect(cacheManager.hasPage(3)).toBe(true);
@@ -118,7 +118,7 @@ describe('PageCacheManager', () => {
       expect(cacheManager.hasPage(7)).toBe(true);
     });
 
-    it('应该移除范围外的页面', () => {
+    it("应该移除范围外的页面", () => {
       cacheManager.cleanupCache(5, 2); // 保留3-7页
 
       expect(cacheManager.hasPage(1)).toBe(false);
@@ -127,7 +127,7 @@ describe('PageCacheManager', () => {
       expect(cacheManager.hasPage(10)).toBe(false);
     });
 
-    it('应该处理边界情况', () => {
+    it("应该处理边界情况", () => {
       cacheManager.cleanupCache(1, 3); // 保留1-4页（但最小是1）
 
       expect(cacheManager.hasPage(1)).toBe(true);
@@ -136,8 +136,8 @@ describe('PageCacheManager', () => {
     });
   });
 
-  describe('getPagesToPreload', () => {
-    it('应该返回未缓存的页面集合', () => {
+  describe("getPagesToPreload", () => {
+    it("应该返回未缓存的页面集合", () => {
       cacheManager.addPage(2, { number: 2 });
       cacheManager.addPage(4, { number: 4 });
 
@@ -150,7 +150,7 @@ describe('PageCacheManager', () => {
       expect(toLoad.has(5)).toBe(true);
     });
 
-    it('全部已缓存时应该返回空集合', () => {
+    it("全部已缓存时应该返回空集合", () => {
       for (let i = 1; i <= 5; i++) {
         cacheManager.addPage(i, { number: i });
       }
@@ -160,8 +160,8 @@ describe('PageCacheManager', () => {
     });
   });
 
-  describe('clearAll', () => {
-    it('应该清空所有缓存', () => {
+  describe("clearAll", () => {
+    it("应该清空所有缓存", () => {
       for (let i = 1; i <= 5; i++) {
         cacheManager.addPage(i, { number: i });
       }
@@ -173,7 +173,7 @@ describe('PageCacheManager', () => {
       expect(stats.cachedPages).toEqual([]);
     });
 
-    it('应该调用页面的cleanup方法', () => {
+    it("应该调用页面的cleanup方法", () => {
       const page = {
         number: 1,
         cleanup: jest.fn()
@@ -186,8 +186,8 @@ describe('PageCacheManager', () => {
     });
   });
 
-  describe('getStats', () => {
-    it('应该返回正确的统计信息', () => {
+  describe("getStats", () => {
+    it("应该返回正确的统计信息", () => {
       cacheManager.addPage(3, { number: 3 });
       cacheManager.addPage(1, { number: 1 });
       cacheManager.addPage(2, { number: 2 });
@@ -200,8 +200,8 @@ describe('PageCacheManager', () => {
     });
   });
 
-  describe('destroy', () => {
-    it('应该清空所有缓存并清理资源', () => {
+  describe("destroy", () => {
+    it("应该清空所有缓存并清理资源", () => {
       for (let i = 1; i <= 3; i++) {
         cacheManager.addPage(i, { number: i });
       }

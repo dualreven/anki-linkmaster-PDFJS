@@ -5,7 +5,7 @@
  */
 
 import { getLogger } from "../../common/utils/logger.js";
-import { showInfo as notifyInfo, showSuccess as notifySuccess, showError as notifyError } from "../../common/utils/notification.js";
+import { showInfo, showSuccess, showError } from "../../common/utils/notification.js";
 
 /**
  * QWebChannel 桥接类
@@ -15,17 +15,17 @@ import { showInfo as notifyInfo, showSuccess as notifySuccess, showError as noti
  * @class QWebChannelBridge
  */
 export class QWebChannelBridge {
-    #logger;
-    #bridge = null;
-    #isReady = false;
-    #initPromise = null;
+  #logger;
+  #bridge = null;
+  #isReady = false;
+  #initPromise = null;
 
-    constructor() {
-        this.#logger = getLogger("QWebChannelBridge");
-        this.#logger.info("QWebChannelBridge 实例创建");
-    }
+  constructor() {
+    this.#logger = getLogger("QWebChannelBridge");
+    this.#logger.info("QWebChannelBridge 实例创建");
+  }
 
-    /**
+  /**
      * 初始化 QWebChannel 连接
      *
      * 等待 Qt WebChannel 传输层准备就绪，然后建立连接。
@@ -33,165 +33,165 @@ export class QWebChannelBridge {
      *
      * @returns {Promise<void>}
      */
-    async initialize() {
-        // 如果已经初始化，直接返回
-        if (this.#isReady) {
-            this.#logger.debug("QWebChannel 已经初始化，跳过");
-            return;
-        }
-
-        // 如果正在初始化，等待之前的初始化完成
-        if (this.#initPromise) {
-            this.#logger.debug("QWebChannel 正在初始化，等待完成");
-            return this.#initPromise;
-        }
-
-        // 开始初始化
-        this.#logger.info("开始初始化 QWebChannel...");
-
-        const getGlobalQWebChannel = () => {
-            try { return (typeof window !== 'undefined' ? window.QWebChannel : undefined) || (typeof globalThis !== 'undefined' ? globalThis.QWebChannel : undefined); }
-            catch (_) { return undefined; }
-        };
-
-        const ensureQWebChannelScript = () => {
-            try {
-                // 若已存在全局对象，直接完成
-                if (getGlobalQWebChannel()) return Promise.resolve(true);
-                // 查找已存在的脚本标签
-                const exists = Array.from(document.getElementsByTagName('script')).some(sc => {
-                    const src = sc.getAttribute('src') || '';
-                    return src.includes('/js/qwebchannel.js') || src.endsWith('qwebchannel.js');
-                });
-                if (exists) return Promise.resolve(true);
-                // 动态注入脚本
-                const sc = document.createElement('script');
-                sc.src = '/js/qwebchannel.js';
-                sc.async = false; // 保持执行顺序
-                const p = new Promise((resolve) => {
-                    sc.onload = () => resolve(true);
-                    sc.onerror = () => resolve(false);
-                });
-                (document.head || document.body || document.documentElement).appendChild(sc);
-                return p;
-            } catch (_) {
-                return Promise.resolve(false);
-            }
-        };
-
-        this.#initPromise = new Promise(async (resolve, reject) => {
-            // 等待 QWebChannel 可用（在 ESM 模块中需从 window/globalThis 读取）
-            let QWC = getGlobalQWebChannel();
-            if (!QWC) {
-                this.#logger.warn('QWebChannel 未定义，尝试动态注入 /js/qwebchannel.js ...');
-                await ensureQWebChannelScript();
-                const maxWait = 10000; // 最多等待10秒
-                const step = 100;
-                let waited = 0;
-                const t = setInterval(() => {
-                    waited += step;
-                    QWC = getGlobalQWebChannel();
-                    if (QWC) {
-                        clearInterval(t);
-                        this.#logger.info('QWebChannel 已注入');
-                        // 继续后续传输层检查
-                        proceed();
-                    } else if (waited >= maxWait) {
-                        clearInterval(t);
-                        const error = 'QWebChannel 未定义：qwebchannel.js 未能注入或加载超时';
-                        this.#logger.error(error);
-                        reject(new Error(error));
-                    }
-                }, step);
-                return; // 等待回调继续
-            }
-
-            // 检查 Qt WebChannel 传输层是否可用
-            const proceed = () => {
-                // 传输层已就绪，直接连接
-                this.#connectToChannel(resolve, reject);
-            };
-
-            if (!window.qt || !window.qt.webChannelTransport) {
-                this.#logger.warn("Qt WebChannel 传输层未就绪，等待...");
-
-                // 等待传输层就绪（最多等待10秒）
-                const checkInterval = 100;
-                const maxWaitTime = 10000;
-                let elapsedTime = 0;
-
-                const checkTransport = setInterval(() => {
-                    elapsedTime += checkInterval;
-
-                    if (window.qt && window.qt.webChannelTransport) {
-                        clearInterval(checkTransport);
-                        this.#logger.info("Qt WebChannel 传输层已就绪");
-                        proceed();
-                    } else if (elapsedTime >= maxWaitTime) {
-                        clearInterval(checkTransport);
-                        const error = 'Qt WebChannel 传输层超时未就绪';
-                        this.#logger.error(error);
-                        reject(new Error(error));
-                    }
-                }, checkInterval);
-
-                return;
-            }
-
-            // 传输层已就绪，直接连接
-            proceed();
-        });
-
-        return this.#initPromise;
+  async initialize() {
+    // 如果已经初始化，直接返回
+    if (this.#isReady) {
+      this.#logger.debug("QWebChannel 已经初始化，跳过");
+      return;
     }
 
-    /**
+    // 如果正在初始化，等待之前的初始化完成
+    if (this.#initPromise) {
+      this.#logger.debug("QWebChannel 正在初始化，等待完成");
+      return this.#initPromise;
+    }
+
+    // 开始初始化
+    this.#logger.info("开始初始化 QWebChannel...");
+
+    const getGlobalQWebChannel = () => {
+      try { return (typeof window !== "undefined" ? window.QWebChannel : undefined) || (typeof globalThis !== "undefined" ? globalThis.QWebChannel : undefined); }
+      catch (_) { return undefined; }
+    };
+
+    const ensureQWebChannelScript = () => {
+      try {
+        // 若已存在全局对象，直接完成
+        if (getGlobalQWebChannel()) {return Promise.resolve(true);}
+        // 查找已存在的脚本标签
+        const exists = Array.from(document.getElementsByTagName("script")).some(sc => {
+          const src = sc.getAttribute("src") || "";
+          return src.includes("/js/qwebchannel.js") || src.endsWith("qwebchannel.js");
+        });
+        if (exists) {return Promise.resolve(true);}
+        // 动态注入脚本
+        const sc = document.createElement("script");
+        sc.src = "/js/qwebchannel.js";
+        sc.async = false; // 保持执行顺序
+        const p = new Promise((resolve) => {
+          sc.onload = () => resolve(true);
+          sc.onerror = () => resolve(false);
+        });
+        (document.head || document.body || document.documentElement).appendChild(sc);
+        return p;
+      } catch (_) {
+        return Promise.resolve(false);
+      }
+    };
+
+    this.#initPromise = new Promise(async (resolve, reject) => {
+      // 等待 QWebChannel 可用（在 ESM 模块中需从 window/globalThis 读取）
+      let QWC = getGlobalQWebChannel();
+      if (!QWC) {
+        this.#logger.warn("QWebChannel 未定义，尝试动态注入 /js/qwebchannel.js ...");
+        await ensureQWebChannelScript();
+        const maxWait = 10000; // 最多等待10秒
+        const step = 100;
+        let waited = 0;
+        const t = setInterval(() => {
+          waited += step;
+          QWC = getGlobalQWebChannel();
+          if (QWC) {
+            clearInterval(t);
+            this.#logger.info("QWebChannel 已注入");
+            // 继续后续传输层检查
+            proceed();
+          } else if (waited >= maxWait) {
+            clearInterval(t);
+            const error = "QWebChannel 未定义：qwebchannel.js 未能注入或加载超时";
+            this.#logger.error(error);
+            reject(new Error(error));
+          }
+        }, step);
+        return; // 等待回调继续
+      }
+
+      // 检查 Qt WebChannel 传输层是否可用
+      const proceed = () => {
+        // 传输层已就绪，直接连接
+        this.#connectToChannel(resolve, reject);
+      };
+
+      if (!window.qt || !window.qt.webChannelTransport) {
+        this.#logger.warn("Qt WebChannel 传输层未就绪，等待...");
+
+        // 等待传输层就绪（最多等待10秒）
+        const checkInterval = 100;
+        const maxWaitTime = 10000;
+        let elapsedTime = 0;
+
+        const checkTransport = setInterval(() => {
+          elapsedTime += checkInterval;
+
+          if (window.qt && window.qt.webChannelTransport) {
+            clearInterval(checkTransport);
+            this.#logger.info("Qt WebChannel 传输层已就绪");
+            proceed();
+          } else if (elapsedTime >= maxWaitTime) {
+            clearInterval(checkTransport);
+            const error = "Qt WebChannel 传输层超时未就绪";
+            this.#logger.error(error);
+            reject(new Error(error));
+          }
+        }, checkInterval);
+
+        return;
+      }
+
+      // 传输层已就绪，直接连接
+      proceed();
+    });
+
+    return this.#initPromise;
+  }
+
+  /**
      * 连接到 QWebChannel
      * @param {Function} resolve - Promise resolve 函数
      * @param {Function} reject - Promise reject 函数
      * @private
      */
-    #connectToChannel(resolve, reject) {
-        try {
-            this.#logger.info("正在连接 QWebChannel...");
+  #connectToChannel(resolve, reject) {
+    try {
+      this.#logger.info("正在连接 QWebChannel...");
 
-            const QWC = (typeof window !== 'undefined' ? window.QWebChannel : undefined) || (typeof globalThis !== 'undefined' ? globalThis.QWebChannel : undefined);
-            if (!QWC) throw new Error('QWebChannel 全局对象缺失');
-            new QWC(window.qt.webChannelTransport, (channel) => {
-                this.#logger.info("QWebChannel 连接成功");
+      const QWC = (typeof window !== "undefined" ? window.QWebChannel : undefined) || (typeof globalThis !== "undefined" ? globalThis.QWebChannel : undefined);
+      if (!QWC) {throw new Error("QWebChannel 全局对象缺失");}
+      new QWC(window.qt.webChannelTransport, (channel) => {
+        this.#logger.info("QWebChannel 连接成功");
 
-                // 获取 pyqtBridge 对象
-                if (!channel.objects.pyqtBridge) {
-                    const error = 'pyqtBridge 对象未注册';
-                    this.#logger.error(error);
-                    reject(new Error(error));
-                    return;
-                }
-
-                this.#bridge = channel.objects.pyqtBridge;
-                this.#isReady = true;
-
-                this.#logger.info("QWebChannel 初始化完成");
-                this.#logger.debug("可用的桥接方法:", Object.keys(this.#bridge));
-
-                resolve();
-            });
-
-        } catch (error) {
-            this.#logger.error("连接 QWebChannel 失败:", error);
-            reject(error);
+        // 获取 pyqtBridge 对象
+        if (!channel.objects.pyqtBridge) {
+          const error = "pyqtBridge 对象未注册";
+          this.#logger.error(error);
+          reject(new Error(error));
+          return;
         }
-    }
 
-    /**
+        this.#bridge = channel.objects.pyqtBridge;
+        this.#isReady = true;
+
+        this.#logger.info("QWebChannel 初始化完成");
+        this.#logger.debug("可用的桥接方法:", Object.keys(this.#bridge));
+
+        resolve();
+      });
+
+    } catch (error) {
+      this.#logger.error("连接 QWebChannel 失败:", error);
+      reject(error);
+    }
+  }
+
+  /**
      * 检查 QWebChannel 是否已初始化
      * @returns {boolean}
      */
-    isReady() {
-        return this.#isReady;
-    }
+  isReady() {
+    return this.#isReady;
+  }
 
-    /**
+  /**
      * 测试连接
      *
      * 调用 PyQt 端的 testConnection 方法，验证通信是否正常。
@@ -199,34 +199,34 @@ export class QWebChannelBridge {
      * @returns {Promise<string>} 测试消息
      * @throws {Error} 如果 QWebChannel 未初始化
      */
-    async testConnection() {
-        this.#logger.info("调用 testConnection");
+  async testConnection() {
+    this.#logger.info("调用 testConnection");
 
-        if (!this.#isReady) {
-            throw new Error('QWebChannel 未初始化，请先调用 initialize()');
-        }
-
-        try {
-            // 将同步调用包装成 Promise
-            const result = await new Promise((resolve, reject) => {
-                try {
-                    const message = this.#bridge.testConnection();
-                    resolve(message);
-                } catch (error) {
-                    reject(error);
-                }
-            });
-
-            this.#logger.info("testConnection 返回:", result);
-            return result;
-
-        } catch (error) {
-            this.#logger.error("testConnection 失败:", error);
-            throw error;
-        }
+    if (!this.#isReady) {
+      throw new Error("QWebChannel 未初始化，请先调用 initialize()");
     }
 
-    /**
+    try {
+      // 将同步调用包装成 Promise
+      const result = await new Promise((resolve, reject) => {
+        try {
+          const message = this.#bridge.testConnection();
+          resolve(message);
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      this.#logger.info("testConnection 返回:", result);
+      return result;
+
+    } catch (error) {
+      this.#logger.error("testConnection 失败:", error);
+      throw error;
+    }
+  }
+
+  /**
      * 选择文件
      *
      * 调用 PyQt 原生文件选择对话框，让用户选择文件。
@@ -241,45 +241,45 @@ export class QWebChannelBridge {
      * const files = await bridge.selectFiles({ multiple: true, fileType: 'pdf' });
      * // 返回: ['C:/path/file1.pdf', 'C:/path/file2.pdf']
      */
-    async selectFiles(options = {}) {
-        const { multiple = true, fileType = 'pdf' } = options;
+  async selectFiles(options = {}) {
+    const { multiple = true, fileType = "pdf" } = options;
 
-        this.#logger.info(`[阶段2] 调用 selectFiles: multiple=${multiple}, fileType=${fileType}`);
+    this.#logger.info(`[阶段2] 调用 selectFiles: multiple=${multiple}, fileType=${fileType}`);
 
-        if (!this.#isReady) {
-            throw new Error('QWebChannel 未初始化，请先调用 initialize()');
-        }
-
-        try {
-            // 调用 PyQt 方法并包装成 Promise
-            const files = await new Promise((resolve, reject) => {
-                try {
-                    const result = this.#bridge.selectFiles(multiple, fileType);
-                    resolve(result);
-                } catch (error) {
-                    reject(error);
-                }
-            });
-
-            if (!files || files.length === 0) {
-                this.#logger.info('[阶段2] 用户取消了文件选择或未选择文件');
-                return [];
-            }
-
-            this.#logger.info(`[阶段2] 收到 ${files.length} 个文件路径:`);
-            files.forEach((file, i) => {
-                this.#logger.info(`[阶段2]   文件${i + 1}: ${file}`);
-            });
-
-            return files;
-
-        } catch (error) {
-            this.#logger.error('[阶段2] selectFiles 失败:', error);
-            throw error;
-        }
+    if (!this.#isReady) {
+      throw new Error("QWebChannel 未初始化，请先调用 initialize()");
     }
 
-    /**
+    try {
+      // 调用 PyQt 方法并包装成 Promise
+      const files = await new Promise((resolve, reject) => {
+        try {
+          const result = this.#bridge.selectFiles(multiple, fileType);
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      if (!files || files.length === 0) {
+        this.#logger.info("[阶段2] 用户取消了文件选择或未选择文件");
+        return [];
+      }
+
+      this.#logger.info(`[阶段2] 收到 ${files.length} 个文件路径:`);
+      files.forEach((file, i) => {
+        this.#logger.info(`[阶段2]   文件${i + 1}: ${file}`);
+      });
+
+      return files;
+
+    } catch (error) {
+      this.#logger.error("[阶段2] selectFiles 失败:", error);
+      throw error;
+    }
+  }
+
+  /**
      * 显示确认对话框
      *
      * 调用 PyQt 原生确认对话框，让用户确认操作。
@@ -295,194 +295,194 @@ export class QWebChannelBridge {
      *     // 执行删除操作
      * }
      */
-    async showConfirmDialog(title, message) {
-        this.#logger.info(`[删除-阶段1] 调用 showConfirmDialog: title="${title}"`);
-        this.#logger.info(`[删除-阶段1] 消息: ${message}`);
+  async showConfirmDialog(title, message) {
+    this.#logger.info(`[删除-阶段1] 调用 showConfirmDialog: title="${title}"`);
+    this.#logger.info(`[删除-阶段1] 消息: ${message}`);
 
-        if (!this.#isReady) {
-            throw new Error('QWebChannel 未初始化，请先调用 initialize()');
-        }
-
-        try {
-            // 调用 PyQt 方法并包装成 Promise
-            const confirmed = await new Promise((resolve, reject) => {
-                try {
-                    const result = this.#bridge.showConfirmDialog(title, message);
-                    resolve(result);
-                } catch (error) {
-                    reject(error);
-                }
-            });
-
-            this.#logger.info(`[删除-阶段1] 用户选择: ${confirmed ? '确认' : '取消'}`);
-            return confirmed;
-
-        } catch (error) {
-            this.#logger.error('[删除-阶段1] showConfirmDialog 失败:', error);
-            throw error;
-        }
+    if (!this.#isReady) {
+      throw new Error("QWebChannel 未初始化，请先调用 initialize()");
     }
 
-    /**
+    try {
+      // 调用 PyQt 方法并包装成 Promise
+      const confirmed = await new Promise((resolve, reject) => {
+        try {
+          const result = this.#bridge.showConfirmDialog(title, message);
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      this.#logger.info(`[删除-阶段1] 用户选择: ${confirmed ? "确认" : "取消"}`);
+      return confirmed;
+
+    } catch (error) {
+      this.#logger.error("[删除-阶段1] showConfirmDialog 失败:", error);
+      throw error;
+    }
+  }
+
+  /**
      * 获取桥接对象（用于调试）
      * @returns {Object|null} PyQt 桥接对象
      */
-    getBridge() {
-        return this.#bridge;
-    }
+  getBridge() {
+    return this.#bridge;
+  }
 
-    /**
+  /**
      * 批量打开 pdf-viewer 窗口（通过 PyQt 桥接，不使用外部 launcher）。
      * @param {{ pdfIds: string[] }} options
      * @returns {Promise<boolean>} 是否成功触发打开动作
      */
-    async openPdfViewers(options = {}) {
-        const { pdfIds = [], items = null } = options;
-        this.#logger.info(`[阅读] 调用 openPdfViewers, 选中数量=${pdfIds.length}${items ? `, items=${items.length}` : ''}`);
+  async openPdfViewers(options = {}) {
+    const { pdfIds = [], items = null } = options;
+    this.#logger.info(`[阅读] 调用 openPdfViewers, 选中数量=${pdfIds.length}${items ? `, items=${items.length}` : ""}`);
 
-        if (!this.#isReady) {
-            throw new Error('QWebChannel 未初始化，请先调用 initialize()');
-        }
-
-        try {
-            const ok = await new Promise((resolve, reject) => {
-                try {
-                    if (items && typeof this.#bridge.openPdfViewersEx === 'function') {
-                        const result = this.#bridge.openPdfViewersEx({ pdfIds, items });
-                        resolve(!!result);
-                        return;
-                    }
-                    const result = this.#bridge.openPdfViewers(pdfIds);
-                    resolve(!!result);
-                } catch (error) {
-                    reject(error);
-                }
-            });
-            this.#logger.info(`[阅读] openPdfViewers 返回: ${ok}`);
-            return !!ok;
-        } catch (error) {
-            this.#logger.error('[阅读] openPdfViewers 失败:', error);
-            throw error;
-        }
+    if (!this.#isReady) {
+      throw new Error("QWebChannel 未初始化，请先调用 initialize()");
     }
 
-    /**
+    try {
+      const ok = await new Promise((resolve, reject) => {
+        try {
+          if (items && typeof this.#bridge.openPdfViewersEx === "function") {
+            const result = this.#bridge.openPdfViewersEx({ pdfIds, items });
+            resolve(!!result);
+            return;
+          }
+          const result = this.#bridge.openPdfViewers(pdfIds);
+          resolve(!!result);
+        } catch (error) {
+          reject(error);
+        }
+      });
+      this.#logger.info(`[阅读] openPdfViewers 返回: ${ok}`);
+      return !!ok;
+    } catch (error) {
+      this.#logger.error("[阅读] openPdfViewers 失败:", error);
+      throw error;
+    }
+  }
+
+  /**
      * 兼容方法：携带元信息的打开（优先调用 PyQt 的 openPdfViewersEx）
      * @param {{ pdfIds?: string[], items: Array<{ id?: string, filename?: string, file_path?: string }> }} payload
      * @returns {Promise<boolean>}
      */
-    async openPdfViewersWithMeta(payload) {
-        // 通知：统一使用 notification/logger（禁止直接导入 thirdparty-toast）
+  async openPdfViewersWithMeta(payload) {
+    // 通知：统一使用 notification/logger（禁止直接导入 thirdparty-toast）
 
-        this.#logger.info('[QWC步骤1] openPdfViewersWithMeta 被调用', { payload });
+    this.#logger.info("[QWC步骤1] openPdfViewersWithMeta 被调用", { payload });
 
-        if (!this.#isReady) {
-            notifyError("❌ [QWC] QWebChannel 未初始化", 5000);
-            throw new Error('QWebChannel 未初始化，请先调用 initialize()');
-        }
-
-        this.#logger.info('[QWC步骤2] 检查可用方法', {
-            hasOpenPdfViewersEx: typeof this.#bridge.openPdfViewersEx === 'function',
-            hasOpenPdfViewers: typeof this.#bridge.openPdfViewers === 'function',
-            bridgeKeys: Object.keys(this.#bridge || {})
-        });
-
-        try {
-            const result = await new Promise((resolve, reject) => {
-                try {
-                    if (typeof this.#bridge.openPdfViewersEx === 'function') {
-                        this.#logger.info('[QWC步骤3] 调用 openPdfViewersEx', { payload });
-                        const ret = this.#bridge.openPdfViewersEx(payload);
-                        this.#logger.info('[QWC步骤4] openPdfViewersEx 返回', { result: ret });
-                        resolve(ret);
-                    } else if (Array.isArray(payload?.pdfIds)) {
-                        this.#logger.warn('[QWC步骤3] openPdfViewersEx 不存在，回退到 openPdfViewers');
-                        const ret = this.#bridge.openPdfViewers(payload.pdfIds);
-                        this.#logger.info('[QWC步骤4] openPdfViewers 返回', { result: ret });
-                        resolve(ret);
-                    } else {
-                        notifyError("❌ 无可用的PyQt方法", 5000);
-                        this.#logger.error('[QWC] 无可用方法', { payload });
-                        resolve({ success: false, error: '无可用的PyQt方法' });
-                    }
-                } catch (error) {
-                    notifyError(`❌ PyQt 调用异常: ${error.message}`, 5000);
-                    this.#logger.error('[QWC] PyQt 调用失败', error);
-                    reject(error);
-                }
-            });
-
-            // 处理返回值：支持旧的 bool 类型和新的 dict 类型
-            let success = false;
-            let errorInfo = null;
-
-            if (typeof result === 'object' && result !== null) {
-                // 新格式：{ success: bool, error?: string, traceback?: string, ... }
-                success = result.success === true;
-                if (!success && result.error) {
-                    errorInfo = {
-                        message: result.error,
-                        traceback: result.traceback,
-                        step: result.step,
-                        pdf_id: result.pdf_id
-                    };
-                }
-            } else {
-                // 旧格式：bool
-                success = !!result;
-            }
-
-            if (success) {
-                // 最终成功阶段 toast（保留）
-                if (typeof result === 'object' && result.opened_count !== undefined) {
-                    notifySuccess(`✅ 成功打开 ${result.opened_count}/${result.total_count} 个PDF窗口`, 3000);
-                    this.#logger.info('[QWC步骤5] openPdfViewersWithMeta 完成', { result });
-                } else {
-                    notifySuccess("✅ PDF窗口已打开", 3000);
-                    this.#logger.info('[QWC步骤5] openPdfViewersWithMeta 完成', { success });
-                }
-            } else {
-                // 最终失败阶段 toast（保留）
-                if (errorInfo) {
-                    const errorMsg = errorInfo.message || '未知错误';
-                    const step = errorInfo.step || 'unknown';
-                    const pdfId = errorInfo.pdf_id || '';
-
-                    notifyError(`❌ ${errorMsg}`, 5000);
-                    this.#logger.error('[QWC] PyQt 返回错误', errorInfo);
-
-                    // 如果有堆栈跟踪，在控制台输出详细信息
-                    if (errorInfo.traceback) {
-                        this.#logger.error('[QWC] PyQt 堆栈跟踪:', errorInfo.traceback);
-                        console.error('PyQt 后端错误详情：');
-                        console.error(`  步骤: ${step}`);
-                        if (pdfId) console.error(`  PDF ID: ${pdfId}`);
-                        console.error(`  错误: ${errorMsg}`);
-                        console.error('  堆栈跟踪:');
-                        console.error(errorInfo.traceback);
-                    }
-
-                    // 显示建议性的 toast
-                    if (step === 'load_module') {
-                        this.#logger.warn("⚠️ 无法加载 pdf-viewer 模块，请检查项目结构", { toast: { type: "warn", ms: 4000 } });
-                    } else if (step === 'qapp_check') {
-                        this.#logger.warn("⚠️ QApplication 未初始化，请检查 PyQt 环境", { toast: { type: "warn", ms: 4000 } });
-                    } else if (step === 'create_window') {
-                        this.#logger.warn(`⚠️ 创建窗口失败 (PDF: ${pdfId})`, { toast: { type: "warn", ms: 4000 } });
-                    } else if (step === 'show_window') {
-                        this.#logger.warn(`⚠️ 显示窗口失败 (PDF: ${pdfId})`, { toast: { type: "warn", ms: 4000 } });
-                    }
-                } else {
-                    notifyError("❌ PyQt 返回失败", 5000);
-                    this.#logger.warn('[QWC] openPdfViewersWithMeta 返回 false');
-                }
-            }
-
-            return success;
-        } catch (e) {
-            notifyError(`❌ 打开失败: ${e.message}`, 5000);
-            this.#logger.error('[阅读] openPdfViewersWithMeta 失败:', e);
-            throw e;
-        }
+    if (!this.#isReady) {
+      showError("❌ [QWC] QWebChannel 未初始化", 5000);
+      throw new Error("QWebChannel 未初始化，请先调用 initialize()");
     }
+
+    this.#logger.info("[QWC步骤2] 检查可用方法", {
+      hasOpenPdfViewersEx: typeof this.#bridge.openPdfViewersEx === "function",
+      hasOpenPdfViewers: typeof this.#bridge.openPdfViewers === "function",
+      bridgeKeys: Object.keys(this.#bridge || {})
+    });
+
+    try {
+      const result = await new Promise((resolve, reject) => {
+        try {
+          if (typeof this.#bridge.openPdfViewersEx === "function") {
+            this.#logger.info("[QWC步骤3] 调用 openPdfViewersEx", { payload });
+            const ret = this.#bridge.openPdfViewersEx(payload);
+            this.#logger.info("[QWC步骤4] openPdfViewersEx 返回", { result: ret });
+            resolve(ret);
+          } else if (Array.isArray(payload?.pdfIds)) {
+            this.#logger.warn("[QWC步骤3] openPdfViewersEx 不存在，回退到 openPdfViewers");
+            const ret = this.#bridge.openPdfViewers(payload.pdfIds);
+            this.#logger.info("[QWC步骤4] openPdfViewers 返回", { result: ret });
+            resolve(ret);
+          } else {
+            showError("❌ 无可用的PyQt方法", 5000);
+            this.#logger.error("[QWC] 无可用方法", { payload });
+            resolve({ success: false, error: "无可用的PyQt方法" });
+          }
+        } catch (error) {
+          showError(`❌ PyQt 调用异常: ${error.message}`, 5000);
+          this.#logger.error("[QWC] PyQt 调用失败", error);
+          reject(error);
+        }
+      });
+
+      // 处理返回值：支持旧的 bool 类型和新的 dict 类型
+      let success = false;
+      let errorInfo = null;
+
+      if (typeof result === "object" && result !== null) {
+        // 新格式：{ success: bool, error?: string, traceback?: string, ... }
+        success = result.success === true;
+        if (!success && result.error) {
+          errorInfo = {
+            message: result.error,
+            traceback: result.traceback,
+            step: result.step,
+            pdf_id: result.pdf_id
+          };
+        }
+      } else {
+        // 旧格式：bool
+        success = !!result;
+      }
+
+      if (success) {
+        // 最终成功阶段 toast（保留）
+        if (typeof result === "object" && result.opened_count !== undefined) {
+          showSuccess(`✅ 成功打开 ${result.opened_count}/${result.total_count} 个PDF窗口`, 3000);
+          this.#logger.info("[QWC步骤5] openPdfViewersWithMeta 完成", { result });
+        } else {
+          showSuccess("✅ PDF窗口已打开", 3000);
+          this.#logger.info("[QWC步骤5] openPdfViewersWithMeta 完成", { success });
+        }
+      } else {
+        // 最终失败阶段 toast（保留）
+        if (errorInfo) {
+          const errorMsg = errorInfo.message || "未知错误";
+          const step = errorInfo.step || "unknown";
+          const pdfId = errorInfo.pdf_id || "";
+
+          showError(`❌ ${errorMsg}`, 5000);
+          this.#logger.error("[QWC] PyQt 返回错误", errorInfo);
+
+          // 如果有堆栈跟踪，在控制台输出详细信息
+          if (errorInfo.traceback) {
+            this.#logger.error("[QWC] PyQt 堆栈跟踪:", errorInfo.traceback);
+            console.error("PyQt 后端错误详情：");
+            console.error(`  步骤: ${step}`);
+            if (pdfId) {console.error(`  PDF ID: ${pdfId}`);}
+            console.error(`  错误: ${errorMsg}`);
+            console.error("  堆栈跟踪:");
+            console.error(errorInfo.traceback);
+          }
+
+          // 显示建议性的 toast
+          if (step === "load_module") {
+            this.#logger.warn("⚠️ 无法加载 pdf-viewer 模块，请检查项目结构", { toast: { type: "warn", ms: 4000 } });
+          } else if (step === "qapp_check") {
+            this.#logger.warn("⚠️ QApplication 未初始化，请检查 PyQt 环境", { toast: { type: "warn", ms: 4000 } });
+          } else if (step === "create_window") {
+            this.#logger.warn(`⚠️ 创建窗口失败 (PDF: ${pdfId})`, { toast: { type: "warn", ms: 4000 } });
+          } else if (step === "show_window") {
+            this.#logger.warn(`⚠️ 显示窗口失败 (PDF: ${pdfId})`, { toast: { type: "warn", ms: 4000 } });
+          }
+        } else {
+          showError("❌ PyQt 返回失败", 5000);
+          this.#logger.warn("[QWC] openPdfViewersWithMeta 返回 false");
+        }
+      }
+
+      return success;
+    } catch (e) {
+      showError(`❌ 打开失败: ${e.message}`, 5000);
+      this.#logger.error("[阅读] openPdfViewersWithMeta 失败:", e);
+      throw e;
+    }
+  }
 }

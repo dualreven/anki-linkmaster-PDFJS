@@ -3,7 +3,7 @@
  * @module UIManagerFeature
  */
 
-import { UIManagerCore } from './components/ui-manager-core.js';
+import { UIManagerCore } from "./components/ui-manager-core.js";
 
 /**
  * UI管理器功能域
@@ -15,17 +15,17 @@ export class UIManagerFeature {
 
   /** 功能名称 */
   get name() {
-    return 'ui-manager';
+    return "ui-manager";
   }
 
   /** 版本号 */
   get version() {
-    return '1.0.0';
+    return "1.0.0";
   }
 
   /** 依赖的功能 */
   get dependencies() {
-    return ['pdf-manager']; // UI Manager 依赖 PDF Manager
+    return ["pdf-manager"]; // UI Manager 依赖 PDF Manager
   }
 
   /**
@@ -35,7 +35,7 @@ export class UIManagerFeature {
   async install(context) {
     const { container, globalEventBus, logger } = context;
 
-    logger.info('Installing UIManagerFeature...');
+    logger.info("Installing UIManagerFeature...");
 
     // 创建 UIManager 实例
     this.#uiManager = new UIManagerCore(globalEventBus);
@@ -46,13 +46,13 @@ export class UIManagerFeature {
     // 注册 pdfViewerManager 到全局容器（供其他 Feature 使用，如 SearchFeature）
     // 使用 registerGlobal 确保所有 Feature 都能访问
     if (this.#uiManager.pdfViewerManager) {
-      container.registerGlobal('pdfViewerManager', this.#uiManager.pdfViewerManager);
-      logger.info('✅ PDFViewerManager registered to global container');
+      container.registerGlobal("pdfViewerManager", this.#uiManager.pdfViewerManager);
+      logger.info("✅ PDFViewerManager registered to global container");
     } else {
-      logger.warn('⚠️ PDFViewerManager not available from UIManagerCore');
+      logger.warn("⚠️ PDFViewerManager not available from UIManagerCore");
     }
 
-    logger.info('UIManagerFeature installed successfully');
+    logger.info("UIManagerFeature installed successfully");
   }
 
   /**
@@ -62,14 +62,14 @@ export class UIManagerFeature {
   async uninstall(context) {
     const { logger } = context;
 
-    logger.info('Uninstalling UIManagerFeature...');
+    logger.info("Uninstalling UIManagerFeature...");
 
     if (this.#uiManager) {
       this.#uiManager.destroy();
       this.#uiManager = null;
     }
 
-    logger.info('UIManagerFeature uninstalled');
+    logger.info("UIManagerFeature uninstalled");
   }
 
   /**

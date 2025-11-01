@@ -33,12 +33,12 @@ export class FloatingColorToolbar {
    */
   constructor(options = {}) {
     this.#colors = options.colors || [
-      '#ffeb3b', // 黄色
-      '#4caf50', // 绿色
-      '#2196f3', // 蓝色
-      '#ff9800', // 橙色
-      '#e91e63', // 粉色
-      '#9c27b0'  // 紫色
+      "#ffeb3b", // 黄色
+      "#4caf50", // 绿色
+      "#2196f3", // 蓝色
+      "#ff9800", // 橙色
+      "#e91e63", // 粉色
+      "#9c27b0"  // 紫色
     ];
 
     this.#onColorSelectedCallback = options.onColorSelected || null;
@@ -53,8 +53,8 @@ export class FloatingColorToolbar {
    */
   #createToolbar() {
     // 创建工具栏容器
-    this.#toolbarEl = document.createElement('div');
-    this.#toolbarEl.className = 'floating-color-toolbar';
+    this.#toolbarEl = document.createElement("div");
+    this.#toolbarEl.className = "floating-color-toolbar";
     this.#toolbarEl.style.cssText = `
       position: absolute;
       z-index: 10000;
@@ -71,9 +71,9 @@ export class FloatingColorToolbar {
 
     // 创建颜色按钮
     this.#colors.forEach(color => {
-      const colorBtn = document.createElement('button');
-      colorBtn.type = 'button';
-      colorBtn.className = 'color-option';
+      const colorBtn = document.createElement("button");
+      colorBtn.type = "button";
+      colorBtn.className = "color-option";
       colorBtn.style.cssText = `
         width: 32px;
         height: 32px;
@@ -88,18 +88,18 @@ export class FloatingColorToolbar {
       colorBtn.title = `高亮颜色: ${color}`;
 
       // 鼠标悬停效果
-      colorBtn.addEventListener('mouseenter', () => {
-        colorBtn.style.transform = 'scale(1.15)';
-        colorBtn.style.borderColor = '#666';
+      colorBtn.addEventListener("mouseenter", () => {
+        colorBtn.style.transform = "scale(1.15)";
+        colorBtn.style.borderColor = "#666";
       });
 
-      colorBtn.addEventListener('mouseleave', () => {
-        colorBtn.style.transform = 'scale(1)';
-        colorBtn.style.borderColor = '#ccc';
+      colorBtn.addEventListener("mouseleave", () => {
+        colorBtn.style.transform = "scale(1)";
+        colorBtn.style.borderColor = "#ccc";
       });
 
       // 点击选择颜色
-      colorBtn.addEventListener('click', (e) => {
+      colorBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         this.#handleColorSelected(color);
       });
@@ -108,11 +108,11 @@ export class FloatingColorToolbar {
     });
 
     // 创建取消按钮
-    const cancelBtn = document.createElement('button');
-    cancelBtn.type = 'button';
-    cancelBtn.className = 'cancel-btn';
-    cancelBtn.textContent = '✕';
-    cancelBtn.title = '取消高亮';
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "cancel-btn";
+    cancelBtn.textContent = "✕";
+    cancelBtn.title = "取消高亮";
     cancelBtn.style.cssText = `
       width: 32px;
       height: 32px;
@@ -129,19 +129,19 @@ export class FloatingColorToolbar {
       outline: none;
     `;
 
-    cancelBtn.addEventListener('mouseenter', () => {
-      cancelBtn.style.transform = 'scale(1.15)';
-      cancelBtn.style.borderColor = '#666';
-      cancelBtn.style.color = '#333';
+    cancelBtn.addEventListener("mouseenter", () => {
+      cancelBtn.style.transform = "scale(1.15)";
+      cancelBtn.style.borderColor = "#666";
+      cancelBtn.style.color = "#333";
     });
 
-    cancelBtn.addEventListener('mouseleave', () => {
-      cancelBtn.style.transform = 'scale(1)';
-      cancelBtn.style.borderColor = '#ccc';
-      cancelBtn.style.color = '#666';
+    cancelBtn.addEventListener("mouseleave", () => {
+      cancelBtn.style.transform = "scale(1)";
+      cancelBtn.style.borderColor = "#ccc";
+      cancelBtn.style.color = "#666";
     });
 
-    cancelBtn.addEventListener('click', (e) => {
+    cancelBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       this.#handleCancel();
     });
@@ -152,7 +152,7 @@ export class FloatingColorToolbar {
     document.body.appendChild(this.#toolbarEl);
 
     // 点击外部隐藏工具栏
-    document.addEventListener('mousedown', this.#handleOutsideClick.bind(this));
+    document.addEventListener("mousedown", this.#handleOutsideClick.bind(this));
   }
 
   /**
@@ -228,7 +228,7 @@ export class FloatingColorToolbar {
 
     this.#toolbarEl.style.left = `${left}px`;
     this.#toolbarEl.style.top = `${top}px`;
-    this.#toolbarEl.style.display = 'flex';
+    this.#toolbarEl.style.display = "flex";
     this.#isVisible = true;
   }
 
@@ -236,7 +236,7 @@ export class FloatingColorToolbar {
    * 隐藏工具栏
    */
   hide() {
-    this.#toolbarEl.style.display = 'none';
+    this.#toolbarEl.style.display = "none";
     this.#isVisible = false;
   }
 

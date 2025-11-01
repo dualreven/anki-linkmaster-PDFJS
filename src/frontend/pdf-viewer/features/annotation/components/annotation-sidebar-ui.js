@@ -6,9 +6,9 @@
 
 import { getLogger } from "../../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
-import { showSuccess as notifySuccess, showError as notifyError } from "../../../../common/utils/notification.js";
-import { showInfo as notifyInfo } from "../../../../common/utils/notification.js";
-import { AnnotationType } from '../models/index.js';
+import { showSuccess, showError } from "../../../../common/utils/notification.js";
+import { showInfo } from "../../../../common/utils/notification.js";
+import { AnnotationType } from "../models/index.js";
 
 /**
  * 标注侧边栏UI类
@@ -42,7 +42,7 @@ export class AnnotationSidebarUI {
    */
   constructor(eventBus, options = {}) {
     this.#eventBus = eventBus;
-    this.#logger = getLogger('AnnotationSidebarUI');
+    this.#logger = getLogger("AnnotationSidebarUI");
     this.#container = null;
   }
 
@@ -50,7 +50,7 @@ export class AnnotationSidebarUI {
    * 初始化侧边栏（仅创建内容元素）
    */
   initialize() {
-    this.#logger.info('Initializing annotation sidebar UI (content only)');
+    this.#logger.info("Initializing annotation sidebar UI (content only)");
 
     // 创建内容容器
     this.#createContent();
@@ -61,9 +61,9 @@ export class AnnotationSidebarUI {
     // 统一为所有标注卡片绑定跳转按钮的委托点击（避免各工具各自实现导致不一致）
     try {
       this.#setupCardClickDelegation();
-      this.#logger.info('Card click delegation for jump initialized');
+      this.#logger.info("Card click delegation for jump initialized");
     } catch (e) {
-      this.#logger.warn('Failed to setup card click delegation', e);
+      this.#logger.warn("Failed to setup card click delegation", e);
     }
   }
 
@@ -73,40 +73,40 @@ export class AnnotationSidebarUI {
    */
   #createContent() {
     if (this.#container) {
-      this.#logger.debug('Content already exists');
+      this.#logger.debug("Content already exists");
       return;
     }
 
     // 主容器（flex布局）
-    const container = document.createElement('div');
-    container.className = 'annotation-sidebar-container';
+    const container = document.createElement("div");
+    container.className = "annotation-sidebar-container";
     container.style.cssText = [
-      'display: flex',
-      'flex-direction: column',
-      'height: 100%',
-      'width: 100%',
-      'overflow: hidden',
-      'background: #ffffff'
-    ].join(';');
+      "display: flex",
+      "flex-direction: column",
+      "height: 100%",
+      "width: 100%",
+      "overflow: hidden",
+      "background: #ffffff"
+    ].join(";");
 
     // 创建Header（包含工具栏）
     this.#sidebarHeader = this.#createHeader();
     container.appendChild(this.#sidebarHeader);
 
     // 创建内容区域
-    const content = document.createElement('div');
-    content.className = 'annotation-sidebar-content';
+    const content = document.createElement("div");
+    content.className = "annotation-sidebar-content";
     content.style.cssText = [
-      'flex: 1',
-      'overflow-y: auto',
-      'padding: 12px',
-      'box-sizing: border-box'
-    ].join(';');
+      "flex: 1",
+      "overflow-y: auto",
+      "padding: 12px",
+      "box-sizing: border-box"
+    ].join(";");
     container.appendChild(content);
     this.#sidebarContent = content;
 
     this.#container = container;
-    this.#logger.debug('Content created');
+    this.#logger.debug("Content created");
   }
 
   /**
@@ -126,24 +126,24 @@ export class AnnotationSidebarUI {
    */
   #setupCardClickDelegation() {
     const root = this.#sidebarContent || this.#container;
-    if (!root) return;
+    if (!root) {return;}
 
-    root.addEventListener('click', (evt) => {
+    root.addEventListener("click", (evt) => {
       try {
         const target = /** @type {HTMLElement} */(evt.target);
-        const jumpBtn = target?.closest ? target.closest('.jump-btn') : null;
-        if (!jumpBtn) return;
+        const jumpBtn = target?.closest ? target.closest(".jump-btn") : null;
+        if (!jumpBtn) {return;}
 
-        const annId = jumpBtn.getAttribute('data-annotation-id') || jumpBtn.dataset.annotationId;
+        const annId = jumpBtn.getAttribute("data-annotation-id") || jumpBtn.dataset.annotationId;
         if (!annId) {
           // 严格模式：不合规立即报错 + toast（统一使用 logger 的 toast）
-          this.#logger.error('[AnnotationSidebarUI] 跳转按钮缺少 data-annotation-id', { btn: jumpBtn }, { toast: { type: 'error', ms: 4000 } });
+          this.#logger.error("[AnnotationSidebarUI] 跳转按钮缺少 data-annotation-id", { btn: jumpBtn }, { toast: { type: "error", ms: 4000 } });
           return;
         }
         this.#handleCardJump(String(annId));
       } catch (e) {
         // 严格模式：异常即报错 + toast（统一使用 logger 的 toast）
-        try { this.#logger.error('Card jump handler failed', e, { toast: { type: 'error', ms: 4000 } }); } catch { /* no-op */ }
+        try { this.#logger.error("Card jump handler failed", e, { toast: { type: "error", ms: 4000 } }); } catch { /* no-op */ }
       }
     }, { passive: true });
   }
@@ -158,7 +158,7 @@ export class AnnotationSidebarUI {
       const ann = (this.#annotations || []).find(a => a?.id === annotationId);
       if (!ann) {
         // 严格模式：未找到标注即报错 + toast
-      this.#logger.error(`[AnnotationSidebarUI] 未找到标注，无法跳转 id=${annotationId}`, null, { toast: { type: 'error', ms: 4000 } });
+        this.#logger.error(`[AnnotationSidebarUI] 未找到标注，无法跳转 id=${annotationId}`, null, { toast: { type: "error", ms: 4000 } });
         return;
       }
 
@@ -166,15 +166,15 @@ export class AnnotationSidebarUI {
       this.#eventBus.emitGlobal(
         PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
         { annotation: ann },
-        { actorId: 'AnnotationSidebarUI' }
+        { actorId: "AnnotationSidebarUI" }
       );
 
       // 通知各工具跳转成功（用于渲染标记等），尽量兼容已有监听方
       try {
         this.#eventBus.emitGlobal(
-          PDF_VIEWER_EVENTS.ANNOTATION?.NAVIGATION?.JUMP_SUCCESS || 'annotation:navigation:jump:success',
+          PDF_VIEWER_EVENTS.ANNOTATION?.NAVIGATION?.JUMP_SUCCESS || "annotation:navigation:jump:success",
           { annotation: ann },
-          { actorId: 'AnnotationSidebarUI' }
+          { actorId: "AnnotationSidebarUI" }
         );
       } catch (_) {}
 
@@ -183,7 +183,7 @@ export class AnnotationSidebarUI {
 
       this.#logger.info(`[AnnotationSidebarUI] Jump requested (strict): id=${ann.id} page=${ann.pageNumber}`);
     } catch (e) {
-      this.#logger.error('Failed to handle card jump (strict)', e, { toast: { type: 'error', ms: 4000 } });
+      this.#logger.error("Failed to handle card jump (strict)", e, { toast: { type: "error", ms: 4000 } });
     }
   }
 
@@ -193,15 +193,15 @@ export class AnnotationSidebarUI {
    * @private
    */
   #createHeader() {
-    const header = document.createElement('div');
-    header.className = 'annotation-sidebar-header';
+    const header = document.createElement("div");
+    header.className = "annotation-sidebar-header";
     header.style.cssText = [
-      'padding: 8px',  // 第二期：从12px减少到8px，使工具栏更紧凑
-      'border-bottom: 1px solid #eee',
-      'background: #fafafa',
-      'box-sizing: border-box',
-      'flex-shrink: 0'
-    ].join(';');
+      "padding: 8px",  // 第二期：从12px减少到8px，使工具栏更紧凑
+      "border-bottom: 1px solid #eee",
+      "background: #fafafa",
+      "box-sizing: border-box",
+      "flex-shrink: 0"
+    ].join(";");
 
     // 工具栏
     const toolbar = this.#createToolbar();
@@ -216,80 +216,80 @@ export class AnnotationSidebarUI {
    * @private
    */
   #createToolbar() {
-    const toolbar = document.createElement('div');
-    toolbar.className = 'annotation-toolbar';
+    const toolbar = document.createElement("div");
+    toolbar.className = "annotation-toolbar";
     toolbar.style.cssText = [
-      'display: flex',
-      'gap: 4px',
-      'align-items: center'
-    ].join(';');
+      "display: flex",
+      "gap: 4px",
+      "align-items: center"
+    ].join(";");
 
     // 工具按钮配置（第二期：新增筛选、排序和设置按钮）
     const tools = [
-      { id: 'screenshot', icon: '📷', title: '截图标注' },
-      { id: 'text-highlight', icon: '✏️', title: '选字高亮' },
-      { id: 'comment', icon: '📝', title: '批注' },
-      { id: 'filter', icon: '🔍', title: '筛选标注' },
-      { id: 'sort', icon: '↕️', title: '排序标注' },
-      { id: 'settings', icon: '⚙️', title: '设置' }
+      { id: "screenshot", icon: "📷", title: "截图标注" },
+      { id: "text-highlight", icon: "✏️", title: "选字高亮" },
+      { id: "comment", icon: "📝", title: "批注" },
+      { id: "filter", icon: "🔍", title: "筛选标注" },
+      { id: "sort", icon: "↕️", title: "排序标注" },
+      { id: "settings", icon: "⚙️", title: "设置" }
     ];
 
     tools.forEach(tool => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
+      const btn = document.createElement("button");
+      btn.type = "button";
       btn.className = `annotation-tool-btn annotation-tool-${tool.id}`;
       btn.dataset.tool = tool.id;
       btn.title = tool.title; // Tooltip提示
 
       // 标记是否为标注工具（用于状态更新）
-      const isAnnotationTool = !['filter', 'sort', 'settings'].includes(tool.id);
+      const isAnnotationTool = !["filter", "sort", "settings"].includes(tool.id);
       if (isAnnotationTool) {
-        btn.dataset.isTool = 'true';
+        btn.dataset.isTool = "true";
       }
 
       btn.style.cssText = [
-        'display: flex',
-        'align-items: center',
-        'justify-content: center',
-        'width: 28px',
-        'height: 28px',
-        'padding: 0',
-        'border: 1px solid #ddd',
-        'background: #fff',
-        'border-radius: 4px',
-        'cursor: pointer',
-        'transition: all 0.2s',
-        'font-size: 16px',
-        'color: #666'
-      ].join(';');
+        "display: flex",
+        "align-items: center",
+        "justify-content: center",
+        "width: 28px",
+        "height: 28px",
+        "padding: 0",
+        "border: 1px solid #ddd",
+        "background: #fff",
+        "border-radius: 4px",
+        "cursor: pointer",
+        "transition: all 0.2s",
+        "font-size: 16px",
+        "color: #666"
+      ].join(";");
 
       // 仅图标，不显示文字
-      const iconSpan = document.createElement('span');
+      const iconSpan = document.createElement("span");
       iconSpan.textContent = tool.icon;
-      iconSpan.style.lineHeight = '1';
+      iconSpan.style.lineHeight = "1";
 
       btn.appendChild(iconSpan);
 
       // 根据按钮类型绑定不同的处理器
-      if (tool.id === 'filter' || tool.id === 'sort' || tool.id === 'settings') {
+      if (tool.id === "filter" || tool.id === "sort" || tool.id === "settings") {
         // 筛选、排序和设置按钮的点击处理（第二期功能）
-        btn.addEventListener('click', () => this.#handleUtilityButtonClick(tool.id));
+        btn.addEventListener("click", () => this.#handleUtilityButtonClick(tool.id));
       } else {
         // 标注工具按钮的点击处理
-        btn.addEventListener('click', () => this.#handleToolClick(tool.id));
+        btn.addEventListener("click", () => this.#handleToolClick(tool.id));
       }
 
       // 悬停效果
-      btn.addEventListener('mouseenter', () => {
+      btn.addEventListener("mouseenter", () => {
         if (this.#activeTool !== tool.id) {
-          btn.style.background = '#f5f5f5';
-          btn.style.borderColor = '#bbb';
+          btn.style.background = "#f5f5f5";
+          btn.style.borderColor = "#bbb";
         }
       });
-      btn.addEventListener('mouseleave', () => {
+      btn.addEventListener("mouseleave", () => {
         if (this.#activeTool !== tool.id) {
-          btn.style.background = '#fff';
-          btn.style.borderColor = '#ddd';
+          btn.style.background = "#fff";
+          btn.style.borderColor = "#ddd";
         }
       });
 
@@ -343,13 +343,13 @@ export class AnnotationSidebarUI {
    */
   #showModeToast(toolId) {
     const modeNames = {
-      'screenshot': '📷 已启动截图模式',
-      'text-highlight': '✏️ 已启动选字模式',
-      'comment': '📝 已启动批注模式'
+      "screenshot": "📷 已启动截图模式",
+      "text-highlight": "✏️ 已启动选字模式",
+      "comment": "📝 已启动批注模式"
     };
 
     const message = modeNames[toolId] || `已启动${toolId}模式`;
-    notifyInfo(message);
+    showInfo(message);
   }
 
   /**
@@ -362,23 +362,23 @@ export class AnnotationSidebarUI {
 
     // 根据按钮类型执行不同操作
     switch (buttonId) {
-      case 'filter':
-        // 切换筛选面板显示状态（第二期功能）
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.FILTER_TOGGLE, {});
-        notifyInfo('筛选功能开发中...');
-        break;
-      case 'sort':
-        // 切换排序面板显示状态（第二期功能）
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.SORT_TOGGLE, {});
-        notifyInfo('排序功能开发中...');
-        break;
-      case 'settings':
-        // 打开设置面板（预留功能）
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.SETTINGS_OPEN, {});
-        notifyInfo('设置功能开发中...');
-        break;
-      default:
-        this.#logger.warn(`Unknown utility button: ${buttonId}`);
+    case "filter":
+      // 切换筛选面板显示状态（第二期功能）
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.FILTER_TOGGLE, {});
+      showInfo("筛选功能开发中...");
+      break;
+    case "sort":
+      // 切换排序面板显示状态（第二期功能）
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.SORT_TOGGLE, {});
+      showInfo("排序功能开发中...");
+      break;
+    case "settings":
+      // 打开设置面板（预留功能）
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.SETTINGS_OPEN, {});
+      showInfo("设置功能开发中...");
+      break;
+    default:
+      this.#logger.warn(`Unknown utility button: ${buttonId}`);
     }
   }
 
@@ -387,28 +387,28 @@ export class AnnotationSidebarUI {
    * @private
    */
   #updateToolbarState() {
-    if (!this.#container) return;
+    if (!this.#container) {return;}
 
     // 只更新标注工具按钮（不包括筛选、设置等辅助按钮）
-    const buttons = this.#container.querySelectorAll('.annotation-tool-btn[data-is-tool="true"]');
+    const buttons = this.#container.querySelectorAll(".annotation-tool-btn[data-is-tool=\"true\"]");
     buttons.forEach(btn => {
       const toolId = btn.dataset.tool;
       if (toolId === this.#activeTool) {
         // 激活状态：蓝色高亮
-        btn.style.background = '#e3f2fd';
-        btn.style.borderColor = '#2196f3';
-        btn.style.color = '#1976d2';
-        btn.style.fontWeight = '500';
+        btn.style.background = "#e3f2fd";
+        btn.style.borderColor = "#2196f3";
+        btn.style.color = "#1976d2";
+        btn.style.fontWeight = "500";
       } else {
         // 未激活状态：默认样式
-        btn.style.background = '#fff';
-        btn.style.borderColor = '#ddd';
-        btn.style.color = '#666';
-        btn.style.fontWeight = 'normal';
+        btn.style.background = "#fff";
+        btn.style.borderColor = "#ddd";
+        btn.style.color = "#666";
+        btn.style.fontWeight = "normal";
       }
     });
 
-    this.#logger.debug(`Toolbar state updated, active tool: ${this.#activeTool || 'none'}`);
+    this.#logger.debug(`Toolbar state updated, active tool: ${this.#activeTool || "none"}`);
   }
 
   /**
@@ -420,26 +420,26 @@ export class AnnotationSidebarUI {
     this.#unsubs.push(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANNOTATION.CREATED,
       (data) => this.addAnnotationCard(data.annotation),
-      { subscriberId: 'AnnotationSidebarUI' }
+      { subscriberId: "AnnotationSidebarUI" }
     ));
 
     this.#unsubs.push(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANNOTATION.UPDATED,
       (data) => this.updateAnnotationCard(data.annotation),
-      { subscriberId: 'AnnotationSidebarUI' }
+      { subscriberId: "AnnotationSidebarUI" }
     ));
 
     this.#unsubs.push(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANNOTATION.DELETED,
       (data) => this.removeAnnotationCard(data.id),
-      { subscriberId: 'AnnotationSidebarUI' }
+      { subscriberId: "AnnotationSidebarUI" }
     ));
 
     // 监听标注加载完成
     this.#unsubs.push(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED,
       (data) => this.render(data.annotations || []),
-      { subscriberId: 'AnnotationSidebarUI' }
+      { subscriberId: "AnnotationSidebarUI" }
     ));
 
     // 监听工具停用（如按ESC键或外部触发）
@@ -452,7 +452,7 @@ export class AnnotationSidebarUI {
 
         if (!deactivatedTool) {
           // 没有指定工具，清空所有（如按ESC键全局停用）
-          this.#logger.debug('All tools deactivated (no specific tool specified)');
+          this.#logger.debug("All tools deactivated (no specific tool specified)");
           this.#activeTool = null;
           this.#updateToolbarState();
         } else if (deactivatedTool === this.#activeTool) {
@@ -465,28 +465,28 @@ export class AnnotationSidebarUI {
           this.#logger.debug(`Tool deactivated: ${deactivatedTool}, but active tool is ${this.#activeTool}, ignoring`);
         }
       },
-      { subscriberId: 'AnnotationSidebarUI' }
+      { subscriberId: "AnnotationSidebarUI" }
     ));
 
     // 监听标注选择事件（点击标记时）
     this.#unsubs.push(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANNOTATION.SELECT,
       (data) => this.highlightAndScrollToCard(data.id),
-      { subscriberId: 'AnnotationSidebarUI' }
+      { subscriberId: "AnnotationSidebarUI" }
     ));
 
     // 监听侧边栏关闭事件（第二期：关闭时停用所有工具）
     this.#unsubs.push(this.#eventBus.onGlobal(
       PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.CLOSED_COMPLETED,
       (data) => this.#handleSidebarClosed(data),
-      { subscriberId: 'AnnotationSidebarUI' }
+      { subscriberId: "AnnotationSidebarUI" }
     ));
 
     // 监听评论添加事件（第二期：新增）
     this.#unsubs.push(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANNOTATION.COMMENT.ADDED,
       (data) => this.#handleCommentAdded(data),
-      { subscriberId: 'AnnotationSidebarUI' }
+      { subscriberId: "AnnotationSidebarUI" }
     ));
   }
 
@@ -498,25 +498,25 @@ export class AnnotationSidebarUI {
    */
   #handleSidebarClosed(data) {
     // 只处理annotation侧边栏关闭事件
-    if (data?.sidebarId !== 'annotation') {
+    if (data?.sidebarId !== "annotation") {
       return;
     }
 
-    this.#logger.info('Annotation sidebar closed, deactivating all tools');
+    this.#logger.info("Annotation sidebar closed, deactivating all tools");
 
     // 记录当前激活的工具（在发送停用事件前）
     const deactivatedTool = this.#activeTool;
 
     // 发出工具停用请求事件（ToolRegistry会处理实际停用）
-    this.#eventBus.emit('annotation-tool:deactivate:requested', {});
-    this.#logger.info(`Tool deactivate requested due to sidebar close`);
+    this.#eventBus.emit("annotation-tool:deactivate:requested", {});
+    this.#logger.info("Tool deactivate requested due to sidebar close");
 
     // 清空本地状态
     this.#activeTool = null;
     this.#updateToolbarState();
 
     // 业务要求：关闭侧边栏时不再弹出任何 toast 提示（静默处理）
-    this.#logger.info('Annotation sidebar closed (silent, no toast)');
+    this.#logger.info("Annotation sidebar closed (silent, no toast)");
   }
 
   /**
@@ -533,7 +533,7 @@ export class AnnotationSidebarUI {
 
     // 如果是本地添加（已经更新），跳过处理
     if (skipUpdate) {
-      this.#logger.debug(`Comment already added locally, skipping update`);
+      this.#logger.debug("Comment already added locally, skipping update");
       return;
     }
 
@@ -561,12 +561,12 @@ export class AnnotationSidebarUI {
     this.#logger.debug(`Rendering ${this.#annotations.length} annotations`);
 
     if (!this.#sidebarContent) {
-      this.#logger.warn('Sidebar content not found');
+      this.#logger.warn("Sidebar content not found");
       return;
     }
 
     // 清空现有内容
-    this.#sidebarContent.innerHTML = '';
+    this.#sidebarContent.innerHTML = "";
     this.#annotationCards.clear();
 
     if (this.#annotations.length === 0) {
@@ -592,27 +592,27 @@ export class AnnotationSidebarUI {
    * @private
    */
   #renderEmpty() {
-    this.#sidebarContent.innerHTML = '';
+    this.#sidebarContent.innerHTML = "";
 
-    const emptyDiv = document.createElement('div');
-    emptyDiv.className = 'annotation-empty';
+    const emptyDiv = document.createElement("div");
+    emptyDiv.className = "annotation-empty";
     emptyDiv.style.cssText = [
-      'text-align: center',
-      'padding: 40px 20px',
-      'color: #999',
-      'font-size: 14px'
-    ].join(';');
+      "text-align: center",
+      "padding: 40px 20px",
+      "color: #999",
+      "font-size: 14px"
+    ].join(";");
 
-    const icon = document.createElement('div');
-    icon.textContent = '📝';
-    icon.style.cssText = 'font-size: 48px; margin-bottom: 16px;';
+    const icon = document.createElement("div");
+    icon.textContent = "📝";
+    icon.style.cssText = "font-size: 48px; margin-bottom: 16px;";
 
-    const message = document.createElement('div');
-    message.textContent = '暂无标注';
+    const message = document.createElement("div");
+    message.textContent = "暂无标注";
 
-    const hint = document.createElement('div');
-    hint.textContent = '🖱️ 点击上方工具按钮开始标注';
-    hint.style.cssText = 'margin-top: 8px; font-size: 12px; color: #bbb;';
+    const hint = document.createElement("div");
+    hint.textContent = "🖱️ 点击上方工具按钮开始标注";
+    hint.style.cssText = "margin-top: 8px; font-size: 12px; color: #bbb;";
 
     emptyDiv.appendChild(icon);
     emptyDiv.appendChild(message);
@@ -628,112 +628,112 @@ export class AnnotationSidebarUI {
    * @private
    */
   #createAnnotationCard(annotation) {
-    const card = document.createElement('div');
-    card.className = 'annotation-card';
+    const card = document.createElement("div");
+    card.className = "annotation-card";
     card.dataset.annotationId = annotation.id;
     card.style.cssText = [
-      'border: 1px solid #e0e0e0',
-      'border-radius: 8px',
-      'padding: 12px',
-      'margin-bottom: 12px',
-      'background: #fff',
-      'transition: all 0.2s',
-      'cursor: pointer'
-    ].join(';');
+      "border: 1px solid #e0e0e0",
+      "border-radius: 8px",
+      "padding: 12px",
+      "margin-bottom: 12px",
+      "background: #fff",
+      "transition: all 0.2s",
+      "cursor: pointer"
+    ].join(";");
 
     // 悬停效果
-    card.addEventListener('mouseenter', () => {
-      card.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-      card.style.borderColor = '#bbb';
+    card.addEventListener("mouseenter", () => {
+      card.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
+      card.style.borderColor = "#bbb";
     });
-    card.addEventListener('mouseleave', () => {
-      card.style.boxShadow = 'none';
-      card.style.borderColor = '#e0e0e0';
+    card.addEventListener("mouseleave", () => {
+      card.style.boxShadow = "none";
+      card.style.borderColor = "#e0e0e0";
     });
 
     // 卡片头部（类型图标 + 页码）
-    const header = document.createElement('div');
+    const header = document.createElement("div");
     header.style.cssText = [
-      'display: flex',
-      'align-items: center',
-      'justify-content: space-between',
-      'margin-bottom: 8px'
-    ].join(';');
+      "display: flex",
+      "align-items: center",
+      "justify-content: space-between",
+      "margin-bottom: 8px"
+    ].join(";");
 
-    const typeInfo = document.createElement('div');
-    typeInfo.style.cssText = 'display: flex; align-items: center; gap: 6px;';
+    const typeInfo = document.createElement("div");
+    typeInfo.style.cssText = "display: flex; align-items: center; gap: 6px;";
 
-    const typeIcon = document.createElement('span');
+    const typeIcon = document.createElement("span");
     typeIcon.textContent = annotation.getTypeIcon();
-    typeIcon.style.fontSize = '18px';
+    typeIcon.style.fontSize = "18px";
 
-    const pageInfo = document.createElement('span');
+    const pageInfo = document.createElement("span");
     pageInfo.textContent = `P.${annotation.pageNumber}`;
-    pageInfo.style.cssText = 'font-size: 12px; color: #666; font-weight: 500;';
+    pageInfo.style.cssText = "font-size: 12px; color: #666; font-weight: 500;";
 
     typeInfo.appendChild(typeIcon);
     typeInfo.appendChild(pageInfo);
 
-    const actions = document.createElement('div');
-    actions.style.cssText = 'display: flex; align-items: center; gap: 6px;';
+    const actions = document.createElement("div");
+    actions.style.cssText = "display: flex; align-items: center; gap: 6px;";
 
-    const jumpBtn = document.createElement('button');
-    jumpBtn.type = 'button';
-    jumpBtn.textContent = '🧭';
-    jumpBtn.title = '跳转到标注位置';
-    jumpBtn.className = 'annotation-jump-btn';
+    const jumpBtn = document.createElement("button");
+    jumpBtn.type = "button";
+    jumpBtn.textContent = "🧭";
+    jumpBtn.title = "跳转到标注位置";
+    jumpBtn.className = "annotation-jump-btn";
     jumpBtn.style.cssText = [
-      'border: 1px solid #ddd',
-      'background: #fff',
-      'border-radius: 4px',
-      'padding: 4px 8px',
-      'cursor: pointer',
-      'font-size: 14px',
-      'color: #666',
-      'transition: all 0.2s'
-    ].join(';');
-    jumpBtn.addEventListener('mouseenter', () => {
-      jumpBtn.style.background = '#e3f2fd';
-      jumpBtn.style.borderColor = '#2196f3';
-      jumpBtn.style.color = '#2196f3';
+      "border: 1px solid #ddd",
+      "background: #fff",
+      "border-radius: 4px",
+      "padding: 4px 8px",
+      "cursor: pointer",
+      "font-size: 14px",
+      "color: #666",
+      "transition: all 0.2s"
+    ].join(";");
+    jumpBtn.addEventListener("mouseenter", () => {
+      jumpBtn.style.background = "#e3f2fd";
+      jumpBtn.style.borderColor = "#2196f3";
+      jumpBtn.style.color = "#2196f3";
     });
-    jumpBtn.addEventListener('mouseleave', () => {
-      jumpBtn.style.background = '#fff';
-      jumpBtn.style.borderColor = '#ddd';
-      jumpBtn.style.color = '#666';
+    jumpBtn.addEventListener("mouseleave", () => {
+      jumpBtn.style.background = "#fff";
+      jumpBtn.style.borderColor = "#ddd";
+      jumpBtn.style.color = "#666";
     });
-    jumpBtn.setAttribute('aria-label', '跳转到标注位置');
-    jumpBtn.addEventListener('click', (e) => {
+    jumpBtn.setAttribute("aria-label", "跳转到标注位置");
+    jumpBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       this.#handleJumpClick(annotation.id);
     });
 
-    const deleteBtn = document.createElement('button');
-    deleteBtn.type = 'button';
-    deleteBtn.textContent = '🗑️';
-    deleteBtn.title = '删除标注';
-    deleteBtn.className = 'annotation-delete-btn';
-    deleteBtn.dataset.action = 'delete';
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.textContent = "🗑️";
+    deleteBtn.title = "删除标注";
+    deleteBtn.className = "annotation-delete-btn";
+    deleteBtn.dataset.action = "delete";
     deleteBtn.style.cssText = [
-      'border: 1px solid #f44336',
-      'background: #fff',
-      'border-radius: 4px',
-      'padding: 4px 8px',
-      'cursor: pointer',
-      'font-size: 12px',
-      'color: #f44336',
-      'transition: all 0.2s'
-    ].join(';');
-    deleteBtn.addEventListener('mouseenter', () => {
-      deleteBtn.style.background = '#f44336';
-      deleteBtn.style.color = '#fff';
+      "border: 1px solid #f44336",
+      "background: #fff",
+      "border-radius: 4px",
+      "padding: 4px 8px",
+      "cursor: pointer",
+      "font-size: 12px",
+      "color: #f44336",
+      "transition: all 0.2s"
+    ].join(";");
+    deleteBtn.addEventListener("mouseenter", () => {
+      deleteBtn.style.background = "#f44336";
+      deleteBtn.style.color = "#fff";
     });
-    deleteBtn.addEventListener('mouseleave', () => {
-      deleteBtn.style.background = '#fff';
-      deleteBtn.style.color = '#f44336';
+    deleteBtn.addEventListener("mouseleave", () => {
+      deleteBtn.style.background = "#fff";
+      deleteBtn.style.color = "#f44336";
     });
-    deleteBtn.setAttribute('aria-label', '删除标注');
-    deleteBtn.addEventListener('click', (e) => {
+    deleteBtn.setAttribute("aria-label", "删除标注");
+    deleteBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       this.#handleDeleteClick(annotation.id);
     });
@@ -745,160 +745,160 @@ export class AnnotationSidebarUI {
     header.appendChild(actions);
 
     // 卡片内容
-    const content = document.createElement('div');
-    content.className = 'annotation-card-content';
+    const content = document.createElement("div");
+    content.className = "annotation-card-content";
     content.style.cssText = [
-      'font-size: 14px',
-      'color: #333',
-      'line-height: 1.5',
-      'margin-bottom: 8px',
-      'word-wrap: break-word'
-    ].join(';');
+      "font-size: 14px",
+      "color: #333",
+      "line-height: 1.5",
+      "margin-bottom: 8px",
+      "word-wrap: break-word"
+    ].join(";");
 
     // 根据类型显示不同的内容
     if (annotation.type === AnnotationType.SCREENSHOT) {
       // 截图：显示缩略图和描述
       if (annotation.data.imageData || annotation.data.imagePath) {
-        const img = document.createElement('img');
+        const img = document.createElement("img");
         // 优先使用imageData(base64)，如果是imagePath则转换为完整URL
         img.src = annotation.data.imageData
           ? annotation.data.imageData
           : this.#getImageUrl(annotation.data.imagePath);
-        img.alt = '截图';
+        img.alt = "截图";
         img.style.cssText = [
-          'width: 100%',
-          'height: auto',
-          'border-radius: 4px',
-          'margin-bottom: 8px'
-        ].join(';');
+          "width: 100%",
+          "height: auto",
+          "border-radius: 4px",
+          "margin-bottom: 8px"
+        ].join(";");
         content.appendChild(img);
       }
       if (annotation.data.description) {
-        const desc = document.createElement('div');
+        const desc = document.createElement("div");
         desc.textContent = annotation.data.description;
-        desc.style.color = '#666';
+        desc.style.color = "#666";
         content.appendChild(desc);
       }
     } else if (annotation.type === AnnotationType.TEXT_HIGHLIGHT) {
       // 选字：显示选中的文本和笔记
-      const text = document.createElement('div');
+      const text = document.createElement("div");
       text.textContent = `"${annotation.data.selectedText}"`;
       text.style.cssText = [
         `background: ${annotation.data.highlightColor}33`,
         `border-left: 3px solid ${annotation.data.highlightColor}`,
-        'padding: 6px 8px',
-        'border-radius: 4px',
-        'font-style: italic'
-      ].join(';');
+        "padding: 6px 8px",
+        "border-radius: 4px",
+        "font-style: italic"
+      ].join(";");
       content.appendChild(text);
 
       if (annotation.data.note) {
-        const note = document.createElement('div');
+        const note = document.createElement("div");
         note.textContent = annotation.data.note;
-        note.style.cssText = 'margin-top: 6px; color: #666; font-size: 13px;';
+        note.style.cssText = "margin-top: 6px; color: #666; font-size: 13px;";
         content.appendChild(note);
       }
     } else if (annotation.type === AnnotationType.COMMENT) {
       // 批注：显示内容
-      const text = document.createElement('div');
+      const text = document.createElement("div");
       text.textContent = annotation.data.content;
       content.appendChild(text);
     }
 
     // 卡片底部（拷贝ID + 时间 + 评论）
-    const footer = document.createElement('div');
+    const footer = document.createElement("div");
     footer.style.cssText = [
-      'display: flex',
-      'align-items: center',
-      'justify-content: space-between',
-      'font-size: 12px',
-      'color: #999',
-      'padding-top: 8px',
-      'border-top: 1px solid #f0f0f0',
-      'gap: 8px'
-    ].join(';');
+      "display: flex",
+      "align-items: center",
+      "justify-content: space-between",
+      "font-size: 12px",
+      "color: #999",
+      "padding-top: 8px",
+      "border-top: 1px solid #f0f0f0",
+      "gap: 8px"
+    ].join(";");
 
     // 左侧：拷贝ID按钮
-    const copyIdBtn = document.createElement('button');
-    copyIdBtn.type = 'button';
-    copyIdBtn.textContent = '📋';
+    const copyIdBtn = document.createElement("button");
+    copyIdBtn.type = "button";
+    copyIdBtn.textContent = "📋";
     copyIdBtn.title = `复制ID: ${annotation.id}`;
-    copyIdBtn.className = 'annotation-copy-id-btn';
+    copyIdBtn.className = "annotation-copy-id-btn";
     copyIdBtn.style.cssText = [
-      'border: 1px solid #ddd',
-      'background: #fff',
-      'border-radius: 4px',
-      'cursor: pointer',
-      'font-size: 12px',
-      'padding: 2px 8px',
-      'color: #666',
-      'transition: all 0.2s'
-    ].join(';');
-    copyIdBtn.addEventListener('click', async (e) => {
+      "border: 1px solid #ddd",
+      "background: #fff",
+      "border-radius: 4px",
+      "cursor: pointer",
+      "font-size: 12px",
+      "padding: 2px 8px",
+      "color: #666",
+      "transition: all 0.2s"
+    ].join(";");
+    copyIdBtn.addEventListener("click", async (e) => {
       e.stopPropagation();
       try {
         await this.#handleCopyIdClick(annotation.id);
       } catch (error) {
-        this.#logger.error('Copy click handler failed:', error);
-        notifyError('✗ 复制失败', 3000);
+        this.#logger.error("Copy click handler failed:", error);
+        showError("✗ 复制失败", 3000);
       }
     });
-    copyIdBtn.addEventListener('mouseenter', () => {
-      copyIdBtn.style.background = '#e3f2fd';
-      copyIdBtn.style.borderColor = '#2196f3';
-      copyIdBtn.style.color = '#2196f3';
+    copyIdBtn.addEventListener("mouseenter", () => {
+      copyIdBtn.style.background = "#e3f2fd";
+      copyIdBtn.style.borderColor = "#2196f3";
+      copyIdBtn.style.color = "#2196f3";
     });
-    copyIdBtn.addEventListener('mouseleave', () => {
-      copyIdBtn.style.background = '#fff';
-      copyIdBtn.style.borderColor = '#ddd';
-      copyIdBtn.style.color = '#666';
+    copyIdBtn.addEventListener("mouseleave", () => {
+      copyIdBtn.style.background = "#fff";
+      copyIdBtn.style.borderColor = "#ddd";
+      copyIdBtn.style.color = "#666";
     });
-    copyIdBtn.setAttribute('aria-label', '复制标注ID');
+    copyIdBtn.setAttribute("aria-label", "复制标注ID");
 
     // 右侧：时间 + 评论按钮
-    const rightSection = document.createElement('div');
+    const rightSection = document.createElement("div");
     rightSection.style.cssText = [
-      'display: flex',
-      'align-items: center',
-      'gap: 8px',
-      'margin-left: auto'
-    ].join(';');
+      "display: flex",
+      "align-items: center",
+      "gap: 8px",
+      "margin-left: auto"
+    ].join(";");
 
-    const time = document.createElement('span');
+    const time = document.createElement("span");
     time.textContent = annotation.getFormattedDate();
-    time.style.color = '#999';
+    time.style.color = "#999";
 
-    const commentBtn = document.createElement('button');
-    commentBtn.type = 'button';
+    const commentBtn = document.createElement("button");
+    commentBtn.type = "button";
     const commentCount = annotation.getCommentCount();
-    commentBtn.textContent = commentCount > 0 ? `💬 ${commentCount}` : '💬';
-    commentBtn.title = commentCount > 0 ? `${commentCount}条评论` : '添加评论';
-    commentBtn.className = 'annotation-comment-btn';
+    commentBtn.textContent = commentCount > 0 ? `💬 ${commentCount}` : "💬";
+    commentBtn.title = commentCount > 0 ? `${commentCount}条评论` : "添加评论";
+    commentBtn.className = "annotation-comment-btn";
     commentBtn.style.cssText = [
-      'border: 1px solid #ddd',
-      'background: #fff',
-      'border-radius: 4px',
-      'cursor: pointer',
-      'font-size: 12px',
-      'padding: 2px 8px',
-      'color: #666',
-      'transition: all 0.2s'
-    ].join(';');
-    commentBtn.addEventListener('click', (e) => {
+      "border: 1px solid #ddd",
+      "background: #fff",
+      "border-radius: 4px",
+      "cursor: pointer",
+      "font-size: 12px",
+      "padding: 2px 8px",
+      "color: #666",
+      "transition: all 0.2s"
+    ].join(";");
+    commentBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       this.#handleCommentClick(annotation.id);
     });
-    commentBtn.addEventListener('mouseenter', () => {
-      commentBtn.style.background = '#e3f2fd';
-      commentBtn.style.borderColor = '#2196f3';
-      commentBtn.style.color = '#2196f3';
+    commentBtn.addEventListener("mouseenter", () => {
+      commentBtn.style.background = "#e3f2fd";
+      commentBtn.style.borderColor = "#2196f3";
+      commentBtn.style.color = "#2196f3";
     });
-    commentBtn.addEventListener('mouseleave', () => {
-      commentBtn.style.background = '#fff';
-      commentBtn.style.borderColor = '#ddd';
-      commentBtn.style.color = '#666';
+    commentBtn.addEventListener("mouseleave", () => {
+      commentBtn.style.background = "#fff";
+      commentBtn.style.borderColor = "#ddd";
+      commentBtn.style.color = "#666";
     });
-    commentBtn.setAttribute('aria-label', commentCount > 0 ? `查看评论（${commentCount}）` : '添加评论');
+    commentBtn.setAttribute("aria-label", commentCount > 0 ? `查看评论（${commentCount}）` : "添加评论");
 
     rightSection.appendChild(time);
     rightSection.appendChild(commentBtn);
@@ -932,9 +932,9 @@ export class AnnotationSidebarUI {
     }
 
     // 如果当前是空状态，先清空
-    const empty = this.#sidebarContent.querySelector('.annotation-empty');
+    const empty = this.#sidebarContent.querySelector(".annotation-empty");
     if (empty) {
-      this.#sidebarContent.innerHTML = '';
+      this.#sidebarContent.innerHTML = "";
     }
 
     // 创建新卡片并插入到开头（最新的在上）
@@ -1003,7 +1003,7 @@ export class AnnotationSidebarUI {
     // 为避免“乐观UI创建后，AnnotationManager尚未入库”导致的跳转失败，这里携带完整对象
     const annotation = this.#annotations.find(a => a.id === annotationId) || null;
     if (!annotation) {
-      this.#logger.error(`[AnnotationSidebarUI] 未找到标注，无法跳转 id=${annotationId}`, null, { toast: { type: 'error', ms: 4000 } });
+      this.#logger.error(`[AnnotationSidebarUI] 未找到标注，无法跳转 id=${annotationId}`, null, { toast: { type: "error", ms: 4000 } });
       return;
     }
     this.#eventBus.emitGlobal(
@@ -1012,7 +1012,7 @@ export class AnnotationSidebarUI {
         id: annotationId,
         annotation
       },
-      { actorId: 'AnnotationSidebarUI' }
+      { actorId: "AnnotationSidebarUI" }
     );
   }
 
@@ -1026,8 +1026,8 @@ export class AnnotationSidebarUI {
       return;
     }
 
-    if (typeof window !== 'undefined' && window.confirm) {
-      const confirmed = window.confirm('确定要删除该标注吗？');
+    if (typeof window !== "undefined" && window.confirm) {
+      const confirmed = window.confirm("确定要删除该标注吗？");
       if (!confirmed) {
         return;
       }
@@ -1056,280 +1056,280 @@ export class AnnotationSidebarUI {
     }
 
     // 创建遮罩层
-    const overlay = document.createElement('div');
+    const overlay = document.createElement("div");
     overlay.style.cssText = [
-      'position: fixed',
-      'top: 0',
-      'left: 0',
-      'right: 0',
-      'bottom: 0',
-      'background: rgba(0, 0, 0, 0.5)',
-      'display: flex',
-      'align-items: center',
-      'justify-content: center',
-      'z-index: 10000'
-    ].join(';');
+      "position: fixed",
+      "top: 0",
+      "left: 0",
+      "right: 0",
+      "bottom: 0",
+      "background: rgba(0, 0, 0, 0.5)",
+      "display: flex",
+      "align-items: center",
+      "justify-content: center",
+      "z-index: 10000"
+    ].join(";");
 
     // 创建对话框
-    const dialog = document.createElement('div');
+    const dialog = document.createElement("div");
     dialog.style.cssText = [
-      'background: #fff',
-      'border-radius: 8px',
-      'padding: 20px',
-      'width: 500px',
-      'max-width: 90%',
-      'max-height: 80vh',
-      'display: flex',
-      'flex-direction: column',
-      'box-shadow: 0 4px 20px rgba(0,0,0,0.3)'
-    ].join(';');
+      "background: #fff",
+      "border-radius: 8px",
+      "padding: 20px",
+      "width: 500px",
+      "max-width: 90%",
+      "max-height: 80vh",
+      "display: flex",
+      "flex-direction: column",
+      "box-shadow: 0 4px 20px rgba(0,0,0,0.3)"
+    ].join(";");
 
     // 标题
-    const title = document.createElement('div');
+    const title = document.createElement("div");
     const commentCount = annotation.getCommentCount();
-    title.textContent = commentCount > 0 ? `评论 (${commentCount})` : '添加评论';
+    title.textContent = commentCount > 0 ? `评论 (${commentCount})` : "添加评论";
     title.style.cssText = [
-      'font-size: 16px',
-      'font-weight: 500',
-      'margin-bottom: 12px',
-      'color: #333'
-    ].join(';');
+      "font-size: 16px",
+      "font-weight: 500",
+      "margin-bottom: 12px",
+      "color: #333"
+    ].join(";");
 
     // 标注内容显示区域（第二期：新增）
-    const annotationContent = document.createElement('div');
+    const annotationContent = document.createElement("div");
     annotationContent.style.cssText = [
-      'background: #f9f9f9',
-      'border: 1px solid #e8e8e8',
-      'border-radius: 6px',
-      'padding: 12px',
-      'margin-bottom: 12px',
-      'max-height: 200px',
-      'overflow-y: auto'
-    ].join(';');
+      "background: #f9f9f9",
+      "border: 1px solid #e8e8e8",
+      "border-radius: 6px",
+      "padding: 12px",
+      "margin-bottom: 12px",
+      "max-height: 200px",
+      "overflow-y: auto"
+    ].join(";");
 
     // 根据标注类型显示不同内容
     const typeIcon = annotation.getTypeIcon();
-    const typeLabel = document.createElement('div');
+    const typeLabel = document.createElement("div");
     typeLabel.style.cssText = [
-      'font-size: 12px',
-      'color: #666',
-      'margin-bottom: 8px',
-      'font-weight: 500'
-    ].join(';');
+      "font-size: 12px",
+      "color: #666",
+      "margin-bottom: 8px",
+      "font-weight: 500"
+    ].join(";");
 
     switch (annotation.type) {
-      case 'screenshot':
-        typeLabel.textContent = `${typeIcon} 截图标注`;
-        annotationContent.appendChild(typeLabel);
+    case "screenshot":
+      typeLabel.textContent = `${typeIcon} 截图标注`;
+      annotationContent.appendChild(typeLabel);
 
-        // 显示截图描述
-        if (annotation.data.description) {
-          const desc = document.createElement('div');
-          desc.textContent = annotation.data.description;
-          desc.style.cssText = [
-            'font-size: 14px',
-            'color: #333',
-            'margin-bottom: 8px'
-          ].join(';');
-          annotationContent.appendChild(desc);
-        }
+      // 显示截图描述
+      if (annotation.data.description) {
+        const desc = document.createElement("div");
+        desc.textContent = annotation.data.description;
+        desc.style.cssText = [
+          "font-size: 14px",
+          "color: #333",
+          "margin-bottom: 8px"
+        ].join(";");
+        annotationContent.appendChild(desc);
+      }
 
-        // 显示截图图片（如果有imagePath或imageData）
-        if (annotation.data.imagePath || annotation.data.imageData) {
-          const img = document.createElement('img');
-          // 优先使用imageData(base64)，如果是imagePath则转换为完整URL
-          img.src = annotation.data.imageData
-            ? annotation.data.imageData
-            : this.#getImageUrl(annotation.data.imagePath);
-          img.style.cssText = [
-            'max-width: 100%',
-            'border-radius: 4px',
-            'display: block'
-          ].join(';');
-          img.onerror = () => {
-            // 图片加载失败时显示提示
-            img.style.display = 'none';
-            const errorTip = document.createElement('div');
-            errorTip.textContent = '图片加载失败';
-            errorTip.style.cssText = [
-              'color: #999',
-              'font-size: 12px',
-              'padding: 8px',
-              'text-align: center'
-            ].join(';');
-            img.parentElement.appendChild(errorTip);
-          };
-          annotationContent.appendChild(img);
-        }
-        break;
+      // 显示截图图片（如果有imagePath或imageData）
+      if (annotation.data.imagePath || annotation.data.imageData) {
+        const img = document.createElement("img");
+        // 优先使用imageData(base64)，如果是imagePath则转换为完整URL
+        img.src = annotation.data.imageData
+          ? annotation.data.imageData
+          : this.#getImageUrl(annotation.data.imagePath);
+        img.style.cssText = [
+          "max-width: 100%",
+          "border-radius: 4px",
+          "display: block"
+        ].join(";");
+        img.onerror = () => {
+          // 图片加载失败时显示提示
+          img.style.display = "none";
+          const errorTip = document.createElement("div");
+          errorTip.textContent = "图片加载失败";
+          errorTip.style.cssText = [
+            "color: #999",
+            "font-size: 12px",
+            "padding: 8px",
+            "text-align: center"
+          ].join(";");
+          img.parentElement.appendChild(errorTip);
+        };
+        annotationContent.appendChild(img);
+      }
+      break;
 
-      case 'text-highlight':
-        typeLabel.textContent = `${typeIcon} 文本高亮`;
-        annotationContent.appendChild(typeLabel);
+    case "text-highlight":
+      typeLabel.textContent = `${typeIcon} 文本高亮`;
+      annotationContent.appendChild(typeLabel);
 
-        const highlightText = document.createElement('div');
-        highlightText.textContent = `"${annotation.data.selectedText}"`;
-        highlightText.style.cssText = [
-          'font-size: 14px',
-          'color: #333',
-          'line-height: 1.6',
-          'font-style: italic',
-          'padding: 8px',
-          'background: ' + (annotation.data.highlightColor || '#ffff00') + '40',
-          'border-radius: 4px'
-        ].join(';');
-        annotationContent.appendChild(highlightText);
+      const highlightText = document.createElement("div");
+      highlightText.textContent = `"${annotation.data.selectedText}"`;
+      highlightText.style.cssText = [
+        "font-size: 14px",
+        "color: #333",
+        "line-height: 1.6",
+        "font-style: italic",
+        "padding: 8px",
+        "background: " + (annotation.data.highlightColor || "#ffff00") + "40",
+        "border-radius: 4px"
+      ].join(";");
+      annotationContent.appendChild(highlightText);
 
-        // 显示笔记（如果有）
-        if (annotation.data.note) {
-          const note = document.createElement('div');
-          note.textContent = `笔记: ${annotation.data.note}`;
-          note.style.cssText = [
-            'font-size: 13px',
-            'color: #666',
-            'margin-top: 8px',
-            'padding-top: 8px',
-            'border-top: 1px solid #e8e8e8'
-          ].join(';');
-          annotationContent.appendChild(note);
-        }
-        break;
+      // 显示笔记（如果有）
+      if (annotation.data.note) {
+        const note = document.createElement("div");
+        note.textContent = `笔记: ${annotation.data.note}`;
+        note.style.cssText = [
+          "font-size: 13px",
+          "color: #666",
+          "margin-top: 8px",
+          "padding-top: 8px",
+          "border-top: 1px solid #e8e8e8"
+        ].join(";");
+        annotationContent.appendChild(note);
+      }
+      break;
 
-      case 'comment':
-        typeLabel.textContent = `${typeIcon} 批注`;
-        annotationContent.appendChild(typeLabel);
+    case "comment":
+      typeLabel.textContent = `${typeIcon} 批注`;
+      annotationContent.appendChild(typeLabel);
 
-        const commentText = document.createElement('div');
-        commentText.textContent = annotation.data.content;
-        commentText.style.cssText = [
-          'font-size: 14px',
-          'color: #333',
-          'line-height: 1.6'
-        ].join(';');
-        annotationContent.appendChild(commentText);
-        break;
+      const commentText = document.createElement("div");
+      commentText.textContent = annotation.data.content;
+      commentText.style.cssText = [
+        "font-size: 14px",
+        "color: #333",
+        "line-height: 1.6"
+      ].join(";");
+      annotationContent.appendChild(commentText);
+      break;
 
-      default:
-        typeLabel.textContent = `${typeIcon} 标注`;
-        annotationContent.appendChild(typeLabel);
+    default:
+      typeLabel.textContent = `${typeIcon} 标注`;
+      annotationContent.appendChild(typeLabel);
     }
 
     // ID显示
-    const idInfo = document.createElement('div');
+    const idInfo = document.createElement("div");
     idInfo.textContent = `标注ID: ${annotationId}`;
     idInfo.style.cssText = [
-      'font-size: 12px',
-      'color: #999',
-      'margin-bottom: 16px',
-      'font-family: monospace'
-    ].join(';');
+      "font-size: 12px",
+      "color: #999",
+      "margin-bottom: 16px",
+      "font-family: monospace"
+    ].join(";");
 
     // 历史评论列表容器
-    const commentsContainer = document.createElement('div');
+    const commentsContainer = document.createElement("div");
     commentsContainer.style.cssText = [
-      'flex: 1',
-      'overflow-y: auto',
-      'margin-bottom: 16px',
-      'border: 1px solid #f0f0f0',
-      'border-radius: 4px',
-      'max-height: 300px'
-    ].join(';');
+      "flex: 1",
+      "overflow-y: auto",
+      "margin-bottom: 16px",
+      "border: 1px solid #f0f0f0",
+      "border-radius: 4px",
+      "max-height: 300px"
+    ].join(";");
 
     // 显示历史评论
     if (annotation.comments && annotation.comments.length > 0) {
       annotation.comments.forEach(comment => {
-        const commentItem = document.createElement('div');
+        const commentItem = document.createElement("div");
         commentItem.style.cssText = [
-          'padding: 12px',
-          'border-bottom: 1px solid #f0f0f0',
-          'background: #fafafa'
-        ].join(';');
+          "padding: 12px",
+          "border-bottom: 1px solid #f0f0f0",
+          "background: #fafafa"
+        ].join(";");
 
-        const commentContent = document.createElement('div');
+        const commentContent = document.createElement("div");
         commentContent.textContent = comment.content;
         commentContent.style.cssText = [
-          'font-size: 14px',
-          'color: #333',
-          'margin-bottom: 8px',
-          'word-wrap: break-word'
-        ].join(';');
+          "font-size: 14px",
+          "color: #333",
+          "margin-bottom: 8px",
+          "word-wrap: break-word"
+        ].join(";");
 
-        const commentTime = document.createElement('div');
+        const commentTime = document.createElement("div");
         commentTime.textContent = comment.getFormattedDate();
         commentTime.style.cssText = [
-          'font-size: 12px',
-          'color: #999'
-        ].join(';');
+          "font-size: 12px",
+          "color: #999"
+        ].join(";");
 
         commentItem.appendChild(commentContent);
         commentItem.appendChild(commentTime);
         commentsContainer.appendChild(commentItem);
       });
     } else {
-      const emptyTip = document.createElement('div');
-      emptyTip.textContent = '暂无评论';
+      const emptyTip = document.createElement("div");
+      emptyTip.textContent = "暂无评论";
       emptyTip.style.cssText = [
-        'padding: 20px',
-        'text-align: center',
-        'color: #999',
-        'font-size: 14px'
-      ].join(';');
+        "padding: 20px",
+        "text-align: center",
+        "color: #999",
+        "font-size: 14px"
+      ].join(";");
       commentsContainer.appendChild(emptyTip);
     }
 
     // 输入框
-    const textarea = document.createElement('textarea');
-    textarea.placeholder = '请输入新评论...';
+    const textarea = document.createElement("textarea");
+    textarea.placeholder = "请输入新评论...";
     textarea.style.cssText = [
-      'width: 100%',
-      'min-height: 80px',
-      'padding: 8px',
-      'border: 1px solid #ddd',
-      'border-radius: 4px',
-      'font-size: 14px',
-      'font-family: inherit',
-      'resize: vertical',
-      'margin-bottom: 16px',
-      'box-sizing: border-box'
-    ].join(';');
+      "width: 100%",
+      "min-height: 80px",
+      "padding: 8px",
+      "border: 1px solid #ddd",
+      "border-radius: 4px",
+      "font-size: 14px",
+      "font-family: inherit",
+      "resize: vertical",
+      "margin-bottom: 16px",
+      "box-sizing: border-box"
+    ].join(";");
 
     // 按钮容器
-    const buttonContainer = document.createElement('div');
+    const buttonContainer = document.createElement("div");
     buttonContainer.style.cssText = [
-      'display: flex',
-      'justify-content: flex-end',
-      'gap: 8px'
-    ].join(';');
+      "display: flex",
+      "justify-content: flex-end",
+      "gap: 8px"
+    ].join(";");
 
     // 取消按钮
-    const cancelBtn = document.createElement('button');
-    cancelBtn.type = 'button';
-    cancelBtn.textContent = '✖️';
-    cancelBtn.setAttribute('aria-label', '取消');
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.textContent = "✖️";
+    cancelBtn.setAttribute("aria-label", "取消");
     cancelBtn.style.cssText = [
-      'padding: 6px 16px',
-      'border: 1px solid #ddd',
-      'background: #fff',
-      'border-radius: 4px',
-      'cursor: pointer',
-      'font-size: 14px',
-      'color: #666'
-    ].join(';');
+      "padding: 6px 16px",
+      "border: 1px solid #ddd",
+      "background: #fff",
+      "border-radius: 4px",
+      "cursor: pointer",
+      "font-size: 14px",
+      "color: #666"
+    ].join(";");
 
     // 确定按钮
-    const confirmBtn = document.createElement('button');
-    confirmBtn.type = 'button';
-    confirmBtn.textContent = '✅';
-    confirmBtn.setAttribute('aria-label', '确定');
+    const confirmBtn = document.createElement("button");
+    confirmBtn.type = "button";
+    confirmBtn.textContent = "✅";
+    confirmBtn.setAttribute("aria-label", "确定");
     confirmBtn.style.cssText = [
-      'padding: 6px 16px',
-      'border: none',
-      'background: #2196f3',
-      'border-radius: 4px',
-      'cursor: pointer',
-      'font-size: 14px',
-      'color: #fff'
-    ].join(';');
+      "padding: 6px 16px",
+      "border: none",
+      "background: #2196f3",
+      "border-radius: 4px",
+      "cursor: pointer",
+      "font-size: 14px",
+      "color: #fff"
+    ].join(";");
 
     // 关闭对话框函数
     const closeDialog = () => {
@@ -1339,60 +1339,60 @@ export class AnnotationSidebarUI {
     // 刷新历史评论列表
     const refreshComments = () => {
       // 清空现有评论
-      commentsContainer.innerHTML = '';
+      commentsContainer.innerHTML = "";
 
       // 重新显示历史评论
       if (annotation.comments && annotation.comments.length > 0) {
         annotation.comments.forEach(comment => {
-          const commentItem = document.createElement('div');
+          const commentItem = document.createElement("div");
           commentItem.style.cssText = [
-            'padding: 12px',
-            'border-bottom: 1px solid #f0f0f0',
-            'background: #fafafa'
-          ].join(';');
+            "padding: 12px",
+            "border-bottom: 1px solid #f0f0f0",
+            "background: #fafafa"
+          ].join(";");
 
-          const commentContent = document.createElement('div');
+          const commentContent = document.createElement("div");
           commentContent.textContent = comment.content;
           commentContent.style.cssText = [
-            'font-size: 14px',
-            'color: #333',
-            'margin-bottom: 8px',
-            'word-wrap: break-word'
-          ].join(';');
+            "font-size: 14px",
+            "color: #333",
+            "margin-bottom: 8px",
+            "word-wrap: break-word"
+          ].join(";");
 
-          const commentTime = document.createElement('div');
+          const commentTime = document.createElement("div");
           commentTime.textContent = comment.getFormattedDate();
           commentTime.style.cssText = [
-            'font-size: 12px',
-            'color: #999'
-          ].join(';');
+            "font-size: 12px",
+            "color: #999"
+          ].join(";");
 
           commentItem.appendChild(commentContent);
           commentItem.appendChild(commentTime);
           commentsContainer.appendChild(commentItem);
         });
       } else {
-        const emptyTip = document.createElement('div');
-        emptyTip.textContent = '暂无评论';
+        const emptyTip = document.createElement("div");
+        emptyTip.textContent = "暂无评论";
         emptyTip.style.cssText = [
-          'padding: 20px',
-          'text-align: center',
-          'color: #999',
-          'font-size: 14px'
-        ].join(';');
+          "padding: 20px",
+          "text-align: center",
+          "color: #999",
+          "font-size: 14px"
+        ].join(";");
         commentsContainer.appendChild(emptyTip);
       }
 
       // 更新标题显示评论数量
       const commentCount = annotation.getCommentCount();
-      title.textContent = commentCount > 0 ? `评论 (${commentCount})` : '添加评论';
+      title.textContent = commentCount > 0 ? `评论 (${commentCount})` : "添加评论";
     };
 
     // 提交评论函数
     const submitComment = () => {
       const content = textarea.value.trim();
       if (!content) {
-        this.#logger.warn('请输入评论内容', { toast: { type: 'warn', ms: 3000 } });
+        this.#logger.warn("请输入评论内容", { toast: { type: "warn", ms: 3000 } });
         return;
       }
 
@@ -1414,10 +1414,10 @@ export class AnnotationSidebarUI {
       refreshComments();
 
       // 清空输入框
-      textarea.value = '';
+      textarea.value = "";
 
       // 显示成功提示
-      notifySuccess('✓ 评论已添加', 2000);
+      showSuccess("✓ 评论已添加", 2000);
 
       // 更新卡片显示（刷新评论数量）
       this.updateAnnotationCard(annotation);
@@ -1427,17 +1427,17 @@ export class AnnotationSidebarUI {
     };
 
     // 事件监听
-    cancelBtn.addEventListener('click', closeDialog);
-    confirmBtn.addEventListener('click', submitComment);
-    overlay.addEventListener('click', (e) => {
+    cancelBtn.addEventListener("click", closeDialog);
+    confirmBtn.addEventListener("click", submitComment);
+    overlay.addEventListener("click", (e) => {
       if (e.target === overlay) {
         closeDialog();
       }
     });
 
     // Enter键提交（Ctrl+Enter或Shift+Enter换行）
-    textarea.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
+    textarea.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.ctrlKey && !e.shiftKey) {
         e.preventDefault();
         submitComment();
       }
@@ -1471,47 +1471,47 @@ export class AnnotationSidebarUI {
 
     // 直接使用 execCommand 方法（PyQt WebEngine中Clipboard API不可用）
     try {
-      const textarea = document.createElement('textarea');
+      const textarea = document.createElement("textarea");
       textarea.value = annotationId;
       textarea.style.cssText = [
-        'position: fixed',
-        'top: 0',
-        'left: 0',
-        'width: 2em',
-        'height: 2em',
-        'padding: 0',
-        'border: none',
-        'outline: none',
-        'boxShadow: none',
-        'background: transparent',
-        'opacity: 0',
-        'pointer-events: none'
-      ].join(';');
+        "position: fixed",
+        "top: 0",
+        "left: 0",
+        "width: 2em",
+        "height: 2em",
+        "padding: 0",
+        "border: none",
+        "outline: none",
+        "boxShadow: none",
+        "background: transparent",
+        "opacity: 0",
+        "pointer-events: none"
+      ].join(";");
 
       document.body.appendChild(textarea);
       textarea.focus();
       textarea.select();
 
-      const successful = document.execCommand('copy');
+      const successful = document.execCommand("copy");
       document.body.removeChild(textarea);
 
       if (successful) {
         success = true;
-        this.#logger.debug('Copied using execCommand');
+        this.#logger.debug("Copied using execCommand");
       } else {
-        this.#logger.error('execCommand returned false');
+        this.#logger.error("execCommand returned false");
       }
     } catch (error) {
-      this.#logger.error('Copy failed:', error);
+      this.#logger.error("Copy failed:", error);
     }
 
     // 显示结果
     if (success) {
-      notifySuccess('✓ ID已复制', 2000);
+      showSuccess("✓ ID已复制", 2000);
       // 发出ID复制事件（修正为3段格式）
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.ID_COPY_SUCCESS, { id: annotationId });
     } else {
-      notifyError('✗ 复制失败', 3000);
+      showError("✗ 复制失败", 3000);
     }
   }
 
@@ -1539,24 +1539,24 @@ export class AnnotationSidebarUI {
 
     // 移除所有卡片的高亮状态
     this.#annotationCards.forEach((card) => {
-      card.style.background = '#fff';
-      card.style.borderColor = '#e0e0e0';
+      card.style.background = "#fff";
+      card.style.borderColor = "#e0e0e0";
     });
 
     // 高亮目标卡片
-    targetCard.style.background = '#fff3cd';
-    targetCard.style.borderColor = '#ffc107';
+    targetCard.style.background = "#fff3cd";
+    targetCard.style.borderColor = "#ffc107";
 
     // 滚动到目标卡片
     targetCard.scrollIntoView({
-      behavior: 'smooth',
-      block: 'center'
+      behavior: "smooth",
+      block: "center"
     });
 
     // 3秒后恢复正常样式
     setTimeout(() => {
-      targetCard.style.background = '#fff';
-      targetCard.style.borderColor = '#e0e0e0';
+      targetCard.style.background = "#fff";
+      targetCard.style.borderColor = "#e0e0e0";
     }, 3000);
 
     this.#logger.info(`Card highlighted and scrolled: ${annotationId}`);
@@ -1587,7 +1587,7 @@ export class AnnotationSidebarUI {
       this.#container = null;
     }
 
-    this.#logger.info('Annotation sidebar destroyed');
+    this.#logger.info("Annotation sidebar destroyed");
   }
 }
 

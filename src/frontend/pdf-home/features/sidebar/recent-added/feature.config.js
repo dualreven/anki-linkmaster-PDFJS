@@ -3,11 +3,11 @@
  */
 
 export const RecentAddedFeatureConfig = {
-  name: 'recent-added',
-  version: '1.0.0',
-  description: '最近添加功能 - 显示和管理最近添加的PDF',
+  name: "recent-added",
+  version: "1.0.0",
+  description: "最近添加功能 - 显示和管理最近添加的PDF",
 
-  dependencies: ['sidebar'],
+  dependencies: ["sidebar"],
 
   config: {
     // 最大存储数量
@@ -17,16 +17,16 @@ export const RecentAddedFeatureConfig = {
     defaultDisplayLimit: 5,
 
     // LocalStorage键名
-    storageKey: 'pdf-home:recent-added',
+    storageKey: "pdf-home:recent-added",
 
     // 事件定义
     events: {
       local: {
-        PDF_CLICKED: 'pdf:item:clicked',
-        LIMIT_CHANGED: 'limit:value:changed'
+        PDF_CLICKED: "pdf:item:clicked",
+        LIMIT_CHANGED: "limit:value:changed"
       },
       global: {
-        PDF_ADDED: 'pdf:added'
+        PDF_ADDED: "pdf:added"
       }
     }
   }

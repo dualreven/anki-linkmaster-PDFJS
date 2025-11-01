@@ -35,7 +35,7 @@ export class SidebarPanel {
     this.#container.innerHTML = this.#getTemplate();
     this.#attachEventListeners();
     this.#createToggleButton();
-    this.#logger.info('[SidebarPanel] Rendered');
+    this.#logger.info("[SidebarPanel] Rendered");
   }
 
   /**
@@ -44,40 +44,40 @@ export class SidebarPanel {
    */
   #createToggleButton() {
     // 检查按钮是否已存在
-    if (document.getElementById('sidebar-toggle-btn')) {
+    if (document.getElementById("sidebar-toggle-btn")) {
       return;
     }
 
-    const toggleBtn = document.createElement('button');
-    toggleBtn.id = 'sidebar-toggle-btn';
-    toggleBtn.className = 'sidebar-toggle-btn';
-    toggleBtn.innerHTML = '◀';
-    toggleBtn.title = '收起侧边栏';
+    const toggleBtn = document.createElement("button");
+    toggleBtn.id = "sidebar-toggle-btn";
+    toggleBtn.className = "sidebar-toggle-btn";
+    toggleBtn.innerHTML = "◀";
+    toggleBtn.title = "收起侧边栏";
 
     // 添加到body（fixed定位）
     document.body.appendChild(toggleBtn);
 
     // 绑定点击事件
-    toggleBtn.addEventListener('click', () => {
-      const sidebar = document.getElementById('sidebar');
-      const isCollapsed = sidebar.classList.contains('collapsed');
+    toggleBtn.addEventListener("click", () => {
+      const sidebar = document.getElementById("sidebar");
+      const isCollapsed = sidebar.classList.contains("collapsed");
 
       if (isCollapsed) {
-        sidebar.classList.remove('collapsed');
-        toggleBtn.innerHTML = '◀';
-        toggleBtn.title = '收起侧边栏';
-        toggleBtn.classList.remove('collapsed');
-        this.#eventBus.emit('sidebar:toggle:completed', { collapsed: false });
+        sidebar.classList.remove("collapsed");
+        toggleBtn.innerHTML = "◀";
+        toggleBtn.title = "收起侧边栏";
+        toggleBtn.classList.remove("collapsed");
+        this.#eventBus.emit("sidebar:toggle:completed", { collapsed: false });
       } else {
-        sidebar.classList.add('collapsed');
-        toggleBtn.innerHTML = '▶';
-        toggleBtn.title = '展开侧边栏';
-        toggleBtn.classList.add('collapsed');
-        this.#eventBus.emit('sidebar:toggle:completed', { collapsed: true });
+        sidebar.classList.add("collapsed");
+        toggleBtn.innerHTML = "▶";
+        toggleBtn.title = "展开侧边栏";
+        toggleBtn.classList.add("collapsed");
+        this.#eventBus.emit("sidebar:toggle:completed", { collapsed: true });
       }
     });
 
-    this.#logger.info('[SidebarPanel] Toggle button created');
+    this.#logger.info("[SidebarPanel] Toggle button created");
   }
 
   /**
@@ -92,11 +92,11 @@ export class SidebarPanel {
           <h3 class="sidebar-section-title">
             <span>🔍 最近搜索</span>
             <select class="sidebar-limit-select" data-type="searches">
-              <option value="5" ${this.#displayLimits.searches === 5 ? 'selected' : ''}>5条</option>
-              <option value="10" ${this.#displayLimits.searches === 10 ? 'selected' : ''}>10条</option>
-              <option value="15" ${this.#displayLimits.searches === 15 ? 'selected' : ''}>15条</option>
-              <option value="20" ${this.#displayLimits.searches === 20 ? 'selected' : ''}>20条</option>
-              <option value="30" ${this.#displayLimits.searches === 30 ? 'selected' : ''}>30条</option>
+              <option value="5" ${this.#displayLimits.searches === 5 ? "selected" : ""}>5条</option>
+              <option value="10" ${this.#displayLimits.searches === 10 ? "selected" : ""}>10条</option>
+              <option value="15" ${this.#displayLimits.searches === 15 ? "selected" : ""}>15条</option>
+              <option value="20" ${this.#displayLimits.searches === 20 ? "selected" : ""}>20条</option>
+              <option value="30" ${this.#displayLimits.searches === 30 ? "selected" : ""}>30条</option>
             </select>
           </h3>
           <ul class="sidebar-list" id="recent-searches-list">
@@ -109,11 +109,11 @@ export class SidebarPanel {
           <h3 class="sidebar-section-title">
             <span>📖 最近阅读</span>
             <select class="sidebar-limit-select" data-type="opened">
-              <option value="5" ${this.#displayLimits.opened === 5 ? 'selected' : ''}>5条</option>
-              <option value="10" ${this.#displayLimits.opened === 10 ? 'selected' : ''}>10条</option>
-              <option value="15" ${this.#displayLimits.opened === 15 ? 'selected' : ''}>15条</option>
-              <option value="20" ${this.#displayLimits.opened === 20 ? 'selected' : ''}>20条</option>
-              <option value="30" ${this.#displayLimits.opened === 30 ? 'selected' : ''}>30条</option>
+              <option value="5" ${this.#displayLimits.opened === 5 ? "selected" : ""}>5条</option>
+              <option value="10" ${this.#displayLimits.opened === 10 ? "selected" : ""}>10条</option>
+              <option value="15" ${this.#displayLimits.opened === 15 ? "selected" : ""}>15条</option>
+              <option value="20" ${this.#displayLimits.opened === 20 ? "selected" : ""}>20条</option>
+              <option value="30" ${this.#displayLimits.opened === 30 ? "selected" : ""}>30条</option>
             </select>
           </h3>
           <ul class="sidebar-list" id="recent-opened-list">
@@ -126,11 +126,11 @@ export class SidebarPanel {
           <h3 class="sidebar-section-title">
             <span>➕ 最近添加</span>
             <select class="sidebar-limit-select" data-type="added">
-              <option value="5" ${this.#displayLimits.added === 5 ? 'selected' : ''}>5条</option>
-              <option value="10" ${this.#displayLimits.added === 10 ? 'selected' : ''}>10条</option>
-              <option value="15" ${this.#displayLimits.added === 15 ? 'selected' : ''}>15条</option>
-              <option value="20" ${this.#displayLimits.added === 20 ? 'selected' : ''}>20条</option>
-              <option value="30" ${this.#displayLimits.added === 30 ? 'selected' : ''}>30条</option>
+              <option value="5" ${this.#displayLimits.added === 5 ? "selected" : ""}>5条</option>
+              <option value="10" ${this.#displayLimits.added === 10 ? "selected" : ""}>10条</option>
+              <option value="15" ${this.#displayLimits.added === 15 ? "selected" : ""}>15条</option>
+              <option value="20" ${this.#displayLimits.added === 20 ? "selected" : ""}>20条</option>
+              <option value="30" ${this.#displayLimits.added === 30 ? "selected" : ""}>30条</option>
             </select>
           </h3>
           <ul class="sidebar-list" id="recent-added-list">
@@ -147,7 +147,7 @@ export class SidebarPanel {
    */
   #renderSearches() {
     if (this.#recentSearches.length === 0) {
-      return '<li class="sidebar-empty">暂无搜索记录</li>';
+      return "<li class=\"sidebar-empty\">暂无搜索记录</li>";
     }
 
     const limit = this.#displayLimits.searches;
@@ -162,7 +162,7 @@ export class SidebarPanel {
           <span class="sidebar-item-time">${this.#formatTime(search.timestamp)}</span>
         </li>
       `)
-      .join('');
+      .join("");
   }
 
   /**
@@ -171,7 +171,7 @@ export class SidebarPanel {
    */
   #renderOpened() {
     if (this.#recentOpened.length === 0) {
-      return '<li class="sidebar-empty">暂无阅读记录</li>';
+      return "<li class=\"sidebar-empty\">暂无阅读记录</li>";
     }
 
     const limit = this.#displayLimits.opened;
@@ -186,7 +186,7 @@ export class SidebarPanel {
           <span class="sidebar-item-time">${this.#formatTime(pdf.timestamp)}</span>
         </li>
       `)
-      .join('');
+      .join("");
   }
 
   /**
@@ -195,7 +195,7 @@ export class SidebarPanel {
    */
   #renderAdded() {
     if (this.#recentAdded.length === 0) {
-      return '<li class="sidebar-empty">暂无添加记录</li>';
+      return "<li class=\"sidebar-empty\">暂无添加记录</li>";
     }
 
     const limit = this.#displayLimits.added;
@@ -210,7 +210,7 @@ export class SidebarPanel {
           <span class="sidebar-item-time">${this.#formatTime(pdf.timestamp)}</span>
         </li>
       `)
-      .join('');
+      .join("");
   }
 
   /**
@@ -219,9 +219,9 @@ export class SidebarPanel {
    */
   #attachEventListeners() {
     // 监听下拉菜单变化
-    const limitSelects = this.#container.querySelectorAll('.sidebar-limit-select');
+    const limitSelects = this.#container.querySelectorAll(".sidebar-limit-select");
     limitSelects.forEach(select => {
-      select.addEventListener('change', (e) => {
+      select.addEventListener("change", (e) => {
         const type = e.target.dataset.type;
         const newLimit = parseInt(e.target.value);
         this.#handleLimitChange(type, newLimit);
@@ -229,48 +229,48 @@ export class SidebarPanel {
     });
 
     // 监听搜索项点击
-    const searchList = this.#container.querySelector('#recent-searches-list');
+    const searchList = this.#container.querySelector("#recent-searches-list");
     if (searchList) {
-      searchList.addEventListener('click', (e) => {
-        const item = e.target.closest('.sidebar-item');
-        if (item && item.dataset.type === 'search') {
+      searchList.addEventListener("click", (e) => {
+        const item = e.target.closest(".sidebar-item");
+        if (item && item.dataset.type === "search") {
           const index = parseInt(item.dataset.index);
           const search = this.#recentSearches[index];
           if (search) {
-            this.#logger.info('[SidebarPanel] Search clicked:', search.text);
-            this.#eventBus.emit('search:item:clicked', { searchText: search.text });
+            this.#logger.info("[SidebarPanel] Search clicked:", search.text);
+            this.#eventBus.emit("search:item:clicked", { searchText: search.text });
           }
         }
       });
     }
 
     // 监听阅读项点击
-    const openedList = this.#container.querySelector('#recent-opened-list');
+    const openedList = this.#container.querySelector("#recent-opened-list");
     if (openedList) {
-      openedList.addEventListener('click', (e) => {
-        const item = e.target.closest('.sidebar-item');
-        if (item && item.dataset.type === 'opened') {
+      openedList.addEventListener("click", (e) => {
+        const item = e.target.closest(".sidebar-item");
+        if (item && item.dataset.type === "opened") {
           const index = parseInt(item.dataset.index);
           const pdf = this.#recentOpened[index];
           if (pdf) {
-            this.#logger.info('[SidebarPanel] PDF clicked:', pdf.filename);
-            this.#eventBus.emit('pdf:item:clicked', { filename: pdf.filename, path: pdf.path });
+            this.#logger.info("[SidebarPanel] PDF clicked:", pdf.filename);
+            this.#eventBus.emit("pdf:item:clicked", { filename: pdf.filename, path: pdf.path });
           }
         }
       });
     }
 
     // 监听添加项点击
-    const addedList = this.#container.querySelector('#recent-added-list');
+    const addedList = this.#container.querySelector("#recent-added-list");
     if (addedList) {
-      addedList.addEventListener('click', (e) => {
-        const item = e.target.closest('.sidebar-item');
-        if (item && item.dataset.type === 'added') {
+      addedList.addEventListener("click", (e) => {
+        const item = e.target.closest(".sidebar-item");
+        if (item && item.dataset.type === "added") {
           const index = parseInt(item.dataset.index);
           const pdf = this.#recentAdded[index];
           if (pdf) {
-            this.#logger.info('[SidebarPanel] Added PDF clicked:', pdf.filename);
-            this.#eventBus.emit('pdf:item:clicked', { filename: pdf.filename, path: pdf.path });
+            this.#logger.info("[SidebarPanel] Added PDF clicked:", pdf.filename);
+            this.#eventBus.emit("pdf:item:clicked", { filename: pdf.filename, path: pdf.path });
           }
         }
       });
@@ -288,19 +288,19 @@ export class SidebarPanel {
     this.#displayLimits[type] = newLimit;
 
     // 触发事件通知外部
-    this.#eventBus.emit('limit:value:changed', { type, limit: newLimit });
+    this.#eventBus.emit("limit:value:changed", { type, limit: newLimit });
 
     // 重新渲染对应的列表
     switch (type) {
-      case 'searches':
-        this.updateSearches(this.#recentSearches);
-        break;
-      case 'opened':
-        // 由对应子功能（recent-opened）处理自身的显示逻辑，容器不直接重渲染
-        break;
-      case 'added':
-        // 由对应子功能（recent-added）处理自身的显示逻辑，容器不直接重渲染
-        break;
+    case "searches":
+      this.updateSearches(this.#recentSearches);
+      break;
+    case "opened":
+      // 由对应子功能（recent-opened）处理自身的显示逻辑，容器不直接重渲染
+      break;
+    case "added":
+      // 由对应子功能（recent-added）处理自身的显示逻辑，容器不直接重渲染
+      break;
     }
   }
 
@@ -310,7 +310,7 @@ export class SidebarPanel {
    */
   updateSearches(searches) {
     this.#recentSearches = searches;
-    const list = this.#container?.querySelector('#recent-searches-list');
+    const list = this.#container?.querySelector("#recent-searches-list");
     if (list) {
       list.innerHTML = this.#renderSearches();
     }
@@ -322,7 +322,7 @@ export class SidebarPanel {
    */
   updateOpened(pdfs) {
     this.#recentOpened = pdfs;
-    const list = this.#container?.querySelector('#recent-opened-list');
+    const list = this.#container?.querySelector("#recent-opened-list");
     if (list) {
       list.innerHTML = this.#renderOpened();
     }
@@ -334,7 +334,7 @@ export class SidebarPanel {
    */
   updateAdded(pdfs) {
     this.#recentAdded = pdfs;
-    const list = this.#container?.querySelector('#recent-added-list');
+    const list = this.#container?.querySelector("#recent-added-list");
     if (list) {
       list.innerHTML = this.#renderAdded();
     }
@@ -351,10 +351,10 @@ export class SidebarPanel {
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
 
-    if (minutes < 1) return '刚刚';
-    if (minutes < 60) return `${minutes}分钟前`;
-    if (hours < 24) return `${hours}小时前`;
-    if (days < 7) return `${days}天前`;
+    if (minutes < 1) {return "刚刚";}
+    if (minutes < 60) {return `${minutes}分钟前`;}
+    if (hours < 24) {return `${hours}小时前`;}
+    if (days < 7) {return `${days}天前`;}
 
     const date = new Date(timestamp);
     return `${date.getMonth() + 1}/${date.getDate()}`;
@@ -365,7 +365,7 @@ export class SidebarPanel {
    * @private
    */
   #escapeHtml(text) {
-    const div = document.createElement('div');
+    const div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML;
   }
@@ -375,8 +375,8 @@ export class SidebarPanel {
    */
   destroy() {
     if (this.#container) {
-      this.#container.innerHTML = '';
+      this.#container.innerHTML = "";
     }
-    this.#logger.info('[SidebarPanel] Destroyed');
+    this.#logger.info("[SidebarPanel] Destroyed");
   }
 }

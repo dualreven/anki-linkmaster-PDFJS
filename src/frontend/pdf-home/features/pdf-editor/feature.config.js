@@ -7,28 +7,28 @@ export const PDFEditorFeatureConfig = {
   /**
    * 功能名称（唯一标识）
    */
-  name: 'pdf-editor',
+  name: "pdf-editor",
 
   /**
    * 功能版本（遵循 SemVer 规范）
    */
-  version: '1.0.0',
+  version: "1.0.0",
 
   /**
    * 功能依赖
    * - 依赖 search-results 功能域（从搜索结果中读取选中项）
    */
-  dependencies: ['search-results'],
+  dependencies: ["search-results"],
 
   /**
    * 功能描述
    */
-  description: 'PDF 记录编辑器功能域 - 提供 PDF 记录的编辑功能（星标、标签、备注等）',
+  description: "PDF 记录编辑器功能域 - 提供 PDF 记录的编辑功能（星标、标签、备注等）",
 
   /**
    * 功能作者
    */
-  author: 'PDF-Home Team',
+  author: "PDF-Home Team",
 
   /**
    * 功能配置
@@ -39,10 +39,10 @@ export const PDFEditorFeatureConfig = {
      */
     editor: {
       // 模态对话框宽度
-      modalWidth: '600px',
+      modalWidth: "600px",
 
       // 模态对话框高度
-      modalHeight: 'auto',
+      modalHeight: "auto",
 
       // 是否支持拖拽调整大小
       resizable: true,
@@ -50,45 +50,45 @@ export const PDFEditorFeatureConfig = {
       // 表单字段配置
       fields: [
         {
-          name: 'star',
-          label: '星标',
-          type: 'star-rating',
+          name: "star",
+          label: "星标",
+          type: "star-rating",
           max: 5,
           required: false
         },
         {
-          name: 'tags',
-          label: '标签',
-          type: 'tags-input',
-          placeholder: '输入标签并按回车',
+          name: "tags",
+          label: "标签",
+          type: "tags-input",
+          placeholder: "输入标签并按回车",
           required: false
         },
         {
-          name: 'notes',
-          label: '备注',
-          type: 'textarea',
-          placeholder: '输入备注内容',
+          name: "notes",
+          label: "备注",
+          type: "textarea",
+          placeholder: "输入备注内容",
           rows: 4,
           required: false
         },
         {
-          name: 'created_time',
-          label: '创建时间',
-          type: 'datetime',
+          name: "created_time",
+          label: "创建时间",
+          type: "datetime",
           readonly: true,
           required: false
         },
         {
-          name: 'modified_time',
-          label: '修改时间',
-          type: 'datetime',
+          name: "modified_time",
+          label: "修改时间",
+          type: "datetime",
           readonly: true,
           required: false
         },
         {
-          name: 'archived',
-          label: '归档',
-          type: 'toggle',
+          name: "archived",
+          label: "归档",
+          type: "toggle",
           required: false
         }
       ]
@@ -99,26 +99,26 @@ export const PDFEditorFeatureConfig = {
      */
     events: {
       // 事件命名空间（由 ScopedEventBus 自动添加）
-      namespace: '@pdf-editor/',
+      namespace: "@pdf-editor/",
 
       // 本地事件（功能域内部事件）
       local: {
         // 编辑器打开事件
-        EDITOR_OPENED: 'editor:opened',
+        EDITOR_OPENED: "editor:opened",
         // 编辑器关闭事件
-        EDITOR_CLOSED: 'editor:closed',
+        EDITOR_CLOSED: "editor:closed",
         // 表单提交事件
-        FORM_SUBMITTED: 'form:submitted',
+        FORM_SUBMITTED: "form:submitted",
         // 表单验证失败事件
-        FORM_VALIDATION_FAILED: 'form:validation:failed'
+        FORM_VALIDATION_FAILED: "form:validation:failed"
       },
 
       // 全局事件（跨功能域通信）
       global: {
         // PDF 记录更新事件（通知其他功能域）
-        RECORD_UPDATED: 'editor:record:updated',
+        RECORD_UPDATED: "editor:record:updated",
         // 编辑请求事件（监听来自 pdf-list 的请求）
-        EDIT_REQUESTED: 'pdf:edit:requested'
+        EDIT_REQUESTED: "pdf:edit:requested"
       }
     },
 
@@ -127,16 +127,16 @@ export const PDFEditorFeatureConfig = {
      */
     ui: {
       // 编辑器容器 ID
-      containerId: 'pdf-editor-modal',
+      containerId: "pdf-editor-modal",
 
       // 主题
-      theme: 'default',
+      theme: "default",
 
       // 动画效果
       animation: {
         enabled: true,
         duration: 300,
-        easing: 'ease-in-out'
+        easing: "ease-in-out"
       }
     }
   }

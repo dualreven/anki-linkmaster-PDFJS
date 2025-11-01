@@ -3,12 +3,12 @@
  * @description 测试WebSocket适配器的消息转换和队列管理功能
  */
 
-import { WebSocketAdapter, createWebSocketAdapter } from '../websocket-adapter.js';
-import { EventBus } from '../../../common/event/event-bus.js';
-import { PDF_VIEWER_EVENTS } from '../../../common/event/pdf-viewer-constants.js';
-import { WEBSOCKET_MESSAGE_EVENTS } from '../../../common/event/event-constants.js';
+import { WebSocketAdapter, createWebSocketAdapter } from "../websocket-adapter.js";
+import { EventBus } from "../../../common/event/event-bus.js";
+import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
+import { WEBSOCKET_MESSAGE_EVENTS } from "../../../common/event/event-constants.js";
 
-describe('WebSocketAdapter', () => {
+describe("WebSocketAdapter", () => {
   let eventBus;
   let mockWSClient;
   let adapter;
@@ -33,8 +33,8 @@ describe('WebSocketAdapter', () => {
     eventBus.destroy();
   });
 
-  describe('构造函数', () => {
-    test('应该正确创建实例', () => {
+  describe("构造函数", () => {
+    test("应该正确创建实例", () => {
       adapter = new WebSocketAdapter(mockWSClient, eventBus);
 
       expect(adapter).toBeInstanceOf(WebSocketAdapter);
@@ -42,21 +42,21 @@ describe('WebSocketAdapter', () => {
       expect(adapter.getState().queuedMessages).toBe(0);
     });
 
-    test('缺少wsClient时应该抛出错误', () => {
+    test("缺少wsClient时应该抛出错误", () => {
       expect(() => {
         new WebSocketAdapter(null, eventBus);
-      }).toThrow('WebSocketAdapter: wsClient is required');
+      }).toThrow("WebSocketAdapter: wsClient is required");
     });
 
-    test('缺少eventBus时应该抛出错误', () => {
+    test("缺少eventBus时应该抛出错误", () => {
       expect(() => {
         new WebSocketAdapter(mockWSClient, null);
-      }).toThrow('WebSocketAdapter: eventBus is required');
+      }).toThrow("WebSocketAdapter: eventBus is required");
     });
   });
 
-  describe('工厂函数', () => {
-    test('createWebSocketAdapter应该创建实例', () => {
+  describe("工厂函数", () => {
+    test("createWebSocketAdapter应该创建实例", () => {
       adapter = createWebSocketAdapter(mockWSClient, eventBus);
 
       expect(adapter).toBeInstanceOf(WebSocketAdapter);
@@ -64,8 +64,8 @@ describe('WebSocketAdapter', () => {
     });
   });
 
-  describe('setupMessageHandlers', () => {
-    test('应该设置消息处理器', () => {
+  describe("setupMessageHandlers", () => {
+    test("应该设置消息处理器", () => {
       adapter = new WebSocketAdapter(mockWSClient, eventBus);
 
       // 设置前，activeListeners应该为0
@@ -78,63 +78,63 @@ describe('WebSocketAdapter', () => {
     });
   });
 
-  describe('传入消息处理 (WebSocket → EventBus)', () => {
+  describe("传入消息处理 (WebSocket → EventBus)", () => {
     beforeEach(() => {
       adapter = new WebSocketAdapter(mockWSClient, eventBus);
       adapter.setupMessageHandlers();
       adapter.onInitialized(); // 标记为已初始化
     });
 
-    test('应该处理 load_pdf_file 消息', () => {
+    test("应该处理 load_pdf_file 消息", () => {
       const fileData = {
-        filename: 'test.pdf',
-        url: 'http://localhost/test.pdf',
-        file_path: '/path/to/test.pdf'
+        filename: "test.pdf",
+        url: "http://localhost/test.pdf",
+        file_path: "/path/to/test.pdf"
       };
 
       const handler = jest.fn();
       eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, handler);
 
       adapter.handleMessage({
-        type: 'load_pdf_file',
+        type: "load_pdf_file",
         data: fileData
       });
 
       expect(handler).toHaveBeenCalledWith(
         expect.objectContaining({
-          filename: 'test.pdf',
-          file_path: '/path/to/test.pdf',
-          filePath: '/path/to/test.pdf',
-          url: 'http://localhost/test.pdf'
+          filename: "test.pdf",
+          file_path: "/path/to/test.pdf",
+          filePath: "/path/to/test.pdf",
+          url: "http://localhost/test.pdf"
         })
       );
     });
 
-    test('应该处理旧格式的 load_pdf_file 消息（fileId）', (done) => {
+    test("应该处理旧格式的 load_pdf_file 消息（fileId）", (done) => {
       const fileData = {
-        filename: 'legacy.pdf',
-        url: 'http://localhost/legacy.pdf',
-        fileId: 'legacy-file-id'
+        filename: "legacy.pdf",
+        url: "http://localhost/legacy.pdf",
+        fileId: "legacy-file-id"
       };
 
       eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, (data) => {
-        expect(data.filename).toBe('legacy.pdf');
-        expect(data.fileId).toBe('legacy-file-id');
+        expect(data.filename).toBe("legacy.pdf");
+        expect(data.fileId).toBe("legacy-file-id");
         done();
       });
 
       adapter.handleMessage({
-        type: 'load_pdf_file',
+        type: "load_pdf_file",
         data: fileData
       });
     });
 
-    test('应该处理 navigate_page 消息', () => {
+    test("应该处理 navigate_page 消息", () => {
       const handler = jest.fn();
       eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.GOTO, handler);
 
       adapter.handleMessage({
-        type: 'navigate_page',
+        type: "navigate_page",
         data: { page_number: 5 }
       });
 
@@ -143,35 +143,35 @@ describe('WebSocketAdapter', () => {
       );
     });
 
-    test('应该处理 set_zoom 消息（level）', (done) => {
+    test("应该处理 set_zoom 消息（level）", (done) => {
       eventBus.on(PDF_VIEWER_EVENTS.ZOOM.CHANGED, (data) => {
         expect(data.level).toBe(1.5);
         done();
       });
 
       adapter.handleMessage({
-        type: 'set_zoom',
+        type: "set_zoom",
         data: { level: 1.5 }
       });
     });
 
-    test('应该处理 set_zoom 消息（scale）', (done) => {
+    test("应该处理 set_zoom 消息（scale）", (done) => {
       eventBus.on(PDF_VIEWER_EVENTS.ZOOM.CHANGED, (data) => {
         expect(data.scale).toBe(2.0);
         done();
       });
 
       adapter.handleMessage({
-        type: 'set_zoom',
+        type: "set_zoom",
         data: { scale: 2.0 }
       });
     });
 
-    test('应该忽略未知消息类型', () => {
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+    test("应该忽略未知消息类型", () => {
+      const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
 
       adapter.handleMessage({
-        type: 'unknown_message_type',
+        type: "unknown_message_type",
         data: {}
       });
 
@@ -180,26 +180,26 @@ describe('WebSocketAdapter', () => {
       consoleWarnSpy.mockRestore();
     });
 
-    test('应该验证 load_pdf_file 消息格式', () => {
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+    test("应该验证 load_pdf_file 消息格式", () => {
+      const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
 
       // 缺少必需字段
       adapter.handleMessage({
-        type: 'load_pdf_file',
-        data: { filename: 'test.pdf' } // 缺少url
+        type: "load_pdf_file",
+        data: { filename: "test.pdf" } // 缺少url
       });
 
       expect(consoleWarnSpy).toHaveBeenCalled();
       consoleWarnSpy.mockRestore();
     });
 
-    test('应该验证 navigate_page 消息格式', () => {
-      const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
+    test("应该验证 navigate_page 消息格式", () => {
+      const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
 
       // page_number不是数字
       adapter.handleMessage({
-        type: 'navigate_page',
-        data: { page_number: 'invalid' }
+        type: "navigate_page",
+        data: { page_number: "invalid" }
       });
 
       expect(consoleWarnSpy).toHaveBeenCalled();
@@ -207,33 +207,33 @@ describe('WebSocketAdapter', () => {
     });
   });
 
-  describe('传出消息处理 (EventBus → WebSocket)', () => {
+  describe("传出消息处理 (EventBus → WebSocket)", () => {
     beforeEach(() => {
       adapter = new WebSocketAdapter(mockWSClient, eventBus);
       adapter.setupMessageHandlers();
       adapter.onInitialized();
     });
 
-    test('文件加载完成后不再发送 pdf_loaded 消息（已移除）', () => {
+    test("文件加载完成后不再发送 pdf_loaded 消息（已移除）", () => {
       eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, {
-        filePath: '/path/to/file.pdf',
-        filename: 'file.pdf',
+        filePath: "/path/to/file.pdf",
+        filename: "file.pdf",
         totalPages: 10,
-        url: 'http://localhost/file.pdf'
+        url: "http://localhost/file.pdf"
       });
       // 不应发送任何 pdf_loaded 类型的消息
       const calls = mockWSClient.send.mock.calls.map(c => c[0]);
-      expect(calls.find(m => m && m.type === 'pdf_loaded')).toBeUndefined();
+      expect(calls.find(m => m && m.type === "pdf_loaded")).toBeUndefined();
     });
 
-    test('应该发送 page_changed 消息', () => {
+    test("应该发送 page_changed 消息", () => {
       eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.CHANGED, {
         pageNumber: 3,
         totalPages: 10
       });
 
       expect(mockWSClient.send).toHaveBeenCalledWith({
-        type: 'page_changed',
+        type: "page_changed",
         data: {
           page_number: 3,
           total_pages: 10
@@ -241,14 +241,14 @@ describe('WebSocketAdapter', () => {
       });
     });
 
-    test('应该发送 zoom_changed 消息', () => {
+    test("应该发送 zoom_changed 消息", () => {
       eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.CHANGED, {
         level: 1.5,
         scale: 1.5
       });
 
       expect(mockWSClient.send).toHaveBeenCalledWith({
-        type: 'zoom_changed',
+        type: "zoom_changed",
         data: {
           level: 1.5,
           scale: 1.5
@@ -257,8 +257,8 @@ describe('WebSocketAdapter', () => {
     });
   });
 
-  describe('消息队列处理', () => {
-    test('未初始化时应该缓存消息', () => {
+  describe("消息队列处理", () => {
+    test("未初始化时应该缓存消息", () => {
       adapter = new WebSocketAdapter(mockWSClient, eventBus);
       adapter.setupMessageHandlers();
       // 不调用 onInitialized()
@@ -267,11 +267,11 @@ describe('WebSocketAdapter', () => {
       eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, handler);
 
       adapter.handleMessage({
-        type: 'load_pdf_file',
+        type: "load_pdf_file",
         data: {
-          filename: 'queued.pdf',
-          url: 'http://localhost/queued.pdf',
-          file_path: '/queued.pdf'
+          filename: "queued.pdf",
+          url: "http://localhost/queued.pdf",
+          file_path: "/queued.pdf"
         }
       });
 
@@ -280,22 +280,22 @@ describe('WebSocketAdapter', () => {
       expect(adapter.getState().queuedMessages).toBe(1);
     });
 
-    test('初始化后应该处理队列中的消息', (done) => {
+    test("初始化后应该处理队列中的消息", (done) => {
       adapter = new WebSocketAdapter(mockWSClient, eventBus);
       adapter.setupMessageHandlers();
 
       // 添加多个消息到队列
       adapter.handleMessage({
-        type: 'load_pdf_file',
+        type: "load_pdf_file",
         data: {
-          filename: 'queued1.pdf',
-          url: 'http://localhost/queued1.pdf',
-          file_path: '/queued1.pdf'
+          filename: "queued1.pdf",
+          url: "http://localhost/queued1.pdf",
+          file_path: "/queued1.pdf"
         }
       });
 
       adapter.handleMessage({
-        type: 'navigate_page',
+        type: "navigate_page",
         data: { page_number: 5 }
       });
 
@@ -319,7 +319,7 @@ describe('WebSocketAdapter', () => {
       }, 10);
     });
 
-    test('初始化后的新消息应该立即处理', (done) => {
+    test("初始化后的新消息应该立即处理", (done) => {
       adapter = new WebSocketAdapter(mockWSClient, eventBus);
       adapter.setupMessageHandlers();
       adapter.onInitialized(); // 标记为已初始化
@@ -328,11 +328,11 @@ describe('WebSocketAdapter', () => {
       eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, handler);
 
       adapter.handleMessage({
-        type: 'load_pdf_file',
+        type: "load_pdf_file",
         data: {
-          filename: 'immediate.pdf',
-          url: 'http://localhost/immediate.pdf',
-          file_path: '/immediate.pdf'
+          filename: "immediate.pdf",
+          url: "http://localhost/immediate.pdf",
+          file_path: "/immediate.pdf"
         }
       });
 
@@ -345,8 +345,8 @@ describe('WebSocketAdapter', () => {
     });
   });
 
-  describe('destroy方法', () => {
-    test('应该清理所有监听器', () => {
+  describe("destroy方法", () => {
+    test("应该清理所有监听器", () => {
       adapter = new WebSocketAdapter(mockWSClient, eventBus);
       adapter.setupMessageHandlers();
 
@@ -358,7 +358,7 @@ describe('WebSocketAdapter', () => {
       expect(adapter.getState().initialized).toBe(false);
     });
 
-    test('销毁后发射事件不应该触发WebSocket发送', () => {
+    test("销毁后发射事件不应该触发WebSocket发送", () => {
       adapter = new WebSocketAdapter(mockWSClient, eventBus);
       adapter.setupMessageHandlers();
       adapter.onInitialized();
@@ -368,27 +368,27 @@ describe('WebSocketAdapter', () => {
       mockWSClient.send.mockClear();
 
       eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, {
-        filePath: '/test.pdf',
-        filename: 'test.pdf',
+        filePath: "/test.pdf",
+        filename: "test.pdf",
         totalPages: 10,
-        url: 'http://localhost/test.pdf'
+        url: "http://localhost/test.pdf"
       });
 
       // 销毁后不应该发送消息
       expect(mockWSClient.send).not.toHaveBeenCalled();
     });
 
-    test('销毁后应该清空消息队列', () => {
+    test("销毁后应该清空消息队列", () => {
       adapter = new WebSocketAdapter(mockWSClient, eventBus);
       adapter.setupMessageHandlers();
 
       // 添加消息到队列
       adapter.handleMessage({
-        type: 'load_pdf_file',
+        type: "load_pdf_file",
         data: {
-          filename: 'queued.pdf',
-          url: 'http://localhost/queued.pdf',
-          file_path: '/queued.pdf'
+          filename: "queued.pdf",
+          url: "http://localhost/queued.pdf",
+          file_path: "/queued.pdf"
         }
       });
 
@@ -400,8 +400,8 @@ describe('WebSocketAdapter', () => {
     });
   });
 
-  describe('getState方法', () => {
-    test('应该返回正确的状态', () => {
+  describe("getState方法", () => {
+    test("应该返回正确的状态", () => {
       adapter = new WebSocketAdapter(mockWSClient, eventBus);
 
       let state = adapter.getState();
@@ -419,18 +419,18 @@ describe('WebSocketAdapter', () => {
     });
   });
 
-  describe('实际使用场景', () => {
-    test('模拟完整的消息流转', (done) => {
+  describe("实际使用场景", () => {
+    test("模拟完整的消息流转", (done) => {
       adapter = new WebSocketAdapter(mockWSClient, eventBus);
       adapter.setupMessageHandlers();
 
       // 场景1: 应用未初始化，收到加载PDF消息
       adapter.handleMessage({
-        type: 'load_pdf_file',
+        type: "load_pdf_file",
         data: {
-          filename: 'document.pdf',
-          url: 'http://localhost/document.pdf',
-          file_path: '/document.pdf'
+          filename: "document.pdf",
+          url: "http://localhost/document.pdf",
+          file_path: "/document.pdf"
         }
       });
 
@@ -443,27 +443,27 @@ describe('WebSocketAdapter', () => {
 
       adapter.onInitialized();
 
-        // 场景3: 文件加载完成，不再发送 legacy 的 pdf_loaded 消息
-        setTimeout(() => {
-          expect(loadHandler).toHaveBeenCalled();
+      // 场景3: 文件加载完成，不再发送 legacy 的 pdf_loaded 消息
+      setTimeout(() => {
+        expect(loadHandler).toHaveBeenCalled();
 
-          mockWSClient.send.mockClear();
+        mockWSClient.send.mockClear();
 
-          eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, {
-            filePath: '/document.pdf',
-            filename: 'document.pdf',
-            totalPages: 100,
-            url: 'http://localhost/document.pdf'
-          });
+        eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, {
+          filePath: "/document.pdf",
+          filename: "document.pdf",
+          totalPages: 100,
+          url: "http://localhost/document.pdf"
+        });
 
-          // 未提供 pdf-id 场景下不会发送 visited_at 更新；也不应发送 pdf_loaded
-          expect(mockWSClient.send).not.toHaveBeenCalled();
+        // 未提供 pdf-id 场景下不会发送 visited_at 更新；也不应发送 pdf_loaded
+        expect(mockWSClient.send).not.toHaveBeenCalled();
 
-          done();
-        }, 10);
-      });
+        done();
+      }, 10);
+    });
 
-    test('模拟页面导航流程', () => {
+    test("模拟页面导航流程", () => {
       adapter = new WebSocketAdapter(mockWSClient, eventBus);
       adapter.setupMessageHandlers();
       adapter.onInitialized();
@@ -473,7 +473,7 @@ describe('WebSocketAdapter', () => {
       eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.GOTO, navHandler);
 
       adapter.handleMessage({
-        type: 'navigate_page',
+        type: "navigate_page",
         data: { page_number: 5 }
       });
 
@@ -490,7 +490,7 @@ describe('WebSocketAdapter', () => {
       });
 
       expect(mockWSClient.send).toHaveBeenCalledWith({
-        type: 'page_changed',
+        type: "page_changed",
         data: {
           page_number: 5,
           total_pages: 100

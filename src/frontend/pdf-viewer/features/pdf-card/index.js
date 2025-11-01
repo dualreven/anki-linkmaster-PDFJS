@@ -4,9 +4,9 @@
  * @description 第一期实现：仅包含UI容器，不实现具体业务逻辑
  */
 
-import { getLogger } from '../../../common/utils/logger.js';
-import { PDFCardFeatureConfig } from './feature.config.js';
-import { CardSidebarUI } from './components/card-sidebar-ui.js';
+import { getLogger } from "../../../common/utils/logger.js";
+import { PDFCardFeatureConfig } from "./feature.config.js";
+import { CardSidebarUI } from "./components/card-sidebar-ui.js";
 
 export class PDFCardFeature {
   #logger = null;
@@ -58,8 +58,8 @@ export class PDFCardFeature {
 
     // 将UI注册到全局依赖容器（供SidebarManager跨Feature访问）
     if (this.#container) {
-      this.#container.registerGlobal('cardSidebarUI', this.#cardSidebarUI);
-      this.#logger.info('CardSidebarUI registered to global container');
+      this.#container.registerGlobal("cardSidebarUI", this.#cardSidebarUI);
+      this.#logger.info("CardSidebarUI registered to global container");
     }
 
     this.#enabled = true;

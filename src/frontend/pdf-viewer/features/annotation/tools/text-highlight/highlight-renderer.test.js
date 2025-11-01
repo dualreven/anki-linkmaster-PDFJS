@@ -1,6 +1,6 @@
-﻿import { HighlightRenderer } from './highlight-renderer.js';
+﻿import { HighlightRenderer } from "./highlight-renderer.js";
 
-describe('HighlightRenderer', () => {
+describe("HighlightRenderer", () => {
   let logger;
 
   beforeEach(() => {
@@ -18,9 +18,9 @@ describe('HighlightRenderer', () => {
       </div>
     `;
 
-    const page = document.querySelector('.page');
-    Object.defineProperty(page, 'clientWidth', { configurable: true, value: 600 });
-    Object.defineProperty(page, 'clientHeight', { configurable: true, value: 800 });
+    const page = document.querySelector(".page");
+    Object.defineProperty(page, "clientWidth", { configurable: true, value: 600 });
+    Object.defineProperty(page, "clientHeight", { configurable: true, value: 800 });
     page.getBoundingClientRect = () => ({
       width: 600,
       height: 800,
@@ -30,17 +30,17 @@ describe('HighlightRenderer', () => {
   });
 
   afterEach(() => {
-    document.body.innerHTML = '';
+    document.body.innerHTML = "";
   });
 
-  it('returns container and bounding box when rendering percent rects', () => {
+  it("returns container and bounding box when rendering percent rects", () => {
     const renderer = new HighlightRenderer(null, logger);
     const lineRects = [
       { xPercent: 10, yPercent: 20, widthPercent: 30, heightPercent: 5 },
       { xPercent: 12, yPercent: 26, widthPercent: 28, heightPercent: 5 }
     ];
 
-    const result = renderer.renderHighlight(1, [], '#ffeb3b', 'ann-test', lineRects);
+    const result = renderer.renderHighlight(1, [], "#ffeb3b", "ann-test", lineRects);
 
     expect(result).not.toBeNull();
     expect(result.container).toBeInstanceOf(HTMLElement);
@@ -51,29 +51,29 @@ describe('HighlightRenderer', () => {
     expect(result.boundingBox.width).toBeCloseTo(180);
     expect(result.boundingBox.height).toBeCloseTo(88);
 
-    const highlightLayer = document.querySelector('.highlight-layer');
+    const highlightLayer = document.querySelector(".highlight-layer");
     expect(highlightLayer).not.toBeNull();
 
-    const highlightElements = result.container.querySelectorAll('.text-highlight');
+    const highlightElements = result.container.querySelectorAll(".text-highlight");
     expect(highlightElements).toHaveLength(2);
   });
 
-  it('replaces existing highlight when rendering same annotation id', () => {
+  it("replaces existing highlight when rendering same annotation id", () => {
     const renderer = new HighlightRenderer(null, logger);
     const rects = [
       { xPercent: 0, yPercent: 0, widthPercent: 10, heightPercent: 10 }
     ];
 
-    const first = renderer.renderHighlight(1, [], '#ffeb3b', 'ann-duplicate', rects);
-    const second = renderer.renderHighlight(1, [], '#4caf50', 'ann-duplicate', rects);
+    const first = renderer.renderHighlight(1, [], "#ffeb3b", "ann-duplicate", rects);
+    const second = renderer.renderHighlight(1, [], "#4caf50", "ann-duplicate", rects);
 
     expect(first.container.isConnected).toBe(false);
-    expect(second.container.dataset.annotationId).toBe('ann-duplicate');
+    expect(second.container.dataset.annotationId).toBe("ann-duplicate");
 
-    const containers = document.querySelectorAll('[data-annotation-id="ann-duplicate"]');
+    const containers = document.querySelectorAll("[data-annotation-id=\"ann-duplicate\"]");
     expect(containers).toHaveLength(1);
 
-    const highlight = second.container.querySelector('.text-highlight');
-    expect(highlight.style.backgroundColor).toBe('rgb(76, 175, 80)');
+    const highlight = second.container.querySelector(".text-highlight");
+    expect(highlight.style.backgroundColor).toBe("rgb(76, 175, 80)");
   });
 });

@@ -28,7 +28,7 @@ export class FilterPanel {
     this.#attachEventListeners();
     this.#createPresetDialog();
 
-    this.#logger.info('[FilterPanel] Rendered');
+    this.#logger.info("[FilterPanel] Rendered");
   }
 
   /**
@@ -82,12 +82,12 @@ export class FilterPanel {
       </div>
     `;
 
-    const tempDiv = document.createElement('div');
+    const tempDiv = document.createElement("div");
     tempDiv.innerHTML = dialogHTML.trim();
     this.#presetDialog = tempDiv.firstChild;
     document.body.appendChild(this.#presetDialog);
 
-    this.#presetNameInput = this.#presetDialog.querySelector('.preset-name-input');
+    this.#presetNameInput = this.#presetDialog.querySelector(".preset-name-input");
 
     // 绑定弹窗事件
     this.#bindDialogEvents();
@@ -98,8 +98,8 @@ export class FilterPanel {
    * @private
    */
   #bindElements() {
-    this.#advancedBtn = this.#container.querySelector('.advanced-filter-btn');
-    this.#savePresetBtn = this.#container.querySelector('.save-preset-btn');
+    this.#advancedBtn = this.#container.querySelector(".advanced-filter-btn");
+    this.#savePresetBtn = this.#container.querySelector(".save-preset-btn");
   }
 
   /**
@@ -108,12 +108,12 @@ export class FilterPanel {
    */
   #attachEventListeners() {
     // 高级筛选按钮
-    this.#advancedBtn.addEventListener('click', () => {
+    this.#advancedBtn.addEventListener("click", () => {
       this.#handleAdvancedFilter();
     });
 
     // 保存预设按钮
-    this.#savePresetBtn.addEventListener('click', () => {
+    this.#savePresetBtn.addEventListener("click", () => {
       this.#showPresetDialog();
     });
   }
@@ -124,41 +124,41 @@ export class FilterPanel {
    */
   #bindDialogEvents() {
     // 弹窗关闭按钮
-    const closeBtn = this.#presetDialog.querySelector('.preset-dialog-close');
+    const closeBtn = this.#presetDialog.querySelector(".preset-dialog-close");
     if (closeBtn) {
-      closeBtn.addEventListener('click', () => {
+      closeBtn.addEventListener("click", () => {
         this.#hidePresetDialog();
       });
     }
 
     // 弹窗取消按钮
-    const cancelBtn = this.#presetDialog.querySelector('.preset-dialog-cancel');
+    const cancelBtn = this.#presetDialog.querySelector(".preset-dialog-cancel");
     if (cancelBtn) {
-      cancelBtn.addEventListener('click', () => {
+      cancelBtn.addEventListener("click", () => {
         this.#hidePresetDialog();
       });
     }
 
     // 弹窗保存按钮
-    const saveBtn = this.#presetDialog.querySelector('.preset-dialog-save');
+    const saveBtn = this.#presetDialog.querySelector(".preset-dialog-save");
     if (saveBtn) {
-      saveBtn.addEventListener('click', () => {
+      saveBtn.addEventListener("click", () => {
         this.#handlePresetSave();
       });
     }
 
     // 弹窗遮罩层点击关闭
-    const overlay = this.#presetDialog.querySelector('.preset-dialog-overlay');
+    const overlay = this.#presetDialog.querySelector(".preset-dialog-overlay");
     if (overlay) {
-      overlay.addEventListener('click', () => {
+      overlay.addEventListener("click", () => {
         this.#hidePresetDialog();
       });
     }
 
     // Enter键保存
     if (this.#presetNameInput) {
-      this.#presetNameInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
+      this.#presetNameInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
           this.#handlePresetSave();
         }
       });
@@ -170,8 +170,8 @@ export class FilterPanel {
    * @private
    */
   #handleAdvancedFilter() {
-    this.#logger.info('[FilterPanel] Advanced filter triggered');
-    this.#eventBus.emit('filter:advanced:open');
+    this.#logger.info("[FilterPanel] Advanced filter triggered");
+    this.#eventBus.emit("filter:advanced:open");
   }
 
   /**
@@ -180,12 +180,12 @@ export class FilterPanel {
    */
   #showPresetDialog() {
     this.#presetDialog.hidden = false;
-    this.#presetNameInput.value = '';
+    this.#presetNameInput.value = "";
     // 聚焦输入框
     setTimeout(() => {
       this.#presetNameInput.focus();
     }, 100);
-    this.#logger.info('[FilterPanel] Preset dialog shown');
+    this.#logger.info("[FilterPanel] Preset dialog shown");
   }
 
   /**
@@ -194,8 +194,8 @@ export class FilterPanel {
    */
   #hidePresetDialog() {
     this.#presetDialog.hidden = true;
-    this.#presetNameInput.value = '';
-    this.#logger.info('[FilterPanel] Preset dialog hidden');
+    this.#presetNameInput.value = "";
+    this.#logger.info("[FilterPanel] Preset dialog hidden");
   }
 
   /**
@@ -206,12 +206,12 @@ export class FilterPanel {
     const presetName = this.#presetNameInput.value.trim();
 
     if (!presetName) {
-      alert('请输入预设名称');
+      alert("请输入预设名称");
       return;
     }
 
-    this.#logger.info('[FilterPanel] Save preset requested', { presetName });
-    this.#eventBus.emit('filter:preset:save', { presetName });
+    this.#logger.info("[FilterPanel] Save preset requested", { presetName });
+    this.#eventBus.emit("filter:preset:save", { presetName });
 
     this.#hidePresetDialog();
   }
@@ -221,7 +221,7 @@ export class FilterPanel {
    */
   destroy() {
     if (this.#container) {
-      this.#container.innerHTML = '';
+      this.#container.innerHTML = "";
     }
 
     // 移除弹窗
@@ -231,6 +231,6 @@ export class FilterPanel {
       this.#presetNameInput = null;
     }
 
-    this.#logger.info('[FilterPanel] Destroyed');
+    this.#logger.info("[FilterPanel] Destroyed");
   }
 }

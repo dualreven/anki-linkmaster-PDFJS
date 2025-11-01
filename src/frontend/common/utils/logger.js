@@ -130,6 +130,10 @@ export class Logger {
 
     // 若请求 toast，则将本条日志同步以 toast 输出
     if (toastOpt) {
+      // Feature 级过滤：根据模块策略决定是否真正弹 toast
+      if (!_shouldShowToast(this.#moduleName, level, toastOpt)) {
+        return; // 已写入控制台日志，但抑制 toast 展示
+      }
       try {
         const ms = typeof toastOpt.ms === "number" ? toastOpt.ms : undefined;
         const tText = this.#buildToastText(message, args);
@@ -391,9 +395,29 @@ const globalLogConfig = {
     defaultMs: null,       // 默认显示时长（null表示使用级别默认值）
     excludeModules: [],    // 排除的模块列表
   },
+  // Feature/模块级 toast 策略（新增）
+  // 例如：modules.set("URLJumpDispatcher", { enabled: true, levels: ["error","warn"] })
+  toastPolicy: {
+    modules: new Map(),
+    defaultEnabled: true,
+  },
   // 内部：速率窗口状态
   _rateState: new Map(),
 };
+
+function _shouldShowToast(moduleName, level, toastOpt) {
+  try {
+    const m = globalLogConfig.toastPolicy.modules.get(moduleName);
+    if (m) {
+      if (m.enabled === false) { return false; }
+      if (Array.isArray(m.levels) && m.levels.length > 0) {
+        return m.levels.includes(level);
+      }
+      return true;
+    }
+  } catch (_) {}
+  return !!globalLogConfig.toastPolicy.defaultEnabled;
+}
 
 function getEffectiveLogLevel(moduleName, instanceLevel) {
   const per = globalLogConfig.perModuleLevel.get(moduleName);
@@ -550,6 +574,45 @@ export function disableAutoToast() {
 }
 
 /**
+ * 设置模块级 toast 策略（新增）
+ * @param {string} moduleName
+ * @param {{enabled?: boolean, levels?: Array<string>}} policy
+ */
+export function setToastPolicy(moduleName, policy = {}) {
+  if (!moduleName || typeof moduleName !== "string") { return; }
+  const p = {};
+  if (typeof policy.enabled === "boolean") { p.enabled = policy.enabled; }
+  if (Array.isArray(policy.levels)) {
+    const allowed = [LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR, "debug","info","warn","error","success"];
+    p.levels = policy.levels.filter(l => allowed.includes(l));
+  }
+  globalLogConfig.toastPolicy.modules.set(moduleName, p);
+}
+
+/**
+ * 获取当前 toast 策略（只读快照）
+ */
+export function getToastPolicy() {
+  const obj = {};
+  try {
+    for (const [k, v] of globalLogConfig.toastPolicy.modules.entries()) {
+      obj[k] = { enabled: (v.enabled !== false), levels: v.levels ? [...v.levels] : undefined };
+    }
+  } catch(_) {}
+  return {
+    defaultEnabled: !!globalLogConfig.toastPolicy.defaultEnabled,
+    modules: obj
+  };
+}
+
+/**
+ * 设置默认 toast 启用状态（未命中模块策略时生效）
+ */
+export function setDefaultToastEnabled(enabled) {
+  globalLogConfig.toastPolicy.defaultEnabled = !!enabled;
+}
+
+/**
  * 设置自动Toast的级别
  * @param {Array<string>} levels - 日志级别数组
  */
@@ -670,6 +733,9 @@ try {
       window.getLogger = getLogger;
       window.setGlobalLogLevel = setGlobalLogLevel;
       window.LogLevel = LogLevel;
+      window.setToastPolicy = setToastPolicy;
+      window.getToastPolicy = getToastPolicy;
+      window.setDefaultToastEnabled = setDefaultToastEnabled;
 
       console.info("[Logger] 调试函数已暴露到 window 对象:", {
         functions: [
@@ -679,7 +745,10 @@ try {
           "getAutoToastConfig()",
           "getLogger(moduleName)",
           "setGlobalLogLevel(level)",
-          "LogLevel"
+          "LogLevel",
+          "setToastPolicy(moduleName, policy)",
+          "getToastPolicy()",
+          "setDefaultToastEnabled(enabled)"
         ]
       });
     }

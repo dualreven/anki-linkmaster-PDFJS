@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { EventBus } from '../../../../../common/event/event-bus.js';
-import { ScopedEventBus } from '../../../../../common/event/scoped-event-bus.js';
-import { RecentSearchesFeature } from '../index.js';
-import { WEBSOCKET_MESSAGE_TYPES } from '../../../../../common/event/event-constants.js';
+import { describe, it, expect, beforeEach, afterEach, jest } from "@jest/globals";
+import { EventBus } from "../../../../../common/event/event-bus.js";
+import { ScopedEventBus } from "../../../../../common/event/scoped-event-bus.js";
+import { RecentSearchesFeature } from "../index.js";
+import { WEBSOCKET_MESSAGE_TYPES } from "../../../../../common/event/event-constants.js";
 
 const createLogger = () => ({
   info: jest.fn(),
@@ -12,7 +12,7 @@ const createLogger = () => ({
   event: jest.fn()
 });
 
-describe('RecentSearchesFeature 持久化到后端', () => {
+describe("RecentSearchesFeature 持久化到后端", () => {
   let feature;
   let context;
   let globalEventBus;
@@ -37,13 +37,13 @@ describe('RecentSearchesFeature 持久化到后端', () => {
       </div>
     `;
 
-    globalEventBus = new EventBus({ moduleName: 'recent-searches-test', enableValidation: false });
-    scopedEventBus = new ScopedEventBus(globalEventBus, 'recent-searches-test');
+    globalEventBus = new EventBus({ moduleName: "recent-searches-test", enableValidation: false });
+    scopedEventBus = new ScopedEventBus(globalEventBus, "recent-searches-test");
 
     sentMessages = [];
-    globalEventBus.on('websocket:message:send', (msg) => {
+    globalEventBus.on("websocket:message:send", (msg) => {
       sentMessages.push(msg);
-    }, { subscriberId: 'capture-ws-send' });
+    }, { subscriberId: "capture-ws-send" });
 
     context = {
       logger: createLogger(),
@@ -62,16 +62,16 @@ describe('RecentSearchesFeature 持久化到后端', () => {
       await feature.uninstall();
       feature = null;
     }
-    document.body.innerHTML = '';
+    document.body.innerHTML = "";
   });
 
-  it('安装后会请求后端配置（pdf-library:get:config）', () => {
+  it("安装后会请求后端配置（pdf-library:get:config）", () => {
     const hasGet = sentMessages.some(m => m && m.type === WEBSOCKET_MESSAGE_TYPES.GET_CONFIG);
     expect(hasGet).toBe(true);
   });
 
-  it('搜索后会通过 WebSocket 推送配置更新（pdf-library:update:config）', () => {
-    globalEventBus.emit('search:query:requested', { searchText: 'abc' });
+  it("搜索后会通过 WebSocket 推送配置更新（pdf-library:update:config）", () => {
+    globalEventBus.emit("search:query:requested", { searchText: "abc" });
 
     // 推进防抖定时器
     jest.advanceTimersByTime(400);
@@ -83,23 +83,23 @@ describe('RecentSearchesFeature 持久化到后端', () => {
     expect(last.data.recent_search.length).toBeGreaterThan(0);
   });
 
-  it('收到后端 get:config 回执后会覆盖本地数据并渲染', () => {
+  it("收到后端 get:config 回执后会覆盖本地数据并渲染", () => {
     // 模拟后端回执
     const reqMsg = sentMessages.find(m => m && m.type === WEBSOCKET_MESSAGE_TYPES.GET_CONFIG);
     expect(reqMsg).toBeTruthy();
     const fakeResponse = {
-      type: 'response',
-      status: 'success',
+      type: "response",
+      status: "success",
       request_id: reqMsg.request_id,
       data: {
-        config: { recent_search: [{ text: 'from-backend', ts: Date.now() }] }
+        config: { recent_search: [{ text: "from-backend", ts: Date.now() }] }
       }
     };
-    globalEventBus.emit('websocket:message:response', fakeResponse);
+    globalEventBus.emit("websocket:message:response", fakeResponse);
 
-    const items = document.querySelectorAll('#recent-searches-list .sidebar-item-text');
+    const items = document.querySelectorAll("#recent-searches-list .sidebar-item-text");
     expect(items.length).toBe(1);
-    expect(items[0].textContent).toBe('from-backend');
+    expect(items[0].textContent).toBe("from-backend");
   });
 });
 

@@ -3,10 +3,10 @@
  * @description 测试 PDFManagerCore 的 openPDF 方法，验证新旧两种数据格式
  */
 
-import { PDFManagerCore } from '../pdf-manager-core.js';
-import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from '../../event/event-constants.js';
+import { PDFManagerCore } from "../pdf-manager-core.js";
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../event/event-constants.js";
 
-describe('PDFManagerCore - openPDF Method', () => {
+describe("PDFManagerCore - openPDF Method", () => {
   let manager;
   let mockEventBus;
   let emittedEvents;
@@ -33,9 +33,9 @@ describe('PDFManagerCore - openPDF Method', () => {
     }
   });
 
-  describe('向后兼容 - 旧格式（string）', () => {
-    test('应该接受字符串参数（旧格式）', () => {
-      const filename = 'sample.pdf';
+  describe("向后兼容 - 旧格式（string）", () => {
+    test("应该接受字符串参数（旧格式）", () => {
+      const filename = "sample.pdf";
 
       manager.openPDF(filename);
 
@@ -45,12 +45,12 @@ describe('PDFManagerCore - openPDF Method', () => {
           type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
           data: { file_id: filename }
         },
-        { actorId: 'PDFManager' }
+        { actorId: "PDFManager" }
       );
     });
 
-    test('应该正确处理不带扩展名的文件名', () => {
-      const filename = 'sample';
+    test("应该正确处理不带扩展名的文件名", () => {
+      const filename = "sample";
 
       manager.openPDF(filename);
 
@@ -60,14 +60,14 @@ describe('PDFManagerCore - openPDF Method', () => {
           type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
           data: { file_id: filename }
         },
-        { actorId: 'PDFManager' }
+        { actorId: "PDFManager" }
       );
     });
   });
 
-  describe('新格式 - 对象参数（带 needNavigate）', () => {
-    test('应该接受对象参数（仅 filename，无 needNavigate）', () => {
-      const data = { filename: 'sample.pdf' };
+  describe("新格式 - 对象参数（带 needNavigate）", () => {
+    test("应该接受对象参数（仅 filename，无 needNavigate）", () => {
+      const data = { filename: "sample.pdf" };
 
       manager.openPDF(data);
 
@@ -75,15 +75,15 @@ describe('PDFManagerCore - openPDF Method', () => {
         WEBSOCKET_EVENTS.MESSAGE.SEND,
         {
           type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
-          data: { file_id: 'sample.pdf' }
+          data: { file_id: "sample.pdf" }
         },
-        { actorId: 'PDFManager' }
+        { actorId: "PDFManager" }
       );
     });
 
-    test('应该正确传递 needNavigate.pageAt 参数', () => {
+    test("应该正确传递 needNavigate.pageAt 参数", () => {
       const data = {
-        filename: 'sample.pdf',
+        filename: "sample.pdf",
         needNavigate: { pageAt: 5 }
       };
 
@@ -94,17 +94,17 @@ describe('PDFManagerCore - openPDF Method', () => {
         {
           type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
           data: {
-            file_id: 'sample.pdf',
+            file_id: "sample.pdf",
             needNavigate: { pageAt: 5 }
           }
         },
-        { actorId: 'PDFManager' }
+        { actorId: "PDFManager" }
       );
     });
 
-    test('应该正确传递 needNavigate.pageAt + position 参数', () => {
+    test("应该正确传递 needNavigate.pageAt + position 参数", () => {
       const data = {
-        filename: 'sample.pdf',
+        filename: "sample.pdf",
         needNavigate: {
           pageAt: 5,
           position: 50
@@ -118,22 +118,22 @@ describe('PDFManagerCore - openPDF Method', () => {
         {
           type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
           data: {
-            file_id: 'sample.pdf',
+            file_id: "sample.pdf",
             needNavigate: {
               pageAt: 5,
               position: 50
             }
           }
         },
-        { actorId: 'PDFManager' }
+        { actorId: "PDFManager" }
       );
     });
 
-    test('应该正确传递 needNavigate.pdfanchor 参数', () => {
+    test("应该正确传递 needNavigate.pdfanchor 参数", () => {
       const data = {
-        filename: 'sample.pdf',
+        filename: "sample.pdf",
         needNavigate: {
-          pdfanchor: 'pdfanchor-abc123def456'
+          pdfanchor: "pdfanchor-abc123def456"
         }
       };
 
@@ -144,21 +144,21 @@ describe('PDFManagerCore - openPDF Method', () => {
         {
           type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
           data: {
-            file_id: 'sample.pdf',
+            file_id: "sample.pdf",
             needNavigate: {
-              pdfanchor: 'pdfanchor-abc123def456'
+              pdfanchor: "pdfanchor-abc123def456"
             }
           }
         },
-        { actorId: 'PDFManager' }
+        { actorId: "PDFManager" }
       );
     });
 
-    test('应该正确传递 needNavigate.pdfannotation 参数', () => {
+    test("应该正确传递 needNavigate.pdfannotation 参数", () => {
       const data = {
-        filename: 'sample.pdf',
+        filename: "sample.pdf",
         needNavigate: {
-          pdfannotation: 'pdfannotation-xyz789'
+          pdfannotation: "pdfannotation-xyz789"
         }
       };
 
@@ -169,34 +169,34 @@ describe('PDFManagerCore - openPDF Method', () => {
         {
           type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
           data: {
-            file_id: 'sample.pdf',
+            file_id: "sample.pdf",
             needNavigate: {
-              pdfannotation: 'pdfannotation-xyz789'
+              pdfannotation: "pdfannotation-xyz789"
             }
           }
         },
-        { actorId: 'PDFManager' }
+        { actorId: "PDFManager" }
       );
     });
 
-    test('应该正确传递包含多个 needNavigate 字段的参数', () => {
+    test("应该正确传递包含多个 needNavigate 字段的参数", () => {
       const data = {
-        filename: 'sample.pdf',
+        filename: "sample.pdf",
         needNavigate: {
           pageAt: 10,
           position: 75,
-          pdfanchor: 'pdfanchor-test12345678'
+          pdfanchor: "pdfanchor-test12345678"
         }
       };
 
       manager.openPDF(data);
 
       const expectedData = {
-        file_id: 'sample.pdf',
+        file_id: "sample.pdf",
         needNavigate: {
           pageAt: 10,
           position: 75,
-          pdfanchor: 'pdfanchor-test12345678'
+          pdfanchor: "pdfanchor-test12345678"
         }
       };
 
@@ -206,14 +206,14 @@ describe('PDFManagerCore - openPDF Method', () => {
           type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
           data: expectedData
         },
-        { actorId: 'PDFManager' }
+        { actorId: "PDFManager" }
       );
     });
   });
 
-  describe('错误处理', () => {
-    test('应该拒绝无效的参数类型（number）', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+  describe("错误处理", () => {
+    test("应该拒绝无效的参数类型（number）", () => {
+      const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
 
       manager.openPDF(12345);
 
@@ -222,8 +222,8 @@ describe('PDFManagerCore - openPDF Method', () => {
       consoleSpy.mockRestore();
     });
 
-    test('应该拒绝无效的参数类型（null）', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    test("应该拒绝无效的参数类型（null）", () => {
+      const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
 
       manager.openPDF(null);
 
@@ -232,8 +232,8 @@ describe('PDFManagerCore - openPDF Method', () => {
       consoleSpy.mockRestore();
     });
 
-    test('应该拒绝无效的参数类型（undefined）', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    test("应该拒绝无效的参数类型（undefined）", () => {
+      const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
 
       manager.openPDF(undefined);
 
@@ -242,8 +242,8 @@ describe('PDFManagerCore - openPDF Method', () => {
       consoleSpy.mockRestore();
     });
 
-    test('应该拒绝对象参数中缺少 filename 字段', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    test("应该拒绝对象参数中缺少 filename 字段", () => {
+      const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
 
       manager.openPDF({ needNavigate: { pageAt: 5 } });
 
@@ -252,18 +252,18 @@ describe('PDFManagerCore - openPDF Method', () => {
       consoleSpy.mockRestore();
     });
 
-    test('应该拒绝对象参数中 filename 为空字符串', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    test("应该拒绝对象参数中 filename 为空字符串", () => {
+      const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
 
-      manager.openPDF({ filename: '', needNavigate: { pageAt: 5 } });
+      manager.openPDF({ filename: "", needNavigate: { pageAt: 5 } });
 
       expect(mockEventBus.emit).not.toHaveBeenCalled();
 
       consoleSpy.mockRestore();
     });
 
-    test('应该拒绝对象参数中 filename 为 null', () => {
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    test("应该拒绝对象参数中 filename 为 null", () => {
+      const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
 
       manager.openPDF({ filename: null, needNavigate: { pageAt: 5 } });
 
@@ -273,10 +273,10 @@ describe('PDFManagerCore - openPDF Method', () => {
     });
   });
 
-  describe('边界情况', () => {
-    test('应该正确处理 needNavigate 为空对象', () => {
+  describe("边界情况", () => {
+    test("应该正确处理 needNavigate 为空对象", () => {
       const data = {
-        filename: 'sample.pdf',
+        filename: "sample.pdf",
         needNavigate: {}
       };
 
@@ -287,17 +287,17 @@ describe('PDFManagerCore - openPDF Method', () => {
         {
           type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
           data: {
-            file_id: 'sample.pdf',
+            file_id: "sample.pdf",
             needNavigate: {}
           }
         },
-        { actorId: 'PDFManager' }
+        { actorId: "PDFManager" }
       );
     });
 
-    test('应该正确处理 needNavigate 为 null', () => {
+    test("应该正确处理 needNavigate 为 null", () => {
       const data = {
-        filename: 'sample.pdf',
+        filename: "sample.pdf",
         needNavigate: null
       };
 
@@ -308,15 +308,15 @@ describe('PDFManagerCore - openPDF Method', () => {
         WEBSOCKET_EVENTS.MESSAGE.SEND,
         {
           type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
-          data: { file_id: 'sample.pdf' }
+          data: { file_id: "sample.pdf" }
         },
-        { actorId: 'PDFManager' }
+        { actorId: "PDFManager" }
       );
     });
 
-    test('应该正确处理 needNavigate 为 undefined', () => {
+    test("应该正确处理 needNavigate 为 undefined", () => {
       const data = {
-        filename: 'sample.pdf',
+        filename: "sample.pdf",
         needNavigate: undefined
       };
 
@@ -327,18 +327,18 @@ describe('PDFManagerCore - openPDF Method', () => {
         WEBSOCKET_EVENTS.MESSAGE.SEND,
         {
           type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
-          data: { file_id: 'sample.pdf' }
+          data: { file_id: "sample.pdf" }
         },
-        { actorId: 'PDFManager' }
+        { actorId: "PDFManager" }
       );
     });
   });
 
-  describe('数据隔离 - 验证深拷贝', () => {
-    test('应该对 needNavigate 进行深拷贝，防止外部修改影响内部数据', () => {
+  describe("数据隔离 - 验证深拷贝", () => {
+    test("应该对 needNavigate 进行深拷贝，防止外部修改影响内部数据", () => {
       const needNavigate = { pageAt: 5, position: 50 };
       const data = {
-        filename: 'sample.pdf',
+        filename: "sample.pdf",
         needNavigate
       };
 
@@ -354,14 +354,14 @@ describe('PDFManagerCore - openPDF Method', () => {
         {
           type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
           data: {
-            file_id: 'sample.pdf',
+            file_id: "sample.pdf",
             needNavigate: {
               pageAt: 5,   // 应该保持原始值
               position: 50 // 应该保持原始值
             }
           }
         },
-        { actorId: 'PDFManager' }
+        { actorId: "PDFManager" }
       );
     });
   });

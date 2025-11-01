@@ -37,12 +37,12 @@ export class ColorPickerDialog {
    */
   constructor(options = {}) {
     this.#presetColors = options.colors || [
-      '#ffff00', // 黄色
-      '#00ff00', // 绿色
-      '#00ffff', // 青色
-      '#ff00ff', // 粉色
-      '#ff6b6b', // 红色
-      '#4ecdc4'  // 蓝绿色
+      "#ffff00", // 黄色
+      "#00ff00", // 绿色
+      "#00ffff", // 青色
+      "#ff00ff", // 粉色
+      "#ff6b6b", // 红色
+      "#4ecdc4"  // 蓝绿色
     ];
 
     this.#allowCustomColor = options.allowCustomColor !== false;
@@ -79,9 +79,9 @@ export class ColorPickerDialog {
 
       // 触发动画
       requestAnimationFrame(() => {
-        this.#overlayEl.style.opacity = '1';
-        this.#dialogEl.style.opacity = '1';
-        this.#dialogEl.style.transform = 'translate(-50%, -50%) scale(1)';
+        this.#overlayEl.style.opacity = "1";
+        this.#dialogEl.style.opacity = "1";
+        this.#dialogEl.style.transform = "translate(-50%, -50%) scale(1)";
       });
     });
   }
@@ -91,12 +91,12 @@ export class ColorPickerDialog {
    * @returns {void}
    */
   hide() {
-    if (!this.#dialogEl || !this.#overlayEl) return;
+    if (!this.#dialogEl || !this.#overlayEl) {return;}
 
     // 淡出动画
-    this.#overlayEl.style.opacity = '0';
-    this.#dialogEl.style.opacity = '0';
-    this.#dialogEl.style.transform = 'translate(-50%, -50%) scale(0.9)';
+    this.#overlayEl.style.opacity = "0";
+    this.#dialogEl.style.opacity = "0";
+    this.#dialogEl.style.transform = "translate(-50%, -50%) scale(0.9)";
 
     // 等待动画完成后移除
     setTimeout(() => {
@@ -118,8 +118,8 @@ export class ColorPickerDialog {
    * @private
    */
   #createOverlay() {
-    const overlay = document.createElement('div');
-    overlay.className = 'color-picker-overlay';
+    const overlay = document.createElement("div");
+    overlay.className = "color-picker-overlay";
     overlay.style.cssText = `
       position: fixed;
       top: 0;
@@ -132,7 +132,7 @@ export class ColorPickerDialog {
       transition: opacity 0.2s ease;
     `;
 
-    overlay.addEventListener('click', () => {
+    overlay.addEventListener("click", () => {
       if (this.#onCancelCallback) {
         this.#onCancelCallback();
       }
@@ -147,8 +147,8 @@ export class ColorPickerDialog {
    * @private
    */
   #createDialog() {
-    const dialog = document.createElement('div');
-    dialog.className = 'color-picker-dialog';
+    const dialog = document.createElement("div");
+    dialog.className = "color-picker-dialog";
     dialog.style.cssText = `
       position: fixed;
       top: 50%;
@@ -165,8 +165,8 @@ export class ColorPickerDialog {
     `;
 
     // 标题
-    const title = document.createElement('h3');
-    title.textContent = '选择高亮颜色';
+    const title = document.createElement("h3");
+    title.textContent = "选择高亮颜色";
     title.style.cssText = `
       margin: 0 0 16px 0;
       font-size: 16px;
@@ -190,7 +190,7 @@ export class ColorPickerDialog {
     dialog.appendChild(buttonGroup);
 
     // 阻止点击事件冒泡
-    dialog.addEventListener('click', (e) => {
+    dialog.addEventListener("click", (e) => {
       e.stopPropagation();
     });
 
@@ -203,8 +203,8 @@ export class ColorPickerDialog {
    * @private
    */
   #createColorGrid() {
-    const grid = document.createElement('div');
-    grid.className = 'color-grid';
+    const grid = document.createElement("div");
+    grid.className = "color-grid";
     grid.style.cssText = `
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -227,8 +227,8 @@ export class ColorPickerDialog {
    * @private
    */
   #createColorButton(color) {
-    const button = document.createElement('button');
-    button.className = 'color-button';
+    const button = document.createElement("button");
+    button.className = "color-button";
     button.style.cssText = `
       width: 100%;
       height: 48px;
@@ -240,24 +240,24 @@ export class ColorPickerDialog {
       position: relative;
     `;
 
-    button.addEventListener('mouseenter', () => {
-      button.style.transform = 'scale(1.05)';
-      button.style.borderColor = '#999';
+    button.addEventListener("mouseenter", () => {
+      button.style.transform = "scale(1.05)";
+      button.style.borderColor = "#999";
     });
 
-    button.addEventListener('mouseleave', () => {
-      button.style.transform = 'scale(1)';
-      button.style.borderColor = '#ddd';
+    button.addEventListener("mouseleave", () => {
+      button.style.transform = "scale(1)";
+      button.style.borderColor = "#ddd";
     });
 
-    button.addEventListener('click', () => {
+    button.addEventListener("click", () => {
       if (this.#onSelectCallback) {
         this.#onSelectCallback(color);
       }
     });
 
     // 添加颜色值文本
-    const colorLabel = document.createElement('span');
+    const colorLabel = document.createElement("span");
     colorLabel.textContent = this.#getColorName(color);
     colorLabel.style.cssText = `
       position: absolute;
@@ -280,16 +280,16 @@ export class ColorPickerDialog {
    * @private
    */
   #createCustomColorSection() {
-    const section = document.createElement('div');
-    section.className = 'custom-color-section';
+    const section = document.createElement("div");
+    section.className = "custom-color-section";
     section.style.cssText = `
       margin-bottom: 16px;
       padding-top: 12px;
       border-top: 1px solid #eee;
     `;
 
-    const label = document.createElement('label');
-    label.textContent = '自定义颜色：';
+    const label = document.createElement("label");
+    label.textContent = "自定义颜色：";
     label.style.cssText = `
       display: block;
       font-size: 14px;
@@ -298,16 +298,16 @@ export class ColorPickerDialog {
     `;
     section.appendChild(label);
 
-    const inputWrapper = document.createElement('div');
+    const inputWrapper = document.createElement("div");
     inputWrapper.style.cssText = `
       display: flex;
       gap: 8px;
       align-items: center;
     `;
 
-    const colorInput = document.createElement('input');
-    colorInput.type = 'color';
-    colorInput.value = '#ffff00';
+    const colorInput = document.createElement("input");
+    colorInput.type = "color";
+    colorInput.value = "#ffff00";
     colorInput.style.cssText = `
       width: 50px;
       height: 40px;
@@ -316,10 +316,10 @@ export class ColorPickerDialog {
       cursor: pointer;
     `;
 
-    const textInput = document.createElement('input');
-    textInput.type = 'text';
-    textInput.value = '#ffff00';
-    textInput.placeholder = '#rrggbb';
+    const textInput = document.createElement("input");
+    textInput.type = "text";
+    textInput.value = "#ffff00";
+    textInput.placeholder = "#rrggbb";
     textInput.style.cssText = `
       flex: 1;
       height: 40px;
@@ -331,19 +331,19 @@ export class ColorPickerDialog {
     `;
 
     // 同步颜色选择器和文本输入
-    colorInput.addEventListener('input', (e) => {
+    colorInput.addEventListener("input", (e) => {
       textInput.value = e.target.value;
     });
 
-    textInput.addEventListener('input', (e) => {
+    textInput.addEventListener("input", (e) => {
       const value = e.target.value;
       if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
         colorInput.value = value;
       }
     });
 
-    const applyButton = document.createElement('button');
-    applyButton.textContent = '应用';
+    const applyButton = document.createElement("button");
+    applyButton.textContent = "应用";
     applyButton.style.cssText = `
       height: 40px;
       padding: 0 16px;
@@ -356,22 +356,22 @@ export class ColorPickerDialog {
       transition: background-color 0.2s ease;
     `;
 
-    applyButton.addEventListener('mouseenter', () => {
-      applyButton.style.backgroundColor = '#45a049';
+    applyButton.addEventListener("mouseenter", () => {
+      applyButton.style.backgroundColor = "#45a049";
     });
 
-    applyButton.addEventListener('mouseleave', () => {
-      applyButton.style.backgroundColor = '#4CAF50';
+    applyButton.addEventListener("mouseleave", () => {
+      applyButton.style.backgroundColor = "#4CAF50";
     });
 
-    applyButton.addEventListener('click', () => {
+    applyButton.addEventListener("click", () => {
       const color = textInput.value;
       if (/^#[0-9A-Fa-f]{6}$/.test(color)) {
         if (this.#onSelectCallback) {
           this.#onSelectCallback(color);
         }
       } else {
-        alert('请输入有效的颜色格式（例如：#ffff00）');
+        alert("请输入有效的颜色格式（例如：#ffff00）");
       }
     });
 
@@ -389,16 +389,16 @@ export class ColorPickerDialog {
    * @private
    */
   #createButtonGroup() {
-    const group = document.createElement('div');
-    group.className = 'button-group';
+    const group = document.createElement("div");
+    group.className = "button-group";
     group.style.cssText = `
       display: flex;
       justify-content: flex-end;
       gap: 8px;
     `;
 
-    const cancelButton = document.createElement('button');
-    cancelButton.textContent = '取消';
+    const cancelButton = document.createElement("button");
+    cancelButton.textContent = "取消";
     cancelButton.style.cssText = `
       padding: 8px 16px;
       background-color: #f5f5f5;
@@ -410,15 +410,15 @@ export class ColorPickerDialog {
       transition: background-color 0.2s ease;
     `;
 
-    cancelButton.addEventListener('mouseenter', () => {
-      cancelButton.style.backgroundColor = '#e0e0e0';
+    cancelButton.addEventListener("mouseenter", () => {
+      cancelButton.style.backgroundColor = "#e0e0e0";
     });
 
-    cancelButton.addEventListener('mouseleave', () => {
-      cancelButton.style.backgroundColor = '#f5f5f5';
+    cancelButton.addEventListener("mouseleave", () => {
+      cancelButton.style.backgroundColor = "#f5f5f5";
     });
 
-    cancelButton.addEventListener('click', () => {
+    cancelButton.addEventListener("click", () => {
       if (this.#onCancelCallback) {
         this.#onCancelCallback();
       }
@@ -437,12 +437,12 @@ export class ColorPickerDialog {
    */
   #getColorName(hex) {
     const colorNames = {
-      '#ffff00': '黄色',
-      '#00ff00': '绿色',
-      '#00ffff': '青色',
-      '#ff00ff': '粉色',
-      '#ff6b6b': '红色',
-      '#4ecdc4': '蓝绿'
+      "#ffff00": "黄色",
+      "#00ff00": "绿色",
+      "#00ffff": "青色",
+      "#ff00ff": "粉色",
+      "#ff6b6b": "红色",
+      "#4ecdc4": "蓝绿"
     };
 
     return colorNames[hex.toLowerCase()] || hex;

@@ -13,7 +13,7 @@ export class IFilterCondition {
    * @returns {string}
    */
   getConditionId() {
-    throw new Error('Must implement getConditionId()');
+    throw new Error("Must implement getConditionId()");
   }
 
   /**
@@ -21,7 +21,7 @@ export class IFilterCondition {
    * @returns {string} 'field' | 'fuzzy' | 'composite'
    */
   getConditionType() {
-    throw new Error('Must implement getConditionType()');
+    throw new Error("Must implement getConditionType()");
   }
 
   /**
@@ -29,7 +29,7 @@ export class IFilterCondition {
    * @returns {string}
    */
   getDescription() {
-    throw new Error('Must implement getDescription()');
+    throw new Error("Must implement getDescription()");
   }
 
   /**
@@ -38,7 +38,7 @@ export class IFilterCondition {
    * @returns {boolean}
    */
   match(record) {
-    throw new Error('Must implement match()');
+    throw new Error("Must implement match()");
   }
 
   /**
@@ -46,7 +46,7 @@ export class IFilterCondition {
    * @returns {Object} {valid: boolean, errors: string[]}
    */
   validate() {
-    throw new Error('Must implement validate()');
+    throw new Error("Must implement validate()");
   }
 
   /**
@@ -54,7 +54,7 @@ export class IFilterCondition {
    * @returns {Object}
    */
   serialize() {
-    throw new Error('Must implement serialize()');
+    throw new Error("Must implement serialize()");
   }
 
   /**
@@ -62,7 +62,7 @@ export class IFilterCondition {
    * @param {Object} config
    */
   deserialize(config) {
-    throw new Error('Must implement deserialize()');
+    throw new Error("Must implement deserialize()");
   }
 
   /**
@@ -70,7 +70,7 @@ export class IFilterCondition {
    * @returns {IFilterCondition}
    */
   clone() {
-    throw new Error('Must implement clone()');
+    throw new Error("Must implement clone()");
   }
 }
 
@@ -82,9 +82,9 @@ export class FieldCondition extends IFilterCondition {
   constructor(config = {}) {
     super();
     this.field = config.field || null;          // 字段名
-    this.operator = config.operator || 'eq';    // 操作符
+    this.operator = config.operator || "eq";    // 操作符
     this.value = config.value;                  // 筛选值
-    this.dataType = config.dataType || 'auto';  // 数据类型
+    this.dataType = config.dataType || "auto";  // 数据类型
   }
 
   getConditionId() {
@@ -92,24 +92,24 @@ export class FieldCondition extends IFilterCondition {
   }
 
   getConditionType() {
-    return 'field';
+    return "field";
   }
 
   getDescription() {
     const operatorLabels = {
-      'eq': '等于',
-      'ne': '不等于',
-      'gt': '大于',
-      'lt': '小于',
-      'gte': '大于等于',
-      'lte': '小于等于',
-      'contains': '包含',
-      'not_contains': '不包含',
-      'starts_with': '开头是',
-      'ends_with': '结尾是',
-      'in_range': '范围内',
-      'has_tag': '标签包含',
-      'not_has_tag': '标签不包含'
+      "eq": "等于",
+      "ne": "不等于",
+      "gt": "大于",
+      "lt": "小于",
+      "gte": "大于等于",
+      "lte": "小于等于",
+      "contains": "包含",
+      "not_contains": "不包含",
+      "starts_with": "开头是",
+      "ends_with": "结尾是",
+      "in_range": "范围内",
+      "has_tag": "标签包含",
+      "not_has_tag": "标签不包含"
     };
 
     const opLabel = operatorLabels[this.operator] || this.operator;
@@ -122,59 +122,59 @@ export class FieldCondition extends IFilterCondition {
 
       // 处理 null/undefined
       if (fieldValue == null) {
-        return this.operator === 'ne' || this.operator === 'not_contains';
+        return this.operator === "ne" || this.operator === "not_contains";
       }
 
       switch (this.operator) {
-        case 'eq':
-          return fieldValue == this.value;
+      case "eq":
+        return fieldValue == this.value;
 
-        case 'ne':
-          return fieldValue != this.value;
+      case "ne":
+        return fieldValue != this.value;
 
-        case 'gt':
-          return Number(fieldValue) > Number(this.value);
+      case "gt":
+        return Number(fieldValue) > Number(this.value);
 
-        case 'lt':
-          return Number(fieldValue) < Number(this.value);
+      case "lt":
+        return Number(fieldValue) < Number(this.value);
 
-        case 'gte':
-          return Number(fieldValue) >= Number(this.value);
+      case "gte":
+        return Number(fieldValue) >= Number(this.value);
 
-        case 'lte':
-          return Number(fieldValue) <= Number(this.value);
+      case "lte":
+        return Number(fieldValue) <= Number(this.value);
 
-        case 'contains':
-          return String(fieldValue).toLowerCase().includes(String(this.value).toLowerCase());
+      case "contains":
+        return String(fieldValue).toLowerCase().includes(String(this.value).toLowerCase());
 
-        case 'not_contains':
-          return !String(fieldValue).toLowerCase().includes(String(this.value).toLowerCase());
+      case "not_contains":
+        return !String(fieldValue).toLowerCase().includes(String(this.value).toLowerCase());
 
-        case 'starts_with':
-          return String(fieldValue).toLowerCase().startsWith(String(this.value).toLowerCase());
+      case "starts_with":
+        return String(fieldValue).toLowerCase().startsWith(String(this.value).toLowerCase());
 
-        case 'ends_with':
-          return String(fieldValue).toLowerCase().endsWith(String(this.value).toLowerCase());
+      case "ends_with":
+        return String(fieldValue).toLowerCase().endsWith(String(this.value).toLowerCase());
 
-        case 'in_range':
-          const [min, max] = this.value;
-          const numValue = Number(fieldValue);
-          return numValue >= Number(min) && numValue <= Number(max);
+      case "in_range":
+        const [min, max] = this.value;
+        const numValue = Number(fieldValue);
+        return numValue >= Number(min) && numValue <= Number(max);
 
-        case 'has_tag':
-          // fieldValue 应该是数组
-          if (!Array.isArray(fieldValue)) return false;
-          return fieldValue.some(tag => String(tag).toLowerCase().includes(String(this.value).toLowerCase()));
+      case "has_tag":
+        // fieldValue 应该是数组
+        if (!Array.isArray(fieldValue)) {return false;}
+        return fieldValue.some(tag => String(tag).toLowerCase().includes(String(this.value).toLowerCase()));
 
-        case 'not_has_tag':
-          if (!Array.isArray(fieldValue)) return true;
-          return !fieldValue.some(tag => String(tag).toLowerCase().includes(String(this.value).toLowerCase()));
+      case "not_has_tag":
+        if (!Array.isArray(fieldValue)) {return true;}
+        return !fieldValue.some(tag => String(tag).toLowerCase().includes(String(this.value).toLowerCase()));
 
-        default:
-          return false;
+      default:
+        return false;
       }
     } catch (error) {
-      console.warn('[FieldCondition] Match error:', error);
+      console.warn("[FieldCondition] Match error:", error);
       return false;
     }
   }
@@ -183,22 +183,22 @@ export class FieldCondition extends IFilterCondition {
     const errors = [];
 
     if (!this.field) {
-      errors.push('字段名不能为空');
+      errors.push("字段名不能为空");
     }
 
     if (!this.operator) {
-      errors.push('操作符不能为空');
+      errors.push("操作符不能为空");
     }
 
-    if (this.value === undefined || this.value === null || this.value === '') {
-      if (this.operator !== 'ne' && this.operator !== 'not_contains') {
-        errors.push('筛选值不能为空');
+    if (this.value === undefined || this.value === null || this.value === "") {
+      if (this.operator !== "ne" && this.operator !== "not_contains") {
+        errors.push("筛选值不能为空");
       }
     }
 
     // 范围操作符需要数组
-    if (this.operator === 'in_range' && !Array.isArray(this.value)) {
-      errors.push('范围筛选需要提供[最小值, 最大值]');
+    if (this.operator === "in_range" && !Array.isArray(this.value)) {
+      errors.push("范围筛选需要提供[最小值, 最大值]");
     }
 
     return {
@@ -209,7 +209,7 @@ export class FieldCondition extends IFilterCondition {
 
   serialize() {
     return {
-      type: 'field',
+      type: "field",
       field: this.field,
       operator: this.operator,
       value: this.value,
@@ -221,7 +221,7 @@ export class FieldCondition extends IFilterCondition {
     this.field = config.field;
     this.operator = config.operator;
     this.value = config.value;
-    this.dataType = config.dataType || 'auto';
+    this.dataType = config.dataType || "auto";
   }
 
   clone() {
@@ -243,9 +243,9 @@ export class FuzzySearchCondition extends IFilterCondition {
     super();
     this.keywords = config.keywords || [];  // 关键词数组
     this.searchFields = config.searchFields || [
-      'filename', 'tags', 'notes'
+      "filename", "tags", "notes"
     ];  // 可搜索字段
-    this.matchMode = config.matchMode || 'any';  // 'any' 或 'all'
+    this.matchMode = config.matchMode || "any";  // 'any' 或 'all'
   }
 
   getConditionId() {
@@ -253,23 +253,23 @@ export class FuzzySearchCondition extends IFilterCondition {
   }
 
   getConditionType() {
-    return 'fuzzy';
+    return "fuzzy";
   }
 
   getDescription() {
-    const keywordsStr = this.keywords.join(' ');
-    const modeLabel = this.matchMode === 'all' ? '全部匹配' : '任一匹配';
+    const keywordsStr = this.keywords.join(" ");
+    const modeLabel = this.matchMode === "all" ? "全部匹配" : "任一匹配";
     return `模糊搜索: "${keywordsStr}" (${modeLabel})`;
   }
 
   match(record) {
     try {
-      if (this.keywords.length === 0) return true;
+      if (this.keywords.length === 0) {return true;}
 
       const results = this.keywords.map(keyword => {
         return this.searchFields.some(field => {
           const value = record[field];
-          if (value == null) return false;
+          if (value == null) {return false;}
 
           // 处理数组字段（如tags）
           if (Array.isArray(value)) {
@@ -284,11 +284,11 @@ export class FuzzySearchCondition extends IFilterCondition {
       });
 
       // 根据匹配模式返回结果
-      return this.matchMode === 'all'
+      return this.matchMode === "all"
         ? results.every(r => r)  // 所有关键词都匹配
         : results.some(r => r);  // 任一关键词匹配
     } catch (error) {
-      console.warn('[FuzzySearchCondition] Match error:', error);
+      console.warn("[FuzzySearchCondition] Match error:", error);
       return false;
     }
   }
@@ -297,11 +297,11 @@ export class FuzzySearchCondition extends IFilterCondition {
     const errors = [];
 
     if (this.keywords.length === 0) {
-      errors.push('至少需要一个关键词');
+      errors.push("至少需要一个关键词");
     }
 
     if (this.searchFields.length === 0) {
-      errors.push('至少需要指定一个搜索字段');
+      errors.push("至少需要指定一个搜索字段");
     }
 
     return {
@@ -312,7 +312,7 @@ export class FuzzySearchCondition extends IFilterCondition {
 
   serialize() {
     return {
-      type: 'fuzzy',
+      type: "fuzzy",
       keywords: [...this.keywords],
       searchFields: [...this.searchFields],
       matchMode: this.matchMode
@@ -322,7 +322,7 @@ export class FuzzySearchCondition extends IFilterCondition {
   deserialize(config) {
     this.keywords = config.keywords || [];
     this.searchFields = config.searchFields || [];
-    this.matchMode = config.matchMode || 'any';
+    this.matchMode = config.matchMode || "any";
   }
 
   clone() {
@@ -353,7 +353,7 @@ export class FuzzySearchCondition extends IFilterCondition {
 export class CompositeCondition extends IFilterCondition {
   constructor(config = {}) {
     super();
-    this.operator = config.operator || 'AND';  // 'AND', 'OR', 'NOT'
+    this.operator = config.operator || "AND";  // 'AND', 'OR', 'NOT'
     this.conditions = config.conditions || [];  // 子条件数组
   }
 
@@ -362,40 +362,40 @@ export class CompositeCondition extends IFilterCondition {
   }
 
   getConditionType() {
-    return 'composite';
+    return "composite";
   }
 
   getDescription() {
-    if (this.operator === 'NOT') {
-      const subDesc = this.conditions[0]?.getDescription() || '';
+    if (this.operator === "NOT") {
+      const subDesc = this.conditions[0]?.getDescription() || "";
       return `非 (${subDesc})`;
     }
 
     const subDescriptions = this.conditions.map(c => c.getDescription());
-    const opLabel = this.operator === 'AND' ? '且' : '或';
+    const opLabel = this.operator === "AND" ? "且" : "或";
     return `(${subDescriptions.join(` ${opLabel} `)})`;
   }
 
   match(record) {
     try {
-      if (this.conditions.length === 0) return true;
+      if (this.conditions.length === 0) {return true;}
 
       switch (this.operator) {
-        case 'AND':
-          return this.conditions.every(condition => condition.match(record));
+      case "AND":
+        return this.conditions.every(condition => condition.match(record));
 
-        case 'OR':
-          return this.conditions.some(condition => condition.match(record));
+      case "OR":
+        return this.conditions.some(condition => condition.match(record));
 
-        case 'NOT':
-          // NOT 只对第一个条件取反
-          return !this.conditions[0].match(record);
+      case "NOT":
+        // NOT 只对第一个条件取反
+        return !this.conditions[0].match(record);
 
-        default:
-          return false;
+      default:
+        return false;
       }
     } catch (error) {
-      console.warn('[CompositeCondition] Match error:', error);
+      console.warn("[CompositeCondition] Match error:", error);
       return false;
     }
   }
@@ -404,18 +404,18 @@ export class CompositeCondition extends IFilterCondition {
     const errors = [];
 
     if (this.conditions.length === 0) {
-      errors.push('组合条件至少需要一个子条件');
+      errors.push("组合条件至少需要一个子条件");
     }
 
-    if (this.operator === 'NOT' && this.conditions.length > 1) {
-      errors.push('NOT 操作符只能有一个子条件');
+    if (this.operator === "NOT" && this.conditions.length > 1) {
+      errors.push("NOT 操作符只能有一个子条件");
     }
 
     // 验证所有子条件
     this.conditions.forEach((condition, index) => {
       const validation = condition.validate();
       if (!validation.valid) {
-        errors.push(`子条件${index + 1}验证失败: ${validation.errors.join(', ')}`);
+        errors.push(`子条件${index + 1}验证失败: ${validation.errors.join(", ")}`);
       }
     });
 
@@ -427,7 +427,7 @@ export class CompositeCondition extends IFilterCondition {
 
   serialize() {
     return {
-      type: 'composite',
+      type: "composite",
       operator: this.operator,
       conditions: this.conditions.map(c => c.serialize())
     };

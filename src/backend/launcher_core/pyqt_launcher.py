@@ -356,24 +356,67 @@ class BackendLauncher:
                 )
                 cfg = LauncherConfig(ports=ports, paths=paths, options=options)
 
-                self.logger.info("[MsgDispatch] 打开 pdf-viewer (hosted): pdf_id=%s page_at=%s pos=%s anchor=%s annot=%s",
-                                 str(pdf_id), str(page_at), str(position), str(anchor_id), str(annotation_id))
+                self.logger.info("[MsgDispatch] 打开 pdf-viewer (hosted): pdf_id=%s page_at=%s pos=%s anchor=%s annot=%s outline=%s",
+                                 str(pdf_id), str(page_at), str(position), str(anchor_id), str(annotation_id), str(outline_item_id))
                 try:
+                    # 判定“是否已存在有效窗口”（决定导航路径：URL vs WS）
+                    # - 若已存在：仅激活窗口，不通过 URL 传参触发导航；随后通过 WS 下发 navigate 指令（路径1）
+                    # - 若不存在：通过 URL 传参让前端自行解析并导航（路径2）；禁止再发 WS 导航，避免并发与时序冲突
+                    try:
+                        from src.backend.launcher_core.session_registry import get_registry  # type: ignore
+                    except Exception:
+                        get_registry = None  # type: ignore
+
+                    def _is_qobject_alive(obj: object) -> bool:
+                        # 复制 runner._is_qobject_alive 的最小实现，避免循环依赖；仅做轻量判活检测
+                        if obj is None:
+                            return False
+                        try:
+                            import sip  # type: ignore
+                            try:
+                                if sip.isdeleted(obj):  # pragma: no cover - 运行时可用
+                                    return False
+                            except Exception:
+                                pass
+                        except Exception:
+                            pass
+                        try:
+                            if hasattr(obj, "objectName"):
+                                _ = obj.objectName()  # type: ignore[attr-defined]
+                            return True
+                        except Exception:
+                            return False
+
+                    pre_existing_app = None
+                    pre_existing_alive = False
+                    try:
+                        if get_registry:
+                            reg = get_registry()
+                            pre_existing_app = reg.get_viewer(str(pdf_id))
+                            pre_existing_alive = _is_qobject_alive(getattr(pre_existing_app, "window", None))
+                    except Exception:
+                        pre_existing_app = None
+                        pre_existing_alive = False
+
+                    # 决策：是否使用 URL 导航参数
+                    use_url_params = not pre_existing_alive
+
                     rc = ensure_pdf_viewer_hosted(
                         cfg,
                         parent_app=self.parent_app or getattr(self, 'app', None),
                         pdf_id=str(pdf_id),
-                        page_at=page_at,
-                        position=position,
-                        anchor_id=anchor_id,
-                        annotation_id=annotation_id,
+                        page_at=page_at if use_url_params else None,
+                        position=position if use_url_params else None,
+                        anchor_id=anchor_id if use_url_params else None,
+                        annotation_id=annotation_id if use_url_params else None,
+                        outline_item_id=outline_item_id if use_url_params else None,
                         on_log=lambda s: self.logger.info("[ViewerHost] %s", s)
                     )
                     self.logger.info("[MsgDispatch] PdfViewer ensure-hosted rc=%s", str(rc))
 
-                    # 若包含导航目标（annotation/anchor/page/outline），在激活/创建后追加一次定向导航请求
+                    # 仅在“已存在有效窗口”的情况下，通过 WS 触发一次定向导航（互斥于 URL 导航）
                     try:
-                        if any([annotation_id, anchor_id, page_at, position, outline_item_id]):
+                        if pre_existing_alive and any([annotation_id, anchor_id, page_at, position, outline_item_id]):
                             from src.backend.msgCenter_server.handlers.pdf_viewer.viewer import navigate_viewer  # type: ignore
                             nav_target = None
                             if annotation_id:
@@ -382,16 +425,15 @@ class BackendLauncher:
                                 nav_target = {"type": "anchor", "anchor_id": str(anchor_id)}
                             elif outline_item_id:
                                 nav_target = {"type": "outline", "outline_item_id": str(outline_item_id)}
-                            elif page_at:
+                            elif page_at is not None:
                                 t = {"type": "page", "page_number": int(page_at)}
                                 try:
                                     if position is not None:
-                                        # 统一用 y_percent 表示百分比
-                                        t["position"] = {"y_percent": float(position)}
+                                        t["position"] = {"y_percent": float(position)}  # 用 y_percent 表示百分比
                                 except Exception:
                                     pass
                                 nav_target = t
-                            # outline_item_id 暂未从 viewer_options 透传，这里按需扩展
+
                             if nav_target:
                                 nav_req = {
                                     "to": {"pdf_uuid": str(pdf_id)},
@@ -399,18 +441,22 @@ class BackendLauncher:
                                     "options": {}
                                 }
                                 try:
-                                    rid = f"nav_{int(time.time()*1000)}"
+                                    import time as _time  # 延迟导入，避免顶层依赖
+                                    rid = f"nav_{int(_time.time()*1000)}"
                                 except Exception:
                                     rid = None
-                                # 直接调用 handler，内部会通过 _forward_viewer_navigate 定向发送到目标 viewer
                                 _server = getattr(self.ws_server, "_server", None) if self.ws_server else None
                                 if _server is not None:
                                     resp = navigate_viewer(_server, rid, nav_req)
                                     self.logger.info("[MsgDispatch] Forward navigate → %s", str(resp.get("status") or resp.get("type")))
                                 else:
                                     self.logger.warning("[MsgDispatch] 无法导航：ws_server._server 不可用")
+                        else:
+                            # 记录互斥策略的分支选择，便于诊断
+                            if not pre_existing_alive and use_url_params:
+                                self.logger.info("[MsgDispatch] 使用 URL 参数进行首次导航（互斥策略）")
                     except Exception as _nav_exc:
-                        self.logger.warning("[MsgDispatch] 导航追加失败（已激活窗口）：%s", _nav_exc)
+                        self.logger.warning("[MsgDispatch] 导航追加失败（WS 路径）：%s", _nav_exc)
                 except Exception as e:
                     self.logger.error("[MsgDispatch] 启动 pdf-viewer 失败: %s", e, exc_info=True)
                 return

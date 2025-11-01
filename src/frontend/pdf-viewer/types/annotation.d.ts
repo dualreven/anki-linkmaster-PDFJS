@@ -133,12 +133,30 @@ export class Comment implements IComment {
   content: string;
   createdAt: string;
 
+  /**
+   *
+   */
   constructor(data: Partial<IComment> & Pick<IComment, 'annotationId' | 'content'>);
 
+  /**
+   *
+   */
   toJSON(): IComment;
+  /**
+   *
+   */
   static fromJSON(json: IComment): Comment;
+  /**
+   *
+   */
   updateContent(newContent: string): void;
+  /**
+   *
+   */
   getPreview(maxLength?: number): string;
+  /**
+   *
+   */
   getFormattedDate(locale?: string): string;
 }
 
@@ -154,19 +172,52 @@ export class Annotation implements IAnnotation {
   createdAt: string;
   updatedAt: string;
 
+  /**
+   *
+   */
   constructor(data: Partial<IAnnotation> & Pick<IAnnotation, 'type' | 'pageNumber' | 'data'>);
 
+  /**
+   *
+   */
   toJSON(): IAnnotation;
+  /**
+   *
+   */
   static fromJSON(json: IAnnotation): Annotation;
+  /**
+   *
+   */
   update(changes: Partial<{ data: AnnotationData }>): void;
+  /**
+   *
+   */
   addComment(comment: Comment | Partial<IComment>): Comment;
+  /**
+   *
+   */
   removeComment(commentId: string): boolean;
+  /**
+   *
+   */
   getCommentCount(): number;
+  /**
+   *
+   */
   getDescription(): string;
+  /**
+   *
+   */
   getTypeIcon(): string;
+  /**
+   *
+   */
   getFormattedDate(locale?: string): string;
 
   // 静态工厂方法
+  /**
+   *
+   */
   static createScreenshot(
     pageNumber: number,
     rectPercent: { xPercent: number; yPercent: number; widthPercent: number; heightPercent: number },
@@ -175,6 +226,9 @@ export class Annotation implements IAnnotation {
     description?: string,
   ): Annotation;
 
+  /**
+   *
+   */
   static createTextHighlight(
     pageNumber: number,
     selectedText: string,
@@ -183,6 +237,9 @@ export class Annotation implements IAnnotation {
     note?: string
   ): Annotation;
 
+  /**
+   *
+   */
   static createComment(
     pageNumber: number,
     position: Position,

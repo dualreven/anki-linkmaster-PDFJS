@@ -37,7 +37,7 @@ export class UIZoomControls {
   async setupZoomControls(container) {
     try {
       this.#logger.debug("Setting up zoom controls...");
-      
+
       // 获取缩放控制元素
       this.#zoomInBtn = document.getElementById("zoom-in");
       this.#zoomOutBtn = document.getElementById("zoom-out");
@@ -51,50 +51,50 @@ export class UIZoomControls {
           !this.#prevPageBtn || !this.#nextPageBtn) {
         throw new Error("Zoom control elements not found");
       }
-      
+
       // 设置缩放按钮事件
       this.#zoomInBtn.addEventListener("click", () => {
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.IN, null, { 
-          actorId: 'UIZoomControls' 
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.IN, null, {
+          actorId: "UIZoomControls"
         });
       });
-      
+
       this.#zoomOutBtn.addEventListener("click", () => {
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.OUT, null, { 
-          actorId: 'UIZoomControls' 
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.OUT, null, {
+          actorId: "UIZoomControls"
         });
       });
-      
+
       // 设置页面导航按钮事件
       this.#prevPageBtn.addEventListener("click", () => {
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.PREVIOUS, null, { 
-          actorId: 'UIZoomControls' 
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.PREVIOUS, null, {
+          actorId: "UIZoomControls"
         });
       });
-      
+
       this.#nextPageBtn.addEventListener("click", () => {
         this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.NEXT, null, {
-          actorId: 'UIZoomControls'
+          actorId: "UIZoomControls"
         });
       });
 
       // 设置页码输入框事件
-      const pageInput = document.getElementById('page-input');
+      const pageInput = document.getElementById("page-input");
       if (pageInput) {
         // 监听Enter键和失焦事件
-        pageInput.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') {
+        pageInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
             e.preventDefault();
             this.#handlePageInputChange(pageInput);
           }
         });
 
-        pageInput.addEventListener('blur', () => {
+        pageInput.addEventListener("blur", () => {
           this.#handlePageInputChange(pageInput);
         });
 
         // 监听input事件实现实时跳转（可选）
-        pageInput.addEventListener('change', () => {
+        pageInput.addEventListener("change", () => {
           this.#handlePageInputChange(pageInput);
         });
       }
@@ -102,9 +102,9 @@ export class UIZoomControls {
       // 初始更新显示
       this.#updateZoomDisplay();
       this.#updatePageInfo(1, 1);
-      
+
       this.#logger.debug("Zoom controls setup completed");
-      
+
     } catch (error) {
       this.#logger.error("Failed to setup zoom controls:", error);
       throw error;
@@ -119,7 +119,7 @@ export class UIZoomControls {
     if (this.#zoomLevelDisplay) {
       const zoomPercent = Math.round(this.#currentScale * 100);
       this.#zoomLevelDisplay.textContent = `${zoomPercent}%`;
-      
+
       // 更新按钮状态
       if (this.#zoomInBtn) {
         this.#zoomInBtn.disabled = this.#currentScale >= 3.0;
@@ -129,7 +129,7 @@ export class UIZoomControls {
       }
     }
   }
-  
+
   /**
    * 更新页面信息显示
    * @param {number} currentPage - 当前页码
@@ -142,14 +142,14 @@ export class UIZoomControls {
     this.#totalPages = totalPages;
 
     // 更新页码输入框
-    const pageInput = document.getElementById('page-input');
+    const pageInput = document.getElementById("page-input");
     if (pageInput) {
       pageInput.value = currentPage;
       pageInput.max = totalPages;
     }
 
     // 更新总页数显示
-    const pageTotal = document.getElementById('page-total');
+    const pageTotal = document.getElementById("page-total");
     if (pageTotal) {
       pageTotal.textContent = `/ ${totalPages}`;
     }
@@ -196,20 +196,20 @@ export class UIZoomControls {
       this.#logger.info(`Page input changed to ${validPage}, navigating via URL params...`);
       // 使用全局URL导航请求，统一入口
       try {
-        const pdfId = (() => { try { return new URLSearchParams(window.location.search).get('pdf-id'); } catch { return null; } })();
+        const pdfId = (() => { try { return new URLSearchParams(window.location.search).get("pdf-id"); } catch { return null; } })();
         this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED, {
           pdfId: pdfId || undefined,
           pageAt: validPage,
           position: null
-        }, { actorId: 'UIZoomControls.PageInput' });
+        }, { actorId: "UIZoomControls.PageInput" });
       } catch (_) {
         // 兼容：若eventBus不支持emitGlobal（极旧环境），退回本地导航
-        const pdfId2 = (() => { try { return new URLSearchParams(window.location.search).get('pdf-id'); } catch { return null; } })();
+        const pdfId2 = (() => { try { return new URLSearchParams(window.location.search).get("pdf-id"); } catch { return null; } })();
         this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED, {
           pdfId: pdfId2 || undefined,
           pageAt: validPage,
           position: null
-        }, { actorId: 'UIZoomControls.PageInput' });
+        }, { actorId: "UIZoomControls.PageInput" });
       }
     }
   }
@@ -220,22 +220,22 @@ export class UIZoomControls {
    */
   applyZoomAnimation(canvas) {
     if (canvas) {
-      canvas.classList.add('zoom-animation');
+      canvas.classList.add("zoom-animation");
       setTimeout(() => {
-        canvas.classList.remove('zoom-animation');
+        canvas.classList.remove("zoom-animation");
       }, 300);
     }
   }
-  
+
   /**
    * 应用页面切换动画效果
    * @param {HTMLCanvasElement} canvas - Canvas元素
    */
   applyPageTransitionAnimation(canvas) {
     if (canvas) {
-      canvas.classList.add('page-transition');
+      canvas.classList.add("page-transition");
       setTimeout(() => {
-        canvas.classList.remove('page-transition');
+        canvas.classList.remove("page-transition");
       }, 200);
     }
   }
@@ -280,7 +280,7 @@ export class UIZoomControls {
    */
   destroy() {
     this.#logger.info("Destroying Zoom Controls");
-    
+
     // 移除事件监听器
     if (this.#zoomInBtn) {
       this.#zoomInBtn.removeEventListener("click", () => {});
@@ -294,7 +294,7 @@ export class UIZoomControls {
     if (this.#nextPageBtn) {
       this.#nextPageBtn.removeEventListener("click", () => {});
     }
-    
+
     this.#zoomInBtn = null;
     this.#zoomOutBtn = null;
     this.#zoomLevelDisplay = null;

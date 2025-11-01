@@ -35,12 +35,12 @@ export class FileHandler {
     // 文件加载请求
     eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, (fileData) => {
       this.handleLoadRequested(fileData);
-    }, { subscriberId: 'FileHandler' });
+    }, { subscriberId: "FileHandler" });
 
     // 文件加载进度
     eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.PROGRESS, (progressData) => {
       this.handleLoadProgress(progressData);
-    }, { subscriberId: 'FileHandler' });
+    }, { subscriberId: "FileHandler" });
 
     // 注意: RETRY 事件在当前版本中未定义
     // 如果需要，可以通过其他方式实现重试功能
@@ -48,7 +48,7 @@ export class FileHandler {
     // 文件关闭
     eventBus.on(PDF_VIEWER_EVENTS.FILE.CLOSE, () => {
       this.handleFileClose();
-    }, { subscriberId: 'FileHandler' });
+    }, { subscriberId: "FileHandler" });
 
     // 注意: DOWNLOAD 事件在当前版本中未定义
     // 可通过其他方式触发下载功能
@@ -102,7 +102,7 @@ export class FileHandler {
         this.#app.eventBus.emit(
           PDF_VIEWER_EVENTS.RENDER.READY,
           { firstPage: 1, totalPages: pdfDocument.numPages },
-          { actorId: 'FileHandler' }
+          { actorId: "FileHandler" }
         );
       } catch (_) {}
 
@@ -126,7 +126,7 @@ export class FileHandler {
 
     this.#app.uiManager.updateProgress(
       this.#loadingState.progress,
-      progressData.message || '加载中'
+      progressData.message || "加载中"
     );
   }
 
@@ -144,7 +144,7 @@ export class FileHandler {
     this.#app.eventBus.emit(
       PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
       fileData,
-      { actorId: 'FileHandler.Retry' }
+      { actorId: "FileHandler.Retry" }
     );
   }
 
@@ -173,7 +173,7 @@ export class FileHandler {
       this.#app.eventBus.emit(
         PDF_VIEWER_EVENTS.STATE.LOADING,
         false,
-        { actorId: 'FileHandler' }
+        { actorId: "FileHandler" }
       );
 
       this.#logger.info("File closed successfully");
@@ -200,7 +200,7 @@ export class FileHandler {
       this.#logger.info(`Downloading file: ${filename}`);
 
       // 创建下载链接
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = fileUrl;
       link.download = filename;
       link.click();
@@ -244,9 +244,9 @@ export class FileHandler {
    * @private
    */
   #extractFilenameFromUrl(url) {
-    const parts = url.split('/');
+    const parts = url.split("/");
     const filename = parts[parts.length - 1];
-    return decodeURIComponent(filename.split('?')[0]);
+    return decodeURIComponent(filename.split("?")[0]);
   }
 
   /**
@@ -315,7 +315,7 @@ export class FileHandler {
    */
   #showLoadingUI() {
     this.#app.uiManager.showLoading(true);
-    this.#app.uiManager.updateProgress(0, '开始加载');
+    this.#app.uiManager.updateProgress(0, "开始加载");
   }
 
   /**
@@ -341,14 +341,14 @@ export class FileHandler {
         pdfDocument: pdfDocument,  // ✅ 添加pdfDocument字段，保持与PDFManager的事件数据结构一致
         totalPages: pdfDocument.numPages
       },
-      { actorId: 'FileHandler' }
+      { actorId: "FileHandler" }
     );
 
     try {
       this.#app.eventBus.emit(
         PDF_VIEWER_EVENTS.NAVIGATION.TOTAL_PAGES_UPDATED,
         { totalPages: pdfDocument.numPages },
-        { actorId: 'FileHandler' }
+        { actorId: "FileHandler" }
       );
     } catch (_) {}
   }
@@ -401,7 +401,7 @@ export class FileHandler {
         error: error.message,
         file: fileData
       },
-      { actorId: 'FileHandler' }
+      { actorId: "FileHandler" }
     );
 
     this.#app.errorHandler.handleError(error, "PDFLoad");

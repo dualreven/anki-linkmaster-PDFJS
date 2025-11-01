@@ -2,18 +2,18 @@
  * @file PDFManager集成测试
  */
 
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { PDFManager } from '../services/pdf-manager-service.js';
+import { describe, it, expect, beforeEach, jest } from "@jest/globals";
+import { PDFManager } from "../services/pdf-manager-service.js";
 
 // Mock PDF.js - PDFManager接受pdfjs作为参数，所以可以在测试中mock
 const mockPdfjsLib = {
-  version: '3.4.120',
-  build: 'test',
+  version: "3.4.120",
+  build: "test",
   GlobalWorkerOptions: {},
   getDocument: jest.fn()
 };
 
-describe('PDFManager集成测试', () => {
+describe("PDFManager集成测试", () => {
   let manager;
   let mockEventBus;
   let mockPdfDocument;
@@ -30,15 +30,15 @@ describe('PDFManager集成测试', () => {
     // Mock PDF Document
     mockPdfDocument = {
       numPages: 10,
-      fingerprints: ['test-fingerprint'],
+      fingerprints: ["test-fingerprint"],
       getPage: jest.fn().mockResolvedValue({
         getViewport: jest.fn().mockReturnValue({ width: 800, height: 600 }),
         cleanup: jest.fn()
       }),
       getMetadata: jest.fn().mockResolvedValue({
         info: {
-          Title: 'Test PDF',
-          Author: 'Test Author'
+          Title: "Test PDF",
+          Author: "Test Author"
         }
       }),
       destroy: jest.fn()
@@ -57,14 +57,14 @@ describe('PDFManager集成测试', () => {
     manager = new PDFManager(mockEventBus, mockPdfjsLib);
   });
 
-  describe('初始化', () => {
-    it('应该正确初始化', async () => {
+  describe("初始化", () => {
+    it("应该正确初始化", async () => {
       await manager.initialize();
 
       expect(mockPdfjsLib.GlobalWorkerOptions.workerSrc).toBeDefined();
     });
 
-    it('不应该重复初始化', async () => {
+    it("不应该重复初始化", async () => {
       await manager.initialize();
       await manager.initialize();
 
@@ -73,11 +73,11 @@ describe('PDFManager集成测试', () => {
     });
   });
 
-  describe('loadPDF', () => {
-    it('应该成功加载PDF', async () => {
+  describe("loadPDF", () => {
+    it("应该成功加载PDF", async () => {
       const fileData = {
-        filename: 'test.pdf',
-        url: 'http://example.com/test.pdf'
+        filename: "test.pdf",
+        url: "http://example.com/test.pdf"
       };
 
       const result = await manager.loadPDF(fileData);
@@ -86,31 +86,31 @@ describe('PDFManager集成测试', () => {
       expect(mockPdfjsLib.getDocument).toHaveBeenCalled();
     });
 
-    it('应该从filename构造URL', async () => {
+    it("应该从filename构造URL", async () => {
       const fileData = {
-        filename: 'test.pdf'
+        filename: "test.pdf"
       };
 
       await manager.loadPDF(fileData);
 
       const call = mockPdfjsLib.getDocument.mock.calls[0][0];
-      expect(call.url).toContain('test.pdf');
+      expect(call.url).toContain("test.pdf");
     });
 
-    it('应该自动添加.pdf扩展名', async () => {
+    it("应该自动添加.pdf扩展名", async () => {
       const fileData = {
-        filename: 'test'
+        filename: "test"
       };
 
       await manager.loadPDF(fileData);
 
       const call = mockPdfjsLib.getDocument.mock.calls[0][0];
-      expect(call.url).toContain('test.pdf');
+      expect(call.url).toContain("test.pdf");
     });
 
-    it('应该发送进度事件', async () => {
+    it("应该发送进度事件", async () => {
       const fileData = {
-        filename: 'test.pdf'
+        filename: "test.pdf"
       };
 
       await manager.loadPDF(fileData);
@@ -118,21 +118,21 @@ describe('PDFManager集成测试', () => {
       expect(mockEventBus.emit).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          filename: 'test.pdf',
+          filename: "test.pdf",
           percent: 0
         }),
         expect.any(Object)
       );
     });
 
-    it('失败时应该重试', async () => {
+    it("失败时应该重试", async () => {
       const fileData = {
-        filename: 'test.pdf'
+        filename: "test.pdf"
       };
 
       // 第一次失败，第二次成功
       // 注意：必须给rejected promise添加catch handler，否则会导致unhandled rejection
-      const failPromise = Promise.reject(new Error('Load failed'));
+      const failPromise = Promise.reject(new Error("Load failed"));
       failPromise.catch(() => {}); // 防止unhandled rejection
 
       const failTask = {
@@ -158,23 +158,23 @@ describe('PDFManager集成测试', () => {
     });
   });
 
-  describe('getPage', () => {
+  describe("getPage", () => {
     beforeEach(async () => {
       const fileData = {
-        filename: 'test.pdf',
-        url: 'http://example.com/test.pdf'
+        filename: "test.pdf",
+        url: "http://example.com/test.pdf"
       };
       await manager.loadPDF(fileData);
     });
 
-    it('应该成功获取页面', async () => {
+    it("应该成功获取页面", async () => {
       const page = await manager.getPage(1);
 
       expect(page).toBeDefined();
       expect(mockPdfDocument.getPage).toHaveBeenCalledWith(1);
     });
 
-    it('应该使用缓存', async () => {
+    it("应该使用缓存", async () => {
       // 清除loadPDF期间的getPage调用计数（包括预加载）
       mockPdfDocument.getPage.mockClear();
 
@@ -195,18 +195,18 @@ describe('PDFManager集成测试', () => {
       expect(finalCalls).toBe(initialCalls);
     });
 
-    it('无文档时应该抛出错误', async () => {
+    it("无文档时应该抛出错误", async () => {
       const emptyManager = new PDFManager(mockEventBus, mockPdfjsLib);
 
-      await expect(emptyManager.getPage(1)).rejects.toThrow('No PDF document loaded');
+      await expect(emptyManager.getPage(1)).rejects.toThrow("No PDF document loaded");
     });
   });
 
-  describe('getDocumentInfo', () => {
-    it('应该返回文档信息', async () => {
+  describe("getDocumentInfo", () => {
+    it("应该返回文档信息", async () => {
       const fileData = {
-        filename: 'test.pdf',
-        url: 'http://example.com/test.pdf'
+        filename: "test.pdf",
+        url: "http://example.com/test.pdf"
       };
 
       await manager.loadPDF(fileData);
@@ -214,15 +214,15 @@ describe('PDFManager集成测试', () => {
 
       expect(info).toBeDefined();
       expect(info.numPages).toBe(10);
-      expect(info.fingerprint).toBe('test-fingerprint');
+      expect(info.fingerprint).toBe("test-fingerprint");
     });
   });
 
-  describe('getTotalPages', () => {
-    it('应该返回总页数', async () => {
+  describe("getTotalPages", () => {
+    it("应该返回总页数", async () => {
       const fileData = {
-        filename: 'test.pdf',
-        url: 'http://example.com/test.pdf'
+        filename: "test.pdf",
+        url: "http://example.com/test.pdf"
       };
 
       await manager.loadPDF(fileData);
@@ -231,17 +231,17 @@ describe('PDFManager集成测试', () => {
       expect(totalPages).toBe(10);
     });
 
-    it('无文档时应该返回0', () => {
+    it("无文档时应该返回0", () => {
       const totalPages = manager.getTotalPages();
       expect(totalPages).toBe(0);
     });
   });
 
-  describe('closePDF', () => {
-    it('应该关闭PDF并清理资源', async () => {
+  describe("closePDF", () => {
+    it("应该关闭PDF并清理资源", async () => {
       const fileData = {
-        filename: 'test.pdf',
-        url: 'http://example.com/test.pdf'
+        filename: "test.pdf",
+        url: "http://example.com/test.pdf"
       };
 
       await manager.loadPDF(fileData);
@@ -254,11 +254,11 @@ describe('PDFManager集成测试', () => {
     });
   });
 
-  describe('cleanupCache', () => {
-    it('应该清理缓存', async () => {
+  describe("cleanupCache", () => {
+    it("应该清理缓存", async () => {
       const fileData = {
-        filename: 'test.pdf',
-        url: 'http://example.com/test.pdf'
+        filename: "test.pdf",
+        url: "http://example.com/test.pdf"
       };
 
       await manager.loadPDF(fileData);
@@ -272,11 +272,11 @@ describe('PDFManager集成测试', () => {
     });
   });
 
-  describe('destroy', () => {
-    it('应该销毁管理器并清理所有资源', async () => {
+  describe("destroy", () => {
+    it("应该销毁管理器并清理所有资源", async () => {
       const fileData = {
-        filename: 'test.pdf',
-        url: 'http://example.com/test.pdf'
+        filename: "test.pdf",
+        url: "http://example.com/test.pdf"
       };
 
       await manager.loadPDF(fileData);

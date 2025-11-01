@@ -22,10 +22,10 @@ export class WeightedSortEditor {
   #availableFields = [];
 
   /** @type {string} */
-  #currentFormula = '';
+  #currentFormula = "";
 
   /** @type {string} */
-  #numberBuffer = '';
+  #numberBuffer = "";
 
   /** @type {{ name: string, label: string, arity: number, args: string[] }|null} */
   #pendingFunction = null;
@@ -52,25 +52,25 @@ export class WeightedSortEditor {
   #containerClickHandler = null;
 
   /** @type {ReadonlyArray<string>} */
-  #operators = ['+', '-', '*', '/', '(', ')'];
+  #operators = ["+", "-", "*", "/", "(", ")"];
 
   /** @type {ReadonlyArray<string>} */
-  #numberPadDigits = ['7', '8', '9', '4', '5', '6', '1', '2', '3', '0', '.'];
+  #numberPadDigits = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "0", "."];
 
   /** @type {Readonly<Record<string, { name: string, label: string, display: string, arity: number }>>} */
   #functionDefinitions = {
-    abs: { name: 'abs', label: '绝对值', display: 'abs(x)', arity: 1 },
-    round: { name: 'round', label: '四舍五入', display: 'round(x)', arity: 1 },
-    max: { name: 'max', label: '最大值', display: 'max(a, b)', arity: 2 },
-    min: { name: 'min', label: '最小值', display: 'min(a, b)', arity: 2 },
-    length: { name: 'length', label: '长度(字符数)', display: 'length(x)', arity: 1 },
-    clamp: { name: 'clamp', label: '范围限制', display: 'clamp(x, min, max)', arity: 3 },
-    normalize: { name: 'normalize', label: '归一化', display: 'normalize(x, min, max)', arity: 3 },
+    abs: { name: "abs", label: "绝对值", display: "abs(x)", arity: 1 },
+    round: { name: "round", label: "四舍五入", display: "round(x)", arity: 1 },
+    max: { name: "max", label: "最大值", display: "max(a, b)", arity: 2 },
+    min: { name: "min", label: "最小值", display: "min(a, b)", arity: 2 },
+    length: { name: "length", label: "长度(字符数)", display: "length(x)", arity: 1 },
+    clamp: { name: "clamp", label: "范围限制", display: "clamp(x, min, max)", arity: 3 },
+    normalize: { name: "normalize", label: "归一化", display: "normalize(x, min, max)", arity: 3 },
     // 标签相关（作用于 tags 列表，全部走 SQL JSON1 实现）
-    tags_length: { name: 'tags_length', label: '标签数量', display: 'tags_length()', arity: 0 },
-    tags_has: { name: 'tags_has', label: '包含标签', display: "tags_has('tag')", arity: 1 },
-    tags_has_any: { name: 'tags_has_any', label: '包含任一标签', display: "tags_has_any('t1','t2')", arity: 2 },
-    tags_has_all: { name: 'tags_has_all', label: '包含全部标签', display: "tags_has_all('t1','t2')", arity: 2 }
+    tags_length: { name: "tags_length", label: "标签数量", display: "tags_length()", arity: 0 },
+    tags_has: { name: "tags_has", label: "包含标签", display: "tags_has('tag')", arity: 1 },
+    tags_has_any: { name: "tags_has_any", label: "包含任一标签", display: "tags_has_any('t1','t2')", arity: 2 },
+    tags_has_all: { name: "tags_has_all", label: "包含全部标签", display: "tags_has_all('t1','t2')", arity: 2 }
   };
 
   /**
@@ -84,7 +84,7 @@ export class WeightedSortEditor {
     this.#availableFields = options.availableFields || [];
 
     this.#tokens = [];
-    this.#currentFormula = '';
+    this.#currentFormula = "";
   }
 
   /**
@@ -93,7 +93,7 @@ export class WeightedSortEditor {
    */
   render(container) {
     if (!container) {
-      throw new Error('WeightedSortEditor: container is required');
+      throw new Error("WeightedSortEditor: container is required");
     }
 
     this.#container = container;
@@ -103,7 +103,7 @@ export class WeightedSortEditor {
     this.#bindEvents();
     this.#syncView();
 
-    this.#logger.info('[WeightedSortEditor] Rendered');
+    this.#logger.info("[WeightedSortEditor] Rendered");
   }
 
   /**
@@ -122,7 +122,7 @@ export class WeightedSortEditor {
         <span>${field.label}</span>
         <code>${field.field}</code>
       </button>
-    `).join('');
+    `).join("");
 
     const operatorButtons = this.#operators.map((operator) => `
       <button
@@ -132,7 +132,7 @@ export class WeightedSortEditor {
         data-operator="${operator}"
         title="插入运算符 ${operator}"
       >${operator}</button>
-    `).join('');
+    `).join("");
 
     const functionButtons = Object.values(this.#functionDefinitions).map((fn) => `
       <button
@@ -143,7 +143,7 @@ export class WeightedSortEditor {
         data-arity="${fn.arity}"
         title="${fn.label}(${fn.arity} 参数)"
       >${fn.display}</button>
-    `).join('');
+    `).join("");
 
     const numberPadDigits = this.#numberPadDigits.map((digit) => `
       <button
@@ -152,7 +152,7 @@ export class WeightedSortEditor {
         data-test="number-pad-digit"
         data-digit="${digit}"
       >${digit}</button>
-    `).join('');
+    `).join("");
 
     return `
       <div class="weighted-sort-editor">
@@ -176,7 +176,7 @@ export class WeightedSortEditor {
           <section class="builder-panel">
             <header>字段</header>
             <div class="panel-body">
-              ${fieldButtons || '<div class="panel-placeholder">暂无可用字段</div>'}
+              ${fieldButtons || "<div class=\"panel-placeholder\">暂无可用字段</div>"}
             </div>
           </section>
 
@@ -218,11 +218,11 @@ export class WeightedSortEditor {
   }
 
   #cacheElements() {
-    this.#tokenListEl = this.#container.querySelector('[data-test="formula-tokens"]');
-    this.#previewCodeEl = this.#container.querySelector('[data-test="formula-preview"] code');
-    this.#pendingIndicatorHost = this.#container.querySelector('[data-role="pending-function"]');
-    this.#numberDisplayEl = this.#container.querySelector('[data-test="number-pad-display"]');
-    this.#validationStatusEl = this.#container.querySelector('[data-test="validation-status"]');
+    this.#tokenListEl = this.#container.querySelector("[data-test=\"formula-tokens\"]");
+    this.#previewCodeEl = this.#container.querySelector("[data-test=\"formula-preview\"] code");
+    this.#pendingIndicatorHost = this.#container.querySelector("[data-role=\"pending-function\"]");
+    this.#numberDisplayEl = this.#container.querySelector("[data-test=\"number-pad-display\"]");
+    this.#validationStatusEl = this.#container.querySelector("[data-test=\"validation-status\"]");
   }
 
   #bindEvents() {
@@ -232,67 +232,67 @@ export class WeightedSortEditor {
         return;
       }
 
-      const fieldButton = target.closest('[data-test="field-button"]');
+      const fieldButton = target.closest("[data-test=\"field-button\"]");
       if (fieldButton) {
         event.preventDefault();
         this.#handleFieldClick(fieldButton);
         return;
       }
 
-      const operatorButton = target.closest('[data-test="operator-button"]');
+      const operatorButton = target.closest("[data-test=\"operator-button\"]");
       if (operatorButton) {
         event.preventDefault();
         this.#handleOperatorClick(operatorButton);
         return;
       }
 
-      const functionButton = target.closest('[data-test="function-button"]');
+      const functionButton = target.closest("[data-test=\"function-button\"]");
       if (functionButton) {
         event.preventDefault();
         this.#handleFunctionClick(functionButton);
         return;
       }
 
-      const numberDigit = target.closest('[data-test="number-pad-digit"]');
+      const numberDigit = target.closest("[data-test=\"number-pad-digit\"]");
       if (numberDigit) {
         event.preventDefault();
         this.#handleNumberDigit(numberDigit);
         return;
       }
 
-      const numberAction = target.closest('[data-test="number-pad-action"]');
+      const numberAction = target.closest("[data-test=\"number-pad-action\"]");
       if (numberAction) {
         event.preventDefault();
         this.#handleNumberAction(numberAction);
         return;
       }
 
-      const tokenDelete = target.closest('[data-test="token-delete"]');
+      const tokenDelete = target.closest("[data-test=\"token-delete\"]");
       if (tokenDelete) {
         event.preventDefault();
         this.#handleTokenDelete(tokenDelete);
         return;
       }
 
-      if (target.matches('[data-test="apply-weighted-sort"]')) {
+      if (target.matches("[data-test=\"apply-weighted-sort\"]")) {
         event.preventDefault();
         this.#handleApplyWeightedSort();
         return;
       }
 
-      if (target.matches('[data-test="test-weighted-sort"]')) {
+      if (target.matches("[data-test=\"test-weighted-sort\"]")) {
         event.preventDefault();
         this.#handleTestFormula();
         return;
       }
 
-      if (target.matches('[data-test="clear-weighted-sort"]')) {
+      if (target.matches("[data-test=\"clear-weighted-sort\"]")) {
         event.preventDefault();
         this.#handleClearSort();
       }
     };
 
-    this.#container.addEventListener('click', this.#containerClickHandler);
+    this.#container.addEventListener("click", this.#containerClickHandler);
   }
 
   #syncView() {
@@ -310,29 +310,29 @@ export class WeightedSortEditor {
     }
 
     if (!this.#tokens.length) {
-      this.#tokenListEl.innerHTML = '<div class="formula-token placeholder">点击上方按钮开始构建公式</div>';
+      this.#tokenListEl.innerHTML = "<div class=\"formula-token placeholder\">点击上方按钮开始构建公式</div>";
       return;
     }
 
     const fragment = document.createDocumentFragment();
     this.#tokens.forEach((token, index) => {
-      const tokenEl = document.createElement('div');
+      const tokenEl = document.createElement("div");
       tokenEl.className = `formula-token formula-token-${token.type}`;
-      tokenEl.setAttribute('data-test', 'formula-token');
-      tokenEl.setAttribute('data-index', String(index));
+      tokenEl.setAttribute("data-test", "formula-token");
+      tokenEl.setAttribute("data-index", String(index));
       tokenEl.textContent = token.value;
 
-      const deleteBtn = document.createElement('button');
-      deleteBtn.type = 'button';
-      deleteBtn.className = 'token-delete';
-      deleteBtn.setAttribute('data-test', 'token-delete');
-      deleteBtn.textContent = '×';
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "token-delete";
+      deleteBtn.setAttribute("data-test", "token-delete");
+      deleteBtn.textContent = "×";
 
       tokenEl.appendChild(deleteBtn);
       fragment.appendChild(tokenEl);
     });
 
-    this.#tokenListEl.innerHTML = '';
+    this.#tokenListEl.innerHTML = "";
     this.#tokenListEl.appendChild(fragment);
   }
 
@@ -342,7 +342,7 @@ export class WeightedSortEditor {
     }
 
     if (!this.#pendingFunction) {
-      this.#pendingIndicatorHost.innerHTML = '';
+      this.#pendingIndicatorHost.innerHTML = "";
       return;
     }
 
@@ -357,13 +357,13 @@ export class WeightedSortEditor {
 
   #updateNumberPadDisplay() {
     if (this.#numberDisplayEl) {
-      this.#numberDisplayEl.textContent = this.#numberBuffer || '0';
+      this.#numberDisplayEl.textContent = this.#numberBuffer || "0";
     }
   }
 
   #updateFormulaPreview() {
     if (this.#previewCodeEl) {
-      this.#previewCodeEl.textContent = this.#currentFormula || '尚未设置公式';
+      this.#previewCodeEl.textContent = this.#currentFormula || "尚未设置公式";
     }
   }
 
@@ -373,8 +373,8 @@ export class WeightedSortEditor {
     }
 
     if (!this.#currentFormula) {
-      this.#validationStatusEl.textContent = '';
-      this.#validationStatusEl.className = 'validation-status';
+      this.#validationStatusEl.textContent = "";
+      this.#validationStatusEl.className = "validation-status";
       this.#validationResult = null;
       return;
     }
@@ -382,21 +382,21 @@ export class WeightedSortEditor {
     const openBrackets = (this.#currentFormula.match(/\(/g) || []).length;
     const closeBrackets = (this.#currentFormula.match(/\)/g) || []).length;
     if (openBrackets !== closeBrackets) {
-      this.#validationStatusEl.textContent = '❌ 括号不匹配';
-      this.#validationStatusEl.className = 'validation-status invalid';
-      this.#validationResult = { valid: false, error: '括号不匹配' };
+      this.#validationStatusEl.textContent = "❌ 括号不匹配";
+      this.#validationStatusEl.className = "validation-status invalid";
+      this.#validationResult = { valid: false, error: "括号不匹配" };
       return;
     }
 
     if (!this.#hasSafeReference(this.#currentFormula)) {
-      this.#validationStatusEl.textContent = '❌ 公式中缺少字段';
-      this.#validationStatusEl.className = 'validation-status invalid';
-      this.#validationResult = { valid: false, error: '公式缺少字段' };
+      this.#validationStatusEl.textContent = "❌ 公式中缺少字段";
+      this.#validationStatusEl.className = "validation-status invalid";
+      this.#validationResult = { valid: false, error: "公式缺少字段" };
       return;
     }
 
-    this.#validationStatusEl.textContent = '✅ 公式格式正确';
-    this.#validationStatusEl.className = 'validation-status valid';
+    this.#validationStatusEl.textContent = "✅ 公式格式正确";
+    this.#validationStatusEl.className = "validation-status valid";
     this.#validationResult = { valid: true };
   }
 
@@ -406,8 +406,8 @@ export class WeightedSortEditor {
     }
     const fieldNames = this.#availableFields.map((field) => field.field);
     const fnNames = Object.keys(this.#functionDefinitions);
-    const hasField = fieldNames.some((name) => new RegExp(`\\b${this.#escapeRegExp(name)}\\b`, 'i').test(formula));
-    const hasFunc = fnNames.some((name) => new RegExp(`\\b${this.#escapeRegExp(name)}\\s*\\(`, 'i').test(formula));
+    const hasField = fieldNames.some((name) => new RegExp(`\\b${this.#escapeRegExp(name)}\\b`, "i").test(formula));
+    const hasFunc = fnNames.some((name) => new RegExp(`\\b${this.#escapeRegExp(name)}\\s*\\(`, "i").test(formula));
     return hasField || hasFunc;
   }
 
@@ -417,27 +417,27 @@ export class WeightedSortEditor {
    * @returns {string}
    */
   #escapeRegExp(value) {
-    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
   #handleFieldClick(button) {
-    const field = button.getAttribute('data-field');
+    const field = button.getAttribute("data-field");
     if (!field) {
       return;
     }
-    this.#appendToken({ type: 'field', value: field });
+    this.#appendToken({ type: "field", value: field });
   }
 
   #handleOperatorClick(button) {
-    const operator = button.getAttribute('data-operator');
+    const operator = button.getAttribute("data-operator");
     if (!operator || this.#pendingFunction) {
       return;
     }
-    this.#appendToken({ type: 'operator', value: operator });
+    this.#appendToken({ type: "operator", value: operator });
   }
 
   #handleFunctionClick(button) {
-    const functionName = button.getAttribute('data-function');
+    const functionName = button.getAttribute("data-function");
     if (!functionName || this.#pendingFunction) {
       return;
     }
@@ -458,12 +458,12 @@ export class WeightedSortEditor {
   }
 
   #handleNumberDigit(button) {
-    const digit = button.getAttribute('data-digit');
+    const digit = button.getAttribute("data-digit");
     if (!digit) {
       return;
     }
 
-    if (digit === '.' && this.#numberBuffer.includes('.')) {
+    if (digit === "." && this.#numberBuffer.includes(".")) {
       return;
     }
 
@@ -472,24 +472,24 @@ export class WeightedSortEditor {
   }
 
   #handleNumberAction(button) {
-    const action = button.getAttribute('data-action');
+    const action = button.getAttribute("data-action");
     if (!action) {
       return;
     }
 
-    if (action === 'backspace') {
+    if (action === "backspace") {
       this.#numberBuffer = this.#numberBuffer.slice(0, -1);
       this.#updateNumberPadDisplay();
       return;
     }
 
-    if (action === 'clear') {
-      this.#numberBuffer = '';
+    if (action === "clear") {
+      this.#numberBuffer = "";
       this.#updateNumberPadDisplay();
       return;
     }
 
-    if (action === 'commit') {
+    if (action === "commit") {
       this.#commitNumberBuffer();
     }
   }
@@ -499,9 +499,9 @@ export class WeightedSortEditor {
       return;
     }
 
-    const token = { type: 'number', value: this.#numberBuffer };
+    const token = { type: "number", value: this.#numberBuffer };
     this.#appendToken(token);
-    this.#numberBuffer = '';
+    this.#numberBuffer = "";
     this.#updateNumberPadDisplay();
   }
 
@@ -509,8 +509,8 @@ export class WeightedSortEditor {
     if (this.#pendingFunction) {
       this.#pendingFunction.args.push(token.value);
       if (this.#pendingFunction.args.length >= this.#pendingFunction.arity) {
-        const expression = `${this.#pendingFunction.name}(${this.#pendingFunction.args.join(', ')})`;
-        this.#tokens.push({ type: 'function', value: expression, name: this.#pendingFunction.name });
+        const expression = `${this.#pendingFunction.name}(${this.#pendingFunction.args.join(", ")})`;
+        this.#tokens.push({ type: "function", value: expression, name: this.#pendingFunction.name });
         this.#pendingFunction = null;
       }
       this.#syncView();
@@ -522,12 +522,12 @@ export class WeightedSortEditor {
   }
 
   #handleTokenDelete(button) {
-    const tokenEl = button.closest('[data-test="formula-token"]');
+    const tokenEl = button.closest("[data-test=\"formula-token\"]");
     if (!tokenEl) {
       return;
     }
 
-    const index = Number(tokenEl.getAttribute('data-index'));
+    const index = Number(tokenEl.getAttribute("data-index"));
     if (Number.isNaN(index)) {
       return;
     }
@@ -538,26 +538,26 @@ export class WeightedSortEditor {
 
   #rebuildFormula() {
     if (!this.#tokens.length) {
-      this.#currentFormula = '';
+      this.#currentFormula = "";
       return;
     }
 
-    let formula = this.#tokens.map((token) => token.value).join(' ');
-    formula = formula.replace(/\(\s+/g, '(')
-      .replace(/\s+\)/g, ')')
-      .replace(/\s+,/g, ',')
-      .replace(/,\s*/g, ', ')
-      .replace(/\s+\*/g, ' *')
-      .replace(/\s+\//g, ' /')
-      .replace(/\s+\+/g, ' +')
-      .replace(/\s+-/g, ' -');
+    let formula = this.#tokens.map((token) => token.value).join(" ");
+    formula = formula.replace(/\(\s+/g, "(")
+      .replace(/\s+\)/g, ")")
+      .replace(/\s+,/g, ",")
+      .replace(/,\s*/g, ", ")
+      .replace(/\s+\*/g, " *")
+      .replace(/\s+\//g, " /")
+      .replace(/\s+\+/g, " +")
+      .replace(/\s+-/g, " -");
 
     this.#currentFormula = formula.trim();
   }
 
   #loadFormula(formula) {
     this.#tokens = [];
-    this.#numberBuffer = '';
+    this.#numberBuffer = "";
     this.#pendingFunction = null;
 
     if (!formula) {
@@ -576,14 +576,14 @@ export class WeightedSortEditor {
         continue;
       }
 
-      if (char === '*' && formula[index + 1] === '*') {
-        this.#tokens.push({ type: 'operator', value: '**' });
+      if (char === "*" && formula[index + 1] === "*") {
+        this.#tokens.push({ type: "operator", value: "**" });
         index += 2;
         continue;
       }
 
-      if ('+-*/%()'.includes(char)) {
-        this.#tokens.push({ type: 'operator', value: char });
+      if ("+-*/%()".includes(char)) {
+        this.#tokens.push({ type: "operator", value: char });
         index += 1;
         continue;
       }
@@ -595,7 +595,7 @@ export class WeightedSortEditor {
           numberLiteral += formula[index];
           index += 1;
         }
-        this.#tokens.push({ type: 'number', value: numberLiteral });
+        this.#tokens.push({ type: "number", value: numberLiteral });
         continue;
       }
 
@@ -607,15 +607,15 @@ export class WeightedSortEditor {
           index += 1;
         }
 
-        if (this.#functionDefinitions[identifier] && formula[index] === '(') {
+        if (this.#functionDefinitions[identifier] && formula[index] === "(") {
           let depth = 0;
           let expression = identifier;
           while (index < length) {
             const currentChar = formula[index];
             expression += currentChar;
-            if (currentChar === '(') {
+            if (currentChar === "(") {
               depth += 1;
-            } else if (currentChar === ')') {
+            } else if (currentChar === ")") {
               depth -= 1;
               if (depth === 0) {
                 index += 1;
@@ -624,17 +624,17 @@ export class WeightedSortEditor {
             }
             index += 1;
           }
-          this.#tokens.push({ type: 'function', value: expression, name: identifier });
+          this.#tokens.push({ type: "function", value: expression, name: identifier });
           continue;
         }
 
         const isField = this.#availableFields.some((field) => field.field === identifier);
-        this.#tokens.push({ type: isField ? 'field' : 'identifier', value: identifier });
+        this.#tokens.push({ type: isField ? "field" : "identifier", value: identifier });
         continue;
       }
 
-      if (char === ',') {
-        this.#tokens.push({ type: 'operator', value: ',' });
+      if (char === ",") {
+        this.#tokens.push({ type: "operator", value: "," });
         index += 1;
         continue;
       }
@@ -648,13 +648,13 @@ export class WeightedSortEditor {
 
   #handleTestFormula() {
     if (!this.#validationResult || !this.#validationResult.valid) {
-      this.#logger.warn('[WeightedSortEditor] Cannot test invalid formula');
-      alert('请先构建有效的公式再进行测试');
+      this.#logger.warn("[WeightedSortEditor] Cannot test invalid formula");
+      alert("请先构建有效的公式再进行测试");
       return;
     }
 
-    this.#logger.info('[WeightedSortEditor] Testing formula:', this.#currentFormula);
-    this.#eventBus.emit('sorter:formula:tested', {
+    this.#logger.info("[WeightedSortEditor] Testing formula:", this.#currentFormula);
+    this.#eventBus.emit("sorter:formula:tested", {
       formula: this.#currentFormula
     });
 
@@ -663,26 +663,26 @@ export class WeightedSortEditor {
 
   #handleApplyWeightedSort() {
     if (!this.#validationResult || !this.#validationResult.valid) {
-      this.#logger.warn('[WeightedSortEditor] Cannot apply invalid formula');
-      alert('请先构建有效的公式');
+      this.#logger.warn("[WeightedSortEditor] Cannot apply invalid formula");
+      alert("请先构建有效的公式");
       return;
     }
 
-    this.#logger.info('[WeightedSortEditor] Applying weighted sort:', this.#currentFormula);
-    this.#eventBus.emit('sorter:sort:requested', {
-      type: 'weighted',
+    this.#logger.info("[WeightedSortEditor] Applying weighted sort:", this.#currentFormula);
+    this.#eventBus.emit("sorter:sort:requested", {
+      type: "weighted",
       formula: this.#currentFormula
     });
   }
 
   #handleClearSort() {
     this.#tokens = [];
-    this.#numberBuffer = '';
+    this.#numberBuffer = "";
     this.#pendingFunction = null;
     this.#syncView();
-    this.#logger.info('[WeightedSortEditor] Formula cleared');
+    this.#logger.info("[WeightedSortEditor] Formula cleared");
 
-    this.#eventBus.emit('sorter:sort:cleared', {});
+    this.#eventBus.emit("sorter:sort:cleared", {});
   }
 
   getFormula() {
@@ -690,18 +690,18 @@ export class WeightedSortEditor {
   }
 
   setFormula(formula) {
-    this.#currentFormula = formula || '';
+    this.#currentFormula = formula || "";
     this.#loadFormula(this.#currentFormula);
-    this.#logger.info('[WeightedSortEditor] Formula set:', this.#currentFormula);
+    this.#logger.info("[WeightedSortEditor] Formula set:", this.#currentFormula);
   }
 
   destroy() {
     if (this.#container && this.#containerClickHandler) {
-      this.#container.removeEventListener('click', this.#containerClickHandler);
+      this.#container.removeEventListener("click", this.#containerClickHandler);
     }
 
     if (this.#container) {
-      this.#container.innerHTML = '';
+      this.#container.innerHTML = "";
     }
 
     this.#container = null;
@@ -712,6 +712,6 @@ export class WeightedSortEditor {
     this.#validationStatusEl = null;
     this.#containerClickHandler = null;
 
-    this.#logger.info('[WeightedSortEditor] Destroyed');
+    this.#logger.info("[WeightedSortEditor] Destroyed");
   }
 }

@@ -1,5 +1,5 @@
-import { getLogger } from '../../../common/utils/logger.js';
-import { WebSocketAdapterFeatureConfig } from './feature.config.js';
+import { getLogger } from "../../../common/utils/logger.js";
+import { WebSocketAdapterFeatureConfig } from "./feature.config.js";
 
 export class WebSocketAdapterFeature {
   #logger;

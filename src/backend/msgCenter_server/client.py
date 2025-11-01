@@ -10,6 +10,9 @@ logger = logging.getLogger(__name__)
 
 class WebSocketClient(QObject):
     """WebSocket客户端连接管理类"""
+
+    # 默认关闭自动 ping 心跳（仅保留实现，不自动启动）
+    ENABLE_PING_HEARTBEAT = False
     
     message_received = pyqtSignal(str, str)  # client_id, message
     disconnected = pyqtSignal(str)  # client_id
@@ -26,8 +29,9 @@ class WebSocketClient(QObject):
         self.socket.disconnected.connect(self.on_disconnected)
         self.socket.errorOccurred.connect(self.on_error)
         
-        # 启动心跳
-        self.heartbeat_timer.start(30000)  # 30秒心跳
+        # 启动心跳（按开关控制；默认关闭）
+        if self.ENABLE_PING_HEARTBEAT:
+            self.heartbeat_timer.start(30000)  # 30秒心跳
         
         logger.info(f"WebSocket client initialized: {client_id}")
         

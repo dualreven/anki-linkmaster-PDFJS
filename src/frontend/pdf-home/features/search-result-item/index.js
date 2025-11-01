@@ -3,8 +3,8 @@
  * 负责渲染单个PDF搜索结果的展示
  */
 
-import { SearchResultItemFeatureConfig } from './feature.config.js';
-import './styles/search-result-item.css';
+import { SearchResultItemFeatureConfig } from "./feature.config.js";
+import "./styles/search-result-item.css";
 
 export class SearchResultItemFeature {
   name = SearchResultItemFeatureConfig.name;
@@ -26,7 +26,7 @@ export class SearchResultItemFeature {
     this.#scopedEventBus = context.scopedEventBus;
     this.#globalEventBus = context.globalEventBus;
 
-    this.#logger.info('[SearchResultItemFeature] Installing...');
+    this.#logger.info("[SearchResultItemFeature] Installing...");
 
     try {
       // TODO: 实现功能
@@ -34,9 +34,9 @@ export class SearchResultItemFeature {
       // 2. 监听条目交互事件
       // 3. 提供条目渲染API
 
-      this.#logger.info('[SearchResultItemFeature] Installed successfully');
+      this.#logger.info("[SearchResultItemFeature] Installed successfully");
     } catch (error) {
-      this.#logger.error('[SearchResultItemFeature] Installation failed', error);
+      this.#logger.error("[SearchResultItemFeature] Installation failed", error);
       throw error;
     }
   }
@@ -45,7 +45,7 @@ export class SearchResultItemFeature {
    * 卸载Feature
    */
   async uninstall() {
-    this.#logger.info('[SearchResultItemFeature] Uninstalling...');
+    this.#logger.info("[SearchResultItemFeature] Uninstalling...");
 
     // 取消事件订阅
     this.#unsubscribers.forEach(unsub => unsub());
@@ -53,7 +53,7 @@ export class SearchResultItemFeature {
 
     // TODO: 清理资源
 
-    this.#logger.info('[SearchResultItemFeature] Uninstalled');
+    this.#logger.info("[SearchResultItemFeature] Uninstalled");
   }
 
   /**

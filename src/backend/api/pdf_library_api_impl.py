@@ -371,18 +371,30 @@ class PDFLibraryAPI:
         if not isinstance(uuid, str) or not uuid:
             import secrets
             uuid = f"pdfanchor-{secrets.token_hex(6)}"
+        # 严格要求 name（存入 json_data）
+        name = data.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise DatabaseValidationError("name must be a non-empty string")
         # 归一化字段
         now = int(time.time() * 1000)
+        pos = data.get("position")
+        try:
+            posf = float(pos) if pos is not None else 0.0
+        except Exception:
+            posf = 0.0
+        # 若误传百分比（>1），按 0..1 归一
+        if posf > 1.0:
+            posf = posf / 100.0
         normalized = {
             "uuid": uuid,
             "pdf_uuid": data.get("pdf_uuid"),
             "page_at": int(data.get("page_at") or 1),
-            "position": float(data.get("position") or 0.0),
+            "position": posf,
             "visited_at": int(data.get("visited_at") or 0),
             "created_at": int(data.get("created_at") or now),
             "updated_at": int(data.get("updated_at") or now),
             "version": int(data.get("version") or 1),
-            "json_data": dict(data.get("json_data") or {}),
+            "json_data": {**(data.get("json_data") or {}), "name": name.strip()},
         }
         return self._bookanchor_plugin.insert(normalized)
 

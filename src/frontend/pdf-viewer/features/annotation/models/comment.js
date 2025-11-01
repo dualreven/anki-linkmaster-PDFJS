@@ -31,10 +31,10 @@ export class Comment {
    */
   constructor(data) {
     if (!data.annotationId) {
-      throw new Error('Comment: annotationId is required');
+      throw new Error("Comment: annotationId is required");
     }
-    if (!data.content || typeof data.content !== 'string') {
-      throw new Error('Comment: content must be a non-empty string');
+    if (!data.content || typeof data.content !== "string") {
+      throw new Error("Comment: content must be a non-empty string");
     }
 
     /**
@@ -91,8 +91,8 @@ export class Comment {
    * @throws {Error} 如果内容为空
    */
   updateContent(newContent) {
-    if (!newContent || typeof newContent !== 'string') {
-      throw new Error('Comment: content must be a non-empty string');
+    if (!newContent || typeof newContent !== "string") {
+      throw new Error("Comment: content must be a non-empty string");
     }
     this.content = newContent;
   }
@@ -106,7 +106,7 @@ export class Comment {
     if (this.content.length <= maxLength) {
       return this.content;
     }
-    return this.content.substring(0, maxLength) + '...';
+    return this.content.substring(0, maxLength) + "...";
   }
 
   /**
@@ -114,14 +114,14 @@ export class Comment {
    * @param {string} [locale='zh-CN'] - 地区设置
    * @returns {string} 格式化的时间字符串
    */
-  getFormattedDate(locale = 'zh-CN') {
+  getFormattedDate(locale = "zh-CN") {
     const date = new Date(this.createdAt);
     return date.toLocaleString(locale, {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
     });
   }
 }

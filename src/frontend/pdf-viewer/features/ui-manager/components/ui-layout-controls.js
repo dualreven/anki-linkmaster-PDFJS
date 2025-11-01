@@ -5,7 +5,7 @@
  */
 
 import { getLogger } from "../../../../common/utils/logger.js";
-import { showInfo as notifyInfo } from "../../../../common/utils/notification.js";
+import { showInfo } from "../../../../common/utils/notification.js";
 import { PDFViewerManager } from "./pdf-viewer-manager.js";
 
 /**
@@ -28,7 +28,7 @@ export class UILayoutControls {
   #rotateCWBtn = null;
   // 鼠标模式相关
   #mouseModeBtn = null;
-  #currentMouseMode = 'text'; // 'text' | 'drag'
+  #currentMouseMode = "text"; // 'text' | 'drag'
   #pdfContainer = null;
   #isDragging = false;
   #dragStartX = 0;
@@ -49,26 +49,26 @@ export class UILayoutControls {
     this.#pdfViewerManager = pdfViewerManager;
 
     // 获取DOM元素
-    this.#scrollModeSelect = document.getElementById('scroll-mode');
-    this.#scrollModeBtn = document.getElementById('scroll-mode-btn');
-    this.#scrollModeDropdown = document.querySelector('.scroll-mode-dropdown');
-    this.#spreadModeSelect = document.getElementById('spread-mode');
-    this.#spreadModeBtn = document.getElementById('spread-mode-btn');
-    this.#spreadModeDropdown = document.querySelector('.spread-mode-dropdown');
-    this.#rotateCCWBtn = document.getElementById('rotate-ccw');
-    this.#rotateCWBtn = document.getElementById('rotate-cw');
-    this.#mouseModeBtn = document.getElementById('mouse-mode-btn');
-    this.#pdfContainer = document.getElementById('viewerContainer');
+    this.#scrollModeSelect = document.getElementById("scroll-mode");
+    this.#scrollModeBtn = document.getElementById("scroll-mode-btn");
+    this.#scrollModeDropdown = document.querySelector(".scroll-mode-dropdown");
+    this.#spreadModeSelect = document.getElementById("spread-mode");
+    this.#spreadModeBtn = document.getElementById("spread-mode-btn");
+    this.#spreadModeDropdown = document.querySelector(".spread-mode-dropdown");
+    this.#rotateCCWBtn = document.getElementById("rotate-ccw");
+    this.#rotateCWBtn = document.getElementById("rotate-cw");
+    this.#mouseModeBtn = document.getElementById("mouse-mode-btn");
+    this.#pdfContainer = document.getElementById("viewerContainer");
 
     // 设置事件监听器
     this.#setupEventListeners();
     this.#setupMouseModeControl();
 
     // 设置默认模式为文本选择
-    this.#setMouseMode('text');
+    this.#setMouseMode("text");
 
     // 监听渲染模式变化
-    this.#eventBus.on('pdf-viewer:render-mode:changed', this.#handleRenderModeChange.bind(this));
+    this.#eventBus.on("pdf-viewer:render-mode:changed", this.#handleRenderModeChange.bind(this));
 
     this.#logger.info("Layout controls initialized");
   }
@@ -79,7 +79,7 @@ export class UILayoutControls {
    * @private
    */
   #handleRenderModeChange(data) {
-    const isPDFViewerMode = data?.newMode === 'pdfviewer';
+    const isPDFViewerMode = data?.newMode === "pdfviewer";
     this.#setControlsEnabled(isPDFViewerMode);
   }
 
@@ -104,7 +104,7 @@ export class UILayoutControls {
       }
     });
 
-    this.#logger.info(`Layout controls ${enabled ? 'enabled' : 'disabled'}`);
+    this.#logger.info(`Layout controls ${enabled ? "enabled" : "disabled"}`);
   }
 
   /**
@@ -114,14 +114,14 @@ export class UILayoutControls {
   #setupEventListeners() {
     // 滚动模式改变（隐藏select，保持兼容性）
     if (this.#scrollModeSelect) {
-      this.#scrollModeSelect.addEventListener('change', (e) => {
+      this.#scrollModeSelect.addEventListener("change", (e) => {
         const mode = parseInt(e.target.value, 10);
         this.#logger.info(`Changing scroll mode to: ${mode}`);
         if (this.#pdfViewerManager && this.#pdfViewerManager.viewer) {
           this.#pdfViewerManager.scrollMode = mode;
           // 触发PDFViewer更新
           this.#pdfViewerManager.viewer.update();
-          this.#logger.info(`Scroll mode updated and view refreshed`);
+          this.#logger.info("Scroll mode updated and view refreshed");
         }
       });
     }
@@ -129,42 +129,42 @@ export class UILayoutControls {
     // 自定义SVG滚动模式按钮
     if (this.#scrollModeBtn && this.#scrollModeDropdown) {
       // 点击按钮切换下拉菜单显示
-      this.#scrollModeBtn.addEventListener('click', (e) => {
+      this.#scrollModeBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        const isVisible = this.#scrollModeDropdown.style.display === 'block';
-        this.#scrollModeDropdown.style.display = isVisible ? 'none' : 'block';
+        const isVisible = this.#scrollModeDropdown.style.display === "block";
+        this.#scrollModeDropdown.style.display = isVisible ? "none" : "block";
       });
 
       // 点击下拉菜单选项
-      const dropdownButtons = this.#scrollModeDropdown.querySelectorAll('button[data-value]');
+      const dropdownButtons = this.#scrollModeDropdown.querySelectorAll("button[data-value]");
       dropdownButtons.forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        btn.addEventListener("click", (e) => {
           e.stopPropagation();
           const mode = parseInt(btn.dataset.value, 10);
           this.#changeScrollMode(mode);
-          this.#scrollModeDropdown.style.display = 'none';
+          this.#scrollModeDropdown.style.display = "none";
         });
       });
 
       // 点击外部关闭下拉菜单
-      document.addEventListener('click', (e) => {
+      document.addEventListener("click", (e) => {
         if (this.#scrollModeDropdown &&
-            this.#scrollModeDropdown.style.display === 'block') {
-          this.#scrollModeDropdown.style.display = 'none';
+            this.#scrollModeDropdown.style.display === "block") {
+          this.#scrollModeDropdown.style.display = "none";
         }
       });
     }
 
     // 跨页模式改变（隐藏select，保持兼容性）
     if (this.#spreadModeSelect) {
-      this.#spreadModeSelect.addEventListener('change', (e) => {
+      this.#spreadModeSelect.addEventListener("change", (e) => {
         const mode = parseInt(e.target.value, 10);
         this.#logger.info(`Changing spread mode to: ${mode}`);
         if (this.#pdfViewerManager && this.#pdfViewerManager.viewer) {
           this.#pdfViewerManager.spreadMode = mode;
           // 触发PDFViewer更新
           this.#pdfViewerManager.viewer.update();
-          this.#logger.info(`Spread mode updated and view refreshed`);
+          this.#logger.info("Spread mode updated and view refreshed");
         }
       });
     }
@@ -172,42 +172,42 @@ export class UILayoutControls {
     // 自定义SVG跨页模式按钮
     if (this.#spreadModeBtn && this.#spreadModeDropdown) {
       // 点击按钮切换下拉菜单显示
-      this.#spreadModeBtn.addEventListener('click', (e) => {
+      this.#spreadModeBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        const isVisible = this.#spreadModeDropdown.style.display === 'block';
-        this.#spreadModeDropdown.style.display = isVisible ? 'none' : 'block';
+        const isVisible = this.#spreadModeDropdown.style.display === "block";
+        this.#spreadModeDropdown.style.display = isVisible ? "none" : "block";
       });
 
       // 点击下拉菜单选项
-      const dropdownButtons = this.#spreadModeDropdown.querySelectorAll('button[data-value]');
+      const dropdownButtons = this.#spreadModeDropdown.querySelectorAll("button[data-value]");
       dropdownButtons.forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        btn.addEventListener("click", (e) => {
           e.stopPropagation();
           const mode = parseInt(btn.dataset.value, 10);
           this.#changeSpreadMode(mode);
-          this.#spreadModeDropdown.style.display = 'none';
+          this.#spreadModeDropdown.style.display = "none";
         });
       });
 
       // 点击外部关闭下拉菜单
-      document.addEventListener('click', (e) => {
+      document.addEventListener("click", (e) => {
         if (this.#spreadModeDropdown &&
-            this.#spreadModeDropdown.style.display === 'block') {
-          this.#spreadModeDropdown.style.display = 'none';
+            this.#spreadModeDropdown.style.display === "block") {
+          this.#spreadModeDropdown.style.display = "none";
         }
       });
     }
 
     // 逆时针旋转
     if (this.#rotateCCWBtn) {
-      this.#rotateCCWBtn.addEventListener('click', () => {
+      this.#rotateCCWBtn.addEventListener("click", () => {
         this.#rotatePages(-90);
       });
     }
 
     // 顺时针旋转
     if (this.#rotateCWBtn) {
-      this.#rotateCWBtn.addEventListener('click', () => {
+      this.#rotateCWBtn.addEventListener("click", () => {
         this.#rotatePages(90);
       });
     }
@@ -227,17 +227,17 @@ export class UILayoutControls {
 
     // 显示Toast提示
     const modeNames = {
-      0: '📄 垂直滚动模式',
-      1: '↔️ 水平滚动模式',
-      3: '📃 单页模式'
+      0: "📄 垂直滚动模式",
+      1: "↔️ 水平滚动模式",
+      3: "📃 单页模式"
     };
-    notifyInfo(modeNames[mode] || `滚动模式：${mode}`);
+    showInfo(modeNames[mode] || `滚动模式：${mode}`);
 
     // 同步更新隐藏的select（保持兼容性）
     if (this.#scrollModeSelect) {
       this.#scrollModeSelect.value = mode;
       // 触发change事件，让原有的处理逻辑生效
-      this.#scrollModeSelect.dispatchEvent(new Event('change'));
+      this.#scrollModeSelect.dispatchEvent(new Event("change"));
     }
   }
 
@@ -247,20 +247,20 @@ export class UILayoutControls {
    * @private
    */
   #updateScrollModeIcon(mode) {
-    if (!this.#scrollModeBtn) return;
+    if (!this.#scrollModeBtn) {return;}
 
-    const iconSVG = this.#scrollModeBtn.querySelector('.scroll-icon');
-    if (!iconSVG) return;
+    const iconSVG = this.#scrollModeBtn.querySelector(".scroll-icon");
+    if (!iconSVG) {return;}
 
     if (mode === 0) {
       // 垂直滚动：3个方框垂直排列
-      iconSVG.innerHTML = '<rect x="4" y="1" width="10" height="4" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="4" y="7" width="10" height="4" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="4" y="13" width="10" height="4" stroke="currentColor" stroke-width="1.5" fill="none"/>';
+      iconSVG.innerHTML = "<rect x=\"4\" y=\"1\" width=\"10\" height=\"4\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/><rect x=\"4\" y=\"7\" width=\"10\" height=\"4\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/><rect x=\"4\" y=\"13\" width=\"10\" height=\"4\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/>";
     } else if (mode === 1) {
       // 水平滚动：3个方框水平排列
-      iconSVG.innerHTML = '<rect x="1" y="4" width="4" height="10" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="7" y="4" width="4" height="10" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="13" y="4" width="4" height="10" stroke="currentColor" stroke-width="1.5" fill="none"/>';
+      iconSVG.innerHTML = "<rect x=\"1\" y=\"4\" width=\"4\" height=\"10\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/><rect x=\"7\" y=\"4\" width=\"4\" height=\"10\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/><rect x=\"13\" y=\"4\" width=\"4\" height=\"10\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/>";
     } else if (mode === 3) {
       // 单页：1个大方框
-      iconSVG.innerHTML = '<rect x="3" y="1" width="12" height="16" stroke="currentColor" stroke-width="1.5" fill="none"/>';
+      iconSVG.innerHTML = "<rect x=\"3\" y=\"1\" width=\"12\" height=\"16\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/>";
     }
   }
 
@@ -278,16 +278,16 @@ export class UILayoutControls {
 
     // 显示Toast提示
     const modeNames = {
-      0: '📄 单页模式',
-      2: '📖 偶数双页'
+      0: "📄 单页模式",
+      2: "📖 偶数双页"
     };
-    notifyInfo(modeNames[mode] || `跨页模式：${mode}`);
+    showInfo(modeNames[mode] || `跨页模式：${mode}`);
 
     // 同步更新隐藏的select（保持兼容性）
     if (this.#spreadModeSelect) {
       this.#spreadModeSelect.value = mode;
       // 触发change事件，让原有的处理逻辑生效
-      this.#spreadModeSelect.dispatchEvent(new Event('change'));
+      this.#spreadModeSelect.dispatchEvent(new Event("change"));
     }
   }
 
@@ -297,17 +297,17 @@ export class UILayoutControls {
    * @private
    */
   #updateSpreadModeIcon(mode) {
-    if (!this.#spreadModeBtn) return;
+    if (!this.#spreadModeBtn) {return;}
 
-    const iconSVG = this.#spreadModeBtn.querySelector('.spread-icon');
-    if (!iconSVG) return;
+    const iconSVG = this.#spreadModeBtn.querySelector(".spread-icon");
+    if (!iconSVG) {return;}
 
     if (mode === 0) {
       // 单页图标
-      iconSVG.innerHTML = '<rect x="5" y="2" width="8" height="14" stroke="currentColor" stroke-width="1.5" fill="none"/>';
+      iconSVG.innerHTML = "<rect x=\"5\" y=\"2\" width=\"8\" height=\"14\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/>";
     } else if (mode === 2) {
       // 双页图标
-      iconSVG.innerHTML = '<rect x="1" y="2" width="7" height="14" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="10" y="2" width="7" height="14" stroke="currentColor" stroke-width="1.5" fill="none"/>';
+      iconSVG.innerHTML = "<rect x=\"1\" y=\"2\" width=\"7\" height=\"14\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/><rect x=\"10\" y=\"2\" width=\"7\" height=\"14\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/>";
     }
   }
 
@@ -317,20 +317,20 @@ export class UILayoutControls {
    * @private
    */
   #rotatePages(degrees) {
-    if (!this.#pdfViewerManager || !this.#pdfViewerManager.viewer) return;
+    if (!this.#pdfViewerManager || !this.#pdfViewerManager.viewer) {return;}
 
     const currentRotation = this.#pdfViewerManager.pagesRotation || 0;
     let newRotation = (currentRotation + degrees) % 360;
 
     // 确保旋转值在0-360之间
-    if (newRotation < 0) newRotation += 360;
+    if (newRotation < 0) {newRotation += 360;}
 
     this.#logger.info(`Rotating pages: ${currentRotation}° -> ${newRotation}°`);
     this.#pdfViewerManager.pagesRotation = newRotation;
 
     // 触发PDFViewer更新
     this.#pdfViewerManager.viewer.update();
-    this.#logger.info(`Pages rotated and view refreshed`);
+    this.#logger.info("Pages rotated and view refreshed");
   }
 
   /**
@@ -339,16 +339,16 @@ export class UILayoutControls {
    */
   #setupMouseModeControl() {
     if (!this.#mouseModeBtn) {
-      this.#logger.warn('Mouse mode button not found');
+      this.#logger.warn("Mouse mode button not found");
       return;
     }
 
     // 点击按钮切换模式
-    this.#mouseModeBtn.addEventListener('click', () => {
+    this.#mouseModeBtn.addEventListener("click", () => {
       this.#toggleMouseMode();
     });
 
-    this.#logger.info('Mouse mode control setup complete');
+    this.#logger.info("Mouse mode control setup complete");
   }
 
   /**
@@ -364,7 +364,7 @@ export class UILayoutControls {
    * @private
    */
   #toggleMouseMode() {
-    const newMode = this.#currentMouseMode === 'text' ? 'drag' : 'text';
+    const newMode = this.#currentMouseMode === "text" ? "drag" : "text";
     this.#setMouseMode(newMode);
   }
 
@@ -375,20 +375,20 @@ export class UILayoutControls {
    */
   #setMouseMode(mode) {
     if (!this.#pdfContainer) {
-      this.#logger.warn('PDF container not found');
+      this.#logger.warn("PDF container not found");
       return;
     }
 
     this.#currentMouseMode = mode;
 
     // 更新CSS类名
-    if (mode === 'drag') {
-      this.#pdfContainer.classList.remove('text-mode');
-      this.#pdfContainer.classList.add('drag-mode');
+    if (mode === "drag") {
+      this.#pdfContainer.classList.remove("text-mode");
+      this.#pdfContainer.classList.add("drag-mode");
       this.#setupDragListeners();
     } else {
-      this.#pdfContainer.classList.remove('drag-mode');
-      this.#pdfContainer.classList.add('text-mode');
+      this.#pdfContainer.classList.remove("drag-mode");
+      this.#pdfContainer.classList.add("text-mode");
       this.#removeDragListeners();
     }
 
@@ -397,13 +397,13 @@ export class UILayoutControls {
 
     // 显示Toast提示
     const modeNames = {
-      'text': '📝 文本选择模式',
-      'drag': '🤚 拖拽浏览模式'
+      "text": "📝 文本选择模式",
+      "drag": "🤚 拖拽浏览模式"
     };
-    notifyInfo(modeNames[mode] || `已切换到${mode}模式`);
+    showInfo(modeNames[mode] || `已切换到${mode}模式`);
 
     // 发出事件
-    this.#eventBus.emit('pdf-viewer:mouse-mode:changed', {
+    this.#eventBus.emit("pdf-viewer:mouse-mode:changed", {
       mode: mode
     });
 
@@ -416,25 +416,25 @@ export class UILayoutControls {
    * @private
    */
   #updateMouseModeIcon(mode) {
-    if (!this.#mouseModeBtn) return;
+    if (!this.#mouseModeBtn) {return;}
 
-    const iconSVG = this.#mouseModeBtn.querySelector('.mouse-icon');
-    if (!iconSVG) return;
+    const iconSVG = this.#mouseModeBtn.querySelector(".mouse-icon");
+    if (!iconSVG) {return;}
 
-    if (mode === 'text') {
+    if (mode === "text") {
       // 文本选择图标：I字形光标 + 文本线条
       iconSVG.innerHTML = `
         <path d="M6 3 L6 4 L8 4 L8 14 L6 14 L6 15 L12 15 L12 14 L10 14 L10 4 L12 4 L12 3 Z" stroke="currentColor" stroke-width="1.5" fill="none"/>
         <line x1="4" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="1" opacity="0.5"/>
         <line x1="4" y1="11" x2="14" y2="11" stroke="currentColor" stroke-width="1" opacity="0.5"/>
       `;
-      this.#mouseModeBtn.title = '鼠标模式：文本选择';
+      this.#mouseModeBtn.title = "鼠标模式：文本选择";
     } else {
       // 手形拖拽图标
       iconSVG.innerHTML = `
         <path d="M9 6 L9 3 L10 3 L10 6 M11 6 L11 2 L12 2 L12 6 M13 6 L13 3 L14 3 L14 9 L14 12 C14 13.5 13 15 11 15 L8 15 C6.5 15 5 14 4 12 L4 10 L5 10 L5 12 C5.5 13 6.5 14 8 14 L11 14 C12 14 13 13 13 12 L13 9 M7 6 L7 8 L8 8 L8 6 Z" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
       `;
-      this.#mouseModeBtn.title = '鼠标模式：拖拽浏览';
+      this.#mouseModeBtn.title = "鼠标模式：拖拽浏览";
     }
   }
 
@@ -443,18 +443,18 @@ export class UILayoutControls {
    * @private
    */
   #setupDragListeners() {
-    if (!this.#pdfContainer) return;
+    if (!this.#pdfContainer) {return;}
 
     // 使用箭头函数绑定this，并保存引用以便后续移除
     this._handleMouseDown = this._handleMouseDown || this.#handleMouseDown.bind(this);
     this._handleMouseMove = this._handleMouseMove || this.#handleMouseMove.bind(this);
     this._handleMouseUp = this._handleMouseUp || this.#handleMouseUp.bind(this);
 
-    this.#pdfContainer.addEventListener('mousedown', this._handleMouseDown);
-    document.addEventListener('mousemove', this._handleMouseMove);
-    document.addEventListener('mouseup', this._handleMouseUp);
+    this.#pdfContainer.addEventListener("mousedown", this._handleMouseDown);
+    document.addEventListener("mousemove", this._handleMouseMove);
+    document.addEventListener("mouseup", this._handleMouseUp);
 
-    this.#logger.debug('Drag listeners added');
+    this.#logger.debug("Drag listeners added");
   }
 
   /**
@@ -462,19 +462,19 @@ export class UILayoutControls {
    * @private
    */
   #removeDragListeners() {
-    if (!this.#pdfContainer) return;
+    if (!this.#pdfContainer) {return;}
 
     if (this._handleMouseDown) {
-      this.#pdfContainer.removeEventListener('mousedown', this._handleMouseDown);
+      this.#pdfContainer.removeEventListener("mousedown", this._handleMouseDown);
     }
     if (this._handleMouseMove) {
-      document.removeEventListener('mousemove', this._handleMouseMove);
+      document.removeEventListener("mousemove", this._handleMouseMove);
     }
     if (this._handleMouseUp) {
-      document.removeEventListener('mouseup', this._handleMouseUp);
+      document.removeEventListener("mouseup", this._handleMouseUp);
     }
 
-    this.#logger.debug('Drag listeners removed');
+    this.#logger.debug("Drag listeners removed");
   }
 
   /**
@@ -483,7 +483,7 @@ export class UILayoutControls {
    * @private
    */
   #handleMouseDown(e) {
-    if (this.#currentMouseMode !== 'drag') return;
+    if (this.#currentMouseMode !== "drag") {return;}
 
     this.#isDragging = true;
     this.#dragStartX = e.clientX;
@@ -491,7 +491,7 @@ export class UILayoutControls {
     this.#scrollStartX = this.#pdfContainer.scrollLeft;
     this.#scrollStartY = this.#pdfContainer.scrollTop;
 
-    this.#pdfContainer.classList.add('dragging');
+    this.#pdfContainer.classList.add("dragging");
 
     e.preventDefault();
   }
@@ -502,7 +502,7 @@ export class UILayoutControls {
    * @private
    */
   #handleMouseMove(e) {
-    if (!this.#isDragging || this.#currentMouseMode !== 'drag') return;
+    if (!this.#isDragging || this.#currentMouseMode !== "drag") {return;}
 
     const deltaX = e.clientX - this.#dragStartX;
     const deltaY = e.clientY - this.#dragStartY;
@@ -519,10 +519,10 @@ export class UILayoutControls {
    * @private
    */
   #handleMouseUp(e) {
-    if (!this.#isDragging) return;
+    if (!this.#isDragging) {return;}
 
     this.#isDragging = false;
-    this.#pdfContainer.classList.remove('dragging');
+    this.#pdfContainer.classList.remove("dragging");
 
     e.preventDefault();
   }

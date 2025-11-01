@@ -3,9 +3,9 @@
  * 显示并管理最近阅读的 PDF（按 visited_at 降序）。
  */
 
-import { RecentOpenedFeatureConfig } from './feature.config.js';
-import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, PDF_MANAGEMENT_EVENTS } from '../../../../common/event/event-constants.js';
-import './styles/recent-opened.css';
+import { RecentOpenedFeatureConfig } from "./feature.config.js";
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, PDF_MANAGEMENT_EVENTS } from "../../../../common/event/event-constants.js";
+import "./styles/recent-opened.css";
 
 export class RecentOpenedFeature {
   name = RecentOpenedFeatureConfig.name;
@@ -33,14 +33,14 @@ export class RecentOpenedFeature {
     this.#scopedEventBus = context.scopedEventBus;
     this.#globalEventBus = context.globalEventBus;
 
-    this.#logger.info('[RecentOpenedFeature] Installing...');
+    this.#logger.info("[RecentOpenedFeature] Installing...");
 
     try {
       // 1) 绑定容器元素
-      this.#containerEl = document.getElementById('recent-opened-section');
-      this.#listEl = document.getElementById('recent-opened-list');
+      this.#containerEl = document.getElementById("recent-opened-section");
+      this.#listEl = document.getElementById("recent-opened-list");
       if (!this.#containerEl || !this.#listEl) {
-        this.#logger.warn('[RecentOpenedFeature] Container or list element not found');
+        this.#logger.warn("[RecentOpenedFeature] Container or list element not found");
       }
 
       // 2) 读取显示条数设置
@@ -53,15 +53,15 @@ export class RecentOpenedFeature {
       // 4) 首次加载最近阅读
       this.#requestRecentOpened();
 
-      this.#logger.info('[RecentOpenedFeature] Installed successfully');
+      this.#logger.info("[RecentOpenedFeature] Installed successfully");
     } catch (error) {
-      this.#logger.error('[RecentOpenedFeature] Installation failed', error);
+      this.#logger.error("[RecentOpenedFeature] Installation failed", error);
       throw error;
     }
   }
 
   async uninstall() {
-    this.#logger.info('[RecentOpenedFeature] Uninstalling...');
+    this.#logger.info("[RecentOpenedFeature] Uninstalling...");
 
     // 清除定时器
     if (this.#refreshTimer) {
@@ -72,38 +72,38 @@ export class RecentOpenedFeature {
     this.#unsubscribers.forEach(fn => fn && fn());
     this.#unsubscribers = [];
     if (this.#listEl) {
-      this.#listEl.innerHTML = '<li class="sidebar-empty">暂无阅读记录</li>';
+      this.#listEl.innerHTML = "<li class=\"sidebar-empty\">暂无阅读记录</li>";
     }
     if (this.#limitSelectEl && this.#limitSelectEl.parentNode) {
       this.#limitSelectEl.parentNode.removeChild(this.#limitSelectEl);
       this.#limitSelectEl = null;
     }
-    this.#logger.info('[RecentOpenedFeature] Uninstalled');
+    this.#logger.info("[RecentOpenedFeature] Uninstalled");
   }
 
   // =============== 私有：事件/渲染/请求 ===============
 
   #setupEventListeners() {
     // 监听 WS 通用响应：仅处理本功能发起的搜索请求（按 request_id 归属）
-    const unsubResp = this.#globalEventBus.on('websocket:message:response', (message) => {
+    const unsubResp = this.#globalEventBus.on("websocket:message:response", (message) => {
       try {
-        if (message?.type !== WEBSOCKET_MESSAGE_TYPES.SEARCH_PDF_COMPLETED) return;
+        if (message?.type !== WEBSOCKET_MESSAGE_TYPES.SEARCH_PDF_COMPLETED) {return;}
         const rid = message?.request_id;
-        if (!rid || rid !== this.#pendingReqId) return;
+        if (!rid || rid !== this.#pendingReqId) {return;}
         const files = message?.data?.files || [];
-        this.#logger.info('[RecentOpenedFeature] Search completed for recent-opened', { count: files.length });
+        this.#logger.info("[RecentOpenedFeature] Search completed for recent-opened", { count: files.length });
         this.#recentOpened = Array.isArray(files) ? files : [];
         this.#renderList();
         this.#pendingReqId = null;
       } catch (e) {
         // 忽略解析错误，避免打断其它监听
       }
-    }, { subscriberId: 'RecentOpenedFeature' });
+    }, { subscriberId: "RecentOpenedFeature" });
     this.#unsubscribers.push(unsubResp);
 
     // 监听 PDF 打开事件：延迟3秒后刷新最近阅读列表
     const unsubPdfOpen = this.#globalEventBus.on(PDF_MANAGEMENT_EVENTS.OPEN.COMPLETED, (data) => {
-      this.#logger.info('[RecentOpenedFeature] 📖 PDF打开事件触发，3秒后刷新最近阅读');
+      this.#logger.info("[RecentOpenedFeature] 📖 PDF打开事件触发，3秒后刷新最近阅读");
 
       // 清除之前的定时器（防止频繁打开时重复刷新）
       if (this.#refreshTimer) {
@@ -113,30 +113,30 @@ export class RecentOpenedFeature {
 
       // 延迟3秒刷新
       this.#refreshTimer = setTimeout(() => {
-        this.#logger.info('[RecentOpenedFeature] ⏰ 延迟结束，开始刷新最近阅读');
+        this.#logger.info("[RecentOpenedFeature] ⏰ 延迟结束，开始刷新最近阅读");
         this.#requestRecentOpened();
         this.#refreshTimer = null;
       }, 3000);
-    }, { subscriberId: 'RecentOpenedFeature:pdf-opened' });
+    }, { subscriberId: "RecentOpenedFeature:pdf-opened" });
     this.#unsubscribers.push(unsubPdfOpen);
 
     // 列表点击：触发"全量、按 visited_at 降序"的标准搜索（交由 SearchManager 发起与派发结果）
     if (this.#listEl) {
       const clickHandler = (e) => {
-        const item = e.target.closest('.sidebar-item');
-        if (!item) return;
-        const focusId = item.getAttribute('data-id') || '';
-        this.#logger.info('[RecentOpenedFeature] Item clicked → trigger global sort search with focusId', { focusId });
-        this.#globalEventBus.emit('search:query:requested', {
-          searchText: '',
-          sort: [{ field: 'visited_at', direction: 'desc' }],
+        const item = e.target.closest(".sidebar-item");
+        if (!item) {return;}
+        const focusId = item.getAttribute("data-id") || "";
+        this.#logger.info("[RecentOpenedFeature] Item clicked → trigger global sort search with focusId", { focusId });
+        this.#globalEventBus.emit("search:query:requested", {
+          searchText: "",
+          sort: [{ field: "visited_at", direction: "desc" }],
           // 按当前“最近阅读”显示条数，截断结果（前5/前10/前20/前50）
           pagination: { limit: this.#displayLimit, offset: 0, need_total: true },
           focusId
         });
       };
-      this.#listEl.addEventListener('click', clickHandler);
-      this.#unsubscribers.push(() => this.#listEl.removeEventListener('click', clickHandler));
+      this.#listEl.addEventListener("click", clickHandler);
+      this.#unsubscribers.push(() => this.#listEl.removeEventListener("click", clickHandler));
     }
 
     // 显示条数变更
@@ -149,39 +149,39 @@ export class RecentOpenedFeature {
           this.#requestRecentOpened();
         }
       };
-      this.#limitSelectEl.addEventListener('change', changeHandler);
-      this.#unsubscribers.push(() => this.#limitSelectEl.removeEventListener('change', changeHandler));
+      this.#limitSelectEl.addEventListener("change", changeHandler);
+      this.#unsubscribers.push(() => this.#limitSelectEl.removeEventListener("change", changeHandler));
     }
   }
 
   #renderList() {
-    if (!this.#listEl) return;
+    if (!this.#listEl) {return;}
     const items = this.#recentOpened.slice(0, this.#displayLimit);
     if (!items.length) {
-      this.#listEl.innerHTML = '<li class="sidebar-empty">暂无阅读记录</li>';
+      this.#listEl.innerHTML = "<li class=\"sidebar-empty\">暂无阅读记录</li>";
       return;
     }
     this.#listEl.innerHTML = items.map((rec) => {
-      const title = this.#escapeHtml(rec?.title || rec?.filename || '(未命名)');
+      const title = this.#escapeHtml(rec?.title || rec?.filename || "(未命名)");
       return (
-        `<li class="sidebar-item" data-id="${this.#escapeHtml(rec?.id || '')}">`
-        + `<span class="sidebar-item-icon">📖</span>`
+        `<li class="sidebar-item" data-id="${this.#escapeHtml(rec?.id || "")}">`
+        + "<span class=\"sidebar-item-icon\">📖</span>"
         + `<span class="sidebar-item-text">${title}</span>`
-        + `</li>`
+        + "</li>"
       );
-    }).join('\n');
+    }).join("\n");
   }
 
   #ensureLimitSelect() {
-    if (!this.#containerEl) return;
-    const titleEl = this.#containerEl.querySelector('.sidebar-section-title');
-    if (!titleEl) return;
-    if (this.#limitSelectEl && this.#limitSelectEl.isConnected) return;
+    if (!this.#containerEl) {return;}
+    const titleEl = this.#containerEl.querySelector(".sidebar-section-title");
+    if (!titleEl) {return;}
+    if (this.#limitSelectEl && this.#limitSelectEl.isConnected) {return;}
 
-    const select = document.createElement('select');
-    select.className = 'sidebar-limit-select';
+    const select = document.createElement("select");
+    select.className = "sidebar-limit-select";
     [5, 10, 20, 50].forEach(n => {
-      const opt = document.createElement('option');
+      const opt = document.createElement("option");
       opt.value = String(n);
       opt.textContent = `显示 ${n}`;
       select.appendChild(opt);
@@ -196,7 +196,7 @@ export class RecentOpenedFeature {
       const v = localStorage.getItem(`${RecentOpenedFeatureConfig.config.storageKey}:display-limit`);
       if (v) {
         const n = parseInt(v, 10);
-        if (!Number.isNaN(n) && n > 0) this.#displayLimit = n;
+        if (!Number.isNaN(n) && n > 0) {this.#displayLimit = n;}
       }
     } catch (_) { /* ignore */ }
   }
@@ -207,25 +207,25 @@ export class RecentOpenedFeature {
     const payload = {
       type: WEBSOCKET_MESSAGE_TYPES.SEARCH_PDF,
       request_id: reqId,
-      metadata: { version: '1.0.0' },
+      metadata: { version: "1.0.0" },
       data: {
-        query: '',
+        query: "",
         tokens: [],
-        sort: [{ field: 'visited_at', direction: 'desc' }],
+        sort: [{ field: "visited_at", direction: "desc" }],
         pagination: { limit: this.#displayLimit, offset: 0, need_total: false }
       }
     };
-    this.#logger.debug('[RecentOpenedFeature] Sending recent-opened request', { request_id: reqId, limit: this.#displayLimit });
+    this.#logger.debug("[RecentOpenedFeature] Sending recent-opened request", { request_id: reqId, limit: this.#displayLimit });
     this.#globalEventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, payload);
   }
 
   #escapeHtml(str) {
-    return String(str ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+    return String(str ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 }
 

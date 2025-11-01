@@ -4,18 +4,18 @@
   rectToPercent,
   calculateLineRects,
   buildSelectionSnapshot
-} from './selection-utils.js';
+} from "./selection-utils.js";
 
-describe('selection-utils', () => {
+describe("selection-utils", () => {
   beforeEach(() => {
-    document.body.innerHTML = '';
+    document.body.innerHTML = "";
   });
 
-  test('findPageElement returns closest .page element', () => {
-    const page = document.createElement('div');
-    page.className = 'page';
-    page.dataset.pageNumber = '3';
-    const span = document.createElement('span');
+  test("findPageElement returns closest .page element", () => {
+    const page = document.createElement("div");
+    page.className = "page";
+    page.dataset.pageNumber = "3";
+    const span = document.createElement("span");
     page.appendChild(span);
     document.body.appendChild(page);
 
@@ -23,15 +23,15 @@ describe('selection-utils', () => {
     expect(findPageElement(document.body)).toBe(null);
   });
 
-  test('extractPageNumber parses data attribute', () => {
-    const page = document.createElement('div');
-    page.dataset.pageNumber = '5';
+  test("extractPageNumber parses data attribute", () => {
+    const page = document.createElement("div");
+    page.dataset.pageNumber = "5";
     expect(extractPageNumber(page)).toBe(5);
-    page.dataset.pageNumber = 'abc';
+    page.dataset.pageNumber = "abc";
     expect(extractPageNumber(page)).toBeNull();
   });
 
-  test('rectToPercent converts viewport rect to percent and clamps', () => {
+  test("rectToPercent converts viewport rect to percent and clamps", () => {
     const pageRect = { left: 0, top: 0, width: 200, height: 400 };
     const rect = { left: 100, top: 200, width: 50, height: 40 };
     const result = rectToPercent(rect, pageRect);
@@ -43,7 +43,7 @@ describe('selection-utils', () => {
     });
   });
 
-  test('calculateLineRects uses client rects and fallback', () => {
+  test("calculateLineRects uses client rects and fallback", () => {
     const range = {
       getClientRects: () => [{ left: 110, top: 210, width: 40, height: 20 }]
     };
@@ -56,9 +56,9 @@ describe('selection-utils', () => {
     expect(calculateLineRects(emptyRange, pageRect)).toEqual([]);
   });
 
-  test('buildSelectionSnapshot returns fallback rect when no client rects', () => {
-    const page = document.createElement('div');
-    page.className = 'page';
+  test("buildSelectionSnapshot returns fallback rect when no client rects", () => {
+    const page = document.createElement("div");
+    page.className = "page";
     page.getBoundingClientRect = () => ({ left: 0, top: 0, width: 200, height: 400 });
 
     const mockRange = {

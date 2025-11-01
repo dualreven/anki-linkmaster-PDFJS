@@ -191,10 +191,25 @@ export interface BootstrapConfig {
  * 简单依赖容器类
  */
 export class SimpleDependencyContainer implements IDependencyContainer {
+  /**
+   *
+   */
   register<T>(key: string, instance: T): void;
+  /**
+   *
+   */
   resolve<T>(key: string): T | null;
+  /**
+   *
+   */
   has(key: string): boolean;
+  /**
+   *
+   */
   clear(): void;
+  /**
+   *
+   */
   keys(): string[];
 }
 
@@ -202,12 +217,33 @@ export class SimpleDependencyContainer implements IDependencyContainer {
  * Feature注册表类
  */
 export class FeatureRegistry implements IFeatureRegistry {
+  /**
+   *
+   */
   register(feature: IFeature): void;
+  /**
+   *
+   */
   get(name: string): IFeature | null;
+  /**
+   *
+   */
   has(name: string): boolean;
+  /**
+   *
+   */
   getAll(): IFeature[];
+  /**
+   *
+   */
   resolveDependencies(features: IFeature[]): IFeature[];
+  /**
+   *
+   */
   getMetadata(name: string): FeatureMetadata | null;
+  /**
+   *
+   */
   clear(): void;
 }
 
@@ -222,7 +258,13 @@ export class AppCoreFeature implements IFeature {
   readonly version: string;
   readonly dependencies: readonly [];
 
+  /**
+   *
+   */
   install(container: IDependencyContainer): Promise<void>;
+  /**
+   *
+   */
   uninstall(): Promise<void>;
 }
 
@@ -235,7 +277,13 @@ export class PDFManagerFeature implements IFeature {
   readonly version: string;
   readonly dependencies: readonly ['app-core'];
 
+  /**
+   *
+   */
   install(container: IDependencyContainer): Promise<void>;
+  /**
+   *
+   */
   uninstall(): Promise<void>;
 }
 
@@ -248,7 +296,13 @@ export class UIManagerFeature implements IFeature {
   readonly version: string;
   readonly dependencies: readonly ['app-core'];
 
+  /**
+   *
+   */
   install(container: IDependencyContainer): Promise<void>;
+  /**
+   *
+   */
   uninstall(): Promise<void>;
 }
 

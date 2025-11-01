@@ -33,7 +33,7 @@ export class FilterSearchBar {
     this.#attachEventListeners();
     this.#createPresetDialog();
 
-    this.#logger.info('[FilterSearchBar] Rendered');
+    this.#logger.info("[FilterSearchBar] Rendered");
   }
 
   /**
@@ -112,12 +112,12 @@ export class FilterSearchBar {
       </div>
     `;
 
-    const tempDiv = document.createElement('div');
+    const tempDiv = document.createElement("div");
     tempDiv.innerHTML = dialogHTML.trim();
     this.#presetDialog = tempDiv.firstChild;
     document.body.appendChild(this.#presetDialog);
 
-    this.#presetNameInput = this.#presetDialog.querySelector('.preset-name-input');
+    this.#presetNameInput = this.#presetDialog.querySelector(".preset-name-input");
 
     // 绑定弹窗事件
     this.#bindDialogEvents();
@@ -128,12 +128,12 @@ export class FilterSearchBar {
    * @private
    */
   #bindElements() {
-    this.#searchInput = this.#container.querySelector('.search-input');
-    this.#searchBtn = this.#container.querySelector('.search-btn');
-    this.#clearBtn = this.#container.querySelector('.clear-search-btn');
-    this.#advancedBtn = this.#container.querySelector('.advanced-filter-btn');
-    this.#savePresetBtn = this.#container.querySelector('.save-preset-btn');
-    this.#statsDisplay = this.#container.querySelector('.filter-stats');
+    this.#searchInput = this.#container.querySelector(".search-input");
+    this.#searchBtn = this.#container.querySelector(".search-btn");
+    this.#clearBtn = this.#container.querySelector(".clear-search-btn");
+    this.#advancedBtn = this.#container.querySelector(".advanced-filter-btn");
+    this.#savePresetBtn = this.#container.querySelector(".save-preset-btn");
+    this.#statsDisplay = this.#container.querySelector(".filter-stats");
   }
 
   /**
@@ -143,7 +143,7 @@ export class FilterSearchBar {
   #attachEventListeners() {
     // 搜索输入 - 实时搜索（可选，保留原有功能）
     let searchTimeout = null;
-    this.#searchInput.addEventListener('input', (e) => {
+    this.#searchInput.addEventListener("input", (e) => {
       const searchText = e.target.value.trim();
 
       // 防抖处理
@@ -153,37 +153,37 @@ export class FilterSearchBar {
       }, 300);
 
       // 显示/隐藏清除按钮
-      this.#clearBtn.style.display = searchText ? 'block' : 'none';
+      this.#clearBtn.style.display = searchText ? "block" : "none";
     });
 
     // Enter键触发立即搜索
-    this.#searchInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
+    this.#searchInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
         clearTimeout(searchTimeout);
         this.#handleSearch(e.target.value.trim());
       }
     });
 
     // 搜索按钮
-    this.#searchBtn.addEventListener('click', () => {
+    this.#searchBtn.addEventListener("click", () => {
       const searchText = this.#searchInput.value.trim();
       this.#handleSearch(searchText);
     });
 
     // 清除按钮
-    this.#clearBtn.addEventListener('click', () => {
-      this.#searchInput.value = '';
-      this.#clearBtn.style.display = 'none';
+    this.#clearBtn.addEventListener("click", () => {
+      this.#searchInput.value = "";
+      this.#clearBtn.style.display = "none";
       this.#handleClear();
     });
 
     // 高级筛选按钮
-    this.#advancedBtn.addEventListener('click', () => {
+    this.#advancedBtn.addEventListener("click", () => {
       this.#handleAdvancedFilter();
     });
 
     // 保存预设按钮
-    this.#savePresetBtn.addEventListener('click', () => {
+    this.#savePresetBtn.addEventListener("click", () => {
       this.#showPresetDialog();
     });
   }
@@ -194,41 +194,41 @@ export class FilterSearchBar {
    */
   #bindDialogEvents() {
     // 弹窗关闭按钮
-    const closeBtn = this.#presetDialog.querySelector('.preset-dialog-close');
+    const closeBtn = this.#presetDialog.querySelector(".preset-dialog-close");
     if (closeBtn) {
-      closeBtn.addEventListener('click', () => {
+      closeBtn.addEventListener("click", () => {
         this.#hidePresetDialog();
       });
     }
 
     // 弹窗取消按钮
-    const cancelBtn = this.#presetDialog.querySelector('.preset-dialog-cancel');
+    const cancelBtn = this.#presetDialog.querySelector(".preset-dialog-cancel");
     if (cancelBtn) {
-      cancelBtn.addEventListener('click', () => {
+      cancelBtn.addEventListener("click", () => {
         this.#hidePresetDialog();
       });
     }
 
     // 弹窗保存按钮
-    const saveBtn = this.#presetDialog.querySelector('.preset-dialog-save');
+    const saveBtn = this.#presetDialog.querySelector(".preset-dialog-save");
     if (saveBtn) {
-      saveBtn.addEventListener('click', () => {
+      saveBtn.addEventListener("click", () => {
         this.#handlePresetSave();
       });
     }
 
     // 弹窗遮罩层点击关闭
-    const overlay = this.#presetDialog.querySelector('.preset-dialog-overlay');
+    const overlay = this.#presetDialog.querySelector(".preset-dialog-overlay");
     if (overlay) {
-      overlay.addEventListener('click', () => {
+      overlay.addEventListener("click", () => {
         this.#hidePresetDialog();
       });
     }
 
     // Enter键保存
     if (this.#presetNameInput) {
-      this.#presetNameInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
+      this.#presetNameInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
           this.#handlePresetSave();
         }
       });
@@ -245,8 +245,8 @@ export class FilterSearchBar {
       return;
     }
 
-    this.#logger.info('[FilterSearchBar] Search triggered', { searchText });
-    this.#eventBus.emit('filter:search:requested', { searchText });
+    this.#logger.info("[FilterSearchBar] Search triggered", { searchText });
+    this.#eventBus.emit("filter:search:requested", { searchText });
   }
 
   /**
@@ -254,8 +254,8 @@ export class FilterSearchBar {
    * @private
    */
   #handleClear() {
-    this.#logger.info('[FilterSearchBar] Clear triggered');
-    this.#eventBus.emit('filter:clear:requested');
+    this.#logger.info("[FilterSearchBar] Clear triggered");
+    this.#eventBus.emit("filter:clear:requested");
     this.updateStats(null);
   }
 
@@ -264,14 +264,14 @@ export class FilterSearchBar {
    * @private
    */
   #handleAdvancedFilter() {
-    this.#logger.info('[FilterSearchBar] Advanced filter triggered');
+    this.#logger.info("[FilterSearchBar] Advanced filter triggered");
 
     // 优先使用回调函数
     if (this.#callbacks.onAdvancedClick) {
       this.#callbacks.onAdvancedClick();
     } else {
       // 回退到事件机制
-      this.#eventBus.emit('filter:advanced:open');
+      this.#eventBus.emit("filter:advanced:open");
     }
   }
 
@@ -281,13 +281,13 @@ export class FilterSearchBar {
    */
   updateStats(stats) {
     if (!stats || !stats.hasFilter) {
-      this.#statsDisplay.style.display = 'none';
+      this.#statsDisplay.style.display = "none";
       return;
     }
 
-    const resultCountSpan = this.#statsDisplay.querySelector('.result-count');
+    const resultCountSpan = this.#statsDisplay.querySelector(".result-count");
     resultCountSpan.textContent = stats.filteredCount;
-    this.#statsDisplay.style.display = 'block';
+    this.#statsDisplay.style.display = "block";
   }
 
   /**
@@ -296,7 +296,7 @@ export class FilterSearchBar {
    */
   setSearchText(text) {
     this.#searchInput.value = text;
-    this.#clearBtn.style.display = text ? 'block' : 'none';
+    this.#clearBtn.style.display = text ? "block" : "none";
   }
 
   /**
@@ -320,12 +320,12 @@ export class FilterSearchBar {
    */
   #showPresetDialog() {
     this.#presetDialog.hidden = false;
-    this.#presetNameInput.value = '';
+    this.#presetNameInput.value = "";
     // 聚焦输入框
     setTimeout(() => {
       this.#presetNameInput.focus();
     }, 100);
-    this.#logger.info('[FilterSearchBar] Preset dialog shown');
+    this.#logger.info("[FilterSearchBar] Preset dialog shown");
   }
 
   /**
@@ -334,8 +334,8 @@ export class FilterSearchBar {
    */
   #hidePresetDialog() {
     this.#presetDialog.hidden = true;
-    this.#presetNameInput.value = '';
-    this.#logger.info('[FilterSearchBar] Preset dialog hidden');
+    this.#presetNameInput.value = "";
+    this.#logger.info("[FilterSearchBar] Preset dialog hidden");
   }
 
   /**
@@ -346,14 +346,14 @@ export class FilterSearchBar {
     const presetName = this.#presetNameInput.value.trim();
 
     if (!presetName) {
-      alert('请输入预设名称');
+      alert("请输入预设名称");
       return;
     }
 
-    this.#logger.info('[FilterSearchBar] Save preset requested', { presetName });
+    this.#logger.info("[FilterSearchBar] Save preset requested", { presetName });
 
     // TODO: 实现保存逻辑
-    console.log('保存预设:', presetName);
+    console.log("保存预设:", presetName);
 
     this.#hidePresetDialog();
   }
@@ -363,7 +363,7 @@ export class FilterSearchBar {
    */
   destroy() {
     if (this.#container) {
-      this.#container.innerHTML = '';
+      this.#container.innerHTML = "";
     }
 
     // 移除弹窗
@@ -373,6 +373,6 @@ export class FilterSearchBar {
       this.#presetNameInput = null;
     }
 
-    this.#logger.info('[FilterSearchBar] Destroyed');
+    this.#logger.info("[FilterSearchBar] Destroyed");
   }
 }

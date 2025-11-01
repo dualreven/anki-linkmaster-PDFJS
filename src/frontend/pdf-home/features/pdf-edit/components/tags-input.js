@@ -37,7 +37,7 @@ export class TagsInput {
   constructor(options = {}) {
     this.#container = options.container;
     this.#tags = options.tags ? [...options.tags] : [];
-    this.#placeholder = options.placeholder || '添加标签...';
+    this.#placeholder = options.placeholder || "添加标签...";
     this.#maxTags = options.maxTags || 10;
     this.#allowDuplicates = options.allowDuplicates || false;
     this.#onChange = options.onChange;
@@ -51,7 +51,7 @@ export class TagsInput {
    * @private
    */
   #init() {
-    this.#container.classList.add('tags-input');
+    this.#container.classList.add("tags-input");
     this.#render();
     this.#bindEvents();
   }
@@ -67,11 +67,11 @@ export class TagsInput {
         type="text"
         class="tag-input"
         placeholder="${this.#placeholder}"
-        ${this.#tags.length >= this.#maxTags ? 'disabled' : ''}
+        ${this.#tags.length >= this.#maxTags ? "disabled" : ""}
       />
     `;
 
-    this.#input = this.#container.querySelector('.tag-input');
+    this.#input = this.#container.querySelector(".tag-input");
     this.#renderTags();
   }
 
@@ -80,12 +80,12 @@ export class TagsInput {
    * @private
    */
   #renderTags() {
-    const tagsContainer = this.#container.querySelector('.tags-container');
-    tagsContainer.innerHTML = '';
+    const tagsContainer = this.#container.querySelector(".tags-container");
+    tagsContainer.innerHTML = "";
 
     this.#tags.forEach((tag, index) => {
-      const tagElement = document.createElement('span');
-      tagElement.classList.add('tag');
+      const tagElement = document.createElement("span");
+      tagElement.classList.add("tag");
       tagElement.dataset.index = index;
       tagElement.innerHTML = `
         <span class="tag-text">${this.#escapeHtml(tag)}</span>
@@ -110,22 +110,22 @@ export class TagsInput {
    */
   #bindEvents() {
     // 输入框键盘事件
-    this.#input.addEventListener('keydown', this.#handleKeyDown.bind(this));
+    this.#input.addEventListener("keydown", this.#handleKeyDown.bind(this));
 
     // 删除按钮点击事件
-    this.#container.addEventListener('click', (event) => {
-      const removeButton = event.target.closest('.tag-remove');
+    this.#container.addEventListener("click", (event) => {
+      const removeButton = event.target.closest(".tag-remove");
       if (removeButton) {
-        const tagElement = removeButton.closest('.tag');
+        const tagElement = removeButton.closest(".tag");
         const index = parseInt(tagElement.dataset.index);
         this.removeTag(index);
       }
     });
 
     // 容器点击聚焦输入框
-    this.#container.addEventListener('click', (event) => {
+    this.#container.addEventListener("click", (event) => {
       if (event.target === this.#container ||
-          event.target.classList.contains('tags-container')) {
+          event.target.classList.contains("tags-container")) {
         this.#input.focus();
       }
     });
@@ -139,10 +139,10 @@ export class TagsInput {
   #handleKeyDown(event) {
     const value = this.#input.value.trim();
 
-    if (event.key === 'Enter' && value) {
+    if (event.key === "Enter" && value) {
       event.preventDefault();
       this.addTag(value);
-    } else if (event.key === 'Backspace' && !value && this.#tags.length > 0) {
+    } else if (event.key === "Backspace" && !value && this.#tags.length > 0) {
       // 输入框为空时，退格删除最后一个标签
       event.preventDefault();
       this.removeTag(this.#tags.length - 1);
@@ -159,13 +159,13 @@ export class TagsInput {
     const trimmedTag = tag.trim();
 
     // 验证标签
-    if (!trimmedTag) return false;
-    if (this.#tags.length >= this.#maxTags) return false;
-    if (!this.#allowDuplicates && this.#tags.includes(trimmedTag)) return false;
-    if (this.#validator && !this.#validator(trimmedTag)) return false;
+    if (!trimmedTag) {return false;}
+    if (this.#tags.length >= this.#maxTags) {return false;}
+    if (!this.#allowDuplicates && this.#tags.includes(trimmedTag)) {return false;}
+    if (this.#validator && !this.#validator(trimmedTag)) {return false;}
 
     this.#tags.push(trimmedTag);
-    this.#input.value = '';
+    this.#input.value = "";
     this.#renderTags();
     this.#notifyChange();
 
@@ -179,7 +179,7 @@ export class TagsInput {
    * @returns {boolean} 是否删除成功
    */
   removeTag(index) {
-    if (index < 0 || index >= this.#tags.length) return false;
+    if (index < 0 || index >= this.#tags.length) {return false;}
 
     this.#tags.splice(index, 1);
     this.#renderTags();
@@ -236,7 +236,7 @@ export class TagsInput {
    * @returns {string} 转义后的文本
    */
   #escapeHtml(text) {
-    const div = document.createElement('div');
+    const div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML;
   }
@@ -246,7 +246,7 @@ export class TagsInput {
    * @public
    */
   destroy() {
-    this.#container.innerHTML = '';
+    this.#container.innerHTML = "";
   }
 }
 

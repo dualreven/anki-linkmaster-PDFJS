@@ -101,9 +101,9 @@ export class BookmarkSidebarUI {
 
     // 主动请求当前书签列表，避免在我们订阅之前发射过一次导致的“空白”
     try {
-      this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.LOAD.REQUESTED, {}, { actorId: 'BookmarkSidebarUI' });
+      this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.BOOKMARK.LOAD.REQUESTED, {}, { actorId: "BookmarkSidebarUI" });
     } catch (_) {
-      try { this.#eventBus.emit(PDF_VIEWER_EVENTS.BOOKMARK.LOAD.REQUESTED, {}, { actorId: 'BookmarkSidebarUI' }); } catch { /* ignore */ }
+      try { this.#eventBus.emit(PDF_VIEWER_EVENTS.BOOKMARK.LOAD.REQUESTED, {}, { actorId: "BookmarkSidebarUI" }); } catch { /* ignore */ }
     }
   }
 
@@ -163,13 +163,13 @@ export class BookmarkSidebarUI {
         // 改为：按大纲ID请求导航，由 PDFBookmarkFeature.#handleNavigateByIdRequest 统一处理
         const payload = { outlineItemId: bookmarkId };
         try {
-          try { this.#logger.info(`[BookmarkSidebarUI] emit BOOKMARK.NAVIGATE_BY_ID.REQUESTED ${JSON.stringify(payload)}`); } catch {}
+          try { this.#logger.info(`[BookmarkSidebarUI] emit BOOKMARK.NAVIGATE_BY_ID.REQUESTED ${JSON.stringify(payload)}`); } catch (e) { void e; }
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED,
             payload,
             { actorId: "BookmarkSidebarUI" }
           );
-        } catch {
+        } catch (e) {
           this.#eventBus.emit(
             PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED,
             payload,
@@ -213,10 +213,10 @@ export class BookmarkSidebarUI {
         lastEl.style.borderTop = "";
         lastEl.style.borderBottom = "";
         lastEl.style.backgroundColor = "";
-      } catch (_) {}
+      } catch (_) { /* ignore */ }
       lastEl = null; lastZone = null;
     };
-    try { $(document).off(NS); } catch (_) {}
+    try { $(document).off(NS); } catch (_) { /* ignore */ }
     // 捕获开始拖拽，记录被拖拽的节点ID
     $(document).on("dnd_start.vakata" + NS, (evt, data) => {
       try {
@@ -586,7 +586,7 @@ export class BookmarkSidebarUI {
   // show/hide/toggle 方法已移除，由 SidebarManager 统一管理
 
   destroy() {
-    this.#unsubs.forEach(u => { try { u(); } catch(_){} });
+    this.#unsubs.forEach(u => { try { u(); } catch(e){ this.#logger && this.#logger.warn && this.#logger.warn("unsubscribe failed", e); } });
     this.#unsubs = [];
 
     // 销毁工具栏

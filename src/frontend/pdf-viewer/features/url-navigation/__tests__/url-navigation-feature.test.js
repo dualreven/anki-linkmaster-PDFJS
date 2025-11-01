@@ -3,11 +3,11 @@
  * @file url-navigation-feature.test.js
  */
 
-import { URLNavigationFeature } from '../index.js';
-import { SimpleDependencyContainer } from '../../../container/simple-dependency-container.js';
-import { PDF_VIEWER_EVENTS } from '../../../../common/event/pdf-viewer-constants.js';
+import { URLNavigationFeature } from "../index.js";
+import { SimpleDependencyContainer } from "../../../container/simple-dependency-container.js";
+import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 
-describe('URLNavigationFeature', () => {
+describe("URLNavigationFeature", () => {
   let feature;
   let container;
   let mockEventBus;
@@ -26,7 +26,7 @@ describe('URLNavigationFeature', () => {
 
     // 创建容器并注册依赖
     container = new SimpleDependencyContainer();
-    container.register('eventBus', mockEventBus);
+    container.register("eventBus", mockEventBus);
 
     // 创建Feature实例
     feature = new URLNavigationFeature();
@@ -34,13 +34,13 @@ describe('URLNavigationFeature', () => {
     // Mock window.location - 删除并重新定义
     delete window.location;
     window.location = {
-      href: 'http://localhost:3000/',
-      search: '',
-      hash: '',
-      pathname: '/',
-      hostname: 'localhost',
-      port: '3000',
-      protocol: 'http:',
+      href: "http://localhost:3000/",
+      search: "",
+      hash: "",
+      pathname: "/",
+      hostname: "localhost",
+      port: "3000",
+      protocol: "http:",
     };
   });
 
@@ -50,24 +50,24 @@ describe('URLNavigationFeature', () => {
     jest.clearAllMocks();
   });
 
-  describe('Feature基本信息', () => {
-    test('应该正确定义Feature名称', () => {
-      expect(feature.name).toBe('url-navigation');
+  describe("Feature基本信息", () => {
+    test("应该正确定义Feature名称", () => {
+      expect(feature.name).toBe("url-navigation");
     });
 
-    test('应该正确定义版本号', () => {
-      expect(feature.version).toBe('1.0.0');
+    test("应该正确定义版本号", () => {
+      expect(feature.version).toBe("1.0.0");
     });
 
-    test('应该正确定义依赖项', () => {
-      expect(feature.dependencies).toEqual(['app-core', 'pdf-manager']);
+    test("应该正确定义依赖项", () => {
+      expect(feature.dependencies).toEqual(["app-core", "pdf-manager"]);
     });
   });
 
-  describe('Feature生命周期', () => {
-    test('应该成功安装Feature（无URL参数）', async () => {
-      window.location.href = 'http://localhost:3000/';
-      window.location.search = '';
+  describe("Feature生命周期", () => {
+    test("应该成功安装Feature（无URL参数）", async () => {
+      window.location.href = "http://localhost:3000/";
+      window.location.search = "";
 
       await expect(feature.install(container)).resolves.not.toThrow();
 
@@ -75,9 +75,9 @@ describe('URLNavigationFeature', () => {
       expect(mockEventBus.on).toHaveBeenCalled();
     });
 
-    test('应该成功安装Feature（有URL参数）', async () => {
-      window.location.href = 'http://localhost:3000/?pdf-id=sample&page-at=5';
-      window.location.search = '?pdf-id=sample&page-at=5';
+    test("应该成功安装Feature（有URL参数）", async () => {
+      window.location.href = "http://localhost:3000/?pdf-id=sample&page-at=5";
+      window.location.search = "?pdf-id=sample&page-at=5";
 
       await expect(feature.install(container)).resolves.not.toThrow();
 
@@ -88,30 +88,30 @@ describe('URLNavigationFeature', () => {
       );
       expect(parsedEvent).toBeDefined();
       expect(parsedEvent[1]).toMatchObject({
-        pdfId: 'sample',
+        pdfId: "sample",
         pageAt: 5,
       });
     });
 
-    test('应该正确卸载Feature', async () => {
-      window.location.href = 'http://localhost:3000/';
-      window.location.search = '';
+    test("应该正确卸载Feature", async () => {
+      window.location.href = "http://localhost:3000/";
+      window.location.search = "";
 
       await feature.install(container);
       await expect(feature.uninstall()).resolves.not.toThrow();
     });
 
-    test('安装时缺少EventBus应该抛出错误', async () => {
+    test("安装时缺少EventBus应该抛出错误", async () => {
       const emptyContainer = new SimpleDependencyContainer();
 
-      await expect(feature.install(emptyContainer)).rejects.toThrow('EventBus未在容器中注册');
+      await expect(feature.install(emptyContainer)).rejects.toThrow("EventBus未在容器中注册");
     });
   });
 
-  describe('URL参数处理', () => {
-    test('应该监听FILE.LOAD.SUCCESS事件', async () => {
-      window.location.href = 'http://localhost:3000/?pdf-id=test&page-at=5';
-      window.location.search = '?pdf-id=test&page-at=5';
+  describe("URL参数处理", () => {
+    test("应该监听FILE.LOAD.SUCCESS事件", async () => {
+      window.location.href = "http://localhost:3000/?pdf-id=test&page-at=5";
+      window.location.search = "?pdf-id=test&page-at=5";
 
       await feature.install(container);
 
@@ -123,9 +123,9 @@ describe('URLNavigationFeature', () => {
       expect(hasFileLoadListener).toBe(true);
     });
 
-    test('应该监听FILE.LOAD.FAILED事件', async () => {
-      window.location.href = 'http://localhost:3000/?pdf-id=test';
-      window.location.search = '?pdf-id=test';
+    test("应该监听FILE.LOAD.FAILED事件", async () => {
+      window.location.href = "http://localhost:3000/?pdf-id=test";
+      window.location.search = "?pdf-id=test";
 
       await feature.install(container);
 
@@ -137,7 +137,7 @@ describe('URLNavigationFeature', () => {
       expect(hasFileLoadFailedListener).toBe(true);
     });
 
-    test('应该监听URL_PARAMS.REQUESTED事件', async () => {
+    test("应该监听URL_PARAMS.REQUESTED事件", async () => {
       await feature.install(container);
 
       const onCalls = mockEventBus.on.mock.calls;
@@ -148,9 +148,9 @@ describe('URLNavigationFeature', () => {
       expect(hasRequestedListener).toBe(true);
     });
 
-    test('有pdf-id参数时应该触发PDF加载', async () => {
-      window.location.href = 'http://localhost:3000/?pdf-id=sample';
-      window.location.search = '?pdf-id=sample';
+    test("有pdf-id参数时应该触发PDF加载", async () => {
+      window.location.href = "http://localhost:3000/?pdf-id=sample";
+      window.location.search = "?pdf-id=sample";
 
       await feature.install(container);
 
@@ -161,14 +161,14 @@ describe('URLNavigationFeature', () => {
 
       expect(loadRequestEvent).toBeDefined();
       expect(loadRequestEvent[1]).toMatchObject({
-        filename: 'sample',
-        source: 'url-navigation',
+        filename: "sample",
+        source: "url-navigation",
       });
     });
 
-    test('无URL参数时不应该触发PDF加载', async () => {
-      window.location.href = 'http://localhost:3000/';
-      window.location.search = '';
+    test("无URL参数时不应该触发PDF加载", async () => {
+      window.location.href = "http://localhost:3000/";
+      window.location.search = "";
 
       await feature.install(container);
 
@@ -180,9 +180,9 @@ describe('URLNavigationFeature', () => {
       expect(loadRequestEvent).toBeUndefined();
     });
 
-    test('无效的URL参数应该发出FAILED事件', async () => {
-      window.location.href = 'http://localhost:3000/?pdf-id=&page-at=abc';
-      window.location.search = '?pdf-id=&page-at=abc';
+    test("无效的URL参数应该发出FAILED事件", async () => {
+      window.location.href = "http://localhost:3000/?pdf-id=&page-at=abc";
+      window.location.search = "?pdf-id=&page-at=abc";
 
       await feature.install(container);
 
@@ -192,21 +192,21 @@ describe('URLNavigationFeature', () => {
       );
 
       expect(failedEvent).toBeDefined();
-      expect(failedEvent[1].stage).toBe('parse');
+      expect(failedEvent[1].stage).toBe("parse");
     });
   });
 
-  describe('事件处理', () => {
-    test('Feature信息应该包含正确的元数据', () => {
-      expect(feature.name).toBe('url-navigation');
-      expect(feature.version).toBe('1.0.0');
-      expect(feature.dependencies).toContain('app-core');
-      expect(feature.dependencies).toContain('pdf-manager');
+  describe("事件处理", () => {
+    test("Feature信息应该包含正确的元数据", () => {
+      expect(feature.name).toBe("url-navigation");
+      expect(feature.version).toBe("1.0.0");
+      expect(feature.dependencies).toContain("app-core");
+      expect(feature.dependencies).toContain("pdf-manager");
     });
   });
 
-  describe('边界情况', () => {
-    test('未安装直接卸载不应该抛出错误', async () => {
+  describe("边界情况", () => {
+    test("未安装直接卸载不应该抛出错误", async () => {
       await expect(feature.uninstall()).resolves.not.toThrow();
     });
   });

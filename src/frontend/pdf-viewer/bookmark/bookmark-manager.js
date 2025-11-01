@@ -29,17 +29,17 @@ export class BookmarkManager {
    * 初始化书签管理器
    */
   initialize() {
-    if (this.#initialized) return;
+    if (this.#initialized) {return;}
     this.#logger.info("Initializing BookmarkManager...");
 
     // 初始化侧边栏UI（挂载到容器）
     try {
       // 侧边栏应该添加到main元素，与viewerContainer并列
-      const container = document.querySelector('main');
+      const container = document.querySelector("main");
       this.#ui = new BookmarkSidebarUI(this.#eventBus, { container });
       this.#ui.initialize();
     } catch (e) {
-      const reason = e && typeof e === 'object' ? (e.stack || e.message || JSON.stringify(e)) : e;
+      const reason = e && typeof e === "object" ? (e.stack || e.message || JSON.stringify(e)) : e;
       this.#logger.warn("BookmarkSidebarUI init failed", reason);
     }
 
@@ -48,7 +48,7 @@ export class BookmarkManager {
       this.#eventBus.on(
         PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
         () => this.loadBookmarks(),
-        { subscriberId: 'BookmarkManager' }
+        { subscriberId: "BookmarkManager" }
       )
     );
 
@@ -57,7 +57,7 @@ export class BookmarkManager {
       this.#eventBus.on(
         PDF_VIEWER_EVENTS.BOOKMARK.LOAD.REQUESTED,
         () => this.loadBookmarks(),
-        { subscriberId: 'BookmarkManager' }
+        { subscriberId: "BookmarkManager" }
       )
     );
 
@@ -66,7 +66,7 @@ export class BookmarkManager {
       this.#eventBus.on(
         PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.REQUESTED,
         (data) => this.#handleNavigateRequested(data),
-        { subscriberId: 'BookmarkManager' }
+        { subscriberId: "BookmarkManager" }
       )
     );
 
@@ -82,67 +82,67 @@ export class BookmarkManager {
       const pdfDocument = getCurrentPDFDocument();
       if (!pdfDocument) {
         this.#logger.info("No current PDF document, skip bookmark loading");
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.BOOKMARK.LOAD.EMPTY, {}, { actorId: 'BookmarkManager' });
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.BOOKMARK.LOAD.EMPTY, {}, { actorId: "BookmarkManager" });
         return;
       }
 
       const bookmarks = await this.#dataProvider.getBookmarks(pdfDocument);
       if (!bookmarks || bookmarks.length === 0) {
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.BOOKMARK.LOAD.EMPTY, {}, { actorId: 'BookmarkManager' });
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.BOOKMARK.LOAD.EMPTY, {}, { actorId: "BookmarkManager" });
         return;
       }
 
       const count = this.#count(bookmarks);
       this.#eventBus.emit(
         PDF_VIEWER_EVENTS.BOOKMARK.LOAD.SUCCESS,
-        { bookmarks, count, source: 'pdf' },
-        { actorId: 'BookmarkManager' }
+        { bookmarks, count, source: "pdf" },
+        { actorId: "BookmarkManager" }
       );
     } catch (error) {
-      this.#logger.error('Failed to load bookmarks:', error);
+      this.#logger.error("Failed to load bookmarks:", error);
       this.#eventBus.emit(
         PDF_VIEWER_EVENTS.BOOKMARK.LOAD.FAILED,
         { error, message: error.message },
-        { actorId: 'BookmarkManager' }
+        { actorId: "BookmarkManager" }
       );
     }
   }
 
   async #handleNavigateRequested(data) {
-    this.#logger.info('Navigate requested, data:', data);
+    this.#logger.info("Navigate requested, data:", data);
     try {
       const bookmark = data?.bookmark;
-      if (!bookmark) throw new Error('bookmark is required');
+      if (!bookmark) {throw new Error("bookmark is required");}
 
-      this.#logger.info('Parsing destination:', bookmark.dest);
+      this.#logger.info("Parsing destination:", bookmark.dest);
       const result = await this.#dataProvider.parseDestination(bookmark.dest);
-      this.#logger.info('Parsed destination result:', result);
+      this.#logger.info("Parsed destination result:", result);
 
       // 统一通过 URL 导航入口（按页级跳转；如需位置百分比，可在上游解析时提供）
       this.#eventBus.emit(
         PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
         { pageAt: result.pageNumber },
-        { actorId: 'BookmarkManager' }
+        { actorId: "BookmarkManager" }
       );
 
       // 回告导航成功
       this.#eventBus.emit(
         PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.SUCCESS,
         { pageNumber: result.pageNumber, position: { x: result.x, y: result.y } },
-        { actorId: 'BookmarkManager' }
+        { actorId: "BookmarkManager" }
       );
     } catch (error) {
-      this.#logger.error('Bookmark navigate failed:', error);
+      this.#logger.error("Bookmark navigate failed:", error);
       this.#eventBus.emit(
         PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE.FAILED,
         { error, message: error.message },
-        { actorId: 'BookmarkManager' }
+        { actorId: "BookmarkManager" }
       );
     }
   }
 
   #count(nodes) {
-    if (!Array.isArray(nodes)) return 0;
+    if (!Array.isArray(nodes)) {return 0;}
     return nodes.reduce((acc, n) => acc + 1 + this.#count(n.items || []), 0);
   }
 

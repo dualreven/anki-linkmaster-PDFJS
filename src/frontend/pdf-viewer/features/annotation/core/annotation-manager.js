@@ -261,7 +261,7 @@ export class AnnotationManager {
             const yPercent = Number(data.positionPercent.yPercent ?? 0);
             try {
               const pageNum = Number(annJson.pageNumber || 1);
-              const pageEl = document?.getElementById?.('viewerContainer')?.querySelector?.(`.page[data-page-number="${pageNum}"]`) || null;
+              const pageEl = document?.getElementById?.("viewerContainer")?.querySelector?.(`.page[data-page-number="${pageNum}"]`) || null;
               const w = pageEl ? (pageEl.clientWidth || pageEl.offsetWidth || 0) : 0;
               const h = pageEl ? (pageEl.clientHeight || pageEl.offsetHeight || 0) : 0;
               const xPx = Math.max(0, Math.round((xPercent / 100) * (w || 1)));

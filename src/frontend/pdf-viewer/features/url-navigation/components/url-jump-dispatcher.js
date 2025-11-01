@@ -49,19 +49,25 @@ export class URLJumpDispatcher {
     const outlineItemId = parsed?.outlineItemId ?? null;
     const anchorId = parsed?.anchorId ?? null;
 
-    this.#logger.info("[dispatcher] 收到解析结果", {
-      pageAt, position, annotationId, outlineItemId, anchorId
-    });
+    this.#logger.info(`[dispatcher] 收到解析结果: pageAt=${pageAt}, outlineItemId=${outlineItemId}`, { toast: { type: "info", ms: 3000 } });
+
+    const detailMsg = `[URLJumpDispatcher] 检查outlineItemId: ${outlineItemId}, 类型=${typeof outlineItemId}, 是null=${outlineItemId === null}, 是undefined=${outlineItemId === undefined}`;
+    this.#logger.info(detailMsg, { toast: { type: "error", ms: 5000 } });
+
+    if (parsed) {
+      const keysMsg = `[URLJumpDispatcher] parsed keys: ${Object.keys(parsed).join(', ')}, 包含outlineItemId=${('outlineItemId' in parsed)}`;
+      this.#logger.info(keysMsg, { toast: { type: "warn", ms: 5000 } });
+    }
 
     // 1) annotationId 优先：需要等待标注数据就绪
     if (annotationId) {
       if (!annotationDataLoaded) {
         this.#logger.info("[dispatcher] 标注数据未就绪，暂不触发 annotation 跳转", { annotationId });
-        try { this.#logger.error("URL 导航·标注：数据未就绪，稍后再试", { toast: { type: "error", ms: 3000 } }); } catch(_) {}
+        try { this.#logger.error("URL 导航·标注：数据未就绪，稍后再试", { toast: { type: "error", ms: 3000 } }); } catch (e) { void e; }
         return { type: "annotation", success: false, reason: "gate:annotationData" };
       }
       this.#logger.info("[dispatcher] 触发 annotation 跳转请求", { annotationId });
-      try { this.#logger.info(`URL 导航·标注：请求跳转 id=${annotationId}`, { toast: { type: "info", ms: 2000 } }); } catch(_) {}
+      try { this.#logger.info(`URL 导航·标注：请求跳转 id=${annotationId}`, { toast: { type: "info", ms: 2000 } }); } catch (e) { void e; }
       this.#eventBus.emit(
         PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
         { id: annotationId },
@@ -73,7 +79,7 @@ export class URLJumpDispatcher {
     // 2) anchorId：交由 AnchorFeature 统一处理
     if (anchorId) {
       this.#logger.info("[dispatcher] 触发 anchor 跳转请求", { anchorId });
-      try { this.#logger.info(`URL 导航·锚点：请求跳转 id=${anchorId}`, { toast: { type: "info", ms: 2000 } }); } catch(_) {}
+      try { this.#logger.info(`URL 导航·锚点：请求跳转 id=${anchorId}`, { toast: { type: "info", ms: 2000 } }); } catch (e) { void e; }
       this.#eventBus.emit(
         PDF_VIEWER_EVENTS.ANCHOR.NAVIGATE.REQUESTED,
         { anchorId },
@@ -85,24 +91,35 @@ export class URLJumpDispatcher {
     // 3) outlineItemId：统一走书签/大纲入口
     if (outlineItemId) {
       this.#logger.info("[dispatcher] 触发 outline 跳转请求", { outlineItemId });
-      try { this.#logger.info(`URL 导航·大纲：请求跳转 id=${outlineItemId}`, { toast: { type: "info", ms: 2000 } }); } catch(_) {}
+      this.#logger.info("[URLJumpDispatcher] 准备发射BOOKMARK.NAVIGATE_BY_ID.REQUESTED事件", {
+        outlineItemId: outlineItemId,
+        eventName: PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED,
+        payload: { outlineItemId }
+      }, { toast: { type: "info", ms: 2000 } });
+      try { this.#logger.info(`URL 导航·大纲：请求跳转 id=${outlineItemId}`, { toast: { type: "info", ms: 2000 } }); } catch (e) { void e; }
       this.#eventBus.emit(
         PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED,
         { outlineItemId },
         { actorId: "URLJumpDispatcher" }
       );
+      this.#logger.info("[URLJumpDispatcher] 已发射BOOKMARK.NAVIGATE_BY_ID.REQUESTED事件", { outlineItemId }, { toast: { type: "success", ms: 2000 } });
       return { type: "outline", success: true };
+    } else {
+      this.#logger.info("[URLJumpDispatcher] outlineItemId为空或未定义，跳过outline导航", {
+        outlineItemId: outlineItemId,
+        why: outlineItemId === null ? "null" : outlineItemId === undefined ? "undefined" : "other"
+      }, { toast: { type: "warn", ms: 3000 } });
     }
 
     // 4) 页面导航（pageAt/position）
     if (pageAt !== null || position !== null) {
       if (pageAt === null) {
         this.#logger.warn("[dispatcher] 缺少 pageAt，按照严格模式拒绝默认到第1页", { pageAt, position });
-        try { this.#logger.error("URL 导航·页面：缺少 pageAt，已拒绝跳转", { toast: { type: "error", ms: 3000 } }); } catch(_) {}
+        try { this.#logger.error("URL 导航·页面：缺少 pageAt，已拒绝跳转", { toast: { type: "error", ms: 3000 } }); } catch (e) { void e; }
         return { type: "page", success: false, reason: "missing:pageAt" };
       }
       this.#logger.info("[dispatcher] 执行页面导航", { pageAt, position });
-      try { this.#logger.info(`URL 导航·页面：跳转第 ${pageAt} 页${(position!==null)?` @${position}%`:''}`, { toast: { type: "info", ms: 2000 } }); } catch(_) {}
+      try { this.#logger.info(`URL 导航·页面：跳转第 ${pageAt} 页${(position!==null)?` @${position}%`:""}`, { toast: { type: "info", ms: 2000 } }); } catch (e) { void e; }
       const result = await this.#navigationService.navigateTo({ pageAt, position });
       return { type: "page", success: !!result?.success, reason: result?.error };
     }

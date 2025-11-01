@@ -1,17 +1,17 @@
-﻿import { getLogger } from '../../../common/utils/logger.js';
-import { PDF_VIEWER_EVENTS } from '../../../common/event/pdf-viewer-constants.js';
-import { PDF_TRANSLATOR_EVENTS } from '../pdf-translator/events.js';
+﻿import { getLogger } from "../../../common/utils/logger.js";
+import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
+import { PDF_TRANSLATOR_EVENTS } from "../pdf-translator/events.js";
 // 统一使用小写路径，避免在部分打包/HTTP服务中因大小写不一致导致的模块解析问题
-import { Annotation, AnnotationType } from '../annotation/models/annotation.js';
-import { QuickActionsToolbar } from './quick-actions-toolbar.js';
+import { Annotation, AnnotationType } from "../annotation/models/annotation.js";
+import { QuickActionsToolbar } from "./quick-actions-toolbar.js";
 import {
   findPageElement,
   extractPageNumber,
   buildSelectionSnapshot,
   computeTextRanges
-} from './selection-utils.js';
+} from "./selection-utils.js";
 
-const DEFAULT_HIGHLIGHT_COLOR = '#ffff00';
+const DEFAULT_HIGHLIGHT_COLOR = "#ffff00";
 
 /**
  * 文本选择快捷操作插件
@@ -30,21 +30,21 @@ export class TextSelectionQuickActionsFeature {
   #isToolbarInteraction = false;
 
   get name() {
-    return 'text-selection-quick-actions';
+    return "text-selection-quick-actions";
   }
 
   get version() {
-    return '1.0.0';
+    return "1.0.0";
   }
 
   get dependencies() {
-    return ['app-core', 'annotation', 'pdf-translator'];
+    return ["app-core", "annotation", "pdf-translator"];
   }
 
   async install(context) {
     const { globalEventBus, logger } = context;
     this.#eventBus = globalEventBus;
-    this.#logger = logger || getLogger('TextSelectionQuickActions');
+    this.#logger = logger || getLogger("TextSelectionQuickActions");
 
     this.#toolbar = new QuickActionsToolbar({
       copy: () => this.#handleCopyAction(),
@@ -58,17 +58,17 @@ export class TextSelectionQuickActionsFeature {
     this.#selectionChangeHandler = () => this.#handleSelectionChange();
     this.#scrollHandler = () => this.#hideToolbar();
 
-    document.addEventListener('mouseup', this.#mouseUpHandler);
-    document.addEventListener('mousedown', this.#mouseDownHandler);
-    document.addEventListener('selectionchange', this.#selectionChangeHandler);
-    document.addEventListener('scroll', this.#scrollHandler, true);
+    document.addEventListener("mouseup", this.#mouseUpHandler);
+    document.addEventListener("mousedown", this.#mouseDownHandler);
+    document.addEventListener("selectionchange", this.#selectionChangeHandler);
+    document.addEventListener("scroll", this.#scrollHandler, true);
 
     const scopedToolActivatedEvent = `@annotation/${PDF_VIEWER_EVENTS.ANNOTATION.TOOL.ACTIVATED}`;
     const scopedToolDeactivatedEvent = `@annotation/${PDF_VIEWER_EVENTS.ANNOTATION.TOOL.DEACTIVATED}`;
 
     this.#unsubscribes.push(
       this.#eventBus.on(scopedToolActivatedEvent, () => {
-        this.#logger.debug('Annotation tool activated (scoped), disabling quick actions');
+        this.#logger.debug("Annotation tool activated (scoped), disabling quick actions");
         this.#isAnnotationMode = true;
         this.#hideToolbar();
       })
@@ -76,27 +76,27 @@ export class TextSelectionQuickActionsFeature {
 
     this.#unsubscribes.push(
       this.#eventBus.on(scopedToolDeactivatedEvent, () => {
-        this.#logger.debug('Annotation tool deactivated (scoped), enabling quick actions');
+        this.#logger.debug("Annotation tool deactivated (scoped), enabling quick actions");
         this.#isAnnotationMode = false;
       })
     );
 
-    this.#logger.info('[TextSelectionQuickActions] Installed');
+    this.#logger.info("[TextSelectionQuickActions] Installed");
   }
 
   async uninstall() {
     this.#hideToolbar();
 
-    document.removeEventListener('mouseup', this.#mouseUpHandler);
-    document.removeEventListener('mousedown', this.#mouseDownHandler);
-    document.removeEventListener('selectionchange', this.#selectionChangeHandler);
-    document.removeEventListener('scroll', this.#scrollHandler, true);
+    document.removeEventListener("mouseup", this.#mouseUpHandler);
+    document.removeEventListener("mousedown", this.#mouseDownHandler);
+    document.removeEventListener("selectionchange", this.#selectionChangeHandler);
+    document.removeEventListener("scroll", this.#scrollHandler, true);
 
     this.#unsubscribes.forEach((unsub) => {
       try {
         unsub?.();
       } catch (error) {
-        this.#logger?.warn?.('Failed to unsubscribe quick actions listener', error);
+        this.#logger?.warn?.("Failed to unsubscribe quick actions listener", error);
       }
     });
     this.#unsubscribes = [];
@@ -138,21 +138,21 @@ export class TextSelectionQuickActionsFeature {
 
     const pageElement = findPageElement(range.startContainer);
     if (!pageElement) {
-      this.#logger.debug('Selection not inside PDF page, ignore quick actions');
+      this.#logger.debug("Selection not inside PDF page, ignore quick actions");
       this.#hideToolbar();
       return;
     }
 
     const pageNumber = extractPageNumber(pageElement);
     if (!pageNumber) {
-      this.#logger.warn('Failed to extract page number for quick actions');
+      this.#logger.warn("Failed to extract page number for quick actions");
       this.#hideToolbar();
       return;
     }
 
     const snapshot = buildSelectionSnapshot(range, pageElement);
     if (!snapshot) {
-      this.#logger.warn('Unable to build selection snapshot for quick actions');
+      this.#logger.warn("Unable to build selection snapshot for quick actions");
       this.#hideToolbar();
       return;
     }
@@ -168,7 +168,7 @@ export class TextSelectionQuickActionsFeature {
     };
 
     this.#toolbar.show({ x: event.clientX, y: event.clientY });
-    this.#logger.debug('Quick actions toolbar shown');
+    this.#logger.debug("Quick actions toolbar shown");
   }
 
   #handleMouseDown(event) {
@@ -202,20 +202,20 @@ export class TextSelectionQuickActionsFeature {
     try {
       if (navigator?.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);
-        this.#logger.info('Copied selected text via clipboard API');
+        this.#logger.info("Copied selected text via clipboard API");
       } else {
-        const textarea = document.createElement('textarea');
+        const textarea = document.createElement("textarea");
         textarea.value = text;
-        textarea.style.position = 'fixed';
-        textarea.style.top = '-9999px';
+        textarea.style.position = "fixed";
+        textarea.style.top = "-9999px";
         document.body.appendChild(textarea);
         textarea.select();
-        document.execCommand('copy');
+        document.execCommand("copy");
         textarea.remove();
-        this.#logger.info('Copied selected text via execCommand');
+        this.#logger.info("Copied selected text via execCommand");
       }
     } catch (error) {
-      this.#logger.error('Failed to copy selected text', error);
+      this.#logger.error("Failed to copy selected text", error);
     }
 
     this.#clearSelection();
@@ -229,7 +229,7 @@ export class TextSelectionQuickActionsFeature {
     }
 
     if (!Array.isArray(selection.lineRects) || selection.lineRects.length === 0) {
-      this.#logger.warn('Quick actions missing line rects, abort annotate action');
+      this.#logger.warn("Quick actions missing line rects, abort annotate action");
       return;
     }
 
@@ -255,19 +255,19 @@ export class TextSelectionQuickActionsFeature {
       });
 
       this.#eventBus.emit(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, {
-        sidebarId: 'annotation'
+        sidebarId: "annotation"
       });
 
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SELECT, {
         id: annotation.id
       });
 
-      this.#logger.info('Quick actions created highlight annotation', {
+      this.#logger.info("Quick actions created highlight annotation", {
         id: annotation.id,
         pageNumber: annotation.pageNumber
       });
     } catch (error) {
-      this.#logger.error('Quick actions failed to create annotation', error);
+      this.#logger.error("Quick actions failed to create annotation", error);
     }
 
     this.#clearSelection();
@@ -287,12 +287,12 @@ export class TextSelectionQuickActionsFeature {
         x: selection.selectionRect?.left || 0,
         y: selection.selectionRect?.top || 0
       },
-      source: 'quick-actions',
+      source: "quick-actions",
       timestamp: Date.now()
     });
 
     this.#eventBus.emit(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, {
-      sidebarId: 'translate'
+      sidebarId: "translate"
     });
 
     this.#clearSelection();
@@ -300,7 +300,7 @@ export class TextSelectionQuickActionsFeature {
   }
 
   #handleAIAction() {
-    this.#logger.info('AI quick action clicked - awaiting implementation');
+    this.#logger.info("AI quick action clicked - awaiting implementation");
     this.#hideToolbar();
   }
 
@@ -308,7 +308,7 @@ export class TextSelectionQuickActionsFeature {
     try {
       window.getSelection()?.removeAllRanges();
     } catch (error) {
-      this.#logger?.warn?.('Failed to clear selection ranges', error);
+      this.#logger?.warn?.("Failed to clear selection ranges", error);
     }
   }
 }

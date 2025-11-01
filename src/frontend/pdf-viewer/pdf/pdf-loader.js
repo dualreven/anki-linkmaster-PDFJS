@@ -20,7 +20,7 @@ export class PDFLoader {
   constructor(eventBus, pdfjsLib) {
     this.#eventBus = eventBus;
     this.#pdfjsLib = pdfjsLib;
-    this.#logger = getLogger('PDFViewer.Loader');
+    this.#logger = getLogger("PDFViewer.Loader");
   }
 
   /**
@@ -36,7 +36,7 @@ export class PDFLoader {
       try {
         await this.#currentLoadTask.destroy();
       } catch (e) {
-        // 忽略销毁错误
+        this.#logger.warn("Error destroying previous load task (URL)", e);
       }
     }
 
@@ -44,16 +44,16 @@ export class PDFLoader {
     let cMapUrlResolved = null;
     let standardFontDataUrlResolved = null;
     try {
-      if (typeof window !== 'undefined' && window.__PDFJS_VENDOR_BASE__) {
-        const base = String(window.__PDFJS_VENDOR_BASE__).endsWith('/') ? window.__PDFJS_VENDOR_BASE__ : `${window.__PDFJS_VENDOR_BASE__}/`;
+      if (typeof window !== "undefined" && window.__PDFJS_VENDOR_BASE__) {
+        const base = String(window.__PDFJS_VENDOR_BASE__).endsWith("/") ? window.__PDFJS_VENDOR_BASE__ : `${window.__PDFJS_VENDOR_BASE__}/`;
         cMapUrlResolved = `${base}cmaps/`;
         standardFontDataUrlResolved = `${base}standard_fonts/`;
       }
-    } catch (_) {}
+    } catch (e) { this.#logger.debug("Resolve PDFJS vendor base (URL) failed", e); }
     if (!cMapUrlResolved || !standardFontDataUrlResolved) {
       // 回退到 import.meta + 别名（主要用于开发环境）
-      cMapUrlResolved = new URL('@pdfjs/cmaps/', import.meta.url).href;
-      standardFontDataUrlResolved = new URL('@pdfjs/standard_fonts/', import.meta.url).href;
+      cMapUrlResolved = new URL("@pdfjs/cmaps/", import.meta.url).href;
+      standardFontDataUrlResolved = new URL("@pdfjs/standard_fonts/", import.meta.url).href;
     }
 
     // 创建加载配置
@@ -82,7 +82,7 @@ export class PDFLoader {
         loaded: progressData.loaded,
         total: progressData.total,
         percent: percent
-      }, { actorId: 'PDFLoader' });
+      }, { actorId: "PDFLoader" });
     };
 
     try {
@@ -107,7 +107,7 @@ export class PDFLoader {
       try {
         await this.#currentLoadTask.destroy();
       } catch (e) {
-        // 忽略销毁错误
+        this.#logger.warn("Error destroying previous load task (ArrayBuffer)", e);
       }
     }
 
@@ -115,16 +115,16 @@ export class PDFLoader {
     let cMapUrlResolved2 = null;
     let standardFontDataUrlResolved2 = null;
     try {
-      if (typeof window !== 'undefined' && window.__PDFJS_VENDOR_BASE__) {
-        const base = String(window.__PDFJS_VENDOR_BASE__).endsWith('/') ? window.__PDFJS_VENDOR_BASE__ : `${window.__PDFJS_VENDOR_BASE__}/`;
+      if (typeof window !== "undefined" && window.__PDFJS_VENDOR_BASE__) {
+        const base = String(window.__PDFJS_VENDOR_BASE__).endsWith("/") ? window.__PDFJS_VENDOR_BASE__ : `${window.__PDFJS_VENDOR_BASE__}/`;
         cMapUrlResolved2 = `${base}cmaps/`;
         standardFontDataUrlResolved2 = `${base}standard_fonts/`;
       }
-    } catch (_) {}
+    } catch (e) { this.#logger.debug("Resolve PDFJS vendor base (ArrayBuffer) failed", e); }
     if (!cMapUrlResolved2 || !standardFontDataUrlResolved2) {
       // 回退到 import.meta + 别名（主要用于开发环境）
-      cMapUrlResolved2 = new URL('@pdfjs/cmaps/', import.meta.url).href;
-      standardFontDataUrlResolved2 = new URL('@pdfjs/standard_fonts/', import.meta.url).href;
+      cMapUrlResolved2 = new URL("@pdfjs/cmaps/", import.meta.url).href;
+      standardFontDataUrlResolved2 = new URL("@pdfjs/standard_fonts/", import.meta.url).href;
     }
 
     const loadingTask = this.#pdfjsLib.getDocument({
@@ -151,7 +151,7 @@ export class PDFLoader {
         loaded: progressData.loaded,
         total: progressData.total,
         percent: percent
-      }, { actorId: 'PDFLoader' });
+      }, { actorId: "PDFLoader" });
     };
 
     try {

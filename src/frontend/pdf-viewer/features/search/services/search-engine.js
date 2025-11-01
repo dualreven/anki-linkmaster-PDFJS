@@ -4,8 +4,8 @@
  * @description 封装PDF.js的PDFFindController，提供PDF全文搜索功能
  */
 
-import { getLogger } from '../../../../common/utils/logger.js';
-import { PDF_VIEWER_EVENTS } from '../../../../common/event/pdf-viewer-constants.js';
+import { getLogger } from "../../../../common/utils/logger.js";
+import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 
 /**
  * PDF搜索引擎类
@@ -14,7 +14,7 @@ import { PDF_VIEWER_EVENTS } from '../../../../common/event/pdf-viewer-constants
  */
 export class SearchEngine {
   /** @type {import('../../../../common/utils/logger.js').Logger} */
-  #logger = getLogger('SearchEngine');
+  #logger = getLogger("SearchEngine");
 
   /** @type {import('../../../types/events').EventBus} */
   #eventBus = null;
@@ -29,7 +29,7 @@ export class SearchEngine {
   #pdfLinkService = null;
 
   /** @type {string} 当前搜索关键词 */
-  #currentQuery = '';
+  #currentQuery = "";
 
   /** @type {import('../../../types/events').SearchOptions} 当前搜索选项 */
   #currentOptions = {
@@ -57,11 +57,11 @@ export class SearchEngine {
    */
   constructor(eventBus) {
     if (!eventBus) {
-      throw new Error('EventBus is required for SearchEngine');
+      throw new Error("EventBus is required for SearchEngine");
     }
 
     this.#eventBus = eventBus;
-    this.#logger.info('SearchEngine instance created');
+    this.#logger.info("SearchEngine instance created");
   }
 
   /**
@@ -72,18 +72,18 @@ export class SearchEngine {
    * @returns {Promise<void>}
    */
   async initialize(pdfViewer, pdfEventBus, pdfLinkService) {
-    this.#logger.info('Initializing SearchEngine...');
+    this.#logger.info("Initializing SearchEngine...");
 
     if (!pdfViewer) {
-      throw new Error('PDFViewer is required for SearchEngine initialization');
+      throw new Error("PDFViewer is required for SearchEngine initialization");
     }
 
     if (!pdfEventBus) {
-      throw new Error('PDF EventBus is required for SearchEngine initialization');
+      throw new Error("PDF EventBus is required for SearchEngine initialization");
     }
 
     if (!pdfLinkService) {
-      throw new Error('PDFLinkService is required for SearchEngine initialization');
+      throw new Error("PDFLinkService is required for SearchEngine initialization");
     }
 
     this.#pdfEventBus = pdfEventBus;
@@ -91,7 +91,7 @@ export class SearchEngine {
 
     // 动态导入PDFFindController（PDF.js提供）
     try {
-      const { PDFFindController } = await import('pdfjs-dist/web/pdf_viewer.mjs');
+      const { PDFFindController } = await import("pdfjs-dist/web/pdf_viewer.mjs");
 
       this.#findController = new PDFFindController({
         eventBus: pdfEventBus,
@@ -114,14 +114,14 @@ export class SearchEngine {
 
       if (pdfDocument) {
         this.#findController.setDocument(pdfDocument);
-        this.#logger.info('[SearchEngine] PDF document set to PDFFindController');
+        this.#logger.info("[SearchEngine] PDF document set to PDFFindController");
       } else {
-        this.#logger.warn('[SearchEngine] ⚠️ PDFViewer has no document yet');
+        this.#logger.warn("[SearchEngine] ⚠️ PDFViewer has no document yet");
       }
 
-      this.#logger.info('[SearchEngine] ✅ PDFFindController initialized and bound to PDFViewer');
+      this.#logger.info("[SearchEngine] ✅ PDFFindController initialized and bound to PDFViewer");
     } catch (error) {
-      this.#logger.error('Failed to initialize PDFFindController:', error);
+      this.#logger.error("Failed to initialize PDFFindController:", error);
       throw new Error(`SearchEngine initialization failed: ${error.message}`);
     }
 
@@ -132,10 +132,10 @@ export class SearchEngine {
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.SEARCH.STATE.INITIALIZED,
       { timestamp: Date.now() },
-      { actorId: 'SearchEngine' }
+      { actorId: "SearchEngine" }
     );
 
-    this.#logger.info('SearchEngine initialized');
+    this.#logger.info("SearchEngine initialized");
   }
 
   /**
@@ -144,16 +144,16 @@ export class SearchEngine {
    */
   #setupPDFJSEventListeners() {
     // 监听搜索结果更新
-    this.#pdfEventBus.on('updatefindmatchescount', (event) => {
+    this.#pdfEventBus.on("updatefindmatchescount", (event) => {
       this.#handleFindMatchesCount(event);
     });
 
     // 监听当前匹配项变化
-    this.#pdfEventBus.on('updatefindcontrolstate', (event) => {
+    this.#pdfEventBus.on("updatefindcontrolstate", (event) => {
       this.#handleFindControlState(event);
     });
 
-    this.#logger.info('PDF.js event listeners attached');
+    this.#logger.info("PDF.js event listeners attached");
   }
 
   /**
@@ -167,7 +167,7 @@ export class SearchEngine {
     const { matchesCount } = event;
 
     if (!matchesCount) {
-      this.#logger.warn('matchesCount is undefined in updatefindmatchescount event');
+      this.#logger.warn("matchesCount is undefined in updatefindmatchescount event");
       return;
     }
 
@@ -185,7 +185,7 @@ export class SearchEngine {
           total: this.#totalMatches,
           query: this.#currentQuery,
         },
-        { actorId: 'SearchEngine' }
+        { actorId: "SearchEngine" }
       );
     }
   }
@@ -204,31 +204,31 @@ export class SearchEngine {
 
     // state: 0 = FOUND, 1 = NOT_FOUND, 2 = WRAPPED, 3 = PENDING
     switch (state) {
-      case 0: // FOUND
-        this.#isSearching = false;
-        this.#emitSearchResultFound();
-        break;
+    case 0: // FOUND
+      this.#isSearching = false;
+      this.#emitSearchResultFound();
+      break;
 
-      case 1: // NOT_FOUND
-        this.#isSearching = false;
-        this.#emitSearchResultNotFound();
-        break;
+    case 1: // NOT_FOUND
+      this.#isSearching = false;
+      this.#emitSearchResultNotFound();
+      break;
 
-      case 2: // WRAPPED
-        this.#logger.info('Search wrapped around document');
-        break;
+    case 2: // WRAPPED
+      this.#logger.info("Search wrapped around document");
+      break;
 
-      case 3: // PENDING
-        this.#isSearching = true;
-        this.#eventBus.emit(
-          PDF_VIEWER_EVENTS.SEARCH.STATE.SEARCHING,
-          { query: this.#currentQuery },
-          { actorId: 'SearchEngine' }
-        );
-        break;
+    case 3: // PENDING
+      this.#isSearching = true;
+      this.#eventBus.emit(
+        PDF_VIEWER_EVENTS.SEARCH.STATE.SEARCHING,
+        { query: this.#currentQuery },
+        { actorId: "SearchEngine" }
+      );
+      break;
 
-      default:
-        this.#logger.warn(`Unknown find control state: ${state}`);
+    default:
+      this.#logger.warn(`Unknown find control state: ${state}`);
     }
   }
 
@@ -245,13 +245,13 @@ export class SearchEngine {
         current: this.#currentMatchIndex,
         matches: this.#matchesCache,
       },
-      { actorId: 'SearchEngine' }
+      { actorId: "SearchEngine" }
     );
 
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.SEARCH.STATE.IDLE,
       { timestamp: Date.now() },
-      { actorId: 'SearchEngine' }
+      { actorId: "SearchEngine" }
     );
   }
 
@@ -263,13 +263,13 @@ export class SearchEngine {
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.SEARCH.RESULT.NOT_FOUND,
       { query: this.#currentQuery },
-      { actorId: 'SearchEngine' }
+      { actorId: "SearchEngine" }
     );
 
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.SEARCH.STATE.IDLE,
       { timestamp: Date.now() },
-      { actorId: 'SearchEngine' }
+      { actorId: "SearchEngine" }
     );
   }
 
@@ -285,11 +285,11 @@ export class SearchEngine {
     this.#logger.info(`[SearchEngine] pdfEventBus exists: ${!!this.#pdfEventBus}`);
 
     if (!this.#findController) {
-      throw new Error('SearchEngine not initialized. Call initialize() first.');
+      throw new Error("SearchEngine not initialized. Call initialize() first.");
     }
 
     if (!query || query.trim().length === 0) {
-      this.#logger.warn('Empty search query');
+      this.#logger.warn("Empty search query");
       this.clearSearch();
       return;
     }
@@ -308,7 +308,7 @@ export class SearchEngine {
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.SEARCH.STATE.SEARCHING,
       { query: this.#currentQuery },
-      { actorId: 'SearchEngine' }
+      { actorId: "SearchEngine" }
     );
 
     // 调用PDF.js的搜索API（通过EventBus dispatch）
@@ -322,18 +322,18 @@ export class SearchEngine {
         findPrevious: false, // 总是从第一个开始
       };
 
-      this.#logger.info('[SearchEngine] Dispatching find event with params:', searchParams);
-      this.#pdfEventBus.dispatch('find', searchParams);
+      this.#logger.info("[SearchEngine] Dispatching find event with params:", searchParams);
+      this.#pdfEventBus.dispatch("find", searchParams);
 
-      this.#logger.info('[SearchEngine] Find event dispatched successfully');
+      this.#logger.info("[SearchEngine] Find event dispatched successfully");
     } catch (error) {
-      this.#logger.error('[SearchEngine] Search execution failed:', error);
+      this.#logger.error("[SearchEngine] Search execution failed:", error);
       this.#isSearching = false;
 
       this.#eventBus.emit(
         PDF_VIEWER_EVENTS.SEARCH.STATE.IDLE,
         { timestamp: Date.now() },
-        { actorId: 'SearchEngine' }
+        { actorId: "SearchEngine" }
       );
 
       throw error;
@@ -345,20 +345,20 @@ export class SearchEngine {
    * @returns {Promise<boolean>} 是否成功跳转
    */
   async highlightNextMatch() {
-    this.#logger.info('Highlighting next match');
+    this.#logger.info("Highlighting next match");
 
     if (!this.#findController) {
-      throw new Error('SearchEngine not initialized');
+      throw new Error("SearchEngine not initialized");
     }
 
     if (this.#totalMatches === 0) {
-      this.#logger.warn('No search results to navigate');
+      this.#logger.warn("No search results to navigate");
       return false;
     }
 
     try {
-      this.#pdfEventBus.dispatch('find', {
-        type: 'again', // "again"表示查找下一个
+      this.#pdfEventBus.dispatch("find", {
+        type: "again", // "again"表示查找下一个
         query: this.#currentQuery,
         caseSensitive: this.#currentOptions.caseSensitive,
         entireWord: this.#currentOptions.wholeWords,
@@ -366,10 +366,10 @@ export class SearchEngine {
         findPrevious: false, // 向后查找
       });
 
-      this.#logger.info('Navigated to next match');
+      this.#logger.info("Navigated to next match");
       return true;
     } catch (error) {
-      this.#logger.error('Failed to highlight next match:', error);
+      this.#logger.error("Failed to highlight next match:", error);
       return false;
     }
   }
@@ -379,20 +379,20 @@ export class SearchEngine {
    * @returns {Promise<boolean>} 是否成功跳转
    */
   async highlightPreviousMatch() {
-    this.#logger.info('Highlighting previous match');
+    this.#logger.info("Highlighting previous match");
 
     if (!this.#findController) {
-      throw new Error('SearchEngine not initialized');
+      throw new Error("SearchEngine not initialized");
     }
 
     if (this.#totalMatches === 0) {
-      this.#logger.warn('No search results to navigate');
+      this.#logger.warn("No search results to navigate");
       return false;
     }
 
     try {
-      this.#pdfEventBus.dispatch('find', {
-        type: 'again', // "again"表示查找下一个/上一个
+      this.#pdfEventBus.dispatch("find", {
+        type: "again", // "again"表示查找下一个/上一个
         query: this.#currentQuery,
         caseSensitive: this.#currentOptions.caseSensitive,
         entireWord: this.#currentOptions.wholeWords,
@@ -400,10 +400,10 @@ export class SearchEngine {
         findPrevious: true, // 向前查找
       });
 
-      this.#logger.info('Navigated to previous match');
+      this.#logger.info("Navigated to previous match");
       return true;
     } catch (error) {
-      this.#logger.error('Failed to highlight previous match:', error);
+      this.#logger.error("Failed to highlight previous match:", error);
       return false;
     }
   }
@@ -412,13 +412,13 @@ export class SearchEngine {
    * 清空搜索
    */
   clearSearch() {
-    this.#logger.info('Clearing search');
+    this.#logger.info("Clearing search");
 
     if (this.#pdfEventBus) {
       // 使用dispatch发送清空搜索的事件
-      this.#pdfEventBus.dispatch('find', {
+      this.#pdfEventBus.dispatch("find", {
         type: null,
-        query: '',
+        query: "",
         caseSensitive: false,
         entireWord: false,
         highlightAll: false,
@@ -427,7 +427,7 @@ export class SearchEngine {
     }
 
     // 重置状态
-    this.#currentQuery = '';
+    this.#currentQuery = "";
     this.#currentMatchIndex = 0;
     this.#totalMatches = 0;
     this.#matchesCache = [];
@@ -437,10 +437,10 @@ export class SearchEngine {
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.SEARCH.STATE.IDLE,
       { timestamp: Date.now() },
-      { actorId: 'SearchEngine' }
+      { actorId: "SearchEngine" }
     );
 
-    this.#logger.info('Search cleared');
+    this.#logger.info("Search cleared");
   }
 
   /**
@@ -448,14 +448,14 @@ export class SearchEngine {
    * @param {import('../../../types/events').SearchOptions} options - 新的搜索选项
    */
   updateOptions(options) {
-    this.#logger.info('Updating search options:', options);
+    this.#logger.info("Updating search options:", options);
 
     const oldOptions = { ...this.#currentOptions };
     this.#currentOptions = { ...this.#currentOptions, ...options };
 
     // 如果有活跃的搜索，重新执行
     if (this.#currentQuery && this.#totalMatches > 0) {
-      this.#logger.info('Re-executing search with new options');
+      this.#logger.info("Re-executing search with new options");
       this.executeSearch(this.#currentQuery, this.#currentOptions);
     }
   }
@@ -478,7 +478,7 @@ export class SearchEngine {
    * 销毁搜索引擎
    */
   destroy() {
-    this.#logger.info('Destroying SearchEngine');
+    this.#logger.info("Destroying SearchEngine");
 
     this.clearSearch();
 
@@ -488,6 +488,6 @@ export class SearchEngine {
     this.#pdfLinkService = null;
     this.#eventBus = null;
 
-    this.#logger.info('SearchEngine destroyed');
+    this.#logger.info("SearchEngine destroyed");
   }
 }

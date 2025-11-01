@@ -1,14 +1,14 @@
-﻿import { AnnotationSidebarUI } from '../annotation-sidebar-ui.js';
-import { Annotation, AnnotationType } from '../../models/annotation.js';
-import { PDF_VIEWER_EVENTS } from '../../../../../common/event/pdf-viewer-constants.js';
+﻿import { AnnotationSidebarUI } from "../annotation-sidebar-ui.js";
+import { Annotation, AnnotationType } from "../../models/annotation.js";
+import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
 
-describe('AnnotationSidebarUI delete button', () => {
+describe("AnnotationSidebarUI delete button", () => {
   let eventBus;
   let ui;
   let confirmSpy;
 
   beforeEach(() => {
-    document.body.innerHTML = '';
+    document.body.innerHTML = "";
     eventBus = {
       emit: jest.fn(),
       on: jest.fn(() => () => {}),
@@ -19,7 +19,7 @@ describe('AnnotationSidebarUI delete button', () => {
     ui.initialize();
     document.body.appendChild(ui.getContentElement());
 
-    confirmSpy = jest.spyOn(window, 'confirm');
+    confirmSpy = jest.spyOn(window, "confirm");
   });
 
   afterEach(() => {
@@ -28,17 +28,17 @@ describe('AnnotationSidebarUI delete button', () => {
   });
 
   const createHighlightAnnotation = () => new Annotation({
-    id: 'ann-test',
+    id: "ann-test",
     type: AnnotationType.TEXT_HIGHLIGHT,
     pageNumber: 1,
     data: {
-      selectedText: '测试文本',
-      highlightColor: '#ffff00',
+      selectedText: "测试文本",
+      highlightColor: "#ffff00",
       lineRects: [{ xPercent: 10, yPercent: 20, widthPercent: 30, heightPercent: 10 }],
     },
   });
 
-  it('emits delete event when delete button confirmed', () => {
+  it("emits delete event when delete button confirmed", () => {
     confirmSpy.mockReturnValue(true);
 
     const annotation = createHighlightAnnotation();
@@ -46,12 +46,12 @@ describe('AnnotationSidebarUI delete button', () => {
 
     const deleteBtn = ui
       .getContentElement()
-      .querySelector('.annotation-card .annotation-delete-btn');
+      .querySelector(".annotation-card .annotation-delete-btn");
 
     expect(deleteBtn).not.toBeNull();
 
     eventBus.emit.mockClear();
-    deleteBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    deleteBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
     expect(confirmSpy).toHaveBeenCalledTimes(1);
     expect(eventBus.emit).toHaveBeenCalledWith(
@@ -60,7 +60,7 @@ describe('AnnotationSidebarUI delete button', () => {
     );
   });
 
-  it('does not emit delete event when user cancels', () => {
+  it("does not emit delete event when user cancels", () => {
     confirmSpy.mockReturnValue(false);
 
     const annotation = createHighlightAnnotation();
@@ -68,9 +68,9 @@ describe('AnnotationSidebarUI delete button', () => {
 
     const deleteBtn = ui
       .getContentElement()
-      .querySelector('.annotation-card .annotation-delete-btn');
+      .querySelector(".annotation-card .annotation-delete-btn");
 
-    deleteBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    deleteBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
     expect(confirmSpy).toHaveBeenCalledTimes(1);
     expect(eventBus.emit).not.toHaveBeenCalledWith(

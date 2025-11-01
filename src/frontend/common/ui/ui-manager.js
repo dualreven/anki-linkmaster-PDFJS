@@ -1,1 +1,1 @@
-export { UIManager } from '../../pdf-home/ui-manager.js';
+export { UIManager } from "../../pdf-home/ui-manager.js";

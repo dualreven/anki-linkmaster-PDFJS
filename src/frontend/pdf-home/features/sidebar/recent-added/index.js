@@ -3,9 +3,9 @@
  * 显示并管理最近添加的 PDF（按 created_at 降序）。
  */
 
-import { RecentAddedFeatureConfig } from './feature.config.js';
-import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from '../../../../common/event/event-constants.js';
-import './styles/recent-added.css';
+import { RecentAddedFeatureConfig } from "./feature.config.js";
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constants.js";
+import "./styles/recent-added.css";
 
 export class RecentAddedFeature {
   name = RecentAddedFeatureConfig.name;
@@ -32,14 +32,14 @@ export class RecentAddedFeature {
     this.#scopedEventBus = context.scopedEventBus;
     this.#globalEventBus = context.globalEventBus;
 
-    this.#logger.info('[RecentAddedFeature] Installing...');
+    this.#logger.info("[RecentAddedFeature] Installing...");
 
     try {
       // 1) 绑定容器元素
-      this.#containerEl = document.getElementById('recent-added-section');
-      this.#listEl = document.getElementById('recent-added-list');
+      this.#containerEl = document.getElementById("recent-added-section");
+      this.#listEl = document.getElementById("recent-added-list");
       if (!this.#containerEl || !this.#listEl) {
-        this.#logger.warn('[RecentAddedFeature] Container or list element not found');
+        this.#logger.warn("[RecentAddedFeature] Container or list element not found");
       }
 
       // 2) 读取显示条数设置
@@ -52,71 +52,71 @@ export class RecentAddedFeature {
       // 4) 首次加载最近添加
       this.#requestRecentAdded();
 
-      this.#logger.info('[RecentAddedFeature] Installed successfully');
+      this.#logger.info("[RecentAddedFeature] Installed successfully");
     } catch (error) {
-      this.#logger.error('[RecentAddedFeature] Installation failed', error);
+      this.#logger.error("[RecentAddedFeature] Installation failed", error);
       throw error;
     }
   }
 
   async uninstall() {
-    this.#logger.info('[RecentAddedFeature] Uninstalling...');
+    this.#logger.info("[RecentAddedFeature] Uninstalling...");
     this.#unsubscribers.forEach(fn => fn && fn());
     this.#unsubscribers = [];
     if (this.#listEl) {
-      this.#listEl.innerHTML = '<li class="sidebar-empty">暂无添加记录</li>';
+      this.#listEl.innerHTML = "<li class=\"sidebar-empty\">暂无添加记录</li>";
     }
     if (this.#limitSelectEl && this.#limitSelectEl.parentNode) {
       this.#limitSelectEl.parentNode.removeChild(this.#limitSelectEl);
       this.#limitSelectEl = null;
     }
-    this.#logger.info('[RecentAddedFeature] Uninstalled');
+    this.#logger.info("[RecentAddedFeature] Uninstalled");
   }
 
   // =============== 私有：事件/渲染/请求 ===============
 
   #setupEventListeners() {
     // 监听 WS 通用响应：仅处理本功能发起的搜索请求（按 request_id 归属）
-    const unsubResp = this.#globalEventBus.on('websocket:message:response', (message) => {
+    const unsubResp = this.#globalEventBus.on("websocket:message:response", (message) => {
       try {
-        if (message?.type !== WEBSOCKET_MESSAGE_TYPES.SEARCH_PDF_COMPLETED) return;
+        if (message?.type !== WEBSOCKET_MESSAGE_TYPES.SEARCH_PDF_COMPLETED) {return;}
         const rid = message?.request_id;
-        if (!rid || rid !== this.#pendingReqId) return;
+        if (!rid || rid !== this.#pendingReqId) {return;}
         const files = message?.data?.files || [];
-        this.#logger.info('[RecentAddedFeature] 🎯 收到搜索响应，更新列表', { count: files.length });
+        this.#logger.info("[RecentAddedFeature] 🎯 收到搜索响应，更新列表", { count: files.length });
         this.#recentAdded = Array.isArray(files) ? files : [];
         this.#renderList();
         this.#pendingReqId = null;
       } catch (e) {
         // 忽略解析错误，避免打断其它监听
       }
-    }, { subscriberId: 'RecentAddedFeature' });
+    }, { subscriberId: "RecentAddedFeature" });
     this.#unsubscribers.push(unsubResp);
 
     // 监听搜索结果更新事件：当PDF添加/删除/搜索导致数据变更时自动刷新
-    const unsubSearchUpdated = this.#globalEventBus.on('search:results:updated', () => {
-      this.#logger.info('[RecentAddedFeature] 🔄 监听到搜索结果更新，开始刷新最近添加');
+    const unsubSearchUpdated = this.#globalEventBus.on("search:results:updated", () => {
+      this.#logger.info("[RecentAddedFeature] 🔄 监听到搜索结果更新，开始刷新最近添加");
       this.#requestRecentAdded();
-    }, { subscriberId: 'RecentAddedFeature:search-results-updated' });
+    }, { subscriberId: "RecentAddedFeature:search-results-updated" });
     this.#unsubscribers.push(unsubSearchUpdated);
 
     // 列表点击：触发“全量、按 created_at 降序”的标准搜索（交由 SearchManager 发起与派发结果）
     if (this.#listEl) {
       const clickHandler = (e) => {
-        const item = e.target.closest('.sidebar-item');
-        if (!item) return;
-        const focusId = item.getAttribute('data-id') || '';
-        this.#logger.info('[RecentAddedFeature] Item clicked → trigger global sort search with focusId', { focusId });
-        this.#globalEventBus.emit('search:query:requested', {
-          searchText: '',
-          sort: [{ field: 'created_at', direction: 'desc' }],
+        const item = e.target.closest(".sidebar-item");
+        if (!item) {return;}
+        const focusId = item.getAttribute("data-id") || "";
+        this.#logger.info("[RecentAddedFeature] Item clicked → trigger global sort search with focusId", { focusId });
+        this.#globalEventBus.emit("search:query:requested", {
+          searchText: "",
+          sort: [{ field: "created_at", direction: "desc" }],
           // 按当前“最近添加”显示条数，截断结果（前5/前10/前20/前50）
           pagination: { limit: this.#displayLimit, offset: 0, need_total: true },
           focusId
         });
       };
-      this.#listEl.addEventListener('click', clickHandler);
-      this.#unsubscribers.push(() => this.#listEl.removeEventListener('click', clickHandler));
+      this.#listEl.addEventListener("click", clickHandler);
+      this.#unsubscribers.push(() => this.#listEl.removeEventListener("click", clickHandler));
     }
 
     // 显示条数变更
@@ -129,39 +129,39 @@ export class RecentAddedFeature {
           this.#requestRecentAdded();
         }
       };
-      this.#limitSelectEl.addEventListener('change', changeHandler);
-      this.#unsubscribers.push(() => this.#limitSelectEl.removeEventListener('change', changeHandler));
+      this.#limitSelectEl.addEventListener("change", changeHandler);
+      this.#unsubscribers.push(() => this.#limitSelectEl.removeEventListener("change", changeHandler));
     }
   }
 
   #renderList() {
-    if (!this.#listEl) return;
+    if (!this.#listEl) {return;}
     const items = this.#recentAdded.slice(0, this.#displayLimit);
     if (!items.length) {
-      this.#listEl.innerHTML = '<li class="sidebar-empty">暂无添加记录</li>';
+      this.#listEl.innerHTML = "<li class=\"sidebar-empty\">暂无添加记录</li>";
       return;
     }
     this.#listEl.innerHTML = items.map((rec) => {
-      const title = this.#escapeHtml(rec?.title || rec?.filename || '(未命名)');
+      const title = this.#escapeHtml(rec?.title || rec?.filename || "(未命名)");
       return (
-        `<li class="sidebar-item" data-id="${this.#escapeHtml(rec?.id || '')}">`
-        + `<span class="sidebar-item-icon">➕</span>`
+        `<li class="sidebar-item" data-id="${this.#escapeHtml(rec?.id || "")}">`
+        + "<span class=\"sidebar-item-icon\">➕</span>"
         + `<span class="sidebar-item-text">${title}</span>`
-        + `</li>`
+        + "</li>"
       );
-    }).join('\n');
+    }).join("\n");
   }
 
   #ensureLimitSelect() {
-    if (!this.#containerEl) return;
-    const titleEl = this.#containerEl.querySelector('.sidebar-section-title');
-    if (!titleEl) return;
-    if (this.#limitSelectEl && this.#limitSelectEl.isConnected) return;
+    if (!this.#containerEl) {return;}
+    const titleEl = this.#containerEl.querySelector(".sidebar-section-title");
+    if (!titleEl) {return;}
+    if (this.#limitSelectEl && this.#limitSelectEl.isConnected) {return;}
 
-    const select = document.createElement('select');
-    select.className = 'sidebar-limit-select';
+    const select = document.createElement("select");
+    select.className = "sidebar-limit-select";
     [5, 10, 20, 50].forEach(n => {
-      const opt = document.createElement('option');
+      const opt = document.createElement("option");
       opt.value = String(n);
       opt.textContent = `显示 ${n}`;
       select.appendChild(opt);
@@ -176,7 +176,7 @@ export class RecentAddedFeature {
       const v = localStorage.getItem(`${RecentAddedFeatureConfig.config.storageKey}:display-limit`);
       if (v) {
         const n = parseInt(v, 10);
-        if (!Number.isNaN(n) && n > 0) this.#displayLimit = n;
+        if (!Number.isNaN(n) && n > 0) {this.#displayLimit = n;}
       }
     } catch (_) { /* ignore */ }
   }
@@ -187,25 +187,25 @@ export class RecentAddedFeature {
     const payload = {
       type: WEBSOCKET_MESSAGE_TYPES.SEARCH_PDF,
       request_id: reqId,
-      metadata: { version: '1.0.0' },
+      metadata: { version: "1.0.0" },
       data: {
-        query: '',
+        query: "",
         tokens: [],
-        sort: [{ field: 'created_at', direction: 'desc' }],
+        sort: [{ field: "created_at", direction: "desc" }],
         pagination: { limit: this.#displayLimit, offset: 0, need_total: false }
       }
     };
-    this.#logger.info('[RecentAddedFeature] 📤 发送刷新请求', { request_id: reqId, limit: this.#displayLimit });
+    this.#logger.info("[RecentAddedFeature] 📤 发送刷新请求", { request_id: reqId, limit: this.#displayLimit });
     this.#globalEventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, payload);
   }
 
   #escapeHtml(str) {
-    return String(str ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+    return String(str ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 }
 

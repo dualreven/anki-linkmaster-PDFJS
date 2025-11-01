@@ -30,7 +30,7 @@ export class PDFManager {
    */
   constructor(eventBus, pdfjsLib = null) {
     this.#eventBus = eventBus;
-    this.#logger = getLogger('PDFViewer');
+    this.#logger = getLogger("PDFViewer");
     this.#pdfjsLib = pdfjsLib; // 如果提供了pdfjsLib，则使用注入的版本
   }
 
@@ -50,7 +50,7 @@ export class PDFManager {
       // 动态导入PDF.js库（仅在未注入时）
       if (!this.#pdfjsLib) {
         this.#logger.info("Loading PDF.js library (ESM)...");
-        this.#pdfjsLib = await import('pdfjs-dist');
+        this.#pdfjsLib = await import("pdfjs-dist");
       }
 
       // 记录PDF.js版本信息
@@ -68,25 +68,25 @@ export class PDFManager {
       // 启用标准字体映射，支持中文等非拉丁字符（使用Vite别名，简单且本地化）
       // 优先使用构建脚本注入的 vendor 基址，其次回退 import.meta（测试环境可能不可用）
       try {
-        if (typeof window !== 'undefined' && window.__PDFJS_VENDOR_BASE__) {
-          const base = String(window.__PDFJS_VENDOR_BASE__).endsWith('/') ? window.__PDFJS_VENDOR_BASE__ : `${window.__PDFJS_VENDOR_BASE__}/`;
+        if (typeof window !== "undefined" && window.__PDFJS_VENDOR_BASE__) {
+          const base = String(window.__PDFJS_VENDOR_BASE__).endsWith("/") ? window.__PDFJS_VENDOR_BASE__ : `${window.__PDFJS_VENDOR_BASE__}/`;
           this.#pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = `${base}standard_fonts/`;
         } else {
           // 使用Function构造器避开Babel的静态分析
-          const getImportMetaUrl = new Function('return import.meta.url');
+          const getImportMetaUrl = new Function("return import.meta.url");
           const metaUrl = getImportMetaUrl();
           if (metaUrl) {
-            this.#pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = new URL('@pdfjs/standard_fonts/', metaUrl).href;
+            this.#pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = new URL("@pdfjs/standard_fonts/", metaUrl).href;
           }
         }
       } catch (e) {
         // 测试环境中import.meta不可用，或 window 访问失败，跳过
-        this.#logger.debug('standardFontDataUrl config skipped (no vendor base/import.meta)');
+        this.#logger.debug("standardFontDataUrl config skipped (no vendor base/import.meta)");
       }
 
       this.#logger.info("PDF.js worker configured", {
         workerSrc: config.workerSrc,
-        standardFontDataUrl: this.#pdfjsLib.GlobalWorkerOptions.standardFontDataUrl || '(not set)'
+        standardFontDataUrl: this.#pdfjsLib.GlobalWorkerOptions.standardFontDataUrl || "(not set)"
       });
 
       // 初始化子模块
@@ -104,9 +104,9 @@ export class PDFManager {
 
       // 发布初始化错误事件
       this.#eventBus.emit(PDF_VIEWER_EVENTS.STATE.ERROR, {
-        module: 'PDFManager',
+        module: "PDFManager",
         error: error.message
-      }, { actorId: 'PDFManager' });
+      }, { actorId: "PDFManager" });
 
       throw error;
     }
@@ -127,7 +127,7 @@ export class PDFManager {
 
     // 如果仅传入filename而没有url，构造默认URL
     if (!url && filename) {
-      const actualFilename = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
+      const actualFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
       url = `${PATH_CONFIG.proxyPath}${actualFilename}`;
       this.#logger.info(`Constructed URL from filename: ${url}`);
     }
@@ -148,7 +148,7 @@ export class PDFManager {
           attempt: attempt,
           percent: 0,
           message: `开始加载 (尝试 ${attempt}/${LOADING_CONFIG.maxRetries})`
-        }, { actorId: 'PDFManager' });
+        }, { actorId: "PDFManager" });
 
         // 根据数据类型选择加载方法
         let pdfDocument;
@@ -165,7 +165,7 @@ export class PDFManager {
         // 设置文档到管理器
         this.#documentManager.setDocument(pdfDocument);
 
-        this.#logger.info(`PDF loaded successfully: ${filename || 'Document'}`);
+        this.#logger.info(`PDF loaded successfully: ${filename || "Document"}`);
 
         // ⚠️ 不在这里发射FILE.LOAD.SUCCESS事件，由FileHandler统一发射
         // 避免重复发射导致setDocument()被调用多次
@@ -183,7 +183,7 @@ export class PDFManager {
           error: error.message,
           attempt: attempt,
           maxAttempts: LOADING_CONFIG.maxRetries
-        }, { actorId: 'PDFManager' });
+        }, { actorId: "PDFManager" });
 
         // 如果还有重试机会，等待后重试
         if (attempt < LOADING_CONFIG.maxRetries) {

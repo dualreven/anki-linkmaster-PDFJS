@@ -4,16 +4,16 @@
  * @description 实现文本选择和高亮标注功能
  */
 
-import { IAnnotationTool } from '../../interfaces/IAnnotationTool.js';
-import { TextSelectionHandler } from './text-selection-handler.js';
-import { HighlightRenderer } from './highlight-renderer.js';
-import { FloatingColorToolbar } from './floating-color-toolbar.js';
-import { HighlightActionMenu } from './highlight-action-menu.js';
-import { PDF_TRANSLATOR_EVENTS } from '../../../pdf-translator/events.js';
-import { Annotation } from '../../models/annotation.js';
-import { PDF_VIEWER_EVENTS } from '../../../../../common/event/pdf-viewer-constants.js';
+import { IAnnotationTool } from "../../interfaces/IAnnotationTool.js";
+import { TextSelectionHandler } from "./text-selection-handler.js";
+import { HighlightRenderer } from "./highlight-renderer.js";
+import { FloatingColorToolbar } from "./floating-color-toolbar.js";
+import { HighlightActionMenu } from "./highlight-action-menu.js";
+import { PDF_TRANSLATOR_EVENTS } from "../../../pdf-translator/events.js";
+import { Annotation } from "../../models/annotation.js";
+import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
 
-const HIGHLIGHT_COLOR_PRESETS = ['#ffeb3b', '#4caf50', '#2196f3', '#ff9800', '#e91e63', '#9c27b0'];
+const HIGHLIGHT_COLOR_PRESETS = ["#ffeb3b", "#4caf50", "#2196f3", "#ff9800", "#e91e63", "#9c27b0"];
 
 /**
  * 文字高亮工具
@@ -83,7 +83,7 @@ export class TextHighlightTool extends IAnnotationTool {
   #pendingSelection = null;
 
   /** @type {string} */
-  #defaultColor = '#ffff00'; // 默认黄色
+  #defaultColor = "#ffff00"; // 默认黄色
 
   /** @type {Function} */
   #onTextSelectionCompletedHandler = null;
@@ -98,7 +98,7 @@ export class TextHighlightTool extends IAnnotationTool {
    * @returns {string}
    */
   get name() {
-    return 'text-highlight';
+    return "text-highlight";
   }
 
   /**
@@ -106,7 +106,7 @@ export class TextHighlightTool extends IAnnotationTool {
    * @returns {string}
    */
   get displayName() {
-    return '选字';
+    return "选字";
   }
 
   /**
@@ -114,7 +114,7 @@ export class TextHighlightTool extends IAnnotationTool {
    * @returns {string}
    */
   get icon() {
-    return '✏️';
+    return "✏️";
   }
 
   /**
@@ -122,7 +122,7 @@ export class TextHighlightTool extends IAnnotationTool {
    * @returns {string}
    */
   get version() {
-    return '1.0.0';
+    return "1.0.0";
   }
 
   /**
@@ -185,14 +185,14 @@ export class TextHighlightTool extends IAnnotationTool {
     this.#onAnnotationDataLoadedHandler = this.#handleAnnotationsLoaded.bind(this);
 
     // 注册事件监听器
-    this.#eventBus.on('annotation-highlight:selection:completed', this.#onTextSelectionCompletedHandler);
+    this.#eventBus.on("annotation-highlight:selection:completed", this.#onTextSelectionCompletedHandler);
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, this.#onAnnotationCreatedHandler);
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.UPDATED, this.#onAnnotationUpdatedHandler);
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DELETED, this.#onAnnotationDeletedHandler);
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, this.#onAnnotationDataLoadedHandler);
 
     // 页面渲染完成后恢复该页的高亮（确保跳转或翻页后可见）
-    if (this.#pdfjsEventBus && typeof this.#pdfjsEventBus.on === 'function') {
+    if (this.#pdfjsEventBus && typeof this.#pdfjsEventBus.on === "function") {
       this.#pdfjsPageRenderedHandler = (evt) => {
         try {
           const pn = evt?.pageNumber;
@@ -202,10 +202,10 @@ export class TextHighlightTool extends IAnnotationTool {
           this.#restoreHighlightsForPage(pn);
           this.#flushPendingHighlightsForPage(pn);
         } catch (e) {
-          this.#logger?.warn?.('[TextHighlightTool] restore on pagerendered failed', e);
+          this.#logger?.warn?.("[TextHighlightTool] restore on pagerendered failed", e);
         }
       };
-      this.#pdfjsEventBus.on('pagerendered', this.#pdfjsPageRenderedHandler);
+      this.#pdfjsEventBus.on("pagerendered", this.#pdfjsPageRenderedHandler);
 
       this.#pdfjsTextLayerRenderedHandler = (evt) => {
         try {
@@ -216,19 +216,19 @@ export class TextHighlightTool extends IAnnotationTool {
           this.#restoreHighlightsForPage(pn);
           this.#flushPendingHighlightsForPage(pn);
         } catch (e) {
-          this.#logger?.warn?.('[TextHighlightTool] restore on textlayerrendered failed', e);
+          this.#logger?.warn?.("[TextHighlightTool] restore on textlayerrendered failed", e);
         }
       };
-      this.#pdfjsEventBus.on('textlayerrendered', this.#pdfjsTextLayerRenderedHandler);
+      this.#pdfjsEventBus.on("textlayerrendered", this.#pdfjsTextLayerRenderedHandler);
 
       // 缩放阶段：先清空可见高亮，待 textlayerrendered/pagerendered 到来时重建
       this.#pdfjsScaleChangingHandler = () => {
         try {
           // 只清DOM，高亮记录保留；重建时会检测容器有效性并重画
           this.#highlightRenderer.clearAllHighlights();
-        } catch (e) { this.#logger?.debug?.('[TextHighlightTool] scalechanging clearAllHighlights failed', e); }
+        } catch (e) { this.#logger?.debug?.("[TextHighlightTool] scalechanging clearAllHighlights failed", e); }
       };
-      try { this.#pdfjsEventBus.on('scalechanging', this.#pdfjsScaleChangingHandler); } catch (_) {}
+      try { this.#pdfjsEventBus.on("scalechanging", this.#pdfjsScaleChangingHandler); } catch (_) {}
 
       this.#pdfjsScaleChangedHandler = () => {
         try {
@@ -238,9 +238,9 @@ export class TextHighlightTool extends IAnnotationTool {
             this.#restoreHighlightsForPage(pn);
             this.#flushPendingHighlightsForPage(pn);
           }
-        } catch (e) { this.#logger?.debug?.('[TextHighlightTool] scalechange restore failed', e); }
+        } catch (e) { this.#logger?.debug?.("[TextHighlightTool] scalechange restore failed", e); }
       };
-      try { this.#pdfjsEventBus.on('scalechange', this.#pdfjsScaleChangedHandler); } catch (_) {}
+      try { this.#pdfjsEventBus.on("scalechange", this.#pdfjsScaleChangedHandler); } catch (_) {}
     }
 
     // 统一事件信号：应用级 RENDER.PAGE_COMPLETED（由 PDFViewerManager 桥接）
@@ -248,24 +248,24 @@ export class TextHighlightTool extends IAnnotationTool {
       this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.RENDER.PAGE_COMPLETED, (data) => {
         try {
           const pn = Number(data?.pageNumber || 0);
-          if (!pn) return;
+          if (!pn) {return;}
           this.#restoreHighlightsForPage(pn);
           this.#flushPendingHighlightsForPage(pn);
-        } catch (e) { this.#logger?.warn?.('[TextHighlightTool] restore on app PAGE_COMPLETED failed', e); }
-      }, { subscriberId: 'TextHighlightTool' });
+        } catch (e) { this.#logger?.warn?.("[TextHighlightTool] restore on app PAGE_COMPLETED failed", e); }
+      }, { subscriberId: "TextHighlightTool" });
     } catch (e) { void e; }
 
     // 跳转成功后，若为高亮标注则确保渲染
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_SUCCESS, ({ annotation }) => {
       try {
-        if (!annotation || annotation.type !== 'text-highlight') return;
+        if (!annotation || annotation.type !== "text-highlight") {return;}
         setTimeout(() => this.#renderHighlightForAnnotation(annotation), 120);
       } catch (e) {
-        this.#logger?.warn?.('[TextHighlightTool] ensure render on jump failed', e);
+        this.#logger?.warn?.("[TextHighlightTool] ensure render on jump failed", e);
       }
     });
 
-    this.#logger.info('[TextHighlightTool] Initialized successfully');
+    this.#logger.info("[TextHighlightTool] Initialized successfully");
   }
 
   /**
@@ -274,7 +274,7 @@ export class TextHighlightTool extends IAnnotationTool {
    */
   activate() {
     if (this.#isActive) {
-      this.#logger.warn('[TextHighlightTool] Already active');
+      this.#logger.warn("[TextHighlightTool] Already active");
       return;
     }
 
@@ -284,15 +284,15 @@ export class TextHighlightTool extends IAnnotationTool {
     this.#selectionHandler.startListening();
 
     // 更改鼠标指针样式
-    const viewerContainer = document.getElementById('viewerContainer');
+    const viewerContainer = document.getElementById("viewerContainer");
     if (viewerContainer) {
-      viewerContainer.style.cursor = 'text';
+      viewerContainer.style.cursor = "text";
     }
 
-    this.#logger.info('[TextHighlightTool] Activated');
+    this.#logger.info("[TextHighlightTool] Activated");
 
     // 发布工具激活事件
-    this.#eventBus.emit('annotation-tool:activate:success', {
+    this.#eventBus.emit("annotation-tool:activate:success", {
       tool: this.name
     });
   }
@@ -312,18 +312,18 @@ export class TextHighlightTool extends IAnnotationTool {
     this.#selectionHandler.stopListening();
 
     // 恢复鼠标指针样式
-    const viewerContainer = document.getElementById('viewerContainer');
+    const viewerContainer = document.getElementById("viewerContainer");
     if (viewerContainer) {
-      viewerContainer.style.cursor = 'default';
+      viewerContainer.style.cursor = "default";
     }
 
     // 清除当前选择
     window.getSelection()?.removeAllRanges();
 
-    this.#logger.info('[TextHighlightTool] Deactivated');
+    this.#logger.info("[TextHighlightTool] Deactivated");
 
     // 发布工具停用事件
-    this.#eventBus.emit('annotation-tool:deactivate:success', {
+    this.#eventBus.emit("annotation-tool:deactivate:success", {
       tool: this.name
     });
   }
@@ -356,8 +356,8 @@ export class TextHighlightTool extends IAnnotationTool {
 
     const { text, pageNumber, ranges, rect, range, lineRects } = data;
 
-    this.#logger.info('[TextHighlightTool] Text selected', {
-      text: text.substring(0, 50) + '...',
+    this.#logger.info("[TextHighlightTool] Text selected", {
+      text: text.substring(0, 50) + "...",
       pageNumber,
       rangesCount: ranges.length
     });
@@ -371,7 +371,7 @@ export class TextHighlightTool extends IAnnotationTool {
     // 显示浮动颜色工具栏
     this.#floatingToolbar.show(viewportRect);
 
-    this.#logger.debug('[TextHighlightTool] Floating toolbar shown at', viewportRect);
+    this.#logger.debug("[TextHighlightTool] Floating toolbar shown at", viewportRect);
   }
 
   /**
@@ -381,13 +381,13 @@ export class TextHighlightTool extends IAnnotationTool {
    */
   #handleColorSelected(color) {
     if (!this.#pendingSelection) {
-      this.#logger.warn('[TextHighlightTool] No pending selection');
+      this.#logger.warn("[TextHighlightTool] No pending selection");
       return;
     }
 
     const { text, pageNumber, ranges, rect, lineRects } = this.#pendingSelection;
 
-    this.#logger.info('[TextHighlightTool] Color selected', { color });
+    this.#logger.info("[TextHighlightTool] Color selected", { color });
 
     try {
       // 创建标注对象
@@ -408,7 +408,7 @@ export class TextHighlightTool extends IAnnotationTool {
       }
 
       const annotation = new Annotation({
-        type: 'text-highlight',
+        type: "text-highlight",
         pageNumber: pageNumber,
         data: annotationData
       });
@@ -418,13 +418,13 @@ export class TextHighlightTool extends IAnnotationTool {
         annotation: annotation
       });
 
-      this.#logger.info('[TextHighlightTool] Annotation created', {
+      this.#logger.info("[TextHighlightTool] Annotation created", {
         id: annotation.id,
         type: annotation.type,
         pageNumber: annotation.pageNumber
       });
     } catch (error) {
-      this.#logger.error('[TextHighlightTool] Error creating annotation', error);
+      this.#logger.error("[TextHighlightTool] Error creating annotation", error);
     } finally {
       // 清除选择和待处理数据
       window.getSelection()?.removeAllRanges();
@@ -437,7 +437,7 @@ export class TextHighlightTool extends IAnnotationTool {
    * @private
    */
   #handleColorSelectionCancelled() {
-    this.#logger.info('[TextHighlightTool] Color selection cancelled');
+    this.#logger.info("[TextHighlightTool] Color selection cancelled");
 
     // 清除选择和待处理数据
     window.getSelection()?.removeAllRanges();
@@ -455,11 +455,11 @@ export class TextHighlightTool extends IAnnotationTool {
     const { annotation } = data;
 
     // 只处理文本高亮类型的标注
-    if (annotation.type !== 'text-highlight') {
+    if (annotation.type !== "text-highlight") {
       return;
     }
 
-    this.#logger.info('[TextHighlightTool] Rendering highlight for annotation', annotation.id);
+    this.#logger.info("[TextHighlightTool] Rendering highlight for annotation", annotation.id);
 
     this.#renderHighlightForAnnotation(annotation);
   }
@@ -474,8 +474,8 @@ export class TextHighlightTool extends IAnnotationTool {
       return;
     }
 
-    const shouldDelete = typeof window !== 'undefined' && typeof window.confirm === 'function'
-      ? window.confirm('确定要删除这个高亮标注吗？')
+    const shouldDelete = typeof window !== "undefined" && typeof window.confirm === "function"
+      ? window.confirm("确定要删除这个高亮标注吗？")
       : true;
 
     if (!shouldDelete) {
@@ -495,17 +495,17 @@ export class TextHighlightTool extends IAnnotationTool {
     const latestRecord = annotation?.id ? this.#annotationHighlightRecords.get(annotation.id)?.annotation : null;
     const text = latestRecord?.data?.selectedText ?? annotation?.data?.selectedText;
     if (!text) {
-      this.#logger.warn('[TextHighlightTool] No text available for copy');
+      this.#logger.warn("[TextHighlightTool] No text available for copy");
       return;
     }
 
-    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(text)
         .then(() => {
-          this.#logger.info('[TextHighlightTool] Copied highlight text to clipboard');
+          this.#logger.info("[TextHighlightTool] Copied highlight text to clipboard");
         })
         .catch((error) => {
-          this.#logger.warn('[TextHighlightTool] Clipboard API failed, fallback in use', error);
+          this.#logger.warn("[TextHighlightTool] Clipboard API failed, fallback in use", error);
           this.#fallbackCopyToClipboard(text);
         });
     } else {
@@ -519,22 +519,22 @@ export class TextHighlightTool extends IAnnotationTool {
    * @private
    */
   #fallbackCopyToClipboard(text) {
-    if (typeof document === 'undefined') {
+    if (typeof document === "undefined") {
       return;
     }
 
-    const textarea = document.createElement('textarea');
+    const textarea = document.createElement("textarea");
     textarea.value = text;
-    textarea.style.position = 'fixed';
-    textarea.style.top = '-9999px';
+    textarea.style.position = "fixed";
+    textarea.style.top = "-9999px";
     document.body.appendChild(textarea);
     textarea.select();
 
     try {
-      document.execCommand('copy');
-      this.#logger.info('[TextHighlightTool] Copied highlight text via fallback');
+      document.execCommand("copy");
+      this.#logger.info("[TextHighlightTool] Copied highlight text via fallback");
     } catch (error) {
-      this.#logger.error('[TextHighlightTool] Failed to copy highlight text', error);
+      this.#logger.error("[TextHighlightTool] Failed to copy highlight text", error);
     } finally {
       textarea.remove();
     }
@@ -588,7 +588,7 @@ export class TextHighlightTool extends IAnnotationTool {
     }
 
     this.#logger.info(`[TextHighlightTool] Jump requested for annotation ${annotation.id}`);
-    this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, { sidebarId: 'annotation' });
+    this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, { sidebarId: "annotation" });
     this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SELECT, { id: annotation.id });
     this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, { annotation });
   }
@@ -602,17 +602,17 @@ export class TextHighlightTool extends IAnnotationTool {
     const latestRecord = annotation?.id ? this.#annotationHighlightRecords.get(annotation.id)?.annotation : null;
     const text = latestRecord?.data?.selectedText ?? annotation?.data?.selectedText;
     if (!text) {
-      this.#logger.warn('[TextHighlightTool] No text available for translation');
+      this.#logger.warn("[TextHighlightTool] No text available for translation");
       return;
     }
 
     this.#logger.info(`[TextHighlightTool] Translate requested for annotation ${annotation.id}`);
-    this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, { sidebarId: 'translate' });
+    this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, { sidebarId: "translate" });
     this.#eventBus.emitGlobal(PDF_TRANSLATOR_EVENTS.TEXT.SELECTED, {
       text,
       pageNumber: annotation.pageNumber,
       annotationId: annotation.id,
-      source: 'text-highlight',
+      source: "text-highlight",
       timestamp: Date.now()
     });
   }
@@ -624,7 +624,7 @@ export class TextHighlightTool extends IAnnotationTool {
    */
   #handleAnnotationUpdated(data) {
     const annotation = data?.annotation;
-    if (!annotation || annotation.type !== 'text-highlight') {
+    if (!annotation || annotation.type !== "text-highlight") {
       return;
     }
 
@@ -658,7 +658,7 @@ export class TextHighlightTool extends IAnnotationTool {
     const record = this.#annotationHighlightRecords.get(annotationId);
     if (record?.annotation?.pageNumber) {
       this.#removePendingHighlight(annotationId, record.annotation.pageNumber);
-    } else if (typeof data?.pageNumber === 'number') {
+    } else if (typeof data?.pageNumber === "number") {
       this.#removePendingHighlight(annotationId, Number(data.pageNumber));
     }
     this.#annotationHighlightRecords.delete(annotationId);
@@ -670,11 +670,11 @@ export class TextHighlightTool extends IAnnotationTool {
    */
   ensureOverlayFor(annotation) {
     try {
-      if (!annotation || annotation.type !== 'text-highlight') return;
+      if (!annotation || annotation.type !== "text-highlight") {return;}
       // 若页已渲染，直接尝试渲染；否则等待 pagerendered 钩子恢复
       this.#renderHighlightForAnnotation(annotation);
     } catch (e) {
-      this.#logger?.warn?.('[TextHighlightTool] ensureOverlayFor failed', e);
+      this.#logger?.warn?.("[TextHighlightTool] ensureOverlayFor failed", e);
     }
   }
 
@@ -686,7 +686,7 @@ export class TextHighlightTool extends IAnnotationTool {
   #renderHighlightForAnnotation(annotation, options = {}) {
     const { allowQueue = true } = options;
     try {
-      if (!annotation || annotation.type !== 'text-highlight') {
+      if (!annotation || annotation.type !== "text-highlight") {
         return false;
       }
 
@@ -697,7 +697,7 @@ export class TextHighlightTool extends IAnnotationTool {
         let stillValid = false;
         try {
           if (container && container.isConnected) {
-            const pageEl = container.closest?.('.page') || null;
+            const pageEl = container.closest?.(".page") || null;
             const pageNo = pageEl ? Number(pageEl.dataset.pageNumber || 0) : 0;
             stillValid = (pageNo === Number(annotation.pageNumber || 0));
           }
@@ -747,7 +747,7 @@ export class TextHighlightTool extends IAnnotationTool {
       this.#actionMenu?.attach(result.container, annotation, { boundingBox: result.boundingBox });
       return true;
     } catch (e) {
-      this.#logger?.warn?.('[TextHighlightTool] renderHighlightForAnnotation failed', e);
+      this.#logger?.warn?.("[TextHighlightTool] renderHighlightForAnnotation failed", e);
       if (allowQueue) {
         this.#queuePendingHighlight(annotation);
       }
@@ -762,16 +762,16 @@ export class TextHighlightTool extends IAnnotationTool {
    */
   #restoreHighlightsForPage(pageNumber) {
     try {
-      const mgr = this.#container?.get ? this.#container.get('annotationManager') : null;
-      if (!mgr || typeof mgr.getAnnotationsByPage !== 'function') return;
+      const mgr = this.#container?.get ? this.#container.get("annotationManager") : null;
+      if (!mgr || typeof mgr.getAnnotationsByPage !== "function") {return;}
       const list = mgr.getAnnotationsByPage(pageNumber) || [];
       list.forEach((ann) => {
-        if (ann?.type === 'text-highlight') {
+        if (ann?.type === "text-highlight") {
           this.#renderHighlightForAnnotation(ann);
         }
       });
     } catch (e) {
-      this.#logger?.warn?.('[TextHighlightTool] restoreHighlightsForPage failed', e);
+      this.#logger?.warn?.("[TextHighlightTool] restoreHighlightsForPage failed", e);
     }
   }
 
@@ -783,7 +783,7 @@ export class TextHighlightTool extends IAnnotationTool {
   #handleAnnotationsLoaded(data) {
     try {
       const annotations = Array.isArray(data?.annotations) ? data.annotations : [];
-      const highlightAnnotations = annotations.filter((ann) => ann?.type === 'text-highlight');
+      const highlightAnnotations = annotations.filter((ann) => ann?.type === "text-highlight");
 
       this.#actionMenu?.destroy?.();
       this.#highlightRenderer.clearAllHighlights();
@@ -794,7 +794,7 @@ export class TextHighlightTool extends IAnnotationTool {
         this.#renderHighlightForAnnotation(annotation);
       });
     } catch (e) {
-      this.#logger?.warn?.('[TextHighlightTool] handleAnnotationsLoaded failed', e);
+      this.#logger?.warn?.("[TextHighlightTool] handleAnnotationsLoaded failed", e);
     }
   }
 
@@ -871,13 +871,13 @@ export class TextHighlightTool extends IAnnotationTool {
         const pageView = this.#pdfViewerManager.getPageView(pageNumber);
         pageElement = pageView?.div || null;
       } catch (e) {
-        this.#logger?.debug?.('[TextHighlightTool] getPageView failed', e);
+        this.#logger?.debug?.("[TextHighlightTool] getPageView failed", e);
       }
     }
 
-    if (!pageElement && typeof document !== 'undefined') {
+    if (!pageElement && typeof document !== "undefined") {
       pageElement = document
-        ?.getElementById('viewerContainer')
+        ?.getElementById("viewerContainer")
         ?.querySelector(`.page[data-page-number="${pageNumber}"]`) || null;
     }
 
@@ -885,7 +885,7 @@ export class TextHighlightTool extends IAnnotationTool {
       return false;
     }
 
-    return !!pageElement.querySelector('.textLayer');
+    return !!pageElement.querySelector(".textLayer");
   }
 
   // ==================== UI方法 ====================
@@ -895,9 +895,9 @@ export class TextHighlightTool extends IAnnotationTool {
    * @returns {HTMLElement}
    */
   createToolButton() {
-    const button = document.createElement('button');
+    const button = document.createElement("button");
     button.id = `${this.name}-tool-btn`;
-    button.className = 'annotation-tool-button';
+    button.className = "annotation-tool-button";
     button.innerHTML = `<span class="tool-icon">${this.icon}</span><span class="tool-name">${this.displayName}</span>`;
     button.title = `${this.displayName}工具 - 选择文本并高亮标注`;
 
@@ -916,49 +916,49 @@ export class TextHighlightTool extends IAnnotationTool {
     `;
 
     // 鼠标悬停效果
-    button.addEventListener('mouseenter', () => {
+    button.addEventListener("mouseenter", () => {
       if (!this.#isActive) {
-        button.style.backgroundColor = '#e8e8e8';
+        button.style.backgroundColor = "#e8e8e8";
       }
     });
 
-    button.addEventListener('mouseleave', () => {
+    button.addEventListener("mouseleave", () => {
       if (!this.#isActive) {
-        button.style.backgroundColor = '#f5f5f5';
+        button.style.backgroundColor = "#f5f5f5";
       }
     });
 
     // 点击切换工具激活状态
-    button.addEventListener('click', () => {
+    button.addEventListener("click", () => {
       if (this.#isActive) {
         this.deactivate();
-        button.style.backgroundColor = '#f5f5f5';
-        button.style.borderColor = '#ddd';
+        button.style.backgroundColor = "#f5f5f5";
+        button.style.borderColor = "#ddd";
       } else {
         // 请求激活此工具（会通过ToolRegistry停用其他工具）
-        this.#eventBus.emit('annotation-tool:activate:requested', {
+        this.#eventBus.emit("annotation-tool:activate:requested", {
           tool: this.name
         });
-        button.style.backgroundColor = '#e3f2fd';
-        button.style.borderColor = '#2196F3';
+        button.style.backgroundColor = "#e3f2fd";
+        button.style.borderColor = "#2196F3";
       }
     });
 
     // 监听工具激活/停用事件来更新按钮样式
-    this.#eventBus.on('annotation-tool:activate:success', (data) => {
+    this.#eventBus.on("annotation-tool:activate:success", (data) => {
       if (data.tool === this.name) {
-        button.style.backgroundColor = '#e3f2fd';
-        button.style.borderColor = '#2196F3';
+        button.style.backgroundColor = "#e3f2fd";
+        button.style.borderColor = "#2196F3";
       } else {
-        button.style.backgroundColor = '#f5f5f5';
-        button.style.borderColor = '#ddd';
+        button.style.backgroundColor = "#f5f5f5";
+        button.style.borderColor = "#ddd";
       }
     });
 
-    this.#eventBus.on('annotation-tool:deactivate:success', (data) => {
+    this.#eventBus.on("annotation-tool:deactivate:success", (data) => {
       if (data.tool === this.name) {
-        button.style.backgroundColor = '#f5f5f5';
-        button.style.borderColor = '#ddd';
+        button.style.backgroundColor = "#f5f5f5";
+        button.style.borderColor = "#ddd";
       }
     });
 
@@ -971,8 +971,8 @@ export class TextHighlightTool extends IAnnotationTool {
    * @returns {HTMLElement}
    */
   createAnnotationCard(annotation) {
-    const card = document.createElement('div');
-    card.className = 'annotation-card text-highlight-card';
+    const card = document.createElement("div");
+    card.className = "annotation-card text-highlight-card";
     card.dataset.annotationId = annotation.id;
 
     card.style.cssText = `
@@ -986,18 +986,18 @@ export class TextHighlightTool extends IAnnotationTool {
     `;
 
     // 鼠标悬停效果
-    card.addEventListener('mouseenter', () => {
-      card.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
-      card.style.borderColor = '#2196F3';
+    card.addEventListener("mouseenter", () => {
+      card.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
+      card.style.borderColor = "#2196F3";
     });
 
-    card.addEventListener('mouseleave', () => {
-      card.style.boxShadow = 'none';
-      card.style.borderColor = '#e0e0e0';
+    card.addEventListener("mouseleave", () => {
+      card.style.boxShadow = "none";
+      card.style.borderColor = "#e0e0e0";
     });
 
     // 颜色指示条
-    const colorIndicator = document.createElement('div');
+    const colorIndicator = document.createElement("div");
     colorIndicator.style.cssText = `
       width: 100%;
       height: 4px;
@@ -1008,10 +1008,10 @@ export class TextHighlightTool extends IAnnotationTool {
     card.appendChild(colorIndicator);
 
     // 文本内容（截断显示）
-    const textContent = document.createElement('div');
-    textContent.className = 'annotation-text';
+    const textContent = document.createElement("div");
+    textContent.className = "annotation-text";
     const displayText = annotation.data.text.length > 100
-      ? annotation.data.text.substring(0, 100) + '...'
+      ? annotation.data.text.substring(0, 100) + "..."
       : annotation.data.text;
     textContent.textContent = displayText;
     textContent.style.cssText = `
@@ -1024,7 +1024,7 @@ export class TextHighlightTool extends IAnnotationTool {
     card.appendChild(textContent);
 
     // 信息栏
-    const infoBar = document.createElement('div');
+    const infoBar = document.createElement("div");
     infoBar.style.cssText = `
       display: flex;
       justify-content: space-between;
@@ -1034,18 +1034,18 @@ export class TextHighlightTool extends IAnnotationTool {
       margin-bottom: 8px;
     `;
 
-    const pageInfo = document.createElement('span');
+    const pageInfo = document.createElement("span");
     pageInfo.textContent = `页码: ${annotation.pageNumber}`;
     infoBar.appendChild(pageInfo);
 
-    const timeInfo = document.createElement('span');
+    const timeInfo = document.createElement("span");
     timeInfo.textContent = annotation.getFormattedDate();
     infoBar.appendChild(timeInfo);
 
     card.appendChild(infoBar);
 
     // 操作按钮组
-    const actionBar = document.createElement('div');
+    const actionBar = document.createElement("div");
     actionBar.style.cssText = `
       display: flex;
       gap: 8px;
@@ -1053,8 +1053,8 @@ export class TextHighlightTool extends IAnnotationTool {
     `;
 
     // 跳转按钮
-    const jumpButton = document.createElement('button');
-    jumpButton.textContent = '跳转';
+    const jumpButton = document.createElement("button");
+    jumpButton.textContent = "跳转";
     jumpButton.style.cssText = `
       flex: 1;
       padding: 6px 12px;
@@ -1066,13 +1066,13 @@ export class TextHighlightTool extends IAnnotationTool {
       font-size: 12px;
       transition: background-color 0.2s ease;
     `;
-    jumpButton.addEventListener('mouseenter', () => {
-      jumpButton.style.backgroundColor = '#1976D2';
+    jumpButton.addEventListener("mouseenter", () => {
+      jumpButton.style.backgroundColor = "#1976D2";
     });
-    jumpButton.addEventListener('mouseleave', () => {
-      jumpButton.style.backgroundColor = '#2196F3';
+    jumpButton.addEventListener("mouseleave", () => {
+      jumpButton.style.backgroundColor = "#2196F3";
     });
-    jumpButton.addEventListener('click', (e) => {
+    jumpButton.addEventListener("click", (e) => {
       e.stopPropagation();
       this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, {
         annotation: annotation
@@ -1081,8 +1081,8 @@ export class TextHighlightTool extends IAnnotationTool {
     actionBar.appendChild(jumpButton);
 
     // 删除按钮
-    const deleteButton = document.createElement('button');
-    deleteButton.textContent = '删除';
+    const deleteButton = document.createElement("button");
+    deleteButton.textContent = "删除";
     deleteButton.style.cssText = `
       flex: 1;
       padding: 6px 12px;
@@ -1094,15 +1094,15 @@ export class TextHighlightTool extends IAnnotationTool {
       font-size: 12px;
       transition: background-color 0.2s ease;
     `;
-    deleteButton.addEventListener('mouseenter', () => {
-      deleteButton.style.backgroundColor = '#d32f2f';
+    deleteButton.addEventListener("mouseenter", () => {
+      deleteButton.style.backgroundColor = "#d32f2f";
     });
-    deleteButton.addEventListener('mouseleave', () => {
-      deleteButton.style.backgroundColor = '#f44336';
+    deleteButton.addEventListener("mouseleave", () => {
+      deleteButton.style.backgroundColor = "#f44336";
     });
-    deleteButton.addEventListener('click', (e) => {
+    deleteButton.addEventListener("click", (e) => {
       e.stopPropagation();
-      if (confirm('确定要删除这个标注吗？')) {
+      if (confirm("确定要删除这个标注吗？")) {
         this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DELETE, {
           id: annotation.id
         });
@@ -1113,7 +1113,7 @@ export class TextHighlightTool extends IAnnotationTool {
     card.appendChild(actionBar);
 
     // 卡片点击跳转
-    card.addEventListener('click', () => {
+    card.addEventListener("click", () => {
       this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, {
         annotation: annotation
       });
@@ -1136,7 +1136,7 @@ export class TextHighlightTool extends IAnnotationTool {
 
     // 移除事件监听器
     if (this.#eventBus) {
-      this.#eventBus.off('annotation-highlight:selection:completed', this.#onTextSelectionCompletedHandler);
+      this.#eventBus.off("annotation-highlight:selection:completed", this.#onTextSelectionCompletedHandler);
       this.#eventBus.off(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, this.#onAnnotationCreatedHandler);
       this.#eventBus.off(PDF_VIEWER_EVENTS.ANNOTATION.UPDATED, this.#onAnnotationUpdatedHandler);
       this.#eventBus.off(PDF_VIEWER_EVENTS.ANNOTATION.DELETED, this.#onAnnotationDeletedHandler);
@@ -1145,16 +1145,16 @@ export class TextHighlightTool extends IAnnotationTool {
 
     if (this.#pdfjsEventBus?.off) {
       if (this.#pdfjsPageRenderedHandler) {
-        this.#pdfjsEventBus.off('pagerendered', this.#pdfjsPageRenderedHandler);
+        this.#pdfjsEventBus.off("pagerendered", this.#pdfjsPageRenderedHandler);
       }
       if (this.#pdfjsTextLayerRenderedHandler) {
-        this.#pdfjsEventBus.off('textlayerrendered', this.#pdfjsTextLayerRenderedHandler);
+        this.#pdfjsEventBus.off("textlayerrendered", this.#pdfjsTextLayerRenderedHandler);
       }
       if (this.#pdfjsScaleChangingHandler) {
-        try { this.#pdfjsEventBus.off('scalechanging', this.#pdfjsScaleChangingHandler); } catch (_) {}
+        try { this.#pdfjsEventBus.off("scalechanging", this.#pdfjsScaleChangingHandler); } catch (_) {}
       }
       if (this.#pdfjsScaleChangedHandler) {
-        try { this.#pdfjsEventBus.off('scalechange', this.#pdfjsScaleChangedHandler); } catch (_) {}
+        try { this.#pdfjsEventBus.off("scalechange", this.#pdfjsScaleChangedHandler); } catch (_) {}
       }
     }
 
@@ -1194,7 +1194,7 @@ export class TextHighlightTool extends IAnnotationTool {
     this.#annotationHighlightRecords.clear();
     this.#pendingHighlightsByPage.clear();
 
-    this.#logger?.info('[TextHighlightTool] Destroyed');
+    this.#logger?.info("[TextHighlightTool] Destroyed");
   }
 }
 

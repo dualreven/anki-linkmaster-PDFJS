@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file PDF Home应用核心类 V2（功能域架构版本）
  * @module PDFHomeAppV2
  * @description
@@ -10,37 +10,37 @@
  * - ScopedEventBus: 命名空间事件隔离
  */
 
-import { DependencyContainer } from '../../common/micro-service/dependency-container.js';
-import { FeatureRegistry } from '../../common/micro-service/feature-registry.js';
-import { StateManager } from '../../common/micro-service/state-manager.js';
-import { FeatureFlagManager } from '../../common/micro-service/feature-flag-manager.js';
-import { getLogger } from '../../common/utils/logger.js';
-import eventBus from '../../common/event/event-bus.js';
-import WSClient from '../../common/ws/ws-client.js';
-import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS } from '../../common/event/event-constants.js';
-import { showError as notifyError } from '../../common/utils/notification.js';
+import { DependencyContainer } from "../../common/micro-service/dependency-container.js";
+import { FeatureRegistry } from "../../common/micro-service/feature-registry.js";
+import { StateManager } from "../../common/micro-service/state-manager.js";
+import { FeatureFlagManager } from "../../common/micro-service/feature-flag-manager.js";
+import { getLogger } from "../../common/utils/logger.js";
+import eventBus from "../../common/event/event-bus.js";
+import WSClient from "../../common/ws/ws-client.js";
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS } from "../../common/event/event-constants.js";
+import { showError } from "../../common/utils/notification.js";
 
 // 导入功能域
-import { PDFEditorFeature } from '../features/pdf-editor/index.js';
-import { PDFSorterFeature } from '../features/pdf-sorter/index.js';
-import { PDFEditFeature } from '../features/pdf-edit/index.js';
-import { SidebarFeature } from '../features/sidebar/index.js';
+import { PDFEditorFeature } from "../features/pdf-editor/index.js";
+import { PDFSorterFeature } from "../features/pdf-sorter/index.js";
+import { PDFEditFeature } from "../features/pdf-edit/index.js";
+import { SidebarFeature } from "../features/sidebar/index.js";
 
 // 搜索和筛选功能
-import { SearchFeature } from '../features/search/index.js';
-import { FilterFeature } from '../features/filter/index.js';
-import { SearchResultsFeature } from '../features/search-results/index.js';
-import { SearchResultItemFeature } from '../features/search-result-item/index.js';
+import { SearchFeature } from "../features/search/index.js";
+import { FilterFeature } from "../features/filter/index.js";
+import { SearchResultsFeature } from "../features/search-results/index.js";
+import { SearchResultItemFeature } from "../features/search-result-item/index.js";
 
 // 侧边栏子功能
-import { SavedFiltersFeature } from '../features/sidebar/saved-filters/index.js';
-import { RecentSearchesFeature } from '../features/sidebar/recent-searches/index.js';
-import { RecentOpenedFeature } from '../features/sidebar/recent-opened/index.js';
-import { RecentAddedFeature } from '../features/sidebar/recent-added/index.js';
+import { SavedFiltersFeature } from "../features/sidebar/saved-filters/index.js";
+import { RecentSearchesFeature } from "../features/sidebar/recent-searches/index.js";
+import { RecentOpenedFeature } from "../features/sidebar/recent-opened/index.js";
+import { RecentAddedFeature } from "../features/sidebar/recent-added/index.js";
 
 // 添加文件功能
-import { AddFilesFeature } from '../features/add-files/index.js';
-const logger = getLogger('PDFHomeAppV2');
+import { AddFilesFeature } from "../features/add-files/index.js";
+const logger = getLogger("PDFHomeAppV2");
 
 /**
  * @class PDFHomeAppV2
@@ -101,7 +101,7 @@ export class PDFHomeAppV2 {
    * @type {string}
    * @private
    */
-  #status = 'uninitialized'; // uninitialized | initializing | ready | error
+  #status = "uninitialized"; // uninitialized | initializing | ready | error
 
   /**
    * 是否已注册全局错误 toast 监听
@@ -119,8 +119,8 @@ export class PDFHomeAppV2 {
    * @param {string} [options.featureFlagConfigPath] - Feature Flag 配置文件路径
    */
   constructor(options = {}) {
-    this.#logger = getLogger('PDFHomeAppV2');
-    this.#logger.info('Initializing PDF Home App V2 (Feature Domain Architecture)...');
+    this.#logger = getLogger("PDFHomeAppV2");
+    this.#logger.info("Initializing PDF Home App V2 (Feature Domain Architecture)...");
 
     // 1. 创建核心组件
     this.#initializeCoreComponents(options);
@@ -131,7 +131,7 @@ export class PDFHomeAppV2 {
     // 3. 注册全局错误 → toast 监听（一次性）
     this.#registerGlobalErrorToasts();
 
-    this.#logger.info('PDF Home App V2 constructed (not yet initialized)');
+    this.#logger.info("PDF Home App V2 constructed (not yet initialized)");
   }
 
   /**
@@ -141,14 +141,14 @@ export class PDFHomeAppV2 {
    */
   #initializeCoreComponents(options) {
     // 创建依赖容器
-    this.#container = new DependencyContainer('pdf-home-v2');
+    this.#container = new DependencyContainer("pdf-home-v2");
 
     // 创建状态管理器
     this.#stateManager = new StateManager();
 
     // 创建 Feature Flag 管理器
     this.#flagManager = new FeatureFlagManager({
-      environment: options.environment || 'production',
+      environment: options.environment || "production",
       defaultEnabled: true
     });
 
@@ -161,7 +161,7 @@ export class PDFHomeAppV2 {
     // 使用全局事件总线（保持向后兼容）
     this.#eventBus = eventBus;
 
-    this.#logger.debug('Core components created');
+    this.#logger.debug("Core components created");
   }
 
   /**
@@ -171,29 +171,29 @@ export class PDFHomeAppV2 {
    */
   #registerGlobalServices(options) {
     // 注册状态管理器（单例）
-    this.#container.register('stateManager', this.#stateManager, {
-      scope: 'singleton'
+    this.#container.register("stateManager", this.#stateManager, {
+      scope: "singleton"
     });
 
     // 注册全局事件总线（单例）
-    this.#container.register('eventBus', this.#eventBus, {
-      scope: 'singleton'
+    this.#container.register("eventBus", this.#eventBus, {
+      scope: "singleton"
     });
 
     // 注册 Feature Flag 管理器（单例）
-    this.#container.register('featureFlagManager', this.#flagManager, {
-      scope: 'singleton'
+    this.#container.register("featureFlagManager", this.#flagManager, {
+      scope: "singleton"
     });
 
     // 创建并注册 WebSocket 客户端（如果提供了 URL）
     if (options.wsUrl) {
       this.#wsClient = new WSClient(options.wsUrl, this.#eventBus);
-      this.#container.register('wsClient', this.#wsClient, {
-        scope: 'singleton'
+      this.#container.register("wsClient", this.#wsClient, {
+        scope: "singleton"
       });
     }
 
-    this.#logger.debug('Global services registered to container');
+    this.#logger.debug("Global services registered to container");
   }
 
   /**
@@ -201,18 +201,18 @@ export class PDFHomeAppV2 {
    * @returns {Promise<void>}
    */
   async initialize() {
-    if (this.#status === 'ready') {
-      this.#logger.warn('App already initialized');
+    if (this.#status === "ready") {
+      this.#logger.warn("App already initialized");
       return;
     }
 
-    if (this.#status === 'initializing') {
-      this.#logger.warn('App is already initializing');
+    if (this.#status === "initializing") {
+      this.#logger.warn("App is already initializing");
       return;
     }
 
-    this.#status = 'initializing';
-    this.#logger.info('Starting app initialization...');
+    this.#status = "initializing";
+    this.#logger.info("Starting app initialization...");
 
     try {
       // 1. 加载 Feature Flag 配置
@@ -228,26 +228,26 @@ export class PDFHomeAppV2 {
       if (this.#wsClient) {
         try {
           await this.#wsClient.connect();
-          this.#logger.info('WebSocket connected successfully');
+          this.#logger.info("WebSocket connected successfully");
         } catch (error) {
           // WebSocket 连接失败不应阻止应用启动
-          this.#logger.warn('WebSocket connection failed (app will continue without real-time features):', error.message);
+          this.#logger.warn("WebSocket connection failed (app will continue without real-time features):", error.message);
         }
       }
 
-      this.#status = 'ready';
-      this.#logger.info('App initialization completed successfully');
+      this.#status = "ready";
+      this.#logger.info("App initialization completed successfully");
 
       // 触发初始化完成事件
       // 事件名称格式：{module}:{action}:{status}
-      this.#eventBus.emit('app:initialization:completed', {
-        version: 'v2',
+      this.#eventBus.emit("app:initialization:completed", {
+        version: "v2",
         features: this.#registry.getInstalledFeatures()
       });
 
     } catch (error) {
-      this.#status = 'error';
-      this.#logger.error('App initialization failed:', error);
+      this.#status = "error";
+      this.#logger.error("App initialization failed:", error);
       throw error;
     }
   }
@@ -258,17 +258,17 @@ export class PDFHomeAppV2 {
    * @private
    */
   #registerGlobalErrorToasts() {
-    if (this.#errorToastsRegistered) return;
+    if (this.#errorToastsRegistered) {return;}
     try {
       const bus = this.#eventBus;
-      const subscriberOpts = { subscriberId: 'PDFHomeAppV2' };
+      const subscriberOpts = { subscriberId: "PDFHomeAppV2" };
 
       // 发送失败 → 错误 toast（例如 WS 未连接/网络错误）
       bus.on(WEBSOCKET_EVENTS.MESSAGE.SEND_FAILED, (err) => {
         try {
-          const msg = (err && (err.error_message || err.message)) || 'WebSocket 消息发送失败';
+          const msg = (err && (err.error_message || err.message)) || "WebSocket 消息发送失败";
           const type = err && (err.message_type || err.type);
-          notifyError(type ? `${type}: ${msg}` : msg, 5000);
+          showError(type ? `${type}: ${msg}` : msg, 5000);
         } catch (_) {}
       }, subscriberOpts);
 
@@ -279,26 +279,26 @@ export class PDFHomeAppV2 {
           const errMsg = (payload && (payload.message || payload.error_message))
             || (payload && payload.error && (payload.error.message || payload.error.code))
             || (payload && payload.data && payload.data.message)
-            || '操作失败';
-          notifyError(type ? `${type}: ${errMsg}` : errMsg, 6000);
+            || "操作失败";
+          showError(type ? `${type}: ${errMsg}` : errMsg, 6000);
         } catch (_) {}
       }, subscriberOpts);
 
       // 兼容：凡是通用响应里标注失败（type 以 :failed 结尾）未被上层消费时，也做兜底 toast
       bus.on(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, (message) => {
         try {
-          const t = String(message?.type || '');
-          if (t.endsWith(':failed')) {
-            const errMsg = (message?.error?.message) || (message?.data?.message) || message?.message || '请求失败';
-            notifyError(`${t}: ${errMsg}`, 6000);
+          const t = String(message?.type || "");
+          if (t.endsWith(":failed")) {
+            const errMsg = (message?.error?.message) || (message?.data?.message) || message?.message || "请求失败";
+            showError(`${t}: ${errMsg}`, 6000);
           }
         } catch (_) {}
       }, subscriberOpts);
 
       this.#errorToastsRegistered = true;
-      this.#logger?.info?.('Registered global WS error→toast listeners');
+      this.#logger?.info?.("Registered global WS error→toast listeners");
     } catch (e) {
-      this.#logger?.warn?.('注册全局错误 toast 失败', e);
+      this.#logger?.warn?.("注册全局错误 toast 失败", e);
     }
   }
 
@@ -308,26 +308,26 @@ export class PDFHomeAppV2 {
    * @private
    */
   async #loadFeatureFlags() {
-    this.#logger.debug('Loading Feature Flags...');
-    logger.debug('[DEBUG PDFHomeAppV2] ===== LOADING FEATURE FLAGS =====');
+    this.#logger.debug("Loading Feature Flags...");
+    logger.debug("[DEBUG PDFHomeAppV2] ===== LOADING FEATURE FLAGS =====");
 
     try {
       // 尝试从配置文件加载
       try {
-        await this.#flagManager.loadFromConfig('./config/feature-flags.json');
-        this.#logger.info('Feature Flags loaded from config file');
-        logger.debug('[DEBUG PDFHomeAppV2] Feature flags loaded from config file successfully');
+        await this.#flagManager.loadFromConfig("./config/feature-flags.json");
+        this.#logger.info("Feature Flags loaded from config file");
+        logger.debug("[DEBUG PDFHomeAppV2] Feature flags loaded from config file successfully");
       } catch (error) {
-        this.#logger.warn('Failed to load feature-flags.json, using defaults:', error.message);
-        logger.warn('[DEBUG PDFHomeAppV2] Failed to load feature-flags.json, using defaults:', error);
+        this.#logger.warn("Failed to load feature-flags.json, using defaults:", error.message);
+        logger.warn("[DEBUG PDFHomeAppV2] Failed to load feature-flags.json, using defaults:", error);
 
         // 使用默认配置
         this.#flagManager.loadFromObject({
-          'pdf-list': { enabled: true, description: 'PDF 列表功能' },
-          'pdf-editor': { enabled: false, description: 'PDF 编辑功能（开发中）' },
-          'pdf-sorter': { enabled: false, description: 'PDF 排序功能（开发中）' }
+          "pdf-list": { enabled: true, description: "PDF 列表功能" },
+          "pdf-editor": { enabled: false, description: "PDF 编辑功能（开发中）" },
+          "pdf-sorter": { enabled: false, description: "PDF 排序功能（开发中）" }
         });
-        logger.debug('[DEBUG PDFHomeAppV2] Using default feature flags (pdf-sorter is DISABLED by default)');
+        logger.debug("[DEBUG PDFHomeAppV2] Using default feature flags (pdf-sorter is DISABLED by default)");
       }
 
       // 记录当前 Feature Flag 状态
@@ -336,10 +336,10 @@ export class PDFHomeAppV2 {
 
       // 打印所有feature flags的状态
       const allFlags = this.#flagManager.getAllFlags();
-      logger.debug('[DEBUG PDFHomeAppV2] All feature flags:', allFlags);
+      logger.debug("[DEBUG PDFHomeAppV2] All feature flags:", allFlags);
 
     } catch (error) {
-      this.#logger.error('Failed to load Feature Flags:', error);
+      this.#logger.error("Failed to load Feature Flags:", error);
       throw error;
     }
   }
@@ -349,7 +349,7 @@ export class PDFHomeAppV2 {
    * @private
    */
   #registerFeatures() {
-    this.#logger.debug('Registering features...');
+    this.#logger.debug("Registering features...");
 
     // 注册所有功能域（注册不等于安装）
     const features = [
@@ -395,11 +395,11 @@ export class PDFHomeAppV2 {
    * @private
    */
   async #installEnabledFeatures() {
-    this.#logger.debug('Installing enabled features...');
-    logger.debug('[DEBUG PDFHomeAppV2] ===== FEATURE INSTALLATION START =====');
+    this.#logger.debug("Installing enabled features...");
+    logger.debug("[DEBUG PDFHomeAppV2] ===== FEATURE INSTALLATION START =====");
 
     const registeredFeatures = this.#registry.getRegisteredFeatures();
-    logger.debug('[DEBUG PDFHomeAppV2] Registered features:', registeredFeatures);
+    logger.debug("[DEBUG PDFHomeAppV2] Registered features:", registeredFeatures);
 
     for (const featureName of registeredFeatures) {
       const isEnabled = this.#flagManager.isEnabled(featureName);
@@ -431,7 +431,7 @@ export class PDFHomeAppV2 {
    * @returns {Promise<void>}
    */
   async destroy() {
-    this.#logger.info('Destroying app...');
+    this.#logger.info("Destroying app...");
 
     try {
       // 1. 卸载所有功能域
@@ -452,11 +452,11 @@ export class PDFHomeAppV2 {
       // 3. 清理状态
       this.#stateManager.clear();
 
-      this.#status = 'uninitialized';
-      this.#logger.info('App destroyed successfully');
+      this.#status = "uninitialized";
+      this.#logger.info("App destroyed successfully");
 
     } catch (error) {
-      this.#logger.error('Failed to destroy app:', error);
+      this.#logger.error("Failed to destroy app:", error);
       throw error;
     }
   }
@@ -467,9 +467,9 @@ export class PDFHomeAppV2 {
    */
   getState() {
     return {
-      version: 'v2',
+      version: "v2",
       status: this.#status,
-      architecture: 'feature-domain',
+      architecture: "feature-domain",
       features: {
         registered: this.#registry.getRegisteredFeatures(),
         installed: this.#registry.getInstalledFeatures(),
@@ -477,7 +477,7 @@ export class PDFHomeAppV2 {
       },
       container: {
         name: this.#container.getName(),
-        services: this.#container.has('wsClient') ? ['wsClient', 'eventBus', 'stateManager'] : ['eventBus', 'stateManager']
+        services: this.#container.has("wsClient") ? ["wsClient", "eventBus", "stateManager"] : ["eventBus", "stateManager"]
       }
     };
   }

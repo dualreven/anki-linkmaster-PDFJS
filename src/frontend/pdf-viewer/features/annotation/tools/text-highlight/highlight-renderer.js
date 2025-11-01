@@ -50,7 +50,7 @@ export class HighlightRenderer {
       return null;
     }
 
-    const textLayer = pageView.querySelector('.textLayer');
+    const textLayer = pageView.querySelector(".textLayer");
     if (!textLayer) {
       this.#logger.error(`[HighlightRenderer] TextLayer not found on page ${pageNumber}`);
       return null;
@@ -78,14 +78,14 @@ export class HighlightRenderer {
       return null;
     }
 
-    const highlightContainer = document.createElement('div');
-    highlightContainer.className = 'text-highlight-container';
-    highlightContainer.style.position = 'absolute';
-    highlightContainer.style.left = '0px';
-    highlightContainer.style.top = '0px';
-    highlightContainer.style.width = '100%';
-    highlightContainer.style.height = '100%';
-    highlightContainer.style.pointerEvents = 'none';
+    const highlightContainer = document.createElement("div");
+    highlightContainer.className = "text-highlight-container";
+    highlightContainer.style.position = "absolute";
+    highlightContainer.style.left = "0px";
+    highlightContainer.style.top = "0px";
+    highlightContainer.style.width = "100%";
+    highlightContainer.style.height = "100%";
+    highlightContainer.style.pointerEvents = "none";
     if (annotationId) {
       highlightContainer.dataset.annotationId = annotationId;
     }
@@ -161,10 +161,10 @@ export class HighlightRenderer {
     const layer = this.#highlightLayers.get(layerKey);
 
     if (layer) {
-      layer.querySelectorAll('[data-annotation-id]').forEach((el) => {
+      layer.querySelectorAll("[data-annotation-id]").forEach((el) => {
         this.#annotationHighlights.delete(el.dataset.annotationId);
       });
-      layer.innerHTML = '';
+      layer.innerHTML = "";
       this.#logger.info(`[HighlightRenderer] Cleared all highlights on page ${pageNumber}`);
     }
   }
@@ -175,10 +175,10 @@ export class HighlightRenderer {
    */
   clearAllHighlights() {
     this.#highlightLayers.forEach((layer) => {
-      layer.innerHTML = '';
+      layer.innerHTML = "";
     });
     this.#annotationHighlights.clear();
-    this.#logger.info('[HighlightRenderer] Cleared all highlights');
+    this.#logger.info("[HighlightRenderer] Cleared all highlights");
   }
 
   /**
@@ -188,8 +188,8 @@ export class HighlightRenderer {
    * @private
    */
   #getPageView(pageNumber) {
-    const container = document.getElementById('viewerContainer');
-    if (!container) return null;
+    const container = document.getElementById("viewerContainer");
+    if (!container) {return null;}
 
     return container.querySelector(`.page[data-page-number="${pageNumber}"]`);
   }
@@ -210,8 +210,8 @@ export class HighlightRenderer {
     }
 
     // 创建新的高亮层
-    highlightLayer = document.createElement('div');
-    highlightLayer.className = 'highlight-layer';
+    highlightLayer = document.createElement("div");
+    highlightLayer.className = "highlight-layer";
     highlightLayer.style.cssText = `
       position: absolute;
       top: 0;
@@ -223,7 +223,7 @@ export class HighlightRenderer {
     `;
 
     // 插入到textLayer之后
-    const textLayer = pageView.querySelector('.textLayer');
+    const textLayer = pageView.querySelector(".textLayer");
     if (textLayer && textLayer.parentElement) {
       textLayer.parentElement.insertBefore(highlightLayer, textLayer.nextSibling);
     } else {
@@ -255,7 +255,7 @@ export class HighlightRenderer {
     }
 
     return lineRects
-      .filter((rect) => rect && typeof rect === 'object')
+      .filter((rect) => rect && typeof rect === "object")
       .map((rect) => ({
         left: (rect.xPercent / 100) * width,
         top: (rect.yPercent / 100) * height,
@@ -295,7 +295,7 @@ export class HighlightRenderer {
       // 合并相邻或重叠的矩形
       return this.#mergeOverlappingRects(rects);
     } catch (error) {
-      this.#logger.error('[HighlightRenderer] Error calculating rects', error);
+      this.#logger.error("[HighlightRenderer] Error calculating rects", error);
       return [];
     }
   }
@@ -310,7 +310,7 @@ export class HighlightRenderer {
     const textNodes = [];
     let currentOffset = 0;
 
-    const spans = textLayer.querySelectorAll('span');
+    const spans = textLayer.querySelectorAll("span");
 
     spans.forEach((span) => {
       const walker = document.createTreeWalker(
@@ -321,7 +321,7 @@ export class HighlightRenderer {
 
       let textNode;
       while ((textNode = walker.nextNode())) {
-        const textContent = textNode.textContent || '';
+        const textContent = textNode.textContent || "";
         textNodes.push({
           node: textNode,
           offset: currentOffset,
@@ -390,7 +390,7 @@ export class HighlightRenderer {
    * @private
    */
   #mergeOverlappingRects(rects) {
-    if (rects.length === 0) return [];
+    if (rects.length === 0) {return [];}
 
     // 按top坐标排序
     const sorted = rects.slice().sort((a, b) => a.top - b.top);
@@ -431,7 +431,6 @@ export class HighlightRenderer {
     return merged;
   }
 
-
   /**
    * 更新指定标注的高亮颜色
    * @param {string} annotationId - 标注ID
@@ -444,7 +443,7 @@ export class HighlightRenderer {
       return false;
     }
 
-    const highlights = record.container.querySelectorAll('.text-highlight');
+    const highlights = record.container.querySelectorAll(".text-highlight");
     highlights.forEach((el) => {
       el.style.backgroundColor = color;
     });
@@ -494,8 +493,8 @@ export class HighlightRenderer {
    * @private
    */
   #createHighlightElement(rect, color) {
-    const div = document.createElement('div');
-    div.className = 'text-highlight';
+    const div = document.createElement("div");
+    div.className = "text-highlight";
     div.style.cssText = `
       position: absolute;
       left: ${rect.left}px;

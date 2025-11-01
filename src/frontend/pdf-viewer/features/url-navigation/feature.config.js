@@ -8,37 +8,37 @@ export const URLNavigationFeatureConfig = {
    * Feature名称
    * @type {string}
    */
-  name: 'url-navigation',
+  name: "url-navigation",
 
   /**
    * Feature版本号
    * @type {string}
    */
-  version: '1.0.0',
+  version: "1.0.0",
 
   /**
    * 依赖的Features
    * @type {string[]}
    */
-  dependencies: ['app-core', 'pdf-manager', 'core-navigation'],
+  dependencies: ["app-core", "pdf-manager", "core-navigation"],
 
   /**
    * 功能描述
    * @type {string}
    */
-  description: 'URL参数解析与自动导航功能，支持通过URL参数打开指定PDF并跳转到指定页面和位置',
+  description: "URL参数解析与自动导航功能，支持通过URL参数打开指定PDF并跳转到指定页面和位置",
 
   /**
    * 开发阶段
    * @type {string}
    */
-  phase: 'Phase 1',
+  phase: "Phase 1",
 
   /**
    * 优先级
    * @type {string}
    */
-  priority: '中',
+  priority: "中",
 
   /**
    * 功能配置选项
@@ -74,9 +74,9 @@ export const URLNavigationFeatureConfig = {
      * @type {Object}
      */
     paramNames: {
-      pdfId: 'pdf-id',
-      pageAt: 'page-at',
-      position: 'position',
+      pdfId: "pdf-id",
+      pageAt: "page-at",
+      position: "position",
     },
   },
 };

@@ -29,17 +29,17 @@ export class NavigationHandler {
     // 页面跳转
     eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.GOTO, (data) => {
       this.handleGoto(data);
-    }, { subscriberId: 'NavigationHandler' });
+    }, { subscriberId: "NavigationHandler" });
 
     // 上一页
     eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.PREVIOUS, () => {
       this.handlePrevious();
-    }, { subscriberId: 'NavigationHandler' });
+    }, { subscriberId: "NavigationHandler" });
 
     // 下一页
     eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.NEXT, () => {
       this.handleNext();
-    }, { subscriberId: 'NavigationHandler' });
+    }, { subscriberId: "NavigationHandler" });
 
     // 注意: FIRST 和 LAST 事件在当前版本中未定义
     // 如果需要，可以通过 GOTO 事件实现相同功能
@@ -136,7 +136,7 @@ export class NavigationHandler {
         pageNumber,
         totalPages: this.#app.totalPages
       },
-      { actorId: 'NavigationHandler' }
+      { actorId: "NavigationHandler" }
     );
 
     try {
@@ -154,7 +154,7 @@ export class NavigationHandler {
         {
           pageNumber
         },
-        { actorId: 'NavigationHandler' }
+        { actorId: "NavigationHandler" }
       );
 
       this.#logger.debug(`Page ${pageNumber} navigation completed`);
@@ -169,7 +169,7 @@ export class NavigationHandler {
           pageNumber,
           error: error.message
         },
-        { actorId: 'NavigationHandler' }
+        { actorId: "NavigationHandler" }
       );
 
       throw error;

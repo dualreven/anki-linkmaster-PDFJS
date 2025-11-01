@@ -1,6 +1,6 @@
 # Memory Bank - Context（核心精简）
 
-更新时间：2025-10-29
+更新时间：2025-11-01
 
 用途与范围（≤300 行）：
 - 仅保留“当前问题、关键约束、相关模块与验收要点”。长篇背景、历史讨论、阶段总结一律移至 `context.archive.md` 与专门文档（`architecture.md`、`tech.md`、`product.md`、`tasks.md`）。
@@ -33,6 +33,94 @@
 
 ## 当前任务（只保留核心信息）
 
+### 12) 2025-11-01 — Git 提交工作区改动（本次）
+- 目标：将当前工作区全部改动生成一次原子提交，便于后续评审/回退；不执行 push。
+- 验收：`git status` 为空；`git log -1` 提交信息含时间戳与改动数量；工作日志更新（AItemp/*-AI-Working-log.md）。
+
+### 11) 2025-11-01 — 启动导航路径互斥（URL vs WS）
+- 目标：当“启动新 viewer 窗口”时只走 URL 参数导航；当“窗口已存在”时只走 WS 导航；两者互斥、不可并发。
+- 触发场景：GUI Launcher 传入 `pdf-id` + `outline-item-id` 点击启动。
+- 根因：`pyqt_launcher.py` 在 `ensure_pdf_viewer_hosted(...)` 之后无条件尝试 `navigate_viewer(...)`，与前端 URL 导航并发，且早于 viewer 完成注册导致 “Forward navigate → error”。
+- 方案（已实施）：
+  - 启动前判存活：从 `session_registry` 读取 viewer，并对其 `window` 做轻量 `_is_qobject_alive`；
+  - 已存在→抑制 URL 参数，启动后仅通过 WS 定向导航；
+  - 不存在→透传 URL 参数，由前端解析并导航；禁止再发 WS 导航；
+  - 加入分支日志便于复盘。
+- 验收：
+  - 场景A（新建）：`backend-launcher.log` 不再出现 “Forward navigate → error”；`pdf-viewer-*-js.log` 显示 URL 门闸导航完成；
+  - 场景B（已存在）：`backend-launcher.log` 记录一次 Forward navigate → ok；前端完成跳转；无并发 toast。
+
+【补充说明：为何从 pdf-home 双击仍出现 URL/WS 日志】
+- 设计现状：生产模式首次启动时，后端会在前端 URL 中携带 `file=/pdfs/<id>.pdf` 与 `pdf-id=<id>`，由 URLNavigationFeature 负责“文件加载”（非锚点/大纲导航），因此 JS 日志会出现“URL 参数解析/触发文件加载”；\n- 同时，为获取标题与侧栏数据，前端会通过 WS 查询 `pdf-library:info`，日志包含“详情查询成功”；\n- Python 侧在 WS connected 后还会调用一次 `bridge.loadPdfFile(file_path)`（历史路径，功能与 URL 加载重复），因此在后端可见到 `load_pdf_file` 消息日志。\n- 后续计划：\n  1) 若走 URL 初始加载，则抑制 bridge 的 `loadPdfFile` 调用（避免 WS 冗余日志）；\n  2) 当仅存在 `pdf-id` 且无导向参数时，降低 URLNavigationFeature 的日志级别为 DEBUG，避免“像导航一样”的误导。
+
+### 10) 2025-10-30 — 心跳机制通路验证（本次已实施）
+- 目标：锚点心跳（active anchor 的周期上报）工作正常；同时补充系统 WS 心跳常量（不改变运行策略）。
+- 改动：
+  - 事件常量（前端）：新增 `system:heartbeat:requested/completed`；
+  - WSClient：允许入站 `system:heartbeat:completed`，提供 `sendHeartbeat()`（不会影响锚点心跳）；
+  - 锚点心跳：`PDFAnchorFeature.#startUpdateTimer()` 实现周期采样（默认 3s）；存在激活锚点且过了冷却期才上报；仅在位置变化时发 `PDF_VIEWER_EVENTS.ANCHOR.UPDATE`；严格无兜底。
+- 验收：
+  - 单测：系统心跳常量/白名单用例通过；
+  - 运行时冒烟：激活锚点后 3s 内产生 `anchor:update:requested`，后端返回 `anchor:update:completed`；前端日志有对应记录；无兜底路径。
+
+【2025-10-30 晚间更新】按用户要求关闭自动心跳，只保留实现
+- 关闭锚点心跳自动启动：`PDFAnchorFeature.ENABLE_HEARTBEAT = false`（默认）；`#startUpdateTimer()` 在开关关闭时直接返回。
+- 关闭服务端 WS 客户端自动 ping：`WebSocketClient.ENABLE_PING_HEARTBEAT = False`（默认）；构造时不再无条件启动 `QTimer`。
+- 系统心跳常量与 `WSClient.sendHeartbeat()` 保留（无任何默认调用）。
+
+### 13) 2025-11-01 — features 命名统一（立项）
+- 背景：`pdf-viewer/features` 下 `pdf-*` 与非 `pdf-*` 前缀混用；`annotation` 属业务域但未带前缀；`pdf-ui` 与 `ui-manager` 语义重叠。
+- 目标：统一前缀与分层（业务域 `pdf-*` / 核心 `core-*` / 装配 `app-*` / UI `ui-*` / 适配 `*-adapter`），降低认知成本并配合日志/toast 模块治理。
+- 首批：`annotation → pdf-annotation`；`pdf-ui → 并入 ui-manager`（保留薄代理过渡 1–2 个版本周期）。
+- 策略：先引入 `features/registry` 聚合导出收敛引用，再改目录名与代理；最终移除代理并加 ESLint 规则约束。
+- 需求文档：`todo-and-doing/2 todo/20251101174059-features-naming-unification/v001-spec.md`。
+### 9) 2025-10-30 — pdf-viewer 兜底/回退策略盘点（不改代码）
+- 目标：仅梳理并报告“业务兜底/回退”与“UI 级回退”，不修改源码。
+- 高风险（涉及业务数据/契约，应移除或以明确“离线/演示模式”开关显式启用）
+  - features/annotation/core/annotation-manager.js
+    - 104: wsClient 不存在 → fallback to mock mode（Mock 持久化）
+    - 243–251: WS 未连接或缺少 pdfId → 本地 Mock 保存兜底
+    - 292–295: 远端保存失败 → 本地 Mock 保存兜底
+  - features/annotation/index.js
+    - 214–229: 安装后 setTimeout 二次解析 URL 并触发“兜底加载标注”
+    - 324–338: FILE.LOAD.SUCCESS 后从文件信息推断 pdf_uuid 并设置（文件名/URL 回退）
+    - 363–371: 无 URL 的情况下回退从事件数据提取 pdfId 再自动加载
+    - 618–625: 注释跳转时若缺 pdfId，回退从文件信息/URL 提取
+  - features/url-navigation/index.js
+    - 160–164: wsClient 不可用或详情查询失败 → 回退使用 pdfId 作为文件名触发加载
+  - features/annotation/tools/screenshot/qwebchannel-bridge.js
+    - 214–227: 在无 WebCrypto 时，构造伪 32 位十六进制“hash”作为后端校验通过用（应仅在显式 demo/offline 下允许）
+  - features/pdf-bookmark/services/bookmark-storage.js
+    - 123–186: 远端不可用时大量委托 fallback（LocalStorage）读写书签（业务层回退，建议改为显式“离线模式”）
+- 中风险（流程门闸/并发控制相关，建议以显式条件与清晰提示替代）
+  - features/pdf-anchor/index.js
+    - 55: navigationService 缺失 → fallback 为直接 DOM 操作导航
+    - 178–191: DOM 就绪短轮询作为“渲染可用”兜底
+- 低风险（UI-only/渲染退路，保留可接受；需标注为“非业务回退”）
+  - assets/global-error-toast.js: 20–51 DOM 级 toast 降级（当 notification 入口异常时）
+  - ui/text-layer-manager.js: 234–239/293 PDF.js 文本层渲染 fallback（绘制路径）
+  - features/annotation/tools/text-highlight/index.js: 508–512/521 剪贴板写入失败 → 退回 execCommand
+  - pdf/pdf-document-manager.js: 164–175 无标签 → 回退使用“页码字符串”
+- 建议（后续治理方向，仅记录，不在本次改动范围）
+  - 业务兜底统一以“显式离线/演示模式开关”控制，并带有明显 UI 横幅与日志前缀；默认严格失败并 toast。
+  - 禁止从文件名/URL 推断 pdf_uuid；由上游（URL/DB/WS）显式提供；相关路径应直接报错。
+  - URLNavigation 的“使用 pdfId 作为文件名”路径应移除，或在 demo 下仅加载公共样例。
+  - Screenshot mock hash 仅在 demo/offline 允许；生产直接错误提示。
+  - DOM 短轮询仅用于开发诊断；生产以标准“RENDER.READY/LOAD.SUCCESS”门闸为准。
+
+### 8) 2025-10-30 — pdf-home 兜底/回退策略盘点（不改代码）
+- 高风险兜底
+  - bootstrap/app-bootstrap-v2.js: 端口解析失败回退 `DEFAULT_WS_PORT`（8765）
+  - core/pdf-home-app-v2.js: 对任何 `*:failed` 未被消费时统一“兜底 toast”
+  - features/pdf-sorter/index.js: 无全局总线时改为 DOM 绑定（DOM fallback）
+  - features/pdf-edit/index.js: 无 WSClient 时改走全局 `WEBSOCKET_EVENTS.MESSAGE.SEND`
+- 中风险兜底
+  - features/pdf-edit/index.js: “未刷新则定时成功”提示
+  - index.js / app-bootstrap-v2.js: 多处 try/catch 仅吞 UI 文案更新错误
+- 低风险默认
+  - utils/ws-port-resolver.js: 多处 `fallbackPort`；container/app-container.js: 默认 8765、`data||{}`
+- 建议（下一步）：
+  - 端口解析失败直接报错；移除全局 `*:failed` 兜底 toast；禁止 WSClient 缺失时改走总线；去除“定时成功”；DOM fallback 仅 dev 或直接报错；对关键载荷去除 `|| []/{}` 默认。
 ### 1) 2025-10-29 — pdf-viewer 标题来自数据库（严格无兜底）与 toast 改造
 - 现象：部分环境左上角仅显示“PDF阅读器”，未显示 DB 标题；错误无统一 toast。
 - 核心改动（已实施/需核验）：
@@ -100,6 +188,20 @@
   - `.jump-btn` 点击能稳定触发跳转；对不合规调用出现 toast + 控制台错误；不出现隐式回退。
 > 注：更早任务与详细论证均已转存至 `context.archive.md`，如需恢复请搜索相应日期小节。
 
+### 8) 2025-10-30 — pdf-viewer “添加锚点”无效（修复与冒烟测试）
+- 现象：侧边栏点击“添加”后未见列表新增，用户感知为“添加失败”。
+- 根因：`PDFAnchorFeature` 对 `ANCHOR.CREATE` 的监听在检测到负载含 `anchor` 时直接 return，导致不更新内存与 UI；同时 `WebSocketAdapter` 仅桥接 `ANCHOR.CREATE` 到后端，未处理 `create:completed` 回流，二者叠加显示为“无反应”。
+- 修复：
+  - `PDFAnchorFeature` 兼容两种触发：
+    1) UI 负载 `{ anchor }` 必须包含合法 `uuid`，缺失/非法直接报错（不再补齐）；即时刷新 UI；
+    2) 无负载（快捷创建）仅此路径允许生成 `uuid`，刷新 UI，随后以 `__fromFeature=true` 转发到 WS。
+  - 保持“禁止兜底”：异常 toast 告警并记录 warn，不做静默降级。
+- 验收：
+  - 点击“添加”→ 输入合法名称/页码/位置 → 确认后，列表应立即出现新锚点；控制台/日志无错误；
+  - 删除/修改动作仍可用；
+  - 发往 WS 的 `ANCHOR.CREATE` 负载应包含 `uuid`（UI 自带或快捷创建由特性生成）。
+- 执行步骤（本次已按序完成）：复现→改造事件处理→补充冒烟测试→运行局部 Jest→更新文档与日志。
+
 ---
 
 ## 关键模块与函数（检索入口）
@@ -146,3 +248,15 @@
   - `.kilocode/rules/memory-bank/tech.md`
   - `.kilocode/rules/memory-bank/product.md`
   - `.kilocode/rules/memory-bank/tasks.md`
+
+### 12) 2025-11-01 — Toast 与日志不一致分析（URLJumpDispatcher/URLNavigationFeature）
+- 现象：前端出现 toast 警告/错误，但在日志文件中难以定位；或 toast 的严重级别与日志级别不一致。
+- 原因：
+  1) URLJumpDispatcher 把调试信息（如 outlineId 检查与 parsed keys）用 logger.info 携带 { toast: { type: 'error'|'warn' } } 强行弹窗；导致“信息级日志 + 错误级 toast”的错位；
+  2) URLNavigationFeature 多处直接调用 notification.showError/showSuccess（不经 logger）→ toast 仅在 UI 出现，不进入 JS 日志；
+- 文件定位：
+  - src/frontend/pdf-viewer/features/url-navigation/components/url-jump-dispatcher.js（第 54、58、105 行附近）
+  - src/frontend/pdf-viewer/features/url-navigation/index.js（第 304/307/323 行）
+- 建议：
+  - 将 URLJumpDispatcher 的调试型日志移除 toast，仅保留 console；或降级为 debug；
+  - 统一通过 logger.*(..., { toast }) 触发 toast，或在 notification.js 内补记日志，保证“有 toast 就有日志”。

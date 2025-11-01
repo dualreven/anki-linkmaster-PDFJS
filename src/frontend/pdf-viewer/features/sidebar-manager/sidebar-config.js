@@ -22,11 +22,11 @@
  * 侧边栏默认配置
  */
 export const DEFAULT_SIDEBAR_CONFIG = {
-    minWidth: 250,
-    maxWidth: 600,
-    defaultWidth: 350,
-    resizable: true,
-    priority: 0
+  minWidth: 250,
+  maxWidth: 600,
+  defaultWidth: 350,
+  resizable: true,
+  priority: 0
 };
 
 /**
@@ -35,20 +35,20 @@ export const DEFAULT_SIDEBAR_CONFIG = {
  * @returns {SidebarConfig} 完整的侧边栏配置
  */
 export function createSidebarConfig(config) {
-    if (!config.id) {
-        throw new Error('Sidebar config must have an id');
-    }
-    if (typeof config.contentRenderer !== 'function') {
-        throw new Error('Sidebar config must have a contentRenderer function');
-    }
-    if (!config.title) {
-        throw new Error('Sidebar config must have a title');
-    }
+  if (!config.id) {
+    throw new Error("Sidebar config must have an id");
+  }
+  if (typeof config.contentRenderer !== "function") {
+    throw new Error("Sidebar config must have a contentRenderer function");
+  }
+  if (!config.title) {
+    throw new Error("Sidebar config must have a title");
+  }
 
-    return {
-        ...DEFAULT_SIDEBAR_CONFIG,
-        ...config
-    };
+  return {
+    ...DEFAULT_SIDEBAR_CONFIG,
+    ...config
+  };
 }
 
 /**
@@ -57,24 +57,24 @@ export function createSidebarConfig(config) {
  * @returns {boolean} 是否有效
  */
 export function validateSidebarConfig(config) {
-    if (!config || typeof config !== 'object') {
-        return false;
-    }
+  if (!config || typeof config !== "object") {
+    return false;
+  }
 
-    const requiredFields = ['id', 'contentRenderer', 'title'];
-    for (const field of requiredFields) {
-        if (!config[field]) {
-            return false;
-        }
+  const requiredFields = ["id", "contentRenderer", "title"];
+  for (const field of requiredFields) {
+    if (!config[field]) {
+      return false;
     }
+  }
 
-    if (typeof config.contentRenderer !== 'function') {
-        return false;
-    }
+  if (typeof config.contentRenderer !== "function") {
+    return false;
+  }
 
-    if (config.minWidth < 0 || config.maxWidth < config.minWidth) {
-        return false;
-    }
+  if (config.minWidth < 0 || config.maxWidth < config.minWidth) {
+    return false;
+  }
 
-    return true;
+  return true;
 }

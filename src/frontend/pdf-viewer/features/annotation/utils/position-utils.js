@@ -9,7 +9,7 @@
  * @returns {number|null} 中心位置的百分比(0-100)，无法计算时返回null
  */
 export function getCenterPercentFromRect(rectPercent) {
-  if (!rectPercent || typeof rectPercent !== 'object') {
+  if (!rectPercent || typeof rectPercent !== "object") {
     return null;
   }
 

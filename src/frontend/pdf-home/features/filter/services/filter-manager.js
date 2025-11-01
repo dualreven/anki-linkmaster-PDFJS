@@ -2,7 +2,7 @@
  * 筛选管理器 - 统筹管理筛选逻辑
  */
 
-import { FilterConditionFactory } from './filter-condition-factory.js';
+import { FilterConditionFactory } from "./filter-condition-factory.js";
 
 export class FilterManager {
   #logger = null;
@@ -24,7 +24,7 @@ export class FilterManager {
    */
   setDataSource(data) {
     this.#originalData = data;
-    this.#logger.info('[FilterManager] Data source updated', { count: data.length });
+    this.#logger.info("[FilterManager] Data source updated", { count: data.length });
 
     // 如果有当前筛选条件，重新应用
     if (this.#currentCondition) {
@@ -52,8 +52,8 @@ export class FilterManager {
       // 验证条件
       const validation = condition.validate();
       if (!validation.valid) {
-        this.#logger.error('[FilterManager] Invalid condition', validation.errors);
-        throw new Error(`筛选条件无效: ${validation.errors.join(', ')}`);
+        this.#logger.error("[FilterManager] Invalid condition", validation.errors);
+        throw new Error(`筛选条件无效: ${validation.errors.join(", ")}`);
       }
 
       // 保存历史
@@ -63,7 +63,7 @@ export class FilterManager {
       this.#currentCondition = condition;
       this.#filteredData = this.#originalData.filter(record => condition.match(record));
 
-      this.#logger.info('[FilterManager] Filter applied', {
+      this.#logger.info("[FilterManager] Filter applied", {
         conditionType: condition.getConditionType(),
         description: condition.getDescription(),
         originalCount: this.#originalData.length,
@@ -71,7 +71,7 @@ export class FilterManager {
       });
 
       // 发出筛选完成事件
-      this.#eventBus.emit('filter:applied', {
+      this.#eventBus.emit("filter:applied", {
         condition: condition.serialize(),
         resultCount: this.#filteredData.length,
         data: this.#filteredData
@@ -79,7 +79,7 @@ export class FilterManager {
 
       return this.#filteredData;
     } catch (error) {
-      this.#logger.error('[FilterManager] Apply filter failed', error);
+      this.#logger.error("[FilterManager] Apply filter failed", error);
       throw error;
     }
   }
@@ -90,8 +90,8 @@ export class FilterManager {
    * @param {Array<string>} searchFields - 搜索字段列表
    * @returns {Array} 筛选后的数据
    */
-  quickSearch(searchText, searchFields = ['filename', 'tags', 'notes']) {
-    if (!searchText || searchText.trim() === '') {
+  quickSearch(searchText, searchFields = ["filename", "tags", "notes"]) {
+    if (!searchText || searchText.trim() === "") {
       return this.clearFilter();
     }
 
@@ -108,8 +108,8 @@ export class FilterManager {
     this.#currentCondition = null;
     this.#filteredData = [...this.#originalData];
 
-    this.#logger.info('[FilterManager] Filter cleared');
-    this.#eventBus.emit('filter:clear:completed', {
+    this.#logger.info("[FilterManager] Filter cleared");
+    this.#eventBus.emit("filter:clear:completed", {
       resultCount: this.#filteredData.length,
       data: this.#filteredData
     });
@@ -123,7 +123,7 @@ export class FilterManager {
    */
   undo() {
     if (this.#filterHistory.length === 0) {
-      this.#logger.warn('[FilterManager] No history to undo');
+      this.#logger.warn("[FilterManager] No history to undo");
       return this.#filteredData;
     }
 
@@ -131,8 +131,8 @@ export class FilterManager {
     this.#currentCondition = previousState.condition;
     this.#filteredData = previousState.filteredData;
 
-    this.#logger.info('[FilterManager] Filter undone');
-    this.#eventBus.emit('filter:undone', {
+    this.#logger.info("[FilterManager] Filter undone");
+    this.#eventBus.emit("filter:undone", {
       resultCount: this.#filteredData.length,
       data: this.#filteredData
     });
@@ -183,7 +183,7 @@ export class FilterManager {
       const condition = FilterConditionFactory.deserialize(jsonString);
       return this.applyFilter(condition);
     } catch (error) {
-      this.#logger.error('[FilterManager] Restore from JSON failed', error);
+      this.#logger.error("[FilterManager] Restore from JSON failed", error);
       throw error;
     }
   }
@@ -225,6 +225,6 @@ export class FilterManager {
     this.#filteredData = [];
     this.#originalData = [];
     this.#filterHistory = [];
-    this.#logger.info('[FilterManager] Manager reset');
+    this.#logger.info("[FilterManager] Manager reset");
   }
 }

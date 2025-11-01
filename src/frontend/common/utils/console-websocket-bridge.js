@@ -11,7 +11,7 @@ export class ConsoleWebSocketBridge {
     this.originalConsole = {};
     this.enabled = false;
     this.skipPatterns = []; // 自定义过滤规则
-    this.minLevel = 'warn'; // 最低转发级别: debug|info|warn|error
+    this.minLevel = "warn"; // 最低转发级别: debug|info|warn|error
     this._levelOrder = { debug: 10, info: 20, warn: 30, error: 40, log: 15 };
 
     // 保存原始console方法
@@ -26,16 +26,16 @@ export class ConsoleWebSocketBridge {
    * 启动console重定向
    */
   enable() {
-    if (this.enabled) return;
+    if (this.enabled) {return;}
 
     this.enabled = true;
 
     // 重写console方法
-    console.log = (...args) => this.intercept('log', args);
-    console.warn = (...args) => this.intercept('warn', args);
-    console.error = (...args) => this.intercept('error', args);
-    console.info = (...args) => this.intercept('info', args);
-    console.debug = (...args) => this.intercept('debug', args);
+    console.log = (...args) => this.intercept("log", args);
+    console.warn = (...args) => this.intercept("warn", args);
+    console.error = (...args) => this.intercept("error", args);
+    console.info = (...args) => this.intercept("info", args);
+    console.debug = (...args) => this.intercept("debug", args);
 
     this.originalConsole.info(`[${this.source}] Console WebSocket Bridge enabled`);
   }
@@ -44,7 +44,7 @@ export class ConsoleWebSocketBridge {
    * 停止console重定向
    */
   disable() {
-    if (!this.enabled) return;
+    if (!this.enabled) {return;}
 
     this.enabled = false;
 
@@ -73,7 +73,7 @@ export class ConsoleWebSocketBridge {
     }
 
     // 检查是否是WebSocket相关的日志，避免无限循环
-    const messageText = args.map(arg => String(arg)).join(' ');
+    const messageText = args.map(arg => String(arg)).join(" ");
     if (this.shouldSkipMessage(messageText)) {
       return; // 跳过WebSocket相关的日志
     }
@@ -95,14 +95,14 @@ export class ConsoleWebSocketBridge {
    * @param {'debug'|'info'|'warn'|'error'} level
    */
   setLevel(level) {
-    const v = String(level || '').toLowerCase();
+    const v = String(level || "").toLowerCase();
     if (this._levelOrder[v] !== undefined) {
       this.minLevel = v;
     }
   }
 
   _shouldForwardLevel(level) {
-    const lv = this._levelOrder[String(level || '').toLowerCase()] ?? 999;
+    const lv = this._levelOrder[String(level || "").toLowerCase()] ?? 999;
     const min = this._levelOrder[this.minLevel] ?? 30;
     return lv >= min;
   }
@@ -116,16 +116,16 @@ export class ConsoleWebSocketBridge {
     // 使用实例特定的过滤规则，如果没有设置则使用默认规则
     const skipPatterns = this.skipPatterns.length > 0 ? this.skipPatterns : [
       // 默认过滤常见噪声
-      'PDF\\.js.*worker.*ready',
-      'Canvas.*render.*progress',
-      'Page.*\\d+.*rendered',
-      'Zoom.*level',
-      'Scroll.*position',
-      'vite.*hmr',
+      "PDF\\.js.*worker.*ready",
+      "Canvas.*render.*progress",
+      "Page.*\\d+.*rendered",
+      "Zoom.*level",
+      "Scroll.*position",
+      "vite.*hmr",
     ];
 
     return skipPatterns.some(pattern => {
-      const regex = new RegExp(pattern, 'i');
+      const regex = new RegExp(pattern, "i");
       return regex.test(messageText);
     });
   }
@@ -139,7 +139,7 @@ export class ConsoleWebSocketBridge {
     try {
       // 序列化console参数
       const serializedArgs = args.map(arg => {
-        if (typeof arg === 'object') {
+        if (typeof arg === "object") {
           try {
             return JSON.stringify(arg, null, 2);
           } catch (e) {
@@ -149,7 +149,7 @@ export class ConsoleWebSocketBridge {
         return String(arg);
       });
 
-      const messageText = serializedArgs.join(' ');
+      const messageText = serializedArgs.join(" ");
 
       // 关键：检测日志循环
       // 如果这条日志是关于 WebSocket 响应的（特别是 console_log 类型的响应），
@@ -160,7 +160,7 @@ export class ConsoleWebSocketBridge {
       }
 
       const message = {
-        type: 'console_log',
+        type: "console_log",
         source: this.source,
         level: level,
         timestamp: Date.now(),
@@ -169,7 +169,7 @@ export class ConsoleWebSocketBridge {
       };
 
       // 通过WebSocket发送
-      if (this.websocketSender && typeof this.websocketSender === 'function') {
+      if (this.websocketSender && typeof this.websocketSender === "function") {
         this.websocketSender(message);
       }
     } catch (error) {
@@ -214,7 +214,7 @@ export class ConsoleWebSocketBridge {
    */
   sendLog(level, message, data = null) {
     const logMessage = {
-      type: 'console_log',
+      type: "console_log",
       source: this.source,
       level: level,
       timestamp: Date.now(),
@@ -222,7 +222,7 @@ export class ConsoleWebSocketBridge {
       data: data
     };
 
-    if (this.websocketSender && typeof this.websocketSender === 'function') {
+    if (this.websocketSender && typeof this.websocketSender === "function") {
       this.websocketSender(logMessage);
     }
   }
@@ -232,7 +232,7 @@ export class ConsoleWebSocketBridge {
    * @param {string} level - console级别
    * @returns {Function} 原始console方法
    */
-  getOriginalConsole(level = 'log') {
+  getOriginalConsole(level = "log") {
     return this.originalConsole[level] || this.originalConsole.log;
   }
 }

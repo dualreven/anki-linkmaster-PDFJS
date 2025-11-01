@@ -4,8 +4,8 @@
  * @module SelectionMonitor
  */
 
-import { getLogger } from '../../../../common/utils/logger.js';
-import { PDF_TRANSLATOR_EVENTS } from '../events.js';
+import { getLogger } from "../../../../common/utils/logger.js";
+import { PDF_TRANSLATOR_EVENTS } from "../events.js";
 
 /**
  * 文本选择监听服务
@@ -40,14 +40,14 @@ export class SelectionMonitor {
   constructor(eventBus, container, options = {}) {
     this.#eventBus = eventBus;
     this.#container = container;
-    this.#logger = getLogger('SelectionMonitor');
+    this.#logger = getLogger("SelectionMonitor");
 
     // 应用配置
     if (options) {
       this.#config = { ...this.#config, ...options };
     }
 
-    this.#logger.info('SelectionMonitor initialized', this.#config);
+    this.#logger.info("SelectionMonitor initialized", this.#config);
   }
 
   /**
@@ -55,7 +55,7 @@ export class SelectionMonitor {
    */
   startMonitoring() {
     if (!this.#config.enabled) {
-      this.#logger.info('Monitoring is disabled');
+      this.#logger.info("Monitoring is disabled");
       return;
     }
 
@@ -63,9 +63,9 @@ export class SelectionMonitor {
     this.#mouseUpHandler = this.#handleMouseUp.bind(this);
 
     // 监听 mouseup 事件（鼠标释放时检测选择）
-    document.addEventListener('mouseup', this.#mouseUpHandler);
+    document.addEventListener("mouseup", this.#mouseUpHandler);
 
-    this.#logger.info('Started monitoring text selection');
+    this.#logger.info("Started monitoring text selection");
   }
 
   /**
@@ -73,7 +73,7 @@ export class SelectionMonitor {
    */
   stopMonitoring() {
     if (this.#mouseUpHandler) {
-      document.removeEventListener('mouseup', this.#mouseUpHandler);
+      document.removeEventListener("mouseup", this.#mouseUpHandler);
       this.#mouseUpHandler = null;
     }
 
@@ -83,7 +83,7 @@ export class SelectionMonitor {
       this.#debounceTimer = null;
     }
 
-    this.#logger.info('Stopped monitoring text selection');
+    this.#logger.info("Stopped monitoring text selection");
   }
 
   /**
@@ -119,7 +119,7 @@ export class SelectionMonitor {
 
     // 检查是否与上次选择相同（避免重复触发）
     if (text === this.#lastSelection) {
-      this.#logger.debug('Same selection as before, skipping');
+      this.#logger.debug("Same selection as before, skipping");
       return;
     }
 
@@ -150,10 +150,10 @@ export class SelectionMonitor {
         rangeData,  // 添加Range数据用于创建文本高亮标注
         timestamp: Date.now()
       },
-      { actorId: 'SelectionMonitor' }
+      { actorId: "SelectionMonitor" }
     );
 
-    this.#logger.info(`Text selected: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`, {
+    this.#logger.info(`Text selected: "${text.substring(0, 50)}${text.length > 50 ? "..." : ""}"`, {
       length: text.length,
       pageNumber,
       position,
@@ -210,7 +210,7 @@ export class SelectionMonitor {
         height: rect.height
       };
     } catch (error) {
-      this.#logger.warn('Failed to get selection position:', error);
+      this.#logger.warn("Failed to get selection position:", error);
       return { x: 0, y: 0 };
     }
   }
@@ -250,7 +250,7 @@ export class SelectionMonitor {
 
       return ranges;
     } catch (error) {
-      this.#logger.warn('Failed to serialize ranges:', error);
+      this.#logger.warn("Failed to serialize ranges:", error);
       return [];
     }
   }
@@ -262,7 +262,7 @@ export class SelectionMonitor {
    * @returns {Object} 节点信息
    */
   #serializeNode(node) {
-    if (!node) return null;
+    if (!node) {return null;}
 
     return {
       nodeName: node.nodeName,
@@ -283,13 +283,13 @@ export class SelectionMonitor {
       // 方法1: 从自定义PDFViewerManager获取（优先，通过依赖注入）
       if (this.#container) {
         try {
-          const manager = this.#container.get('pdfViewerManager');
+          const manager = this.#container.get("pdfViewerManager");
           if (manager?.pdfViewer?.currentPageNumber) {
             this.#logger.debug(`Got page number from PDFViewerManager: ${manager.pdfViewer.currentPageNumber}`);
             return manager.pdfViewer.currentPageNumber;
           }
         } catch (err) {
-          this.#logger.debug('PDFViewerManager not available:', err.message);
+          this.#logger.debug("PDFViewerManager not available:", err.message);
         }
       }
 
@@ -307,10 +307,10 @@ export class SelectionMonitor {
       }
 
       // 默认返回 1
-      this.#logger.warn('Could not determine current page, defaulting to 1');
+      this.#logger.warn("Could not determine current page, defaulting to 1");
       return 1;
     } catch (error) {
-      this.#logger.warn('Failed to get current page number:', error);
+      this.#logger.warn("Failed to get current page number:", error);
       return 1;
     }
   }
@@ -323,7 +323,7 @@ export class SelectionMonitor {
   #getVisiblePageFromDOM() {
     try {
       // 查找所有.page元素
-      const pages = document.querySelectorAll('.page');
+      const pages = document.querySelectorAll(".page");
       if (!pages || pages.length === 0) {
         return 0;
       }
@@ -347,7 +347,7 @@ export class SelectionMonitor {
 
       return 0;
     } catch (error) {
-      this.#logger.debug('Failed to get page from DOM:', error);
+      this.#logger.debug("Failed to get page from DOM:", error);
       return 0;
     }
   }
@@ -366,7 +366,7 @@ export class SelectionMonitor {
       this.stopMonitoring();
     }
 
-    this.#logger.info(`Auto-translation ${enabled ? 'enabled' : 'disabled'}`);
+    this.#logger.info(`Auto-translation ${enabled ? "enabled" : "disabled"}`);
   }
 
   /**
@@ -383,7 +383,7 @@ export class SelectionMonitor {
    */
   updateConfig(config) {
     this.#config = { ...this.#config, ...config };
-    this.#logger.info('Config updated', this.#config);
+    this.#logger.info("Config updated", this.#config);
   }
 
   /**
@@ -399,14 +399,14 @@ export class SelectionMonitor {
    */
   clearLastSelection() {
     this.#lastSelection = null;
-    this.#logger.debug('Last selection cleared');
+    this.#logger.debug("Last selection cleared");
   }
 
   /**
    * 销毁监听器
    */
   destroy() {
-    this.#logger.info('Destroying SelectionMonitor...');
+    this.#logger.info("Destroying SelectionMonitor...");
     this.stopMonitoring();
     this.clearLastSelection();
   }

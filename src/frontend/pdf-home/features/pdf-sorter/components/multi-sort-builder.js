@@ -77,7 +77,7 @@ export class MultiSortBuilder {
     if (this.#availableFields.length > 0) {
       this.#sortConfigs = [{
         field: this.#availableFields[0].field,
-        direction: 'desc'
+        direction: "desc"
       }];
     }
   }
@@ -94,7 +94,7 @@ export class MultiSortBuilder {
     this.#attachEventListeners();
     this.#renderSortFields();
 
-    this.#logger.info('[MultiSortBuilder] Rendered');
+    this.#logger.info("[MultiSortBuilder] Rendered");
   }
 
   /**
@@ -132,7 +132,7 @@ export class MultiSortBuilder {
    * @private
    */
   #bindElements() {
-    this.#sortFieldsContainer = this.#container.querySelector('.sort-fields-list');
+    this.#sortFieldsContainer = this.#container.querySelector(".sort-fields-list");
   }
 
   /**
@@ -141,18 +141,18 @@ export class MultiSortBuilder {
    */
   #attachEventListeners() {
     // 添加字段按钮
-    const btnAdd = this.#container.querySelector('.btn-add-field');
-    btnAdd.addEventListener('click', () => this.#handleAddField());
+    const btnAdd = this.#container.querySelector(".btn-add-field");
+    btnAdd.addEventListener("click", () => this.#handleAddField());
 
     // 应用排序按钮
-    const btnApply = this.#container.querySelector('.btn-apply-sort');
-    btnApply.addEventListener('click', () => this.#handleApplySort());
+    const btnApply = this.#container.querySelector(".btn-apply-sort");
+    btnApply.addEventListener("click", () => this.#handleApplySort());
 
     // 清除排序按钮
-    const btnClear = this.#container.querySelector('.btn-clear-sort');
-    btnClear.addEventListener('click', () => this.#handleClearSort());
+    const btnClear = this.#container.querySelector(".btn-clear-sort");
+    btnClear.addEventListener("click", () => this.#handleClearSort());
 
-    this.#logger.debug('[MultiSortBuilder] Event listeners attached');
+    this.#logger.debug("[MultiSortBuilder] Event listeners attached");
   }
 
   /**
@@ -160,7 +160,7 @@ export class MultiSortBuilder {
    * @private
    */
   #renderSortFields() {
-    this.#sortFieldsContainer.innerHTML = '';
+    this.#sortFieldsContainer.innerHTML = "";
 
     if (this.#sortConfigs.length === 0) {
       this.#sortFieldsContainer.innerHTML = `
@@ -188,8 +188,8 @@ export class MultiSortBuilder {
    * @private
    */
   #createSortFieldRow(config, index) {
-    const row = document.createElement('div');
-    row.className = 'sort-field-row';
+    const row = document.createElement("div");
+    row.className = "sort-field-row";
     row.dataset.index = index;
 
     row.innerHTML = `
@@ -197,15 +197,15 @@ export class MultiSortBuilder {
 
       <select class="sort-field-select" data-index="${index}">
         ${this.#availableFields.map(f => `
-          <option value="${f.field}" ${config.field === f.field ? 'selected' : ''}>
+          <option value="${f.field}" ${config.field === f.field ? "selected" : ""}>
             ${f.label}
           </option>
-        `).join('')}
+        `).join("")}
       </select>
 
       <select class="sort-direction-select" data-index="${index}">
-        <option value="asc" ${config.direction === 'asc' ? 'selected' : ''}>升序 ↑</option>
-        <option value="desc" ${config.direction === 'desc' ? 'selected' : ''}>降序 ↓</option>
+        <option value="asc" ${config.direction === "asc" ? "selected" : ""}>升序 ↑</option>
+        <option value="desc" ${config.direction === "desc" ? "selected" : ""}>降序 ↓</option>
       </select>
 
       <button class="btn-remove-field" data-index="${index}" title="删除">
@@ -214,20 +214,20 @@ export class MultiSortBuilder {
     `;
 
     // 绑定字段变更事件
-    const fieldSelect = row.querySelector('.sort-field-select');
-    fieldSelect.addEventListener('change', (e) => {
+    const fieldSelect = row.querySelector(".sort-field-select");
+    fieldSelect.addEventListener("change", (e) => {
       this.#handleFieldChange(index, e.target.value);
     });
 
     // 绑定方向变更事件
-    const directionSelect = row.querySelector('.sort-direction-select');
-    directionSelect.addEventListener('change', (e) => {
+    const directionSelect = row.querySelector(".sort-direction-select");
+    directionSelect.addEventListener("change", (e) => {
       this.#handleDirectionChange(index, e.target.value);
     });
 
     // 绑定删除按钮事件
-    const btnRemove = row.querySelector('.btn-remove-field');
-    btnRemove.addEventListener('click', () => {
+    const btnRemove = row.querySelector(".btn-remove-field");
+    btnRemove.addEventListener("click", () => {
       this.#handleRemoveField(index);
     });
 
@@ -249,13 +249,13 @@ export class MultiSortBuilder {
     const availableField = this.#availableFields.find(f => !usedFields.includes(f.field));
 
     if (!availableField) {
-      this.#logger.warn('[MultiSortBuilder] No more available fields');
+      this.#logger.warn("[MultiSortBuilder] No more available fields");
       return;
     }
 
     this.#sortConfigs.push({
       field: availableField.field,
-      direction: 'asc'
+      direction: "asc"
     });
 
     this.#renderSortFields();
@@ -313,15 +313,15 @@ export class MultiSortBuilder {
    */
   #handleApplySort() {
     if (this.#sortConfigs.length === 0) {
-      this.#logger.warn('[MultiSortBuilder] No sort fields configured');
+      this.#logger.warn("[MultiSortBuilder] No sort fields configured");
       return;
     }
 
-    this.#logger.info('[MultiSortBuilder] Applying multi-sort:', this.#sortConfigs);
+    this.#logger.info("[MultiSortBuilder] Applying multi-sort:", this.#sortConfigs);
 
     // 触发应用排序事件（三段式格式）
-    this.#eventBus.emit('sorter:sort:requested', {
-      type: 'multi',
+    this.#eventBus.emit("sorter:sort:requested", {
+      type: "multi",
       configs: [...this.#sortConfigs]
     });
   }
@@ -333,10 +333,10 @@ export class MultiSortBuilder {
   #handleClearSort() {
     this.#sortConfigs = [];
     this.#renderSortFields();
-    this.#logger.info('[MultiSortBuilder] Sort cleared');
+    this.#logger.info("[MultiSortBuilder] Sort cleared");
 
     // 触发清除排序事件（三段式格式）
-    this.#eventBus.emit('sorter:sort:cleared', {});
+    this.#eventBus.emit("sorter:sort:cleared", {});
   }
 
   /**
@@ -344,8 +344,8 @@ export class MultiSortBuilder {
    * @private
    */
   #emitConfigChanged() {
-    this.#eventBus.emit('sorter:config:changed', {
-      type: 'multi',
+    this.#eventBus.emit("sorter:config:changed", {
+      type: "multi",
       configs: [...this.#sortConfigs]
     });
   }
@@ -355,13 +355,13 @@ export class MultiSortBuilder {
    * @private
    */
   #updateAddButtonState() {
-    const btnAdd = this.#container.querySelector('.btn-add-field');
+    const btnAdd = this.#container.querySelector(".btn-add-field");
     if (this.#sortConfigs.length >= this.#maxFields) {
       btnAdd.disabled = true;
       btnAdd.title = `最多支持 ${this.#maxFields} 个字段`;
     } else {
       btnAdd.disabled = false;
-      btnAdd.title = '添加排序字段';
+      btnAdd.title = "添加排序字段";
     }
   }
 
@@ -382,7 +382,7 @@ export class MultiSortBuilder {
   setSortConfigs(configs) {
     this.#sortConfigs = configs.slice(0, this.#maxFields);
     this.#renderSortFields();
-    this.#logger.info('[MultiSortBuilder] Sort configs set:', this.#sortConfigs);
+    this.#logger.info("[MultiSortBuilder] Sort configs set:", this.#sortConfigs);
   }
 
   /**
@@ -391,8 +391,8 @@ export class MultiSortBuilder {
    */
   destroy() {
     if (this.#container) {
-      this.#container.innerHTML = '';
+      this.#container.innerHTML = "";
     }
-    this.#logger.info('[MultiSortBuilder] Destroyed');
+    this.#logger.info("[MultiSortBuilder] Destroyed");
   }
 }

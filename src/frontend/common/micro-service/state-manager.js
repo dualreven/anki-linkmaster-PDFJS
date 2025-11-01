@@ -41,7 +41,7 @@
  * state.restore(snapshot);
  */
 
-import { getLogger } from '../utils/logger.js';
+import { getLogger } from "../utils/logger.js";
 
 /**
  * 状态变化记录
@@ -78,7 +78,7 @@ import { getLogger } from '../utils/logger.js';
  */
 class ReactiveState {
   /** @type {string} */
-  #namespace = '';
+  #namespace = "";
 
   /** @type {Object} */
   #data = {};
@@ -254,7 +254,7 @@ class ReactiveState {
    */
   clearHistory() {
     this.#history = [];
-    this.#logger.debug('History cleared');
+    this.#logger.debug("History cleared");
   }
 
   // ==================== 私有方法 ====================
@@ -266,7 +266,7 @@ class ReactiveState {
    * @returns {Proxy}
    * @private
    */
-  #createProxy(target, basePath = '') {
+  #createProxy(target, basePath = "") {
     const self = this;
 
     return new Proxy(target, {
@@ -274,7 +274,7 @@ class ReactiveState {
         const value = obj[prop];
 
         // 如果是对象，递归创建代理
-        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        if (typeof value === "object" && value !== null && !Array.isArray(value)) {
           const path = basePath ? `${basePath}.${String(prop)}` : String(prop);
           return self.#createProxy(value, path);
         }
@@ -342,9 +342,9 @@ class ReactiveState {
     }
 
     // 父路径的订阅（如 'filters' 应该在 'filters.name' 变化时触发）
-    const pathParts = path.split('.');
+    const pathParts = path.split(".");
     for (let i = pathParts.length - 1; i > 0; i--) {
-      const parentPath = pathParts.slice(0, i).join('.');
+      const parentPath = pathParts.slice(0, i).join(".");
       const parentSubscribers = this.#subscribers.get(parentPath);
 
       if (parentSubscribers) {
@@ -413,7 +413,7 @@ class ReactiveState {
    * @private
    */
   #getValueByPath(obj, path) {
-    const parts = path.split('.');
+    const parts = path.split(".");
     let current = obj;
 
     for (const part of parts) {
@@ -433,7 +433,7 @@ class ReactiveState {
    * @private
    */
   #deepClone(obj) {
-    if (obj === null || typeof obj !== 'object') {
+    if (obj === null || typeof obj !== "object") {
       return obj;
     }
 
@@ -471,8 +471,8 @@ export class StateManager {
    * @param {import('../../common/utils/logger.js').Logger} [options.logger] - 日志记录器
    */
   constructor(options = {}) {
-    this.#logger = options.logger || getLogger('StateManager');
-    this.#logger.debug('StateManager created');
+    this.#logger = options.logger || getLogger("StateManager");
+    this.#logger.debug("StateManager created");
   }
 
   /**
@@ -587,7 +587,7 @@ export class StateManager {
    */
   clear() {
     this.#states.clear();
-    this.#logger.info('All states cleared');
+    this.#logger.info("All states cleared");
   }
 
   /**
@@ -613,7 +613,7 @@ export class StateManager {
    */
   restore(globalSnapshot) {
     if (!globalSnapshot || !globalSnapshot.states) {
-      throw new Error('Invalid snapshot format');
+      throw new Error("Invalid snapshot format");
     }
 
     for (const [namespace, snapshot] of Object.entries(globalSnapshot.states)) {

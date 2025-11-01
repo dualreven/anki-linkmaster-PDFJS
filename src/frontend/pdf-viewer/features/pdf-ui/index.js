@@ -2,8 +2,8 @@
  * @file PDF UI功能域
  */
 
-import { getLogger } from '../../../common/utils/logger.js';
-import { PDFUIFeatureConfig } from './feature.config.js';
+import { getLogger } from "../../../common/utils/logger.js";
+import { PDFUIFeatureConfig } from "./feature.config.js";
 
 export class PDFUIFeature {
   #logger;

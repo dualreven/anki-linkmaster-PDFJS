@@ -8,28 +8,22 @@ import Logger from "../utils/logger.js";
 
 import { SYSTEM_EVENTS, UI_EVENTS } from "../event/event-constants.js";
 
-
-
 export const ErrorType = { BUSINESS: "business", NETWORK: "network", SYSTEM: "system" };
 
-
-
 export class AppError extends Error { constructor(message, type = ErrorType.SYSTEM, code = null) { super(message); this.name = "AppError"; this.type = type; this.code = code; this.timestamp = new Date().toISOString(); } }
-
-
 
 export class ErrorHandler { constructor(eventBus) { this.eventBus = eventBus; this.logger = new Logger("ErrorHandler"); }
 
   handleError(error, context = "") {
     // 防御性检查：确保 error 不是 null 或 undefined
     if (!error) {
-      error = new Error('Unknown error (error object is null or undefined)');
+      error = new Error("Unknown error (error object is null or undefined)");
     }
 
     // 如果 error 不是 Error 实例，尝试规范化
     if (!(error instanceof Error)) {
       // 如果是字符串，转为 Error 对象
-      if (typeof error === 'string') {
+      if (typeof error === "string") {
         error = new Error(error);
       } else {
         // 其他类型，转为带详细信息的 Error
@@ -42,12 +36,12 @@ export class ErrorHandler { constructor(eventBus) { this.eventBus = eventBus; th
     this.logger.error(`错误发生在 [${context}]: ${error.message}`, error);
 
     // 防御性检查：确保 eventBus 存在
-    if (this.eventBus && typeof this.eventBus.emit === 'function') {
+    if (this.eventBus && typeof this.eventBus.emit === "function") {
       this.eventBus.emit(SYSTEM_EVENTS.ERROR.OCCURRED, errorInfo, {
-        actorId: 'ErrorHandler'
+        actorId: "ErrorHandler"
       });
     } else {
-      this.logger.warn('EventBus not available, skipping event emission');
+      this.logger.warn("EventBus not available, skipping event emission");
     }
 
     this.showUserFriendlyError(error);
@@ -59,24 +53,24 @@ export class ErrorHandler { constructor(eventBus) { this.eventBus = eventBus; th
     let errorType = error.type || ErrorType.SYSTEM;
 
     switch (errorType) {
-      case ErrorType.BUSINESS:
-        userMessage = error.message || "业务逻辑错误";
-        break;
-      case ErrorType.NETWORK:
-        userMessage = "网络连接失败，请检查网络设置";
-        break;
-      case ErrorType.SYSTEM:
-        userMessage = "系统错误，请联系管理员";
-        break;
+    case ErrorType.BUSINESS:
+      userMessage = error.message || "业务逻辑错误";
+      break;
+    case ErrorType.NETWORK:
+      userMessage = "网络连接失败，请检查网络设置";
+      break;
+    case ErrorType.SYSTEM:
+      userMessage = "系统错误，请联系管理员";
+      break;
     }
 
     // 防御性检查：确保 eventBus 存在
-    if (this.eventBus && typeof this.eventBus.emit === 'function') {
+    if (this.eventBus && typeof this.eventBus.emit === "function") {
       this.eventBus.emit(UI_EVENTS.ERROR.SHOW, { message: userMessage, type: errorType }, {
-        actorId: 'ErrorHandler'
+        actorId: "ErrorHandler"
       });
     } else {
-      this.logger.warn('EventBus not available, cannot show user-friendly error message');
+      this.logger.warn("EventBus not available, cannot show user-friendly error message");
     }
   }
 

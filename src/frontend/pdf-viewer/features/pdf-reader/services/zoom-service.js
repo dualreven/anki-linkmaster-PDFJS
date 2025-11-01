@@ -35,27 +35,27 @@ export class ZoomHandler {
     // 放大
     eventBus.on(PDF_VIEWER_EVENTS.ZOOM.IN, (data) => {
       this.handleZoomIn(data);
-    }, { subscriberId: 'ZoomHandler' });
+    }, { subscriberId: "ZoomHandler" });
 
     // 缩小
     eventBus.on(PDF_VIEWER_EVENTS.ZOOM.OUT, (data) => {
       this.handleZoomOut(data);
-    }, { subscriberId: 'ZoomHandler' });
+    }, { subscriberId: "ZoomHandler" });
 
     // 适应宽度
     eventBus.on(PDF_VIEWER_EVENTS.ZOOM.FIT_WIDTH, () => {
       this.handleFitWidth();
-    }, { subscriberId: 'ZoomHandler' });
+    }, { subscriberId: "ZoomHandler" });
 
     // 适应高度
     eventBus.on(PDF_VIEWER_EVENTS.ZOOM.FIT_HEIGHT, () => {
       this.handleFitHeight();
-    }, { subscriberId: 'ZoomHandler' });
+    }, { subscriberId: "ZoomHandler" });
 
     // 实际大小
     eventBus.on(PDF_VIEWER_EVENTS.ZOOM.ACTUAL_SIZE, () => {
       this.handleActualSize();
-    }, { subscriberId: 'ZoomHandler' });
+    }, { subscriberId: "ZoomHandler" });
 
     // 注意: SET_SCALE 事件在当前版本中未定义
     // 可通过 ZOOM.CHANGED 事件或直接调用方法实现
@@ -63,7 +63,7 @@ export class ZoomHandler {
     // 缩放改变事件（来自其他组件）
     eventBus.on(PDF_VIEWER_EVENTS.ZOOM.CHANGED, (data) => {
       this.handleZoomChanged(data);
-    }, { subscriberId: 'ZoomHandler' });
+    }, { subscriberId: "ZoomHandler" });
 
     this.#logger.info("Zoom event listeners setup complete");
   }
@@ -81,7 +81,7 @@ export class ZoomHandler {
     );
 
     if (newScale !== this.#app.zoomLevel) {
-      this.#setZoomLevel(newScale, 'zoom-in');
+      this.#setZoomLevel(newScale, "zoom-in");
     }
   }
 
@@ -98,7 +98,7 @@ export class ZoomHandler {
     );
 
     if (newScale !== this.#app.zoomLevel) {
-      this.#setZoomLevel(newScale, 'zoom-out');
+      this.#setZoomLevel(newScale, "zoom-out");
     }
   }
 
@@ -106,7 +106,7 @@ export class ZoomHandler {
    * 处理适应宽度
    */
   async handleFitWidth() {
-    if (!this.#validateZoomPreconditions()) return;
+    if (!this.#validateZoomPreconditions()) {return;}
 
     try {
       const page = await this.#app.pdfManager.getPage(this.#app.currentPage);
@@ -117,7 +117,7 @@ export class ZoomHandler {
       const padding = 20; // 左右各10px边距
       const scale = (containerWidth - padding) / viewport.width;
 
-      this.#setZoomLevel(scale, 'fit-width');
+      this.#setZoomLevel(scale, "fit-width");
       this.#logger.info(`Zoom fit width: ${scale.toFixed(2)}`);
 
     } catch (error) {
@@ -130,7 +130,7 @@ export class ZoomHandler {
    * 处理适应高度
    */
   async handleFitHeight() {
-    if (!this.#validateZoomPreconditions()) return;
+    if (!this.#validateZoomPreconditions()) {return;}
 
     try {
       const page = await this.#app.pdfManager.getPage(this.#app.currentPage);
@@ -141,7 +141,7 @@ export class ZoomHandler {
       const padding = 20; // 上下各10px边距
       const scale = (containerHeight - padding) / viewport.height;
 
-      this.#setZoomLevel(scale, 'fit-height');
+      this.#setZoomLevel(scale, "fit-height");
       this.#logger.info(`Zoom fit height: ${scale.toFixed(2)}`);
 
     } catch (error) {
@@ -154,7 +154,7 @@ export class ZoomHandler {
    * 处理实际大小（100%）
    */
   handleActualSize() {
-    this.#setZoomLevel(this.#zoomLimits.defaultScale, 'actual-size');
+    this.#setZoomLevel(this.#zoomLimits.defaultScale, "actual-size");
   }
 
   /**
@@ -169,7 +169,7 @@ export class ZoomHandler {
     }
 
     const scale = this.#clampScale(data.scale);
-    this.#setZoomLevel(scale, 'custom');
+    this.#setZoomLevel(scale, "custom");
   }
 
   /**
@@ -212,7 +212,7 @@ export class ZoomHandler {
         mode: mode,
         percentage: Math.round(clampedScale * 100)
       },
-      { actorId: 'ZoomHandler' }
+      { actorId: "ZoomHandler" }
     );
 
     // 更新UI管理器中的缩放比例
@@ -227,7 +227,7 @@ export class ZoomHandler {
    * @private
    */
   async #applyZoom() {
-    if (!this.#validateZoomPreconditions()) return;
+    if (!this.#validateZoomPreconditions()) {return;}
 
     try {
       // 使用PDFViewer的currentScale属性设置缩放

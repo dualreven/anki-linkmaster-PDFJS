@@ -9,4 +9,4 @@
 // import 'core-js/stable';
 
 // Import regenerator-runtime for async/await syntax.
-import 'regenerator-runtime/runtime';
+import "regenerator-runtime/runtime";

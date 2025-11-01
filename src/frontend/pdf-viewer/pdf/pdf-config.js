@@ -11,23 +11,23 @@
 function getWorkerSrc() {
   try {
     // 1) 优先读取构建时注入的 vendor 基址（生产环境）
-    if (typeof window !== 'undefined' && window.__PDFJS_VENDOR_BASE__) {
-      const base = String(window.__PDFJS_VENDOR_BASE__).endsWith('/') ? window.__PDFJS_VENDOR_BASE__ : `${window.__PDFJS_VENDOR_BASE__}/`;
+    if (typeof window !== "undefined" && window.__PDFJS_VENDOR_BASE__) {
+      const base = String(window.__PDFJS_VENDOR_BASE__).endsWith("/") ? window.__PDFJS_VENDOR_BASE__ : `${window.__PDFJS_VENDOR_BASE__}/`;
       return `${base}build/pdf.worker.min.mjs`;
     }
 
     // 2) 回退到 import.meta + Vite 别名（开发环境）
-    const getImportMetaUrl = new Function('return import.meta.url');
+    const getImportMetaUrl = new Function("return import.meta.url");
     const metaUrl = getImportMetaUrl();
     if (metaUrl) {
-      return new URL('@pdfjs/build/pdf.worker.min.mjs', metaUrl).href;
+      return new URL("@pdfjs/build/pdf.worker.min.mjs", metaUrl).href;
     }
   } catch (e) {
     // 测试环境中import.meta不可用，返回fallback
   }
   // Fallback: 使用CDN或者空字符串让PDF.js自动处理
   // 在浏览器环境中，上面的代码应该总是能执行成功
-  return '';
+  return "";
 }
 
 /**
@@ -93,14 +93,14 @@ export const CACHE_CONFIG = {
  */
 export const PATH_CONFIG = {
   // 默认PDF文件路径（开发环境）
-  defaultPdfPath: '/pdf/',
+  defaultPdfPath: "/pdf/",
 
   // 代理路径配置
   // 与嵌入式 HTTP 文件服务器保持一致：其暴露的 PDF 路由为 /pdfs/
-  proxyPath: '/pdfs/',
+  proxyPath: "/pdfs/",
 
   // 支持的文件扩展名
-  supportedExtensions: ['.pdf', '.PDF']
+  supportedExtensions: [".pdf", ".PDF"]
 };
 
 /**
@@ -108,10 +108,10 @@ export const PATH_CONFIG = {
  * @param {string} env - 环境标识（development/production）
  * @returns {Object} 合并后的配置
  */
-export function getEnvironmentConfig(env = 'development') {
+export function getEnvironmentConfig(env = "development") {
   const baseConfig = { ...PDFJS_CONFIG };
 
-  if (env === 'production') {
+  if (env === "production") {
     // 生产环境配置调整
     baseConfig.disableAutoFetch = true; // 禁用自动获取以节省带宽
     baseConfig.cacheSize = 20 * 1024 * 1024; // 增加缓存到20MB
@@ -128,8 +128,8 @@ export function getEnvironmentConfig(env = 'development') {
  * @returns {Object} WebGL相关配置
  */
 export function getWebGLConfig() {
-  const canvas = document.createElement('canvas');
-  const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+  const canvas = document.createElement("canvas");
+  const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
 
   if (gl) {
     return {
@@ -152,7 +152,7 @@ export function getWebGLConfig() {
  * @returns {Object} 合并后的完整配置
  */
 export function getPDFJSConfig(customConfig = {}) {
-  const env = process.env.NODE_ENV || 'development';
+  const env = process.env.NODE_ENV || "development";
   const envConfig = getEnvironmentConfig(env);
   const webglConfig = getWebGLConfig();
 

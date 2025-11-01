@@ -10,15 +10,15 @@ export class AiChatService {
 
   constructor(options = {}) {
     const {
-      endpoint = 'https://api.affiliateplus.xyz/api/chatbot',
-      botName = 'LinkMasterAI',
-      ownerName = 'LinkMasterUser',
+      endpoint = "https://api.affiliateplus.xyz/api/chatbot",
+      botName = "LinkMasterAI",
+      ownerName = "LinkMasterUser",
       sessionId = `session_${Date.now()}`,
-      fetchImpl = (typeof globalThis !== 'undefined' && typeof globalThis.fetch === 'function' ? globalThis.fetch.bind(globalThis) : null)
+      fetchImpl = (typeof globalThis !== "undefined" && typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : null)
     } = options;
 
     if (!fetchImpl) {
-      throw new Error('AiChatService requires a fetch implementation');
+      throw new Error("AiChatService requires a fetch implementation");
     }
 
     this.#endpoint = endpoint;
@@ -30,19 +30,19 @@ export class AiChatService {
 
   async sendMessage({ history = [], message }) {
     if (!message) {
-      throw new Error('message is required');
+      throw new Error("message is required");
     }
 
     const url = new URL(this.#endpoint);
-    url.searchParams.set('message', message);
-    url.searchParams.set('botname', this.#botName);
-    url.searchParams.set('ownername', this.#ownerName);
-    url.searchParams.set('user', this.#sessionId);
+    url.searchParams.set("message", message);
+    url.searchParams.set("botname", this.#botName);
+    url.searchParams.set("ownername", this.#ownerName);
+    url.searchParams.set("user", this.#sessionId);
 
     const response = await this.#fetchImpl(url.toString(), {
-      method: 'GET',
+      method: "GET",
       headers: {
-        Accept: 'application/json'
+        Accept: "application/json"
       }
     });
 
@@ -51,10 +51,10 @@ export class AiChatService {
     }
 
     const data = await response.json();
-    const text = data?.message || data?.reply || '（无内容）';
+    const text = data?.message || data?.reply || "（无内容）";
 
     return {
-      role: 'assistant',
+      role: "assistant",
       text
     };
   }

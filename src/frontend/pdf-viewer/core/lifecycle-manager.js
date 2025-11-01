@@ -4,8 +4,8 @@
  * @description 负责管理应用的生命周期，包括全局错误处理
  */
 
-import { getLogger } from '../../common/utils/logger.js';
-import { PDF_VIEWER_EVENTS } from '../../common/event/pdf-viewer-constants.js';
+import { getLogger } from "../../common/utils/logger.js";
+import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
 
 /**
  * 生命周期管理器类
@@ -34,13 +34,13 @@ export class LifecycleManager {
    */
   constructor(eventBus, errorHandler) {
     if (!eventBus) {
-      throw new Error('LifecycleManager: eventBus is required');
+      throw new Error("LifecycleManager: eventBus is required");
     }
     if (!errorHandler) {
-      throw new Error('LifecycleManager: errorHandler is required');
+      throw new Error("LifecycleManager: errorHandler is required");
     }
 
-    this.#logger = getLogger('LifecycleManager');
+    this.#logger = getLogger("LifecycleManager");
     this.#eventBus = eventBus;
     this.#errorHandler = errorHandler;
   }
@@ -50,20 +50,20 @@ export class LifecycleManager {
    */
   setupGlobalErrorHandling() {
     if (this.#errorHandlersSetup) {
-      this.#logger.warn('Global error handlers already setup');
+      this.#logger.warn("Global error handlers already setup");
       return;
     }
 
-    this.#logger.info('Setting up global error handling');
+    this.#logger.info("Setting up global error handling");
 
     // 捕获未处理的 Promise rejection
-    window.addEventListener('unhandledrejection', this.#handleUnhandledRejection);
+    window.addEventListener("unhandledrejection", this.#handleUnhandledRejection);
 
     // 捕获全局错误
-    window.addEventListener('error', this.#handleGlobalError);
+    window.addEventListener("error", this.#handleGlobalError);
 
     this.#errorHandlersSetup = true;
-    this.#logger.debug('Global error handlers registered');
+    this.#logger.debug("Global error handlers registered");
   }
 
   /**
@@ -73,19 +73,19 @@ export class LifecycleManager {
    * @param {PromiseRejectionEvent} event - Promise rejection 事件
    */
   #handleUnhandledRejection = (event) => {
-    this.#logger.error('Unhandled Promise Rejection:', event.reason);
+    this.#logger.error("Unhandled Promise Rejection:", event.reason);
 
     // 使用ErrorHandler处理错误
-    this.#errorHandler.handleError(event.reason, 'UnhandledPromiseRejection');
+    this.#errorHandler.handleError(event.reason, "UnhandledPromiseRejection");
 
     // 发射错误事件
-    this.#eventBus.emit('app:error:unhandled-rejection', {
+    this.#eventBus.emit("app:error:unhandled-rejection", {
       reason: event.reason,
-      message: event.reason?.message || 'Unhandled promise rejection'
+      message: event.reason?.message || "Unhandled promise rejection"
     }, {
-      actorId: 'LifecycleManager'
+      actorId: "LifecycleManager"
     });
-  }
+  };
 
   /**
    * 处理全局错误
@@ -94,22 +94,22 @@ export class LifecycleManager {
    * @param {ErrorEvent} event - 错误事件
    */
   #handleGlobalError = (event) => {
-    this.#logger.error('Global Error:', event.error);
+    this.#logger.error("Global Error:", event.error);
 
     // 使用ErrorHandler处理错误
-    this.#errorHandler.handleError(event.error, 'GlobalError');
+    this.#errorHandler.handleError(event.error, "GlobalError");
 
     // 发射错误事件
-    this.#eventBus.emit('app:error:global', {
+    this.#eventBus.emit("app:error:global", {
       message: event.message,
       filename: event.filename,
       lineno: event.lineno,
       colno: event.colno,
       error: event.error
     }, {
-      actorId: 'LifecycleManager'
+      actorId: "LifecycleManager"
     });
-  }
+  };
 
   /**
    * 清理全局错误处理
@@ -119,13 +119,13 @@ export class LifecycleManager {
       return;
     }
 
-    this.#logger.info('Cleaning up global error handlers');
+    this.#logger.info("Cleaning up global error handlers");
 
-    window.removeEventListener('unhandledrejection', this.#handleUnhandledRejection);
-    window.removeEventListener('error', this.#handleGlobalError);
+    window.removeEventListener("unhandledrejection", this.#handleUnhandledRejection);
+    window.removeEventListener("error", this.#handleGlobalError);
 
     this.#errorHandlersSetup = false;
-    this.#logger.debug('Global error handlers removed');
+    this.#logger.debug("Global error handlers removed");
   }
 
   /**

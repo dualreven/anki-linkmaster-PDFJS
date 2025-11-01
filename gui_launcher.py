@@ -1089,15 +1089,79 @@ class GUILauncher(QMainWindow):
 
     def _log(self, message: str):
         """添加日志，并同步写入本地日志文件（UTF-8, \n）。"""
-        # 1) 界面输出
-        try:
-            self.log_text.append(message)
-            # 自动滚动到底部
-            self.log_text.moveCursor(QTextCursor.MoveOperation.End)
-        except Exception:
-            pass
+        # 0) 完整输出关键TRACE日志和WS消息
+        if (
+            ('[TRACE:' in message and ('outline_item_id' in message or 'pdf-viewer args' in message))
+            or ('[WS] sent' in message and 'pdf-library:viewer:requested' in message)
+            or ('pdf_id=' in message and 'viewer_options=' in message)
+        ):
+            # 关键日志特殊处理，确保完整显示
+            try:
+                # 添加分隔线，突出显示关键日志
+                separator = "=" * 80
+                self.log_text.append(separator)
+                if '[TRACE:' in message:
+                    self.log_text.append(f"🔍 关键参数追踪:")
+                elif '[WS] sent' in message:
+                    self.log_text.append(f"📡 WebSocket消息:")
+                else:
+                    self.log_text.append(f"📋 参数详情:")
+                # 拆分长日志为多行显示
+                max_line_length = 120
+                if len(message) > max_line_length:
+                    lines = []
+                    remaining = message
+                    while remaining:
+                        if len(remaining) <= max_line_length:
+                            lines.append(remaining)
+                            break
+                        # 尝试在空格处换行
+                        split_point = remaining.rfind(' ', 0, max_line_length)
+                        if split_point == -1:
+                            split_point = max_line_length
+                        lines.append(remaining[:split_point])
+                        remaining = remaining[split_point:].lstrip()
+                    for line in lines:
+                        self.log_text.append(f"  {line}")
+                        # 自动滚动到底部
+                        self.log_text.moveCursor(QTextCursor.MoveOperation.End)
+                        # 短暂延迟，让界面有时间更新
+                        QApplication.processEvents()
+                else:
+                    self.log_text.append(f"  {message}")
+                    self.log_text.moveCursor(QTextCursor.MoveOperation.End)
+                self.log_text.append(separator)
+            except Exception:
+                pass
+        else:
+            # 1) 界面输出
+            try:
+                self.log_text.append(message)
+                # 自动滚动到底部
+                self.log_text.moveCursor(QTextCursor.MoveOperation.End)
 
-        # 2) 本地落盘到 logs/gui-launcher.log
+                # 2) 日志行数管理：保留最多2000行，防止界面卡顿
+                try:
+                    doc = self.log_text.document()
+                    max_lines = 2000
+                    # 删除超过2000行的旧日志
+                    if doc.blockCount() > max_lines:
+                        cursor = QTextCursor(doc)
+                        cursor.movePosition(QTextCursor.MoveOperation.Start)
+                        # 删除第一行
+                        cursor.select(QTextCursor.SelectionType.BlockUnderCursor)
+                        cursor.removeSelectedText()
+                        # 再删除一行（确保至少删除一行）
+                        if doc.blockCount() > max_lines - 10:
+                            cursor.movePosition(QTextCursor.MoveOperation.Start)
+                            cursor.select(QTextCursor.SelectionType.BlockUnderCursor)
+                            cursor.removeSelectedText()
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
+        # 3) 本地落盘到 logs/gui-launcher.log
         try:
             self._logs_dir.mkdir(parents=True, exist_ok=True)
             log_path = self._logs_dir / 'gui-launcher.log'
@@ -1900,11 +1964,23 @@ class GUILauncher(QMainWindow):
 
     def _on_start_pdf_viewer(self):
         """启动 PDF-Viewer"""
-        pdf_id = self.pdf_id_input.text().strip()
+        # 从 Hosted Tab 读取参数（CLI Tab 按钮复用此函数）
+        pdf_id = self.h_pdf_id.text().strip()
 
         # PDF ID 可以为空 - 启动空白查看器
         if not pdf_id:
             self._log("💡 提示: 未指定 PDF ID，将启动空白查看器")
+
+        # 收集导航扩展参数（类型 + 值）
+        _sel_type = None
+        try:
+            _sel_type = self.h_id_type.currentData()
+        except Exception:
+            _sel_type = None
+        _val = (self.h_id_value.text().strip() or None)
+        _anchor_id = _val if (_sel_type == "anchor" and _val) else None
+        _annotation_id = _val if (_sel_type == "annotation" and _val) else None
+        _outline_item = _val if (_sel_type == "outline" and _val) else None
 
         ui_vite = int(self.vite_port_input.value() or 0) or 3000
         ui_ws = int(self.msgCenter_port_input.value() or 0) or 8765
@@ -1912,7 +1988,7 @@ class GUILauncher(QMainWindow):
         is_prod = bool(self.frontend_prod_checkbox.isChecked())
         try:
             rp = self._runtime_ports() or {}
-            self._log(f"[TRACE:UI] start pdf-viewer → is_prod={is_prod} ui(vite={ui_vite}, ws={ui_ws}, http={ui_http}) pdf_id={pdf_id or None} runtime={rp}")
+            self._log(f"[TRACE:UI] start pdf-viewer → is_prod={is_prod} ui(vite={ui_vite}, ws={ui_ws}, http={ui_http}) pdf_id={pdf_id or None} anchor_id={_anchor_id} annotation_id={_annotation_id} outline_item_id={_outline_item} runtime={rp}")
         except Exception:
             pass
         params = {
@@ -1921,8 +1997,11 @@ class GUILauncher(QMainWindow):
             "pdfFile_port": ui_http,
             "is_prod": is_prod,
             "pdf_id": pdf_id if pdf_id else None,  # 空字符串转为 None
-            "page_at": self.page_at_input.value() if self.page_at_input.value() > 0 else None,
-            "position": self.position_input.value() if self.position_input.value() > 0 else None,
+            "page_at": self.h_page_at.value() if self.h_page_at.value() > 0 else None,
+            "position": self.h_position.value() if self.h_position.value() > 0 else None,
+            "anchor_id": _anchor_id,
+            "annotation_id": _annotation_id,
+            "outline_item_id": _outline_item,
             # 显式传入目录参数
             "data_dir": self._resolved_paths_from_ui()['data_dir'],
             "db_path": self._resolved_paths_from_ui()['db_path'],

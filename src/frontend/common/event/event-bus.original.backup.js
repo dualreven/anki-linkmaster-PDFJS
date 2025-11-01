@@ -8,7 +8,7 @@ import Logger, { LogLevel } from "../utils/logger.js";
 
 class EventNameValidator {
   static validate(event) {
-    if (typeof event !== "string" || !event) return false;
+    if (typeof event !== "string" || !event) {return false;}
 
     const parts = event.split(":");
 
@@ -17,15 +17,15 @@ class EventNameValidator {
 
   static getValidationError(event, context = {}) {
     if (typeof event !== "string" || !event)
-      return `事件名称必须是非空字符串，但收到了：${event}${this.#formatContext(context)}`;
+    {return `事件名称必须是非空字符串，但收到了：${event}${this.#formatContext(context)}`;}
 
     const parts = event.split(":");
 
     if (parts.length !== 3)
-      return `事件名称 '${event}' 格式不正确，应为 {module}:{action}:{status}${this.#formatContext(context)}`;
+    {return `事件名称 '${event}' 格式不正确，应为 {module}:{action}:{status}${this.#formatContext(context)}`;}
 
     if (parts.some((p) => p.length === 0))
-      return `事件名称 '${event}' 的各个部分不能为空${this.#formatContext(context)}`;
+    {return `事件名称 '${event}' 的各个部分不能为空${this.#formatContext(context)}`;}
 
     return null;
   }
@@ -33,11 +33,11 @@ class EventNameValidator {
   static #formatContext(context) {
     const { subscriberId, actorId } = context;
     const parts = [];
-    
-    if (subscriberId) parts.push(`订阅者ID: ${subscriberId}`);
-    if (actorId) parts.push(`执行者ID: ${actorId}`);
-    
-    return parts.length > 0 ? ` [${parts.join(', ')}]` : '';
+
+    if (subscriberId) {parts.push(`订阅者ID: ${subscriberId}`);}
+    if (actorId) {parts.push(`执行者ID: ${actorId}`);}
+
+    return parts.length > 0 ? ` [${parts.join(", ")}]` : "";
   }
 }
 
@@ -55,7 +55,7 @@ export class EventBus {
 
     this.#logger = new Logger("EventBus");
 
-    if (options.logLevel) this.#logger.setLogLevel(options.logLevel);
+    if (options.logLevel) {this.#logger.setLogLevel(options.logLevel);}
 
     this.#logger.info(
       `事件总线已初始化，验证模式: ${this.#enableValidation}, 日志级别: ${
@@ -96,7 +96,7 @@ export class EventBus {
   on(event, callback, options = {}) {
     const subscriberId = options.subscriberId || this.#inferActorId() || `sub_${this.#nextSubscriberId++}`;
     const actorId = options.actorId || this.#inferActorId();
-    
+
     if (this.#enableValidation) {
       const error = EventNameValidator.getValidationError(event, { subscriberId, actorId });
 
@@ -107,11 +107,11 @@ export class EventBus {
       }
     }
 
-    if (!this.#events[event]) this.#events[event] = new Map();
+    if (!this.#events[event]) {this.#events[event] = new Map();}
 
     this.#events[event].set(subscriberId, callback);
 
-    this.#logger.event(`${event}`, `订阅`, {
+    this.#logger.event(`${event}`, "订阅", {
       subscriberId,
       actorId,
     });
@@ -121,7 +121,7 @@ export class EventBus {
 
   off(event, callbackOrId) {
     const subscribers = this.#events[event];
-    if (!subscribers) return;
+    if (!subscribers) {return;}
     let removedId = null;
     if (typeof callbackOrId === "function") {
       for (const [id, cb] of subscribers.entries()) {
@@ -138,14 +138,14 @@ export class EventBus {
       }
     }
     if (removedId !== null) {
-      if (subscribers.size === 0) delete this.#events[event];
+      if (subscribers.size === 0) {delete this.#events[event];}
       this.#logger.event(event, `取消订阅 by ${removedId}`);
     }
   }
 
   emit(event, data, options = {}) {
     const actorId = options.actorId || this.#inferActorId();
-    
+
     if (this.#enableValidation) {
       const error = EventNameValidator.getValidationError(event, { actorId });
 

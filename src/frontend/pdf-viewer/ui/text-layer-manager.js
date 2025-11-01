@@ -12,7 +12,7 @@
  */
 
 import { getLogger } from "../../common/utils/logger.js";
-const logger = getLogger('TextLayerManager');
+const logger = getLogger("TextLayerManager");
 
 // 动态导入PDF.js的renderTextLayer
 let renderTextLayerFunc = null;
@@ -28,7 +28,7 @@ async function loadRenderTextLayer() {
 
   try {
     // 尝试从pdfjs-dist导入renderTextLayer
-    const pdfjsModule = await import('pdfjs-dist');
+    const pdfjsModule = await import("pdfjs-dist");
     if (pdfjsModule.renderTextLayer) {
       renderTextLayerFunc = pdfjsModule.renderTextLayer;
       return renderTextLayerFunc;
@@ -93,7 +93,7 @@ export class TextLayerManager {
    * @private
    */
   #setupSelectionListener() {
-    if (typeof document !== 'undefined') {
+    if (typeof document !== "undefined") {
       this.#selectionChangeHandler = () => {
         const selectedText = this.getSelectedText();
         if (selectedText) {
@@ -102,7 +102,7 @@ export class TextLayerManager {
           this.#dispatchSelectionEvent(selectedText);
         }
       };
-      document.addEventListener('selectionchange', this.#selectionChangeHandler);
+      document.addEventListener("selectionchange", this.#selectionChangeHandler);
     }
   }
 
@@ -113,7 +113,7 @@ export class TextLayerManager {
    */
   #dispatchSelectionEvent(selectedText) {
     if (this.#textLayerContainer) {
-      const event = new CustomEvent('selectionchanged', {
+      const event = new CustomEvent("selectionchanged", {
         detail: {
           text: selectedText,
           rect: this.getSelectedTextRect()
@@ -171,7 +171,7 @@ export class TextLayerManager {
       this.#currentPage = page;
 
       // 清空容器
-      container.innerHTML = '';
+      container.innerHTML = "";
       this.#textDivs = [];
 
       // 获取页面的文字内容
@@ -257,9 +257,9 @@ export class TextLayerManager {
       const item = items[i];
 
       // 创建文字div元素
-      const textDiv = document.createElement('span');
+      const textDiv = document.createElement("span");
       textDiv.textContent = item.str;
-      textDiv.className = 'textLayer-item';
+      textDiv.className = "textLayer-item";
 
       // 设置位置和样式
       // transform = [scaleX, skewY, skewX, scaleY, translateX, translateY]
@@ -273,13 +273,13 @@ export class TextLayerManager {
       const left = transform[4] * scale;
       const top = (viewport.height / scale - transform[5]) * scale - fontSize;
 
-      textDiv.style.position = 'absolute';
+      textDiv.style.position = "absolute";
       textDiv.style.left = `${left}px`;
       textDiv.style.top = `${top}px`;
       textDiv.style.fontSize = `${fontSize}px`;
-      textDiv.style.fontFamily = item.fontName || 'sans-serif';
-      textDiv.style.whiteSpace = 'pre';
-      textDiv.style.transformOrigin = '0% 0%';
+      textDiv.style.fontFamily = item.fontName || "sans-serif";
+      textDiv.style.whiteSpace = "pre";
+      textDiv.style.transformOrigin = "0% 0%";
 
       // 如果有旋转，应用旋转变换
       if (angle !== 0) {
@@ -307,7 +307,7 @@ export class TextLayerManager {
     try {
       const selection = window.getSelection();
       if (!selection || selection.rangeCount === 0) {
-        return '';
+        return "";
       }
 
       const selectedText = selection.toString().trim();
@@ -323,7 +323,7 @@ export class TextLayerManager {
 
     } catch (error) {
       this.#logger.error("Failed to get selected text", error);
-      return '';
+      return "";
     }
   }
 
@@ -420,15 +420,15 @@ export class TextLayerManager {
         }
 
         const [x, y, width, height] = area;
-        const highlightDiv = document.createElement('div');
-        highlightDiv.className = 'text-highlight';
-        highlightDiv.style.position = 'absolute';
+        const highlightDiv = document.createElement("div");
+        highlightDiv.className = "text-highlight";
+        highlightDiv.style.position = "absolute";
         highlightDiv.style.left = `${x}px`;
         highlightDiv.style.top = `${y}px`;
         highlightDiv.style.width = `${width}px`;
         highlightDiv.style.height = `${height}px`;
-        highlightDiv.style.backgroundColor = 'rgba(255, 255, 0, 0.3)';
-        highlightDiv.style.pointerEvents = 'none';
+        highlightDiv.style.backgroundColor = "rgba(255, 255, 0, 0.3)";
+        highlightDiv.style.pointerEvents = "none";
         highlightDiv.dataset.highlightIndex = index;
 
         if (this.#textLayerContainer) {
@@ -448,9 +448,9 @@ export class TextLayerManager {
    * @private
    */
   #clearHighlights() {
-    if (!this.#textLayerContainer) return;
+    if (!this.#textLayerContainer) {return;}
 
-    const highlights = this.#textLayerContainer.querySelectorAll('.text-highlight');
+    const highlights = this.#textLayerContainer.querySelectorAll(".text-highlight");
     highlights.forEach(highlight => highlight.remove());
 
     if (highlights.length > 0) {
@@ -466,7 +466,7 @@ export class TextLayerManager {
 
     // 清空容器
     if (this.#textLayerContainer) {
-      this.#textLayerContainer.innerHTML = '';
+      this.#textLayerContainer.innerHTML = "";
     }
 
     // 清理引用
@@ -485,7 +485,7 @@ export class TextLayerManager {
 
     // 移除事件监听器
     if (this.#selectionChangeHandler) {
-      document.removeEventListener('selectionchange', this.#selectionChangeHandler);
+      document.removeEventListener("selectionchange", this.#selectionChangeHandler);
       this.#selectionChangeHandler = null;
     }
 

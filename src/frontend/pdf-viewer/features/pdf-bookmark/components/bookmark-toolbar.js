@@ -1,12 +1,12 @@
-﻿/**
+/**
  * @file BookmarkToolbar 大纲工具栏组件
  * @module features/pdf-bookmark/components/bookmark-toolbar
  * @description 提供大纲管理操作按钮（添加、删除、修改、拖动提示）
  */
 
-import { getLogger } from '../../../../common/utils/logger.js';
-import { PDF_VIEWER_EVENTS } from '../../../../common/event/pdf-viewer-constants.js';
-import { showInfo as notifyInfo } from '../../../../common/utils/notification.js';
+import { getLogger } from "../../../../common/utils/logger.js";
+import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
+import { showInfo } from "../../../../common/utils/notification.js";
 
 /**
  * BookmarkToolbar 工具栏组件类
@@ -60,7 +60,7 @@ export class BookmarkToolbar {
    * @param {Object} options.eventBus - 事件总线
    */
   constructor({ eventBus }) {
-    this.#logger = getLogger('BookmarkToolbar');
+    this.#logger = getLogger("BookmarkToolbar");
     this.#eventBus = eventBus;
   }
 
@@ -72,7 +72,7 @@ export class BookmarkToolbar {
     this.#container = this.#createToolbarElement();
     this.#setupEventListeners();
     this.#updateButtonStates();
-    this.#logger.info('BookmarkToolbar initialized');
+    this.#logger.info("BookmarkToolbar initialized");
   }
 
   /**
@@ -81,8 +81,8 @@ export class BookmarkToolbar {
    * @private
    */
   #createToolbarElement() {
-    const toolbar = document.createElement('div');
-    toolbar.className = 'bookmark-toolbar';
+    const toolbar = document.createElement("div");
+    toolbar.className = "bookmark-toolbar";
     toolbar.style.cssText = `
       display: flex;
       align-items: center;
@@ -94,36 +94,36 @@ export class BookmarkToolbar {
 
     // 添加按钮
     this.#buttons.add = this.#createButton({
-      id: 'add',
-      icon: '➕',
-      tooltip: '将当前页添加为大纲'
+      id: "add",
+      icon: "➕",
+      tooltip: "将当前页添加为大纲"
     });
 
     // 删除按钮
     this.#buttons.delete = this.#createButton({
-      id: 'delete',
-      icon: '🗑️',
-      tooltip: '删除选中的大纲'
+      id: "delete",
+      icon: "🗑️",
+      tooltip: "删除选中的大纲"
     });
 
     // 修改按钮
     this.#buttons.edit = this.#createButton({
-      id: 'edit',
-      icon: '✏️',
-      tooltip: '编辑选中的大纲'
+      id: "edit",
+      icon: "✏️",
+      tooltip: "编辑选中的大纲"
     });
 
     // 分隔符
-    const separator = document.createElement('div');
-    separator.style.cssText = 'width: 1px; height: 20px; background-color: #ccc; margin: 0 4px;';
+    const separator = document.createElement("div");
+    separator.style.cssText = "width: 1px; height: 20px; background-color: #ccc; margin: 0 4px;";
 
     // 排序按钮（已弃用：改为条目内拖拽柄）。保留占位但隐藏。
     this.#buttons.sort = this.#createButton({
-      id: 'sort',
-      icon: '⇅',
-      tooltip: '拖拽柄已启用，无需此按钮'
+      id: "sort",
+      icon: "⇅",
+      tooltip: "拖拽柄已启用，无需此按钮"
     });
-    this.#buttons.sort.style.display = 'none';
+    this.#buttons.sort.style.display = "none";
 
     // 组装工具栏
     toolbar.appendChild(this.#buttons.add);
@@ -144,8 +144,8 @@ export class BookmarkToolbar {
    * @private
    */
   #createButton({ id, icon, tooltip }) {
-    const button = document.createElement('button');
-    button.type = 'button';
+    const button = document.createElement("button");
+    button.type = "button";
     button.dataset.action = id;
     button.title = tooltip;
     button.innerHTML = `<span style="font-size:20px;">${icon}</span>`;
@@ -164,17 +164,17 @@ export class BookmarkToolbar {
     `;
 
     // 悬停效果
-    button.addEventListener('mouseenter', () => {
+    button.addEventListener("mouseenter", () => {
       if (!button.disabled && !button.dataset.active) {
-        button.style.backgroundColor = '#e8e8e8';
-        button.style.borderColor = '#aaa';
+        button.style.backgroundColor = "#e8e8e8";
+        button.style.borderColor = "#aaa";
       }
     });
 
-    button.addEventListener('mouseleave', () => {
+    button.addEventListener("mouseleave", () => {
       if (!button.disabled && !button.dataset.active) {
-        button.style.backgroundColor = 'white';
-        button.style.borderColor = '#ccc';
+        button.style.backgroundColor = "white";
+        button.style.borderColor = "#ccc";
       }
     });
 
@@ -187,16 +187,16 @@ export class BookmarkToolbar {
    */
   #setupEventListeners() {
     // 按钮点击事件
-    this.#buttons.add.addEventListener('click', () => this.#handleAddClick());
-    this.#buttons.delete.addEventListener('click', () => this.#handleDeleteClick());
-    this.#buttons.edit.addEventListener('click', () => this.#handleEditClick());
-    this.#buttons.sort.addEventListener('click', () => this.#handleSortClick());
+    this.#buttons.add.addEventListener("click", () => this.#handleAddClick());
+    this.#buttons.delete.addEventListener("click", () => this.#handleDeleteClick());
+    this.#buttons.edit.addEventListener("click", () => this.#handleEditClick());
+    this.#buttons.sort.addEventListener("click", () => this.#handleSortClick());
 
     // 监听书签选择变化
     this.#eventBus.on(
       PDF_VIEWER_EVENTS.BOOKMARK.SELECT.CHANGED,
       (data) => this.#handleSelectionChanged(data),
-      { subscriberId: 'BookmarkToolbar' }
+      { subscriberId: "BookmarkToolbar" }
     );
   }
 
@@ -205,11 +205,11 @@ export class BookmarkToolbar {
    * @private
    */
   #handleAddClick() {
-    this.#logger.info('Add bookmark button clicked');
+    this.#logger.info("Add bookmark button clicked");
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.BOOKMARK.CREATE.REQUESTED,
-      { source: 'toolbar' },
-      { actorId: 'BookmarkToolbar' }
+      { source: "toolbar" },
+      { actorId: "BookmarkToolbar" }
     );
   }
 
@@ -218,13 +218,13 @@ export class BookmarkToolbar {
    * @private
    */
   #handleDeleteClick() {
-    if (!this.#selectedBookmarkId) return;
+    if (!this.#selectedBookmarkId) {return;}
 
     this.#logger.info(`Delete bookmark button clicked: ${this.#selectedBookmarkId}`);
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.BOOKMARK.DELETE.REQUESTED,
       { bookmarkId: this.#selectedBookmarkId },
-      { actorId: 'BookmarkToolbar' }
+      { actorId: "BookmarkToolbar" }
     );
   }
 
@@ -233,13 +233,13 @@ export class BookmarkToolbar {
    * @private
    */
   #handleEditClick() {
-    if (!this.#selectedBookmarkId) return;
+    if (!this.#selectedBookmarkId) {return;}
 
     this.#logger.info(`Edit bookmark button clicked: ${this.#selectedBookmarkId}`);
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.BOOKMARK.UPDATE.REQUESTED,
       { bookmarkId: this.#selectedBookmarkId },
-      { actorId: 'BookmarkToolbar' }
+      { actorId: "BookmarkToolbar" }
     );
   }
 
@@ -249,29 +249,29 @@ export class BookmarkToolbar {
    */
   #handleSortClick() {
     this.#sortMode = !this.#sortMode;
-    this.#logger.info(`Sort mode ${this.#sortMode ? 'enabled' : 'disabled'}`);
+    this.#logger.info(`Sort mode ${this.#sortMode ? "enabled" : "disabled"}`);
 
     // 更新按钮样式
     const sortBtn = this.#buttons.sort;
     if (this.#sortMode) {
-      sortBtn.dataset.active = 'true';  // 标记为激活状态
-      sortBtn.style.backgroundColor = '#4CAF50';
-      sortBtn.style.borderColor = '#4CAF50';
+      sortBtn.dataset.active = "true";  // 标记为激活状态
+      sortBtn.style.backgroundColor = "#4CAF50";
+      sortBtn.style.borderColor = "#4CAF50";
       // 显示toast提醒
-      notifyInfo('拖动大纲进行排序');
+      showInfo("拖动大纲进行排序");
     } else {
-      sortBtn.dataset.active = '';  // 移除激活状态
-      sortBtn.style.backgroundColor = 'white';
-      sortBtn.style.borderColor = '#ccc';
+      sortBtn.dataset.active = "";  // 移除激活状态
+      sortBtn.style.backgroundColor = "white";
+      sortBtn.style.borderColor = "#ccc";
       // 显示toast提醒
-      notifyInfo('排序模式已关闭');
+      showInfo("排序模式已关闭");
     }
 
     // 发出排序模式切换事件
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.BOOKMARK.SORT.MODE_CHANGED,
       { sortMode: this.#sortMode },
-      { actorId: 'BookmarkToolbar' }
+      { actorId: "BookmarkToolbar" }
     );
   }
 
@@ -282,7 +282,7 @@ export class BookmarkToolbar {
    */
   #showToast(message) {
     // 统一使用公共通知
-    try { notifyInfo(String(message)); } catch (_) {}
+    try { showInfo(String(message)); } catch (_) {}
   }
 
   /**
@@ -321,11 +321,11 @@ export class BookmarkToolbar {
   #setButtonEnabled(button, enabled) {
     button.disabled = !enabled;
     if (enabled) {
-      button.style.opacity = '1';
-      button.style.cursor = 'pointer';
+      button.style.opacity = "1";
+      button.style.cursor = "pointer";
     } else {
-      button.style.opacity = '0.5';
-      button.style.cursor = 'not-allowed';
+      button.style.opacity = "0.5";
+      button.style.cursor = "not-allowed";
     }
   }
 
@@ -347,7 +347,7 @@ export class BookmarkToolbar {
     }
     this.#container = null;
     this.#buttons = {};
-    this.#logger.info('BookmarkToolbar destroyed');
+    this.#logger.info("BookmarkToolbar destroyed");
   }
 }
 

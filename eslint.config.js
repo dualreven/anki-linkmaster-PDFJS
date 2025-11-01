@@ -68,15 +68,17 @@ export default [
       "no-alert": "error",                    // 禁止使用 alert
       "no-debugger": "error",
       "no-undef": "error",
+      "no-unused-private-class-members": "warn",
     },
   },
 
   // 针对 TypeScript 文件（如仓库存在 tsconfig.json，则启用类型感知）
-  ...tseslint.configs.recommended,
+  // 移除全局 TypeScript 推荐规则，避免作用到 .js/.mjs；仅在下方 TS overrides 中启用
   {
     files: ["**/*.ts", "**/*.tsx"],
     plugins: {
       jsdoc,
+      "@typescript-eslint": tseslint.plugin,
     },
     languageOptions: {
       parser: tseslint.parser,
@@ -116,6 +118,31 @@ export default [
     },
   },
 
+  // EventBus 内核文件：允许变量事件名（不强制字面量）
+  {
+    files: [
+      "src/frontend/common/event/scoped-event-bus.js",
+      "src/frontend/common/event/event-bus.js",
+      "src/frontend/common/event/event-bus-with-tracing.js"
+    ],
+    rules: {
+      "custom/event-name-format": "off",
+    },
+  },
+
+  // 测试文件（Jest 环境）
+  {
+    files: ["**/__tests__/**", "**/*.test.js", "**/*.test.mjs", "**/__smoke__/**"],
+    languageOptions: {
+      globals: {
+        ...globals.jest,
+      },
+    },
+    rules: {
+      "no-undef": "off",
+    },
+  },
+
   // 忽略文件
   {
     ignores: [
@@ -128,6 +155,8 @@ export default [
       ".idea/**",
       ".vscode/**",
       "public/vendor/**",
+      "src/frontend/public/**",
+      "**/*.d.ts",
       "node_modules/**",
       "**/*.min.js",
     ],

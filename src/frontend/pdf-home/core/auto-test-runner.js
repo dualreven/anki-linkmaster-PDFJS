@@ -31,7 +31,7 @@ export function createAutoTestRunner(app) {
       const errorHandler = (e) => {
         try {
           const msg = e?.message || e?.toString?.() || String(e);
-          result.errors.push({ source: 'window.onerror', message: msg });
+          result.errors.push({ source: "window.onerror", message: msg });
         } catch (_) {}
       };
 
@@ -39,22 +39,22 @@ export function createAutoTestRunner(app) {
       console.error = function(...args) {
         try {
           result.errors.push({
-            source: 'console.error',
-            message: args.map(a => (a && a.message) ? a.message : String(a)).join(' ')
+            source: "console.error",
+            message: args.map(a => (a && a.message) ? a.message : String(a)).join(" ")
           });
         } catch(_) {}
         return origConsoleError.apply(console, args);
       };
 
-      window.addEventListener('error', errorHandler);
+      window.addEventListener("error", errorHandler);
 
       // 2) 监听 OPEN.REQUESTED 事件是否触发
       const unsubscribeOpen = app.getEventBus().on(PDF_MANAGEMENT_EVENTS.OPEN.REQUESTED, (payload) => {
         try {
           result.openRequestedFired = true;
-          result.notes.push('OPEN.REQUESTED captured with payload: ' + JSON.stringify(payload));
+          result.notes.push("OPEN.REQUESTED captured with payload: " + JSON.stringify(payload));
         } catch (_) {}
-      }, { subscriberId: 'AutoTest' });
+      }, { subscriberId: "AutoTest" });
 
       // 3) 等待 Tabulator DOM 渲染
       const waitForTableDom = async (timeoutMs = 5000) => {
@@ -62,16 +62,16 @@ export function createAutoTestRunner(app) {
         while (Date.now() - start < timeoutMs) {
           try {
             const wrapper = app.tableWrapper?.tableWrapper ||
-                            document.querySelector('#pdf-table-container .pdf-table-wrapper');
+                            document.querySelector("#pdf-table-container .pdf-table-wrapper");
             if (wrapper) {
-              const isTab = wrapper.classList?.contains?.('tabulator') ||
-                           wrapper.querySelector('.tabulator, .tabulator-table');
-              if (isTab) return wrapper;
+              const isTab = wrapper.classList?.contains?.("tabulator") ||
+                           wrapper.querySelector(".tabulator, .tabulator-table");
+              if (isTab) {return wrapper;}
             }
           } catch (_) {}
           await new Promise(r => setTimeout(r, 50));
         }
-        throw new Error('Tabulator DOM not ready within timeout');
+        throw new Error("Tabulator DOM not ready within timeout");
       };
 
       // 4) 若没有数据则注入一条 mock 数据
@@ -86,17 +86,17 @@ export function createAutoTestRunner(app) {
           if (dataLen === 0) {
             result.usedMockData = true;
             const mock = [{
-              id: 'auto-test.pdf',
-              filename: 'auto-test.pdf',
-              title: 'Auto Test PDF',
+              id: "auto-test.pdf",
+              filename: "auto-test.pdf",
+              title: "Auto Test PDF",
               page_count: 1,
               cards_count: 0
             }];
             await app.tableWrapper.setData(mock);
-            result.notes.push('Injected mock data for auto test');
+            result.notes.push("Injected mock data for auto test");
           }
         } catch (e) {
-          result.errors.push({ source: 'ensureData', message: e?.message || String(e) });
+          result.errors.push({ source: "ensureData", message: e?.message || String(e) });
         }
       };
 
@@ -104,19 +104,19 @@ export function createAutoTestRunner(app) {
       const dispatchDblClick = async () => {
         try {
           const wrapper = app.tableWrapper?.tableWrapper ||
-                          document.querySelector('#pdf-table-container .pdf-table-wrapper');
-          if (!wrapper) throw new Error('table wrapper not found');
+                          document.querySelector("#pdf-table-container .pdf-table-wrapper");
+          if (!wrapper) {throw new Error("table wrapper not found");}
 
           // 兼容 Tabulator 不同结构，尝试多种选择器
-          const rowEl = wrapper.querySelector('.tabulator-row') ||
-                       wrapper.querySelector('.tabulator-tableHolder .tabulator-table .tabulator-row');
-          if (!rowEl) throw new Error('no tabulator row found to double click');
+          const rowEl = wrapper.querySelector(".tabulator-row") ||
+                       wrapper.querySelector(".tabulator-tableHolder .tabulator-table .tabulator-row");
+          if (!rowEl) {throw new Error("no tabulator row found to double click");}
 
-          const evt = new MouseEvent('dblclick', { bubbles: true, cancelable: true, view: window });
+          const evt = new MouseEvent("dblclick", { bubbles: true, cancelable: true, view: window });
           rowEl.dispatchEvent(evt);
-          result.notes.push('Dispatched dblclick on first row');
+          result.notes.push("Dispatched dblclick on first row");
         } catch (e) {
-          result.errors.push({ source: 'dispatchDblClick', message: e?.message || String(e) });
+          result.errors.push({ source: "dispatchDblClick", message: e?.message || String(e) });
         }
       };
 
@@ -128,16 +128,16 @@ export function createAutoTestRunner(app) {
         await dispatchDblClick();
         await new Promise(r => setTimeout(r, 200)); // 等待事件总线处理
       } catch (e) {
-        result.errors.push({ source: 'autoTestFlow', message: e?.message || String(e) });
+        result.errors.push({ source: "autoTestFlow", message: e?.message || String(e) });
       }
 
       // 清理监听
-      try { window.removeEventListener('error', errorHandler); } catch(_) {}
+      try { window.removeEventListener("error", errorHandler); } catch(_) {}
       try { console.error = origConsoleError; } catch(_) {}
-      try { if (typeof unsubscribeOpen === 'function') unsubscribeOpen(); } catch(_) {}
+      try { if (typeof unsubscribeOpen === "function") {unsubscribeOpen();} } catch(_) {}
 
       // 6) 判定成功条件：无 isSelected 错误，且 OPEN.REQUESTED 触发
-      const hasIsSelectedError = result.errors.some(er => /isSelected/.test(er.message || ''));
+      const hasIsSelectedError = result.errors.some(er => /isSelected/.test(er.message || ""));
       result.success = !hasIsSelectedError && result.openRequestedFired;
       result.finishedAt = new Date().toISOString();
 
@@ -146,9 +146,9 @@ export function createAutoTestRunner(app) {
       window.__lastAutoTestResult = result;
 
       if (result.success) {
-        app.logger.info('[AutoTest] Success', result);
+        app.logger.info("[AutoTest] Success", result);
       } else {
-        app.logger.warn('[AutoTest] Failed', result);
+        app.logger.warn("[AutoTest] Failed", result);
       }
 
       return result;
@@ -171,16 +171,16 @@ export function setupAutoTestEnvironment(app) {
     window.__pdfHomeAutoTest = autoTest;
 
     // 若检测到环境变量（通过 window 注入的布尔值）则自动执行
-    if (window.PDF_HOME_AUTO_TEST === true || window.PDF_HOME_AUTO_TEST === '1') {
+    if (window.PDF_HOME_AUTO_TEST === true || window.PDF_HOME_AUTO_TEST === "1") {
       setTimeout(() => {
         try {
           autoTest.run();
         } catch (e) {
-          app.logger.warn('AutoTest run failed to start', e);
+          app.logger.warn("AutoTest run failed to start", e);
         }
       }, 300);
     }
   } catch (e) {
-    app.logger.warn('AutoTest hook init failed', e);
+    app.logger.warn("AutoTest hook init failed", e);
   }
 }

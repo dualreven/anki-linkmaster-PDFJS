@@ -4,9 +4,9 @@
  * @module TranslatorSidebarUI
  */
 
-import { getLogger } from '../../../../common/utils/logger.js';
-import { showSuccess as notifySuccess, showError as notifyError, showInfo as notifyInfo } from '../../../../common/utils/notification.js';
-import { PDF_TRANSLATOR_EVENTS } from '../events.js';
+import { getLogger } from "../../../../common/utils/logger.js";
+import { showSuccess, showError, showInfo } from "../../../../common/utils/notification.js";
+import { PDF_TRANSLATOR_EVENTS } from "../events.js";
 
 /**
  * 翻译侧边栏UI类
@@ -27,7 +27,7 @@ export class TranslatorSidebarUI {
    */
   constructor(eventBus, options = {}) {
     this.#eventBus = eventBus;
-    this.#logger = getLogger('TranslatorSidebarUI');
+    this.#logger = getLogger("TranslatorSidebarUI");
     this.#contentElement = null;
   }
 
@@ -35,11 +35,11 @@ export class TranslatorSidebarUI {
    * 初始化侧边栏
    */
   initialize() {
-    this.#logger.info('Initializing TranslatorSidebarUI...');
+    this.#logger.info("Initializing TranslatorSidebarUI...");
 
     // 创建内容容器
-    this.#contentElement = document.createElement('div');
-    this.#contentElement.className = 'translator-sidebar-content';
+    this.#contentElement = document.createElement("div");
+    this.#contentElement.className = "translator-sidebar-content";
     this.#contentElement.style.cssText = `
       height: 100%;
       overflow-y: auto;
@@ -54,7 +54,7 @@ export class TranslatorSidebarUI {
     // 监听翻译完成事件
     this.#setupEventListeners();
 
-    this.#logger.info('TranslatorSidebarUI initialized');
+    this.#logger.info("TranslatorSidebarUI initialized");
   }
 
   /**
@@ -75,7 +75,7 @@ export class TranslatorSidebarUI {
       this.#eventBus.on(
         PDF_TRANSLATOR_EVENTS.TRANSLATE.COMPLETED,
         (data) => this.#handleTranslationCompleted(data),
-        { subscriberId: 'TranslatorSidebarUI' }
+        { subscriberId: "TranslatorSidebarUI" }
       )
     );
 
@@ -84,7 +84,7 @@ export class TranslatorSidebarUI {
       this.#eventBus.on(
         PDF_TRANSLATOR_EVENTS.TRANSLATE.FAILED,
         (data) => this.#handleTranslationFailed(data),
-        { subscriberId: 'TranslatorSidebarUI' }
+        { subscriberId: "TranslatorSidebarUI" }
       )
     );
   }
@@ -94,9 +94,9 @@ export class TranslatorSidebarUI {
    * @private
    */
   #renderUI() {
-    if (!this.#contentElement) return;
+    if (!this.#contentElement) {return;}
 
-    this.#contentElement.innerHTML = '';
+    this.#contentElement.innerHTML = "";
 
     // 设置栏（翻译引擎选择）
     const settingsSection = this.#createSettingsSection();
@@ -117,8 +117,8 @@ export class TranslatorSidebarUI {
    * @returns {HTMLElement}
    */
   #createSettingsSection() {
-    const section = document.createElement('div');
-    section.className = 'translator-settings';
+    const section = document.createElement("div");
+    section.className = "translator-settings";
     section.style.cssText = `
       margin-bottom: 16px;
       padding: 12px;
@@ -126,7 +126,7 @@ export class TranslatorSidebarUI {
       border-radius: 6px;
     `;
 
-    const label = document.createElement('label');
+    const label = document.createElement("label");
     label.style.cssText = `
       display: block;
       font-size: 12px;
@@ -134,9 +134,9 @@ export class TranslatorSidebarUI {
       margin-bottom: 6px;
       font-weight: 500;
     `;
-    label.textContent = '翻译引擎';
+    label.textContent = "翻译引擎";
 
-    const select = document.createElement('select');
+    const select = document.createElement("select");
     select.style.cssText = `
       width: 100%;
       padding: 6px 8px;
@@ -152,7 +152,7 @@ export class TranslatorSidebarUI {
       <option value="local" disabled>本地词典 (即将支持)</option>
     `;
 
-    select.addEventListener('change', (e) => {
+    select.addEventListener("change", (e) => {
       this.#eventBus.emit(PDF_TRANSLATOR_EVENTS.ENGINE.CHANGED, {
         engine: e.target.value
       });
@@ -171,9 +171,9 @@ export class TranslatorSidebarUI {
    * @returns {HTMLElement}
    */
   #createTranslationSection() {
-    const section = document.createElement('div');
-    section.className = 'translator-result';
-    section.id = 'translator-result-section';
+    const section = document.createElement("div");
+    section.className = "translator-result";
+    section.id = "translator-result-section";
     section.style.cssText = `
       margin-bottom: 20px;
       padding: 16px;
@@ -330,14 +330,14 @@ export class TranslatorSidebarUI {
    * @returns {HTMLElement}
    */
   #createHistorySection() {
-    const section = document.createElement('div');
-    section.className = 'translator-history';
+    const section = document.createElement("div");
+    section.className = "translator-history";
     section.style.cssText = `
       margin-bottom: 16px;
     `;
 
     // 标题栏（可折叠）
-    const header = document.createElement('div');
+    const header = document.createElement("div");
     header.style.cssText = `
       display: flex;
       align-items: center;
@@ -347,7 +347,7 @@ export class TranslatorSidebarUI {
       user-select: none;
     `;
 
-    const title = document.createElement('div');
+    const title = document.createElement("div");
     title.style.cssText = `
       font-size: 14px;
       font-weight: 500;
@@ -355,8 +355,8 @@ export class TranslatorSidebarUI {
     `;
     title.textContent = `📚 翻译历史 (${this.#translationHistory.length})`;
 
-    const toggleIcon = document.createElement('span');
-    toggleIcon.textContent = '▾';
+    const toggleIcon = document.createElement("span");
+    toggleIcon.textContent = "▾";
     toggleIcon.style.cssText = `
       font-size: 12px;
       color: #666;
@@ -366,8 +366,8 @@ export class TranslatorSidebarUI {
     header.appendChild(toggleIcon);
 
     // 历史列表容器
-    const listContainer = document.createElement('div');
-    listContainer.className = 'translator-history-list';
+    const listContainer = document.createElement("div");
+    listContainer.className = "translator-history-list";
     listContainer.style.cssText = `
       max-height: 300px;
       overflow-y: auto;
@@ -388,14 +388,14 @@ export class TranslatorSidebarUI {
     } else {
       listContainer.innerHTML = this.#translationHistory
         .map((item, index) => this.#renderHistoryItem(item, index))
-        .join('');
+        .join("");
     }
 
     // 折叠/展开功能
-    header.addEventListener('click', () => {
-      const isHidden = listContainer.style.display === 'none';
-      listContainer.style.display = isHidden ? 'block' : 'none';
-      toggleIcon.textContent = isHidden ? '▾' : '▸';
+    header.addEventListener("click", () => {
+      const isHidden = listContainer.style.display === "none";
+      listContainer.style.display = isHidden ? "block" : "none";
+      toggleIcon.textContent = isHidden ? "▾" : "▸";
     });
 
     section.appendChild(header);
@@ -433,20 +433,20 @@ export class TranslatorSidebarUI {
           margin-bottom: 4px;
           font-weight: 500;
         ">
-          ${this.#escapeHtml(item.original.substring(0, 30))}${item.original.length > 30 ? '...' : ''}
+          ${this.#escapeHtml(item.original.substring(0, 30))}${item.original.length > 30 ? "..." : ""}
         </div>
         <div style="
           font-size: 12px;
           color: #666;
         ">
-          ${this.#escapeHtml(item.translation.substring(0, 40))}${item.translation.length > 40 ? '...' : ''}
+          ${this.#escapeHtml(item.translation.substring(0, 40))}${item.translation.length > 40 ? "..." : ""}
         </div>
         <div style="
           font-size: 11px;
           color: #999;
           margin-top: 4px;
         ">
-          ${new Date(item.timestamp).toLocaleTimeString('zh-CN')}
+          ${new Date(item.timestamp).toLocaleTimeString("zh-CN")}
         </div>
       </div>
     `;
@@ -458,7 +458,7 @@ export class TranslatorSidebarUI {
    * @param {Object} data - 翻译数据
    */
   #handleTranslationCompleted(data) {
-    this.#logger.info('Translation completed:', data);
+    this.#logger.info("Translation completed:", data);
 
     // 保存当前翻译结果
     this.#currentTranslation = data;
@@ -490,16 +490,16 @@ export class TranslatorSidebarUI {
    * @param {Object} data - 错误数据
    */
   #handleTranslationFailed(data) {
-    this.#logger.error('Translation failed:', data);
+    this.#logger.error("Translation failed:", data);
 
-    const resultSection = this.#contentElement?.querySelector('#translator-result-section');
+    const resultSection = this.#contentElement?.querySelector("#translator-result-section");
     if (resultSection) {
       resultSection.innerHTML = `
         <div style="text-align: center; color: #f44336; padding: 40px 20px;">
           <div style="font-size: 48px; margin-bottom: 12px;">⚠️</div>
           <div style="font-size: 14px; font-weight: 500;">翻译失败</div>
           <div style="font-size: 12px; margin-top: 8px; color: #999;">
-            ${this.#escapeHtml(data.error || '未知错误')}
+            ${this.#escapeHtml(data.error || "未知错误")}
           </div>
         </div>
       `;
@@ -512,33 +512,33 @@ export class TranslatorSidebarUI {
    */
   #bindActionButtons() {
     // 制作标注按钮
-    const createAnnotationBtn = this.#contentElement?.querySelector('.translator-create-annotation-btn');
+    const createAnnotationBtn = this.#contentElement?.querySelector(".translator-create-annotation-btn");
     if (createAnnotationBtn && this.#currentTranslation) {
-      createAnnotationBtn.addEventListener('click', () => {
+      createAnnotationBtn.addEventListener("click", () => {
         this.#handleCreateAnnotation(this.#currentTranslation);
       });
     }
 
     // 制作卡片按钮
-    const createCardBtn = this.#contentElement?.querySelector('.translator-create-card-btn');
+    const createCardBtn = this.#contentElement?.querySelector(".translator-create-card-btn");
     if (createCardBtn && this.#currentTranslation) {
-      createCardBtn.addEventListener('click', () => {
+      createCardBtn.addEventListener("click", () => {
         this.#handleCreateCard(this.#currentTranslation);
       });
     }
 
     // 复制译文按钮
-    const copyBtn = this.#contentElement?.querySelector('.translator-copy-btn');
+    const copyBtn = this.#contentElement?.querySelector(".translator-copy-btn");
     if (copyBtn && this.#currentTranslation) {
-      copyBtn.addEventListener('click', () => {
+      copyBtn.addEventListener("click", () => {
         this.#handleCopyTranslation(this.#currentTranslation.translation);
       });
     }
 
     // 朗读按钮
-    const speakBtn = this.#contentElement?.querySelector('.translator-speak-btn');
+    const speakBtn = this.#contentElement?.querySelector(".translator-speak-btn");
     if (speakBtn && this.#currentTranslation) {
-      speakBtn.addEventListener('click', () => {
+      speakBtn.addEventListener("click", () => {
         this.#handleSpeak(this.#currentTranslation.original);
       });
     }
@@ -549,9 +549,9 @@ export class TranslatorSidebarUI {
    * @private
    */
   #bindHistoryItemClick() {
-    const historyItems = this.#contentElement?.querySelectorAll('.history-item');
+    const historyItems = this.#contentElement?.querySelectorAll(".history-item");
     historyItems?.forEach(item => {
-      item.addEventListener('click', (e) => {
+      item.addEventListener("click", (e) => {
         const index = parseInt(e.currentTarget.dataset.index);
         const historyItem = this.#translationHistory[index];
         if (historyItem) {
@@ -572,18 +572,18 @@ export class TranslatorSidebarUI {
    * @param {Object} translation - 翻译数据
    */
   #handleCreateAnnotation(translation) {
-    this.#logger.info('Creating annotation from translation...');
+    this.#logger.info("Creating annotation from translation...");
 
     // 验证是否有位置信息和Range数据
     if (!translation.pageNumber || !translation.position) {
-      notifyError('无法创建标注：缺少位置信息', 4000);
-      this.#logger.warn('Cannot create annotation: missing pageNumber or position', translation);
+      showError("无法创建标注：缺少位置信息", 4000);
+      this.#logger.warn("Cannot create annotation: missing pageNumber or position", translation);
       return;
     }
 
     if (!translation.rangeData || translation.rangeData.length === 0) {
-      notifyError('无法创建标注：缺少文本选择数据', 4000);
-      this.#logger.warn('Cannot create annotation: missing rangeData', translation);
+      showError("无法创建标注：缺少文本选择数据", 4000);
+      this.#logger.warn("Cannot create annotation: missing rangeData", translation);
       return;
     }
 
@@ -592,27 +592,27 @@ export class TranslatorSidebarUI {
 
     // 创建文本高亮类型的标注（带评论）
     const annotationData = {
-      type: 'text-highlight',  // 文本高亮类型
+      type: "text-highlight",  // 文本高亮类型
       pageNumber: translation.pageNumber,
       data: {
         selectedText: translation.original,  // 原始选中的文本
-        highlightColor: 'yellow',  // 高亮颜色
+        highlightColor: "yellow",  // 高亮颜色
         textRanges: translation.rangeData,  // Range数据（序列化后的）
         boundingBox: translation.position,  // 边界框
         comment: annotationContent  // 添加评论（包含原文和译文）
       }
     };
 
-    this.#logger.info('Annotation data prepared:', annotationData);
+    this.#logger.info("Annotation data prepared:", annotationData);
 
     // 发出创建标注事件（全局事件，供AnnotationFeature监听）
-    this.#eventBus.emit('annotation:create:requested', {
+    this.#eventBus.emit("annotation:create:requested", {
       annotation: annotationData
-    }, { actorId: 'TranslatorSidebarUI' });
+    }, { actorId: "TranslatorSidebarUI" });
 
     // 显示成功提示
-    notifySuccess('✅ 标注已创建', 2000);
-    this.#logger.info('Annotation creation requested');
+    showSuccess("✅ 标注已创建", 2000);
+    this.#logger.info("Annotation creation requested");
   }
 
   /**
@@ -621,7 +621,7 @@ export class TranslatorSidebarUI {
    * @param {Object} translation - 翻译数据
    */
   #handleCreateCard(translation) {
-    this.#logger.info('Creating card from translation...');
+    this.#logger.info("Creating card from translation...");
 
     // 发送全局事件到卡片功能域
     this.#eventBus.emitGlobal(PDF_TRANSLATOR_EVENTS.CARD.CREATE_REQUESTED, {
@@ -629,14 +629,14 @@ export class TranslatorSidebarUI {
         front: translation.original,
         back: translation.translation,
         source: this.#buildSourceInfo(),
-        tags: ['翻译', 'PDF', translation.language?.source || 'unknown'],
+        tags: ["翻译", "PDF", translation.language?.source || "unknown"],
         extras: translation.extras || {}
       },
-      source: 'translator'
+      source: "translator"
     });
 
     // 显示提示
-    notifyInfo('卡片创建请求已发送');
+    showInfo("卡片创建请求已发送");
   }
 
   /**
@@ -646,11 +646,11 @@ export class TranslatorSidebarUI {
    */
   #handleCopyTranslation(text) {
     navigator.clipboard.writeText(text).then(() => {
-      this.#logger.info('Translation copied to clipboard');
-      notifySuccess('译文已复制到剪贴板', 2000);
+      this.#logger.info("Translation copied to clipboard");
+      showSuccess("译文已复制到剪贴板", 2000);
     }).catch(err => {
-      this.#logger.error('Failed to copy translation:', err);
-      notifyError('复制失败', 3000);
+      this.#logger.error("Failed to copy translation:", err);
+      showError("复制失败", 3000);
     });
   }
 
@@ -660,14 +660,14 @@ export class TranslatorSidebarUI {
    * @param {string} text - 要朗读的文本
    */
   #handleSpeak(text) {
-    if ('speechSynthesis' in window) {
+    if ("speechSynthesis" in window) {
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'en-US'; // 可以根据语言自动检测
+      utterance.lang = "en-US"; // 可以根据语言自动检测
       window.speechSynthesis.speak(utterance);
-      this.#logger.info('Speaking text:', text);
+      this.#logger.info("Speaking text:", text);
     } else {
-      this.#logger.warn('Speech synthesis not supported');
-      notifyError('浏览器不支持语音朗读', 3000);
+      this.#logger.warn("Speech synthesis not supported");
+      showError("浏览器不支持语音朗读", 3000);
     }
   }
 
@@ -677,7 +677,7 @@ export class TranslatorSidebarUI {
    * @returns {string}
    */
   #buildSourceInfo() {
-    const fileName = window.PDF_PATH?.split('/').pop() || 'Unknown';
+    const fileName = window.PDF_PATH?.split("/").pop() || "Unknown";
     // TODO: 获取当前页码
     const pageNumber = 1;
     return `${fileName} - 第${pageNumber}页`;
@@ -698,7 +698,7 @@ export class TranslatorSidebarUI {
    * @returns {string} 转义后的文本
    */
   #escapeHtml(text) {
-    const div = document.createElement('div');
+    const div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML;
   }
@@ -707,14 +707,14 @@ export class TranslatorSidebarUI {
    * 销毁组件
    */
   destroy() {
-    this.#logger.info('Destroying TranslatorSidebarUI...');
+    this.#logger.info("Destroying TranslatorSidebarUI...");
 
     // 取消所有事件订阅
     this.#unsubs.forEach(unsub => {
       try {
         unsub();
       } catch (err) {
-        this.#logger.warn('Failed to unsubscribe:', err);
+        this.#logger.warn("Failed to unsubscribe:", err);
       }
     });
     this.#unsubs = [];
@@ -728,6 +728,6 @@ export class TranslatorSidebarUI {
     this.#currentTranslation = null;
     this.#translationHistory = [];
 
-    this.#logger.info('TranslatorSidebarUI destroyed');
+    this.#logger.info("TranslatorSidebarUI destroyed");
   }
 }

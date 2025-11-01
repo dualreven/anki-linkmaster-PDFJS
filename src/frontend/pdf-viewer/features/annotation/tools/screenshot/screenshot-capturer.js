@@ -2,7 +2,7 @@
  * 截图捕获器
  * 使用Canvas API捕获PDF指定区域
  */
-import { getLogger } from '../../../../../common/utils/logger.js';
+import { getLogger } from "../../../../../common/utils/logger.js";
 
 export class ScreenshotCapturer {
   #pdfViewerManager;
@@ -10,7 +10,7 @@ export class ScreenshotCapturer {
 
   constructor(pdfViewerManager) {
     this.#pdfViewerManager = pdfViewerManager;
-    this.#logger = getLogger('ScreenshotCapturer');
+    this.#logger = getLogger("ScreenshotCapturer");
   }
 
   /**
@@ -45,7 +45,7 @@ export class ScreenshotCapturer {
       return base64;
 
     } catch (error) {
-      this.#logger.error('[Capturer] Capture failed:', error);
+      this.#logger.error("[Capturer] Capture failed:", error);
       throw error;
     }
   }
@@ -56,22 +56,22 @@ export class ScreenshotCapturer {
    */
   #validateCaptureParams(pageNumber, rect) {
     if (!Number.isInteger(pageNumber) || pageNumber < 1) {
-      throw new Error('Page number must be a positive integer');
+      throw new Error("Page number must be a positive integer");
     }
 
-    if (!rect || typeof rect !== 'object') {
-      throw new Error('Rect must be an object');
+    if (!rect || typeof rect !== "object") {
+      throw new Error("Rect must be an object");
     }
 
-    const requiredProps = ['x', 'y', 'width', 'height'];
+    const requiredProps = ["x", "y", "width", "height"];
     for (const prop of requiredProps) {
-      if (typeof rect[prop] !== 'number' || rect[prop] < 0) {
+      if (typeof rect[prop] !== "number" || rect[prop] < 0) {
         throw new Error(`Rect.${prop} must be a non-negative number`);
       }
     }
 
     if (rect.width === 0 || rect.height === 0) {
-      throw new Error('Rect width and height must be greater than 0');
+      throw new Error("Rect width and height must be greater than 0");
     }
   }
 
@@ -114,14 +114,14 @@ export class ScreenshotCapturer {
    */
   #extractRegion(sourceCanvas, rect) {
     // 创建新的Canvas用于存储截取区域
-    const regionCanvas = document.createElement('canvas');
+    const regionCanvas = document.createElement("canvas");
     regionCanvas.width = rect.width;
     regionCanvas.height = rect.height;
 
-    const ctx = regionCanvas.getContext('2d');
+    const ctx = regionCanvas.getContext("2d");
 
     if (!ctx) {
-      throw new Error('Cannot get 2D context from canvas');
+      throw new Error("Cannot get 2D context from canvas");
     }
 
     // 确保rect不超出源Canvas边界
@@ -159,10 +159,10 @@ export class ScreenshotCapturer {
   #toBase64(canvas) {
     try {
       // PNG格式，质量1.0（无损）
-      return canvas.toDataURL('image/png', 1.0);
+      return canvas.toDataURL("image/png", 1.0);
     } catch (error) {
-      this.#logger.error('[Capturer] toDataURL failed:', error);
-      throw new Error('Failed to convert canvas to base64: ' + error.message);
+      this.#logger.error("[Capturer] toDataURL failed:", error);
+      throw new Error("Failed to convert canvas to base64: " + error.message);
     }
   }
 }

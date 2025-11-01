@@ -38,7 +38,7 @@ const rule = {
     return {
       ImportDeclaration(node) {
         const source = node.source && node.source.value;
-        if (!isNotificationModule(source)) return;
+        if (!isNotificationModule(source)) { return; }
 
         for (const spec of node.specifiers) {
           // default import

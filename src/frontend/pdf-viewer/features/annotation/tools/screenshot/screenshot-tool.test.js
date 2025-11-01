@@ -1,22 +1,22 @@
-import { jest } from '@jest/globals';
-import { ScreenshotTool } from './index.js';
-import { PDF_VIEWER_EVENTS } from '../../../../../common/event/pdf-viewer-constants.js';
-import { AnnotationType } from '../../models/annotation.js';
+import { jest } from "@jest/globals";
+import { ScreenshotTool } from "./index.js";
+import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
+import { AnnotationType } from "../../models/annotation.js";
 
-jest.mock('./screenshot-capturer.js', () => ({
+jest.mock("./screenshot-capturer.js", () => ({
   ScreenshotCapturer: jest.fn().mockImplementation(() => ({
     destroy: jest.fn()
   }))
 }));
 
-jest.mock('./qwebchannel-bridge.js', () => ({
+jest.mock("./qwebchannel-bridge.js", () => ({
   QWebChannelScreenshotBridge: jest.fn().mockImplementation(() => ({
-    getMode: jest.fn(() => 'mock'),
+    getMode: jest.fn(() => "mock"),
     destroy: jest.fn()
   }))
 }));
 
-jest.mock('../../../../../common/utils/logger.js', () => ({
+jest.mock("../../../../../common/utils/logger.js", () => ({
   getLogger: jest.fn(() => ({
     info: jest.fn(),
     warn: jest.fn(),
@@ -25,7 +25,7 @@ jest.mock('../../../../../common/utils/logger.js', () => ({
   }))
 }));
 
-describe('ScreenshotTool annotation restoration', () => {
+describe("ScreenshotTool annotation restoration", () => {
   let tool;
   let eventBus;
   let handlers;
@@ -37,13 +37,13 @@ describe('ScreenshotTool annotation restoration', () => {
   beforeEach(async () => {
     handlers = {};
 
-    viewerContainer = document.createElement('div');
-    viewerContainer.id = 'viewerContainer';
+    viewerContainer = document.createElement("div");
+    viewerContainer.id = "viewerContainer";
     document.body.appendChild(viewerContainer);
 
-    pageDiv = document.createElement('div');
-    pageDiv.className = 'page';
-    pageDiv.dataset.pageNumber = '3';
+    pageDiv = document.createElement("div");
+    pageDiv.className = "page";
+    pageDiv.dataset.pageNumber = "3";
     viewerContainer.appendChild(pageDiv);
 
     eventBus = {
@@ -65,7 +65,7 @@ describe('ScreenshotTool annotation restoration', () => {
       getPageView: jest.fn(() => ({ div: pageDiv }))
     };
 
-    renderMarkerSpy = jest.spyOn(ScreenshotTool.prototype, 'renderScreenshotMarker').mockImplementation(() => {});
+    renderMarkerSpy = jest.spyOn(ScreenshotTool.prototype, "renderScreenshotMarker").mockImplementation(() => {});
 
     const logger = {
       info: jest.fn(),
@@ -86,13 +86,13 @@ describe('ScreenshotTool annotation restoration', () => {
     }
     viewerContainer = null;
     pageDiv = null;
-    document.body.innerHTML = '';
+    document.body.innerHTML = "";
     jest.clearAllMocks();
   });
 
-  it('renders screenshot markers when annotation data loads', () => {
+  it("renders screenshot markers when annotation data loads", () => {
     const screenshotAnnotation = {
-      id: 's-1',
+      id: "s-1",
       type: AnnotationType.SCREENSHOT,
       pageNumber: 3,
       data: {
@@ -105,14 +105,14 @@ describe('ScreenshotTool annotation restoration', () => {
       }
     };
     const otherAnnotation = {
-      id: 'h-1',
-      type: 'text-highlight',
+      id: "h-1",
+      type: "text-highlight",
       pageNumber: 1,
       data: {}
     };
 
     const dataLoadedHandler = handlers[PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED];
-    expect(typeof dataLoadedHandler).toBe('function');
+    expect(typeof dataLoadedHandler).toBe("function");
     dataLoadedHandler({ annotations: [screenshotAnnotation, otherAnnotation] });
 
     expect(renderMarkerSpy).toHaveBeenCalledTimes(1);

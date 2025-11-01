@@ -16,14 +16,14 @@ const LOG_PATH = typeof __WS_SERVER_LOG_PATH__ !== "undefined" ? __WS_SERVER_LOG
  */
 
 function getQueryParam(name) {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === "undefined") {return null;}
   const params = new URLSearchParams(window.location.search);
-  return params.get(name) || params.get(name.replace(/_/g, '-')) || params.get(name.replace(/-/g, '_'));
+  return params.get(name) || params.get(name.replace(/_/g, "-")) || params.get(name.replace(/-/g, "_"));
 }
 
 export function resolvePDFServerPortSync({ logger, fallbackPort = 8080 } = {}) {
   const activeLogger = logger && typeof logger === "object" ? logger : null;
-  const fromQuery = getQueryParam('pdfs');
+  const fromQuery = getQueryParam("pdfs");
   if (fromQuery) {
     const portNum = parseInt(fromQuery, 10);
     if (Number.isInteger(portNum) && portNum > 0 && portNum < 65536) {
@@ -31,7 +31,7 @@ export function resolvePDFServerPortSync({ logger, fallbackPort = 8080 } = {}) {
       return portNum;
     }
   }
-  if (typeof window !== 'undefined' && window.RUNTIME_CONFIG?.pdfFile_port) {
+  if (typeof window !== "undefined" && window.RUNTIME_CONFIG?.pdfFile_port) {
     const portNum = parseInt(window.RUNTIME_CONFIG.pdfFile_port, 10);
     if (Number.isInteger(portNum) && portNum > 0 && portNum < 65536) {
       activeLogger?.info?.(`Resolved PDF server port from runtime config: ${portNum}`);
@@ -43,7 +43,7 @@ export function resolvePDFServerPortSync({ logger, fallbackPort = 8080 } = {}) {
 
 export function resolveWebSocketPortSync({ logger, fallbackPort = DEFAULT_WS_PORT } = {}) {
   const activeLogger = logger && typeof logger === "object" ? logger : null;
-  const fromQuery = getQueryParam('msgCenter');
+  const fromQuery = getQueryParam("msgCenter");
   if (fromQuery) {
     const portNum = parseInt(fromQuery, 10);
     if (Number.isInteger(portNum) && portNum > 0 && portNum < 65536) {
@@ -51,7 +51,7 @@ export function resolveWebSocketPortSync({ logger, fallbackPort = DEFAULT_WS_POR
       return portNum;
     }
   }
-  if (typeof window !== 'undefined' && window.RUNTIME_CONFIG?.msgCenter_port) {
+  if (typeof window !== "undefined" && window.RUNTIME_CONFIG?.msgCenter_port) {
     const portNum = parseInt(window.RUNTIME_CONFIG.msgCenter_port, 10);
     if (Number.isInteger(portNum) && portNum > 0 && portNum < 65536) {
       activeLogger?.info?.(`Resolved WebSocket port from runtime config: ${portNum}`);

@@ -5,9 +5,9 @@
  * @implements {IFeature}
  */
 
-import { getLogger } from '../../../common/utils/logger.js';
-import { NavigationService } from './services/navigation-service.js';
-import { CoreNavigationFeatureConfig } from './feature.config.js';
+import { getLogger } from "../../../common/utils/logger.js";
+import { NavigationService } from "./services/navigation-service.js";
+import { CoreNavigationFeatureConfig } from "./feature.config.js";
 
 /**
  * 核心导航功能 Feature
@@ -37,7 +37,7 @@ import { CoreNavigationFeatureConfig } from './feature.config.js';
  */
 export class CoreNavigationFeature {
   /** @type {import('../../../common/utils/logger.js').Logger} */
-  #logger = getLogger('CoreNavigationFeature');
+  #logger = getLogger("CoreNavigationFeature");
 
   /** @type {EventBus|null} */
   #eventBus = null;
@@ -82,7 +82,7 @@ export class CoreNavigationFeature {
 
     // 1. 从 context 中获取依赖
     const container = context.container || context;
-    this.#eventBus = context.globalEventBus || container.get('eventBus');
+    this.#eventBus = context.globalEventBus || container.get("eventBus");
 
     if (!this.#eventBus) {
       throw new Error(`[${this.name}] EventBus 未在容器或 context 中找到`);
@@ -94,14 +94,14 @@ export class CoreNavigationFeature {
       CoreNavigationFeatureConfig.options
     );
 
-    this.#logger.info('[CoreNavigationFeature] NavigationService 已创建');
+    this.#logger.info("[CoreNavigationFeature] NavigationService 已创建");
 
     // 3. 将 NavigationService 注册到全局容器中，供其他 Feature 使用
     if (container.registerGlobal) {
-      container.registerGlobal('navigationService', this.#navigationService);
-      this.#logger.info('[CoreNavigationFeature] NavigationService 已注册到全局容器');
+      container.registerGlobal("navigationService", this.#navigationService);
+      this.#logger.info("[CoreNavigationFeature] NavigationService 已注册到全局容器");
     } else {
-      this.#logger.warn('[CoreNavigationFeature] 容器不支持 registerGlobal 方法，无法注册服务');
+      this.#logger.warn("[CoreNavigationFeature] 容器不支持 registerGlobal 方法，无法注册服务");
     }
 
     this.#logger.info(`${this.name} Feature 安装完成`);

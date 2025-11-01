@@ -4,11 +4,11 @@
  * @description 负责应用容器、WebSocket连接等核心基础设施
  */
 
-import { createPDFViewerContainer } from '../../container/app-container.js';
-import { createWebSocketAdapter } from '../../adapters/websocket-adapter.js';
-import { createConsoleWebSocketBridge } from '../../../common/utils/console-websocket-bridge.js';
-import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS } from '../../../common/event/event-constants.js';
-import { showError as notifyError } from '../../../common/utils/notification.js';
+import { createPDFViewerContainer } from "../../container/app-container.js";
+import { createWebSocketAdapter } from "../../adapters/websocket-adapter.js";
+import { createConsoleWebSocketBridge } from "../../../common/utils/console-websocket-bridge.js";
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS } from "../../../common/event/event-constants.js";
+import { showError } from "../../../common/utils/notification.js";
 
 /**
  * 应用核心功能域
@@ -23,12 +23,12 @@ export class AppCoreFeature {
 
   /** 功能名称 */
   get name() {
-    return 'app-core';
+    return "app-core";
   }
 
   /** 版本号 */
   get version() {
-    return '1.0.0';
+    return "1.0.0";
   }
 
   /** 依赖的功能 */
@@ -43,14 +43,14 @@ export class AppCoreFeature {
   async install(context) {
     const { globalEventBus, logger, config = {}, container } = context;
 
-    logger.info('Installing AppCoreFeature...');
+    logger.info("Installing AppCoreFeature...");
 
     // 获取 WebSocket URL（从配置或 URL 参数）
     let wsUrl = config.wsUrl;
     if (!wsUrl) {
       // 从 URL 参数获取端口
       const urlParams = new URLSearchParams(window.location.search);
-      const msgCenterPort = urlParams.get('msgCenter');
+      const msgCenterPort = urlParams.get("msgCenter");
       const wsPort = msgCenterPort ? parseInt(msgCenterPort, 10) : 8765;
       wsUrl = `ws://localhost:${wsPort}`;
     }
@@ -66,7 +66,7 @@ export class AppCoreFeature {
 
     // 初始化容器
     if (!this.#appContainer.isInitialized()) {
-      logger.info('Initializing app container...');
+      logger.info("Initializing app container...");
       await this.#appContainer.initialize();
 
       // 获取 WSClient
@@ -75,19 +75,19 @@ export class AppCoreFeature {
 
       // 将 wsClient 注册到根容器，供其他 Feature（如 PDFBookmarkFeature）获取
       try {
-        if (container && typeof container.registerGlobal === 'function' && this.#wsClient) {
-          container.registerGlobal('wsClient', this.#wsClient);
-          logger.info('wsClient registered globally in DI container');
+        if (container && typeof container.registerGlobal === "function" && this.#wsClient) {
+          container.registerGlobal("wsClient", this.#wsClient);
+          logger.info("wsClient registered globally in DI container");
         }
       } catch (e) {
-        logger.warn('Failed to register wsClient globally', e);
+        logger.warn("Failed to register wsClient globally", e);
       }
 
-      logger.info('App container initialized');
+      logger.info("App container initialized");
     }
 
     // 连接 WebSocket
-    logger.info('Connecting WebSocket...');
+    logger.info("Connecting WebSocket...");
     this.#appContainer.connect();
 
     // 安装 WebSocketAdapter，将内部事件与WS契约桥接
@@ -98,7 +98,7 @@ export class AppCoreFeature {
         this.#wsAdapter.setupMessageHandlers();
       }
     } catch (e) {
-      logger.warn('Failed to initialize WebSocketAdapter', e);
+      logger.warn("Failed to initialize WebSocketAdapter", e);
     }
 
     // 不再创建独立的 Console 桥接器，避免与容器层冲突与重复日志
@@ -108,26 +108,26 @@ export class AppCoreFeature {
       const bus = context.globalEventBus;
       bus.on(WEBSOCKET_EVENTS.MESSAGE.SEND_FAILED, (err) => {
         try {
-          const msg = (err && err.error_message) || 'WebSocket 消息发送失败';
+          const msg = (err && err.error_message) || "WebSocket 消息发送失败";
           const type = err && err.message_type;
-          notifyError(type ? `${type}: ${msg}` : msg, 5000);
+          showError(type ? `${type}: ${msg}` : msg, 5000);
         } catch (_) {}
-      }, { subscriberId: 'AppCoreFeature' });
+      }, { subscriberId: "AppCoreFeature" });
 
       bus.on(WEBSOCKET_MESSAGE_EVENTS.ERROR, (payload) => {
         try {
           const type = payload && (payload.type || payload.received_type);
           const errMsg = (payload && (payload.message || payload.error_message))
             || (payload && payload.error && (payload.error.message || payload.error.code))
-            || '操作失败';
-          notifyError(type ? `${type}: ${errMsg}` : errMsg, 6000);
+            || "操作失败";
+          showError(type ? `${type}: ${errMsg}` : errMsg, 6000);
         } catch (_) {}
-      }, { subscriberId: 'AppCoreFeature' });
+      }, { subscriberId: "AppCoreFeature" });
     } catch (e) {
-      logger.warn('注册全局错误 toast 失败', e);
+      logger.warn("注册全局错误 toast 失败", e);
     }
 
-    logger.info('AppCoreFeature installed successfully');
+    logger.info("AppCoreFeature installed successfully");
   }
 
   /**
@@ -137,7 +137,7 @@ export class AppCoreFeature {
   async uninstall(context) {
     const { logger } = context;
 
-    logger.info('Uninstalling AppCoreFeature...');
+    logger.info("Uninstalling AppCoreFeature...");
 
     // 断开 WebSocket
     if (this.#appContainer) {
@@ -160,7 +160,7 @@ export class AppCoreFeature {
 
     this.#wsClient = null;
 
-    logger.info('AppCoreFeature uninstalled');
+    logger.info("AppCoreFeature uninstalled");
   }
 
   /**

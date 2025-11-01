@@ -26,7 +26,7 @@ export class PDFManager {
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
-    this.#logger = getLogger('PDFViewer');
+    this.#logger = getLogger("PDFViewer");
   }
 
   /**
@@ -44,7 +44,7 @@ export class PDFManager {
 
       // 动态导入PDF.js库
       this.#logger.info("Loading PDF.js library (ESM)...");
-      this.#pdfjsLib = await import('pdfjs-dist');
+      this.#pdfjsLib = await import("pdfjs-dist");
 
       // 记录PDF.js版本信息
       if (this.#pdfjsLib) {
@@ -55,10 +55,10 @@ export class PDFManager {
       }
 
       // 配置PDF.js - 使用import.meta.url直接解析Vite别名
-      this.#pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('@pdfjs/build/pdf.worker.min.mjs', import.meta.url).href;
+      this.#pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("@pdfjs/build/pdf.worker.min.mjs", import.meta.url).href;
 
       // 启用标准字体映射，支持中文等非拉丁字符（使用Vite别名，简单且本地化）
-      this.#pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = new URL('@pdfjs/standard_fonts/', import.meta.url).href;
+      this.#pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = new URL("@pdfjs/standard_fonts/", import.meta.url).href;
 
       this.#logger.info("PDF.js worker configured", {
         workerSrc: this.#pdfjsLib.GlobalWorkerOptions.workerSrc,
@@ -83,9 +83,9 @@ export class PDFManager {
 
       // 发布初始化错误事件
       this.#eventBus.emit(PDF_VIEWER_EVENTS.STATE.ERROR, {
-        module: 'PDFManager',
+        module: "PDFManager",
         error: error.message
-      }, { actorId: 'PDFManager' });
+      }, { actorId: "PDFManager" });
 
       throw error;
     }
@@ -106,7 +106,7 @@ export class PDFManager {
 
     // 如果仅传入filename而没有url，构造默认URL
     if (!url && filename) {
-      const actualFilename = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
+      const actualFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
       url = `${PATH_CONFIG.proxyPath}${actualFilename}`;
       this.#logger.info(`Constructed URL from filename: ${url}`);
     }
@@ -127,7 +127,7 @@ export class PDFManager {
           attempt: attempt,
           percent: 0,
           message: `开始加载 (尝试 ${attempt}/${LOADING_CONFIG.maxRetries})`
-        }, { actorId: 'PDFManager' });
+        }, { actorId: "PDFManager" });
 
         // 根据数据类型选择加载方法
         let pdfDocument;
@@ -144,14 +144,14 @@ export class PDFManager {
         // 设置文档到管理器
         this.#documentManager.setDocument(pdfDocument);
 
-        this.#logger.info(`PDF loaded successfully: ${filename || 'Document'}`);
+        this.#logger.info(`PDF loaded successfully: ${filename || "Document"}`);
 
         // 发射 FILE.LOAD.SUCCESS 事件，通知 UI 进行渲染
         this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, {
           pdfDocument,
           filename: filename,
           url: url
-        }, { actorId: 'PDFManager' });
+        }, { actorId: "PDFManager" });
 
         return pdfDocument;
 
@@ -165,7 +165,7 @@ export class PDFManager {
           error: error.message,
           attempt: attempt,
           maxAttempts: LOADING_CONFIG.maxRetries
-        }, { actorId: 'PDFManager' });
+        }, { actorId: "PDFManager" });
 
         // 如果还有重试机会，等待后重试
         if (attempt < LOADING_CONFIG.maxRetries) {
@@ -288,19 +288,19 @@ export class PDFManager {
     this.#eventBus.on(
       PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
       async (eventData) => {
-        this.#logger.info('Received PDF load request:', eventData);
+        this.#logger.info("Received PDF load request:", eventData);
 
         try {
           // 调用 loadPDF 方法
           await this.loadPDF(eventData);
         } catch (error) {
-          this.#logger.error('Failed to handle PDF load request:', error);
+          this.#logger.error("Failed to handle PDF load request:", error);
         }
       },
-      { subscriberId: 'PDFManager' }
+      { subscriberId: "PDFManager" }
     );
 
-    this.#logger.info('PDFManager event listeners setup complete');
+    this.#logger.info("PDFManager event listeners setup complete");
   }
 
   /**

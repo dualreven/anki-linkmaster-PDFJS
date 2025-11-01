@@ -4,8 +4,8 @@
  * @description 提供书签存储接口，方便将来切换存储方式
  */
 
-import { getLogger } from '../../../../common/utils/logger.js';
-import { WEBSOCKET_MESSAGE_TYPES } from '../../../../common/event/event-constants.js';
+import { getLogger } from "../../../../common/utils/logger.js";
+import { WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constants.js";
 
 /**
  * 书签存储接口（抽象基类）
@@ -13,25 +13,25 @@ import { WEBSOCKET_MESSAGE_TYPES } from '../../../../common/event/event-constant
  */
 export class IBookmarkStorage {
   async load(pdfId) {
-    throw new Error('IBookmarkStorage.load() must be implemented');
+    throw new Error("IBookmarkStorage.load() must be implemented");
   }
 
   async save(pdfId, bookmarks, rootIds) {
-    throw new Error('IBookmarkStorage.save() must be implemented');
+    throw new Error("IBookmarkStorage.save() must be implemented");
   }
 
   async clear(pdfId) {
-    throw new Error('IBookmarkStorage.clear() must be implemented');
+    throw new Error("IBookmarkStorage.clear() must be implemented");
   }
 }
 
 export class LocalStorageBookmarkStorage extends IBookmarkStorage {
   #logger;
-  #storageKeyPrefix = 'pdf-viewer-bookmarks-';
+  #storageKeyPrefix = "pdf-viewer-bookmarks-";
 
   constructor() {
     super();
-    this.#logger = getLogger('LocalStorageBookmarkStorage');
+    this.#logger = getLogger("LocalStorageBookmarkStorage");
   }
 
   async load(pdfId) {
@@ -53,7 +53,7 @@ export class LocalStorageBookmarkStorage extends IBookmarkStorage {
         rootIds: parsed.rootIds || []
       };
     } catch (error) {
-      this.#logger.error('Failed to load bookmarks from localStorage:', error);
+      this.#logger.error("Failed to load bookmarks from localStorage:", error);
       return null;
     }
   }
@@ -70,7 +70,7 @@ export class LocalStorageBookmarkStorage extends IBookmarkStorage {
       localStorage.setItem(storageKey, JSON.stringify(data));
       this.#logger.info(`✅ Bookmarks saved to localStorage: key=${storageKey}, count=${bookmarks.length}`);
     } catch (error) {
-      this.#logger.error('Failed to save bookmarks to localStorage:', error);
+      this.#logger.error("Failed to save bookmarks to localStorage:", error);
       throw error;
     }
   }
@@ -81,7 +81,7 @@ export class LocalStorageBookmarkStorage extends IBookmarkStorage {
       localStorage.removeItem(storageKey);
       this.#logger.info(`✅ Bookmarks cleared from localStorage: key=${storageKey}`);
     } catch (error) {
-      this.#logger.error('Failed to clear bookmarks from localStorage:', error);
+      this.#logger.error("Failed to clear bookmarks from localStorage:", error);
       throw error;
     }
   }
@@ -94,33 +94,33 @@ export class RemoteBookmarkStorage extends IBookmarkStorage {
 
   constructor({ wsClient, fallback } = {}) {
     super();
-    this.#logger = getLogger('RemoteBookmarkStorage');
+    this.#logger = getLogger("RemoteBookmarkStorage");
     this.#wsClient = wsClient;
     this.#fallback = fallback || null;
   }
 
   #canUseRemote() {
-    return this.#wsClient && typeof this.#wsClient.request === 'function';
+    return this.#wsClient && typeof this.#wsClient.request === "function";
   }
 
   async #fallbackLoad(pdfId) {
-    if (!this.#fallback) return null;
+    if (!this.#fallback) {return null;}
     return this.#fallback.load(pdfId);
   }
 
   async #fallbackSave(pdfId, bookmarks, rootIds) {
-    if (!this.#fallback) return;
+    if (!this.#fallback) {return;}
     await this.#fallback.save(pdfId, bookmarks, rootIds);
   }
 
   async #fallbackClear(pdfId) {
-    if (!this.#fallback) return;
+    if (!this.#fallback) {return;}
     await this.#fallback.clear(pdfId);
   }
 
   async load(pdfId) {
     if (!this.#canUseRemote()) {
-      this.#logger.debug('Remote storage unavailable, loading from fallback');
+      this.#logger.debug("Remote storage unavailable, loading from fallback");
       return this.#fallbackLoad(pdfId);
     }
 
@@ -128,7 +128,7 @@ export class RemoteBookmarkStorage extends IBookmarkStorage {
       const response = await this.#wsClient.request(
         WEBSOCKET_MESSAGE_TYPES.BOOKMARK_LIST,
         { pdf_uuid: pdfId },
-        { timeout: 12000, metadata: { version: '1.0.0' } }
+        { timeout: 12000, metadata: { version: "1.0.0" } }
       );
 
       const normalized = {
@@ -140,7 +140,7 @@ export class RemoteBookmarkStorage extends IBookmarkStorage {
       await this.#fallbackSave(pdfId, normalized.bookmarks, normalized.rootIds);
       return normalized;
     } catch (error) {
-      this.#logger.error('Failed to load bookmarks from remote:', error);
+      this.#logger.error("Failed to load bookmarks from remote:", error);
       return this.#fallbackLoad(pdfId);
     }
   }
@@ -158,10 +158,10 @@ export class RemoteBookmarkStorage extends IBookmarkStorage {
         await this.#wsClient.request(
           WEBSOCKET_MESSAGE_TYPES.BOOKMARK_SAVE,
           payload,
-          { timeout: 7000, metadata: { version: '1.0.0' } }
+          { timeout: 7000, metadata: { version: "1.0.0" } }
         );
       } catch (error) {
-        this.#logger.error('Failed to persist bookmarks remotely, falling back to local cache:', error);
+        this.#logger.error("Failed to persist bookmarks remotely, falling back to local cache:", error);
         await this.#fallbackSave(pdfId, payload.bookmarks, payload.root_ids);
         return;
       }
@@ -176,10 +176,10 @@ export class RemoteBookmarkStorage extends IBookmarkStorage {
         await this.#wsClient.request(
           WEBSOCKET_MESSAGE_TYPES.BOOKMARK_SAVE,
           { pdf_uuid: pdfId, bookmarks: [], root_ids: [] },
-          { timeout: 5000, metadata: { version: '1.0.0' } }
+          { timeout: 5000, metadata: { version: "1.0.0" } }
         );
       } catch (error) {
-        this.#logger.warn('Failed to clear remote bookmarks, delegating to fallback:', error);
+        this.#logger.warn("Failed to clear remote bookmarks, delegating to fallback:", error);
       }
     }
 
@@ -191,7 +191,7 @@ export function createDefaultBookmarkStorage(options = {}) {
   const fallback = new LocalStorageBookmarkStorage();
   const wsClient = options.wsClient;
 
-  if (wsClient && typeof wsClient.request === 'function') {
+  if (wsClient && typeof wsClient.request === "function") {
     return new RemoteBookmarkStorage({ wsClient, fallback });
   }
 

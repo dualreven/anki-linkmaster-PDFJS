@@ -3,9 +3,9 @@
  */
 
 export const SearchResultsFeatureConfig = {
-  name: 'search-results',
-  version: '1.0.0',
-  description: '搜索结果功能 - 显示和管理PDF搜索结果',
+  name: "search-results",
+  version: "1.0.0",
+  description: "搜索结果功能 - 显示和管理PDF搜索结果",
 
   dependencies: [],
 
@@ -13,19 +13,19 @@ export const SearchResultsFeatureConfig = {
     // 事件定义
     events: {
       local: {
-        ROW_SELECTED: 'row:selected',
-        ROW_DBLCLICK: 'row:dblclick'
+        ROW_SELECTED: "row:selected",
+        ROW_DBLCLICK: "row:dblclick"
       },
       global: {
-        SEARCH_REQUESTED: 'search:requested',
-        SEARCH_RESULTS_UPDATED: 'search:results:updated',
-        PDF_OPENED: 'pdf:opened'
+        SEARCH_REQUESTED: "search:requested",
+        SEARCH_RESULTS_UPDATED: "search:results:updated",
+        PDF_OPENED: "pdf:opened"
       }
     },
 
     // 表格配置
     table: {
-      height: '600px',
+      height: "600px",
       pagination: true,
       paginationSize: 20
     }

@@ -11,7 +11,7 @@
 export function findPageElement(startNode) {
   let node = startNode instanceof Node ? startNode : null;
   while (node) {
-    if (node instanceof HTMLElement && node.classList.contains('page')) {
+    if (node instanceof HTMLElement && node.classList.contains("page")) {
       return node;
     }
     node = node.parentNode;
@@ -25,8 +25,8 @@ export function findPageElement(startNode) {
  * @returns {number|null}
  */
 export function extractPageNumber(pageElement) {
-  if (!pageElement) return null;
-  const value = pageElement.getAttribute('data-page-number');
+  if (!pageElement) {return null;}
+  const value = pageElement.getAttribute("data-page-number");
   const pageNumber = value ? parseInt(value, 10) : NaN;
   return Number.isInteger(pageNumber) && pageNumber > 0 ? pageNumber : null;
 }
@@ -37,7 +37,7 @@ export function extractPageNumber(pageElement) {
  * @returns {Array<DOMRect>}
  */
 export function getVisibleClientRects(range) {
-  if (!range || typeof range.getClientRects !== 'function') {
+  if (!range || typeof range.getClientRects !== "function") {
     return [];
   }
   const rectList = Array.from(range.getClientRects?.() || []);
@@ -150,7 +150,7 @@ export function computeTextRanges(range, pageElement) {
     if (!range || !pageElement) {
       return [];
     }
-    const textLayer = pageElement.querySelector('.textLayer');
+    const textLayer = pageElement.querySelector(".textLayer");
     if (!textLayer) {
       const len = range.toString().length;
       return len > 0 ? [{ start: 0, end: len }] : [];
@@ -162,7 +162,7 @@ export function computeTextRanges(range, pageElement) {
     const walker = document.createTreeWalker(textLayer, NodeFilter.SHOW_TEXT, null);
     let node;
     while ((node = walker.nextNode())) {
-      const t = node.textContent || '';
+      const t = node.textContent || "";
       textNodes.push({ node, offset: currentOffset, length: t.length });
       currentOffset += t.length;
     }
@@ -180,7 +180,7 @@ export function computeTextRanges(range, pageElement) {
             if (tn === item.node) {
               return item.offset + Math.min(nodeOffset, acc);
             }
-            acc += (tn.textContent || '').length;
+            acc += (tn.textContent || "").length;
           }
         }
       }

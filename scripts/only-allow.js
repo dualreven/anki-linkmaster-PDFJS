@@ -6,40 +6,40 @@
  */
 
 const whichPMRuns = () => {
-  const userAgent = process.env.npm_config_user_agent
+  const userAgent = process.env.npm_config_user_agent;
   if (!userAgent) {
-    return undefined
+    return undefined;
   }
-  return pmFromUserAgent(userAgent)
-}
+  return pmFromUserAgent(userAgent);
+};
 
 const pmFromUserAgent = (userAgent) => {
-  const pmSpec = userAgent.split(' ')[0]
-  const separatorPos = pmSpec.lastIndexOf('/')
+  const pmSpec = userAgent.split(" ")[0];
+  const separatorPos = pmSpec.lastIndexOf("/");
   return {
     name: pmSpec.substring(0, separatorPos),
     version: pmSpec.substring(separatorPos + 1)
-  }
-}
+  };
+};
 
 const WANTED_PM = {
-  name: 'pnpm',
-  version: '>=7.0.0'
-}
+  name: "pnpm",
+  version: ">=7.0.0"
+};
 
-const runningPM = whichPMRuns()
+const runningPM = whichPMRuns();
 
 if (!runningPM || runningPM.name !== WANTED_PM.name) {
-  const boxWidth = 60
-  const line = '='.repeat(boxWidth)
-  const spaces = ' '.repeat((boxWidth - 32) / 2)
+  const boxWidth = 60;
+  const line = "=".repeat(boxWidth);
+  const spaces = " ".repeat((boxWidth - 32) / 2);
 
   console.log(`
 ${line}
 ${spaces}🚫 错误：包管理器限制 🚫
 ${line}
 
-❌ 检测到使用了错误的包管理器: ${runningPM?.name || 'npm'}
+❌ 检测到使用了错误的包管理器: ${runningPM?.name || "npm"}
 
 ✅ 此项目必须使用 PNPM 作为包管理器
 
@@ -55,9 +55,9 @@ ${line}
    npm install -g pnpm
 
 ${line}
-`)
+`);
 
-  process.exit(1)
+  process.exit(1);
 }
 
-console.log(`✅ 正在使用正确的包管理器: ${runningPM.name}@${runningPM.version}`)
+console.log(`✅ 正在使用正确的包管理器: ${runningPM.name}@${runningPM.version}`);

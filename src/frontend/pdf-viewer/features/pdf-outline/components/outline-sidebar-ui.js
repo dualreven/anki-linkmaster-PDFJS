@@ -18,7 +18,7 @@ try {
 import "jstree";
 import "jstree/dist/themes/default/style.css";
 import { BookmarkToolbar } from "../../pdf-bookmark/components/bookmark-toolbar.js";
-import { showSuccess as notifySuccess, showError as notifyError } from "../../../../common/utils/notification.js";
+import { showSuccess, showError } from "../../../../common/utils/notification.js";
 
 export class OutlineSidebarUI {
   #eventBus;
@@ -94,7 +94,7 @@ export class OutlineSidebarUI {
       copyBtn.type = "button";
       copyBtn.dataset.action = "copy-outline-id";
       copyBtn.title = "复制选中的大纲项ID";
-      copyBtn.innerHTML = `<span style="font-size:18px;">📋</span>`;
+      copyBtn.innerHTML = "<span style=\"font-size:18px;\">📋</span>";
       copyBtn.style.cssText = [
         "display:flex","align-items:center","justify-content:center",
         "width:36px","height:36px","padding:0",
@@ -235,21 +235,21 @@ export class OutlineSidebarUI {
       const node = Array.isArray(selected) && selected.length > 0 ? selected[0] : null;
       const id = node?.id || null;
       if (!id) {
-        notifyError("✗ 请先选中一个大纲项", 3000);
+        showError("✗ 请先选中一个大纲项", 3000);
         try { this.#logger.warn("[OutlineUI] 复制失败：未选中节点", { toast: { type: "warn", ms: 2500 } }); } catch {}
         return;
       }
       const ok = this.#copyUsingExecCommand(id);
       if (ok) {
-        notifySuccess("✓ 已复制大纲ID", 2000);
+        showSuccess("✓ 已复制大纲ID", 2000);
         this.#logger.info(`[OutlineUI] 已复制大纲ID: ${id}`);
       } else {
-        notifyError("✗ 复制失败", 3000);
+        showError("✗ 复制失败", 3000);
         this.#logger.error("[OutlineUI] 复制失败：execCommand 返回 false");
       }
     } catch (e) {
       this.#logger.error("[OutlineUI] 复制失败（异常）", e);
-      try { notifyError("✗ 复制失败", 3000); } catch {}
+      try { showError("✗ 复制失败", 3000); } catch {}
     }
   }
 

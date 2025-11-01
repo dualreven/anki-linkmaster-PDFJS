@@ -16,8 +16,8 @@
  * await registry.installAll();
  */
 
-import { PDFEditorFeatureConfig } from './feature.config.js';
-import { getLogger } from '../../../common/utils/logger.js';
+import { PDFEditorFeatureConfig } from "./feature.config.js";
+import { getLogger } from "../../../common/utils/logger.js";
 
 /**
  * PDF Editor 功能域类
@@ -206,7 +206,7 @@ export class PDFEditorFeature {
    */
   #registerEventListeners() {
     if (!this.#scopedEventBus) {
-      this.#logger.warn('ScopedEventBus not available, skipping event registration');
+      this.#logger.warn("ScopedEventBus not available, skipping event registration");
       return;
     }
 
@@ -214,7 +214,7 @@ export class PDFEditorFeature {
 
     // 监听全局编辑请求事件（来自 pdf-list）
     const unsubEditRequested = this.#scopedEventBus.onGlobal(global.EDIT_REQUESTED, (data) => {
-      this.#logger.debug('Edit requested for record:', data);
+      this.#logger.debug("Edit requested for record:", data);
       this.openEditor(data);
     });
     this.#unsubscribers.push(unsubEditRequested);
@@ -231,12 +231,12 @@ export class PDFEditorFeature {
       try {
         unsubscribe();
       } catch (error) {
-        this.#logger.warn('Failed to unsubscribe event listener:', error);
+        this.#logger.warn("Failed to unsubscribe event listener:", error);
       }
     });
 
     this.#unsubscribers = [];
-    this.#logger.debug('All event listeners unregistered');
+    this.#logger.debug("All event listeners unregistered");
   }
 
   /**
@@ -248,14 +248,14 @@ export class PDFEditorFeature {
 
     // 检查是否已存在
     if (document.getElementById(containerId)) {
-      this.#logger.warn('Modal UI already exists, skipping creation');
+      this.#logger.warn("Modal UI already exists, skipping creation");
       return;
     }
 
     // 创建模态对话框容器
-    const modal = document.createElement('div');
+    const modal = document.createElement("div");
     modal.id = containerId;
-    modal.className = 'pdf-editor-modal';
+    modal.className = "pdf-editor-modal";
     modal.style.cssText = `
       display: none;
       position: fixed;
@@ -270,8 +270,8 @@ export class PDFEditorFeature {
     `;
 
     // 创建模态对话框内容
-    const content = document.createElement('div');
-    content.className = 'pdf-editor-modal-content';
+    const content = document.createElement("div");
+    content.className = "pdf-editor-modal-content";
     content.style.cssText = `
       background: white;
       padding: 20px;
@@ -283,14 +283,14 @@ export class PDFEditorFeature {
     `;
 
     // 创建标题
-    const title = document.createElement('h2');
-    title.textContent = '编辑 PDF 记录';
-    title.style.marginTop = '0';
+    const title = document.createElement("h2");
+    title.textContent = "编辑 PDF 记录";
+    title.style.marginTop = "0";
     content.appendChild(title);
 
     // 创建表单
-    const form = document.createElement('form');
-    form.id = 'pdf-editor-form';
+    const form = document.createElement("form");
+    form.id = "pdf-editor-form";
 
     // TODO: 根据配置动态生成表单字段
     form.innerHTML = `
@@ -325,16 +325,16 @@ export class PDFEditorFeature {
     this.#modalElement = modal;
 
     // 绑定事件
-    const cancelBtn = modal.querySelector('#pdf-editor-cancel-btn');
-    const submitBtn = modal.querySelector('#pdf-editor-submit-btn');
+    const cancelBtn = modal.querySelector("#pdf-editor-cancel-btn");
+    const submitBtn = modal.querySelector("#pdf-editor-submit-btn");
 
-    cancelBtn?.addEventListener('click', () => this.closeEditor());
-    form.addEventListener('submit', (e) => {
+    cancelBtn?.addEventListener("click", () => this.closeEditor());
+    form.addEventListener("submit", (e) => {
       e.preventDefault();
       this.#handleFormSubmit(e.target);
     });
 
-    this.#logger.debug('Modal UI created');
+    this.#logger.debug("Modal UI created");
   }
 
   /**
@@ -345,7 +345,7 @@ export class PDFEditorFeature {
     if (this.#modalElement) {
       this.#modalElement.remove();
       this.#modalElement = null;
-      this.#logger.debug('Modal UI destroyed');
+      this.#logger.debug("Modal UI destroyed");
     }
   }
 
@@ -356,7 +356,7 @@ export class PDFEditorFeature {
    */
   async #handleFormSubmit(form) {
     if (!this.#currentRecord) {
-      this.#logger.warn('No record to update');
+      this.#logger.warn("No record to update");
       return;
     }
 
@@ -365,13 +365,13 @@ export class PDFEditorFeature {
       const updatedData = {
         id: this.#currentRecord.id,
         filename: this.#currentRecord.filename,
-        star: parseInt(formData.get('star') || '0', 10),
-        tags: formData.get('tags') || '',
-        notes: formData.get('notes') || '',
-        archived: formData.get('archived') === 'on'
+        star: parseInt(formData.get("star") || "0", 10),
+        tags: formData.get("tags") || "",
+        notes: formData.get("notes") || "",
+        archived: formData.get("archived") === "on"
       };
 
-      this.#logger.info('Submitting updated record:', updatedData);
+      this.#logger.info("Submitting updated record:", updatedData);
 
       // 触发本地事件
       this.#scopedEventBus?.emit(PDFEditorFeatureConfig.config.events.local.FORM_SUBMITTED, updatedData);
@@ -385,7 +385,7 @@ export class PDFEditorFeature {
       this.closeEditor();
 
     } catch (error) {
-      this.#logger.error('Failed to submit form:', error);
+      this.#logger.error("Failed to submit form:", error);
 
       // 触发验证失败事件
       this.#scopedEventBus?.emit(
@@ -403,30 +403,30 @@ export class PDFEditorFeature {
    */
   openEditor(record) {
     if (!this.#enabled) {
-      this.#logger.warn('Cannot open editor: feature is disabled');
+      this.#logger.warn("Cannot open editor: feature is disabled");
       return;
     }
 
     if (!this.#modalElement) {
-      this.#logger.error('Modal element not found');
+      this.#logger.error("Modal element not found");
       return;
     }
 
-    this.#logger.info('Opening editor for record:', record);
+    this.#logger.info("Opening editor for record:", record);
 
     this.#currentRecord = record;
 
     // 填充表单数据
-    const form = this.#modalElement.querySelector('#pdf-editor-form');
+    const form = this.#modalElement.querySelector("#pdf-editor-form");
     if (form) {
       form.star.value = record.star || 0;
-      form.tags.value = record.tags || '';
-      form.notes.value = record.notes || '';
+      form.tags.value = record.tags || "";
+      form.notes.value = record.notes || "";
       form.archived.checked = record.archived || false;
     }
 
     // 显示模态对话框
-    this.#modalElement.style.display = 'flex';
+    this.#modalElement.style.display = "flex";
 
     // 触发编辑器打开事件
     this.#scopedEventBus?.emit(PDFEditorFeatureConfig.config.events.local.EDITOR_OPENED, record);
@@ -440,13 +440,13 @@ export class PDFEditorFeature {
       return;
     }
 
-    this.#logger.info('Closing editor');
+    this.#logger.info("Closing editor");
 
     // 隐藏模态对话框
-    this.#modalElement.style.display = 'none';
+    this.#modalElement.style.display = "none";
 
     // 清空表单
-    const form = this.#modalElement.querySelector('#pdf-editor-form');
+    const form = this.#modalElement.querySelector("#pdf-editor-form");
     if (form) {
       form.reset();
     }

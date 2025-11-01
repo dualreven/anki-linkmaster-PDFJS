@@ -23,7 +23,7 @@ export class ResultItemRenderer {
    * @returns {string} HTML字符串
    */
   render(data) {
-    this.#logger.debug('[ResultItemRenderer] Rendering item:', data.title);
+    this.#logger.debug("[ResultItemRenderer] Rendering item:", data.title);
 
     return `
       <div class="search-result-item" data-id="${data.id}">
@@ -41,7 +41,7 @@ export class ResultItemRenderer {
 
           <!-- 主要内容 -->
           <div class="search-result-item-content">
-            <h3 class="search-result-item-title">${this.#escapeHtml(data.title || '无标题')}</h3>
+            <h3 class="search-result-item-title">${this.#escapeHtml(data.title || "无标题")}</h3>
             ${this.#renderBasicInfo(data)}
             ${this.#renderMetadata(data)}
             ${this.#renderTags(data)}
@@ -78,11 +78,11 @@ export class ResultItemRenderer {
       allFields.push(`关键词: ${this.#escapeHtml(data.keywords)}`);
     }
 
-    if (allFields.length === 0) return '';
+    if (allFields.length === 0) {return "";}
 
     return `
       <div class="search-result-item-section">
-        ${allFields.map(field => `<span class="search-result-item-field-value">${field}</span>`).join(' | ')}
+        ${allFields.map(field => `<span class="search-result-item-field-value">${field}</span>`).join(" | ")}
       </div>
     `;
   }
@@ -117,11 +117,11 @@ export class ResultItemRenderer {
       fields.push(`ID: ${this.#escapeHtml(data.id)}`);
     }
 
-    if (fields.length === 0) return '';
+    if (fields.length === 0) {return "";}
 
     return `
       <div class="search-result-item-section">
-        ${fields.map(field => `<span class="search-result-item-field-value">${field}</span>`).join(' | ')}
+        ${fields.map(field => `<span class="search-result-item-field-value">${field}</span>`).join(" | ")}
       </div>
     `;
   }
@@ -137,7 +137,7 @@ export class ResultItemRenderer {
 
     // 评分
     if (data.rating !== undefined && data.rating !== null) {
-      const stars = '⭐'.repeat(data.rating);
+      const stars = "⭐".repeat(data.rating);
       fields.push(`评分: ${stars}`);
     }
 
@@ -155,15 +155,15 @@ export class ResultItemRenderer {
     // 到期日期
     if (data.due_date) {
       const dueDate = new Date(data.due_date * 1000);
-      const dueDateStr = dueDate.toLocaleDateString('zh-CN');
+      const dueDateStr = dueDate.toLocaleDateString("zh-CN");
       fields.push(`到期: ${dueDateStr}`);
     }
 
-    if (fields.length === 0) return '';
+    if (fields.length === 0) {return "";}
 
     return `
       <div class="search-result-item-section">
-        ${fields.map(field => `<span class="search-result-item-field-value">${field}</span>`).join(' | ')}
+        ${fields.map(field => `<span class="search-result-item-field-value">${field}</span>`).join(" | ")}
       </div>
     `;
   }
@@ -180,8 +180,8 @@ export class ResultItemRenderer {
     // 最后访问时间（优先显示）
     if (data.last_accessed_at) {
       const date = new Date(data.last_accessed_at * 1000);
-      const dateStr = date.toLocaleDateString('zh-CN');
-      const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+      const dateStr = date.toLocaleDateString("zh-CN");
+      const timeStr = date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
       fields.push(`访问: ${dateStr} ${timeStr}`);
     }
 
@@ -198,15 +198,15 @@ export class ResultItemRenderer {
     // 上传时间
     if (data.upload_time) {
       const uploadDate = new Date(data.upload_time);
-      const uploadStr = uploadDate.toLocaleDateString('zh-CN');
+      const uploadStr = uploadDate.toLocaleDateString("zh-CN");
       fields.push(`上传: ${uploadStr}`);
     }
 
-    if (fields.length === 0) return '';
+    if (fields.length === 0) {return "";}
 
     return `
       <div class="search-result-item-section">
-        ${fields.map(field => `<span class="search-result-item-field-value">${field}</span>`).join(' | ')}
+        ${fields.map(field => `<span class="search-result-item-field-value">${field}</span>`).join(" | ")}
       </div>
     `;
   }
@@ -218,14 +218,14 @@ export class ResultItemRenderer {
    * @private
    */
   #renderTags(data) {
-    if (!this.#config.showTags) return '';
+    if (!this.#config.showTags) {return "";}
     if (!data.tags || !Array.isArray(data.tags) || data.tags.length === 0) {
-      return '';
+      return "";
     }
 
     const tagElements = data.tags.map(tag => `
       <span class="search-result-item-tag">${this.#escapeHtml(tag)}</span>
-    `).join('');
+    `).join("");
 
     return `
       <div class="search-result-item-tags">
@@ -241,8 +241,8 @@ export class ResultItemRenderer {
    * @private
    */
   #renderNotes(data) {
-    if (!this.#config.showNotes) return '';
-    if (!data.notes || data.notes.trim() === '') return '';
+    if (!this.#config.showNotes) {return "";}
+    if (!data.notes || data.notes.trim() === "") {return "";}
 
     return `
       <div class="search-result-item-section">
@@ -258,7 +258,7 @@ export class ResultItemRenderer {
    * @private
    */
   #escapeHtml(text) {
-    const div = document.createElement('div');
+    const div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML;
   }

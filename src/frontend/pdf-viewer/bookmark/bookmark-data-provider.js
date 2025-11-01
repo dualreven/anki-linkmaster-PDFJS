@@ -4,7 +4,7 @@
  * @module BookmarkDataProvider
  */
 
-import { getLogger } from '../../common/utils/logger.js';
+import { getLogger } from "../../common/utils/logger.js";
 
 /**
  * 书签节点数据结构
@@ -26,9 +26,9 @@ export class BookmarkDataProvider {
    * 创建书签数据提供者实例
    */
   constructor() {
-    this.#logger = getLogger('BookmarkDataProvider');
+    this.#logger = getLogger("BookmarkDataProvider");
     this.#pdfDocument = null;
-    this.#logger.info('BookmarkDataProvider initialized');
+    this.#logger.info("BookmarkDataProvider initialized");
   }
 
   // 私有字段
@@ -43,18 +43,18 @@ export class BookmarkDataProvider {
    */
   async getBookmarks(pdfDocument) {
     if (!pdfDocument) {
-      throw new Error('PDF document is required');
+      throw new Error("PDF document is required");
     }
 
     this.#pdfDocument = pdfDocument;
-    this.#logger.info('Getting bookmarks from PDF document');
+    this.#logger.info("Getting bookmarks from PDF document");
 
     try {
       // 从PDF.js获取outline数据
       const outline = await pdfDocument.getOutline();
 
       if (!outline || outline.length === 0) {
-        this.#logger.info('No bookmarks found in PDF');
+        this.#logger.info("No bookmarks found in PDF");
         return [];
       }
 
@@ -69,7 +69,7 @@ export class BookmarkDataProvider {
 
       return bookmarks;
     } catch (error) {
-      this.#logger.error('Failed to get bookmarks:', error);
+      this.#logger.error("Failed to get bookmarks:", error);
       throw new Error(`Failed to get bookmarks: ${error.message}`);
     }
   }
@@ -82,7 +82,7 @@ export class BookmarkDataProvider {
    * @returns {BookmarkNode[]} 标准格式的书签数组
    * @private
    */
-  #convertOutlineToBookmarks(outline, level, parentId = '') {
+  #convertOutlineToBookmarks(outline, level, parentId = "") {
     if (!Array.isArray(outline) || outline.length === 0) {
       return [];
     }
@@ -98,11 +98,11 @@ export class BookmarkDataProvider {
 
       return {
         id,
-        title: item.title || '(Untitled)',
+        title: item.title || "(Untitled)",
         dest: item.dest,
         items: childBookmarks,
         level,
-        source: 'pdf'
+        source: "pdf"
       };
     });
   }
@@ -147,28 +147,28 @@ export class BookmarkDataProvider {
    */
   async parseDestination(dest) {
     if (!dest) {
-      throw new Error('Destination is required');
+      throw new Error("Destination is required");
     }
 
     if (!this.#pdfDocument) {
-      throw new Error('PDF document not loaded');
+      throw new Error("PDF document not loaded");
     }
 
     try {
-      const { resolvePdfDest } = await import('../pdf/pdf-dest-utils.js');
+      const { resolvePdfDest } = await import("../pdf/pdf-dest-utils.js");
       const { pageNumber, x, y, zoom, type } = await resolvePdfDest(this.#pdfDocument, dest);
       // 严格：x/y 未提供时使用 null（不要默认 0，否则会被误判为“顶部/位置0%”）
       const result = {
         pageNumber,
-        x: (typeof x === 'number') ? x : null,
-        y: (typeof y === 'number') ? y : null,
-        zoom: (typeof zoom === 'number') ? zoom : null,
-        type: (typeof type === 'string') ? type : null
+        x: (typeof x === "number") ? x : null,
+        y: (typeof y === "number") ? y : null,
+        zoom: (typeof zoom === "number") ? zoom : null,
+        type: (typeof type === "string") ? type : null
       };
-      this.#logger.debug('Parsed destination:', result);
+      this.#logger.debug("Parsed destination:", result);
       return result;
     } catch (error) {
-      this.#logger.error('Failed to parse destination:', error);
+      this.#logger.error("Failed to parse destination:", error);
       throw new Error(`Failed to parse destination: ${error.message}`);
     }
   }
@@ -178,7 +178,7 @@ export class BookmarkDataProvider {
    * 释放对PDF文档的引用
    */
   destroy() {
-    this.#logger.info('Destroying BookmarkDataProvider');
+    this.#logger.info("Destroying BookmarkDataProvider");
     this.#pdfDocument = null;
   }
 }

@@ -4,5 +4,5 @@
  * @description 导出所有标注相关的数据模型
  */
 
-export { Annotation, AnnotationType, HighlightColor } from './annotation.js';
-export { Comment } from './comment.js';
+export { Annotation, AnnotationType, HighlightColor } from "./annotation.js";
+export { Comment } from "./comment.js";

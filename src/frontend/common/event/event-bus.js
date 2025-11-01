@@ -8,31 +8,31 @@ import { getLogger } from "../utils/logger.js";
 import { isGlobalEventAllowed } from "./global-event-registry.js";
 import { MessageTracer } from "./message-tracer.js";
 
-const SUPPRESSED_EVENT_LOGS = new Set(['pdf-viewer:file:load-progress','websocket:message:received']);
+const SUPPRESSED_EVENT_LOGS = new Set(["pdf-viewer:file:load-progress","websocket:message:received"]);
 
 // 统一关闭发布/订阅的详细日志；为少数事件保留或采样输出
 const VERBOSE_EVENT_LOGS_ENABLED = false; // 关闭订阅/发布通用日志
 
 // 发布日志保留/采样名单：value 为采样率（0~1）
 const PUBLISH_EVENT_KEEP_SAMPLING = new Map([
-  ['websocket:message:unknown', 1.0],
-  ['pdf-viewer:page:changing', 0.10],
-  ['pdf-viewer:bookmark-select:changed', 0.10],
+  ["websocket:message:unknown", 1.0],
+  ["pdf-viewer:page:changing", 0.10],
+  ["pdf-viewer:bookmark-select:changed", 0.10],
 ]);
 
 function shouldLogPublishEvent(event) {
-  if (VERBOSE_EVENT_LOGS_ENABLED === true) return true;
-  if (!PUBLISH_EVENT_KEEP_SAMPLING.has(event)) return false;
+  if (VERBOSE_EVENT_LOGS_ENABLED === true) {return true;}
+  if (!PUBLISH_EVENT_KEEP_SAMPLING.has(event)) {return false;}
   const ratio = PUBLISH_EVENT_KEEP_SAMPLING.get(event);
-  if (typeof ratio !== 'number') return false;
-  if (ratio >= 1) return true;
-  if (ratio <= 0) return false;
+  if (typeof ratio !== "number") {return false;}
+  if (ratio >= 1) {return true;}
+  if (ratio <= 0) {return false;}
   try { return Math.random() < ratio; } catch { return false; }
 }
 
 class EventNameValidator {
   static validate(event) {
-    if (typeof event !== "string" || !event) return false;
+    if (typeof event !== "string" || !event) {return false;}
 
     const parts = event.split(":");
 
@@ -61,7 +61,7 @@ class EventNameValidator {
     if (parts.some((p) => p.length === 0)) {
       return this.#buildError(
         `事件名称 '${event}' 的各个部分不能为空`,
-        `确保格式为 {module}:{action}:{status}，每部分都有内容`,
+        "确保格式为 {module}:{action}:{status}，每部分都有内容",
         context
       );
     }
@@ -75,37 +75,37 @@ class EventNameValidator {
   static #buildError(mainMessage, suggestion, context) {
     const lines = [];
 
-    lines.push('❌ 事件名称验证失败！');
-    lines.push('');
+    lines.push("❌ 事件名称验证失败！");
+    lines.push("");
     lines.push(`错误：${mainMessage}`);
-    lines.push('');
-    lines.push('📋 正确格式：{module}:{action}:{status} (必须正好3段，用冒号分隔)');
-    lines.push('');
-    lines.push('✅ 正确示例：');
-    lines.push('  - pdf:load:completed');
-    lines.push('  - bookmark:toggle:requested');
-    lines.push('  - sidebar:open:success');
-    lines.push('');
-    lines.push('❌ 错误示例：');
-    lines.push('  - loadData (缺少冒号)');
-    lines.push('  - pdf:list:data:loaded (超过3段)');
-    lines.push('  - pdf_list_updated (使用下划线)');
-    lines.push('  - onButtonClick (非事件格式)');
+    lines.push("");
+    lines.push("📋 正确格式：{module}:{action}:{status} (必须正好3段，用冒号分隔)");
+    lines.push("");
+    lines.push("✅ 正确示例：");
+    lines.push("  - pdf:load:completed");
+    lines.push("  - bookmark:toggle:requested");
+    lines.push("  - sidebar:open:success");
+    lines.push("");
+    lines.push("❌ 错误示例：");
+    lines.push("  - loadData (缺少冒号)");
+    lines.push("  - pdf:list:data:loaded (超过3段)");
+    lines.push("  - pdf_list_updated (使用下划线)");
+    lines.push("  - onButtonClick (非事件格式)");
 
     if (suggestion) {
-      lines.push('');
+      lines.push("");
       lines.push(`💡 建议修复：${suggestion}`);
     }
 
     if (context.actorId || context.subscriberId) {
-      lines.push('');
+      lines.push("");
       lines.push(this.#formatContext(context));
     }
 
-    lines.push('');
-    lines.push('⚠️ 此事件发布/订阅已被阻止！请立即修复事件名称。');
+    lines.push("");
+    lines.push("⚠️ 此事件发布/订阅已被阻止！请立即修复事件名称。");
 
-    return lines.join('\n');
+    return lines.join("\n");
   }
 
   /**
@@ -113,40 +113,40 @@ class EventNameValidator {
    */
   static #suggestFix(event, parts) {
     // 检测下划线命名（应该用连字符）
-    if (event.includes('_')) {
-      const fixed = event.replace(/_/g, '-');
+    if (event.includes("_")) {
+      const fixed = event.replace(/_/g, "-");
       return `检测到下划线命名，请使用连字符：'${fixed}'`;
     }
 
     // 检测驼峰命名
     if (/[a-z][A-Z]/.test(event)) {
-      return `检测到驼峰命名，事件名应该使用小写+连字符格式`;
+      return "检测到驼峰命名，事件名应该使用小写+连字符格式";
     }
 
     // 检测段数错误
     if (parts.length === 1) {
-      return `事件名缺少冒号，应该分为3段：模块名:动作名:状态`;
+      return "事件名缺少冒号，应该分为3段：模块名:动作名:状态";
     }
 
     if (parts.length === 2) {
-      return `事件名只有2段，缺少第3段状态（如：requested/completed/failed）`;
+      return "事件名只有2段，缺少第3段状态（如：requested/completed/failed）";
     }
 
     if (parts.length > 3) {
-      return `事件名超过3段 (${parts.length}段)，请合并为：{${parts.slice(0, -2).join('-')}}:{${parts[parts.length-2]}}:{${parts[parts.length-1]}}`;
+      return `事件名超过3段 (${parts.length}段)，请合并为：{${parts.slice(0, -2).join("-")}}:{${parts[parts.length-2]}}:{${parts[parts.length-1]}}`;
     }
 
-    return `使用格式：{module}:{action}:{status}`;
+    return "使用格式：{module}:{action}:{status}";
   }
 
   static #formatContext(context) {
     const { subscriberId, actorId } = context;
     const parts = [];
 
-    if (subscriberId) parts.push(`订阅者ID: ${subscriberId}`);
-    if (actorId) parts.push(`执行者ID: ${actorId}`);
+    if (subscriberId) {parts.push(`订阅者ID: ${subscriberId}`);}
+    if (actorId) {parts.push(`执行者ID: ${actorId}`);}
 
-    return parts.length > 0 ? `📍 位置信息：${parts.join(', ')}` : '';
+    return parts.length > 0 ? `📍 位置信息：${parts.join(", ")}` : "";
   }
 }
 
@@ -360,7 +360,7 @@ export class EventBus {
    * 刷新早期日志队列
    */
   #flushEarlyLogQueue() {
-    if (!this.#logger || this.#earlyLogQueue.length === 0) return;
+    if (!this.#logger || this.#earlyLogQueue.length === 0) {return;}
 
     this.#earlyLogQueue.forEach(entry => {
       const { level, message, args, timestamp } = entry;
@@ -465,10 +465,10 @@ export class EventBus {
    */
   on(event, callback, options = {}) {
     // 全局事件白名单校验（局部事件 @ 开头跳过）
-    if (!event?.startsWith('@') && !isGlobalEventAllowed(event)) {
+    if (!event?.startsWith("@") && !isGlobalEventAllowed(event)) {
       const err = `未注册的全局事件：'${event}'，已被禁止订阅` +
-        '\n请使用 event-constants.js 中已存在的事件，或先提交契约PR新增事件后再使用' +
-        (options?.subscriberId ? `\n订阅者ID: ${options.subscriberId}` : '');
+        "\n请使用 event-constants.js 中已存在的事件，或先提交契约PR新增事件后再使用" +
+        (options?.subscriberId ? `\n订阅者ID: ${options.subscriberId}` : "");
       this.#log("error", err, { event });
       return () => {};
     }
@@ -485,27 +485,27 @@ export class EventBus {
       }
     }
 
-    if (!this.#events[event]) this.#events[event] = new Map();
+    if (!this.#events[event]) {this.#events[event] = new Map();}
 
     // 检查是否重复订阅（同一 subscriberId 订阅同一事件）
     if (this.#events[event].has(subscriberId)) {
       const errorMsg = [
-        `❌ 重复订阅检测！`,
-        ``,
+        "❌ 重复订阅检测！",
+        "",
         `事件名称: "${event}"`,
         `订阅者ID: "${subscriberId}"`,
-        ``,
-        `💡 可能原因:`,
-        `1. 同一个组件多次调用 eventBus.on() 订阅同一事件`,
-        `2. 组件未正确清理旧订阅（调用 unsubscribe()）`,
-        `3. 多个组件使用了相同的 subscriberId（如多次实例化同一组件）`,
-        ``,
-        `🔧 解决方法:`,
-        `1. 确保组件销毁时调用 unsubscribe() 清理订阅`,
-        `2. 或传递唯一的 subscriberId: eventBus.on(event, callback, { subscriberId: 'unique-id' })`,
-        `3. 或使用 off() 手动移除旧订阅后再重新订阅`,
-        `4. 检查是否有组件被错误地多次实例化`,
-      ].join('\n');
+        "",
+        "💡 可能原因:",
+        "1. 同一个组件多次调用 eventBus.on() 订阅同一事件",
+        "2. 组件未正确清理旧订阅（调用 unsubscribe()）",
+        "3. 多个组件使用了相同的 subscriberId（如多次实例化同一组件）",
+        "",
+        "🔧 解决方法:",
+        "1. 确保组件销毁时调用 unsubscribe() 清理订阅",
+        "2. 或传递唯一的 subscriberId: eventBus.on(event, callback, { subscriberId: 'unique-id' })",
+        "3. 或使用 off() 手动移除旧订阅后再重新订阅",
+        "4. 检查是否有组件被错误地多次实例化",
+      ].join("\n");
 
       this.#log("error", errorMsg);
       throw new Error(`重复订阅: 事件 "${event}" 已被 "${subscriberId}" 订阅`);
@@ -514,7 +514,7 @@ export class EventBus {
     this.#events[event].set(subscriberId, callback);
 
     if (VERBOSE_EVENT_LOGS_ENABLED) {
-      this.#log("event", `${event}`, `订阅`, {
+      this.#log("event", `${event}`, "订阅", {
         subscriberId,
         actorId,
       });
@@ -546,7 +546,7 @@ export class EventBus {
    */
   off(event, callbackOrId) {
     const subscribers = this.#events[event];
-    if (!subscribers) return;
+    if (!subscribers) {return;}
     let removedId = null;
     if (typeof callbackOrId === "function") {
       for (const [id, cb] of subscribers.entries()) {
@@ -563,7 +563,7 @@ export class EventBus {
       }
     }
     if (removedId !== null) {
-      if (subscribers.size === 0) delete this.#events[event];
+      if (subscribers.size === 0) {delete this.#events[event];}
       if (VERBOSE_EVENT_LOGS_ENABLED) {
         this.#log("event", `${event} (取消订阅 by ${removedId})`);
       }
@@ -621,16 +621,16 @@ export class EventBus {
     }
 
     // 全局事件白名单校验（局部事件 @ 开头跳过）
-    if (!event?.startsWith('@') && !isGlobalEventAllowed(event)) {
+    if (!event?.startsWith("@") && !isGlobalEventAllowed(event)) {
       const err = `未注册的全局事件：'${event}'，已被禁止发布` +
-        '\n请使用 event-constants.js 中已存在的事件，或先提交契约PR新增事件后再使用' +
-        (actorId ? `\n执行者ID: ${actorId}` : '');
+        "\n请使用 event-constants.js 中已存在的事件，或先提交契约PR新增事件后再使用" +
+        (actorId ? `\n执行者ID: ${actorId}` : "");
       this.#log("error", err, { event, data });
       return;
     }
 
     // 事件负载契约校验（仅对全局事件启用；局部事件以 @ 开头的跳过）
-    if (!event?.startsWith('@') && this.#payloadValidationEnabled && typeof this.#payloadValidateFn === "function") {
+    if (!event?.startsWith("@") && this.#payloadValidationEnabled && typeof this.#payloadValidateFn === "function") {
       try {
         const result = this.#payloadValidateFn(event, data);
         if (result && result.valid === false) {
@@ -682,7 +682,7 @@ export class EventBus {
         let truncatedData;
         try {
           const dataStr = JSON.stringify(data);
-          truncatedData = dataStr.length > 200 ? dataStr.substring(0, 200) + '...' : dataStr;
+          truncatedData = dataStr.length > 200 ? dataStr.substring(0, 200) + "..." : dataStr;
         } catch (err) {
           // JSON.stringify可能失败（循环引用等），使用原始data
           truncatedData = data;
@@ -749,7 +749,7 @@ export class EventBus {
         let truncatedData;
         try {
           const dataStr = JSON.stringify(data);
-          truncatedData = dataStr.length > 200 ? dataStr.substring(0, 200) + '...' : dataStr;
+          truncatedData = dataStr.length > 200 ? dataStr.substring(0, 200) + "..." : dataStr;
         } catch (err) {
           // JSON.stringify可能失败（循环引用等），使用原始data
           truncatedData = data;
@@ -827,7 +827,7 @@ export class EventBus {
     }
 
     this.#enableTracing = enable;
-    this.#log("info", `消息追踪${enable ? '已启用' : '已禁用'}`);
+    this.#log("info", `消息追踪${enable ? "已启用" : "已禁用"}`);
   }
 
   /**
@@ -836,7 +836,7 @@ export class EventBus {
    * @returns {Object|null} 消息追踪对象
    */
   getMessageTrace(messageId) {
-    if (!this.#messageTracer) return null;
+    if (!this.#messageTracer) {return null;}
     return this.#messageTracer.getTrace(messageId);
   }
 
@@ -846,7 +846,7 @@ export class EventBus {
    * @returns {Object|null} 调用链树
    */
   getTraceTree(traceId) {
-    if (!this.#messageTracer) return null;
+    if (!this.#messageTracer) {return null;}
     return this.#messageTracer.buildTraceTree(traceId);
   }
 
@@ -856,7 +856,7 @@ export class EventBus {
    * @returns {number} 清理的记录数
    */
   clearTraceData(olderThan) {
-    if (!this.#messageTracer) return 0;
+    if (!this.#messageTracer) {return 0;}
     return this.#messageTracer.clearTraceData(olderThan);
   }
 
@@ -866,7 +866,7 @@ export class EventBus {
    * @returns {Object} 性能统计
    */
   getStats(event = null) {
-    if (!this.#messageTracer) return null;
+    if (!this.#messageTracer) {return null;}
     return this.#messageTracer.getStats(event);
   }
 
@@ -875,7 +875,7 @@ export class EventBus {
    * @returns {Array<string>} 调用链ID数组
    */
   getAllTraceIds() {
-    if (!this.#messageTracer) return [];
+    if (!this.#messageTracer) {return [];}
     return this.#messageTracer.getAllTraceIds();
   }
 

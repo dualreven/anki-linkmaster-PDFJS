@@ -7,7 +7,7 @@ export class SearchBar {
   // 轻量依赖：用于显示“搜索中”提示
   // 注意：相对路径从 features/search/components 到 common/utils
   // 路径计算：components -> search -> features -> pdf-home -> frontend -> common
-  
+
   #logger = null;
   #eventBus = null;
   #container = null;
@@ -27,7 +27,7 @@ export class SearchBar {
     this.#config = {
       debounceDelay: 300,
       enableLiveSearch: true,
-      placeholder: '输入关键词（空格=且）搜索PDF（标题、作者、文件名、标签、备注、主题、关键词）...',
+      placeholder: "输入关键词（空格=且）搜索PDF（标题、作者、文件名、标签、备注、主题、关键词）...",
       ...config
     };
   }
@@ -43,7 +43,7 @@ export class SearchBar {
     this.#attachEventListeners();
     // 预设保存弹窗功能已移除，改由侧边栏“已存搜索条件”管理
 
-    this.#logger.info('[SearchBar] Rendered');
+    this.#logger.info("[SearchBar] Rendered");
   }
 
   /**
@@ -90,13 +90,13 @@ export class SearchBar {
    * @private
    */
   #bindElements() {
-    this.#searchInput = this.#container.querySelector('.search-input');
-    this.#searchBtn = this.#container.querySelector('.search-btn');
-    this.#clearBtn = this.#container.querySelector('.clear-search-btn');
-    this.#addBtn = this.#container.querySelector('#add-pdf-btn');
-    this.#sortBtn = this.#container.querySelector('#sort-btn');
-    this.#advancedBtn = this.#container.querySelector('.advanced-filter-btn');
-    this.#statsDisplay = this.#container.querySelector('.search-stats');
+    this.#searchInput = this.#container.querySelector(".search-input");
+    this.#searchBtn = this.#container.querySelector(".search-btn");
+    this.#clearBtn = this.#container.querySelector(".clear-search-btn");
+    this.#addBtn = this.#container.querySelector("#add-pdf-btn");
+    this.#sortBtn = this.#container.querySelector("#sort-btn");
+    this.#advancedBtn = this.#container.querySelector(".advanced-filter-btn");
+    this.#statsDisplay = this.#container.querySelector(".search-stats");
   }
 
   /**
@@ -107,7 +107,7 @@ export class SearchBar {
     // 搜索输入 - 实时搜索（可配置）
     if (this.#config.enableLiveSearch) {
       let searchTimeout = null;
-      this.#searchInput.addEventListener('input', (e) => {
+      this.#searchInput.addEventListener("input", (e) => {
         const searchText = e.target.value.trim();
 
         // 防抖处理
@@ -117,12 +117,12 @@ export class SearchBar {
         }, this.#config.debounceDelay);
 
         // 显示/隐藏清除按钮（容错：按钮可能未挂载）
-        try { if (this.#clearBtn) { this.#clearBtn.style.display = searchText ? 'block' : 'none'; } } catch(_) {}
+        try { if (this.#clearBtn) { this.#clearBtn.style.display = searchText ? "block" : "none"; } } catch(_) {}
       });
 
       // Enter键触发立即搜索
-      this.#searchInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
+      this.#searchInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
           clearTimeout(searchTimeout);
           this.#handleSearch(e.target.value.trim());
         }
@@ -130,37 +130,37 @@ export class SearchBar {
     }
 
     // 搜索按钮
-    this.#searchBtn.addEventListener('click', () => {
+    this.#searchBtn.addEventListener("click", () => {
       const searchText = this.#searchInput.value.trim();
       this.#handleSearch(searchText);
     });
 
     // 清除按钮
     if (this.#clearBtn) {
-      this.#clearBtn.addEventListener('click', () => {
-        this.#searchInput.value = '';
-        try { if (this.#clearBtn) this.#clearBtn.style.display = 'none'; } catch(_) {}
+      this.#clearBtn.addEventListener("click", () => {
+        this.#searchInput.value = "";
+        try { if (this.#clearBtn) {this.#clearBtn.style.display = "none";} } catch(_) {}
         this.#handleClear();
       });
     }
 
     // 添加按钮
-    this.#addBtn.addEventListener('click', () => {
-      this.#logger.info('[SearchBar] Add button clicked');
+    this.#addBtn.addEventListener("click", () => {
+      this.#logger.info("[SearchBar] Add button clicked");
       // 直接发全局事件，避免依赖 Feature 桥接（构建产物下更稳）
-      try { this.#eventBus.emitGlobal('search:add:requested'); } catch(_) { /* ignore */ }
+      try { this.#eventBus.emitGlobal("search:add:requested"); } catch(_) { /* ignore */ }
     });
 
     // 排序按钮
-    this.#sortBtn.addEventListener('click', () => {
-      this.#logger.info('[SearchBar] Sort button clicked');
-      try { this.#eventBus.emitGlobal('search:sort:requested'); } catch(_) { /* ignore */ }
+    this.#sortBtn.addEventListener("click", () => {
+      this.#logger.info("[SearchBar] Sort button clicked");
+      try { this.#eventBus.emitGlobal("search:sort:requested"); } catch(_) { /* ignore */ }
     });
 
     // 高级筛选按钮
-    this.#advancedBtn.addEventListener('click', () => {
-      this.#logger.info('[SearchBar] Advanced filter button clicked');
-      try { this.#eventBus.emitGlobal('filter:advanced:open'); } catch(_) { /* ignore */ }
+    this.#advancedBtn.addEventListener("click", () => {
+      this.#logger.info("[SearchBar] Advanced filter button clicked");
+      try { this.#eventBus.emitGlobal("filter:advanced:open"); } catch(_) { /* ignore */ }
     });
 
     // 保存条件按钮已在本版本移除
@@ -202,13 +202,13 @@ export class SearchBar {
    */
   #handleSearch(searchText) {
     // 空搜索也是有效的搜索，应该显示所有记录
-    this.#logger.info('[SearchBar] Search triggered', { searchText: searchText || '(empty)' });
+    this.#logger.info("[SearchBar] Search triggered", { searchText: searchText || "(empty)" });
     // 生产构建下，为避免桥接失败，直接发全局事件
     try {
-      this.#eventBus.emitGlobal('search:query:requested', { searchText: searchText || '' });
+      this.#eventBus.emitGlobal("search:query:requested", { searchText: searchText || "" });
     } catch(_) {
       // 兜底：仍发局部事件（开发模式兼容）
-      try { this.#eventBus.emit('search:query:requested', { searchText: searchText || '' }); } catch(_) {}
+      try { this.#eventBus.emit("search:query:requested", { searchText: searchText || "" }); } catch(_) {}
     }
   }
 
@@ -217,8 +217,8 @@ export class SearchBar {
    * @private
    */
   #handleClear() {
-    this.#logger.info('[SearchBar] Clear triggered');
-    try { this.#eventBus.emitGlobal('search:clear:requested'); } catch(_) { try { this.#eventBus.emit('search:clear:requested'); } catch(_) {} }
+    this.#logger.info("[SearchBar] Clear triggered");
+    try { this.#eventBus.emitGlobal("search:clear:requested"); } catch(_) { try { this.#eventBus.emit("search:clear:requested"); } catch(_) {} }
     this.updateStats(null);
   }
 
@@ -228,13 +228,13 @@ export class SearchBar {
    */
   updateStats(stats) {
     if (!stats || !stats.hasResults) {
-      this.#statsDisplay.style.display = 'none';
+      this.#statsDisplay.style.display = "none";
       return;
     }
 
-    const resultCountSpan = this.#statsDisplay.querySelector('.result-count');
+    const resultCountSpan = this.#statsDisplay.querySelector(".result-count");
     resultCountSpan.textContent = stats.count;
-    this.#statsDisplay.style.display = 'block';
+    this.#statsDisplay.style.display = "block";
   }
 
   /**
@@ -243,7 +243,7 @@ export class SearchBar {
    */
   setSearchText(text) {
     this.#searchInput.value = text;
-    this.#clearBtn.style.display = text ? 'block' : 'none';
+    this.#clearBtn.style.display = text ? "block" : "none";
   }
 
   /**
@@ -266,9 +266,9 @@ export class SearchBar {
    */
   destroy() {
     if (this.#container) {
-      this.#container.innerHTML = '';
+      this.#container.innerHTML = "";
     }
 
-    this.#logger.info('[SearchBar] Destroyed');
+    this.#logger.info("[SearchBar] Destroyed");
   }
 }

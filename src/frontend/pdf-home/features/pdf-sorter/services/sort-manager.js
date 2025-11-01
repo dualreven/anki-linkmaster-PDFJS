@@ -43,7 +43,7 @@ export class SortManager {
    * @type {string}
    * @private
    */
-  #weightedFormula = '';
+  #weightedFormula = "";
 
   /**
    * 数据源引用
@@ -69,7 +69,7 @@ export class SortManager {
    */
   setDataSource(data) {
     this.#dataSource = data;
-    this.#logger.info('[SortManager] Data source set', { count: data?.length });
+    this.#logger.info("[SortManager] Data source set", { count: data?.length });
   }
 
   /**
@@ -90,17 +90,17 @@ export class SortManager {
    */
   applyMultiSort(configs) {
     if (!this.#dataSource) {
-      this.#logger.warn('[SortManager] No data source available');
+      this.#logger.warn("[SortManager] No data source available");
       return [];
     }
 
     if (!configs || configs.length === 0) {
-      this.#logger.warn('[SortManager] No sort configs provided');
+      this.#logger.warn("[SortManager] No sort configs provided");
       return [...this.#dataSource];
     }
 
     this.#multiSortConfigs = configs;
-    this.#logger.info('[SortManager] Applying multi-sort', configs);
+    this.#logger.info("[SortManager] Applying multi-sort", configs);
 
     // 创建数据副本进行排序
     const sortedData = [...this.#dataSource].sort((a, b) => {
@@ -118,11 +118,11 @@ export class SortManager {
       return 0;
     });
 
-    this.#logger.info('[SortManager] Multi-sort applied', { resultCount: sortedData.length });
+    this.#logger.info("[SortManager] Multi-sort applied", { resultCount: sortedData.length });
 
     // 触发全局事件通知其他Feature
-    this.#globalEventBus.emit('sorter:sort:applied', {
-      mode: 'multi',
+    this.#globalEventBus.emit("sorter:sort:applied", {
+      mode: "multi",
       configs,
       resultCount: sortedData.length
     });
@@ -138,17 +138,17 @@ export class SortManager {
    */
   applyWeightedSort(formula) {
     if (!this.#dataSource) {
-      this.#logger.warn('[SortManager] No data source available');
+      this.#logger.warn("[SortManager] No data source available");
       return [];
     }
 
     if (!formula || !formula.trim()) {
-      this.#logger.warn('[SortManager] No formula provided');
+      this.#logger.warn("[SortManager] No formula provided");
       return [...this.#dataSource];
     }
 
     this.#weightedFormula = formula;
-    this.#logger.info('[SortManager] Applying weighted sort', { formula });
+    this.#logger.info("[SortManager] Applying weighted sort", { formula });
 
     try {
       // 为每条数据计算权重分数
@@ -163,18 +163,18 @@ export class SortManager {
       // 移除临时权重字段
       sortedData.forEach(item => delete item.__weight__);
 
-      this.#logger.info('[SortManager] Weighted sort applied', { resultCount: sortedData.length });
+      this.#logger.info("[SortManager] Weighted sort applied", { resultCount: sortedData.length });
 
       // 触发全局事件通知其他Feature
-      this.#globalEventBus.emit('sorter:sort:applied', {
-        mode: 'weighted',
+      this.#globalEventBus.emit("sorter:sort:applied", {
+        mode: "weighted",
         formula,
         resultCount: sortedData.length
       });
 
       return sortedData;
     } catch (error) {
-      this.#logger.error('[SortManager] Weighted sort failed', error);
+      this.#logger.error("[SortManager] Weighted sort failed", error);
       throw error;
     }
   }
@@ -185,13 +185,13 @@ export class SortManager {
    * @public
    */
   clearSort() {
-    this.#logger.info('[SortManager] Clearing sort');
+    this.#logger.info("[SortManager] Clearing sort");
 
     this.#multiSortConfigs = [];
-    this.#weightedFormula = '';
+    this.#weightedFormula = "";
 
     // 触发全局事件
-    this.#globalEventBus.emit('sorter:sort:cleared', {});
+    this.#globalEventBus.emit("sorter:sort:cleared", {});
 
     return this.#dataSource ? [...this.#dataSource] : [];
   }
@@ -205,7 +205,7 @@ export class SortManager {
    */
   #getFieldValue(item, field) {
     // 支持嵌套字段访问，例如: "metadata.title"
-    const keys = field.split('.');
+    const keys = field.split(".");
     let value = item;
 
     for (const key of keys) {
@@ -228,18 +228,18 @@ export class SortManager {
    */
   #compareValues(a, b, direction) {
     // 处理null/undefined
-    if (a === null || a === undefined) return direction === 'asc' ? 1 : -1;
-    if (b === null || b === undefined) return direction === 'asc' ? -1 : 1;
+    if (a === null || a === undefined) {return direction === "asc" ? 1 : -1;}
+    if (b === null || b === undefined) {return direction === "asc" ? -1 : 1;}
 
     let compareResult = 0;
 
     // 数字比较
-    if (typeof a === 'number' && typeof b === 'number') {
+    if (typeof a === "number" && typeof b === "number") {
       compareResult = a - b;
     }
     // 字符串比较
-    else if (typeof a === 'string' && typeof b === 'string') {
-      compareResult = a.localeCompare(b, 'zh-CN');
+    else if (typeof a === "string" && typeof b === "string") {
+      compareResult = a.localeCompare(b, "zh-CN");
     }
     // 日期比较
     else if (a instanceof Date && b instanceof Date) {
@@ -247,11 +247,11 @@ export class SortManager {
     }
     // 尝试转为字符串比较
     else {
-      compareResult = String(a).localeCompare(String(b), 'zh-CN');
+      compareResult = String(a).localeCompare(String(b), "zh-CN");
     }
 
     // 应用排序方向
-    return direction === 'asc' ? compareResult : -compareResult;
+    return direction === "asc" ? compareResult : -compareResult;
   }
 
   /**
@@ -271,14 +271,14 @@ export class SortManager {
       const func = new Function(...Object.keys(context), `return ${formula}`);
       const result = func(...Object.values(context));
 
-      if (typeof result !== 'number' || isNaN(result)) {
-        this.#logger.warn('[SortManager] Formula returned non-number', { result });
+      if (typeof result !== "number" || isNaN(result)) {
+        this.#logger.warn("[SortManager] Formula returned non-number", { result });
         return 0;
       }
 
       return result;
     } catch (error) {
-      this.#logger.error('[SortManager] Failed to calculate weight', error);
+      this.#logger.error("[SortManager] Failed to calculate weight", error);
       return 0;
     }
   }
@@ -329,18 +329,18 @@ export class SortManager {
 
     const tagsValue = Array.isArray(item.tags)
       ? item.tags
-      : typeof item.tags === 'string' && item.tags.length > 0
+      : typeof item.tags === "string" && item.tags.length > 0
         ? item.tags.split(/[,;\s]+/).filter(Boolean)
         : [];
 
     const context = {
       // 基础字段
-      filename: item.filename || '',
-      title: item.title || '',
-      author: item.author || '',
-      subject: item.subject || '',
-      keywords: Array.isArray(item.keywords) ? item.keywords.join(',') : (item.keywords || ''),
-      notes: item.notes || '',
+      filename: item.filename || "",
+      title: item.title || "",
+      author: item.author || "",
+      subject: item.subject || "",
+      keywords: Array.isArray(item.keywords) ? item.keywords.join(",") : (item.keywords || ""),
+      notes: item.notes || "",
       tags: Array.isArray(item.tags) ? item.tags : (item.tags || []),
       tags_count: tagsValue.length,
       size: item.size || 0,
@@ -404,13 +404,13 @@ export class SortManager {
       try {
         const weight = this.#calculateWeight(item, formula);
         return {
-          item: item.filename || 'Unknown',
+          item: item.filename || "Unknown",
           weight,
           success: true
         };
       } catch (error) {
         return {
-          item: item.filename || 'Unknown',
+          item: item.filename || "Unknown",
           weight: null,
           success: false,
           error: error.message

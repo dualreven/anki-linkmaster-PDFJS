@@ -26,14 +26,14 @@
  * featureScope.register('listService', ListService);
  */
 
-import { getLogger } from '../utils/logger.js';
+import { getLogger } from "../utils/logger.js";
 
 /**
  * 服务作用域枚举
  */
 export const ServiceScope = {
-  SINGLETON: 'singleton',  // 单例模式，整个容器只创建一次
-  TRANSIENT: 'transient'   // 瞬时模式，每次获取都创建新实例
+  SINGLETON: "singleton",  // 单例模式，整个容器只创建一次
+  TRANSIENT: "transient"   // 瞬时模式，每次获取都创建新实例
 };
 
 /**
@@ -78,7 +78,7 @@ class ServiceDefinition {
    * @description 类会使用 new 操作符进行实例化
    */
   isClass() {
-    return typeof this.target === 'function' && !this.factory;
+    return typeof this.target === "function" && !this.factory;
   }
 }
 
@@ -89,7 +89,7 @@ export class DependencyContainer {
   #services = new Map();      // 服务定义映射
   #instances = new Map();     // 单例实例缓存
   #parent = null;             // 父容器（用于作用域继承）
-  #name = '';                 // 容器名称
+  #name = "";                 // 容器名称
   #logger = null;             // 日志记录器
   #children = new Map();      // 子容器映射
 
@@ -98,7 +98,7 @@ export class DependencyContainer {
    * @param {string} name - 容器名称
    * @param {DependencyContainer} parent - 父容器（可选）
    */
-  constructor(name = 'default', parent = null) {
+  constructor(name = "default", parent = null) {
     this.#name = name;
     this.#parent = parent;
     this.#logger = getLogger(`DependencyContainer.${name}`);
@@ -338,7 +338,7 @@ export class DependencyContainer {
     const paramNames = this.#extractParameterNames(definition.target);
 
     if (paramNames.length > 0) {
-      this.#logger.debug(`Auto-resolving dependencies for "${definition.name}": [${paramNames.join(', ')}]`);
+      this.#logger.debug(`Auto-resolving dependencies for "${definition.name}": [${paramNames.join(", ")}]`);
       return paramNames.map(paramName => {
         if (this.has(paramName)) {
           return this.get(paramName);
@@ -359,7 +359,7 @@ export class DependencyContainer {
    * @private
    */
   #extractParameterNames(func) {
-    if (typeof func !== 'function') {
+    if (typeof func !== "function") {
       return [];
     }
 
@@ -376,10 +376,10 @@ export class DependencyContainer {
 
     // 解析参数名
     return match[1]
-      .split(',')
+      .split(",")
       .map(param => param.trim())
       .filter(param => param.length > 0)
-      .map(param => param.split('=')[0].trim()); // 移除默认值
+      .map(param => param.split("=")[0].trim()); // 移除默认值
   }
 }
 
@@ -388,7 +388,7 @@ export class DependencyContainer {
  * @param {string} name - 容器名称，默认 'global'
  * @returns {DependencyContainer} 容器实例
  */
-export function createContainer(name = 'global') {
+export function createContainer(name = "global") {
   return new DependencyContainer(name);
 }
 

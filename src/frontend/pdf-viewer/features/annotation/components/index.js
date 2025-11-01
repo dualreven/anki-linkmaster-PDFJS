@@ -4,4 +4,4 @@
  * @description 导出所有标注相关的UI组件
  */
 
-export { AnnotationSidebarUI } from './annotation-sidebar-ui.js';
+export { AnnotationSidebarUI } from "./annotation-sidebar-ui.js";

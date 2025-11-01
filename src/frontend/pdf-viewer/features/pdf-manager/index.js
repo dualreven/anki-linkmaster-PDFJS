@@ -3,7 +3,7 @@
  * @module PDFManagerFeature
  */
 
-import { PDFManager } from '../../pdf/pdf-manager-refactored.js';
+import { PDFManager } from "../../pdf/pdf-manager-refactored.js";
 
 /**
  * PDF管理器功能域
@@ -15,12 +15,12 @@ export class PDFManagerFeature {
 
   /** 功能名称 */
   get name() {
-    return 'pdf-manager';
+    return "pdf-manager";
   }
 
   /** 版本号 */
   get version() {
-    return '1.0.0';
+    return "1.0.0";
   }
 
   /** 依赖的功能 */
@@ -35,7 +35,7 @@ export class PDFManagerFeature {
   async install(context) {
     const { globalEventBus, logger } = context;
 
-    logger.info('Installing PDFManagerFeature...');
+    logger.info("Installing PDFManagerFeature...");
 
     // 创建 PDFManager 实例
     this.#pdfManager = new PDFManager(globalEventBus);
@@ -43,7 +43,7 @@ export class PDFManagerFeature {
     // 初始化
     await this.#pdfManager.initialize();
 
-    logger.info('PDFManagerFeature installed successfully');
+    logger.info("PDFManagerFeature installed successfully");
   }
 
   /**
@@ -53,14 +53,14 @@ export class PDFManagerFeature {
   async uninstall(context) {
     const { logger } = context;
 
-    logger.info('Uninstalling PDFManagerFeature...');
+    logger.info("Uninstalling PDFManagerFeature...");
 
     if (this.#pdfManager) {
       this.#pdfManager.destroy();
       this.#pdfManager = null;
     }
 
-    logger.info('PDFManagerFeature uninstalled');
+    logger.info("PDFManagerFeature uninstalled");
   }
 
   /**

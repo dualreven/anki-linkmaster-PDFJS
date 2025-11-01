@@ -1,4 +1,4 @@
-import { SearchResultsFeature } from '../index.js';
+import { SearchResultsFeature } from "../index.js";
 
 class MiniBus {
   constructor() { this._map = new Map(); }
@@ -17,7 +17,7 @@ class MiniBus {
   }
 }
 
-describe('SearchResultsFeature - reopen after viewer closed (behavioral smoke)', () => {
+describe("SearchResultsFeature - reopen after viewer closed (behavioral smoke)", () => {
   beforeEach(() => {
     document.body.innerHTML = `
       <div class="main-content">
@@ -26,7 +26,7 @@ describe('SearchResultsFeature - reopen after viewer closed (behavioral smoke)',
     `;
   });
 
-  test('double "open" events should trigger exactly two bridge calls (no extra)', async () => {
+  test("double \"open\" events should trigger exactly two bridge calls (no extra)", async () => {
     const calls = [];
     const mockBridge = {
       initialize: jest.fn(async () => {}),
@@ -46,18 +46,18 @@ describe('SearchResultsFeature - reopen after viewer closed (behavioral smoke)',
     await feature.install(ctx);
 
     // 第一次打开
-    ctx.scopedEventBus.emit('results:item:open', { result: { id: 'abc123', filename: 'a.pdf' } });
+    ctx.scopedEventBus.emit("results:item:open", { result: { id: "abc123", filename: "a.pdf" } });
     await new Promise(r => setTimeout(r, 0));
 
     // 模拟用户关闭（在本测试中仅作为语义步骤，不需要真实关闭窗口）
 
     // 第二次打开（应再次产生一次调用）
-    ctx.scopedEventBus.emit('results:item:open', { result: { id: 'abc123', filename: 'a.pdf' } });
+    ctx.scopedEventBus.emit("results:item:open", { result: { id: "abc123", filename: "a.pdf" } });
     await new Promise(r => setTimeout(r, 0));
 
     expect(mockBridge.openPdfViewersWithMeta).toHaveBeenCalledTimes(2);
-    expect(calls[0]?.pdfIds).toEqual(['abc123']);
-    expect(calls[1]?.pdfIds).toEqual(['abc123']);
+    expect(calls[0]?.pdfIds).toEqual(["abc123"]);
+    expect(calls[1]?.pdfIds).toEqual(["abc123"]);
   });
 });
 

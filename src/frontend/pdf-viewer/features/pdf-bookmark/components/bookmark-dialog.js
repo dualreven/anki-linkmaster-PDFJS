@@ -4,7 +4,7 @@
  * @description 提供大纲添加、编辑、删除确认的对话框UI
  */
 
-import { getLogger } from '../../../../common/utils/logger.js';
+import { getLogger } from "../../../../common/utils/logger.js";
 
 /**
  * BookmarkDialog 对话框组件类
@@ -50,7 +50,7 @@ export class BookmarkDialog {
   };
 
   constructor() {
-    this.#logger = getLogger('BookmarkDialog');
+    this.#logger = getLogger("BookmarkDialog");
   }
 
   /**
@@ -62,21 +62,21 @@ export class BookmarkDialog {
    * @returns {void}
    */
   showAdd({ currentPage, onConfirm, onCancel }) {
-    this.#mode = 'add';
+    this.#mode = "add";
     this.#callbacks.onConfirm = onConfirm;
     this.#callbacks.onCancel = onCancel;
 
     this.#dialog = this.#createDialog({
-      title: '添加大纲',
+      title: "添加大纲",
       content: this.#createAddEditForm({ pageAt: currentPage, position: null }),
       buttons: [
-        { text: '取消', onClick: () => this.#handleCancel() },
-        { text: '添加', onClick: () => this.#handleAddConfirm(), primary: true }
+        { text: "取消", onClick: () => this.#handleCancel() },
+        { text: "添加", onClick: () => this.#handleAddConfirm(), primary: true }
       ]
     });
 
     document.body.appendChild(this.#dialog);
-    this.#logger.info('Add outline dialog shown');
+    this.#logger.info("Add outline dialog shown");
   }
 
   /**
@@ -88,17 +88,17 @@ export class BookmarkDialog {
    * @returns {void}
    */
   showEdit({ bookmark, onConfirm, onCancel }) {
-    this.#mode = 'edit';
+    this.#mode = "edit";
     this.#currentBookmark = bookmark;
     this.#callbacks.onConfirm = onConfirm;
     this.#callbacks.onCancel = onCancel;
 
     this.#dialog = this.#createDialog({
-      title: '编辑大纲',
+      title: "编辑大纲",
       content: this.#createAddEditForm(bookmark),
       buttons: [
-        { text: '取消', onClick: () => this.#handleCancel() },
-        { text: '保存', onClick: () => this.#handleEditConfirm(), primary: true }
+        { text: "取消", onClick: () => this.#handleCancel() },
+        { text: "保存", onClick: () => this.#handleEditConfirm(), primary: true }
       ]
     });
 
@@ -116,7 +116,7 @@ export class BookmarkDialog {
    * @returns {void}
    */
   showDelete({ bookmark, childCount = 0, onConfirm, onCancel }) {
-    this.#mode = 'delete';
+    this.#mode = "delete";
     this.#currentBookmark = bookmark;
     this.#callbacks.onConfirm = onConfirm;
     this.#callbacks.onCancel = onCancel;
@@ -126,11 +126,11 @@ export class BookmarkDialog {
       : `确定删除大纲"${bookmark.name}"吗？`;
 
     this.#dialog = this.#createDialog({
-      title: '删除书签',
+      title: "删除书签",
       content: this.#createDeleteConfirm(message),
       buttons: [
-        { text: '取消', onClick: () => this.#handleCancel() },
-        { text: '删除', onClick: () => this.#handleDeleteConfirm(), primary: true, danger: true }
+        { text: "取消", onClick: () => this.#handleCancel() },
+        { text: "删除", onClick: () => this.#handleDeleteConfirm(), primary: true, danger: true }
       ]
     });
 
@@ -149,7 +149,7 @@ export class BookmarkDialog {
    */
   #createDialog({ title, content, buttons }) {
     // 遮罩层
-    const overlay = document.createElement('div');
+    const overlay = document.createElement("div");
     overlay.style.cssText = `
       position: fixed;
       top: 0;
@@ -164,7 +164,7 @@ export class BookmarkDialog {
     `;
 
     // 对话框
-    const dialog = document.createElement('div');
+    const dialog = document.createElement("div");
     dialog.style.cssText = `
       background: white;
       border-radius: 8px;
@@ -177,7 +177,7 @@ export class BookmarkDialog {
     `;
 
     // 标题栏
-    const header = document.createElement('div');
+    const header = document.createElement("div");
     header.style.cssText = `
       padding: 16px 20px;
       border-bottom: 1px solid #e0e0e0;
@@ -187,7 +187,7 @@ export class BookmarkDialog {
     header.textContent = title;
 
     // 内容区域
-    const body = document.createElement('div');
+    const body = document.createElement("div");
     body.style.cssText = `
       padding: 20px;
       overflow-y: auto;
@@ -196,7 +196,7 @@ export class BookmarkDialog {
     body.appendChild(content);
 
     // 按钮区域
-    const footer = document.createElement('div');
+    const footer = document.createElement("div");
     footer.style.cssText = `
       padding: 12px 20px;
       border-top: 1px solid #e0e0e0;
@@ -206,37 +206,37 @@ export class BookmarkDialog {
     `;
 
     buttons.forEach(({ text, onClick, primary, danger }) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
+      const btn = document.createElement("button");
+      btn.type = "button";
       btn.textContent = text;
       btn.style.cssText = `
         padding: 8px 16px;
-        border: 1px solid ${danger ? '#d32f2f' : (primary ? '#1976d2' : '#ccc')};
+        border: 1px solid ${danger ? "#d32f2f" : (primary ? "#1976d2" : "#ccc")};
         border-radius: 4px;
-        background-color: ${danger ? '#d32f2f' : (primary ? '#1976d2' : 'white')};
-        color: ${primary || danger ? 'white' : '#333'};
+        background-color: ${danger ? "#d32f2f" : (primary ? "#1976d2" : "white")};
+        color: ${primary || danger ? "white" : "#333"};
         cursor: pointer;
         font-size: 14px;
       `;
-      btn.addEventListener('click', onClick);
+      btn.addEventListener("click", onClick);
 
-      btn.addEventListener('mouseenter', () => {
+      btn.addEventListener("mouseenter", () => {
         if (danger) {
-          btn.style.backgroundColor = '#b71c1c';
+          btn.style.backgroundColor = "#b71c1c";
         } else if (primary) {
-          btn.style.backgroundColor = '#1565c0';
+          btn.style.backgroundColor = "#1565c0";
         } else {
-          btn.style.backgroundColor = '#f5f5f5';
+          btn.style.backgroundColor = "#f5f5f5";
         }
       });
 
-      btn.addEventListener('mouseleave', () => {
+      btn.addEventListener("mouseleave", () => {
         if (danger) {
-          btn.style.backgroundColor = '#d32f2f';
+          btn.style.backgroundColor = "#d32f2f";
         } else if (primary) {
-          btn.style.backgroundColor = '#1976d2';
+          btn.style.backgroundColor = "#1976d2";
         } else {
-          btn.style.backgroundColor = 'white';
+          btn.style.backgroundColor = "white";
         }
       });
 
@@ -249,7 +249,7 @@ export class BookmarkDialog {
     overlay.appendChild(dialog);
 
     // 点击遮罩关闭
-    overlay.addEventListener('click', (e) => {
+    overlay.addEventListener("click", (e) => {
       if (e.target === overlay) {
         this.#handleCancel();
       }
@@ -257,12 +257,12 @@ export class BookmarkDialog {
 
     // ESC键关闭
     const escHandler = (e) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         this.#handleCancel();
-        document.removeEventListener('keydown', escHandler);
+        document.removeEventListener("keydown", escHandler);
       }
     };
-    document.addEventListener('keydown', escHandler);
+    document.addEventListener("keydown", escHandler);
 
     return overlay;
   }
@@ -274,8 +274,8 @@ export class BookmarkDialog {
    * @private
    */
   #createAddEditForm(data) {
-    const form = document.createElement('div');
-    form.style.cssText = 'display: flex; flex-direction: column; gap: 16px;';
+    const form = document.createElement("div");
+    form.style.cssText = "display: flex; flex-direction: column; gap: 16px;";
 
     // 大纲名称
     form.innerHTML = `
@@ -284,7 +284,7 @@ export class BookmarkDialog {
         <input
           type="text"
           id="bookmark-name"
-          value="${data.name || (data.pageAt ? `第 ${data.pageAt} 页` : '')}"
+          value="${data.name || (data.pageAt ? `第 ${data.pageAt} 页` : "")}"
           placeholder="请输入大纲名称"
           style="padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;"
         />
@@ -306,7 +306,7 @@ export class BookmarkDialog {
         <input
           type="number"
           id="bookmark-position"
-          value="${typeof data.position === 'number' ? data.position : ''}"
+          value="${typeof data.position === "number" ? data.position : ""}"
           min="0" max="100"
           style="padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;"
           placeholder="留空表示未指定"
@@ -324,8 +324,8 @@ export class BookmarkDialog {
    * @private
    */
   #createDeleteConfirm(message) {
-    const content = document.createElement('div');
-    content.style.cssText = 'font-size: 14px; line-height: 1.6; white-space: pre-wrap;';
+    const content = document.createElement("div");
+    content.style.cssText = "font-size: 14px; line-height: 1.6; white-space: pre-wrap;";
     content.textContent = message;
     return content;
   }
@@ -335,18 +335,18 @@ export class BookmarkDialog {
    * @private
    */
   #handleAddConfirm() {
-    const name = document.getElementById('bookmark-name').value.trim();
-    const pageAt = parseInt(document.getElementById('bookmark-page').value, 10);
-    const posRaw = document.getElementById('bookmark-position')?.value ?? '';
-    const position = posRaw === '' ? null : Math.max(0, Math.min(100, parseInt(posRaw, 10)));
+    const name = document.getElementById("bookmark-name").value.trim();
+    const pageAt = parseInt(document.getElementById("bookmark-page").value, 10);
+    const posRaw = document.getElementById("bookmark-position")?.value ?? "";
+    const position = posRaw === "" ? null : Math.max(0, Math.min(100, parseInt(posRaw, 10)));
 
     if (!name) {
-      alert('请输入书签名称');
+      alert("请输入书签名称");
       return;
     }
 
     if (!pageAt || pageAt < 1) {
-      alert('请输入有效的页码');
+      alert("请输入有效的页码");
       return;
     }
 
@@ -368,18 +368,18 @@ export class BookmarkDialog {
    * @private
    */
   #handleEditConfirm() {
-    const name = document.getElementById('bookmark-name').value.trim();
-    const pageAt = parseInt(document.getElementById('bookmark-page').value, 10);
-    const posRaw = document.getElementById('bookmark-position')?.value ?? '';
-    const position = posRaw === '' ? null : Math.max(0, Math.min(100, parseInt(posRaw, 10)));
+    const name = document.getElementById("bookmark-name").value.trim();
+    const pageAt = parseInt(document.getElementById("bookmark-page").value, 10);
+    const posRaw = document.getElementById("bookmark-position")?.value ?? "";
+    const position = posRaw === "" ? null : Math.max(0, Math.min(100, parseInt(posRaw, 10)));
 
     if (!name) {
-      alert('请输入书签名称');
+      alert("请输入书签名称");
       return;
     }
 
     if (!pageAt || pageAt < 1) {
-      alert('请输入有效的页码');
+      alert("请输入有效的页码");
       return;
     }
 
@@ -435,7 +435,7 @@ export class BookmarkDialog {
     this.#currentBookmark = null;
     this.#callbacks = { onConfirm: null, onCancel: null };
 
-    this.#logger.info('Dialog closed');
+    this.#logger.info("Dialog closed");
   }
 }
 

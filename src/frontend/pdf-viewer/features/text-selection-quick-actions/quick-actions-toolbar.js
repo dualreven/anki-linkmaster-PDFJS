@@ -4,10 +4,10 @@
  */
 
 const BUTTON_DEFS = [
-  { key: 'copy', icon: '📋', label: '复制' },
-  { key: 'annotate', icon: '🖍️', label: '标注' },
-  { key: 'translate', icon: '🌐', label: '翻译' },
-  { key: 'ai', icon: '🤖', label: 'AI' }
+  { key: "copy", icon: "📋", label: "复制" },
+  { key: "annotate", icon: "🖍️", label: "标注" },
+  { key: "translate", icon: "🌐", label: "翻译" },
+  { key: "ai", icon: "🤖", label: "AI" }
 ];
 
 export class QuickActionsToolbar {
@@ -21,51 +21,51 @@ export class QuickActionsToolbar {
   }
 
   #createToolbar() {
-    const container = document.createElement('div');
-    container.className = 'text-selection-quick-actions';
+    const container = document.createElement("div");
+    container.className = "text-selection-quick-actions";
     container.style.cssText = [
-      'position: absolute',
-      'display: none',
-      'flex-direction: row',
-      'gap: 8px',
-      'padding: 8px 10px',
-      'background: rgba(33,33,33,0.92)',
-      'color: #fff',
-      'border-radius: 8px',
-      'box-shadow: 0 4px 12px rgba(0,0,0,0.25)',
-      'z-index: 9999',
-      'font-size: 14px',
-      'user-select: none'
-    ].join(';');
+      "position: absolute",
+      "display: none",
+      "flex-direction: row",
+      "gap: 8px",
+      "padding: 8px 10px",
+      "background: rgba(33,33,33,0.92)",
+      "color: #fff",
+      "border-radius: 8px",
+      "box-shadow: 0 4px 12px rgba(0,0,0,0.25)",
+      "z-index: 9999",
+      "font-size: 14px",
+      "user-select: none"
+    ].join(";");
 
     BUTTON_DEFS.forEach(({ key, icon, label }) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
+      const btn = document.createElement("button");
+      btn.type = "button";
       btn.dataset.action = key;
       btn.textContent = icon;
-      btn.setAttribute('aria-label', label);
+      btn.setAttribute("aria-label", label);
       btn.title = label;
       btn.style.cssText = [
-        'border: none',
-        'padding: 6px 12px',
-        'border-radius: 6px',
-        'cursor: pointer',
-        'background: rgba(255,255,255,0.12)',
-        'color: inherit',
-        'font-size: inherit',
-        'transition: background 0.2s ease'
-      ].join(';');
+        "border: none",
+        "padding: 6px 12px",
+        "border-radius: 6px",
+        "cursor: pointer",
+        "background: rgba(255,255,255,0.12)",
+        "color: inherit",
+        "font-size: inherit",
+        "transition: background 0.2s ease"
+      ].join(";");
 
-      btn.addEventListener('mouseenter', () => {
-        btn.style.background = 'rgba(255,255,255,0.25)';
+      btn.addEventListener("mouseenter", () => {
+        btn.style.background = "rgba(255,255,255,0.25)";
       });
-      btn.addEventListener('mouseleave', () => {
-        btn.style.background = 'rgba(255,255,255,0.12)';
+      btn.addEventListener("mouseleave", () => {
+        btn.style.background = "rgba(255,255,255,0.12)";
       });
-      btn.addEventListener('click', (event) => {
+      btn.addEventListener("click", (event) => {
         event.stopPropagation();
         const cb = this.#callbacks[key];
-        if (typeof cb === 'function') {
+        if (typeof cb === "function") {
           cb();
         }
       });
@@ -84,15 +84,15 @@ export class QuickActionsToolbar {
 
   show(position) {
     const { x, y } = position || {};
-    if (typeof x !== 'number' || typeof y !== 'number') {
+    if (typeof x !== "number" || typeof y !== "number") {
       return;
     }
 
     const scrollX = window.scrollX || 0;
     const scrollY = window.scrollY || 0;
 
-    this.#root.style.display = 'flex';
-    this.#root.style.visibility = 'hidden';
+    this.#root.style.display = "flex";
+    this.#root.style.visibility = "hidden";
     this.#root.style.left = `${x + scrollX}px`;
     this.#root.style.top = `${y + scrollY}px`;
 
@@ -113,7 +113,7 @@ export class QuickActionsToolbar {
 
     this.#root.style.left = `${left}px`;
     this.#root.style.top = `${top}px`;
-    this.#root.style.visibility = 'visible';
+    this.#root.style.visibility = "visible";
   }
 
   contains(node) {
@@ -122,7 +122,7 @@ export class QuickActionsToolbar {
 
   hide() {
     if (this.#root) {
-      this.#root.style.display = 'none';
+      this.#root.style.display = "none";
     }
   }
 

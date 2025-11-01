@@ -3,8 +3,8 @@
  * 提供可视化的条件构建界面
  */
 
-import { FieldCondition } from '../services/filter-conditions.js';
-import { CompositeCondition } from '../services/filter-conditions.js';
+import { FieldCondition } from "../services/filter-conditions.js";
+import { CompositeCondition } from "../services/filter-conditions.js";
 
 export class FilterBuilder {
   #logger = null;
@@ -33,7 +33,7 @@ export class FilterBuilder {
     this.#container = container;
     this.#container.innerHTML = this.#getTemplate();
     this.#setupEventListeners();
-    this.#logger.info('[FilterBuilder] Rendered');
+    this.#logger.info("[FilterBuilder] Rendered");
   }
 
   /**
@@ -84,11 +84,11 @@ export class FilterBuilder {
    * 显示构建器
    */
   show() {
-    const builderElement = this.#container.querySelector('.filter-builder');
+    const builderElement = this.#container.querySelector(".filter-builder");
     if (builderElement) {
       builderElement.hidden = false;
       this.#loadCurrentConditions();
-      this.#logger.info('[FilterBuilder] Shown');
+      this.#logger.info("[FilterBuilder] Shown");
     }
   }
 
@@ -96,10 +96,10 @@ export class FilterBuilder {
    * 隐藏构建器
    */
   hide() {
-    const builderElement = this.#container.querySelector('.filter-builder');
+    const builderElement = this.#container.querySelector(".filter-builder");
     if (builderElement) {
       builderElement.hidden = true;
-      this.#logger.info('[FilterBuilder] Hidden');
+      this.#logger.info("[FilterBuilder] Hidden");
     }
   }
 
@@ -111,16 +111,16 @@ export class FilterBuilder {
     const rowId = `cond_${Date.now()}`;
     const row = {
       id: rowId,
-      field: config.field || 'filename',
-      operator: config.operator || 'contains',
-      value: config.value || '',
-      logic: config.logic || 'AND'  // 与下一个条件的逻辑关系
+      field: config.field || "filename",
+      operator: config.operator || "contains",
+      value: config.value || "",
+      logic: config.logic || "AND"  // 与下一个条件的逻辑关系
     };
 
     this.#conditionsList.push(row);
     this.#renderConditions();
     this.#updatePreview();
-    this.#logger.debug('[FilterBuilder] Added condition row', row);
+    this.#logger.debug("[FilterBuilder] Added condition row", row);
   }
 
   /**
@@ -133,7 +133,7 @@ export class FilterBuilder {
       this.#conditionsList.splice(index, 1);
       this.#renderConditions();
       this.#updatePreview();
-      this.#logger.debug('[FilterBuilder] Removed condition row', rowId);
+      this.#logger.debug("[FilterBuilder] Removed condition row", rowId);
     }
   }
 
@@ -142,7 +142,7 @@ export class FilterBuilder {
    * @private
    */
   #renderConditions() {
-    const builderDiv = this.#container.querySelector('#conditions-builder');
+    const builderDiv = this.#container.querySelector("#conditions-builder");
 
     if (this.#conditionsList.length === 0) {
       builderDiv.innerHTML = `
@@ -153,7 +153,7 @@ export class FilterBuilder {
       `;
 
       // 绑定添加第一个条件按钮
-      builderDiv.querySelector('.btn-add-first').addEventListener('click', () => {
+      builderDiv.querySelector(".btn-add-first").addEventListener("click", () => {
         this.addConditionRow();
       });
 
@@ -168,23 +168,23 @@ export class FilterBuilder {
           ${index > 0 ? `
             <div class="logic-selector">
               <select class="logic-select" data-id="${row.id}">
-                <option value="AND" ${row.logic === 'AND' ? 'selected' : ''}>且 (AND)</option>
-                <option value="OR" ${row.logic === 'OR' ? 'selected' : ''}>或 (OR)</option>
+                <option value="AND" ${row.logic === "AND" ? "selected" : ""}>且 (AND)</option>
+                <option value="OR" ${row.logic === "OR" ? "selected" : ""}>或 (OR)</option>
               </select>
             </div>
-          ` : '<div class="logic-placeholder">筛选条件</div>'}
+          ` : "<div class=\"logic-placeholder\">筛选条件</div>"}
 
           <!-- 条件编辑器 -->
           <div class="condition-editor">
             <!-- 字段选择 -->
             <select class="field-select" data-id="${row.id}">
-              <option value="filename" ${row.field === 'filename' ? 'selected' : ''}>文件名</option>
-              <option value="tags" ${row.field === 'tags' ? 'selected' : ''}>标签</option>
-              <option value="rating" ${row.field === 'rating' ? 'selected' : ''}>评分</option>
-              <option value="review_count" ${row.field === 'review_count' ? 'selected' : ''}>复习次数</option>
-              <option value="file_size" ${row.field === 'file_size' ? 'selected' : ''}>文件大小</option>
-              <option value="created_at" ${row.field === 'created_at' ? 'selected' : ''}>创建时间</option>
-              <option value="last_accessed_at" ${row.field === 'last_accessed_at' ? 'selected' : ''}>访问时间</option>
+              <option value="filename" ${row.field === "filename" ? "selected" : ""}>文件名</option>
+              <option value="tags" ${row.field === "tags" ? "selected" : ""}>标签</option>
+              <option value="rating" ${row.field === "rating" ? "selected" : ""}>评分</option>
+              <option value="review_count" ${row.field === "review_count" ? "selected" : ""}>复习次数</option>
+              <option value="file_size" ${row.field === "file_size" ? "selected" : ""}>文件大小</option>
+              <option value="created_at" ${row.field === "created_at" ? "selected" : ""}>创建时间</option>
+              <option value="last_accessed_at" ${row.field === "last_accessed_at" ? "selected" : ""}>访问时间</option>
             </select>
 
             <!-- 操作符选择 -->
@@ -208,7 +208,7 @@ export class FilterBuilder {
           </div>
         </div>
       `;
-    }).join('');
+    }).join("");
 
     builderDiv.innerHTML = rowsHtml;
 
@@ -224,40 +224,40 @@ export class FilterBuilder {
     let operators = [];
 
     // 根据字段类型返回不同的操作符
-    const stringFields = ['filename', 'tags'];
-    const numberFields = ['rating', 'review_count', 'file_size'];
-    const dateFields = ['created_at', 'updated_at', 'last_accessed_at'];
+    const stringFields = ["filename", "tags"];
+    const numberFields = ["rating", "review_count", "file_size"];
+    const dateFields = ["created_at", "updated_at", "last_accessed_at"];
 
     if (stringFields.includes(field)) {
       operators = [
-        { value: 'contains', label: '包含' },
-        { value: 'not_contains', label: '不包含' },
-        { value: 'eq', label: '等于' },
-        { value: 'starts_with', label: '开头是' },
-        { value: 'ends_with', label: '结尾是' }
+        { value: "contains", label: "包含" },
+        { value: "not_contains", label: "不包含" },
+        { value: "eq", label: "等于" },
+        { value: "starts_with", label: "开头是" },
+        { value: "ends_with", label: "结尾是" }
       ];
     } else if (numberFields.includes(field)) {
       operators = [
-        { value: 'eq', label: '等于' },
-        { value: 'ne', label: '不等于' },
-        { value: 'gt', label: '大于' },
-        { value: 'lt', label: '小于' },
-        { value: 'gte', label: '大于等于' },
-        { value: 'lte', label: '小于等于' }
+        { value: "eq", label: "等于" },
+        { value: "ne", label: "不等于" },
+        { value: "gt", label: "大于" },
+        { value: "lt", label: "小于" },
+        { value: "gte", label: "大于等于" },
+        { value: "lte", label: "小于等于" }
       ];
     } else if (dateFields.includes(field)) {
       operators = [
-        { value: 'eq', label: '等于' },
-        { value: 'gt', label: '之后' },
-        { value: 'lt', label: '之前' },
-        { value: 'in_range', label: '范围内' }
+        { value: "eq", label: "等于" },
+        { value: "gt", label: "之后" },
+        { value: "lt", label: "之前" },
+        { value: "in_range", label: "范围内" }
       ];
     }
 
     return operators.map(op => {
-      const selected = op.value === currentOperator ? 'selected' : '';
+      const selected = op.value === currentOperator ? "selected" : "";
       return `<option value="${op.value}" ${selected}>${op.label}</option>`;
-    }).join('');
+    }).join("");
   }
 
   /**
@@ -265,11 +265,11 @@ export class FilterBuilder {
    * @private
    */
   #bindConditionRowEvents() {
-    const builderDiv = this.#container.querySelector('#conditions-builder');
+    const builderDiv = this.#container.querySelector("#conditions-builder");
 
     // 逻辑选择器变化
-    builderDiv.querySelectorAll('.logic-select').forEach(select => {
-      select.addEventListener('change', (e) => {
+    builderDiv.querySelectorAll(".logic-select").forEach(select => {
+      select.addEventListener("change", (e) => {
         const rowId = e.target.dataset.id;
         const row = this.#conditionsList.find(r => r.id === rowId);
         if (row) {
@@ -280,8 +280,8 @@ export class FilterBuilder {
     });
 
     // 字段选择器变化
-    builderDiv.querySelectorAll('.field-select').forEach(select => {
-      select.addEventListener('change', (e) => {
+    builderDiv.querySelectorAll(".field-select").forEach(select => {
+      select.addEventListener("change", (e) => {
         const rowId = e.target.dataset.id;
         const row = this.#conditionsList.find(r => r.id === rowId);
         if (row) {
@@ -294,8 +294,8 @@ export class FilterBuilder {
     });
 
     // 操作符选择器变化
-    builderDiv.querySelectorAll('.operator-select').forEach(select => {
-      select.addEventListener('change', (e) => {
+    builderDiv.querySelectorAll(".operator-select").forEach(select => {
+      select.addEventListener("change", (e) => {
         const rowId = e.target.dataset.id;
         const row = this.#conditionsList.find(r => r.id === rowId);
         if (row) {
@@ -306,8 +306,8 @@ export class FilterBuilder {
     });
 
     // 值输入变化
-    builderDiv.querySelectorAll('.value-input').forEach(input => {
-      input.addEventListener('input', (e) => {
+    builderDiv.querySelectorAll(".value-input").forEach(input => {
+      input.addEventListener("input", (e) => {
         const rowId = e.target.dataset.id;
         const row = this.#conditionsList.find(r => r.id === rowId);
         if (row) {
@@ -318,8 +318,8 @@ export class FilterBuilder {
     });
 
     // 删除按钮
-    builderDiv.querySelectorAll('.btn-remove-row').forEach(btn => {
-      btn.addEventListener('click', () => {
+    builderDiv.querySelectorAll(".btn-remove-row").forEach(btn => {
+      btn.addEventListener("click", () => {
         this.removeConditionRow(btn.dataset.id);
       });
     });
@@ -330,55 +330,55 @@ export class FilterBuilder {
    * @private
    */
   #updatePreview() {
-    const previewSpan = this.#container.querySelector('#conditions-preview');
+    const previewSpan = this.#container.querySelector("#conditions-preview");
 
     if (this.#conditionsList.length === 0) {
-      previewSpan.textContent = '无条件';
+      previewSpan.textContent = "无条件";
       return;
     }
 
     // 构建描述文本
     const descriptions = this.#conditionsList.map((row, index) => {
       const operatorLabels = {
-        'contains': '包含',
-        'not_contains': '不包含',
-        'eq': '等于',
-        'ne': '不等于',
-        'gt': '大于',
-        'lt': '小于',
-        'gte': '≥',
-        'lte': '≤',
-        'starts_with': '开头是',
-        'ends_with': '结尾是',
-        'in_range': '范围内'
+        "contains": "包含",
+        "not_contains": "不包含",
+        "eq": "等于",
+        "ne": "不等于",
+        "gt": "大于",
+        "lt": "小于",
+        "gte": "≥",
+        "lte": "≤",
+        "starts_with": "开头是",
+        "ends_with": "结尾是",
+        "in_range": "范围内"
       };
 
       const fieldLabels = {
-        'filename': '文件名',
-        'tags': '标签',
-        'rating': '评分',
-        'review_count': '复习次数',
-        'file_size': '文件大小',
-        'created_at': '创建时间',
-        'last_accessed_at': '访问时间'
+        "filename": "文件名",
+        "tags": "标签",
+        "rating": "评分",
+        "review_count": "复习次数",
+        "file_size": "文件大小",
+        "created_at": "创建时间",
+        "last_accessed_at": "访问时间"
       };
 
       let desc = `${fieldLabels[row.field] || row.field} ${operatorLabels[row.operator] || row.operator} "${row.value}"`;
       if (index > 0) {
-        const logicLabel = row.logic === 'AND' ? '且' : '或';
+        const logicLabel = row.logic === "AND" ? "且" : "或";
         desc = `${logicLabel} ${desc}`;
       }
       return desc;
     });
 
-    previewSpan.textContent = descriptions.join(' ');
+    previewSpan.textContent = descriptions.join(" ");
   }
 
   /**
    * 应用筛选
    */
   applyFilter() {
-    this.#logger.info('[FilterBuilder] Applying filters');
+    this.#logger.info("[FilterBuilder] Applying filters");
 
     // 清除现有条件
     this.#filterManager.clearFilter();
@@ -411,7 +411,7 @@ export class FilterBuilder {
 
       this.hide();
     } catch (error) {
-      this.#logger.error('[FilterBuilder] Failed to apply filter', error);
+      this.#logger.error("[FilterBuilder] Failed to apply filter", error);
       alert(`筛选条件错误: ${error.message}`);
     }
   }
@@ -461,36 +461,36 @@ export class FilterBuilder {
    * @private
    */
   #setupEventListeners() {
-    const collapseBtn = this.#container.querySelector('.btn-collapse');
-    const resetBtn = this.#container.querySelector('.btn-reset');
-    const applyBtn = this.#container.querySelector('.btn-apply');
-    const addConditionBtn = this.#container.querySelector('.btn-add-condition');
+    const collapseBtn = this.#container.querySelector(".btn-collapse");
+    const resetBtn = this.#container.querySelector(".btn-reset");
+    const applyBtn = this.#container.querySelector(".btn-apply");
+    const addConditionBtn = this.#container.querySelector(".btn-add-condition");
 
     // 收起
     if (collapseBtn) {
-      collapseBtn.addEventListener('click', () => this.hide());
+      collapseBtn.addEventListener("click", () => this.hide());
     }
 
     // 重置
     if (resetBtn) {
-      resetBtn.addEventListener('click', () => {
+      resetBtn.addEventListener("click", () => {
         this.#conditionsList = [];
         this.#renderConditions();
         this.#updatePreview();
-        this.#logger.info('[FilterBuilder] Reset');
+        this.#logger.info("[FilterBuilder] Reset");
       });
     }
 
     // 应用
     if (applyBtn) {
-      applyBtn.addEventListener('click', () => {
+      applyBtn.addEventListener("click", () => {
         this.applyFilter();
       });
     }
 
     // 添加条件
     if (addConditionBtn) {
-      addConditionBtn.addEventListener('click', () => {
+      addConditionBtn.addEventListener("click", () => {
         this.addConditionRow();
       });
     }
@@ -501,8 +501,8 @@ export class FilterBuilder {
    */
   destroy() {
     if (this.#container) {
-      this.#container.innerHTML = '';
+      this.#container.innerHTML = "";
     }
-    this.#logger.info('[FilterBuilder] Destroyed');
+    this.#logger.info("[FilterBuilder] Destroyed");
   }
 }

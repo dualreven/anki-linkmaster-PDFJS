@@ -16,8 +16,8 @@ function generateId() {
   try {
     const buf = new Uint8Array(6);
     // 浏览器环境优先使用加密随机
-    const cryptoObj = (typeof globalThis !== 'undefined' && (globalThis.crypto || globalThis.msCrypto)) || null;
-    if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
+    const cryptoObj = (typeof globalThis !== "undefined" && (globalThis.crypto || globalThis.msCrypto)) || null;
+    if (cryptoObj && typeof cryptoObj.getRandomValues === "function") {
       cryptoObj.getRandomValues(buf);
     } else {
       for (let i = 0; i < buf.length; i++) {
@@ -26,14 +26,14 @@ function generateId() {
     }
     // 将字节数组转换为字符串再 Base64 编码
     let b64;
-    if (typeof btoa === 'function') {
+    if (typeof btoa === "function") {
       b64 = btoa(String.fromCharCode(...buf));
     } else {
       // 非浏览器环境兜底（很少用于前端代码路径）
-      b64 = Buffer.from(buf).toString('base64');
+      b64 = Buffer.from(buf).toString("base64");
     }
     // URL-safe 并去掉填充 =，理论长度即 8
-    const id8 = b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '').slice(0, 8);
+    const id8 = b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "").slice(0, 8);
     return `outlineItem-${id8}`;
   } catch (e) {
     // 兜底：退回旧逻辑但前缀保持为 outlineItem-
@@ -51,21 +51,21 @@ export class Bookmark {
   constructor(data) {
     const now = new Date().toISOString();
     this.id = data.id || generateId();
-    this.name = data.name || '未命名大纲';
+    this.name = data.name || "未命名大纲";
     // 严格模式：不再默认 1；无效即置为 null，由上层决定是否跳转或报错
     // 同时允许将字符串数字如 "5" 规范化为 5
     const pageAtNum = (() => {
-      if (typeof data.pageAt === 'number') return data.pageAt;
-      if (typeof data.pageAt === 'string' && /^[0-9]+$/.test(data.pageAt)) return parseInt(data.pageAt, 10);
+      if (typeof data.pageAt === "number") {return data.pageAt;}
+      if (typeof data.pageAt === "string" && /^[0-9]+$/.test(data.pageAt)) {return parseInt(data.pageAt, 10);}
       return NaN;
     })();
     this.pageAt = (Number.isInteger(pageAtNum) && pageAtNum > 0) ? pageAtNum : null;
-    this.position = (typeof data.position === 'number' && isFinite(data.position))
+    this.position = (typeof data.position === "number" && isFinite(data.position))
       ? Math.max(0, Math.min(100, Math.round(data.position)))
       : null;
     this.children = Array.isArray(data.children) ? data.children : [];
     this.parentId = data.parentId || null;
-    this.order = typeof data.order === 'number' ? data.order : 0;
+    this.order = typeof data.order === "number" ? data.order : 0;
     this.createdAt = data.createdAt || now;
     this.updatedAt = data.updatedAt || now;
   }
@@ -105,21 +105,21 @@ export class Bookmark {
 
   static create(pageAt, position = null, name) {
     return new Bookmark({
-      name: name || `第 ${pageAt} 页${typeof position === 'number' ? `（${position}%）` : ''}`,
+      name: name || `第 ${pageAt} 页${typeof position === "number" ? `（${position}%）` : ""}`,
       pageAt,
       position
     });
   }
 
   update(updates) {
-    if (typeof updates.name === 'string') this.name = updates.name;
-    if (Number.isInteger(updates.pageAt) && updates.pageAt > 0) this.pageAt = updates.pageAt;
-    if (updates.position === null || typeof updates.position === 'number') {
+    if (typeof updates.name === "string") {this.name = updates.name;}
+    if (Number.isInteger(updates.pageAt) && updates.pageAt > 0) {this.pageAt = updates.pageAt;}
+    if (updates.position === null || typeof updates.position === "number") {
       this.position = (updates.position === null) ? null : Math.max(0, Math.min(100, Math.round(updates.position)));
     }
-    if (typeof updates.order === 'number') this.order = updates.order;
-    if (typeof updates.parentId === 'string' || updates.parentId === null) this.parentId = updates.parentId;
-    if (Array.isArray(updates.children)) this.children = updates.children;
+    if (typeof updates.order === "number") {this.order = updates.order;}
+    if (typeof updates.parentId === "string" || updates.parentId === null) {this.parentId = updates.parentId;}
+    if (Array.isArray(updates.children)) {this.children = updates.children;}
     this.updatedAt = new Date().toISOString();
     return this;
   }
@@ -134,7 +134,7 @@ export class Bookmark {
 
   removeChild(childId) {
     const index = this.children.findIndex(child => child.id === childId);
-    if (index === -1) return null;
+    if (index === -1) {return null;}
     const removed = this.children.splice(index, 1)[0];
     this.children.forEach((child, i) => { child.order = i; });
     this.updatedAt = new Date().toISOString();
@@ -143,14 +143,14 @@ export class Bookmark {
 
   validate() {
     const errors = [];
-    if (!this.name || this.name.trim() === '') {
-      errors.push('大纲名称不能为空');
+    if (!this.name || this.name.trim() === "") {
+      errors.push("大纲名称不能为空");
     }
     if (!Number.isInteger(this.pageAt) || this.pageAt < 1) {
-      errors.push('pageAt 必须是大于0的整数');
+      errors.push("pageAt 必须是大于0的整数");
     }
-    if (!(this.position === null || (typeof this.position === 'number' && this.position >= 0 && this.position <= 100))) {
-      errors.push('position 必须是 0~100 的数字，或 null');
+    if (!(this.position === null || (typeof this.position === "number" && this.position >= 0 && this.position <= 100))) {
+      errors.push("position 必须是 0~100 的数字，或 null");
     }
     return { valid: errors.length === 0, errors };
   }

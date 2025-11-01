@@ -38,13 +38,13 @@ export class TextSelectionHandler {
    */
   startListening() {
     if (this.#isListening) {
-      this.#logger.warn('[TextSelectionHandler] Already listening');
+      this.#logger.warn("[TextSelectionHandler] Already listening");
       return;
     }
 
     this.#isListening = true;
-    document.addEventListener('mouseup', this.#mouseUpHandler);
-    this.#logger.info('[TextSelectionHandler] Started listening');
+    document.addEventListener("mouseup", this.#mouseUpHandler);
+    this.#logger.info("[TextSelectionHandler] Started listening");
   }
 
   /**
@@ -52,11 +52,11 @@ export class TextSelectionHandler {
    * @returns {void}
    */
   stopListening() {
-    if (!this.#isListening) return;
+    if (!this.#isListening) {return;}
 
     this.#isListening = false;
-    document.removeEventListener('mouseup', this.#mouseUpHandler);
-    this.#logger.info('[TextSelectionHandler] Stopped listening');
+    document.removeEventListener("mouseup", this.#mouseUpHandler);
+    this.#logger.info("[TextSelectionHandler] Stopped listening");
   }
 
   /**
@@ -92,14 +92,14 @@ export class TextSelectionHandler {
       // 检查是否在PDF页面内选择
       const pageContainer = this.#findPageContainer(range.startContainer);
       if (!pageContainer) {
-        this.#logger.warn('[TextSelectionHandler] Selection not in PDF page');
+        this.#logger.warn("[TextSelectionHandler] Selection not in PDF page");
         return;
       }
 
       // 提取页码
       const pageNumber = this.#extractPageNumber(pageContainer);
       if (!pageNumber) {
-        this.#logger.error('[TextSelectionHandler] Failed to extract page number');
+        this.#logger.error("[TextSelectionHandler] Failed to extract page number");
         return;
       }
 
@@ -119,8 +119,8 @@ export class TextSelectionHandler {
 
       const lineRects = this.#calculateLineRects(range, pageRect);
 
-      this.#logger.info('[TextSelectionHandler] Text selected', {
-        text: text.substring(0, 50) + '...',
+      this.#logger.info("[TextSelectionHandler] Text selected", {
+        text: text.substring(0, 50) + "...",
         pageNumber,
         textLength: text.length,
         rangesCount: textRanges.length,
@@ -128,7 +128,7 @@ export class TextSelectionHandler {
       });
 
       // 发送文本选择完成事件
-      this.#eventBus.emit('annotation-highlight:selection:completed', {
+      this.#eventBus.emit("annotation-highlight:selection:completed", {
         text: text,
         pageNumber: pageNumber,
         ranges: textRanges,
@@ -151,7 +151,7 @@ export class TextSelectionHandler {
     while (current) {
       if (current.nodeType === Node.ELEMENT_NODE) {
         const element = /** @type {HTMLElement} */ (current);
-        if (element.classList?.contains('page')) {
+        if (element.classList?.contains("page")) {
           return element;
         }
       }
@@ -168,8 +168,8 @@ export class TextSelectionHandler {
    * @private
    */
   #extractPageNumber(pageContainer) {
-    const pageNumberAttr = pageContainer.getAttribute('data-page-number');
-    if (!pageNumberAttr) return null;
+    const pageNumberAttr = pageContainer.getAttribute("data-page-number");
+    if (!pageNumberAttr) {return null;}
 
     const pageNumber = parseInt(pageNumberAttr, 10);
     return isNaN(pageNumber) ? null : pageNumber;
@@ -183,7 +183,7 @@ export class TextSelectionHandler {
    * @private
    */
   #calculateLineRects(range, pageRect) {
-    if (!range || typeof range.getClientRects !== 'function') {
+    if (!range || typeof range.getClientRects !== "function") {
       return [];
     }
 
@@ -226,9 +226,9 @@ export class TextSelectionHandler {
    * @private
    */
   #extractTextRanges(range, pageContainer) {
-    const textLayer = pageContainer.querySelector('.textLayer');
+    const textLayer = pageContainer.querySelector(".textLayer");
     if (!textLayer) {
-      this.#logger.warn('[TextSelectionHandler] No textLayer found');
+      this.#logger.warn("[TextSelectionHandler] No textLayer found");
       // 返回简化的范围
       return [{
         start: 0,
@@ -254,7 +254,7 @@ export class TextSelectionHandler {
       );
 
       if (startOffset === -1 || endOffset === -1) {
-        this.#logger.warn('[TextSelectionHandler] Failed to calculate text offsets');
+        this.#logger.warn("[TextSelectionHandler] Failed to calculate text offsets");
         return [{
           start: 0,
           end: range.toString().length
@@ -266,7 +266,7 @@ export class TextSelectionHandler {
         end: Math.max(startOffset, endOffset)
       }];
     } catch (error) {
-      this.#logger.error('[TextSelectionHandler] Error extracting text ranges', error);
+      this.#logger.error("[TextSelectionHandler] Error extracting text ranges", error);
       return [{
         start: 0,
         end: range.toString().length
@@ -292,7 +292,7 @@ export class TextSelectionHandler {
 
     let node;
     while ((node = walker.nextNode())) {
-      const textContent = node.textContent || '';
+      const textContent = node.textContent || "";
       textNodes.push({
         node: node,
         offset: currentOffset,
@@ -332,7 +332,7 @@ export class TextSelectionHandler {
           if (textNode === item.node) {
             return item.offset + Math.min(nodeOffset, accumulatedOffset);
           }
-          accumulatedOffset += (textNode.textContent || '').length;
+          accumulatedOffset += (textNode.textContent || "").length;
         }
       }
     }

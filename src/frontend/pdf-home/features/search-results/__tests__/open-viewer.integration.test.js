@@ -1,4 +1,4 @@
-import { SearchResultsFeature } from '../index.js';
+import { SearchResultsFeature } from "../index.js";
 
 // 简易事件总线（仅用于本测试）
 class MiniBus {
@@ -18,7 +18,7 @@ class MiniBus {
   }
 }
 
-describe('SearchResultsFeature - open viewer by item event', () => {
+describe("SearchResultsFeature - open viewer by item event", () => {
   beforeEach(() => {
     // 基础 DOM：容器 + header
     document.body.innerHTML = `
@@ -28,7 +28,7 @@ describe('SearchResultsFeature - open viewer by item event', () => {
     `;
   });
 
-  test('emitting results:item:open calls QWebChannelBridge.openPdfViewers with single id', async () => {
+  test("emitting results:item:open calls QWebChannelBridge.openPdfViewers with single id", async () => {
     const calls = [];
 
     const mockBridge = {
@@ -50,13 +50,13 @@ describe('SearchResultsFeature - open viewer by item event', () => {
     await feature.install(ctx);
 
     // 触发“条目打开”事件
-    ctx.scopedEventBus.emit('results:item:open', { result: { id: 'abc123' } });
+    ctx.scopedEventBus.emit("results:item:open", { result: { id: "abc123" } });
 
     // 等待微任务，以处理 async 调用
     await new Promise(r => setTimeout(r, 0));
 
     expect(mockBridge.openPdfViewers).toHaveBeenCalledTimes(1);
-    expect(calls[0]).toEqual(['abc123']);
+    expect(calls[0]).toEqual(["abc123"]);
   });
 });
 

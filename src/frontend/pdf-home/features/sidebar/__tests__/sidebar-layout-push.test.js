@@ -6,7 +6,7 @@
  * - 再次点击展开按钮后再次推开 .main-content
  */
 
-import { SidebarContainer } from '../components/sidebar-container.js';
+import { SidebarContainer } from "../components/sidebar-container.js";
 
 // 构造最小 logger 与 eventBus 桩对象
 const logger = {
@@ -32,57 +32,57 @@ function setupDOM() {
   `;
 }
 
-describe('Sidebar 展开时推开主内容区域', () => {
+describe("Sidebar 展开时推开主内容区域", () => {
   beforeEach(() => {
     // 每次测试前重置 DOM
     setupDOM();
     jest.clearAllMocks();
   });
 
-  test('初次渲染：未折叠时应推开 main-content', () => {
-    const sidebarEl = document.getElementById('sidebar');
+  test("初次渲染：未折叠时应推开 main-content", () => {
+    const sidebarEl = document.getElementById("sidebar");
     const container = new SidebarContainer(logger, eventBus);
     container.render(sidebarEl);
 
-    const main = document.querySelector('.main-content');
+    const main = document.querySelector(".main-content");
 
     // 断言：首次渲染时 main-content 被推开（与侧边栏宽度保持一致）
-    expect(main.style.marginLeft).toBe('280px');
-    expect(main.style.width).toBe('calc(100% - 280px)');
+    expect(main.style.marginLeft).toBe("280px");
+    expect(main.style.width).toBe("calc(100% - 280px)");
   });
 
-  test('点击折叠按钮：应恢复 main-content 的布局', () => {
-    const sidebarEl = document.getElementById('sidebar');
+  test("点击折叠按钮：应恢复 main-content 的布局", () => {
+    const sidebarEl = document.getElementById("sidebar");
     const container = new SidebarContainer(logger, eventBus);
     container.render(sidebarEl);
 
-    const toggleBtn = document.getElementById('sidebar-toggle-btn');
-    const main = document.querySelector('.main-content');
+    const toggleBtn = document.getElementById("sidebar-toggle-btn");
+    const main = document.querySelector(".main-content");
 
     // 折叠
     toggleBtn.click();
 
-    expect(sidebarEl.classList.contains('collapsed')).toBe(true);
-    expect(main.style.marginLeft).toBe('');
-    expect(main.style.width).toBe('');
+    expect(sidebarEl.classList.contains("collapsed")).toBe(true);
+    expect(main.style.marginLeft).toBe("");
+    expect(main.style.width).toBe("");
   });
 
-  test('再次展开：应再次推开 main-content', () => {
-    const sidebarEl = document.getElementById('sidebar');
+  test("再次展开：应再次推开 main-content", () => {
+    const sidebarEl = document.getElementById("sidebar");
     const container = new SidebarContainer(logger, eventBus);
     container.render(sidebarEl);
 
-    const toggleBtn = document.getElementById('sidebar-toggle-btn');
-    const main = document.querySelector('.main-content');
+    const toggleBtn = document.getElementById("sidebar-toggle-btn");
+    const main = document.querySelector(".main-content");
 
     // 先折叠
     toggleBtn.click();
     // 再展开
     toggleBtn.click();
 
-    expect(sidebarEl.classList.contains('collapsed')).toBe(false);
-    expect(main.style.marginLeft).toBe('280px');
-    expect(main.style.width).toBe('calc(100% - 280px)');
+    expect(sidebarEl.classList.contains("collapsed")).toBe(false);
+    expect(main.style.marginLeft).toBe("280px");
+    expect(main.style.width).toBe("calc(100% - 280px)");
   });
 });
 

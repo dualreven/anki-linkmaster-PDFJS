@@ -51,10 +51,10 @@ export class PresetDropdown {
    * @private
    */
   #presets = [
-    { id: 'recent', name: '📅 最近添加', desc: '最近7天添加的文件' },
-    { id: 'important', name: '⭐ 重要文件', desc: '重要性为高的文件' },
-    { id: 'large', name: '📦 大文件', desc: '文件大小 > 10MB' },
-    { id: 'untagged', name: '🏷️ 未标记', desc: '未添加标签的文件' }
+    { id: "recent", name: "📅 最近添加", desc: "最近7天添加的文件" },
+    { id: "important", name: "⭐ 重要文件", desc: "重要性为高的文件" },
+    { id: "large", name: "📦 大文件", desc: "文件大小 > 10MB" },
+    { id: "untagged", name: "🏷️ 未标记", desc: "未添加标签的文件" }
   ];
 
   /**
@@ -85,7 +85,7 @@ export class PresetDropdown {
     // 绑定事件
     this.#attachEventListeners();
 
-    this.#logger.info('[PresetDropdown] Rendered');
+    this.#logger.info("[PresetDropdown] Rendered");
   }
 
   /**
@@ -93,8 +93,8 @@ export class PresetDropdown {
    * @private
    */
   #createMenuDOM() {
-    this.#menuElement = document.createElement('div');
-    this.#menuElement.className = 'preset-dropdown-menu';
+    this.#menuElement = document.createElement("div");
+    this.#menuElement.className = "preset-dropdown-menu";
     this.#menuElement.hidden = true;
 
     // 生成菜单项
@@ -106,7 +106,7 @@ export class PresetDropdown {
     // 添加到body
     document.body.appendChild(this.#menuElement);
 
-    this.#logger.debug('[PresetDropdown] Menu DOM created');
+    this.#logger.debug("[PresetDropdown] Menu DOM created");
   }
 
   /**
@@ -116,8 +116,8 @@ export class PresetDropdown {
    * @private
    */
   #createMenuItem(preset) {
-    const item = document.createElement('div');
-    item.className = 'preset-menu-item';
+    const item = document.createElement("div");
+    item.className = "preset-menu-item";
     item.dataset.presetId = preset.id;
 
     item.innerHTML = `
@@ -126,7 +126,7 @@ export class PresetDropdown {
     `;
 
     // 点击菜单项
-    item.addEventListener('click', (e) => {
+    item.addEventListener("click", (e) => {
       e.stopPropagation();
       this.#handlePresetClick(preset);
       this.hide();
@@ -141,7 +141,7 @@ export class PresetDropdown {
    */
   #attachEventListeners() {
     // 触发按钮点击
-    this.#triggerButton.addEventListener('click', (e) => {
+    this.#triggerButton.addEventListener("click", (e) => {
       e.stopPropagation();
       this.toggle();
     });
@@ -151,7 +151,7 @@ export class PresetDropdown {
       this.hide();
     };
 
-    this.#logger.debug('[PresetDropdown] Event listeners attached');
+    this.#logger.debug("[PresetDropdown] Event listeners attached");
   }
 
   /**
@@ -163,7 +163,7 @@ export class PresetDropdown {
     this.#logger.info(`[PresetDropdown] Preset clicked: ${preset.id}`);
 
     // 触发事件
-    this.#eventBus.emit('filter:preset:selected', {
+    this.#eventBus.emit("filter:preset:selected", {
       presetId: preset.id,
       presetName: preset.name
     });
@@ -177,7 +177,7 @@ export class PresetDropdown {
    * @public
    */
   show() {
-    if (!this.#menuElement || !this.#triggerButton) return;
+    if (!this.#menuElement || !this.#triggerButton) {return;}
 
     // 定位菜单
     const rect = this.#triggerButton.getBoundingClientRect();
@@ -189,10 +189,10 @@ export class PresetDropdown {
 
     // 添加外部点击监听
     setTimeout(() => {
-      document.addEventListener('click', this.#outsideClickHandler);
+      document.addEventListener("click", this.#outsideClickHandler);
     }, 0);
 
-    this.#logger.debug('[PresetDropdown] Menu shown');
+    this.#logger.debug("[PresetDropdown] Menu shown");
   }
 
   /**
@@ -200,14 +200,14 @@ export class PresetDropdown {
    * @public
    */
   hide() {
-    if (!this.#menuElement) return;
+    if (!this.#menuElement) {return;}
 
     this.#menuElement.hidden = true;
 
     // 移除外部点击监听
-    document.removeEventListener('click', this.#outsideClickHandler);
+    document.removeEventListener("click", this.#outsideClickHandler);
 
-    this.#logger.debug('[PresetDropdown] Menu hidden');
+    this.#logger.debug("[PresetDropdown] Menu hidden");
   }
 
   /**
@@ -229,7 +229,7 @@ export class PresetDropdown {
   destroy() {
     // 移除事件监听
     if (this.#outsideClickHandler) {
-      document.removeEventListener('click', this.#outsideClickHandler);
+      document.removeEventListener("click", this.#outsideClickHandler);
       this.#outsideClickHandler = null;
     }
 
@@ -241,6 +241,6 @@ export class PresetDropdown {
 
     this.#triggerButton = null;
 
-    this.#logger.info('[PresetDropdown] Destroyed');
+    this.#logger.info("[PresetDropdown] Destroyed");
   }
 }

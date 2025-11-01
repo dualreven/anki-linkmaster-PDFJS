@@ -14,7 +14,7 @@ import { AddFilesFeatureConfig } from "./feature.config.js";
 import { QWebChannelBridge } from "../../qwebchannel/qwebchannel-bridge.js";
 import { getLogger } from "../../../common/utils/logger.js";
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_EVENTS } from "../../../common/event/event-constants.js";
-import { showInfo as notifyInfo, showSuccess as notifySuccess, showError as notifyError, showInfoWithId as notifyInfoWithId, dismissById } from "../../../common/utils/notification.js";
+import { showInfo, showSuccess, showError, showInfoWithId, dismissById } from "../../../common/utils/notification.js";
 
 export class AddFilesFeature {
   name = AddFilesFeatureConfig.name;
@@ -73,7 +73,7 @@ export class AddFilesFeature {
         await this.#handleAddRequested();
       } catch (e) {
         this.#logger.error("[AddFilesFeature] handleAddRequested failed", e);
-        try { notifyError("添加PDF失败，请重试", 4000); } catch { /* ignore */ }
+        try { showError("添加PDF失败，请重试", 4000); } catch { /* ignore */ }
       }
     }, { subscriberId: "AddFilesFeature" });
     this.#unsubscribers.push(unsub);
@@ -87,7 +87,7 @@ export class AddFilesFeature {
           if (rid) { try { dismissById(rid); } catch { /* ignore */ } }
           const meta = message?.data?.file || message?.data || {};
           const title = meta?.title || meta?.filename || meta?.name || "PDF";
-          try { notifySuccess(`已添加：${title}`, 2500); } catch { /* ignore */ }
+          try { showSuccess(`已添加：${title}`, 2500); } catch { /* ignore */ }
           // 触发一次“最近添加”视角的搜索刷新（前 N 条）
           this.#globalEventBus.emit("search:query:requested", {
             searchText: "",
@@ -109,7 +109,7 @@ export class AddFilesFeature {
           if (rid) { try { dismissById(rid); } catch { /* ignore */ } }
           const err = message?.error || message?.data || {};
           const tip = err?.message || "添加失败";
-          try { notifyError(tip, 4000); } catch { /* ignore */ }
+          try { showError(tip, 4000); } catch { /* ignore */ }
         }
       } catch { /* ignore */ }
     }, { subscriberId: "AddFilesFeature:error" });
@@ -125,7 +125,7 @@ export class AddFilesFeature {
 
   async #handleAddRequested() {
     this.#logger.info("[AddFilesFeature] Add requested → opening file dialog...");
-    try { notifyInfo("请选择要添加的PDF文件", 2500); } catch { /* ignore */ }
+    try { showInfo("请选择要添加的PDF文件", 2500); } catch { /* ignore */ }
 
     // 1) 打开原生文件对话框
     const bridge = await this.#ensureBridge();
@@ -151,13 +151,13 @@ export class AddFilesFeature {
         type: WEBSOCKET_MESSAGE_TYPES.ADD_PDF,
         timestamp: Date.now(),
         request_id,
-        metadata: { version: '1.0.0' },
+        metadata: { version: "1.0.0" },
         data: {
           filepath: filePath
         }
       };
       this.#logger.info("[AddFilesFeature] 发送添加请求", { name });
-      try { notifyInfoWithId(request_id, `正在添加：${name}`, 0); } catch { /* ignore */ }
+      try { showInfoWithId(request_id, `正在添加：${name}`, 0); } catch { /* ignore */ }
       this.#globalEventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, payload);
     }
   }

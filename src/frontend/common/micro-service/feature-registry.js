@@ -26,8 +26,8 @@
  * await registry.uninstall('pdf-editor');
  */
 
-import { getLogger } from '../utils/logger.js';
-import { ScopedEventBus } from '../../common/event/scoped-event-bus.js';
+import { getLogger } from "../utils/logger.js";
+import { ScopedEventBus } from "../../common/event/scoped-event-bus.js";
 
 // ==================== 类型定义 ====================
 
@@ -37,17 +37,17 @@ import { ScopedEventBus } from '../../common/event/scoped-event-bus.js';
  */
 export const FeatureStatus = {
   /** 已注册，未安装 */
-  REGISTERED: 'registered',
+  REGISTERED: "registered",
   /** 正在安装 */
-  INSTALLING: 'installing',
+  INSTALLING: "installing",
   /** 已安装，已启用 */
-  INSTALLED: 'installed',
+  INSTALLED: "installed",
   /** 已安装，已禁用 */
-  DISABLED: 'disabled',
+  DISABLED: "disabled",
   /** 安装失败 */
-  FAILED: 'failed',
+  FAILED: "failed",
   /** 已卸载 */
-  UNINSTALLED: 'uninstalled'
+  UNINSTALLED: "uninstalled"
 };
 
 /**
@@ -194,14 +194,14 @@ export class FeatureRegistry {
    */
   constructor({ container, logger, globalEventBus } = {}) {
     if (!container) {
-      throw new Error('FeatureRegistry requires a DependencyContainer instance');
+      throw new Error("FeatureRegistry requires a DependencyContainer instance");
     }
 
     this.#container = container;
-    this.#logger = logger || getLogger('FeatureRegistry');
+    this.#logger = logger || getLogger("FeatureRegistry");
     this.#globalEventBus = globalEventBus || null;
 
-    this.#logger.debug('FeatureRegistry created');
+    this.#logger.debug("FeatureRegistry created");
   }
 
   /**
@@ -294,7 +294,7 @@ export class FeatureRegistry {
 
     if (missingDeps.length > 0) {
       throw new Error(
-        `Feature "${name}" has missing dependencies: ${missingDeps.join(', ')}`
+        `Feature "${name}" has missing dependencies: ${missingDeps.join(", ")}`
       );
     }
 
@@ -334,7 +334,7 @@ export class FeatureRegistry {
     // 计算安装顺序（拓扑排序）
     const installOrder = this.#resolveInstallOrder();
 
-    this.#logger.info(`Installing ${installOrder.length} features in order: ${installOrder.join(' -> ')}`);
+    this.#logger.info(`Installing ${installOrder.length} features in order: ${installOrder.join(" -> ")}`);
 
     // 按顺序安装
     for (const name of installOrder) {
@@ -411,7 +411,7 @@ export class FeatureRegistry {
 
     const { feature } = record;
 
-    if (typeof feature.enable === 'function') {
+    if (typeof feature.enable === "function") {
       this.#logger.info(`Enabling feature: ${name}...`);
       await feature.enable();
       record.setStatus(FeatureStatus.INSTALLED);
@@ -440,7 +440,7 @@ export class FeatureRegistry {
 
     const { feature } = record;
 
-    if (typeof feature.disable === 'function') {
+    if (typeof feature.disable === "function") {
       this.#logger.info(`Disabling feature: ${name}...`);
       await feature.disable();
       record.setStatus(FeatureStatus.DISABLED);
@@ -467,9 +467,9 @@ export class FeatureRegistry {
       const info = record.toJSON();
       summary.features.push(info);
 
-      if (record.status === FeatureStatus.INSTALLED) summary.installed++;
-      if (record.status === FeatureStatus.DISABLED) summary.disabled++;
-      if (record.status === FeatureStatus.FAILED) summary.failed++;
+      if (record.status === FeatureStatus.INSTALLED) {summary.installed++;}
+      if (record.status === FeatureStatus.DISABLED) {summary.disabled++;}
+      if (record.status === FeatureStatus.FAILED) {summary.failed++;}
     });
 
     return summary;
@@ -484,12 +484,12 @@ export class FeatureRegistry {
    * @private
    */
   #validateFeature(feature) {
-    if (!feature || typeof feature !== 'object') {
-      throw new Error('Feature must be an object');
+    if (!feature || typeof feature !== "object") {
+      throw new Error("Feature must be an object");
     }
 
     // 验证必需属性
-    const requiredProps = ['name', 'version', 'dependencies', 'install', 'uninstall'];
+    const requiredProps = ["name", "version", "dependencies", "install", "uninstall"];
 
     for (const prop of requiredProps) {
       if (!(prop in feature)) {
@@ -498,33 +498,33 @@ export class FeatureRegistry {
     }
 
     // 验证类型
-    if (typeof feature.name !== 'string' || feature.name.trim() === '') {
-      throw new Error('Feature.name must be a non-empty string');
+    if (typeof feature.name !== "string" || feature.name.trim() === "") {
+      throw new Error("Feature.name must be a non-empty string");
     }
 
-    if (typeof feature.version !== 'string' || feature.version.trim() === '') {
-      throw new Error('Feature.version must be a non-empty string');
+    if (typeof feature.version !== "string" || feature.version.trim() === "") {
+      throw new Error("Feature.version must be a non-empty string");
     }
 
     if (!Array.isArray(feature.dependencies)) {
-      throw new Error('Feature.dependencies must be an array');
+      throw new Error("Feature.dependencies must be an array");
     }
 
-    if (typeof feature.install !== 'function') {
-      throw new Error('Feature.install must be a function');
+    if (typeof feature.install !== "function") {
+      throw new Error("Feature.install must be a function");
     }
 
-    if (typeof feature.uninstall !== 'function') {
-      throw new Error('Feature.uninstall must be a function');
+    if (typeof feature.uninstall !== "function") {
+      throw new Error("Feature.uninstall must be a function");
     }
 
     // 可选方法验证
-    if ('enable' in feature && typeof feature.enable !== 'function') {
-      throw new Error('Feature.enable must be a function');
+    if ("enable" in feature && typeof feature.enable !== "function") {
+      throw new Error("Feature.enable must be a function");
     }
 
-    if ('disable' in feature && typeof feature.disable !== 'function') {
-      throw new Error('Feature.disable must be a function');
+    if ("disable" in feature && typeof feature.disable !== "function") {
+      throw new Error("Feature.disable must be a function");
     }
   }
 
@@ -571,7 +571,7 @@ export class FeatureRegistry {
      * @param {string} name - 功能名称
      */
     const dfs = (name) => {
-      if (visited.has(name)) return;
+      if (visited.has(name)) {return;}
 
       if (visiting.has(name)) {
         throw new Error(`Circular dependency detected: ${name}`);
@@ -640,15 +640,15 @@ export class FeatureRegistry {
    * @private
    */
   #cleanupFeatureContext(context) {
-    if (!context) return;
+    if (!context) {return;}
 
     // 销毁 ScopedEventBus
-    if (context.scopedEventBus && typeof context.scopedEventBus.destroy === 'function') {
+    if (context.scopedEventBus && typeof context.scopedEventBus.destroy === "function") {
       context.scopedEventBus.destroy();
     }
 
     // 销毁作用域容器
-    if (context.container && typeof context.container.dispose === 'function') {
+    if (context.container && typeof context.container.dispose === "function") {
       context.container.dispose();
     }
   }

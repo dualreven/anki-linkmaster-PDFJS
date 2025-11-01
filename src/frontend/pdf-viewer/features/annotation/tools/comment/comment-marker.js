@@ -4,7 +4,7 @@
  * @description 在PDF上渲染批注图标标记
  */
 
-import { getLogger } from '../../../../../common/utils/logger.js';
+import { getLogger } from "../../../../../common/utils/logger.js";
 
 /**
  * 批注标记渲染器类
@@ -12,7 +12,7 @@ import { getLogger } from '../../../../../common/utils/logger.js';
  */
 export class CommentMarker {
   /** @type {import('../../../../../common/utils/logger.js').Logger} */
-  #logger = getLogger('CommentMarker');
+  #logger = getLogger("CommentMarker");
 
   /** @type {Map<string, HTMLElement>} 标记元素映射 (annotationId -> markerElement) */
   #markers = new Map();
@@ -21,7 +21,7 @@ export class CommentMarker {
    * 构造函数
    */
   constructor() {
-    this.#logger.info('CommentMarker created');
+    this.#logger.info("CommentMarker created");
   }
 
   /**
@@ -39,18 +39,18 @@ export class CommentMarker {
     const { positionPercent, position, content } = data;
 
     // 创建标记元素
-    const marker = document.createElement('div');
-    marker.className = 'comment-marker';
+    const marker = document.createElement("div");
+    marker.className = "comment-marker";
     marker.dataset.annotationId = id;
     marker.dataset.pageNumber = pageNumber;
-    marker.title = content || '批注';
+    marker.title = content || "批注";
 
     // 保存百分比或像素信息到 dataset，渲染时换算
     try {
-      if (positionPercent && typeof positionPercent.xPercent === 'number' && typeof positionPercent.yPercent === 'number') {
+      if (positionPercent && typeof positionPercent.xPercent === "number" && typeof positionPercent.yPercent === "number") {
         marker.dataset.xPercent = String(positionPercent.xPercent);
         marker.dataset.yPercent = String(positionPercent.yPercent);
-      } else if (position && typeof position.x === 'number' && typeof position.y === 'number') {
+      } else if (position && typeof position.x === "number" && typeof position.y === "number") {
         marker.dataset.x = String(position.x);
         marker.dataset.y = String(position.y);
       }
@@ -76,17 +76,17 @@ export class CommentMarker {
     `;
 
     // 添加图标
-    marker.textContent = '📝';
+    marker.textContent = "📝";
 
     // 悬停效果
-    marker.addEventListener('mouseenter', () => {
-      marker.style.transform = 'scale(1.2)';
-      marker.style.boxShadow = '0 4px 12px rgba(255, 152, 0, 0.4)';
+    marker.addEventListener("mouseenter", () => {
+      marker.style.transform = "scale(1.2)";
+      marker.style.boxShadow = "0 4px 12px rgba(255, 152, 0, 0.4)";
     });
 
-    marker.addEventListener('mouseleave', () => {
-      marker.style.transform = 'scale(1)';
-      marker.style.boxShadow = 'none';
+    marker.addEventListener("mouseleave", () => {
+      marker.style.transform = "scale(1)";
+      marker.style.boxShadow = "none";
     });
 
     // 保存标记
@@ -147,7 +147,7 @@ export class CommentMarker {
       marker.style.left = `${Math.round(leftPx)}px`;
       marker.style.top = `${Math.round(topPx)}px`;
     } catch (e) {
-      this.#logger.warn('Failed to compute marker position', e);
+      this.#logger.warn("Failed to compute marker position", e);
     }
 
     this.#logger.info(`Marker ${annotationId} rendered to page`);
@@ -176,17 +176,17 @@ export class CommentMarker {
     const marker = this.#markers.get(annotationId);
 
     if (marker) {
-      marker.style.background = '#FF5722';
-      marker.style.borderColor = '#D32F2F';
-      marker.style.transform = 'scale(1.3)';
-      marker.style.boxShadow = '0 6px 16px rgba(211, 47, 47, 0.5)';
+      marker.style.background = "#FF5722";
+      marker.style.borderColor = "#D32F2F";
+      marker.style.transform = "scale(1.3)";
+      marker.style.boxShadow = "0 6px 16px rgba(211, 47, 47, 0.5)";
 
       // 3秒后恢复
       setTimeout(() => {
-        marker.style.background = '#FFC107';
-        marker.style.borderColor = '#FF9800';
-        marker.style.transform = 'scale(1)';
-        marker.style.boxShadow = 'none';
+        marker.style.background = "#FFC107";
+        marker.style.borderColor = "#FF9800";
+        marker.style.transform = "scale(1)";
+        marker.style.boxShadow = "none";
       }, 3000);
 
       this.#logger.info(`Marker ${annotationId} highlighted`);
@@ -210,7 +210,7 @@ export class CommentMarker {
       this.removeMarker(id);
     });
 
-    this.#logger.info('All markers cleared');
+    this.#logger.info("All markers cleared");
   }
 
   /**
@@ -218,7 +218,7 @@ export class CommentMarker {
    */
   destroy() {
     this.clear();
-    this.#logger.info('CommentMarker destroyed');
+    this.#logger.info("CommentMarker destroyed");
   }
 }
 

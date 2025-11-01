@@ -3,9 +3,9 @@
  */
 
 export const RecentSearchesFeatureConfig = {
-  name: 'recent-searches',
-  version: '1.0.0',
-  description: '最近搜索功能 - 显示和管理最近的搜索关键词',
+  name: "recent-searches",
+  version: "1.0.0",
+  description: "最近搜索功能 - 显示和管理最近的搜索关键词",
 
   dependencies: [],
 
@@ -17,17 +17,17 @@ export const RecentSearchesFeatureConfig = {
     defaultDisplayLimit: 5,
 
     // LocalStorage键名
-    storageKey: 'pdf-home:recent-searches',
+    storageKey: "pdf-home:recent-searches",
 
     // 事件定义
     events: {
       local: {
-        SEARCH_CLICKED: 'search:item:clicked',
-        LIMIT_CHANGED: 'limit:value:changed'
+        SEARCH_CLICKED: "search:item:clicked",
+        LIMIT_CHANGED: "limit:value:changed"
       },
       global: {
         // 与 SearchFeature 保持一致（严格三段式）
-        SEARCH_REQUESTED: 'search:query:requested'
+        SEARCH_REQUESTED: "search:query:requested"
       }
     }
   }

@@ -1,7 +1,7 @@
-﻿import { getLogger } from '../../../common/utils/logger.js';
-import { featureConfig } from './feature.config.js';
-import { AiAssistantSidebarUI } from './components/ai-assistant-sidebar-ui.js';
-import { AiChatService } from './services/ai-chat-service.js';
+﻿import { getLogger } from "../../../common/utils/logger.js";
+import { featureConfig } from "./feature.config.js";
+import { AiAssistantSidebarUI } from "./components/ai-assistant-sidebar-ui.js";
+import { AiChatService } from "./services/ai-chat-service.js";
 
 export class AiAssistantFeature {
   #logger = null;
@@ -34,12 +34,12 @@ export class AiAssistantFeature {
     this.#logger.info(`Installing ${this.name} v${this.version}...`);
 
     if (!this.#container) {
-      throw new Error('AiAssistantFeature requires a dependency container');
+      throw new Error("AiAssistantFeature requires a dependency container");
     }
 
-    this.#annotationManager = this.#container.get('annotationManager');
+    this.#annotationManager = this.#container.get("annotationManager");
     if (!this.#annotationManager) {
-      this.#logger.warn('[AiAssistantFeature] annotationManager not available; AI sidebar will use empty annotation list');
+      this.#logger.warn("[AiAssistantFeature] annotationManager not available; AI sidebar will use empty annotation list");
     }
 
     this.#chatService = new AiChatService();
@@ -51,7 +51,7 @@ export class AiAssistantFeature {
     });
     this.#sidebarUI.initialize();
 
-    this.#container.registerGlobal('aiAssistantSidebarUI', this.#sidebarUI);
+    this.#container.registerGlobal("aiAssistantSidebarUI", this.#sidebarUI);
 
     this.#enabled = true;
     this.#logger.info(`${this.name} installed successfully`);

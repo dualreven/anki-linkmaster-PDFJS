@@ -6,12 +6,12 @@
 
 import { getLogger } from "../../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
-import * as pdfjsLib from 'pdfjs-dist';
+import * as pdfjsLib from "pdfjs-dist";
 
 // PDF.js Viewer组件需要全局pdfjsLib
-if (typeof globalThis !== 'undefined') {
+if (typeof globalThis !== "undefined") {
   globalThis.pdfjsLib = pdfjsLib;
-} else if (typeof window !== 'undefined') {
+} else if (typeof window !== "undefined") {
   window.pdfjsLib = pdfjsLib;
 }
 
@@ -24,7 +24,7 @@ import {
 } from "@pdfjs/web/pdf_viewer.mjs";
 
 // 模块级日志记录器（用于非实例化路径的快速日志）
-const logger = getLogger('PDFViewerManager');
+const logger = getLogger("PDFViewerManager");
 
 /**
 class PDFViewerManager
@@ -56,7 +56,7 @@ export class PDFViewerManager {
       throw new Error(errorMsg);
     }
 
-    this.#logger.info(`Initializing PDFViewer`);
+    this.#logger.info("Initializing PDFViewer");
     logger.debug("[PDFViewerManager] Container element (debug)", container);
 
     try {
@@ -83,11 +83,11 @@ export class PDFViewerManager {
       });
 
       // 查找viewer元素（显示PDF页面的容器）
-      const viewerElement = this.#container.querySelector('.pdfViewer') ||
-                           this.#container.querySelector('#viewer') ||
+      const viewerElement = this.#container.querySelector(".pdfViewer") ||
+                           this.#container.querySelector("#viewer") ||
                            this.#container.firstElementChild;
 
-      this.#logger.debug(`Found viewer element:`, viewerElement);
+      this.#logger.debug("Found viewer element:", viewerElement);
 
       this.#pdfViewer = new PDFViewer({
         container: this.#container,
@@ -160,7 +160,7 @@ export class PDFViewerManager {
     // 等待一下，然后检查是否有页面被渲染
     setTimeout(() => {
       this.#logger.debug("After setDocument (2s delay), checking viewer content...");
-      const viewerElement = this.#container.querySelector('.pdfViewer') || this.#container.querySelector('#viewer');
+      const viewerElement = this.#container.querySelector(".pdfViewer") || this.#container.querySelector("#viewer");
       this.#logger.debug(`Viewer element innerHTML length: ${viewerElement?.innerHTML?.length || 0}`);
       this.#logger.debug(`Viewer element children count: ${viewerElement?.children?.length || 0}`);
 
@@ -176,11 +176,11 @@ export class PDFViewerManager {
         this.#logger.debug(`First child: ${viewerElement.children[0].tagName}.${viewerElement.children[0].className}`);
 
         // 统计真正的页面容器
-        const pageContainers = viewerElement.querySelectorAll('.page');
+        const pageContainers = viewerElement.querySelectorAll(".page");
         this.#logger.debug(`Actual page containers (.page): ${pageContainers.length}`);
 
         // 检查是否有重复的页面
-        this.#logger.debug(`Expected pages from pdfDocument: ${this.#pdfViewer.pdfDocument?.numPages || 'unknown'}`);
+        this.#logger.debug(`Expected pages from pdfDocument: ${this.#pdfViewer.pdfDocument?.numPages || "unknown"}`);
       }
 
       this.#logger.debug(`PDFViewer.pagesCount: ${this.#pdfViewer.pagesCount}`);
@@ -374,42 +374,41 @@ export class PDFViewerManager {
    */
   #setupEventBridge(pdfjsEventBus) {
     // 监听页面变化事件
-    pdfjsEventBus.on('pagechanging', (evt) => {
+    pdfjsEventBus.on("pagechanging", (evt) => {
       const pageNumber = evt.pageNumber;
       this.#logger.info(`PDFViewer page changing to ${pageNumber}`);
 
       // 发送到应用EventBus（修复事件名称格式为 module:action:status）
       if (this.#eventBus) {
-        this.#eventBus.emit('pdf-viewer:page:changing', { pageNumber }, { actorId: 'PDFViewerManager' });
+        this.#eventBus.emit("pdf-viewer:page:changing", { pageNumber }, { actorId: "PDFViewerManager" });
       }
     });
 
     // 监听缩放变化事件
-    pdfjsEventBus.on('scalechanging', (evt) => {
+    pdfjsEventBus.on("scalechanging", (evt) => {
       const scale = evt.scale;
       this.#logger.info(`PDFViewer scale changing to ${scale}`);
 
       // 发送到应用EventBus（修复事件名称格式为 module:action:status）
       if (this.#eventBus) {
-        this.#eventBus.emit('pdf-viewer:zoom:changing', { scale }, { actorId: 'PDFViewerManager' });
+        this.#eventBus.emit("pdf-viewer:zoom:changing", { scale }, { actorId: "PDFViewerManager" });
       }
     });
 
     // 监听页面渲染完成（统一翻译为应用事件：RENDER.PAGE_COMPLETED）
     try {
-      pdfjsEventBus.on('pagerendered', (evt) => {
+      pdfjsEventBus.on("pagerendered", (evt) => {
         const pn = evt?.pageNumber;
         if (!pn) { return; }
         if (this.#eventBus) {
-          this.#eventBus.emit(PDF_VIEWER_EVENTS.RENDER.PAGE_COMPLETED, { pageNumber: pn }, { actorId: 'PDFViewerManager' });
+          this.#eventBus.emit(PDF_VIEWER_EVENTS.RENDER.PAGE_COMPLETED, { pageNumber: pn }, { actorId: "PDFViewerManager" });
         }
       });
     } catch (e) {
-      this.#logger.warn('Failed to bridge pagerendered to app event', e);
+      this.#logger.warn("Failed to bridge pagerendered to app event", e);
     }
 
     this.#logger.info("PDFViewer event bridge setup complete");
   }
 }
-
 

@@ -3,9 +3,9 @@
  */
 
 export const RecentOpenedFeatureConfig = {
-  name: 'recent-opened',
-  version: '1.0.0',
-  description: '最近阅读功能 - 显示和管理最近阅读的PDF',
+  name: "recent-opened",
+  version: "1.0.0",
+  description: "最近阅读功能 - 显示和管理最近阅读的PDF",
 
   dependencies: [],
 
@@ -17,16 +17,16 @@ export const RecentOpenedFeatureConfig = {
     defaultDisplayLimit: 5,
 
     // LocalStorage键名
-    storageKey: 'pdf-home:recent-opened',
+    storageKey: "pdf-home:recent-opened",
 
     // 事件定义
     events: {
       local: {
-        PDF_CLICKED: 'pdf:item:clicked',
-        LIMIT_CHANGED: 'limit:value:changed'
+        PDF_CLICKED: "pdf:item:clicked",
+        LIMIT_CHANGED: "limit:value:changed"
       },
       global: {
-        PDF_OPENED: 'pdf:opened'
+        PDF_OPENED: "pdf:opened"
       }
     }
   }

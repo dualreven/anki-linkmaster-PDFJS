@@ -9,8 +9,8 @@
  * - API 文档：https://mymemory.translated.net/doc/spec.php
  */
 
-import { ITranslationEngine } from './ITranslationEngine.js';
-import { getLogger } from '../../../../common/utils/logger.js';
+import { ITranslationEngine } from "./ITranslationEngine.js";
+import { getLogger } from "../../../../common/utils/logger.js";
 
 /**
  * MyMemory 翻译引擎
@@ -19,31 +19,31 @@ import { getLogger } from '../../../../common/utils/logger.js';
  */
 export class MyMemoryEngine extends ITranslationEngine {
   #logger;
-  #apiEndpoint = 'https://api.mymemory.translated.net/get';
+  #apiEndpoint = "https://api.mymemory.translated.net/get";
 
   /**
    * 语言代码映射（标准代码 -> MyMemory代码）
    * @private
    */
   #languageMap = {
-    'zh': 'zh-CN',  // 中文简体
-    'zh-CN': 'zh-CN',
-    'zh-TW': 'zh-TW', // 中文繁体
-    'en': 'en-US',   // 英语
-    'ja': 'ja-JP',   // 日语
-    'ko': 'ko-KR',   // 韩语
-    'fr': 'fr-FR',   // 法语
-    'de': 'de-DE',   // 德语
-    'es': 'es-ES',   // 西班牙语
-    'ru': 'ru-RU',   // 俄语
-    'it': 'it-IT',   // 意大利语
-    'pt': 'pt-PT',   // 葡萄牙语
-    'ar': 'ar-SA',   // 阿拉伯语
+    "zh": "zh-CN",  // 中文简体
+    "zh-CN": "zh-CN",
+    "zh-TW": "zh-TW", // 中文繁体
+    "en": "en-US",   // 英语
+    "ja": "ja-JP",   // 日语
+    "ko": "ko-KR",   // 韩语
+    "fr": "fr-FR",   // 法语
+    "de": "de-DE",   // 德语
+    "es": "es-ES",   // 西班牙语
+    "ru": "ru-RU",   // 俄语
+    "it": "it-IT",   // 意大利语
+    "pt": "pt-PT",   // 葡萄牙语
+    "ar": "ar-SA",   // 阿拉伯语
   };
 
   constructor() {
     super();
-    this.#logger = getLogger('MyMemoryEngine');
+    this.#logger = getLogger("MyMemoryEngine");
   }
 
   /**
@@ -51,7 +51,7 @@ export class MyMemoryEngine extends ITranslationEngine {
    * @returns {string}
    */
   get name() {
-    return 'mymemory';
+    return "mymemory";
   }
 
   /**
@@ -59,7 +59,7 @@ export class MyMemoryEngine extends ITranslationEngine {
    * @returns {string}
    */
   get displayName() {
-    return 'MyMemory (免费)';
+    return "MyMemory (免费)";
   }
 
   /**
@@ -100,12 +100,12 @@ export class MyMemoryEngine extends ITranslationEngine {
     const japaneseRegex = /[\u3040-\u309F\u30A0-\u30FF]/;
     const koreanRegex = /[\uAC00-\uD7AF]/;
 
-    if (chineseRegex.test(text)) return 'zh';
-    if (japaneseRegex.test(text)) return 'ja';
-    if (koreanRegex.test(text)) return 'ko';
+    if (chineseRegex.test(text)) {return "zh";}
+    if (japaneseRegex.test(text)) {return "ja";}
+    if (koreanRegex.test(text)) {return "ko";}
 
     // 默认假设为英语
-    return 'en';
+    return "en";
   }
 
   /**
@@ -115,7 +115,7 @@ export class MyMemoryEngine extends ITranslationEngine {
    * @param {string} [sourceLang='auto'] - 源语言代码
    * @returns {Promise<TranslationResult>}
    */
-  async translate(text, targetLang, sourceLang = 'auto') {
+  async translate(text, targetLang, sourceLang = "auto") {
     try {
       // 检查文本长度
       const limits = this.getLimits();
@@ -125,7 +125,7 @@ export class MyMemoryEngine extends ITranslationEngine {
 
       // 如果源语言是 auto，先检测语言
       let detectedSourceLang = sourceLang;
-      if (sourceLang === 'auto') {
+      if (sourceLang === "auto") {
         detectedSourceLang = await this.detectLanguage(text);
         this.#logger.info(`Detected source language: ${detectedSourceLang}`);
       }
@@ -136,16 +136,16 @@ export class MyMemoryEngine extends ITranslationEngine {
 
       // 构建 API 请求 URL
       const url = new URL(this.#apiEndpoint);
-      url.searchParams.set('q', text);
-      url.searchParams.set('langpair', `${sourceCode}|${targetCode}`);
+      url.searchParams.set("q", text);
+      url.searchParams.set("langpair", `${sourceCode}|${targetCode}`);
 
       this.#logger.info(`Translating: "${text.substring(0, 50)}..." from ${sourceCode} to ${targetCode}`);
 
       // 发送 API 请求
       const response = await fetch(url.toString(), {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Accept': 'application/json'
+          "Accept": "application/json"
         }
       });
 
@@ -157,18 +157,18 @@ export class MyMemoryEngine extends ITranslationEngine {
 
       // 检查响应状态
       if (data.responseStatus !== 200) {
-        throw new Error(data.responseDetails || 'Translation failed');
+        throw new Error(data.responseDetails || "Translation failed");
       }
 
       // 检查配额
       if (data.quotaFinished === true) {
-        throw new Error('每日翻译配额已用完，请明天再试');
+        throw new Error("每日翻译配额已用完，请明天再试");
       }
 
       // 提取翻译结果
       const translatedText = data.responseData?.translatedText;
       if (!translatedText) {
-        throw new Error('Translation result is empty');
+        throw new Error("Translation result is empty");
       }
 
       const confidence = data.responseData?.match || 0;
@@ -186,13 +186,13 @@ export class MyMemoryEngine extends ITranslationEngine {
         },
         extras: {
           confidence: parseFloat(confidence),
-          provider: 'MyMemory Translation API'
+          provider: "MyMemory Translation API"
         }
       };
 
     } catch (error) {
       // 底层引擎错误仅记录，不触发自动 toast（交由上层UI统一提示）
-      this.#logger.error('Translation failed:', error, { toast: { type: 'debug' } });
+      this.#logger.error("Translation failed:", error, { toast: { type: "debug" } });
       throw new Error(`翻译失败: ${error.message}`);
     }
   }
@@ -204,10 +204,10 @@ export class MyMemoryEngine extends ITranslationEngine {
   async validateConfig() {
     try {
       // 尝试翻译一个简单的测试文本
-      const result = await this.translate('test', 'zh', 'en');
+      const result = await this.translate("test", "zh", "en");
       return result && result.translation.length > 0;
     } catch (error) {
-      this.#logger.error('Config validation failed:', error);
+      this.#logger.error("Config validation failed:", error);
       return false;
     }
   }

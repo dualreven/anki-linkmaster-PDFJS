@@ -4,9 +4,8 @@
  * @description 提供搜索输入的验证和清理功能
  */
 
-import { getLogger } from '../../../../common/utils/logger.js';
-const logger = getLogger('SearchValidator');
-
+import { getLogger } from "../../../../common/utils/logger.js";
+const logger = getLogger("SearchValidator");
 
 /**
  * 验证搜索关键词是否有效
@@ -22,11 +21,11 @@ const logger = getLogger('SearchValidator');
  */
 export function validateSearchQuery(query) {
   // 检查是否为空
-  if (!query || typeof query !== 'string') {
+  if (!query || typeof query !== "string") {
     return {
       valid: false,
-      error: '搜索关键词不能为空',
-      cleaned: '',
+      error: "搜索关键词不能为空",
+      cleaned: "",
     };
   }
 
@@ -37,8 +36,8 @@ export function validateSearchQuery(query) {
   if (cleaned.length === 0) {
     return {
       valid: false,
-      error: '搜索关键词不能为空',
-      cleaned: '',
+      error: "搜索关键词不能为空",
+      cleaned: "",
     };
   }
 
@@ -46,7 +45,7 @@ export function validateSearchQuery(query) {
   if (cleaned.length < 1) {
     return {
       valid: false,
-      error: '搜索关键词至少需要1个字符',
+      error: "搜索关键词至少需要1个字符",
       cleaned,
     };
   }
@@ -55,7 +54,7 @@ export function validateSearchQuery(query) {
   if (cleaned.length > 1000) {
     return {
       valid: false,
-      error: '搜索关键词过长（最多1000个字符）',
+      error: "搜索关键词过长（最多1000个字符）",
       cleaned: cleaned.substring(0, 1000),
     };
   }
@@ -88,7 +87,7 @@ export function validateRegex(pattern) {
       regex,
     };
   } catch (error) {
-    logger.warn('Invalid regex pattern:', error.message);
+    logger.warn("Invalid regex pattern:", error.message);
     return {
       valid: false,
       error: `无效的正则表达式: ${error.message}`,
@@ -107,7 +106,7 @@ export function validateRegex(pattern) {
  * // 'hello \\(world\\)'
  */
 export function escapeRegexChars(text) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /**
@@ -126,8 +125,8 @@ export function validateSearchOptions(options) {
     useRegex: false,
   };
 
-  if (!options || typeof options !== 'object') {
-    logger.warn('Invalid search options, using defaults');
+  if (!options || typeof options !== "object") {
+    logger.warn("Invalid search options, using defaults");
     return {
       valid: true,
       error: null,
@@ -136,19 +135,19 @@ export function validateSearchOptions(options) {
   }
 
   // 验证并清理各个选项
-  if (typeof options.caseSensitive === 'boolean') {
+  if (typeof options.caseSensitive === "boolean") {
     cleaned.caseSensitive = options.caseSensitive;
   }
 
-  if (typeof options.wholeWords === 'boolean') {
+  if (typeof options.wholeWords === "boolean") {
     cleaned.wholeWords = options.wholeWords;
   }
 
-  if (typeof options.highlightAll === 'boolean') {
+  if (typeof options.highlightAll === "boolean") {
     cleaned.highlightAll = options.highlightAll;
   }
 
-  if (typeof options.useRegex === 'boolean') {
+  if (typeof options.useRegex === "boolean") {
     cleaned.useRegex = options.useRegex;
   }
 
@@ -179,7 +178,7 @@ export function checkSearchGenerality(query, totalPages = 100) {
   }
 
   // 常见的单字符或双字符（在大文档中匹配太多）
-  const commonChars = ['a', 'e', 'i', 'o', 'u', 'the', 'and', 'or', 'in', 'on', 'at'];
+  const commonChars = ["a", "e", "i", "o", "u", "the", "and", "or", "in", "on", "at"];
   if (commonChars.includes(cleaned.toLowerCase()) && totalPages > 50) {
     return {
       isTooGeneral: true,

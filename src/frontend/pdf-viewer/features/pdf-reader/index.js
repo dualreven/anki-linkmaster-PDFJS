@@ -4,17 +4,17 @@
  * @description 实现IFeature接口的PDF阅读核心功能
  */
 
-import { getLogger } from '../../../common/utils/logger.js';
-import { PDFReaderFeatureConfig } from './feature.config.js';
+import { getLogger } from "../../../common/utils/logger.js";
+import { PDFReaderFeatureConfig } from "./feature.config.js";
 
 // 导入服务和组件
-import { PDFLoader } from './components/pdf-loader.js';
-import { PageCacheManager } from './components/page-cache-manager.js';
-import { PDFDocumentManager } from './services/pdf-document-service.js';
-import { PDFManager } from './services/pdf-manager-service.js';
-import { FileHandler } from './services/file-service.js';
-import { NavigationHandler } from './services/navigation-service.js';
-import { ZoomHandler } from './services/zoom-service.js';
+import { PDFLoader } from "./components/pdf-loader.js";
+import { PageCacheManager } from "./components/page-cache-manager.js";
+import { PDFDocumentManager } from "./services/pdf-document-service.js";
+import { PDFManager } from "./services/pdf-manager-service.js";
+import { FileHandler } from "./services/file-service.js";
+import { NavigationHandler } from "./services/navigation-service.js";
+import { ZoomHandler } from "./services/zoom-service.js";
 
 /**
  * PDF阅读器功能类
@@ -193,15 +193,15 @@ export class PDFReaderFeature {
    * @private
    */
   async #initializeState(context) {
-    this.#logger.debug('Initializing state...');
+    this.#logger.debug("Initializing state...");
 
-    const stateManager = context.container.get('stateManager');
+    const stateManager = context.container.get("stateManager");
     this.#state = stateManager.createState(
       this.name,
       PDFReaderFeatureConfig.stateSchema
     );
 
-    this.#logger.debug('State initialized');
+    this.#logger.debug("State initialized");
   }
 
   /**
@@ -209,7 +209,7 @@ export class PDFReaderFeature {
    * @private
    */
   async #registerServices(context) {
-    this.#logger.debug('Registering services...');
+    this.#logger.debug("Registering services...");
 
     const { container, scopedEventBus } = context;
 
@@ -219,9 +219,9 @@ export class PDFReaderFeature {
 
     // 注册PDFManager到容器
     container.register(
-      'pdfManager',
+      "pdfManager",
       this.#pdfManager,
-      { scope: 'singleton', isInstance: true }
+      { scope: "singleton", isInstance: true }
     );
 
     // 创建服务适配器上下文（兼容旧的Handler API）
@@ -258,7 +258,7 @@ export class PDFReaderFeature {
         }
       },
       renderToViewer: async () => {
-        this.#logger.debug('Render to viewer (placeholder)');
+        this.#logger.debug("Render to viewer (placeholder)");
       }
     };
 
@@ -267,7 +267,7 @@ export class PDFReaderFeature {
     this.#navigationHandler = new NavigationHandler(serviceContext);
     this.#zoomHandler = new ZoomHandler(serviceContext);
 
-    this.#logger.debug('Services registered successfully');
+    this.#logger.debug("Services registered successfully");
   }
 
   /**
@@ -275,7 +275,7 @@ export class PDFReaderFeature {
    * @private
    */
   #registerEventListeners() {
-    this.#logger.debug('Registering event listeners...');
+    this.#logger.debug("Registering event listeners...");
 
     // 设置Handler的事件监听
     if (this.#fileHandler) {
@@ -293,7 +293,7 @@ export class PDFReaderFeature {
     // 监听状态变化，同步更新
     this.#setupStateWatchers();
 
-    this.#logger.debug('Event listeners registered successfully');
+    this.#logger.debug("Event listeners registered successfully");
   }
 
   /**
@@ -304,7 +304,7 @@ export class PDFReaderFeature {
     // 监听currentPage变化
     // StateManager会提供watch功能，暂时placeholder
 
-    this.#logger.debug('State watchers setup');
+    this.#logger.debug("State watchers setup");
   }
 
   /**
@@ -312,12 +312,12 @@ export class PDFReaderFeature {
    * @private
    */
   #unregisterEventListeners() {
-    this.#logger.debug('Unregistering event listeners...');
+    this.#logger.debug("Unregistering event listeners...");
 
     this.#unsubscribers.forEach(unsubscribe => unsubscribe());
     this.#unsubscribers = [];
 
-    this.#logger.debug('Event listeners unregistered');
+    this.#logger.debug("Event listeners unregistered");
   }
 
   /**
@@ -325,12 +325,12 @@ export class PDFReaderFeature {
    * @private
    */
   async #initializeComponents(context) {
-    this.#logger.debug('Initializing components...');
+    this.#logger.debug("Initializing components...");
 
     // TODO: 在阶段3实施时，初始化实际的组件
     // 例如：PDF加载器、页面渲染器、缓存管理器等
 
-    this.#logger.debug('Components initialized (placeholder)');
+    this.#logger.debug("Components initialized (placeholder)");
   }
 
   /**
@@ -338,11 +338,11 @@ export class PDFReaderFeature {
    * @private
    */
   async #cleanupComponents() {
-    this.#logger.debug('Cleaning up components...');
+    this.#logger.debug("Cleaning up components...");
 
     // TODO: 清理组件
 
-    this.#logger.debug('Components cleaned up');
+    this.#logger.debug("Components cleaned up");
   }
 
   /**
@@ -350,7 +350,7 @@ export class PDFReaderFeature {
    * @private
    */
   async #cleanupServices(context) {
-    this.#logger.debug('Cleaning up services...');
+    this.#logger.debug("Cleaning up services...");
 
     // 清理Handlers
     if (this.#fileHandler) {
@@ -374,7 +374,7 @@ export class PDFReaderFeature {
       this.#pdfManager = null;
     }
 
-    this.#logger.debug('Services cleaned up');
+    this.#logger.debug("Services cleaned up");
   }
 
   /**
@@ -382,14 +382,14 @@ export class PDFReaderFeature {
    * @private
    */
   #cleanupState(context) {
-    this.#logger.debug('Cleaning up state...');
+    this.#logger.debug("Cleaning up state...");
 
     if (this.#state) {
-      const stateManager = context.container.get('stateManager');
+      const stateManager = context.container.get("stateManager");
       stateManager.destroyState(this.name);
       this.#state = null;
     }
 
-    this.#logger.debug('State cleaned up');
+    this.#logger.debug("State cleaned up");
   }
 }

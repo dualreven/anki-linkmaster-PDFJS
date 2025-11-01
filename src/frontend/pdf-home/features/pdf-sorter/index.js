@@ -16,13 +16,13 @@
  * await registry.installAll();
  */
 
-import { PDFSorterFeatureConfig } from './feature.config.js';
-import { getLogger } from '../../../common/utils/logger.js';
-import { SorterPanel } from './components/sorter-panel.js';
-import { ModeSelector } from './components/mode-selector.js';
-import { MultiSortBuilder } from './components/multi-sort-builder.js';
-import { WeightedSortEditor } from './components/weighted-sort-editor.js';
-import { SortManager } from './services/sort-manager.js';
+import { PDFSorterFeatureConfig } from "./feature.config.js";
+import { getLogger } from "../../../common/utils/logger.js";
+import { SorterPanel } from "./components/sorter-panel.js";
+import { ModeSelector } from "./components/mode-selector.js";
+import { MultiSortBuilder } from "./components/multi-sort-builder.js";
+import { WeightedSortEditor } from "./components/weighted-sort-editor.js";
+import { SortManager } from "./services/sort-manager.js";
 
 /**
  * PDF Sorter 功能域类
@@ -278,7 +278,7 @@ export class PDFSorterFeature {
       }
     ];
 
-    this.#logger.debug('Default sort initialized:', this.#currentSort);
+    this.#logger.debug("Default sort initialized:", this.#currentSort);
   }
 
   /**
@@ -286,14 +286,14 @@ export class PDFSorterFeature {
    * @private
    */
   #createUIComponents() {
-    console.log('[DEBUG PDFSorterFeature] Creating UI components...');
+    console.log("[DEBUG PDFSorterFeature] Creating UI components...");
 
     // 1. 创建排序面板
     this.#sorterPanel = new SorterPanel(this.#logger, this.#scopedEventBus);
-    console.log('[DEBUG PDFSorterFeature] SorterPanel created:', this.#sorterPanel);
+    console.log("[DEBUG PDFSorterFeature] SorterPanel created:", this.#sorterPanel);
 
     this.#sorterPanel.render();
-    console.log('[DEBUG PDFSorterFeature] SorterPanel rendered');
+    console.log("[DEBUG PDFSorterFeature] SorterPanel rendered");
 
     // 2. 创建模式选择器
     this.#modeSelector = new ModeSelector(this.#logger, this.#scopedEventBus, {
@@ -314,7 +314,7 @@ export class PDFSorterFeature {
     });
     this.#weightedSortEditor.render(this.#sorterPanel.getWeightedSortContainer());
 
-    this.#logger.info('[PDFSorterFeature] UI components created');
+    this.#logger.info("[PDFSorterFeature] UI components created");
   }
 
   /**
@@ -323,29 +323,29 @@ export class PDFSorterFeature {
    */
   #bindSorterButton() {
     if (!this.#globalEventBus) {
-      this.#logger.warn('[PDFSorterFeature] Global event bus not available; falling back to DOM binding');
+      this.#logger.warn("[PDFSorterFeature] Global event bus not available; falling back to DOM binding");
 
-      const sortBtn = document.getElementById('sort-btn');
+      const sortBtn = document.getElementById("sort-btn");
       if (!sortBtn) {
-        this.#logger.warn('[PDFSorterFeature] Sort button not found for DOM fallback');
+        this.#logger.warn("[PDFSorterFeature] Sort button not found for DOM fallback");
         return;
       }
 
       const handleSortClick = () => {
-        this.#logger.info('[PDFSorterFeature] Sort button clicked (DOM fallback)');
+        this.#logger.info("[PDFSorterFeature] Sort button clicked (DOM fallback)");
         this.#sorterPanel.toggle();
       };
 
-      sortBtn.addEventListener('click', handleSortClick);
+      sortBtn.addEventListener("click", handleSortClick);
       this.#unsubscribers.push(() => {
-        sortBtn.removeEventListener('click', handleSortClick);
+        sortBtn.removeEventListener("click", handleSortClick);
       });
       return;
     }
 
-    const togglePanel = (source = 'unknown') => {
+    const togglePanel = (source = "unknown") => {
       if (!this.#sorterPanel) {
-        this.#logger.warn('[PDFSorterFeature] Sort panel is not ready');
+        this.#logger.warn("[PDFSorterFeature] Sort panel is not ready");
         return;
       }
 
@@ -353,16 +353,16 @@ export class PDFSorterFeature {
       this.#sorterPanel.toggle();
     };
 
-    const unsubSearchSort = this.#globalEventBus.on('search:sort:requested', (payload = {}) => {
-      togglePanel(payload.source || 'search:sort:requested');
+    const unsubSearchSort = this.#globalEventBus.on("search:sort:requested", (payload = {}) => {
+      togglePanel(payload.source || "search:sort:requested");
     });
 
-    const unsubHeaderSort = this.#globalEventBus.on('header:sort:requested', (payload = {}) => {
-      togglePanel(payload.source || 'header:sort:requested');
+    const unsubHeaderSort = this.#globalEventBus.on("header:sort:requested", (payload = {}) => {
+      togglePanel(payload.source || "header:sort:requested");
     });
 
     this.#unsubscribers.push(unsubSearchSort, unsubHeaderSort);
-    this.#logger.info('[PDFSorterFeature] Listening global sort toggle events (search/header)');
+    this.#logger.info("[PDFSorterFeature] Listening global sort toggle events (search/header)");
   }
 
   /**
@@ -371,24 +371,24 @@ export class PDFSorterFeature {
    */
   #registerEventListeners() {
     if (!this.#scopedEventBus) {
-      this.#logger.warn('ScopedEventBus not available, skipping event registration');
+      this.#logger.warn("ScopedEventBus not available, skipping event registration");
       return;
     }
 
     // 监听模式变更事件（三段式格式）
-    const unsubModeChanged = this.#scopedEventBus.on('sorter:mode:changed', (data) => {
+    const unsubModeChanged = this.#scopedEventBus.on("sorter:mode:changed", (data) => {
       this.#handleModeChange(data.mode);
     });
     this.#unsubscribers.push(unsubModeChanged);
 
     // 监听排序应用请求（三段式格式）
-    const unsubApplySort = this.#scopedEventBus.on('sorter:sort:requested', (data) => {
+    const unsubApplySort = this.#scopedEventBus.on("sorter:sort:requested", (data) => {
       this.#handleApplySort(data);
     });
     this.#unsubscribers.push(unsubApplySort);
 
     // 监听排序清除请求（三段式格式）
-    const unsubClearSort = this.#scopedEventBus.on('sorter:sort:cleared', () => {
+    const unsubClearSort = this.#scopedEventBus.on("sorter:sort:cleared", () => {
       this.#handleClearSort();
     });
     this.#unsubscribers.push(unsubClearSort);
@@ -402,8 +402,8 @@ export class PDFSorterFeature {
    */
   #subscribeToPdfList() {
     // 监听PDF列表数据加载完成
-    const unsubListLoaded = this.#globalEventBus.on('@pdf-list/data:load:completed', (data) => {
-      this.#logger.info('[PDFSorterFeature] PDF list loaded', { count: data.items?.length });
+    const unsubListLoaded = this.#globalEventBus.on("@pdf-list/data:load:completed", (data) => {
+      this.#logger.info("[PDFSorterFeature] PDF list loaded", { count: data.items?.length });
       if (data.items) {
         this.#sortManager.setDataSource(data.items);
       }
@@ -433,15 +433,15 @@ export class PDFSorterFeature {
       try {
         this.#initializeDefaultSort();
         // 触发一次后端搜索（携带 sort 规则，交由 SQL 排序）
-        const sortRules = [{ field: 'title', direction: 'asc' }];
-        this.#globalEventBus.emit('search:query:requested', {
-          searchText: '', // 使用当前搜索词：由 SearchManager 读取内部状态
+        const sortRules = [{ field: "title", direction: "asc" }];
+        this.#globalEventBus.emit("search:query:requested", {
+          searchText: "", // 使用当前搜索词：由 SearchManager 读取内部状态
           sort: sortRules
         });
         // 前端仍同步一次（以便本地表格状态一致），但核心排序由 SQL 执行
         this.applySort();
       } catch (e) {
-        this.#logger?.warn('[PDFSorterFeature] Failed to apply default sort on mode change', e);
+        this.#logger?.warn("[PDFSorterFeature] Failed to apply default sort on mode change", e);
       }
     }
   }
@@ -452,37 +452,37 @@ export class PDFSorterFeature {
    * @private
    */
   #handleApplySort(data) {
-    this.#logger.info('[PDFSorterFeature] Handling apply sort', data);
+    this.#logger.info("[PDFSorterFeature] Handling apply sort", data);
 
     try {
-      if (data.type === 'multi') {
+      if (data.type === "multi") {
         // 多级排序
         const sortedData = this.#sortManager.applyMultiSort(data.configs);
         // 同步触发后端搜索（SQL层多级排序）
         try {
           if (Array.isArray(data.configs) && data.configs.length > 0) {
             const sortRules = data.configs.map(c => ({
-              field: String(c.field || ''),
-              direction: String(c.direction || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc'
+              field: String(c.field || ""),
+              direction: String(c.direction || "asc").toLowerCase() === "desc" ? "desc" : "asc"
             }));
-            this.#globalEventBus.emit('search:query:requested', { sort: sortRules });
+            this.#globalEventBus.emit("search:query:requested", { sort: sortRules });
           }
         } catch (e) {
-          this.#logger?.warn('[PDFSorterFeature] Failed to emit backend multi-sort request', e);
+          this.#logger?.warn("[PDFSorterFeature] Failed to emit backend multi-sort request", e);
         }
-      } else if (data.type === 'weighted') {
+      } else if (data.type === "weighted") {
         // 加权排序
         const sortedData = this.#sortManager.applyWeightedSort(data.formula);
         // 同步触发后端搜索（SQL层加权排序：weighted 公式）
         try {
-          const sortRules = [{ field: 'weighted', direction: 'desc', formula: String(data.formula || '') }];
-          this.#globalEventBus.emit('search:query:requested', { sort: sortRules });
+          const sortRules = [{ field: "weighted", direction: "desc", formula: String(data.formula || "") }];
+          this.#globalEventBus.emit("search:query:requested", { sort: sortRules });
         } catch (e) {
-          this.#logger?.warn('[PDFSorterFeature] Failed to emit backend weighted sort request', e);
+          this.#logger?.warn("[PDFSorterFeature] Failed to emit backend weighted sort request", e);
         }
       }
     } catch (error) {
-      this.#logger.error('[PDFSorterFeature] Failed to apply sort', error);
+      this.#logger.error("[PDFSorterFeature] Failed to apply sort", error);
       alert(`排序失败: ${error.message}`);
     }
   }
@@ -492,12 +492,12 @@ export class PDFSorterFeature {
    * @private
    */
   #handleClearSort() {
-    this.#logger.info('[PDFSorterFeature] Handling clear sort');
+    this.#logger.info("[PDFSorterFeature] Handling clear sort");
 
     try {
       const originalData = this.#sortManager.clearSort();
     } catch (error) {
-      this.#logger.error('[PDFSorterFeature] Failed to clear sort', error);
+      this.#logger.error("[PDFSorterFeature] Failed to clear sort", error);
     }
   }
 
@@ -510,12 +510,12 @@ export class PDFSorterFeature {
       try {
         unsubscribe();
       } catch (error) {
-        this.#logger.warn('Failed to unsubscribe event listener:', error);
+        this.#logger.warn("Failed to unsubscribe event listener:", error);
       }
     });
 
     this.#unsubscribers = [];
-    this.#logger.debug('All event listeners unregistered');
+    this.#logger.debug("All event listeners unregistered");
   }
 
   // ==================== 公开方法（供外部调用） ====================
@@ -525,9 +525,9 @@ export class PDFSorterFeature {
    * @param {string} field - 排序字段
    * @param {'asc'|'desc'} direction - 排序方向
    */
-  setSort(field, direction = 'asc') {
+  setSort(field, direction = "asc") {
     if (!this.#enabled) {
-      this.#logger.warn('Cannot set sort: feature is disabled');
+      this.#logger.warn("Cannot set sort: feature is disabled");
       return;
     }
 
@@ -559,16 +559,16 @@ export class PDFSorterFeature {
    * @param {string} field - 排序字段
    * @param {'asc'|'desc'} direction - 排序方向
    */
-  addSort(field, direction = 'asc') {
+  addSort(field, direction = "asc") {
     if (!this.#enabled) {
-      this.#logger.warn('Cannot add sort: feature is disabled');
+      this.#logger.warn("Cannot add sort: feature is disabled");
       return;
     }
 
     const { multiSort, maxSortFields } = PDFSorterFeatureConfig.config.sorter;
 
     if (!multiSort) {
-      this.#logger.warn('Multi-sort is not enabled');
+      this.#logger.warn("Multi-sort is not enabled");
       return;
     }
 
@@ -587,7 +587,7 @@ export class PDFSorterFeature {
       this.#currentSort.push({ field, direction });
     }
 
-    this.#logger.info(`Sort configuration updated:`, this.#currentSort);
+    this.#logger.info("Sort configuration updated:", this.#currentSort);
 
     // 触发排序改变事件
     this.#scopedEventBus?.emit(
@@ -604,11 +604,11 @@ export class PDFSorterFeature {
    */
   applySort() {
     if (!this.#enabled) {
-      this.#logger.warn('Cannot apply sort: feature is disabled');
+      this.#logger.warn("Cannot apply sort: feature is disabled");
       return;
     }
 
-    this.#logger.info('Applying sort:', this.#currentSort);
+    this.#logger.info("Applying sort:", this.#currentSort);
 
     try {
       // 使用 SortManager 计算（保持内部状态一致）
@@ -620,7 +620,7 @@ export class PDFSorterFeature {
         this.#currentSort
       );
     } catch (error) {
-      this.#logger.error('[PDFSorterFeature] Failed to apply current sort', error);
+      this.#logger.error("[PDFSorterFeature] Failed to apply current sort", error);
     }
   }
 
@@ -637,11 +637,11 @@ export class PDFSorterFeature {
    */
   clearSort() {
     if (!this.#enabled) {
-      this.#logger.warn('Cannot clear sort: feature is disabled');
+      this.#logger.warn("Cannot clear sort: feature is disabled");
       return;
     }
 
-    this.#logger.info('Clearing sort');
+    this.#logger.info("Clearing sort");
 
     // 重置为默认排序
     this.#initializeDefaultSort();
@@ -662,7 +662,7 @@ export class PDFSorterFeature {
    */
   saveSortScheme(name) {
     if (!this.#enabled) {
-      this.#logger.warn('Cannot save sort scheme: feature is disabled');
+      this.#logger.warn("Cannot save sort scheme: feature is disabled");
       return;
     }
 
@@ -672,7 +672,7 @@ export class PDFSorterFeature {
       createdAt: new Date().toISOString()
     };
 
-    this.#logger.info('Saving sort scheme:', scheme);
+    this.#logger.info("Saving sort scheme:", scheme);
 
     // TODO: 将排序方案保存到本地存储或后端
 
@@ -689,11 +689,11 @@ export class PDFSorterFeature {
    */
   loadSortScheme(name) {
     if (!this.#enabled) {
-      this.#logger.warn('Cannot load sort scheme: feature is disabled');
+      this.#logger.warn("Cannot load sort scheme: feature is disabled");
       return;
     }
 
-    this.#logger.info('Loading sort scheme:', name);
+    this.#logger.info("Loading sort scheme:", name);
 
     // TODO: 从本地存储或后端加载排序方案
 

@@ -12,7 +12,7 @@
     "build:all": "pnpm run build:pdf-home && pnpm run build:pdf-viewer",
     "preview": "vite preview",
     "test": "jest",
-    "test:smoke": "jest --runTestsByPath src/frontend/pdf-viewer/__smoke__/annotation-card-jump.smoke.test.js -i",
+    "test:smoke": "jest --runTestsByPath src/frontend/pdf-viewer/__smoke__/annotation-card-jump.smoke.test.js src/frontend/pdf-viewer/__smoke__/anchor-create.smoke.test.js -i",
     "test:watch": "jest --watch",
     "benchmark": "node AItemp/performance-benchmark.js",
     "check:deps": "depcruise --config src/frontend/pdf-viewer/.dependency-cruiser.js src/frontend/pdf-viewer",

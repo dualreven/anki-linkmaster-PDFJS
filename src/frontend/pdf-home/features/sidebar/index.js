@@ -4,9 +4,9 @@
  * 三个子功能（最近搜索、最近阅读、最近添加）作为独立插件管理
  */
 
-import { SidebarFeatureConfig } from './feature.config.js';
-import { SidebarContainer } from './components/sidebar-container.js';
-import './styles/sidebar.css';
+import { SidebarFeatureConfig } from "./feature.config.js";
+import { SidebarContainer } from "./components/sidebar-container.js";
+import "./styles/sidebar.css";
 
 export class SidebarFeature {
   name = SidebarFeatureConfig.name;
@@ -31,7 +31,7 @@ export class SidebarFeature {
     this.#scopedEventBus = context.scopedEventBus;
     this.#globalEventBus = context.globalEventBus;
 
-    this.#logger.info('[SidebarFeature] Installing...');
+    this.#logger.info("[SidebarFeature] Installing...");
 
     try {
       // 1. 渲染侧边栏容器
@@ -43,9 +43,9 @@ export class SidebarFeature {
       // 3. 监听收起/展开事件
       this.#setupEventListeners();
 
-      this.#logger.info('[SidebarFeature] Installed successfully');
+      this.#logger.info("[SidebarFeature] Installed successfully");
     } catch (error) {
-      this.#logger.error('[SidebarFeature] Installation failed', error);
+      this.#logger.error("[SidebarFeature] Installation failed", error);
       throw error;
     }
   }
@@ -55,19 +55,19 @@ export class SidebarFeature {
    * @private
    */
   #renderSidebar() {
-    const container = document.getElementById('sidebar');
+    const container = document.getElementById("sidebar");
     if (!container) {
-      this.#logger.warn('[SidebarFeature] Sidebar container not found');
+      this.#logger.warn("[SidebarFeature] Sidebar container not found");
       return;
     }
 
     this.#sidebarContainer = new SidebarContainer(this.#logger, this.#scopedEventBus);
     this.#sidebarContainer.render(container);
 
-    this.#logger.info('[SidebarFeature] Sidebar rendered');
+    this.#logger.info("[SidebarFeature] Sidebar rendered");
     // 通知全局：侧边栏已渲染完成，子功能可安全读取 DOM
     try {
-      this.#scopedEventBus.emitGlobal('sidebar:render:completed', { ready: true });
+      this.#scopedEventBus.emitGlobal("sidebar:render:completed", { ready: true });
     } catch (_) {}
   }
 
@@ -77,13 +77,13 @@ export class SidebarFeature {
    */
   #setupEventListeners() {
     // 监听收起/展开事件
-    const unsubToggled = this.#scopedEventBus.on('sidebar:toggle:completed', (data) => {
-      this.#logger.info('[SidebarFeature] Sidebar toggle completed:', data.collapsed);
+    const unsubToggled = this.#scopedEventBus.on("sidebar:toggle:completed", (data) => {
+      this.#logger.info("[SidebarFeature] Sidebar toggle completed:", data.collapsed);
       this.#saveCollapsedState(data.collapsed);
     });
     this.#unsubscribers.push(unsubToggled);
 
-    this.#logger.info('[SidebarFeature] Event listeners setup');
+    this.#logger.info("[SidebarFeature] Event listeners setup");
   }
 
   /**
@@ -92,10 +92,10 @@ export class SidebarFeature {
    */
   #saveCollapsedState(collapsed) {
     try {
-      localStorage.setItem('pdf-home:sidebar-collapsed', JSON.stringify(collapsed));
-      this.#logger.debug('[SidebarFeature] Collapsed state saved:', collapsed);
+      localStorage.setItem("pdf-home:sidebar-collapsed", JSON.stringify(collapsed));
+      this.#logger.debug("[SidebarFeature] Collapsed state saved:", collapsed);
     } catch (error) {
-      this.#logger.error('[SidebarFeature] Failed to save collapsed state', error);
+      this.#logger.error("[SidebarFeature] Failed to save collapsed state", error);
     }
   }
 
@@ -105,25 +105,25 @@ export class SidebarFeature {
    */
   #restoreCollapsedState() {
     try {
-      const collapsedData = localStorage.getItem('pdf-home:sidebar-collapsed');
+      const collapsedData = localStorage.getItem("pdf-home:sidebar-collapsed");
       if (collapsedData) {
         const isCollapsed = JSON.parse(collapsedData);
         if (isCollapsed) {
-          const sidebar = document.getElementById('sidebar');
-          const toggleBtn = document.getElementById('sidebar-toggle-btn');
+          const sidebar = document.getElementById("sidebar");
+          const toggleBtn = document.getElementById("sidebar-toggle-btn");
           if (sidebar) {
-            sidebar.classList.add('collapsed');
+            sidebar.classList.add("collapsed");
           }
           if (toggleBtn) {
-            toggleBtn.classList.add('collapsed');
-            toggleBtn.innerHTML = '▶';
-            toggleBtn.title = '展开侧边栏';
+            toggleBtn.classList.add("collapsed");
+            toggleBtn.innerHTML = "▶";
+            toggleBtn.title = "展开侧边栏";
           }
-          this.#logger.info('[SidebarFeature] Collapsed state restored');
+          this.#logger.info("[SidebarFeature] Collapsed state restored");
         }
       }
     } catch (error) {
-      this.#logger.error('[SidebarFeature] Failed to restore collapsed state', error);
+      this.#logger.error("[SidebarFeature] Failed to restore collapsed state", error);
     }
   }
 
@@ -131,7 +131,7 @@ export class SidebarFeature {
    * 卸载Feature
    */
   async uninstall() {
-    this.#logger.info('[SidebarFeature] Uninstalling...');
+    this.#logger.info("[SidebarFeature] Uninstalling...");
 
     // 取消事件订阅
     this.#unsubscribers.forEach(unsub => unsub());
@@ -143,7 +143,7 @@ export class SidebarFeature {
       this.#sidebarContainer = null;
     }
 
-    this.#logger.info('[SidebarFeature] Uninstalled');
+    this.#logger.info("[SidebarFeature] Uninstalled");
   }
 }
 

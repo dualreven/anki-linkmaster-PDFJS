@@ -3,7 +3,7 @@
  * @file types/adapters.d.ts
  */
 
-import { EventBus } from './events';
+import type { EventBus } from './events';
 
 /**
  * WebSocket客户端接口（简化版）
@@ -82,10 +82,25 @@ export class WebSocketAdapter implements IWebSocketAdapter {
    */
   constructor(wsClient: WSClient, eventBus: EventBus);
 
+  /**
+   *
+   */
   setupMessageHandlers(): void;
+  /**
+   *
+   */
   handleMessage(message: any): void;
+  /**
+   *
+   */
   onInitialized(): void;
+  /**
+   *
+   */
   destroy(): void;
+  /**
+   *
+   */
   getState(): {
     initialized: boolean;
     queuedMessages: number;
