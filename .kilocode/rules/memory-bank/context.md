@@ -52,6 +52,16 @@
   - P4 中：若干 Feature 的 config 与 index 依赖不一致，或把 container key 写成依赖名。
 - 建议：为 url-navigation / bookmark 领域提供公共导出入口；统一侧边栏 UI 通过容器注册与获取；修正依赖声明；新增 ESLint 规则禁止跨特性内部 import。
 
+### 14) 2025-11-01 — 测试先行 + 跨特性依赖净化（phase-1）
+- 目标：按“先提交通用改动→加测试→再净化代码→跑测试”的流程，先覆盖核心行为后做小步净化。
+- 已加测试（均在 features/<feature>/__tests__/）：
+  - annotation：FILE.LOAD.SUCCESS 后自动派发 ANNOTATION.DATA.LOAD（作用域事件）
+  - sidebar-manager：安装后可打开 anchor/bookmark/annotation 侧边栏并渲染容器
+  - pdf-anchor：URL受控导航门闸用例已提交骨架（暂 skip，待 URL 分发器联调）
+- 已净化（不改变外部行为）：
+  - annotation / pdf-anchor：去除对 url-navigation/components/url-params-parser 的直接 import，改为本地轻量解析（URLSearchParams）。
+  - 测试均通过（2/2），未改动生产接口。
+
 ### 12) 2025-11-01 — Git 提交工作区改动（本次）
 - 目标：将当前工作区全部改动生成一次原子提交，便于后续评审/回退；不执行 push。
 - 验收：`git status` 为空；`git log -1` 提交信息含时间戳与改动数量；工作日志更新（AItemp/*-AI-Working-log.md）。

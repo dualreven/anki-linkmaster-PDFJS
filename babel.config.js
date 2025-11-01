@@ -19,6 +19,8 @@ export default function babelConfig(api) {
     ],
     plugins: [
       '@babel/plugin-syntax-import-meta',
+      // 将 import.meta 转为可在 CJS（Jest）环境安全执行的表达式
+      ['babel-plugin-transform-import-meta', { module: 'CommonJS' }],
       ['@babel/plugin-transform-optional-chaining'],
       ['@babel/plugin-transform-nullish-coalescing-operator'],
       ['@babel/plugin-transform-private-methods', { loose: true }],
