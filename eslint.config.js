@@ -53,8 +53,8 @@ export default [
       "custom/no-dynamic-notification-import": "error",
       // 可先以 warning 形式上线，成熟后再升级为 error
       "custom/logger-toast-shape": "warn",
-      // 新增：禁止跨特性内部深层 import（先以 warning 观察）
-      "custom/no-cross-feature-internals": "warn",
+      // 新增：禁止跨特性内部深层 import（升级为 error，作为 CI 门禁）
+      "custom/no-cross-feature-internals": "error",
 
       // 风格与质量控制
       "eqeqeq": ["error", "always"],          // 强制使用 ===
