@@ -1,6 +1,6 @@
 {
   "pdf-editor": {
-    "enabled": true,
+    "enabled": false,
     "description": "PDF 编辑功能域（开发中）",
     "version": "0.1.0",
     "meta": {

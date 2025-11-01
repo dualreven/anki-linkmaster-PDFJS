@@ -334,95 +334,18 @@ class EmbedFileServer(QObject):
             - 首字节延迟：从 50ms 降低到 1ms（快 50 倍）
             - 文件读取：使用 Qt C++ 实现（快 20-30%）
         """
-        qfile = None
+        from src.backend.pdfFile_server.server_core.stream_sender import stream_send_file
         try:
-            # 获取文件大小
-            file_size = file_path.stat().st_size
-
-            # 构建 HTTP 响应头（保留 Content-Length 确保前端进度显示）
-            mime_type = self._get_mime_type(file_path)
-            # 发送响应头
-            header_data = build_http_ok_headers(file_size, mime_type, cors=True, cache_control="max-age=3600")
-            socket.write(header_data)
-
-            # 使用 Qt QFile 打开文件（C++ 实现，性能更好）
-            qfile = QFile(str(file_path))
-            if not qfile.open(QIODevice.OpenModeFlag.ReadOnly):
-                error_msg = f"无法打开文件: {qfile.errorString()}"
-                logger.error(f"❌ {error_msg}")
-                self._send_500(socket, error_msg)
-                return
-
-            # 流式发送文件内容（分块传输）
-            bytes_sent = 0
-            chunk_count = 0
-
-            logger.debug(f"📤 开始流式传输: {file_path.name} ({file_size} bytes, {mime_type})")
-
-            while not qfile.atEnd():
-                # 读取一块数据（64KB）
-                chunk = qfile.read(CHUNK_SIZE)
-
-                # 兼容性检查：QByteArray 或 bytes
-                if not chunk or len(chunk) == 0:
-                    break
-
-                # 发送数据块
-                socket.write(chunk)
-                bytes_sent += len(chunk)  # 使用 len() 兼容 QByteArray 和 bytes
-                chunk_count += 1
-
-                # 流控制：等待缓冲区有空间（避免阻塞同进程的 QWebEngine 读取）
-                # 在 Hosted 同进程/同线程场景，阻塞等待可能会饿死事件循环，
-                # 因此使用短等待 + processEvents 让 QWebEngine 有机会读取。
-                if socket.bytesToWrite() > MAX_BUFFER_SIZE:
-                    start = time.perf_counter()
-                    while socket.bytesToWrite() > MAX_BUFFER_SIZE:
-                        # 短等待，避免长时间阻塞
-                        socket.waitForBytesWritten(50)
-                        try:
-                            QCoreApplication.processEvents()
-                        except Exception:
-                            pass
-                        if time.perf_counter() - start > 30.0:  # 最长等待 30 秒以防极端情况
-                            logger.warning(
-                                f"⚠️ Socket 写入阻塞超过30秒，缓冲区仍有 {socket.bytesToWrite()} bytes 待写，"
-                                f"已发送 {bytes_sent}/{file_size} bytes"
-                            )
-                            # 不立即中断传输，继续尝试发送后续数据以便客户端尽量读取
-                            break
-
-            # 确保所有数据发送完成
-            socket.flush()
-            # 确保缓冲区尽可能发送完成
-            start_flush = time.perf_counter()
-            while socket.bytesToWrite() > 0 and (time.perf_counter() - start_flush) <= 30.0:
-                socket.waitForBytesWritten(50)
-                try:
-                    QCoreApplication.processEvents()
-                except Exception:
-                    pass
-
-            # 日志记录
-            if bytes_sent == file_size:
-                logger.debug(
-                    f"✅ 流式传输完成: {file_path.name} "
-                    f"({bytes_sent} bytes, {chunk_count} chunks, {mime_type})"
-                )
-            else:
-                logger.warning(
-                    f"⚠️ 传输不完整: {file_path.name} "
-                    f"({bytes_sent}/{file_size} bytes, {chunk_count} chunks)"
-                )
-
+            stream_send_file(
+                socket,
+                file_path,
+                chunk_size=CHUNK_SIZE,
+                max_buffer_size=MAX_BUFFER_SIZE,
+                enable_process_events=True,
+            )
         except Exception as e:
             logger.error(f"❌ 发送文件失败: {e}", exc_info=True)
             self._send_500(socket, str(e))
-
-        finally:
-            # 清理资源：关闭文件
-            if qfile is not None:
-                qfile.close()
 
     def _get_mime_type(self, file_path: Path) -> str:
         """获取 MIME 类型（委托模块级逻辑，便于测试与复用）"""

@@ -43,6 +43,16 @@
   - 文档：同步修正 backlog-files.md 行数/状态；将 backend.launcher 标注为“已完成”。
   - 规范：全程 UTF-8；禁止兜底；任何失败必须 toast/错误返回，测试断言按错误码/类型而非文案。
 
+### 19) 2025-11-02 — 后端 embed_fileserver.py 拆分（Phase-1，已执行）
+- 选择依据：后端文件行数 Top1（703 行）。
+- 拆分结果：
+  - 新增纯函数工具：`pdfFile_server/utils/http_utils.py`（MIME 与头构造）、`pdfFile_server/utils/path_resolver.py`（URL→FS 路径解析）。
+  - 新增传输内核：`pdfFile_server/server_core/stream_sender.py`（依赖 PyQt 的流式发送与流控）。
+  - 入口精简：`embed_fileserver.py` 改为委托上述模块；行数从 703 → 488（<500）。
+- 测试：新增 `src/backend/pdfFile_server/__tests__/test_utils_path_and_http.py` 覆盖 3 类纯函数（3/3 通过）。
+- 契约与行为：对外 API 不变（类名/方法/日志）；路径解析逻辑与历史兼容路径保持一致；严格 UTF-8 与 `\n`。
+- 风险与TODO：为 `stream_sender` 增加套接字桩测试；评估移除自动“打包路径回退”的时机，改为启动参数显式声明（避免兜底）。
+
 ### 16) 2025-11-01 — 跨特性 import 整治与门禁（已完成）
 - 目标：禁止 features/* 跨特性内部 import；强制通过 public.js/index.js 或 DI 容器。
 - 结果：新增 ESLint 规则 `custom/no-cross-feature-internals`（已升级为 error）；GitHub Actions `lint.yml` 启用 CI 门禁（features 范围）；侧边栏装配容器化（anchor/outline）。
@@ -77,6 +87,13 @@
   - P1：评估 `pdf-edit` vs `pdf-editor` 的并行必要性；若仅保留其一，调整 feature-flags 并补最小冒烟。
 - 产出：`AItemp/reports/pdf-home-feature-purity-20251101235152.md`（详述扫描方法、样例与修复计划）。
 
+### 18) 2025-11-02 — 采纳方案A：仅启用 pdf-edit，禁用 pdf-editor（已执行）
+- 修改：`src/frontend/pdf-home/config/feature-flags.json` 中 `"pdf-editor.enabled": false`。
+- 冒烟：`src/frontend/pdf-home/__tests__/pdf-home.edit-exclusive.smoke.test.js`
+  - 触发 `pdf:edit:requested`，断言仅出现一个 `.pdf-modal`，存在 `#pdf-edit-form`，且无 `#pdf-editor-modal`。
+  - 运行：`pnpm exec jest src/frontend/pdf-home/__tests__/pdf-home.edit-exclusive.smoke.test.js -i` → 通过。
+- 预期收益：避免双弹窗/状态分裂；保留生产化的 pdf-edit 流程（含 WS 交互与结果刷新）。
+
 ### 19) 2025-11-01 — Feature 重命名 Step 1 进展（别名 + 作用域解耦）
 - 目标：为后续“特性重命名”做零行为变更的底座改造：别名映射（兼容旧名）+ 作用域解耦（SCOPE_ID）。
 - 本次变更：
@@ -85,6 +102,7 @@
     - `feature-scoped-bus.scopeid.test.js`（ScopedEventBus 作用域来自 `Feature.SCOPE_ID`，与 `Feature.name` 解耦）。
   - 缺陷修复：`FeatureRegistry.#checkDependencies()` 对依赖项统一走 `#resolveName()`，避免旧名依赖被误判为缺失。
   - 注解插件：`AnnotationFeature` 引入 `static SCOPE_ID = "annotation"`，并在未提供 `scopedEventBus` 时以 SCOPE_ID 创建兜底作用域。
+- 别名注入位点：新增 `common/micro-service/feature-aliases.js` 并在 pdf-viewer/pdf-home 的 FeatureRegistry 构造时注入（当前为空映射，零行为变更）。
 - 影响面：零行为变更；事件前缀仍为 `@annotation/*`；现有调用与测试通过。
 - 验收：局部 Jest 用例通过；annotation 相关 5/5 通过。下一步仅在更多使用 ScopedEventBus 的特性中声明 `SCOPE_ID`（若有）。
 
