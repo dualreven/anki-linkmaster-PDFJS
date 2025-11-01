@@ -19,6 +19,25 @@
 > 最近更新（10条，按日期倒序）
 - 2025-11-01 启动器导航互斥：新建窗口仅用 URL 导航；已存在窗口仅用 WS 导航；禁止双通路并发
 - 2025-11-01 Logger 增强：新增 Feature/模块级 toast 过滤策略（setToastPolicy/getToastPolicy/setDefaultToastEnabled）；URLNavigationFeature 统一用 logger+toast 出提示（保障“有 toast 必有日志”）
+
+## SMOKE-RUN-POLICY（冒烟测试运行约定）
+- 目标：在 1–2 分钟内验证关键用户旅程未回归；不求全、求快。
+- 触发条件（任一成立必须运行）：
+  - 影响 URL/WS 契约、viewer 启动参数、导航逻辑；
+  - 变更 Outline/Bookmark/Anchor/Annotation 任一；
+  - 影响 dist 构建或静态资源映射；
+  - 影响 logger/Toast 治理策略。
+- 目录与命名：
+  - 每个插件/Feature 维护 `__smoke__/` 目录，例如：`src/frontend/pdf-viewer/features/<feature>/__smoke__/xxx_smoke.py`；
+  - 跨 Feature 的旅程用例：`src/frontend/pdf-viewer/__smoke__/`；
+  - 后端模块比照：`src/backend/<module>/__smoke__/`。
+- 统一入口：
+  - `python -X utf8 scripts/smoke.py` 运行全部；
+  - `python -X utf8 scripts/smoke.py --feature pdf-viewer` 只跑匹配路径；
+  - 报告输出：`AItemp/reports/smoke-YYYYMMDDhhmmss.md`，并在提交说明中附 `Smoke: ok/failed + Report: <path>`。
+- 当前内置最小集（可扩展）：
+  - `pdf-viewer/__smoke__/mutual_exclusive_nav_smoke.py`（后端互斥决策）；
+  - `pdf-viewer/__smoke__/url_builder_pdf_id_smoke.py`（URL 构造必须包含 pdf-id）。
 - 2025-10-26 pdf-home 启动端口严格校验：缺失 `vite/msgCenter/pdfFile`（dev）或缺失 `msgCenter/pdfFile`（prod）直接抛错；禁止 URL 中出现 `:None`
 - 2025-10-26 Backend 路径严格化：后端仅接受参数传入的 `logs_dir/data_dir/db_path/static_dir/pdfs_dir`；移除所有回退/自动推断；HTTP 与 WS 服务器均按参数运行
 - 2025-10-25 Annotation（截图）后端扩容：`PDFAnnotationTablePlugin` 允许并持久化 `rectPercent/canvasPixelSize/markerColor`，刷新后定位稳定
@@ -45,6 +64,23 @@
 - 2025-10-09 前端 Toast 统一规范；截图/快捷操作统一（更新）
 
 本文件汇总当前权威的技术与使用规范，过时内容已清理。
+
+## TEST-EVOLVE-POLICY（测试何时更新）
+- 原则：测试是“契约的可执行表达”。只有当“契约”被有意修改时，测试才应随之修改；重构不应改变契约。
+- 触发“必须改测试”的变更：
+  - 公开 API/函数签名/返回结构调整（含异常类型与错误码）；
+  - 事件命名/载荷 schema/Topic 变更（例如 `annotation:create:requested` → 新事件名）；
+  - URL/查询参数契约（如 `pdf-id/outline-item-id`）；
+  - 数据库存储 schema 与迁移脚本；
+  - 用户可见行为/文案/可感知日志策略（等级、feature 分类是否 toast）。
+- 不应改测试的情况：
+  - 仅内部实现替换（函数拆分/合并、依赖重排、私有方法命名、import 路径）；
+  - 性能优化、并发控制、缓存引入但“可观察行为”不变；
+  - 日志内容细节（文本/顺序）变化，但等级与分类未变；建议测试断言“等级与分类”，非全文匹配。
+- 本仓库建议：
+  - 端到端/冒烟：以“关键事件/日志信号”断言（ready/created/completed/jump:success），避免依赖 DOM 细节；
+  - 单元：避免断言私有实现；通过可观察接口或 spy 计数断言交互；
+  - Logger/Toast：所有 toast 必须来源 `logger.*(..., { toast })`；测试断言 `feature` + `level` 是否触发与是否被策略过滤。
 
 ## Toast 使用规范 v2（统一入口 + Lint）
 - 引擎依赖：`izitoast`（仅适配器内部直接依赖）。

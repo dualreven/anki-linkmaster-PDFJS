@@ -33,6 +33,25 @@
 
 ## 当前任务（只保留核心信息）
 
+### 14) 2025-11-01 — 测试演进策略（何时改测试）
+- 诉求：当源代码调整（函数签名/事件/日志策略变更）时，如何判断“应改测试”还是“应修代码”。
+- 结论（契约优先）：
+  - 有意改变“对外可见契约”（公开 API、事件名/载荷、URL/查询参数、数据库 schema、用户可见 UI 文案、日志等级/feature 分类）→ 必须同步修改测试与文档，并提供迁移说明；可设“弃用期”保留旧路径与对应测试（两套并存）。
+  - 仅做重构/优化，目标是“行为不变”→ 不应改测试。若失败，多半是测试过度绑定实现细节（例如断言私有函数调用、具体日志文本、DOM 结构），应将测试改为“面向行为”的断言（事件结果/状态变化/日志等级与分类）。
+  - 只变更内部实现（私有函数、文件内部依赖、DI 细节）→ 不改契约/端到端测试；必要时调整紧耦合单测以降低脆弱性（例如改用 spy 计数而非精确调用栈）。
+- 本仓库落点：
+  - URLJumpDispatcher 与 toast：后续只允许通过 `logger.*(..., { toast })` 产生可过滤 toast；测试应断言“日志等级与 feature 分类”，而非 DOM 上是否弹出。
+  - Outline/Bookmark/Annotation：更改加载路径或日志文本时，端到端/冒烟测试以“关键日志信号”（如 `outline:ready`、`annotation:create:completed`）为主，避免断言实现细节。
+  - Feature 重命名/拆分：优先通过 Feature Registry 做间接寻址；测试引用 Registry key，减少批量改路径。
+
+### 13) 2025-11-01 — pdf-viewer 插件清单与纯净度评审
+- 目标：列出 `pdf-viewer/features` 全部插件；评估“纯净度（是否越界直接依赖他特性的内部实现）”与“依赖出入管理（DI 容器注册/获取是否一致）”；形成报告。
+- 结论要点（详见 AItemp/reports/20251101193218-pdf-viewer-plugins-review.md）：
+  - P1 高：annotation 与 pdf-anchor 直接 import url-navigation 的内部 `URLParamsParser`（未声明依赖）；sidebar-manager 直接 import anchor/outline 的 UI 组件。
+  - P3 中：pdf-outline 越界复用 pdf-bookmark 内部实现，且依赖声明与实际不一致。
+  - P4 中：若干 Feature 的 config 与 index 依赖不一致，或把 container key 写成依赖名。
+- 建议：为 url-navigation / bookmark 领域提供公共导出入口；统一侧边栏 UI 通过容器注册与获取；修正依赖声明；新增 ESLint 规则禁止跨特性内部 import。
+
 ### 12) 2025-11-01 — Git 提交工作区改动（本次）
 - 目标：将当前工作区全部改动生成一次原子提交，便于后续评审/回退；不执行 push。
 - 验收：`git status` 为空；`git log -1` 提交信息含时间戳与改动数量；工作日志更新（AItemp/*-AI-Working-log.md）。
@@ -75,6 +94,14 @@
 - 首批：`annotation → pdf-annotation`；`pdf-ui → 并入 ui-manager`（保留薄代理过渡 1–2 个版本周期）。
 - 策略：先引入 `features/registry` 聚合导出收敛引用，再改目录名与代理；最终移除代理并加 ESLint 规则约束。
 - 需求文档：`todo-and-doing/2 todo/20251101174059-features-naming-unification/v001-spec.md`。
+
+### 14) 2025-11-01 — 冒烟测试（立项与最小集落地）
+- 目的：对“打开/大纲/导航/互斥/URL 构造”等关键路径做 1–2 分钟内的可重复验证，降低回归面。
+- 入口：`python -X utf8 scripts/smoke.py`；报告写入 `AItemp/reports/`。
+- 现有用例（最小集）：
+  - `src/frontend/pdf-viewer/__smoke__/mutual_exclusive_nav_smoke.py`
+  - `src/frontend/pdf-viewer/__smoke__/url_builder_pdf_id_smoke.py`
+- 后续扩展（建议）：pdf-outline 加载、url-navigation 页码跳转、pdf-anchor 锚点跳转、pdf-bookmark 本地读写。
 ### 9) 2025-10-30 — pdf-viewer 兜底/回退策略盘点（不改代码）
 - 目标：仅梳理并报告“业务兜底/回退”与“UI 级回退”，不修改源码。
 - 高风险（涉及业务数据/契约，应移除或以明确“离线/演示模式”开关显式启用）

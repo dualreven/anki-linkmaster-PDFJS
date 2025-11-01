@@ -398,8 +398,14 @@ class BackendLauncher:
                         pre_existing_app = None
                         pre_existing_alive = False
 
-                    # 决策：是否使用 URL 导航参数
-                    use_url_params = not pre_existing_alive
+                    # 决策：仅当存在“明确的导航目标”且窗口为新建时，才通过 URL 传参交给前端处理
+                    has_nav_target = any([
+                        bool(annotation_id),
+                        bool(anchor_id),
+                        bool(outline_item_id),
+                        (page_at is not None) or (position is not None)
+                    ])
+                    use_url_params = (not pre_existing_alive) and has_nav_target
 
                     rc = ensure_pdf_viewer_hosted(
                         cfg,

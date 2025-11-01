@@ -316,6 +316,74 @@ class MainWindow(QMainWindow):
                 """
                 self.web_view.page().runJavaScript(script)
 
+            # 注入运行时补丁：过滤 URLJumpDispatcher 的调试型 toast，避免误报为 error/warn
+            try:
+                patch_js = r"""
+                (function(){
+                  try {
+                    // 通过 MutationObserver 监听第三方 toast 容器，移除/降级特定提示
+                    function handle(node) {
+                      try {
+                        var text = (node.textContent || "").trim();
+                        // 过滤 URLJumpDispatcher 的调试提示（outlineItemId 检查/为空/parsed keys）
+                        if (/\\[URLJumpDispatcher\\]\\s*(检查outlineItemId|outlineItemId为空|parsed keys)/.test(text)) {
+                          // 直接移除该 toast
+                          try { node.remove(); } catch (_) {}
+                          return true;
+                        }
+                      } catch(e) {}
+                      return false;
+                    }
+                    var root = document.getElementById("izi-toast-root") || document.getElementById("fallback-toast-container");
+                    if (!root){
+                      var mo = new MutationObserver(function(muts){
+                        muts.forEach(function(m){
+                          for (var i=0;i<m.addedNodes.length;i++){
+                            var n=m.addedNodes[i];
+                            if (n && n.nodeType===1){
+                              if (n.id==="izi-toast-root" || n.id==="fallback-toast-container"){
+                                root = n;
+                              }
+                              // 立即尝试处理
+                              handle(n);
+                              // 子树中也处理
+                              try {
+                                var sub = n.querySelectorAll ? n.querySelectorAll("*") : [];
+                                for (var j=0;j<sub.length;j++){ handle(sub[j]); }
+                              } catch(_){}
+                            }
+                          }
+                        });
+                      });
+                      mo.observe(document.documentElement || document.body, { childList:true, subtree:true });
+                    } else {
+                      var mo2 = new MutationObserver(function(muts){
+                        muts.forEach(function(m){
+                          for (var i=0;i<m.addedNodes.length;i++){
+                            var n=m.addedNodes[i];
+                            if (n && n.nodeType===1){
+                              if (!handle(n)){
+                                try {
+                                  var sub = n.querySelectorAll ? n.querySelectorAll("*") : [];
+                                  for (var j=0;j<sub.length;j++){ handle(sub[j]); }
+                                } catch(_){}
+                              }
+                            }
+                          }
+                        });
+                      });
+                      mo2.observe(root, { childList:true, subtree:true });
+                    }
+                  } catch(e) {
+                    console.warn("[MainWindow] toast filter patch failed:", e && e.message);
+                  }
+                })();
+                """
+                if self.web_view and self.web_view.page():
+                    self.web_view.page().runJavaScript(patch_js)
+            except Exception:
+                pass
+
             # 注入脚本：页面就绪后，使用全局 EventBus 通过 WebSocket 请求 pdf-library:info:requested，
             # 成功后将 header(#pdf-title) 更新为数据库中的 title（严格：不从 URL 与文件名获取）。
             try:
