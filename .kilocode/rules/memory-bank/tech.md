@@ -12,6 +12,29 @@
 - [UI/Toast/剪贴板与 Hosted 初始化](#uitoast剪贴板与-hosted-初始化)
 - [Babel/Vite/AI Launcher](#babelviteai-launcher)
 
+### 浏览器端 E2E（Playwright）— 2025-11-04
+- 新增命令：`pnpm run e2e:browser`
+  - 作用：在无回退/严格 404 的本地静态服务器上，运行 pdf-home “添加PDF”端到端用例。
+  - 入口：`tests/e2e/browser/pdf-home-add-files.e2e.spec.mjs`
+  - 映射：仅 `/pdf-home[/assets|/js]` 与 `/pdf-viewer`；缺省 404。
+  - 注入：`page.addInitScript` 设置 `__E2E_FILE_SELECTOR__` 与 `__E2E_TEST_FILES__`。
+- 断言：捕获 `websocket:message:send` 出站消息并校验契约。
+
+#### 扩展：pdf-viewer 导航（URL + WS）— 2025-11-04
+- 新增用例：`tests/e2e/browser/pdf-viewer-nav-url-and-ws.e2e.spec.mjs`
+  - 依赖：`devDependencies.ws`（用于内嵌 WS Mock）
+  - 静态服增强：`tests/e2e/browser/utils/static-server.mjs`
+    - 新增 `/public/`、`/pdfs/` 路由（`/pdfs/` 未命中文件时回退 `public/test.pdf`，仅测试用途）
+    - `/pdf-viewer/` 优先使用 `dist/pdf-viewer/pdf-viewer`，否则回退 `src/frontend/dist/pdf-home/pdf-viewer`
+  - 覆盖：URL 启动与 WS 运行中两条触发链；断言以“视口到达目标页”为准，记录 Outline 按ID导航现状与错误日志
+
+### QWebChannel 连通性（PyQt/无头）— 2025-11-04
+- 新增用例：`tests/e2e/qt/test_qwebchannel_file_selector.py`
+  - 环境：PyQt6 + QtWebEngine；`QT_QPA_PLATFORM=offscreen`、`QTWEBENGINE_DISABLE_SANDBOX=1`
+  - 路由：内置严格静态服务，兼容 `QWebChannelBridge` 动态注入路径 `/js/qwebchannel.js`
+  - 判定：点击“＋添加”后桥对象 `pyqtBridge.selectFiles(bool,str)` 被调用（核心断言）；若能捕获到 `pdf-library:add:requested` 出站则作为旁证
+  - 运行：`PYTHONPATH=. pytest -q tests/e2e/qt/test_qwebchannel_file_selector.py -m e2e`
+
 ## Feature 重命名过渡策略（SCOPE_ID + 别名） — 2025-11-01
 - 背景：逐步统一特性命名（如 `{layer}-{domain}[-{capability}]`）时，需要保持事件作用域与依赖装配零行为变更。
 - 设计：
@@ -36,6 +59,90 @@
 > 最近更新（10条，按日期倒序）
 - 2025-11-01 启动器导航互斥：新建窗口仅用 URL 导航；已存在窗口仅用 WS 导航；禁止双通路并发
 - 2025-11-01 Logger 增强：新增 Feature/模块级 toast 过滤策略（setToastPolicy/getToastPolicy/setDefaultToastEnabled）；URLNavigationFeature 统一用 logger+toast 出提示（保障“有 toast 必有日志”）
+
+### Ports 工具（runtime-ports.json）— 2025-11-03
+- 统一入口：`src/launcher/ports.py` 提供 `read_runtime_ports/merge_runtime_ports/write_runtime_ports`；
+- 删除语义：`merge_runtime_ports(base_logs, {"outline": None})` 会删除顶层键 `outline`；
+- GUI 约束：`gui_launcher.py` 与 `dist/latest/gui_launcher.py` 不得直接 `write_text` 到 runtime-ports.json，必须调用 `services.merge_runtime_ports`；
+- I/O 规范：所有写入确保 UTF‑8 编码与行尾 `\n`。
+
+### 静态路由策略（严格）— 2025-11-03
+- 原则：禁止回退、禁止兜底、直接报错（Fail-Fast）。
+- 映射：
+  - `/pdf-viewer[/]` → `/static/pdf-viewer/index.html`（不检查是否存在，缺失时由上层返回 404）。
+  - `/pdf-home[/]` → `/static/pdf-home/index.html`（同上）。
+  - 资源重写保持现状（`/pdf-*/assets/*` → `/static/*`、`/pdf-*/js/*` → `/js/*`、`/pdf-*/config/*` → `/static/pdf-*/config/*`）。
+- 明确不支持：
+  - 回退到源码目录（例如 `src/frontend/.../index.html`）。
+  - 回退到旧嵌套目录（例如 `/pdf-home/pdf-home/index.html`）。
+- 测试：`tests/backend/test_static_path_resolution.py` 已更新为严格策略断言。
+
+### 协议级 E2E（HTTP）— 2025-11-03
+- 目标：验证 HTTP 严格策略与资源改写；不依赖外部 dist/data（临时目录与 handler 常量覆写）。
+- 入口：`tests/e2e/test_ws_http_protocol_e2e.py`；夹具：`tests/e2e/conftest.py`。
+- 运行：`PYTHONPATH=. pytest -q tests/e2e/test_ws_http_protocol_e2e.py -m e2e`。
+- 报告：`AItemp/reports/e2e/http/`。
+
+### FileSelector 注入（E2E 模式）— 2025-11-03
+- 背景：pdf-home 通过 QWebChannel → PyQt 的 `QFileDialog` 打开原生对话框，浏览器自动化（Playwright）无法直接控制。
+- 方案：抽象 `FileSelector`，在浏览器 E2E 显式开启测试模式时注入 Stub；生产环境仍使用 QWebChannel，缺失即 Fail‑Fast。
+- 实现：
+  - 模块：`src/frontend/pdf-home/features/add-files/file-selector.js`
+  - API：`getFileSelector({ bridgeFactory })` 返回生产或 E2E 实现
+  - E2E 开关（任一满足即开启）：
+    - URL 参数：`?e2e=1` 或 `?fileSelector=e2e`
+    - 全局标志：`window.__E2E_FILE_SELECTOR__ === true`
+    - 提供文件列表：`window.__E2E_TEST_FILES__` 为非空字符串数组
+  - Stub 行为：直接返回 `__E2E_TEST_FILES__`，否则抛错（无兜底）。
+- 单测：`src/frontend/pdf-home/features/add-files/__tests__/file-selector.e2e-stub.test.js`
+- Playwright 集成（示例）：
+  - `page.addInitScript(() => { window.__E2E_FILE_SELECTOR__ = true; window.__E2E_TEST_FILES__ = ['C:\\\\tmp\\\\a.pdf']; });`
+  - 访问：`/pdf-home/?e2e=1`，点击“添加文件”按钮后断言 UI/WS 行为。
+
+### Controller 职责与用法（Vite/监听）— 2025-11-03 20:21
+- `src/gui_launcher/controller.py`：
+  - `ensure_vite_dev(port, ai_module)`：委托 `src/gui_launcher/services.ensure_vite`（其再转发 `src/launcher/dev_server.ensure_vite`）；统一日志打印；上下文取自 `ControllerOptions`。
+  - `init_status_watchers(parent, logs_dir, on_update_status)`：绑定 `QFileSystemWatcher + QTimer`；监听 `dev-process-info.json/backend-process-info.json/frontend-process-info.json`；变更后去抖刷新。
+  - `dispose_status_watchers()`：释放 QTimer/Watcher。
+- GUI 集成点：构造期注入 `ControllerOptions(component_root, logs_dir, on_log)`；调用 `controller.init_status_watchers(...)` 与 `controller.ensure_vite_dev(...)`。
+
+### Services 启动封装（Hosted/CLI）— 2025-11-03 20:43
+- 目的：避免 GUI 直接依赖 `src.launcher.runner`，实现薄封装与延迟导入以提高解耦和可测性。
+- 封装 API：
+  - `start_backend_hosted(cfg, *, parent_app, on_log)` / `start_backend_cli(cfg, *, on_log)`
+  - `start_pdf_home_hosted(cfg, *, parent_app, on_log)` / `start_pdf_home_cli(cfg, *, is_prod, on_log)`
+  - `start_pdf_viewer_hosted(cfg, *, parent_app, pdf_id, page_at, position, anchor_id, annotation_id, outline_item_id, enable_outline, on_log)` / `start_pdf_viewer_cli(cfg, *, is_prod, pdf_id, page_at, position, anchor_id, annotation_id, outline_item_id, on_log)`
+- 用法：GUI 仅组装 `LauncherConfig`，随后调用对应 `services.start_*`。
+- 测试要求：使用 `sys.modules['src.launcher.runner']` 注入假模块验证转发路径；GUI 不得包含 `from src.launcher.runner import`。
+
+## Feature 生命周期/副作用清理规范（强制） — 2025-11-03
+- 适用范围：src/frontend/pdf-viewer/features/**、及其 UI/Service 组件。
+- 强制要求
+  - 监听对称：所有 `document/window.addEventListener`、`EventBus.on/once` 必须可撤销；返回的取消函数（或 handler 引用）统一收集到 `this.#unsubs: Array<() => void>`。
+  - 卸载对称：`uninstall/destroy` 中必须遍历执行 `#unsubs`，并置空引用；DOM 节点需移除；定时器需 `clearTimeout/clearInterval`。
+  - 禁止导入时副作用：确需第三方库要求（如 jstree 绑定 jQuery）必须加 try/catch 与环境判断，仅在浏览器生效并在文档标注“已知可接受”。
+  - 严禁兜底：未实现对称清理应视为错误，必须修复；不得以“影响可忽略”为由跳过。
+- 模板示例
+```js
+export class MyFeature {
+  #unsubs = [];
+  #onKeydown = null;
+  async install({ globalEventBus }) {
+    this.#onKeydown = (e) => { /* ... */ };
+    document.addEventListener('keydown', this.#onKeydown);
+    this.#unsubs.push(() => document.removeEventListener('keydown', this.#onKeydown));
+    const off = globalEventBus.on(PDF_VIEWER_EVENTS.X.Y.Z, this.#handler.bind(this), { subscriberId: 'MyFeature' });
+    this.#unsubs.push(off);
+  }
+  async uninstall() {
+    this.#unsubs.forEach(off => { try { off(); } catch {} });
+    this.#unsubs = [];
+    this.#onKeydown = null;
+  }
+}
+```
+- 守护策略
+  - 推荐为关键 Feature 增加“安装→卸载→监听与订阅计数归零”的单测或 smoke 自检（仅测试环境暴露统计接口）。
 
 ## 数据库命名与表结构调整（2025-11-02）
 - 变更：后端 Bookmark 域全面对齐 Outline 命名：
@@ -94,6 +201,41 @@
 - 2025-10-09 前端 Toast 统一规范；截图/快捷操作统一（更新）
 
 本文件汇总当前权威的技术与使用规范，过时内容已清理。
+
+## 后端 HTTP 文件服务器（用法变更 2025-11-02）
+- 新增模块：
+  - `server_core/http_parser.py`：UTF-8 严格解码与请求行解析（纯函数）
+  - `server_core/response_writer.py`：统一错误响应写入
+- 路径解析更新：
+  - `utils/path_resolver.resolve_path(..., allow_fallbacks: bool = False)` 新增开关，默认禁用“打包路径回退”，遵循 Fail‑Fast；
+  - 仅在明确需要兼容历史打包布局时，由调用方传入 `allow_fallbacks=True`。
+- 入口行为：
+  - `embed_fileserver._handle_request` 改为依赖上述解析/写出模块；非法 UTF-8 或非法请求行将直接返回 400。
+- 测试更新：
+  - 新增 `__tests__/test_http_parser.py` 覆盖成功/失败路径；
+  - 后续将为 `server_core/stream_sender.py` 增加 QTcpSocket 桩测试（覆盖流控与超时告警）。
+
+## 加密模块与文件 I/O（2025-11-02）
+- 加密核心外提：
+  - `crypto_core/aes_gcm.py`、`crypto_core/hmac_sha256.py`、`crypto_core/key_manager.py`
+- 入口 `msgCenter_server/crypto.py` 保持对外类与函数不变，仅委托实现：
+  - `CryptoKeyManager.save_keys_to_file/load_keys_from_file` 统一使用 `encoding='utf-8', newline='\n'`
+- 测试：
+  - `__tests__/test_crypto_core.py`、`__tests__/test_key_manager.py`
+
+## pdf_info/read_ops 核心位置（2025-11-02）
+- 纯函数外提：
+  - `read_ops_core/parser.py`、`read_ops_core/filter_builder.py`、`read_ops_core/weighted.py`
+- 入口引用核心，行为不变；建议新增端到端用例覆盖复杂筛选/排序表达式。
+
+## API 标准错误处理（2025-11-02）
+- 使用方式不变：仍通过 `src/backend/api/standard_error_handler.py` 暴露路由；
+- 内部实现：
+  - 模型位于 `api/core/error_models.py`
+  - 日志管理位于 `api/core/error_logging.py`（写入使用 `encoding='utf-8', newline='\\n'`）
+  - 分析逻辑位于 `api/core/error_analysis.py`
+- 测试建议：
+  - 仅测核心模块（不启动 FastAPI），避免集成依赖；必要时再补路由级集成测试。
 
 ## TEST-EVOLVE-POLICY（测试何时更新）
 - 原则：测试是“契约的可执行表达”。只有当“契约”被有意修改时，测试才应随之修改；重构不应改变契约。
@@ -1372,3 +1514,50 @@ WS 适配（msgcenter → front）：
 - DI/容器键名（约定）
   - `navigationService`、`pdfViewerManager`、`anchorSidebarUI`、`outlineSidebarUI`、`translatorSidebarUI`、`translationService`。
   - 原则：UI/服务由提供方在 install 时 `registerGlobal(<key>, instance)`，消费方从容器读取。
+
+## 规则与门禁更新（2025-11-02）
+- no-cross-feature-internals：规则匹配范围从仅 `pdf-viewer` 扩展为同时覆盖 `pdf-home`；禁止跨特性深层导入（仅允许 `index.js`/`public.js`）。
+- CI：`package.json` 中 `lint:features:ci` 已纳入 `src/frontend/pdf-home/features/filter`，下一步待 warnings 收敛后继续扩大到 `search/` 直至覆盖 pdf-home 全量。
+- 参考命令：
+  - `pnpm exec eslint src/frontend/pdf-home/features/filter --ext .js`
+  - `pnpm run lint:features:ci`
+
+## 前端 Logger/Toast 规范（2025-11-02）
+- 统一：logger.*(..., { toast }) 仅在需要弹出时传递；不弹出时不要传 `toast` 字段；严禁 `{ toast: false }`。
+- 允许形状：`{ toast: true }` 或 `{ toast: { type?: 'error'|'warn'|'info'|'success'|'debug', ms?: number } }`（由自定义规则 `logger-toast-shape` 校验）。
+- catch 形态：统一写作 `catch(e){ void e; }`；避免空块与未使用变量告警。
+- CI 范围（更新）：`lint:features:ci` 现覆盖 search、search-results、search-result-item、filter；目标保持 0 errors。
+
+## 编辑功能重叠（2025-11-02）
+- Flags：src/frontend/pdf-home/config/feature-flags.json —— pdf-edit.enabled=true；pdf-editor.enabled=false。
+- 事件契约：对外只用 PDF_MANAGEMENT_EVENTS（pdf:edit:*）；pdf-editor 若启用，需桥接到全局契约。
+- 清理计划：优先治理 pdf-edit 内的 window.confirm/alert/no-empty，纳入 lint:features:ci 后确保 0 error。
+
+
+## 插件精简（2025-11-02）
+- 已移除 pdf-editor，仅保留 pdf-edit；采用 Feature Flag 保证互斥（历史已验证）。
+- 约定：编辑相关对外事件统一走 PDF_MANAGEMENT_EVENTS（pdf:edit:*）。
+- 测试：新增 pdf-home.editor-removed.test.js，验证注册/安装清单不含 pdf-editor。
+
+
+## CI 门禁扩展（2025-11-02）
+- lint:features:ci 现覆盖：search、search-results、search-result-item、filter。
+- search 的空 catch 已按统一形态 catch(e){ void e; } 修复，避免 
+o-empty。
+- 约束：前端禁止 console.*，统一使用 logger.*；toast 失败分支不得传入 	oast: false（规则 logger-toast-shape 仅允许 { toast: true | { type?, ms? } }），如需降噪仅记录 warn 即可。
+
+
+## pdf-edit 纳入门禁（2025-11-03）
+- 确认弹窗：禁止 window.confirm；统一使用 ModalManager 封装（返回 Promise<boolean>）。
+- 空块：统一 catch(e){ void e; }，消除 
+o-empty。
+- CI：lint:features:ci 包含 pdf-edit；目标保持 0 errors。
+
+
+### 浏览器端 E2E（导航收束）— 2025-11-05
+- 新的断言策略（pdf-viewer 导航）：
+  - 用 window.pdfViewerApp.test.navigateToPercent(page, percent, tolerance) 验证滚动 API 可用（true/false）。
+  - 入口事件仅验证可发布：ventBus.emit('annotation-navigation:jump:requested' | 'anchor-navigate:jump:requested' | 'pdf-viewer:outline-navigate-by-id:requested', ...)。
+  - 不再等待 window.__e2e_events__ 镜像事件，降低时序抖动影响。
+- 测试文件：	ests/e2e/browser/pdf-viewer-nav-url-and-ws.e2e.spec.mjs
+- 相关实现：src/frontend/pdf-viewer/bootstrap/app-bootstrap-feature.js 暴露 window.pdfViewerApp.test.navigateToPercent；PDFViewerManager.ensurePageVisible 提供滚动保障。
