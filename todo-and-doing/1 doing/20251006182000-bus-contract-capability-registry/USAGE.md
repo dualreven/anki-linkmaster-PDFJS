@@ -1,4 +1,4 @@
-﻿# 使用指南：能力发现 + 统一搜索（前后端并行开发）
+# 使用指南：能力发现 + 统一搜索（前后端并行开发）
 
 本指南说明如何在不互相“撞线”的前提下，让多个前端并行对接同一个后端插件：先通过“能力发现”确认可用事件与版本，再按统一事件与数据结构调用业务功能（示例：pdf-library 搜索）。
 
@@ -15,8 +15,9 @@ python ai_launcher.py start --module pdf-viewer --pdf-id sample
 检查状态/日志：
 
 ```bash
-python ai_launcher.py status
-python ai_launcher.py logs
+python ai_launcher.py status --logs-dir logs
+# 查看日志文件（示例）
+type logs\\ai-launcher.log
 ```
 
 ## 事件命名与消息结构
@@ -149,3 +150,4 @@ await ws.request("pdf-page:cache-clear:requested", { file_id: "id-1" });
 ```js
 await ws.request("system:heartbeat:requested", {});
 ```
+

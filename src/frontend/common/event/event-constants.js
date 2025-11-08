@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 事件常量（统一三段式命名）
  */
 export const APP_EVENTS = {
@@ -6,6 +6,10 @@ export const APP_EVENTS = {
     STARTED: "app:initialization:started",
     COMPLETED: "app:initialization:completed",
     FAILED: "app:initialization:failed"
+  },
+  ERROR: {
+    UNHANDLED_REJECTION: "app:error:unhandled-rejection",
+    GLOBAL: "app:error:global"
   }
 };
 
@@ -146,6 +150,13 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   ANNOTATION_SAVE: "annotation:save:requested",
   ANNOTATION_DELETE: "annotation:delete:requested",
 
+  // Outline（大纲）消息 —— 统一命名为 pdf-viewer 前缀（2025-11-06）
+  OUTLINE_LIST: "pdf-viewer:outline-list:request",
+  OUTLINE_CREATE: "pdf-viewer:outline-create:request",
+  OUTLINE_UPDATE: "pdf-viewer:outline-update:request",
+  OUTLINE_DELETE: "pdf-viewer:outline-delete:request",
+  OUTLINE_REORDER: "pdf-viewer:outline-reorder:request",
+
   // Anchor（锚点）消息
   ANCHOR_GET: "anchor:get:requested",
   ANCHOR_LIST: "anchor:list:requested",
@@ -206,6 +217,16 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   ANNOTATION_SAVE_FAILED: "annotation:save:failed",
   ANNOTATION_DELETE_COMPLETED: "annotation:delete:completed",
   ANNOTATION_DELETE_FAILED: "annotation:delete:failed"
+  ,OUTLINE_LIST_COMPLETED: "pdf-viewer:outline-list:complete",
+  OUTLINE_LIST_FAILED: "pdf-viewer:outline-list:failed",
+  OUTLINE_CREATE_COMPLETED: "pdf-viewer:outline-create:complete",
+  OUTLINE_CREATE_FAILED: "pdf-viewer:outline-create:failed",
+  OUTLINE_UPDATE_COMPLETED: "pdf-viewer:outline-update:complete",
+  OUTLINE_UPDATE_FAILED: "pdf-viewer:outline-update:failed",
+  OUTLINE_DELETE_COMPLETED: "pdf-viewer:outline-delete:complete",
+  OUTLINE_DELETE_FAILED: "pdf-viewer:outline-delete:failed",
+  OUTLINE_REORDER_COMPLETED: "pdf-viewer:outline-reorder:complete",
+  OUTLINE_REORDER_FAILED: "pdf-viewer:outline-reorder:failed"
   ,ANCHOR_GET_COMPLETED: "anchor:get:completed",
   ANCHOR_GET_FAILED: "anchor:get:failed",
   ANCHOR_LIST_COMPLETED: "anchor:list:completed",
@@ -236,6 +257,16 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   VIEWER_NAVIGATE_FAILED: "pdf-viewer:navigate:failed"
 };
 
+// 旧服务/兼容消息类型（仅用于 ws-client 解析与迁移期兼容）
+// 注意：该常量集允许出现三段式字面量，因为本文件属于事件常量白名单
+export const WEBSOCKET_LEGACY_TYPES = {
+  PDF_LIBRARY_LIST_RECORDS: "pdf-library:list:records",
+  BOOKMARK_LIST_RECORDS: "bookmark:list:records",
+  BOOKMARK_SAVE_RECORD: "bookmark:save:record",
+  PDF_LIBRARY_REMOVE_RECORDS: "pdf-library:remove:records",
+  PDF_LIBRARY_OPEN_VIEWER: "pdf-library:open:viewer"
+};
+
 // ====== 搜索与筛选（新增，为全局事件白名单注册）======
 export const SEARCH_EVENTS = {
   QUERY: {
@@ -262,6 +293,9 @@ export const FILTER_EVENTS = {
     SAVE: "filter:preset:save",
     SAVED: "filter:preset:saved",
   },
+  APPLY: {
+    COMPLETED: "filter:apply:completed",
+  },
   STATE: {
     UPDATED: "filter:state:updated",
   },
@@ -277,12 +311,19 @@ export const SEARCH_RESULTS_EVENTS = {
   },
   ACTIONS: {
     OPEN: "search-results:item:open",
+    SELECTED: "search-results:item:selected",
+    FOCUSED: "search-results:item:focused",
+    SELECTION_TOGGLED: "search-results:item:selection-toggled",
+    CTRL_CLICKED: "search-results:item:ctrl-clicked",
   },
 };
 
 export const SIDEBAR_EVENTS = {
   RENDER: {
     COMPLETED: "sidebar:render:completed"
+  },
+  TOGGLE: {
+    COMPLETED: "sidebar:toggle:completed"
   }
 };
 
@@ -302,9 +343,23 @@ export const HEADER_EVENTS = {
 
 // 排序器事件（用于 pdf-sorter 功能域）
 export const SORTER_EVENTS = {
+  MODE: {
+    CHANGED: "sorter:mode:changed",
+  },
   SORT: {
+    REQUESTED: "sorter:sort:requested",
     APPLIED: "sorter:sort:applied",
-    CLEARED: "sorter:sort:cleared"
+    CLEARED: "sorter:sort:cleared",
+    CHANGED: "sorter:sort:changed",
+    SAVED: "sorter:sort:saved",
+    LOADED: "sorter:sort:loaded",
+  },
+  CONFIG: {
+    CHANGED: "sorter:config:changed"
+  },
+  PANEL: {
+    SHOWN: "sorter:panel:shown",
+    HIDDEN: "sorter:panel:hidden"
   }
 };
 
@@ -332,3 +387,4 @@ export const EVENT_CONSTANTS = {
 };
 
 export default EVENT_CONSTANTS;
+

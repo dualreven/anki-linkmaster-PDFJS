@@ -4,9 +4,8 @@
  */
 
 import { FilterManager } from "./services/filter-manager.js";
-import { FilterPanel } from "./components/filter-panel.js";
+import { FILTER_EVENTS, SEARCH_EVENTS } from "../../../common/event/event-constants.js";
 import { FilterBuilder } from "./components/filter-builder-v2.js";
-import { PresetDropdown } from "./components/preset-dropdown.js";
 
 // 导入样式
 import "./styles/filter-panel.css";
@@ -17,15 +16,12 @@ export class FilterFeature {
   version = "2.0.0";
   dependencies = [];
 
-  #context = null;
   #logger = null;
   #scopedEventBus = null;  // 内部事件总线（带@filter/前缀）
   #globalEventBus = null;  // 全局事件总线（跨Feature通信）
   #filterManager = null;
-  #filterPanel = null;
   #filterPanelContainer = null;
   #filterBuilder = null;
-  #presetDropdown = null;
   #unsubscribers = [];
   #lastSearchText = "";
 
@@ -33,7 +29,6 @@ export class FilterFeature {
    * 安装插件
    */
   async install(context) {
-    this.#context = context;
     this.#logger = context.logger;
     this.#scopedEventBus = context.scopedEventBus;
     this.#globalEventBus = context.globalEventBus;
@@ -77,16 +72,8 @@ export class FilterFeature {
     this.#unsubscribers = [];
 
     // 销毁组件
-    if (this.#filterPanel) {
-      this.#filterPanel.destroy();
-    }
-
     if (this.#filterBuilder) {
       this.#filterBuilder.destroy();
-    }
-
-    if (this.#presetDropdown) {
-      this.#presetDropdown.destroy();
     }
 
     // 移除DOM
@@ -151,24 +138,24 @@ export class FilterFeature {
    */
   #setupEventListeners() {
     // 监听全局打开高级筛选事件（来自SearchBar）
-    const unsubOpen = this.#globalEventBus.on("filter:advanced:open", () => {
+    const unsubOpen = this.#globalEventBus.on(FILTER_EVENTS.ADVANCED.OPEN, () => {
       this.#handleAdvancedFilter();
     });
     this.#unsubscribers.push(unsubOpen);
 
     // 监听全局保存预设事件（来自SearchBar）
-    const unsubSave = this.#globalEventBus.on("filter:preset:save", (data) => {
+    const unsubSave = this.#globalEventBus.on(FILTER_EVENTS.PRESET.SAVE, (data) => {
       this.#handlePresetSave(data.presetName);
     });
     this.#unsubscribers.push(unsubSave);
 
     // 监听筛选应用（来自 FilterBuilder）
-    const unsubApply = this.#scopedEventBus.on("filter:apply:completed", (data) => {
+    const unsubApply = this.#scopedEventBus.on(FILTER_EVENTS.APPLY.COMPLETED, (data) => {
       const condition = data && data.condition ? data.condition : null;
       this.#logger.info("[FilterFeature] Received apply-completed from builder");
       // 更新全局筛选状态
-      this.#globalEventBus.emit("filter:state:updated", { filters: condition });
-      this.#globalEventBus.emit("search:query:requested", {
+      this.#globalEventBus.emit(FILTER_EVENTS.STATE.UPDATED, { filters: condition });
+      this.#globalEventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, {
         searchText: this.#lastSearchText || "",
         filters: condition,
       });
@@ -184,16 +171,16 @@ export class FilterFeature {
    */
   #subscribeToSearchEvents() {
     // 监听搜索请求（记录最新搜索词，改由后端执行筛选）
-    const unsubSearch = this.#globalEventBus.on("search:query:requested", (data) => {
+    const unsubSearch = this.#globalEventBus.on(SEARCH_EVENTS.QUERY.REQUESTED, (data) => {
       try {
         this.#lastSearchText = (data && typeof data.searchText === "string") ? data.searchText : "";
-      } catch {}
+      } catch (e) { this.#logger?.debug?.("[FilterFeature] ignore parse searchText error", e); }
       this.#logger.info("[FilterFeature] Search query received (record only)", { searchText: this.#lastSearchText });
     });
     this.#unsubscribers.push(unsubSearch);
 
     // 监听清除请求（仅记录）
-    const unsubClear = this.#globalEventBus.on("search:clear:requested", () => {
+    const unsubClear = this.#globalEventBus.on(SEARCH_EVENTS.QUERY.CLEARED, () => {
       this.#logger.info("[FilterFeature] Clear request received (record only)");
       this.#lastSearchText = "";
     });
@@ -208,7 +195,7 @@ export class FilterFeature {
    */
   #subscribeToPdfList() {
     // 监听“标准搜索结果更新”事件，替代 legacy 的 @pdf-list/data:load:completed
-    const unsubListLoaded = this.#globalEventBus.on("search:results:updated", (data) => {
+    const unsubListLoaded = this.#globalEventBus.on(SEARCH_EVENTS.RESULTS.UPDATED, (data) => {
       try {
         const records = (data && (data.records || data.files || data.items)) || [];
         this.#logger.info("[FilterFeature] Search results received (cache for local filtering)", {
@@ -225,25 +212,6 @@ export class FilterFeature {
     this.#unsubscribers.push(unsubListLoaded);
 
     this.#logger.info("[FilterFeature] Subscribed to PDF list events (local caching mode)");
-  }
-
-  /**
-   * 处理搜索查询（本地筛选）
-   * @private
-   */
-  #handleSearchQuery(searchText) {
-    // 已废弃本地搜索，保留函数避免调用点报错
-    this.#lastSearchText = searchText?.trim() || "";
-  }
-
-  /**
-   * 处理清除筛选
-   * @private
-   */
-  #handleClearFilter() {
-    // 前端不再本地清空结果，交由后端执行
-    this.#logger.info("[FilterFeature] Filter cleared (delegated to backend)");
-    this.#globalEventBus.emit("search:query:requested", { searchText: this.#lastSearchText, filters: null });
   }
 
   /**
@@ -275,7 +243,7 @@ export class FilterFeature {
     this.#logger.info("[FilterFeature] Saving preset", { presetName });
 
     // TODO: 实现保存逻辑
-    this.#globalEventBus.emit("filter:preset:saved", { presetName });
+    this.#globalEventBus.emit(FILTER_EVENTS.PRESET.SAVED, { presetName });
   }
 
   /**
@@ -289,10 +257,11 @@ export class FilterFeature {
     const config = this.#filterBuilder.getConditionConfig();
     this.#logger.info("[FilterFeature] Applying current filter via backend search");
     // 更新全局筛选状态
-    this.#globalEventBus.emit("filter:state:updated", { filters: config });
-    this.#globalEventBus.emit("search:query:requested", {
+    this.#globalEventBus.emit(FILTER_EVENTS.STATE.UPDATED, { filters: config });
+    this.#globalEventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, {
       searchText: this.#lastSearchText || "",
       filters: config,
     });
   }
 }
+

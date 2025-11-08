@@ -3,6 +3,11 @@
  * 包含三个section：最近搜索、最近阅读、最近添加
  */
 
+// 位于 src/frontend/pdf-home/features/sidebar/components/
+// 需回溯四级目录至 src/frontend/common/event/
+import { SIDEBAR_EVENTS } from "../../../../common/event/event-constants.js";
+import { SIDEBAR_LOCAL_EVENTS } from "../events.js";
+
 export class SidebarPanel {
   #logger = null;
   #eventBus = null;
@@ -67,13 +72,13 @@ export class SidebarPanel {
         toggleBtn.innerHTML = "◀";
         toggleBtn.title = "收起侧边栏";
         toggleBtn.classList.remove("collapsed");
-        this.#eventBus.emit("sidebar:toggle:completed", { collapsed: false });
+        this.#eventBus.emit(SIDEBAR_EVENTS.TOGGLE.COMPLETED, { collapsed: false });
       } else {
         sidebar.classList.add("collapsed");
         toggleBtn.innerHTML = "▶";
         toggleBtn.title = "展开侧边栏";
         toggleBtn.classList.add("collapsed");
-        this.#eventBus.emit("sidebar:toggle:completed", { collapsed: true });
+        this.#eventBus.emit(SIDEBAR_EVENTS.TOGGLE.COMPLETED, { collapsed: true });
       }
     });
 
@@ -238,7 +243,7 @@ export class SidebarPanel {
           const search = this.#recentSearches[index];
           if (search) {
             this.#logger.info("[SidebarPanel] Search clicked:", search.text);
-            this.#eventBus.emit("search:item:clicked", { searchText: search.text });
+            this.#eventBus.emit(SIDEBAR_LOCAL_EVENTS.SEARCH.ITEM_CLICKED, { searchText: search.text });
           }
         }
       });
@@ -254,7 +259,7 @@ export class SidebarPanel {
           const pdf = this.#recentOpened[index];
           if (pdf) {
             this.#logger.info("[SidebarPanel] PDF clicked:", pdf.filename);
-            this.#eventBus.emit("pdf:item:clicked", { filename: pdf.filename, path: pdf.path });
+            this.#eventBus.emit(SIDEBAR_LOCAL_EVENTS.PDF.ITEM_CLICKED, { filename: pdf.filename, path: pdf.path });
           }
         }
       });
@@ -270,7 +275,7 @@ export class SidebarPanel {
           const pdf = this.#recentAdded[index];
           if (pdf) {
             this.#logger.info("[SidebarPanel] Added PDF clicked:", pdf.filename);
-            this.#eventBus.emit("pdf:item:clicked", { filename: pdf.filename, path: pdf.path });
+            this.#eventBus.emit(SIDEBAR_LOCAL_EVENTS.PDF.ITEM_CLICKED, { filename: pdf.filename, path: pdf.path });
           }
         }
       });
@@ -288,7 +293,7 @@ export class SidebarPanel {
     this.#displayLimits[type] = newLimit;
 
     // 触发事件通知外部
-    this.#eventBus.emit("limit:value:changed", { type, limit: newLimit });
+    this.#eventBus.emit(SIDEBAR_LOCAL_EVENTS.LIMIT.VALUE_CHANGED, { type, limit: newLimit });
 
     // 重新渲染对应的列表
     switch (type) {

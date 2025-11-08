@@ -20,13 +20,13 @@
 │  └────────────────┬───────────────────────────────────────┘    │
 │                   │                                             │
 │                   │  依赖解析顺序:                              │
-│                   │  app-core → pdf-manager → ui-manager       │
+│                   │  infra-app → pdf-manager → infra-ui        │
 │                   │                                             │
 │         ┌─────────┼─────────┬─────────────────┐               │
 │         │         │         │                 │               │
 │         ▼         ▼         ▼                 ▼               │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐  ┌──────────┐       │
-│  │app-core  │ │pdf-mgr   │ │ui-mgr    │  │其他      │       │
+│  │infra-app │ │pdf-mgr   │ │infra-ui  │  │其他      │       │
 │  │Feature   │ │Feature   │ │Feature   │  │Features  │       │
 │  └──────────┘ └──────────┘ └──────────┘  └──────────┘       │
 │                                                                │
@@ -37,7 +37,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      Feature: app-core                          │
+│                      Feature: infra-app                         │
 │  ┌──────────────────────────────────────────────────────┐      │
 │  │  EventBus           - 全局事件总线                    │      │
 │  │  WebSocketClient    - WebSocket客户端连接            │      │
@@ -60,11 +60,11 @@
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
-│                     Feature: ui-manager                         │
+│                     Feature: infra-ui                          │
 │  ┌──────────────────────────────────────────────────────┐      │
 │  │  UIManagerCore      - UI管理核心                     │      │
 │  │    ├─ PDFViewerManager    - PDF渲染引擎             │      │
-│  │    ├─ BookmarkManager     - 书签管理                │      │
+│  │    ├─ OutlineManager     - 大纲/大纲管理（原 outlineManager） │      │
 │  │    ├─ UIZoomControls      - 缩放控件                │      │
 │  │    ├─ UILayoutControls    - 布局控件                │      │
 │  │    ├─ DOMElementManager   - DOM管理                 │      │
@@ -306,9 +306,9 @@ uiZoomControls.setScale(scale)
           │                 │                 │
           ▼                 ▼                 ▼
 ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│  PDFManager  │  │UIManagerCore │  │BookmarkMgr   │
+│  PDFManager  │  │UIManagerCore │  │outlineMgr   │
 │              │  │              │  │              │
-│ - loadPDF    │  │ - initialize │  │ - loadBookmark│
+│ - loadPDF    │  │ - initialize │  │ - loadoutline│
 │ - getPage    │  │ - setup      │  │ - navigate   │
 └──────┬───────┘  └──────┬───────┘  └──────────────┘
        │                 │
@@ -342,7 +342,7 @@ uiZoomControls.setScale(scale)
     ├── 传统模块/          # 传统模块（旧架构）
     │   ├── pdf/          # 按功能分组
     │   ├── ui/
-    │   ├── bookmark/
+    │   ├── outline/
     │   └── handlers/
     │
     └── 基础设施/
@@ -355,3 +355,4 @@ uiZoomControls.setScale(scale)
 
 **图表版本**: v1.0.0
 **最后更新**: 2025-10-02
+

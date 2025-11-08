@@ -9,6 +9,8 @@
  * 多级排序构建器组件
  * @class MultiSortBuilder
  */
+import { SORTER_EVENTS } from "../../../../common/event/event-constants.js";
+
 export class MultiSortBuilder {
   /**
    * 日志记录器
@@ -319,8 +321,8 @@ export class MultiSortBuilder {
 
     this.#logger.info("[MultiSortBuilder] Applying multi-sort:", this.#sortConfigs);
 
-    // 触发应用排序事件（三段式格式）
-    this.#eventBus.emit("sorter:sort:requested", {
+    // 触发应用排序事件
+    this.#eventBus.emit(SORTER_EVENTS.SORT.REQUESTED, {
       type: "multi",
       configs: [...this.#sortConfigs]
     });
@@ -335,8 +337,8 @@ export class MultiSortBuilder {
     this.#renderSortFields();
     this.#logger.info("[MultiSortBuilder] Sort cleared");
 
-    // 触发清除排序事件（三段式格式）
-    this.#eventBus.emit("sorter:sort:cleared", {});
+    // 触发清除排序事件
+    this.#eventBus.emit(SORTER_EVENTS.SORT.CLEARED, {});
   }
 
   /**
@@ -344,7 +346,7 @@ export class MultiSortBuilder {
    * @private
    */
   #emitConfigChanged() {
-    this.#eventBus.emit("sorter:config:changed", {
+    this.#eventBus.emit(SORTER_EVENTS.CONFIG.CHANGED, {
       type: "multi",
       configs: [...this.#sortConfigs]
     });

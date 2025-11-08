@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Smoke: viewer URL builder must always include pdf-id (for Outline/Bookmark recognition)
+Smoke: viewer URL builder must always include pdf-id (for Outline recognition)
 - Build URL in prod mode with standard ports
 - Assert &file=/pdfs/<id>.pdf and &pdf-id=<id> both present
 """
@@ -46,3 +46,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

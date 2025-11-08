@@ -18,7 +18,9 @@ const eventNameFormatRule = {
     schema: [],
     messages: {
       invalidFormat: "❌ 事件名称 \"{{eventName}}\" 格式不正确。必须使用三段式格式：{module}:{action}:{status}",
-      notString: "❌ 事件名称必须是字符串字面量，不能使用变量或模板字符串",
+      // 升级规则：禁止字符串字面量，要求通过常量命名空间（*_EVENTS 或 *_MESSAGE_TYPES）引用
+      literalNotAllowed: "❌ 禁止直接使用字符串字面量作为事件名称，请改为使用常量命名空间（如 PDF_VIEWER_EVENTS.* / WEBSOCKET_EVENTS.* / WEBSOCKET_MESSAGE_TYPES.*）。",
+      notString: "❌ 事件名称必须来自常量命名空间，不能使用变量或模板字符串",
       tooFewSegments: "❌ 事件名称 \"{{eventName}}\" 只有 {{count}} 段，缺少 {{missing}}",
       tooManySegments: "❌ 事件名称 \"{{eventName}}\" 有 {{count}} 段，超过3段限制",
       emptySegment: "❌ 事件名称 \"{{eventName}}\" 包含空段",
@@ -28,6 +30,20 @@ const eventNameFormatRule = {
   },
 
   create(context) {
+    // 允许的路径（内核/桥接等需要接受变量事件名）
+    const filename = String(context.getFilename?.() || "");
+    const nfile = filename.replace(/\\/g, "/");
+    const ALLOW_PATHS = [
+      /src\/frontend\/common\/event\/scoped-event-bus\.js$/u,
+      /src\/frontend\/.*\/features\/.*\/events\.js$/u,
+      /src\/frontend\/.*\/feature\.config\.js$/u,
+      /src\/frontend\/pdf-viewer\/core\/base-event-handler\.js$/u,
+      /src\/frontend\/pdf-viewer\/features\/pdf-anchor\/index\.js$/u,
+    ];
+    const isAllowedFile = ALLOW_PATHS.some((re) => re.test(nfile));
+    if (isAllowedFile) {
+      return {}; // 内核文件跳过检查
+    }
     /**
      * 验证事件名称格式
      */
@@ -143,16 +159,9 @@ const eventNameFormatRule = {
       const firstArg = node.arguments[0];
 
       // 允许两种形式：1) 字符串字面量；2) 来自常量命名空间的成员表达式（如 PDF_VIEWER_EVENTS.X.Y）
+      // 升级后的策略：字符串字面量一律不允许（即便格式正确），必须用常量命名空间
       if (firstArg.type === "Literal" && typeof firstArg.value === "string") {
-        const eventName = firstArg.value;
-        const result = validateEventName(eventName);
-        if (!result.valid) {
-          context.report({
-            node: firstArg,
-            messageId: result.messageId,
-            data: result.data
-          });
-        }
+        context.report({ node: firstArg, messageId: "literalNotAllowed" });
         return;
       }
 
@@ -168,16 +177,17 @@ const eventNameFormatRule = {
         const root = walk(firstArg);
         if (root && root.type === "Identifier") {
           const name = root.name || "";
+          // 允许从以下常量集合根读取事件名：
           if (/_EVENTS$/.test(name) || /_MESSAGE_TYPES$/.test(name) || name === "PDF_VIEWER_EVENTS" || name === "WEBSOCKET_EVENTS") {
             return; // 合法：来自常量命名空间
           }
         }
-        // 其他 MemberExpression 视为不合规（例如某对象临时属性）
+        // 其他 MemberExpression 视为不合规（例如对象临时属性）
         context.report({ node: firstArg, messageId: "notString" });
         return;
       }
 
-      // 变量/模板字符串一律提示改为常量或字面量
+      // 变量/模板字符串一律提示改为常量命名空间
       if (firstArg.type === "Identifier" || firstArg.type === "TemplateLiteral") {
         context.report({
           node: firstArg,
@@ -193,3 +203,4 @@ const eventNameFormatRule = {
 };
 
 export default eventNameFormatRule;
+

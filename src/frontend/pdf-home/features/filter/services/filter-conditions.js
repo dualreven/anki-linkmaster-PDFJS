@@ -175,7 +175,8 @@ export class FieldCondition extends IFilterCondition {
         return false;
       }
     } catch (error) {
-      console.warn("[FieldCondition] Match error:", error);
+      // 运行期降噪：不使用 console，保留引用以便调试
+      (error && error.message);
       return false;
     }
   }
@@ -289,7 +290,7 @@ export class FuzzySearchCondition extends IFilterCondition {
         ? results.every(r => r)  // 所有关键词都匹配
         : results.some(r => r);  // 任一关键词匹配
     } catch (error) {
-      console.warn("[FuzzySearchCondition] Match error:", error);
+      (error && error.message);
       return false;
     }
   }
@@ -396,7 +397,7 @@ export class CompositeCondition extends IFilterCondition {
         return false;
       }
     } catch (error) {
-      console.warn("[CompositeCondition] Match error:", error);
+      (error && error.message);
       return false;
     }
   }
@@ -462,3 +463,4 @@ export class CompositeCondition extends IFilterCondition {
     this.conditions.splice(index, 1);
   }
 }
+

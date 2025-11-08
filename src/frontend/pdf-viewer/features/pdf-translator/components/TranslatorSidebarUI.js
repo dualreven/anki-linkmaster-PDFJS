@@ -7,6 +7,7 @@
 import { getLogger } from "../../../../common/utils/logger.js";
 import { showSuccess, showError, showInfo } from "../../../../common/utils/notification.js";
 import { PDF_TRANSLATOR_EVENTS } from "../events.js";
+import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 
 /**
  * 翻译侧边栏UI类
@@ -606,7 +607,7 @@ export class TranslatorSidebarUI {
     this.#logger.info("Annotation data prepared:", annotationData);
 
     // 发出创建标注事件（全局事件，供AnnotationFeature监听）
-    this.#eventBus.emit("annotation:create:requested", {
+    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, {
       annotation: annotationData
     }, { actorId: "TranslatorSidebarUI" });
 

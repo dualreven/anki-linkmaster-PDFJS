@@ -20,6 +20,9 @@
  * @property {Array<ExecutionResult>} executionResults - 执行结果
  * @property {number} totalExecutionTime - 总执行时间（毫秒）
  */
+import { WEBSOCKET_MESSAGE_EVENTS } from "./event-constants.js";
+import { getLogger } from "../utils/logger.js";
+const _tracerLogger = getLogger("MessageTracer");
 
 /**
  * 执行结果结构
@@ -91,7 +94,7 @@ export class MessageTracer {
     const trace = {
       messageId: messageTrace.messageId,
       traceId: messageTrace.traceId || messageTrace.messageId,
-      event: messageTrace.event || "unknown:event:occurred",
+      event: messageTrace.event || WEBSOCKET_MESSAGE_EVENTS.UNKNOWN,
       publisher: messageTrace.publisher || "unknown",
       subscribers: messageTrace.subscribers || [],
       timestamp: messageTrace.timestamp || Date.now(),
@@ -291,9 +294,10 @@ export class MessageTracer {
    * @private
    */
   #log(level, message, ...args) {
-    if (typeof console !== "undefined" && console[level]) {
-      console[level](`[MessageTracer] ${message}`, ...args);
-    }
+    try {
+      const fn = _tracerLogger?.[level] || _tracerLogger?.info || (() => {});
+      fn(`[MessageTracer] ${message}`, ...args);
+    } catch { /* ignore logging errors */ }
   }
 
   /**
@@ -374,3 +378,4 @@ export function getGlobalTracer() {
   }
   return globalTracer;
 }
+

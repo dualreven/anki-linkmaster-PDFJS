@@ -49,6 +49,8 @@ def test_pdf_home_file_logger_created(tmp_path, monkeypatch):
     L.project_root = tmp_path
 
     # 调用确保文件日志方法
+    # 显式指定 logs_dir（遵循禁止兜底原则）
+    L._set_logs_dir(str(logs_dir))
     L._ensure_pdf_home_file_logger()
 
     # 验证日志文件生成
@@ -60,3 +62,4 @@ def test_pdf_home_file_logger_created(tmp_path, monkeypatch):
     lg.info('hello')
     content = log_file.read_text(encoding='utf-8')
     assert 'hello' in content
+

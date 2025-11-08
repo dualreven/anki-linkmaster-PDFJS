@@ -23,7 +23,7 @@
 // ❌ 所有功能都写在一起
 class PDFViewerApp {
   constructor() {
-    this.bookmarkManager = new BookmarkManager();
+    this.outlineManager = new OutlineManager(); // 原 BookmarkManager
     this.uiManager = new UIManager();
     this.pdfLoader = new PDFLoader();
     // 100个功能 = 100个new
@@ -113,7 +113,7 @@ class FeatureRegistry {
 ├─────────────────────────────────────┤
 │                                     │
 │  features: Map {                    │
-│    'app-core' => AppCoreFeature     │
+│    'infra-app' => AppCoreFeature     │
 │    'pdf-manager' => PDFManagerFeat. │
 │    'bookmark' => BookmarkFeature    │
 │  }                                  │
@@ -131,7 +131,7 @@ class FeatureRegistry {
 ```javascript
 // Feature声明的依赖关系
 AppCore: []                      // 无依赖
-PDFManager: ['app-core']         // 依赖app-core
+PDFManager: ['infra-app']         // 依赖app-core
 Bookmark: ['pdf-manager']        // 依赖pdf-manager
 
 // Registry自动计算安装顺序
@@ -434,7 +434,7 @@ async function bootstrapPDFViewerAppFeature() {
   });
 
   // 3. 注册所有Features（顺序无关，Registry会自动排序）
-  registry.register(new AppCoreFeature());
+  registry.register(new AppCoreFeature()); // name: infra-app
   registry.register(new PDFManagerFeature());
   registry.register(new BookmarkFeature());
   registry.register(new UIManagerFeature());
@@ -456,12 +456,12 @@ async installAll() {
     'app-core': [],
     'pdf-manager': ['app-core'],
     'bookmark': ['pdf-manager'],
-    'ui-manager': ['pdf-manager']
+    'infra-ui': ['pdf-manager']
   };
 
   // 2. 拓扑排序（计算安装顺序）
   const sorted = topologicalSort(dependencies);
-  // 结果: ['app-core', 'pdf-manager', 'bookmark', 'ui-manager']
+  // 结果: ['app-core', 'pdf-manager', 'bookmark', 'infra-ui']
 
   // 3. 按顺序安装
   for (const featureName of sorted) {
@@ -648,7 +648,7 @@ class PDFManager {
 }
 
 // 各个模块独立订阅
-class BookmarkManager {
+class OutlineManager { // 原 BookmarkManager
   init() {
     eventBus.subscribe('pdf:loaded', (data) => {
       this.loadBookmarks(data.document);
@@ -722,7 +722,7 @@ class MyFeature {
 // ❌ 手动管理顺序 - 容易出错
 registry.register(new BookmarkFeature());   // 依赖PDFManager，但还没注册
 registry.register(new PDFManagerFeature()); // 后注册，导致Bookmark出错
-registry.register(new AppCoreFeature());    // 最后注册，但应该最先
+registry.register(new AppCoreFeature()); // name: infra-app    // 最后注册，但应该最先
 ```
 
 **dependencies自动排序**：
@@ -733,7 +733,7 @@ class AppCoreFeature {
 }
 
 class PDFManagerFeature {
-  get dependencies() { return ['app-core']; }
+  get dependencies() { return ['infra-app']; }
 }
 
 class BookmarkFeature {
@@ -743,7 +743,7 @@ class BookmarkFeature {
 // ✅ Registry自动计算正确顺序
 registry.register(new BookmarkFeature());    // 注册顺序无所谓
 registry.register(new PDFManagerFeature());
-registry.register(new AppCoreFeature());
+registry.register(new AppCoreFeature()); // name: infra-app
 
 await registry.installAll();
 // 实际安装顺序: AppCore → PDFManager → Bookmark
@@ -970,3 +970,4 @@ globalEventBus.subscribe('recent-files:updated', (data) => {
 参考：
 - [HOW-TO-ADD-FEATURE.md](./HOW-TO-ADD-FEATURE.md) - 开发指南
 - [FEATURE-REGISTRATION-RULES.md](../.kilocode/rules/FEATURE-REGISTRATION-RULES.md) - 注册规则
+

@@ -1,5 +1,4 @@
 /* eslint-env node */
-/* global describe, test, expect */
 /**
  * Annotation unify behavior - static conformance tests
  * 目标：确保三类标注在“补画/入队回放/统一调用”方面具备一致的基础能力。
@@ -16,7 +15,7 @@ describe("annotation unify behavior (static checks)", () => {
   const base = resolve(process.cwd(), "src/frontend/pdf-viewer");
 
   test("AnnotationFeature ensures overlays for screenshot/highlight/comment", () => {
-    const p = resolve(base, "features/annotation/index.js");
+    const p = resolve(base, "features/pdf-annotation/index.js");
     const text = readUtf8(p);
     expect(text.includes("toolRegistry.get?.(\"screenshot\")")).toBe(true);
     expect(text.includes("toolRegistry.get?.(\"text-highlight\")")).toBe(true);
@@ -25,13 +24,13 @@ describe("annotation unify behavior (static checks)", () => {
   });
 
   test("AnnotationFeature sets log level override for CommentTool", () => {
-    const p = resolve(base, "features/annotation/index.js");
+    const p = resolve(base, "features/pdf-annotation/index.js");
     const text = readUtf8(p);
     expect(text.includes("setModuleLogLevel(\"CommentTool\"")).toBe(true);
   });
 
   test("CommentTool implements ensureOverlayFor + pending queue + DATA.LOADED listener", () => {
-    const p = resolve(base, "features/annotation/tools/comment/index.js");
+    const p = resolve(base, "features/pdf-annotation/tools/comment/index.js");
     const text = readUtf8(p);
     expect(text.includes("ensureOverlayFor(annotation)")).toBe(true);
     expect(text.includes("#pendingMarkersByPage")).toBe(true);
@@ -40,4 +39,3 @@ describe("annotation unify behavior (static checks)", () => {
     expect(text.includes("#flushPendingForPage(")).toBe(true);
   });
 });
-

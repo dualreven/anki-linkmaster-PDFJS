@@ -6,16 +6,18 @@
 import { PDFManager } from "../pdf-manager.js";
 import { WebGLStateManager } from "../../common/utils/webgl-detector.js";
 import Logger from "../../common/utils/logger.js";
-import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
+// 移除未使用的 PDF_VIEWER_EVENTS 导入
 
 // Mock Logger
 jest.mock("../../common/utils/logger.js", () => {
-  return jest.fn().mockImplementation(() => ({
+  const factory = jest.fn().mockImplementation(() => ({
     info: jest.fn(),
     debug: jest.fn(),
     warn: jest.fn(),
     error: jest.fn()
   }));
+  // 同时导出具名 getLogger，兼容被测代码两种写法
+  return Object.assign(factory, { getLogger: factory, __esModule: true, default: factory });
 });
 
 // Mock WebGLStateManager
@@ -423,3 +425,4 @@ describe("QtWebEngine渲染效果测试", () => {
     expect(updatedCacheStats.totalCached).toBeLessThanOrEqual(3);
   });
 });
+

@@ -5,12 +5,18 @@ import { execFileSync } from "node:child_process";
 
 function runEslintOn(file) {
   // 直接调用 eslint 的 bin 脚本，避免依赖 shell 与 PATH
-  const out = execFileSync(
-    process.execPath, // node
-    ["node_modules/eslint/bin/eslint.js", file, "--format", "json"],
-    { encoding: "utf8" }
-  );
-  const json = JSON.parse(out);
+  let out = "";
+  try {
+    out = execFileSync(
+      process.execPath, // node
+      ["node_modules/eslint/bin/eslint.js", file, "--format", "json"],
+      { encoding: "utf8" }
+    );
+  } catch (e) {
+    // 当存在 lint 错误时，eslint 以非零退出；stdout 中仍包含 JSON 结果
+    out = e && e.stdout ? String(e.stdout) : "[]";
+  }
+  const json = JSON.parse(out || "[]");
   return json && json[0] ? json[0].messages : [];
 }
 
@@ -25,3 +31,4 @@ describe("no-cross-feature-internals fixtures (pdf-home)", () => {
     expect(msgs.some(m => m.ruleId === "custom/no-cross-feature-internals")).toBe(false);
   });
 });
+

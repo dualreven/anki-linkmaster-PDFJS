@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file WebSocket适配器
  * @module WebSocketAdapter
  * @description 负责将WebSocket消息转换为应用内部事件，实现外部通信与内部事件总线的适配
@@ -97,16 +97,55 @@ export class WebSocketAdapter {
         this.handleMessage(message);
         try {
           const type = String(message?.type || "");
+          // ===== Outline inbound bridging =====
+          if (type.startsWith("pdf-viewer:outline-")) {
+            if (type === WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_COMPLETED) {
+              try {
+                const data = message?.data || {};
+                const items = Array.isArray(data?.outline_items) ? data.outline_items
+                  : (Array.isArray(data?.items) ? data.items : []);
+                const normalize = (nodes) => {
+                  if (!Array.isArray(nodes)) { return []; }
+                  return nodes.map(n => ({
+                    id: String(n.id ?? n.outline_id ?? ""),
+                    name: String(n.name ?? n.title ?? "(Untitled)"),
+                    pageAt: Number.isFinite(n.pageAt) ? n.pageAt : (Number.isFinite(n.page_at) ? n.page_at : null),
+                    position: (typeof n.position === "number") ? n.position
+                      : (typeof n.y_percent === "number" ? Math.max(0, Math.min(100, Math.round(n.y_percent))) : null),
+                    children: normalize(n.children || n.items || [])
+                  }));
+                };
+                const outlineItems = normalize(items);
+                this.#logger.info(`[outline] inbound list → emit OUTLINE.LOAD.SUCCESS (count=${outlineItems.length})`);
+                this.#eventBus.emit(
+                  PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS,
+                  { outlineItems, source: "ws-backend" },
+                  { actorId: "WebSocketAdapter" }
+                );
+              } catch {
+                this.#logger.warn("[outline] list completed handling failed");
+              }
+            } else if (type.endsWith(":complete")) {
+              // 其他操作完成后主动拉取最新列表
+              try {
+                const params = new URLSearchParams(window.location.search);
+                const pdfId = params.get("pdf-id");
+                if (pdfId) {
+                  this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
+                }
+              } catch (e) { this.#logger.warn("[outline] request list after completed failed", e); }
+            }
+          }
           if (type.startsWith("anchor:")) {
             if (type.endsWith(":completed")) {
-              if (type === "anchor:get:completed" || type === "anchor:list:completed") {
+              if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_GET_COMPLETED || type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST_COMPLETED) {
                 const anchors = message?.data?.anchors || (message?.data?.anchor ? [message.data.anchor] : []);
                 this.#logger.info("[anchor] inbound completed -> emit ANCHOR.DATA.LOADED", { type, count: Array.isArray(anchors) ? anchors.length : 0 });
                 this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED, { anchors }, { actorId: "WebSocketAdapter" });
-              } else if (type === "anchor:create:completed") {
+              } else if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_CREATE_COMPLETED) {
                 const id = message?.data?.uuid || message?.data?.anchor_id || null;
                 this.#logger.info("[anchor] create completed", { id });
-                try { this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATED, { anchorId: id }, { actorId: "WebSocketAdapter" }); } catch(_) {}
+                try { this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATED, { anchorId: id }, { actorId: "WebSocketAdapter" }); } catch {}
                 // 创建成功后刷新列表
                 try {
                   const params = new URLSearchParams(window.location.search);
@@ -114,8 +153,8 @@ export class WebSocketAdapter {
                   if (pdfId) {
                     this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
                   }
-                } catch(e){ this.#logger.warn("noop", e); }
-              } else if (type === "anchor:activate:completed") {
+                } catch { this.#logger.warn("noop"); }
+              } else if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_ACTIVATE_COMPLETED) {
                 // 先就地更新当前项，再刷新列表以对齐“单选语义”的后端状态
                 try {
                   const id = message?.data?.anchor_id || message?.data?.uuid || null;
@@ -123,14 +162,14 @@ export class WebSocketAdapter {
                   if (id) {
                     this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.ACTIVATED, { anchorId: String(id), active }, { actorId: "WebSocketAdapter" });
                   }
-                } catch(e){ this.#logger.warn("anchor activate inbound mapping failed", e); }
+                } catch { this.#logger.warn("anchor activate inbound mapping failed"); }
                 try {
                   const params = new URLSearchParams(window.location.search);
                   const pdfId = params.get("pdf-id");
                   if (pdfId) {
                     this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
                   }
-                } catch(e){ this.#logger.warn("noop", e); }
+                } catch { this.#logger.warn("noop"); }
               } else {
                 // 其他完成事件后请求刷新列表（若可获取pdfId）
                 try {
@@ -139,19 +178,19 @@ export class WebSocketAdapter {
                   if (pdfId) {
                     this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
                   }
-                } catch(e){ this.#logger.warn("noop", e); }
+                } catch { this.#logger.warn("noop"); }
               }
             }
             // 将失败消息桥接为前端的 LOAD_FAILED（仅限 get/list 两类）
             else if (type.endsWith(":failed")) {
-              if (type === "anchor:get:failed" || type === "anchor:list:failed") {
+              if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_GET_FAILED || type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST_FAILED) {
                 const err = message?.error || message?.data?.error || message?.data || { message: "unknown error" };
                 this.#logger.warn("[anchor] inbound failed -> emit ANCHOR.DATA.LOAD_FAILED", { type, err: (err?.message || err) });
                 this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD_FAILED, { error: err, type }, { actorId: "WebSocketAdapter" });
-              } else if (type === "anchor:create:failed") {
+              } else if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_CREATE_FAILED) {
                 const err = message?.error || message?.data?.error || message?.data || { message: "unknown error" };
                 this.#logger.warn("[anchor] create failed", { err: (err?.message || err) });
-                try { this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATE_FAILED, { error: err }, { actorId: "WebSocketAdapter" }); } catch(_) {}
+                try { this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATE_FAILED, { error: err }, { actorId: "WebSocketAdapter" }); } catch {}
               }
             }
           }
@@ -232,6 +271,15 @@ export class WebSocketAdapter {
         } catch (e) {
           this.#logger.warn("[VisitedAt] Failed to send visited_at update", e);
         }
+
+        // 文件加载完成后，主动拉取一次大纲列表（以服务端为准）
+        try {
+          const params2 = new URLSearchParams(window.location.search);
+          const pdfId2 = params2.get("pdf-id");
+          if (pdfId2) {
+            this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST, { pdf_uuid: pdfId2 }, { metadata: { version: "1.0.0" } });
+          }
+        } catch (e) { this.#logger.warn("[outline] auto list request failed after FILE.LOAD.SUCCESS", e); }
       },
       { subscriberId: "WebSocketAdapter" }
     );
@@ -317,7 +365,7 @@ export class WebSocketAdapter {
             // 显式发失败事件，便于 UI/日志观察
             try {
               this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATE_FAILED, { error: { message: "缺少 pdf_uuid" } }, { actorId: "WebSocketAdapter" });
-            } catch(_) {}
+            } catch {}
             return;
           }
           // 规范化位置：确保 position 为 0..1 区间
@@ -326,7 +374,7 @@ export class WebSocketAdapter {
           }
           this.#logger.info("[anchor] create → WS request", { pdf_uuid: pdfId, id: anchor.uuid, name: anchor.name, page_at: anchor.page_at });
           this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_CREATE, { pdf_uuid: pdfId, anchor }, { metadata: { version: "1.0.0" } });
-        } catch(e){ this.#logger.warn("noop", e); }
+        } catch { this.#logger.warn("noop"); }
       },
       { subscriberId: "WebSocketAdapter" }
     );
@@ -343,7 +391,7 @@ export class WebSocketAdapter {
             update = { ...update, position: (update.position > 1 ? (update.position / 100) : update.position) };
           }
           this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_UPDATE, { anchor_id: id, update }, { metadata: { version: "1.0.0" } });
-        } catch(e){ this.#logger.warn("noop", e); }
+        } catch { this.#logger.warn("noop"); }
       },
       { subscriberId: "WebSocketAdapter" }
     );
@@ -352,7 +400,7 @@ export class WebSocketAdapter {
       PDF_VIEWER_EVENTS.ANCHOR.DELETE,
       (data) => {
         const id = data?.anchorId || data?.uuid; if (!id) {return;}
-        try { this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_DELETE, { anchor_id: id }, { metadata: { version: "1.0.0" } }); } catch(e){ this.#logger.warn("noop", e); }
+        try { this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_DELETE, { anchor_id: id }, { metadata: { version: "1.0.0" } }); } catch (e) { this.#logger.warn("noop", e); }
       },
       { subscriberId: "WebSocketAdapter" }
     );
@@ -362,7 +410,7 @@ export class WebSocketAdapter {
       (data) => {
         const id = data?.anchorId || data?.uuid; if (!id) {return;}
         const active = !!data?.active;
-        try { this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_ACTIVATE, { anchor_id: id, active }, { metadata: { version: "1.0.0" } }); } catch(e){ this.#logger.warn("noop", e); }
+        try { this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_ACTIVATE, { anchor_id: id, active }, { metadata: { version: "1.0.0" } }); } catch (e) { this.#logger.warn("noop", e); }
       },
       { subscriberId: "WebSocketAdapter" }
     );
@@ -457,7 +505,7 @@ export class WebSocketAdapter {
         // 以 warn 级别输出一次“将要触发加载”的跟踪日志，便于生产环境观察触发来源
         try {
           this.#logger.warn("[TRACE] Emitting FILE.LOAD.REQUESTED from WebSocketAdapter", fileData);
-        } catch (e) { /* noop */ }
+        } catch  { /* noop */ }
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
           fileData,
@@ -531,12 +579,12 @@ export class WebSocketAdapter {
 
       // 路由匹配：若指定 viewer_id 且不匹配则忽略；若指定 pdf_uuid 且不匹配也忽略
       if (targetViewer && targetViewer !== this.#viewerInstanceId) {
-        this.#logger.debug("[Navigate] ignore message: viewer_id mismatch", { targetViewer, self: this.#viewerInstanceId });
+        this.#logger.warn("[Navigate] ignore message: viewer_id mismatch", { targetViewer, self: this.#viewerInstanceId });
         return;
       }
       const currentPdf = (() => { try { return new URLSearchParams(window.location.search).get("pdf-id"); } catch { return null; } })();
       if (targetPdf && currentPdf && targetPdf !== currentPdf) {
-        this.#logger.debug("[Navigate] ignore message: pdf_uuid mismatch", { targetPdf, currentPdf });
+        this.#logger.warn("[Navigate] ignore message: pdf_uuid mismatch", { targetPdf, currentPdf });
         return;
       }
 
@@ -548,7 +596,7 @@ export class WebSocketAdapter {
         if (!annotationId) {
           throw new Error("annotation_id required for annotation mode");
         }
-        try { this.#logger.info(`[WS] 导航·标注：请求跳转 id=${annotationId}`, { toast: { type: "info", ms: 2000 } }); } catch(_) {}
+        try { this.#logger.info(`[WS] 导航·标注：请求跳转 id=${annotationId}`, { toast: { type: "info", ms: 2000 } }); } catch {}
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
           { id: annotationId, highlight: !!opts.highlight },
@@ -559,21 +607,21 @@ export class WebSocketAdapter {
         if (!anchorId) {
           throw new Error("anchor_id required for anchor mode");
         }
-        try { this.#logger.info(`[WS] 导航·锚点：请求跳转 id=${anchorId}`, { toast: { type: "info", ms: 2000 } }); } catch(_) {}
+        try { this.#logger.info(`[WS] 导航·锚点：请求跳转 id=${anchorId}`, { toast: { type: "info", ms: 2000 } }); } catch {}
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.ANCHOR.NAVIGATE.REQUESTED,
           { anchorId },
           { actorId: "WebSocketAdapter" }
         );
       } else if (mode === "outline") {
-        // 通过大纲节点ID跳转（对齐 BOOKMARK/Outline 的统一入口）
+        // 通过大纲节点ID跳转（对齐 OUTLINE 的统一入口）
         const outlineItemId = data?.target?.outline_item_id || data?.outline_item_id || data?.target?.id || data?.id;
         if (!outlineItemId) {
           throw new Error("outline_item_id/id required for outline mode");
         }
-        try { this.#logger.info(`[WS] 导航·大纲：请求跳转 id=${outlineItemId}`, { toast: { type: "info", ms: 2000 } }); } catch(_) {}
+        try { this.#logger.info(`[WS] 导航·大纲：请求跳转 id=${outlineItemId}`, { toast: { type: "info", ms: 2000 } }); } catch {}
         this.#eventBus.emit(
-          PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED,
+          PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE_BY_ID.REQUESTED,
           { outlineItemId },
           { actorId: "WebSocketAdapter" }
         );
@@ -582,7 +630,7 @@ export class WebSocketAdapter {
         if (!Number.isFinite(pageNumber)) {
           throw new Error("page_number must be a number");
         }
-        try { this.#logger.info(`[WS] 导航·页面：跳转第 ${pageNumber} 页`, { toast: { type: "info", ms: 2000 } }); } catch(_) {}
+        try { this.#logger.info(`[WS] 导航·页面：跳转第 ${pageNumber} 页`, { toast: { type: "info", ms: 2000 } }); } catch {}
         // 统一经由 URL 导航入口；若 position 为百分比则透传，否则省略
         const pos = data?.target?.position || data?.position || null; // { y_percent, x_percent } or { x, y } or number
         let positionPercent = null;
@@ -592,7 +640,7 @@ export class WebSocketAdapter {
           } else if (typeof pos === "number" && pos >= 0 && pos <= 100) {
             positionPercent = pos;
           }
-        } catch (_) {}
+        } catch {}
         const req = { pageAt: pageNumber };
         const pdfId = to?.pdf_uuid || (() => { try { return new URLSearchParams(window.location.search).get("pdf-id"); } catch { return null; } })();
         if (pdfId) { req.pdfId = pdfId; }

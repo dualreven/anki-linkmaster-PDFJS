@@ -17,7 +17,7 @@ const logger = getLogger("PdfDestUtils");
  * - x/y/zoom: 若可解析则返回具体值，否则为 null
  */
 export async function resolvePdfDest(pdfDocument, dest) {
-  if (!dest) {
+  if (dest === undefined || dest === null) {
     throw new Error("dest is required");
   }
   if (!pdfDocument) {
@@ -78,6 +78,10 @@ export async function resolvePdfDest(pdfDocument, dest) {
 
   // 4) 其他非常规情况（例如直接是引用对象）尝试按引用对象处理
   if (typeof array === "object") {
+    // 仅在对象形态且具有 num/gen（PDFRef-like）时尝试解析；否则视为无效对象
+    if (!Object.prototype.hasOwnProperty.call(array, "num")) {
+      throw new Error("Invalid destination object");
+    }
     try {
       const pageIndex = await pdfDocument.getPageIndex(array);
       return { pageNumber: pageIndex + 1, x: null, y: null, zoom: null, type: null };
@@ -117,4 +121,30 @@ export async function yToPositionPercent(pdfDocument, pageNumber, y) {
   }
 }
 
+/**
+ * 将页面内位置百分比（0-100，自页面顶部向下）转换为 PDF 坐标系 y 值（相对于底部）
+ * @param {import("pdfjs-dist").PDFDocumentProxy} pdfDocument
+ * @param {number} pageNumber 1-based
+ * @param {number} percent 0..100
+ * @returns {Promise<number|null>} y 坐标
+ */
+export async function positionPercentToY(pdfDocument, pageNumber, percent) {
+  try {
+    if (!pdfDocument || !Number.isInteger(pageNumber) || pageNumber < 1) { return null; }
+    if (typeof percent !== "number" || !isFinite(percent)) { return null; }
+    const p = Math.max(0, Math.min(100, percent));
+    const page = await pdfDocument.getPage(pageNumber);
+    const viewport = page.getViewport({ scale: 1 });
+    const height = viewport?.height || null;
+    if (!height || !isFinite(height) || height <= 0) { return null; }
+    // percent 是“自顶部向下”的百分比；PDF y 从底部起算
+    const y = height - (height * p / 100);
+    return y;
+  } catch (e) {
+    logger.warn("positionPercentToY failed:", e);
+    return null;
+  }
+}
+
 export default { resolvePdfDest };
+

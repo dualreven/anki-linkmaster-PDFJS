@@ -175,7 +175,7 @@ export class Logger {
         return `${head} ${this.#safeStringify(trimmed, 2, 0)}`.trim();
       }
       return head;
-    } catch (e) { return String(message ?? ""); }
+    } catch { return String(message ?? ""); }
   }
 
   #serializeArg(arg) {
@@ -415,7 +415,7 @@ function _shouldShowToast(moduleName, level, toastOpt) {
       }
       return true;
     }
-  } catch (_) {}
+  } catch {}
   return !!globalLogConfig.toastPolicy.defaultEnabled;
 }
 
@@ -544,7 +544,7 @@ export function enableAutoToast(options = {}) {
         window.localStorage.setItem("LOG_AUTO_TOAST_EXCLUDE", options.excludeModules.join(","));
       }
     }
-  } catch (e) {
+  } catch {
     // 忽略localStorage错误
   }
 
@@ -566,7 +566,7 @@ export function disableAutoToast() {
     if (typeof window !== "undefined" && window.localStorage) {
       window.localStorage.removeItem("LOG_AUTO_TOAST_ENABLED");
     }
-  } catch (e) {
+  } catch {
     // 忽略localStorage错误
   }
 
@@ -598,7 +598,7 @@ export function getToastPolicy() {
     for (const [k, v] of globalLogConfig.toastPolicy.modules.entries()) {
       obj[k] = { enabled: (v.enabled !== false), levels: v.levels ? [...v.levels] : undefined };
     }
-  } catch(_) {}
+  } catch {}
   return {
     defaultEnabled: !!globalLogConfig.toastPolicy.defaultEnabled,
     modules: obj
@@ -624,7 +624,7 @@ export function setAutoToastLevels(levels) {
       if (typeof window !== "undefined" && window.localStorage) {
         window.localStorage.setItem("LOG_AUTO_TOAST_LEVELS", globalLogConfig.autoToast.levels.join(","));
       }
-    } catch (e) {
+    } catch {
       // 忽略localStorage错误
     }
 
@@ -715,7 +715,7 @@ try {
       }
     }
   }
-} catch (e) {
+} catch {
   // 忽略环境检测错误
 }
 
@@ -753,7 +753,7 @@ try {
       });
     }
   }
-} catch (e) {
+} catch {
   // 忽略暴露错误
 }
 

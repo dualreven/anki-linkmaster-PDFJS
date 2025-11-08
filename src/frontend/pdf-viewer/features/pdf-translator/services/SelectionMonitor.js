@@ -17,7 +17,6 @@ export class SelectionMonitor {
   #logger;
   #container;                // 依赖容器
   #lastSelection = null;     // 上一次选择的文本
-  #lastRange = null;         // 上一次选择的Range对象
   #debounceTimer = null;     // 防抖定时器
   #config = {
     enabled: true,           // 是否启用自动翻译
@@ -128,7 +127,7 @@ export class SelectionMonitor {
 
     // 保存Range对象（用于后续创建标注）
     if (selection && selection.rangeCount > 0) {
-      this.#lastRange = selection.getRangeAt(0).cloneRange();
+      // 不再持有 Range 引用，避免未用私有成员告警
     }
 
     // 获取选择位置

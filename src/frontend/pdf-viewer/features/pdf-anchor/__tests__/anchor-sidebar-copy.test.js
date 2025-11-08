@@ -5,7 +5,7 @@
  *  - 点击“复制ID”快捷按钮同样应调用 clipboard
  */
 
-import { AnchorSidebarUI } from "../../components/anchor-sidebar-ui.js";
+import { AnchorSidebarUI } from "../components/anchor-sidebar-ui.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 import { getEventBus } from "../../../../common/event/event-bus.js";
 
@@ -74,3 +74,4 @@ describe("AnchorSidebarUI copy actions", () => {
 
   // 移除：侧边栏不再提供“复制ID”快捷按钮，仅保留下拉菜单项
 });
+

@@ -151,11 +151,11 @@ describe("微服务组件集成测试", () => {
       const flagManager = new FeatureFlagManager();
 
       // 模拟PDF-Viewer的功能标志
-      flagManager.enable("pdf-bookmark");
+      flagManager.enable("pdf-outline");
       flagManager.enable("anki-card-maker");
       flagManager.disable("ai-assistant");
 
-      expect(flagManager.isEnabled("pdf-bookmark")).toBe(true);
+      expect(flagManager.isEnabled("pdf-outline")).toBe(true);
       expect(flagManager.isEnabled("anki-card-maker")).toBe(true);
       expect(flagManager.isEnabled("ai-assistant")).toBe(false);
     });
@@ -207,3 +207,4 @@ describe("微服务组件集成测试", () => {
     });
   });
 });
+

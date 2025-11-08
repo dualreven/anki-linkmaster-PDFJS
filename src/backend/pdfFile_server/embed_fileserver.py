@@ -4,13 +4,19 @@
 此模块提供一个可以嵌入到现有 PyQt 应用中的 HTTP 文件服务器，
 无需独立进程，完全无阻塞，共享主应用的 Qt 事件循环。
 
-使用方式：
-    from src.backend.pdfFile_server.embed_fileserver import EmbedFileServer
+    使用方式（严格参数，禁止兜底）：
+        from src.backend.pdfFile_server.embed_fileserver import EmbedFileServer
 
-    # 在主应用中创建服务器实例（不启动独立事件循环）
-    server = EmbedFileServer(root_dir="data/pdfs", port=8080)
-    if server.start():
-        print("HTTP 文件服务器已启动（无阻塞）")
+        # 在主应用中创建服务器实例（不启动独立事件循环）
+        server = EmbedFileServer(
+            root_dir="data/pdfs",
+            port=8080,
+            pdfs_dir="data/pdfs",
+            static_dir="data/pdfs",
+            logs_dir="AItemp/test-logs"
+        )
+        if server.start():
+            print("HTTP 文件服务器已启动（无阻塞）")
 
 核心特性：
   - ✅ 完全无阻塞：共享主应用的 Qt 事件循环
@@ -58,6 +64,10 @@ from src.backend.pdfFile_server.utils.http_utils import (
     build_http_error_response,
 )
 from src.backend.pdfFile_server.utils.path_resolver import resolve_path as _resolve_path_pure
+from src.backend.pdfFile_server.server_core.http_parser import (
+    parse_method_and_path_from_bytes as _parse_method_and_path_from_bytes,
+)
+from src.backend.pdfFile_server.server_core.response_writer import send_error as _send_error_bytes
 
 
 class EmbedFileServer(QObject):
@@ -139,27 +149,8 @@ class EmbedFileServer(QObject):
         except Exception:
             self._logs_dir = None
 
-        # 确保日志处理器配置：添加 UTF-8 文件处理器，并允许向上游传播
-        try:
-            if self._logs_dir:
-                need_file = True
-                for h in logger.handlers:
-                    try:
-                        if isinstance(h, logging.FileHandler) and getattr(h, 'baseFilename', '').endswith('http-server.log'):
-                            need_file = False
-                            break
-                    except Exception:
-                        pass
-                if need_file:
-                    fh = logging.FileHandler(self._logs_dir / 'http-server.log', encoding='utf-8')
-                    fmt = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
-                    fh.setFormatter(fmt)
-                    logger.addHandler(fh)
-                if logger.level in (logging.NOTSET,) or logger.level > logging.INFO:
-                    logger.setLevel(logging.INFO)
-                logger.propagate = True
-        except Exception:
-            pass
+        # 日志处理器延迟到 start() 时再安装，避免未启动场景下的文件句柄占用
+        self._logger_ready = False
 
         # 连接新连接信号
         self.server.newConnection.connect(self._handle_new_connection)
@@ -182,6 +173,29 @@ class EmbedFileServer(QObject):
             return True
 
         try:
+            # 开始前配置日志（仅一次），使用 delay=True 避免不必要的文件打开
+            if not self._logger_ready and self._logs_dir:
+                try:
+                    need_file = True
+                    for h in logger.handlers:
+                        try:
+                            if isinstance(h, logging.FileHandler) and getattr(h, 'baseFilename', '').endswith('http-server.log'):
+                                need_file = False
+                                break
+                        except Exception:
+                            pass
+                    if need_file:
+                        fh = logging.FileHandler(self._logs_dir / 'http-server.log', encoding='utf-8', delay=True)
+                        fmt = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
+                        fh.setFormatter(fmt)
+                        logger.addHandler(fh)
+                    if logger.level in (logging.NOTSET,) or logger.level > logging.INFO:
+                        logger.setLevel(logging.INFO)
+                    logger.propagate = True
+                except Exception:
+                    pass
+                self._logger_ready = True
+
             # 启动 TCP 服务器
             if self.server.listen(QHostAddress(self.host), self.port):
                 logger.info(f"✅ HTTP 文件服务器启动成功: http://{self.host}:{self.port}")
@@ -214,6 +228,23 @@ class EmbedFileServer(QObject):
             self.server.close()
             logger.info("✅ HTTP 文件服务器已停止")
             self.server_stopped.emit()
+        # 释放本模块创建的文件日志句柄，避免 Windows 下文件锁导致临时目录无法删除
+        try:
+            to_remove = []
+            for h in list(logger.handlers):
+                try:
+                    if isinstance(h, logging.FileHandler) and getattr(h, 'baseFilename', '').endswith('http-server.log'):
+                        h.close()
+                        to_remove.append(h)
+                except Exception:
+                    continue
+            for h in to_remove:
+                try:
+                    logger.removeHandler(h)
+                except Exception:
+                    pass
+        except Exception:
+            pass
         else:
             logger.debug("服务器未运行，无需停止")
 
@@ -236,32 +267,18 @@ class EmbedFileServer(QObject):
 
     def _handle_request(self, socket: QTcpSocket):
         """处理 HTTP 请求"""
-        # 读取请求数据
+        # 读取请求数据并解析（严格 UTF-8，禁止兜底）
         request_data = socket.readAll().data()
-
         try:
-            request = request_data.decode('utf-8')
+            method, path = _parse_method_and_path_from_bytes(request_data)
         except UnicodeDecodeError:
             self._send_400(socket, "Invalid UTF-8 encoding")
             socket.close()
             return
-
-        # 解析请求行
-        lines = request.split('\r\n')
-        if not lines:
-            self._send_400(socket, "Empty request")
-            socket.close()
-            return
-
-        request_line = lines[0]
-        parts = request_line.split(' ')
-
-        if len(parts) < 2:
+        except ValueError:
             self._send_400(socket, "Invalid request line")
             socket.close()
             return
-
-        method, path = parts[0], parts[1]
 
         # 发出请求信号
         self.request_received.emit(method, path)
@@ -317,6 +334,8 @@ class EmbedFileServer(QObject):
             root_dir=self.root_dir,
             mounts=self.mounts,
             project_root=project_root,
+            # 禁止自动回退，保持 Fail-Fast
+            allow_fallbacks=False,
         )
 
     def _send_file(self, socket: QTcpSocket, file_path: Path):
@@ -378,8 +397,7 @@ class EmbedFileServer(QObject):
             status: 状态描述
             message: 错误消息
         """
-        socket.write(build_http_error_response(code, status, message))
-        socket.flush()
+        _send_error_bytes(socket, code, status, message)
 
     def __del__(self):
         """析构函数：确保服务器被正确关闭"""
@@ -397,7 +415,8 @@ def setup_embed_fileserver(app,
                            port: int = 8080,
                            pdfs_dir: Optional[str] = None,
                            static_dir: Optional[str] = None,
-                           mounts: Optional[dict] = None) -> Optional[EmbedFileServer]:
+                           mounts: Optional[dict] = None,
+                           logs_dir: Optional[str] = None) -> Optional[EmbedFileServer]:
     """辅助函数：在主应用中设置嵌入式文件服务器
 
     这个函数简化了服务器的设置过程，自动将服务器绑定到主应用的生命周期。
@@ -406,6 +425,10 @@ def setup_embed_fileserver(app,
         app: QApplication 或 QCoreApplication 实例
         root_dir: 文件服务根目录
         port: HTTP 服务器端口（默认 8080）
+        pdfs_dir: 明确指定 PDF 根目录（禁止兜底）
+        static_dir: 明确指定静态资源根目录（禁止兜底）
+        mounts: 额外挂载点映射
+        logs_dir: 明确指定日志目录（禁止兜底）
 
     Returns:
         EmbedFileServer: 服务器实例，如果启动失败则返回 None
@@ -422,8 +445,13 @@ def setup_embed_fileserver(app,
 
         sys.exit(app.exec())
     """
+    # 参数严格校验：禁止兜底
+    if not pdfs_dir or not static_dir:
+        raise RuntimeError("setup_embed_fileserver 需要显式提供 pdfs_dir 与 static_dir（禁止兜底）。")
+    if logs_dir is None:
+        raise RuntimeError("setup_embed_fileserver 需要显式提供 logs_dir（禁止兜底）。")
+
     # 将服务器实例设为应用的父对象，应用退出时自动清理
-    # 使用具备默认值的参数，当前不强制传入自定义目录
     server = EmbedFileServer(
         root_dir=root_dir,
         port=port,
@@ -431,6 +459,7 @@ def setup_embed_fileserver(app,
         pdfs_dir=pdfs_dir,
         static_dir=static_dir,
         mounts=mounts,
+        logs_dir=logs_dir,
     )
 
     # 连接应用退出信号，确保服务器被正确关闭
@@ -462,7 +491,14 @@ if __name__ == "__main__":
 
     # 设置服务器（使用项目根目录下的 data/pdfs）
     root_dir = project_root / "data" / "pdfs"
-    server = setup_embed_fileserver(app, root_dir=str(root_dir), port=8080)
+    server = setup_embed_fileserver(
+        app,
+        root_dir=str(root_dir),
+        port=8080,
+        pdfs_dir=str(root_dir),
+        static_dir=str(root_dir),
+        logs_dir=str(project_root / "AItemp" / "test-logs"),
+    )
 
     if server:
         print(f"\n{'='*60}")
@@ -486,3 +522,4 @@ if __name__ == "__main__":
     else:
         print("❌ 服务器启动失败")
         sys.exit(1)
+

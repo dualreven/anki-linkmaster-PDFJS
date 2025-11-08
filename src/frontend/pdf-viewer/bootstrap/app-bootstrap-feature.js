@@ -11,17 +11,17 @@ import { SimpleDependencyContainer } from "../container/simple-dependency-contai
 import eventBusSingleton from "../../common/event/event-bus.js";
 
 // 导入 Features
-import { AppCoreFeature } from "../features/app-core/index.js";
+import { AppCoreFeature } from "../features/infra-app/index.js";
 import { PDFManagerFeature } from "../features/pdf-manager/index.js";
-import { UIManagerFeature } from "../features/ui-manager/index.js";
-import { CoreNavigationFeature } from "../features/core-navigation/index.js";
-import { SearchFeature } from "../features/search/index.js";
-import { URLNavigationFeature } from "../features/url-navigation/index.js";
-import { AnnotationFeature } from "../features/annotation/index.js";
-import { SidebarManagerFeature } from "../features/sidebar-manager/index.js";
+import { UIManagerFeature } from "../features/infra-ui/index.js";
+import { CoreNavigationFeature } from "../features/infra-nav-core/index.js";
+import { SearchFeature } from "../features/pdf-search/index.js";
+import { URLNavigationFeature } from "../features/infra-nav-url/index.js";
+import { AnnotationFeature } from "../features/pdf-annotation/index.js";
+import { SidebarManagerFeature } from "../features/infra-sidebar/index.js";
 import { PDFTranslatorFeature } from "../features/pdf-translator/index.js";
-import { TextSelectionQuickActionsFeature } from "../features/text-selection-quick-actions/index.js";
-import { PDFOutlineFeature } from "../features/pdf-outline/index.js";
+import { TextSelectionQuickActionsFeature } from "../features/pdf-quick-actions/index.js";
+import { OutlineManager } from "../features/pdf-outline/index.js";
 import { PDFCardFeature } from "../features/pdf-card/index.js";
 import { AiAssistantFeature } from "../features/ai-assistant/index.js";
 import { PDFAnchorFeature } from "../features/pdf-anchor/index.js";
@@ -98,9 +98,23 @@ export async function bootstrapPDFViewerAppFeature() {
 
     // 打开 Outline 相关模块的“模块级日志过滤”并设为较详细级别，便于问题排查
     try {
+      // 把 Outline 相关模块的日志过滤至 ERROR，仅保留错误级别（减少非必要提示/Toast）
       setModuleLogLevel("Feature.pdf-outline", LogLevel.ERROR);
       setModuleLogLevel("OutlineSidebarUI", LogLevel.ERROR);
-    } catch (_) {}
+      setModuleLogLevel("OutlineManager", LogLevel.ERROR);
+      // 如需排障，可通过 URL 参数提升日志级别：?outlineLog=debug|info
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const lv = String(params.get("outlineLog") || "").toLowerCase();
+        const map = { debug: LogLevel.DEBUG, info: LogLevel.INFO, warn: LogLevel.WARN, error: LogLevel.ERROR };
+        if (lv && map[lv] !== undefined) {
+          setModuleLogLevel("Feature.pdf-outline", map[lv]);
+          setModuleLogLevel("OutlineSidebarUI", map[lv]);
+          setModuleLogLevel("OutlineManager", map[lv]);
+          logger.info(`[Bootstrap] Outline log level elevated via outlineLog=${lv}`);
+        }
+      } catch { /* ignore */ }
+    } catch { }
 
     // 4. 注册核心 Features
     registry.register(new AppCoreFeature());
@@ -112,8 +126,8 @@ export async function bootstrapPDFViewerAppFeature() {
 
     // 4.1 强制 Outline：关闭切换逻辑与回退路径，始终注册 pdf-outline
     try {
-      registry.register(new PDFOutlineFeature());
-      logger.warn("[Bootstrap] Outline feature enforced; pdf-outline registered (bookmark disabled)");
+      registry.register(new OutlineManager());
+      logger.info("[Bootstrap] Outline feature enforced; pdf-outline registered (legacy disabled)");
     } catch (e) {
       logger.error("[Bootstrap] Failed to register pdf-outline (enforced). Viewer may be degraded.", e);
     }
@@ -123,7 +137,7 @@ export async function bootstrapPDFViewerAppFeature() {
     registry.register(new TextSelectionQuickActionsFeature());  // 文本选择快捷操作
     registry.register(new PDFCardFeature());  // 卡片管理功能（需在sidebar-manager之前）
     registry.register(new AiAssistantFeature());  // AI 助手侧边栏（独立插件）
-    registry.register(new SidebarManagerFeature());  // 侧边栏统一管理器（最后注册，依赖annotation、pdf-translator、pdf-bookmark和pdf-card）
+    registry.register(new SidebarManagerFeature());  // 侧边栏统一管理器（最后注册，依赖annotation、pdf-translator、pdf-outline和pdf-card）
 
     // 5. 安装所有 Features（自动解析依赖顺序）
     logger.info("[Bootstrap] Installing features...");
@@ -141,15 +155,18 @@ export async function bootstrapPDFViewerAppFeature() {
               // 将 Ctrl+滚轮 转译为应用内的 PDF 缩放事件（避免浏览器层 page zoom）
               import("../../common/event/pdf-viewer-constants.js").then(({ PDF_VIEWER_EVENTS }) => {
                 const direction = (e.deltaY || 0) < 0 ? "in" : "out";
-                const evt = direction === "in" ? PDF_VIEWER_EVENTS.ZOOM.IN : PDF_VIEWER_EVENTS.ZOOM.OUT;
-                // 使用较小的步进以获得平滑体验
-                eventBusSingleton.emit(evt, { delta: 0.15 }, { actorId: "BootstrapZoomGuard" });
+                // 直接发射常量，避免变量事件名被规则拦截
+                if (direction === "in") {
+                  eventBusSingleton.emit(PDF_VIEWER_EVENTS.ZOOM.IN, { delta: 0.15 }, { actorId: "BootstrapZoomGuard" });
+                } else {
+                  eventBusSingleton.emit(PDF_VIEWER_EVENTS.ZOOM.OUT, { delta: 0.15 }, { actorId: "BootstrapZoomGuard" });
+                }
                 logger.info(`[Bootstrap] Ctrl+Wheel intercepted → zoom ${direction}`);
               }).catch(() => {
                 logger.warn("[Bootstrap] Failed to emit zoom event on Ctrl+Wheel");
               });
             }
-          } catch (_) {}
+          } catch { }
         };
         const keydownHandler = (e) => {
           try {
@@ -168,7 +185,7 @@ export async function bootstrapPDFViewerAppFeature() {
               e.stopPropagation();
               logger.info("[Bootstrap] Ctrl+Key(code) page zoom prevented", { code });
             }
-          } catch (_) {}
+          } catch { }
         };
         // 使用 passive:false 以允许 preventDefault 生效
         window.addEventListener("wheel", wheelHandler, { passive: false, capture: true });
@@ -190,7 +207,31 @@ export async function bootstrapPDFViewerAppFeature() {
         return record ? record.feature : null;
       },
       destroy: () => registry.uninstallAll(),
-      eventBus: eventBusSingleton
+      eventBus: eventBusSingleton,
+      // 测试助手（仅测试使用）：按页+百分比进行可见性校验导航
+      test: {
+        navigateToPercent: async (pageNumber, percent = 50, tolerance = 1000) => {
+          try {
+            const mgr = (typeof container.resolve === "function")
+              ? container.resolve("pdfViewerManager")
+              : (container.get?.("pdfViewerManager") || null);
+            if (!mgr || typeof mgr.ensurePageVisible !== "function") {
+              return false;
+            }
+            await mgr.ensurePageVisible(pageNumber, percent);
+            // 尝试测量是否接近目标页顶部（允许较大容差，避免环境差异）
+            try {
+              const vc = document.getElementById("viewerContainer");
+              const el = vc?.querySelector?.(`.page[data-page-number="${pageNumber}"]`);
+              if (!vc || !el) { return true; } // 无法测量时视为成功（以函数调用成功为准）
+              const diff = Math.abs(el.offsetTop - vc.scrollTop);
+              return diff <= tolerance;
+            } catch { return true; }
+          } catch {
+            return false;
+          }
+        }
+      }
     };
 
     // 7. 如果有PDF路径，自动加载（但当URL已提供 pdf-id 时，避免与 URLNavigationFeature 重复触发）
@@ -200,7 +241,7 @@ export async function bootstrapPDFViewerAppFeature() {
 
       // 从完整路径中提取文件名
       const filename = pdfPath.includes("\\") || pdfPath.includes("/")
-        ? pdfPath.split(/[\\\/]/).pop()
+        ? pdfPath.split(/[\\/]/).pop()
         : pdfPath;
 
       // 通过事件系统请求加载PDF
@@ -211,13 +252,13 @@ export async function bootstrapPDFViewerAppFeature() {
           filename,
           pdfPath
         });
-      } catch (_) {}
+      } catch { }
       eventBusSingleton.emit(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, {
         filename: filename,
         file_path: pdfPath
       }, { actorId: "Bootstrap" });
     } else if (pdfPath && hasPdfIdParam) {
-      logger.warn("[TRACE] Skip Bootstrap auto-load because 'pdf-id' present; URLNavigationFeature will handle loading.");
+      logger.info("[TRACE] Skip Bootstrap auto-load because 'pdf-id' present; URLNavigationFeature will handle loading.");
     }
 
     logger.info("[Bootstrap] PDF Viewer App started successfully");
@@ -225,8 +266,8 @@ export async function bootstrapPDFViewerAppFeature() {
     // 提示：当前为 Outline 模式（固定）
     try {
       showInfo("当前为 Outline 模式", 3000);
-      logger.warn("[Bootstrap] Outline mode is active (enforced)");
-    } catch (_) {}
+      logger.info("[Bootstrap] Outline mode is active (enforced)");
+    } catch { }
     return registry;
 
   } catch (error) {

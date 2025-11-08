@@ -1,5 +1,5 @@
 ﻿import Logger from "../../common/utils/logger.js";
-import { WEBSOCKET_MESSAGE_EVENTS } from "../../common/event/event-constants.js";
+import { WEBSOCKET_MESSAGE_EVENTS, WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_LEGACY_TYPES } from "../../common/event/event-constants.js";
 import eventBusSingleton from "../../common/event/event-bus.js";
 import WSClient from "../../common/ws/ws-client.js";
 import { DependencyContainer } from "../../common/micro-service/dependency-container.js";
@@ -88,8 +88,8 @@ export function createPDFHomeContainer({ root, wsUrl, logger, enableValidation =
     import("../ui-manager.js").then((mod) => {
       const UIManager = mod.UIManager || mod.default;
       uiManager = new UIManager({ root: state.root, logger, send });
-      uiManager.on?.("action:open-pdf", (payload) => send({ type: "pdf-library:open:viewer", payload }));
-      uiManager.on?.("action:remove-pdf", (payload) => send({ type: "pdf-library:remove:records", payload }));
+      uiManager.on?.("action:open-pdf", (payload) => send({ type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF, payload }));
+      uiManager.on?.("action:remove-pdf", (payload) => send({ type: WEBSOCKET_LEGACY_TYPES.PDF_LIBRARY_REMOVE_RECORDS, payload }));
       uiManager.on?.("action:refresh", () => requestList());
     }).catch((e) => logger.warn("UI manager load failed", e));
   }
@@ -111,13 +111,12 @@ export function createPDFHomeContainer({ root, wsUrl, logger, enableValidation =
   }
 
   function requestList() {
-    send({ type: "pdf-library:list:records", data: {} });
+    send({ type: WEBSOCKET_LEGACY_TYPES.PDF_LIBRARY_LIST_RECORDS, data: {} });
   }
 
   function send(msg) {
     try {
       const wsClient = diContainer.get("wsClient");
-      const logger = diContainer.get("logger");
       wsClient?.send?.({ type: msg.type, data: msg.payload || msg.data || {} });
     } catch (e) {
       const logger = diContainer.get("logger");

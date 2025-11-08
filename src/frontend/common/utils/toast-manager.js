@@ -67,7 +67,7 @@ class ToastManager {
     close.textContent = "×";
     close.title = "关闭";
     close.addEventListener("click", () => {
-      try { this.dismiss(el._toastId); } catch (e) { /* ignore */ }
+      try { this.dismiss(el._toastId); } catch { /* ignore */ }
     });
     row.appendChild(span);
     row.appendChild(close);
@@ -125,7 +125,7 @@ class ToastManager {
     setTimeout(() => {
       try {
         node.remove();
-      } catch (_) {}
+      } catch {}
     }, 160);
     this._toasts.delete(id);
     return true;

@@ -33,7 +33,7 @@ export class PDFManagerFeature {
    * @param {FeatureContext} context - 功能上下文
    */
   async install(context) {
-    const { globalEventBus, logger } = context;
+    const { container, globalEventBus, logger } = context;
 
     logger.info("Installing PDFManagerFeature...");
 
@@ -42,6 +42,19 @@ export class PDFManagerFeature {
 
     // 初始化
     await this.#pdfManager.initialize();
+
+    // 将 pdfManager 注册到全局容器，供其他 Feature 解析依赖使用（如 outline/url 导航）
+    try {
+      if (container?.registerGlobal) {
+        container.registerGlobal("pdfManager", this.#pdfManager);
+        logger.info("✅ pdfManager registered to global container");
+      } else if (container?.register) {
+        container.register("pdfManager", this.#pdfManager);
+        logger.warn("⚠️ container.registerGlobal not available; registered pdfManager in local scope");
+      }
+    } catch (e) {
+      logger.warn("⚠️ Failed to register pdfManager to container (non-fatal)", e);
+    }
 
     logger.info("PDFManagerFeature installed successfully");
   }

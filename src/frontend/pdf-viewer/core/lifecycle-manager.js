@@ -5,7 +5,8 @@
  */
 
 import { getLogger } from "../../common/utils/logger.js";
-import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
+// 移除未使用导入，避免 no-unused-vars
+import { APP_EVENTS } from "../../common/event/event-constants.js";
 
 /**
  * 生命周期管理器类
@@ -79,7 +80,7 @@ export class LifecycleManager {
     this.#errorHandler.handleError(event.reason, "UnhandledPromiseRejection");
 
     // 发射错误事件
-    this.#eventBus.emit("app:error:unhandled-rejection", {
+    this.#eventBus.emit(APP_EVENTS.ERROR.UNHANDLED_REJECTION, {
       reason: event.reason,
       message: event.reason?.message || "Unhandled promise rejection"
     }, {
@@ -100,7 +101,7 @@ export class LifecycleManager {
     this.#errorHandler.handleError(event.error, "GlobalError");
 
     // 发射错误事件
-    this.#eventBus.emit("app:error:global", {
+    this.#eventBus.emit(APP_EVENTS.ERROR.GLOBAL, {
       message: event.message,
       filename: event.filename,
       lineno: event.lineno,

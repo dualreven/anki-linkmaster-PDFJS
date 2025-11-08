@@ -68,7 +68,7 @@ export async function resolveWebSocketPort({ logger, fallbackPort = DEFAULT_WS_P
     if (Number.isInteger(immediate) && immediate > 0 && immediate < 65536) {
       return immediate;
     }
-  } catch (e) { /* ignore and fallback to log-based in dev */ }
+  } catch { /* ignore and fallback to log-based in dev */ }
 
   const activeLogger = logger && typeof logger === "object" ? logger : null;
   const safeFallback = Number.isInteger(fallbackPort) ? fallbackPort : DEFAULT_WS_PORT;

@@ -22,8 +22,7 @@ export class TranslationService {
     maxSize: 1000,           // 最多缓存 1000 条
     ttl: 86400000            // 缓存有效期 24 小时
   };
-  #requestQueue = [];        // 请求队列（用于防抖和限流）
-  #isProcessing = false;     // 是否正在处理请求
+  // 请求队列/处理标志暂未启用（简化实现），移除未用私有字段
 
   /**
    * 构造函数
@@ -268,7 +267,7 @@ export class TranslationService {
   clearCache(options = {}) {
     if (options.targetLang) {
       // 清除特定语言的缓存
-      for (const [key, value] of this.#cache.entries()) {
+      for (const [key] of this.#cache.entries()) {
         if (key.includes(`:${options.targetLang}:`)) {
           this.#cache.delete(key);
         }

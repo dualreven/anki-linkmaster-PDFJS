@@ -15,18 +15,32 @@
 
 ---
 
+命名统一说明（进行中）
+- 规范名采用三段式：layer-domain[-capability]；本目录已将部分名称切换为规范名：
+  - app-core → infra-app（别名兼容：app-core）
+  - ui-manager → infra-ui（别名兼容：ui-manager）
+  - url-navigation → infra-nav-url（别名兼容：url-navigation）
+  - websocket-adapter → infra-ws-adapter（别名兼容：websocket-adapter）
+  - annotation → pdf-annotation（别名兼容：annotation；事件作用域仍为 annotation）
+  - search → pdf-search（别名兼容：search）
+  - text-selection-quick-actions → pdf-quick-actions（别名兼容：text-selection-quick-actions）
+
+> 说明：别名兼容由 FEATURE_ALIASES 提供；注册中心在 register/has/get/install 时统一按别名解析为规范名，依赖拓扑与安装顺序不受影响。
+
+---
+
 ## 现有Features列表
 
 | Feature名称 | 功能描述 | 依赖 | 状态 |
 |------------|---------|------|------|
-| app-core | 应用核心基础设施 | 无 | ✅ 稳定 |
-| pdf-manager | PDF文档管理 | app-core | ✅ 稳定 |
+| infra-app | 应用核心基础设施 | 无 | ✅ 稳定 |
+| pdf-manager | PDF文档管理 | 无 | ✅ 稳定 |
 | pdf-reader | PDF阅读器核心 | pdf-manager | ✅ 稳定 |
-| pdf-bookmark | 书签管理 | pdf-reader | ✅ 稳定 |
-| ui-manager | UI管理器 | pdf-manager | ✅ 稳定 |
-| url-navigation | URL参数导航 | app-core, pdf-manager | ✅ 稳定 |
-| websocket-adapter | WebSocket适配器 | app-core | ✅ 稳定 |
-| pdf-ui | PDF UI组件 | app-core | ✅ 稳定 |
+| pdf-outline | 大纲管理 | pdf-reader | ✅ 稳定 |
+| infra-ui | UI管理器 | pdf-manager | ✅ 稳定 |
+| infra-nav-url | URL参数导航 | infra-app, pdf-manager, infra-nav-core | ✅ 稳定 |
+| infra-ws-adapter | WebSocket适配器 | 无 | ✅ 稳定 |
+| pdf-ui | PDF UI组件 | pdf-reader | ✅ 稳定 |
 
 ---
 
@@ -91,13 +105,13 @@ export class MyFeature {
 ## 依赖关系图
 
 ```
-app-core (核心)
+infra-app (核心)
   ├── pdf-manager
   │     ├── pdf-reader
-  │     │     └── pdf-bookmark
-  │     ├── ui-manager
-  │     └── url-navigation
-  ├── websocket-adapter
+  │     │     └── pdf-outline
+  │     ├── infra-ui
+  │     └── infra-nav-url
+  ├── infra-ws-adapter
   └── pdf-ui
 ```
 
@@ -134,3 +148,5 @@ A: FeatureRegistry会自动根据dependencies声明计算加载顺序，无需�
 ---
 
 **记住：统一的架构 = 更少的bug + 更快的开发 + 更好的协作**
+
+

@@ -1,4 +1,5 @@
-﻿import { getLogger } from "./logger.js";
+import { getLogger } from "./logger.js";
+/* global Qt */
 /**
  * @file WebGL检测工具
  * @description 用于检测WebGL支持状态和动态禁用WebGL
@@ -7,6 +8,7 @@
 /**
  * WebGL支持检测类
  */
+const logger = getLogger("WebGLDetector");
 export class WebGLDetector {
   /**
    * 检测WebGL支持状态
@@ -144,8 +146,8 @@ export class WebGLDetector {
     // PDF.js 3.x版本默认使用Canvas渲染，但某些功能可能使用WebGL
     // 检查是否有WebGL相关的配置选项
     const hasWebGLOptions =
-      pdfjsLib.GlobalWorkerOptions.hasOwnProperty("enableWebGL") ||
-      pdfjsLib.GlobalWorkerOptions.hasOwnProperty("disableWebGL");
+      Object.prototype.hasOwnProperty.call(pdfjsLib.GlobalWorkerOptions, "enableWebGL") ||
+      Object.prototype.hasOwnProperty.call(pdfjsLib.GlobalWorkerOptions, "disableWebGL");
 
     return hasWebGLOptions;
   }
@@ -234,6 +236,10 @@ export class WebGLStateManager {
    * @returns {Object} WebGL状态信息
    */
   static getWebGLState() {
+    // 懒初始化：在尚未 initialize 的早期调用场景（如模块安装阶段），补一次检测，避免返回 null
+    if (!this.#detectionResult) {
+      this.initialize();
+    }
     return {
       enabled: this.#webglEnabled,
       detection: this.#detectionResult,
@@ -246,6 +252,10 @@ export class WebGLStateManager {
    * @returns {boolean} 是否应该回退到Canvas
    */
   static shouldUseCanvasFallback() {
+    // 懒初始化，防止读取 null.disabledByConfig 触发运行时错误
+    if (!this.#detectionResult) {
+      this.initialize();
+    }
     return !this.#webglEnabled || this.#detectionResult.disabledByConfig;
   }
 }

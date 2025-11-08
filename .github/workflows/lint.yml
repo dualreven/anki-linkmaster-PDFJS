@@ -30,4 +30,5 @@ jobs:
         run: pnpm install --frozen-lockfile=false
 
       - name: Run ESLint (CI Gate - features scope)
-        run: pnpm run lint:features
+        run: pnpm run lint:features:ci
+

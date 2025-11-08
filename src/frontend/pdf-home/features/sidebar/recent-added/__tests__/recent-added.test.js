@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from "@jest/globals";
 import { RecentAddedFeature } from "../index.js";
-import { WEBSOCKET_MESSAGE_TYPES } from "../../../../../common/event/event-constants.js";
+import { WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS, SEARCH_EVENTS } from "../../../../../common/event/event-constants.js";
 
 const createLogger = () => ({
   info: jest.fn(),
@@ -58,7 +58,7 @@ describe("RecentAddedFeature 最近添加插件", () => {
     scopedEventBus = globalEventBus;
 
     sentMessages = [];
-    globalEventBus.on("websocket:message:send", (msg) => {
+    globalEventBus.on(WEBSOCKET_EVENTS.MESSAGE.SEND, (msg) => {
       sentMessages.push(msg);
     }, { subscriberId: "capture-ws-send" });
 
@@ -103,14 +103,16 @@ describe("RecentAddedFeature 最近添加插件", () => {
       status: "success",
       request_id: searchMsg.request_id,
       data: {
-        records: [
+        files: [
           { id: "id1", title: "T1", filename: "f1.pdf", created_at: 100 },
           { id: "id2", title: "T2", filename: "f2.pdf", created_at: 200 },
           { id: "id3", title: "T3", filename: "f3.pdf", created_at: 150 }
-        ]
+        ],
+        total_count: 3,
+        search_text: ""
       }
     };
-    globalEventBus.emit("websocket:message:response", resp);
+    globalEventBus.emit(WEBSOCKET_MESSAGE_EVENTS.RESPONSE, resp);
 
     const texts = Array.from(document.querySelectorAll("#recent-added-list .sidebar-item-text")).map(el => el.textContent);
     // 应使用书名展示，且顺序来自后端（desc），这里验证存在即可
@@ -119,55 +121,63 @@ describe("RecentAddedFeature 最近添加插件", () => {
     expect(texts).toContain("T3");
   });
 
-  it("收到 add:completed 后写入存储并渲染到UI，随后 info:completed 更新列表显示书名，点击触发打开", () => {
-    const fakeFile = { id: "abc123", filename: "A.pdf", path: "C:/A.pdf" };
-    const msg = {
-      type: WEBSOCKET_MESSAGE_TYPES.ADD_PDF_COMPLETED,
+  it("收到 search:results:updated 后刷新并渲染到UI，点击触发按创建时间降序的搜索（带 focusId）", () => {
+    // 外部发出“搜索结果更新”通知 → 触发最近添加刷新
+    globalEventBus.emit(SEARCH_EVENTS.RESULTS.UPDATED, {});
+    // 捕获发出的刷新请求
+    const searchMsg2 = sentMessages.filter(m => m && m.type === WEBSOCKET_MESSAGE_TYPES.SEARCH_PDF).pop();
+    expect(searchMsg2).toBeTruthy();
+
+    // 回发响应以渲染列表（含标题）
+    const resp2 = {
+      type: "pdf-library:search:completed",
       status: "success",
-      data: { file: fakeFile },
-      request_id: "rid-1"
+      request_id: searchMsg2.request_id,
+      data: {
+        files: [{ id: "abc123", title: "A-Title", filename: "A.pdf" }],
+        total_count: 1,
+        search_text: ""
+      }
     };
-    globalEventBus.emit("websocket:message:response", msg);
+    globalEventBus.emit(WEBSOCKET_MESSAGE_EVENTS.RESPONSE, resp2);
 
-    // 存储
-    const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "[]");
-    expect(stored.length).toBe(1);
-    expect(stored[0].id).toBe("abc123");
-    expect(stored[0].filename).toBe("A.pdf");
-
-    // UI 初始使用文件名
     const items = document.querySelectorAll("#recent-added-list .sidebar-item");
     expect(items.length).toBe(1);
-    expect(items[0].querySelector(".sidebar-item-text").textContent).toBe("A.pdf");
+    expect(items[0].querySelector(".sidebar-item-text").textContent).toBe("A-Title");
 
-    // 模拟详情回执，更新为书名展示
-    const infoResp = {
-      type: "pdf-library:info:completed",
-      status: "success",
-      data: { id: "abc123", title: "A-Title" }
-    };
-    globalEventBus.emit("websocket:message:response", infoResp);
-    const items2 = document.querySelectorAll("#recent-added-list .sidebar-item");
-    expect(items2[0].querySelector(".sidebar-item-text").textContent).toBe("A-Title");
-
-    // 点击打开
-    items2[0].click();
-    const openMsg = sentMessages.find(m => m && m.type === WEBSOCKET_MESSAGE_TYPES.OPEN_PDF);
-    expect(openMsg).toBeTruthy();
-    expect(openMsg.data && openMsg.data.file_id).toBe("abc123");
+    // 点击触发“全量按 created_at 降序”的标准搜索（通过 SearchManager）
+    const got = [];
+    const unsub = globalEventBus.on(SEARCH_EVENTS.QUERY.REQUESTED, (payload) => got.push(payload));
+    items[0].click();
+    expect(got.length).toBe(1);
+    expect(got[0].sort[0]).toEqual({ field: "created_at", direction: "desc" });
+    expect(got[0].focusId).toBe("abc123");
+    unsub();
   });
 
-  it("重复添加相同文件应提升到顶部且不重复", () => {
-    const f1 = { id: "id1", filename: "f1.pdf", path: "C:/f1.pdf" };
-    const f2 = { id: "id2", filename: "f2.pdf", path: "C:/f2.pdf" };
-    globalEventBus.emit("websocket:message:response", { type: WEBSOCKET_MESSAGE_TYPES.ADD_PDF_COMPLETED, status: "success", data: { file: f1 } });
-    globalEventBus.emit("websocket:message:response", { type: WEBSOCKET_MESSAGE_TYPES.ADD_PDF_COMPLETED, status: "success", data: { file: f2 } });
-    // 再次添加 f1，应移动到顶部
-    globalEventBus.emit("websocket:message:response", { type: WEBSOCKET_MESSAGE_TYPES.ADD_PDF_COMPLETED, status: "success", data: { file: f1 } });
+  it("多次刷新响应应覆盖渲染列表（后到覆盖先到）", () => {
+    // 第一次刷新
+    globalEventBus.emit(SEARCH_EVENTS.RESULTS.UPDATED, {});
+    const msgA = sentMessages.find(m => m && m.type === WEBSOCKET_MESSAGE_TYPES.SEARCH_PDF);
+    globalEventBus.emit(WEBSOCKET_MESSAGE_EVENTS.RESPONSE, {
+      type: "pdf-library:search:completed",
+      status: "success",
+      request_id: msgA.request_id,
+      data: { files: [{ id: "id1", title: "A" }], total_count: 1, search_text: "" }
+    });
 
-    const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "[]");
-    expect(stored.length).toBe(2);
-    expect(stored[0].id).toBe("id1");
-    expect(stored[1].id).toBe("id2");
+    // 第二次刷新（覆盖为 B, C）
+    globalEventBus.emit(SEARCH_EVENTS.RESULTS.UPDATED, {});
+    const msgB = sentMessages.filter(m => m && m.type === WEBSOCKET_MESSAGE_TYPES.SEARCH_PDF).pop();
+    globalEventBus.emit(WEBSOCKET_MESSAGE_EVENTS.RESPONSE, {
+      type: "pdf-library:search:completed",
+      status: "success",
+      request_id: msgB.request_id,
+      data: { files: [{ id: "id2", title: "B" }, { id: "id3", title: "C" }], total_count: 2, search_text: "" }
+    });
+
+    const texts = Array.from(document.querySelectorAll("#recent-added-list .sidebar-item-text")).map(el => el.textContent);
+    expect(texts).toEqual(["B", "C"]);
   });
 });
+

@@ -7,7 +7,6 @@
 import { PDFManager } from "../pdf-manager.js";
 import { EventBus } from "../../common/event/event-bus.js";
 import ERROR_CODES from "../../common/constants/error-codes.js";
-import { jest } from "@jest/globals";
 
 // Mock 依赖模块
 jest.mock("../../common/event/event-bus.js", () => {
@@ -172,17 +171,10 @@ describe("错误代码体系测试", () => {
 describe("PDFManager 错误处理测试", () => {
   let pdfManager;
   let mockEventBus;
-  let mockLogger;
+  // mockLogger 已不再单独使用，按需在 jest.mock 中定义
 
   beforeEach(() => {
     mockEventBus = new EventBus();
-    mockLogger = {
-      info: jest.fn(),
-      error: jest.fn(),
-      warn: jest.fn(),
-      debug: jest.fn()
-    };
-
     pdfManager = new PDFManager(mockEventBus);
     jest.clearAllMocks();
   });

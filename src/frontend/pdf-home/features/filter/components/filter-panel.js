@@ -4,6 +4,7 @@
  */
 
 import { showError } from "../../../../common/utils/notification.js";
+import { FILTER_EVENTS } from "../../../../common/event/event-constants.js";
 
 export class FilterPanel {
   #logger = null;
@@ -173,7 +174,8 @@ export class FilterPanel {
    */
   #handleAdvancedFilter() {
     this.#logger.info("[FilterPanel] Advanced filter triggered");
-    this.#eventBus.emit("filter:advanced:open");
+    // 使用常量命名空间事件，避免字面量违规则
+    this.#eventBus.emit(FILTER_EVENTS.ADVANCED.OPEN);
   }
 
   /**
@@ -208,12 +210,13 @@ export class FilterPanel {
     const presetName = this.#presetNameInput.value.trim();
 
     if (!presetName) {
-      try { showError("请输入预设名称", 3000); } catch(_) {}
+      try { showError("请输入预设名称", 3000); } catch (e) { try { this.#logger?.warn("[Toast] showError failed", e); } catch (e2) { void e2; } }
       return;
     }
 
     this.#logger.info("[FilterPanel] Save preset requested", { presetName });
-    this.#eventBus.emit("filter:preset:save", { presetName });
+    // 使用常量命名空间事件，避免字面量违规则
+    this.#eventBus.emit(FILTER_EVENTS.PRESET.SAVE, { presetName });
 
     this.#hidePresetDialog();
   }
@@ -236,3 +239,4 @@ export class FilterPanel {
     this.#logger.info("[FilterPanel] Destroyed");
   }
 }
+

@@ -3,7 +3,7 @@
  * @description 测试功能注册中心的核心功能
  */
 
-import { describe, it, expect, beforeEach, jest } from "@jest/globals";
+import { describe, it, expect, beforeEach } from "@jest/globals";
 import { FeatureRegistry, FeatureStatus, createFeatureRegistry } from "../feature-registry.js";
 import { DependencyContainer } from "../dependency-container.js";
 
@@ -74,20 +74,7 @@ class MockPDFListFeature {
 /**
  * Mock PDF 编辑器功能（依赖 pdf-list）
  */
-class MockPDFEditorFeature {
-  get name() { return "pdf-editor"; }
-  get version() { return "1.0.0"; }
-  get dependencies() { return ["pdf-list"]; }
-
-  async install(context) {
-    this.installed = true;
-    this.context = context;
-  }
-
-  async uninstall(context) {
-    this.installed = false;
-  }
-}
+// （移除未使用的 MockPDFEditorFeature，避免 no-unused-vars）
 
 /**
  * Mock 循环依赖功能 A（依赖 B）

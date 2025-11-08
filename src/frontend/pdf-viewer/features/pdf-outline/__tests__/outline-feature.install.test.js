@@ -1,10 +1,16 @@
-// 注意：当前仓库 Jest 环境对 ESM/import.meta 的解析存在差异。
-// 该用例仅作为占位，满足“先写测试”的流程要求，暂时跳过执行。
-// 后续待统一 Jest + Babel 配置后再启用。
+/**
+ * 轻量验证：不调用 install（避免 jstree/DOM 依赖），仅校验元数据
+ */
+import { OutlineManager } from "../index.js";
 
-describe.skip("PDFOutlineFeature basic install (placeholder)", () => {
-  test("skipped placeholder", () => {
-    expect(true).toBe(true);
+describe("OutlineManager — 元数据校验", () => {
+  test("name/version/dependencies 应符合规范", () => {
+    const f = new OutlineManager();
+    expect(f.name).toBe("pdf-outline");
+    expect(typeof f.version).toBe("string");
+    expect(Array.isArray(f.dependencies)).toBe(true);
+    // 依赖包含核心模块（避免回归）
+    expect(f.dependencies).toEqual(expect.arrayContaining(["pdf-manager", "infra-ui", "infra-nav-core"]));
   });
 });
 

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file 事件总线模块（带消息追踪功能），提供模块化的事件管理功能。
  * @module EventBusWithTracing
  * @version 1.1 - 添加消息调用链追踪功能
@@ -363,7 +363,7 @@ export class EventBus {
     if (!this.#logger || this.#earlyLogQueue.length === 0) {return;}
 
     this.#earlyLogQueue.forEach(entry => {
-      const { level, message, args, timestamp } = entry;
+      const { level, message, args } = entry;
       this.#logger[level](message, ...args);
     });
     this.#earlyLogQueue = [];
@@ -422,7 +422,6 @@ export class EventBus {
             line.match(/at\s+(.*):(\d+):(\d+)$/);
           if (m) {
             const func = m[1];
-            const file = m[2] || m[1];
             const lineNo = m[3] || m[2];
             return `${func}:${lineNo}`;
           }
@@ -430,7 +429,7 @@ export class EventBus {
         }
       }
       return null;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -464,16 +463,35 @@ export class EventBus {
    * unsubscribe();
    */
   on(event, callback, options = {}) {
+    // 提前推断订阅者ID，便于错误日志携带定位信息
+    const subscriberId = options.subscriberId || this.#inferActorId() || `sub_${this.#nextSubscriberId++}`;
+    const actorId = options.actorId || this.#inferActorId();
+
+    // 事件名基本校验（undefined/空字符串）
+    if (typeof event !== "string" || !event) {
+      const stack = (() => { try { return new Error().stack?.split("\n").slice(1, 6).join("\n"); } catch { return ""; } })();
+      const msg = [
+        `未注册的全局事件：'${event}'，已被禁止订阅`,
+        "请使用 event-constants.js 中已存在的事件，或先提交契约PR新增事件后再使用",
+        subscriberId ? `订阅者ID: ${subscriberId}` : "",
+        actorId ? `执行者ID: ${actorId}` : "",
+        stack ? `调用栈:\n${stack}` : ""
+      ].filter(Boolean).join("\n");
+      this.#log("error", msg, { event });
+      return () => {};
+    }
+
     // 全局事件白名单校验（局部事件 @ 开头跳过）
-    if (!event?.startsWith("@") && !isGlobalEventAllowed(event)) {
+    if (!event.startsWith("@") && !isGlobalEventAllowed(event)) {
+      const stack = (() => { try { return new Error().stack?.split("\n").slice(1, 6).join("\n"); } catch { return ""; } })();
       const err = `未注册的全局事件：'${event}'，已被禁止订阅` +
         "\n请使用 event-constants.js 中已存在的事件，或先提交契约PR新增事件后再使用" +
-        (options?.subscriberId ? `\n订阅者ID: ${options.subscriberId}` : "");
+        (subscriberId ? `\n订阅者ID: ${subscriberId}` : "") +
+        (actorId ? `\n执行者ID: ${actorId}` : "") +
+        (stack ? `\n调用栈:\n${stack}` : "");
       this.#log("error", err, { event });
       return () => {};
     }
-    const subscriberId = options.subscriberId || this.#inferActorId() || `sub_${this.#nextSubscriberId++}`;
-    const actorId = options.actorId || this.#inferActorId();
 
     if (this.#enableValidation) {
       const error = EventNameValidator.getValidationError(event, { subscriberId, actorId });
@@ -610,6 +628,19 @@ export class EventBus {
   emit(event, data, options = {}) {
     const actorId = options.actorId || this.#inferActorId();
 
+    // 基本校验（undefined/空字符串）
+    if (typeof event !== "string" || !event) {
+      const stack = (() => { try { return new Error().stack?.split("\n").slice(1, 6).join("\n"); } catch { return ""; } })();
+      const msg = [
+        `未注册的全局事件：'${event}'，已被禁止发布`,
+        "请使用 event-constants.js 中已存在的事件，或先提交契约PR新增事件后再使用",
+        actorId ? `执行者ID: ${actorId}` : "",
+        stack ? `调用栈:\n${stack}` : ""
+      ].filter(Boolean).join("\n");
+      this.#log("error", msg, { event, data });
+      return;
+    }
+
     if (this.#enableValidation) {
       const error = EventNameValidator.getValidationError(event, { actorId });
 
@@ -676,6 +707,16 @@ export class EventBus {
       };
     }
 
+    // E2E 事件探针（仅测试环境启用）：把所有发布事件镜像到 window.__e2e_events__，不影响正常逻辑
+    try {
+      if (typeof window !== "undefined" && (window.__E2E_EVENT_TAP__ === true)) {
+        try {
+          window.__e2e_events__ = window.__e2e_events__ || [];
+          window.__e2e_events__.push({ ev: event, data });
+        } catch { /* ignore */ }
+      }
+    } catch { /* ignore */ }
+
     if (subscribers && subscribers.size > 0) {
       if (!SUPPRESSED_EVENT_LOGS.has(event) && shouldLogPublishEvent(event)) {
         // 安全地截断data到200字符以减少日志输出
@@ -683,7 +724,7 @@ export class EventBus {
         try {
           const dataStr = JSON.stringify(data);
           truncatedData = dataStr.length > 200 ? dataStr.substring(0, 200) + "..." : dataStr;
-        } catch (err) {
+        } catch {
           // JSON.stringify可能失败（循环引用等），使用原始data
           truncatedData = data;
         }
@@ -750,7 +791,7 @@ export class EventBus {
         try {
           const dataStr = JSON.stringify(data);
           truncatedData = dataStr.length > 200 ? dataStr.substring(0, 200) + "..." : dataStr;
-        } catch (err) {
+        } catch {
           // JSON.stringify可能失败（循环引用等），使用原始data
           truncatedData = data;
         }
@@ -952,3 +993,4 @@ export { EventNameValidator };
 // 为保持向后兼容性，导出默认的EventBus实例
 // 但推荐使用 getEventBus() 函数获取模块特定的实例
 export default getEventBus("App", { enableValidation: true });
+

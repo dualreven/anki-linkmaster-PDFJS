@@ -121,16 +121,16 @@ export class FieldCondition extends IFilterCondition {
       const fieldValue = record[this.field];
 
       // 处理 null/undefined
-      if (fieldValue == null) {
+      if (fieldValue === null || fieldValue === undefined) {
         return this.operator === "ne" || this.operator === "not_contains";
       }
 
       switch (this.operator) {
       case "eq":
-        return fieldValue == this.value;
+        return fieldValue === this.value;
 
       case "ne":
-        return fieldValue != this.value;
+        return fieldValue !== this.value;
 
       case "gt":
         return Number(fieldValue) > Number(this.value);
@@ -156,10 +156,11 @@ export class FieldCondition extends IFilterCondition {
       case "ends_with":
         return String(fieldValue).toLowerCase().endsWith(String(this.value).toLowerCase());
 
-      case "in_range":
+      case "in_range": {
         const [min, max] = this.value;
         const numValue = Number(fieldValue);
         return numValue >= Number(min) && numValue <= Number(max);
+      }
 
       case "has_tag":
         // fieldValue 应该是数组
@@ -174,7 +175,7 @@ export class FieldCondition extends IFilterCondition {
         return false;
       }
     } catch (error) {
-      console.warn("[FieldCondition] Match error:", error);
+      (error && error.message);
       return false;
     }
   }
@@ -269,7 +270,7 @@ export class FuzzySearchCondition extends IFilterCondition {
       const results = this.keywords.map(keyword => {
         return this.searchFields.some(field => {
           const value = record[field];
-          if (value == null) {return false;}
+          if (value === null || value === undefined) {return false;}
 
           // 处理数组字段（如tags）
           if (Array.isArray(value)) {
@@ -288,7 +289,7 @@ export class FuzzySearchCondition extends IFilterCondition {
         ? results.every(r => r)  // 所有关键词都匹配
         : results.some(r => r);  // 任一关键词匹配
     } catch (error) {
-      console.warn("[FuzzySearchCondition] Match error:", error);
+      (error && error.message);
       return false;
     }
   }
@@ -395,7 +396,7 @@ export class CompositeCondition extends IFilterCondition {
         return false;
       }
     } catch (error) {
-      console.warn("[CompositeCondition] Match error:", error);
+      (error && error.message);
       return false;
     }
   }
@@ -461,3 +462,4 @@ export class CompositeCondition extends IFilterCondition {
     this.conditions.splice(index, 1);
   }
 }
+

@@ -5,7 +5,7 @@
  */
 
 import { getLogger } from "../../common/utils/logger.js";
-import { showInfo, showSuccess, showError } from "../../common/utils/notification.js";
+import { showSuccess, showError } from "../../common/utils/notification.js";
 
 /**
  * QWebChannel 桥接类
@@ -51,7 +51,7 @@ export class QWebChannelBridge {
 
     const getGlobalQWebChannel = () => {
       try { return (typeof window !== "undefined" ? window.QWebChannel : undefined) || (typeof globalThis !== "undefined" ? globalThis.QWebChannel : undefined); }
-      catch (_) { return undefined; }
+      catch {} { return undefined; }
     };
 
     const ensureQWebChannelScript = () => {
@@ -74,72 +74,74 @@ export class QWebChannelBridge {
         });
         (document.head || document.body || document.documentElement).appendChild(sc);
         return p;
-      } catch (_) {
+      } catch {} {
         return Promise.resolve(false);
       }
     };
 
-    this.#initPromise = new Promise(async (resolve, reject) => {
-      // 等待 QWebChannel 可用（在 ESM 模块中需从 window/globalThis 读取）
-      let QWC = getGlobalQWebChannel();
-      if (!QWC) {
-        this.#logger.warn("QWebChannel 未定义，尝试动态注入 /js/qwebchannel.js ...");
-        await ensureQWebChannelScript();
-        const maxWait = 10000; // 最多等待10秒
-        const step = 100;
-        let waited = 0;
-        const t = setInterval(() => {
-          waited += step;
-          QWC = getGlobalQWebChannel();
-          if (QWC) {
-            clearInterval(t);
-            this.#logger.info("QWebChannel 已注入");
-            // 继续后续传输层检查
-            proceed();
-          } else if (waited >= maxWait) {
-            clearInterval(t);
-            const error = "QWebChannel 未定义：qwebchannel.js 未能注入或加载超时";
-            this.#logger.error(error);
-            reject(new Error(error));
-          }
-        }, step);
-        return; // 等待回调继续
-      }
+    this.#initPromise = new Promise((resolve, reject) => {
+      (async () => {
+        // 等待 QWebChannel 可用（在 ESM 模块中需从 window/globalThis 读取）
+        let QWC = getGlobalQWebChannel();
+        if (!QWC) {
+          this.#logger.warn("QWebChannel 未定义，尝试动态注入 /js/qwebchannel.js ...");
+          await ensureQWebChannelScript();
+          const maxWait = 10000; // 最多等待10秒
+          const step = 100;
+          let waited = 0;
+          const t = setInterval(() => {
+            waited += step;
+            QWC = getGlobalQWebChannel();
+            if (QWC) {
+              clearInterval(t);
+              this.#logger.info("QWebChannel 已注入");
+              // 继续后续传输层检查
+              proceed();
+            } else if (waited >= maxWait) {
+              clearInterval(t);
+              const error = "QWebChannel 未定义：qwebchannel.js 未能注入或加载超时";
+              this.#logger.error(error);
+              reject(new Error(error));
+            }
+          }, step);
+          return; // 等待回调继续
+        }
 
-      // 检查 Qt WebChannel 传输层是否可用
-      const proceed = () => {
+        // 检查 Qt WebChannel 传输层是否可用
+        const proceed = () => {
+          // 传输层已就绪，直接连接
+          this.#connectToChannel(resolve, reject);
+        };
+
+        if (!window.qt || !window.qt.webChannelTransport) {
+          this.#logger.warn("Qt WebChannel 传输层未就绪，等待...");
+
+          // 等待传输层就绪（最多等待10秒）
+          const checkInterval = 100;
+          const maxWaitTime = 10000;
+          let elapsedTime = 0;
+
+          const checkTransport = setInterval(() => {
+            elapsedTime += checkInterval;
+
+            if (window.qt && window.qt.webChannelTransport) {
+              clearInterval(checkTransport);
+              this.#logger.info("Qt WebChannel 传输层已就绪");
+              proceed();
+            } else if (elapsedTime >= maxWaitTime) {
+              clearInterval(checkTransport);
+              const error = "Qt WebChannel 传输层超时未就绪";
+              this.#logger.error(error);
+              reject(new Error(error));
+            }
+          }, checkInterval);
+
+          return;
+        }
+
         // 传输层已就绪，直接连接
-        this.#connectToChannel(resolve, reject);
-      };
-
-      if (!window.qt || !window.qt.webChannelTransport) {
-        this.#logger.warn("Qt WebChannel 传输层未就绪，等待...");
-
-        // 等待传输层就绪（最多等待10秒）
-        const checkInterval = 100;
-        const maxWaitTime = 10000;
-        let elapsedTime = 0;
-
-        const checkTransport = setInterval(() => {
-          elapsedTime += checkInterval;
-
-          if (window.qt && window.qt.webChannelTransport) {
-            clearInterval(checkTransport);
-            this.#logger.info("Qt WebChannel 传输层已就绪");
-            proceed();
-          } else if (elapsedTime >= maxWaitTime) {
-            clearInterval(checkTransport);
-            const error = "Qt WebChannel 传输层超时未就绪";
-            this.#logger.error(error);
-            reject(new Error(error));
-          }
-        }, checkInterval);
-
-        return;
-      }
-
-      // 传输层已就绪，直接连接
-      proceed();
+        proceed();
+      })().catch(reject);
     });
 
     return this.#initPromise;
@@ -454,12 +456,12 @@ export class QWebChannelBridge {
           // 如果有堆栈跟踪，在控制台输出详细信息
           if (errorInfo.traceback) {
             this.#logger.error("[QWC] PyQt 堆栈跟踪:", errorInfo.traceback);
-            console.error("PyQt 后端错误详情：");
-            console.error(`  步骤: ${step}`);
-            if (pdfId) {console.error(`  PDF ID: ${pdfId}`);}
-            console.error(`  错误: ${errorMsg}`);
-            console.error("  堆栈跟踪:");
-            console.error(errorInfo.traceback);
+            this.#logger.error("PyQt 后端错误详情：");
+            this.#logger.error(`  步骤: ${step}`);
+            if (pdfId) {this.#logger.error(`  PDF ID: ${pdfId}`);}
+            this.#logger.error(`  错误: ${errorMsg}`);
+            this.#logger.error("  堆栈跟踪:");
+            this.#logger.error(errorInfo.traceback);
           }
 
           // 显示建议性的 toast

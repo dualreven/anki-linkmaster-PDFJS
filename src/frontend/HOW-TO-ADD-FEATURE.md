@@ -210,7 +210,7 @@ async install(context) {
  * @module PDFBookmarkFeature
  */
 
-import { BookmarkManager } from './components/bookmark-manager.js';
+import OutlineManager from './components/outline-manager.js';
 
 export class PDFBookmarkFeature {
   #bookmarkManager = null;
@@ -234,7 +234,7 @@ export class PDFBookmarkFeature {
     logger.info('Installing PDFBookmarkFeature...');
 
     // 创建管理器
-    this.#bookmarkManager = new BookmarkManager(globalEventBus);
+    this.#bookmarkManager = new OutlineManager(globalEventBus);
 
     // 初始化
     await this.#bookmarkManager.initialize();
@@ -268,7 +268,7 @@ export class PDFBookmarkFeature {
   }
 
   // 暴露公共方法供其他Feature使用
-  getBookmarkManager() {
+  getOutlineManager() {
     return this.#bookmarkManager;
   }
 }
@@ -302,3 +302,4 @@ export class PDFBookmarkFeature {
 - `app-core` - 核心功能示例
 - `pdf-bookmark` - 标准功能示例
 - `url-navigation` - 带依赖的示例
+

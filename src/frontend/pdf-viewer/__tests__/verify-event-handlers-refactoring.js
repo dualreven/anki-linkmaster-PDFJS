@@ -54,13 +54,13 @@ function createMockApp() {
  * 验证事件处理器重构
  */
 async function verifyEventHandlersRefactoring() {
-  console.log("========================================");
-  console.log("事件处理器重构验证测试");
-  console.log("========================================\n");
+  logger.info("========================================");
+  logger.info("事件处理器重构验证测试");
+  logger.info("========================================");
 
   try {
     // 1. 验证模块导入
-    console.log("1. 验证模块导入...");
+    logger.info("1. 验证模块导入...");
     const modules = {
       "EventHandlers": EventHandlers,
       "NavigationHandler": (await import("../handlers/navigation-handler.js")).NavigationHandler,
@@ -72,22 +72,22 @@ async function verifyEventHandlersRefactoring() {
       if (!Module) {
         throw new Error(`模块 ${name} 导入失败`);
       }
-      console.log(`  ✓ ${name} 导入成功`);
+      logger.info(`  ✓ ${name} 导入成功`);
     }
 
     // 2. 验证EventHandlers实例化
-    console.log("\n2. 验证EventHandlers实例化...");
+    logger.info("2. 验证EventHandlers实例化...");
     const mockApp = createMockApp();
     const eventHandlers = new EventHandlers(mockApp);
-    console.log("  ✓ EventHandlers 实例化成功");
+    logger.info("  ✓ EventHandlers 实例化成功");
 
     // 3. 验证事件监听器设置
-    console.log("\n3. 验证事件监听器设置...");
+    logger.info("3. 验证事件监听器设置...");
     eventHandlers.setupEventListeners();
-    console.log("  ✓ 事件监听器设置成功");
+    logger.info("  ✓ 事件监听器设置成功");
 
     // 4. 验证公共方法
-    console.log("\n4. 验证公共方法...");
+    logger.info("4. 验证公共方法...");
     const methods = [
       // 文件处理方法
       "handleFileLoadRequested",
@@ -120,11 +120,11 @@ async function verifyEventHandlersRefactoring() {
       if (typeof eventHandlers[method] !== "function") {
         throw new Error(`方法 ${method} 不存在`);
       }
-      console.log(`  ✓ 方法 ${method} 存在`);
+      logger.info(`  ✓ 方法 ${method} 存在`);
     }
 
     // 5. 验证子处理器获取
-    console.log("\n5. 验证子处理器获取...");
+    logger.info("5. 验证子处理器获取...");
     const navigationHandler = eventHandlers.getNavigationHandler();
     const zoomHandler = eventHandlers.getZoomHandler();
     const fileHandler = eventHandlers.getFileHandler();
@@ -133,14 +133,14 @@ async function verifyEventHandlersRefactoring() {
     if (!zoomHandler) {throw new Error("无法获取ZoomHandler");}
     if (!fileHandler) {throw new Error("无法获取FileHandler");}
 
-    console.log("  ✓ NavigationHandler 获取成功");
-    console.log("  ✓ ZoomHandler 获取成功");
-    console.log("  ✓ FileHandler 获取成功");
+    logger.info("  ✓ NavigationHandler 获取成功");
+    logger.info("  ✓ ZoomHandler 获取成功");
+    logger.info("  ✓ FileHandler 获取成功");
 
     // 6. 验证状态获取
-    console.log("\n6. 验证状态获取...");
+    logger.info("6. 验证状态获取...");
     const state = eventHandlers.getState();
-    console.log("  当前状态:", {
+    logger.info("  当前状态:", {
       currentPage: state.currentPage,
       totalPages: state.totalPages,
       zoomLevel: state.zoomLevel,
@@ -148,10 +148,10 @@ async function verifyEventHandlersRefactoring() {
       isLoading: state.isLoading,
       loadProgress: state.loadProgress
     });
-    console.log("  ✓ 状态获取成功");
+    logger.info("  ✓ 状态获取成功");
 
     // 7. 验证导航功能
-    console.log("\n7. 验证导航功能...");
+    logger.info("7. 验证导航功能...");
 
     // 模拟文件已加载
     mockApp.totalPages = 10;
@@ -162,24 +162,24 @@ async function verifyEventHandlersRefactoring() {
     if (mockApp.currentPage !== 5) {
       throw new Error("页面跳转失败");
     }
-    console.log("  ✓ 页面跳转成功");
+    logger.info("  ✓ 页面跳转成功");
 
     // 测试下一页
     await eventHandlers.handleNavigationNext();
     if (mockApp.currentPage !== 6) {
       throw new Error("下一页导航失败");
     }
-    console.log("  ✓ 下一页导航成功");
+    logger.info("  ✓ 下一页导航成功");
 
     // 测试上一页
     await eventHandlers.handleNavigationPrevious();
     if (mockApp.currentPage !== 5) {
       throw new Error("上一页导航失败");
     }
-    console.log("  ✓ 上一页导航成功");
+    logger.info("  ✓ 上一页导航成功");
 
     // 8. 验证缩放功能
-    console.log("\n8. 验证缩放功能...");
+    logger.info("8. 验证缩放功能...");
 
     // 测试放大
     const initialZoom = mockApp.zoomLevel;
@@ -187,38 +187,38 @@ async function verifyEventHandlersRefactoring() {
     if (mockApp.zoomLevel <= initialZoom) {
       throw new Error("放大功能失败");
     }
-    console.log("  ✓ 放大功能正常");
+    logger.info("  ✓ 放大功能正常");
 
     // 测试缩小
     eventHandlers.handleZoomOut();
     if (mockApp.zoomLevel !== initialZoom) {
       throw new Error("缩小功能失败");
     }
-    console.log("  ✓ 缩小功能正常");
+    logger.info("  ✓ 缩小功能正常");
 
     // 测试实际大小
     eventHandlers.handleZoomActualSize();
     if (mockApp.zoomLevel !== 1.0) {
       throw new Error("实际大小功能失败");
     }
-    console.log("  ✓ 实际大小功能正常");
+    logger.info("  ✓ 实际大小功能正常");
 
     // 9. 验证文件处理功能
-    console.log("\n9. 验证文件处理功能...");
+    logger.info("9. 验证文件处理功能...");
 
     // 测试文件加载进度
     eventHandlers.handleFileLoadProgress({ percent: 50, message: "加载中" });
-    console.log("  ✓ 文件加载进度处理成功");
+    logger.info("  ✓ 文件加载进度处理成功");
 
     // 测试文件关闭
     await eventHandlers.handleFileClose();
     if (mockApp.currentFile !== null) {
       throw new Error("文件关闭失败");
     }
-    console.log("  ✓ 文件关闭成功");
+    logger.info("  ✓ 文件关闭成功");
 
     // 10. 验证事件发送
-    console.log("\n10. 验证事件发送...");
+    logger.info("10. 验证事件发送...");
 
     let eventReceived = false;
     const testEventListener = () => {
@@ -239,29 +239,29 @@ async function verifyEventHandlersRefactoring() {
     if (!eventReceived) {
       throw new Error("事件发送失败");
     }
-    console.log("  ✓ 事件发送成功");
+    logger.info("  ✓ 事件发送成功");
 
     // 11. 测试重置
-    console.log("\n11. 测试重置...");
+    logger.info("11. 测试重置...");
     eventHandlers.reset();
-    console.log("  ✓ 重置成功");
+    logger.info("  ✓ 重置成功");
 
     // 12. 测试销毁
-    console.log("\n12. 测试销毁...");
+    logger.info("12. 测试销毁...");
     eventHandlers.destroy();
-    console.log("  ✓ 销毁成功");
+    logger.info("  ✓ 销毁成功");
 
     // 验证完成
-    console.log("\n========================================");
-    console.log("✅ 事件处理器重构验证完成");
-    console.log("========================================");
-    console.log("\n所有测试通过! 事件处理器重构成功保持了原有功能。\n");
+    logger.info("========================================");
+    logger.info("✅ 事件处理器重构验证完成");
+    logger.info("========================================");
+    logger.info("所有测试通过! 事件处理器重构成功保持了原有功能。");
 
     return true;
 
   } catch (error) {
-    console.error("\n❌ 事件处理器重构验证失败:", error);
-    console.error("错误栈:", error.stack);
+    logger.error("❌ 事件处理器重构验证失败:", error);
+    try { logger.error("错误栈:", error.stack); } catch {}
     return false;
   }
 }

@@ -15,11 +15,19 @@
  */
 export const FEATURE_ALIASES = {
   // Step 2（基础设施侧首批改名）
+  "app-core": "infra-app",
   "url-navigation": "infra-nav-url",
   "core-navigation": "infra-nav-core",
   "ui-manager": "infra-ui",
   "sidebar-manager": "infra-sidebar",
   "websocket-adapter": "infra-ws-adapter",
+  // Step 2（功能域统一命名 - 先加别名，再逐步切换依赖与断言）
+  "annotation": "pdf-annotation",
+  "search": "pdf-search",
+  "text-selection-quick-actions": "pdf-quick-actions",
+  // Step 3（功能域命名统一 - AI 助手）
+  "ai-assistant": "pdf-ai-assistant",
 };
 
 export default FEATURE_ALIASES;
+

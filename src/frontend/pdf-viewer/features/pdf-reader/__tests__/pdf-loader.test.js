@@ -141,7 +141,7 @@ describe("PDFLoader", () => {
     it("应该取消当前的加载任务", async () => {
       const url = "http://example.com/test.pdf";
 
-      const loadPromise = loader.loadFromURL(url);
+      void loader.loadFromURL(url);
       await loader.cancelLoading();
 
       expect(mockLoadingTask.destroy).toHaveBeenCalled();
@@ -156,7 +156,7 @@ describe("PDFLoader", () => {
     it("应该取消当前加载并清理资源", async () => {
       const url = "http://example.com/test.pdf";
 
-      const loadPromise = loader.loadFromURL(url);
+      void loader.loadFromURL(url);
       loader.destroy();
 
       expect(mockLoadingTask.destroy).toHaveBeenCalled();

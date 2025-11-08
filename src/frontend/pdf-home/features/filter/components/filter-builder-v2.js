@@ -5,6 +5,7 @@
 
 import { FilterTree, FilterTreeNode } from "../services/filter-tree.js";
 import { showError, showInfo } from "../../../../common/utils/notification.js";
+import { FILTER_EVENTS } from "../../../../common/event/event-constants.js";
 import { ConditionEditor } from "./condition-editor.js";
 
 export class FilterBuilder {
@@ -435,13 +436,13 @@ export class FilterBuilder {
    */
   #addLogicNode(logicType) {
     if (!this.#selectedNode) {
-      try { showError("请先选择一个节点", 3000); } catch(_) {}
+      try { showError("请先选择一个节点", 3000); } catch (e) { try { this.#logger?.warn("[Toast] showError failed", e); } catch (e2) { void e2; } }
       return;
     }
 
     // 检查是否是根节点
     if (this.#isRootNode(this.#selectedNode)) {
-      try { showInfo("根节点不能被替换，请选择根节点下的占位符来添加条件", 3500); } catch(_) {}
+      try { showInfo("根节点不能被替换，请选择根节点下的占位符来添加条件", 3500); } catch (e) { try { this.#logger?.warn("[Toast] showInfo failed", e); } catch (e2) { void e2; } }
       return;
     }
 
@@ -451,7 +452,7 @@ export class FilterBuilder {
       if (parent && parent.value === "NOT") {
         const nonPlaceholderCount = parent.children.filter(c => c.type !== "placeholder").length;
         if (nonPlaceholderCount >= 1) {
-          try { showError("NOT逻辑词只能包含一个条件或逻辑词", 3500); } catch(_) {}
+          try { showError("NOT逻辑词只能包含一个条件或逻辑词", 3500); } catch (e) { try { this.#logger?.warn("[Toast] showError failed", e); } catch (e2) { void e2; } }
           return;
         }
       }
@@ -500,13 +501,13 @@ export class FilterBuilder {
    */
   #addConditionNode() {
     if (!this.#selectedNode) {
-      try { showError("请先选择一个节点", 3000); } catch(_) {}
+      try { showError("请先选择一个节点", 3000); } catch (e) { try { this.#logger?.warn("[Toast] showError failed", e); } catch (e2) { void e2; } }
       return;
     }
 
     // 检查是否是根节点
     if (this.#isRootNode(this.#selectedNode)) {
-      try { showInfo("根节点不能被替换，请选择根节点下的占位符来添加条件", 3500); } catch(_) {}
+      try { showInfo("根节点不能被替换，请选择根节点下的占位符来添加条件", 3500); } catch (e) { try { this.#logger?.warn("[Toast] showInfo failed", e); } catch (e2) { void e2; } }
       return;
     }
 
@@ -516,7 +517,7 @@ export class FilterBuilder {
       if (parent && parent.value === "NOT") {
         const nonPlaceholderCount = parent.children.filter(c => c.type !== "placeholder").length;
         if (nonPlaceholderCount >= 1) {
-          try { showError("NOT逻辑词只能包含一个条件或逻辑词", 3500); } catch(_) {}
+          try { showError("NOT逻辑词只能包含一个条件或逻辑词", 3500); } catch (e) { try { this.#logger?.warn("[Toast] showError failed", e); } catch (e2) { void e2; } }
           return;
         }
       }
@@ -568,7 +569,7 @@ export class FilterBuilder {
   #deleteNode(nodeId) {
     const node = this.#filterTree.findNodeById(nodeId);
     if (!node || !node.parent) {
-      try { showInfo("无法删除根节点", 3000); } catch(_) {}
+      try { showInfo("无法删除根节点", 3000); } catch (e) { try { this.#logger?.warn("[Toast] showInfo failed", e); } catch (e2) { void e2; } }
       return;
     }
 
@@ -744,12 +745,12 @@ export class FilterBuilder {
     // 构建可序列化的条件配置（与后端 SearchCondition 格式兼容）
     const config = this.getConditionConfig();
     try {
-      console.log("Built Condition Config:", JSON.stringify(config));
-    } catch {}
+      this.#logger?.debug?.("[FilterBuilder] Built Condition Config", config);
+    } catch (e) { try { this.#logger?.warn?.("[FilterBuilder] Log config failed", e); } catch (e2) { void e2; } }
     // 通知 Feature 层：条件已构建
     try {
-      this.#eventBus?.emit("filter:apply:completed", { condition: config });
-    } catch (e) { /* 忽略 */ }
+      this.#eventBus?.emit(FILTER_EVENTS.APPLY.COMPLETED, { condition: config });
+    } catch (e) { void e; }
     // 仅隐藏面板，实际发送由上层 Feature 执行
     this.hide();
   }
@@ -844,3 +845,4 @@ export class FilterBuilder {
     this.#logger.info("[FilterBuilder] Destroyed");
   }
 }
+

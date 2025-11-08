@@ -4,7 +4,8 @@
  */
 
 import { RecentSearchesFeatureConfig } from "./feature.config.js";
-import { WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constants.js";
+import { WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS, SEARCH_EVENTS } from "../../../../common/event/event-constants.js";
+import { SIDEBAR_LOCAL_EVENTS } from "../events.js";
 import "./styles/recent-searches.css";
 
 export class RecentSearchesFeature {
@@ -12,7 +13,7 @@ export class RecentSearchesFeature {
   version = RecentSearchesFeatureConfig.version;
   dependencies = RecentSearchesFeatureConfig.dependencies;
 
-  #context = null;
+  // #context 未使用，移除以通过 no-unused-private-class-members
   #logger = null;
   #scopedEventBus = null;
   #globalEventBus = null;
@@ -33,7 +34,6 @@ export class RecentSearchesFeature {
    * 安装Feature
    */
   async install(context) {
-    this.#context = context;
     this.#logger = context.logger;
     this.#scopedEventBus = context.scopedEventBus;
     this.#globalEventBus = context.globalEventBus;
@@ -93,7 +93,7 @@ export class RecentSearchesFeature {
   // 私有：设置事件监听
   #setupEventListeners() {
     // 监听全局搜索请求事件，记录最近搜索
-    const unsubSearchRequested = this.#globalEventBus.on("search:query:requested", (data) => {
+    const unsubSearchRequested = this.#globalEventBus.on(SEARCH_EVENTS.QUERY.REQUESTED, (data) => {
       const text = (data && typeof data.searchText === "string") ? data.searchText.trim() : "";
       this.#logger.info("[RecentSearchesFeature] Capture search request", { searchText: text || "(empty)" });
       this.#addSearch(text);
@@ -107,8 +107,8 @@ export class RecentSearchesFeature {
         if (!item) {return;}
         const text = item.getAttribute("data-text") || "";
         this.#logger.info("[RecentSearchesFeature] Item clicked, emit search", { searchText: text || "(empty)" });
-        this.#scopedEventBus.emit("search:item:clicked", { searchText: text });
-        this.#globalEventBus.emit("search:query:requested", { searchText: text });
+        this.#scopedEventBus.emit(SIDEBAR_LOCAL_EVENTS.SEARCH.ITEM_CLICKED, { searchText: text });
+        this.#globalEventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, { searchText: text });
       };
       this.#listEl.addEventListener("click", clickHandler);
       this.#unsubscribers.push(() => this.#listEl.removeEventListener("click", clickHandler));
@@ -125,7 +125,7 @@ export class RecentSearchesFeature {
           } catch (err) {
             this.#logger.warn("[RecentSearchesFeature] Persist display limit failed", err);
           }
-          this.#scopedEventBus.emit("limit:value:changed", { value: val });
+          this.#scopedEventBus.emit(SIDEBAR_LOCAL_EVENTS.LIMIT.VALUE_CHANGED, { value: val });
           this.#renderList();
         }
       };
@@ -134,7 +134,8 @@ export class RecentSearchesFeature {
     }
 
     // 监听后端响应（用于加载/保存配置回执）
-    const unsubWsResponse = this.#scopedEventBus.onGlobal("websocket:message:response", (data) => {
+    // 注意：响应事件来自 WEBSOCKET_MESSAGE_EVENTS.RESPONSE
+    const unsubWsResponse = this.#scopedEventBus.onGlobal(WEBSOCKET_MESSAGE_EVENTS.RESPONSE, (data) => {
       try {
         if (!data || data.status !== "success") {return;}
 
@@ -187,7 +188,7 @@ export class RecentSearchesFeature {
     try {
       const reqId = `cfg_get_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       this.#pendingGetConfigReqId = reqId;
-      this.#scopedEventBus.emitGlobal("websocket:message:send", {
+      this.#scopedEventBus.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, {
         type: WEBSOCKET_MESSAGE_TYPES.GET_CONFIG,
         request_id: reqId,
         metadata: { version: "1.0.0" }
@@ -253,7 +254,7 @@ export class RecentSearchesFeature {
           }
         };
         this.#logger.debug("[RecentSearchesFeature] Saving backend config", { request_id: reqId, count: this.#recentSearches.length });
-        this.#scopedEventBus.emitGlobal("websocket:message:send", payload);
+        this.#scopedEventBus.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, payload);
       }, this.#saveDebounceMs);
     } catch (e) {
       this.#logger.warn("[RecentSearchesFeature] Schedule save backend failed", e);
@@ -322,7 +323,7 @@ export class RecentSearchesFeature {
       const hh = String(d.getHours()).padStart(2, "0");
       const mm = String(d.getMinutes()).padStart(2, "0");
       return `${hh}:${mm}`;
-    } catch (e) {
+    } catch {
       return "";
     }
   }

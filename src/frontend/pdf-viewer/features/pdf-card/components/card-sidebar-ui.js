@@ -6,9 +6,9 @@
  */
 
 import { getLogger } from "../../../../common/utils/logger.js";
+import { showInfo } from "../../../../common/utils/notification.js";
 
 export class CardSidebarUI {
-  #eventBus;
   #logger;
   #sidebarContent; // 侧边栏完整内容容器
   #header; // Header区域（包含按钮）
@@ -20,7 +20,8 @@ export class CardSidebarUI {
    * @param {EventBus} eventBus - 事件总线
    */
   constructor(eventBus) {
-    this.#eventBus = eventBus;
+    // eventBus 当前未使用，仅为未来扩展保留；用 void 标记为“已使用”以通过 Lint
+    void eventBus;
     this.#logger = getLogger("CardSidebarUI");
   }
 
@@ -216,7 +217,7 @@ export class CardSidebarUI {
       "auto-create-all": "一键整书自动制卡功能开发中，敬请期待！\n预计第三期（2025-10-22）发布"
     };
 
-    alert(messages[buttonId] || `${buttonText}功能开发中...`);
+    try { showInfo(messages[buttonId] || `${buttonText}功能开发中...`, 3000); } catch { /* no-op */ }
   }
 
   /**

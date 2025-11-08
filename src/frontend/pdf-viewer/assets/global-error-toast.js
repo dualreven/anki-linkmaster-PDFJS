@@ -3,6 +3,8 @@
 // - 提供简单去抖与速率限制，避免错误风暴
 
 import { showError } from "../../common/utils/notification.js";
+import { getLogger } from "../../common/utils/logger.js";
+const logger = getLogger("GlobalErrorToast");
 
 const STATE = {
   lastText: null,
@@ -41,14 +43,14 @@ function fallbackToast(text) {
     c.appendChild(el);
     requestAnimationFrame(() => { el.style.opacity = "1"; el.style.transform = "translateY(0)"; });
     setTimeout(() => {
-      try { el.style.opacity = "0"; el.style.transform = "translateY(-6px)"; setTimeout(() => el.remove(), 180); } catch(_) {}
+      try { el.style.opacity = "0"; el.style.transform = "translateY(-6px)"; setTimeout(() => el.remove(), 180); } catch {}
     }, 6000);
-  } catch(_) {}
+  } catch {}
 }
 
 function showToast(text) {
   try { showError(text, 6000); }
-  catch(_) { fallbackToast(text); }
+  catch { fallbackToast(text); }
 }
 
 function shouldToast(text) {
@@ -58,7 +60,7 @@ function shouldToast(text) {
         return false;
       }
     }
-  } catch(_) {}
+  } catch {}
 
   const t = now();
   // 去重
@@ -102,15 +104,15 @@ window.addEventListener("error", (e) => {
   try {
     const text = formatOnError(e);
     // 控制台保留
-    console.error("[GlobalErrorToast]", text, e?.error?.stack || "");
+    logger.error("[GlobalErrorToast]", text, e?.error?.stack || "");
     if (shouldToast(text)) {showToast(text);}
-  } catch(_) {}
+  } catch {}
 }, true);
 
 window.addEventListener("unhandledrejection", (e) => {
   try {
     const text = formatOnRejection(e);
-    console.error("[GlobalErrorToast]", text, e?.reason?.stack || "");
+    logger.error("[GlobalErrorToast]", text, e?.reason?.stack || "");
     if (shouldToast(text)) {showToast(text);}
-  } catch(_) {}
+  } catch {}
 }, true);

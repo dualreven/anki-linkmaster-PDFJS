@@ -366,7 +366,7 @@ const eventName = createEventName('pdf', 'load', 'completed');
 
         启动所有服务: python ai_launcher.py start
         检查服务状态: python ai_launcher.py status
-        查看运行日志: python ai_launcher.py logs
+        查看运行日志: python ai_launcher.py status --logs-dir logs\n# 查看日志文件: logs/ai-launcher.log
         停止所有服务: python ai_launcher.py stop
         
         项目包含的服务:
@@ -512,7 +512,7 @@ debug代码时的注意事项:
       python ai_launcher.py status
 
       # 查看运行日志
-      python ai_launcher.py logs
+      python ai_launcher.py status --logs-dir logs\n# 查看日志文件: logs/ai-launcher.log
 
       # 停止所有服务
       python ai_launcher.py stop
@@ -709,7 +709,7 @@ AI 接管开发时的具体规则:
       - 严禁直接运行 npm run dev 或 python app.py 等命令
       - 开发前：使用 `python ai_launcher.py start` 启动所有服务
       - 开发中：使用 `python ai_launcher.py status` 检查服务状态
-      - 查看日志：使用 `python ai_launcher.py logs` 监控运行情况
+      - 查看日志：使用 `python ai_launcher.py status --logs-dir logs\n# 查看日志文件: logs/ai-launcher.log` 监控运行情况
       - 开发后：使用 `python ai_launcher.py stop` 停止所有服务
       - 原因：直接启动会导致终端阻塞，无法进行 AI 自动化开发
 

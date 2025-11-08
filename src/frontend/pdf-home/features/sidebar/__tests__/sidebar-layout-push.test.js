@@ -39,25 +39,38 @@ describe("Sidebar 展开时推开主内容区域", () => {
     jest.clearAllMocks();
   });
 
-  test("初次渲染：未折叠时应推开 main-content", () => {
+  test("初次渲染：未折叠时应推开 main-content", async () => {
     const sidebarEl = document.getElementById("sidebar");
+    const main = document.querySelector(".main-content");
+
+    // 模拟布局：侧边栏右边缘与主区域左侧重叠（触发推开）
+    sidebarEl.getBoundingClientRect = jest.fn(() => ({ left: 0, right: 280, top: 0, bottom: 600, width: 280, height: 600 }));
+    main.getBoundingClientRect = jest.fn(() => ({ left: 0, right: 1024, top: 0, bottom: 600, width: 1024, height: 600 }));
+
+    jest.useRealTimers();
     const container = new SidebarContainer(logger, eventBus);
     container.render(sidebarEl);
 
-    const main = document.querySelector(".main-content");
+    // 等待 render 内部的 setTimeout(0)
+    await new Promise(r => setTimeout(r, 0));
 
     // 断言：首次渲染时 main-content 被推开（与侧边栏宽度保持一致）
     expect(main.style.marginLeft).toBe("280px");
     expect(main.style.width).toBe("calc(100% - 280px)");
   });
 
-  test("点击折叠按钮：应恢复 main-content 的布局", () => {
+  test("点击折叠按钮：应恢复 main-content 的布局", async () => {
     const sidebarEl = document.getElementById("sidebar");
+    const main = document.querySelector(".main-content");
+    // 初始重叠
+    sidebarEl.getBoundingClientRect = jest.fn(() => ({ left: 0, right: 280, top: 0, bottom: 600, width: 280, height: 600 }));
+    main.getBoundingClientRect = jest.fn(() => ({ left: 0, right: 1024, top: 0, bottom: 600, width: 1024, height: 600 }));
+
     const container = new SidebarContainer(logger, eventBus);
     container.render(sidebarEl);
 
     const toggleBtn = document.getElementById("sidebar-toggle-btn");
-    const main = document.querySelector(".main-content");
+    await new Promise(r => setTimeout(r, 0));
 
     // 折叠
     toggleBtn.click();
@@ -67,13 +80,18 @@ describe("Sidebar 展开时推开主内容区域", () => {
     expect(main.style.width).toBe("");
   });
 
-  test("再次展开：应再次推开 main-content", () => {
+  test("再次展开：应再次推开 main-content", async () => {
     const sidebarEl = document.getElementById("sidebar");
+    const main = document.querySelector(".main-content");
+    // 初始重叠
+    sidebarEl.getBoundingClientRect = jest.fn(() => ({ left: 0, right: 280, top: 0, bottom: 600, width: 280, height: 600 }));
+    main.getBoundingClientRect = jest.fn(() => ({ left: 0, right: 1024, top: 0, bottom: 600, width: 1024, height: 600 }));
+
     const container = new SidebarContainer(logger, eventBus);
     container.render(sidebarEl);
 
     const toggleBtn = document.getElementById("sidebar-toggle-btn");
-    const main = document.querySelector(".main-content");
+    await new Promise(r => setTimeout(r, 0));
 
     // 先折叠
     toggleBtn.click();

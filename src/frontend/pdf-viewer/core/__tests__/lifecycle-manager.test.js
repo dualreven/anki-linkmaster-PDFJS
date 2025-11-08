@@ -6,6 +6,7 @@
 import { LifecycleManager } from "../lifecycle-manager.js";
 import { EventBus } from "../../../common/event/event-bus.js";
 import { ErrorHandler } from "../../../common/error/error-handler.js";
+import { APP_EVENTS } from "../../../common/event/event-constants.js";
 
 // Polyfill for PromiseRejectionEvent (not available in Jest/jsdom)
 class PromiseRejectionEvent extends Event {
@@ -29,9 +30,7 @@ describe("LifecycleManager", () => {
     // 创建ErrorHandler实例
     errorHandler = new ErrorHandler(eventBus);
 
-    // 保存原始的console.error
-    global.consoleErrorBackup = console.error;
-    console.error = jest.fn();
+    // 避免直接使用 console，必要时可用 logger 或 jest.spyOn 替代（此处不做拦截）
   });
 
   afterEach(() => {
@@ -40,8 +39,7 @@ describe("LifecycleManager", () => {
     }
     eventBus.destroy();
 
-    // 恢复console.error
-    console.error = global.consoleErrorBackup;
+    // 无需恢复 console.error（未改动）
   });
 
   describe("构造函数", () => {
@@ -90,7 +88,7 @@ describe("LifecycleManager", () => {
       lifecycleManager.setupGlobalErrorHandling();
 
       const listener = jest.fn();
-      eventBus.on("app:error:unhandled-rejection", listener);
+      eventBus.on(APP_EVENTS.ERROR.UNHANDLED_REJECTION, listener);
 
       // 触发未处理的Promise rejection
       const testError = new Error("Test unhandled rejection");
@@ -122,7 +120,7 @@ describe("LifecycleManager", () => {
       lifecycleManager.setupGlobalErrorHandling();
 
       const listener = jest.fn();
-      eventBus.on("app:error:global", listener);
+      eventBus.on(APP_EVENTS.ERROR.GLOBAL, listener);
 
       // 触发全局错误
       const testError = new Error("Test global error");
@@ -268,7 +266,7 @@ describe("LifecycleManager", () => {
 
       // 2. 使用
       const listener = jest.fn();
-      eventBus.on("app:error:global", listener);
+      eventBus.on(APP_EVENTS.ERROR.GLOBAL, listener);
 
       const testError = new Error("Test error");
       const errorEvent = new ErrorEvent("error", {
@@ -295,8 +293,8 @@ describe("LifecycleManager", () => {
       const rejectionListener = jest.fn();
       const errorListener = jest.fn();
 
-      eventBus.on("app:error:unhandled-rejection", rejectionListener);
-      eventBus.on("app:error:global", errorListener);
+      eventBus.on(APP_EVENTS.ERROR.UNHANDLED_REJECTION, rejectionListener);
+      eventBus.on(APP_EVENTS.ERROR.GLOBAL, errorListener);
 
       // 触发Promise rejection
       const rejectionError = new Error("Rejection");

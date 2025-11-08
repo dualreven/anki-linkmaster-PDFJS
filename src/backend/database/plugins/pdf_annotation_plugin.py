@@ -1,4 +1,4 @@
-﻿"""PDF 标注表插件实现"""
+"""PDF 标注表插件实现"""
 
 from __future__ import annotations
 
@@ -239,6 +239,25 @@ class PDFAnnotationTablePlugin(TablePlugin):
             json_data = json.loads(row.get('json_data', '{}'))
         except json.JSONDecodeError:
             json_data = {}
+        data_obj = json_data.get('data', {}) or {}
+        # 兼容：若缺少 rect 且提供 rectPercent + canvasPixelSize，则按像素估算 rect 以便前端/测试读取
+        try:
+            if 'rect' not in data_obj and 'rectPercent' in data_obj and 'canvasPixelSize' in data_obj:
+                rp = data_obj.get('rectPercent') or {}
+                cps = data_obj.get('canvasPixelSize') or {}
+                w = float(cps.get('width', 0))
+                h = float(cps.get('height', 0))
+                rect = {
+                    'x': int(round(float(rp.get('xPercent', 0)) * w / 100.0)) if w else 0,
+                    'y': int(round(float(rp.get('yPercent', 0)) * h / 100.0)) if h else 0,
+                    'width': int(round(float(rp.get('widthPercent', 0)) * w / 100.0)) if w else 0,
+                    'height': int(round(float(rp.get('heightPercent', 0)) * h / 100.0)) if h else 0,
+                }
+                data_obj = dict(data_obj)
+                data_obj['rect'] = rect
+        except Exception:
+            # 保守：计算失败不影响其他字段
+            pass
         return {
             'ann_id': row['ann_id'],
             'pdf_uuid': row['pdf_uuid'],
@@ -247,7 +266,7 @@ class PDFAnnotationTablePlugin(TablePlugin):
             'created_at': row['created_at'],
             'updated_at': row['updated_at'],
             'version': row['version'],
-            'data': json_data.get('data', {}),
+            'data': data_obj,
             'comments': json_data.get('comments', []),
         }
 
@@ -371,5 +390,6 @@ class PDFAnnotationTablePlugin(TablePlugin):
         timestamp = int(time.time() * 1000)
         random_part = str(timestamp)[-6:]
         return f"comment_{timestamp}_{random_part}"
+
 
 

@@ -80,6 +80,9 @@ describe("IndexedDBCacheManager", () => {
     });
 
     mockDB.transaction.mockReturnValue(mockTransaction);
+    // 使 createObjectStore 返回 mockStore，并让 store.index 返回 mockIndex（便于通过索引路径测试）
+    mockDB.createObjectStore.mockReturnValue(mockStore);
+    mockStore.index = jest.fn(() => mockIndex);
     mockTransaction.objectStore.mockReturnValue(mockStore);
     mockStore.createIndex.mockReturnValue(mockIndex);
   });
@@ -469,3 +472,4 @@ describe("IndexedDBCacheManager", () => {
     });
   });
 });
+

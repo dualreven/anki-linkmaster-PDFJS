@@ -141,8 +141,9 @@ def _validate_positive_number(value: Any, field: str) -> float:
 
 
 def _validate_screenshot_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
-    # 严格模式：要求 rectPercent
+    # 严格模式：rectPercent 必填；同时若提供 legacy rect（像素）则保留（不作为校验依据）
     rect_percent = payload.get('rectPercent')
+    rect_pixels = payload.get('rect')
     if not isinstance(rect_percent, dict):
         raise DatabaseValidationError('rectPercent is required')
 
@@ -152,12 +153,14 @@ def _validate_screenshot_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
             num = 100.0
         return num
 
-    validated_rect_percent = {
-        'xPercent': clamp01pct(rect_percent.get('xPercent'), 'rectPercent.xPercent'),
-        'yPercent': clamp01pct(rect_percent.get('yPercent'), 'rectPercent.yPercent'),
-        'widthPercent': clamp01pct(rect_percent.get('widthPercent'), 'rectPercent.widthPercent'),
-        'heightPercent': clamp01pct(rect_percent.get('heightPercent'), 'rectPercent.heightPercent'),
-    }
+    validated_rect_percent = None
+    if isinstance(rect_percent, dict):
+        validated_rect_percent = {
+            'xPercent': clamp01pct(rect_percent.get('xPercent'), 'rectPercent.xPercent'),
+            'yPercent': clamp01pct(rect_percent.get('yPercent'), 'rectPercent.yPercent'),
+            'widthPercent': clamp01pct(rect_percent.get('widthPercent'), 'rectPercent.widthPercent'),
+            'heightPercent': clamp01pct(rect_percent.get('heightPercent'), 'rectPercent.heightPercent'),
+        }
 
     image_path = payload.get('imagePath')
     if not isinstance(image_path, str) or not image_path.strip():
@@ -190,11 +193,15 @@ def _validate_screenshot_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(marker_color, str) or not _HEX_COLOR_PATTERN.fullmatch(marker_color):
             raise DatabaseValidationError('markerColor must be a HEX color (#rrggbb)')
 
-    result = {
-        'rectPercent': validated_rect_percent,
-        'imagePath': image_path,
-        'imageHash': image_hash,
-    }
+    result = {'imagePath': image_path, 'imageHash': image_hash}
+    if validated_rect_percent is not None:
+        result['rectPercent'] = validated_rect_percent
+    else:
+        # 兼容旧字段：保留 rect（像素）
+        result['rect'] = rect_pixels
+    # 若提供了 rect（像素），无论是否有 rectPercent，均一并保留，便于前端兼容读取
+    if isinstance(rect_pixels, dict):
+        result['rect'] = rect_pixels
     if image_data is not None:
         result['imageData'] = image_data
     if description is not None:
@@ -280,3 +287,4 @@ def _validate_comments(comments: Any) -> List[Dict[str, Any]]:
             'createdAt': item['createdAt'],
         })
     return normalized
+

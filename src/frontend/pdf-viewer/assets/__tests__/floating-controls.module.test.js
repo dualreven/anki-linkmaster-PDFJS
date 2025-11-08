@@ -2,7 +2,7 @@
  * @file 测试浮动控制面板脚本作为 ES 模块加载并正确工作
  */
 
-import { jest } from "@jest/globals";
+// 移除未使用的 jest 显式导入（Jest 全局已提供）
 import "../floating-controls.js";
 
 describe("floating-controls.js 作为模块加载", () => {

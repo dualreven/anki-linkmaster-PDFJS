@@ -254,7 +254,7 @@ export class FeatureRegistry implements IFeatureRegistry {
  * @description 应用核心Feature，提供EventBus、WebSocket等基础设施
  */
 export class AppCoreFeature implements IFeature {
-  readonly name: 'app-core';
+  readonly name: 'infra-app';
   readonly version: string;
   readonly dependencies: readonly [];
 
@@ -275,7 +275,7 @@ export class AppCoreFeature implements IFeature {
 export class PDFManagerFeature implements IFeature {
   readonly name: 'pdf-manager';
   readonly version: string;
-  readonly dependencies: readonly ['app-core'];
+  readonly dependencies: readonly [];
 
   /**
    *
@@ -292,9 +292,9 @@ export class PDFManagerFeature implements IFeature {
  * @description UI管理Feature，负责UI渲染、控件和事件处理
  */
 export class UIManagerFeature implements IFeature {
-  readonly name: 'ui-manager';
+  readonly name: 'infra-ui';
   readonly version: string;
-  readonly dependencies: readonly ['app-core'];
+  readonly dependencies: readonly ['pdf-manager'];
 
   /**
    *
@@ -324,3 +324,4 @@ export function bootstrapFeatureApp(
  * @returns Promise，启动完成后resolve
  */
 export function bootstrapPDFViewerAppFeature(): Promise<void>;
+

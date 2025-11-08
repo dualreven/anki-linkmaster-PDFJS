@@ -1,6 +1,5 @@
 /* eslint-env node */
-/* global describe, test, expect */
-/* eslint-disable @typescript-eslint/no-require-imports */
+
 /**
  * Toast usage conformance tests for pdf-viewer
  * 确认 pdf-viewer 下相关文件已改为引用 frontend/common 下的 toast 工具
@@ -17,11 +16,11 @@ function readUtf8(p) {
 describe("pdf-viewer toast usage", () => {
   const base = resolve(process.cwd(), "src/frontend/pdf-viewer");
   const targets = [
-    "features/annotation/components/annotation-sidebar-ui.js",
+    "features/pdf-annotation/components/annotation-sidebar-ui.js",
     "features/pdf-translator/components/TranslatorSidebarUI.js",
-    "bookmark/components/bookmark-toolbar.js",
-    "features/ui-manager/components/ui-manager-core.js",
-    "features/ui-manager/components/ui-layout-controls.js",
+    "outline/components/outline-toolbar.js",
+    "features/infra-ui/components/ui-manager-core.js",
+    "features/infra-ui/components/ui-layout-controls.js",
   ];
 
   test.each(targets)("file %s should import common toast and avoid custom DOM toast", (rel) => {

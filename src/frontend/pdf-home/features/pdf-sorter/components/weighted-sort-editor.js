@@ -1,4 +1,6 @@
-﻿/**
+import { showError, showInfo } from "../../../../common/utils/notification.js";
+import { SORTER_EVENTS } from "../../../../common/event/event-constants.js";
+/**
  * @file 加权排序编辑器组件
  * @module features/pdf-sorter/components/weighted-sort-editor
  * @description
@@ -66,6 +68,8 @@ export class WeightedSortEditor {
     length: { name: "length", label: "长度(字符数)", display: "length(x)", arity: 1 },
     clamp: { name: "clamp", label: "范围限制", display: "clamp(x, min, max)", arity: 3 },
     normalize: { name: "normalize", label: "归一化", display: "normalize(x, min, max)", arity: 3 },
+    // 排序方向助手
+    desc: { name: "desc", label: "降序", display: "desc(x)", arity: 1 },
     // 标签相关（作用于 tags 列表，全部走 SQL JSON1 实现）
     tags_length: { name: "tags_length", label: "标签数量", display: "tags_length()", arity: 0 },
     tags_has: { name: "tags_has", label: "包含标签", display: "tags_has('tag')", arity: 1 },
@@ -646,43 +650,37 @@ export class WeightedSortEditor {
     this.#syncView();
   }
 
-  #handleTestFormula() {
+  async #handleTestFormula() {
     if (!this.#validationResult || !this.#validationResult.valid) {
       this.#logger.warn("[WeightedSortEditor] Cannot test invalid formula");
-      alert("请先构建有效的公式再进行测试");
+      try { showError("请先构建有效的公式再进行测试", 3500); } catch (e) { void e; }
       return;
     }
 
     this.#logger.info("[WeightedSortEditor] Testing formula:", this.#currentFormula);
-    this.#eventBus.emit("sorter:formula:tested", {
-      formula: this.#currentFormula
-    });
+    this.#eventBus.emit(SORTER_EVENTS.SORT.APPLIED, { formula: this.#currentFormula });
 
-    alert(`公式测试请求已发送\n公式: ${this.#currentFormula}\n\n后端执行逻辑将在后续实现`);
+    try { showInfo(`公式测试请求已发送\n公式: ${this.#currentFormula}`, 3000); } catch (e) { void e; }
   }
 
-  #handleApplyWeightedSort() {
+  async #handleApplyWeightedSort() {
     if (!this.#validationResult || !this.#validationResult.valid) {
       this.#logger.warn("[WeightedSortEditor] Cannot apply invalid formula");
-      alert("请先构建有效的公式");
+      try { showError("请先构建有效的公式", 3500); } catch (e) { void e; }
       return;
     }
 
     this.#logger.info("[WeightedSortEditor] Applying weighted sort:", this.#currentFormula);
-    this.#eventBus.emit("sorter:sort:requested", {
-      type: "weighted",
-      formula: this.#currentFormula
-    });
+    this.#eventBus.emit(SORTER_EVENTS.SORT.REQUESTED, { type: "weighted", formula: this.#currentFormula });
   }
 
-  #handleClearSort() {
+  async #handleClearSort() {
     this.#tokens = [];
     this.#numberBuffer = "";
     this.#pendingFunction = null;
     this.#syncView();
     this.#logger.info("[WeightedSortEditor] Formula cleared");
-
-    this.#eventBus.emit("sorter:sort:cleared", {});
+    this.#eventBus.emit(SORTER_EVENTS.SORT.CLEARED, {});
   }
 
   getFormula() {
@@ -715,3 +713,4 @@ export class WeightedSortEditor {
     this.#logger.info("[WeightedSortEditor] Destroyed");
   }
 }
+

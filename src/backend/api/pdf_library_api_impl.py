@@ -239,13 +239,16 @@ class PDFLibraryAPI:
             order = row.get("order", None)
             if order is None:
                 order = jd.get("order", 0) or 0
+            region_val = row.get("region", None)
+            if region_val is None:
+                region_val = jd.get("region")
             node = {
                 "id": bid,
                 "name": name or "",
                 "type": "page",
                 # 对外契约：统一提供 pageAt
                 "pageAt": page_at if isinstance(page_at, int) and page_at >= 1 else 1,
-                "region": None,
+                "region": region_val,
                 "position": position,
                 "children": [],
                 "parentId": parent_id,
@@ -313,8 +316,9 @@ class PDFLibraryAPI:
                 raise DatabaseValidationError("bookmark id is required")
             if not isinstance(name, str) or not name.strip():
                 raise DatabaseValidationError("bookmark name is required")
-            # 仅接受 pageAt（严格模式）
-            page_at = _int_ge1("pageAt", node.get("pageAt"))
+            # 接受 pageAt；兼容旧字段 pageNumber → pageAt
+            page_at_value = node.get("pageAt") or node.get("pageNumber")
+            page_at = _int_ge1("pageAt", page_at_value)
             pos = _norm_pos(node.get("position"))
             created_ms = _iso_to_ms(node.get("createdAt")) or int(time.time() * 1000)
             updated_ms = _iso_to_ms(node.get("updatedAt")) or created_ms
@@ -326,6 +330,9 @@ class PDFLibraryAPI:
                 "parentId": parent_id,
                 "order": order if order >= 0 else 0,
             }
+            # 兼容区域书签：透传 region（若提供）
+            if "region" in node:
+                jd["region"] = node.get("region")
             row = {
                 "bookmark_id": bid,
                 "pdf_uuid": pdf_uuid,
@@ -353,6 +360,186 @@ class PDFLibraryAPI:
             self._bookmark_plugin.insert(r)
         return len(rows)
 
+    # ---------------------------- 大纲（outline） ----------------------------
+    def list_outline_items(self, pdf_uuid: str) -> Dict[str, Any]:
+        """
+        返回指定 PDF 的大纲树结构。
+        输出字段对齐前端桥接器预期：data.outline_items = [{id,name,pageAt,position,children[]}]
+        """
+        rows = self._bookmark_plugin.query_by_pdf(pdf_uuid)
+        if not rows:
+            return {"outline_items": []}
+        nodes: Dict[str, Dict[str, Any]] = {}
+        for row in rows:
+            oid = row.get("bookmark_id") or row.get("outline_id")
+            if not isinstance(oid, str):
+                continue
+            # 字段兼容：解析被插件提升的扁平字段
+            name = row.get("name") if row.get("name") is not None else (row.get("json_data") or {}).get("name")
+            page_at = row.get("pageAt") if row.get("pageAt") is not None else (row.get("json_data") or {}).get("pageAt")
+            position = row.get("position") if "position" in row else (row.get("json_data") or {}).get("position")
+            parent_id = row.get("parentId") if "parentId" in row else (row.get("json_data") or {}).get("parentId")
+            order = row.get("order") if "order" in row else (row.get("json_data") or {}).get("order", 0)
+            node = {
+                "id": oid,
+                "name": (name or "").strip(),
+                "pageAt": int(page_at or 1),
+                "position": position if (position is None or isinstance(position, (int, float))) else None,
+                "parentId": parent_id,
+                "order": int(order or 0),
+                "children": [],
+            }
+            nodes[oid] = node
+        # 组装树
+        roots: list[str] = []
+        for row in rows:
+            oid = row.get("bookmark_id") or row.get("outline_id")
+            if not isinstance(oid, str):
+                continue
+            parent_id = row.get("parentId") if "parentId" in row else (row.get("json_data") or {}).get("parentId")
+            if parent_id and parent_id in nodes:
+                nodes[parent_id]["children"].append(nodes[oid])
+            else:
+                roots.append(oid)
+        # 排序
+        def _sort_children(n):
+            n["children"].sort(key=lambda x: x.get("order", 0))
+            for c in n["children"]:
+                _sort_children(c)
+        for r in roots:
+            _sort_children(nodes[r])
+        roots.sort(key=lambda i: nodes[i].get("order", 0))
+        return {"outline_items": [nodes[i] for i in roots]}
+
+    def create_outline_item(
+        self,
+        *,
+        pdf_uuid: str,
+        name: str,
+        page_at: int,
+        position: Optional[int] = None,
+        parent_id: Optional[str] = None,
+        order: Optional[int] = None,
+    ) -> str:
+        """创建单个大纲节点，返回生成的 outline_id。"""
+        # 生成与前端规范一致的 ID：outlineItem-XXXXXXXX（8位 0-9a-zA-Z）
+        import random
+        import string
+
+        def _gen_id() -> str:
+            alphabet = string.ascii_letters + string.digits + "-_"
+            return "outlineItem-" + "".join(random.choice(alphabet) for _ in range(8))
+
+        outline_id = _gen_id()
+        now = int(time.time() * 1000)
+        jd = {
+            "name": name,
+            "pageAt": int(page_at),
+            "position": (None if position is None else int(position)),
+            "children": [],
+            "parentId": parent_id if (isinstance(parent_id, str) and parent_id.strip()) else None,
+            "order": int(order) if isinstance(order, int) else 0,
+        }
+        payload = {
+            "bookmark_id": outline_id,
+            "pdf_uuid": pdf_uuid,
+            "created_at": now,
+            "updated_at": now,
+            "version": 1,
+            "json_data": jd,
+        }
+        normalized = self._bookmark_plugin.validate_data(payload)
+        self._bookmark_plugin.insert(normalized)
+        return outline_id
+
+    def update_outline_item(self, outline_id: str, update: Dict[str, Any]) -> bool:
+        """
+        更新单个大纲节点的属性：name/page_at/position/parent_id/order
+        """
+        if not isinstance(update, dict):
+            return False
+        # 映射字段到兼容书签插件的 update 形态
+        mapped: Dict[str, Any] = {}
+        if "name" in update:
+            mapped["name"] = update.get("name")
+        if "page_at" in update:
+            mapped["pageNumber"] = update.get("page_at")
+        if "position" in update:
+            mapped["position"] = update.get("position")
+        if "parent_id" in update:
+            mapped["parentId"] = update.get("parent_id")
+        if "order" in update:
+            mapped["order"] = update.get("order")
+        return self._bookmark_plugin.update(outline_id, mapped)
+
+    def delete_outline_item(self, outline_id: str, *, cascade: bool = True) -> bool:
+        """
+        删除单个大纲节点；若 cascade=True，递归删除其所有子孙节点。
+        """
+        # 找到 pdf_uuid 及所有子孙
+        row = self._bookmark_plugin.query_by_id(outline_id)
+        if not row:
+            return False
+        pdf_uuid = row.get("pdf_uuid")
+        if cascade:
+            # 读取该 PDF 的所有项，构建子孙关系
+            rows = self._bookmark_plugin.query_by_pdf(pdf_uuid)
+            by_parent: Dict[Optional[str], list[str]] = {}
+            for r in rows:
+                pid = r.get("parentId")
+                by_parent.setdefault(pid, []).append(r.get("bookmark_id") or r.get("outline_id"))
+            # 递归收集
+            to_delete: list[str] = []
+
+            def _collect(nid: str):
+                to_delete.append(nid)
+                for cid in by_parent.get(nid, []):
+                    _collect(cid)
+
+            _collect(outline_id)
+            ok_any = False
+            for nid in to_delete:
+                ok_any = self._bookmark_plugin.delete(nid) or ok_any
+            return ok_any
+        return self._bookmark_plugin.delete(outline_id)
+
+    def reorder_outline_item(self, *, outline_id: str, new_parent_id: Optional[str], new_index: int) -> None:
+        """
+        将节点移动到新父节点下并设置顺序索引；随后规范化所有同级节点的 order。
+        """
+        # 查询节点，拿到 pdf_uuid
+        row = self._bookmark_plugin.query_by_id(outline_id)
+        if not row:
+            raise DatabaseValidationError("outline not found")
+        pdf_uuid = row.get("pdf_uuid")
+        # 1) 更新自身 parentId
+        self._bookmark_plugin.update(outline_id, {"parentId": new_parent_id})
+
+        # 2) 读取目标父的所有子项
+        if new_parent_id:
+            # children of parent
+            rows = self._executor.execute_query(
+                "SELECT * FROM pdf_outline WHERE pdf_uuid = ? AND json_extract(json_data, '$.parentId') = ?",
+                (pdf_uuid, new_parent_id),
+            )
+            parsed = [self._bookmark_plugin._parse_row(r) for r in rows]  # type: ignore[attr-defined]
+        else:
+            parsed = self._bookmark_plugin.query_root_bookmarks(pdf_uuid)
+
+        # 去掉自身（可能仍在结果里）
+        parsed = [n for n in parsed if (n.get("bookmark_id") or n.get("outline_id")) != outline_id]
+        # 插入到 new_index
+        new_index = int(new_index or 0)
+        new_index = max(0, min(new_index, len(parsed)))
+        # 生成新顺序数组
+        ordered = [p for p in parsed]
+        stub = {"bookmark_id": outline_id}
+        ordered.insert(new_index, stub)
+        # 3) 逐一写入 order
+        for idx, item in enumerate(ordered):
+            bid = item.get("bookmark_id") or outline_id
+            self._bookmark_plugin.update(bid, {"order": idx, "parentId": new_parent_id})
+
     def clear_bookmarks(self, pdf_uuid: str) -> int:
         return self._bookmark_plugin.delete_by_pdf(pdf_uuid)
 
@@ -371,8 +558,8 @@ class PDFLibraryAPI:
         if not isinstance(uuid, str) or not uuid:
             import secrets
             uuid = f"pdfanchor-{secrets.token_hex(6)}"
-        # 严格要求 name（存入 json_data）
-        name = data.get("name")
+        # 严格要求 name（存入 json_data）；兼容从 json_data.name 读取
+        name = data.get("name") or ((data.get("json_data") or {}).get("name"))
         if not isinstance(name, str) or not name.strip():
             raise DatabaseValidationError("name must be a non-empty string")
         # 归一化字段
@@ -448,3 +635,4 @@ class PDFLibraryAPI:
                 "WHERE uuid = ?"
             )
             return self._executor.execute_update(sql, (now, anchor_uuid)) > 0
+

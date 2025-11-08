@@ -10,6 +10,8 @@
  * 排序面板UI组件
  * @class SorterPanel
  */
+import { SORTER_EVENTS } from "../../../../common/event/event-constants.js";
+
 export class SorterPanel {
   /**
    * 日志记录器
@@ -144,8 +146,8 @@ export class SorterPanel {
    * @private
    */
   #attachEventListeners() {
-    console.log("[DEBUG SorterPanel] #attachEventListeners called");
-    console.log("[DEBUG SorterPanel] #eventBus:", this.#eventBus);
+    this.#logger.debug("[DEBUG SorterPanel] #attachEventListeners called");
+    this.#logger.debug("[DEBUG SorterPanel] #eventBus:", this.#eventBus);
 
     // ESC键关闭面板
     this.#escKeyHandler = (e) => {
@@ -157,18 +159,18 @@ export class SorterPanel {
 
     // 监听排序模式切换事件（三段式格式）
     // 关键修复：指定唯一的 subscriberId 避免被其他订阅者覆盖
-    console.log("[DEBUG SorterPanel] About to subscribe to sorter:mode:changed");
-    const unsubModeChanged = this.#eventBus.on("sorter:mode:changed", (data) => {
-      console.log("[DEBUG SorterPanel] sorter:mode:changed event received:", data);
+    this.#logger.debug("[DEBUG SorterPanel] About to subscribe to sorter:mode:changed");
+    const unsubModeChanged = this.#eventBus.on(SORTER_EVENTS.MODE.CHANGED, (data) => {
+      this.#logger.debug("[DEBUG SorterPanel] sorter:mode:changed event received:", data);
       this.#handleModeChange(data.mode);
     }, {
       subscriberId: "SorterPanel.modeChanged"
     });
-    console.log("[DEBUG SorterPanel] Unsubscribe function:", unsubModeChanged);
+    this.#logger.debug("[DEBUG SorterPanel] Unsubscribe function:", unsubModeChanged);
     this.#unsubscribers.push(unsubModeChanged);
 
     this.#logger.debug("[SorterPanel] Event listeners attached");
-    console.log("[DEBUG SorterPanel] Event listeners attached, unsubscribers count:", this.#unsubscribers.length);
+    this.#logger.debug("[DEBUG SorterPanel] Event listeners attached, unsubscribers count:", this.#unsubscribers.length);
   }
 
   /**
@@ -177,11 +179,11 @@ export class SorterPanel {
    * @private
    */
   #handleModeChange(mode) {
-    console.log("[DEBUG SorterPanel] #handleModeChange called with mode:", mode);
+    this.#logger.debug("[DEBUG SorterPanel] #handleModeChange called with mode:", mode);
     this.#logger.info(`[SorterPanel] Mode changed to: ${mode}`);
 
-    console.log("[DEBUG SorterPanel] Before hide - multiSortContainer.display:", this.#multiSortContainer?.style.display);
-    console.log("[DEBUG SorterPanel] Before hide - weightedSortContainer.display:", this.#weightedSortContainer?.style.display);
+    this.#logger.debug("[DEBUG SorterPanel] Before hide - multiSortContainer.display:", this.#multiSortContainer?.style.display);
+    this.#logger.debug("[DEBUG SorterPanel] Before hide - weightedSortContainer.display:", this.#weightedSortContainer?.style.display);
 
     // 隐藏所有配置区
     this.#multiSortContainer.style.display = "none";
@@ -190,25 +192,25 @@ export class SorterPanel {
     // 根据模式显示对应配置区
     switch (mode) {
     case 0: // 默认排序 - 不显示任何配置
-      console.log("[DEBUG SorterPanel] Mode 0: Hiding all configs");
+      this.#logger.debug("[DEBUG SorterPanel] Mode 0: Hiding all configs");
       break;
     case 1: // 手动拖拽 - 不显示任何配置
-      console.log("[DEBUG SorterPanel] Mode 1: Hiding all configs");
+      this.#logger.debug("[DEBUG SorterPanel] Mode 1: Hiding all configs");
       break;
     case 2: // 多级排序
-      console.log("[DEBUG SorterPanel] Mode 2: Showing multi-sort config");
+      this.#logger.debug("[DEBUG SorterPanel] Mode 2: Showing multi-sort config");
       this.#multiSortContainer.style.display = "block";
       break;
     case 3: // 加权排序
-      console.log("[DEBUG SorterPanel] Mode 3: Showing weighted-sort config");
+      this.#logger.debug("[DEBUG SorterPanel] Mode 3: Showing weighted-sort config");
       this.#weightedSortContainer.style.display = "block";
       break;
     default:
       this.#logger.warn(`[SorterPanel] Unknown mode: ${mode}`);
     }
 
-    console.log("[DEBUG SorterPanel] After change - multiSortContainer.display:", this.#multiSortContainer?.style.display);
-    console.log("[DEBUG SorterPanel] After change - weightedSortContainer.display:", this.#weightedSortContainer?.style.display);
+    this.#logger.debug("[DEBUG SorterPanel] After change - multiSortContainer.display:", this.#multiSortContainer?.style.display);
+    this.#logger.debug("[DEBUG SorterPanel] After change - weightedSortContainer.display:", this.#weightedSortContainer?.style.display);
   }
 
   /**
@@ -220,8 +222,8 @@ export class SorterPanel {
     this.#adjustTablePosition(true);
     this.#logger.info("[SorterPanel] Panel shown");
 
-    // 触发面板显示事件（三段式格式）
-    this.#eventBus.emit("sorter:panel:shown", {});
+    // 触发面板显示事件
+    this.#eventBus.emit(SORTER_EVENTS.PANEL.SHOWN, {});
   }
 
   /**
@@ -233,8 +235,8 @@ export class SorterPanel {
     this.#adjustTablePosition(false);
     this.#logger.info("[SorterPanel] Panel hidden");
 
-    // 触发面板隐藏事件（三段式格式）
-    this.#eventBus.emit("sorter:panel:hidden", {});
+    // 触发面板隐藏事件
+    this.#eventBus.emit(SORTER_EVENTS.PANEL.HIDDEN, {});
   }
 
   /**
@@ -322,3 +324,4 @@ export class SorterPanel {
     this.#logger.info("[SorterPanel] Destroyed");
   }
 }
+

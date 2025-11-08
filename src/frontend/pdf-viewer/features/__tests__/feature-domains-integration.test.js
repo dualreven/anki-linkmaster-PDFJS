@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file 功能域集成测试
  * @description 验证4个功能域可以正确注册和安装
  */
@@ -15,8 +15,8 @@ import { DependencyContainer, FeatureRegistry } from "../../../common/micro-serv
 // 导入4个功能域
 import { PDFReaderFeature } from "../pdf-reader/index.js";
 import { PDFUIFeature } from "../pdf-ui/index.js";
-// pdf-bookmark 已废弃，相关验证移除
-import { WebSocketAdapterFeature } from "../websocket-adapter/index.js";
+// pdf-outline 替代，相关验证调整
+import { WebSocketAdapterFeature } from "../infra-ws-adapter/index.js";
 
 describe("功能域集成测试", () => {
   let container;
@@ -52,7 +52,7 @@ describe("功能域集成测试", () => {
       expect(feature.dependencies).toContain("pdf-reader");
     });
 
-    // pdf-bookmark 功能已废弃，此处不再验证
+    // pdf-outline 已替代旧实现，此处不再验证旧实现
 
     it("应该成功注册websocket-adapter功能", () => {
       const feature = new WebSocketAdapterFeature();
@@ -79,7 +79,7 @@ describe("功能域集成测试", () => {
       expect(feature.dependencies).toContain("pdf-reader");
     });
 
-    // pdf-bookmark 功能已废弃，此处不再验证
+    // pdf-outline 已替代旧实现，此处不再验证旧实现
 
     it("websocket-adapter应该无依赖", () => {
       const feature = new WebSocketAdapterFeature();
@@ -197,3 +197,4 @@ describe("功能域集成测试", () => {
     });
   });
 });
+

@@ -176,7 +176,7 @@ export class FeatureFlagManager {
         }
         // 通用回退（即使非嵌套场景）：
         tryPaths.push("/config/feature-flags.json");
-      } catch (_) { /* ignore */ }
+      } catch { /* ignore */ }
 
       let loaded = false;
       let lastErr = null;

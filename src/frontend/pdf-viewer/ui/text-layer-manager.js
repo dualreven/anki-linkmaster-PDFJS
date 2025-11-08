@@ -59,7 +59,6 @@ async function loadRenderTextLayer() {
 export class TextLayerManager {
   // 私有属性
   #logger;
-  #pdfDocument = null;
   #textLayerContainer = null;
   #textLayerEnabled = false;
   #currentPage = null;
@@ -76,7 +75,7 @@ export class TextLayerManager {
   constructor(options = {}) {
     this.#logger = getLogger("TextLayerManager");
     this.#textLayerContainer = options.container || null;
-    this.#pdfDocument = options.pdfDocument || null;
+    // pdfDocument 引用暂不持有（未被读取）
     this.#textLayerEnabled = !!this.#textLayerContainer;
 
     this.#logger.info("TextLayerManager initialized", {
@@ -128,7 +127,7 @@ export class TextLayerManager {
    * @param {Object} pdfDocument - PDF文档对象
    */
   setPDFDocument(pdfDocument) {
-    this.#pdfDocument = pdfDocument;
+    // 暂不持有 pdfDocument 引用；按需通过参数传递
     this.#logger.info("PDF document set");
   }
 
@@ -494,7 +493,7 @@ export class TextLayerManager {
 
     // 清空所有引用
     this.#textLayerContainer = null;
-    this.#pdfDocument = null;
+    // 无需清理 pdfDocument 引用
     this.#textLayerEnabled = false;
 
     this.#logger.info("TextLayerManager destroyed");

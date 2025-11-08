@@ -3,6 +3,7 @@
  */
 
 import { showError } from "../../../../common/utils/notification.js";
+import { FILTER_EVENTS, SEARCH_EVENTS } from "../../../../common/event/event-constants.js";
 
 export class FilterSearchBar {
   #logger = null;
@@ -248,7 +249,7 @@ export class FilterSearchBar {
     }
 
     this.#logger.info("[FilterSearchBar] Search triggered", { searchText });
-    this.#eventBus.emit("filter:search:requested", { searchText });
+    this.#eventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, { searchText });
   }
 
   /**
@@ -257,7 +258,8 @@ export class FilterSearchBar {
    */
   #handleClear() {
     this.#logger.info("[FilterSearchBar] Clear triggered");
-    this.#eventBus.emit("filter:clear:requested");
+    // 统一走搜索清空事件
+    this.#eventBus.emit(SEARCH_EVENTS.QUERY.CLEARED);
     this.updateStats(null);
   }
 
@@ -273,7 +275,7 @@ export class FilterSearchBar {
       this.#callbacks.onAdvancedClick();
     } else {
       // 回退到事件机制
-      this.#eventBus.emit("filter:advanced:open");
+      this.#eventBus.emit(FILTER_EVENTS.ADVANCED.OPEN);
     }
   }
 
@@ -348,14 +350,14 @@ export class FilterSearchBar {
     const presetName = this.#presetNameInput.value.trim();
 
     if (!presetName) {
-      try { showError("请输入预设名称", 3000); } catch(_) {}
+      try { showError("请输入预设名称", 3000); } catch (e) { try { this.#logger?.warn("[Toast] showError failed", e); } catch (e2) { void e2; } }
       return;
     }
 
     this.#logger.info("[FilterSearchBar] Save preset requested", { presetName });
 
     // TODO: 实现保存逻辑
-    console.log("保存预设:", presetName);
+    this.#logger.info("[FilterSearchBar] 保存预设", { presetName });
 
     this.#hidePresetDialog();
   }
@@ -378,3 +380,4 @@ export class FilterSearchBar {
     this.#logger.info("[FilterSearchBar] Destroyed");
   }
 }
+

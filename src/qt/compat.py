@@ -10,7 +10,7 @@ from src.qt.compat import (
 )
 
 注意：在非 Anki 环境且未安装 PyQt6 的情况下，导入将抛出 ImportError。
-注意：QApplication 的创建和管理由外层启动器(ai-launcher.py)负责。
+注意：QApplication 的创建和管理由外层启动器(ai_launcher.py)负责。
 """
 
 import os

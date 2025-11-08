@@ -259,7 +259,7 @@ export class ConditionEditor {
     }
 
     if (!value) {
-      try { showError("请输入值", 3000); } catch(_) {}
+      try { showError("请输入值", 3000); } catch (e) { try { this.#logger?.warn("[Toast] showError failed", e); } catch (e2) { void e2; } }
       return;
     }
 
@@ -298,3 +298,4 @@ export class ConditionEditor {
     this.#availableTags = tags;
   }
 }
+

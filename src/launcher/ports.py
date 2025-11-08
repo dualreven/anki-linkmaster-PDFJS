@@ -48,6 +48,39 @@ def write_runtime_ports(base_logs: Path, payload: Dict[str, Any]) -> None:
         pass
 
 
+def merge_runtime_ports(base_logs: Path, updates: Dict[str, Any]) -> Dict[str, Any]:
+    """读取并合并写入 base_logs/runtime-ports.json；返回合并后的结果。
+
+    规则：
+    - 显式 UTF-8 与行尾 \\n；
+    - 不做静默兜底：base_logs 不存在时创建目录；文件不存在时视为 {}；
+    - 顶层浅合并：`updates` 覆盖同名键；
+    - 删除语义：若 `updates[k] is None`，则从结果中删除该键（用于移除废弃标记）。
+    """
+    base = Path(base_logs)
+    base.mkdir(parents=True, exist_ok=True)
+    p = base / 'runtime-ports.json'
+    try:
+        current = json.loads(p.read_text(encoding='utf-8') or '{}') if p.exists() else {}
+        if not isinstance(current, dict):
+            current = {}
+    except Exception:
+        current = {}
+    # 合并并处理删除语义
+    merged = dict(current)
+    for k, v in (updates or {}).items():
+        if v is None:
+            if k in merged:
+                del merged[k]
+        else:
+            merged[k] = v
+    try:
+        p.write_text(json.dumps(merged, ensure_ascii=False, indent=2) + "\n", encoding='utf-8')
+    except Exception:
+        # 合并失败不抛出，保持与 write_runtime_ports 的容错一致
+        pass
+    return merged
+
 def update_dev_process_info(base_logs: Path, *, service: str, pid: int | None, port: int | None, cmd: str | None) -> None:
     """更新 base_logs/dev-process-info.json 中的服务进程信息。
 

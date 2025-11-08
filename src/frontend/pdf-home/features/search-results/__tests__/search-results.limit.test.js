@@ -3,6 +3,7 @@
  */
 
 import { SearchResultsFeature } from "../index.js";
+import { SEARCH_EVENTS } from "../../../../common/event/event-constants.js";
 
 const createLogger = () => ({
   info: jest.fn(),
@@ -33,7 +34,9 @@ describe("SearchResults 前端截断渲染（page.limit）", () => {
 
   beforeEach(async () => {
     document.body.innerHTML = `
-      <div class="main-content"></div>
+      <div class="main-content">
+        <div class="search-results-header"></div>
+      </div>
     `;
 
     globalEventBus = new MockBus();
@@ -57,14 +60,14 @@ describe("SearchResults 前端截断渲染（page.limit）", () => {
 
   it("当搜索结果包含18条且page.limit=5时，仅渲染5条", () => {
     const records = Array.from({ length: 18 }, (_, i) => ({ id: `id-${i}`, title: `书籍${i}` }));
-    globalEventBus.emit("search:results:updated", {
+    globalEventBus.emit(SEARCH_EVENTS.RESULTS.UPDATED, {
       records,
       count: records.length,
       searchText: "",
       page: { limit: 5, offset: 0 }
     });
 
-    const container = document.querySelector(".search-results");
+    const container = document.querySelector(".search-results-container");
     const items = container ? container.querySelectorAll(".search-result-item") : [];
     expect(items.length).toBe(5);
   });

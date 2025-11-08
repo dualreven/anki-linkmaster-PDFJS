@@ -22,7 +22,7 @@ function getWorkerSrc() {
     if (metaUrl) {
       return new URL("@pdfjs/build/pdf.worker.min.mjs", metaUrl).href;
     }
-  } catch (e) {
+  } catch {
     // 测试环境中import.meta不可用，返回fallback
   }
   // Fallback: 使用CDN或者空字符串让PDF.js自动处理

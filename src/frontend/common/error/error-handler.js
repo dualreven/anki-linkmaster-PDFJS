@@ -1,10 +1,7 @@
 /**
-
  * 错误处理模块 (moved)
-
  */
-
-import Logger from "../utils/logger.js";
+import { getLogger } from "../utils/logger.js";
 
 import { SYSTEM_EVENTS, UI_EVENTS } from "../event/event-constants.js";
 
@@ -12,7 +9,7 @@ export const ErrorType = { BUSINESS: "business", NETWORK: "network", SYSTEM: "sy
 
 export class AppError extends Error { constructor(message, type = ErrorType.SYSTEM, code = null) { super(message); this.name = "AppError"; this.type = type; this.code = code; this.timestamp = new Date().toISOString(); } }
 
-export class ErrorHandler { constructor(eventBus) { this.eventBus = eventBus; this.logger = new Logger("ErrorHandler"); }
+export class ErrorHandler { constructor(eventBus) { this.eventBus = eventBus; this.logger = getLogger("ErrorHandler"); }
 
   handleError(error, context = "") {
     // 防御性检查：确保 error 不是 null 或 undefined

@@ -4,6 +4,12 @@
  * @module DOMUtils
  */
 
+// 本地 logger（避免未定义导致 no-undef）
+const logger = (() => {
+  try { return getLogger("DOMUtils"); }
+  catch { return { info() {}, warn() {}, error() {} }; }
+})();
+
 /**
  * @class DOMUtils
  * @description 一个包含静态DOM操作辅助方法的工具类。
@@ -173,9 +179,9 @@ export class DOMUtils {
         }, 5000);
         return;
       }
-    } catch (e) {}
-    try { logger.error(message); } catch (e) {}
-    // try { alert(message); } catch (e) {}
+    } catch { /* no-op */ }
+    try { logger.error(message); } catch { /* no-op */ }
+    // try { alert(message); } catch { /* no-op */ }
   }
 
   /**
@@ -195,9 +201,9 @@ export class DOMUtils {
         }, 3000);
         return;
       }
-    } catch (e) {}
-    try { logger.info(message); } catch (e) {}
-    // try { alert(message); } catch (e) {}
+    } catch { /* no-op */ }
+    try { logger.info(message); } catch { /* no-op */ }
+    // try { alert(message); } catch { /* no-op */ }
   }
 
   /**

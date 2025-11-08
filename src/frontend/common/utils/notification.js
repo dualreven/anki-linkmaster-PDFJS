@@ -1,6 +1,6 @@
 import { getLogger } from "./logger.js";
 import { getToastManager } from "./toast-manager.js";
-import { pending as iziPending, success as iziSuccess, warning as iziWarning, error as iziError, info as iziInfo, dismissById as iziDismissById } from "./thirdparty-toast.js";
+import { pending as iziPending, success as iziSuccess, error as iziError, info as iziInfo, dismissById as iziDismissById } from "./thirdparty-toast.js";
 
 /**
  * @file 通知工具（可切换引擎：优先使用 iziToast，失败时回退内建 ToastManager）
@@ -19,11 +19,11 @@ function getEngine() {
     // 允许通过全局开关切换：window.__NOTIFY_ENGINE in ('izi' | 'tm')
     const e = typeof window !== "undefined" ? (window.__NOTIFY_ENGINE || "izi") : "izi";
     return (e === "izi" || e === "tm") ? e : "izi";
-  } catch(_) { return "izi"; }
+  } catch { return "izi"; }
 }
 
 export function showInfoWithId(id, message, duration = 0) {
-  try { dismissById(id); } catch(_) {}
+  try { dismissById(id); } catch {}
   const engine = getEngine();
   if (engine === "izi") {
     // 使用第三方 pending 作为可关闭的信息提示（可指定超时）
@@ -39,9 +39,9 @@ export function showInfoWithId(id, message, duration = 0) {
 export function dismissById(id) {
   const engine = getEngine();
   if (engine === "izi") {
-    try { return iziDismissById(id); } catch(_) { /* fallthrough */ }
+    try { return iziDismissById(id); } catch { /* fallthrough */ }
   }
-  try { return TM.dismiss(id); } catch(_) { return false; }
+  try { return TM.dismiss(id); } catch { return false; }
 }
 
 export function showSuccess(message, duration = 3000) {
@@ -81,7 +81,7 @@ export function hideAll() {
   const engine = getEngine();
   if (engine === "izi") {
     try { /* 软清理：多数场景用不到 */ }
-    catch(_) {}
+    catch {}
   }
   notificationLogger.info("hideAll invoked");
 }

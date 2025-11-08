@@ -226,7 +226,7 @@ python ai_launcher.py stop
 ```bash
 # 1. 启动Vite开发服务器
 cd src/frontend/pdf-viewer
-npm run dev
+pnpm run dev
 
 # 2. 启动后端服务（另一个终端）
 cd src/backend
@@ -246,7 +246,7 @@ python ai_launcher.py start --module pdf-viewer --dev-mode
 
 # 或手动启动开发服务器
 cd src/frontend/pdf-viewer
-npm run dev -- --host 0.0.0.0 --port 3000
+pnpm run dev -- --host 0.0.0.0 --port 3000
 ```
 
 ### 环境要求
@@ -397,3 +397,4 @@ LOG_CONFIG = {
 **最后更新**: 2025-09-27
 **文档版本**: 2.1.0
 **维护者**: PDF-Viewer 开发团队
+

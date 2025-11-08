@@ -4,6 +4,7 @@
  */
 
 import { ResultItemRenderer } from "../../search-result-item/public.js";
+import { RESULTS_EVENTS } from "../events.js";
 
 export class ResultsRenderer {
   #logger = null;
@@ -115,19 +116,19 @@ export class ResultsRenderer {
     if (isCheckboxClick) {
       // 复选框点击：仅切换选中状态（不改变聚焦）
       clickedItem.classList.toggle("selected");
-      this.#eventBus.emit("results:item:selection-toggled", { result, index });
+      this.#eventBus.emit(RESULTS_EVENTS.ITEM.SELECTION_TOGGLED, { result, index });
     } else if (event.ctrlKey || event.metaKey) {
       // Ctrl+Click: 切换选中 + 设置聚焦
       clickedItem.classList.toggle("selected");
       this.#setFocusedItem(clickedItem);
-      this.#eventBus.emit("results:item:ctrl-clicked", { result, index });
+      this.#eventBus.emit(RESULTS_EVENTS.ITEM.CTRL_CLICKED, { result, index });
     } else if (event.shiftKey) {
       // Shift+Click: 范围选择（暂不实现，可扩展）
       this.#logger.debug("[ResultsRenderer] Shift+Click not implemented yet");
     } else {
       // 普通点击：仅设置聚焦（不改变选中状态）
       this.#setFocusedItem(clickedItem);
-      this.#eventBus.emit("results:item:focused", { result, index });
+      this.#eventBus.emit(RESULTS_EVENTS.ITEM.FOCUSED, { result, index });
     }
   }
 
@@ -155,7 +156,7 @@ export class ResultsRenderer {
     this.#logger.info("[ResultsRenderer] Item double-clicked", { id: result.id });
 
     // 发出打开事件
-    this.#eventBus.emit("results:item:open", { result });
+    this.#eventBus.emit(RESULTS_EVENTS.ITEM.OPEN, { result });
   }
 
   /**

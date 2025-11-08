@@ -226,6 +226,7 @@ class PDFOutlineTablePlugin(TablePlugin):
             'name': json_data.get('name'),
             'pageAt': json_data.get('pageAt'),
             'position': json_data.get('position'),
+            'region': json_data.get('region'),
             'children': json_data.get('children', []),
             'parentId': json_data.get('parentId'),
             'order': json_data.get('order', 0),
@@ -272,3 +273,4 @@ class PDFOutlineTablePlugin(TablePlugin):
         except Exception as exc:
             if self._logger:
                 self._logger.error(f"Failed to emit event '{event_name}': {exc}")
+

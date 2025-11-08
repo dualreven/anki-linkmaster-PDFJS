@@ -56,18 +56,18 @@
       }
     },
 
-    "pdf-bookmark": {
+    "pdf-outline": {
       "enabled": false,
-      "description": "书签管理功能",
+      "description": "大纲管理功能",
       "dependencies": ["pdf-reader", "pdf-ui"],
       "metadata": {
         "phase": "Phase 1",
         "priority": "medium",
         "optional": true,
         "includes": [
-          "书签侧边栏",
-          "书签添加/删除",
-          "书签跳转"
+          "大纲侧边栏",
+          "大纲添加/删除",
+          "大纲跳转"
         ]
       }
     },
@@ -85,6 +85,73 @@
           "事件适配"
         ]
       }
+    },
+
+    "_comment_aliases": "=== 规范名（canonical）与旧名（alias）双写：过渡期并存，保持一致 ===",
+
+    "infra-ws-adapter": {
+      "enabled": false,
+      "description": "WebSocket适配器（规范名，对应 websocket-adapter）",
+      "dependencies": [],
+      "metadata": {
+        "phase": "Phase 1",
+        "priority": "high",
+        "includes": [
+          "WebSocket连接管理",
+          "消息路由",
+          "事件适配"
+        ]
+      }
+    },
+
+    "infra-app": {
+      "enabled": false,
+      "description": "基础设施：应用核心（EventBus/Logger/WSClient）",
+      "dependencies": [],
+      "metadata": { "phase": "Phase 1", "priority": "high", "status": "stable" }
+    },
+    "infra-ui": {
+      "enabled": false,
+      "description": "基础设施：UI 管理（Viewer 集成/控件）",
+      "dependencies": ["pdf-manager"],
+      "metadata": { "phase": "Phase 1", "priority": "high", "status": "stable" }
+    },
+    "infra-nav-core": {
+      "enabled": false,
+      "description": "基础设施：核心导航服务",
+      "dependencies": [],
+      "metadata": { "phase": "Phase 1", "priority": "medium", "status": "stable" }
+    },
+    "infra-nav-url": {
+      "enabled": false,
+      "description": "URL 参数导航",
+      "dependencies": ["infra-app", "pdf-manager", "infra-nav-core"],
+      "metadata": { "phase": "Phase 1", "priority": "medium", "status": "stable" }
+    },
+    "infra-sidebar": {
+      "enabled": false,
+      "description": "侧边栏管理",
+      "dependencies": ["pdf-annotation", "pdf-translator", "pdf-card"],
+      "metadata": { "phase": "Phase 1", "priority": "medium", "status": "stable" }
+    },
+
+    "pdf-annotation": {
+      "enabled": false,
+      "description": "标注功能（容器+工具插件）",
+      "dependencies": ["infra-app", "infra-ui", "infra-nav-core"],
+      "metadata": { "phase": "Phase 1", "priority": "high", "status": "stable" }
+    },
+    "pdf-search": {
+      "enabled": false,
+      "description": "全文搜索",
+      "dependencies": ["infra-app", "infra-ui"],
+      "metadata": { "phase": "Phase 1", "priority": "medium", "status": "stable" }
+    },
+    "pdf-quick-actions": {
+      "enabled": false,
+      "description": "文本选择快捷操作（复制/标注/翻译/AI）",
+      "dependencies": ["infra-app", "pdf-annotation", "pdf-translator"],
+      "metadata": { "phase": "Phase 1", "priority": "medium", "status": "stable" }
     },
 
     "_comment_future_features": "=== 未来功能（Phase 2+）===",
@@ -162,6 +229,24 @@
       }
     },
 
+    "pdf-ai-assistant": {
+      "enabled": false,
+      "description": "AI助手功能（规范名，对应 ai-assistant）",
+      "dependencies": ["pdf-reader"],
+      "rollout": 0,
+      "environments": ["development"],
+      "metadata": {
+        "phase": "Phase 3",
+        "priority": "low",
+        "status": "planned",
+        "includes": [
+          "智能摘要",
+          "问答助手",
+          "制卡建议"
+        ]
+      }
+    },
+
     "_comment_debug": "=== 调试和开发 ===",
 
     "debug-mode": {
@@ -209,3 +294,5 @@
     "repository": "https://github.com/your-org/anki-linkmaster"
   }
 }
+
+

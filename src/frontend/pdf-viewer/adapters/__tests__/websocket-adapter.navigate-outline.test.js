@@ -42,9 +42,9 @@ describe("WebSocketAdapter navigate (outline)", () => {
     eventBus?.destroy();
   });
 
-  test("应当把 pdf-viewer:navigate:requested (outline) 转为 BOOKMARK.NAVIGATE_BY_ID.REQUESTED", () => {
+  test("应当把 pdf-viewer:navigate:requested (outline) 转为 OUTLINE.NAVIGATE_BY_ID.REQUESTED", () => {
     const spy = jest.fn();
-    eventBus.on(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED, spy);
+    eventBus.on(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE_BY_ID.REQUESTED, spy);
 
     adapter.handleMessage({
       type: "pdf-viewer:navigate:requested",
@@ -62,3 +62,4 @@ describe("WebSocketAdapter navigate (outline)", () => {
     );
   });
 });
+

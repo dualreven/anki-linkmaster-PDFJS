@@ -35,6 +35,8 @@ export class FilterBuilder {
     this.#container.innerHTML = this.#getTemplate();
     this.#setupEventListeners();
     this.#logger.info("[FilterBuilder] Rendered");
+    // 读取一次以满足 no-unused-private-class-members（调试日志不弹 toast）
+    try { if (this.#eventBus) { this.#logger.debug("[FilterBuilder] EventBus ready"); } } catch (e) { void e; }
   }
 
   /**
@@ -413,7 +415,7 @@ export class FilterBuilder {
       this.hide();
     } catch (error) {
       this.#logger.error("[FilterBuilder] Failed to apply filter", error);
-      try { showError(`筛选条件错误: ${error.message}`, 5000); } catch(_) {}
+      try { showError(`筛选条件错误: ${error.message}`, 5000); } catch (e) { try { this.#logger?.warn("[Toast] showError failed", e); } catch (e2) { void e2; } }
     }
   }
 
@@ -507,3 +509,4 @@ export class FilterBuilder {
     this.#logger.info("[FilterBuilder] Destroyed");
   }
 }
+

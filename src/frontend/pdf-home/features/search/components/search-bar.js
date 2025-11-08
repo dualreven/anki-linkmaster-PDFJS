@@ -3,6 +3,8 @@
  * 负责渲染搜索输入框和相关按钮
  */
 
+import { SEARCH_EVENTS, FILTER_EVENTS } from "../../../../common/event/event-constants.js";
+
 export class SearchBar {
   // 轻量依赖：用于显示“搜索中”提示
   // 注意：相对路径从 features/search/components 到 common/utils
@@ -117,7 +119,7 @@ export class SearchBar {
         }, this.#config.debounceDelay);
 
         // 显示/隐藏清除按钮（容错：按钮可能未挂载）
-        try { if (this.#clearBtn) { this.#clearBtn.style.display = searchText ? "block" : "none"; } } catch(_) {}
+        try { if (this.#clearBtn) { this.#clearBtn.style.display = searchText ? "block" : "none"; } } catch(_) { void _; }
       });
 
       // Enter键触发立即搜索
@@ -139,7 +141,7 @@ export class SearchBar {
     if (this.#clearBtn) {
       this.#clearBtn.addEventListener("click", () => {
         this.#searchInput.value = "";
-        try { if (this.#clearBtn) {this.#clearBtn.style.display = "none";} } catch(_) {}
+        try { if (this.#clearBtn) {this.#clearBtn.style.display = "none";} } catch(_) { void _; }
         this.#handleClear();
       });
     }
@@ -148,53 +150,25 @@ export class SearchBar {
     this.#addBtn.addEventListener("click", () => {
       this.#logger.info("[SearchBar] Add button clicked");
       // 直接发全局事件，避免依赖 Feature 桥接（构建产物下更稳）
-      try { this.#eventBus.emitGlobal("search:add:requested"); } catch(_) { /* ignore */ }
+      try { this.#eventBus.emitGlobal(SEARCH_EVENTS.ACTIONS.ADD_REQUESTED); } catch(e) { void e; }
     });
 
     // 排序按钮
     this.#sortBtn.addEventListener("click", () => {
       this.#logger.info("[SearchBar] Sort button clicked");
-      try { this.#eventBus.emitGlobal("search:sort:requested"); } catch(_) { /* ignore */ }
+      try { this.#eventBus.emitGlobal(SEARCH_EVENTS.ACTIONS.SORT_REQUESTED); } catch(e) { void e; }
     });
 
     // 高级筛选按钮
     this.#advancedBtn.addEventListener("click", () => {
       this.#logger.info("[SearchBar] Advanced filter button clicked");
-      try { this.#eventBus.emitGlobal("filter:advanced:open"); } catch(_) { /* ignore */ }
+      try { this.#eventBus.emitGlobal(FILTER_EVENTS.ADVANCED.OPEN); } catch(e) { void e; }
     });
 
     // 保存条件按钮已在本版本移除
   }
 
-  /**
-   * 创建预设保存弹窗（挂载到body）
-   * @private
-   */
-  #createPresetDialog() { /* 已移除：侧边栏管理保存条件 */ }
-
-  /**
-   * 绑定弹窗事件
-   * @private
-   */
-  #bindDialogEvents() { /* 已移除 */ }
-
-  /**
-   * 显示预设保存弹窗
-   * @private
-   */
-  #showPresetDialog() { /* 已移除 */ }
-
-  /**
-   * 隐藏预设保存弹窗
-   * @private
-   */
-  #hidePresetDialog() { /* 已移除 */ }
-
-  /**
-   * 处理预设保存
-   * @private
-   */
-  #handlePresetSave() { /* 已移除 */ }
+  // 预设保存相关能力已迁移到侧边栏（Saved Filters），本组件不再包含弹窗逻辑
 
   /**
    * 处理搜索
@@ -205,10 +179,11 @@ export class SearchBar {
     this.#logger.info("[SearchBar] Search triggered", { searchText: searchText || "(empty)" });
     // 生产构建下，为避免桥接失败，直接发全局事件
     try {
-      this.#eventBus.emitGlobal("search:query:requested", { searchText: searchText || "" });
-    } catch(_) {
+      this.#eventBus.emitGlobal(SEARCH_EVENTS.QUERY.REQUESTED, { searchText: searchText || "" });
+    } catch(e) {
       // 兜底：仍发局部事件（开发模式兼容）
-      try { this.#eventBus.emit("search:query:requested", { searchText: searchText || "" }); } catch(_) {}
+      try { this.#eventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, { searchText: searchText || "" }); } catch(e2) { void e2; }
+      void e;
     }
   }
 
@@ -218,7 +193,12 @@ export class SearchBar {
    */
   #handleClear() {
     this.#logger.info("[SearchBar] Clear triggered");
-    try { this.#eventBus.emitGlobal("search:clear:requested"); } catch(_) { try { this.#eventBus.emit("search:clear:requested"); } catch(_) {} }
+    try {
+      this.#eventBus.emitGlobal(SEARCH_EVENTS.QUERY.CLEARED);
+    } catch(e) {
+      try { this.#eventBus.emit(SEARCH_EVENTS.QUERY.CLEARED); } catch(e2) { void e2; }
+      void e;
+    }
     this.updateStats(null);
   }
 
@@ -272,3 +252,4 @@ export class SearchBar {
     this.#logger.info("[SearchBar] Destroyed");
   }
 }
+

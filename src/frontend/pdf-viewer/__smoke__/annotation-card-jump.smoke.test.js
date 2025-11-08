@@ -19,8 +19,8 @@ jest.mock("../../common/utils/notification.js", () => ({
   showInfo: jest.fn(),
 }));
 
-import { AnnotationSidebarUI } from "../features/annotation/components/annotation-sidebar-ui.js";
-import { Annotation, AnnotationType } from "../features/annotation/models/annotation.js";
+import { AnnotationSidebarUI } from "../features/pdf-annotation/components/annotation-sidebar-ui.js";
+import { Annotation, AnnotationType } from "../features/pdf-annotation/models/annotation.js";
 import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
 
 /**
@@ -58,11 +58,14 @@ describe("SMOKE: Annotation card jump", () => {
     expect(btn).not.toBeNull();
     btn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
-    expect(eventBus.emit).toHaveBeenCalledWith(
-      PDF_VIEWER_EVENTS.ANNOTATION.JUMP_TO,
-      expect.objectContaining({ id: ann.id, annotation: expect.any(Object) })
+    // 统一使用 NAVIGATION.JUMP_REQUESTED（全局事件），并通过 emitGlobal 发送
+    expect(eventBus.emitGlobal).toHaveBeenCalledWith(
+      PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
+      expect.objectContaining({ annotation: expect.any(Object) }),
+      expect.any(Object)
     );
 
     ui.destroy();
   });
 });
+

@@ -794,9 +794,9 @@ if (featureFlagManager.isEnabled('pdf-editor')) {
      }
    }
    ```
-2. 以开发模式启动：`npm run dev`
+2. 以开发模式启动：`pnpm run dev`
 3. 验证排序按钮出现
-4. 以生产模式启动：`npm run build && npm run preview`
+4. 以生产模式启动：`pnpm run build && pnpm run preview`
 5. 验证排序按钮不出现
 
 **验收标准**：
@@ -1479,3 +1479,4 @@ dependencies: string[] = ['core', 'websocket']
 **文档状态**: ✅ 完整自洽，可直接用于开发
 **预计工作量**: 22 天（约 4-5 周）
 **风险等级**: 中高（架构重构，需谨慎实施）
+

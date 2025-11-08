@@ -22,8 +22,8 @@ pip install websockets
 ### 2. 启动后端服务
 
 ```bash
-# 方式1: 使用 ai-launcher（推荐）
-python ai-launcher.py start
+# 方式1: 使用 ai_launcher（推荐）
+python ai_launcher.py start --logs-dir logs
 
 # 方式2: 直接启动后端
 cd src/backend
@@ -206,3 +206,4 @@ python test_frontend_backend_integration.py > test_log.txt 2>&1
 - TODO: 添加 PDF 添加/删除/打开测试
 - TODO: 添加性能测试（响应时间）
 - TODO: 添加并发测试
+

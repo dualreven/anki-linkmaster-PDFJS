@@ -1,7 +1,7 @@
 export const PDFOutlineFeatureConfig = {
   name: "pdf-outline",
   version: "1.0.0",
-  dependencies: ["pdf-manager", "core-navigation"],
+  dependencies: ["pdf-manager", "infra-nav-core"],
   description: "大纲（Outline）功能（复用书签存储/契约）",
   optional: true,
   events: {

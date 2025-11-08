@@ -87,7 +87,8 @@ const rule = {
       if (isTemporarilyWhitelisted(filename, sourceValue)) { return; }
 
       const resolved = resolveImport(filename, sourceValue);
-      if (!/\/src\/frontend\/pdf-viewer\/features\//.test(resolved)) { return; }
+      // 覆盖 pdf-viewer 与 pdf-home 两个前端模块
+      if (!/\/src\/frontend\/(?:pdf-viewer|pdf-home)\/features\//.test(resolved)) { return; }
       const info = parseTargetFeature(resolved);
       if (!info) { return; }
       const { feature: target, subpath } = info;
@@ -131,3 +132,4 @@ const rule = {
 };
 
 export default rule;
+

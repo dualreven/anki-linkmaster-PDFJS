@@ -18,6 +18,8 @@
 
 import { PDFSorterFeatureConfig } from "./feature.config.js";
 import { getLogger } from "../../../common/utils/logger.js";
+import { SEARCH_EVENTS, HEADER_EVENTS, SORTER_EVENTS } from "../../../common/event/event-constants.js";
+import { showError } from "../../../common/utils/notification.js";
 import { SorterPanel } from "./components/sorter-panel.js";
 import { ModeSelector } from "./components/mode-selector.js";
 import { MultiSortBuilder } from "./components/multi-sort-builder.js";
@@ -150,6 +152,8 @@ export class PDFSorterFeature {
     this.#scopedEventBus = context.scopedEventBus;
     this.#globalEventBus = context.globalEventBus;
     this.#logger = context.logger || getLogger(`Feature.${this.name}`);
+    // 标记已使用，避免 no-unused-private-class-members
+    void this.#context;
 
     this.#logger.info(`Installing ${this.name} v${this.version}...`);
 
@@ -286,14 +290,14 @@ export class PDFSorterFeature {
    * @private
    */
   #createUIComponents() {
-    console.log("[DEBUG PDFSorterFeature] Creating UI components...");
+    this.#logger.debug("[DEBUG PDFSorterFeature] Creating UI components...");
 
     // 1. 创建排序面板
     this.#sorterPanel = new SorterPanel(this.#logger, this.#scopedEventBus);
-    console.log("[DEBUG PDFSorterFeature] SorterPanel created:", this.#sorterPanel);
+    this.#logger.debug("[DEBUG PDFSorterFeature] SorterPanel created:", this.#sorterPanel);
 
     this.#sorterPanel.render();
-    console.log("[DEBUG PDFSorterFeature] SorterPanel rendered");
+    this.#logger.debug("[DEBUG PDFSorterFeature] SorterPanel rendered");
 
     // 2. 创建模式选择器
     this.#modeSelector = new ModeSelector(this.#logger, this.#scopedEventBus, {
@@ -353,12 +357,12 @@ export class PDFSorterFeature {
       this.#sorterPanel.toggle();
     };
 
-    const unsubSearchSort = this.#globalEventBus.on("search:sort:requested", (payload = {}) => {
-      togglePanel(payload.source || "search:sort:requested");
+    const unsubSearchSort = this.#globalEventBus.on(SEARCH_EVENTS.ACTIONS.SORT_REQUESTED, (payload = {}) => {
+      togglePanel(payload.source || SEARCH_EVENTS.ACTIONS.SORT_REQUESTED);
     });
 
-    const unsubHeaderSort = this.#globalEventBus.on("header:sort:requested", (payload = {}) => {
-      togglePanel(payload.source || "header:sort:requested");
+    const unsubHeaderSort = this.#globalEventBus.on(HEADER_EVENTS.SORT.REQUESTED, (payload = {}) => {
+      togglePanel(payload.source || HEADER_EVENTS.SORT.REQUESTED);
     });
 
     this.#unsubscribers.push(unsubSearchSort, unsubHeaderSort);
@@ -376,19 +380,19 @@ export class PDFSorterFeature {
     }
 
     // 监听模式变更事件（三段式格式）
-    const unsubModeChanged = this.#scopedEventBus.on("sorter:mode:changed", (data) => {
+    const unsubModeChanged = this.#scopedEventBus.on(SORTER_EVENTS.MODE.CHANGED, (data) => {
       this.#handleModeChange(data.mode);
     });
     this.#unsubscribers.push(unsubModeChanged);
 
     // 监听排序应用请求（三段式格式）
-    const unsubApplySort = this.#scopedEventBus.on("sorter:sort:requested", (data) => {
+    const unsubApplySort = this.#scopedEventBus.on(SORTER_EVENTS.SORT.REQUESTED, (data) => {
       this.#handleApplySort(data);
     });
     this.#unsubscribers.push(unsubApplySort);
 
     // 监听排序清除请求（三段式格式）
-    const unsubClearSort = this.#scopedEventBus.on("sorter:sort:cleared", () => {
+    const unsubClearSort = this.#scopedEventBus.on(SORTER_EVENTS.SORT.CLEARED, () => {
       this.#handleClearSort();
     });
     this.#unsubscribers.push(unsubClearSort);
@@ -401,17 +405,20 @@ export class PDFSorterFeature {
    * @private
    */
   #subscribeToPdfList() {
-    // 监听PDF列表数据加载完成
-    const unsubListLoaded = this.#globalEventBus.on("@pdf-list/data:load:completed", (data) => {
-      this.#logger.info("[PDFSorterFeature] PDF list loaded", { count: data.items?.length });
-      if (data.items) {
-        this.#sortManager.setDataSource(data.items);
-      }
+    // 监听标准搜索结果更新（替代历史事件 @pdf-list/data:load:completed）
+    const unsubListLoaded = this.#globalEventBus.on(SEARCH_EVENTS.RESULTS.UPDATED, (data) => {
+      try {
+        const items = (data && (data.records || data.files || data.items)) || [];
+        this.#logger.info("[PDFSorterFeature] Search results updated (cache for sorting)", { count: Array.isArray(items) ? items.length : 0 });
+        if (Array.isArray(items)) {
+          this.#sortManager.setDataSource(items);
+        }
+      } catch (e) { void e; }
       // 数据刷新后（例如筛选/搜索结果更新），应用当前排序
       try {
         this.applySort();
-      } catch {}
-    });
+      } catch (e) { void e; }
+    }, { subscriberId: "pdf-sorter:results-updated" });
     this.#unsubscribers.push(unsubListLoaded);
   }
 
@@ -434,7 +441,7 @@ export class PDFSorterFeature {
         this.#initializeDefaultSort();
         // 触发一次后端搜索（携带 sort 规则，交由 SQL 排序）
         const sortRules = [{ field: "title", direction: "asc" }];
-        this.#globalEventBus.emit("search:query:requested", {
+        this.#globalEventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, {
           searchText: "", // 使用当前搜索词：由 SearchManager 读取内部状态
           sort: sortRules
         });
@@ -451,13 +458,13 @@ export class PDFSorterFeature {
    * @param {Object} data - 排序数据
    * @private
    */
-  #handleApplySort(data) {
+  async #handleApplySort(data) {
     this.#logger.info("[PDFSorterFeature] Handling apply sort", data);
 
     try {
       if (data.type === "multi") {
         // 多级排序
-        const sortedData = this.#sortManager.applyMultiSort(data.configs);
+        await this.#sortManager.applyMultiSort(data.configs);
         // 同步触发后端搜索（SQL层多级排序）
         try {
           if (Array.isArray(data.configs) && data.configs.length > 0) {
@@ -465,25 +472,25 @@ export class PDFSorterFeature {
               field: String(c.field || ""),
               direction: String(c.direction || "asc").toLowerCase() === "desc" ? "desc" : "asc"
             }));
-            this.#globalEventBus.emit("search:query:requested", { sort: sortRules });
+            this.#globalEventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, { sort: sortRules });
           }
         } catch (e) {
           this.#logger?.warn("[PDFSorterFeature] Failed to emit backend multi-sort request", e);
         }
       } else if (data.type === "weighted") {
         // 加权排序
-        const sortedData = this.#sortManager.applyWeightedSort(data.formula);
+        await this.#sortManager.applyWeightedSort(data.formula);
         // 同步触发后端搜索（SQL层加权排序：weighted 公式）
         try {
           const sortRules = [{ field: "weighted", direction: "desc", formula: String(data.formula || "") }];
-          this.#globalEventBus.emit("search:query:requested", { sort: sortRules });
+          this.#globalEventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, { sort: sortRules });
         } catch (e) {
           this.#logger?.warn("[PDFSorterFeature] Failed to emit backend weighted sort request", e);
         }
       }
     } catch (error) {
       this.#logger.error("[PDFSorterFeature] Failed to apply sort", error);
-      alert(`排序失败: ${error.message}`);
+      try { showError(`排序失败: ${error?.message || error}`, 5000); } catch (e) { void e; }
     }
   }
 
@@ -495,7 +502,7 @@ export class PDFSorterFeature {
     this.#logger.info("[PDFSorterFeature] Handling clear sort");
 
     try {
-      const originalData = this.#sortManager.clearSort();
+      void this.#sortManager.clearSort();
     } catch (error) {
       this.#logger.error("[PDFSorterFeature] Failed to clear sort", error);
     }
@@ -544,11 +551,8 @@ export class PDFSorterFeature {
 
     this.#currentSort = [{ field, direction }];
 
-    // 触发排序改变事件
-    this.#scopedEventBus?.emit(
-      PDFSorterFeatureConfig.config.events.local.SORT_CHANGED,
-      this.#currentSort
-    );
+    // 触发排序改变事件（三段式事件名，便于门禁校验）
+    this.#scopedEventBus?.emit(SORTER_EVENTS.SORT.CHANGED, this.#currentSort);
 
     // 应用排序
     this.applySort();
@@ -589,11 +593,8 @@ export class PDFSorterFeature {
 
     this.#logger.info("Sort configuration updated:", this.#currentSort);
 
-    // 触发排序改变事件
-    this.#scopedEventBus?.emit(
-      PDFSorterFeatureConfig.config.events.local.SORT_CHANGED,
-      this.#currentSort
-    );
+    // 触发排序改变事件（三段式事件名）
+    this.#scopedEventBus?.emit(SORTER_EVENTS.SORT.CHANGED, this.#currentSort);
 
     // 应用排序
     this.applySort();
@@ -646,11 +647,8 @@ export class PDFSorterFeature {
     // 重置为默认排序
     this.#initializeDefaultSort();
 
-    // 触发排序改变事件
-    this.#scopedEventBus?.emit(
-      PDFSorterFeatureConfig.config.events.local.SORT_CHANGED,
-      this.#currentSort
-    );
+    // 触发排序改变事件（三段式事件名）
+    this.#scopedEventBus?.emit(SORTER_EVENTS.SORT.CHANGED, this.#currentSort);
 
     // 应用排序
     this.applySort();
@@ -676,11 +674,8 @@ export class PDFSorterFeature {
 
     // TODO: 将排序方案保存到本地存储或后端
 
-    // 触发保存事件
-    this.#scopedEventBus?.emit(
-      PDFSorterFeatureConfig.config.events.local.SORT_SAVED,
-      scheme
-    );
+    // 触发保存事件（三段式事件名）
+    this.#scopedEventBus?.emit(SORTER_EVENTS.SORT.SAVED, scheme);
   }
 
   /**
@@ -697,11 +692,8 @@ export class PDFSorterFeature {
 
     // TODO: 从本地存储或后端加载排序方案
 
-    // 触发加载事件
-    this.#scopedEventBus?.emit(
-      PDFSorterFeatureConfig.config.events.local.SORT_LOADED,
-      { name }
-    );
+    // 触发加载事件（三段式事件名）
+    this.#scopedEventBus?.emit(SORTER_EVENTS.SORT.LOADED, { name });
   }
 }
 
@@ -714,3 +706,4 @@ export function createPDFSorterFeature() {
 }
 
 export default PDFSorterFeature;
+

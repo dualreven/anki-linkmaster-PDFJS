@@ -4,7 +4,7 @@
  */
 
 import { RecentAddedFeatureConfig } from "./feature.config.js";
-import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constants.js";
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_EVENTS, SEARCH_EVENTS } from "../../../../common/event/event-constants.js";
 import "./styles/recent-added.css";
 
 export class RecentAddedFeature {
@@ -12,7 +12,7 @@ export class RecentAddedFeature {
   version = RecentAddedFeatureConfig.version;
   dependencies = RecentAddedFeatureConfig.dependencies;
 
-  #context = null;
+  // #context 未使用，移除以通过 no-unused-private-class-members
   #logger = null;
   #scopedEventBus = null;
   #globalEventBus = null;
@@ -27,10 +27,11 @@ export class RecentAddedFeature {
   #pendingReqId = null;
 
   async install(context) {
-    this.#context = context;
     this.#logger = context.logger;
     this.#scopedEventBus = context.scopedEventBus;
     this.#globalEventBus = context.globalEventBus;
+    // 标记已使用，避免私有未使用告警
+    void this.#scopedEventBus;
 
     this.#logger.info("[RecentAddedFeature] Installing...");
 
@@ -77,7 +78,8 @@ export class RecentAddedFeature {
 
   #setupEventListeners() {
     // 监听 WS 通用响应：仅处理本功能发起的搜索请求（按 request_id 归属）
-    const unsubResp = this.#globalEventBus.on("websocket:message:response", (message) => {
+    // 注意：响应事件属于 WEBSOCKET_MESSAGE_EVENTS.RESPONSE，而非 WEBSOCKET_EVENTS.MESSAGE.RESPONSE
+    const unsubResp = this.#globalEventBus.on(WEBSOCKET_MESSAGE_EVENTS.RESPONSE, (message) => {
       try {
         if (message?.type !== WEBSOCKET_MESSAGE_TYPES.SEARCH_PDF_COMPLETED) {return;}
         const rid = message?.request_id;
@@ -87,14 +89,12 @@ export class RecentAddedFeature {
         this.#recentAdded = Array.isArray(files) ? files : [];
         this.#renderList();
         this.#pendingReqId = null;
-      } catch (e) {
-        // 忽略解析错误，避免打断其它监听
-      }
+      } catch {}
     }, { subscriberId: "RecentAddedFeature" });
     this.#unsubscribers.push(unsubResp);
 
     // 监听搜索结果更新事件：当PDF添加/删除/搜索导致数据变更时自动刷新
-    const unsubSearchUpdated = this.#globalEventBus.on("search:results:updated", () => {
+    const unsubSearchUpdated = this.#globalEventBus.on(SEARCH_EVENTS.RESULTS.UPDATED, () => {
       this.#logger.info("[RecentAddedFeature] 🔄 监听到搜索结果更新，开始刷新最近添加");
       this.#requestRecentAdded();
     }, { subscriberId: "RecentAddedFeature:search-results-updated" });
@@ -107,7 +107,7 @@ export class RecentAddedFeature {
         if (!item) {return;}
         const focusId = item.getAttribute("data-id") || "";
         this.#logger.info("[RecentAddedFeature] Item clicked → trigger global sort search with focusId", { focusId });
-        this.#globalEventBus.emit("search:query:requested", {
+        this.#globalEventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, {
           searchText: "",
           sort: [{ field: "created_at", direction: "desc" }],
           // 按当前“最近添加”显示条数，截断结果（前5/前10/前20/前50）
@@ -125,7 +125,7 @@ export class RecentAddedFeature {
         const val = parseInt(e.target.value, 10);
         if (!Number.isNaN(val) && val > 0) {
           this.#displayLimit = val;
-          try { localStorage.setItem(`${RecentAddedFeatureConfig.config.storageKey}:display-limit`, String(val)); } catch {}
+          try { localStorage.setItem(`${RecentAddedFeatureConfig.config.storageKey}:display-limit`, String(val)); } catch (e) { void e; }
           this.#requestRecentAdded();
         }
       };
@@ -178,7 +178,7 @@ export class RecentAddedFeature {
         const n = parseInt(v, 10);
         if (!Number.isNaN(n) && n > 0) {this.#displayLimit = n;}
       }
-    } catch (_) { /* ignore */ }
+    } catch {}
   }
 
   #requestRecentAdded() {

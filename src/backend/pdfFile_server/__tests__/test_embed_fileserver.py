@@ -8,6 +8,7 @@ import pytest
 import tempfile
 import urllib.request
 import urllib.error
+import socket
 from pathlib import Path
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QTimer
@@ -68,7 +69,13 @@ class TestEmbedFileServer:
 
     def test_server_initialization(self, temp_dir):
         """测试服务器初始化"""
-        server = EmbedFileServer(root_dir=str(temp_dir), port=8888)
+        server = EmbedFileServer(
+            root_dir=str(temp_dir),
+            port=8888,
+            pdfs_dir=str(temp_dir),
+            static_dir=str(temp_dir),
+            logs_dir=str(temp_dir / 'logs'),
+        )
 
         assert server.root_dir == temp_dir.resolve()
         assert server.host == "127.0.0.1"
@@ -77,7 +84,14 @@ class TestEmbedFileServer:
 
     def test_server_start_stop(self, app, temp_dir):
         """测试服务器启动和停止"""
-        server = EmbedFileServer(root_dir=str(temp_dir), port=8889)
+        port = self._free_port()
+        server = EmbedFileServer(
+            root_dir=str(temp_dir),
+            port=port,
+            pdfs_dir=str(temp_dir),
+            static_dir=str(temp_dir),
+            logs_dir=str(temp_dir / 'logs'),
+        )
 
         # 启动服务器
         assert server.start() == True
@@ -89,7 +103,14 @@ class TestEmbedFileServer:
 
     def test_server_already_running(self, app, temp_dir):
         """测试重复启动服务器"""
-        server = EmbedFileServer(root_dir=str(temp_dir), port=8890)
+        port = self._free_port()
+        server = EmbedFileServer(
+            root_dir=str(temp_dir),
+            port=port,
+            pdfs_dir=str(temp_dir),
+            static_dir=str(temp_dir),
+            logs_dir=str(temp_dir / 'logs'),
+        )
 
         # 第一次启动
         assert server.start() == True
@@ -102,12 +123,19 @@ class TestEmbedFileServer:
 
     def test_file_service_pdf(self, app, temp_dir, test_files):
         """测试 PDF 文件服务"""
-        server = EmbedFileServer(root_dir=str(temp_dir), port=8891)
+        port = self._free_port()
+        server = EmbedFileServer(
+            root_dir=str(temp_dir),
+            port=port,
+            pdfs_dir=str(temp_dir),
+            static_dir=str(temp_dir),
+            logs_dir=str(temp_dir / 'logs'),
+        )
         assert server.start() == True
 
         try:
             # 请求 PDF 文件
-            response = urllib.request.urlopen("http://127.0.0.1:8891/test.pdf")
+            response = urllib.request.urlopen(f"http://127.0.0.1:{port}/test.pdf")
 
             assert response.status == 200
             content = response.read()
@@ -122,12 +150,19 @@ class TestEmbedFileServer:
 
     def test_file_service_text(self, app, temp_dir, test_files):
         """测试文本文件服务"""
-        server = EmbedFileServer(root_dir=str(temp_dir), port=8892)
+        port = self._free_port()
+        server = EmbedFileServer(
+            root_dir=str(temp_dir),
+            port=port,
+            pdfs_dir=str(temp_dir),
+            static_dir=str(temp_dir),
+            logs_dir=str(temp_dir / 'logs'),
+        )
         assert server.start() == True
 
         try:
             # 请求文本文件
-            response = urllib.request.urlopen("http://127.0.0.1:8892/test.txt")
+            response = urllib.request.urlopen(f"http://127.0.0.1:{port}/test.txt")
 
             assert response.status == 200
             content = response.read()
@@ -138,12 +173,19 @@ class TestEmbedFileServer:
 
     def test_file_service_json(self, app, temp_dir, test_files):
         """测试 JSON 文件服务"""
-        server = EmbedFileServer(root_dir=str(temp_dir), port=8893)
+        port = self._free_port()
+        server = EmbedFileServer(
+            root_dir=str(temp_dir),
+            port=port,
+            pdfs_dir=str(temp_dir),
+            static_dir=str(temp_dir),
+            logs_dir=str(temp_dir / 'logs'),
+        )
         assert server.start() == True
 
         try:
             # 请求 JSON 文件
-            response = urllib.request.urlopen("http://127.0.0.1:8893/test.json")
+            response = urllib.request.urlopen(f"http://127.0.0.1:{port}/test.json")
 
             assert response.status == 200
             content = response.read()
@@ -154,12 +196,19 @@ class TestEmbedFileServer:
 
     def test_nested_file_service(self, app, temp_dir, test_files):
         """测试嵌套目录文件服务"""
-        server = EmbedFileServer(root_dir=str(temp_dir), port=8894)
+        port = self._free_port()
+        server = EmbedFileServer(
+            root_dir=str(temp_dir),
+            port=port,
+            pdfs_dir=str(temp_dir),
+            static_dir=str(temp_dir),
+            logs_dir=str(temp_dir / 'logs'),
+        )
         assert server.start() == True
 
         try:
             # 请求嵌套文件
-            response = urllib.request.urlopen("http://127.0.0.1:8894/subdir/nested.txt")
+            response = urllib.request.urlopen(f"http://127.0.0.1:{port}/subdir/nested.txt")
 
             assert response.status == 200
             content = response.read()
@@ -170,13 +219,20 @@ class TestEmbedFileServer:
 
     def test_file_not_found(self, app, temp_dir):
         """测试文件不存在的情况"""
-        server = EmbedFileServer(root_dir=str(temp_dir), port=8895)
+        port = self._free_port()
+        server = EmbedFileServer(
+            root_dir=str(temp_dir),
+            port=port,
+            pdfs_dir=str(temp_dir),
+            static_dir=str(temp_dir),
+            logs_dir=str(temp_dir / 'logs'),
+        )
         assert server.start() == True
 
         try:
             # 请求不存在的文件
             with pytest.raises(urllib.error.HTTPError) as exc_info:
-                urllib.request.urlopen("http://127.0.0.1:8895/nonexistent.pdf")
+                urllib.request.urlopen(f"http://127.0.0.1:{port}/nonexistent.pdf")
 
             assert exc_info.value.code == 404
 
@@ -185,13 +241,20 @@ class TestEmbedFileServer:
 
     def test_path_traversal_attack(self, app, temp_dir):
         """测试路径穿越攻击防护"""
-        server = EmbedFileServer(root_dir=str(temp_dir), port=8896)
+        port = self._free_port()
+        server = EmbedFileServer(
+            root_dir=str(temp_dir),
+            port=port,
+            pdfs_dir=str(temp_dir),
+            static_dir=str(temp_dir),
+            logs_dir=str(temp_dir / 'logs'),
+        )
         assert server.start() == True
 
         try:
             # 尝试路径穿越
             with pytest.raises(urllib.error.HTTPError) as exc_info:
-                urllib.request.urlopen("http://127.0.0.1:8896/../../../etc/passwd")
+                urllib.request.urlopen(f"http://127.0.0.1:{port}/../../../etc/passwd")
 
             assert exc_info.value.code == 404
 
@@ -200,11 +263,18 @@ class TestEmbedFileServer:
 
     def test_cors_headers(self, app, temp_dir, test_files):
         """测试 CORS 响应头"""
-        server = EmbedFileServer(root_dir=str(temp_dir), port=8897)
+        port = self._free_port()
+        server = EmbedFileServer(
+            root_dir=str(temp_dir),
+            port=port,
+            pdfs_dir=str(temp_dir),
+            static_dir=str(temp_dir),
+            logs_dir=str(temp_dir / 'logs'),
+        )
         assert server.start() == True
 
         try:
-            response = urllib.request.urlopen("http://127.0.0.1:8897/test.txt")
+            response = urllib.request.urlopen(f"http://127.0.0.1:{port}/test.txt")
 
             # 检查 CORS 头
             cors_header = response.headers.get('Access-Control-Allow-Origin')
@@ -218,7 +288,14 @@ class TestEmbedFileServer:
         import time
         from PyQt6.QtCore import QCoreApplication
 
-        server = EmbedFileServer(root_dir=str(temp_dir), port=8898)
+        port = self._free_port()
+        server = EmbedFileServer(
+            root_dir=str(temp_dir),
+            port=port,
+            pdfs_dir=str(temp_dir),
+            static_dir=str(temp_dir),
+            logs_dir=str(temp_dir / 'logs'),
+        )
         assert server.start() == True
 
         # 监听信号
@@ -229,7 +306,7 @@ class TestEmbedFileServer:
 
         try:
             # 发送请求
-            urllib.request.urlopen("http://127.0.0.1:8898/test.txt")
+            urllib.request.urlopen(f"http://127.0.0.1:{port}/test.txt")
 
             # 处理事件循环
             QCoreApplication.processEvents()
@@ -245,14 +322,22 @@ class TestEmbedFileServer:
 
     def test_setup_embed_fileserver(self, app, temp_dir, test_files):
         """测试辅助函数"""
-        server = setup_embed_fileserver(app, root_dir=str(temp_dir), port=8899)
+        port = self._free_port()
+        server = setup_embed_fileserver(
+            app,
+            root_dir=str(temp_dir),
+            port=port,
+            pdfs_dir=str(temp_dir),
+            static_dir=str(temp_dir),
+            logs_dir=str(temp_dir / 'logs'),
+        )
 
         assert server is not None
         assert server.is_running() == True
 
         try:
             # 验证文件服务正常
-            response = urllib.request.urlopen("http://127.0.0.1:8899/test.pdf")
+            response = urllib.request.urlopen(f"http://127.0.0.1:{port}/test.pdf")
             assert response.status == 200
 
         finally:
@@ -262,7 +347,14 @@ class TestEmbedFileServer:
         """测试服务器信号"""
         from PyQt6.QtCore import QCoreApplication
 
-        server = EmbedFileServer(root_dir=str(temp_dir), port=8900)
+        port = self._free_port()
+        server = EmbedFileServer(
+            root_dir=str(temp_dir),
+            port=port,
+            pdfs_dir=str(temp_dir),
+            static_dir=str(temp_dir),
+            logs_dir=str(temp_dir / 'logs'),
+        )
 
         # 监听信号
         started_signal = []
@@ -280,6 +372,14 @@ class TestEmbedFileServer:
         QCoreApplication.processEvents()
         assert len(stopped_signal) == 1
 
+    @staticmethod
+    def _free_port() -> int:
+        """分配一个当前可用的端口（用于测试），避免端口冲突"""
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("127.0.0.1", 0))
+            return s.getsockname()[1]
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
+

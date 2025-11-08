@@ -31,6 +31,7 @@ def resolve_path(
     root_dir: Path,
     mounts: Optional[Dict[str, Path]] = None,
     project_root: Optional[Path] = None,
+    allow_fallbacks: bool = False,
 ) -> Optional[Path]:
     """
     将 URL 路径解析为文件系统路径。
@@ -73,8 +74,8 @@ def resolve_path(
     for prefix, base in sorted(m.items(), key=lambda kv: len(kv[0]), reverse=True):
         if url_path == prefix or url_path.startswith(prefix + "/"):
             base_path = Path(base)
-            if not base_path.exists() and project_root:
-                # 回退候选（与原实现保持一致，以适配不同打包布局）
+            if allow_fallbacks and (not base_path.exists()) and project_root:
+                # 回退候选（仅在明确允许时启用，以适配不同打包布局）
                 fallback_candidates = []
                 if prefix == "/pdf-home":
                     fallback_candidates = [

@@ -6,6 +6,7 @@
  */
 
 import { showInfo } from "../../../../common/utils/notification.js";
+import { FILTER_EVENTS } from "../../../../common/event/event-constants.js";
 /**
  * 预设下拉菜单类
  * @class PresetDropdown
@@ -163,14 +164,14 @@ export class PresetDropdown {
   #handlePresetClick(preset) {
     this.#logger.info(`[PresetDropdown] Preset clicked: ${preset.id}`);
 
-    // 触发事件
-    this.#eventBus.emit("filter:preset:selected", {
+    // 触发事件（使用常量命名空间）
+    this.#eventBus.emit(FILTER_EVENTS.PRESET.SAVED, {
       presetId: preset.id,
       presetName: preset.name
     });
 
     // TODO: 临时提示，后续实现实际筛选逻辑
-    try { showInfo(`预设"${preset.name}"功能开发中...`, 2500); } catch(_) {}
+    try { showInfo(`预设"${preset.name}"功能开发中...`, 2500); } catch (e) { try { this.#logger?.warn("[Toast] showInfo failed", e); } catch (e2) { void e2; } }
   }
 
   /**
@@ -245,3 +246,4 @@ export class PresetDropdown {
     this.#logger.info("[PresetDropdown] Destroyed");
   }
 }
+

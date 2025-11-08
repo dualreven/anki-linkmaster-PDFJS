@@ -1,4 +1,6 @@
 import { SearchResultsFeature } from "../index.js";
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constants.js";
+import { RESULTS_EVENTS } from "../events.js";
 
 // 简易事件总线（仅用于本测试）
 class MiniBus {
@@ -18,6 +20,16 @@ class MiniBus {
   }
 }
 
+class ScopedBus extends MiniBus {
+  constructor(globalBus) {
+    super();
+    this._global = globalBus;
+  }
+  emitGlobal(event, data) {
+    this._global.emit(event, data);
+  }
+}
+
 describe("SearchResultsFeature - open viewer by item event", () => {
   beforeEach(() => {
     // 基础 DOM：容器 + header
@@ -28,35 +40,43 @@ describe("SearchResultsFeature - open viewer by item event", () => {
     `;
   });
 
-  test("emitting results:item:open calls QWebChannelBridge.openPdfViewers with single id", async () => {
-    const calls = [];
+  test("emitting results:item:open sends OPEN_PDF via WebSocket with single id", async () => {
+    const sent = [];
 
     const mockBridge = {
       initialize: jest.fn(async () => {}),
       isReady: jest.fn(() => true),
-      openPdfViewers: jest.fn(async ({ pdfIds }) => { calls.push(pdfIds); return true; })
+      openPdfViewers: jest.fn(async () => true) // 现实现走 WS，为兼容旧桥接保留但不做断言
     };
 
-    // 注入自定义 Bridge 工厂，避免直接依赖真实 QWebChannel
+    // 可选 Bridge（不强依赖）
     SearchResultsFeature.setBridgeFactory(() => mockBridge);
+
+    const globalBus = new MiniBus();
+    const scopedBus = new ScopedBus(globalBus);
 
     const ctx = {
       logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
-      scopedEventBus: new MiniBus(),
-      globalEventBus: new MiniBus()
+      scopedEventBus: scopedBus,
+      globalEventBus: globalBus
     };
+
+    // 捕获 WS 发送事件
+    ctx.globalEventBus.on(WEBSOCKET_EVENTS.MESSAGE.SEND, (msg) => sent.push(msg));
 
     const feature = new SearchResultsFeature();
     await feature.install(ctx);
 
     // 触发“条目打开”事件
-    ctx.scopedEventBus.emit("results:item:open", { result: { id: "abc123" } });
+    ctx.scopedEventBus.emit(RESULTS_EVENTS.ITEM.OPEN, { result: { id: "abc123" } });
 
     // 等待微任务，以处理 async 调用
     await new Promise(r => setTimeout(r, 0));
 
-    expect(mockBridge.openPdfViewers).toHaveBeenCalledTimes(1);
-    expect(calls[0]).toEqual(["abc123"]);
+    expect(sent.length).toBeGreaterThan(0);
+    const last = sent.pop();
+    expect(last.type).toBe(WEBSOCKET_MESSAGE_TYPES.OPEN_PDF);
+    expect(last.data && last.data.pdf_id).toBe("abc123");
   });
 });
 

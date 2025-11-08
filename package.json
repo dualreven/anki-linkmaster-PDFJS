@@ -7,9 +7,9 @@
     "preinstall": "node scripts/only-allow.js",
     "dev": "vite",
     "build": "vite build",
-    "build:pdf-home": "vite build --outDir dist/pdf-home --config vite.config.js --base=/pdf-home/",
-    "build:pdf-viewer": "vite build --outDir dist/pdf-viewer --config vite.config.js --base=/pdf-viewer/",
-    "build:all": "pnpm run build:pdf-home && pnpm run build:pdf-viewer",
+    "build:pdf-home": "node scripts/build-only.mjs home",
+    "build:pdf-viewer": "node scripts/build-only.mjs viewer",
+    "build:all": "node scripts/build-only.mjs home && node scripts/build-only.mjs viewer",
     "preview": "vite preview",
     "test": "jest",
     "test:smoke": "jest --runTestsByPath src/frontend/pdf-viewer/__smoke__/annotation-card-jump.smoke.test.js src/frontend/pdf-viewer/__smoke__/anchor-create.smoke.test.js -i",
@@ -20,10 +20,17 @@
     "test:pre-commit": "pnpm run check:deps && pnpm run test",
     "test:format": "node scripts/test-formatting.mjs",
     "lint": "pnpm exec eslint src scripts eslint-rules --ext .js,.cjs,.mjs",
+    "lint:strict:pdf-core": "pnpm exec eslint src/frontend/pdf-viewer/pdf --ext .js",
+    "lint:strict:common-core": "pnpm exec eslint src/frontend/common --ext .js",
+    "lint:strict:pdf-home-search-filter": "pnpm exec eslint src/frontend/pdf-home/features/search src/frontend/pdf-home/features/filter --ext .js",
+    "lint:strict:pdf-home-sr-sidebar": "pnpm exec eslint src/frontend/pdf-home/features/search-results src/frontend/pdf-home/features/sidebar --ext .js",
     "lint:features": "pnpm exec eslint src/frontend/pdf-viewer/features src/frontend/pdf-home/features --ext .js",
+    "lint:features:ci": "pnpm exec eslint src/frontend/pdf-home/features/search src/frontend/pdf-home/features/search-results src/frontend/pdf-home/features/search-result-item src/frontend/pdf-home/features/filter src/frontend/pdf-home/features/pdf-edit --ext .js --ignore-pattern \"**/__tests__/**\"",
     "format:check": "node scripts/run-prettier.mjs --check",
     "format": "node scripts/run-prettier.mjs --write",
-    "lint:fix": "pnpm exec eslint src scripts eslint-rules --ext .js,.cjs,.mjs --fix"
+    "lint:fix": "pnpm exec eslint src scripts eslint-rules --ext .js,.cjs,.mjs --fix",
+    "e2e:browser": "pnpm run build:pdf-viewer && playwright test -c ./playwright.config.js",
+    "ci:ws-types-diff": "node scripts/ci/ws-contract-diff.mjs"
   },
   "engines": {
     "node": ">=14.0.0",
@@ -31,6 +38,7 @@
   },
   "packageManager": "pnpm@10.17.1",
   "devDependencies": {
+    "cross-env": "^7.0.3",
     "@babel/core": "^7.22.0",
     "@babel/plugin-proposal-class-properties": "^7.18.0",
     "@babel/plugin-proposal-private-methods": "^7.18.0",
@@ -52,7 +60,9 @@
     "@eslint/js": "^9.14.0",
     "globals": "^15.12.0",
     "eslint-plugin-jsdoc": "^48.2.12",
-    "prettier": "^3.4.2"
+    "prettier": "^3.4.2",
+    "@playwright/test": "^1.48.2",
+    "ws": "^8.18.0"
   },
   "dependencies": {
     "core-js": "^3.45.1",
@@ -63,3 +73,5 @@
     "regenerator-runtime": "^0.14.1"
   }
 }
+
+

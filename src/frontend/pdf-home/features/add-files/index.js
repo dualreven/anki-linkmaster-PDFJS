@@ -12,8 +12,9 @@
 
 import { AddFilesFeatureConfig } from "./feature.config.js";
 import { QWebChannelBridge } from "../../qwebchannel/qwebchannel-bridge.js";
+import { getFileSelector } from "./file-selector.js";
 import { getLogger } from "../../../common/utils/logger.js";
-import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_EVENTS } from "../../../common/event/event-constants.js";
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_EVENTS, SEARCH_EVENTS } from "../../../common/event/event-constants.js";
 import { showInfo, showSuccess, showError, showInfoWithId, dismissById } from "../../../common/utils/notification.js";
 
 export class AddFilesFeature {
@@ -68,7 +69,7 @@ export class AddFilesFeature {
 
   #setupListeners() {
     // 监听“添加PDF”请求（来自 SearchBar / SearchFeature 转发）
-    const unsub = this.#globalEventBus.on("search:add:requested", async () => {
+    const unsub = this.#globalEventBus.on(SEARCH_EVENTS.ACTIONS.ADD_REQUESTED, async () => {
       try {
         await this.#handleAddRequested();
       } catch (e) {
@@ -89,22 +90,20 @@ export class AddFilesFeature {
           const title = meta?.title || meta?.filename || meta?.name || "PDF";
           try { showSuccess(`已添加：${title}`, 2500); } catch { /* ignore */ }
           // 触发一次“最近添加”视角的搜索刷新（前 N 条）
-          this.#globalEventBus.emit("search:query:requested", {
+          this.#globalEventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, {
             searchText: "",
             sort: [{ field: "created_at", direction: "desc" }],
             pagination: { limit: 20, offset: 0, need_total: false }
           });
         }
-      } catch (e) {
-        // 忽略解析错误，避免影响其他监听器
-      }
+      } catch {}
     }, { subscriberId: "AddFilesFeature:resp" });
     this.#unsubscribers.push(unsubResp);
 
     const unsubErr = this.#globalEventBus.on(WEBSOCKET_MESSAGE_EVENTS.ERROR, (message) => {
       try {
         const t = String(message?.type || message?.received_type || "");
-        if (t === "pdf-library:add:failed") {
+        if (t === WEBSOCKET_MESSAGE_TYPES.ADD_PDF_FAILED) {
           const rid = message?.request_id;
           if (rid) { try { dismissById(rid); } catch { /* ignore */ } }
           const err = message?.error || message?.data || {};
@@ -127,13 +126,15 @@ export class AddFilesFeature {
     this.#logger.info("[AddFilesFeature] Add requested → opening file dialog...");
     try { showInfo("请选择要添加的PDF文件", 2500); } catch { /* ignore */ }
 
-    // 1) 打开原生文件对话框
-    const bridge = await this.#ensureBridge();
+    // 1) 选择文件（生产：QWebChannel；E2E：Stub，显式开启时）
     const options = {
       multiple: !!AddFilesFeatureConfig.config.multiple,
       fileType: AddFilesFeatureConfig.config.fileType || "pdf"
     };
-    const files = await bridge.selectFiles(options);
+    const selector = getFileSelector({
+      bridgeFactory: async () => await this.#ensureBridge()
+    });
+    const files = await selector.selectFiles(options);
 
     if (!files || files.length === 0) {
       this.#logger.info("[AddFilesFeature] 用户取消选择或未选择文件");
@@ -164,3 +165,4 @@ export class AddFilesFeature {
 }
 
 export default AddFilesFeature;
+

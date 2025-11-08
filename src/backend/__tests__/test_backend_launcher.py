@@ -17,6 +17,7 @@ sys.path.insert(0, str(project_root))
 
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QTimer
+import tempfile
 from src.backend.launcher import BackendLauncher
 
 
@@ -117,8 +118,29 @@ def test_status_api():
     # 创建测试应用
     app = QApplication(sys.argv)
 
-    # 创建启动器
-    launcher = BackendLauncher(parent_app=app)
+    # 准备必要目录（禁止兜底 → 显式传递）
+    tmp_root = Path(tempfile.mkdtemp(prefix="backend-status-api-"))
+    logs_dir = tmp_root / "logs"
+    data_dir = tmp_root / "data"
+    pdfs_dir = tmp_root / "pdfs"
+    static_dir = tmp_root / "static"
+    db_path = data_dir / "app.db"
+    for d in (logs_dir, data_dir, pdfs_dir, static_dir):
+        d.mkdir(parents=True, exist_ok=True)
+    # 静态子目录（契约要求）
+    (static_dir / "pdf-home").mkdir(parents=True, exist_ok=True)
+    (static_dir / "pdf-viewer").mkdir(parents=True, exist_ok=True)
+    db_path.write_text("", encoding="utf-8")
+
+    # 创建启动器（显式注入路径参数）
+    launcher = BackendLauncher(
+        parent_app=app,
+        logs_dir=str(logs_dir),
+        data_dir=str(data_dir),
+        pdfs_dir=str(pdfs_dir),
+        static_dir=str(static_dir),
+        db_path=str(db_path),
+    )
 
     # 启动前的状态
     status_before = launcher.get_status()
@@ -193,3 +215,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

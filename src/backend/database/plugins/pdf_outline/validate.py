@@ -111,7 +111,8 @@ def _validate_outline_object(node: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(name, str) or not name.strip():
         raise DatabaseValidationError('child outline name must be a non-empty string')
 
-    page_at = node.get('pageAt')
+    # 兼容旧字段：pageNumber → pageAt
+    page_at = node.get('pageAt') or node.get('pageNumber')
     try:
         page_at = int(page_at)
     except (TypeError, ValueError):
@@ -161,7 +162,8 @@ def _validate_json_data(json_data: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(name, str) or not name.strip():
         raise DatabaseValidationError('name must be a non-empty string')
 
-    page_at = json_data.get('pageAt')
+    # 兼容旧字段：pageNumber → pageAt
+    page_at = json_data.get('pageAt') or json_data.get('pageNumber')
     try:
         page_at = int(page_at)
     except (TypeError, ValueError):
@@ -192,6 +194,10 @@ def _validate_json_data(json_data: Dict[str, Any]) -> Dict[str, Any]:
     if order_value < 0:
         raise DatabaseValidationError('order must be a non-negative integer')
 
+    region_obj = json_data.get('region', None)
+    if region_obj is not None and not isinstance(region_obj, dict):
+        raise DatabaseValidationError('region must be an object or null')
+
     children = json_data.get('children', [])
     validated_children = _validate_children(children)
 
@@ -199,7 +205,9 @@ def _validate_json_data(json_data: Dict[str, Any]) -> Dict[str, Any]:
         'name': name,
         'pageAt': page_at,
         'position': position_value,
+        'region': region_obj,
         'children': validated_children,
         'parentId': parent_id,
         'order': order_value,
     }
+

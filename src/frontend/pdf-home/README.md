@@ -364,8 +364,11 @@ python ai_launcher.py start --module pdf-home
 # 检查服务状态
 python ai_launcher.py status
 
-# 查看日志
-python ai_launcher.py logs
+# 查看进程状态（包含已跟踪的前端/后端信息）
+python ai_launcher.py status --logs-dir logs
+
+# 查看日志文件（示例）
+type logs\\ai-launcher.log
 
 # 停止所有服务
 python ai_launcher.py stop
@@ -378,7 +381,7 @@ cd src/backend
 python main.py --module pdf-home
 
 # 2. 启动前端开发服务器
-npm run dev
+pnpm run dev
 
 # 3. 启动PDF-Home窗口
 cd src/frontend/pdf-home
@@ -388,7 +391,7 @@ python launcher.py
 #### 方式三：开发模式
 ```bash
 # 启动Vite开发服务器
-npm run dev
+pnpm run dev
 
 # 在另一个终端启动PDF-Home
 cd src/frontend/pdf-home
@@ -1713,3 +1716,4 @@ echo "WebSocket连接测试:"
 ---
 
 **PDF-Home** - 现代化的PDF文件管理前端解决方案，为Anki LinkMaster项目提供直观、高效的文件管理体验。
+

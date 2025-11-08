@@ -2,6 +2,7 @@
 import { EventBus } from "../../../../common/event/event-bus.js";
 import { ScopedEventBus } from "../../../../common/event/scoped-event-bus.js";
 import { WeightedSortEditor } from "../components/weighted-sort-editor.js";
+import { SORTER_EVENTS } from "../../../../common/event/event-constants.js";
 
 const createLoggerStub = () => ({
   info: jest.fn(),
@@ -169,7 +170,7 @@ describe("WeightedSortEditor 可视化构建交互", () => {
 
   it("点击应用排序按钮触发 sorter:sort:requested 事件", () => {
     const handler = jest.fn();
-    scopedEventBus.on("sorter:sort:requested", handler);
+    scopedEventBus.on(SORTER_EVENTS.SORT.REQUESTED, handler);
 
     click("[data-test=\"field-button\"][data-field=\"size\"]");
     click("[data-test=\"operator-button\"][data-operator=\"*\"]");

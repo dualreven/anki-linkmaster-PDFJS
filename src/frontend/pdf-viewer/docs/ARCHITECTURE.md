@@ -5,7 +5,7 @@
 ```
 src/frontend/pdf-viewer/
 ├── main.js                          # 应用入口
-├── app-core.js                      # 应用核心初始化（旧架构兼容）
+├── app-core.js                      # 应用核心初始化（目录名历史保留；规范名 infra-app）
 ├── index.html                       # HTML模板
 │
 ├── bootstrap/                       # 启动引导模块
@@ -17,11 +17,11 @@ src/frontend/pdf-viewer/
 │   └── app-container.js            # 应用容器（提供EventBus等）
 │
 ├── features/                        # Feature插件模块（新架构核心）
-│   ├── app-core/                   # 核心应用Feature
+│   ├── app-core/                   # 核心应用Feature（目录名历史保留；规范名 infra-app）
 │   │   └── index.js               # EventBus、WebSocket、日志
 │   ├── pdf-manager/                # PDF管理Feature
 │   │   └── index.js               # PDF加载、缓存、文档管理
-│   ├── ui-manager/                 # UI管理Feature
+│   ├── ui-manager/                 # UI管理Feature（目录名历史保留；规范名 infra-ui）
 │   │   └── index.js               # 渲染、控件、事件处理
 │   ├── pdf-reader/                 # PDF阅读器Feature（功能域架构）
 │   │   ├── components/            # 组件
@@ -42,11 +42,11 @@ src/frontend/pdf-viewer/
 │   ├── keyboard-handler.js        # 键盘事件处理
 │   ├── ui-state-manager.js        # UI状态管理
 │   ├── text-layer-manager.js      # 文本层管理
-│   └── bookmark-sidebar-ui.js     # 书签侧边栏UI
+│   └── outline-sidebar-ui.js     # 大纲侧边栏UI（经典实现）
 │
-├── bookmark/                       # 书签模块
-│   ├── bookmark-manager.js        # 书签管理器
-│   └── bookmark-data-provider.js  # 书签数据提供者
+├── outline/                       # 大纲模块
+│   ├── outline-manager.js         # 大纲/大纲管理器（原 outline-manager.js）
+│   └── outline-data-provider.js  # 大纲数据提供者
 │
 ├── pdf-viewer-manager.js          # PDFViewer管理器（PDF.js封装）
 ├── ui-zoom-controls.js            # 缩放控件
@@ -89,7 +89,7 @@ interface IFeature {
 ```
 
 #### 当前Features
-1. **app-core**: 核心基础设施
+1. **infra-app**: 核心基础设施
    - EventBus事件总线
    - WebSocket客户端
    - 日志系统
@@ -100,10 +100,10 @@ interface IFeature {
    - 监听FILE.LOAD.REQUESTED事件
    - 发出FILE.LOAD.SUCCESS事件
 
-3. **ui-manager**: UI界面管理
+3. **infra-ui**: UI界面管理
    - UIManagerCore（渲染、控件、事件）
    - PDFViewerManager集成
-   - BookmarkManager集成
+   - OutlineManager（原 outlineManager）集成
    - UIZoomControls集成
    - UILayoutControls集成
 
@@ -116,12 +116,12 @@ app-bootstrap-feature.js
   ↓
 1. 创建SimpleDependencyContainer
   ↓
-2. 注册Features（app-core, pdf-manager, ui-manager）
+2. 注册Features（infra-app, pdf-manager, infra-ui）
   ↓
 3. 解析依赖关系
   ↓
 4. 按依赖顺序安装Features
-  app-core → pdf-manager → ui-manager
+  infra-app → pdf-manager → infra-ui
   ↓
 5. 发出APP.BOOTSTRAP.COMPLETED事件
   ↓
@@ -167,9 +167,9 @@ UI组件监听 → 更新显示
 - `NAVIGATION.GOTO`: 跳转到指定页
 - `PAGE.CHANGING`: 页面变化中
 
-**书签事件**
-- `BOOKMARK.LOAD.SUCCESS`: 书签加载成功
-- `BOOKMARK.CLICK`: 书签点击
+**大纲事件**
+- `outline.LOAD.SUCCESS`: 大纲加载成功
+- `outline.CLICK`: 大纲点击
 
 ### 4. 模块职责
 
@@ -196,12 +196,12 @@ closePDF()                   // 关闭PDF
 #### UIManagerCore（ui/ui-manager-core-refactored.js）
 **职责**:
 - UI组件的初始化和协调
-- 集成PDFViewerManager、BookmarkManager、缩放控件、布局控件
+- 集成PDFViewerManager、OutlineManager、缩放控件、布局控件
 - 处理所有UI相关的事件
 
 **集成的组件**:
 - PDFViewerManager: PDF渲染引擎
-- BookmarkManager: 书签管理
+- OutlineManager: 大纲/大纲管理（原 outlineManager）
 - UIZoomControls: 缩放控件
 - UILayoutControls: 布局控件
 - DOMElementManager: DOM管理
@@ -239,14 +239,14 @@ set currentPageNumber(page)   // 设置当前页
 - PDF.js `pagechanging` → `PAGE.CHANGING`
 - PDF.js `scalechanging` → `ZOOM.CHANGING`
 
-#### BookmarkManager（bookmark/bookmark-manager.js）
+#### OutlineManager（outline/outline-manager.js，原 outlineManager）
 **职责**:
-- 管理PDF书签
-- 渲染书签侧边栏
-- 处理书签点击导航
+- 管理PDF大纲
+- 渲染大纲侧边栏
+- 处理大纲点击导航
 
 **配置**:
-- URL参数 `?bookmark=0` 可禁用书签
+- URL参数 `?outline=0` 可禁用大纲
 
 #### UIZoomControls（ui-zoom-controls.js）
 **职责**:
@@ -369,7 +369,7 @@ uiZoomControls.setScale(scale)
 2. ✅ 迁移app-core（EventBus、WebSocket）
 3. ✅ 迁移pdf-manager（PDF加载管理）
 4. ✅ 迁移ui-manager（UI渲染控件）
-5. ⏳ 后续：bookmark、page-transfer等其他Features
+5. ⏳ 后续：outline、page-transfer等其他Features
 
 ### 8. 配置和环境
 
@@ -382,7 +382,7 @@ uiZoomControls.setScale(scale)
 - `runtime-ports.json`: 端口配置
 - URL参数:
   - `pdf`: 要加载的PDF文件名
-  - `bookmark`: 是否启用书签（0禁用）
+  - `outline`: 是否启用大纲（0禁用）
 
 ### 9. 测试策略
 
@@ -464,7 +464,7 @@ export class MyFeature {
 ### 11. 未来规划
 
 #### 待迁移Features
-- **bookmark**: 书签功能域
+- **outline**: 大纲功能域
 - **page-transfer**: 页面传输功能
 - **websocket-adapter**: WebSocket适配器
 
@@ -482,3 +482,4 @@ export class MyFeature {
 **变更日志**:
 - v1.1.0 (2025-10-02): 添加TypeScript类型定义章节，更新目录结构
 - v1.0.0 (2025-10-02): Feature-based架构文档初始版本
+

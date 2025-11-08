@@ -4,7 +4,7 @@
 
 import eventBus from "../../../../common/event/event-bus.js";
 import { SearchManager } from "../../search/services/search-manager.js";
-import { WEBSOCKET_EVENTS } from "../../../../common/event/event-constants.js";
+import { WEBSOCKET_EVENTS, SEARCH_EVENTS } from "../../../../common/event/event-constants.js";
 
 describe("SearchManager request payload", () => {
   beforeEach(() => {
@@ -14,6 +14,7 @@ describe("SearchManager request payload", () => {
 
   test("构造标准请求：data.query + data.tokens（按空格分词）", () => {
     const mgr = new SearchManager(eventBus);
+    void mgr; // 标记为已用：仅校验派发内容
 
     const sent = [];
     eventBus.on(
@@ -25,7 +26,7 @@ describe("SearchManager request payload", () => {
     );
 
     // 触发搜索请求
-    eventBus.emit("search:query:requested", { searchText: "deep learn  RL " });
+    eventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, { searchText: "deep learn  RL " });
 
     // 检查发送的请求
     expect(sent.length).toBe(1);
@@ -41,6 +42,7 @@ describe("SearchManager request payload", () => {
 
   test("携带 pagination.limit 时应在 data.pagination 与顶层 data.limit 中体现", () => {
     const mgr = new SearchManager(eventBus);
+    void mgr; // 标记为已用：仅校验派发内容
 
     const sent = [];
     eventBus.on(
@@ -52,7 +54,7 @@ describe("SearchManager request payload", () => {
     );
 
     // 触发带分页的空搜索（用于最近阅读/添加场景）
-    eventBus.emit("search:query:requested", {
+    eventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, {
       searchText: "",
       sort: [{ field: "visited_at", direction: "desc" }],
       pagination: { limit: 5, offset: 0, need_total: true }

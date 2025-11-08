@@ -7,7 +7,7 @@
 **状态**: 设计中
 
 ## 现状说明
-- 通过命令 `python ai-launcher.py start --module pdf-viewer --pdf-id <pdf-id>` 可以正常打开 pdf-viewer窗体, 并加载指定pdf-id的pdf文件展示
+- 通过命令 `python ai_launcher.py start --module pdf-viewer --pdf-id <pdf-id> --logs-dir logs` 可以正常打开 pdf-viewer窗体, 并加载指定pdf-id的pdf文件展示
 - 可以通过 `logs/pdf-viewer-<pdf-id>.log` 和 `logs/pdf-viewer-<pdf-id>-js.log` 分别查看pyqt层和js层的日志
 - 较好地遵循了 pdf-viewer/docs/SPEC/下的代码规范
 
@@ -87,5 +87,6 @@
 描述: 当用户选中PDF中的文字时触发
 参数: 无
 返回值: 无
+
 
 

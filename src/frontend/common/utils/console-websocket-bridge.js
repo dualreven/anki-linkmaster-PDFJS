@@ -1,3 +1,4 @@
+/* eslint no-console: "off" */
 /**
  * Console WebSocket Bridge - 将控制台输出重定向到WebSocket
  * @module ConsoleWebSocketBridge
@@ -142,7 +143,7 @@ export class ConsoleWebSocketBridge {
         if (typeof arg === "object") {
           try {
             return JSON.stringify(arg, null, 2);
-          } catch (e) {
+          } catch {
             return String(arg);
           }
         }

@@ -19,21 +19,21 @@ describe("EventBus 负载契约校验（样板）", () => {
     bus = null;
   });
 
-  test("无效负载应被阻止发布（BOOKMARK.NAVIGATE_BY_ID.REQUESTED）", () => {
+  test("无效负载应被阻止发布（OUTLINE.NAVIGATE_BY_ID.REQUESTED）", () => {
     const handler = jest.fn();
-    bus.on(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED, handler, { subscriberId: "s1" });
+    bus.on(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE_BY_ID.REQUESTED, handler, { subscriberId: "s1" });
 
     // 缺少 outlineItemId
-    bus.emit(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED, {}, { actorId: "Tester" });
+    bus.emit(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE_BY_ID.REQUESTED, {}, { actorId: "Tester" });
 
     expect(handler).not.toHaveBeenCalled();
   });
 
   test("有效负载应正常传递给订阅者", () => {
     const handler = jest.fn();
-    bus.on(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED, handler, { subscriberId: "s1" });
+    bus.on(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE_BY_ID.REQUESTED, handler, { subscriberId: "s1" });
 
-    bus.emit(PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED, { outlineItemId: "outlineItem-abc123" }, { actorId: "Tester" });
+    bus.emit(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE_BY_ID.REQUESTED, { outlineItemId: "outlineItem-abc123" }, { actorId: "Tester" });
 
     expect(handler).toHaveBeenCalledTimes(1);
     expect(handler).toHaveBeenCalledWith({ outlineItemId: "outlineItem-abc123" });

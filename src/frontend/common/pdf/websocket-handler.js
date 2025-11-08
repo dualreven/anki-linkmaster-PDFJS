@@ -7,7 +7,8 @@
 import {
   WEBSOCKET_MESSAGE_EVENTS,
   WEBSOCKET_MESSAGE_TYPES,
-  PDF_MANAGEMENT_EVENTS
+  PDF_MANAGEMENT_EVENTS,
+  UI_EVENTS
 } from "../event/event-constants.js";
 
 /**
@@ -132,7 +133,7 @@ export class WebSocketHandler {
       // 发布 UI 成功消息事件
       const successMessage = `文件添加成功: ${fileInfo?.title || fileInfo?.filename}`;
       this.#manager.eventBus.emit(
-        "ui:success:show",
+        UI_EVENTS.SUCCESS.SHOW,
         successMessage,
         { actorId: "PDFManager" }
       );
@@ -147,7 +148,7 @@ export class WebSocketHandler {
 
         // 发布增量更新事件，UI层会自动调用 addRow
         this.#manager.eventBus.emit(
-          "pdf:file:added",
+          PDF_MANAGEMENT_EVENTS.LIST.ADD_FILES,
           newPdf,
           { actorId: "PDFManager" }
         );
@@ -160,7 +161,7 @@ export class WebSocketHandler {
 
       // 发布 UI 成功消息事件
       this.#manager.eventBus.emit(
-        "ui:success:show",
+        UI_EVENTS.SUCCESS.SHOW,
         "文件删除成功",
         { actorId: "PDFManager" }
       );
@@ -175,7 +176,7 @@ export class WebSocketHandler {
 
           // 发布增量删除事件，UI层会自动调用 deleteRow
           this.#manager.eventBus.emit(
-            "pdf:file:removed",
+            PDF_MANAGEMENT_EVENTS.LIST.REMOVE_FILES,
             removedPdf,
             { actorId: "PDFManager" }
           );
@@ -223,11 +224,7 @@ export class WebSocketHandler {
       const respData = data?.data || {};
       const batchId =
         respData?.batch_request_id || respData?.batch_request_id_str || null;
-      const originalType =
-        respData?.original_type ||
-        data?.original_type ||
-        respData?.type ||
-        null;
+      // original_type 保留给日志调试，无需本地变量引用
 
       if (batchId && this.#manager.batchTrack.has(batchId)) {
         const entry = this.#manager.batchTrack.get(batchId);
@@ -303,3 +300,4 @@ export class WebSocketHandler {
     }
   }
 }
+

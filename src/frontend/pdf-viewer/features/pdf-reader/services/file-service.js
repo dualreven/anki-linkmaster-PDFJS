@@ -5,7 +5,6 @@
  */
 
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
-import { WEBSOCKET_MESSAGE_EVENTS } from "../../../../common/event/event-constants.js";
 import { getLogger } from "../../../../common/utils/logger.js";
 
 /**
@@ -104,7 +103,7 @@ export class FileHandler {
           { firstPage: 1, totalPages: pdfDocument.numPages },
           { actorId: "FileHandler" }
         );
-      } catch (_) {}
+      } catch { }
 
       this.#logger.info(`PDF loaded successfully: ${processedFileData.filename}`);
 
@@ -350,7 +349,7 @@ export class FileHandler {
         { totalPages: pdfDocument.numPages },
         { actorId: "FileHandler" }
       );
-    } catch (_) {}
+    } catch { }
   }
 
   /**
@@ -439,3 +438,4 @@ export class FileHandler {
     this.#logger.info("File handler destroyed");
   }
 }
+

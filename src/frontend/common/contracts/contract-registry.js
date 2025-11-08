@@ -36,8 +36,8 @@ export function createDefaultValidator() {
   /** @type {Record<string,(data:any)=>({valid:boolean, errors?:any})>} */
   const validators = Object.create(null);
 
-  // 书签按ID导航（UI 或 URL 分发触发）
-  validators[PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED] = (data) =>
+  // 大纲按ID导航（UI 或 URL 分发触发）
+  validators[PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE_BY_ID.REQUESTED] = (data) =>
     requireStringField(data, "outlineItemId");
 
   // 其他事件：未登记即跳过校验（valid=true）

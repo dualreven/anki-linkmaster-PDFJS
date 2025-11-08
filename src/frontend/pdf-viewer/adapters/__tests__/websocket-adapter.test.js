@@ -6,7 +6,7 @@
 import { WebSocketAdapter, createWebSocketAdapter } from "../websocket-adapter.js";
 import { EventBus } from "../../../common/event/event-bus.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
-import { WEBSOCKET_MESSAGE_EVENTS } from "../../../common/event/event-constants.js";
+// 移除未使用的 WEBSOCKET_MESSAGE_EVENTS 导入
 
 describe("WebSocketAdapter", () => {
   let eventBus;
@@ -131,16 +131,14 @@ describe("WebSocketAdapter", () => {
 
     test("应该处理 navigate_page 消息", () => {
       const handler = jest.fn();
-      eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.GOTO, handler);
+      eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED, handler);
 
       adapter.handleMessage({
         type: "navigate_page",
         data: { page_number: 5 }
       });
 
-      expect(handler).toHaveBeenCalledWith(
-        { pageNumber: 5 }
-      );
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ pageAt: 5 }));
     });
 
     test("应该处理 set_zoom 消息（level）", (done) => {
@@ -168,42 +166,35 @@ describe("WebSocketAdapter", () => {
     });
 
     test("应该忽略未知消息类型", () => {
-      const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
-
-      adapter.handleMessage({
-        type: "unknown_message_type",
-        data: {}
-      });
-
-      // 验证没有抛出错误
-      expect(consoleWarnSpy).toHaveBeenCalled();
-      consoleWarnSpy.mockRestore();
+      // 不应抛出异常，也不应触发 WS 发送
+      mockWSClient.send.mockClear();
+      expect(() => {
+        adapter.handleMessage({ type: "unknown_message_type", data: {} });
+      }).not.toThrow();
+      expect(mockWSClient.send).not.toHaveBeenCalled();
     });
 
     test("应该验证 load_pdf_file 消息格式", () => {
-      const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
-
+      const handler = jest.fn();
+      eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, handler);
       // 缺少必需字段
       adapter.handleMessage({
         type: "load_pdf_file",
         data: { filename: "test.pdf" } // 缺少url
       });
-
-      expect(consoleWarnSpy).toHaveBeenCalled();
-      consoleWarnSpy.mockRestore();
+      // 不应触发事件
+      expect(handler).not.toHaveBeenCalled();
     });
 
     test("应该验证 navigate_page 消息格式", () => {
-      const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
-
+      const handler = jest.fn();
+      eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED, handler);
       // page_number不是数字
       adapter.handleMessage({
         type: "navigate_page",
         data: { page_number: "invalid" }
       });
-
-      expect(consoleWarnSpy).toHaveBeenCalled();
-      consoleWarnSpy.mockRestore();
+      expect(handler).not.toHaveBeenCalled();
     });
   });
 
@@ -232,13 +223,16 @@ describe("WebSocketAdapter", () => {
         totalPages: 10
       });
 
-      expect(mockWSClient.send).toHaveBeenCalledWith({
-        type: "page_changed",
-        data: {
-          page_number: 3,
-          total_pages: 10
-        }
-      });
+      // 适配器现在会附带 metadata 字段（例如版本号），这里使用宽匹配忽略该字段
+      expect(mockWSClient.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "page_changed",
+          data: {
+            page_number: 3,
+            total_pages: 10
+          }
+        })
+      );
     });
 
     test("应该发送 zoom_changed 消息", () => {
@@ -247,13 +241,16 @@ describe("WebSocketAdapter", () => {
         scale: 1.5
       });
 
-      expect(mockWSClient.send).toHaveBeenCalledWith({
-        type: "zoom_changed",
-        data: {
-          level: 1.5,
-          scale: 1.5
-        }
-      });
+      // 同上：放宽匹配以忽略 metadata
+      expect(mockWSClient.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "zoom_changed",
+          data: {
+            level: 1.5,
+            scale: 1.5
+          }
+        })
+      );
     });
   });
 
@@ -305,7 +302,7 @@ describe("WebSocketAdapter", () => {
       const navHandler = jest.fn();
 
       eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, loadHandler);
-      eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.GOTO, navHandler);
+      eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED, navHandler);
 
       // 调用 onInitialized() 应该处理队列
       adapter.onInitialized();
@@ -470,16 +467,14 @@ describe("WebSocketAdapter", () => {
 
       // 后端请求导航到第5页
       const navHandler = jest.fn();
-      eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.GOTO, navHandler);
+      eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED, navHandler);
 
       adapter.handleMessage({
         type: "navigate_page",
         data: { page_number: 5 }
       });
 
-      expect(navHandler).toHaveBeenCalledWith(
-        { pageNumber: 5 }
-      );
+      expect(navHandler).toHaveBeenCalledWith(expect.objectContaining({ pageAt: 5 }));
 
       // 前端确认页面已改变，通知后端
       mockWSClient.send.mockClear();
@@ -489,13 +484,17 @@ describe("WebSocketAdapter", () => {
         totalPages: 100
       });
 
-      expect(mockWSClient.send).toHaveBeenCalledWith({
-        type: "page_changed",
-        data: {
-          page_number: 5,
-          total_pages: 100
-        }
-      });
+      // 同上：适配器附带 metadata，使用 objectContaining 进行宽匹配
+      expect(mockWSClient.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "page_changed",
+          data: {
+            page_number: 5,
+            total_pages: 100
+          }
+        })
+      );
     });
   });
 });
+

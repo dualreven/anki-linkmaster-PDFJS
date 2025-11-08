@@ -68,7 +68,7 @@ pdf-home/
 │   │   ├── components/        # UI 组件（迁移目标）
 │   │   ├── services/          # 业务逻辑（迁移目标）
 │   │   └── state/             # 状态管理（迁移目标）
-│   ├── pdf-editor/            # PDF 编辑功能域
+│   ├── (已移除) pdf-editor/            # PDF 编辑功能域（历史候选，现由 pdf-edit 提供）
 │   └── pdf-sorter/            # PDF 排序功能域
 └── config/
     └── feature-flags.json     # Feature Flag 配置
@@ -199,3 +199,4 @@ pdf-home/
 
 **最后更新**: 2025-10-02
 **状态**: 🚧 阶段 2 进行中
+

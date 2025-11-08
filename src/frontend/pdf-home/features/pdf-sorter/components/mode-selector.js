@@ -22,6 +22,8 @@ export const SortMode = {
  * 排序模式选择器组件
  * @class ModeSelector
  */
+import { SORTER_EVENTS } from "../../../../common/event/event-constants.js";
+
 export class ModeSelector {
   /**
    * 日志记录器
@@ -85,8 +87,8 @@ export class ModeSelector {
     // 设置默认选中状态
     this.#updateRadioState();
 
-    // 触发初始模式事件，通知其他组件当前模式（三段式格式）
-    this.#eventBus.emit("sorter:mode:changed", {
+    // 触发初始模式事件
+    this.#eventBus.emit(SORTER_EVENTS.MODE.CHANGED, {
       mode: this.#currentMode,
       modeName: this.#getModeName(this.#currentMode)
     });
@@ -202,7 +204,7 @@ export class ModeSelector {
         e.preventDefault();
         const mode = parseInt(label.dataset.mode);
         const modeName = this.#getModeName(mode);
-        try { this.#logger?.warn?.(`${modeName}功能开发中，敬请期待`, { toast: { type: "warn", ms: 3000 } }); } catch {}
+        try { this.#logger?.warn?.(`${modeName}功能开发中，敬请期待`, { toast: { type: "warn", ms: 3000 } }); } catch (e) { void e; }
         this.#logger.debug(`[ModeSelector] Disabled mode clicked: ${modeName}`);
       });
     });
@@ -227,8 +229,8 @@ export class ModeSelector {
     // 更新UI状态
     this.#updateRadioState();
 
-    // 触发模式变更事件（三段式格式）
-    this.#eventBus.emit("sorter:mode:changed", {
+    // 触发模式变更事件
+    this.#eventBus.emit(SORTER_EVENTS.MODE.CHANGED, {
       mode: this.#currentMode,
       modeName: this.#getModeName(this.#currentMode)
     });
@@ -294,8 +296,7 @@ export class ModeSelector {
       radio.checked = parseInt(radio.value) === mode;
     });
 
-    // 触发事件（三段式格式）
-    this.#eventBus.emit("sorter:mode:changed", {
+    this.#eventBus.emit(SORTER_EVENTS.MODE.CHANGED, {
       mode: this.#currentMode,
       modeName: this.#getModeName(this.#currentMode)
     });
@@ -312,3 +313,4 @@ export class ModeSelector {
     this.#logger.info("[ModeSelector] Destroyed");
   }
 }
+

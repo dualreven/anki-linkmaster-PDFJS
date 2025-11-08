@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, jest } from "@jest/globals
 import { EventBus } from "../../../../../common/event/event-bus.js";
 import { ScopedEventBus } from "../../../../../common/event/scoped-event-bus.js";
 import { RecentSearchesFeature } from "../index.js";
+import { SEARCH_EVENTS } from "../../../../../common/event/event-constants.js";
 
 const createLogger = () => ({
   info: jest.fn(),
@@ -74,7 +75,7 @@ describe("RecentSearchesFeature 最近搜索插件", () => {
 
   it("收到全局搜索请求时写入存储并渲染到UI", async () => {
     const searchText = "deep learning";
-    globalEventBus.emit("search:query:requested", { searchText });
+    globalEventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, { searchText });
 
     // 断言存储
     const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "[]");
@@ -90,10 +91,10 @@ describe("RecentSearchesFeature 最近搜索插件", () => {
 
   it("点击最近搜索项会重新触发全局搜索事件", () => {
     const searchText = "transformer attention";
-    globalEventBus.emit("search:query:requested", { searchText });
+    globalEventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, { searchText });
 
     const handler = jest.fn();
-    const unsubscribe = globalEventBus.on("search:query:requested", (data) => {
+    const unsubscribe = globalEventBus.on(SEARCH_EVENTS.QUERY.REQUESTED, (data) => {
       handler(data.searchText);
     }, { subscriberId: "test-listener" });
 
@@ -110,11 +111,11 @@ describe("RecentSearchesFeature 最近搜索插件", () => {
   it("重复搜索提升到列表顶部且不重复存储", () => {
     const a = "nlp";
     const b = "cv";
-    globalEventBus.emit("search:query:requested", { searchText: a });
-    globalEventBus.emit("search:query:requested", { searchText: b });
+    globalEventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, { searchText: a });
+    globalEventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, { searchText: b });
 
     // 再次搜索 a，应移动到顶部
-    globalEventBus.emit("search:query:requested", { searchText: a });
+    globalEventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, { searchText: a });
 
     const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "[]");
     expect(stored.length).toBe(2);

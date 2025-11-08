@@ -79,7 +79,7 @@ export class PDFManager {
             this.#pdfjsLib.GlobalWorkerOptions.standardFontDataUrl = new URL("@pdfjs/standard_fonts/", metaUrl).href;
           }
         }
-      } catch (e) {
+      } catch {
         // 测试环境中import.meta不可用，或 window 访问失败，跳过
         this.#logger.debug("standardFontDataUrl config skipped (no vendor base/import.meta)");
       }

@@ -1,4 +1,4 @@
-﻿# 工作日志 - 20250922194500-qwebchannel-refactor
+# 工作日志 - 20250922194500-qwebchannel-refactor
 
 日期: 2025-09-22
 
@@ -52,7 +52,7 @@
   - `src/frontend/pdf-home/index.html`：继续引入本地 `../common/qwebchannel.js`；Tabulator CSS 仍用 CDN。
 
 - 运行说明（开发态）
-  1) 启动 Vite（外部）：`npm run dev`
+  1) 启动 Vite（外部）：`pnpm run dev`
   2) 启动 WS 标准服务器（外部）：`python src/backend/websocket/server_main.py --port 8765`
   3) 启动 pdf-home：`python pdf-home.py`
 
@@ -62,3 +62,4 @@
   - 文件选择可通过桌面代理（WS）实现 PyQt 对话框选择；
   - 与外界仅通过 HTTP/WS 交互；
   - 保持 `PDFManager` 接口与事件流；UI 表格刷新按 WS 推送进行。
+

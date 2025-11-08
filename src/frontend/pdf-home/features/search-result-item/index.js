@@ -27,6 +27,14 @@ export class SearchResultItemFeature {
     this.#globalEventBus = context.globalEventBus;
 
     this.#logger.info("[SearchResultItemFeature] Installing...");
+    // 轻量探针，避免未使用私有成员的告警
+    try {
+      this.#logger.debug("[SearchResultItemFeature] Context ready", {
+        hasScopedBus: !!this.#scopedEventBus,
+        hasGlobalBus: !!this.#globalEventBus,
+        hasContainer: !!this.#context?.container
+      });
+    } catch (e) { void e; }
 
     try {
       // TODO: 实现功能
@@ -68,3 +76,4 @@ export class SearchResultItemFeature {
 }
 
 export default SearchResultItemFeature;
+

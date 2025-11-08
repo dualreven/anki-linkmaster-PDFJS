@@ -39,7 +39,7 @@ export class PDFLoader {
         urls.standardFontDataUrl = `${base}standard_fonts/`;
         return urls;
       }
-    } catch (e) {
+    } catch {
       // ignore and fallback
     }
 
@@ -52,7 +52,7 @@ export class PDFLoader {
         urls.cMapUrl = new URL("@pdfjs/cmaps/", metaUrl).href;
         urls.standardFontDataUrl = new URL("@pdfjs/standard_fonts/", metaUrl).href;
       }
-    } catch (e) {
+    } catch {
       // 测试环境中import.meta不可用，跳过
       this.#logger.debug("import.meta.url not available, skipping CMap and StandardFonts config");
     }
@@ -72,7 +72,7 @@ export class PDFLoader {
     if (this.#currentLoadTask) {
       try {
         await this.#currentLoadTask.destroy();
-      } catch (e) {
+      } catch {
         // 忽略销毁错误
       }
     }
@@ -127,7 +127,7 @@ export class PDFLoader {
     if (this.#currentLoadTask) {
       try {
         await this.#currentLoadTask.destroy();
-      } catch (e) {
+      } catch {
         // 忽略销毁错误
       }
     }

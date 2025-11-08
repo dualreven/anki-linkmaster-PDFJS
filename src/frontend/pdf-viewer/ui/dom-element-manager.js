@@ -63,7 +63,7 @@ export class DOMElementManager {
    */
   #validateElements() {
     if (!this.#elements.container) {
-      this.#logger.warn("Container element not found, will create one");
+      this.#logger.info("Container element not found, will create one");
     }
 
     // 新版：不再支持 legacy canvas/text/annotationLayer 的自动创建
@@ -73,7 +73,6 @@ export class DOMElementManager {
    * 新版不创建任何 legacy 元素
    * @private
    */
-  #createMissingElements() {}
 
   /**
    * 获取所有元素引用

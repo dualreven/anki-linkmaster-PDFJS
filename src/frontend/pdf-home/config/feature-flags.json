@@ -1,15 +1,4 @@
 {
-  "pdf-editor": {
-    "enabled": false,
-    "description": "PDF 编辑功能域（开发中）",
-    "version": "0.1.0",
-    "meta": {
-      "status": "development",
-      "owner": "pdf-home-team",
-      "dependencies": ["search-results"],
-      "estimatedRelease": "2025-10-15"
-    }
-  },
   "pdf-sorter": {
     "enabled": true,
     "description": "PDF 排序功能域",
@@ -17,7 +6,9 @@
     "meta": {
       "status": "stable",
       "owner": "pdf-home-team",
-      "dependencies": ["search-results"],
+      "dependencies": [
+        "search-results"
+      ],
       "releasedAt": "2025-10-04"
     }
   },
@@ -28,7 +19,9 @@
     "meta": {
       "status": "stable",
       "owner": "pdf-home-team",
-      "dependencies": ["search-results"],
+      "dependencies": [
+        "search-results"
+      ],
       "releasedAt": "2025-10-03"
     }
   },
@@ -61,7 +54,9 @@
     "meta": {
       "status": "stable",
       "owner": "pdf-home-team",
-      "dependencies": ["search"],
+      "dependencies": [
+        "search"
+      ],
       "releasedAt": "2025-10-04"
     }
   },
@@ -83,7 +78,9 @@
     "meta": {
       "status": "stable",
       "owner": "pdf-home-team",
-      "dependencies": ["sidebar"],
+      "dependencies": [
+        "sidebar"
+      ],
       "releasedAt": "2025-10-05"
     }
   },
@@ -94,7 +91,9 @@
     "meta": {
       "status": "stable",
       "owner": "pdf-home-team",
-      "dependencies": ["sidebar"],
+      "dependencies": [
+        "sidebar"
+      ],
       "releasedAt": "2025-10-06"
     }
   },
@@ -105,7 +104,9 @@
     "meta": {
       "status": "development",
       "owner": "pdf-home-team",
-      "dependencies": ["sidebar"],
+      "dependencies": [
+        "sidebar"
+      ],
       "estimatedRelease": "2025-10-05"
     }
   },
@@ -116,7 +117,9 @@
     "meta": {
       "status": "development",
       "owner": "pdf-home-team",
-      "dependencies": ["sidebar"],
+      "dependencies": [
+        "sidebar"
+      ],
       "estimatedRelease": "2025-10-05"
     }
   },
@@ -127,7 +130,9 @@
     "meta": {
       "status": "stable",
       "owner": "pdf-home-team",
-      "dependencies": ["filter"],
+      "dependencies": [
+        "filter"
+      ],
       "releasedAt": "2025-10-04"
     }
   },
@@ -138,8 +143,11 @@
     "meta": {
       "status": "stable",
       "owner": "pdf-home-team",
-      "dependencies": ["search-results"],
+      "dependencies": [
+        "search-results"
+      ],
       "releasedAt": "2025-10-04"
     }
   }
 }
+

@@ -200,3 +200,4 @@ export class PDFDocumentManager {
     this.closeDocument();
   }
 }
+

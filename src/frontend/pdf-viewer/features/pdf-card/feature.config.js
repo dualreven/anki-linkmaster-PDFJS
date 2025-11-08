@@ -6,7 +6,7 @@
 export const PDFCardFeatureConfig = {
   name: "pdf-card",
   version: "1.0.0",
-  dependencies: ["app-core"],
+  dependencies: ["infra-app"],
 
   // 功能标志（分期控制）
   features: {
@@ -32,3 +32,4 @@ export const PDFCardFeatureConfig = {
     }
   }
 };
+

@@ -31,5 +31,11 @@
     "PATH": "C:\\venvs\\anki-linkmaster-PDFJS\\Scripts;${env:PATH}"
   },
 
-  "python-envs.pythonProjects": []
+  "python-envs.pythonProjects": [
+    {
+      "path": ".kilocode/rules/memory-bank/updates",
+      "envManager": "ms-python.python:venv",
+      "packageManager": "ms-python.python:pip"
+    }
+  ]
 }

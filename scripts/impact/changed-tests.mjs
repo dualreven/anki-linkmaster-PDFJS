@@ -48,8 +48,8 @@ function collectChangedSymbols(base) {
   const diff = sh(`git diff -U0 ${base} --`, { cwd: process.cwd() });
   const add = [], del = [];
   for (const line of diff.split("\n")) {
-    if (line.startsWith("+") && !line.startsWith("+++")) add.push(line.slice(1));
-    if (line.startsWith("-") && !line.startsWith("---")) del.push(line.slice(1));
+    if (line.startsWith("+") && !line.startsWith("+++")) {add.push(line.slice(1));}
+    if (line.startsWith("-") && !line.startsWith("---")) {del.push(line.slice(1));}
   }
   const patExports = /\bexport\s+(class|function|const|let|var)\s+([A-Za-z0-9_]+)/g;
   const patEventConst = /\bPDF_VIEWER_EVENTS\b[^\n;]+/g;
@@ -58,9 +58,9 @@ function collectChangedSymbols(base) {
     const out = new Set();
     for (const l of lines) {
       let m;
-      while ((m = patExports.exec(l))) out.add(m[2]);
-      while ((m = patEventConst.exec(l))) out.add(m[0].trim());
-      while ((m = patEventString.exec(l))) out.add(m[0].slice(1, -1));
+      while ((m = patExports.exec(l))) {out.add(m[2]);}
+      while ((m = patEventConst.exec(l))) {out.add(m[0].trim());}
+      while ((m = patEventString.exec(l))) {out.add(m[0].slice(1, -1));}
     }
     return Array.from(out);
   };
@@ -79,7 +79,7 @@ function rg(query) {
 function findImpactedTests(symbols, files) {
   const impacted = new Set();
   const addIfTest = (path) => {
-    if (path.includes("__tests__") || path.includes("__smoke__")) impacted.add(path.split(":")[0]);
+    if (path.includes("__tests__") || path.includes("__smoke__")) {impacted.add(path.split(":")[0]);}
   };
   for (const s of symbols.removed.concat(symbols.added)) {
     const hits = rg(s);
@@ -91,8 +91,8 @@ function findImpactedTests(symbols, files) {
       const dir = dirname(f.file);
       const t1 = join(dir, "__tests__");
       const t2 = join(dir, "__smoke__");
-      if (existsSync(t1)) impacted.add(t1);
-      if (existsSync(t2)) impacted.add(t2);
+      if (existsSync(t1)) {impacted.add(t1);}
+      if (existsSync(t2)) {impacted.add(t2);}
     }
   }
   return Array.from(impacted);
@@ -124,7 +124,7 @@ function writeReport(files, symbols, impacted) {
 }
 
 function runJest(paths) {
-  if (!paths.length) return { code: 0 };
+  if (!paths.length) {return { code: 0 };}
   const args = ["exec", "jest"].concat(paths).concat(["-i"]);
   const r = spawnSync(process.platform === "win32" ? "pnpm.cmd" : "pnpm", args, { stdio: "inherit", cwd: process.cwd() });
   return { code: r.status ?? 1 };

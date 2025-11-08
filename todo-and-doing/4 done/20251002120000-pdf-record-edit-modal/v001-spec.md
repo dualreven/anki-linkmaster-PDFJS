@@ -221,7 +221,7 @@ eventBus.onGlobal(PDF_MANAGEMENT_EVENTS.EDIT.REQUESTED, (data) => {
 #### 验证1: 表格编辑按钮显示
 
 **测试方法**：
-1. 启动开发服务器：`python ai-launcher.py start`
+1. 启动开发服务器：`python ai_launcher.py start --logs-dir logs`
 2. 打开 http://localhost:3000
 3. 检查 Tabulator 表格
 
@@ -669,3 +669,4 @@ eventBus.onGlobal(PDF_MANAGEMENT_EVENTS.EDIT.REQUESTED, (data) => {
 
 **文档完成时间**: 2025-10-02 12:30:00
 **文档状态**: ✅ 完整自洽，可直接用于开发
+

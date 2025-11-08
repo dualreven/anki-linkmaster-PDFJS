@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Sidebar Feature - 侧边栏容器插件
  * 负责侧边栏整体布局和收起/展开功能
  * 三个子功能（最近搜索、最近阅读、最近添加）作为独立插件管理
@@ -7,16 +7,18 @@
 import { SidebarFeatureConfig } from "./feature.config.js";
 import { SidebarContainer } from "./components/sidebar-container.js";
 import "./styles/sidebar.css";
+// 当前位置：src/frontend/pdf-home/features/sidebar/
+// 事件常量位于：src/frontend/common/event/event-constants.js
+// 需要回溯三级目录（../../../）
+import { SIDEBAR_EVENTS } from "../../../common/event/event-constants.js";
 
 export class SidebarFeature {
   name = SidebarFeatureConfig.name;
   version = SidebarFeatureConfig.version;
   dependencies = [];
 
-  #context = null;
   #logger = null;
   #scopedEventBus = null;
-  #globalEventBus = null;
   #unsubscribers = [];
 
   // 侧边栏容器组件
@@ -26,10 +28,8 @@ export class SidebarFeature {
    * 安装Feature
    */
   async install(context) {
-    this.#context = context;
     this.#logger = context.logger;
     this.#scopedEventBus = context.scopedEventBus;
-    this.#globalEventBus = context.globalEventBus;
 
     this.#logger.info("[SidebarFeature] Installing...");
 
@@ -67,8 +67,8 @@ export class SidebarFeature {
     this.#logger.info("[SidebarFeature] Sidebar rendered");
     // 通知全局：侧边栏已渲染完成，子功能可安全读取 DOM
     try {
-      this.#scopedEventBus.emitGlobal("sidebar:render:completed", { ready: true });
-    } catch (_) {}
+      this.#scopedEventBus.emitGlobal(SIDEBAR_EVENTS.RENDER.COMPLETED, { ready: true });
+    } catch (e) { void e; }
   }
 
   /**
@@ -77,7 +77,7 @@ export class SidebarFeature {
    */
   #setupEventListeners() {
     // 监听收起/展开事件
-    const unsubToggled = this.#scopedEventBus.on("sidebar:toggle:completed", (data) => {
+    const unsubToggled = this.#scopedEventBus.on(SIDEBAR_EVENTS.TOGGLE.COMPLETED, (data) => {
       this.#logger.info("[SidebarFeature] Sidebar toggle completed:", data.collapsed);
       this.#saveCollapsedState(data.collapsed);
     });
@@ -148,3 +148,4 @@ export class SidebarFeature {
 }
 
 export default SidebarFeature;
+

@@ -59,9 +59,15 @@ def _calculate_match_info(api, record: Dict[str, Any], row: Dict[str, Any], toke
         "notes": json_data.get("notes", ""),
     }
 
+    # 多词查询时（tokens>1）限制在标题内做“全词命中”判断；
+    # 单词查询时允许跨字段匹配（与现有行为保持一致）。
+    field_items = fields.items()
+    if len(tokens) > 1:
+        field_items = (("title", fields["title"]),)
+
     for token in tokens:
         token_matched = False
-        for field_name, value in fields.items():
+        for field_name, value in field_items:
             if _contains(value, token):
                 matched_fields.add(field_name)
                 score += field_weights.get(field_name, 1)
@@ -173,6 +179,18 @@ def search_records(api, payload: Dict[str, Any]) -> Dict[str, Any]:
     need_total = bool(pagination.get("need_total", False))
 
     query_text = str(payload.get("query", "") or "").strip().lower()
+
+    # 默认路径：无 tokens/filters/sort → 按 created_at DESC 返回
+    if (not tokens) and (not filters) and (not sort_rules):
+        rows = api._pdf_info_plugin.query_all_by_created(limit=limit, offset=offset)
+        records = [_map_to_frontend(api, r) for r in rows]
+        total = len(records) if not bool(pagination.get("need_total", False)) else api._pdf_info_plugin.count_all()
+        return {
+            "records": records,
+            "total": total,
+            "page": {"limit": limit, "offset": offset},
+            "meta": {"query": payload.get("query", ""), "tokens": tokens},
+        }
     try:
         rows = api._pdf_info_plugin.search_with_filters(
             tokens,
@@ -229,3 +247,4 @@ def _neg(v):
         return -float(v)
     except Exception:
         return v
+

@@ -9,6 +9,11 @@ import { FeatureRegistry } from "../feature-registry.js";
 import { createContainer } from "../dependency-container.js";
 import { EventBus } from "../../event/event-bus.js";
 
+// 测试专用事件常量，避免在 EventBus 上直接使用字符串字面量
+const SCOPED_TEST_EVENTS = {
+  PING: "ping",
+};
+
 describe("FeatureRegistry — ScopedEventBus 作用域与名称解耦（SCOPE_ID）", () => {
   class DummyFeature {
     static SCOPE_ID = "annotation"; // 固定作用域
@@ -21,11 +26,11 @@ describe("FeatureRegistry — ScopedEventBus 作用域与名称解耦（SCOPE_ID
       expect(scope).toBe("annotation");
       // 同时验证可用性：本地事件前缀应为 @annotation/...
       let handled = false;
-      const off = context.scopedEventBus.on("ping", (d) => {
+      const off = context.scopedEventBus.on(SCOPED_TEST_EVENTS.PING, (d) => {
         handled = d === 42;
       });
       // emit/断言
-      context.scopedEventBus.emit("ping", 42);
+      context.scopedEventBus.emit(SCOPED_TEST_EVENTS.PING, 42);
       off();
       expect(handled).toBe(true);
     }
@@ -42,4 +47,3 @@ describe("FeatureRegistry — ScopedEventBus 作用域与名称解耦（SCOPE_ID
     await registry.install("annotation-renamed");
   });
 });
-

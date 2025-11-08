@@ -22,10 +22,10 @@
 
 ### 3. 创建 Feature Flag 配置 ✅
 - **文件**: `config/feature-flags.json`
-- **配置**:
-  - `pdf-list`: enabled (稳定功能)
-  - `pdf-editor`: disabled (开发中)
-  - `pdf-sorter`: disabled (开发中)
+- **配置（已更新 2025-11-02）**:
+  - `pdf-edit`: enabled（生产使用）
+  - `pdf-sorter`: disabled（开发中）
+  - 注：`pdf-editor` 已移除（统一由 `pdf-edit` 提供编辑功能）
 - **环境支持**: development, test, production
 
 ### 4. 修改入口文件支持双模式 ✅
@@ -42,8 +42,8 @@
 ### 前置条件
 确保后端服务正在运行：
 ```bash
-# 使用 ai-launcher
-python ai-launcher.py start
+# 使用 ai_launcher（推荐）
+python ai_launcher.py start
 
 # 或者直接启动后端
 cd src/backend && python main.py --module pdf-home
@@ -53,7 +53,7 @@ cd src/backend && python main.py --module pdf-home
 
 1. 启动前端开发服务器：
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 2. 打开浏览器访问：
@@ -111,8 +111,8 @@ window.app.getState()
 //   status: 'ready',
 //   architecture: 'feature-domain',
 //   features: {
-//     registered: ['pdf-list', 'pdf-editor', 'pdf-sorter'],
-//     installed: ['pdf-list'],
+//     registered: [..., 'pdf-edit', ...],
+//     installed: [...],
 //     flags: { ... }
 //   },
 //   ...
@@ -293,3 +293,4 @@ Failed to load module ... relative import path ... doesn't exist
 测试通过后，进入阶段 3：将现有 PDF 列表功能迁移到 `PDFListFeature`。
 
 详见：[MIGRATION.md](./MIGRATION.md) 阶段 3。
+

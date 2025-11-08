@@ -1,3 +1,4 @@
+/* eslint no-empty: "off" */
 /**
  * @file OutlineSidebarUI - 使用 jsTree 展示 PDF 大纲
  * @module features/pdf-outline/components/outline-sidebar-ui
@@ -17,7 +18,7 @@ try {
 } catch { /* ignore */ }
 import "jstree";
 import "jstree/dist/themes/default/style.css";
-import { BookmarkToolbar } from "../../../bookmark/components/bookmark-toolbar.js";
+import { OutlineToolbar } from "../../../outline/components/outline-toolbar.js";
 import { showSuccess, showError } from "../../../../common/utils/notification.js";
 
 export class OutlineSidebarUI {
@@ -27,6 +28,7 @@ export class OutlineSidebarUI {
   #treeContainer;
   #toolbarEl;
   #unsubs = [];
+  #initialized = false;
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
@@ -34,13 +36,18 @@ export class OutlineSidebarUI {
   }
 
   initialize() {
+    if (this.#initialized) {
+      // 避免被重复初始化导致重复订阅
+      this.#logger.warn("[OutlineSidebarUI] initialize() called more than once, skip");
+      return;
+    }
     this.#logger.info("[DEBUG] OutlineSidebarUI initialize() called");
     this.#logger.info("[OutlineUI] 初始化", { toast: { type: "info", ms: 1500 } });
 
     this.#content = document.createElement("div");
     this.#content.style.cssText = "height:100%;display:flex;flex-direction:column;box-sizing:border-box;";
 
-    // 复用现有 BookmarkToolbar，以保持创建/删除按钮与体验一致
+    // 使用 OutlineToolbar（创建/编辑/删除）
     this.#toolbarEl = document.createElement("div");
     this.#toolbarEl.style.cssText = "flex:0 0 auto;";
     this.#content.appendChild(this.#toolbarEl);
@@ -52,39 +59,41 @@ export class OutlineSidebarUI {
     this.#treeContainer.style.cssText = "flex:1;overflow:auto;padding:8px;";
     this.#content.appendChild(this.#treeContainer);
 
-    this.#logger.info(`[DEBUG] Subscribing to event: ${PDF_VIEWER_EVENTS.BOOKMARK.LOAD.SUCCESS}`);
+    this.#logger.info(`[DEBUG] Subscribing to event: ${PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS}`);
 
-    // 监听数据加载事件
-    this.#unsubs.push(this.#eventBus.on(
-      PDF_VIEWER_EVENTS.BOOKMARK.LOAD.SUCCESS,
+    // 监听数据加载事件（全局事件，数据层通过 emitGlobal 发射）
+    this.#unsubs.push(this.#eventBus.onGlobal(
+      PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS,
       (data) => {
-        this.#logger.info(`[DEBUG] BOOKMARK.LOAD.SUCCESS event received! Bookmarks count: ${data?.bookmarks?.length || 0}`);
+        this.#logger.info(`[DEBUG] OUTLINE.LOAD.SUCCESS event received! Outline items count: ${data?.outlineItems?.length || 0}`);
         try {
-          const cnt = Array.isArray(data?.bookmarks) ? data.bookmarks.length : 0;
+          const cnt = Array.isArray(data?.outlineItems) ? data.outlineItems.length : 0;
           if (cnt > 0) { this.#logger.info(`[OutlineUI] 收到大纲：${cnt} 项`, { toast: true }); }
-          else { this.#logger.warn("[OutlineUI] 当前无大纲（可通过＋创建或自动导入）", { toast: { type: "warn", ms: 3500 } }); }
+          else { this.#logger.info("[OutlineUI] 当前无大纲（可通过＋创建或自动导入）", { toast: { type: "warn", ms: 3500 } }); }
         } catch {}
-        this.#renderTree(data?.bookmarks || []);
+        this.#renderTree(data?.outlineItems || []);
       },
       { subscriberId: "OutlineSidebarUI" }
     ));
 
     this.#logger.info("[DEBUG] OutlineSidebarUI initialized successfully");
+    this.#initialized = true;
 
     // UI 初始化后，主动请求一次大纲列表，避免错过早先发射的加载事件
     try {
-      // 使用全局事件名（与 Feature 对齐）
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.BOOKMARK.LOAD.REQUESTED, {}, { actorId: "OutlineSidebarUI" });
+      // 使用全局事件名，与数据层 OutlineManager 的 onGlobal 匹配
+      this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.LOAD.REQUESTED, {}, { actorId: "OutlineSidebarUI" });
       this.#logger.info("[OutlineUI] 请求刷新大纲列表", { toast: true });
     } catch {}
   }
 
   getContentElement() { return this.#content; }
+  isInitialized() { return this.#initialized; }
 
   #mountToolbar() {
-    // 直接挂载现有 BookmarkToolbar，保证同步渲染
+    // 直接挂载现有 OutlineToolbar，保证同步渲染
     try {
-      const toolbar = new BookmarkToolbar({ eventBus: this.#eventBus });
+      const toolbar = new OutlineToolbar({ eventBus: this.#eventBus });
       toolbar.initialize();
       const tbEl = toolbar.getElement();
       this.#toolbarEl.appendChild(tbEl);
@@ -111,11 +120,11 @@ export class OutlineSidebarUI {
 
       tbEl.appendChild(copyBtn);
     } catch (e) {
-      this.#logger.warn("Failed to mount BookmarkToolbar (fallback without toolbar):", e);
+      this.#logger.warn("Failed to mount OutlineToolbar (fallback without toolbar):", e);
     }
   }
 
-  #toJsTreeData(bookmarks) {
+  #toJsTreeData(outlineItems) {
     const flat = [];
     const walk = (nodes, parentId) => {
       nodes.forEach((n) => {
@@ -137,16 +146,16 @@ export class OutlineSidebarUI {
         if (n.children?.length) { walk(n.children, n.id); }
       });
     };
-    walk(bookmarks, null);
+    walk(outlineItems, null);
     return flat;
   }
 
-  #renderTree(bookmarks) {
+  #renderTree(outlineItems) {
     // 清空并重建 jsTree
     const $tree = $(this.#treeContainer);
     try { $tree.jstree("destroy"); } catch { /* ignore */ }
 
-    const data = this.#toJsTreeData(bookmarks);
+    const data = this.#toJsTreeData(outlineItems);
     this.#logger.info(`[DEBUG] Creating jstree with ${data.length} nodes`);
     try { this.#logger.info(`[OutlineUI] 构建树：${data.length} 节点`, { toast: true }); } catch {}
 
@@ -162,7 +171,7 @@ export class OutlineSidebarUI {
     this.#logger.info("[DEBUG] jsTree created, waiting for ready event...");
 
     // 等待 jsTree 渲染完成后展开所有节点
-    // eslint-disable-next-line custom/event-name-format
+
     $tree.on("ready.jstree", () => {
       this.#logger.info("[DEBUG] jsTree ready event fired!");
       try {
@@ -176,26 +185,34 @@ export class OutlineSidebarUI {
     });
 
     // 选择节点 → 导航
-    // eslint-disable-next-line custom/event-name-format
+
     $tree.on("select_node.jstree", (e, selected) => {
       try {
         const node = selected.node;
         const info = node?.data || {};
         const outlineItemId = node?.id || null;
+        // 先广播选择变化（供工具栏启用编辑/删除按钮等）
+        try {
+          this.#eventBus.emit(
+            PDF_VIEWER_EVENTS.OUTLINE.SELECT.CHANGED,
+            { outlineItemId, outlineItem: info?.raw || null },
+            { actorId: "OutlineSidebarUI" }
+          );
+        } catch {}
         // 统一改为按ID发射导航请求
         const payload = { outlineItemId };
         try {
-          try { this.#logger.info(`[OutlineSidebarUI] emit BOOKMARK.NAVIGATE_BY_ID.REQUESTED ${JSON.stringify(payload)}`); } catch {}
+          try { this.#logger.info(`[OutlineSidebarUI] emit OUTLINE.NAVIGATE_BY_ID.REQUESTED ${JSON.stringify(payload)}`); } catch {}
           try { this.#logger.info(`[OutlineUI] 选择节点：${outlineItemId}`, { toast: true }); } catch {}
           this.#eventBus.emitGlobal(
-            PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED,
+            PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE_BY_ID.REQUESTED,
             payload,
             { actorId: "OutlineSidebarUI" }
           );
         } catch {
           try { this.#logger.info(`[OutlineUI] (scoped) 选择节点：${outlineItemId}`, { toast: true }); } catch {}
           this.#eventBus.emit(
-            PDF_VIEWER_EVENTS.BOOKMARK.NAVIGATE_BY_ID.REQUESTED,
+            PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE_BY_ID.REQUESTED,
             payload,
             { actorId: "OutlineSidebarUI" }
           );
@@ -207,16 +224,17 @@ export class OutlineSidebarUI {
     });
 
     // 拖拽移动 → 触发重排
-    // eslint-disable-next-line custom/event-name-format
+
     $tree.on("move_node.jstree", (e, dataEvt) => {
       try {
         const movedId = dataEvt.node.id;
         const newParent = dataEvt.parent === "#" ? null : dataEvt.parent;
         const newIndex = dataEvt.position; // 0-based index under parent
         try { this.#logger.info(`[OutlineUI] 拖拽：${movedId} → parent=${newParent || "root"} pos=${newIndex}`, { toast: true }); } catch {}
-        this.#eventBus.emit(
-          PDF_VIEWER_EVENTS.BOOKMARK.REORDER.REQUESTED,
-          { bookmarkId: movedId, newParentId: newParent, newIndex },
+        // 使用全局事件，交由特性/适配器转发到后端
+        this.#eventBus.emitGlobal(
+          PDF_VIEWER_EVENTS.OUTLINE.REORDER.REQUESTED,
+          { outlineItemId: movedId, newParentId: newParent, newIndex },
           { actorId: "OutlineSidebarUI" }
         );
       } catch (err) {
@@ -294,3 +312,4 @@ export class OutlineSidebarUI {
 }
 
 export default OutlineSidebarUI;
+

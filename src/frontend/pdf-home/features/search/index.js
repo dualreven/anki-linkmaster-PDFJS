@@ -10,6 +10,7 @@ import { SearchManager } from "./services/search-manager.js";
 import "./styles/search-bar.css";
 import "./styles/search-panel.css";
 import { showInfoWithId, dismissById } from "../../../common/utils/notification.js";
+import { SEARCH_EVENTS, FILTER_EVENTS } from "../../../common/event/event-constants.js";
 
 export class SearchFeature {
   name = "search";
@@ -71,9 +72,9 @@ export class SearchFeature {
 
       this.#logger.info("[SearchFeature] Installed successfully");
     } catch (error) {
-      try { this.#logger.error("[SearchFeature] Installation failed (stack)", error?.stack || "(no stack)"); } catch(_) {}
-      try { this.#logger.error("[SearchFeature] Installation failed (message)", error?.message || String(error)); } catch(_) {}
-      try { this.#logger.error("[SearchFeature] Installation failed (object)", error); } catch(_) {}
+      try { this.#logger.error("[SearchFeature] Installation failed (stack)", error?.stack || "(no stack)"); } catch(_) { void _; }
+      try { this.#logger.error("[SearchFeature] Installation failed (message)", error?.message || String(error)); } catch(_) { void _; }
+      try { this.#logger.error("[SearchFeature] Installation failed (object)", error); } catch(_) { void _; }
       throw error;
     }
   }
@@ -135,44 +136,44 @@ export class SearchFeature {
    */
   #setupEventBridge(sidBase) {
     // 搜索请求 -> 转发到全局
-    const unsubSearch = this.#scopedEventBus.on("search:query:requested", (data) => {
+    const unsubSearch = this.#scopedEventBus.on(SEARCH_EVENTS.QUERY.REQUESTED, (data) => {
       this.#logger.info("[SearchFeature] Forwarding search query to global", data);
-      this.#globalEventBus.emit("search:query:requested", data);
+      this.#globalEventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, data);
     }, { subscriberId: `${this.name}:${sidBase}:forward-search-query` });
     this.#unsubscribers.push(unsubSearch);
 
     // 清除请求 -> 转发到全局
-    const unsubClear = this.#scopedEventBus.on("search:clear:requested", () => {
+    const unsubClear = this.#scopedEventBus.on(SEARCH_EVENTS.QUERY.CLEARED, () => {
       this.#logger.info("[SearchFeature] Forwarding clear request to global");
-      this.#globalEventBus.emit("search:clear:requested");
+      this.#globalEventBus.emit(SEARCH_EVENTS.QUERY.CLEARED);
     }, { subscriberId: `${this.name}:${sidBase}:forward-clear` });
     this.#unsubscribers.push(unsubClear);
 
     // 添加按钮点击 -> 转发到全局
-    const unsubAdd = this.#scopedEventBus.on("search:add:requested", () => {
+    const unsubAdd = this.#scopedEventBus.on(SEARCH_EVENTS.ACTIONS.ADD_REQUESTED, () => {
       this.#logger.info("[SearchFeature] Forwarding add request to global");
-      this.#globalEventBus.emit("search:add:requested");
+      this.#globalEventBus.emit(SEARCH_EVENTS.ACTIONS.ADD_REQUESTED);
     }, { subscriberId: `${this.name}:${sidBase}:forward-add` });
     this.#unsubscribers.push(unsubAdd);
 
     // 排序按钮点击 -> 转发到全局
-    const unsubSort = this.#scopedEventBus.on("search:sort:requested", () => {
+    const unsubSort = this.#scopedEventBus.on(SEARCH_EVENTS.ACTIONS.SORT_REQUESTED, () => {
       this.#logger.info("[SearchFeature] Forwarding sort request to global");
-      this.#globalEventBus.emit("search:sort:requested");
+      this.#globalEventBus.emit(SEARCH_EVENTS.ACTIONS.SORT_REQUESTED);
     }, { subscriberId: `${this.name}:${sidBase}:forward-sort` });
     this.#unsubscribers.push(unsubSort);
 
     // 高级筛选按钮点击 -> 转发到全局
-    const unsubAdvanced = this.#scopedEventBus.on("search:advanced:clicked", () => {
+    const unsubAdvanced = this.#scopedEventBus.on(FILTER_EVENTS.ADVANCED.OPEN, () => {
       this.#logger.info("[SearchFeature] Forwarding advanced click to global");
-      this.#globalEventBus.emit("filter:advanced:open");
+      this.#globalEventBus.emit(FILTER_EVENTS.ADVANCED.OPEN);
     }, { subscriberId: `${this.name}:${sidBase}:forward-advanced` });
     this.#unsubscribers.push(unsubAdvanced);
 
     // 保存预设 -> 转发到全局
-    const unsubPreset = this.#scopedEventBus.on("search:preset:save", (data) => {
+    const unsubPreset = this.#scopedEventBus.on(FILTER_EVENTS.PRESET.SAVE, (data) => {
       this.#logger.info("[SearchFeature] Forwarding preset save to global", data);
-      this.#globalEventBus.emit("filter:preset:save", data);
+      this.#globalEventBus.emit(FILTER_EVENTS.PRESET.SAVE, data);
     }, { subscriberId: `${this.name}:${sidBase}:forward-preset-save` });
     this.#unsubscribers.push(unsubPreset);
   }
@@ -184,7 +185,7 @@ export class SearchFeature {
    */
   #setupGlobalEventListeners(sidBase) {
     // 搜索开始：显示"搜索中"
-    const unsubStarted = this.#globalEventBus.on("search:query:started", () => {
+    const unsubStarted = this.#globalEventBus.on(SEARCH_EVENTS.QUERY.STARTED, () => {
       try {
         // 用户偏好：非粘性 3000ms
         showInfoWithId("search:busy", "搜索中", 3000);
@@ -195,7 +196,7 @@ export class SearchFeature {
     this.#unsubscribers.push(unsubStarted);
 
     // 监听搜索结果更新
-    const unsubResults = this.#globalEventBus.on("search:results:updated", (data) => {
+    const unsubResults = this.#globalEventBus.on(SEARCH_EVENTS.RESULTS.UPDATED, (data) => {
       this.#logger.debug("[SearchFeature] Search results updated", data);
 
       if (this.#searchBar) {
@@ -209,9 +210,10 @@ export class SearchFeature {
     this.#unsubscribers.push(unsubResults);
 
     // 搜索失败：隐藏进行中的提示
-    const unsubFailed = this.#globalEventBus.on("search:results:failed", () => {
+    const unsubFailed = this.#globalEventBus.on(SEARCH_EVENTS.RESULTS.FAILED, () => {
       try { dismissById("search:busy"); } catch { /* ignore dismiss errors */ }
     }, { subscriberId: `${this.name}:${sidBase}:search-results-failed` });
     this.#unsubscribers.push(unsubFailed);
   }
 }
+

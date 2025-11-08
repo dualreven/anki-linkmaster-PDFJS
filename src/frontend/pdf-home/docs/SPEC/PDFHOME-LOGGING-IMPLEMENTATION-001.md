@@ -31,7 +31,7 @@ const wsClient = new WSClient(wsUrl);
 ## 2. 日志文件映射
 
 ### 2.1 后端日志文件
-- **启动命令**: `python app.py --module pdf-home`
+- **启动命令（推荐）**: `python ai_launcher.py start --module pdf-home --logs-dir logs`
 - **后端日志**: `logs/pdf-home.log`
 - **前端日志**: `logs/pdf-home-js.log`
 
@@ -302,3 +302,4 @@ logging.basicConfig(
   console.log('Table row clicked');
   console.error('PDF load failed');
   ```
+

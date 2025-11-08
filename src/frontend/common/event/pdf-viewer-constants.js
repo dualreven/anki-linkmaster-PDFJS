@@ -1,4 +1,4 @@
-﻿/**
+/**
  * PDF-Viewer 事件常量定义
  * @file 定义 PDF-Viewer 模块专用的事件常量
  * @module PDFViewerEvents
@@ -239,6 +239,40 @@ export const PDF_VIEWER_EVENTS = {
   },
 
   /**
+   * 翻译（pdf-translator 功能域）事件
+   * @namespace TRANSLATOR
+   */
+  TRANSLATOR: {
+    TEXT: {
+      SELECTED: "pdf-translator:text:selected",
+      CLEARED: "pdf-translator:text:cleared",
+    },
+    TRANSLATE: {
+      REQUESTED: "pdf-translator:translate:requested",
+      STARTED: "pdf-translator:translate:started",
+      COMPLETED: "pdf-translator:translate:completed",
+      FAILED: "pdf-translator:translate:failed",
+    },
+    SIDEBAR: {
+      TOGGLE: "pdf-translator:sidebar:toggle",
+      OPENED: "pdf-translator:sidebar:opened",
+      CLOSED: "pdf-translator:sidebar:closed",
+    },
+    CARD: {
+      CREATE_REQUESTED: "pdf-translator:card:create-requested",
+      CREATE_SUCCESS: "pdf-translator:card:create-success",
+      CREATE_FAILED: "pdf-translator:card:create-failed",
+    },
+    ENGINE: {
+      CHANGED: "pdf-translator:engine:changed",
+    },
+    HISTORY: {
+      ADDED: "pdf-translator:history:added",
+      CLEARED: "pdf-translator:history:cleared",
+    },
+  },
+
+  /**
    * 视图/模式相关事件（补充全局白名单）
    * @namespace VIEW_MODE
    */
@@ -258,6 +292,15 @@ export const PDF_VIEWER_EVENTS = {
    * @namespace RENDER
    */
   RENDER: {
+    /**
+     * 渲染就绪事件（至少首页已渲染，可进行依赖DOM的操作）
+     * @event pdf-viewer:render:ready
+     * @type {string}
+     * @payload {Object} data
+     * @payload {number} data.firstPage - 已就绪的第一页页码（通常为1）
+     * @payload {number} data.totalPages - 文档总页数
+     */
+    READY: "pdf-viewer:render:ready",
     /**
      * 页面渲染请求事件
      * @event pdf-viewer:render:page:requested
@@ -533,10 +576,10 @@ export const PDF_VIEWER_EVENTS = {
   },
 
   /**
-   * 书签相关事件
-   * @namespace BOOKMARK
+   * 大纲相关事件
+   * @namespace OUTLINE
    */
-  BOOKMARK: {
+  OUTLINE: {
     /**
      * 侧边栏控制事件
      * @namespace SIDEBAR
@@ -544,274 +587,274 @@ export const PDF_VIEWER_EVENTS = {
     SIDEBAR: {
       /**
        * 切换侧边栏显示/隐藏
-       * @event pdf-viewer:bookmark:sidebar:toggle
+       * @event pdf-viewer:outline:sidebar:toggle
        * @type {string}
        */
-      TOGGLE: "pdf-viewer:bookmark-sidebar:toggle",
+      TOGGLE: "pdf-viewer:outline-sidebar:toggle",
 
       /**
        * 侧边栏已打开
-       * @event pdf-viewer:bookmark:sidebar:opened
+       * @event pdf-viewer:outline:sidebar:opened
        * @type {string}
        */
-      OPENED: "pdf-viewer:bookmark-sidebar:opened",
+      OPENED: "pdf-viewer:outline-sidebar:opened",
 
       /**
        * 侧边栏已关闭
-       * @event pdf-viewer:bookmark:sidebar:closed
+       * @event pdf-viewer:outline:sidebar:closed
        * @type {string}
        */
-      CLOSED: "pdf-viewer:bookmark-sidebar:closed",
+      CLOSED: "pdf-viewer:outline-sidebar:closed",
     },
 
     /**
-     * 书签加载事件
+     * 大纲加载事件
      * @namespace LOAD
      */
     LOAD: {
       /**
-       * 请求加载书签
-       * @event pdf-viewer:bookmark:load:requested
+       * 请求加载大纲
+       * @event pdf-viewer:outline:load:requested
        * @type {string}
        */
-      REQUESTED: "pdf-viewer:bookmark-load:requested",
+      REQUESTED: "pdf-viewer:outline-load:requested",
 
       /**
-       * 书签加载成功
-       * @event pdf-viewer:bookmark:load:success
+       * 大纲加载成功
+       * @event pdf-viewer:outline:load:success
        * @type {string}
        * @payload {Object} data
-       * @payload {Array<BookmarkNode>} data.bookmarks - 书签数据数组
-       * @payload {number} data.count - 书签总数（包括子书签）
+       * @payload {Array<OutlineNode>} data.outlineItems - 大纲数据数组
+       * @payload {number} data.count - 大纲总数（包括子节点）
        * @payload {string} data.source - 数据来源 ('pdf' | 'local')
        */
-      SUCCESS: "pdf-viewer:bookmark-load:success",
+      SUCCESS: "pdf-viewer:outline-load:success",
 
       /**
-       * 书签加载失败
-       * @event pdf-viewer:bookmark:load:failed
+       * 大纲加载失败
+       * @event pdf-viewer:outline:load:failed
        * @type {string}
        * @payload {Object} data
        * @payload {Error} data.error - 错误对象
        * @payload {string} data.message - 错误消息
        */
-      FAILED: "pdf-viewer:bookmark-load:failed",
+      FAILED: "pdf-viewer:outline-load:failed",
 
       /**
-       * 书签为空（无书签）
-       * @event pdf-viewer:bookmark:load:empty
+       * 大纲为空（无大纲）
+       * @event pdf-viewer:outline:load:empty
        * @type {string}
        */
-      EMPTY: "pdf-viewer:bookmark-load:empty",
+      EMPTY: "pdf-viewer:outline-load:empty",
     },
 
     /**
-     * 书签导航事件
+     * 大纲导航事件
      * @namespace NAVIGATE
      */
     NAVIGATE: {
       /**
-       * 请求导航到书签
-       * @event pdf-viewer:bookmark:navigate:requested
+       * 请求导航到大纲项
+       * @event pdf-viewer:outline:navigate:requested
        * @type {string}
        * @payload {Object} data
-       * @payload {BookmarkNode} data.bookmark - 被点击的书签对象
+       * @payload {OutlineNode} data.outlineItem - 被点击的大纲对象
        * @payload {number} data.timestamp - 触发时间戳
        */
-      REQUESTED: "pdf-viewer:bookmark-navigate:requested",
+      REQUESTED: "pdf-viewer:outline-navigate:requested",
 
       /**
        * 导航成功
-       * @event pdf-viewer:bookmark:navigate:success
+       * @event pdf-viewer:outline:navigate:success
        * @type {string}
        * @payload {Object} data
        * @payload {number} data.pageNumber - 目标页码
        * @payload {Object} data.position - 目标位置 {x, y}
        */
-      SUCCESS: "pdf-viewer:bookmark-navigate:success",
+      SUCCESS: "pdf-viewer:outline-navigate:success",
 
       /**
        * 导航失败
-       * @event pdf-viewer:bookmark:navigate:failed
+       * @event pdf-viewer:outline:navigate:failed
        * @type {string}
        * @payload {Object} data
        * @payload {Error} data.error - 错误对象
        * @payload {string} data.message - 错误消息
        */
-      FAILED: "pdf-viewer:bookmark-navigate:failed",
+      FAILED: "pdf-viewer:outline-navigate:failed",
     },
 
     /**
-     * 书签按ID导航事件
+     * 大纲按ID导航事件
      * @namespace NAVIGATE_BY_ID
      */
     NAVIGATE_BY_ID: {
       /**
-       * 按ID请求导航到书签
-       * @event pdf-viewer:bookmark-navigate-by-id:requested
+       * 按ID请求导航到大纲项
+       * @event pdf-viewer:outline-navigate-by-id:requested
        * @type {string}
        * @payload {Object} data
        * @payload {string} data.outlineItemId - 目标大纲节点ID（规范：outlineItem-<8位Base64URL>）
        */
-      REQUESTED: "pdf-viewer:bookmark-navigate-by-id:requested",
+      REQUESTED: "pdf-viewer:outline-navigate-by-id:requested",
     },
 
     /**
-     * 书签创建事件（v002+ 预留）
+     * 大纲创建事件（v002+ 预留）
      * @namespace CREATE
      */
     CREATE: {
       /**
-       * 请求创建书签
-       * @event pdf-viewer:bookmark:create:requested
+       * 请求创建大纲
+       * @event pdf-viewer:outline:create:requested
        * @type {string}
        */
-      REQUESTED: "pdf-viewer:bookmark-create:requested",
+      REQUESTED: "pdf-viewer:outline-create:requested",
 
       /**
        * 创建成功
-       * @event pdf-viewer:bookmark:create:success
+       * @event pdf-viewer:outline:create:success
        * @type {string}
        */
-      SUCCESS: "pdf-viewer:bookmark-create:success",
+      SUCCESS: "pdf-viewer:outline-create:success",
 
       /**
        * 创建失败
-       * @event pdf-viewer:bookmark:create:failed
+       * @event pdf-viewer:outline:create:failed
        * @type {string}
        */
-      FAILED: "pdf-viewer:bookmark-create:failed",
+      FAILED: "pdf-viewer:outline-create:failed",
     },
 
     /**
-     * 书签更新事件（v002+ 预留）
+     * 大纲更新事件（v002+ 预留）
      * @namespace UPDATE
      */
     UPDATE: {
       /**
-       * 请求更新书签
-       * @event pdf-viewer:bookmark:update:requested
+       * 请求更新大纲
+       * @event pdf-viewer:outline:update:requested
        * @type {string}
        */
-      REQUESTED: "pdf-viewer:bookmark-update:requested",
+      REQUESTED: "pdf-viewer:outline-update:requested",
 
       /**
        * 更新成功
-       * @event pdf-viewer:bookmark:update:success
+       * @event pdf-viewer:outline:update:success
        * @type {string}
        */
-      SUCCESS: "pdf-viewer:bookmark-update:success",
+      SUCCESS: "pdf-viewer:outline-update:success",
 
       /**
        * 更新失败
-       * @event pdf-viewer:bookmark:update:failed
+       * @event pdf-viewer:outline:update:failed
        * @type {string}
        */
-      FAILED: "pdf-viewer:bookmark-update:failed",
+      FAILED: "pdf-viewer:outline-update:failed",
     },
 
     /**
-     * 书签删除事件（v002+ 预留）
+     * 大纲删除事件（v002+ 预留）
      * @namespace DELETE
      */
     DELETE: {
       /**
-       * 请求删除书签
-       * @event pdf-viewer:bookmark:delete:requested
+       * 请求删除大纲
+       * @event pdf-viewer:outline:delete:requested
        * @type {string}
        */
-      REQUESTED: "pdf-viewer:bookmark-delete:requested",
+      REQUESTED: "pdf-viewer:outline-delete:requested",
 
       /**
        * 删除成功
-       * @event pdf-viewer:bookmark:delete:success
+       * @event pdf-viewer:outline:delete:success
        * @type {string}
        */
-      SUCCESS: "pdf-viewer:bookmark-delete:success",
+      SUCCESS: "pdf-viewer:outline-delete:success",
 
       /**
        * 删除失败
-       * @event pdf-viewer:bookmark:delete:failed
+       * @event pdf-viewer:outline:delete:failed
        * @type {string}
        */
-      FAILED: "pdf-viewer:bookmark-delete:failed",
+      FAILED: "pdf-viewer:outline-delete:failed",
     },
 
     /**
-     * 书签排序事件
+     * 大纲排序事件
      * @namespace REORDER
      */
     REORDER: {
       /**
-       * 请求重新排序书签
-       * @event pdf-viewer:bookmark:reorder:requested
+       * 请求重新排序大纲
+       * @event pdf-viewer:outline:reorder:requested
        * @type {string}
        * @payload {Object} data
-       * @payload {string} data.bookmarkId - 被移动的书签ID
-       * @payload {string|null} data.newParentId - 新的父书签ID（null表示根级）
+       * @payload {string} data.bookmarkId - 被移动的大纲ID
+       * @payload {string|null} data.newParentId - 新的父大纲ID（null表示根级）
        * @payload {number} data.newIndex - 新的排序位置
        */
-      REQUESTED: "pdf-viewer:bookmark-reorder:requested",
+      REQUESTED: "pdf-viewer:outline-reorder:requested",
 
       /**
        * 排序成功
-       * @event pdf-viewer:bookmark:reorder:success
+       * @event pdf-viewer:outline:reorder:success
        * @type {string}
        */
-      SUCCESS: "pdf-viewer:bookmark-reorder:success",
+      SUCCESS: "pdf-viewer:outline-reorder:success",
 
       /**
        * 排序失败
-       * @event pdf-viewer:bookmark:reorder:failed
+       * @event pdf-viewer:outline:reorder:failed
        * @type {string}
        */
-      FAILED: "pdf-viewer:bookmark-reorder:failed",
+      FAILED: "pdf-viewer:outline-reorder:failed",
     },
 
     /**
-     * 书签排序模式（UI本地态）
+     * 大纲排序模式（UI本地态）
      * @namespace SORT
      */
     SORT: {
       /**
        * 排序模式开关变化（本地UI事件，用于允许拖拽）
-       * @event pdf-viewer:bookmark-sort:mode-changed
+       * @event pdf-viewer:outline-sort:mode-changed
        * @type {string}
        * @payload {Object} data
        * @payload {boolean} data.sortMode - 是否进入排序模式
        */
-      MODE_CHANGED: "pdf-viewer:bookmark-sort:mode-changed",
+      MODE_CHANGED: "pdf-viewer:outline-sort:mode-changed",
     },
 
     /**
-     * 书签选择事件
+     * 大纲选择事件
      * @namespace SELECT
      */
     SELECT: {
       /**
-       * 书签选择状态改变
-       * @event pdf-viewer:bookmark:select:changed
+       * 大纲选择状态改变
+       * @event pdf-viewer:outline:select:changed
        * @type {string}
        * @payload {Object} data
-       * @payload {string|null} data.bookmarkId - 被选中的书签ID（null表示取消选择）
-       * @payload {Bookmark|null} data.bookmark - 被选中的书签对象
+       * @payload {string|null} data.bookmarkId - 被选中的大纲ID（null表示取消选择）
+       * @payload {Outline|null} data.bookmark - 被选中的大纲对象
        */
-      CHANGED: "pdf-viewer:bookmark-select:changed",
+      CHANGED: "pdf-viewer:outline-select:changed",
     },
 
     /**
-     * 书签排序模式事件
+     * 大纲排序模式事件
      * @namespace SORT_MODE
      */
     SORT_MODE: {
       /**
        * 排序模式改变
-       * @event pdf-viewer:bookmark:sortmode:changed
+       * @event pdf-viewer:outline:sortmode:changed
        * @type {string}
        * @payload {Object} data
        * @payload {boolean} data.sortMode - 排序模式状态（true: 启用, false: 禁用）
        */
-      CHANGED: "pdf-viewer:bookmark-sortmode:changed",
+      CHANGED: "pdf-viewer:outline-sortmode:changed",
     },
   },
 
@@ -856,6 +899,13 @@ export const PDF_VIEWER_EVENTS = {
    */
   STATE: {
     /**
+     * 应用状态变更事件（统一的状态变化通知）
+     * @event pdf-viewer:state:changed
+     * @type {string}
+     */
+    CHANGED: "pdf-viewer:state:changed",
+
+    /**
      * 应用初始化完成事件
      * @event pdf-viewer:state:initialized
      * @type {string}
@@ -882,6 +932,13 @@ export const PDF_VIEWER_EVENTS = {
      * @type {string}
      */
     LOADING: "pdf-viewer:state:loading",
+
+    /**
+     * 状态重置事件
+     * @event pdf-viewer:state:reset
+     * @type {string}
+     */
+    RESET: "pdf-viewer:state:reset",
   },
 
   /**
@@ -1102,6 +1159,41 @@ export const PDF_VIEWER_EVENTS = {
     },
   },
 
+  /**
+   * PDF.js 原生事件（通过 PDFJS EventBus 发出）
+   * 仅用于前端内部监听，命名采用常量以满足事件门禁（event-name-format）
+   */
+  PDFJS_EVENTS: {
+    PAGE: {
+      CHANGING: "pagechanging",
+      RENDERED: "pagerendered",
+      TEXT_LAYER_RENDERED: "textlayerrendered",
+    },
+    SCALE: {
+      CHANGING: "scalechanging",
+      CHANGED: "scalechange",
+    },
+    FIND: {
+      UPDATE_MATCHES_COUNT: "updatefindmatchescount",
+      UPDATE_CONTROL_STATE: "updatefindcontrolstate",
+    }
+  },
+
+  /**
+   * 鼠标模式等 UI 辅助事件
+   */
+  MOUSE: {
+    MODE_CHANGED: "pdf-viewer:mouse-mode:changed",
+  },
+
+  /**
+   * 页面传输（预加载/请求/回执）桥接事件（如有需求）
+   */
+  PAGE_TRANSFER: {
+    REQUESTED: "pdf-viewer:page-transfer:requested",
+    RESPONSE: "pdf-viewer:page-transfer:response",
+  },
+
   NOTIFICATION: {
     /** 错误提示事件 */
     ERROR: {
@@ -1158,3 +1250,4 @@ export const PDF_VIEWER_EVENTS = {
  * 默认导出事件常量
  */
 export default PDF_VIEWER_EVENTS;
+

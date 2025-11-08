@@ -5,7 +5,7 @@
  */
 
 import eventBusSingleton from "../../common/event/event-bus.js";  // 使用默认导出的单例
-import { getLogger, setGlobalWebSocketClient, LogLevel } from "../../common/utils/logger.js";
+import { getLogger, setGlobalWebSocketClient } from "../../common/utils/logger.js";
 import WSClient from "../../common/ws/ws-client.js";  // WSClient也是默认导出
 import { createConsoleWebSocketBridge } from "../../common/utils/console-websocket-bridge.js";
 

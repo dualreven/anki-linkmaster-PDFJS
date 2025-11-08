@@ -83,6 +83,27 @@ def discover(ctx, request_id: Optional[str]) -> Dict[str, Any]:
                 ],
             },
             {
+                "name": "outline",
+                "versions": ["1.0.0"],
+                "events": [
+                    MessageType.OUTLINE_LIST_REQUESTED.value,
+                    MessageType.OUTLINE_LIST_COMPLETED.value,
+                    MessageType.OUTLINE_LIST_FAILED.value,
+                    MessageType.OUTLINE_CREATE_REQUESTED.value,
+                    MessageType.OUTLINE_CREATE_COMPLETED.value,
+                    MessageType.OUTLINE_CREATE_FAILED.value,
+                    MessageType.OUTLINE_UPDATE_REQUESTED.value,
+                    MessageType.OUTLINE_UPDATE_COMPLETED.value,
+                    MessageType.OUTLINE_UPDATE_FAILED.value,
+                    MessageType.OUTLINE_DELETE_REQUESTED.value,
+                    MessageType.OUTLINE_DELETE_COMPLETED.value,
+                    MessageType.OUTLINE_DELETE_FAILED.value,
+                    MessageType.OUTLINE_REORDER_REQUESTED.value,
+                    MessageType.OUTLINE_REORDER_COMPLETED.value,
+                    MessageType.OUTLINE_REORDER_FAILED.value,
+                ],
+            },
+            {
                 "name": "pdf-page",
                 "versions": ["1.0.0"],
                 "events": [
@@ -206,6 +227,24 @@ def describe(ctx, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, 
                 {"type": MessageType.BOOKMARK_SAVE_COMPLETED.value},
                 {"type": MessageType.BOOKMARK_SAVE_FAILED.value},
             ]
+        elif domain == "outline":
+            described["events"] = [
+                {"type": MessageType.OUTLINE_LIST_REQUESTED.value},
+                {"type": MessageType.OUTLINE_LIST_COMPLETED.value},
+                {"type": MessageType.OUTLINE_LIST_FAILED.value},
+                {"type": MessageType.OUTLINE_CREATE_REQUESTED.value},
+                {"type": MessageType.OUTLINE_CREATE_COMPLETED.value},
+                {"type": MessageType.OUTLINE_CREATE_FAILED.value},
+                {"type": MessageType.OUTLINE_UPDATE_REQUESTED.value},
+                {"type": MessageType.OUTLINE_UPDATE_COMPLETED.value},
+                {"type": MessageType.OUTLINE_UPDATE_FAILED.value},
+                {"type": MessageType.OUTLINE_DELETE_REQUESTED.value},
+                {"type": MessageType.OUTLINE_DELETE_COMPLETED.value},
+                {"type": MessageType.OUTLINE_DELETE_FAILED.value},
+                {"type": MessageType.OUTLINE_REORDER_REQUESTED.value},
+                {"type": MessageType.OUTLINE_REORDER_COMPLETED.value},
+                {"type": MessageType.OUTLINE_REORDER_FAILED.value},
+            ]
         elif domain == "pdf-page":
             described["events"] = [
                 {"type": MessageType.PDF_PAGE_LOAD_REQUESTED.value},
@@ -246,3 +285,4 @@ def describe(ctx, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, 
             message_type=MessageType.CAPABILITY_DESCRIBE_FAILED,
             code=500,
         )
+

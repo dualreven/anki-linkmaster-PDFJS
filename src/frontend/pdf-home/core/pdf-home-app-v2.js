@@ -18,11 +18,10 @@ import { FeatureFlagManager } from "../../common/micro-service/feature-flag-mana
 import { getLogger } from "../../common/utils/logger.js";
 import eventBus from "../../common/event/event-bus.js";
 import WSClient from "../../common/ws/ws-client.js";
-import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS } from "../../common/event/event-constants.js";
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS, APP_EVENTS } from "../../common/event/event-constants.js";
 import { showError } from "../../common/utils/notification.js";
 
 // 导入功能域
-import { PDFEditorFeature } from "../features/pdf-editor/index.js";
 import { PDFSorterFeature } from "../features/pdf-sorter/index.js";
 import { PDFEditFeature } from "../features/pdf-edit/index.js";
 import { SidebarFeature } from "../features/sidebar/index.js";
@@ -241,9 +240,8 @@ export class PDFHomeAppV2 {
       this.#status = "ready";
       this.#logger.info("App initialization completed successfully");
 
-      // 触发初始化完成事件
-      // 事件名称格式：{module}:{action}:{status}
-      this.#eventBus.emit("app:initialization:completed", {
+      // 触发初始化完成事件（使用常量命名空间）
+      this.#eventBus.emit(APP_EVENTS.INITIALIZATION.COMPLETED, {
         version: "v2",
         features: this.#registry.getInstalledFeatures()
       });
@@ -272,7 +270,10 @@ export class PDFHomeAppV2 {
           const msg = (err && (err.error_message || err.message)) || "WebSocket 消息发送失败";
           const type = err && (err.message_type || err.type);
           showError(type ? `${type}: ${msg}` : msg, 5000);
-        } catch (_) {}
+        } catch (e) {
+          // 防御性：toast 渲染失败时至少写入日志
+          try { this.#logger?.warn?.("Failed to show SEND_FAILED toast", e); } catch { /* noop */ }
+        }
       }, subscriberOpts);
 
       // 后端响应错误/未注册类型/解析失败等 → 错误 toast
@@ -284,7 +285,9 @@ export class PDFHomeAppV2 {
             || (payload && payload.data && payload.data.message)
             || "操作失败";
           showError(type ? `${type}: ${errMsg}` : errMsg, 6000);
-        } catch (_) {}
+        } catch (e) {
+          try { this.#logger?.warn?.("Failed to show ERROR toast", e); } catch { /* noop */ }
+        }
       }, subscriberOpts);
 
       // 兼容：凡是通用响应里标注失败（type 以 :failed 结尾）未被上层消费时，也做兜底 toast
@@ -295,7 +298,9 @@ export class PDFHomeAppV2 {
             const errMsg = (message?.error?.message) || (message?.data?.message) || message?.message || "请求失败";
             showError(`${t}: ${errMsg}`, 6000);
           }
-        } catch (_) {}
+        } catch (e) {
+          try { this.#logger?.warn?.("Failed to show generic failed toast", e); } catch { /* noop */ }
+        }
       }, subscriberOpts);
 
       this.#errorToastsRegistered = true;
@@ -324,10 +329,10 @@ export class PDFHomeAppV2 {
         this.#logger.warn("Failed to load feature-flags.json, using defaults:", error.message);
         logger.warn("[DEBUG PDFHomeAppV2] Failed to load feature-flags.json, using defaults:", error);
 
-        // 使用默认配置
+        // 使用默认配置（移除 pdf-editor，统一仅保留 pdf-edit）
         this.#flagManager.loadFromObject({
           "pdf-list": { enabled: true, description: "PDF 列表功能" },
-          "pdf-editor": { enabled: false, description: "PDF 编辑功能（开发中）" },
+          "pdf-edit": { enabled: true, description: "PDF 记录编辑功能域" },
           "pdf-sorter": { enabled: false, description: "PDF 排序功能（开发中）" }
         });
         logger.debug("[DEBUG PDFHomeAppV2] Using default feature flags (pdf-sorter is DISABLED by default)");
@@ -366,7 +371,6 @@ export class PDFHomeAppV2 {
 
       // 核心功能
       new AddFilesFeature(),       // 新增：添加PDF（桥接文件选择 -> WS）
-      new PDFEditorFeature(),
       new PDFSorterFeature(),
       new PDFEditFeature(),
 

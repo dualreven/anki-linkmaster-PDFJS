@@ -22,7 +22,7 @@
   ├── temp/                   # 临时文件目录
   ├── package.json            # 前端依赖配置
   ├── requirements.txt        # 后端依赖配置
-  └── app.py                 # 应用程序主入口
+  └── ai_launcher.py         # 应用统一启动入口（start/stop/status）
   ```
 
 - **反向例子**:
@@ -48,3 +48,4 @@
   # 缺少 docs/, tests/, logs/, temp/ 等重要目录
   ```
 ]]>
+

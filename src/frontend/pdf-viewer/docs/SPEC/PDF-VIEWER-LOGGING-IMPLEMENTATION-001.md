@@ -30,7 +30,7 @@ const wsClient = new WSClient(wsUrl, eventBus);
 ## 2. 日志文件映射
 
 ### 2.1 后端日志文件
-- **启动命令**: `python app.py --module pdf-viewer`
+- **启动命令（推荐）**: `python ai_launcher.py start --module pdf-viewer --logs-dir logs`
 - **后端日志**: `logs/pdf-viewer.log`
 - **前端日志**: `logs/pdf-viewer-js.log`
 
@@ -466,3 +466,4 @@ async recoverFromPDFError(error) {
   // ❌ 错误：未配置过滤规则导致日志噪音
   consoleBridge.enable(); // 未设置skipPatterns
   ```
+

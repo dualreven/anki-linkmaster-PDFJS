@@ -91,16 +91,10 @@ from src.launcher.config import (
     LauncherPorts as _LPorts,
     LauncherPaths as _LPaths,
 )
-from src.launcher.runner import (
-    start_backend_hosted as _run_backend_hosted,
-    start_backend_cli as _run_backend_cli,
-    start_pdf_home_hosted as _run_pdf_home_hosted,
-    start_pdf_viewer_hosted as _run_pdf_viewer_hosted,
-    start_pdf_home_cli as _run_pdf_home_cli,
-    start_pdf_viewer_cli as _run_pdf_viewer_cli,
-)
 from src.launcher.ports import read_runtime_ports as _read_runtime_ports_unified
 from src.launcher.dev_server import ensure_vite as _ensure_vite
+from src.gui_launcher import services as _gl_services
+from src.gui_launcher.controller import Controller, ControllerOptions
 
 # 统一日志目录（默认值）：
 # - 当从 dist/latest 运行时，默认使用 <dist/latest>/logs（与打包产物同层）；
@@ -248,7 +242,7 @@ class LauncherThread(QThread):
                 keep_backend=True,
             ),
         )
-        ok = _run_backend_cli(cfg, on_log=lambda m: self.log_signal.emit(m))
+        ok = _gl_services.start_backend_cli(cfg, on_log=lambda m: self.log_signal.emit(m))
         if ok:
             self.log_signal.emit("✅ 后端启动成功 (CLI)")
             self.finished_signal.emit(True, "后端启动成功")
@@ -270,17 +264,12 @@ class LauncherThread(QThread):
             enable_outline = bool(self.params.get('enable_outline', False))
             try:
                 base_logs.mkdir(parents=True, exist_ok=True)
-                rp_path = base_logs / 'runtime-ports.json'
-                cfg_json = _read_json_safe(rp_path) or {}
-                # 勾选则写入 outline=1；未勾选则移除，避免残留
                 if enable_outline:
-                    cfg_json['outline'] = 1
+                    _gl_services.merge_runtime_ports(base_logs, {"outline": 1})
                     self.log_signal.emit(f"[TRACE:CLI] 同步 outline=1 到 runtime-ports.json")
                 else:
-                    if 'outline' in cfg_json:
-                        cfg_json.pop('outline', None)
-                        self.log_signal.emit(f"[TRACE:CLI] 从 runtime-ports.json 移除 outline 标志")
-                rp_path.write_text(__import__('json').dumps(cfg_json, ensure_ascii=False, indent=2) + "\n", encoding='utf-8')
+                    _gl_services.merge_runtime_ports(base_logs, {"outline": None})
+                    self.log_signal.emit(f"[TRACE:CLI] 从 runtime-ports.json 移除 outline 标志")
             except Exception as _e:
                 self.log_signal.emit(f"[WARN] 同步 outline 标志到 runtime-ports.json 失败: {_e}")
 
@@ -307,7 +296,7 @@ class LauncherThread(QThread):
                 self.log_signal.emit(f"[TRACE:CLI] pdf-home cfg → ports(vite={cfg.ports.vite_port}, ws={cfg.ports.msgCenter_port}, http={cfg.ports.pdfFile_port}) options(runtime_mode={cfg.options.runtime_mode}) is_prod={bool(self.params.get('is_prod'))} outline={enable_outline} logs_dir={cfg.paths.logs_dir}")
             except Exception:
                 pass
-            ok = _run_pdf_home_cli(cfg, is_prod=bool(self.params.get('is_prod')), on_log=lambda m: self.log_signal.emit(m))
+            ok = _gl_services.start_pdf_home_cli(cfg, is_prod=bool(self.params.get('is_prod')), on_log=lambda m: self.log_signal.emit(m))
             if ok:
                 self.log_signal.emit("✅ PDF-Home 启动成功 (CLI)")
                 self.finished_signal.emit(True, "PDF-Home 启动成功")
@@ -362,7 +351,7 @@ class LauncherThread(QThread):
                 self.log_signal.emit(f"[TRACE:CLI] pdf-viewer cfg → ports(vite={cfg.ports.vite_port}, ws={cfg.ports.msgCenter_port}, http={cfg.ports.pdfFile_port}) options(runtime_mode={cfg.options.runtime_mode}) is_prod={bool(self.params.get('is_prod'))} pdf_id={pdf_id} page_at={page_at} position={position} anchor_id={anchor_id} annotation_id={annotation_id} outline_item_id={outline_item_id} logs_dir={cfg.paths.logs_dir}")
             except Exception:
                 pass
-            ok = _run_pdf_viewer_cli(
+            ok = _gl_services.start_pdf_viewer_cli(
                 cfg,
                 is_prod=bool(self.params.get('is_prod')),
                 pdf_id=pdf_id,
@@ -460,6 +449,17 @@ class GUILauncher(QMainWindow):
 
         # 载入配置（若存在），可切换日志目录
         self._load_config()
+
+        # 控制器（承载 dev-server 与文件监听等运行态职责）
+        try:
+            self._controller = Controller(ControllerOptions(
+                component_root=_COMPONENT_ROOT,
+                logs_dir=self._logs_dir,
+                on_log=self._log,
+            ))
+            self._controller.attach_services(ensure_vite=_gl_services.ensure_vite)
+        except Exception:
+            self._controller = None
 
         # 初始化UI
         self._init_ui()
@@ -980,30 +980,12 @@ class GUILauncher(QMainWindow):
 
     # ================= 事件驱动：状态文件监听 =================
     def _init_status_watchers(self):
-        """初始化文件系统监听，基于现有状态文件实现事件驱动刷新。"""
+        """初始化文件系统监听，委托 controller 绑定。"""
         try:
-            self.fs_watcher = QFileSystemWatcher(self)
-            # 监听日志目录（新增/删除文件时触发）
-            try:
-                self.fs_watcher.addPath(str(self._logs_dir))
-            except Exception:
-                pass
-
-            # 监听已存在的状态文件
-            self._attach_known_status_files()
-
-            # 变更信号绑定（文件与目录）
-            self.fs_watcher.fileChanged.connect(self._on_status_file_changed)
-            self.fs_watcher.directoryChanged.connect(self._on_status_dir_changed)
-
-            # 去抖动计时器，避免频繁重入
-            self._status_debounce_timer = QTimer(self)
-            self._status_debounce_timer.setSingleShot(True)
-            self._status_debounce_timer.timeout.connect(self._update_status)
+            if self._controller is not None:
+                self._controller.init_status_watchers(parent=self, logs_dir=self._logs_dir, on_update_status=self._update_status)
         except Exception:
-            # 监听失败不影响基础功能，用户可手动刷新
-            self.fs_watcher = None
-            self._status_debounce_timer = None
+            pass
 
     def _attach_known_status_files(self):
         """将已存在的状态文件加入监听。"""
@@ -1372,7 +1354,7 @@ class GUILauncher(QMainWindow):
                 )
             ).with_defaults(_COMPONENT_ROOT)
 
-            inst = _run_backend_hosted(cfg, parent_app=app, on_log=self._log)
+            inst = _gl_services.start_backend_hosted(cfg, parent_app=app, on_log=self._log)
             if inst:
                 self.backend_launcher_instance = inst
                 self._log('后端 Hosted 启动: True')
@@ -1453,23 +1435,12 @@ class GUILauncher(QMainWindow):
             vite_port = int(ports.get('vite_port') or ports.get('npm_port') or (self.vite_port_input.value() or 3000))
             self._log(f"[TRACE:HOSTED] pdf-home pre-check → is_prod={bool(self.frontend_prod_checkbox.isChecked())} runtime={ports} ui(vite={self.vite_port_input.value() or 0}, ws={self.msgCenter_port_input.value() or 0}, http={self.pdfFile_port_input.value() or 0})")
             if not bool(self.frontend_prod_checkbox.isChecked()):
-                if not self._is_port_listening('127.0.0.1', int(vite_port)):
-                    # 仅在开发模式下尝试启动 Vite
-                    try:
-                        if _ai is not None and hasattr(_ai, '_start_vite'):
-                            pid = _ai._start_vite(int(vite_port))
-                            self._log(f"尝试启动 Vite 开发服务器: PID={pid} 端口={vite_port}")
-                            # 同步更新 runtime-ports.json，确保前端解析到正确端口（显式日志目录）
-                            try:
-                                self._logs_dir.mkdir(parents=True, exist_ok=True)
-                                cfg = _read_json_safe(self._logs_dir / 'runtime-ports.json') or {}
-                                cfg['vite_port'] = int(vite_port)
-                                cfg['npm_port'] = int(vite_port)
-                                (self._logs_dir / 'runtime-ports.json').write_text(__import__('json').dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding='utf-8')
-                            except Exception:
-                                pass
-                    except Exception as e:
-                        self._log(f"[WARN] 无法自动启动 Vite: {e}")
+                # 仅在开发模式下确保 Vite 已运行（委托 controller）
+                try:
+                    if self._controller is not None:
+                        self._controller.ensure_vite_dev(int(vite_port), ai_module=_ai)
+                except Exception as e:
+                    self._log(f"[WARN] 无法自动启动 Vite: {e}")
 
             # 若 Hosted 后端未运行，自动启动
             need_start_backend = False
@@ -1519,7 +1490,7 @@ class GUILauncher(QMainWindow):
             except Exception:
                 pass
             app = QApplication.instance()
-            rc = _run_pdf_home_hosted(cfg, parent_app=app, on_log=self._log)
+            rc = _gl_services.start_pdf_home_hosted(cfg, parent_app=app, on_log=self._log)
             self._log(f"PDF-Home (Hosted) 启动 rc={rc}")
         except Exception as e:
             self._log(f"[ERROR] 启动 pdf-home (Hosted) 异常: {e}")
@@ -1534,14 +1505,18 @@ class GUILauncher(QMainWindow):
             return False
 
     def _start_vite_dev(self) -> None:
-        """显式启动 Vite 开发服务器（Dev）——委托统一 dev_server 工具。"""
+        """显式启动 Vite 开发服务器（Dev）——委托 controller/services。"""
         try:
             base = self._logs_dir
             base.mkdir(parents=True, exist_ok=True)
             ports = self._runtime_ports() or {}
             vite_port = int(self.vite_port_input.value() or ports.get('vite_port') or ports.get('npm_port') or 3000)
-            pid, used_port = _ensure_vite(vite_port, component_root=_COMPONENT_ROOT, logs_dir=base, ai_module=_ai)
-            self._log(f"Vite 启动完成: PID={pid} 端口={used_port}")
+            if self._controller is not None:
+                self._controller.ensure_vite_dev(vite_port, ai_module=_ai)
+            else:
+                # 兜底委托到 dev_server（不改变行为，但建议保持 controller 可用）
+                pid, used_port = _ensure_vite(vite_port, component_root=_COMPONENT_ROOT, logs_dir=base, ai_module=_ai)
+                self._log(f"Vite 启动完成: PID={pid} 端口={used_port}")
             self._update_status()
         except Exception as e:
             self._log(f"[ERROR] 启动 Vite(Dev) 异常: {e}")
@@ -1668,7 +1643,7 @@ class GUILauncher(QMainWindow):
                 self._log(f"[TRACE:HOSTED] pdf-viewer args → pdf_id={_pdf_id} page_at={_page_at} position={_position} anchor_id={_anchor_id} annotation_id={_annotation_id} outline_item_id={_outline_item} outline_flag={_enable_outline}")
             except Exception:
                 pass
-            rc = _run_pdf_viewer_hosted(
+            rc = _gl_services.start_pdf_viewer_hosted(
                 cfg, parent_app=app,
                 pdf_id=_pdf_id,
                 page_at=_page_at,
@@ -2229,3 +2204,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

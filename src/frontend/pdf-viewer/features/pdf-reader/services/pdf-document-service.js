@@ -33,7 +33,7 @@ export class PDFDocumentManager {
 
     this.#currentDocument = pdfDocument;
     // 更新全局注册表
-    try { setCurrentPDFDocument(pdfDocument); } catch (_) {}
+    try { setCurrentPDFDocument(pdfDocument); } catch { }
     this.#extractDocumentInfo();
 
     this.#logger.info(`Document loaded: ${this.#documentInfo.title || "Untitled"}`);
@@ -119,7 +119,7 @@ export class PDFDocumentManager {
       this.#documentInfo = null;
 
       // 清空全局注册表
-      try { clearCurrentPDFDocument(); } catch (_) {}
+      try { clearCurrentPDFDocument(); } catch { }
 
       // 发布文档关闭事件
       this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.CLOSE, {}, { actorId: "PDFDocumentManager" });
@@ -200,3 +200,4 @@ export class PDFDocumentManager {
     this.closeDocument();
   }
 }
+

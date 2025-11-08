@@ -22,7 +22,7 @@ Feature-based架构允许多个开发者同时开发不同功能，互不干扰�
 {
   name: 'search',
   version: '1.0.0',
-  dependencies: ['app-core', 'pdf-manager'], // 依赖事件总线和PDF文档
+  dependencies: ['infra-app', 'pdf-manager'], // 依赖事件总线和PDF文档
   description: 'PDF全文搜索功能'
 }
 ```
@@ -32,7 +32,7 @@ Feature-based架构允许多个开发者同时开发不同功能，互不干扰�
 {
   name: 'annotation',
   version: '1.0.0',
-  dependencies: ['app-core', 'ui-manager'],  // 依赖事件总线和UI管理器
+  dependencies: ['infra-app', 'infra-ui'],  // 依赖事件总线和UI管理器
   description: 'PDF标注侧边栏功能'
 }
 ```
@@ -714,7 +714,7 @@ describe('SearchFeature', () => {
   });
 
   test('应该正确定义Feature信息', () => {
-    expect(feature.name).toBe('search');
+    expect(feature.name).toBe('pdf-search');
     expect(feature.version).toBe('1.0.0');
     expect(feature.dependencies).toContain('app-core');
   });
@@ -777,7 +777,7 @@ describe('AnnotationFeature', () => {
   });
 
   test('应该正确定义Feature信息', () => {
-    expect(feature.name).toBe('annotation');
+    expect(feature.name).toBe('pdf-annotation');
     expect(feature.dependencies).toContain('app-core');
     expect(feature.dependencies).toContain('ui-manager');
   });
@@ -969,3 +969,4 @@ Feature-based架构的优势：
 5. **渐进式迁移**: 新旧架构可共存
 
 遵循本指南，你可以高效地进行Feature独立开发和团队协作！
+

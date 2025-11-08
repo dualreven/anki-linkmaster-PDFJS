@@ -155,6 +155,7 @@ class FeatureRecord {
    * @returns {Object}
    */
   toJSON() {
+    // 注意：FeatureRecord 不感知别名映射；外部调用 getStatusSummary() 会统一转换为规范名
     return {
       name: this.#feature.name,
       version: this.#feature.version,
@@ -295,9 +296,10 @@ export class FeatureRegistry {
    * @returns {string[]}
    */
   getInstalledFeatures() {
-    return Array.from(this.#features.values())
-      .filter(record => record.status === FeatureStatus.INSTALLED)
-      .map(record => record.feature.name);
+    // 对外统一返回“规范名”（别名已归一），避免测试与外部代码感知到历史命名
+    return Array.from(this.#features.entries())
+      .filter(([, record]) => record.status === FeatureStatus.INSTALLED)
+      .map(([canonical /*, record*/]) => canonical);
   }
 
   /**
@@ -509,8 +511,17 @@ export class FeatureRegistry {
       features: []
     };
 
-    this.#features.forEach(record => {
-      const info = record.toJSON();
+    this.#features.forEach((record, canonicalName) => {
+      // 统一输出规范名与规范依赖，提升可读性与一致性
+      const canonicalDeps = (record.feature?.dependencies || []).map(d => this.#resolveName(d));
+      const info = {
+        name: canonicalName,
+        version: record.feature?.version,
+        status: record.status,
+        dependencies: canonicalDeps,
+        installedAt: record.installedAt,
+        error: record.error?.message || null
+      };
       summary.features.push(info);
 
       if (record.status === FeatureStatus.INSTALLED) {summary.installed++;}

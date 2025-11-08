@@ -102,6 +102,28 @@ class MessageType(Enum):
     ANNOTATION_SAVE_COMPLETED = "annotation:save:completed"
     ANNOTATION_SAVE_FAILED = "annotation:save:failed"
 
+    # === Outline（大纲） ===
+    # 2025-11-06: 统一为 pdf-viewer 前缀 + outline-* + request/complete/failed
+    OUTLINE_LIST_REQUESTED = "pdf-viewer:outline-list:request"
+    OUTLINE_LIST_COMPLETED = "pdf-viewer:outline-list:complete"
+    OUTLINE_LIST_FAILED = "pdf-viewer:outline-list:failed"
+
+    OUTLINE_CREATE_REQUESTED = "pdf-viewer:outline-create:request"
+    OUTLINE_CREATE_COMPLETED = "pdf-viewer:outline-create:complete"
+    OUTLINE_CREATE_FAILED = "pdf-viewer:outline-create:failed"
+
+    OUTLINE_UPDATE_REQUESTED = "pdf-viewer:outline-update:request"
+    OUTLINE_UPDATE_COMPLETED = "pdf-viewer:outline-update:complete"
+    OUTLINE_UPDATE_FAILED = "pdf-viewer:outline-update:failed"
+
+    OUTLINE_DELETE_REQUESTED = "pdf-viewer:outline-delete:request"
+    OUTLINE_DELETE_COMPLETED = "pdf-viewer:outline-delete:complete"
+    OUTLINE_DELETE_FAILED = "pdf-viewer:outline-delete:failed"
+
+    OUTLINE_REORDER_REQUESTED = "pdf-viewer:outline-reorder:request"
+    OUTLINE_REORDER_COMPLETED = "pdf-viewer:outline-reorder:complete"
+    OUTLINE_REORDER_FAILED = "pdf-viewer:outline-reorder:failed"
+
     # === Debug / Flags ===
     DEBUG_INFO_READ_REQUESTED = "debug-info:read:requested"
     DEBUG_INFO_READ_COMPLETED = "debug-info:read:completed"

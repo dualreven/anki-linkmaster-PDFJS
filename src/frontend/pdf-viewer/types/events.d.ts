@@ -73,7 +73,7 @@ export interface PageNavigateData {
   /** 目标页码 */
   pageNumber: number;
   /** 导航来源 */
-  source?: 'user' | 'bookmark' | 'programmatic';
+  source?: 'user' | 'outline' | 'programmatic';
 }
 
 /**
@@ -250,3 +250,5 @@ export function createScopedEventBus(
   globalEventBus: EventBus,
   scope: string
 ): ScopedEventBus;
+
+

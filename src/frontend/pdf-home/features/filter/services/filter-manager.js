@@ -71,7 +71,7 @@ export class FilterManager {
       });
 
       // 发出筛选完成事件
-      this.#eventBus.emit("filter:applied", {
+      this.#eventBus.emit(FILTER_EVENTS.APPLY.COMPLETED, {
         condition: condition.serialize(),
         resultCount: this.#filteredData.length,
         data: this.#filteredData
@@ -109,7 +109,7 @@ export class FilterManager {
     this.#filteredData = [...this.#originalData];
 
     this.#logger.info("[FilterManager] Filter cleared");
-    this.#eventBus.emit("filter:clear:completed", {
+    this.#eventBus.emit(FILTER_EVENTS.STATE.UPDATED, {
       resultCount: this.#filteredData.length,
       data: this.#filteredData
     });
@@ -132,7 +132,7 @@ export class FilterManager {
     this.#filteredData = previousState.filteredData;
 
     this.#logger.info("[FilterManager] Filter undone");
-    this.#eventBus.emit("filter:undone", {
+    this.#eventBus.emit(FILTER_EVENTS.STATE.UPDATED, {
       resultCount: this.#filteredData.length,
       data: this.#filteredData
     });
@@ -228,3 +228,7 @@ export class FilterManager {
     this.#logger.info("[FilterManager] Manager reset");
   }
 }
+
+// 位于 src/frontend/pdf-home/features/filter/services/
+// 需回溯四级目录至 src/frontend/common/event/
+import { FILTER_EVENTS } from "../../../../common/event/event-constants.js";

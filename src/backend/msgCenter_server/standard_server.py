@@ -283,10 +283,14 @@ class StandardWebSocketServer(QObject, ServerAPIMixin):
                 if not ok:
                     logger.warning("Schema validation failed for %s: %s (schema=%s)", original_type, err, schema_path)
                     failed_type = original_type.replace(":requested", ":failed")
+                    # 构造提示文案（避免在 f-string 中嵌套花括号导致语法错误）
+                    _msg = f"入站消息未通过Schema校验: {err}"
+                    if "metadata" in str(err):
+                        _msg += "；请在消息中自行添加必填字段，如 metadata: { version: \"1.0.0\" }"
                     return StandardMessageHandler.build_error_response(
                         request_id or "unknown",
                         "SCHEMA_VALIDATION_FAILED",
-                        f"入站消息未通过Schema校验: {err}{"；请在消息中自行添加必填字段，如 metadata: { version: \"1.0.0\" }" if ("metadata" in err) else ""}",
+                        _msg,
                         message_type=failed_type if failed_type != original_type else MessageType.LEGACY_ERROR,
                         error_details={"schema": schema_path, "type": original_type},
                         code=400,
@@ -466,6 +470,7 @@ class StandardWebSocketServer(QObject, ServerAPIMixin):
         logger.info("PDF列表变更事件")
         _notify_broadcast_list(self)
     
+
 
 
 

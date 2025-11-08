@@ -8,9 +8,6 @@ import { getLogger } from "../../../common/utils/logger.js";
 import { PDFReaderFeatureConfig } from "./feature.config.js";
 
 // 导入服务和组件
-import { PDFLoader } from "./components/pdf-loader.js";
-import { PageCacheManager } from "./components/page-cache-manager.js";
-import { PDFDocumentManager } from "./services/pdf-document-service.js";
 import { PDFManager } from "./services/pdf-manager-service.js";
 import { FileHandler } from "./services/file-service.js";
 import { NavigationHandler } from "./services/navigation-service.js";
@@ -25,9 +22,6 @@ import { ZoomHandler } from "./services/zoom-service.js";
 export class PDFReaderFeature {
   /** @type {import('../../../common/utils/logger.js').Logger} */
   #logger;
-
-  /** @type {import('../../../common/event/scoped-event-bus.js').ScopedEventBus} */
-  #scopedEventBus;
 
   /** @type {Object} */
   #state;
@@ -88,7 +82,7 @@ export class PDFReaderFeature {
    */
   async install(context) {
     this.#logger = context.logger || getLogger(`Feature.${this.name}`);
-    this.#scopedEventBus = context.scopedEventBus;
+    // scopedEventBus 当前未使用；如需隔离，请在具体子模块中获取 scoped 总线
 
     this.#logger.info(`Installing ${this.name} v${this.version}...`);
 

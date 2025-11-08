@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from "@jest/globals";
 import { EventBus } from "../../../../../common/event/event-bus.js";
 import { ScopedEventBus } from "../../../../../common/event/scoped-event-bus.js";
-import { WEBSOCKET_MESSAGE_TYPES } from "../../../../../common/event/event-constants.js";
+import { WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS, SEARCH_EVENTS, FILTER_EVENTS } from "../../../../../common/event/event-constants.js";
 import { SavedFiltersFeature } from "../index.js";
 
 const createLogger = () => ({
@@ -39,8 +39,8 @@ describe("SavedFiltersFeature 基本行为", () => {
 
     sentMessages = [];
     emittedSearch = [];
-    globalEventBus.on("websocket:message:send", (msg) => sentMessages.push(msg), { subscriberId: "capture-ws-send" });
-    globalEventBus.on("search:query:requested", (data) => emittedSearch.push(data), { subscriberId: "capture-search" });
+    globalEventBus.on(WEBSOCKET_EVENTS.MESSAGE.SEND, (msg) => sentMessages.push(msg), { subscriberId: "capture-ws-send" });
+    globalEventBus.on(SEARCH_EVENTS.QUERY.REQUESTED, (data) => emittedSearch.push(data), { subscriberId: "capture-search" });
 
     const container = {
       get: jest.fn((key) => {
@@ -79,13 +79,18 @@ describe("SavedFiltersFeature 基本行为", () => {
 
   it("点击加号会保存当前条件并通过 pdf-library:config-write:requested 持久化", () => {
     // 先模拟有筛选条件
-    globalEventBus.emit("filter:state:updated", { filters: { type: "fuzzy", field: "filename", op: "contains", value: "abc" } });
+    globalEventBus.emit(FILTER_EVENTS.STATE.UPDATED, { filters: { type: "fuzzy", field: "filename", op: "contains", value: "abc" } });
     // 模拟有排序
     scopedEventBus.emitGlobal("@pdf-list/sort:change:completed", { column: "updated_at", direction: "desc" });
 
     const btn = document.querySelector(".saved-filters-add-btn");
     expect(btn).toBeTruthy();
-    btn.click();
+    btn.click(); // 打开保存对话框
+
+    // 在对话框中点击“保存”确认
+    const saveBtn = document.querySelector(".preset-dialog-save");
+    expect(saveBtn).toBeTruthy();
+    saveBtn.click();
 
     jest.advanceTimersByTime(400);
     const lastUpdate = sentMessages.filter(m => m.type === WEBSOCKET_MESSAGE_TYPES.UPDATE_CONFIG).pop();
@@ -111,7 +116,7 @@ describe("SavedFiltersFeature 基本行为", () => {
       request_id: getMsg.request_id,
       data: { config: { saved_filters: [fakeItem] } },
     };
-    globalEventBus.emit("websocket:message:response", resp);
+    globalEventBus.emit(WEBSOCKET_MESSAGE_EVENTS.RESPONSE, resp);
 
     const row = document.querySelector(".saved-filter-item");
     expect(row).toBeTruthy();

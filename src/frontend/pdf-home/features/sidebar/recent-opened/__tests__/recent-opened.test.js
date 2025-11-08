@@ -3,7 +3,7 @@
  */
 
 import { RecentOpenedFeature } from "../index.js";
-import { WEBSOCKET_EVENTS } from "../../../../../common/event/event-constants.js";
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS, SEARCH_EVENTS } from "../../../../../common/event/event-constants.js";
 
 const createLogger = () => ({
   info: jest.fn(),
@@ -84,7 +84,7 @@ describe("RecentOpenedFeature 最近阅读", () => {
       { id: "id-1", title: "第一本" },
       { id: "id-2", title: "第二本" },
     ];
-    globalEventBus.emit("websocket:message:response", {
+    globalEventBus.emit(WEBSOCKET_MESSAGE_EVENTS.RESPONSE, {
       type: "pdf-library:search:completed",
       status: "success",
       request_id: rid,
@@ -110,7 +110,7 @@ describe("RecentOpenedFeature 最近阅读", () => {
     ].join("\n");
 
     const got = [];
-    const unsub = globalEventBus.on("search:query:requested", (payload) => { got.push(payload); }, { subscriberId: "jest-opened-click" });
+    const unsub = globalEventBus.on(SEARCH_EVENTS.QUERY.REQUESTED, (payload) => { got.push(payload); }, { subscriberId: "jest-opened-click" });
 
     // 点击第一项
     list.querySelector(".sidebar-item").click();

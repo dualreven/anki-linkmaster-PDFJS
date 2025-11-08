@@ -4,7 +4,8 @@
  */
 
 import { SavedFiltersFeatureConfig } from "./feature.config.js";
-import { WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constants.js";
+import { WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_EVENTS, WEBSOCKET_EVENTS, FILTER_EVENTS, SEARCH_EVENTS } from "../../../../common/event/event-constants.js";
+import { showError } from "../../../../common/utils/notification.js";
 
 // 导入样式
 import "./styles/saved-filters.css";
@@ -150,7 +151,7 @@ export class SavedFiltersFeature {
     }
 
     // 监听全局筛选状态更新（保存最近 filters）
-    const unsubFilter = this.#globalEventBus.on("filter:state:updated", (data) => {
+    const unsubFilter = this.#globalEventBus.on(FILTER_EVENTS.STATE.UPDATED, (data) => {
       try { this.#lastFilters = data?.filters ?? null; } catch { this.#lastFilters = null; }
     }, { subscriberId: "SavedFiltersFeature" });
     this.#unsubscribers.push(unsubFilter);
@@ -165,7 +166,7 @@ export class SavedFiltersFeature {
     this.#unsubscribers.push(unsubSort);
 
     // 监听后端配置回执（覆盖本地）
-    const unsubWsResp = this.#scopedEventBus.onGlobal("websocket:message:response", (message) => {
+    const unsubWsResp = this.#scopedEventBus.onGlobal(WEBSOCKET_MESSAGE_EVENTS.RESPONSE, (message) => {
       try {
         if (!message || message.status !== "success") {return;}
         if (this.#pendingGetConfigReqId && message.request_id === this.#pendingGetConfigReqId) {
@@ -230,20 +231,7 @@ export class SavedFiltersFeature {
     this.#scheduleSaveToBackend();
   }
 
-  /**
-   * 删除搜索条件
-   * @param {string} filterId - 条件ID
-   * @private
-   */
-  #deleteFilter(filterId) {
-    const idx = this.#savedFilters.findIndex(sf => sf.id === filterId);
-    if (idx >= 0) {
-      this.#savedFilters.splice(idx, 1);
-      this.#saveToStorage();
-      this.#renderFilterList();
-      this.#scheduleSaveToBackend();
-    }
-  }
+  // （已移除未使用的 #deleteFilter，避免 no-unused-private-class-members）
 
   /**
    * 应用搜索条件
@@ -261,10 +249,10 @@ export class SavedFiltersFeature {
       }
 
       // 2) 广播筛选状态（让 SearchManager 记录 currentFilters）
-      this.#globalEventBus.emit("filter:state:updated", { filters: filter.filters || null });
+      this.#globalEventBus.emit(FILTER_EVENTS.STATE.UPDATED, { filters: filter.filters || null });
 
       // 3) 发送搜索请求（透传 filters/sort）
-      this.#globalEventBus.emit("search:query:requested", {
+      this.#globalEventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, {
         searchText: filter.searchText || "",
         filters: filter.filters || null,
         sort: Array.isArray(filter.sort) ? filter.sort : undefined,
@@ -309,7 +297,7 @@ export class SavedFiltersFeature {
       this.#listEl = this.#container.querySelector(".saved-filters-list");
       this.#addBtn = this.#container.querySelector(".saved-filters-add-btn");
       this.#configBtn = this.#container.querySelector(".saved-filters-config-btn");
-    } catch {}
+    } catch (e) { void e; }
   }
 
   #loadFromStorage() {
@@ -328,7 +316,7 @@ export class SavedFiltersFeature {
     try {
       const rid = `cfg_get_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
       this.#pendingGetConfigReqId = rid;
-      this.#scopedEventBus.emitGlobal("websocket:message:send", {
+      this.#scopedEventBus.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, {
         type: WEBSOCKET_MESSAGE_TYPES.GET_CONFIG,
         request_id: rid,
         metadata: { version: "1.0.0" }
@@ -344,7 +332,7 @@ export class SavedFiltersFeature {
       this.#pendingSaveTimer = setTimeout(() => {
         this.#pendingSaveTimer = null;
         const rid = `cfg_up_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-        this.#scopedEventBus.emitGlobal("websocket:message:send", {
+        this.#scopedEventBus.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, {
           type: WEBSOCKET_MESSAGE_TYPES.UPDATE_CONFIG,
           request_id: rid,
           metadata: { version: "1.0.0" },
@@ -363,7 +351,7 @@ export class SavedFiltersFeature {
       try {
         const sm = this.#context?.container?.get && this.#context.container.get("searchManager");
         if (sm && typeof sm.getCurrentSearchText === "function") {searchText = sm.getCurrentSearchText() || "";}
-      } catch {}
+      } catch (e) { void e; }
       if (!searchText) {
         const input = document.querySelector(".search-input");
         searchText = (input && input.value) ? String(input.value) : "";
@@ -412,7 +400,7 @@ export class SavedFiltersFeature {
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
-        .replace(/\"/g, "&quot;")
+        .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
     } catch { return ""; }
   }
@@ -435,7 +423,7 @@ export class SavedFiltersFeature {
       this.#saveNameInput.value = snapshot.defaultName;
       this.#saveSummaryEl.innerHTML = this.#buildSummaryHtml(snapshot);
       this.#saveDialog.hidden = false;
-      setTimeout(() => { try { this.#saveNameInput.focus(); } catch {} }, 50);
+      setTimeout(() => { try { this.#saveNameInput.focus(); } catch (e) { void e; } }, 50);
     } catch (e) {
       this.#logger.error("[SavedFiltersFeature] Open save dialog failed", e);
     }
@@ -496,7 +484,7 @@ export class SavedFiltersFeature {
   #handleConfirmSave() {
     try {
       const name = (this.#saveNameInput && this.#saveNameInput.value) ? this.#saveNameInput.value.trim() : "";
-      if (!name) { alert("请输入名称"); return; }
+      if (!name) { showError("请输入名称", 3000); return; }
       this.#handleAddCurrentCondition(name);
       this.#closeSaveDialog();
     } catch (e) {
@@ -509,7 +497,7 @@ export class SavedFiltersFeature {
     try {
       const sm = this.#context?.container?.get && this.#context.container.get("searchManager");
       if (sm && typeof sm.getCurrentSearchText === "function") {searchText = sm.getCurrentSearchText() || "";}
-    } catch {}
+    } catch (e) { void e; }
     if (!searchText) {
       const input = document.querySelector(".search-input");
       searchText = (input && input.value) ? String(input.value) : "";

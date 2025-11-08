@@ -10,39 +10,27 @@ describe("构建验证测试", () => {
     expect(true).toBe(true);
   });
 
-  test("Babel配置应该包含私有字段转换插件", () => {
+  test("Babel配置应该包含私有字段转换插件", async () => {
     // 验证Babel配置是否正确设置了私有字段转换
-    // 使用动态导入代替require
-    import("../../../babel.config.js").then(babelConfig => {
-      expect(babelConfig.plugins).toBeDefined();
+    const babelConfig = await import("../../../babel.config.js");
+    expect(babelConfig.plugins).toBeDefined();
 
-      const hasPrivateMethodsPlugin = babelConfig.plugins.includes("@babel/plugin-transform-private-methods");
-      const hasClassPropertiesPlugin = babelConfig.plugins.includes("@babel/plugin-transform-class-properties");
+    const hasPrivateMethodsPlugin = babelConfig.plugins.includes("@babel/plugin-transform-private-methods");
+    const hasClassPropertiesPlugin = babelConfig.plugins.includes("@babel/plugin-transform-class-properties");
 
-      expect(hasPrivateMethodsPlugin).toBe(true);
-      expect(hasClassPropertiesPlugin).toBe(true);
-
-      console.log("Babel配置验证: 私有字段转换插件已配置");
-    }).catch(error => {
-      console.error("Failed to import babel.config.js:", error);
-    });
+    expect(hasPrivateMethodsPlugin).toBe(true);
+    expect(hasClassPropertiesPlugin).toBe(true);
   });
 
-  test("package.json应该包含必要的Babel依赖", () => {
+  test("package.json应该包含必要的Babel依赖", async () => {
     // 验证package.json中包含了必要的Babel插件
-    // 使用动态导入代替require
-    import("../../../package.json").then(packageJson => {
-      expect(packageJson.devDependencies).toBeDefined();
+    const packageJson = await import("../../../package.json");
+    expect(packageJson.devDependencies).toBeDefined();
 
-      const deps = packageJson.devDependencies;
-      expect(deps["@babel/plugin-transform-private-methods"]).toBeDefined();
-      expect(deps["@babel/plugin-transform-class-properties"]).toBeDefined();
-      expect(deps["vite-plugin-babel"]).toBeDefined();
-
-      console.log("依赖验证: 必要的Babel依赖已安装");
-    }).catch(error => {
-      console.error("Failed to import package.json:", error);
-    });
+    const deps = packageJson.devDependencies;
+    expect(deps["@babel/plugin-transform-private-methods"]).toBeDefined();
+    expect(deps["@babel/plugin-transform-class-properties"]).toBeDefined();
+    expect(deps["vite-plugin-babel"]).toBeDefined();
   });
 });
 

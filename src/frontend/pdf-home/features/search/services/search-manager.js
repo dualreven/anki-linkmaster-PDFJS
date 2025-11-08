@@ -1,4 +1,4 @@
-﻿/**
+/**
  * SearchManager - 负责处理PDF搜索逻辑
  *
  * 职责：
@@ -9,7 +9,13 @@
  */
 
 import { getLogger } from "../../../../common/utils/logger.js";
-import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constants.js";
+import {
+  WEBSOCKET_EVENTS,
+  WEBSOCKET_MESSAGE_EVENTS,
+  WEBSOCKET_MESSAGE_TYPES,
+  SEARCH_EVENTS,
+  FILTER_EVENTS
+} from "../../../../common/event/event-constants.js";
 
 export class SearchManager {
   #logger = null;
@@ -42,22 +48,23 @@ export class SearchManager {
    */
   #setupEventListeners() {
     // 监听搜索请求
-    const unsubSearch = this.#eventBus.on("search:query:requested", (data) => {
+    const unsubSearch = this.#eventBus.on(SEARCH_EVENTS.QUERY.REQUESTED, (data) => {
       // 兼容扩展参数：允许透传 filters/sort/pagination/focusId
       // 同时预读取一次性参数以便在构建消息时补充顶层 limit/offset 等兼容字段
       try {
         this.#nextSort = (data && Array.isArray(data.sort)) ? data.sort : null;
         this.#nextPagination = (data && typeof data.pagination === "object") ? data.pagination : null;
-      } catch (_) {
+      } catch (e) {
         this.#nextSort = null;
         this.#nextPagination = null;
+        void e;
       }
       this.#handleSearch(data?.searchText, data);
     }, { subscriberId: "SearchManager" });
     this.#unsubs.push(unsubSearch);
 
     // 监听清除请求
-    const unsubClear = this.#eventBus.on("search:clear:requested", () => {
+    const unsubClear = this.#eventBus.on(SEARCH_EVENTS.QUERY.CLEARED, () => {
       this.#handleClear();
     }, { subscriberId: "SearchManager" });
     this.#unsubs.push(unsubClear);
@@ -80,23 +87,25 @@ export class SearchManager {
 
         const errorMsg = message?.message || message?.error?.message || "搜索失败";
         this.#logger.error("[SearchManager] Search failed (WS ERROR)", errorMsg);
-        this.#eventBus.emit("search:results:failed", {
+        this.#eventBus.emit(SEARCH_EVENTS.RESULTS.FAILED, {
           error: errorMsg,
           searchText: requestInfo?.searchText
         });
       } catch (e) {
         // 忽略错误，避免影响全局错误处理
+        void e;
       }
     }, { subscriberId: "SearchManager" });
     this.#unsubs.push(unsubWsError);
 
     // 监听筛选状态更新（持久化当前筛选条件）
-    const unsubFilterState = this.#eventBus.on("filter:state:updated", (data) => {
+    const unsubFilterState = this.#eventBus.on(FILTER_EVENTS.STATE.UPDATED, (data) => {
       try {
         this.#currentFilters = (data && typeof data === "object") ? (data.filters ?? null) : null;
         this.#logger.info("[SearchManager] Filter state updated", { hasFilters: !!this.#currentFilters });
       } catch (e) {
         this.#currentFilters = null;
+        void e;
       }
     }, { subscriberId: "SearchManager" });
     this.#unsubs.push(unsubFilterState);
@@ -122,7 +131,7 @@ export class SearchManager {
       const searchText = data?.search_text ?? requestInfo.searchText;
       // 从响应或请求缓存中推断分页信息
       let page = null;
-      try { page = (data && typeof data.page === "object") ? data.page : null; } catch (_) { page = null; }
+      try { page = (data && typeof data.page === "object") ? data.page : null; } catch (e) { page = null; void e; }
       if (!page && requestInfo && requestInfo.pagination) {
         const p = requestInfo.pagination;
         const limit = (p && typeof p.limit !== "undefined") ? p.limit : undefined;
@@ -130,7 +139,7 @@ export class SearchManager {
         if (typeof limit !== "undefined" || typeof offset !== "undefined") {page = { limit, offset };}
       }
 
-      this.#eventBus.emit("search:results:updated", {
+      this.#eventBus.emit(SEARCH_EVENTS.RESULTS.UPDATED, {
         records,
         count,
         searchText,
@@ -144,7 +153,7 @@ export class SearchManager {
       this.#logger.error("[SearchManager] Search (legacy response) failed", errorMsg);
 
       this.#isSearching = false;
-      this.#eventBus.emit("search:results:failed", {
+      this.#eventBus.emit(SEARCH_EVENTS.RESULTS.FAILED, {
         error: errorMsg,
         searchText: requestInfo.searchText
       });
@@ -171,7 +180,7 @@ export class SearchManager {
       this.#logger.info("[SearchManager] Starting search", { searchText });
 
       // 发布搜索开始事件
-      this.#eventBus.emit("search:query:started", {
+      this.#eventBus.emit(SEARCH_EVENTS.QUERY.STARTED, {
         searchText: searchText
       });
 
@@ -183,7 +192,7 @@ export class SearchManager {
       this.#isSearching = false;
 
       // 发布搜索失败事件
-      this.#eventBus.emit("search:results:failed", {
+      this.#eventBus.emit(SEARCH_EVENTS.RESULTS.FAILED, {
         error: error.message || "搜索请求失败",
         searchText: searchText
       });
@@ -208,7 +217,7 @@ export class SearchManager {
       } else if (this.#nextPagination && typeof this.#nextPagination === "object") {
         usedPagination = { ...this.#nextPagination };
       }
-    } catch (_) { usedPagination = null; }
+    } catch (e) { usedPagination = null; void e; }
 
     this.#pendingRequests.set(requestId, {
       searchText,
@@ -232,7 +241,7 @@ export class SearchManager {
         this.#isSearching = false;
 
         this.#logger.error("[SearchManager] Search request timeout");
-        this.#eventBus.emit("search:results:failed", {
+        this.#eventBus.emit(SEARCH_EVENTS.RESULTS.FAILED, {
           error: "搜索超时，请重试",
           searchText
         });
@@ -288,8 +297,9 @@ export class SearchManager {
           if (Object.keys(pg).length > 0) {payload.data.pagination = pg;}
         }
       }
-    } catch (_) {
+    } catch (e) {
       // 安全兜底：忽略非法扩展参数
+      void e;
     }
 
     // 附加 sort/pagination（由调用方决定传入）
@@ -305,7 +315,7 @@ export class SearchManager {
         if (!Number.isNaN(limit)) {payload.data.limit = limit;}
         if (!Number.isNaN(offset)) {payload.data.offset = offset;}
       }
-    } catch (_) {}
+    } catch (e) { void e; }
     // 清理一次性参数
     this.#nextSort = null;
     this.#nextPagination = null;
@@ -357,3 +367,4 @@ export class SearchManager {
     this.#logger.info("[SearchManager] Destroyed");
   }
 }
+

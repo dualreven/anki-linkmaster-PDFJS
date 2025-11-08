@@ -1,3 +1,5 @@
+/* global qt, QWebChannel */
+/* eslint no-empty: "off", no-unused-vars: "off" */
 /**
  * 锚点侧边栏 UI
  * @file 渲染锚点工具栏与表格列表
@@ -11,6 +13,8 @@ import { showSuccess, showError } from "../../../../common/utils/notification.js
 export class AnchorSidebarUI {
   #eventBus;
   #logger;
+  #instanceId;
+  #initialized = false;
   #sidebarContent; // 整个侧栏内容容器（工具栏 + 表格）
   #pdfId;
   #toolbar;
@@ -27,9 +31,12 @@ export class AnchorSidebarUI {
   constructor(eventBus) {
     this.#eventBus = eventBus;
     this.#logger = getLogger("AnchorSidebarUI");
+    this.#instanceId = `ancui-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36).slice(-4)}`;
   }
 
   initialize() {
+    if (this.#initialized) { this.#logger.info("AnchorSidebarUI.initialize called twice; ignored"); return; }
+    this.#initialized = true;
     // 内容容器
     this.#sidebarContent = document.createElement("div");
     this.#sidebarContent.style.cssText = "height:100%;display:flex;flex-direction:column;box-sizing:border-box;";
@@ -43,7 +50,7 @@ export class AnchorSidebarUI {
     this.#sidebarContent.appendChild(this.#table);
 
     // 初始渲染空态
-    try { this.#renderAnchors([]); } catch (_) {}
+    try { this.#renderAnchors([]); } catch { /* no-op */ }
 
     // 事件订阅：加载请求（用于显示“加载中/超时”并记录最近一次请求参数）
     this.#unsubs.push(this.#eventBus.on(
@@ -54,7 +61,7 @@ export class AnchorSidebarUI {
         this.#clearError();
         this.#startLoadTimeout();
       },
-      { subscriberId: "AnchorSidebarUI" }
+      { subscriberId: `AnchorSidebarUI:${this.#instanceId}` }
     ));
 
     // 事件订阅：数据加载
@@ -67,7 +74,7 @@ export class AnchorSidebarUI {
         this.#clearLoadTimeout();
         this.#renderAnchors(Array.isArray(anchors) ? anchors : []);
       },
-      { subscriberId: "AnchorSidebarUI" }
+      { subscriberId: `AnchorSidebarUI:${this.#instanceId}` }
     ));
 
     // 事件订阅：数据加载失败（来自 WS 适配器桥接 anchor:get/list:failed）
@@ -77,9 +84,11 @@ export class AnchorSidebarUI {
         this.#hideLoading();
         this.#clearLoadTimeout();
         const msg = (error && (error.message || error.err || error.detail)) ? (error.message || error.err || error.detail) : "无法加载锚点数据";
-        this.#showError(`[${type || "anchor:load:failed"}] ${msg}`);
+        // 显示时不使用硬编码事件字符串，优先展示来自消息的类型或通用提示
+        const label = type || "anchor-load-failed";
+        this.#showError(`[${label}] ${msg}`);
       },
-      { subscriberId: "AnchorSidebarUI" }
+      { subscriberId: `AnchorSidebarUI:${this.#instanceId}` }
     ));
 
     // 监听锚点更新与激活状态变更以刷新表格
@@ -93,7 +102,7 @@ export class AnchorSidebarUI {
           this.#renderAnchors(this.#anchors);
         }
       },
-      { subscriberId: "AnchorSidebarUI" }
+      { subscriberId: `AnchorSidebarUI:${this.#instanceId}` }
     ));
 
     this.#unsubs.push(this.#eventBus.on(
@@ -105,7 +114,7 @@ export class AnchorSidebarUI {
           this.#renderAnchors(this.#anchors);
         }
       },
-      { subscriberId: "AnchorSidebarUI" }
+      { subscriberId: `AnchorSidebarUI:${this.#instanceId}` }
     ));
 
     // 打开侧栏后基于 URL 的 pdf-id 主动请求一次列表，防止第一次列表在侧栏订阅前已发出
@@ -297,6 +306,17 @@ export class AnchorSidebarUI {
     bar.appendChild(editBtn);
 
     bar.appendChild(copyWrap);
+
+    // 激活/取消激活按钮（切换当前选中锚点的激活状态）
+    const activateBtn = mkBtn("activate", "激活", "激活/取消激活选中锚点");
+    activateBtn.addEventListener("click", () => {
+      if (!this.#selectedId) { return; }
+      const idx = this.#anchors.findIndex(a => a.uuid === this.#selectedId);
+      const nextActive = !(idx >= 0 && this.#anchors[idx] && this.#anchors[idx].is_active === true);
+      this.#logger.info("Anchor activate toggled", { id: this.#selectedId, active: nextActive });
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.ACTIVATE, { anchorId: this.#selectedId, active: nextActive }, { actorId: "AnchorToolbar" });
+    });
+    bar.appendChild(activateBtn);
 
     return bar;
   }
@@ -630,3 +650,4 @@ export class AnchorSidebarUI {
 }
 
 export default AnchorSidebarUI;
+

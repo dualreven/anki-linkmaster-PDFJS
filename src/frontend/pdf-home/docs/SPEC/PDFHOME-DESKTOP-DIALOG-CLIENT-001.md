@@ -1,4 +1,4 @@
-﻿# PDF-Home 桌面对话框客户端规范
+# PDF-Home 桌面对话框客户端规范
 
 - **规范名称**: PDF-Home 桌面对话框客户端规范
 - **规范编号**: PDFHOME-DESKTOP-DIALOG-CLIENT-001
@@ -71,9 +71,10 @@
 - 日志前缀应包含 `client_id` 以便追踪。
 
 ## 6. 验收标准
-1. 启动 `python app.py --module pdf-home` 后，服务器日志可看到：
+1. 启动（推荐）`python ai_launcher.py start --module pdf-home --logs-dir logs` 后，服务器日志可看到：
    - `client_register_request` → `client_register_response` → `module=pdf-home`。
 2. 前端点击“添加 PDF”时，桌面应用弹出原生对话框并回传文件路径。
 3. 选择成功的文件在 `logs/pdf-home.log` 中记录并能在 UI 列表看到。
 4. 取消选择或弹框出错时，服务器返回 `status=success, summary.selected=0` 或 `status=error`，前端可显示提示。
 5. 人为断开连接后客户端能自动重连，并再次完成文件选择。 
+

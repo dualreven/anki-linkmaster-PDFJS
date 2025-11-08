@@ -22,6 +22,9 @@ describe("WebSocketAdapter navigate (annotation/anchor)", () => {
     jest.isolateModules(() => {
       WebSocketAdapter = require("../websocket-adapter.js").WebSocketAdapter;
     });
+    // 让待测适配器生成的 viewer_id 与测试消息中的 to.viewer_id 一致
+    // WebSocketAdapter 会优先从 sessionStorage 读取稳定的实例ID
+    try { window.sessionStorage.setItem("pdf_viewer_instance_id", "vwr_x"); } catch {}
     // 轻量事件总线 stub（避免引入真实 EventBus 触发 import.meta）
     eventBus = {
       _h: {},
@@ -83,3 +86,4 @@ describe("WebSocketAdapter navigate (annotation/anchor)", () => {
     );
   });
 });
+

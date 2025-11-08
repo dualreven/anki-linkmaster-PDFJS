@@ -1,5 +1,4 @@
 /* eslint-env node */
-/* global describe, test, expect */
 /**
  * 确认 header 标题的省略与 tooltip 设置。
  * 通过静态断言：
@@ -22,8 +21,7 @@ describe("pdf-viewer header title behavior", () => {
   });
 
   test("UIManagerCore sets title attribute for tooltip", () => {
-    const js = readUtf8(resolve(process.cwd(), "src/frontend/pdf-viewer/features/ui-manager/components/ui-manager-core.js"));
+    const js = readUtf8(resolve(process.cwd(), "src/frontend/pdf-viewer/features/infra-ui/components/ui-manager-core.js"));
     expect(js.includes("titleElement.title = displayName")).toBe(true);
   });
 });
-

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, jest } from "@jest/globals
 import { EventBus } from "../../../../common/event/event-bus.js";
 import { ScopedEventBus } from "../../../../common/event/scoped-event-bus.js";
 import { PDFSorterFeature } from "../index.js";
+import { SEARCH_EVENTS, HEADER_EVENTS } from "../../../../common/event/event-constants.js";
 
 const createLoggerStub = () => ({
   info: jest.fn(),
@@ -54,7 +55,7 @@ describe("PDFSorterFeature 排序按钮交互", () => {
     expect(panel).toBeTruthy();
     expect(panel.classList.contains("active")).toBe(false);
 
-    globalEventBus.emit("search:sort:requested");
+    globalEventBus.emit(SEARCH_EVENTS.ACTIONS.SORT_REQUESTED);
 
     expect(panel.classList.contains("active")).toBe(true);
 
@@ -67,7 +68,7 @@ describe("PDFSorterFeature 排序按钮交互", () => {
     expect(panel).toBeTruthy();
     expect(panel.classList.contains("active")).toBe(false);
 
-    globalEventBus.emit("header:sort:requested");
+    globalEventBus.emit(HEADER_EVENTS.SORT.REQUESTED);
 
     expect(panel.classList.contains("active")).toBe(true);
   });

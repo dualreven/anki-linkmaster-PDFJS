@@ -30,6 +30,9 @@ def build_router(ctx: Any) -> Dict[str, RouteHandler]:
     )
     from src.backend.msgCenter_server.handlers.pdf_viewer.viewer import register_viewer, navigate_viewer
     from src.backend.msgCenter_server.handlers.pdf_viewer.bookmark import list_bookmarks, save_bookmarks
+    from src.backend.msgCenter_server.handlers.pdf_viewer.outline import (
+        list_outline, create_outline, update_outline, delete_outline, reorder_outline
+    )
     from src.backend.msgCenter_server.handlers.infra.debug import read_debug_info
     from src.backend.msgCenter_server.handlers.misc import heartbeat, console_log
     from src.backend.msgCenter_server.handlers.pdf_viewer.pdf_pages import load_page, preload_pages, clear_cache
@@ -74,6 +77,12 @@ def build_router(ctx: Any) -> Dict[str, RouteHandler]:
         # bookmark
         "bookmark:list:requested": wrap(list_bookmarks),
         "bookmark:save:requested": wrap(save_bookmarks),
+        # outline（2025-11-06：改为 pdf-viewer 前缀）
+        "pdf-viewer:outline-list:request": wrap(list_outline),
+        "pdf-viewer:outline-create:request": wrap(create_outline),
+        "pdf-viewer:outline-update:request": wrap(update_outline),
+        "pdf-viewer:outline-delete:request": wrap(delete_outline),
+        "pdf-viewer:outline-reorder:request": wrap(reorder_outline),
         # debug
         "debug-info:read:requested": lambda rid, data: read_debug_info(ctx, rid),
         # pdf-page
@@ -85,3 +94,4 @@ def build_router(ctx: Any) -> Dict[str, RouteHandler]:
         # console（非三段式历史信号）
         "console_log": wrap(console_log),
     }
+

@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 Smoke: event-bus naming from TablePlugin._emit_event
-- Verifies emitted name is 'table:pdf-bookmark:create:completed'
+- Accepts new canonical 'table:pdf-outline:create:completed'
+- Keeps compatibility with legacy 'table:pdf-bookmark:create:completed'
 """
 from __future__ import annotations
 
@@ -35,11 +36,14 @@ def main():
     bus = _StubBus()
     plugin = PDFBookmarkTablePlugin(execu, bus, logger=None)
     plugin.enable()  # ensure table exists
-    # Use the protected helper to emit
+    # Use the protected helper to emit (绕过 insert 的双事件兼容逻辑，直测命名规范)
     plugin._emit_event('create', 'completed', {'x': 1})  # type: ignore[attr-defined]
     assert bus.events, "no event emitted"
-    assert "table:pdf-bookmark:create:completed" in bus.events[-1], f"unexpected event: {bus.events[-1]}"
+    last = bus.events[-1]
+    ok = ("table:pdf-outline:create:completed" in last) or ("table:pdf-bookmark:create:completed" in last)
+    assert ok, f"unexpected event: {last}"
     print("OK event-bus naming")
 
 if __name__ == "__main__":
     main()
+

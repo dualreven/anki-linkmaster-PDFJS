@@ -88,7 +88,7 @@ export class SortManager {
    * @returns {Array} 排序后的数据
    * @public
    */
-  applyMultiSort(configs) {
+  async applyMultiSort(configs) {
     if (!this.#dataSource) {
       this.#logger.warn("[SortManager] No data source available");
       return [];
@@ -120,8 +120,9 @@ export class SortManager {
 
     this.#logger.info("[SortManager] Multi-sort applied", { resultCount: sortedData.length });
 
-    // 触发全局事件通知其他Feature
-    this.#globalEventBus.emit("sorter:sort:applied", {
+    // 触发全局事件通知其他Feature（使用常量命名空间）
+    const { SORTER_EVENTS } = await import("../../../../common/event/event-constants.js");
+    this.#globalEventBus.emit(SORTER_EVENTS.SORT.APPLIED, {
       mode: "multi",
       configs,
       resultCount: sortedData.length
@@ -136,7 +137,7 @@ export class SortManager {
    * @returns {Array} 排序后的数据
    * @public
    */
-  applyWeightedSort(formula) {
+  async applyWeightedSort(formula) {
     if (!this.#dataSource) {
       this.#logger.warn("[SortManager] No data source available");
       return [];
@@ -165,12 +166,9 @@ export class SortManager {
 
       this.#logger.info("[SortManager] Weighted sort applied", { resultCount: sortedData.length });
 
-      // 触发全局事件通知其他Feature
-      this.#globalEventBus.emit("sorter:sort:applied", {
-        mode: "weighted",
-        formula,
-        resultCount: sortedData.length
-      });
+      // 触发全局事件通知其他Feature（使用常量命名空间）
+      const { SORTER_EVENTS } = await import("../../../../common/event/event-constants.js");
+      this.#globalEventBus.emit(SORTER_EVENTS.SORT.APPLIED, { mode: "weighted", formula, resultCount: sortedData.length });
 
       return sortedData;
     } catch (error) {
@@ -184,14 +182,15 @@ export class SortManager {
    * @returns {Array} 原始数据
    * @public
    */
-  clearSort() {
+  async clearSort() {
     this.#logger.info("[SortManager] Clearing sort");
 
     this.#multiSortConfigs = [];
     this.#weightedFormula = "";
 
-    // 触发全局事件
-    this.#globalEventBus.emit("sorter:sort:cleared", {});
+    // 触发全局事件（使用常量命名空间）
+    const { SORTER_EVENTS } = await import("../../../../common/event/event-constants.js");
+    this.#globalEventBus.emit(SORTER_EVENTS.SORT.CLEARED, {});
 
     return this.#dataSource ? [...this.#dataSource] : [];
   }

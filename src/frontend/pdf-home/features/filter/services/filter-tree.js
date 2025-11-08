@@ -131,9 +131,11 @@ export class FilterTreeNode {
       case "ends_with":
         return `${field}.endswith("${value}")`;
       case "in_range":
-        // 假设value格式为 "min,max"
+      {
+        // 假设 value 形如 "min,max"（包裹块以满足 no-case-declarations）
         const [min, max] = value.split(",");
         return `${min} <= ${field} <= ${max}`;
+      }
       default:
         return `${field} ${operator} "${value}"`;
       }
@@ -230,3 +232,4 @@ export class FilterTree {
     return this.#root.toJSON();
   }
 }
+

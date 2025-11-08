@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, jest } from "@jest/globals
 import { EventBus } from "../../../../../common/event/event-bus.js";
 import { ScopedEventBus } from "../../../../../common/event/scoped-event-bus.js";
 import { RecentSearchesFeature } from "../index.js";
-import { WEBSOCKET_MESSAGE_TYPES } from "../../../../../common/event/event-constants.js";
+import { WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS, SEARCH_EVENTS } from "../../../../../common/event/event-constants.js";
 
 const createLogger = () => ({
   info: jest.fn(),
@@ -41,7 +41,7 @@ describe("RecentSearchesFeature 持久化到后端", () => {
     scopedEventBus = new ScopedEventBus(globalEventBus, "recent-searches-test");
 
     sentMessages = [];
-    globalEventBus.on("websocket:message:send", (msg) => {
+    globalEventBus.on(WEBSOCKET_EVENTS.MESSAGE.SEND, (msg) => {
       sentMessages.push(msg);
     }, { subscriberId: "capture-ws-send" });
 
@@ -71,7 +71,7 @@ describe("RecentSearchesFeature 持久化到后端", () => {
   });
 
   it("搜索后会通过 WebSocket 推送配置更新（pdf-library:update:config）", () => {
-    globalEventBus.emit("search:query:requested", { searchText: "abc" });
+    globalEventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, { searchText: "abc" });
 
     // 推进防抖定时器
     jest.advanceTimersByTime(400);
@@ -95,7 +95,7 @@ describe("RecentSearchesFeature 持久化到后端", () => {
         config: { recent_search: [{ text: "from-backend", ts: Date.now() }] }
       }
     };
-    globalEventBus.emit("websocket:message:response", fakeResponse);
+    globalEventBus.emit(WEBSOCKET_MESSAGE_EVENTS.RESPONSE, fakeResponse);
 
     const items = document.querySelectorAll("#recent-searches-list .sidebar-item-text");
     expect(items.length).toBe(1);

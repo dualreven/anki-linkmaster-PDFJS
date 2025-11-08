@@ -62,7 +62,7 @@ export class PDFTranslatorFeature {
    * @returns {string[]}
    */
   get dependencies() {
-    return ["app-core", "ui-manager"];  // 移除 sidebar-manager 避免循环依赖
+    return ["infra-app", "infra-ui"];  // 移除 sidebar-manager 避免循环依赖
   }
 
   /**
@@ -381,3 +381,4 @@ export class PDFTranslatorFeature {
     return this.#sidebarUI;
   }
 }
+

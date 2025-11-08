@@ -8,8 +8,8 @@
  */
 
 import { PDF_EDIT_FEATURE_CONFIG } from "./feature.config.js";
-import { PDF_EDIT_EVENTS, createEditRequestedData, createEditCompletedData } from "./events.js";
-import { PDF_MANAGEMENT_EVENTS, WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../../common/event/event-constants.js";
+// import { PDF_EDIT_EVENTS, createEditRequestedData, createEditCompletedData } from "./events.js";
+import { PDF_MANAGEMENT_EVENTS, WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, SEARCH_EVENTS } from "../../../common/event/event-constants.js";
 import { showInfo, showSuccess, showError } from "../../../common/utils/notification.js";
 import { getLogger } from "../../../common/utils/logger.js";
 import { ModalManager } from "./components/modal-manager.js";
@@ -237,21 +237,21 @@ export class PDFEditFeature {
             this.#awaitingSuccess = true;
           } else if (t === WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_FAILED) {
             const msg = message?.message || message?.error?.message || "操作失败";
-            try { showError(`更新失败-${msg}`, 5000); } catch (_) {}
+            try { showError(`更新失败-${msg}`, 5000); } catch (e) { void e; }
             this.#awaitingSuccess = false;
             if (this.#awaitingTimer) { clearTimeout(this.#awaitingTimer); this.#awaitingTimer = null; }
           }
-        } catch (_) {}
+        } catch (e) { void e; }
       }
     );
     this.#unsubscribers.push(unsubWsAny);
 
     // 在搜索结果刷新后，再显示“更新完成”，避免被 SearchFeature.hideAll() 立即 destroy
-    const unsubSearchUpdated = this.#globalEventBus.on("search:results:updated", () => {
+    const unsubSearchUpdated = this.#globalEventBus.on(SEARCH_EVENTS.RESULTS.UPDATED, () => {
       if (this.#awaitingSuccess) {
         this.#awaitingSuccess = false;
         if (this.#awaitingTimer) { clearTimeout(this.#awaitingTimer); this.#awaitingTimer = null; }
-        try { showSuccess("更新完成", 3500); } catch (_) {}
+        try { showSuccess("更新完成", 3500); } catch (e) { void e; }
       }
     }, { subscriberId: `pdf-edit:${Date.now().toString(36)}:${Math.random().toString(36).slice(2,6)}:search-results-updated` });
     this.#unsubscribers.push(unsubSearchUpdated);
@@ -294,6 +294,32 @@ export class PDFEditFeature {
     }
 
     this.#logger.debug("UI initialized");
+  }
+
+  /**
+   * 显示确认对话框（替代 window.confirm）
+   * @private
+   * @param {string} title
+   * @param {string} message
+   * @returns {Promise<boolean>} 是否确认
+   */
+  async #confirm(title, message) {
+    return new Promise((resolve) => {
+      try {
+        this.#modalManager.show({
+          title: title || "确认操作",
+          content: `<div style="padding:8px 0;white-space:pre-line;">${this.#escapeHtml(message || "")}</div>`,
+          confirmText: "确定",
+          cancelText: "取消",
+          onConfirm: async () => { resolve(true); return true; },
+          onCancel: async () => { resolve(false); },
+        });
+      } catch (e) {
+        // 如果弹框失败，不阻塞主流程，视为取消
+        try { this.#logger.warn("Confirm dialog failed, treat as cancelled", e); } catch (_) { void _; }
+        resolve(false);
+      }
+    });
   }
 
   /**
@@ -578,7 +604,7 @@ export class PDFEditFeature {
           if (!pdfUuid) {
             warnInvalidId();
           }
-          const ok = window.confirm("确定要重置书签吗？这将清空后端书签记录。\n下次打开PDF查看器时将从PDF原生书签重新导入。");
+          const ok = await this.#confirm("重置书签", "确定要重置书签吗？这将清空后端书签记录。\n下次打开PDF查看器时将从PDF原生书签重新导入。");
           if (!ok) {return;}
           if (!this.#wsClient) {
             this.#showGlobalError("WebSocket未连接，无法执行重置");
@@ -604,7 +630,7 @@ export class PDFEditFeature {
           if (!fileId) {
             warnInvalidId();
           }
-          const ok = window.confirm("确定要重置阅读进度吗？这将清零阅读时长与最近访问时间。");
+          const ok = await this.#confirm("重置阅读进度", "确定要重置阅读进度吗？这将清零阅读时长与最近访问时间。");
           if (!ok) {return;}
           if (!this.#wsClient) {
             this.#showGlobalError("WebSocket未连接，无法执行重置");
@@ -679,7 +705,7 @@ export class PDFEditFeature {
         { actorId: "PDFEditFeature" }
       );
       // Toast：更新中（与其他功能一致，短暂提示）
-      try { showInfo("更新中", 1200); } catch (_) {}
+      try { showInfo("更新中", 1200); } catch (e) { void e; }
 
       // 发送WebSocket消息到后端并等待结果
       (async () => {
@@ -689,20 +715,24 @@ export class PDFEditFeature {
           try {
             const input = document.querySelector(".search-input");
             const searchText = (input && typeof input.value === "string") ? input.value.trim() : "";
-            this.#scopedEventBus.emitGlobal("search:query:requested", { searchText });
-          } catch (_e) {
+            // 注意：该文件位于 src/frontend/pdf-home/features/pdf-edit/
+            // event-constants.js 位于 src/frontend/common/event/
+            // 因此需要回溯三级目录（../../../），否则 Vite 在构建时会解析失败
+            const { SEARCH_EVENTS } = await import("../../../common/event/event-constants.js");
+            this.#scopedEventBus.emitGlobal(SEARCH_EVENTS.QUERY.REQUESTED, { searchText });
+          } catch (_e) { void _e;
             // 忽略刷新异常
           }
           // 兜底：若未触发搜索刷新事件，延时显示成功
           this.#awaitingTimer = setTimeout(() => {
             if (this.#awaitingSuccess) {
               this.#awaitingSuccess = false;
-              try { showSuccess("更新完成", 3500); } catch (_) {}
+              try { showSuccess("更新完成", 3500); } catch (e) { void e; }
             }
           }, 1200);
         } catch (err) {
           const msg = err?.message || "未知错误";
-          try { showError(`更新失败-${msg}`, 5000); } catch (_) {}
+          try { showError(`更新失败-${msg}`, 5000); } catch (e) { void e; }
         }
       })();
 
@@ -711,7 +741,7 @@ export class PDFEditFeature {
 
     } catch (error) {
       this.#logger.error("Form submission failed:", error);
-      try { showError(`更新失败-${error?.message || "表单提交异常"}`, 5000); } catch (_) {}
+      try { showError(`更新失败-${error?.message || "表单提交异常"}`, 5000); } catch (e) { void e; }
     }
   }
 
@@ -746,7 +776,7 @@ export class PDFEditFeature {
 
     } catch (error) {
       this.#logger.error("Failed to send edit request:", error);
-      try { this.#logger.error("Error details:", error.stack); } catch (_) {}
+      try { this.#logger.error("Error details:", error.stack); } catch (e) { void e; }
       throw (error instanceof Error ? error : new Error(error?.message || "编辑请求失败"));
     }
   }

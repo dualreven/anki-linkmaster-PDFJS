@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 PDF-Viewer Standalone Launcher
 
@@ -497,7 +497,7 @@ class PdfViewerApp:
                 file_param = urllib.parse.quote(self.file_path)
                 url += f"&file={file_param}"
 
-        # 添加 URL 导航参数：始终附带 pdf-id（供 Outline/Bookmark 等特性识别文档），
+        # 添加 URL 导航参数：始终附带 pdf-id（供 Outline 等特性识别文档），
         # 但仅在有导航目标时再附带 page/position/anchor/annotation/outline 等参数（互斥策略在后端已生效）
         if self.config.pdf_id:
             url += f"&pdf-id={self.config.pdf_id}"
@@ -975,7 +975,7 @@ def main_legacy() -> int:
 
     # Add URL navigation parameters (for url-navigation Feature)
     if args.pdf_id:
-        # 始终附带 pdf-id 供 Outline/Bookmark 识别文档；是否执行导航由互斥策略控制
+        # 始终附带 pdf-id 供 Outline 识别文档；是否执行导航由互斥策略控制
         url += f"&pdf-id={args.pdf_id}"
 
     if args.page_at is not None:
@@ -1163,3 +1163,5 @@ if __name__ == '__main__':
         import traceback
         traceback.print_exc()
         sys.exit(1)
+
+

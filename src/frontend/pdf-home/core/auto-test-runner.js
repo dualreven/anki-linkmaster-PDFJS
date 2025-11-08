@@ -27,23 +27,12 @@ export function createAutoTestRunner(app) {
         notes: []
       };
 
-      // 1) 捕获 window 错误与 console.error
+      // 1) 捕获 window 错误（不重写 console）
       const errorHandler = (e) => {
         try {
           const msg = e?.message || e?.toString?.() || String(e);
           result.errors.push({ source: "window.onerror", message: msg });
-        } catch (_) {}
-      };
-
-      const origConsoleError = console.error;
-      console.error = function(...args) {
-        try {
-          result.errors.push({
-            source: "console.error",
-            message: args.map(a => (a && a.message) ? a.message : String(a)).join(" ")
-          });
-        } catch(_) {}
-        return origConsoleError.apply(console, args);
+        } catch {}
       };
 
       window.addEventListener("error", errorHandler);
@@ -53,7 +42,7 @@ export function createAutoTestRunner(app) {
         try {
           result.openRequestedFired = true;
           result.notes.push("OPEN.REQUESTED captured with payload: " + JSON.stringify(payload));
-        } catch (_) {}
+        } catch {}
       }, { subscriberId: "AutoTest" });
 
       // 3) 等待 Tabulator DOM 渲染
@@ -68,7 +57,7 @@ export function createAutoTestRunner(app) {
                            wrapper.querySelector(".tabulator, .tabulator-table");
               if (isTab) {return wrapper;}
             }
-          } catch (_) {}
+          } catch {}
           await new Promise(r => setTimeout(r, 50));
         }
         throw new Error("Tabulator DOM not ready within timeout");
@@ -81,7 +70,7 @@ export function createAutoTestRunner(app) {
             try {
               const d = app.tableWrapper?.tabulator?.getData?.();
               return Array.isArray(d) ? d.length : 0;
-            } catch (_) { return 0; }
+            } catch { return 0; }
           })();
           if (dataLen === 0) {
             result.usedMockData = true;
@@ -132,9 +121,8 @@ export function createAutoTestRunner(app) {
       }
 
       // 清理监听
-      try { window.removeEventListener("error", errorHandler); } catch(_) {}
-      try { console.error = origConsoleError; } catch(_) {}
-      try { if (typeof unsubscribeOpen === "function") {unsubscribeOpen();} } catch(_) {}
+      try { window.removeEventListener("error", errorHandler); } catch {}
+      try { if (typeof unsubscribeOpen === "function") {unsubscribeOpen();} } catch {}
 
       // 6) 判定成功条件：无 isSelected 错误，且 OPEN.REQUESTED 触发
       const hasIsSelectedError = result.errors.some(er => /isSelected/.test(er.message || ""));

@@ -15,7 +15,6 @@ export class ModalManager {
   #currentModal = null;
   #overlay = null;
   #isOpen = false;
-  #eventBus = null;
 
   /**
    * 构造函数
@@ -23,7 +22,8 @@ export class ModalManager {
    * @param {Object} [options.eventBus] - 事件总线实例（可选）
    */
   constructor({ eventBus } = {}) {
-    this.#eventBus = eventBus;
+    // eventBus 当前未使用，仅保留入参占位，避免调用方破坏兼容
+    void eventBus;
     logger.debug("ModalManager initialized");
   }
 

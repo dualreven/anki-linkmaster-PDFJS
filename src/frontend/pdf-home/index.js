@@ -11,9 +11,9 @@ import "../common/polyfills.js";
 
 import { bootstrapPDFHomeAppV2 } from "./bootstrap/app-bootstrap-v2.js";
 import { showError } from "../common/utils/notification.js";
-console.info("[BOOT] pdf-home index.js start");
 // 提前创建 logger，确保在任何使用前已初始化
 const logger = getLogger("pdf-home.index");
+logger.info("[BOOT] pdf-home index.js start");
 
 /**
  * 获取运行环境
@@ -41,7 +41,7 @@ function getEnvironment() {
  * @returns {Promise<void>}
  */
 async function startApp() {
-  try { document.getElementById("app-boot-banner").textContent = "加载脚本中..."; } catch(e) {}
+  try { document.getElementById("app-boot-banner").textContent = "加载脚本中..."; } catch {}
   logger.debug("Starting PDF Home App...");
 
   try {
@@ -50,7 +50,7 @@ async function startApp() {
     });
 
     logger.debug("App started successfully");
-    try { const el = document.getElementById("app-boot-banner"); if (el) {el.remove();} } catch(e) {}
+    try { const el = document.getElementById("app-boot-banner"); if (el) {el.remove();} } catch {}
 
     // 已移除“通信测试”按钮与相关开发UI
 
@@ -58,23 +58,23 @@ async function startApp() {
 
   } catch (error) {
     logger.error("App bootstrap failed:", error);
-    try { showError("启动失败: " + (error && error.message ? error.message : String(error)), 5000); } catch(e) {}
+    try { showError("启动失败: " + (error && error.message ? error.message : String(error)), 5000); } catch {}
     try {
       const el = document.getElementById("app-boot-banner");
       if (el) {el.textContent = "启动失败（详见日志）";}
-    } catch(e) {}
+    } catch {}
     throw error;
   }
 }
 
 // ===== 应用启动 =====
 logger.debug("Script loaded, checking document readiness...");
-try { console.info("[BOOT] index.js readiness="+document.readyState); } catch(e) {}
+try { logger.debug(`[BOOT] index.js readiness=${document.readyState}`); } catch {}
 
 async function launch() {
   try {
     await startApp();
-  } catch(e) {
+  } catch {
     // 已在 startApp 中处理
   }
 }

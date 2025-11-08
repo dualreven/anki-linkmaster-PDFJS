@@ -8,8 +8,6 @@ import { getLogger } from "../utils/logger.js";
 import { MessageTracer } from "./message-tracer.js";
 import { isGlobalEventAllowed } from "./global-event-registry.js";
 
-const SUPPRESSED_EVENT_LOGS = new Set(["websocket:message:received"]);
-
 class EventNameValidator {
   static validate(event) {
     if (typeof event !== "string" || !event) {return false;}
@@ -187,7 +185,7 @@ export class EventBus {
     if (!this.#logger || this.#earlyLogQueue.length === 0) {return;}
 
     this.#earlyLogQueue.forEach(entry => {
-      const { level, message, args, timestamp } = entry;
+      const { level, message, args } = entry;
       this.#logger[level](message, ...args);
     });
     this.#earlyLogQueue = [];
@@ -245,7 +243,6 @@ export class EventBus {
             line.match(/at\s+(.*):(\d+):(\d+)$/);
           if (m) {
             const func = m[1];
-            const file = m[2] || m[1];
             const lineNo = m[3] || m[2];
             return `${func}:${lineNo}`;
           }
@@ -253,7 +250,7 @@ export class EventBus {
         }
       }
       return null;
-    } catch (e) {
+    } catch {
       return null;
     }
   }

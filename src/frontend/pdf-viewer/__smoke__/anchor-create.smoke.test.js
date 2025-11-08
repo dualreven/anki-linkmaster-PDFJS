@@ -50,7 +50,7 @@ describe("Smoke | Anchor Create/Delete", () => {
     const emitted = [];
     bus = {
       on: (evt, cb) => {
-        if (!listeners.has(evt)) listeners.set(evt, []);
+        if (!listeners.has(evt)) {listeners.set(evt, []);}
         listeners.get(evt).push(cb);
         return () => {};
       },
@@ -89,7 +89,7 @@ describe("Smoke | Anchor Create/Delete", () => {
 
   test("添加锚点后应在表格出现新行", async () => {
     const root = ui.getContentElement();
-    const addBtn = root.querySelector('button[data-action="add"]');
+    const addBtn = root.querySelector("button[data-action=\"add\"]");
     expect(addBtn).toBeTruthy();
     addBtn.click();
 
@@ -111,7 +111,7 @@ describe("Smoke | Anchor Create/Delete", () => {
     // 断言：表格有一行，且名称/页码/位置显示正确
     // 同时确认已发布 DATA.LOADED 事件
     expect(bus.__emitted.includes(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED)).toBe(true);
-    const rows = root.querySelectorAll('tbody[data-role="anchor-tbody"] tr');
+    const rows = root.querySelectorAll("tbody[data-role=\"anchor-tbody\"] tr");
     expect(rows.length).toBe(1);
     const tds = rows[0].querySelectorAll("td");
     expect(tds[0].textContent).toBe("E2E-锚点");
@@ -130,10 +130,10 @@ describe("Smoke | Anchor Create/Delete", () => {
     const root = ui.getContentElement();
     // 等待事件循环一轮，确保列表渲染
     await new Promise((r) => setTimeout(r, 0));
-    let rows = root.querySelectorAll('tbody[data-role="anchor-tbody"] tr');
+    let rows = root.querySelectorAll("tbody[data-role=\"anchor-tbody\"] tr");
     expect(rows.length).toBe(1);
     // 默认已选中第一条，点击“删除”
-    const delBtn = root.querySelector('button[data-action="delete"]');
+    const delBtn = root.querySelector("button[data-action=\"delete\"]");
     expect(delBtn).toBeTruthy();
     delBtn.click();
     // 等待 UI 刷新
@@ -144,3 +144,4 @@ describe("Smoke | Anchor Create/Delete", () => {
     expect(empty.textContent).toContain("暂无锚点");
   });
 });
+

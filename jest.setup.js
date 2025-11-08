@@ -48,3 +48,33 @@ global.IntersectionObserver = jestGlobal.fn().mockImplementation(() => ({
   unobserve: jestGlobal.fn(),
   disconnect: jestGlobal.fn()
 }));
+
+// Stub CanvasRenderingContext for jsdom
+if (typeof HTMLCanvasElement !== "undefined") {
+  const GL_ENUMS = { VERSION: 0x1F02, RENDERER: 0x1F01, VENDOR: 0x1F00 };
+  const glStub = {
+    getParameter: jestGlobal.fn((p) => {
+      switch (p) {
+        case GL_ENUMS.VERSION: return "WebGL 1.0 (Test)";
+        case GL_ENUMS.RENDERER: return "Test Renderer";
+        case GL_ENUMS.VENDOR: return "Test Vendor";
+        default: return null;
+      }
+    }),
+    ...GL_ENUMS
+  };
+  // Provide getContext returning our stub for 'webgl' and 'webgl2'
+  Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
+    configurable: true,
+    writable: true,
+    value: jestGlobal.fn((type) => {
+      if (!type) { return null; }
+      const t = String(type).toLowerCase();
+      if (t === "webgl" || t === "experimental-webgl") {
+        return glStub;
+      }
+      return null;
+    })
+  });
+}
+

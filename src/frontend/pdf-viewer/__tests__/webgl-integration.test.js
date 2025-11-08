@@ -6,7 +6,7 @@
 import { PDFManager } from "../pdf-manager.js";
 import { WebGLStateManager } from "../../common/utils/webgl-detector.js";
 import Logger from "../../common/utils/logger.js";
-import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
+// 移除未使用的 PDF_VIEWER_EVENTS 导入
 
 // Mock Logger
 jest.mock("../../common/utils/logger.js", () => {
@@ -256,7 +256,8 @@ describe("QtWebEngine环境模拟测试", () => {
     });
     WebGLStateManager.shouldUseCanvasFallback.mockReturnValue(true);
 
-    await pdfManager.initialize();
+    const manager = new PDFManager(mockEventBus);
+    await manager.initialize();
 
     // 应该配置Canvas回退
     const pdfjsLib = await import("pdfjs-dist/build/pdf");

@@ -3,6 +3,8 @@
  * 搜索功能插件 - 面向用户的搜索起点
  */
 
+import { SEARCH_EVENTS } from "../../../common/event/event-constants.js";
+
 export default {
   name: "search",
   displayName: "搜索功能",
@@ -16,14 +18,14 @@ export default {
   events: {
     // 发出的事件
     emits: [
-      "search:query:requested",     // 请求搜索（携带搜索关键词）
-      "search:clear:requested",     // 请求清除搜索
-      "search:add:requested",       // 点击添加按钮
-      "search:sort:requested"       // 点击排序按钮
+      SEARCH_EVENTS.QUERY.REQUESTED,     // 请求搜索（携带搜索关键词）
+      SEARCH_EVENTS.QUERY.CLEARED,       // 请求清除搜索
+      SEARCH_EVENTS.ACTIONS.ADD_REQUESTED,       // 点击添加按钮
+      SEARCH_EVENTS.ACTIONS.SORT_REQUESTED       // 点击排序按钮
     ],
     // 监听的事件
     listens: [
-      "search:results:updated"      // 搜索结果更新（用于更新统计信息）
+      SEARCH_EVENTS.RESULTS.UPDATED      // 搜索结果更新（用于更新统计信息）
     ]
   },
 

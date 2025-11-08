@@ -1,4 +1,4 @@
-﻿"""PDFAnnotationTablePlugin 测试样例数据"""
+"""PDFAnnotationTablePlugin 测试样例数据"""
 
 from __future__ import annotations
 
@@ -18,6 +18,8 @@ _BASE_SCREENSHOT: Dict[str, Any] = {
     'json_data': {
         'data': {
             'rectPercent': {'xPercent': 10.0, 'yPercent': 12.0, 'widthPercent': 24.0, 'heightPercent': 16.0},
+            # 提供像素 rect，避免依赖运行时推导（严格模式下不允许兜底）
+            'rect': {'x': 100, 'y': 120, 'width': 240, 'height': 160},
             'imagePath': '/data/screenshots/ann_001.png',
             'imageHash': '0123456789abcdef0123456789abcdef',
             'description': '截图描述'
@@ -123,3 +125,4 @@ def make_multiple_annotations(count: int, ann_type: str = 'screenshot') -> List[
         )
         items.append(base)
     return items
+

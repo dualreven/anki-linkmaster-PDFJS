@@ -4,7 +4,8 @@
  */
 
 import { ResultsRenderer } from "./components/results-renderer.js";
-import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, PDF_MANAGEMENT_EVENTS } from "../../../common/event/event-constants.js";
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, PDF_MANAGEMENT_EVENTS, SEARCH_EVENTS, SEARCH_RESULTS_EVENTS, FILTER_EVENTS } from "../../../common/event/event-constants.js";
+import { RESULTS_EVENTS } from "./events.js";
 import { showInfo, showError } from "../../../common/utils/notification.js";
 import "./styles/search-results.css";
 
@@ -33,7 +34,7 @@ export class SearchResultsFeature {
 
   // 布局控制
   #layoutButtons = [];
-  #layoutPreferenceKey = "pdf-home:search-results:layout";
+  #layoutPreferenceKey = ["pdf-home","search-results","layout"].join("/");
   #currentLayout = "single";
 
   // 内部请求超时时间
@@ -354,7 +355,7 @@ export class SearchResultsFeature {
     // 监听搜索请求，记录或清除分页限制
     // - 如果请求明确提供了 pagination.limit，则记录（侧边栏快捷查询）
     // - 如果请求未提供 pagination，则清除限制（普通搜索）
-    const unsubSearchRequested = this.#globalEventBus.on("search:query:requested", (data) => {
+    const unsubSearchRequested = this.#globalEventBus.on(SEARCH_EVENTS.QUERY.REQUESTED, (data) => {
       try {
         // 如果请求中明确提供了 pagination 对象
         if (data && typeof data.pagination === "object" && data.pagination !== null) {
@@ -380,7 +381,7 @@ export class SearchResultsFeature {
     }, { subscriberId: `${this.name}:${sidBase}:search-query-req` });
     this.#unsubscribers.push(unsubSearchRequested);
     // 监听搜索结果更新（来自search插件）
-    const unsubSearchResults = this.#globalEventBus.on("search:results:updated", (data) => {
+    const unsubSearchResults = this.#globalEventBus.on(SEARCH_EVENTS.RESULTS.UPDATED, (data) => {
       this.#logger.info("[SearchResultsFeature] Search results received", {
         count: data.count,
         searchText: data.searchText
@@ -391,7 +392,7 @@ export class SearchResultsFeature {
     this.#unsubscribers.push(unsubSearchResults);
 
     // 监听筛选结果更新（来自filter插件）
-    const unsubResults = this.#globalEventBus.on("filter:results:updated", (data) => {
+    const unsubResults = this.#globalEventBus.on(FILTER_EVENTS.RESULTS.UPDATED, (data) => {
       this.#logger.info("[SearchResultsFeature] Filter results received", {
         count: data.count,
         searchText: data.searchText
@@ -404,7 +405,7 @@ export class SearchResultsFeature {
     this.#logger.info("[SearchResultsFeature] Subscribed to search and filter events");
 
     // 监听外部请求聚焦事件（如“最近添加”点击后要求高亮/聚焦这些ID）
-    const unsubFocusReq = this.#globalEventBus.on("search-results:focus:requested", (data) => {
+    const unsubFocusReq = this.#globalEventBus.on(SEARCH_RESULTS_EVENTS.FOCUS.REQUESTED, (data) => {
       try {
         const ids = (data && Array.isArray(data.ids)) ? data.ids.map(x => String(x)) : [];
         this.#logger.info("[SearchResultsFeature] Focus request received", { count: ids.length });
@@ -426,20 +427,20 @@ export class SearchResultsFeature {
    */
   #setupEventBridge(sidBase) {
     // 条目选中事件 -> 转发到全局
-    const unsubSelected = this.#scopedEventBus.on("results:item:selected", (data) => {
+    const unsubSelected = this.#scopedEventBus.on(RESULTS_EVENTS.ITEM.SELECTED, (data) => {
       this.#logger.debug("[SearchResultsFeature] Item selected", data);
-      this.#globalEventBus.emit("search-results:item:selected", data);
+      this.#globalEventBus.emit(SEARCH_RESULTS_EVENTS.ACTIONS.SELECTED, data);
     }, { subscriberId: `${this.name}:${sidBase}:item-selected` });
     this.#unsubscribers.push(unsubSelected);
 
     // 条目打开事件 -> 转发到全局
-    const unsubOpen = this.#scopedEventBus.on("results:item:open", async (data) => {
+    const unsubOpen = this.#scopedEventBus.on(RESULTS_EVENTS.ITEM.OPEN, async (data) => {
       // 初始阶段提示
       showInfo("🔍 正在打开PDF...", 2500);
       this.#logger.info("[SearchResultsFeature] [步骤1] Item open requested", data);
 
       // 1) 转发为全局事件，便于其他模块感知
-      this.#globalEventBus.emit("search-results:item:open", data);
+      this.#globalEventBus.emit(SEARCH_RESULTS_EVENTS.ACTIONS.OPEN, data);
       this.#logger.info("[SearchResultsFeature] [步骤2] Global event emitted");
 
       // 2) 直接触发打开 pdf-viewer（通过 QWebChannelBridge -> PyQtBridge）
@@ -532,11 +533,11 @@ export class SearchResultsFeature {
       const off = this.#globalEventBus.on(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, (message) => {
         try {
           if (!message || message.request_id !== rid) {return;}
-          if (message.type === WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST.replace(":requested", ":completed") || message.type === "pdf-library:info:completed") {
+          if (message.type === WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST.replace(":requested", ":completed") || message.type === WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_COMPLETED) {
             settled = true;
             off();
             resolve(message.data || null);
-          } else if (message.type === WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST.replace(":requested", ":failed") || message.type === "pdf-library:info:failed") {
+          } else if (message.type === WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST.replace(":requested", ":failed") || message.type === WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_FAILED) {
             settled = true;
             off();
             resolve(null);

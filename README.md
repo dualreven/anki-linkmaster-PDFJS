@@ -2,6 +2,9 @@
 
 一个现代化的PDF查看和管理工具，基于PDF.js和WebSocket实时通信的事件驱动架构。
 
+## 架构文档入口
+- 详见 `docs/architecture/README.md`（架构总览与导航）。
+
 ## 项目结构
 
 ```

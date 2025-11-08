@@ -1,4 +1,5 @@
 /* @jest-environment jsdom */
+import { jest } from "@jest/globals";
 jest.mock("../../../../common/utils/logger.js", () => ({
   getLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
   setModuleLogLevel: jest.fn(),
@@ -25,18 +26,18 @@ function createContainer(stubs = {}) {
   };
 }
 
-// 暂时跳过：该用例依赖较复杂的门闸时序（URL→锚点→渲染）与内部延迟，后续联调再启用
-describe.skip("PDFAnchorFeature - URL_PARAMS 受控导航门闸", () => {
+describe("PDFAnchorFeature - URL_PARAMS 受控导航门闸", () => {
   beforeEach(() => {
     // 清理全局事件总线监听
     try { globalEventBus.destroy(); } catch {}
     // jsdom 最小 DOM
-    document.body.innerHTML = `<div id="viewerContainer"></div>`;
+    document.body.innerHTML = "<div id=\"viewerContainer\"></div>";
     // 伪造 URL 参数（使用 history.pushState 避免 jsdom 导航）
     window.history.pushState({}, "", "/pdf-viewer/?pdf-id=doc-001");
   });
 
   test("收到 URL_PARAMS.PARSED + ANCHOR.DATA.LOADED + FILE.LOAD.SUCCESS 后发出 URL_PARAMS.REQUESTED", async () => {
+    jest.useFakeTimers();
     const emitted = [];
     const emittedAny = [];
     // 监视所有 emit 调用（包括局部事件）
@@ -45,11 +46,12 @@ describe.skip("PDFAnchorFeature - URL_PARAMS 受控导航门闸", () => {
       emittedAny.push({ evt, data, meta });
       return originalEmit(evt, data, meta);
     };
-    const subscribe = (evt) => {
-      return globalEventBus.on(evt, (data) => emitted.push({ evt, data }), { subscriberId: "test" });
-    };
-    // 订阅局部事件：pdf-anchor 作用域的 URL 导航请求
-    const offReq = subscribe(`@pdf-anchor/${PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED}`);
+    // 订阅全局事件：URL 导航请求（当前实现走全局事件，不再发 @pdf-anchor/ 局部事件）
+    const offReq = globalEventBus.on(
+      PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
+      (data) => emitted.push({ evt: PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED, data }),
+      { subscriberId: "test" }
+    );
 
     // 构建依赖容器与 Feature
     const container = createContainer({
@@ -82,15 +84,17 @@ describe.skip("PDFAnchorFeature - URL_PARAMS 受控导航门闸", () => {
     // 3) 文件加载成功（作为渲染就绪门闸）
     globalEventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, { filename: "doc-001.pdf" });
 
-    // 异步等待任务调度 + 内部延迟（~1s）
-    await new Promise((r) => setTimeout(r, 1200));
+    // 推进 AnchorFeature 内部的 1000ms 延迟窗口
+    jest.advanceTimersByTime(1100);
+    await Promise.resolve(); // 让微任务队列跑完
 
     // 断言：已发出 URL 请求事件（局部事件）
     // 优先检查显式订阅
-    const gotExplicit = emitted.some((e) => e.evt === `@pdf-anchor/${PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED}`);
+    const gotExplicit = emitted.some((e) => e.evt === PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED);
     // 其次检查所有事件流
-    const gotInAll = emittedAny.some((e) => e.evt === `@pdf-anchor/${PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED}`);
+    const gotInAll = emittedAny.some((e) => e.evt === PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED);
     expect(gotExplicit || gotInAll).toBe(true);
     offReq?.();
   });
 });
+

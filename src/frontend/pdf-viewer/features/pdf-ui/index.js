@@ -7,7 +7,7 @@ import { PDFUIFeatureConfig } from "./feature.config.js";
 
 export class PDFUIFeature {
   #logger;
-  #scopedEventBus;
+  // scopedEventBus 当前未使用；预留时再添加
   #enabled = false;
 
   get name() { return PDFUIFeatureConfig.name; }
@@ -16,7 +16,6 @@ export class PDFUIFeature {
 
   async install(context) {
     this.#logger = context.logger || getLogger(`Feature.${this.name}`);
-    this.#scopedEventBus = context.scopedEventBus;
     this.#logger.info(`Installing ${this.name}...`);
     this.#enabled = true;
     this.#logger.info(`${this.name} installed (placeholder)`);

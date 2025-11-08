@@ -10,6 +10,7 @@ import {
   WEBSOCKET_EVENTS,
   WEBSOCKET_MESSAGE_EVENTS,
   WEBSOCKET_MESSAGE_TYPES,
+  WEBSOCKET_LEGACY_TYPES,
 } from "../event/event-constants.js";
 import { AllowedGlobalEvents } from "../event/global-event-registry.js";
 
@@ -30,60 +31,60 @@ export class WSClient {
 
   static VALID_MESSAGE_TYPES = [
     "pdf_list_updated",
-    "pdf-library:list:records",
+    WEBSOCKET_LEGACY_TYPES.PDF_LIBRARY_LIST_RECORDS,
     "pdf_list",
-    "list",  // 兼容旧版广播类型
+    "list",  // 兼容旧版广播类型（非三段式）
     "load_pdf_file",
     "pdf_detail_response",
     "success",
     "error",
     "response",
     "system_status",
-    "bookmark:list:records",
-    "bookmark:save:record",
+    WEBSOCKET_LEGACY_TYPES.BOOKMARK_LIST_RECORDS,
+    WEBSOCKET_LEGACY_TYPES.BOOKMARK_SAVE_RECORD,
     // 新增：契约与能力/搜索/存储事件（减少告警）
-    "capability:discover:completed",
-    "capability:describe:completed",
-    "pdf-library:search:completed",
-    "pdf-library:search:failed",
+    WEBSOCKET_MESSAGE_TYPES.CAPABILITY_DISCOVER_COMPLETED,
+    WEBSOCKET_MESSAGE_TYPES.CAPABILITY_DESCRIBE_COMPLETED,
+    WEBSOCKET_MESSAGE_TYPES.SEARCH_PDF_COMPLETED,
+    WEBSOCKET_MESSAGE_TYPES.SEARCH_PDF_FAILED,
     // 详情查询（确保为全局白名单外的环境也放行）
-    "pdf-library:info:completed",
-    "pdf-library:info:failed",
+    WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_COMPLETED,
+    WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_FAILED,
     // 查看器启动回执（pdf-home侧接收）
-    "pdf-library:viewer:completed",
-    "pdf-library:viewer:failed",
-    "storage-kv:get:completed",
-    "storage-kv:get:failed",
-    "pdf-library:add:completed",
-    "pdf-library:add:failed",
+    WEBSOCKET_MESSAGE_TYPES.OPEN_PDF_COMPLETED,
+    WEBSOCKET_MESSAGE_TYPES.OPEN_PDF_FAILED,
+    WEBSOCKET_MESSAGE_TYPES.STORAGE_KV_GET_COMPLETED,
+    WEBSOCKET_MESSAGE_TYPES.STORAGE_KV_GET_FAILED,
+    WEBSOCKET_MESSAGE_TYPES.ADD_PDF_COMPLETED,
+    WEBSOCKET_MESSAGE_TYPES.ADD_PDF_FAILED,
     // Annotation domain (allow inbound standard contract messages)
-    "annotation:list:completed",
-    "annotation:list:failed",
-    "annotation:save:completed",
-    "annotation:save:failed",
-    "annotation:delete:completed",
-    "annotation:delete:failed"
-    ,
+    WEBSOCKET_MESSAGE_TYPES.ANNOTATION_LIST_COMPLETED,
+    WEBSOCKET_MESSAGE_TYPES.ANNOTATION_LIST_FAILED,
+    WEBSOCKET_MESSAGE_TYPES.ANNOTATION_SAVE_COMPLETED,
+    WEBSOCKET_MESSAGE_TYPES.ANNOTATION_SAVE_FAILED,
+    WEBSOCKET_MESSAGE_TYPES.ANNOTATION_DELETE_COMPLETED,
+    WEBSOCKET_MESSAGE_TYPES.ANNOTATION_DELETE_FAILED,
     // Debug / Flags
-    "debug-info:read:completed",
-    "debug-info:read:failed"
-    ,
+    WEBSOCKET_MESSAGE_TYPES.DEBUG_INFO_READ_COMPLETED,
+    WEBSOCKET_MESSAGE_TYPES.DEBUG_INFO_READ_FAILED,
     // PDF-Viewer 契约消息（服务端→前端）
-    "pdf-viewer:register:completed",
-    "pdf-viewer:register:failed",
-    "pdf-viewer:navigate:requested",
-    "pdf-viewer:navigate:completed",
-    "pdf-viewer:navigate:failed"
-    ,
+    WEBSOCKET_MESSAGE_TYPES.VIEWER_REGISTER_COMPLETED,
+    WEBSOCKET_MESSAGE_TYPES.VIEWER_REGISTER_FAILED,
+    WEBSOCKET_MESSAGE_TYPES.VIEWER_NAVIGATE_REQUESTED,
+    WEBSOCKET_MESSAGE_TYPES.VIEWER_NAVIGATE_COMPLETED,
+    WEBSOCKET_MESSAGE_TYPES.VIEWER_NAVIGATE_FAILED,
     // System / heartbeat
-    "system:heartbeat:completed"
+    WEBSOCKET_MESSAGE_TYPES.HEARTBEAT_COMPLETED
   ];
 
   static ALLOWED_OUTBOUND_TYPES = (() => {
     const values = new Set();
-    // 收集所有 *:requested 作为可发送类型
+    // 收集所有 *:requested 作为可发送类型；兼容历史 *:request 后缀
     Object.values(WEBSOCKET_MESSAGE_TYPES).forEach((v) => {
-      if (typeof v === "string" && v.endsWith(":requested")) {values.add(v);}
+      if (typeof v === "string") {
+        if (v.endsWith(":requested")) { values.add(v); }
+        if (v.endsWith(":request")) { values.add(v); }
+      }
     });
     return values;
   })();
@@ -385,26 +386,26 @@ export class WSClient {
         case "pdf_list_updated":
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.PDF_LIST_UPDATED;
           break;
-        case "pdf-library:list:records":
+        case WEBSOCKET_LEGACY_TYPES.PDF_LIBRARY_LIST_RECORDS:
         case "pdf_list":
         case "list":  // 兼容旧版广播类型
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.PDF_LIST;
           break;
         // 统一将标准契约的 add 完成/失败 路由为通用响应，方便上层复用既有监听
-        case "pdf-library:add:completed":
+        case WEBSOCKET_MESSAGE_TYPES.ADD_PDF_COMPLETED:
           this._settlePendingRequest(message);
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
           break;
-        case "pdf-library:add:failed":
+        case WEBSOCKET_MESSAGE_TYPES.ADD_PDF_FAILED:
           this._settlePendingRequest(message, { error: message?.error || message?.data });
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
           break;
-        case "pdf-library:remove:completed":
+        case WEBSOCKET_MESSAGE_TYPES.REMOVE_PDF_COMPLETED:
         // 标准删除完成事件：路由为通用 RESPONSE，供上层 PDFListFeature 统一处理
           this._settlePendingRequest(message);
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
           break;
-        case "pdf-library:remove:failed":
+        case WEBSOCKET_MESSAGE_TYPES.REMOVE_PDF_FAILED:
         // 标准删除失败事件：同样路由为通用 RESPONSE，便于上层在同一监听中处理 error/status
           this._settlePendingRequest(message, { error: message?.error || message?.data });
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
@@ -417,11 +418,11 @@ export class WSClient {
         // 兼容旧单个删除完成事件
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
           break;
-        case "bookmark:list:records":
+        case WEBSOCKET_LEGACY_TYPES.BOOKMARK_LIST_RECORDS:
           this._settlePendingRequest(message);
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.BOOKMARK_LIST;
           break;
-        case "bookmark:save:record":
+        case WEBSOCKET_LEGACY_TYPES.BOOKMARK_SAVE_RECORD:
           this._settlePendingRequest(message);
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.BOOKMARK_SAVE;
           break;
@@ -432,52 +433,52 @@ export class WSClient {
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
           this._handlePDFDetailResponse(message);
           break;
-        case "pdf-library:search:completed":
+        case WEBSOCKET_MESSAGE_TYPES.SEARCH_PDF_COMPLETED:
         // 标准搜索完成事件：统一路由为通用 RESPONSE，便于既有模块复用
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
           break;
-        case "pdf-library:search:failed":
+        case WEBSOCKET_MESSAGE_TYPES.SEARCH_PDF_FAILED:
         // 标准搜索失败事件：作为通用 ERROR 处理
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.ERROR;
           break;
-        case "pdf-library:info:completed":
+        case WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_COMPLETED:
         // 标准详情完成事件：统一路由为通用 RESPONSE，便于上层监听
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
           break;
-        case "pdf-library:info:failed":
+        case WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_FAILED:
         // 标准详情失败事件：路由为通用 ERROR
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.ERROR;
           break;
-        case "pdf-library:list:completed":
+        case WEBSOCKET_MESSAGE_TYPES.PDF_LIST_COMPLETED:
         // 统一作为通用 RESPONSE，供上层 PDF 列表处理逻辑消费
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
           break;
-        case "pdf-library:config-read:completed":
+        case WEBSOCKET_MESSAGE_TYPES.CONFIG_READ_COMPLETED:
         // 统一作为通用 RESPONSE，便于配置读取监听
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
           break;
         // ===== Annotation domain (route to generic RESPONSE/ERROR and ensure settle) =====
-        case "annotation:list:completed":
+        case WEBSOCKET_MESSAGE_TYPES.ANNOTATION_LIST_COMPLETED:
           this._settlePendingRequest(message);
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
           break;
-        case "annotation:list:failed":
+        case WEBSOCKET_MESSAGE_TYPES.ANNOTATION_LIST_FAILED:
           this._settlePendingRequest(message, { error: message?.error || message?.data });
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.ERROR;
           break;
-        case "annotation:save:completed":
+        case WEBSOCKET_MESSAGE_TYPES.ANNOTATION_SAVE_COMPLETED:
           this._settlePendingRequest(message);
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
           break;
-        case "annotation:save:failed":
+        case WEBSOCKET_MESSAGE_TYPES.ANNOTATION_SAVE_FAILED:
           this._settlePendingRequest(message, { error: message?.error || message?.data });
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.ERROR;
           break;
-        case "annotation:delete:completed":
+        case WEBSOCKET_MESSAGE_TYPES.ANNOTATION_DELETE_COMPLETED:
           this._settlePendingRequest(message);
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
           break;
-        case "annotation:delete:failed":
+        case WEBSOCKET_MESSAGE_TYPES.ANNOTATION_DELETE_FAILED:
           this._settlePendingRequest(message, { error: message?.error || message?.data });
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.ERROR;
           break;

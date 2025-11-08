@@ -23,8 +23,8 @@ const flagManager = new FeatureFlagManager({
 await flagManager.loadFromConfig('./config/feature-flags.json');
 
 // 检查功能是否启用
-if (flagManager.isEnabled('pdf-bookmark')) {
-  // 加载书签功能
+if (flagManager.isEnabled('pdf-outline')) {
+  // 加载大纲功能
 }
 ```
 
@@ -73,8 +73,8 @@ if (flagManager.isEnabled('pdf-bookmark')) {
 |------|--------|------|------|
 | **PDF阅读器** | `pdf-reader` | 🚧 开发中 | - |
 | **UI组件** | `pdf-ui` | 🚧 开发中 | pdf-reader |
-| **书签管理** | `pdf-bookmark` | 🚧 开发中 | pdf-reader, pdf-ui |
-| **WebSocket适配器** | `websocket-adapter` | 🚧 开发中 | - |
+| **大纲管理** | `pdf-outline` | 🚧 开发中 | pdf-reader, pdf-ui |
+| **WebSocket适配器** | `infra-ws-adapter` | 🚧 开发中 | - |
 
 ### 架构切换
 
@@ -112,9 +112,9 @@ if (flagManager.isEnabled('pdf-bookmark')) {
 
 ```json
 {
-  "pdf-bookmark": {
+  "pdf-outline": {
     "enabled": true,  // ← 修改这里
-    "description": "书签管理功能"
+    "description": "大纲管理功能"
   }
 }
 ```
@@ -153,7 +153,7 @@ if (flagManager.isEnabled('pdf-bookmark')) {
 
 1. **依赖关系**
    - 功能的依赖必须先启用
-   - 例如：启用 `pdf-bookmark` 需要先启用 `pdf-reader` 和 `pdf-ui`
+   - 例如：启用 `pdf-outline` 需要先启用 `pdf-reader` 和 `pdf-ui`
 
 2. **环境匹配**
    - 功能的 `environments` 必须包含当前环境
@@ -202,3 +202,5 @@ if (flagManager.isEnabled('pdf-bookmark')) {
 
 **最后更新**: 2025-10-02
 **维护者**: Anki-Linkmaster Team
+
+

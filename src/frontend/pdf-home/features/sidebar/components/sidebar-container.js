@@ -1,3 +1,6 @@
+// 位于 src/frontend/pdf-home/features/sidebar/components/
+// 需回溯四级目录至 src/frontend/common/event/
+import { SIDEBAR_EVENTS } from "../../../../common/event/event-constants.js";
 /**
  * 侧边栏容器组件
  * 负责侧边栏的整体布局和收起/展开功能
@@ -103,7 +106,7 @@ export class SidebarContainer {
         toggleBtn.classList.remove("collapsed");
         // 展开：推开右侧内容，避免遮挡搜索结果
         this.#updateMainContentLayout(false);
-        this.#eventBus.emit("sidebar:toggle:completed", { collapsed: false });
+        this.#eventBus.emit(SIDEBAR_EVENTS.TOGGLE.COMPLETED, { collapsed: false });
       } else {
         sidebar.classList.add("collapsed");
         toggleBtn.innerHTML = "▶";
@@ -111,7 +114,7 @@ export class SidebarContainer {
         toggleBtn.classList.add("collapsed");
         // 收起：恢复右侧内容布局
         this.#updateMainContentLayout(true);
-        this.#eventBus.emit("sidebar:toggle:completed", { collapsed: true });
+        this.#eventBus.emit(SIDEBAR_EVENTS.TOGGLE.COMPLETED, { collapsed: true });
       }
     });
 

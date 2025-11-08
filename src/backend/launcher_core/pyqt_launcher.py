@@ -129,7 +129,22 @@ class BackendLauncher:
             # 3. 启动 WebSocket 服务器
             from src.backend.msgCenter_server.embed_msgcenter import EmbedMsgCenterServer
 
-            # 严格参数校验
+            # 环境变量注入（显式配置，不属于兜底）：仅当未传入对应参数时，读取 BACKEND_* 环境变量
+            import os as _os
+            if not self.data_dir:
+                self.data_dir = _os.environ.get("BACKEND_DATA_DIR") or self.data_dir
+            if not self.static_dir:
+                self.static_dir = _os.environ.get("BACKEND_STATIC_DIR") or self.static_dir
+            if not self.pdfs_dir:
+                self.pdfs_dir = _os.environ.get("BACKEND_PDFS_DIR") or self.pdfs_dir
+            if not self.db_path:
+                self.db_path = _os.environ.get("BACKEND_DB_PATH") or self.db_path
+            if not self.logs_dir_override:
+                _logs_dir_env = _os.environ.get("BACKEND_LOGS_DIR")
+                if _logs_dir_env:
+                    self.logs_dir_override = Path(_logs_dir_env).expanduser().resolve()
+
+            # 严格参数校验（若仍缺失则直接报错）
             missing = []
             if not self.logs_dir_override:
                 missing.append("logs_dir")
@@ -522,3 +537,4 @@ class BackendLauncher:
 
     def _should_show_test_ui(self) -> bool:
         return self.mode == "subprocess" and self.show_ui
+
