@@ -31,7 +31,7 @@ def build_router(ctx: Any) -> Dict[str, RouteHandler]:
     from src.backend.msgCenter_server.handlers.pdf_viewer.viewer import register_viewer, navigate_viewer
     from src.backend.msgCenter_server.handlers.pdf_viewer.bookmark import list_bookmarks, save_bookmarks
     from src.backend.msgCenter_server.handlers.pdf_viewer.outline import (
-        list_outline, create_outline, update_outline, delete_outline, reorder_outline
+        list_outline, create_outline, update_outline, delete_outline, reorder_outline, bulk_save_outline
     )
     from src.backend.msgCenter_server.handlers.infra.debug import read_debug_info
     from src.backend.msgCenter_server.handlers.misc import heartbeat, console_log
@@ -83,6 +83,7 @@ def build_router(ctx: Any) -> Dict[str, RouteHandler]:
         "pdf-viewer:outline-update:request": wrap(update_outline),
         "pdf-viewer:outline-delete:request": wrap(delete_outline),
         "pdf-viewer:outline-reorder:request": wrap(reorder_outline),
+        "pdf-viewer:outline-bulk-save:request": wrap(bulk_save_outline),
         # debug
         "debug-info:read:requested": lambda rid, data: read_debug_info(ctx, rid),
         # pdf-page

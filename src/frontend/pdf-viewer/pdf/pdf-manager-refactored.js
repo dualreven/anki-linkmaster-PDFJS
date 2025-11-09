@@ -82,7 +82,8 @@ export class PDFManager {
 
       // QtWebEngine / WebGL 兼容性：根据检测结果配置 PDF.js 使用 Canvas
       // 读取一次状态（测试会断言 getWebGLState 被调用）并进行决策
-      const webglState = WebGLStateManager.getWebGLState?.();
+      // 读取但不保留 webglState 引用，避免未使用变量告警
+      void WebGLStateManager.getWebGLState?.();
       const useCanvasFallback = WebGLStateManager.shouldUseCanvasFallback?.() ?? false;
 
       if (this.#pdfjsLib?.GlobalWorkerOptions) {
@@ -95,7 +96,7 @@ export class PDFManager {
       if (typeof this.#pdfjsLib?.setPreferences === "function") {
         try {
           this.#pdfjsLib.setPreferences({ renderer: "canvas", enableWebGL: !useCanvasFallback });
-        } catch (prefErr) {
+        } catch {
           // 测试期望：配置失败应 warn 但不中断
           this.#logger.warn("Failed to configure PDF.js for Canvas");
           warned = true;
@@ -109,7 +110,7 @@ export class PDFManager {
       if (!warned) {
         this.#logger.info("PDF.js configured for Canvas rendering");
         if (isJest) {
-          try { (getLoggerNamed?.("pdf-manager-test") || new LoggerDefault("pdf-manager-test")).info("PDF.js configured for Canvas rendering"); } catch { /* no-op */ }
+          try { getLoggerNamed?.("pdf-manager-test")?.info?.("PDF.js configured for Canvas rendering"); } catch { /* no-op */ }
         }
       }
 

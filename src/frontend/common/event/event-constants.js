@@ -227,6 +227,9 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   OUTLINE_DELETE_FAILED: "pdf-viewer:outline-delete:failed",
   OUTLINE_REORDER_COMPLETED: "pdf-viewer:outline-reorder:complete",
   OUTLINE_REORDER_FAILED: "pdf-viewer:outline-reorder:failed"
+  ,OUTLINE_BULK_SAVE: "pdf-viewer:outline-bulk-save:request",
+  OUTLINE_BULK_SAVE_COMPLETED: "pdf-viewer:outline-bulk-save:complete",
+  OUTLINE_BULK_SAVE_FAILED: "pdf-viewer:outline-bulk-save:failed"
   ,ANCHOR_GET_COMPLETED: "anchor:get:completed",
   ANCHOR_GET_FAILED: "anchor:get:failed",
   ANCHOR_LIST_COMPLETED: "anchor:list:completed",

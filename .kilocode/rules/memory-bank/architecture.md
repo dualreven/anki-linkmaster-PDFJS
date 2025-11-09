@@ -8,6 +8,8 @@
   - 事件与作用域：统一 EventBus；跨模块 onGlobal/emitGlobal；ScopedEventBus 以 SCOPE_ID 稳定命名。
   - 导航互斥：URL 导航与 WS 导航不可并发；跨文档导航在 FILE.LOAD.SUCCESS 恢复。
   - 原则：Fail‑Fast，无兜底；UTF-8 + `\n`；目录 kebab-case。
+  - Outline-only：后端只接受 `outline_id`；API 直连 `PDFOutlineTablePlugin`；严禁 `bookmark_*` 字段与回退路径。
+  - Outline 加载策略（2025‑11‑09）：去掉前端本地缓存；查看器加载时统一走“后端优先”单次渲染：`outline-list → (empty? import from PDF → bulk-save) → outline-list → OUTLINE.LOAD.SUCCESS`。
 
 - 主题索引（详细说明见 docs/architecture）
   1) 总览与组件 → docs/architecture/overview.md

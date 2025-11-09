@@ -83,6 +83,8 @@ export class SidebarManagerFeature {
       createRealSidebarButtons(this.#eventBus);
     }, 100);
 
+    // 按新规范：首次加载不自动打开任何侧边栏（避免“自动弹出”打扰首屏体验）
+
     logger.info("SidebarManagerFeature installed", {
       version: this.version
     });

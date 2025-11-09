@@ -98,11 +98,13 @@ export async function bootstrapPDFViewerAppFeature() {
 
     // 打开 Outline 相关模块的“模块级日志过滤”并设为较详细级别，便于问题排查
     try {
-      // 把 Outline 相关模块的日志过滤至 ERROR，仅保留错误级别（减少非必要提示/Toast）
-      setModuleLogLevel("Feature.pdf-outline", LogLevel.ERROR);
-      setModuleLogLevel("OutlineSidebarUI", LogLevel.ERROR);
-      setModuleLogLevel("OutlineManager", LogLevel.ERROR);
-      // 如需排障，可通过 URL 参数提升日志级别：?outlineLog=debug|info
+      // 默认打开 Outline 域日志到 INFO，便于排查首启/持久化流程（必要时再降级）
+      setModuleLogLevel("Feature.pdf-outline", LogLevel.INFO);
+      setModuleLogLevel("OutlineSidebarUI", LogLevel.INFO);
+      setModuleLogLevel("OutlineManager", LogLevel.INFO);
+      // 增加 WebSocketAdapter 的模块日志，便于抓取 inbound 包
+      setModuleLogLevel("WebSocketAdapter", LogLevel.INFO);
+      // 如需更细日志，可通过 URL 参数提升：?outlineLog=debug|info|warn|error
       try {
         const params = new URLSearchParams(window.location.search);
         const lv = String(params.get("outlineLog") || "").toLowerCase();

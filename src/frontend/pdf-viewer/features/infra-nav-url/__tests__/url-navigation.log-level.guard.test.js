@@ -10,9 +10,9 @@ describe("URL 导航模块日志级别守卫", () => {
   test("index.js 设置模块级日志为 ERROR", () => {
     const p = path.resolve(__dirname, "../index.js");
     const content = fs.readFileSync(p, { encoding: "utf-8" });
-    expect(content).toContain('setModuleLogLevel("URLNavigationFeature", LogLevel.ERROR)');
-    expect(content).toContain('setModuleLogLevel("URLJumpDispatcher", LogLevel.ERROR)');
-    expect(content).toContain('setModuleLogLevel("URLParamsParser", LogLevel.ERROR)');
+    expect(content).toContain("setModuleLogLevel(\"URLNavigationFeature\", LogLevel.ERROR)");
+    expect(content).toContain("setModuleLogLevel(\"URLJumpDispatcher\", LogLevel.ERROR)");
+    expect(content).toContain("setModuleLogLevel(\"URLParamsParser\", LogLevel.ERROR)");
   });
 });
 

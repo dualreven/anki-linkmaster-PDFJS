@@ -44,61 +44,7 @@ const eventNameFormatRule = {
     if (isAllowedFile) {
       return {}; // 内核文件跳过检查
     }
-    /**
-     * 验证事件名称格式
-     */
-    function validateEventName(eventName) {
-      const parts = eventName.split(":");
-
-      // 检查段数
-      if (parts.length < 3) {
-        const missing = [];
-        if (parts.length === 1) { missing.push("action", "status"); }
-        if (parts.length === 2) { missing.push("status"); }
-        return {
-          valid: false,
-          messageId: "tooFewSegments",
-          data: { eventName, count: parts.length, missing: missing.join(" 和 ") }
-        };
-      }
-
-      if (parts.length > 3) {
-        return {
-          valid: false,
-          messageId: "tooManySegments",
-          data: { eventName, count: parts.length }
-        };
-      }
-
-      // 检查空段
-      if (parts.some(part => !part)) {
-        return {
-          valid: false,
-          messageId: "emptySegment",
-          data: { eventName }
-        };
-      }
-
-      // 检查每段的格式（小写字母开头 + 小写字母/数字/连字符）
-      for (let i = 0; i < parts.length; i += 1) {
-        const segment = parts[i];
-        if (!/^[a-z][a-z0-9-]*$/.test(segment)) {
-          const segmentNames = ["module", "action", "status"];
-          return {
-            valid: false,
-            messageId: "invalidChars",
-            data: {
-              eventName,
-              position: i + 1,
-              segment,
-              segmentName: segmentNames[i]
-            }
-          };
-        }
-      }
-
-      return { valid: true };
-    }
+    // 说明：曾用于早期格式校验的 validateEventName 已废弃，现策略为“强制使用命名空间常量”，不再做字符串格式校验。
 
     /**
      * 检查函数调用

@@ -35,13 +35,13 @@ describe("日志级别降噪（info 代替 warn）", () => {
   test("UI 容器缺失与 TextLayer 禁用为 info（非 warn）", () => {
     const p1 = path.resolve(__dirname, "../ui/dom-element-manager.js");
     const c1 = read(p1);
-    expect(c1.includes('this.#logger.info("Container element not found, will create one")')).toBe(true);
-    expect(c1.includes('this.#logger.warn("Container element not found, will create one")')).toBe(false);
+    expect(c1.includes("this.#logger.info(\"Container element not found, will create one\")")).toBe(true);
+    expect(c1.includes("this.#logger.warn(\"Container element not found, will create one\")")).toBe(false);
 
     const p2 = path.resolve(__dirname, "../features/infra-ui/components/ui-manager-core.js");
     const c2 = read(p2);
-    expect(c2.includes('this.#logger.info("TextLayer container not found, text layer disabled")')).toBe(true);
-    expect(c2.includes('this.#logger.warn("TextLayer container not found, text layer disabled")')).toBe(false);
+    expect(c2.includes("this.#logger.info(\"TextLayer container not found, text layer disabled\")")).toBe(true);
+    expect(c2.includes("this.#logger.warn(\"TextLayer container not found, text layer disabled\")")).toBe(false);
   });
 
   test("OutlineUI 无大纲提示为 info（非 warn）", () => {
@@ -52,4 +52,3 @@ describe("日志级别降噪（info 代替 warn）", () => {
     expect(content.includes(`this.#logger.warn("${m}`)).toBe(false);
   });
 });
-

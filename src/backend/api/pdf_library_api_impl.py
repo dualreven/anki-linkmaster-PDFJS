@@ -24,6 +24,7 @@ from ..database.plugin.plugin_registry import TablePluginRegistry
 from ..database.plugins.pdf_info_plugin import PDFInfoTablePlugin
 from ..database.plugins.pdf_annotation_plugin import PDFAnnotationTablePlugin
 from ..database.plugins.pdf_bookmark_plugin import PDFBookmarkTablePlugin
+from ..database.plugins.pdf_outline_plugin import PDFOutlineTablePlugin
 from ..database.plugins.pdf_bookanchor_plugin import PDFBookanchorTablePlugin
 from ..database.plugins.search_condition_plugin import SearchConditionTablePlugin
 
@@ -102,6 +103,7 @@ class PDFLibraryAPI:
         self._pdf_info_plugin = PDFInfoTablePlugin(self._executor, self._event_bus, self._logger)
         self._annotation_plugin = PDFAnnotationTablePlugin(self._executor, self._event_bus, self._logger)
         self._bookmark_plugin = PDFBookmarkTablePlugin(self._executor, self._event_bus, self._logger)
+        self._outline_plugin = PDFOutlineTablePlugin(self._executor, self._event_bus, self._logger)
         self._bookanchor_plugin = PDFBookanchorTablePlugin(self._executor, self._event_bus, self._logger)
         self._search_condition_plugin = SearchConditionTablePlugin(self._executor, self._event_bus, self._logger)
 
@@ -366,12 +368,37 @@ class PDFLibraryAPI:
         返回指定 PDF 的大纲树结构。
         输出字段对齐前端桥接器预期：data.outline_items = [{id,name,pageAt,position,children[]}]
         """
-        rows = self._bookmark_plugin.query_by_pdf(pdf_uuid)
+        try:
+            self._logger.info("list_outline_items called: pdf_uuid=%s", pdf_uuid)
+        except Exception:
+            pass
+        # 先判断 pdf 是否存在；不存在则返回 None（与“存在但为空[]”语义区分）
+        try:
+            info = self._pdf_info_plugin.query_by_id(pdf_uuid)
+        except Exception:
+            info = None
+        if not info:
+            try:
+                self._logger.info("list_outline_items: pdf_info missing → return None")
+            except Exception:
+                pass
+            return {"outline_items": None}
+
+        rows = self._outline_plugin.query_by_pdf(pdf_uuid)
         if not rows:
-            return {"outline_items": []}
+            # 语义更新：即使 pdf_info 存在但无任何记录，也返回 None
+            try:
+                self._logger.info("list_outline_items: pdf_info exists, rows=0 → return None")
+            except Exception:
+                pass
+            return {"outline_items": None}
+        try:
+            self._logger.info("list_outline_items: rows=%s → assemble tree", len(rows))
+        except Exception:
+            pass
         nodes: Dict[str, Dict[str, Any]] = {}
         for row in rows:
-            oid = row.get("bookmark_id") or row.get("outline_id")
+            oid = row.get("outline_id") or row.get("bookmark_id")
             if not isinstance(oid, str):
                 continue
             # 字段兼容：解析被插件提升的扁平字段
@@ -393,7 +420,7 @@ class PDFLibraryAPI:
         # 组装树
         roots: list[str] = []
         for row in rows:
-            oid = row.get("bookmark_id") or row.get("outline_id")
+            oid = row.get("outline_id") or row.get("bookmark_id")
             if not isinstance(oid, str):
                 continue
             parent_id = row.get("parentId") if "parentId" in row else (row.get("json_data") or {}).get("parentId")
@@ -425,6 +452,7 @@ class PDFLibraryAPI:
         # 生成与前端规范一致的 ID：outlineItem-XXXXXXXX（8位 0-9a-zA-Z）
         import random
         import string
+        import json as _json
 
         def _gen_id() -> str:
             alphabet = string.ascii_letters + string.digits + "-_"
@@ -440,16 +468,23 @@ class PDFLibraryAPI:
             "parentId": parent_id if (isinstance(parent_id, str) and parent_id.strip()) else None,
             "order": int(order) if isinstance(order, int) else 0,
         }
+        # 严格检查前置：pdf_info 必须已存在（禁止兜底）
+        if not self._pdf_info_plugin.query_by_id(pdf_uuid):
+            raise DatabaseValidationError(f"pdf_info not found for pdf_uuid={pdf_uuid}")
         payload = {
-            "bookmark_id": outline_id,
+            "outline_id": outline_id,
             "pdf_uuid": pdf_uuid,
             "created_at": now,
             "updated_at": now,
             "version": 1,
             "json_data": jd,
         }
-        normalized = self._bookmark_plugin.validate_data(payload)
-        self._bookmark_plugin.insert(normalized)
+        try:
+            self._logger.debug("[API] create_outline_item payload=%s", _json.dumps(payload, ensure_ascii=False))
+        except Exception:
+            pass
+        normalized = self._outline_plugin.validate_data(payload)
+        self._outline_plugin.insert(normalized)
         return outline_id
 
     def update_outline_item(self, outline_id: str, update: Dict[str, Any]) -> bool:
@@ -458,36 +493,39 @@ class PDFLibraryAPI:
         """
         if not isinstance(update, dict):
             return False
-        # 映射字段到兼容书签插件的 update 形态
+        # 映射字段到 outline 插件 update 形态（json_data 内）
         mapped: Dict[str, Any] = {}
+        jd: Dict[str, Any] = {}
         if "name" in update:
-            mapped["name"] = update.get("name")
+            jd["name"] = update.get("name")
         if "page_at" in update:
-            mapped["pageNumber"] = update.get("page_at")
+            jd["pageAt"] = update.get("page_at")
         if "position" in update:
-            mapped["position"] = update.get("position")
+            jd["position"] = update.get("position")
         if "parent_id" in update:
-            mapped["parentId"] = update.get("parent_id")
+            jd["parentId"] = update.get("parent_id")
         if "order" in update:
-            mapped["order"] = update.get("order")
-        return self._bookmark_plugin.update(outline_id, mapped)
+            jd["order"] = update.get("order")
+        if jd:
+            mapped["json_data"] = jd
+        return self._outline_plugin.update(outline_id, mapped)
 
     def delete_outline_item(self, outline_id: str, *, cascade: bool = True) -> bool:
         """
         删除单个大纲节点；若 cascade=True，递归删除其所有子孙节点。
         """
         # 找到 pdf_uuid 及所有子孙
-        row = self._bookmark_plugin.query_by_id(outline_id)
+        row = self._outline_plugin.query_by_id(outline_id)
         if not row:
             return False
         pdf_uuid = row.get("pdf_uuid")
         if cascade:
             # 读取该 PDF 的所有项，构建子孙关系
-            rows = self._bookmark_plugin.query_by_pdf(pdf_uuid)
+            rows = self._outline_plugin.query_by_pdf(pdf_uuid)
             by_parent: Dict[Optional[str], list[str]] = {}
             for r in rows:
                 pid = r.get("parentId")
-                by_parent.setdefault(pid, []).append(r.get("bookmark_id") or r.get("outline_id"))
+                by_parent.setdefault(pid, []).append(r.get("outline_id") or r.get("bookmark_id"))
             # 递归收集
             to_delete: list[str] = []
 
@@ -499,21 +537,21 @@ class PDFLibraryAPI:
             _collect(outline_id)
             ok_any = False
             for nid in to_delete:
-                ok_any = self._bookmark_plugin.delete(nid) or ok_any
+                ok_any = self._outline_plugin.delete(nid) or ok_any
             return ok_any
-        return self._bookmark_plugin.delete(outline_id)
+        return self._outline_plugin.delete(outline_id)
 
     def reorder_outline_item(self, *, outline_id: str, new_parent_id: Optional[str], new_index: int) -> None:
         """
         将节点移动到新父节点下并设置顺序索引；随后规范化所有同级节点的 order。
         """
         # 查询节点，拿到 pdf_uuid
-        row = self._bookmark_plugin.query_by_id(outline_id)
+        row = self._outline_plugin.query_by_id(outline_id)
         if not row:
             raise DatabaseValidationError("outline not found")
         pdf_uuid = row.get("pdf_uuid")
         # 1) 更新自身 parentId
-        self._bookmark_plugin.update(outline_id, {"parentId": new_parent_id})
+        self._outline_plugin.update(outline_id, {"parentId": new_parent_id})
 
         # 2) 读取目标父的所有子项
         if new_parent_id:
@@ -522,28 +560,99 @@ class PDFLibraryAPI:
                 "SELECT * FROM pdf_outline WHERE pdf_uuid = ? AND json_extract(json_data, '$.parentId') = ?",
                 (pdf_uuid, new_parent_id),
             )
-            parsed = [self._bookmark_plugin._parse_row(r) for r in rows]  # type: ignore[attr-defined]
+            parsed = [self._outline_plugin._parse_row(r) for r in rows]  # type: ignore[attr-defined]
         else:
-            parsed = self._bookmark_plugin.query_root_bookmarks(pdf_uuid)
+            # 根级：按 order/created_at 排序
+            rows = self._executor.execute_query(
+                """
+                SELECT * FROM pdf_outline
+                WHERE pdf_uuid = ? AND json_extract(json_data, '$.parentId') IS NULL
+                ORDER BY json_extract(json_data, '$.order') ASC, created_at ASC
+                """,
+                (pdf_uuid,),
+            )
+            parsed = [self._outline_plugin._parse_row(r) for r in rows]  # type: ignore[attr-defined]
 
         # 去掉自身（可能仍在结果里）
-        parsed = [n for n in parsed if (n.get("bookmark_id") or n.get("outline_id")) != outline_id]
+        parsed = [n for n in parsed if (n.get("outline_id") or n.get("bookmark_id")) != outline_id]
         # 插入到 new_index
         new_index = int(new_index or 0)
         new_index = max(0, min(new_index, len(parsed)))
         # 生成新顺序数组
         ordered = [p for p in parsed]
-        stub = {"bookmark_id": outline_id}
+        stub = {"outline_id": outline_id}
         ordered.insert(new_index, stub)
         # 3) 逐一写入 order
         for idx, item in enumerate(ordered):
-            bid = item.get("bookmark_id") or outline_id
-            self._bookmark_plugin.update(bid, {"order": idx, "parentId": new_parent_id})
+            bid = item.get("outline_id") or outline_id
+            self._outline_plugin.update(bid, {"order": idx, "parentId": new_parent_id})
 
     def clear_bookmarks(self, pdf_uuid: str) -> int:
-        return self._bookmark_plugin.delete_by_pdf(pdf_uuid)
+        # 兼容 API：按 PDF 清空大纲（实际删除 pdf_outline）
+        return self._outline_plugin.delete_by_pdf(pdf_uuid)
 
     # ---------------------------- 锚点 ----------------------------
+
+    # ---------------------------- 大纲批量导入（替换式） ----------------------------
+    def bulk_replace_outline(self, *, pdf_uuid: str, items: List[Dict[str, Any]]) -> int:
+        """
+        用扁平列表一次性替换指定 PDF 的大纲数据。
+        约束：
+          - 必须已存在 pdf_info 记录（不兜底创建）；
+          - items 为扁平数组，每项字段：
+              outline_id, name, page_at, position? (0..100|null), parent_id? (str|null), order? (int>=0)
+        行为：
+          - 事务：先清空 pdf_uuid 的现有大纲，再批量 INSERT；
+          - json_data.children 一律置空（树结构由 list_outline_items 动态组装）。
+        返回：成功写入的行数。
+        """
+        if not isinstance(items, list):
+            raise DatabaseValidationError("items must be a list")
+        if not self._pdf_info_plugin.query_by_id(pdf_uuid):
+            raise DatabaseValidationError(f"pdf_info not found for pdf_uuid={pdf_uuid}")
+        now = int(time.time() * 1000)
+        # 归一化并校验
+        normalized_rows: List[tuple] = []
+        for raw in items:
+            name = raw.get("name")
+            page_at = raw.get("page_at")
+            position = raw.get("position", None)
+            parent_id = raw.get("parent_id", None)
+            order = raw.get("order", 0)
+            outline_id = raw.get("outline_id")
+            payload = {
+                "outline_id": outline_id,
+                "pdf_uuid": pdf_uuid,
+                "created_at": now,
+                "updated_at": now,
+                "version": 1,
+                "json_data": {
+                    "name": name,
+                    "pageAt": int(page_at or 1),
+                    "position": (None if position is None else int(position)),
+                    "children": [],
+                    "parentId": parent_id if (isinstance(parent_id, str) and parent_id.strip()) else None,
+                    "order": int(order or 0),
+                },
+            }
+            norm = self._outline_plugin.validate_data(payload)
+            # 准备批量参数（减少 Python→SQLite 往返）
+            import json as _json
+            normalized_rows.append((
+                norm["outline_id"],
+                norm["pdf_uuid"],
+                norm["created_at"],
+                norm["updated_at"],
+                norm["version"],
+                _json.dumps(norm["json_data"], ensure_ascii=False),
+            ))
+        # 执行事务：清空再批量写入
+        self._outline_plugin.delete_by_pdf(pdf_uuid)
+        sql = """
+        INSERT INTO pdf_outline (outline_id, pdf_uuid, created_at, updated_at, version, json_data)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """
+        return self._executor.execute_batch(sql, normalized_rows)
     def anchor_get(self, anchor_uuid: str) -> Optional[Dict[str, Any]]:
         return self._bookanchor_plugin.query_by_id(anchor_uuid)
 

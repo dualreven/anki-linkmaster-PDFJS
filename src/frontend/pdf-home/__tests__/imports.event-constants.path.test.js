@@ -25,7 +25,7 @@ function walk(dir) {
       const full = path.join(d, entry.name);
       if (entry.isDirectory()) {
         // 忽略测试输出/构建产物
-        if (entry.name === "node_modules" || entry.name === "dist" || entry.name === "vendor") continue;
+        if (entry.name === "node_modules" || entry.name === "dist" || entry.name === "vendor") { continue; }
         stack.push(full);
       } else if (entry.isFile() && full.endsWith(".js")) {
         files.push(full);
@@ -72,4 +72,3 @@ describe("event-constants import path depth", () => {
     }
   });
 });
-

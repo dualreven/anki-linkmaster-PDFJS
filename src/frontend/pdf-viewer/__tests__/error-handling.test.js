@@ -22,13 +22,29 @@ jest.mock("../../common/event/event-bus.js", () => {
 });
 
 jest.mock("../../common/utils/logger.js", () => {
-  return function() {
-    return {
+  return {
+    getLogger: jest.fn(() => ({
       info: jest.fn(),
       error: jest.fn(),
       warn: jest.fn(),
-      debug: jest.fn()
-    };
+      debug: jest.fn(),
+      event: jest.fn(),
+      setLogLevel: jest.fn()
+    })),
+    Logger: jest.fn().mockImplementation(() => ({
+      info: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+      event: jest.fn(),
+      setLogLevel: jest.fn()
+    })),
+    LogLevel: {
+      DEBUG: 'DEBUG',
+      INFO: 'INFO',
+      WARN: 'WARN',
+      ERROR: 'ERROR'
+    }
   };
 });
 

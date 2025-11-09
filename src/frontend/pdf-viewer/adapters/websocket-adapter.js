@@ -102,6 +102,22 @@ export class WebSocketAdapter {
             if (type === WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_COMPLETED) {
               try {
                 const data = message?.data || {};
+                // 诊断：记录原始 outline_items 的类型与取值片段，便于确认后端回包
+                try {
+                  const raw = data?.outline_items;
+                  const rawType = raw === null ? "null" : Array.isArray(raw) ? "array" : typeof raw;
+                  const rawPreview = (() => {
+                    try { return JSON.stringify(raw)?.slice(0, 200); } catch { return String(raw); }
+                  })();
+                  this.#logger.info(`[outline] inbound list (raw) outline_items_type=${rawType} preview=${rawPreview}`);
+                } catch { /* no-op */ }
+
+                // 若为 null（统一语义：数据库当前无大纲记录），不在适配器层桥接给 UI，交由 OutlineFeature 执行“从PDF导入→保存→再拉取”流程
+                if (data?.outline_items === null) {
+                  this.#logger.info("[outline] inbound list is null → skip bridging, defer to OutlineFeature");
+                  return;
+                }
+
                 const items = Array.isArray(data?.outline_items) ? data.outline_items
                   : (Array.isArray(data?.items) ? data.items : []);
                 const normalize = (nodes) => {
@@ -125,6 +141,15 @@ export class WebSocketAdapter {
               } catch {
                 this.#logger.warn("[outline] list completed handling failed");
               }
+            } else if (type === WEBSOCKET_MESSAGE_TYPES.OUTLINE_UPDATE_FAILED) {
+              const err = message?.error || message?.data || { message: "unknown" };
+              this.#logger.error("[outline] update failed", err, { toast: { type: "error", ms: 5000 } });
+            } else if (type === WEBSOCKET_MESSAGE_TYPES.OUTLINE_CREATE_FAILED) {
+              const err = message?.error || message?.data || { message: "unknown" };
+              this.#logger.error("[outline] create failed", err, { toast: { type: "error", ms: 5000 } });
+            } else if (type === WEBSOCKET_MESSAGE_TYPES.OUTLINE_DELETE_FAILED) {
+              const err = message?.error || message?.data || { message: "unknown" };
+              this.#logger.error("[outline] delete failed", err, { toast: { type: "error", ms: 5000 } });
             } else if (type.endsWith(":complete")) {
               // 其他操作完成后主动拉取最新列表
               try {
@@ -272,14 +297,8 @@ export class WebSocketAdapter {
           this.#logger.warn("[VisitedAt] Failed to send visited_at update", e);
         }
 
-        // 文件加载完成后，主动拉取一次大纲列表（以服务端为准）
-        try {
-          const params2 = new URLSearchParams(window.location.search);
-          const pdfId2 = params2.get("pdf-id");
-          if (pdfId2) {
-            this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST, { pdf_uuid: pdfId2 }, { metadata: { version: "1.0.0" } });
-          }
-        } catch (e) { this.#logger.warn("[outline] auto list request failed after FILE.LOAD.SUCCESS", e); }
+        // 严格模式：禁止在 FILE.LOAD.SUCCESS 自动拉取 outline-list
+        // 加载顺序由 Feature.pdf-outline 统一编排（先原生导入并持久化，再请求列表对齐）
       },
       { subscriberId: "WebSocketAdapter" }
     );

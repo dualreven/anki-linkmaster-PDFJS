@@ -14,6 +14,7 @@ export class OutlineManager {
   #logger;
   #dataProvider;
   #ui;
+  #options;
   #unsubs = [];
   #initialized = false;
   /** @type {Array<{id:string,name:string,pageAt:number,position:number|null,children?:any[]}>} */
@@ -25,6 +26,7 @@ export class OutlineManager {
     this.#eventBus = eventBus;
     this.#logger = getLogger("OutlineManager");
     this.#dataProvider = options.dataProvider || new OutlineDataProvider();
+    this.#options = options || {};
     this.#ui = null; // 初始化时创建
   }
 
@@ -35,23 +37,28 @@ export class OutlineManager {
     // 注意：UI 由 infra-sidebar 统一注册，这里不再直接创建 OutlineSidebarUIClassic，避免重复订阅
     this.#ui = null;
 
-    // 监听全局文件加载成功（来自 PDFManagerFeature，使用全局事件总线）
-    const onGlobal = (this.#eventBus.onGlobal || this.#eventBus.on).bind(this.#eventBus);
-    this.#unsubs.push(onGlobal(
-      PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
-      () => this.loadOutline(),
-      { subscriberId: "OutlineManager" }
-    ));
+    // 若显式禁用自动加载，则不注册任何自动触发的订阅（改由 Feature 统一编排）
+    if (!this.#options.disableAutoLoad) {
+      // 监听全局文件加载成功（来自 PDFManagerFeature，使用全局事件总线）
+      // 严格使用全局事件；未提供 onGlobal 视为契约错误
+      this.#unsubs.push(this.#eventBus.onGlobal(
+        PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
+        () => this.loadOutline(),
+        { subscriberId: "OutlineManager" }
+      ));
 
-    // 监听全局的 OUTLINE 刷新请求（UI 可能通过全局发射）
-    this.#unsubs.push(onGlobal(
-      PDF_VIEWER_EVENTS.OUTLINE.LOAD.REQUESTED,
-      () => this.loadOutline(),
-      { subscriberId: "OutlineManager" }
-    ));
+      // 监听全局的 OUTLINE 刷新请求（UI 可能通过全局发射）
+      this.#unsubs.push(this.#eventBus.onGlobal(
+        PDF_VIEWER_EVENTS.OUTLINE.LOAD.REQUESTED,
+        () => this.loadOutline(),
+        { subscriberId: "OutlineManager" }
+      ));
+    } else {
+      this.#logger.info("Auto load disabled by options.disableAutoLoad=true");
+    }
 
     this.#unsubs.push(
-      this.#eventBus.on(
+      this.#eventBus.onGlobal(
         PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.REQUESTED,
         (data) => this.#handleNavigateRequested(data),
         { subscriberId: "OutlineManager" }
@@ -330,20 +337,20 @@ export class OutlineManager {
       this.#logger.info("Parsed destination result:", result);
 
       // 统一通过 URL 导航入口（按页级跳转；如需位置百分比，可在上游解析时提供）
-      this.#eventBus.emit(
+      this.#eventBus.emitGlobal(
         PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
         { pageAt: result.pageNumber },
         { actorId: "OutlineManager" }
       );
 
-      this.#eventBus.emit(
+      this.#eventBus.emitGlobal(
         PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.SUCCESS,
         { pageNumber: result.pageNumber, position: { x: result.x, y: result.y } },
         { actorId: "OutlineManager" }
       );
     } catch (error) {
       this.#logger.error("Outline navigate failed:", error);
-      this.#eventBus.emit(
+      this.#eventBus.emitGlobal(
         PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED,
         { error, message: error.message },
         { actorId: "OutlineManager" }
@@ -394,8 +401,7 @@ export class OutlineManager {
       this.#outlineItems = normalize(items || []);
       this.#rebuildIndex();
       this.#logger.info(`[OutlineManager] 已从远端同步大纲，节点数=${this.#indexById.size}`);
-      // 将远端真相落盘到本地存储，保证刷新后不回退
-      try { await this.saveToStorage(); } catch { /* ignore */ }
+      // 按新规范：去掉本地缓存机制，不再写入 LocalStorage
     } catch (e) {
       this.#logger.warn("[OutlineManager] replaceFromRemote failed", e);
     }

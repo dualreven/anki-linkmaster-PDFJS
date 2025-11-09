@@ -37,11 +37,11 @@ async function getFrontendTypes() {
   }
   // 回退：正则解析
   const code = await readFile(FRONT_JS, { encoding: "utf8" });
-  const objMatch = code.match(/export\\s+const\\s+WEBSOCKET_MESSAGE_TYPES\\s*=\\s*\\{([\\s\\S]*?)\\};/);
+  const objMatch = code.match(/export\s+const\s+WEBSOCKET_MESSAGE_TYPES\s*=\s*\{([\s\S]*?)\};/u);
   const out = new Set();
   if (objMatch) {
     const body = objMatch[1];
-    const re = /:\\s*\"([^\"]+)\"/g;
+    const re = /:\s*"([^"]+)"/gu;
     let m;
     while ((m = re.exec(body))) {
       const val = m[1];
@@ -55,7 +55,7 @@ async function getBackendTypes() {
   const py = await readFile(BACK_PY, { encoding: "utf8" });
   const out = new Set();
   // 匹配：FOO_BAR = "module:action:status"
-  const re = /=\\s*\"([^\"]+)\"/g;
+  const re = /=\s*"([^"]+)"/gu;
   let m;
   while ((m = re.exec(py))) {
     const val = m[1];
@@ -103,4 +103,3 @@ main().catch((e) => {
   console.error("契约检查发生错误：", e?.stack || e);
   process.exit(2);
 });
-

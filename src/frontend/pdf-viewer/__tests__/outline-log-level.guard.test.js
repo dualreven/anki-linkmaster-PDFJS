@@ -9,9 +9,8 @@ describe("Outline 模块日志级别守卫", () => {
   test("app-bootstrap-feature.js 设置为 LogLevel.ERROR", () => {
     const p = path.resolve(__dirname, "../bootstrap/app-bootstrap-feature.js");
     const content = fs.readFileSync(p, { encoding: "utf-8" });
-    expect(content).toContain('setModuleLogLevel("Feature.pdf-outline", LogLevel.ERROR)');
-    expect(content).toContain('setModuleLogLevel("OutlineSidebarUI", LogLevel.ERROR)');
-    expect(content).toContain('setModuleLogLevel("OutlineManager", LogLevel.ERROR)');
+    expect(content).toContain("setModuleLogLevel(\"Feature.pdf-outline\", LogLevel.ERROR)");
+    expect(content).toContain("setModuleLogLevel(\"OutlineSidebarUI\", LogLevel.ERROR)");
+    expect(content).toContain("setModuleLogLevel(\"OutlineManager\", LogLevel.ERROR)");
   });
 });
-

@@ -482,6 +482,15 @@ export class WSClient {
           this._settlePendingRequest(message, { error: message?.error || message?.data });
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.ERROR;
           break;
+        // ===== Outline bulk save =====
+        case WEBSOCKET_MESSAGE_TYPES.OUTLINE_BULK_SAVE_COMPLETED:
+          this._settlePendingRequest(message);
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
+          break;
+        case WEBSOCKET_MESSAGE_TYPES.OUTLINE_BULK_SAVE_FAILED:
+          this._settlePendingRequest(message, { error: message?.error || message?.data });
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.ERROR;
+          break;
         case "success":
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.SUCCESS;
           break;

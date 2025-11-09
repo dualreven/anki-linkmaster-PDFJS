@@ -124,6 +124,11 @@ class MessageType(Enum):
     OUTLINE_REORDER_COMPLETED = "pdf-viewer:outline-reorder:complete"
     OUTLINE_REORDER_FAILED = "pdf-viewer:outline-reorder:failed"
 
+    # 批量导入（一次性写入扁平大纲列表）
+    OUTLINE_BULK_SAVE_REQUESTED = "pdf-viewer:outline-bulk-save:request"
+    OUTLINE_BULK_SAVE_COMPLETED = "pdf-viewer:outline-bulk-save:complete"
+    OUTLINE_BULK_SAVE_FAILED = "pdf-viewer:outline-bulk-save:failed"
+
     # === Debug / Flags ===
     DEBUG_INFO_READ_REQUESTED = "debug-info:read:requested"
     DEBUG_INFO_READ_COMPLETED = "debug-info:read:completed"

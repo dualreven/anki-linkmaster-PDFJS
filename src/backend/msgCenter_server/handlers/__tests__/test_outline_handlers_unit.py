@@ -23,7 +23,9 @@ class FakeOutlineAPI:
                     "parentId": row.get("parentId"),
                     "order": row.get("order", 0),
                 })
-        # stable sort by order
+        # 稳定排序；空集返回 None 以对齐新契约
+        if not nodes:
+            return {"outline_items": None}
         nodes.sort(key=lambda n: n.get("order", 0))
         return {"outline_items": nodes}
 
@@ -73,10 +75,10 @@ def make_ctx(with_api=True):
 def test_outline_handlers_crud_flow():
     ctx, api = make_ctx()
     rid = "req-1"
-    # list (empty)
+    # list (empty → None)
     r0 = list_outline(ctx, rid, {"pdf_uuid": "c83c60c58ad2"})
     assert r0["type"] == "pdf-viewer:outline-list:complete"
-    assert isinstance(r0["data"]["outline_items"], list) and len(r0["data"]["outline_items"]) == 0
+    assert r0["data"]["outline_items"] is None
     # create
     r1 = create_outline(ctx, rid, {"pdf_uuid": "c83c60c58ad2", "name": "Ch1", "page_at": 3})
     assert r1["type"] == "pdf-viewer:outline-create:complete"
@@ -93,7 +95,7 @@ def test_outline_handlers_crud_flow():
     r4 = delete_outline(ctx, rid, {"outline_id": oid, "cascade": True})
     assert r4["type"] == "pdf-viewer:outline-delete:complete"
     r5 = list_outline(ctx, rid, {"pdf_uuid": "c83c60c58ad2"})
-    assert len(r5["data"]["outline_items"]) == 0
+    assert r5["data"]["outline_items"] is None
 
 
 def test_outline_handlers_update_not_found_returns_failed():

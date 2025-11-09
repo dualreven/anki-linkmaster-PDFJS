@@ -130,7 +130,7 @@ class PDFOutlineTablePlugin(TablePlugin):
             return False
 
         merged = {
-            'bookmark_id': existing['bookmark_id'],
+            'outline_id': existing['outline_id'],
             'pdf_uuid': existing['pdf_uuid'],
             'created_at': existing['created_at'],
             'updated_at': int(time.time() * 1000),
@@ -211,6 +211,16 @@ class PDFOutlineTablePlugin(TablePlugin):
             params.append(int(offset))
         rows = self._executor.execute_query(sql, tuple(params) if params else None)
         return [self._parse_row(row) for row in rows]
+
+    def query_by_pdf(self, pdf_uuid: str) -> List[Dict[str, Any]]:
+        """
+        按 PDF 查询全部大纲项（按创建时间升序，便于还原插入顺序）。
+        """
+        rows = self._executor.execute_query(
+            "SELECT * FROM pdf_outline WHERE pdf_uuid = ? ORDER BY created_at ASC",
+            (pdf_uuid,),
+        )
+        return [self._parse_row(r) for r in rows]
 
     def _parse_row(self, row: Dict[str, Any]) -> Dict[str, Any]:
         try:

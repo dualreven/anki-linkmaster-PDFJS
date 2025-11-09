@@ -153,6 +153,7 @@ export class OutlineSidebarUI {
   #renderTree(outlineItems) {
     // 清空并重建 jsTree
     const $tree = $(this.#treeContainer);
+    try { $tree.off("ready.jstree"); } catch { /* ignore */ }
     try { $tree.jstree("destroy"); } catch { /* ignore */ }
 
     const data = this.#toJsTreeData(outlineItems);

@@ -596,7 +596,7 @@ export class PDFEditFeature {
       this.#showGlobalWarning("无法识别PDF ID，重置可能不会同步到后端");
     };
 
-    // 重置书签：通过 BOOKMARK_SAVE 发送空集合
+    // 重置大纲：已切换为 Outline-only；禁用 legacy BOOKMARK_SAVE
     const btnBookmarks = document.getElementById("reset-bookmarks-btn");
     if (btnBookmarks) {
       btnBookmarks.addEventListener("click", async () => {
@@ -604,18 +604,9 @@ export class PDFEditFeature {
           if (!pdfUuid) {
             warnInvalidId();
           }
-          const ok = await this.#confirm("重置书签", "确定要重置书签吗？这将清空后端书签记录。\n下次打开PDF查看器时将从PDF原生书签重新导入。");
+          const ok = await this.#confirm("重置大纲", "已切换为“大纲（Outline）”存储，不再支持 legacy 的书签批量重置。请在 PDF 查看器的“大纲侧栏”中管理节点。");
           if (!ok) {return;}
-          if (!this.#wsClient) {
-            this.#showGlobalError("WebSocket未连接，无法执行重置");
-            return;
-          }
-          await this.#wsClient.request(
-            WEBSOCKET_MESSAGE_TYPES.BOOKMARK_SAVE,
-            { pdf_uuid: pdfUuid, bookmarks: [], root_ids: [] },
-            { timeout: 8000, metadata: { version: "1.0.0" } }
-          );
-          this.#showGlobalWarning("书签已重置。请重新打开PDF查看器以从源导入书签。");
+          this.#showGlobalWarning("已弃用“批量重置书签”。请在查看器内用大纲面板进行增删改。");
         } catch (err) {
           this.#showGlobalError(`重置书签失败: ${err?.message || err}`);
         }

@@ -93,6 +93,12 @@ def setup_logging():
 
     logger.info("Logging setup complete.")
 
+    # 强制打开 Outline 处理器 DEBUG，便于诊断 WS→DB 关键路径
+    try:
+        logging.getLogger('src.backend.msgCenter_server.handlers.pdf_viewer.outline').setLevel(logging.DEBUG)
+    except Exception:
+        pass
+
 def get_port(args_port=None):
     """获取端口号"""
     if args_port:

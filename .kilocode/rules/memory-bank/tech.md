@@ -20,7 +20,11 @@
 - 现行检查清单（最小集合）
   - 事件名：只用命名空间常量；禁止字面量/变量/模板字符串。
   - 全局事件：新增前登记白名单。
-  - Outline 首次导入：bookmark:save:requested → outline:list:requested。
+  - Outline 首次导入（后端优先、一次渲染）：  
+    1) 首先 `pdf-viewer:outline-list:request`；  
+    2) 若返回空 → 从 PDF 提取原生大纲并 `pdf-viewer:outline-bulk-save:request`；  
+    3) 保存完成后再次 `outline-list:request` 并仅在最终回执时发出一次 `OUTLINE.LOAD.SUCCESS`；  
+    4) 去掉本地缓存（localStorage）写入/读取逻辑。
   - UI/数据层事件作用域一致；重复初始化有幂等守卫。
  - 禁用 alert/confirm；错误统一 logger.error(...,{toast:true})。
 

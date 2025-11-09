@@ -32,7 +32,11 @@ export class OutlineManager {
 
   async install(context) {
     this.#logger = context.logger || getLogger("Feature.pdf-outline");
-    this.#eventBus = context.scopedEventBus || context.globalEventBus;
+    // 严格：必须提供 scopedEventBus，禁止回退
+    if (!context.scopedEventBus) {
+      throw new Error("[Feature.pdf-outline] scopedEventBus is required (no fallback).");
+    }
+    this.#eventBus = context.scopedEventBus;
     this.#container = context.container;
 
     // 导航服务（由 CoreNavigationFeature 注册）
@@ -51,8 +55,8 @@ export class OutlineManager {
       : (this.#container.get?.("wsClient") || null);
     this.#wsClient = wsClient || null;
 
-    // 使用公共域 OutlineManager（事件驱动，无需 wsClient 参数）
-    this.#outlineManager = new OutlineDataManager(this.#eventBus, { dataProvider: new OutlineDataProvider() });
+    // 使用公共域 OutlineManager（禁用自动加载；由本特性统一编排“后端优先”的加载流程）
+    this.#outlineManager = new OutlineDataManager(this.#eventBus, { dataProvider: new OutlineDataProvider(), disableAutoLoad: true });
     await this.#outlineManager.initialize?.();
 
     // 原生大纲提供者
@@ -67,32 +71,93 @@ export class OutlineManager {
     // 事件监听
     this.#setupEventListeners();
 
-    // 尝试加载（DB-first），PDF未就绪则等 FILE.LOAD.SUCCESS
-    // 为了提升冷启动稳定性，这里设置上限等待时间，避免远端存储超时阻塞应用启动
+    // 取消超时等待逻辑：改为“PDF 文件加载成功后再请求数据库大纲（事件驱动，无超时）”
     try {
-      const TIMEBOX_MS = 1500;
-      await Promise.race([
-        this.#tryInitialLoad(),
-        new Promise((resolve) => setTimeout(resolve, TIMEBOX_MS))
-      ]);
-    } catch (e) {
-      this.#logger.warn("Initial outline load skipped due to timeout/error", e);
-    }
+      const unsub = this.#eventBus.onGlobal(
+        PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
+        async () => {
+          try { unsub?.(); } catch {}
+          this.#logger.info("[Outline][init] FILE.LOAD.SUCCESS captured → start initial outline flow");
+          await this.#runInitialLoadFlowAfterFile();
+        },
+        { subscriberId: "OutlineFeature.init" }
+      );
+    } catch (e) { this.#logger.warn("[Outline] failed to attach FILE.LOAD.SUCCESS hook", e); }
 
     this.#enabled = true;
     this.#logger.info("pdf-outline installed");
 
     // 注册 Outline 侧边栏 UI 到容器（供 SidebarManager 获取）
     try {
-      const { OutlineSidebarUI } = await import("./components/outline-sidebar-ui.js");
-      const outlineUI = new OutlineSidebarUI(this.#eventBus);
-      outlineUI.initialize();
-      this.#container.registerGlobal?.("outlineSidebarUI", outlineUI);
-      this.#logger.info("outlineSidebarUI registered globally");
+      if (typeof window !== "undefined" && window.__DISABLE_OUTLINE_UI === true) {
+        this.#logger.info("[Outline] UI disabled by __DISABLE_OUTLINE_UI flag (test environment)");
+      } else {
+        const { OutlineSidebarUI } = await import("./components/outline-sidebar-ui.js");
+        const outlineUI = new OutlineSidebarUI(this.#eventBus);
+        outlineUI.initialize();
+        this.#container.registerGlobal?.("outlineSidebarUI", outlineUI);
+        this.#logger.info("outlineSidebarUI registered globally");
+      }
     } catch (e) {
       this.#logger.warn("Failed to initialize/register outlineSidebarUI", e);
     }
   }
+
+  /**
+   * 使用 outline-create 逐个写入整棵树（保序、维护父子关系）
+   * 严格：若任一步失败，抛错终止（不做兜底）。
+   * @param {string} pdfId
+   * @param {Array<{id:string,name:string,pageAt:number,position:number|null,children?:any[]}>} items
+   * @private
+   */
+  // legacy create-per-node persist path removed; bulk-save only
+
+  /**
+   * 使用 bulk-save 一次性发送扁平化大纲列表
+   * @param {string} pdfId
+   * @param {Array<{id,name,pageAt,position,children?:any[]}>} items
+   */
+  async #persistOutlineTreeViaBulk(pdfId, items) {
+    const genId = () => {
+      const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+      let s = "outlineItem-";
+      for (let i = 0; i < 8; i++) { s += alphabet[Math.floor(Math.random() * alphabet.length)]; }
+      return s;
+    };
+    // 第一次遍历：为每个临时节点 id 分配真实 outline_id
+    const idMap = new Map(); // temp id -> outline_id
+    const assign = (arr) => {
+      for (const n of (arr || [])) {
+        idMap.set(n.id, genId());
+        assign(n.children || []);
+      }
+    };
+    assign(items || []);
+    // 第二次遍历：扁平化
+    const flat = [];
+    const walk = (arr, parentTempId) => {
+      for (let i = 0; i < (arr || []).length; i++) {
+        const n = arr[i];
+        flat.push({
+          outline_id: idMap.get(n.id),
+          name: String(n.name || "").trim(),
+          page_at: Number.isInteger(n.pageAt) && n.pageAt > 0 ? n.pageAt : 1,
+          position: (typeof n.position === "number") ? Math.max(0, Math.min(100, Math.round(n.position))) : null,
+          parent_id: parentTempId ? idMap.get(parentTempId) : null,
+          order: i
+        });
+        walk(n.children || [], n.id);
+      }
+    };
+    walk(items || [], null);
+    await this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.OUTLINE_BULK_SAVE, { pdf_uuid: pdfId, items: flat }, { metadata: { version: "1.0.0" } });
+  }
+
+  /**
+   * 首次加载流程（本地缓存优先，若空则从 PDF 原生导入并持久化到后端）
+   * @private
+   */
+  // legacy initial-load removed; now event-driven after FILE.LOAD.SUCCESS
 
   /* duplicate method removed */
 
@@ -125,90 +190,44 @@ export class OutlineManager {
     }
   }
 
-  async #tryInitialLoad() {
-    try {
-      const pdfDocument = getCurrentPDFDocument();
-      // 先尝试读取存储
-      await this.#outlineManager.loadFromStorage();
-      try { this.#logger.info(`[Outline] 存储加载完成: ${(this.#outlineManager.getAllOutlineItems()||[]).length} 条`, { toast: true }); } catch {}
-      // 若当前无大纲且已拿到 pdfDocument，则尝试从 PDF 原生大纲导入
-      try {
-        const hasAny = (this.#outlineManager.getAllOutlineItems() || []).length > 0;
-        if (!hasAny && pdfDocument) {
-          try { this.#logger.info("[Outline] 尝试从PDF导入原生大纲…", { toast: true }); } catch {}
-          await this.#importNativeOutlineIfEmpty(pdfDocument);
-        }
-      } catch { /* ignore auto-import errors to keep viewer usable */ }
-      // 最终刷新一次列表（无论是否导入）
-      this.#refreshList();
-      try { this.#logger.info(`[Outline] 列表已刷新: ${(this.#outlineManager.getAllOutlineItems()||[]).length} 条`, { toast: true }); } catch {}
-      // 标记列表就绪
-      this.#listReady = true;
-      // 列表就绪后尝试处理挂起的按ID导航请求
-      try { this.#tryPendingNavigate(); } catch {}
-    } catch (e) {
-      this.#logger.warn("initial load failed", e);
-      this.#refreshList();
-    }
-  }
+  /* duplicate removed */
 
   #setupEventListeners() {
-    const onGlobal = (this.#eventBus.onGlobal || this.#eventBus.on).bind(this.#eventBus);
-    // 文件加载后尝试本地加载并刷新
-    this.#unsubs.push(onGlobal(
-      PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
-      async () => {
-        try {
-          await this.#outlineManager.loadFromStorage();
-          await this.#tryInitialLoad();
-          this.#refreshList();
-          this.#listReady = true;
-          this.#tryPendingNavigate();
-          // 主动拉取后端真相，消除本地缓存与远端的不一致
-          try {
-            const pdfId = this.#getPdfId();
-            if (this.#wsClient && pdfId) {
-              await this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
-            }
-          } catch (e) { this.#logger.warn("[Outline] initial outline-list request failed", e); }
-        } catch (e) {
-          this.#logger.warn("[Outline] initial load failed after file load", e);
-        }
-      },
-      { subscriberId: "OutlineFeature" }
-    ));
-
-    // WS 建立后再拉取一次
-    this.#unsubs.push(onGlobal(
-      WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED,
-      async () => {
-        try {
-          await this.#outlineManager.loadFromStorage();
-          this.#refreshList();
-          // 连接建立后再次以远端为准同步
-          try {
-            const pdfId = this.#getPdfId();
-            if (this.#wsClient && pdfId) {
-              await this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
-            }
-          } catch (e) { this.#logger.warn("[Outline] outline-list on connect failed", e); }
-        } catch { /* ignore */ }
-      },
-      { subscriberId: "OutlineFeature" }
-    ));
-
-    // 消费后端返回的 outline 列表，写入 OutlineManager 内存并刷新 UI
+    const onGlobal = this.#eventBus.onGlobal.bind(this.#eventBus);
+    // 消费后端返回的 outline 列表（非初始化阶段的普通刷新）
     this.#unsubs.push(onGlobal(
       WEBSOCKET_EVENTS.MESSAGE.RECEIVED,
-      (message) => {
+      async (message) => {
         try {
           const t = String(message?.type || "");
           if (t === WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_COMPLETED) {
+            // 初始化期间：仅在最终“数组回执”时渲染一次，避免空态/临时ID提前渲染
+            if (this.#initialLoadStarted && !this.#listReady) {
+              const items0 = message?.data?.outline_items;
+              if (Array.isArray(items0)) {
+                await this.#outlineManager.replaceFromRemote(items0);
+                this.#listReady = true;
+                // 不主动 refresh；依赖 WebSocketAdapter 的桥接已发出一次 SUCCESS，避免重复
+                this.#tryPendingNavigate();
+                return;
+              }
+              return;
+            }
             const items = message?.data?.outline_items || [];
-            this.#logger.info(`[Outline] 收到 OUTLINE_LIST_COMPLETED，items=${Array.isArray(items) ? items.length : 0}`);
+            const count = Array.isArray(items) ? items.length : 0;
+            // 空列表时不触发刷新（遵循“只渲染一次最终态”）
+            if (count === 0) { return; }
+            // 非初始化场景：正常刷新（toast 仅在有数据时传入，避免传 undefined 违反 lint 规则）
+            if (this.#initializing) { return; }
+            // 非初始化场景：正常刷新（toast 仅在有数据时传入，避免传 undefined 违反 lint 规则）
+            if (count > 0) {
+              this.#logger.info(`[Outline] 收到 OUTLINE_LIST_COMPLETED，items=${count}`, { toast: { type: "success", ms: 2500 } });
+            } else {
+              this.#logger.info(`[Outline] 收到 OUTLINE_LIST_COMPLETED，items=${count}`);
+            }
             await this.#outlineManager.replaceFromRemote(items);
             this.#listReady = true;
-            this.#refreshList();
+            this.#refreshList("backend");
             this.#tryPendingNavigate();
           } else if (t === WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_FAILED) {
             this.#logger.warn("[Outline] OUTLINE_LIST_FAILED", message?.error || message?.data);
@@ -263,61 +282,51 @@ export class OutlineManager {
     // UI 晚到时的主动拉取
     this.#unsubs.push(onGlobal(
       PDF_VIEWER_EVENTS.OUTLINE.LOAD.REQUESTED,
-      () => { try { this.#refreshList(); } catch { /* ignore */ } },
+      () => {
+        try {
+          if (this.#listReady) { this.#refreshList("backend"); }
+          else { this.#logger.info("[Outline] LOAD.REQUESTED ignored until backend list ready"); }
+        } catch { /* ignore */ }
+      },
       { subscriberId: "OutlineFeature" }
     ));
   }
 
   /**
-   * 当存储为空时，从 PDF 原生大纲导入并持久化
+   * 当后端为空时，从 PDF 原生大纲导入并持久化
    * @param {any} pdfDocument - PDF.js 文档对象
    * @returns {Promise<void>}
    * @private
    */
   async #importNativeOutlineIfEmpty(pdfDocument) {
     try {
-      const current = this.#outlineManager.getAllOutlineItems() || [];
-      if (current.length > 0) {
-        return; // 已有大纲，跳过导入
-      }
       // 提取 PDF 原生大纲
       const nativeOutline = await this.#outlineDataProvider.getOutline(pdfDocument);
       if (!Array.isArray(nativeOutline) || nativeOutline.length === 0) {
         this.#logger.info("[Outline] No native PDF outlines found; skip import");
         return;
       }
+      this.#logger.info(`[Outline] Native PDF outline extracted: rootCount=${nativeOutline.length}`);
       // 导入并标准化 dest → { pageAt, position }
       const result = await this.#outlineManager.importNativeOutline(
         nativeOutline,
         (native) => this.#parseOutlineNormalizedDest(native, pdfDocument)
       );
       if (result?.success) {
-        this.#logger.info(`[Outline] Imported ${result.count} native outlines; reloading from storage...`);
-        try { await this.#outlineManager.loadFromStorage(); } catch { /* ignore */ }
+        this.#logger.info(`[Outline] Imported ${result.count} native outlines; persisting to backend...`);
         // 将导入的大纲立即持久化到后端 DB，保证后续编辑/重命名/删除能够成功
         try {
           const pdfId = this.#getPdfId();
           if (this.#wsClient && pdfId) {
-            const outlineItems = this.#outlineManager.getAllOutlineItems();
-            const rootIds = Array.isArray(outlineItems) ? outlineItems.map(n => n.id).filter(Boolean) : [];
-            this.#logger.info("[Outline][IMPORT] Persisting imported outlines to backend...", {
+            const outlineItems = this.#outlineManager.getAllOutlineItems() || [];
+            this.#logger.info("[Outline][IMPORT] Persisting imported outlines via bulk-save...", {
               pdf_uuid: pdfId,
-              count: outlineItems?.length || 0
+              count: outlineItems.length
             });
-            await this.#wsClient.request(
-              WEBSOCKET_MESSAGE_TYPES.BOOKMARK_SAVE,
-              { pdf_uuid: pdfId, bookmarks: outlineItems, root_ids: rootIds },
-              { metadata: { version: "1.0.0" } }
-            );
-            // 保存成功后，主动拉取一次最新大纲树，确保与 DB 对齐
-            await this.#wsClient.request(
-              WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST,
-              { pdf_uuid: pdfId },
-              { metadata: { version: "1.0.0" } }
-            );
-            this.#logger.info("[Outline][IMPORT] Persist completed and outline tree reloaded");
+            await this.#persistOutlineTreeViaBulk(pdfId, outlineItems);
+            this.#logger.info("[Outline][IMPORT] Persist completed");
           } else {
-            this.#logger.warn("[Outline][IMPORT] Skip backend persist: wsClient/pdfId not ready");
+            this.#logger.error("[Outline][IMPORT] wsClient/pdfId not ready — aborting persist", { toast: { type: "error", ms: 4500 } });
           }
         } catch (e) {
           this.#logger.warn("[Outline][IMPORT] Persist imported outlines failed", e, { toast: { type: "warn", ms: 3500 } });
@@ -382,12 +391,11 @@ export class OutlineManager {
     }
   }
 
-  #refreshList() {
+  #refreshList(source = "backend") {
     const outlineItems = this.#outlineManager.getAllOutlineItems();
-    const emitGlobal = (this.#eventBus.emitGlobal || this.#eventBus.emit).bind(this.#eventBus);
-    emitGlobal(
+    this.#eventBus.emitGlobal(
       PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS,
-      { outlineItems, count: this.#count(outlineItems), source: "pdf-outline" },
+      { outlineItems, count: this.#count(outlineItems), source },
       { actorId: "OutlineManager" }
     );
   }
@@ -400,26 +408,145 @@ export class OutlineManager {
       }
       if (!this.#navigationService) {
         this.#logger.error("NavigationService not available for outline");
-      (this.#eventBus.emitGlobal || this.#eventBus.emit).call(this.#eventBus, PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED, { error: "nav-unavailable" }, { actorId: "OutlineManager" });
+        this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED, { error: "nav-unavailable" }, { actorId: "OutlineManager" });
         return;
       }
       const pageAt = (typeof outlineItem?.pageAt === "number" && outlineItem.pageAt > 0) ? outlineItem.pageAt : null;
       if (!pageAt) {
         this.#logger.warn("Outline item missing pageAt");
-      (this.#eventBus.emitGlobal || this.#eventBus.emit).call(this.#eventBus, PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED, { error: "invalid-destination" }, { actorId: "OutlineManager" });
+        this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED, { error: "invalid-destination" }, { actorId: "OutlineManager" });
         return;
       }
       const position = (typeof outlineItem?.position === "number") ? outlineItem.position : null;
       const result = await this.#navigationService.navigateTo({ pageAt, position });
       if (result?.success) {
-        (this.#eventBus.emitGlobal || this.#eventBus.emit).call(this.#eventBus, PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.SUCCESS, { pageNumber: result.actualPage, position: result.actualPosition }, { actorId: "OutlineManager" });
+        this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.SUCCESS, { pageNumber: result.actualPage, position: result.actualPosition }, { actorId: "OutlineManager" });
       } else {
-        (this.#eventBus.emitGlobal || this.#eventBus.emit).call(this.#eventBus, PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED, { error: result?.error || "unknown" }, { actorId: "OutlineManager" });
+        this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED, { error: result?.error || "unknown" }, { actorId: "OutlineManager" });
       }
     } catch (e) {
       this.#logger.warn("Outline navigate failed", e);
-      (this.#eventBus.emitGlobal || this.#eventBus.emit).call(this.#eventBus, PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED, { error: e?.message || "exception" }, { actorId: "OutlineManager" });
+      this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED, { error: e?.message || "exception" }, { actorId: "OutlineManager" });
     }
+  }
+
+  // ========== 新实现：基于事件的一次性初始加载（无超时） ==========
+  #initializing = false;
+  #initialLoadStarted = false;
+
+  async #runInitialLoadFlowAfterFile() {
+    if (this.#initialLoadStarted) { return; }
+    this.#initialLoadStarted = true;
+    this.#initializing = true;
+    try {
+      this.#logger.info("[Outline][init] running initial outline flow (event-driven, no timeouts)");
+      const pdfId = this.#getPdfId();
+      if (!pdfId) { this.#logger.warn("[Outline][init] pdfId missing"); return; }
+      if (!this.#wsClient) { this.#logger.warn("[Outline][init] wsClient missing"); return; }
+
+      // 1) 请求数据库大纲（无超时，等待事件回执）— 为避免竞态，先注册监听，再发送请求
+      this.#logger.info("[Outline][init] requesting outline-list from backend...", { pdf_uuid: pdfId });
+      const waitList1 = this.#awaitMessage([WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_COMPLETED, WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_FAILED]);
+      await this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
+      const list1 = await waitList1;
+      if (list1?.type === WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_FAILED) {
+        this.#logger.warn("[Outline][init] outline-list failed", list1?.error || list1?.data, { toast: { type: "error", ms: 3500 } });
+        this.#listReady = true;
+        this.#refreshList("backend");
+        return;
+      }
+      const first = Array.isArray(list1?.data?.outline_items) ? list1.data.outline_items : list1?.data?.outline_items;
+      if (first === null) {
+        this.#logger.info("[Outline][init] backend returned outline_items=null (no records). Will import from PDF.");
+      } else if (Array.isArray(first)) {
+        this.#logger.info(`[Outline][init] backend returned outline array (count=${first.length}). Will render without import.`);
+      } else {
+        this.#logger.warn("[Outline][init] unexpected outline_list payload; treating as empty");
+      }
+      if (first === null) {
+        // 2) 数据库无该 pdf（null）→ 解析 PDF 原生大纲并持久化
+        const pdfDoc = getCurrentPDFDocument?.();
+        if (!pdfDoc) {
+          this.#logger.warn("[Outline][init] pdfDocument missing after FILE.LOAD.SUCCESS");
+          this.#listReady = true;
+          this.#refreshList("backend");
+          return;
+        }
+        this.#logger.info("[Outline][init] extracting native outline via OutlineDataProvider.getOutline(...)");
+        await this.#importNativeOutlineIfEmpty(pdfDoc);
+        // 等待 bulk-save 完成（若后端会发回执）
+        await this.#awaitOptional([WEBSOCKET_MESSAGE_TYPES.OUTLINE_BULK_SAVE_COMPLETED, WEBSOCKET_MESSAGE_TYPES.OUTLINE_BULK_SAVE_FAILED]);
+        // 再次请求列表并使用最终结果渲染（同样：先监听再请求，避免竞态）
+        this.#logger.info("[Outline][init] re-requesting outline-list after bulk-save...");
+        const waitList2 = this.#awaitMessage([WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_COMPLETED, WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_FAILED]);
+        await this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
+        const list2 = await waitList2;
+        if (list2?.type === WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_COMPLETED) {
+          const items2 = Array.isArray(list2?.data?.outline_items) ? list2.data.outline_items : [];
+          this.#logger.info(`[Outline][init] final outline-list returned count=${items2.length}`);
+          await this.#outlineManager.replaceFromRemote(items2);
+          this.#listReady = true;
+          this.#refreshList("backend");
+          this.#tryPendingNavigate();
+          return;
+        }
+        this.#logger.warn("[Outline][init] final outline-list failed; rendering empty");
+        this.#listReady = true;
+        this.#refreshList("backend");
+        return;
+      }
+      if (Array.isArray(first)) {
+        // 3) 数据库存在（可能为空数组或非空）→ 直接渲染一次
+        if (first.length === 0) {
+          this.#logger.info("[Outline][init] backend outline array is empty; skip native import by design");
+        }
+        if (first.length > 0) {
+          await this.#outlineManager.replaceFromRemote(first);
+        } else {
+          await this.#outlineManager.replaceFromRemote([]);
+        }
+        this.#listReady = true;
+        this.#refreshList("backend");
+        this.#tryPendingNavigate();
+        return;
+      }
+      // 兜底：标记 ready 以避免 UI 等待
+      this.#listReady = true;
+      this.#refreshList("backend");
+    } catch (e) {
+      this.#logger.warn("[Outline][init] initial load flow failed", e);
+      this.#listReady = true;
+      this.#refreshList("backend");
+    } finally {
+      this.#initializing = false;
+    }
+  }
+
+  async #awaitMessage(types) {
+    const allow = new Set(types || []);
+    return new Promise((resolve) => {
+      const unsub = this.#eventBus.onGlobal(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, (message) => {
+        const t = String(message?.type || "");
+        if (!allow.has(t)) { return; }
+        try { unsub(); } catch {}
+        resolve(message);
+      }, { subscriberId: "OutlineFeature.await" });
+    });
+  }
+
+  async #awaitOptional(types) {
+    return new Promise((resolve) => {
+      const allow = new Set(types || []);
+      const unsub = this.#eventBus.onGlobal(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, (message) => {
+        const t = String(message?.type || "");
+        if (!allow.has(t)) { return; }
+        try { unsub(); } catch {}
+        resolve(message);
+      }, { subscriberId: "OutlineFeature.await.opt" });
+      // 无超时：纯可选等待；如果没有回执，将由后续流程继续
+      // 为保证不泄漏，增加一帧微任务自动清理（若很快到达则立即清理）
+      Promise.resolve().then(() => { /* noop to keep microtask turn */ });
+    });
   }
 
   async #handleNavigateById({ outlineItemId }) {
@@ -453,7 +580,7 @@ export class OutlineManager {
           this.#logger.info(`[Outline] 记录挂起的按ID导航请求: ${targetId}`, { toast: { type: "info", ms: 2000 } });
         } else {
           this.#logger.error(`[Outline] 大纲项不存在或未加载：${targetId}`, { toast: { type: "error", ms: 4500 } });
-          (this.#eventBus.emitGlobal || this.#eventBus.emit).call(this.#eventBus, PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED, { error: "not_found", id: targetId }, { actorId: "OutlineManager" });
+          this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED, { error: "not_found", id: targetId }, { actorId: "OutlineManager" });
         }
         return;
       }
@@ -462,7 +589,7 @@ export class OutlineManager {
       this.#logger.info("[Outline] 导航完成", { outlineItemId: item.id }, { toast: { type: "success", ms: 2000 } });
     } catch (e) {
       this.#logger.warn("Outline navigate-by-id failed", e, { toast: { type: "error", ms: 3000 } });
-      (this.#eventBus.emitGlobal || this.#eventBus.emit).call(this.#eventBus, PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED, { error: e?.message || "exception" }, { actorId: "OutlineManager" });
+      this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED, { error: e?.message || "exception" }, { actorId: "OutlineManager" });
     }
   }
 
@@ -475,7 +602,7 @@ export class OutlineManager {
         // 列表已就绪但仍未找到 → 提示不存在
         if (this.#listReady) {
           this.#logger.error(`[Outline] 大纲项不存在或未加载：${id}`, { toast: { type: "error", ms: 4500 } });
-          (this.#eventBus.emitGlobal || this.#eventBus.emit).call(this.#eventBus, PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED, { error: "not_found", id }, { actorId: "OutlineManager" });
+          this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED, { error: "not_found", id }, { actorId: "OutlineManager" });
           this.#pendingNavigateId = null;
         }
         return;
@@ -533,14 +660,29 @@ export class OutlineManager {
     });
   }
 
-  #handleUpdate({ outlineItemId }) {
+  #handleUpdate({ outlineItemId, update: directUpdate }) {
     const item = this.#outlineManager.getOutlineItem(outlineItemId);
-    if (!item) { return; }
+    if (!item) {
+      this.#logger.error(`[Outline] 更新失败：ID 未在当前列表中 ${outlineItemId}`, { toast: { type: "error", ms: 4500 } });
+      return;
+    }
+    // 统一模式：若事件自带 update（用于无头/自动化），则直接发 WS，不弹对话框
+    if (directUpdate && typeof directUpdate === "object") {
+      (async () => {
+        const pdfId = this.#getPdfId();
+        if (!this.#wsClient || !pdfId) { this.#logger.error("[Outline] update aborted: missing wsClient/pdfId", { toast: { type: "error", ms: 4000 } }); return; }
+        try {
+          await this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.OUTLINE_UPDATE, { outline_id: outlineItemId, update: directUpdate }, { metadata: { version: "1.0.0" } });
+          await this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
+        } catch (e) { this.#logger.warn("[Outline] update ws request failed", e); }
+      })();
+      return;
+    }
     this.#dialog.showEdit({
       outlineItem: item,
       onConfirm: async (updates) => {
         const pdfId = this.#getPdfId();
-        if (!this.#wsClient || !pdfId) { this.#logger.warn("[Outline] update aborted: missing wsClient/pdfId"); return; }
+        if (!this.#wsClient || !pdfId) { this.#logger.error("[Outline] update aborted: missing wsClient/pdfId", { toast: { type: "error", ms: 4000 } }); return; }
         const update = {};
         if (typeof updates?.name === "string") { update.name = updates.name.trim(); }
         if (Number.isInteger(updates?.pageAt) && updates.pageAt > 0) { update.page_at = updates.pageAt; }
@@ -548,6 +690,7 @@ export class OutlineManager {
           update.position = (updates.position === null) ? null : Math.max(0, Math.min(100, Math.round(updates.position)));
         }
         try {
+          this.#logger.info("[Outline] update → WS request", { outline_id: outlineItemId, update });
           await this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.OUTLINE_UPDATE, { outline_id: outlineItemId, update }, { metadata: { version: "1.0.0" } });
           await this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
         } catch (e) { this.#logger.warn("[Outline] update ws request failed", e); }
@@ -555,9 +698,19 @@ export class OutlineManager {
     });
   }
 
-  async #handleDelete({ outlineItemId }) {
+  async #handleDelete({ outlineItemId, cascade: directCascade }) {
     const item = this.#outlineManager.getOutlineItem(outlineItemId);
     const childCount = item?.children?.length || 0;
+    // 统一模式：若事件自带 cascade（用于无头/自动化），则直接发 WS，不弹对话框
+    if (typeof directCascade === "boolean") {
+      const pdfId = this.#getPdfId();
+      if (!this.#wsClient || !pdfId) { this.#logger.warn("[Outline] delete aborted: missing wsClient/pdfId"); return; }
+      try {
+        await this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.OUTLINE_DELETE, { outline_id: outlineItemId, cascade: directCascade }, { metadata: { version: "1.0.0" } });
+        await this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
+      } catch (e) { this.#logger.warn("[Outline] delete ws request failed", e); }
+      return;
+    }
     this.#dialog.showDelete({
       outlineItem: item,
       childCount,

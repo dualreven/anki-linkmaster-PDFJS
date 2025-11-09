@@ -78,3 +78,26 @@ if (typeof HTMLCanvasElement !== "undefined") {
   });
 }
 
+// Mock Logger module to fix "getLogger is not a function" errors
+jestGlobal.mock('./src/frontend/common/utils/logger.js', () => {
+  const createMockLogger = () => ({
+    debug: jestGlobal.fn(),
+    info: jestGlobal.fn(),
+    warn: jestGlobal.fn(),
+    error: jestGlobal.fn(),
+    event: jestGlobal.fn(),
+    setLogLevel: jestGlobal.fn(),
+  });
+
+  return {
+    getLogger: jestGlobal.fn((moduleName) => createMockLogger()),
+    Logger: jestGlobal.fn().mockImplementation((moduleName) => createMockLogger()),
+    LogLevel: {
+      DEBUG: 'DEBUG',
+      INFO: 'INFO',
+      WARN: 'WARN',
+      ERROR: 'ERROR',
+    }
+  };
+});
+

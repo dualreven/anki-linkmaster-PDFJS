@@ -12,7 +12,7 @@ from typing import Any, Dict, List
 from ...exceptions import DatabaseValidationError
 
 _UUID_PATTERN = re.compile(r"^[a-f0-9]{12}$")
-_OUTLINE_ID_PATTERN = re.compile(r"^(bookmark-[0-9]+-[a-z0-9]+|outlineItem-[A-Za-z0-9_-]{8})$")
+_OUTLINE_ID_PATTERN = re.compile(r"^outlineItem-[A-Za-z0-9_-]{8}$")
 
 
 def validate_data(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -21,12 +21,8 @@ def validate_data(data: Dict[str, Any]) -> Dict[str, Any]:
 
     normalized: Dict[str, Any] = {}
 
-    # 兼容键名：outlineItemId / outline_item_id / bookmark_id
-    outline_id = (
-        data.get('outlineItemId') or
-        data.get('outline_item_id') or
-        data.get('bookmark_id')
-    )
+    # 严格键名：仅接受 outline_id（不再兼容 bookmark_id/outlineItemId）
+    outline_id = data.get('outline_id')
     normalized['outline_id'] = _validate_outline_id(outline_id)
 
     pdf_uuid = data.get('pdf_uuid')
@@ -55,11 +51,11 @@ def validate_data(data: Dict[str, Any]) -> Dict[str, Any]:
 
 def _validate_outline_id(value: Any) -> str:
     if not value:
-        raise DatabaseValidationError('outlineItemId/bookmark_id is required')
+        raise DatabaseValidationError('outline_id is required')
     if not isinstance(value, str) or not value.strip():
-        raise DatabaseValidationError('outlineItemId/bookmark_id must be a non-empty string')
+        raise DatabaseValidationError('outline_id must be a non-empty string')
     if not _OUTLINE_ID_PATTERN.fullmatch(value):
-        raise DatabaseValidationError("outlineItemId must match 'outlineItem-<8>' or legacy 'bookmark-...'")
+        raise DatabaseValidationError("outline_id must match 'outlineItem-<8>'")
     return value
 
 
@@ -103,7 +99,7 @@ def _validate_outline_object(node: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(node, dict):
         raise DatabaseValidationError('child outline must be an object')
 
-    child_id = node.get('outlineItemId') or node.get('outline_id') or node.get('bookmark_id') or ''
+    child_id = node.get('outline_id') or ''
     if child_id:
         _validate_outline_id(child_id)
 

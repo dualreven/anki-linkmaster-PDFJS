@@ -16,13 +16,12 @@
   - 成功后前端适配器会二次拉取 list 保持一致性。
 
 ## 3) 近期问题与修复（要点）
-- 2025-11-06 大纲“修改不成功”
-  - 根因：初次导入仅在内存/本地，未落库；随后的 `outline:update` 在后端 404。
-  - 修复：导入成功后前端立即 `bookmark:save:requested` 持久化整棵树 → 再 `outline:list` 对齐。
-- 2025-11-06 事件域统一（bookmark → outline）
-  - 后端补齐 outline 消息类型与处理器；capability 注册 outline 域；API 复用表插件。
+- 2025-11-08 大纲“首次导入不落库 / 修改失败 / 刷新回退”
+  - 根因：后端 API 门面仍委托 `PDFBookmarkTablePlugin`（兼容层），字段/校验文案为 `bookmark_id`，与前端严格使用的 `outline_id` 不一致；导致 `outline-create` 直接失败，随后 `outline-update` 报 404“指定的大纲不存在”。
+  - 修复：API 切换到 `PDFOutlineTablePlugin`，所有 CRUD 严格采用 `outline_id`；错误信息统一为 `outline_id`，禁止任何 fallback（不接受 `bookmark_id/outlineItemId`）。
+  - 冷启动导入流程：解析 PDF 原生大纲 → 逐节点发送 `pdf-viewer:outline-create:request` → 导入完成后再 `outline-list:request` 拉取“后端真相” → 写入内存与 localStorage。已移除 legacy 的 `bookmark:save:requested` 整棵树保存路径。
 - 2025-11-06 安装/订阅冲突
-  - 修复重复订阅与作用域不一致（scoped ↔ global），侧栏 UI 与数据层统一用 onGlobal/emitGlobal；UI 初始化幂等。
+  - 已统一 onGlobal/emitGlobal；取消 emit/on 的回退；UI 初始化幂等。
 - 2025-11-06 跨文档 URL 导航丢失
   - 为 URLNavigationFeature 增加 `#pendingManualNav`，在 `FILE.LOAD.SUCCESS` 时恢复。
 
@@ -33,7 +32,7 @@
   - EventBus 内核文件在 ESLint 覆盖中关闭该规则（保留灵活性）。
 
 ## 5) 测试覆盖（示例）
-- 后端：`test_standard_server_outline.py` 等覆盖 outline 路由与成功流。
+- 后端：`test_standard_server_outline.py` + `src/backend/api/__tests__/test_outline_persistence_api.py` 覆盖 API 级 CRUD。
 - 前端：Playwright 覆盖 outline CRUD、导航与安装顺序；URL 导航跨文档恢复自测用例。
 
 ## 6) 待办摘要
@@ -42,16 +41,84 @@
 （本简版将随变更持续更新，保持可读与高信噪比。）
 
 ### 维护记录（仅关键变更）
-- 2025-11-07 压缩 memory-bank：完成 context.md、tech.md 简版/极简化；统一为“最新版规范”。
+- 2025-11-09 **Outline 测试补全（仅测试）**：
+  - 修正用例与实现不匹配处：初始化改为“事件驱动、无超时”，初次导入采用 `OUTLINE_BULK_SAVE`；测试中需先模拟 `?pdf-id=...`，并按序发送 `OUTLINE_LIST_COMPLETED(null)` → （可选）`OUTLINE_BULK_SAVE_COMPLETED` → `OUTLINE_LIST_COMPLETED([...])`，期间插入微任务等待，避免竞态导致监听未注册。
+  - 新增用例：
+    1) CRUD 与排序请求的 WS 载荷归一化与二次拉取；
+    2) `NAVIGATE_BY_ID` 挂起→兑现与“未找到”失败；
+    3) UI 晚到的 `LOAD.REQUESTED` 行为（未就绪无效、就绪后可刷新）；
+    4) 列表归一化（id 字符串化、pageAt 回退为 1、position 0~100 取整）。
+  - 现有同步用例补强：补充 `pdf-id` 与 PDF 文档/解析器 stub，确保“只渲染一次最终态”。
+- 2025-11-09 **Outline 其他对象测试**：
+  - OutlineManager：新增核心单测（importNativeOutline、add/update/delete/reorder、storage 分支、无 pdfDocument 时的 storage SUCCESS）。注意：传入 `ScopedEventBus`，并在断言时使用 `onGlobal` 监听全局事件。
+  - OutlineDialog：新增交互行为测试，校验名称/页码必填，position 百分比 clamp 到 0~100；确认/取消后 overlay 移除。
+  - 执行建议：以 `--runTestsByPath` 限定路径，避免触发仓库内 ESLint fixtures 的非相关用例。
+- 2025-11-09 **v002 规格推进（前端公共层）**：
+  - EventBus：新增核心与追踪测试，覆盖本地/全局事件、事件名校验、once、管理器单例、追踪记录查询。
+  - pdf-manager-core：为 current-document-registry 新增单测，覆盖 set/get/clear。
+  - 执行方式：使用 `npx jest --runTestsByPath` 按路径增量运行，保持基线稳定。
+- 2025-11-09 **质量保障体系分析**：
+  - 背景：bookmark→outline 重构引发大量回归 bug，陷入"修A坏B"恶性循环
+  - 根因：契约散落、测试金字塔倒置、状态机隐式化、回归测试不充分
+  - 方案：分三层（应急止血1-2天、打基础1-2周、长期建设1-2月）建立完整质量体系
+  - 详见：`AItemp/reports/20251109-stability-strategy-analysis.md`
+  - 核心建议：
+    1. 立即修复失败测试 + 建立 pre-commit hook（2天）
+    2. 契约即代码：Schema生成前后端常量，CI门禁（1周）
+    3. 状态机化关键流程：显式状态定义（4天）
+    4. 金标回放测试：建立测试数据集与快照对比（3天）
+  - ROI：投入16,000元，三年累计收益26,000元，ROI=162.5%
+- 2025-11-07 压缩 memory-bank：完成 context.md、tech.md 简版/极简化；统一为"最新版规范"。
 - 2025-11-07 建立迁移计划：todo-and-doing/1 doing/20251107-tech-md-minify-migration/plan.md；tech.md 仅保留索引与核心规则，其余细节迁往 docs/*。
 - 2025-11-07 压缩 architecture.md 为极简索引；建立迁移计划：todo-and-doing/1 doing/20251107-architecture-md-minify-migration/plan.md；docs/architecture/* 初始化主题页。
-- 2025-11-07 新增 docs/architecture/security-messaging.md（加密与消息中心），迁移计划第7条标为“已完成 v1”。
+- 2025-11-07 新增 docs/architecture/security-messaging.md（加密与消息中心），迁移计划第7条标为"已完成 v1"。
 - 2025-11-07 修复 pdf-home 构建失败（Vite 无法解析 event-constants.js）：多处相对路径层级错误，已统一修正（详见 AItemp 工作日志）。
-- 2025-11-07 WebSocket 响应事件常量错用（导致“未注册的全局事件：undefined”）
+- 2025-11-07 WebSocket 响应事件常量错用（导致"未注册的全局事件：undefined"）
   - 根因：若干侧边栏 Feature 订阅使用了 `WEBSOCKET_EVENTS.MESSAGE.RESPONSE`（该常量不存在）；正确为 `WEBSOCKET_MESSAGE_EVENTS.RESPONSE`。
   - 影响：RecentSearches/RecentOpened/RecentAdded 在安装阶段订阅全局事件时，事件名为 `undefined` 被拦截并报错；功能不响应后端回执。
   - 修复：统一替换订阅常量为 `WEBSOCKET_MESSAGE_EVENTS.RESPONSE`，并新增防回归测试 `src/frontend/pdf-home/__tests__/ws-response-constant.usage.test.js`。
   - 验证：对涉及修改的源码与测试文件执行 ESLint（精确到文件），均 0 error/0 warning（2025‑11‑07 23:43）。
+
+## 8) 现象记录：pdf-viewer 初始化“停顿”（2025‑11‑09）
+- 现象：首次进入 pdf-viewer 页面，UI 在大纲区域出现约 5s 的可感知停顿。
+- 日志证据：`dist/latest/logs/pdf-viewer-*-js.log`
+  - 例：`01:00:40.779 OutlineManager initialized` → `01:00:45.786 [Outline][init] initialLoadFromBackend failed`，差值 ≈ 5 秒；重复启动时同样是 5 秒。
+- 根因（源码）：`src/frontend/pdf-viewer/features/pdf-outline/index.js`
+  - 旧实现存在多处超时等待（5s/3s），现已废除。
+  - 新实现采用“事件驱动、无超时”：在 `FILE.LOAD.SUCCESS` 后请求数据库大纲，依据回执分支处理。
+- 新契约（后端，一致返回 null）：
+  - 当 `pdf_uuid` 不存在于 `pdf_info`：`data.outline_items = null`
+  - 当存在但当前无大纲记录：`data.outline_items = null`（不再返回空数组）
+- 结论：已移除超时等待导致的“首屏停顿”；初始化严格以事件为驱动。
+- 排查建议：通过 `?outlineLog=debug` 增强日志；关注 `websocket:*` 与 `pdf-viewer:file:load-success` 的时序。
+
+## 9) 大纲未被提取（构建产物运行，空态）的诊断要点（2025‑11‑09）
+- 现象：进入 viewer 后侧边栏显示空态，未自动从 PDF 导入大纲。
+- 常见原因：
+  - 后端 outline-list 回执为 `[]` 而非 `null` → 前端认为“数据库存在但无记录”，按“直接渲染空态（不导入）”完成初始化；
+  - PDF 文档本身无原生大纲（`pdfDocument.getOutline()` 为空）。
+- 已加日志（便于甄别回执与分支）：
+  - 前端：`[Outline][init]` 系列日志（请求/回执/导入/二次拉取）；`[Outline] Native PDF outline extracted: rootCount=..`；
+  - 后端：`list_outline_items called / return None / assemble tree`，以及 WS handler 的 `outline-list:complete size=...`。
+  - 建议收集：`dist/latest/logs/pdf-viewer-*-js.log` 与 `backend-launcher.log`。
+
+### 防回归测试
+- 新增：`src/frontend/pdf-viewer/adapters/__tests__/websocket-adapter.outline-null-guard.test.js`
+  - 场景：收到 `outline-list:completed` 且 `data.outline_items === null`
+  - 期待：不桥接 `OUTLINE.LOAD.SUCCESS`（交由 OutlineFeature 处理导入链路）
+
+## 10) 首次打开不自动弹出侧边栏（2025‑11‑09）
+- 现象：进入 viewer 时 Outline 侧边栏自动弹出，遮挡内容。
+- 根因：`SidebarManagerFeature.install()` 在注册与按钮创建后默认调用 `openSidebar("outline")`。
+- 修复：移除默认 `openSidebar("outline")`，改为首次不自动打开任何侧栏；保留手动打开与按钮开关。
+- 防回归测试：`src/frontend/pdf-viewer/features/infra-sidebar/__tests__/sidebar-no-auto-open.test.js`
+  - 断言 install 后 `[data-sidebar-id]` 数量为 0。
+
+## 7) 执行步骤（当前问题）
+1. 切换后端 API：`PDFLibraryAPI` 的 outline CRUD 全部改用 `PDFOutlineTablePlugin`，并在 `create_outline_item` 前检查 `pdf_info` 记录存在；不存在直接抛错（禁止兜底）。
+2. 固化后端日志：在 `standard_server.setup_logging()` 中将 Outline 处理器 Logger 设为 DEBUG；API 层在 `create_outline_item` 打印 payload。
+3. 回归测试：新增 `src/backend/api/__tests__/test_outline_persistence_api.py` 覆盖 create/list/update/delete/reorder 与刷新后的稳定性。
+4. 文档更新：本文件与 `tech.md`/`architecture.md` 补充“Outline-only”通路与事件次序；移除 `bookmark:save:requested`。
 
 ### 2025-11-08 PDF-Viewer 警告分析（pdfId=c83c60c58ad2）
 - 证据源：
@@ -252,3 +319,56 @@
 - 防回归测试：
   - A 前端 `src/frontend/pdf-viewer/features/pdf-outline/__tests__/outline-sync-with-ws.test.js`：模拟 `OUTLINE_LIST_COMPLETED`，断言发出 `OUTLINE.LOAD.SUCCESS` 且内存更新。
   - A 后端 `src/backend/msgCenter_server/__tests__/test_outline_update_flow.py`：校验 `pdf-viewer:outline-update:request` 回应 complete，且服务端收到 update 载荷。
+
+### 11.10 Outline 刷新后回退修复（2025-11-08 14:39）
+- 现象：修改后本次会话内刷新了，但浏览器整体刷新后大纲“恢复原样”。
+- 复盘：会话内通过 `outline-list:complete` 替换了内存，但未写入 LocalStorage；页面刷新后仅从 LocalStorage 读取 → 回退到旧状态；且启动阶段没有强制以“后端真相”为准拉取列表。
+- 修复：
+  - M `OutlineManager.replaceFromRemote()` → 异步化，并在替换内存后 `await saveToStorage()`，将远端真相落盘，确保刷新后不回退。
+  - M `pdf-outline/index.js`：
+    - 在 `FILE.LOAD.SUCCESS` 与 `CONNECTION.ESTABLISHED` 两个时机，若 `wsClient + pdfId` 就绪则主动 `outline-list:request`，以“后端真相”覆盖本地缓存；
+    - 消费 `outline-list:complete` 的处理改为 `await outlineManager.replaceFromRemote(items)`（保证存储完成）。
+  - 前端测试重写（覆盖“刷新后不回退”）：`outline-sync-with-ws.test.js` 新增“页面整体刷新后从 localStorage 恢复最近一次远端状态”的用例（先接收一次远端列表→重建实例→仅触发文件加载→应从存储恢复到最新）。
+  - 日志开关：使用 `?outlineLog=debug` 可在实机复现中观测以下阶段日志：FILE.LOAD.SUCCESS 初始加载→初始 outline-list:request → outline-list:complete → replaceFromRemote + saveToStorage。
+
+## 12) “大纲树渲染完成并已展开”出现三次（2025-11-08 23:28）
+- 现象来源：日志来自 `OutlineSidebarUI.#renderTree()` 在绑定 `ready.jstree` 的回调中打印。单次 ready == 单次树重建完成。
+- 触发链回放（见 dist/latest/logs/pdf-viewer-*-js.log）：
+  - T0≈23:18:28：从本地存储恢复后渲染一次（`OutlineManager.loadOutline → source=storage`）；
+  - T1≈23:18:29：为兼容旧流程，在导入原生大纲之前广播一次“成功”（`source=pdf-native`）→ 触发 UI 重建；
+  - T2≈23:18:31：完成标准化/解析后再次广播“成功”（`source=pdf`）→ 触发 UI 重建。
+  - 同时 `features/pdf-outline/index.#refreshList()` 也会广播 `OUTLINE.LOAD.SUCCESS (source=pdf-outline)`，造成额外的 SUCCESS 风暴；部分重建在 ready 之前被下一次重建覆盖，因此最终可见 ready 约 3 次。
+- 结论：这三次日志并非简单“重复打印”，而是多次“成功事件”导致的多次树重建的自然结果。
+- 收敛建议（最小改动）：
+  - UI 侧：仅在 `data.source ∈ {'pdf','storage'}` 时渲染；忽略 `pdf-native` 与 `pdf-outline`。在每次渲染前执行 `$tree.off('ready.jstree')`，避免处理器累积。
+  - 事件侧：将 `#refreshList()` 的广播改名或移除，另将“原生大纲发现”改为专用事件（如 `OUTLINE.NATIVE.DETECTED`），避免与“完成态”复用同一事件名。
+  - 测试：补充用例覆盖“存储+原生+最终态”场景下 UI 只出现一次“渲染完成”提示。
+
+## 13) 大纲加载策略变更（2025-11-09 00:10）
+- 目标：去掉本地缓存机制，改为“后端优先、一次渲染”：
+  1) 先向后端请求大纲；若非空，直接使用并只发一次 `OUTLINE.LOAD.SUCCESS`；
+  2) 若后端为空，则从 PDF 提取原生大纲，标准化后一次性 `OUTLINE_BULK_SAVE` 保存到后端；
+  3) 保存成功（或超时容忍）后再次请求后端列表；以“后端真相”发出一次 `OUTLINE.LOAD.SUCCESS` 并渲染；
+  4) 整个流程仅有一次最终渲染（SidebarUI 的 jsTree ready 也只出现一次）。
+- 实施要点：
+  - `src/frontend/pdf-viewer/outline/outline-manager.js` 支持 `disableAutoLoad` 选项；开启后不再自动订阅 `FILE.LOAD.SUCCESS/OUTLINE.LOAD.REQUESTED` 且不会主动发 `SUCCESS`；
+  - `src/frontend/pdf-viewer/features/pdf-outline/index.js` 新增 `#initialLoadFromBackend()` 统一编排；WS 消息在初始化阶段不触发 UI 刷新，最终阶段一次性 `#refreshList('backend')`；
+  - `OutlineManager.replaceFromRemote()` 不再写入 LocalStorage；本地缓存路径废弃。
+- 测试：`src/frontend/pdf-viewer/features/pdf-outline/__tests__/outline-sync-with-ws.test.js` 更新/新增用例，覆盖“后端空→导入→持久化→再拉取→仅一次渲染”。
+
+## 14) Lint 全量治理（2025-11-09 00:45）
+- 目的：清理全仓 ESLint 报错，保持功能不变，聚焦样式与静态问题。
+- 范围与修复：
+  - 自定义规则：`eslint-rules/event-name-format.js` 去掉未用函数；规则仍强制用命名空间常量引用事件名；
+  - 脚本：`scripts/build-only.mjs` 统一双引号/缩进；`scripts/ci/ws-contract-diff.mjs` 正则去除多余转义；
+  - 测试：统一 quotes/curly；修正字符串包含断言中的引号转义；
+  - 业务：`pdf-manager-refactored.js` 去除未用变量与未定义引用。
+- 结果：`pnpm run lint` 全量通过；pdf-outline 子集测试通过（legacy 初始导入流测试待改写以匹配新流程）。
+
+## 15) 稳定性方案建议摘要（2025-11-09 02:10）
+- 契约唯一真源：以 Schema/枚举生成双端常量（WS 消息、API DTO、事件名），并在 CI 对生成物做“差异门禁”，禁止未同步的手改。
+- 初始化状态机：定义 `Idle→AwaitFile→List→(Import→BulkSave→Relist)?→Ready|Error` 的显式状态与转移，前端测试按状态断言，不再依赖超时。
+- 空值语义统一：后端无记录一律 `null`，存在但空为 `[]`；在单测与 WS handler 测试里加断言（已部分落地）。
+- 金标回放：为常见 PDF 场景维护 `fixtures/outline-golden/*.json`（输入 PDF 与最终后端列表）；在集成测试中断言规范化输出一致。
+- 去重渲染：`OUTLINE.LOAD.SUCCESS` 仅用于最终态；UI 只接受 `source ∈ {'pdf','storage','backend'}` 的一次渲染；其余事件改名或降级为 DEBUG。
+- 诊断与追踪：维持 Outline handler DEBUG；回执带 `requestId` 串联端到端日志（可选，前端生成即可）。
