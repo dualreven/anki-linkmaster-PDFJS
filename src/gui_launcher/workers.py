@@ -46,11 +46,12 @@ _ai = _load_ai_module()
 class LauncherThread(QThread):
     """
     后台线程执行启动任务
-    - 任务类型：vite/backend/pdf-home/pdf-viewer/stop
+    - 任务类型：vite/backend/backend-hosted/pdf-home/pdf-home-hosted/pdf-viewer/stop
     - 参数：见 GUI 面板传递的 dict，路径与端口均需显式传入
     """
     log_signal = pyqtSignal(str)
     finished_signal = pyqtSignal(bool, str)
+    instance_signal = pyqtSignal(object)  # 用于 Hosted 模式返回实例
 
     def __init__(self, task_type: str, params: Dict[str, Any]):
         super().__init__()
@@ -69,8 +70,12 @@ class LauncherThread(QThread):
                 self._start_vite()
             elif self.task_type == "backend":
                 self._start_backend()
+            elif self.task_type == "backend-hosted":
+                self._start_backend_hosted()
             elif self.task_type == "pdf-home":
                 self._start_pdf_home()
+            elif self.task_type == "pdf-home-hosted":
+                self._start_pdf_home_hosted()
             elif self.task_type == "pdf-viewer":
                 self._start_pdf_viewer()
             elif self.task_type == "stop":
@@ -131,6 +136,61 @@ class LauncherThread(QThread):
             self.log_signal.emit("❌ 后端启动失败 (CLI)")
             self.finished_signal.emit(False, "后端启动失败")
 
+    def _start_backend_hosted(self):
+        """启动后端服务器 (Hosted 模式 - 主进程托管)"""
+        self.log_signal.emit("🚀 正在启动后端服务器 (Hosted 模式)...")
+        try:
+            if not self.params.get("logs_dir"):
+                raise RuntimeError("缺少路径参数：logs_dir")
+            if not all(self.params.get(k) for k in ("data_dir", "db_path", "static_dir", "pdfs_dir")):
+                raise RuntimeError("缺少路径参数：data_dir/db_path/static_dir/pdfs_dir")
+
+            is_prod = bool(self.params.get("is_prod", False))
+            vite_port = self.params.get("vite_port")
+
+            cfg = _LConfig(
+                ports=_LPorts(
+                    vite_port=None if is_prod else vite_port,
+                    msgCenter_port=self.params.get("msgCenter_port"),
+                    pdfFile_port=self.params.get("pdfFile_port"),
+                ),
+                paths=_LPaths(
+                    data_dir=str(self.params.get("data_dir")),
+                    db_path=str(self.params.get("db_path")),
+                    static_dir=str(self.params.get("static_dir")),
+                    pdfs_dir=str(self.params.get("pdfs_dir")),
+                    logs_dir=str(self.params.get("logs_dir")),
+                ),
+                options=_LOpts(
+                    runtime_mode="single",
+                    frontend_prod=is_prod,
+                    keep_backend=True,
+                ),
+            )
+
+            parent_app = self.params.get("parent_app")
+            if not parent_app:
+                raise RuntimeError("Hosted 模式需要 parent_app 参数")
+
+            inst = _gl_services.start_backend_hosted(
+                cfg,
+                parent_app=parent_app,
+                on_log=lambda m: self.log_signal.emit(m)
+            )
+
+            if inst:
+                self.log_signal.emit("✅ 后端 Hosted 启动成功")
+                self.instance_signal.emit(inst)  # 发送实例给主线程
+                self.finished_signal.emit(True, "后端 Hosted 启动成功")
+            else:
+                self.log_signal.emit("❌ 后端 Hosted 启动失败")
+                self.finished_signal.emit(False, "后端 Hosted 启动失败")
+        except Exception as e:
+            self.log_signal.emit(f"❌ 后端 Hosted 启动失败: {e}")
+            import traceback
+            self.log_signal.emit(f"   错误详情: {traceback.format_exc()}")
+            self.finished_signal.emit(False, f"后端 Hosted 启动失败: {e}")
+
     def _start_pdf_home(self):
         self.log_signal.emit("🏠 正在启动 PDF-Home...")
         try:
@@ -189,6 +249,67 @@ class LauncherThread(QThread):
                 self.finished_signal.emit(False, "PDF-Home 启动失败")
         except Exception as e:
             self.log_signal.emit(f"❌ PDF-Home 启动失败: {e}")
+            import traceback
+            self.log_signal.emit(f"   错误详情: {traceback.format_exc()}")
+            self.finished_signal.emit(False, f"PDF-Home 启动失败: {e}")
+
+    def _start_pdf_home_hosted(self):
+        """启动 PDF-Home (Hosted 模式 - 主进程托管)"""
+        self.log_signal.emit("🏠 正在启动 PDF-Home (Hosted 模式)...")
+        try:
+            if not self.params.get("logs_dir"):
+                raise RuntimeError("缺少必需参数：logs_dir")
+
+            is_prod = bool(self.params.get("is_prod", False))
+            base_logs = Path(self.params.get("logs_dir"))
+
+            # 创建日志目录
+            base_logs.mkdir(parents=True, exist_ok=True)
+
+            # Vite 端口检查（dev 模式）
+            vite_port = self.params.get("vite_port")
+            if not is_prod and vite_port:
+                # 检查 Vite 是否在监听（这个检查在主线程中已经做过了）
+                pass
+
+            cfg = _LConfig(
+                ports=_LPorts(
+                    vite_port=None if is_prod else vite_port,
+                    msgCenter_port=self.params.get("msgCenter_port"),
+                    pdfFile_port=self.params.get("pdfFile_port"),
+                ),
+                paths=_LPaths(
+                    data_dir=str(self.params.get("data_dir")),
+                    db_path=str(self.params.get("db_path")),
+                    static_dir=str(self.params.get("static_dir")),
+                    pdfs_dir=str(self.params.get("pdfs_dir")),
+                    logs_dir=str(base_logs),
+                ),
+                options=_LOpts(
+                    frontend_prod=is_prod,
+                    keep_backend=True,
+                    runtime_mode="single",
+                ),
+            )
+
+            parent_app = self.params.get("parent_app")
+            if not parent_app:
+                raise RuntimeError("Hosted 模式需要 parent_app 参数")
+
+            rc = _gl_services.start_pdf_home_hosted(
+                cfg,
+                parent_app=parent_app,
+                on_log=lambda m: self.log_signal.emit(m)
+            )
+
+            if rc:
+                self.log_signal.emit(f"✅ PDF-Home (Hosted) 启动成功 rc={rc}")
+                self.finished_signal.emit(True, "PDF-Home 启动成功")
+            else:
+                self.log_signal.emit("❌ PDF-Home (Hosted) 启动失败")
+                self.finished_signal.emit(False, "PDF-Home 启动失败")
+        except Exception as e:
+            self.log_signal.emit(f"❌ PDF-Home (Hosted) 启动失败: {e}")
             import traceback
             self.log_signal.emit(f"   错误详情: {traceback.format_exc()}")
             self.finished_signal.emit(False, f"PDF-Home 启动失败: {e}")

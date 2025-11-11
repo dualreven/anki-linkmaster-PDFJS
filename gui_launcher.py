@@ -231,31 +231,64 @@ class GUILauncher(QMainWindow):
 
     # ---------- 后端 ----------
     def _start_backend_hosted(self) -> None:
+        """异步启动后端服务器 (Hosted 模式)"""
         try:
+            self._log("⏳ 正在准备启动后端服务器 (Hosted 模式)...")
+
             is_prod = bool(self.frontend_prod_checkbox.isChecked())
             ports_now = self._runtime_ports() or {}
             vite_port = int(ports_now.get("vite_port") or ports_now.get("npm_port") or (self.vite_port_input.value() or 3000))
-            # 按需求：dev 模式点击“启动后端”必须调用 ensure_vite
+
+            # 按需求：dev 模式点击"启动后端"必须调用 ensure_vite
             if not is_prod and self._controller is not None:
                 self._controller.ensure_vite_dev(int(vite_port), ai_module=None)
+
+            # 准备路径参数
             p = self._resolved_paths_from_ui()
-            cfg = _LConfig(
-                ports=_LPorts(vite_port=None if is_prod else vite_port,
-                              msgCenter_port=int(self.msgCenter_port_input.value() or 0) or None,
-                              pdfFile_port=int(self.pdfFile_port_input.value() or 0) or None),
-                paths=_LPaths(**p),
-                options=_LOpts(runtime_mode="single", frontend_prod=is_prod, keep_backend=True),
-            )
+
+            # 准备线程参数
             from PyQt6.QtWidgets import QApplication
-            app = QApplication.instance()
-            inst = _gl_services.start_backend_hosted(cfg, parent_app=app, on_log=self._log)
-            if inst:
-                self.backend_launcher_instance = inst
-                self._log("后端 Hosted 启动: True")
-            else:
-                self._log("后端 Hosted 启动: False")
+            params = {
+                "is_prod": is_prod,
+                "vite_port": vite_port,
+                "msgCenter_port": int(self.msgCenter_port_input.value() or 0) or None,
+                "pdfFile_port": int(self.pdfFile_port_input.value() or 0) or None,
+                "data_dir": p["data_dir"],
+                "db_path": p["db_path"],
+                "static_dir": p["static_dir"],
+                "pdfs_dir": p["pdfs_dir"],
+                "logs_dir": p["logs_dir"],
+                "parent_app": QApplication.instance(),
+            }
+
+            # 创建并启动线程
+            self._backend_thread = LauncherThread("backend-hosted", params)
+
+            # 连接信号
+            self._backend_thread.log_signal.connect(self._log)
+            self._backend_thread.instance_signal.connect(self._on_backend_instance_ready)
+            self._backend_thread.finished_signal.connect(self._on_backend_finished)
+
+            # 启动线程
+            self._backend_thread.start()
+            self._log("🚀 后端启动线程已开始...")
+
         except Exception as e:
-            self._log(f"[ERROR] 后端 Hosted 启动异常: {e}")
+            self._log(f"[ERROR] 启动后端线程失败: {e}")
+
+    def _on_backend_instance_ready(self, inst):
+        """接收后端实例（从 LauncherThread）"""
+        self.backend_launcher_instance = inst
+        self._log("[TRACE] 后端实例已保存")
+
+    def _on_backend_finished(self, success: bool, message: str):
+        """后端启动完成回调"""
+        if success:
+            self._log(f"✅ {message}")
+        else:
+            self._log(f"❌ {message}")
+        # 清理线程引用
+        self._backend_thread = None
 
     def _stop_backend_hosted(self) -> None:
         try:
@@ -277,27 +310,63 @@ class GUILauncher(QMainWindow):
 
     # ---------- 前端（Hosted） ----------
     def _start_pdf_home_hosted(self) -> None:
+        """异步启动 PDF-Home (Hosted 模式)"""
         try:
+            self._log("⏳ 正在准备启动 PDF-Home (Hosted 模式)...")
+
             is_prod = bool(self.frontend_prod_checkbox.isChecked())
             ports = self._runtime_ports() or {}
             vite_port = int(ports.get("vite_port") or ports.get("npm_port") or (self.vite_port_input.value() or 3000))
             ws = int(ports.get("msgCenter_port") or (self.msgCenter_port_input.value() or 0) or 0)
             http = int(ports.get("pdfFile_port") or (self.pdfFile_port_input.value() or 0) or 0)
+
             self._log(f"[TRACE:HOSTED] pdf-home pre-check → is_prod={is_prod} runtime={ports} ui(vite={self.vite_port_input.value() or 0}, ws={self.msgCenter_port_input.value() or 0}, http={self.pdfFile_port_input.value() or 0})")
+
+            # Dev 模式检查 Vite 是否运行
             if not is_prod and not self._is_port_listening("127.0.0.1", int(vite_port)):
-                self._log(f"[ERROR] Vite 未运行（端口 {vite_port} 未监听）。请点击“启动 Vite (Dev)”或执行：pnpm run dev -- --port {int(vite_port)}")
+                self._log(f'[ERROR] Vite 未运行（端口 {vite_port} 未监听）。请点击"启动 Vite (Dev)"或执行：pnpm run dev -- --port {int(vite_port)}')
                 return
+
+            # 准备路径参数
             p = self._resolved_paths_from_ui()
-            cfg = _LConfig(
-                ports=_LPorts(vite_port=None if is_prod else vite_port, msgCenter_port=ws or None, pdfFile_port=http or None),
-                paths=_LPaths(**p),
-                options=_LOpts(frontend_prod=is_prod, keep_backend=True, runtime_mode="single"))
+
+            # 准备线程参数
             from PyQt6.QtWidgets import QApplication
-            app = QApplication.instance()
-            rc = _gl_services.start_pdf_home_hosted(cfg, parent_app=app, on_log=self._log)
-            self._log(f"PDF-Home (Hosted) 启动 rc={rc}")
+            params = {
+                "is_prod": is_prod,
+                "vite_port": vite_port,
+                "msgCenter_port": ws or None,
+                "pdfFile_port": http or None,
+                "data_dir": p["data_dir"],
+                "db_path": p["db_path"],
+                "static_dir": p["static_dir"],
+                "pdfs_dir": p["pdfs_dir"],
+                "logs_dir": p["logs_dir"],
+                "parent_app": QApplication.instance(),
+            }
+
+            # 创建并启动线程
+            self._pdf_home_thread = LauncherThread("pdf-home-hosted", params)
+
+            # 连接信号
+            self._pdf_home_thread.log_signal.connect(self._log)
+            self._pdf_home_thread.finished_signal.connect(self._on_pdf_home_finished)
+
+            # 启动线程
+            self._pdf_home_thread.start()
+            self._log("🚀 PDF-Home 启动线程已开始...")
+
         except Exception as e:
-            self._log(f"[ERROR] 启动 pdf-home (Hosted) 异常: {e}")
+            self._log(f"[ERROR] 启动 PDF-Home 线程失败: {e}")
+
+    def _on_pdf_home_finished(self, success: bool, message: str):
+        """PDF-Home 启动完成回调"""
+        if success:
+            self._log(f"✅ {message}")
+        else:
+            self._log(f"❌ {message}")
+        # 清理线程引用
+        self._pdf_home_thread = None
 
     def _start_pdf_viewer_hosted(self) -> None:
         try:
