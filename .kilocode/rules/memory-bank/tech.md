@@ -41,6 +41,7 @@
 ### 2025-11-11 前端 WS 连接一致性
 - 约束：后端消息中心仅监听 `127.0.0.1`；避免使用 `localhost` 以规避可能的 `::1` 解析；
 - 实现：`src/frontend/pdf-home/bootstrap/app-bootstrap-v2.js` 中 `wsUrl` 改为 `ws://127.0.0.1:${wsPort}`；
+- 防回归测试：`src/frontend/pdf-home/bootstrap/__tests__/app-bootstrap-v2.wsurl.test.js`（Jest + JSDOM）。
 - Python 侧监听检测统一改为通过 `getaddrinfo` 同时尝试 `localhost/127.0.0.1/::1`，提升鲁棒性。 
 
 ### 2025-11-11 WebSocket 连接超时策略

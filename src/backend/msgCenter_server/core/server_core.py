@@ -1,5 +1,8 @@
 from typing import Optional
 from src.qt.compat import QObject, pyqtSignal, QWebSocketServer, QWebSocket, QHostAddress, QAbstractSocket
+import json
+import os
+from datetime import datetime
 
 
 class WebSocketServerCore(QObject):
@@ -26,6 +29,11 @@ class WebSocketServerCore(QObject):
             return True
         if self.server.listen(QHostAddress.SpecialAddress.LocalHost, self.port):
             self.running = True
+            try:
+                # 写入探针文件，便于外部诊断端口/地址是否真正绑定
+                self._write_probe(True)
+            except Exception:
+                pass
             return True
         return False
 
@@ -40,6 +48,10 @@ class WebSocketServerCore(QObject):
                 pass
         self.clients.clear()
         self.running = False
+        try:
+            self._write_probe(False)
+        except Exception:
+            pass
 
     def get_client_count(self) -> int:
         return len(self.clients)
@@ -90,3 +102,22 @@ class WebSocketServerCore(QObject):
         except Exception:
             code = 0
         self.socket_error.emit(code)
+
+    # -------------- diagnostics --------------
+    def _write_probe(self, running: bool) -> None:
+        """写入诊断探针文件（logs/ws-probe.json，UTF-8，覆盖写）"""
+        try:
+            os.makedirs("logs", exist_ok=True)
+            info = {
+                "running": bool(running),
+                "bound_address": str(self.server.serverAddress().toString() if self.server else ""),
+                "bound_port": int(self.server.serverPort() if self.server else 0),
+                "configured_host": str(self.host),
+                "configured_port": int(self.port),
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            with open(os.path.join("logs", "ws-probe.json"), "w", encoding="utf-8", newline="\n") as f:
+                json.dump(info, f, ensure_ascii=False, indent=2)
+        except Exception:
+            # 诊断辅助，失败忽略
+            pass
