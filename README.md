@@ -79,8 +79,32 @@ anki-linkmaster-PDFJS/
 ### 环境要求
 - **Node.js**: 16.0+ (推荐18.0+)
 - **Python**: 3.8+ (推荐3.10+)
+- **Python 虚拟环境**: **强制使用** venv/virtualenv/conda (详见 [环境配置文档](docs/architecture/environment.md))
 - **PyQt**: PyQt5 5.15+ 或 PyQt6 6.2+
 - **包管理器**: pnpm (推荐) 或 npm
+
+**⚠️ 重要提示**: 本项目强制使用 Python 虚拟环境进行开发，避免依赖冲突和环境污染。
+
+#### 快速设置虚拟环境
+
+```bash
+# 创建虚拟环境
+python -m venv venv
+
+# 激活虚拟环境
+# Windows
+venv\Scripts\activate
+# Linux/macOS
+source venv/bin/activate
+
+# 安装 Python 依赖
+pip install -r requirements.txt
+
+# 安装 Node.js 依赖
+pnpm install
+```
+
+详细说明请参考：[docs/architecture/environment.md](docs/architecture/environment.md)
 
 ### 1. 快速启动（推荐）
 
@@ -270,3 +294,6 @@ pnpm run dev -- --host 0.0.0.0 --port 3000
 **维护者**: Anki LinkMaster 开发团队
 **最后更新**: 2025-09-27
 **版本**: 2.1.0
+# Anki LinkMaster PDFJS
+
+> 注意：Playwright 已弃用。请使用基于 QtWebEngine 的 E2E 基座（tests/e2e/qtwebengine/README.md）。原 Playwright 配置与脚本已标记为 legacy，不再默认执行。

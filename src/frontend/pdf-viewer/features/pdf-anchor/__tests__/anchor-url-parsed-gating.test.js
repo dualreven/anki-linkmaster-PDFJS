@@ -36,9 +36,10 @@ describe("PDFAnchorFeature - URL_PARAMS 受控导航门闸", () => {
     window.history.pushState({}, "", "/pdf-viewer/?pdf-id=doc-001");
   });
 
-  test("收到 URL_PARAMS.PARSED + ANCHOR.DATA.LOADED + FILE.LOAD.SUCCESS 后发出 URL_PARAMS.REQUESTED", async () => {
+  test("收到 URL_PARAMS.PARSED + ANCHOR.DATA.LOADED + FILE.LOAD.SUCCESS 后发出 URL_PARAMS.REQUESTED，且自动激活该锚点（单选语义）", async () => {
     jest.useFakeTimers();
     const emitted = [];
+    const activations = [];
     const emittedAny = [];
     // 监视所有 emit 调用（包括局部事件）
     const originalEmit = globalEventBus.emit.bind(globalEventBus);
@@ -50,6 +51,12 @@ describe("PDFAnchorFeature - URL_PARAMS 受控导航门闸", () => {
     const offReq = globalEventBus.on(
       PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
       (data) => emitted.push({ evt: PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED, data }),
+      { subscriberId: "test" }
+    );
+    // 订阅激活事件
+    const offAct = globalEventBus.on(
+      PDF_VIEWER_EVENTS.ANCHOR.ACTIVATED,
+      (data) => activations.push(data),
       { subscriberId: "test" }
     );
 
@@ -94,7 +101,9 @@ describe("PDFAnchorFeature - URL_PARAMS 受控导航门闸", () => {
     // 其次检查所有事件流
     const gotInAll = emittedAny.some((e) => e.evt === PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED);
     expect(gotExplicit || gotInAll).toBe(true);
-    offReq?.();
+    // 验证出现一次激活事件，且为目标 anchor
+    expect(activations.some((e) => e && e.anchorId === anchorId && e.active === true)).toBe(true);
+    offReq?.(); offAct?.();
   });
 });
 

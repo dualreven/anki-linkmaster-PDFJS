@@ -1,4 +1,7 @@
-# 前后端集成测试使用说明
+# 前后端集成测试使用说明（Playwright 已弃用说明）
+
+> 提示：本仓库的前端端到端测试已迁移到 QtWebEngine 基座（tests/e2e/qtwebengine/README.md）。
+> 若需浏览器自动化的历史资料，请查看 tests/e2e/_legacy-playwright/；默认不再使用 Playwright 执行用例。
 
 ## 📋 测试目标
 

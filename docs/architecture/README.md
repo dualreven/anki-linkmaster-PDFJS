@@ -3,6 +3,7 @@
 目的：作为架构专题的统一入口与导航，便于快速查阅各主题文档。
 
 快速导航
+- 开发环境配置（Python 虚拟环境）：docs/architecture/environment.md
 - 总览与组件：docs/architecture/overview.md
 - 分层模型与 Feature/Bus：docs/architecture/layers.md
 - 导航与互斥策略：docs/architecture/navigation.md
@@ -36,5 +37,6 @@
 - 质量门禁：见 docs/quality/quality-gates.md；提交/上线前自检见 docs/checklists/self-check.md
 
 维护记录
+- 2025-01-09 新增开发环境配置文档（environment.md），明确 Python 虚拟环境要求
 - 2025-11-07 新增本索引页，收束架构导航与约定入口
 

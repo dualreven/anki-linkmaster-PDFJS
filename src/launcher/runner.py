@@ -91,6 +91,7 @@ def start_backend_hosted(cfg: LauncherConfig, *, parent_app, on_log: Optional[Ca
     root = resolve_component_root()
     from src.backend.launcher import BackendLauncher
     runtime_mode = cfg.options.runtime_mode or 'single'
+
     inst = BackendLauncher(
         parent_app=parent_app,
         show_ui=False,

@@ -22,6 +22,14 @@ def ensure_vite(port: int, *, component_root: Path, logs_dir: Path, ai_module: O
     return _ensure_vite(port, component_root=component_root, logs_dir=logs_dir, ai_module=ai_module)
 
 
+def stop_vite(*, logs_dir: Path) -> bool:
+    """
+    停止 Vite（由 dev_server.stop_vite 提供）。
+    """
+    from src.launcher.dev_server import stop_vite as _stop_vite  # 延迟导入
+    return _stop_vite(logs_dir=logs_dir)
+
+
 def read_runtime_ports(base_logs: Path) -> Dict[str, Any]:
     """
     转发至 src.launcher.ports.read_runtime_ports。

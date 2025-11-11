@@ -280,6 +280,8 @@ def test_hosted_path_start_pdf_home(tmp_path: Path, monkeypatch):
     g.msgCenter_port_input = types.SimpleNamespace(value=lambda: 8765)
     g.pdfFile_port_input = types.SimpleNamespace(value=lambda: 8080)
     g.ankiaddon_root_input = types.SimpleNamespace(text=lambda: "")
+    # 开发模式下，确保“端口监听检查”通过（避免引入真实网络依赖）
+    g._is_port_listening = lambda *_a, **_k: True
 
     # 调用 Hosted 路径
     logs = []

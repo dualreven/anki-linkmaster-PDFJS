@@ -107,10 +107,10 @@ export class WebSocketAdapter {
                   const raw = data?.outline_items;
                   const rawType = raw === null ? "null" : Array.isArray(raw) ? "array" : typeof raw;
                   const rawPreview = (() => {
-                    try { return JSON.stringify(raw)?.slice(0, 200); } catch { return String(raw); }
+                    try { return JSON.stringify(raw)?.slice(0, 200); } catch (e) { return String(raw); }
                   })();
                   this.#logger.info(`[outline] inbound list (raw) outline_items_type=${rawType} preview=${rawPreview}`);
-                } catch { /* no-op */ }
+                } catch (e) { void e; }
 
                 // 若为 null（统一语义：数据库当前无大纲记录），不在适配器层桥接给 UI，交由 OutlineFeature 执行“从PDF导入→保存→再拉取”流程
                 if (data?.outline_items === null) {
@@ -170,7 +170,7 @@ export class WebSocketAdapter {
               } else if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_CREATE_COMPLETED) {
                 const id = message?.data?.uuid || message?.data?.anchor_id || null;
                 this.#logger.info("[anchor] create completed", { id });
-                try { this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATED, { anchorId: id }, { actorId: "WebSocketAdapter" }); } catch {}
+                try { this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATED, { anchorId: id }, { actorId: "WebSocketAdapter" }); } catch (e) { this.#logger.warn("[anchor] emit ANCHOR.CREATED failed", e); }
                 // 创建成功后刷新列表
                 try {
                   const params = new URLSearchParams(window.location.search);
@@ -178,7 +178,7 @@ export class WebSocketAdapter {
                   if (pdfId) {
                     this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
                   }
-                } catch { this.#logger.warn("noop"); }
+                } catch (e) { this.#logger.warn("[anchor] request list after create completed failed", e); }
               } else if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_ACTIVATE_COMPLETED) {
                 // 先就地更新当前项，再刷新列表以对齐“单选语义”的后端状态
                 try {
@@ -215,7 +215,7 @@ export class WebSocketAdapter {
               } else if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_CREATE_FAILED) {
                 const err = message?.error || message?.data?.error || message?.data || { message: "unknown error" };
                 this.#logger.warn("[anchor] create failed", { err: (err?.message || err) });
-                try { this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATE_FAILED, { error: err }, { actorId: "WebSocketAdapter" }); } catch {}
+                try { this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATE_FAILED, { error: err }, { actorId: "WebSocketAdapter" }); } catch (e) { this.#logger.warn("[anchor] emit ANCHOR.CREATE_FAILED failed", e); }
               }
             }
           }
@@ -384,7 +384,7 @@ export class WebSocketAdapter {
             // 显式发失败事件，便于 UI/日志观察
             try {
               this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATE_FAILED, { error: { message: "缺少 pdf_uuid" } }, { actorId: "WebSocketAdapter" });
-            } catch {}
+            } catch (e) { this.#logger.warn("[anchor] emit CREATE_FAILED failed (missing pdf_uuid path)", e); }
             return;
           }
           // 规范化位置：确保 position 为 0..1 区间
@@ -393,7 +393,7 @@ export class WebSocketAdapter {
           }
           this.#logger.info("[anchor] create → WS request", { pdf_uuid: pdfId, id: anchor.uuid, name: anchor.name, page_at: anchor.page_at });
           this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_CREATE, { pdf_uuid: pdfId, anchor }, { metadata: { version: "1.0.0" } });
-        } catch { this.#logger.warn("noop"); }
+        } catch (e) { this.#logger.warn("[anchor] create request failed", e); }
       },
       { subscriberId: "WebSocketAdapter" }
     );
@@ -615,7 +615,7 @@ export class WebSocketAdapter {
         if (!annotationId) {
           throw new Error("annotation_id required for annotation mode");
         }
-        try { this.#logger.info(`[WS] 导航·标注：请求跳转 id=${annotationId}`, { toast: { type: "info", ms: 2000 } }); } catch {}
+        try { this.#logger.info(`[WS] 导航·标注：请求跳转 id=${annotationId}`, { toast: { type: "info", ms: 2000 } }); } catch (e) { void e; }
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
           { id: annotationId, highlight: !!opts.highlight },
@@ -626,7 +626,7 @@ export class WebSocketAdapter {
         if (!anchorId) {
           throw new Error("anchor_id required for anchor mode");
         }
-        try { this.#logger.info(`[WS] 导航·锚点：请求跳转 id=${anchorId}`, { toast: { type: "info", ms: 2000 } }); } catch {}
+        try { this.#logger.info(`[WS] 导航·锚点：请求跳转 id=${anchorId}`, { toast: { type: "info", ms: 2000 } }); } catch (e) { void e; }
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.ANCHOR.NAVIGATE.REQUESTED,
           { anchorId },
@@ -638,7 +638,7 @@ export class WebSocketAdapter {
         if (!outlineItemId) {
           throw new Error("outline_item_id/id required for outline mode");
         }
-        try { this.#logger.info(`[WS] 导航·大纲：请求跳转 id=${outlineItemId}`, { toast: { type: "info", ms: 2000 } }); } catch {}
+        try { this.#logger.info(`[WS] 导航·大纲：请求跳转 id=${outlineItemId}`, { toast: { type: "info", ms: 2000 } }); } catch (e) { void e; }
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE_BY_ID.REQUESTED,
           { outlineItemId },
@@ -649,7 +649,7 @@ export class WebSocketAdapter {
         if (!Number.isFinite(pageNumber)) {
           throw new Error("page_number must be a number");
         }
-        try { this.#logger.info(`[WS] 导航·页面：跳转第 ${pageNumber} 页`, { toast: { type: "info", ms: 2000 } }); } catch {}
+        try { this.#logger.info(`[WS] 导航·页面：跳转第 ${pageNumber} 页`, { toast: { type: "info", ms: 2000 } }); } catch (e) { void e; }
         // 统一经由 URL 导航入口；若 position 为百分比则透传，否则省略
         const pos = data?.target?.position || data?.position || null; // { y_percent, x_percent } or { x, y } or number
         let positionPercent = null;

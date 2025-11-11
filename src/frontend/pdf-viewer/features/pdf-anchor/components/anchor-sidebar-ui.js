@@ -49,8 +49,8 @@ export class AnchorSidebarUI {
     this.#table = this.#createTable();
     this.#sidebarContent.appendChild(this.#table);
 
-    // 初始渲染空态
-    try { this.#renderAnchors([]); } catch { /* no-op */ }
+    // 初始渲染空态（失败不阻断 UI，但记录调试信息）
+    try { this.#renderAnchors([]); } catch (e) { this.#logger.debug("[AnchorSidebarUI] initial render failed", e); }
 
     // 事件订阅：加载请求（用于显示“加载中/超时”并记录最近一次请求参数）
     this.#unsubs.push(this.#eventBus.on(

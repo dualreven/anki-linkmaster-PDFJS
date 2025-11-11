@@ -29,7 +29,8 @@
     "format:check": "node scripts/run-prettier.mjs --check",
     "format": "node scripts/run-prettier.mjs --write",
     "lint:fix": "pnpm exec eslint src scripts eslint-rules --ext .js,.cjs,.mjs --fix",
-    "e2e:browser": "pnpm run build:pdf-viewer && playwright test -c ./playwright.config.js",
+    "legacy:e2e:browser": "echo \"[deprecated] playwright 已弃用，请使用 pytest tests/e2e/qtwebengine\" && playwright test -c ./playwright.config.js",
+    "e2e:qt": "pytest -q tests/e2e/qtwebengine",
     "ci:ws-types-diff": "node scripts/ci/ws-contract-diff.mjs"
   },
   "engines": {

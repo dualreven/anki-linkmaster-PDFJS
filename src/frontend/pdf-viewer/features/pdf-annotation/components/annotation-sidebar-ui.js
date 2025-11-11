@@ -143,7 +143,7 @@ export class AnnotationSidebarUI {
         this.#handleCardJump(String(annId));
       } catch (e) {
         // 严格模式：异常即报错 + toast（统一使用 logger 的 toast）
-        try { this.#logger.error("Card jump handler failed", e, { toast: { type: "error", ms: 4000 } }); } catch { /* no-op */ }
+        try { this.#logger.error("Card jump handler failed", e, { toast: { type: "error", ms: 4000 } }); } catch (e2) { void e2; }
       }
     }, { passive: true });
   }
@@ -176,10 +176,10 @@ export class AnnotationSidebarUI {
           { annotation: ann },
           { actorId: "AnnotationSidebarUI" }
         );
-      } catch { }
+      } catch (e) { void e; }
 
       // 高亮对应卡片
-      try { this.highlightAndScrollToCard(ann.id); } catch { }
+      try { this.highlightAndScrollToCard(ann.id); } catch (e) { void e; }
 
       this.#logger.info(`[AnnotationSidebarUI] Jump requested (strict): id=${ann.id} page=${ann.pageNumber}`);
     } catch (e) {

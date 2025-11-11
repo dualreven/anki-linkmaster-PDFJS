@@ -134,6 +134,8 @@ class LaunchConfig:
         position = getattr(args, 'position', None)
         anchor_id = getattr(args, 'anchor_id', None)
         annotation_id = getattr(args, 'annotation_id', None)
+        # 可选：outline-item-id（通过 extra_params 透传给 url-navigation 特性）
+        outline_item_id = getattr(args, 'outline_item_id', None)
 
         # 控制参数
         keep_backend = getattr(args, 'keep_backend', False)
@@ -147,7 +149,7 @@ class LaunchConfig:
         disable_js_console = getattr(args, 'disable_js_console', False)
         disable_frontend_load = getattr(args, 'disable_frontend_load', False)
 
-        return cls(
+        cfg = cls(
             is_prod=is_prod,
             vite_port=vite_port,
             msgCenter_port=msgCenter_port,
@@ -168,6 +170,17 @@ class LaunchConfig:
             disable_frontend_load=disable_frontend_load,
             source="cli"
         , logs_dir=logs_dir)
+
+        # 透传 outline-item-id 到 extra_params（仅当提供时）
+        try:
+            if outline_item_id:
+                cfg.extra_params = dict(cfg.extra_params or {})
+                cfg.extra_params["outline_item_id"] = outline_item_id
+        except Exception:
+            # 保底不抛出，维持与既有 from_args 行为一致
+            pass
+
+        return cfg
 
     def to_dict(self) -> dict:
         """

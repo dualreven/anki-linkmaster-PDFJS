@@ -40,10 +40,10 @@ jest.mock("../../common/utils/logger.js", () => {
       setLogLevel: jest.fn()
     })),
     LogLevel: {
-      DEBUG: 'DEBUG',
-      INFO: 'INFO',
-      WARN: 'WARN',
-      ERROR: 'ERROR'
+      DEBUG: "DEBUG",
+      INFO: "INFO",
+      WARN: "WARN",
+      ERROR: "ERROR"
     }
   };
 });

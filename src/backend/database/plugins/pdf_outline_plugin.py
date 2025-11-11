@@ -13,6 +13,7 @@ from .pdf_outline.validate import validate_data as _validate_outline_data
 from ..exceptions import DatabaseValidationError
 from ..plugin.base_table_plugin import TablePlugin
 from ..plugin.event_bus import EventBus
+from ..plugin.table_event_constants import TableEventConstants
 
 if TYPE_CHECKING:
     from ..executor import SQLExecutor
@@ -246,7 +247,7 @@ class PDFOutlineTablePlugin(TablePlugin):
 
     def register_events(self) -> None:
         self._event_bus.on(
-            'table:pdf-info:delete:completed',
+            TableEventConstants.PDFInfo.DELETE_COMPLETED,
             self._handle_pdf_deleted,
             self._subscriber_id
         )

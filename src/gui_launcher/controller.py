@@ -58,13 +58,66 @@ class Controller:
         comp_root = self.options.component_root or Path('.').resolve()
         logs_dir = self.options.logs_dir or (comp_root / 'logs')
         pid, used_port = self._services['ensure_vite'](int(port), component_root=comp_root, logs_dir=logs_dir, ai_module=ai_module)
+        # 记录“已发起并确认端口状态”的信息（不宣称一定成功运行，由调用方二次校验监听）
         if callable(self.options.on_log):
             try:
-                self.options.on_log(f"Vite 启动完成: PID={pid} 端口={used_port}")
+                self.options.on_log(f"Vite 启动请求已处理: PID={pid} 端口={used_port}")
             except Exception:
                 pass
         return pid, used_port
 
+    # ---------- Vite 停止 ----------
+    def stop_vite_dev(self) -> bool:
+        """
+        停止 Vite 开发服务器（根据 logs_dir 中记录的 PID）。
+        """
+        if 'stop_vite' not in self._services:
+            from . import services as _services
+            self._services['stop_vite'] = _services.stop_vite
+        logs_dir = self.options.logs_dir or (self.options.component_root or Path('.').resolve() / 'logs')
+        ok = self._services['stop_vite'](logs_dir=logs_dir)
+        if callable(self.options.on_log):
+            try:
+                self.options.on_log("Vite 停止" + ("成功" if ok else "失败"))
+            except Exception:
+                pass
+        return bool(ok)
+
+    # ---------- 运行端口读取 ----------
+    def read_runtime_ports(self, logs_dir: Path) -> Dict[str, Any]:
+        """读取 logs/runtime-ports.json（委托 services.read_runtime_ports）。"""
+        try:
+            from . import services as _services
+            return _services.read_runtime_ports(Path(logs_dir))
+        except Exception:
+            return {}
+
+    # ---------- 路径解析（带默认与目录创建） ----------
+    def resolve_paths(self, *, defaults: Dict[str, str], overrides: Dict[str, str]) -> Dict[str, str]:
+        """
+        基于 defaults 与 overrides 解析最终路径；必要目录会被创建。
+        - defaults: 必须包含 data_dir/db_path/static_dir/pdfs_dir/logs_dir（字符串路径）
+        - overrides: 允许为空字符串；为空时使用对应 defaults
+        返回规范化的绝对路径字符串字典。
+        """
+        def _pick(key: str) -> str:
+            v = (overrides.get(key) or "").strip()
+            return v or str(defaults.get(key) or "")
+
+        resolved = {
+            "data_dir": _pick("data_dir"),
+            "db_path": _pick("db_path"),
+            "static_dir": _pick("static_dir"),
+            "pdfs_dir": _pick("pdfs_dir"),
+            "logs_dir": _pick("logs_dir"),
+        }
+        # 创建必要目录（data/pdfs/logs）
+        for k in ("data_dir", "pdfs_dir", "logs_dir"):
+            try:
+                Path(resolved[k]).mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
+        return resolved
     # ---------- 文件监听（状态刷新） ----------
 
     def init_status_watchers(self, *, parent: Any, logs_dir: Path, on_update_status: Any) -> None:

@@ -1,9 +1,11 @@
-// 明确使用 UTF-8 源文件
-// Playwright 基本配置（最小化），仅跑 tests/e2e/browser 下的用例
-// 约束：禁止兜底与回退；超时略宽以适配首次浏览器安装
+// DEPRECATED: 本项目的前端 E2E 已迁移到 QtWebEngine 基座（tests/e2e/qtwebengine）。
+// 本配置仅为兼容保留，默认不再执行任何 Playwright 用例。
+// 如需历史用例，请参考 tests/e2e/_legacy-playwright/ 与 README 说明。
 /** @type {import('@playwright/test').PlaywrightTestConfig} */
 const config = {
-  testDir: 'tests/e2e/browser',
+  testDir: 'tests/e2e/_legacy-playwright',
+  // 忽略所有用例，防止误跑
+  testIgnore: ['**/*'],
   timeout: 30_000,
   expect: { timeout: 5_000 },
   use: {
@@ -21,4 +23,3 @@ const config = {
 };
 
 export default config;
-

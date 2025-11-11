@@ -859,6 +859,64 @@ export const PDF_VIEWER_EVENTS = {
   },
 
   /**
+   * 最近阅读位置（断点续读）
+   * @namespace RESUME
+   */
+  RESUME: {
+    LOAD: {
+      /**
+       * 拉取 resume 数据请求（内部事件，用于观测）
+       * @event resume:load:requested
+       */
+      REQUESTED: "resume:load:requested",
+      /**
+       * 拉取成功
+       * @event resume:load:success
+       */
+      LOADED: "resume:load:success",
+      /**
+       * 拉取失败
+       * @event resume:load:failed
+       */
+      LOAD_FAILED: "resume:load:failed",
+    },
+    APPLY: {
+      /**
+       * 应用 resume（导航）请求
+       * @event resume:apply:requested
+       */
+      REQUESTED: "resume:apply:requested",
+      /**
+       * 应用成功
+       * @event resume:apply:success
+       */
+      SUCCESS: "resume:apply:success",
+      /**
+       * 应用失败
+       * @event resume:apply:failed
+       */
+      FAILED: "resume:apply:failed",
+    },
+    UPDATE: {
+      /**
+       * 更新 resume 请求（准备写库）
+       * @event resume:update:requested
+       */
+      REQUESTED: "resume:update:requested",
+      /**
+       * 更新成功
+       * @event resume:update:success
+       */
+      SUCCESS: "resume:update:success",
+      /**
+       * 更新失败
+       * @event resume:update:failed
+       */
+      FAILED: "resume:update:failed",
+    }
+  },
+
+  /**
    * UI 控制相关事件
    * @namespace UI
    */

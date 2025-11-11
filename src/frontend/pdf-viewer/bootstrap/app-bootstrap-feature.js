@@ -25,6 +25,7 @@ import { OutlineManager } from "../features/pdf-outline/index.js";
 import { PDFCardFeature } from "../features/pdf-card/index.js";
 import { AiAssistantFeature } from "../features/ai-assistant/index.js";
 import { PDFAnchorFeature } from "../features/pdf-anchor/index.js";
+import { PDFResumeFeature } from "../features/pdf-resume/index.js";
 import { showInfo } from "../../common/utils/notification.js";
 const logger = getLogger("pdf-viewer.bootstrap");
 
@@ -125,6 +126,7 @@ export async function bootstrapPDFViewerAppFeature() {
     registry.register(new CoreNavigationFeature());  // 核心导航服务（需在url-navigation和annotation之前）
     registry.register(new SearchFeature());  // 注册搜索功能
     registry.register(new URLNavigationFeature());
+    registry.register(new PDFResumeFeature()); // 断点续读（位于 URL 导航之后、Anchor 之前）
 
     // 4.1 强制 Outline：关闭切换逻辑与回退路径，始终注册 pdf-outline
     try {

@@ -84,7 +84,7 @@ export class ScreenshotTool extends IAnnotationTool {
     this.#container = context.container || null;
     try {
       this.#pdfjsEventBus = this.#pdfViewerManager?.eventBus || null;
-    } catch { /* no-op */ }
+    } catch (e) { void e; }
 
     // 初始化截图捕获器
     this.#capturer = new ScreenshotCapturer();
@@ -117,10 +117,10 @@ export class ScreenshotTool extends IAnnotationTool {
 
       // 缩放阶段：先清除可见标记，避免旧像素矩形残留
       this.#pdfjsScaleChangingHandler = () => {
-        try { this.clearAllMarkers(); } catch { /* no-op */ }
+        try { this.clearAllMarkers(); } catch (e) { this.#logger?.debug?.("[ScreenshotTool] clearAllMarkers failed on scale changing", e); }
       };
 
-      try { this.#pdfjsEventBus.on(PDF_VIEWER_EVENTS.PDFJS_EVENTS.SCALE.CHANGING, this.#pdfjsScaleChangingHandler); } catch { /* no-op */ }
+      try { this.#pdfjsEventBus.on(PDF_VIEWER_EVENTS.PDFJS_EVENTS.SCALE.CHANGING, this.#pdfjsScaleChangingHandler); } catch (e) { this.#logger?.debug?.("[ScreenshotTool] register SCALE.CHANGING hook failed", e); }
 
       // 缩放完成：对当前页触发一次恢复，其它页依赖后续 pagerendered 回调
       this.#pdfjsScaleChangedHandler = () => {
@@ -132,7 +132,7 @@ export class ScreenshotTool extends IAnnotationTool {
         } catch (e) { this.#logger?.debug?.("[ScreenshotTool] scalechange restore failed", e); }
       };
 
-      try { this.#pdfjsEventBus.on(PDF_VIEWER_EVENTS.PDFJS_EVENTS.SCALE.CHANGED, this.#pdfjsScaleChangedHandler); } catch { /* no-op */ }
+      try { this.#pdfjsEventBus.on(PDF_VIEWER_EVENTS.PDFJS_EVENTS.SCALE.CHANGED, this.#pdfjsScaleChangedHandler); } catch (e) { this.#logger?.debug?.("[ScreenshotTool] register SCALE.CHANGED hook failed", e); }
     }
 
     // 统一事件信号：监听应用级 RENDER.PAGE_COMPLETED（由 PDFViewerManager 桥接）
@@ -144,7 +144,7 @@ export class ScreenshotTool extends IAnnotationTool {
         this.#flushPendingForPage(pn);
         this.#restoreScreenshotMarkersForPage(pn);
       }, { subscriberId: "ScreenshotTool" });
-    } catch { /* no-op */ }
+    } catch (e) { void e; }
 
     this.#logStep("01", "Initialize begin", {
       qwebChannelMode: this.#qwebChannelBridge.getMode()
@@ -307,17 +307,17 @@ export class ScreenshotTool extends IAnnotationTool {
     }
     if (this.#pdfjsEventBus && this.#pdfjsPageRenderedHandler) {
 
-      try { this.#pdfjsEventBus.off?.(PDF_VIEWER_EVENTS.PDFJS_EVENTS.PAGE.RENDERED, this.#pdfjsPageRenderedHandler); } catch { /* no-op */ }
+      try { this.#pdfjsEventBus.off?.(PDF_VIEWER_EVENTS.PDFJS_EVENTS.PAGE.RENDERED, this.#pdfjsPageRenderedHandler); } catch (e) { void e; }
     }
     this.#onAnnotationDataLoadedHandler = null;
     this.#pdfjsPageRenderedHandler = null;
     if (this.#pdfjsEventBus && this.#pdfjsScaleChangingHandler) {
 
-      try { this.#pdfjsEventBus.off?.(PDF_VIEWER_EVENTS.PDFJS_EVENTS.SCALE.CHANGING, this.#pdfjsScaleChangingHandler); } catch { /* no-op */ }
+      try { this.#pdfjsEventBus.off?.(PDF_VIEWER_EVENTS.PDFJS_EVENTS.SCALE.CHANGING, this.#pdfjsScaleChangingHandler); } catch (e) { void e; }
     }
     if (this.#pdfjsEventBus && this.#pdfjsScaleChangedHandler) {
 
-      try { this.#pdfjsEventBus.off?.(PDF_VIEWER_EVENTS.PDFJS_EVENTS.SCALE.CHANGED, this.#pdfjsScaleChangedHandler); } catch { /* no-op */ }
+      try { this.#pdfjsEventBus.off?.(PDF_VIEWER_EVENTS.PDFJS_EVENTS.SCALE.CHANGED, this.#pdfjsScaleChangedHandler); } catch (e) { void e; }
     }
     this.deactivate();
     this.clearAllMarkers();
@@ -432,7 +432,7 @@ export class ScreenshotTool extends IAnnotationTool {
         try {
           this.#logStep("04.rest.each", "Restore item", { id: ann.id, page: ann.pageNumber });
           this.renderScreenshotMarker(ann);
-        } catch { /* no-op */ }
+        } catch (e) { this.#logger?.debug?.("[ScreenshotTool] restore item failed", e); }
       });
     } catch (e) {
       this.#logger?.warn?.("[ScreenshotTool] restoreScreenshotMarkersForPage failed", e);
@@ -489,7 +489,7 @@ export class ScreenshotTool extends IAnnotationTool {
         try {
           this.#logStep("04.1", "Flushing item", { id: ann.id, page: pageNumber });
           this.renderScreenshotMarker(ann);
-        } catch { /* no-op */ }
+        } catch (e) { this.#logger?.debug?.("[ScreenshotTool] flush item failed", e); }
       });
       this.#logStep("04.done", "Flush completed", { page: pageNumber, count: items.length });
     } catch (e) {
@@ -894,8 +894,8 @@ export class ScreenshotTool extends IAnnotationTool {
         const btnOk = document.createElement("button");
         btnOk.textContent = "删除";
         btnOk.style.cssText = "padding:6px 12px;border:1px solid #c62828;background:#c62828;color:#fff;border-radius:4px;cursor:pointer;";
-        btnCancel.addEventListener("click", () => { try { overlay.remove(); } catch {} resolve(false); });
-        btnOk.addEventListener("click", () => { try { overlay.remove(); } catch {} resolve(true); });
+        btnCancel.addEventListener("click", () => { try { overlay.remove(); } catch (e) { void e; } resolve(false); });
+        btnOk.addEventListener("click", () => { try { overlay.remove(); } catch (e) { void e; } resolve(true); });
         footer.appendChild(btnCancel); footer.appendChild(btnOk);
         dlg.appendChild(body); dlg.appendChild(footer); overlay.appendChild(dlg);
         document.body.appendChild(overlay);
@@ -1145,7 +1145,7 @@ export class ScreenshotTool extends IAnnotationTool {
           return;
         }
         // 否则先移除旧元素，再重建
-        try { existing.remove(); } catch { /* no-op */ }
+        try { existing.remove(); } catch (e) { void e; }
         this.#renderedMarkers.delete(annotation.id);
         this.#logStep("05.0r", "Existing marker detached or wrong page → rebuild", { id: annotation.id, page: pageNumber });
       }

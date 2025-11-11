@@ -150,19 +150,19 @@ export class SearchBar {
     this.#addBtn.addEventListener("click", () => {
       this.#logger.info("[SearchBar] Add button clicked");
       // 直接发全局事件，避免依赖 Feature 桥接（构建产物下更稳）
-      try { this.#eventBus.emitGlobal(SEARCH_EVENTS.ACTIONS.ADD_REQUESTED); } catch(e) { void e; }
+      try { this.#eventBus.emitGlobal(SEARCH_EVENTS.ACTIONS.ADD_REQUESTED); } catch(e) { this.#logger.warn("[SearchBar] emitGlobal ADD_REQUESTED failed", e); }
     });
 
     // 排序按钮
     this.#sortBtn.addEventListener("click", () => {
       this.#logger.info("[SearchBar] Sort button clicked");
-      try { this.#eventBus.emitGlobal(SEARCH_EVENTS.ACTIONS.SORT_REQUESTED); } catch(e) { void e; }
+      try { this.#eventBus.emitGlobal(SEARCH_EVENTS.ACTIONS.SORT_REQUESTED); } catch(e) { this.#logger.warn("[SearchBar] emitGlobal SORT_REQUESTED failed", e); }
     });
 
     // 高级筛选按钮
     this.#advancedBtn.addEventListener("click", () => {
       this.#logger.info("[SearchBar] Advanced filter button clicked");
-      try { this.#eventBus.emitGlobal(FILTER_EVENTS.ADVANCED.OPEN); } catch(e) { void e; }
+      try { this.#eventBus.emitGlobal(FILTER_EVENTS.ADVANCED.OPEN); } catch(e) { this.#logger.warn("[SearchBar] emitGlobal FILTER.ADVANCED.OPEN failed", e); }
     });
 
     // 保存条件按钮已在本版本移除
@@ -182,8 +182,8 @@ export class SearchBar {
       this.#eventBus.emitGlobal(SEARCH_EVENTS.QUERY.REQUESTED, { searchText: searchText || "" });
     } catch(e) {
       // 兜底：仍发局部事件（开发模式兼容）
-      try { this.#eventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, { searchText: searchText || "" }); } catch(e2) { void e2; }
-      void e;
+      try { this.#eventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, { searchText: searchText || "" }); } catch(e2) { this.#logger.debug("[SearchBar] scoped emit QUERY.REQUESTED failed", e2); /* logger-guard */ }
+      this.#logger.warn("[SearchBar] emitGlobal QUERY.REQUESTED failed", e);
     }
   }
 
@@ -196,8 +196,8 @@ export class SearchBar {
     try {
       this.#eventBus.emitGlobal(SEARCH_EVENTS.QUERY.CLEARED);
     } catch(e) {
-      try { this.#eventBus.emit(SEARCH_EVENTS.QUERY.CLEARED); } catch(e2) { void e2; }
-      void e;
+      try { this.#eventBus.emit(SEARCH_EVENTS.QUERY.CLEARED); } catch(e2) { this.#logger.debug("[SearchBar] scoped emit QUERY.CLEARED failed", e2); /* logger-guard */ }
+      this.#logger.warn("[SearchBar] emitGlobal QUERY.CLEARED failed", e);
     }
     this.updateStats(null);
   }

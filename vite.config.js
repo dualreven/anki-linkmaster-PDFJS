@@ -64,6 +64,8 @@ export default defineConfig(async () => {
   return {
     // 统一根目录，单 Vite 服务器同时服务 /pdf-home/ 与 /pdf-viewer/
     root: `src/frontend`,
+    // 显式指定静态资源目录为仓库根 public（确保 /js/qwebchannel.js 与测试 PDF 可被 dev server 提供）
+    publicDir: path.resolve(__dirname, 'public'),
     // 显式指定静态资源目录为仓库根目录下的 public（确保 /js/qwebchannel.js 可被 dev server 提供）
     resolve: {
       alias: {

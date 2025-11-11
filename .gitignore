@@ -1,5 +1,12 @@
-.venv
-.env
+# Python 虚拟环境 (所有常见名称)
+venv/
+env/
+.venv/
+.env/
+ENV/
+env.bak/
+venv.bak/
+
 # 依赖目录
 node_modules/
 

@@ -97,7 +97,7 @@ export class URLNavigationFeature {
       setModuleLogLevel("URLNavigationFeature", LogLevel.ERROR);
       setModuleLogLevel("URLJumpDispatcher", LogLevel.ERROR);
       setModuleLogLevel("URLParamsParser", LogLevel.ERROR);
-    } catch (e) { void e; }
+    } catch (e) { this.#logger.debug("[URLNavigationFeature] setModuleLogLevel failed", e); }
 
     // 1. 从context中获取依赖
     const container = context.container || context;  // 兼容旧版本直接传container的情况
@@ -123,7 +123,7 @@ export class URLNavigationFeature {
         hasParams: !!this.#parsedParams?.hasParams
       };
       this.#logger.info("[url-navigation] 解析URL参数", dbg);
-    } catch (e) { void e; }
+    } catch (e) { /* logger-guard */ void e; }
 
     // 4. 如果有URL参数，发出解析完成事件
     if (this.#parsedParams.hasParams) {

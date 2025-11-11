@@ -11,6 +11,7 @@ import noDynamicNotificationImport from "./eslint-rules/no-dynamic-notification-
 import loggerToastShape from "./eslint-rules/logger-toast-shape.js";
 import noCrossFeatureInternals from "./eslint-rules/no-cross-feature-internals.js";
 import noEventLiteral from "./eslint-rules/no-event-literal.js";
+import noSilentCatch from "./eslint-rules/no-silent-catch.js";
 
 const hasTsconfig = existsSync(new URL("./tsconfig.json", import.meta.url));
 const tsParserOptions = hasTsconfig ? { project: "./tsconfig.json" } : {};
@@ -34,6 +35,7 @@ export default [
           "no-dynamic-notification-import": noDynamicNotificationImport,
           "logger-toast-shape": loggerToastShape,
           "no-cross-feature-internals": noCrossFeatureInternals,
+          "no-silent-catch": noSilentCatch,
         }
       }
     },
@@ -61,6 +63,8 @@ export default [
       "custom/logger-toast-shape": "error",
       // 新增：禁止跨特性内部深层 import（升级为 error，作为 CI 门禁）
       "custom/no-cross-feature-internals": "error",
+      // 禁止静默 catch（除 logger/toast 保护场景外）
+      "custom/no-silent-catch": "error",
 
       // 风格与质量控制
       "eqeqeq": ["error", "always"],          // 强制使用 ===
@@ -71,8 +75,8 @@ export default [
       "eol-last": ["error", "always"],        // 文件末尾必须有换行
       "no-multiple-empty-lines": ["error", { max: 1 }],
       "curly": ["error", "all"],              // if/while 强制使用大括号
-      // 允许空的 catch 块（用于明确忽略的非关键异常路径）
-      "no-empty": ["error", { "allowEmptyCatch": true }],
+      // 禁止空的 catch 块（用局部 override 白名单处理极少数必要场景）
+      "no-empty": ["error", { "allowEmptyCatch": false }],
 
       // 质量问题
       "no-unused-vars": ["error", { args: "none", ignoreRestSiblings: true }],
@@ -248,8 +252,11 @@ export default [
         ...globals.jest,
       },
     },
-    // 不再对白名单禁用事件相关规则；tests 按与产品代码一致的门禁执行
-    rules: {},
+    // 测试中允许极简的防御性空 catch（例如释放资源），避免为断言噪音写无意义日志
+    rules: {
+      "no-empty": ["error", { "allowEmptyCatch": true }],
+      "custom/no-silent-catch": "off",
+    },
   },
 
   // 脚本目录：允许使用 console 与未使用变量（便于调试/脚本输出）
@@ -258,6 +265,7 @@ export default [
     rules: {
       "no-console": "off",
       "no-unused-vars": "off",
+      "custom/no-silent-catch": "off",
     },
   },
 
@@ -265,7 +273,6 @@ export default [
   {
     ignores: [
       "dist/**",
-      "src/frontend/dist/**",
       "data/dist/**",
       "public/dist/**",
       // 工程根配置类文件
@@ -278,6 +285,7 @@ export default [
       ".idea/**",
       ".vscode/**",
       "public/vendor/**",
+      "public/js/**",
       "src/frontend/public/**",
       "**/vendor/**",
       "eslint-rules/fixtures/**",

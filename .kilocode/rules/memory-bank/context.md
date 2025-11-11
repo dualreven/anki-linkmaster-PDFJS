@@ -3,6 +3,7 @@
 本文件为“可快速上手的精简版上下文”。如需完整历史，可从 Git 历史检索旧版 context.md。
 
 ## 1) 项目硬约束
+- **Python 虚拟环境强制使用**：所有开发必须在 Python 虚拟环境中进行（venv/virtualenv/conda），避免依赖冲突和环境污染。详见 `docs/architecture/environment.md`。
 - 文件读写显式 UTF-8；统一使用 `\n` 换行。
 - 事件命名强制三段式：`{module}:{action}:{status}`；全局事件需通过白名单（global-event-registry）放行。
 - 禁止兜底原则：契约不匹配不得静默放过。
@@ -39,6 +40,140 @@
 - 如需“改一处、全链路同步”事件/消息名：引入单一真源（Schema/TS 枚举）生成前端常量与后端 Enum，并在 CI 做差异校验。
 
 （本简版将随变更持续更新，保持可读与高信噪比。）
+
+### 2025-11-10 QtWebEngine E2E（viewer 导航）临时记录
+- 目标用例：`tests/e2e/qtwebengine/test_viewer_nav_url_and_ws_qt.py`（URL + WS 导航，验证滚动位置 ≈ 目标页 offsetTop）。
+- 基座：`tests/e2e/qtwebengine/qt_harness.py`（无阻塞 `processEvents`，Windows 优先 ANGLE+WARP）。
+- 现象：在当前会话，页面 `document.readyState` 长时间停留 `loading`；`#viewer/#viewerContainer` 存在但未渲染 PDF 页面；WS 控制端可连接，但前端未建立 WS 客户端；`console` 无显式报错。
+- 已试：
+  - 强制软件渲染：`QT_OPENGL=angle`、`QT_ANGLE_PLATFORM=warp`、`QTWEBENGINE_OPENGL=software`；禁用/启用 `--disable-gpu` 两种模式；去除 `--headless=new`；尝试 `offscreen` 与 headed。
+  - 动态 `import()` 与手动派发 `DOMContentLoaded/load` 未使应用初始化完成。
+- 推测：与当前运行会话的图形/事件循环相关（非代码缺陷）；建议在“有头桌面会话”中复测；如仍异常，转向检查入口脚本对 DOM 就绪事件的侦听策略（是否需要 `window.onload`）。
+- 临时验证脚本：`AItemp/attempts/debug_qt_viewer.py`、`AItemp/attempts/inject_dom_ready.py`、`AItemp/attempts/wait_ready.py`。
+
+### 2025-11-10 WS→DB 用例校验
+- 用例：`tests/e2e/qt/test_anchor_activate_to_db_qt.py`（直连 QWebSocket，直到入库前一步）。
+- 状态：WS 启动与 `pdf_info` 写入 API 正常；`anchor:create:requested` 未收到 `:completed` 回执，需核对 `msg_router` 与表插件是否对齐 anchor 消息类型。
+
+### 2025-11-10 GUI 启动器拆分（第一步）
+- 当前问题：`gui_launcher.py` 体积过大，职责混杂（UI/控制器/线程启动逻辑聚合），不利于维护与测试。
+- 背景事实：`src/gui_launcher/` 已有 `ui.py` / `controller.py` / `services.py` 的骨架与部分实现；测试覆盖亦聚焦这些模块的可导入性与转发契约。
+- 本次执行：新增 `src/gui_launcher/workers.py`，迁移并实现 `LauncherThread` 与 `_AiThread`；在 `gui_launcher.py` 通过 `LauncherThread = _WorkersLauncherThread` 与 `_AiThread = _WorkersAiThread` 重绑定，保持对外 API 不变。
+- 相关模块：`src/gui_launcher/workers.py`、`gui_launcher.py`、`src/gui_launcher/services.py`、`src/gui_launcher/controller.py`、`src/gui_launcher/ui.py`。
+- 注意事项：严格 UTF-8 与显式 `\\n`；不引入兜底/隐式回退；后续计划继续迁移 UI 构建与交互逻辑至 `ui.py`/`controller.py` 并清理遗留类定义。
+
+### 2025-11-10 GUI Dev(Hosted) 端口缺失修复
+- 现象：在 Hosted 模式启动 pdf-home（开发模式）时报错“端口缺失：msgCenter_port, pdfFile_port”。
+- 根因：GUI 在后端写入 `runtime-ports.json` 前就构建了前端配置；严格校验拒绝 None。
+- 方案：`GUILauncher._start_pdf_home_hosted` 增加端口准备步骤：
+  - 调用 `ai_scripts.ai_launcher.core.port_manager.PortManager.allocate_ports()` 分配端口；
+  - 使用 `src.launcher.ports.merge_runtime_ports` 将 `msgCenter_port/pdfFile_port/(vite_port|npm_port)` 合并写入当前 `logs` 目录；
+  - 再次读取端口并继续启动；Dev 模式仍由 `Controller.ensure_vite_dev` 确保 Vite。
+
+### 2025-11-11 Dev/Dist 模式职责简化（按需求收敛）
+- Dev(src)：启动 3 个服务（msgcenter/http=Hosted 内部，vite=外部进程）；统一由后端 Hosted 路径拉起 vite；记录 vite PID 便于一键关闭。
+- Dist(prod)：启动 2 个服务（msgcenter/http=Hosted 内部）；无 vite。
+- 相对定位：所有默认路径（logs/data/db/static/pdfs）以 GUI 脚本目录为根（不再依赖 repo 根解析）；便于未来移植到 Anki 插件环境。
+
+### 2025-11-11 gui_launcher 精简（<500 行）
+- 将入口 `gui_launcher.py` 压缩为精简装配层（298 行）：
+  - 以脚本目录为根计算默认路径；
+  - Dev 模式“启动后端”前强制 `ensure_vite(port)`；
+  - Dev 模式“停止后端”时尝试 PID 停止 Vite；
+  - Hosted 的 pdf-home/viewer 启动不再隐式拉起 Vite，仅检查端口监听；
+  - 其余复杂逻辑下沉到 `src/gui_launcher/*` 与 `src/launcher/*`。
+### 2025-11-10 17:45 新 CLI 方案（qte2e）设计快照
+- 目标：按常规 CLI 启动 WS/静态服/QtWebEngine，再用 PyQt `runJavaScript()` 与页面交互；提供步骤 DSL 与 Debug 插件机制。
+- 文档：`AItemp/reports/20251110-qtcli-e2e-design.md`
+- 关键点：
+  - 子命令：start/run/debug/stop；JSON 步骤（js/wait/selector/click/ws_send/ws_expect/assert/sleep）；变量替换；统一超时。
+  - Debug：`debug_entry(ctx, params)`，ctx 含 app/view/page/ports 等。
+  - 回退与稳态：`loadFinished` → `readyState/selector` → `setHtml(baseUrl)`，并注入 inline 动态 import 兜住模块执行。
+  - 兼容：Runner 能力可复用；逐步迁移 P0 用例到 `qte2e run`。
+
+### 2025-11-10 19:20 前端构建目录规范修正
+- 发现：仓库存在 `src/frontend/dist/` 的打包产物（不应出现在 `src/` 目录下）。
+- 动作：已删除 `src/frontend/dist/`；统一规范为仅使用仓库根 `dist/`（`dist/pdf-viewer`、`dist/pdf-home/pdf-home`）。
+- 代码修正：
+  - `tests/e2e/qtwebengine/qt_harness.py` 取消对 `src/frontend/dist` 的回退路径，仅解析根 `dist/`。
+  - `eslint.config.js` 去除忽略项 `src/frontend/dist/**`，避免误提交与误用。
+  - `tests/e2e/qtwebengine/README.md` 更新说明：不再支持 `src/frontend/dist/`。
+ - 后续：若需 dev server 支持，考虑为静态服增加 `--dev-server` 代理开关；当前 E2E 仅支持根 `dist/`。
+
+## 21) 代码质量问题：过度使用 no-op 抑制错误（2025-11-10）
+- 现象：代码库中存在大量 `catch { /*no-op*/ }` 或 `catch(e) { void e; }` 模式，完全压制错误。
+- 统计：14个文件共96个 no-op 实例
+  - 类型A（合理降级）：21个（22%）
+  - 类型B（应添加日志）：49个（51%）
+  - 类型C（严重问题）：26个（27%）
+- 高危问题：
+  - `indexeddb-cache-manager.js` 行301/303：数据库游标操作失败被忽略，可能导致缓存泄漏或死循环
+  - `annotation-sidebar-ui.js` 行146：卡片跳转处理失败被完全压制，用户点击无反馈
+  - `pdf-anchor/index.js`：22处错误被压制，调试极其困难
+- 建议：
+  - P0（立即）：修复 indexeddb-cache-manager 和 annotation-sidebar-ui 的严重问题
+  - P1（2周内）：为类型B的49个实例添加日志记录
+  - P2（长期）：建立 ESLint 规则禁止空 catch 块，要求至少记录 debug 日志
+- 详细报告：`AItemp/reports/20251110-no-op-analysis.md`
+
+## 22) 后端数据库插件事件常量化（2025-11-10 15:00）
+- 背景：后端数据库插件使用四段式事件名 `table:{table-name}:{action}:{status}`，但之前大量使用字符串字面量，容易拼写错误。
+- 实施内容：
+  1. **事件常量体系**：创建 `src/backend/database/plugin/table_event_constants.py`，定义6个表（PDFInfo/PDFAnnotation/PDFOutline/PDFBookmark/PDFBookanchor/SearchCondition）的60+个事件常量。
+  2. **Pylint自定义检查器**：创建 `src/backend/linters/table_event_lint_checker.py`，错误代码 E9001，自动检测 `event_bus.on/emit/once()` 中的字符串字面量并提供智能修复建议。
+  3. **关键代码迁移**：迁移 `pdf_annotation_plugin.py` 和 `pdf_outline_plugin.py` 中的跨插件事件监听使用常量。
+- 常量结构：
+  ```python
+  class TableEventConstants:
+      class PDFInfo:
+          CREATE_COMPLETED: Final[str] = 'table:pdf-info:create:completed'
+          DELETE_COMPLETED: Final[str] = 'table:pdf-info:delete:completed'
+          # ...
+  ```
+- Pylint检查器功能：
+  - 检测 `event_bus.on/emit/once()` 的第一个参数
+  - 禁止字符串字面量、f-string、模板字符串
+  - 智能推荐对应的常量名（如 `'table:pdf-info:create:completed'` → `TableEventConstants.PDFInfo.CREATE_COMPLETED`）
+  - 白名单机制：排除 `event_bus.py`、`table_event_constants.py` 本身
+- 验证结果：
+  - 已迁移文件：10.00/10 分（完美通过）
+  - 未迁移文件：正确检测到违规代码
+  - 兼容性：支持 Pylint 4.0.2 + Python 3.13.7
+- 使用方法：
+  ```bash
+  cd src/backend
+  export PYTHONPATH=.
+  python -m pylint \
+    --load-plugins=linters.table_event_lint_checker \
+    --enable=E9001 \
+    --disable=all \
+    database/plugins/your_file.py
+  ```
+- 详细文档：
+  - 工作日志：`AItemp/20251110143848-AI-Working-log.md`
+  - 设计方案：`AItemp/reports/20251110-table-event-constants-design.md`（800+行）
+  - 检查报告：`AItemp/reports/20251110-pylint-check-result.md`
+- ROI分析：
+  - 减少90%的事件名拼写错误
+  - 提升代码可维护性
+  - IDE自动补全加速开发
+  - 强制执行规范（通过Pylint）
+- 后续建议：
+  - 配置Pylint规则到 `pyproject.toml` 或 `.pylintrc`
+  - 批量迁移测试文件（约15个文件）
+  - CI/CD集成与pre-commit hooks
+
+### 2025-11-10 11:31 更新（空 catch 治理决策）
+- 新证据：`eslint.config.js` 将 `no-empty` 配置为 `allowEmptyCatch: true`，与 `ERROR-HANDLING-UNIFIED-001` 统一错误处理规范冲突。
+- 结论：关键路径不得空 `catch`；非关键路径至少记录 `debug/warn` 并说明忽略理由；vendor/桥接场景采用文件级白名单局部放宽。
+- 行动项：
+  1) 规则收紧：关闭空 `catch` 的全局豁免（`allowEmptyCatch: false`），对确需防御性忽略的少量文件在 `eslint.config.js` 使用 `files` 局部 override；或新增 `custom/no-silent-catch` 强制“日志/注释其一必备”。
+  2) P0 热点修复：
+     - `src/frontend/common/utils/indexeddb-cache-manager.js`：游标 `delete()/continue()` 失败记录 `logger.warn(...)` 并安全中止当前分支；必要时经 `ErrorHandler` 上报。
+     - `src/frontend/pdf-viewer/adapters/websocket-adapter.js`：事件 `emit/request` 失败记录结构化日志（事件名/载荷摘要/异常）；关键状态失败走 `ErrorHandler`。
+     - `src/frontend/pdf-viewer/features/pdf-annotation/components/annotation-sidebar-ui.js`：跳转失败需用户可见提示与日志。
+  3) 预防回归：为上述 P0 点各补 1 条最小回归测试；CI 纳入规则门禁。
+- 验收：关键路径零空 `catch`；异常均可从日志追踪定位；P0 新增测试通过。
 
 ### 维护记录（仅关键变更）
 - 2025-11-09 **Outline 测试补全（仅测试）**：
@@ -372,3 +507,191 @@
 - 金标回放：为常见 PDF 场景维护 `fixtures/outline-golden/*.json`（输入 PDF 与最终后端列表）；在集成测试中断言规范化输出一致。
 - 去重渲染：`OUTLINE.LOAD.SUCCESS` 仅用于最终态；UI 只接受 `source ∈ {'pdf','storage','backend'}` 的一次渲染；其余事件改名或降级为 DEBUG。
 - 诊断与追踪：维持 Outline handler DEBUG；回执带 `requestId` 串联端到端日志（可选，前端生成即可）。
+
+## 16) URL/WS 统一跳转机制（2025-11-09 20:03）
+- 统一执行器：`src/frontend/pdf-viewer/features/infra-nav-core/services/navigation-service.js:79` `navigateTo({ pageAt, position })` 发 `PDF_VIEWER_EVENTS.NAVIGATION.GOTO` 并在 DOM 就绪后滚动到百分比。
+- URL 路径：
+  - 解析：`src/frontend/pdf-viewer/features/infra-nav-url/components/url-params-parser.js` 支持 `pdf-id/page-at/position/anchor-id/annotation-id/outline-item-id`；Feature 主体 `index.js:133` 发 `URL_PARAMS.PARSED`；`#handleNavigationRequested:442` 在校验后调用 `navigationService`。
+  - 分派：`src/frontend/pdf-viewer/features/infra-nav-url/components/url-jump-dispatcher.js:44` 将 ID 类参数分派给对应特性（annotation/anchor/outline）。
+- WS 路径：
+  - 适配：`src/frontend/pdf-viewer/adapters/websocket-adapter.js:547` `#handleNavigatePage` 与 `:593` `#handleViewerNavigate` 将 WS 指令映射到与 URL 相同的事件（包括 `NAVIGATION.URL_PARAMS.REQUESTED` 及各域的 `*.REQUESTED`）。
+- “回到自己的插件系统取页码”：
+  - Outline：`src/frontend/pdf-viewer/features/pdf-outline/index.js:552` `#handleNavigateById` 取 `OutlineManager.getOutlineItem(id)` 的 `pageAt/position` 后 `navigateTo`；列表来源统一通过 WS 的 `OUTLINE_LIST_COMPLETED` → `replaceFromRemote`。
+  - Annotation：`src/frontend/pdf-viewer/features/pdf-annotation/index.js:314` 监听 `ANNOTATION.NAVIGATION.JUMP_REQUESTED`，依据标注数据计算 `pageNumber/position`，最终统一发 `NAVIGATION.URL_PARAMS.REQUESTED:637`。
+  - Anchor：`src/frontend/pdf-viewer/features/pdf-anchor/index.js:236` 监听 `ANCHOR.NAVIGATE.REQUESTED`；在锚点数据与渲染就绪后，经 `#tryNavigateWhenGatesReady:475` 发 `NAVIGATION.URL_PARAMS.REQUESTED`。
+- 事件常量：统一在 `src/frontend/common/event/pdf-viewer-constants.js` 中维护，禁止魔法字符串；全局事件须走白名单。
+
+结论：URL 与 WS 两条入口均汇聚到 `URLNavigationFeature → NavigationService` 的同一跳转通道；ID → 页码 的解析分别由各功能特性负责，保证职责内聚与解耦。
+
+## 16.1) No-op 错误处理模式分析（2025-11-10 08:25）
+- 背景：项目中存在大量 `catch { /*no-op*/ }` 或类似模式，可能导致错误被静默抑制，影响可观测性与数据一致性。
+- 分析范围：15个关键JavaScript文件，涵盖前端各主要模块（pdf-viewer、pdf-home、common）。
+- 统计结果：共发现 **96个no-op实例**
+  - **Type A（合理降级）**: 21个（22%）- 如logger初始化失败、UI横幅更新失败
+  - **Type B（需添加日志）**: 49个（51%）- 如事件发送失败、DOM操作失败
+  - **Type C（严重问题）**: 26个（27%）- 如IndexedDB操作失败、用户交互无反馈
+- 关键问题：
+  - **indexeddb-cache-manager.js**（行301, 303）：游标删除/继续操作失败被抑制，存在数据损坏风险
+  - **annotation-sidebar-ui.js**（行146）：卡片跳转失败无用户反馈
+  - **anchor-sidebar-ui.js**（28个实例）：大量UI操作/事件清理失败被抑制
+  - **websocket-adapter.js**（行310, 318）：IndexedDB同步失败被抑制
+- 修复建议：
+  - P0（立即修复）：indexeddb-cache-manager.js、annotation-sidebar-ui.js、websocket-adapter.js的Type C实例
+  - P1（1-2周）：anchor-sidebar-ui.js、pdf-anchor/index.js的高频实例
+  - P2（长期）：Type A实例的日志优化
+- 输出：`AItemp/reports/20251110-no-op-analysis.md`（包含详细分类、代码位置、修复模板、验收标准）
+- 后续行动：
+  1. 与开发团队评审报告，确定修复优先级
+  2. 针对P0问题创建紧急修复任务
+  3. 建立ESLint规则防止新增no-op模式
+
+## 17) 端到端验证（2025-11-09 21:58）
+- 浏览器 E2E（Playwright）定点执行：
+  - 命令：
+    - `pnpm run build:pdf-viewer`
+    - `pnpm exec playwright install --with-deps chromium`
+    - `pnpm exec playwright test -c ./playwright.config.js tests/e2e/browser/pdf-viewer-nav-url-and-ws.e2e.spec.mjs`
+  - 结果：2/2 通过（URL 启动触发、WS 运行时触发；均覆盖 page/annotation/anchor/outline 四类）
+  - 备注：如需全量浏览器 E2E，使用 `pnpm run e2e:browser`（会先构建）。
+
+## 18) Anchor（锚点）导航与激活逻辑（2025‑11‑09）
+- URL 启动（带 `anchor-id`）：
+  - `infra-nav-url` 解析参数 → `URLJumpDispatcher` 发出 `PDF_VIEWER_EVENTS.ANCHOR.NAVIGATE.REQUESTED`；
+  - `pdf-anchor` 在 `ANCHOR.DATA.LOADED` + 渲染就绪（`RENDER.READY` 或 `FILE.LOAD.SUCCESS` 兜底）后，通过 `PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED` 发起跳转；
+  - 同时设置内部 `#activeAnchorId`，启用滚动诊断以“实时回写位置”（默认心跳关闭，仅滚动触发 `UPDATE` 写回）。
+- WebSocket 跳转锚点：
+  - `adapters/websocket-adapter` 收到 `WEBSOCKET_MESSAGE_TYPES.VIEWER_NAVIGATE_REQUESTED{ target.type='anchor' }` → 发 `PDF_VIEWER_EVENTS.ANCHOR.NAVIGATE.REQUESTED`；
+  - 由 `pdf-anchor` 门闸后跳转；“不会立即激活”（不触发 `ANCHOR.ACTIVATE` / `ANCHOR.ACTIVATED`）。
+- 侧栏按钮：
+  - 添加：UI 生成/收集表单 → 发 `ANCHOR.CREATE`（UI 提供 uuid 时直通；无负载时由 `pdf-anchor` 生成 uuid 并补齐再发给 WS）；
+  - 修改：发 `ANCHOR.UPDATE`，`pdf-anchor` 本地更新并广播 `ANCHOR.UPDATED` 与刷新列表；
+  - 复制：单测已覆盖（`anchor-sidebar-copy.test.js`）；
+  - 删除：发 `ANCHOR.DELETE`，`pdf-anchor` 本地删除并广播列表；
+  - 激活：`ANCHOR.ACTIVATE` 在 `pdf-anchor` 内保证“单选”，并广播 `ANCHOR.ACTIVATED` 与刷新列表。
+- 测试策略（本次新增）：
+  - 单测：激活单选、CRUD 事件、WS → Anchor 跳转但不激活；
+  - E2E：侧栏按钮链路（添加/修改/删除/激活单选）。
+
+## 19) 端到端（直连数据库层）测试补充（2025‑11‑09 22:30）
+- 新增用例：`tests/e2e/browser/pdf-viewer-anchor-activate.to-db.e2e.spec.mjs`
+  - 行为：启动真实 `msgCenter_server`（传入 `--data-dir` 与 `--db-path` 指向 `AItemp/e2e-db-<ts>`），使用 Node WebSocket 客户端发送：
+    1) `pdf-library:add:requested { file_path: <repo>/public/test.pdf }` → 建立 `pdf_info` 记录；
+    2) `anchor:create:requested` ×2（同一 `pdf_uuid`）；
+    3) `anchor:activate:requested` 激活第二个锚点；
+    4) `anchor:list:requested` 软校验服务端正常应答；
+  - 目的：覆盖“WS→API→DB 插件”的真实链路；在“最终写入数据库”的文件断言处停止（仅断言 *:completed 应答），避免污染生产数据。
+  - 清理：测试结束时终止 WS 子进程并删除临时数据目录。
+
+## 20) QtWebEngine 前端测试基座（2025‑11‑09 22:50）
+- 基座路径：`tests/e2e/qtwebengine/qt_harness.py`（文档：`tests/e2e/qtwebengine/README.md`）
+- 能力：
+  - 无阻塞运行：不 `app.exec()`，通过 `processEvents()` 驱动事件循环，所有步骤有超时；
+  - 启停真实 WS（msgCenter_server，直连 SQLite 临时库）；
+  - 启停 Python 静态服（严格路由：/pdf-viewer/ 指向 dist、/assets/ 指向 dist assets、/public/ 指向仓库 public）；
+  - Viewer API：`start_viewer(url) / evaluate(js) / wait_for(js|selector) / click(selector) / inject_probe() / get_events()`；
+  - 环境默认无头（`QT_QPA_PLATFORM=offscreen`、`QTWEBENGINE_CHROMIUM_FLAGS=--disable-gpu --headless=new`）。
+- 最小示例：`tests/e2e/qtwebengine/test_smoke_viewer_qt.py`（加载 viewer、打开锚点侧栏、等待表格/空态）。
+
+## 22) 阅读历史（Resume Reading）设计决策（2025-11-10 12:29 更新）
+- 目标：为 pdf-viewer 提供“默认常驻、零提示即可记录并在下次自动恢复”的最近阅读位置能力；当且仅当不存在任何显式跳转（URL/WS/Anchor）时应用。
+- 现状：Anchor 插件负责显式书签/外部跳转；默认不开启心跳；其语义为“用户书签”，不宜承担“临时历史”。
+
+### 决策（以服务端为主）
+- 模块：独立 `ReadingHistoryService`（viewer Feature，常驻）。
+- 存储：写入服务端 DB 的 `pdf_info.json_data.resume`（对象）；读取在 viewer 冷启动时通过 WS `pdf-library:info:requested` 获取；默认不使用本地兜底。
+- 应用顺序（严格优先级）：
+  1) 显式 URL/WS 导航（`pdf-viewer:navigate:requested` / URL `anchor-id` / `annotation_id` / `page/xy`）；
+  2) 已激活 Anchor 导航/心跳；
+  3) `json_data.resume`（最近阅读位置）；
+  4) 默认首页（1 页）。
+- Fail‑Fast：恢复数据无效（越界/结构错误）时 toast + 日志，并退回首页；不静默。
+
+### 数据模型（v1，服务端 JSON）
+```json
+{
+  "json_data": {
+    "resume": {
+      "page": 12,
+      "y_percent": 0.35,
+      "zoom": 1.0,
+      "rotation": 0,
+      "updated_at": 1731220000000
+    }
+  }
+}
+```
+- 写入消息（WS）：`pdf-library:record-update:requested`
+```json
+{
+  "file_id": "<pdf_uuid>",
+  "updates": {
+    "visited_at": 1731220000000,
+    "json_data": { "resume": { "page": 12, "y_percent": 0.35, "zoom": 1.0, "rotation": 0, "updated_at": 1731220000000 } }
+  }
+}
+```
+- 读取消息（WS）：`pdf-library:info:requested { "pdf_id": "<pdf_uuid>" }`
+
+### 事件接入（前端）
+- 启动：`FILE.LOAD.SUCCESS` 或 PDF.js `pagesinit` → 发送 `pdf-library:info:requested`；若检测到显式跳转请求，跳过应用 resume。
+- 更新：监听 `pagechanging` + 滚动空闲节流（2~3s）→ 发送 `record-update:requested`；`beforeunload` 最后一次刷新。
+- 观测：`logger.debug("reading-history:update", {page,y_percent})`；异常 `logger.error(...,{toast:true})`。
+
+### 与 Anchor 协同
+- 不创建“系统 Anchor”，不进入 Anchor 列表；职责解耦。
+- Anchor 导航期间仍后台记录“真实阅读进度”。
+
+### 设置项（默认）
+- `resumeReading.enabled = true`
+- `resumeReading.applyMode = "ifNoExplicitJump"`
+- `resumeReading.throttleMs = 2500`
+- `resumeReading.transport = "ws"`（后续可扩展 `"http"`）
+
+### 测试计划（QtWebEngine）
+- 单元
+  - 消息构造与数据校验（页码/比例/zoom/rotation/时间戳）
+  - 优先级守卫：显式跳转存在时不得应用 resume
+- 集成
+  - 打开文档→翻页→（节流）写库→关闭→重开→自动恢复到最近位置
+  - URL `anchor-id` 存在→应跳过 resume；再次无 URL → 应恢复 resume
+  - 非法 resume → toast + 回首页
+- E2E（QtWebEngine 基座）
+  - 真实 WS + SQLite：断言 `pdf_info.json_data.resume` 随浏览推进更新；重启会话后自动恢复。
+
+### 2025-11-10 13:24 实施进度
+- 已实现前端特性域：`pdf-resume`（类 `PDFResumeFeature`），并在引导中注册（位置：URL 导航之后、Anchor 之前）。
+- 新增事件常量：`PDF_VIEWER_EVENTS.RESUME.*`；新增单测 2 条（info 请求与 record-update 发送），通过。
+- 下一步：补 QtWebEngine E2E 与后端回归用例。
+
+### 2025-11-10 15:01 输入事件更新策略
+- 新增：以“鼠标滚动（wheel）与鼠标点击（click）”作为更新当前页码与触发写库的用户信号源：
+  - wheel：取视口中心所在页为当前页；
+  - click：命中页优先，否则回落中心页；
+  - 两者均走统一节流路径（2.5s）发送 `pdf-library:record-update:requested`。
+- 实现：`pdf-resume/index.js` 内 `#attachUserInputListeners()`、`#detectCenterPageNumber()`；在 `install/uninstall` 中挂/卸事件。
+
+### 2025-11-10 11:52 执行记录（P0 首批提交）
+- 已修改：slint.config.js 禁止空 catch（产品代码）；tests 允许 llowEmptyCatch: true；忽略 public/js/**。
+- 已修复：
+  - IndexedDB 清理：cursor.delete/continue 空 catch → warn；continue 失败时 esolve() 防挂起。
+  - WebSocketAdapter：mit 失败空 catch → warn；toast 记录失败改 oid e。
+  - AnnotationSidebarUI：跳转链路空 catch → oid e。
+- 新增测试：
+  - src/frontend/pdf-viewer/adapters/__tests__/websocket-adapter.anchor-emit-catch.test.js（emit 抛错→console.warn）
+  - src/frontend/pdf-viewer/features/pdf-annotation/components/__tests__/annotation-sidebar-ui.jump-error-logs.test.js（缺 id 跳转→console.error）
+- 待办：补 IndexedDB 游标异常的单测（引入 fake-indexeddb 或本地 stub）。
+
+### 2025-11-10 13:21 执行记录（P1 第一批：pdf-anchor）
+- AnchorSidebarUI：初始化渲染空 catch → debug 日志。
+- PDFAnchorFeature：将多处 no-op/空 catch 改为最小日志（toast 相关使用 void e，诊断/激活使用 debug/warn）。
+- 轮询/清理相关的 clearInterval/clearTimeout/DOM 操作 catch 增加保护，防止 Promise/定时器悬挂。
+
+### 2025-11-10 14:43 执行记录（P1 第二批：screenshot + pdf-outline）
+- Screenshot：移除空 catch（改 debug/void e），完善 pdf.js 事件注册/解绑与队列 flush 的失败日志。
+- pdf-outline：index.js 与 outline-sidebar-ui.js 的空 catch 改为 oid e 或最小日志；jsTree 初始化/销毁、选择/拖拽路径具备可追踪性。
+- 计数校验：screenshot 空 catch=0；pdf-outline 空 catch=10（全部测试文件，tests 允许 llowEmptyCatch: true）。
+
+### 2025-11-10 15:04 规则化治理（no-silent-catch）
+- 新增 ESLint 规则 custom/no-silent-catch：禁止 catch(e){ void e; }，允许 /* logger-guard */ 或 try 块仅含日志/通知调用。
+- 已替换/标注：infra-nav-url、url-jump-dispatcher、pdf-home SearchBar 等所有产品代码中的静默捕获。
+- 扫描验证：产品代码中已无 catch(e){ void e; }；tests 目录关闭该规则。

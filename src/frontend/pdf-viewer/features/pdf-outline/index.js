@@ -76,7 +76,7 @@ export class OutlineManager {
       const unsub = this.#eventBus.onGlobal(
         PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
         async () => {
-          try { unsub?.(); } catch {}
+          try { unsub?.(); } catch (e) { void e; }
           this.#logger.info("[Outline][init] FILE.LOAD.SUCCESS captured → start initial outline flow");
           await this.#runInitialLoadFlowAfterFile();
         },
@@ -370,11 +370,11 @@ export class OutlineManager {
             const { yToPositionPercent } = await import("../../pdf/pdf-dest-utils.js");
             position = await yToPositionPercent(pdfDocument, pageAt, parsed.y);
           }
-          try { this.#logger.info(`[Outline][IMPORT] parsed via provider ${JSON.stringify({ title: nativeBookmark?.title, type: parsed?.type ?? null, pageAt, position })}`); } catch {}
+      try { this.#logger.info(`[Outline][IMPORT] parsed via provider ${JSON.stringify({ title: nativeBookmark?.title, type: parsed?.type ?? null, pageAt, position })}`); } catch (e) { void e; }
           return { pageAt, position };
         }
       } catch (e) {
-        try { this.#logger.info("[Outline][IMPORT] provider.parseDestination failed; fallback", { title: nativeBookmark?.title, err: e?.message }); } catch {}
+        try { this.#logger.info("[Outline][IMPORT] provider.parseDestination failed; fallback", { title: nativeBookmark?.title, err: e?.message }); } catch (e2) { void e2; }
       }
       const { resolvePdfDest, yToPositionPercent } = await import("../../pdf/pdf-dest-utils.js");
       const resolved = await resolvePdfDest(pdfDocument, dest);
@@ -383,10 +383,10 @@ export class OutlineManager {
       if (pageAt && resolved?.type === "XYZ" && typeof resolved?.y === "number") {
         position = await yToPositionPercent(pdfDocument, pageAt, resolved.y);
       }
-      try { this.#logger.info(`[Outline][IMPORT] parsed via resolvePdfDest ${JSON.stringify({ title: nativeBookmark?.title, type: resolved?.type ?? null, pageAt, position })}`); } catch {}
+      try { this.#logger.info(`[Outline][IMPORT] parsed via resolvePdfDest ${JSON.stringify({ title: nativeBookmark?.title, type: resolved?.type ?? null, pageAt, position })}`); } catch (e) { void e; }
       return { pageAt, position };
     } catch (e) {
-      try { this.#logger.warn(`[Outline][IMPORT] parse normalized dest failed ${JSON.stringify({ title: nativeBookmark?.title, error: e?.message })}`); } catch {}
+      try { this.#logger.warn(`[Outline][IMPORT] parse normalized dest failed ${JSON.stringify({ title: nativeBookmark?.title, error: e?.message })}`); } catch (e2) { void e2; }
       return { pageAt: null, position: null };
     }
   }
@@ -528,7 +528,7 @@ export class OutlineManager {
       const unsub = this.#eventBus.onGlobal(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, (message) => {
         const t = String(message?.type || "");
         if (!allow.has(t)) { return; }
-        try { unsub(); } catch {}
+        try { unsub(); } catch (e) { void e; }
         resolve(message);
       }, { subscriberId: "OutlineFeature.await" });
     });
@@ -540,7 +540,7 @@ export class OutlineManager {
       const unsub = this.#eventBus.onGlobal(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, (message) => {
         const t = String(message?.type || "");
         if (!allow.has(t)) { return; }
-        try { unsub(); } catch {}
+        try { unsub(); } catch (e) { void e; }
         resolve(message);
       }, { subscriberId: "OutlineFeature.await.opt" });
       // 无超时：纯可选等待；如果没有回执，将由后续流程继续

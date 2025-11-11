@@ -298,9 +298,15 @@ export class IndexedDBCacheManager {
           if (cursor) {
             const v = cursor.value;
             if (!v || v.fileId === fileId) {
-              try { cursor.delete(); } catch { /* no-op */ }
+              try { cursor.delete(); } catch (e) {
+                this.#logger.warn("[IndexedDB] clearFileCache: cursor.delete failed", { fileId, err: e?.message || String(e) });
+              }
             }
-            try { cursor.continue(); } catch { /* ignore */ }
+            try { cursor.continue(); } catch (e) {
+              this.#logger.warn("[IndexedDB] clearFileCache: cursor.continue failed; finishing early", { fileId, err: e?.message || String(e) });
+              // 防止 pending：若无法继续遍历则尽早结束
+              resolve();
+            }
           } else {
             this.#logger.info(`Cleared all cache for file: ${fileId}`);
             resolve();
@@ -315,8 +321,15 @@ export class IndexedDBCacheManager {
         const cursor = cursorReq.result;
         if (cursor) {
           const v = cursor.value;
-          if (v.fileId === fileId) { try { cursor.delete(); } catch { /* no-op */ } }
-          cursor.continue();
+          if (v.fileId === fileId) {
+            try { cursor.delete(); } catch (e) {
+              this.#logger.warn("[IndexedDB] clearFileCache(fallback): cursor.delete failed", { fileId, err: e?.message || String(e) });
+            }
+          }
+          try { cursor.continue(); } catch (e) {
+            this.#logger.warn("[IndexedDB] clearFileCache(fallback): cursor.continue failed; finishing early", { fileId, err: e?.message || String(e) });
+            resolve();
+          }
         } else {
           this.#logger.info(`Cleared all cache for file (fallback): ${fileId}`);
           resolve();
@@ -347,8 +360,13 @@ export class IndexedDBCacheManager {
       request.onsuccess = () => {
         const cursor = request.result;
         if (cursor) {
-          cursor.delete();
-          cursor.continue();
+          try { cursor.delete(); } catch (e) {
+            this.#logger.warn("[IndexedDB] clearPageCache: cursor.delete failed", { fileId, pageNumber, err: e?.message || String(e) });
+          }
+          try { cursor.continue(); } catch (e) {
+            this.#logger.warn("[IndexedDB] clearPageCache: cursor.continue failed; finishing early", { fileId, pageNumber, err: e?.message || String(e) });
+            resolve();
+          }
         } else {
           this.#logger.info(`Cleared cache for page: ${fileId}-${pageNumber}`);
           resolve();

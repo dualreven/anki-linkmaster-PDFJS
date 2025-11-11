@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from ..exceptions import DatabaseValidationError
 from ..plugin.base_table_plugin import TablePlugin
 from ..plugin.event_bus import EventBus
+from ..plugin.table_event_constants import TableEventConstants
 from .pdf_annotation.validate import validate_data as _validate_annotation_data
 
 if TYPE_CHECKING:
@@ -358,7 +359,7 @@ class PDFAnnotationTablePlugin(TablePlugin):
 
     def register_events(self) -> None:
         self._event_bus.on(
-            'table:pdf-info:delete:completed',
+            TableEventConstants.PDFInfo.DELETE_COMPLETED,
             self._handle_pdf_deleted,
             self._subscriber_id
         )
