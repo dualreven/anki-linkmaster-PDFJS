@@ -67,6 +67,7 @@
 ### 2025-11-11 GUI 启动后端（Hosted）方式调整（应用户要求）
 - 修改：`gui_launcher.py:_start_backend_hosted()` 取消线程，改为主线程直接构造配置并调用 `services.start_backend_hosted(cfg, parent_app, on_log)`；
 - 目的：避免线程模型对 Qt/WS 事件循环的潜在影响，排除并发因素。
+- 退出行为：在 Hosted 成功后，显式将 `QApplication.aboutToQuit` 连接到 `BackendLauncher.stop()`，确保关闭主线程时后端自动停止。
 
 ### 2025-11-10 QtWebEngine E2E（viewer 导航）临时记录
 - 目标用例：`tests/e2e/qtwebengine/test_viewer_nav_url_and_ws_qt.py`（URL + WS 导航，验证滚动位置 ≈ 目标页 offsetTop）。

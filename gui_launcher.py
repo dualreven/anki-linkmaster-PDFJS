@@ -321,6 +321,12 @@ class GUILauncher(QMainWindow):
                 self._log("❌ 后端 Hosted 启动失败")
                 return
             self.backend_launcher_instance = inst
+            # 应用退出 → 优雅停止后端（WS/HTTP）
+            try:
+                parent_app.aboutToQuit.connect(self.backend_launcher_instance.stop)  # type: ignore[attr-defined]
+                self._log("[TRACE] 已注册应用退出钩子 → BackendLauncher.stop()")
+            except Exception as hook_e:
+                self._log(f"[WARN] 注册退出钩子失败: {hook_e}")
             self._log("✅ 后端 Hosted 启动成功")
         except Exception as e:
             self._log(f"❌ 启动后端 Hosted 失败: {e}")
