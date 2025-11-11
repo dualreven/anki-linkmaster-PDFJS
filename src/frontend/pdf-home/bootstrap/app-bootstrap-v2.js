@@ -29,8 +29,8 @@ export async function bootstrapPDFHomeAppV2(options = {}) {
   try {
     // 1. 解析 WebSocket 端口
     const wsPort = resolveWebSocketPortSync({ fallbackPort: DEFAULT_WS_PORT });
-    // 回滚：使用 localhost（与既有稳定行为保持一致）
-    const wsUrl = `ws://localhost:${wsPort}`;
+    // 使用 IPv4 回环地址，避免 localhost 在部分环境中解析为 ::1 导致握手失败
+    const wsUrl = `ws://127.0.0.1:${wsPort}`;
     logger.info(`[BOOT] wsUrl=${wsUrl}`);
     try { const el = document.getElementById("app-boot-banner"); if (el) {el.textContent = `连接消息中心中(${wsPort})...`;} } catch { /* no-op */ }
 
