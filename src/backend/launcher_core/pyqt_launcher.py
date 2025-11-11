@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from .ports import BackendPortManager
+import subprocess
+import time
+import socket
 
 logger = logging.getLogger('backend-launcher')
 
@@ -49,6 +52,7 @@ class BackendLauncher:
         self.http_server = None
         self.test_app = None
         self.test_ui = None
+        self._ws_subproc: Optional[subprocess.Popen] = None
 
         self.port_manager = BackendPortManager(project_root, logs_dir=self.logs_dir_override or None)
 
@@ -172,6 +176,26 @@ class BackendLauncher:
                 return False
             self.logger.info(f"✅ WebSocket 服务器已启动: ws://127.0.0.1:{ws_port}")
 
+            # 3.1 本地自检：确保端口可被实际连接（避免“日志成功但未监听”的假阳性）
+            if not self._probe_tcp_connect("127.0.0.1", ws_port, timeout_ms=800):
+                self.logger.warning("⚠️ WS 嵌入式服务器端口不可连接，切换到子进程标准服务器以规避环境差异")
+                try:
+                    self.ws_server.stop()
+                except Exception:
+                    pass
+                self._ws_subproc = self._spawn_ws_subprocess(ws_port)
+                # 再次探测
+                if not self._probe_tcp_connect("127.0.0.1", ws_port, timeout_ms=1500):
+                    self.logger.error("❌ 子进程标准服务器仍不可连接，放弃启动")
+                    try:
+                        if self._ws_subproc and self._ws_subproc.poll() is None:
+                            self._ws_subproc.terminate()
+                    except Exception:
+                        pass
+                    return False
+                else:
+                    self.logger.info("✅ 子进程标准服务器已就绪")
+
             # 将消息中心作为纯转发层：连接其 message_received 信号，由后端执行实际动作
             try:
                 if hasattr(self.ws_server, '_server') and hasattr(self.ws_server._server, 'message_received'):
@@ -239,12 +263,25 @@ class BackendLauncher:
         if self.ws_server:
             self.ws_server.stop()
             self.logger.info("✅ WebSocket 服务器已停止")
+        if getattr(self, "_ws_subproc", None):
+            try:
+                if self._ws_subproc and self._ws_subproc.poll() is None:
+                    self._ws_subproc.terminate()
+                    self._ws_subproc.wait(timeout=2)
+            except Exception:
+                pass
+            finally:
+                self._ws_subproc = None
         if self.http_server:
             self.http_server.stop()
             self.logger.info("✅ HTTP 服务器已停止")
 
     def is_ws_running(self) -> bool:
-        return self.ws_server and self.ws_server.is_running()
+        if self.ws_server and self.ws_server.is_running():
+            return True
+        if getattr(self, "_ws_subproc", None) and self._ws_subproc and self._ws_subproc.poll() is None:
+            return True
+        return False
 
     def is_http_running(self) -> bool:
         return self.http_server and self.http_server.is_running()
@@ -254,7 +291,7 @@ class BackendLauncher:
             "mode": self.mode,
             "websocket": {
                 "running": self.is_ws_running(),
-                "port": self.ws_server.port if self.ws_server else None,
+                "port": self.ws_server.port if self.ws_server else (self.port_manager.read_runtime_ports().get("msgCenter_port")),
                 "clients": self.ws_server.get_client_count() if self.ws_server else 0
             },
             "http": {
@@ -262,6 +299,32 @@ class BackendLauncher:
                 "port": self.http_server.port if self.http_server else None
             }
         }
+
+    # ----------- internal helpers -----------
+    def _probe_tcp_connect(self, host: str, port: int, *, timeout_ms: int = 800) -> bool:
+        """在同一进程内发起一次同步 TCP 连接探测，验证端口可达。"""
+        try:
+            with socket.create_connection((host, int(port)), timeout=timeout_ms / 1000.0):
+                return True
+        except Exception:
+            return False
+
+    def _spawn_ws_subprocess(self, port: int) -> subprocess.Popen:
+        """以子进程方式启动标准 WebSocket 服务器（__main__ 入口），保持同端口。"""
+        args = [
+            sys.executable,
+            "-m", "src.backend.msgCenter_server",
+            "--port", str(int(port)),
+            "--db-path", str(self.db_path),
+            "--data-dir", str(self.data_dir),
+        ]
+        # 保持 UTF-8 输出；继承当前环境
+        env = dict(os.environ)
+        proc = subprocess.Popen(args, cwd=str(project_root), env=env,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # 等待短时间供其绑定端口
+        time.sleep(0.2)
+        return proc
 
     def _read_debug_info_flags(self) -> Dict[str, Any]:
         """
