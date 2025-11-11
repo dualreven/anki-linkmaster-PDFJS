@@ -64,6 +64,10 @@
 - 推测：后端“启动成功”日志与真实绑定状态不一致（可能存在立即停止/绑定失败但未记录的边界场景）。
 - 措施：为 `WebSocketServerCore` 增加探针输出（`logs/ws-probe.json`），在 `start/stop` 写入真实 `serverAddress/serverPort` 与 `running` 状态，UTF‑8 覆盖写。待 GUI 重启后读取该文件交叉验证。
 
+### 2025-11-11 GUI 启动后端（Hosted）方式调整（应用户要求）
+- 修改：`gui_launcher.py:_start_backend_hosted()` 取消线程，改为主线程直接构造配置并调用 `services.start_backend_hosted(cfg, parent_app, on_log)`；
+- 目的：避免线程模型对 Qt/WS 事件循环的潜在影响，排除并发因素。
+
 ### 2025-11-10 QtWebEngine E2E（viewer 导航）临时记录
 - 目标用例：`tests/e2e/qtwebengine/test_viewer_nav_url_and_ws_qt.py`（URL + WS 导航，验证滚动位置 ≈ 目标页 offsetTop）。
 - 基座：`tests/e2e/qtwebengine/qt_harness.py`（无阻塞 `processEvents`，Windows 优先 ANGLE+WARP）。

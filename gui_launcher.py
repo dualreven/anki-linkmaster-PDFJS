@@ -280,49 +280,50 @@ class GUILauncher(QMainWindow):
 
     # ---------- 后端 ----------
     def _start_backend_hosted(self) -> None:
-        """异步启动后端服务器 (Hosted 模式)"""
+        """在主线程启动后端服务器 (Hosted 模式)"""
         try:
-            self._log("⏳ 正在准备启动后端服务器 (Hosted 模式)...")
+            self._log("⏳ 正在启动后端服务器 (Hosted 模式，主线程)...")
+            from PyQt6.QtWidgets import QApplication
+            parent_app = QApplication.instance()
+            if parent_app is None:
+                self._log("❌ 未检测到 QApplication 实例，无法在 Hosted 模式启动")
+                return
 
-            is_prod = bool(self.frontend_prod_checkbox.isChecked())
+            # 端口与路径
             ports_now = self._runtime_ports() or {}
-            vite_port = int(ports_now.get("vite_port") or ports_now.get("npm_port") or (self.vite_port_input.value() or 3000))
-
-            # 简化：开发模式下不再自动启动 Vite（避免阻塞/等待与潜在的端口清理开销）
-            # 若需要调试前端，请手动点击“启动 Vite (Dev)”或在终端运行：pnpm run dev -- --port <port>
-
-            # 准备路径参数
+            msg_port = int(self.msgCenter_port_input.value() or 0) or None
+            http_port = int(self.pdfFile_port_input.value() or 0) or None
             p = self._resolved_paths_from_ui()
 
-            # 准备线程参数
-            from PyQt6.QtWidgets import QApplication
-            params = {
-                "is_prod": is_prod,
-                "vite_port": vite_port,
-                "msgCenter_port": int(self.msgCenter_port_input.value() or 0) or None,
-                "pdfFile_port": int(self.pdfFile_port_input.value() or 0) or None,
-                "data_dir": p["data_dir"],
-                "db_path": p["db_path"],
-                "static_dir": p["static_dir"],
-                "pdfs_dir": p["pdfs_dir"],
-                "logs_dir": p["logs_dir"],
-                "parent_app": QApplication.instance(),
-            }
-
-            # 创建并启动线程
-            self._backend_thread = LauncherThread("backend-hosted", params)
-
-            # 连接信号
-            self._backend_thread.log_signal.connect(self._log)
-            self._backend_thread.instance_signal.connect(self._on_backend_instance_ready)
-            self._backend_thread.finished_signal.connect(self._on_backend_finished)
-
-            # 启动线程
-            self._backend_thread.start()
-            self._log("🚀 后端启动线程已开始...")
-
+            # 构造配置并调用 services.runner（同步）
+            cfg = _LConfig(
+                ports=_LPorts(
+                    msgCenter_port=msg_port,
+                    pdfFile_port=http_port,
+                ),
+                paths=_LPaths(
+                    data_dir=str(p["data_dir"]),
+                    db_path=str(p["db_path"]),
+                    static_dir=str(p["static_dir"]),
+                    pdfs_dir=str(p["pdfs_dir"]),
+                    logs_dir=str(p["logs_dir"]),
+                ),
+                options=_LOpts(
+                    runtime_mode="single",
+                ),
+            )
+            inst = _gl_services.start_backend_hosted(
+                cfg,
+                parent_app=parent_app,
+                on_log=lambda m: self._log(m),
+            )
+            if inst is None:
+                self._log("❌ 后端 Hosted 启动失败")
+                return
+            self.backend_launcher_instance = inst
+            self._log("✅ 后端 Hosted 启动成功")
         except Exception as e:
-            self._log(f"[ERROR] 启动后端线程失败: {e}")
+            self._log(f"❌ 启动后端 Hosted 失败: {e}")
 
     def _on_backend_instance_ready(self, inst):
         """接收后端实例（从 LauncherThread）"""
