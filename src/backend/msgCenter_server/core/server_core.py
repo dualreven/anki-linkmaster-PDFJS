@@ -24,10 +24,24 @@ class WebSocketServerCore(QObject):
         self.running = False
         self.server.newConnection.connect(self._on_new_connection)
 
+    def _resolve_hostaddr(self) -> QHostAddress:
+        """根据配置 host 解析到合适的 QHostAddress（默认 LocalHost IPv4）。"""
+        try:
+            h = (self.host or "").strip().lower()
+            if h in ("127.0.0.1", "localhost", ""):
+                return QHostAddress(QHostAddress.SpecialAddress.LocalHost)
+            if h in ("::1", "localhost6", "ip6-localhost"):
+                return QHostAddress(QHostAddress.SpecialAddress.LocalHostIPv6)  # type: ignore[attr-defined]
+            # 尝试按字面量解析
+            return QHostAddress(self.host)
+        except Exception:
+            return QHostAddress(QHostAddress.SpecialAddress.LocalHost)
+
     def start(self) -> bool:
         if self.running:
             return True
-        if self.server.listen(QHostAddress.SpecialAddress.LocalHost, self.port):
+        addr = self._resolve_hostaddr()
+        if self.server.listen(addr, self.port):
             self.running = True
             try:
                 # 写入探针文件，便于外部诊断端口/地址是否真正绑定
