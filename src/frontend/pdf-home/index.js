@@ -50,7 +50,13 @@ async function startApp() {
     });
 
     logger.debug("App started successfully");
-    try { const el = document.getElementById("app-boot-banner"); if (el) {el.remove();} } catch {}
+    try {
+      const el = document.getElementById("app-boot-banner");
+      if (el) {
+        el.textContent = "启动完成（保持显示以便观察状态）";
+        try { el.style.pointerEvents = "none"; } catch {}
+      }
+    } catch {}
 
     // 已移除“通信测试”按钮与相关开发UI
 

@@ -41,6 +41,24 @@
 
 （本简版将随变更持续更新，保持可读与高信噪比。）
 
+### 2025-11-11 gui_launcher → pdf-home WS 链路排查（进行中）
+- 场景：从根目录 `gui_launcher` 同时启动后端与 `pdf-home` 后，出现“WebSocket 加载不成功、Add PDF 失败、读取数据库失败”。
+- 目标：验证 pdf-home 是否发送正确 WS 消息；后端 WS 是否收到并按约定转发到对应处理器/服务；结合 `logs/` 明确失败点（客户端初始化/握手、服务端路由、下游 DB 层）。
+- 相关模块与文件（候选）：
+  - 前端：`src/frontend/pdf-home/bootstrap/app-bootstrap-v2.js`（WS 地址与初始化）、`src/frontend/common/ws/ws-client.js`、`src/frontend/pdf-home/**`（Add PDF 入口/事件）。
+  - 后端：`src/backend/**/msg_router.py` 与 `ws_*` 相关实现（WebSocket 消息类型枚举与分发）、数据库门面与表插件（PDF/Outline/Anchor 等）。
+  - 启动器：`gui_launcher/**`（端口分配、`runtime-ports.json`、Hosted/CLI 模式差异）。
+  - 日志：`logs/pdf-home-js.log`、`logs/backend-*.log`、`logs/ws-*.log`（若存在）。
+- 约定校验：事件/消息名使用命名空间常量；消息类型需与后端 Enum 一致；禁止兜底/静默抑制。
+- 风险假设：端口或主机（localhost/127.0.0.1）不一致、WS 路径不一致（如 `/ws` vs `/socket`）、反代未转发 WS、运行时端口写入与读取不一致导致前端连错端口、消息名或 schema 不匹配导致路由丢弃。
+- 动作计划：读取 `logs/`、审查前端 WS 初始化与发送处、核对后端 WS 路由与日志、给出修复与验证方案。
+
+#### 诊断结果要点（2025‑11‑11 19:00）
+- 事实：`backend-launcher.log` 显示 WS 监听 `ws://127.0.0.1:8765`；`pdf-home-js.log` 尝试连接 `ws://localhost:8765`，随后超时/失败；无任何服务端入站消息记录。
+- 根因：Qt WebSocket 仅以 `QHostAddress.LocalHost`（IPv4 127.0.0.1）监听，而 `localhost` 在当前会话解析为 IPv6 `::1`，导致握手失败。
+- 影响：WS 未连上 → `pdf-library:*` 请求全部排队/失败，表现为“Add PDF 失败”“读取数据库失败”。
+- 修复建议（优先）：前端统一使用 `ws://127.0.0.1:${port}`（桌面 Hosted 场景）；或（备选）后端改为 `LocalHostIPv6`/双栈监听。
+
 ### 2025-11-10 QtWebEngine E2E（viewer 导航）临时记录
 - 目标用例：`tests/e2e/qtwebengine/test_viewer_nav_url_and_ws_qt.py`（URL + WS 导航，验证滚动位置 ≈ 目标页 offsetTop）。
 - 基座：`tests/e2e/qtwebengine/qt_harness.py`（无阻塞 `processEvents`，Windows 优先 ANGLE+WARP）。
@@ -695,3 +713,38 @@
 - 新增 ESLint 规则 custom/no-silent-catch：禁止 catch(e){ void e; }，允许 /* logger-guard */ 或 try 块仅含日志/通知调用。
 - 已替换/标注：infra-nav-url、url-jump-dispatcher、pdf-home SearchBar 等所有产品代码中的静默捕获。
 - 扫描验证：产品代码中已无 catch(e){ void e; }；tests 目录关闭该规则。
+
+### 2025-11-11 GUI 启动后端后 Vite 未被识别为运行（修复记录）
+- 现象（示例日志）：
+  - “Vite 启动请求已处理: PID=None 端口=3000”，随后在 `logs/npm-dev.log` 观察到多次 “Port 3000 is in use, trying another one...”，最终 Vite 实际监听 3011+；
+  - `logs/dev-process-info.json` 中 `vite.port=null`，`runtime-ports.json` 未写入 `vite_port`，导致 GUI 在启动 pdf-home (Hosted) 前置校验时报错：
+    - `[ERROR] Vite 未运行（端口 3000 未监听）。请点击"启动 Vite (Dev)"或执行：pnpm run dev -- --port 3000`
+- 根因：
+  - `src/launcher/dev_server.ensure_vite` 仅在“请求端口(3000) 就绪”时才合并写入端口信息；当 3000 被占用、Vite 自动改用其它端口时，launcher 侧并未获知实际端口；
+  - 未传递 `--strictPort`，放任 Vite 自动递增端口，进一步导致端口不一致。
+- 修复：
+  - 在 `ensure_vite` 启动前先读取 `runtime-ports.json`，若已有 `vite_port` 且监听，直接返回（避免重复启动）；
+  - 启动时优先探测空闲端口（自请求端口起向上），并以 `--strictPort` 强制使用该端口；
+  - 记录启动 pid；待端口就绪后合并写入 `vite_port/npm_port` 到 `runtime-ports.json`，并更新 `dev-process-info.json`。
+- 影响面：
+  - 仅 dev server 启动路径；后端 ws/http 端口合并逻辑保持不变；
+  - GUI 的 pdf-home Hosted 前置校验将读取到真实 `vite_port`，不再误判。
+
+### 2025-11-11 GUI 启动器简化（后端按钮不再自动启动 Vite）
+- 背景：开发模式下点击“启动后端(Hosted)”会先调用 `ensure_vite_dev()`，引发 dev server 端口探测与进程清理，出现多次 `Attempting to kill process tree...`，导致启动耗时与噪音日志。
+- 变更：`gui_launcher.py` 移除了该调用；后端启动仅做后端本身的初始化。需要前端时，由用户手动点击“启动 Vite (Dev)”或在终端运行 `pnpm run dev -- --port <port>`。
+- 影响：更快启动后端；Vite 生命周期与后端解耦。PDF-Home Hosted 前置检查仍生效（需确保 Vite 已手动启动）。
+
+### 2025-11-11 PDF-Home 启动前自适应识别 Vite 端口
+- 背景：用户手动启动 Vite 时未写入 runtime-ports.json，GUI 仍默认 3000 导致“端口未监听”报错。
+- 变更：GUI 增加 `_detect_vite_port()`，在 Dev 模式下优先读取 runtime-ports.json，其次使用 UI 端口，最后扫描 3000–3050 取首个监听端口；命中即合并写入 `vite_port/npm_port`，实现一次发现、后续复用。
+
+### 2025-11-11 GUI 日志策略
+- 需求：`logs/gui-launcher.log` 不会自动清空；希望每次启动重置。
+- 实现：在 `gui_launcher.py` 构造时调用 `_truncate_gui_log_file(logs_dir)`，覆盖写入 UTF‑8 文本并附带“会话起始标记”，确保换行 `\\n`。
+
+### 2025-11-11 PDF-Home “初始化界面中...”不消失问题
+- 现象：窗口能打开，但一直停留在“初始化界面中...”。
+- 根因：前端 WSClient 连接 `ws://localhost:<port>`，在部分环境 `localhost` 解析为 `::1`，而后端只监听 `127.0.0.1`，导致 WebSocket `open`/`error` 都未如期触发，`app.initialize()` 悬挂，启动横幅无法移除。
+- 修复：将启动引导中的 WS URL 改为 `ws://127.0.0.1:<port>`（文件：`src/frontend/pdf-home/bootstrap/app-bootstrap-v2.js`），并在端口探测与监听检查层面（Python）兼容 IPv4/IPv6 多地址。
+ - 附加：`WSClient.connect()` 增加超时 watchdog（默认 4000ms）。即便底层没有触发 `error`，也会在超时后失败返回，`PDFHomeAppV2.initialize()` 捕获失败并继续启动，横幅得以移除。

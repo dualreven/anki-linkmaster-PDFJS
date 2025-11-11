@@ -17,6 +17,36 @@
 - 背景：`src/launcher/dev_server.ensure_vite` 使用 `write_runtime_ports` 覆盖写入 `{vite_port,npm_port}`，会抹掉后端已写入的 `{msgCenter_port,pdfFile_port}`，导致 GUI 二次读取端口时丢失 ws/http。
 - 修复：改为 `merge_runtime_ports` 合并写入；新增用例 `src/launcher/__tests__/test_dev_server_merge_ports.py` 防回归。
 
+### 2025-11-11 Vite 启动端口与 GUI 校验不一致（严格端口与可用端口探测）
+- 背景：Vite 在 `--port 3000` 且端口被占用时，会自动递增端口（3001, 3002, ...）。旧实现仅等待“请求端口”变为监听，导致 `runtime-ports.json` 未写入实际端口，GUI Hosted 校验失败。
+- 改动：
+  - `src/launcher/dev_server.ensure_vite`：
+    1) 读取 `runtime-ports.json`，若已有 `vite_port` 且监听，直接返回并合并端口（避免重复启动）；
+    2) 启动前探测空闲端口（自请求端口起向上），并以 `--strictPort` 强制使用该端口；
+    3) 启动后等待“实际端口”就绪，合并写入 `vite_port/npm_port`，并更新 `dev-process-info.json`（包含 `pid`）。
+- 使用与兼容：GUI 仍调用 `Controller.ensure_vite_dev(port)`；当 3000 被占用时，`runtime-ports.json` 会记录实际端口，后续 pdf-home Hosted 校验读取该值即可通过。
+
+### 2025-11-11 GUI 启动器：后端按钮不再自动启 Vite（开发模式）
+- 变更：`gui_launcher.py` 移除 `_start_backend_hosted()` 中的 `ensure_vite_dev(...)` 调用；
+- 原因：避免在后端启动前触发 dev server 的端口抢占/清理（`kill_process_tree`）带来的等待；
+- 使用：如需前端，请手动点击“启动 Vite (Dev)”或命令行 `pnpm run dev -- --port <port>`；PDF-Home Hosted 会在启动前做端口监听校验。 
+
+### 2025-11-11 GUI 端口管理策略（以 UI 为真源）
+- 约束：不做端口兜底扫描；UI 指定的 `vite_port` 必须最终写入 `logs/runtime-ports.json`；
+- 实现：在 `_start_pdf_home_hosted()` 与 `_start_pdf_viewer_hosted()`（Dev 模式）中，优先取 UI 端口并通过 `merge_runtime_ports` 写入 `{vite_port,npm_port}`，随后执行监听校验；未监听则报错，不再进行扫描或自动切换端口。
+
+### 2025-11-11 GUI 启动日志清理
+- 每次 GUI 启动时，调用 `_truncate_gui_log_file(logs_dir)` 覆盖写入 `logs/gui-launcher.log`（UTF‑8，末尾 `\\n`），写入“Session Start”标记，保持日志轮次清晰。
+
+### 2025-11-11 前端 WS 连接一致性
+- 约束：后端消息中心仅监听 `127.0.0.1`；避免使用 `localhost` 以规避可能的 `::1` 解析；
+- 实现：`src/frontend/pdf-home/bootstrap/app-bootstrap-v2.js` 中 `wsUrl` 改为 `ws://127.0.0.1:${wsPort}`；
+- Python 侧监听检测统一改为通过 `getaddrinfo` 同时尝试 `localhost/127.0.0.1/::1`，提升鲁棒性。 
+
+### 2025-11-11 WebSocket 连接超时策略
+- 增强：`src/frontend/common/ws/ws-client.js` 的 `connect()` 增加超时 watchdog（默认 4000ms）。
+- 目的：在部分环境里既不触发 `open` 也不触发 `error` 的情况下，确保 Promise 能在超时后拒绝，避免应用初始化卡死。 
+
 目的：将“规则本体”沉淀到 docs 下的专题文档；此文件仅保留最小可执行要点与索引。
 
 - 核心规则（立即执行）

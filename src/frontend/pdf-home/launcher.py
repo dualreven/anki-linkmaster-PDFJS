@@ -100,7 +100,8 @@ def _ensure_pdf_home_file_logger() -> None:
                 except Exception:
                     continue
             if not already:
-                fh = logging.FileHandler(log_path, mode='a', encoding='utf-8')
+                # 回滚为覆盖写入：每次启动清空旧日志（UTF-8）
+                fh = logging.FileHandler(log_path, mode='w', encoding='utf-8')
                 fh.setFormatter(fmt)
                 lg.addHandler(fh)
             # 允许日志同时冒泡到其他 handler（如 GUI/后端日志）

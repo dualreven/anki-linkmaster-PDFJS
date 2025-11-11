@@ -152,8 +152,8 @@ export class WSClient {
         };
 
         const cleanup = () => {
-          this.#socket.removeEventListener("open", onOpen);
-          this.#socket.removeEventListener("error", onError);
+          try { this.#socket.removeEventListener("open", onOpen); } catch {}
+          try { this.#socket.removeEventListener("error", onError); } catch {}
         };
 
         this.#socket.addEventListener("open", onOpen);

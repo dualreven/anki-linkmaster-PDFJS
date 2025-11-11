@@ -73,7 +73,8 @@ class BackendLauncher:
                             lg.removeHandler(h)
                         except Exception:
                             pass
-                    fh = logging.FileHandler(new_path, mode='a', encoding='utf-8')
+                    # 使用覆盖写入模式，确保每次启动清空旧日志（UTF-8）
+                    fh = logging.FileHandler(new_path, mode='w', encoding='utf-8')
                     fmt = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
                     fh.setFormatter(fmt)
                     lg.addHandler(fh)

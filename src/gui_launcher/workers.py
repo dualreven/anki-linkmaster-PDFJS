@@ -302,11 +302,16 @@ class LauncherThread(QThread):
                 on_log=lambda m: self.log_signal.emit(m)
             )
 
-            if rc:
-                self.log_signal.emit(f"✅ PDF-Home (Hosted) 启动成功 rc={rc}")
-                self.finished_signal.emit(True, "PDF-Home 启动成功")
+            # Hosted 路径下，返回 0 也表示正常启动（未进入子事件循环）
+            try:
+                rc_int = int(rc or 0)
+            except Exception:
+                rc_int = 0
+            if rc_int >= 0:
+                self.log_signal.emit(f"✅ PDF-Home (Hosted) 启动完成 rc={rc_int}")
+                self.finished_signal.emit(True, "PDF-Home 启动完成")
             else:
-                self.log_signal.emit("❌ PDF-Home (Hosted) 启动失败")
+                self.log_signal.emit(f"❌ PDF-Home (Hosted) 启动失败 rc={rc_int}")
                 self.finished_signal.emit(False, "PDF-Home 启动失败")
         except Exception as e:
             self.log_signal.emit(f"❌ PDF-Home (Hosted) 启动失败: {e}")
@@ -409,4 +414,3 @@ class _AiThread(QThread):
             for line in out.splitlines():
                 self.log_signal.emit(line)
         self.finished_signal.emit(int(rc))
-

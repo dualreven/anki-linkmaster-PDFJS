@@ -29,6 +29,7 @@ export async function bootstrapPDFHomeAppV2(options = {}) {
   try {
     // 1. 解析 WebSocket 端口
     const wsPort = resolveWebSocketPortSync({ fallbackPort: DEFAULT_WS_PORT });
+    // 回滚：使用 localhost（与既有稳定行为保持一致）
     const wsUrl = `ws://localhost:${wsPort}`;
     logger.info(`[BOOT] wsUrl=${wsUrl}`);
     try { const el = document.getElementById("app-boot-banner"); if (el) {el.textContent = `连接消息中心中(${wsPort})...`;} } catch { /* no-op */ }
@@ -85,8 +86,10 @@ export async function bootstrapPDFHomeAppV2(options = {}) {
     appLogger.info("PDF Home App V2 (Feature Domain Architecture) started successfully");
     try {
       const el = document.getElementById("app-boot-banner");
-      if (el) {el.textContent = "启动完成";}
-      setTimeout(() => { try { const n = document.getElementById("app-boot-banner"); if (n) {n.remove();} } catch { /* no-op */ } }, 800);
+      if (el) {
+        el.textContent = "启动完成（横幅保留，用于观测状态）";
+        try { el.style.pointerEvents = "none"; } catch {}
+      }
     } catch { /* no-op */ }
 
     // 记录功能域状态
@@ -101,8 +104,24 @@ export async function bootstrapPDFHomeAppV2(options = {}) {
 
   } catch (error) {
     logger.error("App V2 bootstrap/initialization failed:", error);
-    try { showError("启动失败: " + (error && error.message ? error.message : String(error)), 5000); } catch { /* no-op */ }
-    try { const el = document.getElementById("app-boot-banner"); if (el) {el.textContent = "启动失败（详见日志）";} } catch { /* no-op */ }
+    // 提示更具体的原因（不做兜底自动处理，只呈现信息）
+    const reason = (() => {
+      try {
+        if (!error) return "未知错误";
+        if (error.details) {
+          try { return `${error.message || error.name || "错误"} ${JSON.stringify(error.details)}`; } catch {}
+        }
+        return error.message || error.name || String(error);
+      } catch { return "未知错误"; }
+    })();
+    try { showError("启动失败: " + reason, 8000); } catch { /* no-op */ }
+    try {
+      const el = document.getElementById("app-boot-banner");
+      if (el) {
+        el.textContent = "启动失败: " + reason;
+        el.style.background = "#a40000";
+      }
+    } catch { /* no-op */ }
 
     // 尝试记录错误
     try {

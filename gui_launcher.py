@@ -53,6 +53,23 @@ for d in (DEFAULT_LOGS, DEFAULT_DATA, DEFAULT_PDFS):
     except Exception:
         pass
 
+def _truncate_gui_log_file(base_logs: Path) -> None:
+    """
+    每次 GUI 启动时清空 logs/gui-launcher.log（UTF-8，结尾 \\n）。
+    - 不影响其他日志文件；
+    - 若目录不存在则创建；
+    - 写入简短会话起始标记，便于区分启动轮次。
+    """
+    try:
+        base_logs.mkdir(parents=True, exist_ok=True)
+        p = base_logs / "gui-launcher.log"
+        from datetime import datetime
+        banner = f"=== GUI Launcher Session Start {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===\n"
+        p.write_text(banner, encoding="utf-8")
+    except Exception:
+        # 清理失败不得阻断 GUI 启动
+        pass
+
 
 def _ensure_controller_refs() -> None:
     """
@@ -84,6 +101,8 @@ class GUILauncher(QMainWindow):
         self._static_dir = DEFAULT_STATIC
         self._pdfs_dir = DEFAULT_PDFS
         self._db_path = DEFAULT_DB
+        # 清空上一次会话的 GUI 日志
+        _truncate_gui_log_file(self._logs_dir)
         try:
             self._controller = Controller(ControllerOptions(component_root=SCRIPT_ROOT, logs_dir=self._logs_dir, on_log=self._log))
         except Exception:
@@ -222,12 +241,42 @@ class GUILauncher(QMainWindow):
             return {}
 
     def _is_port_listening(self, host: str, port: int, timeout: float = 0.6) -> bool:
+        """
+        更稳健的本地端口监听检查：兼容 IPv4(127.0.0.1) 与 IPv6(::1) 以及 localhost 解析到 IPv6 的情况。
+        """
+        import socket
+        candidates = []
         try:
-            import socket
-            with socket.create_connection((host, int(port)), timeout=timeout):
-                return True
+            if host:
+                candidates.append(str(host))
         except Exception:
-            return False
+            pass
+        # 常见本地域候选
+        for h in ("localhost", "127.0.0.1", "::1"):
+            if h not in candidates:
+                candidates.append(h)
+        for h in candidates:
+            try:
+                # 使用 getaddrinfo 覆盖 IPv4/IPv6
+                infos = socket.getaddrinfo(h, int(port), type=socket.SOCK_STREAM)
+                for family, socktype, proto, _cn, sa in infos:
+                    s = None
+                    try:
+                        s = socket.socket(family, socktype, proto)
+                        s.settimeout(timeout)
+                        s.connect(sa)
+                        return True
+                    except Exception:
+                        pass
+                    finally:
+                        try:
+                            if s:
+                                s.close()
+                        except Exception:
+                            pass
+            except Exception:
+                continue
+        return False
 
     # ---------- 后端 ----------
     def _start_backend_hosted(self) -> None:
@@ -239,9 +288,8 @@ class GUILauncher(QMainWindow):
             ports_now = self._runtime_ports() or {}
             vite_port = int(ports_now.get("vite_port") or ports_now.get("npm_port") or (self.vite_port_input.value() or 3000))
 
-            # 按需求：dev 模式点击"启动后端"必须调用 ensure_vite
-            if not is_prod and self._controller is not None:
-                self._controller.ensure_vite_dev(int(vite_port), ai_module=None)
+            # 简化：开发模式下不再自动启动 Vite（避免阻塞/等待与潜在的端口清理开销）
+            # 若需要调试前端，请手动点击“启动 Vite (Dev)”或在终端运行：pnpm run dev -- --port <port>
 
             # 准备路径参数
             p = self._resolved_paths_from_ui()
@@ -316,7 +364,14 @@ class GUILauncher(QMainWindow):
 
             is_prod = bool(self.frontend_prod_checkbox.isChecked())
             ports = self._runtime_ports() or {}
-            vite_port = int(ports.get("vite_port") or ports.get("npm_port") or (self.vite_port_input.value() or 3000))
+            # Dev 模式明确以 UI 指定端口为准，并立即持久化到 runtime-ports.json
+            # 避免兜底扫描，遵循“UI 为真源”的约束
+            vite_port = int(self.vite_port_input.value() or 3000)
+            try:
+                _gl_services.merge_runtime_ports(self._logs_dir, {"vite_port": int(vite_port), "npm_port": int(vite_port)})
+                self._log(f"[TRACE:HOSTED] 已将 UI 指定 Vite 端口写入 runtime-ports.json → {vite_port}")
+            except Exception as _e:
+                self._log(f"[WARN] 同步 UI 指定 vite_port 到 runtime-ports.json 失败: {_e}")
             ws = int(ports.get("msgCenter_port") or (self.msgCenter_port_input.value() or 0) or 0)
             http = int(ports.get("pdfFile_port") or (self.pdfFile_port_input.value() or 0) or 0)
 
@@ -330,31 +385,27 @@ class GUILauncher(QMainWindow):
             # 准备路径参数
             p = self._resolved_paths_from_ui()
 
-            # 准备线程参数
+            # 在主线程同步启动 Hosted 实例（避免在 QThread 中创建 QWidget 导致崩溃）
+            cfg = _LConfig(
+                ports=_LPorts(
+                    vite_port=vite_port if not is_prod else None,
+                    msgCenter_port=ws or None,
+                    pdfFile_port=http or None,
+                ),
+                paths=_LPaths(
+                    logs_dir=str(p["logs_dir"]),
+                    data_dir=str(p["data_dir"]),
+                    db_path=str(p["db_path"]),
+                    static_dir=str(p["static_dir"]),
+                    pdfs_dir=str(p["pdfs_dir"]),
+                ),
+                options=_LOpts(frontend_prod=is_prod, keep_backend=True, runtime_mode="single"),
+            )
             from PyQt6.QtWidgets import QApplication
-            params = {
-                "is_prod": is_prod,
-                "vite_port": vite_port,
-                "msgCenter_port": ws or None,
-                "pdfFile_port": http or None,
-                "data_dir": p["data_dir"],
-                "db_path": p["db_path"],
-                "static_dir": p["static_dir"],
-                "pdfs_dir": p["pdfs_dir"],
-                "logs_dir": p["logs_dir"],
-                "parent_app": QApplication.instance(),
-            }
-
-            # 创建并启动线程
-            self._pdf_home_thread = LauncherThread("pdf-home-hosted", params)
-
-            # 连接信号
-            self._pdf_home_thread.log_signal.connect(self._log)
-            self._pdf_home_thread.finished_signal.connect(self._on_pdf_home_finished)
-
-            # 启动线程
-            self._pdf_home_thread.start()
-            self._log("🚀 PDF-Home 启动线程已开始...")
+            app = QApplication.instance()
+            rc = _gl_services.start_pdf_home_hosted(cfg, parent_app=app, on_log=self._log)
+            self._on_pdf_home_finished(True, f"PDF-Home 启动完成 rc={rc}")
+            self._log("🚀 PDF-Home 已在 Hosted 模式启动（主线程）")
 
         except Exception as e:
             self._log(f"[ERROR] 启动 PDF-Home 线程失败: {e}")
@@ -372,7 +423,13 @@ class GUILauncher(QMainWindow):
         try:
             is_prod = bool(self.frontend_prod_checkbox.isChecked())
             ports = self._runtime_ports() or {}
-            vite_port = int(ports.get("vite_port") or ports.get("npm_port") or (self.vite_port_input.value() or 3000))
+            # Dev 模式以 UI 指定端口为准，并写入 runtime-ports.json
+            vite_port = int(self.vite_port_input.value() or 3000)
+            try:
+                _gl_services.merge_runtime_ports(self._logs_dir, {"vite_port": int(vite_port), "npm_port": int(vite_port)})
+                self._log(f"[TRACE:HOSTED] 已将 UI 指定 Vite 端口写入 runtime-ports.json → {vite_port}")
+            except Exception as _e:
+                self._log(f"[WARN] 同步 UI 指定 vite_port 到 runtime-ports.json 失败: {_e}")
             ws = int(ports.get("msgCenter_port") or (self.msgCenter_port_input.value() or 0) or 0)
             http = int(ports.get("pdfFile_port") or (self.pdfFile_port_input.value() or 0) or 0)
             if not is_prod and not self._is_port_listening("127.0.0.1", int(vite_port)):
@@ -404,6 +461,26 @@ class GUILauncher(QMainWindow):
 
 
 def main() -> None:
+    # 全局异常钩子：落盘到 logs/gui-launcher.log，避免静默崩溃
+    try:
+        import sys as _sys, traceback as _tb
+        def _exhook(exc_type, exc, tb):
+            try:
+                DEFAULT_LOGS.mkdir(parents=True, exist_ok=True)
+                p = DEFAULT_LOGS / "gui-launcher.log"
+                msg = "".join(_tb.format_exception(exc_type, exc, tb))
+                with open(p, "a", encoding="utf-8", newline="\n") as fp:
+                    fp.write("[FATAL] Uncaught exception in gui_launcher:\n")
+                    fp.write(msg)
+                    if not msg.endswith("\n"):
+                        fp.write("\n")
+            except Exception:
+                pass
+            # 仍按默认行为输出到控制台
+            _tb.print_exception(exc_type, exc, tb)
+        _sys.excepthook = _exhook
+    except Exception:
+        pass
     # 预载 QtWebEngine（容错）
     try:
         from PyQt6.QtCore import QCoreApplication, Qt as _Qt
