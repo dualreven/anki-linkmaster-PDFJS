@@ -48,6 +48,7 @@ from __future__ import annotations
 import os
 import json
 import sys
+import time
 import logging
 import argparse
 from pathlib import Path
@@ -253,7 +254,8 @@ def _read_runtime_ports(cwd: Path | None = None) -> tuple[int, int, int, dict]:
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="pdf-viewer standalone launcher")
-    parser.add_argument("--vite-port", type=int, dest="vite_port", help="Vite dev server port")
+    parser.add_argument("--url-port", type=int, dest="url_port", help="前端资源获取端口（dev模式=vite_port, prod模式=pdfFile_port）")
+    parser.add_argument("--vite-port", type=int, dest="vite_port", help="⚠️ 已废弃，请使用 --url-port")
     parser.add_argument("--msgCenter-port", type=int, dest="msgCenter_port", help="消息中心服务器端口")
     parser.add_argument("--pdfFile-port", type=int, dest="pdfFile_port", help="PDF文件服务器端口")
     parser.add_argument("--js-debug-port", type=int, dest="js_debug_port", help="Remote debugging port for PDF-Viewer JS (QTWEBENGINE)")
@@ -390,26 +392,45 @@ class PdfViewerApp:
             self.app = self.parent_app
             logger.info("✅ Using parent QApplication (hosted mode)")
 
-        # 步骤 4: 解析端口配置
+        # 步骤 4: 解析端口配置（严格校验，禁止兜底）
         vite_json, msgCenter_json, pdfFile_json, extras = _read_runtime_ports()
 
-        vite_port = self.config.vite_port or vite_json
-        # 开发模式要求 vite_port（无兜底）；生产模式无需 vite_port
-        if not self.config.is_prod and (vite_port is None):
-            raise RuntimeError("开发模式需要 vite_port：请先通过 ai_launcher 启动写入 runtime-ports.json 或显式传入 --vite-port")
-
+        # ✅ 优先使用 url_port，回退到 vite_port（兼容性）
+        url_port_json = extras.get("url_port")
+        url_port = self.config.url_port or url_port_json or self.config.vite_port or vite_json
         msgCenter_port = self.config.msgCenter_port or msgCenter_json
         pdfFile_port = self.config.pdfFile_port or pdfFile_json
         js_debug_port = self.config.js_debug_port or int(extras.get("pdf-viewer-js", 9223))
 
+        # ✅ 严格校验：url_port, msgCenter_port, pdfFile_port 不能为 None
+        missing = []
+        if url_port is None:
+            missing.append("url_port (或 vite_port)")
+        if msgCenter_port is None:
+            missing.append("msgCenter_port")
+        if pdfFile_port is None:
+            missing.append("pdfFile_port")
+
+        if missing:
+            logs_dir = getattr(self.config, 'logs_dir', None)
+            where = f"{logs_dir}/runtime-ports.json" if logs_dir else "runtime-ports.json"
+            runtime_data = {"vite": vite_json, "msgCenter": msgCenter_json, "pdfFile": pdfFile_json, "url": url_port_json}
+            raise RuntimeError(
+                f"启动 pdf-viewer 失败，端口缺失：{', '.join(missing)}\n"
+                f"runtime-ports.json: {runtime_data}\n"
+                f"解决方案：\n"
+                f"1. 通过 GUI 启动后端（自动写入端口配置）\n"
+                f"2. 或显式传入 CLI 参数：--url-port, --msgCenter-port, --pdfFile-port"
+            )
+
         logger.info(f"Mode: is_prod={self.config.is_prod} keep_backend={self.config.keep_backend}")
-        logger.info(f"Resolved ports: vite={vite_port} msgCenter={msgCenter_port} pdfFile={pdfFile_port} (pdf_id: {self.pdf_id})")
+        logger.info(f"Resolved ports: url={url_port} msgCenter={msgCenter_port} pdfFile={pdfFile_port} (pdf_id: {self.pdf_id})")
         logger.info(f"JS remote debug port: {js_debug_port}")
 
         # 步骤 5: 持久化端口配置
         extras["pdf-viewer-js"] = js_debug_port
         if not self.config.no_persist:
-            self._persist_ports(vite_port, msgCenter_port, pdfFile_port, extras)
+            self._persist_ports(url_port, msgCenter_port, pdfFile_port, extras)
 
         # 步骤 6: 创建 JS Console Logger
         if not self.config.disable_js_console:
@@ -448,7 +469,7 @@ class PdfViewerApp:
 
         # 步骤 11: 加载前端
         if not self.config.disable_frontend_load:
-            url = self._build_frontend_url(vite_port, msgCenter_port, pdfFile_port)
+            url = self._build_frontend_url(url_port, msgCenter_port, pdfFile_port)  # ✅ 使用 url_port
             logger.info(f"Front-end URL built: {url}")
             logger.info(f"Loading front-end: {url}")
 
@@ -476,26 +497,31 @@ class PdfViewerApp:
             logger.info("pdf-viewer window started (hosted mode, no event loop)")
             return 0
 
-    def _build_frontend_url(self, vite_port: int, msgCenter_port: int, pdfFile_port: int) -> str:
-        """构建前端 URL"""
-        if self.config.is_prod:
-            # 生产模式
-            url = f"http://127.0.0.1:{pdfFile_port}/pdf-viewer/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"
-            # 若已提供 pdf-id，则直接拼接 file 参数指向 /pdfs/<id>.pdf，避免依赖 WS 下发
+    def _build_frontend_url(self, url_port: int, msgCenter_port: int, pdfFile_port: int) -> str:
+        """
+        构建前端 URL
+
+        Args:
+            url_port: 前端资源获取端口（dev模式=vite_port, prod模式=pdfFile_port）
+            msgCenter_port: WebSocket 端口
+            pdfFile_port: HTTP 文件服务器端口
+        """
+        # ✅ 统一使用 url_port 构建基础 URL（不再判断 is_prod）
+        # 使用 localhost 而不是 127.0.0.1，兼容 IPv4 和 IPv6
+        url = f"http://localhost:{url_port}/pdf-viewer/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"
+
+        # 添加 file 参数（优先级：file_path > pdf_id）
+        if self.file_path:
+            import urllib.parse
+            file_param = urllib.parse.quote(self.file_path)
+            url += f"&file={file_param}"
+        elif self.config.pdf_id:
             try:
-                if self.config.pdf_id:
-                    from urllib.parse import quote
-                    file_param = quote(f"/pdfs/{self.config.pdf_id}.pdf")
-                    url += f"&file={file_param}"
+                from urllib.parse import quote
+                file_param = quote(f"/pdfs/{self.config.pdf_id}.pdf")
+                url += f"&file={file_param}"
             except Exception:
                 pass
-        else:
-            # 开发模式
-            url = f"http://localhost:{vite_port}/pdf-viewer/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"
-            if self.file_path:
-                import urllib.parse
-                file_param = urllib.parse.quote(self.file_path)
-                url += f"&file={file_param}"
 
         # 添加 URL 导航参数：始终附带 pdf-id（供 Outline 等特性识别文档），
         # 但仅在有导航目标时再附带 page/position/anchor/annotation/outline 等参数（互斥策略在后端已生效）
@@ -524,12 +550,27 @@ class PdfViewerApp:
 
         return url
 
-    def _persist_ports(self, vite_port: int, msgCenter_port: int, pdfFile_port: int, extras: dict):
-        """持久化端口配置（委托 src.launcher.ports.write_runtime_ports）。"""
+    def _persist_ports(self, url_port: int, msgCenter_port: int, pdfFile_port: int, extras: dict):
+        """持久化端口配置
+
+        Args:
+            url_port: 前端资源获取端口（开发模式=vite_port, 生产模式=pdfFile_port）
+            msgCenter_port: WebSocket 端口
+            pdfFile_port: HTTP 文件服务器端口
+            extras: 其他配置
+
+        Note:
+            为向后兼容，JSON 中同时写入 vite_port 和 url_port 字段。
+        """
         try:
             logs_dir = _require_logs_dir()
             logs_dir.mkdir(parents=True, exist_ok=True)
-            payload = {"vite_port": vite_port, "msgCenter_port": msgCenter_port, "pdfFile_port": pdfFile_port}
+            payload = {
+                "vite_port": url_port,       # 向后兼容旧代码
+                "url_port": url_port,        # 新标准字段
+                "msgCenter_port": msgCenter_port,
+                "pdfFile_port": pdfFile_port
+            }
             payload.update(extras or {})
             _ports_write(logs_dir, payload)
         except Exception as exc:
@@ -569,10 +610,41 @@ class PdfViewerApp:
         """设置 WebSocket 连接"""
         ws_url = QUrl(f"ws://127.0.0.1:{msgCenter_port}")
 
+        # ✅ 客户端注册状态
+        registration_completed = False
+
         def on_connected():
             logger.info(f"WebSocket connected to {ws_url.toString()}")
-            if self.bridge and self.file_path:
-                self.bridge.loadPdfFile(self.file_path)
+            # ✅ 先发送客户端注册请求
+            register_msg = {
+                "type": "client:register:requested",
+                "data": {
+                    "module": "pdf-viewer-launcher",
+                    "version": "1.0.0"
+                },
+                "timestamp": int(time.time() * 1000)
+            }
+            self.ws_client.sendTextMessage(json.dumps(register_msg, ensure_ascii=False))
+            logger.info("Client registration request sent")
+
+        def on_text_message(message: str):
+            """处理来自后端的文本消息"""
+            nonlocal registration_completed
+            try:
+                msg = json.loads(message)
+                msg_type = msg.get("type", "")
+
+                # ✅ 等待注册完成
+                if msg_type == "client:register:completed":
+                    registration_completed = True
+                    logger.info("Client registration completed")
+                    # 注册完成后，加载PDF文件
+                    if self.bridge and self.file_path:
+                        self.bridge.loadPdfFile(self.file_path)
+                elif msg_type == "client:register:failed":
+                    logger.error(f"Client registration failed: {msg.get('error', {}).get('message', 'Unknown error')}")
+            except Exception as e:
+                logger.error(f"Failed to process WebSocket message: {e}")
 
         def on_disconnected():
             logger.info(f"WebSocket disconnected from {ws_url.toString()}")
@@ -594,6 +666,11 @@ class PdfViewerApp:
                 self.ws_client.errorOccurred.connect(on_error)  # type: ignore[attr-defined]
             else:
                 self.ws_client.error.connect(on_error)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        # ✅ 连接文本消息接收器
+        try:
+            self.ws_client.textMessageReceived.connect(on_text_message)  # type: ignore[attr-defined]
         except Exception:
             pass
 
@@ -621,6 +698,10 @@ class PdfViewerApp:
                     pass
                 try:
                     self.ws_client.error.disconnect()
+                except Exception:
+                    pass
+                try:
+                    self.ws_client.textMessageReceived.disconnect()  # type: ignore[attr-defined]
                 except Exception:
                     pass
             except Exception:
@@ -910,10 +991,40 @@ def main_legacy() -> int:
     if websocket_enabled:
         ws_url = QUrl(f"ws://127.0.0.1:{msgCenter_port}")
 
+        # ✅ 客户端注册状态
+        registration_completed = [False]  # 使用列表以便在闭包中修改
+
         def on_connected():
             logger.info("WebSocket connected to %s", ws_url.toString())
-            if bridge and file_path:
-                bridge.loadPdfFile(file_path)
+            # ✅ 先发送客户端注册请求
+            register_msg = {
+                "type": "client:register:requested",
+                "data": {
+                    "module": "pdf-viewer-launcher",
+                    "version": "1.0.0"
+                },
+                "timestamp": int(time.time() * 1000)
+            }
+            ws_client.sendTextMessage(json.dumps(register_msg, ensure_ascii=False))
+            logger.info("Client registration request sent")
+
+        def on_text_message(message: str):
+            """处理来自后端的文本消息"""
+            try:
+                msg = json.loads(message)
+                msg_type = msg.get("type", "")
+
+                # ✅ 等待注册完成
+                if msg_type == "client:register:completed":
+                    registration_completed[0] = True
+                    logger.info("Client registration completed")
+                    # 注册完成后，加载PDF文件
+                    if bridge and file_path:
+                        bridge.loadPdfFile(file_path)
+                elif msg_type == "client:register:failed":
+                    logger.error(f"Client registration failed: {msg.get('error', {}).get('message', 'Unknown error')}")
+            except Exception as e:
+                logger.error(f"Failed to process WebSocket message: {e}")
 
         def on_disconnected():
             logger.info("WebSocket disconnected from %s", ws_url.toString())
@@ -924,6 +1035,7 @@ def main_legacy() -> int:
         ws_client.connected.connect(on_connected)
         ws_client.disconnected.connect(on_disconnected)
         ws_client.error.connect(on_error)
+        ws_client.textMessageReceived.connect(on_text_message)  # ✅ 连接消息接收器
 
         if args.diagnose_only:
             websocket_note = "Skipped connect in diagnostic mode"

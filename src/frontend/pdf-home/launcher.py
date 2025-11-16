@@ -160,7 +160,8 @@ def _read_runtime_ports(cwd: Path | None = None) -> tuple[int, int, int, dict]:
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="pdf-home standalone launcher")
-    parser.add_argument("--vite-port", type=int, dest="vite_port", help="Vite dev server port")
+    parser.add_argument("--url-port", type=int, dest="url_port", help="前端资源获取端口（dev模式=vite_port, prod模式=pdfFile_port）")
+    parser.add_argument("--vite-port", type=int, dest="vite_port", help="⚠️ 已废弃，请使用 --url-port")
     parser.add_argument("--msgCenter-port", type=int, dest="msgCenter_port", help="消息中心服务器端口")
     parser.add_argument("--pdfFile-port", type=int, dest="pdfFile_port", help="PDF文件服务器端口")
     parser.add_argument("--js-debug-port", type=int, dest="js_debug_port", help="Remote debugging port for PDF-Home JS (QTWEBENGINE)")
@@ -265,32 +266,38 @@ class PdfHomeApp:
             except Exception:
                 return None
 
-        vite_port = _to_int_or_none(self.config.vite_port or vite_json)
+        # ✅ 优先使用 url_port，回退到 vite_port（兼容性）
+        url_port_json = extras.get("url_port")  # runtime-ports.json 中的 url_port
+        url_port = _to_int_or_none(
+            self.config.url_port or url_port_json or self.config.vite_port or vite_json
+        )
         msgCenter_port = _to_int_or_none(self.config.msgCenter_port or msgCenter_json)
         pdfFile_port = _to_int_or_none(self.config.pdfFile_port or pdfFile_json)
         js_debug_port = _to_int_or_none(self.config.js_debug_port or extras.get("pdf-home-js")) or 9222
 
-        # 严格模式：不可为 None。开发模式要求三者；生产模式至少要求消息中心与文件服务器端口
+        # 严格校验：url_port, msgCenter_port, pdfFile_port 不能为 None
         missing = []
-        if not self.config.is_prod:
-            if vite_port is None:
-                missing.append("vite_port")
-            if msgCenter_port is None:
-                missing.append("msgCenter_port")
-            if pdfFile_port is None:
-                missing.append("pdfFile_port")
-        else:
-            if msgCenter_port is None:
-                missing.append("msgCenter_port")
-            if pdfFile_port is None:
-                missing.append("pdfFile_port")
+        if url_port is None:
+            missing.append("url_port (或 vite_port)")
+        if msgCenter_port is None:
+            missing.append("msgCenter_port")
+        if pdfFile_port is None:
+            missing.append("pdfFile_port")
+
         if missing:
             logs_dir = getattr(self.config, 'logs_dir', None)
             where = f"{logs_dir}/runtime-ports.json" if logs_dir else "runtime-ports.json"
-            raise RuntimeError(f"端口缺失：{', '.join(missing)}；请确保 {where} 包含所需键或通过 CLI 显式传入对应 --*-port 参数")
+            runtime_data = {"vite": vite_json, "msgCenter": msgCenter_json, "pdfFile": pdfFile_json, "url": url_port_json}
+            raise RuntimeError(
+                f"启动 pdf-home 失败，端口缺失：{', '.join(missing)}\n"
+                f"runtime-ports.json: {runtime_data}\n"
+                f"解决方案：\n"
+                f"1. 通过 GUI 启动后端（自动写入端口配置）\n"
+                f"2. 或显式传入 CLI 参数：--url-port, --msgCenter-port, --pdfFile-port"
+            )
 
         logger.info(f"Mode: is_prod={self.config.is_prod} keep_backend={self.config.keep_backend}")
-        logger.info(f"Resolved ports: vite={vite_port} msgCenter={msgCenter_port} pdfFile={pdfFile_port}")
+        logger.info(f"Resolved ports: url={url_port} msgCenter={msgCenter_port} pdfFile={pdfFile_port}")
         logger.info(f"JS remote debug port: {js_debug_port}")
         # 在记录 compat 之前，尝试加载/重试 QtWebEngine
         try:
@@ -311,7 +318,7 @@ class PdfHomeApp:
         # 步骤 3: 持久化端口配置
         extras["pdf-home-js"] = js_debug_port
         if not self.config.no_persist:
-            self._persist_ports(vite_port, msgCenter_port, pdfFile_port, extras)
+            self._persist_ports(url_port, msgCenter_port, pdfFile_port, extras)
 
         # 步骤 4: 创建 JS Logger
         js_log_file = str(_get_js_log_path())
@@ -348,7 +355,7 @@ class PdfHomeApp:
         self._setup_qwebchannel()
 
         # 步骤 8: 加载前端（若无 QtWebEngine，回退为外部浏览器）
-        url = self._build_frontend_url(vite_port, msgCenter_port, pdfFile_port)
+        url = self._build_frontend_url(url_port, msgCenter_port, pdfFile_port)  # ✅ 使用 url_port
         logger.info(f"Front-end URL built: {url}")
         logger.info(f"Loading front-end: {url}")
 
@@ -388,25 +395,46 @@ class PdfHomeApp:
             logger.info("pdf-home window started (hosted mode, no event loop)")
             return 0
 
-    def _build_frontend_url(self, vite_port: int, msgCenter_port: int, pdfFile_port: int) -> str:
-        """构建前端 URL"""
-        if self.config.is_prod:
-            # 生产模式：通过 pdfFile_server 提供静态资源
-            import time
-            cache_buster = int(time.time() * 1000)
-            # 注意：静态资源位于 root/static/pdf-home/index.html
-            # 这里的 URL 只应包含一次 "/pdf-home/" 前缀，否则会导致 404
-            return f"http://127.0.0.1:{pdfFile_port}/pdf-home/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}&_={cache_buster}"
-        else:
-            # 开发模式：使用 Vite dev server
-            return f"http://localhost:{vite_port}/pdf-home/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"
+    def _build_frontend_url(self, url_port: int, msgCenter_port: int, pdfFile_port: int) -> str:
+        """
+        构建前端 URL
 
-    def _persist_ports(self, vite_port, msgCenter_port, pdfFile_port, extras):
-        """持久化端口（委托给 src.launcher.ports.write_runtime_ports）。"""
+        Args:
+            url_port: 前端资源获取端口（dev模式=vite_port, prod模式=pdfFile_port）
+            msgCenter_port: WebSocket 端口
+            pdfFile_port: HTTP 文件服务器端口
+        """
+        import time
+        cache_buster = int(time.time() * 1000)
+
+        # ✅ 统一使用 url_port 构建 URL（不再判断 is_prod）
+        # 生产模式：url_port = pdfFile_port，从静态资源服务器加载
+        # 开发模式：url_port = vite_port，从 Vite 开发服务器加载
+        # 使用 localhost 而不是 127.0.0.1，兼容 IPv4 和 IPv6
+        return f"http://localhost:{url_port}/pdf-home/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}&_={cache_buster}"
+
+    def _persist_ports(self, url_port, msgCenter_port, pdfFile_port, extras):
+        """持久化端口配置
+
+        Args:
+            url_port: 前端资源获取端口（开发模式=vite_port, 生产模式=pdfFile_port）
+            msgCenter_port: WebSocket 端口
+            pdfFile_port: HTTP 文件服务器端口
+            extras: 其他配置
+
+        Note:
+            为向后兼容，JSON 中同时写入 vite_port 和 url_port 字段。
+        """
         try:
             logs_dir = _require_logs_dir()
             logs_dir.mkdir(parents=True, exist_ok=True)
-            payload = {"vite_port": vite_port, "msgCenter_port": msgCenter_port, "pdfFile_port": pdfFile_port, **(extras or {})}
+            payload = {
+                "vite_port": url_port,       # 向后兼容旧代码
+                "url_port": url_port,        # 新标准字段
+                "msgCenter_port": msgCenter_port,
+                "pdfFile_port": pdfFile_port,
+                **(extras or {})
+            }
             _ports_write(logs_dir, payload)
         except Exception as exc:
             logger.warning("Failed persisting runtime-ports.json: %s", exc)
