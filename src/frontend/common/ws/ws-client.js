@@ -28,6 +28,7 @@ export class WSClient {
   #requestRetries = new Map();
   #lastError = null;
   #connectionHistory = [];
+  #identity = null;
 
   static VALID_MESSAGE_TYPES = [
     "pdf_list_updated",
@@ -73,7 +74,9 @@ export class WSClient {
     WEBSOCKET_MESSAGE_TYPES.VIEWER_NAVIGATE_REQUESTED,
     WEBSOCKET_MESSAGE_TYPES.VIEWER_NAVIGATE_COMPLETED,
     WEBSOCKET_MESSAGE_TYPES.VIEWER_NAVIGATE_FAILED,
-    // System / heartbeat
+    // System / heartbeat / client registration
+    WEBSOCKET_MESSAGE_TYPES.CLIENT_REGISTER_COMPLETED,
+    WEBSOCKET_MESSAGE_TYPES.CLIENT_REGISTER_FAILED,
     WEBSOCKET_MESSAGE_TYPES.HEARTBEAT_COMPLETED
   ];
 
@@ -89,11 +92,61 @@ export class WSClient {
     return values;
   })();
 
-  constructor(url, eventBus) {
+  constructor(url, eventBus, identityOptions = null) {
     this.#url = url;
     this.#eventBus = eventBus;
     this.#logger = new Logger("WSClient");
+    this.#identity = this.#resolveIdentity(identityOptions);
     this.#setupEventListeners();
+  }
+
+  #resolveIdentity(identityOptions) {
+    // 显式传入优先：允许调用方指定 client_name/client_id/module
+    if (identityOptions && typeof identityOptions === "object") {
+      const name = String(identityOptions.client_name || "").trim();
+      const cid = identityOptions.client_id != null ? String(identityOptions.client_id).trim() : null;
+      const mod = identityOptions.module != null ? String(identityOptions.module).trim() : null;
+      if (name) {
+        this.#logger.info(`[WSClient] 使用显式身份: ${name}:${cid || "none"} (module=${mod || "n/a"})`);
+        return { client_name: name, client_id: cid, module: mod };
+      }
+    }
+
+    // 浏览器环境下根据 URL 推断：pdf-viewer / pdf-home / 其他
+    try {
+      if (typeof window !== "undefined" && window.location) {
+        const loc = window.location;
+        const pathname = String(loc.pathname || "");
+        const params = new URLSearchParams(loc.search || "");
+        const pdfId = (params.get("pdf-id") || params.get("pdf_id") || "").trim();
+
+        if (pathname.includes("/pdf-viewer/")) {
+          const name = pdfId ? `pdf-viewer-${pdfId}` : "pdf-viewer";
+          const cid = pdfId || null;
+          this.#logger.info(`[WSClient] 解析为 pdf-viewer 身份: ${name}:${cid || "none"}`);
+          return { client_name: name, client_id: cid, module: "pdf-viewer" };
+        }
+
+        if (pathname.includes("/pdf-home/")) {
+          const name = "pdf-home";
+          // pdf-home 使用固定的 client_id（单例窗口，不可多开）
+          // 设计理由：
+          // 1. 语义清晰：反映单例特性
+          // 2. 路由稳定：不会因重连而变化
+          // 3. 简化查找：后端可直接通过 "pdf-home" 定位
+          const cid = "pdf-home";
+          this.#logger.info(`[WSClient] 解析为 pdf-home 身份（固定ID）: ${name}:${cid}`);
+          return { client_name: name, client_id: cid, module: "pdf-home" };
+        }
+      }
+    } catch {
+      // 忽略 URL 解析失败，走到通用分支
+    }
+
+    // 兜底：通用 js-client
+    const fallback = { client_name: "js-client", client_id: null, module: "generic" };
+    this.#logger.info("[WSClient] 使用默认身份: js-client");
+    return fallback;
   }
 
   #setupEventListeners() {
@@ -170,9 +223,25 @@ export class WSClient {
     });
   }
 
-  disconnect() {
+  /**
+   * 断开WebSocket连接（先发送取消注册消息，再关闭连接）
+   * @returns {Promise<void>}
+   */
+  async disconnect() {
     if (this.#socket) {
       this.#logger.info("Disconnecting WebSocket.");
+
+      // 1. 先发送取消注册消息（有超时保护，不会阻塞）
+      if (this.isConnected()) {
+        try {
+          await this.#sendClientUnregister("manual_disconnect");
+        } catch (error) {
+          // 忽略错误，继续断开流程
+          this.#logger.debug("[WSClient] 取消注册失败，继续断开", error);
+        }
+      }
+
+      // 2. 再关闭WebSocket连接
       this.#socket.close(1000, "Client initiated disconnect.");
       this.#socket = null;
       this.#isConnectedFlag = false;
@@ -195,6 +264,23 @@ export class WSClient {
       ...messageInput,  // 保留所有原始字段
       timestamp: messageInput.timestamp || Date.now()  // 添加时间戳（如果没有）
     };
+
+    // ========== 自动添加 to 字段（新协议：2025-01-16）==========
+    // 规则：
+    // 1. 注册/取消注册消息禁止包含 to 字段
+    // 2. 已有 to 字段的消息不覆盖（调用方显式指定）
+    // 3. 其他请求消息自动添加 to: "backend"
+    const REGISTER_MESSAGES = [
+      "client:register:requested",
+      "client:unregister:requested",  // 客户端取消注册（窗口关闭时）
+      "pdf-viewer:register:requested"
+    ];
+
+    if (!message.to && !REGISTER_MESSAGES.includes(type)) {
+      // 自动添加 to: "backend"（大部分请求消息都是后端消息）
+      message.to = "backend";
+      this.#logger.debug(`[WSClient] 自动添加 to: "backend" (type=${type})`);
+    }
 
     if (this.isConnected()) {
       try {
@@ -258,6 +344,10 @@ export class WSClient {
       this.#eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED, connectionInfo, {
         actorId: "WSClient",
       });
+
+      // 注册逻辑已移至各模块的 WebSocketAdapter（pdf-viewer/pdf-home）
+      // 不再需要延迟回退机制
+
       this.#flushMessageQueue();
     };
 
@@ -316,7 +406,8 @@ export class WSClient {
   #handleMessage(rawData) {
     try {
       const message = JSON.parse(rawData);
-      this.#logger.debug(`Received message: ${message.type}`, JSON.stringify(message, null, 2));
+      // 提升关键入站消息的可见性：统一按 info 级别记录类型与 request_id
+      this.#logger.info(`Received message: ${String(message.type)} rid=${message.request_id || "none"}`);
 
       if (!message.type) {
         this.#logger.error("❌ WebSocket消息缺少type字段", {
@@ -506,6 +597,16 @@ export class WSClient {
         case "system_status":
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.SYSTEM_STATUS;
           break;
+        case WEBSOCKET_MESSAGE_TYPES.CLIENT_REGISTER_COMPLETED:
+          // 注册成功：结算请求
+          this._settlePendingRequest(message);
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.RESPONSE;
+          break;
+        case WEBSOCKET_MESSAGE_TYPES.CLIENT_REGISTER_FAILED:
+          // 注册失败：结算请求
+          this._settlePendingRequest(message, { error: message?.error || message?.data });
+          targetEvent = WEBSOCKET_MESSAGE_EVENTS.ERROR;
+          break;
         default:
           targetEvent = WEBSOCKET_MESSAGE_EVENTS.UNKNOWN;
         }
@@ -579,6 +680,80 @@ export class WSClient {
     };
   }
 
+  /**
+   * 发送客户端取消注册消息（窗口关闭时调用）
+   *
+   * ✅ 修复：同时注销新旧两个 client_id，防止 RouteRegistry 中的"僵尸"记录
+   * - 旧协议 client_id：如 "sample"（旧注册机制，已废弃）
+   * - 新协议 client_name：如 "pdf-viewer-sample"（新注册机制）
+   *
+   * @param {string} reason - 取消注册原因（默认: "window_closing"）
+   * @returns {Promise<void>} - 总是resolve（避免阻塞窗口关闭）
+   * @private
+   */
+  async #sendClientUnregister(reason = "window_closing") {
+    const ident = this.#identity || {};
+    const clientId = ident.client_id;        // 旧协议ID（如 "sample"）
+    const clientName = ident.client_name;    // 新协议ID（如 "pdf-viewer-sample"）
+
+    if (!clientId && !clientName) {
+      this.#logger.debug("[WSClient] 跳过取消注册：缺少 client_id 和 client_name");
+      return Promise.resolve();
+    }
+
+    if (!WEBSOCKET_MESSAGE_TYPES.CLIENT_UNREGISTER_REQUESTED) {
+      this.#logger.debug("[WSClient] CLIENT_UNREGISTER_REQUESTED 未在常量集中注册，跳过取消注册");
+      return Promise.resolve();
+    }
+
+    // ✅ 同时注销新旧两个ID（防御性编程，确保完全清理）
+    const unregisterTasks = [];
+
+    // 注销旧协议ID
+    if (clientId) {
+      this.#logger.info(`[WSClient] 注销旧协议 client_id: ${clientId}, reason=${reason}`);
+      unregisterTasks.push(
+        this.request(
+          WEBSOCKET_MESSAGE_TYPES.CLIENT_UNREGISTER_REQUESTED,
+          { client_id: clientId, reason },
+          { timeout: 500 }
+        ).then(() => {
+          this.#logger.info(`[WSClient] ✅ 旧协议注销成功: ${clientId}`);
+        }).catch(error => {
+          this.#logger.warn(`[WSClient] ⚠️ 旧协议注销失败（忽略）: ${clientId}, error=${error.message}`);
+        })
+      );
+    }
+
+    // 注销新协议ID（如果与旧ID不同）
+    if (clientName && clientName !== clientId) {
+      this.#logger.info(`[WSClient] 注销新协议 client_name: ${clientName}, reason=${reason}`);
+      unregisterTasks.push(
+        this.request(
+          WEBSOCKET_MESSAGE_TYPES.CLIENT_UNREGISTER_REQUESTED,
+          { client_id: clientName, reason },
+          { timeout: 500 }
+        ).then(() => {
+          this.#logger.info(`[WSClient] ✅ 新协议注销成功: ${clientName}`);
+        }).catch(error => {
+          this.#logger.warn(`[WSClient] ⚠️ 新协议注销失败（忽略）: ${clientName}, error=${error.message}`);
+        })
+      );
+    }
+
+    // 等待所有注销任务完成（即使部分失败也继续）
+    try {
+      await Promise.allSettled(unregisterTasks);
+      this.#logger.info("[WSClient] 取消注册完成（新旧协议均已尝试）");
+    } catch (error) {
+      // Promise.allSettled 不会reject，这里是兜底
+      this.#logger.warn(`[WSClient] 取消注册异常（忽略）: ${error.message}`);
+    }
+
+    // 总是resolve，确保不阻塞后续流程
+    return Promise.resolve();
+  }
+
   async request(messageType, payload = {}, options = {}) {
     // 严格白名单：仅允许已注册的 *:requested 类型
     if (!WSClient.ALLOWED_OUTBOUND_TYPES.has(messageType)) {
@@ -595,6 +770,18 @@ export class WSClient {
       data: payload
     };
     if (metadata) { message.metadata = metadata; }
+
+    // ========== 自动添加 to 字段（新协议：2025-01-16）==========
+    // 规则：注册/取消注册消息禁止包含 to，其他请求消息自动添加 to: "backend"
+    const REGISTER_MESSAGES = [
+      "client:register:requested",
+      "client:unregister:requested",  // 客户端取消注册（窗口关闭时）
+      "pdf-viewer:register:requested"
+    ];
+    if (!message.to && !REGISTER_MESSAGES.includes(messageType)) {
+      message.to = "backend";
+      this.#logger.debug(`[WSClient] request() 自动添加 to: "backend" (type=${messageType})`);
+    }
 
     return new Promise((resolve, reject) => {
       let retryCount = 0;

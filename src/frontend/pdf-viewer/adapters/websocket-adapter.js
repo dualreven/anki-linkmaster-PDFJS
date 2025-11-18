@@ -171,16 +171,37 @@ export class WebSocketAdapter {
                 const id = message?.data?.uuid || message?.data?.anchor_id || null;
                 this.#logger.info("[anchor] create completed", { id });
                 try { this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATED, { anchorId: id }, { actorId: "WebSocketAdapter" }); } catch (e) { this.#logger.warn("[anchor] emit ANCHOR.CREATED failed", e); }
+
+                // [DIAGNOSTIC] 追踪创建完成后的自动刷新
+                this.#logger.warn("[DIAGNOSTIC] Auto-refresh after CREATE_COMPLETED", {
+                  source: "CREATE_COMPLETED handler",
+                  location: "Line 174-181",
+                  timestamp: Date.now()
+                });
+
                 // 创建成功后刷新列表
                 try {
                   const params = new URLSearchParams(window.location.search);
                   const pdfId = params.get("pdf-id");
                   if (pdfId) {
+                    // [DIAGNOSTIC] 记录请求发送
+                    this.#logger.warn("[DIAGNOSTIC] Sending ANCHOR_LIST request", {
+                      source: "after CREATE",
+                      pdfId,
+                      timestamp: Date.now()
+                    });
                     this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
                   }
                 } catch (e) { this.#logger.warn("[anchor] request list after create completed failed", e); }
               } else if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_ACTIVATE_COMPLETED) {
-                // 先就地更新当前项，再刷新列表以对齐“单选语义”的后端状态
+                // [DIAGNOSTIC] 追踪激活完成后的自动刷新
+                this.#logger.warn("[DIAGNOSTIC] Auto-refresh after ACTIVATE_COMPLETED", {
+                  source: "ACTIVATE_COMPLETED handler",
+                  location: "Line 182-197",
+                  timestamp: Date.now()
+                });
+
+                // 更新当前项状态（不再自动刷新列表以避免死循环）
                 try {
                   const id = message?.data?.anchor_id || message?.data?.uuid || null;
                   const active = !!(message?.data?.active ?? true);
@@ -188,19 +209,29 @@ export class WebSocketAdapter {
                     this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.ACTIVATED, { anchorId: String(id), active }, { actorId: "WebSocketAdapter" });
                   }
                 } catch { this.#logger.warn("anchor activate inbound mapping failed"); }
-                try {
-                  const params = new URLSearchParams(window.location.search);
-                  const pdfId = params.get("pdf-id");
-                  if (pdfId) {
-                    this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
-                  }
-                } catch { this.#logger.warn("noop"); }
+                // ❌ 移除自动刷新逻辑以修复死循环问题
+                // 原因：激活锚点不需要刷新整个列表，且会触发 ACTIVATE → LIST → LOADED → re-ACTIVATE 循环
               } else {
+                // [DIAGNOSTIC] 追踪其他完成事件的自动刷新
+                this.#logger.warn("[DIAGNOSTIC] Auto-refresh after OTHER_COMPLETED", {
+                  source: "catch-all handler",
+                  location: "Line 198-206",
+                  messageType: type,
+                  timestamp: Date.now()
+                });
+
                 // 其他完成事件后请求刷新列表（若可获取pdfId）
                 try {
                   const params = new URLSearchParams(window.location.search);
                   const pdfId = params.get("pdf-id");
                   if (pdfId) {
+                    // [DIAGNOSTIC] 记录请求发送
+                    this.#logger.warn("[DIAGNOSTIC] Sending ANCHOR_LIST request", {
+                      source: "after OTHER",
+                      messageType: type,
+                      pdfId,
+                      timestamp: Date.now()
+                    });
                     this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
                   }
                 } catch { this.#logger.warn("noop"); }
@@ -234,29 +265,9 @@ export class WebSocketAdapter {
    * @private
    */
   #setupOutgoingMessageHandlers() {
-    // 连接建立后，向后端注册本 Viewer 实例信息（viewer_id 与 pdf_uuid 绑定）
-    const unsubConn = this.#eventBus.on(
-      WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED,
-      () => {
-        try {
-          const pdfId = (() => { try { return new URLSearchParams(window.location.search).get("pdf-id"); } catch { return null; } })();
-          this.#wsClient.send({
-            type: WEBSOCKET_MESSAGE_TYPES.VIEWER_REGISTER_REQUESTED,
-            metadata: { version: "1.0.0" },
-            data: {
-              viewer_id: this.#viewerInstanceId,
-              pdf_uuid: pdfId,
-              url: window?.location?.href || "",
-              title: document?.title || ""
-            }
-          });
-          this.#logger.info("[ViewerRegister] sent", { viewer_id: this.#viewerInstanceId, pdf_uuid: pdfId });
-        } catch (e) {
-          this.#logger.warn("failed to send viewer register", e);
-        }
-      },
-      { subscriberId: "WebSocketAdapter" }
-    );
+    // 注册逻辑已移至 WebSocketAdapterViewer（使用公共基类）
+    // 此方法仅负责业务消息的转发
+
     // 📥 监听事件: pdf-viewer:file:load-success
     // 发射者: features/pdf
     // 作用: 加载完成后执行必要的后续动作（如 visited_at 更新）
@@ -355,9 +366,26 @@ export class WebSocketAdapter {
         try {
           const anchorId = data?.anchorId || null;
           const pdfId = data?.pdf_uuid || getPdfId();
+
+          // [DIAGNOSTIC] 追踪 ANCHOR.DATA.LOAD 事件来源
+          const stack = new Error().stack.split('\n').slice(1, 4).join('\n');
+          this.#logger.warn("[DIAGNOSTIC] ANCHOR.DATA.LOAD triggered", {
+            source: "EventBus listener",
+            location: "Line 376-390",
+            anchorId,
+            pdfId,
+            callStack: stack
+          });
+
           if (anchorId) {
             this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_GET, { anchor_id: anchorId, pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
           } else if (pdfId) {
+            // [DIAGNOSTIC] 记录 ANCHOR_LIST 请求发送
+            this.#logger.warn("[DIAGNOSTIC] Sending ANCHOR_LIST request", {
+              source: "ANCHOR.DATA.LOAD handler",
+              pdfId,
+              timestamp: Date.now()
+            });
             this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
           }
         } catch (e) { this.#logger.warn("ANCHOR.DATA.LOAD bridge failed", e); }
@@ -434,7 +462,7 @@ export class WebSocketAdapter {
       { subscriberId: "WebSocketAdapter" }
     );
 
-    this.#unsubscribeFunctions.push(unsubscribe1, unsubscribe2, unsubscribe3, unsubA1, unsubA2, unsubA3, unsubA4, unsubA5, unsubConn);
+    this.#unsubscribeFunctions.push(unsubscribe1, unsubscribe2, unsubscribe3, unsubA1, unsubA2, unsubA3, unsubA4, unsubA5);
   }
 
   /**
@@ -480,11 +508,17 @@ export class WebSocketAdapter {
       break;
 
     case WEBSOCKET_MESSAGE_TYPES.VIEWER_NAVIGATE_REQUESTED:
-      this.#handleViewerNavigate(data, message?.request_id);
+      // ✅ 传递完整 message 对象（包含 to 路由字段）
+      this.#handleViewerNavigate(message, message?.request_id);
       break;
 
     default:
-      this.#logger.warn(`Unhandled WebSocket message type: ${type}`);
+      this.#logger.warn(`Unhandled WebSocket message type: ${type}`, {
+        message_keys: Object.keys(message),
+        has_to: !!message?.to,
+        has_data: !!message?.data,
+        message_type: type
+      });
     }
   }
 
@@ -590,22 +624,96 @@ export class WebSocketAdapter {
    * @param {Object} data
    * @param {string} [correlationId]
    */
-  #handleViewerNavigate(data, correlationId) {
+  /**
+   * 处理 PDF Viewer 导航请求（支持新路由协议）
+   *
+   * @private
+   * @param {Object} message - 完整的 WebSocket 消息对象
+   * @param {string} correlationId - 请求关联 ID
+   */
+  #handleViewerNavigate(message, correlationId) {
     try {
-      const to = data?.to || {};
-      const targetViewer = to.viewer_id || null;
-      const targetPdf = to.pdf_uuid || null;
+      // ✅ 从 message 顶层读取路由字段
+      const to = message?.to || {};
+      const data = message?.data || {};
 
-      // 路由匹配：若指定 viewer_id 且不匹配则忽略；若指定 pdf_uuid 且不匹配也忽略
-      if (targetViewer && targetViewer !== this.#viewerInstanceId) {
-        this.#logger.warn("[Navigate] ignore message: viewer_id mismatch", { targetViewer, self: this.#viewerInstanceId });
-        return;
+      // ✅ 记录收到的导航请求详情（便于调试）
+      this.#logger.info("[Navigate] 收到导航请求", {
+        to: to,
+        data_target: data?.target,
+        request_id: correlationId,
+        has_to_field: !!message?.to,
+        has_data_field: !!message?.data
+      });
+
+      // === 路由协议验证 ===
+
+      // 1. 检查旧协议字段（给出警告但仍然处理）
+      if (to.viewer_id || to.pdf_uuid) {
+        this.#logger.warn(
+          "[Navigate] 收到已废弃的旧协议字段（viewer_id/pdf_uuid），建议迁移到新协议（client_id/routing_key）",
+          { deprecated_fields: { viewer_id: to.viewer_id, pdf_uuid: to.pdf_uuid } }
+        );
+
+        // ⚠️ 向后兼容：旧协议仍然验证
+        const targetViewer = to.viewer_id || null;
+        const targetPdf = to.pdf_uuid || null;
+
+        if (targetViewer && targetViewer !== this.#viewerInstanceId) {
+          this.#logger.warn("[Navigate] ignore message: viewer_id mismatch", { targetViewer, self: this.#viewerInstanceId });
+          this.#wsClient.send({
+            type: WEBSOCKET_MESSAGE_TYPES.VIEWER_NAVIGATE_FAILED,
+            request_id: correlationId,
+            error: { code: "VIEWER_ID_MISMATCH", message: "navigate ignored: viewer_id mismatch", target: String(targetViewer), self: String(this.#viewerInstanceId) },
+            data: { viewer_id: this.#viewerInstanceId }
+          });
+          return;
+        }
+
+        const currentPdf = (() => { try { return new URLSearchParams(window.location.search).get("pdf-id"); } catch { return null; } })();
+        if (targetPdf && currentPdf && targetPdf !== currentPdf) {
+          this.#logger.warn("[Navigate] ignore message: pdf_uuid mismatch", { targetPdf, currentPdf });
+          this.#wsClient.send({
+            type: WEBSOCKET_MESSAGE_TYPES.VIEWER_NAVIGATE_FAILED,
+            request_id: correlationId,
+            error: { code: "PDF_UUID_MISMATCH", message: "navigate ignored: pdf_uuid mismatch", target: String(targetPdf), current: String(currentPdf) },
+            data: { viewer_id: this.#viewerInstanceId, pdf_uuid: currentPdf }
+          });
+          return;
+        }
       }
-      const currentPdf = (() => { try { return new URLSearchParams(window.location.search).get("pdf-id"); } catch { return null; } })();
-      if (targetPdf && currentPdf && targetPdf !== currentPdf) {
-        this.#logger.warn("[Navigate] ignore message: pdf_uuid mismatch", { targetPdf, currentPdf });
-        return;
+
+      // 2. ✅ 验证新协议字段（推荐）
+      const targetClientId = to.client_id || null;
+      const routingKey = to.routing_key || null;
+      const targetType = to.target_type || null;
+
+      // 验证：如果指定了 client_id，检查是否匹配当前 viewer
+      if (targetClientId) {
+        // 当前 viewer 的标准化 client_id
+        const currentPdf = (() => { try { return new URLSearchParams(window.location.search).get("pdf-id"); } catch { return null; } })();
+        const currentClientId = currentPdf ? `pdf-viewer-${currentPdf}` : null;
+
+        if (currentClientId && targetClientId !== currentClientId) {
+          this.#logger.debug(
+            "[Navigate] 消息目标不匹配，忽略（client_id 不匹配）",
+            { target: targetClientId, current: currentClientId }
+          );
+          // ⚠️ 组播场景：其他 viewer 也收到了消息，但不是给自己的
+          // 不发送错误（避免污染日志），静默忽略
+          return;
+        }
+
+        this.#logger.debug("[Navigate] 路由验证通过（client_id 匹配）", { client_id: targetClientId });
+      } else if (routingKey) {
+        // 仅通过 routing_key 定位（组播场景）
+        this.#logger.debug("[Navigate] 使用资源路由（routing_key）", { routing_key: routingKey });
+      } else {
+        // 缺少所有路由字段
+        this.#logger.warn("[Navigate] 消息缺少路由字段（client_id 和 routing_key 都为空），假定为广播消息");
       }
+
+      // === 业务逻辑处理 ===
 
       const mode = data?.target?.type || data?.mode || "page";
       const opts = data?.options || {};

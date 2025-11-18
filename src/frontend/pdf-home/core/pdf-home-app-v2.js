@@ -22,6 +22,7 @@ import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS, APP_EVENTS } from "../../co
 import { showError } from "../../common/utils/notification.js";
 
 // 导入功能域
+import { PDFHomeInfraAppFeature } from "../features/infra-app/index.js";  // 新增：WebSocket注册
 import { PDFSorterFeature } from "../features/pdf-sorter/index.js";
 import { PDFEditFeature } from "../features/pdf-edit/index.js";
 import { SidebarFeature } from "../features/sidebar/index.js";
@@ -189,7 +190,13 @@ export class PDFHomeAppV2 {
 
     // 创建并注册 WebSocket 客户端（如果提供了 URL）
     if (options.wsUrl) {
-      this.#wsClient = new WSClient(options.wsUrl, this.#eventBus);
+      // 显式传递 pdf-home 的客户端身份信息
+      const identityOptions = {
+        client_name: "pdf-home",
+        client_id: "ui",
+        module: "pdf-home"
+      };
+      this.#wsClient = new WSClient(options.wsUrl, this.#eventBus, identityOptions);
       this.#container.register("wsClient", this.#wsClient, {
         scope: "singleton"
       });
@@ -361,6 +368,9 @@ export class PDFHomeAppV2 {
 
     // 注册所有功能域（注册不等于安装）
     const features = [
+      // 基础设施功能（最先注册）
+      new PDFHomeInfraAppFeature(),  // WebSocket注册（使用新协议）
+
       // UI布局功能
       new SidebarFeature(),
 

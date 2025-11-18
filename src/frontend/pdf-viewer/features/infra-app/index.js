@@ -6,6 +6,7 @@
 
 import { createPDFViewerContainer } from "../../container/app-container.js";
 import { createWebSocketAdapter } from "../../adapters/websocket-adapter.js";
+import { WebSocketAdapterViewer } from "../../adapters/websocket-adapter-viewer.js";  // 新增：注册适配器
 // 不再直接在此处创建 ConsoleWebSocketBridge（由容器层统一管理）
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS } from "../../../common/event/event-constants.js";
 import { showError } from "../../../common/utils/notification.js";
@@ -19,6 +20,7 @@ export class AppCoreFeature {
   #appContainer = null;
   #wsClient = null;
   #wsAdapter = null;
+  #wsAdapterViewer = null;  // 新增：专属注册适配器
   #consoleBridge = null;
 
   /** 功能名称 */
@@ -95,11 +97,22 @@ export class AppCoreFeature {
     try {
       const { eventBus } = this.#appContainer.getDependencies();
       if (this.#wsClient && eventBus) {
+        // 旧的 WebSocketAdapter 负责消息路由（保留所有现有功能）
         this.#wsAdapter = createWebSocketAdapter(this.#wsClient, eventBus);
         this.#wsAdapter.setupMessageHandlers();
+
+        // 新的 WebSocketAdapterViewer 负责客户端注册（使用统一新协议）
+        this.#wsAdapterViewer = new WebSocketAdapterViewer(this.#wsClient, eventBus);
+        this.#wsAdapterViewer.setupMessageHandlers();
+
+        logger.info("WebSocketAdapter and WebSocketAdapterViewer initialized");
       }
     } catch (e) {
-      logger.warn("Failed to initialize WebSocketAdapter", e);
+      logger.error("Failed to initialize WebSocketAdapter");
+      logger.error(`Error name: ${e?.name}`);
+      logger.error(`Error message: ${e?.message}`);
+      logger.error(`Error stack: ${e?.stack}`);
+      console.error("WebSocketAdapter initialization error:", e);
     }
 
     // 不再创建独立的 Console 桥接器，避免与容器层冲突与重复日志
@@ -151,13 +164,23 @@ export class AppCoreFeature {
       this.#consoleBridge = null;
     }
 
+    // 销毁 WebSocketAdapter
+    if (this.#wsAdapter && typeof this.#wsAdapter.destroy === "function") {
+      this.#wsAdapter.destroy();
+    }
+    this.#wsAdapter = null;
+
+    // 销毁 WebSocketAdapterViewer
+    if (this.#wsAdapterViewer && typeof this.#wsAdapterViewer.destroy === "function") {
+      this.#wsAdapterViewer.destroy();
+    }
+    this.#wsAdapterViewer = null;
+
     // 销毁容器
     if (this.#appContainer) {
       this.#appContainer.dispose();
       this.#appContainer = null;
     }
-
-    this.#wsAdapter = null;
 
     this.#wsClient = null;
 
