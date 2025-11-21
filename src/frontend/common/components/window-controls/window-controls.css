@@ -1,0 +1,67 @@
+/**
+ * @file 自定义窗口控制按钮样式
+ * @description 提供最小化、最大化、关闭按钮的样式，模仿Windows 11风格
+ */
+
+/* 窗口控制按钮容器 */
+.window-controls {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-left: 16px;
+    flex-shrink: 0;
+}
+
+/* 窗口控制按钮基础样式 */
+.window-control-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    background-color: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.15s ease;
+    color: #666;
+}
+
+/* 按钮 hover 效果 */
+.window-control-btn:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* 按钮 active 效果 */
+.window-control-btn:active {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+/* 关闭按钮特殊样式 - 红色hover（模仿 Windows 11）*/
+.window-control-btn.window-close:hover {
+    background-color: #e81123;
+    color: #fff;
+}
+
+.window-control-btn.window-close:active {
+    background-color: #c50b1c;
+    color: #fff;
+}
+
+/* SVG图标样式 */
+.window-control-btn svg {
+    display: block;
+    pointer-events: none;
+}
+
+/* 无边框窗口的阴影效果（应用于根容器）*/
+.frameless-window {
+    /* Windows 11 风格的阴影 */
+    box-shadow:
+        0 0.3px 0.9px rgba(0, 0, 0, 0.108),
+        0 1.6px 3.6px rgba(0, 0, 0, 0.132);
+
+    /* 可选：添加圆角 */
+    /* border-radius: 8px; */
+    /* overflow: hidden; */
+}
