@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from .ports import BackendPortManager
+from .window_lifecycle import WindowLifecycleManager
 
 logger = logging.getLogger('backend-launcher')
 
@@ -84,14 +85,25 @@ class BackendLauncher:
         except Exception:
             pass
 
+        # 窗口生命周期管理器：按 client_id 管理窗口与 ws-client
+        try:
+            self.window_lifecycle = WindowLifecycleManager(logger_obj=self.logger)
+        except Exception:
+            # 若初始化失败，不影响后端启动，仅记录日志
+            self.window_lifecycle = None
+
     def start(self, msgCenter_port: Optional[int] = None,
-              pdfFile_port: Optional[int] = None) -> bool:
+              pdfFile_port: Optional[int] = None,
+              url_port: Optional[int] = None,
+              vite_port: Optional[int] = None) -> bool:
         """
         启动后端服务
 
         Args:
-            msgCenter_port: WebSocket 端口（None=自动分配）
-            pdfFile_port: HTTP 端口（None=自动分配）
+            msgCenter_port: WebSocket 端口（必填，由GUI/CLI传入）
+            pdfFile_port: HTTP 文件服务器端口（必填，由GUI/CLI传入）
+            url_port: 前端资源获取端口（必填，dev模式=vite_port, prod模式=pdfFile_port）
+            vite_port: ⚠️ 已废弃，保留以兼容旧代码，请使用 url_port
         """
         self.logger.info(f"=== 启动后端服务 ({self.mode} 模式) ===")
         try:
@@ -120,12 +132,22 @@ class BackendLauncher:
                 parent = self.parent_app
                 self.logger.info("✅ 使用父应用 QApplication")
 
-            # 2. 端口分配
-            ws_port = self._allocate_port('msgCenter_port', msgCenter_port)
-            http_port = self._allocate_port('pdfFile_port', pdfFile_port)
-            if not (ws_port and http_port):
-                self.logger.error("❌ 端口分配失败")
-                return False
+            # 2. 严格端口分配（禁止兜底）
+            # 严格校验：三个端口必须由GUI/CLI传入
+            if msgCenter_port is None:
+                raise ValueError("msgCenter_port 未指定，请通过 GUI 或 CLI 参数传入")
+            if pdfFile_port is None:
+                raise ValueError("pdfFile_port 未指定，请通过 GUI 或 CLI 参数传入")
+            if url_port is None:
+                raise ValueError(
+                    "url_port 未指定，请检查 GUI 是否正确计算 url_port\n"
+                    "（dev模式: url_port=vite_port, prod模式: url_port=pdfFile_port）"
+                )
+
+            # 启用端口自动更换（端口被占用时自动递增，搜索下一个可用端口）
+            ws_port = self.port_manager.find_available_port('msgCenter_port', msgCenter_port)
+            http_port = self.port_manager.find_available_port('pdfFile_port', pdfFile_port)
+            # url_port 不需要分配（已经是计算好的值，直接保存即可）
 
             # 3. 启动 WebSocket 服务器
             from src.backend.msgCenter_server.embed_msgcenter import EmbedMsgCenterServer
@@ -220,8 +242,8 @@ class BackendLauncher:
                 return False
             self.logger.info(f"✅ HTTP 文件服务器已启动: http://127.0.0.1:{http_port}")
 
-            # 5. 保存端口配置（合并写入）
-            self._save_ports(ws_port, http_port)
+            # 5. 保存端口配置（合并写入，包含 url_port）
+            self._save_ports(ws_port, http_port, url_port)
 
             # 6. 子进程模式: 运行事件循环
             if self.test_app:
@@ -320,7 +342,165 @@ class BackendLauncher:
                 }, ensure_ascii=False))
                 return
 
-            # 通过 WS 触发的查看器打开请求（来自 pdf-home 前端）
+            # 通用窗口打开请求（来自 GUI / 其他客户端）
+            if msg_type == 'app-window:open:requested':
+                try:
+                    data = message.get("data") or {}
+                    client_id = (data.get("client_id") or "").strip()
+                    window_type = (data.get("window_type") or "").strip()
+                    params = data.get("params") or {}
+                    if not client_id or not window_type:
+                        self.logger.warning(
+                            "[MsgDispatch] 忽略 app-window:open:requested：缺少 client_id 或 window_type"
+                        )
+                        return
+
+                    from src.launcher.config import LauncherConfig, LauncherPorts, LauncherPaths, LauncherOptions  # type: ignore
+                    from src.launcher.runner import ensure_pdf_viewer_hosted, ensure_pdf_home_hosted  # type: ignore
+
+                    # 统一构造 LauncherConfig（与旧分支保持一致）
+                    vite_port_val = None
+                    is_dev_env = False
+                    try:
+                        from src.launcher.ports import read_runtime_ports as _read_runtime_ports  # type: ignore
+                        logs_base = self.logs_dir_override if getattr(self, 'logs_dir_override', None) else (project_root / 'logs')
+                        runtime_ports = _read_runtime_ports(logs_base)
+                        vite_port_val = runtime_ports.get('vite_port') or runtime_ports.get('npm_port')
+                        is_dev_env = bool(vite_port_val)
+                        self.logger.info(
+                            "[MsgDispatch] 环境检测(app-window): logs=%s runtime_ports=%s -> is_dev_env=%s vite_port=%s",
+                            str(logs_base),
+                            json.dumps(runtime_ports, ensure_ascii=False),
+                            str(is_dev_env),
+                            str(vite_port_val),
+                        )
+                    except Exception as env_exc:
+                        vite_port_val = None
+                        is_dev_env = False
+                        self.logger.warning(
+                            "[MsgDispatch] 检测 dev/prod 环境失败(app-window), 视为 prod: %s",
+                            env_exc,
+                        )
+
+                    pdfFile_port_val = getattr(self.http_server, 'port', None) if self.http_server else None
+                    url_port_val = vite_port_val if is_dev_env else pdfFile_port_val
+
+                    ports = LauncherPorts(
+                        msgCenter_port=getattr(self.ws_server, 'port', None) if self.ws_server else None,
+                        pdfFile_port=pdfFile_port_val,
+                        url_port=url_port_val,
+                        vite_port=vite_port_val if is_dev_env else None,
+                    )
+                    paths = LauncherPaths(
+                        data_dir=str(self.data_dir),
+                        db_path=str(self.db_path),
+                        static_dir=str(self.static_dir) if getattr(self, 'static_dir', None) else None,
+                        pdfs_dir=str(self.pdfs_dir) if getattr(self, 'pdfs_dir', None) else None,
+                        logs_dir=str(self.logs_dir_override) if getattr(self, 'logs_dir_override', None) else None,
+                    )
+                    options = LauncherOptions(
+                        runtime_mode=self.runtime_mode or 'single',
+                        ankiaddon_root_path=self.ankiaddon_root_path,
+                        keep_backend=True,
+                        frontend_prod=not is_dev_env,
+                    )
+                    cfg = LauncherConfig(ports=ports, paths=paths, options=options)
+
+                    if window_type == "pdf-viewer":
+                        pdf_id = params.get("pdf_id")
+                        if not pdf_id:
+                            self.logger.warning(
+                                "[MsgDispatch] 忽略 app-window:open:requested(pdf-viewer)：缺少 pdf_id"
+                            )
+                            return
+                        self.logger.info(
+                            "[MsgDispatch] app-window 打开 pdf-viewer: client_id=%s pdf_id=%s dev_env=%s ports=%s options=%s",
+                            client_id,
+                            str(pdf_id),
+                            str(is_dev_env),
+                            str(ports),
+                            str(options),
+                        )
+                        rc = ensure_pdf_viewer_hosted(
+                            cfg,
+                            parent_app=self.parent_app or getattr(self, 'app', None),
+                            pdf_id=str(pdf_id),
+                            on_log=lambda s: self.logger.info("[ViewerHost] %s", s),
+                            window_lifecycle=self.window_lifecycle,
+                        )
+                        self.logger.info("[MsgDispatch] app-window PdfViewer ensure-hosted rc=%s", str(rc))
+                    elif window_type == "pdf-home":
+                        self.logger.info(
+                            "[MsgDispatch] app-window 打开 pdf-home: client_id=%s dev_env=%s ports=%s options=%s",
+                            client_id,
+                            str(is_dev_env),
+                            str(ports),
+                            str(options),
+                        )
+                        rc = ensure_pdf_home_hosted(
+                            cfg,
+                            parent_app=self.parent_app or getattr(self, 'app', None),
+                            on_log=lambda s: self.logger.info("[PdfHomeHost] %s", s),
+                            window_lifecycle=self.window_lifecycle,
+                        )
+                        self.logger.info("[MsgDispatch] app-window PdfHome ensure-hosted rc=%s", str(rc))
+                    else:
+                        self.logger.warning(
+                            "[MsgDispatch] 未知的 window_type='%s'，忽略 app-window:open:requested",
+                            window_type,
+                        )
+                except Exception as exc:
+                    self.logger.error("[MsgDispatch] 处理 app-window:open:requested 失败: %s", exc, exc_info=True)
+                return
+
+            # 通用窗口关闭请求（来自 GUI / 其他客户端）
+            if msg_type == 'app-window:close:requested':
+                try:
+                    data = message.get("data") or {}
+                    client_id = (data.get("client_id") or "").strip()
+                    reason = (data.get("reason") or "requested").strip()
+                    if not client_id:
+                        self.logger.warning(
+                            "[MsgDispatch] 忽略 app-window:close:requested：缺少 client_id"
+                        )
+                        return
+                    if self.window_lifecycle is None:
+                        self.logger.warning(
+                            "[MsgDispatch] window_lifecycle 不可用，无法处理 app-window:close:requested(client_id=%s)",
+                            client_id,
+                        )
+                        return
+                    self.logger.info(
+                        "[MsgDispatch] app-window 关闭请求: client_id=%s, reason=%s",
+                        client_id,
+                        reason,
+                    )
+                    self.window_lifecycle.close_window_by_id(client_id, reason=reason)
+
+                    # ✅ 主动注销 RouteRegistry 中的 client_id
+                    # 原因：前端 JS WebSocket 被动关闭时，可能不会触发 _on_client_disconnected() 回调
+                    # 导致 RouteRegistry 中残留注册信息，下次启动时报 "client_id 已存在" 错误
+                    try:
+                        if self.ws_server and hasattr(self.ws_server, '_server'):
+                            route_registry = self.ws_server._server._route_registry  # type: ignore[attr-defined]
+                            if route_registry.has_client(client_id):
+                                if route_registry.unregister_by_client_id(client_id):
+                                    self.logger.info("[MsgDispatch] RouteRegistry 主动注销成功: client_id=%s", client_id)
+                                else:
+                                    self.logger.warning("[MsgDispatch] RouteRegistry 主动注销失败: client_id=%s", client_id)
+                            else:
+                                self.logger.debug("[MsgDispatch] client_id 未在 RouteRegistry 中注册，跳过注销: %s", client_id)
+                    except Exception as cleanup_exc:
+                        self.logger.warning(
+                            "[MsgDispatch] RouteRegistry 注销时发生异常: client_id=%s, error=%s",
+                            client_id,
+                            cleanup_exc,
+                        )
+                except Exception as exc:
+                    self.logger.error("[MsgDispatch] 处理 app-window:close:requested 失败: %s", exc, exc_info=True)
+                return
+
+            # 通过 WS 触发的查看器打开请求（来自 pdf-home 前端 / GUI）
             if msg_type == 'pdf-library:viewer:requested':
                 try:
                     from src.launcher.config import LauncherConfig, LauncherPorts, LauncherPaths, LauncherOptions  # type: ignore
@@ -351,11 +531,37 @@ class BackendLauncher:
                     self.logger.warning("[MsgDispatch] 忽略打开请求：缺少 pdf_id")
                     return
 
-                # 组装启动配置（沿用 Hosted 环境当前端口与路径，禁止兜底）
+                # 组装启动配置（沿用 Hosted 环境当前端口与路径，禁止兜底）：
+                # dev/prod 模式由当前运行环境决定：若 runtime-ports.json 中存在 vite_port/npm_port，则视为 dev，否则视为 prod。
+                vite_port_val = None
+                is_dev_env = False
+                try:
+                    from src.launcher.ports import read_runtime_ports as _read_runtime_ports  # type: ignore
+                    logs_base = self.logs_dir_override if getattr(self, 'logs_dir_override', None) else (project_root / 'logs')
+                    runtime_ports = _read_runtime_ports(logs_base)
+                    vite_port_val = runtime_ports.get('vite_port') or runtime_ports.get('npm_port')
+                    is_dev_env = bool(vite_port_val)
+                    self.logger.info(
+                        "[MsgDispatch] 环境检测(pdf-viewer): logs=%s runtime_ports=%s -> is_dev_env=%s vite_port=%s",
+                        str(logs_base),
+                        json.dumps(runtime_ports, ensure_ascii=False),
+                        str(is_dev_env),
+                        str(vite_port_val),
+                    )
+                except Exception as env_exc:
+                    vite_port_val = None
+                    is_dev_env = False
+                    self.logger.warning("[MsgDispatch] 检测 dev/prod 环境失败(pdf-viewer), 视为 prod: %s", env_exc)
+
+                # 计算 url_port（dev 模式=vite_port, prod 模式=pdfFile_port）
+                pdfFile_port_val = getattr(self.http_server, 'port', None) if self.http_server else None
+                url_port_val = vite_port_val if is_dev_env else pdfFile_port_val
+
                 ports = LauncherPorts(
                     msgCenter_port=getattr(self.ws_server, 'port', None) if self.ws_server else None,
-                    pdfFile_port=getattr(self.http_server, 'port', None) if self.http_server else None,
-                    vite_port=None
+                    pdfFile_port=pdfFile_port_val,
+                    url_port=url_port_val,
+                    vite_port=vite_port_val if is_dev_env else None,
                 )
                 paths = LauncherPaths(
                     data_dir=str(self.data_dir),
@@ -368,12 +574,25 @@ class BackendLauncher:
                     runtime_mode=self.runtime_mode or 'single',
                     ankiaddon_root_path=self.ankiaddon_root_path,
                     keep_backend=True,
-                    frontend_prod=True
+                    frontend_prod=not is_dev_env,
                 )
                 cfg = LauncherConfig(ports=ports, paths=paths, options=options)
 
-                self.logger.info("[MsgDispatch] 打开 pdf-viewer (hosted): pdf_id=%s page_at=%s pos=%s anchor=%s annot=%s outline=%s",
-                                 str(pdf_id), str(page_at), str(position), str(anchor_id), str(annotation_id), str(outline_item_id))
+                try:
+                    self.logger.info(
+                        "[MsgDispatch] 打开 pdf-viewer (hosted): pdf_id=%s page_at=%s pos=%s anchor=%s annot=%s outline=%s dev_env=%s ports=%s options=%s",
+                        str(pdf_id),
+                        str(page_at),
+                        str(position),
+                        str(anchor_id),
+                        str(annotation_id),
+                        str(outline_item_id),
+                        str(is_dev_env),
+                        str(ports),
+                        str(options),
+                    )
+                except Exception:
+                    pass
                 try:
                     # 判定“是否已存在有效窗口”（决定导航路径：URL vs WS）
                     # - 若已存在：仅激活窗口，不通过 URL 传参触发导航；随后通过 WS 下发 navigate 指令（路径1）
@@ -432,7 +651,8 @@ class BackendLauncher:
                         anchor_id=anchor_id if use_url_params else None,
                         annotation_id=annotation_id if use_url_params else None,
                         outline_item_id=outline_item_id if use_url_params else None,
-                        on_log=lambda s: self.logger.info("[ViewerHost] %s", s)
+                        on_log=lambda s: self.logger.info("[ViewerHost] %s", s),
+                        window_lifecycle=self.window_lifecycle,
                     )
                     self.logger.info("[MsgDispatch] PdfViewer ensure-hosted rc=%s", str(rc))
 
@@ -492,10 +712,36 @@ class BackendLauncher:
                     self.logger.error("[MsgDispatch] 无法导入启动器模块: %s", e)
                     return
 
+                # dev/prod 模式同样由当前运行环境决定：runtime-ports.json 中存在 vite_port/npm_port 即视为 dev。
+                vite_port_val = None
+                is_dev_env = False
+                try:
+                    from src.launcher.ports import read_runtime_ports as _read_runtime_ports  # type: ignore
+                    logs_base = self.logs_dir_override if getattr(self, 'logs_dir_override', None) else (project_root / 'logs')
+                    runtime_ports = _read_runtime_ports(logs_base)
+                    vite_port_val = runtime_ports.get('vite_port') or runtime_ports.get('npm_port')
+                    is_dev_env = bool(vite_port_val)
+                    self.logger.info(
+                        "[MsgDispatch] 环境检测(pdf-home): logs=%s runtime_ports=%s -> is_dev_env=%s vite_port=%s",
+                        str(logs_base),
+                        json.dumps(runtime_ports, ensure_ascii=False),
+                        str(is_dev_env),
+                        str(vite_port_val),
+                    )
+                except Exception as env_exc:
+                    vite_port_val = None
+                    is_dev_env = False
+                    self.logger.warning("[MsgDispatch] 检测 dev/prod 环境失败(pdf-home), 视为 prod: %s", env_exc)
+
+                # 计算 url_port（dev 模式=vite_port, prod 模式=pdfFile_port）
+                pdfFile_port_val = getattr(self.http_server, 'port', None) if self.http_server else None
+                url_port_val = vite_port_val if is_dev_env else pdfFile_port_val
+
                 ports = LauncherPorts(
                     msgCenter_port=getattr(self.ws_server, 'port', None) if self.ws_server else None,
-                    pdfFile_port=getattr(self.http_server, 'port', None) if self.http_server else None,
-                    vite_port=None
+                    pdfFile_port=pdfFile_port_val,
+                    url_port=url_port_val,
+                    vite_port=vite_port_val if is_dev_env else None,
                 )
                 paths = LauncherPaths(
                     data_dir=str(self.data_dir),
@@ -508,14 +754,24 @@ class BackendLauncher:
                     runtime_mode=self.runtime_mode or 'single',
                     ankiaddon_root_path=self.ankiaddon_root_path,
                     keep_backend=True,
-                    frontend_prod=True
+                    frontend_prod=not is_dev_env,
                 )
                 cfg = LauncherConfig(ports=ports, paths=paths, options=options)
+                try:
+                    self.logger.info(
+                        "[MsgDispatch] 打开 pdf-home (hosted): dev_env=%s ports=%s options=%s",
+                        str(is_dev_env),
+                        str(ports),
+                        str(options),
+                    )
+                except Exception:
+                    pass
                 try:
                     rc = ensure_pdf_home_hosted(
                         cfg,
                         parent_app=self.parent_app or getattr(self, 'app', None),
-                        on_log=lambda s: self.logger.info("[PdfHomeHost] %s", s)
+                        on_log=lambda s: self.logger.info("[PdfHomeHost] %s", s),
+                        window_lifecycle=self.window_lifecycle,
                     )
                     self.logger.info("[MsgDispatch] PdfHome ensure-hosted rc=%s", str(rc))
                 except Exception as e:
@@ -530,11 +786,26 @@ class BackendLauncher:
         except Exception:
             return None
 
-    def _save_ports(self, ws_port: int, http_port: int):
+    def _save_ports(self, ws_port: int, http_port: int, url_port: int):
+        """
+        保存端口配置到 runtime-ports.json
+
+        Args:
+            ws_port: WebSocket 端口
+            http_port: HTTP 文件服务器端口
+            url_port: 前端资源获取端口（必填）
+        """
         try:
-            self.port_manager.save_runtime_ports({"msgCenter_port": ws_port, "pdfFile_port": http_port})
-        except Exception:
-            pass
+            ports_data = {
+                "msgCenter_port": ws_port,
+                "pdfFile_port": http_port,
+                "url_port": url_port  # ✅ 始终保存 url_port
+            }
+            self.port_manager.save_runtime_ports(ports_data)
+            self.logger.info(f"✅ 端口已保存到 runtime-ports.json: {ports_data}")
+        except Exception as e:
+            self.logger.error(f"❌ 保存端口配置失败: {e}")
+            raise  # 保存失败应该报错，不静默忽略
 
     def _should_show_test_ui(self) -> bool:
         return self.mode == "subprocess" and self.show_ui

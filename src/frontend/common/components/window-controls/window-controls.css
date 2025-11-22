@@ -48,6 +48,28 @@
     color: #fff;
 }
 
+/* 拖拽按钮样式 */
+.window-control-btn.window-drag {
+    cursor: grab;
+    color: #999;
+}
+
+.window-control-btn.window-drag:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+    color: #666;
+}
+
+.window-control-btn.window-drag:active {
+    cursor: grabbing;
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+.window-control-btn.window-drag.dragging {
+    cursor: grabbing;
+    background-color: rgba(0, 120, 212, 0.1);
+    color: #0078d4;
+}
+
 /* SVG图标样式 */
 .window-control-btn svg {
     display: block;

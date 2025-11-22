@@ -42,8 +42,11 @@ class LaunchConfig:
     """是否使用 Vite 开发服务器（仅开发模式有效）"""
 
     # ===== 端口配置 =====
+    url_port: Optional[int] = None
+    """前端资源获取端口（dev模式=vite_port, prod模式=pdfFile_port）"""
+
     vite_port: Optional[int] = None
-    """Vite 开发服务器端口（None=自动解析）"""
+    """Vite 开发服务器端口（None=自动解析）⚠️ 已废弃，请使用 url_port"""
 
     msgCenter_port: Optional[int] = None
     """消息中心 WebSocket 服务器端口（None=自动解析）"""
@@ -122,6 +125,7 @@ class LaunchConfig:
         is_prod = getattr(args, 'prod', False)
 
         # 端口参数
+        url_port = getattr(args, 'url_port', None)
         vite_port = getattr(args, 'vite_port', None)
         msgCenter_port = getattr(args, 'msgCenter_port', None)
         pdfFile_port = getattr(args, 'pdfFile_port', None)
@@ -151,6 +155,7 @@ class LaunchConfig:
 
         cfg = cls(
             is_prod=is_prod,
+            url_port=url_port,
             vite_port=vite_port,
             msgCenter_port=msgCenter_port,
             pdfFile_port=pdfFile_port,
@@ -192,6 +197,7 @@ class LaunchConfig:
         return {
             'is_prod': self.is_prod,
             'use_vite': self.use_vite,
+            'url_port': self.url_port,
             'vite_port': self.vite_port,
             'msgCenter_port': self.msgCenter_port,
             'pdfFile_port': self.pdfFile_port,

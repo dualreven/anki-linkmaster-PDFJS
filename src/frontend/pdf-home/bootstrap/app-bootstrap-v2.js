@@ -24,7 +24,6 @@ const logger = getLogger("pdf-home/bootstrap-v2");
 export async function bootstrapPDFHomeAppV2(options = {}) {
   logger.info("[BOOT] bootstrapV2: begin");
   logger.info("Bootstrap V2 starting...");
-  try { const el = document.getElementById("app-boot-banner"); if (el) {el.textContent = "解析配置中...";} } catch { /* no-op */ }
 
   try {
     // 1. 解析 WebSocket 端口
@@ -32,7 +31,6 @@ export async function bootstrapPDFHomeAppV2(options = {}) {
     // 使用 IPv4 回环地址，避免 localhost 在部分环境中解析为 ::1 导致握手失败
     const wsUrl = `ws://127.0.0.1:${wsPort}`;
     logger.info(`[BOOT] wsUrl=${wsUrl}`);
-    try { const el = document.getElementById("app-boot-banner"); if (el) {el.textContent = `连接消息中心中(${wsPort})...`;} } catch { /* no-op */ }
 
     // 2. 合并启动选项
     const appOptions = {
@@ -53,7 +51,6 @@ export async function bootstrapPDFHomeAppV2(options = {}) {
     logger.info("[BOOT] new PDFHomeAppV2 done");
 
     logger.info("Starting app V2 initialization...");
-    try { const el = document.getElementById("app-boot-banner"); if (el) {el.textContent = "初始化界面中...";} } catch { /* no-op */ }
     await app.initialize();
     logger.info("[BOOT] app.initialize() completed");
 
@@ -84,13 +81,6 @@ export async function bootstrapPDFHomeAppV2(options = {}) {
     // 6. 记录启动成功
     const appLogger = getLogger("pdf-home/app-v2");
     appLogger.info("PDF Home App V2 (Feature Domain Architecture) started successfully");
-    try {
-      const el = document.getElementById("app-boot-banner");
-      if (el) {
-        el.textContent = "启动完成（横幅保留，用于观测状态）";
-        try { el.style.pointerEvents = "none"; } catch {}
-      }
-    } catch { /* no-op */ }
 
     // 记录功能域状态
     const state = app.getState();
@@ -115,13 +105,6 @@ export async function bootstrapPDFHomeAppV2(options = {}) {
       } catch { return "未知错误"; }
     })();
     try { showError("启动失败: " + reason, 8000); } catch { /* no-op */ }
-    try {
-      const el = document.getElementById("app-boot-banner");
-      if (el) {
-        el.textContent = "启动失败: " + reason;
-        el.style.background = "#a40000";
-      }
-    } catch { /* no-op */ }
 
     // 尝试记录错误
     try {

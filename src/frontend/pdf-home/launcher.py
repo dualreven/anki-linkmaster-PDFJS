@@ -266,13 +266,13 @@ class PdfHomeApp:
             except Exception:
                 return None
 
-        # ✅ 优先使用 url_port，回退到 vite_port（兼容性）
+        # ✅ 优先使用传入参数（GUI Hosted 模式），仅在未指定时才读取 runtime-ports.json（CLI 模式兼容）
         url_port_json = extras.get("url_port")  # runtime-ports.json 中的 url_port
         url_port = _to_int_or_none(
-            self.config.url_port or url_port_json or self.config.vite_port or vite_json
+            self.config.url_port if self.config.url_port is not None else (url_port_json or self.config.vite_port or vite_json)
         )
-        msgCenter_port = _to_int_or_none(self.config.msgCenter_port or msgCenter_json)
-        pdfFile_port = _to_int_or_none(self.config.pdfFile_port or pdfFile_json)
+        msgCenter_port = _to_int_or_none(self.config.msgCenter_port if self.config.msgCenter_port is not None else msgCenter_json)
+        pdfFile_port = _to_int_or_none(self.config.pdfFile_port if self.config.pdfFile_port is not None else pdfFile_json)
         js_debug_port = _to_int_or_none(self.config.js_debug_port or extras.get("pdf-home-js")) or 9222
 
         # 严格校验：url_port, msgCenter_port, pdfFile_port 不能为 None
@@ -493,16 +493,33 @@ class PdfHomeApp:
     def cleanup(self):
         """清理资源与日志处理器。"""
         logger.info("开始清理资源...")
+
+        # ✅ 1. 先关闭 WebSocket（让后端注销客户端）
         if self.ws_client:
             try:
+                logger.info("正在关闭 WebSocket 连接...")
                 self.ws_client.close()
-            except Exception:
-                pass
+                logger.info("WebSocket 已关闭")
+            except Exception as e:
+                logger.error(f"关闭 WebSocket 失败: {e}")
+
+        # ✅ 2. 再关闭窗口（避免应用提前退出）
+        if self.window:
+            try:
+                logger.info("正在关闭窗口...")
+                self.window.close()
+                logger.info("窗口已关闭")
+            except Exception as e:
+                logger.error(f"关闭窗口失败: {e}")
+
+        # 清理 JS 控制台日志记录器
         if self.js_console_logger:
             try:
                 self.js_console_logger.stop()
             except Exception:
                 pass
+
+        # 刷新并关闭所有日志处理器
         try:
             for handler in logging.getLogger().handlers:
                 if hasattr(handler, 'flush'):

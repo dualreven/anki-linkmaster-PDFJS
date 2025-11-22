@@ -16,6 +16,9 @@
 from __future__ import annotations
 
 import sys
+import json
+import uuid
+import time
 from pathlib import Path
 from typing import Any, Dict
 
@@ -24,7 +27,8 @@ from PyQt6.QtWidgets import (
     QLabel, QPushButton, QSpinBox, QCheckBox, QLineEdit, QMessageBox,
     QFormLayout, QGroupBox
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QUrl, QEventLoop, QTimer
+from PyQt6.QtWebSockets import QWebSocket
 
 # 显式导入（测试会检查）
 from src.gui_launcher.controller import Controller, ControllerOptions  # noqa: F401
@@ -52,6 +56,33 @@ for d in (DEFAULT_LOGS, DEFAULT_DATA, DEFAULT_PDFS):
         d.mkdir(parents=True, exist_ok=True)
     except Exception:
         pass
+
+def _clear_logs_directory(base_logs: Path) -> None:
+    """
+    每次 GUI 启动时清空 logs 目录的所有内容（彻底清空）。
+    - 删除 logs/ 目录下的所有文件和子目录；
+    - 删除后重新创建空的 logs/ 目录；
+    - 失败不阻断 GUI 启动（容错处理）。
+    """
+    try:
+        import shutil
+        if base_logs.exists():
+            # 遍历删除所有内容
+            for item in base_logs.iterdir():
+                try:
+                    if item.is_dir():
+                        shutil.rmtree(item, ignore_errors=True)
+                    else:
+                        item.unlink()
+                except Exception:
+                    # 单个文件删除失败不影响其他文件
+                    pass
+        # 确保目录存在
+        base_logs.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        # 清理失败不得阻断 GUI 启动
+        pass
+
 
 def _truncate_gui_log_file(base_logs: Path) -> None:
     """
@@ -101,7 +132,9 @@ class GUILauncher(QMainWindow):
         self._static_dir = DEFAULT_STATIC
         self._pdfs_dir = DEFAULT_PDFS
         self._db_path = DEFAULT_DB
-        # 清空上一次会话的 GUI 日志
+        # 清空整个 logs 目录（彻底清空所有日志文件）
+        _clear_logs_directory(self._logs_dir)
+        # 清空上一次会话的 GUI 日志（写入会话起始标记）
         _truncate_gui_log_file(self._logs_dir)
         try:
             self._controller = Controller(ControllerOptions(component_root=SCRIPT_ROOT, logs_dir=self._logs_dir, on_log=self._log))
@@ -179,14 +212,16 @@ class GUILauncher(QMainWindow):
         btn_backend = QPushButton("启动后端(Hosted)")
         btn_home = QPushButton("启动 PDF-Home (Hosted)")
         btn_viewer = QPushButton("启动 PDF-Viewer (Hosted)")
+        btn_viewer_nav = QPushButton("跳转测试（MsgCenter）")
         btn_stop_backend = QPushButton("停止后端")
-        row_btns.addWidget(btn_backend); row_btns.addWidget(btn_home); row_btns.addWidget(btn_viewer); row_btns.addWidget(btn_stop_backend)
+        row_btns.addWidget(btn_backend); row_btns.addWidget(btn_home); row_btns.addWidget(btn_viewer); row_btns.addWidget(btn_viewer_nav); row_btns.addWidget(btn_stop_backend)
         lay.addLayout(row_btns)
 
         # 绑定
         btn_backend.clicked.connect(self._start_backend_hosted)     # type: ignore[arg-type]
         btn_home.clicked.connect(self._start_pdf_home_hosted)       # type: ignore[arg-type]
         btn_viewer.clicked.connect(self._start_pdf_viewer_hosted)   # type: ignore[arg-type]
+        btn_viewer_nav.clicked.connect(self._send_viewer_navigate_via_msgcenter)  # type: ignore[arg-type]
         btn_stop_backend.clicked.connect(self._stop_backend_hosted) # type: ignore[arg-type]
 
         self.setCentralWidget(root)
@@ -201,6 +236,112 @@ class GUILauncher(QMainWindow):
                     fn(str(msg))
         except Exception:
             pass
+
+    def _send_ws_text_qt(self, port: int, text: str, timeout_ms: int = 2000, *, expect_types: tuple[str, ...] = (), correlation_id: str | None = None) -> str:
+        """
+        使用 PyQt QWebSocket 发送一条文本消息并在超时内等待一条匹配回执：
+        - 自动完成客户端注册（client:register:requested → client:register:completed）
+        - 注册成功后发送业务消息
+        - 若提供 expect_types/correlation_id，则仅当收到 type 命中或 request_id 匹配的消息时返回；
+        - 否则返回首条收到的消息文本；
+        - 超时返回空字符串。
+        """
+        ack = {"text": ""}
+        ws = QWebSocket()
+        loop = QEventLoop()
+        timer = QTimer()
+        timer.setSingleShot(True)
+
+        # 状态管理：先注册，再发送业务消息
+        state = {"registered": False, "register_rid": str(uuid.uuid4())}
+
+        def _on_connected():
+            try:
+                # 第一步：发送客户端注册消息
+                register_msg = {
+                    "type": "client:register:requested",
+                    "request_id": state["register_rid"],
+                    "timestamp": int(time.time() * 1000),
+                    "data": {
+                        "client_name": "gui-launcher",
+                        "client_id": "ui",
+                        "module": "gui-launcher"
+                    }
+                }
+                ws.sendTextMessage(json.dumps(register_msg))
+            except Exception:
+                try: loop.quit()
+                except Exception: pass
+
+        def _on_msg(msg: str):
+            try:
+                s = str(msg)
+
+                # 第一步：等待注册完成
+                if not state["registered"]:
+                    # 检查是否是注册响应
+                    if f"\"request_id\":\"{state['register_rid']}\"" in s and "\"type\":\"client:register:completed\"" in s:
+                        state["registered"] = True
+                        # 注册成功，发送业务消息
+                        try:
+                            ws.sendTextMessage(str(text))
+                        except Exception:
+                            loop.quit()
+                        return
+                    # 注册失败
+                    elif f"\"request_id\":\"{state['register_rid']}\"" in s and "\"type\":\"client:register:failed\"" in s:
+                        ack["text"] = s  # 返回注册失败消息
+                        loop.quit()
+                        return
+                    # 其他消息忽略
+                    return
+
+                # 第二步：注册成功后，等待业务消息响应
+                # 快速匹配（避免 JSON 反序列化引入依赖）
+                if correlation_id and (f"\"request_id\":\"{correlation_id}\"" in s):
+                    ack["text"] = s
+                    loop.quit()
+                    return
+                if expect_types:
+                    for t in expect_types:
+                        if f"\"type\":\"{t}\"" in s:
+                            ack["text"] = s
+                            loop.quit()
+                            return
+                # 未设置期望 → 接收第一条
+                if not expect_types and not correlation_id:
+                    ack["text"] = s
+                    loop.quit()
+            except Exception:
+                try: loop.quit()
+                except Exception: pass
+
+        def _on_error(*_args, **_kw):
+            try: loop.quit()
+            except Exception: pass
+
+        def _on_disconnected():
+            try:
+                if not ack["text"]:
+                    loop.quit()
+            except Exception:
+                pass
+
+        ws.connected.connect(_on_connected)          # type: ignore[arg-type]
+        ws.textMessageReceived.connect(_on_msg)      # type: ignore[arg-type]
+        ws.errorOccurred.connect(_on_error)          # type: ignore[arg-type]
+        ws.disconnected.connect(_on_disconnected)    # type: ignore[arg-type]
+        timer.timeout.connect(loop.quit)             # type: ignore[arg-type]
+
+        try:
+            ws.open(QUrl(f"ws://127.0.0.1:{int(port)}"))
+            timer.start(int(timeout_ms))
+            loop.exec()
+        finally:
+            try: ws.close()
+            except Exception: pass
+
+        return ack["text"]
 
     def _resolved_paths_from_ui(self) -> Dict[str, str]:
         """
@@ -289,17 +430,46 @@ class GUILauncher(QMainWindow):
                 self._log("❌ 未检测到 QApplication 实例，无法在 Hosted 模式启动")
                 return
 
-            # 端口与路径
-            ports_now = self._runtime_ports() or {}
-            msg_port = int(self.msgCenter_port_input.value() or 0) or None
-            http_port = int(self.pdfFile_port_input.value() or 0) or None
+            # 1️⃣ 读取 UI 配置
+            is_prod = bool(self.frontend_prod_checkbox.isChecked())
+            msgcenter_port = int(self.msgCenter_port_input.value() or 0) or None
+            pdffile_port = int(self.pdfFile_port_input.value() or 0) or None
+            vite_port_ui = int(self.vite_port_input.value() or 0) or None
             p = self._resolved_paths_from_ui()
 
-            # 构造配置并调用 services.runner（同步）
+            # 2️⃣ 计算 url_port（核心逻辑）
+            url_port = None
+            if is_prod:
+                # 生产模式：url_port = pdffile_port
+                url_port = pdffile_port
+                self._log(f"ℹ️ [PROD模式] url_port = pdffile_port = {url_port}")
+                self._log("ℹ️ [PROD模式] 使用打包后的静态文件 (dist/latest/static/)，跳过 Vite 启动")
+            else:
+                # 开发模式：启动 Vite，url_port = actual_vite_port
+                try:
+                    if not vite_port_ui:
+                        raise ValueError("开发模式必须指定 Vite 端口（UI 输入框）")
+                    if not hasattr(self, '_controller') or self._controller is None:
+                        self._controller = Controller(ControllerOptions(
+                            component_root=SCRIPT_ROOT,
+                            logs_dir=self._logs_dir,
+                            on_log=lambda m: self._log(m)
+                        ))
+                    self._log(f"[DEV模式] 正在启动 Vite 开发服务器 (端口 {vite_port_ui})...")
+                    pid, actual_vite_port = self._controller.ensure_vite_dev(vite_port_ui)
+                    url_port = actual_vite_port
+                    self._log(f"✅ [DEV模式] Vite 已启动: PID={pid}, url_port={url_port}")
+                except Exception as vite_e:
+                    self._log(f"❌ [DEV模式] Vite 启动失败: {vite_e}")
+                    self._log("[ERROR] 开发模式下 Vite 启动失败，无法继续")
+                    return
+
+            # 3️⃣ 构造配置（包含 url_port）
             cfg = _LConfig(
                 ports=_LPorts(
-                    msgCenter_port=msg_port,
-                    pdfFile_port=http_port,
+                    msgCenter_port=msgcenter_port,
+                    pdfFile_port=pdffile_port,
+                    url_port=url_port  # ✅ 传递 url_port
                 ),
                 paths=_LPaths(
                     data_dir=str(p["data_dir"]),
@@ -310,8 +480,11 @@ class GUILauncher(QMainWindow):
                 ),
                 options=_LOpts(
                     runtime_mode="single",
+                    frontend_prod=is_prod  # ✅ 传递 is_prod
                 ),
             )
+            self._log(f"[TRACE] 配置已构造: msgCenter={msgcenter_port}, pdfFile={pdffile_port}, url={url_port}, is_prod={is_prod}")
+
             inst = _gl_services.start_backend_hosted(
                 cfg,
                 parent_app=parent_app,
@@ -365,57 +538,67 @@ class GUILauncher(QMainWindow):
 
     # ---------- 前端（Hosted） ----------
     def _start_pdf_home_hosted(self) -> None:
-        """异步启动 PDF-Home (Hosted 模式)"""
+        """
+        通过向 MsgCenter 发送 'app-window:open:requested' 消息来启动/激活 pdf-home。
+        - 后台已根据自身运行环境（dev/prod）决定前端入口端口（通过 runtime-ports.json 中是否存在 vite_port 判断）；
+        - 此处仅负责通过 WS 触发打开请求，不再在消息中携带模式信息。
+        """
         try:
-            self._log("⏳ 正在准备启动 PDF-Home (Hosted 模式)...")
-
-            is_prod = bool(self.frontend_prod_checkbox.isChecked())
+            self._log("⏳ 正在通过 MsgCenter 请求启动 PDF-Home ...")
             ports = self._runtime_ports() or {}
-            # Dev 模式明确以 UI 指定端口为准，并立即持久化到 runtime-ports.json
-            # 避免兜底扫描，遵循“UI 为真源”的约束
-            vite_port = int(self.vite_port_input.value() or 3000)
-            try:
-                _gl_services.merge_runtime_ports(self._logs_dir, {"vite_port": int(vite_port), "npm_port": int(vite_port)})
-                self._log(f"[TRACE:HOSTED] 已将 UI 指定 Vite 端口写入 runtime-ports.json → {vite_port}")
-            except Exception as _e:
-                self._log(f"[WARN] 同步 UI 指定 vite_port 到 runtime-ports.json 失败: {_e}")
-            ws = int(ports.get("msgCenter_port") or (self.msgCenter_port_input.value() or 0) or 0)
-            http = int(ports.get("pdfFile_port") or (self.pdfFile_port_input.value() or 0) or 0)
-
-            self._log(f"[TRACE:HOSTED] pdf-home pre-check → is_prod={is_prod} runtime={ports} ui(vite={self.vite_port_input.value() or 0}, ws={self.msgCenter_port_input.value() or 0}, http={self.pdfFile_port_input.value() or 0})")
-
-            # Dev 模式检查 Vite 是否运行
-            if not is_prod and not self._is_port_listening("127.0.0.1", int(vite_port)):
-                self._log(f'[ERROR] Vite 未运行（端口 {vite_port} 未监听）。请点击"启动 Vite (Dev)"或执行：pnpm run dev -- --port {int(vite_port)}')
+            ws_port = int(ports.get("msgCenter_port") or (self.msgCenter_port_input.value() or 0) or 0)
+            if not ws_port:
+                self._log("[ERROR] 未能获取 MsgCenter 端口（runtime-ports.json 或 UI 均为空）")
+                return
+            if not self._is_port_listening("127.0.0.1", int(ws_port)):
+                error_msg = (
+                    f"❌ 连接错误：MsgCenter 未运行\n\n"
+                    f"检测到端口 {ws_port} 未被监听。\n\n"
+                    f"📝 解决方法：\n"
+                    f"1. 先点击 '启动 MsgCenter' 按钮\n"
+                    f"2. 等待后端启动完成（通常需要 2-3 秒）\n"
+                    f"3. 确认日志中显示 '✅ MsgCenter 已启动'\n"
+                    f"4. 再重试导航测试"
+                )
+                QMessageBox.critical(self, "连接错误", error_msg)
+                self._log(f"[ERROR] MsgCenter 未监听端口 {ws_port}，请先启动后端")
                 return
 
-            # 准备路径参数
-            p = self._resolved_paths_from_ui()
+            from src.backend.msgCenter_server.standard_protocol import StandardMessageHandler as _SMH  # 延迟导入
+            import time as _time
+            rid = _SMH.generate_request_id()
+            msg: Dict[str, Any] = {
+                "type": "app-window:open:requested",
+                "timestamp": int(_time.time() * 1000),
+                "request_id": rid,
+                "data": {
+                    "client_id": "pdf-home",
+                    "window_type": "pdf-home",
+                    "params": {},
+                },
+            }
 
-            # 在主线程同步启动 Hosted 实例（避免在 QThread 中创建 QWidget 导致崩溃）
-            cfg = _LConfig(
-                ports=_LPorts(
-                    vite_port=vite_port if not is_prod else None,
-                    msgCenter_port=ws or None,
-                    pdfFile_port=http or None,
-                ),
-                paths=_LPaths(
-                    logs_dir=str(p["logs_dir"]),
-                    data_dir=str(p["data_dir"]),
-                    db_path=str(p["db_path"]),
-                    static_dir=str(p["static_dir"]),
-                    pdfs_dir=str(p["pdfs_dir"]),
-                ),
-                options=_LOpts(frontend_prod=is_prod, keep_backend=True, runtime_mode="single"),
-            )
-            from PyQt6.QtWidgets import QApplication
-            app = QApplication.instance()
-            rc = _gl_services.start_pdf_home_hosted(cfg, parent_app=app, on_log=self._log)
-            self._on_pdf_home_finished(True, f"PDF-Home 启动完成 rc={rc}")
-            self._log("🚀 PDF-Home 已在 Hosted 模式启动（主线程）")
+            self._log(f"[TRACE] → ws://127.0.0.1:{ws_port} 发送启动 PDF-Home 请求 (runtime_ports={ports})")
+            try:
+                payload_text = _SMH.serialize_message(msg)
+                ack_text = self._send_ws_text_qt(
+                    ws_port,
+                    payload_text,
+                    timeout_ms=2000,
+                    expect_types=("pdf-library:open:home:completed", "pdf-library:open:home:failed", "pdf-home:open:completed", "pdf-home:open:failed"),
+                    correlation_id=rid,
+                )
+                if ack_text:
+                    self._log(f"[ACK] {ack_text}")
+                else:
+                    self._log("[WARN] 未在超时内收到回执（已发送 pdf-home 启动请求）")
+            except Exception as ws_e:
+                self._log(f"[ERROR] 发送 pdf-home 启动消息失败: {ws_e}")
+                return
+            self._log("✅ 已通过 MsgCenter 发送启动 pdf-home 请求（请查看后端日志与窗口）")
 
         except Exception as e:
-            self._log(f"[ERROR] 启动 PDF-Home 线程失败: {e}")
+            self._log(f"[ERROR] 通过 MsgCenter 启动 PDF-Home 失败: {e}")
 
     def _on_pdf_home_finished(self, success: bool, message: str):
         """PDF-Home 启动完成回调"""
@@ -427,44 +610,206 @@ class GUILauncher(QMainWindow):
         self._pdf_home_thread = None
 
     def _start_pdf_viewer_hosted(self) -> None:
+        """
+        通过向 MsgCenter 发送 'app-window:open:requested' 消息来启动/激活 pdf-viewer。
+        - 优先读取 runtime-ports.json 的 ws 端口；若缺失使用 UI 指定端口；
+        - 严格 Fail-Fast：端口未监听或参数缺失则直接报错，不兜底；
+        - 消息格式遵循 StandardMessageHandler（UTF-8，\\n）。
+        """
         try:
-            is_prod = bool(self.frontend_prod_checkbox.isChecked())
+            # 1) 解析端口与参数
             ports = self._runtime_ports() or {}
-            # Dev 模式以 UI 指定端口为准，并写入 runtime-ports.json
-            vite_port = int(self.vite_port_input.value() or 3000)
-            try:
-                _gl_services.merge_runtime_ports(self._logs_dir, {"vite_port": int(vite_port), "npm_port": int(vite_port)})
-                self._log(f"[TRACE:HOSTED] 已将 UI 指定 Vite 端口写入 runtime-ports.json → {vite_port}")
-            except Exception as _e:
-                self._log(f"[WARN] 同步 UI 指定 vite_port 到 runtime-ports.json 失败: {_e}")
-            ws = int(ports.get("msgCenter_port") or (self.msgCenter_port_input.value() or 0) or 0)
-            http = int(ports.get("pdfFile_port") or (self.pdfFile_port_input.value() or 0) or 0)
-            if not is_prod and not self._is_port_listening("127.0.0.1", int(vite_port)):
-                self._log(f"[ERROR] Vite 未运行（端口 {vite_port} 未监听）。请点击“启动 Vite (Dev)”或执行：pnpm run dev -- --port {int(vite_port)}")
+            ws_port = int(ports.get("msgCenter_port") or (self.msgCenter_port_input.value() or 0) or 0)
+            if not ws_port:
+                self._log("[ERROR] 未能获取 MsgCenter 端口（runtime-ports.json 或 UI 均为空）")
                 return
-            p = self._resolved_paths_from_ui()
-            # 读取 viewer 参数（可折叠面板）
-            pdf_id = None; page_at = None; position = None
+            if not self._is_port_listening("127.0.0.1", int(ws_port)):
+                error_msg = (
+                    f"❌ 连接错误：MsgCenter 未运行\n\n"
+                    f"检测到端口 {ws_port} 未被监听。\n\n"
+                    f"📝 解决方法：\n"
+                    f"1. 先点击 '启动 MsgCenter' 按钮\n"
+                    f"2. 等待后端启动完成（通常需要 2-3 秒）\n"
+                    f"3. 确认日志中显示 '✅ MsgCenter 已启动'\n"
+                    f"4. 再重试导航测试"
+                )
+                QMessageBox.critical(self, "连接错误", error_msg)
+                self._log(f"[ERROR] MsgCenter 未监听端口 {ws_port}，请先启动后端")
+                return
+            # 读取 viewer 参数（来自可折叠面板）
+            # URL 参数跳转已禁用，只读取 pdf_id，不再读取导航参数
+            pdf_id = None
             if getattr(self, "_panels", None):
                 inp = self._panels.get("inputs") or {}
                 try: pdf_id = (inp.get("viewer_pdf_id").text().strip() or None)
                 except Exception: pdf_id = None
-                try:
-                    page_at = int(inp.get("viewer_page").value()) if inp.get("viewer_page").value() > 0 else None  # type: ignore[call-arg]
-                except Exception: page_at = None
-                try:
-                    position = float(inp.get("viewer_position").value()) if inp.get("viewer_position").value() > 0 else None  # type: ignore[call-arg]
-                except Exception: position = None
-            cfg = _LConfig(
-                ports=_LPorts(vite_port=None if is_prod else vite_port, msgCenter_port=ws or None, pdfFile_port=http or None),
-                paths=_LPaths(**p),
-                options=_LOpts(frontend_prod=is_prod, keep_backend=True, runtime_mode="single"))
-            from PyQt6.QtWidgets import QApplication
-            app = QApplication.instance()
-            rc = _gl_services.start_pdf_viewer_hosted(cfg, parent_app=app, pdf_id=pdf_id, page_at=page_at, position=position, on_log=self._log)
-            self._log(f"PDF-Viewer (Hosted) 启动 rc={rc}")
+            if not pdf_id:
+                error_msg = (
+                    "❌ 参数错误：缺少 PDF ID\n\n"
+                    "请在参数面板的 'PDF ID' 输入框中填写要导航的 PDF 标识。\n\n"
+                    "📝 提示：\n"
+                    "1. 先启动 PDF-Viewer 窗口（点击'启动 PDF-Viewer (Hosted)'按钮）\n"
+                    "2. 确认窗口已成功打开\n"
+                    "3. 填写对应的 PDF ID（如 'sample'）\n"
+                    "4. 再点击'跳转测试'按钮"
+                )
+                QMessageBox.critical(self, "参数错误", error_msg)
+                self._log("[ERROR] 缺少必填参数：pdf_id（请在参数面板填写）")
+                return
+            # 2) 构造消息（严格遵循标准协议）
+            # URL 参数跳转已禁用，不再传递导航参数（page_at, position, anchor_id, annotation_id, outline_item_id）
+            from src.backend.msgCenter_server.standard_protocol import StandardMessageHandler as _SMH  # 延迟导入
+            import time as _time
+            rid = _SMH.generate_request_id()
+            msg = {
+                "type": "app-window:open:requested",
+                "timestamp": int(_time.time() * 1000),
+                "request_id": rid,
+                "data": {
+                    "client_id": f"pdf-viewer-{pdf_id}",
+                    "window_type": "pdf-viewer",
+                    "params": {
+                        "pdf_id": str(pdf_id),
+                    },
+                },
+            }
+
+            # 3) 发送 WS 并等待简短回执（2s），仅用于可见性；失败不兜底
+            self._log(f"[TRACE] → ws://127.0.0.1:{ws_port} 发送启动查看器请求: pdf_id={pdf_id}")
+            try:
+                payload_text = _SMH.serialize_message(msg)
+                ack_text = self._send_ws_text_qt(ws_port, payload_text, timeout_ms=2000,
+                                                 expect_types=("pdf-viewer:navigate:completed","pdf-viewer:navigate:failed","pdf-library:viewer:completed","pdf-library:viewer:failed"),
+                                                 correlation_id=rid)
+                if ack_text:
+                    self._log(f"[ACK] {ack_text}")
+                else:
+                    self._log("[WARN] 未在超时内收到回执（已发送请求）")
+            except Exception as ws_e:
+                self._log(f"[ERROR] 发送启动消息失败: {ws_e}")
+                return
+            self._log("✅ 已通过 MsgCenter 发送启动 viewer 请求（请查看后端日志与窗口）")
         except Exception as e:
-            self._log(f"[ERROR] 启动 pdf-viewer (Hosted) 异常: {e}")
+            self._log(f"[ERROR] 通过 MsgCenter 启动 pdf-viewer 失败: {e}")
+
+    def _send_viewer_navigate_via_msgcenter(self) -> None:
+        """
+        发送“viewer 导航”测试消息到 MsgCenter：
+        - type: pdf-viewer:navigate:requested
+        - data: { to:{ pdf_uuid }, target:{ outline|annotation|anchor|page }, options:{} }
+        目标 ID 从现有参数面板复用（outline/annotation/anchor 三选一；若皆无则尝试 page_at/position）。
+        """
+        try:
+            ports = self._runtime_ports() or {}
+            ws_port = int(ports.get("msgCenter_port") or (self.msgCenter_port_input.value() or 0) or 0)
+            if not ws_port:
+                self._log("[ERROR] 未能获取 MsgCenter 端口（runtime-ports.json 或 UI 均为空）")
+                return
+            if not self._is_port_listening("127.0.0.1", int(ws_port)):
+                error_msg = (
+                    f"❌ 连接错误：MsgCenter 未运行\n\n"
+                    f"检测到端口 {ws_port} 未被监听。\n\n"
+                    f"📝 解决方法：\n"
+                    f"1. 先点击 '启动 MsgCenter' 按钮\n"
+                    f"2. 等待后端启动完成（通常需要 2-3 秒）\n"
+                    f"3. 确认日志中显示 '✅ MsgCenter 已启动'\n"
+                    f"4. 再重试导航测试"
+                )
+                QMessageBox.critical(self, "连接错误", error_msg)
+                self._log(f"[ERROR] MsgCenter 未监听端口 {ws_port}，请先启动后端")
+                return
+            # 读取参数
+            pdf_id = None; page_at = None; position = None; anchor_id = None; annotation_id = None; outline_item_id = None
+            if getattr(self, "_panels", None):
+                inp = self._panels.get("inputs") or {}
+                try: pdf_id = (inp.get("viewer_pdf_id").text().strip() or None)
+                except Exception: pdf_id = None
+                try: page_at = int(inp.get("viewer_page").value()) if inp.get("viewer_page").value() > 0 else None  # type: ignore[call-arg]
+                except Exception: page_at = None
+                try: position = float(inp.get("viewer_position").value()) if inp.get("viewer_position").value() > 0 else None  # type: ignore[call-arg]
+                except Exception: position = None
+                try: anchor_id = (inp.get("viewer_anchor_id").text().strip() or None)
+                except Exception: anchor_id = None
+                try: annotation_id = (inp.get("viewer_annotation_id").text().strip() or None)
+                except Exception: annotation_id = None
+                try: outline_item_id = (inp.get("viewer_outline_item_id").text().strip() or None)
+                except Exception: outline_item_id = None
+            if not pdf_id:
+                error_msg = (
+                    "❌ 参数错误：缺少 PDF ID\n\n"
+                    "请在参数面板的 'PDF ID' 输入框中填写要导航的 PDF 标识。\n\n"
+                    "📝 提示：\n"
+                    "1. 先启动 PDF-Viewer 窗口（点击'启动 PDF-Viewer (Hosted)'按钮）\n"
+                    "2. 确认窗口已成功打开\n"
+                    "3. 填写对应的 PDF ID（如 'sample'）\n"
+                    "4. 再点击'跳转测试'按钮"
+                )
+                QMessageBox.critical(self, "参数错误", error_msg)
+                self._log("[ERROR] 缺少必填参数：pdf_id（请在参数面板填写）")
+                return
+            # 选择导航目标（优先级：annotation > anchor > outline > page）
+            nav_target = None
+            if annotation_id:
+                nav_target = {"type": "annotation", "annotation_id": str(annotation_id)}
+            elif anchor_id:
+                nav_target = {"type": "anchor", "anchor_id": str(anchor_id)}
+            elif outline_item_id:
+                nav_target = {"type": "outline", "outline_item_id": str(outline_item_id)}
+            elif page_at is not None:
+                t = {"type": "page", "page_number": int(page_at)}
+                try:
+                    if position is not None:
+                        t["position"] = {"y_percent": float(position)}
+                except Exception:
+                    pass
+                nav_target = t
+            if not nav_target:
+                error_msg = (
+                    "❌ 参数错误：缺少导航目标\n\n"
+                    "请至少填写以下一项导航参数：\n\n"
+                    "📌 优先级排序：\n"
+                    "1. Annotation ID（批注标识）\n"
+                    "2. Anchor ID（锚点标识）\n"
+                    "3. Outline Item ID（大纲项标识）\n"
+                    "4. Page Number（页码，从 1 开始）\n\n"
+                    "💡 示例：填写 'Page Number' 为 5，即可跳转到第 5 页"
+                )
+                QMessageBox.warning(self, "参数错误", error_msg)
+                self._log("[ERROR] 未指定任何可用的导航目标（outline/annotation/anchor/page 均缺失）")
+                return
+
+            # 构造消息并发送
+            from src.backend.msgCenter_server.standard_protocol import StandardMessageHandler as _SMH  # 延迟导入
+            import time as _time, asyncio
+            rid = _SMH.generate_request_id()
+            nav_msg = {
+                "type": "pdf-viewer:navigate:requested",
+                "timestamp": int(_time.time() * 1000),
+                "request_id": rid,
+                "to": [  # ✅ 新协议：to 为列表（支持一对多）
+                    {
+                        "client_id": f"pdf-viewer-{pdf_id}",  # 客户端唯一标识
+                        "routing_key": f"pdf:{pdf_id}",  # 路由键
+                        "target_type": "pdf-viewer"  # 目标类型
+                    }
+                ],
+                "data": {
+                    "target": nav_target,
+                    "options": {}
+                }
+            }
+            self._log(f"[TRACE] → ws://127.0.0.1:{ws_port} 发送导航请求: pdf_id={pdf_id} target={nav_target}")
+            payload_text = _SMH.serialize_message(nav_msg)
+            ack_text = self._send_ws_text_qt(ws_port, payload_text, timeout_ms=2000,
+                                             expect_types=("pdf-viewer:navigate:completed","pdf-viewer:navigate:failed"),
+                                             correlation_id=rid)
+            if ack_text:
+                self._log(f"[ACK] {ack_text}")
+            else:
+                self._log("[WARN] 未在超时内收到回执（已发送导航请求）")
+            self._log("✅ 导航测试消息已发送（详见后端日志与前端行为）")
+        except Exception as e:
+            self._log(f"[ERROR] 发送 viewer 导航测试消息失败: {e}")
 
 
 def main() -> None:

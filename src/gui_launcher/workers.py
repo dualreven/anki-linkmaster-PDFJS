@@ -148,6 +148,13 @@ class LauncherThread(QThread):
             is_prod = bool(self.params.get("is_prod", False))
             vite_port = self.params.get("vite_port")
 
+            # ⚠️ 验证：开发模式必须提供 vite_port
+            if not is_prod and vite_port is None:
+                raise RuntimeError(
+                    "开发模式 (is_prod=False) 必须提供 vite_port 参数！\n"
+                    "请确保 Vite 开发服务器已启动（端口 3000）。"
+                )
+
             cfg = _LConfig(
                 ports=_LPorts(
                     vite_port=None if is_prod else vite_port,

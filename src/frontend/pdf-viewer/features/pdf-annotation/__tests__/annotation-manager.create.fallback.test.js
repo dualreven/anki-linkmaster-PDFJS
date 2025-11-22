@@ -2,7 +2,7 @@
 import { getEventBus } from "../../../../common/event/event-bus.js";
 import { createScopedEventBus } from "../../../../common/event/scoped-event-bus.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
-import { Annotation, AnnotationType } from "../models/annotation.js";
+import { Annotation, AnnotationType } from "../../../../common/models/annotation.js";
 import { AnnotationManager } from "../core/annotation-manager.js";
 
 // 直接在订阅处使用常量，避免变量事件名

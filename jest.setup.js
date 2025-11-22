@@ -89,9 +89,13 @@ jestGlobal.mock('./src/frontend/common/utils/logger.js', () => {
     setLogLevel: jestGlobal.fn(),
   });
 
+  const LoggerConstructor = jestGlobal.fn().mockImplementation((moduleName) => createMockLogger());
+
   return {
+    __esModule: true,  // 标记为 ES 模块
+    default: LoggerConstructor,  // 默认导出（支持 import Logger from './logger.js'）
     getLogger: jestGlobal.fn((moduleName) => createMockLogger()),
-    Logger: jestGlobal.fn().mockImplementation((moduleName) => createMockLogger()),
+    Logger: LoggerConstructor,  // 命名导出（支持 import { Logger } from './logger.js'）
     LogLevel: {
       DEBUG: 'DEBUG',
       INFO: 'INFO',

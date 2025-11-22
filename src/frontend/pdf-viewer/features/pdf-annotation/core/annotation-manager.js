@@ -15,7 +15,7 @@
  */
 
 import { getLogger } from "../../../../common/utils/logger.js";
-import { Annotation, AnnotationType } from "../models/annotation.js";
+import { Annotation, AnnotationType } from "../../../../common/models/annotation.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 import { WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_EVENTS } from "../../../../common/event/event-constants.js";
 

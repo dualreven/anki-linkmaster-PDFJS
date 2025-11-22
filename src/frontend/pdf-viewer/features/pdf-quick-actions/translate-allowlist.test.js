@@ -1,5 +1,6 @@
 import { EventBus } from "../../../common/event/event-bus.js";
-import { PDF_TRANSLATOR_EVENTS } from "../../features/pdf-translator/public.js";
+import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
+const PDF_TRANSLATOR_EVENTS = PDF_VIEWER_EVENTS.TRANSLATOR;
 
 describe("Global event allowlist for pdf-translator events", () => {
   it("allows emitting pdf-translator:text:selected without being blocked", () => {

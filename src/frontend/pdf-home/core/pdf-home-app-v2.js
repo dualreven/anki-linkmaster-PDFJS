@@ -18,14 +18,16 @@ import { FeatureFlagManager } from "../../common/micro-service/feature-flag-mana
 import { getLogger } from "../../common/utils/logger.js";
 import eventBus from "../../common/event/event-bus.js";
 import WSClient from "../../common/ws/ws-client.js";
-import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS, APP_EVENTS } from "../../common/event/event-constants.js";
+import { APP_EVENTS } from "../../common/event/event-constants.js";
 import { showError } from "../../common/utils/notification.js";
+import { WebSocketErrorHandler } from "../../common/utils/websocket-error-handler.js";
 
 // 导入功能域
 import { PDFHomeInfraAppFeature } from "../features/infra-app/index.js";  // 新增：WebSocket注册
 import { PDFSorterFeature } from "../features/pdf-sorter/index.js";
 import { PDFEditFeature } from "../features/pdf-edit/index.js";
 import { SidebarFeature } from "../features/sidebar/index.js";
+import { WindowControlsFeature } from "../features/window-controls/index.js";  // 新增：窗口控制
 
 // 搜索和筛选功能
 import { SearchFeature } from "../features/search/index.js";
@@ -105,11 +107,11 @@ export class PDFHomeAppV2 {
   #status = "uninitialized"; // uninitialized | initializing | ready | error
 
   /**
-   * 是否已注册全局错误 toast 监听
-   * @type {boolean}
+   * WebSocket 错误处理器
+   * @type {WebSocketErrorHandler}
    * @private
    */
-  #errorToastsRegistered = false;
+  #errorHandler = null;
 
   /**
    * 构造函数
@@ -262,58 +264,24 @@ export class PDFHomeAppV2 {
 
   /**
    * 注册全局 WS 错误事件，将后端与消息中心的错误透传为右上角 toast
-   * 参考 pdf-viewer AppCoreFeature 的实现，保持一致体验
+   * 使用统一的 WebSocketErrorHandler 公共模块
    * @private
    */
   #registerGlobalErrorToasts() {
-    if (this.#errorToastsRegistered) {return;}
+    if (this.#errorHandler?.isRegistered()) {
+      return;
+    }
+
     try {
-      const bus = this.#eventBus;
-      const subscriberOpts = { subscriberId: "PDFHomeAppV2" };
-
-      // 发送失败 → 错误 toast（例如 WS 未连接/网络错误）
-      bus.on(WEBSOCKET_EVENTS.MESSAGE.SEND_FAILED, (err) => {
-        try {
-          const msg = (err && (err.error_message || err.message)) || "WebSocket 消息发送失败";
-          const type = err && (err.message_type || err.type);
-          showError(type ? `${type}: ${msg}` : msg, 5000);
-        } catch (e) {
-          // 防御性：toast 渲染失败时至少写入日志
-          try { this.#logger?.warn?.("Failed to show SEND_FAILED toast", e); } catch { /* noop */ }
-        }
-      }, subscriberOpts);
-
-      // 后端响应错误/未注册类型/解析失败等 → 错误 toast
-      bus.on(WEBSOCKET_MESSAGE_EVENTS.ERROR, (payload) => {
-        try {
-          const type = payload && (payload.type || payload.received_type);
-          const errMsg = (payload && (payload.message || payload.error_message))
-            || (payload && payload.error && (payload.error.message || payload.error.code))
-            || (payload && payload.data && payload.data.message)
-            || "操作失败";
-          showError(type ? `${type}: ${errMsg}` : errMsg, 6000);
-        } catch (e) {
-          try { this.#logger?.warn?.("Failed to show ERROR toast", e); } catch { /* noop */ }
-        }
-      }, subscriberOpts);
-
-      // 兼容：凡是通用响应里标注失败（type 以 :failed 结尾）未被上层消费时，也做兜底 toast
-      bus.on(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, (message) => {
-        try {
-          const t = String(message?.type || "");
-          if (t.endsWith(":failed")) {
-            const errMsg = (message?.error?.message) || (message?.data?.message) || message?.message || "请求失败";
-            showError(`${t}: ${errMsg}`, 6000);
-          }
-        } catch (e) {
-          try { this.#logger?.warn?.("Failed to show generic failed toast", e); } catch { /* noop */ }
-        }
-      }, subscriberOpts);
-
-      this.#errorToastsRegistered = true;
-      this.#logger?.info?.("Registered global WS error→toast listeners");
+      this.#errorHandler = new WebSocketErrorHandler(
+        this.#eventBus,
+        showError,  // 传入 showError 函数
+        this.#logger,
+        "PDFHomeAppV2"
+      );
+      this.#errorHandler.register();
     } catch (e) {
-      this.#logger?.warn?.("注册全局错误 toast 失败", e);
+      this.#logger?.warn?.("Failed to register WebSocketErrorHandler", e);
     }
   }
 
@@ -373,6 +341,7 @@ export class PDFHomeAppV2 {
 
       // UI布局功能
       new SidebarFeature(),
+      new WindowControlsFeature(),  // 窗口控制按钮（最小化、最大化、关闭）
 
       // 搜索和筛选功能（按优先级顺序）
       new SearchFeature(),        // 优先：搜索框UI

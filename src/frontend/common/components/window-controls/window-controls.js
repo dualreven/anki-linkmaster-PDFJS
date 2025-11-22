@@ -12,7 +12,8 @@ const logger = getLogger('WindowControlsComponent');
  * 窗口控制组件配置
  * @typedef {Object} WindowControlsOptions
  * @property {string} bridgeName - PyQt Bridge对象名称（如 'pdfViewerBridge' 或 'pyqtBridge'）
- * @property {Object} [wsClient=null] - WebSocket客户端实例（可选，用于关闭前注销）
+ * @property {string} clientId - 客户端标识（必需，用于关闭窗口时标识）
+ * @property {Object} [wsClient=null] - WebSocket客户端实例（必需，用于关闭窗口）
  * @property {boolean} [autoLoad=true] - 是否自动加载CSS样式
  */
 
@@ -23,27 +24,43 @@ const logger = getLogger('WindowControlsComponent');
  */
 export class WindowControlsComponent {
   #bridgeName = '';
+  #clientId = '';
   #wsClient = null;
   #container = null;
+  #dragBtn = null;
   #minimizeBtn = null;
   #maximizeBtn = null;
   #closeBtn = null;
   #boundHandlers = {
+    drag: null,
+    dragMove: null,
+    dragEnd: null,
     minimize: null,
     maximize: null,
     close: null
   };
+  #isDragging = false;
   #mounted = false;
 
   /**
    * 构造函数
    * @param {WindowControlsOptions} options - 组件配置
+   * @throws {Error} 如果缺少必需参数 clientId 或 wsClient
    */
   constructor(options) {
-    this.#bridgeName = options.bridgeName || 'pdfViewerBridge';
-    this.#wsClient = options.wsClient || null;
+    // 严格模式：必需参数验证，不使用兜底方案
+    if (!options.clientId) {
+      throw new Error('WindowControlsComponent: clientId is required (用于关闭窗口时标识)');
+    }
+    if (!options.wsClient) {
+      throw new Error('WindowControlsComponent: wsClient is required (用于发送关闭请求)');
+    }
 
-    logger.info(`WindowControlsComponent created with bridgeName="${this.#bridgeName}"`);
+    this.#bridgeName = options.bridgeName || 'pdfViewerBridge';
+    this.#clientId = options.clientId;
+    this.#wsClient = options.wsClient;
+
+    logger.info(`WindowControlsComponent created with bridgeName="${this.#bridgeName}", clientId="${this.#clientId}"`);
 
     // 自动加载CSS样式（如果启用）
     if (options.autoLoad !== false) {
@@ -108,18 +125,25 @@ export class WindowControlsComponent {
     this.#container.insertAdjacentHTML('beforeend', html);
 
     // 获取按钮元素
+    this.#dragBtn = this.#container.querySelector('#window-drag-btn');
     this.#minimizeBtn = this.#container.querySelector('#window-minimize-btn');
     this.#maximizeBtn = this.#container.querySelector('#window-maximize-btn');
     this.#closeBtn = this.#container.querySelector('#window-close-btn');
 
-    if (!this.#minimizeBtn || !this.#maximizeBtn || !this.#closeBtn) {
+    if (!this.#dragBtn || !this.#minimizeBtn || !this.#maximizeBtn || !this.#closeBtn) {
       throw new Error('Window control buttons not found after mounting');
     }
 
     // 绑定事件处理器
+    this.#boundHandlers.drag = this.#handleDragStart.bind(this);
+    this.#boundHandlers.dragEnd = this.#handleDragEnd.bind(this);
     this.#boundHandlers.minimize = this.#handleMinimize.bind(this);
     this.#boundHandlers.maximize = this.#handleMaximize.bind(this);
     this.#boundHandlers.close = this.#handleClose.bind(this);
+
+    // 拖拽按钮事件（PyQt 层处理拖拽逻辑）
+    this.#dragBtn.addEventListener('mousedown', this.#boundHandlers.drag);
+    this.#dragBtn.addEventListener('mouseup', this.#boundHandlers.dragEnd);
 
     this.#minimizeBtn.addEventListener('click', this.#boundHandlers.minimize);
     this.#maximizeBtn.addEventListener('click', this.#boundHandlers.maximize);
@@ -164,57 +188,86 @@ export class WindowControlsComponent {
   /**
    * 处理关闭按钮点击
    * @private
-   * 流程: 1. 发送 app-window:close:requested 消息到 msgCenter
-   *       2. 后端统一处理窗口关闭和 WebSocket 断开
-   *       3. 如果 WebSocket 不可用，回退到 PyQt Bridge
+   * 流程: 发送 app-window:close:requested 消息到 msgCenter，后端统一处理窗口关闭
+   * @throws {Error} 如果发送关闭请求失败（严格模式，无兜底方案）
    */
   async #handleClose() {
-    logger.info('Close button clicked, starting close sequence...');
+    logger.info(`Close button clicked, clientId="${this.#clientId}"`);
 
-    try {
-      // Step 1: 通过 WebSocket 发送窗口关闭请求到 msgCenter
-      if (this.#wsClient) {
-        logger.info('Sending window close request via WebSocket...');
+    // 严格模式：直接发送 WebSocket 消息，失败即报错
+    logger.info('Sending window close request via WebSocket...');
 
-        // 发送 app-window:close:requested 消息
-        await this.#wsClient.send({
-          type: 'app-window:close:requested',
-          data: {
-            client_id: 'pdf-home',  // pdf-home 的固定 client_id
-            reason: 'user_close'
-          }
-        });
-
-        logger.info('Window close request sent, backend will close window and disconnect WebSocket');
-        // 注意：后端会统一处理窗口关闭和 WebSocket 断开，不需要手动操作
-
-      } else {
-        logger.warn('wsClient not available, falling back to PyQt Bridge');
-        // 兜底方案：直接调用 PyQt Bridge
-        await this.#callBridgeMethod('requestCloseWindow');
-        logger.info('Fallback: Window close request sent via PyQt Bridge');
+    await this.#wsClient.send({
+      type: 'app-window:close:requested',
+      data: {
+        client_id: this.#clientId,  // 使用构造函数传入的 clientId
+        reason: 'user_close'
       }
+    });
 
-    } catch (error) {
-      logger.error('Failed to send close request:', error);
-      // 兜底方案：直接调用 PyQt Bridge
-      try {
-        logger.warn('Attempting fallback: closing window via PyQt Bridge');
-        await this.#callBridgeMethod('requestCloseWindow');
-        logger.info('Fallback close succeeded via PyQt Bridge');
-      } catch (fallbackError) {
-        logger.error('Fallback close also failed:', fallbackError);
-      }
+    logger.info(`Window close request sent for clientId="${this.#clientId}", backend will handle window closing`);
+  }
+
+  /**
+   * 处理拖拽开始（鼠标按下）
+   * @private
+   * @param {MouseEvent} event - 鼠标事件
+   */
+  #handleDragStart(event) {
+    // 只响应左键
+    if (event.button !== 0) return;
+
+    event.preventDefault();
+
+    // 通知 PyQt 开始拖拽模式（PyQt 层处理鼠标移动）
+    this.#callBridgeMethod('startWindowDrag')
+      .then(() => {
+        this.#isDragging = true;
+        // 添加拖拽样式
+        if (this.#dragBtn) {
+          this.#dragBtn.classList.add('dragging');
+        }
+        logger.debug('Drag mode started (handled by PyQt)');
+      })
+      .catch((error) => {
+        logger.error('Failed to start drag mode:', error);
+      });
+  }
+
+  /**
+   * 处理拖拽结束（鼠标释放）
+   * @private
+   * @param {MouseEvent} event - 鼠标事件
+   */
+  #handleDragEnd(event) {
+    if (!this.#isDragging) return;
+
+    event.preventDefault();
+
+    // 通知 PyQt 结束拖拽模式
+    this.#callBridgeMethod('stopWindowDrag')
+      .catch((error) => {
+        logger.warn('Failed to stop drag mode:', error);
+      });
+
+    this.#isDragging = false;
+
+    // 移除拖拽样式
+    if (this.#dragBtn) {
+      this.#dragBtn.classList.remove('dragging');
     }
+
+    logger.debug('Drag mode stopped');
   }
 
   /**
    * 通过 QWebChannel 调用 Bridge 方法
    * @private
    * @param {string} methodName - 方法名称
+   * @param {...any} args - 方法参数
    * @returns {Promise<boolean>}
    */
-  #callBridgeMethod(methodName) {
+  #callBridgeMethod(methodName, ...args) {
     return new Promise((resolve, reject) => {
       // 检查 QWebChannel 是否可用
       if (typeof window.qt === "undefined" || !window.qt.webChannelTransport) {
@@ -244,11 +297,11 @@ export class WindowControlsComponent {
             return;
           }
 
-          // 调用 PyQt 方法
-          Promise.resolve(bridge[methodName]())
+          // 调用 PyQt 方法（支持参数传递）
+          Promise.resolve(bridge[methodName](...args))
             .then((result) => {
               if (result) {
-                logger.info(`${methodName} request accepted by PyQt`);
+                logger.debug(`${methodName} request accepted by PyQt`);
                 resolve(true);
               } else {
                 const error = new Error(`${methodName} request rejected by PyQt`);
@@ -281,6 +334,13 @@ export class WindowControlsComponent {
     logger.info('Destroying component...');
 
     // 移除事件监听器
+    if (this.#dragBtn && this.#boundHandlers.drag) {
+      this.#dragBtn.removeEventListener('mousedown', this.#boundHandlers.drag);
+    }
+    if (this.#dragBtn && this.#boundHandlers.dragEnd) {
+      this.#dragBtn.removeEventListener('mouseup', this.#boundHandlers.dragEnd);
+    }
+
     if (this.#minimizeBtn && this.#boundHandlers.minimize) {
       this.#minimizeBtn.removeEventListener('click', this.#boundHandlers.minimize);
     }
@@ -302,11 +362,13 @@ export class WindowControlsComponent {
 
     // 清理引用
     this.#container = null;
+    this.#dragBtn = null;
     this.#minimizeBtn = null;
     this.#maximizeBtn = null;
     this.#closeBtn = null;
-    this.#boundHandlers = { minimize: null, maximize: null, close: null };
+    this.#boundHandlers = { drag: null, dragEnd: null, minimize: null, maximize: null, close: null };
     this.#wsClient = null;
+    this.#isDragging = false;
     this.#mounted = false;
 
     logger.info('Component destroyed');

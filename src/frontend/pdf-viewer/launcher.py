@@ -262,12 +262,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--no-persist", action="store_true", help="Do not persist ports back to logs/runtime-ports.json")
     parser.add_argument("--file-path", type=str, dest="file_path", help="PDF file path to load automatically")
     parser.add_argument("--pdf-id", type=str, dest="pdf_id", help="PDF ID to resolve to file path")
-    parser.add_argument("--page-at", type=int, dest="page_at", help="Target page number to navigate to (1-based index)")
-    parser.add_argument("--position", type=float, dest="position", help="Vertical position percentage within the page (0-100)")
-    parser.add_argument("--anchor-id", type=str, dest="anchor_id", help="Anchor ID (e.g., pdfanchor-test or pdfanchor-<12-hex>)")
-    parser.add_argument("--pdfanchor", type=str, dest="pdfanchor", help="Alias of --anchor-id for convenience")
-    parser.add_argument("--annotation-id", type=str, dest="annotation_id", help="Annotation ID to focus after loading (optional)")
-    parser.add_argument("--outline-item-id", type=str, dest="outline_item_id", help="Outline item ID to navigate after loading (optional)")
+    # URL 参数跳转已禁用，移除以下参数：page-at, position, anchor-id, pdfanchor, annotation-id, outline-item-id
     parser.add_argument("--diagnose-only", action="store_true", help="Run initialization diagnostics and exit before starting the Qt event loop")
     parser.add_argument("--disable-webchannel", action="store_true", help="Skip QWebChannel bridge setup")
     parser.add_argument("--disable-websocket", action="store_true", help="Skip QWebSocket bridge connection")
@@ -277,9 +272,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--keep-backend", action="store_true", help="窗口关闭时保持后端服务运行（不停止）")
     parser.add_argument("--logs-dir", type=str, dest="logs_dir", help="显式日志目录（必填）", required=True)
     ns = parser.parse_args(argv)
-    # Normalize alias: --pdfanchor → --anchor-id
-    if getattr(ns, 'pdfanchor', None) and not getattr(ns, 'anchor_id', None):
-        setattr(ns, 'anchor_id', ns.pdfanchor)
+    # URL 参数跳转已禁用，移除 pdfanchor 别名规范化
     return ns
 
 
@@ -395,11 +388,11 @@ class PdfViewerApp:
         # 步骤 4: 解析端口配置（严格校验，禁止兜底）
         vite_json, msgCenter_json, pdfFile_json, extras = _read_runtime_ports()
 
-        # ✅ 优先使用 url_port，回退到 vite_port（兼容性）
+        # ✅ 优先使用传入参数（GUI Hosted 模式），仅在未指定时才读取 runtime-ports.json（CLI 模式兼容）
         url_port_json = extras.get("url_port")
-        url_port = self.config.url_port or url_port_json or self.config.vite_port or vite_json
-        msgCenter_port = self.config.msgCenter_port or msgCenter_json
-        pdfFile_port = self.config.pdfFile_port or pdfFile_json
+        url_port = self.config.url_port if self.config.url_port is not None else (url_port_json or self.config.vite_port or vite_json)
+        msgCenter_port = self.config.msgCenter_port if self.config.msgCenter_port is not None else msgCenter_json
+        pdfFile_port = self.config.pdfFile_port if self.config.pdfFile_port is not None else pdfFile_json
         js_debug_port = self.config.js_debug_port or int(extras.get("pdf-viewer-js", 9223))
 
         # ✅ 严格校验：url_port, msgCenter_port, pdfFile_port 不能为 None
@@ -523,26 +516,14 @@ class PdfViewerApp:
             except Exception:
                 pass
 
-        # 添加 URL 导航参数：始终附带 pdf-id（供 Outline 等特性识别文档），
-        # 但仅在有导航目标时再附带 page/position/anchor/annotation/outline 等参数（互斥策略在后端已生效）
+        # 添加 URL 参数：pdf-id（供前端识别文档）
+        # URL 参数跳转已禁用，不再添加 page-at, position, anchor-id, annotation-id, outline-item-id
         if self.config.pdf_id:
             url += f"&pdf-id={self.config.pdf_id}"
-        if self.config.page_at is not None:
-            url += f"&page-at={self.config.page_at}"
-        if self.config.position is not None:
-            position = max(0.0, min(100.0, self.config.position))
-            url += f"&position={position}"
-        if self.config.anchor_id:
-            url += f"&anchor-id={self.config.anchor_id}"
-        if self.config.annotation_id:
-            url += f"&annotation-id={self.config.annotation_id}"
+
+        # 保留 debug 开关
         try:
             extra = getattr(self.config, 'extra_params', {}) or {}
-            # 追加 outline-item-id（若有）
-            oi = extra.get('outline_item_id')
-            if oi:
-                url += f"&outline-item-id={oi}"
-            # 追加 debug 开关：存在即真（值使用1便于直观）
             if extra.get('debug') in (True, '1', 'true', 'yes', 'on', 1):
                 url += f"&debug=1"
         except Exception:
@@ -616,16 +597,20 @@ class PdfViewerApp:
         def on_connected():
             logger.info(f"WebSocket connected to {ws_url.toString()}")
             # ✅ 先发送客户端注册请求
+            # client_name 格式：pdf-viewer-${pdf_id}（如 pdf-viewer-0c251de0e2ac）
+            client_name = f"pdf-viewer-{self.pdf_id}"
             register_msg = {
                 "type": "client:register:requested",
                 "data": {
-                    "module": "pdf-viewer-launcher",
+                    "client_name": client_name,  # 必填字段
+                    "client_id": self.pdf_id,    # PDF ID（用于后端识别）
+                    "module": "pdf-viewer",       # 模块名称
                     "version": "1.0.0"
                 },
                 "timestamp": int(time.time() * 1000)
             }
             self.ws_client.sendTextMessage(json.dumps(register_msg, ensure_ascii=False))
-            logger.info("Client registration request sent")
+            logger.info(f"Client registration request sent (client_name={client_name})")
 
         def on_text_message(message: str):
             """处理来自后端的文本消息"""
@@ -780,6 +765,14 @@ class PdfViewerApp:
                     pass
         except Exception:
             pass
+
+        # 7) 显式关闭窗口（关闭整个 PyQt 窗口框架）
+        try:
+            if self.window:
+                self.window.close()
+                logger.info("窗口已关闭")
+        except Exception as e:
+            logger.warning(f"关闭窗口时发生异常: {e}")
 
         self._cleaned = True
 

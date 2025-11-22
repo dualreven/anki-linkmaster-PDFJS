@@ -14,6 +14,7 @@ import logging
 from pathlib import Path
 from PyQt6.QtCore import QObject, pyqtSlot
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
+from src.frontend.common.pyqt.window_controls_mixin import WindowControlsMixin
 
 logger = logging.getLogger("pdf-home.pyqt-bridge")
 
@@ -36,14 +37,14 @@ def _resolve_logs_dir(base: Path) -> Path:
     return d
 
 
-class PyQtBridge(QObject):
+class PyQtBridge(QObject, WindowControlsMixin):
     """
     PyQt 桥接对象
 
-    通过 QWebChannel 暴露给前端，提供原生 UI 功能。
+    通过 QWebChannel 暴露给前端，提供原生 UI 功能和窗口控制方法。
 
     Attributes:
-        parent: 父窗口对象，用于显示对话框
+        parent: 父窗口对象，用于显示对话框和窗口控制
     """
 
     def __init__(self, parent=None, is_prod: bool | None = None, logs_dir: str | None = None):
@@ -54,7 +55,8 @@ class PyQtBridge(QObject):
             parent: 父窗口对象（MainWindow）
         """
         super().__init__(parent)
-        self.parent = parent
+        self.parent = parent  # WindowControlsMixin needs this to control the window
+        self._init_drag_mode()  # Initialize drag mode (from WindowControlsMixin)
         # 运行模式标记（由调用方传入，避免依赖环境变量）
         self._is_prod: bool | None = is_prod
         logger.info("[PyQtBridge] PyQtBridge 初始化")

@@ -1,11 +1,10 @@
 ﻿import { AnnotationSidebarUI } from "../annotation-sidebar-ui.js";
-import { Annotation, AnnotationType } from "../../models/annotation.js";
+import { Annotation, AnnotationType } from "../../../../../common/models/annotation.js";
 import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
 
 describe("AnnotationSidebarUI delete button", () => {
   let eventBus;
   let ui;
-  let confirmSpy;
 
   beforeEach(() => {
     document.body.innerHTML = "";
@@ -18,12 +17,9 @@ describe("AnnotationSidebarUI delete button", () => {
     ui = new AnnotationSidebarUI(eventBus);
     ui.initialize();
     document.body.appendChild(ui.getContentElement());
-
-    confirmSpy = jest.spyOn(window, "confirm");
   });
 
   afterEach(() => {
-    confirmSpy.mockRestore();
     ui.destroy();
   });
 
@@ -38,9 +34,7 @@ describe("AnnotationSidebarUI delete button", () => {
     },
   });
 
-  it("emits delete event when delete button confirmed", () => {
-    confirmSpy.mockReturnValue(true);
-
+  it("emits delete event when delete button confirmed", async () => {
     const annotation = createHighlightAnnotation();
     ui.addAnnotationCard(annotation);
 
@@ -53,16 +47,27 @@ describe("AnnotationSidebarUI delete button", () => {
     eventBus.emit.mockClear();
     deleteBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
-    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    // 等待确认对话框出现
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    // 查找并点击"删除"按钮
+    const confirmBtn = document.body.querySelector('button');
+    const buttons = Array.from(document.body.querySelectorAll('button'));
+    const deleteConfirmBtn = buttons.find(btn => btn.textContent === "删除");
+
+    expect(deleteConfirmBtn).not.toBeNull();
+    deleteConfirmBtn.click();
+
+    // 等待事件发出
+    await new Promise(resolve => setTimeout(resolve, 0));
+
     expect(eventBus.emit).toHaveBeenCalledWith(
       PDF_VIEWER_EVENTS.ANNOTATION.DELETE,
       { id: annotation.id }
     );
   });
 
-  it("does not emit delete event when user cancels", () => {
-    confirmSpy.mockReturnValue(false);
-
+  it("does not emit delete event when user cancels", async () => {
     const annotation = createHighlightAnnotation();
     ui.addAnnotationCard(annotation);
 
@@ -70,9 +75,22 @@ describe("AnnotationSidebarUI delete button", () => {
       .getContentElement()
       .querySelector(".annotation-card .annotation-delete-btn");
 
+    eventBus.emit.mockClear();
     deleteBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
-    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    // 等待确认对话框出现
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    // 查找并点击"取消"按钮
+    const buttons = Array.from(document.body.querySelectorAll('button'));
+    const cancelBtn = buttons.find(btn => btn.textContent === "取消");
+
+    expect(cancelBtn).not.toBeNull();
+    cancelBtn.click();
+
+    // 等待事件处理
+    await new Promise(resolve => setTimeout(resolve, 0));
+
     expect(eventBus.emit).not.toHaveBeenCalledWith(
       PDF_VIEWER_EVENTS.ANNOTATION.DELETE,
       expect.anything()

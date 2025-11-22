@@ -4,6 +4,52 @@
 
 ---
 
+## ⚠️ 核心规则（必须遵守）
+
+### 1️⃣ Feature间通信的唯一方式：EventBus
+
+**原则**：所有跨Feature调用必须通过EventBus，禁止直接import和调用其他Feature的代码。
+
+**✅ 正确方式**：
+- 通过EventBus发布/订阅事件
+- 通过DependencyContainer获取已注册的服务
+- 在dependencies中声明依赖关系
+
+**❌ 严格禁止**：
+```javascript
+// ❌ 禁止：直接import其他Feature
+import { OtherFeature } from '../other-feature/index.js';
+const other = new OtherFeature();
+
+// ❌ 禁止：直接调用其他Feature的方法
+this.bookmarkFeature.toggleSidebar();
+
+// ❌ 禁止：通过全局变量共享状态
+window.myFeatureState = { ... };
+```
+
+**✅ 正确做法**：
+```javascript
+// ✅ 方式1：通过EventBus通信
+eventBus.emitGlobal('bookmark:sidebar:toggle:requested', {}, { actorId: 'MyFeature' });
+
+// ✅ 方式2：通过Container获取服务（前提是该服务已注册）
+const bookmarkService = container.get('bookmarkService');
+if (bookmarkService) {
+  bookmarkService.toggleSidebar();
+}
+```
+
+**原因**：
+- 保证Feature间解耦，支持动态加载/卸载
+- 避免循环依赖
+- 便于单元测试（可Mock EventBus）
+- 符合开闭原则（对扩展开放，对修改关闭）
+
+**违反后果**：ESLint规则 `custom/no-cross-feature-internals` 会在CI中强制检查，违反的代码无法合并。
+
+---
+
 ## 第一步：创建Feature目录结构
 
 ```bash

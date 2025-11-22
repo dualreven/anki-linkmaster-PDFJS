@@ -1,7 +1,7 @@
 import { jest } from "@jest/globals";
 import { ScreenshotTool } from "./index.js";
 import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
-import { AnnotationType } from "../../models/annotation.js";
+import { AnnotationType } from "../../../../../common/models/annotation.js";
 
 jest.mock("./screenshot-capturer.js", () => ({
   ScreenshotCapturer: jest.fn().mockImplementation(() => ({

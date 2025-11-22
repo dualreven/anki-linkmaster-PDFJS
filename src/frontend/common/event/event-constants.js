@@ -22,6 +22,14 @@ export const SYSTEM_EVENTS = {
   }
 };
 
+export const APP_WINDOW_EVENTS = {
+  CLOSE: {
+    REQUESTED: "app-window:close:requested",
+    COMPLETED: "app-window:close:completed",
+    FAILED: "app-window:close:failed"
+  }
+};
+
 export const WEBSOCKET_EVENTS = {
   CONNECTION: {
     ESTABLISHED: "websocket:connection:established",
@@ -128,6 +136,8 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   GET_CONFIG: "pdf-library:config-read:requested",
   UPDATE_CONFIG: "pdf-library:config-write:requested",
   // 系统/心跳（严格三段式）
+  CLIENT_REGISTER_REQUESTED: "client:register:requested",
+  CLIENT_UNREGISTER_REQUESTED: "client:unregister:requested",  // 客户端取消注册
   HEARTBEAT_REQUESTED: "system:heartbeat:requested",
   // 记录更新（编辑）
   PDF_LIBRARY_RECORD_UPDATE_REQUESTED: "pdf-library:record-update:requested",
@@ -187,6 +197,8 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   CONFIG_WRITE_COMPLETED: "pdf-library:config-write:completed",
   CONFIG_WRITE_FAILED: "pdf-library:config-write:failed",
   // 系统/心跳响应
+  CLIENT_REGISTER_COMPLETED: "client:register:completed",
+  CLIENT_REGISTER_FAILED: "client:register:failed",
   HEARTBEAT_COMPLETED: "system:heartbeat:completed",
   // 记录更新（编辑）响应
   PDF_LIBRARY_RECORD_UPDATE_COMPLETED: "pdf-library:record-update:completed",
@@ -374,6 +386,7 @@ export const validateEventName = (eventName) => {
 
 export const EVENT_CONSTANTS = {
   APP: APP_EVENTS,
+  APP_WINDOW: APP_WINDOW_EVENTS,
   SYSTEM: SYSTEM_EVENTS,
   WEBSOCKET: WEBSOCKET_EVENTS,
   PDF_MANAGEMENT: PDF_MANAGEMENT_EVENTS,

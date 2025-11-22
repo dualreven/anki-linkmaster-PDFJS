@@ -17,7 +17,7 @@ class StubContainer {
 }
 
 describe("按ID导航：挂起等待与失败分支", () => {
-  test("列表未就绪时先请求导航，收到列表后应成功导航并发 SUCCESS", async () => {
+  test("列表未就绪时先请求导航，收到列表后应发出 URL_PARAMS.REQUESTED 事件", async () => {
     const wsClient = { request: jest.fn(async () => ({ ok: true })) };
     const navigationService = { navigateTo: jest.fn(async ({ pageAt, position }) => ({ success: true, actualPage: pageAt, actualPosition: position })) };
     const container = new StubContainer(wsClient, navigationService);
@@ -29,8 +29,13 @@ describe("按ID导航：挂起等待与失败分支", () => {
     await feature.install({ logger: getLogger("feature"), globalEventBus: eventBus, scopedEventBus: scoped, container });
     try { window.history.pushState({}, "", "?pdf-id=jest-pdf"); } catch {}
 
-    let okCount = 0;
-    eventBus.on(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.SUCCESS, () => { okCount += 1; }, { subscriberId: "test" });
+    // 监听 URL_PARAMS.REQUESTED 事件（OutlineFeature 的职责是发射此事件）
+    const urlParamsRequested = [];
+    eventBus.on(
+      PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
+      (payload) => urlParamsRequested.push(payload),
+      { subscriberId: "test-url-params" }
+    );
 
     // 1) 列表未就绪先发导航
     eventBus.emit(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE_BY_ID.REQUESTED, { outlineItemId: "outlineItem-TGT00001" }, { actorId: "test" });
@@ -41,8 +46,12 @@ describe("按ID导航：挂起等待与失败分支", () => {
     }, { actorId: "test" });
     await new Promise(r => setTimeout(r, 0));
 
-    expect(navigationService.navigateTo).toHaveBeenCalledWith({ pageAt: 3, position: 50 });
-    expect(okCount).toBe(1);
+    // 验证 OutlineFeature 的职责：发射 URL_PARAMS.REQUESTED 事件
+    expect(urlParamsRequested.length).toBe(1);
+    expect(urlParamsRequested[0]).toMatchObject({ pageAt: 3, position: 50 });
+    // 注意：NAVIGATE.SUCCESS 事件的发射依赖于 URLNavigationFeature 的响应，
+    // 在单元测试中（只安装 OutlineFeature）不会触发。
+    // 完整的导航流程应在集成测试中验证。
   });
 
   test("列表已就绪但未找到 ID，应发 FAILED(not_found) 且不调用导航", async () => {

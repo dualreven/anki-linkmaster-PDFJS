@@ -1,0 +1,158 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "msgcenter/client/v1/messages/register.completed.schema.json",
+  "title": "Client Registration Completed",
+  "description": "统一客户端注册协议 - 成功响应消息格式\n\n服务端确认客户端注册成功，返回注册信息和服务端元数据。",
+  "type": "object",
+  "required": ["type", "status", "data"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "client:register:completed",
+      "description": "消息类型：客户端注册成功"
+    },
+    "timestamp": {
+      "type": "integer",
+      "description": "消息时间戳（毫秒）",
+      "minimum": 0
+    },
+    "request_id": {
+      "type": "string",
+      "description": "对应的请求ID（与register.requested的request_id一致）",
+      "pattern": "^[a-zA-Z0-9_-]+$"
+    },
+    "status": {
+      "type": "string",
+      "const": "success",
+      "description": "响应状态：成功"
+    },
+    "code": {
+      "type": "integer",
+      "const": 200,
+      "description": "响应状态码"
+    },
+    "message": {
+      "type": "string",
+      "description": "人类可读的成功消息",
+      "examples": [
+        "客户端注册成功",
+        "PDF Home 注册成功",
+        "PDF Viewer 实例注册成功"
+      ]
+    },
+    "data": {
+      "type": "object",
+      "required": ["client_id", "client_type"],
+      "properties": {
+        "client_id": {
+          "type": "string",
+          "description": "已注册的客户端唯一标识符（与请求中的client_id一致）",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "client_type": {
+          "type": "array",
+          "description": "已注册的客户端类型标签集合（与请求中的client_type一致）",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "routing_keys": {
+          "type": "array",
+          "description": "服务端为该客户端生成的路由键列表（可选）\n\n用于消息路由匹配，通常从client_type或metadata中提取。",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "uniqueItems": true,
+          "examples": [
+            ["pdf:sample"],
+            ["pdf:document-123"],
+            []
+          ]
+        },
+        "server_info": {
+          "type": "object",
+          "description": "服务端元数据（可选）\n\n返回服务端支持的协议版本、能力特性、配置参数等信息。",
+          "properties": {
+            "protocol_version": {
+              "type": "string",
+              "description": "服务端支持的协议版本",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+              "examples": ["1.0.0", "2.0.0"]
+            },
+            "supported_capabilities": {
+              "type": "array",
+              "description": "服务端支持的能力列表",
+              "items": {
+                "type": "string"
+              },
+              "uniqueItems": true,
+              "examples": [
+                ["navigation", "annotation", "bookmark", "outline", "search"]
+              ]
+            },
+            "session_id": {
+              "type": "string",
+              "description": "会话唯一标识符（可选）",
+              "pattern": "^[a-zA-Z0-9_-]+$"
+            }
+          },
+          "additionalProperties": true
+        },
+        "registered_at": {
+          "type": "integer",
+          "description": "注册时间戳（毫秒）",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "type": "client:register:completed",
+      "timestamp": 1737118800050,
+      "request_id": "req-register-001",
+      "status": "success",
+      "code": 200,
+      "message": "PDF Home 注册成功",
+      "data": {
+        "client_id": "pdf-home",
+        "client_type": ["window:pdf-home"],
+        "routing_keys": [],
+        "server_info": {
+          "protocol_version": "1.0.0",
+          "supported_capabilities": ["pdf-list", "file-management", "navigation"],
+          "session_id": "session-abc123"
+        },
+        "registered_at": 1737118800050
+      }
+    },
+    {
+      "type": "client:register:completed",
+      "timestamp": 1737118801100,
+      "request_id": "req-register-002",
+      "status": "success",
+      "code": 200,
+      "message": "PDF Viewer 实例注册成功",
+      "data": {
+        "client_id": "pdf-viewer-sample",
+        "client_type": ["window:pdf-viewer:sample", "user_focus", "editable"],
+        "routing_keys": ["pdf:sample"],
+        "server_info": {
+          "protocol_version": "1.0.0",
+          "supported_capabilities": ["navigation", "annotation", "bookmark", "outline", "search"],
+          "session_id": "session-def456"
+        },
+        "registered_at": 1737118801100
+      }
+    }
+  ]
+}

@@ -9,8 +9,7 @@ import { TextSelectionHandler } from "./text-selection-handler.js";
 import { HighlightRenderer } from "./highlight-renderer.js";
 import { FloatingColorToolbar } from "./floating-color-toolbar.js";
 import { HighlightActionMenu } from "./highlight-action-menu.js";
-import { PDF_TRANSLATOR_EVENTS } from "../../../pdf-translator/public.js";
-import { Annotation } from "../../models/annotation.js";
+import { Annotation } from "../../../../../common/models/annotation.js";
 import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
 
 const HIGHLIGHT_COLOR_PRESETS = ["#ffeb3b", "#4caf50", "#2196f3", "#ff9800", "#e91e63", "#9c27b0"];
@@ -608,7 +607,7 @@ export class TextHighlightTool extends IAnnotationTool {
 
     this.#logger.info(`[TextHighlightTool] Translate requested for annotation ${annotation.id}`);
     this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, { sidebarId: "translate" });
-    this.#eventBus.emitGlobal(PDF_TRANSLATOR_EVENTS.TEXT.SELECTED, {
+    this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.TRANSLATOR.TEXT.SELECTED, {
       text,
       pageNumber: annotation.pageNumber,
       annotationId: annotation.id,

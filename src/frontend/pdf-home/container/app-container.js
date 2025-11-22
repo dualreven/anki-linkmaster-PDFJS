@@ -151,9 +151,15 @@ export function createPDFHomeContainer({ root, wsUrl, logger, enableValidation =
     if (!diContainer.has("wsClient") && state.wsUrl) {
       try {
         const eventBus = diContainer.get("eventBus");
-        const wsClient = new WSClient(state.wsUrl, eventBus);
+        // 显式传递 pdf-home 的客户端身份信息
+        const identityOptions = {
+          client_name: "pdf-home",
+          client_id: "ui",
+          module: "pdf-home"
+        };
+        const wsClient = new WSClient(state.wsUrl, eventBus, identityOptions);
         diContainer.register("wsClient", wsClient);
-        logger.debug("WSClient created and registered");
+        logger.debug("WSClient created and registered with identity: pdf-home:ui");
       } catch (e) {
         logger.warn("ws client prepare failed", e);
       }

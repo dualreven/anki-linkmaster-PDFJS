@@ -8,7 +8,7 @@ import { getLogger } from "../../../../../common/utils/logger.js";
 import { IAnnotationTool } from "../../interfaces/IAnnotationTool.js";
 import { CommentInput } from "./comment-input.js";
 import { CommentMarker } from "./comment-marker.js";
-import { Annotation } from "../../models/annotation.js";
+import { Annotation } from "../../../../../common/models/annotation.js";
 import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
 
 /**

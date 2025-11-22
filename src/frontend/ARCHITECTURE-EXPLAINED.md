@@ -963,6 +963,19 @@ globalEventBus.subscribe('recent-files:updated', (data) => {
 ✅ **并行开发** - 多人同时开发不同Feature
 ✅ **动态性** - 可运行时加载/卸载Feature
 
+### 通信规则速查表
+
+| 场景 | 正确做法 | 禁止做法 |
+|-----|---------|---------|
+| Feature间通信 | `eventBus.emitGlobal()` | ❌ 直接import其他Feature |
+| 获取共享服务 | `container.get('service')` | ❌ 访问全局变量 |
+| 声明依赖 | `dependencies: ['other-feature']` | ❌ 直接实例化其他Feature |
+| 跨Feature数据传递 | 通过事件payload | ❌ 通过window全局对象 |
+
+**⚠️ 核心规则**：所有跨Feature调用必须通过EventBus或Container，禁止直接import其他Feature代码。
+
+**详细规范** → `HOW-TO-ADD-FEATURE.md` 和 `common/event/EVENTBUS-USAGE-GUIDE.md`
+
 ---
 
 **现在你理解整套架构了吗？🎓**

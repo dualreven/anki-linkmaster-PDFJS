@@ -203,6 +203,30 @@ def open_viewer_ack(ctx, request_id: Optional[str], data: Dict[str, Any]) -> Dic
         )
 
 
+def open_home_ack(ctx, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    PDF-Home 打开请求的确认回执。
+    仅返回"已接收"响应，实际启动由 BackendLauncher 信号处理器完成。
+    """
+    try:
+        return StandardMessageHandler.build_response(
+            "pdf-home:open:completed",
+            request_id or StandardMessageHandler.generate_request_id(),
+            status="accepted",
+            code=202,
+            message="PDF-Home 打开请求已接收，后端将异步处理",
+            data={},
+        )
+    except Exception as exc:
+        return StandardMessageHandler.build_error_response(
+            request_id or "unknown",
+            "PDF_HOME_ERROR",
+            f"打开 PDF-Home 失败: {exc}",
+            message_type="pdf-home:open:failed",
+            code=500,
+        )
+
+
 def add_pdf(ctx, request_id: Optional[str], data: Dict[str, Any], *, original_type: Optional[str] = None) -> Dict[str, Any]:
     try:
         if not hasattr(ctx, "pdf_library_api") or not ctx.pdf_library_api:

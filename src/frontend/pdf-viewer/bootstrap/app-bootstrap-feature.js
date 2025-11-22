@@ -16,7 +16,7 @@ import { PDFManagerFeature } from "../features/pdf-manager/index.js";
 import { UIManagerFeature } from "../features/infra-ui/index.js";
 import { CoreNavigationFeature } from "../features/infra-nav-core/index.js";
 import { SearchFeature } from "../features/pdf-search/index.js";
-import { URLNavigationFeature } from "../features/infra-nav-url/index.js";
+import { PDFUrlLoaderFeature } from "../features/pdf-url-loader/index.js";
 import { AnnotationFeature } from "../features/pdf-annotation/index.js";
 import { SidebarManagerFeature } from "../features/infra-sidebar/index.js";
 import { PDFTranslatorFeature } from "../features/pdf-translator/index.js";
@@ -26,6 +26,7 @@ import { PDFCardFeature } from "../features/pdf-card/index.js";
 import { AiAssistantFeature } from "../features/ai-assistant/index.js";
 import { PDFAnchorFeature } from "../features/pdf-anchor/index.js";
 import { PDFResumeFeature } from "../features/pdf-resume/index.js";
+import { WindowControlsFeature } from "../features/window-controls/index.js";
 import { showInfo } from "../../common/utils/notification.js";
 const logger = getLogger("pdf-viewer.bootstrap");
 
@@ -121,11 +122,12 @@ export async function bootstrapPDFViewerAppFeature() {
 
     // 4. 注册核心 Features
     registry.register(new AppCoreFeature());
+    registry.register(new WindowControlsFeature()); // 窗口控制按钮(依赖 infra-app)
     registry.register(new PDFManagerFeature());
     registry.register(new UIManagerFeature());
     registry.register(new CoreNavigationFeature());  // 核心导航服务（需在url-navigation和annotation之前）
     registry.register(new SearchFeature());  // 注册搜索功能
-    registry.register(new URLNavigationFeature());
+    registry.register(new PDFUrlLoaderFeature());
     registry.register(new PDFResumeFeature()); // 断点续读（位于 URL 导航之后、Anchor 之前）
 
     // 4.1 强制 Outline：关闭切换逻辑与回退路径，始终注册 pdf-outline
@@ -238,7 +240,7 @@ export async function bootstrapPDFViewerAppFeature() {
       }
     };
 
-    // 7. 如果有PDF路径，自动加载（但当URL已提供 pdf-id 时，避免与 URLNavigationFeature 重复触发）
+    // 7. 如果有PDF路径，自动加载（但当URL已提供 pdf-id 时，避免与 PDFUrlLoaderFeature 重复触发）
     const hasPdfIdParam = (() => { try { return !!new URLSearchParams(window.location.search).get("pdf-id"); } catch { return false; } })();
     if (pdfPath && !hasPdfIdParam) {
       logger.info(`[Bootstrap] Auto-loading PDF: ${pdfPath}`);
@@ -262,7 +264,7 @@ export async function bootstrapPDFViewerAppFeature() {
         file_path: pdfPath
       }, { actorId: "Bootstrap" });
     } else if (pdfPath && hasPdfIdParam) {
-      logger.info("[TRACE] Skip Bootstrap auto-load because 'pdf-id' present; URLNavigationFeature will handle loading.");
+      logger.info("[TRACE] Skip Bootstrap auto-load because 'pdf-id' present; PDFUrlLoaderFeature will handle loading.");
     }
 
     logger.info("[Bootstrap] PDF Viewer App started successfully");

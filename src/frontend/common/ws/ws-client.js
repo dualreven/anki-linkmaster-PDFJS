@@ -984,6 +984,22 @@ export class WSClient {
       connection_history: this.#connectionHistory.slice(-10)
     };
   }
+
+  /**
+   * 获取客户端身份信息（用于窗口控制等功能）
+   * @returns {Object} 身份对象 { client_name, client_id, module }
+   */
+  getIdentity() {
+    return this.#identity ? { ...this.#identity } : null;
+  }
+
+  /**
+   * 获取客户端名称（用于后端识别窗口）
+   * @returns {string|null} 客户端名称（如 'pdf-viewer-c83c60c58ad2' 或 'pdf-home'）
+   */
+  getClientName() {
+    return this.#identity?.client_name || null;
+  }
 }
 
 // 兼容默认导出（部分模块以 default 方式导入）

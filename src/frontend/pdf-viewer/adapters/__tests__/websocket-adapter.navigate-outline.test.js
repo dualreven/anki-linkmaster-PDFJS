@@ -42,15 +42,43 @@ describe("WebSocketAdapter navigate (outline)", () => {
     eventBus?.destroy();
   });
 
-  test("应当把 pdf-viewer:navigate:requested (outline) 转为 OUTLINE.NAVIGATE_BY_ID.REQUESTED", () => {
+  test("应当把 pdf-viewer:navigate:requested (outline) 转为 OUTLINE.NAVIGATE_BY_ID.REQUESTED [NEW PROTOCOL]", () => {
     const spy = jest.fn();
     eventBus.on(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE_BY_ID.REQUESTED, spy);
 
+    // ✅ 新协议：to 在顶层，使用 client_id/routing_key
     adapter.handleMessage({
       type: "pdf-viewer:navigate:requested",
       request_id: "req-1",
+      to: {
+        client_id: "pdf-viewer-deadbeefcafe",
+        target_type: "pdf-viewer",
+        routing_key: "pdf:deadbeefcafe"
+      },
       data: {
-        to: { pdf_uuid: "deadbeefcafe" },
+        target: { type: "outline", outline_item_id: "outline-123" },
+        options: {}
+      }
+    });
+
+    expect(spy).toHaveBeenCalledWith(
+      { outlineItemId: "outline-123" },
+      expect.any(Object)
+    );
+  });
+
+  test("[DEPRECATED] 旧协议仍然支持 (backward compat)", () => {
+    const spy = jest.fn();
+    eventBus.on(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE_BY_ID.REQUESTED, spy);
+
+    // ⚠️ 旧协议：to 包含 pdf_uuid
+    adapter.handleMessage({
+      type: "pdf-viewer:navigate:requested",
+      request_id: "req-1-old",
+      to: {
+        pdf_uuid: "deadbeefcafe"  // 旧字段
+      },
+      data: {
         target: { type: "outline", outline_item_id: "outline-123" },
         options: {}
       }

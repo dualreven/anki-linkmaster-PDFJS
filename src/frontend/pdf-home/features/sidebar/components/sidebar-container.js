@@ -123,7 +123,7 @@ export class SidebarContainer {
 
   /**
    * 根据侧边栏折叠状态，更新主内容区域布局，避免遮挡
-   * 只有当侧边栏实际遮挡主内容时，才调整布局
+   * 桌面场景下：侧边栏展开时始终为主内容预留 280px 宽度
    * @param {boolean} collapsed - 是否处于折叠状态
    * @private
    */
@@ -133,51 +133,24 @@ export class SidebarContainer {
       const sidebar = document.getElementById("sidebar");
       if (!main || !sidebar) {return;}
 
-      let shouldPushContent = false;
-
-      if (collapsed) {
-        // 侧边栏收起，不需要推开内容
-        shouldPushContent = false;
-      } else {
-        // 侧边栏展开，检测是否遮挡主内容
-        // 重要：先临时清除 inline style，获取原始位置
-        const originalMargin = main.style.marginLeft;
-        const originalWidth = main.style.width;
-        main.style.marginLeft = "";
-        main.style.width = "";
-
-        // 强制重新计算布局
-        void main.offsetWidth;
-
-        const sidebarRect = sidebar.getBoundingClientRect();
-        const mainRect = main.getBoundingClientRect();
-
-        // 检测水平方向是否重叠（考虑1px的误差容忍）
-        const isOverlapping = sidebarRect.right > mainRect.left + 1;
-
-        // 恢复之前的样式
-        main.style.marginLeft = originalMargin;
-        main.style.width = originalWidth;
-
-        shouldPushContent = isOverlapping;
-      }
-
       // 检查是否需要更新（避免重复设置相同样式）
-      const layoutStateKey = `${collapsed}-${shouldPushContent}`;
+      const layoutStateKey = collapsed ? "collapsed" : "expanded";
       if (this.#lastLayoutState === layoutStateKey) {
         return; // 状态未变化，跳过
       }
       this.#lastLayoutState = layoutStateKey;
 
       // 应用布局调整
-      if (shouldPushContent) {
+      if (!collapsed) {
+        // 展开侧边栏：为其预留固定宽度
         main.style.marginLeft = "280px";
         main.style.width = "calc(100% - 280px)";
-        this.#logger.debug("[SidebarContainer] Layout adjusted: content pushed");
+        this.#logger.debug("[SidebarContainer] Layout adjusted: content pushed (expanded)");
       } else {
+        // 收起侧边栏：主内容占满可用空间
         main.style.marginLeft = "";
         main.style.width = "";
-        this.#logger.debug("[SidebarContainer] Layout adjusted: content restored");
+        this.#logger.debug("[SidebarContainer] Layout adjusted: content restored (collapsed)");
       }
     } catch (error) {
       this.#logger.warn("[SidebarContainer] Layout update failed", error);

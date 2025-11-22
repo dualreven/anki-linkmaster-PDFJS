@@ -18,6 +18,43 @@
 
 ---
 
+## ⚠️ 为什么必须使用EventBus？
+
+### Feature间通信的唯一方式
+
+在本项目的插件架构中，**所有Feature间通信必须通过EventBus**，这是强制规则，不是建议。
+
+**严格禁止的做法**：
+```javascript
+// ❌ 禁止：直接import其他Feature
+import { BookmarkFeature } from '../bookmark/index.js';
+const bookmarkFeature = new BookmarkFeature();
+bookmarkFeature.toggleSidebar(); // 绕过EventBus
+
+// ❌ 禁止：访问其他Feature的内部实现
+import { BookmarkManager } from '../bookmark/components/bookmark-manager.js';
+
+// ❌ 禁止：通过全局变量共享
+window.myFeatureState = { ... };
+```
+
+**正确的做法**：
+```javascript
+// ✅ 正确：通过EventBus通信
+eventBus.emitGlobal('bookmark:sidebar:toggle:requested', {}, { actorId: 'MyFeature' });
+
+// ✅ 正确：通过Container获取服务（前提是该服务已注册）
+const bookmarkService = container.get('bookmarkService');
+```
+
+**自动化保护**：
+- ESLint规则 `custom/no-cross-feature-internals` 会在CI中强制检查
+- 违反规则的代码无法合并
+
+**详细说明** → `../HOW-TO-ADD-FEATURE.md` → "核心规则"章节
+
+---
+
 ## 核心概念
 
 ### EventBus（全局事件总线）

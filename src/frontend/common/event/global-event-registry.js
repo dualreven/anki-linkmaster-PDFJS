@@ -7,6 +7,7 @@
 import EVENT_CONSTANTS, {
   // 显式引入关键事件组，防止生产构建下被 Tree-Shaking 意外移除
   APP_EVENTS,
+  APP_WINDOW_EVENTS,
   SYSTEM_EVENTS,
   WEBSOCKET_EVENTS,
   UI_EVENTS,
@@ -46,6 +47,7 @@ const AllowedGlobalEvents = new Set();
 // 收集通用事件常量（整体 + 关键分组，双重保障）
 collectStrings(EVENT_CONSTANTS, AllowedGlobalEvents);
 collectStrings(APP_EVENTS, AllowedGlobalEvents);
+collectStrings(APP_WINDOW_EVENTS, AllowedGlobalEvents);
 collectStrings(SYSTEM_EVENTS, AllowedGlobalEvents);
 collectStrings(WEBSOCKET_EVENTS, AllowedGlobalEvents);
 collectStrings(UI_EVENTS, AllowedGlobalEvents);

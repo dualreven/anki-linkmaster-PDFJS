@@ -11,6 +11,20 @@ describe("PDFManagerCore - openPDF Method", () => {
   let mockEventBus;
   let emittedEvents;
 
+  /**
+   * 辅助函数：创建期望的消息格式匹配器
+   * @param {Object} data - 期望的数据字段
+   * @returns {Object} Jest匹配器对象
+   */
+  const expectMessageWith = (data) => {
+    return expect.objectContaining({
+      type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
+      data: data,
+      request_id: expect.stringMatching(/^req_\d+_[a-z0-9]+$/),
+      metadata: { version: "1.0.0" }
+    });
+  };
+
   beforeEach(() => {
     // 重置测试数据
     emittedEvents = [];
@@ -41,10 +55,7 @@ describe("PDFManagerCore - openPDF Method", () => {
 
       expect(mockEventBus.emit).toHaveBeenCalledWith(
         WEBSOCKET_EVENTS.MESSAGE.SEND,
-        {
-          type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
-          data: { file_id: filename }
-        },
+        expectMessageWith({ file_id: filename }),
         { actorId: "PDFManager" }
       );
     });
@@ -56,10 +67,7 @@ describe("PDFManagerCore - openPDF Method", () => {
 
       expect(mockEventBus.emit).toHaveBeenCalledWith(
         WEBSOCKET_EVENTS.MESSAGE.SEND,
-        {
-          type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
-          data: { file_id: filename }
-        },
+        expectMessageWith({ file_id: filename }),
         { actorId: "PDFManager" }
       );
     });
@@ -73,10 +81,7 @@ describe("PDFManagerCore - openPDF Method", () => {
 
       expect(mockEventBus.emit).toHaveBeenCalledWith(
         WEBSOCKET_EVENTS.MESSAGE.SEND,
-        {
-          type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
-          data: { file_id: "sample.pdf" }
-        },
+        expectMessageWith({ file_id: "sample.pdf" }),
         { actorId: "PDFManager" }
       );
     });
@@ -91,13 +96,10 @@ describe("PDFManagerCore - openPDF Method", () => {
 
       expect(mockEventBus.emit).toHaveBeenCalledWith(
         WEBSOCKET_EVENTS.MESSAGE.SEND,
-        {
-          type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
-          data: {
-            file_id: "sample.pdf",
-            needNavigate: { pageAt: 5 }
-          }
-        },
+        expectMessageWith({
+          file_id: "sample.pdf",
+          needNavigate: { pageAt: 5 }
+        }),
         { actorId: "PDFManager" }
       );
     });
@@ -115,16 +117,13 @@ describe("PDFManagerCore - openPDF Method", () => {
 
       expect(mockEventBus.emit).toHaveBeenCalledWith(
         WEBSOCKET_EVENTS.MESSAGE.SEND,
-        {
-          type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
-          data: {
-            file_id: "sample.pdf",
-            needNavigate: {
-              pageAt: 5,
-              position: 50
-            }
+        expectMessageWith({
+          file_id: "sample.pdf",
+          needNavigate: {
+            pageAt: 5,
+            position: 50
           }
-        },
+        }),
         { actorId: "PDFManager" }
       );
     });
@@ -141,15 +140,12 @@ describe("PDFManagerCore - openPDF Method", () => {
 
       expect(mockEventBus.emit).toHaveBeenCalledWith(
         WEBSOCKET_EVENTS.MESSAGE.SEND,
-        {
-          type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
-          data: {
-            file_id: "sample.pdf",
-            needNavigate: {
-              pdfanchor: "pdfanchor-abc123def456"
-            }
+        expectMessageWith({
+          file_id: "sample.pdf",
+          needNavigate: {
+            pdfanchor: "pdfanchor-abc123def456"
           }
-        },
+        }),
         { actorId: "PDFManager" }
       );
     });
@@ -166,15 +162,12 @@ describe("PDFManagerCore - openPDF Method", () => {
 
       expect(mockEventBus.emit).toHaveBeenCalledWith(
         WEBSOCKET_EVENTS.MESSAGE.SEND,
-        {
-          type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
-          data: {
-            file_id: "sample.pdf",
-            needNavigate: {
-              pdfannotation: "pdfannotation-xyz789"
-            }
+        expectMessageWith({
+          file_id: "sample.pdf",
+          needNavigate: {
+            pdfannotation: "pdfannotation-xyz789"
           }
-        },
+        }),
         { actorId: "PDFManager" }
       );
     });
@@ -191,21 +184,16 @@ describe("PDFManagerCore - openPDF Method", () => {
 
       manager.openPDF(data);
 
-      const expectedData = {
-        file_id: "sample.pdf",
-        needNavigate: {
-          pageAt: 10,
-          position: 75,
-          pdfanchor: "pdfanchor-test12345678"
-        }
-      };
-
       expect(mockEventBus.emit).toHaveBeenCalledWith(
         WEBSOCKET_EVENTS.MESSAGE.SEND,
-        {
-          type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
-          data: expectedData
-        },
+        expectMessageWith({
+          file_id: "sample.pdf",
+          needNavigate: {
+            pageAt: 10,
+            position: 75,
+            pdfanchor: "pdfanchor-test12345678"
+          }
+        }),
         { actorId: "PDFManager" }
       );
     });
@@ -284,13 +272,10 @@ describe("PDFManagerCore - openPDF Method", () => {
 
       expect(mockEventBus.emit).toHaveBeenCalledWith(
         WEBSOCKET_EVENTS.MESSAGE.SEND,
-        {
-          type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
-          data: {
-            file_id: "sample.pdf",
-            needNavigate: {}
-          }
-        },
+        expectMessageWith({
+          file_id: "sample.pdf",
+          needNavigate: {}
+        }),
         { actorId: "PDFManager" }
       );
     });
@@ -306,10 +291,7 @@ describe("PDFManagerCore - openPDF Method", () => {
       // needNavigate 为 null，不应该添加到 data 中
       expect(mockEventBus.emit).toHaveBeenCalledWith(
         WEBSOCKET_EVENTS.MESSAGE.SEND,
-        {
-          type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
-          data: { file_id: "sample.pdf" }
-        },
+        expectMessageWith({ file_id: "sample.pdf" }),
         { actorId: "PDFManager" }
       );
     });
@@ -325,10 +307,7 @@ describe("PDFManagerCore - openPDF Method", () => {
       // needNavigate 为 undefined，不应该添加到 data 中
       expect(mockEventBus.emit).toHaveBeenCalledWith(
         WEBSOCKET_EVENTS.MESSAGE.SEND,
-        {
-          type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
-          data: { file_id: "sample.pdf" }
-        },
+        expectMessageWith({ file_id: "sample.pdf" }),
         { actorId: "PDFManager" }
       );
     });
@@ -351,16 +330,13 @@ describe("PDFManagerCore - openPDF Method", () => {
       // 验证发送的数据没有被修改
       expect(mockEventBus.emit).toHaveBeenCalledWith(
         WEBSOCKET_EVENTS.MESSAGE.SEND,
-        {
-          type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF,
-          data: {
-            file_id: "sample.pdf",
-            needNavigate: {
-              pageAt: 5,   // 应该保持原始值
-              position: 50 // 应该保持原始值
-            }
+        expectMessageWith({
+          file_id: "sample.pdf",
+          needNavigate: {
+            pageAt: 5,   // 应该保持原始值
+            position: 50 // 应该保持原始值
           }
-        },
+        }),
         { actorId: "PDFManager" }
       );
     });

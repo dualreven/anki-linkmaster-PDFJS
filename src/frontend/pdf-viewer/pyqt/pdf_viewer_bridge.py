@@ -16,11 +16,12 @@ from pathlib import Path
 import time
 
 from src.qt.compat import QObject, pyqtSignal, pyqtSlot
+from src.frontend.common.pyqt.window_controls_mixin import WindowControlsMixin
 
 logger = logging.getLogger(__name__)
 
 
-class PdfViewerBridge(QObject):
+class PdfViewerBridge(QObject, WindowControlsMixin):
     """Bridge object registered on QWebChannel as `pdfViewerBridge`.
 
     Methods are exposed to JS (Qt will marshal return values to Promises).
@@ -38,6 +39,8 @@ class PdfViewerBridge(QObject):
 
     def __init__(self, ws_client: Optional[object] = None, parent: Optional[QObject] = None, file_path: Optional[str] = None):
         super().__init__(parent)
+        self.parent = parent  # WindowControlsMixin needs this to control the window
+        self._init_drag_mode()  # Initialize drag mode (from WindowControlsMixin)
         self._ws_client = ws_client
         self._current_file_path = file_path
         self._current_page = 1
@@ -382,3 +385,7 @@ class PdfViewerBridge(QObject):
         except Exception as exc:
             logger.error(f"sendCustomMessage failed for {messageType}: {exc}")
             return False
+
+    # -------------------- Window Control API --------------------
+    # 窗口控制方法（minimizeWindow, maximizeWindow, requestCloseWindow）
+    # 已通过继承 WindowControlsMixin 提供，无需在此重复定义

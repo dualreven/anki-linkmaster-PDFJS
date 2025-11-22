@@ -1,8 +1,7 @@
 import { getLogger } from "../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
-import { PDF_TRANSLATOR_EVENTS } from "../pdf-translator/public.js";
 // 统一使用小写路径，避免在部分打包/HTTP服务中因大小写不一致导致的模块解析问题
-import { Annotation, AnnotationType } from "../pdf-annotation/public.js";
+import { Annotation, AnnotationType } from "../../../common/models/annotation.js";
 import { QuickActionsToolbar } from "./quick-actions-toolbar.js";
 import {
   findPageElement,
@@ -277,7 +276,7 @@ export class TextSelectionQuickActionsFeature {
       return;
     }
 
-    this.#eventBus.emit(PDF_TRANSLATOR_EVENTS.TEXT.SELECTED, {
+    this.#eventBus.emit(PDF_VIEWER_EVENTS.TRANSLATOR.TEXT.SELECTED, {
       text: selection.text,
       pageNumber: selection.pageNumber,
       position: {

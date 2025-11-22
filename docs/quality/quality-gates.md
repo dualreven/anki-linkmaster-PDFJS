@@ -15,9 +15,9 @@ Lint
 
 测试
 - 单元/集成：Jest（前端）、pytest（后端/handlers/DB 插件）
-- 端到端：Playwright 覆盖 pdf-home 添加、pdf-viewer 导航与 outline CRUD
-  - 运行：`pnpm run e2e:browser`
-  - 目标：安装顺序无失败、导航/CRUD 链路可用
+- 端到端：采用“多段集成 + 流程编排”（无浏览器）覆盖 pdf-home 添加、pdf-viewer 导航与 outline CRUD
+  - 运行：`pnpm -s e2e:flow:<module>:<feature>`（如 `pnpm -s e2e:flow:pdf-home:add-pdf`）
+  - 目标：安装顺序无失败、导航/CRUD 链路可用；产物与报告完整可溯源
 
 契约差异建议（CI）
 - 比对前端 `WEBSOCKET_MESSAGE_TYPES` 与后端 `MessageType` 的集合差异

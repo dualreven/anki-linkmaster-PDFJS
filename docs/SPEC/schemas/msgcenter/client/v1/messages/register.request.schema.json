@@ -1,0 +1,127 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "msgcenter/client/v1/messages/register.request.schema.json",
+  "title": "Client Registration Request",
+  "description": "统一客户端注册协议 - 请求消息格式\n\n适用于所有客户端类型（PDF Viewer、PDF Home等），通过client_type标签系统实现灵活分类和路由。",
+  "type": "object",
+  "required": ["type", "data"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "client:register:requested",
+      "description": "消息类型：客户端注册请求"
+    },
+    "timestamp": {
+      "type": "integer",
+      "description": "消息时间戳（毫秒）",
+      "minimum": 0
+    },
+    "request_id": {
+      "type": "string",
+      "description": "请求唯一标识符",
+      "pattern": "^[a-zA-Z0-9_-]+$"
+    },
+    "data": {
+      "type": "object",
+      "required": ["client_id", "client_type"],
+      "properties": {
+        "client_id": {
+          "type": "string",
+          "description": "客户端全局唯一标识符\n\n命名规范：\n- pdf-home: 固定值 \"pdf-home\"（唯一窗口，不可多开）\n- pdf-viewer: \"pdf-viewer-{pdf-id}\"（支持多实例）\n- 其他客户端: 自定义格式，确保全局唯一",
+          "minLength": 1,
+          "maxLength": 255,
+          "examples": [
+            "pdf-home",
+            "pdf-viewer-sample",
+            "pdf-viewer-document-123",
+            "cli-tool-abc"
+          ]
+        },
+        "client_type": {
+          "type": "array",
+          "description": "客户端类型标签集合（Type Tags）\n\n设计理念：\n- 使用类型标签替代固定的module字段\n- 支持多维度分类（窗口类型、资源ID、状态、权限等）\n- 支持逻辑匹配路由（intersect/subset/exclude）\n\n标签格式建议：\n- 窗口类型: \"window:{app-name}\" 或 \"window:{app-name}:{resource-id}\"\n- CLI工具: \"cli:{tool-name}\"\n- 后台服务: \"service:{service-name}\"\n- 状态标签: \"user_focus\", \"read_only\", \"editable\"\n- 权限标签: \"admin\", \"guest\"",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[a-zA-Z0-9_:-]+$"
+          },
+          "minItems": 1,
+          "uniqueItems": true,
+          "examples": [
+            ["window:pdf-home"],
+            ["window:pdf-viewer:sample", "user_focus", "editable"],
+            ["cli:pdf-converter", "service"],
+            ["window:pdf-viewer:doc123", "read_only"]
+          ]
+        },
+        "capabilities": {
+          "type": "array",
+          "description": "客户端能力声明（可选）\n\n声明客户端支持的功能或协议版本，便于服务端进行能力协商和功能适配。",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "uniqueItems": true,
+          "examples": [
+            ["navigation", "annotation", "bookmark"],
+            ["outline-sync", "multi-window"],
+            ["protocol:v2", "streaming"]
+          ]
+        },
+        "metadata": {
+          "type": "object",
+          "description": "客户端元数据（可选）\n\n存储额外的客户端信息，如版本号、配置参数、用户偏好等。",
+          "additionalProperties": true,
+          "examples": [
+            {
+              "version": "1.0.0",
+              "user_agent": "PDF Viewer/1.0",
+              "window_id": "main-window"
+            },
+            {
+              "pdf_id": "sample",
+              "pdf_path": "/data/pdfs/sample.pdf",
+              "initial_page": 1
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "type": "client:register:requested",
+      "timestamp": 1737118800000,
+      "request_id": "req-register-001",
+      "data": {
+        "client_id": "pdf-home",
+        "client_type": ["window:pdf-home"],
+        "capabilities": ["pdf-list", "file-management"],
+        "metadata": {
+          "version": "1.0.0",
+          "window_id": "pdf-home-main"
+        }
+      }
+    },
+    {
+      "type": "client:register:requested",
+      "timestamp": 1737118801000,
+      "request_id": "req-register-002",
+      "data": {
+        "client_id": "pdf-viewer-sample",
+        "client_type": ["window:pdf-viewer:sample", "user_focus", "editable"],
+        "capabilities": ["navigation", "annotation", "bookmark", "outline"],
+        "metadata": {
+          "version": "2.0.0",
+          "pdf_id": "sample",
+          "pdf_path": "/data/pdfs/sample.pdf",
+          "initial_page": 5
+        }
+      }
+    }
+  ]
+}

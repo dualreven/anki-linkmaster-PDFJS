@@ -18,6 +18,7 @@ def build_router(ctx: Any) -> Dict[str, RouteHandler]:
         add_pdf as pdf_add,
         remove_batch as pdf_remove_batch,
         open_viewer_ack as pdf_viewer_ack,
+        open_home_ack as pdf_home_ack,
         detail as pdf_detail,
         record_update as pdf_record_update,
         config_read as pdf_config_read,
@@ -28,7 +29,7 @@ def build_router(ctx: Any) -> Dict[str, RouteHandler]:
     from src.backend.msgCenter_server.handlers.pdf_viewer.anchor import (
         get_anchor, list_anchors, create_anchor, update_anchor, delete_anchor, activate_anchor
     )
-    from src.backend.msgCenter_server.handlers.pdf_viewer.viewer import register_viewer, navigate_viewer
+    from src.backend.msgCenter_server.handlers.pdf_viewer.viewer import register_viewer, navigate_viewer_validator
     from src.backend.msgCenter_server.handlers.pdf_viewer.bookmark import list_bookmarks, save_bookmarks
     from src.backend.msgCenter_server.handlers.pdf_viewer.outline import (
         list_outline, create_outline, update_outline, delete_outline, reorder_outline, bulk_save_outline
@@ -60,6 +61,8 @@ def build_router(ctx: Any) -> Dict[str, RouteHandler]:
         "pdf-library:config-read:requested": lambda rid, data: pdf_config_read(ctx, rid),
         "pdf-library:config-write:requested": wrap(pdf_config_write),
         "pdf-library:search:requested": ctx.handle_pdf_search_request,  # 需要 raw_message
+        # pdf-home
+        "pdf-home:open:requested": wrap(pdf_home_ack),
         # annotation
         "annotation:list:requested": wrap(list_annotations),
         "annotation:save:requested": wrap(save_annotation),
@@ -73,7 +76,7 @@ def build_router(ctx: Any) -> Dict[str, RouteHandler]:
         "anchor:activate:requested": wrap(activate_anchor),
         # viewer
         "pdf-viewer:register:requested": wrap(register_viewer),
-        "pdf-viewer:navigate:requested": wrap(navigate_viewer),
+        "pdf-viewer:navigate:requested": wrap(navigate_viewer_validator),
         # bookmark
         "bookmark:list:requested": wrap(list_bookmarks),
         "bookmark:save:requested": wrap(save_bookmarks),
@@ -92,6 +95,16 @@ def build_router(ctx: Any) -> Dict[str, RouteHandler]:
         "pdf-page:cache-clear:requested": wrap(clear_cache),
         # system
         "system:heartbeat:requested": wrap(heartbeat),
+        # app-window（窗口生命周期管理）
+        #  注意：实际的关闭逻辑由 BackendLauncher._on_msgcenter_message 处理
+        #  这里只需要返回成功响应，避免 StandardServer 返回 "未找到 Handler" 的 failed
+        "app-window:close:requested": lambda rid, data: {
+            "type": "app-window:close:completed",
+            "request_id": rid or "unknown",
+            "status": "success",
+            "message": "窗口关闭请求已接受",
+            "code": 200
+        },
         # console（非三段式历史信号）
         "console_log": wrap(console_log),
     }

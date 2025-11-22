@@ -47,15 +47,20 @@ describe("WebSocketAdapter navigate (annotation/anchor)", () => {
     eventBus?.destroy();
   });
 
-  test("annotation 模式应发射 ANNOTATION.NAVIGATION.JUMP_REQUESTED（id）", () => {
+  test("annotation 模式应发射 ANNOTATION.NAVIGATION.JUMP_REQUESTED（id）[NEW PROTOCOL]", () => {
     const spy = jest.fn();
     eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, spy);
 
+    // ✅ 新协议：to 在顶层
     adapter.handleMessage({
       type: "pdf-viewer:navigate:requested",
       request_id: "req-2",
+      to: {
+        client_id: "pdf-viewer-sample",
+        target_type: "pdf-viewer",
+        routing_key: "pdf:sample"
+      },
       data: {
-        to: { viewer_id: "vwr_x" },
         target: { type: "annotation", annotation_id: "ann-xyz" },
         options: { highlight: true }
       }
@@ -67,15 +72,65 @@ describe("WebSocketAdapter navigate (annotation/anchor)", () => {
     );
   });
 
-  test("anchor 模式应发射 ANCHOR.NAVIGATE.REQUESTED（anchorId）", () => {
+  test("[DEPRECATED] annotation 旧协议仍然支持", () => {
+    const spy = jest.fn();
+    eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, spy);
+
+    // ⚠️ 旧协议
+    adapter.handleMessage({
+      type: "pdf-viewer:navigate:requested",
+      request_id: "req-2-old",
+      to: {
+        viewer_id: "vwr_x"  // 旧字段
+      },
+      data: {
+        target: { type: "annotation", annotation_id: "ann-xyz" },
+        options: { highlight: true }
+      }
+    });
+
+    expect(spy).toHaveBeenCalledWith(
+      { id: "ann-xyz", highlight: true },
+      expect.any(Object)
+    );
+  });
+
+  test("anchor 模式应发射 ANCHOR.NAVIGATE.REQUESTED（anchorId）[NEW PROTOCOL]", () => {
     const spy = jest.fn();
     eventBus.on(PDF_VIEWER_EVENTS.ANCHOR.NAVIGATE.REQUESTED, spy);
 
+    // ✅ 新协议：to 在顶层
     adapter.handleMessage({
       type: "pdf-viewer:navigate:requested",
       request_id: "req-3",
+      to: {
+        client_id: "pdf-viewer-deadbeefcafe",
+        target_type: "pdf-viewer",
+        routing_key: "pdf:deadbeefcafe"
+      },
       data: {
-        to: { pdf_uuid: "deadbeefcafe" },
+        target: { type: "anchor", anchor_id: "pdfanchor-aaaaaaaaaaaa" }
+      }
+    });
+
+    expect(spy).toHaveBeenCalledWith(
+      { anchorId: "pdfanchor-aaaaaaaaaaaa" },
+      expect.any(Object)
+    );
+  });
+
+  test("[DEPRECATED] anchor 旧协议仍然支持", () => {
+    const spy = jest.fn();
+    eventBus.on(PDF_VIEWER_EVENTS.ANCHOR.NAVIGATE.REQUESTED, spy);
+
+    // ⚠️ 旧协议
+    adapter.handleMessage({
+      type: "pdf-viewer:navigate:requested",
+      request_id: "req-3-old",
+      to: {
+        pdf_uuid: "deadbeefcafe"  // 旧字段
+      },
+      data: {
         target: { type: "anchor", anchor_id: "pdfanchor-aaaaaaaaaaaa" }
       }
     });

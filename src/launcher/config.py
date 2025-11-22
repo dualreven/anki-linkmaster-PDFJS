@@ -30,9 +30,10 @@ def resolve_component_root(relative_to: Optional[Path] = None) -> Path:
 
 @dataclass
 class LauncherPorts:
-    vite_port: Optional[int] = None
     msgCenter_port: Optional[int] = None
     pdfFile_port: Optional[int] = None
+    url_port: Optional[int] = None  # 前端资源获取端口（dev模式=vite_port, prod模式=pdfFile_port）
+    vite_port: Optional[int] = None  # 保留以兼容旧代码
 
 
 @dataclass
@@ -147,9 +148,10 @@ class LauncherConfig:
 
         # 端口默认：留空时由后端/前端自行分配或按 CLI 注入
         new_ports = LauncherPorts(
-            vite_port=self.ports.vite_port,
             msgCenter_port=self.ports.msgCenter_port,
             pdfFile_port=self.ports.pdfFile_port,
+            url_port=self.ports.url_port,
+            vite_port=self.ports.vite_port,
         )
 
         return LauncherConfig(ports=new_ports, paths=new_paths, options=self.options)

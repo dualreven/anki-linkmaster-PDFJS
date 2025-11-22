@@ -7,28 +7,31 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="app-boot-banner" style="position:fixed;top:8px;left:8px;background:#222;color:#fff;padding:6px 10px;border-radius:4px;font-size:12px;z-index:99999;pointer-events:none">
-        正在加载 PDF-Home（生产）...
-    </div>
-    <div class="container">
-        <main>
-            <!-- 左右两栏布局 -->
-            <div class="layout-container">
-                <!-- 左侧侧边栏 -->
-                <aside id="sidebar" class="sidebar">
-                    <!-- 侧边栏内容将由JavaScript动态生成 -->
-                </aside>
+    <!-- 新增：Flex顶层容器，实现容器隔离 -->
+    <div class="app-root">
+        <!-- 顶部工具栏：窗口控制按钮 -->
+        <header class="pdf-home-header">
+            <h1 class="pdf-home-title">📚 Anki LinkMaster - PDF 管理</h1>
+            <div class="toolbar-controls">
+                <!-- 窗口控制按钮容器（由WindowControlsComponent动态挂载）-->
+            </div>
+        </header>
 
-                <!-- 右侧主内容区 -->
-                <div class="main-content">
-                    <div class="search-results-header">
-                        <h2>📚 搜索结果</h2>
-                        <span class="result-count-badge">共 0 条</span>
-                    </div>
+        <main class="pdf-home-main">
+            <!-- 左侧侧边栏 -->
+            <aside id="sidebar" class="sidebar">
+                <!-- 侧边栏内容将由JavaScript动态生成 -->
+            </aside>
 
-                    <div id="pdf-table-container" class="pdf-table-container">
-                        <!-- 搜索结果将在这里动态生成 -->
-                    </div>
+            <!-- 右侧主内容区 -->
+            <div class="main-content">
+                <div class="search-results-header">
+                    <h2>📚 搜索结果</h2>
+                    <span class="result-count-badge">共 0 条</span>
+                </div>
+
+                <div id="pdf-table-container" class="pdf-table-container">
+                    <!-- 搜索结果将在这里动态生成 -->
                 </div>
             </div>
 

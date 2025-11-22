@@ -88,7 +88,7 @@ export default defineConfig(async () => {
       proxy: {
         // 代理PDF文件请求到PyQt HTTP服务器
         '/pdfs': {
-          target: `http://localhost:${httpServerPort}`, // 动态读取PDF服务器端口
+          target: `http://127.0.0.1:${httpServerPort}`, // 明确使用 IPv4 地址，避免 localhost 解析为 IPv6
           changeOrigin: true,
           secure: false,
           ws: false,
@@ -97,7 +97,7 @@ export default defineConfig(async () => {
         },
         // 代理PDF文件请求（新路径）
         '/pdf-files': {
-          target: `http://localhost:${httpServerPort}`,
+          target: `http://127.0.0.1:${httpServerPort}`, // 明确使用 IPv4 地址
           changeOrigin: true,
           secure: false,
           ws: false,
@@ -105,7 +105,7 @@ export default defineConfig(async () => {
         },
         // 代理API请求到WebSocket服务器（如果需要）
         '/api': {
-          target: 'http://localhost:8765',
+          target: 'http://127.0.0.1:8765', // 明确使用 IPv4 地址
           changeOrigin: true
         }
       }

@@ -95,7 +95,7 @@ export class PDFResumeFeature {
       } else if (t === WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_COMPLETED) {
         this.#logger.debug("[resume] record-update completed");
       }
-    }, { subscriberId: "PDFResumeFeature" });
+    }, { subscriberId: "PDFResumeFeature-diagnostic" });
   }
 
   #uiDetachFns = [];
@@ -149,7 +149,8 @@ export class PDFResumeFeature {
     this.#eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, {
       type: WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST,
       request_id: rid,
-      data: { pdf_id: pdfId }
+      data: { pdf_id: pdfId },
+      metadata: { version: "1.0.0" }
     }, { actorId: "PDFResumeFeature" });
 
     // 设置一次性监听：消费该 request 的 completed/failed
@@ -170,7 +171,7 @@ export class PDFResumeFeature {
         this.#logger.warn("[resume] process info response failed", e);
         off?.();
       }
-    }, { subscriberId: "PDFResumeFeature" });
+    }, { subscriberId: `PDFResumeFeature-load-${rid}` });
   }
 
   #maybeApplyResume(resume, pdfId) {

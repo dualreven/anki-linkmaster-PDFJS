@@ -136,6 +136,8 @@ features/[plugin-name]/
 
 ### 依赖注入
 
+**⚠️ 重要**：跨插件调用必须通过EventBus或Container，禁止直接import其他插件代码。
+
 插件通过 DependencyContainer 获取依赖：
 
 ```javascript
@@ -148,6 +150,8 @@ async install(context) {
   // ...
 }
 ```
+
+**详见**：`../../HOW-TO-ADD-FEATURE.md` → "核心规则"章节
 
 ## 新增插件清单（本次重构）
 

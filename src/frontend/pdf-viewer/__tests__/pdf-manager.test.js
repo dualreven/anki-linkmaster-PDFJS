@@ -8,25 +8,9 @@ import { PDFManager } from "../pdf-manager.js";
 import { EventBus } from "../../common/event/event-bus.js";
 import { jest } from "@jest/globals";
 
-// Mock 依赖模块
-jest.mock("../../common/event/event-bus.js", () => {
-  return {
-    EventBus: jest.fn().mockImplementation(() => ({
-      on: jest.fn(),
-      emit: jest.fn(),
-      destroy: jest.fn()
-    }))
-  };
-});
+// EventBus 不需要 Mock，测试应使用真实的 EventBus 实例
 
-jest.mock("../../common/utils/logger.js", () => {
-  return jest.fn().mockImplementation(() => ({
-    info: jest.fn(),
-    error: jest.fn(),
-    warn: jest.fn(),
-    debug: jest.fn()
-  }));
-});
+// Logger 已在 jest.setup.js 中全局 Mock，无需重复 Mock
 
 // Mock PDF.js
 jest.mock("pdfjs-dist/build/pdf", () => {
@@ -52,9 +36,28 @@ describe("PDFManager", () => {
   let pdfManager;
   let mockEventBus;
   let mockLogger;
+  let eventHandlers; // 存储注册的事件处理器
 
   beforeEach(() => {
-    mockEventBus = new EventBus();
+    eventHandlers = {};
+
+    // 创建手动 Mock 的 EventBus
+    mockEventBus = {
+      on: jest.fn((eventName, handler) => {
+        if (!eventHandlers[eventName]) {
+          eventHandlers[eventName] = [];
+        }
+        eventHandlers[eventName].push(handler);
+        return () => {}; // 返回取消订阅函数
+      }),
+      emit: jest.fn((eventName, data) => {
+        if (eventHandlers[eventName]) {
+          eventHandlers[eventName].forEach(handler => handler(data));
+        }
+      }),
+      destroy: jest.fn()
+    };
+
     mockLogger = {
       info: jest.fn(),
       error: jest.fn(),

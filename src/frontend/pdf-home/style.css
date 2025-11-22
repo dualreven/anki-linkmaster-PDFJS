@@ -9,43 +9,84 @@ body {
     background-color: #f5f5f5;
     color: #333;
     line-height: 1.6;
+    margin: 0;
+    padding: 0;
 }
 
-.container {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 20px;
-    padding-top: 140px; /* 为fixed搜索面板留出空间 */
+/* ===== 新增：Flexbox顶层容器 ===== */
+.app-root {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+}
+
+/* ===== 顶部工具栏（窗口控制）===== */
+.pdf-home-header {
+    /* 删除 position: fixed，改为正常文档流 */
+    flex: 0 0 auto;  /* 不伸缩，高度由内容决定 */
+    min-height: 50px;
+    background: white;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    z-index: 100;  /* 降低z-index，避免遮挡浮动元素 */
+    /* 无边框窗口阴影效果 */
+    box-shadow: 0 0.3px 0.9px rgba(0, 0, 0, 0.108),
+                0 1.6px 3.6px rgba(0, 0, 0, 0.132);
+}
+
+.pdf-home-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin: 0;
+}
+
+.toolbar-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 /* ===== 全局布局 ===== */
-.layout-container {
-    display: block;
-    width: 100%;
+/* Main容器：占满剩余空间 */
+.pdf-home-main {
+    flex: 1;  /* 自动占满剩余空间 */
+    position: relative;
+    overflow: hidden;
+    display: flex;
 }
 
-/* 侧边栏 - 悬浮面板 */
+/* 侧边栏 - 改为绝对定位（相对于.pdf-home-main） */
 .sidebar {
-    position: fixed;
+    position: absolute;
     left: 0;
-    top: 120px; /* 搜索面板高度 */
+    top: 0;
+    bottom: 0;
     width: 280px;
-    height: calc(100vh - 120px);
     background: white;
     box-shadow: 2px 0 16px rgba(0, 0, 0, 0.15);
     padding: 20px;
-    z-index: 999;
+    z-index: 10;
     overflow-y: auto;
     transition: transform 0.3s ease;
 }
 
-/* 主内容区 - 全宽 */
+/* 主内容区 - 自动避开侧边栏 */
 .main-content {
-    width: 100%;
+    flex: 1;
+    /* 默认不预留左侧空间，具体推开逻辑交由 SidebarContainer 通过 inline style 管理
+       - 侧边栏展开且与主内容重叠时：由 JS 设置 margin-left / width
+       - 侧边栏收起或不存在时：保持占满可用空间 */
+    overflow-y: auto;
+    padding: 20px;
     background: white;
     border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     min-height: 600px;
 }
 
@@ -501,10 +542,14 @@ body {
     display: none;
 }
 
-/* Toast 消息提示样式 */
+/* Toast 消息提示样式 - 使用CSS变量 */
+:root {
+    --header-height: 50px;
+}
+
 .toast {
     position: fixed;
-    top: 90px; /* 在fixed header下方 */
+    top: calc(var(--header-height) + 20px);  /* 使用CSS变量，避免魔法数字 */
     right: 20px;
     min-width: 300px;
     max-width: 500px;

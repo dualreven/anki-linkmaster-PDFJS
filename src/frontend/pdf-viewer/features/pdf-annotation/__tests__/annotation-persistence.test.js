@@ -8,7 +8,7 @@ import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants
 import { WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constants.js";
 
 import { AnnotationManager } from "../core/annotation-manager.js";
-import { Annotation } from "../models/annotation.js";
+import { Annotation } from "../../../../common/models/annotation.js";
 
 describe("AnnotationManager 持久化", () => {
   let globalBus;

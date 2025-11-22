@@ -8,25 +8,9 @@ import { PageTransferManager } from "../page-transfer-manager.js";
 import { EventBus } from "../../common/event/event-bus.js";
 import { jest } from "@jest/globals";
 
-// Mock 依赖模块
-jest.mock("../../common/event/event-bus.js", () => {
-  return {
-    EventBus: jest.fn().mockImplementation(() => ({
-      on: jest.fn(),
-      emit: jest.fn(),
-      destroy: jest.fn()
-    }))
-  };
-});
+// EventBus 不需要 Mock，测试应使用真实的 EventBus 实例
 
-jest.mock("../../common/utils/logger.js", () => {
-  return jest.fn().mockImplementation(() => ({
-    info: jest.fn(),
-    error: jest.fn(),
-    warn: jest.fn(),
-    debug: jest.fn()
-  }));
-});
+// Logger 已在 jest.setup.js 中全局 Mock，无需重复 Mock
 
 // Mock WebSocket
 global.WebSocket = jest.fn().mockImplementation(() => ({
@@ -40,9 +24,28 @@ describe("PageTransferManager", () => {
   let mockEventBus;
   let mockWsClient;
   let mockLogger;
+  let eventHandlers; // 存储注册的事件处理器
 
   beforeEach(() => {
-    mockEventBus = new EventBus();
+    eventHandlers = {};
+
+    // 创建手动 Mock 的 EventBus
+    mockEventBus = {
+      on: jest.fn((eventName, handler) => {
+        if (!eventHandlers[eventName]) {
+          eventHandlers[eventName] = [];
+        }
+        eventHandlers[eventName].push(handler);
+        return () => {}; // 返回取消订阅函数
+      }),
+      emit: jest.fn((eventName, data) => {
+        if (eventHandlers[eventName]) {
+          eventHandlers[eventName].forEach(handler => handler(data));
+        }
+      }),
+      destroy: jest.fn()
+    };
+
     mockWsClient = new WebSocket("ws://localhost");
     mockLogger = {
       info: jest.fn(),
@@ -73,9 +76,8 @@ describe("PageTransferManager", () => {
           }
         };
 
-        mockEventBus.on.mock.calls.find(call =>
-          call[0] === "websocket_message_received"
-        )[1](responseMessage);
+        // 使用 mockEventBus.emit 触发事件
+        mockEventBus.emit("websocket_message_received", responseMessage);
       }, 100);
 
       const result = await pageTransferManager.requestPage(fileId, pageNumber);
@@ -225,9 +227,8 @@ describe("PageTransferManager", () => {
           }
         };
 
-        mockEventBus.on.mock.calls.find(call =>
-          call[0] === "websocket_message_received"
-        )[1](errorMessage);
+        // 使用 mockEventBus.emit 触发事件
+        mockEventBus.emit("websocket_message_received", errorMessage);
       }, 100);
 
       await expect(pageTransferManager.requestPage(fileId, pageNumber))
@@ -284,9 +285,9 @@ describe("PageTransferManager", () => {
           }
         };
 
-        mockEventBus.on.mock.calls.find(call =>
+                // 使用 mockEventBus.emit 触发事件
           call[0] === "websocket_message_received"
-        )[1](responseMessage);
+        mockEventBus.emit("websocket_message_received", responseMessage);
       }, 50);
 
       await pageTransferManager.requestPage(fileId, pageNumber);
@@ -367,9 +368,9 @@ describe("PageTransferManager", () => {
             }
           };
 
-          mockEventBus.on.mock.calls.find(call =>
+                  // 使用 mockEventBus.emit 触发事件
             call[0] === "websocket_message_received"
-          )[1](responseMessage);
+        mockEventBus.emit("websocket_message_received", responseMessage);
         }
       }, 100);
 

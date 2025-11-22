@@ -13,6 +13,7 @@ class ServerAPIMixin:
     作为 Mixin 供 StandardWebSocketServer 复用，减少入口文件体积。
     依赖属性：
       - self._core: WebSocketServerCore
+      - 可选 self._describe_client(socket) -> str：返回 `<client-name>:<client-id>` 描述
     """
     def send_message(self, client: QWebSocket, message: Dict[str, Any]) -> bool:
         """发送消息给指定客户端"""
@@ -21,9 +22,22 @@ class ServerAPIMixin:
             ok = self._core.send_text(client, json_message)  # type: ignore[attr-defined]
             if ok:
                 try:
-                    logger.info(f"向客户端 {client.peerPort()} 发送消息: {message.get('type')}")
+                    # 优先使用组合类提供的客户端描述方法，便于在日志中直接看到“真实名称”
+                    label: Optional[str] = None
+                    try:
+                        describe = getattr(self, "_describe_client", None)
+                        if callable(describe):
+                            label = describe(client)
+                    except Exception:
+                        label = None
+                    if not label:
+                        try:
+                            label = str(client.peerPort())
+                        except Exception:
+                            label = "unknown"
+                    logger.info("向客户端 %s 发送消息: %s", label, message.get("type"))
                 except Exception:
-                    logger.info(f"已发送消息: {message.get('type')}")
+                    logger.info("已发送消息: %s", message.get("type"))
                 return True
             logger.warning("客户端未连接，无法发送消息")
             return False
@@ -63,4 +77,3 @@ class ServerAPIMixin:
             logger.error(f"WebSocket错误 from {client_socket.peerPort()}: {error}")
         except Exception:
             logger.error(f"WebSocket错误: {error}")
-

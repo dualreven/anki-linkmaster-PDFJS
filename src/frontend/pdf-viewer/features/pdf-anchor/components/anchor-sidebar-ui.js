@@ -122,6 +122,14 @@ export class AnchorSidebarUI {
       const params = new URLSearchParams(window.location.search);
       this.#pdfId = params.get("pdf-id") || null;
       if (this.#pdfId) {
+        // [DIAGNOSTIC] 追踪 AnchorSidebarUI 初始化时的请求
+        this.#logger.warn("[DIAGNOSTIC] AnchorSidebarUI emitting ANCHOR.DATA.LOAD", {
+          source: "AnchorSidebarUI.initialize()",
+          location: "anchor-sidebar-ui.js:121-129",
+          pdfId: this.#pdfId,
+          timestamp: Date.now()
+        });
+
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD,
           { pdf_uuid: this.#pdfId },

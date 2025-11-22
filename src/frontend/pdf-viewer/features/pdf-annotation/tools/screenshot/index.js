@@ -10,7 +10,7 @@
 import { IAnnotationTool } from "../../interfaces/IAnnotationTool.js";
 import { ScreenshotCapturer } from "./screenshot-capturer.js";
 import { QWebChannelScreenshotBridge } from "./qwebchannel-bridge.js";
-import { Annotation, AnnotationType } from "../../models/annotation.js";
+import { Annotation, AnnotationType } from "../../../../../common/models/annotation.js";
 import { getLogger } from "../../../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
 

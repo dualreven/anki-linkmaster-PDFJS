@@ -1,0 +1,184 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "msgcenter/client/v1/messages/register.failed.schema.json",
+  "title": "Client Registration Failed",
+  "description": "统一客户端注册协议 - 失败响应消息格式\n\n服务端拒绝客户端注册请求，返回错误详情和失败原因。",
+  "type": "object",
+  "required": ["type", "status", "error"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "const": "client:register:failed",
+      "description": "消息类型：客户端注册失败"
+    },
+    "timestamp": {
+      "type": "integer",
+      "description": "消息时间戳（毫秒）",
+      "minimum": 0
+    },
+    "request_id": {
+      "type": "string",
+      "description": "对应的请求ID（与register.requested的request_id一致）",
+      "pattern": "^[a-zA-Z0-9_-]+$"
+    },
+    "status": {
+      "type": "string",
+      "const": "error",
+      "description": "响应状态：错误"
+    },
+    "code": {
+      "type": "integer",
+      "description": "错误状态码",
+      "minimum": 400,
+      "maximum": 599,
+      "examples": [400, 409, 500]
+    },
+    "error": {
+      "type": "object",
+      "required": ["message"],
+      "properties": {
+        "message": {
+          "type": "string",
+          "description": "人类可读的错误消息",
+          "minLength": 1,
+          "examples": [
+            "client_id 已存在",
+            "client_type 不能为空",
+            "client_id 格式错误",
+            "服务端内部错误"
+          ]
+        },
+        "error_code": {
+          "type": "string",
+          "description": "机器可读的错误代码（可选）\n\n便于客户端进行错误分类和自动处理。",
+          "pattern": "^[A-Z_]+$",
+          "examples": [
+            "CLIENT_ID_EXISTS",
+            "INVALID_CLIENT_TYPE",
+            "INVALID_CLIENT_ID_FORMAT",
+            "SERVER_ERROR",
+            "VALIDATION_FAILED"
+          ]
+        },
+        "details": {
+          "type": "object",
+          "description": "错误详细信息（可选）\n\n提供额外的上下文信息，帮助调试和问题定位。",
+          "additionalProperties": true,
+          "examples": [
+            {
+              "field": "client_id",
+              "value": "pdf-home",
+              "reason": "客户端 pdf-home 已在 2025-01-17 18:00:00 注册"
+            },
+            {
+              "field": "client_type",
+              "expected": "非空数组",
+              "actual": "[]"
+            }
+          ]
+        },
+        "retry_after": {
+          "type": "integer",
+          "description": "建议重试时间（秒）（可选）\n\n适用于临时性错误（如服务端过载、限流等）。",
+          "minimum": 0,
+          "examples": [5, 30, 60]
+        }
+      },
+      "additionalProperties": false
+    },
+    "data": {
+      "type": "object",
+      "description": "部分注册数据（可选）\n\n在某些失败场景下，可能返回部分注册信息（如已存在的client_id的详情）。",
+      "properties": {
+        "existing_client_id": {
+          "type": "string",
+          "description": "已存在的客户端ID（当错误为CLIENT_ID_EXISTS时）"
+        },
+        "existing_client_type": {
+          "type": "array",
+          "description": "已存在客户端的类型标签",
+          "items": {
+            "type": "string"
+          }
+        },
+        "registered_at": {
+          "type": "integer",
+          "description": "已存在客户端的注册时间戳（毫秒）"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "type": "client:register:failed",
+      "timestamp": 1737118800100,
+      "request_id": "req-register-003",
+      "status": "error",
+      "code": 409,
+      "error": {
+        "message": "client_id 已存在",
+        "error_code": "CLIENT_ID_EXISTS",
+        "details": {
+          "field": "client_id",
+          "value": "pdf-home",
+          "reason": "客户端 pdf-home 已在 2025-01-17 18:00:00 注册"
+        }
+      },
+      "data": {
+        "existing_client_id": "pdf-home",
+        "existing_client_type": ["window:pdf-home"],
+        "registered_at": 1737118800000
+      }
+    },
+    {
+      "type": "client:register:failed",
+      "timestamp": 1737118801200,
+      "request_id": "req-register-004",
+      "status": "error",
+      "code": 400,
+      "error": {
+        "message": "client_type 不能为空",
+        "error_code": "VALIDATION_FAILED",
+        "details": {
+          "field": "client_type",
+          "expected": "非空数组",
+          "actual": "[]"
+        }
+      }
+    },
+    {
+      "type": "client:register:failed",
+      "timestamp": 1737118802300,
+      "request_id": "req-register-005",
+      "status": "error",
+      "code": 400,
+      "error": {
+        "message": "client_id 格式错误：不能包含空格",
+        "error_code": "INVALID_CLIENT_ID_FORMAT",
+        "details": {
+          "field": "client_id",
+          "value": "pdf viewer sample",
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        }
+      }
+    },
+    {
+      "type": "client:register:failed",
+      "timestamp": 1737118803400,
+      "request_id": "req-register-006",
+      "status": "error",
+      "code": 500,
+      "error": {
+        "message": "服务端内部错误：无法连接到数据库",
+        "error_code": "SERVER_ERROR",
+        "details": {
+          "component": "RouteRegistry",
+          "operation": "register_client"
+        },
+        "retry_after": 30
+      }
+    }
+  ]
+}

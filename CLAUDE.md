@@ -247,6 +247,327 @@ const service = new NavigationService();
 2. **EventBus完整指南** → `src/frontend/common/event/EVENTBUS-USAGE-GUIDE.md`
 3. **架构深度解析** → `src/frontend/ARCHITECTURE-EXPLAINED.md`
 4. **事件追踪调试** → `src/frontend/HOW-TO-ENABLE-EVENT-TRACING.md`
+5. **测试开发指南** → `docs/TESTING-UNIT-GUIDE.md` ⚠️ **AI 必看，避免常见错误**
+
+---
+
+## 🧪 测试开发规范（AI 必看 - 极易出错）
+
+**⚠️ AI 写测试时的高频错误清单**
+
+### 🔴 P0级错误（必须避免 - 会导致测试完全失效）
+
+#### 1. ❌ 使用 console.log 调试测试 - 必须用 logger（已被 Mock）
+```javascript
+// ❌ 错误：console.log 在测试中不可见
+test('should load data', () => {
+  console.log('Testing data load');  // 禁止！
+  expect(result).toBe(true);
+});
+
+// ✅ 正确：使用 logger（jest.setup.js 已全局 Mock）
+test('should load data', () => {
+  logger.debug('Testing data load');  // logger 已被 Mock，不会输出
+  expect(result).toBe(true);
+});
+```
+
+#### 2. ❌ 忘记清理状态 - 必须用 beforeEach/afterEach
+```javascript
+// ❌ 错误：测试间状态污染
+let manager;
+test('test 1', () => {
+  manager = new Manager();
+  manager.data = [1, 2, 3];
+  expect(manager.data.length).toBe(3);
+});
+test('test 2', () => {
+  // manager 仍然是上个测试的实例！
+  expect(manager.data.length).toBe(0);  // 失败！
+});
+
+// ✅ 正确：每个测试独立创建实例
+let manager;
+beforeEach(() => {
+  manager = new Manager();
+});
+afterEach(() => {
+  manager = null;  // 清理
+});
+test('test 1', () => {
+  manager.data = [1, 2, 3];
+  expect(manager.data.length).toBe(3);
+});
+test('test 2', () => {
+  expect(manager.data).toEqual([]);  // 成功！
+});
+```
+
+#### 3. ❌ ESM 动态导入 Mock 不生效 - 必须用 jest.unstable_mockModule
+```javascript
+// ❌ 错误：jest.mock 无法 Mock 动态导入（import()）
+jest.mock('pdfjs-dist/build/pdf');  // 不生效！
+const { PDFManager } = await import('../pdf-manager.js');
+
+// ✅ 正确：使用 jest.unstable_mockModule
+beforeEach(async () => {
+  jest.unstable_mockModule('pdfjs-dist/build/pdf', () => ({
+    getDocument: jest.fn(() => ({
+      promise: Promise.resolve({ numPages: 10 })
+    }))
+  }));
+  const { PDFManager } = await import('../pdf-manager.js');
+  manager = new PDFManager();
+});
+```
+
+#### 4. ❌ 异步测试没有等待 - 必须 await 或 return Promise
+```javascript
+// ❌ 错误：异步操作未等待，测试提前结束
+test('should load data', () => {
+  loadData().then(data => {
+    expect(data).toBeDefined();  // 永远不会执行！
+  });
+});
+
+// ✅ 正确：使用 async/await
+test('should load data', async () => {
+  const data = await loadData();
+  expect(data).toBeDefined();
+});
+
+// ✅ 正确：返回 Promise
+test('should load data', () => {
+  return loadData().then(data => {
+    expect(data).toBeDefined();
+  });
+});
+```
+
+#### 5. ❌ 测试文件位置错误 - 必须放在 __tests__ 目录
+```javascript
+// ❌ 错误：测试文件与源文件同级
+src/frontend/common/event/
+├── event-bus.js
+└── event-bus.test.js        // 错误位置！
+
+// ✅ 正确：测试文件在 __tests__ 子目录
+src/frontend/common/event/
+├── event-bus.js
+└── __tests__/
+    └── event-bus.test.js     // 正确位置！
+```
+
+---
+
+### 🟡 P1级错误（高频错误 - 影响测试质量）
+
+#### 6. ❌ 硬编码测试数据 - 应该使用 fixtures
+```javascript
+// ❌ 错误：硬编码数据，难以维护
+test('should parse outline', () => {
+  const data = {
+    items: [
+      { id: '1', name: 'Chapter 1', pageAt: 1, position: 0 },
+      { id: '2', name: 'Chapter 2', pageAt: 10, position: 0 }
+    ]
+  };
+  const result = parseOutline(data);
+  expect(result.length).toBe(2);
+});
+
+// ✅ 正确：使用共享 fixture
+import outlineData from '../../../../tests/fixtures/json/outline-data.json';
+test('should parse outline', () => {
+  const result = parseOutline(outlineData);
+  expect(result.length).toBe(2);
+});
+```
+
+#### 7. ❌ 一个测试验证太多行为 - 应该拆分
+```javascript
+// ❌ 错误：一个测试做太多事情
+test('PDF Manager full workflow', () => {
+  manager.loadPDF('test.pdf');
+  expect(manager.isLoaded).toBe(true);
+  manager.navigateToPage(5);
+  expect(manager.currentPage).toBe(5);
+  manager.addBookmark('bookmark1');
+  expect(manager.bookmarks.length).toBe(1);
+  // ... 还有20行代码
+});
+
+// ✅ 正确：拆分为多个测试
+describe('PDFManager', () => {
+  test('should load PDF', () => {
+    manager.loadPDF('test.pdf');
+    expect(manager.isLoaded).toBe(true);
+  });
+
+  test('should navigate to page', () => {
+    manager.loadPDF('test.pdf');
+    manager.navigateToPage(5);
+    expect(manager.currentPage).toBe(5);
+  });
+
+  test('should add bookmark', () => {
+    manager.loadPDF('test.pdf');
+    manager.addBookmark('bookmark1');
+    expect(manager.bookmarks.length).toBe(1);
+  });
+});
+```
+
+#### 8. ❌ 忘记验证 Mock 调用 - 应该检查调用次数和参数
+```javascript
+// ❌ 错误：只 Mock 了，但没验证是否被调用
+const mockFetch = jest.fn();
+global.fetch = mockFetch;
+await loadData();
+// 忘记验证 fetch 是否被调用！
+
+// ✅ 正确：验证 Mock 调用
+const mockFetch = jest.fn().mockResolvedValue({ data: [] });
+global.fetch = mockFetch;
+await loadData();
+expect(mockFetch).toHaveBeenCalledTimes(1);
+expect(mockFetch).toHaveBeenCalledWith('/api/data', expect.any(Object));
+```
+
+#### 9. ❌ 测试命名不清晰 - 应该描述预期行为
+```javascript
+// ❌ 错误：测试名称不清晰
+test('test 1', () => { ... });
+test('manager works', () => { ... });
+test('check data', () => { ... });
+
+// ✅ 正确：清晰描述预期行为
+test('should load PDF successfully when file exists', () => { ... });
+test('should throw error when PDF file not found', () => { ... });
+test('should cache loaded PDF to avoid re-loading', () => { ... });
+```
+
+---
+
+### 🟢 P2级注意事项（最佳实践）
+
+#### 10. ⚠️ 测试覆盖率要求
+- **行覆盖率（Line Coverage）**：≥ 80%
+- **分支覆盖率（Branch Coverage）**：≥ 70%
+- **函数覆盖率（Function Coverage）**：≥ 85%
+
+检查命令：
+```bash
+pnpm test --coverage
+open coverage/lcov-report/index.html
+```
+
+#### 11. ⚠️ 测试运行性能
+- 单元测试：每个测试控制在 **100ms** 内
+- 集成测试：每个测试控制在 **1s** 内
+- 如果超时，检查是否有不必要的异步等待
+
+#### 12. ⚠️ 测试独立性原则
+```javascript
+// ❌ 错误：测试依赖执行顺序
+describe('Counter', () => {
+  test('should start at 0', () => {
+    expect(counter.value).toBe(0);
+  });
+  test('should increment', () => {
+    counter.increment();
+    expect(counter.value).toBe(1);  // 依赖上一个测试！
+  });
+});
+
+// ✅ 正确：每个测试独立
+describe('Counter', () => {
+  beforeEach(() => {
+    counter.reset();
+  });
+  test('should start at 0', () => {
+    expect(counter.value).toBe(0);
+  });
+  test('should increment from 0 to 1', () => {
+    counter.increment();
+    expect(counter.value).toBe(1);
+  });
+});
+```
+
+---
+
+### 📖 快速命令参考
+
+```bash
+# 运行所有测试
+pnpm test
+
+# 运行单个测试文件
+pnpm test path/to/test.js
+
+# 监听模式（开发时推荐）
+pnpm test:watch
+
+# 生成覆盖率报告
+pnpm test --coverage
+
+# 只运行匹配的测试
+pnpm test -t "test name pattern"
+
+# 显示详细输出
+pnpm test --verbose
+```
+
+---
+
+### 🚨 绝对禁止（0容忍）
+
+1. ❌ **禁止跳过测试**（除非临时调试）
+   ```javascript
+   test.skip('should work', () => { ... });  // 禁止提交！
+   ```
+
+2. ❌ **禁止在测试中使用真实的外部依赖**
+   ```javascript
+   // 禁止真实 WebSocket 连接
+   const ws = new WebSocket('ws://localhost:8765');  // 禁止！
+   ```
+
+3. ❌ **禁止在测试中修改全局状态后不恢复**
+   ```javascript
+   // 禁止：修改全局变量后不恢复
+   window.originalFetch = window.fetch;
+   window.fetch = mockFetch;
+   // 测试结束后必须恢复！
+   ```
+
+---
+
+### 📚 详细测试指南
+
+完整的测试规范请查看：
+1. **单元测试指南** → `docs/TESTING-UNIT-GUIDE.md` ⚠️ **AI 必读**
+   - 🔥 **新增**：错误6（P0级）- 跳过真实入口层（2025-11-16 Bug 案例）
+2. **集成测试指南** → `docs/TESTING-INTEG-GUIDE.md`
+   - 🔥 **新增**：§13 测试入口选择原则与测试盲区预防（必读）
+3. **E2E 测试指南** → `docs/TESTING-E2E-GUIDE.md`（注意：本项目的 E2E 是连贯的集成测试流，不是浏览器 E2E）
+4. **测试总览** → `docs/TESTING-OVERVIEW.md`
+
+⚠️ **测试入口选择原则（必读 - 避免本次 Bug）**：
+- **后端测试**：必须从 `handle_message()` 入口开始，覆盖参数提取和协议兼容逻辑
+  - ❌ 错误：直接调用 `navigate_viewer()` Handler → 跳过参数提取逻辑
+  - ✅ 正确：调用 `server.handle_message(message)` → 覆盖完整流程
+- **前端测试**：必须通过 EventBus 触发，覆盖事件名称验证
+  - ❌ 错误：直接调用 `feature.navigateToPage(5)` → 跳过 EventBus 路由
+  - ✅ 正确：调用 `eventBus.emit('pdf:navigate:requested', {page: 5})` → 覆盖事件验证
+- **详细指南**：`docs/TESTING-INTEG-GUIDE.md#13-测试入口选择原则`
+- **典型案例**：`AItemp/reports/bug-analysis-navigate-20251116.md` - 导航 Bug（2025-11-16）
+
+**为什么这很重要？**
+- 跳过入口层会导致**测试盲区**（未覆盖的代码路径）
+- Bug 可能存在于参数提取、协议兼容、路由逻辑，但测试无法发现
+- 本次导航 Bug 就是因为旧测试跳过了 `handle_message()` 入口，导致第438行的参数提取错误未被发现
 
 ---
 
@@ -580,6 +901,14 @@ debug代码时的注意事项:
    - EventBus、Registry、Container的运作原理
    - 完整运行流程演示
    - 实战案例
+
+   🔴 核心规则：Feature间通信的唯一方式
+
+   **强制原则**：所有跨Feature调用必须通过EventBus，禁止直接import和调用其他Feature的代码。
+
+   **违反检测**：ESLint规则 `custom/no-cross-feature-internals` 会在CI中强制检查。
+
+   **详见**：`src/frontend/HOW-TO-ADD-FEATURE.md` 和 `src/frontend/common/event/EVENTBUS-USAGE-GUIDE.md`
 
    核心开发原则:
    1. 功能域隔离

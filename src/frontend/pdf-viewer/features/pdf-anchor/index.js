@@ -8,8 +8,6 @@ import { getLogger } from "../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
 import { showSuccess, showError, showInfo } from "../../../common/utils/notification.js";
 import { WEBSOCKET_MESSAGE_EVENTS } from "../../../common/event/event-constants.js";
-// 使用 url-navigation 公共 API，避免跨特性直接依赖内部实现
-import { parseUrlParams } from "../infra-nav-url/public.js";
 
 // 仅在开发模式允许 DEV 测试锚点注入（pdfanchor-test）
 // 注：为兼容 Jest 与部分打包环境，避免直接访问 import.meta；
@@ -193,6 +191,14 @@ export class PDFAnchorFeature {
           const params = new URLSearchParams(window.location.search);
           const pdfId = params.get("pdf-id");
           if (pdfId) {
+            // [DIAGNOSTIC] 追踪 FILE.LOAD.SUCCESS 触发的请求
+            this.#logger.warn("[DIAGNOSTIC] PDFAnchorFeature emitting ANCHOR.DATA.LOAD", {
+              source: "FILE.LOAD.SUCCESS handler",
+              location: "pdf-anchor/index.js:189-197",
+              pdfId,
+              timestamp: Date.now()
+            });
+
             this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD, { pdf_uuid: pdfId }, { actorId: "PDFAnchorFeature" });
           }
         } catch(e){ this.#logger.warn("noop", e); }
@@ -568,27 +574,12 @@ export class PDFAnchorFeature {
     this.#scrollAttachAttempts = 0;
   }
 
+  /**
+   * @deprecated URL 参数触发锚点功能已禁用
+   */
   #bootstrapFromURL() {
-    const parsed = parseUrlParams();
-    const anchorId = (parsed?.anchorId || "").toString().trim();
-    if (!anchorId) {return;}
-
-    const isDevTest = /^pdfanchor-test$/i.test(anchorId);
-    const isValid = /^pdfanchor-[a-f0-9]{12}$/i.test(anchorId);
-
-    if (isDevTest) {
-      const id = anchorId.toLowerCase();
-      this.#pendingUrlAnchorId = id;
-      const testAnchor = { uuid: id, name: "测试锚点", page_at: 1, position: null, is_active: true };
-      this.#anchorsById.set(id, testAnchor);
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED, { anchors: [testAnchor] }, { actorId: "PDFAnchorFeature" });
-      return;
-    }
-
-    if (isValid) {
-      this.#pendingUrlAnchorId = anchorId.toLowerCase();
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD, { anchorId: this.#pendingUrlAnchorId }, { actorId: "PDFAnchorFeature" });
-    }
+    // URL 参数跳转已禁用，不再从 URL 读取 anchor-id 参数
+    this.#logger.debug("[pdf-anchor] URL 参数触发已禁用");
   }
 
   // 复制动作已下沉到 UI 层，特性层不再提供复制实现，减少重复与环境差异

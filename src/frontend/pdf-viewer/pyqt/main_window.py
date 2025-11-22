@@ -62,18 +62,28 @@ class MainWindow(QMainWindow):
         self.pdf_id = pdf_id
         self.stop_backend_on_close = stop_backend_on_close  # 后端服务停止开关
 
-        # 窗口属性（引入“标题锁定”机制）
+        # 窗口属性（引入"标题锁定"机制）
         self._locked_title: str | None = f"Anki LinkMaster PDF Viewer - {pdf_id}"
         # 初始标题使用 pdf_id；宿主（pdf-home）可调用 setHumanWindowTitle() 覆盖并锁定为人类可读标题。
         super().setWindowTitle(self._locked_title)
         self.setGeometry(100, 100, 1200, 800)
+
+        # 使用完全无边框窗口（用HTML自定义所有窗口控制按钮）
+        try:
+            from PyQt6.QtCore import Qt
+            self.setWindowFlags(
+                Qt.WindowType.Window |  # 保持正常窗口
+                Qt.WindowType.FramelessWindowHint  # 完全无边框（去除标题栏和所有原生按钮）
+            )
+        except Exception:
+            pass  # 如果设置失败，使用默认窗口
 
         # QtWebEngine Inspector设置
         self.inspector_window = None
 
         # 初始化UI
         self._init_ui()
-        self._init_menu()
+        # self._init_menu()  # 已移除调试菜单栏
         self._init_status_bar()
 
     def set_js_logger(self, js_logger):
@@ -247,16 +257,16 @@ class MainWindow(QMainWindow):
         # 设置窗口最小尺寸
         self.setMinimumSize(800, 600)
 
-    def _init_menu(self):
-        """初始化菜单栏"""
-        menubar = self.menuBar()
-        debug_menu = menubar.addMenu('调试（PDF-Viewer）')
-        debug_action = QAction(f'发送消息 (pdf_id: {self.pdf_id})', self)
-        debug_action.triggered.connect(self.send_debug_message_requested.emit)
-        debug_menu.addAction(debug_action)
-
-        # 文件菜单
-        file_menu = menubar.addMenu('文件')
+    # def _init_menu(self):
+    #     """初始化菜单栏（已移除 - 使用HTML自定义标题栏）"""
+    #     menubar = self.menuBar()
+    #     debug_menu = menubar.addMenu('调试（PDF-Viewer）')
+    #     debug_action = QAction(f'发送消息 (pdf_id: {self.pdf_id})', self)
+    #     debug_action.triggered.connect(self.send_debug_message_requested.emit)
+    #     debug_menu.addAction(debug_action)
+    #
+    #     # 文件菜单
+    #     file_menu = menubar.addMenu('文件')
 
     def _init_status_bar(self):
         """初始化状态栏"""

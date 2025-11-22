@@ -71,6 +71,7 @@ def parse_arguments() -> argparse.Namespace:
     start_parser = subparsers.add_parser('start', help='启动后端服务')
     start_parser.add_argument('--msgCenter-port', type=int, dest='msgCenter_port', help='消息中心服务器端口')
     start_parser.add_argument('--pdfFileServer-port', type=int, dest='pdfFileServer_port', help='PDF文件服务器端口')
+    start_parser.add_argument('--vite-port', type=int, dest='vite_port', help='Vite 开发服务器端口（开发模式必填）')
     start_parser.add_argument('--db-path', type=str, dest='db_path', help='数据库文件绝对路径（可选）')
     start_parser.add_argument('--runtime-mode', type=str, dest='runtime_mode', choices=['anki', 'single'], help='运行模式（anki|single）')
     start_parser.add_argument('--ankiaddon-root-path', type=str, dest='ankiaddon_root_path', help='Anki 插件根目录（当 runtime-mode=anki 时必填）')

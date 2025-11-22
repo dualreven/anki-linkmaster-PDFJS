@@ -58,12 +58,45 @@ export const MY_FEATURE_CONSTS = { /* ... */ };
 
 ---
 
-## 禁止事项
+## 禁止事项（详细说明）
 
-- ❌ 直接 import 其他 Feature 的内部实现（components/services/...）。
-- ❌ 绕过 EventBus 直接调用其他 Feature。
+### ❌ 禁止1：跨Feature直接调用
+
+**错误示例**：
+```javascript
+// ❌ 错误：直接import其他Feature的内部实现
+import { SearchEngine } from '../search/services/search-engine.js';
+const engine = new SearchEngine();
+
+// ❌ 错误：直接访问其他Feature的实例
+this.otherFeature.doSomething();
+
+// ❌ 错误：通过全局变量共享状态
+window.myFeatureState = { ... };
+```
+
+**正确做法**：
+```javascript
+// ✅ 正确：通过EventBus通信
+eventBus.emit('search:query:requested', { query: 'keyword' });
+
+// ✅ 正确：通过Container获取已注册的服务
+const searchService = container.get('searchService');
+if (searchService) {
+  searchService.performSearch('keyword');
+}
+
+// ✅ 正确：从public.js导入公开API
+import { createSearchQuery } from '../search/public.js';
+```
+
+**检测方式**：ESLint规则 `custom/no-cross-feature-internals` 会在CI中强制检查。
+
+### ❌ 禁止2：其他常见错误
+
 - ❌ 在 `install()` 中做阻塞性同步操作。
 - ❌ 忘记在 `uninstall()` 中清理订阅和 DOM 资源。
+- ❌ 在事件回调中订阅新事件（违反"订阅集中管理"原则）。
 
 ## 推荐做法
 

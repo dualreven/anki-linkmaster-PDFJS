@@ -406,11 +406,6 @@ export class OutlineManager {
         this.#logger.warn("Outline navigate request missing outline item");
         return;
       }
-      if (!this.#navigationService) {
-        this.#logger.error("NavigationService not available for outline");
-        this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED, { error: "nav-unavailable" }, { actorId: "OutlineManager" });
-        return;
-      }
       const pageAt = (typeof outlineItem?.pageAt === "number" && outlineItem.pageAt > 0) ? outlineItem.pageAt : null;
       if (!pageAt) {
         this.#logger.warn("Outline item missing pageAt");
@@ -418,12 +413,13 @@ export class OutlineManager {
         return;
       }
       const position = (typeof outlineItem?.position === "number") ? outlineItem.position : null;
-      const result = await this.#navigationService.navigateTo({ pageAt, position });
-      if (result?.success) {
-        this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.SUCCESS, { pageNumber: result.actualPage, position: result.actualPosition }, { actorId: "OutlineManager" });
-      } else {
-        this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED, { error: result?.error || "unknown" }, { actorId: "OutlineManager" });
-      }
+      // 改为通过 URL 导航模块执行跳转：发射 URL_PARAMS.REQUESTED（不直接调用 navigationService）
+      const pdfId = this.#getPdfId?.() || null;
+      this.#eventBus.emitGlobal(
+        PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
+        { pdfId, pageAt, position },
+        { actorId: "OutlineManager" }
+      );
     } catch (e) {
       this.#logger.warn("Outline navigate failed", e);
       this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED, { error: e?.message || "exception" }, { actorId: "OutlineManager" });

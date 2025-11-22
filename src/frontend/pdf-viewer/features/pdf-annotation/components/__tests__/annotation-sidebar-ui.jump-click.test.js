@@ -21,7 +21,7 @@ jest.mock("../../../../../common/utils/notification.js", () => ({
 }));
 
 import { AnnotationSidebarUI } from "../annotation-sidebar-ui.js";
-import { Annotation, AnnotationType } from "../../models/annotation.js";
+import { Annotation, AnnotationType } from "../../../../../common/models/annotation.js";
 import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
 
 /**

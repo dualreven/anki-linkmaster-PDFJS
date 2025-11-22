@@ -84,13 +84,43 @@ export class MyFeature {
 }
 ```
 
-### 禁止事项
+### 禁止事项（详细说明）
 
-❌ 直接import其他Feature的类
-❌ 在Feature外部创建Feature实例
-❌ 绕过EventBus直接调用其他Feature
-❌ 在install()中做阻塞性同步操作
-❌ 忘记在uninstall()中清理资源
+#### ❌ 禁止1：跨Feature直接调用
+
+**错误示例**：
+```javascript
+// ❌ 错误：直接import其他Feature的内部实现
+import { OutlineManager } from '../pdf-outline/components/outline-manager.js';
+const manager = new OutlineManager();
+
+// ❌ 错误：直接访问其他Feature的实例
+this.otherFeature.doSomething();
+
+// ❌ 错误：通过全局变量共享状态
+window.myFeatureState = { ... };
+```
+
+**正确做法**：
+```javascript
+// ✅ 正确：通过EventBus通信
+eventBus.emitGlobal('pdf-outline:toggle:requested', {}, { actorId: 'MyFeature' });
+
+// ✅ 正确：通过Container获取已注册的服务
+const outlineService = container.get('outlineService');
+if (outlineService) {
+  outlineService.toggle();
+}
+```
+
+**检测方式**：ESLint规则 `custom/no-cross-feature-internals` 会在CI中强制检查。
+
+#### ❌ 禁止2：其他常见错误
+
+- ❌ 在Feature外部创建Feature实例
+- ❌ 在install()中做阻塞性同步操作
+- ❌ 忘记在uninstall()中清理资源
+- ❌ 在事件回调中订阅新事件（违反"订阅集中管理"原则）
 
 ### 推荐做法
 

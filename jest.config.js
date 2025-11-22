@@ -18,7 +18,7 @@ export default {
     // 将各处相对导入到的 logger.js 映射为测试友好的 mock，避免 import.meta/env 影响
     '.*logger\\.js$': '<rootDir>/tests/__mocks__/logger.js',
     '^pdfjs-dist$': '<rootDir>/tests/__mocks__/pdfjs-dist.js',
-    '^@pdfjs/web/pdf_viewer\\.mjs$': '<rootDir>/tests/__mocks__/pdfjs-web-viewer.mjs',
+    '^@pdfjs/web/pdf_viewer\\.mjs$': '<rootDir>/tests/__mocks__/pdfjs-web-viewer.js',
     '\\.(css|less|sass|scss)$': '<rootDir>/tests/__mocks__/styleMock.js'
   },
   transform: {
@@ -37,7 +37,8 @@ export default {
     '<rootDir>/data/dist/',
     '<rootDir>/dist/latest/static/vendor/',
     '<rootDir>/public/dist/',
-    '<rootDir>/public/dist/vendor/'
+    '<rootDir>/public/dist/vendor/',
+    '<rootDir>/src/frontend/dist/'  // 忽略前端构建输出目录
   ]
 };
 

@@ -18,8 +18,6 @@ import { AnnotationSidebarUI } from "./components/annotation-sidebar-ui.js";
 import { ToolRegistry } from "./core/tool-registry.js";
 import { AnnotationManager } from "./core/annotation-manager.js";
 import { getCenterPercentFromRect } from "./utils/position-utils.js";
-// 使用 url-navigation 公共 API，避免跨特性直接依赖内部实现
-import { parseUrlParams } from "../infra-nav-url/public.js";
 import { WEBSOCKET_EVENTS } from "../../../common/event/event-constants.js";
 
 /**
@@ -219,21 +217,7 @@ export class AnnotationFeature {
       this.#logger.warn("[AnnotationFeature] setup auto-load failed", e);
     }
 
-    // 安装后兜底：延迟尝试一次从 URL 解析 pdfId 并加载（防止某些环境下 FILE.LOAD.SUCCESS 提前/丢失）
-    setTimeout(() => {
-      try {
-        if (!this.#currentPdfId) {
-          const parsed = parseUrlParams();
-          const pdfId = parsed?.pdfId || null;
-          if (pdfId) {
-            this.#logger.info(`[AnnotationFeature] 兜底加载标注（install延迟，pdfId=${pdfId}）`);
-            this.#currentPdfId = pdfId;
-            this.#hasLoadedOnce = false;
-            this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, { pdfId }, { actorId: "AnnotationFeature" });
-          }
-        }
-      } catch (e) { void e; }
-    }, 600);
+    // 注：兜底加载已由 FILE.LOAD.SUCCESS 事件处理器覆盖，无需重复实现
   }
 
   /**
@@ -361,15 +345,9 @@ export class AnnotationFeature {
     if (!this.#eventBus) {return;}
     this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, (data) => {
       try {
-        // 优先从 URL 参数解析 pdf-id（与 url-navigation 一致）
+        // 从事件数据中获取 pdfId（pdf-manager 会透传 filename）
         let pdfId = null;
-        try {
-          const parsed = parseUrlParams();
-          if (parsed && parsed.pdfId) {pdfId = parsed.pdfId;}
-        } catch (e) { void e; }
-
-        // 兼容：从事件数据中回退获取（pdf-manager 会透传 filename）
-        if (!pdfId && data) {
+        if (data) {
           const extracted = this.#extractPdfUUID({ filename: data.filename, url: data.url });
           if (extracted) {pdfId = extracted;}
         }

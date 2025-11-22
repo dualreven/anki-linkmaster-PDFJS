@@ -1,62 +1,15 @@
-﻿# 技术规范（最新版·极简索引）
+# 技术规范（最新版·极简索引）
 
-### 2025-11-10 gui_launcher 线程实现迁移
-- 新增模块：`src/gui_launcher/workers.py`
-  - 导出：`LauncherThread`、`_AiThread`
-  - 依赖：`src.launcher.config`（`LauncherConfig/Options/Ports/Paths`）、`src.gui_launcher.services`
-- 入口适配：`gui_launcher.py` 通过
-  ```python
-  from src.gui_launcher.workers import LauncherThread as _WorkersLauncherThread, _AiThread as _WorkersAiThread
-  LauncherThread = _WorkersLauncherThread
-  _AiThread = _WorkersAiThread
-  ```
-  保持对外类名不变。
-- 注意：所有文件 I/O 保持 `encoding='utf-8'`；换行统一 `\\n`。
+**注意**：2025年11月的详细变更记录已移至 `context.md`，此处仅保留核心技术规范。历史变更详见 `docs/context-archive/`。
 
-### 2025-11-10 Vite 端口写入覆盖问题修复
-- 背景：`src/launcher/dev_server.ensure_vite` 使用 `write_runtime_ports` 覆盖写入 `{vite_port,npm_port}`，会抹掉后端已写入的 `{msgCenter_port,pdfFile_port}`，导致 GUI 二次读取端口时丢失 ws/http。
-- 修复：改为 `merge_runtime_ports` 合并写入；新增用例 `src/launcher/__tests__/test_dev_server_merge_ports.py` 防回归。
-
-### 2025-11-11 Vite 启动端口与 GUI 校验不一致（严格端口与可用端口探测）
-- 背景：Vite 在 `--port 3000` 且端口被占用时，会自动递增端口（3001, 3002, ...）。旧实现仅等待“请求端口”变为监听，导致 `runtime-ports.json` 未写入实际端口，GUI Hosted 校验失败。
-- 改动：
-  - `src/launcher/dev_server.ensure_vite`：
-    1) 读取 `runtime-ports.json`，若已有 `vite_port` 且监听，直接返回并合并端口（避免重复启动）；
-    2) 启动前探测空闲端口（自请求端口起向上），并以 `--strictPort` 强制使用该端口；
-    3) 启动后等待“实际端口”就绪，合并写入 `vite_port/npm_port`，并更新 `dev-process-info.json`（包含 `pid`）。
-- 使用与兼容：GUI 仍调用 `Controller.ensure_vite_dev(port)`；当 3000 被占用时，`runtime-ports.json` 会记录实际端口，后续 pdf-home Hosted 校验读取该值即可通过。
-
-### 2025-11-11 GUI 启动器：后端按钮不再自动启 Vite（开发模式）
-- 变更：`gui_launcher.py` 移除 `_start_backend_hosted()` 中的 `ensure_vite_dev(...)` 调用；
-- 原因：避免在后端启动前触发 dev server 的端口抢占/清理（`kill_process_tree`）带来的等待；
-- 使用：如需前端，请手动点击“启动 Vite (Dev)”或命令行 `pnpm run dev -- --port <port>`；PDF-Home Hosted 会在启动前做端口监听校验。 
-
-### 2025-11-11 GUI 端口管理策略（以 UI 为真源）
-- 约束：不做端口兜底扫描；UI 指定的 `vite_port` 必须最终写入 `logs/runtime-ports.json`；
-- 实现：在 `_start_pdf_home_hosted()` 与 `_start_pdf_viewer_hosted()`（Dev 模式）中，优先取 UI 端口并通过 `merge_runtime_ports` 写入 `{vite_port,npm_port}`，随后执行监听校验；未监听则报错，不再进行扫描或自动切换端口。
-
-### 2025-11-11 GUI 启动日志清理
-- 每次 GUI 启动时，调用 `_truncate_gui_log_file(logs_dir)` 覆盖写入 `logs/gui-launcher.log`（UTF‑8，末尾 `\\n`），写入“Session Start”标记，保持日志轮次清晰。
-
-### 2025-11-11 前端 WS 连接一致性
-- 约束：后端消息中心仅监听 `127.0.0.1`；避免使用 `localhost` 以规避可能的 `::1` 解析；
-- 实现：`src/frontend/pdf-home/bootstrap/app-bootstrap-v2.js` 中 `wsUrl` 改为 `ws://127.0.0.1:${wsPort}`；
-- 防回归测试：`src/frontend/pdf-home/bootstrap/__tests__/app-bootstrap-v2.wsurl.test.js`（Jest + JSDOM）。
-- Python 侧监听检测统一改为通过 `getaddrinfo` 同时尝试 `localhost/127.0.0.1/::1`，提升鲁棒性。 
-
-### 2025-11-11 WebSocket 连接超时策略
-- 增强：`src/frontend/common/ws/ws-client.js` 的 `connect()` 增加超时 watchdog（默认 4000ms）。
-- 目的：在部分环境里既不触发 `open` 也不触发 `error` 的情况下，确保 Promise 能在超时后拒绝，避免应用初始化卡死。 
-
-目的：将“规则本体”沉淀到 docs 下的专题文档；此文件仅保留最小可执行要点与索引。
-
-- 核心规则（立即执行）
+  - 核心规则（立即执行）
   - UTF-8 + \n：所有读写显式 UTF-8，统一换行 \n。
   - Fail‑Fast：参数/事件/消息不合法一律失败，禁止兜底/静默回退。
   - 事件三段式：`{module}:{action}:{status}`；事件名必须通过命名空间常量引用（`*_EVENTS`、`*_MESSAGE_TYPES`、`PDF_VIEWER_EVENTS`、`WEBSOCKET_EVENTS`）。
   - 白名单：全局事件新增前，先在常量中登记；`global-event-registry.js` 放行。
   - 作用域：跨模块用 `onGlobal/emitGlobal`；避免 scoped↔global 不一致；组件初始化需幂等。
   - WebSocket 常量使用规范：请求/发送事件用 `WEBSOCKET_EVENTS.MESSAGE.SEND|RECEIVED|SEND_FAILED`；响应事件用 `WEBSOCKET_MESSAGE_EVENTS.RESPONSE`（切勿写成 `WEBSOCKET_EVENTS.MESSAGE.RESPONSE`）。
+  - **代码文件行数限制**：单个代码文件（.js/.py/.ts等）原则上不能超过 **500 行**；超过时必须重构拆分为多个模块或文件。合理的拆分方式包括：按功能域拆分（如将一个大的 Feature 拆分为多个子 Feature）、提取工具函数到独立文件、分离配置和常量、使用组合模式替代继承等。
 
 - 主题索引（详细说明见 docs）
   1) 事件与常量命名规范 → docs/standards/events.md
@@ -75,10 +28,524 @@
     4) 去掉本地缓存（localStorage）写入/读取逻辑。
   - UI/数据层事件作用域一致；重复初始化有幂等守卫。
  - 禁用 alert/confirm；错误统一 logger.error(...,{toast:true})。
+  - Plan 模式：AI 在执行任何会修改代码/文档/数据或运行具有写入/副作用的脚本前，必须先在对话中输出可审核的 Plan，并在用户明确确认后才能实际执行。
 
 维护记录
 - 2025-11-07 精简为索引版；详细内容迁移到 docs（见 todo-and-doing/1 doing/20251107-tech-md-minify-migration/plan.md）。
  - 2025-11-07 接口调整：HighlightRenderer 构造签名由 `(pdfViewerManager, logger)` → `(logger)`；ScreenshotCapturer 构造签名由 `(pdfViewerManager)` → `()`；调用点与测试已同步。
+
+## AI开发易错点速查（极易犯错清单）
+
+本章节聚焦于**与常规开发习惯不同的项目特殊约定**，帮助AI避免高频错误。共16条核心易错点。
+
+### 🔴 P0级（必须立即检查 - 违反会导致功能完全失效）
+**7条关键约束**：事件名常量化、禁用console、Feature隔离、事件作用域、启动方式、WebSocket约束、**Fail-Fast原则**
+
+#### 1. 事件名禁止字符串字面量 - 必须使用常量
+- **位置**: `eslint.config.js:54`、`eslint-rules/event-name-format.js`、`eslint-rules/no-event-literal.js`
+- **❌ 错误做法**:
+  ```javascript
+  eventBus.on('pdf:load:completed', handler);
+  eventBus.emit('loadData', data);  // 非三段式
+  const event = 'pdf:load:completed'; eventBus.emit(event, data);  // 使用变量
+  eventBus.emit(`pdf:${action}:completed`, data);  // 模板字符串
+  ```
+- **✅ 正确做法**:
+  ```javascript
+  eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.COMPLETED, handler);
+  eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.COMPLETED, data);
+  ```
+- **📍 检查方式**: 运行 `pnpm exec eslint src --max-warnings=0`，会报错 `custom/event-name-format` 和 `custom/no-event-literal`
+- **💡 为什么不同**: 标准前端项目允许字符串事件名，本项目强制使用常量防止拼写错误和事件碎片化
+
+#### 2. 禁止使用 console.* - 必须使用Logger
+- **位置**: `src/frontend/common/utils/logger.js`、`eslint.config.js:83`
+- **❌ 错误做法**:
+  ```javascript
+  console.log('数据加载完成', data);
+  console.error('发生错误:', error);
+  console.warn('警告');
+  ```
+- **✅ 正确做法**:
+  ```javascript
+  import { getLogger } from '../common/utils/logger.js';
+  const logger = getLogger('ModuleName');
+  logger.info('数据加载完成', data);
+  logger.error('发生错误:', error, { toast: true });
+  ```
+- **📍 检查方式**: ESLint会报错 `no-console`，除了 `logger.js` 文件本身
+- **💡 为什么不同**:
+  - 统一日志格式，便于调试和追踪
+  - 支持日志级别控制，生产环境可关闭debug
+  - 日志会被PyQt捕获并保存到文件
+  - 与PyQt集成，前后端日志统一管理
+
+#### 3. Feature间禁止直接import - 必须通过EventBus或依赖注入
+- **位置**: `src/frontend/HOW-TO-ADD-FEATURE.md`、`eslint-rules/no-cross-feature-internals.js`
+- **❌ 错误做法**:
+  ```javascript
+  import { BookmarkFeature } from '../bookmark/index.js';
+  const bookmarkFeature = new BookmarkFeature();
+  import { helper } from '../other-feature/utils/helper.js';  // 跨Feature内部import
+  ```
+- **✅ 正确做法**:
+  ```javascript
+  // 方式1：通过EventBus通信
+  eventBus.emitGlobal(BOOKMARK_EVENTS.ACTION.REQUESTED, data);
+
+  // 方式2：通过Container获取服务
+  const bookmarkManager = container.get('bookmarkManager');
+
+  // 方式3：在dependencies中声明依赖
+  get dependencies() { return ['bookmark']; }
+  ```
+- **📍 检查方式**: ESLint会报错 `custom/no-cross-feature-internals`
+- **💡 为什么不同**: 插件架构要求Feature完全解耦，避免循环依赖和紧耦合
+
+#### 4. 局部事件 vs 全局事件 - 严格区分作用域
+- **位置**: `src/frontend/common/event/scoped-event-bus.js`、`CLAUDE.md`
+- **❌ 错误做法**:
+  ```javascript
+  scopedEventBus.emit('pdf:file:loaded', data);  // 全局事件应用 emitGlobal
+  scopedEventBus.on('pdf:file:loaded', handler);  // 应用 onGlobal
+  scopedEventBus.onGlobal('@my-feature/data:loaded', handler);  // 全局事件不需要命名空间
+  ```
+- **✅ 正确做法**:
+  ```javascript
+  // Feature内部通信（自动添加 @feature-name/ 前缀）
+  scopedEventBus.emit('data:load:completed', data);
+  scopedEventBus.on('ui:refresh:requested', handler);
+
+  // 跨Feature通信（不添加前缀）
+  scopedEventBus.emitGlobal('pdf:file:loaded', data);
+  scopedEventBus.onGlobal('pdf:file:loaded', handler);
+  ```
+- **📍 检查方式**: 运行时事件无法传递，控制台会显示"无订阅者"警告
+- **💡 为什么不同**: 插件架构需要严格隔离，防止Feature间事件污染
+
+#### 5. 项目启动禁止直接用 npm/python 命令 - 必须用 ai_launcher.py
+- **位置**: `CLAUDE.md`、`ai_launcher.py`
+- **❌ 错误做法**:
+  ```bash
+  npm run dev
+  python app.py
+  ```
+- **✅ 正确做法**:
+  ```bash
+  # 启动所有服务
+  python ai_launcher.py start
+
+  # 检查服务状态
+  python ai_launcher.py status
+
+  # 停止所有服务
+  python ai_launcher.py stop
+  ```
+- **📍 检查方式**: 直接npm run dev会导致终端阻塞，无法继续输入命令
+- **💡 为什么不同**:
+  - 自动管理多个服务的启动顺序（Vite、WebSocket、HTTP服务器）
+  - 自动检测端口冲突
+  - 后台运行，不阻塞终端
+  - 统一日志管理
+
+#### 6. WebSocket必须使用PyQt提供的实现 - 禁止其他库
+- **位置**: `.kilocode/rules/memory-bank/tech.md:173-178`
+- **❌ 错误做法**:
+  ```python
+  import websockets
+  from websocket import WebSocketApp
+  ```
+  ```javascript
+  const ws = new WebSocket('ws://localhost:8765');
+  ```
+- **✅ 正确做法**:
+  ```python
+  from PyQt6.QtWebSockets import QWebSocket, QWebSocketServer
+  ```
+- **📍 检查方式**: Code review或运行时出现连接问题
+- **💡 为什么不同**: 与PyQt的事件循环集成，避免进程管理复杂性
+
+#### 7. Fail-Fast 原则 - 禁止兜底，任何未预期行为必须报错
+- **位置**: `.kilocode/rules/memory-bank/context.md:12`、核心规则第一条
+- **❌ 错误做法**:
+  ```javascript
+  // ❌ 提供默认值兜底
+  function loadConfig(data) {
+    return data.config || { theme: 'light' };  // 禁止！
+  }
+
+  // ❌ 静默捕获错误并返回兜底值
+  async function fetchData(id) {
+    try {
+      return await api.get(id);
+    } catch (error) {
+      console.log('获取失败，返回默认值');
+      return { id, name: 'Unknown' };  // 禁止！
+    }
+  }
+
+  // ❌ 参数校验失败后使用默认值
+  function setPage(page) {
+    if (page < 1) page = 1;  // 禁止！应该报错
+    this.currentPage = page;
+  }
+
+  // ❌ 可选链 + 空值合并提供兜底
+  const name = user?.profile?.name ?? 'Guest';  // 慎用！确保有明确业务语义
+  ```
+- **✅ 正确做法**:
+  ```javascript
+  // ✅ 数据不合法立即报错
+  function loadConfig(data) {
+    if (!data || !data.config) {
+      throw new Error('Invalid config data: missing config field');
+    }
+    return data.config;
+  }
+
+  // ✅ 错误向上抛出，不静默处理
+  async function fetchData(id) {
+    if (!id) {
+      throw new Error(`Invalid id: ${id}`);
+    }
+    // 不捕获，让错误向上传播
+    return await api.get(id);
+  }
+
+  // ✅ 参数不合法立即报错
+  function setPage(page) {
+    if (page < 1) {
+      throw new Error(`Invalid page number: ${page}. Must be >= 1`);
+    }
+    this.currentPage = page;
+  }
+
+  // ✅ 必需字段缺失时报错
+  function getUsername(user) {
+    if (!user?.profile?.name) {
+      throw new Error('User profile name is required');
+    }
+    return user.profile.name;
+  }
+  ```
+- **📍 检查方式**: Code review检查是否有 `|| defaultValue`、`try-catch + 返回默认值`、参数校验后自动修正等模式
+- **💡 为什么不同**:
+  - **标准做法**：前端常用兜底逻辑提升"健壮性"（如 `data || []`、`catch + 返回默认值`）
+  - **本项目要求**：契约不匹配必须失败，快速暴露问题，便于调试和追踪
+  - **核心理念**：问题要"尽早失败、大声失败"，不要被掩盖
+  - **例外情况**：仅在有明确业务语义时才允许默认值（如"未登录用户显示Guest"），必须有注释说明
+
+---
+
+### 🟡 P1级（高频错误 - 会导致部分功能异常）
+
+#### 8. 单个代码文件行数不能超过500行 - 必须拆分重构
+- **位置**: `.kilocode/rules/memory-bank/tech.md:12`
+- **❌ 错误做法**:
+  ```javascript
+  // my-feature.js (800行)
+  export class MyFeature {
+    // 100行的字段定义
+    // 200行的事件处理
+    // 300行的业务逻辑
+    // 200行的辅助方法
+  }
+  ```
+- **✅ 正确做法**:
+  ```javascript
+  // my-feature/index.js (150行) - 主入口
+  export class MyFeature {
+    get name() { return 'my-feature'; }
+    async install(context) { ... }
+  }
+
+  // my-feature/services/data-service.js (200行) - 数据服务
+  export class DataService { ... }
+
+  // my-feature/components/ui-manager.js (180行) - UI管理
+  export class UIManager { ... }
+
+  // my-feature/utils/helpers.js (120行) - 工具函数
+  export function formatData() { ... }
+
+  // my-feature/constants.js (80行) - 常量定义
+  export const CONFIG = { ... };
+  ```
+- **📍 检查方式**: 使用 `wc -l <file>` 或编辑器行数显示
+- **💡 为什么不同**:
+  - 标准做法：很多项目允许单文件超过1000行
+  - 本项目要求：强制模块化，提高可维护性和可读性
+  - 合理拆分方式：
+    * 按职责拆分：将一个大Feature拆分为多个职责单一的类
+    * 提取服务层：将业务逻辑提取到独立的 service 文件
+    * 分离UI和逻辑：将UI组件和业务逻辑分离
+    * 提取工具函数：将通用函数提取到 utils 目录
+    * 分离常量和配置：将常量、配置项提取到独立文件
+  - 例外情况：生成代码（如从schema生成的类型定义）可以豁免，但需要在文件头注释说明
+
+#### 9. Feature类必须实现4个接口 - 缺一不可
+- **位置**: `src/frontend/HOW-TO-ADD-FEATURE.md`
+- **❌ 错误做法**:
+  ```javascript
+  export class MyFeature {
+    async install(context) { ... }  // 缺少name、version、dependencies
+  }
+  ```
+- **✅ 正确做法**:
+  ```javascript
+  export class MyFeature {
+    get name() { return 'my-feature'; }         // 必须
+    get version() { return '1.0.0'; }           // 必须
+    get dependencies() { return []; }           // 必须
+    async install(context) { ... }              // 必须
+    async uninstall(context) { ... }            // 必须（可以为空实现）
+  }
+  ```
+- **📍 检查方式**: FeatureRegistry.installAll()会报错"missing required getter"
+- **💡 为什么不同**: 插件模式需要元数据来管理生命周期和依赖
+
+#### 10. 事件名必须正好3段 - 不能多也不能少
+- **位置**: `src/frontend/common/event/event-bus.js:33-40`
+- **❌ 错误示例**:
+  ```javascript
+  'loadData'                 // 只有1段
+  'pdf:loaded'               // 只有2段
+  'pdf:list:data:loaded'     // 4段
+  ```
+- **✅ 正确示例**:
+  ```javascript
+  'pdf:load:completed'       // 正好3段
+  'bookmark:toggle:requested' // 正好3段
+  ```
+- **📍 检查方式**: EventBus会在运行时阻止发布，控制台显示详细错误
+- **💡 为什么不同**: 强制三段式 `{module}:{action}:{status}` 统一命名规范
+
+#### 11. Vite代理目标必须用 127.0.0.1 - 不能用 localhost
+- **位置**: `vite.config.js:91`、`.kilocode/rules/memory-bank/context.md:59`
+- **❌ 错误做法**:
+  ```javascript
+  proxy: {
+    '/pdfs': {
+      target: 'http://localhost:8080',  // Windows会解析为IPv6
+    }
+  }
+  ```
+- **✅ 正确做法**:
+  ```javascript
+  proxy: {
+    '/pdfs': {
+      target: 'http://127.0.0.1:8080',  // 明确使用IPv4
+    }
+  }
+  ```
+- **📍 检查方式**: Vite代理请求失败，控制台显示ECONNREFUSED
+- **💡 为什么不同**: Windows环境下localhost行为不一致（DNS优先解析为IPv6 ::1）
+
+#### 12. 全局事件必须在白名单注册 - 否则无法发布
+- **位置**: `src/frontend/common/event/global-event-registry.js`
+- **❌ 错误做法**:
+  ```javascript
+  // 新事件未在白名单中，发布会被阻止
+  eventBus.emit(NEW_EVENT.REQUESTED, data);  // 运行时报错
+  ```
+- **✅ 正确做法**:
+  ```javascript
+  // 先在 global-event-registry.js 中注册
+  const GLOBAL_EVENTS = new Set([
+    'pdf:file:loaded',
+    'bookmark:create:completed',
+    'new:event:requested',  // 新增事件
+  ]);
+  ```
+- **📍 检查方式**: EventBus会报错"未注册的全局事件，已被禁止发布"
+- **💡 为什么不同**: 防止事件滥用，强制契约化管理
+
+#### 13. 测试文件必须放在 __tests__ 目录 - 不能与源文件同级
+- **位置**: `docs/TESTING-UNIT-GUIDE.md`、`CLAUDE.md` 测试规范章节
+- **❌ 错误做法**:
+  ```
+  src/frontend/common/event/
+  ├── event-bus.js
+  └── event-bus.test.js        // ❌ 错误位置！
+  ```
+- **✅ 正确做法**:
+  ```
+  src/frontend/common/event/
+  ├── event-bus.js
+  └── __tests__/
+      └── event-bus.test.js     // ✅ 正确位置！
+  ```
+- **📍 检查方式**: 查看测试文件是否在 `__tests__/` 子目录
+- **💡 为什么不同**: Jest 配置约定，便于批量运行和覆盖率统计
+
+#### 14. 测试必须用 beforeEach 清理状态 - 禁止测试间依赖
+- **位置**: `CLAUDE.md` 测试规范章节
+- **❌ 错误做法**:
+  ```javascript
+  let manager;
+  test('test 1', () => {
+    manager = new Manager();
+    manager.data = [1, 2, 3];
+    expect(manager.data.length).toBe(3);
+  });
+  test('test 2', () => {
+    // ❌ manager 仍然是上个测试的实例！
+    expect(manager.data.length).toBe(0);  // 失败！
+  });
+  ```
+- **✅ 正确做法**:
+  ```javascript
+  let manager;
+  beforeEach(() => {
+    manager = new Manager();  // 每个测试都创建新实例
+  });
+  afterEach(() => {
+    manager = null;  // 清理
+  });
+  test('test 1', () => {
+    manager.data = [1, 2, 3];
+    expect(manager.data.length).toBe(3);
+  });
+  test('test 2', () => {
+    expect(manager.data).toEqual([]);  // ✅ 成功！
+  });
+  ```
+- **📍 检查方式**: 测试顺序打乱后仍然通过
+- **💡 为什么不同**:
+  - 标准做法：很多项目允许测试间共享状态
+  - 本项目要求：每个测试必须独立，避免顺序依赖
+  - 核心理念：测试失败应该只反映代码问题，不是测试顺序问题
+
+#### 15. ESM 动态导入 Mock 必须用 jest.unstable_mockModule - 不能用 jest.mock
+- **位置**: `CLAUDE.md` 测试规范章节、`tech.md:488`
+- **❌ 错误做法**:
+  ```javascript
+  jest.mock('pdfjs-dist/build/pdf');  // ❌ 不生效！
+  const { PDFManager } = await import('../pdf-manager.js');
+  ```
+- **✅ 正确做法**:
+  ```javascript
+  beforeEach(async () => {
+    jest.unstable_mockModule('pdfjs-dist/build/pdf', () => ({
+      getDocument: jest.fn(() => ({
+        promise: Promise.resolve({ numPages: 10 })
+      }))
+    }));
+    const { PDFManager } = await import('../pdf-manager.js');
+    manager = new PDFManager();
+  });
+  ```
+- **📍 检查方式**: Mock 未生效时，测试会因真实模块加载失败而报错
+- **💡 为什么不同**:
+  - 标准做法：jest.mock 适用于 CommonJS 模块
+  - 本项目要求：ESM 动态导入必须用 jest.unstable_mockModule
+  - 原因：pdfjs-dist 等库使用动态导入，jest.mock 无法拦截
+
+---
+
+### 🟢 P2级（注意事项 - 提醒即可，不易出错）
+
+#### 16. Python必须使用虚拟环境 - 禁止全局环境
+- **位置**: `.kilocode/rules/memory-bank/architecture.md:11`、`docs/architecture/environment.md`
+- **✅ 正确做法**:
+  ```bash
+  # 创建虚拟环境
+  python -m venv .venv
+
+  # 激活虚拟环境（Windows）
+  .venv\Scripts\activate
+
+  # 激活虚拟环境（Linux/Mac）
+  source .venv/bin/activate
+  ```
+- **📍 检查方式**: 查看 `.venv/` 目录是否存在
+- **💡 为什么不同**: 避免依赖冲突和环境污染
+
+#### 17. 文件编码必须 UTF-8 + 换行符必须 \n - 禁止CRLF
+- **位置**: `.kilocode/rules/memory-bank/context.md:10`
+- **❌ 错误做法**:
+  ```python
+  open('file.txt')  # 没有指定encoding
+  ```
+- **✅ 正确做法**:
+  ```python
+  open('file.txt', 'r', encoding='utf-8', newline='\n')
+  ```
+- **📍 检查方式**: Git会显示整个文件都是diff（行尾符不同）
+- **💡 为什么不同**: Fail-Fast原则，统一跨平台行为
+
+#### 18. 订阅事件必须在 install() 中集中管理
+- **位置**: `.kilocode/rules/memory-bank/context.md:46-51`
+- **❌ 错误做法**:
+  ```javascript
+  #handleEvent(data) {
+    // 在回调中动态订阅
+    this.#eventBus.on(ANOTHER_EVENT, handler);
+  }
+  ```
+- **✅ 正确做法**:
+  ```javascript
+  async install(context) {
+    this.#setupEventListeners();  // 所有订阅集中在这里
+  }
+
+  #setupEventListeners() {
+    this.#eventBus.on(EVENT, handler, {
+      subscriberId: 'FeatureName-purpose'
+    });
+  }
+  ```
+- **📍 检查方式**: 运行时报错"重复订阅检测"
+- **💡 为什么不同**: 防止重复订阅和内存泄漏
+
+#### 19. 私有字段必须用 # 前缀 - 不要用 _ 前缀
+- **位置**: Babel配置支持私有字段
+- **❌ 错误做法**:
+  ```javascript
+  class MyClass {
+    _privateField = null;  // 约定式私有
+  }
+  ```
+- **✅ 正确做法**:
+  ```javascript
+  class MyClass {
+    #privateField = null;  // 真正的私有字段
+  }
+  ```
+- **📍 检查方式**: Code review
+- **💡 为什么不同**: 使用ES2022标准的私有字段语法
+
+#### 20. 测试策略：放弃Playwright - 使用分段集成
+- **位置**: `docs/TESTING-OVERVIEW.md`、`.kilocode/rules/memory-bank/context.md:68`
+- **✅ 正确做法**: Node/Jest前端段 + PyTest后端段 + Flow Runner编排
+- **📍 检查方式**: 查看 `tests/e2e/` 目录结构
+- **💡 为什么不同**: 无浏览器依赖，更快更稳定
+
+---
+
+### 🔧 快速自检命令
+
+```bash
+# ESLint检查（会捕获P0/P1级错误）
+pnpm exec eslint src --max-warnings=0
+
+# 测试检查
+pnpm test
+
+# 服务状态检查
+python ai_launcher.py status
+```
+
+---
+
+### 📚 相关文档
+
+- 事件系统详解：`src/frontend/common/event/EVENTBUS-USAGE-GUIDE.md`
+- Feature开发指南：`src/frontend/HOW-TO-ADD-FEATURE.md`
+- 架构深度解析：`src/frontend/ARCHITECTURE-EXPLAINED.md`
+- 事件追踪调试：`src/frontend/HOW-TO-ENABLE-EVENT-TRACING.md`
+
+---
 
 ## ESLint 使用规则（团队标准）
 
@@ -139,17 +606,19 @@
 - 错误处理（Fail‑Fast）
   - resume 非法（越界/比例无效）→ toast + 回首页；不启用默认本地兜底（如需兜底须显式配置）。
 
-## 测试运行规范（Jest / Playwright）
+## 测试运行规范（Jest / PyTest / Flow Runner）
 - Jest
   - 入口：`pnpm test` 或 `pnpm exec jest`。
   - Babel：`jest.config.js` 使用 `babel-jest`，并显式传入绝对路径 `babel.jest.config.cjs`（避免在不同 CWD/根解析失败）。
   - 排除：`testPathIgnorePatterns` 排除 `tests/e2e/`，E2E 不由 Jest 执行。
   - 报告：`--json --outputFile test-results/jest-results-YYYYMMDDHHMMSS.json`；概览可落地到 `AItemp/reports/jest-summary-*.md`。
   - Mock（建议）：对 ESM 动态导入模块（如 `pdfjs-dist/build/pdf`）优先使用 `jest.unstable_mockModule`；或在实现中为 Jest 提供 CJS `require()` 分支，确保 `doMock` 生效。
-- Playwright
-  - 入口：`pnpm exec playwright test -c ./playwright.config.js`（或 `pnpm run e2e:browser`）。
-  - 配置：默认 `tests/e2e/browser`；headless；可在需要时启用 trace/screenshot。
-  - 报告：可用 `--reporter=json | Out-File test-results/playwright-results-*.json` 保存结果；静态服务器与 WS Mock 由测试工具自行启动（无需 Vite 预览）。
+- PyTest
+  - 入口：`node tests/e2e/runner/run-py-step.mjs <pytest-file>`（runner 以 `python_exe` 绝对路径调用）。
+  - 报告：建议将断言关键截取写入 `AItemp/flows/.../step-PY*.json`。
+- Flow Runner（编排器）
+  - 入口：`node tests/e2e/runner/run-flows.mjs --config tests/e2e/config/local.json --flows <pattern>`
+  - 作用：按注册的步骤顺序串联 F/N/PY/CT，并聚合 `AItemp/reports/e2e/<run_id>/summary.json`。
 
 ## 事件总线错误可观测性（订阅/发布）
 - event-bus 增强：
@@ -215,3 +684,16 @@
   - 保留 `TableEvents` 辅助类（动态生成事件名）
   - 仅在跨插件事件监听时强制使用常量
   - 插件内部的 `_emit_event()` 可继续使用辅助函数
+
+### 2025-11-13 WebSocket 使用约束（强制）
+- 禁止使用非 PyQt 提供的 WebSocket 实现；包括但不限于：Python `websockets/websocket-client`、Node `ws`、浏览器原生 `WebSocket` 直连等。
+- 如需使用 WebSocket 功能，必须使用 PyQt 的 QtWebSockets 能力（如 `QWebSocket`/`QWebSocketServer`），并由 PyQt 进程统一托管连接的生命周期、重连与安全策略。
+- 前端/脚本若需要消息通信，应通过 PyQt 提供的桥接（如信号/槽、`QWebChannel` 或 PyQt 封装的适配层）进行转发，禁止自行建立 WS 连接。
+- 迁移提示（存量代码）：将所有直连 WS 的调用替换为 PyQt 封装接口；若无现成封装，先补充 PyQt 侧 API，再调整调用方。测试需覆盖连接、发送/接收、超时与错误分支（Fail‑Fast，无兜底）。
+- 编码一致：仍强制显式 UTF‑8 与统一换行 `\\n`；出现不合规实现视为错误（CI/测试应拦截）。
+
+## MsgCenter 转发与客户端身份原则
+
+- MsgCenter 不仅负责 pdf-viewer 导航消息的转发, 也统一管理 pdf-home / pdf-viewer 的窗口启动: 所有窗口启动请求都应通过 WebSocket 消息(如 pdf-home:open:requested, pdf-library:viewer:requested) 进入 MsgCenter, 再由 BackendLauncher 统一决策.
+- 启动类消息必须携带 is_prod 标记(data.is_prod=true|false), BackendLauncher._on_msgcenter_message 根据该标记与 logs/runtime-ports.json 中的 vite_port 决定前端使用 dev(vite) 还是 prod(静态) 入口; 禁止在 GUI 或前端自行硬编码端口.
+- runtime-ports.json 仍是 Vite / MsgCenter / PDF 文件服务器端口的唯一真源, MsgCenter/BackendLauncher 仅在 dev 模式下解析 vite_port, prod 模式一律以静态端口为准.

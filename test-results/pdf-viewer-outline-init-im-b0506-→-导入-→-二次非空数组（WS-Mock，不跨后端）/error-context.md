@@ -1,0 +1,44 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - button "复制 PDF ID" [ref=e5] [cursor=pointer]:
+          - img [ref=e6]
+        - heading "PDF阅读器-D" [level=1] [ref=e9]
+      - generic [ref=e11]:
+        - button "🔍 搜索" [ref=e12] [cursor=pointer]
+        - button "⚓ 锚点" [ref=e13] [cursor=pointer]
+        - button "≡ 大纲" [ref=e14] [cursor=pointer]
+        - button "📝 标注" [ref=e15] [cursor=pointer]
+        - button "📇 卡片" [ref=e16] [cursor=pointer]
+        - button "🤖 AI" [ref=e17] [cursor=pointer]
+        - button "🌐 翻译" [ref=e18] [cursor=pointer]
+        - button "🔗 反链" [ref=e19] [cursor=pointer]
+    - main [ref=e20]
+  - generic [ref=e22]:
+    - button "收起" [ref=e23] [cursor=pointer]
+    - generic [ref=e25]:
+      - generic [ref=e26]:
+        - button "鼠标模式：文本选择" [ref=e28] [cursor=pointer]:
+          - img [ref=e29]
+        - button "滚动模式" [ref=e32] [cursor=pointer]:
+          - img [ref=e33]
+        - button "跨页模式" [ref=e38] [cursor=pointer]:
+          - img [ref=e39]
+      - generic [ref=e41]:
+        - button "↺" [ref=e42] [cursor=pointer]
+        - button "↻" [ref=e43] [cursor=pointer]
+      - generic [ref=e44]:
+        - button "←" [disabled] [ref=e45]
+        - spinbutton [ref=e46]: "1"
+        - generic [ref=e47]: / 1
+        - button "→" [disabled] [ref=e48]
+      - generic [ref=e49]:
+        - button "-" [ref=e50] [cursor=pointer]
+        - generic [ref=e51]: 100%
+        - button "+" [ref=e52] [cursor=pointer]
+  - status
+```

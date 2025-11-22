@@ -123,10 +123,25 @@ export class SearchFeature {
       </div>
     `;
 
-    // 插入到body顶部（fixed定位）
-    document.body.insertBefore(this.#searchPanel, document.body.firstChild);
+    // 优先挂载到主内容区域上方，避免遮挡 HTML 标题栏
+    const mainContent = document.querySelector(".main-content");
+    if (mainContent && mainContent.firstChild) {
+      mainContent.insertBefore(this.#searchPanel, mainContent.firstChild);
+      this.#logger?.debug?.("[SearchFeature] Search panel mounted into .main-content as first child");
+      return;
+    }
 
-    this.#logger.debug("[SearchFeature] Search panel created");
+    // 退化方案：挂到 app-root 内部（仍然不盖住自定义标题栏）
+    const appRoot = document.querySelector(".app-root");
+    if (appRoot) {
+      appRoot.insertBefore(this.#searchPanel, appRoot.firstChild);
+      this.#logger?.debug?.("[SearchFeature] Search panel mounted into .app-root (fallback)");
+      return;
+    }
+
+    // 最保守兜底：仍然插入到 body 顶部（旧行为），但仅在找不到布局容器时使用
+    document.body.insertBefore(this.#searchPanel, document.body.firstChild);
+    this.#logger?.warn?.("[SearchFeature] .main-content/.app-root not found, mounted search panel into <body> (legacy fallback)");
   }
 
   /**

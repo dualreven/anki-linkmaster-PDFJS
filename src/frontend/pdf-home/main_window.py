@@ -25,6 +25,7 @@ class MainWindow(QMainWindow):
     """PDF-Home主窗口"""
     send_debug_message_requested = pyqtSignal()
     web_loaded = pyqtSignal()
+    window_closing = pyqtSignal()  # 窗口关闭信号，用于触发生命周期管理清理
 
     def __init__(self, app, remote_debug_port: int | None = None, js_log_file: str | None = None, js_logger=None, stop_backend_on_close: bool = True):
         """初始化主窗口
@@ -59,13 +60,23 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Anki LinkMaster PDFJS")
         self.setGeometry(100, 100, 1200, 800)
 
+        # 使用完全无边框窗口（用HTML自定义所有窗口控制按钮）
+        try:
+            from PyQt6.QtCore import Qt
+            self.setWindowFlags(
+                Qt.WindowType.Window |  # 保持正常窗口
+                Qt.WindowType.FramelessWindowHint  # 完全无边框（去除标题栏和所有原生按钮）
+            )
+        except Exception:
+            pass  # 如果设置失败，使用默认窗口
+
         # QtWebEngine Inspector设置
         self.inspector_window = None
 
         # 初始化UI
         logger.info('MainWindow.__init__ start, remote_debug_port=%s', self._remote_debug_port)
         self._init_ui()
-        self._init_menu()
+        # self._init_menu()  # 已移除调试菜单栏
         self._init_status_bar()
         logger.info('MainWindow.__init__ done')
 
@@ -248,16 +259,16 @@ class MainWindow(QMainWindow):
         # 设置窗口最小尺寸
         self.setMinimumSize(800, 600)
 
-    def _init_menu(self):
-        """初始化菜单栏"""
-        menubar = self.menuBar()
-        debug_menu = menubar.addMenu('调试,通过ws发送消息到前端')
-        debug_action = QAction('发送消息', self)
-        debug_action.triggered.connect(self.send_debug_message_requested.emit)
-        debug_menu.addAction(debug_action)
-
-        # 文件菜单
-        file_menu = menubar.addMenu('文件')
+    # def _init_menu(self):
+    #     """初始化菜单栏（已移除 - 使用HTML自定义标题栏）"""
+    #     menubar = self.menuBar()
+    #     debug_menu = menubar.addMenu('调试,通过ws发送消息到前端')
+    #     debug_action = QAction('发送消息', self)
+    #     debug_action.triggered.connect(self.send_debug_message_requested.emit)
+    #     debug_menu.addAction(debug_action)
+    #
+    #     # 文件菜单
+    #     file_menu = menubar.addMenu('文件')
 
     def _init_status_bar(self):
         """初始化状态栏"""
@@ -364,5 +375,10 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print(f"[MainWindow] 清理过程失败: {e}")
         finally:
+            try:
+                if hasattr(self, "window_closing"):
+                    self.window_closing.emit()
+            except Exception:
+                pass
             # 接受关闭事件，让窗口优雅关闭
             event.accept()

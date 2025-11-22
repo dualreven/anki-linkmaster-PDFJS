@@ -152,6 +152,47 @@ class BackendPortManager:
 
         raise RuntimeError(f"❌ 无法找到可用端口给服务 {service_name} (范围: {start_port}-{end_port})")
 
+    def find_available_port_strict(self, service_name: str, port: int) -> int:
+        """
+        严格模式端口分配：不兜底，失败即报错
+
+        Args:
+            service_name: 服务名称（用于错误提示）
+            port: 必须指定的端口
+
+        Returns:
+            int: 可用的端口号（与输入相同）
+
+        Raises:
+            ValueError: port 为 None 或无效
+            RuntimeError: port 被占用
+        """
+        if port is None:
+            raise ValueError(
+                f"端口未指定：{service_name}\n"
+                f"请通过 GUI 或 CLI 参数 --{service_name.replace('_', '-')} 传入"
+            )
+
+        if not isinstance(port, int) or port <= 0 or port > 65535:
+            raise ValueError(
+                f"端口无效：{service_name} = {port}\n"
+                f"端口必须是 1-65535 之间的整数"
+            )
+
+        if self.is_port_available(port):
+            logger.info(f"✅ 端口 {port} 可用于 {service_name}")
+            return port
+
+        # 端口被占用 → 报错（不兜底）
+        owner = self.get_port_owner(port)
+        raise RuntimeError(
+            f"❌ 端口 {port} 已被占用 (service={service_name})\n"
+            f"占用进程：{owner or 'Unknown'}\n"
+            f"解决方案：\n"
+            f"  1. 关闭占用进程\n"
+            f"  2. 或通过 --{service_name.replace('_', '-')} 指定其他端口"
+        )
+
     def load_runtime_ports(self) -> Dict[str, Any]:
         """从配置文件加载端口"""
         try:
@@ -195,6 +236,13 @@ class BackendPortManager:
         pdfFileServer_port = (getattr(args, 'pdfFileServer_port', None) or
                               runtime_ports.get('pdfFile_port', self.default_ports['pdfFile_port']))
         ports['pdfFile_port'] = self.find_available_port('pdfFile_port', pdfFileServer_port)
+
+        # vite_port：只在开发模式时需要（命令行 > 配置文件）
+        vite_port_arg = getattr(args, 'vite_port', None)
+        vite_port_config = runtime_ports.get('vite_port') or runtime_ports.get('npm_port')  # 兼容旧键名
+        if vite_port_arg or vite_port_config:
+            ports['vite_port'] = vite_port_arg or vite_port_config
+
         logger.info(f"解析后的端口配置: {ports}")
         return ports
 

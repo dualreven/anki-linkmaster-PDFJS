@@ -15,8 +15,7 @@ Args:
   --pdfFileServer-port <int>   (also accept --pdfFileServer_port)
   --module <pdf-home|pdf-viewer>
   --pdf-id <string>
-  --page-at <int>              (PDF page number, 1-based index)
-  --position <float>           (Vertical position percentage within page, 0-100)
+  (URL 参数跳转已禁用，移除 --page-at, --position 等导航参数)
 
 Logging:
   - Writes to logs/ai-launcher.log (UTF-8)
@@ -520,7 +519,8 @@ def _save_backend_process(pid: Optional[int], msgCenter_port: int, pdfFile_port:
 
 
 def _start_backend(msgCenter_port: int | None, pdfFile_port: int | None,
-                   *, runtime_mode: Optional[str] = None,
+                   *, vite_port: Optional[int] = None,
+                   runtime_mode: Optional[str] = None,
                    ankiaddon_root_path: Optional[str] = None,
                    data_dir: Optional[str] = None,
                    db_path: Optional[str] = None,
@@ -536,6 +536,8 @@ def _start_backend(msgCenter_port: int | None, pdfFile_port: int | None,
         cmd += ["--msgCenter-port", str(msgCenter_port)]
     if pdfFile_port:
         cmd += ["--pdfFileServer-port", str(pdfFile_port)]
+    if vite_port:
+        cmd += ["--vite-port", str(vite_port)]
     if db_path:
         cmd += ["--db-path", str(db_path)]
     if data_dir:
@@ -612,11 +614,7 @@ def _start_frontend(module: str, ports: Dict[str, int], pdf_id: Optional[str], p
     if pdf_id:
         cmd.extend(["--pdf-id", pdf_id])
 
-    # 添加页面导航参数
-    if page_at is not None:
-        cmd.extend(["--page-at", str(page_at)])
-    if position is not None:
-        cmd.extend(["--position", str(position)])
+    # URL 参数跳转已禁用，不再添加导航参数
 
     LOGGER.info("Starting frontend %s: %s", module, " ".join(cmd))
     try:
@@ -735,8 +733,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         sp.add_argument("--pdfFileServer_port", type=int, dest="pdfFileServer_port_alt")
         sp.add_argument("--module", choices=["pdf-home", "pdf-viewer"], dest="module")
         sp.add_argument("--pdf-id", type=str, dest="pdf_id")
-        sp.add_argument("--page-at", type=int, dest="page_at", help="Target page number (1-based index)")
-        sp.add_argument("--position", type=float, dest="position", help="Vertical position percentage within page (0-100)")
+        # URL 参数跳转已禁用，移除 --page-at, --position 参数
         sp.add_argument("--runtime-mode", type=str, dest="runtime_mode", choices=["anki", "single"], help="Runtime mode for backend path resolution")
         sp.add_argument("--ankiaddon-root-path", type=str, dest="ankiaddon_root_path", help="Anki add-on root path (required when runtime-mode=anki)")
         sp.add_argument("--data-dir", type=str, dest="data_dir", help="Explicit backend data directory")
@@ -786,14 +783,34 @@ def cmd_start(args: argparse.Namespace) -> int:
         write_json_atomic(LOGS_DIR / "runtime-ports.json", runtime_ports)
         LOGGER.info("Updated runtime-ports.json with actual Vite port: %s", actual_vite_port)
 
+        # ⚠️ Fast-Fail 验证：ai_launcher 是开发模式专用，必须有 vite_port
+        if actual_vite_port is None:
+            LOGGER.error(
+                "❌ Fast-Fail: ai_launcher 是开发模式启动器，但 Vite 开发服务器未启动！\n"
+                "   actual_vite_port = None 表明 Vite 启动失败或未检测到。\n"
+                "   请检查：\n"
+                "   1. Vite 是否成功启动（端口 %s）\n"
+                "   2. logs/dev-process-info.json 是否正确写入\n"
+                "   3. 端口是否被占用",
+                vite_port
+            )
+            raise RuntimeError(
+                f"开发模式启动失败：Vite 开发服务器未运行（expected port: {vite_port}）"
+            )
+
         # 2) backend
+        # ✅ 为 data_dir 和 db_path 提供默认值（msgCenter_server 强制要求非空）
+        default_data_dir = str(PROJECT_ROOT / "data")
+        default_db_path = str(PROJECT_ROOT / "data" / "anki_pdfs.db")
+
         _start_backend(
             msgCenter_port,
             pdfFile_port,
+            vite_port=actual_vite_port,  # ✅ 传入 vite_port，后端会保存到 runtime-ports.json
             runtime_mode=getattr(args, "runtime_mode", None),
             ankiaddon_root_path=getattr(args, "ankiaddon_root_path", None),
-            data_dir=getattr(args, "data_dir", None),
-            db_path=getattr(args, "db_path", None),
+            data_dir=getattr(args, "data_dir", None) or default_data_dir,
+            db_path=getattr(args, "db_path", None) or default_db_path,
             static_dir=getattr(args, "static_dir", None),
             pdfs_dir=getattr(args, "pdfs_dir", None),
         )

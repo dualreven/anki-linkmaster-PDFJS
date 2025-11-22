@@ -8,8 +8,8 @@ import { createPDFViewerContainer } from "../../container/app-container.js";
 import { createWebSocketAdapter } from "../../adapters/websocket-adapter.js";
 import { WebSocketAdapterViewer } from "../../adapters/websocket-adapter-viewer.js";  // 新增：注册适配器
 // 不再直接在此处创建 ConsoleWebSocketBridge（由容器层统一管理）
-import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS } from "../../../common/event/event-constants.js";
 import { showError } from "../../../common/utils/notification.js";
+import { WebSocketErrorHandler } from "../../../common/utils/websocket-error-handler.js";
 
 /**
  * 应用核心功能域
@@ -22,6 +22,7 @@ export class AppCoreFeature {
   #wsAdapter = null;
   #wsAdapterViewer = null;  // 新增：专属注册适配器
   #consoleBridge = null;
+  #errorHandler = null;  // WebSocket 错误处理器
 
   /** 功能名称 */
   get name() {
@@ -112,33 +113,22 @@ export class AppCoreFeature {
       logger.error(`Error name: ${e?.name}`);
       logger.error(`Error message: ${e?.message}`);
       logger.error(`Error stack: ${e?.stack}`);
-      console.error("WebSocketAdapter initialization error:", e);
+      // 注意：已使用 logger.error 记录，无需 console.error
     }
 
     // 不再创建独立的 Console 桥接器，避免与容器层冲突与重复日志
 
-    // 全局后端错误 → toast 透传（便于调试）
+    // 全局后端错误 → toast 透传（使用统一的 WebSocketErrorHandler）
     try {
-      const bus = context.globalEventBus;
-      bus.on(WEBSOCKET_EVENTS.MESSAGE.SEND_FAILED, (err) => {
-        try {
-          const msg = (err && err.error_message) || "WebSocket 消息发送失败";
-          const type = err && err.message_type;
-          showError(type ? `${type}: ${msg}` : msg, 5000);
-        } catch { }
-      }, { subscriberId: "AppCoreFeature" });
-
-      bus.on(WEBSOCKET_MESSAGE_EVENTS.ERROR, (payload) => {
-        try {
-          const type = payload && (payload.type || payload.received_type);
-          const errMsg = (payload && (payload.message || payload.error_message))
-            || (payload && payload.error && (payload.error.message || payload.error.code))
-            || "操作失败";
-          showError(type ? `${type}: ${errMsg}` : errMsg, 6000);
-        } catch { }
-      }, { subscriberId: "AppCoreFeature" });
+      this.#errorHandler = new WebSocketErrorHandler(
+        context.globalEventBus,
+        showError,  // 传入 showError 函数
+        logger,
+        "AppCoreFeature"
+      );
+      this.#errorHandler.register();
     } catch (e) {
-      logger.warn("注册全局错误 toast 失败", e);
+      logger.warn("Failed to register WebSocketErrorHandler", e);
     }
 
     logger.info("AppCoreFeature installed successfully");
@@ -152,6 +142,12 @@ export class AppCoreFeature {
     const { logger } = context;
 
     logger.info("Uninstalling AppCoreFeature...");
+
+    // 注销 WebSocket 错误处理器
+    if (this.#errorHandler) {
+      this.#errorHandler.unregister();
+      this.#errorHandler = null;
+    }
 
     // 断开 WebSocket
     if (this.#appContainer) {

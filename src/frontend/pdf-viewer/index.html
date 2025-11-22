@@ -22,11 +22,17 @@
                 </button>
                 <h1 id="pdf-title">PDF阅读器-D</h1>
             </div>
-            <div class="header-right">
-                <!-- 侧边栏按钮容器：搜索、书签、标注、卡片、翻译 -->
+            <div class="header-right toolbar-right">
+                <!-- 搜索按钮（提升到外层，确保SearchBox组件能找到）-->
+                <button id="search-toggle-btn" class="btn" title="搜索 (Ctrl+F)">🔍 搜索</button>
+
+                <!-- 侧边栏按钮容器：书签、标注、卡片、翻译等 -->
                 <div id="pdf-viewer-button-container" class="sidebar-buttons">
-                    <button id="search-toggle-btn" class="btn" title="搜索 (Ctrl+F)">🔍 搜索</button>
+                    <!-- 其他侧边栏按钮将在这里动态生成 -->
                 </div>
+
+                <!-- 窗口控制按钮容器（由WindowControlsComponent动态挂载）-->
+                <!-- 不要在这里硬编码按钮HTML，组件会自动创建 -->
             </div>
         </header>
 

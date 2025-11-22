@@ -12,7 +12,7 @@ import { EventBus } from "../../../../common/event/event-bus.js";
 import { createScopedEventBus } from "../../../../common/event/scoped-event-bus.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 import { AnnotationFeature } from "../index.js";
-import { Annotation } from "../models/annotation.js";
+import { Annotation } from "../../../../common/models/annotation.js";
 
 // 简易容器桩件：支持 registerGlobal/get，提供 navigationService
 class SimpleContainer {
