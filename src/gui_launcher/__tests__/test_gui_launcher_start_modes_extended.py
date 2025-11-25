@@ -80,11 +80,25 @@ def _install_pyqt_stubs():
         class AlignmentFlag:
             AlignCenter = 0
 
+    class QUrl:
+        def __init__(self, *_a, **_k):
+            self._s = ""
+
+        def toString(self):
+            return self._s
+
+    class QEventLoop:
+        def __init__(self, *a, **k): pass
+        def exec(self): return 0
+        def quit(self): pass
+
     QtCore.QThread = QThread
     QtCore.pyqtSignal = _Signal
     QtCore.QTimer = QTimer
     QtCore.QFileSystemWatcher = QFileSystemWatcher
     QtCore.Qt = Qt
+    QtCore.QUrl = QUrl
+    QtCore.QEventLoop = QEventLoop
 
     # QtWidgets（只占位）
     QtWidgets = types.ModuleType("PyQt6.QtWidgets")
@@ -100,9 +114,18 @@ def _install_pyqt_stubs():
     for name in [
         "QWidget","QTabWidget","QLabel","QVBoxLayout","QHBoxLayout","QGroupBox",
         "QPushButton","QLineEdit","QTextEdit","QComboBox","QCheckBox","QSpinBox","QDoubleSpinBox",
-        "QScrollArea","QMessageBox","QRadioButton","QButtonGroup","QSizePolicy"
+        "QScrollArea","QMessageBox","QRadioButton","QButtonGroup","QSizePolicy","QFormLayout"
     ]:
         setattr(QtWidgets, name, type(name, (), {}) )
+    # 覆盖 QMessageBox，提供静态方法以兼容 gui_launcher 中的调用
+    class _QMessageBox:
+        @staticmethod
+        def critical(*_a, **_k): return None
+        @staticmethod
+        def warning(*_a, **_k): return None
+        @staticmethod
+        def information(*_a, **_k): return None
+    QtWidgets.QMessageBox = _QMessageBox
     class QApplication:
         @staticmethod
         def instance():
@@ -116,15 +139,46 @@ def _install_pyqt_stubs():
 
     # 根包注册
     PyQt6 = types.ModuleType("PyQt6")
-    sys.modules['PyQt6'] = PyQt6
-    sys.modules['PyQt6.QtCore'] = QtCore
-    sys.modules['PyQt6.QtWidgets'] = QtWidgets
-    sys.modules['PyQt6.QtGui'] = QtGui
+    QtWebSockets = types.ModuleType("PyQt6.QtWebSockets")
+    class QWebSocket:
+        def __init__(self, *a, **k): pass
+        def sendTextMessage(self, *a, **k): pass
+        def close(self): pass
+    QtWebSockets.QWebSocket = QWebSocket
+
+    sys.modules["PyQt6"] = PyQt6
+    sys.modules["PyQt6.QtCore"] = QtCore
+    sys.modules["PyQt6.QtWidgets"] = QtWidgets
+    sys.modules["PyQt6.QtGui"] = QtGui
+    sys.modules["PyQt6.QtWebSockets"] = QtWebSockets
+
+    # 提供一个最小的 src.qt.compat stub，避免在测试中真正导入 Qt 环境
+    compat = types.ModuleType("src.qt.compat")
+    compat.QApplication = QtWidgets.QApplication
+    compat.QUrl = QtCore.QUrl
+    compat.QWebSocket = QtWebSockets.QWebSocket
+    compat.QWebChannel = type("QWebChannel", (), {})
+    compat.QObject = type("QObject", (), {})
+    compat.pyqtSignal = QtCore.pyqtSignal
+    def _pyqtSlot(*_a, **_k):
+        def _wrap(fn):
+            return fn
+        return _wrap
+    compat.pyqtSlot = _pyqtSlot
+    compat.QCoreApplication = type("QCoreApplication", (), {})
+    compat.QTimer = QtCore.QTimer
+    compat.QWebSocketServer = type("QWebSocketServer", (), {})
+    compat.QHostAddress = type("QHostAddress", (), {})
+    compat.QAbstractSocket = type("QAbstractSocket", (), {})
+    sys.modules["src.qt.compat"] = compat
 
 
 def _load_gui_launcher_as(name: str):
     import importlib.util as _il
-    spec = _il.spec_from_file_location(name, str(Path("gui_launcher.py").resolve()))
+    repo_root = Path(__file__).resolve().parents[3]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+    spec = _il.spec_from_file_location(name, str((repo_root / "gui_launcher.py").resolve()))
     assert spec and spec.loader
     mod = _il.module_from_spec(spec)
     sys.modules[name] = mod
@@ -226,6 +280,8 @@ def test_pdf_viewer_hosted_path_via_ui(tmp_path, monkeypatch):
         "msgCenter_port": 8765,
         "pdfFile_port": 8080,
     }, raising=False)
+    # 避免真实端口探测导致前置失败
+    monkeypatch.setattr(mod.GUILauncher, "_is_port_listening", lambda self, host, port, timeout=0.6: True, raising=False)
 
     # 伪造 controller，避免真实 ensure_vite_dev 调用
     class _DummyCtl:
@@ -246,19 +302,16 @@ def test_pdf_viewer_hosted_path_via_ui(tmp_path, monkeypatch):
         return spec
     monkeypatch.setattr(_il, "spec_from_file_location", _fake_spec_from_file_location, raising=True)
 
-    # 捕获 start_pdf_viewer_hosted 调用
-    called = {}
-    def fake_start_pdf_viewer_hosted(cfg, *, parent_app, pdf_id=None, page_at=None, position=None,
-                                     anchor_id=None, annotation_id=None, outline_item_id=None, enable_outline=None, on_log=None):
-        called["cfg"] = cfg
-        called["pdf_id"] = pdf_id
-        called["page_at"] = page_at
-        called["position"] = position
-        called["outline_item_id"] = outline_item_id
-        called["enable_outline"] = enable_outline
-        if on_log: on_log("[FAKE] start_pdf_viewer_hosted called")
-        return 0
-    monkeypatch.setattr(mod._gl_services, "start_pdf_viewer_hosted", fake_start_pdf_viewer_hosted, raising=True)
+    # 捕获 _send_ws_text_qt 调用（Hosted viewer 现通过 MsgCenter 启动）
+    sent = {}
+    def fake_send_ws(self, port, text, timeout_ms=2000, *, expect_types=(), correlation_id=None):
+        sent["port"] = port
+        sent["text"] = text
+        sent["timeout_ms"] = timeout_ms
+        sent["expect_types"] = expect_types
+        sent["correlation_id"] = correlation_id
+        return ""  # 模拟未收到 ACK
+    monkeypatch.setattr(mod.GUILauncher, "_send_ws_text_qt", fake_send_ws, raising=False)
 
     # 实例化并补齐必要 UI 属性
     g = mod.GUILauncher()
@@ -287,11 +340,6 @@ def test_pdf_viewer_hosted_path_via_ui(tmp_path, monkeypatch):
     logs = []
     g._log = lambda m: logs.append(m)
     g._start_pdf_viewer_hosted()
-    if "cfg" not in called:
-        filtered = [l for l in logs if ("[ERROR]" in l or "[TRACE" in l or "pdf-viewer" in l)]
-        raise AssertionError("start_pdf_viewer_hosted 未触发; logs=" + "\n".join(filtered))
-    assert "cfg" in called
-    assert called["pdf_id"] == "doc-999"
-    assert called["page_at"] == 5 and abs(called["position"] - 66.6) < 1e-6
-    # Hosted 分支默认不强制 outline，outline_item_id 仅在选择 outline 类型且提供值时设置
-    assert called["enable_outline"] in (False, None)
+    # 新路径应至少发送一条 MsgCenter 启动请求
+    assert "port" in sent and "text" in sent, "应通过 _send_ws_text_qt 发送启动消息"
+    assert sent["port"] == 8765

@@ -3,7 +3,7 @@
  * @file url-navigation-feature.test.js
  */
 import { PDFUrlLoaderFeature } from "../index.js";
-import { SimpleDependencyContainer } from "../../../container/simple-dependency-container.js";
+import { DependencyContainer } from "../../../../common/micro-service/dependency-container.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 
 describe("PDFUrlLoaderFeature", () => {
@@ -20,7 +20,7 @@ describe("PDFUrlLoaderFeature", () => {
     };
 
     // 创建容器并注册依赖
-    container = new SimpleDependencyContainer();
+    container = new DependencyContainer();
     container.register("eventBus", mockEventBus);
     container.register("navigationService", {
       navigateTo: jest.fn(async () => ({ success: true, actualPage: 1, actualPosition: 0 }))
@@ -71,7 +71,7 @@ describe("PDFUrlLoaderFeature", () => {
     });
 
     test("安装时缺少EventBus应该抛出错误", async () => {
-      const emptyContainer = new SimpleDependencyContainer();
+      const emptyContainer = new DependencyContainer();
       await expect(feature.install(emptyContainer)).rejects.toThrow("EventBus未在容器或context中找到");
     });
   });

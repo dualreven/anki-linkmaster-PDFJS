@@ -12,7 +12,9 @@ import {
   StateManager,
   FeatureFlagManager,
   ServiceScope,
-  FeatureStatus
+  FeatureStatus,
+  createAppContainer,
+  createFeatureRegistry
 } from "../../../common/micro-service/index.js";
 
 describe("微服务组件集成测试", () => {
@@ -204,6 +206,60 @@ describe("微服务组件集成测试", () => {
       expect(container.get("stateManager")).toBe(stateManager);
       expect(container.get("flagManager")).toBe(flagManager);
       expect(container.get("registry")).toBe(registry);
+    });
+  });
+
+  describe("依赖容器全局注册与解析", () => {
+    it("registerGlobal 应该在根容器上注册服务并可在任意作用域获取", () => {
+      const root = new DependencyContainer("root");
+      const child = root.createScope("child");
+      const service = { name: "global-service" };
+
+      // 在子作用域中进行全局注册
+      child.registerGlobal("globalService", service);
+
+      // 根容器与子容器都应能获取到同一个实例
+      expect(root.get("globalService")).toBe(service);
+      expect(child.get("globalService")).toBe(service);
+    });
+
+    it("resolve 应该等价于 get", () => {
+      const container = new DependencyContainer("pdf-viewer");
+      const instance = { value: 42 };
+
+      container.register("testService", instance);
+
+      expect(container.resolve("testService")).toBe(instance);
+      expect(container.resolve("testService")).toBe(container.get("testService"));
+    });
+  });
+
+  describe("应用级启动辅助工具", () => {
+    it("createAppContainer 应该创建命名容器并预注册核心服务", () => {
+      const fakeEventBus = { on: jest.fn(), emit: jest.fn(), off: jest.fn() };
+      const fakeLogger = { info: jest.fn(), debug: jest.fn(), warn: jest.fn(), error: jest.fn() };
+
+      const container = createAppContainer({
+        name: "pdf-viewer-test-app",
+        eventBus: fakeEventBus,
+        logger: fakeLogger
+      });
+
+      expect(container).toBeInstanceOf(DependencyContainer);
+      expect(container.get("eventBus")).toBe(fakeEventBus);
+      expect(container.get("logger")).toBe(fakeLogger);
+    });
+
+    it("createFeatureRegistry 应该基于容器与 EventBus 创建 FeatureRegistry", () => {
+      const container = new DependencyContainer("test-app");
+      const fakeEventBus = { on: jest.fn(), emit: jest.fn(), off: jest.fn() };
+
+      const registry = createFeatureRegistry({
+        container,
+        eventBus: fakeEventBus
+      });
+
+      expect(registry).toBeInstanceOf(FeatureRegistry);
     });
   });
 });

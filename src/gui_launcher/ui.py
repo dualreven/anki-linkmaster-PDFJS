@@ -26,7 +26,7 @@ def build_param_panels(parent: Any) -> Dict[str, Any]:
     - append_log(msg:str), clear_log() 方法
     """
     # 延迟导入 PyQt6，避免测试环境在 import 阶段报缺依赖
-    from PyQt6.QtWidgets import QWidget, QVBoxLayout, QGroupBox, QFormLayout, QLineEdit, QSpinBox, QDoubleSpinBox, QPlainTextEdit, QPushButton, QHBoxLayout
+    from PyQt6.QtWidgets import QWidget, QVBoxLayout, QGroupBox, QFormLayout, QLineEdit, QSpinBox, QDoubleSpinBox, QPlainTextEdit, QPushButton, QHBoxLayout, QComboBox
     from PyQt6.QtCore import Qt
 
     root = QWidget(parent)
@@ -55,15 +55,16 @@ def build_param_panels(parent: Any) -> Dict[str, Any]:
     viewer_pdf_id = QLineEdit(); viewer_pdf_id.setText("c83c60c58ad2")
     viewer_page = QSpinBox(); viewer_page.setRange(0, 100000); viewer_page.setValue(0)
     viewer_position = QDoubleSpinBox(); viewer_position.setRange(0.0, 100.0); viewer_position.setDecimals(2); viewer_position.setValue(0.0)
-    viewer_anchor = QLineEdit(); viewer_anchor.setText("pdfanchor-44e42f698f9a")
-    viewer_annot = QLineEdit(); viewer_annot.setText("pdfannotation-Be5k52a7Nhowwoy8")
-    viewer_outline = QLineEdit(); viewer_outline.setText("outlineItem-E4QkTr7F")
+    viewer_target_type = QComboBox()
+    viewer_target_type.addItem("大纲 ID (outline)", "outline")
+    viewer_target_type.addItem("锚点 ID (anchor)", "anchor")
+    viewer_target_type.addItem("标注 ID (annotation)", "annotation")
+    viewer_target_id = QLineEdit(); viewer_target_id.setPlaceholderText("根据上方类型填写对应 ID")
     fv.addRow("pdf_id:", viewer_pdf_id)
     fv.addRow("page_at:", viewer_page)
     fv.addRow("position%:", viewer_position)
-    fv.addRow("anchor_id:", viewer_anchor)
-    fv.addRow("annotation_id:", viewer_annot)
-    fv.addRow("outline_item_id:", viewer_outline)
+    fv.addRow("跳转类型:", viewer_target_type)
+    fv.addRow("目标 ID:", viewer_target_id)
     lay.addWidget(viewer_box)
 
     # ---- 日志面板 ----
@@ -97,9 +98,8 @@ def build_param_panels(parent: Any) -> Dict[str, Any]:
             "viewer_pdf_id": viewer_pdf_id,
             "viewer_page": viewer_page,
             "viewer_position": viewer_position,
-            "viewer_anchor_id": viewer_anchor,
-            "viewer_annotation_id": viewer_annot,
-            "viewer_outline_item_id": viewer_outline,
+            "viewer_target_type": viewer_target_type,
+            "viewer_target_id": viewer_target_id,
         },
         "append_log": append_log,
         "clear_log": clear_log,

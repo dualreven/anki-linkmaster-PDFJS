@@ -17,6 +17,7 @@
   3) 构建与运行（源码/分发与静态路由） → docs/engineering/build-run.md
   4) 质量门禁（Lint/测试/E2E/契约差异检查） → docs/quality/quality-gates.md
   5) 自检清单（上线前/提交前） → docs/checklists/self-check.md
+  6) Memory Bank 压缩机制规范 → .kilocode/rules/memory-bank/compression.md
 
 - 现行检查清单（最小集合）
   - 事件名：只用命名空间常量；禁止字面量/变量/模板字符串。
@@ -27,12 +28,39 @@
     3) 保存完成后再次 `outline-list:request` 并仅在最终回执时发出一次 `OUTLINE.LOAD.SUCCESS`；  
     4) 去掉本地缓存（localStorage）写入/读取逻辑。
   - UI/数据层事件作用域一致；重复初始化有幂等守卫。
- - 禁用 alert/confirm；错误统一 logger.error(...,{toast:true})。
+  - 禁用 alert/confirm；错误统一 logger.error(...,{toast:true}) 或使用 `common/utils/notification.js` / 统一错误辅助工具（如 `WebSocketErrorHandler`、`notifyDomainError`）。
   - Plan 模式：AI 在执行任何会修改代码/文档/数据或运行具有写入/副作用的脚本前，必须先在对话中输出可审核的 Plan，并在用户明确确认后才能实际执行。
+  - Memory Bank 压缩：当 `context.md` 超过 7 天记录或行数过多，或 `AItemp` 中出现超过 30 天的工作日志 / 文件数量过大时，必须按《Memory Bank 压缩机制规范》执行归档与压缩，禁止直接删除历史记录。
 
 维护记录
 - 2025-11-07 精简为索引版；详细内容迁移到 docs（见 todo-and-doing/1 doing/20251107-tech-md-minify-migration/plan.md）。
  - 2025-11-07 接口调整：HighlightRenderer 构造签名由 `(pdfViewerManager, logger)` → `(logger)`；ScreenshotCapturer 构造签名由 `(pdfViewerManager)` → `()`；调用点与测试已同步。
+
+## AI开发易错点索引（精简版）
+
+- 本节是“规则导航版”，每条只保留标题 + 一句话解释 + docs 路径；完整用例与详细说明见 `docs/standards/ai-pitfalls.md`。
+- P0 级（必须立即检查）：
+  1. 事件名必须使用命名空间常量，禁止字符串字面量/变量/模板字符串。
+  2. 禁止使用 `console.*`，统一通过 Logger 记录日志。
+  3. 跨 Feature 调用必须通过 EventBus/Container，禁止直接 import 其他 Feature 内部实现。
+  4. ScopedEventBus 内部使用 scoped 事件，跨 Feature 通信使用 global 事件，严禁混用作用域。
+  5. 项目启动必须使用 `python ai_launcher.py start`，禁止直接 `npm run dev` 或裸 `python` 启动服务。
+  6. WebSocket 只允许使用 PyQt 提供的实现，不得在前端或脚本中自行建立原生 WS 连接。
+  7. 遵守 Fail‑Fast 原则：任何契约不匹配都必须抛错，禁止兜底默认值和静默吞错。
+- P1 级（高频错误）：
+  8. 单个代码文件行数不得超过 500 行，需通过职责拆分/提取 service/utils 等方式重构。
+  9. Feature 类必须实现 name/version/dependencies/install/uninstall 等完整接口。
+  10. 事件名必须严格为三段 `{module}:{action}:{status}`，多一段或少一段都视为错误。
+  11. 全局事件必须先在白名单中注册，未登记的全局事件禁止发布。
+  12. 测试文件必须放在 `__tests__` 目录，而不是与源文件同级。
+  13. 测试必须使用 `beforeEach/afterEach` 清理状态，禁止测试之间共享可变状态。
+  14. ESM 动态导入的 Mock 必须使用 `jest.unstable_mockModule`，`jest.mock` 无法拦截动态导入。
+- P2 级（注意事项）：
+  15. Python 必须使用虚拟环境，禁止全局环境直接安装依赖。
+  16. 文件编码必须统一为 UTF‑8，且读写时显式使用 `\n` 换行。
+  17. 事件订阅必须集中在 Feature 的 `install()` 阶段统一注册，避免在回调中动态订阅。
+  18. 私有字段必须使用 `#` 前缀（ES 私有字段语法），不要使用 `_` 约定式私有字段。
+  19. 测试策略采用“分段集成 + Flow Runner”替代 Playwright 浏览器 E2E。
 
 ## AI开发易错点速查（极易犯错清单）
 
@@ -697,3 +725,9 @@ python ai_launcher.py status
 - MsgCenter 不仅负责 pdf-viewer 导航消息的转发, 也统一管理 pdf-home / pdf-viewer 的窗口启动: 所有窗口启动请求都应通过 WebSocket 消息(如 pdf-home:open:requested, pdf-library:viewer:requested) 进入 MsgCenter, 再由 BackendLauncher 统一决策.
 - 启动类消息必须携带 is_prod 标记(data.is_prod=true|false), BackendLauncher._on_msgcenter_message 根据该标记与 logs/runtime-ports.json 中的 vite_port 决定前端使用 dev(vite) 还是 prod(静态) 入口; 禁止在 GUI 或前端自行硬编码端口.
 - runtime-ports.json 仍是 Vite / MsgCenter / PDF 文件服务器端口的唯一真源, MsgCenter/BackendLauncher 仅在 dev 模式下解析 vite_port, prod 模式一律以静态端口为准.
+- HTML 层的 WSClient 在 MsgCenter 侧必须使用新协议的 `client:register:requested` 注册：
+  - `data.client_id = "pdf-viewer-<pdf_id>"`（作为导航与路由的唯一身份 ID）；
+  - `data.client_type` 至少包含 `"window:pdf-viewer:<pdf_id>"` 与 `"editable"`；
+  - `data.capabilities` 应覆盖 `"navigation"|"annotation"|"bookmark"|"outline"` 等核心能力；
+  - `data.metadata.pdf_id = "<pdf_id>"`；
+  - Hosted 模式下的 PyQt 启动窗口仍通过 WindowLifecycleManager 以同一个 ID 管理窗口与 ws-client 槽位，但不再使用相同 ID 的新协议注册，以避免在 MsgCenter 侧出现 `CLIENT_ID_EXISTS` 误报。

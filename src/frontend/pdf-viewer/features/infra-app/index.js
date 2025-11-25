@@ -7,6 +7,7 @@
 import { createPDFViewerContainer } from "../../container/app-container.js";
 import { createWebSocketAdapter } from "../../adapters/websocket-adapter.js";
 import { WebSocketAdapterViewer } from "../../adapters/websocket-adapter-viewer.js";  // 新增：注册适配器
+import { setupWsInfra } from "../../../common/features/ws-infra/index.js";
 // 不再直接在此处创建 ConsoleWebSocketBridge（由容器层统一管理）
 import { showError } from "../../../common/utils/notification.js";
 import { WebSocketErrorHandler } from "../../../common/utils/websocket-error-handler.js";
@@ -19,8 +20,7 @@ import { WebSocketErrorHandler } from "../../../common/utils/websocket-error-han
 export class AppCoreFeature {
   #appContainer = null;
   #wsClient = null;
-  #wsAdapter = null;
-  #wsAdapterViewer = null;  // 新增：专属注册适配器
+  #wsInfra = null;
   #consoleBridge = null;
   #errorHandler = null;  // WebSocket 错误处理器
 
@@ -98,15 +98,33 @@ export class AppCoreFeature {
     try {
       const { eventBus } = this.#appContainer.getDependencies();
       if (this.#wsClient && eventBus) {
-        // 旧的 WebSocketAdapter 负责消息路由（保留所有现有功能）
-        this.#wsAdapter = createWebSocketAdapter(this.#wsClient, eventBus);
-        this.#wsAdapter.setupMessageHandlers();
+        // 通过公共 WS 基础设施 helper 安装适配器
+        this.#wsInfra = setupWsInfra({
+          container,
+          eventBus,
+          logger,
+          adapterFactories: [
+            (wsClient, ev) => createWebSocketAdapter(wsClient, ev),
+            (wsClient, ev) => new WebSocketAdapterViewer(wsClient, ev)
+          ]
+        });
+        logger.info("WebSocketAdapter and WebSocketAdapterViewer initialized via WsInfra helper");
 
-        // 新的 WebSocketAdapterViewer 负责客户端注册（使用统一新协议）
-        this.#wsAdapterViewer = new WebSocketAdapterViewer(this.#wsClient, eventBus);
-        this.#wsAdapterViewer.setupMessageHandlers();
-
-        logger.info("WebSocketAdapter and WebSocketAdapterViewer initialized");
+        // 标记适配器为已初始化，开始处理队列中的消息（例如导航请求）
+        try {
+          const adapters = Array.isArray(this.#wsInfra?.adapters) ? this.#wsInfra.adapters : [];
+          adapters.forEach((adapter) => {
+            if (adapter && typeof adapter.onInitialized === "function") {
+              try {
+                adapter.onInitialized();
+              } catch (e) {
+                logger.warn("Failed to mark WebSocket adapter initialized", e);
+              }
+            }
+          });
+        } catch (e) {
+          logger.warn("Failed to run WebSocket adapter onInitialized hooks", e);
+        }
       }
     } catch (e) {
       logger.error("Failed to initialize WebSocketAdapter");
@@ -160,17 +178,11 @@ export class AppCoreFeature {
       this.#consoleBridge = null;
     }
 
-    // 销毁 WebSocketAdapter
-    if (this.#wsAdapter && typeof this.#wsAdapter.destroy === "function") {
-      this.#wsAdapter.destroy();
+    // 销毁 WebSocket 适配器集合
+    if (this.#wsInfra && typeof this.#wsInfra.dispose === "function") {
+      this.#wsInfra.dispose();
     }
-    this.#wsAdapter = null;
-
-    // 销毁 WebSocketAdapterViewer
-    if (this.#wsAdapterViewer && typeof this.#wsAdapterViewer.destroy === "function") {
-      this.#wsAdapterViewer.destroy();
-    }
-    this.#wsAdapterViewer = null;
+    this.#wsInfra = null;
 
     // 销毁容器
     if (this.#appContainer) {

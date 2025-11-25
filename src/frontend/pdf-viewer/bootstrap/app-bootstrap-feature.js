@@ -5,9 +5,8 @@
  */
 
 import { getLogger, setModuleLogLevel, LogLevel } from "../../common/utils/logger.js";
-import { FeatureRegistry } from "../../common/micro-service/feature-registry.js";
 import { FEATURE_ALIASES } from "../../common/micro-service/feature-aliases.js";
-import { SimpleDependencyContainer } from "../container/simple-dependency-container.js";
+import { createAppContainer, createFeatureRegistry } from "../../common/micro-service/app-bootstrap.js";
 import eventBusSingleton from "../../common/event/event-bus.js";
 
 // 导入 Features
@@ -26,26 +25,12 @@ import { PDFCardFeature } from "../features/pdf-card/index.js";
 import { AiAssistantFeature } from "../features/ai-assistant/index.js";
 import { PDFAnchorFeature } from "../features/pdf-anchor/index.js";
 import { PDFResumeFeature } from "../features/pdf-resume/index.js";
-import { WindowControlsFeature } from "../features/window-controls/index.js";
+import { WindowControlsFeature } from "../../common/features/window-controls/index.js";
 import { showInfo } from "../../common/utils/notification.js";
+import { resolveWebSocketPortSync, DEFAULT_WS_PORT } from "../../common/utils/ws-port-resolver.js";
 const logger = getLogger("pdf-viewer.bootstrap");
 
 /**
- * 解析WebSocket端口
- * @returns {number} WebSocket端口号
- */
-function resolveWebSocketPort() {
-  // 1. 优先从URL参数获取
-  const urlParams = new URLSearchParams(window.location.search);
-  const msgCenterPort = urlParams.get("msgCenter");
-  if (msgCenterPort) {
-    return parseInt(msgCenterPort, 10);
-  }
-
-  // 2. 从环境或默认值
-  return 8765;
-}
-
 /**
  * 解析PDF文件路径
  * @returns {string|null} PDF文件路径
@@ -76,23 +61,23 @@ export async function bootstrapPDFViewerAppFeature() {
 
   try {
     // 1. 解析配置
-    const wsPort = resolveWebSocketPort();
+    const wsPort = resolveWebSocketPortSync({ fallbackPort: DEFAULT_WS_PORT });
     const wsUrl = `ws://localhost:${wsPort}`;
     const pdfPath = resolvePDFPath();
 
     logger.info(`[Bootstrap] Configuration: wsUrl=${wsUrl}, pdfPath=${pdfPath}`);
 
-    // 2. 创建依赖注入容器
-    const container = new SimpleDependencyContainer("pdf-viewer");
+    // 2. 创建依赖注入容器（统一注册 eventBus / logger）
+    const container = createAppContainer({
+      name: "pdf-viewer",
+      eventBus: eventBusSingleton,
+      logger
+    });
 
-    // 注册核心服务
-    container.register("eventBus", eventBusSingleton);
-    container.register("logger", logger);
-
-    // 3. 创建 Feature Registry
-    const registry = new FeatureRegistry({
+    // 3. 创建 Feature Registry（统一注入别名与全局 EventBus）
+    const registry = createFeatureRegistry({
       container,
-      globalEventBus: eventBusSingleton,
+      eventBus: eventBusSingleton,
       logger,
       // Step 1：注入（当前为空映射，零行为变更）；Step 2 再填充别名
       aliases: FEATURE_ALIASES
@@ -122,7 +107,10 @@ export async function bootstrapPDFViewerAppFeature() {
 
     // 4. 注册核心 Features
     registry.register(new AppCoreFeature());
-    registry.register(new WindowControlsFeature()); // 窗口控制按钮(依赖 infra-app)
+    registry.register(new WindowControlsFeature({
+      bridgeName: 'pdfViewerBridge',
+      containerSelector: '.toolbar-right'
+    })); // 窗口控制按钮(依赖 infra-app)
     registry.register(new PDFManagerFeature());
     registry.register(new UIManagerFeature());
     registry.register(new CoreNavigationFeature());  // 核心导航服务（需在url-navigation和annotation之前）

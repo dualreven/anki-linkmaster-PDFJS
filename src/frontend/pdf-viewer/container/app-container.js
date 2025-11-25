@@ -8,6 +8,7 @@ import eventBusSingleton from "../../common/event/event-bus.js";  // 使用默�
 import { getLogger, setGlobalWebSocketClient } from "../../common/utils/logger.js";
 import WSClient from "../../common/ws/ws-client.js";  // WSClient也是默认导出
 import { createConsoleWebSocketBridge } from "../../common/utils/console-websocket-bridge.js";
+import { buildWsUrlFromQuery } from "../../common/containers/app-container-base.js";
 
 /**
  * 创建PDF查看器应用容器
@@ -247,7 +248,18 @@ export function createPDFViewerContainer({
     // 准备WSClient但不连接
     if (!wsClient && state.wsUrl) {
       try {
-        wsClient = new WSClient(state.wsUrl, eventBus);
+        // 从 URL 显式获取 pdf-id，构建完整的 client_name（禁止自动推断）
+        const params = new URLSearchParams(window.location.search);
+        const pdfId = params.get('pdf-id') || params.get('pdf_id') || '';
+        const clientName = pdfId ? `pdf-viewer-${pdfId}` : 'pdf-viewer';
+
+        const identityOptions = {
+          client_name: clientName,  // 显式传递（如 pdf-viewer-c83c60c58ad2）
+          client_id: pdfId || 'ui',
+          module: 'pdf-viewer'
+        };
+
+        wsClient = new WSClient(state.wsUrl, eventBus, identityOptions);
         setGlobalWebSocketClient(wsClient);
         containerLogger.info(`[pdf-viewer] WSClient created for: ${state.wsUrl}`);
       } catch (e) {
@@ -280,18 +292,4 @@ export function createPDFViewerContainer({
   };
 }
 
-/**
- * 从URL查询参数构建WebSocket URL
- * @returns {string|null} WebSocket URL
- */
-function buildWsUrlFromQuery() {
-  try {
-    const params = new URLSearchParams(location.search);
-    const msgCenterPort = params.get("msgCenter") || "8765";
-    const host = location.hostname || "127.0.0.1";
-    const proto = location.protocol === "https:" ? "wss" : "ws";
-    return `${proto}://${host}:${msgCenterPort}/`;
-  } catch {
-    return null;
-  }
-}
+

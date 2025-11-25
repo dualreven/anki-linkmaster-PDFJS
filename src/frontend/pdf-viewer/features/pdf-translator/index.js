@@ -165,7 +165,7 @@ export class PDFTranslatorFeature {
       this.#sidebarUI = null;
     }
 
-    // 注意：SimpleDependencyContainer 没有 unregister 方法
+    // 注意：DependencyContainer 没有 unregister 方法
     // 服务会在容器 dispose 时自动清理
 
     this.#logger.info(`[${this.name}] Uninstalled`);

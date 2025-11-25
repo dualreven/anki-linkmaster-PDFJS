@@ -349,14 +349,25 @@ export class PDFEditFeature {
    * @param {string} message - 错误消息
    */
   #showGlobalError(message) {
+    const text = String(message ?? "");
+
+    // 首选统一通知系统，保证与其他模块一致
+    try {
+      showError(text, 3000);
+      return;
+    } catch (e) {
+      try { this.#logger?.warn?.("[PDFEditFeature] showError toast failed, fallback to #global-error DOM", e); } catch (_) { void _; }
+    }
+
+    // 回退到 pdf-home index.html 中的全局错误容器
     const errorDiv = document.getElementById("global-error");
     if (errorDiv) {
-      errorDiv.textContent = message;
+      errorDiv.textContent = text;
       errorDiv.classList.add("show");
 
       // 3秒后自动隐藏
       setTimeout(() => {
-        errorDiv.classList.remove("show");
+        try { errorDiv.classList.remove("show"); } catch (_) { void _; }
       }, 3000);
     }
   }
@@ -367,12 +378,22 @@ export class PDFEditFeature {
    * @param {string} message - 警告消息
    */
   #showGlobalWarning(message) {
+    const text = String(message ?? "");
+
+    // 警告同样通过统一错误提示通道展示（视觉上仍为错误 toast）
+    try {
+      showError(text, 3000);
+      return;
+    } catch (e) {
+      try { this.#logger?.warn?.("[PDFEditFeature] showError toast failed (warning), fallback to #global-error DOM", e); } catch (_) { void _; }
+    }
+
     const errorDiv = document.getElementById("global-error");
     if (errorDiv) {
       // 临时改为警告样式
       errorDiv.classList.remove("toast-error");
       errorDiv.classList.add("toast-warning");
-      errorDiv.textContent = message;
+      errorDiv.textContent = text;
       errorDiv.classList.add("show");
 
       // 3秒后自动隐藏并恢复样式

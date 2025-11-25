@@ -1,10 +1,11 @@
 /**
  * @file PDF Home 应用核心功能域
  * @module PDFHomeInfraAppFeature
- * @description 负责 PDF Home 的 WebSocket 注册（使用新协议）
+ * @description 负责 PDF Home 的 WebSocket 注册（使用新协议），并复用公共 WS 基础设施 helper
  */
 
 import { WebSocketAdapterHome } from "../../adapters/websocket-adapter-home.js";
+import { setupWsInfra } from "../../../common/features/ws-infra/index.js";
 
 /**
  * PDF Home 应用核心功能域
@@ -12,9 +13,7 @@ import { WebSocketAdapterHome } from "../../adapters/websocket-adapter-home.js";
  * @implements {IFeature}
  */
 export class PDFHomeInfraAppFeature {
-  #wsAdapterHome = null;
-  #wsClient = null;
-  #eventBus = null;
+  #wsInfra = null;
 
   /** 功能名称 */
   get name() {
@@ -40,20 +39,17 @@ export class PDFHomeInfraAppFeature {
 
     logger.info("Installing PDFHomeInfraAppFeature...");
 
-    // 从 DI 容器获取 wsClient（pdf-home 在 PDFHomeAppV2 中注册）
-    this.#wsClient = container.get("wsClient");
-    this.#eventBus = globalEventBus;
-
-    if (!this.#wsClient) {
-      logger.error("wsClient not found in container");
-      throw new Error("wsClient is required for PDFHomeInfraAppFeature");
-    }
-
-    // 创建并设置 WebSocketAdapterHome（负责客户端注册）
     try {
-      this.#wsAdapterHome = new WebSocketAdapterHome(this.#wsClient, this.#eventBus);
-      this.#wsAdapterHome.setupMessageHandlers();
-      logger.info("WebSocketAdapterHome initialized successfully");
+      // 使用公共 WS 基础设施 helper 安装适配器
+      this.#wsInfra = setupWsInfra({
+        container,
+        eventBus: globalEventBus,
+        logger,
+        adapterFactories: [
+          (wsClient, eventBus) => new WebSocketAdapterHome(wsClient, eventBus)
+        ]
+      });
+      logger.info("WebSocketAdapterHome initialized successfully via WsInfra helper");
     } catch (error) {
       logger.error("Failed to initialize WebSocketAdapterHome", error);
       throw error;
@@ -71,14 +67,11 @@ export class PDFHomeInfraAppFeature {
 
     logger.info("Uninstalling PDFHomeInfraAppFeature...");
 
-    // 销毁 WebSocketAdapterHome
-    if (this.#wsAdapterHome && typeof this.#wsAdapterHome.destroy === "function") {
-      this.#wsAdapterHome.destroy();
+    // 统一销毁 WS 适配器
+    if (this.#wsInfra && typeof this.#wsInfra.dispose === "function") {
+      this.#wsInfra.dispose();
     }
-    this.#wsAdapterHome = null;
-
-    this.#wsClient = null;
-    this.#eventBus = null;
+    this.#wsInfra = null;
 
     logger.info("PDFHomeInfraAppFeature uninstalled");
   }

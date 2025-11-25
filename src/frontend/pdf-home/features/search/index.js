@@ -11,6 +11,7 @@ import "./styles/search-bar.css";
 import "./styles/search-panel.css";
 import { showInfoWithId, dismissById } from "../../../common/utils/notification.js";
 import { SEARCH_EVENTS, FILTER_EVENTS } from "../../../common/event/event-constants.js";
+import { setupGlobalSearchShortcut } from "../../../common/features/search-shortcut/index.js";
 
 export class SearchFeature {
   name = "search";
@@ -24,6 +25,7 @@ export class SearchFeature {
   #searchPanel = null;
   #searchManager = null;  // 搜索管理器
   #unsubscribers = [];
+  #shortcutDisposer = null;
 
   /**
    * 安装插件
@@ -70,6 +72,19 @@ export class SearchFeature {
       this.#setupGlobalEventListeners(sidBase);
       this.#logger.info("[SearchFeature] Step5: Global listeners set up");
 
+      // 7. 安装全局搜索快捷键（Ctrl/Cmd+F 聚焦顶部搜索框）
+      this.#shortcutDisposer = setupGlobalSearchShortcut({
+        logger: this.#logger,
+        actorId: "PDFHomeSearchFeature:GlobalShortcut",
+        onOpen: () => {
+          try {
+            this.#searchBar?.focus();
+          } catch (e) {
+            this.#logger?.warn?.("[SearchFeature] Failed to focus search bar on shortcut", e);
+          }
+        }
+      });
+
       this.#logger.info("[SearchFeature] Installed successfully");
     } catch (error) {
       try { this.#logger.error("[SearchFeature] Installation failed (stack)", error?.stack || "(no stack)"); } catch(_) { void _; }
@@ -88,6 +103,12 @@ export class SearchFeature {
     // 取消所有事件订阅
     this.#unsubscribers.forEach(unsub => unsub());
     this.#unsubscribers = [];
+
+    // 取消全局快捷键
+    if (typeof this.#shortcutDisposer === "function") {
+      try { this.#shortcutDisposer(); } catch (_) { /* ignore */ }
+    }
+    this.#shortcutDisposer = null;
 
     // 销毁 SearchManager
     if (this.#searchManager) {

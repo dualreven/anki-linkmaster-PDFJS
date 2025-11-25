@@ -8,8 +8,6 @@ JSConsoleLogger，实现完整的JS控制台日志记录功能，
 
 from __future__ import annotations
 
-from datetime import datetime
-from pathlib import Path
 from typing import Optional
 import json
 
@@ -19,7 +17,7 @@ from src.qt.compat import (
     QUrl, pyqtSignal, QAction, QSizePolicy
 )
 
-from src.frontend.pyqtui.main_window import write_js_console_message
+from src.frontend.pyqtui.js_console_logger import BaseLoggingWebPage
 import logging
 logger = logging.getLogger('pdf-viewer.main_window')
 
@@ -186,56 +184,9 @@ class MainWindow(QMainWindow):
             settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanAccessClipboard, True)
             settings.setAttribute(QWebEngineSettings.WebAttribute.XSSAuditingEnabled, True)
 
-        # 创建增强版自定义页面
+        # 创建增强版自定义页面（统一使用 BaseLoggingWebPage）
         if self.web_view and QWebEnginePage:
-            try:
-                from PyQt6.QtWebEngineCore import QWebEnginePage as _QWEP  # type: ignore
-            except Exception:
-                _QWEP = QWebEnginePage
-
-            class EnhancedLoggingWebPage(_QWEP):
-                def __init__(self, parent, log_file_path: str | None, js_logger=None, pdf_id: str = "empty"):
-                    super().__init__(parent)
-                    self._log_file_path = log_file_path
-                    self.js_logger = js_logger
-                    self.pdf_id = pdf_id
-
-                    try:
-                        if self._log_file_path:
-                            import os as _os
-                            _os.makedirs(_os.path.dirname(self._log_file_path), exist_ok=True)
-                    except Exception:
-                        pass
-
-                def javaScriptConsoleMessage(self, level, message, lineNumber, sourceID):  # type: ignore
-                    """增强版控制台消息处理"""
-                    # 1. 写入到文件（保持原有功能）
-                    write_js_console_message(
-                        self._log_file_path,
-                        level=str(level),
-                        message=str(message),
-                        line_number=lineNumber,
-                        source_id=str(sourceID),
-                    )
-
-                    # 2. 同时传递给Logger（新增功能）
-                    if self.js_logger and hasattr(self.js_logger, 'log_message'):
-                        try:
-                            self.js_logger.log_message(
-                                level=str(level),
-                                message=str(message),
-                                source=str(sourceID) if sourceID else "",
-                                line=lineNumber
-                            )
-                        except Exception as e:
-                            print(f"Warning: Failed to pass message to js_logger (pdf_id: {self.pdf_id}): {e}")
-
-                    try:
-                        return super().javaScriptConsoleMessage(level, message, lineNumber, sourceID)  # type: ignore
-                    except Exception:
-                        return None
-
-            self.web_page = EnhancedLoggingWebPage(self.web_view, self._js_log_file, self.js_logger, self.pdf_id)
+            self.web_page = BaseLoggingWebPage(self.web_view, self._js_log_file, js_logger=self.js_logger, pdf_id=self.pdf_id)
             self.web_view.setPage(self.web_page)
         else:
             self.web_page = None

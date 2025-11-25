@@ -27,6 +27,9 @@
 // ==================== 依赖注入容器 ====================
 export { DependencyContainer, ServiceScope } from "./dependency-container.js";
 
+// ==================== 应用级启动辅助工具 ====================
+export { createAppContainer, createFeatureRegistry } from "./app-bootstrap.js";
+
 // ==================== 功能注册中心 ====================
 export { FeatureRegistry, FeatureStatus } from "./feature-registry.js";
 

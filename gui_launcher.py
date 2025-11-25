@@ -141,7 +141,7 @@ class GUILauncher(QMainWindow):
         except Exception:
             self._controller = None
 
-        self._build_ui()
+        self._init_ui()
         # 绑定文件监听（满足静态检查）
         try:
             if self._controller is not None:
@@ -151,6 +151,10 @@ class GUILauncher(QMainWindow):
             self._log(f"[WARN] 文件监听绑定失败: {e}")
 
     # ---------- UI ----------
+    def _init_ui(self) -> None:
+        """封装 UI 初始化，便于测试环境通过 monkeypatch 跳过真实构建。"""
+        self._build_ui()
+
     def _build_ui(self) -> None:
         root = QWidget()
         lay = QVBoxLayout(root)
@@ -569,6 +573,7 @@ class GUILauncher(QMainWindow):
             rid = _SMH.generate_request_id()
             msg: Dict[str, Any] = {
                 "type": "app-window:open:requested",
+                "to": "backend",
                 "timestamp": int(_time.time() * 1000),
                 "request_id": rid,
                 "data": {
@@ -636,13 +641,23 @@ class GUILauncher(QMainWindow):
                 QMessageBox.critical(self, "连接错误", error_msg)
                 self._log(f"[ERROR] MsgCenter 未监听端口 {ws_port}，请先启动后端")
                 return
-            # 读取 viewer 参数（来自可折叠面板）
+            # 读取 viewer 参数（优先来自可折叠面板，兼容旧字段）
             # URL 参数跳转已禁用，只读取 pdf_id，不再读取导航参数
             pdf_id = None
             if getattr(self, "_panels", None):
                 inp = self._panels.get("inputs") or {}
-                try: pdf_id = (inp.get("viewer_pdf_id").text().strip() or None)
-                except Exception: pdf_id = None
+                try:
+                    pdf_id = (inp.get("viewer_pdf_id").text().strip() or None)
+                except Exception:
+                    pdf_id = None
+            # 兼容旧测试/调用路径：若面板中未取得，则尝试旧字段
+            if not pdf_id:
+                try:
+                    v = getattr(self, "viewer_pdf_id_input", None)
+                    if v is not None and hasattr(v, "text"):
+                        pdf_id = (v.text().strip() or None)
+                except Exception:
+                    pdf_id = None
             if not pdf_id:
                 error_msg = (
                     "❌ 参数错误：缺少 PDF ID\n\n"
@@ -663,6 +678,7 @@ class GUILauncher(QMainWindow):
             rid = _SMH.generate_request_id()
             msg = {
                 "type": "app-window:open:requested",
+                "to": "backend",
                 "timestamp": int(_time.time() * 1000),
                 "request_id": rid,
                 "data": {
@@ -719,7 +735,8 @@ class GUILauncher(QMainWindow):
                 self._log(f"[ERROR] MsgCenter 未监听端口 {ws_port}，请先启动后端")
                 return
             # 读取参数
-            pdf_id = None; page_at = None; position = None; anchor_id = None; annotation_id = None; outline_item_id = None
+            pdf_id = None; page_at = None; position = None
+            target_type = None; target_id = None
             if getattr(self, "_panels", None):
                 inp = self._panels.get("inputs") or {}
                 try: pdf_id = (inp.get("viewer_pdf_id").text().strip() or None)
@@ -728,12 +745,27 @@ class GUILauncher(QMainWindow):
                 except Exception: page_at = None
                 try: position = float(inp.get("viewer_position").value()) if inp.get("viewer_position").value() > 0 else None  # type: ignore[call-arg]
                 except Exception: position = None
-                try: anchor_id = (inp.get("viewer_anchor_id").text().strip() or None)
-                except Exception: anchor_id = None
-                try: annotation_id = (inp.get("viewer_annotation_id").text().strip() or None)
-                except Exception: annotation_id = None
-                try: outline_item_id = (inp.get("viewer_outline_item_id").text().strip() or None)
-                except Exception: outline_item_id = None
+                try:
+                    c = inp.get("viewer_target_type")
+                    tt = None
+                    if c is not None:
+                        try:
+                            tt = c.currentData()
+                        except Exception:
+                            tt = None
+                        if not tt:
+                            try:
+                                tt = c.currentText()
+                            except Exception:
+                                tt = None
+                    target_type = (str(tt).strip().lower() or None) if tt is not None else None
+                except Exception:
+                    target_type = None
+                try:
+                    w = inp.get("viewer_target_id")
+                    target_id = (w.text().strip() or None) if w is not None else None
+                except Exception:
+                    target_id = None
             if not pdf_id:
                 error_msg = (
                     "❌ 参数错误：缺少 PDF ID\n\n"
@@ -747,14 +779,15 @@ class GUILauncher(QMainWindow):
                 QMessageBox.critical(self, "参数错误", error_msg)
                 self._log("[ERROR] 缺少必填参数：pdf_id（请在参数面板填写）")
                 return
-            # 选择导航目标（优先级：annotation > anchor > outline > page）
+            # 选择导航目标（优先级：下拉选择的类型 > page）
             nav_target = None
-            if annotation_id:
-                nav_target = {"type": "annotation", "annotation_id": str(annotation_id)}
-            elif anchor_id:
-                nav_target = {"type": "anchor", "anchor_id": str(anchor_id)}
-            elif outline_item_id:
-                nav_target = {"type": "outline", "outline_item_id": str(outline_item_id)}
+            if target_type and target_id:
+                if target_type == "annotation":
+                    nav_target = {"type": "annotation", "annotation_id": str(target_id)}
+                elif target_type == "anchor":
+                    nav_target = {"type": "anchor", "anchor_id": str(target_id)}
+                elif target_type == "outline":
+                    nav_target = {"type": "outline", "outline_item_id": str(target_id)}
             elif page_at is not None:
                 t = {"type": "page", "page_number": int(page_at)}
                 try:
@@ -768,11 +801,10 @@ class GUILauncher(QMainWindow):
                     "❌ 参数错误：缺少导航目标\n\n"
                     "请至少填写以下一项导航参数：\n\n"
                     "📌 优先级排序：\n"
-                    "1. Annotation ID（批注标识）\n"
-                    "2. Anchor ID（锚点标识）\n"
-                    "3. Outline Item ID（大纲项标识）\n"
-                    "4. Page Number（页码，从 1 开始）\n\n"
-                    "💡 示例：填写 'Page Number' 为 5，即可跳转到第 5 页"
+                    "1. 选择“大纲/锚点/标注”并在“目标 ID”中填写对应 ID\n"
+                    "2. 或者直接填写 Page Number（页码，从 1 开始）\n\n"
+                    "💡 示例：选择“大纲 ID”，在“目标 ID”输入 outlineItem-xxxx；\n"
+                    "   或者仅填写 'Page Number' 为 5，即可跳转到第 5 页"
                 )
                 QMessageBox.warning(self, "参数错误", error_msg)
                 self._log("[ERROR] 未指定任何可用的导航目标（outline/annotation/anchor/page 均缺失）")

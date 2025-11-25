@@ -10,8 +10,7 @@
  * - ScopedEventBus: 命名空间事件隔离
  */
 
-import { DependencyContainer } from "../../common/micro-service/dependency-container.js";
-import { FeatureRegistry } from "../../common/micro-service/feature-registry.js";
+import { createAppContainer, createFeatureRegistry } from "../../common/micro-service/app-bootstrap.js";
 import { FEATURE_ALIASES } from "../../common/micro-service/feature-aliases.js";
 import { StateManager } from "../../common/micro-service/state-manager.js";
 import { FeatureFlagManager } from "../../common/micro-service/feature-flag-manager.js";
@@ -27,7 +26,7 @@ import { PDFHomeInfraAppFeature } from "../features/infra-app/index.js";  // 新
 import { PDFSorterFeature } from "../features/pdf-sorter/index.js";
 import { PDFEditFeature } from "../features/pdf-edit/index.js";
 import { SidebarFeature } from "../features/sidebar/index.js";
-import { WindowControlsFeature } from "../features/window-controls/index.js";  // 新增：窗口控制
+import { WindowControlsFeature } from "../../common/features/window-controls/index.js";  // 新增：窗口控制
 
 // 搜索和筛选功能
 import { SearchFeature } from "../features/search/index.js";
@@ -143,8 +142,12 @@ export class PDFHomeAppV2 {
    * @private
    */
   #initializeCoreComponents(options) {
-    // 创建依赖容器
-    this.#container = new DependencyContainer("pdf-home-v2");
+    // 创建依赖容器（标准化注册 eventBus / logger）
+    this.#container = createAppContainer({
+      name: "pdf-home-v2",
+      eventBus,
+      logger: this.#logger
+    });
 
     // 创建状态管理器
     this.#stateManager = new StateManager();
@@ -156,11 +159,12 @@ export class PDFHomeAppV2 {
     });
 
     // 创建功能注册中心
-    this.#registry = new FeatureRegistry({
+    this.#registry = createFeatureRegistry({
       container: this.#container,
-      globalEventBus: eventBus,
+      eventBus,
       // Step 1：注入（当前为空映射，零行为变更）；Step 2 再填充别名
-      aliases: FEATURE_ALIASES
+      aliases: FEATURE_ALIASES,
+      logger: this.#logger
     });
 
     // 使用全局事件总线（保持向后兼容）
@@ -177,11 +181,6 @@ export class PDFHomeAppV2 {
   #registerGlobalServices(options) {
     // 注册状态管理器（单例）
     this.#container.register("stateManager", this.#stateManager, {
-      scope: "singleton"
-    });
-
-    // 注册全局事件总线（单例）
-    this.#container.register("eventBus", this.#eventBus, {
       scope: "singleton"
     });
 
@@ -341,7 +340,10 @@ export class PDFHomeAppV2 {
 
       // UI布局功能
       new SidebarFeature(),
-      new WindowControlsFeature(),  // 窗口控制按钮（最小化、最大化、关闭）
+      new WindowControlsFeature({
+        bridgeName: 'pyqtBridge',
+        containerSelector: '.toolbar-controls'
+      }),  // 窗口控制按钮（最小化、最大化、关闭）
 
       // 搜索和筛选功能（按优先级顺序）
       new SearchFeature(),        // 优先：搜索框UI

@@ -8,7 +8,8 @@
 
 import { getLogger } from "../../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
-import { showSuccess, showError } from "../../../../common/utils/notification.js";
+import { showSuccess } from "../../../../common/utils/notification.js";
+import { notifyDomainError } from "../../../../common/utils/domain-error-notifier.js";
 
 export class AnchorSidebarUI {
   #eventBus;
@@ -242,7 +243,11 @@ export class AnchorSidebarUI {
         }
       } catch(_) {}
 
-      try { showError("复制失败，请手动选择并复制", 4000); } catch(_) {}
+      notifyDomainError({
+        message: "复制失败，请手动选择并复制",
+        logger: this.#logger,
+        scope: "pdf-viewer:anchor:copy"
+      });
       return false;
     };
     const copyWrap = document.createElement("div");
@@ -517,6 +522,7 @@ export class AnchorSidebarUI {
   }
 
   #showError(message) {
+    const text = String(message || "未知错误");
     try {
       if (!this.#table) {return;}
       if (!this.#errorDiv) {
@@ -528,7 +534,7 @@ export class AnchorSidebarUI {
       }
 
       const msgSpan = document.createElement("span");
-      msgSpan.textContent = `加载锚点失败：${String(message || "未知错误")}`;
+      msgSpan.textContent = `加载锚点失败：${text}`;
       const retryBtn = document.createElement("button");
       retryBtn.type = "button";
       retryBtn.textContent = "重试";
@@ -540,6 +546,12 @@ export class AnchorSidebarUI {
 
       this.#table.insertBefore(this.#errorDiv, this.#table.firstChild);
     } catch(_) {}
+
+    notifyDomainError({
+      message: `加载锚点失败：${text}`,
+      logger: this.#logger,
+      scope: "pdf-viewer:anchor:list"
+    });
   }
 
   #clearError() {
@@ -658,4 +670,3 @@ export class AnchorSidebarUI {
 }
 
 export default AnchorSidebarUI;
-

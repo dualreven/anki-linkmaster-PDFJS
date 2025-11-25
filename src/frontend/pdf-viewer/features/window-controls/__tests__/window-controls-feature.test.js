@@ -9,7 +9,7 @@
  * 5. 错误处理（严格模式）
  */
 
-import { WindowControlsFeature } from '../index.js';
+import { WindowControlsFeature } from '../../../../common/features/window-controls/index.js';
 
 describe('WindowControlsFeature', () => {
   let feature;
@@ -99,7 +99,10 @@ describe('WindowControlsFeature', () => {
       return Promise.reject(new Error('Not found'));
     });
 
-    feature = new WindowControlsFeature();
+    feature = new WindowControlsFeature({
+      bridgeName: 'pdfViewerBridge',
+      containerSelector: '.toolbar-right'
+    });
   });
 
   afterEach(async () => {

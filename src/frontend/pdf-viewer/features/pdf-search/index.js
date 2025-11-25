@@ -9,6 +9,7 @@ import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js
 import { SearchEngine } from "./services/search-engine.js";
 import { SearchStateManager } from "./services/search-state-manager.js";
 import { SearchBox } from "./components/search-box.js";
+import { setupGlobalSearchShortcut } from "../../../common/features/search-shortcut/index.js";
 
 // 导入样式
 import "./styles/search.css";
@@ -39,6 +40,9 @@ export class SearchFeature {
 
   /** @type {boolean} 是否已安装 */
   #installed = false;
+
+  /** @type {Function|null} 全局快捷键卸载函数 */
+  #shortcutDisposer = null;
 
   /**
    * Feature名称
@@ -75,7 +79,7 @@ export class SearchFeature {
   /**
    * 安装Feature
    * @param {Object} context - Feature上下文
-   * @param {import('../../container/simple-dependency-container').SimpleDependencyContainer} context.container - 依赖容器
+   * @param {import('../../../common/micro-service/dependency-container.js').DependencyContainer} context.container - 依赖容器
    * @param {import('../../../common/event/event-bus').EventBus} context.globalEventBus - 全局事件总线
    * @param {import('../../../common/utils/logger').Logger} context.logger - 日志器
    * @returns {Promise<void>}
@@ -138,8 +142,18 @@ export class SearchFeature {
         { subscriberId: "SearchFeature" }
       );
 
-      // 8. 设置全局快捷键（Ctrl+F）
-      this.#setupGlobalShortcuts();
+      // 8. 设置全局快捷键（Ctrl+F），使用公共 helper
+      this.#shortcutDisposer = setupGlobalSearchShortcut({
+        logger: this.#logger,
+        actorId: "SearchFeature:GlobalShortcut",
+        onOpen: () => {
+          this.#eventBus.emit(
+            PDF_VIEWER_EVENTS.SEARCH.UI.OPEN,
+            {},
+            { actorId: "SearchFeature:GlobalShortcut" }
+          );
+        }
+      });
 
       this.#installed = true;
       this.#logger.info("SearchFeature installed successfully");
@@ -242,19 +256,20 @@ export class SearchFeature {
    * @private
    */
   #setupGlobalShortcuts() {
-    document.addEventListener("keydown", (e) => {
-      // Ctrl+F (Cmd+F on Mac) - 打开搜索框
-      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-        e.preventDefault();
-
-        this.#eventBus.emit(
-          PDF_VIEWER_EVENTS.SEARCH.UI.OPEN,
-          {},
-          { actorId: "SearchFeature:GlobalShortcut" }
-        );
-      }
-    });
-
+    // 该方法保留用于向后兼容旧调用，但内部逻辑已经迁移到公共 helper
+    if (!this.#shortcutDisposer) {
+      this.#shortcutDisposer = setupGlobalSearchShortcut({
+        logger: this.#logger,
+        actorId: "SearchFeature:GlobalShortcut",
+        onOpen: () => {
+          this.#eventBus.emit(
+            PDF_VIEWER_EVENTS.SEARCH.UI.OPEN,
+            {},
+            { actorId: "SearchFeature:GlobalShortcut" }
+          );
+        }
+      });
+    }
     this.#logger.info("Global shortcuts registered (Ctrl+F)");
   }
 

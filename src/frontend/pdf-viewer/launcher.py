@@ -596,15 +596,14 @@ class PdfViewerApp:
 
         def on_connected():
             logger.info(f"WebSocket connected to {ws_url.toString()}")
-            # ✅ 先发送客户端注册请求
-            # client_name 格式：pdf-viewer-${pdf_id}（如 pdf-viewer-0c251de0e2ac）
+            # 先发送客户端注册请求（保持旧协议语义，避免与 HTML WSClient 抢占同一 client_id）
             client_name = f"pdf-viewer-{self.pdf_id}"
             register_msg = {
                 "type": "client:register:requested",
                 "data": {
-                    "client_name": client_name,  # 必填字段
-                    "client_id": self.pdf_id,    # PDF ID（用于后端识别）
-                    "module": "pdf-viewer",       # 模块名称
+                    "client_name": client_name,
+                    "client_id": self.pdf_id,
+                    "module": "pdf-viewer",
                     "version": "1.0.0"
                 },
                 "timestamp": int(time.time() * 1000)

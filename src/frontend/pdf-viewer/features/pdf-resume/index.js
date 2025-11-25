@@ -7,7 +7,7 @@
 import { getLogger } from "../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_EVENTS } from "../../../common/event/event-constants.js";
-import { showError } from "../../../common/utils/notification.js";
+import { notifyDomainError } from "../../../common/utils/domain-error-notifier.js";
 
 export class PDFResumeFeature {
   #logger = getLogger("Feature.pdf-resume");
@@ -191,7 +191,12 @@ export class PDFResumeFeature {
       this.#eventBus.emit(PDF_VIEWER_EVENTS.RESUME.APPLY.SUCCESS, { resume: parsed }, { actorId: "PDFResumeFeature" });
     } catch (e) {
       this.#logger.error("[resume] apply failed", e);
-      showError("恢复阅读位置失败");
+      notifyDomainError({
+        message: "恢复阅读位置失败",
+        logger: this.#logger,
+        scope: "pdf-viewer:resume:apply",
+        error: e
+      });
       this.#eventBus.emit(PDF_VIEWER_EVENTS.RESUME.APPLY.FAILED, { error: String(e?.message || e) }, { actorId: "PDFResumeFeature" });
     }
   }

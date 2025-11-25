@@ -242,6 +242,40 @@ export class DependencyContainer {
   }
 
   /**
+   * 解析服务实例（兼容 SimpleDependencyContainer.resolve 接口）
+   * @param {string} name - 服务名称
+   * @returns {any} 服务实例
+   */
+  resolve(name) {
+    return this.get(name);
+  }
+
+  /**
+   * 在根容器上注册全局服务（兼容旧的 registerGlobal 语义）
+   * @param {string} name - 服务名称
+   * @param {Function|any} target - 服务类、工厂函数或值
+   * @param {Object} options - 注册选项（同 register）
+   */
+  registerGlobal(name, target, options = {}) {
+    const root = this.#getRootContainer();
+    root.register(name, target, options);
+  }
+
+  /**
+   * 获取当前容器链的根容器
+   * @returns {DependencyContainer}
+   * @private
+   */
+  #getRootContainer() {
+    let current = this;
+    // 逐级向上查找直至没有父容器
+    while (current.#parent) {
+      current = current.#parent;
+    }
+    return current;
+  }
+
+  /**
    * 清空容器（移除所有服务和实例）
    * @warning 谨慎使用，会清空所有缓存的单例实例
    */

@@ -1,10 +1,12 @@
-﻿import Logger from "../../common/utils/logger.js";
+import Logger from "../../common/utils/logger.js";
 import { WEBSOCKET_MESSAGE_EVENTS, WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_LEGACY_TYPES } from "../../common/event/event-constants.js";
 import eventBusSingleton from "../../common/event/event-bus.js";
 import WSClient from "../../common/ws/ws-client.js";
 import { DependencyContainer } from "../../common/micro-service/dependency-container.js";
+import { buildWsUrlFromQuery } from "../../common/containers/app-container-base.js";
 // utf-8
 // pdf-home container: uses DependencyContainer to manage services
+// v2.0.0: 使用共享的 buildWsUrlFromQuery 函数
 
 /**
  * 创建 PDF-Home 应用容器（增强版，使用依赖注入）
@@ -34,9 +36,9 @@ export function createPDFHomeContainer({ root, wsUrl, logger, enableValidation =
   function connect() {
     if (state.disposed) {return;}
     try {
-      if (!state.wsUrl) {state.wsUrl = buildWsUrlFromQuery();}
+      if (\!state.wsUrl) {state.wsUrl = buildWsUrlFromQuery();}
       const logger = diContainer.get("logger");
-      logger.info(`[pdf-home] connecting WS: ${state.wsUrl}`);
+      logger.info();
 
       const wsClient = diContainer.get("wsClient");
       wsClient.connect();
@@ -145,10 +147,10 @@ export function createPDFHomeContainer({ root, wsUrl, logger, enableValidation =
 
     const logger = diContainer.get("logger");
 
-    if (!state.wsUrl) {state.wsUrl = buildWsUrlFromQuery();}
+    if (\!state.wsUrl) {state.wsUrl = buildWsUrlFromQuery();}
 
     // 确保 wsClient 已创建（但不连接）
-    if (!diContainer.has("wsClient") && state.wsUrl) {
+    if (\!diContainer.has("wsClient") && state.wsUrl) {
       try {
         const eventBus = diContainer.get("eventBus");
         // 显式传递 pdf-home 的客户端身份信息
@@ -169,7 +171,7 @@ export function createPDFHomeContainer({ root, wsUrl, logger, enableValidation =
   }
 
   function isInitialized() {
-    return !!state.initialized;
+    return \!\!state.initialized;
   }
 }
 
@@ -199,12 +201,5 @@ function resolveRoot(root) {
   return document.getElementById("app") || document.body;
 }
 
-function buildWsUrlFromQuery() {
-  try {
-    const params = new URLSearchParams(location.search);
-    const msgCenterPort = params.get("msgCenter") || "8765";
-    const host = location.hostname || "127.0.0.1";
-    const proto = location.protocol === "https:" ? "wss" : "ws";
-    return `${proto}://${host}:${msgCenterPort}/`;
-  } catch { return null; }
-}
+// 导出 buildWsUrlFromQuery 以保持向后兼容
+export { buildWsUrlFromQuery };

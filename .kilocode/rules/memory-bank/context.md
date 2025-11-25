@@ -1,7 +1,7 @@
 # Memory Bank - Context（精简版）
 
-最后更新：2025-11-20
-归档策略：保留最近7天变更记录，历史见 docs/context-archive/
+最后更新：2025-11-25
+归档策略：保留最近7天变更记录，历史见 docs/context-archive/；memory-bank 的整体压缩与归档行为遵循《Memory Bank 压缩机制规范》（.kilocode/rules/memory-bank/compression.md），在执行 weekly/monthly 归档或清理 AItemp 工作日志时必须按该规范操作。
 
 ---
 
@@ -15,6 +15,55 @@
   - **禁止重复实现**：禁止跨模块重复（如 pdf-home 和 pdf-viewer 各自实现报错逻辑）、禁止同模块内重复（如同一模块中存在两套相同逻辑）
   - **发现重复时的处理**：如发现高度雷同功能，**必须询问用户**是否抽象为共享模块（如 `src/frontend/common/`），禁止自行决定复制代码
   - **典型错误案例**：PDF-Home 和 PDF-Viewer 各自实现独立的错误处理逻辑（应抽象到 `common/utils/` 或 `common/services/`）
+
+- **代码审计与清理优先级原则**：
+  - **优先级 P0 - 删除死代码（Dead Code Elimination）**：
+    - 未使用的函数、类、模块（通过 ESLint `no-unused-vars` 和 IDE 分析识别）
+    - 废弃的 Feature 或组件（已被新实现替代但未删除的旧代码）
+    - 注释掉的代码块（保留超过 7 天且无明确 TODO 说明的）
+    - 未引用的文件（项目中无任何 import/require 引用的孤立文件）
+    - **检查方法**：ESLint、TypeScript 编译器、手动 Grep 搜索、依赖分析工具
+    - **理由**：死代码增加维护负担、混淆代码意图、占用存储空间、可能包含安全漏洞
+  - **优先级 P1 - 抽象冗余重复代码（DRY）**：
+    - 跨模块重复代码 → 抽象到 `src/frontend/common/` 或 `src/backend/common/`
+    - 同模块内重复逻辑 → 提取为私有方法或工具函数
+    - 重复的业务逻辑 → 使用设计模式（策略模式、工厂模式、模板方法模式等）
+    - 重复的配置或常量 → 提取到配置文件或常量文件
+    - **检查方法**：代码审查、相似度分析工具、手动识别重复模式
+    - **理由**：重复代码导致维护困难（修改需要同步多处）、容易引入不一致性 bug
+  - **优先级 P2 - 将经验总结成规则（Rules Extraction）**：
+    - 代码规范 → 编写 ESLint 自定义规则（如 `custom/no-cross-feature-internals`）
+    - 架构约束 → 编写架构文档和检查清单（如 Feature 通信必须通过 EventBus）
+    - 最佳实践 → 更新 memory-bank、CLAUDE.md、开发指南文档
+    - 反模式识别 → 创建"禁止事项"清单和错误案例库
+    - **固化方式**：文档化、自动化检查（ESLint/Pylint）、测试覆盖、Code Review 检查项
+    - **理由**：规则固化可防止问题重复发生、提高团队协作效率、降低新人上手难度
+  - **执行顺序说明**：
+    - 先删除死代码，避免在无用代码上浪费重构精力
+    - 再处理重复代码，确保抽象的是有用的代码
+    - 最后总结规则，将优化经验固化为可执行的约束
+  - **典型案例**：
+    - P0 案例：删除废弃的 QtWebEngine E2E 测试目录（已切换到 Node/Jest 方案）
+    - P1 案例：抽象 pdf-home 和 pdf-viewer 的错误处理逻辑到 `common/utils/error-handler.js`（当前通过 `notification.js` + `WebSocketErrorHandler` + `domain-error-notifier.js` 统一实现）
+    - P2 案例：创建 ESLint 规则 `custom/no-silent-catch` 禁止空 catch 块
+
+### 2.6 前端错误提示统一策略（2025-11-25）
+- **统一目标**：相同的“用户可见错误提示”功能必须通过共享的工具链实现，避免 pdf-home / pdf-viewer 内各自封装一套 Toast / DOM 错误条。
+- **公共设施**：
+  - `src/frontend/common/utils/notification.js`：底层 toast 封装（iziToast + ToastManager），提供 `showError/showInfo/showSuccess` 等。
+  - `src/frontend/common/utils/websocket-error-handler.js`：统一监听 `WEBSOCKET_EVENTS.MESSAGE.SEND_FAILED` 与 `WEBSOCKET_MESSAGE_EVENTS.ERROR`，将所有 WS 层错误集中为 toast。
+  - `src/frontend/common/utils/domain-error-notifier.js`：领域错误提示入口 `notifyDomainError({ message, logger, error, scope, durationMs })`，在业务 Feature 中使用，统一“业务失败”类提示。
+  - `src/frontend/common/utils/dom-utils.js`：`DOMUtils.showError/showSuccess` 已改为优先调用 `notification.js`，仅在 toast 引擎异常时回退到 `#global-error/#global-success` DOM。
+- **已接入模块示例**：
+  - pdf-home：
+    - `pdf-home/qwebchannel/qwebchannel-bridge.js`：`openPdfViewersWithMeta` 的“未初始化/无可用 PyQt 方法/调用异常/后端返回错误”等，全部改为通过 `notifyDomainError` 输出，同时记录 logger。
+    - `pdf-home/features/pdf-edit/index.js`：内部 `#showGlobalError/#showGlobalWarning` 统一调用 `showError(...)`，只在必要时回退 `#global-error` DOM。
+    - `pdf-home/index.html`：入口加载失败不再使用 `alert`，而是写入 `#global-error`。
+  - pdf-viewer：
+    - `pdf-viewer/features/pdf-anchor/components/anchor-sidebar-ui.js`：克隆失败、复制失败以及“加载锚点失败/请求超时”等，使用 `notifyDomainError` 统一对外提示，同时保留局部错误区域。
+- **约束**：
+  - 新增前端错误提示时，应优先通过 `notification.showError` 或 `notifyDomainError` 实现；
+  - 禁止在 Feature 内自行构造新的全局 toast DOM（若需局部错误区域，应与全局 toast 解耦，并在必要时同时调用 `notifyDomainError`）。
 
 ## 2) 关键协议（最新版）
 
@@ -58,6 +107,237 @@
 - **Fail-Fast 适用**：Plan 模式本身也遵循 Fail-Fast，若用户未明确确认 Plan 或发现 Plan 与约束冲突，AI 必须停止执行并回到 Plan 阶段修正，而不是“先做再说”。
 
 ## 4) 最近7天变更记录
+
+### 2025-11-25
+- **gui_launcher 跳转测试（大纲导航）在 Hosted 模式下无效的修复**
+  - **问题表现**：
+    - 通过 gui_launcher 的“跳转测试（MsgCenter）”按钮发送导航请求：`pdf-id=c83c60c58ad2`，`outline-item-id=outlineItem-3K2o3Wmm`；
+    - 预期：仅对应的 pdf-viewer 弹出 toast，并跳转到该大纲项位置；
+    - 实际：后端日志显示 MsgCenter 成功转发 `pdf-viewer:navigate:requested`，gui_launcher 也收到 `pdf-viewer:navigate:completed`，但 viewer 前端既没有 toast 也没有实际跳转。
+  - **链路确认**：
+    - gui_launcher → MsgCenter：`_send_viewer_navigate_via_msgcenter()` 按新协议发送消息，`to.client_id="pdf-viewer-<pdf-id>"`，`routing_key="pdf:<pdf-id>"`，`data.target={ type: "outline", outline_item_id: ... }`；
+    - MsgCenter → WSClient：`navigate_viewer_validator` 校验通过，RouteRegistry 能找到目标 ws-client，`standard_server.handle_message` 打印 `[Forward] 消息已转发: type=pdf-viewer:navigate:requested, targets=1`，并回 `pdf-viewer:navigate:completed`；
+    - 说明：后端链路和路由完全正常，问题集中在 pdf-viewer 前端消费层。
+  - **前端行为与根因**：
+    - `WSClient._handleMessage`：
+      - 先统一 `emit(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, message)`，所有消息都会走这条总线；
+      - 然后按白名单 + 类型映射到 `WEBSOCKET_MESSAGE_EVENTS.*`（我们看到 `websocket:message:unknown` 日志正是这里发出的）；
+    - `WebSocketAdapter.#setupIncomingMessageHandlers`：
+      - 订阅 `WEBSOCKET_EVENTS.MESSAGE.RECEIVED`，收到任意 WS 消息时先调用 `this.handleMessage(message)`，再做 outline/anchor 领域桥接；
+    - `WebSocketAdapter.handleMessage` 逻辑：
+      - 若 `#initialized === false`，只将消息推入内部队列 `#messageQueue`，记录 debug 日志“Message queued (not initialized yet): ...”，**不会调用 `#routeMessage`**；
+      - 只有在 `onInitialized()` 被调用后，才会对队列中的消息逐一执行 `#routeMessage`，并标记适配器已就绪；
+    - 实际运行中：
+      - 在重构前，`infra-ws-adapter` Feature 内部负责创建 WebSocketAdapter 并在应用准备好时调用 `onInitialized()`；
+      - 在重构后，适配器创建逻辑迁移到 `AppCoreFeature`（`features/infra-app/index.js`），通过公共 helper `setupWsInfra` 安装，但**只调用了 `setupMessageHandlers()`，没有任何地方再调用 `onInitialized()`**；
+      - 结果：生产环境下 `WebSocketAdapter.#initialized` 永远为 false，导航请求这类只走 `#routeMessage` 的消息（如 `pdf-viewer:navigate:requested`）全部长期滞留在队列中，不会触发 `[WS] 导航·大纲` 日志、toast，也不会发出 `PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE_BY_ID.REQUESTED`。
+  - **修复方案**：
+    - 修改 `src/frontend/pdf-viewer/features/infra-app/index.js`（AppCoreFeature）：
+      - 在通过 `setupWsInfra` 安装适配器之后，新增一段初始化钩子调用：
+        - 从 `this.#wsInfra.adapters` 中取出适配器数组；
+        - 对每个适配器，如果存在 `onInitialized` 方法，则调用一次；
+        - 过程中出现的异常仅记录为 warn，不影响其他适配器。
+      - 伪代码：
+        ```js
+        const adapters = Array.isArray(this.#wsInfra?.adapters) ? this.#wsInfra.adapters : [];
+        adapters.forEach((adapter) => {
+          if (adapter && typeof adapter.onInitialized === "function") {
+            try {
+              adapter.onInitialized();
+            } catch (e) {
+              logger.warn("Failed to mark WebSocket adapter initialized", e);
+            }
+          }
+        });
+        ```
+    - 这样保证 pdf-viewer 在 AppCoreFeature 完成安装后，WebSocketAdapter 会被标记为已初始化，后续收到的 `pdf-viewer:navigate:requested` 等消息会立即走 `#routeMessage` → `#handleViewerNavigate` 逻辑，按协议触发 toast + 导航。
+  - **测试与风险控制**：
+    - 新增样板测试文件 `src/frontend/pdf-viewer/features/infra-app/__tests__/app-core-feature.ws-init.test.js`，用于记录“AppCoreFeature 安装后应为带 onInitialized 的适配器调用初始化”的预期行为和 mock 思路（当前因 ESM mock 复杂度问题以 `describe.skip` 保留，后续可按需要启用并完善）；
+    - 回归运行 `src/frontend/pdf-viewer/features/infra-app/__tests__/app-core-feature.alias-and-name.test.js`，确认 AppCoreFeature 的名称/别名行为未被破坏；
+    - 由于对 WebSocketAdapter 自身逻辑未做修改，已有关于队列与导航的 adapter 单元测试（如 `websocket-adapter.navigate-outline.test.js` 等）在逻辑上仍然有效。
+  - **后续建议**：
+    - 如果后续在 pdf-viewer 引入 App 级别的初始化事件（类似 pdf-home 的 `app:initialization:completed`），可以将 `onInitialized` 的触发从 AppCoreFeature 挪到更符合语义的位置（例如专门的 infra-ws-adapter Feature），同时在测试中用该事件作为统一的“应用就绪”信号。
+
+### 2025-11-23
+- **修复 MsgCenter 验证失败后仍执行业务逻辑的设计缺陷**
+  - **问题1**：`gui_launcher.py` 发送 `app-window:open:requested` 消息时缺少 `to` 字段
+    - **症状**：启动 pdf-home 或 pdf-viewer 时，后端日志报错 `INVALID_TO_FIELD: 缺少 to 字段（type=app-window:open:requested）`
+    - **根本原因**：第570-579行（PDF-Home）和第664-675行（PDF-Viewer）构造消息时忘记添加 `to: "backend"` 字段
+    - **修复**：为两处消息添加 `"to": "backend"` 字段，符合 MsgCenter 协议规范
+  - **问题2**：`to` 字段验证失败后，所有业务逻辑仍然执行（设计缺陷）
+    - **根本原因**：`standard_server.py` 的 `_process_incoming()` 方法在 `handle_message()` 验证之后**无条件发射** `message_received` 信号（第1356行），导致验证失败的消息仍能触发订阅者的业务逻辑
+    - **消息流转路径**：GUI发送 → WebSocket → `_process_incoming()` → `handle_message()` 验证失败 → 返回错误 → **仍发射 `message_received` 信号** → `BackendLauncher` 收到消息 → 执行业务逻辑（打开/关闭窗口）
+    - **影响范围分析**：
+      - ✅ Handler 层面：验证失败时不会执行 Handler 业务逻辑（已安全）
+      - ✅ 转发层面：验证失败时不会转发消息（已安全）
+      - ❌ **信号层面**：验证失败时仍然发射信号，导致订阅者执行业务逻辑（**存在安全风险**）
+    - **受影响的业务逻辑**（`pyqt_launcher.py:323-454`）：
+      - `app-window:open:requested`：打开 PDF 查看器或主界面窗口（重大副作用）
+      - `app-window:close:requested`：关闭指定窗口（重大副作用）
+      - `pdf-viewer.outline.enabled-query`：查询 outline 启用状态（无副作用）
+    - **安全风险**：
+      - 可能被用于路径遍历攻击（打开任意文件）
+      - 可能导致用户数据丢失（强制关闭窗口）
+    - **修复方案**（第1349-1401行）：
+      - 在发射 `message_received` 信号前，检查 `handle_message()` 的返回值
+      - 如果是错误响应（`type` 以 `:failed` 结尾，或 `status` 为 `error`，或 `code >= 400`），则**不发射信号**
+      - 只有验证成功的消息才会发射信号并被订阅者接收
+      - 添加详细的安全日志：`[Security] 消息验证失败，拒绝发射 message_received 信号`
+    - **兼容性验证**：
+      - 搜索所有 `message_received.connect()` 调用，确认只有 `BackendLauncher._on_msgcenter_message()` 一个订阅者
+      - 修复后不会有兼容性问题
+  - **影响范围**：所有消息的验证机制（不仅限于 `app-window:open:requested`），包括：
+    - `to` 字段验证失败
+    - Schema 验证失败
+    - Handler 参数验证失败
+  - **协议规范**：根据 `src/backend/msgCenter_server/docs/msgCenter-to-field-spec.md`，所有非注册消息必须包含 `to` 字段
+  - **工作日志**：AItemp/20251123170212-AI-Working-log.md
+  - **相关文件**：
+    - `gui_launcher.py` - 发送消息的代码（已修复问题1）
+    - `src/backend/msgCenter_server/standard_server.py` - 消息验证逻辑（已修复问题2）
+    - `src/backend/msgCenter_server/core/message_validator.py` - `to` 字段验证器
+    - `src/backend/launcher_core/pyqt_launcher.py` - 消息处理逻辑
+
+### 2025-11-24
+- **MsgCenter app-window:open:requested UNKNOWN_MESSAGE_TYPE 问题修复**
+  - **问题现象**：GUI Hosted 模式下，通过 MsgCenter 启动 PDF-Home 时，日志出现 `app-window:open:failed`，错误为 `未知消息类型: app-window:open:requested`，导致 `_process_incoming()` 将消息视为验证失败，不再发射 `message_received` 信号，从而 `BackendLauncher._on_msgcenter_message()` 无法收到打开窗口请求。
+  - **根本原因**：
+    - `src/backend/msgCenter_server/core/msg_router.py` 的路由表仅为 `"app-window:close:requested"` 注册了 Handler，用于返回协议层的成功响应（实际关闭逻辑由 BackendLauncher 处理），但遗漏了 `"app-window:open:requested"`；
+    - 在 `validate_to_field()` 规则下，`to: "backend"` 的 `app-window:open:requested` 会被归类为 `route_action="backend"`，`handle_message()` 会尝试从 `_router` 查找 Handler，未命中时返回 `UNKNOWN_MESSAGE_TYPE` 错误；
+    - `_process_incoming()` 在 2025‑11‑23 的安全加固后，仅在响应非错误（status != error 且 code < 400）时发射 `message_received`，因此该错误响应会阻断信号发射。
+  - **修复方案**：
+    - 在 `msg_router.build_router()` 中为 `"app-window:open:requested"` 注册协议层 Handler，行为与 close 保持一致：
+      - `type="app-window:open:completed"`，`status="success"`，`code=200`，`message="窗口打开请求已接受"`；
+      - 保持“协议层 ACK + BackendLauncher 负责实际打开/激活窗口”的分层设计，不在 MsgCenter 层引入 UI 依赖。
+    - 新增集成测试 `tests/integ/python/msgcenter/test_handle_message_app_window.py`：
+      - 构造 `to: "backend"` 的 `app-window:open:requested` 消息，调用 `StandardWebSocketServer.handle_message()`；
+      - 断言响应为 `app-window:open:completed`、`status="success"`、`code=200`，且 `error.type != "UNKNOWN_MESSAGE_TYPE"`。
+  - **修复效果**：
+    - `handle_message()` 不再将合法的 `app-window:open:requested` 视为未知消息类型；
+    - `_process_incoming()` 在收到 200 成功响应时会发射 `message_received` 信号，`BackendLauncher._on_msgcenter_message()` 能按既有逻辑解析 `client_id/window_type/params` 并启动或激活 PDF-Home / PDF-Viewer 窗口；
+    - GUI 端不再看到 `UNKNOWN_MESSAGE_TYPE` 错误，Hosted 模式启动路径恢复可用。
+  - **相关文件**：
+    - `src/backend/msgCenter_server/core/msg_router.py` - 新增 `"app-window:open:requested"` 路由 Handler
+    - `src/backend/msgCenter_server/standard_server.py` - 依赖现有 `handle_message()` + `_process_incoming()` 路由与信号发射逻辑
+    - `src/backend/launcher_core/pyqt_launcher.py` - 继续通过 `message_received` 处理 app-window 域消息
+    - `gui_launcher.py` - 通过 `_send_ws_text_qt()` 发送 `app-window:open:requested` 消息
+    - `tests/integ/python/msgcenter/test_handle_message_app_window.py` - 防回归测试
+  - **同日补充：前端 DI 容器统一（DependencyContainer 兼容 SimpleDependencyContainer API）**
+    - **问题现象**：Phase 1.3 删除 `SimpleDependencyContainer` 后，pdf-viewer 启动时报错：
+      - `container.registerGlobal is not a function`（UIManagerFeature 安装阶段）；
+      - `Service "navigationService" is not registered in container "pdf-viewer" or its parent containers`（CoreNavigationFeature 依赖链）；
+      - SearchFeature 在安装时使用 `container.resolve("pdfViewerManager")`，在新的 DependencyContainer 上缺少该方法。
+    - **根本原因**：
+      - 新的 `DependencyContainer` 只实现了 `register/get/createScope` 等基础 API，没有实现与历史 `SimpleDependencyContainer` 一致的 `registerGlobal/resolve` 接口；
+      - 多个 pdf-viewer Feature（infra-app / infra-ui / infra-nav-core / pdf-annotation / pdf-card / pdf-translator / pdf-anchor / pdf-search 等）仍按照旧规范使用 `registerGlobal` 向“根容器”注册共享服务（如 `pdfViewerManager`、`navigationService`、`annotationManager`），以及通过 `resolve` 解析依赖。
+    - **修复方案**：
+      - 在 `src/frontend/common/micro-service/dependency-container.js` 中扩展 `DependencyContainer`：
+        - 新增 `resolve(name)` 方法，语义等价于 `get(name)`，用于兼容 SimpleDependencyContainer 的常用用法；
+        - 新增 `registerGlobal(name, target, options)` 方法，通过私有的 `#getRootContainer()` 始终在根容器上调用 `register()`，保证从任意子作用域都能获取到同一全局服务实例。
+      - 在 `src/frontend/pdf-viewer/core/__tests__/micro-service-integration.test.js` 中增加两条防回归用例：
+        - 验证在子 scope 调用 `registerGlobal` 后，根容器与子容器均可 `get("globalService")`；
+        - 验证 `container.resolve("testService")` 与 `container.get("testService")` 返回相同实例。
+    - **修复效果**：
+      - pdf-viewer 在使用 FeatureRegistry + DependencyContainer 启动时，UIManagerFeature / CoreNavigationFeature / PDFManagerFeature / PDFAnnotationFeature 等不再因为缺少 `registerGlobal` 而抛错，能够按照既有语义向根容器注册 `pdfViewerManager`、`navigationService` 等服务；
+      - SearchFeature 在安装阶段可以通过 `container.resolve("pdfViewerManager")` 正常获取实例，避免在运行期出现“未找到 PDFViewerManager”的错误；
+      - `DependencyContainer` 成为 pdf-home 与 pdf-viewer 共享的统一 DI 容器实现，同时兼容旧的 SimpleDependencyContainer 约定，降低后续重构的破坏面。
+    - **相关文件**：
+    - `src/frontend/common/micro-service/dependency-container.js` - 新增 `resolve` 与 `registerGlobal` 接口，并通过私有方法实现根容器查找
+      - `src/frontend/pdf-viewer/core/__tests__/micro-service-integration.test.js` - 新增针对全局注册与解析的 Jest 防回归测试
+
+### 2025-11-25
+- **前端应用启动 / DI / FeatureRegistry 引导流程抽象统一（pdf-home / pdf-viewer）**
+  - **问题背景**：
+    - pdf-home 的 `PDFHomeAppV2.#initializeCoreComponents` 内部手写：
+      - `new DependencyContainer("pdf-home-v2")`；
+      - 单独注册 `stateManager`、`eventBus`、`featureFlagManager` 等服务；
+      - `new FeatureRegistry({ container, globalEventBus: eventBus, aliases: FEATURE_ALIASES })`；
+    - pdf-viewer 的 `bootstrapPDFViewerAppFeature` 内部手写：
+      - `new DependencyContainer("pdf-viewer")`；
+      - 注册 `eventBusSingleton` 与 `logger`；
+      - `new FeatureRegistry({ container, globalEventBus: eventBusSingleton, logger, aliases: FEATURE_ALIASES })`；
+    - 两端实质做的是同一件事（创建应用级容器 + 功能注册中心 + 注入全局 EventBus / Logger），但实现散落在各自模块中，不利于后续统一调整 DI 策略。
+  - **抽象方案与实现**：
+    - 在 `src/frontend/common/micro-service/app-bootstrap.js` 中新增应用级启动辅助工具：
+      - `createAppContainer({ name, eventBus, logger })`：
+        - 内部创建 `new DependencyContainer(name || "app")`；
+        - 若提供 `eventBus`，则以单例注册为 `"eventBus"` 服务；
+        - 若提供 `logger`，则以单例注册为 `"logger"` 服务；
+        - 返回构建好的容器实例。
+      - `createFeatureRegistry({ container, eventBus, logger, aliases })`：
+        - 包装 `new FeatureRegistry({ container, globalEventBus: eventBus, logger, aliases })`；
+        - 确保两端使用统一的构造契约与别名映射。
+    - pdf-home 接入：
+      - `src/frontend/pdf-home/core/pdf-home-app-v2.js`：
+        - 在 `#initializeCoreComponents` 中，用 `createAppContainer({ name: "pdf-home-v2", eventBus, logger: this.#logger })` 替代 `new DependencyContainer("pdf-home-v2")`；
+        - 用 `createFeatureRegistry({ container: this.#container, eventBus, aliases: FEATURE_ALIASES, logger: this.#logger })` 替代手写 `new FeatureRegistry(...)`；
+        - 在 `#registerGlobalServices` 中去掉对 `"eventBus"` 的重复注册，避免因 key 已存在导致 `register("eventBus", ...)` 抛错。
+    - pdf-viewer 接入：
+      - `src/frontend/pdf-viewer/bootstrap/app-bootstrap-feature.js`：
+        - 用 `createAppContainer({ name: "pdf-viewer", eventBus: eventBusSingleton, logger })` 替代 `new DependencyContainer("pdf-viewer")` + 显式 `container.register("eventBus"/"logger")`；
+        - 用 `createFeatureRegistry({ container, eventBus: eventBusSingleton, logger, aliases: FEATURE_ALIASES })` 替代直接构造 `FeatureRegistry`。
+  - **测试与验证**：
+    - 在 `src/frontend/pdf-viewer/core/__tests__/micro-service-integration.test.js` 中新增“应用级启动辅助工具”用例：
+      - 验证 `createAppContainer` 会创建命名容器并预注册 `eventBus` / `logger` 服务；
+      - 验证 `createFeatureRegistry` 返回的对象为 `FeatureRegistry` 实例；
+    - 运行命令：`pnpm exec jest --runTestsByPath src/frontend/pdf-viewer/core/__tests__/micro-service-integration.test.js -i`，所有 21 个用例（含新增 2 个）通过。
+  - **效果**：
+    - pdf-home 与 pdf-viewer 在“创建应用级 DI 容器 + FeatureRegistry + 注入全局 EventBus/Logger”这一层完全走同一套公共工具，后续调整 DI / FeatureRegistry 规范只需修改 `app-bootstrap.js` 与少量测试；
+    - 为后续继续统一 WebSocket 注册 Feature 与搜索 UI 壳（SearchFeature 壳层）打下基础，避免在多个入口文件中重复维护启动样板代码。
+
+- **WebSocket 适配器安装逻辑统一抽象（pdf-home / pdf-viewer）**
+  - **问题背景**：
+    - 虽然 `WebSocketAdapterBase` 已经提供统一的新协议注册行为，但在 pdf-home / pdf-viewer 中实际装配 WS 适配器的代码仍各自为政：
+      - pdf-home 的 `PDFHomeInfraAppFeature` 手动从容器取 `wsClient`，new `WebSocketAdapterHome(wsClient, eventBus)` 并调用 `setupMessageHandlers()` / `destroy()`；
+      - pdf-viewer 的 `AppCoreFeature` 手动 new `WebSocketAdapter` + `WebSocketAdapterViewer`，分别调用 `setupMessageHandlers()` / `destroy()`，装配逻辑散落在 Feature 内。
+    - 这导致相同的“wsClient + eventBus → adapter 集合安装/卸载”逻辑在两个模块中重复出现，不利于后续扩展和维护。
+  - **抽象方案与实现**：
+    - 在 `src/frontend/common/features/ws-infra/index.js` 中新增公共 helper：
+      - 函数 `setupWsInfra({ container, eventBus, logger, adapterFactories })`：
+        - 强制要求 `container` 提供 `get()` 方法、`eventBus` 非空、`adapterFactories` 为非空数组；
+        - 从容器获取 `wsClient`（缺失时 Fail-Fast 抛错）；
+        - 对每个工厂 `factory(wsClient, eventBus)` 创建适配器实例，要求返回值具备 `setupMessageHandlers()` 方法，否则抛错；
+        - 调用 `setupMessageHandlers()` 后将 adapter 收集到数组；
+        - 返回 `{ adapters, dispose() }`，其中 `dispose()` 依次调用每个 adapter 的 `destroy()`（若存在），并通过 logger 输出必要的诊断信息。
+    - pdf-home 接入：
+      - `src/frontend/pdf-home/features/infra-app/index.js`：
+        - 引入 `setupWsInfra`，用单一字段 `#wsInfra` 保存 helper 返回值；
+        - 在 `install(context)` 中调用：
+          ```js
+          this.#wsInfra = setupWsInfra({
+            container,
+            eventBus: globalEventBus,
+            logger,
+            adapterFactories: [
+              (wsClient, eventBus) => new WebSocketAdapterHome(wsClient, eventBus)
+            ]
+          });
+          ```
+        - 在 `uninstall(context)` 中通过 `this.#wsInfra?.dispose()` 统一销毁 adapter 集合，而不再逐个 `destroy()`。
+    - pdf-viewer 接入：
+      - `src/frontend/pdf-viewer/features/infra-app/index.js`：
+        - 引入 `setupWsInfra`，增加字段 `#wsInfra`；
+        - 在 app-container 初始化并通过 DI 注册 `wsClient` 后，获取 `eventBus`，并调用：
+          ```js
+          this.#wsInfra = setupWsInfra({
+            container,
+            eventBus,
+            logger,
+            adapterFactories: [
+              (wsClient, ev) => createWebSocketAdapter(wsClient, ev),
+              (wsClient, ev) => new WebSocketAdapterViewer(wsClient, ev)
+            ]
+          });
+          ```
+        - 在 `uninstall(context)` 中通过 `this.#wsInfra?.dispose()` 统一销毁 `WebSocketAdapter` 和 `WebSocketAdapterViewer`，不再在 Feature 内手写重复的 `destroy()` 逻辑。
+  - **测试与验证**：
+    - 运行 pdf-viewer 功能域集成测试：`pnpm exec jest --runTestsByPath src/frontend/pdf-viewer/features/__tests__/feature-domains-integration.test.js -i`，验证 PDFReader / PDFUI / WebSocketAdapterFeature 的注册与安装流程未被破坏；
+    - 运行 pdf-home 搜索布局测试：`pnpm exec jest --runTestsByPath src/frontend/pdf-home/features/search/__tests__/search-feature.layout.mount.test.js -i`，确认本次修改未影响 pdf-home 的 Feature 安装与布局挂载链路；
+    - 两套测试均全部通过。
+  - **效果**：
+    - pdf-home 与 pdf-viewer 在“WS 适配器安装与销毁”这一层现在都复用同一个公共 helper（`setupWsInfra`），避免重复编写 `new Adapter + setupMessageHandlers + destroy` 模式；
+    - 新增或调整 Adapter（如未来的调试 Adapter）时，只需在各自 Feature 中调整 `adapterFactories` 列表，装配过程保持一致；
+    - 在不改变 WS 协议和现有 Adapter 行为的前提下，为后续如果需要抽象出更高层级的“WS infra Feature”提供了稳定的基础设施层。
 
 ### 2025-11-21
 - **WindowControlsComponent DOM 操作修复**：修复窗口控制按钮挂载时删除原有内容的问题
@@ -190,7 +470,7 @@
     - 测试结果：✅ 5/5 全部通过
   - **工作日志**：AItemp/20251116221500-AI-Working-log.md
 
-- **测试文档改进（基于导航 Bug 案例）**：
+  - **测试文档改进（基于导航 Bug 案例）**：
   - **新增文档章节**：
     - `docs/TESTING-INTEG-GUIDE.md#13` - 测试入口选择原则与测试盲区预防（400行）
     - `docs/TESTING-UNIT-GUIDE.md` - 错误6（P0级）跳过真实入口层（80行）
@@ -214,6 +494,22 @@
     - 短期：AI 开发者优先考虑测试入口选择
     - 中期：未来 6 个月内类似测试盲区发生率 < 5%
     - 长期：建立测试优先开发文化，形成完整测试知识库
+
+- **GUI Launcher “跳转测试”在 Hosted 模式下失败的新增原因（2025-11-25 分析）**：
+  - 现状对比：
+    - Hosted pdf-viewer 窗口（Qt 版）通过 QWebSocket 在 `launcher.py._setup_websocket()` 里发送旧协议注册消息：`type="client:register:requested"`，`data={client_name:"pdf-viewer-<pdf_id>", client_id:"<pdf_id>", module:"pdf-viewer"}`；
+    - MsgCenter 在旧协议分支中将该客户端注册到 RouteRegistry 时使用的 `client_id` 为 `<pdf_id>`，`client_type=["pdf-viewer"]`，且 `routing_keys=[]`；
+    - GUI Launcher 的“跳转测试”按钮在 `_send_viewer_navigate_via_msgcenter()` 中发送的新协议导航消息使用的是 `to=[{"client_id": "pdf-viewer-<pdf_id>", "routing_key": "pdf:<pdf_id>", "target_type": "pdf-viewer"}]`。
+  - 路由层行为：
+    - `RouteRegistry.find_targets(client_id, target_type, routing_key)` 在收到非空 `client_id` 时会优先走“精确路由”：仅在 `_by_client_id` 中查找该键，若未命中直接返回空列表，不再回退到 `routing_key` 路径；
+    - 对于 Hosted viewer 来说，RouteRegistry 中只存在 `client_id="<pdf_id>"` 的记录，而不存在 `client_id="pdf-viewer-<pdf_id>"`，且没有任何 `routing_keys`；
+    - 因此 MsgCenter 在处理 GUI Launcher 发送的 `pdf-viewer:navigate:requested` 时，路由查找始终返回空目标集合，`handle_message()` 在 forward 分支最终返回 `NO_TARGET_FOUND` / `pdf-viewer:navigate:failed`。
+  - 直接效果：
+    - GUI Launcher 侧 `_send_viewer_navigate_via_msgcenter()` 虽然能收到 `pdf-viewer:navigate:failed` ACK，但 Hosted viewer 从未真正收到导航请求，导致用户感知为“跳转测试按钮点击后没有任何导航效果”；
+    - 现有 `tests/integ/python/msgcenter/test_handle_message_navigate.py` 使用的 `server_with_viewer` fixture 会按新协议在 RouteRegistry 中注册 `client_id="pdf-viewer-sample", routing_keys=["pdf:sample"]`，因此测试用例全部通过，但与 Hosted 模式下的实际注册路径不完全一致（存在测试与真实路径的细微偏差）。
+  - 结论（仅记录原因，不含修复方案）：
+    - 当前阶段 GUI Launcher 的“跳转测试”功能在 Hosted pdf-viewer 场景下失败的根因是**“导航消息使用了新协议的 client_id/routing_key，而 Hosted viewer 仍按旧协议在 RouteRegistry 中以 `<pdf_id>` 注册”**；
+    - 只要不统一这两个身份（或调整导航消息的 to 字段构造/路由逻辑），MsgCenter 在严格路由模式下就无法找到目标 viewer，从而导致“跳转测试无法正常工作”。  
 
 ### 2025-11-15
 
@@ -311,6 +607,35 @@
 - **WS 触发 Outline 跳转用例补齐**：覆盖协议转发（N1）、前端入站映射（F1）、前端兑现（F2）、契约（CT）
 - **GUI 启动 viewer 经由 MsgCenter**：不再直接调用 runner，而是向 MsgCenter 发送 `pdf-library:viewer:requested` 消息
 - **WebSocket 使用约束（强制）**：禁止使用非 PyQt 提供的 WebSocket 实现，必须使用 QtWebSockets（`QWebSocket`/`QWebSocketServer`）
+
+### 2025-11-24
+- **pdf-home / pdf-viewer 结构差异与防重复约束补充**：
+  - 现状梳理：
+    - 两个前端模块在宏观结构上基本对齐（`adapters/、bootstrap/、config/、container/、core/、features/`），但存在历史遗留差异：
+      - 容器层：`pdf-home` 使用 `DependencyContainer` + 自建 `createPDFHomeContainer`（`src/frontend/pdf-home/container/app-container.js`），`pdf-viewer` 使用独立的 `createPDFViewerContainer`（`src/frontend/pdf-viewer/container/app-container.js`）并依赖 `createConsoleWebSocketBridge`；两者都通过 `buildWsUrlFromQuery` 间接依赖 `common/containers/app-container-base.js`，但并未使用其完整生命周期管理能力。
+      - WebSocket 适配层：两端都基于公共的 `WebSocketAdapterBase`（`src/frontend/common/adapters/websocket-adapter-base.js`）实现专属适配器：`WebSocketAdapterHome`（单例 client_id=`pdf-home`，能力标签偏向库管理/搜索/文件操作）与 `WebSocketAdapterViewer`（client_id=`pdf-viewer-{pdf-id}`，能力标签偏向导航/大纲/书签/锚点），同时 pdf-viewer 还有一层历史遗留的大型 `WebSocketAdapter`（`src/frontend/pdf-viewer/adapters/websocket-adapter.js`）负责 outline/anchor 等域的消息桥接。
+      - 窗口控制：窗口控制组件完全抽象在 `common/components/window-controls/window-controls.js`，通过 `common/features/window-controls` Feature 在 pdf-home 与 pdf-viewer 内分别安装；差异主要体现在 Feature 层的依赖注入方式（home 只验证 `wsClient` 是否从容器获取，viewer 额外验证 `clientId`、`bridgeName` 的组合和严格错误处理）。
+      - 错误提示与日志：pdf-viewer 有统一的 `assets/global-error-toast.js` 与大量基于 Logger 的 toast 约定；pdf-home 早期在 `src/frontend/pdf-home/docs/Exception-Handling-Best-Practices.md` 里定义了自己的错误提示风格，实际实现分散在 UIManager 与容器事件桥接（通过 `uiManager.notify`），存在"同一目的多套实现"的风险。
+  - 发现的典型冗余/风格不一致（需要在后续迭代中逐步收敛，而不是立即大改）：
+    - WebSocket 容器与身份配置：
+      - 两端都在各自 `app-container.js` 中手动构造 `WSClient`，并各自负责 `client_name/client_id/module` 的拼装与 `setGlobalWebSocketClient` 注册。
+      - pdf-viewer 在容器里做了完整的 `client_name = pdf-viewer-{pdf-id}` 推导；pdf-home 则固定使用 `client_name="pdf-home", client_id="ui"`，但这部分逻辑与 `WebSocketAdapterHome` 内部的注册配置语义高度重叠（一个在 WSClient 身份层，一个在注册消息 payload 层）。
+    - 消息适配职责分裂：
+      - pdf-viewer 的 `WebSocketAdapter` 仍然承担大量领域桥接逻辑（outline、anchor、导航失败反馈等），与对应 Feature（`pdf-outline、pdf-anchor、pdf-resume` 等）的职责存在边界重叠；未来可能迁移到 Feature 内由事件驱动完成。
+      - pdf-home 目前将"列表更新/错误提示"一部分放在容器事件桥接（`WEBSOCKET_MESSAGE_EVENTS.SUCCESS/ERROR` → `uiManager.notify`），一部分放在具体 Feature（如 add-files/search）内部。
+    - 容器生命周期接口：
+      - 两端都提供 `connect/disconnect/reloadData/dispose/getDependencies/initialize/isInitialized` 一组接口，但签名和行为细节存在差异（如 pdf-home 在构造时立即 `ensureUI()`，pdf-viewer 更保守地只在 `getDependencies()` 时 `ensureInfra()`），不利于 future tooling 做统一管理。
+  - 本次未直接修改任何业务代码，仅将差异与问题模式登记到 memory bank，作为后续重构/抽象任务的设计输入，并给出未来防重复约束：
+    - 容器与 WS 身份：
+      - 新增约束：**禁止在 pdf-home / pdf-viewer 内各自引入新的“容器基类”或第二套 WSClient 工厂**；如需调整 `client_name/client_id` 或连接策略，必须优先考虑在 `common/containers/app-container-base.js` 与 `common/ws/ws-client.js` 层补充小型工具函数或参数化配置，由两个 app-container 以"组合"方式复用，而不是再造新的 base/container。
+      - 对涉及 pdf-home/pdf-viewer 的任何 WS 相关需求，必须在设计阶段明确回答："这部分逻辑能否落在 common（app-container-base / ws-client / adapter-base）层？如果不能，具体原因是什么？" 未给出理由时禁止在两个模块重复实现。
+    - WebSocket 适配与领域桥接：
+      - 新增约束：**所有“注册协议”相关逻辑（`client:register:requested` 的 payload 结构）只能出现在 `common/adapters/websocket-adapter-base.js` 及其子类中**，禁止在 app-container 或 Feature 再拼装一份类似的数据结构（避免身份配置四处分散）。
+      - pdf-viewer 的历史 `WebSocketAdapter` 中承载的 outline/anchor 等域桥接逻辑，在未来新需求中不再复制到 pdf-home；如果 pdf-home 也需要类似能力，优先方案是通过 EventBus + 共用 Feature（例如抽象为 `common/features/library-outline`）而不是在两个模块各维护一套 ws→ui 桥接代码。
+    - 窗口控制与窗口生命周期：
+      - 新增约束：任何窗口控制（最小化/最大化/关闭）按钮的 DOM 与行为只能经由 `common/components/window-controls` + `common/features/window-controls` 提供，禁止在 pdf-home/pdf-viewer 内添加新的窗口控制 HTML/JS 片段；如需差异化，必须通过 Feature 配置（如 bridgeName、容器 selector）解决。
+    - 错误提示与全局 toast：
+      - 新增建议：错误提示统一往 `common` 目录迁移（如基于 `global-error-toast` 的公共服务），pdf-home 不再为"同类型错误"（WS失败、后端返回 error 等）设计第二套视觉与分发逻辑；但本次只在文档层标记，不强行重构历史代码。
 
 ### 2025-11-12
 - **测试目录梳理**：废弃 QtWebEngine、Playwright、注入式 GUI Launcher E2E，统一采用"分段集成拼接"方案

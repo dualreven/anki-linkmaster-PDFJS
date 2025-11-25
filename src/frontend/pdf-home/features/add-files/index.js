@@ -15,7 +15,8 @@ import { QWebChannelBridge } from "../../qwebchannel/qwebchannel-bridge.js";
 import { getFileSelector } from "./file-selector.js";
 import { getLogger } from "../../../common/utils/logger.js";
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_EVENTS, SEARCH_EVENTS } from "../../../common/event/event-constants.js";
-import { showInfo, showSuccess, showError, showInfoWithId, dismissById } from "../../../common/utils/notification.js";
+import { showInfo, showSuccess, showInfoWithId, dismissById } from "../../../common/utils/notification.js";
+import { notifyDomainError } from "../../../common/utils/domain-error-notifier.js";
 
 export class AddFilesFeature {
   name = AddFilesFeatureConfig.name;
@@ -74,7 +75,12 @@ export class AddFilesFeature {
         await this.#handleAddRequested();
       } catch (e) {
         this.#logger.error("[AddFilesFeature] handleAddRequested failed", e);
-        try { showError("添加PDF失败，请重试", 4000); } catch { /* ignore */ }
+        notifyDomainError({
+          message: "添加PDF失败，请重试",
+          logger: this.#logger,
+          scope: "pdf-home:add-files:handleAddRequested",
+          error: e
+        });
       }
     }, { subscriberId: "AddFilesFeature" });
     this.#unsubscribers.push(unsub);
@@ -108,7 +114,12 @@ export class AddFilesFeature {
           if (rid) { try { dismissById(rid); } catch { /* ignore */ } }
           const err = message?.error || message?.data || {};
           const tip = err?.message || "添加失败";
-          try { showError(tip, 4000); } catch { /* ignore */ }
+          notifyDomainError({
+            message: String(tip),
+            logger: this.#logger,
+            scope: "pdf-home:add-files:ws-error",
+            error: err
+          });
         }
       } catch { /* ignore */ }
     }, { subscriberId: "AddFilesFeature:error" });

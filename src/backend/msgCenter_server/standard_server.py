@@ -1349,11 +1349,46 @@ class StandardWebSocketServer(QObject, ServerAPIMixin):
         # 处理消息（注册在这里维护；转发由 handler 决定成败并返回 completed/failed 给请求方）
         try:
             response = self.handle_message(parsed_message)
+
+            # ✅ 新增：检查验证结果，决定是否发射信号
+            should_emit_signal = True  # 默认发射
+
             if response:
+                # 检查响应类型，判断是否为错误
+                response_type = response.get("type", "")
+                response_status = response.get("status", "")
+                error_code = response.get("code", 0)
+
+                # 判断是否为错误响应
+                is_error = (
+                    response_type.endswith(":failed") or
+                    response_status == "error" or
+                    error_code >= 400
+                )
+
+                if is_error:
+                    should_emit_signal = False
+                    logger.warning(
+                        f"[Security] 消息验证失败，拒绝发射 message_received 信号: "
+                        f"type={parsed_message.get('type')}, "
+                        f"error_type={response.get('error', {}).get('type', 'UNKNOWN')}, "
+                        f"error_msg={response.get('message', 'Unknown error')}"
+                    )
+
                 self.send_message(client_socket, response)
 
-            # 发出原始消息信号
-            self.message_received.emit(client_socket, parsed_message)
+            # ✅ 核心修复：只有验证成功时才发射信号
+            if should_emit_signal:
+                self.message_received.emit(client_socket, parsed_message)
+                logger.debug(
+                    f"[Signal] 验证通过，发射 message_received 信号: "
+                    f"type={parsed_message.get('type')}"
+                )
+            else:
+                logger.debug(
+                    f"[Signal] 验证失败，拒绝发射 message_received 信号: "
+                    f"type={parsed_message.get('type')}"
+                )
 
         except Exception as e:
             logger.error(f"处理消息时出错: {e}")

@@ -18,6 +18,7 @@
   - Outline-only：后端只接受 `outline_id`；API 直连 `PDFOutlineTablePlugin`；严禁 `bookmark_*` 字段与回退路径。
   - 窗口生命周期：后端通过 `WindowLifecycleManager` 以统一的 `client_id`（如 `pdf-home`、`pdf-viewer-<pdf_id>`）管理窗口对象与 QWebSocket 客户端，所有 Hosted 窗口的打开/关闭均经由 MsgCenter 消息与 closeEvent 信号双向驱动。
   - Outline 加载策略（2025‑11‑09）：去掉前端本地缓存；查看器加载时统一走"后端优先"单次渲染：`outline-list → (empty? import from PDF → bulk-save) → outline-list → OUTLINE.LOAD.SUCCESS`。
+  - Memory Bank 压缩：memory-bank 采用三层结构（L0 永久规范层 / L1 最近7天上下文 / L2 工作过程层），通过 `context.md` + `docs/context-archive/` + `AItemp` 归档目录实现高信噪比的历史保留与压缩，具体规则见 `.kilocode/rules/memory-bank/compression.md`。
 
 - 主题索引（详细说明见 docs/architecture）
   0) **开发环境配置（Python 虚拟环境）** → docs/architecture/environment.md

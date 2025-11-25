@@ -40,7 +40,7 @@ if (global.HTMLCanvasElement) {
 
 import { FeatureRegistry } from "../../../common/micro-service/feature-registry.js";
 import FEATURE_ALIASES from "../../../common/micro-service/feature-aliases.js";
-import { SimpleDependencyContainer } from "../../container/simple-dependency-container.js";
+import { DependencyContainer } from "../../common/micro-service/dependency-container.js";
 
 // 被测特性（选取装配链上的代表，按需引入）
 import { TextSelectionQuickActionsFeature } from "../pdf-quick-actions/index.js";
@@ -63,7 +63,7 @@ describe("命名统一与别名解析 — 集成安装（installAll）", () => {
     `;
 
     // 构造容器与总线
-    container = new SimpleDependencyContainer("integration");
+    container = new DependencyContainer("integration");
     mockEventBus = { on: jest.fn(), emit: jest.fn(), off: jest.fn() };
 
     // 预注册 'infra-app' 以满足 'app-core' 依赖（通过别名解析）

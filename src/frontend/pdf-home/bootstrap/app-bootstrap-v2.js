@@ -8,7 +8,7 @@
 
 import { PDFHomeAppV2 } from "../core/pdf-home-app-v2.js";
 import { setupAutoTestEnvironment } from "../core/auto-test-runner.js";
-import { resolveWebSocketPortSync, DEFAULT_WS_PORT } from "../utils/ws-port-resolver.js";
+import { resolveWebSocketPortSync, DEFAULT_WS_PORT } from "../../common/utils/ws-port-resolver.js";
 import { getLogger } from "../../common/utils/logger.js";
 import { showError } from "../../common/utils/notification.js";
 // 提前创建引导日志器，避免在函数中使用前未定义

@@ -5,7 +5,8 @@
  */
 
 import { getLogger } from "../../common/utils/logger.js";
-import { showSuccess, showError } from "../../common/utils/notification.js";
+import { showSuccess } from "../../common/utils/notification.js";
+import { notifyDomainError } from "../../common/utils/domain-error-notifier.js";
 
 /**
  * QWebChannel 桥接类
@@ -379,7 +380,11 @@ export class QWebChannelBridge {
     this.#logger.info("[QWC步骤1] openPdfViewersWithMeta 被调用", { payload });
 
     if (!this.#isReady) {
-      showError("❌ [QWC] QWebChannel 未初始化", 5000);
+      notifyDomainError({
+        message: "❌ [QWC] QWebChannel 未初始化",
+        logger: this.#logger,
+        scope: "pdf-home:qwebchannel:init"
+      });
       throw new Error("QWebChannel 未初始化，请先调用 initialize()");
     }
 
@@ -403,12 +408,22 @@ export class QWebChannelBridge {
             this.#logger.info("[QWC步骤4] openPdfViewers 返回", { result: ret });
             resolve(ret);
           } else {
-            showError("❌ 无可用的PyQt方法", 5000);
+            notifyDomainError({
+              message: "❌ 无可用的PyQt方法",
+              logger: this.#logger,
+              scope: "pdf-home:qwebchannel:openPdfViewersWithMeta:no-method",
+              error: { payload }
+            });
             this.#logger.error("[QWC] 无可用方法", { payload });
             resolve({ success: false, error: "无可用的PyQt方法" });
           }
         } catch (error) {
-          showError(`❌ PyQt 调用异常: ${error.message}`, 5000);
+          notifyDomainError({
+            message: `❌ PyQt 调用异常: ${error.message}`,
+            logger: this.#logger,
+            scope: "pdf-home:qwebchannel:openPdfViewersWithMeta:invoke",
+            error
+          });
           this.#logger.error("[QWC] PyQt 调用失败", error);
           reject(error);
         }
@@ -450,7 +465,12 @@ export class QWebChannelBridge {
           const step = errorInfo.step || "unknown";
           const pdfId = errorInfo.pdf_id || "";
 
-          showError(`❌ ${errorMsg}`, 5000);
+          notifyDomainError({
+            message: `❌ ${errorMsg}`,
+            logger: this.#logger,
+            scope: "pdf-home:qwebchannel:openPdfViewersWithMeta:result-error",
+            error: errorInfo
+          });
           this.#logger.error("[QWC] PyQt 返回错误", errorInfo);
 
           // 如果有堆栈跟踪，在控制台输出详细信息
@@ -475,14 +495,23 @@ export class QWebChannelBridge {
             this.#logger.warn(`⚠️ 显示窗口失败 (PDF: ${pdfId})`, { toast: { type: "warn", ms: 4000 } });
           }
         } else {
-          showError("❌ PyQt 返回失败", 5000);
+          notifyDomainError({
+            message: "❌ PyQt 返回失败",
+            logger: this.#logger,
+            scope: "pdf-home:qwebchannel:openPdfViewersWithMeta:false"
+          });
           this.#logger.warn("[QWC] openPdfViewersWithMeta 返回 false");
         }
       }
 
       return success;
     } catch (e) {
-      showError(`❌ 打开失败: ${e.message}`, 5000);
+      notifyDomainError({
+        message: `❌ 打开失败: ${e.message}`,
+        logger: this.#logger,
+        scope: "pdf-home:qwebchannel:openPdfViewersWithMeta:exception",
+        error: e
+      });
       this.#logger.error("[阅读] openPdfViewersWithMeta 失败:", e);
       throw e;
     }

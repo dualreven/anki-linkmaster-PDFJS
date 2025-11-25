@@ -72,7 +72,7 @@ export class CoreNavigationFeature {
   /**
    * 安装 Feature
    * @param {Object} context - Feature 上下文对象
-   * @param {import('../../container/simple-dependency-container.js').SimpleDependencyContainer} context.container - 依赖容器
+   * @param {import('../../../common/micro-service/dependency-container.js').DependencyContainer} context.container - 依赖容器
    * @param {Object} context.globalEventBus - 全局事件总线
    * @param {Object} context.logger - 日志器
    * @returns {Promise<void>}

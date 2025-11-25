@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, jest } from "@jest/globals";
-import { WindowControlsFeature } from "../index.js";
+import { WindowControlsFeature } from "../../../../common/features/window-controls/index.js";
 
 const constructedOptions = [];
 
@@ -23,7 +23,10 @@ jest.mock("../../../../common/components/window-controls/window-controls.js", ()
 
 describe("WindowControlsFeature (pdf-home)", () => {
   it("install 时应将 wsClient 从容器传递给 WindowControlsComponent", async () => {
-    const feature = new WindowControlsFeature();
+    const feature = new WindowControlsFeature({
+    bridgeName: 'pyqtBridge',
+    containerSelector: '.toolbar-controls'
+  });
     const fakeWsClient = { disconnect: jest.fn() };
 
     const context = {

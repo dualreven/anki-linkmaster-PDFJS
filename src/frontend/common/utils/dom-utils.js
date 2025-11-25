@@ -1,4 +1,5 @@
-﻿import { getLogger } from "./logger.js";
+import { getLogger } from "./logger.js";
+import { showError as notifyError, showSuccess as notifySuccess } from "./notification.js";
 /**
  * @file DOM操作工具类，提供一组静态方法来简化和封装常用的DOM操作。
  * @module DOMUtils
@@ -111,7 +112,7 @@ export class DOMUtils {
    */
   static show(elements) {
     const a = Array.isArray(elements) ? elements : (elements instanceof NodeList ? Array.from(elements) : [elements]);
-    a.forEach(el => { if(el) {el.style.display = "";} });
+    a.forEach(el => { if (el) { el.style.display = ""; } });
   }
 
   /**
@@ -120,7 +121,7 @@ export class DOMUtils {
    */
   static hide(elements) {
     const a = Array.isArray(elements) ? elements : (elements instanceof NodeList ? Array.from(elements) : [elements]);
-    a.forEach(el => { if(el) {el.style.display = "none";} });
+    a.forEach(el => { if (el) { el.style.display = "none"; } });
   }
 
   /**
@@ -167,20 +168,31 @@ export class DOMUtils {
    * @param {string} message
    */
   static showError(message) {
+    const text = String(message ?? "");
+
+    // 首选统一的通知系统（toast），保证与全局错误提示风格一致
+    try {
+      notifyError(text, 5000);
+      return;
+    } catch (e) {
+      try { logger.warn("[DOMUtils.showError] notifyError failed, fallback to #global-error DOM", e); } catch { /* no-op */ }
+    }
+
+    // 回退到 pdf-home index.html 中的全局错误容器
     try {
       const errEl = document.getElementById("global-error");
       if (errEl) {
-        errEl.textContent = message;
+        errEl.textContent = text;
         errEl.style.display = "block";
 
         // 自动隐藏消息（5秒后，错误消息显示时间长一些）
         setTimeout(() => {
-          errEl.style.display = "none";
+          try { errEl.style.display = "none"; } catch { /* no-op */ }
         }, 5000);
         return;
       }
     } catch { /* no-op */ }
-    try { logger.error(message); } catch { /* no-op */ }
+    try { logger.error(text); } catch { /* no-op */ }
     // try { alert(message); } catch { /* no-op */ }
   }
 
@@ -189,20 +201,31 @@ export class DOMUtils {
    * @param {string} message
    */
   static showSuccess(message) {
+    const text = String(message ?? "");
+
+    // 首选统一通知系统
+    try {
+      notifySuccess(text, 3000);
+      return;
+    } catch (e) {
+      try { logger.warn("[DOMUtils.showSuccess] notifySuccess failed, fallback to #global-success DOM", e); } catch { /* no-op */ }
+    }
+
+    // 回退到 pdf-home index.html 中的全局成功容器
     try {
       const okEl = document.getElementById("global-success");
       if (okEl) {
-        okEl.textContent = message;
+        okEl.textContent = text;
         okEl.style.display = "block";
 
         // 自动隐藏消息（3秒后）
         setTimeout(() => {
-          okEl.style.display = "none";
+          try { okEl.style.display = "none"; } catch { /* no-op */ }
         }, 3000);
         return;
       }
     } catch { /* no-op */ }
-    try { logger.info(message); } catch { /* no-op */ }
+    try { logger.info(text); } catch { /* no-op */ }
     // try { alert(message); } catch { /* no-op */ }
   }
 

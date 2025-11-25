@@ -92,7 +92,17 @@
         })
         .catch((err) => {
           console.error('[BOOT] import index.js failed', err);
-          try { alert('Import index.js 失败: ' + (err && err.message ? err.message : String(err))); } catch(e) {}
+          try {
+            const msg = '启动失败: ' + (err && err.message ? err.message : String(err));
+            const el = document.getElementById('global-error');
+            if (el) {
+              el.textContent = msg;
+              el.style.display = 'block';
+              setTimeout(() => {
+                try { el.style.display = 'none'; } catch (_) {}
+              }, 8000);
+            }
+          } catch(e) {}
         });
     </script>
 </body>

@@ -20,6 +20,7 @@ import "jstree";
 import "jstree/dist/themes/default/style.css";
 import { OutlineToolbar } from "../../../outline/components/outline-toolbar.js";
 import { showSuccess, showError } from "../../../../common/utils/notification.js";
+import { notifyDomainError } from "../../../../common/utils/domain-error-notifier.js";
 
 export class OutlineSidebarUI {
   #eventBus;
@@ -254,7 +255,11 @@ export class OutlineSidebarUI {
       const node = Array.isArray(selected) && selected.length > 0 ? selected[0] : null;
       const id = node?.id || null;
       if (!id) {
-        showError("✗ 请先选中一个大纲项", 3000);
+        notifyDomainError({
+          message: "✗ 请先选中一个大纲项",
+          logger: this.#logger,
+          scope: "pdf-viewer:outline:copy-id:no-selection"
+        });
         try { this.#logger.warn("[OutlineUI] 复制失败：未选中节点", { toast: { type: "warn", ms: 2500 } }); } catch (e) { void e; }
         return;
       }
@@ -263,12 +268,21 @@ export class OutlineSidebarUI {
         showSuccess("✓ 已复制大纲ID", 2000);
         this.#logger.info(`[OutlineUI] 已复制大纲ID: ${id}`);
       } else {
-        showError("✗ 复制失败", 3000);
+        notifyDomainError({
+          message: "✗ 复制失败",
+          logger: this.#logger,
+          scope: "pdf-viewer:outline:copy-id:exec-false"
+        });
         this.#logger.error("[OutlineUI] 复制失败：execCommand 返回 false");
       }
     } catch (e) {
       this.#logger.error("[OutlineUI] 复制失败（异常）", e);
-      try { showError("✗ 复制失败", 3000); } catch (e) { void e; }
+      notifyDomainError({
+        message: "✗ 复制失败",
+        logger: this.#logger,
+        scope: "pdf-viewer:outline:copy-id:exception",
+        error: e
+      });
     }
   }
 

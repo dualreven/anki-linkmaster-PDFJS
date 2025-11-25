@@ -96,16 +96,23 @@ def build_router(ctx: Any) -> Dict[str, RouteHandler]:
         # system
         "system:heartbeat:requested": wrap(heartbeat),
         # app-window（窗口生命周期管理）
-        #  注意：实际的关闭逻辑由 BackendLauncher._on_msgcenter_message 处理
-        #  这里只需要返回成功响应，避免 StandardServer 返回 "未找到 Handler" 的 failed
+        #  注意：
+        #  - 实际的打开/关闭逻辑由 BackendLauncher._on_msgcenter_message 处理；
+        #  - 这里只返回协议层的成功响应，避免 StandardServer 将合法消息视为 UNKNOWN_MESSAGE_TYPE。
+        "app-window:open:requested": lambda rid, data: {
+            "type": "app-window:open:completed",
+            "request_id": rid or "unknown",
+            "status": "success",
+            "message": "窗口打开请求已接受",
+            "code": 200,
+        },
         "app-window:close:requested": lambda rid, data: {
             "type": "app-window:close:completed",
             "request_id": rid or "unknown",
             "status": "success",
             "message": "窗口关闭请求已接受",
-            "code": 200
+            "code": 200,
         },
         # console（非三段式历史信号）
         "console_log": wrap(console_log),
     }
-
