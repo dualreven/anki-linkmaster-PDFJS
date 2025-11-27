@@ -232,5 +232,7 @@ def map_to_frontend(api, row: Dict[str, Any]) -> Dict[str, Any]:
         "notes": jd.get("notes", ""),
         "subject": jd.get("subject", ""),
         "keywords": jd.get("keywords", ""),
+        # 将完整 json_data 透传给前端，以便 pdf-viewer 等模块读取 resume 等扩展字段
+        "json_data": jd,
     }
     return record

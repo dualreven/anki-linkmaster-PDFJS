@@ -153,6 +153,41 @@ def test_update_record_merges_fields(api):
     assert detail["last_accessed_at"] == 1730726400
 
 
+def test_update_record_persists_resume_in_json_data(api):
+    pdf_uuid = "555555555555"
+    sample = make_pdf_info_sample(uuid=pdf_uuid)
+    sample["title"] = "Resume Sample"
+    # 确保初始记录中没有 resume 字段
+    sample["json_data"].pop("resume", None)
+    api.create_record(sample)
+
+    resume_payload = {
+        "page": 17,
+        "y_percent": 33.17364948551829,
+        "zoom": 1.0,
+        "scroll_mode": "vertical",
+        "spread_mode": "none",
+        "rotation": 0,
+        "updated_at": 1764168737901,
+    }
+
+    api.update_record(
+        pdf_uuid,
+        updates={
+            "visited_at": 1764168737901,
+            "json_data": {
+                "resume": resume_payload,
+            },
+        },
+    )
+
+    detail = api.get_record_detail(pdf_uuid)
+    assert detail["id"] == pdf_uuid
+    assert "json_data" in detail
+    assert isinstance(detail["json_data"], dict)
+    assert detail["json_data"].get("resume") == resume_payload
+
+
 def test_create_record_requires_uuid(api):
     incomplete = make_pdf_info_sample()
     incomplete.pop("uuid")

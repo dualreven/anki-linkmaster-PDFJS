@@ -138,4 +138,10 @@ def _validate_json_data(json_data: Any) -> Dict[str, Any]:
     for extra in ("notes", "subject", "keywords", "thumbnail_path"):
         if extra in json_data:
             validated[extra] = json_data[extra]
+
+    # 保留未显式规范化的其他字段（如 resume 等扩展字段），避免在更新时丢失
+    for key, value in json_data.items():
+        if key not in validated:
+            validated[key] = value
+
     return validated

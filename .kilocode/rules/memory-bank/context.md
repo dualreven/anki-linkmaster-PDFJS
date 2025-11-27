@@ -650,7 +650,15 @@
 
 ### 2025-11-10
 - **GUI Launcher 模块化（阶段一）**：新增 `src/gui_launcher/workers.py` 承载线程类，简化入口文件体积
-- **阅读历史模块纳入**：`ReadingHistoryService` 监听页变更/滚动空闲，写入 `pdf_info.json_data.resume`，冷启动自动恢复
+- **阅读历史模块纳入**：`ReadingHistoryService` / `PDFResumeFeature` 监听页变更、缩放与滚动空闲，按照统一 Schema 写入 `pdf_info.json_data.resume`，冷启动自动恢复：
+  - resume 字段：`page, y_percent, zoom, rotation, scroll_mode, spread_mode, updated_at`
+  - 布局字段采用字符串编码：
+    - `scroll_mode ∈ {"vertical","horizontal","wrapped","page"}`（对应 ScrollMode 枚举 0/1/2/3）
+    - `spread_mode ∈ {"none","odd","even"}`（对应 SpreadMode 枚举 0/1/2）
+  - 应用规则：
+    - 始终优先恢复缩放 / 布局 / 旋转（如 `pdfViewerManager` 可用且数据合法）；
+    - 仅在 **不存在** 显式导航请求（URL/MsgCenter/大纲等）时，才发起基于 `page/y_percent` 的断点续读导航；
+    - 一旦有显式导航，resume 只负责视图形态，页码/位置由显式导航结果决定（Fail‑Fast：非法字段直接抛错并记录）。
 - **后端 Linters 模块**：`table_event_lint_checker.py` 检查事件常量使用（E9001），强制使用 `TableEventConstants.*`
 - **空 catch 块治理（P0-P2）**：修复 IndexedDB、WebSocketAdapter、Annotation 的严重问题，ESLint 规则 `custom/no-silent-catch` 禁止静默捕获
 
@@ -754,3 +762,29 @@
   - 在 `src/frontend/pdf-home/features/window-controls/index.js` 中，从 DI 容器获取 `wsClient` 并传入 `WindowControlsComponent`，确保关闭按钮在关闭窗口前显式调用 `wsClient.disconnect('user_close')` 发送 `client:unregister:requested`，避免 MsgCenter 中残留 `client_id="pdf-home"` 导致后续启动收到 `CLIENT_ID_EXISTS`。
   - 在 `src/frontend/common/components/window-controls/window-controls.js` 中加强 QWebChannel 不可用或桥接方法缺失时的错误提示，通过日志与 toast 明确提示“窗口控制失败”，禁止静默无效，从而符合 Fail-Fast 原则。
   - 新增 Jest 用例 `src/frontend/pdf-home/features/window-controls/__tests__/window-controls.feature.install.test.js`，验证安装阶段确实将容器中的 `wsClient` 传递给 `WindowControlsComponent`，防止后续改动退回到 `wsClient: null`。
+
+### 2025-11-25 gui_launcher 跳转测试(anchor) 现状记录
+- GUI 启动器中的“跳转测试（MsgCenter）”按钮通过 `_send_viewer_navigate_via_msgcenter` 构造 `pdf-viewer:navigate:requested` 消息，用于对已有 PDF-Viewer 窗口发起导航测试。
+- 参数面板字段：`PDF ID` → 组成 `client_id=pdf-viewer-<pdf_id>` 与 `routing_key=pdf:<pdf_id>`；可选导航字段包括：`viewer_target_type`（下拉：outline/anchor/annotation）与 `viewer_target_id`（目标 ID 文本），以及 `viewer_page` + `viewer_position`（页码 / y_percent）。
+- 当前导航目标选择策略：若 `viewer_target_type` 和 `viewer_target_id` 都存在，则优先按类型构造 nav_target：
+  - type=="annotation" → `{"type":"annotation","annotation_id":<id>}`
+  - type=="anchor" → `{"type":"anchor","anchor_id":<id>}`
+  - type=="outline" → `{"type":"outline","outline_item_id":<id>}`
+  若未选择类型但填写了 Page Number，则退化为 `{"type":"page","page_number":<int>, "position": {"y_percent":<float>}?}`。
+- nav_msg.data 结构：`{"target": nav_target, "options": {}}`，目前对 anchor 类型未附加额外 options（如来源、是否覆盖 resume 等），由前端 pdf-viewer 侧按既有协议解析。
+- 现阶段对 anchor 类型 ID 的行为：GUI 不做校验只做字符串透传，依赖后端/前端约定 anchor_id 的命名规则（例如由 pdf-anchor Feature 生成的锚点 ID）。
+
+### 2025-11-25 pdf-viewer 端 anchor 导航现状记录
+- WebSocketAdapter 收到 pdf-viewer:navigate:requested 且 data.target.type=anchor 时，会把其中的 anchor_id 转成内部事件“锚点导航请求”，只携带一个锚点ID字段，不做额外解析。
+- PDFAnchorFeature 订阅“锚点导航请求”事件后，按锚点ID在本地缓存的锚点列表中查找该锚点；如果找到，则记录一个“待执行的跳转计划”：包括页码和相对位置（0~100%），并发出“激活该锚点”的内部事件。
+- 实际滚动跳转不会立刻做，而是等两个条件都满足：1）锚点数据已就绪；2）PDF 文件和页面渲染就绪。两者都ready后，PDFAnchorFeature 统一通过 URL 导航事件请求跳转（核心是页码 + 位置 + 锚点ID），避免和其他导航通路打架。
+- 如果收到了锚点导航请求但当前还没有该锚点的数据，PDFAnchorFeature 会先记住这个锚点ID，并主动请求后端加载锚点列表；加载完成后再按“闸门”逻辑触发跳转。
+- 整个流程中，pdf-viewer 端默认相信传入的锚点ID是合法的：如果在当前PDF的锚点缓存里找不到对应项，就不会跳转，而是根据实现发出错误提示或仅记录日志；不会尝试“猜测”或兜底到其它位置。
+
+
+### 2025-11-26 pdf-viewer 断点续读状态保存链路修复
+- 问题：前端 pdf-resume 在发送 pdf-library:record-update:requested 时已经包含 json_data.resume，但重新打开 pdf-viewer 时，pdf-library:info:completed 回包中 data.json_data.resume 始终为 null，导致始终从第一页开始显示。
+- 根因：pdf_info.validate._validate_json_data 在校验 json_data 时只保留有限字段（filename/filepath/rating/tags/…），丢弃 resume 等扩展字段；同时 pdf_library.utils.map_to_frontend 在构造前端记录时没有把 json_data 透传给前端。
+- 修复：pdf_info.validate._validate_json_data 在校验完标准字段后，将 json_data 中未出现在 validated 内的所有键值原样补回（如 resume）；pdf_library.utils.map_to_frontend 在返回记录时增加 json_data 字段（来自行的 json_data），确保前端能访问 data.json_data.resume。
+- 测试：新增后端用例 test_update_record_persists_resume_in_json_data，验证 update_record → get_record_detail 链路不会丢失 resume；前端已有 pdf-resume.feature 测试全部通过。
+
