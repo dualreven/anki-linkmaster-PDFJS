@@ -202,22 +202,24 @@ export async function bootstrapPDFViewerAppFeature() {
       },
       destroy: () => registry.uninstallAll(),
       eventBus: eventBusSingleton,
-      // 测试助手（仅测试使用）：按页+百分比进行可见性校验导航
+      // 测试助手（仅测试使用）：通过 EventBus 触发导航
       test: {
         navigateToPercent: async (pageNumber, percent = 50, tolerance = 1000) => {
           try {
-            const mgr = (typeof container.resolve === "function")
-              ? container.resolve("pdfViewerManager")
-              : (container.get?.("pdfViewerManager") || null);
-            if (!mgr || typeof mgr.ensurePageVisible !== "function") {
-              return false;
-            }
-            await mgr.ensurePageVisible(pageNumber, percent);
-            // 尝试测量是否接近目标页顶部（允许较大容差，避免环境差异）
+            const { PDF_VIEWER_EVENTS } = await import("../../common/event/pdf-viewer-constants.js");
+            // 通过 EventBus 触发导航（NavigationService 会处理滚动）
+            eventBusSingleton.emit(
+              PDF_VIEWER_EVENTS.NAVIGATION.GOTO,
+              { pageNumber, positionPercent: percent },
+              { actorId: "TestHelper" }
+            );
+            // 等待滚动完成
+            await new Promise(r => setTimeout(r, 500));
+            // 尝试测量是否接近目标位置（允许较大容差，避免环境差异）
             try {
               const vc = document.getElementById("viewerContainer");
               const el = vc?.querySelector?.(`.page[data-page-number="${pageNumber}"]`);
-              if (!vc || !el) { return true; } // 无法测量时视为成功（以函数调用成功为准）
+              if (!vc || !el) { return true; } // 无法测量时视为成功
               const diff = Math.abs(el.offsetTop - vc.scrollTop);
               return diff <= tolerance;
             } catch { return true; }

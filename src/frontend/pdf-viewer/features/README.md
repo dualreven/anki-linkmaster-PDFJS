@@ -35,12 +35,11 @@
 |------------|---------|------|------|
 | infra-app | 应用核心基础设施 | 无 | ✅ 稳定 |
 | pdf-manager | PDF文档管理 | 无 | ✅ 稳定 |
-| pdf-reader | PDF阅读器核心 | pdf-manager | ✅ 稳定 |
-| pdf-outline | 大纲管理 | pdf-reader | ✅ 稳定 |
+| pdf-outline | 大纲管理 | pdf-manager | ✅ 稳定 |
 | infra-ui | UI管理器 | pdf-manager | ✅ 稳定 |
 | infra-nav-url | URL参数导航 | infra-app, pdf-manager, infra-nav-core | ✅ 稳定 |
 | infra-ws-adapter | WebSocket适配器 | 无 | ✅ 稳定 |
-| pdf-ui | PDF UI组件 | pdf-reader | ✅ 稳定 |
+| pdf-ui | PDF UI组件 | 无 | ✅ 稳定 |
 
 ---
 
@@ -137,8 +136,7 @@ if (outlineService) {
 ```
 infra-app (核心)
   ├── pdf-manager
-  │     ├── pdf-reader
-  │     │     └── pdf-outline
+  │     ├── pdf-outline
   │     ├── infra-ui
   │     └── infra-nav-url
   ├── infra-ws-adapter

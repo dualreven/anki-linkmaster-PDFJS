@@ -5,7 +5,7 @@
 export const PDFUIFeatureConfig = {
   name: "pdf-ui",
   version: "1.0.0",
-  dependencies: ["pdf-reader"],
+  dependencies: [],
   description: "PDF UI组件功能 - 渲染容器、键盘快捷键、进度提示",
 
   capabilities: [

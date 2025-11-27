@@ -114,6 +114,11 @@ export class NavigationService {
       // 3. 等待页面跳转完成（使用固定延迟而非事件监听，更可靠）
       await this.#waitForPageReady(actualPage);
 
+      // 3.5 等待 PDF.js 页面切换滚动动画完成（参考 Annotation 实现，100ms）
+      // 原因：GOTO 事件触发 currentPageNumber 设置会启动 PDF.js 内部滚动动画，
+      //       若紧接着执行 scrollToPosition，两个滚动会产生竞争导致位置偏差
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       // 4. 执行滚动：若未指定 position，则默认居中该页，确保可见（避免仅依赖 UI 层联动）
       let actualPosition = null;
       if (position !== null) {

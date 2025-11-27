@@ -121,30 +121,5 @@ export async function yToPositionPercent(pdfDocument, pageNumber, y) {
   }
 }
 
-/**
- * 将页面内位置百分比（0-100，自页面顶部向下）转换为 PDF 坐标系 y 值（相对于底部）
- * @param {import("pdfjs-dist").PDFDocumentProxy} pdfDocument
- * @param {number} pageNumber 1-based
- * @param {number} percent 0..100
- * @returns {Promise<number|null>} y 坐标
- */
-export async function positionPercentToY(pdfDocument, pageNumber, percent) {
-  try {
-    if (!pdfDocument || !Number.isInteger(pageNumber) || pageNumber < 1) { return null; }
-    if (typeof percent !== "number" || !isFinite(percent)) { return null; }
-    const p = Math.max(0, Math.min(100, percent));
-    const page = await pdfDocument.getPage(pageNumber);
-    const viewport = page.getViewport({ scale: 1 });
-    const height = viewport?.height || null;
-    if (!height || !isFinite(height) || height <= 0) { return null; }
-    // percent 是“自顶部向下”的百分比；PDF y 从底部起算
-    const y = height - (height * p / 100);
-    return y;
-  } catch (e) {
-    logger.warn("positionPercentToY failed:", e);
-    return null;
-  }
-}
-
 export default { resolvePdfDest };
 

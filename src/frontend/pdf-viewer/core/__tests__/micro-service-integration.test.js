@@ -121,34 +121,6 @@ describe("微服务组件集成测试", () => {
       expect(eventBus).toBe(mockEventBus);
     });
 
-    it("应该能够为PDF-Viewer功能域创建作用域", () => {
-      const container = new DependencyContainer("pdf-viewer");
-
-      // 创建功能域作用域
-      const readerScope = container.createScope("pdf-reader");
-      expect(readerScope).toBeDefined();
-      expect(readerScope.constructor.name).toBe("DependencyContainer");
-    });
-
-    it("应该能够创建PDF-Viewer的状态", () => {
-      const stateManager = new StateManager();
-
-      // 创建PDF阅读器状态
-      const readerState = stateManager.createState("pdf-reader", {
-        currentPage: 1,
-        totalPages: 0,
-        zoomLevel: 1.0
-      });
-
-      expect(readerState.currentPage).toBe(1);
-      expect(readerState.totalPages).toBe(0);
-      expect(readerState.zoomLevel).toBe(1.0);
-
-      // 修改状态
-      readerState.currentPage = 2;
-      expect(readerState.currentPage).toBe(2);
-    });
-
     it("应该能够管理PDF-Viewer功能标志", () => {
       const flagManager = new FeatureFlagManager();
 

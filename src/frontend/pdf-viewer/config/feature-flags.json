@@ -22,27 +22,10 @@
 
     "_comment_current_features": "=== 当前功能（Phase 1）===",
 
-    "pdf-reader": {
-      "enabled": false,
-      "description": "PDF阅读核心功能",
-      "dependencies": [],
-      "metadata": {
-        "phase": "Phase 1",
-        "priority": "high",
-        "includes": [
-          "PDF文件加载",
-          "页面渲染",
-          "导航控制",
-          "缩放控制",
-          "文本层管理"
-        ]
-      }
-    },
-
     "pdf-ui": {
       "enabled": false,
       "description": "UI组件功能",
-      "dependencies": ["pdf-reader"],
+      "dependencies": [],
       "metadata": {
         "phase": "Phase 1",
         "priority": "high",
@@ -59,7 +42,7 @@
     "pdf-outline": {
       "enabled": false,
       "description": "大纲管理功能",
-      "dependencies": ["pdf-reader", "pdf-ui"],
+      "dependencies": ["pdf-ui"],
       "metadata": {
         "phase": "Phase 1",
         "priority": "medium",
@@ -159,7 +142,7 @@
     "anki-card-maker": {
       "enabled": false,
       "description": "Anki制卡功能",
-      "dependencies": ["pdf-reader"],
+      "dependencies": [],
       "rollout": 0,
       "environments": ["development"],
       "metadata": {
@@ -196,7 +179,7 @@
     "translation": {
       "enabled": false,
       "description": "翻译功能",
-      "dependencies": ["pdf-reader"],
+      "dependencies": [],
       "rollout": 0,
       "environments": ["development"],
       "metadata": {
@@ -214,7 +197,7 @@
     "ai-assistant": {
       "enabled": false,
       "description": "AI助手功能",
-      "dependencies": ["pdf-reader"],
+      "dependencies": [],
       "rollout": 0,
       "environments": ["development"],
       "metadata": {
@@ -232,7 +215,7 @@
     "pdf-ai-assistant": {
       "enabled": false,
       "description": "AI助手功能（规范名，对应 ai-assistant）",
-      "dependencies": ["pdf-reader"],
+      "dependencies": [],
       "rollout": 0,
       "environments": ["development"],
       "metadata": {

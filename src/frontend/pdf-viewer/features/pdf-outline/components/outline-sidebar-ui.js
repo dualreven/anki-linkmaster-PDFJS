@@ -77,6 +77,25 @@ export class OutlineSidebarUI {
       { subscriberId: "OutlineSidebarUI" }
     ));
 
+    // 监听来自其他模块的“选中改变”事件，用于外部导航时高亮并滚动到指定大纲项
+    this.#unsubs.push(this.#eventBus.onGlobal(
+      PDF_VIEWER_EVENTS.OUTLINE.SELECT.CHANGED,
+      (data, metadata) => {
+        try {
+          const outlineItemId = data?.outlineItemId || data?.bookmarkId || null;
+          const actorId = metadata?.actorId || "";
+          // 避免自己触发的事件再次处理（只处理外部来源）
+          if (!outlineItemId || actorId === "OutlineSidebarUI") {
+            return;
+          }
+          this.#focusNodeById(String(outlineItemId));
+        } catch (e) {
+          this.#logger.warn("[OutlineUI] 处理外部选中事件失败", e);
+        }
+      },
+      { subscriberId: "OutlineSidebarUI" }
+    ));
+
     this.#logger.info("[DEBUG] OutlineSidebarUI initialized successfully");
     this.#initialized = true;
 
@@ -90,6 +109,34 @@ export class OutlineSidebarUI {
 
   getContentElement() { return this.#content; }
   isInitialized() { return this.#initialized; }
+
+  #focusNodeById(outlineItemId) {
+    try {
+      const id = (outlineItemId || "").trim();
+      if (!id) { return; }
+      const $tree = $(this.#treeContainer);
+      const inst = $tree.jstree(true);
+      if (!inst) {
+        this.#logger.warn("[OutlineUI] jsTree instance not ready when trying to focus node", { id });
+        return;
+      }
+      // 选中并滚动到节点（若不存在则静默返回）
+      if (!inst.get_node(id)) {
+        this.#logger.warn("[OutlineUI] outline node not found when trying to focus", { id });
+        return;
+      }
+      inst.deselect_all(true);
+      inst.select_node(id, true, true);
+      // jsTree 自带的滚动行为有时不稳定，这里再用 DOM 确保滚动可见
+      const nodeEl = this.#treeContainer.querySelector(`[id="${CSS.escape(id)}"]`);
+      if (nodeEl && nodeEl.scrollIntoView) {
+        nodeEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      this.#logger.info("[OutlineUI] Focused outline node by id", { id });
+    } catch (e) {
+      this.#logger.warn("[OutlineUI] focusNodeById failed", e);
+    }
+  }
 
   #mountToolbar() {
     // 直接挂载现有 OutlineToolbar，保证同步渲染
@@ -177,7 +224,12 @@ export class OutlineSidebarUI {
     $tree.on("ready.jstree", () => {
       this.#logger.info("[DEBUG] jsTree ready event fired!");
       try {
-        $tree.jstree("open_all");
+        const inst = $tree.jstree(true);
+        if (inst) {
+          inst.open_all();
+          // 启动时不默认选中任何节点，等待用户或外部导航显式指定
+          inst.deselect_all(true);
+        }
         this.#logger.info("✅ Outline tree expanded automatically");
         try { this.#logger.info("[OutlineUI] 大纲树渲染完成并已展开", { toast: true }); } catch (e) { void e; }
       } catch (err) {
@@ -187,7 +239,6 @@ export class OutlineSidebarUI {
     });
 
     // 选择节点 → 导航
-
     $tree.on("select_node.jstree", (e, selected) => {
       try {
         const node = selected.node;
@@ -201,21 +252,18 @@ export class OutlineSidebarUI {
             { actorId: "OutlineSidebarUI" }
           );
         } catch (e) { void e; }
-        // 统一改为按ID发射导航请求
-        const payload = { outlineItemId };
-        try {
-          try { this.#logger.info(`[OutlineSidebarUI] emit OUTLINE.NAVIGATE_BY_ID.REQUESTED ${JSON.stringify(payload)}`); } catch (e) { void e; }
-          try { this.#logger.info(`[OutlineUI] 选择节点：${outlineItemId}`, { toast: true }); } catch (e2) { void e2; }
+        // 直接根据节点携带的 pageAt/position 进行页面导航（等价于手工点击）
+        const pageAt = typeof info.pageAt === "number" && info.pageAt > 0 ? info.pageAt : null;
+        const position = typeof info.position === "number" ? info.position : null;
+        if (pageAt != null) {
+          const req = { pageAt };
+          if (position != null) { req.position = position; }
+          try {
+            this.#logger.info(`[OutlineUI] 选择节点：${outlineItemId} → 导航到第 ${pageAt} 页`, { toast: true });
+          } catch (e2) { void e2; }
           this.#eventBus.emitGlobal(
-            PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE_BY_ID.REQUESTED,
-            payload,
-            { actorId: "OutlineSidebarUI" }
-          );
-        } catch (e) {
-          try { this.#logger.info(`[OutlineUI] (scoped) 选择节点：${outlineItemId}`, { toast: true }); } catch (e2) { void e2; }
-          this.#eventBus.emit(
-            PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE_BY_ID.REQUESTED,
-            payload,
+            PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
+            req,
             { actorId: "OutlineSidebarUI" }
           );
         }

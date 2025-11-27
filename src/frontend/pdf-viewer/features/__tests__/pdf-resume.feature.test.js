@@ -1,5 +1,6 @@
 /**
  * PDFResumeFeature - 单元/集成最小测试
+ * 重构版本 - 适配模块化架构（PositionTracker + ResumeUpdater）
  */
 import { jest, describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 
@@ -17,6 +18,7 @@ describe("PDFResumeFeature", () => {
   let container;
   let sentMessages;
   let pdfViewerManager;
+  let mockNavigationService;
 
   beforeEach(() => {
     jest.useFakeTimers();
@@ -25,25 +27,47 @@ describe("PDFResumeFeature", () => {
     eventBus.on(WEBSOCKET_EVENTS.MESSAGE.SEND, (msg) => { sentMessages.push(msg); }, { subscriberId: "tester" });
 
     pdfViewerManager = null;
+    mockNavigationService = { navigateTo: jest.fn(async () => ({ success: true })) };
 
     container = {
       get(name) {
         if (name === "eventBus") { return eventBus; }
-        if (name === "navigationService") { return { navigateTo: jest.fn(async () => ({ success: true })) }; }
+        if (name === "navigationService") { return mockNavigationService; }
         if (name === "pdfViewerManager") { return pdfViewerManager; }
         return null;
       },
       registerGlobal() {}
     };
     feature = new PDFResumeFeature();
+
     // 设置 URL
     const url = new URL("http://localhost/pdf-viewer/?pdf-id=unit-test");
     window.history.replaceState({}, "", url.toString());
+
+    // 创建 viewerContainer DOM（PositionTracker 需要）
+    const viewerContainer = document.createElement("div");
+    viewerContainer.id = "viewerContainer";
+    viewerContainer.style.height = "800px";
+    viewerContainer.style.overflow = "auto";
+    // 添加一些模拟页面
+    for (let i = 1; i <= 10; i++) {
+      const page = document.createElement("div");
+      page.className = "page";
+      page.setAttribute("data-page-number", String(i));
+      page.style.height = "1000px";
+      viewerContainer.appendChild(page);
+    }
+    document.body.appendChild(viewerContainer);
   });
 
   afterEach(() => {
     jest.runOnlyPendingTimers();
     jest.useRealTimers();
+    // 清理 DOM
+    const viewerContainer = document.getElementById("viewerContainer");
+    if (viewerContainer) {
+      viewerContainer.remove();
+    }
   });
 
   it("在文件加载成功时应请求 pdf_info 详情（info:requested）", async () => {
@@ -56,9 +80,24 @@ describe("PDFResumeFeature", () => {
   });
 
   it("在页面变更后（节流）应发送 record-update:requested（含 resume.page）", async () => {
+    // 准备 pdfViewerManager（提供 currentPageNumber 回退）
+    pdfViewerManager = {
+      currentPageNumber: 5,
+      currentScale: 1.0,
+      scrollMode: 0,
+      spreadMode: 0,
+      pagesRotation: 0
+    };
+
     await feature.install({ container, globalEventBus: eventBus });
-    // 触发一次页面切换
+
+    // 触发一次页面切换事件
     eventBus.emit(PDF_VIEWER_EVENTS.PAGE.CHANGING, { pageNumber: 5 }, { actorId: "tester" });
+
+    // 新架构使用 PositionTracker 的去抖动机制（默认 200ms）
+    // 推进定时器以触发去抖动后的更新
+    jest.advanceTimersByTime(250);
+
     const msg = sentMessages.find(m => m.type === WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_REQUESTED);
     expect(msg).toBeTruthy();
     expect(msg.data?.file_id).toBe("unit-test");
@@ -74,6 +113,7 @@ describe("PDFResumeFeature", () => {
       _scrollMode: 3,
       _spreadMode: 2,
       _rotation: 90,
+      currentPageNumber: 10,
       get currentScale() { return this._scale; },
       set currentScale(v) { this._scale = v; },
       get scrollMode() { return this._scrollMode; },
@@ -88,7 +128,9 @@ describe("PDFResumeFeature", () => {
 
     // 触发一次页面切换以驱动 resume 更新
     eventBus.emit(PDF_VIEWER_EVENTS.PAGE.CHANGING, { pageNumber: 10 }, { actorId: "tester" });
-    jest.advanceTimersByTime(2600);
+
+    // 推进定时器以触发去抖动后的更新
+    jest.advanceTimersByTime(250);
 
     const msg = sentMessages.find(m => m.type === WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_REQUESTED);
     expect(msg).toBeTruthy();
@@ -104,21 +146,14 @@ describe("PDFResumeFeature", () => {
     expect(resume.rotation).toBe(90);
   });
 
-  it("在已有显式导航时仍应恢复缩放与布局但不再次发起导航", async () => {
-    // 记录导航请求事件
-    const navRequests = [];
-    eventBus.on(
-      PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
-      (data) => { navRequests.push(data); },
-      { subscriberId: "tester-nav" }
-    );
-
+  it("在收到 resume 后应恢复缩放与布局并执行导航", async () => {
     // 准备 pdfViewerManager stub（初始状态与期望状态不同，便于断言）
     pdfViewerManager = {
       _scale: 1.0,
       _scrollMode: 0,
       _spreadMode: 0,
       _rotation: 0,
+      currentPageNumber: 1,
       get currentScale() { return this._scale; },
       set currentScale(v) { this._scale = v; },
       get scrollMode() { return this._scrollMode; },
@@ -131,14 +166,6 @@ describe("PDFResumeFeature", () => {
 
     await feature.install({ container, globalEventBus: eventBus });
 
-    // 先触发一次显式 URL 导航，请求页码 2
-    eventBus.emit(
-      PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
-      { pdfId: "unit-test", pageAt: 2, position: null },
-      { actorId: "tester-explicit" }
-    );
-    expect(navRequests.length).toBe(1);
-
     // 触发 FILE.LOAD.SUCCESS，驱动 pdf-resume 请求详情
     eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, {}, { actorId: "tester" });
     const detailReq = sentMessages.find(m => m.type === WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST);
@@ -150,6 +177,7 @@ describe("PDFResumeFeature", () => {
       {
         type: WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_COMPLETED,
         data: {
+          id: "unit-test",
           pdf_id: "unit-test",
           json_data: {
             resume: {
@@ -166,14 +194,27 @@ describe("PDFResumeFeature", () => {
       { actorId: "tester" }
     );
 
-    // 不应产生新的导航请求（仍然只有显式那一次）
-    expect(navRequests.length).toBe(1);
+    // 等待异步 loadResume Promise 完成
+    // 需要多个 microtask 周期让 Promise 链完全执行
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    jest.advanceTimersByTime(100);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
 
-    // 但视图状态必须已被恢复到 resume 中的值
+    // 视图状态必须已被恢复到 resume 中的值
     expect(pdfViewerManager.currentScale).toBe(1.5);
-    // horizontal / odd 映射到对应模式值
-    expect(pdfViewerManager.scrollMode).not.toBe(0);
-    expect(pdfViewerManager.spreadMode).not.toBe(0);
+    // horizontal → 1, odd → 1
+    expect(pdfViewerManager.scrollMode).toBe(1);
+    expect(pdfViewerManager.spreadMode).toBe(1);
     expect(pdfViewerManager.pagesRotation).toBe(180);
+
+    // 导航服务应该被调用
+    expect(mockNavigationService.navigateTo).toHaveBeenCalledWith({
+      pageAt: 5,
+      position: 40
+    });
   });
 });

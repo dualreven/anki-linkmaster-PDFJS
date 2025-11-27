@@ -489,6 +489,18 @@ export class AnnotationFeature {
         return;
       }
 
+      // 语义对齐：远程导航等价于“用户在标注侧边栏中点击该标注的跳转按钮”
+      // 因此在跳转前先请求打开标注侧边栏，由 SidebarManager 统一管理 UI 状态
+      try {
+        this.#eventBus.emitGlobal(
+          PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED,
+          { sidebarId: "annotation" },
+          { actorId: "AnnotationFeature" }
+        );
+      } catch (e) {
+        this.#logger.warn("[AnnotationFeature] 无法发出标注侧边栏打开请求（非致命）", e);
+      }
+
       // 计算应跳转的页码：优先DOM中已渲染的容器（更可靠，避免数据层页码异常时跳到错误页面）
       let pageNumber = annotation.pageNumber;
       try {
@@ -597,28 +609,18 @@ export class AnnotationFeature {
         }
       }
 
-      // 统一改走 URL 导航 API，由 URLNavigationFeature 执行实际导航
+      // 直接使用核心导航服务执行跳转，不再经由 URL 导航模块
       try {
-        // 优先使用已解析的 pdfId，回退从文件信息/URL 中提取
-        let pdfId = this.#currentPdfId;
-        if (!pdfId) {
-          pdfId = this.#extractPdfUUID({ filename: this.#container?.get?.("currentFilename"), url: window?.location?.href || "" }) || null;
+        if (!this.#navigationService) {
+          throw new Error("navigationService not available");
         }
-        const req = {
-          pdfId: pdfId || undefined,
+        await this.#navigationService.navigateTo({
           pageAt: pageNumber,
-          position: (position !== null && Number.isFinite(position)) ? position : null,
-          annotationId: annotation?.id || undefined
-        };
-        // 重要：必须发到全局事件总线，URLNavigationFeature 在全局总线上监听
-        this.#eventBus.emitGlobal(
-          PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
-          req,
-          { actorId: "AnnotationFeature" }
-        );
+          position: (position !== null && Number.isFinite(position)) ? position : null
+        });
         try { this.#highlightAnnotationMarker?.(annotation?.id); } catch (e) { this.#logger?.warn?.("highlight marker failed", e); }
       } catch (emitErr) {
-        this.#logger.warn("[AnnotationFeature] Failed to emit URL_PARAMS.REQUESTED for annotation jump", emitErr);
+        this.#logger.warn("[AnnotationFeature] Failed to navigate via NavigationService for annotation jump", emitErr);
         throw emitErr;
       }
 

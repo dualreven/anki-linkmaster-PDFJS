@@ -863,14 +863,12 @@ export class UIManagerCore {
     // 跳转到指定页
     this.#eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.GOTO, (data) => {
       const targetPage = data?.pageNumber;
-      const positionPercent = (typeof data?.positionPercent === "number") ? data.positionPercent : null;
       const totalPages = this.#pdfViewerManager.pagesCount;
 
       if (targetPage && targetPage >= 1 && targetPage <= totalPages) {
         this.#pdfViewerManager.currentPageNumber = targetPage;
         this.#logger.info(`Navigate to page: ${targetPage}`);
-        // 保证可见：调用 PDFViewerManager 封装的可见性保障（linkService 优先）
-        try { this.#pdfViewerManager.ensurePageVisible?.(targetPage, positionPercent); } catch { }
+        // positionPercent 由 NavigationService.scrollToPosition() 处理
       } else {
         this.#logger.warn(`Invalid page number for GOTO: ${targetPage} (total: ${totalPages})`);
       }

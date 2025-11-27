@@ -65,11 +65,18 @@ export class OutlineSidebarUIClassic {
       { subscriberId: "OutlineSidebarUIClassic" }
     ));
 
+    // 监听来自其它模块的选择变化，用于远程导航时高亮并滚动到对应节点
     this.#unsubs.push(this.#eventBus.on(
       PDF_VIEWER_EVENTS.OUTLINE.SELECT.CHANGED,
       (data, metadata) => {
-        if (metadata?.actorId !== "OutlineSidebarUIClassic") {
-          this.#handleExternalSelection(data);
+        try {
+          const actorId = metadata?.actorId || "";
+          if (actorId === "OutlineSidebarUIClassic") { return; }
+          const outlineItemId = data?.outlineItemId || data?.bookmarkId || null;
+          if (!outlineItemId) { return; }
+          this.#handleExternalSelection({ outlineItemId });
+        } catch (e) {
+          this.#logger.warn("OutlineSidebarUIClassic.handleExternalSelection failed", e);
         }
       },
       { subscriberId: "OutlineSidebarUIClassic" }
@@ -97,24 +104,40 @@ export class OutlineSidebarUIClassic {
     $container.jstree({ core: { data, check_callback: true, themes: { stripes: true } }, plugins: ["dnd", "wholerow"], dnd: { is_draggable: () => true } });
 
     $container.on("ready.jstree", () => {
-      try { $container.jstree("open_all"); this.#logger.info("✅ Outline tree expanded automatically"); } catch (err) { this.#logger.error("❌ Expand outline tree failed: " + err.message); }
+      try {
+        const inst = $container.jstree(true);
+        if (inst) {
+          inst.open_all();
+          // 启动时不默认选中任何节点，等待用户或外部导航显式指定
+          inst.deselect_all(true);
+        }
+        this.#logger.info("✅ Outline tree expanded automatically");
+      } catch (err) {
+        this.#logger.error("❌ Expand outline tree failed: " + err.message);
+      }
     });
 
     $container.on("select_node.jstree", (e, selected) => {
       try {
         const info = selected?.node?.data || {};
         const outlineItemId = selected?.node?.id || null;
-        // 选中项状态由渲染时直接处理；不在本类中保存
+        // 通知其他模块“当前选中项变化”，供工具栏等使用
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.OUTLINE.SELECT.CHANGED,
           { outlineItemId: outlineItemId, outlineItem: info.raw || null },
           { actorId: "OutlineSidebarUIClassic" }
         );
-        const payload = { outlineItemId };
-        try {
-          this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE_BY_ID.REQUESTED, payload, { actorId: "OutlineSidebarUIClassic" });
-        } catch {
-          this.#eventBus.emit(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE_BY_ID.REQUESTED, payload, { actorId: "OutlineSidebarUIClassic" });
+        // 直接根据节点携带的 pageAt/position 进行页面导航（等价于手工点击）
+        const pageAt = typeof info.pageAt === "number" && info.pageAt > 0 ? info.pageAt : null;
+        const position = typeof info.position === "number" ? info.position : null;
+        if (pageAt != null) {
+          const req = { pageAt };
+          if (position != null) { req.position = position; }
+          this.#eventBus.emitGlobal(
+            PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
+            req,
+            { actorId: "OutlineSidebarUIClassic" }
+          );
         }
       } catch (err) { this.#logger.warn("select_node failed", err); }
     });
@@ -165,7 +188,30 @@ export class OutlineSidebarUIClassic {
   }
 
   #handleExternalSelection(data) {
-    // 选中项状态由渲染器处理；此处不持有状态
+    try {
+      const targetId = (data?.outlineItemId || data?.bookmarkId || "").trim();
+      if (!targetId) { return; }
+      if (!this.#outlineList) { return; }
+      const $container = $(this.#outlineList);
+      const inst = $container.jstree(true);
+      if (!inst) {
+        this.#logger.warn("OutlineSidebarUIClassic: jsTree instance not ready when handling external selection", { targetId });
+        return;
+      }
+      if (!inst.get_node(targetId)) {
+        this.#logger.warn("OutlineSidebarUIClassic: node not found for external selection", { targetId });
+        return;
+      }
+      inst.deselect_all(true);
+      inst.select_node(targetId, true, true);
+      const nodeEl = this.#outlineList.querySelector(`[id="${CSS.escape(targetId)}"]`);
+      if (nodeEl && nodeEl.scrollIntoView) {
+        nodeEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      this.#logger.info("OutlineSidebarUIClassic: focused node by external selection", { targetId });
+    } catch (e) {
+      this.#logger.warn("OutlineSidebarUIClassic: handleExternalSelection failed", e);
+    }
   }
 
   destroy() {

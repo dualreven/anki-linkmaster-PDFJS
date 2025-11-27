@@ -339,56 +339,6 @@ export class PDFViewerManager {
   }
 
   /**
-   * 确保目标页可见（优先使用 linkService，其次直接滚动容器）
-   * @param {number} pageNumber
-   * @param {number|null} positionPercent 0..100 位置百分比（可选）
-   */
-  async ensurePageVisible(pageNumber, positionPercent = null) {
-    try {
-      if (!Number.isInteger(pageNumber) || pageNumber < 1) { return; }
-      // 1) 尝试使用 pdf.js 的官方入口
-      if (this.#linkService && typeof this.#linkService.scrollPageIntoView === "function") {
-        if (typeof positionPercent === "number") {
-          try {
-            const { positionPercentToY } = await import("../../../pdf/../pdf/pdf-dest-utils.js");
-            const pdfDoc = this.#pdfViewer?.pdfDocument || null;
-            const y = await positionPercentToY(pdfDoc, pageNumber, positionPercent);
-            if (typeof y === "number" && isFinite(y)) {
-              this.#linkService.scrollPageIntoView({
-                pageNumber,
-                destArray: [null, "XYZ", null, y, null],
-                allowNegativeOffset: true
-              });
-            } else {
-              this.#linkService.scrollPageIntoView({ pageNumber });
-            }
-          } catch {
-            this.#linkService.scrollPageIntoView({ pageNumber });
-          }
-        } else {
-          this.#linkService.scrollPageIntoView({ pageNumber });
-        }
-      }
-      // 2) 兜底：直接滚动外层容器到目标页位置
-      const container = this.#container;
-      const pageEl = container?.querySelector?.(`.page[data-page-number="${pageNumber}"]`);
-      if (container && pageEl) {
-        const pageTop = pageEl.offsetTop;
-        const pageHeight = pageEl.offsetHeight || 0;
-        const viewportH = container.clientHeight || 0;
-        let target = pageTop;
-        if (typeof positionPercent === "number") {
-          const clamped = Math.max(0, Math.min(100, positionPercent));
-          target = pageTop + (pageHeight * clamped / 100) - (viewportH / 2);
-        }
-        container.scrollTop = Math.max(0, Math.min(target, container.scrollHeight - viewportH));
-      }
-    } catch (e) {
-      this.#logger?.warn?.("ensurePageVisible failed", e);
-    }
-  }
-
-  /**
    * 获取指定页面的PageView对象
    * @param {number} pageNumber - 页码（从1开始）
    * @returns {Object|null} PageView对象，包含viewport、div、canvas等信息

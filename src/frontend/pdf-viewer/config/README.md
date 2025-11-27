@@ -71,9 +71,8 @@ if (flagManager.isEnabled('pdf-outline')) {
 
 | 功能 | 标志名 | 状态 | 依赖 |
 |------|--------|------|------|
-| **PDF阅读器** | `pdf-reader` | 🚧 开发中 | - |
-| **UI组件** | `pdf-ui` | 🚧 开发中 | pdf-reader |
-| **大纲管理** | `pdf-outline` | 🚧 开发中 | pdf-reader, pdf-ui |
+| **UI组件** | `pdf-ui` | 🚧 开发中 | - |
+| **大纲管理** | `pdf-outline` | 🚧 开发中 | pdf-ui |
 | **WebSocket适配器** | `infra-ws-adapter` | 🚧 开发中 | - |
 
 ### 架构切换
@@ -153,7 +152,7 @@ if (flagManager.isEnabled('pdf-outline')) {
 
 1. **依赖关系**
    - 功能的依赖必须先启用
-   - 例如：启用 `pdf-outline` 需要先启用 `pdf-reader` 和 `pdf-ui`
+   - 例如：启用 `pdf-outline` 需要先启用 `pdf-ui`
 
 2. **环境匹配**
    - 功能的 `environments` 必须包含当前环境

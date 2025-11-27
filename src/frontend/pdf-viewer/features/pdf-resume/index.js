@@ -1,248 +1,328 @@
 /**
- * PDF Resume Feature
+ * @file PDF Resume Feature
  * @module PDFResumeFeature
- * @description 常驻“断点续读”能力：拉取服务端 pdf_info.json_data.resume，按优先级在冷启动时应用；运行期按节流更新服务端。
+ * @description 常驻"断点续读"能力：
+ *              - 冷启动时从 json_data.resume 恢复阅读位置
+ *              - 运行期持续追踪位置并节流更新到后端
+ *
+ * 重构版本：采用模块化设计，修复所有 Fail-Fast 违规
  */
 
 import { getLogger } from "../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
-import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_EVENTS } from "../../../common/event/event-constants.js";
+import { WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_EVENTS } from "../../../common/event/event-constants.js";
 import { notifyDomainError } from "../../../common/utils/domain-error-notifier.js";
 
+// 内部模块
+import { loadResume, resolvePdfIdFromURL } from "./services/resume-loader.js";
+import { applyResume } from "./services/resume-applier.js";
+import { ResumeUpdater } from "./services/resume-updater.js";
+
+// 共享模块
+import { PositionTracker } from "../../shared/position-tracker.js";
+
+/**
+ * PDF Resume Feature - 断点续读功能
+ */
 export class PDFResumeFeature {
   #logger = getLogger("Feature.pdf-resume");
+
+  /** @type {Object} */
   #eventBus = null;
+
+  /** @type {Object} */
   #container = null;
+
+  /** @type {Object} */
   #navigationService = null;
 
+  /** @type {string|null} */
   #pdfId = null;
-  #latestPage = null;
-  #latestZoom = null;
+
+  /** @type {PositionTracker|null} */
+  #positionTracker = null;
+
+  /** @type {ResumeUpdater|null} */
+  #resumeUpdater = null;
+
+  /** @type {Function|null} */
+  #beforeUnloadHandler = null;
+
+  /** @type {Function|null} */
+  #unsubscribeDiagnostic = null;
+
+  /** @type {number|null} */
+  #heartbeatTimer = null;
+
+  /** @type {number|null} */
+  #resumeLoadTimer = null;
 
   get name() { return "pdf-resume"; }
-  get version() { return "1.0.0"; }
+  get version() { return "2.0.0"; }
   get dependencies() {
     return ["infra-nav-core", "navigationService"];
   }
 
+  /**
+   * 安装 Feature
+   * @param {Object} context - 上下文对象
+   * @throws {Error} 当必要依赖缺失时抛出（Fail-Fast）
+   */
   async install(context) {
     this.#container = context.container || context;
-    this.#eventBus = context.globalEventBus || this.#container.get("eventBus");
-    if (!this.#eventBus) { throw new Error("[pdf-resume] eventBus not found"); }
-    this.#navigationService = this.#container.get("navigationService");
-    if (!this.#navigationService) { this.#logger.warn("navigationService not found, will use URL_PARAMS route"); }
 
+    // Fail-Fast: eventBus 是必须的
+    this.#eventBus = context.globalEventBus || this.#container.get("eventBus");
+    if (!this.#eventBus) {
+      throw new Error("[pdf-resume] eventBus is required dependency");
+    }
+
+    // Fail-Fast: navigationService 是必须的
+    this.#navigationService = this.#container.get("navigationService");
+    if (!this.#navigationService) {
+      throw new Error("[pdf-resume] navigationService is required dependency");
+    }
+
+    // 初始获取 pdf-id
+    this.#pdfId = resolvePdfIdFromURL();
+    if (!this.#pdfId) {
+      throw new Error("[pdf-resume] pdfId not found in URL (expected ?pdf-id=xxx)");
+    }
+
+    // 初始化 ResumeUpdater
+    this.#resumeUpdater = new ResumeUpdater({
+      eventBus: this.#eventBus,
+      container: this.#container,
+      pdfId: this.#pdfId
+    });
+
+    // 设置事件监听
     this.#setupListeners();
-    this.#attachUserInputListeners();
-    // 初始获取 pdf-id（兜底从 URL）
-    this.#pdfId = this.#pdfId || PDFResumeFeature.#resolvePdfIdFromURL();
-    this.#logger.info("PDFResumeFeature installed");
+
+    // 设置位置追踪
+    this.#setupPositionTracker();
+
+    // beforeunload 保存暂时关闭，改用心跳机制同步到 DB
+    this.#setupBeforeUnload();
+
+    // 启动心跳同步
+    this.#startHeartbeat();
+
+    this.#logger.info("[pdf-resume] installed", { pdfId: this.#pdfId });
   }
 
+  /**
+   * 卸载 Feature
+   */
   async uninstall() {
-    this.#stopPendingUpdate();
-    this.#detachUserInputListeners();
+    // 清理位置追踪器
+    if (this.#positionTracker) {
+      this.#positionTracker.deactivate();
+      this.#positionTracker = null;
+    }
+
+    // 停止心跳
+    if (this.#heartbeatTimer !== null) {
+      clearInterval(this.#heartbeatTimer);
+      this.#heartbeatTimer = null;
+      this.#logger.info("[pdf-resume] heartbeat sync stopped");
+    }
+
+    // 取消延迟的 resume 加载
+    if (this.#resumeLoadTimer !== null) {
+      clearTimeout(this.#resumeLoadTimer);
+      this.#resumeLoadTimer = null;
+      this.#logger.info("[pdf-resume] delayed resume load cancelled");
+    }
+
+    // 停止心跳
+    if (this.#heartbeatTimer !== null) {
+      clearInterval(this.#heartbeatTimer);
+      this.#heartbeatTimer = null;
+      this.#logger.info("[pdf-resume] heartbeat sync stopped");
+    }
+
+    // 清理 beforeunload 处理器
+    if (this.#beforeUnloadHandler) {
+      try {
+        window.removeEventListener("beforeunload", this.#beforeUnloadHandler);
+      } catch {
+        // 环境可能没有 window
+      }
+      this.#beforeUnloadHandler = null;
+    }
+
+    // 清理诊断订阅
+    if (this.#unsubscribeDiagnostic) {
+      try {
+        this.#unsubscribeDiagnostic();
+      } catch {
+        // ignore
+      }
+      this.#unsubscribeDiagnostic = null;
+    }
+
     this.#eventBus = null;
     this.#container = null;
     this.#navigationService = null;
+    this.#resumeUpdater = null;
+
+    this.#logger.info("[pdf-resume] uninstalled");
   }
 
+  /**
+   * 设置事件监听器
+   */
   #setupListeners() {
-    // 文件加载成功：拉取 resume
+    // 文件加载成功：延迟一段时间后再拉取并应用 resume
+    // 说明：为避免窗口刚打开时 PDF.js/布局尚未完全稳定导致的跳转偏差，
+    // 在 FILE.LOAD.SUCCESS 之后增加 2.5 秒延迟再执行恢复导航。
     this.#eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, () => {
-      this.#safeLoadResume();
+      // 若已有尚未触发的定时器，先取消
+      if (this.#resumeLoadTimer !== null) {
+        clearTimeout(this.#resumeLoadTimer);
+        this.#resumeLoadTimer = null;
+      }
+
+      const delayMs = 2500;
+      this.#logger.info("[pdf-resume] scheduling resume load", { delayMs });
+
+      this.#resumeLoadTimer = setTimeout(() => {
+        this.#resumeLoadTimer = null;
+        this.#handleFileLoaded();
+      }, delayMs);
     }, { subscriberId: "PDFResumeFeature" });
 
-    // 页面变更与缩放变更：安排节流更新
+    // 页面变更事件：仅用于日志 & 内部分析，不再直接写入 resume
+    // 说明：为排查“滚动/跳转过程中多次写入导致的竞态问题”，
+    // 这里暂时关闭 PAGE.CHANGING → ResumeUpdater.flush() 的实时写入通道，
+    // 只依赖 PositionTracker + beforeunload 进行最终写入。
     this.#eventBus.on(PDF_VIEWER_EVENTS.PAGE.CHANGING, ({ pageNumber }) => {
-      this.#logger.info("[resume] PAGE.CHANGING captured", { pageNumber });
-      this.#latestPage = pageNumber;
-      this.#scheduleUpdate();
+      this.#logger.debug("[pdf-resume] PAGE.CHANGING", { pageNumber });
+
+      // 调试阶段：不再在 PAGE.CHANGING 中更新 resume，避免与滚动追踪/关闭前 flush 产生写入竞态
     }, { subscriberId: "PDFResumeFeature" });
 
+    // 缩放变更事件：仍然更新缩放信息，但不再在缩放时立即 flush，
+    // 仅作为 beforeunload flush 的视图状态补充。
     this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.CHANGING, ({ scale }) => {
-      this.#logger.info("[resume] ZOOM.CHANGING captured", { scale });
-      this.#latestZoom = Number.isFinite(scale) ? scale : this.#latestZoom;
-      this.#scheduleUpdate();
+      this.#logger.debug("[pdf-resume] ZOOM.CHANGING", { scale });
+
+      // 检查冻结状态：恢复导航期间不应更新 resume
+      if (this.#positionTracker?.isFrozen) {
+        this.#logger.debug("[pdf-resume] ZOOM.CHANGING ignored (frozen)");
+        return;
+      }
+
+      if (this.#resumeUpdater && Number.isFinite(scale)) {
+        this.#resumeUpdater.setZoom(scale);
+      }
     }, { subscriberId: "PDFResumeFeature" });
 
-    // beforeunload 最后一跳
-    try {
-      window.addEventListener("beforeunload", () => {
-        try { this.#flushUpdateNow(true); } catch { /* no-op */ }
-      });
-    } catch { /* env without window */ }
-
-    // 监听 WS 回包（仅用于诊断/观测）
-    this.#eventBus.on(WEBSOCKET_MESSAGE_EVENTS.RESPONSE, (msg) => {
+    // 诊断/观测：监听 WS 回包
+    this.#unsubscribeDiagnostic = this.#eventBus.on(WEBSOCKET_MESSAGE_EVENTS.RESPONSE, (msg) => {
       const t = String(msg?.type || "");
       if (t === WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_COMPLETED) {
-        this.#logger.info("[resume] info completed observed");
+        this.#logger.debug("[pdf-resume] info completed observed");
       } else if (t === WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_COMPLETED) {
-        this.#logger.debug("[resume] record-update completed");
+        this.#logger.debug("[pdf-resume] record-update completed");
       }
     }, { subscriberId: "PDFResumeFeature-diagnostic" });
   }
 
-  #uiDetachFns = [];
-  #attachUserInputListeners() {
-    try {
-      const container = document?.getElementById?.("viewerContainer");
-      if (!container) { this.#logger.warn("[resume] viewerContainer not found; skip UI listeners"); return; }
-
-      const updateFromContainerCenter = () => {
-        const pn = PDFResumeFeature.#detectCenterPageNumber(container);
-        if (Number.isInteger(pn) && pn > 0) { this.#latestPage = pn; }
-        this.#scheduleUpdate();
-      };
-
-      const onWheel = () => {
-        updateFromContainerCenter();
-      };
-      const onClick = (evt) => {
-        try {
-          const pageEl = evt?.target?.closest?.(".page[data-page-number]");
-          let pn = null;
-          if (pageEl) {
-            const v = Number(pageEl.getAttribute("data-page-number"));
-            if (Number.isFinite(v) && v > 0) { pn = v; }
-          }
-          if (!pn) { pn = PDFResumeFeature.#detectCenterPageNumber(container); }
-          if (Number.isInteger(pn) && pn > 0) { this.#latestPage = pn; }
-        } catch { /* no-op */ }
-        this.#scheduleUpdate();
-      };
-      const onScroll = () => {
-        updateFromContainerCenter();
-      };
-
-      container.addEventListener("wheel", onWheel, { passive: true });
-      container.addEventListener("click", onClick, { passive: true });
-      container.addEventListener("scroll", onScroll, { passive: true });
-      this.#uiDetachFns.push(() => container.removeEventListener("wheel", onWheel));
-      this.#uiDetachFns.push(() => container.removeEventListener("click", onClick));
-      this.#uiDetachFns.push(() => container.removeEventListener("scroll", onScroll));
-
-      // 同时在 window 层监听滚轮（防止某些环境下事件只在更高层触发）
-      const onGlobalWheel = () => {
-        try {
-          updateFromContainerCenter();
-        } catch (e) {
-          this.#logger.warn("[resume] global wheel handler failed", e);
+  /**
+   * 设置位置追踪器
+   */
+  #setupPositionTracker() {
+    this.#positionTracker = new PositionTracker({
+      debounceMs: 200,
+      onPositionChange: (pageAt, position) => {
+        this.#logger.debug("[pdf-resume] position changed", { pageAt, position });
+        // 为避免滚动过程中的多次写入，这里仅更新内存中的最新页码，
+        // 实际持久化交给 beforeunload 阶段的 flushSync 统一处理。
+        if (this.#resumeUpdater) {
+          this.#resumeUpdater.setPage(pageAt);
         }
-      };
-      window.addEventListener("wheel", onGlobalWheel, { passive: true });
-      this.#uiDetachFns.push(() => window.removeEventListener("wheel", onGlobalWheel));
-
-      this.#logger.info("[resume] UI listeners attached (wheel/click/scroll/global-wheel)");
-    } catch (e) {
-      this.#logger.warn("[resume] attach UI listeners failed", e);
-    }
-  }
-
-  #detachUserInputListeners() {
-    try {
-      this.#uiDetachFns.forEach(fn => { try { fn(); } catch { /* no-op */ } });
-    } finally {
-      this.#uiDetachFns = [];
-    }
-  }
-
-  #safeLoadResume() {
-    // 先发内部观测事件
-    this.#eventBus.emit(PDF_VIEWER_EVENTS.RESUME.LOAD.REQUESTED, {}, { actorId: "PDFResumeFeature" });
-    const pdfId = this.#pdfId || PDFResumeFeature.#resolvePdfIdFromURL();
-    if (!pdfId) { this.#logger.warn("[resume] pdfId missing; skip load"); return; }
-    // 拉取详情（不依赖 request_id 过滤，仅根据 pdfId 匹配首个 info:completed）
-    const rid = PDFResumeFeature.#uuid();
-    this.#eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, {
-      type: WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST,
-      request_id: rid,
-      data: { pdf_id: pdfId },
-      metadata: { version: "1.0.0" }
-    }, { actorId: "PDFResumeFeature" });
-
-    // 设置一次性监听：捕获首个针对当前 pdfId 的详情回包
-    const off = this.#eventBus.on(WEBSOCKET_MESSAGE_EVENTS.RESPONSE, (message) => {
-      try {
-        if (!message) { return; }
-        const t = String(message.type || message.received_type || "");
-        if (t === WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_COMPLETED) {
-          const data = message.data || {};
-          const mid = String(data.id || data.pdf_id || "");
-          if (!mid || mid !== pdfId) { return; }
-          this.#eventBus.emit(PDF_VIEWER_EVENTS.RESUME.LOAD.LOADED, { pdfId }, { actorId: "PDFResumeFeature" });
-          const resume = data?.json_data?.resume || null;
-          this.#maybeApplyResume(resume, pdfId);
-          off?.();
-        } else if (t === WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_FAILED) {
-          const data = message.data || {};
-          const mid = String(data.id || data.pdf_id || "");
-          if (!mid || mid !== pdfId) { return; }
-          this.#eventBus.emit(PDF_VIEWER_EVENTS.RESUME.LOAD.LOAD_FAILED, { pdfId, error: message?.error }, { actorId: "PDFResumeFeature" });
-          off?.();
-        }
-      } catch (e) {
-        this.#logger.warn("[resume] process info response failed", e);
-        off?.();
       }
-    }, { subscriberId: `PDFResumeFeature-load-${rid}` });
-  }
-
-  #maybeApplyResume(resume, pdfId) {
-    try {
-      const parsed = PDFResumeFeature.#validateResume(resume);
-      if (!parsed) { return; } // 无 resume，静默跳过
-      // 发内部事件
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.RESUME.APPLY.REQUESTED, { resume: parsed }, { actorId: "PDFResumeFeature" });
-
-      // 先恢复视图状态（缩放/布局/旋转），不依赖导航是否执行
-      this.#applyViewStateFromResume(parsed);
-
-      // 直接使用核心导航服务执行跳转（不再经由 URL 导航模块）；若服务不可用则仅恢复视图状态
-      if (this.#navigationService) {
-        const pos = typeof parsed.y_percent === "number" ? parsed.y_percent : null;
-        this.#navigationService.navigateTo({ pageAt: parsed.page, position: pos })
-          .catch((e) => {
-            this.#logger.warn("[resume] navigation via NavigationService failed", e);
-          });
-      }
-
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.RESUME.APPLY.SUCCESS, { resume: parsed }, { actorId: "PDFResumeFeature" });
-    } catch (e) {
-      this.#logger.error("[resume] apply failed", e);
-      notifyDomainError({
-        message: "恢复阅读位置失败",
-        logger: this.#logger,
-        scope: "pdf-viewer-resume-apply",
-        error: e
-      });
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.RESUME.APPLY.FAILED, { error: String(e?.message || e) }, { actorId: "PDFResumeFeature" });
-    }
-  }
-
-  #scheduleUpdate() {
-    this.#logger.info("[resume] scheduleUpdate", {
-      latestPage: this.#latestPage,
-      latestZoom: this.#latestZoom
     });
-    this.#flushUpdateNow(false);
+
+    // 激活追踪器需要 viewerContainer - 延迟到 DOM 准备好后
+    this.#activateTrackerWhenReady();
   }
 
-  #stopPendingUpdate() {
-    // no-op: 不再使用节流计时器，保留方法以兼容卸载流程
-  }
-
-  #flushUpdateNow(sync = false) {
-    const pdfId = this.#pdfId || PDFResumeFeature.#resolvePdfIdFromURL();
-    if (!pdfId) {
-      const err = new Error("[resume] pdfId missing when flushing resume");
-      this.#logger.error(err.message);
-      throw err;
+  /**
+   * 等待 viewerContainer 准备好后激活追踪器
+   */
+  #activateTrackerWhenReady() {
+    const container = document.getElementById("viewerContainer");
+    if (container) {
+      this.#positionTracker.activate(container);
+      this.#logger.info("[pdf-resume] position tracker activated");
+    } else {
+      // 延迟重试
+      this.#logger.warn("[pdf-resume] viewerContainer not ready, retrying...");
+      setTimeout(() => {
+        const retryContainer = document.getElementById("viewerContainer");
+        if (retryContainer) {
+          this.#positionTracker.activate(retryContainer);
+          this.#logger.info("[pdf-resume] position tracker activated (retry)");
+        } else {
+          this.#logger.error("[pdf-resume] viewerContainer still not found after retry");
+        }
+      }, 500);
     }
-    let pageNumber = this.#latestPage;
-    // 若尚未捕获最新页码，则尝试从 pdfViewerManager 读取当前页
-    if (!Number.isInteger(pageNumber) || pageNumber < 1) {
+  }
+
+  /**
+   * 设置 beforeunload 处理器
+   */
+  #setupBeforeUnload() {
+    // 心跳模式下暂时不依赖 beforeunload 保存，以避免 Qt 关闭路径下的不确定性。
+    this.#beforeUnloadHandler = null;
+    this.#logger.info("[pdf-resume] beforeunload handler disabled (heartbeat mode)");
+  }
+
+  /**
+   * 启动心跳同步：定期采样当前位置并写入 DB
+   */
+  #startHeartbeat() {
+    if (!this.#resumeUpdater) {
+      return;
+    }
+    if (this.#heartbeatTimer !== null) {
+      clearInterval(this.#heartbeatTimer);
+    }
+
+    const intervalMs = 3000;
+    this.#heartbeatTimer = setInterval(() => {
+      this.#performHeartbeatSync();
+    }, intervalMs);
+
+    this.#logger.info("[pdf-resume] heartbeat sync started", { intervalMs });
+  }
+
+  /**
+   * 心跳周期内执行一次同步
+   */
+  #performHeartbeatSync() {
+    if (!this.#resumeUpdater) {
+      return;
+    }
+
+    // 恢复导航冻结期间不应写入 resume
+    if (this.#positionTracker?.isFrozen) {
+      this.#logger.debug("[pdf-resume] heartbeat skipped (frozen)");
+      return;
+    }
+
+    let pageNumber = null;
+
+    // 优先使用 PositionTracker 的快照（视口中心页）
+    const pos = this.#positionTracker?.snapshot?.();
+    if (pos && Number.isInteger(pos.pageAt) && pos.pageAt > 0) {
+      pageNumber = pos.pageAt;
+    } else {
+      // 回退到 pdfViewerManager.currentPageNumber
       try {
         const mgr = this.#container?.get?.("pdfViewerManager");
         const current = mgr?.currentPageNumber;
@@ -250,299 +330,93 @@ export class PDFResumeFeature {
           pageNumber = current;
         }
       } catch (e) {
-        this.#logger.error("[resume] failed to read currentPageNumber from pdfViewerManager", e);
-        throw e;
+        this.#logger.warn("[pdf-resume] heartbeat failed to read currentPageNumber", e);
       }
     }
+
     if (!Number.isInteger(pageNumber) || pageNumber < 1) {
-      const err = new Error(`[resume] invalid pageNumber when flushing resume: ${pageNumber}`);
-      this.#logger.error(err.message);
-      throw err;
+      this.#logger.debug("[pdf-resume] heartbeat skipped (no valid page)");
+      return;
     }
-    const yPercent = PDFResumeFeature.#measureYPercent(pageNumber);
-    const viewState = this.#captureViewState();
 
-    const resume = {
-      page: pageNumber,
-      ...(Number.isFinite(yPercent) ? { y_percent: Math.max(0, Math.min(100, yPercent)) } : {}),
-      ...(Number.isFinite(viewState.zoom) ? { zoom: viewState.zoom } : {}),
-      ...(viewState.scrollMode !== null ? { scroll_mode: PDFResumeFeature.#scrollModeToString(viewState.scrollMode) } : {}),
-      ...(viewState.spreadMode !== null ? { spread_mode: PDFResumeFeature.#spreadModeToString(viewState.spreadMode) } : {}),
-      ...(viewState.rotation !== null ? { rotation: viewState.rotation } : {}),
-      updated_at: Date.now()
-    };
-    this.#logger.info("[resume] flush resume payload", { pdfId, resume });
-    this.#eventBus.emit(PDF_VIEWER_EVENTS.RESUME.UPDATE.REQUESTED, { resume }, { actorId: "PDFResumeFeature" });
-    const message = {
-      type: WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_REQUESTED,
-      request_id: PDFResumeFeature.#uuid(),
-      data: {
-        file_id: pdfId,
-        updates: {
-          visited_at: resume.updated_at,
-          json_data: { resume }
-        }
-      }
-    };
-    this.#eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, message, { actorId: "PDFResumeFeature" });
-    if (sync) {
-      // 同步场景仅发送一次；无需等待回包
-      this.#logger.info("[resume] sent final sync update");
-    }
+    this.#resumeUpdater.setPage(pageNumber);
+    this.#resumeUpdater.flush();
+    this.#logger.debug("[pdf-resume] heartbeat flushed resume", { page: pageNumber });
   }
 
-  static #resolvePdfIdFromURL() {
+  /**
+   * 处理文件加载完成事件
+   */
+  async #handleFileLoaded() {
+    this.#eventBus.emit(PDF_VIEWER_EVENTS.RESUME.LOAD.REQUESTED, {}, { actorId: "PDFResumeFeature" });
+
     try {
-      return new URLSearchParams(window.location.search).get("pdf-id") || null;
-    } catch {
-      return null;
+      const result = await loadResume(this.#eventBus, this.#pdfId);
+
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.RESUME.LOAD.LOADED, {
+        pdfId: this.#pdfId,
+        hasResume: !!result.resume
+      }, { actorId: "PDFResumeFeature" });
+
+      if (result.resume) {
+        await this.#applyLoadedResume(result.resume);
+      } else {
+        this.#logger.info("[pdf-resume] no resume found, starting fresh");
+      }
+    } catch (e) {
+      this.#logger.error("[pdf-resume] load failed", e);
+
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.RESUME.LOAD.LOAD_FAILED, {
+        pdfId: this.#pdfId,
+        error: e.message
+      }, { actorId: "PDFResumeFeature" });
+
+      notifyDomainError({
+        message: "加载阅读位置失败",
+        logger: this.#logger,
+        scope: "pdf-viewer-resume-load",
+        error: e
+      });
     }
   }
 
-  static #validateResume(obj) {
-    if (!obj || typeof obj !== "object") { return null; }
-    const page = obj.page;
-    if (!Number.isInteger(page) || page < 1) { return null; }
-    const normalized = { page };
+  /**
+   * 应用加载的 Resume
+   * @param {Object} resume - 规范化后的 resume 对象
+   */
+  async #applyLoadedResume(resume) {
+    this.#eventBus.emit(PDF_VIEWER_EVENTS.RESUME.APPLY.REQUESTED, { resume }, { actorId: "PDFResumeFeature" });
 
-    const y = obj.y_percent;
-    if (y !== undefined) {
-      if (typeof y !== "number" || !Number.isFinite(y) || y < 0 || y > 100) {
-        throw new Error(`invalid y_percent: ${y}`);
-      }
-      normalized.y_percent = y;
-    }
-
-    const zoom = obj.zoom;
-    if (zoom !== undefined) {
-      if (typeof zoom !== "number" || !Number.isFinite(zoom) || zoom <= 0) {
-        throw new Error(`invalid zoom: ${zoom}`);
-      }
-      normalized.zoom = zoom;
-    }
-
-    const rotation = obj.rotation;
-    if (rotation !== undefined) {
-      if (!Number.isInteger(rotation) || ![0, 90, 180, 270].includes(rotation)) {
-        throw new Error(`invalid rotation: ${rotation}`);
-      }
-      normalized.rotation = rotation;
-    }
-
-    const scrollMode = obj.scroll_mode;
-    if (scrollMode !== undefined) {
-      if (typeof scrollMode !== "string") {
-        throw new Error(`invalid scroll_mode: ${scrollMode}`);
-      }
-      // 会在应用阶段通过 #scrollModeFromString 进一步校验
-      normalized.scroll_mode = scrollMode;
-    }
-
-    const spreadMode = obj.spread_mode;
-    if (spreadMode !== undefined) {
-      if (typeof spreadMode !== "string") {
-        throw new Error(`invalid spread_mode: ${spreadMode}`);
-      }
-      normalized.spread_mode = spreadMode;
-    }
-
-    return normalized;
-  }
-
-  static #measureYPercent(pageNumber) {
     try {
-      const container = document?.getElementById?.("viewerContainer");
-      if (!container) { return null; }
-      const pageEl = container.querySelector(`.page[data-page-number="${pageNumber}"]`);
-      if (!pageEl) { return null; }
-      const pageTop = pageEl.offsetTop;
-      const pageHeight = pageEl.offsetHeight || 1;
-      const centerY = container.scrollTop + (container.clientHeight / 2);
-      const rel = centerY - pageTop;
-      const pct = (rel / pageHeight) * 100;
-      return Math.max(0, Math.min(100, pct));
-    } catch {
-      return null;
-    }
-  }
+      // 获取 pdfViewerManager（可选依赖）
+      const pdfViewerManager = this.#container.get("pdfViewerManager");
 
-  static #detectCenterPageNumber(container) {
-    try {
-      const centerY = container.scrollTop + (container.clientHeight / 2);
-      const pages = Array.from(container.querySelectorAll(".page[data-page-number]"));
-      let best = null;
-      let bestDist = Number.POSITIVE_INFINITY;
-      for (const el of pages) {
-        const top = el.offsetTop || 0;
-        const h = el.offsetHeight || 1;
-        const mid = top + h / 2;
-        const dist = Math.abs(mid - centerY);
-        if (dist < bestDist) {
-          bestDist = dist;
-          best = el;
-        }
+      // 冻结位置追踪器（导航后 3 秒内不回写）
+      if (this.#positionTracker) {
+        this.#positionTracker.freezeFor(3000);
       }
-      if (!best) { return null; }
-      const v = Number(best.getAttribute("data-page-number"));
-      return Number.isFinite(v) && v > 0 ? v : null;
-    } catch {
-      return null;
+
+      // 应用 resume
+      await applyResume(resume, this.#navigationService, pdfViewerManager);
+
+      this.#logger.info("[pdf-resume] resume applied successfully", { page: resume.page });
+
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.RESUME.APPLY.SUCCESS, { resume }, { actorId: "PDFResumeFeature" });
+    } catch (e) {
+      this.#logger.error("[pdf-resume] apply failed", e);
+
+      notifyDomainError({
+        message: "恢复阅读位置失败",
+        logger: this.#logger,
+        scope: "pdf-viewer-resume-apply",
+        error: e
+      });
+
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.RESUME.APPLY.FAILED, {
+        error: e.message
+      }, { actorId: "PDFResumeFeature" });
     }
   }
-
-  static #uuid() {
-    return "rid_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-  }
-
-  #captureViewState() {
-    const state = {
-      zoom: Number.isFinite(this.#latestZoom) ? this.#latestZoom : null,
-      scrollMode: null,
-      spreadMode: null,
-      rotation: null
-    };
-    try {
-      const c = this.#container;
-      if (!c || typeof c.get !== "function") { return state; }
-      let mgr = null;
-      try {
-        mgr = c.get("pdfViewerManager");
-      } catch {
-        mgr = null;
-      }
-      if (!mgr) { return state; }
-
-      try {
-        const z = mgr.currentScale;
-        if (typeof z === "number" && Number.isFinite(z) && z > 0) {
-          state.zoom = z;
-        }
-      } catch { /* ignore */ }
-
-      try {
-        const sm = mgr.scrollMode;
-        if (Number.isInteger(sm)) {
-          state.scrollMode = sm;
-        }
-      } catch { /* ignore */ }
-
-      try {
-        const sp = mgr.spreadMode;
-        if (Number.isInteger(sp)) {
-          state.spreadMode = sp;
-        }
-      } catch { /* ignore */ }
-
-      try {
-        const rot = mgr.pagesRotation;
-        if (Number.isInteger(rot)) {
-          state.rotation = rot;
-        }
-      } catch { /* ignore */ }
-    } catch {
-      // 保持 state 默认值
-    }
-    return state;
-  }
-
-  static #scrollModeToString(mode) {
-    if (!Number.isInteger(mode)) {
-      throw new Error(`invalid scrollMode value: ${mode}`);
-    }
-    switch (mode) {
-    case 0:
-      return "vertical";
-    case 1:
-      return "horizontal";
-    case 2:
-      return "wrapped";
-    case 3:
-      return "page";
-    default:
-      throw new Error(`unsupported scrollMode value: ${mode}`);
-    }
-  }
-
-  static #spreadModeToString(mode) {
-    if (!Number.isInteger(mode)) {
-      throw new Error(`invalid spreadMode value: ${mode}`);
-    }
-    switch (mode) {
-    case 0:
-      return "none";
-    case 1:
-      return "odd";
-    case 2:
-      return "even";
-    default:
-      throw new Error(`unsupported spreadMode value: ${mode}`);
-    }
-  }
-
-  static #scrollModeFromString(name) {
-    const v = String(name || "").toLowerCase();
-    switch (v) {
-    case "vertical":
-      return 0;
-    case "horizontal":
-      return 1;
-    case "wrapped":
-      return 2;
-    case "page":
-      return 3;
-    default:
-      throw new Error(`unsupported scroll_mode: ${name}`);
-    }
-  }
-
-  static #spreadModeFromString(name) {
-    const v = String(name || "").toLowerCase();
-    switch (v) {
-    case "none":
-      return 0;
-    case "odd":
-      return 1;
-    case "even":
-      return 2;
-    default:
-      throw new Error(`unsupported spread_mode: ${name}`);
-    }
-  }
-
-  #applyViewStateFromResume(resume) {
-    const c = this.#container;
-    if (!c || typeof c.get !== "function") { return; }
-    let mgr = null;
-    try {
-      mgr = c.get("pdfViewerManager");
-    } catch {
-      mgr = null;
-    }
-    if (!mgr) { return; }
-
-    // 缩放
-    if (typeof resume.zoom === "number" && Number.isFinite(resume.zoom) && resume.zoom > 0) {
-      try { mgr.currentScale = resume.zoom; } catch { /* ignore */ }
-    }
-
-    // 滚动模式
-    if (typeof resume.scroll_mode === "string") {
-      const scrollValue = PDFResumeFeature.#scrollModeFromString(resume.scroll_mode);
-      mgr.scrollMode = scrollValue;
-    }
-
-    // 跨页模式
-    if (typeof resume.spread_mode === "string") {
-      const spreadValue = PDFResumeFeature.#spreadModeFromString(resume.spread_mode);
-      mgr.spreadMode = spreadValue;
-    }
-
-    // 旋转
-    if (typeof resume.rotation === "number" && Number.isInteger(resume.rotation)) {
-      try { mgr.pagesRotation = resume.rotation; } catch { /* ignore */ }
-    }
-  }
-
 }
 
 export default PDFResumeFeature;

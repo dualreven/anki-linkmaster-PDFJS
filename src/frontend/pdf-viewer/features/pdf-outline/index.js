@@ -272,9 +272,12 @@ export class OutlineManager {
     ));
     this.#unsubs.push(onGlobal(
       PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE_BY_ID.REQUESTED,
-      (data) => {
-        this.#logger.info("[Outline] 收到 OUTLINE.NAVIGATE_BY_ID.REQUESTED 事件", data, { toast: { type: "info", ms: 2000 } });
-        this.#handleNavigateById(data);
+      (data, metadata) => {
+        this.#logger.info("[Outline] 收到 OUTLINE.NAVIGATE_BY_ID.REQUESTED 事件", {
+          payload: data,
+          actorId: metadata?.actorId || null
+        }, { toast: { type: "info", ms: 2000 } });
+        this.#handleNavigateById(data, metadata);
       },
       { subscriberId: "OutlineFeature" }
     ));
@@ -413,13 +416,13 @@ export class OutlineManager {
         return;
       }
       const position = (typeof outlineItem?.position === "number") ? outlineItem.position : null;
-      // 改为通过 URL 导航模块执行跳转：发射 URL_PARAMS.REQUESTED（不直接调用 navigationService）
-      const pdfId = this.#getPdfId?.() || null;
-      this.#eventBus.emitGlobal(
-        PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
-        { pdfId, pageAt, position },
-        { actorId: "OutlineManager" }
-      );
+      // 直接使用核心导航服务执行跳转，不再经由 URL 导航模块
+      if (!this.#navigationService) {
+        this.#logger.warn("[Outline] navigationService 未就绪，无法执行导航");
+        this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED, { error: "navigation-service-missing" }, { actorId: "OutlineManager" });
+        return;
+      }
+      await this.#navigationService.navigateTo({ pageAt, position });
     } catch (e) {
       this.#logger.warn("Outline navigate failed", e);
       this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED, { error: e?.message || "exception" }, { actorId: "OutlineManager" });
@@ -545,12 +548,14 @@ export class OutlineManager {
     });
   }
 
-  async #handleNavigateById({ outlineItemId }) {
+  async #handleNavigateById({ outlineItemId }, metadata = {}) {
     try {
       this.#logger.info("[Outline] 开始处理按ID导航请求", {
         outlineItemId: outlineItemId,
-        listReady: this.#listReady
+        listReady: this.#listReady,
+        actorId: metadata?.actorId || null
       }, { toast: { type: "info", ms: 2000 } });
+      const sourceActorId = metadata?.actorId || "";
       const targetId = (outlineItemId || "").trim();
       this.#logger.info("[Outline] 提取的目标ID", {
         targetId: targetId,
@@ -561,6 +566,18 @@ export class OutlineManager {
         this.#logger.warn("[Outline] 导航请求缺少ID", { receivedData: { outlineItemId } }, { toast: { type: "error", ms: 3000 } });
         return;
       }
+      // 对外语义：按ID导航应当等价于“用户在大纲侧边栏中点击该项”
+      // 因此先显式请求打开大纲侧边栏，由 SidebarManager 负责具体 UI
+      try {
+        this.#eventBus.emitGlobal(
+          PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED,
+          { sidebarId: "outline" },
+          { actorId: "OutlineManager" }
+        );
+      } catch (e) {
+        this.#logger.warn("[Outline] 无法发出大纲侧边栏打开请求（非致命）", e);
+      }
+
       const item = this.#outlineManager.getOutlineItem(targetId);
       this.#logger.info("[Outline] 查找大纲项结果", {
         targetId: targetId,
@@ -580,7 +597,23 @@ export class OutlineManager {
         }
         return;
       }
-      this.#logger.info("[Outline] 找到大纲项，准备导航", { outlineItem: item }, { toast: { type: "info", ms: 2000 } });
+      this.#logger.info("[Outline] 找到大纲项，准备导航", {
+        outlineItem: item,
+        sourceActorId
+      }, { toast: { type: "info", ms: 2000 } });
+      // 发出标准“选中改变”事件，使侧边栏 UI 能像用户点击一样高亮并滚动到该项
+      // 但若本次请求本身就来自大纲 UI（OutlineSidebarUI/OutlineSidebarUIClassic），则说明节点已经被选中，避免形成循环
+      if (sourceActorId !== "OutlineSidebarUI" && sourceActorId !== "OutlineSidebarUIClassic") {
+        try {
+          this.#eventBus.emitGlobal(
+            PDF_VIEWER_EVENTS.OUTLINE.SELECT.CHANGED,
+            { outlineItemId: item.id, outlineItem: item },
+            { actorId: "OutlineManager" }
+          );
+        } catch (e) {
+          this.#logger.warn("[Outline] 发出 OUTLINE.SELECT.CHANGED 失败（非致命）", e);
+        }
+      }
       await this.#handleNavigate({ outlineItem: item });
       this.#logger.info("[Outline] 导航完成", { outlineItemId: item.id }, { toast: { type: "success", ms: 2000 } });
     } catch (e) {

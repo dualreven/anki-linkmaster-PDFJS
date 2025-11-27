@@ -272,6 +272,39 @@ export class DOMUtils {
     const els = (elements instanceof NodeList) ? Array.from(elements) : [elements];
     els.forEach(el => el?.removeEventListener(eventType, handler, options));
   }
+
+  /**
+   * 添加事件监听器并返回注销函数（托管模式）。
+   * 这是管理事件监听器生命周期的推荐方式，避免手动维护 detach 函数列表。
+   *
+   * @param {HTMLElement|Window|Document} element - 目标元素
+   * @param {string} eventType - 事件类型 (如 'click', 'scroll', 'wheel')
+   * @param {Function} handler - 事件处理函数
+   * @param {object} [options] - addEventListener 的选项 (如 { passive: true })
+   * @returns {Function} 调用以移除监听器的函数
+   *
+   * @example
+   * const detach = DOMUtils.addManagedEventListener(container, 'scroll', handleScroll, { passive: true });
+   * // 之后需要移除时：
+   * detach();
+   */
+  static addManagedEventListener(element, eventType, handler, options = {}) {
+    if (!element || typeof element.addEventListener !== "function") {
+      throw new Error("[DOMUtils.addManagedEventListener] element must support addEventListener");
+    }
+    if (typeof eventType !== "string" || !eventType) {
+      throw new Error("[DOMUtils.addManagedEventListener] eventType must be a non-empty string");
+    }
+    if (typeof handler !== "function") {
+      throw new Error("[DOMUtils.addManagedEventListener] handler must be a function");
+    }
+
+    element.addEventListener(eventType, handler, options);
+
+    return () => {
+      element.removeEventListener(eventType, handler, options);
+    };
+  }
 }
 
 export default DOMUtils;
