@@ -174,24 +174,18 @@ export class PDFResumeFeature {
    * 设置事件监听器
    */
   #setupListeners() {
-    // 文件加载成功：延迟一段时间后再拉取并应用 resume
-    // 说明：为避免窗口刚打开时 PDF.js/布局尚未完全稳定导致的跳转偏差，
-    // 在 FILE.LOAD.SUCCESS 之后增加 2.5 秒延迟再执行恢复导航。
+    // 文件加载成功：作为兜底信号，防止某些环境下缺失 RENDER.READY 事件
     this.#eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, () => {
-      // 若已有尚未触发的定时器，先取消
-      if (this.#resumeLoadTimer !== null) {
-        clearTimeout(this.#resumeLoadTimer);
-        this.#resumeLoadTimer = null;
-      }
-
-      const delayMs = 2500;
-      this.#logger.info("[pdf-resume] scheduling resume load", { delayMs });
-
-      this.#resumeLoadTimer = setTimeout(() => {
-        this.#resumeLoadTimer = null;
-        this.#handleFileLoaded();
-      }, delayMs);
+      // 作为fallback，在文件加载成功后按短延迟调度一次恢复
+      this.#scheduleResumeLoad(500, "file-load-success-fallback");
     }, { subscriberId: "PDFResumeFeature" });
+
+    // 渲染就绪事件：UI 已完成基础渲染（至少首页已渲染），此时执行恢复导航更安全
+    if (PDF_VIEWER_EVENTS.RENDER?.READY) {
+      this.#eventBus.on(PDF_VIEWER_EVENTS.RENDER.READY, () => {
+        this.#scheduleResumeLoad(0, "render-ready");
+      }, { subscriberId: "PDFResumeFeature" });
+    }
 
     // 页面变更事件：仅用于日志 & 内部分析，不再直接写入 resume
     // 说明：为排查“滚动/跳转过程中多次写入导致的竞态问题”，
@@ -280,6 +274,30 @@ export class PDFResumeFeature {
     // 心跳模式下暂时不依赖 beforeunload 保存，以避免 Qt 关闭路径下的不确定性。
     this.#beforeUnloadHandler = null;
     this.#logger.info("[pdf-resume] beforeunload handler disabled (heartbeat mode)");
+  }
+
+  /**
+   * 调度一次延迟的 resume 加载
+   * @param {number} delayMs - 延迟毫秒数
+   * @param {string} reason - 调度原因（用于日志）
+   */
+  #scheduleResumeLoad(delayMs, reason) {
+    if (!Number.isInteger(delayMs) || delayMs < 0) {
+      throw new Error(`[pdf-resume] invalid delayMs for scheduleResumeLoad: ${delayMs}`);
+    }
+
+    // 若已有尚未触发的定时器，先取消
+    if (this.#resumeLoadTimer !== null) {
+      clearTimeout(this.#resumeLoadTimer);
+      this.#resumeLoadTimer = null;
+    }
+
+    this.#logger.info("[pdf-resume] scheduling resume load", { delayMs, reason });
+
+    this.#resumeLoadTimer = setTimeout(() => {
+      this.#resumeLoadTimer = null;
+      this.#handleFileLoaded();
+    }, delayMs);
   }
 
   /**

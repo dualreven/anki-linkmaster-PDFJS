@@ -313,22 +313,6 @@ export class AnnotationFeature {
       }
     }, { subscriberId: "AnnotationFeature" });
 
-    // 监听文件加载成功事件，兜底设置 PDF ID（从文件名推断，无扩展名）
-    this.#eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, (data) => {
-      try {
-        if (!this.#annotationManager) {return;}
-        const extracted = this.#extractPdfUUID({ filename: data?.filename, url: data?.url });
-        if (extracted) {
-          this.#annotationManager.setPdfId(extracted);
-          this.#logger.info(`[AnnotationFeature] PDF ID inferred from file info: ${extracted}`);
-        } else {
-          this.#logger.warn("[AnnotationFeature] 未能从文件信息中解析出有效的 pdf_uuid (12位十六进制)");
-        }
-      } catch (e) {
-        this.#logger.warn("[AnnotationFeature] Failed to set PDF ID from LOAD.SUCCESS", e);
-      }
-    }, { subscriberId: "AnnotationFeature" });
-
     // 标注数据加载成功标记
     try {
       this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, () => {

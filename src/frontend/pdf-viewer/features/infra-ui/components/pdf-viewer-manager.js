@@ -37,6 +37,7 @@ export class PDFViewerManager {
   #pdfViewer = null;
   #linkService = null;
   #pdfjsEventBus = null;  // PDF.js的EventBus实例
+  #renderReadyEmitted = false; // 首次页面渲染完成后仅发一次 RENDER.READY
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
@@ -154,6 +155,9 @@ export class PDFViewerManager {
     } catch (error) {
       this.#logger.error("Error during setDocument:", error);
     }
+
+    // 新文档加载时重置渲染就绪标记
+    this.#renderReadyEmitted = false;
 
     this.#logger.info("PDF document loaded");
 
@@ -401,7 +405,20 @@ export class PDFViewerManager {
         const pn = evt?.pageNumber;
         if (!pn) { return; }
         if (this.#eventBus) {
+          // 单页渲染完成事件
           this.#eventBus.emit(PDF_VIEWER_EVENTS.RENDER.PAGE_COMPLETED, { pageNumber: pn }, { actorId: "PDFViewerManager" });
+
+          // 首次页面渲染完成时，发出全局渲染就绪事件（至少首页已渲染，可进行依赖 DOM 的操作）
+          if (!this.#renderReadyEmitted) {
+            this.#renderReadyEmitted = true;
+            const totalPages = this.pagesCount || 0;
+            this.#eventBus.emit(
+              PDF_VIEWER_EVENTS.RENDER.READY,
+              { firstPage: pn, totalPages },
+              { actorId: "PDFViewerManager" }
+            );
+            this.#logger.info("PDF render ready emitted", { firstPage: pn, totalPages });
+          }
         }
       });
     } catch (e) {
