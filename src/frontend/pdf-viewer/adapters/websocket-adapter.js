@@ -7,6 +7,10 @@
 import { getLogger } from "../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../common/event/event-constants.js";
+import { createEventStatusStore, markEventFired, runWithGate } from "../utils/event-gate-runner.js";
+import { createSubscriptionBag } from "../../common/ws/ws-subscription-bag.js";
+import { createMessageQueue } from "../../common/ws/ws-message-queue.js";
+import { handleViewerWsInbound } from "./ws-inbound-bridge.js";
 
 /**
  * WebSocket适配器类
@@ -36,14 +40,16 @@ export class WebSocketAdapter {
   /** @type {boolean} */
   #initialized = false;
 
-  /** @type {Array} */
-  #messageQueue = [];
+  /** @type {{ enqueue:(msg:any)=>void, drain:(fn:(msg:any)=>void)=>void, clear:()=>void, size:()=>number }} */
+  #messageQueue;
 
-  /** @type {Array<Function>} */
-  #unsubscribeFunctions = [];
+  /** @type {{ add:(fn:Function)=>void, clear:()=>void, size:()=>number }} */
+  #subscriptions;
 
   /** @type {string} */
   #viewerInstanceId;
+  /** @type {{ events: Record<string, {fired:boolean,count:number,lastPayload:any,lastAt:number}> }} */
+  #eventStatusStore;
 
   /**
    * 创建WebSocket适配器实例
@@ -62,7 +68,9 @@ export class WebSocketAdapter {
     this.#eventBus = eventBus;
     this.#wsClient = wsClient;
     this.#viewerInstanceId = WebSocketAdapter.#resolveViewerInstanceId();
-
+    this.#eventStatusStore = createEventStatusStore();
+    this.#messageQueue = createMessageQueue({ loggerName: "WebSocketAdapter" });
+    this.#subscriptions = createSubscriptionBag({ loggerName: "WebSocketAdapter" });
     this.#logger.debug("WebSocketAdapter instance created");
   }
 
@@ -81,6 +89,9 @@ export class WebSocketAdapter {
     // 内部→外部：监听应用事件并转发到WebSocket
     this.#setupOutgoingMessageHandlers();
 
+    // 监听核心状态型事件以更新 gate 状态字典（例如 RENDER.READY）
+    this.#setupGateStatusObservers();
+
     this.#logger.debug("WebSocket message handlers setup complete");
   }
 
@@ -96,166 +107,57 @@ export class WebSocketAdapter {
         this.#logger.debug(`Received WebSocket message event: ${message?.type}`);
         this.handleMessage(message);
         try {
-          const type = String(message?.type || "");
-          // ===== Outline inbound bridging =====
-          if (type.startsWith("pdf-viewer:outline-")) {
-            if (type === WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_COMPLETED) {
-              try {
-                const data = message?.data || {};
-                // 诊断：记录原始 outline_items 的类型与取值片段，便于确认后端回包
-                try {
-                  const raw = data?.outline_items;
-                  const rawType = raw === null ? "null" : Array.isArray(raw) ? "array" : typeof raw;
-                  const rawPreview = (() => {
-                    try { return JSON.stringify(raw)?.slice(0, 200); } catch (e) { return String(raw); }
-                  })();
-                  this.#logger.info(`[outline] inbound list (raw) outline_items_type=${rawType} preview=${rawPreview}`);
-                } catch (e) { void e; }
-
-                // 若为 null（统一语义：数据库当前无大纲记录），不在适配器层桥接给 UI，交由 OutlineFeature 执行“从PDF导入→保存→再拉取”流程
-                if (data?.outline_items === null) {
-                  this.#logger.info("[outline] inbound list is null → skip bridging, defer to OutlineFeature");
-                  return;
-                }
-
-                const items = Array.isArray(data?.outline_items) ? data.outline_items
-                  : (Array.isArray(data?.items) ? data.items : []);
-                const normalize = (nodes) => {
-                  if (!Array.isArray(nodes)) { return []; }
-                  return nodes.map(n => ({
-                    id: String(n.id ?? n.outline_id ?? ""),
-                    name: String(n.name ?? n.title ?? "(Untitled)"),
-                    pageAt: Number.isFinite(n.pageAt) ? n.pageAt : (Number.isFinite(n.page_at) ? n.page_at : null),
-                    position: (typeof n.position === "number") ? n.position
-                      : (typeof n.y_percent === "number" ? Math.max(0, Math.min(100, Math.round(n.y_percent))) : null),
-                    children: normalize(n.children || n.items || [])
-                  }));
-                };
-                const outlineItems = normalize(items);
-                this.#logger.info(`[outline] inbound list → emit OUTLINE.LOAD.SUCCESS (count=${outlineItems.length})`);
-                this.#eventBus.emit(
-                  PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS,
-                  { outlineItems, source: "ws-backend" },
-                  { actorId: "WebSocketAdapter" }
-                );
-              } catch {
-                this.#logger.warn("[outline] list completed handling failed");
-              }
-            } else if (type === WEBSOCKET_MESSAGE_TYPES.OUTLINE_UPDATE_FAILED) {
-              const err = message?.error || message?.data || { message: "unknown" };
-              this.#logger.error("[outline] update failed", err, { toast: { type: "error", ms: 5000 } });
-            } else if (type === WEBSOCKET_MESSAGE_TYPES.OUTLINE_CREATE_FAILED) {
-              const err = message?.error || message?.data || { message: "unknown" };
-              this.#logger.error("[outline] create failed", err, { toast: { type: "error", ms: 5000 } });
-            } else if (type === WEBSOCKET_MESSAGE_TYPES.OUTLINE_DELETE_FAILED) {
-              const err = message?.error || message?.data || { message: "unknown" };
-              this.#logger.error("[outline] delete failed", err, { toast: { type: "error", ms: 5000 } });
-            } else if (type.endsWith(":complete")) {
-              // 其他操作完成后主动拉取最新列表
-              try {
-                const params = new URLSearchParams(window.location.search);
-                const pdfId = params.get("pdf-id");
-                if (pdfId) {
-                  this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
-                }
-              } catch (e) { this.#logger.warn("[outline] request list after completed failed", e); }
-            }
-          }
-          if (type.startsWith("anchor:")) {
-            if (type.endsWith(":completed")) {
-              if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_GET_COMPLETED || type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST_COMPLETED) {
-                const anchors = message?.data?.anchors || (message?.data?.anchor ? [message.data.anchor] : []);
-                this.#logger.info("[anchor] inbound completed -> emit ANCHOR.DATA.LOADED", { type, count: Array.isArray(anchors) ? anchors.length : 0 });
-                this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED, { anchors }, { actorId: "WebSocketAdapter" });
-              } else if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_CREATE_COMPLETED) {
-                const id = message?.data?.uuid || message?.data?.anchor_id || null;
-                this.#logger.info("[anchor] create completed", { id });
-                try { this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATED, { anchorId: id }, { actorId: "WebSocketAdapter" }); } catch (e) { this.#logger.warn("[anchor] emit ANCHOR.CREATED failed", e); }
-
-                // [DIAGNOSTIC] 追踪创建完成后的自动刷新
-                this.#logger.warn("[DIAGNOSTIC] Auto-refresh after CREATE_COMPLETED", {
-                  source: "CREATE_COMPLETED handler",
-                  location: "Line 174-181",
-                  timestamp: Date.now()
-                });
-
-                // 创建成功后刷新列表
-                try {
-                  const params = new URLSearchParams(window.location.search);
-                  const pdfId = params.get("pdf-id");
-                  if (pdfId) {
-                    // [DIAGNOSTIC] 记录请求发送
-                    this.#logger.warn("[DIAGNOSTIC] Sending ANCHOR_LIST request", {
-                      source: "after CREATE",
-                      pdfId,
-                      timestamp: Date.now()
-                    });
-                    this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
-                  }
-                } catch (e) { this.#logger.warn("[anchor] request list after create completed failed", e); }
-              } else if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_ACTIVATE_COMPLETED) {
-                // [DIAGNOSTIC] 追踪激活完成后的自动刷新
-                this.#logger.warn("[DIAGNOSTIC] Auto-refresh after ACTIVATE_COMPLETED", {
-                  source: "ACTIVATE_COMPLETED handler",
-                  location: "Line 182-197",
-                  timestamp: Date.now()
-                });
-
-                // 更新当前项状态（不再自动刷新列表以避免死循环）
-                try {
-                  const id = message?.data?.anchor_id || message?.data?.uuid || null;
-                  const active = !!(message?.data?.active ?? true);
-                  if (id) {
-                    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.ACTIVATED, { anchorId: String(id), active }, { actorId: "WebSocketAdapter" });
-                  }
-                } catch { this.#logger.warn("anchor activate inbound mapping failed"); }
-                // ❌ 移除自动刷新逻辑以修复死循环问题
-                // 原因：激活锚点不需要刷新整个列表，且会触发 ACTIVATE → LIST → LOADED → re-ACTIVATE 循环
-              } else {
-                // [DIAGNOSTIC] 追踪其他完成事件的自动刷新
-                this.#logger.warn("[DIAGNOSTIC] Auto-refresh after OTHER_COMPLETED", {
-                  source: "catch-all handler",
-                  location: "Line 198-206",
-                  messageType: type,
-                  timestamp: Date.now()
-                });
-
-                // 其他完成事件后请求刷新列表（若可获取pdfId）
-                try {
-                  const params = new URLSearchParams(window.location.search);
-                  const pdfId = params.get("pdf-id");
-                  if (pdfId) {
-                    // [DIAGNOSTIC] 记录请求发送
-                    this.#logger.warn("[DIAGNOSTIC] Sending ANCHOR_LIST request", {
-                      source: "after OTHER",
-                      messageType: type,
-                      pdfId,
-                      timestamp: Date.now()
-                    });
-                    this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
-                  }
-                } catch { this.#logger.warn("noop"); }
-              }
-            }
-            // 将失败消息桥接为前端的 LOAD_FAILED（仅限 get/list 两类）
-            else if (type.endsWith(":failed")) {
-              if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_GET_FAILED || type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST_FAILED) {
-                const err = message?.error || message?.data?.error || message?.data || { message: "unknown error" };
-                this.#logger.warn("[anchor] inbound failed -> emit ANCHOR.DATA.LOAD_FAILED", { type, err: (err?.message || err) });
-                this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD_FAILED, { error: err, type }, { actorId: "WebSocketAdapter" });
-              } else if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_CREATE_FAILED) {
-                const err = message?.error || message?.data?.error || message?.data || { message: "unknown error" };
-                this.#logger.warn("[anchor] create failed", { err: (err?.message || err) });
-                try { this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATE_FAILED, { error: err }, { actorId: "WebSocketAdapter" }); } catch (e) { this.#logger.warn("[anchor] emit ANCHOR.CREATE_FAILED failed", e); }
-              }
-            }
-          }
-        } catch (e) { this.#logger.warn("anchor inbound bridge failed", e); }
+          handleViewerWsInbound({
+            message,
+            eventBus: this.#eventBus,
+            wsClient: this.#wsClient,
+            logger: this.#logger
+          });
+        } catch (e) {
+          this.#logger.warn("anchor/outline inbound bridge failed", e);
+        }
       },
       { subscriberId: "WebSocketAdapter" }
     );
 
-    this.#unsubscribeFunctions.push(unsubscribe);
+    this.#subscriptions.add(unsubscribe);
+  }
+
+  /**
+   * 为 gate.once / gate.on 提供状态型事件的观测入口。
+   * 当前仅监听 RENDER.READY，后续如有需要可在此集中扩展。
+   * @private
+   */
+  #setupGateStatusObservers() {
+    try {
+      const unsubRenderReady = this.#eventBus.onGlobal
+        ? this.#eventBus.onGlobal(
+          PDF_VIEWER_EVENTS.RENDER.READY,
+          (payload) => {
+            try {
+              markEventFired(this.#eventStatusStore, PDF_VIEWER_EVENTS.RENDER.READY, payload);
+            } catch (e) {
+              this.#logger.warn("[WebSocketAdapter] failed to markEventFired for RENDER.READY", e);
+            }
+          },
+          { subscriberId: "WebSocketAdapter" }
+        )
+        : this.#eventBus.on(
+          PDF_VIEWER_EVENTS.RENDER.READY,
+          (payload) => {
+            try {
+              markEventFired(this.#eventStatusStore, PDF_VIEWER_EVENTS.RENDER.READY, payload);
+            } catch (e) {
+              this.#logger.warn("[WebSocketAdapter] failed to markEventFired for RENDER.READY", e);
+            }
+          },
+          { subscriberId: "WebSocketAdapter" }
+        );
+
+      this.#subscriptions.add(unsubRenderReady);
+    } catch (e) {
+      this.#logger.warn("[WebSocketAdapter] setupGateStatusObservers failed", e);
+    }
   }
 
   /**
@@ -368,7 +270,7 @@ export class WebSocketAdapter {
           const pdfId = data?.pdf_uuid || getPdfId();
 
           // [DIAGNOSTIC] 追踪 ANCHOR.DATA.LOAD 事件来源
-          const stack = new Error().stack.split('\n').slice(1, 4).join('\n');
+          const stack = new Error().stack.split("\n").slice(1, 4).join("\n");
           this.#logger.warn("[DIAGNOSTIC] ANCHOR.DATA.LOAD triggered", {
             source: "EventBus listener",
             location: "Line 376-390",
@@ -462,7 +364,14 @@ export class WebSocketAdapter {
       { subscriberId: "WebSocketAdapter" }
     );
 
-    this.#unsubscribeFunctions.push(unsubscribe1, unsubscribe2, unsubscribe3, unsubA1, unsubA2, unsubA3, unsubA4, unsubA5);
+    this.#subscriptions.add(unsubscribe1);
+    this.#subscriptions.add(unsubscribe2);
+    this.#subscriptions.add(unsubscribe3);
+    this.#subscriptions.add(unsubA1);
+    this.#subscriptions.add(unsubA2);
+    this.#subscriptions.add(unsubA3);
+    this.#subscriptions.add(unsubA4);
+    this.#subscriptions.add(unsubA5);
   }
 
   /**
@@ -475,7 +384,7 @@ export class WebSocketAdapter {
   handleMessage(message) {
     if (!this.#initialized) {
       // 如果还未初始化，将消息加入队列
-      this.#messageQueue.push(message);
+      this.#messageQueue.enqueue(message);
       this.#logger.debug(`Message queued (not initialized yet): ${message.type}`);
       return;
     }
@@ -507,10 +416,38 @@ export class WebSocketAdapter {
       this.#handleSetZoom(data);
       break;
 
-    case WEBSOCKET_MESSAGE_TYPES.VIEWER_NAVIGATE_REQUESTED:
-      // ✅ 传递完整 message 对象（包含 to 路由字段）
-      this.#handleViewerNavigate(message, message?.request_id);
+    case WEBSOCKET_MESSAGE_TYPES.VIEWER_NAVIGATE_REQUESTED: {
+      const correlationId = message?.request_id || null;
+      // 使用 gate 协议控制导航执行时机（如等待 RENDER.READY）
+      void runWithGate({
+        eventBus: this.#eventBus,
+        store: this.#eventStatusStore,
+        rawGate: message?.gate,
+        run: async () => {
+          this.#handleViewerNavigate(message, correlationId);
+        }
+      }).catch((error) => {
+        try {
+          this.#logger.warn("[Navigate] gate execution failed", error);
+        } catch (e) {
+          void e;
+        }
+        try {
+          this.#wsClient.send({
+            type: WEBSOCKET_MESSAGE_TYPES.VIEWER_NAVIGATE_FAILED,
+            request_id: correlationId,
+            error: {
+              code: "GATE_FAILED",
+              message: error?.message || String(error)
+            },
+            data: { viewer_id: this.#viewerInstanceId }
+          });
+        } catch (e) {
+          this.#logger.warn("[Navigate] failed to send gate failure response", e);
+        }
+      });
       break;
+    }
 
     default:
       this.#logger.warn(`Unhandled WebSocket message type: ${type}`, {
@@ -686,7 +623,6 @@ export class WebSocketAdapter {
       // 2. ✅ 验证新协议字段（推荐）
       const targetClientId = to.client_id || null;
       const routingKey = to.routing_key || null;
-      const targetType = to.target_type || null;
 
       // 验证：如果指定了 client_id，检查是否匹配当前 viewer
       if (targetClientId) {
@@ -761,13 +697,11 @@ export class WebSocketAdapter {
         // 统一经由 URL 导航入口；若 position 为百分比则透传，否则省略
         const pos = data?.target?.position || data?.position || null; // { y_percent, x_percent } or { x, y } or number
         let positionPercent = null;
-        try {
-          if (pos && typeof pos === "object" && typeof pos.y_percent === "number") {
-            positionPercent = pos.y_percent;
-          } else if (typeof pos === "number" && pos >= 0 && pos <= 100) {
-            positionPercent = pos;
-          }
-        } catch {}
+        if (pos && typeof pos === "object" && typeof pos.y_percent === "number") {
+          positionPercent = pos.y_percent;
+        } else if (typeof pos === "number" && pos >= 0 && pos <= 100) {
+          positionPercent = pos;
+        }
         const req = { pageAt: pageNumber };
         const pdfId = to?.pdf_uuid || (() => { try { return new URLSearchParams(window.location.search).get("pdf-id"); } catch { return null; } })();
         if (pdfId) { req.pdfId = pdfId; }
@@ -821,14 +755,13 @@ export class WebSocketAdapter {
   onInitialized() {
     this.#initialized = true;
 
-    if (this.#messageQueue.length > 0) {
-      this.#logger.info(`Processing ${this.#messageQueue.length} queued messages`);
+    const queued = this.#messageQueue.size();
+    if (queued > 0) {
+      this.#logger.info(`Processing ${queued} queued messages`);
 
-      this.#messageQueue.forEach((message) => {
+      this.#messageQueue.drain((message) => {
         this.#routeMessage(message);
       });
-
-      this.#messageQueue = [];
     }
 
     this.#logger.debug("WebSocketAdapter marked as initialized");
@@ -843,16 +776,8 @@ export class WebSocketAdapter {
     this.#logger.info("Destroying WebSocketAdapter");
 
     // 取消所有事件订阅
-    this.#unsubscribeFunctions.forEach((unsubscribe) => {
-      try {
-        unsubscribe();
-      } catch (error) {
-        this.#logger.warn("Error unsubscribing from event:", error);
-      }
-    });
-
-    this.#unsubscribeFunctions = [];
-    this.#messageQueue = [];
+    this.#subscriptions.clear();
+    this.#messageQueue.clear();
     this.#initialized = false;
 
     this.#logger.debug("WebSocketAdapter destroyed");
@@ -867,8 +792,8 @@ export class WebSocketAdapter {
   getState() {
     return {
       initialized: this.#initialized,
-      queuedMessages: this.#messageQueue.length,
-      activeListeners: this.#unsubscribeFunctions.length
+      queuedMessages: this.#messageQueue.size(),
+      activeListeners: this.#subscriptions.size()
     };
   }
 }

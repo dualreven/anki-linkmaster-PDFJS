@@ -129,7 +129,11 @@ export class OutlineToolbar {
   #handleSortClick() {
     this.#sortMode = !this.#sortMode;
     const msg = this.#sortMode ? "拖动大纲进行排序" : "排序模式已关闭";
-    try { showInfo(msg); } catch {}
+    try {
+      showInfo(msg);
+    } catch (e) {
+      this.#logger.warn("OutlineToolbar showInfo failed", e);
+    }
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.OUTLINE.SORT.MODE_CHANGED,
       { sortMode: this.#sortMode },

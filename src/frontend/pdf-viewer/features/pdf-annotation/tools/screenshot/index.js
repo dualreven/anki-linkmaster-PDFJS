@@ -84,7 +84,7 @@ export class ScreenshotTool extends IAnnotationTool {
     this.#container = context.container || null;
     try {
       this.#pdfjsEventBus = this.#pdfViewerManager?.eventBus || null;
-    } catch (e) { void e; }
+    } catch (e) { void e; /* logger-guard */ }
 
     // 初始化截图捕获器
     this.#capturer = new ScreenshotCapturer();
@@ -144,7 +144,7 @@ export class ScreenshotTool extends IAnnotationTool {
         this.#flushPendingForPage(pn);
         this.#restoreScreenshotMarkersForPage(pn);
       }, { subscriberId: "ScreenshotTool" });
-    } catch (e) { void e; }
+    } catch (e) { void e; /* logger-guard */ }
 
     this.#logStep("01", "Initialize begin", {
       qwebChannelMode: this.#qwebChannelBridge.getMode()
@@ -307,17 +307,17 @@ export class ScreenshotTool extends IAnnotationTool {
     }
     if (this.#pdfjsEventBus && this.#pdfjsPageRenderedHandler) {
 
-      try { this.#pdfjsEventBus.off?.(PDF_VIEWER_EVENTS.PDFJS_EVENTS.PAGE.RENDERED, this.#pdfjsPageRenderedHandler); } catch (e) { void e; }
+      try { this.#pdfjsEventBus.off?.(PDF_VIEWER_EVENTS.PDFJS_EVENTS.PAGE.RENDERED, this.#pdfjsPageRenderedHandler); } catch (e) { void e; /* logger-guard */ }
     }
     this.#onAnnotationDataLoadedHandler = null;
     this.#pdfjsPageRenderedHandler = null;
     if (this.#pdfjsEventBus && this.#pdfjsScaleChangingHandler) {
 
-      try { this.#pdfjsEventBus.off?.(PDF_VIEWER_EVENTS.PDFJS_EVENTS.SCALE.CHANGING, this.#pdfjsScaleChangingHandler); } catch (e) { void e; }
+      try { this.#pdfjsEventBus.off?.(PDF_VIEWER_EVENTS.PDFJS_EVENTS.SCALE.CHANGING, this.#pdfjsScaleChangingHandler); } catch (e) { void e; /* logger-guard */ }
     }
     if (this.#pdfjsEventBus && this.#pdfjsScaleChangedHandler) {
 
-      try { this.#pdfjsEventBus.off?.(PDF_VIEWER_EVENTS.PDFJS_EVENTS.SCALE.CHANGED, this.#pdfjsScaleChangedHandler); } catch (e) { void e; }
+      try { this.#pdfjsEventBus.off?.(PDF_VIEWER_EVENTS.PDFJS_EVENTS.SCALE.CHANGED, this.#pdfjsScaleChangedHandler); } catch (e) { void e; /* logger-guard */ }
     }
     this.deactivate();
     this.clearAllMarkers();
@@ -894,8 +894,8 @@ export class ScreenshotTool extends IAnnotationTool {
         const btnOk = document.createElement("button");
         btnOk.textContent = "删除";
         btnOk.style.cssText = "padding:6px 12px;border:1px solid #c62828;background:#c62828;color:#fff;border-radius:4px;cursor:pointer;";
-        btnCancel.addEventListener("click", () => { try { overlay.remove(); } catch (e) { void e; } resolve(false); });
-        btnOk.addEventListener("click", () => { try { overlay.remove(); } catch (e) { void e; } resolve(true); });
+        btnCancel.addEventListener("click", () => { try { overlay.remove(); } catch (e) { void e; /* logger-guard */ } resolve(false); });
+        btnOk.addEventListener("click", () => { try { overlay.remove(); } catch (e) { void e; /* logger-guard */ } resolve(true); });
         footer.appendChild(btnCancel); footer.appendChild(btnOk);
         dlg.appendChild(body); dlg.appendChild(footer); overlay.appendChild(dlg);
         document.body.appendChild(overlay);
@@ -1145,7 +1145,7 @@ export class ScreenshotTool extends IAnnotationTool {
           return;
         }
         // 否则先移除旧元素，再重建
-        try { existing.remove(); } catch (e) { void e; }
+        try { existing.remove(); } catch (e) { void e; /* logger-guard */ }
         this.#renderedMarkers.delete(annotation.id);
         this.#logStep("05.0r", "Existing marker detached or wrong page → rebuild", { id: annotation.id, page: pageNumber });
       }
@@ -1443,4 +1443,3 @@ export class ScreenshotTool extends IAnnotationTool {
     this.#endPos = null;
   }
 }
-

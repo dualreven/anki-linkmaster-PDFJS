@@ -364,9 +364,21 @@ export class OutlineManager {
   }
 
   destroy() {
-    this.#unsubs.forEach(u => { try { u(); } catch{ } });
+    this.#unsubs.forEach(u => {
+      try {
+        u();
+      } catch (e) {
+        void e; /* logger-guard */
+      }
+    });
     this.#unsubs = [];
-    if (this.#ui) { try { this.#ui.destroy(); } catch{ } }
+    if (this.#ui) {
+      try {
+        this.#ui.destroy();
+      } catch (e) {
+        void e; /* logger-guard */
+      }
+    }
     this.#logger.info("OutlineManager destroyed");
   }
 

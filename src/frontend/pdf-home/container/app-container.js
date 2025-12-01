@@ -36,7 +36,7 @@ export function createPDFHomeContainer({ root, wsUrl, logger, enableValidation =
   function connect() {
     if (state.disposed) {return;}
     try {
-      if (\!state.wsUrl) {state.wsUrl = buildWsUrlFromQuery();}
+      if (!state.wsUrl) {state.wsUrl = buildWsUrlFromQuery();}
       const logger = diContainer.get("logger");
       logger.info();
 
@@ -54,13 +54,21 @@ export function createPDFHomeContainer({ root, wsUrl, logger, enableValidation =
     try {
       const wsClient = diContainer.get("wsClient");
       wsClient?.disconnect?.();
-    } catch {}
+    } catch (e) {
+      const logger = diContainer.get("logger");
+      logger.warn("[pdf-home] disconnect failed", e);
+    }
   }
 
   function dispose() {
     state.disposed = true;
     disconnect();
-    try { uiManager?.dispose?.(); } catch {}
+    try {
+      uiManager?.dispose?.();
+    } catch (e) {
+      const logger = diContainer.get("logger");
+      logger.warn("[pdf-home] uiManager dispose failed", e);
+    }
     uiManager = null;
     diContainer.dispose();
   }
@@ -104,11 +112,15 @@ export function createPDFHomeContainer({ root, wsUrl, logger, enableValidation =
     // PDFManager会将WebSocket消息转换为PDF_MANAGEMENT_EVENTS事件
 
     eventBus.on(WEBSOCKET_MESSAGE_EVENTS.SUCCESS, (message) => {
-      try { uiManager?.notify?.({ level: "info", message: message?.data?.message || "OK" }); } catch {}
-    }, { subscriberId: "pdf-home.container" });
-
-    eventBus.on(WEBSOCKET_MESSAGE_EVENTS.ERROR, (message) => {
-      try { uiManager?.notify?.({ level: "error", message: message?.data?.message || "操作失败" }); } catch {}
+      try {
+        uiManager?.notify?.({
+          level: "info",
+          message: message?.data?.message || "OK"
+        });
+      } catch (e) {
+        const logger = diContainer.get("logger");
+        logger.warn("[pdf-home] notify success failed", e);
+      }
     }, { subscriberId: "pdf-home.container" });
   }
 
@@ -147,23 +159,23 @@ export function createPDFHomeContainer({ root, wsUrl, logger, enableValidation =
 
     const logger = diContainer.get("logger");
 
-    if (\!state.wsUrl) {state.wsUrl = buildWsUrlFromQuery();}
+    if (!state.wsUrl) {state.wsUrl = buildWsUrlFromQuery();}
 
     // 确保 wsClient 已创建（但不连接）
-    if (\!diContainer.has("wsClient") && state.wsUrl) {
+    if (!diContainer.has("wsClient") && state.wsUrl) {
       try {
         const eventBus = diContainer.get("eventBus");
-        // 显式传递 pdf-home 的客户端身份信息
+        // 显式传递 pdf-home 的客户端身份信息（与注册协议保持一致）
         const identityOptions = {
           client_name: "pdf-home",
-          client_id: "ui",
+          client_id: "pdf-home",
           module: "pdf-home"
         };
         const wsClient = new WSClient(state.wsUrl, eventBus, identityOptions);
         diContainer.register("wsClient", wsClient);
-        logger.debug("WSClient created and registered with identity: pdf-home:ui");
+        logger.debug("WSClient created and registered with identity: pdf-home:pdf-home");
       } catch (e) {
-        logger.warn("ws client prepare failed", e);
+        logger.warn("[pdf-home] ws client prepare failed", e);
       }
     }
 
@@ -171,7 +183,7 @@ export function createPDFHomeContainer({ root, wsUrl, logger, enableValidation =
   }
 
   function isInitialized() {
-    return \!\!state.initialized;
+    return !!state.initialized;
   }
 }
 

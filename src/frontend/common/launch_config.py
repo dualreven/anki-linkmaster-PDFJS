@@ -138,7 +138,7 @@ class LaunchConfig:
         position = getattr(args, 'position', None)
         anchor_id = getattr(args, 'anchor_id', None)
         annotation_id = getattr(args, 'annotation_id', None)
-        # 可选：outline-item-id（通过 extra_params 透传给 url-navigation 特性）
+        # 可选：outline-item-id（通过 extra_params 透传给 URL 参数处理特性，如 pdf-url-loader）
         outline_item_id = getattr(args, 'outline_item_id', None)
 
         # 控制参数

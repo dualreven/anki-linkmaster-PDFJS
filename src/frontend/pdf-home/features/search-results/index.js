@@ -8,6 +8,7 @@ import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, PDF_MANAGEMENT_EVENTS, SEARC
 import { RESULTS_EVENTS } from "./events.js";
 import { showInfo, showError } from "../../../common/utils/notification.js";
 import "./styles/search-results.css";
+import { createSubscriptionBag } from "../../../common/event/subscription-bag.js";
 
 export class SearchResultsFeature {
   name = "search-results";
@@ -20,7 +21,7 @@ export class SearchResultsFeature {
   #logger = null;
   #scopedEventBus = null;
   #globalEventBus = null;
-  #unsubscribers = [];
+  #subscriptionBag = null;
 
   // 渲染器
   #resultsRenderer = null;
@@ -53,6 +54,8 @@ export class SearchResultsFeature {
     this.#globalEventBus = context.globalEventBus;
     // 生成一次性订阅者ID前缀（避免跨多次安装冲突）
     const sidBase = `sr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,6)}`;
+
+    this.#subscriptionBag = createSubscriptionBag({ loggerName: "SearchResultsFeature.Subscriptions" });
 
     this.#logger.info("[SearchResultsFeature] Installing...");
 
@@ -105,8 +108,10 @@ export class SearchResultsFeature {
     this.#logger.info("[SearchResultsFeature] Uninstalling...");
 
     // 取消事件订阅
-    this.#unsubscribers.forEach(unsub => unsub());
-    this.#unsubscribers = [];
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.clear();
+      this.#subscriptionBag = null;
+    }
 
     // 销毁渲染器
     if (this.#resultsRenderer) {
@@ -379,7 +384,9 @@ export class SearchResultsFeature {
         this.#lastRequestedPageLimit = null;
       }
     }, { subscriberId: `${this.name}:${sidBase}:search-query-req` });
-    this.#unsubscribers.push(unsubSearchRequested);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubSearchRequested);
+    }
     // 监听搜索结果更新（来自search插件）
     const unsubSearchResults = this.#globalEventBus.on(SEARCH_EVENTS.RESULTS.UPDATED, (data) => {
       this.#logger.info("[SearchResultsFeature] Search results received", {
@@ -389,7 +396,9 @@ export class SearchResultsFeature {
 
       this.#handleResultsUpdate(data.records, data.count, data.searchText, data.focusId, data.page);
     }, { subscriberId: `${this.name}:${sidBase}:search-results-updated` });
-    this.#unsubscribers.push(unsubSearchResults);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubSearchResults);
+    }
 
     // 监听筛选结果更新（来自filter插件）
     const unsubResults = this.#globalEventBus.on(FILTER_EVENTS.RESULTS.UPDATED, (data) => {
@@ -400,7 +409,9 @@ export class SearchResultsFeature {
 
       this.#handleResultsUpdate(data.results, data.count, data.searchText);
     }, { subscriberId: `${this.name}:${sidBase}:filter-results-updated` });
-    this.#unsubscribers.push(unsubResults);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubResults);
+    }
 
     this.#logger.info("[SearchResultsFeature] Subscribed to search and filter events");
 
@@ -417,7 +428,9 @@ export class SearchResultsFeature {
         this.#pendingFocusIds = null;
       }
     }, { subscriberId: `${this.name}:${sidBase}:focus-requested` });
-    this.#unsubscribers.push(unsubFocusReq);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubFocusReq);
+    }
   }
 
   /**
@@ -431,7 +444,9 @@ export class SearchResultsFeature {
       this.#logger.debug("[SearchResultsFeature] Item selected", data);
       this.#globalEventBus.emit(SEARCH_RESULTS_EVENTS.ACTIONS.SELECTED, data);
     }, { subscriberId: `${this.name}:${sidBase}:item-selected` });
-    this.#unsubscribers.push(unsubSelected);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubSelected);
+    }
 
     // 条目打开事件 -> 转发到全局
     const unsubOpen = this.#scopedEventBus.on(RESULTS_EVENTS.ITEM.OPEN, async (data) => {
@@ -498,7 +513,9 @@ export class SearchResultsFeature {
         this.#logger.error("[SearchResultsFeature] Open viewer failed", e);
       }
     }, { subscriberId: `${this.name}:${sidBase}:item-open` });
-    this.#unsubscribers.push(unsubOpen);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubOpen);
+    }
 
     this.#logger.info("[SearchResultsFeature] Event bridge setup");
   }

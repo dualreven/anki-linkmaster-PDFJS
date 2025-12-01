@@ -7,7 +7,8 @@
  */
 
 import { getLogger } from "../utils/logger.js";
-import { WEBSOCKET_EVENTS } from "../event/event-constants.js";
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../event/event-constants.js";
+import { createSubscriptionBag } from "../ws/ws-subscription-bag.js";
 
 /**
  * WebSocket适配器基类
@@ -24,11 +25,11 @@ export class WebSocketAdapterBase {
   /** @type {import('../ws/ws-client.js').WSClient} */
   #wsClient;
 
-  /** @type {Array<Function>} */
-  #unsubscribeFunctions = [];
-
   /** @type {string} */
   #loggerName;
+
+  /** @type {{ add:(fn:Function)=>void, clear:()=>void, size:()=>number }} */
+  #subscriptions;
 
   /**
    * 创建WebSocket适配器基类实例
@@ -49,6 +50,7 @@ export class WebSocketAdapterBase {
     this.#logger = getLogger(this.#loggerName);
     this.#eventBus = eventBus;
     this.#wsClient = wsClient;
+    this.#subscriptions = createSubscriptionBag({ loggerName: this.#loggerName });
 
     this.#logger.debug(`${this.#loggerName} instance created`);
   }
@@ -99,7 +101,7 @@ export class WebSocketAdapterBase {
       { subscriberId: this.#loggerName }
     );
 
-    this.#unsubscribeFunctions.push(unsubConn);
+    this.#subscriptions.add(unsubConn);
   }
 
   /**
@@ -123,7 +125,7 @@ export class WebSocketAdapterBase {
 
       // 构造新协议注册消息
       const message = {
-        type: "client:register:requested",
+        type: WEBSOCKET_MESSAGE_TYPES.CLIENT_REGISTER_REQUESTED,
         metadata: { version: "1.0.0" },
         data: {
           client_id: config.client_id,
@@ -158,15 +160,7 @@ export class WebSocketAdapterBase {
     this.#logger.info("Destroying WebSocketAdapter");
 
     // 取消所有事件订阅
-    this.#unsubscribeFunctions.forEach((unsubscribe) => {
-      try {
-        unsubscribe();
-      } catch (e) {
-        this.#logger.warn("Failed to unsubscribe", e);
-      }
-    });
-
-    this.#unsubscribeFunctions = [];
+    this.#subscriptions.clear();
     this.#logger.debug("WebSocketAdapter destroyed");
   }
 

@@ -7,11 +7,8 @@
 
 import { getLogger, setModuleLogLevel, LogLevel } from "../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
-import { createScopedEventBus } from "../../../common/event/scoped-event-bus.js";
 import { URLParamsParser } from "./components/url-params-parser.js";
 import { PDFUrlLoaderFeatureConfig } from "./feature.config.js";
-// 移除未使用的通知导入，避免 no-unused-vars
-import { URLJumpDispatcher } from "./components/url-jump-dispatcher.js";
 
 /**
  * URL导航功能Feature
@@ -35,17 +32,6 @@ export class PDFUrlLoaderFeature {
   #hasProcessedParams = false;
 
   // 已不依赖渲染就绪门闸
-
-  /** @type {boolean} 标注数据是否已加载 */
-  #annotationDataLoaded = false;
-  /** @type {boolean} 渲染是否已就绪（首页已渲染） */
-  #renderReady = false;
-
-  /** @type {boolean} 是否已执行过受控导航（防止重复触发） */
-  #gatedNavigationDone = false;
-
-  /** @type {number|null} 导航开始时间戳 */
-  #navigationStartTime = null;
 
   /** @type {boolean} 导航进行中（用于抑制重复载荷二次触发） */
   #navInProgress = false;
@@ -179,13 +165,13 @@ export class PDFUrlLoaderFeature {
           // 以 warn 级别输出一次“将要触发加载”的跟踪日志，便于生产观察来源
           try {
             this.#logger.info("[TRACE] Emitting FILE.LOAD.REQUESTED from PDFUrlLoaderFeature", { pdfId, filename: filenameForLoad, source: "url-params" });
-          } catch (e) { void e; }
+          } catch (e) { void e; /* logger-guard */ }
 
-      this.#eventBus.emit(
-        PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
-        { filename: filenameForLoad, file_path: filePath, source: "pdf-url-loader" },
-        { actorId: "PDFUrlLoaderFeature" }
-      );
+          this.#eventBus.emit(
+            PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
+            { filename: filenameForLoad, file_path: filePath, source: "pdf-url-loader" },
+            { actorId: "PDFUrlLoaderFeature" }
+          );
         }
       } catch (e) {
         this.#logger.warn("[url-navigation] 触发加载失败（忽略并继续门闸流程）", e);
@@ -217,7 +203,6 @@ export class PDFUrlLoaderFeature {
     this.#eventBus = null;
     this.#parsedParams = null;
     this.#hasProcessedParams = false;
-    this.#navigationStartTime = null;
 
     this.#logger.info(`${this.name} Feature已卸载`);
   }
@@ -288,13 +273,6 @@ export class PDFUrlLoaderFeature {
   }
 
   /**
-   * @deprecated URL 参数跳转已禁用，此方法不再使用
-   */
-  async #tryExecuteGatedNavigation() {
-    this.#logger.info("[url-navigation] URL 参数跳转已禁用");
-  }
-
-  /**
    * 处理PDF加载失败事件
    * @param {Object} data - 事件数据
    * @private
@@ -318,7 +296,12 @@ export class PDFUrlLoaderFeature {
    * @private
    */
   async #handleNavigationRequested(params) {
-    try { this.#logger.info(`[url-navigation] 收到手动导航请求: ${JSON.stringify(params)}`); } catch { this.#logger.info("收到手动导航请求:", params); }
+    try {
+      this.#logger.info(`[url-navigation] 收到手动导航请求: ${JSON.stringify(params)}`);
+    } catch (e) {
+      void e; /* logger-guard */
+      this.#logger.info("收到手动导航请求:", params);
+    }
 
     const validation = URLParamsParser.validate(params);
     if (!validation.isValid) {
@@ -356,7 +339,9 @@ export class PDFUrlLoaderFeature {
         return;
       }
       this.#inflightNavKey = key;
-    } catch { }
+    } catch (e) {
+      void e; /* logger-guard */
+    }
 
     try {
       this.#navInProgress = true;
@@ -364,7 +349,7 @@ export class PDFUrlLoaderFeature {
       // 否则视为“同文档内导航”，直接执行页面跳转，避免刷新到第1页。
       if (params.pdfId) {
         let currentId = null;
-        try { currentId = new URLSearchParams(window.location.search).get("pdf-id"); } catch (e) { void e; }
+        try { currentId = new URLSearchParams(window.location.search).get("pdf-id"); } catch (e) { void e; /* logger-guard */ }
         const sameDoc = currentId && (String(currentId).trim() === String(params.pdfId).trim());
         if (!sameDoc) {
           this.#logger.info("[url-navigation] 检测到不同的 pdfId，触发重新加载", { currentId, target: params.pdfId });

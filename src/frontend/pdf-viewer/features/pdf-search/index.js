@@ -41,9 +41,6 @@ export class SearchFeature {
   /** @type {boolean} 是否已安装 */
   #installed = false;
 
-  /** @type {Function|null} 全局快捷键卸载函数 */
-  #shortcutDisposer = null;
-
   /**
    * Feature名称
    * @returns {string}
@@ -143,7 +140,7 @@ export class SearchFeature {
       );
 
       // 8. 设置全局快捷键（Ctrl+F），使用公共 helper
-      this.#shortcutDisposer = setupGlobalSearchShortcut({
+      setupGlobalSearchShortcut({
         logger: this.#logger,
         actorId: "SearchFeature:GlobalShortcut",
         onOpen: () => {
@@ -249,28 +246,6 @@ export class SearchFeature {
     );
 
     this.#logger.info("Event listeners attached");
-  }
-
-  /**
-   * 设置全局快捷键
-   * @private
-   */
-  #setupGlobalShortcuts() {
-    // 该方法保留用于向后兼容旧调用，但内部逻辑已经迁移到公共 helper
-    if (!this.#shortcutDisposer) {
-      this.#shortcutDisposer = setupGlobalSearchShortcut({
-        logger: this.#logger,
-        actorId: "SearchFeature:GlobalShortcut",
-        onOpen: () => {
-          this.#eventBus.emit(
-            PDF_VIEWER_EVENTS.SEARCH.UI.OPEN,
-            {},
-            { actorId: "SearchFeature:GlobalShortcut" }
-          );
-        }
-      });
-    }
-    this.#logger.info("Global shortcuts registered (Ctrl+F)");
   }
 
   /**

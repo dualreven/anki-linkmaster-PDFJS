@@ -7,13 +7,15 @@
 
 import { getLogger } from "../../../../common/utils/logger.js";
 import { showInfo } from "../../../../common/utils/notification.js";
+import { createSubscriptionBag } from "../../../../common/ws/ws-subscription-bag.js";
+import { createSidebarRoot } from "../../../shared/sidebar-shell.js";
 
 export class CardSidebarUI {
   #logger;
   #sidebarContent; // 侧边栏完整内容容器
   #header; // Header区域（包含按钮）
   #body; // Body区域（占位内容）
-  #unsubs = [];
+  #subscriptions;
 
   /**
    * 构造函数
@@ -23,6 +25,7 @@ export class CardSidebarUI {
     // eventBus 当前未使用，仅为未来扩展保留；用 void 标记为“已使用”以通过 Lint
     void eventBus;
     this.#logger = getLogger("CardSidebarUI");
+    this.#subscriptions = createSubscriptionBag({ loggerName: "CardSidebarUI" });
   }
 
   /**
@@ -32,9 +35,9 @@ export class CardSidebarUI {
     this.#logger.info("Initializing CardSidebarUI...");
 
     // 创建完整内容容器
-    this.#sidebarContent = document.createElement("div");
-    this.#sidebarContent.className = "card-sidebar-content";
-    this.#sidebarContent.style.cssText = "height:100%;display:flex;flex-direction:column;box-sizing:border-box;";
+    this.#sidebarContent = createSidebarRoot({
+      className: "card-sidebar-content"
+    });
 
     // 创建Header区域
     this.#header = this.#createHeader();
@@ -235,8 +238,7 @@ export class CardSidebarUI {
     this.#logger.info("Destroying CardSidebarUI...");
 
     // 取消所有事件订阅
-    this.#unsubs.forEach(unsub => unsub());
-    this.#unsubs = [];
+    this.#subscriptions?.clear();
 
     // 移除DOM元素
     if (this.#sidebarContent && this.#sidebarContent.parentElement) {

@@ -6,7 +6,7 @@
 
 import { getLogger } from "../../../common/utils/logger.js";
 import { createSidebarConfig } from "./sidebar-config.js";
-import OutlineSidebarUIClassic from "../../ui/outline-sidebar-ui.js";
+import { createLazySidebarConfig } from "./lazy-sidebar-factory.js";
 const logger = getLogger("RealSidebars");
 
 /**
@@ -49,32 +49,24 @@ export async function registerRealSidebars(sidebarManager, eventBus, container) 
   sidebarManager.registerSidebar(anchorConfig);
   logger.info("Anchor sidebar registered");
 
-  // 1. 大纲侧边栏（优先从容器获取 OutlineSidebarUI；若缺失，创建经典实现 OutlineSidebarUIClassic）
-  let outlineUI = null;
-  try {
-    outlineUI = container?.get?.("outlineSidebarUI") || null;
-  } catch (e) {
-    logger.warn("Failed to get outlineSidebarUI from container", e);
-  }
-  if (!outlineUI) {
-    outlineUI = new OutlineSidebarUIClassic(eventBus);
-    logger.warn("outlineSidebarUI not found; using OutlineSidebarUIClassic");
-  }
-  try {
-    // 由 pdf-outline Feature 负责创建并初始化 OutlineSidebarUI；此处只使用
-    logger.info("outlineSidebarUI obtained from container; skip initialize");
-  } catch (e) {
-    logger.warn("outlineSidebarUI usage guard failed", e);
-  }
-
-  const outlineConfig = createSidebarConfig({
+  // 1. 大纲侧边栏（仅使用通过 Feature 注册到容器中的新 OutlineSidebarUI，不再 fallback Classic 实现）
+  const outlineConfig = createLazySidebarConfig({
     id: "outline",
     title: "大纲",
-    contentRenderer: () => outlineUI.getContentElement(),
-    defaultWidth: 280,
-    minWidth: 200,
-    maxWidth: 500,
-    resizable: true
+    tokenName: "outlineSidebarUI",
+    container,
+    width: {
+      defaultWidth: 280,
+      minWidth: 200,
+      maxWidth: 500,
+      resizable: true
+    },
+    placeholderFactory: () => {
+      const placeholder = document.createElement("div");
+      placeholder.style.cssText = "padding: 20px; color: #999; text-align: center;";
+      placeholder.innerHTML = "<div>大纲功能未启用</div>";
+      return placeholder;
+    }
   });
   sidebarManager.registerSidebar(outlineConfig);
   logger.info("Outline sidebar registered");
@@ -113,62 +105,43 @@ export async function registerRealSidebars(sidebarManager, eventBus, container) 
   logger.info("Annotation sidebar registered (will load from container on first open)");
 
   // 3. 卡片侧边栏（延迟获取，首次调用时从容器获取并缓存）
-  let cardUIInstance = null;
-
-  const cardConfig = createSidebarConfig({
+  const cardConfig = createLazySidebarConfig({
     id: "card",
     title: "卡片",
-    contentRenderer: () => {
-      // 首次调用时从容器获取并缓存
-      if (!cardUIInstance && container) {
-        cardUIInstance = container.get("cardSidebarUI");
-        logger.info(`Retrieved cardSidebarUI from container: ${!!cardUIInstance}`);
-      }
-
-      if (cardUIInstance) {
-        const contentElement = cardUIInstance.getContentElement();
-        logger.info("Returned CardSidebarUI content element");
-        return contentElement;
-      } else {
-        logger.warn("CardSidebarUI still not available, showing placeholder");
-        const placeholder = document.createElement("div");
-        placeholder.style.cssText = "padding: 20px; color: #999; text-align: center;";
-        placeholder.innerHTML = "<div>卡片功能加载中...</div>";
-        return placeholder;
-      }
+    tokenName: "cardSidebarUI",
+    container,
+    width: {
+      defaultWidth: 350,
+      minWidth: 250,
+      maxWidth: 600,
+      resizable: true
     },
-    defaultWidth: 350,
-    minWidth: 250,
-    maxWidth: 600,
-    resizable: true
+    placeholderFactory: () => {
+      const placeholder = document.createElement("div");
+      placeholder.style.cssText = "padding: 20px; color: #999; text-align: center;";
+      placeholder.innerHTML = "<div>卡片功能加载中...</div>";
+      return placeholder;
+    }
   });
-    // 4. AI 助手侧边栏（延迟获取）
-  let aiAssistantUIInstance = null;
 
-  const aiAssistantConfig = createSidebarConfig({
+  // 4. AI 助手侧边栏（延迟获取）
+  const aiAssistantConfig = createLazySidebarConfig({
     id: "ai-assistant",
     title: "AI 助手",
-    contentRenderer: () => {
-      if (!aiAssistantUIInstance && container) {
-        aiAssistantUIInstance = container.get("aiAssistantSidebarUI");
-        logger.info(`Retrieved aiAssistantSidebarUI from container: ${!!aiAssistantUIInstance}`);
-      }
-
-      if (aiAssistantUIInstance) {
-        const contentElement = aiAssistantUIInstance.getContentElement();
-        logger.info("Returned AiAssistantSidebarUI content element");
-        return contentElement;
-      } else {
-        const placeholder = document.createElement("div");
-        placeholder.style.cssText = "padding: 20px; color: #999; text-align: center;";
-        placeholder.innerHTML = "<div>AI助手加载中...</div>";
-        return placeholder;
-      }
+    tokenName: "aiAssistantSidebarUI",
+    container,
+    width: {
+      defaultWidth: 360,
+      minWidth: 260,
+      maxWidth: 600,
+      resizable: true
     },
-    defaultWidth: 360,
-    minWidth: 260,
-    maxWidth: 600,
-    resizable: true
+    placeholderFactory: () => {
+      const placeholder = document.createElement("div");
+      placeholder.style.cssText = "padding: 20px; color: #999; text-align: center;";
+      placeholder.innerHTML = "<div>AI助手加载中...</div>";
+      return placeholder;
+    }
   });
   sidebarManager.registerSidebar(aiAssistantConfig);
   logger.info("AI assistant sidebar registered (lazy loads from container)");
@@ -177,34 +150,23 @@ export async function registerRealSidebars(sidebarManager, eventBus, container) 
   logger.info("Card sidebar registered (will load from container on first open)");
 
   // 5. 翻译侧边栏（延迟获取，首次调用时从容器获取并缓存）
-  let translatorUIInstance = null;
-
-  const translateConfig = createSidebarConfig({
+  const translateConfig = createLazySidebarConfig({
     id: "translate",
     title: "翻译",
-    contentRenderer: () => {
-      // 首次调用时从容器获取并缓存
-      if (!translatorUIInstance && container) {
-        translatorUIInstance = container.get("translatorSidebarUI");
-        logger.info(`Retrieved translatorSidebarUI from container: ${!!translatorUIInstance}`);
-      }
-
-      if (translatorUIInstance) {
-        const contentElement = translatorUIInstance.getContentElement();
-        logger.info("Returned TranslatorSidebarUI content element");
-        return contentElement;
-      } else {
-        logger.warn("TranslatorSidebarUI still not available, showing placeholder");
-        const placeholder = document.createElement("div");
-        placeholder.style.cssText = "padding: 20px; color: #999; text-align: center;";
-        placeholder.innerHTML = "<div>翻译功能加载中...</div>";
-        return placeholder;
-      }
+    tokenName: "translatorSidebarUI",
+    container,
+    width: {
+      defaultWidth: 350,
+      minWidth: 250,
+      maxWidth: 600,
+      resizable: true
     },
-    defaultWidth: 350,
-    minWidth: 250,
-    maxWidth: 600,
-    resizable: true
+    placeholderFactory: () => {
+      const placeholder = document.createElement("div");
+      placeholder.style.cssText = "padding: 20px; color: #999; text-align: center;";
+      placeholder.innerHTML = "<div>翻译功能加载中...</div>";
+      return placeholder;
+    }
   });
   sidebarManager.registerSidebar(translateConfig);
   logger.info("Translate sidebar registered (will load from container on first open)");

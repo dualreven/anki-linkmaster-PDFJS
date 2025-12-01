@@ -746,11 +746,17 @@ export class FilterBuilder {
     const config = this.getConditionConfig();
     try {
       this.#logger?.debug?.("[FilterBuilder] Built Condition Config", config);
-    } catch (e) { try { this.#logger?.warn?.("[FilterBuilder] Log config failed", e); } catch (e2) { void e2; } }
+    } catch (e) {
+      // logger-guard
+      void e;
+    }
     // 通知 Feature 层：条件已构建
     try {
       this.#eventBus?.emit(FILTER_EVENTS.APPLY.COMPLETED, { condition: config });
-    } catch (e) { void e; }
+    } catch (e) {
+      // logger-guard
+      void e;
+    }
     // 仅隐藏面板，实际发送由上层 Feature 执行
     this.hide();
   }

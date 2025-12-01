@@ -210,7 +210,9 @@ export class QWebChannelScreenshotBridge {
           .map(b => b.toString(16).padStart(2, "0"))
           .join("");
       }
-    } catch {}
+    } catch (e) {
+      void e; /* logger-guard */
+    }
 
     // 兼容回退：基于输入内容构造一个 32位十六进制（非加密，仅用于通过后端格式校验）
     const src = (typeof base64Image === "string" ? base64Image : String(base64Image)).slice(0, 1024);

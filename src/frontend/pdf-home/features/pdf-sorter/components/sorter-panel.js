@@ -11,6 +11,7 @@
  * @class SorterPanel
  */
 import { SORTER_EVENTS } from "../../../../common/event/event-constants.js";
+import { createSubscriptionBag } from "../../../../common/event/subscription-bag.js";
 
 export class SorterPanel {
   /**
@@ -64,10 +65,10 @@ export class SorterPanel {
 
   /**
    * 事件取消订阅函数列表
-   * @type {Function[]}
+   * @type {{ add:(fn:Function)=>void, clear:()=>void, size:()=>number }|null}
    * @private
    */
-  #unsubscribers = [];
+  #subscriptionBag = null;
 
   /**
    * 构造函数
@@ -77,6 +78,7 @@ export class SorterPanel {
   constructor(logger, eventBus) {
     this.#logger = logger;
     this.#eventBus = eventBus;
+    this.#subscriptionBag = createSubscriptionBag({ loggerName: "SorterPanel.Subscriptions" });
   }
 
   /**
@@ -167,10 +169,13 @@ export class SorterPanel {
       subscriberId: "SorterPanel.modeChanged"
     });
     this.#logger.debug("[DEBUG SorterPanel] Unsubscribe function:", unsubModeChanged);
-    this.#unsubscribers.push(unsubModeChanged);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubModeChanged);
+    }
 
+    const bagSize = this.#subscriptionBag ? this.#subscriptionBag.size() : "unknown";
     this.#logger.debug("[SorterPanel] Event listeners attached");
-    this.#logger.debug("[DEBUG SorterPanel] Event listeners attached, unsubscribers count:", this.#unsubscribers.length);
+    this.#logger.debug("[DEBUG SorterPanel] Event listeners attached, subscriptionBag size:", bagSize);
   }
 
   /**
@@ -306,8 +311,10 @@ export class SorterPanel {
    */
   destroy() {
     // 取消事件订阅
-    this.#unsubscribers.forEach(unsub => unsub());
-    this.#unsubscribers = [];
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.clear();
+      this.#subscriptionBag = null;
+    }
 
     // 移除ESC键监听
     if (this.#escKeyHandler) {

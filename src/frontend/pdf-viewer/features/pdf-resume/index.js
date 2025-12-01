@@ -381,6 +381,17 @@ export class PDFResumeFeature {
       } else {
         this.#logger.info("[pdf-resume] no resume found, starting fresh");
       }
+
+      // 不论是否存在 resume，整个“断点续读初始化流程”在此视为完成
+      this.#eventBus.emit(
+        PDF_VIEWER_EVENTS.RESUME.FLOW.DONE,
+        {
+          pdfId: this.#pdfId,
+          hasResume: !!result.resume,
+          status: "success"
+        },
+        { actorId: "PDFResumeFeature" }
+      );
     } catch (e) {
       this.#logger.error("[pdf-resume] load failed", e);
 
@@ -395,6 +406,17 @@ export class PDFResumeFeature {
         scope: "pdf-viewer-resume-load",
         error: e
       });
+
+      this.#eventBus.emit(
+        PDF_VIEWER_EVENTS.RESUME.FLOW.DONE,
+        {
+          pdfId: this.#pdfId,
+          hasResume: false,
+          status: "failed",
+          error: e.message
+        },
+        { actorId: "PDFResumeFeature" }
+      );
     }
   }
 

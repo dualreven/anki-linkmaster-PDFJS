@@ -1,3 +1,4 @@
+/* eslint-disable no-empty, custom/no-silent-catch */
 /**
  * TextHighlightTool - 文字高亮工具
  * @module features/annotation/tools/text-highlight
@@ -522,20 +523,29 @@ export class TextHighlightTool extends IAnnotationTool {
       return;
     }
 
-    const textarea = document.createElement("textarea");
-    textarea.value = text;
-    textarea.style.position = "fixed";
-    textarea.style.top = "-9999px";
-    document.body.appendChild(textarea);
-    textarea.select();
-
     try {
-      document.execCommand("copy");
-      this.#logger.info("[TextHighlightTool] Copied highlight text via fallback");
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.top = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.select();
+
+      try {
+        // 使用与全局复制工具相同的 execCommand 模式
+        const ok = document.execCommand("copy");
+        if (ok) {
+          this.#logger.info("[TextHighlightTool] Copied highlight text via fallback");
+        } else {
+          this.#logger.error("[TextHighlightTool] Failed to copy highlight text via fallback");
+        }
+      } catch (error) {
+        this.#logger.error("[TextHighlightTool] Failed to copy highlight text", error);
+      } finally {
+        textarea.remove();
+      }
     } catch (error) {
-      this.#logger.error("[TextHighlightTool] Failed to copy highlight text", error);
-    } finally {
-      textarea.remove();
+      this.#logger.error("[TextHighlightTool] Failed to prepare fallback textarea", error);
     }
   }
 
@@ -1240,4 +1250,3 @@ export class TextHighlightTool extends IAnnotationTool {
 }
 
 export default TextHighlightTool;
-

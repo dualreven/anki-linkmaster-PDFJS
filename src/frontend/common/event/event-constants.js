@@ -111,6 +111,15 @@ export const UI_EVENTS = {
   }
 };
 
+export const PDF_HOME_EVENTS = {
+  ADD_FILES: {
+    WS_ERROR: "pdf-home:add-files:ws-error"
+  },
+  QWEBCHANNEL: {
+    INIT: "pdf-home:qwebchannel:init"
+  }
+};
+
 export const WEBSOCKET_MESSAGE_EVENTS = {
   PDF_LIST_UPDATED: "websocket:message:updated",
   PDF_LIST: "websocket:message:list",

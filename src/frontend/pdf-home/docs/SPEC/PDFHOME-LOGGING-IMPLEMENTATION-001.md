@@ -20,8 +20,8 @@ const sharedLogger = getLogger('PDFHomeApp');
 
 ### 1.2 WebSocket端口解析
 ```javascript
-// 动态解析WebSocket端口
-import { resolveWebSocketPortSync, DEFAULT_WS_PORT } from "./utils/ws-port-resolver.js";
+// 动态解析WebSocket端口（统一使用 common 层工具）
+import { resolveWebSocketPortSync, DEFAULT_WS_PORT } from "../../common/utils/ws-port-resolver.js";
 
 const wsPort = resolveWebSocketPortSync({ fallbackPort: DEFAULT_WS_PORT });
 const wsUrl = `ws://localhost:${wsPort}`;

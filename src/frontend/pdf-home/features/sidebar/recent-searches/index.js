@@ -7,6 +7,7 @@ import { RecentSearchesFeatureConfig } from "./feature.config.js";
 import { WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_EVENTS, SEARCH_EVENTS } from "../../../../common/event/event-constants.js";
 import { SIDEBAR_LOCAL_EVENTS } from "../events.js";
 import "./styles/recent-searches.css";
+import { createSubscriptionBag } from "../../../../common/event/subscription-bag.js";
 
 export class RecentSearchesFeature {
   name = RecentSearchesFeatureConfig.name;
@@ -17,7 +18,7 @@ export class RecentSearchesFeature {
   #logger = null;
   #scopedEventBus = null;
   #globalEventBus = null;
-  #unsubscribers = [];
+  #subscriptionBag = null;
 
   // 数据
   #recentSearches = [];
@@ -37,6 +38,7 @@ export class RecentSearchesFeature {
     this.#logger = context.logger;
     this.#scopedEventBus = context.scopedEventBus;
     this.#globalEventBus = context.globalEventBus;
+    this.#subscriptionBag = createSubscriptionBag({ loggerName: "RecentSearchesFeature.Subscriptions" });
 
     this.#logger.info("[RecentSearchesFeature] Installing...");
 
@@ -75,8 +77,10 @@ export class RecentSearchesFeature {
     this.#logger.info("[RecentSearchesFeature] Uninstalling...");
 
     // 取消事件订阅
-    this.#unsubscribers.forEach(unsub => unsub());
-    this.#unsubscribers = [];
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.clear();
+      this.#subscriptionBag = null;
+    }
 
     // 清理UI
     if (this.#listEl) {
@@ -98,7 +102,9 @@ export class RecentSearchesFeature {
       this.#logger.info("[RecentSearchesFeature] Capture search request", { searchText: text || "(empty)" });
       this.#addSearch(text);
     }, { subscriberId: "RecentSearchesFeature" });
-    this.#unsubscribers.push(unsubSearchRequested);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubSearchRequested);
+    }
 
     // 列表项点击 - 事件代理
     if (this.#listEl) {
@@ -111,7 +117,9 @@ export class RecentSearchesFeature {
         this.#globalEventBus.emit(SEARCH_EVENTS.QUERY.REQUESTED, { searchText: text });
       };
       this.#listEl.addEventListener("click", clickHandler);
-      this.#unsubscribers.push(() => this.#listEl.removeEventListener("click", clickHandler));
+      if (this.#subscriptionBag) {
+        this.#subscriptionBag.add(() => this.#listEl.removeEventListener("click", clickHandler));
+      }
     }
 
     // 显示条数变化
@@ -130,7 +138,9 @@ export class RecentSearchesFeature {
         }
       };
       this.#limitSelectEl.addEventListener("change", changeHandler);
-      this.#unsubscribers.push(() => this.#limitSelectEl.removeEventListener("change", changeHandler));
+      if (this.#subscriptionBag) {
+        this.#subscriptionBag.add(() => this.#limitSelectEl.removeEventListener("change", changeHandler));
+      }
     }
 
     // 监听后端响应（用于加载/保存配置回执）
@@ -155,7 +165,9 @@ export class RecentSearchesFeature {
         this.#logger.error("[RecentSearchesFeature] Handle backend response failed", e);
       }
     }, { subscriberId: "RecentSearchesFeature" });
-    this.#unsubscribers.push(unsubWsResponse);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubWsResponse);
+    }
 
     this.#logger.debug("[RecentSearchesFeature] Event listeners setup");
   }

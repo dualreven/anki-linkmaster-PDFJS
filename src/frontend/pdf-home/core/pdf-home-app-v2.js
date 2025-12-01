@@ -191,10 +191,10 @@ export class PDFHomeAppV2 {
 
     // 创建并注册 WebSocket 客户端（如果提供了 URL）
     if (options.wsUrl) {
-      // 显式传递 pdf-home 的客户端身份信息
+      // 显式传递 pdf-home 的客户端身份信息（与注册协议保持一致）
       const identityOptions = {
         client_name: "pdf-home",
-        client_id: "ui",
+        client_id: "pdf-home",
         module: "pdf-home"
       };
       this.#wsClient = new WSClient(options.wsUrl, this.#eventBus, identityOptions);
@@ -341,8 +341,8 @@ export class PDFHomeAppV2 {
       // UI布局功能
       new SidebarFeature(),
       new WindowControlsFeature({
-        bridgeName: 'pyqtBridge',
-        containerSelector: '.toolbar-controls'
+        bridgeName: "pyqtBridge",
+        containerSelector: ".toolbar-controls"
       }),  // 窗口控制按钮（最小化、最大化、关闭）
 
       // 搜索和筛选功能（按优先级顺序）

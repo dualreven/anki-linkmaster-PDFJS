@@ -1,6 +1,8 @@
 # ui-manager 模块 — 细节层
 
-函数与接口：
+> 注意：本页细节对应的是旧版 pdf-home v1 中的 UIManager（文件 `src/frontend/pdf-home/ui-manager.js`），当前代码结构中该文件已被移除。以下行号与示例用于回顾历史实现，不应再视为当前实现的真实路径。
+
+函数与接口（旧版）：
 - subscribeEvents()
   - 参考：src/frontend/pdf-home/ui-manager.js:78
   - 作用：订阅关键事件（pdf:list:updated, pdf:add:result）并注册回调。

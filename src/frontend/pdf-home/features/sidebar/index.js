@@ -11,6 +11,7 @@ import "./styles/sidebar.css";
 // 事件常量位于：src/frontend/common/event/event-constants.js
 // 需要回溯三级目录（../../../）
 import { SIDEBAR_EVENTS } from "../../../common/event/event-constants.js";
+import { createSubscriptionBag } from "../../../common/event/subscription-bag.js";
 
 export class SidebarFeature {
   name = SidebarFeatureConfig.name;
@@ -19,7 +20,7 @@ export class SidebarFeature {
 
   #logger = null;
   #scopedEventBus = null;
-  #unsubscribers = [];
+  #subscriptionBag = null;
 
   // 侧边栏容器组件
   #sidebarContainer = null;
@@ -30,6 +31,8 @@ export class SidebarFeature {
   async install(context) {
     this.#logger = context.logger;
     this.#scopedEventBus = context.scopedEventBus;
+
+    this.#subscriptionBag = createSubscriptionBag({ loggerName: "SidebarFeature.Subscriptions" });
 
     this.#logger.info("[SidebarFeature] Installing...");
 
@@ -68,7 +71,10 @@ export class SidebarFeature {
     // 通知全局：侧边栏已渲染完成，子功能可安全读取 DOM
     try {
       this.#scopedEventBus.emitGlobal(SIDEBAR_EVENTS.RENDER.COMPLETED, { ready: true });
-    } catch (e) { void e; }
+    } catch (e) {
+      // logger-guard
+      void e;
+    }
   }
 
   /**
@@ -81,7 +87,9 @@ export class SidebarFeature {
       this.#logger.info("[SidebarFeature] Sidebar toggle completed:", data.collapsed);
       this.#saveCollapsedState(data.collapsed);
     });
-    this.#unsubscribers.push(unsubToggled);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubToggled);
+    }
 
     this.#logger.info("[SidebarFeature] Event listeners setup");
   }
@@ -134,8 +142,10 @@ export class SidebarFeature {
     this.#logger.info("[SidebarFeature] Uninstalling...");
 
     // 取消事件订阅
-    this.#unsubscribers.forEach(unsub => unsub());
-    this.#unsubscribers = [];
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.clear();
+      this.#subscriptionBag = null;
+    }
 
     // 销毁组件
     if (this.#sidebarContainer) {

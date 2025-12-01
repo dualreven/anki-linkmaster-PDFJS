@@ -6,6 +6,7 @@
 import { FilterManager } from "./services/filter-manager.js";
 import { FILTER_EVENTS, SEARCH_EVENTS } from "../../../common/event/event-constants.js";
 import { FilterBuilder } from "./components/filter-builder-v2.js";
+import { createSubscriptionBag } from "../../../common/event/subscription-bag.js";
 
 // 导入样式
 import "./styles/filter-panel.css";
@@ -22,7 +23,7 @@ export class FilterFeature {
   #filterManager = null;
   #filterPanelContainer = null;
   #filterBuilder = null;
-  #unsubscribers = [];
+  #subscriptionBag = null;
   #lastSearchText = "";
 
   /**
@@ -32,6 +33,8 @@ export class FilterFeature {
     this.#logger = context.logger;
     this.#scopedEventBus = context.scopedEventBus;
     this.#globalEventBus = context.globalEventBus;
+
+    this.#subscriptionBag = createSubscriptionBag({ loggerName: "FilterFeature.Subscriptions" });
 
     this.#logger.info("[FilterFeature] Installing v2.0.0 (advanced filters only)...");
 
@@ -68,8 +71,10 @@ export class FilterFeature {
     this.#logger.info("[FilterFeature] Uninstalling...");
 
     // 取消所有事件订阅
-    this.#unsubscribers.forEach(unsub => unsub());
-    this.#unsubscribers = [];
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.clear();
+      this.#subscriptionBag = null;
+    }
 
     // 销毁组件
     if (this.#filterBuilder) {
@@ -141,13 +146,17 @@ export class FilterFeature {
     const unsubOpen = this.#globalEventBus.on(FILTER_EVENTS.ADVANCED.OPEN, () => {
       this.#handleAdvancedFilter();
     });
-    this.#unsubscribers.push(unsubOpen);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubOpen);
+    }
 
     // 监听全局保存预设事件（来自SearchBar）
     const unsubSave = this.#globalEventBus.on(FILTER_EVENTS.PRESET.SAVE, (data) => {
       this.#handlePresetSave(data.presetName);
     });
-    this.#unsubscribers.push(unsubSave);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubSave);
+    }
 
     // 监听筛选应用（来自 FilterBuilder）
     const unsubApply = this.#scopedEventBus.on(FILTER_EVENTS.APPLY.COMPLETED, (data) => {
@@ -160,7 +169,9 @@ export class FilterFeature {
         filters: condition,
       });
     });
-    this.#unsubscribers.push(unsubApply);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubApply);
+    }
 
     this.#logger.info("[FilterFeature] Event listeners setup (listening to global events)");
   }
@@ -177,14 +188,18 @@ export class FilterFeature {
       } catch (e) { this.#logger?.debug?.("[FilterFeature] ignore parse searchText error", e); }
       this.#logger.info("[FilterFeature] Search query received (record only)", { searchText: this.#lastSearchText });
     });
-    this.#unsubscribers.push(unsubSearch);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubSearch);
+    }
 
     // 监听清除请求（仅记录）
     const unsubClear = this.#globalEventBus.on(SEARCH_EVENTS.QUERY.CLEARED, () => {
       this.#logger.info("[FilterFeature] Clear request received (record only)");
       this.#lastSearchText = "";
     });
-    this.#unsubscribers.push(unsubClear);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubClear);
+    }
 
     this.#logger.info("[FilterFeature] Subscribed to search events (delegated to backend)");
   }
@@ -209,7 +224,9 @@ export class FilterFeature {
         this.#logger.warn("[FilterFeature] Failed to cache search results", e);
       }
     }, { subscriberId: "FilterFeature:results-updated" });
-    this.#unsubscribers.push(unsubListLoaded);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubListLoaded);
+    }
 
     this.#logger.info("[FilterFeature] Subscribed to PDF list events (local caching mode)");
   }

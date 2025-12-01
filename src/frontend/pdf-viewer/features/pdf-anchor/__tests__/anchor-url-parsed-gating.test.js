@@ -6,12 +6,12 @@ jest.mock("../../../../common/utils/logger.js", () => ({
   LogLevel: { DEBUG: "debug", INFO: "info", WARN: "warn", ERROR: "error" },
 }));
 /**
- * 目标：验证 PDFAnchorFeature 在接收到 URL_PARAMS.PARSED 与锚点数据、文件加载完成信号后，
- * 会通过 URL 导航事件触发受控导航请求（不直接调用 navigationService），以保证行为不走样。
+ * 目标：验证 PDFAnchorFeature 在接收到 NAVIGATION.URL_PARAMS.PARSED 时
+ * 不再基于 URL 参数触发锚点导航请求（URL 启动导航能力已移除）。
  *
  * 注意：
- * - 该用例不依赖 URLParamsParser，直接通过事件驱动。
- * - 事件总线采用项目内置实现；局部事件以 @scope/ 前缀发布，需订阅相同前缀事件。
+ * - 该用例只关心「不会因为 URL 事件触发导航」，不再验证 URL 门闸逻辑。
+ * - 锚点导航应仅由 ANCHOR.NAVIGATE.REQUESTED 等内部事件驱动。
  */
 
 import globalEventBus from "../../../../common/event/event-bus.js";
@@ -26,7 +26,7 @@ function createContainer(stubs = {}) {
   };
 }
 
-describe("PDFAnchorFeature - URL_PARAMS 受控导航门闸", () => {
+describe("PDFAnchorFeature - 不再响应 URL_PARAMS.PARSED 进行导航", () => {
   beforeEach(() => {
     // 清理全局事件总线监听
     try { globalEventBus.destroy(); } catch {}
@@ -36,10 +36,9 @@ describe("PDFAnchorFeature - URL_PARAMS 受控导航门闸", () => {
     window.history.pushState({}, "", "/pdf-viewer/?pdf-id=doc-001");
   });
 
-  test("收到 URL_PARAMS.PARSED + ANCHOR.DATA.LOADED + FILE.LOAD.SUCCESS 后发出 URL_PARAMS.REQUESTED，且自动激活该锚点（单选语义）", async () => {
+  test("收到 URL_PARAMS.PARSED + ANCHOR.DATA.LOADED + FILE.LOAD.SUCCESS 不会发出 URL_PARAMS.REQUESTED", async () => {
     jest.useFakeTimers();
     const emitted = [];
-    const activations = [];
     const emittedAny = [];
     // 监视所有 emit 调用（包括局部事件）
     const originalEmit = globalEventBus.emit.bind(globalEventBus);
@@ -53,13 +52,6 @@ describe("PDFAnchorFeature - URL_PARAMS 受控导航门闸", () => {
       (data) => emitted.push({ evt: PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED, data }),
       { subscriberId: "test" }
     );
-    // 订阅激活事件
-    const offAct = globalEventBus.on(
-      PDF_VIEWER_EVENTS.ANCHOR.ACTIVATED,
-      (data) => activations.push(data),
-      { subscriberId: "test" }
-    );
-
     // 构建依赖容器与 Feature
     const container = createContainer({
       navigationService: {
@@ -95,15 +87,11 @@ describe("PDFAnchorFeature - URL_PARAMS 受控导航门闸", () => {
     jest.advanceTimersByTime(1100);
     await Promise.resolve(); // 让微任务队列跑完
 
-    // 断言：已发出 URL 请求事件（局部事件）
-    // 优先检查显式订阅
+    // 断言：不会发出 URL_PARAMS.REQUESTED 导航事件
     const gotExplicit = emitted.some((e) => e.evt === PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED);
-    // 其次检查所有事件流
     const gotInAll = emittedAny.some((e) => e.evt === PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED);
-    expect(gotExplicit || gotInAll).toBe(true);
-    // 验证出现一次激活事件，且为目标 anchor
-    expect(activations.some((e) => e && e.anchorId === anchorId && e.active === true)).toBe(true);
-    offReq?.(); offAct?.();
+    expect(gotExplicit || gotInAll).toBe(false);
+    offReq?.();
   });
 });
 

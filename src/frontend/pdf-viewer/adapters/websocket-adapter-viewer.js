@@ -6,6 +6,8 @@
  */
 
 import { WebSocketAdapterBase } from "../../common/adapters/websocket-adapter-base.js";
+import { WEBSOCKET_MESSAGE_TYPES } from "../../common/event/event-constants.js";
+import { getCurrentPdfIdFromWindow } from "../shared/url-context.js";
 
 /**
  * PDF Viewer 专属 WebSocket适配器
@@ -36,13 +38,7 @@ export class WebSocketAdapterViewer extends WebSocketAdapterBase {
   _getRegistrationConfig() {
     try {
       // 从 URL 参数获取 pdf-id
-      const pdfId = (() => {
-        try {
-          return new URLSearchParams(window.location.search).get("pdf-id");
-        } catch {
-          return null;
-        }
-      })();
+      const pdfId = getCurrentPdfIdFromWindow();
 
       // 构造 client_id（标准格式：pdf-viewer-{pdf-id}）
       const clientId = pdfId
@@ -67,7 +63,7 @@ export class WebSocketAdapterViewer extends WebSocketAdapterBase {
         pdf_id: pdfId,
         url: window?.location?.href || "",
         title: document?.title || "",
-        migrated_from: "pdf-viewer:register:requested" // 标记协议迁移
+        migrated_from: WEBSOCKET_MESSAGE_TYPES.CLIENT_REGISTER_REQUESTED // 标记协议迁移
       };
 
       return {

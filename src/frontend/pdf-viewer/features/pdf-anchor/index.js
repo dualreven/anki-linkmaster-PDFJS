@@ -1,7 +1,8 @@
+/* eslint-disable custom/no-silent-catch */
 /**
  * PDF Anchor Feature
  * @module PDFAnchorFeature
- * @description 负责锚点的复制、激活与运行时位置追踪；支持从URL参数(anchor-id)启动时的导航与提示
+ * @description 负责锚点的复制、激活与运行时位置追踪；支持通过内部导航事件进行受控跳转与提示（不再从 URL 参数触发导航）
  */
 
 import { getLogger } from "../../../common/utils/logger.js";
@@ -16,7 +17,10 @@ const isDevEnvironment = (() => {
   try {
     const env = (typeof process !== "undefined" && process && process.env) ? process.env : {};
     return env.NODE_ENV === "development" || typeof env.JEST_WORKER_ID !== "undefined";
-  } catch { return false; }
+  } catch (e) {
+    void e; /* logger-guard */
+    return false;
+  }
 })();
 
 export class PDFAnchorFeature {
@@ -31,7 +35,7 @@ export class PDFAnchorFeature {
   #anchorsById = new Map(); // uuid -> anchor {uuid,name,page_at,position,is_active}
   #activeAnchorId = null;
   #updateTimer = null;
-  #pendingUrlAnchorId = null;
+  #pendingAnchorIdForNavigate = null; // 等待加载后触发导航的锚点ID
   #scrollHintShown = false;
   #scrollListeners = [];
   #scrollAttached = false;
@@ -39,9 +43,9 @@ export class PDFAnchorFeature {
   #scrollAttachAttempts = 0;
   #freezeUntilMs = 0;
   #autoUpdateEnabled = true;
-  #pendingNav = null; // 延迟到 FILE.LOAD.SUCCESS 后再执行的导航参数 { pageAt, position }
+  #pendingNav = null; // 延迟到 FILE.LOAD.SUCCESS 后再执行的导航参数 { pageAt, position, anchorId }
   #lastNav = null; // 最近一次导航请求 { pageAt, position, anchorId, t0, method }
-  #useGateNav = true; // 启用“并发闸门”（统一走 URL 事件）
+  #useGateNav = true; // 启用“并发闸门”（统一通过导航事件触发，而非直接调用 navigationService）
   #gateAnchorReady = false; // 锚点数据已达
   #gateRenderReady = false; // PDF渲染就绪
   #gateNavDone = false; // 闸门导航已执行
@@ -76,10 +80,6 @@ export class PDFAnchorFeature {
 
     this.#setupEventListeners();
     // 简化模式：不依赖页面事件与滚动诊断，改为纯心跳回写
-    // 安装时主动检查 URL（避免错过 URL_PARAMS.PARSED 早期事件）
-    try {
-      this.#bootstrapFromURL();
-    } catch(e){ this.#logger.warn("noop", e); }
     this.#logger.info("PDFAnchorFeature installed");
   }
 
@@ -97,47 +97,10 @@ export class PDFAnchorFeature {
       if (typeof evt === "string" && evt.length > 0) {
         return this.#eventBus.on(evt, handler, opts);
       } else {
-        try { this.#logger.warn("[PDFAnchorFeature] 跳过订阅：事件未定义或非字符串", { evt, subscriberId: opts?.subscriberId }); } catch (e) { void e; }
+        try { this.#logger.warn("[PDFAnchorFeature] 跳过订阅：事件未定义或非字符串", { evt, subscriberId: opts?.subscriberId }); } catch (e) { void e; /* logger-guard */ }
         return () => { /* no-op */ };
       }
     };
-
-    // URL 参数解析：捕捉 anchor-id（防御：事件名必须为字符串）
-    const EVT_URL_PARSED = PDF_VIEWER_EVENTS?.NAVIGATION?.URL_PARAMS?.PARSED;
-    if (typeof EVT_URL_PARSED === "string") {
-      safeOn(
-        EVT_URL_PARSED,
-        (data) => {
-          const anchorId = (data?.anchorId || "").toString().trim();
-          if (!anchorId) {return;}
-
-          // 支持开发测试ID：仅在开发模式可用；正式ID：pdfanchor- + 12hex
-          const isDevTest = isDevEnvironment && /^pdfanchor-test$/i.test(anchorId);
-          const isValid = /^pdfanchor-[a-f0-9]{12}$/i.test(anchorId);
-
-          if (isDevTest) {
-            const id = anchorId.toLowerCase();
-            this.#pendingUrlAnchorId = id;
-            this.#logger.info("Detected DEV anchor-id from URL:", id);
-            // 直接注入一条激活的测试锚点数据
-            const testAnchor = { uuid: id, name: "测试锚点", page_at: 1, position: null, is_active: true };
-            this.#anchorsById.set(id, testAnchor);
-            this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED, { anchors: [testAnchor] }, { actorId: "PDFAnchorFeature" });
-            return;
-          }
-
-          if (isValid) {
-            this.#pendingUrlAnchorId = anchorId.toLowerCase();
-            this.#logger.info("Detected anchor-id from URL:", this.#pendingUrlAnchorId);
-            // 请求加载指定锚点数据（交由后端/适配器实现）
-            this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD, { anchorId: this.#pendingUrlAnchorId }, { actorId: "PDFAnchorFeature" });
-          }
-        },
-        { subscriberId: "PDFAnchorFeature" }
-      );
-    } else {
-      this.#logger.warn("URL_PARAMS.PARSED event undefined; skip subscription");
-    }
 
     // 收到锚点数据（数组或单条）
     safeOn(
@@ -149,9 +112,9 @@ export class PDFAnchorFeature {
           this.#anchorsById.set(String(anchors.uuid), anchors);
         }
 
-        // URL 携带 anchor-id 时的处理：设置挂起导航，等待渲染/文件就绪后统一发 URL_PARAMS.REQUESTED（避免过早或重复）
-        if (this.#pendingUrlAnchorId) {
-          const a = this.#anchorsById.get(this.#pendingUrlAnchorId);
+        // 当存在挂起的“按锚点导航”请求时：设置挂起导航，等待渲染/文件就绪后统一发导航事件（避免过早或重复）
+        if (this.#pendingAnchorIdForNavigate) {
+          const a = this.#anchorsById.get(this.#pendingAnchorIdForNavigate);
           if (a) {
             showSuccess(`已识别锚点: ${a.name || a.uuid}`);
             // 记录最近一次位置，延迟到 FILE.LOAD.SUCCESS 后再导航，避免 PDF 未就绪时的无效 GOTO
@@ -162,7 +125,7 @@ export class PDFAnchorFeature {
               const posText = (pos === null || Number.isNaN(pos)) ? "(未提供)" : `${pos}%`;
               showInfo(`计划跳转: 第${pageAt}页 ${posText}`);
             } catch (e) { this.#logger.debug("[pdf-anchor] showInfo failed (plan jump)", e); }
-            // 统一走 URL 导航闸门路径
+            // 统一走并发闸门：等待“锚点数据已达 + PDF 渲染就绪”后再触发导航事件
             this.#gateAnchorReady = true;
             this.#tryNavigateWhenGatesReady();
             // 通过事件激活该锚点（单选语义 + 模块解耦），而非直接改内部状态
@@ -175,7 +138,7 @@ export class PDFAnchorFeature {
             } catch (e) { this.#logger.warn("[pdf-anchor] emit ANCHOR.ACTIVATE failed (URL anchor)", e); }
           }
           // 仅处理一次
-          this.#pendingUrlAnchorId = null;
+          this.#pendingAnchorIdForNavigate = null;
         }
       },
       { subscriberId: "PDFAnchorFeature" }
@@ -201,7 +164,9 @@ export class PDFAnchorFeature {
 
             this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD, { pdf_uuid: pdfId }, { actorId: "PDFAnchorFeature" });
           }
-        } catch(e){ this.#logger.warn("noop", e); }
+        } catch (e) {
+          this.#logger.warn("[pdf-anchor] FILE.LOAD.SUCCESS handler failed before emitting ANCHOR.DATA.LOAD", e);
+        }
         // Gate 兼容：部分环境不会发出 RENDER.READY，这里将 FILE.LOAD.SUCCESS 视作“加载完成”信号
         if (this.#useGateNav) {
           this.#gateRenderReady = true;
@@ -219,7 +184,7 @@ export class PDFAnchorFeature {
               } catch (e) { this.#logger.warn("[pdf-anchor] emit ANCHOR.ACTIVATE failed (navigate requested)", e); }
               if (Date.now() >= deadline) { try { clearInterval(iv); } catch (e2) { void e2; } }
             }, 150);
-          } catch (e) { void e; }
+          } catch (e) { void e; /* logger-guard */ }
         }
         // 文件加载完成后安装滚动诊断（如果尚未安装），以便激活锚点后滚动能及时采样
         try { this.#ensureScrollDiagnostics(); } catch (e) { this.#logger.debug("[pdf-anchor] ensureScrollDiagnostics failed (after FILE.LOAD.SUCCESS)", e); }
@@ -250,7 +215,7 @@ export class PDFAnchorFeature {
           if (!anchorId) {return;}
           const a = this.#anchorsById.get(anchorId);
           if (a) {
-            // 设置挂起导航，等待渲染与文件就绪后统一发 URL_PARAMS.REQUESTED
+            // 设置挂起导航，等待渲染与文件就绪后统一发导航事件
             const pageAt = parseInt(a.page_at || 1, 10);
             const pos = typeof a.position === "number" ? Math.max(0, Math.min(100, Math.round(a.position * 100))) : null;
             if (pageAt >= 1) {
@@ -264,11 +229,11 @@ export class PDFAnchorFeature {
               return;
             }
           }
-          // 未加载：请求加载并走闸门
-          this.#pendingUrlAnchorId = anchorId;
+          // 未加载：记录挂起锚点ID并请求加载，待数据到达后走闸门
+          this.#pendingAnchorIdForNavigate = anchorId;
           this.#gateAnchorReady = false;
           this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD, { anchorId }, { actorId: "PDFAnchorFeature" });
-          } catch (e) {
+        } catch (e) {
           try { showError("锚点导航失败"); } catch (e2) { this.#logger.debug("[pdf-anchor] showError toast failed (navigate)", e2); }
           this.#logger.warn("anchor navigate failed", e);
         }
@@ -298,7 +263,7 @@ export class PDFAnchorFeature {
             }
             // 严格要求：必须携带合法 uuid；缺失/非法直接报错，不做兜底
             if (typeof incoming.uuid !== "string" || !/^pdfanchor-[a-f0-9]{12}$/i.test(incoming.uuid)) {
-              try { showError("创建锚点失败：缺少或非法的 uuid"); } catch (e) { void e; }
+              try { showError("创建锚点失败：缺少或非法的 uuid"); } catch (e) { void e; /* logger-guard */ }
               this.#logger.warn("[anchor] create blocked - invalid/missing uuid (UI path)", { incoming });
               return;
             }
@@ -310,7 +275,7 @@ export class PDFAnchorFeature {
             const anchor = { uuid: id, name, page_at: pageAt, position: pos, is_active: false };
             this.#anchorsById.set(id, anchor);
             this.#logger.info("[anchor] create(UI) accepted", { id, pageAt, position: pos, name });
-            try { showSuccess(`已创建锚点: ${name}`); } catch (e) { void e; }
+            try { showSuccess(`已创建锚点: ${name}`); } catch (e) { void e; /* logger-guard */ }
             this.#emitList();
             return;
           }
@@ -322,7 +287,7 @@ export class PDFAnchorFeature {
           const anchor = { uuid: id, name, page_at: pageAt, position: position / 100, is_active: false };
           this.#anchorsById.set(id, anchor);
           this.#logger.info("[anchor] create(quick) accepted", { id, pageAt, position });
-          try { showSuccess(`已创建锚点: ${name}`); } catch (e) { void e; }
+          try { showSuccess(`已创建锚点: ${name}`); } catch (e) { void e; /* logger-guard */ }
           this.#emitList();
           // 触发一次包含 anchor 的 CREATE 事件，交由 WebSocketAdapter 持久化（补齐 pdf_uuid）
           let pdfId = null;
@@ -333,7 +298,7 @@ export class PDFAnchorFeature {
           this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATE, { anchor, pdf_uuid: pdfId, __fromFeature: true }, { actorId: "PDFAnchorFeature" });
         } catch (e) {
           this.#logger.warn("handle ANCHOR.CREATE failed", e);
-          try { showError("创建锚点失败"); } catch (e) { void e; }
+          try { showError("创建锚点失败"); } catch (e) { void e; /* logger-guard */ }
         }
       },
       { subscriberId: "PDFAnchorFeature" }
@@ -347,7 +312,13 @@ export class PDFAnchorFeature {
         if (!id) {return;}
         const existed = this.#anchorsById.get(id);
         this.#anchorsById.delete(id);
-        try { if (existed) {showSuccess(`已删除锚点: ${existed.name || id}`);} } catch(e){ this.#logger.warn("noop", e); }
+        try {
+          if (existed) {
+            showSuccess(`已删除锚点: ${existed.name || id}`);
+          }
+        } catch (e) {
+          this.#logger.warn("[pdf-anchor] showSuccess failed on delete", e);
+        }
         this.#emitList();
       },
       { subscriberId: "PDFAnchorFeature" }
@@ -406,7 +377,11 @@ export class PDFAnchorFeature {
         this.#emitList();
 
         // 提示 + 心跳
-        try { showSuccess(nextActive ? `已激活锚点: ${a.name || id}` : `已停用锚点: ${a.name || id}`); } catch(e){ this.#logger.warn("noop", e); }
+        try {
+          showSuccess(nextActive ? `已激活锚点: ${a.name || id}` : `已停用锚点: ${a.name || id}`);
+        } catch (e) {
+          this.#logger.warn("[pdf-anchor] showSuccess failed on activate", e);
+        }
         if (nextActive) {
           this.#activeAnchorId = id;
           // 不在激活瞬间写回页码，避免初始化期间采样到错误页面（导致倒退并被持久化）
@@ -437,12 +412,12 @@ export class PDFAnchorFeature {
               this.#lastNav = null;
             }
           }
-        } catch (e) { void e; }
+        } catch (e) { void e; /* logger-guard */ }
       },
       { subscriberId: "PDFAnchorFeature" }
     );
 
-    // URL 导航成功/失败提示（统一链路反馈）
+    // 导航成功/失败提示（统一链路反馈）
     this.#eventBus.on(
       PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.SUCCESS,
       (info) => {
@@ -452,14 +427,14 @@ export class PDFAnchorFeature {
           const dur = parseInt(info?.duration || 0, 10);
           showSuccess(`跳转到达: 第${pg}页 ${pos}（${dur}ms）`);
           this.#lastNav = null;
-        } catch (e) { void e; }
+        } catch (e) { void e; /* logger-guard */ }
       },
       { subscriberId: "PDFAnchorFeature" }
     );
     this.#eventBus.on(
       PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.FAILED,
       (err) => {
-        try { showError(`[跳转失败] ${err?.message || "未知错误"}`); } catch (e) { void e; }
+        try { showError(`[跳转失败] ${err?.message || "未知错误"}`); } catch (e) { void e; /* logger-guard */ }
       },
       { subscriberId: "PDFAnchorFeature" }
     );
@@ -474,7 +449,7 @@ export class PDFAnchorFeature {
             const msg = err?.error?.message || err?.message || "锚点相关操作失败";
             showError(`[锚点错误] ${msg}`);
           }
-        } catch (e) { void e; }
+        } catch (e) { void e; /* logger-guard */ }
       },
       { subscriberId: "PDFAnchorFeature" }
     );
@@ -483,9 +458,9 @@ export class PDFAnchorFeature {
     window.addEventListener("beforeunload", () => this.#stopUpdateTimer());
   }
 
-  // 统一导航触发：通过 URL 导航事件（URL_PARAMS.REQUESTED），不再直接调用 navigationService
+  // 统一导航触发：通过导航事件（NAVIGATION.URL_PARAMS.REQUESTED），不再直接调用 navigationService
 
-  // 并发闸门：同时满足“锚点数据已达”与“PDF渲染就绪”后再执行 URL 导航
+  // 并发闸门：同时满足“锚点数据已达”与“PDF渲染就绪”后再执行导航
   #tryNavigateWhenGatesReady() {
     try {
       if (!this.#useGateNav) { return; }
@@ -500,7 +475,7 @@ export class PDFAnchorFeature {
           try {
             const posText = (position === null || Number.isNaN(position)) ? "(未提供)" : `${position}%`;
             showInfo(`执行跳转: 第${pageAt}页 ${posText}`);
-          } catch (e) { void e; }
+          } catch (e) { void e; /* logger-guard */ }
           this.#lastNav = { pageAt, position, anchorId, t0, method: "url" };
           const pdfId = (() => { try { return new URLSearchParams(window.location.search).get("pdf-id"); } catch { return null; } })();
           const payload = { pdfId, anchorId, pageAt };
@@ -514,9 +489,9 @@ export class PDFAnchorFeature {
           this.#autoUpdateEnabled = false;
           this.#pendingNav = null;
           this.#gateNavDone = true;
-        } catch (e) { void e; }
+        } catch (e) { void e; /* logger-guard */ }
       }, 1000);
-    } catch (e) { void e; }
+    } catch (e) { void e; /* logger-guard */ }
   }
 
   #ensureScrollDiagnostics() {
@@ -574,14 +549,6 @@ export class PDFAnchorFeature {
     this.#scrollAttachAttempts = 0;
   }
 
-  /**
-   * @deprecated URL 参数触发锚点功能已禁用
-   */
-  #bootstrapFromURL() {
-    // URL 参数跳转已禁用，不再从 URL 读取 anchor-id 参数
-    this.#logger.debug("[pdf-anchor] URL 参数触发已禁用");
-  }
-
   // 复制动作已下沉到 UI 层，特性层不再提供复制实现，减少重复与环境差异
 
   #startUpdateTimer() {
@@ -612,7 +579,11 @@ export class PDFAnchorFeature {
 
   #stopUpdateTimer() {
     if (this.#updateTimer) {
-      try { clearInterval(this.#updateTimer); } catch(e){ this.#logger.warn("noop", e); }
+      try {
+        clearInterval(this.#updateTimer);
+      } catch (e) {
+        this.#logger.warn("[pdf-anchor] clearInterval failed in stopUpdateTimer", e);
+      }
       this.#updateTimer = null;
     }
   }

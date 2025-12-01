@@ -119,7 +119,7 @@ export class SearchBar {
         }, this.#config.debounceDelay);
 
         // 显示/隐藏清除按钮（容错：按钮可能未挂载）
-        try { if (this.#clearBtn) { this.#clearBtn.style.display = searchText ? "block" : "none"; } } catch(_) { void _; }
+        try { if (this.#clearBtn) { this.#clearBtn.style.display = searchText ? "block" : "none"; } } catch (err) { void err; /* logger-guard */ }
       });
 
       // Enter键触发立即搜索
@@ -141,7 +141,7 @@ export class SearchBar {
     if (this.#clearBtn) {
       this.#clearBtn.addEventListener("click", () => {
         this.#searchInput.value = "";
-        try { if (this.#clearBtn) {this.#clearBtn.style.display = "none";} } catch(_) { void _; }
+        try { if (this.#clearBtn) {this.#clearBtn.style.display = "none";} } catch (err) { void err; /* logger-guard */ }
         this.#handleClear();
       });
     }

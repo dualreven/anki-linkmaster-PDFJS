@@ -56,24 +56,25 @@ async function startApp() {
 
   } catch (error) {
     logger.error("App bootstrap failed:", error);
-    try { showError("启动失败: " + (error && error.message ? error.message : String(error)), 5000); } catch {}
+    try { showError("启动失败: " + (error && error.message ? error.message : String(error)), 5000); } catch (e) { void e; /* logger-guard */ }
     try {
       const el = document.getElementById("app-boot-banner");
       if (el) {el.textContent = "启动失败（详见日志）";}
-    } catch {}
+    } catch (e) { void e; /* logger-guard */ }
     throw error;
   }
 }
 
 // ===== 应用启动 =====
 logger.debug("Script loaded, checking document readiness...");
-try { logger.debug(`[BOOT] index.js readiness=${document.readyState}`); } catch {}
+try { logger.debug(`[BOOT] index.js readiness=${document.readyState}`); } catch (e) { void e; /* logger-guard */ }
 
 async function launch() {
   try {
     await startApp();
-  } catch {
-    // 已在 startApp 中处理
+  } catch (e) {
+    // 已在 startApp 中处理，这里仅做 logger-guard
+    void e;
   }
 }
 

@@ -913,6 +913,17 @@ export const PDF_VIEWER_EVENTS = {
        * @event resume:update:failed
        */
       FAILED: "resume:update:failed",
+    },
+    FLOW: {
+      /**
+       * 断点续读流程结束（无论是否找到/应用 resume）
+       * @event resume:flow:done
+       * @payload {Object} data
+       * @payload {string} data.pdfId - 当前 PDF ID
+       * @payload {boolean} data.hasResume - 是否存在 resume 记录
+       * @payload {('success'|'failed')} data.status - 流程状态
+       */
+      DONE: "resume:flow:done"
     }
   },
 

@@ -15,6 +15,7 @@ import { getLogger } from "../../../common/utils/logger.js";
 import { ModalManager } from "./components/modal-manager.js";
 import { StarRating } from "./components/star-rating.js";
 import { TagsInput } from "./components/tags-input.js";
+import { createSubscriptionBag } from "../../../common/event/subscription-bag.js";
 
 // 导入样式
 import "./styles/modal.css";
@@ -33,7 +34,7 @@ export class PDFEditFeature {
   #wsClient = null;
   #logger = null;
   #enabled = false;
-  #unsubscribers = [];
+  #subscriptionBag = null;
 
   // UI组件
   #modalManager = null;
@@ -90,6 +91,9 @@ export class PDFEditFeature {
     this.#logger.info(`Installing ${this.name} v${this.version}...`);
 
     try {
+      // 初始化订阅袋（统一管理 WS/事件/DOM 订阅）
+      this.#subscriptionBag = createSubscriptionBag({ loggerName: `Feature.${this.name}.Subscriptions` });
+
       // 1. 获取全局事件总线和WebSocket客户端
       this.#logger.debug("Step 1: Setting up services...");
       await this.#setupServices(context);
@@ -217,34 +221,39 @@ export class PDFEditFeature {
       PDF_MANAGEMENT_EVENTS.EDIT.REQUESTED,
       this.#handleEditRequested.bind(this)
     );
-    this.#unsubscribers.push(unsubEditRequested);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubEditRequested);
+    }
 
-    // 监听全局编辑完成事件（来自后端）
+    // 监听全局编辑完成事件（来自后端，经 WebSocketHandler 转换为领域事件）
     const unsubEditCompleted = this.#globalEventBus.on(
       PDF_MANAGEMENT_EVENTS.EDIT.COMPLETED,
       this.#handleEditCompleted.bind(this)
     );
-    this.#unsubscribers.push(unsubEditCompleted);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubEditCompleted);
+    }
 
-    // 监听通用 WebSocket 消息（仅处理失败；成功延后到搜索刷新后再提示）
-    const unsubWsAny = this.#globalEventBus.on(
-      WEBSOCKET_EVENTS.MESSAGE.RECEIVED,
-      (message) => {
+    // 监听编辑失败领域事件（由 WebSocketHandler 在 handleResponse 中发出）
+    const unsubEditFailed = this.#globalEventBus.on(
+      PDF_MANAGEMENT_EVENTS.EDIT.FAILED,
+      (payload) => {
         try {
-          const t = String(message?.type || "");
-          if (t === WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_COMPLETED) {
-            // 标记等待在刷新后显示成功提示
-            this.#awaitingSuccess = true;
-          } else if (t === WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_FAILED) {
-            const msg = message?.message || message?.error?.message || "操作失败";
-            try { showError(`更新失败-${msg}`, 5000); } catch (e) { void e; }
-            this.#awaitingSuccess = false;
-            if (this.#awaitingTimer) { clearTimeout(this.#awaitingTimer); this.#awaitingTimer = null; }
-          }
-        } catch (e) { void e; }
+          const msg = payload?.errorMessage || "操作失败";
+          showError(`更新失败-${msg}`, 5000);
+        } catch (e) {
+          this.#logger?.warn?.("[PDFEditFeature] showError toast failed when handling EDIT.FAILED", e);
+        }
+        this.#awaitingSuccess = false;
+        if (this.#awaitingTimer) {
+          clearTimeout(this.#awaitingTimer);
+          this.#awaitingTimer = null;
+        }
       }
     );
-    this.#unsubscribers.push(unsubWsAny);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubEditFailed);
+    }
 
     // 在搜索结果刷新后，再显示“更新完成”，避免被 SearchFeature.hideAll() 立即 destroy
     const unsubSearchUpdated = this.#globalEventBus.on(SEARCH_EVENTS.RESULTS.UPDATED, () => {
@@ -254,7 +263,9 @@ export class PDFEditFeature {
         try { showSuccess("更新完成", 3500); } catch (e) { void e; }
       }
     }, { subscriberId: `pdf-edit:${Date.now().toString(36)}:${Math.random().toString(36).slice(2,6)}:search-results-updated` });
-    this.#unsubscribers.push(unsubSearchUpdated);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubSearchUpdated);
+    }
 
     this.#logger.debug("Event listeners registered");
   }
@@ -264,8 +275,12 @@ export class PDFEditFeature {
    * @private
    */
   #unregisterEventListeners() {
-    this.#unsubscribers.forEach(unsub => unsub());
-    this.#unsubscribers = [];
+    if (!this.#subscriptionBag) {
+      this.#logger.debug("No subscription bag to clear for PDFEditFeature");
+      return;
+    }
+
+    this.#subscriptionBag.clear();
     this.#logger.debug("Event listeners unregistered");
   }
 
@@ -284,8 +299,9 @@ export class PDFEditFeature {
     if (this.#editButton) {
       const handleEditClick = this.#handleEditButtonClick.bind(this);
       this.#editButton.addEventListener("click", handleEditClick);
-      // 添加到unsubscribers以便清理
-      this.#unsubscribers.push(() => this.#editButton.removeEventListener("click", handleEditClick));
+      if (this.#subscriptionBag) {
+        this.#subscriptionBag.add(() => this.#editButton.removeEventListener("click", handleEditClick));
+      }
       // 按钮默认是disabled状态，点击时会检查选中状态
       this.#editButton.disabled = false;  // 启用按钮，让用户可以点击
       this.#logger.debug("Edit button bound");
@@ -367,7 +383,7 @@ export class PDFEditFeature {
 
       // 3秒后自动隐藏
       setTimeout(() => {
-        try { errorDiv.classList.remove("show"); } catch (_) { void _; }
+        try { errorDiv.classList.remove("show"); } catch (_) { this.#logger?.warn?.("[PDFEditFeature] hide global-error toast failed", _); }
       }, 3000);
     }
   }
@@ -732,8 +748,8 @@ export class PDFEditFeature {
             // 因此需要回溯三级目录（../../../），否则 Vite 在构建时会解析失败
             const { SEARCH_EVENTS } = await import("../../../common/event/event-constants.js");
             this.#scopedEventBus.emitGlobal(SEARCH_EVENTS.QUERY.REQUESTED, { searchText });
-          } catch (_e) { void _e;
-            // 忽略刷新异常
+          } catch (_e) {
+            this.#logger?.warn?.("[PDFEditFeature] refresh after edit failed", _e);
           }
           // 兜底：若未触发搜索刷新事件，延时显示成功
           this.#awaitingTimer = setTimeout(() => {

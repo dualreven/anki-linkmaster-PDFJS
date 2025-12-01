@@ -7,6 +7,7 @@
 import { getLogger } from "../../common/utils/logger.js";
 import { showSuccess } from "../../common/utils/notification.js";
 import { notifyDomainError } from "../../common/utils/domain-error-notifier.js";
+import { PDF_HOME_EVENTS } from "../../common/event/event-constants.js";
 
 /**
  * QWebChannel 桥接类
@@ -51,8 +52,14 @@ export class QWebChannelBridge {
     this.#logger.info("开始初始化 QWebChannel...");
 
     const getGlobalQWebChannel = () => {
-      try { return (typeof window !== "undefined" ? window.QWebChannel : undefined) || (typeof globalThis !== "undefined" ? globalThis.QWebChannel : undefined); }
-      catch {} { return undefined; }
+      try {
+        return (typeof window !== "undefined" ? window.QWebChannel : undefined) ||
+          (typeof globalThis !== "undefined" ? globalThis.QWebChannel : undefined);
+      } catch (e) {
+        // logger-guard
+        void e;
+        return undefined;
+      }
     };
 
     const ensureQWebChannelScript = () => {
@@ -75,7 +82,9 @@ export class QWebChannelBridge {
         });
         (document.head || document.body || document.documentElement).appendChild(sc);
         return p;
-      } catch {} {
+      } catch (e) {
+        // logger-guard
+        void e;
         return Promise.resolve(false);
       }
     };
@@ -383,7 +392,7 @@ export class QWebChannelBridge {
       notifyDomainError({
         message: "❌ [QWC] QWebChannel 未初始化",
         logger: this.#logger,
-        scope: "pdf-home:qwebchannel:init"
+        scope: PDF_HOME_EVENTS.QWEBCHANNEL.INIT
       });
       throw new Error("QWebChannel 未初始化，请先调用 initialize()");
     }

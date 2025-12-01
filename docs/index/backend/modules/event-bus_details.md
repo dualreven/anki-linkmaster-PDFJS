@@ -1,11 +1,13 @@
 # event-bus 模块 — 细节层
 
+> 注意：下面提到的 `src/frontend/pdf-home/ui-manager.js` 为旧版 pdf-home v1 中的示例使用代码，当前结构已不再包含该文件。此处引用仅用于说明典型调用方式，具体实现请以 `src/frontend/common/event/event-bus.js` 以及各 Feature 内的订阅代码为准。
+
 接口：
 - publish(topic, payload)
   - 参考：kilocode/system-prompt-agent-fact-review.yaml:5
   - 作用：将事件发布到本地订阅者，附带 metadata。
 - subscribe(topic, callback)
-  - 参考：src/frontend/pdf-home/ui-manager.js:78
+  - 参考（旧版示例）：src/frontend/pdf-home/ui-manager.js:78
   - 作用：注册订阅回调。
 
 事件格式：

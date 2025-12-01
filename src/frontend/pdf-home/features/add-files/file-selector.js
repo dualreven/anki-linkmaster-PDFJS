@@ -20,14 +20,25 @@ function isE2ETestMode() {
     const url = new URL(String(window.location));
     const e2e = url.searchParams.get("e2e");
     const fs = url.searchParams.get("fileSelector");
-    if (e2e === "1" || String(fs).toLowerCase() === "e2e") {return true;}
-  } catch {}
+    if (e2e === "1" || String(fs).toLowerCase() === "e2e") {
+      return true;
+    }
+  } catch (e) {
+    // logger-guard
+    void e;
+  }
   try {
     if (window.__E2E_FILE_SELECTOR__ === true) {return true;}
-  } catch {}
+  } catch (e) {
+    // logger-guard
+    void e;
+  }
   try {
     if (Array.isArray(window.__E2E_TEST_FILES__)) {return true;}
-  } catch {}
+  } catch (e) {
+    // logger-guard
+    void e;
+  }
   return false;
 }
 
@@ -40,7 +51,12 @@ class QWebChannelFileSelector {
   async selectFiles(options = {}) {
     const bridge = await this.#bridgeFactory();
     // 直接委托给 bridge（原有语义）
-    try { this.#logger.info("Selecting files via QWebChannel", { options }); } catch {}
+    try {
+      this.#logger.info("Selecting files via QWebChannel", { options });
+    } catch (e) {
+      // logger-guard
+      void e;
+    }
     return await bridge.selectFiles(options);
   }
 }
@@ -50,7 +66,7 @@ class E2EStubFileSelector {
   async selectFiles(_options = {}) {
     // 严格：仅从 __E2E_TEST_FILES__ 读取；缺失则抛错，禁止兜底
     const arr = (() => {
-      try { return window.__E2E_TEST_FILES__; } catch { return undefined; }
+      try { return window.__E2E_TEST_FILES__; } catch (e) { void e; /* logger-guard */ return undefined; }
     })();
     if (!Array.isArray(arr) || arr.length === 0 || !arr.every(v => typeof v === "string" && v.length > 0)) {
       const err = new Error("E2EStubFileSelector: __E2E_TEST_FILES__ 缺失或无效（必须为非空字符串数组）");

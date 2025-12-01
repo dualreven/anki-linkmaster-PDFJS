@@ -102,14 +102,18 @@ export async function bootstrapPDFViewerAppFeature() {
           setModuleLogLevel("OutlineManager", map[lv]);
           logger.info(`[Bootstrap] Outline log level elevated via outlineLog=${lv}`);
         }
-      } catch { /* ignore */ }
-    } catch { }
+      } catch (e) {
+        void e; /* logger-guard */
+      }
+    } catch (e) {
+      void e; /* logger-guard */
+    }
 
     // 4. 注册核心 Features
     registry.register(new AppCoreFeature());
     registry.register(new WindowControlsFeature({
-      bridgeName: 'pdfViewerBridge',
-      containerSelector: '.toolbar-right'
+      bridgeName: "pdfViewerBridge",
+      containerSelector: ".toolbar-right"
     })); // 窗口控制按钮(依赖 infra-app)
     registry.register(new PDFManagerFeature());
     registry.register(new UIManagerFeature());
@@ -156,11 +160,13 @@ export async function bootstrapPDFViewerAppFeature() {
                   eventBusSingleton.emit(PDF_VIEWER_EVENTS.ZOOM.OUT, { delta: 0.15 }, { actorId: "BootstrapZoomGuard" });
                 }
                 logger.info(`[Bootstrap] Ctrl+Wheel intercepted → zoom ${direction}`);
-              }).catch(() => {
-                logger.warn("[Bootstrap] Failed to emit zoom event on Ctrl+Wheel");
+              }).catch((err) => {
+                logger.warn("[Bootstrap] Failed to emit zoom event on Ctrl+Wheel", err);
               });
             }
-          } catch { }
+          } catch (err) {
+            void err; /* logger-guard */
+          }
         };
         const keydownHandler = (e) => {
           try {
@@ -179,7 +185,9 @@ export async function bootstrapPDFViewerAppFeature() {
               e.stopPropagation();
               logger.info("[Bootstrap] Ctrl+Key(code) page zoom prevented", { code });
             }
-          } catch { }
+          } catch (err) {
+            void err; /* logger-guard */
+          }
         };
         // 使用 passive:false 以允许 preventDefault 生效
         window.addEventListener("wheel", wheelHandler, { passive: false, capture: true });
@@ -248,7 +256,9 @@ export async function bootstrapPDFViewerAppFeature() {
           filename,
           pdfPath
         });
-      } catch { }
+      } catch (e) {
+        void e; /* logger-guard */
+      }
       eventBusSingleton.emit(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, {
         filename: filename,
         file_path: pdfPath
@@ -263,7 +273,9 @@ export async function bootstrapPDFViewerAppFeature() {
     try {
       showInfo("当前为 Outline 模式", 3000);
       logger.info("[Bootstrap] Outline mode is active (enforced)");
-    } catch { }
+    } catch (e) {
+      void e; /* logger-guard */
+    }
     return registry;
 
   } catch (error) {

@@ -250,13 +250,13 @@ export function createPDFViewerContainer({
       try {
         // 从 URL 显式获取 pdf-id，构建完整的 client_name（禁止自动推断）
         const params = new URLSearchParams(window.location.search);
-        const pdfId = params.get('pdf-id') || params.get('pdf_id') || '';
-        const clientName = pdfId ? `pdf-viewer-${pdfId}` : 'pdf-viewer';
+        const pdfId = params.get("pdf-id") || params.get("pdf_id") || "";
+        const clientName = pdfId ? `pdf-viewer-${pdfId}` : "pdf-viewer";
 
         const identityOptions = {
           client_name: clientName,  // 显式传递（如 pdf-viewer-c83c60c58ad2）
-          client_id: pdfId || 'ui',
-          module: 'pdf-viewer'
+          client_id: pdfId || "ui",
+          module: "pdf-viewer"
         };
 
         wsClient = new WSClient(state.wsUrl, eventBus, identityOptions);
@@ -291,5 +291,4 @@ export function createPDFViewerContainer({
     updateWebSocketUrl
   };
 }
-
 

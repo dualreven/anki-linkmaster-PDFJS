@@ -8,6 +8,7 @@ import { getLogger } from "../../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_EVENTS } from "../../../../common/event/event-constants.js";
 import { showSuccess, showError } from "../../../../common/utils/notification.js";
+import { copyTextUsingHiddenTextarea } from "../../../../common/utils/copy-utils.js";
 import { DOMElementManager } from "../../../ui/dom-element-manager.js";
 import { KeyboardHandler } from "../../../ui/keyboard-handler.js";
 import { UIStateManager } from "../../../ui/ui-state-manager.js";
@@ -107,7 +108,9 @@ export class UIManagerCore {
           { module: "UIManagerCore" },
           { actorId: "UIManagerCore" }
         );
-      } catch {}
+      } catch (e) {
+        this.#logger.warn("[UIManagerCore] Failed to emit STATE.INITIALIZED", e);
+      }
     } catch (error) {
       this.#logger.error("Failed to initialize UI Manager Core:", error);
       throw error;
@@ -387,7 +390,11 @@ export class UIManagerCore {
 
     titleElement.textContent = displayName;
     // 设置原生 tooltip，用于显示完整书名
-    try { titleElement.title = displayName; } catch { }
+    try {
+      titleElement.title = displayName;
+    } catch (e) {
+      void e; /* logger-guard */
+    }
     this.#logger.info(`Header title updated: ${displayName}`);
   }
 
@@ -449,32 +456,7 @@ export class UIManagerCore {
    * @private
    */
   #copyUsingExecCommand(text) {
-    try {
-      const textarea = document.createElement("textarea");
-      textarea.value = String(text ?? "");
-      textarea.style.cssText = [
-        "position: fixed",
-        "top: 0",
-        "left: 0",
-        "width: 2em",
-        "height: 2em",
-        "padding: 0",
-        "border: none",
-        "outline: none",
-        "boxShadow: none",
-        "background: transparent",
-        "opacity: 0",
-        "pointer-events: none"
-      ].join(";");
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-      const successful = document.execCommand("copy");
-      document.body.removeChild(textarea);
-      return !!successful;
-    } catch {
-      return false;
-    }
+    return copyTextUsingHiddenTextarea(String(text ?? ""));
   }
 
   /**

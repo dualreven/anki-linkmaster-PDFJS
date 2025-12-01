@@ -5,6 +5,7 @@
 
 import { SearchResultItemFeatureConfig } from "./feature.config.js";
 import "./styles/search-result-item.css";
+import { createSubscriptionBag } from "../../../common/event/subscription-bag.js";
 
 export class SearchResultItemFeature {
   name = SearchResultItemFeatureConfig.name;
@@ -15,7 +16,7 @@ export class SearchResultItemFeature {
   #logger = null;
   #scopedEventBus = null;
   #globalEventBus = null;
-  #unsubscribers = [];
+  #subscriptionBag = null;
 
   /**
    * 安装Feature
@@ -25,6 +26,7 @@ export class SearchResultItemFeature {
     this.#logger = context.logger;
     this.#scopedEventBus = context.scopedEventBus;
     this.#globalEventBus = context.globalEventBus;
+    this.#subscriptionBag = createSubscriptionBag({ loggerName: "SearchResultItemFeature.Subscriptions" });
 
     this.#logger.info("[SearchResultItemFeature] Installing...");
     // 轻量探针，避免未使用私有成员的告警
@@ -56,8 +58,10 @@ export class SearchResultItemFeature {
     this.#logger.info("[SearchResultItemFeature] Uninstalling...");
 
     // 取消事件订阅
-    this.#unsubscribers.forEach(unsub => unsub());
-    this.#unsubscribers = [];
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.clear();
+      this.#subscriptionBag = null;
+    }
 
     // TODO: 清理资源
 

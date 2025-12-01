@@ -9,6 +9,8 @@ UTF-8；使用 `\\n`
 
 统一约束：事件名三段式 `{module}:{action}:{status}`；映射由 `tests/e2e/config/event-mapping.json` 管理；不使用环境变量；UTF-8 与 `\\n`；产物写入 `AItemp/`。
 
+> 兼容性说明：文中示例中提到的 `IntegratedWebSocketServer` 与 `src/backend/msgCenter_server/integrated_server.py` 反映的是早期集成方案，当前实现以 `src/backend/msgCenter_server/standard_server.py` 与 launcher/core 组合为主。下列代码片段和路径请视为概念示例，而非与当前仓库一一对应的真实文件。
+
 ### Step 4: 移除进程管理代码
 
 ```diff
@@ -142,7 +144,7 @@ subprocess.Popen(['python', '-m', 'http.server', '8080'])
 
 ### 项目文档
 - `src/backend/msgCenter_server/INTEGRATION-GUIDE.md` - 详细集成指南
-- `src/backend/msgCenter_server/integrated_server.py` - 源代码实现
+- （历史）`src/backend/msgCenter_server/integrated_server.py` - 早期集成实现，当前代码中已移除
 - `src/frontend/pdf-home/launcher.integrated-websocket.example.py` - 完整示例
 
 ### 相关文件

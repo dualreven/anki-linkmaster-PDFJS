@@ -347,5 +347,5 @@ export class PDFBookmarkFeature {
 **如有疑问，参考现有Feature：**
 - `app-core` - 核心功能示例
 - `pdf-bookmark` - 标准功能示例
-- `url-navigation` - 带依赖的示例
+- `pdf-url-loader` - 带依赖的示例（包含 URL 参数解析与多 Feature 依赖）
 

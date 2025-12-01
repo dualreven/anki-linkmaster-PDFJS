@@ -1,4 +1,6 @@
-﻿import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
+import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
+import { createSubscriptionBag } from "../../../../common/ws/ws-subscription-bag.js";
+import { createSidebarRoot } from "../../../shared/sidebar-shell.js";
 
 /**
  * AI助手侧边栏UI
@@ -15,7 +17,7 @@ export class AiAssistantSidebarUI {
   #annotationSelect;
   #statusBadge;
   #messages = [];
-  #unsubs = [];
+  #subscriptions;
   #isSending = false;
 
   constructor({ eventBus, annotationManager, chatService, logger }) {
@@ -23,6 +25,7 @@ export class AiAssistantSidebarUI {
     this.#annotationManager = annotationManager;
     this.#chatService = chatService;
     this.#logger = logger;
+    this.#subscriptions = createSubscriptionBag({ loggerName: "AiAssistantSidebarUI" });
   }
 
   initialize() {
@@ -36,8 +39,7 @@ export class AiAssistantSidebarUI {
   }
 
   destroy() {
-    this.#unsubs.forEach((off) => off?.());
-    this.#unsubs = [];
+    this.#subscriptions?.clear();
     this.#messages = [];
     if (this.#root?.parentNode) {
       this.#root.remove();
@@ -46,13 +48,9 @@ export class AiAssistantSidebarUI {
   }
 
   #createLayout() {
-    const root = document.createElement("div");
-    root.className = "ai-assistant-sidebar";
-    root.style.cssText = [
-      "display: flex",
-      "flex-direction: column",
-      "height: 100%"
-    ].join(";");
+    const root = createSidebarRoot({
+      className: "ai-assistant-sidebar"
+    });
 
     const header = document.createElement("div");
     header.style.cssText = [
@@ -195,8 +193,8 @@ export class AiAssistantSidebarUI {
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, onCreated);
     this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DELETED, onDeleted);
 
-    this.#unsubs.push(() => this.#eventBus.off(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, onCreated));
-    this.#unsubs.push(() => this.#eventBus.off(PDF_VIEWER_EVENTS.ANNOTATION.DELETED, onDeleted));
+    this.#subscriptions.add(() => this.#eventBus.off(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, onCreated));
+    this.#subscriptions.add(() => this.#eventBus.off(PDF_VIEWER_EVENTS.ANNOTATION.DELETED, onDeleted));
   }
 
   #refreshAnnotationOptions() {
@@ -224,84 +222,74 @@ export class AiAssistantSidebarUI {
   }
 
   async #handleSend() {
-    if (this.#isSending) {
-      return;
-    }
+    if (this.#isSending) {return;}
+    const text = (this.#input?.value || "").trim();
+    if (!text) {return;}
 
-    const text = this.#input.value.trim();
-    if (!text) {
-      this.#input.focus();
-      return;
-    }
-
-    this.#appendMessage("user", text);
-    this.#input.value = "";
-    this.#setSendingState(true);
+    this.#isSending = true;
+    this.#updateStatus("发送中...", "#ff9800");
 
     try {
+      const userMessage = { role: "user", content: text, createdAt: Date.now() };
+      this.#messages.push(userMessage);
+      this.#renderMessages();
+      this.#input.value = "";
+
       const response = await this.#chatService.sendMessage({
-        history: this.#messages,
-        message: text
+        question: text,
+        annotations: this.#annotationManager?.getAnnotationsByType?.("text-highlight") || []
       });
 
-      this.#appendMessage("assistant", response?.text || "（未收到回答）");
-    } catch (error) {
-      this.#logger?.error("[AiAssistantSidebarUI] sendMessage failed", error);
-      this.#appendMessage("assistant", `抱歉，服务暂时不可用：${error.message || error}`);
+      const aiMessage = {
+        role: "assistant",
+        content: response?.answer || "（未返回内容）",
+        createdAt: Date.now()
+      };
+      this.#messages.push(aiMessage);
+      this.#renderMessages();
+
+      this.#updateStatus("待命", "#4caf50");
+    } catch (e) {
+      this.#logger?.warn?.("AiAssistantSidebarUI send failed", e);
+      this.#updateStatus("出错", "#f44336");
     } finally {
-      this.#setSendingState(false);
+      this.#isSending = false;
     }
   }
 
-  #appendMessage(role, text) {
-    this.#messages.push({ role, text });
+  #renderMessages() {
+    if (!this.#messagesContainer) {return;}
+    this.#messagesContainer.innerHTML = "";
 
-    if (!this.#messagesContainer) {
-      return;
-    }
+    this.#messages.forEach((msg) => {
+      const bubble = document.createElement("div");
+      bubble.style.cssText = [
+        "padding: 10px 12px",
+        "border-radius: 6px",
+        "font-size: 14px",
+        "max-width: 100%",
+        "white-space: pre-wrap"
+      ].join(";");
 
-    const wrapper = document.createElement("div");
-    wrapper.style.cssText = [
-      "display: flex",
-      "flex-direction: column",
-      role === "assistant" ? "align-items: flex-start" : "align-items: flex-end"
-    ].join(";");
+      if (msg.role === "user") {
+        bubble.style.background = "#e3f2fd";
+        bubble.style.alignSelf = "flex-end";
+      } else {
+        bubble.style.background = "#f5f5f5";
+        bubble.style.alignSelf = "flex-start";
+      }
 
-    const bubble = document.createElement("div");
-    bubble.textContent = text;
-    bubble.style.maxWidth = "85%";
-    bubble.style.padding = "10px 12px";
-    bubble.style.borderRadius = "8px";
-    bubble.style.whiteSpace = "pre-wrap";
-    bubble.style.fontSize = "14px";
-    bubble.style.display = "inline-block";
+      bubble.textContent = msg.content;
+      this.#messagesContainer.appendChild(bubble);
+    });
 
-    if (role === "assistant") {
-      bubble.style.backgroundColor = "#f5f5f5";
-      bubble.style.color = "#333333";
-      bubble.style.border = "1px solid #eeeeee";
-    } else {
-      bubble.style.backgroundColor = "#2196f3";
-      bubble.style.color = "#ffffff";
-      bubble.style.border = "1px solid #2196f3";
-    }
-
-    wrapper.appendChild(bubble);
-    this.#messagesContainer.appendChild(wrapper);
     this.#messagesContainer.scrollTop = this.#messagesContainer.scrollHeight;
   }
 
-  #setSendingState(isSending) {
-    this.#isSending = isSending;
-    if (this.#sendButton) {
-      this.#sendButton.disabled = isSending;
-      this.#sendButton.textContent = isSending ? "发送中…" : "发送";
-    }
-    if (this.#statusBadge) {
-      this.#statusBadge.textContent = isSending ? "思考中…" : "待命";
-      this.#statusBadge.style.color = isSending ? "#ff9800" : "#4caf50";
-    }
+  #updateStatus(text, color) {
+    if (!this.#statusBadge) {return;}
+    this.#statusBadge.textContent = text;
+    this.#statusBadge.style.color = color;
   }
 }
 
-export default AiAssistantSidebarUI;

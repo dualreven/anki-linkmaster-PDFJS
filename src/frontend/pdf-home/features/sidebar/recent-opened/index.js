@@ -6,6 +6,7 @@
 import { RecentOpenedFeatureConfig } from "./feature.config.js";
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_EVENTS, PDF_MANAGEMENT_EVENTS, SEARCH_EVENTS } from "../../../../common/event/event-constants.js";
 import "./styles/recent-opened.css";
+import { createSubscriptionBag } from "../../../../common/event/subscription-bag.js";
 
 export class RecentOpenedFeature {
   name = RecentOpenedFeatureConfig.name;
@@ -16,7 +17,7 @@ export class RecentOpenedFeature {
   #logger = null;
   #scopedEventBus = null;
   #globalEventBus = null;
-  #unsubscribers = [];
+  #subscriptionBag = null;
 
   // 数据
   #recentOpened = [];
@@ -31,6 +32,7 @@ export class RecentOpenedFeature {
     this.#logger = context.logger;
     this.#scopedEventBus = context.scopedEventBus;
     this.#globalEventBus = context.globalEventBus;
+    this.#subscriptionBag = createSubscriptionBag({ loggerName: "RecentOpenedFeature.Subscriptions" });
     // 标记已使用，避免私有未使用告警
     void this.#scopedEventBus;
 
@@ -70,8 +72,10 @@ export class RecentOpenedFeature {
       this.#refreshTimer = null;
     }
 
-    this.#unsubscribers.forEach(fn => fn && fn());
-    this.#unsubscribers = [];
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.clear();
+      this.#subscriptionBag = null;
+    }
     if (this.#listEl) {
       this.#listEl.innerHTML = "<li class=\"sidebar-empty\">暂无阅读记录</li>";
     }
@@ -97,9 +101,14 @@ export class RecentOpenedFeature {
         this.#recentOpened = Array.isArray(files) ? files : [];
         this.#renderList();
         this.#pendingReqId = null;
-      } catch {}
+      } catch (e) {
+        // logger-guard
+        void e;
+      }
     }, { subscriberId: "RecentOpenedFeature" });
-    this.#unsubscribers.push(unsubResp);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubResp);
+    }
 
     // 监听 PDF 打开事件：延迟3秒后刷新最近阅读列表
     const unsubPdfOpen = this.#globalEventBus.on(PDF_MANAGEMENT_EVENTS.OPEN.COMPLETED, (data) => {
@@ -118,7 +127,9 @@ export class RecentOpenedFeature {
         this.#refreshTimer = null;
       }, 3000);
     }, { subscriberId: "RecentOpenedFeature:pdf-opened" });
-    this.#unsubscribers.push(unsubPdfOpen);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubPdfOpen);
+    }
 
     // 列表点击：触发"全量、按 visited_at 降序"的标准搜索（交由 SearchManager 发起与派发结果）
     if (this.#listEl) {
@@ -136,7 +147,9 @@ export class RecentOpenedFeature {
         });
       };
       this.#listEl.addEventListener("click", clickHandler);
-      this.#unsubscribers.push(() => this.#listEl.removeEventListener("click", clickHandler));
+      if (this.#subscriptionBag) {
+        this.#subscriptionBag.add(() => this.#listEl.removeEventListener("click", clickHandler));
+      }
     }
 
     // 显示条数变更
@@ -145,12 +158,14 @@ export class RecentOpenedFeature {
         const val = parseInt(e.target.value, 10);
         if (!Number.isNaN(val) && val > 0) {
           this.#displayLimit = val;
-          try { localStorage.setItem(`${RecentOpenedFeatureConfig.config.storageKey}:display-limit`, String(val)); } catch (e) { void e; }
+          try { localStorage.setItem(`${RecentOpenedFeatureConfig.config.storageKey}:display-limit`, String(val)); } catch (e) { void e; /* logger-guard */ }
           this.#requestRecentOpened();
         }
       };
       this.#limitSelectEl.addEventListener("change", changeHandler);
-      this.#unsubscribers.push(() => this.#limitSelectEl.removeEventListener("change", changeHandler));
+      if (this.#subscriptionBag) {
+        this.#subscriptionBag.add(() => this.#limitSelectEl.removeEventListener("change", changeHandler));
+      }
     }
   }
 
@@ -198,7 +213,10 @@ export class RecentOpenedFeature {
         const n = parseInt(v, 10);
         if (!Number.isNaN(n) && n > 0) {this.#displayLimit = n;}
       }
-    } catch {}
+    } catch (e) {
+      // logger-guard
+      void e;
+    }
   }
 
   #requestRecentOpened() {

@@ -43,9 +43,13 @@ function fallbackToast(text) {
     c.appendChild(el);
     requestAnimationFrame(() => { el.style.opacity = "1"; el.style.transform = "translateY(0)"; });
     setTimeout(() => {
-      try { el.style.opacity = "0"; el.style.transform = "translateY(-6px)"; setTimeout(() => el.remove(), 180); } catch {}
+      try {
+        el.style.opacity = "0";
+        el.style.transform = "translateY(-6px)";
+        setTimeout(() => el.remove(), 180);
+      } catch (e) { void e; /* logger-guard */ }
     }, 6000);
-  } catch {}
+  } catch (e) { void e; /* logger-guard */ }
 }
 
 function showToast(text) {
@@ -60,7 +64,7 @@ function shouldToast(text) {
         return false;
       }
     }
-  } catch {}
+  } catch (e) { void e; /* logger-guard */ }
 
   const t = now();
   // 去重
@@ -106,7 +110,9 @@ window.addEventListener("error", (e) => {
     // 控制台保留
     logger.error("[GlobalErrorToast]", text, e?.error?.stack || "");
     if (shouldToast(text)) {showToast(text);}
-  } catch {}
+  } catch (err) {
+    void err; /* logger-guard */
+  }
 }, true);
 
 window.addEventListener("unhandledrejection", (e) => {
@@ -114,5 +120,7 @@ window.addEventListener("unhandledrejection", (e) => {
     const text = formatOnRejection(e);
     logger.error("[GlobalErrorToast]", text, e?.reason?.stack || "");
     if (shouldToast(text)) {showToast(text);}
-  } catch {}
+  } catch (err) {
+    void err; /* logger-guard */
+  }
 }, true);

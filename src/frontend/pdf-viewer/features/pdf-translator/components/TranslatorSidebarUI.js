@@ -8,6 +8,8 @@ import { getLogger } from "../../../../common/utils/logger.js";
 import { showSuccess, showError, showInfo } from "../../../../common/utils/notification.js";
 import { PDF_TRANSLATOR_EVENTS } from "../events.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
+import { createSubscriptionBag } from "../../../../common/ws/ws-subscription-bag.js";
+import { createSidebarRoot } from "../../../shared/sidebar-shell.js";
 
 /**
  * 翻译侧边栏UI类
@@ -19,7 +21,7 @@ export class TranslatorSidebarUI {
   #contentElement;
   #currentTranslation = null;
   #translationHistory = [];
-  #unsubs = [];
+  #subscriptions;
 
   /**
    * 构造函数
@@ -30,6 +32,7 @@ export class TranslatorSidebarUI {
     this.#eventBus = eventBus;
     this.#logger = getLogger("TranslatorSidebarUI");
     this.#contentElement = null;
+    this.#subscriptions = createSubscriptionBag({ loggerName: "TranslatorSidebarUI" });
   }
 
   /**
@@ -39,15 +42,14 @@ export class TranslatorSidebarUI {
     this.#logger.info("Initializing TranslatorSidebarUI...");
 
     // 创建内容容器
-    this.#contentElement = document.createElement("div");
-    this.#contentElement.className = "translator-sidebar-content";
-    this.#contentElement.style.cssText = `
-      height: 100%;
-      overflow-y: auto;
-      padding: 16px;
-      box-sizing: border-box;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    `;
+    this.#contentElement = createSidebarRoot({
+      className: "translator-sidebar-content",
+      extraStyle: [
+        "overflow-y:auto",
+        "padding:16px",
+        "font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,sans-serif"
+      ].join(";")
+    });
 
     // 渲染初始UI
     this.#renderUI();
@@ -72,7 +74,7 @@ export class TranslatorSidebarUI {
    */
   #setupEventListeners() {
     // 监听翻译完成事件
-    this.#unsubs.push(
+    this.#subscriptions.add(
       this.#eventBus.on(
         PDF_TRANSLATOR_EVENTS.TRANSLATE.COMPLETED,
         (data) => this.#handleTranslationCompleted(data),
@@ -81,7 +83,7 @@ export class TranslatorSidebarUI {
     );
 
     // 监听翻译失败事件
-    this.#unsubs.push(
+    this.#subscriptions.add(
       this.#eventBus.on(
         PDF_TRANSLATOR_EVENTS.TRANSLATE.FAILED,
         (data) => this.#handleTranslationFailed(data),
@@ -711,14 +713,7 @@ export class TranslatorSidebarUI {
     this.#logger.info("Destroying TranslatorSidebarUI...");
 
     // 取消所有事件订阅
-    this.#unsubs.forEach(unsub => {
-      try {
-        unsub();
-      } catch (err) {
-        this.#logger.warn("Failed to unsubscribe:", err);
-      }
-    });
-    this.#unsubs = [];
+    this.#subscriptions?.clear();
 
     // 移除DOM元素
     if (this.#contentElement && this.#contentElement.parentNode) {

@@ -72,3 +72,19 @@ websocket.onclose = () => {
 websocket.onerror = (error) => {
   console.log(error); // 缺少统一的错误处理
 };
+
+- 条件执行 gate 字段（统一约定）:
+  - 可选顶层字段 gate，格式为：
+    - gate.once: string  等待某“状态型事件”已发生或下一次发生（例如 pdf-viewer:render:ready）
+    - gate.on: string    等待某事件的下一次发生（动作型事件）
+    - gate.timeout_ms?: number  可选超时（毫秒，正整数）
+  - once 与 on 互斥，至少配置其一；非法配置必须视为协议错误。
+  - 示例：
+    `json
+    {
+      "type": "pdf-viewer:outline-navigate:requested",
+      "data": { "pdf_uuid": "...", "outline_id": "..." },
+      "gate": { "once": "pdf-viewer:render:ready", "timeout_ms": 2500 }
+    }
+    `
+  - 前端统一使用 src/frontend/common/ws/ws-gate-utils.js 中的 alidateGateConfig(gate) 做结构校验，确保条件 WS 消息格式在各模块间保持一致。

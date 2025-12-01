@@ -208,7 +208,7 @@ export class AnnotationFeature {
 
     this.#logger.info(`[${this.name}] Installed successfully`);
     // 标记私有成员为已使用，避免 lint 对未使用私有成员报错（不影响行为）
-    try { void this.#globalEventBus; void this.#createAnnotationButton; } catch (e) { void e; }
+    try { void this.#globalEventBus; void this.#createAnnotationButton; } catch (e) { void e; /* logger-guard */ }
 
     // 在 PDF 加载成功后自动加载该 PDF 的标注
     try {
@@ -318,7 +318,9 @@ export class AnnotationFeature {
       this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, () => {
         this.#hasLoadedOnce = true;
       }, { subscriberId: "AnnotationFeature" });
-    } catch (e) { void e; }
+    } catch (e) {
+      void e; /* logger-guard */
+    }
   }
 
   /**

@@ -14,9 +14,10 @@ import { AddFilesFeatureConfig } from "./feature.config.js";
 import { QWebChannelBridge } from "../../qwebchannel/qwebchannel-bridge.js";
 import { getFileSelector } from "./file-selector.js";
 import { getLogger } from "../../../common/utils/logger.js";
-import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_EVENTS, SEARCH_EVENTS } from "../../../common/event/event-constants.js";
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_EVENTS, SEARCH_EVENTS, PDF_HOME_EVENTS } from "../../../common/event/event-constants.js";
 import { showInfo, showSuccess, showInfoWithId, dismissById } from "../../../common/utils/notification.js";
 import { notifyDomainError } from "../../../common/utils/domain-error-notifier.js";
+import { createSubscriptionBag } from "../../../common/event/subscription-bag.js";
 
 export class AddFilesFeature {
   name = AddFilesFeatureConfig.name;
@@ -27,7 +28,7 @@ export class AddFilesFeature {
   #logger = null;
   #scopedEventBus = null;
   #globalEventBus = null;
-  #unsubscribers = [];
+  #subscriptionBag = null;
   #bridge = null;
   #genReqId() { return `add_${Date.now()}_${Math.random().toString(36).slice(2,8)}`; }
 
@@ -38,6 +39,8 @@ export class AddFilesFeature {
     this.#globalEventBus = context.globalEventBus;
 
     this.#logger.info("[AddFilesFeature] Installing...");
+
+    this.#subscriptionBag = createSubscriptionBag({ loggerName: "AddFilesFeature.Subscriptions" });
 
     try {
       // 懒初始化 QWebChannelBridge（仅在首次点击时初始化）
@@ -56,12 +59,10 @@ export class AddFilesFeature {
   async uninstall() {
     this.#logger?.info?.("[AddFilesFeature] Uninstalling...");
     try {
-      this.#unsubscribers.forEach((fn) => {
-        try {
-          if (typeof fn === "function") { fn(); }
-        } catch { /* ignore */ }
-      });
-      this.#unsubscribers = [];
+      if (this.#subscriptionBag) {
+        this.#subscriptionBag.clear();
+        this.#subscriptionBag = null;
+      }
     } finally {
       this.#bridge = null;
     }
@@ -83,7 +84,9 @@ export class AddFilesFeature {
         });
       }
     }, { subscriberId: "AddFilesFeature" });
-    this.#unsubscribers.push(unsub);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsub);
+    }
 
     // 监听后端回执：添加完成/失败 → 反馈 + 触发刷新
     const unsubResp = this.#globalEventBus.on(WEBSOCKET_MESSAGE_EVENTS.RESPONSE, (message) => {
@@ -102,9 +105,14 @@ export class AddFilesFeature {
             pagination: { limit: 20, offset: 0, need_total: false }
           });
         }
-      } catch {}
+      } catch (e) {
+        // logger-guard
+        void e;
+      }
     }, { subscriberId: "AddFilesFeature:resp" });
-    this.#unsubscribers.push(unsubResp);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubResp);
+    }
 
     const unsubErr = this.#globalEventBus.on(WEBSOCKET_MESSAGE_EVENTS.ERROR, (message) => {
       try {
@@ -117,13 +125,15 @@ export class AddFilesFeature {
           notifyDomainError({
             message: String(tip),
             logger: this.#logger,
-            scope: "pdf-home:add-files:ws-error",
+            scope: PDF_HOME_EVENTS.ADD_FILES.WS_ERROR,
             error: err
           });
         }
       } catch { /* ignore */ }
     }, { subscriberId: "AddFilesFeature:error" });
-    this.#unsubscribers.push(unsubErr);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubErr);
+    }
   }
 
   async #ensureBridge() {

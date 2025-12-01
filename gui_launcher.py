@@ -814,6 +814,10 @@ class GUILauncher(QMainWindow):
             from src.backend.msgCenter_server.standard_protocol import StandardMessageHandler as _SMH  # 延迟导入
             import time as _time, asyncio
             rid = _SMH.generate_request_id()
+            # 构造带 gate 的导航消息：
+            # - type: pdf-viewer:navigate:requested
+            # - gate.once: 等待 pdf-viewer:render:ready（由前端适配器统一处理）
+            # - gate.timeout_ms: 避免无限等待，这里选用 2500ms 作为默认超时
             nav_msg = {
                 "type": "pdf-viewer:navigate:requested",
                 "timestamp": int(_time.time() * 1000),
@@ -825,6 +829,10 @@ class GUILauncher(QMainWindow):
                         "target_type": "pdf-viewer"  # 目标类型
                     }
                 ],
+                "gate": {
+                    "once": "pdf-viewer:render:ready",
+                    "timeout_ms": 2500
+                },
                 "data": {
                     "target": nav_target,
                     "options": {}

@@ -14,33 +14,9 @@ Usage:
   # 已过时 - 使用文件路径（不推荐）
   # python src/frontend/pdf-viewer/launcher.py --file-path path/to/file.pdf
 
-  # 打开PDF并跳转到指定页码（第5页）
-  python src/frontend/pdf-viewer/launcher.py --pdf-id sample --page-at 5
-
-  # 打开PDF并跳转到指定页码的特定位置（第5页的50%位置）
-  python src/frontend/pdf-viewer/launcher.py --pdf-id sample --page-at 5 --position 50
-
-  # 携带锚点ID（用于前端 Anchor Feature，例如 DEV: pdfanchor-test 或正式: pdfanchor-xxxxxxxxxxxx）
-  # 等价写法：--anchor-id 或 --pdfanchor
-  python src/frontend/pdf-viewer/launcher.py --pdf-id sample --anchor-id pdfanchor-test
-  python src/frontend/pdf-viewer/launcher.py --pdf-id sample --pdfanchor pdfanchor-test
-
-  # 完整示例：指定所有参数
-  python src/frontend/pdf-viewer/launcher.py \\
-    --file-path data/pdfs/document.pdf \\
-    --page-at 10 \\
-    --position 75
-
-URL Navigation Parameters:
-  --pdf-id ID          PDF文件标识符（会自动解析为文件路径）
-  --page-at PAGE       目标页码（从1开始）
-  --position PERCENT   页面内垂直位置百分比（0-100）
-  --anchor-id ID       锚点ID（DEV: pdfanchor-test / 正式: pdfanchor- + 12位hex）
-  --pdfanchor ID       锚点ID（与 --anchor-id 等价的别名，便于记忆）
-
 Note:
-  URL导航参数会传递给前端的url-navigation Feature处理。
-  前端会自动加载PDF并跳转到指定位置。
+  当前版本不再支持通过 URL 查询参数（page-at/position/anchor-id 等）触发导航。
+  所有导航能力均由前端 Feature / WebSocket 消息驱动，URL 仅用于标识要打开的 PDF（pdf-id）。
 """
 
 from __future__ import annotations
@@ -262,7 +238,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--no-persist", action="store_true", help="Do not persist ports back to logs/runtime-ports.json")
     parser.add_argument("--file-path", type=str, dest="file_path", help="PDF file path to load automatically")
     parser.add_argument("--pdf-id", type=str, dest="pdf_id", help="PDF ID to resolve to file path")
-    # URL 参数跳转已禁用，移除以下参数：page-at, position, anchor-id, pdfanchor, annotation-id, outline-item-id
+    # URL 参数跳转已禁用，page-at/position/anchor-id/annotation-id/outline-item-id 等导航相关参数不再支持
     parser.add_argument("--diagnose-only", action="store_true", help="Run initialization diagnostics and exit before starting the Qt event loop")
     parser.add_argument("--disable-webchannel", action="store_true", help="Skip QWebChannel bridge setup")
     parser.add_argument("--disable-websocket", action="store_true", help="Skip QWebSocket bridge connection")
@@ -272,7 +248,6 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--keep-backend", action="store_true", help="窗口关闭时保持后端服务运行（不停止）")
     parser.add_argument("--logs-dir", type=str, dest="logs_dir", help="显式日志目录（必填）", required=True)
     ns = parser.parse_args(argv)
-    # URL 参数跳转已禁用，移除 pdfanchor 别名规范化
     return ns
 
 
@@ -1077,37 +1052,9 @@ def main_legacy() -> int:
             file_param = urllib.parse.quote(file_path)
             url += f"&file={file_param}"
 
-    # Add URL navigation parameters (for url-navigation Feature)
+    # 附带 pdf-id 供前端识别当前文档（不再通过 URL 参数携带任何导航信息）
     if args.pdf_id:
-        # 始终附带 pdf-id 供 Outline 识别文档；是否执行导航由互斥策略控制
         url += f"&pdf-id={args.pdf_id}"
-
-    if args.page_at is not None:
-        # 添加目标页码参数
-        url += f"&page-at={args.page_at}"
-        logger.info(f"URL navigation: target page = {args.page_at}")
-
-    if args.position is not None:
-        # 添加页面内位置百分比参数
-        # 限制在0-100范围内
-        position = max(0.0, min(100.0, args.position))
-        url += f"&position={position}"
-        logger.info(f"URL navigation: target position = {position}%")
-
-    # 追加 anchor-id（可选）
-    if args.anchor_id:
-        url += f"&anchor-id={args.anchor_id}"
-        logger.info(f"URL navigation: anchor-id = {args.anchor_id}")
-
-    # 追加 annotation-id（可选）
-    if getattr(args, 'annotation_id', None):
-        url += f"&annotation-id={args.annotation_id}"
-        logger.info(f"URL navigation: annotation-id = {args.annotation_id}")
-
-    # 追加 outline-item-id（可选）
-    if getattr(args, 'outline_item_id', None):
-        url += f"&outline-item-id={args.outline_item_id}"
-        logger.info(f"URL navigation: outline-item-id = {args.outline_item_id}")
 
     # 在加载前，确保为本 viewer 配置独立的 Python 日志文件，避免 dist/latest/pdf-viewer-<id>.log 为空
     try:

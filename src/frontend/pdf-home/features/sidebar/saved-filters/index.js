@@ -6,6 +6,7 @@
 import { SavedFiltersFeatureConfig } from "./feature.config.js";
 import { WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_EVENTS, WEBSOCKET_EVENTS, FILTER_EVENTS, SEARCH_EVENTS } from "../../../../common/event/event-constants.js";
 import { showError } from "../../../../common/utils/notification.js";
+import { createSubscriptionBag } from "../../../../common/event/subscription-bag.js";
 
 // 导入样式
 import "./styles/saved-filters.css";
@@ -24,7 +25,7 @@ export class SavedFiltersFeature {
   #listEl = null;
   #addBtn = null;
   #configBtn = null;
-  #unsubscribers = [];
+  #subscriptionBag = null;
   #storageKey = "pdf-home:saved-filters";
   #savedFilters = [];
   #pendingSaveTimer = null;
@@ -46,6 +47,7 @@ export class SavedFiltersFeature {
     this.#logger = context.logger;
     this.#scopedEventBus = context.scopedEventBus;
     this.#globalEventBus = context.globalEventBus;
+    this.#subscriptionBag = createSubscriptionBag({ loggerName: "SavedFiltersFeature.Subscriptions" });
 
     this.#logger.info(`[SavedFiltersFeature] Installing v${this.version}...`);
 
@@ -76,8 +78,10 @@ export class SavedFiltersFeature {
     this.#logger.info("[SavedFiltersFeature] Uninstalling...");
 
     // 取消所有事件订阅
-    this.#unsubscribers.forEach(unsub => unsub());
-    this.#unsubscribers = [];
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.clear();
+      this.#subscriptionBag = null;
+    }
 
     // 移除DOM
     if (this.#container) {
@@ -127,7 +131,9 @@ export class SavedFiltersFeature {
     if (this.#addBtn) {
       const onAdd = () => this.#openSaveDialog();
       this.#addBtn.addEventListener("click", onAdd);
-      this.#unsubscribers.push(() => this.#addBtn.removeEventListener("click", onAdd));
+      if (this.#subscriptionBag) {
+        this.#subscriptionBag.add(() => this.#addBtn.removeEventListener("click", onAdd));
+      }
     }
 
     // 列表点击（应用保存的条件）
@@ -140,21 +146,27 @@ export class SavedFiltersFeature {
         if (found) {this.#applyFilter(found);}
       };
       this.#listEl.addEventListener("click", onClick);
-      this.#unsubscribers.push(() => this.#listEl.removeEventListener("click", onClick));
+      if (this.#subscriptionBag) {
+        this.#subscriptionBag.add(() => this.#listEl.removeEventListener("click", onClick));
+      }
     }
 
     // 配置按钮点击（打开管理对话框）
     if (this.#configBtn) {
       const onCfg = () => this.#openManageDialog();
       this.#configBtn.addEventListener("click", onCfg);
-      this.#unsubscribers.push(() => this.#configBtn.removeEventListener("click", onCfg));
+      if (this.#subscriptionBag) {
+        this.#subscriptionBag.add(() => this.#configBtn.removeEventListener("click", onCfg));
+      }
     }
 
     // 监听全局筛选状态更新（保存最近 filters）
     const unsubFilter = this.#globalEventBus.on(FILTER_EVENTS.STATE.UPDATED, (data) => {
       try { this.#lastFilters = data?.filters ?? null; } catch { this.#lastFilters = null; }
     }, { subscriberId: "SavedFiltersFeature" });
-    this.#unsubscribers.push(unsubFilter);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubFilter);
+    }
 
     // 监听 PDF 列表排序变化（保留最近排序信息）
     const unsubSort = this.#scopedEventBus.onGlobal("@pdf-list/sort:change:completed", (data) => {
@@ -163,7 +175,9 @@ export class SavedFiltersFeature {
         this.#lastSort = { column, direction };
       }
     }, { subscriberId: "SavedFiltersFeature" });
-    this.#unsubscribers.push(unsubSort);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubSort);
+    }
 
     // 监听后端配置回执（覆盖本地）
     const unsubWsResp = this.#scopedEventBus.onGlobal(WEBSOCKET_MESSAGE_EVENTS.RESPONSE, (message) => {
@@ -184,7 +198,9 @@ export class SavedFiltersFeature {
         this.#logger.error("[SavedFiltersFeature] Handle backend config failed", e);
       }
     }, { subscriberId: "SavedFiltersFeature" });
-    this.#unsubscribers.push(unsubWsResp);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubWsResp);
+    }
 
     this.#logger.debug("[SavedFiltersFeature] Event listeners setup");
   }
@@ -297,7 +313,10 @@ export class SavedFiltersFeature {
       this.#listEl = this.#container.querySelector(".saved-filters-list");
       this.#addBtn = this.#container.querySelector(".saved-filters-add-btn");
       this.#configBtn = this.#container.querySelector(".saved-filters-config-btn");
-    } catch (e) { void e; }
+    } catch (e) {
+      // logger-guard
+      void e;
+    }
   }
 
   #loadFromStorage() {
@@ -351,7 +370,10 @@ export class SavedFiltersFeature {
       try {
         const sm = this.#context?.container?.get && this.#context.container.get("searchManager");
         if (sm && typeof sm.getCurrentSearchText === "function") {searchText = sm.getCurrentSearchText() || "";}
-      } catch (e) { void e; }
+      } catch (e) {
+        // logger-guard
+        void e;
+      }
       if (!searchText) {
         const input = document.querySelector(".search-input");
         searchText = (input && input.value) ? String(input.value) : "";
@@ -402,7 +424,11 @@ export class SavedFiltersFeature {
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
-    } catch { return ""; }
+    } catch (e) {
+      // logger-guard
+      void e;
+      return "";
+    }
   }
 
   #formatTime(ts) {
@@ -411,7 +437,11 @@ export class SavedFiltersFeature {
       const hh = String(d.getHours()).padStart(2, "0");
       const mm = String(d.getMinutes()).padStart(2, "0");
       return `${hh}:${mm}`;
-    } catch { return ""; }
+    } catch (e) {
+      // logger-guard
+      void e;
+      return "";
+    }
   }
 
   #openSaveDialog() {
@@ -423,7 +453,9 @@ export class SavedFiltersFeature {
       this.#saveNameInput.value = snapshot.defaultName;
       this.#saveSummaryEl.innerHTML = this.#buildSummaryHtml(snapshot);
       this.#saveDialog.hidden = false;
-      setTimeout(() => { try { this.#saveNameInput.focus(); } catch (e) { void e; } }, 50);
+      setTimeout(() => {
+        try { this.#saveNameInput.focus(); } catch (e) { void e; /* logger-guard */ }
+      }, 50);
     } catch (e) {
       this.#logger.error("[SavedFiltersFeature] Open save dialog failed", e);
     }
@@ -497,7 +529,10 @@ export class SavedFiltersFeature {
     try {
       const sm = this.#context?.container?.get && this.#context.container.get("searchManager");
       if (sm && typeof sm.getCurrentSearchText === "function") {searchText = sm.getCurrentSearchText() || "";}
-    } catch (e) { void e; }
+    } catch (e) {
+      // logger-guard
+      void e;
+    }
     if (!searchText) {
       const input = document.querySelector(".search-input");
       searchText = (input && input.value) ? String(input.value) : "";
@@ -522,7 +557,11 @@ export class SavedFiltersFeature {
     try {
       if (!filters) {return "True";}
       return this.#toPython(filters);
-    } catch { return "True"; }
+    } catch (e) {
+      // logger-guard
+      void e;
+      return "True";
+    }
   }
 
   #buildSortSummary(sortRules) {
@@ -530,7 +569,11 @@ export class SavedFiltersFeature {
       const arr = Array.isArray(sortRules) ? sortRules : [];
       if (arr.length === 0) {return "默认";}
       return arr.map(r => `${r.field || r.column || "?"} ${r.direction || ""}`).join(", ");
-    } catch { return "无"; }
+    } catch (e) {
+      // logger-guard
+      void e;
+      return "无";
+    }
   }
 
   // 将条件配置对象转换为Python表达式

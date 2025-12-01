@@ -1,5 +1,7 @@
 # 详细故障诊断报告 — PDF-Home 前端 “PDF 列表不显示” 问题
 
+> 说明：本报告针对的是 **早期 pdf-home v1** 实现（包含 `ui-manager.js`、`pdf-manager.js`、`table-wrapper.js` 等模块），当前 pdf-home 已完成多轮重构，文件结构与事件流已发生变化。本文中的文件路径与行号仅用于回顾当时的故障分析过程，不再代表当前实现；排查现有问题时请以 `src/frontend/pdf-home/README.md` 与现有代码为准。
+
 版本: v1.0
 生成时间: 2025-08-29T13:12:xx
 

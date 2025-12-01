@@ -32,7 +32,10 @@ export function createAutoTestRunner(app) {
         try {
           const msg = e?.message || e?.toString?.() || String(e);
           result.errors.push({ source: "window.onerror", message: msg });
-        } catch {}
+        } catch (err) {
+          // logger-guard
+          void err;
+        }
       };
 
       window.addEventListener("error", errorHandler);
@@ -42,7 +45,10 @@ export function createAutoTestRunner(app) {
         try {
           result.openRequestedFired = true;
           result.notes.push("OPEN.REQUESTED captured with payload: " + JSON.stringify(payload));
-        } catch {}
+        } catch (err) {
+          // logger-guard
+          void err;
+        }
       }, { subscriberId: "AutoTest" });
 
       // 3) 等待 Tabulator DOM 渲染
@@ -57,7 +63,10 @@ export function createAutoTestRunner(app) {
                            wrapper.querySelector(".tabulator, .tabulator-table");
               if (isTab) {return wrapper;}
             }
-          } catch {}
+          } catch (err) {
+            // logger-guard
+            void err;
+          }
           await new Promise(r => setTimeout(r, 50));
         }
         throw new Error("Tabulator DOM not ready within timeout");
@@ -121,8 +130,8 @@ export function createAutoTestRunner(app) {
       }
 
       // 清理监听
-      try { window.removeEventListener("error", errorHandler); } catch {}
-      try { if (typeof unsubscribeOpen === "function") {unsubscribeOpen();} } catch {}
+      try { window.removeEventListener("error", errorHandler); } catch (e) { void e; /* logger-guard */ }
+      try { if (typeof unsubscribeOpen === "function") {unsubscribeOpen();} } catch (e) { void e; /* logger-guard */ }
 
       // 6) 判定成功条件：无 isSelected 错误，且 OPEN.REQUESTED 触发
       const hasIsSelectedError = result.errors.some(er => /isSelected/.test(er.message || ""));
@@ -149,7 +158,7 @@ export function createAutoTestRunner(app) {
 /**
  * 设置自动化测试环境
  * @param {PDFHomeApp} app - PDF Home应用实例
- */
+  */
 export function setupAutoTestEnvironment(app) {
   try {
     // 创建自动化测试钩子

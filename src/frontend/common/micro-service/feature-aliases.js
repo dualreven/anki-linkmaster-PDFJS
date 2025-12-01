@@ -16,7 +16,6 @@
 export const FEATURE_ALIASES = {
   // Step 2（基础设施侧首批改名）
   "app-core": "infra-app",
-  "url-navigation": "infra-nav-url",
   "core-navigation": "infra-nav-core",
   "ui-manager": "infra-ui",
   "sidebar-manager": "infra-sidebar",

@@ -1,4 +1,4 @@
-/* eslint no-empty: "off" */
+/* eslint no-empty: "off", indent: "off" */
 /**
  * @file OutlineSidebarUI - 使用 jsTree 展示 PDF 大纲
  * @module features/pdf-outline/components/outline-sidebar-ui
@@ -10,17 +10,17 @@ import $ from "jquery";
 // 确保 jstree 能正确挂到全局 jQuery（Vite/ESM 环境）
 try {
   if (typeof window !== "undefined") {
-
     window.$ = window.$ || $;
-
     window.jQuery = window.jQuery || $;
   }
-} catch (e) { void e; }
+} catch (e) { void e; /* logger-guard */ }
 import "jstree";
 import "jstree/dist/themes/default/style.css";
 import { OutlineToolbar } from "../../../outline/components/outline-toolbar.js";
-import { showSuccess, showError } from "../../../../common/utils/notification.js";
+import { showSuccess } from "../../../../common/utils/notification.js";
 import { notifyDomainError } from "../../../../common/utils/domain-error-notifier.js";
+import { createSubscriptionBag } from "../../../../common/event/subscription-bag.js";
+import { copyTextUsingHiddenTextarea } from "../../../../common/utils/copy-utils.js";
 
 export class OutlineSidebarUI {
   #eventBus;
@@ -28,12 +28,13 @@ export class OutlineSidebarUI {
   #content;
   #treeContainer;
   #toolbarEl;
-  #unsubs = [];
+  #subscriptionBag;
   #initialized = false;
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
     this.#logger = getLogger("OutlineSidebarUI");
+    this.#subscriptionBag = createSubscriptionBag({ loggerName: "OutlineSidebarUI.Subscriptions" });
   }
 
   initialize() {
@@ -63,7 +64,7 @@ export class OutlineSidebarUI {
     this.#logger.info(`[DEBUG] Subscribing to event: ${PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS}`);
 
     // 监听数据加载事件（全局事件，数据层通过 emitGlobal 发射）
-    this.#unsubs.push(this.#eventBus.onGlobal(
+    const unsubOutlineLoadSuccess = this.#eventBus.onGlobal(
       PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS,
       (data) => {
         this.#logger.info(`[DEBUG] OUTLINE.LOAD.SUCCESS event received! Outline items count: ${data?.outlineItems?.length || 0}`);
@@ -71,14 +72,17 @@ export class OutlineSidebarUI {
           const cnt = Array.isArray(data?.outlineItems) ? data.outlineItems.length : 0;
           if (cnt > 0) { this.#logger.info(`[OutlineUI] 收到大纲：${cnt} 项`, { toast: true }); }
           else { this.#logger.info("[OutlineUI] 当前无大纲（可通过＋创建或自动导入）", { toast: { type: "warn", ms: 3500 } }); }
-        } catch (e) { void e; }
+} catch (e) { void e; /* logger-guard */ }
         this.#renderTree(data?.outlineItems || []);
       },
       { subscriberId: "OutlineSidebarUI" }
-    ));
+    );
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubOutlineLoadSuccess);
+    }
 
     // 监听来自其他模块的“选中改变”事件，用于外部导航时高亮并滚动到指定大纲项
-    this.#unsubs.push(this.#eventBus.onGlobal(
+    const unsubOutlineSelectChanged = this.#eventBus.onGlobal(
       PDF_VIEWER_EVENTS.OUTLINE.SELECT.CHANGED,
       (data, metadata) => {
         try {
@@ -94,7 +98,10 @@ export class OutlineSidebarUI {
         }
       },
       { subscriberId: "OutlineSidebarUI" }
-    ));
+    );
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubOutlineSelectChanged);
+    }
 
     this.#logger.info("[DEBUG] OutlineSidebarUI initialized successfully");
     this.#initialized = true;
@@ -201,12 +208,12 @@ export class OutlineSidebarUI {
   #renderTree(outlineItems) {
     // 清空并重建 jsTree
     const $tree = $(this.#treeContainer);
-    try { $tree.off("ready.jstree"); } catch (e) { void e; }
-    try { $tree.jstree("destroy"); } catch (e) { void e; }
+    try { $tree.off("ready.jstree"); } catch (e) { void e; /* logger-guard */ }
+    try { $tree.jstree("destroy"); } catch (e) { void e; /* logger-guard */ }
 
     const data = this.#toJsTreeData(outlineItems);
     this.#logger.info(`[DEBUG] Creating jstree with ${data.length} nodes`);
-    try { this.#logger.info(`[OutlineUI] 构建树：${data.length} 节点`, { toast: true }); } catch (e) { void e; }
+    try { this.#logger.info(`[OutlineUI] 构建树：${data.length} 节点`, { toast: true }); } catch (e) { void e; /* logger-guard */ }
 
     $tree.jstree({
       core: {
@@ -231,7 +238,7 @@ export class OutlineSidebarUI {
           inst.deselect_all(true);
         }
         this.#logger.info("✅ Outline tree expanded automatically");
-        try { this.#logger.info("[OutlineUI] 大纲树渲染完成并已展开", { toast: true }); } catch (e) { void e; }
+        try { this.#logger.info("[OutlineUI] 大纲树渲染完成并已展开", { toast: true }); } catch (e) { void e; /* logger-guard */ }
       } catch (err) {
         this.#logger.error("❌ Failed to expand outline tree: " + err.message);
         try { this.#logger.error(`[OutlineUI] 展开失败：${err?.message || "error"}`, { toast: { type: "error", ms: 4500 } }); } catch (e2) { void e2; }
@@ -251,13 +258,13 @@ export class OutlineSidebarUI {
             { outlineItemId, outlineItem: info?.raw || null },
             { actorId: "OutlineSidebarUI" }
           );
-        } catch (e) { void e; }
+        } catch (e) { void e; /* logger-guard */ }
         // 直接根据节点携带的 pageAt/position 进行页面导航（等价于手工点击）
         const pageAt = typeof info.pageAt === "number" && info.pageAt > 0 ? info.pageAt : null;
         const position = typeof info.position === "number" ? info.position : null;
-        if (pageAt != null) {
+        if (pageAt !== null) {
           const req = { pageAt };
-          if (position != null) { req.position = position; }
+          if (position !== null) { req.position = position; }
           try {
             this.#logger.info(`[OutlineUI] 选择节点：${outlineItemId} → 导航到第 ${pageAt} 页`, { toast: true });
           } catch (e2) { void e2; }
@@ -335,37 +342,13 @@ export class OutlineSidebarUI {
   }
 
   #copyUsingExecCommand(text) {
-    try {
-      const textarea = document.createElement("textarea");
-      textarea.value = String(text ?? "");
-      textarea.style.cssText = [
-        "position: fixed",
-        "top: 0",
-        "left: 0",
-        "width: 2em",
-        "height: 2em",
-        "padding: 0",
-        "border: none",
-        "outline: none",
-        "boxShadow: none",
-        "background: transparent",
-        "opacity: 0",
-        "pointer-events: none"
-      ].join(";");
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-      const ok = document.execCommand("copy");
-      document.body.removeChild(textarea);
-      return !!ok;
-    } catch {
-      return false;
-    }
+    return copyTextUsingHiddenTextarea(String(text ?? ""));
   }
 
   destroy() {
-    this.#unsubs.forEach(u => { try { u(); } catch { /* ignore */ } });
-    this.#unsubs = [];
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.clear();
+    }
     try { $(this.#treeContainer).jstree("destroy"); } catch { /* ignore */ }
     if (this.#content?.parentNode) { this.#content.parentNode.removeChild(this.#content); }
     this.#content = null;

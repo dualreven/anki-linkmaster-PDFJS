@@ -24,9 +24,9 @@ jest.mock("../../../../common/components/window-controls/window-controls.js", ()
 describe("WindowControlsFeature (pdf-home)", () => {
   it("install 时应将 wsClient 从容器传递给 WindowControlsComponent", async () => {
     const feature = new WindowControlsFeature({
-    bridgeName: 'pyqtBridge',
-    containerSelector: '.toolbar-controls'
-  });
+      bridgeName: "pyqtBridge",
+      containerSelector: ".toolbar-controls"
+    });
     const fakeWsClient = { disconnect: jest.fn() };
 
     const context = {
@@ -47,7 +47,7 @@ describe("WindowControlsFeature (pdf-home)", () => {
     };
 
     // 准备 DOM：提供 toolbar 容器并模拟文档已就绪
-    document.body.innerHTML = '<div class="toolbar-controls"></div>';
+    document.body.innerHTML = "<div class=\"toolbar-controls\"></div>";
     Object.defineProperty(document, "readyState", {
       value: "complete",
       configurable: true
@@ -58,6 +58,5 @@ describe("WindowControlsFeature (pdf-home)", () => {
     expect(constructedOptions.length).toBeGreaterThan(0);
     expect(constructedOptions[0].wsClient).toBe(fakeWsClient);
   });
-}
-);
+});
 

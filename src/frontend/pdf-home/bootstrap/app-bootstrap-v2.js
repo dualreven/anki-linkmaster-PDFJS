@@ -97,21 +97,31 @@ export async function bootstrapPDFHomeAppV2(options = {}) {
     // 提示更具体的原因（不做兜底自动处理，只呈现信息）
     const reason = (() => {
       try {
-        if (!error) return "未知错误";
+        if (!error) {
+          return "未知错误";
+        }
         if (error.details) {
-          try { return `${error.message || error.name || "错误"} ${JSON.stringify(error.details)}`; } catch {}
+          try {
+            return `${error.message || error.name || "错误"} ${JSON.stringify(error.details)}`;
+          } catch (e) {
+            void e; /* logger-guard */
+          }
         }
         return error.message || error.name || String(error);
-      } catch { return "未知错误"; }
+      } catch (e) {
+        void e; /* logger-guard */
+        return "未知错误";
+      }
     })();
-    try { showError("启动失败: " + reason, 8000); } catch { /* no-op */ }
+    try { showError("启动失败: " + reason, 8000); } catch (e) { void e; }
 
     // 尝试记录错误
     try {
       const tempLogger = getLogger("pdf-home/bootstrap-v2");
       tempLogger.error("Bootstrap V2 failed", error);
-    } catch {
-      // 忽略日志错误
+    } catch (e) {
+      // logger-guard
+      void e;
     }
 
     throw error;

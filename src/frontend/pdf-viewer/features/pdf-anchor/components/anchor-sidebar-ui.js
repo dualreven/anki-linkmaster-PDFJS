@@ -10,6 +10,8 @@ import { getLogger } from "../../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 import { showSuccess } from "../../../../common/utils/notification.js";
 import { notifyDomainError } from "../../../../common/utils/domain-error-notifier.js";
+import { createSubscriptionBag } from "../../../../common/ws/ws-subscription-bag.js";
+import { createSidebarRoot } from "../../../shared/sidebar-shell.js";
 
 export class AnchorSidebarUI {
   #eventBus;
@@ -27,20 +29,20 @@ export class AnchorSidebarUI {
   #lastRequestPayload;
   #anchors = [];
   #selectedId = null;
-  #unsubs = [];
+  #subscriptions;
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
     this.#logger = getLogger("AnchorSidebarUI");
     this.#instanceId = `ancui-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36).slice(-4)}`;
+    this.#subscriptions = createSubscriptionBag({ loggerName: "AnchorSidebarUI" });
   }
 
   initialize() {
     if (this.#initialized) { this.#logger.info("AnchorSidebarUI.initialize called twice; ignored"); return; }
     this.#initialized = true;
-    // 内容容器
-    this.#sidebarContent = document.createElement("div");
-    this.#sidebarContent.style.cssText = "height:100%;display:flex;flex-direction:column;box-sizing:border-box;";
+    // 内容容器（使用共享 sidebar 壳子）
+    this.#sidebarContent = createSidebarRoot();
 
     // 工具栏
     this.#toolbar = this.#createToolbar();
@@ -54,7 +56,7 @@ export class AnchorSidebarUI {
     try { this.#renderAnchors([]); } catch (e) { this.#logger.debug("[AnchorSidebarUI] initial render failed", e); }
 
     // 事件订阅：加载请求（用于显示“加载中/超时”并记录最近一次请求参数）
-    this.#unsubs.push(this.#eventBus.on(
+    this.#subscriptions.add(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD,
       (payload) => {
         this.#lastRequestPayload = payload || {};
@@ -66,7 +68,7 @@ export class AnchorSidebarUI {
     ));
 
     // 事件订阅：数据加载
-    this.#unsubs.push(this.#eventBus.on(
+    this.#subscriptions.add(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED,
       ({ anchors }) => {
         this.#logger.info("Anchor data loaded", { count: anchors?.length || 0 });
@@ -79,7 +81,7 @@ export class AnchorSidebarUI {
     ));
 
     // 事件订阅：数据加载失败（来自 WS 适配器桥接 anchor:get/list:failed）
-    this.#unsubs.push(this.#eventBus.on(
+    this.#subscriptions.add(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD_FAILED,
       ({ error, type }) => {
         this.#hideLoading();
@@ -93,7 +95,7 @@ export class AnchorSidebarUI {
     ));
 
     // 监听锚点更新与激活状态变更以刷新表格
-    this.#unsubs.push(this.#eventBus.on(
+    this.#subscriptions.add(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANCHOR.UPDATED,
       ({ anchorId, page_at, position }) => {
         const idx = this.#anchors.findIndex(a => a.uuid === anchorId);
@@ -106,7 +108,7 @@ export class AnchorSidebarUI {
       { subscriberId: `AnchorSidebarUI:${this.#instanceId}` }
     ));
 
-    this.#unsubs.push(this.#eventBus.on(
+    this.#subscriptions.add(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANCHOR.ACTIVATED,
       ({ anchorId, active }) => {
         const idx = this.#anchors.findIndex(a => a.uuid === anchorId);
@@ -145,10 +147,7 @@ export class AnchorSidebarUI {
   getContentElement() { return this.#sidebarContent; }
 
   destroy() {
-    if (Array.isArray(this.#unsubs)) {
-      try { this.#unsubs.forEach(off => { try { off && off(); } catch(_) {} }); } catch (_) {}
-    }
-    this.#unsubs = [];
+    this.#subscriptions?.clear();
     this.#sidebarContent = null;
     this.#toolbar = null;
     this.#table = null;
@@ -246,7 +245,7 @@ export class AnchorSidebarUI {
       notifyDomainError({
         message: "复制失败，请手动选择并复制",
         logger: this.#logger,
-        scope: "pdf-viewer:anchor:copy"
+        scope: PDF_VIEWER_EVENTS.ANCHOR.COPY
       });
       return false;
     };
@@ -288,7 +287,7 @@ export class AnchorSidebarUI {
         position: (typeof src.position === "number" ? (src.position > 1 ? (src.position / 100) : src.position) : 0)
       };
       this.#logger.info("Anchor clone requested", { from: this.#selectedId, newAnchor });
-      if (!newAnchor.uuid) { try { showError("无法生成锚点ID，克隆失败"); } catch(_) {} return; }
+      if (!newAnchor.uuid) { try { this.#showError("无法生成锚点ID，克隆失败"); } catch(_) {} return; }
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATE, { anchor: newAnchor, pdf_uuid: this.#pdfId }, { actorId: "AnchorToolbar" });
     }));
 
@@ -368,7 +367,7 @@ export class AnchorSidebarUI {
             return `pdfanchor-${hex}`;
           } catch(_) {
             // 按“禁止兜底”原则，此处若无法生成 uuid，直接提示并返回
-            showError("无法生成锚点ID，请重试或检查运行环境");
+            this.#showError("无法生成锚点ID，请重试或检查运行环境");
             return null;
           }
         };
@@ -550,7 +549,7 @@ export class AnchorSidebarUI {
     notifyDomainError({
       message: `加载锚点失败：${text}`,
       logger: this.#logger,
-      scope: "pdf-viewer:anchor:list"
+      scope: PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD_FAILED
     });
   }
 

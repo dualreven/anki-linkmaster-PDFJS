@@ -51,8 +51,7 @@ describe("AnnotationSidebarUI delete button", () => {
     await new Promise(resolve => setTimeout(resolve, 0));
 
     // 查找并点击"删除"按钮
-    const confirmBtn = document.body.querySelector('button');
-    const buttons = Array.from(document.body.querySelectorAll('button'));
+    const buttons = Array.from(document.body.querySelectorAll("button"));
     const deleteConfirmBtn = buttons.find(btn => btn.textContent === "删除");
 
     expect(deleteConfirmBtn).not.toBeNull();
@@ -82,7 +81,7 @@ describe("AnnotationSidebarUI delete button", () => {
     await new Promise(resolve => setTimeout(resolve, 0));
 
     // 查找并点击"取消"按钮
-    const buttons = Array.from(document.body.querySelectorAll('button'));
+    const buttons = Array.from(document.body.querySelectorAll("button"));
     const cancelBtn = buttons.find(btn => btn.textContent === "取消");
 
     expect(cancelBtn).not.toBeNull();

@@ -67,3 +67,19 @@
   this.eventBus.emit('websocket_connected'); // 应该使用常量
   ```
 ]]>
+
+- 条件执行 gate 字段（与 pdf-viewer 统一约定）:
+  - 当 PDF-Home 需要发起“受前端状态约束”的 WS 请求时（例如要求目标 pdf-viewer 已触发 ender:ready），必须使用统一的 gate 格式：
+    - gate.once: string  等待某状态事件已发生或下一次发生；
+    - gate.on: string    等待某事件的下一次发生；
+    - gate.timeout_ms?: number  可选超时（毫秒，正整数）。
+  - once 与 on 互斥，至少配置其一；非法配置必须视为协议错误，不得静默忽略。
+  - 条件 WS 消息示例：
+    `json
+    {
+      "type": "pdf-viewer:outline-navigate:requested",
+      "data": { "pdf_uuid": "...", "outline_id": "..." },
+      "gate": { "once": "pdf-viewer:render:ready" }
+    }
+    `
+  - 前端应复用 common/ws/ws-gate-utils.js 中的 alidateGateConfig 进行 gate 校验，避免 pdf-home 与 pdf-viewer 各自发明不同的条件消息格式。

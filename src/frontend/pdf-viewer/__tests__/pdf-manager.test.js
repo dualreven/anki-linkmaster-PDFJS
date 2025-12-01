@@ -5,7 +5,6 @@
  */
 
 import { PDFManager } from "../pdf-manager.js";
-import { EventBus } from "../../common/event/event-bus.js";
 import { jest } from "@jest/globals";
 
 // EventBus 不需要 Mock，测试应使用真实的 EventBus 实例

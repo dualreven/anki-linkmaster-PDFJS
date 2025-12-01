@@ -10,6 +10,7 @@ import { TranslationService } from "./services/TranslationService.js";
 import { SelectionMonitor } from "./services/SelectionMonitor.js";
 import { PDF_TRANSLATOR_EVENTS } from "./events.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
+import { createSubscriptionBag } from "../../../common/event/subscription-bag.js";
 
 /**
  * PDF翻译功能Feature
@@ -38,8 +39,7 @@ export class PDFTranslatorFeature {
   /** @type {string} */
   #targetLanguage = "zh"; // 默认翻译为中文
 
-  /** @type {Array<Function>} */
-  #unsubs = [];
+  #subscriptions = createSubscriptionBag({ loggerName: "PDFTranslatorFeature" });
 
   /**
    * Feature名称
@@ -138,14 +138,7 @@ export class PDFTranslatorFeature {
     this.#logger.info(`[${this.name}] Uninstalling...`);
 
     // 取消所有事件订阅
-    this.#unsubs.forEach(unsub => {
-      try {
-        unsub();
-      } catch (error) {
-        this.#logger.warn("Failed to unsubscribe:", error);
-      }
-    });
-    this.#unsubs = [];
+    this.#subscriptions.clear();
 
     // 停止文本选择监听
     if (this.#selectionMonitor) {
@@ -177,31 +170,25 @@ export class PDFTranslatorFeature {
    */
   #setupEventListeners() {
     // 1. 监听文本选择事件 - 触发翻译
-    this.#unsubs.push(
-      this.#eventBus.on(
-        PDF_TRANSLATOR_EVENTS.TEXT.SELECTED,
-        (data) => this.#handleTextSelected(data),
-        { subscriberId: "PDFTranslatorFeature" }
-      )
-    );
+    this.#subscriptions.add(this.#eventBus.on(
+      PDF_TRANSLATOR_EVENTS.TEXT.SELECTED,
+      (data) => this.#handleTextSelected(data),
+      { subscriberId: "PDFTranslatorFeature" }
+    ));
 
     // 2. 监听翻译引擎切换事件
-    this.#unsubs.push(
-      this.#eventBus.on(
-        PDF_TRANSLATOR_EVENTS.ENGINE.CHANGED,
-        (data) => this.#handleEngineChanged(data),
-        { subscriberId: "PDFTranslatorFeature" }
-      )
-    );
+    this.#subscriptions.add(this.#eventBus.on(
+      PDF_TRANSLATOR_EVENTS.ENGINE.CHANGED,
+      (data) => this.#handleEngineChanged(data),
+      { subscriberId: "PDFTranslatorFeature" }
+    ));
 
     // 3. 监听翻译请求事件（手动触发）
-    this.#unsubs.push(
-      this.#eventBus.on(
-        PDF_TRANSLATOR_EVENTS.TRANSLATE.REQUESTED,
-        (data) => this.#handleTranslateRequested(data),
-        { subscriberId: "PDFTranslatorFeature" }
-      )
-    );
+    this.#subscriptions.add(this.#eventBus.on(
+      PDF_TRANSLATOR_EVENTS.TRANSLATE.REQUESTED,
+      (data) => this.#handleTranslateRequested(data),
+      { subscriberId: "PDFTranslatorFeature" }
+    ));
 
     this.#logger.info(`[${this.name}] Event listeners setup completed`);
   }
@@ -213,46 +200,42 @@ export class PDFTranslatorFeature {
    */
   #bindSidebarAutoTranslateToggle() {
     // 侧边栏打开 -> 启用 SelectionMonitor
-    this.#unsubs.push(
-      this.#eventBus.on(
-        PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPENED_COMPLETED,
-        ({ sidebarId }) => {
-          if (sidebarId === "translate") {
-            try {
-              this.#selectionMonitor?.setEnabled(true);
-              // 避免复用上一次选择导致的误触发
-              this.#selectionMonitor?.clearLastSelection?.();
-              // 广播领域事件
-              this.#eventBus.emitGlobal(PDF_TRANSLATOR_EVENTS.SIDEBAR.OPENED, { sidebarId: "translate" }, { actorId: "PDFTranslatorFeature" });
-              this.#logger.info("[PDFTranslator] Auto-translate enabled because translate sidebar opened");
-            } catch (e) {
-              this.#logger.warn("[PDFTranslator] Failed to enable SelectionMonitor on sidebar open", e);
-            }
+    this.#subscriptions.add(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPENED_COMPLETED,
+      ({ sidebarId }) => {
+        if (sidebarId === "translate") {
+          try {
+            this.#selectionMonitor?.setEnabled(true);
+            // 避免复用上一次选择导致的误触发
+            this.#selectionMonitor?.clearLastSelection?.();
+            // 广播领域事件
+            this.#eventBus.emitGlobal(PDF_TRANSLATOR_EVENTS.SIDEBAR.OPENED, { sidebarId: "translate" }, { actorId: "PDFTranslatorFeature" });
+            this.#logger.info("[PDFTranslator] Auto-translate enabled because translate sidebar opened");
+          } catch (e) {
+            this.#logger.warn("[PDFTranslator] Failed to enable SelectionMonitor on sidebar open", e);
           }
-        },
-        { subscriberId: "PDFTranslatorFeature" }
-      )
-    );
+        }
+      },
+      { subscriberId: "PDFTranslatorFeature" }
+    ));
 
     // 侧边栏关闭 -> 禁用 SelectionMonitor
-    this.#unsubs.push(
-      this.#eventBus.on(
-        PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.CLOSED_COMPLETED,
-        ({ sidebarId }) => {
-          if (sidebarId === "translate") {
-            try {
-              this.#selectionMonitor?.setEnabled(false);
-              this.#selectionMonitor?.clearLastSelection?.();
-              this.#eventBus.emitGlobal(PDF_TRANSLATOR_EVENTS.SIDEBAR.CLOSED, { sidebarId: "translate" }, { actorId: "PDFTranslatorFeature" });
-              this.#logger.info("[PDFTranslator] Auto-translate disabled because translate sidebar closed");
-            } catch (e) {
-              this.#logger.warn("[PDFTranslator] Failed to disable SelectionMonitor on sidebar close", e);
-            }
+    this.#subscriptions.add(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.CLOSED_COMPLETED,
+      ({ sidebarId }) => {
+        if (sidebarId === "translate") {
+          try {
+            this.#selectionMonitor?.setEnabled(false);
+            this.#selectionMonitor?.clearLastSelection?.();
+            this.#eventBus.emitGlobal(PDF_TRANSLATOR_EVENTS.SIDEBAR.CLOSED, { sidebarId: "translate" }, { actorId: "PDFTranslatorFeature" });
+            this.#logger.info("[PDFTranslator] Auto-translate disabled because translate sidebar closed");
+          } catch (e) {
+            this.#logger.warn("[PDFTranslator] Failed to disable SelectionMonitor on sidebar close", e);
           }
-        },
-        { subscriberId: "PDFTranslatorFeature" }
-      )
-    );
+        }
+      },
+      { subscriberId: "PDFTranslatorFeature" }
+    ));
   }
 
   /**

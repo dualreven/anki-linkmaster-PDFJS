@@ -10,6 +10,7 @@ import {
   PDF_MANAGEMENT_EVENTS,
   UI_EVENTS
 } from "../event/event-constants.js";
+import { bridgeRecordUpdateMessage } from "../ws/ws-record-update-bridge.js";
 
 /**
  * @class WebSocketHandler
@@ -196,6 +197,13 @@ export class WebSocketHandler {
    */
   handleResponse(data) {
     this.#manager.logger.info("Handling response message:", JSON.stringify(data, null, 2));
+
+    // ===== 记录更新（编辑）结果 → 领域事件 EDIT.* =====
+    bridgeRecordUpdateMessage({
+      message: data,
+      eventBus: this.#manager.eventBus,
+      logger: this.#manager.logger
+    });
 
     // 兼容：后端返回完整文件数组的快速路径
     if (data?.status === "success" && Array.isArray(data?.data?.files)) {

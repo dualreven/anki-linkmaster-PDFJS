@@ -5,10 +5,12 @@
 **适用范围**: 前端测试活动
 
 **详细内容**:
+> 提示：本规范中的“测试模块目录”同样是规划性约定，当前仓库尚未创建 `src/frontend/test-modules/` 目录。以下规则用于指导未来扩展测试工具的组织方式，而非描述现有代码结构。
+
 - 提供环境检查工具函数，检查vite、eventBus、WebSocket等状态
-- 测试模块必须放在 `src/frontend/test-modules/` 目录
+- 测试模块建议放在 `src/frontend/test-modules/` 目录
 - 测试模块文件名格式：`test-[功能]-[日期].js`
-- 测试模块必须包含 `runTest()` 和 `cleanup()` 函数
+- 测试模块应包含 `runTest()` 和 `cleanup()` 函数
 
 **正向例子**:
 ```javascript

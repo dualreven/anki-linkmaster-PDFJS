@@ -1,3 +1,4 @@
+/* eslint-disable custom/no-silent-catch */
 /**
  * @file PDF Outline 功能域（新大纲，基于第三方树形库展示）
  * @module features/pdf-outline
@@ -10,6 +11,7 @@ import OutlineDataManager from "../../outline/outline-manager.js";
 import { OutlineDialog } from "../../outline/components/outline-dialog.js";
 import { OutlineDataProvider } from "../../outline/outline-data-provider.js";
 import { getCurrentPDFDocument } from "../../pdf/current-document-registry.js";
+import { createSubscriptionBag } from "../../../common/event/subscription-bag.js";
 
 export class OutlineManager {
   #logger;
@@ -20,7 +22,7 @@ export class OutlineManager {
   #outlineDataProvider;
   #wsClient = null;
   #navigationService = null;
-  #unsubs = [];
+  #subscriptions = createSubscriptionBag({ loggerName: "Feature.pdf-outline" });
   #enabled = false;
   #pendingNavigateId = null;
   #listReady = false;
@@ -162,11 +164,17 @@ export class OutlineManager {
   /* duplicate method removed */
 
   async uninstall() {
-    this.#unsubs.forEach(u => { try { u(); } catch { /* ignore */ } });
-    this.#unsubs = [];
+    this.#subscriptions.clear();
     if (this.#outlineManager) { this.#outlineManager.destroy(); }
     this.#outlineManager = null;
-    if (this.#dialog) { try { this.#dialog.close(); } catch { /* ignore */ } this.#dialog = null; }
+    if (this.#dialog) {
+      try {
+        this.#dialog.close();
+      } catch (e) {
+        void e; /* logger-guard */
+      }
+      this.#dialog = null;
+    }
     this.#enabled = false;
   }
 
@@ -195,7 +203,7 @@ export class OutlineManager {
   #setupEventListeners() {
     const onGlobal = this.#eventBus.onGlobal.bind(this.#eventBus);
     // 消费后端返回的 outline 列表（非初始化阶段的普通刷新）
-    this.#unsubs.push(onGlobal(
+    this.#subscriptions.add(onGlobal(
       WEBSOCKET_EVENTS.MESSAGE.RECEIVED,
       async (message) => {
         try {
@@ -240,37 +248,37 @@ export class OutlineManager {
     ));
 
     // 创建/更新/删除/拖拽（使用 OUTLINE 事件名）
-    this.#unsubs.push(onGlobal(
+    this.#subscriptions.add(onGlobal(
       PDF_VIEWER_EVENTS.OUTLINE.CREATE.REQUESTED,
       (data) => this.#handleCreate(data),
       { subscriberId: "OutlineFeature" }
     ));
 
-    this.#unsubs.push(onGlobal(
+    this.#subscriptions.add(onGlobal(
       PDF_VIEWER_EVENTS.OUTLINE.UPDATE.REQUESTED,
       (data) => this.#handleUpdate(data),
       { subscriberId: "OutlineFeature" }
     ));
 
-    this.#unsubs.push(onGlobal(
+    this.#subscriptions.add(onGlobal(
       PDF_VIEWER_EVENTS.OUTLINE.DELETE.REQUESTED,
       (data) => this.#handleDelete(data),
       { subscriberId: "OutlineFeature" }
     ));
 
-    this.#unsubs.push(onGlobal(
+    this.#subscriptions.add(onGlobal(
       PDF_VIEWER_EVENTS.OUTLINE.REORDER.REQUESTED,
       (data) => this.#handleReorder(data),
       { subscriberId: "OutlineFeature" }
     ));
 
     // 导航请求（与本特性统一的事件契约）
-    this.#unsubs.push(onGlobal(
+    this.#subscriptions.add(onGlobal(
       PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.REQUESTED,
       (data) => this.#handleNavigate(data),
       { subscriberId: "OutlineFeature" }
     ));
-    this.#unsubs.push(onGlobal(
+    this.#subscriptions.add(onGlobal(
       PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE_BY_ID.REQUESTED,
       (data, metadata) => {
         this.#logger.info("[Outline] 收到 OUTLINE.NAVIGATE_BY_ID.REQUESTED 事件", {
@@ -283,7 +291,7 @@ export class OutlineManager {
     ));
 
     // UI 晚到时的主动拉取
-    this.#unsubs.push(onGlobal(
+    this.#subscriptions.add(onGlobal(
       PDF_VIEWER_EVENTS.OUTLINE.LOAD.REQUESTED,
       () => {
         try {
@@ -373,7 +381,7 @@ export class OutlineManager {
             const { yToPositionPercent } = await import("../../pdf/pdf-dest-utils.js");
             position = await yToPositionPercent(pdfDocument, pageAt, parsed.y);
           }
-      try { this.#logger.info(`[Outline][IMPORT] parsed via provider ${JSON.stringify({ title: nativeBookmark?.title, type: parsed?.type ?? null, pageAt, position })}`); } catch (e) { void e; }
+          try { this.#logger.info(`[Outline][IMPORT] parsed via provider ${JSON.stringify({ title: nativeBookmark?.title, type: parsed?.type ?? null, pageAt, position })}`); } catch (e) { void e; }
           return { pageAt, position };
         }
       } catch (e) {
@@ -527,7 +535,7 @@ export class OutlineManager {
       const unsub = this.#eventBus.onGlobal(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, (message) => {
         const t = String(message?.type || "");
         if (!allow.has(t)) { return; }
-        try { unsub(); } catch (e) { void e; }
+        try { unsub(); } catch (e) { void e; /* logger-guard */ }
         resolve(message);
       }, { subscriberId: "OutlineFeature.await" });
     });
@@ -539,7 +547,7 @@ export class OutlineManager {
       const unsub = this.#eventBus.onGlobal(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, (message) => {
         const t = String(message?.type || "");
         if (!allow.has(t)) { return; }
-        try { unsub(); } catch (e) { void e; }
+        try { unsub(); } catch (e) { void e; /* logger-guard */ }
         resolve(message);
       }, { subscriberId: "OutlineFeature.await.opt" });
       // 无超时：纯可选等待；如果没有回执，将由后续流程继续
@@ -602,8 +610,8 @@ export class OutlineManager {
         sourceActorId
       }, { toast: { type: "info", ms: 2000 } });
       // 发出标准“选中改变”事件，使侧边栏 UI 能像用户点击一样高亮并滚动到该项
-      // 但若本次请求本身就来自大纲 UI（OutlineSidebarUI/OutlineSidebarUIClassic），则说明节点已经被选中，避免形成循环
-      if (sourceActorId !== "OutlineSidebarUI" && sourceActorId !== "OutlineSidebarUIClassic") {
+      // 但若本次请求本身就来自大纲 UI（OutlineSidebarUI），则说明节点已经被选中，避免形成循环
+      if (sourceActorId !== "OutlineSidebarUI") {
         try {
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.OUTLINE.SELECT.CHANGED,

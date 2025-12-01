@@ -7,6 +7,7 @@
 import { getLogger } from "../../../../common/utils/logger.js";
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_EVENTS } from "../../../../common/event/event-constants.js";
 import { validateResume } from "../utils/resume-validator.js";
+import { getCurrentPdfIdFromWindow } from "../../../shared/url-context.js";
 
 const logger = getLogger("resume-loader");
 
@@ -144,14 +145,11 @@ export async function loadResume(eventBus, pdfId, options = {}) {
 }
 
 /**
- * 从 URL 解析 PDF ID
+ * 从当前窗口 URL 中解析 PDF ID。
+ * 保留原有导出名以兼容调用方，实现委托给 url-context 工具。
+ *
  * @returns {string|null}
  */
 export function resolvePdfIdFromURL() {
-  try {
-    const params = new URLSearchParams(window.location.search);
-    return params.get("pdf-id") || null;
-  } catch {
-    return null;
-  }
+  return getCurrentPdfIdFromWindow();
 }

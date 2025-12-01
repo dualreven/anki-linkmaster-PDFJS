@@ -6,6 +6,7 @@
 import { RecentAddedFeatureConfig } from "./feature.config.js";
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_EVENTS, SEARCH_EVENTS } from "../../../../common/event/event-constants.js";
 import "./styles/recent-added.css";
+import { createSubscriptionBag } from "../../../../common/event/subscription-bag.js";
 
 export class RecentAddedFeature {
   name = RecentAddedFeatureConfig.name;
@@ -16,7 +17,7 @@ export class RecentAddedFeature {
   #logger = null;
   #scopedEventBus = null;
   #globalEventBus = null;
-  #unsubscribers = [];
+  #subscriptionBag = null;
 
   // 数据
   #recentAdded = [];
@@ -30,6 +31,7 @@ export class RecentAddedFeature {
     this.#logger = context.logger;
     this.#scopedEventBus = context.scopedEventBus;
     this.#globalEventBus = context.globalEventBus;
+    this.#subscriptionBag = createSubscriptionBag({ loggerName: "RecentAddedFeature.Subscriptions" });
     // 标记已使用，避免私有未使用告警
     void this.#scopedEventBus;
 
@@ -62,8 +64,10 @@ export class RecentAddedFeature {
 
   async uninstall() {
     this.#logger.info("[RecentAddedFeature] Uninstalling...");
-    this.#unsubscribers.forEach(fn => fn && fn());
-    this.#unsubscribers = [];
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.clear();
+      this.#subscriptionBag = null;
+    }
     if (this.#listEl) {
       this.#listEl.innerHTML = "<li class=\"sidebar-empty\">暂无添加记录</li>";
     }
@@ -89,16 +93,23 @@ export class RecentAddedFeature {
         this.#recentAdded = Array.isArray(files) ? files : [];
         this.#renderList();
         this.#pendingReqId = null;
-      } catch {}
+      } catch (e) {
+        // logger-guard
+        void e;
+      }
     }, { subscriberId: "RecentAddedFeature" });
-    this.#unsubscribers.push(unsubResp);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubResp);
+    }
 
     // 监听搜索结果更新事件：当PDF添加/删除/搜索导致数据变更时自动刷新
     const unsubSearchUpdated = this.#globalEventBus.on(SEARCH_EVENTS.RESULTS.UPDATED, () => {
       this.#logger.info("[RecentAddedFeature] 🔄 监听到搜索结果更新，开始刷新最近添加");
       this.#requestRecentAdded();
     }, { subscriberId: "RecentAddedFeature:search-results-updated" });
-    this.#unsubscribers.push(unsubSearchUpdated);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubSearchUpdated);
+    }
 
     // 列表点击：触发“全量、按 created_at 降序”的标准搜索（交由 SearchManager 发起与派发结果）
     if (this.#listEl) {
@@ -116,7 +127,9 @@ export class RecentAddedFeature {
         });
       };
       this.#listEl.addEventListener("click", clickHandler);
-      this.#unsubscribers.push(() => this.#listEl.removeEventListener("click", clickHandler));
+      if (this.#subscriptionBag) {
+        this.#subscriptionBag.add(() => this.#listEl.removeEventListener("click", clickHandler));
+      }
     }
 
     // 显示条数变更
@@ -125,12 +138,14 @@ export class RecentAddedFeature {
         const val = parseInt(e.target.value, 10);
         if (!Number.isNaN(val) && val > 0) {
           this.#displayLimit = val;
-          try { localStorage.setItem(`${RecentAddedFeatureConfig.config.storageKey}:display-limit`, String(val)); } catch (e) { void e; }
+          try { localStorage.setItem(`${RecentAddedFeatureConfig.config.storageKey}:display-limit`, String(val)); } catch (e) { void e; /* logger-guard */ }
           this.#requestRecentAdded();
         }
       };
       this.#limitSelectEl.addEventListener("change", changeHandler);
-      this.#unsubscribers.push(() => this.#limitSelectEl.removeEventListener("change", changeHandler));
+      if (this.#subscriptionBag) {
+        this.#subscriptionBag.add(() => this.#limitSelectEl.removeEventListener("change", changeHandler));
+      }
     }
   }
 
@@ -178,7 +193,10 @@ export class RecentAddedFeature {
         const n = parseInt(v, 10);
         if (!Number.isNaN(n) && n > 0) {this.#displayLimit = n;}
       }
-    } catch {}
+    } catch (e) {
+      // logger-guard
+      void e;
+    }
   }
 
   #requestRecentAdded() {

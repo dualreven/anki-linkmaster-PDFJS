@@ -9,6 +9,8 @@ import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants
 import { showSuccess, showError } from "../../../../common/utils/notification.js";
 import { showInfo } from "../../../../common/utils/notification.js";
 import { AnnotationType } from "../models/index.js";
+import { copyTextUsingHiddenTextarea } from "../../../../common/utils/copy-utils.js";
+import { createSubscriptionBag } from "../../../../common/ws/ws-subscription-bag.js";
 
 /**
  * 标注侧边栏UI类
@@ -28,8 +30,8 @@ export class AnnotationSidebarUI {
   #sidebarContent;
   /** @type {Array<Annotation>} */
   #annotations = [];
-  /** @type {Array<Function>} */
-  #unsubs = [];
+  /** @type {{ add:(fn:Function)=>void, clear:()=>void, size:()=>number }|null} */
+  #subscriptions = null;
   /** @type {string|null} */
   #activeTool = null;
   /** @type {Map<string, HTMLElement>} */
@@ -44,6 +46,7 @@ export class AnnotationSidebarUI {
     this.#eventBus = eventBus;
     this.#logger = getLogger("AnnotationSidebarUI");
     this.#container = null;
+    this.#subscriptions = createSubscriptionBag({ loggerName: "AnnotationSidebarUI" });
   }
 
   /**
@@ -176,10 +179,10 @@ export class AnnotationSidebarUI {
           { annotation: ann },
           { actorId: "AnnotationSidebarUI" }
         );
-      } catch (e) { void e; }
+      } catch (e) { void e; /* logger-guard */ }
 
       // 高亮对应卡片
-      try { this.highlightAndScrollToCard(ann.id); } catch (e) { void e; }
+      try { this.highlightAndScrollToCard(ann.id); } catch (e) { void e; /* logger-guard */ }
 
       this.#logger.info(`[AnnotationSidebarUI] Jump requested (strict): id=${ann.id} page=${ann.pageNumber}`);
     } catch (e) {
@@ -417,33 +420,33 @@ export class AnnotationSidebarUI {
    */
   #setupEventListeners() {
     // 监听标注CRUD事件
-    this.#unsubs.push(this.#eventBus.on(
+    this.#subscriptions.add(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANNOTATION.CREATED,
       (data) => this.addAnnotationCard(data.annotation),
       { subscriberId: "AnnotationSidebarUI" }
     ));
 
-    this.#unsubs.push(this.#eventBus.on(
+    this.#subscriptions.add(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANNOTATION.UPDATED,
       (data) => this.updateAnnotationCard(data.annotation),
       { subscriberId: "AnnotationSidebarUI" }
     ));
 
-    this.#unsubs.push(this.#eventBus.on(
+    this.#subscriptions.add(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANNOTATION.DELETED,
       (data) => this.removeAnnotationCard(data.id),
       { subscriberId: "AnnotationSidebarUI" }
     ));
 
     // 监听标注加载完成
-    this.#unsubs.push(this.#eventBus.on(
+    this.#subscriptions.add(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED,
       (data) => this.render(data.annotations || []),
       { subscriberId: "AnnotationSidebarUI" }
     ));
 
     // 监听工具停用（如按ESC键或外部触发）
-    this.#unsubs.push(this.#eventBus.on(
+    this.#subscriptions.add(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANNOTATION.TOOL.DEACTIVATED,
       (data) => {
         // 只有在事件数据中的工具与当前激活的工具匹配时，或者没有指定工具时才清空
@@ -469,21 +472,21 @@ export class AnnotationSidebarUI {
     ));
 
     // 监听标注选择事件（点击标记时）
-    this.#unsubs.push(this.#eventBus.on(
+    this.#subscriptions.add(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANNOTATION.SELECT,
       (data) => this.highlightAndScrollToCard(data.id),
       { subscriberId: "AnnotationSidebarUI" }
     ));
 
     // 监听侧边栏关闭事件（第二期：关闭时停用所有工具）
-    this.#unsubs.push(this.#eventBus.onGlobal(
+    this.#subscriptions.add(this.#eventBus.onGlobal(
       PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.CLOSED_COMPLETED,
       (data) => this.#handleSidebarClosed(data),
       { subscriberId: "AnnotationSidebarUI" }
     ));
 
     // 监听评论添加事件（第二期：新增）
-    this.#unsubs.push(this.#eventBus.on(
+    this.#subscriptions.add(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANNOTATION.COMMENT.ADDED,
       (data) => this.#handleCommentAdded(data),
       { subscriberId: "AnnotationSidebarUI" }
@@ -926,7 +929,9 @@ export class AnnotationSidebarUI {
     if (this.#annotationCards.has(annotation.id)) {
       try {
         this.updateAnnotationCard(annotation);
-      } catch { }
+      } catch (e) {
+        void e; /* logger-guard */
+      }
       return;
     }
 
@@ -1056,12 +1061,27 @@ export class AnnotationSidebarUI {
         const btnOk = document.createElement("button");
         btnOk.textContent = "删除";
         btnOk.style.cssText = "padding:6px 12px;border:1px solid #c62828;background:#c62828;color:#fff;border-radius:4px;cursor:pointer;";
-        btnCancel.addEventListener("click", () => { try { overlay.remove(); } catch {} resolve(false); });
-        btnOk.addEventListener("click", () => { try { overlay.remove(); } catch {} resolve(true); });
+        btnCancel.addEventListener("click", () => {
+          try {
+            overlay.remove();
+          } catch (e) {
+            void e; /* logger-guard */
+          }
+          resolve(false);
+        });
+        btnOk.addEventListener("click", () => {
+          try {
+            overlay.remove();
+          } catch (e) {
+            void e; /* logger-guard */
+          }
+          resolve(true);
+        });
         footer.appendChild(btnCancel); footer.appendChild(btnOk);
         dlg.appendChild(body); dlg.appendChild(footer); overlay.appendChild(dlg);
         document.body.appendChild(overlay);
-      } catch {
+      } catch (e) {
+        void e; /* logger-guard */
         resolve(true); // 最小化退化为直接通过
       }
     });
@@ -1500,45 +1520,8 @@ export class AnnotationSidebarUI {
   async #handleCopyIdClick(annotationId) {
     this.#logger.debug(`Copy annotation ID: ${annotationId}`);
 
-    let success = false;
+    const success = copyTextUsingHiddenTextarea(String(annotationId ?? ""));
 
-    // 直接使用 execCommand 方法（PyQt WebEngine中Clipboard API不可用）
-    try {
-      const textarea = document.createElement("textarea");
-      textarea.value = annotationId;
-      textarea.style.cssText = [
-        "position: fixed",
-        "top: 0",
-        "left: 0",
-        "width: 2em",
-        "height: 2em",
-        "padding: 0",
-        "border: none",
-        "outline: none",
-        "boxShadow: none",
-        "background: transparent",
-        "opacity: 0",
-        "pointer-events: none"
-      ].join(";");
-
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-
-      const successful = document.execCommand("copy");
-      document.body.removeChild(textarea);
-
-      if (successful) {
-        success = true;
-        this.#logger.debug("Copied using execCommand");
-      } else {
-        this.#logger.error("execCommand returned false");
-      }
-    } catch (error) {
-      this.#logger.error("Copy failed:", error);
-    }
-
-    // 显示结果
     if (success) {
       showSuccess("✓ ID已复制", 2000);
       // 发出ID复制事件（修正为3段格式）
@@ -1611,8 +1594,10 @@ export class AnnotationSidebarUI {
    */
   destroy() {
     // 取消所有事件订阅
-    this.#unsubs.forEach(unsub => unsub());
-    this.#unsubs = [];
+    if (this.#subscriptions) {
+      this.#subscriptions.clear();
+      this.#subscriptions = null;
+    }
 
     // 移除DOM
     if (this.#container) {
@@ -1625,4 +1610,3 @@ export class AnnotationSidebarUI {
 }
 
 export default AnnotationSidebarUI;
-

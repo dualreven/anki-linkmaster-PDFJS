@@ -13,7 +13,6 @@ describe("日志级别降噪（info 代替 warn）", () => {
     const content = read(p);
     const msgs = [
       "[Bootstrap] Outline feature enforced; pdf-outline registered (legacy disabled)",
-      "[TRACE] Skip Bootstrap auto-load because 'pdf-id' present; URLNavigationFeature will handle loading.",
       "[Bootstrap] Outline mode is active (enforced)",
     ];
     for (const m of msgs) {
@@ -21,15 +20,6 @@ describe("日志级别降噪（info 代替 warn）", () => {
       expect(content.includes(`logger.warn("${m}`)).toBe(false);
       expect(content.includes(`logger.info("${m}`)).toBe(true);
     }
-  });
-
-  test("URLNavigationFeature TRACE 以 info 输出（非 warn）", () => {
-    const p = path.resolve(__dirname, "../features/infra-nav-url/index.js");
-    const content = read(p);
-    const m = "[TRACE] Emitting FILE.LOAD.REQUESTED from URLNavigationFeature";
-    expect(content).toContain(m);
-    expect(content.includes(`this.#logger.warn("${m}`)).toBe(false);
-    expect(content.includes(`this.#logger.info("${m}`)).toBe(true);
   });
 
   test("UI 容器缺失与 TextLayer 禁用为 info（非 warn）", () => {

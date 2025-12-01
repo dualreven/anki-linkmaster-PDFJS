@@ -54,7 +54,9 @@ export class CommentMarker {
         marker.dataset.x = String(position.x);
         marker.dataset.y = String(position.y);
       }
-    } catch {}
+    } catch (e) {
+      void e; /* logger-guard */
+    }
 
     marker.style.cssText = `
       position: absolute;

@@ -19,7 +19,6 @@
 - 规范名采用三段式：layer-domain[-capability]；本目录已将部分名称切换为规范名：
   - app-core → infra-app（别名兼容：app-core）
   - ui-manager → infra-ui（别名兼容：ui-manager）
-  - url-navigation → infra-nav-url（别名兼容：url-navigation）
   - websocket-adapter → infra-ws-adapter（别名兼容：websocket-adapter）
   - annotation → pdf-annotation（别名兼容：annotation；事件作用域仍为 annotation）
   - search → pdf-search（别名兼容：search）
@@ -37,7 +36,6 @@
 | pdf-manager | PDF文档管理 | 无 | ✅ 稳定 |
 | pdf-outline | 大纲管理 | pdf-manager | ✅ 稳定 |
 | infra-ui | UI管理器 | pdf-manager | ✅ 稳定 |
-| infra-nav-url | URL参数导航 | infra-app, pdf-manager, infra-nav-core | ✅ 稳定 |
 | infra-ws-adapter | WebSocket适配器 | 无 | ✅ 稳定 |
 | pdf-ui | PDF UI组件 | 无 | ✅ 稳定 |
 
@@ -137,8 +135,7 @@ if (outlineService) {
 infra-app (核心)
   ├── pdf-manager
   │     ├── pdf-outline
-  │     ├── infra-ui
-  │     └── infra-nav-url
+  │     └── infra-ui
   ├── infra-ws-adapter
   └── pdf-ui
 ```

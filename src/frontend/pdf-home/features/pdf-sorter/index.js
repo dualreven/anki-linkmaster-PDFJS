@@ -25,6 +25,7 @@ import { ModeSelector } from "./components/mode-selector.js";
 import { MultiSortBuilder } from "./components/multi-sort-builder.js";
 import { WeightedSortEditor } from "./components/weighted-sort-editor.js";
 import { SortManager } from "./services/sort-manager.js";
+import { createSubscriptionBag } from "../../../common/event/subscription-bag.js";
 
 /**
  * PDF Sorter 功能域类
@@ -103,11 +104,11 @@ export class PDFSorterFeature {
   #currentSort = [];
 
   /**
-   * 事件取消订阅函数列表
-   * @type {Function[]}
+   * 事件订阅袋
+   * @type {{ add:(fn:Function)=>void, clear:()=>void, size:()=>number }|null}
    * @private
    */
-  #unsubscribers = [];
+  #subscriptionBag = null;
 
   /**
    * 功能是否已启用
@@ -154,6 +155,9 @@ export class PDFSorterFeature {
     this.#logger = context.logger || getLogger(`Feature.${this.name}`);
     // 标记已使用，避免 no-unused-private-class-members
     void this.#context;
+
+    // 初始化订阅袋（统一管理本 Feature 的所有取消订阅函数）
+    this.#subscriptionBag = createSubscriptionBag({ loggerName: `Feature.${this.name}.Subscriptions` });
 
     this.#logger.info(`Installing ${this.name} v${this.version}...`);
 
@@ -217,6 +221,12 @@ export class PDFSorterFeature {
       // 3. 清理排序配置
       this.#currentSort = [];
       this.#sortManager = null;
+
+      // 4. 清理订阅袋（彻底卸载时释放）
+      if (this.#subscriptionBag) {
+        this.#subscriptionBag.clear();
+        this.#subscriptionBag = null;
+      }
 
       // 5. 标记为未启用
       this.#enabled = false;
@@ -341,9 +351,11 @@ export class PDFSorterFeature {
       };
 
       sortBtn.addEventListener("click", handleSortClick);
-      this.#unsubscribers.push(() => {
-        sortBtn.removeEventListener("click", handleSortClick);
-      });
+      if (this.#subscriptionBag) {
+        this.#subscriptionBag.add(() => {
+          sortBtn.removeEventListener("click", handleSortClick);
+        });
+      }
       return;
     }
 
@@ -365,7 +377,10 @@ export class PDFSorterFeature {
       togglePanel(payload.source || HEADER_EVENTS.SORT.REQUESTED);
     });
 
-    this.#unsubscribers.push(unsubSearchSort, unsubHeaderSort);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubSearchSort);
+      this.#subscriptionBag.add(unsubHeaderSort);
+    }
     this.#logger.info("[PDFSorterFeature] Listening global sort toggle events (search/header)");
   }
 
@@ -383,21 +398,28 @@ export class PDFSorterFeature {
     const unsubModeChanged = this.#scopedEventBus.on(SORTER_EVENTS.MODE.CHANGED, (data) => {
       this.#handleModeChange(data.mode);
     });
-    this.#unsubscribers.push(unsubModeChanged);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubModeChanged);
+    }
 
     // 监听排序应用请求（三段式格式）
     const unsubApplySort = this.#scopedEventBus.on(SORTER_EVENTS.SORT.REQUESTED, (data) => {
       this.#handleApplySort(data);
     });
-    this.#unsubscribers.push(unsubApplySort);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubApplySort);
+    }
 
     // 监听排序清除请求（三段式格式）
     const unsubClearSort = this.#scopedEventBus.on(SORTER_EVENTS.SORT.CLEARED, () => {
       this.#handleClearSort();
     });
-    this.#unsubscribers.push(unsubClearSort);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubClearSort);
+    }
 
-    this.#logger.debug(`Registered ${this.#unsubscribers.length} event listeners`);
+    const bagSize = this.#subscriptionBag ? this.#subscriptionBag.size() : "unknown";
+    this.#logger.debug(`[PDFSorterFeature] Registered event listeners, subscriptionBag size=${bagSize}`);
   }
 
   /**
@@ -413,13 +435,21 @@ export class PDFSorterFeature {
         if (Array.isArray(items)) {
           this.#sortManager.setDataSource(items);
         }
-      } catch (e) { void e; }
+      } catch (e) {
+        // logger-guard
+        void e;
+      }
       // 数据刷新后（例如筛选/搜索结果更新），应用当前排序
       try {
         this.applySort();
-      } catch (e) { void e; }
+      } catch (e) {
+        // logger-guard
+        void e;
+      }
     }, { subscriberId: "pdf-sorter:results-updated" });
-    this.#unsubscribers.push(unsubListLoaded);
+    if (this.#subscriptionBag) {
+      this.#subscriptionBag.add(unsubListLoaded);
+    }
   }
 
   /**
@@ -513,15 +543,12 @@ export class PDFSorterFeature {
    * @private
    */
   #unregisterEventListeners() {
-    this.#unsubscribers.forEach(unsubscribe => {
-      try {
-        unsubscribe();
-      } catch (error) {
-        this.#logger.warn("Failed to unsubscribe event listener:", error);
-      }
-    });
+    if (!this.#subscriptionBag) {
+      this.#logger.debug("No subscription bag to clear for PDFSorterFeature");
+      return;
+    }
 
-    this.#unsubscribers = [];
+    this.#subscriptionBag.clear();
     this.#logger.debug("All event listeners unregistered");
   }
 

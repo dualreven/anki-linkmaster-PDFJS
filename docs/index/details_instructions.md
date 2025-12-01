@@ -7,7 +7,7 @@
 - 关键实现片段（需引用真实文件路径与行号）
 - 测试/运行建议（如何在本地观察行为，统一使用 `ai_launcher.py` 与 `pnpm`，禁止直接 `npm run dev`、`python app.py`）
 
-例：
-- src/frontend/pdf-home/index.js:45 - 初始化表格并订阅 pdf:list:updated
-- src/frontend/pdf-home/table-wrapper.js:120 - 表格渲染主函数
+例（部分为旧版 pdf-home v1 结构，仅作历史参考）：
+- src/frontend/pdf-home/index.js:45 - 初始化表格并订阅 pdf:list:updated（旧版路径）
+- src/frontend/pdf-home/table-wrapper.js:120 - 表格渲染主函数（旧版路径）
 

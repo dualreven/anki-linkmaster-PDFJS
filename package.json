@@ -49,7 +49,6 @@
     "integ:frontend:pdf-viewer:outline-navigate:F2:not-found": "node tests/e2e/runner/run-jest-step.mjs tests/e2e/node/pdf-viewer/ws-outline-navigate.F2.not-found-failed.test.js",
     "integ:protocol:pdf-viewer:outline-navigate:N1": "node tests/e2e/runner/run-py-step.mjs tests/e2e/python/msgcenter/test_ws_outline_navigate_forward.py",
     "integ:protocol:pdf-viewer:outline-navigate:N1:failed": "node tests/e2e/runner/run-py-step.mjs tests/e2e/python/msgcenter/test_ws_outline_navigate_forward_failed.py",
-    "integ:frontend:pdf-viewer:navigate:url:F1": "node tests/e2e/runner/run-jest-step.mjs tests/e2e/node/pdf-viewer/url-param-navigate.F1.emit.test.js",
     "integ:frontend:pdf-viewer:navigate:click:F1": "node tests/e2e/runner/run-jest-step.mjs tests/e2e/node/pdf-viewer/outline-click-navigate.F1.emit.test.js",
     "integ:frontend:pdf-viewer:outline-init-import": "node tests/e2e/runner/run-with-vite.mjs",
     "integ:backend:pdf-viewer:outline-init-import:db-assert": "node tests/e2e/runner/run-py-step.mjs tests/e2e/python/backend/test_pdf_viewer_outline_init_db_assert.py",
@@ -72,7 +71,7 @@
     "e2e:flow:pdf-viewer:outline-create": "pnpm -s integ:backend:pdf-viewer:outline-create:P0 && pnpm -s integ:frontend:pdf-viewer:outline-create:F1 && pnpm -s integ:protocol:pdf-viewer:outline-create:N2 && pnpm -s integ:frontend:pdf-viewer:outline-create:F3 && pnpm -s integ:backend:pdf-viewer:outline-create:B1",
     "e2e:flow:pdf-viewer:outline-navigate": "pnpm -s integ:protocol:pdf-viewer:outline-navigate:N1 && pnpm -s integ:frontend:pdf-viewer:outline-navigate:F1 && pnpm -s integ:frontend:pdf-viewer:outline-navigate:F2",
     "e2e:flow:pdf-viewer:navigate:ws:all": "pnpm -s integ:protocol:pdf-viewer:outline-navigate:N1 && pnpm -s integ:frontend:pdf-viewer:outline-navigate:F1 && pnpm -s integ:frontend:pdf-viewer:outline-navigate:F2 && pnpm -s integ:frontend:pdf-viewer:outline-navigate:F2:ready && pnpm -s integ:frontend:pdf-viewer:outline-navigate:F2:not-found && pnpm -s integ:protocol:pdf-viewer:outline-navigate:N1:failed && pnpm -s integ:viewer:outline-navigate:log-assert",
-    "e2e:flow:pdf-viewer:navigate:url:all": "pnpm -s integ:frontend:pdf-viewer:navigate:url:F1 && pnpm -s integ:frontend:pdf-viewer:outline-navigate:F2 && pnpm -s integ:frontend:pdf-viewer:outline-navigate:F2:ready && pnpm -s integ:frontend:pdf-viewer:outline-navigate:F2:not-found",
+    "e2e:flow:pdf-viewer:navigate:url:all": "pnpm -s integ:frontend:pdf-viewer:outline-navigate:F2 && pnpm -s integ:frontend:pdf-viewer:outline-navigate:F2:ready && pnpm -s integ:frontend:pdf-viewer:outline-navigate:F2:not-found",
     "e2e:flow:pdf-viewer:navigate:click:all": "pnpm -s integ:frontend:pdf-viewer:navigate:click:F1 && pnpm -s integ:frontend:pdf-viewer:outline-navigate:F2 && pnpm -s integ:frontend:pdf-viewer:outline-navigate:F2:ready && pnpm -s integ:frontend:pdf-viewer:outline-navigate:F2:not-found",
     "integ:viewer:outline-navigate:log-assert": "node tests/e2e/runner/run-py-step.mjs tests/e2e/python/viewer/test_viewer_outline_navigate_log_confirm.py",
     "ct:ws:pdf-viewer:outline-navigate": "node tests/e2e/runner/run-jest-step.mjs tests/e2e/node/pdf-viewer/ws-outline-navigate.contract.test.js",
@@ -140,5 +139,4 @@
     "regenerator-runtime": "^0.14.1"
   }
 }
-
 

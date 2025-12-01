@@ -5,7 +5,7 @@
  */
 
 import { PageTransferManager } from "../page-transfer-manager.js";
-import { EventBus } from "../../common/event/event-bus.js";
+import { WEBSOCKET_EVENTS } from "../common/event/event-constants.js";
 import { jest } from "@jest/globals";
 
 // EventBus 不需要 Mock，测试应使用真实的 EventBus 实例
@@ -77,7 +77,7 @@ describe("PageTransferManager", () => {
         };
 
         // 使用 mockEventBus.emit 触发事件
-        mockEventBus.emit("websocket_message_received", responseMessage);
+        mockEventBus.emit(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, responseMessage);
       }, 100);
 
       const result = await pageTransferManager.requestPage(fileId, pageNumber);
@@ -228,7 +228,7 @@ describe("PageTransferManager", () => {
         };
 
         // 使用 mockEventBus.emit 触发事件
-        mockEventBus.emit("websocket_message_received", errorMessage);
+        mockEventBus.emit(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, errorMessage);
       }, 100);
 
       await expect(pageTransferManager.requestPage(fileId, pageNumber))
@@ -285,9 +285,8 @@ describe("PageTransferManager", () => {
           }
         };
 
-                // 使用 mockEventBus.emit 触发事件
-          call[0] === "websocket_message_received"
-        mockEventBus.emit("websocket_message_received", responseMessage);
+        // 使用 mockEventBus.emit 触发事件
+        mockEventBus.emit(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, responseMessage);
       }, 50);
 
       await pageTransferManager.requestPage(fileId, pageNumber);
@@ -368,9 +367,8 @@ describe("PageTransferManager", () => {
             }
           };
 
-                  // 使用 mockEventBus.emit 触发事件
-            call[0] === "websocket_message_received"
-        mockEventBus.emit("websocket_message_received", responseMessage);
+          // 使用 mockEventBus.emit 触发事件
+          mockEventBus.emit(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, responseMessage);
         }
       }, 100);
 
