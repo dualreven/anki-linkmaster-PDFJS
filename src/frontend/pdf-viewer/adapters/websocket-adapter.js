@@ -523,8 +523,15 @@ export class WebSocketAdapter {
       return;
     }
 
-    // 📤 统一走 URL 导航入口
-    const pdfId = (() => { try { return new URLSearchParams(window.location.search).get("pdf-id"); } catch { return null; } })();
+    // 📤 统一走导航事件入口（pdfId 仅用于标识当前文档，不再由 URL 控制导航语义）
+    const pdfId = (() => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        return params.get("pdf-id");
+      } catch {
+        return null;
+      }
+    })();
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
       { pdfId: pdfId || undefined, pageAt: page_number },
@@ -607,7 +614,14 @@ export class WebSocketAdapter {
           return;
         }
 
-        const currentPdf = (() => { try { return new URLSearchParams(window.location.search).get("pdf-id"); } catch { return null; } })();
+        const currentPdf = (() => {
+          try {
+            const params = new URLSearchParams(window.location.search);
+            return params.get("pdf-id");
+          } catch {
+            return null;
+          }
+        })();
         if (targetPdf && currentPdf && targetPdf !== currentPdf) {
           this.#logger.warn("[Navigate] ignore message: pdf_uuid mismatch", { targetPdf, currentPdf });
           this.#wsClient.send({
@@ -627,7 +641,14 @@ export class WebSocketAdapter {
       // 验证：如果指定了 client_id，检查是否匹配当前 viewer
       if (targetClientId) {
         // 当前 viewer 的标准化 client_id
-        const currentPdf = (() => { try { return new URLSearchParams(window.location.search).get("pdf-id"); } catch { return null; } })();
+        const currentPdf = (() => {
+          try {
+            const params = new URLSearchParams(window.location.search);
+            return params.get("pdf-id");
+          } catch {
+            return null;
+          }
+        })();
         const currentClientId = currentPdf ? `pdf-viewer-${currentPdf}` : null;
 
         if (currentClientId && targetClientId !== currentClientId) {

@@ -16,10 +16,14 @@ export class KeyboardHandler {
   #eventBus;
   #enabled = true;
   #keyBindings = {};
+  #domEventHub = null;
+  #keydownUnsubscribe = null;
+  #handleKeyDownBound;
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
     this.#logger = getLogger("UIManager.Keyboard");
+    this.#handleKeyDownBound = this.#handleKeyDown.bind(this);
     this.#initializeKeyBindings();
   }
 
@@ -51,8 +55,26 @@ export class KeyboardHandler {
   /**
    * 设置键盘事件监听
    */
-  setupEventListener() {
-    document.addEventListener("keydown", this.#handleKeyDown.bind(this));
+  setupEventListener(domEventHub) {
+    if (domEventHub) {
+      this.#domEventHub = domEventHub;
+    }
+
+    if (this.#domEventHub && typeof this.#domEventHub.onDocumentKeydown === "function") {
+      if (this.#keydownUnsubscribe) {
+        try {
+          this.#keydownUnsubscribe();
+        } catch (e) {
+          this.#logger.warn("Keyboard handler unsubscribe previous keydown listener failed", e);
+        }
+        this.#keydownUnsubscribe = null;
+      }
+      this.#keydownUnsubscribe = this.#domEventHub.onDocumentKeydown(this.#handleKeyDownBound);
+      this.#logger.info("Keyboard event listener setup via DomEventHub");
+      return;
+    }
+
+    document.addEventListener("keydown", this.#handleKeyDownBound);
     this.#logger.info("Keyboard event listener setup");
   }
 
@@ -60,7 +82,18 @@ export class KeyboardHandler {
    * 移除键盘事件监听
    */
   removeEventListener() {
-    document.removeEventListener("keydown", this.#handleKeyDown.bind(this));
+    if (this.#keydownUnsubscribe) {
+      try {
+        this.#keydownUnsubscribe();
+      } catch (e) {
+        this.#logger.warn("Keyboard handler DomEventHub unsubscribe failed", e);
+      }
+      this.#keydownUnsubscribe = null;
+      this.#logger.info("Keyboard event listener removed via DomEventHub");
+      return;
+    }
+
+    document.removeEventListener("keydown", this.#handleKeyDownBound);
     this.#logger.info("Keyboard event listener removed");
   }
 

@@ -122,6 +122,7 @@ class GUILauncher(QMainWindow):
     - 日志输出到控制台（确保可读）。
     """
     def __init__(self) -> None:
+        """初始化 GUI 启动器主窗口并准备路径参数、控制器与 UI 结构。"""
         super().__init__()
         self.setWindowTitle("Anki LinkMaster PDFJS - 简化启动器")
         self.setMinimumSize(900, 560)
@@ -156,6 +157,7 @@ class GUILauncher(QMainWindow):
         self._build_ui()
 
     def _build_ui(self) -> None:
+        """构建主界面控件与布局（端口、路径输入、参数面板和操作按钮）。"""
         root = QWidget()
         lay = QVBoxLayout(root)
         lay.setContentsMargins(12, 12, 12, 12)
@@ -232,6 +234,7 @@ class GUILauncher(QMainWindow):
 
     # ---------- 工具 ----------
     def _log(self, msg: str) -> None:
+        """将一行日志输出到控制台，并在右侧日志面板中追加显示。"""
         try:
             print(msg, flush=True)
             if getattr(self, "_panels", None):
@@ -378,6 +381,7 @@ class GUILauncher(QMainWindow):
         return {k: (overrides[k] or defaults[k]) for k in defaults}
 
     def _runtime_ports(self) -> Dict[str, Any]:
+        """从 runtime-ports.json 或控制器读取当前运行时端口配置（读取失败则返回空字典）。"""
         try:
             if self._controller is not None:
                 return self._controller.read_runtime_ports(self._logs_dir) or {}
@@ -523,6 +527,7 @@ class GUILauncher(QMainWindow):
         self._backend_thread = None
 
     def _stop_backend_hosted(self) -> None:
+        """停止 Hosted 模式后端（以及必要时的 Vite Dev），并更新内部状态与日志。"""
         try:
             # dev 模式顺便停 vite
             if not bool(self.frontend_prod_checkbox.isChecked()) and self._controller is not None:
@@ -853,6 +858,7 @@ class GUILauncher(QMainWindow):
 
 
 def main() -> None:
+    """GUI 启动器入口：安装全局异常钩子、预载 WebEngine，并启动 QApplication + GUILauncher。"""
     # 全局异常钩子：落盘到 logs/gui-launcher.log，避免静默崩溃
     try:
         import sys as _sys, traceback as _tb

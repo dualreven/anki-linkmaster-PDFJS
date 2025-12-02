@@ -52,6 +52,14 @@ export class UIManagerFeature {
       logger.warn("⚠️ PDFViewerManager not available from UIManagerCore");
     }
 
+    // 注册 DomEventHub 到全局容器，供需要 DOM 事件包装层的 Feature 使用（如 pdf-resume）
+    if (this.#uiManager.domEventHub) {
+      container.registerGlobal("domEventHub", this.#uiManager.domEventHub);
+      logger.info("✅ DomEventHub registered to global container");
+    } else {
+      logger.warn("⚠️ DomEventHub not available from UIManagerCore");
+    }
+
     logger.info("UIManagerFeature installed successfully");
   }
 

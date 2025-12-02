@@ -716,32 +716,17 @@ class PDFLibraryAPI:
         return self._bookanchor_plugin.delete(anchor_uuid)
 
     def anchor_activate(self, anchor_uuid: str, active: bool = True) -> bool:
+        """
+        锚点激活接口（非持久化版）。
+
+        设计约束（2025-12-02 更新）：
+        - “激活状态”仅在前端会话内生效，不再写入 pdf_bookanchor.json_data.is_active；
+        - 此方法仅用于校验锚点是否存在，并为 MsgCenter 提供一致的 completed/failed 回执；
+        - page_at / position 等字段的持久化仍由 anchor_update/心跳逻辑负责。
+        """
         row = self._bookanchor_plugin.query_by_id(anchor_uuid)
         if not row:
             return False
-        pdf_uuid = row.get("pdf_uuid")
-        if not pdf_uuid:
-            return False
-        now = int(time.time() * 1000)
-        # 将其他锚点 is_active 置 0，再将当前置 1
-        if active:
-            sql1 = (
-                "UPDATE pdf_bookanchor "
-                "SET json_data = json_set(json_data, '$.is_active', 0), updated_at = ?, version = version + 1 "
-                "WHERE pdf_uuid = ? AND uuid <> ? AND json_extract(json_data, '$.is_active') = 1"
-            )
-            self._executor.execute_update(sql1, (now, pdf_uuid, anchor_uuid))
-            sql2 = (
-                "UPDATE pdf_bookanchor "
-                "SET json_data = json_set(json_data, '$.is_active', 1), visited_at = ?, updated_at = ?, version = version + 1 "
-                "WHERE uuid = ?"
-            )
-            return self._executor.execute_update(sql2, (now, now, anchor_uuid)) > 0
-        else:
-            sql = (
-                "UPDATE pdf_bookanchor "
-                "SET json_data = json_set(json_data, '$.is_active', 0), updated_at = ?, version = version + 1 "
-                "WHERE uuid = ?"
-            )
-            return self._executor.execute_update(sql, (now, anchor_uuid)) > 0
+        # 仅校验存在性，不修改任何字段（包括 is_active / visited_at 等）。
+        return True
 

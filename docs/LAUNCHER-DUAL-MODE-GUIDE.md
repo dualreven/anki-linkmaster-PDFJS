@@ -21,11 +21,9 @@ from src.frontend.common.launch_config import LaunchConfig
 # 从命令行参数构造
 config = LaunchConfig.from_args(args)
 
-# 从代码直接构造
+# 从代码直接构造（仅通过 pdf_id 选择文档，导航由前端 Feature/WS 驱动）
 config = LaunchConfig(
     pdf_id="sample",
-    page_at=5,
-    position=50.0,
     is_prod=True,
     source="anki"
 )
@@ -47,12 +45,8 @@ class LaunchConfig:
     js_debug_port: Optional[int] = None
 
     # PDF-Viewer 专用参数
-    pdf_id: Optional[str] = None         # PDF 标识符
-    file_path: Optional[str] = None      # PDF 文件路径
-    page_at: Optional[int] = None        # 目标页码
-    position: Optional[float] = None     # 页面位置 (0-100%)
-    anchor_id: Optional[str] = None      # 锚点 ID
-    annotation_id: Optional[str] = None  # 标注 ID
+    pdf_id: Optional[str] = None         # PDF 标识符（通过 URL 仅用于选择文档，不再承担导航语义）
+    file_path: Optional[str] = None      # PDF 文件路径（已不推荐，优先使用 pdf_id）
 
     # 控制参数
     keep_backend: bool = False           # 窗口关闭时保持后端运行
@@ -96,32 +90,8 @@ python src/frontend/pdf-home/launcher.py --keep-backend
 #### PDF-Viewer
 
 ```bash
-# 基本用法
+# 基本用法（仅通过 pdf-id 选择文档）
 python src/frontend/pdf-viewer/launcher.py --pdf-id sample
-
-# 跳转到指定页码
-python src/frontend/pdf-viewer/launcher.py --pdf-id sample --page-at 5
-
-# 跳转到指定位置
-python src/frontend/pdf-viewer/launcher.py \
-    --pdf-id sample \
-    --page-at 5 \
-    --position 50
-
-# 打开特定锚点
-python src/frontend/pdf-viewer/launcher.py \
-    --pdf-id sample \
-    --anchor-id pdfanchor-test
-
-# 聚焦特定标注
-python src/frontend/pdf-viewer/launcher.py \
-    --pdf-id sample \
-    --annotation-id ann-123456
-
-# 指定大纲项（仅传参到 URL；跳转由 Outline 模块消费，当前未实现自动跳转）
-python src/frontend/pdf-viewer/launcher.py \
-    --pdf-id sample \
-    --outline-item-id outlineitem-xyz
 
 # 生产模式
 python src/frontend/pdf-viewer/launcher.py \
@@ -161,9 +131,6 @@ import sys
 # 创建配置
 config = LaunchConfig(
     pdf_id="sample",
-    page_at=5,
-    position=50.0,
-    anchor_id="pdfanchor-test",
     is_prod=False
 )
 
@@ -206,8 +173,6 @@ from src.frontend.pdf_viewer.launcher import PdfViewerApp
 # 创建配置
 config = LaunchConfig(
     pdf_id="sample",
-    page_at=5,
-    position=50.0,
     is_prod=True,
     source="anki",
     keep_backend=True  # Anki 环境下通常保持后端运行
@@ -228,11 +193,10 @@ app.run()  # 不会阻塞，返回 0
 from src.frontend.common.launch_config import LaunchConfig
 from src.frontend.pdf_viewer.launcher import PdfViewerApp
 
-def open_pdf_viewer(pdf_id: str, page_at: int = None, parent_app=None):
+def open_pdf_viewer(pdf_id: str, parent_app=None):
     """从 pdf-home 打开 pdf-viewer"""
     config = LaunchConfig(
         pdf_id=pdf_id,
-        page_at=page_at,
         is_prod=False,
         source="home"  # 标识来源
     )

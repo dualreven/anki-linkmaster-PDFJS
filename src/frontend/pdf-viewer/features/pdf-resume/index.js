@@ -52,10 +52,13 @@ export class PDFResumeFeature {
   #unsubscribeDiagnostic = null;
 
   /** @type {number|null} */
-  #heartbeatTimer = null;
+  #resumeLoadTimer = null;
+
+  /** @type {Object|null} */
+  #domEventHub = null;
 
   /** @type {number|null} */
-  #resumeLoadTimer = null;
+  #lastFlushAt = null;
 
   get name() { return "pdf-resume"; }
   get version() { return "2.0.0"; }
@@ -102,11 +105,8 @@ export class PDFResumeFeature {
     // 设置位置追踪
     this.#setupPositionTracker();
 
-    // beforeunload 保存暂时关闭，改用心跳机制同步到 DB
+    // beforeunload 保存暂时关闭，改为运行期事件驱动 + 节流写入
     this.#setupBeforeUnload();
-
-    // 启动心跳同步
-    this.#startHeartbeat();
 
     this.#logger.info("[pdf-resume] installed", { pdfId: this.#pdfId });
   }
@@ -122,24 +122,11 @@ export class PDFResumeFeature {
     }
 
     // 停止心跳
-    if (this.#heartbeatTimer !== null) {
-      clearInterval(this.#heartbeatTimer);
-      this.#heartbeatTimer = null;
-      this.#logger.info("[pdf-resume] heartbeat sync stopped");
-    }
-
     // 取消延迟的 resume 加载
     if (this.#resumeLoadTimer !== null) {
       clearTimeout(this.#resumeLoadTimer);
       this.#resumeLoadTimer = null;
       this.#logger.info("[pdf-resume] delayed resume load cancelled");
-    }
-
-    // 停止心跳
-    if (this.#heartbeatTimer !== null) {
-      clearInterval(this.#heartbeatTimer);
-      this.#heartbeatTimer = null;
-      this.#logger.info("[pdf-resume] heartbeat sync stopped");
     }
 
     // 清理 beforeunload 处理器
@@ -166,6 +153,8 @@ export class PDFResumeFeature {
     this.#container = null;
     this.#navigationService = null;
     this.#resumeUpdater = null;
+    this.#domEventHub = null;
+    this.#lastFlushAt = null;
 
     this.#logger.info("[pdf-resume] uninstalled");
   }
@@ -228,14 +217,44 @@ export class PDFResumeFeature {
    * 设置位置追踪器
    */
   #setupPositionTracker() {
+    // 可选获取 DomEventHub（若不存在则退回直接监听 viewerContainer）
+    try {
+      if (this.#container?.has?.("domEventHub")) {
+        this.#domEventHub = this.#container.get("domEventHub");
+      } else {
+        this.#domEventHub = null;
+      }
+    } catch (e) {
+      this.#logger.warn("[pdf-resume] domEventHub not available, fallback to direct DOM listeners", e);
+      this.#domEventHub = null;
+    }
+
     this.#positionTracker = new PositionTracker({
       debounceMs: 200,
+      domEventHub: this.#domEventHub,
       onPositionChange: (pageAt, position) => {
         this.#logger.debug("[pdf-resume] position changed", { pageAt, position });
-        // 为避免滚动过程中的多次写入，这里仅更新内存中的最新页码，
-        // 实际持久化交给 beforeunload 阶段的 flushSync 统一处理。
-        if (this.#resumeUpdater) {
-          this.#resumeUpdater.setPage(pageAt);
+        if (!this.#resumeUpdater) {
+          return;
+        }
+
+        // 始终更新内存中的最新页码
+        this.#resumeUpdater.setPage(pageAt);
+
+        // 基于位置变更做 1 秒节流的事件驱动写入：
+        // - 第一笔变更会立即写入；
+        // - 后续 1 秒内的变更只更新内存，不触发新的 flush。
+        const now = Date.now();
+        if (this.#lastFlushAt === null || now - this.#lastFlushAt >= 1000) {
+          this.#resumeUpdater.flush();
+          this.#lastFlushAt = now;
+          this.#logger.debug("[pdf-resume] position-driven flush executed", { pageAt });
+        } else {
+          this.#logger.debug("[pdf-resume] position change ignored by throttle", {
+            pageAt,
+            position,
+            sinceLastMs: now - this.#lastFlushAt
+          });
         }
       }
     });
@@ -271,9 +290,10 @@ export class PDFResumeFeature {
    * 设置 beforeunload 处理器
    */
   #setupBeforeUnload() {
-    // 心跳模式下暂时不依赖 beforeunload 保存，以避免 Qt 关闭路径下的不确定性。
+    // 当前版本统一依赖运行期事件驱动 + 节流写入，不再在 beforeunload 阶段追加一次同步，
+    // 以避免 Qt 关闭路径下的不确定性。
     this.#beforeUnloadHandler = null;
-    this.#logger.info("[pdf-resume] beforeunload handler disabled (heartbeat mode)");
+    this.#logger.info("[pdf-resume] beforeunload handler disabled (event-driven mode)");
   }
 
   /**
@@ -298,68 +318,6 @@ export class PDFResumeFeature {
       this.#resumeLoadTimer = null;
       this.#handleFileLoaded();
     }, delayMs);
-  }
-
-  /**
-   * 启动心跳同步：定期采样当前位置并写入 DB
-   */
-  #startHeartbeat() {
-    if (!this.#resumeUpdater) {
-      return;
-    }
-    if (this.#heartbeatTimer !== null) {
-      clearInterval(this.#heartbeatTimer);
-    }
-
-    const intervalMs = 3000;
-    this.#heartbeatTimer = setInterval(() => {
-      this.#performHeartbeatSync();
-    }, intervalMs);
-
-    this.#logger.info("[pdf-resume] heartbeat sync started", { intervalMs });
-  }
-
-  /**
-   * 心跳周期内执行一次同步
-   */
-  #performHeartbeatSync() {
-    if (!this.#resumeUpdater) {
-      return;
-    }
-
-    // 恢复导航冻结期间不应写入 resume
-    if (this.#positionTracker?.isFrozen) {
-      this.#logger.debug("[pdf-resume] heartbeat skipped (frozen)");
-      return;
-    }
-
-    let pageNumber = null;
-
-    // 优先使用 PositionTracker 的快照（视口中心页）
-    const pos = this.#positionTracker?.snapshot?.();
-    if (pos && Number.isInteger(pos.pageAt) && pos.pageAt > 0) {
-      pageNumber = pos.pageAt;
-    } else {
-      // 回退到 pdfViewerManager.currentPageNumber
-      try {
-        const mgr = this.#container?.get?.("pdfViewerManager");
-        const current = mgr?.currentPageNumber;
-        if (Number.isInteger(current) && current > 0) {
-          pageNumber = current;
-        }
-      } catch (e) {
-        this.#logger.warn("[pdf-resume] heartbeat failed to read currentPageNumber", e);
-      }
-    }
-
-    if (!Number.isInteger(pageNumber) || pageNumber < 1) {
-      this.#logger.debug("[pdf-resume] heartbeat skipped (no valid page)");
-      return;
-    }
-
-    this.#resumeUpdater.setPage(pageNumber);
-    this.#resumeUpdater.flush();
-    this.#logger.debug("[pdf-resume] heartbeat flushed resume", { page: pageNumber });
   }
 
   /**

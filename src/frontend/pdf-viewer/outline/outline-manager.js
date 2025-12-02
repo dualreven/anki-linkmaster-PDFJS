@@ -469,8 +469,15 @@ export class OutlineManager {
   }
   #resolvePdfId() {
     try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const v = urlParams.get("pdf-id");
+      // 保留现有分辨顺序：优先 URL 中的 pdf-id，其次全局 PDF_PATH
+      const v = (() => {
+        try {
+          const params = new URLSearchParams(window.location.search);
+          return params.get("pdf-id");
+        } catch {
+          return null;
+        }
+      })();
       if (v && v.trim()) { return v.trim(); }
       if (typeof window.PDF_PATH === "string" && window.PDF_PATH) {
         const filename = window.PDF_PATH.split("/").pop().split(".")[0];

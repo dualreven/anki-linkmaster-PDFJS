@@ -12,6 +12,7 @@ import { OutlineDialog } from "../../outline/components/outline-dialog.js";
 import { OutlineDataProvider } from "../../outline/outline-data-provider.js";
 import { getCurrentPDFDocument } from "../../pdf/current-document-registry.js";
 import { createSubscriptionBag } from "../../../common/event/subscription-bag.js";
+import { getCurrentPdfIdFromWindow } from "../../shared/url-context.js";
 
 export class OutlineManager {
   #logger;
@@ -182,8 +183,7 @@ export class OutlineManager {
 
   #getPdfId() {
     try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const pdfId = urlParams.get("pdf-id");
+      const pdfId = getCurrentPdfIdFromWindow();
       if (pdfId) { return pdfId; }
       const pdfManager = this.#container?.resolve?.("pdfManager");
       if (pdfManager?.currentPdfId) { return pdfManager.currentPdfId; }

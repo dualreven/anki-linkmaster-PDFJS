@@ -18,6 +18,7 @@ const logger = getLogger("PositionTracker");
  * @property {boolean} [listenWheel=true] - 是否监听 wheel 事件
  * @property {boolean} [listenClick=true] - 是否监听 click 事件
  * @property {boolean} [listenScroll=true] - 是否监听 scroll 事件
+ * @property {Object} [domEventHub] - 可选 DomEventHub 实例，用于统一管理 DOM 事件订阅
  */
 
 /**
@@ -67,6 +68,9 @@ export class PositionTracker {
   /** @type {{ pageAt: number, position: number } | null} */
   #lastPosition = null;
 
+  /** @type {Object|null} */
+  #domEventHub = null;
+
   /**
    * 创建位置追踪器实例
    * @param {PositionTrackerOptions} options - 配置选项
@@ -82,6 +86,7 @@ export class PositionTracker {
     this.#listenWheel = options.listenWheel !== false;
     this.#listenClick = options.listenClick !== false;
     this.#listenScroll = options.listenScroll !== false;
+    this.#domEventHub = options.domEventHub || null;
   }
 
   /**
@@ -193,38 +198,66 @@ export class PositionTracker {
       this.#scheduleUpdate();
     };
 
-    if (this.#listenWheel) {
-      container.addEventListener("wheel", handlePositionChange, { passive: true });
-      this.#detachFns.push(() => container.removeEventListener("wheel", handlePositionChange));
-    }
+    // 若提供了 DomEventHub，则优先通过 DomEventHub 订阅 DOM 事件
+    if (this.#domEventHub) {
+      if (this.#listenWheel && typeof this.#domEventHub.onViewerWheel === "function") {
+        this.#detachFns.push(this.#domEventHub.onViewerWheel(handlePositionChange));
+      }
 
-    if (this.#listenClick) {
-      const handleClick = (evt) => {
-        // 尝试从点击的页面元素获取页码
-        const pageEl = evt?.target?.closest?.(".page[data-page-number]");
-        if (pageEl) {
-          const pn = Number(pageEl.getAttribute("data-page-number"));
-          if (Number.isFinite(pn) && pn > 0) {
-            // 直接使用点击的页码，而非检测中心
-            this.#scheduleUpdateWithPage(pn);
-            return;
+      if (this.#listenClick && typeof this.#domEventHub.onViewerClick === "function") {
+        const handleClick = (evt) => {
+          const pageEl = evt?.target?.closest?.(".page[data-page-number]");
+          if (pageEl) {
+            const pn = Number(pageEl.getAttribute("data-page-number"));
+            if (Number.isFinite(pn) && pn > 0) {
+              this.#scheduleUpdateWithPage(pn);
+              return;
+            }
           }
-        }
-        this.#scheduleUpdate();
-      };
-      container.addEventListener("click", handleClick, { passive: true });
-      this.#detachFns.push(() => container.removeEventListener("click", handleClick));
-    }
+          this.#scheduleUpdate();
+        };
+        this.#detachFns.push(this.#domEventHub.onViewerClick(handleClick));
+      }
 
-    if (this.#listenScroll) {
-      container.addEventListener("scroll", handlePositionChange, { passive: true });
-      this.#detachFns.push(() => container.removeEventListener("scroll", handlePositionChange));
+      if (this.#listenScroll && typeof this.#domEventHub.onViewerScroll === "function") {
+        this.#detachFns.push(this.#domEventHub.onViewerScroll(handlePositionChange));
+      }
+    } else {
+      // 兼容旧用法：直接在 container 上订阅 DOM 事件
+      if (this.#listenWheel) {
+        container.addEventListener("wheel", handlePositionChange, { passive: true });
+        this.#detachFns.push(() => container.removeEventListener("wheel", handlePositionChange));
+      }
+
+      if (this.#listenClick) {
+        const handleClick = (evt) => {
+          // 尝试从点击的页面元素获取页码
+          const pageEl = evt?.target?.closest?.(".page[data-page-number]");
+          if (pageEl) {
+            const pn = Number(pageEl.getAttribute("data-page-number"));
+            if (Number.isFinite(pn) && pn > 0) {
+              // 直接使用点击的页码，而非检测中心
+              this.#scheduleUpdateWithPage(pn);
+              return;
+            }
+          }
+          this.#scheduleUpdate();
+        };
+        container.addEventListener("click", handleClick, { passive: true });
+        this.#detachFns.push(() => container.removeEventListener("click", handleClick));
+      }
+
+      if (this.#listenScroll) {
+        container.addEventListener("scroll", handlePositionChange, { passive: true });
+        this.#detachFns.push(() => container.removeEventListener("scroll", handlePositionChange));
+      }
     }
 
     logger.debug("[PositionTracker] listeners attached", {
       wheel: this.#listenWheel,
       click: this.#listenClick,
-      scroll: this.#listenScroll
+      scroll: this.#listenScroll,
+      viaHub: !!this.#domEventHub
     });
   }
 

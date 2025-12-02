@@ -117,23 +117,21 @@ const inboundHandlers = [
             }
           } catch (e) { logger.warn("[anchor] request list after create completed failed", e); }
         } else if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_ACTIVATE_COMPLETED) {
-          // [DIAGNOSTIC] 追踪激活完成后的自动刷新
-          logger.warn("[DIAGNOSTIC] Auto-refresh after ACTIVATE_COMPLETED", {
-            source: "ACTIVATE_COMPLETED handler",
-            location: "Line 182-197",
-            timestamp: Date.now()
-          });
-
-          // 更新当前项状态（不再自动刷新列表以避免死循环）
+          // 语义更新：anchor:activate:completed 作为“远程激活指令”的确认，
+          // 由前端在 resume 门控完成后统一执行“激活 + 导航 + 持续写入”，
+          // 因此此处只发出 ANCHOR.NAVIGATE.REQUESTED，不再直接修改激活状态。
           try {
             const id = message?.data?.anchor_id || message?.data?.uuid || null;
-            const active = !!(message?.data?.active ?? true);
             if (id) {
-              eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.ACTIVATED, { anchorId: String(id), active }, { actorId: "WebSocketAdapter" });
+              eventBus.emit(
+                PDF_VIEWER_EVENTS.ANCHOR.NAVIGATE.REQUESTED,
+                { anchorId: String(id), source: "ws-anchor-activate" },
+                { actorId: "WebSocketAdapter" }
+              );
             }
-          } catch { logger.warn("anchor activate inbound mapping failed"); }
-          // ❌ 移除自动刷新逻辑以修复死循环问题
-          // 原因：激活锚点不需要刷新整个列表，且会触发 ACTIVATE → LIST → LOADED → re-ACTIVATE 循环
+          } catch {
+            logger.warn("anchor activate inbound mapping failed");
+          }
         } else {
           // [DIAGNOSTIC] 追踪其他完成事件的自动刷新
           logger.warn("[DIAGNOSTIC] Auto-refresh after OTHER_COMPLETED", {
@@ -192,4 +190,3 @@ export function handleViewerWsInbound({ message, eventBus, wsClient, logger }) {
     logger
   });
 }
-

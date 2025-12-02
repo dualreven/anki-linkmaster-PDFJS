@@ -562,16 +562,7 @@ def start_pdf_viewer_cli(cfg: LauncherConfig, *, is_prod: bool, pdf_id: Optional
         cmd.append('--prod')
     if pdf_id:
         cmd += ['--pdf-id', str(pdf_id)]
-    if page_at is not None:
-        cmd += ['--page-at', str(int(page_at))]
-    if position is not None:
-        cmd += ['--position', str(float(position))]
-    if anchor_id:
-        cmd += ['--anchor-id', str(anchor_id)]
-    if annotation_id:
-        cmd += ['--annotation-id', str(annotation_id)]
-    if outline_item_id:
-        cmd += ['--outline-item-id', str(outline_item_id)]
+    # 按规范，URL 导航参数（page-at/position/anchor-id/annotation-id/outline-item-id）已废弃，不再通过 CLI 传递。
     cmd.append('--keep-backend')
     if getattr(cfg.paths, 'logs_dir', None):
         cmd += ['--logs-dir', str(cfg.paths.logs_dir)]

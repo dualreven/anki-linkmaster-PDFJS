@@ -14,6 +14,7 @@ from typing import Any, Dict
 
 
 def get_version() -> str:
+    """返回当前 GUI 参数面板的版本字符串，用于调试与追踪。"""
     return "0.2-collapsible"
 
 

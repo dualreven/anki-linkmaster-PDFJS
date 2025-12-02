@@ -10,19 +10,6 @@ import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js
 import { showSuccess, showError, showInfo } from "../../../common/utils/notification.js";
 import { WEBSOCKET_MESSAGE_EVENTS } from "../../../common/event/event-constants.js";
 
-// 仅在开发模式允许 DEV 测试锚点注入（pdfanchor-test）
-// 注：为兼容 Jest 与部分打包环境，避免直接访问 import.meta；
-// 在 Node/Jest 下以 NODE_ENV/JEST_WORKER_ID 判定，在浏览器下默认走非 DEV 路径。
-const isDevEnvironment = (() => {
-  try {
-    const env = (typeof process !== "undefined" && process && process.env) ? process.env : {};
-    return env.NODE_ENV === "development" || typeof env.JEST_WORKER_ID !== "undefined";
-  } catch (e) {
-    void e; /* logger-guard */
-    return false;
-  }
-})();
-
 export class PDFAnchorFeature {
   #logger = getLogger("PDFAnchorFeature");
   #eventBus = null;
@@ -49,6 +36,8 @@ export class PDFAnchorFeature {
   #gateAnchorReady = false; // 锚点数据已达
   #gateRenderReady = false; // PDF渲染就绪
   #gateNavDone = false; // 闸门导航已执行
+  #useResumeGate = false; // 是否对当前挂起导航启用 resume 门控
+  #gateResumeDone = false; // resume 流程已完成（RESUME.FLOW.DONE）
   #lastSnapshot = null; // 最近一次心跳上报 { pageAt, position }
 
   get name() { return "pdf-anchor"; }
@@ -206,6 +195,16 @@ export class PDFAnchorFeature {
       { subscriberId: "PDFAnchorFeature" }
     );
 
+    // 断点续读流程完成（无论是否真正应用 resume），用于 WS 激活路径的附加门控
+    safeOn(
+      PDF_VIEWER_EVENTS?.RESUME?.FLOW?.DONE,
+      () => {
+        this.#gateResumeDone = true;
+        this.#tryNavigateWhenGatesReady();
+      },
+      { subscriberId: "PDFAnchorFeature" }
+    );
+
     // 统一处理：来自 URLJumpDispatcher/WS 的 anchor 导航请求 → 设置挂起，待门闸就绪后统一发 URL_PARAMS.REQUESTED
     safeOn(
       PDF_VIEWER_EVENTS.ANCHOR.NAVIGATE.REQUESTED,
@@ -213,6 +212,15 @@ export class PDFAnchorFeature {
         try {
           const anchorId = (data?.anchorId || "").toString().trim();
           if (!anchorId) {return;}
+          // 对来自 ws-anchor-activate 的导航请求启用 resume 门控，
+          // 其他来源（如本地 UI）保持原有行为。
+          if (data?.source === "ws-anchor-activate") {
+            this.#useResumeGate = true;
+            this.#gateResumeDone = false;
+          } else {
+            this.#useResumeGate = false;
+            this.#gateResumeDone = false;
+          }
           const a = this.#anchorsById.get(anchorId);
           if (a) {
             // 设置挂起导航，等待渲染与文件就绪后统一发导航事件
@@ -466,6 +474,7 @@ export class PDFAnchorFeature {
       if (!this.#useGateNav) { return; }
       if (this.#gateNavDone) { return; }
       if (!this.#gateAnchorReady || !this.#gateRenderReady) { return; }
+      if (this.#useResumeGate && !this.#gateResumeDone) { return; }
       if (!this.#pendingNav) { return; }
       const { pageAt, position, anchorId } = this.#pendingNav;
       // 对齐 URLNavigationFeature 的稳定窗口：延迟约 1 秒后再发起 REQUESTED

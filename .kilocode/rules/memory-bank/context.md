@@ -11,6 +11,130 @@
 - 任务6：⏱ 盘点“带 gate 条件的 WS 消息类型”当前实现情况（主要聚焦 pdf-viewer，兼顾 pdf-home 规范）
 - 前序任务：压缩 context.md；多轮修复 PDF 页码跳转偏差 Bug + pdf-resume 模块化重构；WS 收发器与条件 gate 协议设计与 pdf-home 侧落地（详见归档与 AItemp 日志）
 
+### URL 导航能力的最终状态（2025-12-01 更新）
+
+- 设计结论（对齐 pdf-url-loader README 与前端实现）：
+  - 浏览器 URL 查询参数仅用于选择 PDF 文档（`pdf-id` / `title` 等），不再承担“导航到指定页码/位置/锚点/标注/大纲项”的语义。
+  - 所有导航（包括 outline/annotation/anchor/resume 等）一律通过事件与 WebSocket 消息驱动：例如 `PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED` 由 WebSocketAdapter / Feature 发出，NavigationService 消费。
+  - 冷启动/新窗口时，URL 只携带 `pdf-id`；后续导航由 Feature 在 `FILE.LOAD.SUCCESS` 之后发起，或由后端通过 WS 条件消息（带 gate）驱动。
+
+- 本轮清理（2025-12-01）：
+  - 移除了 PDFAnchorFeature 对 `NAVIGATION.URL_PARAMS.PARSED` 事件中 `anchorId` 的所有依赖，不再根据 URL 中的 `anchor-id` 启动锚点导航；对应测试 `anchor-url-parsed-gating.test.js` 改为断言“收到 URL 事件不再触发导航”。
+  - 删除/收紧 pdf-viewer standalone launcher 及相关集成（`src/frontend/pdf-viewer/launcher.py`、`src/launcher/runner.py`、`src/integrations/anki_event_bridge.py`、`scripts/launch_anchor_from_db.py`）中通过 CLI 将 `page-at/position/anchor-id/annotation-id/outline-item-id` 拼入 URL 的逻辑，CLI 现在仅通过 `--pdf-id` 选择文档。
+  - 更新 `docs/LAUNCHER-DUAL-MODE-GUIDE.md` 与 `docs/architecture/navigation.md`：去掉“URL 启动导航”示例与说明，明确标注“URL 导航功能已移除，导航统一由 Feature/WS 驱动，URL 只用于文档选择”。
+  - 现有 `NAVIGATION.URL_PARAMS.*` 事件仅作为“导航事件命名空间”的一部分继续使用，不再与浏览器 URL 查询参数直接绑定。
+
+- 防回归要点：
+  - 任何新代码若尝试通过浏览器 URL 查询参数携带导航意图（page-at/position/anchor-id/annotation-id/outline-item-id），应被视为违反规范；导航入口必须通过事件/WS 统一封装。
+  - 若确有需要在冷启动时导航，应通过“启动后发送导航消息（WS 或内部事件）”的方式实现，而不是扩展 URL 协议。
+
+### NavigationService 同页位移行为（2025-12-02 更新）
+
+- 核心结论：
+  - `infra-nav-core` 中的 `NavigationService` 现在会订阅 `PDF_VIEWER_EVENTS.PAGE.CHANGING` 事件，维护一个内部的 `currentPageNumber`，用于识别“当前页内跳转”场景。
+  - 当调用 `navigationService.navigateTo({ pageAt, position })` 且 `pageAt` 与最近一次 `PAGE.CHANGING` 事件中的页码相同（视为当前页），则视为“同页导航”：
+    - 不再通过 `PDF_VIEWER_EVENTS.NAVIGATION.GOTO` 触发一次新的翻页（避免重复设置 `currentPageNumber` 和 PDF.js 内部滚动动画）；
+    - 仍然会等待目标页 DOM 准备完成（`#waitForPageReady`），随后仅调用 `scrollToPosition(position, pageAt)` 执行平滑滚动；
+    - position 为空时依旧默认滚动到该页 50% 位置，保证页面可见。
+  - 当 `pageAt` 与当前页不同（跨页导航）时，行为保持不变：先发 `NAVIGATION.GOTO` 执行翻页，再在目标页就绪后调用 `scrollToPosition` 完成页内定位。
+- 影响范围：
+  - 所有通过 DI 获取 `navigationService` 的前端特性（如 pdf-outline、pdf-resume、pdf-annotation、pdf-url-loader 的“同文档内导航”等）都会自动获得这一“同页仅位移”的优化，无需修改调用代码。
+  - 现有事件契约与函数签名未发生变化：
+    - 调用方依旧只需要传入 `{ pageAt, position }`；
+    - 成功返回结果结构保持 `{ success, actualPage, actualPosition, duration }`，便于现有调用方继续做日志或提示。
+- 防回归说明：
+  - 新增测试文件 `src/frontend/pdf-viewer/features/infra-nav-core/__tests__/navigation-service.same-page.test.js`：
+    - 覆盖“在当前页导航时不应再发 `NAVIGATION.GOTO`，但必须调用 `scrollToPosition`”这一行为；
+    - 覆盖“跨页导航仍然发送 `NAVIGATION.GOTO` 并执行滚动”的原有行为，确保未被本次改动破坏。
+
+### Anchor 激活功能现状梳理（2025-12-02 仅检查）
+
+- 结构与职责分工：
+  - `PDFAnchorFeature`（`src/frontend/pdf-viewer/features/pdf-anchor/index.js`）是锚点领域的核心 Feature，负责：
+    - 维护内存中的锚点列表 `#anchorsById` 与当前激活锚点 `#activeAnchorId`；
+    - 消费/发出与锚点相关的领域事件：`ANCHOR.DATA.LOADED/LOAD/LOAD_FAILED/CREATE/UPDATE/DELETE/ACTIVATE/ACTIVATED/UPDATED/COPY/COPIED` 等；
+    - 与 WebSocket 适配器协作完成列表加载与持久化（DATA.LOAD → WS → DATA.LOADED；CREATE/__fromFeature → WS 持久化）；
+    - 在需要导航到某个锚点时，通过 `ANCHOR.NAVIGATE.REQUESTED` + `NAVIGATION.URL_PARAMS.REQUESTED` 事件与 URL 导航/NavigationService 协调。
+  - `AnchorSidebarUI`（`src/frontend/pdf-viewer/features/pdf-anchor/components/anchor-sidebar-ui.js`）负责：
+    - 渲染锚点侧边栏 UI（工具栏 + 表格），订阅 `ANCHOR.DATA.LOADED/UPDATED/ACTIVATED` 以刷新显示；
+    - 将用户操作转成领域事件：例如“删除”“修改”“复制”“激活”等按钮对应 `ANCHOR.DELETE/UPDATE/COPY/COPIED/ACTIVATE` 事件；
+    - 在激活按钮点击时，根据当前选中行 `#selectedId` 计算下一状态并发出 `ANCHOR.ACTIVATE`（带上 `active: true/false`）。
+- 激活链路（代码层面）：
+  1. 用户在 AnchorSidebarUI：
+     - 点击表格行 → 仅更新 `#selectedId` 与行高亮（`#highlightSelection`），不直接改变激活状态（保持“选择”和“激活”概念分离）；
+     - 点击工具栏中的“激活”按钮：
+       - 读取当前选中锚点 `#selectedId`，根据该锚点的 `is_active` 计算 `nextActive`；
+       - 发出 `PDF_VIEWER_EVENTS.ANCHOR.ACTIVATE`，payload 为 `{ anchorId, active: nextActive }`，actorId 为 `"AnchorToolbar"`。
+  2. PDFAnchorFeature 订阅 `ANCHOR.ACTIVATE`：
+     - 查找内存中的锚点记录（若不存在则创建一个只含 uuid 的占位对象）；
+     - 设置该锚点的 `is_active = nextActive` 并写回 `#anchorsById`；
+     - 若 `nextActive === true`，则遍历其它锚点，将它们的 `is_active` 统一置为 false，实现“单选”语义；
+     - 发出 `ANCHOR.ACTIVATED` 事件，payload `{ anchorId, active }`，用于让 UI/其它特性感知某个锚点的激活状态变更；
+     - 调用 `#emitList()` 再次发出一轮 `ANCHOR.DATA.LOADED`（带完整 anchors 数组），用于驱动 Sidebar 刷新整表并确保“只有一行高亮”；
+     - 当 active=true 时：更新 `#activeAnchorId`，并通过滚动诊断/心跳相关逻辑，在用户滚动时把当前激活锚点的位置持续回写到后端（本轮未改动，仅确认存在）。
+  3. AnchorSidebarUI 订阅 `ANCHOR.ACTIVATED` 与 `ANCHOR.DATA.LOADED`：
+     - 收到 `ANCHOR.ACTIVATED` 时，会更新内部 `#anchors` 数组中对应项的 `is_active` 字段，并重新渲染表格；
+     - 同时，`#renderAnchors` 内部会根据 `is_active` 和当前 `#selectedId` 设置高亮行，保证前端视觉上“只有一个激活项”。
+- 测试覆盖情况：
+  - `anchor-activation.single-select.test.js`：
+    - 通过直接对 EventBus 发出 `ANCHOR.DATA.LOADED` 注入两条锚点，随后依次发出 `ANCHOR.ACTIVATE`（先 A 后 B）；
+    - 断言：
+      - 至少有一次 `ANCHOR.ACTIVATED` 事件针对 A 和 B；
+      - 最新一次列表（来自 `ANCHOR.DATA.LOADED`）中 `is_active === true` 的锚点数量恰好为 1，且该唯一激活项为 B。
+  - `anchor-auto-activate.on-navigate-requested.test.js`：
+    - 预注入两个锚点后发出 `ANCHOR.NAVIGATE.REQUESTED`（目标为 B）；
+    - 验证：Feature 会自动发出 `ANCHOR.ACTIVATE` 并最终产出 `ANCHOR.ACTIVATED` 与只含一个激活项的列表，确保“按 ID 导航”路径也遵守单选语义。
+  - 结合以上测试，可以确认：
+    - 激活语义为“单选”，并通过事件/列表刷新得到严格验证；
+    - UI 并不直接依赖内部 Map，而是通过监听 `ANCHOR.DATA.LOADED/ACTIVATED` 来同步状态，契约清晰。
+- 健康度结论（截至本次检查）：
+  - 从实现与测试来看，“anchor 激活”链路在以下方面工作正常：
+    - 单选语义：任一时刻最多只会有一个锚点标记为 active，且测试中已验证此行为；
+    - 事件广播：激活操作会发出 `ANCHOR.ACTIVATED` 以及更新后的列表（`ANCHOR.DATA.LOADED`），Sidebar UI 使用这两类事件刷新视图；
+    - 自动激活：通过 `ANCHOR.NAVIGATE.REQUESTED` 触发的“按锚点导航”会自动激活目标锚点，并保持单选；
+    - UI 交互：AnchorSidebarUI 工具栏中的“激活”按钮以当前选中项为基础切换 active 状态，同时更新高亮行。
+  - 当前没有在代码或测试中看到明显的逻辑错误或契约冲突；如用户在实际使用中观察到“多行同时高亮”“激活状态与跳转不同步”等问题，更可能来自样式覆盖或与其它特性并发操作的 UI 现象，需要结合具体复现场景进一步排查。
+
+### Anchor 激活状态与 resume 门控改造（2025-12-02 更新）
+
+- 激活状态不再写入数据库：
+  - `pdf_bookanchor` 表仍保留历史上的 `json_data.is_active` 字段与唯一索引，但新的业务约定为：**激活状态仅在前端会话内生效，不再持久化**。
+  - 后端 `PDFLibraryAPI.anchor_activate()` 已调整为“存在性校验 + 返回布尔值”，不再执行任何 SQL 更新 `json_data.is_active` 或 `visited_at` 字段；对应 MsgCenter 仍会返回 `anchor:activate:completed` 作为协议级确认。
+  - 新增测试 `src/backend/api/__tests__/test_anchor_activation_state.py`，验证调用 `anchor_activate()` 前后 `anchor_get()` 返回的 `json_data` 中都不包含 `is_active` 字段，防止未来回归。
+- WS anchor.activate 消息的前端语义：
+  - `src/frontend/common/event/event-constants.js` 中的 `ANCHOR_ACTIVATE` 仍代表 WS 消息类型 `anchor:activate:requested`，但语义变为“向指定 viewer 发送激活指令”，不再承担 DB 状态更新含义。
+  - 在 pdf-viewer 端，`ws-inbound-bridge` 对 `ANCHOR_ACTIVATE_COMPLETED` 的处理已改为：
+    - 不再直接发出 `PDF_VIEWER_EVENTS.ANCHOR.ACTIVATED`；
+    - 而是发出 `PDF_VIEWER_EVENTS.ANCHOR.NAVIGATE.REQUESTED`，payload `{ anchorId, source: "ws-anchor-activate" }`，由 `PDFAnchorFeature` 统一处理激活与导航。
+  - 新增测试 `src/frontend/pdf-viewer/adapters/__tests__/ws-inbound-anchor-activate-bridge.test.js`，保证 inbound 行为为“只发 NAVIGATE.REQUESTED，不发 ACTIVATED”。
+- 与 resume 门控的串联：
+  - `PDFAnchorFeature` 新增字段：`#useResumeGate` 与 `#gateResumeDone`，并监听 `PDF_VIEWER_EVENTS.RESUME.FLOW.DONE`：
+    - 当收到 `RESUME.FLOW.DONE` 时，标记 `#gateResumeDone = true`，并尝试再次执行挂起的导航；
+    - 对从 WS 激活路径进入的导航（source === "ws-anchor-activate"），会将 `#useResumeGate` 置为 `true`，要求在 `RESUME.FLOW.DONE` 触发前不会发出导航事件。
+  - 原有的 `#tryNavigateWhenGatesReady()` 逻辑从“需要 `gateAnchorReady && gateRenderReady`”扩展为：
+    - 在 `#useResumeGate === true` 时，额外要求 `#gateResumeDone === true`，从而实现“resume 完成后再执行导航”的门控；
+    - 对本地 UI 触发的导航（source 为空或非 ws-anchor-activate）保持原有仅依赖 Anchor/Render 就绪的行为。
+  - 新增测试 `src/frontend/pdf-viewer/features/pdf-anchor/__tests__/anchor-activate-resume-gate.test.js`，验证：
+    - 在 `FILE.LOAD.SUCCESS` + `RENDER.READY` 已触发但尚未收到 `RESUME.FLOW.DONE` 的情况下，来自 `ws-anchor-activate` 的导航不会产生任何 `NAVIGATION.URL_PARAMS.REQUESTED`；
+    - 只有在随后发出 `RESUME.FLOW.DONE` 并推进定时器后，才会发出一次 `NAVIGATION.URL_PARAMS.REQUESTED`，payload 中 `pageAt` 与锚点记录一致。
+
+### URL 导航能力的最终状态（2025-12-01 更新）
+
+- 设计结论（对齐 pdf-url-loader README 与前端实现）：
+  - 浏览器 URL 查询参数仅用于选择 PDF 文档（`pdf-id` / `title` 等），不再承担“导航到指定页码/位置/锚点/标注/大纲项”的语义。
+  - 所有导航（包括 outline/annotation/anchor/resume 等）一律通过事件与 WebSocket 消息驱动：例如 `PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED` 由 WebSocketAdapter / Feature 发出，NavigationService 消费。
+  - 冷启动/新窗口时，URL 只携带 `pdf-id`；后续导航由 Feature 在 `FILE.LOAD.SUCCESS` 之后发起，或由后端通过 WS 条件消息（带 gate）驱动。
+
+- 本轮清理（2025-12-01）：
+  - 移除了 PDFAnchorFeature 对 `NAVIGATION.URL_PARAMS.PARSED` 事件中 `anchorId` 的所有依赖，不再根据 URL 中的 `anchor-id` 启动锚点导航；对应测试 `anchor-url-parsed-gating.test.js` 改为断言“收到 URL 事件不再触发导航”。
+  - 删除/收紧 pdf-viewer standalone launcher 及相关集成（`src/frontend/pdf-viewer/launcher.py`、`src/launcher/runner.py`、`src/integrations/anki_event_bridge.py`、`scripts/launch_anchor_from_db.py`）中通过 CLI 将 `page-at/position/anchor-id/annotation-id/outline-item-id` 拼入 URL 的逻辑，CLI 现在仅通过 `--pdf-id` 选择文档。
+  - 更新 `docs/LAUNCHER-DUAL-MODE-GUIDE.md` 与 `docs/architecture/navigation.md`：去掉“URL 启动导航”示例与说明，明确标注“URL 导航功能已移除，导航统一由 Feature/WS 驱动，URL 只用于文档选择”。
+  - 现有 `NAVIGATION.URL_PARAMS.*` 事件仅作为“导航事件命名空间”的一部分继续使用，不再与浏览器 URL 查询参数直接绑定。
+
+- 防回归要点：
+  - 任何新代码若尝试通过浏览器 URL 查询参数携带导航意图（page-at/position/anchor-id/annotation-id/outline-item-id），应被视为违反规范；导航入口必须通过事件/WS 统一封装。
+  - 若确有需要在冷启动时导航，应通过“启动后发送导航消息（WS 或内部事件）”的方式实现，而不是扩展 URL 协议。*** End Patch***```  পাছEassistantریشنassistant to=functions.apply_patchожу json-input-invalid error: Could not parse JSON input. Please check for formatting errors. Use double quotes for property names and strings, and ensure the input is valid JSON. Use the JSON repair tool if needed. Let's  rectify the issues and try again. Repairing JSON... to=functions.apply_patch￣奇米影视assistant to=functions.apply_patch სფერобходимости ***!
+
 ### 任务4：pdf-viewer 内部 sidebar 重复代码盘点与首轮组合式抽象（2025-11-29～30）
 
 > 范围说明：仅关注 `src/frontend/pdf-viewer` 模块内部，与 sidebar 相关的 Feature/UI/infra 代码（包括 infra-sidebar、outline/anchor/annotation/card/translator/ai-assistant/backlink 等），不涉及与 pdf-home 的跨模块对比。2025-11-29 先完成只读分析，2025-11-30 在确保 lint 通过与行为等价的前提下，进行了小步的组合式抽象重构。
@@ -335,3 +459,20 @@
 ## 2025-12-01：文档与代码实现对齐（首轮）
 
 - 使用 AItemp/attempts/doc_scan_paths.py 扫描 docs/**.md 中的 src/tests 路径，对比当前代码，标记出若干仅存在于旧版 pdf-home v1 或早期集成方案中的路径；对相关索引与规范文档（如 docs/index/frontend/modules/*、WEBSOCKET-INTEGRATION、部分 SPEC/TESTING 文档）增加“历史/规划性说明”，以免读者误以为这些路径仍然存在或已经落地实现。
+
+## 2025-12-02：pdf-resume DOM 事件层现状梳理
+
+- 现有“DOM 事件层”相关抽象：
+  - `src/frontend/pdf-viewer/shared/position-tracker.js` 为 pdf-viewer 提供统一的滚动位置追踪工具：在 `viewerContainer` 上集中监听 `wheel` / `scroll` / `click` 事件，做去抖动（`debounceMs`）、冻结（`freezeFor`）、位置采样（`getCurrentPageAndPosition`）和重复过滤，最终通过回调暴露 `{ pageAt, position }`，目前被 `PDFResumeFeature` 作为“位置变更源”使用。
+  - `src/frontend/pdf-viewer/ui/keyboard-handler.js` 统一处理键盘快捷键（箭头翻页、Home/End、Ctrl+F/Ctrl+0 等），将键盘输入转换为 `PDF_VIEWER_EVENTS.NAVIGATION.*` / `PDF_VIEWER_EVENTS.ZOOM.*` 等域事件；`UIManagerCore` 在初始化时负责安装/移除该键盘监听，等价于“键盘 → EventBus”的适配层。
+  - `src/frontend/pdf-viewer/features/infra-ui/components/ui-manager-core.js` 还在 `viewerContainer` 上挂载了滚轮监听，用于 Ctrl/Cmd+Wheel 触发缩放事件，与 PositionTracker 共享同一 DOM 容器但职责不同（UIManagerCore 负责缩放，PositionTracker 负责阅读位置采样）。
+- 与 resume 触发条件的关系：
+  - 当前 `PDFResumeFeature` 已经使用 PositionTracker 作为 DOM 事件入口：`onPositionChange` 仅调用 `ResumeUpdater.setPage(pageAt)` 更新内存中的“最近阅读页”，不直接写入数据库；真正的持久化仍由 `#startHeartbeat()` 创建的 3 秒定时器驱动，在 `#performHeartbeatSync()` 中读取 PositionTracker 快照或 `pdfViewerManager.currentPageNumber` 后再调用 `ResumeUpdater.flush()`。
+  - 因此，从架构角度看：**滚动/点击/滚轮事件已经被 PositionTracker 统一抽象为“位置变更回调”，但“何时写入 DB”仍是独立的 3 秒心跳逻辑，而不是事件驱动。**
+- 缺失点与后续改造空间（供本轮任务使用）：
+  - 仓库中目前没有一个专门命名为“DOM 事件管理层”的独立模块，最接近用户设想的层次是 PositionTracker（DOM → 位置变更）与 KeyboardHandler（键盘 → EventBus）这两个适配器。
+  - 若要实现“鼠标/滚轮/键盘事件触发 + 每秒最多写入一次”的 resume 行为，更合理的方案是：复用 PositionTracker 作为鼠标/滚轮/滚动的 DOM 源头，在 `PDFResumeFeature` 内将 3 秒心跳改为“基于 PositionTracker 的位置变更回调 + 1 秒节流的 ResumeUpdater.flush”，并视需要订阅导航事件（由 KeyboardHandler/NavigationService 触发）来覆盖纯键盘翻页场景，而不是额外新建一层散射的 DOM 事件管理模块。
+
+## 2025-12-02：自动文档生成方案设计
+
+- 新增 docs/engineering/AUTO-DOC-GENERATION.md，说明如何基于现有 JSDoc（前端）和 Python docstring（后端）使用 jsdoc/pdoc 生成 HTML 文档，当前仅提供配置与命令建议，不直接修改 package.json 或 requirements.txt，由维护者按需落地。

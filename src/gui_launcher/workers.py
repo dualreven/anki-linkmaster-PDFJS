@@ -54,6 +54,7 @@ class LauncherThread(QThread):
     instance_signal = pyqtSignal(object)  # 用于 Hosted 模式返回实例
 
     def __init__(self, task_type: str, params: Dict[str, Any]):
+        """记录任务类型与参数，并解析组件根路径，供后续子任务使用。"""
         super().__init__()
         self.task_type = task_type
         self.params = params
@@ -65,6 +66,7 @@ class LauncherThread(QThread):
 
     # ---- 主执行入口 ----
     def run(self):
+        """根据任务类型分发到具体启动/停止实现，并通过信号回传结果。"""
         try:
             if self.task_type == "vite":
                 self._start_vite()
@@ -87,6 +89,7 @@ class LauncherThread(QThread):
 
     # ---- 任务实现 ----
     def _start_vite(self):
+        """通过 ai_launcher 启动或跳过 Vite 开发服务器，并输出结果日志。"""
         self.log_signal.emit("📦 正在启动 Vite 开发服务器...")
         vite_port = int(self.params.get("vite_port", 3000) or 3000)
         if _ai is None or not hasattr(_ai, "_start_vite"):
@@ -102,6 +105,7 @@ class LauncherThread(QThread):
             self.finished_signal.emit(False, "Vite 启动失败")
 
     def _start_backend(self):
+        """以子进程模式启动后端服务（单实例），按参数构造 LauncherConfig 并调用 services。"""
         self.log_signal.emit("🚀 正在启动后端服务器 (子进程模式)...")
         if not self.params.get("logs_dir"):
             self.finished_signal.emit(False, "缺少路径参数：logs_dir")
@@ -137,6 +141,7 @@ class LauncherThread(QThread):
             self.finished_signal.emit(False, "后端启动失败")
 
     def _start_backend_hosted(self):
+        """以 Hosted 模式在现有 Qt 应用中启动后端，并通过 instance_signal 返回实例。"""
         """启动后端服务器 (Hosted 模式 - 主进程托管)"""
         self.log_signal.emit("🚀 正在启动后端服务器 (Hosted 模式)...")
         try:
@@ -199,6 +204,7 @@ class LauncherThread(QThread):
             self.finished_signal.emit(False, f"后端 Hosted 启动失败: {e}")
 
     def _start_pdf_home(self):
+        """以 CLI 模式启动 PDF-Home，并在必要时同步 outline 标志到 runtime-ports.json。"""
         self.log_signal.emit("🏠 正在启动 PDF-Home...")
         try:
             if not self.params.get("logs_dir"):
@@ -261,6 +267,7 @@ class LauncherThread(QThread):
             self.finished_signal.emit(False, f"PDF-Home 启动失败: {e}")
 
     def _start_pdf_home_hosted(self):
+        """以 Hosted 模式在现有 Qt 应用中启动 PDF-Home。"""
         """启动 PDF-Home (Hosted 模式 - 主进程托管)"""
         self.log_signal.emit("🏠 正在启动 PDF-Home (Hosted 模式)...")
         try:
@@ -327,6 +334,7 @@ class LauncherThread(QThread):
             self.finished_signal.emit(False, f"PDF-Home 启动失败: {e}")
 
     def _start_pdf_viewer(self):
+        """以 CLI 模式启动 PDF-Viewer（单窗口或多实例），依据参数构造配置并调用 services。"""
         self.log_signal.emit("📄 正在启动 PDF-Viewer...")
         pdf_id = self.params.get("pdf_id")
         page_at = self.params.get("page_at")
@@ -385,6 +393,7 @@ class LauncherThread(QThread):
             self.finished_signal.emit(False, f"PDF-Viewer 启动失败: {e}")
 
     def _stop_all(self):
+        """请求停止所有由 gui_launcher 启动的子进程（Vite/后端/PDF 窗口等）。"""
         # 预留：根据需要实现统一停止
         self.log_signal.emit("🛑 停止命令：未实现统一停止逻辑（保持与原行为一致）")
         self.finished_signal.emit(True, "停止完成")
@@ -399,10 +408,12 @@ class _AiThread(QThread):
     finished_signal = pyqtSignal(int)
 
     def __init__(self, argv: list[str]):
+        """记录传入的命令行参数，用于在后台线程中调用 ai_launcher.main。"""
         super().__init__()
         self.argv = argv
 
     def run(self):
+        """在后台调用 ai_launcher.main(argv)，将 stdout/stderr 通过信号输出并返回退出码。"""
         if _ai is None:
             self.finished_signal.emit(-1)
             return

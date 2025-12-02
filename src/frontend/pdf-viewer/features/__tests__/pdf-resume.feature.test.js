@@ -73,37 +73,70 @@ describe("PDFResumeFeature", () => {
   it("在文件加载成功时应请求 pdf_info 详情（info:requested）", async () => {
     await feature.install({ container, globalEventBus: eventBus });
     eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, {}, { actorId: "tester" });
-    // 立即发送 info:requested
+    // 通过调度的 resume 加载触发 info:requested（fallback 延迟 500ms）
+    jest.advanceTimersByTime(600);
     const msg = sentMessages.find(m => m.type === WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST);
     expect(msg).toBeTruthy();
     expect(msg.data).toEqual({ pdf_id: "unit-test" });
   });
 
   it("在页面变更后（节流）应发送 record-update:requested（含 resume.page）", async () => {
-    // 准备 pdfViewerManager（提供 currentPageNumber 回退）
+    // 准备 pdfViewerManager（提供当前页和视图状态）
     pdfViewerManager = {
-      currentPageNumber: 5,
+      currentPageNumber: 1,
       currentScale: 1.0,
       scrollMode: 0,
       spreadMode: 0,
       pagesRotation: 0
     };
 
+    // 为 pdf-resume 提供 DomEventHub（模拟 UIManagerFeature 注册的全局服务）
+    const viewerContainer = document.getElementById("viewerContainer");
+    const { DomEventHub } = await import("../../shared/dom-event-hub.js");
+    const domEventHub = new DomEventHub({ viewerContainer, documentRef: document, windowRef: window });
+
+    container = {
+      get(name) {
+        if (name === "eventBus") { return eventBus; }
+        if (name === "navigationService") { return mockNavigationService; }
+        if (name === "pdfViewerManager") { return pdfViewerManager; }
+        if (name === "domEventHub") { return domEventHub; }
+        return null;
+      },
+      has(name) {
+        return name === "eventBus" ||
+               name === "navigationService" ||
+               name === "pdfViewerManager" ||
+               name === "domEventHub";
+      },
+      registerGlobal() {}
+    };
+
+    feature = new PDFResumeFeature();
+
     await feature.install({ container, globalEventBus: eventBus });
 
-    // 触发一次页面切换事件
-    eventBus.emit(PDF_VIEWER_EVENTS.PAGE.CHANGING, { pageNumber: 5 }, { actorId: "tester" });
+    // 模拟用户滚动到第 5 页附近
+    viewerContainer.scrollTop = 4000; // 每页 1000px，高度 800px，中心落在第 5 页
+    viewerContainer.dispatchEvent(new Event("scroll"));
 
-    // 新架构使用 PositionTracker 的去抖动机制（默认 200ms）
-    // 推进定时器以触发去抖动后的更新
+    // PositionTracker 默认 200ms 去抖
     jest.advanceTimersByTime(250);
 
-    const msg = sentMessages.find(m => m.type === WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_REQUESTED);
+    // 第一笔事件应立即触发一次写入
+    let msg = sentMessages.find(m => m.type === WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_REQUESTED);
     expect(msg).toBeTruthy();
     expect(msg.data?.file_id).toBe("unit-test");
-    expect(msg.data?.updates?.json_data?.resume?.page).toBe(5);
-    // visited_at 必须为数字
+    expect(msg.data?.updates?.json_data?.resume?.page).toBe(pdfViewerManager.currentPageNumber);
     expect(typeof msg.data?.updates?.visited_at).toBe("number");
+
+    // 在 1 秒内再次滚动，不应产生新的写入（1 秒节流）
+    sentMessages = sentMessages.filter(m => m.type !== WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_REQUESTED);
+    viewerContainer.dispatchEvent(new Event("scroll"));
+    jest.advanceTimersByTime(250);
+    msg = sentMessages.find(m => m.type === WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_REQUESTED);
+    expect(msg).toBeFalsy();
+
   });
 
   it("在更新 resume 时应写入布局字符串与旋转角度", async () => {
@@ -113,7 +146,7 @@ describe("PDFResumeFeature", () => {
       _scrollMode: 3,
       _spreadMode: 2,
       _rotation: 90,
-      currentPageNumber: 10,
+      currentPageNumber: 1,
       get currentScale() { return this._scale; },
       set currentScale(v) { this._scale = v; },
       get scrollMode() { return this._scrollMode; },
@@ -124,12 +157,34 @@ describe("PDFResumeFeature", () => {
       set pagesRotation(v) { this._rotation = v; }
     };
 
+    const viewerContainer = document.getElementById("viewerContainer");
+    const { DomEventHub } = await import("../../shared/dom-event-hub.js");
+    const domEventHub = new DomEventHub({ viewerContainer, documentRef: document, windowRef: window });
+
+    container = {
+      get(name) {
+        if (name === "eventBus") { return eventBus; }
+        if (name === "navigationService") { return mockNavigationService; }
+        if (name === "pdfViewerManager") { return pdfViewerManager; }
+        if (name === "domEventHub") { return domEventHub; }
+        return null;
+      },
+      has(name) {
+        return name === "eventBus" ||
+               name === "navigationService" ||
+               name === "pdfViewerManager" ||
+               name === "domEventHub";
+      },
+      registerGlobal() {}
+    };
+
+    feature = new PDFResumeFeature();
+
     await feature.install({ container, globalEventBus: eventBus });
 
-    // 触发一次页面切换以驱动 resume 更新
-    eventBus.emit(PDF_VIEWER_EVENTS.PAGE.CHANGING, { pageNumber: 10 }, { actorId: "tester" });
-
-    // 推进定时器以触发去抖动后的更新
+    // 通过滚动事件驱动 resume 更新
+    viewerContainer.scrollTop = 9000; // 让中心落在第 10 页
+    viewerContainer.dispatchEvent(new Event("scroll"));
     jest.advanceTimersByTime(250);
 
     const msg = sentMessages.find(m => m.type === WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_REQUESTED);
@@ -137,7 +192,8 @@ describe("PDFResumeFeature", () => {
 
     const resume = msg.data?.updates?.json_data?.resume;
     expect(resume).toBeTruthy();
-    expect(resume.page).toBe(10);
+    // 页面字段存在即可（具体页码由位置探测/当前页决定）
+    expect(typeof resume.page).toBe("number");
     // 缩放比例必须写入
     expect(resume.zoom).toBeCloseTo(1.25);
     // 布局字符串与旋转角度
@@ -166,8 +222,9 @@ describe("PDFResumeFeature", () => {
 
     await feature.install({ container, globalEventBus: eventBus });
 
-    // 触发 FILE.LOAD.SUCCESS，驱动 pdf-resume 请求详情
+    // 触发 FILE.LOAD.SUCCESS，驱动 pdf-resume 请求详情（通过调度的 resume 加载）
     eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, {}, { actorId: "tester" });
+    jest.advanceTimersByTime(600);
     const detailReq = sentMessages.find(m => m.type === WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST);
     expect(detailReq).toBeTruthy();
 

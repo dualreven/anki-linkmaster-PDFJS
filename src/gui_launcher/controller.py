@@ -17,6 +17,7 @@ from typing import Any, Dict, Optional
 
 @dataclass
 class ControllerOptions:
+    """gui_launcher 控制器的配置选项（组件根路径、日志目录与日志回调）。"""
     component_root: Optional[Path] = None
     logs_dir: Optional[Path] = None
     on_log: Optional[Any] = None  # Callable[[str], None]
@@ -27,6 +28,7 @@ class Controller:
     控制器骨架：后续将绑定 UI 事件，并调用 services 层实现具体动作。
     """
     def __init__(self, options: Optional[ControllerOptions] = None) -> None:
+        """初始化控制器骨架并预留 services/ui/监听等运行态资源。"""
         self.options = options or ControllerOptions()
         # 预留：后续注入 services / ui 句柄
         self._services: Dict[str, Any] = {}
@@ -39,9 +41,11 @@ class Controller:
     # ---------- 依赖注入 ----------
 
     def attach_services(self, **services: Any) -> None:
+        """注入底层 services 实现（如 ensure_vite/stop_vite/start_backend 等）。"""
         self._services.update(services)
 
     def attach_ui(self, ui: Any) -> None:
+        """注入上层 UI 句柄，便于后续在控制器中回调界面方法。"""
         self._ui = ui
 
     # ---------- DevServer / Vite ----------

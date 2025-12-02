@@ -96,7 +96,8 @@
     "ct:python:gui-launcher:client-register": "node tests/e2e/runner/run-py-step.mjs tests/e2e/python/gui_launcher/test_client_register_contract.py",
     "e2e:flow:gui-launcher:client-register": "pnpm -s integ:python:gui-launcher:client-register:F1 && pnpm -s integ:protocol:gui-launcher:client-register:B2 && pnpm -s integ:python:gui-launcher:client-register:F3 && pnpm -s ct:python:gui-launcher:client-register",
     "e2e:flow:all:client-register": "pnpm -s e2e:flow:pdf-viewer:client-register && pnpm -s e2e:flow:pdf-home:client-register && pnpm -s e2e:flow:gui-launcher:client-register",
-    "ci:ws-types-diff": "node scripts/ci/ws-contract-diff.mjs"
+    "ci:ws-types-diff": "node scripts/ci/ws-contract-diff.mjs",
+    "docs:frontend": "jsdoc -c jsdoc.config.cjs"
   },
   "engines": {
     "node": ">=14.0.0",
@@ -139,4 +140,3 @@
     "regenerator-runtime": "^0.14.1"
   }
 }
-

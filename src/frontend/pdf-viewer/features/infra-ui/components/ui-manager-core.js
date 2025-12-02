@@ -13,6 +13,7 @@ import { DOMElementManager } from "../../../ui/dom-element-manager.js";
 import { KeyboardHandler } from "../../../ui/keyboard-handler.js";
 import { UIStateManager } from "../../../ui/ui-state-manager.js";
 import { TextLayerManager } from "../../../ui/text-layer-manager.js";
+import { DomEventHub } from "../../../shared/dom-event-hub.js";
 import { PDFViewerManager } from "./pdf-viewer-manager.js";
 import { UIZoomControls } from "./ui-zoom-controls.js";
 import { UILayoutControls } from "./ui-layout-controls.js";
@@ -35,6 +36,7 @@ export class UIManagerCore {
   #unsubscribeFunctions = [];
   #currentPdfId = null; // 当前 PDF 的ID
   #pendingDetailRequestId = null; // 等待中的详情请求ID（用于严格匹配回执）
+  #domEventHub;
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
@@ -77,12 +79,20 @@ export class UIManagerCore {
         this.#pdfViewerManager = new PDFViewerManager(this.#eventBus);
         this.#pdfViewerManager.initialize(viewerContainer);
         this.#logger.info("PDFViewerManager initialized");
+
+        // 初始化 DOM 事件集线器，集中管理 viewerContainer / document 的 DOM 事件
+        this.#domEventHub = new DomEventHub({
+          viewerContainer,
+          documentRef: document,
+          windowRef: window
+        });
+        this.#logger.info("DomEventHub initialized");
       } else {
         this.#logger.error("viewerContainer not found, PDF rendering disabled");
       }
 
       // 设置键盘事件
-      this.#keyboardHandler.setupEventListener();
+      this.#keyboardHandler.setupEventListener(this.#domEventHub);
 
       // 设置事件监听
       this.#setupEventListeners();
@@ -409,9 +419,15 @@ export class UIManagerCore {
       return;
     }
 
-    // 尝试从 URL 直接获取 pdf-id 作为备选
-    const urlParams = new URLSearchParams(window.location.search);
-    const pdfIdFromUrl = urlParams.get("pdf-id");
+    // 尝试从 URL 直接获取 pdf-id 作为备选（仅使用共享解析工具，避免分散实现）
+    const pdfIdFromUrl = (() => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        return params.get("pdf-id");
+      } catch {
+        return null;
+      }
+    })();
     if (pdfIdFromUrl && !this.#currentPdfId) {
       this.#currentPdfId = pdfIdFromUrl;
       this.#updateCopyButtonVisibility();
@@ -884,6 +900,12 @@ export class UIManagerCore {
     this.#stateManager.destroy();
     this.#domManager.destroy();
 
+    // 销毁 DOM 事件集线器
+    if (this.#domEventHub) {
+      this.#domEventHub.destroy();
+      this.#domEventHub = null;
+    }
+
     // 销毁文字层管理器
     if (this.#textLayerManager) {
       this.#textLayerManager.destroy();
@@ -931,5 +953,13 @@ export class UIManagerCore {
    */
   get pdfViewerManager() {
     return this.#pdfViewerManager;
+  }
+
+  /**
+   * 获取 DomEventHub 实例
+   * @returns {DomEventHub|null}
+   */
+  get domEventHub() {
+    return this.#domEventHub || null;
   }
 }

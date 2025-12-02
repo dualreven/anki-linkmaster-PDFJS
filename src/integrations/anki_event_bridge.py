@@ -144,20 +144,11 @@ class AnkiEventBridge:
         launcher = self._project_root / "src" / "frontend" / "pdf-viewer" / "launcher.py"
         cmd = [sys.executable, "-u", str(launcher)]
 
-        # 以 pdf-id 优先，其次 file-path
+        # 以 pdf-id 优先，其次 file-path（导航参数不再通过 URL/CLI 传递）
         if opts.pdf_id:
             cmd += ["--pdf-id", str(opts.pdf_id)]
         elif opts.file_path:
             cmd += ["--file-path", str(opts.file_path)]
-
-        if isinstance(opts.page_at, int):
-            cmd += ["--page-at", str(int(opts.page_at))]
-        if isinstance(opts.position, (int, float)):
-            cmd += ["--position", str(float(opts.position))]
-        if opts.anchor_id:
-            cmd += ["--anchor-id", str(opts.anchor_id)]
-        if opts.annotation_id:
-            cmd += ["--annotation-id", str(opts.annotation_id)]
 
         self._logger.info("启动 pdf-viewer：%s", " ".join(cmd))
         self._runner(cmd)

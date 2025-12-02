@@ -24,6 +24,9 @@ export class NavigationService {
   /** @type {number|null} 当前PDF的总页数 */
   #totalPages = null;
 
+  /** @type {number|null} 当前页码（由 PAGE.CHANGING 事件驱动维护） */
+  #currentPageNumber = null;
+
   /** @type {boolean} 是否正在导航 */
   #isNavigating = false;
 
@@ -55,6 +58,20 @@ export class NavigationService {
       ({ totalPages }) => {
         this.#totalPages = totalPages;
         this.#logger.debug(`总页数更新: ${totalPages}`);
+      },
+      { subscriberId: "NavigationService" }
+    );
+
+    // 监听当前页变更事件，用于识别“同页导航”场景
+    this.#eventBus.on(
+      PDF_VIEWER_EVENTS.PAGE.CHANGING,
+      ({ pageNumber }) => {
+        if (!Number.isInteger(pageNumber) || pageNumber < 1) {
+          this.#logger.warn(`收到无效的 PAGE.CHANGING 页码: ${pageNumber}`);
+          return;
+        }
+        this.#currentPageNumber = pageNumber;
+        this.#logger.debug(`当前页更新: ${pageNumber}`);
       },
       { subscriberId: "NavigationService" }
     );
@@ -103,28 +120,41 @@ export class NavigationService {
       }
       const actualPage = pageAt;
 
-      // 2. 触发页面跳转事件
-      this.#logger.info(`开始导航到第 ${actualPage} 页`);
-      this.#eventBus.emit(
-        PDF_VIEWER_EVENTS.NAVIGATION.GOTO,
-        { pageNumber: actualPage, positionPercent: (position !== null ? position : 50) },
-        { actorId: "NavigationService" }
-      );
+      const isSamePage =
+        Number.isInteger(this.#currentPageNumber) &&
+        this.#currentPageNumber === actualPage;
 
-      // 3. 等待页面跳转完成（使用固定延迟而非事件监听，更可靠）
-      await this.#waitForPageReady(actualPage);
-
-      // 3.5 等待 PDF.js 页面切换滚动动画完成（参考 Annotation 实现，100ms）
-      // 原因：GOTO 事件触发 currentPageNumber 设置会启动 PDF.js 内部滚动动画，
-      //       若紧接着执行 scrollToPosition，两个滚动会产生竞争导致位置偏差
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // 4. 执行滚动：若未指定 position，则默认居中该页，确保可见（避免仅依赖 UI 层联动）
       let actualPosition = null;
-      if (position !== null) {
-        actualPosition = await this.scrollToPosition(position, actualPage);
+
+      if (isSamePage) {
+        // 当前页内跳转：只执行位置滚动，不再触发 NAVIGATION.GOTO，避免重复翻页
+        this.#logger.info(`检测到同页导航请求: 保持在第 ${actualPage} 页，仅滚动位置`);
+
+        await this.#waitForPageReady(actualPage);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        if (position !== null) {
+          actualPosition = await this.scrollToPosition(position, actualPage);
+        } else {
+          actualPosition = await this.scrollToPosition(50, actualPage);
+        }
       } else {
-        actualPosition = await this.scrollToPosition(50, actualPage);
+        // 跨页导航：维持原有“先翻页再滚动”的完整流程
+        this.#logger.info(`开始导航到第 ${actualPage} 页`);
+        this.#eventBus.emit(
+          PDF_VIEWER_EVENTS.NAVIGATION.GOTO,
+          { pageNumber: actualPage, positionPercent: (position !== null ? position : 50) },
+          { actorId: "NavigationService" }
+        );
+
+        await this.#waitForPageReady(actualPage);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        if (position !== null) {
+          actualPosition = await this.scrollToPosition(position, actualPage);
+        } else {
+          actualPosition = await this.scrollToPosition(50, actualPage);
+        }
       }
 
       const duration = Math.round(performance.now() - startTime);
@@ -334,6 +364,7 @@ export class NavigationService {
   destroy() {
     this.#logger.info("NavigationService销毁");
     this.#totalPages = null;
+    this.#currentPageNumber = null;
     this.#isNavigating = false;
   }
 }
