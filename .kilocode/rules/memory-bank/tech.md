@@ -731,3 +731,16 @@ python ai_launcher.py status
   - `data.capabilities` 应覆盖 `"navigation"|"annotation"|"bookmark"|"outline"` 等核心能力；
   - `data.metadata.pdf_id = "<pdf_id>"`；
   - Hosted 模式下的 PyQt 启动窗口仍通过 WindowLifecycleManager 以同一个 ID 管理窗口与 ws-client 槽位，但不再使用相同 ID 的新协议注册，以避免在 MsgCenter 侧出现 `CLIENT_ID_EXISTS` 误报。
+
+## 2025-12-03：pdf-anchor 与 pdf-resume 的位置追踪统一
+
+- 位置追踪实现：统一由 `src/frontend/pdf-viewer/shared/position-tracker.js` 提供；该模块基于 `viewerContainer` + 可选 `DomEventHub` 监听 `wheel/click/scroll`，通过 `onPositionChange(pageAt, position)` 向上层 Feature 报告位置变更，并内置去抖动与 `freezeFor(ms)` 冻结能力。
+- pdf-resume：`PDFResumeFeature` 在安装时创建 `PositionTracker`，在位置变更回调中更新 `ResumeUpdater` 的页码，并采用“1 秒节流 + WS record-update:requested”的方式写入 `json_data.resume`，导航恢复时调用 `freezeFor(3000)` 防止刚跳转即被覆盖。
+- pdf-anchor：`PDFAnchorFeature` 现在也创建自己的 `PositionTracker` 实例，并在内部维护 `#activeAnchorId`：
+  - 只有当存在激活锚点时才处理位置变更回调；
+  - 以 1 秒节流的方式调用 `ANCHOR.UPDATE/ANCHOR.UPDATED` 事件写回锚点的 `page_at/position`；
+  - 导航到锚点（`ANCHOR.NAVIGATE.REQUESTED` → `#navigateToAnchor`）时调用 `positionTracker.freezeFor(3000)`，防止导航过程中立刻回写错误位置；
+  - 取消激活（`ANCHOR.ACTIVATE(active:false)`）仅清空 `#activeAnchorId`，PositionTracker 保持激活但不会再对任何锚点写入位置。
+- 约束：
+  - 禁止在 pdf-anchor 中重新引入独立的心跳定时器或手写 DOM `scroll` 监听来做位置采样；新的代码必须通过 PositionTracker 或 `getCurrentPageAndPosition(container)` 获取位置。
+  - 任何新 Feature 若需要基于滚动/位置做写回，应优先复用 PositionTracker，而不是复制一套 position 计算逻辑。

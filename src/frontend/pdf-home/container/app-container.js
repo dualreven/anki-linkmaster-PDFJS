@@ -1,9 +1,9 @@
 import Logger from "../../common/utils/logger.js";
 import { WEBSOCKET_MESSAGE_EVENTS, WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_LEGACY_TYPES } from "../../common/event/event-constants.js";
 import eventBusSingleton from "../../common/event/event-bus.js";
-import WSClient from "../../common/ws/ws-client.js";
 import { DependencyContainer } from "../../common/micro-service/dependency-container.js";
-import { buildWsUrlFromQuery } from "../../common/containers/app-container-base.js";
+import { createAppContainerBase, buildWsUrlFromQuery } from "../../common/containers/app-container-base.js";
+import { createWsConsoleBridge } from "../../common/utils/console-websocket-bridge.js";
 // utf-8
 // pdf-home container: uses DependencyContainer to manage services
 // v2.0.0: 使用共享的 buildWsUrlFromQuery 函数
@@ -18,51 +18,102 @@ import { buildWsUrlFromQuery } from "../../common/containers/app-container-base.
  * @returns {Object} 容器实例
  */
 export function createPDFHomeContainer({ root, wsUrl, logger, enableValidation = true } = {}) {
-  const state = {
-    root: resolveRoot(root),
-    wsUrl: wsUrl || buildWsUrlFromQuery(),
-    disposed: false,
-    initialized: false,
-  };
-
   // 创建依赖注入容器
   const diContainer = new DependencyContainer("pdf-home");
 
-  // 注册核心服务
-  registerCoreServices(diContainer, { logger, wsUrl: state.wsUrl });
+  const state = {
+    root: resolveRoot(root)
+  };
+
+  let consoleBridge = null;
+
+  // 注册核心服务（logger/eventBus），WSClient 由 AppContainerBase 管理
+  registerCoreServices(diContainer, { logger });
+
+  const baseContainer = createAppContainerBase({
+    moduleName: "pdf-home",
+    resolveInitialWsUrl: () => wsUrl || buildWsUrlFromQuery(),
+    createIdentityOptions: () => ({
+      client_name: "pdf-home",
+      client_id: "pdf-home",
+      module: "pdf-home"
+    }),
+    createLogger: () => {
+      const loggerInstance = logger || new Logger("pdf-home.container");
+      diContainer.register("logger", loggerInstance);
+      return loggerInstance;
+    },
+    createEventBus: () => {
+      diContainer.register("eventBus", eventBusSingleton);
+      return eventBusSingleton;
+    },
+    onWsClientCreated: ({ wsClient }) => {
+      diContainer.register("wsClient", wsClient);
+    },
+    onBeforeConnect: ({ logger: containerLogger }) => {
+      // 懒创建 ConsoleBridge 并启用
+      const wsClient = diContainer.has("wsClient") ? diContainer.get("wsClient") : null;
+      if (!consoleBridge && wsClient) {
+        try {
+          consoleBridge = createWsConsoleBridge({
+            source: "pdf-home",
+            getWsClient: () => diContainer.has("wsClient") ? diContainer.get("wsClient") : null,
+            minLevel: "warn"
+          });
+        } catch (e) {
+          containerLogger.warn("[pdf-home] console bridge setup failed", e);
+        }
+      }
+      if (consoleBridge && !consoleBridge.enabled && typeof consoleBridge.enable === "function") {
+        try {
+          consoleBridge.enable();
+          containerLogger.info("[pdf-home] Console bridge enabled");
+        } catch (e) {
+          containerLogger.warn("[pdf-home] enable console bridge failed", e);
+        }
+      }
+    },
+    onBeforeDisconnect: ({ logger: containerLogger }) => {
+      if (consoleBridge && consoleBridge.enabled && typeof consoleBridge.disable === "function") {
+        try {
+          consoleBridge.disable();
+        } catch (e) {
+          containerLogger.warn("[pdf-home] disable console bridge failed", e);
+        }
+      }
+    },
+    onConnected: ({ logger: containerLogger, wsClient }) => {
+      try {
+        containerLogger.info("[pdf-home] requesting initial list after connect");
+        requestListWithClient(wsClient, containerLogger);
+      } catch (e) {
+        containerLogger.warn("[pdf-home] initial requestList failed", e);
+      }
+    },
+    onReloadData: ({ logger: containerLogger, wsClient }) => {
+      try {
+        requestListWithClient(wsClient, containerLogger);
+      } catch (e) {
+        containerLogger.warn("[pdf-home] reloadData requestList failed", e);
+      }
+    }
+  });
 
   let uiManager = null;
 
   function connect() {
-    if (state.disposed) {return;}
-    try {
-      if (!state.wsUrl) {state.wsUrl = buildWsUrlFromQuery();}
-      const logger = diContainer.get("logger");
-      logger.info();
-
-      const wsClient = diContainer.get("wsClient");
-      wsClient.connect();
-      // initial data
-      requestList();
-    } catch (e) {
-      const logger = diContainer.get("logger");
-      logger.warn("[pdf-home] connect failed", e);
-    }
+    if (baseContainer._getState().disposed) {return;}
+    baseContainer.connect();
   }
 
   function disconnect() {
-    try {
-      const wsClient = diContainer.get("wsClient");
-      wsClient?.disconnect?.();
-    } catch (e) {
-      const logger = diContainer.get("logger");
-      logger.warn("[pdf-home] disconnect failed", e);
-    }
+    baseContainer.disconnect();
   }
 
   function dispose() {
-    state.disposed = true;
-    disconnect();
+    const loggerInstance = diContainer.get("logger");
+    loggerInstance.info("[pdf-home] Disposing container...");
+    baseContainer.dispose();
     try {
       uiManager?.dispose?.();
     } catch (e) {
@@ -70,10 +121,9 @@ export function createPDFHomeContainer({ root, wsUrl, logger, enableValidation =
       logger.warn("[pdf-home] uiManager dispose failed", e);
     }
     uiManager = null;
+    consoleBridge = null;
     diContainer.dispose();
   }
-
-  function reloadData() { requestList(); }
 
   // mount UI and bridge events
   ensureUI();
@@ -82,11 +132,11 @@ export function createPDFHomeContainer({ root, wsUrl, logger, enableValidation =
   return {
     connect,
     disconnect,
-    reloadData,
+    reloadData: () => baseContainer.reloadData(),
     dispose,
     getDependencies,
-    initialize,
-    isInitialized,
+    initialize: () => baseContainer.initialize(),
+    isInitialized: () => baseContainer.isInitialized(),
     // 暴露容器实例（用于高级用法）
     getContainer: () => diContainer
   };
@@ -128,6 +178,21 @@ export function createPDFHomeContainer({ root, wsUrl, logger, enableValidation =
     send({ type: WEBSOCKET_LEGACY_TYPES.PDF_LIBRARY_LIST_RECORDS, data: {} });
   }
 
+  function requestListWithClient(wsClient, loggerInstance) {
+    if (!wsClient || typeof wsClient.send !== "function") {
+      loggerInstance?.warn?.("[pdf-home] requestListWithClient skipped: wsClient not available");
+      return;
+    }
+    try {
+      wsClient.send({
+        type: WEBSOCKET_LEGACY_TYPES.PDF_LIBRARY_LIST_RECORDS,
+        data: {}
+      });
+    } catch (e) {
+      loggerInstance?.warn?.("[pdf-home] requestListWithClient send failed", e);
+    }
+  }
+
   function send(msg) {
     try {
       const wsClient = diContainer.get("wsClient");
@@ -150,41 +215,6 @@ export function createPDFHomeContainer({ root, wsUrl, logger, enableValidation =
     };
   }
 
-  /**
-   * 初始化容器内部服务（不产生副作用，如连接）
-   */
-  async function initialize() {
-    if (state.disposed) {return;}
-    if (state.initialized) {return;}
-
-    const logger = diContainer.get("logger");
-
-    if (!state.wsUrl) {state.wsUrl = buildWsUrlFromQuery();}
-
-    // 确保 wsClient 已创建（但不连接）
-    if (!diContainer.has("wsClient") && state.wsUrl) {
-      try {
-        const eventBus = diContainer.get("eventBus");
-        // 显式传递 pdf-home 的客户端身份信息（与注册协议保持一致）
-        const identityOptions = {
-          client_name: "pdf-home",
-          client_id: "pdf-home",
-          module: "pdf-home"
-        };
-        const wsClient = new WSClient(state.wsUrl, eventBus, identityOptions);
-        diContainer.register("wsClient", wsClient);
-        logger.debug("WSClient created and registered with identity: pdf-home:pdf-home");
-      } catch (e) {
-        logger.warn("[pdf-home] ws client prepare failed", e);
-      }
-    }
-
-    state.initialized = true;
-  }
-
-  function isInitialized() {
-    return !!state.initialized;
-  }
 }
 
 /**
@@ -192,10 +222,9 @@ export function createPDFHomeContainer({ root, wsUrl, logger, enableValidation =
  * @param {DependencyContainer} container - 依赖容器
  * @param {Object} options - 配置选项
  * @param {Logger} options.logger - Logger 实例（可选）
- * @param {string} options.wsUrl - WebSocket URL
  * @private
  */
-function registerCoreServices(container, { logger, wsUrl } = {}) {
+function registerCoreServices(container, { logger } = {}) {
   // 注册 Logger
   const loggerInstance = logger || new Logger("pdf-home.container");
   container.register("logger", loggerInstance);

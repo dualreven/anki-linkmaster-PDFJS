@@ -42,10 +42,17 @@
   - 现有事件契约与函数签名未发生变化：
     - 调用方依旧只需要传入 `{ pageAt, position }`；
     - 成功返回结果结构保持 `{ success, actualPage, actualPosition, duration }`，便于现有调用方继续做日志或提示。
-- 防回归说明：
+  - 防回归说明：
   - 新增测试文件 `src/frontend/pdf-viewer/features/infra-nav-core/__tests__/navigation-service.same-page.test.js`：
     - 覆盖“在当前页导航时不应再发 `NAVIGATION.GOTO`，但必须调用 `scrollToPosition`”这一行为；
-    - 覆盖“跨页导航仍然发送 `NAVIGATION.GOTO` 并执行滚动”的原有行为，确保未被本次改动破坏。
+      - 覆盖“跨页导航仍然发送 `NAVIGATION.GOTO` 并执行滚动”的原有行为，确保未被本次改动破坏。
+
+### Anchor 激活会话态与侧边栏显示（2025-12-02 更新）
+
+- 激活语义：锚点的“是否激活”是当前 pdf-viewer 窗口内的会话状态，不写入数据库。后端 `anchor_activate()` 只做存在性校验，page/position 仍通过 `ANCHOR.UPDATE` 持久化。
+- 数据来源：WS 入站在 `anchor:list/get:completed` 时发出 `PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED`，payload 中可能包含历史 `is_active` 字段，但前端在标准化时一律忽略该字段，避免冷启动被旧数据污染。
+- 状态源：`PDFAnchorFeature` 使用内部字段 `#anchorsById` 与 `#activeAnchorId` 维护会话内锚点列表和当前激活 ID，通过 `ANCHOR.ACTIVATE/ACTIVATED` 实现单选语义并刷新列表。
+- UI 行为：`AnchorSidebarUI` 在接收 `ANCHOR.DATA.LOADED` 时只保留 `uuid/name/page_at/position`，渲染“是否激活”列时完全依据会话内的 `#activeId`（来自 `ANCHOR.ACTIVATED`），冷启动时所有行均显示为“否”，只有实际激活后对应行才会显示“是”。 
 
 ### Anchor 激活功能现状梳理（2025-12-02 仅检查）
 
@@ -94,6 +101,7 @@
     - 自动激活：通过 `ANCHOR.NAVIGATE.REQUESTED` 触发的“按锚点导航”会自动激活目标锚点，并保持单选；
     - UI 交互：AnchorSidebarUI 工具栏中的“激活”按钮以当前选中项为基础切换 active 状态，同时更新高亮行。
   - 当前没有在代码或测试中看到明显的逻辑错误或契约冲突；如用户在实际使用中观察到“多行同时高亮”“激活状态与跳转不同步”等问题，更可能来自样式覆盖或与其它特性并发操作的 UI 现象，需要结合具体复现场景进一步排查。
+  - 为了让“当前会话的激活锚点”更加直观，AnchorSidebarUI 的表格新增了一列“是否激活”，根据锚点对象上的 `is_active` 布尔字段显示“是/否”，并在接收 `ANCHOR.ACTIVATED` / `ANCHOR.DATA.LOADED` 后重新渲染，使用户可以一眼看到当前哪一条锚点处于激活状态；相关测试 `anchor-sidebar-ui.test.js` 已同步更新列头断言。
 
 ### Anchor 激活状态与 resume 门控改造（2025-12-02 更新）
 
@@ -476,3 +484,22 @@
 ## 2025-12-02：自动文档生成方案设计
 
 - 新增 docs/engineering/AUTO-DOC-GENERATION.md，说明如何基于现有 JSDoc（前端）和 Python docstring（后端）使用 jsdoc/pdoc 生成 HTML 文档，当前仅提供配置与命令建议，不直接修改 package.json 或 requirements.txt，由维护者按需落地。
+
+- 后端自动文档：可使用 tools/generate_backend_docs.py 调用 pdoc，为 standard_server/embed_fileserver/launcher 生成 HTML 文档（输出到 AItemp/docs/backend-api）；需要先在虚拟环境中安装 python -m pip install pdoc。
+
+## 2025-12-03：pdf-anchor 取消激活、位置更新与导航闸门重构
+
+- 会话态设计：anchor 激活状态仅存在于当前前端会话内，不写入数据库，也不通过 URL 恢复；PDFAnchorFeature 使用内部字段 `#activeAnchorId` 作为唯一激活源，所有从后端返回的锚点列表（`ANCHOR.DATA.LOADED`）在进入特性层时都会被标准化为“忽略 payload 中的 is_active，仅根据 `#activeAnchorId` 决定 is_active 标记”，以保证冷启动时所有锚点均为未激活。
+- 前端取消激活链路：AnchorSidebarUI 工具栏提供“取消激活”按钮，在当前有选中锚点时会发出 `PDF_VIEWER_EVENTS.ANCHOR.ACTIVATE`，payload 为 `{ anchorId, active: false }`；PDFAnchorFeature 订阅该事件后，会更新内部 Map 中对应锚点的 `is_active` 字段，并在需要时清空 `#activeAnchorId`，从而让后续的滚动/位置追踪不再对任何锚点写回位置；同时依次广播 `ANCHOR.ACTIVATED(active:false)` 与刷新列表的 `ANCHOR.DATA.LOADED`，侧边栏通过订阅 ACTIVATED 事件维护会话内 `#activeId` 并用以驱动“是否激活”列的展示。
+- WebSocket 协作：同一个 `ANCHOR.ACTIVATE(active:false)` 事件还会被 WebSocketAdapter 转发为 `anchor:activate:requested`，后端经 `activate_anchor()` 校验成功后发出 `anchor:activate:completed(active:false)`；ws-inbound-bridge 将其桥接为 `ANCHOR.ACTIVATED(active:false)`，从而保证在多窗口/多实例场景下，其他前端在收到该消息时也能同步清除本地“激活”显示，但数据库层面不保存激活态。
+- 位置更新机制统一：anchor 与 pdf-resume 均复用 `PositionTracker` 作为滚动/点击/滚轮的 DOM 事件源；PDFAnchorFeature 在存在 `#activeAnchorId` 时才响应 `onPositionChange(pageAt, position)` 回调，并以“1 秒节流 + 每次回调只写一次”的方式发出 `ANCHOR.UPDATE/ANCHOR.UPDATED`（持久化 `page_at/position`）；导航触发时通过 `positionTracker.freezeFor(3000)` 冻结 3 秒内的回调，避免刚跳转完成就被新的采样位置覆盖；不再使用内部心跳定时器与自建滚动诊断监听。
+- 导航闸门重构（废弃旧 gate 实现）：
+  - 旧实现中 PDFAnchorFeature 维护了 `#useGateNav/#gateAnchorReady/#gateRenderReady/#gateNavDone/#pendingNav` 等字段，并在 FILE.LOAD.SUCCESS / RENDER.READY / ANCHOR.DATA.LOADED / ANCHOR.NAVIGATE.REQUESTED 之间通过 `#tryNavigateWhenGatesReady()` 做二次“并发闸门”；该逻辑最初为 URL 启动导航设计，在 URL 导航能力被彻底移除后，其价值与复杂度不再匹配。
+  - 2025-12-03 起，pdf-anchor 中这套 gate 字段与 `#tryNavigateWhenGatesReady()` 已彻底移除，改为：
+    - 新增私有方法 `#navigateToAnchor(anchorId)`，统一执行“根据锚点 page_at/position 计算百分比 → 发出 ANCHOR.ACTIVATE(active:true) 激活锚点 → 发出 NAVIGATION.URL_PARAMS.REQUESTED 导航事件，并记录 #lastNav / 冻结心跳写回”；
+    - `ANCHOR.NAVIGATE.REQUESTED` 收到请求后：若锚点已在本地 `#anchorsById` 中，则直接调用 `#navigateToAnchor(anchorId)`；若尚未加载，则记录 `#pendingAnchorIdForNavigate` 并发出 `ANCHOR.DATA.LOAD`，待 `ANCHOR.DATA.LOADED` 中识别到该锚点后再调用 `#navigateToAnchor` 完成一次导航；不再依赖渲染/文件 gate。
+    - FILE.LOAD.SUCCESS 与 RENDER.READY 现在只负责拉取列表与安装滚动诊断，不再为 anchor 导航维护额外的 gate 状态，渲染就绪的条件执行统一由 WebSocketAdapter + NavigationService 的 gate 机制负责。
+- Bug 修复：此前由于 `#gateNavDone` 在首次导航后被永久置为 true，导致“取消激活后再次点击激活”时不会再调用 `NAVIGATION.URL_PARAMS.REQUESTED`，表现为只更新激活状态和滚动采样但不跳转。随着旧 gate 被移除，`ANCHOR.NAVIGATE.REQUESTED` 每次都会调用 `#navigateToAnchor`，已经修复“第二次激活不跳转”的问题。
+- 测试覆盖：
+  - 继续保留 `anchor-activation.single-select.test.js`（单选激活语义）与 `anchor-auto-activate.on-navigate-requested.test.js`（通过 ANCHOR.NAVIGATE.REQUESTED 自动激活目标锚点）的既有用例，确认在移除 gate 后激活行为不变；
+  - 新增 `anchor-reactivate.after-deactivate.test.js`：构造一个锚点，依次触发 `ANCHOR.NAVIGATE.REQUESTED → ANCHOR.ACTIVATE(active:false) → ANCHOR.NAVIGATE.REQUESTED`，断言 `PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED` 共被发出两次且 anchorId 一致，防止“只能跳一次”的回归。

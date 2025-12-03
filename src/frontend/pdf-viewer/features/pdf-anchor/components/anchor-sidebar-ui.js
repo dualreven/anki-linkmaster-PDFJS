@@ -28,6 +28,7 @@ export class AnchorSidebarUI {
   #loadTimeoutTimer;
   #lastRequestPayload;
   #anchors = [];
+  #activeId = null; // 会话内激活的锚点ID（仅内存，不持久化）
   #selectedId = null;
   #subscriptions;
 
@@ -67,7 +68,7 @@ export class AnchorSidebarUI {
       { subscriberId: `AnchorSidebarUI:${this.#instanceId}` }
     ));
 
-    // 事件订阅：数据加载
+    // 事件订阅：数据加载（忽略后端 is_active，激活态仅由会话内事件驱动）
     this.#subscriptions.add(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED,
       ({ anchors }) => {
@@ -75,7 +76,16 @@ export class AnchorSidebarUI {
         this.#hideLoading();
         this.#clearError();
         this.#clearLoadTimeout();
-        this.#renderAnchors(Array.isArray(anchors) ? anchors : []);
+        const list = Array.isArray(anchors) ? anchors : [];
+        // 标准化：仅保留字段，不信任 payload 中的 is_active
+        this.#anchors = list.map((a) => ({
+          uuid: a?.uuid ? String(a.uuid) : "",
+          name: a?.name ?? "",
+          page_at: a?.page_at,
+          position: a?.position,
+          // 冷启动时一律视为未激活；实际激活由 ANCHOR.ACTIVATED 事件决定
+        })).filter((a) => a.uuid);
+        this.#renderAnchors(this.#anchors);
       },
       { subscriberId: `AnchorSidebarUI:${this.#instanceId}` }
     ));
@@ -111,11 +121,22 @@ export class AnchorSidebarUI {
     this.#subscriptions.add(this.#eventBus.on(
       PDF_VIEWER_EVENTS.ANCHOR.ACTIVATED,
       ({ anchorId, active }) => {
-        const idx = this.#anchors.findIndex(a => a.uuid === anchorId);
-        if (idx >= 0) {
-          this.#anchors[idx].is_active = !!active;
-          this.#renderAnchors(this.#anchors);
+        const id = String(anchorId || "").trim();
+        if (!id) { return; }
+        const nextActive = !!active;
+        if (nextActive) {
+          this.#activeId = id;
+        } else if (this.#activeId === id) {
+          this.#activeId = null;
         }
+        // 可选：同步内存中的 is_active 字段，便于调试/其他消费者复用
+        this.#anchors = (this.#anchors || []).map((a) => {
+          if (!a || !a.uuid) { return a; }
+          const copy = { ...a };
+          copy.is_active = (nextActive && String(copy.uuid) === id);
+          return copy;
+        });
+        this.#renderAnchors(this.#anchors);
       },
       { subscriberId: `AnchorSidebarUI:${this.#instanceId}` }
     ));
@@ -172,17 +193,17 @@ export class AnchorSidebarUI {
       return btn;
     };
 
-    const addBtn = mkBtn("add", "添加", "添加锚点（名称/页码/位置）");
+    const addBtn = mkBtn("add", "➕", "添加锚点（名称/页码/位置）");
     addBtn.addEventListener("click", () => this.#openCreateDialog());
 
-    const delBtn = mkBtn("delete", "删除", "删除选中锚点");
+    const delBtn = mkBtn("delete", "🗑️", "删除选中锚点");
     delBtn.addEventListener("click", () => {
       if (!this.#selectedId) {return;}
       this.#logger.info("Anchor delete clicked", { id: this.#selectedId });
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DELETE, { anchorId: this.#selectedId }, { actorId: "AnchorToolbar" });
     });
 
-    const editBtn = mkBtn("edit", "修改", "修改选中锚点（名称/页码/位置）");
+    const editBtn = mkBtn("edit", "✏️", "修改选中锚点（名称/页码/位置）");
     editBtn.addEventListener("click", () => this.#openEditDialog());
 
     // 复制下拉按钮
@@ -251,7 +272,7 @@ export class AnchorSidebarUI {
     };
     const copyWrap = document.createElement("div");
     copyWrap.style.cssText = "position:relative; display:inline-block;";
-    const copyBtn = mkBtn("copy", "复制", "复制/拷贝选项");
+    const copyBtn = mkBtn("copy", "📋", "复制/拷贝选项");
     const menu = document.createElement("div");
     menu.style.cssText = [
       "display:none","position:absolute","top:100%","left:0",
@@ -316,19 +337,32 @@ export class AnchorSidebarUI {
     bar.appendChild(addBtn);
     bar.appendChild(delBtn);
     bar.appendChild(editBtn);
-
     bar.appendChild(copyWrap);
 
     // 激活/取消激活按钮（切换当前选中锚点的激活状态）
-    const activateBtn = mkBtn("activate", "激活", "激活/取消激活选中锚点");
+    const activateBtn = mkBtn("activate", "✅", "跳转并激活选中锚点");
     activateBtn.addEventListener("click", () => {
       if (!this.#selectedId) { return; }
-      const idx = this.#anchors.findIndex(a => a.uuid === this.#selectedId);
-      const nextActive = !(idx >= 0 && this.#anchors[idx] && this.#anchors[idx].is_active === true);
-      this.#logger.info("Anchor activate toggled", { id: this.#selectedId, active: nextActive });
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.ACTIVATE, { anchorId: this.#selectedId, active: nextActive }, { actorId: "AnchorToolbar" });
+      this.#logger.info("Anchor navigate+activate requested from toolbar", { id: this.#selectedId });
+      this.#eventBus.emit(
+        PDF_VIEWER_EVENTS.ANCHOR.NAVIGATE.REQUESTED,
+        { anchorId: this.#selectedId, source: "ui-anchor-toolbar" },
+        { actorId: "AnchorToolbar" }
+      );
     });
     bar.appendChild(activateBtn);
+
+    const deactivateBtn = mkBtn("deactivate", "🚫", "取消选中锚点的激活状态");
+    deactivateBtn.addEventListener("click", () => {
+      if (!this.#selectedId) { return; }
+      this.#logger.info("Anchor deactivate requested from toolbar", { id: this.#selectedId });
+      this.#eventBus.emit(
+        PDF_VIEWER_EVENTS.ANCHOR.ACTIVATE,
+        { anchorId: this.#selectedId, active: false },
+        { actorId: "AnchorToolbar" }
+      );
+    });
+    bar.appendChild(deactivateBtn);
 
     return bar;
   }
@@ -488,7 +522,11 @@ export class AnchorSidebarUI {
     const thName = document.createElement("th"); thName.textContent = "名称";
     const thPage = document.createElement("th"); thPage.textContent = "页码";
     const thPos = document.createElement("th"); thPos.textContent = "页内位置(%)";
-    [thName, thPage, thPos].forEach(th => { th.style.cssText = "text-align:left;border-bottom:1px solid #eee;padding:6px;color:#444;"; thr.appendChild(th); });
+    const thActive = document.createElement("th"); thActive.textContent = "是否激活";
+    [thName, thPage, thPos, thActive].forEach(th => {
+      th.style.cssText = "text-align:left;border-bottom:1px solid #eee;padding:6px;color:#444;";
+      thr.appendChild(th);
+    });
     thead.appendChild(thr);
 
     const tbody = document.createElement("tbody");
@@ -643,15 +681,24 @@ export class AnchorSidebarUI {
       tdPos.textContent = posText;
       tdPos.style.cssText = "padding:6px;border-bottom:1px solid #f2f2f2;";
 
+      const tdActive = document.createElement("td");
+      // 会话内激活态：仅当 uuid === #activeId 时为 true
+      const active = !!(this.#activeId && a && a.uuid && String(a.uuid) === String(this.#activeId));
+      tdActive.textContent = active ? "是" : "否";
+      tdActive.style.cssText = "padding:6px;border-bottom:1px solid #f2f2f2;";
+
       tr.appendChild(tdName);
       tr.appendChild(tdPage);
       tr.appendChild(tdPos);
+      tr.appendChild(tdActive);
       tbody.appendChild(tr);
     });
 
-    // 若无选中项则默认选中第一条，方便直接使用“复制ID/复制副本”等操作
-    if (!this.#selectedId && this.#anchors.length > 0) {
-      this.#selectedId = String(this.#anchors[0].uuid);
+    // 若当前会话有激活锚点，则优先选中激活项；否则保持“无选中”状态
+    if (!this.#selectedId && this.#activeId) {
+      this.#selectedId = String(this.#activeId);
+    }
+    if (this.#selectedId) {
       this.#highlightSelection(this.#selectedId);
     }
   }

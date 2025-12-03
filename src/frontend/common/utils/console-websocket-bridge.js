@@ -247,3 +247,47 @@ export class ConsoleWebSocketBridge {
 export function createConsoleWebSocketBridge(source, websocketSender) {
   return new ConsoleWebSocketBridge(source, websocketSender);
 }
+
+/**
+ * 基于 WSClient 创建 ConsoleWebSocketBridge 的辅助工厂。
+ *
+ * @param {Object} options
+ * @param {string} options.source - 日志来源标识（例如 'pdf-home' 或 'pdf-viewer'）
+ * @param {() => import("../ws/ws-client.js").WSClient|null|undefined} options.getWsClient - 返回当前 WSClient 的函数
+ * @param {Array<string>} [options.skipPatterns] - 可选的过滤规则（若提供将覆盖默认规则）
+ * @param {'debug'|'info'|'warn'|'error'} [options.minLevel='warn'] - 最低转发级别
+ * @returns {ConsoleWebSocketBridge}
+ */
+export function createWsConsoleBridge({
+  source,
+  getWsClient,
+  skipPatterns = [],
+  minLevel = "warn"
+} = {}) {
+  const bridge = new ConsoleWebSocketBridge(source, (message) => {
+    try {
+      const wsClient = typeof getWsClient === "function" ? getWsClient() : null;
+      // wsClient 需要存在且已连接才发送日志
+      if (!wsClient || typeof wsClient.send !== "function" || (typeof wsClient.isConnected === "function" && !wsClient.isConnected())) {
+        return;
+      }
+      wsClient.send({ type: "console_log", data: message });
+    } catch (e) {
+      // 避免递归报错，这里不再向 WS 转发，仅使用原始 console 输出
+      try {
+        bridge.originalConsole.error?.(`[${source}] Console bridge sender failed:`, e);
+      } catch {
+        // logger-guard
+      }
+    }
+  });
+
+  if (Array.isArray(skipPatterns) && skipPatterns.length > 0 && typeof bridge.setSkipPatterns === "function") {
+    bridge.setSkipPatterns(skipPatterns);
+  }
+  if (typeof minLevel === "string" && typeof bridge.setLevel === "function") {
+    bridge.setLevel(minLevel);
+  }
+
+  return bridge;
+}

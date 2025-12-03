@@ -117,15 +117,21 @@ const inboundHandlers = [
             }
           } catch (e) { logger.warn("[anchor] request list after create completed failed", e); }
         } else if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_ACTIVATE_COMPLETED) {
-          // 语义更新：anchor:activate:completed 作为“远程激活指令”的确认，
-          // 由前端在 resume 门控完成后统一执行“激活 + 导航 + 持续写入”，
-          // 因此此处只发出 ANCHOR.NAVIGATE.REQUESTED，不再直接修改激活状态。
+          // [DIAGNOSTIC] 追踪激活完成后的状态更新（不再触发列表自动刷新，避免死循环）
+          logger.warn("[DIAGNOSTIC] Auto-refresh after ACTIVATE_COMPLETED", {
+            source: "ACTIVATE_COMPLETED handler",
+            location: "Line 182-197",
+            timestamp: Date.now()
+          });
+
+          // 更新当前项状态：仅通过 ANCHOR.ACTIVATED 通知前端，由特性层维护单选语义
           try {
             const id = message?.data?.anchor_id || message?.data?.uuid || null;
+            const active = !!(message?.data?.active ?? true);
             if (id) {
               eventBus.emit(
-                PDF_VIEWER_EVENTS.ANCHOR.NAVIGATE.REQUESTED,
-                { anchorId: String(id), source: "ws-anchor-activate" },
+                PDF_VIEWER_EVENTS.ANCHOR.ACTIVATED,
+                { anchorId: String(id), active },
                 { actorId: "WebSocketAdapter" }
               );
             }
