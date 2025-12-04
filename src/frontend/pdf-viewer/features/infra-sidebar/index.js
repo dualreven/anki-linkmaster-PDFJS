@@ -245,6 +245,14 @@ export class SidebarManagerFeature {
     title.className = "sidebar-title";
     title.textContent = config.title;
 
+    const actions = document.createElement("div");
+    actions.className = "sidebar-header-actions";
+    actions.style.cssText = [
+      "display:flex",
+      "align-items:center",
+      "gap:4px"
+    ].join(";");
+
     const closeBtn = document.createElement("button");
     closeBtn.className = "sidebar-close-btn";
     closeBtn.innerHTML = `
@@ -257,8 +265,17 @@ export class SidebarManagerFeature {
       this.closeSidebar(config.id);
     });
 
+    if (typeof config.createHeaderExtraActions === "function") {
+      const extra = config.createHeaderExtraActions();
+      if (extra instanceof HTMLElement) {
+        actions.appendChild(extra);
+      }
+    }
+
+    actions.appendChild(closeBtn);
+
     header.appendChild(title);
-    header.appendChild(closeBtn);
+    header.appendChild(actions);
 
     // 创建内容区
     const content = document.createElement("div");
@@ -271,6 +288,9 @@ export class SidebarManagerFeature {
       content.innerHTML = "<p>内容加载失败</p>";
     }
 
+    panel.appendChild(header);
+    panel.appendChild(content);
+
     // 创建调整分隔条
     if (config.resizable) {
       const resizeHandle = document.createElement("div");
@@ -279,9 +299,6 @@ export class SidebarManagerFeature {
       this.#attachResizeHandlers(resizeHandle, panel, config);
       panel.appendChild(resizeHandle);
     }
-
-    panel.appendChild(header);
-    panel.appendChild(content);
 
     return panel;
   }

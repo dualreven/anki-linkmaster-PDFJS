@@ -47,7 +47,8 @@
     color: var(--sidebar-title-color, #333333);
 }
 
-.sidebar-close-btn {
+.sidebar-close-btn,
+.sidebar-header-actions .sidebar-icon-btn {
     padding: 4px;
     background: transparent;
     border: none;
@@ -60,12 +61,14 @@
     transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-.sidebar-close-btn:hover {
+.sidebar-close-btn:hover,
+.sidebar-header-actions .sidebar-icon-btn:hover {
     background-color: var(--sidebar-close-hover-bg, #e0e0e0);
     color: var(--sidebar-close-hover-color, #333333);
 }
 
-.sidebar-close-btn:active {
+.sidebar-close-btn:active,
+.sidebar-header-actions .sidebar-icon-btn:active {
     background-color: var(--sidebar-close-active-bg, #d0d0d0);
 }
 

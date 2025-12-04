@@ -146,11 +146,17 @@ export default defineConfig(async () => {
         // 多入口构建：默认同时构建；当 VITE_BUILD_ONLY 指定时，仅构建对应入口
         input: (() => {
           const inputs = {
-            'pdf-home': path.resolve(__dirname, 'src/frontend/pdf-home/index.html'),
-            'pdf-viewer': path.resolve(__dirname, 'src/frontend/pdf-viewer/index.html'),
+            "pdf-home": path.resolve(__dirname, "src/frontend/pdf-home/index.html"),
+            "pdf-viewer": path.resolve(__dirname, "src/frontend/pdf-viewer/index.html"),
+            "anno-manager": path.resolve(__dirname, "src/frontend/anno-manager/index.html"),
+            "new-card-scheduler": path.resolve(__dirname, "src/frontend/new-card-scheduler/index.html"),
+            "custom-reviewer": path.resolve(__dirname, "src/frontend/custom-reviewer/index.html")
           };
-          if (buildOnly === 'pdf-home') return { 'pdf-home': inputs['pdf-home'] };
-          if (buildOnly === 'pdf-viewer') return { 'pdf-viewer': inputs['pdf-viewer'] };
+          if (buildOnly === "pdf-home") return { "pdf-home": inputs["pdf-home"] };
+          if (buildOnly === "pdf-viewer") return { "pdf-viewer": inputs["pdf-viewer"] };
+          if (buildOnly === "anno-manager") return { "anno-manager": inputs["anno-manager"] };
+          if (buildOnly === "new-card-scheduler") return { "new-card-scheduler": inputs["new-card-scheduler"] };
+          if (buildOnly === "custom-reviewer") return { "custom-reviewer": inputs["custom-reviewer"] };
           return inputs;
         })(),
         external: [

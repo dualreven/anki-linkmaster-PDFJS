@@ -35,6 +35,7 @@ def list_annotations(ctx, request_id: Optional[str], data: Dict[str, Any]) -> Di
                 "comments": row.get("comments") or [],
                 "createdAt": ms_to_iso(row.get("created_at")),
                 "updatedAt": ms_to_iso(row.get("updated_at")),
+                "title": row.get("title"),
             })
         return StandardMessageHandler.build_response(
             MessageType.ANNOTATION_LIST_COMPLETED,
@@ -87,6 +88,7 @@ def save_annotation(ctx, request_id: Optional[str], data: Dict[str, Any]) -> Dic
         ann_id = annotation.get("id")
         page_number = annotation.get("pageNumber")
         ann_type = annotation.get("type")
+        title = annotation.get("title")
         json_data = {
             "data": annotation.get("data") or {},
             "comments": annotation.get("comments") or [],
@@ -105,6 +107,7 @@ def save_annotation(ctx, request_id: Optional[str], data: Dict[str, Any]) -> Dic
                 "created_at": created_ms,
                 "updated_at": updated_ms,
                 "json_data": json_data,
+                "title": title,
             })
         else:
             import random, string
@@ -118,6 +121,7 @@ def save_annotation(ctx, request_id: Optional[str], data: Dict[str, Any]) -> Dic
                 "updated_at": updated_ms,
                 "version": 1,
                 "json_data": json_data,
+                "title": title,
             }
             ann_id = ctx.pdf_library_api._annotation_plugin.insert(row)
             created = True
@@ -176,4 +180,3 @@ def delete_annotation(ctx, request_id: Optional[str], data: Dict[str, Any]) -> D
             message_type=MessageType.ANNOTATION_DELETE_FAILED,
             code=500,
         )
-

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>标注管理器 - Anki LinkMaster</title>
+  <link rel="stylesheet" href="../pdf-home/style.css">
+</head>
+<body>
+  <div class="app-root anno-manager-root">
+    <header class="pdf-home-header">
+      <h1 class="pdf-home-title">🧩 标注管理器（Annotation Manager）</h1>
+      <div class="toolbar-controls" id="window-controls-slot"></div>
+    </header>
+    <main class="pdf-home-main">
+      <aside class="sidebar" id="anno-manager-sidebar">
+        <h2>过滤 / 视图</h2>
+        <div id="anno-manager-filters"></div>
+      </aside>
+      <div class="main-content">
+        <div class="search-results-header">
+          <h2>标注列表（开发中骨架）</h2>
+          <span class="result-count-badge" id="anno-manager-count-badge">共 0 条</span>
+        </div>
+        <div id="anno-manager-table-container" class="pdf-table-container"></div>
+      </div>
+    </main>
+  </div>
+  <div id="izi-toast-root" style="position:fixed;top:16px;right:16px;z-index:2147483647;pointer-events:none;display:flex;flex-direction:column;gap:8px"></div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
+

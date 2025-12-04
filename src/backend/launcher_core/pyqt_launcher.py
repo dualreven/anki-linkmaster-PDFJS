@@ -226,6 +226,14 @@ class BackendLauncher:
                 "/pdf-viewer": str(s / "pdf-viewer"),
                 "/pdf-home": str(s / "pdf-home"),
             }
+            # 为新前端工具窗口提供静态挂载（仅在对应目录存在时启用）
+            for name in ("anno-manager", "new-card-scheduler", "custom-reviewer"):
+                sub = s / name
+                try:
+                    if sub.exists():
+                        mounts[f"/{name}"] = str(sub)
+                except Exception:
+                    continue
             self.http_server = EmbedFileServer(
                 root_dir=str(root_dir),
                 host="127.0.0.1",
@@ -356,7 +364,13 @@ class BackendLauncher:
                         return
 
                     from src.launcher.config import LauncherConfig, LauncherPorts, LauncherPaths, LauncherOptions  # type: ignore
-                    from src.launcher.runner import ensure_pdf_viewer_hosted, ensure_pdf_home_hosted  # type: ignore
+                    from src.launcher.runner import (  # type: ignore
+                        ensure_pdf_viewer_hosted,
+                        ensure_pdf_home_hosted,
+                        ensure_anno_manager_hosted,
+                        ensure_new_card_scheduler_hosted,
+                        ensure_custom_reviewer_hosted,
+                    )
 
                     # 统一构造 LauncherConfig（与旧分支保持一致）
                     vite_port_val = None
@@ -439,11 +453,57 @@ class BackendLauncher:
                         )
                         rc = ensure_pdf_home_hosted(
                             cfg,
-                            parent_app=self.parent_app or getattr(self, 'app', None),
+                            parent_app=self.parent_app or getattr(self, "app", None),
                             on_log=lambda s: self.logger.info("[PdfHomeHost] %s", s),
                             window_lifecycle=self.window_lifecycle,
                         )
                         self.logger.info("[MsgDispatch] app-window PdfHome ensure-hosted rc=%s", str(rc))
+                    elif window_type == "anno-manager":
+                        self.logger.info(
+                            "[MsgDispatch] app-window 打开 anno-manager: client_id=%s dev_env=%s ports=%s options=%s",
+                            client_id,
+                            str(is_dev_env),
+                            str(ports),
+                            str(options),
+                        )
+                        rc = ensure_anno_manager_hosted(
+                            cfg,
+                            parent_app=self.parent_app or getattr(self, "app", None),
+                            on_log=lambda s: self.logger.info("[AnnoManagerHost] %s", s),
+                            window_lifecycle=self.window_lifecycle,
+                        )
+                        self.logger.info("[MsgDispatch] app-window AnnoManager ensure-hosted rc=%s", str(rc))
+                    elif window_type == "new-card-scheduler":
+                        self.logger.info(
+                            "[MsgDispatch] app-window 打开 new-card-scheduler: client_id=%s dev_env=%s ports=%s options=%s",
+                            client_id,
+                            str(is_dev_env),
+                            str(ports),
+                            str(options),
+                        )
+                        rc = ensure_new_card_scheduler_hosted(
+                            cfg,
+                            parent_app=self.parent_app or getattr(self, "app", None),
+                            on_log=lambda s: self.logger.info("[NewCardSchedulerHost] %s", s),
+                            window_lifecycle=self.window_lifecycle,
+                        )
+                        self.logger.info("[MsgDispatch] app-window NewCardScheduler ensure-hosted rc=%s", str(rc))
+                    elif window_type == "custom-reviewer":
+                        self.logger.info(
+                            "[MsgDispatch] app-window 打开 custom-reviewer: client_id=%s dev_env=%s ports=%s options=%s",
+                            client_id,
+                            str(is_dev_env),
+                            str(ports),
+                            str(options),
+                        )
+                        rc = ensure_custom_reviewer_hosted(
+                            cfg,
+                            parent_app=self.parent_app or getattr(self, "app", None),
+                            client_id=client_id,
+                            on_log=lambda s: self.logger.info("[CustomReviewerHost] %s", s),
+                            window_lifecycle=self.window_lifecycle,
+                        )
+                        self.logger.info("[MsgDispatch] app-window CustomReviewer ensure-hosted rc=%s", str(rc))
                     else:
                         self.logger.warning(
                             "[MsgDispatch] 未知的 window_type='%s'，忽略 app-window:open:requested",

@@ -106,6 +106,7 @@ export class Annotation {
    * @param {Array<Comment>} [data.comments=[]] - 评论列表
    * @param {string} [data.createdAt] - 创建时间，ISO 8601格式
    * @param {string} [data.updatedAt] - 更新时间，ISO 8601格式
+   * @param {string} [data.title] - 标注标题（可选）
    */
   constructor(data) {
     if (!data.type || !Object.values(AnnotationType).includes(data.type)) {
@@ -164,6 +165,12 @@ export class Annotation {
      * @description 更新时间，ISO 8601格式
      */
     this.updatedAt = data.updatedAt || new Date().toISOString();
+
+    /**
+     * @type {string|null}
+     * @description 标注标题（可选）
+     */
+    this.title = typeof data.title === "string" && data.title.trim() ? data.title.trim() : null;
   }
 
   /**
@@ -270,7 +277,8 @@ export class Annotation {
       data: this.data,
       comments: this.comments.map(c => c.toJSON()),
       createdAt: this.createdAt,
-      updatedAt: this.updatedAt
+      updatedAt: this.updatedAt,
+      title: this.title
     };
   }
 
@@ -289,6 +297,16 @@ export class Annotation {
    * @param {Object} changes - 要更新的字段
    */
   update(changes) {
+    if (Object.prototype.hasOwnProperty.call(changes, "title")) {
+      const v = changes.title;
+      if (v === null || v === undefined) {
+        this.title = null;
+      } else if (typeof v === "string") {
+        const trimmed = v.trim();
+        this.title = trimmed || null;
+      }
+    }
+
     if (changes.data) {
       this.#validateTypeSpecificData(this.type, changes.data);
       this.data = { ...this.data, ...changes.data };

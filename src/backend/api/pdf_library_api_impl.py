@@ -27,6 +27,8 @@ from ..database.plugins.pdf_bookmark_plugin import PDFBookmarkTablePlugin
 from ..database.plugins.pdf_outline_plugin import PDFOutlineTablePlugin
 from ..database.plugins.pdf_bookanchor_plugin import PDFBookanchorTablePlugin
 from ..database.plugins.search_condition_plugin import SearchConditionTablePlugin
+from ..database.plugins.pdf_annotation_tags_plugin import PDFAnnotationTagsTablePlugin
+from ..database.plugins.pdf_annotation_relation_plugin import PDFAnnotationRelationTablePlugin
 
 # Service registry（可选依赖）
 try:  # pragma: no cover
@@ -102,6 +104,10 @@ class PDFLibraryAPI:
         # 插件实例
         self._pdf_info_plugin = PDFInfoTablePlugin(self._executor, self._event_bus, self._logger)
         self._annotation_plugin = PDFAnnotationTablePlugin(self._executor, self._event_bus, self._logger)
+        self._annotation_tags_plugin = PDFAnnotationTagsTablePlugin(self._executor, self._event_bus, self._logger)
+        self._annotation_relation_plugin = PDFAnnotationRelationTablePlugin(
+            self._executor, self._event_bus, self._logger
+        )
         self._bookmark_plugin = PDFBookmarkTablePlugin(self._executor, self._event_bus, self._logger)
         self._outline_plugin = PDFOutlineTablePlugin(self._executor, self._event_bus, self._logger)
         self._bookanchor_plugin = PDFBookanchorTablePlugin(self._executor, self._event_bus, self._logger)
@@ -111,6 +117,8 @@ class PDFLibraryAPI:
         for p in (
             self._pdf_info_plugin,
             self._annotation_plugin,
+            self._annotation_tags_plugin,
+            self._annotation_relation_plugin,
             self._bookmark_plugin,
             self._bookanchor_plugin,
             self._search_condition_plugin,

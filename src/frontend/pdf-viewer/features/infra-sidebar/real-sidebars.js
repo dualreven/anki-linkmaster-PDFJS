@@ -5,6 +5,7 @@
  */
 
 import { getLogger } from "../../../common/utils/logger.js";
+import { showInfo } from "../../../common/utils/notification.js";
 import { createSidebarConfig } from "./sidebar-config.js";
 import { createLazySidebarConfig } from "./lazy-sidebar-factory.js";
 const logger = getLogger("RealSidebars");
@@ -99,7 +100,25 @@ export async function registerRealSidebars(sidebarManager, eventBus, container) 
     defaultWidth: 350,
     minWidth: 250,
     maxWidth: 600,
-    resizable: true
+    resizable: true,
+    createHeaderExtraActions: () => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "sidebar-icon-btn pdf-sidebar-annotation-manager-btn";
+      btn.title = "打开标注管理器";
+      btn.setAttribute("aria-label", "打开标注管理器");
+      btn.textContent = "□";
+
+      btn.addEventListener("click", () => {
+        try {
+          showInfo("标注管理器按钮已点击（开发中...）", 2500);
+        } catch (e) {
+          logger.warn("Failed to show toast for annotation manager button", e);
+        }
+      });
+
+      return btn;
+    }
   });
   sidebarManager.registerSidebar(annotationConfig);
   logger.info("Annotation sidebar registered (will load from container on first open)");

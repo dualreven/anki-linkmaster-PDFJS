@@ -1,6 +1,24 @@
-# Memory Bank - Context（精简版）
+﻿# Memory Bank - Context（精简版）
 
-最后更新：2025-11-30
+最后更新：2025-12-04
+
+## 新增任务快照（2025-12-03/12-04）
+- 任务A：🧠 规划并实现“PDF 批量制卡 + 标注网络化管理”后端基础能力：
+  - 概念与产品层（仅分析阶段，2025-12-03）：设计“新卡片规划器 / 标注管理器 / 导图（标注+PDF+卡片混合节点）”的整体能力，强调标注是一等实体并可与 Anki 卡片、PDF 文档形成图谱结构；
+  - 数据库与插件层（实现阶段，2025-12-04）：在 `pdf_annotation` / `pdf_info` 基础上扩展标注的元字段（title/is_key/importance），并新增两张表：
+    - `pdf_annotation_tags`：标注标签表，一标注多标签，结构与 `pdf_tags` 类似；
+    - `pdf_annotation_relation`：标注关系表，抽象“标注 → 标注 / PDF / 卡片”的有向边，用于支撑导图中的混合节点与“全部链接+反向链接”展开。
+  - 已落地的后端改动：
+    - 扩展 `PDFAnnotationTablePlugin`：建表逻辑补充 `title/is_key/importance` 三列；插入时按“annotation-[截断书名]-p[页码]”规则生成默认标题（书名截断 15 字，超长加 `...`），并对 is_key/importance 做范围校验；查询结果中暴露这些元字段；
+    - 新增 `PDFAnnotationTagsTablePlugin`：管理 `pdf_annotation_tags` 表，提供最小 CRUD 与 `list_tags/list_annotations_by_tag` 能力；
+    - 新增 `PDFAnnotationRelationTablePlugin`：管理 `pdf_annotation_relation` 表，支持三种 target_type（annotation/pdf/card），并提供 `get_outgoing/get_incoming_for_annotation/get_relations_for_pdf/get_relations_for_card` 等查询；
+    - 在 `PDFLibraryAPI` 与 `pdf_library/bootstrap` 中注册新插件，确保在 API 层初始化时自动建表并启用；
+    - 为上述改动新增/扩展了后端测试：在原有 `test_pdf_annotation_plugin.py` 基础上覆盖默认标题生成与 meta 字段校验，新增标签/关系插件的 CRUD 与约束测试（级联删除、UNIQUE、防止非法 target 组合等）。
+  - 前端 Viewer 侧边栏与“标注管理器”入口（2025-12-04）：
+    - 在 `infra-sidebar` 中统一了侧边栏 Header 骨架：使用 `.sidebar-header` + `.sidebar-title` + `.sidebar-header-actions`，支持通过 `SidebarConfig.createHeaderExtraActions()` 在“关闭按钮左侧”插入单个方形图标按钮，避免各 Sidebar 自己拼 Header 导致样式与行为不一致。
+    - 标注侧边栏 `annotation` 的配置中启用该扩展位：`createHeaderExtraActions` 返回一个 `button.sidebar-icon-btn.pdf-sidebar-annotation-manager-btn`，与关闭按钮共用一套尺寸/hover/active 样式（定义于 `sidebar-layout.css`），视觉上保持一致，仅图标为方框“□”以表示“打开管理器”。
+    - 当前阶段点击该按钮仅通过 `showInfo("标注管理器按钮已点击（开发中...）", 2500)` 弹出 toast，用作 UI 与交互契约的占位；后续由 MsgCenter 消息链路替换为“启动标注管理器窗口，并携带 pdf-id”的正式逻辑。
+    - 为上述 Header 扩展位新增 Jest 测试 `infra-sidebar/__tests__/annotation-sidebar-header-manager-button.test.js`：断言标注侧栏 Header 中存在 manager 方框按钮、仍只有一个关闭按钮，并在点击时调用 `showInfo(...)`，防止未来样式重构或 DOM 结构调整时误删该入口或出现双关闭按钮。
 
 ## 当前任务快照（2025-11-29）
 - 任务1：🔍 分析 pdf-viewer 断点续读（resume）在高页码场景下的恢复页码偏差（例：关闭在 42 页，重开时在 39–40 跳动并最终停在 40 页）
@@ -503,3 +521,65 @@
 - 测试覆盖：
   - 继续保留 `anchor-activation.single-select.test.js`（单选激活语义）与 `anchor-auto-activate.on-navigate-requested.test.js`（通过 ANCHOR.NAVIGATE.REQUESTED 自动激活目标锚点）的既有用例，确认在移除 gate 后激活行为不变；
   - 新增 `anchor-reactivate.after-deactivate.test.js`：构造一个锚点，依次触发 `ANCHOR.NAVIGATE.REQUESTED → ANCHOR.ACTIVATE(active:false) → ANCHOR.NAVIGATE.REQUESTED`，断言 `PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED` 共被发出两次且 anchorId 一致，防止“只能跳一次”的回归。
+\n\n## 2025-12-03 git 提交记录\n- 任务：统一 pdf-anchor 与 pdf-resume 的位置追踪/写回机制，并提交当前改动。\n- 操作：\n  - 按规范读取最近 8 条 AI 工作日志与 memory bank（architecture/context/tech）。\n  - 新建两条工作日志记录本次任务目标与执行结果。\n  - 运行 pnpm lint，确认目前存在大量历史 ESLint 问题（未在本轮处理）。\n  - 使用 git add -A 暂存全部改动，并执行一次提交。\n- 提交信息：eat(pdf-anchor): unify anchor position tracking and update mechanism。\n- 影响范围：pdf-viewer/pdf-anchor Feature、WS inbound bridge、memory-bank 文档与若干测试/工具脚本。\n
+
+## 2025-12-03 AnnotationSidebarUI 管理器按钮接入
+- 为 pdf-viewer 新增通用侧边栏 Header 工具 shared/sidebar-shell-header.js，统一提供‘标题 + 可选方框按钮 + 关闭按钮’布局（默认方框按钮隐藏）。
+- 在 AnnotationSidebarUI 中集成该 Header：
+  - 标注侧边栏启用方框按钮（方框按钮位于关闭按钮左侧）。
+  - 点击关闭按钮时，通过 PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.CLOSE_REQUESTED 发出关闭 annotation 侧边栏的全局事件。
+  - 首期点击方框按钮仅调用 common toast 工具 showInfo 提示按钮已被点击（开发中），后续再接入 MsgCenter 启动标注管理器事件。
+- 在 AnnotationSidebarUI 测试中新增用例：
+  - 验证启用 enableManagerButton 选项时会渲染 .pdf-sidebar-square-btn。
+  - 验证 Header 关闭按钮点击会通过 eventBus.emitGlobal 发出 SIDEBAR_MANAGER.CLOSE_REQUESTED 事件。
+- 相关单测：src/frontend/pdf-viewer/features/pdf-annotation/components/__tests__/annotation-sidebar-ui.test.js 全部通过。
+
+## 2025-12-03 AnnotationSidebarUI 管理器按钮位置调整
+- 根据实际 UI 反馈，将“标注管理器”方框按钮从 AnnotationSidebarUI 内部 header 移除，改为通过 SidebarManagerFeature 在外层通用 sidebar header 中渲染。
+- SidebarConfig 新增可选字段 createHeaderExtraActions，允许特定侧边栏（目前为 annotation）在标题右侧、关闭按钮左侧注入自定义按钮。
+- real-sidebars.js 中为 annotationConfig 提供 createHeaderExtraActions：创建类名为 pdf-sidebar-annotation-manager-btn 的方框按钮，点击时调用 common notification.showInfo 提示按钮已被点击（开发中）。
+- AnnotationSidebarUI 恢复为只负责内部工具栏和内容区域，不再创建额外 header 或重复关闭按钮，避免出现多个“关闭”控件。
+- 新增测试：features/infra-sidebar/__tests__/annotation-sidebar-header-manager-button.test.js，验证 annotation 侧边栏 header 中存在方框按钮、仅有一个 sidebar-close-btn，并且点击方框按钮会触发 showInfo。
+
+## 2025-12-04 标注管理器 / 新卡片规划器 / 定制复习器 窗口需求补充
+- Custom Reviewer（定制卡片复习器）：
+  - 允许多实例并存，每个窗口拥有独立 client_id（例如 custom-reviewer-<uuid>），以便 MsgCenter 精确路由。
+  - 窗口划分为三大区域：
+    - a) 卡片队列侧边栏：展示和管理当前复习队列，可按 deck/tag/pdf 等维度分组。
+    - b) 卡片主显示区域：负责渲染卡片正反面内容，需预留“复用 Anki 卡片 HTML 片段”的 API（按 card_id 获取可嵌入的 HTML 片段）。
+    - c) [回答|编辑|导航] 按钮栏：处理记忆评价提交、跳转到 Anki 编辑界面，以及跳转到对应 PDF 标注或标注网络视图。
+- 新卡片规划器（Batch Card Planner）：
+  - 面向跨 PDF 的批量制卡，基于“卡片-面-内容节点”的抽象，支持多种布局：树结构（卡片节点→正面/背面→标注/大纲/锚点）、文件浏览器式视图、表格视图等。
+  - 必须支持拖放标注/大纲/锚点到规划区，以及通过 Ctrl+V 粘贴文本自动识别 annotation_id / outline_id / anchor_id 并转为节点。
+  - 所有布局共享同一数据模型和操作 API，避免出现“某布局可编辑、某布局只读”的割裂现象。
+- 标注管理器（Annotation Manager）：
+  - 汇总来自 PDF 的标注、Anki 卡片中的标注引用，以及标注之间的关系对象，提供统一的搜索 / 筛选 / 排序入口。
+  - 支持多种布局：列表视图（按 PDF/tag/时间/是否关联卡片等维度）、树状视图（PDF→章节→标注）、导图视图（与 3.3 Graph View 集成），并预留更多布局（如按专题/任务的分组视图）。
+  - 标注管理器本身只负责标注与关系数据，不直接操作 PDF 渲染或卡片编辑；跳转与复习相关操作通过事件/MsgCenter 委托给 viewer / Custom Reviewer / Anki。
+
+## 2025-12-04 三个前端工具窗口骨架与 gui_launcher 按钮
+- 新增三个前端入口目录：src/frontend/anno-manager、src/frontend/new-card-scheduler、src/frontend/custom-reviewer，各自只有极简骨架：
+  - anno-manager：左侧过滤/视图侧边栏 + 主列表区域（标注管理器占位），暂仅展示窗口已启动的提示。
+  - new-card-scheduler：左侧布局/工具侧边栏 + 中部卡片规划工作区占位，用于后续承载卡片-面-内容节点布局。
+  - custom-reviewer：左侧复习队列侧边栏 + 中部卡片主显示区域 + 下方[回答|编辑|导航]按钮栏，当前仅展示占位文本。
+- 更新 vite.config.js：在 rollupOptions.input 中新增 anno-manager / new-card-scheduler / custom-reviewer 三个 HTML 入口，支持 dev/build 同时构建三个工具窗口。
+- 在 gui_launcher.py 的主窗口中新增三颗 Hosted 按钮：
+  - '启动 标注管理器 (Hosted)' → _start_anno_manager_hosted()；
+  - '启动 新卡片规划器 (Hosted)' → _start_new_card_scheduler_hosted()；
+  - '启动 定制复习器 (Hosted)' → _start_custom_reviewer_hosted()。
+- 三个启动方法均复用现有 MsgCenter 通路：从 runtime-ports.json 解析 msgCenter_port，检查端口监听情况后，通过 StandardMessageHandler 发送 type='app-window:open:requested', to='backend' 的消息；
+  - anno-manager 与 new-card-scheduler 暂使用固定 client_id（'anno-manager' / 'new-card-scheduler'）；
+  - custom-reviewer 每次启动都会生成独立 client_id（custom-reviewer-<uuid前缀>），为后续多窗口定制复习提供前提。
+- 当前阶段仅完成前端骨架与 gui_launcher→MsgCenter 的消息发送，后端 BackendLauncher 仍只识别 pdf-home/pdf-viewer 的 window_type；对新 window_type 的 Hosted 窗口加载需要在后续任务中扩展 launcher_core/runner 和静态资源挂载。
+
+## 2025-12-04 BackendLauncher 集成 anno-manager / new-card-scheduler / custom-reviewer Hosted 窗口骨架
+- 新增通用 PyQt 简易窗口启动器：src/frontend/common/pyqt/simple_web_window_app.py，提供 SimpleWebWindowApp + SimpleWebWindow，用 LaunchConfig + runtime-ports.json 解析 url_port/msgCenter_port/pdfFile_port，使用 QWebEngineView 加载指定 entry 路径（如 /anno-manager/），子进程模式进入事件循环，Hosted 模式只创建窗口不阻塞。
+- 在 src/frontend/anno-manager/launcher.py 中为三个工具窗口定义薄包装：AnnoManagerApp / NewCardSchedulerApp / CustomReviewerApp，全部继承 SimpleWebWindowApp，分别加载 /anno-manager /new-card-scheduler /custom-reviewer 并设置中文标题。
+- 在 src/launcher/runner.py 中新增 ensure_anno_manager_hosted / ensure_new_card_scheduler_hosted / ensure_custom_reviewer_hosted：
+  - 统一通过 resolve_component_root + importlib 加载 anno-manager/launcher.py；
+  - 使用 LaunchConfig 构造前端启动参数（url_port/msgCenter_port/pdfFile_port/logs_dir 等），并创建对应 App 实例；
+  - Hosted 模式下调用 app.run() 并将窗口注册到 WindowLifecycleManager（client_id 为 anno-manager、新卡片规划器为 new-card-scheduler，CustomReviewer 使用调用方传入的 client_id）。
+- 在 src/backend/launcher_core/pyqt_launcher.py 中：
+  - 扩展 app-window:open:requested 的分支，新增 window_type=anno-manager/new-card-scheduler/custom-reviewer，对应调用上述 ensure_*_hosted，并在日志中打印 Hosted 启动结果。
+  - 将 EmbedFileServer.mounts 扩展为在 dist/static 下存在相应子目录时挂载：/anno-manager、/new-card-scheduler、/custom-reviewer → static/<name>，以便生产模式下通过 HTTP 静态资源访问这三个入口。
+- 由于 Jest 当前配置未包含 src/gui_launcher 路径，本轮仅尝试运行现有测试并记录‘No tests found’结果，暂未为新 Hosted 分支添加 Python 端集成测试；后续可以在 src/gui_launcher/__tests__ 或 src/launcher/__tests__ 中补充针对 ensure_*_hosted 与 window_type 分支的契约测试。

@@ -744,3 +744,25 @@ python ai_launcher.py status
 - 约束：
   - 禁止在 pdf-anchor 中重新引入独立的心跳定时器或手写 DOM `scroll` 监听来做位置采样；新的代码必须通过 PositionTracker 或 `getCurrentPageAndPosition(container)` 获取位置。
   - 任何新 Feature 若需要基于滚动/位置做写回，应优先复用 PositionTracker，而不是复制一套 position 计算逻辑。
+
+## 2025-12-04：三类前端工具窗口的 API 预留约定
+
+- Custom Reviewer（定制卡片复习器）
+  - 与 Anki 的交互必须通过明确的 API/消息完成，前端窗口不直接读取 Anki 数据库文件；
+  - 需要预留的关键接口示例（具体协议后续在 SPEC 中细化）：
+    - `card_html:get:requested`：按 card_id（或 note_id+card_type）获取可直接嵌入的 HTML 片段，用于主显示区渲染；
+    - `card_review:submit:requested`：提交复习结果（again/good/easy 等），由后端负责更新调度与统计；
+    - `card_edit:open:requested`：请求在 Anki 或专用编辑器中打开某张卡片；
+  - 每个 Custom Reviewer 窗口使用独立 client_id（如 `custom-reviewer-<uuid>`），所有消息通过 MsgCenter 路由，避免多窗口状态互相污染。
+
+- 新卡片规划器（Batch Card Planner）
+  - 对外暴露“操作卡片草稿结构”的抽象 API，而不是与某个具体布局耦合，例如：
+    - `draft_card:create/update/delete`、`draft_face:add/remove`、`draft_content:add/remove/reorder`；
+    - 这些操作应可被树状视图、文件浏览器视图、表格视图等多种 UI 复用。
+  - 针对“拖放标注/大纲/锚点”和“Ctrl+V 识别 ID”的需求，需在前端建立统一的“引用解析器”模块，负责将任意输入解析成标准引用对象 `{ kind: 'annotation'|'outline'|'anchor', id: '...' }`，再交给规划器内部模型处理。
+
+- 标注管理器（Annotation Manager）
+  - 作为“标注与关系数据”的聚合入口，对外提供统一查询 API，例如：
+    - `annotation_query:search`（支持条件：来源 PDF、tag、是否有卡片、时间范围等）；
+    - `annotation_query:related`（返回某标注的一跳/多跳邻居，包括 PDF / Card / 其他标注）。
+  - UI 层的多种布局（列表/树/导图等）应基于这些查询 API 构建，不直接拼写 SQL 或访问底层表结构，确保后续可以在后端调整表设计而不影响前端调用。

@@ -10,6 +10,8 @@ from ...database.plugin.event_bus import EventBus  # type: ignore
 from ...database.plugin.plugin_registry import TablePluginRegistry  # type: ignore
 from ...database.plugins.pdf_info_plugin import PDFInfoTablePlugin  # type: ignore
 from ...database.plugins.pdf_annotation_plugin import PDFAnnotationTablePlugin  # type: ignore
+from ...database.plugins.pdf_annotation_tags_plugin import PDFAnnotationTagsTablePlugin  # type: ignore
+from ...database.plugins.pdf_annotation_relation_plugin import PDFAnnotationRelationTablePlugin  # type: ignore
 from ...database.plugins.pdf_bookmark_plugin import PDFBookmarkTablePlugin  # type: ignore
 from ...database.plugins.pdf_bookanchor_plugin import PDFBookanchorTablePlugin  # type: ignore
 from ...database.plugins.search_condition_plugin import SearchConditionTablePlugin  # type: ignore
@@ -19,6 +21,8 @@ def register_plugins(api) -> None:
     for plugin in (
         api._pdf_info_plugin,
         api._annotation_plugin,
+        api._annotation_tags_plugin,
+        api._annotation_relation_plugin,
         api._bookmark_plugin,
         api._bookanchor_plugin,
         api._search_condition_plugin,
@@ -98,6 +102,8 @@ def initialize(
     api._registry = TablePluginRegistry.get_instance(api._executor, api._event_bus, api._logger)
     api._pdf_info_plugin = PDFInfoTablePlugin(api._executor, api._event_bus, api._logger)
     api._annotation_plugin = PDFAnnotationTablePlugin(api._executor, api._event_bus, api._logger)
+    api._annotation_tags_plugin = PDFAnnotationTagsTablePlugin(api._executor, api._event_bus, api._logger)
+    api._annotation_relation_plugin = PDFAnnotationRelationTablePlugin(api._executor, api._event_bus, api._logger)
     api._bookmark_plugin = PDFBookmarkTablePlugin(api._executor, api._event_bus, api._logger)
     api._bookanchor_plugin = PDFBookanchorTablePlugin(api._executor, api._event_bus, api._logger)
     api._search_condition_plugin = SearchConditionTablePlugin(api._executor, api._event_bus, api._logger)

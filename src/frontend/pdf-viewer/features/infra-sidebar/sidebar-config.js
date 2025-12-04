@@ -16,6 +16,7 @@
  * @property {number} defaultWidth - 默认宽度（px）
  * @property {boolean} resizable - 是否可调整宽度
  * @property {number} [priority] - 优先级（暂未使用）
+ * @property {() => HTMLElement | null} [createHeaderExtraActions] - 创建头部额外操作区域（如特定侧边栏的自定义按钮）
  */
 
 /**
@@ -26,7 +27,8 @@ export const DEFAULT_SIDEBAR_CONFIG = {
   maxWidth: 600,
   defaultWidth: 350,
   resizable: true,
-  priority: 0
+  priority: 0,
+  createHeaderExtraActions: undefined
 };
 
 /**

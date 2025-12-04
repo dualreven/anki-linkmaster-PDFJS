@@ -497,6 +497,7 @@ export class AnnotationManager {
             comments: obj.comments || [],
             createdAt: obj.createdAt,
             updatedAt: obj.updatedAt,
+            title: obj.title,
           }));
         } catch (err) {
           // 跳过不符合当前模型校验的历史数据，避免整批加载失败

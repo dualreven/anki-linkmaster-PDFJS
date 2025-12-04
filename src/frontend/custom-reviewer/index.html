@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>定制卡片复习器 - Anki LinkMaster</title>
+  <link rel="stylesheet" href="../pdf-home/style.css">
+</head>
+<body>
+  <div class="app-root custom-reviewer-root">
+    <header class="pdf-home-header">
+      <h1 class="pdf-home-title">🧠 定制卡片复习器（Custom Reviewer）</h1>
+      <div class="toolbar-controls" id="window-controls-slot"></div>
+    </header>
+    <main class="pdf-home-main">
+      <!-- a) 卡片队列侧边栏 -->
+      <aside class="sidebar" id="custom-reviewer-queue">
+        <h2>复习队列</h2>
+        <div id="custom-reviewer-queue-list"></div>
+      </aside>
+      <!-- b) 卡片主显示区域 + c) 按钮栏 -->
+      <div class="main-content">
+        <section id="custom-reviewer-card-display" style="min-height: 240px; border-bottom: 1px solid #eee; padding: 16px;">
+          <h2>当前卡片（开发中骨架）</h2>
+          <div id="custom-reviewer-card-html"></div>
+        </section>
+        <section id="custom-reviewer-actions" style="padding: 12px; display: flex; gap: 8px;">
+          <button id="btn-answer" class="btn">回答</button>
+          <button id="btn-edit" class="btn">编辑</button>
+          <button id="btn-navigate" class="btn">导航</button>
+        </section>
+      </div>
+    </main>
+  </div>
+  <div id="izi-toast-root" style="position:fixed;top:16px;right:16px;z-index:2147483647;pointer-events:none;display:flex;flex-direction:column;gap:8px"></div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
+

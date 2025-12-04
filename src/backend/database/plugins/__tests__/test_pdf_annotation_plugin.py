@@ -256,6 +256,36 @@ def test_insert_screenshot_annotation(plugin, pdf_uuid):
     row = plugin.query_by_id(ann_id)
     assert row['type'] == 'screenshot'
     assert row['data']['rect']['width'] == sample['json_data']['data']['rect']['width']
+    # 默认标题应根据 pdf_info.title 与页码生成
+    assert isinstance(row.get('title'), str)
+    assert row['title'].startswith('annotation-')
+    assert row['title'].endswith(f"-p{sample['page_number']}")
+
+
+def test_insert_annotation_with_meta_fields(plugin, pdf_uuid):
+    sample = _make_sample('text-highlight', pdf_uuid)
+    sample['title'] = 'Custom Title'
+    sample['is_key'] = 1
+    sample['importance'] = 3
+    ann_id = plugin.insert(sample)
+    row = plugin.query_by_id(ann_id)
+    assert row['title'] == 'Custom Title'
+    assert row['is_key'] == 1
+    assert row['importance'] == 3
+
+
+def test_insert_annotation_invalid_is_key(plugin, pdf_uuid):
+    sample = _make_sample('text-highlight', pdf_uuid)
+    sample['is_key'] = 2
+    with pytest.raises(DatabaseValidationError, match='is_key must be 0 or 1'):
+        plugin.insert(sample)
+
+
+def test_insert_annotation_invalid_importance(plugin, pdf_uuid):
+    sample = _make_sample('text-highlight', pdf_uuid)
+    sample['importance'] = 5
+    with pytest.raises(DatabaseValidationError, match='importance must be an integer between 1 and 3'):
+        plugin.insert(sample)
 
 
 def test_insert_text_highlight_annotation(plugin, pdf_uuid):

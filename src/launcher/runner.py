@@ -430,6 +430,139 @@ def ensure_pdf_viewer_hosted(
     return int(rc or 0)
 
 
+def ensure_anno_manager_hosted(
+    cfg: LauncherConfig,
+    *,
+    parent_app,
+    on_log: Optional[Callable[[str], None]] = None,
+    window_lifecycle: Any = None,
+) -> int:
+    """确保标注管理器窗口在 Hosted 模式下被打开（当前为简单 Web 窗口）。"""
+    root = resolve_component_root()
+    import importlib.util as _il
+    launcher_path = root / "src" / "frontend" / "anno-manager" / "launcher.py"
+    spec = _il.spec_from_file_location("anno_manager_launcher", str(launcher_path))
+    if spec is None or spec.loader is None:
+        raise ImportError("无法定位 anno-manager launcher 模块")
+    mod = _il.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore
+    from src.frontend.common.launch_config import LaunchConfig as FEConfig  # type: ignore
+    fe_cfg = FEConfig(
+        is_prod=bool(cfg.options.frontend_prod),
+        keep_backend=bool(cfg.options.keep_backend),
+        url_port=cfg.ports.url_port,
+        msgCenter_port=cfg.ports.msgCenter_port,
+        pdfFile_port=cfg.ports.pdfFile_port,
+        vite_port=cfg.ports.vite_port,
+        source="gui",
+        logs_dir=str(cfg.paths.logs_dir) if getattr(cfg.paths, "logs_dir", None) else None,
+    )
+    AnnoManagerApp = getattr(mod, "AnnoManagerApp")
+    app_inst = AnnoManagerApp(fe_cfg, parent_app=parent_app)
+    rc = app_inst.run()
+    try:
+        win = getattr(app_inst, "window", None)
+        if window_lifecycle is not None and win is not None:
+            try:
+                window_lifecycle.register_window("anno-manager", app_inst, win, {"window_type": "anno-manager"})
+            except Exception:
+                pass
+    except Exception:
+        pass
+    if on_log:
+        on_log(f"[Hosted] AnnoManager run rc={rc}")
+    return int(rc or 0)
+
+
+def ensure_new_card_scheduler_hosted(
+    cfg: LauncherConfig,
+    *,
+    parent_app,
+    on_log: Optional[Callable[[str], None]] = None,
+    window_lifecycle: Any = None,
+) -> int:
+    """确保新卡片规划器窗口在 Hosted 模式下被打开。"""
+    root = resolve_component_root()
+    import importlib.util as _il
+    launcher_path = root / "src" / "frontend" / "anno-manager" / "launcher.py"
+    spec = _il.spec_from_file_location("anno_manager_launcher", str(launcher_path))
+    if spec is None or spec.loader is None:
+        raise ImportError("无法定位 anno-manager launcher 模块")
+    mod = _il.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore
+    from src.frontend.common.launch_config import LaunchConfig as FEConfig  # type: ignore
+    fe_cfg = FEConfig(
+        is_prod=bool(cfg.options.frontend_prod),
+        keep_backend=bool(cfg.options.keep_backend),
+        url_port=cfg.ports.url_port,
+        msgCenter_port=cfg.ports.msgCenter_port,
+        pdfFile_port=cfg.ports.pdfFile_port,
+        vite_port=cfg.ports.vite_port,
+        source="gui",
+        logs_dir=str(cfg.paths.logs_dir) if getattr(cfg.paths, "logs_dir", None) else None,
+    )
+    NewCardSchedulerApp = getattr(mod, "NewCardSchedulerApp")
+    app_inst = NewCardSchedulerApp(fe_cfg, parent_app=parent_app)
+    rc = app_inst.run()
+    try:
+        win = getattr(app_inst, "window", None)
+        if window_lifecycle is not None and win is not None:
+            try:
+                window_lifecycle.register_window("new-card-scheduler", app_inst, win, {"window_type": "new-card-scheduler"})
+            except Exception:
+                pass
+    except Exception:
+        pass
+    if on_log:
+        on_log(f"[Hosted] NewCardScheduler run rc={rc}")
+    return int(rc or 0)
+
+
+def ensure_custom_reviewer_hosted(
+    cfg: LauncherConfig,
+    *,
+    parent_app,
+    client_id: str,
+    on_log: Optional[Callable[[str], None]] = None,
+    window_lifecycle: Any = None,
+) -> int:
+    """确保定制卡片复习器窗口在 Hosted 模式下被打开（支持多实例 client_id）。"""
+    root = resolve_component_root()
+    import importlib.util as _il
+    launcher_path = root / "src" / "frontend" / "anno-manager" / "launcher.py"
+    spec = _il.spec_from_file_location("anno_manager_launcher", str(launcher_path))
+    if spec is None or spec.loader is None:
+        raise ImportError("无法定位 anno-manager launcher 模块")
+    mod = _il.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore
+    from src.frontend.common.launch_config import LaunchConfig as FEConfig  # type: ignore
+    fe_cfg = FEConfig(
+        is_prod=bool(cfg.options.frontend_prod),
+        keep_backend=bool(cfg.options.keep_backend),
+        url_port=cfg.ports.url_port,
+        msgCenter_port=cfg.ports.msgCenter_port,
+        pdfFile_port=cfg.ports.pdfFile_port,
+        vite_port=cfg.ports.vite_port,
+        source="gui",
+        logs_dir=str(cfg.paths.logs_dir) if getattr(cfg.paths, "logs_dir", None) else None,
+    )
+    CustomReviewerApp = getattr(mod, "CustomReviewerApp")
+    app_inst = CustomReviewerApp(fe_cfg, parent_app=parent_app)
+    rc = app_inst.run()
+    try:
+        win = getattr(app_inst, "window", None)
+        if window_lifecycle is not None and win is not None:
+            try:
+                window_lifecycle.register_window(client_id, app_inst, win, {"window_type": "custom-reviewer"})
+            except Exception:
+                pass
+    except Exception:
+        pass
+    if on_log:
+        on_log(f"[Hosted] CustomReviewer run rc={rc}")
+    return int(rc or 0)
+
+
 def start_pdf_home_cli(cfg: LauncherConfig, *, is_prod: bool, on_log: Optional[Callable[[str], None]] = None) -> bool:
     """以子进程方式启动 pdf-home 前端 launcher（统一在 runner）。
 

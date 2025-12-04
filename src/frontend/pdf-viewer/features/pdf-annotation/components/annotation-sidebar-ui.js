@@ -6,8 +6,7 @@
 
 import { getLogger } from "../../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
-import { showSuccess, showError } from "../../../../common/utils/notification.js";
-import { showInfo } from "../../../../common/utils/notification.js";
+import { showSuccess, showError, showInfo } from "../../../../common/utils/notification.js";
 import { AnnotationType } from "../models/index.js";
 import { copyTextUsingHiddenTextarea } from "../../../../common/utils/copy-utils.js";
 import { createSubscriptionBag } from "../../../../common/ws/ws-subscription-bag.js";
@@ -1267,6 +1266,74 @@ export class AnnotationSidebarUI {
       annotationContent.appendChild(typeLabel);
     }
 
+    // 元信息编辑区域：标题 + Tags（第一版：仅 UI 占位）
+    const metaContainer = document.createElement("div");
+    metaContainer.style.cssText = [
+      "margin-top: 12px",
+      "padding-top: 8px",
+      "border-top: 1px dashed #e0e0e0",
+      "display: flex",
+      "flex-direction: column",
+      "gap: 8px"
+    ].join(";");
+
+    // 标题输入
+    const titleRow = document.createElement("div");
+    titleRow.style.cssText = "display:flex;align-items:center;gap:8px;";
+    const titleLabelEl = document.createElement("label");
+    titleLabelEl.textContent = "标题";
+    titleLabelEl.style.cssText = "font-size:13px;color:#555;flex:0 0 auto;";
+    const titleInput = document.createElement("input");
+    titleInput.type = "text";
+    titleInput.value = annotation.title || "";
+    titleInput.placeholder = "为此标注起一个标题（可选）";
+    titleInput.style.cssText = [
+      "flex:1",
+      "padding:4px 8px",
+      "border:1px solid #ddd",
+      "border-radius:4px",
+      "font-size:13px",
+      "box-sizing:border-box"
+    ].join(";");
+    titleInput.addEventListener("change", () => {
+      const v = (titleInput.value || "").trim();
+      annotation.title = v || null;
+    });
+    titleRow.appendChild(titleLabelEl);
+    titleRow.appendChild(titleInput);
+
+    // Tags 输入（占位：暂不接后端，仅保留 UI）
+    const tagsRow = document.createElement("div");
+    tagsRow.style.cssText = "display:flex;align-items:center;gap:8px;";
+    const tagsLabelEl = document.createElement("label");
+    tagsLabelEl.textContent = "Tags";
+    tagsLabelEl.style.cssText = "font-size:13px;color:#555;flex:0 0 auto;";
+    const tagsInput = document.createElement("input");
+    tagsInput.type = "text";
+    // 预留属性字段，不强绑定具体结构（后续 tags 搜索与存储再统一）
+    const existingTags = Array.isArray(annotation.tags)
+      ? annotation.tags.join(" ")
+      : (annotation.tagsText || "");
+    tagsInput.value = existingTags;
+    tagsInput.placeholder = "Tags（占位：暂未接搜索与持久化）";
+    tagsInput.style.cssText = [
+      "flex:1",
+      "padding:4px 8px",
+      "border:1px solid #ddd",
+      "border-radius:4px",
+      "font-size:13px",
+      "box-sizing:border-box"
+    ].join(";");
+    tagsInput.addEventListener("change", () => {
+      const raw = (tagsInput.value || "").trim();
+      annotation.tagsText = raw;
+    });
+    tagsRow.appendChild(tagsLabelEl);
+    tagsRow.appendChild(tagsInput);
+
+    metaContainer.appendChild(titleRow);
+    metaContainer.appendChild(tagsRow);
+
     // ID显示
     const idInfo = document.createElement("div");
     idInfo.textContent = `标注ID: ${annotationId}`;
@@ -1501,6 +1568,7 @@ export class AnnotationSidebarUI {
     buttonContainer.appendChild(confirmBtn);
     dialog.appendChild(title);
     dialog.appendChild(annotationContent);  // 标注内容（第二期：新增）
+    dialog.appendChild(metaContainer);      // 标注元信息编辑（标题 + Tags）
     dialog.appendChild(idInfo);
     dialog.appendChild(commentsContainer);
     dialog.appendChild(textarea);

@@ -72,8 +72,12 @@ class PDFAnnotationTablePlugin(TablePlugin):
         CREATE TABLE IF NOT EXISTS pdf_annotation (
             ann_id TEXT PRIMARY KEY NOT NULL,
             pdf_uuid TEXT NOT NULL,
-            page_number INTEGER NOT NULL CHECK (page_number > 0),
             type TEXT NOT NULL CHECK (type IN ('screenshot', 'text-highlight', 'comment')),
+            page_number INTEGER NOT NULL CHECK (page_number > 0),
+            preview_text TEXT DEFAULT '',
+            title TEXT,
+            is_key INTEGER CHECK (is_key IS NULL OR is_key IN (0, 1)),
+            importance INTEGER CHECK (importance IS NULL OR (importance BETWEEN 1 AND 3)),
             created_at INTEGER NOT NULL DEFAULT 0,
             updated_at INTEGER NOT NULL DEFAULT 0,
             version INTEGER NOT NULL DEFAULT 1,
@@ -89,9 +93,39 @@ class PDFAnnotationTablePlugin(TablePlugin):
             ON pdf_annotation(pdf_uuid, page_number);
         """
         self._executor.execute_script(script)
+        # 兼容已有数据库：确保新增的元字段列存在
+        self._ensure_meta_columns()
         self._emit_event('create', 'completed')
         if self._logger:
             self._logger.info('pdf_annotation table ensured')
+
+    def _ensure_meta_columns(self) -> None:
+        """
+        确保旧库中补齐 title/is_key/importance 列。
+
+        - 对于新创建的库：CREATE TABLE 已经包含这些列，此方法为 no-op。
+        - 对于旧库：根据 PRAGMA table_info 结果判断是否需要执行 ALTER TABLE。
+        """
+        rows = self._executor.execute_query("PRAGMA table_info(pdf_annotation)")
+        existing_columns = {row["name"] for row in rows}
+
+        alter_statements: List[str] = []
+        if "title" not in existing_columns:
+            alter_statements.append("ALTER TABLE pdf_annotation ADD COLUMN title TEXT")
+        if "is_key" not in existing_columns:
+            alter_statements.append(
+                "ALTER TABLE pdf_annotation "
+                "ADD COLUMN is_key INTEGER CHECK (is_key IS NULL OR is_key IN (0, 1))"
+            )
+        if "importance" not in existing_columns:
+            alter_statements.append(
+                "ALTER TABLE pdf_annotation "
+                "ADD COLUMN importance INTEGER "
+                "CHECK (importance IS NULL OR (importance BETWEEN 1 AND 3))"
+            )
+
+        for statement in alter_statements:
+            self._executor.execute_update(statement, None)
 
     # ==================== 验证 ====================
 
@@ -106,11 +140,15 @@ class PDFAnnotationTablePlugin(TablePlugin):
     def insert(self, data: Dict[str, Any]) -> str:
         validated = self.validate_data(data)
 
+        # 规范化元字段（title/is_key/importance）
+        meta = self._normalize_meta_fields(data, validated)
+
         sql = """
         INSERT INTO pdf_annotation (
             ann_id, pdf_uuid, page_number, type,
-            created_at, updated_at, version, json_data
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            created_at, updated_at, version, json_data,
+            title, is_key, importance
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
             validated['ann_id'],
@@ -121,6 +159,9 @@ class PDFAnnotationTablePlugin(TablePlugin):
             validated['updated_at'],
             validated['version'],
             json.dumps(validated['json_data'], ensure_ascii=False),
+            meta['title'],
+            meta['is_key'],
+            meta['importance'],
         )
 
         self._executor.execute_update(sql, params)
@@ -148,7 +189,11 @@ class PDFAnnotationTablePlugin(TablePlugin):
             'json_data': {
                 'data': json.loads(json.dumps(existing['data'])),
                 'comments': json.loads(json.dumps(existing.get('comments', [])))
-            }
+            },
+            # 元字段默认沿用原值，若无则为 None
+            'title': existing.get('title'),
+            'is_key': existing.get('is_key'),
+            'importance': existing.get('importance'),
         }
 
         # 合并允许的字段；具体合法性统一交给 validate_data 校验
@@ -173,6 +218,7 @@ class PDFAnnotationTablePlugin(TablePlugin):
             merged['json_data']['data'].update(data['data'])
 
         normalized = self.validate_data(merged)
+        meta = self._normalize_meta_fields(data, normalized, allow_empty_title=False)
 
         sql = """
         UPDATE pdf_annotation
@@ -183,7 +229,10 @@ class PDFAnnotationTablePlugin(TablePlugin):
             created_at = ?,
             updated_at = ?,
             version = ?,
-            json_data = ?
+            json_data = ?,
+            title = ?,
+            is_key = ?,
+            importance = ?
         WHERE ann_id = ?
         """
         params = (
@@ -194,6 +243,9 @@ class PDFAnnotationTablePlugin(TablePlugin):
             normalized['updated_at'],
             normalized['version'],
             json.dumps(normalized['json_data'], ensure_ascii=False),
+            meta['title'],
+            meta['is_key'],
+            meta['importance'],
             primary_key,
         )
         rows = self._executor.execute_update(sql, params)
@@ -267,9 +319,98 @@ class PDFAnnotationTablePlugin(TablePlugin):
             'created_at': row['created_at'],
             'updated_at': row['updated_at'],
             'version': row['version'],
+            'title': row.get('title'),
+            'is_key': row.get('is_key'),
+            'importance': row.get('importance'),
             'data': data_obj,
             'comments': json_data.get('comments', []),
         }
+
+    # ==================== 元字段工具 ====================
+
+    def _normalize_meta_fields(
+        self,
+        raw: Dict[str, Any],
+        validated_core: Dict[str, Any],
+        *,
+        allow_empty_title: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        规范化 title / is_key / importance。
+
+        - insert 时 allow_empty_title=True：可缺省，由本方法生成默认标题；
+        - update 时 allow_empty_title=False：显式设置空字符串视为错误。
+        """
+        title_value = raw.get('title')
+        if title_value is not None:
+            if not isinstance(title_value, str):
+                raise DatabaseValidationError('title must be a string')
+            if not title_value.strip() and not allow_empty_title:
+                raise DatabaseValidationError('title cannot be empty')
+            title = title_value.strip() or None
+        else:
+            title = None
+
+        is_key_raw = raw.get('is_key')
+        if is_key_raw is None:
+            is_key: Optional[int] = None
+        else:
+            try:
+                is_key_int = int(is_key_raw)
+            except (TypeError, ValueError):
+                raise DatabaseValidationError('is_key must be 0 or 1')
+            if is_key_int not in (0, 1):
+                raise DatabaseValidationError('is_key must be 0 or 1')
+            is_key = is_key_int
+
+        importance_raw = raw.get('importance')
+        if importance_raw is None:
+            importance: Optional[int] = None
+        else:
+            try:
+                imp_int = int(importance_raw)
+            except (TypeError, ValueError):
+                raise DatabaseValidationError('importance must be an integer between 1 and 3')
+            if imp_int < 1 or imp_int > 3:
+                raise DatabaseValidationError('importance must be an integer between 1 and 3')
+            importance = imp_int
+
+        # insert 时，如果仍然没有 title，则按规则生成默认标题
+        if title is None and allow_empty_title:
+            pdf_uuid = validated_core['pdf_uuid']
+            page_number = validated_core['page_number']
+            title = self._generate_default_title(pdf_uuid, page_number)
+
+        return {
+            'title': title,
+            'is_key': is_key,
+            'importance': importance,
+        }
+
+    def _generate_default_title(self, pdf_uuid: str, page_number: int) -> str:
+        """
+        根据 pdf_info.title 与页码生成默认标题：
+        annotation-[书名截断15字符，超长加...]-p[页码]
+        """
+        rows = self._executor.execute_query(
+            "SELECT title FROM pdf_info WHERE uuid = ?", (pdf_uuid,)
+        )
+        if rows:
+            book_title_raw = rows[0].get('title') or ''
+            if not isinstance(book_title_raw, str):
+                raise DatabaseValidationError('pdf_info.title must be a string')
+            book_title = book_title_raw.strip()
+        else:
+            # 若 pdf_info 尚不存在，则退化为仅包含页码的占位标题，
+            # 外键约束依旧会在 INSERT 阶段触发错误（保持既有行为）。
+            book_title = ""
+
+        if len(book_title) > 15:
+            short_title = book_title[:15] + "..."
+        else:
+            short_title = book_title
+
+        return f"annotation-{short_title}-p{page_number}"
 
     # ==================== 扩展方法 ====================
 

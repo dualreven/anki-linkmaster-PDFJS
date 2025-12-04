@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>新卡片规划器 - Anki LinkMaster</title>
+  <link rel="stylesheet" href="../pdf-home/style.css">
+</head>
+<body>
+  <div class="app-root new-card-scheduler-root">
+    <header class="pdf-home-header">
+      <h1 class="pdf-home-title">🧩 新卡片规划器（Batch Card Planner）</h1>
+      <div class="toolbar-controls" id="window-controls-slot"></div>
+    </header>
+    <main class="pdf-home-main">
+      <aside class="sidebar" id="planner-sidebar">
+        <h2>布局 / 工具</h2>
+        <div id="planner-layout-switcher"></div>
+      </aside>
+      <div class="main-content">
+        <div class="search-results-header">
+          <h2>卡片规划空间（开发中骨架）</h2>
+        </div>
+        <div id="planner-workspace" class="pdf-table-container"></div>
+      </div>
+    </main>
+  </div>
+  <div id="izi-toast-root" style="position:fixed;top:16px;right:16px;z-index:2147483647;pointer-events:none;display:flex;flex-direction:column;gap:8px"></div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
+
