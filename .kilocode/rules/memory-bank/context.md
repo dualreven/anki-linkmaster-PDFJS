@@ -17,8 +17,8 @@
   - 前端 Viewer 侧边栏与“标注管理器”入口（2025-12-04）：
     - 在 `infra-sidebar` 中统一了侧边栏 Header 骨架：使用 `.sidebar-header` + `.sidebar-title` + `.sidebar-header-actions`，支持通过 `SidebarConfig.createHeaderExtraActions()` 在“关闭按钮左侧”插入单个方形图标按钮，避免各 Sidebar 自己拼 Header 导致样式与行为不一致。
     - 标注侧边栏 `annotation` 的配置中启用该扩展位：`createHeaderExtraActions` 返回一个 `button.sidebar-icon-btn.pdf-sidebar-annotation-manager-btn`，与关闭按钮共用一套尺寸/hover/active 样式（定义于 `sidebar-layout.css`），视觉上保持一致，仅图标为方框“□”以表示“打开管理器”。
-    - 当前阶段点击该按钮仅通过 `showInfo("标注管理器按钮已点击（开发中...）", 2500)` 弹出 toast，用作 UI 与交互契约的占位；后续由 MsgCenter 消息链路替换为“启动标注管理器窗口，并携带 pdf-id”的正式逻辑。
-    - 为上述 Header 扩展位新增 Jest 测试 `infra-sidebar/__tests__/annotation-sidebar-header-manager-button.test.js`：断言标注侧栏 Header 中存在 manager 方框按钮、仍只有一个关闭按钮，并在点击时调用 `showInfo(...)`，防止未来样式重构或 DOM 结构调整时误删该入口或出现双关闭按钮。
+    - 当前阶段点击该按钮会通过 `PDF_VIEWER_EVENTS.ANNOTATION.MANAGER.OPEN_WINDOW_REQUESTED` 发出“打开标注管理器窗口”的全局事件，事件 payload 中包含当前 URL 解析出的 `pdf-id`；`WebSocketAdapter` 监听该事件并调用 `wsClient.send({ type: WEBSOCKET_MESSAGE_TYPES.APP_WINDOW_OPEN_REQUESTED, data:{ client_id:'anno-manager', window_type:'anno-manager', params:{ pdf_id }}})`，最终由 MsgCenter/BackendLauncher 统一调度 Hosted anno-manager 窗口。
+    - 同时保留轻量级 toast 反馈 `showInfo("正在请求打开标注管理器...", 2000)`，提示用户点击已被处理；为上述链路新增 Jest 测试：`infra-sidebar/__tests__/annotation-sidebar-header-manager-button.test.js` 用于保证 Header 中仍只有一个关闭按钮且点击会发出 OPEN_WINDOW_REQUESTED 事件，并携带 `pdf-id`；`adapters/__tests__/websocket-adapter.anno-manager-window-open.test.js` 校验 WebSocketAdapter 收到事件后会向 MsgCenter 发送正确的 `app-window:open:requested` 消息。
 
 ## 当前任务快照（2025-11-29）
 - 任务1：🔍 分析 pdf-viewer 断点续读（resume）在高页码场景下的恢复页码偏差（例：关闭在 42 页，重开时在 39–40 跳动并最终停在 40 页）

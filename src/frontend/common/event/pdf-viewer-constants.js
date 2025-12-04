@@ -1103,6 +1103,18 @@ export const PDF_VIEWER_EVENTS = {
     },
 
     /**
+     * 标注管理器 / 工具窗口相关事件
+     */
+    MANAGER: {
+      /** 请求通过 MsgCenter 打开标注管理器窗口（anno-manager） */
+      OPEN_WINDOW_REQUESTED: "annotation-manager:window-open:requested",
+      /** 标注管理器窗口打开成功（预留） */
+      OPEN_WINDOW_SUCCESS: "annotation-manager:window-open:success",
+      /** 标注管理器窗口打开失败（预留） */
+      OPEN_WINDOW_FAILED: "annotation-manager:window-open:failed",
+    },
+
+    /**
      * 工具模式切换事件
      */
     TOOL: {

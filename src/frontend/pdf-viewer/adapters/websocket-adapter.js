@@ -364,6 +364,61 @@ export class WebSocketAdapter {
       { subscriberId: "WebSocketAdapter" }
     );
 
+    // 标注管理器窗口打开请求 → 通过 MsgCenter 打开 anno-manager Hosted 窗口
+    const unsubAnnoManager = this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANNOTATION.MANAGER.OPEN_WINDOW_REQUESTED,
+      (payload) => {
+        try {
+          if (!this.#wsClient || typeof this.#wsClient.send !== "function") {
+            this.#logger.error("[AnnoManager] Skip app-window open: wsClient unavailable", { payload });
+            return;
+          }
+
+          // 优先使用事件中携带的 pdfId，其次回退到 URL 解析
+          const fromEvent = payload && (payload.pdfId || payload.pdf_id);
+          const pdfId = (typeof fromEvent === "string" && fromEvent.trim() !== "")
+            ? fromEvent.trim()
+            : getPdfId();
+
+          if (!pdfId || typeof pdfId !== "string" || pdfId.trim() === "") {
+            try {
+              this.#logger.error(
+                "[AnnoManager] Skip app-window open: missing pdf-id",
+                { payload },
+                { toast: { type: "error", ms: 4000 } }
+              );
+            } catch (logErr) {
+              void logErr;
+            }
+            return;
+          }
+
+          const clientId = "anno-manager";
+          this.#logger.info("[AnnoManager] Sending app-window open request via WS", { clientId, pdfId });
+
+          this.#wsClient.send({
+            type: WEBSOCKET_MESSAGE_TYPES.APP_WINDOW_OPEN_REQUESTED,
+            data: {
+              client_id: clientId,
+              window_type: "anno-manager",
+              params: { pdf_id: pdfId }
+            }
+          });
+        } catch (e) {
+          try {
+            this.#logger.error(
+              "[AnnoManager] Failed to send app-window open request",
+              e,
+              { toast: { type: "error", ms: 4000 } }
+            );
+          } catch (logErr) {
+            void logErr;
+          }
+        }
+      },
+      { subscriberId: "WebSocketAdapter" }
+    );
+
     this.#subscriptions.add(unsubscribe1);
     this.#subscriptions.add(unsubscribe2);
     this.#subscriptions.add(unsubscribe3);
@@ -372,6 +427,7 @@ export class WebSocketAdapter {
     this.#subscriptions.add(unsubA3);
     this.#subscriptions.add(unsubA4);
     this.#subscriptions.add(unsubA5);
+    this.#subscriptions.add(unsubAnnoManager);
   }
 
   /**

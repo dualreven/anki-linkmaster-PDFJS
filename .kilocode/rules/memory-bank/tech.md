@@ -766,3 +766,6 @@ python ai_launcher.py status
     - `annotation_query:search`（支持条件：来源 PDF、tag、是否有卡片、时间范围等）；
     - `annotation_query:related`（返回某标注的一跳/多跳邻居，包括 PDF / Card / 其他标注）。
   - UI 层的多种布局（列表/树/导图等）应基于这些查询 API 构建，不直接拼写 SQL 或访问底层表结构，确保后续可以在后端调整表设计而不影响前端调用。
+  - 启动路径：
+    - GUI Launcher：按钮 → 通过 MsgCenter `app-window:open:requested` 打开 `window_type="anno-manager"` 的 Hosted 窗口（client_id 固定为 `anno-manager`，由 BackendLauncher 通过 WindowLifecycleManager 管理生命周期）；
+    - pdf-viewer 内部：标注侧栏 Header 方框按钮通过 `PDF_VIEWER_EVENTS.ANNOTATION.MANAGER.OPEN_WINDOW_REQUESTED` 事件发起请求，由 WebSocketAdapter 统一封装 `WEBSOCKET_MESSAGE_TYPES.APP_WINDOW_OPEN_REQUESTED` 消息，消息体 `data = { client_id: "anno-manager", window_type: "anno-manager", params: { pdf_id } }`，交由 MsgCenter/BackendLauncher 打开或激活标注管理器窗口。

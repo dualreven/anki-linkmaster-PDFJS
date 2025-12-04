@@ -18,6 +18,7 @@ jest.mock("../../../../common/utils/notification.js", () => ({
 import globalEventBus from "../../../../common/event/event-bus.js";
 import { SidebarManagerFeature } from "../index.js";
 import { showInfo } from "../../../../common/utils/notification.js";
+import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 
 function createContainer(stubs = {}) {
   const store = new Map(Object.entries(stubs));
@@ -35,7 +36,7 @@ describe("SidebarManagerFeature annotation header manager button", () => {
     jest.clearAllMocks();
   });
 
-  test("annotation sidebar header has manager square button near close and triggers toast", async () => {
+  test("annotation sidebar header has manager square button near close and emits anno-manager open event", async () => {
     const container = createContainer({
       annotationSidebarUI: {
         initialize: jest.fn(),
@@ -48,6 +49,13 @@ describe("SidebarManagerFeature annotation header manager button", () => {
       cardSidebarUI: null,
       translatorSidebarUI: null
     });
+
+    // 设定 URL，提供 pdf-id，便于后续事件和 WS 桥接使用
+    try {
+      window.history.pushState({}, "", "/pdf-viewer/?pdf-id=jest-pdf-001");
+    } catch {}
+
+    const emitSpy = jest.spyOn(globalEventBus, "emit");
 
     const feature = new SidebarManagerFeature();
     await feature.install({
@@ -72,6 +80,16 @@ describe("SidebarManagerFeature annotation header manager button", () => {
 
     managerBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
-    expect(showInfo).toHaveBeenCalledWith("标注管理器按钮已点击（开发中...）", 2500);
+    // 应该触发全局事件，用于通过 WebSocketAdapter 打开 anno-manager 窗口
+    const openCall = emitSpy.mock.calls.find(
+      ([eventName]) => eventName === PDF_VIEWER_EVENTS.ANNOTATION.MANAGER.OPEN_WINDOW_REQUESTED
+    );
+    expect(openCall).toBeTruthy();
+
+    const payload = openCall[1];
+    expect(payload).toEqual(expect.objectContaining({ pdfId: "jest-pdf-001" }));
+
+    // 仍然保留 toast 反馈，提示用户已点击按钮
+    expect(showInfo).toHaveBeenCalled();
   });
 });

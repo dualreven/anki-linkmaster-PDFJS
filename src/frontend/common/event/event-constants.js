@@ -164,6 +164,10 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   STORAGE_FS_READ: "storage-fs:read:requested",
   STORAGE_FS_WRITE: "storage-fs:write:requested",
 
+  // 应用窗口控制（通过 MsgCenter 打开/关闭 Hosted 窗口）
+  APP_WINDOW_OPEN_REQUESTED: "app-window:open:requested",
+  APP_WINDOW_CLOSE_REQUESTED: "app-window:close:requested",
+
   // Annotation (标注) 消息
   ANNOTATION_LIST: "annotation:list:requested",
   ANNOTATION_SAVE: "annotation:save:requested",
@@ -263,6 +267,9 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   ANCHOR_DELETE_FAILED: "anchor:delete:failed",
   ANCHOR_ACTIVATE_COMPLETED: "anchor:activate:completed",
   ANCHOR_ACTIVATE_FAILED: "anchor:activate:failed",
+  // 应用窗口控制响应（当前主要用于协议对齐）
+  APP_WINDOW_OPEN_COMPLETED: "app-window:open:completed",
+  APP_WINDOW_CLOSE_COMPLETED: "app-window:close:completed",
 
   // Debug / Flags
   DEBUG_INFO_READ_COMPLETED: "debug-info:read:completed",
