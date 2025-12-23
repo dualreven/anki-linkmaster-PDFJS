@@ -17,7 +17,7 @@
 import { getLogger } from "../../../../common/utils/logger.js";
 import { Annotation, AnnotationType } from "../../../../common/models/annotation.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
-import { WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_EVENTS } from "../../../../common/event/event-constants.js";
+import { WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constants.js";
 
 /**
  * 标注管理器类
@@ -458,90 +458,43 @@ export class AnnotationManager {
    * @private
    */
   async #loadAnnotationsFromBackend(pdfId) {
-    try {
-      if (!this.#wsClient || typeof this.#wsClient.request !== "function") {
-        this.#logger.info("[AnnotationManager] WS unavailable during load; return empty");
-        return [];
-      }
-      if (typeof this.#wsClient.isConnected === "function" && !this.#wsClient.isConnected()) {
-        this.#logger.info("[AnnotationManager] WS not connected during load; return empty");
-        return [];
-      }
-      let resp;
-      try {
-        // 首选：标准请求-响应路径
-        resp = await this.#wsClient.request(
-          WEBSOCKET_MESSAGE_TYPES.ANNOTATION_LIST,
-          { pdf_uuid: pdfId },
-          { timeout: 8000, metadata: { version: "1.0.0" } }
-        );
-      } catch (e) {
-        // 兼容兜底：某些环境下 WSClient 未正确结算 pending（如消息路由为 UNKNOWN），
-        // 从通用 inbound 事件中嗅探 annotation:list:completed 并提取 data
-        this.#logger.warn("[AnnotationManager] Request-reply failed, try sniffing inbound list:completed", { error: e?.message });
-        try {
-          resp = await this.#waitForListCompleted(pdfId, 1200);
-        } catch {
-          throw e; // 兜底也失败，抛出原始异常，进入上一层 catch → 返回空
-        }
-      }
-      const items = Array.isArray(resp?.annotations) ? resp.annotations : [];
-      const result = [];
-      for (const obj of items) {
-        try {
-          result.push(Annotation.fromJSON({
-            id: obj.id,
-            type: obj.type,
-            pageNumber: obj.pageNumber,
-            data: obj.data || {},
-            comments: obj.comments || [],
-            createdAt: obj.createdAt,
-            updatedAt: obj.updatedAt,
-            title: obj.title,
-          }));
-        } catch (err) {
-          // 跳过不符合当前模型校验的历史数据，避免整批加载失败
-          this.#logger.warn("[AnnotationManager] Skip invalid annotation from backend", {
-            id: obj?.id,
-            type: obj?.type,
-            error: err?.message
-          });
-        }
-      }
-      return result;
-    } catch (e) {
-      this.#logger.warn("[AnnotationManager] Remote load failed; return empty", { error: e?.message });
-      return [];
+    if (!this.#wsClient || typeof this.#wsClient.request !== "function") {
+      // Fail-Fast：不允许静默返回空数组，否则会导致 UI 误判“已加载完成(0条)”并阻止后续自动重试
+      throw new Error("wsClient not available");
     }
-  }
 
-  /**
-   * 嗅探 inbound 消息中的 annotation:list:completed（兜底策略）
-   * @param {string} pdfId
-   * @param {number} timeoutMs
-   * @returns {Promise<object>}
-   * @private
-   */
-  #waitForListCompleted(pdfId, timeoutMs = 1200) {
-    return new Promise((resolve, reject) => {
-      // 后端当前未在 data 中附带 pdf_uuid，这里接受首个 list:completed 作为兜底
-      const onMsg = (msg) => {
-        try {
-          const t = String(msg?.type || "");
-          if (t === PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED) {
-            const data = msg?.data || {};
-            try { off(); } catch { /* ignore */ }
-            clearTimeout(timer);
-            resolve(data);
-          }
-        } catch { /* ignore */ }
-      };
-      const off = this.#eventBus.on(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, onMsg, { subscriberId: "AnnotationManager-sniff" });
-      const timer = setTimeout(() => {
-        try { off(); } catch { /* ignore */ }
-        reject(new Error("sniff_timeout"));
-      }, timeoutMs);
-    });
+    // 关键：不要在未连接时直接返回空。WSClient.request() 支持未连接排队，
+    // 并会在连接建立后先完成注册、再 flush 发送请求，确保首开也能自动拿到标注列表。
+    const resp = await this.#wsClient.request(
+      WEBSOCKET_MESSAGE_TYPES.ANNOTATION_LIST,
+      { pdf_uuid: pdfId },
+      { timeout: 8000, metadata: { version: "1.0.0" } }
+    );
+
+    const items = Array.isArray(resp?.annotations) ? resp.annotations : [];
+    const result = [];
+    for (const obj of items) {
+      try {
+        result.push(Annotation.fromJSON({
+          id: obj.id,
+          type: obj.type,
+          pageNumber: obj.pageNumber,
+          data: obj.data || {},
+          comments: obj.comments || [],
+          createdAt: obj.createdAt,
+          updatedAt: obj.updatedAt,
+          title: obj.title,
+        }));
+      } catch (err) {
+        // 跳过不符合当前模型校验的历史数据，避免整批加载失败
+        this.#logger.warn("[AnnotationManager] Skip invalid annotation from backend", {
+          id: obj?.id,
+          type: obj?.type,
+          error: err?.message
+        });
+      }
+    }
+    return result;
   }
 
   async #deleteAnnotationFromBackend(id) {

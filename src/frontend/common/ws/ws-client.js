@@ -104,8 +104,12 @@ export class WSClient {
     // 显式传入优先：允许调用方指定 client_name/client_id/module
     if (identityOptions && typeof identityOptions === "object") {
       const name = String(identityOptions.client_name || "").trim();
-      const cid = identityOptions.client_id != null ? String(identityOptions.client_id).trim() : null;
-      const mod = identityOptions.module != null ? String(identityOptions.module).trim() : null;
+      const cid = (identityOptions.client_id !== null && identityOptions.client_id !== undefined)
+        ? String(identityOptions.client_id).trim()
+        : null;
+      const mod = (identityOptions.module !== null && identityOptions.module !== undefined)
+        ? String(identityOptions.module).trim()
+        : null;
       if (name) {
         this.#logger.info(`[WSClient] 使用显式身份: ${name}:${cid || "none"} (module=${mod || "n/a"})`);
         return { client_name: name, client_id: cid, module: mod };
@@ -205,8 +209,8 @@ export class WSClient {
         };
 
         const cleanup = () => {
-          try { this.#socket.removeEventListener("open", onOpen); } catch {}
-          try { this.#socket.removeEventListener("error", onError); } catch {}
+          try { this.#socket.removeEventListener("open", onOpen); } catch (e) { this.#logger.debug("[WSClient] cleanup removeEventListener(open) failed", e); }
+          try { this.#socket.removeEventListener("error", onError); } catch (e) { this.#logger.debug("[WSClient] cleanup removeEventListener(error) failed", e); }
         };
 
         this.#socket.addEventListener("open", onOpen);
@@ -271,9 +275,9 @@ export class WSClient {
     // 2. 已有 to 字段的消息不覆盖（调用方显式指定）
     // 3. 其他请求消息自动添加 to: "backend"
     const REGISTER_MESSAGES = [
-      "client:register:requested",
-      "client:unregister:requested",  // 客户端取消注册（窗口关闭时）
-      "pdf-viewer:register:requested"
+      WEBSOCKET_MESSAGE_TYPES.CLIENT_REGISTER_REQUESTED,
+      WEBSOCKET_MESSAGE_TYPES.CLIENT_UNREGISTER_REQUESTED,  // 客户端取消注册（窗口关闭时）
+      WEBSOCKET_MESSAGE_TYPES.VIEWER_REGISTER_REQUESTED
     ];
 
     if (!message.to && !REGISTER_MESSAGES.includes(type)) {
@@ -284,6 +288,18 @@ export class WSClient {
 
     if (this.isConnected()) {
       try {
+        // 若该消息对应 request() 生成的 pending 请求，则在真正发送前启动 timeout 计时
+        // （避免“排队时提前超时，flush 后响应无人接收”）
+        try {
+          const rid = message.request_id;
+          if (rid && this.#pendingRequests.has(rid)) {
+            const h = this.#pendingRequests.get(rid);
+            if (h && typeof h.startTimeout === "function") {
+              h.startTimeout();
+            }
+          }
+        } catch { /* ignore */ }
+
         this.#socket.send(JSON.stringify(message));
         this.#logger.debug(`✉️ 已发送消息: ${type}`, {
           type,
@@ -774,9 +790,9 @@ export class WSClient {
     // ========== 自动添加 to 字段（新协议：2025-01-16）==========
     // 规则：注册/取消注册消息禁止包含 to，其他请求消息自动添加 to: "backend"
     const REGISTER_MESSAGES = [
-      "client:register:requested",
-      "client:unregister:requested",  // 客户端取消注册（窗口关闭时）
-      "pdf-viewer:register:requested"
+      WEBSOCKET_MESSAGE_TYPES.CLIENT_REGISTER_REQUESTED,
+      WEBSOCKET_MESSAGE_TYPES.CLIENT_UNREGISTER_REQUESTED,  // 客户端取消注册（窗口关闭时）
+      WEBSOCKET_MESSAGE_TYPES.VIEWER_REGISTER_REQUESTED
     ];
     if (!message.to && !REGISTER_MESSAGES.includes(messageType)) {
       message.to = "backend";
@@ -787,19 +803,28 @@ export class WSClient {
       let retryCount = 0;
 
       const doRegisterPending = () => {
-        const timeoutId = setTimeout(() => {
-          this.#pendingRequests.delete(requestId);
-          this.#requestRetries.delete(requestId);
-          reject(new Error("请求超时"));
-        }, timeout);
+        // 关键：当 WS 还未连接时，request 会被排队等待 flush 发送。
+        // 如果此时就启动 timeout，会导致“连接尚未建立即超时，随后 flush 发送但响应无人接收”的丢失。
+        // 因此 timeout 仅在消息真正被发送时才开始计时（见 send()/flush 阶段的 startTimeout）。
+        const timeoutRef = { id: null };
+
+        const startTimeout = () => {
+          if (timeoutRef.id) { return; }
+          timeoutRef.id = setTimeout(() => {
+            this.#pendingRequests.delete(requestId);
+            this.#requestRetries.delete(requestId);
+            reject(new Error("请求超时"));
+          }, timeout);
+        };
 
         this.#pendingRequests.set(requestId, {
+          startTimeout,
           resolve: (data) => {
-            clearTimeout(timeoutId);
+            if (timeoutRef.id) { clearTimeout(timeoutRef.id); }
             resolve(data);
           },
           reject: (error) => {
-            clearTimeout(timeoutId);
+            if (timeoutRef.id) { clearTimeout(timeoutRef.id); }
             reject(error);
           }
         });
@@ -819,6 +844,12 @@ export class WSClient {
         }
 
         doRegisterPending();
+        try {
+          const h = this.#pendingRequests.get(requestId);
+          if (h && typeof h.startTimeout === "function") {
+            h.startTimeout();
+          }
+        } catch { /* ignore */ }
         try {
           message.timestamp = Date.now();
           this.#socket.send(JSON.stringify(message));
@@ -1004,4 +1035,3 @@ export class WSClient {
 
 // 兼容默认导出（部分模块以 default 方式导入）
 export default WSClient;
-
