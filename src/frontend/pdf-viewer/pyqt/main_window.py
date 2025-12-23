@@ -67,14 +67,8 @@ class MainWindow(QMainWindow):
         self.setGeometry(100, 100, 1200, 800)
 
         # 使用完全无边框窗口（用HTML自定义所有窗口控制按钮）
-        try:
-            from PyQt6.QtCore import Qt
-            self.setWindowFlags(
-                Qt.WindowType.Window |  # 保持正常窗口
-                Qt.WindowType.FramelessWindowHint  # 完全无边框（去除标题栏和所有原生按钮）
-            )
-        except Exception:
-            pass  # 如果设置失败，使用默认窗口
+        from src.frontend.common.pyqt.window_style import apply_frameless_window_flags
+        apply_frameless_window_flags(self, logger, label=f"pdf-viewer[{pdf_id}]")
 
         # QtWebEngine Inspector设置
         self.inspector_window = None

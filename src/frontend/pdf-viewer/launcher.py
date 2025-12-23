@@ -37,6 +37,8 @@ sys.path.insert(0, str(project_root))
 from src.qt.compat import QApplication, QUrl, QWebChannel, QWebSocket
 from src.frontend.common.launch_config import LaunchConfig
 from src.launcher.ports import read_runtime_ports as _ports_read, write_runtime_ports as _ports_write
+from src.frontend.common.pyqt.qt_app_runner import init_qapplication, run_event_loop_if_needed
+from src.frontend.common.pyqt.ports_utils import resolve_frontend_ports
 
 # Import modules from pyqt directory by absolute file path to avoid cwd/sys.path issues in Hosted mode
 import importlib.util
@@ -207,25 +209,11 @@ def get_vite_port():
 
 
 def _read_runtime_ports(cwd: Path | None = None) -> tuple[int, int, int, dict]:
-    """读取 logs/runtime-ports.json（统一从 src.launcher.ports 调用）。"""
-    try:
-        base = _require_logs_dir()
-        data = _ports_read(base) or {}
-        def _pick_int(d: dict, keys: list[str]) -> int | None:
-            for k in keys:
-                if k in d and d[k] is not None:
-                    try:
-                        return int(d[k])
-                    except Exception:
-                        pass
-            return None
-        vite_port = _pick_int(data, ['vite_port', 'npm_port'])
-        msgCenter_port = _pick_int(data, ['msgCenter_port', 'ws_port'])
-        pdfFile_port = _pick_int(data, ['pdfFile_port', 'pdf_port'])
-        extras = {k: v for k, v in data.items() if k not in ("vite_port", "npm_port", "msgCenter_port", "ws_port", "pdfFile_port", "pdf_port")}
-        return vite_port, msgCenter_port, pdfFile_port, extras
-    except Exception as exc:  # pragma: no cover - defensive
-        raise RuntimeError(f"读取 runtime-ports.json 失败：{exc}")
+    """读取 logs/runtime-ports.json（统一从 resolve_frontend_ports 调用）。"""
+    cfg = LaunchConfig(is_prod=False)
+    cfg.logs_dir = str(_require_logs_dir())
+    url_port, msgCenter_port, pdfFile_port, extras = resolve_frontend_ports(cfg)
+    return url_port, msgCenter_port, pdfFile_port, extras
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -352,13 +340,8 @@ class PdfViewerApp:
         _setup_logging(self.pdf_id)
         logger.info(f"Launching pdf-viewer ({self.mode} mode, pdf_id: {self.pdf_id})")
 
-        # 步骤 3: 创建或使用 QApplication
-        if self.mode == "subprocess":
-            self.app = QApplication(sys.argv)
-            logger.info("✅ Created QApplication (subprocess mode)")
-        else:
-            self.app = self.parent_app
-            logger.info("✅ Using parent QApplication (hosted mode)")
+        # 步骤 3: 创建或使用 QApplication（统一使用公共辅助函数）
+        self.app, self.mode = init_qapplication(self.parent_app, logger, f"pdf-viewer[{self.pdf_id}]")
 
         # 步骤 4: 解析端口配置（严格校验，禁止兜底）
         vite_json, msgCenter_json, pdfFile_json, extras = _read_runtime_ports()
@@ -451,19 +434,8 @@ class PdfViewerApp:
             self.ws_client.close()
             return 0
 
-        # 步骤 13: 运行事件循环（仅子进程模式）
-        if self.mode == "subprocess":
-            rc = self.app.exec()
-            logger.info(f"pdf-viewer window exited with code {rc} (pdf_id: {self.pdf_id})")
-            # closeEvent 中已触发 cleanup，这里增加保护避免重复重重清理
-            try:
-                self.cleanup()
-            except Exception:
-                pass
-            return rc
-        else:
-            logger.info("pdf-viewer window started (hosted mode, no event loop)")
-            return 0
+        # 步骤 13: 运行事件循环（仅子进程模式，使用通用运行器）
+        return run_event_loop_if_needed(self.app, self.mode, logger, f"pdf-viewer[{self.pdf_id}]", cleanup_cb=self.cleanup)
 
     def _build_frontend_url(self, url_port: int, msgCenter_port: int, pdfFile_port: int) -> str:
         """

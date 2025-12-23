@@ -28,6 +28,8 @@ sys.path.insert(0, str(project_root))
 from src.qt.compat import QApplication, QUrl, QWebSocket, QWebChannel
 from src.frontend.common.launch_config import LaunchConfig
 from src.launcher.ports import read_runtime_ports as _ports_read, write_runtime_ports as _ports_write
+from src.frontend.common.pyqt.qt_app_runner import init_qapplication  # 统一 QApplication 启动模式
+from src.frontend.common.pyqt.ports_utils import resolve_frontend_ports
 
 # Import PyQtBridge and JSConsoleLogger from current directory
 import importlib.util
@@ -137,25 +139,12 @@ def get_vite_port():
 
 
 def _read_runtime_ports(cwd: Path | None = None) -> tuple[int, int, int, dict]:
-    """读取 logs/runtime-ports.json（统一从 src.launcher.ports 调用）。"""
-    try:
-        base = _require_logs_dir()
-        data = _ports_read(base) or {}
-        def _pick_int(d: dict, keys: list[str]) -> int | None:
-            for k in keys:
-                if k in d and d[k] is not None:
-                    try:
-                        return int(d[k])
-                    except Exception:
-                        pass
-            return None
-        vite_port = _pick_int(data, ['vite_port', 'npm_port'])
-        msgCenter_port = _pick_int(data, ['msgCenter_port', 'ws_port'])
-        pdfFile_port = _pick_int(data, ['pdfFile_port', 'pdf_port'])
-        extras = {k: v for k, v in data.items() if k not in ("vite_port", "npm_port", "msgCenter_port", "ws_port", "pdfFile_port", "pdf_port")}
-        return vite_port, msgCenter_port, pdfFile_port, extras
-    except Exception as exc:  # pragma: no cover - defensive
-        raise RuntimeError(f"读取 runtime-ports.json 失败：{exc}")
+    """读取 logs/runtime-ports.json（统一从 resolve_frontend_ports 调用）。"""
+    # 这里保持签名以兼容既有调用，但具体解析逻辑委托给前端公共工具。
+    cfg = LaunchConfig(is_prod=False)
+    cfg.logs_dir = str(_require_logs_dir())
+    url_port, msgCenter_port, pdfFile_port, extras = resolve_frontend_ports(cfg)
+    return url_port, msgCenter_port, pdfFile_port, extras
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -249,13 +238,8 @@ class PdfHomeApp:
         _setup_logging()
         logger.info(f"Launching pdf-home ({self.mode} mode)")
 
-        # 步骤 1: 创建或使用 QApplication
-        if self.mode == "subprocess":
-            self.app = QApplication(sys.argv)
-            logger.info("✅ Created QApplication (subprocess mode)")
-        else:
-            self.app = self.parent_app
-            logger.info("✅ Using parent QApplication (hosted mode)")
+        # 步骤 1: 创建或使用 QApplication（通过公共辅助函数）
+        self.app, self.mode = init_qapplication(self.parent_app, logger, "pdf-home")
 
         # 步骤 2: 解析端口配置（严格校验，禁止兜底）
         vite_json, msgCenter_json, pdfFile_json, extras = _read_runtime_ports(project_root)

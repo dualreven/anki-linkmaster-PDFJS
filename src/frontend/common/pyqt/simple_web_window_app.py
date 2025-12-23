@@ -13,16 +13,14 @@ from __future__ import annotations
 
 import logging
 import sys
-from pathlib import Path
 from typing import Optional
 
-from src.qt.compat import QApplication, QMainWindow, QWebEngineView, QWebEngineSettings, QUrl  # type: ignore
+from src.qt.compat import QApplication, QMainWindow, QWebEngineView, QWebEngineSettings, QUrl, QWebChannel  # type: ignore
 from src.frontend.common.launch_config import LaunchConfig
-from src.frontend.pdf-home.launcher import (  # 复用已实现的 logs_dir 与 runtime-ports 工具
-    _set_logs_dir as _set_logs_dir_home,          # type: ignore[attr-defined]
-    _require_logs_dir as _require_logs_dir_home,  # type: ignore[attr-defined]
-    _read_runtime_ports as _read_runtime_ports_home,  # type: ignore[attr-defined]
-)
+from src.frontend.common.pyqt.ports_utils import resolve_frontend_ports
+from src.frontend.common.pyqt.qt_app_runner import init_qapplication, run_event_loop_if_needed
+from src.frontend.common.pyqt.window_style import apply_frameless_window_flags
+from src.frontend.common.pyqt.simple_window_bridge import SimpleWindowBridge
 
 logger = logging.getLogger("simple-web-window")
 
@@ -36,14 +34,32 @@ class SimpleWebWindow(QMainWindow):
     self.setWindowTitle(title)
     self.resize(1100, 760)
 
-    view = QWebEngineView(self)
-    settings = view.settings()
+    # 统一应用无边框窗口样式（使用公共 helper）
+    apply_frameless_window_flags(self, logger, label=f"simple-web-window[{title}]")
+
+    # 创建 WebEngine 视图
+    self.view = QWebEngineView(self)
+    settings = self.view.settings()
     settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
     settings.setAttribute(QWebEngineSettings.WebAttribute.LocalStorageEnabled, True)
     settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, False)
 
-    view.setUrl(QUrl(url))
-    self.setCentralWidget(view)
+    # 构建 QWebChannel 并注册简单窗口桥接对象（用于 WindowControlsComponent 调用）
+    self.web_channel = None
+    self.window_bridge = None
+    try:
+      if self.view.page() is not None:
+        self.web_channel = QWebChannel(self.view)  # type: ignore[call-arg]
+        self.window_bridge = SimpleWindowBridge(parent=self)
+        self.web_channel.registerObject("simpleWindowBridge", self.window_bridge)
+        self.view.page().setWebChannel(self.web_channel)
+    except Exception:
+      # 若 QWebChannel 不可用，不阻断窗口启动；窗口控制按钮后续会 Fail-Fast 记录错误
+      self.web_channel = None
+      self.window_bridge = None
+
+    self.view.setUrl(QUrl(url))
+    self.setCentralWidget(self.view)
 
 
 class SimpleWebWindowApp:
@@ -65,39 +81,40 @@ class SimpleWebWindowApp:
     logger.info("SimpleWebWindowApp[%s] initialized (entry=%s)", self.mode, self.entry_path)
 
   def _resolve_ports(self) -> tuple[int, int, int, dict]:
-    vite_json, msgCenter_json, pdfFile_json, extras = _read_runtime_ports_home()
-    url_port_json = extras.get("url_port")
-    url_port = self.config.url_port if self.config.url_port is not None else (url_port_json or self.config.vite_port or vite_json)
-    msgCenter_port = self.config.msgCenter_port if self.config.msgCenter_port is not None else msgCenter_json
-    pdfFile_port = self.config.pdfFile_port if self.config.pdfFile_port is not None else pdfFile_json
-
-    missing = []
-    if url_port is None:
-      missing.append("url_port (或 vite_port)")
-    if msgCenter_port is None:
-      missing.append("msgCenter_port")
-    if pdfFile_port is None:
-      missing.append("pdfFile_port")
-    if missing:
-      logs_dir = getattr(self.config, "logs_dir", None)
-      where = f"{logs_dir}/runtime-ports.json" if logs_dir else "runtime-ports.json"
-      runtime_data = {"vite": vite_json, "msgCenter": msgCenter_json, "pdfFile": pdfFile_json, "url": url_port_json}
-      raise RuntimeError(
-        f"启动 simple-web-window 失败，端口缺失：{', '.join(missing)}\n"
-        f"runtime-ports.json: {runtime_data}\n"
-        f"位置：{where}"
-      )
-
-    return int(url_port), int(msgCenter_port), int(pdfFile_port), extras
+    url_port, msgCenter_port, pdfFile_port, extras = resolve_frontend_ports(self.config)
+    return url_port, msgCenter_port, pdfFile_port, extras
 
   def _build_frontend_url(self, url_port: int) -> str:
-    path = self.entry_path or ""
-    return f"http://localhost:{url_port}/{path}/"
+    """
+    构建前端 URL：
+    - 基础路径：http://localhost:<url_port>/<entry_path>/
+    - 若 LaunchConfig.extra_params 中包含 client_id，则追加 ?client-id=<client_id>
+    """
+    base_path = self.entry_path or ""
+    url = f"http://localhost:{url_port}/{base_path}/"
+
+    try:
+      extra = getattr(self.config, "extra_params", {}) or {}
+      client_id = extra.get("client_id")
+      pdf_id = extra.get("pdf_id")
+      query_parts: list[str] = []
+      if client_id:
+        from urllib.parse import quote
+        query_parts.append(f"client-id={quote(str(client_id))}")
+      if pdf_id:
+        from urllib.parse import quote
+        query_parts.append(f"pdf-id={quote(str(pdf_id))}")
+      if query_parts:
+        url += "?" + "&".join(query_parts)
+    except Exception:
+      # URL 构建失败不应影响窗口启动，保持现有行为
+      pass
+
+    return url
 
   def run(self) -> int:
     if not getattr(self.config, "logs_dir", None):
       raise RuntimeError("缺少 logs_dir：请在 LaunchConfig.logs_dir 指定或通过 CLI --logs-dir 传入")
-    _set_logs_dir_home(self.config.logs_dir)
 
     try:
       logging.basicConfig(
@@ -108,12 +125,8 @@ class SimpleWebWindowApp:
     except Exception:
       pass
 
-    if self.mode == "subprocess":
-      self.app = QApplication(sys.argv)
-      logger.info("✅ Created QApplication (subprocess mode)")
-    else:
-      self.app = self.parent_app
-      logger.info("✅ Using parent QApplication (hosted mode)")
+    # 使用统一的 QApplication 初始化逻辑
+    self.app, self.mode = init_qapplication(self.parent_app, logger, f"simple-web-window[{self.entry_path}]")
 
     url_port, msgCenter_port, pdfFile_port, extras = self._resolve_ports()
     logger.info("Resolved ports for %s: url=%s msgCenter=%s pdfFile=%s", self.entry_path, url_port, msgCenter_port, pdfFile_port)
@@ -127,11 +140,4 @@ class SimpleWebWindowApp:
     self.window = SimpleWebWindow(self.app, url=url, title=self.window_title)
     self.window.show()
 
-    if self.mode == "subprocess":
-      rc = self.app.exec()
-      logger.info("simple web window exited with code %s", rc)
-      return int(rc or 0)
-
-    logger.info("simple web window started (hosted mode, no event loop)")
-    return 0
-
+    return run_event_loop_if_needed(self.app, self.mode, logger, f"simple-web-window[{self.entry_path}]")

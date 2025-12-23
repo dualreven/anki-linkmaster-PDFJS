@@ -8,26 +8,45 @@
 </head>
 <body>
   <div class="app-root anno-manager-root">
-    <header class="pdf-home-header">
-      <h1 class="pdf-home-title">🧩 标注管理器（Annotation Manager）</h1>
-      <div class="toolbar-controls" id="window-controls-slot"></div>
+    <header class="pdf-home-header anno-manager-header">
+      <div class="pdf-home-header-main">
+        <h1 class="pdf-home-title">🧩 标注管理器（Annotation Manager）</h1>
+        <div class="toolbar-controls" id="window-controls-slot"></div>
+      </div>
+      <div class="anno-manager-header-toolbar">
+        <input
+          id="anno-manager-search-input"
+          class="anno-manager-search-input"
+          type="search"
+          placeholder="按标题 / 内容 / 标签 搜索标注…"
+        />
+        <button id="anno-manager-filter-btn" class="anno-manager-header-btn">筛选</button>
+        <button id="anno-manager-sort-btn" class="anno-manager-header-btn">排序</button>
+        <button id="anno-manager-import-btn" class="anno-manager-header-btn primary">从 PDF 导入</button>
+      </div>
     </header>
-    <main class="pdf-home-main">
-      <aside class="sidebar" id="anno-manager-sidebar">
-        <h2>过滤 / 视图</h2>
-        <div id="anno-manager-filters"></div>
-      </aside>
-      <div class="main-content">
-        <div class="search-results-header">
-          <h2>标注列表（开发中骨架）</h2>
+    <main class="pdf-home-main anno-manager-main">
+      <aside class="sidebar anno-manager-sidebar" id="anno-manager-sidebar"></aside>
+      <div class="main-content anno-manager-main-content">
+        <div class="search-results-header anno-manager-results-header">
+          <h2 class="anno-manager-results-title">搜索结果</h2>
+          <div class="anno-manager-view-modes">
+            <button class="view-mode-btn active" data-view-mode="list">列表</button>
+            <button class="view-mode-btn" data-view-mode="grid-2">两列</button>
+            <button class="view-mode-btn" data-view-mode="grid-3">三列</button>
+            <button class="view-mode-btn" data-view-mode="graph">导图</button>
+          </div>
           <span class="result-count-badge" id="anno-manager-count-badge">共 0 条</span>
         </div>
-        <div id="anno-manager-table-container" class="pdf-table-container"></div>
+        <div
+          id="anno-manager-results"
+          class="anno-manager-results anno-manager-results-list"
+        ></div>
       </div>
     </main>
   </div>
+  <script src="/js/qwebchannel.js"></script>
   <div id="izi-toast-root" style="position:fixed;top:16px;right:16px;z-index:2147483647;pointer-events:none;display:flex;flex-direction:column;gap:8px"></div>
   <script type="module" src="./main.js"></script>
 </body>
 </html>
-

@@ -436,6 +436,7 @@ def ensure_anno_manager_hosted(
     parent_app,
     on_log: Optional[Callable[[str], None]] = None,
     window_lifecycle: Any = None,
+    pdf_id: Optional[str] = None,
 ) -> int:
     """确保标注管理器窗口在 Hosted 模式下被打开（当前为简单 Web 窗口）。"""
     root = resolve_component_root()
@@ -447,6 +448,10 @@ def ensure_anno_manager_hosted(
     mod = _il.module_from_spec(spec)
     spec.loader.exec_module(mod)  # type: ignore
     from src.frontend.common.launch_config import LaunchConfig as FEConfig  # type: ignore
+    extra_params: Dict[str, Any] = {"client_id": "anno-manager"}
+    if pdf_id:
+        extra_params["pdf_id"] = str(pdf_id)
+
     fe_cfg = FEConfig(
         is_prod=bool(cfg.options.frontend_prod),
         keep_backend=bool(cfg.options.keep_backend),
@@ -456,6 +461,7 @@ def ensure_anno_manager_hosted(
         vite_port=cfg.ports.vite_port,
         source="gui",
         logs_dir=str(cfg.paths.logs_dir) if getattr(cfg.paths, "logs_dir", None) else None,
+        extra_params=extra_params,
     )
     AnnoManagerApp = getattr(mod, "AnnoManagerApp")
     app_inst = AnnoManagerApp(fe_cfg, parent_app=parent_app)
@@ -500,6 +506,7 @@ def ensure_new_card_scheduler_hosted(
         vite_port=cfg.ports.vite_port,
         source="gui",
         logs_dir=str(cfg.paths.logs_dir) if getattr(cfg.paths, "logs_dir", None) else None,
+        extra_params={"client_id": "new-card-scheduler"},
     )
     NewCardSchedulerApp = getattr(mod, "NewCardSchedulerApp")
     app_inst = NewCardSchedulerApp(fe_cfg, parent_app=parent_app)
@@ -545,6 +552,7 @@ def ensure_custom_reviewer_hosted(
         vite_port=cfg.ports.vite_port,
         source="gui",
         logs_dir=str(cfg.paths.logs_dir) if getattr(cfg.paths, "logs_dir", None) else None,
+        extra_params={"client_id": client_id},
     )
     CustomReviewerApp = getattr(mod, "CustomReviewerApp")
     app_inst = CustomReviewerApp(fe_cfg, parent_app=parent_app)

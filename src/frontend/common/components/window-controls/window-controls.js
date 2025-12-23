@@ -189,23 +189,38 @@ export class WindowControlsComponent {
    * 处理关闭按钮点击
    * @private
    * 流程: 发送 app-window:close:requested 消息到 msgCenter，后端统一处理窗口关闭
-   * @throws {Error} 如果发送关闭请求失败（严格模式，无兜底方案）
    */
   async #handleClose() {
     logger.info(`Close button clicked, clientId="${this.#clientId}"`);
 
-    // 严格模式：直接发送 WebSocket 消息，失败即报错
-    logger.info('Sending window close request via WebSocket...');
+    // 1) 通过 WebSocket 通知后端关闭（由 WindowLifecycleManager 统一管理）
+    logger.info("Sending window close request via WebSocket...");
+    try {
+      await this.#wsClient.send({
+        type: "app-window:close:requested",
+        data: {
+          client_id: this.#clientId,  // 使用构造函数传入的 clientId
+          reason: "user_close"
+        }
+      });
+      logger.info(`Window close request sent for clientId="${this.#clientId}", backend will handle window closing`);
+    } catch (error) {
+      logger.error("Failed to send window close request via WebSocket", error);
+    }
 
-    await this.#wsClient.send({
-      type: 'app-window:close:requested',
-      data: {
-        client_id: this.#clientId,  // 使用构造函数传入的 clientId
-        reason: 'user_close'
-      }
-    });
-
-    logger.info(`Window close request sent for clientId="${this.#clientId}", backend will handle window closing`);
+    // 2) 同步通过 QWebChannel 请求关闭窗口
+    // 说明：
+    // - 对于 simple-web-window（anno-manager 等）场景，可能不存在完整的后端生命周期管理；
+    // - 为保证用户点击“关闭”总能关闭窗口，这里总是尝试调用 requestCloseWindow 作为本地关闭入口。
+    this.#callBridgeMethod("requestCloseWindow")
+      .then((ok) => {
+        if (!ok) {
+          logger.warn("requestCloseWindow returned false (bridge refused close)");
+        }
+      })
+      .catch((error) => {
+        logger.error("Failed to call requestCloseWindow via QWebChannel", error);
+      });
   }
 
   /**

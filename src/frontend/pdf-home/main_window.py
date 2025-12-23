@@ -18,7 +18,22 @@ from src.qt.compat import (
     QWebEngineView, QWebEnginePage, QWebEngineSettings,
     QUrl, pyqtSignal, QAction, QSizePolicy
 )
+from src.frontend.pyqtui.js_console_logger import BaseLoggingWebPage
 import importlib
+
+
+class PdfHomeLoggingWebPage(BaseLoggingWebPage):
+    """
+    pdf-home 专用的日志页面：
+    - 继承统一的 BaseLoggingWebPage（负责 UTF-8 + \\n 写入与 js_logger 透传）；
+    - 额外过滤特定心跳类日志消息，避免噪音污染 pdf-home-js 日志。
+    """
+
+    def javaScriptConsoleMessage(self, level, message, lineNumber, sourceID):  # type: ignore[override]
+        # 过滤掉早期 Bridge 的心跳确认日志
+        if "Console log recorded successfully" in str(message):
+            return None
+        return super().javaScriptConsoleMessage(level, message, lineNumber, sourceID)
 
 
 class MainWindow(QMainWindow):
@@ -61,14 +76,8 @@ class MainWindow(QMainWindow):
         self.setGeometry(100, 100, 1200, 800)
 
         # 使用完全无边框窗口（用HTML自定义所有窗口控制按钮）
-        try:
-            from PyQt6.QtCore import Qt
-            self.setWindowFlags(
-                Qt.WindowType.Window |  # 保持正常窗口
-                Qt.WindowType.FramelessWindowHint  # 完全无边框（去除标题栏和所有原生按钮）
-            )
-        except Exception:
-            pass  # 如果设置失败，使用默认窗口
+        from src.frontend.common.pyqt.window_style import apply_frameless_window_flags
+        apply_frameless_window_flags(self, logger, label="pdf-home")
 
         # QtWebEngine Inspector设置
         self.inspector_window = None
@@ -142,100 +151,11 @@ class MainWindow(QMainWindow):
             settings.setAttribute(settings_cls.WebAttribute.JavascriptCanAccessClipboard, False)
             settings.setAttribute(settings_cls.WebAttribute.XSSAuditingEnabled, True)
 
-        # 创建自定义页面
+        # 创建自定义页面：基于统一的 BaseLoggingWebPage，并叠加 pdf-home 特有的过滤规则
         if self.web_view and page_cls:
-            base_page = page_cls
-
-            class LoggingWebPage(base_page):
-                def __init__(self, parent, log_file_path: str | None, js_logger=None):
-                    super().__init__(parent)
-                    self._log_file_path = log_file_path
-                    self.js_logger = js_logger
-
-                    try:
-                        if self._log_file_path:
-                            import os as _os
-                            _os.makedirs(_os.path.dirname(self._log_file_path), exist_ok=True)
-                    except Exception:
-                        pass
-
-                def _write_simple_log(self, log_file_path, level, message, line_number, source_id):
-                    """简单的日志写入功能，替代 write_js_console_message"""
-                    try:
-                        from datetime import datetime
-                        ts = datetime.now().strftime('%H:%M:%S.%f')[:-3]
-
-                        # 简化源文件路径
-                        source_filename = source_id.split('/')[-1] if '/' in source_id else source_id
-
-                        # 简化日志级别
-                        if 'InfoMessageLevel' in level:
-                            level = 'INFO'
-                        elif 'WarningMessageLevel' in level:
-                            level = 'WARN'
-                        elif 'ErrorMessageLevel' in level:
-                            level = 'ERROR'
-                        else:
-                            level = str(level).upper()
-
-                        log_line = f"[{ts}][{level}][{source_filename}:{line_number}] {message}\n"
-
-                        with open(log_file_path, 'a', encoding='utf-8') as f:
-                            f.write(log_line)
-                    except Exception:
-                        pass  # 静默失败，避免日志错误影响主程序
-
-                def javaScriptConsoleMessage(self, level, message, lineNumber, sourceID):  # type: ignore
-                    """控制台消息处理"""
-                    # 过滤掉"Console log recorded successfully"响应
-                    if "Console log recorded successfully" in str(message):
-                        return None
-
-                    wrote = False
-                    # 使用 JSConsoleLogger 记录日志（若存在且已启动）
-                    if self.js_logger and hasattr(self.js_logger, 'log_message'):
-                        try:
-                            is_running = True
-                            if hasattr(self.js_logger, 'is_connected'):
-                                try:
-                                    is_running = bool(self.js_logger.is_connected())
-                                except Exception:
-                                    # 若检测失败，尝试发送，失败再回退
-                                    is_running = True
-
-                            if is_running:
-                                self.js_logger.log_message(
-                                    level=str(level),
-                                    message=str(message),
-                                    source=str(sourceID) if sourceID else "",
-                                    line=lineNumber
-                                )
-                                wrote = True
-                        except Exception as e:
-                            print(f"Warning: Failed to pass message to js_logger: {e}")
-
-                    # 若无 js_logger 或未写入成功，则直接写入日志文件
-                    if not wrote and self._log_file_path:
-                        try:
-                            self._write_simple_log(
-                                self._log_file_path,
-                                level=str(level),
-                                message=str(message),
-                                line_number=lineNumber,
-                                source_id=str(sourceID)
-                            )
-                            wrote = True
-                        except Exception as e:
-                            print(f"Warning: Failed to write log: {e}")
-
-                    try:
-                        return super().javaScriptConsoleMessage(level, message, lineNumber, sourceID)  # type: ignore
-                    except Exception:
-                        return None
-
-            self.web_page = LoggingWebPage(self.web_view, self._js_log_file, self.js_logger)
+            self.web_page = PdfHomeLoggingWebPage(self.web_view, self._js_log_file, self.js_logger, pdf_id="pdf-home")
             self.web_view.setPage(self.web_page)
-            logger.info('WebPage created and set on WebView')
+            logger.info('WebPage created and set on WebView (PdfHomeLoggingWebPage)')
         else:
             self.web_page = None
             logger.warning('WebPage is None (either no WebView or no QWebEnginePage)')

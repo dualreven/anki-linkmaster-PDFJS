@@ -33,7 +33,8 @@ describe('WindowControlsComponent', () => {
       minimizeWindow: jest.fn(() => true),
       maximizeWindow: jest.fn(() => true),
       startWindowDrag: jest.fn(() => true),
-      stopWindowDrag: jest.fn(() => true)
+      stopWindowDrag: jest.fn(() => true),
+      requestCloseWindow: jest.fn(() => true)
     };
 
     // Mock QWebChannel

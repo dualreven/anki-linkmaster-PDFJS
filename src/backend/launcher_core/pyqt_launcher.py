@@ -459,9 +459,11 @@ class BackendLauncher:
                         )
                         self.logger.info("[MsgDispatch] app-window PdfHome ensure-hosted rc=%s", str(rc))
                     elif window_type == "anno-manager":
+                        pdf_id = params.get("pdf_id") or params.get("pdfId")
                         self.logger.info(
-                            "[MsgDispatch] app-window 打开 anno-manager: client_id=%s dev_env=%s ports=%s options=%s",
+                            "[MsgDispatch] app-window 打开 anno-manager: client_id=%s pdf_id=%s dev_env=%s ports=%s options=%s",
                             client_id,
+                            str(pdf_id),
                             str(is_dev_env),
                             str(ports),
                             str(options),
@@ -471,6 +473,7 @@ class BackendLauncher:
                             parent_app=self.parent_app or getattr(self, "app", None),
                             on_log=lambda s: self.logger.info("[AnnoManagerHost] %s", s),
                             window_lifecycle=self.window_lifecycle,
+                            pdf_id=str(pdf_id) if pdf_id else None,
                         )
                         self.logger.info("[MsgDispatch] app-window AnnoManager ensure-hosted rc=%s", str(rc))
                     elif window_type == "new-card-scheduler":
