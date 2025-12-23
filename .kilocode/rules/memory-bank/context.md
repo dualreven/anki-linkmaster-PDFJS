@@ -1,8 +1,22 @@
 ﻿# Memory Bank - Context（精简版）
 
-最后更新：2025-12-04
+最后更新：2025-12-23（标注管理器开发进度回顾）
 
-## 新增任务快照（2025-12-03/12-04）
+## 2025-12-23 标注管理器开发进度小结
+- 后端数据层：`PDFAnnotationTablePlugin` 已扩展 `title/is_key/importance` 元字段并接入默认标题生成与校验逻辑，`PDFAnnotationTagsTablePlugin` 与 `PDFAnnotationRelationTablePlugin` 已提供标签与关系的 CRUD 能力及防回归测试，为后续“标注网络化管理”提供基础数据模型。
+- Hosted 启动链路：GUI Launcher 与 pdf-viewer 标注侧边栏 Header 方框按钮均可通过 `app-window:open:requested` 打开 `window_type="anno-manager"` 的 Hosted 窗口，BackendLauncher 使用 `ensure_anno_manager_hosted` + `WindowLifecycleManager` 管理 `client_id=\"anno-manager\"` 的生命周期。
+- 前端 anno-manager 窗口：已实现基础骨架与布局（标题 + 窗口控制栏 + 搜索/筛选/排序/导入工具栏、左侧过滤/视图侧边栏、右侧结果区域），并通过 URL 中的 `pdf-id` 请求当前 PDF 的标注列表，支持列表视图占位与视图模式按钮（列表/两列/三列/导图）的切换 UI；跨 PDF 聚合查询与关系导图仍处于设计阶段。
+- 窗口控制栏与关闭行为：anno-manager 现已复用统一的 `SimpleWebWindowApp + SimpleWindowBridge + WindowControlsComponent`，关闭按钮在前端会同时通过 WebSocket 发送 `app-window:close:requested` 并调用 QWebChannel 的 `requestCloseWindow`，修复了早期 Hosted 场景下“点击关闭无反应”的问题。
+- 尚未完成的能力：标注管理器尚未接入“按标签/是否有关联卡片/时间范围”等高级筛选条件，也未真正落地“跨 PDF 聚合视图”“标注关系导图”和与新卡片规划器/定制复习器之间的双向跳转，目前主要完成的是单个 PDF 视角下的标注列表与基础窗口行为。
+
+## 2025-12-23 pdf-viewer 模块理解小结
+- 规范入口：遵循 `docs/SPEC/SPEC-HEAD-pdf-viewer.json`，需结合结构/事件/PDFJS/QtWebEngine 适配与 WebSocket 契约等规范文档；模块 README、ARCHITECTURE/ARCHITECTURE-DIAGRAM 提供事件驱动 + Feature 插件化架构总览。
+- 启动与配置：`main.js` 通过 `bootstrapPDFViewerAppFeature()` 启动；`bootstrap/app-bootstrap-feature.js` 解析 ws 端口（`resolveWebSocketPortSync` 默认 8765）与 `PDF_PATH`/`?file`，若已有 `pdf-id` 则跳过本地 auto-load，交由 URL Loader 触发；默认提升 Outline 与 WebSocketAdapter 日志级别并支持 `outlineLog` URL 参数调整，启动时 toast 提示“当前为 Outline 模式”。
+- Feature 注册序列（全局 eventBus）：`infra-app` → `window-controls`（bridgeName=pdfViewerBridge，container=".toolbar-right"）→ `pdf-manager` → `infra-ui` → `infra-nav-core` → `pdf-search` → `pdf-url-loader` → `pdf-resume` → 强制 `pdf-outline` → `pdf-anchor` → `pdf-annotation` → `pdf-translator` → `pdf-quick-actions` → `pdf-card` → `ai-assistant` → `infra-sidebar`；安装完成后在 `window.pdfViewerApp` 暴露 registry/container/getFeature/test helper。
+- 行为守卫：启动时禁用浏览器层 Ctrl+滚轮/快捷键页面缩放（转译为内部 zoom 事件，避免 devicePixelRatio 漂移）；WindowControlsFeature 复用 QWebChannel bridge `pdfViewerBridge`；默认启用 `showInfo("当前为 Outline 模式")` 提示。
+- 日志与 WS：统一 Logger（PDFViewer）+ `setGlobalWebSocketClient`；遵循 `PDF-VIEWER-LOGGING-IMPLEMENTATION-001` 过滤噪音（含 “Console log recorded successfully”）并记录加载/渲染/交互/错误与性能指标。
+
+## 新增任务快照（2025-12-03/12-05）
 - 任务A：🧠 规划并实现“PDF 批量制卡 + 标注网络化管理”后端基础能力：
   - 概念与产品层（仅分析阶段，2025-12-03）：设计“新卡片规划器 / 标注管理器 / 导图（标注+PDF+卡片混合节点）”的整体能力，强调标注是一等实体并可与 Anki 卡片、PDF 文档形成图谱结构；
   - 数据库与插件层（实现阶段，2025-12-04）：在 `pdf_annotation` / `pdf_info` 基础上扩展标注的元字段（title/is_key/importance），并新增两张表：
@@ -20,14 +34,29 @@
     - 当前阶段点击该按钮会通过 `PDF_VIEWER_EVENTS.ANNOTATION.MANAGER.OPEN_WINDOW_REQUESTED` 发出“打开标注管理器窗口”的全局事件，事件 payload 中包含当前 URL 解析出的 `pdf-id`；`WebSocketAdapter` 监听该事件并调用 `wsClient.send({ type: WEBSOCKET_MESSAGE_TYPES.APP_WINDOW_OPEN_REQUESTED, data:{ client_id:'anno-manager', window_type:'anno-manager', params:{ pdf_id }}})`，最终由 MsgCenter/BackendLauncher 统一调度 Hosted anno-manager 窗口。
     - 同时保留轻量级 toast 反馈 `showInfo("正在请求打开标注管理器...", 2000)`，提示用户点击已被处理；为上述链路新增 Jest 测试：`infra-sidebar/__tests__/annotation-sidebar-header-manager-button.test.js` 用于保证 Header 中仍只有一个关闭按钮且点击会发出 OPEN_WINDOW_REQUESTED 事件，并携带 `pdf-id`；`adapters/__tests__/websocket-adapter.anno-manager-window-open.test.js` 校验 WebSocketAdapter 收到事件后会向 MsgCenter 发送正确的 `app-window:open:requested` 消息。
 
-## 当前任务快照（2025-11-29）
+## 当前任务快照（2025-12-05）
 - 任务1：🔍 分析 pdf-viewer 断点续读（resume）在高页码场景下的恢复页码偏差（例：关闭在 42 页，重开时在 39–40 跳动并最终停在 40 页）
 - 任务2：📡 盘点 pdf-viewer 中 WS 消息重构的当前进度（仅做只读分析与阶段性结论）
-- 任务3：🧩 梳理 pdf-viewer / pdf-home 在前端层面的「功能相同但各自实现」部分，并设计可抽象到 common 的组合式方案
+- 任务3：🧩 梳理 pdf-viewer / pdf-home 在前端层面的「功能相同但各自实现」部分，并设计可抽象到 common 的组合式方案（包含 PyQt 窗口层）
 - 任务4：🧱 盘点 pdf-viewer 内部 sidebar 系列（outline/anchor/annotation/card/translate/ai-assistant/backlink 等）的重复代码模式，输出只读分析报告，暂不落地重构
 - 任务5：🧹 清理 `src/frontend/pdf-home` 与 `src/frontend/pdf-viewer` 目录下的所有 eslint 报错，为后续重构提供“lint 全绿”的基线（当前已完成一轮，两个目录在本次运行时 eslint 全绿）
 - 任务6：⏱ 盘点“带 gate 条件的 WS 消息类型”当前实现情况（主要聚焦 pdf-viewer，兼顾 pdf-home 规范）
 - 前序任务：压缩 context.md；多轮修复 PDF 页码跳转偏差 Bug + pdf-resume 模块化重构；WS 收发器与条件 gate 协议设计与 pdf-home 侧落地（详见归档与 AItemp 日志）
+
+## 2025-12-09 快照：pdf-viewer 标注卡片编辑器保存链路修复
+- 问题背景：pdf-viewer 中标注侧边栏的“卡片编辑器”（评论弹窗 + 标题/Tags 编辑区）在 UI 上可以修改标题、添加评论，但实际上只更新了前端内存与卡片 DOM，没有触发 `AnnotationManager` 的持久化逻辑，导致重新打开 PDF 或重新加载标注列表时看不到这些修改。
+- 根因：弹窗提交时只发射了 `PDF_VIEWER_EVENTS.ANNOTATION.UPDATED`（语义为 “update:success” 的结果事件），而 `AnnotationManager` 只监听 `PDF_VIEWER_EVENTS.ANNOTATION.UPDATE`（`annotation:update:requested`），因此从未走到 `WEBSOCKET_MESSAGE_TYPES.ANNOTATION_SAVE` → MsgCenter → `PDFAnnotationTablePlugin` 的保存链路。
+- 修复要点：
+  - 在 `AnnotationSidebarUI.#showCommentDialog` 的 `submitComment()` 里，保留本地更新 `annotation.title` / `annotation.tagsText` / `annotation.addComment(...)` 的逻辑，但不再直接发 `ANNOTATION.UPDATED`；
+  - 统一在有任何变更（标题 / Tags / 新评论）时发出一次 `PDF_VIEWER_EVENTS.ANNOTATION.UPDATE`，载荷形态为 `{ id: annotationId, changes: { title?: string|null } }`，由 `AnnotationManager` 接手调用 `annotation.update(changes)` 并通过 `ANNOTATION_SAVE` 消息把包含 `title + comments` 的完整 Annotation JSON 持久化到后端；
+  - 评论新增仍然通过 `PDF_VIEWER_EVENTS.ANNOTATION.COMMENT.ADDED` 通知其它监听者，但本地路径带 `skipUpdate: true`，防止重复 UI 更新。
+- 相关模块与文件：
+  - 前端：`src/frontend/pdf-viewer/features/pdf-annotation/components/annotation-sidebar-ui.js`（评论对话框提交逻辑与卡片 UI 更新）、`core/annotation-manager.js`（UPDATE → SAVE 持久化）、`common/models/annotation.js` + `comment.js`（Annotation/Comment 数据模型）、以及针对链路的 Jest 测试：
+    - `features/pdf-annotation/__tests__/annotation-persistence.test.js`：新增用例覆盖 “LOAD + CREATE 之后的 UPDATE 会再次触发 ANNOTATION_SAVE，且 payload.annotation.title 为最新值”；
+    - `features/pdf-annotation/components/__tests__/annotation-sidebar-ui.comment-dialog-update.test.js`：覆盖“评论对话框提交时会发出 ANNOTATION.UPDATE（含 id/changes），保证不会只停留在内存和 UI 层”。
+  - 后端：`src/backend/msgCenter_server/handlers/pdf_viewer/annotation.py::save_annotation` 已经支持根据 Annotation JSON 中的 `title` 与 `comments` 更新 `pdf_annotation.title` 与 `json_data.comments`，此次修改只是补齐前端事件链路。
+-. 验证结论：在开启 MsgCenter + PDFLibraryAPI 的环境下，通过侧边栏创建标注并在评论对话框中修改标题/添加评论后，重新加载该 PDF 时，标注列表会展示最新的标题与评论数量，且 `AnnotationManager.getStatus().mockMode === false` 时可在数据库中看到相应记录更新。
+- 验证结论：在开启 MsgCenter + PDFLibraryAPI 的环境下，通过侧边栏创建标注并在评论对话框中修改标题/添加评论后，重新加载该 PDF 时，标注列表会展示最新的标题与评论数量，且 `AnnotationManager.getStatus().mockMode === false` 时可在数据库中看到相应记录更新。
 
 ### URL 导航能力的最终状态（2025-12-01 更新）
 
@@ -64,6 +93,99 @@
   - 新增测试文件 `src/frontend/pdf-viewer/features/infra-nav-core/__tests__/navigation-service.same-page.test.js`：
     - 覆盖“在当前页导航时不应再发 `NAVIGATION.GOTO`，但必须调用 `scrollToPosition`”这一行为；
       - 覆盖“跨页导航仍然发送 `NAVIGATION.GOTO` 并执行滚动”的原有行为，确保未被本次改动破坏。
+
+### 前端 PyQt 窗口层复用统一（2025-12-05）
+
+- 背景：随着 pdf-home / pdf-viewer / anno-manager / new-card-scheduler / custom-reviewer 等窗口持续增加，PyQt 启动与 JS 控制台日志记录在各模块中出现了多份相似实现，需要抽到公共层以减少重复与碎片化。
+- 已有公共工具：
+  - `src/frontend/common/pyqt/ports_utils.py`：统一解析 `runtime-ports.json` 并返回 `url_port/msgCenter_port/pdfFile_port`；
+  - `src/frontend/common/pyqt/qt_app_runner.py`：提供 `init_qapplication(parent_app, logger, app_label)` 与 `run_event_loop_if_needed(app, mode, logger, app_label, cleanup_cb)`，由 pdf-home.launcher 与 SimpleWebWindowApp 复用；
+  - `src/frontend/pyqtui/js_console_logger.py`：定义统一的 `BaseLoggingWebPage`，负责将 `javaScriptConsoleMessage` 写入 UTF-8 日志文件（强制 `\n`），并可选透传到 js_logger（如 pdf-viewer 的 JSConsoleLogger）。
+- 本轮 PyQt 窗口层复用改动：
+  1. **PdfViewerApp Qt 启动逻辑统一**  
+     - 文件：`src/frontend/pdf-viewer/launcher.py`  
+     - 将 `PdfViewerApp.run()` 中手写的 QApplication 创建/复用逻辑：  
+       - 原来根据 `self.mode` 判断子进程/寄宿模式，手动调用 `QApplication(sys.argv)` 或直接复用 `parent_app` 并打印日志；  
+       - 现改为统一调用 `init_qapplication(self.parent_app, logger, f"pdf-viewer[{self.pdf_id}]")`，并接收返回的 `(app, mode)`：  
+         - 子进程模式：创建新的 `QApplication` 并设置 mode=`"subprocess"`；  
+         - Hosted 模式：复用外部 `QApplication` 并设置 mode=`"hosted"`。  
+     - 下游：事件循环仍然通过 `run_event_loop_if_needed(self.app, self.mode, logger, f"pdf-viewer[{self.pdf_id}]", cleanup_cb=self.cleanup)` 运行，保持与 pdf-home/SimpleWebWindowApp 一致的模式语义与退出日志，无行为变化。
+     - 测试：新增 `src/frontend/pdf-viewer/__tests__/test_pdf_viewer_app_qt_init.py`，以契约方式约束 PdfViewerApp 必须通过公共 `init_qapplication` 完成 Qt 启动（测试在无真实 Qt 环境下通过 monkeypatch/_read_runtime_ports stub 干跑）。
+  2. **pdf-home MainWindow 使用统一的 BaseLoggingWebPage**  
+     - 文件：`src/frontend/pdf-home/main_window.py`  
+     - 原实现：在 `_init_ui` 中定义本地的 `LoggingWebPage` 子类，手动实现 `javaScriptConsoleMessage`：  
+       - 若存在 JSConsoleLogger，则透传 `log_message`；  
+       - 否则使用 `with open(..., encoding='utf-8')` 写入简单的 `[ts][level][source:line] message` 格式日志；  
+       - 针对 `"Console log recorded successfully"` 做专门过滤，避免心跳确认类消息污染 `pdf-home-js.log`。  
+     - 新实现：  
+       - 引入公共基类 `BaseLoggingWebPage`（`from src.frontend.pyqtui.js_console_logger import BaseLoggingWebPage`）；  
+       - 定义轻量子类 `PdfHomeLoggingWebPage(BaseLoggingWebPage)`，仅覆盖 `javaScriptConsoleMessage`：  
+         - 若 `message` 中包含 `"Console log recorded successfully"`，直接返回 `None`（过滤早期 Bridge 心跳日志）；  
+         - 否则调用 `super().javaScriptConsoleMessage(...)`，复用统一的 UTF-8 + `\n` 日志写入与 js_logger 透传实现；  
+       - `_init_ui` 中在 `self.web_view` 和 `page_cls` 可用时，改为：  
+         - `self.web_page = PdfHomeLoggingWebPage(self.web_view, self._js_log_file, self.js_logger, pdf_id="pdf-home")`；  
+         - `self.web_view.setPage(self.web_page)` 并记录一条 `"WebPage created and set on WebView (PdfHomeLoggingWebPage)"` 日志。  
+     - 效果：  
+       - pdf-home 与 pdf-viewer 现在在“JS 控制台转日志”的主逻辑上共用 `BaseLoggingWebPage`，后续调整日志格式/级别映射时只需修改一处；  
+       - pdf-home 仍然保留对特定心跳确认日志的过滤行为，避免 `logs/pdf-home-js.log` 充斥无价值噪音；  
+       - 所有文件写入继续显式使用 UTF-8，换行统一为 `\n`。  
+     - 测试：新增 `src/frontend/pdf-home/__tests__/test_main_window_logging_page.py`：  
+       - 动态导入 `pdf-home/main_window.py`，获取 `PdfHomeLoggingWebPage` 类型；  
+       - 通过覆写 `src.frontend.pyqtui.js_console_logger.QWebEnginePage` 为一个 `_DummyQWebEnginePage` 替身，避免真实 Qt 依赖；  
+       - 约束：  
+         - `PdfHomeLoggingWebPage` 必须继承 `BaseLoggingWebPage`；  
+         - 调用 `javaScriptConsoleMessage("InfoMessageLevel", "Console log recorded successfully", ...)` 时不应调用 `js_logger.log_message`；  
+         - 对普通消息（如 `"[INFO] hello"`）则应调用一次 `js_logger.log_message`，由 BaseLoggingWebPage 完成透传逻辑。
+  3. **基础校验**  
+     - 运行 `python -m compileall -q src/frontend/common/pyqt src/frontend/pdf-home src/frontend/pdf-viewer/launcher.py src/frontend/pdf-home/__tests__/test_main_window_logging_page.py src/frontend/pdf-viewer/__tests__/test_pdf_viewer_app_qt_init.py`，确保改动模块在当前环境下语法正确且依赖解析正常。  
+     - 由于本地环境未必安装完整的 PyQt/QtWebEngine，本轮未执行真实 GUI 集成测试；所有测试均采用“无 Qt 环境”契约式验证（通过 monkeypatch/stub 替代真实对象）。
+
+后续建议：
+- 若后续继续扩展 anno-manager / new-card-scheduler / custom-reviewer 的 PyQt Bridge 与窗口行为，可以直接复用 SimpleWebWindowApp + BaseLoggingWebPage；如需要更丰富的窗口控制（托盘、快捷键、菜单栏），可考虑为 common.pyqt 增加更通用的窗口骨架类，然后让 pdf-home/pfd-viewer/工具窗口分别继承。
+
+### PyQt 无边框窗口与窗口控制统一（2025-12-05 更新）
+
+- 目的：消除 pdf-home / pdf-viewer / 三个“工具窗口”（anno-manager / new-card-scheduler / custom-reviewer）在 PyQt 窗口层的重复实现，让“无边框窗口 + HTML 窗口控制（拖拽/最小化/最大化/关闭）”形成统一模式，后续扩展新窗口时直接复用。
+- 新增公共工具：
+  - `src/frontend/common/pyqt/window_style.py`：提供 `apply_frameless_window_flags(window, logger, label)`，统一设置 `Qt.WindowType.Window | FramelessWindowHint`，并按需记录日志；  
+    - pdf-home 与 pdf-viewer 的 MainWindow 现在都通过该 helper 设置无边框样式，而不是各自直接导入 PyQt6.QtCore。
+  - `src/frontend/common/pyqt/simple_window_bridge.py`：定义 `SimpleWindowBridge(QObject, WindowControlsMixin)`，仅承载窗口控制相关 slot（minimize/maximize/requestClose/start/stop drag），供 QWebChannel 注册为 `simpleWindowBridge`；  
+    - 内部通过 WindowControlsMixin 复用已有窗口控制实现，不再为工具窗口单独写一套桥接类。
+- SimpleWebWindowApp 改造（承载三类工具窗口的 PyQt 启动骨架）：
+  - 文件：`src/frontend/common/pyqt/simple_web_window_app.py`。  
+  - `SimpleWebWindow` 现在在构造时会：
+    - 调用 `apply_frameless_window_flags(self, logger, label=f"simple-web-window[{title}]")`，让 anno-manager / new-card-scheduler / custom-reviewer 窗口默认无边框，标题栏完全交给 HTML + WindowControls 负责；  
+    - 创建 `self.view = QWebEngineView(self)` 并配置基础 WebEngine 设置（JS/LocalStorage/禁止本地远程访问）；  
+    - 尝试创建 `QWebChannel(self.view)`，实例化 `SimpleWindowBridge(parent=self)`，注册为 `"simpleWindowBridge"` 并调用 `self.view.page().setWebChannel(self.web_channel)`，使前端的 WindowControlsComponent 可以通过 QWebChannel 调用窗口控制方法；  
+    - 最后加载 URL 并将 view 作为 central widget。
+  - `_build_frontend_url(url_port)` 现支持从 `LaunchConfig.extra_params.client_id` 透传 clientId：  
+    - 基础 URL 为 `http://localhost:<url_port>/<entry_path>/`；  
+    - 若 `extra_params.client_id` 存在，则追加 `?client-id=<client_id>` 查询参数，便于前端识别窗口实例（尤其是 custom-reviewer 多实例场景）。  
+    - 新增测试：`src/frontend/common/pyqt/__tests__/test_simple_web_window_url_client_id.py` 验证有/无 client_id 时 URL 构造行为。
+- 后端 Hosted 启动器改造（Runner）：
+  - 文件：`src/launcher/runner.py`。  
+  - 在 `ensure_anno_manager_hosted` / `ensure_new_card_scheduler_hosted` / `ensure_custom_reviewer_hosted` 中，为 FE LaunchConfig 显式设置 `extra_params={"client_id": ...}`：  
+    - anno-manager → client_id = `"anno-manager"`；  
+    - new-card-scheduler → client_id = `"new-card-scheduler"`；  
+    - custom-reviewer → 使用调用方传入的多实例 client_id（如 `"custom-reviewer-xxxx"`）。  
+  - 这样前端就可以通过 URL 查询参数 `client-id` 还原出与 WindowLifecycleManager 一致的 clientId。
+- 前端三类工具窗口接入 WindowControlsComponent：
+  - 新增公共 Helper：`src/frontend/common/window/basic-window-controls.js`：  
+    - 封装 `attachBasicWindowControls({ clientId, moduleName, bridgeName, containerSelector })`：  
+      - 通过 `resolveWebSocketPortSync` + `WSClient` 创建到 MsgCenter 的 WebSocket 连接，identity 为 `{ client_name: clientId, client_id: clientId, module: moduleName }`；  
+      - 构造 `WindowControlsComponent({ bridgeName, clientId, wsClient })` 并挂载到 `containerSelector`（默认 `#window-controls-slot`）；  
+      - bridgeName 默认 `"simpleWindowBridge"`，与 SimpleWindowBridge 保持一致。  
+  - anno-manager / new-card-scheduler / custom-reviewer 的 `main.js` 均在 bootstrap 中调用该 helper：  
+    - anno-manager：`clientId="anno-manager"`，bridgeName `"simpleWindowBridge"`，挂载到 `#window-controls-slot`；  
+    - new-card-scheduler：同上，clientId 为 `"new-card-scheduler"`；  
+    - custom-reviewer：优先从 URL 查询参数 `client-id` 解析 clientId（由 Runner 透传）；若缺失则退回 `"custom-reviewer"`（仅作为 UI 层可识别 ID，用于 send 消息）。  
+  - 三个 index.html 均补充 `<script src="/js/qwebchannel.js"></script>`，确保前端具备 `window.QWebChannel` 支持，与 pdf-home 的做法一致。
+- 现状小结：
+  - pdf-home / pdf-viewer / anno-manager / new-card-scheduler / custom-reviewer 现在都使用统一的 PyQt 层“无边框窗口 + WindowControlsMixin + QWebChannel”模式；  
+  - 三个工具窗口前端通过 BasicWindowControls + WindowControlsComponent 获得与 pdf-home/pdf-viewer 一致的窗口控制体验（拖拽/最小化/最大化/关闭），差异仅在于功能骨架仍是“开发中”占位；  
+  - 后续如果再新增 PyQt 前端窗口，可以直接复用：  
+    1) SimpleWebWindowApp + SimpleWindowBridge + window_style.apply_frameless_window_flags；  
+    2) basic-window-controls.js + WindowControlsComponent + WindowControlsFeature（如需接入 Feature 架构）。
 
 ### Anchor 激活会话态与侧边栏显示（2025-12-02 更新）
 
