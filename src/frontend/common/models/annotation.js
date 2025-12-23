@@ -150,9 +150,17 @@ export class Annotation {
      * @type {Array<Comment>}
      * @description 评论列表
      */
-    this.comments = (data.comments || []).map(c =>
-      c instanceof Comment ? c : new Comment(c)
-    );
+    this.comments = (data.comments || []).map((c) => {
+      if (c instanceof Comment) {
+        return c;
+      }
+      const base = { ...c };
+      // 后端返回的 comments 不包含 annotationId，这里补齐，避免解析时抛错
+      if (!base.annotationId) {
+        base.annotationId = this.id;
+      }
+      return new Comment(base);
+    });
 
     /**
      * @type {string}
