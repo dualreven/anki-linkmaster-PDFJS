@@ -64,6 +64,16 @@ def test_validate_ok_text_highlight():
     out = validate_data(data)
     assert out["json_data"]["data"]["selectedText"] == "hello"
 
+def test_validate_ok_text_highlight_keeps_line_rects():
+    data = build_base_payload("text-highlight")
+    data["json_data"]["data"]["lineRects"] = [
+        {"xPercent": 5, "yPercent": 50, "widthPercent": 60, "heightPercent": 3},
+        {"xPercent": 5, "yPercent": 60, "widthPercent": 60, "heightPercent": 3},
+    ]
+    out = validate_data(data)
+    assert out["json_data"]["data"]["lineRects"][0]["yPercent"] == 50
+    assert out["json_data"]["data"]["lineRects"][1]["yPercent"] == 60
+
 
 def test_validate_ok_comment():
     data = build_base_payload("comment")

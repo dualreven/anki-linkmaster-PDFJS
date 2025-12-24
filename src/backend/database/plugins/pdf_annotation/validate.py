@@ -225,6 +225,32 @@ def _validate_text_highlight_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(item, dict):
             raise DatabaseValidationError(f'textRanges[{idx}] must be an object')
 
+    # 可选：lineRects（百分比矩形数组），用于前端跳转居中与高亮复原（刷新后仍可定位）
+    line_rects = payload.get('lineRects')
+    validated_line_rects = None
+    if line_rects is not None:
+        if not isinstance(line_rects, list):
+            raise DatabaseValidationError('lineRects must be an array')
+
+        def clamp01pct(v: Any, field: str) -> float:
+            num = _validate_non_negative_number(v, field)
+            if num > 100:
+                num = 100.0
+            return num
+
+        tmp: List[Dict[str, float]] = []
+        for idx, rect in enumerate(line_rects):
+            if not isinstance(rect, dict):
+                raise DatabaseValidationError(f'lineRects[{idx}] must be an object')
+            tmp.append({
+                'xPercent': clamp01pct(rect.get('xPercent'), f'lineRects[{idx}].xPercent'),
+                'yPercent': clamp01pct(rect.get('yPercent'), f'lineRects[{idx}].yPercent'),
+                'widthPercent': clamp01pct(rect.get('widthPercent'), f'lineRects[{idx}].widthPercent'),
+                'heightPercent': clamp01pct(rect.get('heightPercent'), f'lineRects[{idx}].heightPercent'),
+            })
+        if tmp:
+            validated_line_rects = tmp
+
     color = payload.get('highlightColor')
     if not isinstance(color, str) or not _HEX_COLOR_PATTERN.fullmatch(color):
         raise DatabaseValidationError('highlightColor must be a HEX color (#rrggbb)')
@@ -238,6 +264,8 @@ def _validate_text_highlight_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         'textRanges': ranges,
         'highlightColor': color,
     }
+    if validated_line_rects is not None:
+        result['lineRects'] = validated_line_rects
     if note is not None:
         result['note'] = note
     return result
