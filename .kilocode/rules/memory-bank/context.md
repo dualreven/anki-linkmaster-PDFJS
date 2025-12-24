@@ -5,7 +5,7 @@
 ## 2025-12-23 标注管理器开发进度小结
 - 后端数据层：`PDFAnnotationTablePlugin` 已扩展 `title/is_key/importance` 元字段并接入默认标题生成与校验逻辑，`PDFAnnotationTagsTablePlugin` 与 `PDFAnnotationRelationTablePlugin` 已提供标签与关系的 CRUD 能力及防回归测试，为后续“标注网络化管理”提供基础数据模型。
 - Hosted 启动链路：GUI Launcher 与 pdf-viewer 标注侧边栏 Header 方框按钮均可通过 `app-window:open:requested` 打开 `window_type="anno-manager"` 的 Hosted 窗口，BackendLauncher 使用 `ensure_anno_manager_hosted` + `WindowLifecycleManager` 管理 `client_id=\"anno-manager\"` 的生命周期。
-- 前端 anno-manager 窗口：已实现基础骨架与布局（标题 + 窗口控制栏 + 搜索/筛选/排序/导入工具栏、左侧过滤/视图侧边栏、右侧结果区域）；当前以“独立打开”为基准：Header 提供 PDF 下拉选择，默认不加载标注，点击“从 PDF 导入/刷新”才请求 `annotation:list:requested`；跨 PDF 聚合查询与关系导图仍处于设计阶段。
+- 前端 anno-manager 窗口：已实现基础骨架与布局（标题 + 窗口控制栏 + 搜索/筛选/排序/导入工具栏、左侧过滤/视图侧边栏、右侧结果区域）；当前以“独立打开”为基准：默认不加载标注，点击“从 PDF 导入/刷新”会弹窗选择 PDF 并请求 `annotation:list:requested`；跨 PDF 聚合查询与关系导图仍处于设计阶段。
 - 窗口控制栏与关闭行为：anno-manager 现已复用统一的 `SimpleWebWindowApp + SimpleWindowBridge + WindowControlsComponent`，关闭按钮在前端会同时通过 WebSocket 发送 `app-window:close:requested` 并调用 QWebChannel 的 `requestCloseWindow`，修复了早期 Hosted 场景下“点击关闭无反应”的问题。
 - 尚未完成的能力：标注管理器尚未接入“按标签/是否有关联卡片/时间范围”等高级筛选条件，也未真正落地“跨 PDF 聚合视图”“标注关系导图”和与新卡片规划器/定制复习器之间的双向跳转，目前主要完成的是单个 PDF 视角下的标注列表与基础窗口行为。
 - 首开标注缺失修复：修复“GUI Launcher 打开 pdf-viewer 后首次标注侧边栏为 0 条且高亮/覆盖层不显示，需要 F5 刷新才出现”的问题；关键点为 `WSClient.request()` 在未连接排队时不应提前开始 timeout（否则会出现 request 超时但消息仍在队列、响应到达却无人结算），以及 `AnnotationManager` 加载标注时不应在 WS 未就绪时静默返回空数组导致 UI 误判“已加载完成(0条)”并阻止自动重试。
@@ -13,8 +13,7 @@
 
 ## 2025-12-24 anno-manager 独立打开行为调整
 - 不再使用 URL query 传递 `pdf-id`：`SimpleWebWindowApp` 仅透传 `client-id`；业务上下文应统一走 MsgCenter（本轮未实现跨模块 init/gate）。
-- Header 新增 “选择 PDF” 下拉框：启动时请求 `pdf-library:list:requested` 填充列表；默认不加载标注。
-- “从 PDF 导入/刷新”按钮行为：未选择 PDF 时 Fail-Fast 报错；选择后发送 `annotation:list:requested`（data: `{ pdf_uuid: <selected> }`）。
+- “从 PDF 导入/刷新”按钮行为：点击后请求 `pdf-library:list:requested` 获取列表，弹窗选择 PDF 后发送 `annotation:list:requested`（data: `{ pdf_uuid: <selected> }`）；默认不加载标注。
 - 本轮未做：从 pdf-viewer 点 “□” 打开 anno-manager 后的自动导入/跳转门控。
 
 ## 2025-12-24 anno-manager 单例约束（MsgCenter/Launcher）
