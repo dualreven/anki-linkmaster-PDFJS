@@ -33,6 +33,7 @@
   - Memory Bank 压缩：当 `context.md` 超过 7 天记录或行数过多，或 `AItemp` 中出现超过 30 天的工作日志 / 文件数量过大时，必须按《Memory Bank 压缩机制规范》执行归档与压缩，禁止直接删除历史记录。
   - PyQt 前端窗口：优先复用 `src/frontend/common/pyqt` 与 `src/frontend/pyqtui` 中的公共工具（如 `qt_app_runner.py`、`ports_utils.py`、`BaseLoggingWebPage`），避免在各模块内重复实现 QApplication 启动与 JS 控制台日志逻辑。
   - PyQt 工具窗口 URL：`SimpleWebWindowApp` 仅允许透传 `client-id`；禁止通过 URL query 透传业务参数（如 `pdf-id`），业务初始化统一走 MsgCenter 消息。
+  - 工具窗口单例：标注管理器 `anno-manager` 为强单例窗口，MsgCenter 打开时 client_id 固定为 `"anno-manager"`，重复打开仅激活窗口。
 
 维护记录
 - 2025-11-07 精简为索引版；详细内容迁移到 docs（见 todo-and-doing/1 doing/20251107-tech-md-minify-migration/plan.md）。

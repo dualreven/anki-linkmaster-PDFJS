@@ -17,6 +17,10 @@
 - “从 PDF 导入/刷新”按钮行为：未选择 PDF 时 Fail-Fast 报错；选择后发送 `annotation:list:requested`（data: `{ pdf_uuid: <selected> }`）。
 - 本轮未做：从 pdf-viewer 点 “□” 打开 anno-manager 后的自动导入/跳转门控。
 
+## 2025-12-24 anno-manager 单例约束（MsgCenter/Launcher）
+- anno-manager 必须为唯一窗口：重复收到 `app-window:open:requested`（window_type=anno-manager）时，只激活已有窗口，不再创建新实例。
+- 严格约束：window_type=anno-manager 时 client_id 必须为固定的 `"anno-manager"`；任何自定义 client_id 视为错误并拒绝处理（Fail-Fast）。
+
 ## 2025-12-23 pdf-viewer 模块理解小结
 - 规范入口：遵循 `docs/SPEC/SPEC-HEAD-pdf-viewer.json`，需结合结构/事件/PDFJS/QtWebEngine 适配与 WebSocket 契约等规范文档；模块 README、ARCHITECTURE/ARCHITECTURE-DIAGRAM 提供事件驱动 + Feature 插件化架构总览。
 - 启动与配置：`main.js` 通过 `bootstrapPDFViewerAppFeature()` 启动；`bootstrap/app-bootstrap-feature.js` 解析 ws 端口（`resolveWebSocketPortSync` 默认 8765）与 `PDF_PATH`/`?file`，若已有 `pdf-id` 则跳过本地 auto-load，交由 URL Loader 触发；默认提升 Outline 与 WebSocketAdapter 日志级别并支持 `outlineLog` URL 参数调整，启动时 toast 提示“当前为 Outline 模式”。
