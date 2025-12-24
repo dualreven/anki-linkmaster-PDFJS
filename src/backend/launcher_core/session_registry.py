@@ -19,6 +19,7 @@ class AppSessionRegistry:
     def __init__(self) -> None:
         self._pdf_home_app: Optional[Any] = None
         self._viewer_by_pdf: Dict[str, Any] = {}
+        self._anno_manager_app: Optional[Any] = None
 
     # -------- pdf-home 单例 --------
     def get_pdf_home(self) -> Optional[Any]:
@@ -36,6 +37,16 @@ class AppSessionRegistry:
 
     def discard_viewer(self, pdf_id: str) -> None:
         self._viewer_by_pdf.pop(str(pdf_id), None)
+
+    # -------- anno-manager 单例 --------
+    def get_anno_manager(self) -> Optional[Any]:
+        return self._anno_manager_app
+
+    def set_anno_manager(self, app: Any) -> None:
+        self._anno_manager_app = app
+
+    def discard_anno_manager(self) -> None:
+        self._anno_manager_app = None
 
 
 _REGISTRY: Optional[AppSessionRegistry] = None
@@ -74,4 +85,3 @@ def activate_window(win: Any) -> bool:
     except Exception:
         pass
     return ok
-

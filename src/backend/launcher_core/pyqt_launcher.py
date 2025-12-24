@@ -460,6 +460,12 @@ class BackendLauncher:
                         self.logger.info("[MsgDispatch] app-window PdfHome ensure-hosted rc=%s", str(rc))
                     elif window_type == "anno-manager":
                         pdf_id = params.get("pdf_id") or params.get("pdfId")
+                        # 强制单例：anno-manager 必须使用固定 client_id
+                        if client_id != "anno-manager":
+                            raise ValueError(
+                                "anno-manager 必须使用固定 client_id='anno-manager'（禁止多实例/自定义 client_id）"
+                                f"，当前 client_id={client_id!r}"
+                            )
                         self.logger.info(
                             "[MsgDispatch] app-window 打开 anno-manager: client_id=%s pdf_id=%s dev_env=%s ports=%s options=%s",
                             client_id,
