@@ -7,19 +7,74 @@ import { Annotation } from "../common/models/annotation.js";
 
 const logger = getLogger("AnnoManagerWindow");
 let wsInboundInitialized = false;
+let lastPdfListRequestId = null;
 
-function getCurrentPdfIdFromLocation() {
-  try {
-    const search = typeof window !== "undefined" ? window.location.search || "" : "";
-    const params = new URLSearchParams(search);
-    const v = params.get("pdf-id") || params.get("pdf_id");
-    if (v && v.trim()) {
-      return v.trim();
-    }
-  } catch (e) {
-    logger.warn("[AnnoManager] Failed to parse pdf-id from URL", e);
+function generateRequestId(prefix = "req") {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function getSelectedPdfId() {
+  const select = /** @type {HTMLSelectElement|null} */ (document.getElementById("anno-manager-pdf-select"));
+  const v = select ? String(select.value || "").trim() : "";
+  return v || null;
+}
+
+function renderPdfSelectOptions(files) {
+  const select = /** @type {HTMLSelectElement|null} */ (document.getElementById("anno-manager-pdf-select"));
+  if (!select) {
+    return;
   }
-  return null;
+
+  const current = String(select.value || "");
+  select.innerHTML = "";
+
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = "请选择 PDF…";
+  select.appendChild(placeholder);
+
+  for (const f of files || []) {
+    if (!f || typeof f !== "object") {
+      continue;
+    }
+    const id = String(f.id || "").trim();
+    if (!id) {
+      continue;
+    }
+    const filename = String(f.filename || "").trim();
+    const title = String(f.title || "").trim();
+    const label = title || filename || id;
+
+    const opt = document.createElement("option");
+    opt.value = id;
+    opt.textContent = label;
+    select.appendChild(opt);
+  }
+
+  if (current) {
+    select.value = current;
+  }
+}
+
+function requestPdfList() {
+  const requestId = generateRequestId("pdf_list");
+  lastPdfListRequestId = requestId;
+
+  try {
+    eventBus.emit(
+      WEBSOCKET_EVENTS.MESSAGE.SEND,
+      {
+        type: WEBSOCKET_MESSAGE_TYPES.GET_PDF_LIST,
+        request_id: requestId,
+        metadata: { version: "1.0.0" },
+        data: {}
+      },
+      { actorId: "AnnoManager" }
+    );
+  } catch (e) {
+    logger.error("[AnnoManager] Failed to request pdf-library:list:requested", e);
+    showError("请求 PDF 列表失败", 4000);
+  }
 }
 
 function setupWsInboundHandlers() {
@@ -37,13 +92,33 @@ function setupWsInboundHandlers() {
         if (type === WEBSOCKET_MESSAGE_TYPES.ANNOTATION_LIST_COMPLETED) {
           const items = Array.isArray(data.annotations) ? data.annotations : [];
           renderAnnotationResults(items);
+        } else if (type === WEBSOCKET_MESSAGE_TYPES.PDF_LIST_COMPLETED) {
+          // 仅处理本窗口主动发起的 pdf-list 请求，避免消费其它模块的回执
+          const rid = message?.request_id || null;
+          if (!rid || rid !== lastPdfListRequestId) {
+            return;
+          }
+          const files = data?.files;
+          if (!Array.isArray(files)) {
+            throw new Error("pdf-library:list:completed data.files 不是数组");
+          }
+          renderPdfSelectOptions(files);
         } else if (type === WEBSOCKET_MESSAGE_TYPES.ANNOTATION_LIST_FAILED) {
           const msg = data?.message || "加载标注列表失败";
           logger.error("[AnnoManager] annotation:list:failed", { data });
           showError(`标注列表加载失败：${msg}`, 4000);
+        } else if (type === WEBSOCKET_MESSAGE_TYPES.PDF_LIST_FAILED) {
+          const rid = message?.request_id || null;
+          if (!rid || rid !== lastPdfListRequestId) {
+            return;
+          }
+          const msg = data?.message || "加载 PDF 列表失败";
+          logger.error("[AnnoManager] pdf-library:list:failed", { data });
+          showError(`PDF 列表加载失败：${msg}`, 4000);
         }
       } catch (e) {
         logger.error("[AnnoManager] Failed to handle WS inbound message", e);
+        showError("处理 WebSocket 回执失败（请查看日志）", 4000);
       }
     },
     { subscriberId: "AnnoManagerWsInbound" }
@@ -247,10 +322,10 @@ export function initAnnoManagerLayout() {
   const importBtn = document.getElementById("anno-manager-import-btn");
   if (importBtn && !importBtn.dataset?.initialized) {
     importBtn.addEventListener("click", () => {
-      const pdfId = getCurrentPdfIdFromLocation();
+      const pdfId = getSelectedPdfId();
       if (!pdfId) {
-        logger.error("[AnnoManager] import from PDF requested but pdf-id is missing in URL");
-        showError("无法从 PDF 导入：当前窗口缺少 pdf-id 参数", 4000);
+        logger.error("[AnnoManager] import from PDF requested but no PDF selected");
+        showError("无法从 PDF 导入：请先在顶部选择一个 PDF", 4000);
         return;
       }
 
@@ -272,6 +347,15 @@ export function initAnnoManagerLayout() {
     });
     importBtn.dataset.initialized = "1";
   }
+
+  const pdfSelect = /** @type {HTMLSelectElement|null} */ (document.getElementById("anno-manager-pdf-select"));
+  if (pdfSelect && !pdfSelect.dataset?.initialized) {
+    pdfSelect.addEventListener("change", () => {
+      const pdfId = getSelectedPdfId();
+      logger.info("[AnnoManager] pdf selection changed", { pdfId });
+    });
+    pdfSelect.dataset.initialized = "1";
+  }
 }
 
 async function bootstrap() {
@@ -287,6 +371,7 @@ async function bootstrap() {
 
     initAnnoManagerLayout();
     setupWsInboundHandlers();
+    requestPdfList();
     showInfo("标注管理器窗口已打开", 2000);
   } catch (e) {
     logger.error("[AnnoManager] bootstrap failed", e, {
