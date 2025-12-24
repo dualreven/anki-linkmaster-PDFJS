@@ -17,7 +17,9 @@ import importlib.util
 import unittest
 
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent.parent
+# __file__ = .../src/frontend/common/pyqt/__tests__/test_*.py
+# parents: __tests__ → pyqt → common → frontend → src → <repo root>
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
   sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -60,7 +62,19 @@ class SimpleWebWindowUrlClientIdTest(unittest.TestCase):
     )
     self.assertIn("client-id=custom-reviewer-xyz", url)
 
+  def test_build_url_should_ignore_pdf_id(self) -> None:
+    """即使传入 pdf_id，也不应通过 URL query 透传（业务参数应走 MsgCenter）。"""
+    LaunchConfig = self.mod.LaunchConfig  # type: ignore[attr-defined]
+    SimpleWebWindowApp = self.mod.SimpleWebWindowApp  # type: ignore[attr-defined]
+
+    cfg = LaunchConfig(is_prod=False)
+    cfg.extra_params = {"client_id": "anno-manager", "pdf_id": "pdf_123"}
+    app = SimpleWebWindowApp(cfg, entry_path="anno-manager", window_title="Anno")
+    url = app._build_frontend_url(5173)
+    self.assertTrue(url.startswith("http://localhost:5173/anno-manager/"))
+    self.assertIn("client-id=anno-manager", url)
+    self.assertNotIn("pdf-id=", url)
+
 
 if __name__ == "__main__":
   unittest.main()
-

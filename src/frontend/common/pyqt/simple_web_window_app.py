@@ -89,6 +89,7 @@ class SimpleWebWindowApp:
     构建前端 URL：
     - 基础路径：http://localhost:<url_port>/<entry_path>/
     - 若 LaunchConfig.extra_params 中包含 client_id，则追加 ?client-id=<client_id>
+    - 注意：禁止通过 URL query 传递业务参数（如 pdf-id）；业务初始化统一通过 MsgCenter 消息完成
     """
     base_path = self.entry_path or ""
     url = f"http://localhost:{url_port}/{base_path}/"
@@ -96,14 +97,10 @@ class SimpleWebWindowApp:
     try:
       extra = getattr(self.config, "extra_params", {}) or {}
       client_id = extra.get("client_id")
-      pdf_id = extra.get("pdf_id")
       query_parts: list[str] = []
       if client_id:
         from urllib.parse import quote
         query_parts.append(f"client-id={quote(str(client_id))}")
-      if pdf_id:
-        from urllib.parse import quote
-        query_parts.append(f"pdf-id={quote(str(pdf_id))}")
       if query_parts:
         url += "?" + "&".join(query_parts)
     except Exception:
