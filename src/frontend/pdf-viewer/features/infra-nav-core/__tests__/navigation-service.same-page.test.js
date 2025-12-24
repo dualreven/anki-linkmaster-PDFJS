@@ -32,12 +32,22 @@ function createViewerDom() {
   return viewerContainer;
 }
 
+function createTestLogger() {
+  return {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    event: jest.fn(),
+  };
+}
+
 describe("NavigationService 同页位移行为", () => {
   let eventBus;
   let navigationService;
 
   beforeEach(() => {
-    eventBus = new EventBus({ moduleName: "pdf-viewer-test", enableValidation: true, logger: console });
+    eventBus = new EventBus({ moduleName: "pdf-viewer-test", enableValidation: true, logger: createTestLogger() });
     createViewerDom();
     navigationService = new NavigationService(eventBus, { navigationTimeout: 1000, scrollDuration: 0 });
     eventBus.emit(
@@ -112,5 +122,35 @@ describe("NavigationService 同页位移行为", () => {
     expect(result.success).toBe(true);
     expect(result.actualPage).toBe(4);
     expect(result.actualPosition).toBe(50);
+  });
+
+  it("跨页导航在 scroll=false 时应只发 NAVIGATION.GOTO(0%) 且不执行默认滚动", async () => {
+    eventBus.emit(
+      PDF_VIEWER_EVENTS.PAGE.CHANGING,
+      { pageNumber: 3 },
+      { actorId: "tester" }
+    );
+
+    const gotoEvents = [];
+    eventBus.on(
+      PDF_VIEWER_EVENTS.NAVIGATION.GOTO,
+      (payload) => {
+        gotoEvents.push(payload);
+      },
+      { subscriberId: "test-listener" }
+    );
+
+    const scrollSpy = jest
+      .spyOn(navigationService, "scrollToPosition")
+      .mockResolvedValue(50);
+
+    const result = await navigationService.navigateTo({ pageAt: 4, position: null, scroll: false });
+
+    expect(gotoEvents).toHaveLength(1);
+    expect(gotoEvents[0]).toMatchObject({ pageNumber: 4, positionPercent: 0 });
+    expect(scrollSpy).toHaveBeenCalledTimes(0);
+    expect(result.success).toBe(true);
+    expect(result.actualPage).toBe(4);
+    expect(result.actualPosition).toBeNull();
   });
 });

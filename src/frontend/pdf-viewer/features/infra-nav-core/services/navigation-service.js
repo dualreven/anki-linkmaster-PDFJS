@@ -82,6 +82,7 @@ export class NavigationService {
    * @param {Object} params - 导航参数
    * @param {number} params.pageAt - 目标页码（从1开始）
    * @param {number|null} [params.position=null] - 页面内位置百分比（0-100）
+   * @param {boolean} [params.scroll=true] - 是否执行默认滚动（为 text-highlight DOM 二次居中等场景提供“只翻页不滚动”模式）
    * @returns {Promise<Object>} 导航结果
    * @returns {boolean} return.success - 是否成功
    * @returns {number} return.actualPage - 实际页码
@@ -106,7 +107,7 @@ export class NavigationService {
     this.#isNavigating = true;
 
     try {
-      const { pageAt, position = null } = params;
+      const { pageAt, position = null, scroll = true } = params;
 
       // 1. 验证页码（严格，无fallback/clamp）
       if (!Number.isInteger(pageAt)) {
@@ -133,27 +134,31 @@ export class NavigationService {
         await this.#waitForPageReady(actualPage);
         await new Promise((resolve) => setTimeout(resolve, 100));
 
-        if (position !== null) {
-          actualPosition = await this.scrollToPosition(position, actualPage);
-        } else {
-          actualPosition = await this.scrollToPosition(50, actualPage);
+        if (scroll) {
+          if (position !== null) {
+            actualPosition = await this.scrollToPosition(position, actualPage);
+          } else {
+            actualPosition = await this.scrollToPosition(50, actualPage);
+          }
         }
       } else {
         // 跨页导航：维持原有“先翻页再滚动”的完整流程
         this.#logger.info(`开始导航到第 ${actualPage} 页`);
         this.#eventBus.emit(
           PDF_VIEWER_EVENTS.NAVIGATION.GOTO,
-          { pageNumber: actualPage, positionPercent: (position !== null ? position : 50) },
+          { pageNumber: actualPage, positionPercent: (position !== null ? position : (scroll ? 50 : 0)) },
           { actorId: "NavigationService" }
         );
 
         await this.#waitForPageReady(actualPage);
         await new Promise((resolve) => setTimeout(resolve, 100));
 
-        if (position !== null) {
-          actualPosition = await this.scrollToPosition(position, actualPage);
-        } else {
-          actualPosition = await this.scrollToPosition(50, actualPage);
+        if (scroll) {
+          if (position !== null) {
+            actualPosition = await this.scrollToPosition(position, actualPage);
+          } else {
+            actualPosition = await this.scrollToPosition(50, actualPage);
+          }
         }
       }
 

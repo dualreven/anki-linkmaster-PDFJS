@@ -18,6 +18,7 @@ import { AnnotationSidebarUI } from "./components/annotation-sidebar-ui.js";
 import { ToolRegistry } from "./core/tool-registry.js";
 import { AnnotationManager } from "./core/annotation-manager.js";
 import { getCenterPercentFromRect } from "./utils/position-utils.js";
+import { centerTextHighlightViaDom } from "./utils/text-highlight-dom-centering.js";
 import { WEBSOCKET_EVENTS } from "../../../common/event/event-constants.js";
 
 /**
@@ -600,11 +601,32 @@ export class AnnotationFeature {
         if (!this.#navigationService) {
           throw new Error("navigationService not available");
         }
+        const needDomCentering =
+          annotation?.type === "text-highlight"
+          && !(position !== null && Number.isFinite(position));
         await this.#navigationService.navigateTo({
           pageAt: pageNumber,
-          position: (position !== null && Number.isFinite(position)) ? position : null
+          position: (position !== null && Number.isFinite(position)) ? position : null,
+          // text-highlight 缺少 lineRects 的场景会进行 DOM 二次居中；
+          // 若此处仍执行默认 50% 居中，会造成“先滚到页面中心，再滚到高亮中心”的双滚动体验。
+          scroll: !needDomCentering
         });
         try { this.#highlightAnnotationMarker?.(annotation?.id); } catch (e) { this.#logger?.warn?.("highlight marker failed", e); }
+
+        // 高亮标注：历史数据可能缺少 lineRects，导致 position 无法计算。
+        // 兜底策略：等待高亮 DOM 渲染出来，再根据其 DOM 位置计算中心百分比并滚动居中。
+        if (needDomCentering) {
+          try {
+            await centerTextHighlightViaDom({
+              annotationId: annotation.id,
+              pageNumber,
+              navigationService: this.#navigationService,
+              timeoutMs: 1200
+            });
+          } catch (e) {
+            this.#logger?.warn?.("[AnnotationFeature] text-highlight dom centering failed", e);
+          }
+        }
       } catch (emitErr) {
         this.#logger.warn("[AnnotationFeature] Failed to navigate via NavigationService for annotation jump", emitErr);
         throw emitErr;
