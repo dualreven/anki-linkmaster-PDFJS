@@ -1,6 +1,18 @@
 ﻿# Memory Bank - Context（精简版）
 
-最后更新：2025-12-24（修复高亮跳转居中刷新回归）
+最后更新：2025-12-30（P0：前端单文件行数门禁止血）
+
+## 2025-12-30 P0：前端单文件行数门禁（基线+增量）
+- 目标：先止血，阻止前端单文件继续面条化；历史大文件允许逐步拆分，不要求一次性全部重构。
+- 落地：
+  - 脚本：`scripts/ci/frontend-line-limit.js`
+  - 基线：`scripts/ci/baselines/frontend-line-limit.json`
+  - 运行：`pnpm run ci:frontend-line-limit`
+- 规则：
+  - `src/frontend/**` 新增文件禁止 `>500` 行；
+  - 对基线中已 `>500` 行的历史文件：禁止行数继续增长（允许减少）。
+- 排除：`src/frontend/dist/**`、`**/__tests__/**`、`**/__smoke__/**`
+- 备注：仓库全量 `pnpm run lint` 当前仍存在大量历史报错；本轮只保证新增脚本目录定向 lint 与最小 Jest 用例通过。
 
 ## 2025-12-23 标注管理器开发进度小结
 - 后端数据层：`PDFAnnotationTablePlugin` 已扩展 `title/is_key/importance` 元字段并接入默认标题生成与校验逻辑，`PDFAnnotationTagsTablePlugin` 与 `PDFAnnotationRelationTablePlugin` 已提供标签与关系的 CRUD 能力及防回归测试，为后续“标注网络化管理”提供基础数据模型。

@@ -13,6 +13,19 @@ Lint
   - 核心域：`pnpm run lint:strict:pdf-core`、`lint:strict:common-core`
   - 功能域：`pnpm run lint:features`、或 CI 精简 `lint:features:ci`
 
+行数门禁（P0：止血）
+- 目标：阻止前端单文件继续面条化（历史大文件允许逐步拆分，不要求一次性清零）。
+- 规则（基线 + 增量）：
+  - `src/frontend/**` 源码：禁止新增 `>500` 行文件；
+  - 对基线中已 `>500` 行的历史文件：禁止行数继续增长（允许减少）。
+- 排除：
+  - 构建产物：`src/frontend/dist/**`
+  - 测试目录：`**/__tests__/**`、`**/__smoke__/**`
+- 基线文件：`scripts/ci/baselines/frontend-line-limit.json`
+- 运行：
+  - 检查：`pnpm run ci:frontend-line-limit`
+  - 重建基线（仅在“接受现状”或大规模移动文件时使用）：`pnpm run ci:frontend-line-limit:write-baseline`
+
 测试
 - 单元/集成：Jest（前端）、pytest（后端/handlers/DB 插件）
 - 端到端：采用“多段集成 + 流程编排”（无浏览器）覆盖 pdf-home 添加、pdf-viewer 导航与 outline CRUD

@@ -97,6 +97,8 @@
     "e2e:flow:gui-launcher:client-register": "pnpm -s integ:python:gui-launcher:client-register:F1 && pnpm -s integ:protocol:gui-launcher:client-register:B2 && pnpm -s integ:python:gui-launcher:client-register:F3 && pnpm -s ct:python:gui-launcher:client-register",
     "e2e:flow:all:client-register": "pnpm -s e2e:flow:pdf-viewer:client-register && pnpm -s e2e:flow:pdf-home:client-register && pnpm -s e2e:flow:gui-launcher:client-register",
     "ci:ws-types-diff": "node scripts/ci/ws-contract-diff.mjs",
+    "ci:frontend-line-limit": "node scripts/ci/frontend-line-limit.js",
+    "ci:frontend-line-limit:write-baseline": "node scripts/ci/frontend-line-limit.js --write-baseline",
     "docs:frontend": "jsdoc -c jsdoc.config.cjs"
   },
   "engines": {
