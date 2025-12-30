@@ -33,6 +33,11 @@
   - 空态渲染：`src/frontend/pdf-viewer/features/pdf-annotation/components/annotation-sidebar-ui/empty-state.js`
 - 效果：主文件约 1760 行 → 993 行 → **485 行**；既有 Jest（annotation sidebar 相关）保持通过；行数门禁通过。
 
+## 2025-12-30 P1：ScreenshotTool 拆分（进行中）
+- 目标文件：`src/frontend/pdf-viewer/features/pdf-annotation/tools/screenshot/index.js`（多职责大文件，优先按“低风险→高风险”拆分）。
+- 当前进展：已准备 `src/frontend/pdf-viewer/features/pdf-annotation/tools/screenshot/ui-utils.js`（通用 UI 小函数），下一步将其接入并从 `index.js` 移除对应私有方法（commit A）。
+- 回归基线：已存在 screenshot tool 的 2 个 Jest 用例，用于锁行为（避免拆分引入回归）。
+
 ## 2025-12-30 前端面条代码分析 v2（量化 + 路线图）
 - 报告：`AItemp/reports/20251230104550-frontend-noodle-analysis-v2.md`
 - 关键数字（已跟踪前端文件，排除 dist/tests/smoke）：
