@@ -13,6 +13,7 @@ import { QWebChannelScreenshotBridge } from "./qwebchannel-bridge.js";
 import { Annotation, AnnotationType } from "../../../../../common/models/annotation.js";
 import { getLogger } from "../../../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
+import { confirmDialogAsync, escapeHtml, formatDate, getImageUrl } from "./ui-utils.js";
 
 const MARKER_COLOR_PRESETS = [
   { name: "orange", label: "橙色", value: "#ff9800" },
@@ -253,7 +254,7 @@ export class ScreenshotTool extends IAnnotationTool {
     // 优先使用imageData(base64),如果没有再用imagePath(HTTP路径)
     const imageUrl = annotation.data.imageData
       ? annotation.data.imageData
-      : this.#getImageUrl(annotation.data.imagePath);
+      : getImageUrl(annotation.data.imagePath);
 
     card.innerHTML = `
       <div class="annotation-card-header" style="display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #eee;">
@@ -271,10 +272,10 @@ export class ScreenshotTool extends IAnnotationTool {
           style="max-width: 100%; border-radius: 4px; margin-bottom: 8px; display: block;"
           onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22100%22><rect fill=%22%23ddd%22 width=%22200%22 height=%22100%22/><text x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 fill=%22%23999%22>加载失败</text></svg>'"
         >
-        ${annotation.data.description ? `<p class="annotation-description" style="color: #666; font-size: 14px; margin: 8px 0;">${this.#escapeHtml(annotation.data.description)}</p>` : ""}
+        ${annotation.data.description ? `<p class="annotation-description" style="color: #666; font-size: 14px; margin: 8px 0;">${escapeHtml(annotation.data.description)}</p>` : ""}
         <div class="annotation-meta" style="display: flex; gap: 12px; font-size: 12px; color: #999; margin-top: 8px;">
           <span>📄 P.${annotation.pageNumber}</span>
-          <span>🕒 ${this.#formatDate(annotation.createdAt)}</span>
+          <span>🕒 ${formatDate(annotation.createdAt)}</span>
         </div>
       </div>
       <div class="annotation-card-footer" style="display: flex; gap: 8px; padding: 8px; border-top: 1px solid #eee;">
@@ -826,40 +827,6 @@ export class ScreenshotTool extends IAnnotationTool {
   }
 
   /**
-   * 获取图片URL
-   * @private
-   */
-  #getImageUrl(imagePath) {
-    const port = window.APP_CONFIG?.fileServerPort || 8080;
-    return `http://localhost:${port}${imagePath}`;
-  }
-
-  /**
-   * HTML转义
-   * @private
-   */
-  #escapeHtml(text) {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
-  }
-
-  /**
-   * 格式化日期
-   * @private
-   */
-  #formatDate(isoString) {
-    const date = new Date(isoString);
-    return date.toLocaleString("zh-CN", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit"
-    });
-  }
-
-  /**
    * 跳转到标注
    * @private
    */
@@ -867,41 +834,6 @@ export class ScreenshotTool extends IAnnotationTool {
     this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.ANNOTATION.JUMP_TO, {
       id: annotationId,
       toolName: this.name  // 标识是截图工具的跳转请求
-    });
-  }
-
-  /**
-   * 简易确认弹窗（替代 window.confirm 以通过 lint）
-   * @param {string} message
-   * @returns {Promise<boolean>}
-   * @private
-   */
-  #confirmAsync(message) {
-    return new Promise((resolve) => {
-      try {
-        const overlay = document.createElement("div");
-        overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:9999;";
-        const dlg = document.createElement("div");
-        dlg.style.cssText = "width:360px;background:#fff;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.25);overflow:hidden;";
-        const body = document.createElement("div");
-        body.style.cssText = "padding:16px;font-size:14px;";
-        body.textContent = message;
-        const footer = document.createElement("div");
-        footer.style.cssText = "display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid #eee;";
-        const btnCancel = document.createElement("button");
-        btnCancel.textContent = "取消";
-        btnCancel.style.cssText = "padding:6px 12px;border:1px solid #ccc;background:#fff;border-radius:4px;cursor:pointer;";
-        const btnOk = document.createElement("button");
-        btnOk.textContent = "删除";
-        btnOk.style.cssText = "padding:6px 12px;border:1px solid #c62828;background:#c62828;color:#fff;border-radius:4px;cursor:pointer;";
-        btnCancel.addEventListener("click", () => { try { overlay.remove(); } catch (e) { void e; /* logger-guard */ } resolve(false); });
-        btnOk.addEventListener("click", () => { try { overlay.remove(); } catch (e) { void e; /* logger-guard */ } resolve(true); });
-        footer.appendChild(btnCancel); footer.appendChild(btnOk);
-        dlg.appendChild(body); dlg.appendChild(footer); overlay.appendChild(dlg);
-        document.body.appendChild(overlay);
-      } catch {
-        resolve(true);
-      }
     });
   }
 
@@ -1327,7 +1259,7 @@ export class ScreenshotTool extends IAnnotationTool {
       // 点击删除 - 删除标注（需要确认）
       deleteBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
-        if (await this.#confirmAsync("确定要删除此截图标注吗？")) {
+        if (await confirmDialogAsync({ message: "确定要删除此截图标注吗？" })) {
           this.#logger.info(`[ScreenshotTool] Requesting deletion of annotation ${annotation.id}`);
           this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DELETE, { id: annotation.id });
         }
