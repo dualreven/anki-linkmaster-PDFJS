@@ -47,6 +47,12 @@
   - `AnnotationFeature` 自动加载标注时只认 `FILE.LOAD.SUCCESS.data.pdfId`，缺失则 fail-fast 并触发 `ANNOTATION.DATA.LOAD_FAILED`。
 - 回归测试：`src/frontend/pdf-viewer/features/pdf-annotation/__tests__/annotation-autoload-on-file-load.test.js`（新增缺失 pdfId 必须失败的用例）。
 
+## 2025-12-30 修复：gui_launcher 打开 viewer 后不加载标注（load_pdf_file 链路补齐 pdfId）
+- 现象：从 `gui_launcher` 启动空白 pdf-viewer 后，通过旧协议 `load_pdf_file` 加载 PDF 时，标注不自动加载；但从 `pdf-home` 打开正常。
+- 根因：`load_pdf_file` → `FILE.LOAD.REQUESTED` 链路未携带 `pdfId`，导致 `FILE.LOAD.SUCCESS.pdfId == null`，在严格契约下标注自动加载 fail-fast。
+- 修复：`src/frontend/pdf-viewer/adapters/websocket-adapter.js` 在处理 `load_pdf_file` 时补齐 `pdfId`（来源只允许消息内字段 `pdfId/pdf_id/fileId` 或 filename 中的 12hex；禁止从 `window.location` 推断）。
+- 回归测试：`src/frontend/pdf-viewer/adapters/__tests__/websocket-adapter.test.js` 新增用例覆盖 `fileId` 与 `filename-12hex` 两种来源。
+
 ## 2025-12-30 前端面条代码分析 v2（量化 + 路线图）
 - 报告：`AItemp/reports/20251230104550-frontend-noodle-analysis-v2.md`
 - 关键数字（已跟踪前端文件，排除 dist/tests/smoke）：
