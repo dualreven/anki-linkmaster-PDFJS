@@ -1,6 +1,12 @@
 ﻿# Memory Bank - Context（精简版）
 
-最后更新：2025-12-30（P0：前端单文件行数门禁止血）
+最后更新：2025-12-30（前端事件体系参考文档：防竞态）
+
+## 2025-12-30 前端事件体系参考文档（防竞态）
+- 文档：`docs/standards/event-system-reference.md`
+- 目的：给后续 AI 一个“选事件前先看这里”的地图，避免误用事件造成竞态/时序冲突。
+- 关键结论（高风险）：`PDF_VIEWER_EVENTS.RENDER.READY` 是状态型且默认只发一次；Resume 与 MsgCenter gate 导航若复用该事件，极易在 `NavigationService` 的互斥点发生竞态（表现为偶现跳转失败/跳错位置）。
+- gate 注意：`gate.once` 是否能命中历史，取决于目标事件是否被写入 gate store（参见 `src/frontend/common/ws/ws-gate-runner.js` 与 `src/frontend/pdf-viewer/adapters/websocket-adapter.js`）。
 
 ## 2025-12-30 P0：前端单文件行数门禁（基线+增量）
 - 目标：先止血，阻止前端单文件继续面条化；历史大文件允许逐步拆分，不要求一次性全部重构。
@@ -26,6 +32,13 @@
   - 跳转委托：`src/frontend/pdf-viewer/features/pdf-annotation/components/annotation-sidebar-ui/jump-delegation.js`
   - 空态渲染：`src/frontend/pdf-viewer/features/pdf-annotation/components/annotation-sidebar-ui/empty-state.js`
 - 效果：主文件约 1760 行 → 993 行 → **485 行**；既有 Jest（annotation sidebar 相关）保持通过；行数门禁通过。
+
+## 2025-12-30 前端面条代码分析 v2（量化 + 路线图）
+- 报告：`AItemp/reports/20251230104550-frontend-noodle-analysis-v2.md`
+- 关键数字（已跟踪前端文件，排除 dist/tests/smoke）：
+  - 文件数 269，总行数 68331
+  - >500 行文件 37（pdf-viewer 18 / common 10 / pdf-home 9）
+- 建议优先拆分：annotation screenshot/text-highlight、ui-manager-core、ws-client/websocket-adapter、pdf-home filter-builder-v2 等（详见报告）。
 
 ## 2025-12-23 标注管理器开发进度小结
 - 后端数据层：`PDFAnnotationTablePlugin` 已扩展 `title/is_key/importance` 元字段并接入默认标题生成与校验逻辑，`PDFAnnotationTagsTablePlugin` 与 `PDFAnnotationRelationTablePlugin` 已提供标签与关系的 CRUD 能力及防回归测试，为后续“标注网络化管理”提供基础数据模型。
