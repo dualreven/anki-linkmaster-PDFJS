@@ -19,7 +19,13 @@
 - 已拆分：
   - 评论对话框：`src/frontend/pdf-viewer/features/pdf-annotation/components/annotation-sidebar-ui/comment-dialog.js`
   - 标注卡片渲染：`src/frontend/pdf-viewer/features/pdf-annotation/components/annotation-sidebar-ui/annotation-card.js`
-- 效果：主文件约 1760 行降至约 993 行；既有 Jest（annotation sidebar 相关）保持通过；行数门禁通过。
+- 继续拆分：
+  - 工具栏控制器：`src/frontend/pdf-viewer/features/pdf-annotation/components/annotation-sidebar-ui/toolbar-controller.js`
+  - 确认弹窗：`src/frontend/pdf-viewer/features/pdf-annotation/components/annotation-sidebar-ui/confirm-dialog.js`
+  - 事件订阅集合：`src/frontend/pdf-viewer/features/pdf-annotation/components/annotation-sidebar-ui/subscriptions.js`
+  - 跳转委托：`src/frontend/pdf-viewer/features/pdf-annotation/components/annotation-sidebar-ui/jump-delegation.js`
+  - 空态渲染：`src/frontend/pdf-viewer/features/pdf-annotation/components/annotation-sidebar-ui/empty-state.js`
+- 效果：主文件约 1760 行 → 993 行 → **485 行**；既有 Jest（annotation sidebar 相关）保持通过；行数门禁通过。
 
 ## 2025-12-23 标注管理器开发进度小结
 - 后端数据层：`PDFAnnotationTablePlugin` 已扩展 `title/is_key/importance` 元字段并接入默认标题生成与校验逻辑，`PDFAnnotationTagsTablePlugin` 与 `PDFAnnotationRelationTablePlugin` 已提供标签与关系的 CRUD 能力及防回归测试，为后续“标注网络化管理”提供基础数据模型。
