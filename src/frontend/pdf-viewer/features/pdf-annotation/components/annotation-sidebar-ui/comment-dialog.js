@@ -83,86 +83,86 @@ export function showAnnotationCommentDialog({
   ].join(";");
 
   switch (annotation.type) {
-    case "screenshot": {
-      typeLabel.textContent = `${typeIcon} 截图标注`;
-      annotationContent.appendChild(typeLabel);
+  case "screenshot": {
+    typeLabel.textContent = `${typeIcon} 截图标注`;
+    annotationContent.appendChild(typeLabel);
 
-      if (annotation.data.description) {
-        const desc = document.createElement("div");
-        desc.textContent = annotation.data.description;
-        desc.style.cssText = ["font-size: 14px", "color: #333", "margin-bottom: 8px"].join(";");
-        annotationContent.appendChild(desc);
-      }
-
-      if (annotation.data.imagePath || annotation.data.imageData) {
-        const img = document.createElement("img");
-        img.src = annotation.data.imageData ? annotation.data.imageData : getImageUrl(annotation.data.imagePath);
-        img.style.cssText = ["max-width: 100%", "border-radius: 4px", "display: block"].join(";");
-        img.onerror = () => {
-          img.style.display = "none";
-          const errorTip = document.createElement("div");
-          errorTip.textContent = "图片加载失败";
-          errorTip.style.cssText = [
-            "color: #999",
-            "font-size: 12px",
-            "padding: 8px",
-            "text-align: center",
-          ].join(";");
-          img.parentElement.appendChild(errorTip);
-        };
-        annotationContent.appendChild(img);
-      }
-      break;
+    if (annotation.data.description) {
+      const desc = document.createElement("div");
+      desc.textContent = annotation.data.description;
+      desc.style.cssText = ["font-size: 14px", "color: #333", "margin-bottom: 8px"].join(";");
+      annotationContent.appendChild(desc);
     }
 
-    case "text-highlight": {
-      typeLabel.textContent = `${typeIcon} 文本高亮`;
-      annotationContent.appendChild(typeLabel);
-
-      const highlightText = document.createElement("div");
-      highlightText.textContent = `"${annotation.data.selectedText}"`;
-      highlightText.style.cssText = [
-        "font-size: 14px",
-        "color: #333",
-        "line-height: 1.6",
-        "font-style: italic",
-        "padding: 8px",
-        `background: ${(annotation.data.highlightColor || "#ffff00")}40`,
-        "border-radius: 4px",
-      ].join(";");
-      annotationContent.appendChild(highlightText);
-
-      if (annotation.data.note) {
-        const note = document.createElement("div");
-        note.textContent = `笔记: ${annotation.data.note}`;
-        note.style.cssText = [
-          "font-size: 13px",
-          "color: #666",
-          "margin-top: 8px",
-          "padding-top: 8px",
-          "border-top: 1px solid #e8e8e8",
+    if (annotation.data.imagePath || annotation.data.imageData) {
+      const img = document.createElement("img");
+      img.src = annotation.data.imageData ? annotation.data.imageData : getImageUrl(annotation.data.imagePath);
+      img.style.cssText = ["max-width: 100%", "border-radius: 4px", "display: block"].join(";");
+      img.onerror = () => {
+        img.style.display = "none";
+        const errorTip = document.createElement("div");
+        errorTip.textContent = "图片加载失败";
+        errorTip.style.cssText = [
+          "color: #999",
+          "font-size: 12px",
+          "padding: 8px",
+          "text-align: center",
         ].join(";");
-        annotationContent.appendChild(note);
-      }
-      break;
+        img.parentElement.appendChild(errorTip);
+      };
+      annotationContent.appendChild(img);
     }
+    break;
+  }
 
-    case "comment": {
-      typeLabel.textContent = `${typeIcon} 批注`;
-      annotationContent.appendChild(typeLabel);
+  case "text-highlight": {
+    typeLabel.textContent = `${typeIcon} 文本高亮`;
+    annotationContent.appendChild(typeLabel);
 
-      const commentText = document.createElement("div");
-      commentText.textContent = annotation.data.content;
-      commentText.style.cssText = ["font-size: 14px", "color: #333", "line-height: 1.6"].join(";");
-      annotationContent.appendChild(commentText);
-      break;
+    const highlightText = document.createElement("div");
+    highlightText.textContent = `"${annotation.data.selectedText}"`;
+    highlightText.style.cssText = [
+      "font-size: 14px",
+      "color: #333",
+      "line-height: 1.6",
+      "font-style: italic",
+      "padding: 8px",
+      `background: ${(annotation.data.highlightColor || "#ffff00")}40`,
+      "border-radius: 4px",
+    ].join(";");
+    annotationContent.appendChild(highlightText);
+
+    if (annotation.data.note) {
+      const note = document.createElement("div");
+      note.textContent = `笔记: ${annotation.data.note}`;
+      note.style.cssText = [
+        "font-size: 13px",
+        "color: #666",
+        "margin-top: 8px",
+        "padding-top: 8px",
+        "border-top: 1px solid #e8e8e8",
+      ].join(";");
+      annotationContent.appendChild(note);
     }
+    break;
+  }
 
-    default: {
-      typeLabel.textContent = `${typeIcon} 标注`;
-      annotationContent.appendChild(typeLabel);
-      break;
-    }
+  case "comment": {
+    typeLabel.textContent = `${typeIcon} 批注`;
+    annotationContent.appendChild(typeLabel);
+
+    const commentText = document.createElement("div");
+    commentText.textContent = annotation.data.content;
+    commentText.style.cssText = ["font-size: 14px", "color: #333", "line-height: 1.6"].join(";");
+    annotationContent.appendChild(commentText);
+    break;
+  }
+
+  default: {
+    typeLabel.textContent = `${typeIcon} 标注`;
+    annotationContent.appendChild(typeLabel);
+    break;
+  }
   }
 
   const metaContainer = document.createElement("div");
@@ -432,4 +432,3 @@ export function showAnnotationCommentDialog({
 
   textarea.focus();
 }
-
