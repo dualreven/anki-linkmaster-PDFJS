@@ -38,10 +38,14 @@
 - 当前进展：已准备 `src/frontend/pdf-viewer/features/pdf-annotation/tools/screenshot/ui-utils.js`（通用 UI 小函数），下一步将其接入并从 `index.js` 移除对应私有方法（commit A）。
 - 回归基线：已存在 screenshot tool 的 2 个 Jest 用例，用于锁行为（避免拆分引入回归）。
 
-## 2025-12-30 回归修复：标注自动加载（FILE.LOAD.SUCCESS → ANNOTATION.DATA.LOAD）
-- 问题：当 `FILE.LOAD.SUCCESS` 的 `{filename,url}` 不包含可解析的 id 时，`AnnotationFeature` 会跳过自动加载，导致“打开 PDF 后标注为空”。
-- 修复：在 `src/frontend/pdf-viewer/features/pdf-annotation/index.js` 中增加 URL 参数兜底：优先读取 `pdf-id/pdf_id`，并继续触发 `ANNOTATION.DATA.LOAD`。
-- 回归测试：`src/frontend/pdf-viewer/features/pdf-annotation/__tests__/annotation-autoload-on-file-load.test.js`。
+## 2025-12-30 修复：标注自动加载改为严格契约（禁止兜底）
+- 问题：标注自动加载若依赖从 `{filename,url}` 推断 pdfId，会在“非 12hex 文件名/非 uuid 场景”失效，导致打开 PDF 后标注为空。
+- 结论：禁止兜底推断；**pdfId 必须由加载链路显式提供**。
+- 落地：
+  - `PDFUrlLoaderFeature` 发出 `FILE.LOAD.REQUESTED` 时携带 `pdfId`；
+  - `PDFManager` 发出 `FILE.LOAD.SUCCESS/FAILED` 时透传 `pdfId`；
+  - `AnnotationFeature` 自动加载标注时只认 `FILE.LOAD.SUCCESS.data.pdfId`，缺失则 fail-fast 并触发 `ANNOTATION.DATA.LOAD_FAILED`。
+- 回归测试：`src/frontend/pdf-viewer/features/pdf-annotation/__tests__/annotation-autoload-on-file-load.test.js`（新增缺失 pdfId 必须失败的用例）。
 
 ## 2025-12-30 前端面条代码分析 v2（量化 + 路线图）
 - 报告：`AItemp/reports/20251230104550-frontend-noodle-analysis-v2.md`
