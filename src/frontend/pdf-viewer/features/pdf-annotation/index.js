@@ -333,20 +333,15 @@ export class AnnotationFeature {
     this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, (data) => {
       try {
         // 严格契约：必须由加载链路显式提供 pdfId（禁止从 filename/url/location 推断）
-        const pdfId = (typeof data?.pdfId === "string" && data.pdfId.trim())
-          ? data.pdfId.trim()
-          : null;
-
+        const pdfId = typeof data?.pdfId === "string" ? data.pdfId.trim() : "";
         if (!pdfId) {
-          const err = new Error("missing pdfId in FILE.LOAD.SUCCESS");
+          const msg = "missing pdfId in FILE.LOAD.SUCCESS";
           this.#logger.error("[AnnotationFeature] 标注自动加载失败：缺少 pdfId（需由加载链路显式提供）", {
-            filename: data?.filename ?? null,
-            url: data?.url ?? null,
+            filename: data?.filename ?? null, url: data?.url ?? null,
           }, { toast: { type: "error", ms: 5000 } });
-          this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD_FAILED, { error: err.message }, { actorId: "AnnotationFeature" });
+          this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD_FAILED, { error: msg }, { actorId: "AnnotationFeature" });
           return;
         }
-
         // 记录当前 pdfId，供 WS 建立后重试加载
         this.#currentPdfId = pdfId;
         this.#hasLoadedOnce = false;
