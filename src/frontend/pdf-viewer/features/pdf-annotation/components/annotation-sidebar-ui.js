@@ -6,12 +6,12 @@
 
 import { getLogger } from '../../../../common/utils/logger.js';
 import { PDF_VIEWER_EVENTS } from '../../../../common/event/pdf-viewer-constants.js';
-import { showSuccess, showError, showInfo } from '../../../../common/utils/notification.js';
-import { AnnotationType } from '../models/index.js';
+import { showSuccess, showError } from '../../../../common/utils/notification.js';
 import { copyTextUsingHiddenTextarea } from '../../../../common/utils/copy-utils.js';
 import { createSubscriptionBag } from '../../../../common/ws/ws-subscription-bag.js';
 import { showAnnotationCommentDialog } from './annotation-sidebar-ui/comment-dialog.js';
 import { createAnnotationCardElement } from './annotation-sidebar-ui/annotation-card.js';
+import { createAnnotationSidebarToolbarController } from './annotation-sidebar-ui/toolbar-controller.js';
 
 /**
  * 标注侧边栏UI类
@@ -35,6 +35,8 @@ export class AnnotationSidebarUI {
   #subscriptions = null;
   /** @type {string|null} */
   #activeTool = null;
+  /** @type {{ createHeaderElement:()=>HTMLElement, updateToolbarState:()=>void }|null} */
+  #toolbarController = null;
   /** @type {Map<string, HTMLElement>} */
   #annotationCards = new Map();
 
@@ -48,6 +50,13 @@ export class AnnotationSidebarUI {
     this.#logger = getLogger('AnnotationSidebarUI');
     this.#container = null;
     this.#subscriptions = createSubscriptionBag({ loggerName: 'AnnotationSidebarUI' });
+    this.#toolbarController = createAnnotationSidebarToolbarController({
+      eventBus: this.#eventBus,
+      logger: this.#logger,
+      getContainer: () => this.#container,
+      getActiveTool: () => this.#activeTool,
+      setActiveTool: (next) => { this.#activeTool = next; },
+    });
   }
 
   /**
@@ -94,7 +103,7 @@ export class AnnotationSidebarUI {
     ].join(';');
 
     // 创建Header（包含工具栏）
-    this.#sidebarHeader = this.#createHeader();
+    this.#sidebarHeader = this.#toolbarController.createHeaderElement();
     container.appendChild(this.#sidebarHeader);
 
     // 创建内容区域
@@ -227,222 +236,7 @@ export class AnnotationSidebarUI {
    * @returns {HTMLElement}
    * @private
    */
-  #createHeader() {
-    const header = document.createElement('div');
-    header.className = 'annotation-sidebar-header';
-    header.style.cssText = [
-      'padding: 8px', // 第二期：从12px减少到8px，使工具栏更紧凑
-      'border-bottom: 1px solid #eee',
-      'background: #fafafa',
-      'box-sizing: border-box',
-      'flex-shrink: 0',
-    ].join(';');
 
-    // 工具栏
-    const toolbar = this.#createToolbar();
-    header.appendChild(toolbar);
-
-    return header;
-  }
-
-  /**
-   * 创建工具栏（第二期：优化按钮尺寸）
-   * @returns {HTMLElement}
-   * @private
-   */
-  #createToolbar() {
-    const toolbar = document.createElement('div');
-    toolbar.className = 'annotation-toolbar';
-    toolbar.style.cssText = ['display: flex', 'gap: 4px', 'align-items: center'].join(';');
-
-    // 工具按钮配置（第二期：新增筛选、排序和设置按钮）
-    const tools = [
-      { id: 'screenshot', icon: '📷', title: '截图标注' },
-      { id: 'text-highlight', icon: '✏️', title: '选字高亮' },
-      { id: 'comment', icon: '📝', title: '批注' },
-      { id: 'filter', icon: '🔍', title: '筛选标注' },
-      { id: 'sort', icon: '↕️', title: '排序标注' },
-      { id: 'settings', icon: '⚙️', title: '设置' },
-    ];
-
-    tools.forEach((tool) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = `annotation-tool-btn annotation-tool-${tool.id}`;
-      btn.dataset.tool = tool.id;
-      btn.title = tool.title; // Tooltip提示
-
-      // 标记是否为标注工具（用于状态更新）
-      const isAnnotationTool = !['filter', 'sort', 'settings'].includes(tool.id);
-      if (isAnnotationTool) {
-        btn.dataset.isTool = 'true';
-      }
-
-      btn.style.cssText = [
-        'display: flex',
-        'align-items: center',
-        'justify-content: center',
-        'width: 28px',
-        'height: 28px',
-        'padding: 0',
-        'border: 1px solid #ddd',
-        'background: #fff',
-        'border-radius: 4px',
-        'cursor: pointer',
-        'transition: all 0.2s',
-        'font-size: 16px',
-        'color: #666',
-      ].join(';');
-
-      // 仅图标，不显示文字
-      const iconSpan = document.createElement('span');
-      iconSpan.textContent = tool.icon;
-      iconSpan.style.lineHeight = '1';
-
-      btn.appendChild(iconSpan);
-
-      // 根据按钮类型绑定不同的处理器
-      if (tool.id === 'filter' || tool.id === 'sort' || tool.id === 'settings') {
-        // 筛选、排序和设置按钮的点击处理（第二期功能）
-        btn.addEventListener('click', () => this.#handleUtilityButtonClick(tool.id));
-      } else {
-        // 标注工具按钮的点击处理
-        btn.addEventListener('click', () => this.#handleToolClick(tool.id));
-      }
-
-      // 悬停效果
-      btn.addEventListener('mouseenter', () => {
-        if (this.#activeTool !== tool.id) {
-          btn.style.background = '#f5f5f5';
-          btn.style.borderColor = '#bbb';
-        }
-      });
-      btn.addEventListener('mouseleave', () => {
-        if (this.#activeTool !== tool.id) {
-          btn.style.background = '#fff';
-          btn.style.borderColor = '#ddd';
-        }
-      });
-
-      toolbar.appendChild(btn);
-    });
-
-    return toolbar;
-  }
-
-  /**
-   * 处理工具按钮点击
-   * @param {string} toolId - 工具ID
-   * @private
-   */
-  #handleToolClick(toolId) {
-    this.#logger.debug(`Tool clicked: ${toolId}, current active: ${this.#activeTool}`);
-
-    // 切换工具状态
-    if (this.#activeTool === toolId) {
-      // 点击当前激活的工具 - 停用它
-      const oldTool = this.#activeTool;
-      this.#activeTool = null;
-      this.#updateToolbarState();
-      this.#logger.info(`Tool deactivated: ${oldTool}`);
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.TOOL.DEACTIVATE, { tool: oldTool });
-    } else {
-      // 切换到新工具
-      const oldTool = this.#activeTool;
-
-      // 先停用旧工具（如果有）
-      if (oldTool) {
-        this.#logger.debug(`Switching from ${oldTool} to ${toolId}`);
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.TOOL.DEACTIVATE, { tool: oldTool });
-      }
-
-      // 激活新工具
-      this.#activeTool = toolId;
-      this.#updateToolbarState();
-      this.#logger.info(`Tool activated: ${toolId}`);
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.TOOL.ACTIVATE, { tool: toolId });
-
-      // 显示模式切换提示
-      this.#showModeToast(toolId);
-    }
-  }
-
-  /**
-   * 显示模式切换提示（第二期：新增）
-   * @param {string} toolId - 工具ID
-   * @private
-   */
-  #showModeToast(toolId) {
-    const modeNames = {
-      screenshot: '📷 已启动截图模式',
-      'text-highlight': '✏️ 已启动选字模式',
-      comment: '📝 已启动批注模式',
-    };
-
-    const message = modeNames[toolId] || `已启动${toolId}模式`;
-    showInfo(message);
-  }
-
-  /**
-   * 处理辅助按钮点击（筛选、排序、设置等）
-   * @param {string} buttonId - 按钮ID
-   * @private
-   */
-  #handleUtilityButtonClick(buttonId) {
-    this.#logger.debug(`Utility button clicked: ${buttonId}`);
-
-    // 根据按钮类型执行不同操作
-    switch (buttonId) {
-      case 'filter':
-        // 切换筛选面板显示状态（第二期功能）
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.FILTER_TOGGLE, {});
-        showInfo('筛选功能开发中...');
-        break;
-      case 'sort':
-        // 切换排序面板显示状态（第二期功能）
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.SORT_TOGGLE, {});
-        showInfo('排序功能开发中...');
-        break;
-      case 'settings':
-        // 打开设置面板（预留功能）
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.SETTINGS_OPEN, {});
-        showInfo('设置功能开发中...');
-        break;
-      default:
-        this.#logger.warn(`Unknown utility button: ${buttonId}`);
-    }
-  }
-
-  /**
-   * 更新工具栏状态（高亮当前激活的工具）
-   * @private
-   */
-  #updateToolbarState() {
-    if (!this.#container) {
-      return;
-    }
-
-    // 只更新标注工具按钮（不包括筛选、设置等辅助按钮）
-    const buttons = this.#container.querySelectorAll('.annotation-tool-btn[data-is-tool="true"]');
-    buttons.forEach((btn) => {
-      const toolId = btn.dataset.tool;
-      if (toolId === this.#activeTool) {
-        // 激活状态：蓝色高亮
-        btn.style.background = '#e3f2fd';
-        btn.style.borderColor = '#2196f3';
-        btn.style.color = '#1976d2';
-        btn.style.fontWeight = '500';
-      } else {
-        // 未激活状态：默认样式
-        btn.style.background = '#fff';
-        btn.style.borderColor = '#ddd';
-        btn.style.color = '#666';
-        btn.style.fontWeight = 'normal';
-      }
-    });
-
-    this.#logger.debug(`Toolbar state updated, active tool: ${this.#activeTool || 'none'}`);
-  }
 
   /**
    * 设置事件监听
@@ -496,12 +290,12 @@ export class AnnotationSidebarUI {
             // 没有指定工具，清空所有（如按ESC键全局停用）
             this.#logger.debug('All tools deactivated (no specific tool specified)');
             this.#activeTool = null;
-            this.#updateToolbarState();
+            this.#toolbarController.updateToolbarState();
           } else if (deactivatedTool === this.#activeTool) {
             // 指定的工具与当前激活的工具匹配，清空
             this.#logger.debug(`Tool deactivated: ${deactivatedTool} (matches active tool)`);
             this.#activeTool = null;
-            this.#updateToolbarState();
+            this.#toolbarController.updateToolbarState();
           } else {
             // 停用的工具不是当前激活的工具，忽略
             this.#logger.debug(
@@ -563,7 +357,7 @@ export class AnnotationSidebarUI {
 
     // 清空本地状态
     this.#activeTool = null;
-    this.#updateToolbarState();
+    this.#toolbarController.updateToolbarState();
 
     // 业务要求：关闭侧边栏时不再弹出任何 toast 提示（静默处理）
     this.#logger.info('Annotation sidebar closed (silent, no toast)');
