@@ -13,6 +13,8 @@ import { showAnnotationCommentDialog } from './annotation-sidebar-ui/comment-dia
 import { createAnnotationCardElement } from './annotation-sidebar-ui/annotation-card.js';
 import { createAnnotationSidebarToolbarController } from './annotation-sidebar-ui/toolbar-controller.js';
 import { confirmDialogAsync } from './annotation-sidebar-ui/confirm-dialog.js';
+import { installAnnotationJumpDelegation } from './annotation-sidebar-ui/jump-delegation.js';
+import { renderAnnotationSidebarEmptyState } from './annotation-sidebar-ui/empty-state.js';
 import {
   createCommentAddedHandler,
   createSidebarClosedHandler,
@@ -106,7 +108,16 @@ export class AnnotationSidebarUI {
 
     // 统一为所有标注卡片绑定跳转按钮的委托点击（避免各工具各自实现导致不一致）
     try {
-      this.#setupCardClickDelegation();
+      const root = this.#sidebarContent || this.#container;
+      if (root) {
+        this.#subscriptions.add(installAnnotationJumpDelegation({
+          root,
+          logger: this.#logger,
+          eventBus: this.#eventBus,
+          getAnnotationById: (id) => (this.#annotations || []).find((a) => a?.id === id) || null,
+          highlightAndScrollToCard: (id) => this.highlightAndScrollToCard(id),
+        }));
+      }
       this.#logger.info('Card click delegation for jump initialized');
     } catch (e) {
       this.#logger.warn('Failed to setup card click delegation', e);
@@ -167,104 +178,6 @@ export class AnnotationSidebarUI {
   }
 
   /**
-   * 统一为侧边栏中的卡片绑定跳转点击（事件委托）
-   * @private
-   */
-  #setupCardClickDelegation() {
-    const root = this.#sidebarContent || this.#container;
-    if (!root) {
-      return;
-    }
-
-    root.addEventListener(
-      'click',
-      (evt) => {
-        try {
-          const target = /** @type {HTMLElement} */ (evt.target);
-          const jumpBtn = target?.closest ? target.closest('.jump-btn') : null;
-          if (!jumpBtn) {
-            return;
-          }
-
-          const annId = jumpBtn.getAttribute('data-annotation-id') || jumpBtn.dataset.annotationId;
-          if (!annId) {
-            // 严格模式：不合规立即报错 + toast（统一使用 logger 的 toast）
-            this.#logger.error(
-              '[AnnotationSidebarUI] 跳转按钮缺少 data-annotation-id',
-              { btn: jumpBtn },
-              { toast: { type: 'error', ms: 4000 } }
-            );
-            return;
-          }
-          this.#handleCardJump(String(annId));
-        } catch (e) {
-          // 严格模式：异常即报错 + toast（统一使用 logger 的 toast）
-          try {
-            this.#logger.error('Card jump handler failed', e, {
-              toast: { type: 'error', ms: 4000 },
-            });
-          } catch (e2) {
-            void e2;
-          }
-        }
-      },
-      { passive: true }
-    );
-  }
-
-  /**
-   * 执行严格的跳转逻辑：仅通过“全局契约事件”发起跳转，不再走 URL 导航兜底
-   * @param {string} annotationId
-   * @private
-   */
-  #handleCardJump(annotationId) {
-    try {
-      const ann = (this.#annotations || []).find((a) => a?.id === annotationId);
-      if (!ann) {
-        // 严格模式：未找到标注即报错 + toast
-        this.#logger.error(`[AnnotationSidebarUI] 未找到标注，无法跳转 id=${annotationId}`, null, {
-          toast: { type: 'error', ms: 4000 },
-        });
-        return;
-      }
-
-      // 严格路径：仅通过“全局契约事件”通知协调者处理跳转
-      this.#eventBus.emitGlobal(
-        PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
-        { annotation: ann },
-        { actorId: 'AnnotationSidebarUI' }
-      );
-
-      // 通知各工具跳转成功（用于渲染标记等），尽量兼容已有监听方
-      try {
-        this.#eventBus.emitGlobal(
-          PDF_VIEWER_EVENTS.ANNOTATION?.NAVIGATION?.JUMP_SUCCESS ||
-            'annotation:navigation:jump:success',
-          { annotation: ann },
-          { actorId: 'AnnotationSidebarUI' }
-        );
-      } catch (e) {
-        void e; /* logger-guard */
-      }
-
-      // 高亮对应卡片
-      try {
-        this.highlightAndScrollToCard(ann.id);
-      } catch (e) {
-        void e; /* logger-guard */
-      }
-
-      this.#logger.info(
-        `[AnnotationSidebarUI] Jump requested (strict): id=${ann.id} page=${ann.pageNumber}`
-      );
-    } catch (e) {
-      this.#logger.error('Failed to handle card jump (strict)', e, {
-        toast: { type: 'error', ms: 4000 },
-      });
-    }
-  }
-
-  /**
    * 创建Header部分（包含工具栏，不包含关闭按钮）
    * @returns {HTMLElement}
    * @private
@@ -291,7 +204,7 @@ export class AnnotationSidebarUI {
     this.#annotationCards.clear();
 
     if (this.#annotations.length === 0) {
-      this.#renderEmpty();
+      renderAnnotationSidebarEmptyState({ container: this.#sidebarContent });
       return;
     }
 
@@ -306,40 +219,6 @@ export class AnnotationSidebarUI {
       this.#sidebarContent.appendChild(card);
       this.#annotationCards.set(annotation.id, card);
     });
-  }
-
-  /**
-   * 渲染空状态
-   * @private
-   */
-  #renderEmpty() {
-    this.#sidebarContent.innerHTML = '';
-
-    const emptyDiv = document.createElement('div');
-    emptyDiv.className = 'annotation-empty';
-    emptyDiv.style.cssText = [
-      'text-align: center',
-      'padding: 40px 20px',
-      'color: #999',
-      'font-size: 14px',
-    ].join(';');
-
-    const icon = document.createElement('div');
-    icon.textContent = '📝';
-    icon.style.cssText = 'font-size: 48px; margin-bottom: 16px;';
-
-    const message = document.createElement('div');
-    message.textContent = '暂无标注';
-
-    const hint = document.createElement('div');
-    hint.textContent = '🖱️ 点击上方工具按钮开始标注';
-    hint.style.cssText = 'margin-top: 8px; font-size: 12px; color: #bbb;';
-
-    emptyDiv.appendChild(icon);
-    emptyDiv.appendChild(message);
-    emptyDiv.appendChild(hint);
-
-    this.#sidebarContent.appendChild(emptyDiv);
   }
 
   /**
@@ -435,7 +314,7 @@ export class AnnotationSidebarUI {
 
     // 如果没有标注了，显示空状态
     if (this.#annotations.length === 0) {
-      this.#renderEmpty();
+      renderAnnotationSidebarEmptyState({ container: this.#sidebarContent });
     }
   }
 
