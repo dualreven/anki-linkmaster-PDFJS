@@ -51,11 +51,44 @@ describe("AnnotationFeature - FILE.LOAD.SUCCESS 自动加载", () => {
     });
 
     // 触发文件加载成功
-    globalEventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, { filename: "doc-abc.pdf" });
+    globalEventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, { filename: "doc-abc.pdf", pdfId: "doc-abc" });
     await new Promise((r) => setTimeout(r, 50));
 
     expect(emitted.length).toBeGreaterThan(0);
-    // 允许两种来源（URL 或 filename 提取），因此不强制断言具体 pdfId 值，只验证事件已发布
+    // 严格契约：必须由 FILE.LOAD.SUCCESS 提供 pdfId
     offLoad?.();
+  });
+
+  test("缺少 pdfId 必须 fail-fast（触发 LOAD_FAILED 且不触发 LOAD）", async () => {
+    const emittedLoad = [];
+    const emittedFailed = [];
+    const scopedBus = createScopedEventBus(globalEventBus, "annotation");
+    const offLoad = scopedBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, (data) => {
+      emittedLoad.push(data);
+    }, { subscriberId: "test2" });
+    const offFailed = scopedBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD_FAILED, (data) => {
+      emittedFailed.push(data);
+    }, { subscriberId: "test2" });
+
+    const container = createContainer({
+      pdfViewerManager: {},
+      navigationService: { navigateTo: jest.fn() },
+    });
+
+    const feature = new AnnotationFeature();
+    await feature.install({
+      globalEventBus,
+      container,
+      logger: console,
+    });
+
+    globalEventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, { filename: "doc-abc.pdf" });
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(emittedLoad.length).toBe(0);
+    expect(emittedFailed.length).toBeGreaterThan(0);
+
+    offLoad?.();
+    offFailed?.();
   });
 });

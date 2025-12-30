@@ -87,7 +87,14 @@ export class PDFUrlLoaderFeature {
 
     // 1. 从context中获取依赖
     const container = context.container || context;  // 兼容旧版本直接传container的情况
-    this.#eventBus = context.globalEventBus || container.get("eventBus");
+    this.#eventBus = context.globalEventBus || null;
+    if (!this.#eventBus) {
+      try {
+        this.#eventBus = container.get("eventBus");
+      } catch {
+        this.#eventBus = null;
+      }
+    }
     if (!this.#eventBus) {
       throw new Error("EventBus未在容器或context中找到");
     }
@@ -169,7 +176,7 @@ export class PDFUrlLoaderFeature {
 
           this.#eventBus.emit(
             PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
-            { filename: filenameForLoad, file_path: filePath, source: "pdf-url-loader" },
+            { pdfId, filename: filenameForLoad, file_path: filePath, source: "pdf-url-loader" },
             { actorId: "PDFUrlLoaderFeature" }
           );
         }

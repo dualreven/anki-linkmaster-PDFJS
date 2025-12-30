@@ -198,6 +198,7 @@ export class PDFManager {
         // 发射 FILE.LOAD.SUCCESS 事件，通知 UI 进行渲染
         this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, {
           pdfDocument,
+          pdfId: fileData?.pdfId ?? fileData?.pdf_id ?? null,
           filename: filename,
           url: url
         }, { actorId: "PDFManager" });
@@ -211,6 +212,7 @@ export class PDFManager {
         // 发布加载失败事件
         this.#eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.FAILED, {
           filename: filename,
+          pdfId: fileData?.pdfId ?? fileData?.pdf_id ?? null,
           error: error.message,
           attempt: attempt,
           maxAttempts: LOADING_CONFIG.maxRetries

@@ -332,30 +332,18 @@ export class AnnotationFeature {
     if (!this.#eventBus) {return;}
     this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, (data) => {
       try {
-        // 从事件数据中获取 pdfId（pdf-manager 会透传 filename）
-        let pdfId = null;
-        if (data) {
-          const extracted = this.#extractPdfUUID({ filename: data.filename, url: data.url });
-          if (extracted) {pdfId = extracted;}
-        }
-
-        // 兜底：当 filename/url 无法解析出 pdfId 时，优先从 URL 参数读取（与 pdf-url-loader 的契约一致）
-        // 说明：pdf-id 不一定是 12hex（测试/历史场景可能为 doc-abc），因此不做 12hex 强约束。
-        if (!pdfId) {
-          try {
-            const params = new URLSearchParams(window.location.search);
-            const fromUrlParam = (params.get("pdf-id") || params.get("pdf_id") || "").trim();
-            if (fromUrlParam) {
-              pdfId = fromUrlParam;
-              this.#logger.info(`[AnnotationFeature] pdfId fallback from URL param: ${pdfId}`);
-            }
-          } catch (e) {
-            void e; /* logger-guard */
-          }
-        }
+        // 严格契约：必须由加载链路显式提供 pdfId（禁止从 filename/url/location 推断）
+        const pdfId = (typeof data?.pdfId === "string" && data.pdfId.trim())
+          ? data.pdfId.trim()
+          : null;
 
         if (!pdfId) {
-          this.#logger.warn("[AnnotationFeature] 无法解析 pdfId，跳过自动加载");
+          const err = new Error("missing pdfId in FILE.LOAD.SUCCESS");
+          this.#logger.error("[AnnotationFeature] 标注自动加载失败：缺少 pdfId（需由加载链路显式提供）", {
+            filename: data?.filename ?? null,
+            url: data?.url ?? null,
+          }, { toast: { type: "error", ms: 5000 } });
+          this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD_FAILED, { error: err.message }, { actorId: "AnnotationFeature" });
           return;
         }
 
