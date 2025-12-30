@@ -515,31 +515,31 @@ export class WebSocketAdapter {
     }
   }
 
-  /**
-   * 处理加载PDF文件消息
-   *
-   * @private
-   * @param {Object} data - 文件数据
-   */
+  // 处理加载PDF文件消息
   #handleLoadPdfFile(data) {
-    // 支持新消息格式 (file_path) 和旧格式 (fileId)
     let fileData = null;
-
     if (data && data.filename && data.url) {
+      const pdfId = (() => {
+        const raw = (typeof data.pdfId === "string" ? data.pdfId : (typeof data.pdf_id === "string" ? data.pdf_id : (typeof data.fileId === "string" ? data.fileId : ""))).trim();
+        if (raw) { return raw; }
+        const m = String(data.filename).match(/([a-f0-9]{12})/i);
+        return m ? String(m[1]).toLowerCase() : "";
+      })();
+
       if (data.file_path) {
         // 新格式：使用 file_path
         fileData = {
           file_path: data.file_path,
           filePath: data.file_path, // 同时提供camelCase版本
           filename: data.filename,
-          url: data.url
+          url: data.url, pdfId: pdfId || null,
         };
       } else if (data.fileId) {
         // 旧格式：保持兼容性
         fileData = {
           filename: data.filename,
           url: data.url,
-          fileId: data.fileId
+          fileId: data.fileId, pdfId: pdfId || null,
         };
       }
 

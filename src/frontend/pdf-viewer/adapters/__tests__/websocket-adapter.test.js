@@ -120,6 +120,7 @@ describe("WebSocketAdapter", () => {
       eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, (data) => {
         expect(data.filename).toBe("legacy.pdf");
         expect(data.fileId).toBe("legacy-file-id");
+        expect(data.pdfId).toBe("legacy-file-id");
         done();
       });
 
@@ -127,6 +128,22 @@ describe("WebSocketAdapter", () => {
         type: "load_pdf_file",
         data: fileData
       });
+    });
+
+    test("load_pdf_file: filename 含 12hex 时应透传 pdfId", () => {
+      const handler = jest.fn();
+      eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, handler);
+
+      adapter.handleMessage({
+        type: "load_pdf_file",
+        data: {
+          filename: "0c251de0e2ac.pdf",
+          url: "http://localhost/0c251de0e2ac.pdf",
+          file_path: "/path/to/0c251de0e2ac.pdf"
+        }
+      });
+
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ pdfId: "0c251de0e2ac" }));
     });
 
     test("应该处理 navigate_page 消息", () => {
