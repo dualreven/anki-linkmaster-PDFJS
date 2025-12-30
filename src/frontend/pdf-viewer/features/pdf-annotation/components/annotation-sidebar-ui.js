@@ -13,6 +13,12 @@ import { showAnnotationCommentDialog } from './annotation-sidebar-ui/comment-dia
 import { createAnnotationCardElement } from './annotation-sidebar-ui/annotation-card.js';
 import { createAnnotationSidebarToolbarController } from './annotation-sidebar-ui/toolbar-controller.js';
 import { confirmDialogAsync } from './annotation-sidebar-ui/confirm-dialog.js';
+import {
+  createCommentAddedHandler,
+  createSidebarClosedHandler,
+  createToolDeactivatedHandler,
+  installAnnotationSidebarSubscriptions,
+} from './annotation-sidebar-ui/subscriptions.js';
 
 /**
  * 标注侧边栏UI类
@@ -70,7 +76,33 @@ export class AnnotationSidebarUI {
     this.#createContent();
 
     // 监听事件
-    this.#setupEventListeners();
+    installAnnotationSidebarSubscriptions({
+      eventBus: this.#eventBus,
+      subscriptions: this.#subscriptions,
+      subscriberId: 'AnnotationSidebarUI',
+      onCreated: (data) => this.addAnnotationCard(data.annotation),
+      onUpdated: (data) => this.updateAnnotationCard(data.annotation),
+      onDeleted: (data) => this.removeAnnotationCard(data.id),
+      onLoaded: (data) => this.render(data.annotations || []),
+      onSelected: (data) => this.highlightAndScrollToCard(data.id),
+      onToolDeactivated: createToolDeactivatedHandler({
+        logger: this.#logger,
+        getActiveTool: () => this.#activeTool,
+        setActiveTool: (next) => { this.#activeTool = next; },
+        updateToolbarState: () => this.#toolbarController.updateToolbarState(),
+      }),
+      onSidebarClosed: createSidebarClosedHandler({
+        logger: this.#logger,
+        eventBus: this.#eventBus,
+        setActiveTool: (next) => { this.#activeTool = next; },
+        updateToolbarState: () => this.#toolbarController.updateToolbarState(),
+      }),
+      onCommentAdded: createCommentAddedHandler({
+        logger: this.#logger,
+        getAnnotationById: (id) => (this.#annotations || []).find((a) => a?.id === id),
+        updateAnnotationCard: (annotation) => this.updateAnnotationCard(annotation),
+      }),
+    });
 
     // 统一为所有标注卡片绑定跳转按钮的委托点击（避免各工具各自实现导致不一致）
     try {
@@ -239,163 +271,7 @@ export class AnnotationSidebarUI {
    */
 
 
-  /**
-   * 设置事件监听
-   * @private
-   */
-  #setupEventListeners() {
-    // 监听标注CRUD事件
-    this.#subscriptions.add(
-      this.#eventBus.on(
-        PDF_VIEWER_EVENTS.ANNOTATION.CREATED,
-        (data) => this.addAnnotationCard(data.annotation),
-        { subscriberId: 'AnnotationSidebarUI' }
-      )
-    );
 
-    this.#subscriptions.add(
-      this.#eventBus.on(
-        PDF_VIEWER_EVENTS.ANNOTATION.UPDATED,
-        (data) => this.updateAnnotationCard(data.annotation),
-        { subscriberId: 'AnnotationSidebarUI' }
-      )
-    );
-
-    this.#subscriptions.add(
-      this.#eventBus.on(
-        PDF_VIEWER_EVENTS.ANNOTATION.DELETED,
-        (data) => this.removeAnnotationCard(data.id),
-        { subscriberId: 'AnnotationSidebarUI' }
-      )
-    );
-
-    // 监听标注加载完成
-    this.#subscriptions.add(
-      this.#eventBus.on(
-        PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED,
-        (data) => this.render(data.annotations || []),
-        { subscriberId: 'AnnotationSidebarUI' }
-      )
-    );
-
-    // 监听工具停用（如按ESC键或外部触发）
-    this.#subscriptions.add(
-      this.#eventBus.on(
-        PDF_VIEWER_EVENTS.ANNOTATION.TOOL.DEACTIVATED,
-        (data) => {
-          // 只有在事件数据中的工具与当前激活的工具匹配时，或者没有指定工具时才清空
-          // 这样可以防止工具切换时误清空新激活的工具
-          const deactivatedTool = data?.tool;
-
-          if (!deactivatedTool) {
-            // 没有指定工具，清空所有（如按ESC键全局停用）
-            this.#logger.debug('All tools deactivated (no specific tool specified)');
-            this.#activeTool = null;
-            this.#toolbarController.updateToolbarState();
-          } else if (deactivatedTool === this.#activeTool) {
-            // 指定的工具与当前激活的工具匹配，清空
-            this.#logger.debug(`Tool deactivated: ${deactivatedTool} (matches active tool)`);
-            this.#activeTool = null;
-            this.#toolbarController.updateToolbarState();
-          } else {
-            // 停用的工具不是当前激活的工具，忽略
-            this.#logger.debug(
-              `Tool deactivated: ${deactivatedTool}, but active tool is ${this.#activeTool}, ignoring`
-            );
-          }
-        },
-        { subscriberId: 'AnnotationSidebarUI' }
-      )
-    );
-
-    // 监听标注选择事件（点击标记时）
-    this.#subscriptions.add(
-      this.#eventBus.on(
-        PDF_VIEWER_EVENTS.ANNOTATION.SELECT,
-        (data) => this.highlightAndScrollToCard(data.id),
-        { subscriberId: 'AnnotationSidebarUI' }
-      )
-    );
-
-    // 监听侧边栏关闭事件（第二期：关闭时停用所有工具）
-    this.#subscriptions.add(
-      this.#eventBus.onGlobal(
-        PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.CLOSED_COMPLETED,
-        (data) => this.#handleSidebarClosed(data),
-        { subscriberId: 'AnnotationSidebarUI' }
-      )
-    );
-
-    // 监听评论添加事件（第二期：新增）
-    this.#subscriptions.add(
-      this.#eventBus.on(
-        PDF_VIEWER_EVENTS.ANNOTATION.COMMENT.ADDED,
-        (data) => this.#handleCommentAdded(data),
-        { subscriberId: 'AnnotationSidebarUI' }
-      )
-    );
-  }
-
-  /**
-   * 处理侧边栏关闭事件（第二期：新增）
-   * @param {Object} data - 事件数据
-   * @param {string} data.sidebarId - 关闭的侧边栏ID
-   * @private
-   */
-  #handleSidebarClosed(data) {
-    // 只处理annotation侧边栏关闭事件
-    if (data?.sidebarId !== 'annotation') {
-      return;
-    }
-
-    this.#logger.info('Annotation sidebar closed, deactivating all tools');
-
-    // 记录当前激活的工具（在发送停用事件前）
-
-    // 发出工具停用请求事件（ToolRegistry会处理实际停用）
-    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.TOOL.DEACTIVATE, {});
-    this.#logger.info('Tool deactivate requested due to sidebar close');
-
-    // 清空本地状态
-    this.#activeTool = null;
-    this.#toolbarController.updateToolbarState();
-
-    // 业务要求：关闭侧边栏时不再弹出任何 toast 提示（静默处理）
-    this.#logger.info('Annotation sidebar closed (silent, no toast)');
-  }
-
-  /**
-   * 处理评论添加事件（第二期：新增）
-   * @param {Object} data - 事件数据
-   * @param {string} data.annotationId - 标注ID
-   * @param {string} data.content - 评论内容
-   * @param {number} data.timestamp - 时间戳
-   * @param {boolean} [data.skipUpdate] - 是否跳过更新（本地添加时已更新）
-   * @private
-   */
-  #handleCommentAdded(data) {
-    const { annotationId, skipUpdate } = data;
-
-    // 如果是本地添加（已经更新），跳过处理
-    if (skipUpdate) {
-      this.#logger.debug('Comment already added locally, skipping update');
-      return;
-    }
-
-    // 找到对应的annotation
-    const annotation = this.#annotations.find((a) => a.id === annotationId);
-    if (!annotation) {
-      this.#logger.warn(`Annotation not found: ${annotationId}`);
-      return;
-    }
-
-    // 这里可以处理来自外部的评论添加（如从后端同步）
-    // 当前版本中，本地添加已在submitComment中处理，这里保留用于扩展
-    this.#logger.debug(`External comment added to annotation ${annotationId}`);
-
-    // 更新对应的卡片（刷新评论数量显示）
-    this.updateAnnotationCard(annotation);
-  }
 
   /**
    * 渲染标注列表
