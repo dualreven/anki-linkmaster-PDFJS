@@ -14,6 +14,13 @@
 - 排除：`src/frontend/dist/**`、`**/__tests__/**`、`**/__smoke__/**`
 - 备注：仓库全量 `pnpm run lint` 当前仍存在大量历史报错；本轮只保证新增脚本目录定向 lint 与最小 Jest 用例通过。
 
+## 2025-12-30 P1：AnnotationSidebarUI 拆分（降低面条风险）
+- 目标：从 `src/frontend/pdf-viewer/features/pdf-annotation/components/annotation-sidebar-ui.js` 抽离大块逻辑，保持行为不变，降低回归定位成本。
+- 已拆分：
+  - 评论对话框：`src/frontend/pdf-viewer/features/pdf-annotation/components/annotation-sidebar-ui/comment-dialog.js`
+  - 标注卡片渲染：`src/frontend/pdf-viewer/features/pdf-annotation/components/annotation-sidebar-ui/annotation-card.js`
+- 效果：主文件约 1760 行降至约 993 行；既有 Jest（annotation sidebar 相关）保持通过；行数门禁通过。
+
 ## 2025-12-23 标注管理器开发进度小结
 - 后端数据层：`PDFAnnotationTablePlugin` 已扩展 `title/is_key/importance` 元字段并接入默认标题生成与校验逻辑，`PDFAnnotationTagsTablePlugin` 与 `PDFAnnotationRelationTablePlugin` 已提供标签与关系的 CRUD 能力及防回归测试，为后续“标注网络化管理”提供基础数据模型。
 - Hosted 启动链路：GUI Launcher 与 pdf-viewer 标注侧边栏 Header 方框按钮均可通过 `app-window:open:requested` 打开 `window_type="anno-manager"` 的 Hosted 窗口，BackendLauncher 使用 `ensure_anno_manager_hosted` + `WindowLifecycleManager` 管理 `client_id=\"anno-manager\"` 的生命周期。
