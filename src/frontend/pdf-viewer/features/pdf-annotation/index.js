@@ -339,6 +339,21 @@ export class AnnotationFeature {
           if (extracted) {pdfId = extracted;}
         }
 
+        // 兜底：当 filename/url 无法解析出 pdfId 时，优先从 URL 参数读取（与 pdf-url-loader 的契约一致）
+        // 说明：pdf-id 不一定是 12hex（测试/历史场景可能为 doc-abc），因此不做 12hex 强约束。
+        if (!pdfId) {
+          try {
+            const params = new URLSearchParams(window.location.search);
+            const fromUrlParam = (params.get("pdf-id") || params.get("pdf_id") || "").trim();
+            if (fromUrlParam) {
+              pdfId = fromUrlParam;
+              this.#logger.info(`[AnnotationFeature] pdfId fallback from URL param: ${pdfId}`);
+            }
+          } catch (e) {
+            void e; /* logger-guard */
+          }
+        }
+
         if (!pdfId) {
           this.#logger.warn("[AnnotationFeature] 无法解析 pdfId，跳过自动加载");
           return;
