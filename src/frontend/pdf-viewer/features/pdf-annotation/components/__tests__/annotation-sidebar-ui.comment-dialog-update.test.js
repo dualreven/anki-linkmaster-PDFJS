@@ -78,7 +78,7 @@ describe("AnnotationSidebarUI 评论对话框保存行为", () => {
     textarea.value = "新的评论内容";
 
     // 点击确认按钮（aria-label="确定"）
-    const confirmBtn = document.querySelector('button[aria-label="确定"]');
+    const confirmBtn = document.querySelector("button[aria-label=\"确定\"]");
     expect(confirmBtn).not.toBeNull();
     confirmBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 

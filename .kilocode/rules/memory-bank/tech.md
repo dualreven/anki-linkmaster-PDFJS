@@ -11,6 +11,7 @@
   - WebSocket 常量使用规范：请求/发送事件用 `WEBSOCKET_EVENTS.MESSAGE.SEND|RECEIVED|SEND_FAILED`；响应事件用 `WEBSOCKET_MESSAGE_EVENTS.RESPONSE`（切勿写成 `WEBSOCKET_EVENTS.MESSAGE.RESPONSE`）。
   - **代码文件行数限制**：单个代码文件（.js/.py/.ts等）原则上不能超过 **500 行**；超过时必须重构拆分为多个模块或文件。合理的拆分方式包括：按功能域拆分（如将一个大的 Feature 拆分为多个子 Feature）、提取工具函数到独立文件、分离配置和常量、使用组合模式替代继承等。
   - **行数门禁脚本（P0 止血）**：使用 `pnpm run ci:frontend-line-limit` 检查 `src/frontend`（基线+增量），基线文件为 `scripts/ci/baselines/frontend-line-limit.json`。
+  - **memory-bank 门禁（自动归档）**：`pnpm run lint` 前置执行 `pnpm run lint:memory-bank`；check-only 用 `pnpm run ci:memory-bank-limit`。
 
 - 主题索引（详细说明见 docs）
   1) 事件与常量命名规范 → docs/standards/events.md

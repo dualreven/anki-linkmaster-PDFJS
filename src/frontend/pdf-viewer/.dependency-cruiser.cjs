@@ -53,7 +53,7 @@ module.exports = {
       name: "features-no-adapter-deps",
       severity: "error",
       comment: "Layer 3 (features) 不能依赖 adapters/bootstrap",
-      from: { path: "^src/frontend/pdf-viewer/features" },
+      from: { path: "^src/frontend/pdf-viewer/features", pathNot: "^src/frontend/pdf-viewer/features/infra-app" },
       to: {
         path: "^src/frontend/pdf-viewer/(adapters|bootstrap)"
       }
@@ -79,17 +79,13 @@ module.exports = {
 
     // 排除测试文件
     exclude: {
-      path: "(node_modules|__tests__|dist|pyqt)"
+      path: "(node_modules|__tests__|__smoke__|dist|pyqt|\\.test\\.|\\.spec\\.)"
     },
 
     // 模块系统
     moduleSystems: ["es6", "cjs"],
 
-    // TypeScript 配置
-    tsPreCompilationDeps: false,
-    tsConfig: {
-      fileName: "src/frontend/pdf-viewer/jsconfig.json"
-    },
+    // 本项目为纯 JS；不强依赖 ts/jsconfig（避免在 "type":"module" 下触发 TS 配置解析差异）
 
     // 报告选项
     reporterOptions: {

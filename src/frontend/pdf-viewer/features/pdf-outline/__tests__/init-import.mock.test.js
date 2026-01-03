@@ -5,6 +5,7 @@
  * 不使用 Playwright / 不跨后端；仅以 JS 层的 Feature + WSClient Test Double + 事件总线完成。
  */
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
+import { WEBSOCKET_EVENTS } from "../../../../common/event/event-constants.js";
 import { OutlineManager as FeatureOutline } from "../index.js";
 
 function createEventBus() {
@@ -76,31 +77,50 @@ describe("integ:frontend:pdf-viewer:outline:init-import (pure-mock)", () => {
     const feature = new FeatureOutline();
     await feature.install(ctx);
 
-    // 配置 URL 参数，提供 pdf-id 与 file，满足 OutlineFeature.#getPdfId() 取值
+    // 配置 URL 参数（同源），提供 pdf-id 与 file，满足 OutlineFeature.#getPdfId() 取值
     try {
-      window.history.pushState({}, "", "http://localhost:3000/pdf-viewer/index.html?pdf-id=test-with-outline&file=/test-with-outline.pdf");
+      window.history.pushState({}, "", "?pdf-id=test-with-outline&file=/test-with-outline.pdf");
     } catch {}
 
     // 触发初始导入流程（等价于文件加载成功）
-    eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, { pdfDocument: {}, filename: "test-with-outline.pdf" });
+    // 注意：OutlineDataProvider.getOutline() 需要 pdfDocument.getOutline()，这里提供最小替身
+    const pdfDocument = {
+      getOutline: async () => ([
+        { title: "一、绪论", dest: null, items: [{ title: "背景", dest: null, items: [] }] },
+        { title: "二、方法", dest: null, items: [] }
+      ])
+    };
+    eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, { pdfDocument, filename: "test-with-outline.pdf" });
 
     // 首次 list → null
     const r1 = await waitForSent(ws, "pdf-viewer:outline-list:request", 2000);
     expect(r1).toBeTruthy();
-    ws.mockInbound({ type: "pdf-viewer:outline-list:complete", request_id: r1.request_id, data: { outline_items: null } });
+    {
+      const msg = { type: "pdf-viewer:outline-list:complete", request_id: r1.request_id, data: { outline_items: null } };
+      ws.mockInbound(msg);
+      eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, msg);
+    }
 
     // bulk-save(items>0)
     const r2 = await waitForSent(ws, "pdf-viewer:outline-bulk-save:request", 2000);
     expect(Array.isArray(r2?.data?.items) && r2.data.items.length > 0).toBeTruthy();
-    ws.mockInbound({ type: "pdf-viewer:outline-bulk-save:complete", request_id: r2.request_id, data: { count: r2.data.items.length } });
+    {
+      const msg = { type: "pdf-viewer:outline-bulk-save:complete", request_id: r2.request_id, data: { count: r2.data.items.length } };
+      ws.mockInbound(msg);
+      eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, msg);
+    }
 
     // 二次 list → 非空数组
     const r3 = await waitForSent(ws, "pdf-viewer:outline-list:request", 2000);
     expect(r3).toBeTruthy();
-    ws.mockInbound({
-      type: "pdf-viewer:outline-list:complete",
-      request_id: r3.request_id,
-      data: { outline_items: [{ id: "outlineItem-ABCD1234", name: "样例", pageAt: 1, position: 10, children: [] }] }
-    });
+    {
+      const msg = {
+        type: "pdf-viewer:outline-list:complete",
+        request_id: r3.request_id,
+        data: { outline_items: [{ id: "outlineItem-ABCD1234", name: "样例", pageAt: 1, position: 10, children: [] }] }
+      };
+      ws.mockInbound(msg);
+      eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, msg);
+    }
   });
 });

@@ -56,6 +56,7 @@ class MessageType(Enum):
 
     PDF_PAGE_PRELOAD_REQUESTED = "pdf-page:preload:requested"
     PDF_PAGE_CACHE_CLEAR_REQUESTED = "pdf-page:cache-clear:requested"
+    PDF_PAGE_CACHE_CLEAR_COMPLETED = "pdf-page:cache-clear:completed"
 
     # === 系统与心跳 ===
     SYSTEM_STATUS_UPDATED = "system:status:updated"
@@ -64,6 +65,18 @@ class MessageType(Enum):
 
     HEARTBEAT_REQUESTED = "system:heartbeat:requested"
     HEARTBEAT_COMPLETED = "system:heartbeat:completed"
+
+    # === 客户端注册（新协议）===
+    CLIENT_REGISTER_REQUESTED = "client:register:requested"
+    CLIENT_REGISTER_COMPLETED = "client:register:completed"
+    CLIENT_REGISTER_FAILED = "client:register:failed"
+    CLIENT_UNREGISTER_REQUESTED = "client:unregister:requested"
+
+    # === 应用窗口控制 ===
+    APP_WINDOW_OPEN_REQUESTED = "app-window:open:requested"
+    APP_WINDOW_OPEN_COMPLETED = "app-window:open:completed"
+    APP_WINDOW_CLOSE_REQUESTED = "app-window:close:requested"
+    APP_WINDOW_CLOSE_COMPLETED = "app-window:close:completed"
 
     # === 能力注册中心（Capability Registry） ===
     CAPABILITY_DISCOVER_REQUESTED = "capability:discover:requested"
@@ -203,4 +216,3 @@ class MessageType(Enum):
     LEGACY_ERROR = "error"
     LEGACY_HEARTBEAT = "heartbeat"
     LEGACY_HEARTBEAT_RESPONSE = "heartbeat_response"
-

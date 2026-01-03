@@ -10,7 +10,7 @@ function runEslintOn(file) {
   try {
     out = execFileSync(
       process.execPath, // node
-      ["node_modules/eslint/bin/eslint.js", file, "--format", "json"],
+      ["node_modules/eslint/bin/eslint.js", file, "--no-ignore", "--format", "json"],
       { encoding: "utf8" }
     );
   } catch (e) {

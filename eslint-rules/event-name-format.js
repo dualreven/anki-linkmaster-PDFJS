@@ -73,7 +73,7 @@ const eventNameFormatRule = {
           // 其他类型放过
           return false;
         }
-      } catch (e) { void e; }
+      } catch (e) { void e; /* logger-guard */ }
       return false;
     }
 

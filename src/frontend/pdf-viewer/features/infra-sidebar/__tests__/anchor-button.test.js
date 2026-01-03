@@ -17,7 +17,7 @@ describe("Header Anchor Button", () => {
     document.body.innerHTML = "";
   });
 
-  test("should create anchor button and emit toggle event on click", () => {
+  test("should create anchor button and emit toggle event on click", async () => {
     let received = null;
     const off = eventBus.on(
       PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.TOGGLE_REQUESTED,
@@ -32,6 +32,8 @@ describe("Header Anchor Button", () => {
     expect(btn.textContent).toContain("锚点");
 
     btn.click();
+    // click handler 内部使用 dynamic import（异步）再 emit，需要等待一轮事件循环
+    await new Promise(r => setTimeout(r, 0));
     expect(received).toBeTruthy();
     expect(received.sidebarId).toBe("anchor");
 

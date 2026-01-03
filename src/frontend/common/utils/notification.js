@@ -23,7 +23,7 @@ function getEngine() {
 }
 
 export function showInfoWithId(id, message, duration = 0) {
-  try { dismissById(id); } catch {}
+  try { dismissById(id); } catch (e) { notificationLogger.warn("dismissById failed (showInfoWithId)", e?.message); }
   const engine = getEngine();
   if (engine === "izi") {
     // 使用第三方 pending 作为可关闭的信息提示（可指定超时）
@@ -78,11 +78,6 @@ export function showInfo(message, duration = 3000) {
 }
 
 export function hideAll() {
-  const engine = getEngine();
-  if (engine === "izi") {
-    try { /* 软清理：多数场景用不到 */ }
-    catch {}
-  }
   notificationLogger.info("hideAll invoked");
 }
 

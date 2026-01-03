@@ -1,23 +1,13 @@
 ﻿/**
- * AnnotationManager - 标注数据管理器
- * @module features/annotation/core/annotation-manager
- * @description 管理标注数据的CRUD操作和持久化
- *
- * 职责:
- * 1. 管理标注数据的增删改查
- * 2. 与后端通信（WebSocket）进行数据同步
- * 3. 维护内存中的标注列表
- * 4. 发布标注数据变更事件
- * 5. 按页码过滤和组织标注
- *
- * Phase 1实现: Mock模式（内存存储）
- * Phase 2实现: 真实WebSocket通信和后端持久化
+ * AnnotationManager（标注数据管理）
+ * 说明（详细）：`docs/standards/annotation-manager.md`
  */
 
 import { getLogger } from "../../../../common/utils/logger.js";
 import { Annotation, AnnotationType } from "../../../../common/models/annotation.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 import { WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constants.js";
+import { computePositionFromPercent } from "./annotation-position-utils.js";
 
 /**
  * 标注管理器类
@@ -252,25 +242,22 @@ export class AnnotationManager {
       // 构造后端所需 payload，并做向后兼容映射（例如 comment 需要 position{x,y}）
       const annJson = annotation.toJSON ? annotation.toJSON() : annotation;
       try {
-        if (annJson && annJson.type === AnnotationType.COMMENT) {
+        if (annJson?.type === AnnotationType.COMMENT) {
           const data = annJson.data = annJson.data || {};
-          // 若缺少像素 position，且提供了百分比 positionPercent，则在保存前换算生成 position（满足后端校验）
-          if ((!data.position || typeof data.position.x !== "number" || typeof data.position.y !== "number")
-              && data.positionPercent && typeof data.positionPercent.yPercent === "number") {
-            const xPercent = Number(data.positionPercent.xPercent ?? 0);
-            const yPercent = Number(data.positionPercent.yPercent ?? 0);
+          const hasPosition = data.position && typeof data.position.x === "number" && typeof data.position.y === "number";
+          const hasPercent = data.positionPercent && typeof data.positionPercent.yPercent === "number";
+
+          if (!hasPosition && hasPercent) {
             try {
               const pageNum = Number(annJson.pageNumber || 1);
               const pageEl = document?.getElementById?.("viewerContainer")?.querySelector?.(`.page[data-page-number="${pageNum}"]`) || null;
               const w = pageEl ? (pageEl.clientWidth || pageEl.offsetWidth || 0) : 0;
               const h = pageEl ? (pageEl.clientHeight || pageEl.offsetHeight || 0) : 0;
-              const xPx = Math.max(0, Math.round((xPercent / 100) * (w || 1)));
-              const yPx = Math.max(0, Math.round((yPercent / 100) * (h || 1)));
-              data.position = { x: xPx, y: yPx };
-              this.#logger.info("[AnnotationManager] Filled legacy position from percent for comment", { xPx, yPx, w, h });
+              const pos = computePositionFromPercent(data.positionPercent, w, h);
+              data.position = pos;
+              this.#logger.info("[AnnotationManager] Filled legacy position from percent for comment", { xPx: pos.x, yPx: pos.y, w, h });
             } catch (e) {
               this.#logger.warn("[AnnotationManager] Failed to compute legacy position from percent", e);
-              // 仍确保 position 存在，避免后端直接拒绝（保守为 0,0）
               data.position = data.position || { x: 0, y: 0 };
             }
           }
@@ -392,8 +379,6 @@ export class AnnotationManager {
     this.#logger.info(`[AnnotationManager] [MOCK] Deleted annotation: ${id}`);
     return { success: true, id };
   }
-
-  // 从后端删除标注的方法在文件后部已实现，此处移除重复定义以避免 Babel 报错
 
   /**
    * 加载标注（内部处理）

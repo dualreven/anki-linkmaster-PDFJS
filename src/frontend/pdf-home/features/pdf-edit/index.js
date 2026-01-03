@@ -5,17 +5,22 @@
  * PDF记录编辑功能域，提供通过模态框编辑PDF元数据的功能
  *
  * 实现了IFeature接口，可通过FeatureRegistry进行注册和管理
+ *
+ * 详细拆分说明：`docs/standards/pdf-edit-feature.md`
  */
 
 import { PDF_EDIT_FEATURE_CONFIG } from "./feature.config.js";
 // import { PDF_EDIT_EVENTS, createEditRequestedData, createEditCompletedData } from "./events.js";
-import { PDF_MANAGEMENT_EVENTS, WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, SEARCH_EVENTS } from "../../../common/event/event-constants.js";
+import { PDF_MANAGEMENT_EVENTS, SEARCH_EVENTS } from "../../../common/event/event-constants.js";
 import { showInfo, showSuccess, showError } from "../../../common/utils/notification.js";
 import { getLogger } from "../../../common/utils/logger.js";
 import { ModalManager } from "./components/modal-manager.js";
-import { StarRating } from "./components/star-rating.js";
-import { TagsInput } from "./components/tags-input.js";
 import { createSubscriptionBag } from "../../../common/event/subscription-bag.js";
+import { buildPdfEditFormHTML, escapeHtml } from "./pdf-edit-form-template.js";
+import { createPdfEditFormComponents } from "./pdf-edit-form-components.js";
+import { bindPdfEditResetActions } from "./pdf-edit-reset-actions.js";
+import { showPdfEditGlobalError, showPdfEditGlobalWarning } from "./pdf-edit-global-notifications.js";
+import { runPdfEditSubmitFlow } from "./pdf-edit-submit-flow.js";
 
 // 导入样式
 import "./styles/modal.css";
@@ -36,7 +41,6 @@ export class PDFEditFeature {
   #enabled = false;
   #subscriptionBag = null;
 
-  // UI组件
   #modalManager = null;
   #currentRecord = null;
   #formComponents = {};
@@ -46,43 +50,27 @@ export class PDFEditFeature {
 
   // ==================== IFeature 接口实现 ====================
 
-  /**
-   * 功能名称（唯一标识）
-   * @returns {string}
-   */
+  /** @returns {string} */
   get name() {
     return PDF_EDIT_FEATURE_CONFIG.name;
   }
 
-  /**
-   * 功能版本
-   * @returns {string}
-   */
+  /** @returns {string} */
   get version() {
     return PDF_EDIT_FEATURE_CONFIG.version;
   }
 
-  /**
-   * 功能描述
-   * @returns {string}
-   */
+  /** @returns {string} */
   get description() {
     return PDF_EDIT_FEATURE_CONFIG.description;
   }
 
-  /**
-   * 功能依赖
-   * @returns {string[]}
-   */
+  /** @returns {string[]} */
   get dependencies() {
     return PDF_EDIT_FEATURE_CONFIG.dependencies;
   }
 
-  /**
-   * 安装功能
-   * @param {import('../../../common/micro-service/feature-registry.js').FeatureContext} context - 功能上下文
-   * @returns {Promise<void>}
-   */
+  /** @param {import('../../../common/micro-service/feature-registry.js').FeatureContext} context */
   async install(context) {
     this.#context = context;
     this.#scopedEventBus = context.scopedEventBus;
@@ -111,20 +99,12 @@ export class PDFEditFeature {
 
       this.#logger.info(`${this.name} installed successfully`);
     } catch (error) {
-      // 详细的错误日志
-      this.#logger.error(`Failed to install ${this.name}:`);
-      this.#logger.error(`Error name: ${error.name}`);
-      this.#logger.error(`Error message: ${error.message}`);
-      this.#logger.error(`Error stack: ${error.stack}`);
+      this.#logger.error(`Failed to install ${this.name}`, error);
       throw error;
     }
   }
 
-  /**
-   * 卸载功能
-   * @param {import('../../../common/micro-service/feature-registry.js').FeatureContext} context - 功能上下文
-   * @returns {Promise<void>}
-   */
+  /** @param {import('../../../common/micro-service/feature-registry.js').FeatureContext} context */
   async uninstall(context) {
     this.#logger.info(`Uninstalling ${this.name}...`);
 
@@ -150,10 +130,6 @@ export class PDFEditFeature {
     }
   }
 
-  /**
-   * 启用功能
-   * @returns {Promise<void>}
-   */
   async enable() {
     if (this.#enabled) {
       this.#logger.debug(`${this.name} is already enabled`);
@@ -166,10 +142,6 @@ export class PDFEditFeature {
     this.#logger.info(`${this.name} enabled`);
   }
 
-  /**
-   * 禁用功能
-   * @returns {Promise<void>}
-   */
   async disable() {
     if (!this.#enabled) {
       this.#logger.debug(`${this.name} is already disabled`);
@@ -184,11 +156,7 @@ export class PDFEditFeature {
 
   // ==================== 私有方法 ====================
 
-  /**
-   * 设置服务
-   * @private
-   * @param {Object} context - 功能上下文
-   */
+  /** @param {Object} context */
   async #setupServices(context) {
     const globalContainer = context.container;
 
@@ -211,10 +179,7 @@ export class PDFEditFeature {
     this.#logger.debug("Services setup completed");
   }
 
-  /**
-   * 注册事件监听器
-   * @private
-   */
+  /** 注册事件监听器 */
   #registerEventListeners() {
     // 监听全局编辑请求事件（来自pdf-table）
     const unsubEditRequested = this.#globalEventBus.on(
@@ -270,10 +235,7 @@ export class PDFEditFeature {
     this.#logger.debug("Event listeners registered");
   }
 
-  /**
-   * 取消事件监听器
-   * @private
-   */
+  /** 取消事件监听器 */
   #unregisterEventListeners() {
     if (!this.#subscriptionBag) {
       this.#logger.debug("No subscription bag to clear for PDFEditFeature");
@@ -284,10 +246,7 @@ export class PDFEditFeature {
     this.#logger.debug("Event listeners unregistered");
   }
 
-  /**
-   * 初始化UI
-   * @private
-   */
+  /** 初始化UI */
   async #initializeUI() {
     // 创建模态框管理器
     this.#modalManager = new ModalManager({
@@ -324,7 +283,7 @@ export class PDFEditFeature {
       try {
         this.#modalManager.show({
           title: title || "确认操作",
-          content: `<div style="padding:8px 0;white-space:pre-line;">${this.#escapeHtml(message || "")}</div>`,
+          content: `<div style="padding:8px 0;white-space:pre-line;">${escapeHtml(message || "")}</div>`,
           confirmText: "确定",
           cancelText: "取消",
           onConfirm: async () => { resolve(true); return true; },
@@ -365,27 +324,7 @@ export class PDFEditFeature {
    * @param {string} message - 错误消息
    */
   #showGlobalError(message) {
-    const text = String(message ?? "");
-
-    // 首选统一通知系统，保证与其他模块一致
-    try {
-      showError(text, 3000);
-      return;
-    } catch (e) {
-      try { this.#logger?.warn?.("[PDFEditFeature] showError toast failed, fallback to #global-error DOM", e); } catch (_) { void _; }
-    }
-
-    // 回退到 pdf-home index.html 中的全局错误容器
-    const errorDiv = document.getElementById("global-error");
-    if (errorDiv) {
-      errorDiv.textContent = text;
-      errorDiv.classList.add("show");
-
-      // 3秒后自动隐藏
-      setTimeout(() => {
-        try { errorDiv.classList.remove("show"); } catch (_) { this.#logger?.warn?.("[PDFEditFeature] hide global-error toast failed", _); }
-      }, 3000);
-    }
+    showPdfEditGlobalError({ message, showError, logger: this.#logger });
   }
 
   /**
@@ -394,33 +333,7 @@ export class PDFEditFeature {
    * @param {string} message - 警告消息
    */
   #showGlobalWarning(message) {
-    const text = String(message ?? "");
-
-    // 警告同样通过统一错误提示通道展示（视觉上仍为错误 toast）
-    try {
-      showError(text, 3000);
-      return;
-    } catch (e) {
-      try { this.#logger?.warn?.("[PDFEditFeature] showError toast failed (warning), fallback to #global-error DOM", e); } catch (_) { void _; }
-    }
-
-    const errorDiv = document.getElementById("global-error");
-    if (errorDiv) {
-      // 临时改为警告样式
-      errorDiv.classList.remove("toast-error");
-      errorDiv.classList.add("toast-warning");
-      errorDiv.textContent = text;
-      errorDiv.classList.add("show");
-
-      // 3秒后自动隐藏并恢复样式
-      setTimeout(() => {
-        errorDiv.classList.remove("show");
-        setTimeout(() => {
-          errorDiv.classList.remove("toast-warning");
-          errorDiv.classList.add("toast-error");
-        }, 300);
-      }, 3000);
-    }
+    showPdfEditGlobalWarning({ message, showError, logger: this.#logger });
   }
 
   /**
@@ -501,7 +414,7 @@ export class PDFEditFeature {
     this.#currentRecord = record;
 
     // 构建表单内容
-    const formHTML = this.#buildFormHTML(record);
+    const formHTML = buildPdfEditFormHTML(record);
 
     // 显示模态框（等待DOM渲染完成）
     await this.#modalManager.show({
@@ -517,187 +430,13 @@ export class PDFEditFeature {
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
     // 初始化表单组件
-    this.#initializeFormComponents(record);
-    // 绑定重置操作按钮
-    this.#bindResetActions(record);
-  }
-
-  /**
-   * 构建表单HTML
-   * @private
-   * @param {Object} record - PDF记录对象
-   * @returns {string} HTML字符串
-   */
-  #buildFormHTML(record) {
-    return `
-      <form id="pdf-edit-form" class="pdf-edit-form">
-        <div class="form-group">
-          <label for="edit-filename">文件名</label>
-          <input
-            type="text"
-            id="edit-filename"
-            name="filename"
-            value="${this.#escapeHtml(record.filename || "")}"
-            readonly
-            class="readonly"
-          />
-        </div>
-
-        <div class="form-group">
-          <label for="edit-title">书名</label>
-          <input
-            type="text"
-            id="edit-title"
-            name="title"
-            value="${this.#escapeHtml(record.title || "")}"
-            placeholder="请输入书名..."
-          />
-        </div>
-
-        <div class="form-group">
-          <label for="edit-author">作者</label>
-          <input
-            type="text"
-            id="edit-author"
-            name="author"
-            value="${this.#escapeHtml(record.author || "")}"
-            placeholder="请输入作者..."
-          />
-        </div>
-
-        <div class="form-group">
-          <label for="edit-subject">主题</label>
-          <input
-            type="text"
-            id="edit-subject"
-            name="subject"
-            value="${this.#escapeHtml(record.subject || "")}"
-            placeholder="请输入主题..."
-          />
-        </div>
-
-        <div class="form-group">
-          <label for="edit-keywords">关键词</label>
-          <input
-            type="text"
-            id="edit-keywords"
-            name="keywords"
-            value="${this.#escapeHtml(record.keywords || "")}"
-            placeholder="请输入关键词（用逗号分隔）..."
-          />
-        </div>
-
-        <div class="form-group">
-          <label for="edit-rating">评分</label>
-          <div id="edit-rating" class="star-rating-container"></div>
-        </div>
-
-        <div class="form-group">
-          <label for="edit-tags">标签</label>
-          <div id="edit-tags" class="tags-input-container"></div>
-        </div>
-
-        <div class="form-group">
-          <label for="edit-notes">备注</label>
-          <textarea
-            id="edit-notes"
-            name="notes"
-            rows="4"
-            placeholder="添加备注..."
-          >${this.#escapeHtml(record.notes || "")}</textarea>
-        </div>
-
-        <div class="form-group">
-          <label>重置工具</label>
-          <div class="reset-actions" style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button type="button" id="reset-bookmarks-btn" title="清空后端书签，下次打开查看器将自动从PDF源重新导入">重置书签</button>
-            <button type="button" id="reset-annotations-btn" disabled title="等待后端支持后启用">重置标注</button>
-            <button type="button" id="reset-reading-btn" title="将阅读进度与总时长清零">重置阅读进度</button>
-          </div>
-          <small style="color:#666; display:block; margin-top:6px;">重置书签会清空当前数据库书签；下次打开PDF查看器时，会自动从PDF原生书签导入并保存。</small>
-        </div>
-      </form>
-    `;
-  }
-
-  /**
-   * 绑定“重置”按钮行为
-   * @param {Object} record
-   * @private
-   */
-  #bindResetActions(record) {
-    const fileId = record?.pdf_id || record?.id || record?.filename;
-    const pdfUuid = record?.pdf_id || record?.id; // 期望是12位十六进制
-
-    const warnInvalidId = () => {
-      this.#showGlobalWarning("无法识别PDF ID，重置可能不会同步到后端");
-    };
-
-    // 重置大纲：已切换为 Outline-only；禁用 legacy BOOKMARK_SAVE
-    const btnBookmarks = document.getElementById("reset-bookmarks-btn");
-    if (btnBookmarks) {
-      btnBookmarks.addEventListener("click", async () => {
-        try {
-          if (!pdfUuid) {
-            warnInvalidId();
-          }
-          const ok = await this.#confirm("重置大纲", "已切换为“大纲（Outline）”存储，不再支持 legacy 的书签批量重置。请在 PDF 查看器的“大纲侧栏”中管理节点。");
-          if (!ok) {return;}
-          this.#showGlobalWarning("已弃用“批量重置书签”。请在查看器内用大纲面板进行增删改。");
-        } catch (err) {
-          this.#showGlobalError(`重置书签失败: ${err?.message || err}`);
-        }
-      });
-    }
-
-    // 重置阅读进度：通过 pdf-library:record-update:requested 将 visited_at/total_reading_time 清零
-    const btnReading = document.getElementById("reset-reading-btn");
-    if (btnReading) {
-      btnReading.addEventListener("click", async () => {
-        try {
-          if (!fileId) {
-            warnInvalidId();
-          }
-          const ok = await this.#confirm("重置阅读进度", "确定要重置阅读进度吗？这将清零阅读时长与最近访问时间。");
-          if (!ok) {return;}
-          if (!this.#wsClient) {
-            this.#showGlobalError("WebSocket未连接，无法执行重置");
-            return;
-          }
-          await this.#wsClient.request(
-            WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_REQUESTED,
-            { file_id: fileId, updates: { total_reading_time: 0, visited_at: 0 } },
-            { timeout: 8000, metadata: { version: "1.0.0" } }
-          );
-          this.#showGlobalWarning("阅读进度已重置");
-        } catch (err) {
-          this.#showGlobalError(`重置阅读进度失败: ${err?.message || err}`);
-        }
-      });
-    }
-  }
-
-  /**
-   * 初始化表单组件
-   * @private
-   * @param {Object} record - PDF记录对象
-   */
-  #initializeFormComponents(record) {
-    // 星级评分组件
-    const ratingContainer = document.getElementById("edit-rating");
-    this.#formComponents.rating = new StarRating({
-      container: ratingContainer,
-      value: record.rating || 0,
-      maxStars: 5
-    });
-
-    // 标签输入组件
-    const tagsContainer = document.getElementById("edit-tags");
-    this.#formComponents.tags = new TagsInput({
-      container: tagsContainer,
-      tags: record.tags || [],
-      placeholder: "添加标签...",
-      maxTags: 10
+    this.#formComponents = createPdfEditFormComponents(record);
+    bindPdfEditResetActions({
+      record,
+      wsClient: this.#wsClient,
+      confirm: this.#confirm.bind(this),
+      showGlobalError: this.#showGlobalError.bind(this),
+      showGlobalWarning: this.#showGlobalWarning.bind(this),
     });
   }
 
@@ -706,107 +445,31 @@ export class PDFEditFeature {
    * @private
    */
   #handleFormSubmit() {
-    this.#logger.info("=== FORM SUBMIT TRIGGERED ===");
-    try {
-      // 收集表单数据
-      const updates = {
-        title: document.getElementById("edit-title").value.trim(),
-        author: document.getElementById("edit-author").value.trim(),
-        subject: document.getElementById("edit-subject").value.trim(),
-        keywords: document.getElementById("edit-keywords").value.trim(),
-        rating: this.#formComponents.rating.getValue(),
-        tags: this.#formComponents.tags.getTags(),
-        notes: document.getElementById("edit-notes").value.trim()
-      };
-
-      this.#logger.info("Form data collected:", updates);
-      this.#logger.info("Submitting edit for:", this.#currentRecord.pdf_id || this.#currentRecord.id);
-
-      // 发送全局更新事件
-      this.#scopedEventBus.emitGlobal(
-        PDF_MANAGEMENT_EVENTS.EDIT.STARTED,
-        {
-          pdf_id: this.#currentRecord.pdf_id || this.#currentRecord.id,
-          filename: this.#currentRecord.filename,
-          updates
-        },
-        { actorId: "PDFEditFeature" }
-      );
-      // Toast：更新中（与其他功能一致，短暂提示）
-      try { showInfo("更新中", 1200); } catch (e) { void e; }
-
-      // 发送WebSocket消息到后端并等待结果
-      (async () => {
-        try {
-          await this.#sendEditRequestToBackend(this.#currentRecord.pdf_id || this.#currentRecord.id, updates);
-          // 刷新当前搜索结果（若存在搜索框），成功提示在刷新后显示
-          try {
-            const input = document.querySelector(".search-input");
-            const searchText = (input && typeof input.value === "string") ? input.value.trim() : "";
-            // 注意：该文件位于 src/frontend/pdf-home/features/pdf-edit/
-            // event-constants.js 位于 src/frontend/common/event/
-            // 因此需要回溯三级目录（../../../），否则 Vite 在构建时会解析失败
-            const { SEARCH_EVENTS } = await import("../../../common/event/event-constants.js");
-            this.#scopedEventBus.emitGlobal(SEARCH_EVENTS.QUERY.REQUESTED, { searchText });
-          } catch (_e) {
-            this.#logger?.warn?.("[PDFEditFeature] refresh after edit failed", _e);
-          }
-          // 兜底：若未触发搜索刷新事件，延时显示成功
-          this.#awaitingTimer = setTimeout(() => {
-            if (this.#awaitingSuccess) {
-              this.#awaitingSuccess = false;
-              try { showSuccess("更新完成", 3500); } catch (e) { void e; }
-            }
-          }, 1200);
-        } catch (err) {
-          const msg = err?.message || "未知错误";
-          try { showError(`更新失败-${msg}`, 5000); } catch (e) { void e; }
-        }
-      })();
-
-      // 关闭模态框（不阻塞等待）
-      this.#modalManager.hide();
-
-    } catch (error) {
-      this.#logger.error("Form submission failed:", error);
-      try { showError(`更新失败-${error?.message || "表单提交异常"}`, 5000); } catch (e) { void e; }
-    }
-  }
-
-  /**
-   * 发送编辑请求到后端
-   * @private
-   * @param {string} fileId - 文件ID
-   * @param {Object} updates - 更新数据
-   */
-  async #sendEditRequestToBackend(fileId, updates) {
-    this.#logger.info("=== Sending edit request to backend ===", { fileId, updates });
-    try {
-      // 使用标准契约：pdf-library:record-update:requested
-      if (this.#wsClient) {
-        await this.#wsClient.request(
-          WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_REQUESTED,
-          { file_id: fileId, updates: updates },
-          { timeout: 8000, metadata: { version: "1.0.0" } }
+    runPdfEditSubmitFlow({
+      currentRecord: this.#currentRecord,
+      formComponents: this.#formComponents,
+      scopedEventBus: this.#scopedEventBus,
+      wsClient: this.#wsClient,
+      logger: this.#logger,
+      showInfo,
+      showError,
+      showSuccess,
+      hideModal: () => this.#modalManager.hide(),
+      emitEditStarted: (updates) => {
+        this.#scopedEventBus.emitGlobal(
+          PDF_MANAGEMENT_EVENTS.EDIT.STARTED,
+          {
+            pdf_id: this.#currentRecord.pdf_id || this.#currentRecord.id,
+            filename: this.#currentRecord.filename,
+            updates,
+          },
+          { actorId: "PDFEditFeature" },
         );
-        this.#logger.info("PDF record update request sent via WSClient");
-      } else {
-        // 兜底：通过全局事件发送（保持向后兼容）
-        const message = {
-          type: WEBSOCKET_MESSAGE_TYPES.PDF_LIBRARY_RECORD_UPDATE_REQUESTED,
-          request_id: `edit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          metadata: { version: "1.0.0" },
-          data: { file_id: fileId, updates }
-        };
-        this.#scopedEventBus.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, message, { actorId: "PDFEditFeature" });
-        this.#logger.info("PDF record update emitted via EventBus");
-      }
-
-    } catch (error) {
-      this.#logger.error("Failed to send edit request:", error);
-      try { this.#logger.error("Error details:", error.stack); } catch (e) { void e; }
-      throw (error instanceof Error ? error : new Error(error?.message || "编辑请求失败"));
-    }
+      },
+      getAwaitingSuccess: () => this.#awaitingSuccess,
+      clearAwaitingSuccess: () => { this.#awaitingSuccess = false; },
+      setAwaitingTimer: (timer) => { this.#awaitingTimer = timer; },
+    });
   }
 
   /**
@@ -828,17 +491,6 @@ export class PDFEditFeature {
     // TODO: 显示成功提示或更新UI
   }
 
-  /**
-   * HTML转义
-   * @private
-   * @param {string} text - 要转义的文本
-   * @returns {string} 转义后的文本
-   */
-  #escapeHtml(text) {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
-  }
 }
 
 /**

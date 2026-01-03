@@ -1,16 +1,34 @@
-/* eslint-disable no-empty */
 /**
  * CommentTool - 批注工具插件
  * @module features/annotation/tools/comment
  * @description 实现PDF批注功能的工具插件
+ *
+ * 详细拆分说明：`docs/standards/comment-tool.md`
  */
 
 import { getLogger } from "../../../../../common/utils/logger.js";
 import { IAnnotationTool } from "../../interfaces/IAnnotationTool.js";
 import { CommentInput } from "./comment-input.js";
 import { CommentMarker } from "./comment-marker.js";
+import { createCommentAnnotationCard } from "./comment-tool-annotation-card.js";
+import { confirmCommentDeleteAsync } from "./comment-tool-confirm-dialog.js";
+import { installCommentToolPageRendering } from "./comment-tool-page-rendering.js";
+import { installCommentToolAnnotationEventListeners } from "./comment-tool-subscriptions.js";
+import {
+  activateCommentTool,
+  deactivateCommentTool,
+  handleCommentToolMarkerClick,
+  handleCommentToolPdfClick,
+} from "./comment-tool-interactions.js";
+import { createCommentToolButton } from "./comment-tool-button.js";
 import { Annotation } from "../../../../../common/models/annotation.js";
 import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
+import {
+  ensureOverlayOrQueue,
+  flushPendingMarkersForPage,
+  renderCommentMarkerForAnnotation,
+  restoreMarkersForPage,
+} from "./comment-tool-marker-restoration.js";
 
 /**
  * 批注工具类
@@ -18,29 +36,21 @@ import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-consta
  * @implements {IAnnotationTool}
  */
 export class CommentTool extends IAnnotationTool {
-  // ==================== 元数据属性 ====================
-
   get name() {
     return "comment";
   }
-
   get displayName() {
     return "批注";
   }
-
   get icon() {
     return "📝";
   }
-
   get version() {
     return "1.0.0";
   }
-
   get dependencies() {
     return [];
   }
-
-  // ==================== 私有属性 ====================
 
   /** @type {import('../../../../../common/utils/logger.js').Logger} */
   #logger = null;
@@ -51,17 +61,8 @@ export class CommentTool extends IAnnotationTool {
   /** @type {Object} PDF查看器管理器 */
   #pdfViewerManager = null;
 
-  /** @type {Object} 依赖容器 */
-  #container = null;
-
   /** @type {Object} PDF.js EventBus (用于监听页面渲染事件) */
   #pdfjsEventBus = null;
-
-  /** @type {Function|null} PDF.js 缩放开始回调 */
-  #pdfjsScaleChangingHandler = null;
-
-  /** @type {Function|null} PDF.js 缩放完成回调 */
-  #pdfjsScaleChangedHandler = null;
 
   /** @type {Object} 标注管理器 (用于获取标注数据) */
   #annotationManager = null;
@@ -87,7 +88,8 @@ export class CommentTool extends IAnnotationTool {
   /** @type {Function|null} 数据加载后的处理器 */
   #onAnnotationDataLoadedHandler = null;
 
-  // ==================== 生命周期方法 ====================
+  /** @type {Function[]} 统一 unsubscribe 集合 */
+  #unsubscribeFunctions = [];
 
   /**
    * 初始化工具
@@ -100,69 +102,47 @@ export class CommentTool extends IAnnotationTool {
     this.#logger = logger || getLogger("CommentTool");
     this.#eventBus = eventBus;
     this.#pdfViewerManager = pdfViewerManager;
-    this.#container = container;
+    this.#unsubscribeFunctions = [];
 
-    this.#logger.info("========================================");
-    this.#logger.info("🚀 CommentTool Initialization Started");
-    this.#logger.info("========================================");
-
-    // 获取PDF.js EventBus（用于监听页面渲染事件）
-    this.#logger.info("Step 1: Getting PDF.js EventBus...");
-    if (pdfViewerManager && pdfViewerManager.eventBus) {
-      this.#pdfjsEventBus = pdfViewerManager.eventBus;
-      this.#logger.info("  ✅ Got PDF.js EventBus reference for page rendering events");
-    } else {
-      this.#logger.error("  ❌ PDF.js EventBus not available, marker restoration will NOT work!");
-      this.#logger.warn("  PDFViewerManager:", pdfViewerManager);
+    this.#pdfjsEventBus = pdfViewerManager?.eventBus || null;
+    if (!this.#pdfjsEventBus) {
+      this.#logger.error("❌ PDF.js EventBus not available, marker restoration will NOT work!");
     }
 
-    // 获取AnnotationManager（用于获取标注数据）
-    this.#logger.info("Step 2: Getting AnnotationManager...");
-    if (container) {
-      this.#annotationManager = container.get("annotationManager");
-      if (this.#annotationManager) {
-        this.#logger.info("  ✅ Got AnnotationManager reference");
-      } else {
-        this.#logger.error("  ❌ AnnotationManager not found in container!");
-      }
-    } else {
-      this.#logger.error("  ❌ No container provided!");
+    this.#annotationManager = container?.get?.("annotationManager") || null;
+    if (!this.#annotationManager) {
+      this.#logger.error("❌ AnnotationManager not found in container!");
     }
 
-    // 创建辅助组件
-    this.#logger.info("Step 3: Creating helper components...");
     this.#commentInput = new CommentInput();
     this.#commentMarker = new CommentMarker();
-    this.#logger.info("  ✅ CommentInput and CommentMarker created");
 
-    // 设置页面渲染事件监听
-    this.#logger.info("Step 4: Setting up page rendering listener...");
     this.#setupPageRenderingListener();
 
     // 监听标注数据加载完成（用于补画/入队）
     this.#onAnnotationDataLoadedHandler = (data) => {
       try {
         const anns = Array.isArray(data?.annotations) ? data.annotations : [];
-        const comments = anns.filter(a => a?.type === "comment");
+        const comments = anns.filter((a) => a?.type === "comment");
         this.#logger.info(`📥 [DataLoaded] total=${anns.length}, comments=${comments.length}`);
         comments.forEach((ann) => this.ensureOverlayFor(ann));
       } catch (e) {
         this.#logger?.warn?.("[CommentTool] handleAnnotationsLoaded failed", e);
       }
     };
-    try {
-      this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, this.#onAnnotationDataLoadedHandler, { subscriberId: "CommentTool" });
-    } catch (e) {
-      void e; /* logger-guard */
+    const unsubLoaded = this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED,
+      this.#onAnnotationDataLoadedHandler,
+      { subscriberId: "CommentTool" }
+    );
+    if (typeof unsubLoaded !== "function") {
+      throw new Error("[CommentTool] eventBus.on must return an unsubscribe function");
     }
+    this.#unsubscribeFunctions.push(unsubLoaded);
 
     // 设置标注事件监听
-    this.#logger.info("Step 5: Setting up annotation event listeners...");
     this.#setupAnnotationEventListeners();
-
-    this.#logger.info("========================================");
     this.#logger.info(`✅ CommentTool initialized (v${this.version})`);
-    this.#logger.info("========================================");
   }
 
   /**
@@ -176,35 +156,16 @@ export class CommentTool extends IAnnotationTool {
 
     this.#isActive = true;
 
-    // 保存原始鼠标样式
-    const pdfContainer = document.querySelector(".pdf-container");
-    if (pdfContainer) {
-      this.#originalCursor = pdfContainer.style.cursor || "default";
-      pdfContainer.style.cursor = "crosshair";
-    }
-
-    // 添加点击事件监听
-    this.#clickHandler = (e) => this.#handlePdfClick(e);
-    if (pdfContainer) {
-      pdfContainer.addEventListener("click", this.#clickHandler);
-    }
+    const { originalCursor, clickHandler } = activateCommentTool({
+      logger: this.#logger,
+      eventBus: this.#eventBus,
+      toolName: this.name,
+      onPdfClick: (e) => this.#handlePdfClick(e),
+    });
+    this.#originalCursor = originalCursor;
+    this.#clickHandler = clickHandler;
 
     this.#logger.info("CommentTool activated");
-
-    // 打开标注侧边栏（保持与历史行为一致：激活批注工具时自动弹出侧边栏）
-    try {
-      this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, { sidebarId: "annotation" });
-      this.#logger.info("Requested opening annotation sidebar on comment tool activation");
-    } catch (e) {
-      this.#logger.warn("Failed to request sidebar open on activation", e);
-    }
-
-    // 发布激活事件
-    this.#eventBus.emit(
-      PDF_VIEWER_EVENTS.ANNOTATION.TOOL.ACTIVATED,
-      { tool: this.name },
-      { actorId: "CommentTool" }
-    );
   }
 
   /**
@@ -217,31 +178,15 @@ export class CommentTool extends IAnnotationTool {
 
     this.#isActive = false;
 
-    // 恢复鼠标样式
-    const pdfContainer = document.querySelector(".pdf-container");
-    if (pdfContainer) {
-      pdfContainer.style.cursor = this.#originalCursor;
-    }
-
-    // 移除点击事件监听
-    if (this.#clickHandler && pdfContainer) {
-      pdfContainer.removeEventListener("click", this.#clickHandler);
-      this.#clickHandler = null;
-    }
-
-    // 隐藏输入框（如果显示中）
-    if (this.#commentInput && this.#commentInput.isVisible()) {
-      this.#commentInput.hide();
-    }
-
-    this.#logger.info("CommentTool deactivated");
-
-    // 发布停用事件
-    this.#eventBus.emit(
-      PDF_VIEWER_EVENTS.ANNOTATION.TOOL.DEACTIVATED,
-      { tool: this.name },
-      { actorId: "CommentTool" }
-    );
+    deactivateCommentTool({
+      logger: this.#logger,
+      eventBus: this.#eventBus,
+      toolName: this.name,
+      commentInput: this.#commentInput,
+      originalCursor: this.#originalCursor,
+      clickHandler: this.#clickHandler,
+    });
+    this.#clickHandler = null;
   }
 
   /**
@@ -252,53 +197,20 @@ export class CommentTool extends IAnnotationTool {
     return this.#isActive;
   }
 
-  // ==================== 事件处理 ====================
-
   /**
    * 处理PDF点击
    * @private
    * @param {MouseEvent} e - 鼠标事件
    */
   #handlePdfClick(e) {
-    // 如果输入框正在显示，忽略点击
-    if (this.#commentInput.isVisible()) {
-      return;
-    }
-
-    // 阻止事件默认行为和冒泡，避免触发其他导航逻辑
-    e.preventDefault();
-    e.stopPropagation();
-
-    // 查找实际点击的页面元素
-    let pageElement = e.target.closest(".page");
-    if (!pageElement) {
-      this.#logger.warn("Click target is not within a .page element, ignoring");
-      return;
-    }
-
-    // 从页面元素获取页码
-    const pageNumber = parseInt(pageElement.dataset.pageNumber) || this.#getCurrentPageNumber();
-
-    // 获取点击位置（相对于页面元素）
-    const pageRect = pageElement.getBoundingClientRect();
-    const x = e.clientX - pageRect.left;
-    const y = e.clientY - pageRect.top;
-
-    // 获取显示输入框的位置（相对于视口）
-    const displayX = e.clientX;
-    const displayY = e.clientY;
-
-    this.#logger.info(`PDF clicked at (${x}, ${y}) on page ${pageNumber}`);
-
-    // 显示输入框（使用视口坐标）
-    this.#commentInput.show({
-      x: displayX,
-      y: displayY,
-      pageNumber,
-      onConfirm: (content) => this.#createComment(x, y, pageNumber, pageRect.width, pageRect.height, content),
-      onCancel: () => {
-        this.#logger.info("Comment creation cancelled");
-      },
+    handleCommentToolPdfClick({
+      e,
+      logger: this.#logger,
+      commentInput: this.#commentInput,
+      getCurrentPageNumber: () => this.#getCurrentPageNumber(),
+      onCreateComment: (x, y, pageNumber, pageWidth, pageHeight, content) => (
+        this.#createComment(x, y, pageNumber, pageWidth, pageHeight, content)
+      )
     });
   }
 
@@ -338,96 +250,29 @@ export class CommentTool extends IAnnotationTool {
    * @param {string} annotationId - 标注ID
    */
   #handleMarkerClick(annotationId) {
-    this.#logger.info(`Comment marker clicked: ${annotationId}`);
-
-    // 高亮标记
-    this.#commentMarker.highlightMarker(annotationId);
-
-    // 打开标注侧边栏（与历史行为一致：点击批注对象时弹出侧边栏）
-    try {
-      this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, { sidebarId: "annotation" });
-      this.#logger.info("Requested opening annotation sidebar on marker click");
-    } catch (e) {
-      this.#logger.warn("Failed to request sidebar open on marker click", e);
-    }
-
-    // 发布选择事件
-    this.#eventBus.emit(
-      PDF_VIEWER_EVENTS.ANNOTATION.SELECT,
-      { id: annotationId },
-      { actorId: "CommentTool" }
-    );
+    handleCommentToolMarkerClick({
+      annotationId,
+      logger: this.#logger,
+      eventBus: this.#eventBus,
+      commentMarker: this.#commentMarker
+    });
   }
-
-  // ==================== 标记恢复机制 ====================
 
   /**
    * 设置页面渲染事件监听
    * @private
    */
   #setupPageRenderingListener() {
-    if (!this.#pdfjsEventBus) {
-      this.#logger.warn("❌ Cannot setup page rendering listener: pdfjsEventBus not available");
-      this.#logger.warn("PDFViewerManager status:", this.#pdfViewerManager);
-      return;
-    }
-
-    this.#logger.info("✅ PDF.js EventBus available, setting up pagerendered listener...");
-
-    // 监听PDF.js的pagerendered事件（使用常量命名）
-    this.#pdfjsEventBus.on(PDF_VIEWER_EVENTS.PDFJS_EVENTS.PAGE.RENDERED, (evt) => {
-      const pageNumber = evt.pageNumber;
-      // 先刷队列再恢复
-      this.#flushPendingForPage(pageNumber);
-      this.#logger.info(`📄 [PageRendered Event] Page ${pageNumber} rendered, restoring markers...`);
-      // 恢复该页面的所有标记
-      this.#restoreMarkersForPage(pageNumber);
+    const unsubs = installCommentToolPageRendering({
+      pdfjsEventBus: this.#pdfjsEventBus,
+      eventBus: this.#eventBus,
+      logger: this.#logger,
+      pdfViewerManager: this.#pdfViewerManager,
+      commentMarker: this.#commentMarker,
+      flushPendingForPage: (pn) => this.#flushPendingForPage(pn),
+      restoreMarkersForPage: (pn) => this.#restoreMarkersForPage(pn),
     });
-
-    // 监听缩放：缩放开始清空标记，缩放结束恢复当前页
-    this.#pdfjsScaleChangingHandler = () => {
-      try {
-        this.#commentMarker?.clear?.();
-      } catch (e) {
-        void e; /* logger-guard */
-      }
-    };
-    try {
-      this.#pdfjsEventBus.on(PDF_VIEWER_EVENTS.PDFJS_EVENTS.SCALE.CHANGING, this.#pdfjsScaleChangingHandler);
-    } catch (e) {
-      void e; /* logger-guard */
-    }
-
-    this.#pdfjsScaleChangedHandler = () => {
-      try {
-        const pn = Number(this.#pdfViewerManager?.currentPageNumber || 0);
-        if (pn) {
-          this.#restoreMarkersForPage(pn);
-        }
-      } catch (e) {
-        void e; /* logger-guard */
-      }
-    };
-    try {
-      this.#pdfjsEventBus.on(PDF_VIEWER_EVENTS.PDFJS_EVENTS.SCALE.CHANGED, this.#pdfjsScaleChangedHandler);
-    } catch (e) {
-      void e; /* logger-guard */
-    }
-
-    // 统一事件信号：应用级 RENDER.PAGE_COMPLETED（由 PDFViewerManager 桥接）
-    try {
-      this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.RENDER.PAGE_COMPLETED, (data) => {
-        const pn = Number(data?.pageNumber || 0);
-        if (!pn) { return; }
-        this.#flushPendingForPage(pn);
-        this.#logger.info(`📄 [PageRendered Event - bridged] Page ${pn} rendered, restoring markers...`);
-        this.#restoreMarkersForPage(pn);
-      }, { subscriberId: "CommentTool" });
-    } catch (e) {
-      void e; /* logger-guard */
-    }
-
-    this.#logger.info("✅ Page rendering listener setup complete");
+    this.#unsubscribeFunctions.push(...unsubs);
   }
 
   /**
@@ -440,48 +285,14 @@ export class CommentTool extends IAnnotationTool {
       return;
     }
 
-    // 监听标注创建成功事件
-    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, (data) => {
-      const { annotation } = data;
-
-      this.#logger.info(`📢 [Event] annotation:create:success received for ${annotation.id} (type: ${annotation.type})`);
-
-      // 只处理comment类型的标注
-      if (annotation.type !== "comment") {
-        this.#logger.debug("  ⏭️ Skipping non-comment annotation");
-        return;
-      }
-
-      this.#logger.info("  ✅ Comment annotation created successfully, rendering marker...");
-
-      // 渲染标记（若页面未就绪则入队）
-      this.ensureOverlayFor(annotation);
-    }, { subscriberId: "CommentTool" });
-
-    // 监听标注删除成功事件
-    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DELETED, (data) => {
-      const { id } = data;
-
-      this.#logger.info(`📢 [Event] annotation:delete:success received for ${id}`);
-
-      // 移除标记
-      if (this.#commentMarker) {
-        this.#commentMarker.removeMarker(id);
-        this.#logger.info(`  ✅ Marker removed for deleted annotation: ${id}`);
-      }
-
-      // 从待渲染队列移除
-      try {
-        this.#pendingMarkersByPage.forEach((bucket, page) => {
-          if (bucket?.has?.(id)) {
-            bucket.delete(id);
-            if (bucket.size === 0) {this.#pendingMarkersByPage.delete(page);}
-          }
-        });
-      } catch { }
-    }, { subscriberId: "CommentTool" });
-
-    this.#logger.info("✅ Annotation event listeners setup complete");
+    const unsubs = installCommentToolAnnotationEventListeners({
+      eventBus: this.#eventBus,
+      logger: this.#logger,
+      ensureOverlayFor: (annotation) => this.ensureOverlayFor(annotation),
+      commentMarker: this.#commentMarker,
+      pendingMarkersByPage: this.#pendingMarkersByPage,
+    });
+    this.#unsubscribeFunctions.push(...unsubs);
   }
 
   /**
@@ -490,20 +301,13 @@ export class CommentTool extends IAnnotationTool {
    */
   ensureOverlayFor(annotation) {
     try {
-      if (!annotation || annotation.type !== "comment") {return;}
-      const page = Number(annotation.pageNumber || 0);
-      if (this.#isPageReady(page)) {
-        this.#logger.debug("[CommentTool] Page ready → render now", { id: annotation.id, page });
-        this.#renderMarkerForAnnotation(annotation);
-        return;
-      }
-      let bucket = this.#pendingMarkersByPage.get(page);
-      if (!bucket) {
-        bucket = new Map();
-        this.#pendingMarkersByPage.set(page, bucket);
-      }
-      bucket.set(annotation.id, annotation);
-      this.#logger.debug("[CommentTool] Page not ready → queued", { id: annotation.id, page });
+      ensureOverlayOrQueue({
+        annotation,
+        isPageReady: (pageNumber) => this.#isPageReady(pageNumber),
+        pendingMarkersByPage: this.#pendingMarkersByPage,
+        renderMarkerForAnnotation: (ann) => this.#renderMarkerForAnnotation(ann),
+        logger: this.#logger
+      });
     } catch (e) {
       this.#logger?.warn?.("[CommentTool] ensureOverlayFor failed", e);
     }
@@ -516,17 +320,11 @@ export class CommentTool extends IAnnotationTool {
    */
   #flushPendingForPage(pageNumber) {
     try {
-      const bucket = this.#pendingMarkersByPage.get(pageNumber);
-      if (!bucket || bucket.size === 0) {return;}
-      const items = Array.from(bucket.values());
-      this.#pendingMarkersByPage.delete(pageNumber);
-      this.#logger.info(`🔁 [FlushPending] page=${pageNumber} count=${items.length}`);
-      items.forEach((ann) => {
-        try {
-          this.#renderMarkerForAnnotation(ann);
-        } catch (e) {
-          void e; /* logger-guard */
-        }
+      flushPendingMarkersForPage({
+        pageNumber,
+        pendingMarkersByPage: this.#pendingMarkersByPage,
+        renderMarkerForAnnotation: (ann) => this.#renderMarkerForAnnotation(ann),
+        logger: this.#logger
       });
     } catch (e) {
       this.#logger?.warn?.("[CommentTool] flushPendingForPage failed", e);
@@ -555,35 +353,12 @@ export class CommentTool extends IAnnotationTool {
    * @param {number} pageNumber - 页码
    */
   #restoreMarkersForPage(pageNumber) {
-    this.#logger.info(`🔄 [RestoreMarkers] Starting restoration for page ${pageNumber}`);
-
-    if (!this.#annotationManager) {
-      this.#logger.error("❌ Cannot restore markers: AnnotationManager not available");
-      this.#logger.warn("Container status:", this.#container);
-      return;
-    }
-
-    // 获取该页面的所有comment类型标注
-    const annotations = this.#annotationManager.getAnnotationsByPage(pageNumber);
-    this.#logger.info(`📋 Found ${annotations.length} total annotations on page ${pageNumber}`);
-
-    const commentAnnotations = annotations.filter(ann => ann.type === "comment");
-    this.#logger.info(`📝 Found ${commentAnnotations.length} comment annotations on page ${pageNumber}`);
-
-    if (commentAnnotations.length === 0) {
-      this.#logger.debug(`ℹ️ No comment annotations to restore on page ${pageNumber}`);
-      return;
-    }
-
-    this.#logger.info(`✨ Restoring ${commentAnnotations.length} markers for page ${pageNumber}`);
-
-    // 为每个标注渲染标记
-    commentAnnotations.forEach((annotation, index) => {
-      this.#logger.debug(`  [${index + 1}/${commentAnnotations.length}] Restoring marker for annotation ${annotation.id}`);
-      this.#renderMarkerForAnnotation(annotation);
+    restoreMarkersForPage({
+      pageNumber,
+      annotationManager: this.#annotationManager,
+      renderMarkerForAnnotation: (ann) => this.#renderMarkerForAnnotation(ann),
+      logger: this.#logger
     });
-
-    this.#logger.info(`✅ Marker restoration complete for page ${pageNumber}`);
   }
 
   /**
@@ -592,70 +367,14 @@ export class CommentTool extends IAnnotationTool {
    * @param {Annotation} annotation - 标注对象
    */
   #renderMarkerForAnnotation(annotation) {
-    this.#logger.debug(`🎨 [RenderMarker] Rendering marker for annotation ${annotation.id}`);
-
-    // 检查标记是否已存在
-    const existingMarker = this.#commentMarker.getMarker(annotation.id);
-    if (existingMarker) {
-      const hasParent = existingMarker.parentElement !== null;
-      this.#logger.debug(`  Existing marker found: hasParent=${hasParent}`);
-
-      if (hasParent) {
-        this.#logger.debug("  ✅ Marker already attached to DOM, skipping");
-        return;
-      } else {
-        this.#logger.debug("  ⚠️ Marker exists but detached from DOM, will recreate");
-      }
-    } else {
-      this.#logger.debug("  ℹ️ No existing marker, creating new one");
-    }
-
-    // 创建标记
-    this.#logger.debug("  Creating marker...");
-    const marker = this.#commentMarker.createMarker(annotation);
-
-    // 获取页面元素
-    this.#logger.debug(`  Finding page element for page ${annotation.pageNumber}...`);
-    const pageElement = this.#getPageElement(annotation.pageNumber);
-    if (!pageElement) {
-      this.#logger.error(`  ❌ Page element not found for annotation ${annotation.id} (page ${annotation.pageNumber})`);
-      return;
-    }
-    this.#logger.debug("  ✅ Page element found");
-
-    // 若仅有像素坐标，则换算百分比以便后续缩放/跳转一致
-    try {
-      const data = annotation?.data || {};
-      const hasPercent = data?.positionPercent && typeof data.positionPercent.xPercent === "number" && typeof data.positionPercent.yPercent === "number";
-      const hasPixel = data?.position && typeof data.position.x === "number" && typeof data.position.y === "number";
-      if (!hasPercent && hasPixel) {
-        const w = pageElement.clientWidth || pageElement.offsetWidth || 1;
-        const h = pageElement.clientHeight || pageElement.offsetHeight || 1;
-        const xp = Math.max(0, Math.min(100, (data.position.x / Math.max(1, w)) * 100));
-        const yp = Math.max(0, Math.min(100, (data.position.y / Math.max(1, h)) * 100));
-        annotation.data.positionPercent = { xPercent: xp, yPercent: yp };
-        this.#logger.debug(`  ↻ position→percent: (${data.position.x},${data.position.y}) → (${xp.toFixed(2)}%,${yp.toFixed(2)}%)`);
-      }
-    } catch (e) {  /* ignore but mark for lint */ void e; /* logger-guard */ }
-
-    // 渲染标记到页面
-    this.#logger.debug("  Appending marker to page...");
-    const success = this.#commentMarker.renderToPage(annotation.id, pageElement);
-    if (!success) {
-      this.#logger.error("  ❌ Failed to render marker to page");
-      return;
-    }
-
-    // 添加点击事件
-    marker.addEventListener("click", (e) => {
-      e.stopPropagation();
-      this.#handleMarkerClick(annotation.id);
+    renderCommentMarkerForAnnotation({
+      annotation,
+      commentMarker: this.#commentMarker,
+      getPageElement: (pageNumber) => this.#getPageElement(pageNumber),
+      onMarkerClick: (annotationId) => this.#handleMarkerClick(annotationId),
+      logger: this.#logger
     });
-
-    this.#logger.info(`  ✅ Marker successfully rendered for annotation ${annotation.id} on page ${annotation.pageNumber}`);
   }
-
-  // ==================== 辅助方法 ====================
 
   /**
    * 获取当前页码
@@ -688,50 +407,19 @@ export class CommentTool extends IAnnotationTool {
     return pdfContainer;
   }
 
-  // ==================== UI方法 ====================
-
   /**
    * 创建工具按钮
    * @returns {HTMLElement}
    */
   createToolButton() {
-    const button = document.createElement("button");
-    button.id = `${this.name}-tool-btn`;
-    button.className = "annotation-tool-button";
-    button.textContent = `${this.icon} ${this.displayName}`;
-    button.title = `${this.displayName}工具`;
-
-    button.style.cssText = `
-      padding: 8px 16px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      background: white;
-      cursor: pointer;
-      font-size: 14px;
-      transition: background 0.2s, border-color 0.2s;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    `;
-
-    // 点击事件
-    button.addEventListener("click", () => {
-      if (this.isActive()) {
-        this.deactivate();
-        button.style.background = "white";
-        button.style.borderColor = "#ddd";
-      } else {
-        this.#eventBus.emit(
-          PDF_VIEWER_EVENTS.ANNOTATION.TOOL.ACTIVATE,
-          { tool: this.name },
-          { actorId: "CommentTool" }
-        );
-        button.style.background = "#E3F2FD";
-        button.style.borderColor = "#2196F3";
-      }
+    return createCommentToolButton({
+      toolName: this.name,
+      displayName: this.displayName,
+      icon: this.icon,
+      eventBus: this.#eventBus,
+      isActive: () => this.isActive(),
+      deactivate: () => this.deactivate()
     });
-
-    return button;
   }
 
   /**
@@ -740,99 +428,37 @@ export class CommentTool extends IAnnotationTool {
    * @returns {HTMLElement}
    */
   createAnnotationCard(annotation) {
-    const card = document.createElement("div");
-    card.className = "annotation-card comment-card";
-    card.dataset.annotationId = annotation.id;
-
-    card.style.cssText = `
-      padding: 12px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      margin-bottom: 12px;
-      background: white;
-      cursor: pointer;
-      transition: box-shadow 0.2s;
-    `;
-
-    card.innerHTML = `
-      <div class="card-header" style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 20px;">${this.icon}</span>
-          <span style="font-weight: bold; color: #333;">批注</span>
-        </div>
-        <span style="font-size: 12px; color: #999;">第${annotation.pageNumber}页</span>
-      </div>
-      <div class="card-content" style="color: #555; font-size: 14px; line-height: 1.5; margin-bottom: 8px;">
-        ${annotation.data.content || "无内容"}
-      </div>
-      <div class="card-footer" style="display: flex; justify-content: space-between; align-items: center;">
-        <span style="font-size: 12px; color: #999;">${annotation.getFormattedDate()}</span>
-        <div class="card-actions" style="display: flex; gap: 8px;">
-          <button class="jump-btn" style="padding: 4px 12px; border: 1px solid #2196F3; border-radius: 4px; background: white; color: #2196F3; cursor: pointer; font-size: 12px;">
-            跳转
-          </button>
-          <button class="delete-btn" style="padding: 4px 12px; border: 1px solid #f44336; border-radius: 4px; background: white; color: #f44336; cursor: pointer; font-size: 12px;">
-            删除
-          </button>
-        </div>
-      </div>
-    `;
-
-    // 卡片点击高亮
-    card.addEventListener("click", (e) => {
-      if (!e.target.classList.contains("jump-btn") && !e.target.classList.contains("delete-btn")) {
-        this.#commentMarker.highlightMarker(annotation.id);
-      }
+    return createCommentAnnotationCard({
+      annotation,
+      icon: this.icon,
+      eventBus: this.#eventBus,
+      commentMarker: this.#commentMarker,
+      confirmDeleteAsync: ({ message }) => confirmCommentDeleteAsync({ message, logger: this.#logger }),
+      logger: this.#logger
     });
-
-    // 悬停效果
-    card.addEventListener("mouseenter", () => {
-      card.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)";
-    });
-
-    card.addEventListener("mouseleave", () => {
-      card.style.boxShadow = "none";
-    });
-
-    // 跳转按钮
-    const jumpBtn = card.querySelector(".jump-btn");
-    jumpBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      this.#eventBus.emitGlobal(
-        PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
-        { id: annotation.id },
-        { actorId: "CommentTool" }
-      );
-    });
-
-    // 删除按钮
-    const deleteBtn = card.querySelector(".delete-btn");
-    deleteBtn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      if (await this.#confirmAsync("确定要删除这条批注吗？")) {
-        this.#eventBus.emit(
-          PDF_VIEWER_EVENTS.ANNOTATION.DELETE,
-          { id: annotation.id },
-          { actorId: "CommentTool" }
-        );
-      }
-    });
-
-    return card;
   }
-
-  // ==================== 清理方法 ====================
 
   /**
    * 销毁工具
    */
   destroy() {
-    this.#logger.info("Destroying CommentTool");
+    const logger = this.#logger || getLogger("CommentTool");
+    logger.info("Destroying CommentTool");
 
     // 停用工具
     if (this.isActive()) {
       this.deactivate();
     }
+
+    // 取消所有订阅（EventBus + PDF.js EventBus）
+    for (const unsub of this.#unsubscribeFunctions) {
+      try {
+        unsub();
+      } catch (e) {
+        logger.warn("[CommentTool] unsubscribe failed during destroy", e);
+      }
+    }
+    this.#unsubscribeFunctions = [];
 
     // 销毁组件
     if (this.#commentInput) {
@@ -845,83 +471,16 @@ export class CommentTool extends IAnnotationTool {
       this.#commentMarker = null;
     }
 
-    // 解绑 PDF.js 缩放事件
-    if (this.#pdfjsEventBus && typeof this.#pdfjsEventBus.off === "function") {
-      try {
-        if (this.#pdfjsScaleChangingHandler) {
-          this.#pdfjsEventBus.off(PDF_VIEWER_EVENTS.PDFJS_EVENTS.SCALE.CHANGING, this.#pdfjsScaleChangingHandler);
-        }
-      } catch (e) {
-        void e; /* logger-guard */
-      }
-      try {
-        if (this.#pdfjsScaleChangedHandler) {
-          this.#pdfjsEventBus.off(PDF_VIEWER_EVENTS.PDFJS_EVENTS.SCALE.CHANGED, this.#pdfjsScaleChangedHandler);
-        }
-      } catch (e) {
-        void e; /* logger-guard */
-      }
-    }
-
-    // 清空引用
-    this.#eventBus = null;
-    this.#logger = null;
-    this.#pdfViewerManager = null;
-    this.#container = null;
     this.#pendingMarkersByPage.clear();
     this.#onAnnotationDataLoadedHandler = null;
 
-    this.#logger.info("CommentTool destroyed");
-  }
+    this.#annotationManager = null;
+    this.#pdfjsEventBus = null;
+    this.#pdfViewerManager = null;
+    this.#eventBus = null;
 
-  /**
-   * 简易确认弹窗（替代 window.confirm 以通过 lint）
-   * @param {string} message
-   * @returns {Promise<boolean>}
-   * @private
-   */
-  #confirmAsync(message) {
-    return new Promise((resolve) => {
-      try {
-        const overlay = document.createElement("div");
-        overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:9999;";
-        const dlg = document.createElement("div");
-        dlg.style.cssText = "width:360px;background:#fff;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.25);overflow:hidden;";
-        const body = document.createElement("div");
-        body.style.cssText = "padding:16px;font-size:14px;";
-        body.textContent = message;
-        const footer = document.createElement("div");
-        footer.style.cssText = "display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid #eee;";
-        const btnCancel = document.createElement("button");
-        btnCancel.textContent = "取消";
-        btnCancel.style.cssText = "padding:6px 12px;border:1px solid #ccc;background:#fff;border-radius:4px;cursor:pointer;";
-        const btnOk = document.createElement("button");
-        btnOk.textContent = "删除";
-        btnOk.style.cssText = "padding:6px 12px;border:1px solid #c62828;background:#c62828;color:#fff;border-radius:4px;cursor:pointer;";
-        btnCancel.addEventListener("click", () => {
-          try {
-            overlay.remove();
-          } catch (e) {
-            void e; /* logger-guard */
-          }
-          resolve(false);
-        });
-        btnOk.addEventListener("click", () => {
-          try {
-            overlay.remove();
-          } catch (e) {
-            void e; /* logger-guard */
-          }
-          resolve(true);
-        });
-        footer.appendChild(btnCancel); footer.appendChild(btnOk);
-        dlg.appendChild(body); dlg.appendChild(footer); overlay.appendChild(dlg);
-        document.body.appendChild(overlay);
-      } catch (e) {
-        void e; /* logger-guard */
-        resolve(true);
-      }
-    });
+    logger.info("CommentTool destroyed");
+    this.#logger = null;
   }
 }
 

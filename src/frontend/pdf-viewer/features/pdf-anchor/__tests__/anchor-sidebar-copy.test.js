@@ -12,16 +12,20 @@ import { getEventBus } from "../../../../common/event/event-bus.js";
 describe("AnchorSidebarUI copy actions", () => {
   let eventBus;
   let originalClipboard;
+  let originalExecCommand;
 
   beforeAll(() => {
     // Mock clipboard
     originalClipboard = global.navigator.clipboard;
     global.navigator.clipboard = { writeText: jest.fn().mockResolvedValue(undefined) };
+    originalExecCommand = document.execCommand;
+    document.execCommand = jest.fn(() => false);
   });
 
   afterAll(() => {
     // restore clipboard
     global.navigator.clipboard = originalClipboard;
+    document.execCommand = originalExecCommand;
   });
 
   beforeEach(() => {
@@ -37,8 +41,13 @@ describe("AnchorSidebarUI copy actions", () => {
     const anchors = [ { uuid: "pdfanchor-1234567890ab", name: "A", page_at: 1, is_active: false } ];
     eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED, { anchors }, { actorId: "Jest" });
 
-    // 打开复制下拉菜单
+    // 先选中第一行（UI 不会默认选中）
     const content = ui.getContentElement();
+    const row = content.querySelector("tbody[data-role=\"anchor-tbody\"] tr");
+    expect(row).toBeTruthy();
+    row.click();
+
+    // 打开复制下拉菜单
     const copyBtn = content.querySelector("button[data-action=\"copy\"]");
     expect(copyBtn).toBeTruthy();
     copyBtn.click();
@@ -48,6 +57,7 @@ describe("AnchorSidebarUI copy actions", () => {
       .find(el => el.textContent === "复制锚点ID");
     expect(menuItem).toBeTruthy();
     menuItem.click();
+    await new Promise(r => setTimeout(r, 0));
 
     // 断言
     expect(global.navigator.clipboard.writeText).toHaveBeenCalledWith("pdfanchor-1234567890ab");
@@ -61,6 +71,10 @@ describe("AnchorSidebarUI copy actions", () => {
     eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED, { anchors }, { actorId: "Jest" });
 
     const content = ui.getContentElement();
+    const row = content.querySelector("tbody[data-role=\"anchor-tbody\"] tr");
+    expect(row).toBeTruthy();
+    row.click();
+
     const copyBtn = content.querySelector("button[data-action=\"copy\"]");
     copyBtn.click();
 
@@ -68,6 +82,7 @@ describe("AnchorSidebarUI copy actions", () => {
       .find(el => el.textContent === "复制文内链接");
     expect(wikiItem).toBeTruthy();
     wikiItem.click();
+    await new Promise(r => setTimeout(r, 0));
 
     expect(global.navigator.clipboard.writeText).toHaveBeenCalledWith("[[pdfanchor-abcdef123456]]");
   });

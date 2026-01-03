@@ -6,6 +6,7 @@
 
 import { PDFManager } from "../pdf-manager.js";
 import { EventBus } from "../../common/event/event-bus.js";
+import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
 import ERROR_CODES from "../../common/constants/error-codes.js";
 
 // Mock 依赖模块
@@ -13,9 +14,9 @@ jest.mock("../../common/event/event-bus.js", () => {
   return {
     EventBus: function() {
       return {
-        on: function() {},
-        emit: function() {},
-        destroy: function() {}
+        on: jest.fn(),
+        emit: jest.fn(),
+        destroy: jest.fn()
       };
     }
   };
@@ -115,6 +116,12 @@ jest.mock("pdfjs-dist/build/pdf", () => {
       if (options.url && options.url.includes("permission-error")) {
         return {
           promise: Promise.reject(new Error("Permission denied"))
+        };
+      }
+      // 模拟未知错误
+      if (options.url && options.url.includes("unknown-error")) {
+        return {
+          promise: Promise.reject(new Error("Some unknown error"))
         };
       }
       // 模拟服务器错误
@@ -346,7 +353,9 @@ describe("PDFManager 错误处理测试", () => {
 
       await expect(pdfManager.loadPDF(fileData)).rejects.toThrow();
 
-      const emittedError = mockEventBus.emit.mock.calls[0][1];
+      const emittedError = mockEventBus.emit.mock.calls.find(
+        (c) => c?.[0] === PDF_VIEWER_EVENTS.FILE.LOAD.FAILED && c?.[1]?.attempt === 1
+      )?.[1];
       expect(emittedError.retryable).toBe(true);
     });
 
@@ -357,24 +366,22 @@ describe("PDFManager 错误处理测试", () => {
 
       await expect(pdfManager.loadPDF(fileData)).rejects.toThrow();
 
-      const emittedError = mockEventBus.emit.mock.calls[0][1];
+      const emittedError = mockEventBus.emit.mock.calls.find(
+        (c) => c?.[0] === PDF_VIEWER_EVENTS.FILE.LOAD.FAILED && c?.[1]?.attempt === 1
+      )?.[1];
       expect(emittedError.retryable).toBe(false);
     });
 
     test("未知错误应该是可重试的", async () => {
-      // 模拟未知错误
-      const pdfjsLib = await import("pdfjs-dist/build/pdf");
-      pdfjsLib.getDocument.mockImplementationOnce(() => ({
-        promise: Promise.reject(new Error("Some unknown error"))
-      }));
-
       await pdfManager.initialize();
 
-      const fileData = { filename: "test.pdf", url: "https://example.com/test.pdf" };
+      const fileData = { filename: "test.pdf", url: "https://example.com/unknown-error.pdf" };
 
       await expect(pdfManager.loadPDF(fileData)).rejects.toThrow();
 
-      const emittedError = mockEventBus.emit.mock.calls[0][1];
+      const emittedError = mockEventBus.emit.mock.calls.find(
+        (c) => c?.[0] === PDF_VIEWER_EVENTS.FILE.LOAD.FAILED && c?.[1]?.attempt === 1
+      )?.[1];
       expect(emittedError.retryable).toBe(true);
     });
   });
@@ -387,7 +394,9 @@ describe("PDFManager 错误处理测试", () => {
 
       await expect(pdfManager.loadPDF(fileData)).rejects.toThrow();
 
-      const emittedError = mockEventBus.emit.mock.calls[0][1];
+      const emittedError = mockEventBus.emit.mock.calls.find(
+        (c) => c?.[0] === PDF_VIEWER_EVENTS.FILE.LOAD.FAILED && c?.[1]?.attempt === 1
+      )?.[1];
       expect(emittedError).toHaveProperty("error");
       expect(emittedError).toHaveProperty("code");
       expect(emittedError).toHaveProperty("type");

@@ -1,247 +1,46 @@
 /**
- * PDF-Viewer 事件常量定义
- * @file 定义 PDF-Viewer 模块专用的事件常量
- * @module PDFViewerEvents
- */
-
-/**
- * PDF-Viewer 事件常量
- * @namespace PDF_VIEWER_EVENTS
+ * PDF-Viewer 事件常量（权威列表以此文件为准）
+ * 详细说明：docs/standards/pdf-viewer-event-constants.md
+ * 事件流程：docs/standards/pdf-viewer-event-flow.md
  */
 export const PDF_VIEWER_EVENTS = {
-  /**
-   * 文件操作相关事件
-   * @namespace FILE
-   */
   FILE: {
-    /**
-     * 文件加载事件
-     * @namespace LOAD
-     */
     LOAD: {
-      /**
-       * 文件加载请求事件
-       * @event pdf-viewer:file:load-requested
-       * @type {string}
-       */
       REQUESTED: "pdf-viewer:file:load-requested",
-
-      /**
-       * 文件加载成功事件
-       * @event pdf-viewer:file:load-success
-       * @type {string}
-       */
       SUCCESS: "pdf-viewer:file:load-success",
-
-      /**
-       * 文件加载失败事件
-       * @event pdf-viewer:file:load-failed
-       * @type {string}
-       */
       FAILED: "pdf-viewer:file:load-failed",
-
-      /**
-       * 文件加载进度事件
-       * @event pdf-viewer:file:load-progress
-       * @type {string}
-       */
       PROGRESS: "pdf-viewer:file:load-progress",
-      /**
-       * 文件重试加载事件
-       * @event pdf-viewer:file:load-retry
-       * @type {string}
-       */
       RETRY: "pdf-viewer:file:load-retry",
     },
-
-    /**
-     * 文件关闭事件
-     * @event pdf-viewer:file:close
-     * @type {string}
-     */
     CLOSE: "pdf-viewer:file:close",
-
-    /**
-     * 文件信息获取事件
-     * @event pdf-viewer:file:info:requested
-     * @type {string}
-     */
     INFO_REQUESTED: "pdf-viewer:file:info:requested",
-
-    /**
-     * 文件信息响应事件
-     * @event pdf-viewer:file:info:response
-     * @type {string}
-     */
     INFO_RESPONSE: "pdf-viewer:file:info:response",
   },
-
-  /**
-   * 页面相关事件（简化命名空间）
-   * @namespace PAGE
-   */
   PAGE: {
-    /**
-     * 页面正在改变事件（PDFViewerManager发出）
-     * @event pdf-viewer:page:changing
-     * @type {string}
-     */
     CHANGING: "pdf-viewer:page:changing",
   },
-
-  /**
-   * 页面导航相关事件
-   * @namespace NAVIGATION
-   */
   NAVIGATION: {
-    /**
-     * 上一页事件
-     * @event pdf-viewer:navigation:previous
-     * @type {string}
-     */
     PREVIOUS: "pdf-viewer:navigation:previous",
-
-    /**
-     * 下一页事件
-     * @event pdf-viewer:navigation:next
-     * @type {string}
-     */
     NEXT: "pdf-viewer:navigation:next",
-
-    /**
-     * 跳转到指定页面事件
-     * @event pdf-viewer:navigation:goto
-     * @type {string}
-     */
     GOTO: "pdf-viewer:navigation:goto",
-
-    /**
-     * 页面改变事件
-     * @event pdf-viewer:navigation:changed
-     * @type {string}
-     */
     CHANGED: "pdf-viewer:navigation:changed",
-
-    /**
-     * 总页数更新事件
-     * @event pdf-viewer:navigation:total-pages-updated
-     * @type {string}
-     */
     TOTAL_PAGES_UPDATED: "pdf-viewer:navigation:total-pages-updated",
-
-    /**
-     * URL参数导航相关事件
-     * @namespace URL_PARAMS
-     */
     URL_PARAMS: {
-      /**
-       * URL参数解析完成事件
-       * @event pdf-viewer:url-params:parsed
-       * @type {string}
-       * @payload {Object} data
-       * @payload {string|null} data.pdfId - PDF文件ID
-       * @payload {number|null} data.pageAt - 目标页码(从1开始)
-       * @payload {number|null} data.position - 页面内位置百分比(0-100)
-       */
       PARSED: "pdf-viewer:url-params:parsed",
-
-      /**
-       * URL参数导航请求事件
-       * @event pdf-viewer:url-params:requested
-       * @type {string}
-       * @payload {Object} data
-       * @payload {string} data.pdfId - PDF文件ID
-       * @payload {number} data.pageAt - 目标页码
-       * @payload {number|null} data.position - 页面内位置百分比(可选)
-       */
       REQUESTED: "pdf-viewer:url-params:requested",
-
-      /**
-       * URL参数导航成功事件
-       * @event pdf-viewer:url-params:success
-       * @type {string}
-       * @payload {Object} data
-       * @payload {string} data.pdfId - PDF文件ID
-       * @payload {number} data.pageAt - 实际页码
-       * @payload {number|null} data.position - 实际位置百分比
-       * @payload {number} data.duration - 导航耗时(ms)
-       */
       SUCCESS: "pdf-viewer:url-params:success",
-
-      /**
-       * URL参数导航失败事件
-       * @event pdf-viewer:url-params:failed
-       * @type {string}
-       * @payload {Object} data
-       * @payload {Error} data.error - 错误对象
-       * @payload {string} data.message - 错误消息
-       * @payload {string} data.stage - 失败阶段('parse'|'load'|'navigate'|'scroll')
-       */
       FAILED: "pdf-viewer:url-params:failed",
     },
   },
-
-  // RENDER 事件组在下文已完整定义，移除此处的早期重复定义
-
-  /**
-   * 缩放控制相关事件
-   * @namespace ZOOM
-   */
   ZOOM: {
-    /**
-     * 放大事件
-     * @event pdf-viewer:zoom:in
-     * @type {string}
-     */
     IN: "pdf-viewer:zoom:in",
-
-    /**
-     * 缩小事件
-     * @event pdf-viewer:zoom:out
-     * @type {string}
-     */
     OUT: "pdf-viewer:zoom:out",
-
-    /**
-     * 适应宽度事件
-     * @event pdf-viewer:zoom:fit-width
-     * @type {string}
-     */
     FIT_WIDTH: "pdf-viewer:zoom:fit-width",
-
-    /**
-     * 适应高度事件
-     * @event pdf-viewer:zoom:fit-height
-     * @type {string}
-     */
     FIT_HEIGHT: "pdf-viewer:zoom:fit-height",
-
-    /**
-     * 实际大小事件
-     * @event pdf-viewer:zoom:actual-size
-     * @type {string}
-     */
     ACTUAL_SIZE: "pdf-viewer:zoom:actual-size",
-
-    /**
-     * 缩放比例改变事件
-     * @event pdf-viewer:zoom:changed
-     * @type {string}
-     */
     CHANGED: "pdf-viewer:zoom:changed",
-
-    /**
-     * 缩放比例正在改变事件（PDFViewerManager发出）
-     * @event pdf-viewer:zoom:changing
-     * @type {string}
-     */
     CHANGING: "pdf-viewer:zoom:changing",
   },
-
-  /**
-   * 翻译（pdf-translator 功能域）事件
-   * @namespace TRANSLATOR
-   */
   TRANSLATOR: {
     TEXT: {
       SELECTED: "pdf-translator:text:selected",
@@ -271,979 +70,221 @@ export const PDF_VIEWER_EVENTS = {
       CLEARED: "pdf-translator:history:cleared",
     },
   },
-
-  /**
-   * 视图/模式相关事件（补充全局白名单）
-   * @namespace VIEW_MODE
-   */
   VIEW_MODE: {
-    /**
-     * 渲染模式改变（如：pdfviewer <-> image 等）
-     */
     RENDER_MODE_CHANGED: "pdf-viewer:render-mode:changed",
-    /**
-     * 鼠标模式改变（text | drag）
-     */
     MOUSE_MODE_CHANGED: "pdf-viewer:mouse-mode:changed",
   },
-
-  /**
-   * 视图渲染相关事件
-   * @namespace RENDER
-   */
   RENDER: {
-    /**
-     * 渲染就绪事件（至少首页已渲染，可进行依赖DOM的操作）
-     * @event pdf-viewer:render:ready
-     * @type {string}
-     * @payload {Object} data
-     * @payload {number} data.firstPage - 已就绪的第一页页码（通常为1）
-     * @payload {number} data.totalPages - 文档总页数
-     */
     READY: "pdf-viewer:render:ready",
-    /**
-     * 页面渲染请求事件
-     * @event pdf-viewer:render:page:requested
-     * @type {string}
-     */
     PAGE_REQUESTED: "pdf-viewer:render-page:requested",
-
-    /**
-     * 页面渲染完成事件
-     * @event pdf-viewer:render:page:completed
-     * @type {string}
-     */
     PAGE_COMPLETED: "pdf-viewer:render-page:completed",
-
-    /**
-     * 页面渲染失败事件
-     * @event pdf-viewer:render:page:failed
-     * @type {string}
-     */
     PAGE_FAILED: "pdf-viewer:render-page:failed",
-
-    /**
-     * 渲染质量改变事件
-     * @event pdf-viewer:render:quality:changed
-     * @type {string}
-     */
     QUALITY_CHANGED: "pdf-viewer:render:quality:changed",
   },
-
-  /**
-   * 文本操作相关事件
-   * @namespace TEXT
-   */
   TEXT: {
-    /**
-     * 文本选择事件
-     * @event pdf-viewer:text:selected
-     * @type {string}
-     */
     SELECTED: "pdf-viewer:text:selected",
-
-    /**
-     * 文本搜索事件
-     * @event pdf-viewer:text:search:requested
-     * @type {string}
-     */
     SEARCH_REQUESTED: "pdf-viewer:text:search:requested",
-
-    /**
-     * 搜索结果事件
-     * @event pdf-viewer:text:search:result
-     * @type {string}
-     */
     SEARCH_RESULT: "pdf-viewer:text:search:result",
-
-    /**
-     * 搜索完成事件
-     * @event pdf-viewer:text:search:completed
-     * @type {string}
-     */
     SEARCH_COMPLETED: "pdf-viewer:text:search:completed",
   },
-
-  /**
-   * 搜索功能相关事件
-   * @namespace SEARCH
-   */
   SEARCH: {
-    /**
-     * UI控制事件
-     * @namespace UI
-     */
     UI: {
-      /**
-       * 打开搜索框
-       * @event pdf-viewer:search-ui:opened
-       * @type {string}
-       */
       OPEN: "pdf-viewer:search-ui:opened",
-
-      /**
-       * 关闭搜索框
-       * @event pdf-viewer:search-ui:closed
-       * @type {string}
-       */
       CLOSE: "pdf-viewer:search-ui:closed",
-
-      /**
-       * 切换搜索框显示/隐藏
-       * @event pdf-viewer:search-ui:toggled
-       * @type {string}
-       */
       TOGGLE: "pdf-viewer:search-ui:toggled",
     },
-
-    /**
-     * 搜索执行事件
-     * @namespace EXECUTE
-     */
     EXECUTE: {
-      /**
-       * 执行搜索请求
-       * @event pdf-viewer:search:query-requested
-       * @type {string}
-       * @payload {Object} data
-       * @payload {string} data.query - 搜索关键词
-       * @payload {Object} data.options - 搜索选项
-       * @payload {boolean} data.options.caseSensitive - 是否区分大小写
-       * @payload {boolean} data.options.wholeWords - 是否全词匹配
-       * @payload {boolean} data.options.highlightAll - 是否高亮所有结果
-       */
       QUERY: "pdf-viewer:search:query-requested",
-
-      /**
-       * 搜索关键词变化
-       * @event pdf-viewer:search:query-changed
-       * @type {string}
-       * @payload {Object} data
-       * @payload {string} data.query - 新的搜索关键词
-       */
       QUERY_CHANGED: "pdf-viewer:search:query-changed",
-
-      /**
-       * 清空搜索
-       * @event pdf-viewer:search:clear-requested
-       * @type {string}
-       */
       CLEAR: "pdf-viewer:search:clear-requested",
     },
-
-    /**
-     * 搜索结果事件
-     * @namespace RESULT
-     */
     RESULT: {
-      /**
-       * 找到搜索结果
-       * @event pdf-viewer:search-result:found
-       * @type {string}
-       * @payload {Object} data
-       * @payload {string} data.query - 搜索关键词
-       * @payload {number} data.total - 总匹配数
-       * @payload {number} data.current - 当前匹配索引
-       * @payload {Array} data.matches - 匹配结果数组
-       */
       FOUND: "pdf-viewer:search-result:found",
-
-      /**
-       * 未找到搜索结果
-       * @event pdf-viewer:search-result:not-found
-       * @type {string}
-       * @payload {Object} data
-       * @payload {string} data.query - 搜索关键词
-       */
       NOT_FOUND: "pdf-viewer:search-result:not-found",
-
-      /**
-       * 搜索结果已更新
-       * @event pdf-viewer:search-result:updated
-       * @type {string}
-       * @payload {Object} data
-       * @payload {number} data.current - 当前匹配索引
-       * @payload {number} data.total - 总匹配数
-       */
       UPDATED: "pdf-viewer:search-result:updated",
-
-      /**
-       * 搜索进度更新
-       * @event pdf-viewer:search-result:progress
-       * @type {string}
-       * @payload {Object} data
-       * @payload {number} data.current - 当前搜索页数
-       * @payload {number} data.total - 总页数
-       */
       PROGRESS: "pdf-viewer:search-result:progress",
     },
-
-    /**
-     * 搜索导航事件
-     * @namespace NAVIGATE
-     */
     NAVIGATE: {
-      /**
-       * 导航到下一个搜索结果
-       * @event pdf-viewer:search-navigate:next
-       * @type {string}
-       */
       NEXT: "pdf-viewer:search-navigate:next",
-
-      /**
-       * 导航到上一个搜索结果
-       * @event pdf-viewer:search-navigate:prev
-       * @type {string}
-       */
       PREV: "pdf-viewer:search-navigate:prev",
-
-      /**
-       * 跳转到指定搜索结果
-       * @event pdf-viewer:search-navigate:to
-       * @type {string}
-       * @payload {Object} data
-       * @payload {number} data.index - 目标结果索引
-       */
       TO: "pdf-viewer:search-navigate:to",
-
-      /**
-       * 导航完成
-       * @event pdf-viewer:search-navigate:completed
-       * @type {string}
-       * @payload {Object} data
-       * @payload {number} data.pageNumber - 跳转到的页码
-       * @payload {number} data.matchIndex - 匹配项索引
-       */
       COMPLETED: "pdf-viewer:search-navigate:completed",
     },
-
-    /**
-     * 搜索选项事件
-     * @namespace OPTION
-     */
     OPTION: {
-      /**
-       * 搜索选项改变
-       * @event pdf-viewer:search-option:changed
-       * @type {string}
-       * @payload {Object} data
-       * @payload {string} data.option - 选项名称（caseSensitive|wholeWords|highlightAll）
-       * @payload {boolean} data.value - 选项值
-       */
       CHANGED: "pdf-viewer:search-option:changed",
-
-      /**
-       * 重置搜索选项
-       * @event pdf-viewer:search-option:reset
-       * @type {string}
-       */
       RESET: "pdf-viewer:search-option:reset",
     },
-
-    /**
-     * 搜索状态事件
-     * @namespace STATE
-     */
     STATE: {
-      /**
-       * 搜索引擎已初始化
-       * @event pdf-viewer:search-state:initialized
-       * @type {string}
-       */
       INITIALIZED: "pdf-viewer:search-state:initialized",
-
-      /**
-       * 搜索引擎已销毁
-       * @event pdf-viewer:search-state:destroyed
-       * @type {string}
-       */
       DESTROYED: "pdf-viewer:search-state:destroyed",
-
-      /**
-       * 搜索中
-       * @event pdf-viewer:search-state:searching
-       * @type {string}
-       */
       SEARCHING: "pdf-viewer:search-state:searching",
-
-      /**
-       * 搜索空闲
-       * @event pdf-viewer:search-state:idle
-       * @type {string}
-       */
       IDLE: "pdf-viewer:search-state:idle",
     },
   },
-
-  /**
-   * 大纲相关事件
-   * @namespace OUTLINE
-   */
   OUTLINE: {
-    /**
-     * 侧边栏控制事件
-     * @namespace SIDEBAR
-     */
     SIDEBAR: {
-      /**
-       * 切换侧边栏显示/隐藏
-       * @event pdf-viewer:outline:sidebar:toggle
-       * @type {string}
-       */
       TOGGLE: "pdf-viewer:outline-sidebar:toggle",
-
-      /**
-       * 侧边栏已打开
-       * @event pdf-viewer:outline:sidebar:opened
-       * @type {string}
-       */
       OPENED: "pdf-viewer:outline-sidebar:opened",
-
-      /**
-       * 侧边栏已关闭
-       * @event pdf-viewer:outline:sidebar:closed
-       * @type {string}
-       */
       CLOSED: "pdf-viewer:outline-sidebar:closed",
     },
-
-    /**
-     * 大纲加载事件
-     * @namespace LOAD
-     */
     LOAD: {
-      /**
-       * 请求加载大纲
-       * @event pdf-viewer:outline:load:requested
-       * @type {string}
-       */
       REQUESTED: "pdf-viewer:outline-load:requested",
-
-      /**
-       * 大纲加载成功
-       * @event pdf-viewer:outline:load:success
-       * @type {string}
-       * @payload {Object} data
-       * @payload {Array<OutlineNode>} data.outlineItems - 大纲数据数组
-       * @payload {number} data.count - 大纲总数（包括子节点）
-       * @payload {string} data.source - 数据来源 ('pdf' | 'local')
-       */
       SUCCESS: "pdf-viewer:outline-load:success",
-
-      /**
-       * 大纲加载失败
-       * @event pdf-viewer:outline:load:failed
-       * @type {string}
-       * @payload {Object} data
-       * @payload {Error} data.error - 错误对象
-       * @payload {string} data.message - 错误消息
-       */
       FAILED: "pdf-viewer:outline-load:failed",
-
-      /**
-       * 大纲为空（无大纲）
-       * @event pdf-viewer:outline:load:empty
-       * @type {string}
-       */
       EMPTY: "pdf-viewer:outline-load:empty",
     },
-
-    /**
-     * 大纲导航事件
-     * @namespace NAVIGATE
-     */
     NAVIGATE: {
-      /**
-       * 请求导航到大纲项
-       * @event pdf-viewer:outline:navigate:requested
-       * @type {string}
-       * @payload {Object} data
-       * @payload {OutlineNode} data.outlineItem - 被点击的大纲对象
-       * @payload {number} data.timestamp - 触发时间戳
-       */
       REQUESTED: "pdf-viewer:outline-navigate:requested",
-
-      /**
-       * 导航成功
-       * @event pdf-viewer:outline:navigate:success
-       * @type {string}
-       * @payload {Object} data
-       * @payload {number} data.pageNumber - 目标页码
-       * @payload {Object} data.position - 目标位置 {x, y}
-       */
       SUCCESS: "pdf-viewer:outline-navigate:success",
-
-      /**
-       * 导航失败
-       * @event pdf-viewer:outline:navigate:failed
-       * @type {string}
-       * @payload {Object} data
-       * @payload {Error} data.error - 错误对象
-       * @payload {string} data.message - 错误消息
-       */
       FAILED: "pdf-viewer:outline-navigate:failed",
     },
-
-    /**
-     * 大纲按ID导航事件
-     * @namespace NAVIGATE_BY_ID
-     */
     NAVIGATE_BY_ID: {
-      /**
-       * 按ID请求导航到大纲项
-       * @event pdf-viewer:outline-navigate-by-id:requested
-       * @type {string}
-       * @payload {Object} data
-       * @payload {string} data.outlineItemId - 目标大纲节点ID（规范：outlineItem-<8位Base64URL>）
-       */
       REQUESTED: "pdf-viewer:outline-navigate-by-id:requested",
     },
-
-    /**
-     * 大纲创建事件（v002+ 预留）
-     * @namespace CREATE
-     */
     CREATE: {
-      /**
-       * 请求创建大纲
-       * @event pdf-viewer:outline:create:requested
-       * @type {string}
-       */
       REQUESTED: "pdf-viewer:outline-create:requested",
-
-      /**
-       * 创建成功
-       * @event pdf-viewer:outline:create:success
-       * @type {string}
-       */
       SUCCESS: "pdf-viewer:outline-create:success",
-
-      /**
-       * 创建失败
-       * @event pdf-viewer:outline:create:failed
-       * @type {string}
-       */
       FAILED: "pdf-viewer:outline-create:failed",
     },
-
-    /**
-     * 大纲更新事件（v002+ 预留）
-     * @namespace UPDATE
-     */
     UPDATE: {
-      /**
-       * 请求更新大纲
-       * @event pdf-viewer:outline:update:requested
-       * @type {string}
-       */
       REQUESTED: "pdf-viewer:outline-update:requested",
-
-      /**
-       * 更新成功
-       * @event pdf-viewer:outline:update:success
-       * @type {string}
-       */
       SUCCESS: "pdf-viewer:outline-update:success",
-
-      /**
-       * 更新失败
-       * @event pdf-viewer:outline:update:failed
-       * @type {string}
-       */
       FAILED: "pdf-viewer:outline-update:failed",
     },
-
-    /**
-     * 大纲删除事件（v002+ 预留）
-     * @namespace DELETE
-     */
     DELETE: {
-      /**
-       * 请求删除大纲
-       * @event pdf-viewer:outline:delete:requested
-       * @type {string}
-       */
       REQUESTED: "pdf-viewer:outline-delete:requested",
-
-      /**
-       * 删除成功
-       * @event pdf-viewer:outline:delete:success
-       * @type {string}
-       */
       SUCCESS: "pdf-viewer:outline-delete:success",
-
-      /**
-       * 删除失败
-       * @event pdf-viewer:outline:delete:failed
-       * @type {string}
-       */
       FAILED: "pdf-viewer:outline-delete:failed",
     },
-
-    /**
-     * 大纲排序事件
-     * @namespace REORDER
-     */
     REORDER: {
-      /**
-       * 请求重新排序大纲
-       * @event pdf-viewer:outline:reorder:requested
-       * @type {string}
-       * @payload {Object} data
-       * @payload {string} data.bookmarkId - 被移动的大纲ID
-       * @payload {string|null} data.newParentId - 新的父大纲ID（null表示根级）
-       * @payload {number} data.newIndex - 新的排序位置
-       */
       REQUESTED: "pdf-viewer:outline-reorder:requested",
-
-      /**
-       * 排序成功
-       * @event pdf-viewer:outline:reorder:success
-       * @type {string}
-       */
       SUCCESS: "pdf-viewer:outline-reorder:success",
-
-      /**
-       * 排序失败
-       * @event pdf-viewer:outline:reorder:failed
-       * @type {string}
-       */
       FAILED: "pdf-viewer:outline-reorder:failed",
     },
-
-    /**
-     * 大纲排序模式（UI本地态）
-     * @namespace SORT
-     */
     SORT: {
-      /**
-       * 排序模式开关变化（本地UI事件，用于允许拖拽）
-       * @event pdf-viewer:outline-sort:mode-changed
-       * @type {string}
-       * @payload {Object} data
-       * @payload {boolean} data.sortMode - 是否进入排序模式
-       */
       MODE_CHANGED: "pdf-viewer:outline-sort:mode-changed",
     },
-
-    /**
-     * 大纲选择事件
-     * @namespace SELECT
-     */
     SELECT: {
-      /**
-       * 大纲选择状态改变
-       * @event pdf-viewer:outline:select:changed
-       * @type {string}
-       * @payload {Object} data
-       * @payload {string|null} data.bookmarkId - 被选中的大纲ID（null表示取消选择）
-       * @payload {Outline|null} data.bookmark - 被选中的大纲对象
-       */
       CHANGED: "pdf-viewer:outline-select:changed",
     },
-
-    /**
-     * 大纲排序模式事件
-     * @namespace SORT_MODE
-     */
     SORT_MODE: {
-      /**
-       * 排序模式改变
-       * @event pdf-viewer:outline:sortmode:changed
-       * @type {string}
-       * @payload {Object} data
-       * @payload {boolean} data.sortMode - 排序模式状态（true: 启用, false: 禁用）
-       */
       CHANGED: "pdf-viewer:outline-sortmode:changed",
     },
   },
-
-  /**
-   * 最近阅读位置（断点续读）
-   * @namespace RESUME
-   */
   RESUME: {
     LOAD: {
-      /**
-       * 拉取 resume 数据请求（内部事件，用于观测）
-       * @event resume:load:requested
-       */
       REQUESTED: "resume:load:requested",
-      /**
-       * 拉取成功
-       * @event resume:load:success
-       */
       LOADED: "resume:load:success",
-      /**
-       * 拉取失败
-       * @event resume:load:failed
-       */
       LOAD_FAILED: "resume:load:failed",
     },
     APPLY: {
-      /**
-       * 应用 resume（导航）请求
-       * @event resume:apply:requested
-       */
       REQUESTED: "resume:apply:requested",
-      /**
-       * 应用成功
-       * @event resume:apply:success
-       */
       SUCCESS: "resume:apply:success",
-      /**
-       * 应用失败
-       * @event resume:apply:failed
-       */
       FAILED: "resume:apply:failed",
     },
     UPDATE: {
-      /**
-       * 更新 resume 请求（准备写库）
-       * @event resume:update:requested
-       */
       REQUESTED: "resume:update:requested",
-      /**
-       * 更新成功
-       * @event resume:update:success
-       */
       SUCCESS: "resume:update:success",
-      /**
-       * 更新失败
-       * @event resume:update:failed
-       */
       FAILED: "resume:update:failed",
     },
     FLOW: {
-      /**
-       * 断点续读流程结束（无论是否找到/应用 resume）
-       * @event resume:flow:done
-       * @payload {Object} data
-       * @payload {string} data.pdfId - 当前 PDF ID
-       * @payload {boolean} data.hasResume - 是否存在 resume 记录
-       * @payload {('success'|'failed')} data.status - 流程状态
-       */
       DONE: "resume:flow:done"
     }
   },
-
-  /**
-   * UI 控制相关事件
-   * @namespace UI
-   */
   UI: {
-    /**
-     * 工具栏显示/隐藏事件
-     * @event pdf-viewer:ui:toolbar:toggle
-     * @type {string}
-     */
     TOOLBAR_TOGGLE: "pdf-viewer:ui:toolbar-toggle",
-
-    /**
-     * 侧边栏显示/隐藏事件
-     * @event pdf-viewer:ui:sidebar:toggle
-     * @type {string}
-     */
     SIDEBAR_TOGGLE: "pdf-viewer:ui:sidebar:toggle",
-
-    /**
-     * 缩略图显示/隐藏事件
-     * @event pdf-viewer:ui:thumbnail:toggle
-     * @type {string}
-     */
     THUMBNAIL_TOGGLE: "pdf-viewer:ui:thumbnail:toggle",
     RESIZED: "pdf-viewer:ui:resized",
-
-    /**
-     * 全屏模式切换事件
-     * @event pdf-viewer:ui:fullscreen:toggle
-     * @type {string}
-     */
     FULLSCREEN_TOGGLE: "pdf-viewer:ui:fullscreen:toggle",
   },
-
-  /**
-   * 应用状态事件
-   * @namespace STATE
-   */
   STATE: {
-    /**
-     * 应用状态变更事件（统一的状态变化通知）
-     * @event pdf-viewer:state:changed
-     * @type {string}
-     */
     CHANGED: "pdf-viewer:state:changed",
-
-    /**
-     * 应用初始化完成事件
-     * @event pdf-viewer:state:initialized
-     * @type {string}
-     */
     INITIALIZED: "pdf-viewer:state:initialized",
-
-    /**
-     * 应用销毁事件
-     * @event pdf-viewer:state:destroyed
-     * @type {string}
-     */
     DESTROYED: "pdf-viewer:state:destroyed",
-
-    /**
-     * 错误状态事件
-     * @event pdf-viewer:state:error
-     * @type {string}
-     */
     ERROR: "pdf-viewer:state:error",
-
-    /**
-     * 加载状态事件
-     * @event pdf-viewer:state:loading
-     * @type {string}
-     */
     LOADING: "pdf-viewer:state:loading",
-
-    /**
-     * 状态重置事件
-     * @event pdf-viewer:state:reset
-     * @type {string}
-     */
     RESET: "pdf-viewer:state:reset",
   },
-
-  /**
-   * 侧边栏管理器事件
-   * @namespace SIDEBAR_MANAGER
-   */
   SIDEBAR_MANAGER: {
-    /**
-     * 切换侧边栏请求
-     * @event sidebar:toggle:requested
-     * @type {string}
-     * @payload {Object} data
-     * @payload {string} data.sidebarId - 侧边栏ID
-     */
     TOGGLE_REQUESTED: "sidebar:toggle:requested",
-
-    /**
-     * 打开侧边栏请求
-     * @event sidebar:open:requested
-     * @type {string}
-     * @payload {Object} data
-     * @payload {string} data.sidebarId - 侧边栏ID
-     */
     OPEN_REQUESTED: "sidebar:open:requested",
-
-    /**
-     * 关闭侧边栏请求
-     * @event sidebar:close:requested
-     * @type {string}
-     * @payload {Object} data
-     * @payload {string} data.sidebarId - 侧边栏ID
-     */
     CLOSE_REQUESTED: "sidebar:close:requested",
-
-    /**
-     * 侧边栏已打开完成
-     * @event sidebar:opened:completed
-     * @type {string}
-     * @payload {Object} data
-     * @payload {string} data.sidebarId - 侧边栏ID
-     * @payload {number} data.order - 打开顺序
-     */
     OPENED_COMPLETED: "sidebar:opened:completed",
-
-    /**
-     * 侧边栏已关闭完成
-     * @event sidebar:closed:completed
-     * @type {string}
-     * @payload {Object} data
-     * @payload {string} data.sidebarId - 侧边栏ID
-     * @payload {string[]} data.remainingIds - 剩余打开的侧边栏ID列表
-     */
     CLOSED_COMPLETED: "sidebar:closed:completed",
-
-    /**
-     * 布局已更新
-     * @event sidebar:layout:updated
-     * @type {string}
-     * @payload {Object} data
-     * @payload {Array} data.layouts - 布局数据数组
-     */
     LAYOUT_UPDATED: "sidebar:layout:updated",
   },
-
-  /**
-   * 标注相关事件
-   * @namespace ANNOTATION
-   * @description 事件格式说明：使用 'annotation-sidebar:xxx:xxx' 或 'annotation-tool:xxx:xxx' 等来符合3段格式要求
-   */
   ANNOTATION: {
-    /**
-     * 侧边栏控制事件 - 使用 annotation-sidebar 作为模块名
-     */
     SIDEBAR: {
-      /** 打开标注侧边栏 */
       OPEN: "annotation-sidebar:toggle:open",
-      /** 关闭标注侧边栏 */
       CLOSE: "annotation-sidebar:toggle:close",
-      /** 切换标注侧边栏显示/隐藏 */
       TOGGLE: "annotation-sidebar:toggle:requested",
-      /** 侧边栏已打开 */
       OPENED: "annotation-sidebar:toggle:opened",
-      /** 侧边栏已关闭 */
       CLOSED: "annotation-sidebar:toggle:closed",
-      /** 过滤器开关 */
       FILTER_TOGGLE: "annotation-sidebar:filter:toggle",
-      /** 排序方式开关 */
       SORT_TOGGLE: "annotation-sidebar:sort:toggle",
-      /** 打开侧边栏设置 */
       SETTINGS_OPEN: "annotation-sidebar:settings:open",
-      /** 标注ID复制成功通知 */
       ID_COPY_SUCCESS: "annotation:id-copy:success",
     },
-
-    /**
-     * 标注管理器 / 工具窗口相关事件
-     */
     MANAGER: {
-      /** 请求通过 MsgCenter 打开标注管理器窗口（anno-manager） */
       OPEN_WINDOW_REQUESTED: "annotation-manager:window-open:requested",
-      /** 标注管理器窗口打开成功（预留） */
       OPEN_WINDOW_SUCCESS: "annotation-manager:window-open:success",
-      /** 标注管理器窗口打开失败（预留） */
       OPEN_WINDOW_FAILED: "annotation-manager:window-open:failed",
     },
-
-    /**
-     * 工具模式切换事件
-     */
     TOOL: {
-      /** 激活工具 - data: { tool: 'screenshot'|'text-highlight'|'comment' } */
       ACTIVATE: "annotation-tool:activate:requested",
-      /** 停用工具 */
       DEACTIVATE: "annotation-tool:deactivate:requested",
-      /** 工具已激活 */
       ACTIVATED: "annotation-tool:activate:success",
-      /** 工具已停用 */
       DEACTIVATED: "annotation-tool:deactivate:success",
     },
-
-    /**
-     * 标注CRUD事件
-     */
-    /** 创建标注请求 */
     CREATE: "annotation:create:requested",
-    /** 标注已创建 */
     CREATED: "annotation:create:success",
-    /** 创建标注失败 */
     CREATE_FAILED: "annotation:create:failed",
-    /** 更新标注请求 */
     UPDATE: "annotation:update:requested",
-    /** 标注已更新 */
     UPDATED: "annotation:update:success",
-    /** 更新标注失败 */
     UPDATE_FAILED: "annotation:update:failed",
-    /** 删除标注请求 */
     DELETE: "annotation:delete:requested",
-    /** 标注已删除 */
     DELETED: "annotation:delete:success",
-    /** 删除标注失败 */
     DELETE_FAILED: "annotation:delete:failed",
-
-    /**
-     * 标注交互事件
-     */
-    /** 选中标注 */
     SELECT: "annotation:select:requested",
-    /** 标注已选中 */
     SELECTED: "annotation:select:success",
-    /** 标注导航事件 */
     NAVIGATION: {
-      /** 请求跳转到标注位置 */
       JUMP_REQUESTED: "annotation-navigation:jump:requested",
-      /** 标注跳转成功 */
       JUMP_SUCCESS: "annotation-navigation:jump:success",
-      /** 标注跳转失败 */
       JUMP_FAILED: "annotation-navigation:jump:failed",
     },
-    /** 跳转到标注位置（兼容旧常量命名） */
     JUMP_TO: "annotation-navigation:jump:requested",
-    /** 高亮标注（闪烁效果） */
     HIGHLIGHT: "annotation:highlight:requested",
-
-    /**
-     * 评论事件
-     */
     COMMENT: {
-      /** 添加评论请求 */
       ADD: "annotation-comment:add:requested",
-      /** 评论已添加 */
       ADDED: "annotation-comment:add:success",
-      /** 删除评论请求 */
       DELETE: "annotation-comment:delete:requested",
-      /** 评论已删除 */
       DELETED: "annotation-comment:delete:success",
     },
-
-    /**
-     * 数据加载事件
-     */
     DATA: {
-      /** 加载标注请求 */
       LOAD: "annotation-data:load:requested",
-      /** 标注已加载 */
       LOADED: "annotation-data:load:success",
-      /** 保存标注请求 */
       SAVE: "annotation-data:save:requested",
-      /** 标注已保存 */
       SAVED: "annotation-data:save:success",
-      /** 加载失败 */
       LOAD_FAILED: "annotation-data:load:failed",
-      /** 保存失败 */
       SAVE_FAILED: "annotation-data:save:failed",
     },
-
-    /**
-     * 截图工具事件
-     */
     SCREENSHOT: {
-      /** 开始截图 */
       START: "annotation-screenshot:start:requested",
-      /** 区域已选择 */
       AREA_SELECTED: "annotation-screenshot:area:selected",
-      /** 截图已捕获 */
       CAPTURED: "annotation-screenshot:capture:success",
-      /** 取消截图 */
       CANCEL: "annotation-screenshot:cancel:requested",
     },
-
-    /**
-     * 选字高亮事件
-     */
     TEXT_HIGHLIGHT: {
-      /** 开始选字 */
       SELECTION_START: "annotation-highlight:selection:started",
-      /** 文本已选择 */
       TEXT_SELECTED: "annotation-highlight:text:selected",
-      /** 高亮已应用 */
       HIGHLIGHT_APPLIED: "annotation-highlight:apply:success",
     },
-
-    /**
-     * 批注工具事件
-     */
     COMMENT_TOOL: {
-      /** 批注工具激活 */
       ACTIVE: "annotation-comment-tool:activate:success",
-      /** 位置已选择 */
       POSITION_SELECTED: "annotation-comment-tool:position:selected",
     },
   },
-
-  /**
-   * PDF.js 原生事件（通过 PDFJS EventBus 发出）
-   * 仅用于前端内部监听，命名采用常量以满足事件门禁（event-name-format）
-   */
   PDFJS_EVENTS: {
     PAGE: {
       CHANGING: "pagechanging",
@@ -1259,76 +300,42 @@ export const PDF_VIEWER_EVENTS = {
       UPDATE_CONTROL_STATE: "updatefindcontrolstate",
     }
   },
-
-  /**
-   * 鼠标模式等 UI 辅助事件
-   */
   MOUSE: {
     MODE_CHANGED: "pdf-viewer:mouse-mode:changed",
   },
-
-  /**
-   * 页面传输（预加载/请求/回执）桥接事件（如有需求）
-   */
   PAGE_TRANSFER: {
     REQUESTED: "pdf-viewer:page-transfer:requested",
     RESPONSE: "pdf-viewer:page-transfer:response",
   },
-
   NOTIFICATION: {
-    /** 错误提示事件 */
     ERROR: {
-      /** 触发错误提示 */
       TRIGGERED: "notification:error:triggered",
     },
   },
-
-  /**
-   * 锚点（Anchor）相关事件
-   * @namespace ANCHOR
-   */
   ANCHOR: {
-    /** 数据加载事件 */
     DATA: {
-      /** 请求加载锚点数据 */
       LOAD: "anchor-data:load:requested",
-      /** 锚点数据加载成功 */
       LOADED: "anchor-data:load:success",
-      /** 加载失败 */
       LOAD_FAILED: "anchor-data:load:failed",
     },
-
-    /** CRUD 与操作事件 */
     CREATE: "anchor:create:requested",
     CREATED: "anchor:create:success",
     CREATE_FAILED: "anchor:create:failed",
-
     UPDATE: "anchor:update:requested",
     UPDATED: "anchor:update:success",
     UPDATE_FAILED: "anchor:update:failed",
-
     DELETE: "anchor:delete:requested",
     DELETED: "anchor:delete:success",
     DELETE_FAILED: "anchor:delete:failed",
-
     COPY: "anchor:copy:requested",
     COPIED: "anchor:copy:success",
-
     ACTIVATE: "anchor:activate:requested",
     ACTIVATED: "anchor:activate:success",
-
-    /** 跳转导航 */
     NAVIGATE: {
       REQUESTED: "anchor-navigate:jump:requested",
       SUCCESS: "anchor-navigate:jump:success",
       FAILED: "anchor-navigate:jump:failed",
     },
   },
-
 };
-
-/**
- * 默认导出事件常量
- */
 export default PDF_VIEWER_EVENTS;
-

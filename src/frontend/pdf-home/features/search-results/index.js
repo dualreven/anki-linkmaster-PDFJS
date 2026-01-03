@@ -1,14 +1,17 @@
 /**
  * SearchResults Feature - 搜索结果展示功能
  * 显示和管理PDF搜索结果列表
+ * 详细说明：docs/standards/pdf-home-search-results.md
  */
 
 import { ResultsRenderer } from "./components/results-renderer.js";
-import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, PDF_MANAGEMENT_EVENTS, SEARCH_EVENTS, SEARCH_RESULTS_EVENTS, FILTER_EVENTS } from "../../../common/event/event-constants.js";
-import { RESULTS_EVENTS } from "./events.js";
-import { showInfo, showError } from "../../../common/utils/notification.js";
 import "./styles/search-results.css";
 import { createSubscriptionBag } from "../../../common/event/subscription-bag.js";
+import { createSearchResultsLayoutController } from "./search-results-layout.js";
+import { createSearchResultsResultsUpdater } from "./search-results-results-update.js";
+import { installSearchResultsSubscriptions } from "./search-results-subscriptions.js";
+import { ensureSearchResultsHeaderActions } from "./search-results-header-actions.js";
+import { installSearchResultsEventBridge } from "./search-results-event-bridge.js";
 
 export class SearchResultsFeature {
   name = "search-results";
@@ -28,15 +31,14 @@ export class SearchResultsFeature {
   #resultsContainer = null;
   #headerElement = null;
   #qwcBridge = null;
+  #layoutController = null;
+  #resultsUpdater = null;
 
   // 当前结果
   #currentResults = [];
   #pendingFocusIds = null;
 
-  // 布局控制
-  #layoutButtons = [];
   #layoutPreferenceKey = ["pdf-home","search-results","layout"].join("/");
-  #currentLayout = "single";
 
   // 内部请求超时时间
   #requestTimeoutMs = 3000;
@@ -56,6 +58,11 @@ export class SearchResultsFeature {
     const sidBase = `sr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,6)}`;
 
     this.#subscriptionBag = createSubscriptionBag({ loggerName: "SearchResultsFeature.Subscriptions" });
+    this.#layoutController = createSearchResultsLayoutController({
+      logger: this.#logger,
+      preferenceKey: this.#layoutPreferenceKey,
+      getResultsContainer: () => this.#resultsContainer,
+    });
 
     this.#logger.info("[SearchResultsFeature] Installing...");
 
@@ -67,6 +74,18 @@ export class SearchResultsFeature {
       // 2. 初始化渲染器
       this.#resultsRenderer = new ResultsRenderer(this.#logger, this.#scopedEventBus);
       this.#logger.info("[SearchResultsFeature] Step2: Renderer constructed");
+
+      this.#resultsUpdater = createSearchResultsResultsUpdater({
+        logger: this.#logger,
+        resultsRenderer: this.#resultsRenderer,
+        getResultsContainer: () => this.#resultsContainer,
+        getHeaderElement: () => this.#headerElement,
+        getLastRequestedPageLimit: () => this.#lastRequestedPageLimit,
+        getPendingFocusIds: () => this.#pendingFocusIds,
+        setPendingFocusIds: (v) => { this.#pendingFocusIds = v; },
+        setCurrentResults: (v) => { this.#currentResults = v; },
+        getCurrentResults: () => this.#currentResults,
+      });
 
       // 2.1 移除 QWebChannel 作为强依赖；改为通过 WebSocket 向 msgCenter 发送“打开查看器”请求
       // 如需兼容旧版桥接，可在测试工厂中注入 bridge，但生产默认不再依赖 QWebChannel。
@@ -81,11 +100,31 @@ export class SearchResultsFeature {
       }
 
       // 3. 监听筛选结果更新事件（来自filter插件）
-      this.#subscribeToFilterEvents(sidBase);
+      installSearchResultsSubscriptions({
+        logger: this.#logger,
+        name: this.name,
+        sidBase,
+        globalEventBus: this.#globalEventBus,
+        subscriptionBag: this.#subscriptionBag,
+        setLastRequestedPageLimit: (v) => { this.#lastRequestedPageLimit = v; },
+        setPendingFocusIds: (v) => { this.#pendingFocusIds = v; },
+        applyPendingFocus: () => this.#resultsUpdater.applyPendingFocus(),
+        handleResultsUpdate: (payload) => this.#resultsUpdater.handleResultsUpdate(payload),
+      });
       this.#logger.info("[SearchResultsFeature] Step3: Subscribed to filter events");
 
       // 4. 监听条目事件（转发到全局）
-      this.#setupEventBridge(sidBase);
+      installSearchResultsEventBridge({
+        logger: this.#logger,
+        name: this.name,
+        sidBase,
+        scopedEventBus: this.#scopedEventBus,
+        globalEventBus: this.#globalEventBus,
+        subscriptionBag: this.#subscriptionBag,
+        qwcBridge: this.#qwcBridge,
+        allowWsDetailFallback: this.#allowWsDetailFallback,
+        requestTimeoutMs: this.#requestTimeoutMs,
+      });
       this.#logger.info("[SearchResultsFeature] Step4: Event bridge set up");
 
       // 5. 渲染初始空状态
@@ -94,9 +133,7 @@ export class SearchResultsFeature {
 
       this.#logger.info("[SearchResultsFeature] Installed successfully");
     } catch (error) {
-      try { this.#logger.error("[SearchResultsFeature] Installation failed (stack)", error?.stack || "(no stack)"); } catch { /* ignore */ }
-      try { this.#logger.error("[SearchResultsFeature] Installation failed (message)", error?.message || String(error)); } catch { /* ignore */ }
-      try { this.#logger.error("[SearchResultsFeature] Installation failed (object)", error); } catch { /* ignore */ }
+      this.#logger.error("[SearchResultsFeature] Installation failed", error);
       throw error;
     }
   }
@@ -119,11 +156,15 @@ export class SearchResultsFeature {
       this.#resultsRenderer = null;
     }
 
+    this.#resultsUpdater = null;
+
     // 移除DOM
     if (this.#resultsContainer) {
       this.#resultsContainer.remove();
       this.#resultsContainer = null;
     }
+
+    this.#layoutController = null;
 
     this.#logger.info("[SearchResultsFeature] Uninstalled");
   }
@@ -146,7 +187,15 @@ export class SearchResultsFeature {
     }
 
     // 在header中添加批量操作按钮
-    this.#createBatchActionButtons();
+    ensureSearchResultsHeaderActions({
+      logger: this.#logger,
+      headerElement: this.#headerElement,
+      layoutController: this.#layoutController,
+      getCurrentResults: () => this.#currentResults,
+      globalEventBus: this.#globalEventBus,
+      scopedEventBus: this.#scopedEventBus,
+      documentRef: document,
+    });
 
     // 获取或创建结果容器
     this.#resultsContainer = mainContent.querySelector("#pdf-table-container");
@@ -161,520 +210,7 @@ export class SearchResultsFeature {
 
     this.#logger.debug("[SearchResultsFeature] Results container created");
 
-    this.#restoreLayoutPreference();
-  }
-
-  /**
-   * 创建批量操作按钮
-   * @private
-   */
-  #createBatchActionButtons() {
-    const existingActions = this.#headerElement.querySelector(".batch-actions");
-    if (existingActions) {
-      const existingToggle = existingActions.querySelector(".layout-toggle");
-      if (existingToggle) {
-        this.#bindLayoutButtons(existingToggle);
-        this.#updateLayoutButtonsState();
-      }
-      return;
-    }
-
-    const actionsDiv = document.createElement("div");
-    actionsDiv.className = "batch-actions";
-    actionsDiv.innerHTML = `
-      <button class="batch-action-btn batch-btn-review" title="批量复习选中项">
-        🔁 复习
-      </button>
-      <button class="batch-action-btn batch-btn-read" title="批量阅读选中项">
-        📖 阅读
-      </button>
-      <button class="batch-action-btn batch-btn-edit" title="批量编辑选中项">
-        ✏️ 编辑
-      </button>
-      <button class="batch-action-btn batch-btn-delete" title="批量删除选中项">
-        🗑️ 删除
-      </button>
-    `;
-
-    const layoutToggle = document.createElement("div");
-    layoutToggle.className = "layout-toggle";
-    layoutToggle.innerHTML = `
-      <span class="layout-toggle__label">布局</span>
-      <button type="button" class="layout-toggle__btn" data-layout="single" title="单栏">1栏</button>
-      <button type="button" class="layout-toggle__btn" data-layout="double" title="双栏">2栏</button>
-      <button type="button" class="layout-toggle__btn" data-layout="triple" title="三栏">3栏</button>
-    `;
-    actionsDiv.appendChild(layoutToggle);
-
-    this.#headerElement.appendChild(actionsDiv);
-    // 绑定“阅读”按钮
-    const readBtn = actionsDiv.querySelector(".batch-btn-read");
-    if (readBtn) {
-      readBtn.addEventListener("click", async () => {
-        try {
-          const selectedIds = Array.from(document.querySelectorAll(".search-result-checkbox:checked"))
-            .map(el => el.getAttribute("data-id"))
-            .filter(Boolean);
-          if (!selectedIds || selectedIds.length === 0) {
-            this.#logger.info("[SearchResultsFeature] 未选择任何条目，阅读操作中止");
-            this.#logger.warn("请先选择要阅读的PDF", { toast: { type: "warn", ms: 3000 } });
-            return;
-          }
-          const idSet = new Set(selectedIds.map(String));
-          const items = (this.#currentResults || [])
-            .filter(r => idSet.has(String(r.id)))
-            .map(r => ({ id: String(r.id), filename: r.filename || undefined, file_path: r.path || r.file_path || undefined, title: r.title || undefined }));
-          this.#logger.info("[SearchResultsFeature] 发起阅读（批量，WS）", { count: selectedIds.length, withMeta: items.length });
-          for (const id of selectedIds.map(String)) {
-            const rid = `open-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-            const msg = { type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF, request_id: rid, metadata: { version: "1.0.0" }, data: { pdf_id: id } };
-            this.#scopedEventBus?.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, msg);
-          }
-        } catch (e) {
-          this.#logger.error("[SearchResultsFeature] 执行阅读失败", e);
-        }
-      });
-    }
-    // 绑定“编辑”按钮（选中多条时，仅取第一条发起编辑）
-    const editBtn = actionsDiv.querySelector(".batch-btn-edit");
-    if (editBtn) {
-      editBtn.addEventListener("click", () => {
-        try {
-          const selectedIds = Array.from(document.querySelectorAll(".search-result-checkbox:checked"))
-            .map(el => el.getAttribute("data-id"))
-            .filter(Boolean);
-          if (!selectedIds || selectedIds.length === 0) {
-            this.#logger.info("[SearchResultsFeature] 未选择任何条目，编辑操作中止");
-            this.#logger.warn("未选择任何条目", { toast: { type: "warn", ms: 3000 } });
-            return;
-          }
-
-          // 仅编辑第一条（与 pdf-edit 现有逻辑一致）
-          const firstId = String(selectedIds[0]);
-          const record = (this.#currentResults || []).find(r => String(r?.id) === firstId);
-          if (!record) {
-            this.#logger.warn("[SearchResultsFeature] 选中记录未在当前结果中找到", { id: firstId });
-            this.#logger.warn("无法获取选中的PDF记录", { toast: { type: "warn", ms: 3000 } });
-            return;
-          }
-
-          this.#logger.info("[SearchResultsFeature] 触发编辑请求", { id: record.id, filename: record.filename });
-          this.#globalEventBus.emit(PDF_MANAGEMENT_EVENTS.EDIT.REQUESTED, record);
-        } catch (e) {
-          this.#logger.error("[SearchResultsFeature] 执行编辑失败", e);
-        }
-      });
-    }
-
-    this.#bindLayoutButtons(layoutToggle);
-    this.#updateLayoutButtonsState();
-
-    this.#logger.debug("[SearchResultsFeature] Batch action buttons created");
-  }
-
-  /**
-   * 绑定布局切换按钮
-   * @param {HTMLElement} container
-   * @private
-   */
-  #bindLayoutButtons(container) {
-    this.#layoutButtons = Array.from(container.querySelectorAll("[data-layout]")) || [];
-    this.#layoutButtons.forEach((button) => {
-      button.addEventListener("click", () => {
-        const layout = button.getAttribute("data-layout");
-        this.#applyLayout(layout);
-      });
-    });
-  }
-
-  /**
-   * 恢复布局偏好
-   * @private
-   */
-  #restoreLayoutPreference() {
-    let stored = null;
-    try {
-      stored = window.localStorage.getItem(this.#layoutPreferenceKey);
-    } catch (error) {
-      this.#logger?.warn("[SearchResultsFeature] Failed to read layout preference", error);
-    }
-
-    this.#applyLayout(stored || this.#currentLayout, { persist: false });
-  }
-
-  /**
-   * 应用布局并可选持久化
-   * @param {string} layout
-   * @param {{ persist?: boolean }} [options]
-   * @private
-   */
-  #applyLayout(layout, { persist = true } = {}) {
-    const allowed = ["single", "double", "triple"];
-    const targetLayout = allowed.includes(layout) ? layout : "single";
-    this.#currentLayout = targetLayout;
-
-    if (this.#resultsContainer) {
-      this.#resultsContainer.classList.remove("layout-single", "layout-double", "layout-triple");
-      this.#resultsContainer.classList.add("layout-" + targetLayout);
-    }
-
-    this.#updateLayoutButtonsState();
-
-    if (persist) {
-      try {
-        window.localStorage.setItem(this.#layoutPreferenceKey, targetLayout);
-      } catch (error) {
-        this.#logger?.warn("[SearchResultsFeature] Failed to persist layout preference", error);
-      }
-    }
-  }
-
-  /**
-   * 更新布局按钮状态
-   * @private
-   */
-  #updateLayoutButtonsState() {
-    if (!this.#layoutButtons || this.#layoutButtons.length === 0) {
-      return;
-    }
-
-    this.#layoutButtons.forEach((button) => {
-      const layout = button.getAttribute("data-layout");
-      if (!layout) {
-        return;
-      }
-      if (layout === this.#currentLayout) {
-        button.classList.add("is-active");
-      } else {
-        button.classList.remove("is-active");
-      }
-    });
-  }
-
-  /**
-   * 订阅筛选事件
-   * @param {string} sidBase - 订阅者ID基础字符串
-   * @private
-   */
-  #subscribeToFilterEvents(sidBase) {
-    // 监听搜索请求，记录或清除分页限制
-    // - 如果请求明确提供了 pagination.limit，则记录（侧边栏快捷查询）
-    // - 如果请求未提供 pagination，则清除限制（普通搜索）
-    const unsubSearchRequested = this.#globalEventBus.on(SEARCH_EVENTS.QUERY.REQUESTED, (data) => {
-      try {
-        // 如果请求中明确提供了 pagination 对象
-        if (data && typeof data.pagination === "object" && data.pagination !== null) {
-          const lim = Number(data.pagination.limit);
-          if (!Number.isNaN(lim) && lim > 0) {
-            // 有明确的正数限制，记录（侧边栏快捷查询）
-            this.#lastRequestedPageLimit = lim;
-            this.#logger.debug("[SearchResultsFeature] Pagination limit set", { limit: lim });
-          } else {
-            // pagination 存在但 limit 无效，清除缓存
-            this.#lastRequestedPageLimit = null;
-            this.#logger.debug("[SearchResultsFeature] Pagination limit cleared (invalid)");
-          }
-        } else {
-          // 没有提供 pagination，清除缓存（普通搜索）
-          this.#lastRequestedPageLimit = null;
-          this.#logger.debug("[SearchResultsFeature] Pagination limit cleared (no pagination)");
-        }
-      } catch {
-        /* ignore pagination parsing errors, clear cache */
-        this.#lastRequestedPageLimit = null;
-      }
-    }, { subscriberId: `${this.name}:${sidBase}:search-query-req` });
-    if (this.#subscriptionBag) {
-      this.#subscriptionBag.add(unsubSearchRequested);
-    }
-    // 监听搜索结果更新（来自search插件）
-    const unsubSearchResults = this.#globalEventBus.on(SEARCH_EVENTS.RESULTS.UPDATED, (data) => {
-      this.#logger.info("[SearchResultsFeature] Search results received", {
-        count: data.count,
-        searchText: data.searchText
-      });
-
-      this.#handleResultsUpdate(data.records, data.count, data.searchText, data.focusId, data.page);
-    }, { subscriberId: `${this.name}:${sidBase}:search-results-updated` });
-    if (this.#subscriptionBag) {
-      this.#subscriptionBag.add(unsubSearchResults);
-    }
-
-    // 监听筛选结果更新（来自filter插件）
-    const unsubResults = this.#globalEventBus.on(FILTER_EVENTS.RESULTS.UPDATED, (data) => {
-      this.#logger.info("[SearchResultsFeature] Filter results received", {
-        count: data.count,
-        searchText: data.searchText
-      });
-
-      this.#handleResultsUpdate(data.results, data.count, data.searchText);
-    }, { subscriberId: `${this.name}:${sidBase}:filter-results-updated` });
-    if (this.#subscriptionBag) {
-      this.#subscriptionBag.add(unsubResults);
-    }
-
-    this.#logger.info("[SearchResultsFeature] Subscribed to search and filter events");
-
-    // 监听外部请求聚焦事件（如“最近添加”点击后要求高亮/聚焦这些ID）
-    const unsubFocusReq = this.#globalEventBus.on(SEARCH_RESULTS_EVENTS.FOCUS.REQUESTED, (data) => {
-      try {
-        const ids = (data && Array.isArray(data.ids)) ? data.ids.map(x => String(x)) : [];
-        this.#logger.info("[SearchResultsFeature] Focus request received", { count: ids.length });
-        this.#pendingFocusIds = ids.length ? ids : null;
-        // 若已有结果，立即尝试应用
-        this.#applyPendingFocus();
-      } catch {
-        /* ignore focus parsing errors, reset pending focus */
-        this.#pendingFocusIds = null;
-      }
-    }, { subscriberId: `${this.name}:${sidBase}:focus-requested` });
-    if (this.#subscriptionBag) {
-      this.#subscriptionBag.add(unsubFocusReq);
-    }
-  }
-
-  /**
-   * 设置事件桥接（内部事件 -> 全局事件）
-   * @param {string} sidBase - 订阅者ID基础字符串
-   * @private
-   */
-  #setupEventBridge(sidBase) {
-    // 条目选中事件 -> 转发到全局
-    const unsubSelected = this.#scopedEventBus.on(RESULTS_EVENTS.ITEM.SELECTED, (data) => {
-      this.#logger.debug("[SearchResultsFeature] Item selected", data);
-      this.#globalEventBus.emit(SEARCH_RESULTS_EVENTS.ACTIONS.SELECTED, data);
-    }, { subscriberId: `${this.name}:${sidBase}:item-selected` });
-    if (this.#subscriptionBag) {
-      this.#subscriptionBag.add(unsubSelected);
-    }
-
-    // 条目打开事件 -> 转发到全局
-    const unsubOpen = this.#scopedEventBus.on(RESULTS_EVENTS.ITEM.OPEN, async (data) => {
-      // 初始阶段提示
-      showInfo("🔍 正在打开PDF...", 2500);
-      this.#logger.info("[SearchResultsFeature] [步骤1] Item open requested", data);
-
-      // 1) 转发为全局事件，便于其他模块感知
-      this.#globalEventBus.emit(SEARCH_RESULTS_EVENTS.ACTIONS.OPEN, data);
-      this.#logger.info("[SearchResultsFeature] [步骤2] Global event emitted");
-
-      // 2) 直接触发打开 pdf-viewer（通过 QWebChannelBridge -> PyQtBridge）
-      try {
-        const pdfId = data?.result?.id || data?.id || data?.pdfId;
-        const filename = data?.result?.filename || data?.filename || null;
-        const title = data?.result?.title || data?.title || null;
-        let filePath = data?.result?.path || data?.result?.file_path || data?.file_path || null;
-
-        this.#logger.info("[SearchResultsFeature] [步骤3] Parsed params", { pdfId, filename, title, filePath });
-
-        if (!pdfId) {
-          showError("❌ 缺少PDF ID", 5000);
-          this.#logger.warn("[SearchResultsFeature] Skip open: missing pdfId", { data });
-          return;
-        }
-
-        // 可选：若存在桥接则尝试初始化，但不作为必需条件（采用 WS 发送 viewer 请求）
-        try {
-          await this.#qwcBridge?.initialize?.();
-          if (this.#qwcBridge?.isReady && !this.#qwcBridge.isReady()) {
-            this.#logger.info("[SearchResultsFeature] [步骤6] Waiting for optional QWebChannel ready");
-            await new Promise(r => setTimeout(r, 200));
-          }
-        } catch (e) {
-          this.#logger.warn("[SearchResultsFeature] 可选的 QWebChannel 初始化失败，忽略", e);
-        }
-
-        // 若缺少 file_path，尝试从后端查询一次详情（遵守隔离原则：通过 WS 访问）
-        if (!filePath && this.#shouldFetchDetailFallback()) {
-          this.#logger.info("[SearchResultsFeature] [步骤7] Fetching file path");
-          try {
-            const detail = await this.#fetchPdfDetail(String(pdfId));
-            filePath = detail?.file_path || filePath;
-            this.#logger.info("[SearchResultsFeature] [步骤8] File path retrieved", { filePath });
-          } catch (e) {
-            // 仅在查询失败且影响后续流程时显示警告
-            this.#logger.warn("[SearchResultsFeature] fetch detail failed, continue without file_path", e);
-          }
-        }
-
-        this.#logger.info("[SearchResultsFeature] [步骤9] Opening pdf-viewer by id", { pdfId, hasFile: !!filePath });
-
-        // 携带 filename / file_path 元信息（当前WS契约仅使用 pdf_id；如需扩展，可随契约调整）
-
-        this.#logger.info("[SearchResultsFeature] [步骤10] 通过 WebSocket 请求打开viewer", { pdfId });
-        const rid = `open-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-        const msg = { type: WEBSOCKET_MESSAGE_TYPES.OPEN_PDF, request_id: rid, metadata: { version: "1.0.0" }, data: { pdf_id: String(pdfId) } };
-        this.#scopedEventBus?.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, msg);
-        this.#logger.info("[SearchResultsFeature] [步骤11] WS 消息已发送");
-        // 最终成功阶段的 toast 由 QWebChannelBridge 显示
-
-      } catch (e) {
-        showError(`❌ 打开失败: ${e.message}`, 5000);
-        this.#logger.error("[SearchResultsFeature] Open viewer failed", e);
-      }
-    }, { subscriberId: `${this.name}:${sidBase}:item-open` });
-    if (this.#subscriptionBag) {
-      this.#subscriptionBag.add(unsubOpen);
-    }
-
-    this.#logger.info("[SearchResultsFeature] Event bridge setup");
-  }
-
-  /**
-   * 判断是否允许通过 WS 兜底查询 file_path（默认 false，可通过 localStorage 打开）
-   * 开关键: PDF_HOME_FETCH_DETAIL_IF_MISSING = 'true' | 'false'
-   * @private
-   */
-  #shouldFetchDetailFallback() {
-    try {
-      const v = window.localStorage.getItem("PDF_HOME_FETCH_DETAIL_IF_MISSING");
-      if (typeof v === "string") {
-        return v === "true";
-      }
-    } catch { /* ignore localStorage access errors */ }
-    return this.#allowWsDetailFallback === true;
-  }
-
-  /**
-   * 通过 WS 请求获取 PDF 详情（包含 file_path）
-   * @param {string} pdfId
-   * @returns {Promise<{ file_path?: string, filename?: string }|null>}
-   * @private
-   */
-  async #fetchPdfDetail(pdfId) {
-    const rid = `sr-open-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    this.#logger.info("[SearchResultsFeature] Requesting pdf detail via WS", { pdfId, rid });
-
-    return new Promise((resolve) => {
-      let settled = false;
-      const off = this.#globalEventBus.on(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, (message) => {
-        try {
-          if (!message || message.request_id !== rid) {return;}
-          if (message.type === WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST.replace(":requested", ":completed") || message.type === WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_COMPLETED) {
-            settled = true;
-            off();
-            resolve(message.data || null);
-          } else if (message.type === WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST.replace(":requested", ":failed") || message.type === WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_FAILED) {
-            settled = true;
-            off();
-            resolve(null);
-          }
-        } catch {
-          /* ignore message parsing errors */
-        }
-      }, { subscriberId: `${this.name}:fetch-detail:${rid}` });
-
-      // 发送请求
-      const payload = { type: WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST, request_id: rid, metadata: { version: "1.0.0" }, data: { pdf_id: pdfId } };
-      this.#scopedEventBus?.emitGlobal(WEBSOCKET_EVENTS.MESSAGE.SEND, payload);
-
-      // 超时兜底
-      setTimeout(() => {
-        if (!settled) {
-          try { off(); } catch { /* ignore unsubscribe errors */ }
-          resolve(null);
-        }
-      }, this.#requestTimeoutMs);
-    });
-  }
-
-  /**
-   * 处理结果更新
-   * @private
-   */
-  #handleResultsUpdate(results, count, searchText, focusId, page) {
-    // 兜底：若提供了分页限制或此前记录过 limit，则在前端对结果进行截断，避免超量渲染
-    try {
-      const limitFromPage = (page && typeof page.limit === "number" && page.limit > 0) ? page.limit : null;
-      const fallbackLimit = (typeof this.#lastRequestedPageLimit === "number" && this.#lastRequestedPageLimit > 0)
-        ? this.#lastRequestedPageLimit : null;
-      const effective = limitFromPage ?? fallbackLimit;
-      if (effective && Array.isArray(results)) {
-        this.#currentResults = results.slice(0, effective);
-      } else {
-        this.#currentResults = results || [];
-      }
-    } catch {
-      /* ignore slicing errors, fallback to full results */
-      this.#currentResults = results || [];
-    }
-
-    const displayCount = Array.isArray(this.#currentResults) ? this.#currentResults.length : 0;
-
-    this.#logger.info("[SearchResultsFeature] ===== 处理结果更新 =====", {
-      totalCount: count,
-      displayCount,
-      searchText,
-      hasContainer: !!this.#resultsContainer,
-      firstItem: this.#currentResults[0]
-    });
-
-    // 更新header统计（显示 N / 共 M 条）
-    this.#updateHeaderStats(count, searchText, displayCount);
-
-    // 渲染结果（已按分页限制截断）
-    this.#resultsRenderer.render(this.#resultsContainer, this.#currentResults);
-
-    // 若提供了单个 focusId，则先记录为待定聚焦集
-    try {
-      if (focusId) {
-        const fid = String(focusId);
-        this.#pendingFocusIds = new Set([fid]);
-      }
-    } catch { /* ignore focus parsing errors */ }
-
-    // 渲染完成后应用待定聚焦/高亮
-    this.#applyPendingFocus();
-  }
-
-  // 私有：将待定的聚焦/高亮应用到当前结果
-  #applyPendingFocus() {
-    try {
-      if (!this.#pendingFocusIds || !this.#resultsContainer) {return;}
-      const ids = this.#pendingFocusIds;
-      let firstEl = null;
-      ids.forEach(id => {
-        const el = this.#resultsContainer.querySelector(`[data-id="${id}"]`);
-        if (el) {
-          el.classList.add("selected");
-          if (!firstEl) {firstEl = el;}
-        }
-      });
-      if (firstEl) {
-        // 清除其他聚焦并滚动至视图
-        try { this.#resultsContainer.querySelectorAll(".search-result-item.focused").forEach(it => it.classList.remove("focused")); } catch { /* ignore DOM errors */ }
-        firstEl.classList.add("focused");
-        try { firstEl.scrollIntoView({ behavior: "smooth", block: "center" }); } catch { /* ignore scroll errors */ }
-      }
-      // 应用一次后清空
-      this.#pendingFocusIds = null;
-    } catch { /* ignore focus application errors */ }
-  }
-
-  /**
-   * 更新header统计信息
-   * @private
-   */
-  #updateHeaderStats(count, searchText, displayCount) {
-    const countBadge = this.#headerElement.querySelector(".result-count-badge");
-    if (countBadge) {
-      try {
-        const shown = (typeof displayCount === "number" && displayCount >= 0)
-          ? displayCount : (Array.isArray(this.#currentResults) ? this.#currentResults.length : 0);
-        const total = (typeof count === "number" && count >= 0) ? count : shown;
-        countBadge.textContent = `显示 ${shown} / 共 ${total} 条`;
-      } catch {
-        /* fallback to simple count display */
-        countBadge.textContent = `共 ${count} 条`;
-      }
-
-      // 添加搜索文本提示
-      if (searchText) {
-        countBadge.setAttribute("title", `搜索: "${searchText}"`);
-      } else {
-        countBadge.removeAttribute("title");
-      }
-    }
+    this.#layoutController.restoreLayoutPreference();
   }
 }
 

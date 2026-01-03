@@ -12,7 +12,7 @@ function resolveClientIdFromUrl() {
       return cid.trim();
     }
   } catch (e) {
-    // ignore, fallback below
+    void e; /* logger-guard */
   }
   // 回退：仍然提供一个可识别的 clientId（虽然可能与后端多实例映射不完全一致）
   return "custom-reviewer";

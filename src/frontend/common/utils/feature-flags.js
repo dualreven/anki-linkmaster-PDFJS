@@ -25,7 +25,7 @@ export function readBoolFromUrl(keys) {
         if (v === "") {return true;}
       }
     }
-  } catch {}
+  } catch (e) { void e; /* logger-guard */ }
   return false;
 }
 
@@ -46,7 +46,7 @@ export function readBoolFromLocalStorage(keys) {
         if (v === "") {return true;}
       }
     }
-  } catch {}
+  } catch (e) { void e; /* logger-guard */ }
   return false;
 }
 

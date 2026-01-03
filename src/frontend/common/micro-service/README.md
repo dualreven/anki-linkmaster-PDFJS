@@ -4,13 +4,12 @@
 
 ## 📦 组件清单
 
-| 组件 | 文件 | 行数 | 测试数 | 说明 |
-|------|------|------|--------|------|
-| **DependencyContainer** | `dependency-container.js` | 392行 | 16个 | 依赖注入容器 |
-| **FeatureRegistry** | `feature-registry.js` | 656行 | 21个 | 功能注册中心 |
-| **StateManager** | `state-manager.js` | 641行 | 73个 | 响应式状态管理 |
-| **FeatureFlagManager** | `feature-flag-manager.js` | 505行 | 49个 | Feature Flag管理 |
-| **总计** | | **2194行** | **159个** | **100%通过** ✅ |
+| 组件 | 入口文件 | 相关文件 | 说明 |
+|------|----------|----------|------|
+| **DependencyContainer** | `dependency-container.js` | - | 依赖注入容器 |
+| **FeatureRegistry** | `feature-registry.js` | - | 功能注册中心 |
+| **StateManager** | `state-manager.js` | `state-manager-reactive-state.js` | 响应式状态管理 |
+| **FeatureFlagManager** | `feature-flag-manager.js` | - | Feature Flag管理 |
 
 ---
 

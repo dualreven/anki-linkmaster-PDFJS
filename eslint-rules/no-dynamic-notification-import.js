@@ -38,7 +38,7 @@ const rule = {
               data: { module: arg.value },
             });
           }
-        } catch (e) { void e; }
+        } catch (e) { void e; /* logger-guard */ }
       },
     };
   },

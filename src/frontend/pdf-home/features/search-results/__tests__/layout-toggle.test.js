@@ -10,7 +10,7 @@ const createLogger = () => ({
   debug: jest.fn()
 });
 
-const LAYOUT_KEY = "pdf-home:search-results:layout";
+const LAYOUT_KEY = "pdf-home/search-results/layout";
 
 describe("SearchResultsFeature 布局切换", () => {
   let feature;

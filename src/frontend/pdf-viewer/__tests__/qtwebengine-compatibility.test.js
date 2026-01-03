@@ -38,7 +38,11 @@ jest.mock("pdfjs-dist/build/pdf", () => {
       disableWebGL: false,
       enableWebGL: true
     },
-    setPreferences: jest.fn(),
+    setPreferences: jest.fn().mockImplementation(() => {
+      if (globalThis.__WEBGL_FORCE_PDFJS_PREF_ERROR__ === true) {
+        throw new Error("Configuration error");
+      }
+    }),
     getDocument: jest.fn().mockReturnValue({
       promise: Promise.resolve({
         numPages: 10,
@@ -316,11 +320,6 @@ describe("QtWebEngine版本兼容性测试", () => {
     });
 
     test("应该处理PDF.js配置错误", async () => {
-      const pdfjsLib = await import("pdfjs-dist/build/pdf");
-      pdfjsLib.setPreferences = jest.fn().mockImplementation(() => {
-        throw new Error("Configuration error");
-      });
-
       WebGLStateManager.getWebGLState.mockReturnValue({
         enabled: false,
         detection: {
@@ -331,12 +330,16 @@ describe("QtWebEngine版本兼容性测试", () => {
       });
       WebGLStateManager.shouldUseCanvasFallback.mockReturnValue(true);
 
-      await expect(pdfManager.initialize()).resolves.not.toThrow();
+      globalThis.__WEBGL_FORCE_PDFJS_PREF_ERROR__ = true;
+      try {
+        await expect(pdfManager.initialize()).resolves.not.toThrow();
+      } finally {
+        delete globalThis.__WEBGL_FORCE_PDFJS_PREF_ERROR__;
+      }
 
       // 应该记录警告但继续执行
-      expect(Logger.mock.results[0].value.warn).toHaveBeenCalledWith(
-        expect.stringContaining("Failed to configure PDF.js for Canvas")
-      );
+      const allWarnCalls = Logger.mock.results.flatMap(r => (r?.value?.warn?.mock?.calls || []));
+      expect(allWarnCalls.some(([msg]) => String(msg || "").includes("Failed to configure PDF.js for Canvas"))).toBe(true);
     });
 
     test("应该处理不支持的QtWebEngine版本", async () => {

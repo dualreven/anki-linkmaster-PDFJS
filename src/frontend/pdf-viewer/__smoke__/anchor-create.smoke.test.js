@@ -132,7 +132,8 @@ describe("Smoke | Anchor Create/Delete", () => {
     await new Promise((r) => setTimeout(r, 0));
     let rows = root.querySelectorAll("tbody[data-role=\"anchor-tbody\"] tr");
     expect(rows.length).toBe(1);
-    // 默认已选中第一条，点击“删除”
+    // 选中第一条后点击“删除”
+    rows[0].click();
     const delBtn = root.querySelector("button[data-action=\"delete\"]");
     expect(delBtn).toBeTruthy();
     delBtn.click();

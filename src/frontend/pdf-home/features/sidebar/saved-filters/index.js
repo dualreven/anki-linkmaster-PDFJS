@@ -1,12 +1,17 @@
 /**
- * SavedFilters Feature - 已存搜索条件插件
- * 提供保存和管理搜索条件的功能
+ * SavedFilters（pdf-home）
+ * - 主文件保持为“装配/委托层”，详细说明见：`docs/standards/pdf-home-saved-filters.md`
  */
 
 import { SavedFiltersFeatureConfig } from "./feature.config.js";
 import { WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_EVENTS, WEBSOCKET_EVENTS, FILTER_EVENTS, SEARCH_EVENTS } from "../../../../common/event/event-constants.js";
 import { showError } from "../../../../common/utils/notification.js";
 import { createSubscriptionBag } from "../../../../common/event/subscription-bag.js";
+import { upsertSavedFilter } from "./saved-filters-collection.js";
+import { escapeHtml, formatTimeHHMM } from "./saved-filters-text-utils.js";
+import { buildSortSummary, toPythonExpression } from "./saved-filters-python-expression.js";
+import { createSavedFiltersSaveDialog } from "./saved-filters-save-dialog.js";
+import { createSavedFiltersManageDialog } from "./saved-filters-manage-dialog.js";
 
 // 导入样式
 import "./styles/saved-filters.css";
@@ -32,16 +37,9 @@ export class SavedFiltersFeature {
   #pendingGetConfigReqId = null;
   #lastFilters = null;   // 最近一次 filter:state:updated 的 filters（对象或null）
   #lastSort = null;      // 最近一次排序：{column, direction}
-  #saveDialog = null;
-  #saveNameInput = null;
-  #saveSummaryEl = null;
-  #manageDialog = null;
-  #manageListEl = null;
-  #editorList = [];
+  #saveDialogController = null;
+  #manageDialogController = null;
 
-  /**
-   * 安装插件
-   */
   async install(context) {
     this.#context = context;
     this.#logger = context.logger;
@@ -71,9 +69,6 @@ export class SavedFiltersFeature {
     }
   }
 
-  /**
-   * 卸载插件
-   */
   async uninstall() {
     this.#logger.info("[SavedFiltersFeature] Uninstalling...");
 
@@ -83,6 +78,16 @@ export class SavedFiltersFeature {
       this.#subscriptionBag = null;
     }
 
+    if (this.#pendingSaveTimer) {
+      clearTimeout(this.#pendingSaveTimer);
+      this.#pendingSaveTimer = null;
+    }
+
+    try { this.#saveDialogController?.destroy?.(); } catch (e) { this.#logger?.debug?.("[SavedFiltersFeature] destroy save dialog failed", e); }
+    this.#saveDialogController = null;
+    try { this.#manageDialogController?.destroy?.(); } catch (e) { this.#logger?.debug?.("[SavedFiltersFeature] destroy manage dialog failed", e); }
+    this.#manageDialogController = null;
+
     // 移除DOM
     if (this.#container) {
       this.#container.remove();
@@ -91,26 +96,19 @@ export class SavedFiltersFeature {
     this.#logger.info("[SavedFiltersFeature] Uninstalled");
   }
 
-  /**
-   * 创建UI容器
-   * @private
-   */
   #createContainer() {
     this.#container = document.createElement("div");
     this.#container.className = "saved-filters-section sidebar-section";
-    this.#container.innerHTML = `
-      <div class="saved-filters-header">
-        <h3 class="saved-filters-title">📌 已存搜索条件</h3>
-        <div class="btn-group">
-          <button class="saved-filters-config-btn" title="管理">⚙️</button>
-          <button class="saved-filters-add-btn" title="添加当前条件">+</button>
-        </div>
-      </div>
-      <div class="saved-filters-list">
-        <!-- 搜索条件列表将在这里显示 -->
-        <div class="saved-filters-empty">暂无保存的搜索条件</div>
-      </div>
-    `;
+    this.#container.innerHTML =
+      "<div class=\"saved-filters-header\">"
+      + "<h3 class=\"saved-filters-title\">📌 已存搜索条件</h3>"
+      + "<div class=\"btn-group\">"
+      + "<button class=\"saved-filters-config-btn\" title=\"管理\">⚙️</button>"
+      + "<button class=\"saved-filters-add-btn\" title=\"添加当前条件\">+</button>"
+      + "</div></div>"
+      + "<div class=\"saved-filters-list\">"
+      + "<div class=\"saved-filters-empty\">暂无保存的搜索条件</div>"
+      + "</div>";
 
     // 插入到侧边栏面板的开头（在所有section之前）
     const sidebarPanel = document.querySelector(".sidebar-panel");
@@ -122,10 +120,6 @@ export class SavedFiltersFeature {
     }
   }
 
-  /**
-   * 设置事件监听
-   * @private
-   */
   #setupEventListeners() {
     // 添加按钮点击（打开命名对话框）
     if (this.#addBtn) {
@@ -228,20 +222,13 @@ export class SavedFiltersFeature {
    * @private
    */
   #saveFilter(filter) {
-    // 去重：同名+同内容则更新时间，不重复插入
-    const key = JSON.stringify({ searchText: filter.searchText || "", filters: filter.filters || null, sort: filter.sort || [] });
-    const existIdx = this.#savedFilters.findIndex(sf => JSON.stringify({ searchText: sf.searchText || "", filters: sf.filters || null, sort: sf.sort || [] }) === key);
-    if (existIdx >= 0) {
-      const exist = this.#savedFilters[existIdx];
-      const updated = { ...exist, name: filter.name || exist.name, ts: Date.now() };
-      this.#savedFilters.splice(existIdx, 1);
-      this.#savedFilters.unshift(updated);
-    } else {
-      this.#savedFilters.unshift(filter);
-    }
-    // 截断最大数量
     const maxItems = (this.#config?.maxItems) || 50;
-    if (this.#savedFilters.length > maxItems) {this.#savedFilters.length = maxItems;}
+    this.#savedFilters = upsertSavedFilter({
+      savedFilters: this.#savedFilters,
+      newFilter: filter,
+      maxItems,
+      nowMs: Date.now()
+    });
     this.#saveToStorage();
     this.#renderFilterList();
     this.#scheduleSaveToBackend();
@@ -292,8 +279,8 @@ export class SavedFiltersFeature {
         return;
       }
       const html = items.map(sf => {
-        const safeName = this.#escapeHtml(sf.name || this.#buildDefaultName(sf));
-        const timeStr = this.#formatTime(sf.ts || Date.now());
+        const safeName = escapeHtml(sf.name || this.#buildDefaultName(sf));
+        const timeStr = formatTimeHHMM(sf.ts || Date.now());
         return (
           `<div class="saved-filter-item" data-id="${sf.id}">`
           + "<span class=\"icon\">📌</span>"
@@ -416,111 +403,28 @@ export class SavedFiltersFeature {
     return [];
   }
 
-  #escapeHtml(str) {
-    try {
-      return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-    } catch (e) {
-      // logger-guard
-      void e;
-      return "";
-    }
-  }
-
-  #formatTime(ts) {
-    try {
-      const d = new Date(ts || Date.now());
-      const hh = String(d.getHours()).padStart(2, "0");
-      const mm = String(d.getMinutes()).padStart(2, "0");
-      return `${hh}:${mm}`;
-    } catch (e) {
-      // logger-guard
-      void e;
-      return "";
-    }
-  }
-
   #openSaveDialog() {
     try {
-      if (!this.#saveDialog) {
-        this.#createSaveDialog();
-      }
       const snapshot = this.#buildCurrentSnapshot();
-      this.#saveNameInput.value = snapshot.defaultName;
-      this.#saveSummaryEl.innerHTML = this.#buildSummaryHtml(snapshot);
-      this.#saveDialog.hidden = false;
-      setTimeout(() => {
-        try { this.#saveNameInput.focus(); } catch (e) { void e; /* logger-guard */ }
-      }, 50);
+      if (!this.#saveDialogController) {
+        this.#saveDialogController = createSavedFiltersSaveDialog({
+          logger: this.#logger,
+          onConfirmName: (name) => {
+            if (!name) {
+              showError("请输入名称", 3000);
+              return false;
+            }
+            this.#handleAddCurrentCondition(name);
+            return true;
+          }
+        });
+      }
+      this.#saveDialogController.open({
+        defaultName: snapshot.defaultName,
+        summaryHtml: this.#buildSummaryHtml(snapshot)
+      });
     } catch (e) {
       this.#logger.error("[SavedFiltersFeature] Open save dialog failed", e);
-    }
-  }
-
-  #closeSaveDialog() {
-    if (this.#saveDialog) {
-      this.#saveDialog.hidden = true;
-    }
-  }
-
-  #createSaveDialog() {
-    const html = `
-      <div class="preset-save-dialog" hidden>
-        <div class="preset-dialog-overlay"></div>
-        <div class="preset-dialog-content">
-          <div class="preset-dialog-header">
-            <h3>💾 保存搜索条件</h3>
-            <button class="preset-dialog-close" aria-label="关闭">&times;</button>
-          </div>
-          <div class="preset-dialog-body">
-            <label for="sf-preset-name-input">名称:</label>
-            <input type="text" id="sf-preset-name-input" class="preset-name-input" placeholder="请输入名称..." autocomplete="off" />
-            <div class="preset-description">
-              <small>将保存当前的搜索关键词、筛选条件与排序规则</small>
-            </div>
-            <div id="sf-preset-summary" style="margin-top:8px"></div>
-          </div>
-          <div class="preset-dialog-footer">
-            <button class="preset-dialog-cancel">取消</button>
-            <button class="preset-dialog-save">保存</button>
-          </div>
-        </div>
-      </div>`;
-
-    const wrapper = document.createElement("div");
-    wrapper.innerHTML = html.trim();
-    this.#saveDialog = wrapper.firstChild;
-    document.body.appendChild(this.#saveDialog);
-    this.#saveNameInput = this.#saveDialog.querySelector("#sf-preset-name-input");
-    this.#saveSummaryEl = this.#saveDialog.querySelector("#sf-preset-summary");
-
-    const closeBtn = this.#saveDialog.querySelector(".preset-dialog-close");
-    const cancelBtn = this.#saveDialog.querySelector(".preset-dialog-cancel");
-    const saveBtn = this.#saveDialog.querySelector(".preset-dialog-save");
-    const overlay = this.#saveDialog.querySelector(".preset-dialog-overlay");
-    if (closeBtn) {closeBtn.addEventListener("click", () => this.#closeSaveDialog());}
-    if (cancelBtn) {cancelBtn.addEventListener("click", () => this.#closeSaveDialog());}
-    if (overlay) {overlay.addEventListener("click", () => this.#closeSaveDialog());}
-    if (saveBtn) {saveBtn.addEventListener("click", () => this.#handleConfirmSave());}
-    if (this.#saveNameInput) {
-      this.#saveNameInput.addEventListener("keypress", (e) => {
-        if (e.key === "Enter") {this.#handleConfirmSave();}
-      });
-    }
-  }
-
-  #handleConfirmSave() {
-    try {
-      const name = (this.#saveNameInput && this.#saveNameInput.value) ? this.#saveNameInput.value.trim() : "";
-      if (!name) { showError("请输入名称", 3000); return; }
-      this.#handleAddCurrentCondition(name);
-      this.#closeSaveDialog();
-    } catch (e) {
-      this.#logger.error("[SavedFiltersFeature] Confirm save failed", e);
     }
   }
 
@@ -543,9 +447,9 @@ export class SavedFiltersFeature {
   }
 
   #buildSummaryHtml(snapshot) {
-    const kw = this.#escapeHtml(snapshot.searchText || "(全部)");
-    const filtersExpr = this.#escapeHtml(this.#buildFiltersPython(snapshot.filters));
-    const sortSummary = this.#escapeHtml(this.#buildSortSummary(snapshot.sort));
+    const kw = escapeHtml(snapshot.searchText || "(全部)");
+    const filtersExpr = escapeHtml(this.#buildFiltersPython(snapshot.filters));
+    const sortSummary = escapeHtml(this.#buildSortSummary(snapshot.sort));
     return (
       `<div><strong>关键词</strong>：${kw}</div>` +
       `<div><strong>筛选</strong>：<code>${filtersExpr}</code></div>` +
@@ -554,226 +458,37 @@ export class SavedFiltersFeature {
   }
 
   #buildFiltersPython(filters) {
-    try {
-      if (!filters) {return "True";}
-      return this.#toPython(filters);
-    } catch (e) {
-      // logger-guard
-      void e;
-      return "True";
-    }
+    if (!filters) {return "True";}
+    return this.#toPython(filters);
   }
 
   #buildSortSummary(sortRules) {
-    try {
-      const arr = Array.isArray(sortRules) ? sortRules : [];
-      if (arr.length === 0) {return "默认";}
-      return arr.map(r => `${r.field || r.column || "?"} ${r.direction || ""}`).join(", ");
-    } catch (e) {
-      // logger-guard
-      void e;
-      return "无";
-    }
+    return buildSortSummary(sortRules);
   }
 
-  // 将条件配置对象转换为Python表达式
   #toPython(cfg) {
-    if (!cfg || typeof cfg !== "object") {return "True";}
-
-    // 组合条件
-    if (cfg.type === "composite") {
-      const op = String(cfg.operator || "AND").toUpperCase();
-      const xs = (cfg.conditions || []).map(c => this.#toPython(c)).filter(Boolean);
-      if (op === "NOT") {
-        return xs.length ? `not (${xs[0]})` : "True";
-      }
-      if (op === "AND") {
-        return xs.length === 1 ? xs[0] : `(${xs.join(" and ")})`;
-      }
-      if (op === "OR") {
-        return xs.length === 1 ? xs[0] : `(${xs.join(" or ")})`;
-      }
-      return xs.join(" and ");
-    }
-
-    // 字段条件
-    if (cfg.type === "field") {
-      const field = String(cfg.field || "field");
-      const operator = String(cfg.operator || "eq");
-      const value = cfg.value;
-      const str = (v) => (typeof v === "number" || typeof v === "boolean") ? String(v) : `"${String(v)}"`;
-      switch (operator) {
-      case "contains": return `${str(value)} in ${field}`;
-      case "not_contains": return `${str(value)} not in ${field}`;
-      case "eq": return `${field} == ${str(value)}`;
-      case "ne": return `${field} != ${str(value)}`;
-      case "gt": return `${field} > ${value}`;
-      case "lt": return `${field} < ${value}`;
-      case "gte": return `${field} >= ${value}`;
-      case "lte": return `${field} <= ${value}`;
-      case "starts_with": return `${field}.startswith(${str(value)})`;
-      case "ends_with": return `${field}.endswith(${str(value)})`;
-      case "in_range": {
-        try {
-          const [min, max] = String(value || "").split(",");
-          return `${min} <= ${field} <= ${max}`;
-        } catch { return `${field}`; }
-      }
-      default: return `${field} ${operator} ${str(value)}`;
-      }
-    }
-
-    // 模糊条件（将关键词映射为若干个“任一字段包含”表达式，再按 any/all 组合）
-    if (cfg.type === "fuzzy") {
-      const keywords = Array.isArray(cfg.keywords) ? cfg.keywords : [];
-      const fields = Array.isArray(cfg.searchFields) && cfg.searchFields.length ? cfg.searchFields : ["filename","tags","notes"];
-      const perKw = (kw) => `(${fields.map(f => `"${kw}" in ${f}`).join(" or ")})`;
-      if (keywords.length === 0) {return "True";}
-      const exprs = keywords.map(perKw);
-      const mode = String(cfg.matchMode || "any").toLowerCase();
-      return mode === "all" ? `(${exprs.join(" and ")})` : `(${exprs.join(" or ")})`;
-    }
-
-    // 未知或无条件
-    return "True";
+    return toPythonExpression(cfg);
   }
 
   // ========== 管理对话框（排序/重命名/复制/删除） ==========
   #openManageDialog() {
     try {
-      if (!this.#manageDialog) {this.#createManageDialog();}
-      // 克隆数据到编辑列表
-      this.#editorList = (this.#savedFilters || []).map(sf => ({ ...sf }));
-      this.#renderManageList();
-      this.#manageDialog.hidden = false;
+      if (!this.#manageDialogController) {
+        this.#manageDialogController = createSavedFiltersManageDialog({
+          logger: this.#logger,
+          escapeHtml,
+          onSaveList: (nextList) => {
+            this.#savedFilters = nextList;
+            this.#saveToStorage();
+            this.#renderFilterList();
+            this.#scheduleSaveToBackend();
+            this.#logger.info("[SavedFiltersFeature] Manage dialog saved", { count: this.#savedFilters.length });
+          }
+        });
+      }
+      this.#manageDialogController.open(this.#savedFilters);
     } catch (e) {
       this.#logger.error("[SavedFiltersFeature] Open manage dialog failed", e);
-    }
-  }
-
-  #closeManageDialog() {
-    if (this.#manageDialog) {this.#manageDialog.hidden = true;}
-  }
-
-  #createManageDialog() {
-    const html = `
-      <div class="preset-save-dialog" hidden>
-        <div class="preset-dialog-overlay"></div>
-        <div class="preset-dialog-content">
-          <div class="preset-dialog-header">
-            <h3>⚙️ 管理已存搜索条件</h3>
-            <button class="preset-dialog-close" aria-label="关闭">&times;</button>
-          </div>
-          <div class="preset-dialog-body">
-            <div class="sf-manage-list" id="sf-manage-list"></div>
-          </div>
-          <div class="preset-dialog-footer">
-            <button class="preset-dialog-cancel">取消</button>
-            <button class="preset-dialog-save">确定</button>
-          </div>
-        </div>
-      </div>`;
-    const wrap = document.createElement("div");
-    wrap.innerHTML = html.trim();
-    this.#manageDialog = wrap.firstChild;
-    document.body.appendChild(this.#manageDialog);
-    this.#manageListEl = this.#manageDialog.querySelector("#sf-manage-list");
-    // 绑定按钮
-    const closeBtn = this.#manageDialog.querySelector(".preset-dialog-close");
-    const cancelBtn = this.#manageDialog.querySelector(".preset-dialog-cancel");
-    const saveBtn = this.#manageDialog.querySelector(".preset-dialog-save");
-    const overlay = this.#manageDialog.querySelector(".preset-dialog-overlay");
-    if (closeBtn) {closeBtn.addEventListener("click", () => this.#closeManageDialog());}
-    if (cancelBtn) {cancelBtn.addEventListener("click", () => this.#closeManageDialog());}
-    if (overlay) {overlay.addEventListener("click", () => this.#closeManageDialog());}
-    if (saveBtn) {saveBtn.addEventListener("click", () => this.#handleManageSave());}
-  }
-
-  #renderManageList() {
-    if (!this.#manageListEl) {return;}
-    if (!Array.isArray(this.#editorList) || this.#editorList.length === 0) {
-      this.#manageListEl.innerHTML = "<div class=\"saved-filters-empty\">暂无数据</div>";
-      return;
-    }
-    const html = this.#editorList.map((sf, idx) => (
-      `<div class="sf-manage-item" draggable="true" data-index="${idx}">` +
-      "<span class=\"sf-drag-handle\" title=\"拖动排序\">☰</span>" +
-      `<input class="sf-name-input" type="text" value="${this.#escapeHtml(sf.name || "")}" data-index="${idx}" />` +
-      `<button class="sf-btn sf-dup" data-index="${idx}" title="复制">📄</button>` +
-      `<button class="sf-btn sf-del" data-index="${idx}" title="删除">🗑️</button>` +
-      "</div>"
-    )).join("\n");
-    this.#manageListEl.innerHTML = html;
-    this.#bindManageEvents();
-  }
-
-  #bindManageEvents() {
-    // 名称编辑
-    this.#manageListEl.querySelectorAll(".sf-name-input").forEach(input => {
-      input.addEventListener("input", (e) => {
-        const i = parseInt(e.target.getAttribute("data-index"));
-        if (!Number.isNaN(i) && this.#editorList[i]) {
-          this.#editorList[i].name = e.target.value;
-        }
-      });
-    });
-    // 删除
-    this.#manageListEl.querySelectorAll(".sf-del").forEach(btn => {
-      btn.addEventListener("click", (e) => {
-        const i = parseInt(e.currentTarget.getAttribute("data-index"));
-        if (!Number.isNaN(i)) {
-          this.#editorList.splice(i, 1);
-          this.#renderManageList();
-        }
-      });
-    });
-    // 复制
-    this.#manageListEl.querySelectorAll(".sf-dup").forEach(btn => {
-      btn.addEventListener("click", (e) => {
-        const i = parseInt(e.currentTarget.getAttribute("data-index"));
-        if (!Number.isNaN(i) && this.#editorList[i]) {
-          const base = this.#editorList[i];
-          const copy = { ...base, id: `sf_${Date.now()}_${Math.random().toString(36).slice(2,6)}`, name: (base.name || "") + " (副本)", ts: Date.now() };
-          this.#editorList.splice(i + 1, 0, copy);
-          this.#renderManageList();
-        }
-      });
-    });
-    // 拖动排序
-    this.#manageListEl.querySelectorAll(".sf-manage-item").forEach(row => {
-      row.addEventListener("dragstart", (e) => {
-        e.dataTransfer.setData("text/plain", row.getAttribute("data-index"));
-      });
-      row.addEventListener("dragover", (e) => {
-        e.preventDefault();
-        row.classList.add("drag-over");
-      });
-      row.addEventListener("dragleave", () => row.classList.remove("drag-over"));
-      row.addEventListener("drop", (e) => {
-        e.preventDefault();
-        row.classList.remove("drag-over");
-        const from = parseInt(e.dataTransfer.getData("text/plain"));
-        const to = parseInt(row.getAttribute("data-index"));
-        if (Number.isNaN(from) || Number.isNaN(to) || from === to) {return;}
-        const moved = this.#editorList.splice(from, 1)[0];
-        this.#editorList.splice(to, 0, moved);
-        this.#renderManageList();
-      });
-    });
-  }
-
-  #handleManageSave() {
-    try {
-      // 过滤空名，保留原名逻辑
-      this.#editorList = this.#editorList.map(sf => ({ ...sf, name: (sf.name && sf.name.trim()) ? sf.name.trim() : (sf.name || "") }));
-      this.#savedFilters = this.#editorList;
-      this.#saveToStorage();
-      this.#renderFilterList();
-      this.#scheduleSaveToBackend();
-      this.#closeManageDialog();
-      this.#logger.info("[SavedFiltersFeature] Manage dialog saved", { count: this.#savedFilters.length });
-    } catch (e) {
-      this.#logger.error("[SavedFiltersFeature] Manage save failed", e);
     }
   }
 }

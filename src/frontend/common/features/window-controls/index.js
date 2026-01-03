@@ -23,9 +23,10 @@ import { WindowControlsComponent } from "../../components/window-controls/window
  */
 export class WindowControlsFeature {
   #windowControls = null;
-  #bridgeName = '';
-  #containerSelector = '';
+  #bridgeName = "";
+  #containerSelector = "";
   #logger = null;
+  #installed = false;
 
   /**
    * 构造函数
@@ -35,7 +36,7 @@ export class WindowControlsFeature {
   constructor(config) {
     if (!config || !config.bridgeName || !config.containerSelector) {
       throw new Error(
-        'WindowControlsFeature requires config with bridgeName and containerSelector'
+        "WindowControlsFeature requires config with bridgeName and containerSelector"
       );
     }
 
@@ -74,6 +75,11 @@ export class WindowControlsFeature {
 
     this.#logger.info(`Installing WindowControlsFeature (bridgeName: ${this.#bridgeName})...`);
 
+    if (this.#installed) {
+      this.#logger.warn("WindowControlsFeature already installed; skip duplicate install");
+      return;
+    }
+
     // 严格模式：必须获取 wsClient
     const wsClient = container.get("wsClient");
     if (!wsClient) {
@@ -99,9 +105,9 @@ export class WindowControlsFeature {
     // 挂载到工具栏容器
     try {
       // 等待DOM加载完成
-      if (document.readyState === 'loading') {
+      if (document.readyState === "loading") {
         await new Promise(resolve => {
-          document.addEventListener('DOMContentLoaded', resolve, { once: true });
+          document.addEventListener("DOMContentLoaded", resolve, { once: true });
         });
       }
 
@@ -109,6 +115,7 @@ export class WindowControlsFeature {
       const toolbarContainer = document.querySelector(this.#containerSelector);  // 从构造参数获取
       if (toolbarContainer) {
         await this.#windowControls.mount(toolbarContainer);
+        this.#installed = true;
         this.#logger.info(`WindowControlsFeature installed successfully (container: ${this.#containerSelector})`);
       } else {
         this.#logger.error(`Toolbar container "${this.#containerSelector}" not found, cannot mount window controls`);
@@ -130,6 +137,7 @@ export class WindowControlsFeature {
       this.#windowControls.destroy();
       this.#windowControls = null;
     }
+    this.#installed = false;
 
     this.#logger.info("WindowControlsFeature uninstalled");
   }

@@ -1,14 +1,7 @@
-﻿/**
- * Annotation Feature - PDF标注功能（模块化容器版）
- * @module features/annotation
- * @description 提供PDF标注功能，采用插件化架构
- *
- * v003架构说明:
- * - AnnotationFeature作为容器和协调器
- * - ToolRegistry管理工具插件的注册和生命周期
- * - AnnotationManager管理标注数据的CRUD和持久化
- * - AnnotationSidebarUI管理侧边栏UI和标注列表
- * - 各工具作为独立插件实现IAnnotationTool接口
+/**
+ * Annotation Feature（PDF 标注）
+ * - 主文件保持为“装配/委托层”，大块逻辑按职责拆分为同目录模块
+ * - 详细说明见：`docs/standards/pdf-annotation-feature.md`
  */
 
 import { getLogger, setModuleLogLevel, LogLevel } from "../../../common/utils/logger.js";
@@ -17,9 +10,10 @@ import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js
 import { AnnotationSidebarUI } from "./components/annotation-sidebar-ui.js";
 import { ToolRegistry } from "./core/tool-registry.js";
 import { AnnotationManager } from "./core/annotation-manager.js";
-import { getCenterPercentFromRect } from "./utils/position-utils.js";
-import { centerTextHighlightViaDom } from "./utils/text-highlight-dom-centering.js";
-import { WEBSOCKET_EVENTS } from "../../../common/event/event-constants.js";
+import { extractPdfId12Hex } from "./utils/annotation-pdf-id-utils.js";
+import { handleNavigateToAnnotation } from "./annotation-feature-navigate-to-annotation.js";
+import { setupAnnotationAutoLoadOnFileLoad } from "./annotation-feature-autoload.js";
+import { createAnnotationToggleButton } from "./annotation-feature-toggle-button.js";
 
 /**
  * 标注功能Feature（容器模式）
@@ -323,61 +317,18 @@ export class AnnotationFeature {
       void e; /* logger-guard */
     }
   }
-
-  /**
-   * 监听 PDF 加载成功事件，解析 pdf-id 并触发标注加载
-   * @private
-   */
+  /** 标注自动加载：延迟到 resume:flow:done */
   #setupAutoLoadOnFileLoad() {
-    if (!this.#eventBus) {return;}
-    this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, (data) => {
-      try {
-        // 严格契约：必须由加载链路显式提供 pdfId（禁止从 filename/url/location 推断）
-        const pdfId = typeof data?.pdfId === "string" ? data.pdfId.trim() : "";
-        if (!pdfId) {
-          const msg = "missing pdfId in FILE.LOAD.SUCCESS";
-          this.#logger.error("[AnnotationFeature] 标注自动加载失败：缺少 pdfId（需由加载链路显式提供）", {
-            filename: data?.filename ?? null, url: data?.url ?? null,
-          }, { toast: { type: "error", ms: 5000 } });
-          this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD_FAILED, { error: msg }, { actorId: "AnnotationFeature" });
-          return;
-        }
-        // 记录当前 pdfId，供 WS 建立后重试加载
-        this.#currentPdfId = pdfId;
-        this.#hasLoadedOnce = false;
-
-        this.#logger.info(`[AnnotationFeature] 文件加载完成，自动加载标注（pdfId=${pdfId}）`);
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, { pdfId }, { actorId: "AnnotationFeature" });
-      } catch (err) {
-        this.#logger.warn("[AnnotationFeature] 自动加载标注失败", err);
-      }
-    }, { subscriberId: "AnnotationFeature" });
-
-    // 当 WS 建立后，若已记录 pdfId，重试一次加载，避免首次加载时 WS 尚未就绪
-    this.#eventBus.onGlobal(WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED, () => {
-      try {
-        if (this.#currentPdfId) {
-          this.#logger.info(`[AnnotationFeature] WS 已连接，重试加载标注（pdfId=${this.#currentPdfId}）`);
-          this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, { pdfId: this.#currentPdfId }, { actorId: "AnnotationFeature" });
-        }
-      } catch (e) { void e; }
-    }, { subscriberId: "AnnotationFeature" });
-
-    // 当标注侧边栏被打开时：若已知 pdfId 且从未加载过，则主动加载一次；否则仅确保叠加层渲染
-    this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPENED_COMPLETED, (data) => {
-      try {
-        if (data?.sidebarId === "annotation" && this.#currentPdfId) {
-          if (!this.#hasLoadedOnce) {
-            this.#logger.info(`[AnnotationFeature] 侧边栏打开，首次加载标注（pdfId=${this.#currentPdfId}）`);
-            this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, { pdfId: this.#currentPdfId }, { actorId: "AnnotationFeature" });
-          } else {
-            this.#logger.info("[AnnotationFeature] 侧边栏打开，已加载过标注，跳过二次加载");
-          }
-          // 确保当前页面上已有的标注覆盖层可见
-          this.#ensureAllOverlays();
-        }
-      } catch (e) { void e; }
-    }, { subscriberId: "AnnotationFeature" });
+    setupAnnotationAutoLoadOnFileLoad({
+      eventBus: this.#eventBus,
+      logger: this.#logger,
+      annotationManager: this.#annotationManager,
+      ensureAllOverlays: () => this.#ensureAllOverlays(),
+      getCurrentPdfId: () => this.#currentPdfId,
+      setCurrentPdfId: (pdfId) => { this.#currentPdfId = pdfId; },
+      getHasLoadedOnce: () => this.#hasLoadedOnce,
+      setHasLoadedOnce: (v) => { this.#hasLoadedOnce = v; },
+    });
   }
 
   /**
@@ -416,26 +367,7 @@ export class AnnotationFeature {
    * @private
    */
   #extractPdfUUID(src = {}) {
-    try {
-      const HEX12 = /([a-f0-9]{12})/i;
-      const tryMatch = (value) => {
-        if (!value || typeof value !== "string") {return null;}
-        const m = value.match(HEX12);
-        return m ? m[1].toLowerCase() : null;
-      };
-      // 优先：显式 pdfId
-      const fromPdfId = tryMatch(src.pdfId);
-      if (fromPdfId) {return fromPdfId;}
-      // 其次：filename（剥离扩展名后匹配）
-      const fromFilename = tryMatch(src.filename);
-      if (fromFilename) {return fromFilename;}
-      // 再次：URL 路径中匹配
-      const fromUrl = tryMatch(src.url);
-      if (fromUrl) {return fromUrl;}
-      return null;
-    } catch (e) { void e;
-      return null;
-    }
+    return extractPdfId12Hex(src);
   }
 
   /**
@@ -446,196 +378,14 @@ export class AnnotationFeature {
    * @private
    */
   async #handleNavigateToAnnotation(data) {
-    try {
-      // 获取标注对象
-      let annotation = null;
-
-      if (data.annotation) {
-        // 如果传入的是标注对象
-        if (typeof data.annotation === "object") {
-          annotation = data.annotation;
-        }
-        // 如果传入的是ID字符串
-        else if (typeof data.annotation === "string") {
-          annotation = this.#annotationManager.getAnnotation(data.annotation);
-        }
-      } else if (data.id) {
-        // 备用：使用id字段
-        annotation = this.#annotationManager.getAnnotation(data.id);
-      }
-
-      if (!annotation) {
-        this.#logger.warn("[AnnotationFeature] Annotation not found for navigation", data, { toast: { type: "warn", ms: 4000 } });
-        this.#logger.error("标注不存在或未加载，无法跳转", { toast: { type: "error", ms: 5000 } });
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_FAILED, {
-          error: "not_found",
-          id: data?.annotation || data?.id
-        }, { actorId: "AnnotationFeature" });
-        return;
-      }
-
-      // 语义对齐：远程导航等价于“用户在标注侧边栏中点击该标注的跳转按钮”
-      // 因此在跳转前先请求打开标注侧边栏，由 SidebarManager 统一管理 UI 状态
-      try {
-        this.#eventBus.emitGlobal(
-          PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED,
-          { sidebarId: "annotation" },
-          { actorId: "AnnotationFeature" }
-        );
-      } catch (e) {
-        this.#logger.warn("[AnnotationFeature] 无法发出标注侧边栏打开请求（非致命）", e);
-      }
-
-      // 计算应跳转的页码：优先DOM中已渲染的容器（更可靠，避免数据层页码异常时跳到错误页面）
-      let pageNumber = annotation.pageNumber;
-      try {
-        if (annotation.type === "text-highlight" && annotation.id) {
-          const el = document.querySelector(`.text-highlight-container[data-annotation-id="${annotation.id}"]`);
-          const pageEl = el?.closest?.(".page");
-          const numAttr = pageEl?.getAttribute?.("data-page-number");
-          const pn = numAttr ? parseInt(numAttr, 10) : NaN;
-          if (Number.isInteger(pn) && pn > 0) {
-            pageNumber = pn;
-            this.#logger.info(`[AnnotationFeature] Page resolved from DOM for ${annotation.id}: ${pageNumber}`);
-          }
-        }
-      } catch (e) { void e; /* ignore DOM resolution errors */ }
-      if (!pageNumber) {
-        this.#logger.warn("[AnnotationFeature] Annotation has no page number", annotation, { toast: { type: "warn", ms: 4000 } });
-        this.#logger.error("标注缺少页码信息，无法跳转", { toast: { type: "error", ms: 5000 } });
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_FAILED, {
-          error: "missing_page_number",
-          id: annotation?.id
-        }, { actorId: "AnnotationFeature" });
-        return;
-      }
-
-      this.#logger.info(`[AnnotationFeature] Navigating to annotation on page ${pageNumber}`, annotation.id);
-
-      // 计算位置百分比（优先依据注释类型的数据特征）
-      let position = null;
-      // 截图：使用矩形中心百分比
-      if (annotation.type === "screenshot" && annotation.data?.rectPercent) {
-        const centerPercent = getCenterPercentFromRect(annotation.data.rectPercent);
-        if (centerPercent !== null) {
-          position = centerPercent;
-          this.#logger.info(`[AnnotationFeature] Calculated position from rectPercent: ${centerPercent.toFixed(2)}%`);
-        }
-      }
-      // 严格模式：截图不再基于 rect 或 boundingBox 回退换算位置
-      // 文本高亮：优先使用 lineRects 的首段中心（百分比），更贴近真实位置
-      if (position === null && annotation.type === "text-highlight" && Array.isArray(annotation.data?.lineRects) && annotation.data.lineRects.length > 0) {
-        try {
-          const r0 = annotation.data.lineRects[0];
-          if (typeof r0?.yPercent === "number" && typeof r0?.heightPercent === "number") {
-            const center = Number((r0.yPercent + (r0.heightPercent / 2)).toFixed(6));
-            if (Number.isFinite(center)) {
-              position = Math.max(0, Math.min(100, center));
-              this.#logger.info(`[AnnotationFeature] Calculated position from lineRects: ${position.toFixed(2)}%`);
-            }
-          }
-        } catch (e) { void e; /* ignore */ }
-      }
-
-      // 批注：优先使用百分比坐标
-      if (position === null && annotation.type === "comment" && annotation.data && annotation.data.positionPercent) {
-        const yp = Number(annotation.data.positionPercent.yPercent);
-        if (Number.isFinite(yp)) {
-          position = Math.max(0, Math.min(100, yp));
-          this.#logger.info(`[AnnotationFeature] Using comment positionPercent: ${position.toFixed(2)}%`);
-        }
-      }
-      if (position === null && annotation.data && annotation.data.position) {
-        const annotationPosition = annotation.data.position;
-
-        // 先导航到页面，确保页面已渲染
-        await this.#navigationService.navigateTo({
-          pageAt: pageNumber,
-          position: null  // 先不指定位置
-        });
-
-        // 等待页面渲染完成
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // 获取页面元素来计算精确位置
-        const viewerContainer = document.getElementById("viewerContainer");
-        if (viewerContainer) {
-          const pageElement = viewerContainer.querySelector(`.page[data-page-number="${pageNumber}"]`);
-          if (pageElement) {
-            const pageHeight = pageElement.offsetHeight;
-            // 计算标注在页面中的位置百分比
-            position = (annotationPosition.y / pageHeight) * 100;
-            this.#logger.info(`[AnnotationFeature] Calculated position: ${position.toFixed(2)}% (y=${annotationPosition.y}, pageHeight=${pageHeight})`);
-          } else {
-            this.#logger.warn(`[AnnotationFeature] Page element not found for page ${pageNumber}`);
-          }
-        }
-      }
-      if (position === null && annotation.data && annotation.data.boundingBox) {
-        // 兼容其他类型标注使用boundingBox
-        const boundingBox = annotation.data.boundingBox;
-
-        await this.#navigationService.navigateTo({
-          pageAt: pageNumber,
-          position: null
-        });
-
-        const viewerContainer = document.getElementById("viewerContainer");
-        if (viewerContainer) {
-          const pageElement = viewerContainer.querySelector(`.page[data-page-number="${pageNumber}"]`);
-          if (pageElement) {
-            const pageHeight = pageElement.offsetHeight;
-            // 兼容 top 或 y 字段；使用中心位置（top + height/2）提高感知
-            const topPx = (typeof boundingBox.top === "number") ? boundingBox.top : (boundingBox.y || 0);
-            const hPx = (typeof boundingBox.height === "number") ? boundingBox.height : 0;
-            position = ((topPx + (hPx / 2)) / pageHeight) * 100;
-            this.#logger.info(`[AnnotationFeature] Calculated position from boundingBox: ${position.toFixed(2)}%`);
-          }
-        }
-      }
-
-      // 直接使用核心导航服务执行跳转，不再经由 URL 导航模块
-      try {
-        if (!this.#navigationService) {
-          throw new Error("navigationService not available");
-        }
-        const needDomCentering =
-          annotation?.type === "text-highlight"
-          && !(position !== null && Number.isFinite(position));
-        await this.#navigationService.navigateTo({
-          pageAt: pageNumber,
-          position: (position !== null && Number.isFinite(position)) ? position : null,
-          // text-highlight 缺少 lineRects 的场景会进行 DOM 二次居中；
-          // 若此处仍执行默认 50% 居中，会造成“先滚到页面中心，再滚到高亮中心”的双滚动体验。
-          scroll: !needDomCentering
-        });
-        try { this.#highlightAnnotationMarker?.(annotation?.id); } catch (e) { this.#logger?.warn?.("highlight marker failed", e); }
-
-        // 高亮标注：历史数据可能缺少 lineRects，导致 position 无法计算。
-        // 兜底策略：等待高亮 DOM 渲染出来，再根据其 DOM 位置计算中心百分比并滚动居中。
-        if (needDomCentering) {
-          try {
-            await centerTextHighlightViaDom({
-              annotationId: annotation.id,
-              pageNumber,
-              navigationService: this.#navigationService,
-              timeoutMs: 1200
-            });
-          } catch (e) {
-            this.#logger?.warn?.("[AnnotationFeature] text-highlight dom centering failed", e);
-          }
-        }
-      } catch (emitErr) {
-        this.#logger.warn("[AnnotationFeature] Failed to navigate via NavigationService for annotation jump", emitErr);
-        throw emitErr;
-      }
-
-    } catch (error) {
-      this.#logger.error("[AnnotationFeature] Error navigating to annotation:", error);
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_FAILED, {
-        error: error.message
-      });
-    }
+    await handleNavigateToAnnotation({
+      data,
+      annotationManager: this.#annotationManager,
+      eventBus: this.#eventBus,
+      navigationService: this.#navigationService,
+      logger: this.#logger,
+      highlightAnnotationMarker: (annotationId) => this.#highlightAnnotationMarker(annotationId),
+    });
   }
 
   /**
@@ -657,76 +407,7 @@ export class AnnotationFeature {
    * @private
    */
   #createAnnotationButton() {
-    // 查找按钮容器（由 OutlineSidebarUI 创建）
-    let buttonContainer = document.getElementById("pdf-viewer-button-container");
-
-    if (!buttonContainer) {
-      this.#logger.warn("Button container #pdf-viewer-button-container not found, cannot create annotation button");
-      return;
-    }
-
-    // 检测容器是否在header中（通过检查是否有sidebar-buttons类或在header-right中）
-    const inHeader = buttonContainer.classList.contains("sidebar-buttons") ||
-                     buttonContainer.closest(".header-right") !== null;
-
-    // 创建标注按钮
-    const button = document.createElement("button");
-    button.id = "annotation-toggle-btn";
-    button.type = "button";
-    button.textContent = "✎ 标注";
-    button.title = "打开标注（Ctrl+Shift+A）";
-    button.className = "btn"; // 使用统一的btn样式
-
-    // 只有在非header模式才添加内联样式
-    if (!inHeader) {
-      button.style.cssText = [
-        "padding:4px 8px",
-        "border:1px solid #ddd",
-        "border-radius:4px",
-        "background:#fff",
-        "cursor:pointer",
-        "box-shadow:0 1px 2px rgba(0,0,0,0.06)",
-        "font-size:13px",
-        "white-space:nowrap"
-      ].join(";");
-    }
-
-    // 点击事件
-    button.addEventListener("click", () => {
-      this.#logger.debug("Annotation button clicked");
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.TOGGLE, {});
-    });
-
-    // 键盘快捷键 Ctrl+Shift+A
-    document.addEventListener("keydown", (e) => {
-      if (e.ctrlKey && e.shiftKey && e.key === "A") {
-        e.preventDefault();
-        this.#logger.debug("Annotation keyboard shortcut triggered");
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.TOGGLE, {});
-      }
-    });
-
-    // 插入到大纲按钮后面
-    const outlineBtn = buttonContainer.querySelector("button");
-    if (outlineBtn && outlineBtn.nextSibling) {
-      buttonContainer.insertBefore(button, outlineBtn.nextSibling);
-    } else {
-      buttonContainer.appendChild(button);
-    }
-
-    this.#toggleButton = button;
-    this.#logger.info("Annotation button created and inserted");
-
-    // 监听侧边栏状态，更新按钮样式
-    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.OPENED, () => {
-      button.style.background = "#e3f2fd";
-      button.style.borderColor = "#2196f3";
-    }, { subscriberId: "AnnotationFeature" });
-
-    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.CLOSED, () => {
-      button.style.background = "#fff";
-      button.style.borderColor = "#ddd";
-    }, { subscriberId: "AnnotationFeature" });
+    this.#toggleButton = createAnnotationToggleButton({ eventBus: this.#eventBus, logger: this.#logger });
   }
 
   /**

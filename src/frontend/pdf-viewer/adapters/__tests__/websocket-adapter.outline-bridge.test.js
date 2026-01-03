@@ -3,7 +3,7 @@
  * 覆盖点：
  * 1) 收到 outline:list:completed → 发射 OUTLINE.LOAD.SUCCESS（字段规范化）
  * 2) 收到 outline:create/update/delete/reorder:completed → 自动请求 outline:list
- * 3) FILE.LOAD.SUCCESS 后主动请求 outline:list（以服务端为准）
+ * 3) FILE.LOAD.SUCCESS 不应自动请求 outline:list（由 OutlineFeature 编排初始化加载）
  */
 import eventBus from "../../../common/event/event-bus.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
@@ -77,12 +77,9 @@ describe("WebSocketAdapter — Outline inbound/outbound bridge", () => {
     );
   });
 
-  test("FILE.LOAD.SUCCESS 后自动请求 outline:list", () => {
+  test("FILE.LOAD.SUCCESS 后不应自动请求 outline:list", () => {
+    ws.request.mockClear();
     eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, { filename: "x.pdf", totalPages: 10 }, { actorId: "test" });
-    expect(ws.request).toHaveBeenCalledWith(
-      WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST,
-      expect.objectContaining({ pdf_uuid: "c83c60c58ad2" }),
-      expect.any(Object)
-    );
+    expect(ws.request).not.toHaveBeenCalled();
   });
 });

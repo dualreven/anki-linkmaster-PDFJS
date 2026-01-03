@@ -4,8 +4,10 @@ import { WebSocketAdapter } from "../websocket-adapter.js";
 import { EventBus } from "../../../common/event/event-bus.js";
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../../common/event/event-constants.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
+import { clearWsGateStatusStore } from "../../../common/ws/ws-gate-status-store.js";
 
 function createAdapter() {
+  clearWsGateStatusStore();
   const eventBus = new EventBus({ moduleName: "TestBus" });
   const sent = [];
   const wsClient = {
@@ -93,4 +95,3 @@ test("VIEWER_NAVIGATE_REQUESTED with gate timeout sends VIEWER_NAVIGATE_FAILED",
   expect(failed).toBeTruthy();
   expect(failed.error?.code).toBe("GATE_FAILED");
 });
-

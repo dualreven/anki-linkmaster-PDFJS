@@ -329,6 +329,24 @@ describe("StateManager", () => {
       expect(snapshot.timestamp).toBeGreaterThan(0);
     });
 
+    it("snapshot 应该是深拷贝且与状态隔离", () => {
+      const state = stateManager.createState("test", {
+        user: { name: "Alice", meta: { age: 25 } },
+        items: [1, 2, 3]
+      });
+
+      const snapshot = state.snapshot();
+
+      state.user.meta.age = 26;
+      state.items = [9];
+
+      expect(snapshot.data.user.meta.age).toBe(25);
+      expect(snapshot.data.items).toEqual([1, 2, 3]);
+
+      snapshot.data.user.meta.age = 99;
+      expect(state.user.meta.age).toBe(26);
+    });
+
     it("应该从快照恢复状态", () => {
       const state = stateManager.createState("test", {
         count: 5,

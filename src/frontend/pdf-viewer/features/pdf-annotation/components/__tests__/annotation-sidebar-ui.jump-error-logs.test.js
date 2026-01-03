@@ -30,11 +30,11 @@ class StubEventBus {
 test("点击无 data-annotation-id 的跳转按钮应记录错误日志（toast）", () => {
   const bus = new StubEventBus();
   const ui = new AnnotationSidebarUI(bus);
-  
+
   // 获取logger实例并监视error方法
-  const logger = getLogger('AnnotationSidebarUI');
-  const errorSpy = jest.spyOn(logger, 'error');
-  
+  const logger = getLogger("AnnotationSidebarUI");
+  const errorSpy = jest.spyOn(logger, "error");
+
   ui.initialize();
   // 将容器附加到DOM以便事件委托正常工作
   document.body.appendChild(ui.getContentElement());

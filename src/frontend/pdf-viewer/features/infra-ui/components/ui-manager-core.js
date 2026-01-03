@@ -2,21 +2,25 @@
  * @file UI管理器核心（重构版）
  * @module UIManagerCore
  * @description 协调DOM元素、键盘事件和UI状态的主管理器
+ *
+ * 详细拆分说明：`docs/standards/ui-manager-core.md`
  */
 
 import { getLogger } from "../../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
-import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_EVENTS } from "../../../../common/event/event-constants.js";
-import { showSuccess, showError } from "../../../../common/utils/notification.js";
-import { copyTextUsingHiddenTextarea } from "../../../../common/utils/copy-utils.js";
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constants.js";
+import { showError } from "../../../../common/utils/notification.js";
 import { DOMElementManager } from "../../../ui/dom-element-manager.js";
 import { KeyboardHandler } from "../../../ui/keyboard-handler.js";
 import { UIStateManager } from "../../../ui/ui-state-manager.js";
 import { TextLayerManager } from "../../../ui/text-layer-manager.js";
 import { DomEventHub } from "../../../shared/dom-event-hub.js";
 import { PDFViewerManager } from "./pdf-viewer-manager.js";
-import { UIZoomControls } from "./ui-zoom-controls.js";
-import { UILayoutControls } from "./ui-layout-controls.js";
+import { installUIManagerCoreEventListeners } from "./ui-manager-core-event-listeners.js";
+import { initializeUIManagerControls } from "./ui-manager-core-ui-controls.js";
+import { installUIManagerCoreInteractions } from "./ui-manager-core-interactions.js";
+import { installCopyPdfIdButton } from "./ui-manager-core-copy-pdf-id.js";
+import { updateUIManagerHeaderTitle } from "./ui-manager-core-header-title.js";
 
 /**
  * UI管理器核心类
@@ -32,11 +36,11 @@ export class UIManagerCore {
   #pdfViewerManager;
   #uiZoomControls;
   #uiLayoutControls;
-  #resizeObserver;
   #unsubscribeFunctions = [];
   #currentPdfId = null; // 当前 PDF 的ID
   #pendingDetailRequestId = null; // 等待中的详情请求ID（用于严格匹配回执）
   #domEventHub;
+  #updateCopyButtonVisibilityFn = () => {};
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
@@ -97,17 +101,26 @@ export class UIManagerCore {
       // 设置事件监听
       this.#setupEventListeners();
 
-      // 设置尺寸观察器
-      this.#setupResizeObserver();
-
-      // 设置滚轮事件
-      this.#setupWheelListener();
+      this.#unsubscribeFunctions.push(...installUIManagerCoreInteractions({
+        eventBus: this.#eventBus,
+        logger: this.#logger,
+        domManager: this.#domManager,
+        documentRef: document,
+        windowRef: window
+      }));
 
       // 初始化UI控件
       await this.#initializeUIControls();
 
-      // 初始化复制 PDF ID 按钮
-      this.#setupCopyPdfIdButton();
+      const { updateCopyButtonVisibility, unsubs: copyUnsubs } = installCopyPdfIdButton({
+        logger: this.#logger,
+        documentRef: document,
+        windowRef: window,
+        getCurrentPdfId: () => this.#currentPdfId,
+        setCurrentPdfId: (pdfId) => { this.#currentPdfId = pdfId; }
+      });
+      this.#updateCopyButtonVisibilityFn = updateCopyButtonVisibility;
+      this.#unsubscribeFunctions.push(...copyUnsubs);
 
       this.#logger.info("UI Manager Core initialized successfully");
 
@@ -132,154 +145,22 @@ export class UIManagerCore {
    * @private
    */
   #setupEventListeners() {
-    // 注意: PAGE_CHANGED 事件在当前版本中未定义
-    // 页面信息更新通过直接调用 updatePageInfo 方法实现
-
-    // 缩放变更事件
-    const zoomChangeUnsub = this.#eventBus.on(
-      PDF_VIEWER_EVENTS.ZOOM.CHANGED,
-      (data) => {
-        this.#stateManager.updateScale(data.scale, data.mode);
-        // Fallback: 从文件名回填 pdfId（仅当 URL 尚未提供时）
-        try {
-          if (!this.#currentPdfId && data && typeof data.filename === "string" && data.filename.trim()) {
-            const base = data.filename.replace(/\.[^.]+$/, "");
-            if (base) {
-              this.#currentPdfId = base;
-              this.#updateCopyButtonVisibility();
-              this.#logger.info(`[UIManagerCore] Fallback PDF ID from filename: ${base}`);
-            }
-          }
-        } catch (e) {
-          this.#logger.warn("[UIManagerCore] Fallback PDF ID from filename failed", e);
-        }
-      },
-      { subscriberId: "UIManagerCore" }
-    );
-    this.#unsubscribeFunctions.push(zoomChangeUnsub);
-
-    // 加载请求事件
-    const loadRequestedUnsub = this.#eventBus.on(
-      PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
-      () => {
-        this.#stateManager.updateLoadingState(true, false);
-        this.#domManager.setLoadingState(true);
-      },
-      { subscriberId: "UIManagerCore" }
-    );
-    this.#unsubscribeFunctions.push(loadRequestedUnsub);
-
-    const loadSuccessUnsub = this.#eventBus.on(
-      PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
-      (payload) => {
-        const pdfDocument = payload?.pdfDocument;
-        this.#stateManager.updateLoadingState(false, true);
-        this.#domManager.setLoadingState(false);
-
-        // 加载PDF到PDFViewerManager
-        if (this.#pdfViewerManager && pdfDocument) {
-          this.#logger.info("Loading PDF document into PDFViewerManager");
-          this.#pdfViewerManager.load(pdfDocument);
-
-          // 初始化页码显示 - 延迟一小段时间等待pagesCount更新
-          setTimeout(() => {
-            if (this.#uiZoomControls && this.#pdfViewerManager) {
-              const totalPages = this.#pdfViewerManager.pagesCount || pdfDocument.numPages;
-              const currentPage = this.#pdfViewerManager.currentPageNumber || 1;
-              this.#uiZoomControls.updatePageInfo(currentPage, totalPages);
-              this.#logger.info(`Page info initialized: ${currentPage}/${totalPages}`);
-            }
-          }, 100); // 延迟100ms，等待PDFViewer完成初始化
-        } else {
-          this.#logger.warn("Cannot load PDF: pdfViewerManager or pdfDocument is missing");
-        }
-      },
-      { subscriberId: "UIManagerCore" }
-    );
-    this.#unsubscribeFunctions.push(loadSuccessUnsub);
-
-    const loadFailedUnsub = this.#eventBus.on(
-      PDF_VIEWER_EVENTS.FILE.LOAD.FAILED,
-      (data) => {
-        this.#stateManager.updateErrorState(true, data.error);
-        this.#domManager.setLoadingState(false);
-      },
-      { subscriberId: "UIManagerCore" }
-    );
-    this.#unsubscribeFunctions.push(loadFailedUnsub);
-
-    // 监听 URL 参数解析事件，获取 pdf-id
-    const urlParamsParsedUnsub = this.#eventBus.on(
-      PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.PARSED,
-      (data) => {
-        this.#logger.info("[UIManagerCore] URL_PARAMS.PARSED event received:", data);
-        if (data?.pdfId) {
-          this.#currentPdfId = data.pdfId;
-          this.#updateCopyButtonVisibility();
-          this.#logger.info(`✅ PDF ID captured and button shown: ${this.#currentPdfId}`);
-          // 严格要求：标题仅来自数据库，不从 URL 获取
-          try { this.#requestPdfTitleFromDB(this.#currentPdfId); } catch (e) { this.#logger.error("requestPdfTitleFromDB failed", e); }
-        } else {
-          this.#logger.warn("[UIManagerCore] URL_PARAMS.PARSED event has no pdfId");
-        }
-      },
-      { subscriberId: "UIManagerCore" }
-    );
-    this.#unsubscribeFunctions.push(urlParamsParsedUnsub);
-
-    // 监听 WS 回执：严格匹配 request_id，仅处理当前 pending 的详情回执
-    const wsRespUnsub = this.#eventBus.on(
-      WEBSOCKET_MESSAGE_EVENTS.RESPONSE,
-      (message) => {
-        try {
-          const type = message?.type || message?.received_type;
-          if (type === WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_COMPLETED) {
-            // 若是当前pending请求，清理标记；否则也允许处理（只要匹配当前pdfId）
-            if (this.#pendingDetailRequestId && message?.request_id === this.#pendingDetailRequestId) {
-              this.#pendingDetailRequestId = null;
-            }
-            const data = message?.data || {};
-            const respId = (data.id || data.pdf_id || "").toString();
-            const t = (data.title || "").toString().trim();
-            // 只在匹配当前 pdfId 时更新标题（禁止兜底）
-            if (this.#currentPdfId && respId && respId !== this.#currentPdfId) {
-              return;
-            }
-            if (t) {
-              this.#updateHeaderTitle(t);
-              this.#logger.info("[UIManagerCore] 标题已从数据库更新");
-            } else {
-              this.#logger.error("数据库记录缺少标题，请补全后重试", { toast: { type: "error", ms: 6000 } });
-            }
-          }
-        } catch (e) {
-          this.#logger.error("处理详情回执失败", e);
-        }
-      },
-      { subscriberId: "UIManagerCore" }
-    );
-    this.#unsubscribeFunctions.push(wsRespUnsub);
-
-    const wsErrUnsub = this.#eventBus.on(
-      WEBSOCKET_MESSAGE_EVENTS.ERROR,
-      (message) => {
-        try {
-          const rid = message?.request_id;
-          const type = message?.type || message?.received_type;
-          if (!rid || rid !== this.#pendingDetailRequestId) {return;}
-          this.#pendingDetailRequestId = null;
-          if (type === WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_FAILED) {
-            const msg = message?.message || message?.error?.message || "获取PDF信息失败";
-            this.#logger.error(`获取PDF信息失败：${msg}`, { toast: { type: "error", ms: 6000 } });
-          }
-        } catch (e) {
-          this.#logger.error("处理详情失败回执异常", e);
-        }
-      },
-      { subscriberId: "UIManagerCore" }
-    );
-    this.#unsubscribeFunctions.push(wsErrUnsub);
-
+    const unsubs = installUIManagerCoreEventListeners({
+      eventBus: this.#eventBus,
+      logger: this.#logger,
+      stateManager: this.#stateManager,
+      domManager: this.#domManager,
+      getPdfViewerManager: () => this.#pdfViewerManager,
+      getUIZoomControls: () => this.#uiZoomControls,
+      getCurrentPdfId: () => this.#currentPdfId,
+      setCurrentPdfId: (pdfId) => { this.#currentPdfId = pdfId; },
+      getPendingDetailRequestId: () => this.#pendingDetailRequestId,
+      setPendingDetailRequestId: (rid) => { this.#pendingDetailRequestId = rid; },
+      updateCopyButtonVisibility: () => this.#updateCopyButtonVisibilityFn(),
+      requestPdfTitleFromDB: (pdfId) => this.#requestPdfTitleFromDB(pdfId),
+      updateHeaderTitle: (title) => updateUIManagerHeaderTitle({ logger: this.#logger, documentRef: document }, title),
+    });
+    this.#unsubscribeFunctions.push(...unsubs);
     this.#logger.info("Event listeners setup complete");
   }
 
@@ -304,210 +185,6 @@ export class UIManagerCore {
     };
     this.#logger.info("[UIManagerCore] 请求数据库标题", { pdfId, request_id: rid });
     this.#eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, message, { actorId: "UIManagerCore" });
-  }
-
-  /**
-   * 设置尺寸观察器
-   * @private
-   */
-  #setupResizeObserver() {
-    if (typeof ResizeObserver === "function") {
-      const container = this.#domManager.getElement("container");
-      if (container) {
-        this.#resizeObserver = new ResizeObserver((entries) => {
-          for (const entry of entries) {
-            if (entry.target === container) {
-              this.#handleResize();
-            }
-          }
-        });
-
-        this.#resizeObserver.observe(container);
-        this.#logger.info("Resize observer setup");
-      }
-    } else {
-      // 降级到window resize事件
-      window.addEventListener("resize", this.#handleResize.bind(this));
-      this.#logger.warn("ResizeObserver not available, using window resize");
-    }
-  }
-
-  /**
-   * 设置滚轮事件监听
-   * @private
-   */
-  #setupWheelListener() {
-    // 使用viewerContainer而不是旧的container（已隐藏）
-    const container = document.getElementById("viewerContainer");
-    if (container) {
-      container.addEventListener("wheel", this.#handleWheel.bind(this), { passive: false });
-      this.#logger.info("Wheel event listener setup on viewerContainer");
-    } else {
-      this.#logger.error("viewerContainer not found for wheel listener");
-    }
-  }
-
-  /**
-   * 处理尺寸变化
-   * @private
-   */
-  #handleResize() {
-    const dimensions = this.#domManager.getContainerDimensions();
-
-    // 注意: VIEW.RESIZE 事件在当前版本中未定义
-    // 直接记录尺寸变化
-    this.#logger.debug(`Container resized: ${dimensions.width}x${dimensions.height}`);
-  }
-
-  /**
-   * 处理滚轮事件
-   * @param {WheelEvent} event - 滚轮事件
-   * @private
-   */
-  #handleWheel(event) {
-    // Ctrl/Cmd + 滚轮进行缩放
-    if (event.ctrlKey || event.metaKey) {
-      event.preventDefault();
-
-      // 固定使用10%的缩放步进，使Ctrl+滚轮缩放更平滑（避免变量事件名触发门禁）
-      const smoothStep = 0.1; // 10% per scroll
-      if (event.deltaY < 0) {
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.IN, { delta: smoothStep }, { actorId: "UIManagerCore.Wheel" });
-        this.#logger.debug(`Wheel zoom in (step: ${smoothStep})`);
-      } else {
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.OUT, { delta: smoothStep }, { actorId: "UIManagerCore.Wheel" });
-        this.#logger.debug(`Wheel zoom out (step: ${smoothStep})`);
-      }
-    }
-  }
-
-  /**
-   * 更新 header 标题为 PDF 书名
-   * @param {string} filename - PDF 文件名
-   * @private
-   */
-  #updateHeaderTitle(filename) {
-    const titleElement = document.getElementById("pdf-title");
-    if (!titleElement) {
-      this.#logger.warn("Header title element not found");
-      return;
-    }
-
-    // 移除 .pdf 扩展名（如果存在）
-    const displayName = filename.endsWith(".pdf")
-      ? filename.slice(0, -4)
-      : filename;
-
-    titleElement.textContent = displayName;
-    // 设置原生 tooltip，用于显示完整书名
-    try {
-      titleElement.title = displayName;
-    } catch (e) {
-      void e; /* logger-guard */
-    }
-    this.#logger.info(`Header title updated: ${displayName}`);
-  }
-
-  /**
-   * 设置复制 PDF ID 按钮
-   * @private
-   */
-  #setupCopyPdfIdButton() {
-    const copyBtn = document.getElementById("copy-pdf-id-btn");
-    if (!copyBtn) {
-      this.#logger.warn("Copy PDF ID button not found");
-      return;
-    }
-
-    // 尝试从 URL 直接获取 pdf-id 作为备选（仅使用共享解析工具，避免分散实现）
-    const pdfIdFromUrl = (() => {
-      try {
-        const params = new URLSearchParams(window.location.search);
-        return params.get("pdf-id");
-      } catch {
-        return null;
-      }
-    })();
-    if (pdfIdFromUrl && !this.#currentPdfId) {
-      this.#currentPdfId = pdfIdFromUrl;
-      this.#updateCopyButtonVisibility();
-      this.#logger.info(`PDF ID obtained directly from URL: ${pdfIdFromUrl}`);
-    }
-
-    copyBtn.addEventListener("click", async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      this.#logger.info(`Copy button clicked, currentPdfId: ${this.#currentPdfId}`);
-
-      if (!this.#currentPdfId) {
-        this.#logger.error("无法复制：PDF ID 不可用，请确保 URL 中包含 pdf-id 参数", { toast: { type: "error", ms: 5000 } });
-        return;
-      }
-
-      const ok = this.#copyUsingExecCommand(this.#currentPdfId);
-      if (ok) {
-        copyBtn.classList.add("copied");
-        copyBtn.title = `已复制: ${this.#currentPdfId}`;
-        showSuccess("✓ PDF ID 已复制", 2000);
-        this.#logger.info(`✅ PDF ID copied (execCommand): ${this.#currentPdfId}`);
-        setTimeout(() => {
-          copyBtn.classList.remove("copied");
-          copyBtn.title = "复制 PDF ID";
-          this.#logger.debug("Copy button state reset");
-        }, 2000);
-      } else {
-        this.#logger.error("Copy via execCommand failed");
-        showError("✗ 复制失败", 3000);
-      }
-    });
-
-    this.#logger.info("Copy PDF ID button initialized");
-  }
-
-  /**
-   * 使用隐藏 textarea + document.execCommand('copy') 复制文本（与 AnnotationSidebar 一致）
-   * @param {string} text
-   * @returns {boolean} 是否成功
-   * @private
-   */
-  #copyUsingExecCommand(text) {
-    return copyTextUsingHiddenTextarea(String(text ?? ""));
-  }
-
-  /**
-   * 尝试使用 Clipboard API 复制，超时则抛出错误以触发降级
-   * @param {string} text - 要复制的文本
-   * @param {number} timeoutMs - 超时时间（毫秒）
-   * @private
-   */
-  // 复制超时与手动复制对话框已移除（不再使用）；保留 `#copyUsingExecCommand` 与降级 `#fallbackCopyToClipboard`。
-
-  /**
-   * 备用复制方法（兼容旧浏览器）
-   * @param {string} text - 要复制的文本
-   * @private
-   */
-  // removed: #fallbackCopyToClipboard (unused)
-
-  /**
-   * 更新复制按钮的可见性
-   * @private
-   */
-  #updateCopyButtonVisibility() {
-    const copyBtn = document.getElementById("copy-pdf-id-btn");
-    if (!copyBtn) {
-      this.#logger.warn("Cannot update button visibility: button not found");
-      return;
-    }
-
-    if (this.#currentPdfId) {
-      copyBtn.style.display = "flex";
-      this.#logger.info(`✅ Copy button shown (PDF ID: ${this.#currentPdfId})`);
-    } else {
-      copyBtn.style.display = "none";
-      this.#logger.debug("Copy button hidden (no PDF ID)");
-    }
   }
 
   /**
@@ -554,48 +231,6 @@ export class UIManagerCore {
   async renderPage(page, viewport) {
     this.#logger.warn("renderPage() is deprecated. PDFViewer component handles rendering automatically.");
     throw new Error("Canvas rendering mode is no longer supported. Use PDFViewer mode instead.");
-
-    /* Canvas rendering code (deprecated) - 保留以备将来参考
-    const canvas = this.#domManager.getElement('canvas');
-    if (!canvas) {
-      throw new Error('Canvas element not found');
-    }
-
-    const context = canvas.getContext('2d');
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-
-    const renderContext = {
-      canvasContext: context,
-      viewport: viewport
-    };
-
-    // 渲染Canvas层
-    await page.render(renderContext).promise;
-    this.#logger.debug('Page canvas rendered successfully');
-
-    // 设置text-layer尺寸与canvas一致
-    const textLayerContainer = this.#domManager.getElement('textLayer');
-    if (textLayerContainer) {
-      textLayerContainer.style.width = `${viewport.width}px`;
-      textLayerContainer.style.height = `${viewport.height}px`;
-    }
-
-    // 渲染文字层
-    if (this.#textLayerManager && this.#textLayerManager.isEnabled()) {
-      try {
-        if (textLayerContainer) {
-          await this.#textLayerManager.loadTextLayer(textLayerContainer, page, viewport);
-          this.#logger.debug('Page text layer rendered successfully');
-        }
-      } catch (error) {
-        this.#logger.warn('Failed to render text layer:', error);
-        // 不抛出错误，允许Canvas正常显示
-      }
-    }
-
-    this.#logger.debug('Page rendered successfully');
-    */
   }
 
   /**
@@ -755,122 +390,19 @@ export class UIManagerCore {
   async #initializeUIControls() {
     try {
       this.#logger.info("Initializing UI controls...");
-
-      // 初始化缩放控件
-      this.#uiZoomControls = new UIZoomControls(this.#eventBus);
-      await this.#uiZoomControls.setupZoomControls();
-      this.#logger.info("UIZoomControls initialized");
-
-      // 初始化布局控件（需要PDFViewerManager）
-      if (this.#pdfViewerManager) {
-        this.#uiLayoutControls = new UILayoutControls(this.#eventBus);
-        this.#uiLayoutControls.setup(this.#pdfViewerManager);
-        this.#logger.info("UILayoutControls initialized");
-      } else {
-        this.#logger.warn("PDFViewerManager not available, layout controls disabled");
-      }
-
-      // 连接缩放事件到PDFViewerManager
-      this.#setupZoomIntegration();
-
-      // 监听PDFViewerManager的缩放变化事件，更新UI显示
-      this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.CHANGING, ({ scale }) => {
-        if (this.#uiZoomControls) {
-          this.#uiZoomControls.setScale(scale);
-        }
-      }, { subscriberId: "UIManagerCore" });
-
-      // 监听页面变化事件，更新页码显示
-      this.#eventBus.on(PDF_VIEWER_EVENTS.PAGE.CHANGING, ({ pageNumber }) => {
-        if (this.#uiZoomControls && this.#pdfViewerManager) {
-          const totalPages = this.#pdfViewerManager.pagesCount || 0;
-          this.#uiZoomControls.updatePageInfo(pageNumber, totalPages);
-          this.#logger.debug(`Page info updated: ${pageNumber}/${totalPages}`);
-        }
-      }, { subscriberId: "UIManagerCore.PageSync" });
+      const { uiZoomControls, uiLayoutControls, unsubs } = await initializeUIManagerControls({
+        eventBus: this.#eventBus,
+        logger: this.#logger,
+        pdfViewerManager: this.#pdfViewerManager,
+      });
+      this.#uiZoomControls = uiZoomControls;
+      this.#uiLayoutControls = uiLayoutControls;
+      this.#unsubscribeFunctions.push(...unsubs);
 
     } catch (error) {
       this.#logger.error("Failed to initialize UI controls:", error);
       throw error;
     }
-  }
-
-  /**
-   * 设置缩放事件集成
-   * @private
-   */
-  #setupZoomIntegration() {
-    if (!this.#pdfViewerManager) {
-      this.#logger.warn("PDFViewerManager not available, zoom integration disabled");
-      return;
-    }
-
-    // 放大
-    this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.IN, (data) => {
-      const delta = data?.delta || 0.25;
-      const newScale = Math.min((this.#pdfViewerManager.currentScale || 1.0) + delta, 5.0);
-      this.#pdfViewerManager.currentScale = newScale;
-      this.#logger.info(`Zoom in: ${newScale.toFixed(2)}`);
-    }, { subscriberId: "UIManagerCore.ZoomIn" });
-
-    // 缩小
-    this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.OUT, (data) => {
-      const delta = data?.delta || 0.25;
-      const newScale = Math.max((this.#pdfViewerManager.currentScale || 1.0) - delta, 0.25);
-      this.#pdfViewerManager.currentScale = newScale;
-      this.#logger.info(`Zoom out: ${newScale.toFixed(2)}`);
-    }, { subscriberId: "UIManagerCore.ZoomOut" });
-
-    // 实际大小（重置缩放到100%）
-    this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.ACTUAL_SIZE, () => {
-      this.#pdfViewerManager.currentScale = 1.0;
-      this.#logger.info("Zoom reset to actual size (100%)");
-    }, { subscriberId: "UIManagerCore.ZoomActualSize" });
-
-    // 适应宽度
-    this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.FIT_WIDTH, () => {
-      this.#pdfViewerManager.currentScaleValue = "page-width";
-      this.#logger.info("Zoom to fit width");
-    }, { subscriberId: "UIManagerCore.ZoomFitWidth" });
-
-    // 适应高度
-    this.#eventBus.on(PDF_VIEWER_EVENTS.ZOOM.FIT_HEIGHT, () => {
-      this.#pdfViewerManager.currentScaleValue = "page-height";
-      this.#logger.info("Zoom to fit height");
-    }, { subscriberId: "UIManagerCore.ZoomFitHeight" });
-
-    // 上一页
-    this.#eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.PREVIOUS, () => {
-      const currentPage = this.#pdfViewerManager.currentPageNumber;
-      if (currentPage > 1) {
-        this.#pdfViewerManager.currentPageNumber = currentPage - 1;
-        this.#logger.info(`Navigate to previous page: ${currentPage - 1}`);
-      }
-    }, { subscriberId: "UIManagerCore.NavPrev" });
-
-    // 下一页
-    this.#eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.NEXT, () => {
-      const currentPage = this.#pdfViewerManager.currentPageNumber;
-      const totalPages = this.#pdfViewerManager.pagesCount;
-      if (currentPage < totalPages) {
-        this.#pdfViewerManager.currentPageNumber = currentPage + 1;
-        this.#logger.info(`Navigate to next page: ${currentPage + 1}`);
-      }
-    }, { subscriberId: "UIManagerCore.NavNext" });
-
-    // 跳转到指定页
-    this.#eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.GOTO, (data) => {
-      const targetPage = data?.pageNumber;
-      const totalPages = this.#pdfViewerManager.pagesCount;
-
-      if (targetPage && targetPage >= 1 && targetPage <= totalPages) {
-        this.#pdfViewerManager.currentPageNumber = targetPage;
-        this.#logger.info(`Navigate to page: ${targetPage}`);
-        // positionPercent 由 NavigationService.scrollToPosition() 处理
-      } else {
-        this.#logger.warn(`Invalid page number for GOTO: ${targetPage} (total: ${totalPages})`);
-      }
-    }, { subscriberId: "UIManagerCore.NavGoto" });
   }
 
   /**
@@ -882,18 +414,6 @@ export class UIManagerCore {
     // 取消事件订阅
     this.#unsubscribeFunctions.forEach((unsub) => unsub());
     this.#unsubscribeFunctions = [];
-
-    // 断开尺寸观察器
-    if (this.#resizeObserver) {
-      this.#resizeObserver.disconnect();
-      this.#resizeObserver = null;
-    }
-
-    // 移除滚轮事件
-    const container = document.getElementById("viewerContainer");
-    if (container) {
-      container.removeEventListener("wheel", this.#handleWheel.bind(this));
-    }
 
     // 销毁子模块
     this.#keyboardHandler.destroy();

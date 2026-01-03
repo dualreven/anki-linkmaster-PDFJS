@@ -4,23 +4,23 @@
  * @module AnnotationSidebarUI
  */
 
-import { getLogger } from '../../../../common/utils/logger.js';
-import { PDF_VIEWER_EVENTS } from '../../../../common/event/pdf-viewer-constants.js';
-import { showSuccess, showError } from '../../../../common/utils/notification.js';
-import { copyTextUsingHiddenTextarea } from '../../../../common/utils/copy-utils.js';
-import { createSubscriptionBag } from '../../../../common/ws/ws-subscription-bag.js';
-import { showAnnotationCommentDialog } from './annotation-sidebar-ui/comment-dialog.js';
-import { createAnnotationCardElement } from './annotation-sidebar-ui/annotation-card.js';
-import { createAnnotationSidebarToolbarController } from './annotation-sidebar-ui/toolbar-controller.js';
-import { confirmDialogAsync } from './annotation-sidebar-ui/confirm-dialog.js';
-import { installAnnotationJumpDelegation } from './annotation-sidebar-ui/jump-delegation.js';
-import { renderAnnotationSidebarEmptyState } from './annotation-sidebar-ui/empty-state.js';
+import { getLogger } from "../../../../common/utils/logger.js";
+import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
+import { showSuccess, showError } from "../../../../common/utils/notification.js";
+import { copyTextUsingHiddenTextarea } from "../../../../common/utils/copy-utils.js";
+import { createSubscriptionBag } from "../../../../common/ws/ws-subscription-bag.js";
+import { showAnnotationCommentDialog } from "./annotation-sidebar-ui/comment-dialog.js";
+import { createAnnotationCardElement } from "./annotation-sidebar-ui/annotation-card.js";
+import { createAnnotationSidebarToolbarController } from "./annotation-sidebar-ui/toolbar-controller.js";
+import { confirmDialogAsync } from "./annotation-sidebar-ui/confirm-dialog.js";
+import { installAnnotationJumpDelegation } from "./annotation-sidebar-ui/jump-delegation.js";
+import { renderAnnotationSidebarEmptyState } from "./annotation-sidebar-ui/empty-state.js";
 import {
   createCommentAddedHandler,
   createSidebarClosedHandler,
   createToolDeactivatedHandler,
   installAnnotationSidebarSubscriptions,
-} from './annotation-sidebar-ui/subscriptions.js';
+} from "./annotation-sidebar-ui/subscriptions.js";
 
 /**
  * 标注侧边栏UI类
@@ -56,9 +56,9 @@ export class AnnotationSidebarUI {
    */
   constructor(eventBus, options = {}) {
     this.#eventBus = eventBus;
-    this.#logger = getLogger('AnnotationSidebarUI');
+    this.#logger = getLogger("AnnotationSidebarUI");
     this.#container = null;
-    this.#subscriptions = createSubscriptionBag({ loggerName: 'AnnotationSidebarUI' });
+    this.#subscriptions = createSubscriptionBag({ loggerName: "AnnotationSidebarUI" });
     this.#toolbarController = createAnnotationSidebarToolbarController({
       eventBus: this.#eventBus,
       logger: this.#logger,
@@ -72,7 +72,7 @@ export class AnnotationSidebarUI {
    * 初始化侧边栏（仅创建内容元素）
    */
   initialize() {
-    this.#logger.info('Initializing annotation sidebar UI (content only)');
+    this.#logger.info("Initializing annotation sidebar UI (content only)");
 
     // 创建内容容器
     this.#createContent();
@@ -81,7 +81,7 @@ export class AnnotationSidebarUI {
     installAnnotationSidebarSubscriptions({
       eventBus: this.#eventBus,
       subscriptions: this.#subscriptions,
-      subscriberId: 'AnnotationSidebarUI',
+      subscriberId: "AnnotationSidebarUI",
       onCreated: (data) => this.addAnnotationCard(data.annotation),
       onUpdated: (data) => this.updateAnnotationCard(data.annotation),
       onDeleted: (data) => this.removeAnnotationCard(data.id),
@@ -118,9 +118,9 @@ export class AnnotationSidebarUI {
           highlightAndScrollToCard: (id) => this.highlightAndScrollToCard(id),
         }));
       }
-      this.#logger.info('Card click delegation for jump initialized');
+      this.#logger.info("Card click delegation for jump initialized");
     } catch (e) {
-      this.#logger.warn('Failed to setup card click delegation', e);
+      this.#logger.warn("Failed to setup card click delegation", e);
     }
   }
 
@@ -130,40 +130,40 @@ export class AnnotationSidebarUI {
    */
   #createContent() {
     if (this.#container) {
-      this.#logger.debug('Content already exists');
+      this.#logger.debug("Content already exists");
       return;
     }
 
     // 主容器（flex布局）
-    const container = document.createElement('div');
-    container.className = 'annotation-sidebar-container';
+    const container = document.createElement("div");
+    container.className = "annotation-sidebar-container";
     container.style.cssText = [
-      'display: flex',
-      'flex-direction: column',
-      'height: 100%',
-      'width: 100%',
-      'overflow: hidden',
-      'background: #ffffff',
-    ].join(';');
+      "display: flex",
+      "flex-direction: column",
+      "height: 100%",
+      "width: 100%",
+      "overflow: hidden",
+      "background: #ffffff",
+    ].join(";");
 
     // 创建Header（包含工具栏）
     this.#sidebarHeader = this.#toolbarController.createHeaderElement();
     container.appendChild(this.#sidebarHeader);
 
     // 创建内容区域
-    const content = document.createElement('div');
-    content.className = 'annotation-sidebar-content';
+    const content = document.createElement("div");
+    content.className = "annotation-sidebar-content";
     content.style.cssText = [
-      'flex: 1',
-      'overflow-y: auto',
-      'padding: 12px',
-      'box-sizing: border-box',
-    ].join(';');
+      "flex: 1",
+      "overflow-y: auto",
+      "padding: 12px",
+      "box-sizing: border-box",
+    ].join(";");
     container.appendChild(content);
     this.#sidebarContent = content;
 
     this.#container = container;
-    this.#logger.debug('Content created');
+    this.#logger.debug("Content created");
   }
 
   /**
@@ -183,9 +183,6 @@ export class AnnotationSidebarUI {
    * @private
    */
 
-
-
-
   /**
    * 渲染标注列表
    * @param {Array<Annotation>} annotations - 标注数组
@@ -195,12 +192,12 @@ export class AnnotationSidebarUI {
     this.#logger.debug(`Rendering ${this.#annotations.length} annotations`);
 
     if (!this.#sidebarContent) {
-      this.#logger.warn('Sidebar content not found');
+      this.#logger.warn("Sidebar content not found");
       return;
     }
 
     // 清空现有内容
-    this.#sidebarContent.innerHTML = '';
+    this.#sidebarContent.innerHTML = "";
     this.#annotationCards.clear();
 
     if (this.#annotations.length === 0) {
@@ -257,9 +254,9 @@ export class AnnotationSidebarUI {
     }
 
     // 如果当前是空状态，先清空
-    const empty = this.#sidebarContent.querySelector('.annotation-empty');
+    const empty = this.#sidebarContent.querySelector(".annotation-empty");
     if (empty) {
-      this.#sidebarContent.innerHTML = '';
+      this.#sidebarContent.innerHTML = "";
     }
 
     // 创建新卡片并插入到开头（最新的在上）
@@ -329,7 +326,7 @@ export class AnnotationSidebarUI {
     const annotation = this.#annotations.find((a) => a.id === annotationId) || null;
     if (!annotation) {
       this.#logger.error(`[AnnotationSidebarUI] 未找到标注，无法跳转 id=${annotationId}`, null, {
-        toast: { type: 'error', ms: 4000 },
+        toast: { type: "error", ms: 4000 },
       });
       return;
     }
@@ -339,7 +336,7 @@ export class AnnotationSidebarUI {
         id: annotationId,
         annotation,
       },
-      { actorId: 'AnnotationSidebarUI' }
+      { actorId: "AnnotationSidebarUI" }
     );
   }
 
@@ -353,7 +350,7 @@ export class AnnotationSidebarUI {
       return;
     }
 
-    const confirmed = await confirmDialogAsync({ message: '确定要删除该标注吗？' });
+    const confirmed = await confirmDialogAsync({ message: "确定要删除该标注吗？" });
     if (!confirmed) {
       return;
     }
@@ -391,16 +388,16 @@ export class AnnotationSidebarUI {
   async #handleCopyIdClick(annotationId) {
     this.#logger.debug(`Copy annotation ID: ${annotationId}`);
 
-    const success = copyTextUsingHiddenTextarea(String(annotationId ?? ''));
+    const success = copyTextUsingHiddenTextarea(String(annotationId ?? ""));
 
     if (success) {
-      showSuccess('✓ ID已复制', 2000);
+      showSuccess("✓ ID已复制", 2000);
       // 发出ID复制事件（修正为3段格式）
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.SIDEBAR.ID_COPY_SUCCESS, {
         id: annotationId,
       });
     } else {
-      showError('✗ 复制失败', 3000);
+      showError("✗ 复制失败", 3000);
     }
   }
 
@@ -428,24 +425,24 @@ export class AnnotationSidebarUI {
 
     // 移除所有卡片的高亮状态
     this.#annotationCards.forEach((card) => {
-      card.style.background = '#fff';
-      card.style.borderColor = '#e0e0e0';
+      card.style.background = "#fff";
+      card.style.borderColor = "#e0e0e0";
     });
 
     // 高亮目标卡片
-    targetCard.style.background = '#fff3cd';
-    targetCard.style.borderColor = '#ffc107';
+    targetCard.style.background = "#fff3cd";
+    targetCard.style.borderColor = "#ffc107";
 
     // 滚动到目标卡片
     targetCard.scrollIntoView({
-      behavior: 'smooth',
-      block: 'center',
+      behavior: "smooth",
+      block: "center",
     });
 
     // 3秒后恢复正常样式
     setTimeout(() => {
-      targetCard.style.background = '#fff';
-      targetCard.style.borderColor = '#e0e0e0';
+      targetCard.style.background = "#fff";
+      targetCard.style.borderColor = "#e0e0e0";
     }, 3000);
 
     this.#logger.info(`Card highlighted and scrolled: ${annotationId}`);
@@ -478,7 +475,7 @@ export class AnnotationSidebarUI {
       this.#container = null;
     }
 
-    this.#logger.info('Annotation sidebar destroyed');
+    this.#logger.info("Annotation sidebar destroyed");
   }
 }
 

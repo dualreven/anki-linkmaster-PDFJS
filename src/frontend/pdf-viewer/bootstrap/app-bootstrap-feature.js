@@ -83,14 +83,11 @@ export async function bootstrapPDFViewerAppFeature() {
       aliases: FEATURE_ALIASES
     });
 
-    // 打开 Outline 相关模块的“模块级日志过滤”并设为较详细级别，便于问题排查
+    // Outline 相关模块默认降噪到 ERROR；必要时可通过 URL 参数临时提升
     try {
-      // 默认打开 Outline 域日志到 INFO，便于排查首启/持久化流程（必要时再降级）
-      setModuleLogLevel("Feature.pdf-outline", LogLevel.INFO);
-      setModuleLogLevel("OutlineSidebarUI", LogLevel.INFO);
-      setModuleLogLevel("OutlineManager", LogLevel.INFO);
-      // 增加 WebSocketAdapter 的模块日志，便于抓取 inbound 包
-      setModuleLogLevel("WebSocketAdapter", LogLevel.INFO);
+      setModuleLogLevel("Feature.pdf-outline", LogLevel.ERROR);
+      setModuleLogLevel("OutlineSidebarUI", LogLevel.ERROR);
+      setModuleLogLevel("OutlineManager", LogLevel.ERROR);
       // 如需更细日志，可通过 URL 参数提升：?outlineLog=debug|info|warn|error
       try {
         const params = new URLSearchParams(window.location.search);
@@ -248,6 +245,11 @@ export async function bootstrapPDFViewerAppFeature() {
         ? pdfPath.split(/[\\/]/).pop()
         : pdfPath;
 
+      const pdfId = (() => {
+        const m = String(filename || "").match(/([a-f0-9]{12})/i);
+        return m ? String(m[1]).toLowerCase() : null;
+      })();
+
       // 通过事件系统请求加载PDF
       const { PDF_VIEWER_EVENTS } = await import("../../common/event/pdf-viewer-constants.js");
       // 以 warn 级别输出一次“将要触发加载”的跟踪日志，便于生产环境观察两次触发来源
@@ -261,7 +263,8 @@ export async function bootstrapPDFViewerAppFeature() {
       }
       eventBusSingleton.emit(PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED, {
         filename: filename,
-        file_path: pdfPath
+        file_path: pdfPath,
+        pdfId
       }, { actorId: "Bootstrap" });
     } else if (pdfPath && hasPdfIdParam) {
       logger.info("[TRACE] Skip Bootstrap auto-load because 'pdf-id' present; PDFUrlLoaderFeature will handle loading.");

@@ -21,10 +21,6 @@ class SimpleContainer {
 describe("AnnotationFeature — 自动加载冒烟", () => {
   beforeEach(() => {
     document.body.innerHTML = "<main></main><div id=\"viewerContainer\"></div>";
-    // 模拟 URL 中含 pdf-id，供 URLParamsParser.parse() 使用
-    const url = "http://localhost/pdf-viewer/?pdf-id=c83c60c58ad2";
-    // jsdom 允许直接赋值
-    window.history.pushState({}, "", url);
   });
 
   test("FILE.LOAD.SUCCESS → 触发 DATA.LOAD → 收到 DATA.LOADED", async () => {
@@ -32,7 +28,7 @@ describe("AnnotationFeature — 自动加载冒烟", () => {
     const scopedBus = createScopedEventBus(globalBus, "annotation");
     const container = new SimpleContainer();
     container.registerGlobal("navigationService", { navigateTo: async () => {} });
-    container.registerGlobal("pdfViewerManager", {});
+    container.registerGlobal("pdfViewerManager", { getPageView: () => null });
 
     const feature = new AnnotationFeature();
     await feature.install({
@@ -56,9 +52,12 @@ describe("AnnotationFeature — 自动加载冒烟", () => {
     });
     // 触发文件加载完成
     globalBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, {
+      pdfId: "c83c60c58ad2",
       filename: "c83c60c58ad2.pdf",
-      url: window.location.href
+      url: "http://localhost/pdf-viewer/?pdf-id=c83c60c58ad2"
     });
+    // 标注自动加载被门控到 resume 完成事件之后
+    globalBus.emit(PDF_VIEWER_EVENTS.RESUME.FLOW.DONE, { pdfId: "c83c60c58ad2" });
     const loaded = await waitLoaded;
     expect(loaded).toBeTruthy();
     expect(typeof loaded.count).toBe("number");

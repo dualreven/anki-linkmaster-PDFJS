@@ -23,7 +23,7 @@ export default {
   },
   transform: {
     // 显式传入绝对路径，避免在不同 CWD/根目录解析下找不到 CJS 配置
-    '^.+\\.js$': ['babel-jest', { configFile: babelJestConfigAbs }]
+    '^.+\\.m?js$': ['babel-jest', { configFile: babelJestConfigAbs }]
   },
   transformIgnorePatterns: [
     // 保留对 pdfjs-dist 的特殊处理，同时支持 .mjs 文件
@@ -41,4 +41,3 @@ export default {
     '<rootDir>/src/frontend/dist/'  // 忽略前端构建输出目录
   ]
 };
-

@@ -27,7 +27,7 @@ describe("WindowControlsFeature (pdf-home)", () => {
       bridgeName: "pyqtBridge",
       containerSelector: ".toolbar-controls"
     });
-    const fakeWsClient = { disconnect: jest.fn() };
+    const fakeWsClient = { disconnect: jest.fn(), getClientName: () => "window:pdf-home:test" };
 
     const context = {
       container: {

@@ -1,5 +1,6 @@
 /**
  * @file 日志记录器模块，提供分级、分类的日志记录功能。
+ * 详细说明见：`docs/standards/logger.md`
  * @module Logger
  */
 
@@ -22,6 +23,24 @@ export const LogLevel = {
  * @param {LogLevel} [initialLogLevel=LogLevel.INFO] - 该实例的初始日志级别。
  */
 import { info as toastInfo, warning as toastWarning, error as toastError, success as toastSuccess } from "./thirdparty-toast.js";
+import {
+  applyLoggerStartupOverridesFromEnvironment,
+  buildSignature,
+  configureLogger,
+  disableAutoToast,
+  enableAutoToast,
+  getAutoToastConfig,
+  getEffectiveLogLevel,
+  getToastPolicy,
+  globalLogConfig,
+  levelOrder,
+  setAutoToastLevels,
+  setDefaultToastEnabled,
+  setGlobalLogLevel,
+  setModuleLogLevel,
+  setToastPolicy,
+  shouldShowToast,
+} from "./logger-runtime-config.js";
 
 export class Logger {
   #moduleName;
@@ -82,7 +101,6 @@ export class Logger {
         toastOpt = defaultMs !== null ? { ms: defaultMs } : {};
       }
     }
-    const levelOrder = [LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR];
     const effectiveLevel = getEffectiveLogLevel(this.#moduleName, this.#logLevel);
     if (levelOrder.indexOf(level) < levelOrder.indexOf(effectiveLevel)) {
       return;
@@ -131,7 +149,7 @@ export class Logger {
     // 若请求 toast，则将本条日志同步以 toast 输出
     if (toastOpt) {
       // Feature 级过滤：根据模块策略决定是否真正弹 toast
-      if (!_shouldShowToast(this.#moduleName, level, toastOpt)) {
+      if (!shouldShowToast(this.#moduleName, level)) {
         return; // 已写入控制台日志，但抑制 toast 展示
       }
       try {
@@ -367,63 +385,30 @@ export function setGlobalWebSocketClient(wsClient) {
   try {
     void wsClient;
     console.info("[Logger] setGlobalWebSocketClient called but not used in new architecture");
-  } catch (e) {
-    void e;
-  }
+  } catch (e) { void e; /* logger-guard */ }
 }
 // ================================
-// 运行时配置与治理能力（新增）
+// 运行时配置与治理能力
 // ================================
-
-const levelOrder = [LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR];
-
-const globalLogConfig = {
-  globalLevel: null, // 若为 null 则不覆盖实例级别
-  perModuleLevel: new Map(),
-  enableRateLimit: true,
-  rateLimit: { messages: 120, intervalMs: 1000 }, // 每模块/级别每秒120条
-  dedupWindowMs: 500, // 同签名消息在500ms内折叠
-  event: {
-    sampleRate: 1.0, // 事件日志采样率（0~1）
-    maxJsonLength: 800, // 事件JSON最大长度
-    pretty: true // 是否使用缩进美化
-  },
-  // 全局Toast开关配置
-  autoToast: {
-    enabled: false,        // 是否启用全局toast
-    levels: [LogLevel.ERROR, LogLevel.WARN, LogLevel.INFO],  // 哪些级别自动显示toast（不包括debug）
-    defaultMs: null,       // 默认显示时长（null表示使用级别默认值）
-    excludeModules: [],    // 排除的模块列表
-  },
-  // Feature/模块级 toast 策略（新增）
-  // 例如：modules.set("URLJumpDispatcher", { enabled: true, levels: ["error","warn"] })
-  toastPolicy: {
-    modules: new Map(),
-    defaultEnabled: true,
-  },
-  // 内部：速率窗口状态
-  _rateState: new Map(),
+export {
+  configureLogger,
+  disableAutoToast,
+  enableAutoToast,
+  getAutoToastConfig,
+  getToastPolicy,
+  setAutoToastLevels,
+  setDefaultToastEnabled,
+  setGlobalLogLevel,
+  setModuleLogLevel,
+  setToastPolicy,
 };
 
-function _shouldShowToast(moduleName, level, toastOpt) {
-  try {
-    const m = globalLogConfig.toastPolicy.modules.get(moduleName);
-    if (m) {
-      if (m.enabled === false) { return false; }
-      if (Array.isArray(m.levels) && m.levels.length > 0) {
-        return m.levels.includes(level);
-      }
-      return true;
-    }
-  } catch {}
-  return !!globalLogConfig.toastPolicy.defaultEnabled;
-}
-
-function getEffectiveLogLevel(moduleName, instanceLevel) {
-  const per = globalLogConfig.perModuleLevel.get(moduleName);
-  const lvl = per ?? globalLogConfig.globalLevel ?? instanceLevel;
-  return lvl;
-}
+// 启动时从环境/本地存储加载覆盖
+try {
+  const isProd = (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.PROD) ||
+                 (typeof process !== "undefined" && process.env && process.env.NODE_ENV === "production");
+  applyLoggerStartupOverridesFromEnvironment({ isProd });
+} catch (e) { void e; /* logger-guard */ }
 
 function shouldRateLimit(moduleName, level) {
   if (!globalLogConfig.enableRateLimit) {return false;}
@@ -453,272 +438,6 @@ function shouldRateLimit(moduleName, level) {
   return false;
 }
 
-function buildSignature(level, message, args) {
-  let argKind = "";
-  if (args && args.length > 0) {
-    const a0 = args[0];
-    const t = typeof a0;
-    argKind = t === "object" ? "o" : t === "string" ? "s" : t === "number" ? "n" : t;
-  }
-  return `${level}|${String(message)}|${argKind}`;
-}
-
-export function configureLogger(options = {}) {
-  if (options.globalLevel && levelOrder.includes(options.globalLevel)) {
-    globalLogConfig.globalLevel = options.globalLevel;
-  }
-  if (typeof options.enableRateLimit === "boolean") {
-    globalLogConfig.enableRateLimit = options.enableRateLimit;
-  }
-  if (options.rateLimit) {
-    const { messages, intervalMs } = options.rateLimit;
-    if (typeof messages === "number" && messages > 0) {
-      globalLogConfig.rateLimit.messages = messages;
-    }
-    if (typeof intervalMs === "number" && intervalMs > 0) {
-      globalLogConfig.rateLimit.intervalMs = intervalMs;
-    }
-  }
-  if (typeof options.dedupWindowMs === "number" && options.dedupWindowMs >= 0) {
-    globalLogConfig.dedupWindowMs = options.dedupWindowMs;
-  }
-  if (options.event) {
-    const e = options.event;
-    if (typeof e.sampleRate === "number" && e.sampleRate >= 0 && e.sampleRate <= 1) {
-      globalLogConfig.event.sampleRate = e.sampleRate;
-    }
-    if (typeof e.maxJsonLength === "number" && e.maxJsonLength >= 0) {
-      globalLogConfig.event.maxJsonLength = e.maxJsonLength;
-    }
-    if (typeof e.pretty === "boolean") {
-      globalLogConfig.event.pretty = e.pretty;
-    }
-  }
-}
-
-export function setGlobalLogLevel(level) {
-  if (levelOrder.includes(level)) {
-    globalLogConfig.globalLevel = level;
-  }
-}
-
-export function setModuleLogLevel(moduleName, level) {
-  if (levelOrder.includes(level)) {
-    globalLogConfig.perModuleLevel.set(moduleName, level);
-  }
-}
-
-/**
- * 启用全局Toast自动显示
- * @param {Object} options - 配置选项
- * @param {Array<string>} [options.levels] - 要显示toast的日志级别数组
- * @param {number} [options.defaultMs] - 默认显示时长（毫秒）
- * @param {Array<string>} [options.excludeModules] - 排除的模块名列表
- */
-export function enableAutoToast(options = {}) {
-  globalLogConfig.autoToast.enabled = true;
-
-  if (options.levels && Array.isArray(options.levels)) {
-    globalLogConfig.autoToast.levels = options.levels.filter(l => levelOrder.includes(l));
-  }
-
-  if (typeof options.defaultMs === "number" && options.defaultMs > 0) {
-    globalLogConfig.autoToast.defaultMs = options.defaultMs;
-  }
-
-  if (options.excludeModules && Array.isArray(options.excludeModules)) {
-    globalLogConfig.autoToast.excludeModules = options.excludeModules;
-  }
-
-  // 持久化到localStorage
-  try {
-    if (typeof window !== "undefined" && window.localStorage) {
-      window.localStorage.setItem("LOG_AUTO_TOAST_ENABLED", "true");
-      if (options.levels) {
-        window.localStorage.setItem("LOG_AUTO_TOAST_LEVELS", globalLogConfig.autoToast.levels.join(","));
-      }
-      if (options.defaultMs) {
-        window.localStorage.setItem("LOG_AUTO_TOAST_MS", String(options.defaultMs));
-      }
-      if (options.excludeModules) {
-        window.localStorage.setItem("LOG_AUTO_TOAST_EXCLUDE", options.excludeModules.join(","));
-      }
-    }
-  } catch {
-    // 忽略localStorage错误
-  }
-
-  console.info("[Logger] 全局Toast已启用", {
-    levels: globalLogConfig.autoToast.levels,
-    defaultMs: globalLogConfig.autoToast.defaultMs,
-    excludeModules: globalLogConfig.autoToast.excludeModules
-  });
-}
-
-/**
- * 禁用全局Toast自动显示
- */
-export function disableAutoToast() {
-  globalLogConfig.autoToast.enabled = false;
-
-  // 从localStorage移除
-  try {
-    if (typeof window !== "undefined" && window.localStorage) {
-      window.localStorage.removeItem("LOG_AUTO_TOAST_ENABLED");
-    }
-  } catch {
-    // 忽略localStorage错误
-  }
-
-  console.info("[Logger] 全局Toast已禁用");
-}
-
-/**
- * 设置模块级 toast 策略（新增）
- * @param {string} moduleName
- * @param {{enabled?: boolean, levels?: Array<string>}} policy
- */
-export function setToastPolicy(moduleName, policy = {}) {
-  if (!moduleName || typeof moduleName !== "string") { return; }
-  const p = {};
-  if (typeof policy.enabled === "boolean") { p.enabled = policy.enabled; }
-  if (Array.isArray(policy.levels)) {
-    const allowed = [LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR, "debug","info","warn","error","success"];
-    p.levels = policy.levels.filter(l => allowed.includes(l));
-  }
-  globalLogConfig.toastPolicy.modules.set(moduleName, p);
-}
-
-/**
- * 获取当前 toast 策略（只读快照）
- */
-export function getToastPolicy() {
-  const obj = {};
-  try {
-    for (const [k, v] of globalLogConfig.toastPolicy.modules.entries()) {
-      obj[k] = { enabled: (v.enabled !== false), levels: v.levels ? [...v.levels] : undefined };
-    }
-  } catch {}
-  return {
-    defaultEnabled: !!globalLogConfig.toastPolicy.defaultEnabled,
-    modules: obj
-  };
-}
-
-/**
- * 设置默认 toast 启用状态（未命中模块策略时生效）
- */
-export function setDefaultToastEnabled(enabled) {
-  globalLogConfig.toastPolicy.defaultEnabled = !!enabled;
-}
-
-/**
- * 设置自动Toast的级别
- * @param {Array<string>} levels - 日志级别数组
- */
-export function setAutoToastLevels(levels) {
-  if (Array.isArray(levels)) {
-    globalLogConfig.autoToast.levels = levels.filter(l => levelOrder.includes(l));
-
-    try {
-      if (typeof window !== "undefined" && window.localStorage) {
-        window.localStorage.setItem("LOG_AUTO_TOAST_LEVELS", globalLogConfig.autoToast.levels.join(","));
-      }
-    } catch {
-      // 忽略localStorage错误
-    }
-
-    console.info("[Logger] 自动Toast级别已更新:", globalLogConfig.autoToast.levels);
-  }
-}
-
-/**
- * 获取当前全局Toast配置
- * @returns {Object} 当前配置
- */
-export function getAutoToastConfig() {
-  return {
-    enabled: globalLogConfig.autoToast.enabled,
-    levels: [...globalLogConfig.autoToast.levels],
-    defaultMs: globalLogConfig.autoToast.defaultMs,
-    excludeModules: [...globalLogConfig.autoToast.excludeModules]
-  };
-}
-
-// 启动时从环境/本地存储加载覆盖
-try {
-  const isProd = (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.PROD) ||
-                 (typeof process !== "undefined" && process.env && process.env.NODE_ENV === "production");
-  if (isProd) {
-    // 生产默认更"安静"
-    if (!globalLogConfig.globalLevel) {globalLogConfig.globalLevel = LogLevel.WARN;}
-    globalLogConfig.event.pretty = false;
-    globalLogConfig.event.sampleRate = 0.2; // 事件日志采样 20%
-  }
-  if (typeof window !== "undefined" && window.localStorage) {
-    const lv = window.localStorage.getItem("LOG_LEVEL");
-    if (lv && levelOrder.includes(lv)) {
-      globalLogConfig.globalLevel = lv;
-    }
-    const rate = window.localStorage.getItem("LOG_EVENT_SAMPLE_RATE");
-    if (rate) {
-      const r = parseFloat(rate);
-      if (!Number.isNaN(r) && r >= 0 && r <= 1) {globalLogConfig.event.sampleRate = r;}
-    }
-    const rl = window.localStorage.getItem("LOG_RATE_LIMIT"); // 例如: "100,1000"
-    if (rl && typeof rl === "string" && rl.includes(",")) {
-      const parts = rl.split(",");
-      const m = parseInt(parts[0]);
-      const ms = parseInt(parts[1]);
-      if (!Number.isNaN(m) && m > 0) {globalLogConfig.rateLimit.messages = m;}
-      if (!Number.isNaN(ms) && ms > 0) {globalLogConfig.rateLimit.intervalMs = ms;}
-    }
-    const dd = window.localStorage.getItem("LOG_DEDUP_WINDOW_MS");
-    if (dd) {
-      const v = parseInt(dd);
-      if (!Number.isNaN(v) && v >= 0) {globalLogConfig.dedupWindowMs = v;}
-    }
-    const mj = window.localStorage.getItem("LOG_EVENT_MAX_JSON");
-    if (mj) {
-      const v = parseInt(mj);
-      if (!Number.isNaN(v) && v >= 0) {globalLogConfig.event.maxJsonLength = v;}
-    }
-    const pp = window.localStorage.getItem("LOG_EVENT_PRETTY");
-    if (pp === "true" || pp === "false") {
-      globalLogConfig.event.pretty = (pp === "true");
-    }
-
-    // 加载全局Toast配置
-    const autoToastEnabled = window.localStorage.getItem("LOG_AUTO_TOAST_ENABLED");
-    if (autoToastEnabled === "true") {
-      globalLogConfig.autoToast.enabled = true;
-
-      const autoToastLevels = window.localStorage.getItem("LOG_AUTO_TOAST_LEVELS");
-      if (autoToastLevels) {
-        const levels = autoToastLevels.split(",").filter(l => levelOrder.includes(l));
-        if (levels.length > 0) {
-          globalLogConfig.autoToast.levels = levels;
-        }
-      }
-
-      const autoToastMs = window.localStorage.getItem("LOG_AUTO_TOAST_MS");
-      if (autoToastMs) {
-        const ms = parseInt(autoToastMs);
-        if (!Number.isNaN(ms) && ms > 0) {
-          globalLogConfig.autoToast.defaultMs = ms;
-        }
-      }
-
-      const autoToastExclude = window.localStorage.getItem("LOG_AUTO_TOAST_EXCLUDE");
-      if (autoToastExclude) {
-        globalLogConfig.autoToast.excludeModules = autoToastExclude.split(",").filter(m => m.length > 0);
-      }
-    }
-  }
-} catch {
-  // 忽略环境检测错误
-}
-
 // 在开发环境下暴露到window对象，方便调试
 try {
   if (typeof window !== "undefined") {
@@ -726,35 +445,20 @@ try {
                   (typeof process !== "undefined" && process.env && process.env.NODE_ENV !== "production");
 
     if (isDev || typeof window.__LOGGER_DEBUG__ !== "undefined") {
-      window.enableAutoToast = enableAutoToast;
-      window.disableAutoToast = disableAutoToast;
-      window.setAutoToastLevels = setAutoToastLevels;
-      window.getAutoToastConfig = getAutoToastConfig;
-      window.getLogger = getLogger;
-      window.setGlobalLogLevel = setGlobalLogLevel;
-      window.LogLevel = LogLevel;
-      window.setToastPolicy = setToastPolicy;
-      window.getToastPolicy = getToastPolicy;
-      window.setDefaultToastEnabled = setDefaultToastEnabled;
-
-      console.info("[Logger] 调试函数已暴露到 window 对象:", {
-        functions: [
-          "enableAutoToast(options)",
-          "disableAutoToast()",
-          "setAutoToastLevels(levels)",
-          "getAutoToastConfig()",
-          "getLogger(moduleName)",
-          "setGlobalLogLevel(level)",
-          "LogLevel",
-          "setToastPolicy(moduleName, policy)",
-          "getToastPolicy()",
-          "setDefaultToastEnabled(enabled)"
-        ]
+      Object.assign(window, {
+        enableAutoToast,
+        disableAutoToast,
+        setAutoToastLevels,
+        getAutoToastConfig,
+        getLogger,
+        setGlobalLogLevel,
+        LogLevel,
+        setToastPolicy,
+        getToastPolicy,
+        setDefaultToastEnabled,
       });
     }
   }
-} catch {
-  // 忽略暴露错误
-}
+} catch (e) { void e; /* logger-guard */ }
 
 export default Logger;

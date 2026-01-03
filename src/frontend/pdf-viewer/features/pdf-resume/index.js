@@ -12,6 +12,7 @@ import { getLogger } from "../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
 import { WEBSOCKET_MESSAGE_TYPES, WEBSOCKET_MESSAGE_EVENTS } from "../../../common/event/event-constants.js";
 import { notifyDomainError } from "../../../common/utils/domain-error-notifier.js";
+import { markWsGateEventFired } from "../../../common/ws/ws-gate-status-store.js";
 
 // 内部模块
 import { loadResume, resolvePdfIdFromURL } from "./services/resume-loader.js";
@@ -341,15 +342,9 @@ export class PDFResumeFeature {
       }
 
       // 不论是否存在 resume，整个“断点续读初始化流程”在此视为完成
-      this.#eventBus.emit(
-        PDF_VIEWER_EVENTS.RESUME.FLOW.DONE,
-        {
-          pdfId: this.#pdfId,
-          hasResume: !!result.resume,
-          status: "success"
-        },
-        { actorId: "PDFResumeFeature" }
-      );
+      const donePayload = { pdfId: this.#pdfId, hasResume: !!result.resume, status: "success" };
+      try { markWsGateEventFired(PDF_VIEWER_EVENTS.RESUME.FLOW.DONE, donePayload); } catch (e) { void e; /* logger-guard */ }
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.RESUME.FLOW.DONE, donePayload, { actorId: "PDFResumeFeature" });
     } catch (e) {
       this.#logger.error("[pdf-resume] load failed", e);
 
@@ -367,12 +362,11 @@ export class PDFResumeFeature {
 
       this.#eventBus.emit(
         PDF_VIEWER_EVENTS.RESUME.FLOW.DONE,
-        {
-          pdfId: this.#pdfId,
-          hasResume: false,
-          status: "failed",
-          error: e.message
-        },
+        (() => {
+          const donePayload = { pdfId: this.#pdfId, hasResume: false, status: "failed", error: e.message };
+          try { markWsGateEventFired(PDF_VIEWER_EVENTS.RESUME.FLOW.DONE, donePayload); } catch (err) { void err; /* logger-guard */ }
+          return donePayload;
+        })(),
         { actorId: "PDFResumeFeature" }
       );
     }

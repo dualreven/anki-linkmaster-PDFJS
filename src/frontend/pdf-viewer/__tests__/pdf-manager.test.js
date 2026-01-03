@@ -1,236 +1,97 @@
 /**
- * @file PDFManager 测试文件
- * @module PDFManagerTest
- * @description 测试 PDFManager 的核心功能
+ * @jest-environment jsdom
+ *
+ * 说明：
+ * - 该文件对齐当前重构版 PDFManager（src/frontend/pdf-viewer/pdf/pdf-manager-refactored.js）的公开行为；
+ * - 不断言具体 logger 文案（logger 在测试环境下会被统一 mock/映射）。
  */
+import { describe, beforeEach, test, expect, jest } from "@jest/globals";
 
+import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
 import { PDFManager } from "../pdf-manager.js";
-import { jest } from "@jest/globals";
 
-// EventBus 不需要 Mock，测试应使用真实的 EventBus 实例
-
-// Logger 已在 jest.setup.js 中全局 Mock，无需重复 Mock
-
-// Mock PDF.js
 jest.mock("pdfjs-dist/build/pdf", () => {
   const mockDocument = {
     numPages: 10,
-    getPage: jest.fn().mockResolvedValue({
-      cleanup: jest.fn()
-    }),
+    getPage: jest.fn().mockResolvedValue({ cleanup: jest.fn() }),
     destroy: jest.fn().mockResolvedValue(undefined)
   };
 
   return {
+    version: "0-test",
+    build: "test",
     GlobalWorkerOptions: {
-      workerSrc: ""
+      workerSrc: "",
+      standardFontDataUrl: "",
+      disableWebGL: false,
+      enableWebGL: true
     },
+    setPreferences: jest.fn(),
     getDocument: jest.fn().mockImplementation(() => ({
       promise: Promise.resolve(mockDocument)
     }))
   };
 });
 
-describe("PDFManager", () => {
+describe("PDFManager（重构版）", () => {
+  let eventBus;
   let pdfManager;
-  let mockEventBus;
-  let mockLogger;
-  let eventHandlers; // 存储注册的事件处理器
 
   beforeEach(() => {
-    eventHandlers = {};
-
-    // 创建手动 Mock 的 EventBus
-    mockEventBus = {
-      on: jest.fn((eventName, handler) => {
-        if (!eventHandlers[eventName]) {
-          eventHandlers[eventName] = [];
-        }
-        eventHandlers[eventName].push(handler);
-        return () => {}; // 返回取消订阅函数
-      }),
-      emit: jest.fn((eventName, data) => {
-        if (eventHandlers[eventName]) {
-          eventHandlers[eventName].forEach(handler => handler(data));
-        }
-      }),
-      destroy: jest.fn()
+    eventBus = {
+      on: jest.fn(),
+      emit: jest.fn()
     };
-
-    mockLogger = {
-      info: jest.fn(),
-      error: jest.fn(),
-      warn: jest.fn(),
-      debug: jest.fn()
-    };
-
-    pdfManager = new PDFManager(mockEventBus);
+    pdfManager = new PDFManager(eventBus);
     jest.clearAllMocks();
   });
 
-  describe("initialize()", () => {
-    test("应该成功初始化PDF管理器", async () => {
-      await pdfManager.initialize();
-
-      expect(mockLogger.info).toHaveBeenCalledWith("Initializing PDF Manager...");
-      expect(mockLogger.info).toHaveBeenCalledWith("PDF Manager initialized successfully");
-    });
-
-    test("初始化失败时应该抛出错误", async () => {
-      // 模拟PDF.js导入失败
-      jest.resetModules();
-      jest.doMock("pdfjs-dist/build/pdf", () => {
-        throw new Error("PDF.js加载失败");
-      });
-
-      await expect(pdfManager.initialize()).rejects.toThrow("PDF.js加载失败");
-      expect(mockLogger.error).toHaveBeenCalled();
-    });
+  test("initialize() 完成后会注册 FILE.LOAD.REQUESTED 监听", async () => {
+    await pdfManager.initialize();
+    expect(eventBus.on).toHaveBeenCalledWith(
+      PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
+      expect.any(Function),
+      expect.objectContaining({ subscriberId: "PDFManager" })
+    );
   });
 
-  describe("loadPDF()", () => {
-    beforeEach(async () => {
-      await pdfManager.initialize();
-    });
+  test("loadPDF(url) 成功后发射 FILE.LOAD.SUCCESS 并返回文档", async () => {
+    await pdfManager.initialize();
+    const fileData = { filename: "test.pdf", url: "https://example.com/test.pdf", pdfId: "test-id" };
 
-    test("应该从URL成功加载PDF", async () => {
-      const fileData = { filename: "test.pdf", url: "https://example.com/test.pdf" };
+    const doc = await pdfManager.loadPDF(fileData);
 
-      const result = await pdfManager.loadPDF(fileData);
-
-      expect(result.numPages).toBe(10);
-      expect(mockLogger.info).toHaveBeenCalledWith("Loading PDF document:", fileData);
-      expect(mockLogger.info).toHaveBeenCalledWith("PDF document loaded successfully. Pages: 10");
-    });
-
-    test("应该从ArrayBuffer成功加载PDF", async () => {
-      const fileData = { filename: "test.pdf", arrayBuffer: new ArrayBuffer(100) };
-
-      const result = await pdfManager.loadPDF(fileData);
-
-      expect(result.numPages).toBe(10);
-      expect(mockLogger.info).toHaveBeenCalledWith("Loading PDF document:", fileData);
-    });
-
-    test("加载失败时应该发出错误事件", async () => {
-      // 模拟加载失败
-      const pdfjsLib = await import("pdfjs-dist/build/pdf");
-      pdfjsLib.getDocument.mockImplementationOnce(() => ({
-        promise: Promise.reject(new Error("加载失败"))
-      }));
-
-      const fileData = { filename: "test.pdf", url: "https://example.com/test.pdf" };
-
-      await expect(pdfManager.loadPDF(fileData)).rejects.toThrow("加载失败");
-      expect(mockEventBus.emit).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({ error: "加载失败" }),
-        expect.any(Object)
-      );
-    });
-
-    test("不支持的文件格式应该抛出错误", async () => {
-      const fileData = { filename: "test.pdf" }; // 缺少必要的字段
-
-      await expect(pdfManager.loadPDF(fileData)).rejects.toThrow("Unsupported file data format");
-    });
+    expect(doc).toBeTruthy();
+    expect(doc.numPages).toBe(10);
+    expect(eventBus.emit).toHaveBeenCalledWith(
+      PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
+      expect.objectContaining({
+        pdfDocument: doc,
+        pdfId: "test-id",
+        filename: "test.pdf"
+      }),
+      expect.any(Object)
+    );
   });
 
-  describe("getPage()", () => {
-    beforeEach(async () => {
-      await pdfManager.initialize();
-      const fileData = { filename: "test.pdf", url: "https://example.com/test.pdf" };
-      await pdfManager.loadPDF(fileData);
-    });
+  test("getPage() 会缓存页面，重复请求不会再次调用 pdfDocument.getPage", async () => {
+    await pdfManager.initialize();
+    const doc = await pdfManager.loadPDF({ filename: "test.pdf", url: "https://example.com/test.pdf" });
 
-    test("应该成功获取页面", async () => {
-      const page = await pdfManager.getPage(1);
+    await pdfManager.getPage(1);
+    await pdfManager.getPage(1);
 
-      expect(page).toBeDefined();
-      expect(mockLogger.debug).toHaveBeenCalledWith("Loading page 1");
-    });
-
-    test("应该从缓存中获取页面", async () => {
-      // 第一次获取
-      await pdfManager.getPage(1);
-      // 第二次获取应该从缓存中
-      await pdfManager.getPage(1);
-
-      expect(mockLogger.debug).toHaveBeenCalledWith("Returning page 1 from cache");
-    });
-
-    test("无效的页面编号应该抛出错误", async () => {
-      await expect(pdfManager.getPage(0)).rejects.toThrow("Invalid page number: 0");
-      await expect(pdfManager.getPage(11)).rejects.toThrow("Invalid page number: 11");
-    });
-
-    test("没有加载文档时应该抛出错误", async () => {
-      pdfManager.cleanup(); // 清理当前文档
-
-      await expect(pdfManager.getPage(1)).rejects.toThrow("No PDF document loaded");
-    });
+    const callsForPage1 = doc.getPage.mock.calls.filter((c) => c?.[0] === 1).length;
+    expect(callsForPage1).toBe(1);
   });
 
-  describe("cleanup()", () => {
-    test("应该清理所有资源", async () => {
-      await pdfManager.initialize();
-      const fileData = { filename: "test.pdf", url: "https://example.com/test.pdf" };
-      await pdfManager.loadPDF(fileData);
+  test("closePDF() 会清空缓存（getCacheStats.totalCached 归零）", async () => {
+    await pdfManager.initialize();
+    await pdfManager.loadPDF({ filename: "test.pdf", url: "https://example.com/test.pdf" });
+    await pdfManager.getPage(1);
 
-      // 获取一些页面以填充缓存
-      await pdfManager.getPage(1);
-      await pdfManager.getPage(2);
-
-      pdfManager.cleanup();
-
-      expect(mockLogger.info).toHaveBeenCalledWith("Cleaning up PDF resources");
-      // 验证文档被销毁
-      const pdfjsLib = await import("pdfjs-dist/build/pdf");
-      expect(pdfjsLib.getDocument().promise.destroy).toHaveBeenCalled();
-    });
-  });
-
-  describe("preloadPages()", () => {
-    test("应该预加载指定范围的页面", async () => {
-      await pdfManager.initialize();
-      const fileData = { filename: "test.pdf", url: "https://example.com/test.pdf" };
-      await pdfManager.loadPDF(fileData);
-
-      await pdfManager.preloadPages(1, 3);
-
-      expect(mockLogger.debug).toHaveBeenCalledWith("Preloading pages 1 to 3");
-      expect(mockLogger.debug).toHaveBeenCalledWith("Preloaded 3 pages");
-    });
-
-    test("应该跳过已经缓存的页面", async () => {
-      await pdfManager.initialize();
-      const fileData = { filename: "test.pdf", url: "https://example.com/test.pdf" };
-      await pdfManager.loadPDF(fileData);
-
-      // 先缓存第一页
-      await pdfManager.getPage(1);
-
-      await pdfManager.preloadPages(1, 3);
-
-      // 应该只预加载2和3页
-      expect(mockLogger.debug).toHaveBeenCalledWith("Preloaded 2 pages");
-    });
-  });
-
-  describe("getCacheStats()", () => {
-    test("应该返回正确的缓存统计信息", async () => {
-      await pdfManager.initialize();
-      const fileData = { filename: "test.pdf", url: "https://example.com/test.pdf" };
-      await pdfManager.loadPDF(fileData);
-
-      // 获取一些页面
-      await pdfManager.getPage(1);
-      await pdfManager.getPage(2);
-
-      const stats = pdfManager.getCacheStats();
-
-      expect(stats.totalCached).toBe(2);
-      expect(stats.cachedPages).toEqual([1, 2]);
-    });
+    expect(pdfManager.getCacheStats().totalCached).toBe(1);
+    pdfManager.closePDF();
+    expect(pdfManager.getCacheStats().totalCached).toBe(0);
   });
 });

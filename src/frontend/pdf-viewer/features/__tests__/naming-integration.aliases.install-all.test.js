@@ -40,7 +40,7 @@ if (global.HTMLCanvasElement) {
 
 import { FeatureRegistry } from "../../../common/micro-service/feature-registry.js";
 import FEATURE_ALIASES from "../../../common/micro-service/feature-aliases.js";
-import { DependencyContainer } from "../../common/micro-service/dependency-container.js";
+import { DependencyContainer } from "../../../common/micro-service/dependency-container.js";
 
 // 被测特性（选取装配链上的代表，按需引入）
 import { TextSelectionQuickActionsFeature } from "../pdf-quick-actions/index.js";

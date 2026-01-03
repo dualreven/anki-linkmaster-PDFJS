@@ -19,7 +19,19 @@ const FRONT_JS = resolve("src/frontend/common/event/event-constants.js");
 const BACK_PY = resolve("src/backend/msgCenter_server/core/message_types.py");
 
 function isTriad(s) {
-  return typeof s === "string" && s.split(":").length === 3;
+  if (typeof s !== "string") {
+    return false;
+  }
+  const parts = s.split(":");
+  if (parts.length !== 3) {
+    return false;
+  }
+  const status = parts[2];
+  return status === "requested"
+    || status === "completed"
+    || status === "failed"
+    || status === "request"
+    || status === "complete";
 }
 
 async function getFrontendTypes() {

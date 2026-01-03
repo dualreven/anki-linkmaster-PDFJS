@@ -275,6 +275,11 @@ export default [
       "dist/**",
       "data/dist/**",
       "public/dist/**",
+      // 前端构建输出（历史原因位于 src 下）
+      "src/frontend/dist/**",
+      // 另一位 AI 的临时未跟踪工作区：避免 lint/--fix 误触发冲突
+      "src/frontend/new-card-scheduler/planner/**",
+      "src/backend/msgCenter_server/handlers/anki/**",
       // 工程根配置类文件
       "vite.config.*",
       "build/**",

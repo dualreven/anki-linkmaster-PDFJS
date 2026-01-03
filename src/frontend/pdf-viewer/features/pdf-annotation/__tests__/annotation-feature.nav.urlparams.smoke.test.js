@@ -5,7 +5,7 @@
  * 目标：
  * - 安装 AnnotationFeature；
  * - 通过事件创建三种标注（截图/高亮/批注，走本地 Mock 保存路径）；
- * - 触发“跳转到标注”请求，断言会在全局总线发出 URL_PARAMS.REQUESTED，
+ * - 触发“跳转到标注”请求，断言会调用 navigationService.navigateTo，
  *   且 pageAt/position 计算符合预期（不同类型的来源不同）。
  */
 import { EventBus } from "../../../../common/event/event-bus.js";
@@ -45,12 +45,13 @@ describe("AnnotationFeature — 导航 URL 参数冒烟", () => {
     const scopedBus = createScopedEventBus(globalBus, "annotation");
 
     const container = new SimpleContainer();
-    // 提供 navigationService（在像素 position 回退路径时会用到；当前用例不触发，可为 no-op）
-    container.registerGlobal("navigationService", {
-      navigateTo: async () => {}
-    });
+    // 提供 navigationService（AnnotationFeature 直接用其跳转，不再发 URL 参数导航事件）
+    const navigationService = {
+      navigateTo: jest.fn().mockResolvedValue(undefined)
+    };
+    container.registerGlobal("navigationService", navigationService);
     // 其余依赖（pdfViewerManager）可为 null
-    container.registerGlobal("pdfViewerManager", {});
+    container.registerGlobal("pdfViewerManager", { getPageView: () => null });
 
     // 安装 Feature
     const feature = new AnnotationFeature();
@@ -112,44 +113,35 @@ describe("AnnotationFeature — 导航 URL 参数冒烟", () => {
     scopedBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, { annotation: annComment });
     await Promise.all([p1, p2, p3]);
 
-    // 监听全局 URL 参数请求（3 次）
-    const wait3 = new Promise((resolve, reject) => {
-      const outputs = [];
-      const off = globalBus.on(PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED, (data) => {
-        outputs.push(data);
-        if (outputs.length >= 3) {
-          try { off(); } catch { /* ignore */ }
-          clearTimeout(timer);
-          resolve(outputs);
-        }
-      });
-      const timer = setTimeout(() => {
-        try { off(); } catch { /* ignore */ }
-        reject(new Error("timeout waiting for URL_PARAMS.REQUESTED x3"));
-      }, 4000);
-    });
-
     // 触发跳转（均按 id 传入）
     scopedBus.emitGlobal(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, { annotation: annScreenshot.id });
     scopedBus.emitGlobal(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, { annotation: annHighlight.id });
     scopedBus.emitGlobal(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, { annotation: annComment.id });
 
-    const reqs = await wait3;
-    expect(Array.isArray(reqs)).toBe(true);
-    expect(reqs).toHaveLength(3);
+    // 等待 navigateTo 被调用 3 次
+    const waitForNavCalls = (targetCount) => new Promise((resolve, reject) => {
+      const deadline = Date.now() + 3500;
+      const tick = () => {
+        const n = navigationService.navigateTo.mock.calls.length;
+        if (n >= targetCount) { return resolve(navigationService.navigateTo.mock.calls.slice()); }
+        if (Date.now() > deadline) { return reject(new Error("timeout waiting for navigationService.navigateTo x3")); }
+        setTimeout(tick, 20);
+      };
+      tick();
+    });
+    await waitForNavCalls(3);
 
-    // 将三次请求按 annotationId 映射，便于断言
-    const byId = {};
-    for (const r of reqs) {
-      byId[r.annotationId] = r;
-      expect(r.pageAt).toBe(2);
-    }
-    // 截图：使用矩形中心 yPercent = 20 + 10/2 = 25
-    expect(byId[annScreenshot.id].position).toBeCloseTo(25, 5);
-    // 高亮：使用第一段中心 yPercent = 40 + 10/2 = 45
-    expect(byId[annHighlight.id].position).toBeCloseTo(45, 5);
+    const findCallByPosition = (pos) => navigationService.navigateTo.mock.calls.find(([arg]) => {
+      if (!arg || arg.pageAt !== 2) { return false; }
+      const p = arg.position;
+      return typeof p === "number" && Math.abs(p - pos) < 1e-6;
+    });
+    // 截图：矩形中心 yPercent = 20 + 10/2 = 25
+    expect(findCallByPosition(25)).toBeTruthy();
+    // 高亮：第一段中心 yPercent = 40 + 10/2 = 45
+    expect(findCallByPosition(45)).toBeTruthy();
     // 批注：直接使用 positionPercent.yPercent = 65
-    expect(byId[annComment.id].position).toBeCloseTo(65, 5);
+    expect(findCallByPosition(65)).toBeTruthy();
 
     // 清理
     await feature.uninstall();

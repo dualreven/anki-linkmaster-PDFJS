@@ -21,7 +21,7 @@ describe("pdf-viewer header title behavior", () => {
   });
 
   test("UIManagerCore sets title attribute for tooltip", () => {
-    const js = readUtf8(resolve(process.cwd(), "src/frontend/pdf-viewer/features/infra-ui/components/ui-manager-core.js"));
+    const js = readUtf8(resolve(process.cwd(), "src/frontend/pdf-viewer/features/infra-ui/components/ui-manager-core-header-title.js"));
     expect(js.includes("titleElement.title = displayName")).toBe(true);
   });
 });

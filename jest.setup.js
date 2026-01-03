@@ -6,6 +6,37 @@ try {
   console.warn('fake-indexeddb not found, skipping IndexedDB mock');
 }
 
+// Polyfill structuredClone for environments that lack it (fake-indexeddb depends on it)
+if (typeof global.structuredClone !== "function") {
+  global.structuredClone = (value) => {
+    const seen = new Map();
+    const cloneAny = (v) => {
+      if (v === null || v === undefined) { return v; }
+      if (typeof v !== "object") { return v; }
+      if (v instanceof ArrayBuffer) { return v.slice(0); }
+      if (ArrayBuffer.isView(v)) {
+        const buf = v.buffer.slice(0);
+        return new v.constructor(buf, v.byteOffset, v.byteLength / v.BYTES_PER_ELEMENT);
+      }
+      if (v instanceof Date) { return new Date(v.getTime()); }
+      if (seen.has(v)) { return seen.get(v); }
+      if (Array.isArray(v)) {
+        const arr = [];
+        seen.set(v, arr);
+        for (const item of v) { arr.push(cloneAny(item)); }
+        return arr;
+      }
+      const out = {};
+      seen.set(v, out);
+      for (const [k, val] of Object.entries(v)) {
+        out[k] = cloneAny(val);
+      }
+      return out;
+    };
+    return cloneAny(value);
+  };
+}
+
 global.fetch = jestGlobal.fn();
 
 global.WebSocket = jestGlobal.fn().mockImplementation(() => ({
@@ -97,11 +128,21 @@ jestGlobal.mock('./src/frontend/common/utils/logger.js', () => {
     getLogger: jestGlobal.fn((moduleName) => createMockLogger()),
     Logger: LoggerConstructor,  // 命名导出（支持 import { Logger } from './logger.js'）
     LogLevel: {
-      DEBUG: 'DEBUG',
-      INFO: 'INFO',
-      WARN: 'WARN',
-      ERROR: 'ERROR',
-    }
+      DEBUG: "debug",
+      INFO: "info",
+      WARN: "warn",
+      ERROR: "error",
+    },
+    // runtime-config / governance APIs（避免测试环境引用时报 "is not a function"）
+    configureLogger: jestGlobal.fn(),
+    setGlobalLogLevel: jestGlobal.fn(),
+    setModuleLogLevel: jestGlobal.fn(),
+    enableAutoToast: jestGlobal.fn(),
+    disableAutoToast: jestGlobal.fn(),
+    setAutoToastLevels: jestGlobal.fn(),
+    getAutoToastConfig: jestGlobal.fn(() => ({ enabled: false, levels: ["error", "warn", "info"], defaultMs: null, excludeModules: [] })),
+    setToastPolicy: jestGlobal.fn(),
+    getToastPolicy: jestGlobal.fn(() => ({ modules: {}, defaultEnabled: true })),
+    setDefaultToastEnabled: jestGlobal.fn(),
   };
 });
-

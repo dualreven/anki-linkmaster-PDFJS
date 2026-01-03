@@ -32,6 +32,24 @@
 维护记录
 - 2025-01-09 新增开发环境配置要点（Python 虚拟环境强制使用），在架构要点第一条和主题索引第0条明确说明。
 - 2025-11-07 精简为索引版；详细内容迁移到 docs（见 todo-and-doing/1 doing/20251107-architecture-md-minify-migration/plan.md）。
+- 2026-01-01 前端治理：`ScreenshotTool` 内部模块化（预览弹窗/marker 渲染/rect utils 抽离），对外接口不变，作为“面条治理 P1”的可复用拆分样例。
+- 2026-01-01 前端治理续：进一步把 `ScreenshotTool` 的“框选与鼠标事件”与“capture/save 流程”抽到独立模块，主 `index.js` 逐步收敛为装配层。
+- 2026-01-01 前端治理续2：把 `ScreenshotTool` 的“标注事件订阅”和“marker pending 队列”抽离，主 `index.js` 下降到 ≤500 行。
+- 2026-01-01 前端治理续3：`TextHighlightTool` 内部模块化（订阅/渲染控制器/交互流程/confirm/clipboard/ui 渲染拆分），主 `index.js` 下降到 ≤500 行；确认弹窗按 Fail‑Closed（异常/无DOM 返回 false）。
+- 2026-01-02 前端治理续4：`UIManagerCore` 拆分为事件订阅/控件装配/交互监听/复制按钮/标题更新等模块，主 `ui-manager-core.js` 下降到 ≤500 行，并补齐 destroy 解绑 wheel/resize 的防回归测试。
+- 2026-01-02 前端治理续5：`CommentTool` 拆分为页面渲染监听/标注事件订阅/标记恢复/交互流/UI/确认弹窗等模块，主 `comment/index.js` 下降到 ≤500 行，并修复 destroy 崩溃与订阅泄漏风险（Fail‑Closed 删除确认）。
+- 2026-01-02 前端治理续6：`WebSocketAdapter` 收敛为装配/路由层，拆出出站订阅与入站 `load_pdf_file` / viewer navigate 处理模块，主 `websocket-adapter.js` 下降到 ≤500 行（详见 `docs/standards/websocket-adapter.md`）。
+- 2026-01-02 前端治理续7：`FilterBuilder v2`（pdf-home 高级筛选）拆出模板/渲染/DOM事件/tree→config 等小模块，主 `filter-builder-v2.js` 下降到 ≤500 行（详见 `docs/standards/filter-builder-v2.md`）。
+- 2026-01-02 前端治理续8：`PDFEditFeature`（pdf-home 记录编辑）拆出表单模板/组件/全局提示/重置按钮/提交流程等模块，主 `pdf-edit/index.js` 下降到 ≤500 行（详见 `docs/standards/pdf-edit-feature.md`）。
+- 2026-01-02 前端治理续9：`AnnotationFeature`（pdf-viewer 标注容器）拆出自动加载/跳转/按钮/pdfId 解析等模块，主 `pdf-annotation/index.js` 下降到 ≤500 行（详见 `docs/standards/pdf-annotation-feature.md`）。
+- 2026-01-02 前端治理续10：`SavedFiltersFeature`（pdf-home 侧边栏已存搜索条件）拆出对话框/纯逻辑/工具函数等模块，主 `saved-filters/index.js` 下降到 ≤500 行（详见 `docs/standards/pdf-home-saved-filters.md`）。
+- 2026-01-02 前端治理续11：`OutlineManager`（pdf-viewer 大纲）拆出 bulk-save 扁平化/初始加载/按ID导航/CRUD 等模块，主 `pdf-outline/index.js` 下降到 ≤500 行（详见 `docs/standards/pdf-outline-feature.md`）。
+- 2026-01-03 前端治理续12：`Logger` 抽离运行时配置到 `src/frontend/common/utils/logger-runtime-config.js`，主 `logger.js` 下降到 ≤500 行（详见 `docs/standards/logger.md`）。
+- 2026-01-03 前端治理续13：`PDFSorterFeature`（pdf-home 排序）拆出 UI 装配/事件 wiring/handler/public API，主 `pdf-sorter/index.js` 下降到 ≤500 行（详见 `docs/standards/pdf-sorter-feature.md`）。
+- 2026-01-03 前端治理续14：`FeatureRegistry`（micro-service）拆出 record/validators/deps/context，主 `feature-registry.js` 下降到 ≤500 行（详见 `docs/standards/feature-registry.md`）。
+- 2026-01-03 前端治理续15：`TranslatorSidebarUI`（pdf-translator）拆出 renderer/actions/dom-bindings/history，主 `TranslatorSidebarUI.js` 下降到 ≤500 行（详见 `docs/standards/pdf-translator-sidebar.md`）。
+- 2026-01-03 前端治理续16：`AnchorSidebarUI`（pdf-anchor）拆出 toolbar/dialog/table，主 `anchor-sidebar-ui.js` 下降到 ≤500 行，并修复 toolbar document click 监听泄漏（详见 `docs/standards/pdf-anchor-sidebar-ui.md`）。
+- 2026-01-03 前端治理续17：`WeightedSortEditor`（pdf-sorter component）拆出 constants/template/formula/view，主 `weighted-sort-editor.js` 下降到 ≤500 行（详见 `docs/standards/pdf-sorter-weighted-sort-editor.md`）。
 
 ## 2025-11-10 阅读历史模块纳入
 - 组件：`ReadingHistoryService`（viewer Feature，常驻；注册顺序紧随 navigation/URL 层之后，早于 Anchor/Sidebar）

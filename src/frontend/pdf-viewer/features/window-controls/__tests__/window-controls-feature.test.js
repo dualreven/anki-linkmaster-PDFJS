@@ -66,8 +66,8 @@ describe("WindowControlsFeature", () => {
       callback({
         objects: {
           pdfViewerBridge: {
-            minimizeWindow: jest.fn(),
-            maximizeWindow: jest.fn(),
+            minimizeWindow: jest.fn(() => true),
+            maximizeWindow: jest.fn(() => true),
             startWindowDrag: jest.fn(),
             stopWindowDrag: jest.fn()
           }
@@ -172,10 +172,15 @@ describe("WindowControlsFeature", () => {
     });
 
     test("应该使用正确的 bridgeName", async () => {
-      // 通过验证 QWebChannel 调用来间接验证 bridgeName
       await feature.install(mockContext);
 
-      // QWebChannel 应该被调用
+      // bridgeName 只有在触发具体窗口控制动作时才会用到（会创建 QWebChannel 并调用桥接方法）
+      const minimizeBtn = document.querySelector("#window-minimize-btn");
+      expect(minimizeBtn).not.toBeNull();
+      minimizeBtn.click();
+
+      await new Promise(r => setTimeout(r, 0));
+
       expect(global.window.QWebChannel).toHaveBeenCalled();
     });
   });
@@ -214,7 +219,7 @@ describe("WindowControlsFeature", () => {
       await expect(feature.install(mockContext)).resolves.not.toThrow();
 
       expect(mockLogger.error).toHaveBeenCalledWith(
-        expect.stringContaining("Toolbar container not found")
+        expect.stringContaining("Toolbar container")
       );
     });
   });

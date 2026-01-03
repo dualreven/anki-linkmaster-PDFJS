@@ -125,7 +125,7 @@ class ToastManager {
     setTimeout(() => {
       try {
         node.remove();
-      } catch {}
+      } catch (e) { void e; /* logger-guard */ }
     }, 160);
     this._toasts.delete(id);
     return true;

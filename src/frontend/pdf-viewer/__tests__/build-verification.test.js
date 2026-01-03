@@ -3,6 +3,9 @@
  * @file 构建验证测试
  */
 
+import fs from "fs";
+import path from "path";
+
 describe("构建验证测试", () => {
   test("构建过程应该成功完成", () => {
     // 这个测试验证构建过程是否成功
@@ -12,22 +15,19 @@ describe("构建验证测试", () => {
 
   test("Babel配置应该包含私有字段转换插件", async () => {
     // 验证Babel配置是否正确设置了私有字段转换
-    const babelConfig = await import("../../../babel.config.js");
-    expect(babelConfig.plugins).toBeDefined();
-
-    const hasPrivateMethodsPlugin = babelConfig.plugins.includes("@babel/plugin-transform-private-methods");
-    const hasClassPropertiesPlugin = babelConfig.plugins.includes("@babel/plugin-transform-class-properties");
-
-    expect(hasPrivateMethodsPlugin).toBe(true);
-    expect(hasClassPropertiesPlugin).toBe(true);
+    const configPath = path.resolve(process.cwd(), "babel.config.js");
+    const content = fs.readFileSync(configPath, { encoding: "utf8" });
+    expect(content).toContain("@babel/plugin-transform-private-methods");
+    expect(content).toContain("@babel/plugin-transform-class-properties");
   });
 
   test("package.json应该包含必要的Babel依赖", async () => {
     // 验证package.json中包含了必要的Babel插件
-    const packageJson = await import("../../../package.json");
-    expect(packageJson.devDependencies).toBeDefined();
+    const pkgPath = path.resolve(process.cwd(), "package.json");
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, { encoding: "utf8" }));
+    expect(pkg.devDependencies).toBeDefined();
 
-    const deps = packageJson.devDependencies;
+    const deps = pkg.devDependencies;
     expect(deps["@babel/plugin-transform-private-methods"]).toBeDefined();
     expect(deps["@babel/plugin-transform-class-properties"]).toBeDefined();
     expect(deps["vite-plugin-babel"]).toBeDefined();

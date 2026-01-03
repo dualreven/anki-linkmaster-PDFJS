@@ -1,7 +1,7 @@
 /**
  * pdf-page-detection-utils 单元测试
  */
-import { describe, it, expect, beforeEach, afterEach } from "@jest/globals";
+import { describe, it, expect, afterEach } from "@jest/globals";
 import {
   detectCenterPageNumber,
   measureYPercent,

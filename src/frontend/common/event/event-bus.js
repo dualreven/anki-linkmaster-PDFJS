@@ -1,154 +1,14 @@
 /**
- * @file 事件总线模块（带消息追踪功能），提供模块化的事件管理功能。
- * @module EventBusWithTracing
- * @version 1.1 - 添加消息调用链追踪功能
+ * @file 事件总线（含追踪/校验/白名单）
+ * 详细说明见：docs/standards/event-bus.md
  */
 
 import { getLogger } from "../utils/logger.js";
-import { isGlobalEventAllowed } from "./global-event-registry.js";
 import { MessageTracer } from "./message-tracer.js";
 
-const SUPPRESSED_EVENT_LOGS = new Set(["pdf-viewer:file:load-progress","websocket:message:received"]);
-
-// 统一关闭发布/订阅的详细日志；为少数事件保留或采样输出
-const VERBOSE_EVENT_LOGS_ENABLED = false; // 关闭订阅/发布通用日志
-
-// 发布日志保留/采样名单：value 为采样率（0~1）
-const PUBLISH_EVENT_KEEP_SAMPLING = new Map([
-  ["websocket:message:unknown", 1.0],
-  ["pdf-viewer:page:changing", 0.10],
-  ["pdf-viewer:bookmark-select:changed", 0.10],
-]);
-
-function shouldLogPublishEvent(event) {
-  if (VERBOSE_EVENT_LOGS_ENABLED === true) {return true;}
-  if (!PUBLISH_EVENT_KEEP_SAMPLING.has(event)) {return false;}
-  const ratio = PUBLISH_EVENT_KEEP_SAMPLING.get(event);
-  if (typeof ratio !== "number") {return false;}
-  if (ratio >= 1) {return true;}
-  if (ratio <= 0) {return false;}
-  try { return Math.random() < ratio; } catch { return false; }
-}
-
-class EventNameValidator {
-  static validate(event) {
-    if (typeof event !== "string" || !event) {return false;}
-
-    const parts = event.split(":");
-
-    return parts.length === 3 && parts.every((p) => p.length > 0);
-  }
-
-  static getValidationError(event, context = {}) {
-    if (typeof event !== "string" || !event) {
-      return this.#buildError(
-        `事件名称必须是非空字符串，但收到了：${typeof event} (${event})`,
-        null,
-        context
-      );
-    }
-
-    const parts = event.split(":");
-
-    if (parts.length !== 3) {
-      return this.#buildError(
-        `事件名称 '${event}' 格式不正确`,
-        this.#suggestFix(event, parts),
-        context
-      );
-    }
-
-    if (parts.some((p) => p.length === 0)) {
-      return this.#buildError(
-        `事件名称 '${event}' 的各个部分不能为空`,
-        "确保格式为 {module}:{action}:{status}，每部分都有内容",
-        context
-      );
-    }
-
-    return null;
-  }
-
-  /**
-   * 构建详细的错误信息
-   */
-  static #buildError(mainMessage, suggestion, context) {
-    const lines = [];
-
-    lines.push("❌ 事件名称验证失败！");
-    lines.push("");
-    lines.push(`错误：${mainMessage}`);
-    lines.push("");
-    lines.push("📋 正确格式：{module}:{action}:{status} (必须正好3段，用冒号分隔)");
-    lines.push("");
-    lines.push("✅ 正确示例：");
-    lines.push("  - pdf:load:completed");
-    lines.push("  - bookmark:toggle:requested");
-    lines.push("  - sidebar:open:success");
-    lines.push("");
-    lines.push("❌ 错误示例：");
-    lines.push("  - loadData (缺少冒号)");
-    lines.push("  - pdf:list:data:loaded (超过3段)");
-    lines.push("  - pdf_list_updated (使用下划线)");
-    lines.push("  - onButtonClick (非事件格式)");
-
-    if (suggestion) {
-      lines.push("");
-      lines.push(`💡 建议修复：${suggestion}`);
-    }
-
-    if (context.actorId || context.subscriberId) {
-      lines.push("");
-      lines.push(this.#formatContext(context));
-    }
-
-    lines.push("");
-    lines.push("⚠️ 此事件发布/订阅已被阻止！请立即修复事件名称。");
-
-    return lines.join("\n");
-  }
-
-  /**
-   * 根据常见错误模式提供修复建议
-   */
-  static #suggestFix(event, parts) {
-    // 检测下划线命名（应该用连字符）
-    if (event.includes("_")) {
-      const fixed = event.replace(/_/g, "-");
-      return `检测到下划线命名，请使用连字符：'${fixed}'`;
-    }
-
-    // 检测驼峰命名
-    if (/[a-z][A-Z]/.test(event)) {
-      return "检测到驼峰命名，事件名应该使用小写+连字符格式";
-    }
-
-    // 检测段数错误
-    if (parts.length === 1) {
-      return "事件名缺少冒号，应该分为3段：模块名:动作名:状态";
-    }
-
-    if (parts.length === 2) {
-      return "事件名只有2段，缺少第3段状态（如：requested/completed/failed）";
-    }
-
-    if (parts.length > 3) {
-      return `事件名超过3段 (${parts.length}段)，请合并为：{${parts.slice(0, -2).join("-")}}:{${parts[parts.length-2]}}:{${parts[parts.length-1]}}`;
-    }
-
-    return "使用格式：{module}:{action}:{status}";
-  }
-
-  static #formatContext(context) {
-    const { subscriberId, actorId } = context;
-    const parts = [];
-
-    if (subscriberId) {parts.push(`订阅者ID: ${subscriberId}`);}
-    if (actorId) {parts.push(`执行者ID: ${actorId}`);}
-
-    return parts.length > 0 ? `📍 位置信息：${parts.join(", ")}` : "";
-  }
-}
+import { EventNameValidator } from "./event-name-validator.js";
+import { eventBusEmit } from "./event-bus-emitter.js";
+import { eventBusOn, eventBusOff } from "./event-bus-subscriptions.js";
 
 // 全局EventBus单例管理器
 class EventBusManager {
@@ -242,33 +102,7 @@ export const getAllEventBuses = () => {
 };
 
 /**
- * 事件总线类
- * @class EventBus
- * @description
- * 提供模块化的发布-订阅（Pub-Sub）模式事件管理功能
- *
- * 核心功能：
- * 1. 事件订阅与发布：on(), emit(), once(), off()
- * 2. 事件名称验证：确保事件名符合 {module}:{action}:{status} 格式
- * 3. 消息追踪：支持调用链追踪和性能分析（可选）
- * 4. 自动推断执行者：通过调用栈自动识别发布者和订阅者
- * 5. 错误隔离：订阅者回调错误不影响其他订阅者
- *
- * @example
- * // 创建事件总线
- * const eventBus = new EventBus({
- *   moduleName: 'PDFViewer',
- *   enableValidation: true,
- *   enableTracing: false
- * });
- *
- * // 订阅事件
- * eventBus.on('pdf:file:loaded', (data) => {
- *   console.log('PDF loaded:', data.filename);
- * });
- *
- * // 发布事件
- * eventBus.emit('pdf:file:loaded', { filename: 'test.pdf' });
+ * 事件总线（发布/订阅 + 可选追踪）。细节见：docs/standards/event-bus.md
  */
 export class EventBus {
   /** @type {Object<string, Map<string, Function>>} 事件名到订阅者映射 */
@@ -434,417 +268,55 @@ export class EventBus {
     }
   }
 
-  /**
-   * 订阅事件
-   * @param {string} event - 事件名称，格式：{module}:{action}:{status}
-   * @param {Function} callback - 事件回调函数
-   * @param {Object} [options={}] - 订阅选项
-   * @param {string} [options.subscriberId] - 订阅者ID（可选，未指定时自动推断）
-   * @param {string} [options.actorId] - 执行者ID（可选，未指定时自动推断）
-   * @returns {Function} 取消订阅函数
-   * @throws {Error} 如果事件名称格式不正确且启用验证
-   *
-   * @description
-   * 订阅指定事件，当事件触发时调用回调函数
-   * 返回一个取消订阅函数，调用后将移除该订阅
-   *
-   * @example
-   * // 基本订阅
-   * const unsubscribe = eventBus.on('pdf:file:loaded', (data) => {
-   *   console.log('PDF loaded:', data);
-   * });
-   *
-   * // 带追踪信息的订阅
-   * eventBus.on('pdf:file:loaded', (data, traceInfo) => {
-   *   console.log('PDF loaded:', data, 'Message ID:', traceInfo.messageId);
-   * });
-   *
-   * // 取消订阅
-   * unsubscribe();
-   */
+  /** 订阅事件：返回取消函数（详见 docs/standards/event-bus.md） */
   on(event, callback, options = {}) {
-    // 提前推断订阅者ID，便于错误日志携带定位信息
-    const subscriberId = options.subscriberId || this.#inferActorId() || `sub_${this.#nextSubscriberId++}`;
-    const actorId = options.actorId || this.#inferActorId();
+    // 提前推断订阅者/执行者ID（保持错误日志定位一致）
+    const inferredSubscriberId = this.#inferActorId();
+    const inferredActorId = this.#inferActorId();
 
-    // 事件名基本校验（undefined/空字符串）
-    if (typeof event !== "string" || !event) {
-      const stack = (() => { try { return new Error().stack?.split("\n").slice(1, 6).join("\n"); } catch { return ""; } })();
-      const msg = [
-        `未注册的全局事件：'${event}'，已被禁止订阅`,
-        "请使用 event-constants.js 中已存在的事件，或先提交契约PR新增事件后再使用",
-        subscriberId ? `订阅者ID: ${subscriberId}` : "",
-        actorId ? `执行者ID: ${actorId}` : "",
-        stack ? `调用栈:\n${stack}` : ""
-      ].filter(Boolean).join("\n");
-      this.#log("error", msg, { event });
-      return () => {};
-    }
-
-    // 全局事件白名单校验（局部事件 @ 开头跳过）
-    if (!event.startsWith("@") && !isGlobalEventAllowed(event)) {
-      const stack = (() => { try { return new Error().stack?.split("\n").slice(1, 6).join("\n"); } catch { return ""; } })();
-      const err = `未注册的全局事件：'${event}'，已被禁止订阅` +
-        "\n请使用 event-constants.js 中已存在的事件，或先提交契约PR新增事件后再使用" +
-        (subscriberId ? `\n订阅者ID: ${subscriberId}` : "") +
-        (actorId ? `\n执行者ID: ${actorId}` : "") +
-        (stack ? `\n调用栈:\n${stack}` : "");
-      this.#log("error", err, { event });
-      return () => {};
-    }
-
-    if (this.#enableValidation) {
-      const error = EventNameValidator.getValidationError(event, { subscriberId, actorId });
-
-      if (error) {
-        this.#log("error", `事件订阅失败: ${error}, 事件名: ${event}`);
-
-        throw new Error(`无效的事件名称: ${error}`);
-      }
-    }
-
-    if (!this.#events[event]) {this.#events[event] = new Map();}
-
-    // 检查是否重复订阅（同一 subscriberId 订阅同一事件）
-    if (this.#events[event].has(subscriberId)) {
-      const errorMsg = [
-        "❌ 重复订阅检测！",
-        "",
-        `事件名称: "${event}"`,
-        `订阅者ID: "${subscriberId}"`,
-        "",
-        "💡 可能原因:",
-        "1. 同一个组件多次调用 eventBus.on() 订阅同一事件",
-        "2. 组件未正确清理旧订阅（调用 unsubscribe()）",
-        "3. 多个组件使用了相同的 subscriberId（如多次实例化同一组件）",
-        "",
-        "🔧 解决方法:",
-        "1. 确保组件销毁时调用 unsubscribe() 清理订阅",
-        "2. 或传递唯一的 subscriberId: eventBus.on(event, callback, { subscriberId: 'unique-id' })",
-        "3. 或使用 off() 手动移除旧订阅后再重新订阅",
-        "4. 检查是否有组件被错误地多次实例化",
-      ].join("\n");
-
-      this.#log("error", errorMsg);
-      throw new Error(`重复订阅: 事件 "${event}" 已被 "${subscriberId}" 订阅`);
-    }
-
-    this.#events[event].set(subscriberId, callback);
-
-    if (VERBOSE_EVENT_LOGS_ENABLED) {
-      this.#log("event", `${event}`, "订阅", {
-        subscriberId,
-        actorId,
-      });
-    }
-
-    return () => this.off(event, subscriberId);
+    return eventBusOn({
+      event,
+      callback,
+      options,
+      events: this.#events,
+      enableValidation: this.#enableValidation,
+      inferredSubscriberId,
+      inferredActorId,
+      nextSubscriberId: () => `sub_${this.#nextSubscriberId++}`,
+      log: (...args) => this.#log(...args),
+      off: (ev, cbOrId) => this.off(ev, cbOrId),
+    });
   }
 
-  /**
-   * 取消订阅事件
-   * @param {string} event - 事件名称
-   * @param {Function|string} callbackOrId - 回调函数或订阅者ID
-   * @description
-   * 取消指定事件的订阅
-   * 可以通过回调函数或订阅者ID来匹配要取消的订阅
-   *
-   * @example
-   * // 通过回调函数取消订阅
-   * const callback = (data) => console.log(data);
-   * eventBus.on('pdf:file:loaded', callback);
-   * eventBus.off('pdf:file:loaded', callback);
-   *
-   * // 通过订阅者ID取消订阅
-   * eventBus.off('pdf:file:loaded', 'sub_123');
-   *
-   * // 推荐使用返回的取消订阅函数
-   * const unsubscribe = eventBus.on('pdf:file:loaded', callback);
-   * unsubscribe(); // 更简洁
-   */
+  /** 取消订阅：传回调或 subscriberId（详见 docs/standards/event-bus.md） */
   off(event, callbackOrId) {
-    const subscribers = this.#events[event];
-    if (!subscribers) {return;}
-    let removedId = null;
-    if (typeof callbackOrId === "function") {
-      for (const [id, cb] of subscribers.entries()) {
-        if (cb === callbackOrId) {
-          subscribers.delete(id);
-          removedId = id;
-          break;
-        }
-      }
-    } else {
-      if (subscribers.has(callbackOrId)) {
-        subscribers.delete(callbackOrId);
-        removedId = callbackOrId;
-      }
-    }
-    if (removedId !== null) {
-      if (subscribers.size === 0) {delete this.#events[event];}
-      if (VERBOSE_EVENT_LOGS_ENABLED) {
-        this.#log("event", `${event} (取消订阅 by ${removedId})`);
-      }
-    }
+    return eventBusOff({
+      event,
+      callbackOrId,
+      events: this.#events,
+      log: (...args) => this.#log(...args),
+    });
   }
 
-  /**
-   * 发布事件
-   * @param {string} event - 事件名称，格式：{module}:{action}:{status}
-   * @param {any} data - 事件数据
-   * @param {Object} [options={}] - 发布选项
-   * @param {string} [options.actorId] - 执行者ID（可选，未指定时自动推断）
-   * @param {string} [options.parentTraceId] - 父调用链ID（用于级联事件追踪）
-   * @param {string} [options.parentMessageId] - 父消息ID（用于级联事件追踪）
-   * @returns {Object|undefined} 如果启用追踪，返回 { messageId, traceId, timestamp }
-   * @description
-   * 向所有订阅者发布事件
-   * - 如果启用验证且事件名称不符合格式，事件不会发布
-   * - 如果启用追踪，会记录消息追踪信息并返回追踪元数据
-   * - 订阅者回调执行错误不会中断其他订阅者的执行
-   * - 高频事件（如进度更新）的日志会被抑制
-   *
-   * @example
-   * // 基本发布
-   * eventBus.emit('pdf:file:loaded', { filename: 'test.pdf' });
-   *
-   * // 带执行者ID
-   * eventBus.emit('pdf:file:loaded', { filename: 'test.pdf' }, {
-   *   actorId: 'PDFManager'
-   * });
-   *
-   * // 启用追踪时
-   * const traceInfo = eventBus.emit('pdf:file:loaded', data);
-   * console.log('Message ID:', traceInfo.messageId);
-   *
-   * // 级联事件
-   * eventBus.on('pdf:file:loaded', (data, traceInfo) => {
-   *   eventBus.emit('pdf:processing:started', data, {
-   *     parentTraceId: traceInfo.traceId,
-   *     parentMessageId: traceInfo.messageId
-   *   });
-   * });
-   */
+  /** 发布事件（可选追踪/负载校验/白名单约束），详见 docs/standards/event-bus.md */
   emit(event, data, options = {}) {
-    const actorId = options.actorId || this.#inferActorId();
-
-    // 基本校验（undefined/空字符串）
-    if (typeof event !== "string" || !event) {
-      const stack = (() => { try { return new Error().stack?.split("\n").slice(1, 6).join("\n"); } catch { return ""; } })();
-      const msg = [
-        `未注册的全局事件：'${event}'，已被禁止发布`,
-        "请使用 event-constants.js 中已存在的事件，或先提交契约PR新增事件后再使用",
-        actorId ? `执行者ID: ${actorId}` : "",
-        stack ? `调用栈:\n${stack}` : ""
-      ].filter(Boolean).join("\n");
-      this.#log("error", msg, { event, data });
-      return;
-    }
-
-    if (this.#enableValidation) {
-      const error = EventNameValidator.getValidationError(event, { actorId });
-
-      if (error) {
-        this.#log("error", `事件发布被阻止: ${error}`, { event, data });
-
-        return;
-      }
-    }
-
-    // 全局事件白名单校验（局部事件 @ 开头跳过）
-    if (!event?.startsWith("@") && !isGlobalEventAllowed(event)) {
-      const err = `未注册的全局事件：'${event}'，已被禁止发布` +
-        "\n请使用 event-constants.js 中已存在的事件，或先提交契约PR新增事件后再使用" +
-        (actorId ? `\n执行者ID: ${actorId}` : "");
-      this.#log("error", err, { event, data });
-      return;
-    }
-
-    // 事件负载契约校验（仅对全局事件启用；局部事件以 @ 开头的跳过）
-    if (!event?.startsWith("@") && this.#payloadValidationEnabled && typeof this.#payloadValidateFn === "function") {
-      try {
-        const result = this.#payloadValidateFn(event, data);
-        if (result && result.valid === false) {
-          const errMsg = [
-            "❌ 事件负载契约校验失败，已阻止发布",
-            `事件: ${event}`,
-            this.#moduleName ? `模块: ${this.#moduleName}` : "",
-            actorId ? `执行者: ${actorId}` : "",
-            result.errors ? `错误: ${JSON.stringify(result.errors).slice(0, 300)}` : ""
-          ].filter(Boolean).join("\n");
-          this.#log("error", errMsg, { event });
-          return;
-        }
-      } catch (e) {
-        // 校验器异常不影响发布，仅记录警告
-        this.#log("warn", `事件负载校验器执行异常（已放行）：${e?.message || e}`, { event });
-      }
-    }
-
-    const subscribers = this.#events[event];
-
-    // 消息追踪功能 - 即使没有订阅者也要生成追踪信息
-    let messageTrace = null;
-    let messageId = null;
-    let traceId = null;
-    const startTime = Date.now();
-
-    // 如果启用追踪，总是创建追踪记录
-    if (this.#enableTracing && this.#messageTracer) {
-      messageId = this.#messageTracer.generateMessageId();
-      traceId = options.parentTraceId || messageId; // 级联事件继承traceId
-
-      messageTrace = {
-        messageId,
-        traceId,
-        event,
-        publisher: actorId || "unknown",
-        subscribers: subscribers ? Array.from(subscribers.keys()) : [],
-        timestamp: startTime,
-        parentMessageId: options.parentMessageId,
-        data: JSON.stringify(data).substring(0, 500), // 限制数据长度
-        executionResults: []
-      };
-    }
-
-    // E2E 事件探针（仅测试环境启用）：把所有发布事件镜像到 window.__e2e_events__，不影响正常逻辑
-    try {
-      if (typeof window !== "undefined" && (window.__E2E_EVENT_TAP__ === true)) {
-        try {
-          window.__e2e_events__ = window.__e2e_events__ || [];
-          window.__e2e_events__.push({ ev: event, data });
-        } catch { /* ignore */ }
-      }
-    } catch { /* ignore */ }
-
-    if (subscribers && subscribers.size > 0) {
-      if (!SUPPRESSED_EVENT_LOGS.has(event) && shouldLogPublishEvent(event)) {
-        // 安全地截断data到200字符以减少日志输出
-        let truncatedData;
-        try {
-          const dataStr = JSON.stringify(data);
-          truncatedData = dataStr.length > 200 ? dataStr.substring(0, 200) + "..." : dataStr;
-        } catch {
-          // JSON.stringify可能失败（循环引用等），使用原始data
-          truncatedData = data;
-        }
-
-        this.#log("event", `${event} (发布 by ${actorId || "unknown"})`, "发布", {
-          actorId,
-          subscriberCount: subscribers.size,
-          data: truncatedData,
-          messageId, // 添加追踪信息到日志
-          traceId
-        });
-      }
-
-      // 执行所有订阅者回调
-      for (const [id, callback] of subscribers.entries()) {
-        const callbackStartTime = Date.now();
-
-        try {
-          // 向后兼容：如果回调接受两个参数，传递追踪信息
-          if (this.#enableTracing && callback.length >= 2) {
-            callback(data, {
-              messageId,
-              traceId,
-              parentMessageId: messageId // 供级联事件使用
-            });
-          } else {
-            // 原有行为：只传递数据
-            callback(data);
-          }
-
-          // 记录成功执行
-          if (messageTrace) {
-            messageTrace.executionResults.push({
-              subscriberId: id,
-              success: true,
-              executionTime: Date.now() - callbackStartTime
-            });
-          }
-        } catch (err) {
-          // 记录执行错误
-          if (messageTrace) {
-            messageTrace.executionResults.push({
-              subscriberId: id,
-              success: false,
-              error: err.message,
-              executionTime: Date.now() - callbackStartTime
-            });
-          }
-
-          this.#log("error", `事件回调执行出错: ${err.message}`, {
-            event,
-            subscriberId: id,
-            actorId,
-            error: err,
-            messageId,
-            traceId
-          });
-        }
-      }
-    } else {
-      if (!SUPPRESSED_EVENT_LOGS.has(event) && shouldLogPublishEvent(event)) {
-        // 安全地截断data到200字符以减少日志输出
-        let truncatedData;
-        try {
-          const dataStr = JSON.stringify(data);
-          truncatedData = dataStr.length > 200 ? dataStr.substring(0, 200) + "..." : dataStr;
-        } catch {
-          // JSON.stringify可能失败（循环引用等），使用原始data
-          truncatedData = data;
-        }
-
-        // 没有订阅者时也要记录日志
-        this.#log("event", `${event} (发布 by ${actorId || "unknown"}) - 无订阅者`, "发布", {
-          actorId,
-          subscriberCount: 0,
-          data: truncatedData,
-          messageId,
-          traceId
-        });
-      }
-    }
-
-    // 完成追踪记录
-    if (messageTrace) {
-      messageTrace.totalExecutionTime = Date.now() - startTime;
-      this.#messageTracer.recordMessage(messageTrace);
-    }
-
-    // 返回追踪信息（可选）
-    if (this.#enableTracing && messageId) {
-      return {
-        messageId,
-        traceId,
-        timestamp: Date.now()
-      };
-    }
+    return eventBusEmit({
+      event,
+      data,
+      options,
+      events: this.#events,
+      enableValidation: this.#enableValidation,
+      actorId: options.actorId || this.#inferActorId(),
+      payloadValidationEnabled: this.#payloadValidationEnabled,
+      payloadValidateFn: this.#payloadValidateFn,
+      moduleName: this.#moduleName,
+      enableTracing: this.#enableTracing,
+      messageTracer: this.#messageTracer,
+      log: (...args) => this.#log(...args),
+    });
   }
 
-  /**
-   * 订阅事件（仅触发一次）
-   * @param {string} event - 事件名称，格式：{module}:{action}:{status}
-   * @param {Function} callback - 事件回调函数
-   * @param {Object} [options={}] - 订阅选项
-   * @param {string} [options.subscriberId] - 订阅者ID（可选）
-   * @param {string} [options.actorId] - 执行者ID（可选）
-   * @returns {Function} 取消订阅函数
-   * @description
-   * 订阅指定事件，但回调只会执行一次
-   * 事件触发后会自动取消订阅
-   *
-   * @example
-   * // 仅在首次加载时执行
-   * eventBus.once('pdf:file:loaded', (data) => {
-   *   console.log('First PDF loaded:', data);
-   * });
-   *
-   * // 可以提前取消订阅
-   * const unsubscribe = eventBus.once('pdf:file:loaded', callback);
-   * unsubscribe(); // 如果在触发前取消，回调不会执行
-   */
+  /** 仅触发一次：触发后自动 off（详见 docs/standards/event-bus.md） */
   once(event, callback, options = {}) {
     const onceWrapper = (data) => {
       this.off(event, onceWrapper);
@@ -932,28 +404,7 @@ export class EventBus {
     };
   }
 
-  /**
-   * 销毁事件总线
-   * @description
-   * 清除所有事件订阅和追踪数据，释放资源
-   * 调用后该 EventBus 实例将不可用
-   *
-   * 销毁操作包括：
-   * 1. 清除所有事件订阅
-   * 2. 销毁消息追踪器（如果启用）
-   * 3. 清空追踪数据
-   *
-   * @example
-   * // 在模块卸载时销毁事件总线
-   * async uninstall(context) {
-   *   context.globalEventBus.destroy();
-   * }
-   *
-   * // 在测试清理时销毁
-   * afterEach(() => {
-   *   eventBus.destroy();
-   * });
-   */
+  /** 清理订阅与追踪数据（用于测试/卸载） */
   destroy() {
     this.#log("info", `正在销毁事件总线 [${this.#moduleName}]，清除所有订阅...`);
     this.#events = {};

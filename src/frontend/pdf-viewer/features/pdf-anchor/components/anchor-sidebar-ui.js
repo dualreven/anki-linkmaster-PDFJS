@@ -1,17 +1,20 @@
-/* global qt, QWebChannel */
 /* eslint no-empty: "off", no-unused-vars: "off" */
 /**
  * 锚点侧边栏 UI
  * @file 渲染锚点工具栏与表格列表
  * @module features/pdf-anchor/components/anchor-sidebar-ui
+ * 详细说明：`docs/standards/pdf-anchor-sidebar-ui.md`
  */
 
 import { getLogger } from "../../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
-import { showSuccess } from "../../../../common/utils/notification.js";
 import { notifyDomainError } from "../../../../common/utils/domain-error-notifier.js";
 import { createSubscriptionBag } from "../../../../common/ws/ws-subscription-bag.js";
 import { createSidebarRoot } from "../../../shared/sidebar-shell.js";
+
+import { createAnchorSidebarToolbar } from "./anchor-sidebar-toolbar.js";
+import { showAnchorDialog } from "./anchor-sidebar-dialog.js";
+import { createAnchorSidebarTable } from "./anchor-sidebar-table.js";
 
 export class AnchorSidebarUI {
   #eventBus;
@@ -21,6 +24,7 @@ export class AnchorSidebarUI {
   #sidebarContent; // 整个侧栏内容容器（工具栏 + 表格）
   #pdfId;
   #toolbar;
+  #toolbarCleanup;
   #table;
   #emptyDiv;
   #loadingDiv;
@@ -50,7 +54,7 @@ export class AnchorSidebarUI {
     this.#sidebarContent.appendChild(this.#toolbar);
 
     // 表格
-    this.#table = this.#createTable();
+    this.#table = createAnchorSidebarTable();
     this.#sidebarContent.appendChild(this.#table);
 
     // 初始渲染空态（失败不阻断 UI，但记录调试信息）
@@ -169,8 +173,10 @@ export class AnchorSidebarUI {
 
   destroy() {
     this.#subscriptions?.clear();
+    try { this.#toolbarCleanup?.(); } catch(_) {}
     this.#sidebarContent = null;
     this.#toolbar = null;
+    this.#toolbarCleanup = null;
     this.#table = null;
     if (this.#loadTimeoutTimer) { try { clearTimeout(this.#loadTimeoutTimer); } catch(_){} this.#loadTimeoutTimer = null; }
     this.#anchors = [];
@@ -179,192 +185,18 @@ export class AnchorSidebarUI {
   }
 
   #createToolbar() {
-    const bar = document.createElement("div");
-    bar.className = "anchor-toolbar";
-    bar.style.cssText = "display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #ddd;background:#f5f5f5;";
-
-    const mkBtn = (id, label, tooltip) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.dataset.action = id;
-      btn.textContent = label;
-      btn.title = tooltip || label;
-      btn.style.cssText = "padding:4px 10px;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;";
-      return btn;
-    };
-
-    const addBtn = mkBtn("add", "➕", "添加锚点（名称/页码/位置）");
-    addBtn.addEventListener("click", () => this.#openCreateDialog());
-
-    const delBtn = mkBtn("delete", "🗑️", "删除选中锚点");
-    delBtn.addEventListener("click", () => {
-      if (!this.#selectedId) {return;}
-      this.#logger.info("Anchor delete clicked", { id: this.#selectedId });
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DELETE, { anchorId: this.#selectedId }, { actorId: "AnchorToolbar" });
+    const result = createAnchorSidebarToolbar({
+      eventBus: this.#eventBus,
+      logger: this.#logger,
+      getSelectedId: () => this.#selectedId,
+      getAnchors: () => this.#anchors,
+      getPdfId: () => this.#pdfId,
+      openCreateDialog: () => this.#openCreateDialog(),
+      openEditDialog: () => this.#openEditDialog(),
+      showError: (message) => this.#showError(message)
     });
-
-    const editBtn = mkBtn("edit", "✏️", "修改选中锚点（名称/页码/位置）");
-    editBtn.addEventListener("click", () => this.#openEditDialog());
-
-    // 复制下拉按钮
-    const copyTextRobust = async (text, labelForToast) => {
-      // 关键点：先在用户手势的同步栈内尝试 execCommand，避免因异步等待丢失“用户激活”导致失败
-      try {
-        const ta = document.createElement("textarea");
-        ta.value = String(text);
-        ta.setAttribute("readonly", "");
-        ta.style.position = "fixed";
-        ta.style.top = "-1000px";
-        ta.style.left = "-1000px";
-        ta.style.opacity = "0";
-        document.body.appendChild(ta);
-        try { ta.focus(); } catch(_) {}
-        ta.select();
-        const ok = document.execCommand("copy");
-        document.body.removeChild(ta);
-        if (ok) {
-          try { showSuccess(`已复制${labelForToast ? `(${labelForToast})` : ""}`, 2000); } catch(_) {}
-          return true;
-        }
-      } catch (_) {}
-
-      // 次选：Clipboard API（某些浏览器/上下文可用）
-      try {
-        if (navigator?.clipboard?.writeText) {
-          await navigator.clipboard.writeText(String(text));
-          try { showSuccess(`已复制${labelForToast ? `(${labelForToast})` : ""}`, 2000); } catch(_) {}
-          return true;
-        }
-      } catch (_) {}
-
-      // 最后：QWebChannel（仅 PyQt 环境可用）
-      try {
-        const ok = await new Promise((resolve) => {
-          try {
-            if (typeof qt === "undefined" || !qt.webChannelTransport) { resolve(false); return; }
-            if (typeof QWebChannel === "undefined") { resolve(false); return; }
-            new QWebChannel(qt.webChannelTransport, (channel) => {
-              try {
-                const bridge = channel?.objects?.pdfViewerBridge;
-                if (bridge && typeof bridge.setClipboardText === "function") {
-                  Promise.resolve(bridge.setClipboardText(String(text)))
-                    .then((res) => resolve(!!res))
-                    .catch(() => resolve(false));
-                } else {
-                  resolve(false);
-                }
-              } catch(_) { resolve(false); }
-            });
-          } catch(_) { resolve(false); }
-        });
-        if (ok) {
-          try { showSuccess(`已复制${labelForToast ? `(${labelForToast})` : ""}`, 2000); } catch(_) {}
-          return true;
-        }
-      } catch(_) {}
-
-      notifyDomainError({
-        message: "复制失败，请手动选择并复制",
-        logger: this.#logger,
-        scope: PDF_VIEWER_EVENTS.ANCHOR.COPY
-      });
-      return false;
-    };
-    const copyWrap = document.createElement("div");
-    copyWrap.style.cssText = "position:relative; display:inline-block;";
-    const copyBtn = mkBtn("copy", "📋", "复制/拷贝选项");
-    const menu = document.createElement("div");
-    menu.style.cssText = [
-      "display:none","position:absolute","top:100%","left:0",
-      "background:#fff","border:1px solid #ddd","border-radius:4px",
-      "box-shadow:0 2px 8px rgba(0,0,0,0.15)","min-width:140px","z-index:1000"
-    ].join(";");
-    const mkMenuItem = (text, title, onClick) => {
-      const item = document.createElement("div");
-      item.textContent = text; item.title = title;
-      item.style.cssText = "padding:6px 10px; cursor:pointer; white-space:nowrap;";
-      item.addEventListener("mouseenter", () => item.style.background = "#f6f6f6");
-      item.addEventListener("mouseleave", () => item.style.background = "");
-      item.addEventListener("click", () => { menu.style.display = "none"; onClick && onClick(); });
-      return item;
-    };
-    const toggleMenu = () => { menu.style.display = (menu.style.display === "none" ? "block" : "none"); };
-    const hideMenu = () => { menu.style.display = "none"; };
-
-    // 1) 拷贝副本
-    menu.appendChild(mkMenuItem("拷贝副本", "基于当前锚点创建副本", () => {
-      if (!this.#selectedId) {return;}
-      const src = this.#anchors.find(a => a && a.uuid === this.#selectedId); if (!src) {return;}
-      const name = (src.name ? `${src.name}(副本)` : `${src.uuid}(副本)`);
-      const newAnchor = {
-        uuid: (() => {
-          try {
-            const hex = Array.from(crypto.getRandomValues(new Uint8Array(6))).map(b => b.toString(16).padStart(2, "0")).join("");
-            return `pdfanchor-${hex}`;
-          } catch { return null; }
-        })(),
-        name,
-        page_at: parseInt(src.page_at || 1, 10),
-        position: (typeof src.position === "number" ? (src.position > 1 ? (src.position / 100) : src.position) : 0)
-      };
-      this.#logger.info("Anchor clone requested", { from: this.#selectedId, newAnchor });
-      if (!newAnchor.uuid) { try { this.#showError("无法生成锚点ID，克隆失败"); } catch(_) {} return; }
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATE, { anchor: newAnchor, pdf_uuid: this.#pdfId }, { actorId: "AnchorToolbar" });
-    }));
-
-    // 2) 复制锚点ID
-    menu.appendChild(mkMenuItem("复制锚点ID", "复制选中锚点ID", async () => {
-      if (!this.#selectedId) {return;}
-      await copyTextRobust(this.#selectedId, "锚点ID");
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPY, { anchorId: this.#selectedId }, { actorId: "AnchorToolbar" });
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPIED, { anchorId: this.#selectedId }, { actorId: "AnchorToolbar" });
-    }));
-
-    // 3) 复制文内链接 [[锚点id]]
-    menu.appendChild(mkMenuItem("复制文内链接", "复制 [[锚点id]]", async () => {
-      if (!this.#selectedId) {return;}
-      const link = `[[${this.#selectedId}]]`;
-      await copyTextRobust(link, "文内链接");
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPY, { anchorId: this.#selectedId, wiki: true }, { actorId: "AnchorToolbar" });
-      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.COPIED, { anchorId: this.#selectedId, wiki: true }, { actorId: "AnchorToolbar" });
-    }));
-
-    copyBtn.addEventListener("click", (e) => { e.stopPropagation(); toggleMenu(); });
-    document.addEventListener("click", hideMenu);
-    copyWrap.appendChild(copyBtn);
-    copyWrap.appendChild(menu);
-
-    bar.appendChild(addBtn);
-    bar.appendChild(delBtn);
-    bar.appendChild(editBtn);
-    bar.appendChild(copyWrap);
-
-    // 激活/取消激活按钮（切换当前选中锚点的激活状态）
-    const activateBtn = mkBtn("activate", "✅", "跳转并激活选中锚点");
-    activateBtn.addEventListener("click", () => {
-      if (!this.#selectedId) { return; }
-      this.#logger.info("Anchor navigate+activate requested from toolbar", { id: this.#selectedId });
-      this.#eventBus.emit(
-        PDF_VIEWER_EVENTS.ANCHOR.NAVIGATE.REQUESTED,
-        { anchorId: this.#selectedId, source: "ui-anchor-toolbar" },
-        { actorId: "AnchorToolbar" }
-      );
-    });
-    bar.appendChild(activateBtn);
-
-    const deactivateBtn = mkBtn("deactivate", "🚫", "取消选中锚点的激活状态");
-    deactivateBtn.addEventListener("click", () => {
-      if (!this.#selectedId) { return; }
-      this.#logger.info("Anchor deactivate requested from toolbar", { id: this.#selectedId });
-      this.#eventBus.emit(
-        PDF_VIEWER_EVENTS.ANCHOR.ACTIVATE,
-        { anchorId: this.#selectedId, active: false },
-        { actorId: "AnchorToolbar" }
-      );
-    });
-    bar.appendChild(deactivateBtn);
-
-    return bar;
+    this.#toolbarCleanup = result.cleanup;
+    return result.element;
   }
 
   #openCreateDialog() {
@@ -389,7 +221,7 @@ export class AnchorSidebarUI {
       } catch { return { pageAt: 1, position: "" }; }
     })();
 
-    this.#showAnchorDialog({
+    showAnchorDialog({
       title: "添加锚点",
       initial: { name: "", page_at: String(curr.pageAt), position: String(curr.position) },
       onConfirm: (vals) => {
@@ -432,7 +264,7 @@ export class AnchorSidebarUI {
       return (p <= 1 ? String(Math.round(p * 100)) : String(Math.round(p)));
     })();
 
-    this.#showAnchorDialog({
+    showAnchorDialog({
       title: "修改锚点",
       initial: { name: currName, page_at: String(currPage), position: String(currPos) },
       onConfirm: (vals) => {
@@ -467,76 +299,7 @@ export class AnchorSidebarUI {
     });
   }
 
-  #showAnchorDialog({ title, initial, onConfirm }) {
-    const overlay = document.createElement("div");
-    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:9999;";
-    const dialog = document.createElement("div");
-    dialog.style.cssText = "background:#fff;border-radius:8px;min-width:320px;max-width:420px;padding:16px 16px 12px;box-shadow:0 8px 24px rgba(0,0,0,.2);";
-    const h3 = document.createElement("div"); h3.textContent = title || ""; h3.style.cssText = "font-size:16px;font-weight:bold;margin-bottom:12px;color:#333;";
-
-    const mkRow = (label, id, type, value, placeholder) => {
-      const row = document.createElement("div"); row.style.cssText = "display:flex;align-items:center;margin:8px 0;gap:8px;";
-      const lab = document.createElement("label"); lab.textContent = label; lab.style.cssText = "width:72px;color:#555;"; lab.setAttribute("for", id);
-      const inp = document.createElement("input"); inp.type = type; inp.id = id; inp.value = value ?? ""; inp.placeholder = placeholder || ""; inp.style.cssText = "flex:1;padding:6px 8px;border:1px solid #ccc;border-radius:4px;";
-      row.appendChild(lab); row.appendChild(inp);
-      return { row, inp };
-    };
-
-    const rName = mkRow("名称", "anchor-name", "text", initial?.name ?? "", "示例：章节A");
-    const rPage = mkRow("页码", "anchor-page", "number", initial?.page_at ?? "1", "例如：12"); rPage.inp.min = "1";
-    const rPos  = mkRow("位置(%)", "anchor-pos", "number", initial?.position ?? "", "0~100，可留空"); rPos.inp.min = "0"; rPos.inp.max = "100";
-
-    const btnRow = document.createElement("div"); btnRow.style.cssText = "display:flex;justify-content:flex-end;gap:8px;margin-top:14px;";
-    const cancelBtn = document.createElement("button"); cancelBtn.type = "button"; cancelBtn.textContent = "取消"; cancelBtn.style.cssText = "padding:6px 12px;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;";
-    const saveBtn   = document.createElement("button"); saveBtn.type = "button"; saveBtn.textContent = "保存"; saveBtn.style.cssText   = "padding:6px 12px;border:1px solid #1976d2;border-radius:4px;background:#1976d2;color:#fff;cursor:pointer;";
-
-    const close = () => { try { document.body.removeChild(overlay); } catch(_){} };
-    cancelBtn.addEventListener("click", close);
-    saveBtn.addEventListener("click", () => {
-      const vals = { name: rName.inp.value, page_at: rPage.inp.value, position: rPos.inp.value };
-      try { onConfirm && onConfirm(vals); } catch(_) {}
-      close();
-    });
-
-    dialog.appendChild(h3);
-    dialog.appendChild(rName.row);
-    dialog.appendChild(rPage.row);
-    dialog.appendChild(rPos.row);
-    btnRow.appendChild(cancelBtn); btnRow.appendChild(saveBtn);
-    dialog.appendChild(btnRow);
-    overlay.appendChild(dialog);
-    document.body.appendChild(overlay);
-    try { rName.inp.focus(); } catch(_) {}
-  }
-
-  #createTable() {
-    const wrap = document.createElement("div");
-    wrap.style.cssText = "flex:1;overflow:auto;padding:8px;";
-
-    const table = document.createElement("table");
-    table.style.cssText = "width:100%;border-collapse:collapse;font-size:13px;";
-
-    // 表头
-    const thead = document.createElement("thead");
-    const thr = document.createElement("tr");
-    const thName = document.createElement("th"); thName.textContent = "名称";
-    const thPage = document.createElement("th"); thPage.textContent = "页码";
-    const thPos = document.createElement("th"); thPos.textContent = "页内位置(%)";
-    const thActive = document.createElement("th"); thActive.textContent = "是否激活";
-    [thName, thPage, thPos, thActive].forEach(th => {
-      th.style.cssText = "text-align:left;border-bottom:1px solid #eee;padding:6px;color:#444;";
-      thr.appendChild(th);
-    });
-    thead.appendChild(thr);
-
-    const tbody = document.createElement("tbody");
-    tbody.dataset.role = "anchor-tbody";
-
-    table.appendChild(thead);
-    table.appendChild(tbody);
-    wrap.appendChild(table);
-    return wrap;
-  }
+  // dialog/table 已拆分到独立模块
 
   #showLoading() {
     try {

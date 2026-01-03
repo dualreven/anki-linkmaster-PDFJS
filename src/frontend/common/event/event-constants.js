@@ -225,7 +225,9 @@ export const WEBSOCKET_MESSAGE_TYPES = {
   PDF_PAGE_CACHE_CLEAR_COMPLETED: "pdf-page:cache-clear:completed",
   // 能力注册与存储服务（新增）
   CAPABILITY_DISCOVER_COMPLETED: "capability:discover:completed",
+  CAPABILITY_DISCOVER_FAILED: "capability:discover:failed",
   CAPABILITY_DESCRIBE_COMPLETED: "capability:describe:completed",
+  CAPABILITY_DESCRIBE_FAILED: "capability:describe:failed",
   STORAGE_KV_GET_COMPLETED: "storage-kv:get:completed",
   STORAGE_KV_GET_FAILED: "storage-kv:get:failed"
   ,STORAGE_KV_SET_COMPLETED: "storage-kv:set:completed",
@@ -419,4 +421,3 @@ export const EVENT_CONSTANTS = {
 };
 
 export default EVENT_CONSTANTS;
-

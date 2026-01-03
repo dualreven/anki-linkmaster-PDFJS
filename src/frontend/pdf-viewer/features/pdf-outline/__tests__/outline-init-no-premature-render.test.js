@@ -38,8 +38,8 @@ describe("Outline 首次导入：不提前渲染，最终渲染后可导航", ()
   beforeEach(async () => {
     eventBus = new EventBus({ moduleName: "App", enableValidation: true, logger: console });
     scoped = new ScopedEventBus(eventBus, "pdf-viewer");
-    // 设置 URL，提供 pdf-id，避免请求被 abort
-    try { window.history.pushState({}, "", "http://localhost/pdf-viewer/?pdf-id=TESTPDF123"); } catch {}
+    // 设置 URL，提供 pdf-id（真实场景为 12hex）
+    try { window.history.pushState({}, "", "http://localhost/pdf-viewer/?pdf-id=abc123def456"); } catch {}
     // 模拟 WS 客户端（仅用于被 Feature 读取，不校验 request 次数）
     wsClient = { request: jest.fn().mockResolvedValue({ ok: true }) };
     navigationService = { navigateTo: jest.fn().mockResolvedValue({ success: true, actualPage: 1, actualPosition: 10 }) };
@@ -57,6 +57,15 @@ describe("Outline 首次导入：不提前渲染，最终渲染后可导航", ()
     clearCurrentPDFDocument();
   });
 
+  async function waitUntil(predicate, { ticks = 50 } = {}) {
+    for (let i = 0; i < ticks; i++) {
+      if (predicate()) { return; }
+      // 等待一个 macrotask，确保异步链路（await/then）推进
+      await new Promise(r => setTimeout(r, 0));
+    }
+    throw new Error("waitUntil timeout");
+  }
+
   test("【不提前渲染】先收到 null → 不应发 OUTLINE.LOAD.SUCCESS；最终列表到达后再渲染一次", async () => {
     let successCount = 0;
     let lastPayload = null;
@@ -64,6 +73,9 @@ describe("Outline 首次导入：不提前渲染，最终渲染后可导航", ()
 
     // 启动首次加载流程
     eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, { filename: "doc.pdf" }, { actorId: "test" });
+
+    // 等待初始化流程完成“订阅回执 + 发送首个 OUTLINE_LIST 请求”
+    await waitUntil(() => wsClient.request.mock.calls.some(c => c?.[0] === WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST));
 
     // 1) 后端返回 null（数据库中无记录）
     eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, {
@@ -76,13 +88,10 @@ describe("Outline 首次导入：不提前渲染，最终渲染后可导航", ()
     // 不应提前渲染
     expect(successCount).toBe(0);
 
-    // 2) 模拟 bulk-save 完成（可选回执）
-    eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, {
-      type: WEBSOCKET_MESSAGE_TYPES.OUTLINE_BULK_SAVE_COMPLETED,
-      data: {}
-    }, { actorId: "test" });
+    // 等待“二次 OUTLINE_LIST 请求”发出后再回传最终列表，避免竞态导致回执被 init 监听错过
+    await waitUntil(() => wsClient.request.mock.calls.filter(c => c?.[0] === WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST).length >= 2);
 
-    // 3) 最终列表返回（含后端分配的 outline_id）→ 此时应渲染一次
+    // 2) 最终列表返回（含后端分配的 outline_id）→ 此时应渲染一次
     const finalItems = [
       { id: "outlineItem-ABCD1234", name: "章节一", pageAt: 1, position: 10, children: [] }
     ];
@@ -92,8 +101,7 @@ describe("Outline 首次导入：不提前渲染，最终渲染后可导航", ()
     }, { actorId: "test" });
 
     // 等待异步处理完成（消息→替换→刷新→事件发射）
-    await new Promise(r => setTimeout(r, 0));
-    await Promise.resolve();
+    await waitUntil(() => successCount === 1);
     expect(successCount).toBe(1);
     expect(lastPayload).not.toBeNull();
     expect(Array.isArray(lastPayload.outlineItems)).toBe(true);

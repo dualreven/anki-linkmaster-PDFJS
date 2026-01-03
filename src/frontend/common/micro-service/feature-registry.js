@@ -1,6 +1,7 @@
 /**
  * @file 功能注册中心 - Feature Registry
  * @module FeatureRegistry
+ * 详细说明见：`docs/standards/feature-registry.md`
  * @description
  * 功能注册中心，负责管理功能域的注册、安装、卸载、启用、禁用。
  *
@@ -27,7 +28,10 @@
  */
 
 import { getLogger } from "../utils/logger.js";
-import { ScopedEventBus } from "../../common/event/scoped-event-bus.js";
+import { FeatureRecord } from "./feature-record.js";
+import { createFeatureContext, cleanupFeatureContext } from "./feature-registry-context.js";
+import { checkMissingDependencies, resolveInstallOrder } from "./feature-registry-deps.js";
+import { validateFeature } from "./feature-registry-validators.js";
 
 // ==================== 类型定义 ====================
 
@@ -96,76 +100,6 @@ export const FeatureStatus = {
  * @property {() => Promise<void>} [enable] - 启用功能（可选）
  * @property {() => Promise<void>} [disable] - 禁用功能（可选）
  */
-
-// ==================== 功能记录 ====================
-
-/**
- * 功能记录类（内部使用）
- * @class FeatureRecord
- * @private
- */
-class FeatureRecord {
-  /** @type {IFeature} */
-  #feature = null;
-
-  /** @type {FeatureStatus} */
-  #status = FeatureStatus.REGISTERED;
-
-  /** @type {FeatureContext|null} */
-  #context = null;
-
-  /** @type {Error|null} */
-  #error = null;
-
-  /** @type {number} */
-  #installedAt = 0;
-
-  /**
-   * @param {IFeature} feature - 功能实例
-   */
-  constructor(feature) {
-    this.#feature = feature;
-  }
-
-  /** 获取功能实例 @returns {IFeature} */
-  get feature() { return this.#feature; }
-  /** 获取功能状态 @returns {FeatureStatus} */
-  get status() { return this.#status; }
-  /** 获取功能上下文 @returns {FeatureContext|null} */
-  get context() { return this.#context; }
-  /** 获取错误信息 @returns {Error|null} */
-  get error() { return this.#error; }
-  /** 获取安装时间戳 @returns {number} */
-  get installedAt() { return this.#installedAt; }
-
-  /** 设置功能状态 @param {FeatureStatus} status */
-  setStatus(status) { this.#status = status; }
-  /** 设置功能上下文 @param {FeatureContext} context */
-  setContext(context) { this.#context = context; }
-  /** 设置错误信息 @param {Error} error */
-  setError(error) { this.#error = error; }
-  /** 标记功能为已安装状态，同时记录安装时间戳 */
-  markInstalled() {
-    this.#installedAt = Date.now();
-    this.#status = FeatureStatus.INSTALLED;
-  }
-
-  /**
-   * 获取功能信息摘要
-   * @returns {Object}
-   */
-  toJSON() {
-    // 注意：FeatureRecord 不感知别名映射；外部调用 getStatusSummary() 会统一转换为规范名
-    return {
-      name: this.#feature.name,
-      version: this.#feature.version,
-      status: this.#status,
-      dependencies: this.#feature.dependencies,
-      installedAt: this.#installedAt,
-      error: this.#error?.message || null
-    };
-  }
-}
 
 // ==================== 功能注册中心 ====================
 
@@ -249,7 +183,7 @@ export class FeatureRegistry {
    */
   register(feature) {
     // 验证功能接口
-    this.#validateFeature(feature);
+    validateFeature(feature);
 
     const canonical = this.#resolveName(feature.name);
 
@@ -259,7 +193,7 @@ export class FeatureRegistry {
     }
 
     // 创建功能记录
-    const record = new FeatureRecord(feature);
+    const record = new FeatureRecord(feature, FeatureStatus);
     this.#features.set(canonical, record);
 
     this.#logger.info(`Feature registered: ${canonical} (v${feature.version})`);
@@ -338,7 +272,13 @@ export class FeatureRegistry {
 
     // 检查依赖
     const { feature } = record;
-    const missingDeps = this.#checkDependencies(feature);
+    const missingDeps = checkMissingDependencies({
+      feature,
+      resolveName: (n) => this.#resolveName(n),
+      features: this.#features,
+      container: this.#container,
+      installedStatus: FeatureStatus.INSTALLED,
+    });
 
     if (missingDeps.length > 0) {
       throw new Error(
@@ -351,7 +291,12 @@ export class FeatureRegistry {
 
     try {
       // 创建功能上下文
-      const context = await this.#createFeatureContext(canonical);
+      const context = await createFeatureContext({
+        featureName: canonical,
+        container: this.#container,
+        globalEventBus: this.#globalEventBus,
+        features: this.#features,
+      });
       record.setContext(context);
 
       // 调用安装方法
@@ -380,7 +325,10 @@ export class FeatureRegistry {
    */
   async installAll() {
     // 计算安装顺序（拓扑排序）
-    const installOrder = this.#resolveInstallOrder();
+    const installOrder = resolveInstallOrder({
+      features: this.#features,
+      resolveName: (n) => this.#resolveName(n),
+    });
 
     this.#logger.info(`Installing ${installOrder.length} features in order: ${installOrder.join(" -> ")}`);
 
@@ -427,7 +375,7 @@ export class FeatureRegistry {
       await feature.uninstall(context);
 
       // 清理功能上下文（销毁 ScopedEventBus 等）
-      this.#cleanupFeatureContext(context);
+      cleanupFeatureContext(context);
 
       record.setStatus(FeatureStatus.UNINSTALLED);
       record.setContext(null);
@@ -530,193 +478,6 @@ export class FeatureRegistry {
     });
 
     return summary;
-  }
-
-  // ==================== 私有方法 ====================
-
-  /**
-   * 验证功能接口
-   * @param {IFeature} feature - 功能实例
-   * @throws {Error} 如果功能接口不完整
-   * @private
-   */
-  #validateFeature(feature) {
-    if (!feature || typeof feature !== "object") {
-      throw new Error("Feature must be an object");
-    }
-
-    // 验证必需属性
-    const requiredProps = ["name", "version", "dependencies", "install", "uninstall"];
-
-    for (const prop of requiredProps) {
-      if (!(prop in feature)) {
-        throw new Error(`Feature is missing required property: ${prop}`);
-      }
-    }
-
-    // 验证类型
-    if (typeof feature.name !== "string" || feature.name.trim() === "") {
-      throw new Error("Feature.name must be a non-empty string");
-    }
-
-    if (typeof feature.version !== "string" || feature.version.trim() === "") {
-      throw new Error("Feature.version must be a non-empty string");
-    }
-
-    if (!Array.isArray(feature.dependencies)) {
-      throw new Error("Feature.dependencies must be an array");
-    }
-
-    if (typeof feature.install !== "function") {
-      throw new Error("Feature.install must be a function");
-    }
-
-    if (typeof feature.uninstall !== "function") {
-      throw new Error("Feature.uninstall must be a function");
-    }
-
-    // 可选方法验证
-    if ("enable" in feature && typeof feature.enable !== "function") {
-      throw new Error("Feature.enable must be a function");
-    }
-
-    if ("disable" in feature && typeof feature.disable !== "function") {
-      throw new Error("Feature.disable must be a function");
-    }
-  }
-
-  /**
-   * 检查功能的依赖是否满足
-   * @param {IFeature} feature - 功能实例
-   * @returns {string[]} 缺失的依赖列表
-   * @private
-   */
-  #checkDependencies(feature) {
-    const missing = [];
-
-    for (const depRaw of feature.dependencies) {
-      // 统一通过别名解析为规范名
-      const dep = this.#resolveName(depRaw);
-
-      // 检查依赖是否已注册并已安装
-      const depRecord = this.#features.get(dep);
-
-      if (!depRecord) {
-        // 依赖未注册，可能是核心服务（在容器中）
-        if (!this.#container.has(dep)) {
-          missing.push(dep);
-        }
-      } else if (depRecord.status !== FeatureStatus.INSTALLED) {
-        // 依赖已注册但未安装
-        missing.push(dep);
-      }
-    }
-
-    return missing;
-  }
-
-  /**
-   * 解析安装顺序（拓扑排序）
-   * @returns {string[]} 按依赖顺序排列的功能名称列表
-   * @throws {Error} 如果存在循环依赖
-   * @private
-   */
-  #resolveInstallOrder() {
-    const visited = new Set();
-    const visiting = new Set();
-    const order = [];
-
-    /**
-     * 深度优先搜索
-     * @param {string} name - 功能名称
-     */
-    const dfs = (name) => {
-      const canonical = this.#resolveName(name);
-      if (visited.has(canonical)) {return;}
-
-      if (visiting.has(canonical)) {
-        throw new Error(`Circular dependency detected: ${canonical}`);
-      }
-
-      visiting.add(canonical);
-
-      const record = this.#features.get(canonical);
-      if (record) {
-        const { feature } = record;
-
-        // 先处理依赖
-        for (const depRaw of feature.dependencies) {
-          const dep = this.#resolveName(depRaw);
-          if (this.#features.has(dep)) {
-            dfs(dep);
-          }
-          // 如果依赖不是功能（而是核心服务），跳过
-        }
-      }
-
-      visiting.delete(canonical);
-      visited.add(canonical);
-      order.push(canonical);
-    };
-
-    // 对所有功能执行 DFS
-    for (const fname of this.#features.keys()) {
-      dfs(fname);
-    }
-
-    return order;
-  }
-
-  /**
-   * 创建功能上下文
-   * @param {string} featureName - 功能名称
-   * @returns {FeatureContext}
-   * @private
-   */
-  async #createFeatureContext(featureName) {
-    // 创建功能域专用的作用域容器
-    const featureScope = this.#container.createScope(featureName);
-
-    // 创建功能域专用的 Logger
-    const featureLogger = getLogger(`Feature.${featureName}`);
-
-    // 创建功能域专用的 ScopedEventBus
-    let scopedEventBus = null;
-    if (this.#globalEventBus) {
-      // 作用域与功能名解耦：优先取功能的 SCOPE_ID（静态），否则回退功能名
-      const record = this.#features.get(featureName);
-      const scopeId =
-        (record && record.feature && (record.feature.constructor?.SCOPE_ID || record.feature.SCOPE_ID)) ||
-        featureName;
-      scopedEventBus = new ScopedEventBus(this.#globalEventBus, scopeId);
-    }
-
-    return {
-      container: featureScope,
-      globalEventBus: this.#globalEventBus,
-      scopedEventBus,
-      logger: featureLogger,
-      config: {}
-    };
-  }
-
-  /**
-   * 清理功能上下文
-   * @param {FeatureContext} context - 功能上下文
-   * @private
-   */
-  #cleanupFeatureContext(context) {
-    if (!context) {return;}
-
-    // 销毁 ScopedEventBus
-    if (context.scopedEventBus && typeof context.scopedEventBus.destroy === "function") {
-      context.scopedEventBus.destroy();
-    }
-
-    // 销毁作用域容器
-    if (context.container && typeof context.container.dispose === "function") {
-      context.container.dispose();
-    }
   }
 }
 

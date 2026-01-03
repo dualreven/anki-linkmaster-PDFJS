@@ -13,6 +13,54 @@ import { PDFDocumentManager } from "./pdf-document-manager.js";
 import { PageCacheManager } from "./page-cache-manager.js";
 import { LOADING_CONFIG, CACHE_CONFIG, PATH_CONFIG } from "./pdf-config.js";
 import { WebGLStateManager } from "../../common/utils/webgl-detector.js";
+import ERROR_CODES from "../../common/constants/error-codes.js";
+
+function normalizePdfLoadError(error) {
+  const message = String(error?.message || "");
+  const lower = message.toLowerCase();
+
+  // 网络类
+  if (lower.includes("network error") || lower.includes("failed to fetch")) {
+    const code = ERROR_CODES.NETWORK_ERRORS.NETWORK_CONNECTION_FAILED;
+    return { code, type: "NETWORK_ERROR", retryable: true, userMessage: ERROR_CODES.getErrorDescription(code) };
+  }
+  if (lower.includes("http 404")) {
+    const code = ERROR_CODES.NETWORK_ERRORS.FILE_NOT_FOUND;
+    return { code, type: "NETWORK_ERROR", retryable: false, userMessage: ERROR_CODES.getErrorDescription(code) };
+  }
+  if (lower.includes("http 500") || lower.includes("internal server error")) {
+    const code = ERROR_CODES.NETWORK_ERRORS.SERVER_ERROR;
+    return { code, type: "NETWORK_ERROR", retryable: true, userMessage: ERROR_CODES.getErrorDescription(code) };
+  }
+  if (lower.includes("timeout")) {
+    const code = ERROR_CODES.NETWORK_ERRORS.REQUEST_TIMEOUT;
+    return { code, type: "NETWORK_ERROR", retryable: true, userMessage: ERROR_CODES.getErrorDescription(code) };
+  }
+
+  // 格式/解析类
+  if (lower.includes("invalid pdf format")) {
+    const code = ERROR_CODES.FORMAT_ERRORS.INVALID_PDF_FORMAT;
+    return { code, type: "FORMAT_ERROR", retryable: false, userMessage: ERROR_CODES.getErrorDescription(code) };
+  }
+  if (lower.includes("encrypted pdf") || lower.includes("decryption")) {
+    const code = ERROR_CODES.FORMAT_ERRORS.ENCRYPTED_PDF;
+    return { code, type: "PARSE_ERROR", retryable: false, userMessage: ERROR_CODES.getErrorDescription(code) };
+  }
+
+  // 资源/权限/内存
+  if (lower.includes("out of memory") || lower.includes("memory")) {
+    const code = ERROR_CODES.GENERAL_ERRORS.MEMORY_ERROR;
+    return { code, type: "MEMORY_ERROR", retryable: false, userMessage: ERROR_CODES.getErrorDescription(code) };
+  }
+  if (lower.includes("permission denied")) {
+    const code = ERROR_CODES.GENERAL_ERRORS.PERMISSION_ERROR;
+    return { code, type: "PERMISSION_ERROR", retryable: false, userMessage: ERROR_CODES.getErrorDescription(code) };
+  }
+
+  // 默认：未知错误
+  const code = ERROR_CODES.GENERAL_ERRORS.UNKNOWN_ERROR;
+  return { code, type: "UNKNOWN_ERROR", retryable: true, userMessage: ERROR_CODES.getErrorDescription(code) };
+}
 
 /**
  * PDF管理器主类
@@ -47,7 +95,10 @@ export class PDFManager {
 
       // 动态导入PDF.js库（优先 ESM 路径，避免某些环境下触发 CJS 的 require）
       this.#logger.info("Loading PDF.js library (ESM preferred)...");
-      const isJest = typeof globalThis !== "undefined" && !!globalThis.jest;
+      const isJest = (
+        (typeof process !== "undefined" && !!process.env.JEST_WORKER_ID) ||
+        (typeof globalThis !== "undefined" && typeof globalThis.jest !== "undefined")
+      );
       if (isJest) {
         // 测试环境优先使用被 jest.mock 钩住的 CJS/ESM 构建
         this.#pdfjsLib = await import("pdfjs-dist/build/pdf");
@@ -207,6 +258,7 @@ export class PDFManager {
 
       } catch (error) {
         lastError = error;
+        const normalized = normalizePdfLoadError(error);
         this.#logger.error(`Failed to load PDF (attempt ${attempt}):`, error);
 
         // 发布加载失败事件
@@ -214,6 +266,12 @@ export class PDFManager {
           filename: filename,
           pdfId: fileData?.pdfId ?? fileData?.pdf_id ?? null,
           error: error.message,
+          code: normalized.code,
+          type: normalized.type,
+          userMessage: normalized.userMessage,
+          retryable: normalized.retryable,
+          file: filename || url || null,
+          timestamp: Date.now(),
           attempt: attempt,
           maxAttempts: LOADING_CONFIG.maxRetries
         }, { actorId: "PDFManager" });

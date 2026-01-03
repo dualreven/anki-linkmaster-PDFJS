@@ -14,15 +14,15 @@ const pendingMap = new Map();
 // 统一日志（避免与 logger.js 形成循环依赖，这里使用轻量控制台封装）
 const gConsole = (typeof globalThis !== "undefined" && globalThis.console) ? globalThis.console : null;
 const tpLogger = {
-  info: (...args) => { try { const c = gConsole; if (c && c.info) { c.info("[ThirdpartyToast][INFO]", ...args); } else if (c && c.log) { c.log("[ThirdpartyToast][INFO]", ...args); } } catch {} },
-  warn: (...args) => { try { const c = gConsole; if (c && c.warn) { c.warn("[ThirdpartyToast][WARN]", ...args); } else if (c && c.log) { c.log("[ThirdpartyToast][WARN]", ...args); } } catch {} },
-  error: (...args) => { try { const c = gConsole; if (c && c.error) { c.error("[ThirdpartyToast][ERROR]", ...args); } else if (c && c.log) { c.log("[ThirdpartyToast][ERROR]", ...args); } } catch {} },
+  info: (...args) => { try { const c = gConsole; if (c && c.info) { c.info("[ThirdpartyToast][INFO]", ...args); } else if (c && c.log) { c.log("[ThirdpartyToast][INFO]", ...args); } } catch (e) { void e; /* logger-guard */ } },
+  warn: (...args) => { try { const c = gConsole; if (c && c.warn) { c.warn("[ThirdpartyToast][WARN]", ...args); } else if (c && c.log) { c.log("[ThirdpartyToast][WARN]", ...args); } } catch (e) { void e; /* logger-guard */ } },
+  error: (...args) => { try { const c = gConsole; if (c && c.error) { c.error("[ThirdpartyToast][ERROR]", ...args); } else if (c && c.log) { c.log("[ThirdpartyToast][ERROR]", ...args); } } catch (e) { void e; /* logger-guard */ } },
 };
 try {
   const has = !!iziToast;
   const keys = has ? Object.keys(iziToast || {}) : [];
   tpLogger.info("iziToast import status", { has, keys, fallbackDisabled: true });
-} catch {}
+} catch (e) { void e; /* logger-guard */ }
 
 // 调试/验证开关：禁用 fallback 渲染，仅允许 iziToast 路径
 // 目的：验证“当前是否真的走到了 izitoast”，如禁用后仍看到 toast，则说明来源非本模块
@@ -33,7 +33,7 @@ function fallbackDisabled() {
     if (typeof window !== "undefined" && "__DISABLE_TOAST_FALLBACK" in window) {
       return Boolean(window.__DISABLE_TOAST_FALLBACK);
     }
-  } catch {}
+  } catch (e) { void e; /* logger-guard */ }
   return DISABLE_TOAST_FALLBACK;
 }
 
@@ -96,7 +96,7 @@ function fallbackToast(message, { background = "#323232", color = "#fff", ms = 3
         el.style.opacity = "0";
         el.style.transform = "translateY(-6px)";
         setTimeout(() => el.remove(), 180);
-      } catch {}
+      } catch (e) { void e; /* logger-guard */ }
     }, ms === 0 ? 3000 : ms);
     return { el, timer: t };
   } catch {
@@ -336,7 +336,7 @@ export function dismissById(id) {
   if (!toast) {return false;}
   try {
     // 尝试第三方关闭
-    try { iziToast.hide({}, toast); } catch {}
+    try { iziToast.hide({}, toast); } catch (e) { void e; /* logger-guard */ }
     // 若是降级DOM，直接移除
     if (toast && toast.parentElement) {
       toast.remove();
