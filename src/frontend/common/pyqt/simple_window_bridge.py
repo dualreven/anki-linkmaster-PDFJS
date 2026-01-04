@@ -9,7 +9,7 @@ SimpleWindowBridge
 
 实现方式：
 - 继承 WindowControlsMixin，将窗口控制逻辑复用到三个工具窗口
-  （anno-manager / new-card-scheduler / custom-reviewer）。
+  （new-card-scheduler / custom-reviewer）。
 """
 
 from __future__ import annotations
@@ -36,4 +36,3 @@ class SimpleWindowBridge(QObject, WindowControlsMixin):
 
   # 由于 WindowControlsMixin 已通过 @pyqtSlot 暴露全部窗口控制方法，
   # 此处无需再添加额外的 slot；SimpleWebWindowBridge 仅作为 Mixin 的载体。
-

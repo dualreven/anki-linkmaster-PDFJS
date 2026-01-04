@@ -5,9 +5,6 @@
  */
 
 import { getLogger } from "../../../common/utils/logger.js";
-import { showInfo } from "../../../common/utils/notification.js";
-import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
-import { getCurrentPdfIdFromWindow } from "../../shared/url-context.js";
 import { createSidebarConfig } from "./sidebar-config.js";
 import { createLazySidebarConfig } from "./lazy-sidebar-factory.js";
 const logger = getLogger("RealSidebars");
@@ -103,50 +100,6 @@ export async function registerRealSidebars(sidebarManager, eventBus, container) 
     minWidth: 250,
     maxWidth: 600,
     resizable: true,
-    createHeaderExtraActions: () => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "sidebar-icon-btn pdf-sidebar-annotation-manager-btn";
-      btn.title = "打开标注管理器";
-      btn.setAttribute("aria-label", "打开标注管理器");
-      btn.textContent = "□";
-
-      btn.addEventListener("click", () => {
-        try {
-          const payload = {};
-          try {
-            const pdfId = getCurrentPdfIdFromWindow();
-            if (pdfId && typeof pdfId === "string" && pdfId.trim() !== "") {
-              // 统一使用 pdfId 字段名，后续桥接层可复用
-              payload.pdfId = pdfId.trim();
-            }
-          } catch (innerErr) {
-            logger.warn("Failed to resolve pdf-id from URL for anno-manager button", innerErr);
-          }
-
-          // 通过全局事件通知 WebSocketAdapter，由其负责发送 app-window 打开请求
-          try {
-            eventBus.emit(
-              PDF_VIEWER_EVENTS.ANNOTATION.MANAGER.OPEN_WINDOW_REQUESTED,
-              payload,
-              { actorId: "RealSidebars" }
-            );
-          } catch (emitErr) {
-            logger.error("Failed to emit anno-manager open event", emitErr);
-          }
-
-          try {
-            showInfo("正在请求打开标注管理器...", 2000);
-          } catch (toastErr) {
-            logger.warn("Failed to show toast for annotation manager button", toastErr);
-          }
-        } catch (e) {
-          logger.error("Unexpected error when handling anno-manager header button click", e);
-        }
-      });
-
-      return btn;
-    }
   });
   sidebarManager.registerSidebar(annotationConfig);
   logger.info("Annotation sidebar registered (will load from container on first open)");
@@ -320,4 +273,3 @@ export function createRealSidebarButtons(eventBus) {
 
   logger.info("Real sidebar buttons created successfully");
 }
-

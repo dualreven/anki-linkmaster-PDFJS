@@ -443,92 +443,6 @@ def ensure_pdf_viewer_hosted(
     return int(rc or 0)
 
 
-def ensure_anno_manager_hosted(
-    cfg: LauncherConfig,
-    *,
-    parent_app,
-    on_log: Optional[Callable[[str], None]] = None,
-    window_lifecycle: Any = None,
-    pdf_id: Optional[str] = None,
-) -> int:
-    """
-    确保标注管理器窗口在 Hosted 模式下为单例：
-    - 已存在 → 激活窗口并返回 0
-    - 不存在 → 创建并注册到单例表
-    """
-    reg = get_registry()
-    existing = reg.get_anno_manager()
-    if existing is not None:
-        try:
-            win = getattr(existing, "window", None)
-            if win is not None and _is_qobject_alive(win):
-                try:
-                    if window_lifecycle is not None:
-                        window_lifecycle.register_window("anno-manager", existing, win, {"window_type": "anno-manager"})
-                except Exception:
-                    pass
-                activate_window(win)
-                if on_log:
-                    on_log("[Singleton] anno-manager already running, activated window")
-                return 0
-        except Exception:
-            # 窗口已销毁或对象不可用，清理后重建
-            try:
-                reg.discard_anno_manager()
-            except Exception:
-                pass
-    root = resolve_component_root()
-    launcher_path = root / "src" / "frontend" / "anno-manager" / "launcher.py"
-    from src.frontend.common.launch_config import LaunchConfig as FEConfig  # type: ignore
-    extra_params: Dict[str, Any] = {"client_id": "anno-manager"}
-    if pdf_id:
-        extra_params["pdf_id"] = str(pdf_id)
-
-    fe_cfg = FEConfig(
-        is_prod=bool(cfg.options.frontend_prod),
-        keep_backend=bool(cfg.options.keep_backend),
-        url_port=cfg.ports.url_port,
-        msgCenter_port=cfg.ports.msgCenter_port,
-        pdfFile_port=cfg.ports.pdfFile_port,
-        vite_port=cfg.ports.vite_port,
-        source="gui",
-        logs_dir=str(cfg.paths.logs_dir) if getattr(cfg.paths, "logs_dir", None) else None,
-        extra_params=extra_params,
-    )
-    AnnoManagerApp = _load_launcher_class(launcher_path, module_key="anno_manager_launcher", class_name="AnnoManagerApp")
-    app_inst = AnnoManagerApp(fe_cfg, parent_app=parent_app)
-    rc = app_inst.run()
-    try:
-        reg.set_anno_manager(app_inst)
-    except Exception:
-        pass
-    try:
-        win = getattr(app_inst, "window", None)
-        if window_lifecycle is not None and win is not None:
-            try:
-                window_lifecycle.register_window("anno-manager", app_inst, win, {"window_type": "anno-manager"})
-            except Exception:
-                pass
-        # 绑定窗口销毁信号以清理单例注册，避免陈旧记录阻止再次打开
-        try:
-            if win is not None:
-                try:
-                    win.destroyed.connect(lambda *_: reg.discard_anno_manager())  # type: ignore[attr-defined]
-                except Exception:
-                    pass
-                try:
-                    win.window_closing.connect(lambda *_: reg.discard_anno_manager())  # type: ignore[attr-defined]
-                except Exception:
-                    pass
-        except Exception:
-            pass
-    except Exception:
-        pass
-    if on_log:
-        on_log(f"[Hosted] AnnoManager run rc={rc}")
-    return int(rc or 0)
-
-
 def ensure_new_card_scheduler_hosted(
     cfg: LauncherConfig,
     *,
@@ -539,10 +453,10 @@ def ensure_new_card_scheduler_hosted(
     """确保新卡片规划器窗口在 Hosted 模式下被打开。"""
     root = resolve_component_root()
     import importlib.util as _il
-    launcher_path = root / "src" / "frontend" / "anno-manager" / "launcher.py"
-    spec = _il.spec_from_file_location("anno_manager_launcher", str(launcher_path))
+    launcher_path = root / "src" / "frontend" / "tool-windows" / "launcher.py"
+    spec = _il.spec_from_file_location("tool_windows_launcher", str(launcher_path))
     if spec is None or spec.loader is None:
-        raise ImportError("无法定位 anno-manager launcher 模块")
+        raise ImportError("无法定位 tool-windows launcher 模块")
     mod = _il.module_from_spec(spec)
     spec.loader.exec_module(mod)  # type: ignore
     from src.frontend.common.launch_config import LaunchConfig as FEConfig  # type: ignore
@@ -585,10 +499,10 @@ def ensure_custom_reviewer_hosted(
     """确保定制卡片复习器窗口在 Hosted 模式下被打开（支持多实例 client_id）。"""
     root = resolve_component_root()
     import importlib.util as _il
-    launcher_path = root / "src" / "frontend" / "anno-manager" / "launcher.py"
-    spec = _il.spec_from_file_location("anno_manager_launcher", str(launcher_path))
+    launcher_path = root / "src" / "frontend" / "tool-windows" / "launcher.py"
+    spec = _il.spec_from_file_location("tool_windows_launcher", str(launcher_path))
     if spec is None or spec.loader is None:
-        raise ImportError("无法定位 anno-manager launcher 模块")
+        raise ImportError("无法定位 tool-windows launcher 模块")
     mod = _il.module_from_spec(spec)
     spec.loader.exec_module(mod)  # type: ignore
     from src.frontend.common.launch_config import LaunchConfig as FEConfig  # type: ignore

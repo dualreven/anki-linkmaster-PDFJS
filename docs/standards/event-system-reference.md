@@ -223,10 +223,9 @@ UI 触发：
 - `WEBSOCKET_MESSAGE_TYPES.APP_WINDOW_OPEN_REQUESTED`：`app-window:open:requested`
 - `WEBSOCKET_MESSAGE_TYPES.APP_WINDOW_CLOSE_REQUESTED`：`app-window:close:requested`
 
-典型链路（以 anno-manager 为例）：
-- 业务侧发起事件：`PDF_VIEWER_EVENTS.ANNOTATION.MANAGER.OPEN_WINDOW_REQUESTED`
-- `pdf-viewer` 的 `WebSocketAdapter` 监听该事件并发送 `app-window:open:requested`（固定 `client_id="anno-manager"`，`window_type="anno-manager"`）
-- 用例参考：`src/frontend/pdf-viewer/adapters/__tests__/websocket-adapter.anno-manager-window-open.test.js`
+典型链路（通用）：
+- 发起方（GUI 或某个前端模块）发送 `app-window:open:requested`
+- 后端根据 `window_type` 分发到对应 Hosted 启动器（如 `new-card-scheduler`、`custom-reviewer`）
 
 风险提示：
 - “打开窗口”通常会伴随“注册 client / gate / ready / 导航”等后续链路，属于高耦合场景；新增此类流程时，务必在设计阶段把门控事件拆开，避免复用 `RENDER.READY` 这类泛化状态事件。

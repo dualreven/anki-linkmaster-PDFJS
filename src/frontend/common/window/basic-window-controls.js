@@ -1,5 +1,5 @@
 /**
- * 为“简单工具窗口”（anno-manager / new-card-scheduler / custom-reviewer）挂载窗口控制条。
+ * 为“简单工具窗口”（new-card-scheduler / custom-reviewer）挂载窗口控制条。
  *
  * 复用现有的 WindowControlsComponent + WSClient：
  * - 通过 resolveWebSocketPortSync 推导 MsgCenter 端口；
@@ -18,8 +18,8 @@ const logger = getLogger("BasicWindowControls");
 /**
  * 挂载基础窗口控制条
  * @param {Object} options
- * @param {string} options.clientId - 窗口对应的 client_id（如 'anno-manager'）
- * @param {string} options.moduleName - 模块名（用于 WS 身份，如 'anno-manager'）
+ * @param {string} options.clientId - 窗口对应的 client_id（如 'new-card-scheduler'）
+ * @param {string} options.moduleName - 模块名（用于 WS 身份，如 'new-card-scheduler'）
  * @param {string} [options.bridgeName='simpleWindowBridge'] - QWebChannel Bridge 名称
  * @param {string} [options.containerSelector='#window-controls-slot'] - 控件挂载容器选择器
  */
@@ -78,4 +78,3 @@ export async function attachBasicWindowControls(options) {
   await controls.mount(container);
   logger.info("[BasicWindowControls] window controls attached successfully");
 }
-

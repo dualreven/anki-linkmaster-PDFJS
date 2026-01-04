@@ -219,59 +219,6 @@ export function installWebSocketAdapterOutgoingHandlers({ eventBus, wsClient, lo
     { subscriberId: "WebSocketAdapter" }
   );
 
-  const unsubAnnoManager = eventBus.on(
-    PDF_VIEWER_EVENTS.ANNOTATION.MANAGER.OPEN_WINDOW_REQUESTED,
-    (payload) => {
-      try {
-        if (!wsClient || typeof wsClient.send !== "function") {
-          logger.error("[AnnoManager] Skip app-window open: wsClient unavailable", { payload });
-          return;
-        }
-
-        const fromEvent = payload && (payload.pdfId || payload.pdf_id);
-        const pdfId = (typeof fromEvent === "string" && fromEvent.trim() !== "")
-          ? fromEvent.trim()
-          : getPdfId();
-
-        if (!pdfId || typeof pdfId !== "string" || pdfId.trim() === "") {
-          try {
-            logger.error(
-              "[AnnoManager] Skip app-window open: missing pdf-id",
-              { payload },
-              { toast: { type: "error", ms: 4000 } }
-            );
-          } catch (logErr) {
-            void logErr;
-          }
-          return;
-        }
-
-        const clientId = "anno-manager";
-        logger.info("[AnnoManager] Sending app-window open request via WS", { clientId, pdfId });
-
-        wsClient.send({
-          type: WEBSOCKET_MESSAGE_TYPES.APP_WINDOW_OPEN_REQUESTED,
-          data: {
-            client_id: clientId,
-            window_type: "anno-manager",
-            params: { pdf_id: pdfId }
-          }
-        });
-      } catch (e) {
-        try {
-          logger.error(
-            "[AnnoManager] Failed to send app-window open request",
-            e,
-            { toast: { type: "error", ms: 4000 } }
-          );
-        } catch (logErr) {
-          void logErr;
-        }
-      }
-    },
-    { subscriberId: "WebSocketAdapter" }
-  );
-
   subscriptions.add(unsubscribe1);
   subscriptions.add(unsubscribe2);
   subscriptions.add(unsubscribe3);
@@ -280,6 +227,4 @@ export function installWebSocketAdapterOutgoingHandlers({ eventBus, wsClient, lo
   subscriptions.add(unsubA3);
   subscriptions.add(unsubA4);
   subscriptions.add(unsubA5);
-  subscriptions.add(unsubAnnoManager);
 }
-

@@ -211,7 +211,7 @@ export class WindowControlsComponent {
 
     // 2) 同步通过 QWebChannel 请求关闭窗口
     // 说明：
-    // - 对于 simple-web-window（anno-manager 等）场景，可能不存在完整的后端生命周期管理；
+    // - 对于 simple-web-window 场景，可能不存在完整的后端生命周期管理；
     // - 为保证用户点击“关闭”总能关闭窗口，这里总是尝试调用 requestCloseWindow 作为本地关闭入口。
     this.#callBridgeMethod("requestCloseWindow")
       .then((ok) => {

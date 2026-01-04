@@ -227,7 +227,7 @@ class BackendLauncher:
                 "/pdf-home": str(s / "pdf-home"),
             }
             # 为新前端工具窗口提供静态挂载（仅在对应目录存在时启用）
-            for name in ("anno-manager", "new-card-scheduler", "custom-reviewer"):
+            for name in ("new-card-scheduler", "custom-reviewer"):
                 sub = s / name
                 try:
                     if sub.exists():
@@ -367,7 +367,6 @@ class BackendLauncher:
                     from src.launcher.runner import (  # type: ignore
                         ensure_pdf_viewer_hosted,
                         ensure_pdf_home_hosted,
-                        ensure_anno_manager_hosted,
                         ensure_new_card_scheduler_hosted,
                         ensure_custom_reviewer_hosted,
                     )
@@ -458,30 +457,6 @@ class BackendLauncher:
                             window_lifecycle=self.window_lifecycle,
                         )
                         self.logger.info("[MsgDispatch] app-window PdfHome ensure-hosted rc=%s", str(rc))
-                    elif window_type == "anno-manager":
-                        pdf_id = params.get("pdf_id") or params.get("pdfId")
-                        # 强制单例：anno-manager 必须使用固定 client_id
-                        if client_id != "anno-manager":
-                            raise ValueError(
-                                "anno-manager 必须使用固定 client_id='anno-manager'（禁止多实例/自定义 client_id）"
-                                f"，当前 client_id={client_id!r}"
-                            )
-                        self.logger.info(
-                            "[MsgDispatch] app-window 打开 anno-manager: client_id=%s pdf_id=%s dev_env=%s ports=%s options=%s",
-                            client_id,
-                            str(pdf_id),
-                            str(is_dev_env),
-                            str(ports),
-                            str(options),
-                        )
-                        rc = ensure_anno_manager_hosted(
-                            cfg,
-                            parent_app=self.parent_app or getattr(self, "app", None),
-                            on_log=lambda s: self.logger.info("[AnnoManagerHost] %s", s),
-                            window_lifecycle=self.window_lifecycle,
-                            pdf_id=str(pdf_id) if pdf_id else None,
-                        )
-                        self.logger.info("[MsgDispatch] app-window AnnoManager ensure-hosted rc=%s", str(rc))
                     elif window_type == "new-card-scheduler":
                         self.logger.info(
                             "[MsgDispatch] app-window 打开 new-card-scheduler: client_id=%s dev_env=%s ports=%s options=%s",
@@ -878,4 +853,3 @@ class BackendLauncher:
 
     def _should_show_test_ui(self) -> bool:
         return self.mode == "subprocess" and self.show_ui
-

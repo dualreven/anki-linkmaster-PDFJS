@@ -27,7 +27,7 @@ def apply_frameless_window_flags(window: Any, logger: Any | None = None, label: 
   Args:
       window: 任何具有 setWindowFlags(Qt.WindowType) 方法的窗口对象（通常是 QMainWindow/QWidget 子类）
       logger: 可选日志对象（需支持 info/warning），用于记录设置结果
-      label: 便于日志识别当前窗口的标识（如 "pdf-home" / "pdf-viewer" / "simple-web-window[/anno-manager]"）
+      label: 便于日志识别当前窗口的标识（如 "pdf-home" / "pdf-viewer" / "simple-web-window[/new-card-scheduler]"）
 
   注意：
       - 若底层 Qt 不支持 FramelessWindowHint（极少见），本函数会静默回退，不抛异常。
@@ -48,4 +48,3 @@ def apply_frameless_window_flags(window: Any, logger: Any | None = None, label: 
         logger.warning("apply_frameless_window_flags: failed for %s: %s", name, exc)
       except Exception:
         pass
-

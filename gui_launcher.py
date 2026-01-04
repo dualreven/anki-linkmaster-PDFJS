@@ -224,10 +224,8 @@ class GUILauncher(QMainWindow):
         lay.addLayout(row_btns)
 
         row_tools = QHBoxLayout()
-        btn_anno_manager = QPushButton("启动 标注管理器 (Hosted)")
         btn_card_planner = QPushButton("启动 新卡片规划器 (Hosted)")
         btn_custom_reviewer = QPushButton("启动 定制复习器 (Hosted)")
-        row_tools.addWidget(btn_anno_manager)
         row_tools.addWidget(btn_card_planner)
         row_tools.addWidget(btn_custom_reviewer)
         lay.addLayout(row_tools)
@@ -238,7 +236,6 @@ class GUILauncher(QMainWindow):
         btn_viewer.clicked.connect(self._start_pdf_viewer_hosted)   # type: ignore[arg-type]
         btn_viewer_nav.clicked.connect(self._send_viewer_navigate_via_msgcenter)  # type: ignore[arg-type]
         btn_stop_backend.clicked.connect(self._stop_backend_hosted) # type: ignore[arg-type]
-        btn_anno_manager.clicked.connect(self._start_anno_manager_hosted)        # type: ignore[arg-type]
         btn_card_planner.clicked.connect(self._start_new_card_scheduler_hosted)  # type: ignore[arg-type]
         btn_custom_reviewer.clicked.connect(self._start_custom_reviewer_hosted)  # type: ignore[arg-type]
 
@@ -630,56 +627,6 @@ class GUILauncher(QMainWindow):
             self._log(f"❌ {message}")
         # 清理线程引用
         self._pdf_home_thread = None
-
-    def _start_anno_manager_hosted(self) -> None:
-        """通过 MsgCenter 请求启动/激活标注管理器窗口。"""
-        try:
-            self._log("⏳ 正在通过 MsgCenter 请求启动 标注管理器 (anno-manager) ...")
-            ports = self._runtime_ports() or {}
-            ws_port = int(ports.get("msgCenter_port") or (self.msgCenter_port_input.value() or 0) or 0)
-            if not ws_port:
-                self._log("[ERROR] 未能获取 MsgCenter 端口（runtime-ports.json 或 UI 均为空）")
-                return
-            if not self._is_port_listening("127.0.0.1", int(ws_port)):
-                QMessageBox.critical(self, "连接错误", f"MsgCenter 未监听端口 {ws_port}，请先启动后端")
-                self._log(f"[ERROR] MsgCenter 未监听端口 {ws_port}，请先启动后端")
-                return
-
-            from src.backend.msgCenter_server.standard_protocol import StandardMessageHandler as _SMH  # type: ignore
-            import time as _time
-            rid = _SMH.generate_request_id()
-            msg: Dict[str, Any] = {
-                "type": "app-window:open:requested",
-                "to": "backend",
-                "timestamp": int(_time.time() * 1000),
-                "request_id": rid,
-                "data": {
-                    "client_id": "anno-manager",
-                    "window_type": "anno-manager",
-                    "params": {},
-                },
-            }
-
-            self._log(f"[TRACE] → ws://127.0.0.1:{ws_port} 发送启动 anno-manager 请求 (runtime_ports={ports})")
-            try:
-                payload_text = _SMH.serialize_message(msg)
-                ack_text = self._send_ws_text_qt(
-                    ws_port,
-                    payload_text,
-                    timeout_ms=2000,
-                    expect_types=(),
-                    correlation_id=rid,
-                )
-                if ack_text:
-                    self._log(f"[ACK] {ack_text}")
-                else:
-                    self._log("[WARN] 未在超时内收到回执（已发送 anno-manager 启动请求）")
-            except Exception as ws_e:
-                self._log(f"[ERROR] 发送 anno-manager 启动消息失败: {ws_e}")
-                return
-            self._log("✅ 已通过 MsgCenter 发送启动 标注管理器 请求（请查看后端日志与窗口）")
-        except Exception as e:
-            self._log(f"[ERROR] 通过 MsgCenter 启动 标注管理器 失败: {e}")
 
     def _start_pdf_viewer_hosted(self) -> None:
         """

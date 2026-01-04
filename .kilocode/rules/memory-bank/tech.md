@@ -36,7 +36,6 @@
   - Memory Bank 压缩：当 `context.md` 超过 7 天记录或行数过多，或 `AItemp` 中出现超过 30 天的工作日志 / 文件数量过大时，必须按《Memory Bank 压缩机制规范》执行归档与压缩，禁止直接删除历史记录。
   - PyQt 前端窗口：优先复用 `src/frontend/common/pyqt` 与 `src/frontend/pyqtui` 中的公共工具（如 `qt_app_runner.py`、`ports_utils.py`、`BaseLoggingWebPage`），避免在各模块内重复实现 QApplication 启动与 JS 控制台日志逻辑。
   - PyQt 工具窗口 URL：`SimpleWebWindowApp` 仅允许透传 `client-id`；禁止通过 URL query 透传业务参数（如 `pdf-id`），业务初始化统一走 MsgCenter 消息。
-  - 工具窗口单例：标注管理器 `anno-manager` 为强单例窗口，MsgCenter 打开时 client_id 固定为 `"anno-manager"`，重复打开仅激活窗口。
 
 维护记录
 - 2025-11-07 精简为索引版；详细内容迁移到 docs（见 todo-and-doing/1 doing/20251107-tech-md-minify-migration/plan.md）。
@@ -766,15 +765,6 @@ python ai_launcher.py status
     - `draft_card:create/update/delete`、`draft_face:add/remove`、`draft_content:add/remove/reorder`；
     - 这些操作应可被树状视图、文件浏览器视图、表格视图等多种 UI 复用。
   - 针对“拖放标注/大纲/锚点”和“Ctrl+V 识别 ID”的需求，需在前端建立统一的“引用解析器”模块，负责将任意输入解析成标准引用对象 `{ kind: 'annotation'|'outline'|'anchor', id: '...' }`，再交给规划器内部模型处理。
-
-- 标注管理器（Annotation Manager）
-  - 作为“标注与关系数据”的聚合入口，对外提供统一查询 API，例如：
-    - `annotation_query:search`（支持条件：来源 PDF、tag、是否有卡片、时间范围等）；
-    - `annotation_query:related`（返回某标注的一跳/多跳邻居，包括 PDF / Card / 其他标注）。
-  - UI 层的多种布局（列表/树/导图等）应基于这些查询 API 构建，不直接拼写 SQL 或访问底层表结构，确保后续可以在后端调整表设计而不影响前端调用。
-  - 启动路径：
-    - GUI Launcher：按钮 → 通过 MsgCenter `app-window:open:requested` 打开 `window_type="anno-manager"` 的 Hosted 窗口（client_id 固定为 `anno-manager`，由 BackendLauncher 通过 WindowLifecycleManager 管理生命周期）；
-    - pdf-viewer 内部：标注侧栏 Header 方框按钮通过 `PDF_VIEWER_EVENTS.ANNOTATION.MANAGER.OPEN_WINDOW_REQUESTED` 事件发起请求，由 WebSocketAdapter 统一封装 `WEBSOCKET_MESSAGE_TYPES.APP_WINDOW_OPEN_REQUESTED` 消息，消息体 `data = { client_id: "anno-manager", window_type: "anno-manager", params: { pdf_id } }`，交由 MsgCenter/BackendLauncher 打开或激活标注管理器窗口。
 
 ## 2026-01-04：测试与门禁用法更新（RUN_E2E / lint 集成）
 

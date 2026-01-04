@@ -3,10 +3,10 @@
 """
 SimpleWebWindowApp
 
-为 anno-manager / new-card-scheduler / custom-reviewer 提供可复用的 Hosted/CLI 启动骨架：
+为 new-card-scheduler / custom-reviewer 提供可复用的 Hosted/CLI 启动骨架：
 - 统一使用 LaunchConfig 与 runtime-ports.json 解析端口；
 - 复用 pdf-home 的 runtime-ports 读取与 logs_dir 约束；
-- 创建一个简单的 QWebEngine 窗口加载指定 entry 路径（如 /anno-manager/）。
+- 创建一个简单的 QWebEngine 窗口加载指定 entry 路径（如 /new-card-scheduler/）。
 """
 
 from __future__ import annotations

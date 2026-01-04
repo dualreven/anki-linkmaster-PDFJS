@@ -43,9 +43,9 @@ class SimpleWebWindowUrlClientIdTest(unittest.TestCase):
     SimpleWebWindowApp = self.mod.SimpleWebWindowApp  # type: ignore[attr-defined]
 
     cfg = LaunchConfig(is_prod=False)
-    app = SimpleWebWindowApp(cfg, entry_path="anno-manager", window_title="Anno")
+    app = SimpleWebWindowApp(cfg, entry_path="new-card-scheduler", window_title="NCS")
     url = app._build_frontend_url(5173)
-    self.assertEqual(url, "http://localhost:5173/anno-manager/")
+    self.assertEqual(url, "http://localhost:5173/new-card-scheduler/")
 
   def test_build_url_with_client_id(self) -> None:
     """提供 client_id 时应追加 ?client-id 参数。"""
@@ -68,11 +68,11 @@ class SimpleWebWindowUrlClientIdTest(unittest.TestCase):
     SimpleWebWindowApp = self.mod.SimpleWebWindowApp  # type: ignore[attr-defined]
 
     cfg = LaunchConfig(is_prod=False)
-    cfg.extra_params = {"client_id": "anno-manager", "pdf_id": "pdf_123"}
-    app = SimpleWebWindowApp(cfg, entry_path="anno-manager", window_title="Anno")
+    cfg.extra_params = {"client_id": "new-card-scheduler", "pdf_id": "pdf_123"}
+    app = SimpleWebWindowApp(cfg, entry_path="new-card-scheduler", window_title="NCS")
     url = app._build_frontend_url(5173)
-    self.assertTrue(url.startswith("http://localhost:5173/anno-manager/"))
-    self.assertIn("client-id=anno-manager", url)
+    self.assertTrue(url.startswith("http://localhost:5173/new-card-scheduler/"))
+    self.assertIn("client-id=new-card-scheduler", url)
     self.assertNotIn("pdf-id=", url)
 
 

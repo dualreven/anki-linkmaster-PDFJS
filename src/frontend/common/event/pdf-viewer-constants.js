@@ -226,11 +226,6 @@ export const PDF_VIEWER_EVENTS = {
       SETTINGS_OPEN: "annotation-sidebar:settings:open",
       ID_COPY_SUCCESS: "annotation:id-copy:success",
     },
-    MANAGER: {
-      OPEN_WINDOW_REQUESTED: "annotation-manager:window-open:requested",
-      OPEN_WINDOW_SUCCESS: "annotation-manager:window-open:success",
-      OPEN_WINDOW_FAILED: "annotation-manager:window-open:failed",
-    },
     TOOL: {
       ACTIVATE: "annotation-tool:activate:requested",
       DEACTIVATE: "annotation-tool:deactivate:requested",

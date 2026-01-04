@@ -185,13 +185,16 @@
 - 代码/回归/日志：`src/backend/msgCenter_server/standard_server.py`；`src/backend/msgCenter_server/__tests__/test_standard_server_auto_launch_viewer_on_navigate.py`；`AItemp/20260104011708-AI-Working-log.md`
 - 门禁：`pnpm run lint` 已包含 `ci:frontend-line-limit`；baseline 已收敛到当前仍 `>500` 的 15 个前端文件（便于持续拆分直到归零）。
 ## 2026-01-04 完成：SearchBox 面条治理（pdf-search）
-- `src/frontend/pdf-viewer/features/pdf-search/components/search-box.js` 574 → **364**（≤500），拆分 DOM/绑定/订阅并新增最小回归测试；说明外移到 `docs/standards/pdf-search-search-box.md`。
-- `scripts/ci/baselines/frontend-line-limit.json` 已从 15 收敛到 14（search-box 出基线）。
-
+- `src/frontend/pdf-viewer/features/pdf-search/components/search-box.js` 574 → **364**（≤500），拆分 DOM/绑定/订阅并新增最小回归测试；说明外移到 `docs/standards/pdf-search-search-box.md`；baseline 15→14（search-box 出基线）。
 ## 2026-01-04 完成：frontend-line-limit 基线清零（src/frontend 全量 ≤500）
-- 结论：`pnpm run ci:frontend-line-limit` baseline=0（`scripts/ci/baselines/frontend-line-limit.json` 已收敛到 0）。
-- 方式：对仍超限的 JS 以“注释外移/删除冗长 JSDoc + 清理空行 + 最小抽离”为主，保持对外行为不变；新增对照文档：`docs/standards/pdf-home-app-v2.md`、`docs/standards/event-bus-with-tracing.md`、`docs/standards/ui-layout-controls.md`、`docs/standards/text-layer-manager.md`、`docs/standards/qwebchannel-bridge.md`、`docs/standards/feature-flag-manager.md`。
-
+- 结论：`pnpm run ci:frontend-line-limit` baseline=0（`scripts/ci/baselines/frontend-line-limit.json` 已收敛到 0）；方式：对仍超限的 JS 以“注释外移/删除冗长 JSDoc + 清理空行 + 最小抽离”为主，保持对外行为不变；新增对照文档：`docs/standards/pdf-home-app-v2.md`、`docs/standards/event-bus-with-tracing.md`、`docs/standards/ui-layout-controls.md`、`docs/standards/text-layer-manager.md`、`docs/standards/qwebchannel-bridge.md`、`docs/standards/feature-flag-manager.md`。
 ## 2026-01-04 修复：跳转测试 NO_TARGET_FOUND（覆盖 client_socket=None）
-- 根因：MsgCenter 在 `handle_message(..., client_socket=None)` 的调用路径下未触发 auto-launch 分支，导致 `pdf-viewer:navigate:requested` 路由不到 viewer 时直接返回 404/`NO_TARGET_FOUND`（GUI Launcher “跳转测试”命中此路径）。
-- 修复：`src/backend/msgCenter_server/standard_server.py` auto-launch 分支放宽为允许 `client_socket=None`；并新增 pytest 回归：`src/backend/msgCenter_server/__tests__/test_standard_server_auto_launch_viewer_on_navigate.py`（无 socket 也应 202 + 发射 open + 待转发）。
+- 根因：MsgCenter 在 `handle_message(..., client_socket=None)` 的调用路径下未触发 auto-launch 分支，导致 `pdf-viewer:navigate:requested` 路由不到 viewer 时直接返回 404/`NO_TARGET_FOUND`（GUI Launcher “跳转测试”命中此路径）；修复：`src/backend/msgCenter_server/standard_server.py` auto-launch 分支放宽为允许 `client_socket=None`，并新增 pytest 回归：`src/backend/msgCenter_server/__tests__/test_standard_server_auto_launch_viewer_on_navigate.py`（无 socket 也应 202 + 发射 open + 待转发）。
+## 2026-01-04 前端面条化体检 v5（删 anno-manager 后快照）
+- 量化（生产口径）：379 files/68042 lines，`>500=0`，`Lines>=450=28`；eventBus.onGlobal=30/emitGlobal=56/on=199/emit=331。
+- 报告：`AItemp/reports/20260104231201-frontend-noodle-analysis-v5.md`（全量口径：557 files/86271 lines，测试 >500=4；见 `AItemp/20260104231201-AI-Working-log.md`）。
+
+## 2026-01-05 评审：前端从 EventBus 到 Store 的重构提案
+- 结论：同意“新功能用 `Manager + Store`、EventBus 收敛为边界事件/集成层”的方向；但落地前必须补齐工程细节（state 更新语义、selector 订阅、fail-fast 错误语义、异步竞态处理）。
+- 已落文：`docs/FRONTEND-REFACTORING-PROPOSAL.md` 追加 `## 7. LLM Review（2026-01-05）`。
+- 工作日志：`AItemp/20260105001747-AI-Working-log.md`
