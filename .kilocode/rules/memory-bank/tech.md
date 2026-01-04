@@ -6,6 +6,7 @@
   - UTF-8 + \n：所有读写显式 UTF-8，统一换行 \n。
   - Fail‑Fast：参数/事件/消息不合法一律失败，禁止兜底/静默回退。
   - 事件三段式：`{module}:{action}:{status}`；事件名必须通过命名空间常量引用（`*_EVENTS`、`*_MESSAGE_TYPES`、`PDF_VIEWER_EVENTS`、`WEBSOCKET_EVENTS`）。
+  - Viewer 导航自动启动：当发送 `pdf-viewer:navigate:requested` 且目标 viewer 未注册时，MsgCenter 会触发 `app-window:open:requested` 并缓存待转发，viewer 注册后自动转发（回执 `code=202`）。
   - 白名单：全局事件新增前，先在常量中登记；`global-event-registry.js` 放行。
   - 作用域：跨模块用 `onGlobal/emitGlobal`；避免 scoped↔global 不一致；组件初始化需幂等。
   - WebSocket 常量使用规范：请求/发送事件用 `WEBSOCKET_EVENTS.MESSAGE.SEND|RECEIVED|SEND_FAILED`；响应事件用 `WEBSOCKET_MESSAGE_EVENTS.RESPONSE`（切勿写成 `WEBSOCKET_EVENTS.MESSAGE.RESPONSE`）。
@@ -774,3 +775,13 @@ python ai_launcher.py status
   - 启动路径：
     - GUI Launcher：按钮 → 通过 MsgCenter `app-window:open:requested` 打开 `window_type="anno-manager"` 的 Hosted 窗口（client_id 固定为 `anno-manager`，由 BackendLauncher 通过 WindowLifecycleManager 管理生命周期）；
     - pdf-viewer 内部：标注侧栏 Header 方框按钮通过 `PDF_VIEWER_EVENTS.ANNOTATION.MANAGER.OPEN_WINDOW_REQUESTED` 事件发起请求，由 WebSocketAdapter 统一封装 `WEBSOCKET_MESSAGE_TYPES.APP_WINDOW_OPEN_REQUESTED` 消息，消息体 `data = { client_id: "anno-manager", window_type: "anno-manager", params: { pdf_id } }`，交由 MsgCenter/BackendLauncher 打开或激活标注管理器窗口。
+
+## 2026-01-04：测试与门禁用法更新（RUN_E2E / lint 集成）
+
+- Python E2E（pytest）：
+  - `tests/e2e/**` 默认不会在 `python -m pytest` 全量中执行（避免依赖外部进程/历史工件导致误报）。
+  - 需要执行 E2E 时：设置环境变量 `RUN_E2E=1`。
+  - e2e runner：`tests/e2e/runner/run-py-step.mjs` 已自动注入 `RUN_E2E=1`（使用 `pnpm` 的 e2e flow 不受影响）。
+- 前端行数门禁（≤500）：
+  - 已纳入 `pnpm run lint`（先跑 `lint:memory-bank`，再跑 `ci:frontend-line-limit`，再跑 eslint）。
+  - baseline 文件：`scripts/ci/baselines/frontend-line-limit.json`（仅记录当前仍 >500 的文件；拆分完成后可再次 `pnpm run ci:frontend-line-limit:write-baseline` 继续收敛）。

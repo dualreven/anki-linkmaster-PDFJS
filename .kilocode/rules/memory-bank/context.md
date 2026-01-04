@@ -191,4 +191,9 @@
 ## 2026-01-04 复核：JS≤500 + 全量门禁复跑（完成）
 - 结论：`pnpm run ci:frontend-line-limit` OK；`pnpm run lint/test:format/check:deps/test/ci:ws-types-diff` 全绿。
 - 工作日志：`AItemp/20260104000330-AI-Working-log.md`
-- Git：已提交 `b2712a4`（不含 `AItemp`，见 `AItemp/20260104011252-AI-Working-log.md`）
+- Git：已提交 `9eb788d`（不含 `AItemp`，见 `AItemp/20260104011252-AI-Working-log.md`）
+
+## 2026-01-04 修复：viewer 未启动时导航自动启动并待转发
+- 行为：`pdf-viewer:navigate:requested` 若路由不到 viewer，则触发 `app-window:open:requested` 并缓存消息；viewer 注册后自动转发；请求方回执 `code=202`。
+- 代码/回归/日志：`src/backend/msgCenter_server/standard_server.py`；`src/backend/msgCenter_server/__tests__/test_standard_server_auto_launch_viewer_on_navigate.py`；`AItemp/20260104011708-AI-Working-log.md`
+- 门禁：`pnpm run lint` 已包含 `ci:frontend-line-limit`；baseline 已收敛到当前仍 `>500` 的 15 个前端文件（便于持续拆分直到归零）。

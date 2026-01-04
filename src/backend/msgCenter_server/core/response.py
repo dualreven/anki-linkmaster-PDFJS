@@ -74,7 +74,11 @@ def build_error_response(
     """
     error_payload: Dict[str, Any] = {
         "type": error_type,
+        # 兼容字段：历史测试/部分客户端使用 error_code（等价于 type）
+        "error_code": error_type,
         "message": error_message,
+        # 兼容字段：部分测试使用 error_message（等价于 message）
+        "error_message": error_message,
     }
     if error_details is not None:
         error_payload["details"] = error_details
@@ -87,4 +91,3 @@ def build_error_response(
         data=None,
         error=error_payload,
     )
-

@@ -20,7 +20,7 @@
     "test:pre-commit": "pnpm run check:deps && pnpm run test",
     "test:format": "node scripts/test-formatting.mjs",
     "lint:memory-bank": "node scripts/ci/memory-bank-limit.js --fix",
-    "lint": "pnpm -s run lint:memory-bank && pnpm exec eslint src scripts eslint-rules --ext .js,.cjs,.mjs",
+    "lint": "pnpm -s run lint:memory-bank && pnpm -s run ci:frontend-line-limit && pnpm exec eslint src scripts eslint-rules --ext .js,.cjs,.mjs",
     "lint:strict:pdf-core": "pnpm exec eslint src/frontend/pdf-viewer/pdf --ext .js",
     "lint:strict:common-core": "pnpm exec eslint src/frontend/common --ext .js",
     "lint:strict:pdf-home-search-filter": "pnpm exec eslint src/frontend/pdf-home/features/search src/frontend/pdf-home/features/filter --ext .js",

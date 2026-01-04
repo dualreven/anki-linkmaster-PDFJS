@@ -155,6 +155,22 @@ class PDFLibraryAPI:
         payload = normalize_update(self, uuid, updates or {})
         return self._pdf_info_plugin.update(uuid, payload)
 
+    def create_or_update_record(self, uuid: str, data: Dict[str, Any]) -> str:
+        """
+        兼容入口：按 uuid 幂等写入记录。
+
+        - 若记录已存在：执行 update（部分字段更新）
+        - 若记录不存在：执行 create（uuid 作为主键）
+        """
+        if not uuid:
+            raise DatabaseValidationError("uuid is required")
+        if self._pdf_info_plugin.query_by_id(uuid):
+            self.update_record(uuid, data or {})
+            return uuid
+        payload = dict(data or {})
+        payload["uuid"] = uuid
+        return self.create_record(payload)
+
     def delete_record(self, uuid: str) -> bool:
         if not uuid:
             raise DatabaseValidationError("uuid is required")

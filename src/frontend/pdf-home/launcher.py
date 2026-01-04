@@ -238,10 +238,8 @@ class PdfHomeApp:
         _setup_logging()
         logger.info(f"Launching pdf-home ({self.mode} mode)")
 
-        # 步骤 1: 创建或使用 QApplication（通过公共辅助函数）
-        self.app, self.mode = init_qapplication(self.parent_app, logger, "pdf-home")
-
-        # 步骤 2: 解析端口配置（严格校验，禁止兜底）
+        # 步骤 1: 解析端口配置（严格校验，禁止兜底）
+        # NOTE: 端口缺失应在 Qt 初始化前直接 fail-fast；避免在无 PyQt 环境的单测中先触发 Qt 相关异常。
         vite_json, msgCenter_json, pdfFile_json, extras = _read_runtime_ports(project_root)
 
         def _to_int_or_none(v):
@@ -279,6 +277,9 @@ class PdfHomeApp:
                 f"1. 通过 GUI 启动后端（自动写入端口配置）\n"
                 f"2. 或显式传入 CLI 参数：--url-port, --msgCenter-port, --pdfFile-port"
             )
+
+        # 步骤 2: 创建或使用 QApplication（通过公共辅助函数）
+        self.app, self.mode = init_qapplication(self.parent_app, logger, "pdf-home")
 
         logger.info(f"Mode: is_prod={self.config.is_prod} keep_backend={self.config.keep_backend}")
         logger.info(f"Resolved ports: url={url_port} msgCenter={msgCenter_port} pdfFile={pdfFile_port}")

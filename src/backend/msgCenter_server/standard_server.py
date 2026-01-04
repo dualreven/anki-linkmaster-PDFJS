@@ -4,6 +4,7 @@
 import logging
 import json
 import os
+import time
 from typing import Dict, Any, Optional, List
 
 # Add project root to Python path for standalone execution
@@ -141,9 +142,11 @@ class StandardWebSocketServer(QObject, ServerAPIMixin):
     """标准WebSocket服务器 - 支持JSON通信标准"""
     
     # 定义信号
-    client_connected = pyqtSignal(QWebSocket)
-    client_disconnected = pyqtSignal(QWebSocket)
-    message_received = pyqtSignal(QWebSocket, dict)
+    # NOTE: 信号的第一个参数使用 object 而非 QWebSocket，以便在无 Qt 环境/单元测试中使用 MockSocket。
+    # 生产环境仍然传入真实 QWebSocket。
+    client_connected = pyqtSignal(object)
+    client_disconnected = pyqtSignal(object)
+    message_received = pyqtSignal(object, dict)
     
     def __init__(self, host="127.0.0.1", port=8765, app=None, *,
                  pdf_library_api: Optional[PDFLibraryAPI] = None,
@@ -391,7 +394,7 @@ class StandardWebSocketServer(QObject, ServerAPIMixin):
         client_socket = self.sender()
         self._process_incoming(client_socket, message)
             
-    def handle_message(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def handle_message(self, message: Dict[str, Any], client_socket: Optional[QWebSocket] = None) -> Optional[Dict[str, Any]]:
         """
         处理消息的核心方法
 
@@ -554,6 +557,15 @@ class StandardWebSocketServer(QObject, ServerAPIMixin):
             all_target_sockets = list(set(all_target_sockets))
 
             if not all_target_sockets:
+                # 特例：pdf-viewer:navigate:requested 若未找到目标 viewer，则自动请求启动并缓存待转发
+                if original_type == "pdf-viewer:navigate:requested" and client_socket is not None:
+                    return self._auto_launch_viewer_and_queue_forward(
+                        client_socket=client_socket,
+                        original_message=message,
+                        routing_targets=routing_targets,
+                        request_id=request_id,
+                    )
+
                 logger.warning(
                     f"[Route] 未找到目标客户端: routing_targets={routing_targets}"
                 )
@@ -617,6 +629,162 @@ class StandardWebSocketServer(QObject, ServerAPIMixin):
                 logger.debug(f"[Forward] 已发送到 socket {id(target_socket)}")
             except Exception as e:
                 logger.error(f"[Forward] 转发失败: socket={id(target_socket)}, error={e}")
+
+    def _ensure_pending_forward_tables(self) -> None:
+        if not hasattr(self, "_pending_forward_by_client_id"):
+            self._pending_forward_by_client_id: Dict[str, List[Dict[str, Any]]] = {}
+        if not hasattr(self, "_auto_open_viewer_inflight"):
+            self._auto_open_viewer_inflight: Dict[str, int] = {}
+
+    def _queue_pending_forward(self, *, client_id: str, message: Dict[str, Any], ttl_ms: int) -> None:
+        self._ensure_pending_forward_tables()
+        now_ms = int(time.time() * 1000)
+        expires_at_ms = now_ms + int(ttl_ms)
+        entry = {
+            "expires_at_ms": expires_at_ms,
+            "request_id": message.get("request_id"),
+            "message": message,
+        }
+        bucket = self._pending_forward_by_client_id.setdefault(client_id, [])
+
+        # 去重：同 request_id 不重复入队
+        rid = entry.get("request_id")
+        if rid:
+            for e in bucket:
+                if e.get("request_id") == rid:
+                    return
+
+        bucket.append(entry)
+
+    def _flush_pending_forward_for_client(self, *, client_id: str, socket: QWebSocket) -> int:
+        self._ensure_pending_forward_tables()
+        bucket = self._pending_forward_by_client_id.get(client_id) or []
+        if not bucket:
+            return 0
+
+        now_ms = int(time.time() * 1000)
+        remaining: List[Dict[str, Any]] = []
+        sent = 0
+
+        for entry in bucket:
+            try:
+                if int(entry.get("expires_at_ms") or 0) < now_ms:
+                    continue
+                msg = entry.get("message")
+                if not isinstance(msg, dict):
+                    continue
+                socket.sendTextMessage(json.dumps(msg, ensure_ascii=False))
+                sent += 1
+            except Exception as exc:
+                # 发送失败：保留，等待下一次 flush（但仍受 ttl 控制）
+                remaining.append(entry)
+                logger.error("[PendingForward] flush 发送失败: client_id=%s err=%s", client_id, exc, exc_info=True)
+
+        if remaining:
+            self._pending_forward_by_client_id[client_id] = remaining
+        else:
+            self._pending_forward_by_client_id.pop(client_id, None)
+
+        if sent:
+            logger.info("[PendingForward] flush 完成: client_id=%s sent=%d", client_id, sent)
+        return sent
+
+    def _auto_launch_viewer_and_queue_forward(
+        self,
+        *,
+        client_socket: QWebSocket,
+        original_message: Dict[str, Any],
+        routing_targets: List[Dict[str, Any]],
+        request_id: Optional[str],
+    ) -> Dict[str, Any]:
+        """
+        处理场景：pdf-viewer:navigate:requested 路由不到任何 viewer。
+
+        行为：
+        1) 发射一条 app-window:open:requested（由 BackendLauncher 监听 message_received 触发打开/激活 viewer）
+        2) 将原导航消息缓存到 pending 队列，等待 viewer 注册后自动转发
+        3) 返回 202 回执给请求方（避免 NO_TARGET_FOUND 直接失败）
+        """
+        self._ensure_pending_forward_tables()
+
+        # 解析 pdf_id 与目标 client_id（Fail-Fast）
+        target_client_id = None
+        target_pdf_id = None
+        for t in routing_targets or []:
+            cid = (t or {}).get("client_id")
+            rk = (t or {}).get("routing_key")
+            if isinstance(cid, str) and cid.startswith("pdf-viewer-"):
+                target_client_id = cid
+                target_pdf_id = cid[len("pdf-viewer-") :].strip() or None
+                break
+            if isinstance(rk, str) and rk.startswith("pdf:"):
+                target_pdf_id = rk[len("pdf:") :].strip() or None
+
+        if not target_client_id and target_pdf_id:
+            target_client_id = f"pdf-viewer-{target_pdf_id}"
+
+        if not target_client_id or not target_pdf_id:
+            return StandardMessageHandler.build_error_response(
+                request_id or StandardMessageHandler.generate_request_id(),
+                "INVALID_TARGET",
+                "无法从路由目标中解析 pdf_id（无法自动启动 viewer）",
+                message_type="pdf-viewer:navigate:failed",
+                error_details={"routing_targets": routing_targets},
+                code=400,
+            )
+
+        # 组装要缓存/转发的导航消息（为 auto-launch 场景强制加 gate.once，避免 viewer 未 ready 就执行）
+        effective_rid = request_id or StandardMessageHandler.generate_request_id()
+        forward_msg = dict(original_message)
+        forward_msg["request_id"] = effective_rid
+        gate = forward_msg.get("gate")
+        if not isinstance(gate, dict) or not gate.get("once"):
+            forward_msg["gate"] = {"once": "pdf-viewer:render:ready", "timeout_ms": 8000}
+
+        self._queue_pending_forward(client_id=target_client_id, message=forward_msg, ttl_ms=15000)
+
+        # 去重触发 viewer open（同 pdf_id 15s 内只触发一次）
+        now_ms = int(time.time() * 1000)
+        inflight_until = int(self._auto_open_viewer_inflight.get(target_pdf_id) or 0)
+        if inflight_until < now_ms:
+            self._auto_open_viewer_inflight[target_pdf_id] = now_ms + 15000
+            open_msg = {
+                "type": "app-window:open:requested",
+                "to": "backend",
+                "timestamp": now_ms,
+                "request_id": StandardMessageHandler.generate_request_id(),
+                "data": {
+                    "client_id": target_client_id,
+                    "window_type": "pdf-viewer",
+                    "params": {"pdf_id": target_pdf_id},
+                },
+            }
+            try:
+                logger.info(
+                    "[AutoLaunch] viewer 不存在，触发 app-window:open:requested: client_id=%s pdf_id=%s",
+                    target_client_id,
+                    target_pdf_id,
+                )
+                self.message_received.emit(client_socket, open_msg)
+            except Exception as exc:
+                logger.error("[AutoLaunch] 发射 app-window:open:requested 失败: %s", exc, exc_info=True)
+                return StandardMessageHandler.build_error_response(
+                    effective_rid,
+                    "AUTO_LAUNCH_FAILED",
+                    f"自动启动 viewer 失败: {exc}",
+                    message_type="pdf-viewer:navigate:failed",
+                    error_details={"pdf_id": target_pdf_id, "client_id": target_client_id},
+                    code=500,
+                )
+
+        return StandardMessageHandler.build_response(
+            "pdf-viewer:navigate:completed",
+            effective_rid,
+            status="success",
+            code=202,
+            message="未找到目标 viewer，已请求启动并缓存导航请求，待 viewer 注册后自动转发",
+            data={"pdf_id": target_pdf_id, "client_id": target_client_id},
+        )
 
     # ---------- 内部：连接与转发辅助 ----------
     def _on_client_connected(self, socket: QWebSocket):
@@ -1089,6 +1257,11 @@ class StandardWebSocketServer(QObject, ServerAPIMixin):
                         f"[RouteRegistry] 新协议客户端注册成功: client_id={client_id}, "
                         f"client_type={client_type}, routing_keys={routing_keys}"
                     )
+                    # 若存在待转发消息（例如 auto-launch navigate），在注册成功后立即 flush
+                    try:
+                        self._flush_pending_forward_for_client(client_id=client_id, socket=client_socket)
+                    except Exception as _flush_exc:
+                        logger.error("[PendingForward] 注册后 flush 失败: client_id=%s err=%s", client_id, _flush_exc, exc_info=True)
                 except RuntimeError as exc:
                     # 重复注册：返回 CLIENT_ID_EXISTS 错误
                     if "已存在" in str(exc) or "already" in str(exc).lower():
@@ -1141,7 +1314,7 @@ class StandardWebSocketServer(QObject, ServerAPIMixin):
                 )
                 self.send_message(client_socket, ok_resp)
                 self.message_received.emit(client_socket, parsed_message)
-                return
+                return ok_resp
 
             # ===== 旧协议向后兼容处理逻辑 =====
             else:
@@ -1205,6 +1378,10 @@ class StandardWebSocketServer(QObject, ServerAPIMixin):
                         f"[RouteRegistry] 旧协议客户端注册成功（已自动转换）: client_id={route_client_id}, "
                         f"client_type={route_client_type}"
                     )
+                    try:
+                        self._flush_pending_forward_for_client(client_id=route_client_id, socket=client_socket)
+                    except Exception as _flush_exc:
+                        logger.error("[PendingForward] 注册后 flush 失败: client_id=%s err=%s", route_client_id, _flush_exc, exc_info=True)
                 except RuntimeError as exc:
                     if "已存在" in str(exc) or "already" in str(exc).lower():
                         logger.warning(
@@ -1234,7 +1411,7 @@ class StandardWebSocketServer(QObject, ServerAPIMixin):
                 )
                 self.send_message(client_socket, ok_resp)
                 self.message_received.emit(client_socket, parsed_message)
-                return
+                return ok_resp
 
         # 客户端取消注册：client:unregister:requested
         if msg_type == "client:unregister:requested":
@@ -1319,7 +1496,7 @@ class StandardWebSocketServer(QObject, ServerAPIMixin):
             )
             self.send_message(client_socket, ok_resp)
             self.message_received.emit(client_socket, parsed_message)
-            return
+            return ok_resp
 
         # 未注册客户端禁止发送除注册/取消注册以外的业务消息
         if msg_type not in (
@@ -1344,11 +1521,11 @@ class StandardWebSocketServer(QObject, ServerAPIMixin):
                 )
                 self.send_message(client_socket, error_response)
                 self.message_received.emit(client_socket, parsed_message)
-                return
+                return error_response
 
         # 处理消息（注册在这里维护；转发由 handler 决定成败并返回 completed/failed 给请求方）
         try:
-            response = self.handle_message(parsed_message)
+            response = self.handle_message(parsed_message, client_socket=client_socket)
 
             # ✅ 新增：检查验证结果，决定是否发射信号
             should_emit_signal = True  # 默认发射

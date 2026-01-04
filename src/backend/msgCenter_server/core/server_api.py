@@ -15,10 +15,25 @@ class ServerAPIMixin:
       - self._core: WebSocketServerCore
       - 可选 self._describe_client(socket) -> str：返回 `<client-name>:<client-id>` 描述
     """
-    def send_message(self, client: QWebSocket, message: Dict[str, Any]) -> bool:
-        """发送消息给指定客户端"""
+    def send_message(self, client: object, message: Dict[str, Any]) -> bool:
+        """发送消息给指定客户端
+
+        NOTE:
+        - 生产环境：通过 WebSocketServerCore 向真实 QWebSocket 发送。
+        - 测试环境：当 self._test_mode=True 且传入的是 MockSocket（仅需实现 sendTextMessage），直接调用以便单测覆盖。
+        """
         try:
             json_message = json.dumps(message, ensure_ascii=False, separators=(',', ':'))
+
+            # 单元测试/无 Qt 环境：允许 MockSocket 直接接收消息（不依赖 _core 连接状态）
+            if getattr(self, "_test_mode", False) and hasattr(client, "sendTextMessage"):
+                try:
+                    getattr(client, "sendTextMessage")(json_message)
+                    return True
+                except Exception as e:
+                    logger.error(f"[test_mode] 发送消息失败: {e}")
+                    return False
+
             ok = self._core.send_text(client, json_message)  # type: ignore[attr-defined]
             if ok:
                 try:
