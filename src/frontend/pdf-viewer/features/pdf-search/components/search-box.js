@@ -2,12 +2,17 @@
  * 搜索框主容器组件
  * @file features/search/components/search-box.js
  * @description 搜索框UI的主容器，管理所有子组件和用户交互
+ *
+ * 详细说明见：docs/standards/pdf-search-search-box.md
  */
 
 import { getLogger } from "../../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 import { debounce } from "../utils/debounce.js";
 import { validateSearchQuery } from "../utils/search-validator.js";
+import { createSearchBoxDom } from "./search-box-dom.js";
+import { attachSearchBoxDomBindings } from "./search-box-dom-bindings.js";
+import { subscribeSearchBoxEvents } from "./search-box-event-subscriptions.js";
 
 /**
  * 搜索框组件类
@@ -33,9 +38,6 @@ export class SearchBox {
   /** @type {HTMLButtonElement} 下一个按钮 */
   #nextButton = null;
 
-  /** @type {HTMLButtonElement} 关闭按钮 */
-  #closeButton = null;
-
   /** @type {HTMLElement} 结果计数显示 */
   #resultCounter = null;
 
@@ -53,6 +55,9 @@ export class SearchBox {
 
   /** @type {boolean} 是否可见 */
   #isVisible = false;
+
+  /** @type {Array<() => void>} */
+  #cleanupFns = [];
 
   /**
    * 构造函数
@@ -79,273 +84,48 @@ export class SearchBox {
 
     this.#logger.info("Initializing SearchBox...");
 
-    // 创建搜索框DOM
-    this.#createDOM();
-
-    // 绑定事件监听器
-    this.#attachEventListeners();
-
     // 设置防抖搜索函数
     this.#debouncedSearch = debounce((query, options) => {
       this.#handleSearch(query, options);
     }, 300);
 
-    // 监听应用事件
-    this.#setupAppEventListeners();
+    // 创建 DOM
+    const { container, elements } = createSearchBoxDom({ logger: this.#logger });
+    this.#container = container;
+    this.#searchInput = elements.searchInput;
+    this.#prevButton = elements.prevButton;
+    this.#nextButton = elements.nextButton;
+    this.#resultCounter = elements.resultCounter;
+    this.#caseSensitiveCheckbox = elements.caseSensitiveCheckbox;
+    this.#wholeWordsCheckbox = elements.wholeWordsCheckbox;
+
+    // DOM 事件绑定（可清理）
+    this.#cleanupFns.push(attachSearchBoxDomBindings({
+      elements,
+      logger: this.#logger,
+      onInput: (query) => {
+        const options = this.#getCurrentOptions();
+        this.#debouncedSearch(query, options);
+      },
+      onPrev: () => this.#handlePrevClick(),
+      onNext: () => this.#handleNextClick(),
+      onClose: () => this.#handleCloseClick(),
+      onOptionChanged: (name, value) => this.#handleOptionChange(name, value),
+      onToggle: () => this.toggle(),
+    }));
+
+    // 应用事件订阅（可清理）
+    this.#cleanupFns.push(subscribeSearchBoxEvents({
+      eventBus: this.#eventBus,
+      onResult: (current, total) => this.updateResultCounter(current, total),
+      onOpen: () => this.show(),
+      onClose: () => this.hide(),
+      onToggle: () => this.toggle(),
+      subscriberId: "SearchBox",
+    }));
 
     this.#initialized = true;
     this.#logger.info("SearchBox initialized");
-  }
-
-  /**
-   * 创建搜索框DOM结构
-   * @private
-   */
-  #createDOM() {
-    // 创建容器
-    this.#container = document.createElement("div");
-    this.#container.id = "pdf-search-box";
-    this.#container.className = "pdf-search-box hidden";
-    this.#container.setAttribute("role", "search");
-    this.#container.setAttribute("aria-label", "PDF搜索");
-
-    // 创建HTML结构
-    this.#container.innerHTML = `
-      <div class="search-box-main">
-        <input
-          type="text"
-          id="pdf-search-input"
-          class="search-input"
-          placeholder="搜索PDF..."
-          aria-label="搜索关键词"
-          autocomplete="off"
-        />
-
-        <div class="search-controls">
-          <button
-            id="pdf-search-prev"
-            class="search-btn search-btn-prev"
-            title="上一个 (Shift+Enter)"
-            aria-label="上一个搜索结果"
-          >
-            <span class="icon">▲</span>
-          </button>
-
-          <button
-            id="pdf-search-next"
-            class="search-btn search-btn-next"
-            title="下一个 (Enter)"
-            aria-label="下一个搜索结果"
-          >
-            <span class="icon">▼</span>
-          </button>
-
-          <span
-            id="pdf-search-counter"
-            class="search-counter"
-            aria-live="polite"
-            aria-atomic="true"
-          >0/0</span>
-
-          <button
-            id="pdf-search-close"
-            class="search-btn search-btn-close"
-            title="关闭 (Esc)"
-            aria-label="关闭搜索"
-          >
-            <span class="icon">✕</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="search-box-options">
-        <label class="search-option">
-          <input
-            type="checkbox"
-            id="pdf-search-case-sensitive"
-            class="search-checkbox"
-          />
-          <span>区分大小写</span>
-        </label>
-
-        <label class="search-option">
-          <input
-            type="checkbox"
-            id="pdf-search-whole-words"
-            class="search-checkbox"
-          />
-          <span>全词匹配</span>
-        </label>
-      </div>
-    `;
-
-    // 插入到页面
-    document.body.appendChild(this.#container);
-
-    // 获取DOM元素引用
-    this.#searchInput = document.getElementById("pdf-search-input");
-    this.#prevButton = document.getElementById("pdf-search-prev");
-    this.#nextButton = document.getElementById("pdf-search-next");
-    this.#closeButton = document.getElementById("pdf-search-close");
-    this.#resultCounter = document.getElementById("pdf-search-counter");
-    this.#caseSensitiveCheckbox = document.getElementById("pdf-search-case-sensitive");
-    this.#wholeWordsCheckbox = document.getElementById("pdf-search-whole-words");
-
-    this.#logger.info("DOM created successfully");
-  }
-
-  /**
-   * 绑定DOM事件监听器
-   * @private
-   */
-  #attachEventListeners() {
-    // 搜索输入事件
-    this.#searchInput.addEventListener("input", (e) => {
-      const query = e.target.value;
-      const options = this.#getCurrentOptions();
-
-      // 使用防抖处理
-      this.#debouncedSearch(query, options);
-    });
-
-    // Enter键 - 下一个结果
-    this.#searchInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-
-        if (e.shiftKey) {
-          // Shift+Enter - 上一个
-          this.#handlePrevClick();
-        } else {
-          // Enter - 下一个
-          this.#handleNextClick();
-        }
-      } else if (e.key === "Escape") {
-        // Esc - 关闭
-        this.#handleCloseClick();
-      }
-    });
-
-    // 上一个按钮
-    this.#prevButton.addEventListener("click", () => {
-      this.#handlePrevClick();
-    });
-
-    // 下一个按钮
-    this.#nextButton.addEventListener("click", () => {
-      this.#handleNextClick();
-    });
-
-    // 关闭按钮
-    this.#closeButton.addEventListener("click", () => {
-      this.#handleCloseClick();
-    });
-
-    // 区分大小写复选框
-    this.#caseSensitiveCheckbox.addEventListener("change", (e) => {
-      this.#handleOptionChange("caseSensitive", e.target.checked);
-    });
-
-    // 全词匹配复选框
-    this.#wholeWordsCheckbox.addEventListener("change", (e) => {
-      this.#handleOptionChange("wholeWords", e.target.checked);
-    });
-
-    // Header上的搜索按钮
-    this.#attachHeaderSearchButton();
-
-    this.#logger.info("Event listeners attached");
-  }
-
-  /**
-   * 绑定header中搜索按钮的事件
-   * @private
-   */
-  #attachHeaderSearchButton() {
-    this.#logger.info("[DEBUG] Attempting to attach search button...");
-    this.#logger.info("[DEBUG] document.readyState:", document.readyState);
-    this.#logger.info("[DEBUG] document.body exists:", !!document.body);
-
-    const searchToggleBtn = document.getElementById("search-toggle-btn");
-
-    this.#logger.info("[DEBUG] Button element found:", !!searchToggleBtn);
-    this.#logger.info("[DEBUG] Button:", searchToggleBtn);
-
-    if (searchToggleBtn) {
-      searchToggleBtn.addEventListener("click", () => {
-        this.#logger.info("Header search button clicked");
-        this.toggle();
-      });
-      this.#logger.info("Header search button listener attached successfully");
-    } else {
-      this.#logger.error("❌ Header search button NOT FOUND (#search-toggle-btn)");
-
-      // 列出所有button元素的id
-      const allButtons = document.querySelectorAll("button[id]");
-      this.#logger.info("[DEBUG] All buttons with id:", Array.from(allButtons).map(b => b.id));
-    }
-  }
-
-  /**
-   * 设置应用级事件监听器
-   * @private
-   */
-  #setupAppEventListeners() {
-    // 监听搜索结果更新
-    this.#eventBus.on(
-      PDF_VIEWER_EVENTS.SEARCH.RESULT.UPDATED,
-      ({ current, total }) => {
-        this.updateResultCounter(current, total);
-      },
-      { subscriberId: "SearchBox" }
-    );
-
-    // 监听搜索结果找到
-    this.#eventBus.on(
-      PDF_VIEWER_EVENTS.SEARCH.RESULT.FOUND,
-      ({ current, total }) => {
-        this.updateResultCounter(current, total);
-      },
-      { subscriberId: "SearchBox" }
-    );
-
-    // 监听搜索结果未找到
-    this.#eventBus.on(
-      PDF_VIEWER_EVENTS.SEARCH.RESULT.NOT_FOUND,
-      () => {
-        this.updateResultCounter(0, 0);
-      },
-      { subscriberId: "SearchBox" }
-    );
-
-    // 监听打开搜索框事件
-    this.#eventBus.on(
-      PDF_VIEWER_EVENTS.SEARCH.UI.OPEN,
-      () => {
-        this.show();
-      },
-      { subscriberId: "SearchBox" }
-    );
-
-    // 监听关闭搜索框事件
-    this.#eventBus.on(
-      PDF_VIEWER_EVENTS.SEARCH.UI.CLOSE,
-      () => {
-        this.hide();
-      },
-      { subscriberId: "SearchBox" }
-    );
-
-    // 监听切换搜索框事件
-    this.#eventBus.on(
-      PDF_VIEWER_EVENTS.SEARCH.UI.TOGGLE,
-      () => {
-        this.toggle();
-      },
-      { subscriberId: "SearchBox" }
-    );
-
-    this.#logger.info("App event listeners attached");
   }
 
   /**
@@ -549,6 +329,11 @@ export class SearchBox {
   destroy() {
     this.#logger.info("Destroying SearchBox");
 
+    // 清理订阅与 DOM 事件绑定
+    for (const fn of this.#cleanupFns.splice(0)) {
+      try { fn?.(); } catch (e) { this.#logger.debug("SearchBox cleanup failed", e); }
+    }
+
     // 移除DOM
     if (this.#container && this.#container.parentNode) {
       this.#container.parentNode.removeChild(this.#container);
@@ -559,12 +344,12 @@ export class SearchBox {
     this.#searchInput = null;
     this.#prevButton = null;
     this.#nextButton = null;
-    this.#closeButton = null;
     this.#resultCounter = null;
     this.#caseSensitiveCheckbox = null;
     this.#wholeWordsCheckbox = null;
     this.#debouncedSearch = null;
     this.#eventBus = null;
+    this.#cleanupFns = [];
 
     this.#initialized = false;
     this.#isVisible = false;

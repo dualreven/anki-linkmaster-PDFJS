@@ -187,13 +187,14 @@
 ## 2026-01-03 完成：AnnotationManager 面条治理（`annotation-manager.js` 505 → 490（≤500），抽出 `annotation-position-utils.js`；文档：`docs/standards/annotation-manager.md`；回归测试：`annotation-position-utils.test.js`）
 ## 2026-01-03 修复：全量测试门禁（format/pre-commit/ws-contract-diff）
 - 修复 `test:format` 与 ESLint 引号规则冲突（更新 `.prettierrc.json`），补齐 `dependency-cruiser` 并修复配置（`.dependency-cruiser.cjs`），同步前后端 WS 三段式契约（`event-constants.js` / `message_types.py` / `ws-contract-diff.mjs`），全量 Jest 复跑通过。
-
 ## 2026-01-04 复核：JS≤500 + 全量门禁复跑（完成）
 - 结论：`pnpm run ci:frontend-line-limit` OK；`pnpm run lint/test:format/check:deps/test/ci:ws-types-diff` 全绿。
 - 工作日志：`AItemp/20260104000330-AI-Working-log.md`
 - Git：已提交 `9eb788d`（不含 `AItemp`，见 `AItemp/20260104011252-AI-Working-log.md`）
-
 ## 2026-01-04 修复：viewer 未启动时导航自动启动并待转发
 - 行为：`pdf-viewer:navigate:requested` 若路由不到 viewer，则触发 `app-window:open:requested` 并缓存消息；viewer 注册后自动转发；请求方回执 `code=202`。
 - 代码/回归/日志：`src/backend/msgCenter_server/standard_server.py`；`src/backend/msgCenter_server/__tests__/test_standard_server_auto_launch_viewer_on_navigate.py`；`AItemp/20260104011708-AI-Working-log.md`
 - 门禁：`pnpm run lint` 已包含 `ci:frontend-line-limit`；baseline 已收敛到当前仍 `>500` 的 15 个前端文件（便于持续拆分直到归零）。
+## 2026-01-04 完成：SearchBox 面条治理（pdf-search）
+- `src/frontend/pdf-viewer/features/pdf-search/components/search-box.js` 574 → **364**（≤500），拆分 DOM/绑定/订阅并新增最小回归测试；说明外移到 `docs/standards/pdf-search-search-box.md`。
+- `scripts/ci/baselines/frontend-line-limit.json` 已从 15 收敛到 14（search-box 出基线）。

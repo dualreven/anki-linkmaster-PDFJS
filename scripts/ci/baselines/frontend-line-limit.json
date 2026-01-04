@@ -11,7 +11,6 @@
   "src/frontend/pdf-viewer/features/pdf-annotation/core/annotation-manager.js": 562,
   "src/frontend/pdf-viewer/features/pdf-annotation/models/annotation.js": 515,
   "src/frontend/pdf-viewer/features/pdf-annotation/tools/text-highlight/highlight-renderer.js": 518,
-  "src/frontend/pdf-viewer/features/pdf-search/components/search-box.js": 574,
   "src/frontend/pdf-viewer/outline/outline-manager.js": 503,
   "src/frontend/pdf-viewer/ui/text-layer-manager.js": 525
 }
