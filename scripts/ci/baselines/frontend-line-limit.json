@@ -1,16 +1,1 @@
-{
-  "src/frontend/common/event/event-bus-with-tracing.js": 550,
-  "src/frontend/common/micro-service/feature-flag-manager.js": 531,
-  "src/frontend/common/models/annotation.js": 523,
-  "src/frontend/common/utils/indexeddb-cache-manager.js": 550,
-  "src/frontend/pdf-home/core/pdf-home-app-v2.js": 568,
-  "src/frontend/pdf-home/features/filter/components/filter-builder.js": 512,
-  "src/frontend/pdf-home/qwebchannel/qwebchannel-bridge.js": 528,
-  "src/frontend/pdf-viewer/features/infra-sidebar/index.js": 511,
-  "src/frontend/pdf-viewer/features/infra-ui/components/ui-layout-controls.js": 550,
-  "src/frontend/pdf-viewer/features/pdf-annotation/core/annotation-manager.js": 562,
-  "src/frontend/pdf-viewer/features/pdf-annotation/models/annotation.js": 515,
-  "src/frontend/pdf-viewer/features/pdf-annotation/tools/text-highlight/highlight-renderer.js": 518,
-  "src/frontend/pdf-viewer/outline/outline-manager.js": 503,
-  "src/frontend/pdf-viewer/ui/text-layer-manager.js": 525
-}
+{}

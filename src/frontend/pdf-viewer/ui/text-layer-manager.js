@@ -1,14 +1,6 @@
 ﻿/**
- * @file 文字层管理器
- * @module TextLayerManager
- * @description 管理PDF文字层的加载、渲染和交互功能
- *
- * 需求来源: 20250922143000-pdf-text-layer/v001-spec.md
- * 功能说明:
- * - 加载和渲染PDF页面的文字层
- * - 支持文字选择和复制
- * - 获取选中文字的内容和位置信息
- * - 支持文字高亮显示
+ * TextLayerManager
+ * 说明（详细）：`docs/standards/text-layer-manager.md`
  */
 
 import { getLogger } from "../../common/utils/logger.js";
@@ -17,10 +9,6 @@ const logger = getLogger("TextLayerManager");
 // 动态导入PDF.js的renderTextLayer
 let renderTextLayerFunc = null;
 
-/**
- * 动态加载PDF.js的renderTextLayer函数
- * @returns {Promise<Function>}
- */
 async function loadRenderTextLayer() {
   if (renderTextLayerFunc) {
     return renderTextLayerFunc;
@@ -40,22 +28,6 @@ async function loadRenderTextLayer() {
   return null;
 }
 
-/**
- * @class TextLayerManager
- * @description 管理PDF文字层的加载和交互
- *
- * 属性:
- * - pdfDocument: PDF文档对象
- * - textLayerContainer: 文字层容器元素
- * - textLayerEnabled: 文字层是否已启用
- *
- * 方法:
- * - loadTextLayer(container, page): 加载指定page的文字层到container中
- * - getSelectedText(): 获取当前选中的文字
- * - getSelectedTextRect(): 获取当前选中文字的矩形区域
- * - clearTextSelection(): 清除当前选中的文字
- * - highlightSelectedText(area_list): 高亮当前选中的文字
- */
 export class TextLayerManager {
   // 私有属性
   #logger;
@@ -66,12 +38,6 @@ export class TextLayerManager {
   #textDivs = [];
   #selectionChangeHandler = null;
 
-  /**
-   * 构造函数
-   * @param {Object} options - 配置选项
-   * @param {HTMLElement} options.container - 文字层容器元素
-   * @param {Object} options.pdfDocument - PDF文档对象（可选）
-   */
   constructor(options = {}) {
     this.#logger = getLogger("TextLayerManager");
     this.#textLayerContainer = options.container || null;

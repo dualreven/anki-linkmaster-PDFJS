@@ -1,7 +1,6 @@
 /**
- * @file QWebChannel 桥接封装
- * @module QWebChannelBridge
- * @description 封装 QWebChannel 连接逻辑，提供 Promise 风格的 API
+ * QWebChannelBridge
+ * 说明（详细）：`docs/standards/qwebchannel-bridge.md`
  */
 
 import { getLogger } from "../../common/utils/logger.js";
@@ -9,13 +8,6 @@ import { showSuccess } from "../../common/utils/notification.js";
 import { notifyDomainError } from "../../common/utils/domain-error-notifier.js";
 import { PDF_HOME_EVENTS } from "../../common/event/event-constants.js";
 
-/**
- * QWebChannel 桥接类
- *
- * 封装与 PyQt 后端的通信，提供简洁的 Promise API。
- *
- * @class QWebChannelBridge
- */
 export class QWebChannelBridge {
   #logger;
   #bridge = null;
@@ -27,14 +19,6 @@ export class QWebChannelBridge {
     this.#logger.info("QWebChannelBridge 实例创建");
   }
 
-  /**
-     * 初始化 QWebChannel 连接
-     *
-     * 等待 Qt WebChannel 传输层准备就绪，然后建立连接。
-     * 可以多次调用，但只会初始化一次。
-     *
-     * @returns {Promise<void>}
-     */
   async initialize() {
     // 如果已经初始化，直接返回
     if (this.#isReady) {
@@ -157,12 +141,6 @@ export class QWebChannelBridge {
     return this.#initPromise;
   }
 
-  /**
-     * 连接到 QWebChannel
-     * @param {Function} resolve - Promise resolve 函数
-     * @param {Function} reject - Promise reject 函数
-     * @private
-     */
   #connectToChannel(resolve, reject) {
     try {
       this.#logger.info("正在连接 QWebChannel...");
@@ -195,22 +173,10 @@ export class QWebChannelBridge {
     }
   }
 
-  /**
-     * 检查 QWebChannel 是否已初始化
-     * @returns {boolean}
-     */
   isReady() {
     return this.#isReady;
   }
 
-  /**
-     * 测试连接
-     *
-     * 调用 PyQt 端的 testConnection 方法，验证通信是否正常。
-     *
-     * @returns {Promise<string>} 测试消息
-     * @throws {Error} 如果 QWebChannel 未初始化
-     */
   async testConnection() {
     this.#logger.info("调用 testConnection");
 
@@ -238,21 +204,6 @@ export class QWebChannelBridge {
     }
   }
 
-  /**
-     * 选择文件
-     *
-     * 调用 PyQt 原生文件选择对话框，让用户选择文件。
-     *
-     * @param {Object} options - 选项
-     * @param {boolean} options.multiple - 是否允许多选，默认 true
-     * @param {string} options.fileType - 文件类型，'pdf' 或 'all'，默认 'pdf'
-     * @returns {Promise<string[]>} 文件路径数组
-     * @throws {Error} 如果 QWebChannel 未初始化
-     *
-     * @example
-     * const files = await bridge.selectFiles({ multiple: true, fileType: 'pdf' });
-     * // 返回: ['C:/path/file1.pdf', 'C:/path/file2.pdf']
-     */
   async selectFiles(options = {}) {
     const { multiple = true, fileType = "pdf" } = options;
 
@@ -291,22 +242,6 @@ export class QWebChannelBridge {
     }
   }
 
-  /**
-     * 显示确认对话框
-     *
-     * 调用 PyQt 原生确认对话框，让用户确认操作。
-     *
-     * @param {string} title - 对话框标题
-     * @param {string} message - 提示消息
-     * @returns {Promise<boolean>} 用户是否确认 (true=确认, false=取消)
-     * @throws {Error} 如果 QWebChannel 未初始化
-     *
-     * @example
-     * const confirmed = await bridge.showConfirmDialog('确认删除', '确定要删除此文件吗？');
-     * if (confirmed) {
-     *     // 执行删除操作
-     * }
-     */
   async showConfirmDialog(title, message) {
     this.#logger.info(`[删除-阶段1] 调用 showConfirmDialog: title="${title}"`);
     this.#logger.info(`[删除-阶段1] 消息: ${message}`);
@@ -335,19 +270,10 @@ export class QWebChannelBridge {
     }
   }
 
-  /**
-     * 获取桥接对象（用于调试）
-     * @returns {Object|null} PyQt 桥接对象
-     */
   getBridge() {
     return this.#bridge;
   }
 
-  /**
-     * 批量打开 pdf-viewer 窗口（通过 PyQt 桥接，不使用外部 launcher）。
-     * @param {{ pdfIds: string[] }} options
-     * @returns {Promise<boolean>} 是否成功触发打开动作
-     */
   async openPdfViewers(options = {}) {
     const { pdfIds = [], items = null } = options;
     this.#logger.info(`[阅读] 调用 openPdfViewers, 选中数量=${pdfIds.length}${items ? `, items=${items.length}` : ""}`);
@@ -378,11 +304,6 @@ export class QWebChannelBridge {
     }
   }
 
-  /**
-     * 兼容方法：携带元信息的打开（优先调用 PyQt 的 openPdfViewersEx）
-     * @param {{ pdfIds?: string[], items: Array<{ id?: string, filename?: string, file_path?: string }> }} payload
-     * @returns {Promise<boolean>}
-     */
   async openPdfViewersWithMeta(payload) {
     // 通知：统一使用 notification/logger（禁止直接导入 thirdparty-toast）
 

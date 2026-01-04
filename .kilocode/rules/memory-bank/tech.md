@@ -6,7 +6,7 @@
   - UTF-8 + \n：所有读写显式 UTF-8，统一换行 \n。
   - Fail‑Fast：参数/事件/消息不合法一律失败，禁止兜底/静默回退。
   - 事件三段式：`{module}:{action}:{status}`；事件名必须通过命名空间常量引用（`*_EVENTS`、`*_MESSAGE_TYPES`、`PDF_VIEWER_EVENTS`、`WEBSOCKET_EVENTS`）。
-  - Viewer 导航自动启动：当发送 `pdf-viewer:navigate:requested` 且目标 viewer 未注册时，MsgCenter 会触发 `app-window:open:requested` 并缓存待转发，viewer 注册后自动转发（回执 `code=202`）。
+  - Viewer 导航自动启动：当发送 `pdf-viewer:navigate:requested` 且目标 viewer 未注册时（含 `handle_message(..., client_socket=None)` 路径），MsgCenter 会触发 `app-window:open:requested` 并缓存待转发，viewer 注册后自动转发（回执 `code=202`）。
   - 白名单：全局事件新增前，先在常量中登记；`global-event-registry.js` 放行。
   - 作用域：跨模块用 `onGlobal/emitGlobal`；避免 scoped↔global 不一致；组件初始化需幂等。
   - WebSocket 常量使用规范：请求/发送事件用 `WEBSOCKET_EVENTS.MESSAGE.SEND|RECEIVED|SEND_FAILED`；响应事件用 `WEBSOCKET_MESSAGE_EVENTS.RESPONSE`（切勿写成 `WEBSOCKET_EVENTS.MESSAGE.RESPONSE`）。

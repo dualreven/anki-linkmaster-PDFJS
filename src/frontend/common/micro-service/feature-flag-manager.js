@@ -1,71 +1,10 @@
 /**
- * @file 特性标志管理器
- * @module core/feature-flag-manager
- * @description
- * FeatureFlagManager 提供特性标志（Feature Flag）管理功能，用于运行时控制功能的启用/禁用。
- *
- * 核心特性：
- * - 配置文件加载：支持从 JSON 配置文件加载特性标志
- * - 条件启用：支持基于环境、用户、百分比等条件的动态启用
- * - 运行时控制：支持运行时动态修改特性标志状态
- * - 默认值回退：未配置的特性标志使用默认值
- * - 类型安全：提供类型检查和验证
- *
- * @example
- * // 基本用法
- * const flagManager = new FeatureFlagManager();
- * await flagManager.loadFromConfig('./feature-flags.json');
- *
- * if (flagManager.isEnabled('pdf-sorter')) {
- *   // 启用排序功能
- * }
- *
- * @example
- * // 条件启用
- * flagManager.setFlag('experimental-feature', {
- *   enabled: true,
- *   conditions: {
- *     environment: 'development',
- *     users: ['admin@example.com']
- *   }
- * });
- *
- * @example
- * // 集成 FeatureRegistry
- * const registry = new FeatureRegistry({ container });
- * const flagManager = new FeatureFlagManager();
- *
- * // 只注册启用的功能
- * if (flagManager.isEnabled('pdf-list')) {
- *   registry.register(new PDFListFeature());
- * }
+ * FeatureFlagManager
+ * 说明（详细）：`docs/standards/feature-flag-manager.md`
  */
 
 import { getLogger } from "../utils/logger.js";
-
-/**
- * 特性标志配置接口
- * @typedef {Object} FeatureFlagConfig
- * @property {boolean} enabled - 是否启用
- * @property {string} [description] - 特性描述
- * @property {Object} [conditions] - 启用条件
- * @property {string} [conditions.environment] - 环境条件 (development|production|test)
- * @property {string[]} [conditions.users] - 用户白名单
- * @property {number} [conditions.percentage] - 启用百分比 (0-100)
- * @property {string[]} [conditions.roles] - 角色白名单
- * @property {Object} [metadata] - 附加元数据
- */
-
-/**
- * 特性标志管理器类
- * @class FeatureFlagManager
- */
 export class FeatureFlagManager {
-  /**
-   * 特性标志存储
-   * @type {Map<string, FeatureFlagConfig>}
-   * @private
-   */
   #flags = new Map();
 
   /**

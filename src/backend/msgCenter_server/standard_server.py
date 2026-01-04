@@ -558,7 +558,8 @@ class StandardWebSocketServer(QObject, ServerAPIMixin):
 
             if not all_target_sockets:
                 # 特例：pdf-viewer:navigate:requested 若未找到目标 viewer，则自动请求启动并缓存待转发
-                if original_type == "pdf-viewer:navigate:requested" and client_socket is not None:
+                # 说明：允许 client_socket=None（例如内部调用 handle_message / 兼容旧信号链路）
+                if original_type == "pdf-viewer:navigate:requested":
                     return self._auto_launch_viewer_and_queue_forward(
                         client_socket=client_socket,
                         original_message=message,
@@ -692,7 +693,7 @@ class StandardWebSocketServer(QObject, ServerAPIMixin):
     def _auto_launch_viewer_and_queue_forward(
         self,
         *,
-        client_socket: QWebSocket,
+        client_socket: Optional[QWebSocket],
         original_message: Dict[str, Any],
         routing_targets: List[Dict[str, Any]],
         request_id: Optional[str],
@@ -701,7 +702,7 @@ class StandardWebSocketServer(QObject, ServerAPIMixin):
         处理场景：pdf-viewer:navigate:requested 路由不到任何 viewer。
 
         行为：
-        1) 发射一条 app-window:open:requested（由 BackendLauncher 监听 message_received 触发打开/激活 viewer）
+        1) 发射一条 app-window:open:requested（由 BackendLauncher 监听 message_received 触发打开/激活 viewer；socket 允许为 None）
         2) 将原导航消息缓存到 pending 队列，等待 viewer 注册后自动转发
         3) 返回 202 回执给请求方（避免 NO_TARGET_FOUND 直接失败）
         """

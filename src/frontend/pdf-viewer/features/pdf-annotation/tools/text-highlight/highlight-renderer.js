@@ -4,41 +4,15 @@
  * @description 在PDF页面上渲染文本高亮覆盖层
  */
 
-/**
- * 高亮渲染器
- * @class HighlightRenderer
- */
 export class HighlightRenderer {
-
-  /** @type {Logger} */
   #logger;
-
-  /** @type {Map<string, HTMLElement>} */
   #highlightLayers = new Map();
-
-  /**
-   * 标注ID到高亮容器的映射
-   * @type {Map<string, { container: HTMLElement, pageNumber: number, boundingBox: { left: number, top: number, right: number, bottom: number, width: number, height: number } }>}
-   */
   #annotationHighlights = new Map();
 
-  /**
-   * 构造函数
-   * @param {Logger} logger - 日志记录器
-   */
   constructor(logger) {
     this.#logger = logger;
   }
 
-  /**
-   * 渲染文本高亮
-   * @param {number} pageNumber - 页码
-   * @param {Array<{start: number, end: number}>} [textRanges=[]] - 文本范围数组
-   * @param {string} color - 高亮颜色（hex格式）
-   * @param {string} [annotationId] - 标注ID（用于后续删除）
-   * @param {Array<{xPercent: number, yPercent: number, widthPercent: number, heightPercent: number}>} [lineRects=null] - 行矩形百分比数据
-   * @returns {{ container: HTMLElement, rects: Array, boundingBox: { left: number, top: number, right: number, bottom: number, width: number, height: number } }|null} 高亮渲染结果
-   */
   renderHighlight(pageNumber, textRanges, color, annotationId = null, lineRects = null) {
     const pageView = this.#getPageView(pageNumber);
     if (!pageView) {

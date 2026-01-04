@@ -1,17 +1,12 @@
 /**
- * @file 布局控制器
- * @module UILayoutControls
- * @description 管理PDF查看器的布局控制（滚动模式、跨页模式、旋转）
+ * UILayoutControls（布局控制）
+ * 说明（详细）：`docs/standards/ui-layout-controls.md`
  */
 
 import { getLogger } from "../../../../common/utils/logger.js";
 import { showInfo } from "../../../../common/utils/notification.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 
-/**
- * @class UILayoutControls
- * @description 处理PDF布局相关的UI控制
- */
 export class UILayoutControls {
   #logger;
   #eventBus;
@@ -39,10 +34,6 @@ export class UILayoutControls {
     this.#logger = getLogger("UILayoutControls");
   }
 
-  /**
-   * 设置布局控件
-   * @param {PDFViewerManager} pdfViewerManager - PDF查看器管理器
-   */
   setup(pdfViewerManager) {
     this.#pdfViewerManager = pdfViewerManager;
 
@@ -75,21 +66,11 @@ export class UILayoutControls {
     this.#logger.info("Layout controls initialized");
   }
 
-  /**
-   * 处理渲染模式变化
-   * @param {Object} data - 事件数据
-   * @private
-   */
   #handleRenderModeChange(data) {
     const isPDFViewerMode = data?.newMode === "pdfviewer";
     this.#setControlsEnabled(isPDFViewerMode);
   }
 
-  /**
-   * 启用/禁用控件
-   * @param {boolean} enabled - 是否启用
-   * @private
-   */
   #setControlsEnabled(enabled) {
     const controls = [
       this.#scrollModeSelect,
@@ -109,10 +90,6 @@ export class UILayoutControls {
     this.#logger.info(`Layout controls ${enabled ? "enabled" : "disabled"}`);
   }
 
-  /**
-   * 设置事件监听器
-   * @private
-   */
   #setupEventListeners() {
     // 滚动模式改变（隐藏select，保持兼容性）
     if (this.#scrollModeSelect) {
@@ -215,11 +192,6 @@ export class UILayoutControls {
     }
   }
 
-  /**
-   * 改变滚动模式
-   * @param {number} mode - 滚动模式（0=垂直, 1=水平, 3=单页）
-   * @private
-   */
   #changeScrollMode(mode) {
     this.#logger.info(`Changing scroll mode to: ${mode}`);
 
@@ -242,11 +214,6 @@ export class UILayoutControls {
     }
   }
 
-  /**
-   * 更新滚动模式按钮图标
-   * @param {number} mode - 滚动模式（0=垂直, 1=水平, 3=单页）
-   * @private
-   */
   #updateScrollModeIcon(mode) {
     if (!this.#scrollModeBtn) {return;}
 
@@ -265,11 +232,6 @@ export class UILayoutControls {
     }
   }
 
-  /**
-   * 改变跨页模式
-   * @param {number} mode - 跨页模式（0=单页, 2=偶数双页）
-   * @private
-   */
   #changeSpreadMode(mode) {
     this.#logger.info(`Changing spread mode to: ${mode}`);
 
@@ -291,11 +253,6 @@ export class UILayoutControls {
     }
   }
 
-  /**
-   * 更新跨页模式按钮图标
-   * @param {number} mode - 跨页模式（0=单页, 2=偶数双页）
-   * @private
-   */
   #updateSpreadModeIcon(mode) {
     if (!this.#spreadModeBtn) {return;}
 
@@ -311,11 +268,6 @@ export class UILayoutControls {
     }
   }
 
-  /**
-   * 旋转页面
-   * @param {number} degrees - 旋转角度（90 or -90）
-   * @private
-   */
   #rotatePages(degrees) {
     if (!this.#pdfViewerManager || !this.#pdfViewerManager.viewer) {return;}
 
@@ -333,10 +285,6 @@ export class UILayoutControls {
     this.#logger.info("Pages rotated and view refreshed");
   }
 
-  /**
-   * 设置鼠标模式控制器
-   * @private
-   */
   #setupMouseModeControl() {
     if (!this.#mouseModeBtn) {
       this.#logger.warn("Mouse mode button not found");
@@ -351,28 +299,11 @@ export class UILayoutControls {
     this.#logger.info("Mouse mode control setup complete");
   }
 
-  /**
-   * 显示Toast提示
-   * @param {string} message - 提示消息
-   * @param {string} type - 提示类型 (success|info|warning|error)
-   * @private
-   */
-  // 已移除自定义 toast 方法，改用 frontend/common 下的公共 toast 工具
-
-  /**
-   * 切换鼠标模式
-   * @private
-   */
   #toggleMouseMode() {
     const newMode = this.#currentMouseMode === "text" ? "drag" : "text";
     this.#setMouseMode(newMode);
   }
 
-  /**
-   * 设置鼠标模式
-   * @param {'text' | 'drag'} mode - 鼠标模式
-   * @private
-   */
   #setMouseMode(mode) {
     if (!this.#pdfContainer) {
       this.#logger.warn("PDF container not found");
@@ -438,10 +369,6 @@ export class UILayoutControls {
     }
   }
 
-  /**
-   * 设置拖拽事件监听器
-   * @private
-   */
   #setupDragListeners() {
     if (!this.#pdfContainer) {return;}
 
@@ -457,10 +384,6 @@ export class UILayoutControls {
     this.#logger.debug("Drag listeners added");
   }
 
-  /**
-   * 移除拖拽事件监听器
-   * @private
-   */
   #removeDragListeners() {
     if (!this.#pdfContainer) {return;}
 
@@ -477,11 +400,6 @@ export class UILayoutControls {
     this.#logger.debug("Drag listeners removed");
   }
 
-  /**
-   * 处理鼠标按下事件
-   * @param {MouseEvent} e - 鼠标事件
-   * @private
-   */
   #handleMouseDown(e) {
     if (this.#currentMouseMode !== "drag") {return;}
 
@@ -496,11 +414,6 @@ export class UILayoutControls {
     e.preventDefault();
   }
 
-  /**
-   * 处理鼠标移动事件
-   * @param {MouseEvent} e - 鼠标事件
-   * @private
-   */
   #handleMouseMove(e) {
     if (!this.#isDragging || this.#currentMouseMode !== "drag") {return;}
 
@@ -513,11 +426,6 @@ export class UILayoutControls {
     e.preventDefault();
   }
 
-  /**
-   * 处理鼠标释放事件
-   * @param {MouseEvent} e - 鼠标事件
-   * @private
-   */
   #handleMouseUp(e) {
     if (!this.#isDragging) {return;}
 
@@ -527,9 +435,6 @@ export class UILayoutControls {
     e.preventDefault();
   }
 
-  /**
-   * 销毁控制器
-   */
   destroy() {
     // 清理拖拽监听器
     this.#removeDragListeners();

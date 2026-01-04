@@ -3,7 +3,6 @@
  * @file 协调大纲数据加载、侧边栏UI与页面导航
  * @module OutlineManager
  */
-
 import { getLogger } from "../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
 import { getCurrentPDFDocument } from "../pdf/current-document-registry.js";
@@ -17,9 +16,7 @@ export class OutlineManager {
   #options;
   #unsubs = [];
   #initialized = false;
-  /** @type {Array<{id:string,name:string,pageAt:number,position:number|null,children?:any[]}>} */
   #outlineItems = [];
-  /** @type {Map<string, any>} */
   #indexById = new Map();
 
   constructor(eventBus, options = {}) {

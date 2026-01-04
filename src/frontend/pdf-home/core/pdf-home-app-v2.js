@@ -8,6 +8,8 @@
  * - StateManager: 统一状态管理
  * - FeatureFlagManager: Feature Flag 控制
  * - ScopedEventBus: 命名空间事件隔离
+ *
+ * 详细说明见：docs/standards/pdf-home-app-v2.md
  */
 
 import { createAppContainer, createFeatureRegistry } from "../../common/micro-service/app-bootstrap.js";
@@ -20,96 +22,21 @@ import WSClient from "../../common/ws/ws-client.js";
 import { APP_EVENTS } from "../../common/event/event-constants.js";
 import { showError } from "../../common/utils/notification.js";
 import { WebSocketErrorHandler } from "../../common/utils/websocket-error-handler.js";
-
-// 导入功能域
-import { PDFHomeInfraAppFeature } from "../features/infra-app/index.js";  // 新增：WebSocket注册
-import { PDFSorterFeature } from "../features/pdf-sorter/index.js";
-import { PDFEditFeature } from "../features/pdf-edit/index.js";
-import { SidebarFeature } from "../features/sidebar/index.js";
-import { WindowControlsFeature } from "../../common/features/window-controls/index.js";  // 新增：窗口控制
-
-// 搜索和筛选功能
-import { SearchFeature } from "../features/search/index.js";
-import { FilterFeature } from "../features/filter/index.js";
-import { SearchResultsFeature } from "../features/search-results/index.js";
-import { SearchResultItemFeature } from "../features/search-result-item/index.js";
-
-// 侧边栏子功能
-import { SavedFiltersFeature } from "../features/sidebar/saved-filters/index.js";
-import { RecentSearchesFeature } from "../features/sidebar/recent-searches/index.js";
-import { RecentOpenedFeature } from "../features/sidebar/recent-opened/index.js";
-import { RecentAddedFeature } from "../features/sidebar/recent-added/index.js";
-
-// 添加文件功能
-import { AddFilesFeature } from "../features/add-files/index.js";
-const logger = getLogger("PDFHomeAppV2");
+import { createPDFHomeAppV2Features } from "./pdf-home-app-v2-features.js";
 
 /**
  * @class PDFHomeAppV2
  * @description 新版应用核心类，使用功能域架构
  */
 export class PDFHomeAppV2 {
-  /**
-   * 依赖注入容器
-   * @type {DependencyContainer}
-   * @private
-   */
   #container = null;
-
-  /**
-   * 功能注册中心
-   * @type {FeatureRegistry}
-   * @private
-   */
   #registry = null;
-
-  /**
-   * 状态管理器
-   * @type {StateManager}
-   * @private
-   */
   #stateManager = null;
-
-  /**
-   * Feature Flag 管理器
-   * @type {FeatureFlagManager}
-   * @private
-   */
   #flagManager = null;
-
-  /**
-   * WebSocket 客户端
-   * @type {WSClient}
-   * @private
-   */
   #wsClient = null;
-
-  /**
-   * 全局事件总线
-   * @type {EventBus}
-   * @private
-   */
   #eventBus = null;
-
-  /**
-   * 日志记录器
-   * @type {Logger}
-   * @private
-   */
   #logger = null;
-
-  /**
-   * 应用状态
-   * @type {string}
-   * @private
-   */
   #status = "uninitialized"; // uninitialized | initializing | ready | error
-
-  /**
-   * WebSocket 错误处理器
-   * @type {WebSocketErrorHandler}
-   * @private
-   */
   #errorHandler = null;
 
   /**
@@ -291,17 +218,14 @@ export class PDFHomeAppV2 {
    */
   async #loadFeatureFlags() {
     this.#logger.debug("Loading Feature Flags...");
-    logger.debug("[DEBUG PDFHomeAppV2] ===== LOADING FEATURE FLAGS =====");
 
     try {
       // 尝试从配置文件加载
       try {
         await this.#flagManager.loadFromConfig("./config/feature-flags.json");
         this.#logger.info("Feature Flags loaded from config file");
-        logger.debug("[DEBUG PDFHomeAppV2] Feature flags loaded from config file successfully");
       } catch (error) {
         this.#logger.warn("Failed to load feature-flags.json, using defaults:", error.message);
-        logger.warn("[DEBUG PDFHomeAppV2] Failed to load feature-flags.json, using defaults:", error);
 
         // 使用默认配置（移除 pdf-editor，统一仅保留 pdf-edit）
         this.#flagManager.loadFromObject({
@@ -309,16 +233,11 @@ export class PDFHomeAppV2 {
           "pdf-edit": { enabled: true, description: "PDF 记录编辑功能域" },
           "pdf-sorter": { enabled: false, description: "PDF 排序功能（开发中）" }
         });
-        logger.debug("[DEBUG PDFHomeAppV2] Using default feature flags (pdf-sorter is DISABLED by default)");
       }
 
       // 记录当前 Feature Flag 状态
       const stats = this.#flagManager.getStats();
       this.#logger.info(`Feature Flags: ${stats.enabled}/${stats.total} enabled`);
-
-      // 打印所有feature flags的状态
-      const allFlags = this.#flagManager.getAllFlags();
-      logger.debug("[DEBUG PDFHomeAppV2] All feature flags:", allFlags);
 
     } catch (error) {
       this.#logger.error("Failed to load Feature Flags:", error);
@@ -334,36 +253,7 @@ export class PDFHomeAppV2 {
     this.#logger.debug("Registering features...");
 
     // 注册所有功能域（注册不等于安装）
-    const features = [
-      // 基础设施功能（最先注册）
-      new PDFHomeInfraAppFeature(),  // WebSocket注册（使用新协议）
-
-      // UI布局功能
-      new SidebarFeature(),
-      new WindowControlsFeature({
-        bridgeName: "pyqtBridge",
-        containerSelector: ".toolbar-controls"
-      }),  // 窗口控制按钮（最小化、最大化、关闭）
-
-      // 搜索和筛选功能（按优先级顺序）
-      new SearchFeature(),        // 优先：搜索框UI
-      new FilterFeature(),         // 其次：高级筛选
-      new SearchResultsFeature(),  // 最后：结果展示
-
-      // 核心功能
-      new AddFilesFeature(),       // 新增：添加PDF（桥接文件选择 -> WS）
-      new PDFSorterFeature(),
-      new PDFEditFeature(),
-
-      // 侧边栏子功能
-      new SavedFiltersFeature(),
-      new RecentSearchesFeature(),
-      new RecentOpenedFeature(),
-      new RecentAddedFeature(),
-
-      // 搜索结果条目渲染
-      new SearchResultItemFeature()
-    ];
+    const features = createPDFHomeAppV2Features();
 
     for (const feature of features) {
       try {
@@ -384,29 +274,20 @@ export class PDFHomeAppV2 {
    */
   async #installEnabledFeatures() {
     this.#logger.debug("Installing enabled features...");
-    logger.debug("[DEBUG PDFHomeAppV2] ===== FEATURE INSTALLATION START =====");
-
     const registeredFeatures = this.#registry.getRegisteredFeatures();
-    logger.debug("[DEBUG PDFHomeAppV2] Registered features:", registeredFeatures);
 
     for (const featureName of registeredFeatures) {
       const isEnabled = this.#flagManager.isEnabled(featureName);
-      logger.debug(`[DEBUG PDFHomeAppV2] Feature "${featureName}" enabled:`, isEnabled);
-
       if (isEnabled) {
         try {
-          logger.debug(`[DEBUG PDFHomeAppV2] Installing feature "${featureName}"...`);
           await this.#registry.install(featureName);
           this.#logger.info(`Feature installed: ${featureName}`);
-          logger.debug(`[DEBUG PDFHomeAppV2] Feature "${featureName}" installed successfully`);
         } catch (error) {
           this.#logger.error(`Failed to install feature ${featureName}:`, error);
-          logger.error(`[DEBUG PDFHomeAppV2] Failed to install feature "${featureName}":`, error);
           // 继续安装其他功能
         }
       } else {
         this.#logger.debug(`Feature ${featureName} is disabled, skipping installation`);
-        logger.debug(`[DEBUG PDFHomeAppV2] Feature "${featureName}" is DISABLED, skipping`);
       }
     }
 

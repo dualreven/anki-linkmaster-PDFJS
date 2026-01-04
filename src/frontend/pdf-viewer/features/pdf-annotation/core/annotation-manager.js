@@ -9,45 +9,13 @@ import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants
 import { WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constants.js";
 import { computePositionFromPercent } from "./annotation-position-utils.js";
 
-/**
- * 标注管理器类
- * @class AnnotationManager
- */
 export class AnnotationManager {
-  /**
-   * 标注Map: id → Annotation实例
-   * @type {Map<string, Annotation>}
-   * @private
-   */
-  #annotations = new Map();
-
-  /**
-   * 事件总线
-   * @type {EventBus}
-   * @private
-   */
+  #annotations = new Map(); // id -> Annotation
   #eventBus;
-
-  /**
-   * 日志器
-   * @type {Logger}
-   * @private
-   */
   #logger;
-
-  /**
-   * PDF文件ID
-   * @type {string|null}
-   * @private
-   */
   #pdfId = null;
-
-  /**
-   * Mock模式（Phase 1）
-   * @type {boolean}
-   * @private
-   */
   #mockMode = true;
+  #wsClient = null;
 
   /**
    * 创建标注管理器
@@ -71,8 +39,6 @@ export class AnnotationManager {
 
     this.#logger.info(`[AnnotationManager] Created (${this.#mockMode ? "Mock" : "Remote"} Mode)`);
   }
-
-  #wsClient = null;
 
   #initWSClient(container) {
     try {
@@ -98,10 +64,6 @@ export class AnnotationManager {
     }
   }
 
-  /**
-   * 设置事件监听器
-   * @private
-   */
   #setupEventListeners() {
     // 创建标注 - 双重监听：
     // 1. 局部事件：来自 annotation feature 内部工具（TextHighlightTool, ScreenshotTool等）
@@ -138,20 +100,11 @@ export class AnnotationManager {
     }, { subscriberId: "AnnotationManager" });
   }
 
-  /**
-   * 设置PDF文件ID
-   * @param {string} pdfId - PDF文件ID
-   */
   setPdfId(pdfId) {
     this.#pdfId = pdfId;
     this.#logger.info(`[AnnotationManager] PDF ID set to: ${pdfId}`);
   }
 
-  /**
-   * 创建标注（内部处理）
-   * @param {Object} data - 标注数据
-   * @private
-   */
   async #handleCreateAnnotation(data) {
     try {
       const { annotation } = data;
@@ -204,12 +157,6 @@ export class AnnotationManager {
     }
   }
 
-  /**
-   * Mock保存标注（Phase 1）
-   * @param {Annotation} annotation - 标注对象
-   * @returns {Promise<void>}
-   * @private
-   */
   async #mockSaveAnnotation(annotation) {
     // 模拟网络延迟
     await new Promise(resolve => setTimeout(resolve, 100));
@@ -218,12 +165,6 @@ export class AnnotationManager {
     return { success: true, id: annotation.id };
   }
 
-  /**
-   * 保存标注到后端（Phase 2，待实现）
-   * @param {Annotation} annotation - 标注对象
-   * @returns {Promise<void>}
-   * @private
-   */
   async #saveAnnotationToBackend(annotation) {
     // 若无可用 wsClient 或尚未连接，降级为本地保存但不报错
     try {
@@ -282,11 +223,6 @@ export class AnnotationManager {
     }
   }
 
-  /**
-   * 更新标注（内部处理）
-   * @param {Object} data - 更新数据
-   * @private
-   */
   async #handleUpdateAnnotation(data) {
     try {
       const { id, changes } = data;
@@ -325,11 +261,6 @@ export class AnnotationManager {
     }
   }
 
-  /**
-   * 删除标注（内部处理）
-   * @param {Object} data - 删除数据
-   * @private
-   */
   async #handleDeleteAnnotation(data) {
     try {
       const { id } = data;
@@ -369,22 +300,11 @@ export class AnnotationManager {
     }
   }
 
-  /**
-   * Mock删除标注（Phase 1）
-   * @param {string} id - 标注ID
-   * @returns {Promise<void>}
-   * @private
-   */
   async #mockDeleteAnnotation(id) {
     this.#logger.info(`[AnnotationManager] [MOCK] Deleted annotation: ${id}`);
     return { success: true, id };
   }
 
-  /**
-   * 加载标注（内部处理）
-   * @param {Object} data - 加载参数
-   * @private
-   */
   async #handleLoadAnnotations(data) {
     try {
       const { pdfId } = data;
@@ -425,23 +345,11 @@ export class AnnotationManager {
     }
   }
 
-  /**
-   * Mock加载标注（Phase 1）
-   * @param {string} pdfId - PDF文件ID
-   * @returns {Promise<Array<Annotation>>}
-   * @private
-   */
   async #mockLoadAnnotations(pdfId) {
     this.#logger.info(`[AnnotationManager] [MOCK] Loaded annotations for PDF: ${pdfId}`);
     return []; // Phase 1返回空列表
   }
 
-  /**
-   * 从后端加载标注（Phase 2，待实现）
-   * @param {string} pdfId - PDF文件ID
-   * @returns {Promise<Array<Annotation>>}
-   * @private
-   */
   async #loadAnnotationsFromBackend(pdfId) {
     if (!this.#wsClient || typeof this.#wsClient.request !== "function") {
       // Fail-Fast：不允许静默返回空数组，否则会导致 UI 误判“已加载完成(0条)”并阻止后续自动重试
@@ -495,61 +403,31 @@ export class AnnotationManager {
 
   // ==================== 公共API ====================
 
-  /**
-   * 获取所有标注
-   * @returns {Array<Annotation>} 标注数组
-   */
   getAllAnnotations() {
     return Array.from(this.#annotations.values());
   }
 
-  /**
-   * 按页码获取标注
-   * @param {number} pageNumber - 页码
-   * @returns {Array<Annotation>} 标注数组
-   */
   getAnnotationsByPage(pageNumber) {
     return this.getAllAnnotations().filter(ann => ann.pageNumber === pageNumber);
   }
 
-  /**
-   * 按类型获取标注
-   * @param {string} type - 标注类型
-   * @returns {Array<Annotation>} 标注数组
-   */
   getAnnotationsByType(type) {
     return this.getAllAnnotations().filter(ann => ann.type === type);
   }
 
-  /**
-   * 获取标注数量
-   * @returns {number} 标注数量
-   */
   getCount() {
     return this.#annotations.size;
   }
 
-  /**
-   * 获取标注（按ID）
-   * @param {string} id - 标注ID
-   * @returns {Annotation|undefined} 标注对象
-   */
   getAnnotation(id) {
     return this.#annotations.get(id);
   }
 
-  /**
-   * 清空所有标注
-   */
   clear() {
     this.#annotations.clear();
     this.#logger.info("[AnnotationManager] All annotations cleared");
   }
 
-  /**
-   * 获取管理器状态（用于调试）
-   * @returns {Object} 状态信息
-   */
   getStatus() {
     return {
       pdfId: this.#pdfId,

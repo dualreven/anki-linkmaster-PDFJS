@@ -17,13 +17,7 @@
 
 ## 2026-01-01 完成：TextHighlightTool 面条治理（index.js ≤ 500）
 - 结果：`src/frontend/pdf-viewer/features/pdf-annotation/tools/text-highlight/index.js` 行数降到 **499**（≤500），主文件收敛为“装配/委托 + 对外接口”。
-- 拆分模块：
-  - `src/frontend/pdf-viewer/features/pdf-annotation/tools/text-highlight/highlight-overlay-controller.js`（渲染/记录/队列）
-  - `src/frontend/pdf-viewer/features/pdf-annotation/tools/text-highlight/event-subscriptions.js`（订阅/卸载集合）
-  - `src/frontend/pdf-viewer/features/pdf-annotation/tools/text-highlight/interaction-flow.js`（激活/选字/创建标注流程）
-  - `src/frontend/pdf-viewer/features/pdf-annotation/tools/text-highlight/clipboard-utils.js`（复制）
-  - `src/frontend/pdf-viewer/features/pdf-annotation/tools/text-highlight/confirm-dialog.js`（确认弹窗，Fail-Closed：异常/无DOM返回 false）
-  - `src/frontend/pdf-viewer/features/pdf-annotation/tools/text-highlight/tool-button-renderer.js`、`src/frontend/pdf-viewer/features/pdf-annotation/tools/text-highlight/card-renderer.js`（UI渲染）
+- 拆分模块：见 `src/frontend/pdf-viewer/features/pdf-annotation/tools/text-highlight/*`（overlay/subscriptions/flow/utils/ui 已拆分）
 - 防回归测试：`src/frontend/pdf-viewer/features/pdf-annotation/tools/text-highlight/confirm-dialog.test.js`
 - 门禁：`pnpm run lint`、定向 Jest、`pnpm run ci:frontend-line-limit` 全绿
 - 工作日志：`AItemp/20260101195214-AI-Working-log.md`、`AItemp/20260101203210-AI-Working-log.md`
@@ -37,12 +31,7 @@
 
 ## 2026-01-01 完成：WSClient 面条治理（ws-client.js ≤ 500）
 - 结果：`src/frontend/common/ws/ws-client.js` 行数 **1037 → 427**（≤500），主文件收敛为“装配/连接管理”，对外接口保持不变（`WSClient` + default）。
-- 逻辑拆分：
-  - identity：`src/frontend/common/ws/ws-client-identity.js`
-  - inbound 路由：`src/frontend/common/ws/ws-client-inbound-router.js`
-  - request/pending：`src/frontend/common/ws/ws-client-requests.js`
-  - unregister：`src/frontend/common/ws/ws-client-unregister.js`
-  - contract：`src/frontend/common/ws/ws-client-contract.js`
+- 逻辑拆分：见 `src/frontend/common/ws/ws-client-*.js`（identity/router/requests/unregister/contract）
 - 详细说明：`docs/standards/ws-client.md`
 - 防回归测试：`src/frontend/common/ws/__tests__/ws-client-identity.test.js`、`src/frontend/common/ws/__tests__/ws-client-contract.test.js`（另有既有 timeout 用例继续锁行为）
 - 门禁：`pnpm run lint`、定向 Jest、`pnpm run ci:frontend-line-limit` 全绿
@@ -198,3 +187,11 @@
 ## 2026-01-04 完成：SearchBox 面条治理（pdf-search）
 - `src/frontend/pdf-viewer/features/pdf-search/components/search-box.js` 574 → **364**（≤500），拆分 DOM/绑定/订阅并新增最小回归测试；说明外移到 `docs/standards/pdf-search-search-box.md`。
 - `scripts/ci/baselines/frontend-line-limit.json` 已从 15 收敛到 14（search-box 出基线）。
+
+## 2026-01-04 完成：frontend-line-limit 基线清零（src/frontend 全量 ≤500）
+- 结论：`pnpm run ci:frontend-line-limit` baseline=0（`scripts/ci/baselines/frontend-line-limit.json` 已收敛到 0）。
+- 方式：对仍超限的 JS 以“注释外移/删除冗长 JSDoc + 清理空行 + 最小抽离”为主，保持对外行为不变；新增对照文档：`docs/standards/pdf-home-app-v2.md`、`docs/standards/event-bus-with-tracing.md`、`docs/standards/ui-layout-controls.md`、`docs/standards/text-layer-manager.md`、`docs/standards/qwebchannel-bridge.md`、`docs/standards/feature-flag-manager.md`。
+
+## 2026-01-04 修复：跳转测试 NO_TARGET_FOUND（覆盖 client_socket=None）
+- 根因：MsgCenter 在 `handle_message(..., client_socket=None)` 的调用路径下未触发 auto-launch 分支，导致 `pdf-viewer:navigate:requested` 路由不到 viewer 时直接返回 404/`NO_TARGET_FOUND`（GUI Launcher “跳转测试”命中此路径）。
+- 修复：`src/backend/msgCenter_server/standard_server.py` auto-launch 分支放宽为允许 `client_socket=None`；并新增 pytest 回归：`src/backend/msgCenter_server/__tests__/test_standard_server_auto_launch_viewer_on_navigate.py`（无 socket 也应 202 + 发射 open + 待转发）。

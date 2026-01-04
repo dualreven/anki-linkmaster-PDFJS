@@ -21,6 +21,19 @@ export class IndexedDBCacheManager {
     this.#logger = getLogger("IndexedDBCacheManager");
   }
 
+  #requireDb() {
+    if (!this.#db) {
+      throw new Error("IndexedDB not initialized");
+    }
+    return this.#db;
+  }
+
+  #getStore(mode) {
+    const db = this.#requireDb();
+    const transaction = db.transaction([this.#storeName], mode);
+    return transaction.objectStore(this.#storeName);
+  }
+
   // 测试友好：公开同名下划线方法以便 stub
   async _cleanupOldCache(targetSize) {
     return this.#cleanupOldCache(targetSize);
@@ -33,21 +46,17 @@ export class IndexedDBCacheManager {
   async initialize() {
     try {
       this.#logger.info("Initializing IndexedDB cache manager...");
-
       await new Promise((resolve, reject) => {
         const request = indexedDB.open(this.#dbName, this.#dbVersion);
-
         request.onerror = () => {
           this.#logger.error("Failed to open IndexedDB:", request.error);
           reject(request.error);
         };
-
         request.onsuccess = () => {
           this.#db = request.result;
           this.#logger.info("IndexedDB cache manager initialized successfully");
           resolve();
         };
-
         request.onupgradeneeded = (event) => {
           this.#handleUpgradeNeeded(event, request);
         };
@@ -88,13 +97,9 @@ export class IndexedDBCacheManager {
   }
 
   async storeChunk(fileId, pageNumber, chunkIndex, chunkData, compressionType = "none") {
-    if (!this.#db) {
-      throw new Error("IndexedDB not initialized");
-    }
-
+    this.#requireDb();
     // ⚠️ IndexedDB transaction 在 await 后会变为 inactive（fake-indexeddb 中可稳定复现），必须在创建 transaction 之前完成任何 await 的配额检查。
     await this.#checkStorageQuota();
-
     const chunkRecord = createChunkRecord({
       fileId,
       pageNumber,
@@ -102,9 +107,7 @@ export class IndexedDBCacheManager {
       chunkData,
       compressionType
     });
-
-    const transaction = this.#db.transaction([this.#storeName], "readwrite");
-    const store = transaction.objectStore(this.#storeName);
+    const store = this.#getStore("readwrite");
     const debugKey = `${fileId}-${pageNumber}-${chunkIndex}`;
 
     await new Promise((resolve, reject) => {
@@ -115,12 +118,10 @@ export class IndexedDBCacheManager {
         resolve();
         return;
       }
-
       request.onsuccess = () => {
         this.#logger.debug(`Stored chunk: ${debugKey}`);
         resolve();
       };
-
       request.onerror = () => {
         this.#logger.error("Failed to store chunk:", request.error);
         reject(request.error);
@@ -129,12 +130,7 @@ export class IndexedDBCacheManager {
   }
 
   async getChunk(fileId, pageNumber, chunkIndex) {
-    if (!this.#db) {
-      throw new Error("IndexedDB not initialized");
-    }
-
-    const transaction = this.#db.transaction([this.#storeName], "readwrite");
-    const store = transaction.objectStore(this.#storeName);
+    const store = this.#getStore("readwrite");
     const hasIndex = typeof store.index === "function";
 
     return new Promise((resolve, reject) => {
@@ -144,7 +140,6 @@ export class IndexedDBCacheManager {
           resolve(null);
           return;
         }
-
         record.lastAccessed = Date.now();
         if (typeof store.put === "function") {
           const updateRequest = store.put(record);
@@ -160,7 +155,6 @@ export class IndexedDBCacheManager {
           resolve(record.data);
         }
       };
-
       if (hasIndex) {
         const index = store.index("file_page_chunk");
         const request = index.get([fileId, pageNumber, chunkIndex]);
@@ -171,7 +165,6 @@ export class IndexedDBCacheManager {
         };
         return;
       }
-
       const cursorReq = store.openCursor();
       cursorReq.onsuccess = () => {
         const cursor = cursorReq.result;
@@ -194,20 +187,13 @@ export class IndexedDBCacheManager {
   }
 
   async getPageChunks(fileId, pageNumber) {
-    if (!this.#db) {
-      throw new Error("IndexedDB not initialized");
-    }
-
-    const transaction = this.#db.transaction([this.#storeName], "readonly");
-    const store = transaction.objectStore(this.#storeName);
+    const store = this.#getStore("readonly");
     const hasIndex = typeof store.index === "function";
-
     return new Promise((resolve, reject) => {
       const done = (records) => {
         const chunks = records.sort((a, b) => a.chunkIndex - b.chunkIndex);
         resolve(chunks.map(chunk => chunk.data));
       };
-
       if (hasIndex) {
         const index = store.index("file_page");
         const request = index.getAll([fileId, pageNumber]);
@@ -218,7 +204,6 @@ export class IndexedDBCacheManager {
         };
         return;
       }
-
       const rows = [];
       const cursorReq = store.openCursor();
       cursorReq.onsuccess = () => {
@@ -241,14 +226,8 @@ export class IndexedDBCacheManager {
   }
 
   async clearFileCache(fileId) {
-    if (!this.#db) {
-      throw new Error("IndexedDB not initialized");
-    }
-
-    const transaction = this.#db.transaction([this.#storeName], "readwrite");
-    const store = transaction.objectStore(this.#storeName);
+    const store = this.#getStore("readwrite");
     const hasIndex = typeof store.index === "function";
-
     const openCursorForFileId = (index) => {
       try {
         if (typeof IDBKeyRange !== "undefined" && IDBKeyRange && typeof IDBKeyRange.only === "function") {
@@ -263,12 +242,10 @@ export class IndexedDBCacheManager {
         return index.openCursor && index.openCursor();
       }
     };
-
     return new Promise((resolve, reject) => {
       if (hasIndex) {
         const index = store.index("file_id");
         const request = openCursorForFileId(index);
-
         request.onsuccess = () => {
           const cursor = request.result;
           if (cursor) {
@@ -299,7 +276,6 @@ export class IndexedDBCacheManager {
         };
         return;
       }
-
       const cursorReq = store.openCursor();
       cursorReq.onsuccess = () => {
         const cursor = cursorReq.result;
@@ -331,19 +307,11 @@ export class IndexedDBCacheManager {
       };
     });
   }
-
   async clearPageCache(fileId, pageNumber) {
-    if (!this.#db) {
-      throw new Error("IndexedDB not initialized");
-    }
-
-    const transaction = this.#db.transaction([this.#storeName], "readwrite");
-    const store = transaction.objectStore(this.#storeName);
+    const store = this.#getStore("readwrite");
     const index = store.index("file_page");
-
     return new Promise((resolve, reject) => {
       const request = index.openCursor(IDBKeyRange.bound([fileId, pageNumber], [fileId, pageNumber]));
-
       request.onsuccess = () => {
         const cursor = request.result;
         if (cursor) {
@@ -380,8 +348,7 @@ export class IndexedDBCacheManager {
       return 0;
     }
 
-    const transaction = this.#db.transaction([this.#storeName], "readwrite");
-    const store = transaction.objectStore(this.#storeName);
+    const store = this.#getStore("readwrite");
     const index = store.index("last_accessed");
 
     let cleanedSize = 0;
@@ -398,7 +365,6 @@ export class IndexedDBCacheManager {
           cursor.continue();
           return;
         }
-
         const deletePromises = recordsToDelete.map(record => {
           return new Promise((deleteResolve, deleteReject) => {
             const deleteRequest = store.delete(record.key);
@@ -406,7 +372,6 @@ export class IndexedDBCacheManager {
             deleteRequest.onerror = () => deleteReject(deleteRequest.error);
           });
         });
-
         Promise.all(deletePromises)
           .then(() => {
             this.#logger.info(`LRU cleanup: cleaned ${cleanedSize} bytes from cache`);
@@ -414,7 +379,6 @@ export class IndexedDBCacheManager {
           })
           .catch(reject);
       };
-
       request.onerror = () => {
         this.#logger.error("Failed to cleanup cache:", request.error);
         reject(request.error);
@@ -425,7 +389,6 @@ export class IndexedDBCacheManager {
   async #checkStorageQuota() {
     try {
       const currentUsage = await this._getStorageUsage();
-
       if (currentUsage > this.#maxStorageSize) {
         const cleanupSize = currentUsage - this.#maxStorageSize;
         this.#logger.warn(
@@ -442,15 +405,11 @@ export class IndexedDBCacheManager {
     if (!this.#db) {
       return 0;
     }
-
-    const transaction = this.#db.transaction([this.#storeName], "readonly");
-    const store = transaction.objectStore(this.#storeName);
+    const store = this.#getStore("readonly");
     const index = store.index("size");
-
     return new Promise((resolve, reject) => {
       let totalSize = 0;
       const request = index.openCursor();
-
       request.onsuccess = () => {
         const cursor = request.result;
         if (cursor) {
@@ -460,7 +419,6 @@ export class IndexedDBCacheManager {
           resolve(totalSize);
         }
       };
-
       request.onerror = () => {
         reject(request.error);
       };
@@ -471,17 +429,12 @@ export class IndexedDBCacheManager {
     if (!this.#db) {
       return { totalFiles: 0, totalChunks: 0, totalSize: 0, maxSize: this.#maxStorageSize };
     }
-
-    const transaction = this.#db.transaction([this.#storeName], "readonly");
-    const store = transaction.objectStore(this.#storeName);
-
+    const store = this.#getStore("readonly");
     const fileStats = new Map();
     let totalChunks = 0;
     let totalSize = 0;
-
     return new Promise((resolve, reject) => {
       const request = store.openCursor();
-
       request.onsuccess = () => {
         const cursor = request.result;
         if (cursor) {
@@ -517,12 +470,7 @@ export class IndexedDBCacheManager {
   }
 
   async clearAllCache() {
-    if (!this.#db) {
-      throw new Error("IndexedDB not initialized");
-    }
-
-    const transaction = this.#db.transaction([this.#storeName], "readwrite");
-    const store = transaction.objectStore(this.#storeName);
+    const store = this.#getStore("readwrite");
 
     return new Promise((resolve, reject) => {
       const request = store.clear();

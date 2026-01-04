@@ -28,35 +28,19 @@ export class SidebarManagerFeature {
     startWidth: 0
   };
 
-  /**
-     * Feature名称
-     */
   get name() {
     return "infra-sidebar";
   }
 
-  /**
-     * 版本号
-     */
   get version() {
     return "1.0.0";
   }
 
-  /**
-     * 依赖的Features
-     */
   get dependencies() {
     // 侧边栏 UI 在 real-sidebars.js 中统一选择 OutlineSidebarUI（无 Outline 回退）
     return ["pdf-annotation", "pdf-translator", "pdf-card"];
   }
 
-  /**
-     * 安装Feature
-     * @param {Object} context - Feature上下文
-     * @param {EventBus} context.globalEventBus - 全局事件总线
-     * @param {Object} context.container - 依赖容器
-     * @param {Logger} context.logger - 日志记录器
-     */
   async install(context) {
     const { globalEventBus, container, logger } = context;
 

@@ -14,22 +14,12 @@ export class FilterBuilder {
   #container = null;
   #conditionsList = [];
 
-  /**
-   * 创建FilterBuilder实例
-   * @param {Object} logger - 日志记录器
-   * @param {Object} eventBus - 事件总线
-   * @param {Object} filterManager - 筛选管理器
-   */
   constructor(logger, eventBus, filterManager) {
     this.#logger = logger;
     this.#eventBus = eventBus;
     this.#filterManager = filterManager;
   }
 
-  /**
-   * 渲染到指定容器
-   * @param {HTMLElement} container - 容器元素
-   */
   render(container) {
     this.#container = container;
     this.#container.innerHTML = this.#getTemplate();
@@ -39,10 +29,6 @@ export class FilterBuilder {
     try { if (this.#eventBus) { this.#logger.debug("[FilterBuilder] EventBus ready"); } } catch (e) { void e; }
   }
 
-  /**
-   * 获取HTML模板
-   * @private
-   */
   #getTemplate() {
     return `
       <div class="filter-builder" hidden>

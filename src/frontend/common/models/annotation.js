@@ -5,24 +5,11 @@
  */
 
 import { Comment } from "./comment.js";
-
-/**
- * 标注类型枚举
- * @enum {string}
- */
 export const AnnotationType = {
-  /** 截图标注 */
   SCREENSHOT: "screenshot",
-  /** 选字高亮标注 */
   TEXT_HIGHLIGHT: "text-highlight",
-  /** 批注标注 */
   COMMENT: "comment"
 };
-
-/**
- * 高亮颜色预设
- * @enum {string}
- */
 export const HighlightColor = {
   YELLOW: "#ffff00",
   GREEN: "#90ee90",
@@ -30,15 +17,8 @@ export const HighlightColor = {
   PINK: "#ffb6c1"
 };
 
-/**
- * 特性开关：是否使用 base64url16 新ID（默认启用，可按需关闭）
- */
 const USE_BASE64URL16_ID = true;
 
-/**
- * 生成 base64url 16 位随机串（96 位熵）
- * @returns {string}
- */
 export function generateBase64Url16() {
   const length = 12; // 12 bytes → 16 chars base64
   let cryptoObj = undefined;
@@ -65,10 +45,6 @@ export function generateBase64Url16() {
   return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
-/**
- * 生成旧格式ID ann_<timestamp>_<rand6>（兼容保留）
- * @returns {string}
- */
 function generateLegacyId() {
   const timestamp = Date.now();
   const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";

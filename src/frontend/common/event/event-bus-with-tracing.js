@@ -49,10 +49,6 @@ class EventBusManager {
   #eventBuses = new Map();
   #globalValidation = true;
 
-  /**
-   * 设置全局Logger实例
-   * @param {Logger} logger - Logger实例
-   */
   setGlobalLogger(logger) {
     this.#globalLogger = logger;
     // 更新所有已存在的EventBus实例
@@ -61,10 +57,6 @@ class EventBusManager {
     });
   }
 
-  /**
-   * 设置全局验证模式
-   * @param {boolean} enableValidation - 是否启用验证
-   */
   setGlobalValidation(enableValidation) {
     this.#globalValidation = enableValidation;
     // 更新所有已存在的EventBus实例
@@ -73,12 +65,6 @@ class EventBusManager {
     });
   }
 
-  /**
-   * 获取模块EventBus实例（单例）
-   * @param {string} moduleName - 模块名称
-   * @param {object} options - 配置选项
-   * @returns {EventBus} EventBus实例
-   */
   getEventBus(moduleName = "App", options = {}) {
     if (!this.#eventBuses.has(moduleName)) {
       const logger = this.#globalLogger || getLogger(moduleName);
@@ -93,10 +79,6 @@ class EventBusManager {
     return this.#eventBuses.get(moduleName);
   }
 
-  /**
-   * 获取所有EventBus实例信息
-   * @returns {Array} EventBus列表
-   */
   getAllEventBuses() {
     return Array.from(this.#eventBuses.entries()).map(([moduleName, eventBus]) => ({
       moduleName,
@@ -105,9 +87,6 @@ class EventBusManager {
     }));
   }
 
-  /**
-   * 清理所有EventBus实例（用于测试）
-   */
   clearAllEventBuses() {
     this.#eventBuses.forEach(eventBus => eventBus.destroy());
     this.#eventBuses.clear();
@@ -168,19 +147,12 @@ export class EventBus {
     this.#log("info", `事件总线已初始化，模块: ${this.#moduleName}, 验证模式: ${this.#enableValidation}, 追踪模式: ${this.#enableTracing}`);
   }
 
-  /**
-   * 设置Logger实例（打破循环依赖）
-   * @param {Logger} logger - Logger实例
-   */
   setLogger(logger) {
     this.#logger = logger;
     // 处理缓存的早期日志
     this.#flushEarlyLogQueue();
   }
 
-  /**
-   * 刷新早期日志队列
-   */
   #flushEarlyLogQueue() {
     if (!this.#logger || this.#earlyLogQueue.length === 0) {return;}
 
@@ -191,9 +163,6 @@ export class EventBus {
     this.#earlyLogQueue = [];
   }
 
-  /**
-   * 临时日志方法，支持早期日志缓存
-   */
   #log(level, message, ...args) {
     if (this.#logger) {
       this.#logger[level](message, ...args);
@@ -203,26 +172,14 @@ export class EventBus {
     }
   }
 
-  /**
-   * 设置验证模式
-   * @param {boolean} enableValidation - 是否启用验证
-   */
   setValidation(enableValidation) {
     this.#enableValidation = enableValidation;
   }
 
-  /**
-   * 获取验证状态
-   * @returns {boolean} 验证状态
-   */
   getValidationStatus() {
     return this.#enableValidation;
   }
 
-  /**
-   * 获取事件数量
-   * @returns {number} 事件数量
-   */
   getEventCount() {
     return Object.keys(this.#events).length;
   }
@@ -450,11 +407,6 @@ export class EventBus {
     return this.on(event, onceWrapper, options);
   }
 
-  /**
-   * 启用或禁用消息追踪
-   * @param {boolean} enable - 是否启用追踪
-   * @param {Object} [options] - 追踪选项
-   */
   setTracing(enable, options = {}) {
     if (enable && !this.#messageTracer) {
       this.#messageTracer = new MessageTracer({
@@ -467,59 +419,31 @@ export class EventBus {
     this.#log("info", `消息追踪${enable ? "已启用" : "已禁用"}`);
   }
 
-  /**
-   * 获取消息追踪信息 - 规格要求的接口2
-   * @param {string} messageId - 消息ID
-   * @returns {Object|null} 消息追踪对象
-   */
   getMessageTrace(messageId) {
     if (!this.#messageTracer) {return null;}
     return this.#messageTracer.getTrace(messageId);
   }
 
-  /**
-   * 获取调用链树 - 规格要求的接口3
-   * @param {string} traceId - 调用链ID
-   * @returns {Object|null} 调用链树
-   */
   getTraceTree(traceId) {
     if (!this.#messageTracer) {return null;}
     return this.#messageTracer.buildTraceTree(traceId);
   }
 
-  /**
-   * 清理追踪数据 - 规格要求的接口4
-   * @param {number} olderThan - 时间戳
-   * @returns {number} 清理的记录数
-   */
   clearTraceData(olderThan) {
     if (!this.#messageTracer) {return 0;}
     return this.#messageTracer.clearTraceData(olderThan);
   }
 
-  /**
-   * 获取性能统计信息
-   * @param {string} [event] - 可选的事件名称过滤
-   * @returns {Object} 性能统计
-   */
   getStats(event = null) {
     if (!this.#messageTracer) {return null;}
     return this.#messageTracer.getStats(event);
   }
 
-  /**
-   * 获取所有调用链ID
-   * @returns {Array<string>} 调用链ID数组
-   */
   getAllTraceIds() {
     if (!this.#messageTracer) {return [];}
     return this.#messageTracer.getAllTraceIds();
   }
 
-  /**
-   * 获取追踪器状态
-   * @returns {Object} 状态信息
-   */
   getTracingStatus() {
     return {
       enabled: this.#enableTracing,
