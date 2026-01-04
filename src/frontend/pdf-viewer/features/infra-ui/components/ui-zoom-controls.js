@@ -14,17 +14,20 @@ import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants
 export class UIZoomControls {
   #eventBus;
   #logger;
+  #zoomManager; // New dependency
   #zoomInBtn = null;
   #zoomOutBtn = null;
   #zoomLevelDisplay = null;
   #pageInfoDisplay = null;
   #prevPageBtn = null;
   #nextPageBtn = null;
-  #currentScale = 1.0;
+  // #currentScale = 1.0; // Removed: State moved to ZoomManager
   #currentPage = 1;
+  #unsubscribeZoom = null; // Cleanup for subscription
 
-  constructor(eventBus) {
+  constructor(eventBus, zoomManager) {
     this.#eventBus = eventBus;
+    this.#zoomManager = zoomManager;
     this.#logger = getLogger("PDFViewer");
   }
 
@@ -51,20 +54,43 @@ export class UIZoomControls {
         throw new Error("Zoom control elements not found");
       }
 
-      // 设置缩放按钮事件
+      // 设置缩放按钮事件 - 使用 Manager
       this.#zoomInBtn.addEventListener("click", () => {
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.IN, null, {
-          actorId: "UIZoomControls"
-        });
+        if (this.#zoomManager) {
+          this.#zoomManager.zoomIn();
+        } else {
+          // Fallback if no manager (should not happen in new architecture)
+          this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.IN, null, {
+            actorId: "UIZoomControls"
+          });
+        }
       });
 
       this.#zoomOutBtn.addEventListener("click", () => {
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.OUT, null, {
-          actorId: "UIZoomControls"
-        });
+        if (this.#zoomManager) {
+          this.#zoomManager.zoomOut();
+        } else {
+          this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.OUT, null, {
+            actorId: "UIZoomControls"
+          });
+        }
       });
 
-      // 设置页面导航按钮事件
+      // 订阅 Manager 状态变化
+      if (this.#zoomManager) {
+        this.#unsubscribeZoom = this.#zoomManager.store.subscribe(
+          state => state.scale,
+          (scale) => {
+            this.#updateZoomDisplay(scale);
+          },
+          { fireImmediately: true }
+        );
+      } else {
+        // Fallback initial display
+        this.#updateZoomDisplay(1.0);
+      }
+
+      // 设置页面导航按钮事件 (保持 EventBus，暂不迁移 Navigation)
       this.#prevPageBtn.addEventListener("click", () => {
         this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.PREVIOUS, null, {
           actorId: "UIZoomControls"
@@ -98,8 +124,8 @@ export class UIZoomControls {
         });
       }
 
-      // 初始更新显示
-      this.#updateZoomDisplay();
+      // 初始更新显示 (Handled by subscribe fireImmediately)
+      // this.#updateZoomDisplay();
       this.#updatePageInfo(1, 1);
 
       this.#logger.debug("Zoom controls setup completed");
@@ -112,19 +138,25 @@ export class UIZoomControls {
 
   /**
    * 更新缩放比例显示
+   * @param {number} scale - 当前缩放比例
    * @private
    */
-  #updateZoomDisplay() {
+  #updateZoomDisplay(scale) {
     if (this.#zoomLevelDisplay) {
-      const zoomPercent = Math.round(this.#currentScale * 100);
+      // Use provided scale or fetch from manager/fallback
+      const currentScale = scale !== undefined ? scale : (this.#zoomManager ? this.#zoomManager.store.get().scale : 1.0);
+      const zoomPercent = Math.round(currentScale * 100);
       this.#zoomLevelDisplay.textContent = `${zoomPercent}%`;
 
       // 更新按钮状态
+      const minScale = this.#zoomManager ? this.#zoomManager.store.get().minScale : 0.5;
+      const maxScale = this.#zoomManager ? this.#zoomManager.store.get().maxScale : 3.0;
+
       if (this.#zoomInBtn) {
-        this.#zoomInBtn.disabled = this.#currentScale >= 3.0;
+        this.#zoomInBtn.disabled = currentScale >= maxScale;
       }
       if (this.#zoomOutBtn) {
-        this.#zoomOutBtn.disabled = this.#currentScale <= 0.5;
+        this.#zoomOutBtn.disabled = currentScale <= minScale;
       }
     }
   }
@@ -233,12 +265,21 @@ export class UIZoomControls {
    * @param {HTMLCanvasElement} canvas - Canvas元素（可选，用于动画）
    */
   setScale(scale, canvas = null) {
-    this.#currentScale = Math.max(0.5, Math.min(3.0, scale)); // 限制缩放范围
-    this.#updateZoomDisplay();
+    if (this.#zoomManager) {
+      this.#zoomManager.setScale(scale);
+    }
+    // Legacy fallback or just UI effect
+    // this.#currentScale is removed, but we might need to trigger animation manually
+    // The subscription will update the display.
+
+    // this.#currentScale = Math.max(0.5, Math.min(3.0, scale)); // 限制缩放范围
+    // this.#updateZoomDisplay();
+
+    // We still want animation
     if (canvas) {
       this.applyZoomAnimation(canvas);
     }
-    this.#logger.info(`[UIZoomControls] setScale called: ${this.#currentScale} (from ${scale})`);
+    this.#logger.info(`[UIZoomControls] setScale called with: ${scale}`);
   }
 
   /**
@@ -259,7 +300,7 @@ export class UIZoomControls {
    * @returns {number} 当前缩放比例
    */
   getScale() {
-    return this.#currentScale;
+    return this.#zoomManager ? this.#zoomManager.store.get().scale : 1.0;
   }
 
   /**
@@ -267,6 +308,12 @@ export class UIZoomControls {
    */
   destroy() {
     this.#logger.info("Destroying Zoom Controls");
+
+    // 取消订阅
+    if (this.#unsubscribeZoom) {
+      this.#unsubscribeZoom();
+      this.#unsubscribeZoom = null;
+    }
 
     // 移除事件监听器
     if (this.#zoomInBtn) {
