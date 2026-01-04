@@ -37,6 +37,7 @@
 - 目标：解决 EventBus 造成的“逻辑面条化”问题，引入 `Manager + Store` 模式（Lightweight Observable Pattern）。
 - 产出：
   - 工具库：`src/frontend/common/utils/observable.js`（Zero-Dependency, Fail-Fast, Selector Support）。
+  - 测试：`src/frontend/common/utils/__tests__/observable.test.js`（覆盖 Init/Set/Replace/Subscribe/Selector/Error）。
   - 迁移指南：`docs/MIGRATION-EVENTBUS-TO-OBSERVABLE.md`（定义 Pilot/Interop/Strangler 阶段）。
   - 规范：新功能强制使用 `Manager+Store`，EventBus 收敛为边界/集成事件。
-- 门禁：`pnpm run lint` 已通过。
+- 门禁：`pnpm run lint` & `jest observable.test.js` 已通过。
