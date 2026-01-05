@@ -10,23 +10,24 @@ import { validateSidebarConfig } from "./sidebar-config.js";
 import { registerRealSidebars, createRealSidebarButtons } from "./real-sidebars.js";
 import { PDFLayoutAdapter } from "./pdf-layout-adapter.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
+import { SidebarManager } from "./services/sidebar.manager.js";
+
 const logger = getLogger("SidebarManager");
 
 export class SidebarManagerFeature {
   #eventBus;
   #container;
-  #sidebars = new Map();          // 注册的侧边栏配置
-  #openOrder = [];                 // 打开顺序
-  #layoutEngine;                   // 布局引擎
-  #pdfLayoutAdapter;               // PDF布局适配器
-  #containerElement;               // 统一容器DOM
-  #sidebarWidths = new Map();      // 自定义宽度存储
-  #resizeState = {                 // 拖拽调整状态
+  #sidebarManager; // State Manager
+  #layoutEngine;
+  #pdfLayoutAdapter;
+  #containerElement;
+  #resizeState = {
     isResizing: false,
     sidebarId: null,
     startX: 0,
     startWidth: 0
   };
+  #unsubscribe = null;
 
   get name() {
     return "infra-sidebar";
@@ -46,11 +47,28 @@ export class SidebarManagerFeature {
 
     this.#eventBus = globalEventBus;
     this.#container = container;
+    this.#sidebarManager = new SidebarManager(logger);
     this.#layoutEngine = new LayoutEngine();
     this.#pdfLayoutAdapter = new PDFLayoutAdapter(globalEventBus);
 
     this.#createContainer();
-    this.#loadWidthPreferences();
+
+    // Subscribe to State Changes (Reactive View)
+    this.#unsubscribe = this.#sidebarManager.store.subscribe((state, oldState) => {
+      // Handle Active Sidebars Change
+      if (!oldState || state.activeSidebars !== oldState.activeSidebars) {
+        this.#syncDomWithState(state.activeSidebars, state.registeredSidebars);
+      }
+      // Handle Width Changes
+      if (!oldState || state.widths !== oldState.widths) {
+        // Currently syncDomWithState handles layout which uses widths.
+        // If only width changes, we might want to optimize, but full sync is safe.
+        // But syncDomWithState might re-create DOM?
+        // No, syncDom only adds/removes. Layout uses widths.
+        this.#recalculateLayout();
+      }
+    });
+
     this.#setupEventListeners();
     this.#setupGlobalResizeHandlers();
 
@@ -78,10 +96,12 @@ export class SidebarManagerFeature {
      * 卸载Feature
      */
   async uninstall() {
+    if (this.#unsubscribe) {
+      this.#unsubscribe();
+      this.#unsubscribe = null;
+    }
     this.#containerElement?.remove();
-    this.#sidebars.clear();
-    this.#openOrder = [];
-    this.#sidebarWidths.clear();
+    this.#sidebarManager.destroy();
     this.#pdfLayoutAdapter?.destroy();
 
     logger.info("SidebarManagerFeature uninstalled");
@@ -96,14 +116,7 @@ export class SidebarManagerFeature {
       logger.error("Invalid sidebar config", config);
       throw new Error(`Invalid sidebar config: ${config?.id}`);
     }
-
-    if (this.#sidebars.has(config.id)) {
-      logger.warn(`Sidebar already registered: ${config.id}`);
-      return;
-    }
-
-    this.#sidebars.set(config.id, config);
-    logger.info(`Sidebar registered: ${config.id}`, config);
+    this.#sidebarManager.registerSidebar(config);
   }
 
   /**
@@ -111,14 +124,7 @@ export class SidebarManagerFeature {
      * @param {string} sidebarId - 侧边栏ID
      */
   toggleSidebar(sidebarId) {
-    logger.info(`Toggle sidebar requested: ${sidebarId}`);
-    const isOpen = this.#openOrder.includes(sidebarId);
-    logger.info(`Sidebar ${sidebarId} is ${isOpen ? "open" : "closed"}`);
-    if (isOpen) {
-      this.closeSidebar(sidebarId);
-    } else {
-      this.openSidebar(sidebarId);
-    }
+    this.#sidebarManager.toggleSidebar(sidebarId);
   }
 
   /**
@@ -126,42 +132,7 @@ export class SidebarManagerFeature {
      * @param {string} sidebarId - 侧边栏ID
      */
   openSidebar(sidebarId) {
-    logger.info(`Opening sidebar: ${sidebarId}`);
-
-    if (this.#openOrder.includes(sidebarId)) {
-      logger.warn(`Sidebar already open: ${sidebarId}`);
-      return;
-    }
-
-    const config = this.#sidebars.get(sidebarId);
-    if (!config) {
-      logger.error(`Sidebar not registered: ${sidebarId}`);
-      logger.info(`Available sidebars: ${Array.from(this.#sidebars.keys()).join(", ")}`);
-      return;
-    }
-
-    logger.info(`Config found for ${sidebarId}, creating panel...`);
-
-    // 添加到打开顺序
-    this.#openOrder.push(sidebarId);
-
-    // 创建侧边栏DOM
-    const panel = this.#createSidebarPanel(config);
-    this.#containerElement.appendChild(panel);
-
-    // 重新计算布局
-    this.#recalculateLayout();
-
-    // 触发事件（与事件常量保持一致）
-    this.#eventBus.emit(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPENED_COMPLETED, {
-      sidebarId,
-      order: this.#openOrder.length
-    }, { actorId: "SidebarManager" });
-
-    logger.info(`Sidebar opened: ${sidebarId}`, {
-      order: this.#openOrder.length,
-      openSidebars: this.#openOrder
-    });
+    this.#sidebarManager.openSidebar(sidebarId);
   }
 
   /**
@@ -169,35 +140,55 @@ export class SidebarManagerFeature {
      * @param {string} sidebarId - 侧边栏ID
      */
   closeSidebar(sidebarId) {
-    const index = this.#openOrder.indexOf(sidebarId);
-    if (index === -1) {
-      logger.warn(`Sidebar not open: ${sidebarId}`);
-      return;
-    }
-
-    // 从打开顺序中移除
-    this.#openOrder.splice(index, 1);
-
-    // 移除DOM
-    const panel = this.#containerElement.querySelector(`[data-sidebar-id="${sidebarId}"]`);
-    panel?.remove();
-
-    // 重新计算布局
-    this.#recalculateLayout();
-
-    // 触发事件（修复：使用统一常量）
-    this.#eventBus.emit(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.CLOSED_COMPLETED, {
-      sidebarId,
-      remainingIds: [...this.#openOrder]
-    }, { actorId: "SidebarManager" });
-
-    logger.info(`Sidebar closed: ${sidebarId}`, {
-      remainingCount: this.#openOrder.length,
-      openSidebars: this.#openOrder
-    });
+    this.#sidebarManager.closeSidebar(sidebarId);
   }
 
-  // ==================== 私有方法 ====================
+  // ==================== 私有方法 (View Logic) ====================
+
+  /**
+   * Sync DOM with Active Sidebars State
+   */
+  #syncDomWithState(activeSidebars, registeredSidebars) {
+    // 1. Remove closed sidebars
+    const currentPanels = Array.from(this.#containerElement.querySelectorAll(".sidebar-panel"));
+    currentPanels.forEach(panel => {
+      const id = panel.getAttribute("data-sidebar-id");
+      if (!activeSidebars.includes(id)) {
+        panel.remove();
+        // Emit Event (Legacy)
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.CLOSED_COMPLETED, {
+          sidebarId: id,
+          remainingIds: [...activeSidebars]
+        }, { actorId: "SidebarManager" });
+      }
+    });
+
+    // 2. Add new sidebars (maintain order based on activeSidebars array)
+    activeSidebars.forEach((id, index) => {
+      let panel = this.#containerElement.querySelector(`[data-sidebar-id="${id}"]`);
+      if (!panel) {
+        const config = registeredSidebars[id];
+        if (config) {
+          panel = this.#createSidebarPanel(config);
+          this.#containerElement.appendChild(panel); // Just append, layout engine handles position?
+          // Wait, layout engine uses absolute positioning?
+          // Let's check layout-engine.js logic.
+          // Usually LayoutEngine calculates position based on order.
+          // If we append, order in DOM matches?
+          // `LayoutEngine.applyLayout` usually sets style.
+
+          // Emit Event (Legacy)
+          this.#eventBus.emit(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPENED_COMPLETED, {
+            sidebarId: id,
+            order: index + 1
+          }, { actorId: "SidebarManager" });
+        }
+      }
+    });
+
+    // 3. Recalculate Layout
+    this.#recalculateLayout();
+  }
 
   /**
      * 创建统一容器
@@ -292,8 +283,9 @@ export class SidebarManagerFeature {
      */
   #recalculateLayout() {
     const containerWidth = this.#containerElement.offsetWidth || 1200; // 默认宽度
+    const { activeSidebars, widths } = this.#sidebarManager.store.get();
 
-    if (this.#openOrder.length === 0) {
+    if (activeSidebars.length === 0) {
       // 没有侧边栏时，通知PDF容器恢复全宽
       this.#eventBus.emit(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.LAYOUT_UPDATED, {
         totalWidth: 0
@@ -301,9 +293,14 @@ export class SidebarManagerFeature {
       return;
     }
 
+    // Convert observable object to Map if needed by layout engine, or just use object
+    // LayoutEngine.calculateLayoutWithCustomWidths expects Map?
+    // Let's verify LayoutEngine.
+    const widthMap = new Map(Object.entries(widths));
+
     const layouts = this.#layoutEngine.calculateLayoutWithCustomWidths(
-      this.#openOrder,
-      this.#sidebarWidths,
+      activeSidebars,
+      widthMap,
       containerWidth
     );
 
@@ -318,11 +315,8 @@ export class SidebarManagerFeature {
       layouts
     }, { actorId: "SidebarManager" });
 
-    // 可选：布局更新完成（复用同一事件常量，订阅者根据数据结构区分即可）
-    // this.#eventBus.emit(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.LAYOUT_UPDATED, { layouts }, { actorId: 'SidebarManager' });
-
     logger.debug("Layout recalculated", {
-      openCount: this.#openOrder.length,
+      openCount: activeSidebars.length,
       containerWidth,
       totalWidth,
       layouts
@@ -361,68 +355,6 @@ export class SidebarManagerFeature {
     }, { subscriberId: "SidebarManager" });
 
     logger.info("Event listeners setup completed");
-  }
-
-  // ==================== 宽度调整相关 ====================
-
-  /**
-     * 获取侧边栏宽度
-     * @param {string} sidebarId - 侧边栏ID
-     * @returns {number} 宽度
-     */
-  /**
-     * 设置侧边栏宽度
-     * @param {string} sidebarId - 侧边栏ID
-     * @param {number} width - 宽度
-     */
-  #setSidebarWidth(sidebarId, width) {
-    const config = this.#sidebars.get(sidebarId);
-    if (!config) {
-      return;
-    }
-
-    const constrainedWidth = Math.max(
-      config.minWidth,
-      Math.min(config.maxWidth, width)
-    );
-    this.#sidebarWidths.set(sidebarId, constrainedWidth);
-    this.#saveWidthPreferences();
-
-    logger.debug(`Sidebar width set: ${sidebarId}`, {
-      requested: width,
-      constrained: constrainedWidth
-    });
-  }
-
-  /**
-     * 持久化宽度偏好
-     */
-  #saveWidthPreferences() {
-    try {
-      const preferences = Object.fromEntries(this.#sidebarWidths);
-      localStorage.setItem("sidebar-widths", JSON.stringify(preferences));
-      logger.debug("Width preferences saved", preferences);
-    } catch (error) {
-      logger.error("Failed to save width preferences", error);
-    }
-  }
-
-  /**
-     * 加载宽度偏好
-     */
-  #loadWidthPreferences() {
-    try {
-      const saved = localStorage.getItem("sidebar-widths");
-      if (saved) {
-        const preferences = JSON.parse(saved);
-        Object.entries(preferences).forEach(([id, width]) => {
-          this.#sidebarWidths.set(id, width);
-        });
-        logger.debug("Width preferences loaded", preferences);
-      }
-    } catch (error) {
-      logger.error("Failed to load width preferences", error);
-    }
   }
 
   /**
@@ -464,10 +396,8 @@ export class SidebarManagerFeature {
       const sidebarId = this.#resizeState.sidebarId;
 
       // 更新宽度
-      this.#setSidebarWidth(sidebarId, newWidth);
-
-      // 重新计算布局
-      this.#recalculateLayout();
+      this.#sidebarManager.setWidth(sidebarId, newWidth);
+      // NOTE: Layout update handled by subscription
     });
 
     document.addEventListener("mouseup", () => {
@@ -481,9 +411,10 @@ export class SidebarManagerFeature {
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
 
+      const finalWidth = this.#sidebarManager.store.get().widths[this.#resizeState.sidebarId];
       logger.info("Resize completed", {
         sidebarId: this.#resizeState.sidebarId,
-        finalWidth: this.#sidebarWidths.get(this.#resizeState.sidebarId)
+        finalWidth: finalWidth
       });
 
       this.#resizeState.sidebarId = null;
@@ -492,4 +423,3 @@ export class SidebarManagerFeature {
     logger.debug("Global resize handlers setup");
   }
 }
-
