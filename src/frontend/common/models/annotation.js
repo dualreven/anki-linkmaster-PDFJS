@@ -292,8 +292,9 @@ export class Annotation {
     }
 
     if (changes.data) {
-      this.#validateTypeSpecificData(this.type, changes.data);
-      this.data = { ...this.data, ...changes.data };
+      const mergedData = { ...this.data, ...changes.data };
+      this.#validateTypeSpecificData(this.type, mergedData);
+      this.data = mergedData;
     }
 
     this.updatedAt = new Date().toISOString();
