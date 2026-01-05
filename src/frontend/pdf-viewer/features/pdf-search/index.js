@@ -7,7 +7,7 @@
 import { getLogger } from "../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
 import { SearchEngine } from "./services/search-engine.js";
-import { SearchStateManager } from "./services/search-state-manager.js";
+import { SearchManager } from "./services/search.manager.js"; // New Manager
 import { SearchBox } from "./components/search-box.js";
 import { setupGlobalSearchShortcut } from "../../../common/features/search-shortcut/index.js";
 
@@ -30,13 +30,11 @@ export class SearchFeature {
   /** @type {SearchEngine} 搜索引擎实例 */
   #searchEngine = null;
 
-  /** @type {SearchStateManager} 状态管理器实例 */
-  #stateManager = null;
+  /** @type {SearchManager} 状态管理器实例 */
+  #searchManager = null; // Renamed from stateManager
 
   /** @type {SearchBox} 搜索框UI实例 */
   #searchBox = null;
-
-  // PDFViewer 实例不再在本类中持有（改由 SearchEngine 内部引用）
 
   /** @type {boolean} 是否已安装 */
   #installed = false;
@@ -92,10 +90,6 @@ export class SearchFeature {
     // 从 context 中解构依赖
     const { container, globalEventBus } = context;
 
-    this.#logger.info(`Context container type: ${container?.constructor?.name}`);
-    this.#logger.info(`Container has resolve: ${typeof container?.resolve}`);
-    this.#logger.info(`GlobalEventBus exists: ${!!globalEventBus}`);
-
     try {
       // 1. 从 context 获取全局 EventBus
       this.#eventBus = globalEventBus;
@@ -110,15 +104,15 @@ export class SearchFeature {
       }
 
       // 2. 创建状态管理器
-      this.#stateManager = new SearchStateManager();
-      this.#logger.info("SearchStateManager created");
+      this.#searchManager = new SearchManager(this.#logger);
+      this.#logger.info("SearchManager created");
 
       // 3. 创建搜索引擎
       this.#searchEngine = new SearchEngine(this.#eventBus);
       this.#logger.info("SearchEngine created");
 
       // 4. 创建搜索框UI
-      this.#searchBox = new SearchBox(this.#eventBus);
+      this.#searchBox = new SearchBox(this.#eventBus, this.#searchManager);
       await this.#searchBox.initialize();
       this.#logger.info("SearchBox initialized");
 
@@ -127,7 +121,7 @@ export class SearchFeature {
 
       // 6. 注册到容器（供其他Feature使用）
       container.register("searchEngine", this.#searchEngine);
-      container.register("searchStateManager", this.#stateManager);
+      container.register("searchManager", this.#searchManager); // Updated key
       container.register("searchBox", this.#searchBox);
 
       // 7. 监听PDF加载完成，初始化搜索引擎
@@ -259,16 +253,16 @@ export class SearchFeature {
 
     try {
       // 更新状态
-      this.#stateManager.updateQuery(query);
-      this.#stateManager.updateOptions(options);
-      this.#stateManager.setSearching(true);
+      this.#searchManager.setQuery(query);
+      this.#searchManager.updateOptions(options);
+      this.#searchManager.setSearching(true);
 
       // 执行搜索
       await this.#searchEngine.executeSearch(query, options);
 
     } catch (error) {
       this.#logger.error("Search query failed:", error);
-      this.#stateManager.setSearching(false);
+      this.#searchManager.setSearching(false);
     }
   }
 
@@ -280,7 +274,7 @@ export class SearchFeature {
     this.#logger.info("Handling search clear");
 
     this.#searchEngine.clearSearch();
-    this.#stateManager.reset();
+    this.#searchManager.reset();
   }
 
   /**
@@ -290,14 +284,14 @@ export class SearchFeature {
   async #handleNavigateNext() {
     this.#logger.info("Handling navigate to next match");
 
-    if (!this.#stateManager.hasResults) {
+    if (!this.#searchManager.hasResults) {
       this.#logger.warn("No search results to navigate");
       return;
     }
 
     try {
       await this.#searchEngine.highlightNextMatch();
-      this.#stateManager.nextMatch();
+      this.#searchManager.nextMatch();
     } catch (error) {
       this.#logger.error("Navigate next failed:", error);
     }
@@ -310,14 +304,14 @@ export class SearchFeature {
   async #handleNavigatePrev() {
     this.#logger.info("Handling navigate to previous match");
 
-    if (!this.#stateManager.hasResults) {
+    if (!this.#searchManager.hasResults) {
       this.#logger.warn("No search results to navigate");
       return;
     }
 
     try {
       await this.#searchEngine.highlightPreviousMatch();
-      this.#stateManager.previousMatch();
+      this.#searchManager.previousMatch();
     } catch (error) {
       this.#logger.error("Navigate previous failed:", error);
     }
@@ -333,7 +327,7 @@ export class SearchFeature {
     this.#logger.info(`Handling option change: ${option} = ${value}`);
 
     // 更新状态管理器
-    this.#stateManager.updateOptions({ [option]: value });
+    this.#searchManager.updateOptions({ [option]: value });
 
     // 更新搜索引擎选项
     this.#searchEngine.updateOptions({ [option]: value });
@@ -349,9 +343,8 @@ export class SearchFeature {
   #handleSearchResultUpdated(current, total, query) {
     this.#logger.info(`Handling search result updated: ${current}/${total} for query "${query}"`);
 
-    // 更新SearchStateManager的结果数据，使hasResults返回正确的值
-    this.#stateManager.updateResults(current, total);
-    this.#stateManager.setSearching(false);
+    // 更新SearchManager的结果数据
+    this.#searchManager.updateResults(current, total);
   }
 
   /**
@@ -365,7 +358,7 @@ export class SearchFeature {
         version: this.version,
         installed: this.#installed,
       },
-      stateManager: this.#stateManager?.getSnapshot(),
+      searchManager: this.#searchManager?.store.get(),
       searchEngine: this.#searchEngine?.getState(),
     };
   }
@@ -395,14 +388,13 @@ export class SearchFeature {
         this.#searchEngine = null;
       }
 
-      if (this.#stateManager) {
-        this.#stateManager.destroy();
-        this.#stateManager = null;
+      if (this.#searchManager) {
+        this.#searchManager.destroy();
+        this.#searchManager = null;
       }
 
       // 清空引用
       this.#eventBus = null;
-      // 无需保留 PDFViewer 引用
       this.#installed = false;
 
       this.#logger.info("SearchFeature uninstalled successfully");

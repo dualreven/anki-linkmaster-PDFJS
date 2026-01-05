@@ -26,6 +26,9 @@ export class SearchBox {
   /** @type {import('../../../types/events').EventBus} */
   #eventBus = null;
 
+  /** @type {import('../services/search.manager.js').SearchManager} */
+  #searchManager = null;
+
   /** @type {HTMLElement} 搜索框容器 */
   #container = null;
 
@@ -62,13 +65,18 @@ export class SearchBox {
   /**
    * 构造函数
    * @param {import('../../../types/events').EventBus} eventBus - 事件总线
+   * @param {import('../services/search.manager.js').SearchManager} searchManager - 搜索管理器
    */
-  constructor(eventBus) {
+  constructor(eventBus, searchManager) {
     if (!eventBus) {
       throw new Error("EventBus is required for SearchBox");
     }
+    if (!searchManager) {
+      throw new Error("SearchManager is required for SearchBox");
+    }
 
     this.#eventBus = eventBus;
+    this.#searchManager = searchManager;
     this.#logger.info("SearchBox created");
   }
 
@@ -114,13 +122,34 @@ export class SearchBox {
       onToggle: () => this.toggle(),
     }));
 
-    // 应用事件订阅（可清理）
+    // Subscribe to Manager State
+    this.#cleanupFns.push(this.#searchManager.store.subscribe((state, oldState) => {
+      // Update UI Visibility
+      if (!oldState || state.isVisible !== oldState.isVisible) {
+        if (state.isVisible) {this.show();} else {this.hide();}
+      }
+
+      // Update Counter
+      if (!oldState || state.currentIndex !== oldState.currentIndex || state.totalMatches !== oldState.totalMatches) {
+        this.updateResultCounter(state.currentIndex, state.totalMatches);
+      }
+
+      // Update Input (if changed externally e.g. via API)
+      if (!oldState || state.query !== oldState.query) {
+        if (this.#searchInput && this.#searchInput.value !== state.query) {
+          this.#searchInput.value = state.query || "";
+        }
+      }
+    }, { fireImmediately: true }));
+
+    // Legacy subscriptions (Toggle command via EventBus)
+    // SEARCH.UI.OPEN event is emitted by GlobalShortcut
     this.#cleanupFns.push(subscribeSearchBoxEvents({
       eventBus: this.#eventBus,
-      onResult: (current, total) => this.updateResultCounter(current, total),
-      onOpen: () => this.show(),
-      onClose: () => this.hide(),
-      onToggle: () => this.toggle(),
+      // onResult: removed, handled by Manager subscription
+      onOpen: () => this.#searchManager.setVisible(true), // Update state instead of direct DOM
+      onClose: () => this.#searchManager.setVisible(false),
+      onToggle: () => this.#searchManager.setVisible(!this.#searchManager.store.get().isVisible),
       subscriberId: "SearchBox",
     }));
 
@@ -164,7 +193,7 @@ export class SearchBox {
 
     this.#logger.info(`Searching for: "${validation.cleaned}"`);
 
-    // 发出搜索事件
+    // 发出搜索事件 (Command)
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.SEARCH.EXECUTE.QUERY,
       {
@@ -209,7 +238,8 @@ export class SearchBox {
    */
   #handleCloseClick() {
     this.#logger.info("Close button clicked");
-    this.hide();
+    // Update State
+    this.#searchManager.setVisible(false);
   }
 
   /**
@@ -237,7 +267,7 @@ export class SearchBox {
   }
 
   /**
-   * 显示搜索框
+   * 显示搜索框 (View Logic)
    */
   show() {
     if (this.#isVisible) {
@@ -253,7 +283,7 @@ export class SearchBox {
   }
 
   /**
-   * 隐藏搜索框
+   * 隐藏搜索框 (View Logic)
    */
   hide() {
     if (!this.#isVisible) {
@@ -266,6 +296,7 @@ export class SearchBox {
     this.#isVisible = false;
 
     // 清空搜索（发出清空事件）
+    // Note: Should hiding clear search? Assuming yes based on legacy behavior.
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.SEARCH.EXECUTE.CLEAR,
       {},
@@ -277,11 +308,9 @@ export class SearchBox {
    * 切换显示/隐藏
    */
   toggle() {
-    if (this.#isVisible) {
-      this.hide();
-    } else {
-      this.show();
-    }
+    // Delegate to Manager to update state, which triggers subscription -> show/hide
+    const isVisible = this.#searchManager.store.get().isVisible;
+    this.#searchManager.setVisible(!isVisible);
   }
 
   /**
@@ -310,9 +339,8 @@ export class SearchBox {
    * @param {string} query - 搜索关键词
    */
   setQuery(query) {
-    if (this.#searchInput) {
-      this.#searchInput.value = query || "";
-    }
+    // Use Manager
+    this.#searchManager.setQuery(query);
   }
 
   /**
@@ -320,7 +348,8 @@ export class SearchBox {
    * @returns {string}
    */
   getQuery() {
-    return this.#searchInput ? this.#searchInput.value : "";
+    // Read from Manager (Source of Truth)
+    return this.#searchManager.store.get().query;
   }
 
   /**
@@ -349,6 +378,7 @@ export class SearchBox {
     this.#wholeWordsCheckbox = null;
     this.#debouncedSearch = null;
     this.#eventBus = null;
+    this.#searchManager = null; // Clear manager reference
     this.#cleanupFns = [];
 
     this.#initialized = false;

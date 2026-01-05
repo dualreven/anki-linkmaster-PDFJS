@@ -2,14 +2,17 @@
 
 最后更新：2026-01-05（memory-bank lint：超限自动归档）
 
-## 2026-01-05 前端架构重构：Observable Pattern 落地 (完成)
+## 2026-01-05 前端架构重构：Observable Pattern 落地 (进度：90%)
 - **基建**：`observable.js` + `observable.test.js` (100% pass)。
-- **规范**：`docs/MIGRATION-EVENTBUS-TO-OBSERVABLE.md`。
-- **Zoom 迁移**：`UIZoomControls` -> `ZoomManager`。
-- **Layout 迁移**：`UILayoutControls` -> `LayoutManager`。
-- **Core State 迁移**：`UIManagerCore` -> `ViewerManager` (Doc/Page/Loading)。
-  - **Cleanup**：删除了 `src/frontend/pdf-viewer/ui/ui-state-manager.js`。
-  - **Refactor**：`UIManagerCore` 现仅负责装配 Managers 和 View Drivers (`DOMManager` 等)，单文件行数已降至 < 500。
+- **Core 迁移**：
+  - `UIZoomControls` -> `ZoomManager`。
+  - `UILayoutControls` -> `LayoutManager`。
+  - `UIManagerCore` -> `ViewerManager` (Doc/Page/Loading)。
+- **Feature 迁移**：
+  - `SearchFeature` -> `SearchManager` (Query/Results/Options)。
+    - Refactored `SearchBox` to subscribe to `SearchManager` for View updates.
+    - Deleted legacy `search-state-manager.js`.
+    - Updated `search-box.behavior.test.js` to support new DI.
 
 ## 2026-01-05 开发原则更新（TDD）
 - **强制执行**：所有新代码必须先写测试 (Red-Green-Refactor)。

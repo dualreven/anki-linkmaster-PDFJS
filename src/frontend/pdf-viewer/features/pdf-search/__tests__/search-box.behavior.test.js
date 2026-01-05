@@ -13,6 +13,25 @@ function createMockEventBus() {
   };
 }
 
+function createMockSearchManager() {
+  return {
+    store: {
+      subscribe: jest.fn((selector, listener) => {
+        // Return mock unsubscribe
+        return jest.fn();
+      }),
+      get: jest.fn(() => ({
+        isVisible: false,
+        query: "",
+        currentIndex: 0,
+        totalMatches: 0
+      }))
+    },
+    setQuery: jest.fn(),
+    setVisible: jest.fn()
+  };
+}
+
 describe("SearchBox — UI 行为（最小回归）", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
@@ -25,7 +44,8 @@ describe("SearchBox — UI 行为（最小回归）", () => {
 
   test("输入后触发防抖搜索事件（execute:query）", async () => {
     const eventBus = createMockEventBus();
-    const box = new SearchBox(eventBus);
+    const searchManager = createMockSearchManager();
+    const box = new SearchBox(eventBus, searchManager);
     await box.initialize();
 
     const input = document.getElementById("pdf-search-input");
@@ -54,4 +74,3 @@ describe("SearchBox — UI 行为（最小回归）", () => {
     expect(document.getElementById("pdf-search-box")).toBeNull();
   });
 });
-
