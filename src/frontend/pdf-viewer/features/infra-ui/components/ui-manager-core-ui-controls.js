@@ -2,6 +2,7 @@ import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants
 import { UIZoomControls } from "./ui-zoom-controls.js";
 import { UILayoutControls } from "./ui-layout-controls.js";
 import { ZoomManager } from "./zoom.manager.js";
+import { LayoutManager } from "./layout.manager.js"; // Import LayoutManager
 
 function installZoomIntegration(ctx) {
   const { eventBus, logger, pdfViewerManager } = ctx;
@@ -93,6 +94,7 @@ export async function initializeUIManagerControls(ctx) {
 
   // Initialize ZoomManager (Observable State)
   const zoomManager = new ZoomManager(eventBus, logger);
+  const layoutManager = new LayoutManager(eventBus, logger); // Initialize LayoutManager
 
   // Initialize UI with Manager
   const uiZoomControls = new UIZoomControls(eventBus, zoomManager);
@@ -101,9 +103,9 @@ export async function initializeUIManagerControls(ctx) {
 
   let uiLayoutControls = null;
   if (pdfViewerManager) {
-    uiLayoutControls = new UILayoutControls(eventBus);
+    uiLayoutControls = new UILayoutControls(eventBus, layoutManager); // Pass Manager
     uiLayoutControls.setup(pdfViewerManager);
-    logger.info("UILayoutControls initialized");
+    logger.info("UILayoutControls initialized (with LayoutManager)");
   } else {
     logger.warn("PDFViewerManager not available, layout controls disabled");
   }
