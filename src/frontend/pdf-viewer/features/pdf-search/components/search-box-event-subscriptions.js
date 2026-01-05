@@ -9,7 +9,7 @@ import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants
 /**
  * @param {{
  *  eventBus: any,
- *  onResult: (current: number, total: number) => void,
+ *  onResult?: (current: number, total: number) => void,
  *  onOpen: () => void,
  *  onClose: () => void,
  *  onToggle: () => void,
@@ -21,23 +21,26 @@ export function subscribeSearchBoxEvents(params) {
   const { eventBus, onResult, onOpen, onClose, onToggle, subscriberId = "SearchBox" } = params;
   const unsubs = [];
 
-  unsubs.push(eventBus.on(
-    PDF_VIEWER_EVENTS.SEARCH.RESULT.UPDATED,
-    ({ current, total }) => onResult(current, total),
-    { subscriberId }
-  ));
+  // Only subscribe to result events if handler provided
+  if (typeof onResult === "function") {
+    unsubs.push(eventBus.on(
+      PDF_VIEWER_EVENTS.SEARCH.RESULT.UPDATED,
+      ({ current, total }) => onResult(current, total),
+      { subscriberId }
+    ));
 
-  unsubs.push(eventBus.on(
-    PDF_VIEWER_EVENTS.SEARCH.RESULT.FOUND,
-    ({ current, total }) => onResult(current, total),
-    { subscriberId }
-  ));
+    unsubs.push(eventBus.on(
+      PDF_VIEWER_EVENTS.SEARCH.RESULT.FOUND,
+      ({ current, total }) => onResult(current, total),
+      { subscriberId }
+    ));
 
-  unsubs.push(eventBus.on(
-    PDF_VIEWER_EVENTS.SEARCH.RESULT.NOT_FOUND,
-    () => onResult(0, 0),
-    { subscriberId }
-  ));
+    unsubs.push(eventBus.on(
+      PDF_VIEWER_EVENTS.SEARCH.RESULT.NOT_FOUND,
+      () => onResult(0, 0),
+      { subscriberId }
+    ));
+  }
 
   unsubs.push(eventBus.on(PDF_VIEWER_EVENTS.SEARCH.UI.OPEN, () => onOpen(), { subscriberId }));
   unsubs.push(eventBus.on(PDF_VIEWER_EVENTS.SEARCH.UI.CLOSE, () => onClose(), { subscriberId }));
