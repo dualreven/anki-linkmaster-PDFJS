@@ -1,6 +1,18 @@
 # Memory Bank - Context（精简版）
 
-最后更新：2026-01-05（memory-bank lint：超限自动归档）
+最后更新：2026-01-06（memory-bank lint：超限自动归档）
+
+## 2026-01-06 并行重构基础设施收敛（main 完成）
+- **门禁新增**：新增 ESLint 规则 `custom/no-eventbus-subscription-in-manager`，禁止在 `*.manager*.js` 中使用 `eventBus.on/onGlobal/once` 订阅（订阅必须上移到 Feature composition root/adapter 层）。
+- **Annotation 结构收敛**：
+  - `AnnotationManager V2` 不再订阅 EventBus，仅保留方法 + store + 必要的 emit（兼容旧 UI/工具链）。
+  - `AnnotationFeature` 负责把 `ANNOTATION.CREATE/UPDATE/DELETE/DATA.LOAD` 事件桥接到 Manager 方法，并显式保存/清理 unsubs（避免泄漏）。
+- **WS 基础验证补强**：为 `AppCoreFeature` 补回归测试，覆盖“wsInfra 安装后必须调用 adapters[].onInitialized（若存在）”。
+- **基线锚点**：commit `65dc3b5`，tag `foundation-20260106014352`。
+
+## 2026-01-06 并行工作区重建（单向覆写）
+- **策略**：A/B/C/D 历史工作区视为过时，全部丢弃；以 `main` 为唯一真源重新派生并行槽位。
+- **结果**：重建 worktree 与分支 `worker/refactor-{A|B|C|D}`，四个 worktree 均指向 `foundation-20260106014352` 基线。
 
 ## 2026-01-05 前端架构重构：Observable Pattern 落地 (完成)
 - **基建**：`observable.js` + `observable.test.js` (100% pass).
