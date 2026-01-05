@@ -3,9 +3,10 @@ import { getEventBus } from "../../../../common/event/event-bus.js";
 import { createScopedEventBus } from "../../../../common/event/scoped-event-bus.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 import { Annotation, AnnotationType } from "../../../../common/models/annotation.js";
-import { AnnotationManager } from "../core/annotation-manager.js";
+import { AnnotationManager } from "../core/annotation.manager.v2.js";
+import { getLogger } from "../../../../common/utils/logger.js";
 
-// 直接在订阅处使用常量，避免变量事件名
+// Directly use constants in subscriptions to avoid variable event name lint errors
 
 describe("AnnotationManager create fallback", () => {
   test("falls back to mock save and emits CREATED when pdfId missing", async () => {
@@ -20,14 +21,12 @@ describe("AnnotationManager create fallback", () => {
     };
     const containerStub = {
       get: (name) => (name === "wsClient" ? wsClientStub : null),
-      getDependencies: () => ({ wsClient: wsClientStub })
+      getWSClient: () => wsClientStub
     };
 
     // Instantiate manager (will detect wsClient), but we do NOT set pdfId
-    // 仅为触发初始化与事件绑定；无需持有引用
-    new AnnotationManager(scopedBus, undefined, containerStub);
+    new AnnotationManager(scopedBus, getLogger("test"), containerStub);
 
-    // 构造符合 v003 新契约的截图标注（使用 rectPercent + imagePath + imageHash）
     const payload = Annotation.createScreenshot(
       1,
       { xPercent: 10, yPercent: 10, widthPercent: 20, heightPercent: 10 },
@@ -56,9 +55,5 @@ describe("AnnotationManager create fallback", () => {
     expect(created).toBeTruthy();
     expect(created.annotation).toBeTruthy();
     expect(created.annotation.type).toBe(AnnotationType.SCREENSHOT);
-    // Because fallback path was taken, wsClient.request should NOT have been required for success
-    // We don't assert request not called strictly (implementation may preflight),
-    // but CREATED should be emitted regardless
   });
 });
-

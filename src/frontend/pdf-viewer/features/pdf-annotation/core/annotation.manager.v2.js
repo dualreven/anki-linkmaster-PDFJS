@@ -2,207 +2,224 @@ import { ObservableState } from "../../../../common/utils/observable.js";
 import { Annotation, AnnotationType } from "../../../../common/models/annotation.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 import { WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constants.js";
-import { computePositionFromPercent } from "./annotation-position-utils.js";
+import { getLogger } from "../../../../common/utils/logger.js";
 
 /**
  * AnnotationManager V2 (Observable)
  */
 export class AnnotationManager {
-    constructor(eventBus, logger, container) {
-        this.eventBus = eventBus;
-        this.logger = logger;
-        this.wsClient = null;
-        this.mockMode = true;
+  constructor(eventBus, logger, container) {
+    this.eventBus = eventBus;
+    this.logger = logger || getLogger("AnnotationManager");
+    this.wsClient = null;
+    this.mockMode = true;
 
-        this.store = new ObservableState({
-            annotations: [],
-            isLoading: false,
-            error: null,
-            pdfId: null
-        }, { 
-            name: "AnnotationStore",
-            logger: this.logger
-        });
+    // Generate unique ID for subscribers to avoid collision in tests
+    this._instanceId = Math.random().toString(36).substring(2, 9);
 
-        this._initWSClient(container);
-        this._setupEventListeners(); // Keep listening for Tool events
+    this.store = new ObservableState({
+      annotations: [],
+      isLoading: false,
+      error: null,
+      pdfId: null
+    }, {
+      name: "AnnotationStore",
+      logger: this.logger
+    });
+
+    this._initWSClient(container);
+    this._setupEventListeners();
+  }
+
+  _initWSClient(container) {
+    try {
+      if (!container) {return;}
+      let ws = null;
+      if (typeof container.getWSClient === "function") {
+        ws = container.getWSClient();
+      } else if (typeof container.get === "function") {
+        try { ws = container.get("wsClient"); } catch { /* ignore */ }
+      }
+      if (ws && typeof ws.request === "function") {
+        this.wsClient = ws;
+        this.mockMode = false;
+        this.logger.info("[AnnotationManager] Remote persistence enabled");
+      }
+    } catch (e) {
+      this.logger.warn("[AnnotationManager] Failed to obtain wsClient", e);
     }
+  }
 
-    _initWSClient(container) {
-        try {
-            if (!container) return;
-            let ws = null;
-            if (typeof container.getWSClient === "function") {
-                ws = container.getWSClient();
-            } else if (typeof container.get === "function") {
-                try { ws = container.get("wsClient"); } catch { }
-            }
-            if (ws && typeof ws.request === "function") {
-                this.wsClient = ws;
-                this.mockMode = false;
-                this.logger.info("[AnnotationManager] Remote persistence enabled");
-            }
-        } catch (e) {
-            this.logger.warn("[AnnotationManager] Failed to obtain wsClient", e);
-        }
+  _setupEventListeners() {
+    const subscriberId = `AnnotationManagerV2_${this._instanceId}`;
+
+    this.eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, (data) => {
+      this.createAnnotation(data.annotation);
+    }, { subscriberId });
+
+    this.eventBus.onGlobal(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, (data) => {
+      const annotation = data?.annotation;
+      if (annotation?.type === AnnotationType.TEXT_HIGHLIGHT) {
+        this.createAnnotation(data.annotation);
+      }
+    }, { subscriberId: `${subscriberId}_Global` });
+
+    this.eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.UPDATE, (data) => {
+      this.updateAnnotation(data.id, data.changes);
+    }, { subscriberId });
+
+    this.eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DELETE, (data) => {
+      this.deleteAnnotation(data.id);
+    }, { subscriberId });
+
+    this.eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, (data) => {
+      this.loadAnnotations(data.pdfId);
+    }, { subscriberId });
+  }
+
+  setPdfId(pdfId) {
+    this.store.set({ pdfId });
+  }
+
+  async createAnnotation(annotationData) {
+    try {
+      const ann = annotationData instanceof Annotation ? annotationData : Annotation.fromJSON(annotationData);
+
+      const current = this.store.get().annotations;
+      this.store.set({ annotations: [ann, ...current] });
+
+      if (this.mockMode) {
+        await this._mockSave(ann);
+      } else {
+        await this._remoteSave(ann);
+      }
+
+      this.eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, { annotation: ann });
+    } catch (e) {
+      this.logger.error("Create failed", e);
+      this.eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.CREATE_FAILED, { error: e.message });
     }
+  }
 
-    _setupEventListeners() {
-        // Listen to Tool Events (Create Request)
-        this.eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, (data) => {
-            this.createAnnotation(data.annotation);
-        }, { subscriberId: "AnnotationManagerV2" });
+  async updateAnnotation(id, changes) {
+    try {
+      const current = this.store.get().annotations;
+      const index = current.findIndex(a => a.id === id);
+      if (index === -1) {
+        this.logger.warn(`[AnnotationManager] Update failed: ID ${id} not found in store`);
+        return;
+      }
 
-        this.eventBus.onGlobal(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, (data) => {
-            const annotation = data?.annotation;
-            if (annotation?.type === AnnotationType.TEXT_HIGHLIGHT) {
-                this.createAnnotation(data.annotation);
-            }
-        }, { subscriberId: "AnnotationManagerV2-Global" });
+      const ann = current[index];
+      ann.update(changes);
 
-        this.eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.UPDATE, (data) => {
-            this.updateAnnotation(data.id, data.changes);
-        }, { subscriberId: "AnnotationManagerV2" });
+      const next = [...current];
+      next[index] = ann;
+      this.store.set({ annotations: next });
 
-        this.eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DELETE, (data) => {
-            this.deleteAnnotation(data.id);
-        }, { subscriberId: "AnnotationManagerV2" });
+      if (this.mockMode) {
+        await this._mockSave(ann);
+      } else {
+        await this._remoteSave(ann);
+      }
 
-        this.eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, (data) => {
-            this.loadAnnotations(data.pdfId);
-        }, { subscriberId: "AnnotationManagerV2" });
+      this.eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.UPDATED, { annotation: ann });
+    } catch (e) {
+      this.logger.error("Update failed", e);
     }
+  }
 
-    setPdfId(pdfId) {
-        this.store.set({ pdfId });
+  async deleteAnnotation(id) {
+    try {
+      const current = this.store.get().annotations;
+      const next = current.filter(a => a.id !== id);
+      this.store.set({ annotations: next });
+
+      if (this.mockMode) {
+        // mock delete
+      } else {
+        await this._remoteDelete(id);
+      }
+
+      this.eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DELETED, { id });
+    } catch (e) {
+      this.logger.error("Delete failed", e);
     }
+  }
 
-    async createAnnotation(annotationData) {
-        try {
-            const ann = annotationData instanceof Annotation ? annotationData : Annotation.fromJSON(annotationData);
-            
-            // Optimistic Update
-            const current = this.store.get().annotations;
-            this.store.set({ annotations: [ann, ...current] });
-
-            // Persist
-            if (this.mockMode) {
-                await this._mockSave(ann);
-            } else {
-                await this._remoteSave(ann);
-            }
-
-            this.eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, { annotation: ann });
-        } catch (e) {
-            this.logger.error("Create failed", e);
-            // Rollback? (Not implemented for simplicity, assume retry)
-            this.eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.CREATE_FAILED, { error: e.message });
-        }
+  async loadAnnotations(pdfId) {
+    this.setPdfId(pdfId);
+    this.store.set({ isLoading: true });
+    try {
+      let list = [];
+      if (this.mockMode) {
+        list = [];
+      } else {
+        list = await this._remoteLoad(pdfId);
+      }
+      this.store.set({ annotations: list, isLoading: false });
+      this.eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, { annotations: list, count: list.length });
+    } catch (e) {
+      this.store.set({ isLoading: false, error: e.message });
+      this.eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD_FAILED, { error: e.message });
     }
+  }
 
-    async updateAnnotation(id, changes) {
-        try {
-            const current = this.store.get().annotations;
-            const index = current.findIndex(a => a.id === id);
-            if (index === -1) throw new Error("Not found");
+  async _mockSave(ann) { return new Promise(r => setTimeout(r, 10)); }
 
-            const ann = current[index];
-            ann.update(changes);
-            
-            // Immutable update for Reactivity
-            const next = [...current];
-            next[index] = ann; // Note: Annotation object is mutated, but array ref changed
-            this.store.set({ annotations: next });
+  async _remoteSave(ann) {
+    const pdfId = this.store.get().pdfId;
+    if (!this.wsClient || !pdfId) {return;}
+    const payload = { pdf_uuid: pdfId, annotation: ann.toJSON ? ann.toJSON() : ann };
+    await this.wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANNOTATION_SAVE, payload, { metadata: { version: "1.0.0" } });
+  }
 
-            if (this.mockMode) {
-                await this._mockSave(ann);
-            } else {
-                await this._remoteSave(ann);
-            }
+  async _remoteDelete(id) {
+    const pdfId = this.store.get().pdfId;
+    if (!this.wsClient || !pdfId) {return;}
+    await this.wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANNOTATION_DELETE, { pdf_uuid: pdfId, ann_id: id }, { metadata: { version: "1.0.0" } });
+  }
 
-            this.eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.UPDATED, { annotation: ann });
-        } catch (e) {
-            this.logger.error("Update failed", e);
-        }
-    }
+  async _remoteLoad(pdfId) {
+    if (!this.wsClient) {return [];}
+    const resp = await this.wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANNOTATION_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
+    return (resp?.annotations || []).map(obj => Annotation.fromJSON(obj));
+  }
 
-    async deleteAnnotation(id) {
-        try {
-            const current = this.store.get().annotations;
-            const next = current.filter(a => a.id !== id);
-            this.store.set({ annotations: next });
+  getAllAnnotations() {
+    return this.store.get().annotations;
+  }
 
-            if (this.mockMode) {
-                // mock delete
-            } else {
-                await this._remoteDelete(id);
-            }
+  getAnnotation(id) {
+    return this.store.get().annotations.find(a => a.id === id) || null;
+  }
 
-            this.eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DELETED, { id });
-        } catch (e) {
-            this.logger.error("Delete failed", e);
-        }
-    }
+  getAnnotationsByPage(pageNumber) {
+    return this.getAllAnnotations().filter(ann => ann.pageNumber === pageNumber);
+  }
 
-    async loadAnnotations(pdfId) {
-        this.setPdfId(pdfId);
-        this.store.set({ isLoading: true });
-        try {
-            let list = [];
-            if (this.mockMode) {
-                list = [];
-            } else {
-                list = await this._remoteLoad(pdfId);
-            }
-            this.store.set({ annotations: list, isLoading: false });
-            this.eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, { annotations: list, count: list.length });
-        } catch (e) {
-            this.store.set({ isLoading: false, error: e.message });
-            this.eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD_FAILED, { error: e.message });
-        }
-    }
+  getAnnotationsByType(type) {
+    return this.getAllAnnotations().filter(ann => ann.type === type);
+  }
 
-    // --- Private Persist ---
+  getCount() {
+    return this.getAllAnnotations().length;
+  }
 
-    async _mockSave(ann) { return new Promise(r => setTimeout(r, 100)); }
+  clear() {
+    this.store.set({ annotations: [] });
+  }
 
-    async _remoteSave(ann) {
-        const pdfId = this.store.get().pdfId;
-        if (!this.wsClient || !pdfId) return;
-        const payload = { pdf_uuid: pdfId, annotation: ann.toJSON ? ann.toJSON() : ann };
-        await this.wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANNOTATION_SAVE, payload, { metadata: { version: "1.0.0" } });
-    }
+  getStatus() {
+    const state = this.store.get();
+    return {
+      pdfId: state.pdfId,
+      annotationCount: state.annotations.length,
+      mockMode: this.mockMode
+    };
+  }
 
-    async _remoteDelete(id) {
-        const pdfId = this.store.get().pdfId;
-        if (!this.wsClient || !pdfId) return;
-        await this.wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANNOTATION_DELETE, { pdf_uuid: pdfId, ann_id: id }, { metadata: { version: "1.0.0" } });
-    }
-
-    async _remoteLoad(pdfId) {
-        if (!this.wsClient) return [];
-        const resp = await this.wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANNOTATION_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
-        return (resp?.annotations || []).map(obj => Annotation.fromJSON(obj));
-    }
-
-    getAllAnnotations() {
-        return this.store.get().annotations;
-    }
-
-    getAnnotation(id) {
-        return this.store.get().annotations.find(a => a.id === id) || null;
-    }
-
-    clear() {
-        this.store.set({ annotations: [] });
-    }
-
-    getStatus() {
-        const state = this.store.get();
-        return {
-            pdfId: state.pdfId,
-            annotationCount: state.annotations.length,
-            mockMode: this.mockMode
-        };
-    }
+  destroy() {
+    // Should ideally unsubscribe, but for now we rely on bag in Feature
+  }
 }
