@@ -99,4 +99,40 @@ describe("AppCoreFeature — wsInfra 安装顺序", () => {
     expect(idxConnect).toBeGreaterThanOrEqual(0);
     expect(idxSetup).toBeLessThan(idxConnect);
   });
+
+  test("install 应当调用所有适配器的 onInitialized（若存在）", async () => {
+    // 重新配置 mock：让 setupWsInfra 返回带 onInitialized 的适配器
+    setupWsInfra.mockImplementationOnce(() => {
+      const adapter1 = { onInitialized: jest.fn() };
+      const adapter2 = { onInitialized: jest.fn() };
+      globalThis.__APP_CORE_WS_ORDER__ = globalThis.__APP_CORE_WS_ORDER__ || [];
+      globalThis.__APP_CORE_WS_ORDER__.push("setupWsInfra");
+      return { adapters: [adapter1, adapter2], dispose: jest.fn() };
+    });
+
+    const feature = new AppCoreFeature();
+
+    const container = {
+      registerGlobal: jest.fn(),
+      register: jest.fn(),
+      get: jest.fn(() => ({}))
+    };
+
+    const context = {
+      logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+      config: { wsUrl: "ws://localhost:12345" },
+      container,
+      globalEventBus: { on: jest.fn(() => () => {}), emit: jest.fn(), off: jest.fn() }
+    };
+
+    await feature.install(context);
+
+    // 断言：mockImplementationOnce 返回的 adapters 均被调用 onInitialized
+    const infra = setupWsInfra.mock.results[0]?.value;
+    expect(infra).toBeTruthy();
+    const adapters = infra.adapters;
+    expect(adapters).toHaveLength(2);
+    expect(adapters[0].onInitialized).toHaveBeenCalledTimes(1);
+    expect(adapters[1].onInitialized).toHaveBeenCalledTimes(1);
+  });
 });

@@ -12,6 +12,7 @@ import loggerToastShape from "./eslint-rules/logger-toast-shape.js";
 import noCrossFeatureInternals from "./eslint-rules/no-cross-feature-internals.js";
 import noEventLiteral from "./eslint-rules/no-event-literal.js";
 import noSilentCatch from "./eslint-rules/no-silent-catch.js";
+import noEventBusSubscriptionInManager from "./eslint-rules/no-eventbus-subscription-in-manager.js";
 
 const hasTsconfig = existsSync(new URL("./tsconfig.json", import.meta.url));
 const tsParserOptions = hasTsconfig ? { project: "./tsconfig.json" } : {};
@@ -36,6 +37,7 @@ export default [
           "logger-toast-shape": loggerToastShape,
           "no-cross-feature-internals": noCrossFeatureInternals,
           "no-silent-catch": noSilentCatch,
+          "no-eventbus-subscription-in-manager": noEventBusSubscriptionInManager,
         }
       }
     },
@@ -65,6 +67,8 @@ export default [
       "custom/no-cross-feature-internals": "error",
       // 禁止静默 catch（除 logger/toast 保护场景外）
       "custom/no-silent-catch": "error",
+      // 🚨 禁止在 Manager 文件中订阅 EventBus（只允许在 Feature 入口/adapter 层桥接）
+      "custom/no-eventbus-subscription-in-manager": "error",
 
       // 风格与质量控制
       "eqeqeq": ["error", "always"],          // 强制使用 ===

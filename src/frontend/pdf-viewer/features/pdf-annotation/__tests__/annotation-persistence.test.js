@@ -14,6 +14,7 @@ describe("AnnotationManager 持久化", () => {
   let globalBus;
   let scopedBus;
   let wsClient;
+  let manager;
 
   beforeEach(() => {
     // 全局事件总线（关闭验证，便于测试）
@@ -35,22 +36,15 @@ describe("AnnotationManager 持久化", () => {
       getWSClient: () => wsClient
     };
 
-    // 仅为触发初始化与事件绑定；无需持有引用
-    new AnnotationManager(scopedBus, getLogger("test"), container);
+    manager = new AnnotationManager(scopedBus, getLogger("test"), container);
   });
 
   test("在 LOAD 后 CREATE 会发送 annotation:save:requested", async () => {
-    // 设置 PDF ID 并等待加载完成
-    const waitLoaded = new Promise(r => scopedBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, r));
-    scopedBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, { pdfId: "0fda6ae76b06" }, { actorId: "test" });
-    await waitLoaded;
+    await manager.loadAnnotations("0fda6ae76b06");
 
     // 触发创建
     const ann = Annotation.createComment(1, { x: 0.5, y: 0.5 }, "hello");
-    scopedBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, { annotation: ann }, { actorId: "test" });
-
-    // 等待异步请求结算
-    await new Promise((r) => setTimeout(r, 50));
+    await manager.createAnnotation(ann);
 
     expect(wsClient.request).toHaveBeenCalled();
     const saveCall = wsClient.request.mock.calls.find(([t]) => t === WEBSOCKET_MESSAGE_TYPES.ANNOTATION_SAVE);
@@ -61,8 +55,7 @@ describe("AnnotationManager 持久化", () => {
   });
 
   test("LOAD 会发送 annotation:list:requested", async () => {
-    scopedBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, { pdfId: "0fda6ae76b06" }, { actorId: "test" });
-    await new Promise((r) => setTimeout(r, 50));
+    await manager.loadAnnotations("0fda6ae76b06");
 
     const called = wsClient.request.mock.calls.some(([t]) => t === WEBSOCKET_MESSAGE_TYPES.ANNOTATION_LIST);
     expect(called).toBe(true);
@@ -75,10 +68,8 @@ describe("AnnotationManager 持久化", () => {
     };
     const container2 = { getWSClient: () => wsClient2 };
 
-    new AnnotationManager(scopedBus, getLogger("test"), container2);
-
-    scopedBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, { pdfId: "0fda6ae76b06" }, { actorId: "test" });
-    await new Promise((r) => setTimeout(r, 50));
+    const manager2 = new AnnotationManager(scopedBus, getLogger("test"), container2);
+    await manager2.loadAnnotations("0fda6ae76b06");
 
     const called = wsClient2.request.mock.calls.some(([t]) => t === WEBSOCKET_MESSAGE_TYPES.ANNOTATION_LIST);
     expect(called).toBe(true);
@@ -91,7 +82,7 @@ describe("AnnotationManager 持久化", () => {
     };
     const container2 = { getWSClient: () => wsClient2 };
 
-    new AnnotationManager(scopedBus, getLogger("test"), container2);
+    const manager2 = new AnnotationManager(scopedBus, getLogger("test"), container2);
 
     const failed = new Promise((resolve, reject) => {
       const offFailed = scopedBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD_FAILED, (data) => {
@@ -104,7 +95,7 @@ describe("AnnotationManager 持久化", () => {
       }, 1000);
     });
 
-    scopedBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, { pdfId: "0fda6ae76b06" }, { actorId: "test" });
+    void manager2.loadAnnotations("0fda6ae76b06");
 
     const payload = await failed;
     expect(payload).toBeTruthy();
@@ -113,25 +104,14 @@ describe("AnnotationManager 持久化", () => {
 
   test("在 UPDATE 后会再次发送 annotation:save:requested 并包含最新标题", async () => {
     // 1. 等待 LOAD 完成
-    const waitLoaded = new Promise(r => scopedBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, r));
-    scopedBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, { pdfId: "0fda6ae76b06" }, { actorId: "test" });
-    await waitLoaded;
+    await manager.loadAnnotations("0fda6ae76b06");
 
     // 2. 创建标注并等待完成
     const ann = Annotation.createComment(1, { x: 0.5, y: 0.5 }, "hello");
-    const waitCreated = new Promise(r => scopedBus.on(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, r));
-    scopedBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, { annotation: ann }, { actorId: "test" });
-    await waitCreated;
+    await manager.createAnnotation(ann);
 
     // 3. 触发更新
-    scopedBus.emit(
-      PDF_VIEWER_EVENTS.ANNOTATION.UPDATE,
-      { id: ann.id, changes: { title: "new-title" } },
-      { actorId: "test" }
-    );
-
-    // 等待异步请求
-    await new Promise((r) => setTimeout(r, 100));
+    await manager.updateAnnotation(ann.id, { title: "new-title" });
 
     const saveCalls = wsClient.request.mock.calls.filter(([t]) => t === WEBSOCKET_MESSAGE_TYPES.ANNOTATION_SAVE);
     expect(saveCalls.length).toBeGreaterThanOrEqual(2);

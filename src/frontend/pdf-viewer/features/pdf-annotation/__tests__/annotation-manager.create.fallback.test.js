@@ -9,7 +9,7 @@ import { getLogger } from "../../../../common/utils/logger.js";
 // Directly use constants in subscriptions to avoid variable event name lint errors
 
 describe("AnnotationManager create fallback", () => {
-  test("falls back to mock save and emits CREATED when pdfId missing", async () => {
+  test("emits CREATED when pdfId missing (should not attempt remote save)", async () => {
     // Arrange: create isolated event bus scope
     const globalBus = getEventBus("TestAnnotation", { enableValidation: true });
     const scopedBus = createScopedEventBus(globalBus, "annotation");
@@ -25,7 +25,7 @@ describe("AnnotationManager create fallback", () => {
     };
 
     // Instantiate manager (will detect wsClient), but we do NOT set pdfId
-    new AnnotationManager(scopedBus, getLogger("test"), containerStub);
+    const manager = new AnnotationManager(scopedBus, getLogger("test"), containerStub);
 
     const payload = Annotation.createScreenshot(
       1,
@@ -35,7 +35,7 @@ describe("AnnotationManager create fallback", () => {
       "unit-test"
     ).toJSON();
 
-    // Act: emit CREATE and wait for CREATED
+    // Act: call createAnnotation and wait for CREATED
     const waitCreated = new Promise((resolve, reject) => {
       const off = scopedBus.on(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, (data) => {
         try { off(); } catch {}
@@ -47,7 +47,7 @@ describe("AnnotationManager create fallback", () => {
         reject(new Error("timeout waiting for " + PDF_VIEWER_EVENTS.ANNOTATION.CREATED));
       }, 3000);
     });
-    scopedBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, { annotation: payload });
+    void manager.createAnnotation(payload);
 
     const created = await waitCreated;
 
@@ -55,5 +55,8 @@ describe("AnnotationManager create fallback", () => {
     expect(created).toBeTruthy();
     expect(created.annotation).toBeTruthy();
     expect(created.annotation.type).toBe(AnnotationType.SCREENSHOT);
+
+    // pdfId missing -> should not attempt remote save
+    expect(wsClientStub.request).not.toHaveBeenCalled();
   });
 });

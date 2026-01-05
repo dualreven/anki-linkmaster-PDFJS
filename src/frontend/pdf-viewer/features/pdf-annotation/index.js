@@ -62,6 +62,9 @@ export class AnnotationFeature {
   /** @type {boolean} 本次会话是否已成功加载过标注数据 */
   #hasLoadedOnce = false;
 
+  /** @type {Array<() => void>} */
+  #unsubs = [];
+
   /** Feature名称 */
   get name() {
     return "pdf-annotation";
@@ -249,30 +252,61 @@ export class AnnotationFeature {
    * @private
    */
   #setupEventListeners() {
-    this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, (data) => {
-      this.#handleNavigateToAnnotation(data);
-    }, { subscriberId: "AnnotationFeature" });
+    const ensureManager = () => {
+      if (!this.#annotationManager) {
+        throw new Error("[AnnotationFeature] AnnotationManager not initialized");
+      }
+      return this.#annotationManager;
+    };
 
-    this.#eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.PARSED, (data) => {
-      try {
-        if (!this.#annotationManager) {return;}
+    // Feature 内桥接：EventBus Command -> Manager Method（Manager 不订阅 EventBus）
+    this.#unsubs.push(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANNOTATION.CREATE,
+      (data) => ensureManager().createAnnotation(data?.annotation),
+      { subscriberId: "AnnotationFeature.ManagerBridge.Create" }
+    ));
+
+    this.#unsubs.push(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANNOTATION.UPDATE,
+      (data) => ensureManager().updateAnnotation(data?.id, data?.changes),
+      { subscriberId: "AnnotationFeature.ManagerBridge.Update" }
+    ));
+
+    this.#unsubs.push(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANNOTATION.DELETE,
+      (data) => ensureManager().deleteAnnotation(data?.id),
+      { subscriberId: "AnnotationFeature.ManagerBridge.Delete" }
+    ));
+
+    this.#unsubs.push(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD,
+      (data) => ensureManager().loadAnnotations(data?.pdfId),
+      { subscriberId: "AnnotationFeature.ManagerBridge.Load" }
+    ));
+
+    this.#unsubs.push(this.#eventBus.onGlobal(
+      PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED,
+      (data) => { void this.#handleNavigateToAnnotation(data); },
+      { subscriberId: "AnnotationFeature.Nav" }
+    ));
+
+    this.#unsubs.push(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.PARSED,
+      (data) => {
         const extracted = this.#extractPdfUUID({ pdfId: data?.pdfId, url: data?.url, filename: data?.filename });
         if (extracted) {
-          this.#annotationManager.setPdfId(extracted);
+          ensureManager().setPdfId(extracted);
           this.#logger.info(`[AnnotationFeature] PDF ID set from URL params: ${extracted}`);
         }
-      } catch (e) {
-        this.#logger.warn("[AnnotationFeature] Failed to set PDF ID from URL params", e);
-      }
-    }, { subscriberId: "AnnotationFeature" });
+      },
+      { subscriberId: "AnnotationFeature.UrlParamsParsed" }
+    ));
 
-    try {
-      this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, () => {
-        this.#hasLoadedOnce = true;
-      }, { subscriberId: "AnnotationFeature" });
-    } catch (e) {
-      void e; /* logger-guard */
-    }
+    this.#unsubs.push(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED,
+      () => { this.#hasLoadedOnce = true; },
+      { subscriberId: "AnnotationFeature.LoadedFlag" }
+    ));
   }
 
   #setupAutoLoadOnFileLoad() {
@@ -339,6 +373,11 @@ export class AnnotationFeature {
 
   async uninstall() {
     this.#logger.info(`[${this.name}] Uninstalling...`);
+
+    // 解绑所有事件订阅（即使 scopedEventBus 由外部注入，也必须显式清理）
+    for (const fn of this.#unsubs.splice(0)) {
+      try { fn?.(); } catch (e) { void e; /* logger-guard */ }
+    }
 
     if (this.#toolRegistry) {
       this.#toolRegistry.destroyAll();

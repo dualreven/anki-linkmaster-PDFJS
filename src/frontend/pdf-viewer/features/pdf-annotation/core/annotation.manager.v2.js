@@ -1,5 +1,5 @@
 import { ObservableState } from "../../../../common/utils/observable.js";
-import { Annotation, AnnotationType } from "../../../../common/models/annotation.js";
+import { Annotation } from "../../../../common/models/annotation.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 import { WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constants.js";
 import { getLogger } from "../../../../common/utils/logger.js";
@@ -14,9 +14,6 @@ export class AnnotationManager {
     this.wsClient = null;
     this.mockMode = true;
 
-    // Generate unique ID for subscribers to avoid collision in tests
-    this._instanceId = Math.random().toString(36).substring(2, 9);
-
     this.store = new ObservableState({
       annotations: [],
       isLoading: false,
@@ -28,7 +25,6 @@ export class AnnotationManager {
     });
 
     this._initWSClient(container);
-    this._setupEventListeners();
   }
 
   _initWSClient(container) {
@@ -38,7 +34,7 @@ export class AnnotationManager {
       if (typeof container.getWSClient === "function") {
         ws = container.getWSClient();
       } else if (typeof container.get === "function") {
-        try { ws = container.get("wsClient"); } catch { /* ignore */ }
+        try { ws = container.get("wsClient"); } catch (e) { void e; /* logger-guard */ }
       }
       if (ws && typeof ws.request === "function") {
         this.wsClient = ws;
@@ -48,33 +44,6 @@ export class AnnotationManager {
     } catch (e) {
       this.logger.warn("[AnnotationManager] Failed to obtain wsClient", e);
     }
-  }
-
-  _setupEventListeners() {
-    const subscriberId = `AnnotationManagerV2_${this._instanceId}`;
-
-    this.eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, (data) => {
-      this.createAnnotation(data.annotation);
-    }, { subscriberId });
-
-    this.eventBus.onGlobal(PDF_VIEWER_EVENTS.ANNOTATION.CREATE, (data) => {
-      const annotation = data?.annotation;
-      if (annotation?.type === AnnotationType.TEXT_HIGHLIGHT) {
-        this.createAnnotation(data.annotation);
-      }
-    }, { subscriberId: `${subscriberId}_Global` });
-
-    this.eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.UPDATE, (data) => {
-      this.updateAnnotation(data.id, data.changes);
-    }, { subscriberId });
-
-    this.eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DELETE, (data) => {
-      this.deleteAnnotation(data.id);
-    }, { subscriberId });
-
-    this.eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, (data) => {
-      this.loadAnnotations(data.pdfId);
-    }, { subscriberId });
   }
 
   setPdfId(pdfId) {
