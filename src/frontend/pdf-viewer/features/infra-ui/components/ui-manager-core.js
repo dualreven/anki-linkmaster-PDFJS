@@ -12,7 +12,6 @@ import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../../../common/ev
 import { showError } from "../../../../common/utils/notification.js";
 import { DOMElementManager } from "../../../ui/dom-element-manager.js";
 import { KeyboardHandler } from "../../../ui/keyboard-handler.js";
-import { UIStateManager } from "../../../ui/ui-state-manager.js";
 import { TextLayerManager } from "../../../ui/text-layer-manager.js";
 import { DomEventHub } from "../../../shared/dom-event-hub.js";
 import { PDFViewerManager } from "./pdf-viewer-manager.js";
@@ -21,6 +20,9 @@ import { initializeUIManagerControls } from "./ui-manager-core-ui-controls.js";
 import { installUIManagerCoreInteractions } from "./ui-manager-core-interactions.js";
 import { installCopyPdfIdButton } from "./ui-manager-core-copy-pdf-id.js";
 import { updateUIManagerHeaderTitle } from "./ui-manager-core-header-title.js";
+import { ViewerManager } from "./viewer.manager.js";
+import { ZoomManager } from "./zoom.manager.js";
+import { LayoutManager } from "./layout.manager.js";
 
 /**
  * UI管理器核心类
@@ -31,7 +33,9 @@ export class UIManagerCore {
   #logger;
   #domManager;
   #keyboardHandler;
-  #stateManager;
+  #viewerManager; // Replaces UIStateManager
+  #zoomManager;
+  #layoutManager;
   #textLayerManager;
   #pdfViewerManager;
   #uiZoomControls;
@@ -49,7 +53,12 @@ export class UIManagerCore {
     // 初始化子模块
     this.#domManager = new DOMElementManager();
     this.#keyboardHandler = new KeyboardHandler(eventBus);
-    this.#stateManager = new UIStateManager();
+
+    // Core State Managers
+    this.#viewerManager = new ViewerManager(eventBus, this.#logger);
+    this.#zoomManager = new ZoomManager(eventBus, this.#logger);
+    this.#layoutManager = new LayoutManager(eventBus, this.#logger);
+
     // TextLayerManager and PDFViewerManager will be initialized after DOM elements are ready
     this.#textLayerManager = null;
     this.#pdfViewerManager = null;
@@ -101,6 +110,9 @@ export class UIManagerCore {
       // 设置事件监听
       this.#setupEventListeners();
 
+      // View Subscriptions (Connect Managers to DOM)
+      this.#setupViewSubscriptions();
+
       this.#unsubscribeFunctions.push(...installUIManagerCoreInteractions({
         eventBus: this.#eventBus,
         logger: this.#logger,
@@ -141,6 +153,32 @@ export class UIManagerCore {
   }
 
   /**
+   * Subscribe Managers to DOM/View logic
+   */
+  #setupViewSubscriptions() {
+    // Viewer Loading -> DOM Loading
+    this.#unsubscribeFunctions.push(this.#viewerManager.store.subscribe(
+      state => state.isLoading,
+      (isLoading) => {
+        this.#domManager.setLoadingState(isLoading);
+      }
+    ));
+
+    // Viewer Error -> DOM Error
+    this.#unsubscribeFunctions.push(this.#viewerManager.store.subscribe(
+      state => state.hasError,
+      (hasError) => {
+        const state = this.#viewerManager.store.get();
+        if (hasError) {
+          this.showError({ message: state.errorMessage });
+        } else {
+          this.hideError();
+        }
+      }
+    ));
+  }
+
+  /**
    * 设置事件监听
    * @private
    */
@@ -148,7 +186,9 @@ export class UIManagerCore {
     const unsubs = installUIManagerCoreEventListeners({
       eventBus: this.#eventBus,
       logger: this.#logger,
-      stateManager: this.#stateManager,
+      viewerManager: this.#viewerManager, // Pass Managers
+      zoomManager: this.#zoomManager,
+      layoutManager: this.#layoutManager,
       domManager: this.#domManager,
       getPdfViewerManager: () => this.#pdfViewerManager,
       getUIZoomControls: () => this.#uiZoomControls,
@@ -208,8 +248,9 @@ export class UIManagerCore {
    * @param {boolean} isLoading - 是否加载中
    */
   showLoading(isLoading) {
-    this.#domManager.setLoadingState(isLoading);
-    this.#stateManager.updateLoadingState(isLoading);
+    // Delegate to Manager (Single Source of Truth)
+    // The subscription in #setupViewSubscriptions will update DOM
+    this.#viewerManager.setLoading(isLoading);
   }
 
   /**
@@ -218,19 +259,9 @@ export class UIManagerCore {
    * @param {number} totalPages - 总页数
    */
   updatePageInfo(currentPage, totalPages) {
-    this.#stateManager.updatePageInfo(currentPage, totalPages);
-    this.#logger.debug(`Page info updated: ${currentPage}/${totalPages}`);
-  }
-
-  /**
-   * [已废弃] 渲染页面 - Canvas模式专用
-   * @deprecated 现在使用PDFViewer组件自动渲染，不再需要手动Canvas渲染
-   * @param {Object} page - PDF页面对象
-   * @param {Object} viewport - 视口对象
-   */
-  async renderPage(page, viewport) {
-    this.#logger.warn("renderPage() is deprecated. PDFViewer component handles rendering automatically.");
-    throw new Error("Canvas rendering mode is no longer supported. Use PDFViewer mode instead.");
+    this.#viewerManager.setPageInfo(currentPage, totalPages);
+    // Note: UIZoomControls update is currently handled via event listener in ui-manager-core-event-listeners.js
+    // or ui-manager-core-ui-controls.js PAGE.CHANGING listener.
   }
 
   /**
@@ -284,8 +315,8 @@ export class UIManagerCore {
    * @param {number} scale - 缩放比例
    */
   setScale(scale) {
-    this.#stateManager.updateScale(scale, "custom");
-    this.#logger.debug(`Scale set to: ${scale}`);
+    // Delegate to ZoomManager
+    this.#zoomManager.setScale(scale);
   }
 
   /**
@@ -293,28 +324,7 @@ export class UIManagerCore {
    * @returns {number} 缩放比例
    */
   getScale() {
-    return this.#stateManager.get("currentScale");
-  }
-
-  /**
-   * [已废弃] 获取Canvas元素
-   * @deprecated Canvas模式已移除,此方法仅为向后兼容保留
-   * @returns {HTMLCanvasElement} Canvas元素
-   */
-  getCanvas() {
-    this.#logger.warn("getCanvas() is deprecated. Canvas rendering mode is no longer supported.");
-    return this.#domManager.getElement("canvas");
-  }
-
-  /**
-   * [已废弃] 获取Canvas上下文
-   * @deprecated Canvas模式已移除,此方法仅为向后兼容保留
-   * @returns {CanvasRenderingContext2D} 2D上下文
-   */
-  getContext() {
-    this.#logger.warn("getContext() is deprecated. Canvas rendering mode is no longer supported.");
-    const canvas = this.getCanvas();
-    return canvas ? canvas.getContext("2d") : null;
+    return this.#zoomManager.store.get().scale;
   }
 
   /**
@@ -330,7 +340,12 @@ export class UIManagerCore {
    * @returns {Object} UI状态
    */
   getState() {
-    return this.#stateManager.getState();
+    // Combine states or return Viewer state
+    return {
+      ...this.#viewerManager.store.get(),
+      scale: this.#zoomManager.store.get().scale,
+      ...this.#layoutManager.store.get()
+    };
   }
 
   /**
@@ -372,7 +387,6 @@ export class UIManagerCore {
    */
   cleanup() {
     this.#domManager.cleanup();
-    this.#stateManager.clearRenderQueue();
 
     // 清理文字层
     if (this.#textLayerManager) {
@@ -394,6 +408,8 @@ export class UIManagerCore {
         eventBus: this.#eventBus,
         logger: this.#logger,
         pdfViewerManager: this.#pdfViewerManager,
+        zoomManager: this.#zoomManager,     // Pass Injected Managers
+        layoutManager: this.#layoutManager
       });
       this.#uiZoomControls = uiZoomControls;
       this.#uiLayoutControls = uiLayoutControls;
@@ -417,7 +433,10 @@ export class UIManagerCore {
 
     // 销毁子模块
     this.#keyboardHandler.destroy();
-    this.#stateManager.destroy();
+    this.#viewerManager.destroy(); // Destroy Managers
+    this.#zoomManager.destroy();
+    this.#layoutManager.destroy();
+
     this.#domManager.destroy();
 
     // 销毁 DOM 事件集线器
@@ -449,14 +468,6 @@ export class UIManagerCore {
     }
 
     this.#logger.info("UIManagerCore destroyed");
-  }
-
-  /**
-   * 获取性能统计
-   * @returns {Object} 性能统计数据
-   */
-  getPerformanceStats() {
-    return this.#stateManager.getPerformanceStats();
   }
 
   /**

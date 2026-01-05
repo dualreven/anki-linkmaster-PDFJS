@@ -1,8 +1,7 @@
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 import { UIZoomControls } from "./ui-zoom-controls.js";
 import { UILayoutControls } from "./ui-layout-controls.js";
-import { ZoomManager } from "./zoom.manager.js";
-import { LayoutManager } from "./layout.manager.js"; // Import LayoutManager
+// No longer importing Managers here, they are injected
 
 function installZoomIntegration(ctx) {
   const { eventBus, logger, pdfViewerManager } = ctx;
@@ -15,18 +14,7 @@ function installZoomIntegration(ctx) {
   const unsubs = [];
 
   // Legacy EventBus handlers for "Actions" (command pattern)
-  // These might be triggered by other components (e.g. keyboard shortcuts)
-  // Ideally these should call ZoomManager methods directly if possible,
-  // but for now we keep listening to EventBus to support legacy emitters.
-
   unsubs.push(eventBus.on(PDF_VIEWER_EVENTS.ZOOM.IN, (data) => {
-    // Note: ZoomManager now handles this logic via its own methods.
-    // However, if the event comes from elsewhere (not ZoomManager), we should handle it.
-    // But ZoomManager emits this event itself! To avoid loop:
-    // 1. ZoomManager.zoomIn() -> update store -> emit ZOOM.IN
-    // 2. Here we listen ZOOM.IN -> pdfViewerManager.currentScale = ...
-    // This part bridges the "Intent" (Zoom In) to the "PDF Engine" (pdfViewerManager).
-
     const delta = data?.delta || 0.25;
     const newScale = Math.min((pdfViewerManager.currentScale || 1.0) + delta, 5.0);
     pdfViewerManager.currentScale = newScale;
@@ -87,25 +75,31 @@ function installZoomIntegration(ctx) {
   return unsubs;
 }
 
+/**
+ * Initialize UI Controls
+ * @param {Object} ctx
+ * @param {EventBus} ctx.eventBus
+ * @param {Logger} ctx.logger
+ * @param {PDFViewerManager} ctx.pdfViewerManager
+ * @param {ZoomManager} ctx.zoomManager - Injected
+ * @param {LayoutManager} ctx.layoutManager - Injected
+ * @returns {Promise<{uiZoomControls, uiLayoutControls, unsubs}>}
+ */
 export async function initializeUIManagerControls(ctx) {
-  const { eventBus, logger, pdfViewerManager } = ctx;
+  const { eventBus, logger, pdfViewerManager, zoomManager, layoutManager } = ctx;
 
   const unsubs = [];
-
-  // Initialize ZoomManager (Observable State)
-  const zoomManager = new ZoomManager(eventBus, logger);
-  const layoutManager = new LayoutManager(eventBus, logger); // Initialize LayoutManager
 
   // Initialize UI with Manager
   const uiZoomControls = new UIZoomControls(eventBus, zoomManager);
   await uiZoomControls.setupZoomControls();
-  logger.info("UIZoomControls initialized (with ZoomManager)");
+  logger.info("UIZoomControls initialized");
 
   let uiLayoutControls = null;
   if (pdfViewerManager) {
     uiLayoutControls = new UILayoutControls(eventBus, layoutManager); // Pass Manager
     uiLayoutControls.setup(pdfViewerManager);
-    logger.info("UILayoutControls initialized (with LayoutManager)");
+    logger.info("UILayoutControls initialized");
   } else {
     logger.warn("PDFViewerManager not available, layout controls disabled");
   }
@@ -114,11 +108,11 @@ export async function initializeUIManagerControls(ctx) {
   unsubs.push(...installZoomIntegration({ eventBus, logger, pdfViewerManager }));
 
   // Interop: When PDF Engine changes scale (e.g. successful zoom or pinch), sync to Manager
-  unsubs.push(eventBus.on(PDF_VIEWER_EVENTS.ZOOM.CHANGING, ({ scale }) => {
-    // Instead of updating UI directly, we update the Manager's store.
-    // The UI is subscribed to the Manager and will update automatically.
-    zoomManager.setScale(scale);
-  }, { subscriberId: "UIManagerCore.SyncZoomState" }));
+  if (zoomManager) {
+    unsubs.push(eventBus.on(PDF_VIEWER_EVENTS.ZOOM.CHANGING, ({ scale }) => {
+      zoomManager.setScale(scale);
+    }, { subscriberId: "UIManagerCore.SyncZoomState" }));
+  }
 
   unsubs.push(eventBus.on(PDF_VIEWER_EVENTS.PAGE.CHANGING, ({ pageNumber }) => {
     if (!pdfViewerManager) { return; }

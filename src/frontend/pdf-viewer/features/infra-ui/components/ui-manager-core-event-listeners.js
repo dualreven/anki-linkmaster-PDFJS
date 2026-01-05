@@ -8,7 +8,8 @@ export function installUIManagerCoreEventListeners(ctx) {
   const {
     eventBus,
     logger,
-    stateManager,
+    viewerManager, // New
+    zoomManager,   // New
     domManager,
     getPdfViewerManager,
     getUIZoomControls,
@@ -27,7 +28,10 @@ export function installUIManagerCoreEventListeners(ctx) {
   unsubs.push(eventBus.on(
     PDF_VIEWER_EVENTS.ZOOM.CHANGED,
     (data) => {
-      stateManager.updateScale(data.scale, data.mode);
+      if (zoomManager && typeof data.scale === "number") {
+        zoomManager.setScale(data.scale);
+      }
+
       // Fallback: 从文件名回填 pdfId（仅当 URL 尚未提供时）
       try {
         if (!getCurrentPdfId() && data && typeof data.filename === "string" && data.filename.trim()) {
@@ -49,7 +53,9 @@ export function installUIManagerCoreEventListeners(ctx) {
   unsubs.push(eventBus.on(
     PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
     () => {
-      stateManager.updateLoadingState(true, false);
+      if (viewerManager) {
+        viewerManager.setLoading(true, false);
+      }
       domManager.setLoadingState(true);
     },
     { subscriberId: "UIManagerCore" }
@@ -59,7 +65,9 @@ export function installUIManagerCoreEventListeners(ctx) {
     PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
     (payload) => {
       const pdfDocument = payload?.pdfDocument;
-      stateManager.updateLoadingState(false, true);
+      if (viewerManager) {
+        viewerManager.setLoading(false, true);
+      }
       domManager.setLoadingState(false);
 
       const pdfViewerManager = getPdfViewerManager();
@@ -70,10 +78,20 @@ export function installUIManagerCoreEventListeners(ctx) {
         setTimeout(() => {
           const uiZoomControls = getUIZoomControls();
           const mgr = getPdfViewerManager();
-          if (uiZoomControls && mgr) {
+          if (mgr) {
             const totalPages = mgr.pagesCount || pdfDocument.numPages;
             const currentPage = mgr.currentPageNumber || 1;
-            uiZoomControls.updatePageInfo(currentPage, totalPages);
+
+            // Update State
+            if (viewerManager) {
+              viewerManager.setPageInfo(currentPage, totalPages);
+            }
+
+            // Update UI (Legacy direct drive)
+            if (uiZoomControls) {
+              uiZoomControls.updatePageInfo(currentPage, totalPages);
+            }
+
             logger.info(`Page info initialized: ${currentPage}/${totalPages}`);
           }
         }, 100);
@@ -87,8 +105,18 @@ export function installUIManagerCoreEventListeners(ctx) {
   unsubs.push(eventBus.on(
     PDF_VIEWER_EVENTS.FILE.LOAD.FAILED,
     (data) => {
-      stateManager.updateErrorState(true, data.error);
+      if (viewerManager) {
+        viewerManager.setError(data.error?.message || "Load Failed");
+      }
+      // Also notify DOMManager directly for now (View Logic)
+      // Ideally DOMManager subscribes to ViewerManager
+      // But UIManagerCore handles DOMManager.
+      // UIManagerCore logic: domManager.setLoadingState(false)
       domManager.setLoadingState(false);
+      // domManager doesn't have showError?
+      // UIManagerCore has showError. But here we don't have reference to UIManagerCore instance.
+      // We have domManager.
+      // Let's assume UIManagerCore subscribes to ViewerManager error state to show it.
     },
     { subscriberId: "UIManagerCore" }
   ));
