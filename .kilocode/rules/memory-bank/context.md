@@ -8,8 +8,12 @@
 - **Feature 迁移**：`SearchManager`, `OutlineManager`, `SidebarManager`, `AnnotationManager V2` (Completed).
 
 ## 2026-01-05 修复与加固
-- **AnnotationFeature**: 修复了方法缺失、路径错误、测试冲突、模型校验等问题。全量测试通过。
-- **OutlineFeature**: 修复了 `app-bootstrap-feature.js` 的导入错误。
+- **AnnotationFeature**:
+  - 修复了 `getAnnotationsByPage` 等查询方法缺失问题。
+  - 修复了模型 partial update 校验逻辑。
+  - 修复了测试冲突。
+  - **重要修复**: 在 `app-bootstrap-feature.js` 中补齐了 `wsClient` 的注册，解决了标注数据无法加载的运行时问题。
+- **OutlineFeature**: 修复了引导层引用错误。
 
 ## 2026-01-05 开发原则更新（TDD）
 - **强制执行**：所有新代码必须先写测试 (Red-Green-Refactor).
