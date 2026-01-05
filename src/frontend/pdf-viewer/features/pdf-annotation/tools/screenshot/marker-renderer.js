@@ -62,7 +62,7 @@ export class ScreenshotMarkerRenderer {
 
       const existing = this.#renderedMarkers.get(annotation.id) || null;
       const { pageNumber, data } = annotation;
-      const rectPercent = data?.rectPercent;
+      let rectPercent = data?.rectPercent;
 
       const pageView = this.#pdfViewerManager.getPageView(pageNumber);
       if (!pageView || !pageView.div) {
@@ -70,14 +70,6 @@ export class ScreenshotMarkerRenderer {
         return;
       }
       const pageDiv = pageView.div;
-
-      if (!rectPercent) {
-        this.#logStep("05.x", "No rectPercent → give up render for this item", {
-          id: annotation.id,
-          keys: Object.keys(data || {})
-        }, "warn", 3000);
-        return;
-      }
 
       const pageBounds = pageDiv.getBoundingClientRect();
       const canvas = pageDiv.querySelector("canvas");
@@ -90,6 +82,45 @@ export class ScreenshotMarkerRenderer {
         canvasBounds: { w: canvasBounds.width, h: canvasBounds.height },
         offsetLeft, offsetTop
       });
+
+      if (!rectPercent || typeof rectPercent !== "object") {
+        const legacyRect = data?.rect;
+        const isNum = (v) => typeof v === "number" && !Number.isNaN(v);
+        const clamp01 = (v) => Math.max(0, Math.min(100, v));
+        const toPercent = (v, total) => (total > 0 ? (v / total) * 100 : 0);
+
+        if (legacyRect && typeof legacyRect === "object" &&
+          isNum(legacyRect.left) && isNum(legacyRect.top) && isNum(legacyRect.width) && isNum(legacyRect.height)) {
+
+          const fitsCanvas = legacyRect.left >= 0 && legacyRect.top >= 0 &&
+            (legacyRect.left + legacyRect.width) <= (canvasBounds.width + 1) &&
+            (legacyRect.top + legacyRect.height) <= (canvasBounds.height + 1);
+
+          const x = fitsCanvas ? legacyRect.left : (legacyRect.left - offsetLeft);
+          const y = fitsCanvas ? legacyRect.top : (legacyRect.top - offsetTop);
+
+          rectPercent = {
+            xPercent: clamp01(toPercent(x, canvasBounds.width)),
+            yPercent: clamp01(toPercent(y, canvasBounds.height)),
+            widthPercent: clamp01(toPercent(legacyRect.width, canvasBounds.width)),
+            heightPercent: clamp01(toPercent(legacyRect.height, canvasBounds.height)),
+          };
+          data.rectPercent = rectPercent;
+          this.#logStep("05.legacy", "Computed rectPercent from legacy rect", {
+            id: annotation.id,
+            fitsCanvas,
+            rectPercent
+          }, "info", 2200);
+        }
+      }
+
+      if (!rectPercent || typeof rectPercent !== "object") {
+        this.#logStep("05.x", "No rectPercent (and no usable rect) → give up render for this item", {
+          id: annotation.id,
+          keys: Object.keys(data || {})
+        }, "warn", 3000);
+        return;
+      }
 
       const markerRect = {
         left: offsetLeft + (rectPercent.xPercent / 100) * canvasBounds.width,

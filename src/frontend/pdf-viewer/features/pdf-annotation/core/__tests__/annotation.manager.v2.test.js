@@ -101,4 +101,70 @@ describe("AnnotationManager V2 (Observable)", () => {
     const state = manager.store.get();
     expect(state.annotations.length).toBe(0);
   });
+
+  test("loadAnnotations should accept legacy screenshot rect (no rectPercent)", async () => {
+    const legacyScreenshot = {
+      id: "ann_legacy_rect_only",
+      type: "screenshot",
+      pageNumber: 1,
+      data: {
+        rect: { left: 10, top: 20, width: 120, height: 80 },
+        imagePath: "/tmp/legacy.png",
+        imageHash: "0123456789abcdef0123456789abcdef",
+        description: "legacy screenshot",
+      },
+    };
+    const highlight = {
+      id: "ann_highlight_ok",
+      type: "text-highlight",
+      pageNumber: 1,
+      data: {
+        selectedText: "ok",
+        textRanges: [{ start: 0, end: 2 }],
+        highlightColor: "#ff0000",
+      },
+    };
+
+    mockWSClient.request.mockResolvedValueOnce({ annotations: [legacyScreenshot, highlight] });
+
+    await manager.loadAnnotations("test-pdf");
+
+    const state = manager.store.get();
+    expect(state.error).toBeNull();
+    expect(state.annotations).toHaveLength(2);
+    expect(state.annotations[0]).toBeInstanceOf(Annotation);
+  });
+
+  test("loadAnnotations should skip invalid items instead of failing the whole list", async () => {
+    const invalid = {
+      id: "ann_invalid_missing_imagePath",
+      type: "screenshot",
+      pageNumber: 1,
+      data: {
+        rect: { left: 0, top: 0, width: 10, height: 10 },
+        // imagePath missing → invalid
+        imageHash: "0123456789abcdef0123456789abcdef",
+      },
+    };
+    const highlight = {
+      id: "ann_highlight_ok",
+      type: "text-highlight",
+      pageNumber: 1,
+      data: {
+        selectedText: "ok",
+        textRanges: [{ start: 0, end: 2 }],
+        highlightColor: "#ff0000",
+      },
+    };
+
+    mockWSClient.request.mockResolvedValueOnce({ annotations: [invalid, highlight] });
+
+    await manager.loadAnnotations("test-pdf");
+
+    const state = manager.store.get();
+    expect(state.isLoading).toBe(false);
+    expect(state.annotations).toHaveLength(1);
+    expect(state.annotations[0].id).toBe("ann_highlight_ok");
+    expect(mockLogger.warn).toHaveBeenCalled();
+  });
 });

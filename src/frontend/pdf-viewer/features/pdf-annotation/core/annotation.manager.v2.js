@@ -157,7 +157,7 @@ export class AnnotationManager {
       } else {
         list = await this._remoteLoad(pdfId);
       }
-      this.store.set({ annotations: list, isLoading: false });
+      this.store.set({ annotations: list, isLoading: false, error: null });
       this.eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, { annotations: list, count: list.length });
     } catch (e) {
       this.store.set({ isLoading: false, error: e.message });
@@ -183,7 +183,22 @@ export class AnnotationManager {
   async _remoteLoad(pdfId) {
     if (!this.wsClient) {return [];}
     const resp = await this.wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANNOTATION_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
-    return (resp?.annotations || []).map(obj => Annotation.fromJSON(obj));
+    const items = Array.isArray(resp?.annotations) ? resp.annotations : [];
+    const parsed = [];
+    for (const obj of items) {
+      try {
+        const ann = (obj instanceof Annotation) ? obj : Annotation.fromJSON(obj);
+        parsed.push(ann);
+      } catch (e) {
+        this.logger.warn("[AnnotationManager] Skipping invalid annotation from backend", {
+          id: obj?.id,
+          type: obj?.type,
+          pageNumber: obj?.pageNumber,
+          error: e?.message || String(e),
+        });
+      }
+    }
+    return parsed;
   }
 
   getAllAnnotations() {

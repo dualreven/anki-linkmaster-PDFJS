@@ -167,18 +167,35 @@ export class Annotation {
   #validateTypeSpecificData(type, data) {
     switch (type) {
     case AnnotationType.SCREENSHOT: {
-      // 不兼容旧数据：必须提供百分比矩形 rectPercent，禁止仅使用像素 rect 兜底
-      if (!data.rectPercent || typeof data.rectPercent !== "object") {
-        throw new Error("Screenshot annotation requires rectPercent{xPercent,yPercent,widthPercent,heightPercent}");
+      // 兼容旧数据：允许使用 legacy 像素 rect（历史库中可能无 rectPercent）
+      const hasRectPercent = !!(data.rectPercent && typeof data.rectPercent === "object");
+      const hasLegacyRect = !!(data.rect && typeof data.rect === "object");
+
+      if (!hasRectPercent && !hasLegacyRect) {
+        throw new Error("Screenshot annotation requires rectPercent{xPercent,yPercent,widthPercent,heightPercent} or rect{left,top,width,height}");
       }
-      const reqKeys = ["xPercent", "yPercent", "widthPercent", "heightPercent"];
-      for (const k of reqKeys) {
-        const v = data.rectPercent[k];
-        if (typeof v !== "number" || Number.isNaN(v)) {
-          throw new Error(`Screenshot rectPercent.${k} must be a number`);
+
+      if (hasRectPercent) {
+        const reqKeys = ["xPercent", "yPercent", "widthPercent", "heightPercent"];
+        for (const k of reqKeys) {
+          const v = data.rectPercent[k];
+          if (typeof v !== "number" || Number.isNaN(v)) {
+            throw new Error(`Screenshot rectPercent.${k} must be a number`);
+          }
+          if (v < 0 || v > 100) {
+            throw new Error(`Screenshot rectPercent.${k} must be within [0,100]`);
+          }
         }
-        if (v < 0 || v > 100) {
-          throw new Error(`Screenshot rectPercent.${k} must be within [0,100]`);
+      } else {
+        const reqKeys = ["left", "top", "width", "height"];
+        for (const k of reqKeys) {
+          const v = data.rect[k];
+          if (typeof v !== "number" || Number.isNaN(v)) {
+            throw new Error(`Screenshot rect.${k} must be a number`);
+          }
+          if (v < 0) {
+            throw new Error(`Screenshot rect.${k} must be >= 0`);
+          }
         }
       }
       // 强化校验：要求 imagePath 与 imageHash（imageData 可选）
@@ -399,16 +416,7 @@ export class Annotation {
     });
   }
 
-  /**
-   * 创建截图标注
-   * @param {number} pageNumber - 页码
-   * @param {Object} rect - 区域 {x, y, width, height}
-   * @param {string} imagePath - 图片文件路径（如'/data/screenshots/abc123.png'）
-   * @param {string} imageHash - 图片MD5哈希值
-   * @param {string} [description=''] - 描述
-   * @returns {Annotation} 标注实例
-   * @static
-   */
+  /** 创建截图标注（新格式：rectPercent + imagePath/imageHash） */
   static createScreenshot(pageNumber, rectPercent, imagePath, imageHash, description = "") {
     return new Annotation({
       type: AnnotationType.SCREENSHOT,
@@ -422,16 +430,7 @@ export class Annotation {
     });
   }
 
-  /**
-   * 创建截图标注（旧版兼容，使用base64）
-   * @param {number} pageNumber - 页码
-   * @param {Object} rect - 区域 {x, y, width, height}
-   * @param {string} imageData - base64图片数据
-   * @param {string} [description=''] - 描述
-   * @returns {Annotation} 标注实例
-   * @static
-   * @deprecated 使用createScreenshot(pageNumber, rect, imagePath, imageHash, description)代替
-   */
+  /** 创建截图标注（旧版兼容：rect + imageData）@deprecated 优先使用 createScreenshot */
   static createScreenshotLegacy(pageNumber, rect, imageData, description = "") {
     return new Annotation({
       type: AnnotationType.SCREENSHOT,
@@ -444,17 +443,7 @@ export class Annotation {
     });
   }
 
-  /**
-   * 创建选字标注
-   * @param {number} pageNumber - 页码
-   * @param {string} selectedText - 选中的文本
-   * @param {Array} textRanges - 文本范围数组
-   * @param {string} highlightColor - 高亮颜色
-   * @param {string} [note=''] - 笔记
-   * @param {Array} [lineRects=[]] - 行矩形百分比数组
-   * @returns {Annotation} 标注实例
-   * @static
-   */
+  /** 创建选字高亮标注 */
   static createTextHighlight(pageNumber, selectedText, textRanges, highlightColor, note = "", lineRects = []) {
     const data = {
       selectedText,
@@ -474,14 +463,7 @@ export class Annotation {
     });
   }
 
-  /**
-   * 创建批注标注
-   * @param {number} pageNumber - 页码
-   * @param {Object} position - 位置 {x, y}
-   * @param {string} content - 批注内容
-   * @returns {Annotation} 标注实例
-   * @static
-   */
+  /** 创建批注标注（position 可为 percent 或像素） */
   static createComment(pageNumber, position, content) {
     // position 可以是 {xPercent,yPercent} 或 {x,y}
     const isPercent = position && typeof position.xPercent === "number" && typeof position.yPercent === "number";
