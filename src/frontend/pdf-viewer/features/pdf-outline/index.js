@@ -5,7 +5,7 @@
 import { getLogger } from "../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../../common/event/event-constants.js";
-import OutlineDataManager from "../../outline/outline-manager.js";
+import { OutlineManager } from "./services/outline.manager.js"; // New Manager
 import { OutlineDialog } from "../../outline/components/outline-dialog.js";
 import { OutlineDataProvider } from "../../outline/outline-data-provider.js";
 import { createSubscriptionBag } from "../../../common/event/subscription-bag.js";
@@ -16,7 +16,7 @@ import { runOutlineInitialLoadFlowAfterFile } from "./outline-initial-load-flow.
 import { handleOutlineNavigateById, tryOutlinePendingNavigate } from "./outline-navigate-by-id.js";
 import { handleOutlineCreate, handleOutlineUpdate, handleOutlineDelete, handleOutlineReorder } from "./outline-crud-handlers.js";
 
-export class OutlineManager {
+export class OutlineFeature {
   #logger;
   #eventBus;
   #container;
@@ -54,18 +54,18 @@ export class OutlineManager {
       this.#logger.warn("Failed to resolve navigationService from container", e);
     }
 
-    // 初始化存储管理器（沿用 OutlineDataManager，原 BookmarkManager，保证数据结构一致）
+    // 初始化存储管理器
     const wsClient = (typeof this.#container.getWSClient === "function")
       ? this.#container.getWSClient()
       : (this.#container.get?.("wsClient") || null);
     this.#wsClient = wsClient || null;
 
-    // 使用公共域 OutlineManager（禁用自动加载；由本特性统一编排“后端优先”的加载流程）
-    this.#outlineManager = new OutlineDataManager(this.#eventBus, { dataProvider: new OutlineDataProvider(), disableAutoLoad: true });
-    await this.#outlineManager.initialize?.();
-
     // 原生大纲提供者
     this.#outlineDataProvider = new OutlineDataProvider();
+
+    // 使用新的 Observable OutlineManager
+    this.#outlineManager = new OutlineManager(this.#logger, this.#outlineDataProvider);
+    // No initialize method needed for new manager
 
     // 暴露给其他组件（如侧边栏 UI）
     try { this.#container.register("outlineManager", this.#outlineManager); } catch (e) { void e; /* logger-guard */ }
@@ -98,7 +98,8 @@ export class OutlineManager {
         this.#logger.info("[Outline] UI disabled by __DISABLE_OUTLINE_UI flag (test environment)");
       } else {
         const { OutlineSidebarUI } = await import("./components/outline-sidebar-ui.js");
-        const outlineUI = new OutlineSidebarUI(this.#eventBus);
+        // Inject Manager instead of just EventBus
+        const outlineUI = new OutlineSidebarUI(this.#eventBus, this.#outlineManager);
         outlineUI.initialize();
         this.#container.registerGlobal?.("outlineSidebarUI", outlineUI);
         this.#logger.info("outlineSidebarUI registered globally");
@@ -123,14 +124,6 @@ export class OutlineManager {
     const flat = flattenOutlineTreeForBulkSave(items || [], { generateOutlineId: genId });
     await this.#wsClient.request(WEBSOCKET_MESSAGE_TYPES.OUTLINE_BULK_SAVE, { pdf_uuid: pdfId, items: flat }, { metadata: { version: "1.0.0" } });
   }
-
-  /**
-   * 首次加载流程（本地缓存优先，若空则从 PDF 原生导入并持久化到后端）
-   * @private
-   */
-  // legacy initial-load removed; now event-driven after FILE.LOAD.SUCCESS
-
-  /* duplicate method removed */
 
   async uninstall() {
     this.#subscriptions.clear();
@@ -166,8 +159,6 @@ export class OutlineManager {
     }
   }
 
-  /* duplicate removed */
-
   #setupEventListeners() {
     const onGlobal = this.#eventBus.onGlobal.bind(this.#eventBus);
     // 消费后端返回的 outline 列表（非初始化阶段的普通刷新）
@@ -181,7 +172,7 @@ export class OutlineManager {
             if (this.#initialLoadStarted && !this.#listReady) {
               const items0 = message?.data?.outline_items;
               if (Array.isArray(items0)) {
-                await this.#outlineManager.replaceFromRemote(items0);
+                await this.#outlineManager.replaceItems(items0); // Use replaceItems
                 this.#listReady = true;
                 // 不主动 refresh；依赖 WebSocketAdapter 的桥接已发出一次 SUCCESS，避免重复
                 this.#tryPendingNavigate();
@@ -201,7 +192,7 @@ export class OutlineManager {
             } else {
               this.#logger.info(`[Outline] 收到 OUTLINE_LIST_COMPLETED，items=${count}`);
             }
-            await this.#outlineManager.replaceFromRemote(items);
+            await this.#outlineManager.replaceItems(items); // Use replaceItems
             this.#listReady = true;
             this.#refreshList("backend");
             this.#tryPendingNavigate();
@@ -297,7 +288,7 @@ export class OutlineManager {
         try {
           const pdfId = this.#getPdfId();
           if (this.#wsClient && pdfId) {
-            const outlineItems = this.#outlineManager.getAllOutlineItems() || [];
+            const outlineItems = this.#outlineManager.getAllItems() || []; // Use getAllItems
             this.#logger.info("[Outline][IMPORT] Persisting imported outlines via bulk-save...", {
               pdf_uuid: pdfId,
               count: outlineItems.length
@@ -336,7 +327,7 @@ export class OutlineManager {
   }
 
   #refreshList(source = "backend") {
-    const outlineItems = this.#outlineManager.getAllOutlineItems();
+    const outlineItems = this.#outlineManager.getAllItems(); // Use getAllItems
     this.#eventBus.emitGlobal(
       PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS,
       { outlineItems, count: this.#count(outlineItems), source },
@@ -446,8 +437,6 @@ export class OutlineManager {
     } catch (e) { void e; /* logger-guard */ return 1; }
   }
 
-  // 已移除：#getCurrentScrollPercent 未使用
-
   #handleCreate() {
     handleOutlineCreate({
       logger: this.#logger,
@@ -494,5 +483,4 @@ export class OutlineManager {
   }
 }
 
-export default OutlineManager;
-
+export default OutlineFeature;

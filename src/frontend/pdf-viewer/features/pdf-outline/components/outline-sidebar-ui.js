@@ -25,26 +25,26 @@ import { copyTextUsingHiddenTextarea } from "../../../../common/utils/copy-utils
 export class OutlineSidebarUI {
   #eventBus;
   #logger;
+  #outlineManager; // New dependency
   #content;
   #treeContainer;
   #toolbarEl;
   #subscriptionBag;
   #initialized = false;
 
-  constructor(eventBus) {
+  constructor(eventBus, outlineManager) {
     this.#eventBus = eventBus;
+    this.#outlineManager = outlineManager;
     this.#logger = getLogger("OutlineSidebarUI");
     this.#subscriptionBag = createSubscriptionBag({ loggerName: "OutlineSidebarUI.Subscriptions" });
   }
 
   initialize() {
     if (this.#initialized) {
-      // 避免被重复初始化导致重复订阅
       this.#logger.warn("[OutlineSidebarUI] initialize() called more than once, skip");
       return;
     }
     this.#logger.info("[DEBUG] OutlineSidebarUI initialize() called");
-    this.#logger.info("[OutlineUI] 初始化", { toast: { type: "info", ms: 1500 } });
 
     this.#content = document.createElement("div");
     this.#content.style.cssText = "height:100%;display:flex;flex-direction:column;box-sizing:border-box;";
@@ -61,24 +61,18 @@ export class OutlineSidebarUI {
     this.#treeContainer.style.cssText = "flex:1;overflow:auto;padding:8px;";
     this.#content.appendChild(this.#treeContainer);
 
-    this.#logger.info(`[DEBUG] Subscribing to event: ${PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS}`);
-
-    // 监听数据加载事件（全局事件，数据层通过 emitGlobal 发射）
-    const unsubOutlineLoadSuccess = this.#eventBus.onGlobal(
-      PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS,
-      (data) => {
-        this.#logger.info(`[DEBUG] OUTLINE.LOAD.SUCCESS event received! Outline items count: ${data?.outlineItems?.length || 0}`);
-        try {
-          const cnt = Array.isArray(data?.outlineItems) ? data.outlineItems.length : 0;
-          if (cnt > 0) { this.#logger.info(`[OutlineUI] 收到大纲：${cnt} 项`, { toast: true }); }
-          else { this.#logger.info("[OutlineUI] 当前无大纲（可通过＋创建或自动导入）", { toast: { type: "warn", ms: 3500 } }); }
-} catch (e) { void e; /* logger-guard */ }
-        this.#renderTree(data?.outlineItems || []);
-      },
-      { subscriberId: "OutlineSidebarUI" }
-    );
-    if (this.#subscriptionBag) {
-      this.#subscriptionBag.add(unsubOutlineLoadSuccess);
+    // 订阅 Manager 状态
+    if (this.#outlineManager) {
+        this.#subscriptionBag.add(this.#outlineManager.store.subscribe(
+            state => state.items,
+            (items) => {
+                this.#logger.info(`[OutlineUI] Received items: ${items?.length || 0}`);
+                this.#renderTree(items || []);
+            },
+            { fireImmediately: true }
+        ));
+    } else {
+        this.#logger.warn("[OutlineUI] No OutlineManager provided, cannot render tree");
     }
 
     // 监听来自其他模块的“选中改变”事件，用于外部导航时高亮并滚动到指定大纲项
@@ -105,13 +99,6 @@ export class OutlineSidebarUI {
 
     this.#logger.info("[DEBUG] OutlineSidebarUI initialized successfully");
     this.#initialized = true;
-
-    // UI 初始化后，主动请求一次大纲列表，避免错过早先发射的加载事件
-    try {
-      // 使用全局事件名，与数据层 OutlineManager 的 onGlobal 匹配
-      this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.LOAD.REQUESTED, {}, { actorId: "OutlineSidebarUI" });
-      this.#logger.info("[OutlineUI] 请求刷新大纲列表", { toast: true });
-    } catch (e) { void e; }
   }
 
   getContentElement() { return this.#content; }
@@ -124,12 +111,11 @@ export class OutlineSidebarUI {
       const $tree = $(this.#treeContainer);
       const inst = $tree.jstree(true);
       if (!inst) {
-        this.#logger.warn("[OutlineUI] jsTree instance not ready when trying to focus node", { id });
+        // this.#logger.warn("[OutlineUI] jsTree instance not ready when trying to focus node", { id });
         return;
       }
       // 选中并滚动到节点（若不存在则静默返回）
       if (!inst.get_node(id)) {
-        this.#logger.warn("[OutlineUI] outline node not found when trying to focus", { id });
         return;
       }
       inst.deselect_all(true);
@@ -139,7 +125,6 @@ export class OutlineSidebarUI {
       if (nodeEl && nodeEl.scrollIntoView) {
         nodeEl.scrollIntoView({ behavior: "smooth", block: "center" });
       }
-      this.#logger.info("[OutlineUI] Focused outline node by id", { id });
     } catch (e) {
       this.#logger.warn("[OutlineUI] focusNodeById failed", e);
     }
@@ -213,7 +198,6 @@ export class OutlineSidebarUI {
 
     const data = this.#toJsTreeData(outlineItems);
     this.#logger.info(`[DEBUG] Creating jstree with ${data.length} nodes`);
-    try { this.#logger.info(`[OutlineUI] 构建树：${data.length} 节点`, { toast: true }); } catch (e) { void e; /* logger-guard */ }
 
     $tree.jstree({
       core: {
@@ -224,12 +208,9 @@ export class OutlineSidebarUI {
       plugins: ["dnd", "wholerow"]
     });
 
-    this.#logger.info("[DEBUG] jsTree created, waiting for ready event...");
-
     // 等待 jsTree 渲染完成后展开所有节点
 
     $tree.on("ready.jstree", () => {
-      this.#logger.info("[DEBUG] jsTree ready event fired!");
       try {
         const inst = $tree.jstree(true);
         if (inst) {
@@ -237,11 +218,8 @@ export class OutlineSidebarUI {
           // 启动时不默认选中任何节点，等待用户或外部导航显式指定
           inst.deselect_all(true);
         }
-        this.#logger.info("✅ Outline tree expanded automatically");
-        try { this.#logger.info("[OutlineUI] 大纲树渲染完成并已展开", { toast: true }); } catch (e) { void e; /* logger-guard */ }
       } catch (err) {
         this.#logger.error("❌ Failed to expand outline tree: " + err.message);
-        try { this.#logger.error(`[OutlineUI] 展开失败：${err?.message || "error"}`, { toast: { type: "error", ms: 4500 } }); } catch (e2) { void e2; }
       }
     });
 
@@ -265,9 +243,6 @@ export class OutlineSidebarUI {
         if (pageAt !== null) {
           const req = { pageAt };
           if (position !== null) { req.position = position; }
-          try {
-            this.#logger.info(`[OutlineUI] 选择节点：${outlineItemId} → 导航到第 ${pageAt} 页`, { toast: true });
-          } catch (e2) { void e2; }
           this.#eventBus.emitGlobal(
             PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
             req,
@@ -276,7 +251,6 @@ export class OutlineSidebarUI {
         }
       } catch (err) {
         this.#logger.warn("select_node failed", err);
-        try { this.#logger.error(`[OutlineUI] 选择失败：${err?.message || "error"}`, { toast: { type: "error", ms: 4500 } }); } catch (e2) { void e2; }
       }
     });
 
@@ -287,7 +261,6 @@ export class OutlineSidebarUI {
         const movedId = dataEvt.node.id;
         const newParent = dataEvt.parent === "#" ? null : dataEvt.parent;
         const newIndex = dataEvt.position; // 0-based index under parent
-        try { this.#logger.info(`[OutlineUI] 拖拽：${movedId} → parent=${newParent || "root"} pos=${newIndex}`, { toast: true }); } catch (e) { void e; }
         // 使用全局事件，交由特性/适配器转发到后端
         this.#eventBus.emitGlobal(
           PDF_VIEWER_EVENTS.OUTLINE.REORDER.REQUESTED,
@@ -296,7 +269,6 @@ export class OutlineSidebarUI {
         );
       } catch (err) {
         this.#logger.warn("move_node failed", err);
-        try { this.#logger.error(`[OutlineUI] 拖拽失败：${err?.message || "error"}`, { toast: { type: "error", ms: 4500 } }); } catch (e2) { void e2; }
       }
     });
   }
@@ -315,23 +287,19 @@ export class OutlineSidebarUI {
           logger: this.#logger,
           scope: "pdf-viewer:outline:copy-id:no-selection"
         });
-        try { this.#logger.warn("[OutlineUI] 复制失败：未选中节点", { toast: { type: "warn", ms: 2500 } }); } catch (e) { void e; }
         return;
       }
       const ok = this.#copyUsingExecCommand(id);
       if (ok) {
         showSuccess("✓ 已复制大纲ID", 2000);
-        this.#logger.info(`[OutlineUI] 已复制大纲ID: ${id}`);
       } else {
         notifyDomainError({
           message: "✗ 复制失败",
           logger: this.#logger,
           scope: "pdf-viewer:outline:copy-id:exec-false"
         });
-        this.#logger.error("[OutlineUI] 复制失败：execCommand 返回 false");
       }
     } catch (e) {
-      this.#logger.error("[OutlineUI] 复制失败（异常）", e);
       notifyDomainError({
         message: "✗ 复制失败",
         logger: this.#logger,
@@ -358,4 +326,3 @@ export class OutlineSidebarUI {
 }
 
 export default OutlineSidebarUI;
-
