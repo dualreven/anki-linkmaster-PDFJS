@@ -20,7 +20,7 @@ import { AnnotationFeature } from "../features/pdf-annotation/index.js";
 import { SidebarManagerFeature } from "../features/infra-sidebar/index.js";
 import { PDFTranslatorFeature } from "../features/pdf-translator/index.js";
 import { TextSelectionQuickActionsFeature } from "../features/pdf-quick-actions/index.js";
-import { OutlineManager } from "../features/pdf-outline/index.js";
+import OutlineFeature from "../features/pdf-outline/index.js"; // Renamed from OutlineManager
 import { PDFCardFeature } from "../features/pdf-card/index.js";
 import { AiAssistantFeature } from "../features/ai-assistant/index.js";
 import { PDFAnchorFeature } from "../features/pdf-anchor/index.js";
@@ -121,7 +121,7 @@ export async function bootstrapPDFViewerAppFeature() {
 
     // 4.1 强制 Outline：关闭切换逻辑与回退路径，始终注册 pdf-outline
     try {
-      registry.register(new OutlineManager());
+      registry.register(new OutlineFeature()); // Use new class name
       logger.info("[Bootstrap] Outline feature enforced; pdf-outline registered (legacy disabled)");
     } catch (e) {
       logger.error("[Bootstrap] Failed to register pdf-outline (enforced). Viewer may be degraded.", e);
