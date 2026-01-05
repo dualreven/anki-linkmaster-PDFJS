@@ -30,12 +30,14 @@
   - `infra-app` 调整为先 `setupWsInfra` 再 `connect`，保证注册逻辑不会漏掉 `connection:established`。
   - 已补回归测试覆盖上述两点。
 
-## 2026-01-05（进行中）标注侧边栏空白：历史数据单条不兼容拖垮整批
+## 2026-01-05（已修复）标注侧边栏空白：历史数据单条不兼容拖垮整批
 - **现象**：PDF Viewer 内标注侧边栏为空白，但后端可观察到 `annotation:list:requested` → `annotation:list:completed`。
 - **关键证据**：
   - 本地库 `data/anki_linkmaster.db`：`pdf_annotation` 表在 `pdf_uuid=c83c60c58ad2` 下存在记录（样本统计：9条）。
   - 其中部分 screenshot 历史记录仅包含像素 `rect`，缺少 `rectPercent`；而前端 `Annotation` 模型为严格校验（screenshot 必须含 `rectPercent`），会在 `Annotation.fromJSON()` 抛错。
 - **根因猜想**：`AnnotationManager V2` 的 `_remoteLoad()` 对返回列表做 `map(Annotation.fromJSON)`，未逐条 try/catch；一条坏数据抛错会导致 `loadAnnotations` 整体失败，UI 呈现空白。
-- **计划修复（兼容旧数据，不要求迁移）**：
+- **修复（兼容旧数据，不要求迁移）**：
   - `Annotation` 模型：screenshot 允许 `rectPercent` 或 legacy `rect`（两者都缺才报错）。
   - `AnnotationManager V2`：远端列表逐条解析，坏条跳过并告警，避免“一条坏数据拖垮整批”导致侧边栏全空白。
+  - `ScreenshotMarkerRenderer`：无 `rectPercent` 时尝试从 legacy `rect` 计算百分比，尽力恢复旧标注 overlay。
+  - commit：`ecab3e9`（`fix(annotation): load legacy screenshot rect`）。
