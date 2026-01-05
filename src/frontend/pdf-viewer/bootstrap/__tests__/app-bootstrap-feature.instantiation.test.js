@@ -1,9 +1,8 @@
 import { jest } from "@jest/globals";
 import { bootstrapPDFViewerAppFeature } from "../app-bootstrap-feature.js";
-import WSClient from "../../../common/ws/ws-client.js";
+import { createAppContainer } from "../../../common/micro-service/app-bootstrap.js";
 
 // Mock dependencies
-jest.mock("../../../common/ws/ws-client.js");
 jest.mock("../../../common/micro-service/app-bootstrap.js", () => ({
   createAppContainer: jest.fn(() => ({
     register: jest.fn(),
@@ -52,32 +51,25 @@ jest.mock("../../features/pdf-resume/index.js", () => ({ PDFResumeFeature: class
 jest.mock("../../../common/features/window-controls/index.js", () => ({ WindowControlsFeature: class {} }));
 
 describe("AppBootstrapFeature", () => {
-  let originalLocation;
-
   beforeEach(() => {
     jest.clearAllMocks();
-    originalLocation = window.location;
-    delete window.location;
-    window.location = { search: "" };
 
-    WSClient.mockImplementation(() => ({
-      connect: jest.fn().mockResolvedValue()
-    }));
+    // jsdom 下不建议直接重写 window.location（会触发 not implemented: navigation）
+    // 用 pushState 设置 search 即可满足本测试需求。
+    try {
+      window.history.pushState({}, "", "http://localhost/");
+    } catch {
+      // ignore
+    }
   });
 
-  afterEach(() => {
-    window.location = originalLocation;
-  });
-
-  test("should instantiate WSClient with correct positional arguments", async () => {
+  test("should not instantiate/register WSClient in bootstrap layer", async () => {
     await bootstrapPDFViewerAppFeature();
 
-    expect(WSClient).toHaveBeenCalledTimes(1);
+    expect(createAppContainer).toHaveBeenCalledTimes(1);
+    const container = createAppContainer.mock.results[0].value;
+    expect(container.register).not.toHaveBeenCalledWith("wsClient", expect.anything());
+    expect(container.registerGlobal).not.toHaveBeenCalledWith("wsClient", expect.anything());
 
-    const args = WSClient.mock.calls[0];
-    expect(typeof args[0]).toBe("string"); // URL
-    expect(typeof args[1]).toBe("object"); // EventBus
-    expect(typeof args[2]).toBe("object"); // Options
-    expect(args[2]).toHaveProperty("clientId");
   });
 });

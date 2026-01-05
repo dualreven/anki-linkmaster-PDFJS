@@ -8,7 +8,6 @@ import { getLogger, setModuleLogLevel, LogLevel } from "../../common/utils/logge
 import { FEATURE_ALIASES } from "../../common/micro-service/feature-aliases.js";
 import { createAppContainer, createFeatureRegistry } from "../../common/micro-service/app-bootstrap.js";
 import eventBusSingleton from "../../common/event/event-bus.js";
-import WSClient from "../../common/ws/ws-client.js"; // Import WSClient
 
 // 导入 Features
 import { AppCoreFeature } from "../features/infra-app/index.js";
@@ -31,7 +30,6 @@ import { showInfo } from "../../common/utils/notification.js";
 import { resolveWebSocketPortSync, DEFAULT_WS_PORT } from "../../common/utils/ws-port-resolver.js";
 const logger = getLogger("pdf-viewer.bootstrap");
 
-/**
 /**
  * 解析PDF文件路径
  * @returns {string|null} PDF文件路径
@@ -74,21 +72,6 @@ export async function bootstrapPDFViewerAppFeature() {
       eventBus: eventBusSingleton,
       logger
     });
-
-    // 2.5 初始化并注册 WSClient
-    const wsClient = new WSClient({
-      url: wsUrl,
-      eventBus: eventBusSingleton,
-      logger: getLogger("WSClient"),
-      clientId: "pdf-viewer-" + Date.now(), // Unique ID per session
-      enableHeartbeat: true
-    });
-    // 启动连接（异步，不阻塞后续流程，AnnotationManager 会处理未连接状态）
-    wsClient.connect().catch(err => {
-      logger.warn("[Bootstrap] WSClient connection failed (will retry):", err);
-    });
-    container.register("wsClient", wsClient);
-    logger.info("[Bootstrap] WSClient registered in container");
 
     // 3. 创建 Feature Registry（统一注入别名与全局 EventBus）
     const registry = createFeatureRegistry({

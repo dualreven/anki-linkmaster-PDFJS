@@ -90,10 +90,6 @@ export class AppCoreFeature {
       logger.info("App container initialized");
     }
 
-    // 连接 WebSocket
-    logger.info("Connecting WebSocket...");
-    this.#appContainer.connect();
-
     // 安装 WebSocketAdapter，将内部事件与WS契约桥接
     try {
       const { eventBus } = this.#appContainer.getDependencies();
@@ -133,6 +129,10 @@ export class AppCoreFeature {
       logger.error(`Error stack: ${e?.stack}`);
       // 注意：已使用 logger.error 记录，无需 console.error
     }
+
+    // 连接 WebSocket（确保适配器已先完成安装，避免错过 connection:established 导致注册消息漏发）
+    logger.info("Connecting WebSocket...");
+    this.#appContainer.connect();
 
     // 不再创建独立的 Console 桥接器，避免与容器层冲突与重复日志
 
