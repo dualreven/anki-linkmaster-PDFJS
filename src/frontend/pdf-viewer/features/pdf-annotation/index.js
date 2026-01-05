@@ -274,7 +274,7 @@ export class AnnotationFeature {
       void e; /* logger-guard */
     }
   }
-  
+
   #setupAutoLoadOnFileLoad() {
     setupAnnotationAutoLoadOnFileLoad({
       eventBus: this.#eventBus,
