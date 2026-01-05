@@ -77,19 +77,18 @@ export async function bootstrapPDFViewerAppFeature() {
 
     // 2.5 初始化并注册 WSClient
     const wsClient = new WSClient({
-        url: wsUrl,
-        eventBus: eventBusSingleton,
-        logger: getLogger("WSClient"),
-        clientId: "pdf-viewer-" + Date.now(), // Unique ID per session
-        enableHeartbeat: true
+      url: wsUrl,
+      eventBus: eventBusSingleton,
+      logger: getLogger("WSClient"),
+      clientId: "pdf-viewer-" + Date.now(), // Unique ID per session
+      enableHeartbeat: true
     });
     // 启动连接（异步，不阻塞后续流程，AnnotationManager 会处理未连接状态）
     wsClient.connect().catch(err => {
-        logger.warn("[Bootstrap] WSClient connection failed (will retry):", err);
+      logger.warn("[Bootstrap] WSClient connection failed (will retry):", err);
     });
     container.register("wsClient", wsClient);
     logger.info("[Bootstrap] WSClient registered in container");
-
 
     // 3. 创建 Feature Registry（统一注入别名与全局 EventBus）
     const registry = createFeatureRegistry({
@@ -258,7 +257,7 @@ export async function bootstrapPDFViewerAppFeature() {
       logger.info(`[Bootstrap] Auto-loading PDF: ${pdfPath}`);
 
       // 从完整路径中提取文件名
-      const filename = pdfPath.includes("\") || pdfPath.includes("/")
+      const filename = pdfPath.includes("\\") || pdfPath.includes("/")
         ? pdfPath.split(/[\\/]/).pop()
         : pdfPath;
 
