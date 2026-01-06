@@ -68,6 +68,7 @@ async function waitForSent(ws, type, timeoutMs) {
 
 describe("integ:frontend:pdf-viewer:outline:init-import (pure-mock)", () => {
   test("首帧 null → bulk-save(items>0) → 二次 list 非空数组", async () => {
+    global.window.__DISABLE_OUTLINE_UI = true;
     const eventBus = createEventBus();
     const ws = createWSClientDouble();
     const container = createContainer(ws);

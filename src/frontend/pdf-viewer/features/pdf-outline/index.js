@@ -15,6 +15,7 @@ import { parseOutlineNormalizedDest as parseOutlineNormalizedDestImpl } from "./
 import { runOutlineInitialLoadFlowAfterFile } from "./outline-initial-load-flow.js";
 import { handleOutlineNavigateById, tryOutlinePendingNavigate } from "./outline-navigate-by-id.js";
 import { handleOutlineCreate, handleOutlineUpdate, handleOutlineDelete, handleOutlineReorder } from "./outline-crud-handlers.js";
+import { shouldEmitWsInboundDomainEventOnce } from "../../adapters/ws-inbound-bridge-contract.js";
 
 export class OutlineFeature {
   #logger;
@@ -194,11 +195,7 @@ export class OutlineFeature {
             }
             await this.#outlineManager.replaceItems(items); // Use replaceItems
             this.#listReady = true;
-            // 去重：同一条 WS message 只允许发射一次 OUTLINE.LOAD.SUCCESS（顺序无关）。
-            // 说明：WebSocketAdapter(ws-inbound-bridge) 与 OutlineFeature 都可能消费 OUTLINE_LIST_COMPLETED，
-            // 这里使用 message 上的标记避免重复发射。
-            if (!message?.__pdf_outline_load_success_emitted) {
-              try { message.__pdf_outline_load_success_emitted = true; } catch (e) { void e; /* logger-guard */ }
+            if (shouldEmitWsInboundDomainEventOnce({ message, eventName: PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS })) {
               this.#refreshList("backend");
             }
             this.#tryPendingNavigate();

@@ -11,12 +11,11 @@ jest.mock("../../../../common/utils/logger.js", () => ({
   LogLevel: { DEBUG: "debug", INFO: "info", WARN: "warn", ERROR: "error" }
 }));
 
-jest.mock("../../../outline/outline-manager.js", () => {
-  return jest.fn().mockImplementation(() => ({
-    initialize: jest.fn().mockResolvedValue(undefined),
+jest.mock("../services/outline.manager.js", () => ({
+  OutlineManager: jest.fn().mockImplementation(() => ({
     destroy: jest.fn()
-  }));
-});
+  }))
+}));
 
 jest.mock("../../../outline/components/outline-dialog.js", () => ({
   OutlineDialog: jest.fn().mockImplementation(() => ({

@@ -8,6 +8,7 @@
 import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
 import { WEBSOCKET_MESSAGE_TYPES } from "../../common/event/event-constants.js";
 import { runWsInboundHandlers } from "../../common/ws/ws-inbound-executor.js";
+import { shouldEmitWsInboundDomainEventOnce } from "./ws-inbound-bridge-contract.js";
 
 const inboundHandlers = [
   {
@@ -16,12 +17,6 @@ const inboundHandlers = [
       const type = String(message?.type || "");
       if (type === WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_COMPLETED) {
         try {
-          // 去重：同一条 WS message 只允许发射一次 OUTLINE.LOAD.SUCCESS。
-          // 说明：WebSocketAdapter 与 OutlineFeature 都可能消费 OUTLINE_LIST_COMPLETED，
-          // 这里通过在 message 上打标记实现顺序无关的去重。
-          if (message && message.__pdf_outline_load_success_emitted) {
-            return;
-          }
           const data = message?.data || {};
           // 诊断：记录原始 outline_items 的类型与取值片段，便于确认后端回包
           try {
@@ -58,12 +53,13 @@ const inboundHandlers = [
           };
           const outlineItems = normalize(items);
           logger.info(`[outline] inbound list → emit OUTLINE.LOAD.SUCCESS (count=${outlineItems.length})`);
-          if (message) { message.__pdf_outline_load_success_emitted = true; }
-          eventBus.emit(
-            PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS,
-            { outlineItems, source: "ws-backend" },
-            { actorId: "WebSocketAdapter" }
-          );
+          if (shouldEmitWsInboundDomainEventOnce({ message, eventName: PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS })) {
+            eventBus.emit(
+              PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS,
+              { outlineItems, source: "ws-backend" },
+              { actorId: "WebSocketAdapter" }
+            );
+          }
         } catch {
           logger.warn("[outline] list completed handling failed");
         }
@@ -96,7 +92,9 @@ const inboundHandlers = [
         if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_GET_COMPLETED || type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST_COMPLETED) {
           const anchors = message?.data?.anchors || (message?.data?.anchor ? [message.data.anchor] : []);
           logger.info("[anchor] inbound completed -> emit ANCHOR.DATA.LOADED", { type, count: Array.isArray(anchors) ? anchors.length : 0 });
-          eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED, { anchors }, { actorId: "WebSocketAdapter" });
+          if (shouldEmitWsInboundDomainEventOnce({ message, eventName: PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED })) {
+            eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED, { anchors }, { actorId: "WebSocketAdapter" });
+          }
         } else if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_CREATE_COMPLETED) {
           const id = message?.data?.uuid || message?.data?.anchor_id || null;
           logger.info("[anchor] create completed", { id });
