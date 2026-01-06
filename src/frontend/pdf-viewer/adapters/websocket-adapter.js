@@ -112,16 +112,12 @@ export class WebSocketAdapter {
       (message) => {
         this.#logger.debug(`Received WebSocket message event: ${message?.type}`);
         this.handleMessage(message);
-        try {
-          handleViewerWsInbound({
-            message,
-            eventBus: this.#eventBus,
-            wsClient: this.#wsClient,
-            logger: this.#logger
-          });
-        } catch (e) {
-          this.#logger.warn("anchor/outline inbound bridge failed", e);
-        }
+        handleViewerWsInbound({
+          message,
+          eventBus: this.#eventBus,
+          wsClient: this.#wsClient,
+          logger: this.#logger
+        });
       },
       { subscriberId: "WebSocketAdapter" }
     );

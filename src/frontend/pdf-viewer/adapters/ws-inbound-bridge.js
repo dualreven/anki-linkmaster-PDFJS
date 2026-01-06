@@ -102,35 +102,15 @@ const inboundHandlers = [
           logger.info("[anchor] create completed", { id });
           try { eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATED, { anchorId: id }, { actorId: "WebSocketAdapter" }); } catch (e) { logger.warn("[anchor] emit ANCHOR.CREATED failed", e); }
 
-          // [DIAGNOSTIC] 追踪创建完成后的自动刷新
-          logger.warn("[DIAGNOSTIC] Auto-refresh after CREATE_COMPLETED", {
-            source: "CREATE_COMPLETED handler",
-            location: "Line 174-181",
-            timestamp: Date.now()
-          });
-
           // 创建成功后刷新列表
           try {
             const params = new URLSearchParams(window.location.search);
             const pdfId = params.get("pdf-id");
             if (pdfId) {
-              // [DIAGNOSTIC] 记录请求发送
-              logger.warn("[DIAGNOSTIC] Sending ANCHOR_LIST request", {
-                source: "after CREATE",
-                pdfId,
-                timestamp: Date.now()
-              });
               wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
             }
           } catch (e) { logger.warn("[anchor] request list after create completed failed", e); }
         } else if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_ACTIVATE_COMPLETED) {
-          // [DIAGNOSTIC] 追踪激活完成后的状态更新（不再触发列表自动刷新，避免死循环）
-          logger.warn("[DIAGNOSTIC] Auto-refresh after ACTIVATE_COMPLETED", {
-            source: "ACTIVATE_COMPLETED handler",
-            location: "Line 182-197",
-            timestamp: Date.now()
-          });
-
           // 更新当前项状态：仅通过 ANCHOR.ACTIVATED 通知前端，由特性层维护单选语义
           try {
             const id = message?.data?.anchor_id || message?.data?.uuid || null;
@@ -146,29 +126,14 @@ const inboundHandlers = [
             logger.warn("anchor activate inbound mapping failed");
           }
         } else {
-          // [DIAGNOSTIC] 追踪其他完成事件的自动刷新
-          logger.warn("[DIAGNOSTIC] Auto-refresh after OTHER_COMPLETED", {
-            source: "catch-all handler",
-            location: "Line 198-206",
-            messageType: type,
-            timestamp: Date.now()
-          });
-
           // 其他完成事件后请求刷新列表（若可获取pdfId）
           try {
             const params = new URLSearchParams(window.location.search);
             const pdfId = params.get("pdf-id");
             if (pdfId) {
-              // [DIAGNOSTIC] 记录请求发送
-              logger.warn("[DIAGNOSTIC] Sending ANCHOR_LIST request", {
-                source: "after OTHER",
-                messageType: type,
-                pdfId,
-                timestamp: Date.now()
-              });
               wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
             }
-          } catch { logger.warn("noop"); }
+          } catch (e) { logger.warn("[anchor] request list after completed failed", e); }
         }
       } else if (type.endsWith(":failed")) {
         if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_GET_FAILED || type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST_FAILED) {

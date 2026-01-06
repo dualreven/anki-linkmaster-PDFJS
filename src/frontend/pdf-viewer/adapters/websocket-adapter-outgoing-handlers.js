@@ -81,14 +81,19 @@ export function installWebSocketAdapterOutgoingHandlers({ eventBus, wsClient, lo
         const anchorId = data?.anchorId || null;
         const pdfId = data?.pdf_uuid || getPdfId();
 
-        const stack = new Error().stack.split("\n").slice(1, 4).join("\n");
-        logger.warn("[DIAGNOSTIC] ANCHOR.DATA.LOAD triggered", {
-          source: "EventBus listener",
-          location: "websocket-adapter-outgoing-handlers",
-          anchorId,
-          pdfId,
-          callStack: stack
-        });
+        if (!pdfId) {
+          logger.warn("[anchor] load aborted: missing pdf_uuid", { anchorId: anchorId || undefined });
+          try {
+            eventBus.emit(
+              PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD_FAILED,
+              { error: { message: "缺少 pdf_uuid" } },
+              { actorId: "WebSocketAdapter" }
+            );
+          } catch (e) {
+            logger.warn("[anchor] emit ANCHOR.DATA.LOAD_FAILED failed (missing pdf_uuid path)", e);
+          }
+          return;
+        }
 
         if (anchorId) {
           wsClient.request(
@@ -96,12 +101,7 @@ export function installWebSocketAdapterOutgoingHandlers({ eventBus, wsClient, lo
             { anchor_id: anchorId, pdf_uuid: pdfId },
             { metadata: { version: "1.0.0" } }
           );
-        } else if (pdfId) {
-          logger.warn("[DIAGNOSTIC] Sending ANCHOR_LIST request", {
-            source: "ANCHOR.DATA.LOAD handler",
-            pdfId,
-            timestamp: Date.now()
-          });
+        } else {
           wsClient.request(
             WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST,
             { pdf_uuid: pdfId },
@@ -110,6 +110,15 @@ export function installWebSocketAdapterOutgoingHandlers({ eventBus, wsClient, lo
         }
       } catch (e) {
         logger.warn("ANCHOR.DATA.LOAD bridge failed", e);
+        try {
+          eventBus.emit(
+            PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD_FAILED,
+            { error: { message: e?.message || String(e) } },
+            { actorId: "WebSocketAdapter" }
+          );
+        } catch (emitErr) {
+          logger.warn("[anchor] emit ANCHOR.DATA.LOAD_FAILED failed (exception path)", emitErr);
+        }
       }
     },
     { subscriberId: "WebSocketAdapter" }
@@ -175,8 +184,8 @@ export function installWebSocketAdapterOutgoingHandlers({ eventBus, wsClient, lo
           { anchor_id: id, update },
           { metadata: { version: "1.0.0" } }
         );
-      } catch {
-        logger.warn("noop");
+      } catch (e) {
+        logger.warn("[anchor] update request failed", e);
       }
     },
     { subscriberId: "WebSocketAdapter" }
@@ -192,7 +201,7 @@ export function installWebSocketAdapterOutgoingHandlers({ eventBus, wsClient, lo
       try {
         wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_DELETE, { anchor_id: id }, { metadata: { version: "1.0.0" } });
       } catch (e) {
-        logger.warn("noop", e);
+        logger.warn("[anchor] delete request failed", e);
       }
     },
     { subscriberId: "WebSocketAdapter" }
@@ -213,7 +222,7 @@ export function installWebSocketAdapterOutgoingHandlers({ eventBus, wsClient, lo
           { metadata: { version: "1.0.0" } }
         );
       } catch (e) {
-        logger.warn("noop", e);
+        logger.warn("[anchor] activate request failed", e);
       }
     },
     { subscriberId: "WebSocketAdapter" }
