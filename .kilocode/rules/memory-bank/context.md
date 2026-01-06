@@ -18,6 +18,11 @@
 - **动机**：减少 `todo-and-doing/1 doing/` 干扰，避免误把历史任务当“当前进行”。
 - **操作**：将旧的 9 个 doing 任务整体移动到 `todo-and-doing/4 archive/20260106-doing-cleanup/`；`1 doing` 仅保留本轮 4 个并行任务目录（A/B/C/D）。
 
+## 2026-01-06（已修复）Jest 在部分 worktree 直接无法启动
+- **现象**：`worker/refactor-C` 运行 `pnpm exec jest ...` 报 `Could not locate module ... mapped as ...tests\\__mocks__\\logger.js`。
+- **根因**：`jest.config.js` 的 `moduleNameMapper` 指向 `<rootDir>/tests/__mocks__/*`，但 `.gitignore` 忽略 `tests/`，导致不同 worktree 可能缺失该目录与文件。
+- **修复**：将 mocks 移到可被 git 跟踪的 `src/frontend/__mocks__/`，并更新 `jest.config.js` 映射；新增 CI 级回归测试断言映射目标文件存在（避免再次把 mapper 指向未纳入版本控制的路径）。
+
 ## 2026-01-05 前端架构重构：Observable Pattern 落地 (完成)
 - **基建**：`observable.js` + `observable.test.js` (100% pass).
 - **Core 迁移**：`ZoomManager`, `LayoutManager`, `ViewerManager` (Completed).
