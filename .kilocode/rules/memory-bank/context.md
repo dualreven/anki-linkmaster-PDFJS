@@ -27,6 +27,13 @@
 - **根因**：`jest.config.js` 的 `moduleNameMapper` 指向 `<rootDir>/tests/__mocks__/*`，但 `.gitignore` 忽略 `tests/`，导致不同 worktree 可能缺失该目录与文件。
 - **修复**：将 mocks 移到可被 git 跟踪的 `src/frontend/__mocks__/`，并更新 `jest.config.js` 映射；新增 CI 级回归测试断言映射目标文件存在（避免再次把 mapper 指向未纳入版本控制的路径）。
 
+## 2026-01-06（已修复）开发模式 Hosted 后端不再强依赖 dist/static_dir
+- **现象**：GUI 未勾选“生产模式”仍报 `static_dir 不存在：.../dist/latest/static`，导致 dev 也必须先 build dist 才能启动后端。
+- **修复策略**：以 `url_port == pdfFile_port` 判定 prod（前端走后端静态）；否则判定 dev（前端走 Vite）。dev 下：
+  - 后端不再要求 `static_dir` 存在；
+  - HTTP 文件服务允许“仅服务 pdfs”（不挂载 `/static` `/pdf-home` `/pdf-viewer` 默认路由）。
+- **实现**：`BackendLauncher.start()` + `EmbedFileServer(require_static=...)` + `resolve_path(static_root=None)`，并补回归测试覆盖 dev/prod 分支。
+
 ## 2026-01-05 前端架构重构：Observable Pattern 落地 (完成)
 - **基建**：`observable.js` + `observable.test.js` (100% pass).
 - **Core 迁移**：`ZoomManager`, `LayoutManager`, `ViewerManager` (Completed).
