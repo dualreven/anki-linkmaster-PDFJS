@@ -17,6 +17,11 @@
 - **待合入**：
   - WS Adapter（A）：Anchor 缺少 pdf_uuid 显式失败 + 移除诊断日志（A worktree 当前仍是未提交改动）
 
+## 2026-01-06 协作方式升级（并行合入提速）
+- **完成定义（DoD）**：每个 worktree “完成”必须交付 commit hash + 最小验收命令结果；否则不进入合入队列。
+- **主干集成**：main 侧用 integration 分支批量 cherry-pick 功能提交，只在 main 跑一次门禁（lint + 新增测试并集），通过即合入。
+- **落地位置**：协作协议写入 `todo-and-doing/3 template/v001-spec-template.md`，并作为每个 doing 任务的强制章节复用。
+
 ## 2026-01-06（已修复）Outline：OUTLINE.LOAD.SUCCESS 重复发射
 - **现象**：同一条 `OUTLINE_LIST_COMPLETED` 入站消息会触发两次 `PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS`（WebSocketAdapter(ws-inbound-bridge) 与 OutlineFeature 同时发射）。
 - **修复**：在同一条 WS message 对象上写入标记 `__pdf_outline_load_success_emitted`，两侧在发射前检查该标记，实现顺序无关去重；并补回归测试覆盖“OutlineFeature + inbound bridge 并存”场景。
