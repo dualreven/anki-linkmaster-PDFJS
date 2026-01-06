@@ -1,30 +1,32 @@
 # Memory Bank - Context（精简版）
 
-最后更新：2026-01-06（memory-bank lint：超限自动归档）
+最后更新：2026-01-07（memory-bank lint：超限自动归档）
 
-## 2026-01-06 待办：将 A/B/C/D 指定改动合入 main
-- **状态**：进行中（B/C/D 已合入，A 待合入）。
+## 2026-01-07 并行合入：A/B/C/D 批量集成完成
+- **状态**：已完成（main 通过 lint + 本轮最小 Jest 集合）。
 - **worktree/分支**：
   - `anki-linkmaster-PDFJS`：`main`
   - `anki-linkmaster-A`：`worker/refactor-A`
   - `anki-linkmaster-B`：`worker/refactor-B`
   - `anki-linkmaster-C`：`worker/refactor-C`
   - `anki-linkmaster-D`：`worker/refactor-D`
-- **已合入 main**：
-  - Infra-UI：destroy 解绑 DOM listener（B）
-  - Outline：OUTLINE.LOAD.SUCCESS 去重（含回归测试）
-  - Annotation：autoload 订阅清理 + comment 标注 position 必填修复（含回归测试）
-- **待合入**：
-  - WS Adapter（A）：Anchor 缺少 pdf_uuid 显式失败 + 移除诊断日志（A worktree 当前仍是未提交改动）
+- **合入方式**：integration 分支批量 `cherry-pick`（一次性验收后快进 main），随后 A/B/C/D 全部 `reset --hard main` 同步基线。
+- **本轮合入要点**：
+  - `infra-sidebar`：uninstall/destroy 解绑监听/计时器/订阅（含回归测试）。
+  - WS Adapter：anchor create 缺少 `pdf_uuid` 时 fail-fast（含回归测试）。
+  - WS inbound：新增 `ws-inbound-bridge-contract`（WeakMap(message)+Set(eventName)）去重领域事件发射（含回归测试）。
+  - 测试提速：Annotation 导航冒烟用例改为“聚焦型”单测，降低 flake。
+  - 合入工具：新增 `scripts/merge-fastlane.ps1` + 队列模板，减少人工合入/验收成本。
 
 ## 2026-01-06 协作方式升级（并行合入提速）
 - **完成定义（DoD）**：每个 worktree “完成”必须交付 commit hash + 最小验收命令结果；否则不进入合入队列。
 - **主干集成**：main 侧用 integration 分支批量 cherry-pick 功能提交，只在 main 跑一次门禁（lint + 新增测试并集），通过即合入。
 - **落地位置**：协作协议写入 `todo-and-doing/3 template/v001-spec-template.md`，并作为每个 doing 任务的强制章节复用。
+- **落地工具**：`scripts/merge-fastlane.ps1`（从 commit 列表/队列文件创建 integration 分支、批量 cherry-pick、跑 lint+指定测试、输出报告）。
 
 ## 2026-01-06（已修复）Outline：OUTLINE.LOAD.SUCCESS 重复发射
 - **现象**：同一条 `OUTLINE_LIST_COMPLETED` 入站消息会触发两次 `PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS`（WebSocketAdapter(ws-inbound-bridge) 与 OutlineFeature 同时发射）。
-- **修复**：在同一条 WS message 对象上写入标记 `__pdf_outline_load_success_emitted`，两侧在发射前检查该标记，实现顺序无关去重；并补回归测试覆盖“OutlineFeature + inbound bridge 并存”场景。
+- **修复**：新增 `ws-inbound-bridge-contract`：以 `WeakMap(message)+Set(eventName)` 记录“同一 message+eventName 只允许一次发射”，并在 `ws-inbound-bridge` 与 `OutlineFeature` 发射点共同接入，实现顺序无关去重（不再修改 message 对象）；并补回归测试覆盖“OutlineFeature + inbound bridge 并存”场景。
 
 ## 2026-01-06（已修复）Annotation：autoload 订阅泄漏 + comment 标注 position 缺失
 - **autoload**：`setupAnnotationAutoLoadOnFileLoad` 返回 `unsubs[]`，由 `AnnotationFeature` 纳入 `#unsubs`，确保 `uninstall()` 后不再响应 `FILE.LOAD.SUCCESS/RESUME.FLOW.DONE/...`（补回归测试）。
