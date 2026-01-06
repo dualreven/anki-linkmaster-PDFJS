@@ -6,7 +6,7 @@
  */
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 import { WEBSOCKET_EVENTS } from "../../../../common/event/event-constants.js";
-import { OutlineManager as FeatureOutline } from "../index.js";
+import FeatureOutline from "../index.js";
 
 function createEventBus() {
   const handlers = new Map();

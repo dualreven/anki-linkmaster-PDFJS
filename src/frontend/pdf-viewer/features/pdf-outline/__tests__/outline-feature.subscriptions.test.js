@@ -37,7 +37,7 @@ jest.mock("../../../pdf/current-document-registry.js", () => ({
   getCurrentPDFDocument: jest.fn(() => ({}))
 }));
 
-import { OutlineManager as OutlineFeature } from "../index.js";
+import { OutlineFeature } from "../index.js";
 
 function createTestEventBus(unsubCalls) {
   const bus = {
@@ -77,6 +77,7 @@ function createContainer(wsClient) {
 
 describe("OutlineFeature — 订阅管理", () => {
   test("install + uninstall 会调用通过 on/onGlobal 注册的 unsubscribe", async () => {
+    global.window.__DISABLE_OUTLINE_UI = true;
     const unsubCalls = [];
     const globalEventBus = createTestEventBus(unsubCalls);
     const wsClient = {
