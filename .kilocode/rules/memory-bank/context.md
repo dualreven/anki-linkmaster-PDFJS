@@ -2,6 +2,29 @@
 
 最后更新：2026-01-06（memory-bank lint：超限自动归档）
 
+## 2026-01-06 待办：将 A/B/C/D 指定改动合入 main
+- **状态**：进行中（B/C/D 已合入，A 待合入）。
+- **worktree/分支**：
+  - `anki-linkmaster-PDFJS`：`main`
+  - `anki-linkmaster-A`：`worker/refactor-A`
+  - `anki-linkmaster-B`：`worker/refactor-B`
+  - `anki-linkmaster-C`：`worker/refactor-C`
+  - `anki-linkmaster-D`：`worker/refactor-D`
+- **已合入 main**：
+  - Infra-UI：destroy 解绑 DOM listener（B）
+  - Outline：OUTLINE.LOAD.SUCCESS 去重（含回归测试）
+  - Annotation：autoload 订阅清理 + comment 标注 position 必填修复（含回归测试）
+- **待合入**：
+  - WS Adapter（A）：Anchor 缺少 pdf_uuid 显式失败 + 移除诊断日志（A worktree 当前仍是未提交改动）
+
+## 2026-01-06（已修复）Outline：OUTLINE.LOAD.SUCCESS 重复发射
+- **现象**：同一条 `OUTLINE_LIST_COMPLETED` 入站消息会触发两次 `PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS`（WebSocketAdapter(ws-inbound-bridge) 与 OutlineFeature 同时发射）。
+- **修复**：在同一条 WS message 对象上写入标记 `__pdf_outline_load_success_emitted`，两侧在发射前检查该标记，实现顺序无关去重；并补回归测试覆盖“OutlineFeature + inbound bridge 并存”场景。
+
+## 2026-01-06（已修复）Annotation：autoload 订阅泄漏 + comment 标注 position 缺失
+- **autoload**：`setupAnnotationAutoLoadOnFileLoad` 返回 `unsubs[]`，由 `AnnotationFeature` 纳入 `#unsubs`，确保 `uninstall()` 后不再响应 `FILE.LOAD.SUCCESS/RESUME.FLOW.DONE/...`（补回归测试）。
+- **comment position**：后端要求 `json_data.data.position` 必填；CommentTool 创建时同时写入 `positionPercent`（渲染优先）与 `position`（存为百分比 0..100），并在渲染恢复时兼容“百分比/像素”两种语义（补回归测试）。
+
 ## 2026-01-06 并行重构基础设施收敛（main 完成）
 - **门禁新增**：新增 ESLint 规则 `custom/no-eventbus-subscription-in-manager`，禁止在 `*.manager*.js` 中使用 `eventBus.on/onGlobal/once` 订阅（订阅必须上移到 Feature composition root/adapter 层）。
 - **Annotation 结构收敛**：
