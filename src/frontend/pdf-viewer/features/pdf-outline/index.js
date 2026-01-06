@@ -194,7 +194,13 @@ export class OutlineFeature {
             }
             await this.#outlineManager.replaceItems(items); // Use replaceItems
             this.#listReady = true;
-            this.#refreshList("backend");
+            // 去重：同一条 WS message 只允许发射一次 OUTLINE.LOAD.SUCCESS（顺序无关）。
+            // 说明：WebSocketAdapter(ws-inbound-bridge) 与 OutlineFeature 都可能消费 OUTLINE_LIST_COMPLETED，
+            // 这里使用 message 上的标记避免重复发射。
+            if (!message?.__pdf_outline_load_success_emitted) {
+              try { message.__pdf_outline_load_success_emitted = true; } catch (e) { void e; /* logger-guard */ }
+              this.#refreshList("backend");
+            }
             this.#tryPendingNavigate();
           } else if (t === WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_FAILED) {
             this.#logger.warn("[Outline] OUTLINE_LIST_FAILED", message?.error || message?.data);

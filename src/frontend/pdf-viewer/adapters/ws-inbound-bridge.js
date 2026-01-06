@@ -16,6 +16,12 @@ const inboundHandlers = [
       const type = String(message?.type || "");
       if (type === WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_COMPLETED) {
         try {
+          // 去重：同一条 WS message 只允许发射一次 OUTLINE.LOAD.SUCCESS。
+          // 说明：WebSocketAdapter 与 OutlineFeature 都可能消费 OUTLINE_LIST_COMPLETED，
+          // 这里通过在 message 上打标记实现顺序无关的去重。
+          if (message && message.__pdf_outline_load_success_emitted) {
+            return;
+          }
           const data = message?.data || {};
           // 诊断：记录原始 outline_items 的类型与取值片段，便于确认后端回包
           try {
@@ -52,6 +58,7 @@ const inboundHandlers = [
           };
           const outlineItems = normalize(items);
           logger.info(`[outline] inbound list → emit OUTLINE.LOAD.SUCCESS (count=${outlineItems.length})`);
+          if (message) { message.__pdf_outline_load_success_emitted = true; }
           eventBus.emit(
             PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS,
             { outlineItems, source: "ws-backend" },
