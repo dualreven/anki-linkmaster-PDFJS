@@ -205,6 +205,7 @@ export function createRealSidebarButtons(eventBus) {
 
   // 查找按钮容器
   let buttonContainer = document.getElementById("pdf-viewer-button-container");
+  const existed = !!buttonContainer;
   if (!buttonContainer) {
     logger.warn("Button container not found, creating fallback container");
     buttonContainer = document.createElement("div");
@@ -272,4 +273,22 @@ export function createRealSidebarButtons(eventBus) {
   });
 
   logger.info("Real sidebar buttons created successfully");
+
+  return {
+    dispose() {
+      try {
+        // 移除本次创建的按钮
+        for (const cfg of buttons) {
+          const el = document.getElementById(`${cfg.id}-sidebar-button`);
+          el?.remove();
+        }
+        // 若容器是本次创建的，则一并移除
+        if (!existed) {
+          buttonContainer?.remove();
+        }
+      } catch (e) {
+        logger.warn("Failed to dispose sidebar buttons", e);
+      }
+    }
+  };
 }

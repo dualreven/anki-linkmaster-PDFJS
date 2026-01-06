@@ -12,6 +12,8 @@ export class PDFLayoutAdapter {
   #eventBus;
   #pdfContainer;
   #currentSidebarWidth = 0;
+  #unsubLayout = null;
+  #initialized = false;
 
   /**
      * 构造函数
@@ -26,6 +28,12 @@ export class PDFLayoutAdapter {
      * 初始化
      */
   initialize() {
+    if (this.#initialized) {
+      logger.warn("PDFLayoutAdapter.initialize called more than once; skip");
+      return;
+    }
+    this.#initialized = true;
+
     // 获取PDF容器
     this.#pdfContainer = document.querySelector(".pdf-container") || document.getElementById("viewerContainer");
 
@@ -35,7 +43,7 @@ export class PDFLayoutAdapter {
     }
 
     // 监听侧边栏布局变化事件（使用常量，保持与白名单一致）
-    this.#eventBus.on(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.LAYOUT_UPDATED, ({ totalWidth }) => {
+    this.#unsubLayout = this.#eventBus.on(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.LAYOUT_UPDATED, ({ totalWidth }) => {
       this.#updatePDFLayout(totalWidth);
     }, { subscriberId: "PDFLayoutAdapter" });
 
@@ -72,10 +80,19 @@ export class PDFLayoutAdapter {
      * 清理
      */
   destroy() {
+    if (this.#unsubLayout) {
+      try {
+        this.#unsubLayout();
+      } catch (e) {
+        logger.warn("Failed to unsubscribe PDFLayoutAdapter listener", e);
+      }
+      this.#unsubLayout = null;
+    }
     if (this.#pdfContainer) {
       this.#pdfContainer.style.left = "0";
     }
     this.#currentSidebarWidth = 0;
+    this.#initialized = false;
     logger.info("PDFLayoutAdapter destroyed");
   }
 }

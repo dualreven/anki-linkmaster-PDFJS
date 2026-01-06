@@ -28,6 +28,12 @@ export class SidebarManagerFeature {
     startWidth: 0
   };
   #unsubscribe = null;
+  #unsubs = [];
+  #isInstalled = false;
+  #timeouts = [];
+  #onDocumentMouseMove = null;
+  #onDocumentMouseUp = null;
+  #buttonsDisposer = null;
 
   get name() {
     return "infra-sidebar";
@@ -44,6 +50,12 @@ export class SidebarManagerFeature {
 
   async install(context) {
     const { globalEventBus, container, logger } = context;
+
+    if (this.#isInstalled) {
+      logger?.warn?.("SidebarManagerFeature.install called more than once; skip");
+      return;
+    }
+    this.#isInstalled = true;
 
     this.#eventBus = globalEventBus;
     this.#container = container;
@@ -73,17 +85,20 @@ export class SidebarManagerFeature {
     this.#setupGlobalResizeHandlers();
 
     // 初始化PDF布局适配器
-    setTimeout(() => {
+    const t1 = setTimeout(() => {
       this.#pdfLayoutAdapter.initialize();
     }, 100);
+    this.#timeouts.push(t1);
 
     // 注册真实侧边栏（书签/大纲、批注、卡片、翻译）
     await registerRealSidebars(this, this.#eventBus, this.#container);
 
     // 创建侧边栏切换按钮
-    setTimeout(() => {
-      createRealSidebarButtons(this.#eventBus);
+    const t2 = setTimeout(() => {
+      const r = createRealSidebarButtons(this.#eventBus);
+      this.#buttonsDisposer = r && typeof r.dispose === "function" ? r : null;
     }, 100);
+    this.#timeouts.push(t2);
 
     // 按新规范：首次加载不自动打开任何侧边栏（避免“自动弹出”打扰首屏体验）
 
@@ -96,6 +111,48 @@ export class SidebarManagerFeature {
      * 卸载Feature
      */
   async uninstall() {
+    if (!this.#isInstalled) {
+      return;
+    }
+    this.#isInstalled = false;
+
+    // 清理延迟任务（防止卸载后仍执行 initialize / button create）
+    for (const t of this.#timeouts) {
+      try { clearTimeout(t); } catch (e) { logger.warn("Failed to clear sidebar timer", e); }
+    }
+    this.#timeouts = [];
+
+    // 清理按钮容器/按钮
+    try { this.#buttonsDisposer?.dispose?.(); } catch (e) { logger.warn("Failed to dispose sidebar buttons", e); }
+    this.#buttonsDisposer = null;
+
+    // 清理 EventBus 订阅
+    for (const u of this.#unsubs) {
+      try { u?.(); } catch (e) { logger.warn("Failed to unsubscribe sidebar event handler", e); }
+    }
+    this.#unsubs = [];
+
+    // 清理全局拖拽监听 + 可能残留的 UI 状态
+    try {
+      if (this.#onDocumentMouseMove) {
+        document.removeEventListener("mousemove", this.#onDocumentMouseMove);
+      }
+      if (this.#onDocumentMouseUp) {
+        document.removeEventListener("mouseup", this.#onDocumentMouseUp);
+      }
+    } finally {
+      this.#onDocumentMouseMove = null;
+      this.#onDocumentMouseUp = null;
+    }
+    try {
+      this.#resizeState.isResizing = false;
+      this.#resizeState.sidebarId = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      const handles = document.querySelectorAll(".sidebar-resize-handle");
+      handles.forEach(h => h.classList.remove("resizing"));
+    } catch (e) { logger.warn("Failed to reset resize UI state on uninstall", e); }
+
     if (this.#unsubscribe) {
       this.#unsubscribe();
       this.#unsubscribe = null;
@@ -103,6 +160,13 @@ export class SidebarManagerFeature {
     this.#containerElement?.remove();
     this.#sidebarManager.destroy();
     this.#pdfLayoutAdapter?.destroy();
+
+    this.#containerElement = null;
+    this.#sidebarManager = null;
+    this.#layoutEngine = null;
+    this.#pdfLayoutAdapter = null;
+    this.#eventBus = null;
+    this.#container = null;
 
     logger.info("SidebarManagerFeature uninstalled");
   }
@@ -327,7 +391,7 @@ export class SidebarManagerFeature {
      * 设置事件监听器
      */
   #setupEventListeners() {
-    this.#eventBus.on(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.TOGGLE_REQUESTED, ({ sidebarId }) => {
+    const unsubToggle = this.#eventBus.on(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.TOGGLE_REQUESTED, ({ sidebarId }) => {
       try {
         logger.info(`[EventListener] Received toggle request for: ${sidebarId}`);
         this.toggleSidebar(sidebarId);
@@ -336,7 +400,7 @@ export class SidebarManagerFeature {
       }
     }, { subscriberId: "SidebarManager" });
 
-    this.#eventBus.on(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, ({ sidebarId }) => {
+    const unsubOpen = this.#eventBus.on(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPEN_REQUESTED, ({ sidebarId }) => {
       try {
         logger.info(`[EventListener] Received open request for: ${sidebarId}`);
         this.openSidebar(sidebarId);
@@ -345,7 +409,7 @@ export class SidebarManagerFeature {
       }
     }, { subscriberId: "SidebarManager" });
 
-    this.#eventBus.on(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.CLOSE_REQUESTED, ({ sidebarId }) => {
+    const unsubClose = this.#eventBus.on(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.CLOSE_REQUESTED, ({ sidebarId }) => {
       try {
         logger.info(`[EventListener] Received close request for: ${sidebarId}`);
         this.closeSidebar(sidebarId);
@@ -354,6 +418,7 @@ export class SidebarManagerFeature {
       }
     }, { subscriberId: "SidebarManager" });
 
+    this.#unsubs.push(unsubToggle, unsubOpen, unsubClose);
     logger.info("Event listeners setup completed");
   }
 
@@ -387,7 +452,7 @@ export class SidebarManagerFeature {
      * 设置全局拖拽处理器
      */
   #setupGlobalResizeHandlers() {
-    document.addEventListener("mousemove", (e) => {
+    this.#onDocumentMouseMove = (e) => {
       if (!this.#resizeState.isResizing) {return;}
 
       const deltaX = e.clientX - this.#resizeState.startX;
@@ -398,9 +463,10 @@ export class SidebarManagerFeature {
       // 更新宽度
       this.#sidebarManager.setWidth(sidebarId, newWidth);
       // NOTE: Layout update handled by subscription
-    });
+    };
+    document.addEventListener("mousemove", this.#onDocumentMouseMove);
 
-    document.addEventListener("mouseup", () => {
+    this.#onDocumentMouseUp = () => {
       if (!this.#resizeState.isResizing) {return;}
 
       this.#resizeState.isResizing = false;
@@ -418,7 +484,8 @@ export class SidebarManagerFeature {
       });
 
       this.#resizeState.sidebarId = null;
-    });
+    };
+    document.addEventListener("mouseup", this.#onDocumentMouseUp);
 
     logger.debug("Global resize handlers setup");
   }
