@@ -16,10 +16,10 @@ export default {
   },
   moduleNameMapper: {
     // 将各处相对导入到的 logger.js 映射为测试友好的 mock，避免 import.meta/env 影响
-    '.*logger\\.js$': '<rootDir>/tests/__mocks__/logger.js',
-    '^pdfjs-dist$': '<rootDir>/tests/__mocks__/pdfjs-dist.js',
-    '^@pdfjs/web/pdf_viewer\\.mjs$': '<rootDir>/tests/__mocks__/pdfjs-web-viewer.js',
-    '\\.(css|less|sass|scss)$': '<rootDir>/tests/__mocks__/styleMock.js'
+    '.*logger\\.js$': '<rootDir>/src/frontend/__mocks__/logger.js',
+    '^pdfjs-dist$': '<rootDir>/src/frontend/__mocks__/pdfjs-dist.js',
+    '^@pdfjs/web/pdf_viewer\\.mjs$': '<rootDir>/src/frontend/__mocks__/pdfjs-web-viewer.js',
+    '\\.(css|less|sass|scss)$': '<rootDir>/src/frontend/__mocks__/styleMock.js'
   },
   transform: {
     // 显式传入绝对路径，避免在不同 CWD/根目录解析下找不到 CJS 配置
@@ -34,6 +34,9 @@ export default {
     '<rootDir>/tests/e2e/'
   ],
   modulePathIgnorePatterns: [
+    // 本仓库的 tests/ 目录可能在不同 worktree/机器上“存在但未纳入 git”，
+    // 若存在旧的 tests/__mocks__ 会导致 jest-haste-map 报 duplicate manual mock。
+    '<rootDir>/tests/__mocks__/',
     '<rootDir>/data/dist/',
     '<rootDir>/dist/latest/static/vendor/',
     '<rootDir>/public/dist/',
