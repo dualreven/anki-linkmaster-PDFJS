@@ -459,11 +459,11 @@ export class UIManagerCore {
 
     // 销毁UI控件
     if (this.#uiZoomControls) {
-      // UIZoomControls可能没有destroy方法，只需清空引用
+      this.#uiZoomControls.destroy();
       this.#uiZoomControls = null;
     }
     if (this.#uiLayoutControls) {
-      // UILayoutControls可能没有destroy方法，只需清空引用
+      this.#uiLayoutControls.destroy();
       this.#uiLayoutControls = null;
     }
 

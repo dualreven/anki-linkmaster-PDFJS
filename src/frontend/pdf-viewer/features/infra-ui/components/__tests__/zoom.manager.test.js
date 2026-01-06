@@ -1,5 +1,4 @@
 import { ZoomManager } from "../zoom.manager.js";
-import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
 
 describe("ZoomManager", () => {
   let manager;
@@ -47,11 +46,7 @@ describe("ZoomManager", () => {
     manager.zoomIn();
     // Assuming step is 0.1
     expect(manager.store.get().scale).toBeCloseTo(1.1);
-    expect(mockEventBus.emit).toHaveBeenCalledWith(
-      PDF_VIEWER_EVENTS.ZOOM.IN,
-      null,
-      expect.objectContaining({ actorId: "ZoomManager" })
-    );
+    expect(mockEventBus.emit).not.toHaveBeenCalled();
   });
 
   test("should zoom out", () => {
@@ -59,14 +54,10 @@ describe("ZoomManager", () => {
     manager.zoomOut();
     // Assuming step is 0.1
     expect(manager.store.get().scale).toBeCloseTo(0.9);
-    expect(mockEventBus.emit).toHaveBeenCalledWith(
-      PDF_VIEWER_EVENTS.ZOOM.OUT,
-      null,
-      expect.objectContaining({ actorId: "ZoomManager" })
-    );
+    expect(mockEventBus.emit).not.toHaveBeenCalled();
   });
 
-  test("should not emit zoom event if scale doesn't change at boundaries", () => {
+  test("should not change scale at boundaries", () => {
     manager.setScale(3.0);
     mockEventBus.emit.mockClear();
 

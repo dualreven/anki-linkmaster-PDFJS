@@ -2,11 +2,9 @@
  * UILayoutControls（布局控制）
  * 说明（详细）：`docs/standards/ui-layout-controls.md`
  */
-
 import { getLogger } from "../../../../common/utils/logger.js";
 import { showInfo } from "../../../../common/utils/notification.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
-
 export class UILayoutControls {
   #logger;
   #eventBus;
@@ -29,16 +27,15 @@ export class UILayoutControls {
   #scrollStartX = 0;
   #scrollStartY = 0;
   #unsubscribe = null;
-
+  #domCleanupFns = [];
+  #eventBusUnsubs = [];
   constructor(eventBus, layoutManager) {
     this.#eventBus = eventBus;
     this.#layoutManager = layoutManager;
     this.#logger = getLogger("UILayoutControls");
   }
-
   setup(pdfViewerManager) {
     this.#pdfViewerManager = pdfViewerManager;
-
     // 获取DOM元素
     this.#scrollModeSelect = document.getElementById("scroll-mode");
     this.#scrollModeBtn = document.getElementById("scroll-mode-btn");
@@ -50,11 +47,9 @@ export class UILayoutControls {
     this.#rotateCWBtn = document.getElementById("rotate-cw");
     this.#mouseModeBtn = document.getElementById("mouse-mode-btn");
     this.#pdfContainer = document.getElementById("viewerContainer");
-
     // 设置事件监听器
     this.#setupEventListeners();
     this.#setupMouseModeControl();
-
     // 订阅 Manager 状态
     if (this.#layoutManager) {
       this.#unsubscribe = this.#layoutManager.store.subscribe((state, oldState) => {
@@ -72,13 +67,12 @@ export class UILayoutControls {
         }
       }, { fireImmediately: true });
     }
-
     // 监听渲染模式变化（使用事件常量，位于 VIEW_MODE 命名空间）
-    this.#eventBus.on(
+    this.#eventBusUnsubs.push(this.#eventBus.on(
       PDF_VIEWER_EVENTS.VIEW_MODE.RENDER_MODE_CHANGED,
       this.#handleRenderModeChange.bind(this),
       { subscriberId: "UILayoutControls.setup:2" }
-    );
+    ));
 
     this.#logger.info("Layout controls initialized");
   }
@@ -103,114 +97,128 @@ export class UILayoutControls {
         control.disabled = !enabled;
       }
     });
-
     this.#logger.info(`Layout controls ${enabled ? "enabled" : "disabled"}`);
   }
-
   #setupEventListeners() {
     // 滚动模式改变（隐藏select，保持兼容性）
     if (this.#scrollModeSelect) {
-      this.#scrollModeSelect.addEventListener("change", (e) => {
+      const el = this.#scrollModeSelect;
+      const onChange = (e) => {
         const mode = parseInt(e.target.value, 10);
         this.#logger.info(`Changing scroll mode to: ${mode}`);
         if (this.#layoutManager) {
           this.#layoutManager.setScrollMode(mode);
         }
-      });
+      };
+      el.addEventListener("change", onChange);
+      this.#domCleanupFns.push(() => el.removeEventListener("change", onChange));
     }
-
     // 自定义SVG滚动模式按钮
     if (this.#scrollModeBtn && this.#scrollModeDropdown) {
+      const btnEl = this.#scrollModeBtn;
+      const dropdownEl = this.#scrollModeDropdown;
       // 点击按钮切换下拉菜单显示
-      this.#scrollModeBtn.addEventListener("click", (e) => {
+      const onToggleClick = (e) => {
         e.stopPropagation();
-        const isVisible = this.#scrollModeDropdown.style.display === "block";
-        this.#scrollModeDropdown.style.display = isVisible ? "none" : "block";
-      });
-
+        const isVisible = dropdownEl.style.display === "block";
+        dropdownEl.style.display = isVisible ? "none" : "block";
+      };
+      btnEl.addEventListener("click", onToggleClick);
+      this.#domCleanupFns.push(() => btnEl.removeEventListener("click", onToggleClick));
       // 点击下拉菜单选项
-      const dropdownButtons = this.#scrollModeDropdown.querySelectorAll("button[data-value]");
+      const dropdownButtons = dropdownEl.querySelectorAll("button[data-value]");
       dropdownButtons.forEach(btn => {
-        btn.addEventListener("click", (e) => {
+        const onOptionClick = (e) => {
           e.stopPropagation();
           const mode = parseInt(btn.dataset.value, 10);
           if (this.#layoutManager) {
             this.#layoutManager.setScrollMode(mode);
           }
-          this.#scrollModeDropdown.style.display = "none";
-        });
+          dropdownEl.style.display = "none";
+        };
+        btn.addEventListener("click", onOptionClick);
+        this.#domCleanupFns.push(() => btn.removeEventListener("click", onOptionClick));
       });
-
       // 点击外部关闭下拉菜单
-      document.addEventListener("click", (e) => {
-        if (this.#scrollModeDropdown &&
-            this.#scrollModeDropdown.style.display === "block") {
-          this.#scrollModeDropdown.style.display = "none";
+      const onDocumentClick = () => {
+        if (dropdownEl && dropdownEl.style.display === "block") {
+          dropdownEl.style.display = "none";
         }
-      });
+      };
+      document.addEventListener("click", onDocumentClick);
+      this.#domCleanupFns.push(() => document.removeEventListener("click", onDocumentClick));
     }
-
     // 跨页模式改变（隐藏select，保持兼容性）
     if (this.#spreadModeSelect) {
-      this.#spreadModeSelect.addEventListener("change", (e) => {
+      const el = this.#spreadModeSelect;
+      const onChange = (e) => {
         const mode = parseInt(e.target.value, 10);
         this.#logger.info(`Changing spread mode to: ${mode}`);
         if (this.#layoutManager) {
           this.#layoutManager.setSpreadMode(mode);
         }
-      });
+      };
+      el.addEventListener("change", onChange);
+      this.#domCleanupFns.push(() => el.removeEventListener("change", onChange));
     }
-
     // 自定义SVG跨页模式按钮
     if (this.#spreadModeBtn && this.#spreadModeDropdown) {
+      const btnEl = this.#spreadModeBtn;
+      const dropdownEl = this.#spreadModeDropdown;
       // 点击按钮切换下拉菜单显示
-      this.#spreadModeBtn.addEventListener("click", (e) => {
+      const onToggleClick = (e) => {
         e.stopPropagation();
-        const isVisible = this.#spreadModeDropdown.style.display === "block";
-        this.#spreadModeDropdown.style.display = isVisible ? "none" : "block";
-      });
-
+        const isVisible = dropdownEl.style.display === "block";
+        dropdownEl.style.display = isVisible ? "none" : "block";
+      };
+      btnEl.addEventListener("click", onToggleClick);
+      this.#domCleanupFns.push(() => btnEl.removeEventListener("click", onToggleClick));
       // 点击下拉菜单选项
-      const dropdownButtons = this.#spreadModeDropdown.querySelectorAll("button[data-value]");
+      const dropdownButtons = dropdownEl.querySelectorAll("button[data-value]");
       dropdownButtons.forEach(btn => {
-        btn.addEventListener("click", (e) => {
+        const onOptionClick = (e) => {
           e.stopPropagation();
           const mode = parseInt(btn.dataset.value, 10);
           if (this.#layoutManager) {
             this.#layoutManager.setSpreadMode(mode);
           }
-          this.#spreadModeDropdown.style.display = "none";
-        });
+          dropdownEl.style.display = "none";
+        };
+        btn.addEventListener("click", onOptionClick);
+        this.#domCleanupFns.push(() => btn.removeEventListener("click", onOptionClick));
       });
-
       // 点击外部关闭下拉菜单
-      document.addEventListener("click", (e) => {
-        if (this.#spreadModeDropdown &&
-            this.#spreadModeDropdown.style.display === "block") {
-          this.#spreadModeDropdown.style.display = "none";
+      const onDocumentClick = () => {
+        if (dropdownEl && dropdownEl.style.display === "block") {
+          dropdownEl.style.display = "none";
         }
-      });
+      };
+      document.addEventListener("click", onDocumentClick);
+      this.#domCleanupFns.push(() => document.removeEventListener("click", onDocumentClick));
     }
-
     // 逆时针旋转
     if (this.#rotateCCWBtn) {
-      this.#rotateCCWBtn.addEventListener("click", () => {
+      const el = this.#rotateCCWBtn;
+      const onClick = () => {
         if (this.#layoutManager) {
           this.#layoutManager.rotate(-90);
         }
-      });
+      };
+      el.addEventListener("click", onClick);
+      this.#domCleanupFns.push(() => el.removeEventListener("click", onClick));
     }
-
     // 顺时针旋转
     if (this.#rotateCWBtn) {
-      this.#rotateCWBtn.addEventListener("click", () => {
+      const el = this.#rotateCWBtn;
+      const onClick = () => {
         if (this.#layoutManager) {
           this.#layoutManager.rotate(90);
         }
-      });
+      };
+      el.addEventListener("click", onClick);
+      this.#domCleanupFns.push(() => el.removeEventListener("click", onClick));
     }
   }
-
   // Called by Subscription
   #updateScrollMode(mode) {
     this.#logger.info(`Applying scroll mode: ${mode}`);
@@ -223,10 +231,8 @@ export class UILayoutControls {
         this.#logger.info("Scroll mode applied to PDFViewer");
       }
     }
-
     // 更新按钮图标
     this.#updateScrollModeIcon(mode);
-
     // 显示Toast提示
     const modeNames = {
       0: "📄 垂直滚动模式",
@@ -234,19 +240,15 @@ export class UILayoutControls {
       3: "📃 单页模式"
     };
     showInfo(modeNames[mode] || `滚动模式：${mode}`);
-
     // 同步更新隐藏的select（保持兼容性）
     if (this.#scrollModeSelect && parseInt(this.#scrollModeSelect.value, 10) !== mode) {
       this.#scrollModeSelect.value = mode;
     }
   }
-
   #updateScrollModeIcon(mode) {
     if (!this.#scrollModeBtn) {return;}
-
     const iconSVG = this.#scrollModeBtn.querySelector(".scroll-icon");
     if (!iconSVG) {return;}
-
     if (mode === 0) {
       // 垂直滚动
       iconSVG.innerHTML = "<rect x=\"4\" y=\"1\" width=\"10\" height=\"4\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/><rect x=\"4\" y=\"7\" width=\"10\" height=\"4\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/><rect x=\"4\" y=\"13\" width=\"10\" height=\"4\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/>";
@@ -258,11 +260,9 @@ export class UILayoutControls {
       iconSVG.innerHTML = "<rect x=\"3\" y=\"1\" width=\"12\" height=\"16\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/>";
     }
   }
-
   // Called by Subscription
   #updateSpreadMode(mode) {
     this.#logger.info(`Applying spread mode: ${mode}`);
-
     // Update PDFViewer
     if (this.#pdfViewerManager && this.#pdfViewerManager.viewer) {
       if (this.#pdfViewerManager.spreadMode !== mode) {
@@ -271,29 +271,23 @@ export class UILayoutControls {
         this.#logger.info("Spread mode applied to PDFViewer");
       }
     }
-
     // 更新按钮图标
     this.#updateSpreadModeIcon(mode);
-
     // 显示Toast提示
     const modeNames = {
       0: "📄 单页模式",
       2: "📖 偶数双页"
     };
     showInfo(modeNames[mode] || `跨页模式：${mode}`);
-
     // 同步更新隐藏的select（保持兼容性）
     if (this.#spreadModeSelect && parseInt(this.#spreadModeSelect.value, 10) !== mode) {
       this.#spreadModeSelect.value = mode;
     }
   }
-
   #updateSpreadModeIcon(mode) {
     if (!this.#spreadModeBtn) {return;}
-
     const iconSVG = this.#spreadModeBtn.querySelector(".spread-icon");
     if (!iconSVG) {return;}
-
     if (mode === 0) {
       // 单页图标
       iconSVG.innerHTML = "<rect x=\"5\" y=\"2\" width=\"8\" height=\"14\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/>";
@@ -302,11 +296,9 @@ export class UILayoutControls {
       iconSVG.innerHTML = "<rect x=\"1\" y=\"2\" width=\"7\" height=\"14\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/><rect x=\"10\" y=\"2\" width=\"7\" height=\"14\" stroke=\"currentColor\" stroke-width=\"1.5\" fill=\"none\"/>";
     }
   }
-
   // Called by Subscription
   #updateRotation(rotation) {
     this.#logger.info(`Applying rotation: ${rotation}`);
-
     if (this.#pdfViewerManager && this.#pdfViewerManager.viewer) {
       if (this.#pdfViewerManager.pagesRotation !== rotation) {
         this.#pdfViewerManager.pagesRotation = rotation;
@@ -315,30 +307,28 @@ export class UILayoutControls {
       }
     }
   }
-
   #setupMouseModeControl() {
     if (!this.#mouseModeBtn) {
       this.#logger.warn("Mouse mode button not found");
       return;
     }
-
     // 点击按钮切换模式 -> Manager
-    this.#mouseModeBtn.addEventListener("click", () => {
+    const el = this.#mouseModeBtn;
+    const onClick = () => {
       if (this.#layoutManager) {
         this.#layoutManager.toggleMouseMode();
       }
-    });
-
+    };
+    el.addEventListener("click", onClick);
+    this.#domCleanupFns.push(() => el.removeEventListener("click", onClick));
     this.#logger.info("Mouse mode control setup complete");
   }
-
   // Called by Subscription
   #updateMouseMode(mode) {
     if (!this.#pdfContainer) {
       this.#logger.warn("PDF container not found");
       return;
     }
-
     // 更新CSS类名
     if (mode === "drag") {
       this.#pdfContainer.classList.remove("text-mode");
@@ -461,6 +451,14 @@ export class UILayoutControls {
   }
 
   destroy() {
+    // 清理 EventBus 订阅（避免 destroy 后幽灵行为）
+    this.#eventBusUnsubs.forEach((unsub) => unsub());
+    this.#eventBusUnsubs = [];
+
+    // 清理 DOM listener（必须在置空 DOM 引用前执行）
+    this.#domCleanupFns.forEach((fn) => fn());
+    this.#domCleanupFns = [];
+
     // Unsubscribe
     if (this.#unsubscribe) {
       this.#unsubscribe();

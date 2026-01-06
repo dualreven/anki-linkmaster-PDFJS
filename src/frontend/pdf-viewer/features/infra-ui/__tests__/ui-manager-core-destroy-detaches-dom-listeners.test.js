@@ -24,12 +24,14 @@ jest.mock("../components/ui-zoom-controls.js", () => ({
     async setupZoomControls() {}
     setScale() {}
     updatePageInfo() {}
+    destroy() {}
   }
 }));
 
 jest.mock("../components/ui-layout-controls.js", () => ({
   UILayoutControls: class {
     setup() {}
+    destroy() {}
   }
 }));
 
@@ -113,4 +115,3 @@ describe("UIManagerCore.destroy()", () => {
     }
   });
 });
-

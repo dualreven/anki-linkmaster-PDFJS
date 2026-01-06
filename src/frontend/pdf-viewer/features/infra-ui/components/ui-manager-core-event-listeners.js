@@ -29,7 +29,7 @@ export function installUIManagerCoreEventListeners(ctx) {
     PDF_VIEWER_EVENTS.ZOOM.CHANGED,
     (data) => {
       if (zoomManager && typeof data.scale === "number") {
-        zoomManager.setScale(data.scale);
+        zoomManager.applyEngineScale(data.scale);
       }
 
       // Fallback: 从文件名回填 pdfId（仅当 URL 尚未提供时）

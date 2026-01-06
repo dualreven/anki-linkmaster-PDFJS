@@ -21,9 +21,17 @@ export class UIZoomControls {
   #pageInfoDisplay = null;
   #prevPageBtn = null;
   #nextPageBtn = null;
+  #pageInput = null;
   // #currentScale = 1.0; // Removed: State moved to ZoomManager
   #currentPage = 1;
   #unsubscribeZoom = null; // Cleanup for subscription
+  #onZoomInClick = null;
+  #onZoomOutClick = null;
+  #onPrevPageClick = null;
+  #onNextPageClick = null;
+  #onPageInputKeydown = null;
+  #onPageInputBlur = null;
+  #onPageInputChange = null;
 
   constructor(eventBus, zoomManager) {
     this.#eventBus = eventBus;
@@ -54,27 +62,15 @@ export class UIZoomControls {
         throw new Error("Zoom control elements not found");
       }
 
-      // 设置缩放按钮事件 - 使用 Manager
-      this.#zoomInBtn.addEventListener("click", () => {
-        if (this.#zoomManager) {
-          this.#zoomManager.zoomIn();
-        } else {
-          // Fallback if no manager (should not happen in new architecture)
-          this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.IN, null, {
-            actorId: "UIZoomControls"
-          });
-        }
+      // 设置缩放按钮事件 - 命令统一走 EventBus
+      this.#onZoomInClick = this.#onZoomInClick || (() => {
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.IN, null, { actorId: "UIZoomControls" });
       });
-
-      this.#zoomOutBtn.addEventListener("click", () => {
-        if (this.#zoomManager) {
-          this.#zoomManager.zoomOut();
-        } else {
-          this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.OUT, null, {
-            actorId: "UIZoomControls"
-          });
-        }
+      this.#onZoomOutClick = this.#onZoomOutClick || (() => {
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.OUT, null, { actorId: "UIZoomControls" });
       });
+      this.#zoomInBtn.addEventListener("click", this.#onZoomInClick);
+      this.#zoomOutBtn.addEventListener("click", this.#onZoomOutClick);
 
       // 订阅 Manager 状态变化
       if (this.#zoomManager) {
@@ -91,37 +87,34 @@ export class UIZoomControls {
       }
 
       // 设置页面导航按钮事件 (保持 EventBus，暂不迁移 Navigation)
-      this.#prevPageBtn.addEventListener("click", () => {
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.PREVIOUS, null, {
-          actorId: "UIZoomControls"
-        });
+      this.#onPrevPageClick = this.#onPrevPageClick || (() => {
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.PREVIOUS, null, { actorId: "UIZoomControls" });
       });
-
-      this.#nextPageBtn.addEventListener("click", () => {
-        this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.NEXT, null, {
-          actorId: "UIZoomControls"
-        });
+      this.#onNextPageClick = this.#onNextPageClick || (() => {
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.NAVIGATION.NEXT, null, { actorId: "UIZoomControls" });
       });
+      this.#prevPageBtn.addEventListener("click", this.#onPrevPageClick);
+      this.#nextPageBtn.addEventListener("click", this.#onNextPageClick);
 
       // 设置页码输入框事件
-      const pageInput = document.getElementById("page-input");
-      if (pageInput) {
-        // 监听Enter键和失焦事件
-        pageInput.addEventListener("keydown", (e) => {
+      this.#pageInput = document.getElementById("page-input");
+      if (this.#pageInput) {
+        this.#onPageInputKeydown = this.#onPageInputKeydown || ((e) => {
           if (e.key === "Enter") {
             e.preventDefault();
-            this.#handlePageInputChange(pageInput);
+            this.#handlePageInputChange(this.#pageInput);
           }
         });
-
-        pageInput.addEventListener("blur", () => {
-          this.#handlePageInputChange(pageInput);
+        this.#onPageInputBlur = this.#onPageInputBlur || (() => {
+          this.#handlePageInputChange(this.#pageInput);
+        });
+        this.#onPageInputChange = this.#onPageInputChange || (() => {
+          this.#handlePageInputChange(this.#pageInput);
         });
 
-        // 监听input事件实现实时跳转（可选）
-        pageInput.addEventListener("change", () => {
-          this.#handlePageInputChange(pageInput);
-        });
+        this.#pageInput.addEventListener("keydown", this.#onPageInputKeydown);
+        this.#pageInput.addEventListener("blur", this.#onPageInputBlur);
+        this.#pageInput.addEventListener("change", this.#onPageInputChange);
       }
 
       // 初始更新显示 (Handled by subscribe fireImmediately)
@@ -265,17 +258,8 @@ export class UIZoomControls {
    * @param {HTMLCanvasElement} canvas - Canvas元素（可选，用于动画）
    */
   setScale(scale, canvas = null) {
-    if (this.#zoomManager) {
-      this.#zoomManager.setScale(scale);
-    }
-    // Legacy fallback or just UI effect
-    // this.#currentScale is removed, but we might need to trigger animation manually
-    // The subscription will update the display.
-
-    // this.#currentScale = Math.max(0.5, Math.min(3.0, scale)); // 限制缩放范围
-    // this.#updateZoomDisplay();
-
-    // We still want animation
+    // 注意：缩放命令应统一走 EventBus（PDF_VIEWER_EVENTS.ZOOM.*），避免状态双通道。
+    // 此方法仅保留动画/日志（兼容旧调用点）。
     if (canvas) {
       this.applyZoomAnimation(canvas);
     }
@@ -316,17 +300,29 @@ export class UIZoomControls {
     }
 
     // 移除事件监听器
-    if (this.#zoomInBtn) {
-      this.#zoomInBtn.removeEventListener("click", () => {});
+    if (this.#zoomInBtn && this.#onZoomInClick) {
+      this.#zoomInBtn.removeEventListener("click", this.#onZoomInClick);
     }
-    if (this.#zoomOutBtn) {
-      this.#zoomOutBtn.removeEventListener("click", () => {});
+    if (this.#zoomOutBtn && this.#onZoomOutClick) {
+      this.#zoomOutBtn.removeEventListener("click", this.#onZoomOutClick);
     }
-    if (this.#prevPageBtn) {
-      this.#prevPageBtn.removeEventListener("click", () => {});
+    if (this.#prevPageBtn && this.#onPrevPageClick) {
+      this.#prevPageBtn.removeEventListener("click", this.#onPrevPageClick);
     }
-    if (this.#nextPageBtn) {
-      this.#nextPageBtn.removeEventListener("click", () => {});
+    if (this.#nextPageBtn && this.#onNextPageClick) {
+      this.#nextPageBtn.removeEventListener("click", this.#onNextPageClick);
+    }
+
+    if (this.#pageInput) {
+      if (this.#onPageInputKeydown) {
+        this.#pageInput.removeEventListener("keydown", this.#onPageInputKeydown);
+      }
+      if (this.#onPageInputBlur) {
+        this.#pageInput.removeEventListener("blur", this.#onPageInputBlur);
+      }
+      if (this.#onPageInputChange) {
+        this.#pageInput.removeEventListener("change", this.#onPageInputChange);
+      }
     }
 
     this.#zoomInBtn = null;
@@ -335,5 +331,13 @@ export class UIZoomControls {
     this.#pageInfoDisplay = null;
     this.#prevPageBtn = null;
     this.#nextPageBtn = null;
+    this.#pageInput = null;
+    this.#onZoomInClick = null;
+    this.#onZoomOutClick = null;
+    this.#onPrevPageClick = null;
+    this.#onNextPageClick = null;
+    this.#onPageInputKeydown = null;
+    this.#onPageInputBlur = null;
+    this.#onPageInputChange = null;
   }
 }

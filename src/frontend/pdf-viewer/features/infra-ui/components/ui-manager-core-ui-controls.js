@@ -4,44 +4,77 @@ import { UILayoutControls } from "./ui-layout-controls.js";
 // No longer importing Managers here, they are injected
 
 function installZoomIntegration(ctx) {
-  const { eventBus, logger, pdfViewerManager } = ctx;
+  const { eventBus, logger, pdfViewerManager, zoomManager } = ctx;
 
   if (!pdfViewerManager) {
     logger.warn("PDFViewerManager not available, zoom integration disabled");
     return [];
   }
 
+  if (!zoomManager) {
+    logger.warn("ZoomManager not available, zoom integration disabled");
+    return [];
+  }
+
   const unsubs = [];
 
-  // Legacy EventBus handlers for "Actions" (command pattern)
+  // Command: EventBus -> ZoomManager(store)
   unsubs.push(eventBus.on(PDF_VIEWER_EVENTS.ZOOM.IN, (data) => {
-    const delta = data?.delta || 0.25;
-    const newScale = Math.min((pdfViewerManager.currentScale || 1.0) + delta, 5.0);
-    pdfViewerManager.currentScale = newScale;
-    logger.info(`Zoom in: ${newScale.toFixed(2)}`);
+    const delta = typeof data?.delta === "number" ? data.delta : zoomManager.store.get().step;
+    zoomManager.zoomIn(delta);
   }, { subscriberId: "UIManagerCore.ZoomIn" }));
 
   unsubs.push(eventBus.on(PDF_VIEWER_EVENTS.ZOOM.OUT, (data) => {
-    const delta = data?.delta || 0.25;
-    const newScale = Math.max((pdfViewerManager.currentScale || 1.0) - delta, 0.25);
-    pdfViewerManager.currentScale = newScale;
-    logger.info(`Zoom out: ${newScale.toFixed(2)}`);
+    const delta = typeof data?.delta === "number" ? data.delta : zoomManager.store.get().step;
+    zoomManager.zoomOut(delta);
   }, { subscriberId: "UIManagerCore.ZoomOut" }));
 
   unsubs.push(eventBus.on(PDF_VIEWER_EVENTS.ZOOM.ACTUAL_SIZE, () => {
-    pdfViewerManager.currentScale = 1.0;
-    logger.info("Zoom reset to actual size (100%)");
+    zoomManager.actualSize();
   }, { subscriberId: "UIManagerCore.ZoomActualSize" }));
 
   unsubs.push(eventBus.on(PDF_VIEWER_EVENTS.ZOOM.FIT_WIDTH, () => {
-    pdfViewerManager.currentScaleValue = "page-width";
-    logger.info("Zoom to fit width");
+    zoomManager.fitWidth();
   }, { subscriberId: "UIManagerCore.ZoomFitWidth" }));
 
   unsubs.push(eventBus.on(PDF_VIEWER_EVENTS.ZOOM.FIT_HEIGHT, () => {
-    pdfViewerManager.currentScaleValue = "page-height";
-    logger.info("Zoom to fit height");
+    zoomManager.fitHeight();
   }, { subscriberId: "UIManagerCore.ZoomFitHeight" }));
+
+  // State: ZoomManager(store) -> PDFViewerManager(engine)
+  let lastAppliedMode = null;
+  let lastAppliedScale = null;
+  unsubs.push(zoomManager.store.subscribe((state, oldState) => {
+    if (!oldState) {
+      lastAppliedMode = null;
+      lastAppliedScale = null;
+    }
+
+    if (state.mode === "custom") {
+      if (state.scale !== lastAppliedScale || lastAppliedMode !== "custom") {
+        pdfViewerManager.currentScale = state.scale;
+        lastAppliedMode = "custom";
+        lastAppliedScale = state.scale;
+      }
+      return;
+    }
+
+    if (state.mode === "page-width") {
+      if (lastAppliedMode !== "page-width") {
+        pdfViewerManager.currentScaleValue = "page-width";
+        lastAppliedMode = "page-width";
+      }
+      return;
+    }
+
+    if (state.mode === "page-height") {
+      if (lastAppliedMode !== "page-height") {
+        pdfViewerManager.currentScaleValue = "page-height";
+        lastAppliedMode = "page-height";
+      }
+      return;
+    }
+  }, { fireImmediately: true }));
 
   unsubs.push(eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.PREVIOUS, () => {
     const currentPage = pdfViewerManager.currentPageNumber;
@@ -105,12 +138,14 @@ export async function initializeUIManagerControls(ctx) {
   }
 
   // Install handlers that bridge Events -> PDFViewerManager
-  unsubs.push(...installZoomIntegration({ eventBus, logger, pdfViewerManager }));
+  unsubs.push(...installZoomIntegration({ eventBus, logger, pdfViewerManager, zoomManager }));
 
-  // Interop: When PDF Engine changes scale (e.g. successful zoom or pinch), sync to Manager
+  // Interop: When PDF Engine changes scale (e.g. pinch), sync to store（不改变 mode）
   if (zoomManager) {
     unsubs.push(eventBus.on(PDF_VIEWER_EVENTS.ZOOM.CHANGING, ({ scale }) => {
-      zoomManager.setScale(scale);
+      if (typeof scale === "number") {
+        zoomManager.applyEngineScale(scale);
+      }
     }, { subscriberId: "UIManagerCore.SyncZoomState" }));
   }
 

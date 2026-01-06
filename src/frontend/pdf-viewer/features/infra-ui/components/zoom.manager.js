@@ -1,13 +1,11 @@
 import { ObservableState } from "../../../../common/utils/observable.js";
-import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 
 /**
  * Manages Zoom State logic.
- * Bridges new Observable state with legacy EventBus events.
+ * 单一真源：仅维护 store（命令由外层通过 EventBus 进入）。
  */
 export class ZoomManager {
-  constructor(eventBus, logger) {
-    this.eventBus = eventBus;
+  constructor(_eventBus, logger) {
     this.logger = logger;
 
     // Define State
@@ -15,7 +13,8 @@ export class ZoomManager {
       scale: 1.0,
       minScale: 0.5,
       maxScale: 3.0,
-      step: 0.1
+      step: 0.1,
+      mode: "custom", // custom | page-width | page-height
     }, {
       name: "ZoomStore",
       logger: this.logger
@@ -23,9 +22,10 @@ export class ZoomManager {
   }
 
   /**
-     * Set explicit scale value (clamped to bounds)
-     * @param {number} newScale
-     */
+   * Set explicit numeric scale value (clamped to bounds).
+   * 语义：进入 custom 模式（不使用 fit-*）。
+   * @param {number} newScale
+   */
   setScale(newScale) {
     const { minScale, maxScale } = this.store.get();
     const clamped = Math.max(minScale, Math.min(maxScale, newScale));
@@ -33,46 +33,78 @@ export class ZoomManager {
     // Round to 2 decimal places to avoid float precision issues
     const rounded = Math.round(clamped * 100) / 100;
 
-    if (rounded !== this.store.get().scale) {
-      this.store.set({ scale: rounded });
+    const cur = this.store.get();
+    if (rounded !== cur.scale || cur.mode !== "custom") {
+      this.store.set({ scale: rounded, mode: "custom" });
       this.logger.debug(`[ZoomManager] Scale updated to ${rounded}`);
     }
   }
 
   /**
-     * Increase zoom level
-     */
-  zoomIn() {
-    const { scale, step, maxScale } = this.store.get();
-    if (scale >= maxScale) {return;}
+   * Sync engine scale into store (preserve mode).
+   * @param {number} newScale
+   */
+  applyEngineScale(newScale) {
+    const { minScale, maxScale } = this.store.get();
+    const clamped = Math.max(minScale, Math.min(maxScale, newScale));
+    const rounded = Math.round(clamped * 100) / 100;
 
-    const next = scale + step;
-    this.setScale(next);
-
-    // Interop: Emit legacy event so PDF Renderer knows to update
-    if (this.store.get().scale > scale) {
-      this.eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.IN, null, {
-        actorId: "ZoomManager"
-      });
+    const cur = this.store.get();
+    if (rounded !== cur.scale) {
+      this.store.set({ scale: rounded });
+      this.logger.debug(`[ZoomManager] Engine scale synced to ${rounded}`);
     }
   }
 
   /**
-     * Decrease zoom level
-     */
-  zoomOut() {
+   * Set fit width mode (page-width).
+   */
+  fitWidth() {
+    const cur = this.store.get();
+    if (cur.mode !== "page-width") {
+      this.store.set({ mode: "page-width" });
+    }
+  }
+
+  /**
+   * Set fit height mode (page-height).
+   */
+  fitHeight() {
+    const cur = this.store.get();
+    if (cur.mode !== "page-height") {
+      this.store.set({ mode: "page-height" });
+    }
+  }
+
+  /**
+   * Reset to actual size.
+   */
+  actualSize() {
+    this.setScale(1.0);
+  }
+
+  /**
+   * Increase zoom level.
+   * @param {number} [delta]
+   */
+  zoomIn(delta) {
+    const { scale, step, maxScale } = this.store.get();
+    if (scale >= maxScale) {return;}
+
+    const d = typeof delta === "number" ? delta : step;
+    this.setScale(scale + d);
+  }
+
+  /**
+   * Decrease zoom level.
+   * @param {number} [delta]
+   */
+  zoomOut(delta) {
     const { scale, step, minScale } = this.store.get();
     if (scale <= minScale) {return;}
 
-    const next = scale - step;
-    this.setScale(next);
-
-    // Interop: Emit legacy event
-    if (this.store.get().scale < scale) {
-      this.eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.OUT, null, {
-        actorId: "ZoomManager"
-      });
-    }
+    const d = typeof delta === "number" ? delta : step;
+    this.setScale(scale - d);
   }
 
   destroy() {
