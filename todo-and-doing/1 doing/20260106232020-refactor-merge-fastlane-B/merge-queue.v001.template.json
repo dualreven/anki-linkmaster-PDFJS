@@ -1,0 +1,13 @@
+{
+  "baseBranch": "main",
+  "integrationBranch": "integration/fastlane-YYYYMMDDhhmmss",
+  "commits": [
+    "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+  ],
+  "testPaths": [
+    "src/frontend/pdf-viewer/features/infra-ui/components/__tests__/ui-zoom-controls.destroy.test.js"
+  ],
+  "reportPath": "AItemp/reports/YYYYMMDDhhmmss-merge-fastlane-report.md",
+  "notes": "DoD: commits + lint + tests 通过；不触碰跨模块契约"
+}
+
