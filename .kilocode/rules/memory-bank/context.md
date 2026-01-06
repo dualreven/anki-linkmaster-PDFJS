@@ -18,6 +18,10 @@
 - **动机**：减少 `todo-and-doing/1 doing/` 干扰，避免误把历史任务当“当前进行”。
 - **操作**：将旧的 9 个 doing 任务整体移动到 `todo-and-doing/4 archive/20260106-doing-cleanup/`；`1 doing` 仅保留本轮 4 个并行任务目录（A/B/C/D）。
 
+## 2026-01-06 todo-and-doing 深度清理（仅归档，不删历史）
+- **动机**：降低 AI/人类打开目录时的噪音；只保留“当前并行任务入口 + 模板 + README”。
+- **操作**：将 `todo-and-doing/2 todo/`、`todo-and-doing/3 done/`、`todo-and-doing/4 done/` 以及 `todo-and-doing/1 doing/` 内旧 `.md` 与根目录散落文件统一迁移到 `todo-and-doing/4 archive/20260106-todo-and-doing-cleanup/`。
+
 ## 2026-01-06（已修复）Jest 在部分 worktree 直接无法启动
 - **现象**：`worker/refactor-C` 运行 `pnpm exec jest ...` 报 `Could not locate module ... mapped as ...tests\\__mocks__\\logger.js`。
 - **根因**：`jest.config.js` 的 `moduleNameMapper` 指向 `<rootDir>/tests/__mocks__/*`，但 `.gitignore` 忽略 `tests/`，导致不同 worktree 可能缺失该目录与文件。
