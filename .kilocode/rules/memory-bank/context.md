@@ -14,6 +14,10 @@
 - **策略**：A/B/C/D 历史工作区视为过时，全部丢弃；以 `main` 为唯一真源重新派生并行槽位。
 - **结果**：重建 worktree 与分支 `worker/refactor-{A|B|C|D}`，四个 worktree 均指向 `foundation-20260106014352` 基线。
 
+## 2026-01-06 todo-and-doing 清理（仅归档，不删历史）
+- **动机**：减少 `todo-and-doing/1 doing/` 干扰，避免误把历史任务当“当前进行”。
+- **操作**：将旧的 9 个 doing 任务整体移动到 `todo-and-doing/4 archive/20260106-doing-cleanup/`；`1 doing` 仅保留本轮 4 个并行任务目录（A/B/C/D）。
+
 ## 2026-01-05 前端架构重构：Observable Pattern 落地 (完成)
 - **基建**：`observable.js` + `observable.test.js` (100% pass).
 - **Core 迁移**：`ZoomManager`, `LayoutManager`, `ViewerManager` (Completed).
