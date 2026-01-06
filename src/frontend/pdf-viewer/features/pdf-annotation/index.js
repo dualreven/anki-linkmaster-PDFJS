@@ -310,7 +310,7 @@ export class AnnotationFeature {
   }
 
   #setupAutoLoadOnFileLoad() {
-    setupAnnotationAutoLoadOnFileLoad({
+    const offs = setupAnnotationAutoLoadOnFileLoad({
       eventBus: this.#eventBus,
       logger: this.#logger,
       annotationManager: this.#annotationManager,
@@ -320,6 +320,15 @@ export class AnnotationFeature {
       getHasLoadedOnce: () => this.#hasLoadedOnce,
       setHasLoadedOnce: (v) => { this.#hasLoadedOnce = v; },
     });
+    if (!Array.isArray(offs)) {
+      throw new Error("[AnnotationFeature] setupAnnotationAutoLoadOnFileLoad must return unsubs[]");
+    }
+    for (const off of offs) {
+      if (typeof off !== "function") {
+        throw new Error("[AnnotationFeature] invalid unsubscribe returned from setupAnnotationAutoLoadOnFileLoad");
+      }
+      this.#unsubs.push(off);
+    }
   }
 
   #ensureAllOverlays() {

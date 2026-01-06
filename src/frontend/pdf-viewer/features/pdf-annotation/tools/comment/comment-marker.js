@@ -30,7 +30,7 @@ export class CommentMarker {
    * @param {string} annotation.id - 标注ID
    * @param {number} annotation.pageNumber - 页码
    * @param {Object} annotation.data - 批注数据
-   * @param {Object} annotation.data.position - 位置信息 {x, y}
+   * @param {Object} annotation.data.position - 位置信息 {x, y}（兼容：可为百分比[0..100]或像素）
    * @param {string} annotation.data.content - 批注内容
    * @returns {HTMLElement} 标记元素
    */
@@ -51,8 +51,17 @@ export class CommentMarker {
         marker.dataset.xPercent = String(positionPercent.xPercent);
         marker.dataset.yPercent = String(positionPercent.yPercent);
       } else if (position && typeof position.x === "number" && typeof position.y === "number") {
-        marker.dataset.x = String(position.x);
-        marker.dataset.y = String(position.y);
+        // 兼容语义：
+        // - 若 position 位于 [0,100]，视为“百分比坐标”（与后端 comment 校验字段一致，跨缩放更稳定）
+        // - 否则视为“像素坐标”，渲染时按当前页尺寸换算为百分比
+        const looksLikePercent = position.x >= 0 && position.x <= 100 && position.y >= 0 && position.y <= 100;
+        if (looksLikePercent) {
+          marker.dataset.xPercent = String(position.x);
+          marker.dataset.yPercent = String(position.y);
+        } else {
+          marker.dataset.x = String(position.x);
+          marker.dataset.y = String(position.y);
+        }
       }
     } catch (e) {
       void e; /* logger-guard */

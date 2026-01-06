@@ -19,6 +19,16 @@ export function setupAnnotationAutoLoadOnFileLoad({
     throw new Error("[AnnotationFeature] setupAnnotationAutoLoadOnFileLoad: logger is required");
   }
 
+  const unsubs = [];
+  const onGlobal = (event, handler, options) => {
+    const off = eventBus.onGlobal(event, handler, options);
+    if (typeof off !== "function") {
+      throw new Error(`[AnnotationFeature] setupAnnotationAutoLoadOnFileLoad: onGlobal must return unsubscribe for ${String(event)}`);
+    }
+    unsubs.push(off);
+    return off;
+  };
+
   const isResumeDone = (pdfId) => {
     const st = getWsGateEventStatus(PDF_VIEWER_EVENTS.RESUME.FLOW.DONE);
     return Boolean(st?.fired && st.lastPayload?.pdfId === pdfId);
@@ -33,7 +43,7 @@ export function setupAnnotationAutoLoadOnFileLoad({
     eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOAD, { pdfId }, { actorId: "AnnotationFeature" });
   };
 
-  eventBus.onGlobal(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, (data) => {
+  onGlobal(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, (data) => {
     try {
       const pdfId = typeof data?.pdfId === "string" ? data.pdfId.trim() : "";
       if (!pdfId) {
@@ -57,7 +67,7 @@ export function setupAnnotationAutoLoadOnFileLoad({
     }
   }, { subscriberId: "AnnotationFeature" });
 
-  eventBus.onGlobal(PDF_VIEWER_EVENTS.RESUME.FLOW.DONE, (data) => {
+  onGlobal(PDF_VIEWER_EVENTS.RESUME.FLOW.DONE, (data) => {
     try {
       const pdfId = typeof data?.pdfId === "string" ? data.pdfId.trim() : "";
       if (!pdfId) {
@@ -78,7 +88,7 @@ export function setupAnnotationAutoLoadOnFileLoad({
     }
   }, { subscriberId: "AnnotationFeature" });
 
-  eventBus.onGlobal(WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED, () => {
+  onGlobal(WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED, () => {
     try {
       const pdfId = getCurrentPdfId();
       if (pdfId && isResumeDone(pdfId)) { tryLoad(pdfId, "ws-established"); }
@@ -87,7 +97,7 @@ export function setupAnnotationAutoLoadOnFileLoad({
     }
   }, { subscriberId: "AnnotationFeature" });
 
-  eventBus.onGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPENED_COMPLETED, (data) => {
+  onGlobal(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.OPENED_COMPLETED, (data) => {
     try {
       const pdfId = getCurrentPdfId();
       if (data?.sidebarId === "annotation" && pdfId) {
@@ -106,4 +116,6 @@ export function setupAnnotationAutoLoadOnFileLoad({
   } catch (e) {
     logger.warn("[AnnotationFeature] resume-history autoload failed", e);
   }
+
+  return unsubs;
 }

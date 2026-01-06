@@ -130,12 +130,20 @@ export function renderCommentMarkerForAnnotation({
       typeof data.positionPercent.yPercent === "number";
     const hasPixel = data?.position && typeof data.position.x === "number" && typeof data.position.y === "number";
     if (!hasPercent && hasPixel) {
-      const w = pageElement.clientWidth || pageElement.offsetWidth || 1;
-      const h = pageElement.clientHeight || pageElement.offsetHeight || 1;
-      const xp = Math.max(0, Math.min(100, (data.position.x / Math.max(1, w)) * 100));
-      const yp = Math.max(0, Math.min(100, (data.position.y / Math.max(1, h)) * 100));
-      annotation.data.positionPercent = { xPercent: xp, yPercent: yp };
-      logger.debug(`  ↻ position→percent: (${data.position.x},${data.position.y}) → (${xp.toFixed(2)}%,${yp.toFixed(2)}%)`);
+      const x = data.position.x;
+      const y = data.position.y;
+      const looksLikePercent = x >= 0 && x <= 100 && y >= 0 && y <= 100;
+      if (looksLikePercent) {
+        annotation.data.positionPercent = { xPercent: x, yPercent: y };
+        logger.debug(`  ↻ position(as-percent) → positionPercent: (${x.toFixed(2)}%,${y.toFixed(2)}%)`);
+      } else {
+        const w = pageElement.clientWidth || pageElement.offsetWidth || 1;
+        const h = pageElement.clientHeight || pageElement.offsetHeight || 1;
+        const xp = Math.max(0, Math.min(100, (x / Math.max(1, w)) * 100));
+        const yp = Math.max(0, Math.min(100, (y / Math.max(1, h)) * 100));
+        annotation.data.positionPercent = { xPercent: xp, yPercent: yp };
+        logger.debug(`  ↻ position(px)→percent: (${x},${y}) → (${xp.toFixed(2)}%,${yp.toFixed(2)}%)`);
+      }
     }
   } catch (e) {
     void e; /* logger-guard */
@@ -155,4 +163,3 @@ export function renderCommentMarkerForAnnotation({
 
   logger.info(`  ✅ Marker successfully rendered for annotation ${annotation.id} on page ${annotation.pageNumber}`);
 }
-

@@ -21,7 +21,6 @@ import {
   handleCommentToolPdfClick,
 } from "./comment-tool-interactions.js";
 import { createCommentToolButton } from "./comment-tool-button.js";
-import { Annotation } from "../../../../../common/models/annotation.js";
 import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
 import {
   ensureOverlayOrQueue,
@@ -29,6 +28,7 @@ import {
   renderCommentMarkerForAnnotation,
   restoreMarkersForPage,
 } from "./comment-tool-marker-restoration.js";
+import { createCommentAnnotation } from "./comment-annotation-factory.js";
 
 /**
  * 批注工具类
@@ -231,8 +231,8 @@ export class CommentTool extends IAnnotationTool {
     const xPercent = Math.max(0, Math.min(100, (x / (pageWidth || 1)) * 100));
     const yPercent = Math.max(0, Math.min(100, (y / (pageHeight || 1)) * 100));
 
-    // 创建标注对象（使用静态工厂方法，传入百分比坐标）
-    const annotation = Annotation.createComment(pageNumber, { xPercent, yPercent }, content);
+    // 创建标注对象（同时包含 positionPercent + position，满足后端校验）
+    const annotation = createCommentAnnotation({ pageNumber, xPercent, yPercent, content });
 
     // 发布创建事件（标记渲染会在annotation:create:success事件中统一处理）
     this.#eventBus.emit(
