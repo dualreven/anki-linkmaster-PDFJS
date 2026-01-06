@@ -26,7 +26,7 @@ def _ensure_within(base: Path, candidate: Path) -> bool:
 def resolve_path(
     url_path: str,
     *,
-    static_root: Path,
+    static_root: Optional[Path],
     pdfs_root: Optional[Path],
     root_dir: Path,
     mounts: Optional[Dict[str, Path]] = None,
@@ -51,24 +51,35 @@ def resolve_path(
 
     # 准备挂载点副本
     m: Dict[str, Path] = dict(mounts or {})
-    # /static
-    try:
-        if static_root and Path(static_root).exists():
-            m.setdefault("/static", Path(static_root))
-    except Exception:
-        pass
 
-    # 推断 pdf-home/pdf-viewer 基础目录（若存在）
-    try:
-        home_base = (static_root / "pdf-home")
-        viewer_a = static_root / "src" / "frontend" / "pdf-viewer"
-        viewer_b = static_root / "pdf-viewer"
-        viewer_base = viewer_a if viewer_a.exists() else viewer_b
-    except Exception:
-        home_base = static_root
-        viewer_base = static_root
-    m.setdefault("/pdf-home", home_base)
-    m.setdefault("/pdf-viewer", viewer_base)
+    # /static、/pdf-home、/pdf-viewer 默认仅在提供 static_root 时启用
+    if static_root is not None:
+        try:
+            if Path(static_root).exists():
+                m.setdefault("/static", Path(static_root))
+        except Exception:
+            pass
+
+        # 推断 pdf-home/pdf-viewer 基础目录（若存在）
+        try:
+            home_base = (static_root / "pdf-home")
+            viewer_a = static_root / "src" / "frontend" / "pdf-viewer"
+            viewer_b = static_root / "pdf-viewer"
+            viewer_base = viewer_a if viewer_a.exists() else viewer_b
+        except Exception:
+            home_base = static_root
+            viewer_base = static_root
+        m.setdefault("/pdf-home", home_base)
+        m.setdefault("/pdf-viewer", viewer_base)
+
+    # 若未提供 static_root 且未显式挂载，则禁止将 /static /pdf-home /pdf-viewer 路由落到默认 root_dir（避免误暴露）
+    if static_root is None:
+        if (url_path == "/static" or url_path.startswith("/static/")) and "/static" not in m:
+            return None
+        if (url_path == "/pdf-home" or url_path.startswith("/pdf-home/")) and "/pdf-home" not in m:
+            return None
+        if (url_path == "/pdf-viewer" or url_path.startswith("/pdf-viewer/")) and "/pdf-viewer" not in m:
+            return None
 
     # 1) 已挂载前缀（最长优先）
     for prefix, base in sorted(m.items(), key=lambda kv: len(kv[0]), reverse=True):
@@ -78,21 +89,27 @@ def resolve_path(
                 # 回退候选（仅在明确允许时启用，以适配不同打包布局）
                 fallback_candidates = []
                 if prefix == "/pdf-home":
-                    fallback_candidates = [
-                        static_root / "pdf-home",
-                        static_root / "src" / "frontend" / "pdf-home",
+                    if static_root is not None:
+                        fallback_candidates += [
+                            static_root / "pdf-home",
+                            static_root / "src" / "frontend" / "pdf-home",
+                            static_root / "static" / "pdf-home",
+                        ]
+                    fallback_candidates += [
                         project_root / "pdf-home",
                         project_root / "src" / "frontend" / "pdf-home",
-                        static_root / "static" / "pdf-home",
                     ]
                 elif prefix == "/pdf-viewer":
-                    fallback_candidates = [
-                        static_root / "src" / "frontend" / "pdf-viewer",
-                        static_root / "pdf-viewer",
+                    if static_root is not None:
+                        fallback_candidates += [
+                            static_root / "src" / "frontend" / "pdf-viewer",
+                            static_root / "pdf-viewer",
+                            static_root / "static" / "pdf-viewer",
+                            static_root / "static" / "src" / "frontend" / "pdf-viewer",
+                        ]
+                    fallback_candidates += [
                         project_root / "src" / "frontend" / "pdf-viewer",
                         project_root / "pdf-viewer",
-                        static_root / "static" / "pdf-viewer",
-                        static_root / "static" / "src" / "frontend" / "pdf-viewer",
                     ]
                 for fb in fallback_candidates:
                     if fb.exists():

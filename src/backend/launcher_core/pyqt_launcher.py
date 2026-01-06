@@ -144,10 +144,20 @@ class BackendLauncher:
                     "（dev模式: url_port=vite_port, prod模式: url_port=pdfFile_port）"
                 )
 
+            # 前端资源模式判定：
+            # - prod：url_port == pdfFile_port（前端资源从后端静态目录提供）
+            # - dev：url_port != pdfFile_port（前端资源走 Vite）
+            requested_pdf_port = int(pdfFile_port)
+            requested_url_port = int(url_port)
+            is_frontend_prod = (requested_url_port == requested_pdf_port)
+
             # 启用端口自动更换（端口被占用时自动递增，搜索下一个可用端口）
             ws_port = self.port_manager.find_available_port('msgCenter_port', msgCenter_port)
             http_port = self.port_manager.find_available_port('pdfFile_port', pdfFile_port)
             # url_port 不需要分配（已经是计算好的值，直接保存即可）
+            # 但 prod 模式下 url_port 应与实际 http_port 保持一致（避免端口被占用时写入旧值）
+            if is_frontend_prod and int(http_port) != requested_pdf_port:
+                url_port = int(http_port)
 
             # 3. 启动 WebSocket 服务器
             from src.backend.msgCenter_server.embed_msgcenter import EmbedMsgCenterServer
@@ -177,7 +187,7 @@ class BackendLauncher:
                 missing.append("db_path")
             if not self.pdfs_dir:
                 missing.append("pdfs_dir")
-            if not self.static_dir:
+            if is_frontend_prod and (not self.static_dir):
                 missing.append("static_dir")
             if missing:
                 raise RuntimeError(f"缺少必要路径参数：{', '.join(missing)}（禁止兜底）。请在 GUI 或 CLI 显式传入。")
@@ -210,39 +220,44 @@ class BackendLauncher:
 
             _data_dir = Path(self.data_dir).expanduser().resolve()
             _pdfs_dir_path = Path(self.pdfs_dir).expanduser().resolve()
-            s = Path(self.static_dir).expanduser().resolve()
             if not _pdfs_dir_path.exists():
                 raise RuntimeError(f"指定的 pdfs_dir 不存在：{_pdfs_dir_path}")
-            if not s.exists():
-                raise RuntimeError(f"指定的 static_dir 不存在：{s}")
-            if not (s / "pdf-home").exists():
-                raise RuntimeError(f"static_dir 缺少子目录：pdf-home（{s / 'pdf-home'}）")
-            if not (s / "pdf-viewer").exists():
-                raise RuntimeError(f"static_dir 缺少子目录：pdf-viewer（{s / 'pdf-viewer'}）")
             root_dir = _pdfs_dir_path
             pdfs_dir = str(_pdfs_dir_path)
-            mounts = {
-                "/static": str(s),
-                "/pdf-viewer": str(s / "pdf-viewer"),
-                "/pdf-home": str(s / "pdf-home"),
-            }
-            # 为新前端工具窗口提供静态挂载（仅在对应目录存在时启用）
-            for name in ("new-card-scheduler", "custom-reviewer"):
-                sub = s / name
-                try:
-                    if sub.exists():
-                        mounts[f"/{name}"] = str(sub)
-                except Exception:
-                    continue
+            static_root: Optional[Path] = None
+            mounts = {}
+            if is_frontend_prod:
+                s = Path(self.static_dir).expanduser().resolve()
+                if not s.exists():
+                    raise RuntimeError(f"指定的 static_dir 不存在：{s}")
+                if not (s / "pdf-home").exists():
+                    raise RuntimeError(f"static_dir 缺少子目录：pdf-home（{s / 'pdf-home'}）")
+                if not (s / "pdf-viewer").exists():
+                    raise RuntimeError(f"static_dir 缺少子目录：pdf-viewer（{s / 'pdf-viewer'}）")
+                static_root = s
+                mounts = {
+                    "/static": str(s),
+                    "/pdf-viewer": str(s / "pdf-viewer"),
+                    "/pdf-home": str(s / "pdf-home"),
+                }
+                # 为新前端工具窗口提供静态挂载（仅在对应目录存在时启用）
+                for name in ("new-card-scheduler", "custom-reviewer"):
+                    sub = s / name
+                    try:
+                        if sub.exists():
+                            mounts[f"/{name}"] = str(sub)
+                    except Exception:
+                        continue
             self.http_server = EmbedFileServer(
                 root_dir=str(root_dir),
                 host="127.0.0.1",
                 port=http_port,
                 parent=parent,
                 pdfs_dir=pdfs_dir,
-                static_dir=str(s),
+                static_dir=str(static_root) if static_root else None,
                 mounts=mounts,
                 logs_dir=str(self.logs_dir_override),
+                require_static=is_frontend_prod,
             )
             if not self.http_server.start():
                 self.logger.error(f"❌ HTTP 服务器启动失败: {http_port}")

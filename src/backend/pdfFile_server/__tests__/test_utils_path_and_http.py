@@ -82,3 +82,17 @@ def test_resolve_path_basic_and_traversal(tmp_path: Path):
     assert resolve_path("/static/../../a.js", static_root=static_root, pdfs_root=pdfs_root, root_dir=root_dir, mounts=None, project_root=pr) is None
     assert resolve_path("/../../evil", static_root=static_root, pdfs_root=pdfs_root, root_dir=root_dir, mounts=None, project_root=pr) is None
 
+
+def test_resolve_path_without_static_root_blocks_static_routes(tmp_path: Path):
+    pdfs_root = tmp_path / "pdfs"
+    root_dir = tmp_path / "root"
+    pdfs_root.mkdir(parents=True, exist_ok=True)
+    root_dir.mkdir(parents=True, exist_ok=True)
+    (pdfs_root / "a.pdf").write_text("%PDF-1.7\n", encoding="utf-8", newline="\n")
+
+    pr = tmp_path
+
+    assert resolve_path("/pdfs/a.pdf", static_root=None, pdfs_root=pdfs_root, root_dir=root_dir, mounts=None, project_root=pr) == (pdfs_root / "a.pdf")
+    assert resolve_path("/static/app.js", static_root=None, pdfs_root=pdfs_root, root_dir=root_dir, mounts=None, project_root=pr) is None
+    assert resolve_path("/pdf-home/", static_root=None, pdfs_root=pdfs_root, root_dir=root_dir, mounts=None, project_root=pr) is None
+    assert resolve_path("/pdf-viewer/main.js", static_root=None, pdfs_root=pdfs_root, root_dir=root_dir, mounts=None, project_root=pr) is None

@@ -147,11 +147,12 @@ class LauncherThread(QThread):
         try:
             if not self.params.get("logs_dir"):
                 raise RuntimeError("缺少路径参数：logs_dir")
-            if not all(self.params.get(k) for k in ("data_dir", "db_path", "static_dir", "pdfs_dir")):
-                raise RuntimeError("缺少路径参数：data_dir/db_path/static_dir/pdfs_dir")
-
             is_prod = bool(self.params.get("is_prod", False))
             vite_port = self.params.get("vite_port")
+            if not all(self.params.get(k) for k in ("data_dir", "db_path", "pdfs_dir")):
+                raise RuntimeError("缺少路径参数：data_dir/db_path/pdfs_dir")
+            if is_prod and (not self.params.get("static_dir")):
+                raise RuntimeError("缺少路径参数：static_dir（生产模式必填）")
 
             # ⚠️ 验证：开发模式必须提供 vite_port
             if not is_prod and vite_port is None:
@@ -169,7 +170,7 @@ class LauncherThread(QThread):
                 paths=_LPaths(
                     data_dir=str(self.params.get("data_dir")),
                     db_path=str(self.params.get("db_path")),
-                    static_dir=str(self.params.get("static_dir")),
+                    static_dir=str(self.params.get("static_dir")) if is_prod else None,
                     pdfs_dir=str(self.params.get("pdfs_dir")),
                     logs_dir=str(self.params.get("logs_dir")),
                 ),

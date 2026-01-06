@@ -94,7 +94,8 @@ class EmbedFileServer(QObject):
                  pdfs_dir: Optional[str] = None,
                  static_dir: Optional[str] = None,
                  mounts: Optional[dict] = None,
-                 logs_dir: Optional[str] = None):
+                 logs_dir: Optional[str] = None,
+                 require_static: bool = True):
         """初始化嵌入式文件服务器
 
         Args:
@@ -105,16 +106,18 @@ class EmbedFileServer(QObject):
         """
         super().__init__(parent)
 
-        # 严格参数：必须显式传入 pdfs_dir、static_dir、logs_dir，禁止兜底/自动推断
-        if not pdfs_dir or not static_dir:
-            raise RuntimeError("EmbedFileServer 缺少必要参数：pdfs_dir 或 static_dir（禁止兜底）。")
+        # 严格参数：必须显式传入 pdfs_dir、logs_dir；static_dir 可按 require_static 决定是否强制
+        if not pdfs_dir:
+            raise RuntimeError("EmbedFileServer 缺少必要参数：pdfs_dir（禁止兜底）。")
         if logs_dir is None:
             raise RuntimeError("EmbedFileServer 缺少必要参数：logs_dir（禁止兜底）。")
+        if require_static and not static_dir:
+            raise RuntimeError("EmbedFileServer 缺少必要参数：static_dir（禁止兜底）。")
 
         # 根目录：应与 pdfs_dir 保持一致（服务 PDF 文件根）
         self.root_dir = Path(root_dir).resolve()
         self.pdfs_root = Path(pdfs_dir).resolve()
-        self.static_root = Path(static_dir).resolve()
+        self.static_root = Path(static_dir).resolve() if static_dir else None
         if self.root_dir != self.pdfs_root:
             # 避免隐式回退，保持语义一致性
             raise RuntimeError(f"root_dir({self.root_dir}) 必须与 pdfs_dir({self.pdfs_root}) 一致。")
@@ -139,7 +142,7 @@ class EmbedFileServer(QObject):
                 "host": self.host,
                 "port": int(self.port),
                 "root_dir": str(self.root_dir),
-                "static_root": str(self.static_root),
+                "static_root": str(self.static_root) if self.static_root else None,
                 "pdfs_root": str(self.pdfs_root) if self.pdfs_root else None,
                 "mounts": {k: str(v) for k, v in self.mounts.items()},
             }

@@ -82,6 +82,18 @@ class TestEmbedFileServer:
         assert server.port == 8888
         assert not server.is_running()
 
+    def test_server_initialization_without_static_in_dev_mode(self, temp_dir):
+        """测试：dev 模式允许不提供 static_dir（仅服务 pdfs）"""
+        server = EmbedFileServer(
+            root_dir=str(temp_dir),
+            port=8888,
+            pdfs_dir=str(temp_dir),
+            static_dir=None,
+            logs_dir=str(temp_dir / 'logs'),
+            require_static=False,
+        )
+        assert server.static_root is None
+
     def test_server_start_stop(self, app, temp_dir):
         """测试服务器启动和停止"""
         port = self._free_port()
