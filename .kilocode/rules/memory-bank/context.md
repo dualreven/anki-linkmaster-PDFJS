@@ -2,6 +2,19 @@
 
 最后更新：2026-01-07（memory-bank lint：超限自动归档）
 
+## 2026-01-07 前端面条代码评估
+- **现状**: 混合过渡期。`SearchFeature` 已完成 Manager+Store 迁移（标杆）；`AnnotationFeature` 处于混合态（Manager 有 Store，但 UI 仍依赖 EventBus）。
+- **产出**: 分析报告 `docs/reports/FRONTEND_SPAGHETTI_ANALYSIS_20260107.md`。
+- **下一步**: 优先重构 `AnnotationSidebarUI` 以订阅 `AnnotationManager.store`，消除 Feature 内部的 EventBus 依赖。
+
+## 2026-01-07 并行任务下达：Observable 迁移（ABCD）
+- **目标**：把“Feature 内部（UI ↔ Manager）依赖 EventBus”继续收敛到“订阅 store 的数据驱动 UI”，并用门禁防止回退。
+- **doing 任务**（`todo-and-doing/1 doing/`）：
+  - A：`20260107100900-observable-annotation-sidebar-A`（Annotation Sidebar UI 订阅 store，移除 CRUD 事件驱动 UI）
+  - B：`20260107100900-observable-anchor-sidebar-B`（Anchor Sidebar UI 订阅 store，引入/补齐 AnchorManager+store）
+  - C：`20260107100900-feature-internal-eventbus-gates-C`（Feature 内部 EventBus 闭环约束的最小门禁/指引）
+  - D：`20260107100900-observable-migration-rest-features-D`（选 1 个中等 Feature 做迁移样板 + 输出剩余迁移清单）
+
 ## 2026-01-07 并行合入：A/B/C/D 批量集成完成
 - **状态**：已完成（main 通过 lint + 本轮最小 Jest 集合）。
 - **worktree/分支**：
