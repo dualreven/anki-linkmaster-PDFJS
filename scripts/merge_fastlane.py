@@ -7,6 +7,7 @@ import argparse
 import json
 import subprocess
 import sys
+import shutil
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -51,6 +52,17 @@ def _repo_root() -> Path:
     if not out:
         raise RuntimeError("无法定位 git 仓库根目录")
     return Path(out)
+
+def _resolve_cmd(name: str, fallbacks: Sequence[str]) -> str:
+    found = shutil.which(name)
+    if found:
+        return found
+    for fb in fallbacks:
+        found2 = shutil.which(fb)
+        if found2:
+            return found2
+    # Let it fail later with a clearer message.
+    return name
 
 
 def _ensure_clean(repo_root: Path) -> None:
@@ -203,6 +215,9 @@ def main(argv: Sequence[str]) -> int:
     _print_ln(f"[info] integrationBranch={cfg.integration_branch}")
     _print_ln(f"[info] dryRun={bool(args.dry_run)}")
 
+    git_cmd = _resolve_cmd("git", ["git.exe"])
+    pnpm_cmd = _resolve_cmd("pnpm", ["pnpm.cmd", "pnpm.exe"])
+
     _assert_commits_exist(repo_root, cfg.commits)
     if not args.allow_dirty:
         _ensure_clean(repo_root)
@@ -232,20 +247,20 @@ def main(argv: Sequence[str]) -> int:
             ms = int((e - s).total_seconds() * 1000)
             steps.append((name, result, ms))
 
-    step("checkout baseBranch", lambda: _run(["git", "checkout", cfg.base_branch], cwd=repo_root, dry_run=args.dry_run))
-    step("create integration branch", lambda: _run(["git", "checkout", "-b", cfg.integration_branch], cwd=repo_root, dry_run=args.dry_run))
+    step("checkout baseBranch", lambda: _run([git_cmd, "checkout", cfg.base_branch], cwd=repo_root, dry_run=args.dry_run))
+    step("create integration branch", lambda: _run([git_cmd, "checkout", "-b", cfg.integration_branch], cwd=repo_root, dry_run=args.dry_run))
 
     picked: List[str] = []
     for c in cfg.commits:
         def _pick(c_hash: str = c) -> None:
-            _run(["git", "cherry-pick", c_hash], cwd=repo_root, dry_run=args.dry_run)
+            _run([git_cmd, "cherry-pick", c_hash], cwd=repo_root, dry_run=args.dry_run)
         try:
             step(f"cherry-pick {c}", _pick)
             picked.append(c)
         except Exception:
             if not args.dry_run:
                 try:
-                    _run(["git", "cherry-pick", "--abort"], cwd=repo_root, dry_run=False, check=False)
+                    _run([git_cmd, "cherry-pick", "--abort"], cwd=repo_root, dry_run=False, check=False)
                 except Exception:
                     pass
             raise
@@ -254,10 +269,10 @@ def main(argv: Sequence[str]) -> int:
     if not args.dry_run:
         _assert_testpaths_exist(repo_root, cfg.test_paths)
 
-    step("pnpm -s run lint", lambda: _run(["pnpm", "-s", "run", "lint"], cwd=repo_root, dry_run=args.dry_run))
+    step("pnpm -s run lint", lambda: _run([pnpm_cmd, "-s", "run", "lint"], cwd=repo_root, dry_run=args.dry_run))
     step(
         "pnpm exec jest --runTestsByPath",
-        lambda: _run(["pnpm", "exec", "jest", "--runTestsByPath", *cfg.test_paths, "-i"], cwd=repo_root, dry_run=args.dry_run),
+        lambda: _run([pnpm_cmd, "exec", "jest", "--runTestsByPath", *cfg.test_paths, "-i"], cwd=repo_root, dry_run=args.dry_run),
     )
 
     ended = datetime.now()
@@ -301,4 +316,3 @@ if __name__ == "__main__":
     except Exception as e:
         _print_ln(f"[err] {e}")
         raise SystemExit(1)
-
