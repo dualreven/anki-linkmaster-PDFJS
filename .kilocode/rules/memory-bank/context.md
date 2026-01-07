@@ -17,6 +17,11 @@
 - **产出**: 分析报告 `docs/reports/FRONTEND_SPAGHETTI_ANALYSIS_20260107.md`。
 - **下一步**: 优先重构 `AnnotationSidebarUI` 以订阅 `AnnotationManager.store`，消除 Feature 内部的 EventBus 依赖。
 
+## 2026-01-07（已完成）Feature 内部 EventBus 增量门禁（C）
+- **目的**：防止在 `src/frontend/pdf-viewer/features/**` 新增/增长 “Feature 内部依赖 EventBus 订阅做 UI↔Manager 闭环” 的混合态。
+- **实现**：新增 `scripts/ci/feature-internal-eventbus-gates.js`，以 baseline 增量策略阻止回归；并在 `scripts/ci/frontend-line-limit.js` 的成功路径追加执行（从而接入 `pnpm -s run lint`）。
+- **配套**：baseline `scripts/ci/baselines/feature-internal-eventbus-gates.json` + 测试 `scripts/ci/__tests__/feature-internal-eventbus-gates.test.js` + 文档 `docs/standards/feature-internal-eventbus-gates.md`。
+
 ## 2026-01-07 并行任务下达：Observable 迁移（ABCD）
 - **目标**：把“Feature 内部（UI ↔ Manager）依赖 EventBus”继续收敛到“订阅 store 的数据驱动 UI”，并用门禁防止回退。
 - **doing 任务**（`todo-and-doing/1 doing/`）：

@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { pathToFileURL } from "url";
+import { runFeatureInternalEventbusGates } from "./feature-internal-eventbus-gates.js";
 
 const DEFAULT_LIMIT = 500;
 const DEFAULT_ROOT_DIR = "src/frontend";
@@ -217,6 +218,31 @@ async function main() {
 
   if (violations.length === 0) {
     process.stdout.write("[frontend-line-limit] OK\n");
+
+    // ✅ Feature 内部 EventBus 订阅增量门禁（不改 package.json，复用 lint 流程）
+    try {
+      const res = await runFeatureInternalEventbusGates();
+      process.stdout.write(
+        `[feature-internal-eventbus-gates] scanned=${res.scanned} baseline=${res.baselineSize}\n`
+      );
+      if (!res.violations || res.violations.length === 0) {
+        process.stdout.write("[feature-internal-eventbus-gates] OK\n");
+      } else {
+        process.stdout.write(`[feature-internal-eventbus-gates] FAILED (${res.violations.length})\n`);
+        for (const v of res.violations) {
+          if (v.type === "new-subscription") {
+            process.stdout.write(`- [NEW] ${v.path} subscriptions=${v.count}\n`);
+            continue;
+          }
+          process.stdout.write(`- [GROWN] ${v.path} baseline=${v.baselineCount} now=${v.count}\n`);
+        }
+        process.exitCode = 1;
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.stack ?? e.message : String(e);
+      process.stderr.write(`[feature-internal-eventbus-gates] fatal: ${msg}\n`);
+      process.exitCode = 1;
+    }
     return;
   }
 
