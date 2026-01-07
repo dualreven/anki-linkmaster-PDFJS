@@ -6,10 +6,7 @@ import { formatHHMM, makePdfAnchorId } from "./anchor-utils.js";
 export function setupAnchorEventListeners({
   logger,
   eventBus,
-  getAnchorsById,
-  setAnchorsById,
-  getActiveAnchorId,
-  setActiveAnchorId,
+  anchorManager,
   getPendingAnchorIdForNavigate,
   setPendingAnchorIdForNavigate,
   getLastNav,
@@ -18,49 +15,76 @@ export function setupAnchorEventListeners({
   getSnapshotForQuickCreate,
   navigateToAnchor,
   emitList,
+  shouldSuppressDataLoaded,
 }) {
-  eventBus.on(
-    PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED,
-    ({ anchors }) => {
-      const nextMap = new Map();
-      const activeId = getActiveAnchorId() ? String(getActiveAnchorId()) : null;
+  if (!logger) { throw new Error("[pdf-anchor] setupAnchorEventListeners: logger is required"); }
+  if (!eventBus) { throw new Error("[pdf-anchor] setupAnchorEventListeners: eventBus is required"); }
+  if (!anchorManager) { throw new Error("[pdf-anchor] setupAnchorEventListeners: anchorManager is required"); }
+  if (typeof getPendingAnchorIdForNavigate !== "function") { throw new Error("[pdf-anchor] getPendingAnchorIdForNavigate is required"); }
+  if (typeof setPendingAnchorIdForNavigate !== "function") { throw new Error("[pdf-anchor] setPendingAnchorIdForNavigate is required"); }
+  if (typeof getLastNav !== "function") { throw new Error("[pdf-anchor] getLastNav is required"); }
+  if (typeof setLastNav !== "function") { throw new Error("[pdf-anchor] setLastNav is required"); }
+  if (typeof setLastUpdateAt !== "function") { throw new Error("[pdf-anchor] setLastUpdateAt is required"); }
+  if (typeof getSnapshotForQuickCreate !== "function") { throw new Error("[pdf-anchor] getSnapshotForQuickCreate is required"); }
+  if (typeof navigateToAnchor !== "function") { throw new Error("[pdf-anchor] navigateToAnchor is required"); }
+  if (typeof emitList !== "function") { throw new Error("[pdf-anchor] emitList is required"); }
 
-      const pushAnchor = (raw) => {
-        if (!raw || !raw.uuid) { return; }
-        const id = String(raw.uuid);
-        nextMap.set(id, {
-          uuid: id,
-          name: raw.name,
-          page_at: raw.page_at,
-          position: raw.position,
-          is_active: !!(activeId && id === activeId),
-        });
-      };
+  /** @type {Array<Function>} */
+  const unsubs = [];
 
-      if (Array.isArray(anchors)) {
-        anchors.forEach(pushAnchor);
-      } else if (anchors && anchors.uuid) {
-        pushAnchor(anchors);
+  {
+    const off = eventBus.on(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD, (payload) => {
+      try {
+        anchorManager.markLoading(payload || {});
+      } catch (e) {
+        logger.warn("[pdf-anchor] markLoading failed", e);
+      }
+    }, { subscriberId: "PDFAnchorFeature" });
+    if (typeof off === "function") { unsubs.push(off); }
+  }
+
+  {
+    const off = eventBus.on(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED, ({ anchors }) => {
+      if (typeof shouldSuppressDataLoaded === "function" && shouldSuppressDataLoaded()) {
+        return;
       }
 
-      setAnchorsById(nextMap);
+      try {
+        const list = Array.isArray(anchors) ? anchors : (anchors && anchors.uuid ? [anchors] : []);
+        anchorManager.applyLoadedAnchors(list);
+      } catch (e) {
+        logger.warn("[pdf-anchor] applyLoadedAnchors failed", e);
+      }
 
       const pendingId = getPendingAnchorIdForNavigate();
       if (pendingId) {
-        const a = getAnchorsById().get(pendingId);
+        const a = anchorManager.getAnchorById(pendingId);
         if (a) {
           try { showSuccess(`已识别锚点: ${a.name || a.uuid}`); } catch (e) { logger.debug("[pdf-anchor] showSuccess failed (pending navigate)", e); }
           navigateToAnchor(pendingId);
         }
         setPendingAnchorIdForNavigate(null);
       }
-    },
-    { subscriberId: "PDFAnchorFeature" }
-  );
+    }, { subscriberId: "PDFAnchorFeature" });
+    if (typeof off === "function") { unsubs.push(off); }
+  }
 
-  eventBus.on(
-    PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
-    () => {
+  {
+    const off = eventBus.on(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD_FAILED, ({ error, type }) => {
+      const msg = (error && (error.message || error.err || error.detail))
+        ? (error.message || error.err || error.detail)
+        : "无法加载锚点数据";
+      try {
+        anchorManager.markLoadFailed({ message: String(msg), type: String(type || "anchor-load-failed") });
+      } catch (e) {
+        logger.warn("[pdf-anchor] markLoadFailed failed", e);
+      }
+    }, { subscriberId: "PDFAnchorFeature" });
+    if (typeof off === "function") { unsubs.push(off); }
+  }
+
+  {
+    const off = eventBus.on(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, () => {
       try {
         const params = new URLSearchParams(window.location.search);
         const pdfId = params.get("pdf-id");
@@ -76,25 +100,23 @@ export function setupAnchorEventListeners({
       } catch (e) {
         logger.warn("[pdf-anchor] FILE.LOAD.SUCCESS handler failed before emitting ANCHOR.DATA.LOAD", e);
       }
-    },
-    { subscriberId: "PDFAnchorFeature" }
-  );
+    }, { subscriberId: "PDFAnchorFeature" });
+    if (typeof off === "function") { unsubs.push(off); }
+  }
 
-  eventBus.on(
-    PDF_VIEWER_EVENTS.RENDER.READY,
-    (info) => {
+  {
+    const off = eventBus.on(PDF_VIEWER_EVENTS.RENDER.READY, (info) => {
       try { showSuccess(`PDF渲染完成：总页数 ${info?.totalPages ?? ""}`); } catch (e) { logger.debug("[pdf-anchor] showSuccess failed (render ready)", e); }
-    },
-    { subscriberId: "PDFAnchorFeature" }
-  );
+    }, { subscriberId: "PDFAnchorFeature" });
+    if (typeof off === "function") { unsubs.push(off); }
+  }
 
-  eventBus.on(
-    PDF_VIEWER_EVENTS.ANCHOR.NAVIGATE.REQUESTED,
-    (data) => {
+  {
+    const off = eventBus.on(PDF_VIEWER_EVENTS.ANCHOR.NAVIGATE.REQUESTED, (data) => {
       try {
         const anchorId = String(data?.anchorId || "").trim();
         if (!anchorId) { return; }
-        const a = getAnchorsById().get(anchorId);
+        const a = anchorManager.getAnchorById(anchorId);
         if (a) {
           navigateToAnchor(anchorId);
           return;
@@ -105,15 +127,20 @@ export function setupAnchorEventListeners({
         try { showError("锚点导航失败"); } catch (e2) { logger.debug("[pdf-anchor] showError toast failed (navigate)", e2); }
         logger.warn("anchor navigate failed", e);
       }
-    },
-    { subscriberId: "PDFAnchorFeature" }
-  );
+    }, { subscriberId: "PDFAnchorFeature" });
+    if (typeof off === "function") { unsubs.push(off); }
+  }
 
-  eventBus.on(
-    PDF_VIEWER_EVENTS.ANCHOR.CREATE,
-    (data) => {
+  {
+    const off = eventBus.on(PDF_VIEWER_EVENTS.ANCHOR.CREATE, (data) => {
       try {
-        if (data && typeof data === "object" && data.anchor && !data.__fromFeature) {
+        // 防止“特性自发回放 CREATE”导致递归：__fromFeature 仅用于出站桥接（WS adapter 等）
+        if (data && data.__fromFeature === true) {
+          return;
+        }
+
+        // A) UI 指定负载创建（锚点来自 UI / 外部输入）
+        if (data && typeof data === "object" && data.anchor) {
           const incoming = data.anchor || {};
           const pageAt = parseInt(incoming.page_at || 1, 10) || 1;
           let pos = incoming.position;
@@ -134,21 +161,22 @@ export function setupAnchorEventListeners({
             ? String(incoming.name).trim()
             : `第${pageAt}页 - ${formatHHMM(new Date())}`;
 
-          const anchor = { uuid: id, name, page_at: pageAt, position: pos, is_active: false };
-          getAnchorsById().set(id, anchor);
+          anchorManager.upsertAnchor({ uuid: id, name, page_at: pageAt, position: pos });
           logger.info("[anchor] create(UI) accepted", { id, pageAt, position: pos, name });
           try { showSuccess(`已创建锚点: ${name}`); } catch (e) { void e; /* logger-guard */ }
           emitList();
           return;
         }
 
+        // B) 快捷创建（无负载）→ 采样当前位置生成锚点，同时回放 CREATE(__fromFeature) 供 WS 出站桥接
         const snapshot = getSnapshotForQuickCreate();
         const pageAt = snapshot.pageAt;
         const position = snapshot.position;
         const id = makePdfAnchorId();
         const name = `第${pageAt}页 - ${formatHHMM(new Date())}`;
-        const anchor = { uuid: id, name, page_at: pageAt, position: position / 100, is_active: false };
-        getAnchorsById().set(id, anchor);
+        const anchor = { uuid: id, name, page_at: pageAt, position: position / 100 };
+
+        anchorManager.upsertAnchor(anchor);
         logger.info("[anchor] create(quick) accepted", { id, pageAt, position });
         try { showSuccess(`已创建锚点: ${name}`); } catch (e) { void e; /* logger-guard */ }
         emitList();
@@ -165,17 +193,16 @@ export function setupAnchorEventListeners({
         logger.warn("handle ANCHOR.CREATE failed", e);
         try { showError("创建锚点失败"); } catch (e2) { void e2; /* logger-guard */ }
       }
-    },
-    { subscriberId: "PDFAnchorFeature" }
-  );
+    }, { subscriberId: "PDFAnchorFeature" });
+    if (typeof off === "function") { unsubs.push(off); }
+  }
 
-  eventBus.on(
-    PDF_VIEWER_EVENTS.ANCHOR.DELETE,
-    ({ anchorId }) => {
+  {
+    const off = eventBus.on(PDF_VIEWER_EVENTS.ANCHOR.DELETE, ({ anchorId }) => {
       const id = String(anchorId || "").trim();
       if (!id) { return; }
-      const existed = getAnchorsById().get(id);
-      getAnchorsById().delete(id);
+      const existed = anchorManager.getAnchorById(id);
+      anchorManager.deleteAnchor(id);
       try {
         if (existed) {
           showSuccess(`已删除锚点: ${existed.name || id}`);
@@ -184,75 +211,69 @@ export function setupAnchorEventListeners({
         logger.warn("[pdf-anchor] showSuccess failed on delete", e);
       }
       emitList();
-    },
-    { subscriberId: "PDFAnchorFeature" }
-  );
+    }, { subscriberId: "PDFAnchorFeature" });
+    if (typeof off === "function") { unsubs.push(off); }
+  }
 
-  eventBus.on(
-    PDF_VIEWER_EVENTS.ANCHOR.UPDATE,
-    ({ anchorId, update }) => {
+  {
+    const off = eventBus.on(PDF_VIEWER_EVENTS.ANCHOR.UPDATE, ({ anchorId, update }) => {
       const id = String(anchorId || "").trim();
       if (!id) { return; }
-      const a = getAnchorsById().get(id);
-      if (!a) { return; }
-      let changed = false;
-      if (update && typeof update.name === "string") {
-        a.name = update.name.trim() || a.name;
-        changed = true;
-      }
-      if (typeof update?.page_at === "number") { a.page_at = update.page_at; changed = true; }
-      if (typeof update?.position === "number") { a.position = update.position / 100; changed = true; }
-      if (changed) {
-        getAnchorsById().set(id, a);
-        eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.UPDATED, { anchorId: id, page_at: a.page_at, position: Math.round((a.position || 0) * 100) }, { actorId: "PDFAnchorFeature" });
-        emitList();
-      }
-    },
-    { subscriberId: "PDFAnchorFeature" }
-  );
+      const existed = anchorManager.getAnchorById(id);
+      if (!existed) { return; }
 
-  eventBus.on(
-    PDF_VIEWER_EVENTS.ANCHOR.ACTIVATE,
-    ({ anchorId, active = true }) => {
+      try {
+        anchorManager.applyAnchorUpdate(id, update || {});
+      } catch (e) {
+        logger.warn("[pdf-anchor] applyAnchorUpdate failed", e);
+        return;
+      }
+
+      const a = anchorManager.getAnchorById(id);
+      if (!a) { return; }
+
+      eventBus.emit(
+        PDF_VIEWER_EVENTS.ANCHOR.UPDATED,
+        { anchorId: id, page_at: a.page_at, position: Math.round(((a.position || 0) * 100)) },
+        { actorId: "PDFAnchorFeature" }
+      );
+      emitList();
+    }, { subscriberId: "PDFAnchorFeature" });
+    if (typeof off === "function") { unsubs.push(off); }
+  }
+
+  {
+    const off = eventBus.on(PDF_VIEWER_EVENTS.ANCHOR.ACTIVATE, ({ anchorId, active = true }) => {
       const id = String(anchorId || "").trim();
       if (!id) { return; }
       const nextActive = !!active;
 
-      const a = getAnchorsById().get(id) || { uuid: id };
-      a.is_active = nextActive;
-      getAnchorsById().set(id, a);
-
-      if (nextActive) {
-        for (const [aid, item] of getAnchorsById().entries()) {
-          if (aid !== id && item && item.is_active) {
-            item.is_active = false;
-            getAnchorsById().set(aid, item);
-          }
-        }
+      try {
+        anchorManager.setActive(id, nextActive);
+      } catch (e) {
+        logger.warn("[pdf-anchor] setActive failed", e);
+        return;
       }
 
-      eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.ACTIVATED, { anchorId: id, active: a.is_active }, { actorId: "PDFAnchorFeature" });
+      eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.ACTIVATED, { anchorId: id, active: nextActive }, { actorId: "PDFAnchorFeature" });
       emitList();
 
       try {
-        showSuccess(nextActive ? `已激活锚点: ${a.name || id}` : `已停用锚点: ${a.name || id}`);
+        const a = anchorManager.getAnchorById(id);
+        showSuccess(nextActive ? `已激活锚点: ${a?.name || id}` : `已停用锚点: ${a?.name || id}`);
       } catch (e) {
         logger.warn("[pdf-anchor] showSuccess failed on activate", e);
       }
 
       if (nextActive) {
-        setActiveAnchorId(id);
         setLastUpdateAt(null);
-      } else if (getActiveAnchorId() === id) {
-        setActiveAnchorId(null);
       }
-    },
-    { subscriberId: "PDFAnchorFeature" }
-  );
+    }, { subscriberId: "PDFAnchorFeature" });
+    if (typeof off === "function") { unsubs.push(off); }
+  }
 
-  eventBus.on(
-    PDF_VIEWER_EVENTS.NAVIGATION.CHANGED,
-    (data) => {
+  {
+    const off = eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.CHANGED, (data) => {
       try {
         const lastNav = getLastNav();
         if (!lastNav) { return; }
@@ -265,13 +286,12 @@ export function setupAnchorEventListeners({
           setLastNav(null);
         }
       } catch (e) { void e; /* logger-guard */ }
-    },
-    { subscriberId: "PDFAnchorFeature" }
-  );
+    }, { subscriberId: "PDFAnchorFeature" });
+    if (typeof off === "function") { unsubs.push(off); }
+  }
 
-  eventBus.on(
-    PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.SUCCESS,
-    (info) => {
+  {
+    const off = eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.SUCCESS, (info) => {
       try {
         const pg = parseInt(info?.pageAt || 0, 10);
         const pos = (typeof info?.position === "number") ? `${info.position}%` : "(未提供)";
@@ -279,20 +299,19 @@ export function setupAnchorEventListeners({
         showSuccess(`跳转到达: 第${pg}页 ${pos}（${dur}ms）`);
         setLastNav(null);
       } catch (e) { void e; /* logger-guard */ }
-    },
-    { subscriberId: "PDFAnchorFeature" }
-  );
-  eventBus.on(
-    PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.FAILED,
-    (err) => {
-      try { showError(`[跳转失败] ${err?.message || "未知错误"}`); } catch (e) { void e; /* logger-guard */ }
-    },
-    { subscriberId: "PDFAnchorFeature" }
-  );
+    }, { subscriberId: "PDFAnchorFeature" });
+    if (typeof off === "function") { unsubs.push(off); }
+  }
 
-  eventBus.on(
-    WEBSOCKET_MESSAGE_EVENTS.ERROR,
-    (err) => {
+  {
+    const off = eventBus.on(PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.FAILED, (err) => {
+      try { showError(`[跳转失败] ${err?.message || "未知错误"}`); } catch (e) { void e; /* logger-guard */ }
+    }, { subscriberId: "PDFAnchorFeature" });
+    if (typeof off === "function") { unsubs.push(off); }
+  }
+
+  {
+    const off = eventBus.on(WEBSOCKET_MESSAGE_EVENTS.ERROR, (err) => {
       try {
         const t = String(err?.received_type || err?.type || "");
         if (t.startsWith("anchor:")) {
@@ -300,7 +319,10 @@ export function setupAnchorEventListeners({
           showError(`[锚点错误] ${msg}`);
         }
       } catch (e) { void e; /* logger-guard */ }
-    },
-    { subscriberId: "PDFAnchorFeature" }
-  );
+    }, { subscriberId: "PDFAnchorFeature" });
+    if (typeof off === "function") { unsubs.push(off); }
+  }
+
+  return unsubs;
 }
+

@@ -11,14 +11,17 @@ import { getCurrentPageAndPosition } from "../../../common/utils/pdf-page-detect
 import { setupAnchorEventListeners } from "./anchor-event-listeners.js";
 import { navigateToAnchor } from "./anchor-navigation.js";
 import { setupAnchorPositionTracker } from "./anchor-position-tracker.js";
+import { AnchorManager } from "./services/anchor.manager.js";
 
 export class PDFAnchorFeature {
   #logger = getLogger("PDFAnchorFeature");
   #eventBus = null;
   #container = null;
   #navigationService = null;
-  #anchorsById = new Map(); // uuid -> anchor {uuid,name,page_at,position,is_active}
-  #activeAnchorId = null;
+  #anchorManager = null;
+  #anchorSidebarUI = null;
+  #eventUnsubs = [];
+  #suppressDataLoaded = false;
   #pendingAnchorIdForNavigate = null; // 等待锚点数据加载后再触发导航的锚点ID
   #lastNav = null; // 最近一次导航请求 { pageAt, position, anchorId, t0, method }
 
@@ -43,23 +46,45 @@ export class PDFAnchorFeature {
     this.#navigationService = this.#container.get("navigationService");
     if (!this.#navigationService) {this.#logger.warn("navigationService not found, will fallback to DOM ops");}
 
-    // 注册 Anchor 侧边栏 UI 到容器（供 SidebarManager 获取）
+    // 单一真源：AnchorManager.store
+    this.#anchorManager = new AnchorManager(getLogger("AnchorManager"));
     try {
-      const { AnchorSidebarUI } = await import("./components/anchor-sidebar-ui.js");
-      const anchorUI = new AnchorSidebarUI(this.#eventBus);
-      anchorUI.initialize();
-      this.#container.registerGlobal?.("anchorSidebarUI", anchorUI);
-      this.#logger.info("anchorSidebarUI registered globally");
+      this.#container.registerGlobal?.("anchorManager", this.#anchorManager);
     } catch (e) {
-      this.#logger.warn("Failed to initialize/register anchorSidebarUI", e);
+      this.#logger.warn("[pdf-anchor] failed to register anchorManager globally", e);
     }
 
     this.#setupEventListeners();
     this.#setupPositionTracker();
+
+    // 注册 Anchor 侧边栏 UI 到容器（供 SidebarManager 获取）
+    try {
+      const { AnchorSidebarUI } = await import("./components/anchor-sidebar-ui.js");
+      const anchorUI = new AnchorSidebarUI(this.#eventBus, this.#anchorManager);
+      anchorUI.initialize();
+      this.#container.registerGlobal?.("anchorSidebarUI", anchorUI);
+      this.#anchorSidebarUI = anchorUI;
+      this.#logger.info("anchorSidebarUI registered globally");
+    } catch (e) {
+      this.#logger.warn("Failed to initialize/register anchorSidebarUI", e);
+    }
     this.#logger.info("PDFAnchorFeature installed");
   }
 
   async uninstall() {
+    if (Array.isArray(this.#eventUnsubs) && this.#eventUnsubs.length > 0) {
+      while (this.#eventUnsubs.length > 0) {
+        const fn = this.#eventUnsubs.pop();
+        if (!fn) { continue; }
+        try { fn(); } catch (e) { this.#logger.warn("[pdf-anchor] failed to unsubscribe eventBus listener during uninstall", e); }
+      }
+    }
+
+    if (this.#anchorSidebarUI) {
+      try { this.#anchorSidebarUI.destroy(); } catch (e) { this.#logger.warn("[pdf-anchor] anchorSidebarUI destroy failed during uninstall", e); }
+      this.#anchorSidebarUI = null;
+    }
+
     if (this.#positionTracker) {
       try {
         this.#positionTracker.deactivate();
@@ -68,8 +93,10 @@ export class PDFAnchorFeature {
       }
       this.#positionTracker = null;
     }
-    this.#anchorsById.clear();
-    this.#activeAnchorId = null;
+    if (this.#anchorManager) {
+      try { this.#anchorManager.destroy(); } catch (e) { this.#logger.warn("[pdf-anchor] anchorManager destroy failed during uninstall", e); }
+      this.#anchorManager = null;
+    }
     this.#eventBus = null;
     this.#container = null;
     this.#navigationService = null;
@@ -77,13 +104,10 @@ export class PDFAnchorFeature {
   }
 
   #setupEventListeners() {
-    setupAnchorEventListeners({
+    this.#eventUnsubs = setupAnchorEventListeners({
       logger: this.#logger,
       eventBus: this.#eventBus,
-      getAnchorsById: () => this.#anchorsById,
-      setAnchorsById: (m) => { this.#anchorsById = m; },
-      getActiveAnchorId: () => this.#activeAnchorId,
-      setActiveAnchorId: (v) => { this.#activeAnchorId = v; },
+      anchorManager: this.#anchorManager,
       getPendingAnchorIdForNavigate: () => this.#pendingAnchorIdForNavigate,
       setPendingAnchorIdForNavigate: (v) => { this.#pendingAnchorIdForNavigate = v; },
       getLastNav: () => this.#lastNav,
@@ -92,6 +116,7 @@ export class PDFAnchorFeature {
       getSnapshotForQuickCreate: () => this.#getSnapshotForQuickCreate(),
       navigateToAnchor: (anchorId) => this.#navigateToAnchor(anchorId),
       emitList: () => this.#emitList(),
+      shouldSuppressDataLoaded: () => this.#suppressDataLoaded === true,
     });
   }
 
@@ -100,7 +125,7 @@ export class PDFAnchorFeature {
     navigateToAnchor({
       logger: this.#logger,
       eventBus: this.#eventBus,
-      anchorsById: this.#anchorsById,
+      anchorsById: this.#anchorManager?.getAnchorsById?.() || new Map(),
       positionTracker: this.#positionTracker,
       anchorId,
       setLastNav: (v) => { this.#lastNav = v; },
@@ -114,8 +139,7 @@ export class PDFAnchorFeature {
         logger: this.#logger,
         container: this.#container,
         eventBus: this.#eventBus,
-        getAnchorsById: () => this.#anchorsById,
-        getActiveAnchorId: () => this.#activeAnchorId,
+        getActiveAnchorId: () => this.#anchorManager?.getActiveAnchorId?.() || null,
         setLastUpdateAt: (v) => { this.#lastUpdateAt = v; },
         getLastUpdateAt: () => this.#lastUpdateAt,
       });
@@ -156,10 +180,22 @@ export class PDFAnchorFeature {
   }
 
   #emitList() {
-    const list = Array.from(this.#anchorsById.values());
-    this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED, { anchors: list }, { actorId: "PDFAnchorFeature" });
+    const cur = this.#anchorManager?.store?.get?.() || {};
+    const activeId = cur.activeId ? String(cur.activeId) : null;
+    const list = Array.isArray(cur.anchors)
+      ? cur.anchors.map((a) => ({
+        ...a,
+        is_active: !!(activeId && a && a.uuid && String(a.uuid) === activeId),
+      }))
+      : [];
+
+    this.#suppressDataLoaded = true;
+    try {
+      this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED, { anchors: list }, { actorId: "PDFAnchorFeature" });
+    } finally {
+      this.#suppressDataLoaded = false;
+    }
   }
 }
 
 export default PDFAnchorFeature;
-
