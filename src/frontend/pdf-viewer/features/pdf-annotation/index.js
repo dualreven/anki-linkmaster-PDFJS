@@ -155,7 +155,8 @@ export class AnnotationFeature {
     }
 
     this.#sidebarUI = new AnnotationSidebarUI(this.#eventBus, {
-      container: mainContainer
+      container: mainContainer,
+      annotationManager: this.#annotationManager,
     });
     this.#sidebarUI.initialize();
     this.#logger.debug("[AnnotationFeature] AnnotationSidebarUI initialized");
@@ -276,6 +277,15 @@ export class AnnotationFeature {
       PDF_VIEWER_EVENTS.ANNOTATION.DELETE,
       (data) => ensureManager().deleteAnnotation(data?.id),
       { subscriberId: "AnnotationFeature.ManagerBridge.Delete" }
+    ));
+
+    this.#unsubs.push(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANNOTATION.COMMENT.ADD,
+      (data) => ensureManager().addComment(String(data?.annotationId || ""), {
+        content: data?.content,
+        createdAt: data?.createdAt,
+      }),
+      { subscriberId: "AnnotationFeature.ManagerBridge.CommentAdd" }
     ));
 
     this.#unsubs.push(this.#eventBus.on(

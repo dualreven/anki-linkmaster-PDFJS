@@ -16,7 +16,6 @@ import { confirmDialogAsync } from "./annotation-sidebar-ui/confirm-dialog.js";
 import { installAnnotationJumpDelegation } from "./annotation-sidebar-ui/jump-delegation.js";
 import { renderAnnotationSidebarEmptyState } from "./annotation-sidebar-ui/empty-state.js";
 import {
-  createCommentAddedHandler,
   createSidebarClosedHandler,
   createToolDeactivatedHandler,
   installAnnotationSidebarSubscriptions,
@@ -32,6 +31,8 @@ export class AnnotationSidebarUI {
   #eventBus;
   /** @type {Logger} */
   #logger;
+  /** @type {{ store?: { subscribe:Function, get:Function } }|null} */
+  #annotationManager = null;
   /** @type {HTMLElement} */
   #container;
   /** @type {HTMLElement} */
@@ -57,6 +58,7 @@ export class AnnotationSidebarUI {
   constructor(eventBus, options = {}) {
     this.#eventBus = eventBus;
     this.#logger = getLogger("AnnotationSidebarUI");
+    this.#annotationManager = options?.annotationManager || null;
     this.#container = null;
     this.#subscriptions = createSubscriptionBag({ loggerName: "AnnotationSidebarUI" });
     this.#toolbarController = createAnnotationSidebarToolbarController({
@@ -77,15 +79,22 @@ export class AnnotationSidebarUI {
     // 创建内容容器
     this.#createContent();
 
+    // 订阅 store：render by state（v001：不依赖 EventBus CRUD 事件驱动 UI）
+    const store = this.#annotationManager?.store || null;
+    if (!store || typeof store.subscribe !== "function") {
+      throw new Error("[AnnotationSidebarUI] annotationManager.store.subscribe not available");
+    }
+    this.#subscriptions.add(store.subscribe(
+      (state) => state?.annotations,
+      (annotations) => this.render(Array.isArray(annotations) ? annotations : []),
+      { fireImmediately: true }
+    ));
+
     // 监听事件
     installAnnotationSidebarSubscriptions({
       eventBus: this.#eventBus,
       subscriptions: this.#subscriptions,
       subscriberId: "AnnotationSidebarUI",
-      onCreated: (data) => this.addAnnotationCard(data.annotation),
-      onUpdated: (data) => this.updateAnnotationCard(data.annotation),
-      onDeleted: (data) => this.removeAnnotationCard(data.id),
-      onLoaded: (data) => this.render(data.annotations || []),
       onSelected: (data) => this.highlightAndScrollToCard(data.id),
       onToolDeactivated: createToolDeactivatedHandler({
         logger: this.#logger,
@@ -98,11 +107,6 @@ export class AnnotationSidebarUI {
         eventBus: this.#eventBus,
         setActiveTool: (next) => { this.#activeTool = next; },
         updateToolbarState: () => this.#toolbarController.updateToolbarState(),
-      }),
-      onCommentAdded: createCommentAddedHandler({
-        logger: this.#logger,
-        getAnnotationById: (id) => (this.#annotations || []).find((a) => a?.id === id),
-        updateAnnotationCard: (annotation) => this.updateAnnotationCard(annotation),
       }),
     });
 
@@ -372,11 +376,10 @@ export class AnnotationSidebarUI {
   #showCommentDialog(annotationId) {
     showAnnotationCommentDialog({
       annotationId,
-      annotations: this.#annotations,
+      getAnnotationById: (id) => (this.#annotations || []).find((a) => a?.id === id) || null,
       eventBus: this.#eventBus,
       logger: this.#logger,
       getImageUrl: (imagePath) => this.#getImageUrl(imagePath),
-      updateAnnotationCard: (annotation) => this.updateAnnotationCard(annotation),
     });
   }
 

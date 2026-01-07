@@ -21,10 +21,12 @@ jest.mock("../../../../../common/utils/notification.js", () => ({
 import { AnnotationSidebarUI } from "../annotation-sidebar-ui.js";
 import { Annotation, AnnotationType } from "../../../../../common/models/annotation.js";
 import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
+import { ObservableState } from "../../../../../common/utils/observable.js";
 
 describe("AnnotationSidebarUI 评论对话框保存行为", () => {
   let eventBus;
   let ui;
+  let store;
 
   beforeEach(() => {
     document.body.innerHTML = "";
@@ -35,7 +37,8 @@ describe("AnnotationSidebarUI 评论对话框保存行为", () => {
       onGlobal: jest.fn(() => () => {}),
     };
 
-    ui = new AnnotationSidebarUI(eventBus);
+    store = new ObservableState({ annotations: [] }, { name: "TestAnnotationStore" });
+    ui = new AnnotationSidebarUI(eventBus, { annotationManager: { store } });
     ui.initialize();
     document.body.appendChild(ui.getContentElement());
   });
@@ -58,9 +61,9 @@ describe("AnnotationSidebarUI 评论对话框保存行为", () => {
     });
   }
 
-  test("在评论对话框中添加评论时，应发出 ANNOTATION.UPDATE 事件以触发持久化", async () => {
+  test("在评论对话框中添加评论时，应发出 ANNOTATION.COMMENT.ADD 事件以触发持久化", async () => {
     const annotation = createHighlightAnnotation();
-    ui.addAnnotationCard(annotation);
+    store.set({ annotations: [annotation] });
 
     const commentBtn = ui
       .getContentElement()
@@ -85,13 +88,13 @@ describe("AnnotationSidebarUI 评论对话框保存行为", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     const calls = eventBus.emit.mock.calls.filter(
-      ([evtName]) => evtName === PDF_VIEWER_EVENTS.ANNOTATION.UPDATE
+      ([evtName]) => evtName === PDF_VIEWER_EVENTS.ANNOTATION.COMMENT.ADD
     );
     expect(calls.length).toBeGreaterThanOrEqual(1);
     const [, payload] = calls[0];
     expect(payload).toMatchObject({
-      id: annotation.id,
-      changes: expect.any(Object),
+      annotationId: annotation.id,
+      content: "新的评论内容",
     });
   });
 });

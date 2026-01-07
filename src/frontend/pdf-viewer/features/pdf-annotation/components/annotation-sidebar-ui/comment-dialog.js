@@ -1,29 +1,33 @@
 import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
 import { showSuccess } from "../../../../../common/utils/notification.js";
+import { Comment } from "../../../../../common/models/comment.js";
 
 /**
  * 显示标注评论对话框（从 AnnotationSidebarUI 抽离）
  * @param {Object} params
  * @param {string} params.annotationId
- * @param {Array} params.annotations
+ * @param {(annotationId:string)=>any|null} params.getAnnotationById
  * @param {Object} params.eventBus
  * @param {Object} params.logger
  * @param {(imagePath:string)=>string} params.getImageUrl
- * @param {(annotation:any)=>void} params.updateAnnotationCard
  */
 export function showAnnotationCommentDialog({
   annotationId,
-  annotations,
+  getAnnotationById,
   eventBus,
   logger,
   getImageUrl,
-  updateAnnotationCard,
 }) {
-  const annotation = annotations.find((a) => a.id === annotationId);
+  const annotation = typeof getAnnotationById === "function"
+    ? getAnnotationById(annotationId)
+    : null;
   if (!annotation) {
     logger.warn(`Annotation not found: ${annotationId}`);
     return;
   }
+
+  /** @type {Array<any>} */
+  const comments = Array.isArray(annotation.comments) ? [...annotation.comments] : [];
 
   const overlay = document.createElement("div");
   overlay.style.cssText = [
@@ -53,7 +57,7 @@ export function showAnnotationCommentDialog({
   ].join(";");
 
   const title = document.createElement("div");
-  const commentCount = annotation.getCommentCount();
+  const commentCount = comments.length;
   title.textContent = commentCount > 0 ? `评论 (${commentCount})` : "添加评论";
   title.style.cssText = [
     "font-size: 16px",
@@ -192,10 +196,6 @@ export function showAnnotationCommentDialog({
     "font-size:13px",
     "box-sizing:border-box",
   ].join(";");
-  titleInput.addEventListener("change", () => {
-    const v = (titleInput.value || "").trim();
-    annotation.title = v || null;
-  });
   titleRow.appendChild(titleLabelEl);
   titleRow.appendChild(titleInput);
 
@@ -217,15 +217,10 @@ export function showAnnotationCommentDialog({
     "font-size:13px",
     "box-sizing:border-box",
   ].join(";");
-  tagsInput.addEventListener("change", () => {
-    const raw = (tagsInput.value || "").trim();
-    annotation.tagsText = raw;
-  });
   tagsRow.appendChild(tagsLabelEl);
   tagsRow.appendChild(tagsInput);
 
   let initialTitle = annotation.title || "";
-  let initialTags = existingTags;
 
   metaContainer.appendChild(titleRow);
   metaContainer.appendChild(tagsRow);
@@ -251,8 +246,8 @@ export function showAnnotationCommentDialog({
 
   const renderComments = () => {
     commentsContainer.innerHTML = "";
-    if (annotation.comments && annotation.comments.length > 0) {
-      annotation.comments.forEach((comment) => {
+    if (comments.length > 0) {
+      comments.forEach((comment) => {
         const commentItem = document.createElement("div");
         commentItem.style.cssText = [
           "padding: 12px",
@@ -270,7 +265,12 @@ export function showAnnotationCommentDialog({
         ].join(";");
 
         const commentTime = document.createElement("div");
-        commentTime.textContent = comment.getFormattedDate();
+        if (typeof comment?.getFormattedDate === "function") {
+          commentTime.textContent = comment.getFormattedDate();
+        } else {
+          const d = new Date(comment?.createdAt || Date.now());
+          commentTime.textContent = d.toLocaleString("zh-CN");
+        }
         commentTime.style.cssText = ["font-size: 12px", "color: #999"].join(";");
 
         commentItem.appendChild(commentContent);
@@ -344,63 +344,56 @@ export function showAnnotationCommentDialog({
 
   const refreshComments = () => {
     renderComments();
-    const nextCount = annotation.getCommentCount();
+    const nextCount = comments.length;
     title.textContent = nextCount > 0 ? `评论 (${nextCount})` : "添加评论";
   };
 
   const submitComment = () => {
     const content = textarea.value.trim();
     const currentTitle = titleInput.value.trim();
-    const currentTags = tagsInput.value.trim();
 
     const titleChanged = currentTitle !== (initialTitle || "");
-    const tagsChanged = currentTags !== (initialTags || "");
     const hasComment = content !== "";
 
-    if (!titleChanged && !tagsChanged && !hasComment) {
+    if (!titleChanged && !hasComment) {
       logger.warn("没有更改", { toast: { type: "warn", ms: 3000 } });
       return;
     }
 
-    if (titleChanged || tagsChanged) {
-      annotation.title = currentTitle || null;
-      annotation.tagsText = currentTags || null;
+    if (titleChanged) {
       showSuccess("✓ 标注已更新", 2000);
+      eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.UPDATE, {
+        id: annotationId,
+        changes: { title: currentTitle || null },
+      });
     }
 
     if (hasComment) {
-      annotation.addComment({
-        content,
-        createdAt: new Date().toISOString(),
-      });
+      const createdAt = new Date().toISOString();
 
-      eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.COMMENT.ADDED, {
+      // Command -> Manager -> Store -> View（Sidebar 不再依赖 COMMENT.ADDED/CRUD 事件驱动 UI）
+      eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.COMMENT.ADD, {
         annotationId,
         content,
-        timestamp: Date.now(),
-        skipUpdate: true,
+        createdAt,
       });
+
+      // 对话框内部做本地 UI 更新（避免等待 store/网络回执）
+      try {
+        comments.push(new Comment({ annotationId, content, createdAt }));
+      } catch (e) {
+        // fail-fast：Comment 构造不应失败；但这里不阻塞已发出的 command
+        logger.warn("[AnnotationCommentDialog] Failed to build local comment model", e);
+      }
 
       refreshComments();
       textarea.value = "";
 
-      if (!titleChanged && !tagsChanged) {
+      if (!titleChanged) {
         showSuccess("✓ 评论已添加", 2000);
       }
       textarea.focus();
     }
-
-    const changes = {};
-    if (titleChanged) {
-      changes.title = currentTitle || null;
-    }
-
-    eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.UPDATE, {
-      id: annotationId,
-      changes,
-    });
-
-    updateAnnotationCard(annotation);
   };
 
   cancelBtn.addEventListener("click", closeDialog);

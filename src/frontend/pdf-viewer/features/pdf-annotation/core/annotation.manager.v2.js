@@ -98,6 +98,54 @@ export class AnnotationManager {
     }
   }
 
+  async addComment(annotationId, comment = {}) {
+    try {
+      const id = String(annotationId || "").trim();
+      if (!id) {
+        throw new Error("[AnnotationManager] addComment: annotationId is required");
+      }
+
+      const content = (typeof comment?.content === "string") ? comment.content.trim() : "";
+      if (!content) {
+        throw new Error("[AnnotationManager] addComment: content is required");
+      }
+
+      const createdAt = (typeof comment?.createdAt === "string" && comment.createdAt.trim())
+        ? comment.createdAt.trim()
+        : new Date().toISOString();
+
+      const current = this.store.get().annotations;
+      const index = current.findIndex(a => a.id === id);
+      if (index === -1) {
+        throw new Error(`[AnnotationManager] addComment: annotation not found id=${id}`);
+      }
+
+      const ann = current[index];
+      const added = ann.addComment({ content, createdAt });
+
+      const next = [...current];
+      next[index] = ann;
+      this.store.set({ annotations: next });
+
+      if (this.mockMode) {
+        await this._mockSave(ann);
+      } else {
+        await this._remoteSave(ann);
+      }
+
+      this.eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.COMMENT.ADDED, {
+        annotationId: id,
+        comment: (added && typeof added.toJSON === "function") ? added.toJSON() : added,
+      });
+    } catch (e) {
+      this.logger.error("[AnnotationManager] addComment failed", e);
+      this.eventBus.emit(PDF_VIEWER_EVENTS.ANNOTATION.UPDATE_FAILED, {
+        id: annotationId,
+        error: e?.message || String(e),
+      });
+    }
+  }
+
   async deleteAnnotation(id) {
     try {
       const current = this.store.get().annotations;

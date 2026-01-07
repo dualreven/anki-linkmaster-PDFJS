@@ -19,6 +19,7 @@ jest.mock("../../../../../common/utils/logger.js", () => {
 
 import { AnnotationSidebarUI } from "../annotation-sidebar-ui.js";
 import { getLogger } from "../../../../../common/utils/logger.js";
+import { ObservableState } from "../../../../../common/utils/observable.js";
 
 class StubEventBus {
   on() { return () => {}; }
@@ -29,7 +30,8 @@ class StubEventBus {
 
 test("点击无 data-annotation-id 的跳转按钮应记录错误日志（toast）", () => {
   const bus = new StubEventBus();
-  const ui = new AnnotationSidebarUI(bus);
+  const store = new ObservableState({ annotations: [] }, { name: "TestAnnotationStore" });
+  const ui = new AnnotationSidebarUI(bus, { annotationManager: { store } });
 
   // 获取logger实例并监视error方法
   const logger = getLogger("AnnotationSidebarUI");
@@ -55,4 +57,3 @@ test("点击无 data-annotation-id 的跳转按钮应记录错误日志（toast�
   // 清理
   document.body.removeChild(ui.getContentElement());
 });
-

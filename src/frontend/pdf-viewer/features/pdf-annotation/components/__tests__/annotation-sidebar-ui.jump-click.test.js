@@ -23,6 +23,7 @@ jest.mock("../../../../../common/utils/notification.js", () => ({
 import { AnnotationSidebarUI } from "../annotation-sidebar-ui.js";
 import { Annotation, AnnotationType } from "../../../../../common/models/annotation.js";
 import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
+import { ObservableState } from "../../../../../common/utils/observable.js";
 
 /**
  * 冒烟/功能完整性：AnnotationSidebarUI 卡片跳转
@@ -33,6 +34,7 @@ import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-consta
 describe("AnnotationSidebarUI jump actions", () => {
   let eventBus;
   let ui;
+  let store;
 
   beforeEach(() => {
     // JSDOM 初始化
@@ -45,7 +47,8 @@ describe("AnnotationSidebarUI jump actions", () => {
       onGlobal: jest.fn(() => () => {}),
     };
     // 实例化 UI
-    ui = new AnnotationSidebarUI(eventBus);
+    store = new ObservableState({ annotations: [] }, { name: "TestAnnotationStore" });
+    ui = new AnnotationSidebarUI(eventBus, { annotationManager: { store } });
     ui.initialize();
     document.body.appendChild(ui.getContentElement());
   });
@@ -74,7 +77,7 @@ describe("AnnotationSidebarUI jump actions", () => {
 
   test("点击卡片右上角跳转按钮，应发射全局 ANNOTATION.NAVIGATION.JUMP_REQUESTED", () => {
     const annotation = createHighlightAnnotation();
-    ui.addAnnotationCard(annotation);
+    store.set({ annotations: [annotation] });
 
     const jumpBtn = ui
       .getContentElement()
@@ -99,7 +102,7 @@ describe("AnnotationSidebarUI jump actions", () => {
       pageNumber: 7,
       lineRects: [{ xPercent: 0, yPercent: 33.3, widthPercent: 100, heightPercent: 12.4 }],
     });
-    ui.addAnnotationCard(annotation);
+    store.set({ annotations: [annotation] });
 
     // 在该卡片内模拟工具自带的跳转按钮（委托选择器匹配 .jump-btn）
     const card = ui.getContentElement().querySelector(

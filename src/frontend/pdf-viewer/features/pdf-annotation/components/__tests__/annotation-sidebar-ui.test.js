@@ -1,10 +1,12 @@
 import { AnnotationSidebarUI } from "../annotation-sidebar-ui.js";
 import { Annotation, AnnotationType } from "../../../../../common/models/annotation.js";
 import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
+import { ObservableState } from "../../../../../common/utils/observable.js";
 
 describe("AnnotationSidebarUI delete button", () => {
   let eventBus;
   let ui;
+  let store;
 
   beforeEach(() => {
     document.body.innerHTML = "";
@@ -14,7 +16,8 @@ describe("AnnotationSidebarUI delete button", () => {
       onGlobal: jest.fn(() => () => {}),
     };
 
-    ui = new AnnotationSidebarUI(eventBus);
+    store = new ObservableState({ annotations: [] }, { name: "TestAnnotationStore" });
+    ui = new AnnotationSidebarUI(eventBus, { annotationManager: { store } });
     ui.initialize();
     document.body.appendChild(ui.getContentElement());
   });
@@ -36,7 +39,7 @@ describe("AnnotationSidebarUI delete button", () => {
 
   it("emits delete event when delete button confirmed", async () => {
     const annotation = createHighlightAnnotation();
-    ui.addAnnotationCard(annotation);
+    store.set({ annotations: [annotation] });
 
     const deleteBtn = ui
       .getContentElement()
@@ -68,7 +71,7 @@ describe("AnnotationSidebarUI delete button", () => {
 
   it("does not emit delete event when user cancels", async () => {
     const annotation = createHighlightAnnotation();
-    ui.addAnnotationCard(annotation);
+    store.set({ annotations: [annotation] });
 
     const deleteBtn = ui
       .getContentElement()

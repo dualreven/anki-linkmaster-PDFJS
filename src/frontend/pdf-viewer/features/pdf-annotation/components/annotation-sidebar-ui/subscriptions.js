@@ -93,22 +93,35 @@ export function installAnnotationSidebarSubscriptions({
 }) {
   const sid = subscriberId || "AnnotationSidebarUI";
 
-  subscriptions.add(eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, onCreated, { subscriberId: sid }));
-  subscriptions.add(eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.UPDATED, onUpdated, { subscriberId: sid }));
-  subscriptions.add(eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DELETED, onDeleted, { subscriberId: sid }));
+  // CRUD / data events（v001：AnnotationSidebarUI 不应依赖这些事件驱动 UI 渲染）
+  if (typeof onCreated === "function") {
+    subscriptions.add(eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, onCreated, { subscriberId: sid }));
+  }
+  if (typeof onUpdated === "function") {
+    subscriptions.add(eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.UPDATED, onUpdated, { subscriberId: sid }));
+  }
+  if (typeof onDeleted === "function") {
+    subscriptions.add(eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DELETED, onDeleted, { subscriberId: sid }));
+  }
+  if (typeof onLoaded === "function") {
+    subscriptions.add(eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, onLoaded, { subscriberId: sid }));
+  }
 
-  subscriptions.add(eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, onLoaded, { subscriberId: sid }));
-
-  subscriptions.add(eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.TOOL.DEACTIVATED, onToolDeactivated, { subscriberId: sid }));
-
-  subscriptions.add(eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.SELECT, onSelected, { subscriberId: sid }));
-
-  subscriptions.add(eventBus.onGlobal(
-    PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.CLOSED_COMPLETED,
-    onSidebarClosed,
-    { subscriberId: sid }
-  ));
-
-  subscriptions.add(eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.COMMENT.ADDED, onCommentAdded, { subscriberId: sid }));
+  // 非 CRUD：交互与跨模块协作事件
+  if (typeof onToolDeactivated === "function") {
+    subscriptions.add(eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.TOOL.DEACTIVATED, onToolDeactivated, { subscriberId: sid }));
+  }
+  if (typeof onSelected === "function") {
+    subscriptions.add(eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.SELECT, onSelected, { subscriberId: sid }));
+  }
+  if (typeof onSidebarClosed === "function") {
+    subscriptions.add(eventBus.onGlobal(
+      PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.CLOSED_COMPLETED,
+      onSidebarClosed,
+      { subscriberId: sid }
+    ));
+  }
+  if (typeof onCommentAdded === "function") {
+    subscriptions.add(eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.COMMENT.ADDED, onCommentAdded, { subscriberId: sid }));
+  }
 }
-
