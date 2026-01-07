@@ -12,7 +12,6 @@ import { showError } from "../../../../common/utils/notification.js";
 
 import { PDF_TRANSLATOR_EVENTS } from "../events.js";
 
-import { prependTranslationHistory } from "./translator-history.js";
 import { createTranslatorSidebarActions } from "./translator-sidebar-actions.js";
 import { bindTranslatorSidebarDom } from "./translator-sidebar-dom-bindings.js";
 import { renderTranslatorError, renderTranslatorSidebar } from "./translator-sidebar-renderer.js";
@@ -23,6 +22,7 @@ import { renderTranslatorError, renderTranslatorSidebar } from "./translator-sid
  */
 export class TranslatorSidebarUI {
   #eventBus;
+  #manager;
   #logger;
   #contentElement;
   #currentTranslation = null;
@@ -40,12 +40,26 @@ export class TranslatorSidebarUI {
     if (!eventBus) {
       throw new Error("[TranslatorSidebarUI] constructor: eventBus is required");
     }
+    if (!options?.manager || typeof options.manager !== "object") {
+      throw new Error("[TranslatorSidebarUI] constructor: options.manager is required");
+    }
+    if (!options.manager.store || typeof options.manager.store.subscribe !== "function" || typeof options.manager.store.get !== "function") {
+      throw new Error("[TranslatorSidebarUI] constructor: manager.store is required");
+    }
+    if (typeof options.getCurrentPageNumber !== "function") {
+      throw new Error("[TranslatorSidebarUI] constructor: options.getCurrentPageNumber is required");
+    }
 
     this.#eventBus = eventBus;
+    this.#manager = options.manager;
     this.#logger = getLogger("TranslatorSidebarUI");
     this.#contentElement = null;
     this.#subscriptions = createSubscriptionBag({ loggerName: "TranslatorSidebarUI" });
-    this.#actions = createTranslatorSidebarActions({ eventBus: this.#eventBus, logger: this.#logger });
+    this.#actions = createTranslatorSidebarActions({
+      eventBus: this.#eventBus,
+      logger: this.#logger,
+      getCurrentPageNumber: options.getCurrentPageNumber
+    });
   }
 
   /**
@@ -63,8 +77,19 @@ export class TranslatorSidebarUI {
       ].join(";")
     });
 
-    this.#render();
-    this.#setupEventListeners();
+    // Subscribe store -> UI (Manager + Store pattern)
+    this.#subscriptions.add(this.#manager.store.subscribe((state, oldState) => {
+      this.#currentTranslation = state.currentTranslation ?? null;
+      this.#translationHistory = Array.isArray(state.translationHistory) ? state.translationHistory : [];
+
+      if (!oldState || state.error !== oldState.error) {
+        if (state.error) {
+          showError(String(state.error));
+        }
+      }
+
+      this.#render(state);
+    }, { fireImmediately: true }));
 
     this.#logger.info("TranslatorSidebarUI initialized");
   }
@@ -98,29 +123,12 @@ export class TranslatorSidebarUI {
     this.#currentTranslation = null;
     this.#translationHistory = [];
     this.#actions = null;
+    this.#manager = null;
 
     this.#logger.info("TranslatorSidebarUI destroyed");
   }
 
-  #setupEventListeners() {
-    this.#subscriptions.add(
-      this.#eventBus.on(
-        PDF_TRANSLATOR_EVENTS.TRANSLATE.COMPLETED,
-        (data) => this.#handleTranslationCompleted(data),
-        { subscriberId: "TranslatorSidebarUI" }
-      )
-    );
-
-    this.#subscriptions.add(
-      this.#eventBus.on(
-        PDF_TRANSLATOR_EVENTS.TRANSLATE.FAILED,
-        (data) => this.#handleTranslationFailed(data),
-        { subscriberId: "TranslatorSidebarUI" }
-      )
-    );
-  }
-
-  #render() {
+  #render(state = null) {
     if (!this.#contentElement) {
       throw new Error("[TranslatorSidebarUI] render: content element is not initialized");
     }
@@ -131,6 +139,13 @@ export class TranslatorSidebarUI {
       currentTranslation: this.#currentTranslation,
       onEngineChanged: (engine) => this.#handleEngineChanged(engine)
     });
+
+    if (state?.error) {
+      renderTranslatorError({
+        rootElement: this.#contentElement,
+        errorMessage: String(state.error)
+      });
+    }
 
     this.#scheduleDomBindings();
   }
@@ -166,32 +181,5 @@ export class TranslatorSidebarUI {
   #handleEngineChanged(engine) {
     this.#eventBus.emit(PDF_TRANSLATOR_EVENTS.ENGINE.CHANGED, { engine });
     this.#logger.info(`Translation engine changed to: ${engine}`);
-  }
-
-  #handleTranslationCompleted(data) {
-    this.#logger.info("Translation completed:", data);
-
-    const result = prependTranslationHistory(this.#translationHistory, data);
-    this.#currentTranslation = result.currentTranslation;
-    this.#translationHistory = result.history;
-
-    this.#render();
-  }
-
-  #handleTranslationFailed(data) {
-    this.#logger.error("Translation failed:", data);
-    if (!this.#contentElement) {return;}
-
-    const errorMessage =
-      typeof data?.error === "string"
-        ? data.error
-        : (data?.error ? String(data.error) : "未知错误");
-
-    showError(errorMessage);
-
-    renderTranslatorError({
-      rootElement: this.#contentElement,
-      errorMessage
-    });
   }
 }

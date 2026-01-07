@@ -8,6 +8,7 @@ import { getLogger } from "../../../common/utils/logger.js";
 import { TranslatorSidebarUI } from "./components/TranslatorSidebarUI.js";
 import { TranslationService } from "./services/TranslationService.js";
 import { SelectionMonitor } from "./services/SelectionMonitor.js";
+import { TranslatorManager } from "./core/translator-manager.js";
 import { PDF_TRANSLATOR_EVENTS } from "./events.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
 import { createSubscriptionBag } from "../../../common/event/subscription-bag.js";
@@ -29,6 +30,9 @@ export class PDFTranslatorFeature {
 
   /** @type {TranslationService} */
   #translationService;
+
+  /** @type {TranslatorManager} */
+  #translatorManager;
 
   /** @type {SelectionMonitor} */
   #selectionMonitor;
@@ -110,7 +114,24 @@ export class PDFTranslatorFeature {
     this.#logger.info(`[${this.name}] Selection monitor initialized (disabled by default)`);
 
     // 3. 创建侧边栏UI
-    this.#sidebarUI = new TranslatorSidebarUI(this.#eventBus);
+    this.#translatorManager = new TranslatorManager({
+      eventBus: this.#eventBus,
+      logger: this.#logger,
+      translationService: this.#translationService,
+      targetLanguage: this.#targetLanguage
+    });
+
+    this.#sidebarUI = new TranslatorSidebarUI(this.#eventBus, {
+      manager: this.#translatorManager,
+      getCurrentPageNumber: () => {
+        const mgr = this.#container?.get?.("pdfViewerManager");
+        const n = mgr?.currentPageNumber;
+        if (typeof n !== "number" || !Number.isFinite(n) || n <= 0) {
+          throw new Error("[PDFTranslatorFeature] pdfViewerManager.currentPageNumber is invalid");
+        }
+        return n;
+      }
+    });
     this.#sidebarUI.initialize();
     this.#logger.info(`[${this.name}] Sidebar UI initialized`);
 
@@ -118,6 +139,7 @@ export class PDFTranslatorFeature {
     if (this.#container) {
       this.#container.registerGlobal("translatorSidebarUI", this.#sidebarUI);
       this.#container.registerGlobal("translationService", this.#translationService);
+      this.#container.registerGlobal("translatorManager", this.#translatorManager);
       this.#logger.info(`[${this.name}] Services registered to global container`);
     }
 
@@ -150,6 +172,11 @@ export class PDFTranslatorFeature {
     if (this.#translationService) {
       this.#translationService.destroy();
       this.#translationService = null;
+    }
+
+    if (this.#translatorManager) {
+      this.#translatorManager.destroy();
+      this.#translatorManager = null;
     }
 
     // 销毁侧边栏UI
@@ -208,6 +235,7 @@ export class PDFTranslatorFeature {
             this.#selectionMonitor?.setEnabled(true);
             // 避免复用上一次选择导致的误触发
             this.#selectionMonitor?.clearLastSelection?.();
+            this.#translatorManager?.setAutoEnabled(true);
             // 广播领域事件
             this.#eventBus.emitGlobal(PDF_TRANSLATOR_EVENTS.SIDEBAR.OPENED, { sidebarId: "translate" }, { actorId: "PDFTranslatorFeature" });
             this.#logger.info("[PDFTranslator] Auto-translate enabled because translate sidebar opened");
@@ -227,6 +255,7 @@ export class PDFTranslatorFeature {
           try {
             this.#selectionMonitor?.setEnabled(false);
             this.#selectionMonitor?.clearLastSelection?.();
+            this.#translatorManager?.setAutoEnabled(false);
             this.#eventBus.emitGlobal(PDF_TRANSLATOR_EVENTS.SIDEBAR.CLOSED, { sidebarId: "translate" }, { actorId: "PDFTranslatorFeature" });
             this.#logger.info("[PDFTranslator] Auto-translate disabled because translate sidebar closed");
           } catch (e) {
@@ -262,7 +291,11 @@ export class PDFTranslatorFeature {
     });
 
     // 自动触发翻译（传递位置信息和Range数据）
-    await this.#translateText(text, null, "auto", { pageNumber, position, rangeData });
+    try {
+      await this.#translatorManager.translateText(text, null, "auto", { pageNumber, position, rangeData });
+    } catch {
+      // 错误已由 manager 写入 store 并 emit FAILED；这里仅防止未处理 Promise
+    }
   }
 
   /**
@@ -274,16 +307,9 @@ export class PDFTranslatorFeature {
     const { engine } = data;
     this.#logger.info(`Switching to translation engine: ${engine}`);
 
-    if (this.#translationService) {
-      const success = this.#translationService.setEngine(engine);
-      if (!success) {
-        this.#logger.error(`Failed to switch to engine: ${engine}`);
-        // 发送失败事件
-        this.#eventBus.emit(
-          PDF_TRANSLATOR_EVENTS.ENGINE.CHANGED,
-          { engine, success: false, error: "Engine not found" }
-        );
-      }
+    const ok = this.#translatorManager?.setEngine(engine);
+    if (!ok) {
+      this.#logger.error(`Failed to switch to engine: ${engine}`);
     }
   }
 
@@ -296,63 +322,10 @@ export class PDFTranslatorFeature {
     const { text, targetLang, sourceLang, pageNumber, position } = data;
     this.#logger.info(`Manual translation requested: "${text.substring(0, 50)}..."`);
 
-    await this.#translateText(text, targetLang, sourceLang, { pageNumber, position });
-  }
-
-  /**
-   * 执行翻译
-   * @private
-   * @param {string} text - 要翻译的文本
-   * @param {string} [targetLang] - 目标语言
-   * @param {string} [sourceLang='auto'] - 源语言
-   * @param {Object} [context] - 上下文信息（pageNumber, position等）
-   */
-  async #translateText(text, targetLang, sourceLang = "auto", context = {}) {
     try {
-      // 使用默认目标语言（如果未指定）
-      const target = targetLang || this.#targetLanguage;
-
-      // 发送翻译开始事件
-      this.#eventBus.emit(
-        PDF_TRANSLATOR_EVENTS.TRANSLATE.STARTED,
-        { text, targetLang: target, sourceLang, ...context },
-        { actorId: "PDFTranslatorFeature" }
-      );
-
-      // 调用翻译服务
-      const result = await this.#translationService.translate(text, target, sourceLang);
-
-      // 合并上下文信息到结果中
-      const resultWithContext = {
-        ...result,
-        ...context
-      };
-
-      // 发送翻译完成事件
-      this.#eventBus.emit(
-        PDF_TRANSLATOR_EVENTS.TRANSLATE.COMPLETED,
-        resultWithContext,
-        { actorId: "PDFTranslatorFeature" }
-      );
-
-      this.#logger.info("Translation completed:", resultWithContext);
-
-    } catch (error) {
-      // Feature 层错误仅记录，不触发自动 toast（交由侧边栏统一 toast）
-      this.#logger.error("Translation failed:", error, { toast: { type: "debug" } });
-
-      // 发送翻译失败事件
-      this.#eventBus.emit(
-        PDF_TRANSLATOR_EVENTS.TRANSLATE.FAILED,
-        {
-          text,
-          targetLang: targetLang || this.#targetLanguage,
-          sourceLang,
-          error: error.message,
-          ...context
-        },
-        { actorId: "PDFTranslatorFeature" }
-      );
+      await this.#translatorManager.translateText(text, targetLang, sourceLang, { pageNumber, position });
+    } catch {
+      // 错误已由 manager 写入 store 并 emit FAILED；这里仅防止未处理 Promise
     }
   }
 
@@ -364,4 +337,3 @@ export class PDFTranslatorFeature {
     return this.#sidebarUI;
   }
 }
-

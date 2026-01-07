@@ -3,12 +3,15 @@ import { showError, showInfo, showSuccess } from "../../../../common/utils/notif
 
 import { PDF_TRANSLATOR_EVENTS } from "../events.js";
 
-export function createTranslatorSidebarActions({ eventBus, logger }) {
+export function createTranslatorSidebarActions({ eventBus, logger, getCurrentPageNumber }) {
   if (!eventBus) {
     throw new Error("[TranslatorSidebarUI] createTranslatorSidebarActions: eventBus is required");
   }
   if (!logger) {
     throw new Error("[TranslatorSidebarUI] createTranslatorSidebarActions: logger is required");
+  }
+  if (typeof getCurrentPageNumber !== "function") {
+    throw new Error("[TranslatorSidebarUI] createTranslatorSidebarActions: getCurrentPageNumber is required");
   }
 
   function createAnnotationFromTranslation(translation) {
@@ -57,11 +60,15 @@ export function createTranslatorSidebarActions({ eventBus, logger }) {
   function createCardFromTranslation(translation) {
     logger.info("Creating card from translation...");
 
+    if (!translation || typeof translation !== "object") {
+      throw new Error("[TranslatorSidebarUI] createCardFromTranslation: translation is required");
+    }
+
     eventBus.emitGlobal(PDF_TRANSLATOR_EVENTS.CARD.CREATE_REQUESTED, {
       cardData: {
         front: translation.original,
         back: translation.translation,
-        source: buildSourceInfo(),
+        source: buildSourceInfo(translation),
         tags: ["翻译", "PDF", translation.language?.source || "unknown"],
         extras: translation.extras || {}
       },
@@ -105,9 +112,18 @@ export function createTranslatorSidebarActions({ eventBus, logger }) {
     logger.info("Speaking text:", text);
   }
 
-  function buildSourceInfo() {
+  function buildSourceInfo(translation) {
     const fileName = window.PDF_PATH?.split("/").pop() || "Unknown";
-    const pageNumber = 1; // TODO: 获取当前页码
+
+    const fromTranslation = translation?.pageNumber;
+    if (typeof fromTranslation === "number" && Number.isFinite(fromTranslation) && fromTranslation > 0) {
+      return `${fileName} - 第${fromTranslation}页`;
+    }
+
+    const pageNumber = getCurrentPageNumber();
+    if (typeof pageNumber !== "number" || !Number.isFinite(pageNumber) || pageNumber <= 0) {
+      throw new Error("[TranslatorSidebarUI] buildSourceInfo: getCurrentPageNumber() must return a positive number");
+    }
     return `${fileName} - 第${pageNumber}页`;
   }
 
@@ -118,4 +134,3 @@ export function createTranslatorSidebarActions({ eventBus, logger }) {
     speak
   };
 }
-

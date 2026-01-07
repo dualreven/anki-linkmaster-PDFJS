@@ -36,6 +36,14 @@
 - **驱动方式**：生成 QueueFile（UTF-8 + `\n`）并调用 `scripts/merge-fastlane.ps1 -QueueFile ...`。
 - **修复**：`scripts/merge-fastlane.ps1` 将“测试文件存在性校验”延后到 cherry-pick 之后，避免测试文件由本次合入引入时被提前误判不存在。
 
+## 2026-01-07（已完成）D：其余 Feature Observable 迁移样板（pdf-translator）
+- **结论**：选用 `pdf-translator` 完成“事件 -> Manager -> Store -> UI”全链路迁移样板。
+- **落地要点**：
+  - 新增 `TranslatorManager`：业务逻辑写入 `ObservableState`，并保留对 `PDF_TRANSLATOR_EVENTS.TRANSLATE.*` 的 emit 以兼容外围。
+  - `TranslatorSidebarUI`：改为 `store.subscribe(...,{ fireImmediately:true })` 驱动渲染；`destroy()` 清理 unsubscribe 与计时器，避免渲染泄漏。
+  - TODO 收敛：卡片 source 信息页码不再写死 `1`，优先使用 translation 的 `pageNumber`，否则从 `pdfViewerManager.currentPageNumber` 读取。
+- **交付物**：`src/frontend/pdf-viewer/features/pdf-translator/MIGRATION-CHECKLIST.md`（其余 Feature 迁移顺序/风险/建议测试点）。
+
 ## 2026-01-07 并行合入：A/B/C/D 批量集成完成
 - **状态**：已完成（main 通过 lint + 本轮最小 Jest 集合）。
 - **worktree/分支**：
