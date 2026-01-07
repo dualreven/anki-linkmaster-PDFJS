@@ -280,13 +280,9 @@ def main(argv: Sequence[str]) -> int:
     _print_ln("[exec] Invoking merge-fastlane...")
     _run(
         [
-            "powershell",
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str((repo_root / "scripts" / "merge-fastlane.ps1").as_posix()),
-            "-QueueFile",
+            "python",
+            str((repo_root / "scripts" / "merge_fastlane.py").as_posix()),
+            "--queue-file",
             str(queue_path.as_posix()),
         ],
         cwd=repo_root,
@@ -302,4 +298,3 @@ if __name__ == "__main__":
     except Exception as e:
         _print_ln(f"[err] {e}")
         raise SystemExit(1)
-

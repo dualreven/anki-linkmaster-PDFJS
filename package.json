@@ -102,7 +102,8 @@
     "ci:frontend-line-limit": "node scripts/ci/frontend-line-limit.js",
     "ci:frontend-line-limit:write-baseline": "node scripts/ci/frontend-line-limit.js --write-baseline",
     "docs:frontend": "jsdoc -c jsdoc.config.cjs",
-    "merge:sweep": "python scripts/sweep_and_merge.py"
+    "merge:sweep": "python scripts/sweep_and_merge.py",
+    "merge:fastlane": "python scripts/merge_fastlane.py"
   },
   "engines": {
     "node": ">=14.0.0",

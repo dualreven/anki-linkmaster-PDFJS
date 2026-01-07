@@ -21,7 +21,7 @@
      - 若无法推断，发出警告但继续。
    
 ### B. 批量车道 (The Batch Lane)
-利用 `scripts/merge-fastlane.ps1` 的批量能力，但由“自动化收集”脚本驱动：
+利用 `scripts/merge_fastlane.py` 的批量能力，但由“自动化收集”脚本驱动：
 - **一次集成**: 将 A+B+C+D 的提交一次性 Cherry-pick 到同一个 `integration` 分支。
 - **一次验证**: 运行一次 Lint，运行一次测试集合（去重后的并集）。
 - **原子合入**: 要么全过，要么全不过（Fail Fast）。
@@ -31,20 +31,20 @@
   - *替代方案*: Worker 仅在本地更新状态，或写入 `AItemp/signals/`（非 Git 追踪）来通知进度。
 - **代码隔离**: 尽量确保 A/B/C/D 修改不同模块。
 
-## 3. 新工具：`scripts/sweep_and_merge.ps1`
+## 3. 新工具：`scripts/sweep_and_merge.py`
 该脚本将实现上述 A+B 策略。
 
 ### 用法
 ```powershell
-./scripts/sweep_and_merge.ps1
+pnpm -s run merge:sweep
 ```
 ### 行为
 1. 扫描 `../anki-linkmaster-A`, `B`, `C`, `D` 等同级目录（或根据 `git worktree list`）。
 2. 发现 A, C 有新提交。
 3. 分析 A 的变更：`src/foo.js` -> 自动找到 `src/foo.test.js`。
 4. 分析 C 的变更：`src/bar.js` + `src/bar.test.js` -> 加入测试。
-5. 生成命令：`./scripts/merge-fastlane.ps1 -Commits HashA,HashC -TestPaths src/foo.test.js,src/bar.test.js`。
+5. 生成命令：`python ./scripts/merge_fastlane.py --commits HashA HashC --test-paths src/foo.test.js src/bar.test.js`。
 6. 执行并输出结果。
 
 ## 4. 下一步
-我将编写 `scripts/sweep_and_merge.ps1` 并更新开发文档。
+我将编写/维护 `scripts/sweep_and_merge.py` 与 `scripts/merge_fastlane.py` 并更新开发文档。
