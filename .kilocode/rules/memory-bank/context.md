@@ -4,12 +4,12 @@
 
 ## 2026-01-07 并行合并流程优化 (Completed)
 - **痛点解决**: 针对 "Main AI Cherry-pick 耗时" 问题，引入自动化扫描与批量合并工具。
-- **新工具**: `scripts/sweep_and_merge.ps1`
+- **新工具**: `scripts/sweep_and_merge.py`
   - 自动发现所有领先 Main 的 Worktree。
   - 自动提取 Commit Hash。
   - 自动根据变更文件推断测试用例（`*.js` -> `*.test.js`）。
-  - 调用 `scripts/merge-fastlane.ps1` 进行一次性批量集成（Lint + Test + Cherry-pick）。
-- **流程变更**: Main AI 不再需要手动寻找 Commit，只需运行 `./scripts/sweep_and_merge.ps1`。
+  - 调用 `scripts/merge_fastlane.py` 进行一次性批量集成（Lint + Test + Cherry-pick）。
+- **流程变更**: Main AI 不再需要手动寻找 Commit，只需运行 `pnpm -s run merge:sweep`。
 - **文档**: `docs/reports/20260107-merge-optimization-plan.md`。
 
 ## 2026-01-07 前端面条代码评估
@@ -33,8 +33,12 @@
 ## 2026-01-07 合并流程工具更新：sweep_and_merge 改为 Python
 - **变更**：移除 `scripts/sweep_and_merge.ps1`，新增 `scripts/sweep_and_merge.py`，并通过 `pnpm -s run merge:sweep` 调用。
 - **原则**：默认 Fail-Fast；推断不到 `testPaths` 直接失败（不再使用“虚假 anchor test”兜底）。
-- **驱动方式**：生成 QueueFile（UTF-8 + `\n`）并调用 `scripts/merge-fastlane.ps1 -QueueFile ...`。
-- **修复**：`scripts/merge-fastlane.ps1` 将“测试文件存在性校验”延后到 cherry-pick 之后，避免测试文件由本次合入引入时被提前误判不存在。
+- **驱动方式**：生成 QueueFile（UTF-8 + `\n`）并调用 `scripts/merge_fastlane.py --queue-file ...`。
+- **修复**：`scripts/merge_fastlane.py` 将“测试文件存在性校验”延后到 cherry-pick 之后，避免测试文件由本次合入引入时被提前误判不存在。
+
+## 2026-01-07 状态修正：B 任务未完成，已重新打开
+- **说明**：main 已合入 `refactor(pdf-anchor): reduce eventbus coupling`（commit `ac1e2aae`），但这不等价于任务 B 的 DoD（仍需 `AnchorManager+store` + `AnchorSidebarUI` 订阅 store + destroy 解绑测试）。
+- **动作**：将 `20260107100900-observable-anchor-sidebar-B` 从归档移回 `todo-and-doing/1 doing/` 继续执行。
 
 ## 2026-01-07（已完成）D：其余 Feature Observable 迁移样板（pdf-translator）
 - **结论**：选用 `pdf-translator` 完成“事件 -> Manager -> Store -> UI”全链路迁移样板。
