@@ -1,12 +1,10 @@
 import { PositionTracker } from "../../shared/position-tracker.js";
-import { normalizePercentToStoredPosition } from "./anchor-utils.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
 
 export function setupAnchorPositionTracker({
   logger,
   container,
   eventBus,
-  getAnchorsById,
   getActiveAnchorId,
   setLastUpdateAt,
   getLastUpdateAt,
@@ -25,7 +23,7 @@ export function setupAnchorPositionTracker({
     debounceMs: 200,
     domEventHub,
     onPositionChange: (pageAt, position) => {
-      handlePositionChanged({ logger, eventBus, getAnchorsById, getActiveAnchorId, setLastUpdateAt, getLastUpdateAt }, pageAt, position);
+      handlePositionChanged({ logger, eventBus, getActiveAnchorId, setLastUpdateAt, getLastUpdateAt }, pageAt, position);
     },
   });
 
@@ -111,21 +109,9 @@ function updateActiveAnchorPosition(ctx, anchorId, pageAt, position) {
     posNum = Math.round(Math.max(0, Math.min(100, position)));
   }
 
-  const anchorsById = ctx.getAnchorsById();
-  const anchor = anchorsById.get(id) || { uuid: id };
-  anchor.page_at = pageAtNum;
-  anchor.position = normalizePercentToStoredPosition(posNum);
-  anchorsById.set(id, anchor);
-
   ctx.eventBus.emit(
     PDF_VIEWER_EVENTS.ANCHOR.UPDATE,
     { anchorId: id, update: { page_at: pageAtNum, position: posNum } },
-    { actorId: "PDFAnchorFeature" }
-  );
-
-  ctx.eventBus.emit(
-    PDF_VIEWER_EVENTS.ANCHOR.UPDATED,
-    { anchorId: id, page_at: pageAtNum, position: posNum },
     { actorId: "PDFAnchorFeature" }
   );
 }
