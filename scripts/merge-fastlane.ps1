@@ -248,7 +248,6 @@ try {
   Write-LineN "[info] integrationBranch=$($cfg.integrationBranch)"
   Write-LineN "[info] dryRun=$DryRun"
 
-  Assert-TestPathsExist -Paths $cfg.testPaths
   Assert-CommitsExist -CommitsToCheck $cfg.commits
 
   if (-not $AllowDirty) {
@@ -290,6 +289,9 @@ try {
       throw
     }
   }
+
+  # 测试文件可能由本次 cherry-pick 引入：必须在合入后再校验存在性
+  Assert-TestPathsExist -Paths $cfg.testPaths
 
   $s = Start-Step "pnpm -s run lint"
   Run-WriteCmd pnpm @('-s', 'run', 'lint') | Out-Null

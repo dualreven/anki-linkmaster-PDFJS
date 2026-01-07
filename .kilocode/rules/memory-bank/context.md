@@ -2,6 +2,16 @@
 
 最后更新：2026-01-07（memory-bank lint：超限自动归档）
 
+## 2026-01-07 并行合并流程优化 (Completed)
+- **痛点解决**: 针对 "Main AI Cherry-pick 耗时" 问题，引入自动化扫描与批量合并工具。
+- **新工具**: `scripts/sweep_and_merge.ps1`
+  - 自动发现所有领先 Main 的 Worktree。
+  - 自动提取 Commit Hash。
+  - 自动根据变更文件推断测试用例（`*.js` -> `*.test.js`）。
+  - 调用 `scripts/merge-fastlane.ps1` 进行一次性批量集成（Lint + Test + Cherry-pick）。
+- **流程变更**: Main AI 不再需要手动寻找 Commit，只需运行 `./scripts/sweep_and_merge.ps1`。
+- **文档**: `docs/reports/20260107-merge-optimization-plan.md`。
+
 ## 2026-01-07 前端面条代码评估
 - **现状**: 混合过渡期。`SearchFeature` 已完成 Manager+Store 迁移（标杆）；`AnnotationFeature` 处于混合态（Manager 有 Store，但 UI 仍依赖 EventBus）。
 - **产出**: 分析报告 `docs/reports/FRONTEND_SPAGHETTI_ANALYSIS_20260107.md`。
@@ -14,6 +24,12 @@
   - B：`20260107100900-observable-anchor-sidebar-B`（Anchor Sidebar UI 订阅 store，引入/补齐 AnchorManager+store）
   - C：`20260107100900-feature-internal-eventbus-gates-C`（Feature 内部 EventBus 闭环约束的最小门禁/指引）
   - D：`20260107100900-observable-migration-rest-features-D`（选 1 个中等 Feature 做迁移样板 + 输出剩余迁移清单）
+
+## 2026-01-07 合并流程工具更新：sweep_and_merge 改为 Python
+- **变更**：移除 `scripts/sweep_and_merge.ps1`，新增 `scripts/sweep_and_merge.py`，并通过 `pnpm -s run merge:sweep` 调用。
+- **原则**：默认 Fail-Fast；推断不到 `testPaths` 直接失败（不再使用“虚假 anchor test”兜底）。
+- **驱动方式**：生成 QueueFile（UTF-8 + `\n`）并调用 `scripts/merge-fastlane.ps1 -QueueFile ...`。
+- **修复**：`scripts/merge-fastlane.ps1` 将“测试文件存在性校验”延后到 cherry-pick 之后，避免测试文件由本次合入引入时被提前误判不存在。
 
 ## 2026-01-07 并行合入：A/B/C/D 批量集成完成
 - **状态**：已完成（main 通过 lint + 本轮最小 Jest 集合）。

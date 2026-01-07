@@ -101,7 +101,8 @@
     "ci:memory-bank-limit": "node scripts/ci/memory-bank-limit.js",
     "ci:frontend-line-limit": "node scripts/ci/frontend-line-limit.js",
     "ci:frontend-line-limit:write-baseline": "node scripts/ci/frontend-line-limit.js --write-baseline",
-    "docs:frontend": "jsdoc -c jsdoc.config.cjs"
+    "docs:frontend": "jsdoc -c jsdoc.config.cjs",
+    "merge:sweep": "python scripts/sweep_and_merge.py"
   },
   "engines": {
     "node": ">=14.0.0",
