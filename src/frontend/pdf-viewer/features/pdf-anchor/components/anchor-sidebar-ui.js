@@ -15,9 +15,11 @@ import { createSidebarRoot } from "../../../shared/sidebar-shell.js";
 import { createAnchorSidebarToolbar } from "./anchor-sidebar-toolbar.js";
 import { showAnchorDialog } from "./anchor-sidebar-dialog.js";
 import { createAnchorSidebarTable } from "./anchor-sidebar-table.js";
+import { AnchorManager } from "../services/anchor.manager.js";
 
 export class AnchorSidebarUI {
   #eventBus;
+  #anchorManager;
   #logger;
   #instanceId;
   #initialized = false;
@@ -29,23 +31,41 @@ export class AnchorSidebarUI {
   #emptyDiv;
   #loadingDiv;
   #errorDiv;
-  #loadTimeoutTimer;
   #lastRequestPayload;
   #anchors = [];
-  #activeId = null; // 会话内激活的锚点ID（仅内存，不持久化）
+  #activeId = null;
   #selectedId = null;
   #subscriptions;
+  #useLegacyBridge = false;
 
-  constructor(eventBus) {
+  constructor(eventBus, anchorManager = null) {
+    if (!eventBus) { throw new Error("[pdf-anchor] AnchorSidebarUI: eventBus is required"); }
     this.#eventBus = eventBus;
     this.#logger = getLogger("AnchorSidebarUI");
     this.#instanceId = `ancui-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36).slice(-4)}`;
     this.#subscriptions = createSubscriptionBag({ loggerName: "AnchorSidebarUI" });
+
+    if (anchorManager) {
+      this.#anchorManager = anchorManager;
+    } else {
+      // 兼容：UI-only 测试 / 冒烟用例可直接 new AnchorSidebarUI(eventBus)
+      this.#anchorManager = new AnchorManager(getLogger("AnchorManager"));
+      this.#useLegacyBridge = true;
+    }
   }
 
   initialize() {
     if (this.#initialized) { this.#logger.info("AnchorSidebarUI.initialize called twice; ignored"); return; }
     this.#initialized = true;
+
+    // 读取 pdf-id（用于 CREATE / LOAD 重试等命令 payload）
+    try {
+      const params = new URLSearchParams(window.location.search);
+      this.#pdfId = params.get("pdf-id") || null;
+    } catch (e) {
+      this.#logger.warn("[AnchorSidebarUI] parse url params failed", e);
+      this.#pdfId = null;
+    }
     // 内容容器（使用共享 sidebar 壳子）
     this.#sidebarContent = createSidebarRoot();
 
@@ -59,112 +79,20 @@ export class AnchorSidebarUI {
 
     // 初始渲染空态（失败不阻断 UI，但记录调试信息）
     try { this.#renderAnchors([]); } catch (e) { this.#logger.debug("[AnchorSidebarUI] initial render failed", e); }
-
-    // 事件订阅：加载请求（用于显示“加载中/超时”并记录最近一次请求参数）
-    this.#subscriptions.add(this.#eventBus.on(
-      PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD,
-      (payload) => {
-        this.#lastRequestPayload = payload || {};
-        this.#showLoading();
-        this.#clearError();
-        this.#startLoadTimeout();
-      },
-      { subscriberId: `AnchorSidebarUI:${this.#instanceId}` }
-    ));
-
-    // 事件订阅：数据加载（忽略后端 is_active，激活态仅由会话内事件驱动）
-    this.#subscriptions.add(this.#eventBus.on(
-      PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED,
-      ({ anchors }) => {
-        this.#logger.info("Anchor data loaded", { count: anchors?.length || 0 });
-        this.#hideLoading();
-        this.#clearError();
-        this.#clearLoadTimeout();
-        const list = Array.isArray(anchors) ? anchors : [];
-        // 标准化：仅保留字段，不信任 payload 中的 is_active
-        this.#anchors = list.map((a) => ({
-          uuid: a?.uuid ? String(a.uuid) : "",
-          name: a?.name ?? "",
-          page_at: a?.page_at,
-          position: a?.position,
-          // 冷启动时一律视为未激活；实际激活由 ANCHOR.ACTIVATED 事件决定
-        })).filter((a) => a.uuid);
-        this.#renderAnchors(this.#anchors);
-      },
-      { subscriberId: `AnchorSidebarUI:${this.#instanceId}` }
-    ));
-
-    // 事件订阅：数据加载失败（来自 WS 适配器桥接 anchor:get/list:failed）
-    this.#subscriptions.add(this.#eventBus.on(
-      PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD_FAILED,
-      ({ error, type }) => {
-        this.#hideLoading();
-        this.#clearLoadTimeout();
-        const msg = (error && (error.message || error.err || error.detail)) ? (error.message || error.err || error.detail) : "无法加载锚点数据";
-        // 显示时不使用硬编码事件字符串，优先展示来自消息的类型或通用提示
-        const label = type || "anchor-load-failed";
-        this.#showError(`[${label}] ${msg}`);
-      },
-      { subscriberId: `AnchorSidebarUI:${this.#instanceId}` }
-    ));
-
-    // 监听锚点更新与激活状态变更以刷新表格
-    this.#subscriptions.add(this.#eventBus.on(
-      PDF_VIEWER_EVENTS.ANCHOR.UPDATED,
-      ({ anchorId, page_at, position }) => {
-        const idx = this.#anchors.findIndex(a => a.uuid === anchorId);
-        if (idx >= 0) {
-          this.#anchors[idx].page_at = page_at;
-          if (typeof position === "number") { this.#anchors[idx].position = position; }
-          this.#renderAnchors(this.#anchors);
-        }
-      },
-      { subscriberId: `AnchorSidebarUI:${this.#instanceId}` }
-    ));
-
-    this.#subscriptions.add(this.#eventBus.on(
-      PDF_VIEWER_EVENTS.ANCHOR.ACTIVATED,
-      ({ anchorId, active }) => {
-        const id = String(anchorId || "").trim();
-        if (!id) { return; }
-        const nextActive = !!active;
-        if (nextActive) {
-          this.#activeId = id;
-        } else if (this.#activeId === id) {
-          this.#activeId = null;
-        }
-        // 可选：同步内存中的 is_active 字段，便于调试/其他消费者复用
-        this.#anchors = (this.#anchors || []).map((a) => {
-          if (!a || !a.uuid) { return a; }
-          const copy = { ...a };
-          copy.is_active = (nextActive && String(copy.uuid) === id);
-          return copy;
-        });
-        this.#renderAnchors(this.#anchors);
-      },
-      { subscriberId: `AnchorSidebarUI:${this.#instanceId}` }
-    ));
-
-    // 打开侧栏后基于 URL 的 pdf-id 主动请求一次列表，防止第一次列表在侧栏订阅前已发出
     try {
-      const params = new URLSearchParams(window.location.search);
-      this.#pdfId = params.get("pdf-id") || null;
-      if (this.#pdfId) {
-        // [DIAGNOSTIC] 追踪 AnchorSidebarUI 初始化时的请求
-        this.#logger.warn("[DIAGNOSTIC] AnchorSidebarUI emitting ANCHOR.DATA.LOAD", {
-          source: "AnchorSidebarUI.initialize()",
-          location: "anchor-sidebar-ui.js:121-129",
-          pdfId: this.#pdfId,
-          timestamp: Date.now()
-        });
+      const off = this.#anchorManager.store.subscribe(
+        (state) => { this.#renderFromStore(state); },
+        { fireImmediately: true }
+      );
+      this.#subscriptions.add(off);
+    } catch (e) {
+      this.#logger.error("[AnchorSidebarUI] subscribe store failed", e);
+      throw e;
+    }
 
-        this.#eventBus.emit(
-          PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD,
-          { pdf_uuid: this.#pdfId },
-          { actorId: "AnchorSidebarUI" }
-        );
-      }
-    } catch (e) { this.#logger.warn("request list on init failed", e); }
+    if (this.#useLegacyBridge) {
+      this.#setupLegacyBridge();
+    }
 
     this.#logger.info("AnchorSidebarUI initialized");
   }
@@ -178,10 +106,79 @@ export class AnchorSidebarUI {
     this.#toolbar = null;
     this.#toolbarCleanup = null;
     this.#table = null;
-    if (this.#loadTimeoutTimer) { try { clearTimeout(this.#loadTimeoutTimer); } catch(_){} this.#loadTimeoutTimer = null; }
     this.#anchors = [];
     this.#selectedId = null;
     this.#logger.info("AnchorSidebarUI destroyed");
+  }
+
+  #setupLegacyBridge() {
+    // 兼容：只创建 UI 不安装 Feature 的场景（EventBus -> store）
+    this.#subscriptions.add(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD,
+      (payload) => {
+        try { this.#anchorManager.markLoading(payload || {}); } catch (e) { this.#logger.warn("[AnchorSidebarUI] legacy markLoading failed", e); }
+      },
+      { subscriberId: `AnchorSidebarUI:${this.#instanceId}` }
+    ));
+
+    this.#subscriptions.add(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED,
+      ({ anchors }) => {
+        try { this.#anchorManager.applyLoadedAnchors(Array.isArray(anchors) ? anchors : []); } catch (e) { this.#logger.warn("[AnchorSidebarUI] legacy applyLoadedAnchors failed", e); }
+      },
+      { subscriberId: `AnchorSidebarUI:${this.#instanceId}` }
+    ));
+
+    this.#subscriptions.add(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD_FAILED,
+      ({ error, type }) => {
+        const msg = (error && (error.message || error.err || error.detail))
+          ? (error.message || error.err || error.detail)
+          : "无法加载锚点数据";
+        try { this.#anchorManager.markLoadFailed({ message: String(msg), type: String(type || "anchor-load-failed") }); } catch (e) { this.#logger.warn("[AnchorSidebarUI] legacy markLoadFailed failed", e); }
+      },
+      { subscriberId: `AnchorSidebarUI:${this.#instanceId}` }
+    ));
+
+    this.#subscriptions.add(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANCHOR.UPDATED,
+      ({ anchorId, page_at, position }) => {
+        try { this.#anchorManager.applyAnchorUpdate(anchorId, { page_at, position }); } catch (e) { this.#logger.warn("[AnchorSidebarUI] legacy applyAnchorUpdate failed", e); }
+      },
+      { subscriberId: `AnchorSidebarUI:${this.#instanceId}` }
+    ));
+
+    this.#subscriptions.add(this.#eventBus.on(
+      PDF_VIEWER_EVENTS.ANCHOR.ACTIVATED,
+      ({ anchorId, active }) => {
+        try { this.#anchorManager.setActive(anchorId, !!active); } catch (e) { this.#logger.warn("[AnchorSidebarUI] legacy setActive failed", e); }
+      },
+      { subscriberId: `AnchorSidebarUI:${this.#instanceId}` }
+    ));
+  }
+
+  #renderFromStore(state) {
+    const s = state && typeof state === "object" ? state : {};
+    const anchors = Array.isArray(s.anchors) ? s.anchors : [];
+    this.#activeId = s.activeId ? String(s.activeId) : null;
+    this.#lastRequestPayload = (s.lastRequestPayload && typeof s.lastRequestPayload === "object") ? s.lastRequestPayload : null;
+
+    if (s.isLoading) {
+      this.#showLoading();
+    } else {
+      this.#hideLoading();
+    }
+
+    if (s.error && typeof s.error === "object") {
+      const msg = s.error.message || "无法加载锚点数据";
+      const type = s.error.type;
+      const label = type ? `[${type}] ${msg}` : msg;
+      this.#showError(label);
+    } else {
+      this.#clearError();
+    }
+
+    this.#renderAnchors(anchors);
   }
 
   #createToolbar() {
@@ -285,16 +282,6 @@ export class AnchorSidebarUI {
         }
         if (Object.keys(update).length === 0) { return; }
         this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.UPDATE, { anchorId: this.#selectedId, update }, { actorId: "AnchorToolbar" });
-        // 本地即时刷新
-        try {
-          const idx = this.#anchors.findIndex(x => x && x.uuid === this.#selectedId);
-          if (idx >= 0) {
-            if (update.name) { this.#anchors[idx].name = update.name; }
-            if (typeof update.page_at === "number") { this.#anchors[idx].page_at = update.page_at; }
-            if (typeof update.position === "number") { this.#anchors[idx].position = (update.position > 1 ? (update.position / 100) : update.position); }
-            this.#renderAnchors(this.#anchors);
-          }
-        } catch (_) {}
       }
     });
   }
@@ -360,22 +347,6 @@ export class AnchorSidebarUI {
     }
   }
 
-  #startLoadTimeout() {
-    try { if (this.#loadTimeoutTimer) { clearTimeout(this.#loadTimeoutTimer); } } catch(_) {}
-    const timeoutMs = 5000;
-    this.#loadTimeoutTimer = setTimeout(() => {
-      // 若超时且仍未加载成功，显示错误提示
-      try {
-        // 仅当尚未有数据渲染时提示（以 #anchors 是否为空粗略判断）
-        if (!Array.isArray(this.#anchors) || this.#anchors.length === 0) {
-          this.#showError("请求超时，未能从后端获取锚点数据");
-        }
-      } catch(_) {}
-    }, timeoutMs);
-  }
-
-  #clearLoadTimeout() { if (this.#loadTimeoutTimer) { try { clearTimeout(this.#loadTimeoutTimer); } catch(_) {} this.#loadTimeoutTimer = null; } }
-
   #retryLastRequest() {
     try {
       const payload = this.#lastRequestPayload || {};
@@ -390,8 +361,6 @@ export class AnchorSidebarUI {
       }
       // 清理错误并重新发起
       this.#clearError();
-      this.#showLoading();
-      this.#startLoadTimeout();
       this.#eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD, req || {}, { actorId: "AnchorSidebarUI" });
     } catch(_) {}
   }

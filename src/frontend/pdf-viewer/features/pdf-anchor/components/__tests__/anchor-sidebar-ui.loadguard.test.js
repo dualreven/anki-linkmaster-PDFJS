@@ -1,13 +1,16 @@
 import { AnchorSidebarUI } from "../anchor-sidebar-ui.js";
+import { AnchorManager } from "../../services/anchor.manager.js";
 import eventBus from "../../../../../common/event/event-bus.js";
 import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
 
 describe("AnchorSidebarUI load guard", () => {
   let ui;
+  let anchorManager;
 
   beforeEach(() => {
     document.body.innerHTML = "<div id=\"root\"></div>";
-    ui = new AnchorSidebarUI(eventBus);
+    anchorManager = new AnchorManager();
+    ui = new AnchorSidebarUI(eventBus, anchorManager);
     ui.initialize();
     document.getElementById("root").appendChild(ui.getContentElement());
   });
@@ -22,10 +25,10 @@ describe("AnchorSidebarUI load guard", () => {
   test("should show error and allow retry on LOAD_FAILED", () => {
     // 触发加载请求（开始加载态与超时计时）
     const payload = { pdf_uuid: "test-pdf" };
-    eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD, payload, { actorId: "test" });
+    anchorManager.markLoading(payload);
 
     // 模拟失败
-    eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD_FAILED, { error: { message: "backend unreachable" }, type: "anchor:list:failed" }, { actorId: "test" });
+    anchorManager.markLoadFailed({ message: "backend unreachable", type: "anchor:list:failed" });
 
     // 断言出现错误提示
     const err = document.querySelector(".anchor-error");
@@ -43,7 +46,7 @@ describe("AnchorSidebarUI load guard", () => {
 
   test("should show timeout error if no LOADED arrives", () => {
     jest.useFakeTimers();
-    eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD, { pdf_uuid: "test-pdf" }, { actorId: "test" });
+    anchorManager.markLoading({ pdf_uuid: "test-pdf" });
     // 快进时间（大于内置 5000ms 超时）
     jest.advanceTimersByTime(5200);
     const err = document.querySelector(".anchor-error");
@@ -51,4 +54,3 @@ describe("AnchorSidebarUI load guard", () => {
     expect(err.textContent).toContain("请求超时");
   });
 });
-

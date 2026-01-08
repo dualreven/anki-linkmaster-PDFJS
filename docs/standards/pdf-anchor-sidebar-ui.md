@@ -6,8 +6,9 @@
 
 - `src/frontend/pdf-viewer/features/pdf-anchor/components/anchor-sidebar-ui.js`
   - 侧栏生命周期：`initialize()` / `destroy()`
-  - 事件订阅：监听 `PDF_VIEWER_EVENTS.ANCHOR.*`（LOAD/LOADED/LOAD_FAILED/UPDATED/ACTIVATED）
-  - 状态：`#anchors/#selectedId/#activeId/#pdfId/#lastRequestPayload`
+  - 主路径：订阅 `AnchorManager.store(ObservableState)` 渲染（不再依赖 EventBus 原子事件驱动 UI）
+  - 兼容路径：允许 `new AnchorSidebarUI(eventBus)` 时启用 EventBus→store legacy bridge（仅用于 UI-only 测试/冒烟）
+  - 状态：`#anchors/#selectedId/#activeId/#pdfId/#lastRequestPayload`（均由 store 推导/同步）
   - 装配/委托：toolbar / dialog / table 的 DOM 构造委托给子模块
 
 - `src/frontend/pdf-viewer/features/pdf-anchor/components/anchor-sidebar-toolbar.js`
@@ -29,4 +30,3 @@
 ## 事件常量约束
 
 - 所有 `eventBus.on/emit` 的事件名均来自 `PDF_VIEWER_EVENTS` 命名空间常量，避免触发 `custom/event-name-format`。
-

@@ -1,13 +1,16 @@
 import { AnchorSidebarUI } from "../anchor-sidebar-ui.js";
+import { AnchorManager } from "../../services/anchor.manager.js";
 import eventBus from "../../../../../common/event/event-bus.js";
 import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
 
 describe("AnchorSidebarUI", () => {
   let ui;
+  let anchorManager;
 
   beforeEach(() => {
     document.body.innerHTML = "<div id=\"root\"></div>";
-    ui = new AnchorSidebarUI(eventBus);
+    anchorManager = new AnchorManager();
+    ui = new AnchorSidebarUI(eventBus, anchorManager);
     ui.initialize();
     document.getElementById("root").appendChild(ui.getContentElement());
   });
@@ -40,7 +43,8 @@ describe("AnchorSidebarUI", () => {
     const anchors = [
       { uuid: "aaaaaaaaaaaa", name: "示例锚点", page_at: 3, is_active: true },
     ];
-    eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED, { anchors }, { actorId: "test" });
+    anchorManager.applyLoadedAnchors(anchors);
+    anchorManager.setActive("aaaaaaaaaaaa", true);
 
     const row = document.querySelector("tbody[data-role=\"anchor-tbody\"] tr");
     row.click();
@@ -64,7 +68,8 @@ describe("AnchorSidebarUI", () => {
       { uuid: "aaaaaaaaaaaa", name: "示例锚点", page_at: 3, is_active: true },
       { uuid: "bbbbbbbbbbbb", name: "第二个", page_at: 10, is_active: false },
     ];
-    eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOADED, { anchors }, { actorId: "test" });
+    anchorManager.applyLoadedAnchors(anchors);
+    anchorManager.setActive("aaaaaaaaaaaa", true);
 
     const ths = Array.from(document.querySelectorAll("thead th")).map(th => th.textContent.trim());
     expect(ths).toEqual(["名称","页码","页内位置(%)","是否激活"]);
@@ -74,5 +79,17 @@ describe("AnchorSidebarUI", () => {
     const firstName = rows[0].querySelector("td").textContent.trim();
     expect(firstName).toBe("示例锚点");
   });
-});
 
+  test("destroy 后 store 更新不应再驱动 UI", () => {
+    const root = ui.getContentElement();
+    anchorManager.applyLoadedAnchors([{ uuid: "cccccccccccc", name: "C", page_at: 1 }]);
+    expect(root.querySelectorAll("tbody[data-role=\"anchor-tbody\"] tr").length).toBe(1);
+
+    ui.destroy();
+    anchorManager.applyLoadedAnchors([
+      { uuid: "cccccccccccc", name: "C", page_at: 1 },
+      { uuid: "dddddddddddd", name: "D", page_at: 2 },
+    ]);
+    expect(root.querySelectorAll("tbody[data-role=\"anchor-tbody\"] tr").length).toBe(1);
+  });
+});

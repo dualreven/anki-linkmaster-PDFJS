@@ -43,6 +43,7 @@ export class AnchorManager {
    */
   constructor(logger = getLogger("AnchorManager")) {
     this.logger = logger;
+    this.#loadTimeoutTimer = null;
     this.store = new ObservableState({
       anchors: [],
       anchorsById: new Map(),
@@ -54,6 +55,29 @@ export class AnchorManager {
       name: "AnchorStore",
       logger: this.logger,
     });
+  }
+
+  /** @type {ReturnType<typeof setTimeout> | null} */
+  #loadTimeoutTimer;
+
+  #clearLoadTimeout() {
+    if (!this.#loadTimeoutTimer) { return; }
+    clearTimeout(this.#loadTimeoutTimer);
+    this.#loadTimeoutTimer = null;
+  }
+
+  #startLoadTimeout() {
+    this.#clearLoadTimeout();
+    const timeoutMs = 5000;
+    this.#loadTimeoutTimer = setTimeout(() => {
+      try {
+        const cur = this.store.get();
+        if (!cur || cur.isLoading !== true) { return; }
+        this.markLoadFailed({ message: "请求超时", type: "anchor-load-timeout" });
+      } catch (e) {
+        this.logger.warn("[pdf-anchor] load timeout handler failed", e);
+      }
+    }, timeoutMs);
   }
 
   getAnchors() {
@@ -76,11 +100,13 @@ export class AnchorManager {
   markLoading(payload) {
     const req = (payload && typeof payload === "object") ? payload : {};
     this.store.set({ isLoading: true, error: null, lastRequestPayload: req });
+    this.#startLoadTimeout();
   }
 
   markLoadFailed({ message, type } = {}) {
     const msg = (typeof message === "string" && message.trim()) ? message.trim() : "无法加载锚点数据";
     const t = (typeof type === "string" && type.trim()) ? type.trim() : "anchor-load-failed";
+    this.#clearLoadTimeout();
     this.store.set({ isLoading: false, error: { message: msg, type: t } });
   }
 
@@ -103,6 +129,7 @@ export class AnchorManager {
       isLoading: false,
       error: null,
     });
+    this.#clearLoadTimeout();
   }
 
   upsertAnchor(anchor) {
@@ -195,6 +222,7 @@ export class AnchorManager {
   }
 
   reset() {
+    this.#clearLoadTimeout();
     this.store.replace({
       anchors: [],
       anchorsById: new Map(),
@@ -206,9 +234,9 @@ export class AnchorManager {
   }
 
   destroy() {
+    this.#clearLoadTimeout();
     this.reset();
   }
 }
 
 export default AnchorManager;
-
