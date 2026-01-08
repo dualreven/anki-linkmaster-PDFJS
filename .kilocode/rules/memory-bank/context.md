@@ -1,6 +1,15 @@
 # Memory Bank - Context（精简版）
 
-最后更新：2026-01-07（memory-bank lint：超限自动归档）
+最后更新：2026-01-08（memory-bank lint：超限自动归档）
+
+## 2026-01-08 前端代码面条化评估 (Completed)
+- **任务**: 评估前端代码（特别是 `pdf-viewer`）的面条化程度并给出建议。
+- **发现**:
+  - 项目正处于从 EventBus 向 ObservableState 迁移的过渡期。
+  - `SearchFeature` 已完成迁移，是架构标杆。
+  - `AnnotationFeature` 处于混合态，Manager 有 Store 但 UI 仍依赖 EventBus，导致逻辑碎片化（主要面条代码来源）。
+- **产出**: 评估报告 `docs/reports/FRONTEND_SPAGHETTI_ANALYSIS_20260108.md`。
+- **建议**: 优先重构 `AnnotationSidebarUI` 以订阅 `AnnotationManager.store`，消除 Feature 内部的 EventBus 依赖。
 
 ## 2026-01-07 并行合并流程优化 (Completed)
 - **痛点解决**: 针对 "Main AI Cherry-pick 耗时" 问题，引入自动化扫描与批量合并工具。
@@ -33,7 +42,8 @@
 ## 2026-01-07 合并流程工具更新：sweep_and_merge 改为 Python
 - **变更**：移除 `scripts/sweep_and_merge.ps1`，新增 `scripts/sweep_and_merge.py`，并通过 `pnpm -s run merge:sweep` 调用。
 - **原则**：默认 Fail-Fast；推断不到 `testPaths` 直接失败（不再使用“虚假 anchor test”兜底）。
-- **驱动方式**：生成 QueueFile（UTF-8 + `\n`）并调用 `scripts/merge_fastlane.py --queue-file ...`。
+- **驱动方式**：生成 QueueFile（UTF-8 + `
+`）并调用 `scripts/merge_fastlane.py --queue-file ...`。
 - **修复**：`scripts/merge_fastlane.py` 将“测试文件存在性校验”延后到 cherry-pick 之后，避免测试文件由本次合入引入时被提前误判不存在。
 
 ## 2026-01-07 状态修正：B 任务未完成，已重新打开
@@ -70,6 +80,12 @@
 - **落地位置**：协作协议写入 `todo-and-doing/3 template/v001-spec-template.md`，并作为每个 doing 任务的强制章节复用。
 - **落地工具**：`scripts/merge-fastlane.ps1`（从 commit 列表/队列文件创建 integration 分支、批量 cherry-pick、跑 lint+指定测试、输出报告）。
 
+## 2026-01-08 启动“面条代码整治”：PDFViewer 并行全量扫描（进行中）
+- **范围**：仅 `src/frontend/pdf-viewer/**`（先把最大耦合点收敛）。
+- **方式**：A/B/C/D 分工扫描（只产出 `AItemp/reports/*-pdfviewer-scan-*.md`，不改业务代码）。
+- **基线报告**：`AItemp/reports/20260108143040-pdfviewer-scan-baseline.md`（热点文件榜 + 风险信号计数）。
+- **下一步**：汇总四份扫描报告后，再拆 “P0 泄漏/重复触发” 与 “P1 职责拆分” 的并行重构任务。
+
 ## 2026-01-06（已修复）Outline：OUTLINE.LOAD.SUCCESS 重复发射
 - **现象**：同一条 `OUTLINE_LIST_COMPLETED` 入站消息会触发两次 `PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS`（WebSocketAdapter(ws-inbound-bridge) 与 OutlineFeature 同时发射）。
 - **修复**：新增 `ws-inbound-bridge-contract`：以 `WeakMap(message)+Set(eventName)` 记录“同一 message+eventName 只允许一次发射”，并在 `ws-inbound-bridge` 与 `OutlineFeature` 发射点共同接入，实现顺序无关去重（不再修改 message 对象）；并补回归测试覆盖“OutlineFeature + inbound bridge 并存”场景。
@@ -99,7 +115,7 @@
 - **操作**：将 `todo-and-doing/2 todo/`、`todo-and-doing/3 done/`、`todo-and-doing/4 done/` 以及 `todo-and-doing/1 doing/` 内旧 `.md` 与根目录散落文件统一迁移到 `todo-and-doing/4 archive/20260106-todo-and-doing-cleanup/`。
 
 ## 2026-01-06（已修复）Jest 在部分 worktree 直接无法启动
-- **现象**：`worker/refactor-C` 运行 `pnpm exec jest ...` 报 `Could not locate module ... mapped as ...tests\\__mocks__\\logger.js`。
+- **现象**：`worker/refactor-C` 运行 `pnpm exec jest ...` 报 `Could not locate module ... mapped as ...tests\__mocks__\logger.js`。
 - **根因**：`jest.config.js` 的 `moduleNameMapper` 指向 `<rootDir>/tests/__mocks__/*`，但 `.gitignore` 忽略 `tests/`，导致不同 worktree 可能缺失该目录与文件。
 - **修复**：将 mocks 移到可被 git 跟踪的 `src/frontend/__mocks__/`，并更新 `jest.config.js` 映射；新增 CI 级回归测试断言映射目标文件存在（避免再次把 mapper 指向未纳入版本控制的路径）。
 
