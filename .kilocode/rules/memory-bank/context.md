@@ -39,6 +39,11 @@
   - C：`20260107100900-feature-internal-eventbus-gates-C`（Feature 内部 EventBus 闭环约束的最小门禁/指引）
   - D：`20260107100900-observable-migration-rest-features-D`（选 1 个中等 Feature 做迁移样板 + 输出剩余迁移清单）
 
+## 2026-01-08（已修复）pdf-anchor 缺失 AnchorManager 文件导致测试无法运行
+- **现象**：`src/frontend/pdf-viewer/features/pdf-anchor/index.js` 引用 `./services/anchor.manager.js`，但文件缺失导致 Jest 报 `Cannot find module`。
+- **修复**：合入 `refactor(pdf-anchor): add anchor manager store`（新增 `src/frontend/pdf-viewer/features/pdf-anchor/services/anchor.manager.js`，并调整 `anchor-position-tracker.js` 与 store 接口对齐）。
+- **验证**：`pnpm -s run lint` + `jest --runTestsByPath` 通过（`anchor-url-parsed-gating` / `anchor-position-tracker.update-mechanism` / `anchor-crud.feature-events`）。
+
 ## 2026-01-07 合并流程工具更新：sweep_and_merge 改为 Python
 - **变更**：移除 `scripts/sweep_and_merge.ps1`，新增 `scripts/sweep_and_merge.py`，并通过 `pnpm -s run merge:sweep` 调用。
 - **原则**：默认 Fail-Fast；推断不到 `testPaths` 直接失败（不再使用“虚假 anchor test”兜底）。
