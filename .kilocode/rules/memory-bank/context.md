@@ -91,6 +91,14 @@
 - **基线报告**：`AItemp/reports/20260108143040-pdfviewer-scan-baseline.md`（热点文件榜 + 风险信号计数）。
 - **下一步**：汇总四份扫描报告后，再拆 “P0 泄漏/重复触发” 与 “P1 职责拆分” 的并行重构任务。
 
+### 2026-01-08 任务编排（已下发）
+- 已归档：`20260107100900-observable-anchor-sidebar-B`（按你确认视为完成）。
+- doing（当前扫描任务）：
+  - A：`20260108212130-pdfviewer-spaghetti-scan-A`（adapters）
+  - B：`20260108212140-pdfviewer-spaghetti-scan-B`（infra-ui + infra-sidebar）
+  - C：`20260108212150-pdfviewer-spaghetti-scan-C`（pdf-annotation）
+  - D：`20260108212200-pdfviewer-spaghetti-scan-D`（outline + search + bootstrap）
+
 ## 2026-01-06（已修复）Outline：OUTLINE.LOAD.SUCCESS 重复发射
 - **现象**：同一条 `OUTLINE_LIST_COMPLETED` 入站消息会触发两次 `PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS`（WebSocketAdapter(ws-inbound-bridge) 与 OutlineFeature 同时发射）。
 - **修复**：新增 `ws-inbound-bridge-contract`：以 `WeakMap(message)+Set(eventName)` 记录“同一 message+eventName 只允许一次发射”，并在 `ws-inbound-bridge` 与 `OutlineFeature` 发射点共同接入，实现顺序无关去重（不再修改 message 对象）；并补回归测试覆盖“OutlineFeature + inbound bridge 并存”场景。
