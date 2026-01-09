@@ -115,6 +115,10 @@ class MessageType(Enum):
     ANNOTATION_SAVE_COMPLETED = "annotation:save:completed"
     ANNOTATION_SAVE_FAILED = "annotation:save:failed"
 
+    ANNOTATION_BULK_GET_REQUESTED = "annotation:bulk-get:requested"
+    ANNOTATION_BULK_GET_COMPLETED = "annotation:bulk-get:completed"
+    ANNOTATION_BULK_GET_FAILED = "annotation:bulk-get:failed"
+
     # === Outline（大纲） ===
     # 2025-11-06: 统一为 pdf-viewer 前缀 + outline-* + request/complete/failed
     OUTLINE_LIST_REQUESTED = "pdf-viewer:outline-list:request"

@@ -26,6 +26,7 @@ def build_router(ctx: Any) -> Dict[str, RouteHandler]:
     )
     # search 需要原始消息，仍由入口包装（保留 ctx.handle_pdf_search_request）
     from src.backend.msgCenter_server.handlers.pdf_viewer.annotation import list_annotations, save_annotation, delete_annotation
+    from src.backend.msgCenter_server.handlers.pdf_viewer.annotation_bulk_get import annotation_bulk_get
     from src.backend.msgCenter_server.handlers.pdf_viewer.anchor import (
         get_anchor, list_anchors, create_anchor, update_anchor, delete_anchor, activate_anchor
     )
@@ -67,6 +68,7 @@ def build_router(ctx: Any) -> Dict[str, RouteHandler]:
         "annotation:list:requested": wrap(list_annotations),
         "annotation:save:requested": wrap(save_annotation),
         "annotation:delete:requested": wrap(delete_annotation),
+        "annotation:bulk-get:requested": wrap(annotation_bulk_get),
         # anchor
         "anchor:get:requested": wrap(get_anchor),
         "anchor:list:requested": wrap(list_anchors),
