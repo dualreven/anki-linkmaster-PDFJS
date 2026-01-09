@@ -59,6 +59,9 @@ export class WebSocketAdapter {
   /** @type {() => string | null} */
   #pdfIdProvider;
 
+  /** @type {AbortController} */
+  #destroyController;
+
   /**
    * 创建WebSocket适配器实例
    * @param {import('../../common/ws/ws-client.js').WSClient} wsClient - WebSocket客户端实例
@@ -81,6 +84,7 @@ export class WebSocketAdapter {
     this.#messageQueue = createMessageQueue({ loggerName: "WebSocketAdapter" });
     this.#subscriptions = createSubscriptionBag({ loggerName: "WebSocketAdapter" });
     this.#pdfIdProvider = createPdfIdProvider(pdfIdProvider);
+    this.#destroyController = new AbortController();
     this.#logger.debug("WebSocketAdapter instance created");
   }
 
@@ -116,12 +120,6 @@ export class WebSocketAdapter {
       (message) => {
         this.#logger.debug(`Received WebSocket message event: ${message?.type}`);
         this.handleMessage(message);
-        handleViewerWsInbound({
-          message,
-          eventBus: this.#eventBus,
-          wsClient: this.#wsClient,
-          logger: this.#logger
-        });
       },
       { subscriberId: "WebSocketAdapter" }
     );
@@ -214,7 +212,8 @@ export class WebSocketAdapter {
       wsClient: this.#wsClient,
       logger: this.#logger,
       pdfIdProvider: this.#pdfIdProvider,
-      viewerInstanceId: this.#viewerInstanceId
+      viewerInstanceId: this.#viewerInstanceId,
+      destroySignal: this.#destroyController.signal
     });
   }
 
@@ -264,6 +263,13 @@ export class WebSocketAdapter {
    */
   destroy() {
     this.#logger.info("Destroying WebSocketAdapter");
+
+    try {
+      this.#destroyController.abort();
+    } catch (e) {
+      // logger-guard
+      void e;
+    }
 
     // 取消所有事件订阅
     this.#subscriptions.clear();

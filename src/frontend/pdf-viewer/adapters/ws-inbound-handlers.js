@@ -5,10 +5,11 @@
 
 import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
 import { WEBSOCKET_MESSAGE_TYPES } from "../../common/event/event-constants.js";
-import { runWithGate } from "../utils/event-gate-runner.js";
 import { getWsGateStatusStore } from "../../common/ws/ws-gate-status-store.js";
 import { handleLoadPdfFileMessage } from "./websocket-adapter-load-pdf-file.js";
 import { handleViewerNavigateMessage } from "./websocket-adapter-viewer-navigate.js";
+import { isGateCancelledError, runWithGateCancellable } from "./ws-gate-runner-cancellable.js";
+import { getInboundDestroySignal } from "./ws-inbound-destroy-signal.js";
 
 /**
  * Handles "load_pdf_file" message.
@@ -75,11 +76,13 @@ const handleViewerNavigateRequested = {
   handle: ({ message, eventBus, wsClient, logger, viewerInstanceId, pdfIdProvider }) => {
     const correlationId = message?.request_id || null;
     const eventStatusStore = getWsGateStatusStore(); // Re-use existing gate store
+    const destroySignal = getInboundDestroySignal(eventBus);
 
-    void runWithGate({
+    void runWithGateCancellable({
       eventBus,
       store: eventStatusStore,
       rawGate: message?.gate,
+      signal: destroySignal,
       run: async () => {
         handleViewerNavigateMessage({
           message,
@@ -92,6 +95,9 @@ const handleViewerNavigateRequested = {
         });
       }
     }).catch((error) => {
+      if (isGateCancelledError(error)) {
+        return;
+      }
       try {
         logger.warn("[Navigate] gate execution failed", error);
       } catch (e) {

@@ -10,6 +10,7 @@ import { WEBSOCKET_MESSAGE_TYPES } from "../../common/event/event-constants.js";
 import { runWsInboundHandlers } from "../../common/ws/ws-inbound-executor.js";
 import { shouldEmitWsInboundDomainEventOnce } from "./ws-inbound-bridge-contract.js";
 import { pdfViewerInboundHandlers } from "./ws-inbound-handlers.js";
+import { setInboundDestroySignal } from "./ws-inbound-destroy-signal.js";
 
 const domainInboundHandlers = [
   {
@@ -158,8 +159,11 @@ const domainInboundHandlers = [
  * @param {import("../../common/ws/ws-client.js").WSClient} params.wsClient
  * @param {import("../../common/utils/logger.js").Logger} params.logger
  * @param {() => string | null} params.pdfIdProvider
+ * @param {AbortSignal} params.destroySignal
  */
-export function handleViewerWsInbound({ message, eventBus, wsClient, logger, pdfIdProvider }) {
+export function handleViewerWsInbound({ message, eventBus, wsClient, logger, pdfIdProvider, destroySignal }) {
+  setInboundDestroySignal(eventBus, destroySignal || null);
+
   runWsInboundHandlers({
     message,
     handlers: [...pdfViewerInboundHandlers, ...domainInboundHandlers],
