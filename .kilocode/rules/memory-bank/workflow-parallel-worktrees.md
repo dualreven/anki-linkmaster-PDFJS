@@ -12,6 +12,16 @@
 - 统一写 memory-bank：验收合入时在 `main` 统一更新 `.kilocode/rules/memory-bank/**`（避免多人同时改导致冲突）。
 - 过程留痕：每轮必须写 `AItemp/*-AI-Working-log.md`，并在结束时 `notify-tts "…已完成,请检查结果"`。
 
+#### 调度者权限边界（硬规则）
+- **不得直接修业务 bug**：调度者不在 `main` 直接改业务代码来“快速修复”。一旦发现回归/运行时报错，必须：
+  1) 识别责任模块/责任 worktree；
+  2) 生成/更新对应 doing；
+  3) 由责任 worktree 提交修复；
+  4) 调度者仅负责验收合入。
+- **允许处理的例外**（只限于合入过程需要）：
+  - `cherry-pick` 产生的文本冲突（通常是 `todo-and-doing/**`、`memory-bank/**` 的合并冲突）；
+  - 门禁/测试脚本的“环境性修复”（例如修正错误的测试路径、修复误提交的被 gitignore 文件），前提是**不改变业务行为**。
+
 ### 1.2 执行者（A/B/C/D/E/F worktree 的 AI）
 - 只做自己任务范围内的改动（任务文档明确的目录/文件）。
 - 必须补一条防回归测试（除非任务明确“只读扫描/只产出报告”）。
@@ -45,11 +55,14 @@
 3. 只在 `main` 跑门禁（最小集合）：
    - `pnpm -s run lint`
    - `pnpm exec jest --runTestsByPath <本轮相关测试> -i`
-4. 归档已完成 doing：
+4. **生成手工点检清单并要求用户验证**（硬规则）：
+   - 调度者必须给出 3~6 条“可复现的手工操作路径”，并等待用户点检反馈。
+   - 若用户反馈有 bug：不得在 `main` 直接修，必须按“调度者权限边界”打回责任 worktree。
+5. 用户确认无 bug 后再归档 doing：
    - `git mv todo-and-doing/1 doing/<task> todo-and-doing/4 archive/<ts>-doing-archive/`
-5. 同步各 worktree 到 `main`：
+6. 同步各 worktree 到 `main`：
    - `git -C <worktree> reset --hard main`
-6. 统一更新 memory-bank（只在 `main`）：
+7. 统一更新 memory-bank（只在 `main`）：
    - `context.md` 记录本轮合入摘要、门禁结果、手工点检发现
    - 如涉及架构/用法变更，再更新 `architecture.md` / `tech.md`
 
@@ -62,4 +75,3 @@
 - 大多数冲突来自多人同时改 `memory-bank` 与 `todo-and-doing`：因此本流程强制“执行者不改 memory-bank”。
 - 合并不要 rebase：执行者提交即可；调度者按 worktree `cherry-pick`，保持可回溯与可定位。
 - 门禁跑最小集合：`lint` + `jest --runTestsByPath`，避免全量测试拖慢合入节奏。
-

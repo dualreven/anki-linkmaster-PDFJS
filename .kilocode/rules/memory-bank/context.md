@@ -90,6 +90,10 @@
 - **根因**：`DOMElementManager` 的 required DOM id 与真实运行时 DOM（`index.html` 的 `viewerContainer`）不一致。
 - **修复**：required 改为 `viewerContainer`，并更新 `dom-element-manager.test.js`（commit：`f650e69`）。
 
+## 2026-01-09：协作规则升级（调度者职责边界）
+- **新增硬规则**：调度者不得在 `main` 直接修业务 bug；必须打回责任 worktree 处理，并在合并后要求用户手工点检确认无误后才能关闭/归档任务。
+- **流程文档**：`.kilocode/rules/memory-bank/workflow-parallel-worktrees.md` 已更新对应条款。
+
 ## 2026-01-09：A~F 第三轮任务（已验收并合入 main）
 - **协作约定（本轮）**：各 worktree 不要改 `memory-bank`；只改任务范围 + 任务目录 `working-log.md`；main 侧验收合入时统一更新 `memory-bank`，避免冲突。
 - **任务目录**：见 `todo-and-doing/1 doing/`（D 仅修复上述 P0 bug，其余为互不干扰的小步重构/回归测试）。
