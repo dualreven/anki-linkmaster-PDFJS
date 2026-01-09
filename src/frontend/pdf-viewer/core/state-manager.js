@@ -21,6 +21,15 @@ export class StateManager {
   #eventBus;
 
   /** @type {boolean} */
+  #isBatching = false;
+
+  /** @type {Map<string, { field: string, oldValue: any, newValue: any }>|null} */
+  #batchChangesByField = null;
+
+  /** @type {string[]|null} */
+  #batchFieldOrder = null;
+
+  /** @type {boolean} */
   #initialized = false;
 
   /** @type {string|null} */
@@ -176,6 +185,40 @@ export class StateManager {
   }
 
   /**
+   * 显式批量更新：将多个 set* 合并为一次 STATE.CHANGED 事件发射。
+   *
+   * 规则：
+   * - 仅当批量内至少有 1 个字段变化时，才会在结束时发射一次 STATE.CHANGED；
+   * - 同一字段在 batch 中多次变化：oldValue 取第一次变化前的值，newValue 取最后一次变化后的值；
+   * - 禁止嵌套 batch（Fail‑Fast）。
+   *
+   * @param {(sm: StateManager) => void} fn
+   */
+  batchUpdate(fn) {
+    if (typeof fn !== "function") {
+      throw new Error("[StateManager] batchUpdate(fn) requires a function");
+    }
+    if (this.#isBatching) {
+      throw new Error("[StateManager] batchUpdate does not support nesting");
+    }
+
+    this.#isBatching = true;
+    this.#batchChangesByField = new Map();
+    this.#batchFieldOrder = [];
+
+    try {
+      fn(this);
+    } finally {
+      this.#isBatching = false;
+
+      const changes = this.#drainBatchChanges();
+      if (changes.length > 0) {
+        this.#emitBatchStateChanged(changes);
+      }
+    }
+  }
+
+  /**
    * 重置状态到初始值
    */
   reset() {
@@ -205,6 +248,11 @@ export class StateManager {
   #emitStateChange(field, oldValue, newValue) {
     this.#logger.debug(`State changed: ${field}`, { oldValue, newValue });
 
+    if (this.#isBatching) {
+      this.#recordBatchChange(field, oldValue, newValue);
+      return;
+    }
+
     if (this.#eventBus) {
       this.#eventBus.emit(PDF_VIEWER_EVENTS.STATE.CHANGED, {
         field,
@@ -215,5 +263,57 @@ export class StateManager {
         actorId: "StateManager"
       });
     }
+  }
+
+  #recordBatchChange(field, oldValue, newValue) {
+    if (!this.#batchChangesByField || !this.#batchFieldOrder) {
+      throw new Error("[StateManager] batch state is corrupted");
+    }
+
+    const k = String(field);
+    const existed = this.#batchChangesByField.get(k) || null;
+    if (!existed) {
+      this.#batchFieldOrder.push(k);
+      this.#batchChangesByField.set(k, { field: k, oldValue, newValue });
+      return;
+    }
+    existed.newValue = newValue;
+    this.#batchChangesByField.set(k, existed);
+  }
+
+  #drainBatchChanges() {
+    const map = this.#batchChangesByField;
+    const order = this.#batchFieldOrder;
+    this.#batchChangesByField = null;
+    this.#batchFieldOrder = null;
+
+    if (!map || !order) { return []; }
+
+    /** @type {Array<{ field: string, oldValue: any, newValue: any }>} */
+    const out = [];
+    for (const field of order) {
+      const item = map.get(field);
+      if (!item) { continue; }
+      if (item.oldValue !== item.newValue) {
+        out.push(item);
+      }
+    }
+    return out;
+  }
+
+  #emitBatchStateChanged(changes) {
+    this.#logger.debug("State batch changed", { changesCount: changes.length });
+
+    if (!this.#eventBus) { return; }
+
+    this.#eventBus.emit(PDF_VIEWER_EVENTS.STATE.CHANGED, {
+      field: "batchUpdate",
+      oldValue: null,
+      newValue: null,
+      changes,
+      state: this.getState()
+    }, {
+      actorId: "StateManager"
+    });
   }
 }

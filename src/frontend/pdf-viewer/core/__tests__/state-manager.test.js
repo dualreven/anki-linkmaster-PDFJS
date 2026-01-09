@@ -354,4 +354,52 @@ describe("StateManager", () => {
       });
     });
   });
+
+  describe("batchUpdate()", () => {
+    test("批量更新多个字段时 STATE.CHANGED 只触发一次", () => {
+      stateManager = new StateManager(eventBus);
+
+      const listener = jest.fn();
+      eventBus.on(PDF_VIEWER_EVENTS.STATE.CHANGED, listener);
+
+      stateManager.batchUpdate((sm) => {
+        sm.setCurrentFile("/batch.pdf");
+        sm.setTotalPages(10);
+        sm.setCurrentPage(3);
+        sm.setZoomLevel(1.25);
+      });
+
+      // 只发一次（批量）
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(listener).toHaveBeenCalledWith(
+        expect.objectContaining({
+          field: "batchUpdate",
+          changes: expect.any(Array),
+          state: expect.objectContaining({
+            currentFile: "/batch.pdf",
+            totalPages: 10,
+            currentPage: 3,
+            zoomLevel: 1.25
+          })
+        })
+      );
+    });
+
+    test("非法入参必须 throw", () => {
+      stateManager = new StateManager(eventBus);
+      // @ts-ignore - intentional invalid param
+      expect(() => stateManager.batchUpdate()).toThrow();
+      // @ts-ignore - intentional invalid param
+      expect(() => stateManager.batchUpdate(123)).toThrow();
+    });
+
+    test("禁止嵌套 batchUpdate", () => {
+      stateManager = new StateManager(eventBus);
+      expect(() => {
+        stateManager.batchUpdate(() => {
+          stateManager.batchUpdate(() => {});
+        });
+      }).toThrow();
+    });
+  });
 });
