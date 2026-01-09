@@ -4,6 +4,8 @@
  * 详细说明见：docs/standards/pdf-search-search-box.md
  */
 
+import { SearchBoxDOMManager } from "./search-box-dom-manager.js";
+
 function buildSearchBoxTemplate() {
   return `
       <div class="search-box-main">
@@ -75,14 +77,6 @@ function buildSearchBoxTemplate() {
     `;
 }
 
-function requireElementById(id) {
-  const el = document.getElementById(id);
-  if (!el) {
-    throw new Error(`SearchBox DOM missing required element: #${id}`);
-  }
-  return el;
-}
-
 /**
  * @param {{ logger?: any }} [deps]
  * @returns {{
@@ -95,6 +89,7 @@ function requireElementById(id) {
  *    resultCounter: HTMLElement,
  *    caseSensitiveCheckbox: HTMLInputElement,
  *    wholeWordsCheckbox: HTMLInputElement,
+ *    headerToggleButton: HTMLElement | null,
  *  }
  * }}
  */
@@ -110,17 +105,8 @@ export function createSearchBoxDom(deps = {}) {
 
   document.body.appendChild(container);
 
-  const elements = {
-    searchInput: /** @type {HTMLInputElement} */ (requireElementById("pdf-search-input")),
-    prevButton: /** @type {HTMLButtonElement} */ (requireElementById("pdf-search-prev")),
-    nextButton: /** @type {HTMLButtonElement} */ (requireElementById("pdf-search-next")),
-    closeButton: /** @type {HTMLButtonElement} */ (requireElementById("pdf-search-close")),
-    resultCounter: /** @type {HTMLElement} */ (requireElementById("pdf-search-counter")),
-    caseSensitiveCheckbox: /** @type {HTMLInputElement} */ (requireElementById("pdf-search-case-sensitive")),
-    wholeWordsCheckbox: /** @type {HTMLInputElement} */ (requireElementById("pdf-search-whole-words")),
-  };
+  const elements = SearchBoxDOMManager.getRequiredElements({ container, logger });
 
   logger?.debug?.("SearchBox DOM created");
   return { container, elements };
 }
-

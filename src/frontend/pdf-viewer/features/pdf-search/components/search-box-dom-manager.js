@@ -1,9 +1,19 @@
+/**
+ * SearchBoxDOMManager
+ * 只负责 SearchBox 相关 DOM 查询、事件绑定与解绑（Fail-Fast）。
+ */
 export class SearchBoxDOMManager {
   #elements;
   #handlers;
   #logger;
   #cleanups = [];
+  #initialized = false;
 
+  /**
+   * @param {object} elements
+   * @param {object} handlers
+   * @param {{ logger: any }} options
+   */
   constructor(elements, handlers, options = {}) {
     if (!elements || typeof elements !== "object") {
       throw new Error("[SearchBoxDOMManager] elements is required");
@@ -20,7 +30,58 @@ export class SearchBoxDOMManager {
     this.#logger = options.logger;
   }
 
+  /**
+   * 从 container 内 Fail-Fast 获取 SearchBox 需要的 DOM 元素。
+   * @param {{ container: HTMLElement, logger?: any }} params
+   * @returns {{
+   *  searchInput: HTMLInputElement,
+   *  prevButton: HTMLButtonElement,
+   *  nextButton: HTMLButtonElement,
+   *  closeButton: HTMLButtonElement,
+   *  resultCounter: HTMLElement,
+   *  caseSensitiveCheckbox: HTMLInputElement,
+   *  wholeWordsCheckbox: HTMLInputElement,
+   *  headerToggleButton: HTMLElement | null,
+   * }}
+   */
+  static getRequiredElements(params) {
+    const { container, logger } = params ?? {};
+    if (!(container instanceof HTMLElement)) {
+      throw new Error("[SearchBoxDOMManager] getRequiredElements: container is required");
+    }
+
+    const requireInContainer = (selector) => {
+      const el = container.querySelector(selector);
+      if (!el) {
+        throw new Error(`[SearchBoxDOMManager] missing required element in container: ${selector}`);
+      }
+      return el;
+    };
+
+    const elements = {
+      searchInput: /** @type {HTMLInputElement} */ (requireInContainer("#pdf-search-input")),
+      prevButton: /** @type {HTMLButtonElement} */ (requireInContainer("#pdf-search-prev")),
+      nextButton: /** @type {HTMLButtonElement} */ (requireInContainer("#pdf-search-next")),
+      closeButton: /** @type {HTMLButtonElement} */ (requireInContainer("#pdf-search-close")),
+      resultCounter: /** @type {HTMLElement} */ (requireInContainer("#pdf-search-counter")),
+      caseSensitiveCheckbox: /** @type {HTMLInputElement} */ (requireInContainer("#pdf-search-case-sensitive")),
+      wholeWordsCheckbox: /** @type {HTMLInputElement} */ (requireInContainer("#pdf-search-whole-words")),
+      headerToggleButton: document.getElementById("search-toggle-btn"),
+    };
+
+    if (!elements.headerToggleButton) {
+      logger?.debug?.("SearchBox header toggle button not found (#search-toggle-btn)");
+    }
+
+    return elements;
+  }
+
   init() {
+    if (this.#initialized) {
+      throw new Error("[SearchBoxDOMManager] init called more than once");
+    }
+    this.#initialized = true;
+
     this.#logger.info("Initializing SearchBox DOM Manager and binding events.");
     const {
       searchInput,
@@ -29,6 +90,7 @@ export class SearchBoxDOMManager {
       closeButton,
       caseSensitiveCheckbox,
       wholeWordsCheckbox,
+      headerToggleButton,
     } = this.#elements;
 
     const {
@@ -39,6 +101,7 @@ export class SearchBoxDOMManager {
       onClose,
       onCaseSensitiveChange,
       onWholeWordsChange,
+      onToggle,
     } = this.#handlers;
 
     if (!(searchInput instanceof HTMLElement)) {
@@ -82,6 +145,15 @@ export class SearchBoxDOMManager {
       throw new Error("[SearchBoxDOMManager] handlers.onWholeWordsChange is required");
     }
 
+    if (headerToggleButton !== null && headerToggleButton !== undefined) {
+      if (!(headerToggleButton instanceof HTMLElement)) {
+        throw new Error("[SearchBoxDOMManager] elements.headerToggleButton must be an HTMLElement or null");
+      }
+      if (typeof onToggle !== "function") {
+        throw new Error("[SearchBoxDOMManager] handlers.onToggle is required when #search-toggle-btn exists");
+      }
+    }
+
     this.#bindEvent(searchInput, "input", onInput);
     this.#bindEvent(searchInput, "keydown", onKeyDown);
     this.#bindEvent(prevButton, "click", onPrev);
@@ -89,6 +161,10 @@ export class SearchBoxDOMManager {
     this.#bindEvent(closeButton, "click", onClose);
     this.#bindEvent(caseSensitiveCheckbox, "change", onCaseSensitiveChange);
     this.#bindEvent(wholeWordsCheckbox, "change", onWholeWordsChange);
+
+    if (headerToggleButton !== null && headerToggleButton !== undefined) {
+      this.#bindEvent(headerToggleButton, "click", onToggle);
+    }
   }
 
   #bindEvent(element, eventType, handler) {
@@ -107,9 +183,15 @@ export class SearchBoxDOMManager {
     this.#cleanups.push(cleanup);
   }
 
+  destroy() {
+    this.#logger.info("Destroying SearchBox DOM Manager event listeners.");
+    for (const cleanup of this.#cleanups.splice(0)) {
+      cleanup();
+    }
+    this.#initialized = false;
+  }
+
   cleanup() {
-    this.#logger.info("Cleaning up SearchBox DOM Manager event listeners.");
-    this.#cleanups.forEach(cleanup => cleanup());
-    this.#cleanups = [];
+    this.destroy();
   }
 }

@@ -6,18 +6,6 @@
 
 import { SearchBoxDOMManager } from "./search-box-dom-manager.js";
 
-function maybeAttachHeaderToggle({ onToggle, logger }) {
-  const btn = document.getElementById("search-toggle-btn");
-  if (!btn) {
-    logger?.debug?.("SearchBox header toggle button not found (#search-toggle-btn)");
-    return () => {};
-  }
-
-  const handler = () => onToggle();
-  btn.addEventListener("click", handler);
-  return () => btn.removeEventListener("click", handler);
-}
-
 export function attachSearchBoxDomBindings(params) {
   const { elements, onInput, onPrev, onNext, onClose, onOptionChanged, onToggle, logger } = params;
   if (!logger) {
@@ -44,15 +32,13 @@ export function attachSearchBoxDomBindings(params) {
     onClose,
     onCaseSensitiveChange: (e) => onOptionChanged("caseSensitive", Boolean(e?.target?.checked)),
     onWholeWordsChange: (e) => onOptionChanged("wholeWords", Boolean(e?.target?.checked)),
+    onToggle,
   }, { logger });
 
   domManager.init();
 
-  const headerToggleCleanup = maybeAttachHeaderToggle({ onToggle, logger });
-
   return () => {
-    domManager.cleanup();
-    headerToggleCleanup();
+    domManager.destroy();
     logger?.debug?.("SearchBox DOM bindings cleaned up.");
   };
 }
