@@ -24,7 +24,7 @@ export class NavigationService {
   /** @type {Array<() => void>} */
   #unsubs = [];
 
-  /** @type {Map<number, (err: Error) => void>} */
+  /** @type {Map<any, (err: Error) => void>} */
   #pendingTimeoutRejects = new Map();
 
   /** @type {boolean} */
@@ -143,7 +143,7 @@ export class NavigationService {
     return timeoutId;
   }
 
-  #cancelAllPendingTimeouts() {
+  #abortAllPendingTimeouts() {
     const entries = Array.from(this.#pendingTimeoutRejects.entries());
     this.#pendingTimeoutRejects.clear();
 
@@ -473,7 +473,7 @@ export class NavigationService {
     this.#destroyed = true;
 
     // 1) 取消所有等待轮询/延迟回调
-    this.#cancelAllPendingTimeouts();
+    this.#abortAllPendingTimeouts();
 
     // 2) 解除 EventBus 订阅
     this.#unsubs.splice(0).forEach((unsub) => {
