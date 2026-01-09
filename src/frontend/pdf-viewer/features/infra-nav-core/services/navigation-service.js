@@ -21,6 +21,15 @@ export class NavigationService {
   /** @type {Object} 配置选项 */
   #options;
 
+  /** @type {Array<() => void>} */
+  #unsubs = [];
+
+  /** @type {Map<number, (err: Error) => void>} */
+  #pendingTimeoutRejects = new Map();
+
+  /** @type {boolean} */
+  #destroyed = false;
+
   /** @type {number|null} 当前PDF的总页数 */
   #totalPages = null;
 
@@ -53,19 +62,25 @@ export class NavigationService {
    */
   #setupEventListeners() {
     // 监听总页数更新事件
-    this.#eventBus.on(
+    const unsubTotalPages = this.#eventBus.on(
       PDF_VIEWER_EVENTS.NAVIGATION.TOTAL_PAGES_UPDATED,
       ({ totalPages }) => {
+        if (this.#destroyed) {return;}
         this.#totalPages = totalPages;
         this.#logger.debug(`总页数更新: ${totalPages}`);
       },
       { subscriberId: "NavigationService" }
     );
+    if (typeof unsubTotalPages !== "function") {
+      throw new Error("[NavigationService] TOTAL_PAGES_UPDATED subscription must return an unsubscribe function");
+    }
+    this.#unsubs.push(unsubTotalPages);
 
     // 监听当前页变更事件，用于识别“同页导航”场景
-    this.#eventBus.on(
+    const unsubPageChanging = this.#eventBus.on(
       PDF_VIEWER_EVENTS.PAGE.CHANGING,
       ({ pageNumber }) => {
+        if (this.#destroyed) {return;}
         if (!Number.isInteger(pageNumber) || pageNumber < 1) {
           this.#logger.warn(`收到无效的 PAGE.CHANGING 页码: ${pageNumber}`);
           return;
@@ -75,6 +90,68 @@ export class NavigationService {
       },
       { subscriberId: "NavigationService" }
     );
+    if (typeof unsubPageChanging !== "function") {
+      throw new Error("[NavigationService] PAGE.CHANGING subscription must return an unsubscribe function");
+    }
+    this.#unsubs.push(unsubPageChanging);
+  }
+
+  /**
+   * @param {number} ms
+   * @returns {Promise<void>}
+   */
+  #sleep(ms) {
+    return new Promise((resolve, reject) => {
+      if (this.#destroyed) {
+        reject(new Error("[NavigationService] destroyed"));
+        return;
+      }
+
+      let timeoutId = null;
+      timeoutId = setTimeout(() => {
+        this.#pendingTimeoutRejects.delete(timeoutId);
+        if (this.#destroyed) {
+          reject(new Error("[NavigationService] destroyed"));
+          return;
+        }
+        resolve();
+      }, ms);
+
+      this.#pendingTimeoutRejects.set(timeoutId, reject);
+    });
+  }
+
+  /**
+   * @param {() => void} callback
+   * @param {number} ms
+   * @param {(err: Error) => void} reject
+   * @returns {number|null}
+   */
+  #setManagedTimeout(callback, ms, reject) {
+    if (this.#destroyed) {
+      reject(new Error("[NavigationService] destroyed"));
+      return null;
+    }
+
+    let timeoutId = null;
+    timeoutId = setTimeout(() => {
+      this.#pendingTimeoutRejects.delete(timeoutId);
+      callback();
+    }, ms);
+
+    this.#pendingTimeoutRejects.set(timeoutId, reject);
+    return timeoutId;
+  }
+
+  #cancelAllPendingTimeouts() {
+    const entries = Array.from(this.#pendingTimeoutRejects.entries());
+    this.#pendingTimeoutRejects.clear();
+
+    const err = new Error("[NavigationService] destroyed");
+    for (const [timeoutId, reject] of entries) {
+      try { clearTimeout(timeoutId); } catch (e) { void e; /* logger-guard */ }
+      try { reject(err); } catch (e) { void e; /* logger-guard */ }
+    }
   }
 
   /**
@@ -95,6 +172,12 @@ export class NavigationService {
    * // { success: true, actualPage: 5, actualPosition: 50, duration: 450 }
    */
   async navigateTo(params) {
+    if (this.#destroyed) {
+      return {
+        success: false,
+        error: "[NavigationService] destroyed",
+      };
+    }
     if (this.#isNavigating) {
       this.#logger.warn("已有导航正在进行中，忽略新的导航请求");
       return {
@@ -132,7 +215,7 @@ export class NavigationService {
         this.#logger.info(`检测到同页导航请求: 保持在第 ${actualPage} 页，仅滚动位置`);
 
         await this.#waitForPageReady(actualPage);
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await this.#sleep(100);
 
         if (scroll) {
           if (position !== null) {
@@ -151,7 +234,7 @@ export class NavigationService {
         );
 
         await this.#waitForPageReady(actualPage);
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await this.#sleep(100);
 
         if (scroll) {
           if (position !== null) {
@@ -310,19 +393,37 @@ export class NavigationService {
    * @private
    */
   #waitForPageReady(pageNumber) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const maxWaitTime = 3000; // 最大等待3秒
       const checkInterval = 50; // 每50ms检查一次
       const startTime = performance.now();
+      let done = false;
+
+      const finishOk = () => {
+        if (done) {return;}
+        done = true;
+        resolve();
+      };
+
+      const finishErr = (err) => {
+        if (done) {return;}
+        done = true;
+        reject(err);
+      };
 
       const checkPageReady = () => {
+        if (done) {return;}
+        if (this.#destroyed) {
+          finishErr(new Error("[NavigationService] destroyed"));
+          return;
+        }
         const elapsed = performance.now() - startTime;
 
         // 检查页面元素是否存在且已加载
         const viewerContainer = document.getElementById("viewerContainer");
         if (!viewerContainer) {
           this.#logger.warn("未找到viewerContainer，使用固定延迟");
-          setTimeout(resolve, 200);
+          this.#setManagedTimeout(finishOk, 200, finishErr);
           return;
         }
 
@@ -334,7 +435,7 @@ export class NavigationService {
 
           if (hasHeight) {
             this.#logger.debug(`页面 ${pageNumber} 已渲染完成 (耗时 ${Math.round(elapsed)}ms)`);
-            resolve();
+            finishOk();
             return;
           }
         }
@@ -342,12 +443,12 @@ export class NavigationService {
         // 超时检查
         if (elapsed >= maxWaitTime) {
           this.#logger.warn(`页面 ${pageNumber} 等待超时 (${maxWaitTime}ms)，继续执行`);
-          resolve();
+          finishOk();
           return;
         }
 
         // 继续等待
-        setTimeout(checkPageReady, checkInterval);
+        this.#setManagedTimeout(checkPageReady, checkInterval, finishErr);
       };
 
       this.#logger.debug(`开始等待页面 ${pageNumber} 渲染完成`);
@@ -368,6 +469,17 @@ export class NavigationService {
    */
   destroy() {
     this.#logger.info("NavigationService销毁");
+    if (this.#destroyed) {return;}
+    this.#destroyed = true;
+
+    // 1) 取消所有等待轮询/延迟回调
+    this.#cancelAllPendingTimeouts();
+
+    // 2) 解除 EventBus 订阅
+    this.#unsubs.splice(0).forEach((unsub) => {
+      try { unsub(); } catch (e) { void e; /* logger-guard */ }
+    });
+
     this.#totalPages = null;
     this.#currentPageNumber = null;
     this.#isNavigating = false;
