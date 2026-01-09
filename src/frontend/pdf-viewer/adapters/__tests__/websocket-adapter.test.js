@@ -10,7 +10,6 @@ import { WEBSOCKET_MESSAGE_TYPES } from "../../../common/event/event-constants.j
 import * as wsInboundBridge from "../ws-inbound-bridge.js";
 import { handleLoadPdfFileMessage } from "../websocket-adapter-load-pdf-file.js";
 import { handleViewerNavigateMessage } from "../websocket-adapter-viewer-navigate.js";
-import { createPdfIdProvider } from "../pdf-id-provider.js";
 
 describe("WebSocketAdapter", () => {
   let eventBus;
@@ -35,32 +34,7 @@ describe("WebSocketAdapter", () => {
     handleViewerWsInboundSpy.mockImplementation(({ message, eventBus, wsClient, logger, pdfIdProvider, viewerInstanceId }) => {
       // Delegate to actual helper functions for accurate behavior
       if (message.type === "load_pdf_file") {
-        const fileData = message.data;
-        // Adjusted to match the `handleLoadPdfFileMessage` internal logic more closely
-        const resolvedPdfId = (() => {
-          const raw = (
-            typeof fileData.pdfId === "string"
-              ? fileData.pdfId
-              : typeof fileData.pdf_id === "string"
-                ? fileData.pdf_id
-                : typeof fileData.fileId === "string"
-                  ? fileData.fileId
-                  : ""
-          ).trim();
-          if (raw) {
-            return raw;
-          }
-          const m = String(fileData.filename).match(/([a-f0-9]{12})/i);
-          return m ? String(m[1]).toLowerCase() : undefined; // Use undefined for no match to match original handleLoadPdfFileMessage behavior
-        })();
-
-        if (fileData && fileData.filename && fileData.url) {
-          eventBus.emit(
-            PDF_VIEWER_EVENTS.FILE.LOAD.REQUESTED,
-            { ...fileData, pdfId: resolvedPdfId },
-            { actorId: "WebSocketAdapter" }
-          );
-        }
+        handleLoadPdfFileMessage({ data: message.data, eventBus, logger });
       } else if (message.type === "navigate_page") {
         const { page_number } = message.data;
         if (typeof page_number !== "number") {
@@ -728,4 +702,3 @@ describe("WebSocketAdapter", () => {
     });
   });
 });
-
