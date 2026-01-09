@@ -28,6 +28,7 @@ import { PDFResumeFeature } from "../features/pdf-resume/index.js";
 import { WindowControlsFeature } from "../../common/features/window-controls/index.js";
 import { showInfo } from "../../common/utils/notification.js";
 import { resolveWebSocketPortSync, DEFAULT_WS_PORT } from "../../common/utils/ws-port-resolver.js";
+import { PageZoomGuardFeature } from "./page-zoom-guard-feature.js";
 const logger = getLogger("pdf-viewer.bootstrap");
 
 /**
@@ -106,6 +107,7 @@ export async function bootstrapPDFViewerAppFeature() {
     }
 
     // 4. 注册核心 Features
+    registry.register(new PageZoomGuardFeature());
     registry.register(new AppCoreFeature());
     registry.register(new WindowControlsFeature({
       bridgeName: "pdfViewerBridge",
@@ -137,65 +139,6 @@ export async function bootstrapPDFViewerAppFeature() {
     logger.info("[Bootstrap] Installing features...");
     await registry.installAll();
 
-    // 5.1 禁用浏览器层面的 Ctrl+滚轮页面缩放（Qt WebEngine/Chromium 默认行为），避免 devicePixelRatio 变动影响标注坐标
-    try {
-      const shouldDisablePageZoom = true; // 可按需改为从 localStorage 读取
-      if (shouldDisablePageZoom) {
-        const wheelHandler = (e) => {
-          try {
-            if (e && e.ctrlKey) {
-              e.preventDefault();
-              e.stopPropagation();
-              // 将 Ctrl+滚轮 转译为应用内的 PDF 缩放事件（避免浏览器层 page zoom）
-              import("../../common/event/pdf-viewer-constants.js").then(({ PDF_VIEWER_EVENTS }) => {
-                const direction = (e.deltaY || 0) < 0 ? "in" : "out";
-                // 直接发射常量，避免变量事件名被规则拦截
-                if (direction === "in") {
-                  eventBusSingleton.emit(PDF_VIEWER_EVENTS.ZOOM.IN, { delta: 0.15 }, { actorId: "BootstrapZoomGuard" });
-                } else {
-                  eventBusSingleton.emit(PDF_VIEWER_EVENTS.ZOOM.OUT, { delta: 0.15 }, { actorId: "BootstrapZoomGuard" });
-                }
-                logger.info(`[Bootstrap] Ctrl+Wheel intercepted → zoom ${direction}`);
-              }).catch((err) => {
-                logger.warn("[Bootstrap] Failed to emit zoom event on Ctrl+Wheel", err);
-              });
-            }
-          } catch (err) {
-            void err; /* logger-guard */
-          }
-        };
-        const keydownHandler = (e) => {
-          try {
-            if (!e) {return;}
-            const ctrl = !!(e.ctrlKey || e.metaKey); // macOS 下 meta 也可能触发
-            const k = e.key || "";
-            if (ctrl && (k === "+" || k === "-" || k === "0")) {
-              e.preventDefault();
-              e.stopPropagation();
-              logger.info("[Bootstrap] Ctrl+Key page zoom prevented", { key: k });
-            }
-            // 处理部分键位编码（等号/减号/数字键盘）
-            const code = e.code || "";
-            if (ctrl && (code === "Equal" || code === "Minus" || code === "Digit0" || code === "NumpadAdd" || code === "NumpadSubtract" || code === "Numpad0")) {
-              e.preventDefault();
-              e.stopPropagation();
-              logger.info("[Bootstrap] Ctrl+Key(code) page zoom prevented", { code });
-            }
-          } catch (err) {
-            void err; /* logger-guard */
-          }
-        };
-        // 使用 passive:false 以允许 preventDefault 生效
-        window.addEventListener("wheel", wheelHandler, { passive: false, capture: true });
-        window.addEventListener("keydown", keydownHandler, { capture: true });
-        // 保存到全局以便调试/卸载
-        window.__PDFVIEWER_DISABLE_PAGE_ZOOM_GUARD__ = { wheelHandler, keydownHandler };
-        logger.info("[Bootstrap] Page zoom (Ctrl+Wheel/Key) disabled at JS layer");
-      }
-    } catch (e) {
-      logger.warn("[Bootstrap] Failed to install page-zoom guard (non-fatal)", e);
-    }
-
     // 6. 设置全局引用（便于调试）
     window.pdfViewerApp = {
       registry,
@@ -204,7 +147,10 @@ export async function bootstrapPDFViewerAppFeature() {
         const record = registry.get(name);
         return record ? record.feature : null;
       },
-      destroy: () => registry.uninstallAll(),
+      destroy: () => {
+        // 卸载所有 feature
+        registry.uninstallAll();
+      },
       eventBus: eventBusSingleton,
       // 测试助手（仅测试使用）：通过 EventBus 触发导航
       test: {

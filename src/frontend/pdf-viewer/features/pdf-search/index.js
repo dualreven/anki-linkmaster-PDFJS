@@ -10,6 +10,7 @@ import { SearchEngine } from "./services/search-engine.js";
 import { SearchManager } from "./services/search.manager.js"; // New Manager
 import { SearchBox } from "./components/search-box.js";
 import { setupGlobalSearchShortcut } from "../../../common/features/search-shortcut/index.js";
+import { createSubscriptionBag } from "../../../common/event/subscription-bag.js";
 
 // 导入样式
 import "./styles/search.css";
@@ -38,6 +39,11 @@ export class SearchFeature {
 
   /** @type {boolean} 是否已安装 */
   #installed = false;
+
+  #subscriptions = createSubscriptionBag({ loggerName: "SearchFeature" });
+
+  /** @type {Function|null} */
+  #shortcutCleanup = null;
 
   /**
    * Feature名称
@@ -125,16 +131,16 @@ export class SearchFeature {
       container.register("searchBox", this.#searchBox);
 
       // 7. 监听PDF加载完成，初始化搜索引擎
-      this.#eventBus.on(
+      this.#subscriptions.add(this.#eventBus.on(
         PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
         async ({ pdfDocument }) => {
           await this.#initializeSearchEngine(pdfViewerManager);
         },
         { subscriberId: "SearchFeature" }
-      );
+      ));
 
       // 8. 设置全局快捷键（Ctrl+F），使用公共 helper
-      setupGlobalSearchShortcut({
+      this.#shortcutCleanup = setupGlobalSearchShortcut({
         logger: this.#logger,
         actorId: "SearchFeature:GlobalShortcut",
         onOpen: () => {
@@ -186,58 +192,58 @@ export class SearchFeature {
    */
   #setupEventListeners() {
     // 监听搜索执行请求
-    this.#eventBus.on(
+    this.#subscriptions.add(this.#eventBus.on(
       PDF_VIEWER_EVENTS.SEARCH.EXECUTE.QUERY,
       ({ query, options }) => {
         this.#handleSearchQuery(query, options);
       },
       { subscriberId: "SearchFeature" }
-    );
+    ));
 
     // 监听搜索清空请求
-    this.#eventBus.on(
+    this.#subscriptions.add(this.#eventBus.on(
       PDF_VIEWER_EVENTS.SEARCH.EXECUTE.CLEAR,
       () => {
         this.#handleSearchClear();
       },
       { subscriberId: "SearchFeature" }
-    );
+    ));
 
     // 监听导航到下一个结果
-    this.#eventBus.on(
+    this.#subscriptions.add(this.#eventBus.on(
       PDF_VIEWER_EVENTS.SEARCH.NAVIGATE.NEXT,
       () => {
         this.#handleNavigateNext();
       },
       { subscriberId: "SearchFeature" }
-    );
+    ));
 
     // 监听导航到上一个结果
-    this.#eventBus.on(
+    this.#subscriptions.add(this.#eventBus.on(
       PDF_VIEWER_EVENTS.SEARCH.NAVIGATE.PREV,
       () => {
         this.#handleNavigatePrev();
       },
       { subscriberId: "SearchFeature" }
-    );
+    ));
 
     // 监听选项改变
-    this.#eventBus.on(
+    this.#subscriptions.add(this.#eventBus.on(
       PDF_VIEWER_EVENTS.SEARCH.OPTION.CHANGED,
       ({ option, value }) => {
         this.#handleOptionChange(option, value);
       },
       { subscriberId: "SearchFeature" }
-    );
+    ));
 
     // 监听搜索结果更新（从SearchEngine）
-    this.#eventBus.on(
+    this.#subscriptions.add(this.#eventBus.on(
       PDF_VIEWER_EVENTS.SEARCH.RESULT.UPDATED,
       ({ current, total, query }) => {
         this.#handleSearchResultUpdated(current, total, query);
       },
       { subscriberId: "SearchFeature" }
-    );
+    ));
 
     this.#logger.info("Event listeners attached");
   }
@@ -377,6 +383,15 @@ export class SearchFeature {
     this.#logger.info("Uninstalling SearchFeature...");
 
     try {
+      this.#subscriptions.clear();
+
+      try {
+        this.#shortcutCleanup?.();
+      } catch (e) {
+        void e; /* logger-guard */
+      }
+      this.#shortcutCleanup = null;
+
       // 销毁各个组件
       if (this.#searchBox) {
         this.#searchBox.destroy();

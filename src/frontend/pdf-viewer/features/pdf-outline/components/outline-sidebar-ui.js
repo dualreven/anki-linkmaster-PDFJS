@@ -76,7 +76,7 @@ export class OutlineSidebarUI {
     }
 
     // 监听来自其他模块的“选中改变”事件，用于外部导航时高亮并滚动到指定大纲项
-    const unsubOutlineSelectChanged = this.#eventBus.onGlobal(
+    const unsubOutlineSelectChanged = this.#eventBus.on(
       PDF_VIEWER_EVENTS.OUTLINE.SELECT.CHANGED,
       (data, metadata) => {
         try {
@@ -237,17 +237,13 @@ export class OutlineSidebarUI {
             { actorId: "OutlineSidebarUI" }
           );
         } catch (e) { void e; /* logger-guard */ }
-        // 直接根据节点携带的 pageAt/position 进行页面导航（等价于手工点击）
+        // 直接根据节点携带的 pageAt/position 进行页面导航（领域事件；由 OutlineFeature 处理）
         const pageAt = typeof info.pageAt === "number" && info.pageAt > 0 ? info.pageAt : null;
         const position = typeof info.position === "number" ? info.position : null;
         if (pageAt !== null) {
-          const req = { pageAt };
-          if (position !== null) { req.position = position; }
-          this.#eventBus.emitGlobal(
-            PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
-            req,
-            { actorId: "OutlineSidebarUI" }
-          );
+          const outlineItem = { pageAt };
+          if (position !== null) { outlineItem.position = position; }
+          this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.REQUESTED, { outlineItem }, { actorId: "OutlineSidebarUI" });
         }
       } catch (err) {
         this.#logger.warn("select_node failed", err);
