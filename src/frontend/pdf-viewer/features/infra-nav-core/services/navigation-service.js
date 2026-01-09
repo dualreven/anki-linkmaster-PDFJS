@@ -3,7 +3,6 @@
  * @module NavigationService
  * @description 负责执行PDF页面导航和位置滚动操作
  */
-
 import { getLogger } from "../../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 
@@ -45,12 +44,21 @@ export class NavigationService {
    * @param {Object} [options={}] - 配置选项
    * @param {number} [options.navigationTimeout=5000] - 导航超时时间(ms)
    * @param {number} [options.scrollDuration=300] - 滚动动画持续时间(ms)
+   * @param {number} [options.postPageReadyDelayMs=100] - 页面 ready 后的额外等待(ms)，用于兼容历史渲染时序
    */
   constructor(eventBus, options = {}) {
+    if (options && Object.prototype.hasOwnProperty.call(options, "postPageReadyDelayMs")) {
+      const v = options.postPageReadyDelayMs;
+      if (typeof v !== "number" || !Number.isFinite(v) || v < 0) {
+        throw new Error(`[NavigationService] Invalid postPageReadyDelayMs: ${String(v)}`);
+      }
+    }
+
     this.#eventBus = eventBus;
     this.#options = {
       navigationTimeout: options.navigationTimeout || 5000,
       scrollDuration: options.scrollDuration || 300,
+      postPageReadyDelayMs: (typeof options.postPageReadyDelayMs === "number") ? options.postPageReadyDelayMs : 100,
     };
 
     this.#setupEventListeners();
@@ -104,6 +112,16 @@ export class NavigationService {
     return new Promise((resolve, reject) => {
       if (this.#destroyed) {
         reject(new Error("[NavigationService] destroyed"));
+        return;
+      }
+
+      const delayMs = Number(ms);
+      if (!Number.isFinite(delayMs)) {
+        reject(new Error(`[NavigationService] invalid sleep ms: ${String(ms)}`));
+        return;
+      }
+      if (delayMs <= 0) {
+        resolve();
         return;
       }
 
@@ -166,10 +184,6 @@ export class NavigationService {
    * @returns {number|null} return.actualPosition - 实际位置百分比
    * @returns {number} return.duration - 导航耗时(ms)
    * @returns {string} [return.error] - 错误信息（如果失败）
-   *
-   * @example
-   * const result = await navigationService.navigateTo({ pageAt: 5, position: 50 });
-   * // { success: true, actualPage: 5, actualPosition: 50, duration: 450 }
    */
   async navigateTo(params) {
     if (this.#destroyed) {
@@ -215,7 +229,7 @@ export class NavigationService {
         this.#logger.info(`检测到同页导航请求: 保持在第 ${actualPage} 页，仅滚动位置`);
 
         await this.#waitForPageReady(actualPage);
-        await this.#sleep(100);
+        await this.#sleep(this.#options.postPageReadyDelayMs);
 
         if (scroll) {
           if (position !== null) {
@@ -234,7 +248,7 @@ export class NavigationService {
         );
 
         await this.#waitForPageReady(actualPage);
-        await this.#sleep(100);
+        await this.#sleep(this.#options.postPageReadyDelayMs);
 
         if (scroll) {
           if (position !== null) {
@@ -274,10 +288,6 @@ export class NavigationService {
    * @param {number} percentage - 位置百分比（0-100）
    * @param {number} pageNumber - 目标页码(必填，由navigateTo方法提供)
    * @returns {Promise<number>} 实际滚动到的百分比
-   *
-   * @example
-   * const actualPosition = await navigationService.scrollToPosition(50, 25);
-   * // 50 (滚动到第25页的中间位置，并尽可能让目标位置显示在窗口中心)
    */
   async scrollToPosition(percentage, pageNumber) {
     return new Promise((resolve) => {
