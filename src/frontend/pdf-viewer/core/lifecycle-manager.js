@@ -130,6 +130,13 @@ export class LifecycleManager {
   }
 
   /**
+   * 销毁（语义别名：等价于 cleanup）
+   */
+  destroy() {
+    this.cleanup();
+  }
+
+  /**
    * 检查错误处理器是否已设置
    *
    * @returns {boolean}

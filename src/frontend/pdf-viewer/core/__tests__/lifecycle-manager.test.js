@@ -80,6 +80,36 @@ describe("LifecycleManager", () => {
 
       expect(lifecycleManager.isSetup()).toBe(true);
     });
+
+    test("重复调用不应重复注册 window 监听器（必须对称卸载）", () => {
+      lifecycleManager = new LifecycleManager(eventBus, errorHandler);
+
+      const addSpy = jest.spyOn(window, "addEventListener");
+      const removeSpy = jest.spyOn(window, "removeEventListener");
+
+      lifecycleManager.setupGlobalErrorHandling();
+      lifecycleManager.setupGlobalErrorHandling();
+
+      const errorAdds = addSpy.mock.calls.filter(([type]) => type === "error");
+      const rejectionAdds = addSpy.mock.calls.filter(([type]) => type === "unhandledrejection");
+      expect(errorAdds.length).toBe(1);
+      expect(rejectionAdds.length).toBe(1);
+
+      const errorHandlerFn = errorAdds[0][1];
+      const rejectionHandlerFn = rejectionAdds[0][1];
+
+      lifecycleManager.cleanup();
+
+      const errorRemoves = removeSpy.mock.calls.filter(([type]) => type === "error");
+      const rejectionRemoves = removeSpy.mock.calls.filter(([type]) => type === "unhandledrejection");
+      expect(errorRemoves.length).toBe(1);
+      expect(rejectionRemoves.length).toBe(1);
+      expect(errorRemoves[0][1]).toBe(errorHandlerFn);
+      expect(rejectionRemoves[0][1]).toBe(rejectionHandlerFn);
+
+      addSpy.mockRestore();
+      removeSpy.mockRestore();
+    });
   });
 
   describe("全局错误处理", () => {
