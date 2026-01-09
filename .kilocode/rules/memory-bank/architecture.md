@@ -50,6 +50,7 @@
 - 2026-01-03 前端治理续15：`TranslatorSidebarUI`（pdf-translator）拆出 renderer/actions/dom-bindings/history，主 `TranslatorSidebarUI.js` 下降到 ≤500 行（详见 `docs/standards/pdf-translator-sidebar.md`）。
 - 2026-01-03 前端治理续16：`AnchorSidebarUI`（pdf-anchor）拆出 toolbar/dialog/table，主 `anchor-sidebar-ui.js` 下降到 ≤500 行，并修复 toolbar document click 监听泄漏（详见 `docs/standards/pdf-anchor-sidebar-ui.md`）。
 - 2026-01-03 前端治理续17：`WeightedSortEditor`（pdf-sorter component）拆出 constants/template/formula/view，主 `weighted-sort-editor.js` 下降到 ≤500 行（详见 `docs/standards/pdf-sorter-weighted-sort-editor.md`）。
+- 2026-01-09 前端治理：`infra-sidebar` 抽离 `DraggableResizer` 组件，确保“拖拽中途销毁/卸载”也能对称解绑 document 监听器，并补回归测试。
 
 ## 2025-11-10 阅读历史模块纳入
 - 组件：`ReadingHistoryService`（viewer Feature，常驻；注册顺序紧随 navigation/URL 层之后，早于 Anchor/Sidebar）

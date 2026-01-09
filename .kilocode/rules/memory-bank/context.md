@@ -33,6 +33,14 @@
   - `pnpm -s run lint` ✅（含行数门禁）
   - `pnpm exec jest --runTestsByPath` ✅（新增 `outline-event-payload-hygiene.test.js` + 相关用例）
 
+## 2026-01-09（已完成）B：infra-sidebar DraggableResizer 抽离 + 泄漏回归测试
+- **提交（worktree B）**：`55b5c9a refactor(infra-sidebar): extract draggable resizer`（参见 `todo-and-doing/1 doing/20260109104620-infra-sidebar-draggable-resizer-B/working-log.md`）。
+- **范围**：`src/frontend/pdf-viewer/features/infra-sidebar/**`
+- **要点**：
+  - 抽离 `DraggableResizer` 封装拖拽绑定/解绑；destroy 支持“拖拽中途销毁清理 document 监听器”；
+  - `SidebarManagerFeature` 不再常驻注册 document mousemove/mouseup，降低泄漏面。
+- **回归**：新增“mousedown 后立刻 destroy 必须解绑”单测，更新既有 uninstall 清理测试覆盖“拖拽中途卸载”。
+
 ## 2026-01-09：并行工作树扩展（A~F）
 - 新增 worktree：E / F（基于 main），用于 6 AI 并行。
 - 新一轮任务（A~F）已下发至 `todo-and-doing/1 doing/`（见各任务目录 `v001-spec.md`）。
