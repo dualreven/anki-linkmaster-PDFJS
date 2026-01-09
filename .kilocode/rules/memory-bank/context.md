@@ -16,12 +16,12 @@
   - 门禁：`pnpm -s run lint` + 关键 Jest 路径通过（由 main 侧统一跑）。
 - **下一步**：用户使用 `gui_launcher` 手工点检上述行为；如发现 bug，按责任模块下发新的 doing 并同步给对应 worktree。
 
-## 2026-01-09：组合场景日志报错（待修复，已下发任务）
+## 2026-01-09：组合场景日志报错（已修复）
 - **现象**：打开搜索栏时点击大纲跳转，出现日志：
   - `事件回调执行出错：Maximum call stack size exceeded [Serialization Error: Maximum call stack size exceeded]`
 - **影响**：不影响功能，但污染日志/误导排障。
-- **怀疑根因**：tracing 记录链路对 payload 直接 `JSON.stringify(data)` 未保护，遇到深对象/循环引用时爆栈。
-- **已下发修复任务（D，P0）**：`todo-and-doing/1 doing/20260109104510-eventbus-tracing-safe-serialize-D/v001-spec.md`
+- **根因**：tracing 记录链路对 payload 直接 `JSON.stringify(data)` 未保护，遇到深对象/循环引用时爆栈。
+- **修复**：EventBus tracing 序列化改为 Fail-Closed（失败写占位字符串，不影响业务回调执行），并补回归测试（见下方 D 任务记录）。
 
 ## 2026-01-09（完成）A：pdf-outline 事件 payload 体积治理
 - **任务**：`todo-and-doing/1 doing/20260109104600-outline-event-payload-hygiene-A/v001-spec.md`
@@ -51,6 +51,22 @@
 - **提交**：`2bf0b3b`
 - **要点**：`enableTracing=true` 时 tracing/日志链路对 payload 的序列化改为 Fail-Closed（失败写占位字符串，不影响业务回调执行）。
 - **回归**：新增 `src/frontend/common/event/__tests__/event-bus.tracing.safe-serialize.regression.test.js` 覆盖循环引用与 stringify 抛错场景。
+
+## 2026-01-09：A~F 第二轮交付（已验收并合入 main）
+- **门禁**：`pnpm -s run lint` ✅；Jest（按路径）✅。
+- **main 合入（可回溯）**：
+  - A：`5565695`（outline payload 收敛）+ `29eddbd`（memory-bank 记录）
+  - B：`5c75fb9`（DraggableResizer 抽离）+ `1636a85`（todo/memory-bank 记录）
+  - C：`c03bf67`（TextHighlightTool store-reactive）
+  - D：`6635e8d`（safe serialize + 回归）+ `542c4b7`（todo 记录）
+  - E：`561bf17`（报告：`docs/reports/20260109-pdfviewer-core-ui-scan-E.md`）
+  - F：`554ccdd`（报告：`docs/reports/20260109-infra-nav-url-loader-scan-F.md`）
+
+## 2026-01-09（完成）E：PDFViewer core/ui 面条化扫描报告
+- **产出**：`docs/reports/20260109-pdfviewer-core-ui-scan-E.md`
+
+## 2026-01-09（完成）F：infra-nav / pdf-url-loader 面条化扫描报告
+- **产出**：`docs/reports/20260109-infra-nav-url-loader-scan-F.md`
 
 ## 2026-01-09：并行工作树扩展（A~F）
 - 新增 worktree：E / F（基于 main），用于 6 AI 并行。
