@@ -48,14 +48,6 @@
 - 备注：
   - 当前 `new-card-scheduler` UI 仍默认使用 `FakeEngine`（H 任务为并行解耦设计）；G 的真实引擎已合入并有回归测试，下一步可在不改 UI 的前提下切换到真实引擎。
 
-## 2026-01-10：Card Planner 侧边栏遮挡修复（下发 F/G/H/I）
-- 需求：`new-card-scheduler` 左侧“布局/工具”不再遮挡 `#planner-workspace`；折叠/展开用按钮触发；展开推开主区域，收起恢复占满。
-- 任务目录：
-  - F：`todo-and-doing/1 doing/20260110021210-card-planner-sidebar-push-layout-F/`
-  - G：`todo-and-doing/1 doing/20260110021211-card-planner-sidebar-toggle-button-G/`
-  - H：`todo-and-doing/1 doing/20260110021212-card-planner-sidebar-layout-regression-tests-H/`
-  - I：`todo-and-doing/1 doing/20260110021213-card-planner-sidebar-acceptance-doc-I/`
-
 ## 2026-01-09：组合场景日志报错（已修复）
 - **现象**：打开搜索栏时点击大纲跳转，出现日志：
   - `事件回调执行出错：Maximum call stack size exceeded [Serialization Error: Maximum call stack size exceeded]`
