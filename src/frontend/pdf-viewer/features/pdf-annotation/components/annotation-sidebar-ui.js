@@ -49,6 +49,8 @@ export class AnnotationSidebarUI {
   #toolbarController = null;
   /** @type {Map<string, HTMLElement>} */
   #annotationCards = new Map();
+  /** @type {Set<any>} */
+  #timeoutIds = new Set();
 
   /**
    * 创建AnnotationSidebarUI实例
@@ -443,10 +445,12 @@ export class AnnotationSidebarUI {
     });
 
     // 3秒后恢复正常样式
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
+      this.#timeoutIds.delete(timeoutId);
       targetCard.style.background = "#fff";
       targetCard.style.borderColor = "#e0e0e0";
     }, 3000);
+    this.#timeoutIds.add(timeoutId);
 
     this.#logger.info(`Card highlighted and scrolled: ${annotationId}`);
   }
@@ -466,6 +470,12 @@ export class AnnotationSidebarUI {
    * 销毁侧边栏
    */
   destroy() {
+    // 清理所有 timeout（避免 destroy 后触碰已销毁 DOM）
+    for (const timeoutId of this.#timeoutIds) {
+      clearTimeout(timeoutId);
+    }
+    this.#timeoutIds.clear();
+
     // 取消所有事件订阅
     if (this.#subscriptions) {
       this.#subscriptions.clear();

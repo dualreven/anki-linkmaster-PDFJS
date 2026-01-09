@@ -51,40 +51,12 @@ export function createSidebarClosedHandler({
   };
 }
 
-export function createCommentAddedHandler({
-  logger,
-  getAnnotationById,
-  updateAnnotationCard,
-}) {
-  return (data) => {
-    const { annotationId, skipUpdate } = data || {};
-    if (!annotationId) {
-      return;
-    }
-
-    if (skipUpdate) {
-      logger.debug("Comment already added locally, skipping update");
-      return;
-    }
-
-    const annotation = getAnnotationById(String(annotationId));
-    if (!annotation) {
-      logger.warn(`Annotation not found: ${annotationId}`);
-      return;
-    }
-
-    logger.debug(`External comment added to annotation ${annotationId}`);
-    updateAnnotationCard(annotation);
-  };
-}
-
 export function installAnnotationSidebarSubscriptions({
   eventBus,
   subscriptions,
   subscriberId,
   onSelected,
   onSidebarClosed,
-  onCommentAdded,
   onToolDeactivated,
 }) {
   const sid = subscriberId || "AnnotationSidebarUI";
@@ -102,8 +74,5 @@ export function installAnnotationSidebarSubscriptions({
       onSidebarClosed,
       { subscriberId: sid }
     ));
-  }
-  if (typeof onCommentAdded === "function") {
-    subscriptions.add(eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.COMMENT.ADDED, onCommentAdded, { subscriberId: sid }));
   }
 }
