@@ -8,8 +8,6 @@
 
 import { getLogger } from "../../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
-import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constants.js";
-import { showError } from "../../../../common/utils/notification.js";
 import { DOMElementManager } from "../../../ui/dom-element-manager.js";
 import { KeyboardHandler } from "../../../ui/keyboard-handler.js";
 import { TextLayerManager } from "../../../ui/text-layer-manager.js";
@@ -23,6 +21,8 @@ import { updateUIManagerHeaderTitle } from "./ui-manager-core-header-title.js";
 import { ViewerManager } from "./viewer.manager.js";
 import { ZoomManager } from "./zoom.manager.js";
 import { LayoutManager } from "./layout.manager.js";
+import { createInfraUICoordinator } from "../infra-ui-coordinator.js";
+import { requestPdfTitleFromDB } from "./pdf-title-requester.js";
 
 /**
  * UI管理器核心类
@@ -40,6 +40,9 @@ export class UIManagerCore {
   #pdfViewerManager;
   #uiZoomControls;
   #uiLayoutControls;
+  #uiControls;
+  #eventListeners;
+  #coordinator;
   #unsubscribeFunctions = [];
   #currentPdfId = null; // 当前 PDF 的ID
   #pendingDetailRequestId = null; // 等待中的详情请求ID（用于严格匹配回执）
@@ -79,7 +82,7 @@ export class UIManagerCore {
       const textLayerContainer = this.#domManager.getElement("textLayer");
       if (textLayerContainer) {
         this.#textLayerManager = new TextLayerManager({
-          container: textLayerContainer
+          container: textLayerContainer,
         });
         this.#logger.info("TextLayerManager initialized");
       } else {
@@ -97,40 +100,85 @@ export class UIManagerCore {
         this.#domEventHub = new DomEventHub({
           viewerContainer,
           documentRef: document,
-          windowRef: window
+          windowRef: window,
         });
         this.#logger.info("DomEventHub initialized");
       } else {
-        this.#logger.error("viewerContainer not found, PDF rendering disabled");
+        this.#logger.error(
+          "viewerContainer not found, PDF rendering disabled"
+        );
       }
 
       // 设置键盘事件
       this.#keyboardHandler.setupEventListener(this.#domEventHub);
 
-      // 设置事件监听
-      this.#setupEventListeners();
-
       // View Subscriptions (Connect Managers to DOM)
       this.#setupViewSubscriptions();
 
-      this.#unsubscribeFunctions.push(...installUIManagerCoreInteractions({
-        eventBus: this.#eventBus,
-        logger: this.#logger,
-        domManager: this.#domManager,
-        documentRef: document,
-        windowRef: window
-      }));
+      this.#unsubscribeFunctions.push(
+        ...installUIManagerCoreInteractions({
+          eventBus: this.#eventBus,
+          logger: this.#logger,
+          domManager: this.#domManager,
+          documentRef: document,
+          windowRef: window,
+        })
+      );
 
       // 初始化UI控件
       await this.#initializeUIControls();
 
-      const { updateCopyButtonVisibility, unsubs: copyUnsubs } = installCopyPdfIdButton({
-        logger: this.#logger,
-        documentRef: document,
-        windowRef: window,
-        getCurrentPdfId: () => this.#currentPdfId,
-        setCurrentPdfId: (pdfId) => { this.#currentPdfId = pdfId; }
-      });
+      // Setup event listeners handler
+      const { eventListeners, unsubs: eventListenersUnsubs } =
+        installUIManagerCoreEventListeners({
+          eventBus: this.#eventBus,
+          logger: this.#logger,
+          viewerManager: this.#viewerManager,
+          zoomManager: this.#zoomManager,
+          layoutManager: this.#layoutManager,
+          domManager: this.#domManager,
+          getPdfViewerManager: () => this.#pdfViewerManager,
+          getUIZoomControls: () => this.#uiZoomControls,
+          getCurrentPdfId: () => this.#currentPdfId,
+          setCurrentPdfId: (pdfId) => {
+            this.#currentPdfId = pdfId;
+          },
+          getPendingDetailRequestId: () => this.#pendingDetailRequestId,
+          setPendingDetailRequestId: (rid) => {
+            this.#pendingDetailRequestId = rid;
+          },
+          updateCopyButtonVisibility: () => this.#updateCopyButtonVisibilityFn(),
+          requestPdfTitleFromDB: (pdfId) =>
+            requestPdfTitleFromDB({
+              eventBus: this.#eventBus,
+              logger: this.#logger,
+              pdfId,
+              setPendingDetailRequestId: (rid) => { this.#pendingDetailRequestId = rid; },
+            }),
+          updateHeaderTitle: (title) => updateUIManagerHeaderTitle({ logger: this.#logger, documentRef: document }, title),
+        });
+      this.#eventListeners = eventListeners;
+      this.#unsubscribeFunctions.push(...eventListenersUnsubs);
+
+      // Create coordinator
+      this.#coordinator = createInfraUICoordinator(
+        this.#eventBus,
+        this.#logger,
+        this.#uiControls,
+        this.#eventListeners
+      );
+      this.#unsubscribeFunctions.push(this.#coordinator.destroy);
+
+      const { updateCopyButtonVisibility, unsubs: copyUnsubs } =
+        installCopyPdfIdButton({
+          logger: this.#logger,
+          documentRef: document,
+          windowRef: window,
+          getCurrentPdfId: () => this.#currentPdfId,
+          setCurrentPdfId: (pdfId) => {
+            this.#currentPdfId = pdfId;
+          },
+        });
       this.#updateCopyButtonVisibilityFn = updateCopyButtonVisibility;
       this.#unsubscribeFunctions.push(...copyUnsubs);
 
@@ -157,74 +205,29 @@ export class UIManagerCore {
    */
   #setupViewSubscriptions() {
     // Viewer Loading -> DOM Loading
-    this.#unsubscribeFunctions.push(this.#viewerManager.store.subscribe(
-      state => state.isLoading,
-      (isLoading) => {
-        this.#domManager.setLoadingState(isLoading);
-      }
-    ));
+    this.#unsubscribeFunctions.push(
+      this.#viewerManager.store.subscribe(
+        (state) => state.isLoading,
+        (isLoading) => {
+          this.#domManager.setLoadingState(isLoading);
+        }
+      )
+    );
 
     // Viewer Error -> DOM Error
-    this.#unsubscribeFunctions.push(this.#viewerManager.store.subscribe(
-      state => state.hasError,
-      (hasError) => {
-        const state = this.#viewerManager.store.get();
-        if (hasError) {
-          this.showError({ message: state.errorMessage });
-        } else {
-          this.hideError();
+    this.#unsubscribeFunctions.push(
+      this.#viewerManager.store.subscribe(
+        (state) => state.hasError,
+        (hasError) => {
+          const state = this.#viewerManager.store.get();
+          if (hasError) {
+            this.showError({ message: state.errorMessage });
+          } else {
+            this.hideError();
+          }
         }
-      }
-    ));
-  }
-
-  /**
-   * 设置事件监听
-   * @private
-   */
-  #setupEventListeners() {
-    const unsubs = installUIManagerCoreEventListeners({
-      eventBus: this.#eventBus,
-      logger: this.#logger,
-      viewerManager: this.#viewerManager, // Pass Managers
-      zoomManager: this.#zoomManager,
-      layoutManager: this.#layoutManager,
-      domManager: this.#domManager,
-      getPdfViewerManager: () => this.#pdfViewerManager,
-      getUIZoomControls: () => this.#uiZoomControls,
-      getCurrentPdfId: () => this.#currentPdfId,
-      setCurrentPdfId: (pdfId) => { this.#currentPdfId = pdfId; },
-      getPendingDetailRequestId: () => this.#pendingDetailRequestId,
-      setPendingDetailRequestId: (rid) => { this.#pendingDetailRequestId = rid; },
-      updateCopyButtonVisibility: () => this.#updateCopyButtonVisibilityFn(),
-      requestPdfTitleFromDB: (pdfId) => this.#requestPdfTitleFromDB(pdfId),
-      updateHeaderTitle: (title) => updateUIManagerHeaderTitle({ logger: this.#logger, documentRef: document }, title),
-    });
-    this.#unsubscribeFunctions.push(...unsubs);
-    this.#logger.info("Event listeners setup complete");
-  }
-
-  /**
-   * 严格从数据库请求标题（禁止兜底）
-   * @param {string} pdfId
-   * @private
-   */
-  #requestPdfTitleFromDB(pdfId) {
-    if (!pdfId || typeof pdfId !== "string" || !pdfId.trim()) {
-      this.#logger.error("[UIManagerCore] 无法请求标题：缺少有效 pdfId");
-      showError("❌ 缺少有效的 PDF ID，无法获取标题", 5000);
-      return;
-    }
-    const rid = `info_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-    this.#pendingDetailRequestId = rid;
-    const message = {
-      type: WEBSOCKET_MESSAGE_TYPES.PDF_DETAIL_REQUEST,
-      request_id: rid,
-      metadata: { version: "1.0.0" },
-      data: { pdf_id: pdfId }
-    };
-    this.#logger.info("[UIManagerCore] 请求数据库标题", { pdfId, request_id: rid });
-    this.#eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.SEND, message, { actorId: "UIManagerCore" });
+      )
+    );
   }
 
   /**
@@ -344,7 +347,7 @@ export class UIManagerCore {
     return {
       ...this.#viewerManager.store.get(),
       scale: this.#zoomManager.store.get().scale,
-      ...this.#layoutManager.store.get()
+      ...this.#layoutManager.store.get(),
     };
   }
 
@@ -404,17 +407,18 @@ export class UIManagerCore {
   async #initializeUIControls() {
     try {
       this.#logger.info("Initializing UI controls...");
-      const { uiZoomControls, uiLayoutControls, unsubs } = await initializeUIManagerControls({
-        eventBus: this.#eventBus,
-        logger: this.#logger,
-        pdfViewerManager: this.#pdfViewerManager,
-        zoomManager: this.#zoomManager,     // Pass Injected Managers
-        layoutManager: this.#layoutManager
-      });
+      const { uiZoomControls, uiLayoutControls, unsubs, uiControls } =
+        await initializeUIManagerControls({
+          eventBus: this.#eventBus,
+          logger: this.#logger,
+          pdfViewerManager: this.#pdfViewerManager,
+          zoomManager: this.#zoomManager, // Pass Injected Managers
+          layoutManager: this.#layoutManager,
+        });
       this.#uiZoomControls = uiZoomControls;
       this.#uiLayoutControls = uiLayoutControls;
+      this.#uiControls = uiControls;
       this.#unsubscribeFunctions.push(...unsubs);
-
     } catch (error) {
       this.#logger.error("Failed to initialize UI controls:", error);
       throw error;
