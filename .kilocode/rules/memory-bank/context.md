@@ -48,6 +48,14 @@
 - 备注：
   - 当前 `new-card-scheduler` UI 仍默认使用 `FakeEngine`（H 任务为并行解耦设计）；G 的真实引擎已合入并有回归测试，下一步可在不改 UI 的前提下切换到真实引擎。
 
+## 2026-01-10：任务调整（侧边栏遮挡改为 F 单点负责 + G/H/I 领取其它任务）
+- 变更：已撤销“侧边栏遮挡修复拆分 FGHI”的旧任务目录；现改为 **F 单 worktree 完整交付**（实现+wiring+回归测试）。
+- 当前任务：
+  - F（new-card-scheduler 侧边栏 push）：`todo-and-doing/1 doing/20260110024408-new-card-scheduler-sidebar-push-F/`
+  - G（pdf-viewer adapters gate/destroy）：`todo-and-doing/1 doing/20260110024409-pdfviewer-adapters-gate-cancel-G/`
+  - H（pdf-search DOMManager）：`todo-and-doing/1 doing/20260110024410-pdf-search-dom-manager-extract-H/`
+  - I（infra-ui 订阅清理）：`todo-and-doing/1 doing/20260110024411-infra-ui-event-subscriptions-lift-I/`
+
 ## 2026-01-09：组合场景日志报错（已修复）
 - **现象**：打开搜索栏时点击大纲跳转，出现日志：
   - `事件回调执行出错：Maximum call stack size exceeded [Serialization Error: Maximum call stack size exceeded]`
