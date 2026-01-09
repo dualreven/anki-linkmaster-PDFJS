@@ -94,6 +94,11 @@
 - **新增硬规则**：调度者不得在 `main` 直接修业务 bug；必须打回责任 worktree 处理，并在合并后要求用户手工点检确认无误后才能关闭/归档任务。
 - **流程文档**：`.kilocode/rules/memory-bank/workflow-parallel-worktrees.md` 已更新对应条款。
 
+## 2026-01-09：第5轮（ABCE）验收与归档
+- **合入**：A=`f0c6974`（pdf-viewer 全局监听门禁 + 统一入口）；B=`77630a7`（`StateManager.setMany`）；C=`c8bcc71`（导航 post-ready delay 可配置）；E=`233081d`（url-loader 依赖解析拆分）。
+- **门禁**：`pnpm -s run lint` ✅；Jest（按路径）✅。
+- **手工点检**：用户确认“没问题”后已归档对应 doing（`todo-and-doing/4 archive/20260109214822-doing-archive/`）。
+
 ## 2026-01-09：A~F 第三轮任务（已验收并合入 main）
 - **协作约定（本轮）**：各 worktree 不要改 `memory-bank`；只改任务范围 + 任务目录 `working-log.md`；main 侧验收合入时统一更新 `memory-bank`，避免冲突。
 - **任务目录**：见 `todo-and-doing/1 doing/`（D 仅修复上述 P0 bug，其余为互不干扰的小步重构/回归测试）。
