@@ -76,6 +76,15 @@
 - **结论**：第三轮 D 的修复合入后，P0 仍可复现（以手工点检结果为准）。
 - **策略**：D 继续专注该 P0 的复现、最小化用例与修复；本轮不再给 D 分派新任务。
 
+## 2026-01-09：第4轮（ABCEF）验收合入
+- **main 合入**：
+  - A：`16b3f9e`（Lifecycle 全局错误监听卸载对称）
+  - B：`abf34a8`（StateManager.batchUpdate 异常安全）
+  - C：`f85c2cc`（NavigationService waitForPageReady 可取消）
+  - E：`86ed055`（pdf-url-loader uninstall 清理加固；另已移除误提交的 AItemp 文件：`c28548e`）
+  - F：`a3c842c`（DOMElementManager required DOM 契约 + 单测）
+- **门禁**：`pnpm -s run lint` ✅；Jest（按路径）✅。
+
 ## 2026-01-09：A~F 第三轮任务（已验收并合入 main）
 - **协作约定（本轮）**：各 worktree 不要改 `memory-bank`；只改任务范围 + 任务目录 `working-log.md`；main 侧验收合入时统一更新 `memory-bank`，避免冲突。
 - **任务目录**：见 `todo-and-doing/1 doing/`（D 仅修复上述 P0 bug，其余为互不干扰的小步重构/回归测试）。
