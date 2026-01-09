@@ -46,6 +46,12 @@
 - **提交**：`a74d95e`
 - **要点**：TextHighlightTool 订阅 `AnnotationManager.store`，用 state diff 驱动 overlay 增删改，减少 EventBus 交织与订阅泄漏风险。
 
+## 2026-01-09（完成）D：EventBus tracing safe serialize（P0）
+- **任务**：`todo-and-doing/1 doing/20260109104510-eventbus-tracing-safe-serialize-D/v001-spec.md`
+- **提交**：`2bf0b3b`
+- **要点**：`enableTracing=true` 时 tracing/日志链路对 payload 的序列化改为 Fail-Closed（失败写占位字符串，不影响业务回调执行）。
+- **回归**：新增 `src/frontend/common/event/__tests__/event-bus.tracing.safe-serialize.regression.test.js` 覆盖循环引用与 stringify 抛错场景。
+
 ## 2026-01-09：并行工作树扩展（A~F）
 - 新增 worktree：E / F（基于 main），用于 6 AI 并行。
 - 新一轮任务（A~F）已下发至 `todo-and-doing/1 doing/`（见各任务目录 `v001-spec.md`）。
