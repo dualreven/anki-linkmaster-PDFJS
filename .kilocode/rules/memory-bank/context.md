@@ -72,6 +72,10 @@
 - **现象**：仅在“搜索栏打开 + 点击大纲跳转”组合场景仍出现 `Maximum call stack size exceeded`。
 - **初步定位**：报错来源不再是 tracing 序列化；疑似 `pdf-viewer:navigation:goto` 的同步事件环（subscriberId：`InfraUICoordinator.NavGoto`）。
 
+## 2026-01-09：手工点检反馈（二次确认）
+- **结论**：第三轮 D 的修复合入后，P0 仍可复现（以手工点检结果为准）。
+- **策略**：D 继续专注该 P0 的复现、最小化用例与修复；本轮不再给 D 分派新任务。
+
 ## 2026-01-09：A~F 第三轮任务（已验收并合入 main）
 - **协作约定（本轮）**：各 worktree 不要改 `memory-bank`；只改任务范围 + 任务目录 `working-log.md`；main 侧验收合入时统一更新 `memory-bank`，避免冲突。
 - **任务目录**：见 `todo-and-doing/1 doing/`（D 仅修复上述 P0 bug，其余为互不干扰的小步重构/回归测试）。
