@@ -28,6 +28,9 @@ export class PDFUrlLoaderFeature {
   /** @type {import('../../../common/micro-service/dependency-container.js').DependencyContainer|null} */
   #container = null;
 
+  /** @type {Array<Function>} 已注册的 EventBus 清理函数 */
+  #listenerCleanups = [];
+
   /** @type {boolean} 是否已处理URL参数 */
   #hasProcessedParams = false;
 
@@ -41,26 +44,14 @@ export class PDFUrlLoaderFeature {
   /** @type {{params: any, startTime: number}|null} 记录一次“因切换PDF而延迟执行”的手动导航请求（用于避免跳到第一页后丢失目标页） */
   #pendingManualNav = null;
 
-  /**
-   * Feature名称
-   * @returns {string}
-   */
   get name() {
     return PDFUrlLoaderFeatureConfig.name;
   }
 
-  /**
-   * Feature版本
-   * @returns {string}
-   */
   get version() {
     return PDFUrlLoaderFeatureConfig.version;
   }
 
-  /**
-   * Feature依赖
-   * @returns {string[]}
-   */
   get dependencies() {
     return PDFUrlLoaderFeatureConfig.dependencies;
   }
@@ -252,53 +243,70 @@ export class PDFUrlLoaderFeature {
     );
   }
 
-  /**
-   * 卸载Feature
-   * @returns {Promise<void>}
-   */
   async uninstall() {
     this.#logger.info(`卸载 ${this.name} Feature...`);
 
     // 注意：不需要销毁 navigationService，它由 core-navigation Feature 管理
+    this.#clearListeners();
     this.#navigationService = null;
     this.#eventBus = null;
+    this.#container = null;
     this.#hasProcessedParams = false;
+    this.#pendingManualNav = null;
+    this.#navInProgress = false;
+    this.#inflightNavKey = null;
 
     this.#logger.info(`${this.name} Feature已卸载`);
   }
 
-  /**
-   * 设置事件监听器
-   * @private
-   */
   #setupEventListeners() {
     // 监听PDF加载成功事件
-    this.#eventBus.on(
-      PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
-      this.#handlePDFLoadSuccess.bind(this),
-      { subscriberId: "PDFUrlLoaderFeature" }
+    this.#registerCleanup(
+      this.#eventBus.on(
+        PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
+        this.#handlePDFLoadSuccess.bind(this),
+        { subscriberId: "PDFUrlLoaderFeature" }
+      )
     );
 
     // 监听PDF加载失败事件
-    this.#eventBus.on(
-      PDF_VIEWER_EVENTS.FILE.LOAD.FAILED,
-      this.#handlePDFLoadFailed.bind(this),
-      { subscriberId: "PDFUrlLoaderFeature" }
+    this.#registerCleanup(
+      this.#eventBus.on(
+        PDF_VIEWER_EVENTS.FILE.LOAD.FAILED,
+        this.#handlePDFLoadFailed.bind(this),
+        { subscriberId: "PDFUrlLoaderFeature" }
+      )
     );
 
     // 监听手动触发的URL参数导航请求
-    this.#eventBus.on(
-      PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
-      this.#handleNavigationRequested.bind(this),
-      { subscriberId: "PDFUrlLoaderFeature" }
+    this.#registerCleanup(
+      this.#eventBus.on(
+        PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
+        this.#handleNavigationRequested.bind(this),
+        { subscriberId: "PDFUrlLoaderFeature" }
+      )
     );
   }
 
-  /**
-   * 处理PDF加载成功事件
-   * @param {Object} data - 事件数据
-   * @private
-   */
+  #registerCleanup(cleanup) {
+    if (typeof cleanup === "function") {
+      this.#listenerCleanups.push(cleanup);
+    }
+  }
+
+  #clearListeners() {
+    this.#listenerCleanups.forEach(cleanup => {
+      if (typeof cleanup === "function") {
+        try {
+          cleanup();
+        } catch (error) {
+          this.#logger.warn("[PDFUrlLoaderFeature] Listener cleanup failed", error);
+        }
+      }
+    });
+    this.#listenerCleanups = [];
+  }
+
   async #handlePDFLoadSuccess() {
     // 优先处理手动挂起的导航（pdfId 切换后自动恢复），避免仅渲染到第1页
     if (this.#pendingManualNav) {
@@ -332,11 +340,6 @@ export class PDFUrlLoaderFeature {
     this.#logger.info("[url-navigation] 文件加载成功（URL 参数跳转已禁用）");
   }
 
-  /**
-   * 处理PDF加载失败事件
-   * @param {Object} data - 事件数据
-   * @private
-   */
   #handlePDFLoadFailed(data) {
     if (this.#hasProcessedParams) {
       return;
@@ -350,11 +353,6 @@ export class PDFUrlLoaderFeature {
     this.#hasProcessedParams = true;
   }
 
-  /**
-   * 处理手动触发的导航请求
-   * @param {Object} params - 导航参数
-   * @private
-   */
   async #handleNavigationRequested(params) {
     try {
       this.#logger.info(`[url-navigation] 收到手动导航请求: ${JSON.stringify(params)}`);
@@ -454,11 +452,6 @@ export class PDFUrlLoaderFeature {
     }
   }
 
-  /**
-   * 发出导航成功事件
-   * @param {Object} data - 成功数据
-   * @private
-   */
   #emitNavigationSuccess(data) {
     this.#logger.info(`URL导航成功: ${JSON.stringify(data)}`);
 
@@ -469,12 +462,6 @@ export class PDFUrlLoaderFeature {
     );
   }
 
-  /**
-   * 发出导航失败事件
-   * @param {Error} error - 错误对象
-   * @param {string} stage - 失败阶段
-   * @private
-   */
   #emitNavigationFailed(error, stage) {
     this.#logger.error(`URL导航失败 (阶段: ${stage}):`, error);
 

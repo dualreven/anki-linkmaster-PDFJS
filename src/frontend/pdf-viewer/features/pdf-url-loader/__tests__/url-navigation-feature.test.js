@@ -18,6 +18,7 @@ describe("PDFUrlLoaderFeature", () => {
       emit: jest.fn(),
       off: jest.fn(),
     };
+    mockEventBus.on.mockImplementation(() => jest.fn());
 
     // 创建容器并注册依赖
     container = new DependencyContainer();
@@ -73,6 +74,19 @@ describe("PDFUrlLoaderFeature", () => {
     test("安装时缺少EventBus应该抛出错误", async () => {
       const emptyContainer = new DependencyContainer();
       await expect(feature.install(emptyContainer)).rejects.toThrow("EventBus未在容器或context中找到");
+    });
+
+    test("卸载后应清理所有监听器", async () => {
+      const cleanupFns = [];
+      mockEventBus.on.mockImplementation(() => {
+        const cleanup = jest.fn();
+        cleanupFns.push(cleanup);
+        return cleanup;
+      });
+      await feature.install(container);
+      await feature.uninstall();
+      expect(cleanupFns.length).toBeGreaterThan(0);
+      cleanupFns.forEach(cleanup => expect(cleanup).toHaveBeenCalledTimes(1));
     });
   });
 
