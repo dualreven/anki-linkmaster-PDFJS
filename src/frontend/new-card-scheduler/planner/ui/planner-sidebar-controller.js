@@ -1,5 +1,7 @@
 const SIDEBAR_WIDTH_PX = 280;
 const SIDEBAR_TOGGLE_BTN_ID = "planner-sidebar-toggle-btn";
+const TOGGLE_BTN_WIDTH_PX = 32;
+const TOGGLE_BTN_GAP_PX = 8;
 
 function assertHTMLElementOrThrow(el, name) {
   if (!el || typeof el !== "object") {
@@ -26,13 +28,15 @@ function assertOptionalLoggerOrThrow(logger) {
 }
 
 function applyPushLayoutOrThrow({ mainEl }) {
-  mainEl.style.marginLeft = `${SIDEBAR_WIDTH_PX}px`;
-  mainEl.style.width = `calc(100% - ${SIDEBAR_WIDTH_PX}px)`;
+  const offset = SIDEBAR_WIDTH_PX + TOGGLE_BTN_WIDTH_PX + TOGGLE_BTN_GAP_PX;
+  mainEl.style.marginLeft = `${offset}px`;
+  mainEl.style.width = `calc(100% - ${offset}px)`;
 }
 
 function clearPushLayoutOrThrow({ mainEl }) {
-  mainEl.style.marginLeft = "";
-  mainEl.style.width = "";
+  const offset = TOGGLE_BTN_WIDTH_PX + TOGGLE_BTN_GAP_PX;
+  mainEl.style.marginLeft = `${offset}px`;
+  mainEl.style.width = `calc(100% - ${offset}px)`;
 }
 
 /**
@@ -49,19 +53,32 @@ export function installPlannerSidebarControllerOrThrow({ sidebarEl, mainEl, tool
   assertHTMLElementOrThrow(toolbarEl, "toolbarEl");
   assertOptionalLoggerOrThrow(logger);
 
-  const toggleBtn = toolbarEl.querySelector(`#${SIDEBAR_TOGGLE_BTN_ID}`);
-  if (!toggleBtn) {
-    throw new Error(`缺少 #${SIDEBAR_TOGGLE_BTN_ID}，无法安装侧边栏折叠按钮`);
-  }
-  if (!(toggleBtn instanceof HTMLButtonElement)) {
+  let toggleBtn = toolbarEl.querySelector(`#${SIDEBAR_TOGGLE_BTN_ID}`);
+  if (toggleBtn && !(toggleBtn instanceof HTMLButtonElement)) {
     throw new Error(`#${SIDEBAR_TOGGLE_BTN_ID} 必须是 <button> 元素`);
   }
 
   let disposed = false;
   let collapsed = false;
 
+  function ensureToggleBtnOrThrow() {
+    if (toggleBtn) {
+      return toggleBtn;
+    }
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.id = SIDEBAR_TOGGLE_BTN_ID;
+    btn.className = "planner-sidebar-toggle-btn";
+    toolbarEl.appendChild(btn);
+    toggleBtn = btn;
+    return btn;
+  }
+
   function syncButtonTextOrThrow() {
-    toggleBtn.textContent = collapsed ? "展开工具栏" : "收起工具栏";
+    const btn = ensureToggleBtnOrThrow();
+    btn.textContent = collapsed ? "▶" : "◀";
+    btn.title = collapsed ? "展开工具栏" : "收起工具栏";
+    btn.classList.toggle("collapsed", collapsed);
   }
 
   function setCollapsedOrThrow(nextCollapsed) {
@@ -88,7 +105,8 @@ export function installPlannerSidebarControllerOrThrow({ sidebarEl, mainEl, tool
     setCollapsedOrThrow(!collapsed);
   }
 
-  toggleBtn.addEventListener("click", onToggleClick);
+  const btn = ensureToggleBtnOrThrow();
+  btn.addEventListener("click", onToggleClick);
 
   setCollapsedOrThrow(false);
 
@@ -98,7 +116,11 @@ export function installPlannerSidebarControllerOrThrow({ sidebarEl, mainEl, tool
         return;
       }
       disposed = true;
-      toggleBtn.removeEventListener("click", onToggleClick);
+      if (toggleBtn) {
+        toggleBtn.removeEventListener("click", onToggleClick);
+        toggleBtn.remove();
+        toggleBtn = null;
+      }
       if (logger?.info) {
         logger.info("[PlannerSidebarController] disposed");
       }
@@ -109,4 +131,3 @@ export function installPlannerSidebarControllerOrThrow({ sidebarEl, mainEl, tool
     }
   };
 }
-

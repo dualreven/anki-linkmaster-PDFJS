@@ -55,13 +55,6 @@ function mountPlannerSidebarToggleOrThrow() {
     throw new Error("缺少 .main-content，无法安装侧边栏布局控制器");
   }
 
-  const toggleBtn = document.createElement("button");
-  toggleBtn.type = "button";
-  toggleBtn.id = "planner-sidebar-toggle-btn";
-  toggleBtn.className = "batch-action-btn";
-  toggleBtn.textContent = "收起工具栏";
-  toolbarEl.appendChild(toggleBtn);
-
   return installPlannerSidebarControllerOrThrow({
     sidebarEl,
     mainEl,
