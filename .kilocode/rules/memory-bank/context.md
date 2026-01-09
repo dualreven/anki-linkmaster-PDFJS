@@ -85,6 +85,11 @@
   - F：`a3c842c`（DOMElementManager required DOM 契约 + 单测）
 - **门禁**：`pnpm -s run lint` ✅；Jest（按路径）✅。
 
+## 2026-01-09：回归（已修复）infra-ui 启动缺失 DOM 元素
+- **现象**：`infra-ui` 安装时报 `Missing required DOM elements: pdf-container, viewer-container`，连带 `pdf-outline` / `pdf-search` 报依赖缺失。
+- **根因**：`DOMElementManager` 的 required DOM id 与真实运行时 DOM（`index.html` 的 `viewerContainer`）不一致。
+- **修复**：required 改为 `viewerContainer`，并更新 `dom-element-manager.test.js`（commit：`f650e69`）。
+
 ## 2026-01-09：A~F 第三轮任务（已验收并合入 main）
 - **协作约定（本轮）**：各 worktree 不要改 `memory-bank`；只改任务范围 + 任务目录 `working-log.md`；main 侧验收合入时统一更新 `memory-bank`，避免冲突。
 - **任务目录**：见 `todo-and-doing/1 doing/`（D 仅修复上述 P0 bug，其余为互不干扰的小步重构/回归测试）。
