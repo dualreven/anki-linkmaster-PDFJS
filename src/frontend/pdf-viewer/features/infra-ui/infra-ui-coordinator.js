@@ -4,10 +4,10 @@
  * @description Centralized event handling for the infra-ui feature.
  */
 
-import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
+import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
 import {
   WEBSOCKET_MESSAGE_EVENTS,
-} from "../../../../common/event/event-constants.js";
+} from "../../../common/event/event-constants.js";
 
 export function createInfraUICoordinator(
   eventBus,
