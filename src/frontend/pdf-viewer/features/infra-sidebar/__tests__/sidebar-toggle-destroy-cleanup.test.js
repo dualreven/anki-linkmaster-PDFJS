@@ -36,7 +36,7 @@ describe("SidebarManagerFeature — toggle/open/close + uninstall 清理", () =>
     if (old) { old.remove(); }
   });
 
-  test("uninstall 后不再响应 EventBus，且解绑 document mousemove/mouseup 监听", async () => {
+  test("uninstall 后不再响应 EventBus，且拖拽中途卸载会解绑 document mousemove/mouseup 监听", async () => {
     const addSpy = jest.spyOn(document, "addEventListener");
     const removeSpy = jest.spyOn(document, "removeEventListener");
 
@@ -69,7 +69,11 @@ describe("SidebarManagerFeature — toggle/open/close + uninstall 清理", () =>
     expect(closeSpy).toHaveBeenCalled();
     expect(toggleSpy).toHaveBeenCalled();
 
-    // 捕获 install 期间注册的 document handlers（要求 uninstall 做对称解绑）
+    // 触发一次拖拽开始（mousedown）→ DraggableResizer 会在 document 上绑定 mousemove/mouseup
+    const handle = document.querySelector(".sidebar-resize-handle");
+    expect(handle).toBeTruthy();
+    handle.dispatchEvent(new MouseEvent("mousedown", { clientX: 10, bubbles: true }));
+
     const mousemoveHandler = addSpy.mock.calls.find((c) => c[0] === "mousemove")?.[1];
     const mouseupHandler = addSpy.mock.calls.find((c) => c[0] === "mouseup")?.[1];
     expect(typeof mousemoveHandler).toBe("function");

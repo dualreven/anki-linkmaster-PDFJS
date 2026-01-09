@@ -11,6 +11,7 @@ import { registerRealSidebars, createRealSidebarButtons } from "./real-sidebars.
 import { PDFLayoutAdapter } from "./pdf-layout-adapter.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
 import { SidebarManager } from "./services/sidebar.manager.js";
+import { DraggableResizer } from "./draggable-resizer.js";
 
 const logger = getLogger("SidebarManager");
 
@@ -21,18 +22,11 @@ export class SidebarManagerFeature {
   #layoutEngine;
   #pdfLayoutAdapter;
   #containerElement;
-  #resizeState = {
-    isResizing: false,
-    sidebarId: null,
-    startX: 0,
-    startWidth: 0
-  };
   #unsubscribe = null;
   #unsubs = [];
   #isInstalled = false;
   #timeouts = [];
-  #onDocumentMouseMove = null;
-  #onDocumentMouseUp = null;
+  #resizers = new Map(); // sidebarId -> DraggableResizer
   #buttonsDisposer = null;
 
   get name() {
@@ -82,7 +76,6 @@ export class SidebarManagerFeature {
     });
 
     this.#setupEventListeners();
-    this.#setupGlobalResizeHandlers();
 
     // 初始化PDF布局适配器
     const t1 = setTimeout(() => {
@@ -132,26 +125,8 @@ export class SidebarManagerFeature {
     }
     this.#unsubs = [];
 
-    // 清理全局拖拽监听 + 可能残留的 UI 状态
-    try {
-      if (this.#onDocumentMouseMove) {
-        document.removeEventListener("mousemove", this.#onDocumentMouseMove);
-      }
-      if (this.#onDocumentMouseUp) {
-        document.removeEventListener("mouseup", this.#onDocumentMouseUp);
-      }
-    } finally {
-      this.#onDocumentMouseMove = null;
-      this.#onDocumentMouseUp = null;
-    }
-    try {
-      this.#resizeState.isResizing = false;
-      this.#resizeState.sidebarId = null;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      const handles = document.querySelectorAll(".sidebar-resize-handle");
-      handles.forEach(h => h.classList.remove("resizing"));
-    } catch (e) { logger.warn("Failed to reset resize UI state on uninstall", e); }
+    // 清理 resizers（包含“拖拽中途卸载”的 document 监听解绑）
+    this.#destroyAllResizers();
 
     if (this.#unsubscribe) {
       this.#unsubscribe();
@@ -218,6 +193,11 @@ export class SidebarManagerFeature {
     currentPanels.forEach(panel => {
       const id = panel.getAttribute("data-sidebar-id");
       if (!activeSidebars.includes(id)) {
+        const r = this.#resizers.get(id);
+        if (r) {
+          try { r.destroy(); } catch (e) { logger.warn("Failed to destroy resizer on panel remove", e); }
+          this.#resizers.delete(id);
+        }
         panel.remove();
         // Emit Event (Legacy)
         this.#eventBus.emit(PDF_VIEWER_EVENTS.SIDEBAR_MANAGER.CLOSED_COMPLETED, {
@@ -335,11 +315,34 @@ export class SidebarManagerFeature {
       const resizeHandle = document.createElement("div");
       resizeHandle.className = "sidebar-resize-handle";
       resizeHandle.setAttribute("data-sidebar-id", config.id);
-      this.#attachResizeHandlers(resizeHandle, panel, config);
       panel.appendChild(resizeHandle);
+
+      const existed = this.#resizers.get(config.id);
+      if (existed) {
+        try { existed.destroy(); } catch (e) { logger.warn("Failed to destroy existing resizer", e); }
+        this.#resizers.delete(config.id);
+      }
+
+      const resizer = new DraggableResizer({
+        handle: resizeHandle,
+        getWidth: () => panel.offsetWidth,
+        onWidth: (newWidth) => {
+          this.#sidebarManager.setWidth(config.id, newWidth);
+        },
+        minWidth: config.minWidth ?? null,
+        maxWidth: config.maxWidth ?? null,
+      });
+      this.#resizers.set(config.id, resizer);
     }
 
     return panel;
+  }
+
+  #destroyAllResizers() {
+    for (const [, r] of this.#resizers.entries()) {
+      try { r?.destroy?.(); } catch (e) { logger.warn("Failed to destroy resizer", e); }
+    }
+    this.#resizers.clear();
   }
 
   /**
@@ -422,71 +425,4 @@ export class SidebarManagerFeature {
     logger.info("Event listeners setup completed");
   }
 
-  /**
-     * 绑定拖拽处理器
-     * @param {HTMLElement} handle - 拖拽手柄
-     * @param {HTMLElement} panel - 侧边栏面板
-     * @param {import('./sidebar-config.js').SidebarConfig} config - 配置
-     */
-  #attachResizeHandlers(handle, panel, config) {
-    handle.addEventListener("mousedown", (e) => {
-      e.preventDefault();
-
-      this.#resizeState.isResizing = true;
-      this.#resizeState.sidebarId = config.id;
-      this.#resizeState.startX = e.clientX;
-      this.#resizeState.startWidth = panel.offsetWidth;
-
-      handle.classList.add("resizing");
-      document.body.style.cursor = "col-resize";
-      document.body.style.userSelect = "none";
-
-      logger.debug("Resize started", {
-        sidebarId: config.id,
-        startWidth: this.#resizeState.startWidth
-      });
-    });
-  }
-
-  /**
-     * 设置全局拖拽处理器
-     */
-  #setupGlobalResizeHandlers() {
-    this.#onDocumentMouseMove = (e) => {
-      if (!this.#resizeState.isResizing) {return;}
-
-      const deltaX = e.clientX - this.#resizeState.startX;
-      // 从左侧弹出时，向右拖（deltaX为正）应该增加宽度
-      const newWidth = this.#resizeState.startWidth + deltaX;
-      const sidebarId = this.#resizeState.sidebarId;
-
-      // 更新宽度
-      this.#sidebarManager.setWidth(sidebarId, newWidth);
-      // NOTE: Layout update handled by subscription
-    };
-    document.addEventListener("mousemove", this.#onDocumentMouseMove);
-
-    this.#onDocumentMouseUp = () => {
-      if (!this.#resizeState.isResizing) {return;}
-
-      this.#resizeState.isResizing = false;
-
-      const handles = document.querySelectorAll(".sidebar-resize-handle");
-      handles.forEach(h => h.classList.remove("resizing"));
-
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-
-      const finalWidth = this.#sidebarManager.store.get().widths[this.#resizeState.sidebarId];
-      logger.info("Resize completed", {
-        sidebarId: this.#resizeState.sidebarId,
-        finalWidth: finalWidth
-      });
-
-      this.#resizeState.sidebarId = null;
-    };
-    document.addEventListener("mouseup", this.#onDocumentMouseUp);
-
-    logger.debug("Global resize handlers setup");
-  }
 }
