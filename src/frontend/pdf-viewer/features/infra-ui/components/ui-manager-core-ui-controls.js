@@ -76,6 +76,16 @@ export class UIControls {
     const targetPage = data?.pageNumber;
     const totalPages = this.#pdfViewerManager.pagesCount;
 
+    // 防止同步递归闭环：当上游已在目标页时，不应再次 set currentPageNumber
+    // （某些环境下 set currentPageNumber 可能会触发同步事件链，再次 emit NAVIGATION.GOTO）
+    try {
+      if (Number.isInteger(targetPage) && this.#pdfViewerManager.currentPageNumber === targetPage) {
+        return;
+      }
+    } catch (e) {
+      void e; /* logger-guard */
+    }
+
     if (targetPage && targetPage >= 1 && targetPage <= totalPages) {
       this.#pdfViewerManager.currentPageNumber = targetPage;
       this.#logger.info(`Navigate to page: ${targetPage}`);
