@@ -29,3 +29,6 @@
 ### 验收
 - `pnpm -s run lint` ✅
 - `pnpm exec jest --runTestsByPath src/frontend/pdf-viewer/adapters/__tests__/websocket-adapter.gate-destroy.regression.test.js -i` ✅
+
+### 交付信息
+- main 合入：`8f56a12`

@@ -16,3 +16,6 @@
 ### 验收
 - `pnpm -s run lint` ✅
 - `pnpm exec jest --runTestsByPath src/frontend/pdf-viewer/features/pdf-annotation/components/__tests__/annotation-sidebar-ui.timeout-cleanup.test.js -i` ✅
+
+### 交付信息
+- main 合入：`db2cae3`

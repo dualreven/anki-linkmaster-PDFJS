@@ -26,4 +26,4 @@
 - `src/frontend/pdf-viewer/features/pdf-search/__tests__/search-box-dom-manager.bindings.cleanup.test.js`
 
 ### 交付信息
-- 本 worktree 未执行 `git commit`（如需提交，我可以按你要求补 commit）。
+- main 合入：`ab6a0f3`

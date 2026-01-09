@@ -27,6 +27,18 @@
 - C：`todo-and-doing/1 doing/20260110014111-pdf-annotation-sidebar-timeout-zombie-cleanup-C/`
 - D：`todo-and-doing/1 doing/20260110014111-pdf-search-dom-manager-extract-D/`
 - E：`todo-and-doing/1 doing/20260110014111-ui-keyboard-handler-idempotent-cleanup-E/`
+  - 任务目录归档：`todo-and-doing/4 archive/20260110031204-doing-archive/`
+
+### 2026-01-10：A~E 验收合入 main（完成）
+- 合入：
+  - A：`8f56a12`（adapters gate 可取消 + 回归）
+  - B：`238e233`（infra-ui 订阅上移 + 回归）
+  - C：`db2cae3`（annotation sidebar timeout 清理 + 回归）
+  - D：`ab6a0f3`（search box DOMManager 集中绑定 + 回归）
+  - E：`1d921d2`（keyboard handler leak guard 回归）
+- 门禁（main 侧）：
+  - `pnpm -s run lint` ✅
+  - `pnpm exec jest --runTestsByPath <上述新增/改动测试路径集合> -i` ✅
 
 ## 2026-01-10：清理 ABCDE 旧任务目录（已归档）
 - 说明：`todo-and-doing/1 doing/202601092234**-*` 为旧一轮下发目录，未开始编码且无交付 commit；为避免继续误读为“当前任务”，已按约定移入 archive。

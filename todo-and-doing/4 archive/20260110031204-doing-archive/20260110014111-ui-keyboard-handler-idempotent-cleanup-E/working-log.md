@@ -20,3 +20,6 @@
 ### 自验命令
 - `pnpm -s run lint` ✅
 - `pnpm exec jest --runTestsByPath src/frontend/pdf-viewer/ui/__tests__/keyboard-handler.leak-guard.test.js -i` ✅
+
+### 交付信息
+- main 合入：`1d921d2`

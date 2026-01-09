@@ -17,3 +17,5 @@
 - `pnpm -s run lint` ✅
 - `pnpm exec jest --runTestsByPath src/frontend/pdf-viewer/features/infra-ui/__tests__/infra-ui-view-mode-render-mode-changed.subscription-lift.test.js -i` ✅
 
+### 交付信息
+- main 合入：`238e233`
