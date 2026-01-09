@@ -15,7 +15,6 @@ async function loadRenderTextLayer() {
   }
 
   try {
-    // 尝试从pdfjs-dist导入renderTextLayer
     const pdfjsModule = await import("pdfjs-dist");
     if (pdfjsModule.renderTextLayer) {
       renderTextLayerFunc = pdfjsModule.renderTextLayer;
@@ -29,7 +28,6 @@ async function loadRenderTextLayer() {
 }
 
 export class TextLayerManager {
-  // 私有属性
   #logger;
   #textLayerContainer = null;
   #textLayerEnabled = false;
@@ -37,19 +35,16 @@ export class TextLayerManager {
   #textContent = null;
   #textDivs = [];
   #selectionChangeHandler = null;
+  #selectionContainerVersion = 0;
 
   constructor(options = {}) {
     this.#logger = getLogger("TextLayerManager");
-    this.#textLayerContainer = options.container || null;
-    // pdfDocument 引用暂不持有（未被读取）
-    this.#textLayerEnabled = !!this.#textLayerContainer;
-
+    this.#updateContainerReference(options.container || null);
     this.#logger.info("TextLayerManager initialized", {
       enabled: this.#textLayerEnabled,
       hasContainer: !!this.#textLayerContainer
     });
 
-    // 设置选择变化监听器
     this.#setupSelectionListener();
   }
 
@@ -63,7 +58,6 @@ export class TextLayerManager {
         const selectedText = this.getSelectedText();
         if (selectedText) {
           this.#logger.debug("Text selection changed", { text: selectedText });
-          // 触发自定义事件
           this.#dispatchSelectionEvent(selectedText);
         }
       };
@@ -72,20 +66,51 @@ export class TextLayerManager {
   }
 
   /**
+   * 更新文字层容器引用，维护版本号
+   * @param {HTMLElement|null} container
+   * @private
+   */
+  #updateContainerReference(container) {
+    this.#textLayerContainer = container;
+    this.#textLayerEnabled = !!container;
+    this.#selectionContainerVersion += 1;
+  }
+
+  /**
    * 触发选择变化事件
    * @param {string} selectedText - 选中的文字
    * @private
    */
   #dispatchSelectionEvent(selectedText) {
-    if (this.#textLayerContainer) {
-      const event = new CustomEvent("selectionchanged", {
-        detail: {
-          text: selectedText,
-          rect: this.getSelectedTextRect()
-        }
-      });
-      this.#textLayerContainer.dispatchEvent(event);
+    if (!selectedText) {
+      return;
     }
+
+    const versionAtStart = this.#selectionContainerVersion;
+    let targetContainer = this.#textLayerContainer;
+
+    if (!targetContainer) {
+      this.#logger.debug("Selection dispatch skipped because container is unset");
+      return;
+    }
+
+    const rects = this.getSelectedTextRect();
+
+    if (versionAtStart !== this.#selectionContainerVersion) {
+      this.#logger.debug("Text layer container changed while processing selection, routing to latest container");
+      targetContainer = this.#textLayerContainer;
+      if (!targetContainer) {
+        return;
+      }
+    }
+
+    const event = new CustomEvent("selectionchanged", {
+      detail: {
+        text: selectedText,
+        rect: rects
+      }
+    });
+    targetContainer.dispatchEvent(event);
   }
 
   /**
@@ -93,7 +118,6 @@ export class TextLayerManager {
    * @param {Object} pdfDocument - PDF文档对象
    */
   setPDFDocument(pdfDocument) {
-    // 暂不持有 pdfDocument 引用；按需通过参数传递
     this.#logger.info("PDF document set");
   }
 
@@ -102,8 +126,7 @@ export class TextLayerManager {
    * @param {HTMLElement} container - 文字层容器元素
    */
   setContainer(container) {
-    this.#textLayerContainer = container;
-    this.#textLayerEnabled = !!container;
+    this.#updateContainerReference(container);
     this.#logger.info("Text layer container set", { enabled: this.#textLayerEnabled });
   }
 
@@ -131,15 +154,12 @@ export class TextLayerManager {
         pageNum: page.pageNumber || page._pageIndex + 1
       });
 
-      // 更新容器引用
-      this.#textLayerContainer = container;
+      this.#updateContainerReference(container);
       this.#currentPage = page;
 
-      // 清空容器
       container.innerHTML = "";
       this.#textDivs = [];
 
-      // 获取页面的文字内容
       this.#textContent = await page.getTextContent();
 
       if (!this.#textContent || !this.#textContent.items || this.#textContent.items.length === 0) {
@@ -151,12 +171,10 @@ export class TextLayerManager {
         itemCount: this.#textContent.items.length
       });
 
-      // 使用传入的viewport或创建默认viewport
       if (!viewport) {
         viewport = page.getViewport({ scale: 1.0 });
       }
 
-      // 使用PDF.js的renderTextLayer方法渲染文字层
       await this.#renderTextContent(container, viewport);
 
       this.#textLayerEnabled = true;
@@ -176,14 +194,12 @@ export class TextLayerManager {
    * @private
    */
   async #renderTextContent(container, viewport) {
-    // 尝试使用PDF.js的renderTextLayer API
     const renderTextLayer = await loadRenderTextLayer();
 
     if (renderTextLayer) {
       try {
         this.#logger.debug("Using PDF.js renderTextLayer API");
 
-        // 使用PDF.js官方API渲染文字层
         const renderTask = renderTextLayer({
           textContentSource: this.#textContent,
           container: container,
@@ -200,7 +216,6 @@ export class TextLayerManager {
       }
     }
 
-    // 如果API不可用或失败，使用fallback方法
     this.#logger.debug("Using fallback text layer rendering");
     await this.#renderTextContentFallback(container, viewport);
   }
@@ -220,21 +235,13 @@ export class TextLayerManager {
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-
-      // 创建文字div元素
       const textDiv = document.createElement("span");
       textDiv.textContent = item.str;
       textDiv.className = "textLayer-item";
 
-      // 设置位置和样式
-      // transform = [scaleX, skewY, skewX, scaleY, translateX, translateY]
       const transform = item.transform;
       const angle = Math.atan2(transform[1], transform[0]);
       const fontSize = Math.sqrt(transform[0] * transform[0] + transform[1] * transform[1]);
-
-      // PDF坐标系转换为CSS坐标系
-      // PDF: 左下角为原点，Y轴向上
-      // CSS: 左上角为原点，Y轴向下
       const left = transform[4] * scale;
       const top = (viewport.height / scale - transform[5]) * scale - fontSize;
 
@@ -246,7 +253,6 @@ export class TextLayerManager {
       textDiv.style.whiteSpace = "pre";
       textDiv.style.transformOrigin = "0% 0%";
 
-      // 如果有旋转，应用旋转变换
       if (angle !== 0) {
         textDiv.style.transform = `rotate(${angle}rad)`;
       }
@@ -314,7 +320,6 @@ export class TextLayerManager {
         for (let j = 0; j < clientRects.length; j++) {
           const rect = clientRects[j];
 
-          // 转换为容器相对坐标
           const containerRect = this.#textLayerContainer?.getBoundingClientRect();
           const relativeX = containerRect ? rect.left - containerRect.left : rect.left;
           const relativeY = containerRect ? rect.top - containerRect.top : rect.top;
@@ -374,10 +379,8 @@ export class TextLayerManager {
 
       this.#logger.info("Highlighting text areas", { count: areaList.length });
 
-      // 清除之前的高亮
       this.#clearHighlights();
 
-      // 为每个区域创建高亮元素
       areaList.forEach((area, index) => {
         if (!Array.isArray(area) || area.length < 4) {
           this.#logger.warn("Invalid area format", { index, area });
@@ -429,12 +432,10 @@ export class TextLayerManager {
   cleanup() {
     this.#logger.info("Cleaning up text layer");
 
-    // 清空容器
     if (this.#textLayerContainer) {
       this.#textLayerContainer.innerHTML = "";
     }
 
-    // 清理引用
     this.#textDivs = [];
     this.#textContent = null;
     this.#currentPage = null;
@@ -448,19 +449,14 @@ export class TextLayerManager {
   destroy() {
     this.#logger.info("Destroying TextLayerManager");
 
-    // 移除事件监听器
     if (this.#selectionChangeHandler) {
       document.removeEventListener("selectionchange", this.#selectionChangeHandler);
       this.#selectionChangeHandler = null;
     }
 
-    // 清理资源
     this.cleanup();
 
-    // 清空所有引用
-    this.#textLayerContainer = null;
-    // 无需清理 pdfDocument 引用
-    this.#textLayerEnabled = false;
+    this.#updateContainerReference(null);
 
     this.#logger.info("TextLayerManager destroyed");
   }
