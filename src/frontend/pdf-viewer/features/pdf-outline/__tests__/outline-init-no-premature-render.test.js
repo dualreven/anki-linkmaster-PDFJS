@@ -129,7 +129,8 @@ describe("Outline 首次导入：不提前渲染，最终渲染后可导航", ()
 
     // 发出导航请求（模拟点击）
     scoped.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.REQUESTED, {
-      outlineItem: finalItems[0]
+      pageAt: finalItems[0].pageAt,
+      position: finalItems[0].position,
     }, { actorId: "test" });
     await Promise.resolve();
 

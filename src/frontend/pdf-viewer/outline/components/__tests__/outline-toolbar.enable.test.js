@@ -29,7 +29,7 @@ describe("OutlineToolbar — 选中后按钮状态", () => {
   test("收到 OUTLINE.SELECT.CHANGED 后启用编辑/删除", () => {
     eventBus.emit(
       PDF_VIEWER_EVENTS.OUTLINE.SELECT.CHANGED,
-      { outlineItemId: "outlineItem-123", outlineItem: { id: "outlineItem-123", name: "章节1" } },
+      { outlineItemId: "outlineItem-123" },
       { actorId: "test" }
     );
     const delBtn = container.querySelector(".outline-btn-delete");
@@ -38,4 +38,3 @@ describe("OutlineToolbar — 选中后按钮状态", () => {
     expect(editBtn.disabled).toBe(false);
   });
 });
-

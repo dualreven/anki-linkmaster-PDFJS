@@ -65,7 +65,7 @@ export async function handleOutlineNavigateById({
     safeEmit(
       eventBus,
       PDF_VIEWER_EVENTS.OUTLINE.SELECT.CHANGED,
-      { outlineItemId: item.id, outlineItem: item },
+      { outlineItemId: item.id },
       { actorId: "OutlineManager" },
       logger,
       "[Outline] 发出 OUTLINE.SELECT.CHANGED 失败（非致命）"
@@ -115,4 +115,3 @@ export function tryOutlinePendingNavigate({
   logger.info(`[Outline] 处理挂起的按ID导航: ${id}`);
   navigateToOutlineItem(item);
 }
-

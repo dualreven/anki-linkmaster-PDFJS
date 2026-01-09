@@ -81,10 +81,12 @@ describe("Outline 首次列表为数组：只渲染一次并可导航", () => {
     });
     await new Promise(r => setTimeout(r, 0));
 
-    scoped.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.REQUESTED, { outlineItem: items[0] });
+    scoped.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.REQUESTED, {
+      pageAt: items[0].pageAt,
+      position: items[0].position,
+    });
     await Promise.resolve();
 
     expect(navigationService.navigateTo).toHaveBeenCalledWith({ pageAt: 7, position: 66 });
   });
 });
-

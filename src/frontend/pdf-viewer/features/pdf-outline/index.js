@@ -186,26 +186,34 @@ export class OutlineFeature {
     );
   }
 
-  async handleNavigate({ outlineItem }) {
+  async handleNavigate({ outlineItemId, pageAt, position, outlineItem }) {
     try {
-      if (!outlineItem) {
-        this.#logger.warn("Outline navigate request missing outline item");
-        return;
+      let targetPageAt = (typeof pageAt === "number" && pageAt > 0) ? pageAt : null;
+      let targetPosition = (typeof position === "number") ? position : null;
+      if (targetPageAt === null) {
+        const id = String(outlineItemId || "").trim();
+        if (id) {
+          const item = this.outlineManager.getOutlineItem(id);
+          targetPageAt = (typeof item?.pageAt === "number" && item.pageAt > 0) ? item.pageAt : null;
+          targetPosition = (typeof item?.position === "number") ? item.position : null;
+        }
       }
-      const pageAt = (typeof outlineItem?.pageAt === "number" && outlineItem.pageAt > 0) ? outlineItem.pageAt : null;
-      if (!pageAt) {
-        this.#logger.warn("Outline item missing pageAt");
+      if (targetPageAt === null && outlineItem) {
+        this.#logger.warn("[Outline] NAVIGATE.REQUESTED legacy payload detected: outlineItem (deprecated)");
+        targetPageAt = (typeof outlineItem?.pageAt === "number" && outlineItem.pageAt > 0) ? outlineItem.pageAt : null;
+        targetPosition = (typeof outlineItem?.position === "number") ? outlineItem.position : null;
+      }
+      if (!targetPageAt) {
+        this.#logger.warn("[Outline] Navigate request missing destination", { outlineItemId: outlineItemId || null, pageAt: pageAt ?? null });
         this.eventBus.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED, { error: "invalid-destination" }, { actorId: "OutlineManager" });
         return;
       }
-      const position = (typeof outlineItem?.position === "number") ? outlineItem.position : null;
-      // 直接使用核心导航服务执行跳转，不再经由 URL导航模块
       if (!this.#navigationService) {
         this.#logger.warn("[Outline] navigationService 未就绪，无法执行导航");
         this.eventBus.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED, { error: "navigation-service-missing" }, { actorId: "OutlineManager" });
         return;
       }
-      await this.#navigationService.navigateTo({ pageAt, position });
+      await this.#navigationService.navigateTo({ pageAt: targetPageAt, position: targetPosition });
     } catch (e) {
       this.#logger.warn("Outline navigate failed", e);
       this.eventBus.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.FAILED, { error: e?.message || "exception" }, { actorId: "OutlineManager" });

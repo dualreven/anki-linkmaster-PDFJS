@@ -233,7 +233,7 @@ export class OutlineSidebarUI {
         try {
           this.#eventBus.emit(
             PDF_VIEWER_EVENTS.OUTLINE.SELECT.CHANGED,
-            { outlineItemId, outlineItem: info?.raw || null },
+            { outlineItemId },
             { actorId: "OutlineSidebarUI" }
           );
         } catch (e) { void e; /* logger-guard */ }
@@ -241,9 +241,13 @@ export class OutlineSidebarUI {
         const pageAt = typeof info.pageAt === "number" && info.pageAt > 0 ? info.pageAt : null;
         const position = typeof info.position === "number" ? info.position : null;
         if (pageAt !== null) {
-          const outlineItem = { pageAt };
-          if (position !== null) { outlineItem.position = position; }
-          this.#eventBus.emitGlobal(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.REQUESTED, { outlineItem }, { actorId: "OutlineSidebarUI" });
+          const payload = { pageAt };
+          if (position !== null) { payload.position = position; }
+          this.#eventBus.emitGlobal(
+            PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE.REQUESTED,
+            payload,
+            { actorId: "OutlineSidebarUI" }
+          );
         }
       } catch (err) {
         this.#logger.warn("select_node failed", err);
