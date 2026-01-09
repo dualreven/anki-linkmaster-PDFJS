@@ -384,6 +384,11 @@ console.assert(trace.event === 'test:event', '事件名应该匹配');
    - 定期调用`clearTraceData()`清理旧数据
    - 监控追踪器状态：`getTracingStatus()`
 
+5. **序列化报错污染业务日志（P0）**
+   - 现象：日志出现 `Maximum call stack size exceeded` / `Converting circular structure to JSON`
+   - 原因：tracing/日志链路对 payload 进行序列化时遇到深对象/循环引用/不可序列化对象
+   - 策略（必须遵守）：**tracing/日志链路不得抛异常影响业务回调执行**；序列化失败必须 Fail-Closed 到占位字符串，并保持截断上限
+
 ### 调试命令
 
 ```javascript

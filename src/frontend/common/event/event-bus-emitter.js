@@ -1,6 +1,7 @@
 import { isGlobalEventAllowed } from "./global-event-registry.js";
 import { EventNameValidator } from "./event-name-validator.js";
 import { SUPPRESSED_EVENT_LOGS, shouldLogPublishEvent } from "./event-bus-logging.js";
+import { safeSerializeForTrace } from "./trace-safe-serialize.js";
 
 export function eventBusEmit(ctx) {
   const {
@@ -55,7 +56,7 @@ export function eventBusEmit(ctx) {
           `事件: ${event}`,
           moduleName ? `模块: ${moduleName}` : "",
           actorId ? `执行者: ${actorId}` : "",
-          result.errors ? `错误: ${JSON.stringify(result.errors).slice(0, 300)}` : ""
+          result.errors ? `错误: ${safeSerializeForTrace(result.errors, { maxLength: 300 })}` : ""
         ].filter(Boolean).join("\n");
         log("error", errMsg, { event });
         return;
@@ -84,7 +85,7 @@ export function eventBusEmit(ctx) {
       subscribers: subscribers ? Array.from(subscribers.keys()) : [],
       timestamp: startTime,
       parentMessageId: options.parentMessageId,
-      data: JSON.stringify(data).substring(0, 500),
+      data: safeSerializeForTrace(data, { maxLength: 500 }),
       executionResults: []
     };
   }
@@ -102,13 +103,7 @@ export function eventBusEmit(ctx) {
     if (SUPPRESSED_EVENT_LOGS.has(event)) { return; }
     if (!shouldLogPublishEvent(event)) { return; }
 
-    let truncatedData;
-    try {
-      const dataStr = JSON.stringify(data);
-      truncatedData = dataStr.length > 200 ? dataStr.substring(0, 200) + "..." : dataStr;
-    } catch {
-      truncatedData = data;
-    }
+    const truncatedData = safeSerializeForTrace(data, { maxLength: 200 });
 
     log("event", `${event} (发布 by ${actorId || "unknown"})${suffix}`, "发布", {
       actorId,

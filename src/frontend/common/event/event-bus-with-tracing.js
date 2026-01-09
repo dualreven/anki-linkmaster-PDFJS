@@ -7,6 +7,7 @@
 import { getLogger } from "../utils/logger.js";
 import { MessageTracer } from "./message-tracer.js";
 import { isGlobalEventAllowed } from "./global-event-registry.js";
+import { safeSerializeForTrace } from "./trace-safe-serialize.js";
 
 class EventNameValidator {
   static validate(event) {
@@ -311,7 +312,7 @@ export class EventBus {
         subscribers: subscribers ? Array.from(subscribers.keys()) : [],
         timestamp: startTime,
         parentMessageId: options.parentMessageId,
-        data: JSON.stringify(data).substring(0, 500), // 限制数据长度
+        data: safeSerializeForTrace(data, { maxLength: 500 }), // 限制数据长度（安全序列化）
         executionResults: []
       };
     }
@@ -471,4 +472,3 @@ export { EventNameValidator };
 // 为保持向后兼容性，导出默认的EventBus实例
 // 但推荐使用 getEventBus() 函数获取模块特定的实例
 export default getEventBus("App", { enableValidation: true });
-
