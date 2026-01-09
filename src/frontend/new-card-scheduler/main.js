@@ -7,6 +7,7 @@ import { showInfo, showError } from "../common/utils/notification.js";
 
 import { createFakeEngine } from "./planner/engine/fake-engine.js";
 import { createCardPlannerApp } from "./planner/app.js";
+import { installPlannerSidebarControllerOrThrow } from "./planner/ui/planner-sidebar-controller.js";
 
 const logger = getLogger("NewCardSchedulerWindow");
 
@@ -36,6 +37,37 @@ async function mountWindowControls({ bridgeName, clientId, wsClient }) {
     autoLoad: true
   });
   await controls.mount(container);
+}
+
+function mountPlannerSidebarToggleOrThrow() {
+  const toolbarEl = document.querySelector(".toolbar-controls");
+  if (!toolbarEl) {
+    throw new Error("缺少 .toolbar-controls，无法挂载侧边栏折叠按钮");
+  }
+
+  const sidebarEl = document.getElementById("planner-sidebar");
+  if (!sidebarEl) {
+    throw new Error("缺少 #planner-sidebar，无法安装侧边栏布局控制器");
+  }
+
+  const mainEl = document.querySelector(".main-content");
+  if (!mainEl) {
+    throw new Error("缺少 .main-content，无法安装侧边栏布局控制器");
+  }
+
+  const toggleBtn = document.createElement("button");
+  toggleBtn.type = "button";
+  toggleBtn.id = "planner-sidebar-toggle-btn";
+  toggleBtn.className = "batch-action-btn";
+  toggleBtn.textContent = "收起工具栏";
+  toolbarEl.appendChild(toggleBtn);
+
+  return installPlannerSidebarControllerOrThrow({
+    sidebarEl,
+    mainEl,
+    toolbarEl,
+    logger
+  });
 }
 
 async function bootstrap() {
@@ -70,6 +102,8 @@ async function bootstrap() {
     clientId,
     wsClient
   });
+
+  mountPlannerSidebarToggleOrThrow();
 
   const engine = createFakeEngine();
   createCardPlannerApp({

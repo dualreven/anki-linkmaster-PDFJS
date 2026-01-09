@@ -1,0 +1,4 @@
+.new-card-scheduler-root .sidebar.collapsed {
+  transform: translateX(-100%);
+}
+
