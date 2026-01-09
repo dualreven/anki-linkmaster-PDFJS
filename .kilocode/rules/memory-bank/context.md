@@ -1,6 +1,6 @@
 # Memory Bank - Context（近7日）
 
-最后更新：2026-01-09
+最后更新：2026-01-10
 
 ## 当前主线：PDFViewer 面条代码整治（进行中）
 - **目标**：把 `src/frontend/pdf-viewer/**` 中“事件驱动 + 状态驱动混杂、职责过载、订阅泄漏”等面条化热点拆分并加回归测试。
@@ -15,6 +15,34 @@
   - D(bootstrap/search/outline)：`fix(pdf-viewer): cleanup bootstrap zoom guard; tighten search/outline`
   - 门禁：`pnpm -s run lint` + 关键 Jest 路径通过（由 main 侧统一跑）。
 - **下一步**：用户使用 `gui_launcher` 手工点检上述行为；如发现 bug，按责任模块下发新的 doing 并同步给对应 worktree。
+
+## 2026-01-10：已知问题（延期）
+- KI-20260110-01：outline/search 组合操作偶发触发爆栈日志（`Maximum call stack size exceeded`），用户确认“不太重要”，暂不修复，仅文档化与建 todo。
+  - 文档：`docs/bugs/pdf-viewer-known-issues.md`
+  - todo：`todo-and-doing/2 todo/20260110014111-outline-search-callstack-overflow-deferred-D/`
+
+## 2026-01-10：新一轮并行重构任务下发（A~E）
+- A：`todo-and-doing/1 doing/20260110014111-pdfviewer-adapters-gate-cancel-A/`
+- B：`todo-and-doing/1 doing/20260110014111-infra-ui-event-subscriptions-lift-B/`
+- C：`todo-and-doing/1 doing/20260110014111-pdf-annotation-sidebar-timeout-zombie-cleanup-C/`
+- D：`todo-and-doing/1 doing/20260110014111-pdf-search-dom-manager-extract-D/`
+- E：`todo-and-doing/1 doing/20260110014111-ui-keyboard-handler-idempotent-cleanup-E/`
+
+## 2026-01-10：Card Planner（F/G/H）合入 main（已通过门禁，待手工点检）
+- 合入内容：
+  - F（MsgCenter 后端）：`annotation:bulk-get:requested` handler + 单测（`ba015ae`）
+  - F（todo 记录）：`todo-and-doing/...-bulk-get-F/working-log.md`（`d7b451a`）
+  - G（前端 core engine）：草稿卡引擎 + 契约回归测试（`68b3e6c`）
+  - G（todo 记录）：`todo-and-doing/...-core-engine-G/working-log.md`（`4497712`）
+  - H（前端 UI/wiring）：粘贴插入 + MsgCenter 收发 + UI 回归测试（`45883e1`）
+  - H（todo 记录）：`todo-and-doing/...-ui-and-wiring-H/working-log.md`（`308bb13`）
+- 门禁（main 侧）：
+  - `pnpm -s run lint` ✅
+  - `python -m pytest -q src/backend/msgCenter_server/handlers/__tests__/test_annotation_bulk_get_unit.py` ✅
+  - `pnpm exec jest --runTestsByPath src/frontend/new-card-scheduler/planner/__tests__/cards-engine.contract.test.js -i` ✅
+  - `pnpm exec jest --runTestsByPath src/frontend/new-card-scheduler/__tests__/card-planner.ui-and-wiring.contract.test.js -i` ✅
+- 备注：
+  - 当前 `new-card-scheduler` UI 仍默认使用 `FakeEngine`（H 任务为并行解耦设计）；G 的真实引擎已合入并有回归测试，下一步可在不改 UI 的前提下切换到真实引擎。
 
 ## 2026-01-09：组合场景日志报错（已修复）
 - **现象**：打开搜索栏时点击大纲跳转，出现日志：
