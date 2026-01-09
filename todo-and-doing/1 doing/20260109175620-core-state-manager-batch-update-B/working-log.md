@@ -13,4 +13,4 @@
 - [x] `pnpm exec jest --runTestsByPath src/frontend/pdf-viewer/core/__tests__/state-manager.test.js -i`
 
 ## 3. 交付信息
-- commit：`<pending>`
+- commit：`9b3f02e feat(pdf-viewer): add StateManager batchUpdate`
