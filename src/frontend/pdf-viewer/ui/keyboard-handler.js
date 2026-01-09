@@ -18,6 +18,8 @@ export class KeyboardHandler {
   #keyBindings = {};
   #domEventHub = null;
   #keydownUnsubscribe = null;
+  #documentListenerAttached = false;
+  #attachedDomEventHub = null;
   #handleKeyDownBound;
 
   constructor(eventBus) {
@@ -61,6 +63,18 @@ export class KeyboardHandler {
     }
 
     if (this.#domEventHub && typeof this.#domEventHub.onDocumentKeydown === "function") {
+      // 幂等：同一个 DomEventHub 已注册则不重复注册
+      if (this.#keydownUnsubscribe && this.#attachedDomEventHub === this.#domEventHub && !this.#documentListenerAttached) {
+        return;
+      }
+
+      // 切换模式：先清理 document 监听（如果之前走 document.addEventListener）
+      if (this.#documentListenerAttached) {
+        document.removeEventListener("keydown", this.#handleKeyDownBound);
+        this.#documentListenerAttached = false;
+      }
+
+      // 清理旧的 DomEventHub 订阅
       if (this.#keydownUnsubscribe) {
         try {
           this.#keydownUnsubscribe();
@@ -69,12 +83,30 @@ export class KeyboardHandler {
         }
         this.#keydownUnsubscribe = null;
       }
+
       this.#keydownUnsubscribe = this.#domEventHub.onDocumentKeydown(this.#handleKeyDownBound);
+      this.#attachedDomEventHub = this.#domEventHub;
       this.#logger.info("Keyboard event listener setup via DomEventHub");
       return;
     }
 
+    // 使用 document：若之前走 DomEventHub，必须先解绑；重复 setup 不应重复 add
+    if (this.#keydownUnsubscribe) {
+      try {
+        this.#keydownUnsubscribe();
+      } catch (e) {
+        this.#logger.warn("Keyboard handler DomEventHub unsubscribe failed", e);
+      }
+      this.#keydownUnsubscribe = null;
+      this.#attachedDomEventHub = null;
+    }
+
+    if (this.#documentListenerAttached) {
+      return;
+    }
+
     document.addEventListener("keydown", this.#handleKeyDownBound);
+    this.#documentListenerAttached = true;
     this.#logger.info("Keyboard event listener setup");
   }
 
@@ -89,12 +121,15 @@ export class KeyboardHandler {
         this.#logger.warn("Keyboard handler DomEventHub unsubscribe failed", e);
       }
       this.#keydownUnsubscribe = null;
+      this.#attachedDomEventHub = null;
       this.#logger.info("Keyboard event listener removed via DomEventHub");
-      return;
     }
 
-    document.removeEventListener("keydown", this.#handleKeyDownBound);
-    this.#logger.info("Keyboard event listener removed");
+    if (this.#documentListenerAttached) {
+      document.removeEventListener("keydown", this.#handleKeyDownBound);
+      this.#documentListenerAttached = false;
+      this.#logger.info("Keyboard event listener removed");
+    }
   }
 
   /**
