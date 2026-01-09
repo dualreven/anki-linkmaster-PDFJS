@@ -72,10 +72,11 @@
 - **现象**：仅在“搜索栏打开 + 点击大纲跳转”组合场景仍出现 `Maximum call stack size exceeded`。
 - **初步定位**：报错来源不再是 tracing 序列化；疑似 `pdf-viewer:navigation:goto` 的同步事件环（subscriberId：`InfraUICoordinator.NavGoto`）。
 
-## 2026-01-09：A~F 第三轮任务下发（进行中）
+## 2026-01-09：A~F 第三轮任务（已验收并合入 main）
 - **协作约定（本轮）**：各 worktree 不要改 `memory-bank`；只改任务范围 + 任务目录 `working-log.md`；main 侧验收合入时统一更新 `memory-bank`，避免冲突。
 - **任务目录**：见 `todo-and-doing/1 doing/`（D 仅修复上述 P0 bug，其余为互不干扰的小步重构/回归测试）。
 - **流程文档**：并行调度/验收合入的固定流程已沉淀到 `.kilocode/rules/memory-bank/workflow-parallel-worktrees.md`。
+- **main 合入**：A=`6a6b239`；B=`9060bef`；C=`e9db7a0`；D=`9dad715`（修复 goto 递归爆栈）；E=`c006fa2`；F=`b326e8c`。
 - **验收进度**：A/B/C/D 已合入 main（含门禁通过）；E/F 仍有未提交改动，待其提交后再验收合入。
 
 ## 2026-01-09：并行工作树扩展（A~F）
