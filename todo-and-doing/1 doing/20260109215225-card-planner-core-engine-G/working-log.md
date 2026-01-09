@@ -35,6 +35,6 @@
 - `pnpm -s run lint` ✅
 - `pnpm exec jest --runTestsByPath ...cards-engine.contract.test.js -i` ✅（7 passed）
 ### 存在问题:
-- 当前未执行 git commit（需在 `worker/feature-G` 上提交后再填入 hash）。
+- 已提交到 `worker/feature-G`：`afc4a90 feat(card-planner): implement core engine`
 ### 后续处理:
 - 建议提交 1 个 commit（包含实现+回归测试），并把 commit hash 粘贴到本日志。
