@@ -126,6 +126,11 @@ describe("PDFUrlLoaderFeature", () => {
       );
       expect(loadRequestEvent).toBeUndefined();
     });
+
+    test("参数非法时应该拒绝安装", async () => {
+      window.history.pushState({}, "", "http://localhost/?pdf-id=bad/value");
+      await expect(feature.install(container)).rejects.toThrow("pdf-id 不能包含路径分隔符");
+    });
   });
 
   describe("事件处理", () => {
