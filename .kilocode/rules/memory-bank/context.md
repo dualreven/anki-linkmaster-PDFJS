@@ -16,6 +16,17 @@
   - 门禁：`pnpm -s run lint` + 关键 Jest 路径通过（由 main 侧统一跑）。
 - **下一步**：用户使用 `gui_launcher` 手工点检上述行为；如发现 bug，按责任模块下发新的 doing 并同步给对应 worktree。
 
+## 2026-01-09：组合场景日志报错（待修复，已下发任务）
+- **现象**：打开搜索栏时点击大纲跳转，出现日志：
+  - `事件回调执行出错：Maximum call stack size exceeded [Serialization Error: Maximum call stack size exceeded]`
+- **影响**：不影响功能，但污染日志/误导排障。
+- **怀疑根因**：tracing 记录链路对 payload 直接 `JSON.stringify(data)` 未保护，遇到深对象/循环引用时爆栈。
+- **已下发修复任务（D，P0）**：`todo-and-doing/1 doing/20260109104510-eventbus-tracing-safe-serialize-D/v001-spec.md`
+
+## 2026-01-09：并行工作树扩展（A~F）
+- 新增 worktree：E / F（基于 main），用于 6 AI 并行。
+- 新一轮任务（A~F）已下发至 `todo-and-doing/1 doing/`（见各任务目录 `v001-spec.md`）。
+
 ## 近期关键事实（已完成/可复用）
 
 ### 2026-01-08：pdf-anchor 测试阻塞修复（已完成）
