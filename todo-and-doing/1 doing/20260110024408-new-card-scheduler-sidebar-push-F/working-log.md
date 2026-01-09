@@ -39,3 +39,18 @@
 - Jest 提示 `baseline-browser-mapping` 数据过旧（非本任务引入）。
 ### 下一步计划:
 - 用户手工点检：打开 `/new-card-scheduler/`，点击按钮验证不再遮挡 `#planner-workspace`。
+
+## 工作记录3
+**时间**: 2026-01-10 03:28:30
+### 工作内容:
+- 根据用户反馈调整交互：折叠后保留“侧边小按钮”用于再次展开，并给主体留出边距避免按钮遮挡内容。
+### 关键变更:
+- `src/frontend/new-card-scheduler/planner/ui/planner-sidebar-controller.js`：按钮由 controller 创建（fixed 侧边 handle），折叠态主区域仍保留 40px 左边距（32px 按钮 + 8px gap）
+- `src/frontend/new-card-scheduler/style.css`：新增 `.planner-sidebar-toggle-btn` 样式（仿 pdf-home）
+- `src/frontend/new-card-scheduler/main.js`：不再手动创建按钮，交由 controller 管理
+- `src/frontend/new-card-scheduler/__tests__/planner-sidebar-layout.push.contract.test.js`：更新断言（展开 320px，收起 40px）
+### 验收命令与结果:
+1. `pnpm -s run lint` ✅
+2. `pnpm exec jest --runTestsByPath src/frontend/new-card-scheduler/__tests__/planner-sidebar-layout.push.contract.test.js -i` ✅
+### 提交:
+- commit: `9739afd`
