@@ -82,7 +82,7 @@ export function createCardPlannerApp({ root, engine, wsClient, eventBus, logger,
   }
 
   const metaAdapter = createAnnotationMetaAdapter({
-    mode: "mock",
+    mode: "ws",
     wsClient,
     eventBus,
     logger
@@ -122,7 +122,13 @@ export function createCardPlannerApp({ root, engine, wsClient, eventBus, logger,
         }
       }
     } catch (e) {
-      logger?.warn?.("[CardPlanner] annotation meta fetch failed (ignored for dev)", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      logger?.warn?.("[CardPlanner] annotation meta fetch failed", e);
+      try {
+        notification?.showError?.(`标注元信息拉取失败：${msg}`, 3500);
+      } catch {
+        // ignore
+      }
     }
   };
 

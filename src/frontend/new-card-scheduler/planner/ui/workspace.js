@@ -139,8 +139,20 @@ function createCardRow({
 
   const qMeta = Array.isArray(metaPreview?.Q) ? metaPreview.Q : [];
   const aMeta = Array.isArray(metaPreview?.A) ? metaPreview.A : [];
-  const qText = qMeta.slice(0, 3).map((m) => m?.title || m?.id || "").filter(Boolean).join(" / ");
-  const aText = aMeta.slice(0, 3).map((m) => m?.title || m?.id || "").filter(Boolean).join(" / ");
+
+  const formatMeta = (m) => {
+    const id = typeof m?.id === "string" ? m.id : "";
+    const title = typeof m?.title === "string" ? m.title : "";
+    const type = typeof m?.type === "string" ? m.type : "";
+    const label = title.trim() ? title.trim() : id.trim();
+    if (!label) {
+      return "";
+    }
+    return `${label} (${type.trim() ? type.trim() : "unknown"})`;
+  };
+
+  const qText = qMeta.slice(0, 3).map(formatMeta).filter(Boolean).join(" / ");
+  const aText = aMeta.slice(0, 3).map(formatMeta).filter(Boolean).join(" / ");
 
   const qMetaEl = document.createElement("div");
   qMetaEl.textContent = qText ? `Q: ${qText}` : "Q: （无元信息）";

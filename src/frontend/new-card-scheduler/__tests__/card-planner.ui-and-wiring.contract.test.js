@@ -22,12 +22,42 @@ function createClipboardData(text) {
 }
 
 describe("card-planner UI & MsgCenter wiring (H) - contract regression", () => {
+  function installWsAutoReply({ wsClient, eventBus }) {
+    wsClient.send.mockImplementation((req) => {
+      if (req?.type !== CARD_PLANNER_MESSAGE_TYPES.ANNOTATION_BULK_GET_REQUESTED) {
+        return;
+      }
+
+      const requestId = req?.request_id;
+      const annIds = Array.isArray(req?.data?.ann_ids) ? req.data.ann_ids : [];
+
+      eventBus.emit(
+        WEBSOCKET_EVENTS.MESSAGE.RECEIVED,
+        {
+          type: CARD_PLANNER_MESSAGE_TYPES.ANNOTATION_BULK_GET_COMPLETED,
+          request_id: requestId,
+          data: {
+            annotations: annIds.map((id) => ({
+              id,
+              title: `t_${id}`,
+              type: "note",
+              pageNumber: 1,
+              pdfId: "p1"
+            }))
+          }
+        },
+        { actorId: "test" }
+      );
+    });
+  }
+
   test("未选中时 Ctrl+V：提示无效且阻止默认行为", () => {
     const { root } = setupDom();
     const engine = createFakeEngine();
     const wsClient = { send: jest.fn() };
     const notification = { showInfo: jest.fn(), showError: jest.fn() };
     const eventBus = new EventBus({ moduleName: `ncs-test-${Date.now()}`, enableValidation: true });
+    installWsAutoReply({ wsClient, eventBus });
 
     const app = createCardPlannerApp({
       root,
@@ -51,13 +81,14 @@ describe("card-planner UI & MsgCenter wiring (H) - contract regression", () => {
     eventBus.destroy();
   });
 
-  test("选中+点击 Q/A 设置粘贴焦点：粘贴后调用 engine.dispatchIngest 且 face 正确", () => {
+  test("选中+点击 Q/A 设置粘贴焦点：粘贴后调用 engine.dispatchIngest 且 face 正确", async () => {
     const { root } = setupDom();
     const engine = createFakeEngine();
     const spyDispatch = jest.spyOn(engine, "dispatchIngest");
     const wsClient = { send: jest.fn() };
     const notification = { showInfo: jest.fn(), showError: jest.fn() };
     const eventBus = new EventBus({ moduleName: `ncs-test-${Date.now()}`, enableValidation: true });
+    installWsAutoReply({ wsClient, eventBus });
 
     const app = createCardPlannerApp({
       root,
@@ -76,12 +107,17 @@ describe("card-planner UI & MsgCenter wiring (H) - contract regression", () => {
     Object.defineProperty(pasteQ, "clipboardData", { value: createClipboardData("ann_1;ann_2") });
     document.dispatchEvent(pasteQ);
 
+    // 等待异步 meta 拉取完成后 UI 刷新
+    await new Promise((r) => setTimeout(r, 0));
+
     expect(spyDispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         op: expect.objectContaining({ face: "Q" }),
         annotationIds: ["ann_1", "ann_2"]
       })
     );
+
+    expect(root.textContent).toContain("t_ann_1 (note)");
 
     const aBtn = root.querySelector("button[title=\"点击设置粘贴焦点：A\"]");
     expect(aBtn).toBeTruthy();
@@ -90,6 +126,7 @@ describe("card-planner UI & MsgCenter wiring (H) - contract regression", () => {
     const pasteA = new Event("paste", { bubbles: true, cancelable: true });
     Object.defineProperty(pasteA, "clipboardData", { value: createClipboardData("ann_3") });
     document.dispatchEvent(pasteA);
+    await new Promise((r) => setTimeout(r, 0));
 
     expect(spyDispatch).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -108,6 +145,7 @@ describe("card-planner UI & MsgCenter wiring (H) - contract regression", () => {
     const wsClient = { send: jest.fn() };
     const notification = { showInfo: jest.fn(), showError: jest.fn() };
     const eventBus = new EventBus({ moduleName: `ncs-test-${Date.now()}`, enableValidation: true });
+    installWsAutoReply({ wsClient, eventBus });
 
     const app = createCardPlannerApp({
       root,
@@ -152,6 +190,7 @@ describe("card-planner UI & MsgCenter wiring (H) - contract regression", () => {
     const wsClient = { send: jest.fn() };
     const notification = { showInfo: jest.fn(), showError: jest.fn() };
     const eventBus = new EventBus({ moduleName: `ncs-test-${Date.now()}`, enableValidation: true });
+    installWsAutoReply({ wsClient, eventBus });
 
     const app = createCardPlannerApp({
       root,
