@@ -23,6 +23,16 @@
 - **怀疑根因**：tracing 记录链路对 payload 直接 `JSON.stringify(data)` 未保护，遇到深对象/循环引用时爆栈。
 - **已下发修复任务（D，P0）**：`todo-and-doing/1 doing/20260109104510-eventbus-tracing-safe-serialize-D/v001-spec.md`
 
+## 2026-01-09（完成）A：pdf-outline 事件 payload 体积治理
+- **任务**：`todo-and-doing/1 doing/20260109104600-outline-event-payload-hygiene-A/v001-spec.md`
+- **提交**：`e78feb9`
+- **改动**：
+  - `OUTLINE.SELECT.CHANGED` 发射 payload 收敛为 `{ outlineItemId }`（不再携带 `outlineItem/raw/children`）
+  - `OUTLINE.NAVIGATE.REQUESTED` 统一为 `{ pageAt, position }`（顶层字段；保留对旧 `{ outlineItem }` 的兼容解析）
+- **验收**：
+  - `pnpm -s run lint` ✅（含行数门禁）
+  - `pnpm exec jest --runTestsByPath` ✅（新增 `outline-event-payload-hygiene.test.js` + 相关用例）
+
 ## 2026-01-09：并行工作树扩展（A~F）
 - 新增 worktree：E / F（基于 main），用于 6 AI 并行。
 - 新一轮任务（A~F）已下发至 `todo-and-doing/1 doing/`（见各任务目录 `v001-spec.md`）。
