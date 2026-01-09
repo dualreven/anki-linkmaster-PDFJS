@@ -1,0 +1,21 @@
+{
+  "src/frontend/pdf-viewer/assets/floating-controls.js": 1,
+  "src/frontend/pdf-viewer/assets/global-error-toast.js": 2,
+  "src/frontend/pdf-viewer/bootstrap/page-zoom-guard-feature.js": 2,
+  "src/frontend/pdf-viewer/core/lifecycle-manager.js": 2,
+  "src/frontend/pdf-viewer/features/infra-sidebar/draggable-resizer.js": 2,
+  "src/frontend/pdf-viewer/features/infra-ui/components/ui-layout-controls.js": 4,
+  "src/frontend/pdf-viewer/features/pdf-anchor/components/anchor-sidebar-toolbar.js": 1,
+  "src/frontend/pdf-viewer/features/pdf-annotation/annotation-feature-toggle-button.js": 1,
+  "src/frontend/pdf-viewer/features/pdf-annotation/tools/comment/comment-input.js": 1,
+  "src/frontend/pdf-viewer/features/pdf-annotation/tools/screenshot/preview-dialog.js": 1,
+  "src/frontend/pdf-viewer/features/pdf-annotation/tools/screenshot/selection-controller.js": 4,
+  "src/frontend/pdf-viewer/features/pdf-annotation/tools/text-highlight/floating-color-toolbar.js": 1,
+  "src/frontend/pdf-viewer/features/pdf-annotation/tools/text-highlight/text-selection-handler.js": 1,
+  "src/frontend/pdf-viewer/features/pdf-quick-actions/index.js": 4,
+  "src/frontend/pdf-viewer/features/pdf-search/utils/debounce.js": 1,
+  "src/frontend/pdf-viewer/features/pdf-translator/services/SelectionMonitor.js": 1,
+  "src/frontend/pdf-viewer/main.js": 1,
+  "src/frontend/pdf-viewer/ui/keyboard-handler.js": 1,
+  "src/frontend/pdf-viewer/ui/text-layer-manager.js": 1
+}

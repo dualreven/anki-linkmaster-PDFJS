@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import { pathToFileURL } from "url";
 import { runFeatureInternalEventbusGates } from "./feature-internal-eventbus-gates.js";
+import { runPdfviewerGlobalListenerGates } from "./pdfviewer-global-listener-gates.js";
 
 const DEFAULT_LIMIT = 500;
 const DEFAULT_ROOT_DIR = "src/frontend";
@@ -241,6 +242,31 @@ async function main() {
     } catch (e) {
       const msg = e instanceof Error ? e.stack ?? e.message : String(e);
       process.stderr.write(`[feature-internal-eventbus-gates] fatal: ${msg}\n`);
+      process.exitCode = 1;
+    }
+
+    // ✅ pdf-viewer 全局监听增量门禁（window/document.addEventListener 统一入口）
+    try {
+      const res = await runPdfviewerGlobalListenerGates();
+      process.stdout.write(
+        `[pdfviewer-global-listener-gates] scanned=${res.scanned} baseline=${res.baselineSize}\n`
+      );
+      if (!res.violations || res.violations.length === 0) {
+        process.stdout.write("[pdfviewer-global-listener-gates] OK\n");
+      } else {
+        process.stdout.write(`[pdfviewer-global-listener-gates] FAILED (${res.violations.length})\n`);
+        for (const v of res.violations) {
+          if (v.type === "new-direct-listener") {
+            process.stdout.write(`- [NEW] ${v.path} addEventListener=${v.count}\n`);
+            continue;
+          }
+          process.stdout.write(`- [GROWN] ${v.path} baseline=${v.baselineCount} now=${v.count}\n`);
+        }
+        process.exitCode = 1;
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.stack ?? e.message : String(e);
+      process.stderr.write(`[pdfviewer-global-listener-gates] fatal: ${msg}\n`);
       process.exitCode = 1;
     }
     return;
