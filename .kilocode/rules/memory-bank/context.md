@@ -60,13 +60,22 @@
 - 备注：
   - 当前 `new-card-scheduler` UI 仍默认使用 `FakeEngine`（H 任务为并行解耦设计）；G 的真实引擎已合入并有回归测试，下一步可在不改 UI 的前提下切换到真实引擎。
 
-## 2026-01-10：任务调整（侧边栏遮挡改为 F 单点负责 + G/H/I 领取其它任务）
-- 变更：已撤销“侧边栏遮挡修复拆分 FGHI”的旧任务目录；现改为 **F 单 worktree 完整交付**（实现+wiring+回归测试）。
-- 当前任务：
-  - F（new-card-scheduler 侧边栏 push）：`todo-and-doing/1 doing/20260110024408-new-card-scheduler-sidebar-push-F/`
-  - G（pdf-viewer adapters gate/destroy）：`todo-and-doing/1 doing/20260110024409-pdfviewer-adapters-gate-cancel-G/`
-  - H（pdf-search DOMManager）：`todo-and-doing/1 doing/20260110024410-pdf-search-dom-manager-extract-H/`
-  - I（infra-ui 订阅清理）：`todo-and-doing/1 doing/20260110024411-infra-ui-event-subscriptions-lift-I/`
+## 2026-01-10：new-card-scheduler 侧边栏遮挡修复（已合入 main，待手工验收）
+- 合入（main）：
+  - `8a88d90 feat(new-card-scheduler): sidebar push layout`
+  - `60b5a50 docs(todo): log sidebar push delivery`
+- 回归测试：`src/frontend/new-card-scheduler/__tests__/planner-sidebar-layout.push.contract.test.js`
+- 手工点检：打开 `http://localhost:<vite_port>/new-card-scheduler/`，点击按钮折叠/展开，主区域不再被遮挡且宽度随之变化。
+
+## 2026-01-10：任务调整（删除非主线 G/H/I 任务，围绕 Card Planner 重新下发）
+- 已删除（不再维护）：
+  - `todo-and-doing/1 doing/20260110024409-pdfviewer-adapters-gate-cancel-G/`
+  - `todo-and-doing/1 doing/20260110024410-pdf-search-dom-manager-extract-H/`
+  - `todo-and-doing/1 doing/20260110024411-infra-ui-event-subscriptions-lift-I/`
+- 当前主线任务（Card Planner）：
+  - G（引擎接入 UI）：`todo-and-doing/1 doing/20260110033314-card-planner-engine-integration-G/`
+  - H（标注元信息改为 WS）：`todo-and-doing/1 doing/20260110033315-card-planner-annotation-meta-ws-H/`
+  - I（Final Output 后端验收 handler）：`todo-and-doing/1 doing/20260110033316-card-planner-final-output-handler-I/`
 
 ## 2026-01-10：归档（Card Planner F/G/H）
 - 用户确认后已将已完成的 Card Planner 三条任务从 `todo-and-doing/1 doing/` 归档到：
