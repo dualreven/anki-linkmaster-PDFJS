@@ -56,6 +56,10 @@
   - H（pdf-search DOMManager）：`todo-and-doing/1 doing/20260110024410-pdf-search-dom-manager-extract-H/`
   - I（infra-ui 订阅清理）：`todo-and-doing/1 doing/20260110024411-infra-ui-event-subscriptions-lift-I/`
 
+## 2026-01-10：归档（Card Planner F/G/H）
+- 用户确认后已将已完成的 Card Planner 三条任务从 `todo-and-doing/1 doing/` 归档到：
+  - `todo-and-doing/4 archive/20260110030722-doing-archive/`
+
 ## 2026-01-09：组合场景日志报错（已修复）
 - **现象**：打开搜索栏时点击大纲跳转，出现日志：
   - `事件回调执行出错：Maximum call stack size exceeded [Serialization Error: Maximum call stack size exceeded]`
