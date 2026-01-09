@@ -78,8 +78,11 @@
 - 合入（main）：
   - `8a88d90 feat(new-card-scheduler): sidebar push layout`
   - `60b5a50 docs(todo): log sidebar push delivery`
+- 后续小改动（main）：
+  - `b24fbd4 fix(new-card-scheduler): keep small toggle button when collapsed`
+  - `3ff174e docs(todo): log sidebar toggle handle tweak`
 - 回归测试：`src/frontend/new-card-scheduler/__tests__/planner-sidebar-layout.push.contract.test.js`
-- 手工点检：打开 `http://localhost:<vite_port>/new-card-scheduler/`，点击按钮折叠/展开，主区域不再被遮挡且宽度随之变化。
+- 手工点检：打开 `http://localhost:3000/new-card-scheduler/`，折叠/展开时主区域随之收缩/扩张；折叠后仍保留可点击的小开关按钮用于再次展开。
 
 ## 2026-01-10：任务调整（删除非主线 G/H/I 任务，围绕 Card Planner 重新下发）
 - 已删除（不再维护）：
