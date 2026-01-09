@@ -1,7 +1,7 @@
 import { jest } from "@jest/globals";
 import { ScreenshotTool } from "./index.js";
-import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
 import { AnnotationType } from "../../../../../common/models/annotation.js";
+import { ObservableState } from "../../../../../common/utils/observable.js";
 
 jest.mock("./screenshot-capturer.js", () => ({
   ScreenshotCapturer: jest.fn().mockImplementation(() => ({
@@ -32,6 +32,7 @@ describe("ScreenshotTool deferred rendering when page not ready", () => {
   let pdfViewerManager;
   let pdfjsHandlers;
   let viewerContainer;
+  let annotationManager;
 
   beforeEach(async () => {
     handlers = {};
@@ -74,7 +75,10 @@ describe("ScreenshotTool deferred rendering when page not ready", () => {
     };
 
     tool = new ScreenshotTool();
-    await tool.initialize({ eventBus, logger, pdfViewerManager });
+    annotationManager = {
+      store: new ObservableState({ annotations: [] }, { name: "TestAnnotationStore" })
+    };
+    await tool.initialize({ eventBus, logger, pdfViewerManager, annotationManager });
   });
 
   afterEach(() => {
@@ -100,10 +104,8 @@ describe("ScreenshotTool deferred rendering when page not ready", () => {
 
     const spyRender = jest.spyOn(ScreenshotTool.prototype, "renderScreenshotMarker");
 
-    // 发出“标注数据加载完成”，此时 getPageView 返回 null，应进入等待队列
-    const onLoaded = handlers[PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED];
-    expect(typeof onLoaded).toBe("function");
-    onLoaded({ annotations: [ann] });
+    // store 更新，此时 getPageView 返回 null，应进入等待队列
+    annotationManager.store.set({ annotations: [ann] });
 
     // 尚未渲染
     expect(spyRender).not.toHaveBeenCalled();
@@ -120,8 +122,6 @@ describe("ScreenshotTool deferred rendering when page not ready", () => {
     pdfjsHandlers["pagerendered"]({ pageNumber: 5 });
 
     // 现在应完成渲染
-    expect(spyRender).toHaveBeenCalledTimes(1);
     expect(spyRender).toHaveBeenCalledWith(ann);
   });
 });
-

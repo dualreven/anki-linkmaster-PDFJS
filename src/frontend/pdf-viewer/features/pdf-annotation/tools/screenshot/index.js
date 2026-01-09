@@ -12,15 +12,14 @@ import { ScreenshotCapturer } from "./screenshot-capturer.js";
 import { QWebChannelScreenshotBridge } from "./qwebchannel-bridge.js";
 import { getLogger } from "../../../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
+import { AnnotationType } from "../../../../../common/models/annotation.js";
 import { escapeHtml, formatDate, getImageUrl } from "./ui-utils.js";
 import { showScreenshotPreviewDialog } from "./preview-dialog.js";
 import { ScreenshotMarkerRenderer } from "./marker-renderer.js";
 import { createScreenshotAnnotationCard } from "./card-renderer.js";
 import { ScreenshotSelectionController } from "./selection-controller.js";
 import { ScreenshotCaptureFlow } from "./capture-flow.js";
-import { installScreenshotAnnotationEventHandlers } from "./annotation-event-handlers.js";
 import { ScreenshotMarkerQueue } from "./marker-queue.js";
-import { createScreenshotAnnotationsLoadedHandler } from "./annotation-data-loaded-handler.js";
 
 const MARKER_COLOR_PRESETS = [
   { name: "orange", label: "橙色", value: "#ff9800" },
@@ -37,14 +36,14 @@ export class ScreenshotTool extends IAnnotationTool {
   get displayName() { return "截图"; }
   get icon() { return "📷"; }
   get version() { return "1.0.0"; }
-  get dependencies() { return ["pdfViewerManager", "eventBus", "logger"]; }
+  get dependencies() { return ["pdfViewerManager", "eventBus", "logger", "annotationManager"]; }
 
   // ===== 私有字段 =====
   #eventBus;
   #logger;
   #pdfViewerManager;
+  #annotationManager;
   #pdfjsEventBus = null;
-  #container = null;
   #qwebChannelBridge;
   #capturer;
   #captureFlow = null;
@@ -52,12 +51,11 @@ export class ScreenshotTool extends IAnnotationTool {
   #selectionController = null;
   #markerRenderer = null;
   #markerQueue = null;
-  #annotationEventsUninstall = null;
-  #onAnnotationDataLoadedHandler = null;
+  #storeUnsubscribe = null;
+  #renderPageCompletedUnsub = null;
   #pdfjsPageRenderedHandler = null;
   #pdfjsScaleChangingHandler = null;
   #pdfjsScaleChangedHandler = null;
-
   /**
    * 内部：统一输出分步日志（含可选 toast）
    * @param {string} step - 步骤编号，如 'SM-01.1'
@@ -83,12 +81,13 @@ export class ScreenshotTool extends IAnnotationTool {
    * @param {Object} context.eventBus - 事件总线
    * @param {Object} context.logger - 日志器
    * @param {Object} context.pdfViewerManager - PDF查看器管理器
+   * @param {Object} context.annotationManager - 标注管理器
    */
   async initialize(context) {
     this.#eventBus = context.eventBus;
     this.#logger = context.logger || getLogger("ScreenshotTool");
     this.#pdfViewerManager = context.pdfViewerManager;
-    this.#container = context.container || null;
+    this.#annotationManager = context.annotationManager;
     try {
       this.#pdfjsEventBus = this.#pdfViewerManager?.eventBus || null;
     } catch (e) { void e; /* logger-guard */ }
@@ -136,23 +135,20 @@ export class ScreenshotTool extends IAnnotationTool {
       renderMarker: (annotation) => this.renderScreenshotMarker(annotation)
     });
 
-    // 标注列表加载完成后恢复截图标记框
-    this.#onAnnotationDataLoadedHandler = createScreenshotAnnotationsLoadedHandler({
-      markerRenderer: this.#markerRenderer,
-      markerQueue: this.#markerQueue,
-      removeMarker: (annotationId) => this.removeScreenshotMarker(annotationId),
-      logStep: this.#logStep.bind(this),
-      logger: this.#logger
-    });
-    this.#eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, this.#onAnnotationDataLoadedHandler);
+    // 订阅 AnnotationManager.store，响应式更新截图标记
+    if (!this.#annotationManager?.store || typeof this.#annotationManager.store.subscribe !== "function") {
+      this.#logger.error("[ScreenshotTool] AnnotationManager.store.subscribe not available");
+      throw new Error("[ScreenshotTool] AnnotationManager.store is not correctly initialized.");
+    }
 
-    // 监听标注跳转/创建/删除事件（用于渲染/清理 marker）
-    this.#annotationEventsUninstall = installScreenshotAnnotationEventHandlers({
-      eventBus: this.#eventBus,
-      logger: this.#logger,
-      renderMarker: (annotation) => this.renderScreenshotMarker(annotation),
-      removeMarker: (annotationId) => this.removeScreenshotMarker(annotationId)
-    }).uninstall;
+    this.#storeUnsubscribe = this.#annotationManager.store.subscribe(
+      (state) => state?.annotations,
+      (currentAnnotations) => {
+        const currentScreenshots = (currentAnnotations || []).filter((a) => a?.type === AnnotationType.SCREENSHOT);
+        this.#updateScreenshotMarkers(currentScreenshots);
+      },
+      { fireImmediately: true }
+    );
 
     // 监听 PDF.js 页面渲染完成事件，刷写等待中的标记（解决“刷新后侧边栏打开时未出现截图框”）
     if (this.#pdfjsEventBus && typeof this.#pdfjsEventBus.on === "function") {
@@ -192,19 +188,24 @@ export class ScreenshotTool extends IAnnotationTool {
 
     // 统一事件信号：监听应用级 RENDER.PAGE_COMPLETED（由 PDFViewerManager 桥接）
     try {
-      this.#eventBus.onGlobal(PDF_VIEWER_EVENTS.RENDER.PAGE_COMPLETED, (data) => {
-        const pn = Number(data?.pageNumber || 0);
-        if (!pn) { return; }
-        this.#logStep("04.bridge", "RENDER.PAGE_COMPLETED (app) received", { page: pn });
-        this.#markerQueue?.flushPendingForPage?.(pn);
-        this.#restoreScreenshotMarkersForPage(pn);
-      }, { subscriberId: "ScreenshotTool" });
-    } catch (e) { void e; /* logger-guard */ }
+      const unsub = this.#eventBus.onGlobal(
+        PDF_VIEWER_EVENTS.RENDER.PAGE_COMPLETED,
+        this.#handleRenderPageCompleted,
+        { subscriberId: "ScreenshotTool" }
+      );
+      if (typeof unsub !== "function") {
+        throw new Error("[ScreenshotTool] eventBus.onGlobal must return an unsubscribe function");
+      }
+      this.#renderPageCompletedUnsub = unsub;
+    } catch (e) {
+      this.#logger.error("[ScreenshotTool] Failed to subscribe RENDER.PAGE_COMPLETED", e);
+      throw e;
+    }
 
     this.#logStep("01", "Initialize begin", {
       qwebChannelMode: this.#qwebChannelBridge.getMode()
     }, "info", 1800);
-    this.#logStep("01.1", "Event listeners ready: JUMP/CREATED/DELETED + DATA.LOADED");
+    this.#logStep("01.1", "Store subscription for markers ready");
     if (this.#pdfjsEventBus) {
       this.#logStep("01.2", "PDF.js pagerendered hook registered");
     } else {
@@ -317,37 +318,54 @@ export class ScreenshotTool extends IAnnotationTool {
    * 销毁工具
    */
   destroy() {
-    if (this.#eventBus && this.#onAnnotationDataLoadedHandler) {
-      this.#eventBus.off?.(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, this.#onAnnotationDataLoadedHandler);
+    if (this.#storeUnsubscribe) {
+      this.#storeUnsubscribe();
+      this.#storeUnsubscribe = null;
+    }
+    if (this.#renderPageCompletedUnsub) {
+      this.#renderPageCompletedUnsub();
+      this.#renderPageCompletedUnsub = null;
     }
     if (this.#pdfjsEventBus && this.#pdfjsPageRenderedHandler) {
-
       try { this.#pdfjsEventBus.off?.(PDF_VIEWER_EVENTS.PDFJS_EVENTS.PAGE.RENDERED, this.#pdfjsPageRenderedHandler); } catch (e) { void e; /* logger-guard */ }
     }
-    this.#onAnnotationDataLoadedHandler = null;
     this.#pdfjsPageRenderedHandler = null;
     if (this.#pdfjsEventBus && this.#pdfjsScaleChangingHandler) {
-
       try { this.#pdfjsEventBus.off?.(PDF_VIEWER_EVENTS.PDFJS_EVENTS.SCALE.CHANGING, this.#pdfjsScaleChangingHandler); } catch (e) { void e; /* logger-guard */ }
     }
     if (this.#pdfjsEventBus && this.#pdfjsScaleChangedHandler) {
-
       try { this.#pdfjsEventBus.off?.(PDF_VIEWER_EVENTS.PDFJS_EVENTS.SCALE.CHANGED, this.#pdfjsScaleChangedHandler); } catch (e) { void e; /* logger-guard */ }
     }
-    if (this.#annotationEventsUninstall) {
-      try { this.#annotationEventsUninstall(); } catch (e) { void e; /* logger-guard */ }
-    }
+
     this.deactivate();
     this.clearAllMarkers();
     this.#markerQueue?.clear?.();
+
     this.#capturer = null;
     this.#qwebChannelBridge = null;
     this.#captureFlow = null;
     this.#selectionController = null;
     this.#markerRenderer = null;
     this.#markerQueue = null;
-    this.#annotationEventsUninstall = null;
+
     this.#logger.info("[ScreenshotTool] Destroyed");
+  }
+
+  /**
+   * 根据 store 中的截图标注列表更新页面上的 marker
+   * @param {Array<Annotation>} currentScreenshots - 当前的截图标注列表
+   * @param {Array<Annotation>} oldScreenshots - 旧的截图标注列表
+   * @private
+   */
+  #updateScreenshotMarkers(currentScreenshots) {
+    this.clearAllMarkers();
+    this.#markerQueue?.clear?.();
+
+    for (const ann of currentScreenshots) {
+      this.ensureOverlayFor(ann);
+    }
+
+    this.#logger.debug(`[ScreenshotTool] Markers updated. Current: ${currentScreenshots.length}`);
   }
 
   /**
@@ -357,22 +375,24 @@ export class ScreenshotTool extends IAnnotationTool {
    */
   #restoreScreenshotMarkersForPage(pageNumber) {
     try {
-      const mgr = this.#container?.get ? this.#container.get("annotationManager") : null;
-      if (!mgr) { return; }
-      let items = [];
-      if (typeof mgr.getAnnotationsByPage === "function") {
-        items = mgr.getAnnotationsByPage(pageNumber) || [];
-      } else if (typeof mgr.getAllAnnotations === "function") {
-        items = (mgr.getAllAnnotations() || []).filter(a => a?.pageNumber === pageNumber);
+      const allAnnotations = this.#annotationManager?.store?.get()?.annotations || [];
+      const screenshots = allAnnotations.filter(
+        (a) => a && a.type === AnnotationType.SCREENSHOT && a.pageNumber === pageNumber
+      );
+      if (screenshots.length === 0) {
+        return;
       }
-      const screenshots = items.filter(a => a && a.type === "screenshot");
-      if (screenshots.length === 0) { return; }
-      this.#logStep("04.rest", "Restoring screenshot markers for page", { page: pageNumber, count: screenshots.length });
+      this.#logStep("04.rest", "Restoring screenshot markers for page", {
+        page: pageNumber,
+        count: screenshots.length,
+      });
       screenshots.forEach((ann) => {
         try {
           this.#logStep("04.rest.each", "Restore item", { id: ann.id, page: ann.pageNumber });
-          this.renderScreenshotMarker(ann);
-        } catch (e) { this.#logger?.debug?.("[ScreenshotTool] restore item failed", e); }
+          this.ensureOverlayFor(ann);
+        } catch (e) {
+          this.#logger?.debug?.("[ScreenshotTool] restore item failed", e);
+        }
       });
     } catch (e) {
       this.#logger?.warn?.("[ScreenshotTool] restoreScreenshotMarkersForPage failed", e);
@@ -380,6 +400,19 @@ export class ScreenshotTool extends IAnnotationTool {
   }
 
   // ===== 辅助方法 =====
+
+  /**
+   * 处理 RENDER.PAGE_COMPLETED 事件，用于刷新当前页的标记
+   * @param {object} data
+   * @private
+   */
+  #handleRenderPageCompleted = (data) => {
+    const pn = Number(data?.pageNumber || 0);
+    if (!pn) { return; }
+    this.#logStep("04.bridge", "RENDER.PAGE_COMPLETED (app) received", { page: pn });
+    this.#markerQueue?.flushPendingForPage?.(pn);
+    this.#restoreScreenshotMarkersForPage(pn);
+  };
 
   /**
    * 跳转到标注
@@ -406,7 +439,7 @@ export class ScreenshotTool extends IAnnotationTool {
    */
   ensureOverlayFor(annotation) {
     try {
-      if (!annotation || annotation.type !== "screenshot") {return;}
+      if (!annotation || annotation.type !== AnnotationType.SCREENSHOT) {return;}
       // 若页面未就绪则入队，由 pagerendered 时机再渲染
       this.#markerQueue?.enqueueOrRender?.(annotation);
     } catch (e) {

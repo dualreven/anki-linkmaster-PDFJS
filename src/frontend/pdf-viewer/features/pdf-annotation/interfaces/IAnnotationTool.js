@@ -86,6 +86,7 @@ export class IAnnotationTool {
    * @param {Logger} context.logger - 日志器
    * @param {Object} context.pdfViewerManager - PDF查看器管理器
    * @param {Object} context.container - 依赖容器
+   * @param {Object} context.annotationManager - 标注管理器
    * @returns {Promise<void>}
    *
    * @example

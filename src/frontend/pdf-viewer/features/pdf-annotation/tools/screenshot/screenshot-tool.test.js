@@ -1,7 +1,7 @@
 import { jest } from "@jest/globals";
 import { ScreenshotTool } from "./index.js";
-import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-constants.js";
 import { AnnotationType } from "../../../../../common/models/annotation.js";
+import { ObservableState } from "../../../../../common/utils/observable.js";
 
 jest.mock("./screenshot-capturer.js", () => ({
   ScreenshotCapturer: jest.fn().mockImplementation(() => ({
@@ -33,6 +33,7 @@ describe("ScreenshotTool annotation restoration", () => {
   let viewerContainer;
   let pageDiv;
   let renderMarkerSpy;
+  let annotationManager;
 
   beforeEach(async () => {
     handlers = {};
@@ -74,8 +75,12 @@ describe("ScreenshotTool annotation restoration", () => {
       debug: jest.fn()
     };
 
+    annotationManager = {
+      store: new ObservableState({ annotations: [] }, { name: "TestAnnotationStore" })
+    };
+
     tool = new ScreenshotTool();
-    await tool.initialize({ eventBus, logger, pdfViewerManager });
+    await tool.initialize({ eventBus, logger, pdfViewerManager, annotationManager });
   });
 
   afterEach(() => {
@@ -90,7 +95,7 @@ describe("ScreenshotTool annotation restoration", () => {
     jest.clearAllMocks();
   });
 
-  it("renders screenshot markers when annotation data loads", () => {
+  it("renders screenshot markers when annotations in store change", () => {
     const screenshotAnnotation = {
       id: "s-1",
       type: AnnotationType.SCREENSHOT,
@@ -111,9 +116,7 @@ describe("ScreenshotTool annotation restoration", () => {
       data: {}
     };
 
-    const dataLoadedHandler = handlers[PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED];
-    expect(typeof dataLoadedHandler).toBe("function");
-    dataLoadedHandler({ annotations: [screenshotAnnotation, otherAnnotation] });
+    annotationManager.store.set({ annotations: [screenshotAnnotation, otherAnnotation] });
 
     expect(renderMarkerSpy).toHaveBeenCalledTimes(1);
     expect(renderMarkerSpy).toHaveBeenCalledWith(screenshotAnnotation);

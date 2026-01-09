@@ -179,6 +179,7 @@ export class AnnotationFeature {
       eventBus: this.#eventBus,
       logger: this.#logger,
       pdfViewerManager: this.#pdfViewerManager,
+      annotationManager: this.#annotationManager,
       container: this.#container
     };
     await this.#toolRegistry.initializeAll(toolContext);

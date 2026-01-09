@@ -82,30 +82,12 @@ export function installAnnotationSidebarSubscriptions({
   eventBus,
   subscriptions,
   subscriberId,
-  onCreated,
-  onUpdated,
-  onDeleted,
-  onLoaded,
   onSelected,
   onSidebarClosed,
   onCommentAdded,
   onToolDeactivated,
 }) {
   const sid = subscriberId || "AnnotationSidebarUI";
-
-  // CRUD / data events（v001：AnnotationSidebarUI 不应依赖这些事件驱动 UI 渲染）
-  if (typeof onCreated === "function") {
-    subscriptions.add(eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.CREATED, onCreated, { subscriberId: sid }));
-  }
-  if (typeof onUpdated === "function") {
-    subscriptions.add(eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.UPDATED, onUpdated, { subscriberId: sid }));
-  }
-  if (typeof onDeleted === "function") {
-    subscriptions.add(eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DELETED, onDeleted, { subscriberId: sid }));
-  }
-  if (typeof onLoaded === "function") {
-    subscriptions.add(eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED, onLoaded, { subscriberId: sid }));
-  }
 
   // 非 CRUD：交互与跨模块协作事件
   if (typeof onToolDeactivated === "function") {
