@@ -11,6 +11,27 @@ export class PendingHighlightQueue {
   }
 
   /**
+   * 移除所有不在 nextIds 中的待渲染项（用于 store snapshot diff 的删除同步）
+   * @param {Set<string>} nextIds
+   */
+  pruneNotIn(nextIds) {
+    if (!nextIds || !(nextIds instanceof Set)) {
+      throw new Error("[PendingHighlightQueue] pruneNotIn: nextIds must be a Set");
+    }
+
+    for (const [pageNumber, bucket] of this.#pendingByPage.entries()) {
+      for (const id of bucket.keys()) {
+        if (!nextIds.has(id)) {
+          bucket.delete(id);
+        }
+      }
+      if (bucket.size === 0) {
+        this.#pendingByPage.delete(pageNumber);
+      }
+    }
+  }
+
+  /**
    * @param {{ id?: string, pageNumber?: number }} annotation
    */
   enqueue(annotation) {
@@ -56,4 +77,3 @@ export class PendingHighlightQueue {
     return Array.from(bucket.values());
   }
 }
-

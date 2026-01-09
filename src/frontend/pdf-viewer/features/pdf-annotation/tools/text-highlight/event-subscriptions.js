@@ -9,10 +9,6 @@ import { PDF_VIEWER_EVENTS } from "../../../../../common/event/pdf-viewer-consta
  *  logger: any,
  *  handlers: {
  *    onTextSelectionCompleted: Function,
- *    onAnnotationCreated: Function,
- *    onAnnotationUpdated: Function,
- *    onAnnotationDeleted: Function,
- *    onAnnotationDataLoaded: Function,
  *  },
  *  overlayController: any,
  * }} ctx
@@ -39,26 +35,6 @@ export function installTextHighlightSubscriptions(ctx) {
     PDF_VIEWER_EVENTS.ANNOTATION.TEXT_HIGHLIGHT.TEXT_SELECTED,
     handlers.onTextSelectionCompleted,
     { subscriberId: "TextHighlightTool::TEXT_SELECTED" }
-  ));
-  safeUnsubPush(eventBus.on(
-    PDF_VIEWER_EVENTS.ANNOTATION.CREATED,
-    handlers.onAnnotationCreated,
-    { subscriberId: "TextHighlightTool::ANNOTATION_CREATED" }
-  ));
-  safeUnsubPush(eventBus.on(
-    PDF_VIEWER_EVENTS.ANNOTATION.UPDATED,
-    handlers.onAnnotationUpdated,
-    { subscriberId: "TextHighlightTool::ANNOTATION_UPDATED" }
-  ));
-  safeUnsubPush(eventBus.on(
-    PDF_VIEWER_EVENTS.ANNOTATION.DELETED,
-    handlers.onAnnotationDeleted,
-    { subscriberId: "TextHighlightTool::ANNOTATION_DELETED" }
-  ));
-  safeUnsubPush(eventBus.on(
-    PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED,
-    handlers.onAnnotationDataLoaded,
-    { subscriberId: "TextHighlightTool::ANNOTATION_DATA_LOADED" }
   ));
 
   // 统一事件信号：应用级 RENDER.PAGE_COMPLETED（由 PDFViewerManager 桥接）

@@ -41,6 +41,11 @@
   - `SidebarManagerFeature` 不再常驻注册 document mousemove/mouseup，降低泄漏面。
 - **回归**：新增“mousedown 后立刻 destroy 必须解绑”单测，更新既有 uninstall 清理测试覆盖“拖拽中途卸载”。
 
+## 2026-01-09（完成）C：pdf-annotation TextHighlightTool store-reactive
+- **任务**：`todo-and-doing/1 doing/20260109104640-text-highlight-store-reactive-C/v001-spec.md`
+- **提交**：`a74d95e`
+- **要点**：TextHighlightTool 订阅 `AnnotationManager.store`，用 state diff 驱动 overlay 增删改，减少 EventBus 交织与订阅泄漏风险。
+
 ## 2026-01-09：并行工作树扩展（A~F）
 - 新增 worktree：E / F（基于 main），用于 6 AI 并行。
 - 新一轮任务（A~F）已下发至 `todo-and-doing/1 doing/`（见各任务目录 `v001-spec.md`）。

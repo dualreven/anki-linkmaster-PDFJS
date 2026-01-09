@@ -49,6 +49,12 @@ export class TextHighlightTool extends IAnnotationTool {
   /** @type {Object|null} 依赖容器 */
   #container = null;
 
+  /** @type {any|null} */
+  #annotationManager = null;
+
+  /** @type {Function|null} */
+  #storeUnsubscribe = null;
+
   /** @type {TextSelectionHandler} */
   #selectionHandler = null;
 
@@ -97,7 +103,7 @@ export class TextHighlightTool extends IAnnotationTool {
   }
 
   get dependencies() {
-    return [];
+    return ["pdfViewerManager", "eventBus", "logger", "annotationManager"];
   }
 
   // ==================== 生命周期方法 ====================
@@ -112,7 +118,7 @@ export class TextHighlightTool extends IAnnotationTool {
    * @returns {Promise<void>}
    */
   async initialize(context) {
-    const { eventBus, logger, pdfViewerManager, container } = context;
+    const { eventBus, logger, pdfViewerManager, container, annotationManager } = context;
 
     this.#eventBus = eventBus;
     this.#logger = logger || console;
@@ -149,10 +155,38 @@ export class TextHighlightTool extends IAnnotationTool {
     this.#overlayController = new HighlightOverlayController({
       logger: this.#logger,
       pdfViewerManager: this.#pdfViewerManager,
-      container: this.#container,
       highlightRenderer: this.#highlightRenderer,
       actionMenu: this.#actionMenu
     });
+
+    // 订阅 AnnotationManager.store：以 state diff 驱动 overlay 增删改（对齐 ScreenshotTool）
+    this.#annotationManager = annotationManager || null;
+    if (!this.#annotationManager && this.#container?.get) {
+      try {
+        this.#annotationManager = this.#container.get("annotationManager");
+      } catch (e) { void e; /* logger-guard */ }
+    }
+
+    if (!this.#annotationManager?.store || typeof this.#annotationManager.store.subscribe !== "function") {
+      this.#logger.error("[TextHighlightTool] AnnotationManager.store.subscribe not available");
+      throw new Error("[TextHighlightTool] AnnotationManager.store is not correctly initialized.");
+    }
+
+    const unsub = this.#annotationManager.store.subscribe(
+      (state) => state?.annotations,
+      (currentAnnotations) => {
+        try {
+          this.#overlayController?.applyAnnotationsSnapshot?.(currentAnnotations);
+        } catch (e) {
+          this.#logger?.warn?.("[TextHighlightTool] applyAnnotationsSnapshot failed", e);
+        }
+      },
+      { fireImmediately: true }
+    );
+    if (typeof unsub !== "function") {
+      throw new Error("[TextHighlightTool] AnnotationManager.store.subscribe must return an unsubscribe function");
+    }
+    this.#storeUnsubscribe = unsub;
 
     this.#subscriptions = installTextHighlightSubscriptions({
       eventBus: this.#eventBus,
@@ -163,10 +197,6 @@ export class TextHighlightTool extends IAnnotationTool {
       overlayController: this.#overlayController,
       handlers: {
         onTextSelectionCompleted: this.#handleTextSelectionCompleted.bind(this),
-        onAnnotationCreated: this.#handleAnnotationCreated.bind(this),
-        onAnnotationUpdated: this.#handleAnnotationUpdated.bind(this),
-        onAnnotationDeleted: this.#handleAnnotationDeleted.bind(this),
-        onAnnotationDataLoaded: this.#handleAnnotationsLoaded.bind(this),
       }
     });
 
@@ -251,26 +281,6 @@ export class TextHighlightTool extends IAnnotationTool {
    */
   #handleColorSelectionCancelled() {
     this.#pendingSelection = handleColorSelectionCancelled({ logger: this.#logger });
-  }
-
-  /**
-   * 处理标注创建成功事件
-   * @param {Object} data - 事件数据
-   * @param {Annotation} data.annotation - 标注对象
-   * @returns {void}
-   * @private
-   */
-  #handleAnnotationCreated(data) {
-    const { annotation } = data;
-
-    // 只处理文本高亮类型的标注
-    if (annotation.type !== "text-highlight") {
-      return;
-    }
-
-    this.#logger.info("[TextHighlightTool] Rendering highlight for annotation", annotation.id);
-
-    this.#overlayController?.renderHighlightForAnnotation(annotation);
   }
 
   /**
@@ -370,52 +380,11 @@ export class TextHighlightTool extends IAnnotationTool {
   }
 
   /**
-   * 处理标注更新事件
-   * @param {{ annotation: Annotation }} data - 事件数据
-   * @private
-   */
-  #handleAnnotationUpdated(data) {
-    const annotation = data?.annotation;
-    if (!annotation || annotation.type !== "text-highlight") {
-      return;
-    }
-    this.#overlayController?.handleAnnotationUpdated(annotation);
-  }
-
-  /**
-   * 处理标注删除事件
-   * @param {{ id: string }} data - 事件数据
-   * @private
-   */
-  #handleAnnotationDeleted(data) {
-    const annotationId = data?.id;
-    if (!annotationId) {
-      return;
-    }
-
-    this.#logger.info(`[TextHighlightTool] Annotation deleted event received: ${annotationId}`);
-    this.#overlayController?.handleAnnotationDeleted(annotationId, data?.pageNumber);
-  }
-
-  /**
    * 确保指定高亮注释的覆盖层已渲染
    * @param {Annotation} annotation
    */
   ensureOverlayFor(annotation) {
     this.#overlayController?.ensureOverlayFor(annotation);
-  }
-
-  /**
-   * 处理标注列表加载完成事件
-   * @param {{annotations?: Annotation[]}} data
-   * @private
-   */
-  #handleAnnotationsLoaded(data) {
-    try {
-      this.#overlayController?.handleAnnotationsLoaded(data);
-    } catch (e) {
-      this.#logger?.warn?.("[TextHighlightTool] handleAnnotationsLoaded failed", e);
-    }
   }
 
   // ==================== UI方法 ====================
@@ -460,6 +429,15 @@ export class TextHighlightTool extends IAnnotationTool {
     }
 
     const logger = this.#logger;
+
+    try {
+      this.#storeUnsubscribe?.();
+    } catch (e) {
+      logger?.warn?.("[TextHighlightTool] store unsubscribe failed", e);
+    } finally {
+      this.#storeUnsubscribe = null;
+    }
+
     try {
       this.#subscriptions?.uninstall?.();
     } catch (e) {
@@ -484,6 +462,7 @@ export class TextHighlightTool extends IAnnotationTool {
     this.#logger = null;
     this.#pdfViewerManager = null;
     this.#container = null;
+    this.#annotationManager = null;
     this.#selectionHandler = null;
     this.#highlightRenderer = null;
     this.#floatingToolbar = null;

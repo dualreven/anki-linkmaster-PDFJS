@@ -9,6 +9,7 @@ let pdfJsEventHandlers;
 let pdfViewerManager;
 let pageDiv;
 let viewerContainer;
+let mockAnnotationStore;
 
 jest.mock("./highlight-renderer.js", () => ({
   HighlightRenderer: jest.fn().mockImplementation(() => mockHighlightRendererInstance)
@@ -39,6 +40,36 @@ describe("TextHighlightTool integration with action menu", () => {
   let eventBus;
   let handlers;
   let logger;
+  let container;
+  let annotationManager;
+
+  const createMockStore = (initialState = {}) => {
+    let state = {
+      annotations: [],
+      ...initialState
+    };
+
+    /** @type {Set<{ selector: Function, callback: Function }>} */
+    const subs = new Set();
+
+    return {
+      get: () => state,
+      set: (partial) => {
+        state = { ...state, ...partial };
+        subs.forEach((sub) => {
+          sub.callback(sub.selector(state));
+        });
+      },
+      subscribe: (selector, callback, options = {}) => {
+        const sub = { selector, callback };
+        subs.add(sub);
+        if (options.fireImmediately) {
+          callback(selector(state));
+        }
+        return () => subs.delete(sub);
+      }
+    };
+  };
 
   beforeEach(async () => {
     handlers = {};
@@ -100,8 +131,17 @@ describe("TextHighlightTool integration with action menu", () => {
       getPageView: jest.fn(() => ({ div: pageDiv }))
     };
 
+    mockAnnotationStore = createMockStore({ annotations: [] });
+    annotationManager = { store: mockAnnotationStore };
+    container = {
+      get: jest.fn((key) => {
+        if (key === "annotationManager") {return annotationManager;}
+        return null;
+      })
+    };
+
     tool = new TextHighlightTool();
-    await tool.initialize({ eventBus, logger, pdfViewerManager });
+    await tool.initialize({ eventBus, logger, pdfViewerManager, container });
   });
 
   afterEach(() => {
@@ -132,7 +172,7 @@ describe("TextHighlightTool integration with action menu", () => {
     const textLayer = document.createElement("div");
     textLayer.className = "textLayer";
     pageDiv.appendChild(textLayer);
-    handlers[PDF_VIEWER_EVENTS.ANNOTATION.CREATED]({ annotation });
+    mockAnnotationStore.set({ annotations: [annotation] });
 
     expect(mockHighlightRendererInstance.renderHighlight).toHaveBeenCalledWith(
       annotation.pageNumber,
@@ -150,7 +190,7 @@ describe("TextHighlightTool integration with action menu", () => {
     const textLayer = document.createElement("div");
     textLayer.className = "textLayer";
     pageDiv.appendChild(textLayer);
-    handlers[PDF_VIEWER_EVENTS.ANNOTATION.CREATED]({ annotation });
+    mockAnnotationStore.set({ annotations: [annotation] });
 
     const { onColorChange } = mockHighlightActionMenuInstance.options;
     onColorChange(annotation, "#4caf50");
@@ -175,7 +215,7 @@ describe("TextHighlightTool integration with action menu", () => {
     const textLayer = document.createElement("div");
     textLayer.className = "textLayer";
     pageDiv.appendChild(textLayer);
-    handlers[PDF_VIEWER_EVENTS.ANNOTATION.CREATED]({ annotation });
+    mockAnnotationStore.set({ annotations: [annotation] });
 
     const { onJump } = mockHighlightActionMenuInstance.options;
     eventBus.emit.mockClear();
@@ -201,7 +241,7 @@ describe("TextHighlightTool integration with action menu", () => {
     const textLayer = document.createElement("div");
     textLayer.className = "textLayer";
     pageDiv.appendChild(textLayer);
-    handlers[PDF_VIEWER_EVENTS.ANNOTATION.CREATED]({ annotation });
+    mockAnnotationStore.set({ annotations: [annotation] });
 
     const { onTranslate } = mockHighlightActionMenuInstance.options;
     eventBus.emit.mockClear();
@@ -221,15 +261,12 @@ describe("TextHighlightTool integration with action menu", () => {
     );
   });
 
-  it("renders existing highlights immediately when text layer is ready on data load", () => {
+  it("renders highlights when store updates and text layer is ready", () => {
     const annotation = createAnnotation();
     const textLayer = document.createElement("div");
     textLayer.className = "textLayer";
     pageDiv.appendChild(textLayer);
-
-    const dataLoadedHandler = handlers[PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED];
-    expect(typeof dataLoadedHandler).toBe("function");
-    dataLoadedHandler({ annotations: [annotation] });
+    mockAnnotationStore.set({ annotations: [annotation] });
 
     expect(mockHighlightRendererInstance.renderHighlight).toHaveBeenCalledWith(
       annotation.pageNumber,
@@ -242,9 +279,7 @@ describe("TextHighlightTool integration with action menu", () => {
 
   it("queues highlight rendering until text layer finished rendering", () => {
     const annotation = createAnnotation();
-    const dataLoadedHandler = handlers[PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED];
-    expect(typeof dataLoadedHandler).toBe("function");
-    dataLoadedHandler({ annotations: [annotation] });
+    mockAnnotationStore.set({ annotations: [annotation] });
 
     expect(mockHighlightRendererInstance.renderHighlight).not.toHaveBeenCalled();
 
@@ -263,5 +298,25 @@ describe("TextHighlightTool integration with action menu", () => {
       annotation.id,
       annotation.data.lineRects
     );
+  });
+
+  it("removes highlight overlay when store deletes the annotation", () => {
+    const annotation = createAnnotation();
+    const textLayer = document.createElement("div");
+    textLayer.className = "textLayer";
+    pageDiv.appendChild(textLayer);
+
+    mockAnnotationStore.set({ annotations: [annotation] });
+    expect(mockHighlightRendererInstance.renderHighlight).toHaveBeenCalled();
+
+    mockHighlightRendererInstance.renderHighlight.mockClear();
+    mockHighlightRendererInstance.removeHighlight.mockClear();
+    mockHighlightActionMenuInstance.detach.mockClear();
+
+    mockAnnotationStore.set({ annotations: [] });
+
+    expect(mockHighlightRendererInstance.removeHighlight).toHaveBeenCalledWith(annotation.id);
+    expect(mockHighlightActionMenuInstance.detach).toHaveBeenCalledWith(annotation.id);
+    expect(mockHighlightRendererInstance.renderHighlight).not.toHaveBeenCalled();
   });
 });

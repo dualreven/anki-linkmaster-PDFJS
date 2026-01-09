@@ -6,8 +6,6 @@ export class HighlightOverlayController {
   /** @type {any} */
   #pdfViewerManager;
   /** @type {any} */
-  #container;
-  /** @type {any} */
   #highlightRenderer;
   /** @type {any} */
   #actionMenu;
@@ -18,10 +16,12 @@ export class HighlightOverlayController {
   /** @type {PendingHighlightQueue} */
   #pendingQueue = new PendingHighlightQueue();
 
-  constructor({ logger, pdfViewerManager, container, highlightRenderer, actionMenu }) {
+  /** @type {Map<number, any[]>} */
+  #latestHighlightsByPage = new Map();
+
+  constructor({ logger, pdfViewerManager, highlightRenderer, actionMenu }) {
     this.#logger = logger ?? console;
     this.#pdfViewerManager = pdfViewerManager ?? null;
-    this.#container = container ?? null;
     this.#highlightRenderer = highlightRenderer;
     this.#actionMenu = actionMenu;
   }
@@ -29,6 +29,49 @@ export class HighlightOverlayController {
   clear() {
     this.#records.clear();
     this.#pendingQueue.clear();
+    this.#latestHighlightsByPage.clear();
+  }
+
+  /**
+   * 订阅 AnnotationManager.store 后，用 snapshot/diff 驱动 overlay 增删改。
+   * @param {any[]|undefined|null} annotations
+   */
+  applyAnnotationsSnapshot(annotations) {
+    const list = Array.isArray(annotations) ? annotations : [];
+    const highlightAnnotations = list.filter((ann) => ann?.type === "text-highlight" && ann?.id);
+
+    const nextIds = new Set(highlightAnnotations.map((a) => a.id));
+
+    // 删除：records 中存在但 snapshot 中不存在的高亮
+    for (const id of Array.from(this.#records.keys())) {
+      if (!nextIds.has(id)) {
+        this.handleAnnotationDeleted(id);
+      }
+    }
+
+    // 删除：pending queue 中存在但 snapshot 中不存在的高亮
+    this.#pendingQueue.pruneNotIn(nextIds);
+
+    // 更新：按 snapshot 逐条渲染/刷新（render 内部会处理“已存在且容器仍有效”的快路径）
+    highlightAnnotations.forEach((annotation) => {
+      this.renderHighlightForAnnotation(annotation);
+    });
+
+    // 缓存：用于 page render/scale 恢复时按页重建
+    const byPage = new Map();
+    highlightAnnotations.forEach((annotation) => {
+      const pn = Number(annotation?.pageNumber || 0);
+      if (!pn) {
+        return;
+      }
+      let bucket = byPage.get(pn);
+      if (!bucket) {
+        bucket = [];
+        byPage.set(pn, bucket);
+      }
+      bucket.push(annotation);
+    });
+    this.#latestHighlightsByPage = byPage;
   }
 
   /**
@@ -105,16 +148,7 @@ export class HighlightOverlayController {
    * @param {{ annotations?: any[] }} data
    */
   handleAnnotationsLoaded(data) {
-    const annotations = Array.isArray(data?.annotations) ? data.annotations : [];
-    const highlightAnnotations = annotations.filter((ann) => ann?.type === "text-highlight");
-
-    this.#actionMenu?.destroy?.();
-    this.#highlightRenderer.clearAllHighlights();
-    this.clear();
-
-    highlightAnnotations.forEach((annotation) => {
-      this.renderHighlightForAnnotation(annotation);
-    });
+    this.applyAnnotationsSnapshot(Array.isArray(data?.annotations) ? data.annotations : []);
   }
 
   /**
@@ -127,16 +161,8 @@ export class HighlightOverlayController {
     }
 
     try {
-      const mgr = this.#container?.get ? this.#container.get("annotationManager") : null;
-      if (!mgr || typeof mgr.getAnnotationsByPage !== "function") {
-        return;
-      }
-      const list = mgr.getAnnotationsByPage(pn) || [];
-      list.forEach((ann) => {
-        if (ann?.type === "text-highlight") {
-          this.renderHighlightForAnnotation(ann);
-        }
-      });
+      const list = this.#latestHighlightsByPage.get(pn) || [];
+      list.forEach((ann) => this.renderHighlightForAnnotation(ann));
     } catch (e) {
       this.#logger?.warn?.("[TextHighlightTool] restoreHighlightsForPage failed", e);
     }
