@@ -161,12 +161,7 @@ export class UIManagerCore {
       this.#unsubscribeFunctions.push(...eventListenersUnsubs);
 
       // Create coordinator
-      this.#coordinator = createInfraUICoordinator(
-        this.#eventBus,
-        this.#logger,
-        this.#uiControls,
-        this.#eventListeners
-      );
+      this.#coordinator = createInfraUICoordinator(this.#eventBus, this.#logger, this.#uiControls, this.#eventListeners, this.#uiLayoutControls);
       this.#unsubscribeFunctions.push(this.#coordinator.destroy);
 
       const { updateCopyButtonVisibility, unsubs: copyUnsubs } =

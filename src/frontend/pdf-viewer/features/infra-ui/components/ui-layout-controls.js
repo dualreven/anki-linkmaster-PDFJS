@@ -4,10 +4,8 @@
  */
 import { getLogger } from "../../../../common/utils/logger.js";
 import { showInfo } from "../../../../common/utils/notification.js";
-import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 export class UILayoutControls {
   #logger;
-  #eventBus;
   #layoutManager; // New dependency
   #pdfViewerManager;
   #scrollModeSelect = null;
@@ -28,9 +26,7 @@ export class UILayoutControls {
   #scrollStartY = 0;
   #unsubscribe = null;
   #domCleanupFns = [];
-  #eventBusUnsubs = [];
-  constructor(eventBus, layoutManager) {
-    this.#eventBus = eventBus;
+  constructor(layoutManager) {
     this.#layoutManager = layoutManager;
     this.#logger = getLogger("UILayoutControls");
   }
@@ -67,17 +63,11 @@ export class UILayoutControls {
         }
       }, { fireImmediately: true });
     }
-    // 监听渲染模式变化（使用事件常量，位于 VIEW_MODE 命名空间）
-    this.#eventBusUnsubs.push(this.#eventBus.on(
-      PDF_VIEWER_EVENTS.VIEW_MODE.RENDER_MODE_CHANGED,
-      this.#handleRenderModeChange.bind(this),
-      { subscriberId: "UILayoutControls.setup:2" }
-    ));
 
     this.#logger.info("Layout controls initialized");
   }
 
-  #handleRenderModeChange(data) {
+  onRenderModeChanged(data) {
     const isPDFViewerMode = data?.newMode === "pdfviewer";
     this.#setControlsEnabled(isPDFViewerMode);
   }
@@ -451,10 +441,6 @@ export class UILayoutControls {
   }
 
   destroy() {
-    // 清理 EventBus 订阅（避免 destroy 后幽灵行为）
-    this.#eventBusUnsubs.forEach((unsub) => unsub());
-    this.#eventBusUnsubs = [];
-
     // 清理 DOM listener（必须在置空 DOM 引用前执行）
     this.#domCleanupFns.forEach((fn) => fn());
     this.#domCleanupFns = [];

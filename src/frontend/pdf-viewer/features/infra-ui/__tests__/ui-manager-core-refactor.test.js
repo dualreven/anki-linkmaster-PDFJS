@@ -39,12 +39,14 @@ describe("UIManagerCore", () => {
     // Mock initialize function to avoid DOM access
     uiManager.initialize = jest.fn().mockImplementation(async function () {
       this._UIManagerCore__uiControls = new UIControls();
+      this._UIManagerCore__uiLayoutControls = { onRenderModeChanged: jest.fn() };
       this._UIManagerCore__eventListeners = new EventListeners();
       this._UIManagerCore__coordinator = createInfraUICoordinator(
         eventBus,
         logger,
         this._UIManagerCore__uiControls,
-        this._UIManagerCore__eventListeners
+        this._UIManagerCore__eventListeners,
+        this._UIManagerCore__uiLayoutControls
       );
     });
 
@@ -55,7 +57,8 @@ describe("UIManagerCore", () => {
       expect.any(Object), // eventBus
       expect.any(Object), // logger
       expect.any(UIControls),
-      expect.any(EventListeners)
+      expect.any(EventListeners),
+      expect.any(Object)
     );
   });
 

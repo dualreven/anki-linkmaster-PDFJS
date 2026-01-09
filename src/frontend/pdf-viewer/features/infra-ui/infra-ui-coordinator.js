@@ -13,7 +13,8 @@ export function createInfraUICoordinator(
   eventBus,
   logger,
   uiControls,
-  eventListeners
+  eventListeners,
+  uiLayoutControls
 ) {
   const unsubs = [];
 
@@ -88,6 +89,17 @@ export function createInfraUICoordinator(
       { subscriberId: "InfraUICoordinator.PageSync" }
     )
   );
+
+  // From ui-layout-controls.js
+  if (uiLayoutControls && typeof uiLayoutControls.onRenderModeChanged === "function") {
+    unsubs.push(
+      eventBus.on(
+        PDF_VIEWER_EVENTS.VIEW_MODE.RENDER_MODE_CHANGED,
+        (data) => uiLayoutControls.onRenderModeChanged(data),
+        { subscriberId: "InfraUICoordinator.ViewModeRenderModeChanged" }
+      )
+    );
+  }
 
   // From ui-manager-core-event-listeners.js
   unsubs.push(

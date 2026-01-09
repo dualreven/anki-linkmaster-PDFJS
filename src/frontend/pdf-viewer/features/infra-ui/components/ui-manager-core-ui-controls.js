@@ -144,7 +144,7 @@ export async function initializeUIManagerControls(ctx) {
 
   let uiLayoutControls = null;
   if (pdfViewerManager) {
-    uiLayoutControls = new UILayoutControls(eventBus, layoutManager); // Pass Manager
+    uiLayoutControls = new UILayoutControls(layoutManager); // Pass Manager
     uiLayoutControls.setup(pdfViewerManager);
     logger.info("UILayoutControls initialized");
   } else {
