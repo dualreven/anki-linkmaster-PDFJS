@@ -6,15 +6,15 @@ describe("DOMElementManager contract", () => {
   });
 
   test("fails fast when viewer container missing", () => {
-    document.body.innerHTML = "<div id=\"pdf-container\"></div>";
+    document.body.innerHTML = "<div></div>";
     const manager = new DOMElementManager();
     expect(() => manager.initializeElements()).toThrow(
-      /Missing required DOM elements: viewer-container/
+      /Missing required DOM elements: viewerContainer/
     );
   });
 
   test("initializes successfully when all required elements exist", () => {
-    document.body.innerHTML = "<div id=\"pdf-container\"></div><div id=\"viewer-container\"></div>";
+    document.body.innerHTML = "<div id=\"viewerContainer\"></div>";
     const manager = new DOMElementManager();
     const elements = manager.initializeElements();
     expect(elements.container).not.toBeNull();

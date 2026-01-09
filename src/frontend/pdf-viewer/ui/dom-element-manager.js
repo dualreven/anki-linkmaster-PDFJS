@@ -8,8 +8,8 @@ import { DOMUtils } from "../../common/utils/dom-utils.js";
 import { getLogger } from "../../common/utils/logger.js";
 
 const REQUIRED_ELEMENTS = [
-  { prop: "container", id: "pdf-container" },
-  { prop: "viewerContainer", id: "viewer-container" }
+  // 真实运行时 DOM（src/frontend/pdf-viewer/index.html）使用 id="viewerContainer"
+  { prop: "viewerContainer", id: "viewerContainer" }
 ];
 
 /**
@@ -31,9 +31,10 @@ export class DOMElementManager {
   initializeElements() {
     this.#logger.info("Initializing DOM elements...");
 
-    // 查找主容器（新版仅依赖 viewerContainer）
-    this.#elements.container = DOMUtils.getElementById("pdf-container");
-    this.#elements.viewerContainer = DOMUtils.getElementById("viewer-container");
+    // 查找主容器（运行时使用 viewerContainer）
+    this.#elements.viewerContainer = DOMUtils.getElementById("viewerContainer");
+    // 兼容旧字段命名：container 直接指向 viewerContainer
+    this.#elements.container = this.#elements.viewerContainer;
 
     // 查找控制按钮
     this.#elements.prevPageBtn = DOMUtils.getElementById("prev-page");
@@ -67,10 +68,6 @@ export class DOMElementManager {
    * @private
    */
   #validateElements() {
-    if (!this.#elements.container) {
-      this.#logger.info("Container element not found, will create one");
-    }
-
     this.#ensureRequiredElements();
   }
 
