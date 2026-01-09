@@ -76,11 +76,7 @@ export class KeyboardHandler {
 
       // 清理旧的 DomEventHub 订阅
       if (this.#keydownUnsubscribe) {
-        try {
-          this.#keydownUnsubscribe();
-        } catch (e) {
-          this.#logger.warn("Keyboard handler unsubscribe previous keydown listener failed", e);
-        }
+        this.#keydownUnsubscribe();
         this.#keydownUnsubscribe = null;
       }
 
@@ -92,11 +88,7 @@ export class KeyboardHandler {
 
     // 使用 document：若之前走 DomEventHub，必须先解绑；重复 setup 不应重复 add
     if (this.#keydownUnsubscribe) {
-      try {
-        this.#keydownUnsubscribe();
-      } catch (e) {
-        this.#logger.warn("Keyboard handler DomEventHub unsubscribe failed", e);
-      }
+      this.#keydownUnsubscribe();
       this.#keydownUnsubscribe = null;
       this.#attachedDomEventHub = null;
     }
@@ -115,11 +107,7 @@ export class KeyboardHandler {
    */
   removeEventListener() {
     if (this.#keydownUnsubscribe) {
-      try {
-        this.#keydownUnsubscribe();
-      } catch (e) {
-        this.#logger.warn("Keyboard handler DomEventHub unsubscribe failed", e);
-      }
+      this.#keydownUnsubscribe();
       this.#keydownUnsubscribe = null;
       this.#attachedDomEventHub = null;
       this.#logger.info("Keyboard event listener removed via DomEventHub");
