@@ -23,12 +23,14 @@
   - `docs/reports/20260109-pdfviewer-core-ui-scan-E.md`
   - `docs/reports/20260108-pdfviewer-scan-D.md`
 - 任务目录：
-  - A（pdf-url-loader install 拆分）：`todo-and-doing/1 doing/20260110033516-pdf-url-loader-install-split-A/`
+  - A（P0：Annotation 模型单一真源）：`todo-and-doing/1 doing/20260110040857-annotation-model-single-source-A/`
   - B（ScreenshotTool store-reactive）：`todo-and-doing/1 doing/20260110033517-pdf-annotation-screenshot-store-reactive-B/`
   - C（adapters 去 URL pdfId 依赖）：`todo-and-doing/1 doing/20260110033518-adapters-pdfid-provider-C/`
   - D（debounce/throttle 可取消）：`todo-and-doing/1 doing/20260110033519-pdf-search-debounce-cancel-D/`
   - E（TextLayerManager 生命周期回归）：`todo-and-doing/1 doing/20260110033520-text-layer-manager-selection-lifecycle-E/`
+  - F（pdf-url-loader install 拆分，原 A 调整）：`todo-and-doing/1 doing/20260110040857-pdf-url-loader-install-split-F/`
 - 同步：已对 `anki-linkmaster-A/B/C/D/E` worktree 执行单向覆盖同步到 `main`（2026-01-10 03:45；`git reset --hard main` + `git clean -fd`）。
+  - 说明：旧 A（`20260110033516-pdf-url-loader-install-split-A`）已归档到 `todo-and-doing/4 archive/20260110040857-doing-archive/`。
 
 ## 2026-01-10：已知问题（延期）
 - KI-20260110-01：outline/search 组合操作偶发触发爆栈日志（`Maximum call stack size exceeded`），用户确认“不太重要”，暂不修复，仅文档化与建 todo。
