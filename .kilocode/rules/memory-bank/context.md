@@ -28,6 +28,7 @@
   - C（adapters 去 URL pdfId 依赖）：`todo-and-doing/1 doing/20260110033518-adapters-pdfid-provider-C/`
   - D（debounce/throttle 可取消）：`todo-and-doing/1 doing/20260110033519-pdf-search-debounce-cancel-D/`
   - E（TextLayerManager 生命周期回归）：`todo-and-doing/1 doing/20260110033520-text-layer-manager-selection-lifecycle-E/`
+- 同步：已对 `anki-linkmaster-A/B/C/D/E` worktree 执行单向覆盖同步到 `main`（2026-01-10 03:45；`git reset --hard main` + `git clean -fd`）。
 
 ## 2026-01-10：已知问题（延期）
 - KI-20260110-01：outline/search 组合操作偶发触发爆栈日志（`Maximum call stack size exceeded`），用户确认“不太重要”，暂不修复，仅文档化与建 todo。
