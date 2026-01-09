@@ -427,4 +427,61 @@ describe("StateManager", () => {
       expect(listener).toHaveBeenCalledWith(expect.objectContaining({ field: "batchUpdate" }));
     });
   });
+
+  describe("setMany()", () => {
+    test("批量更新多个字段时 STATE.CHANGED 只触发一次", () => {
+      stateManager = new StateManager(eventBus);
+
+      const listener = jest.fn();
+      eventBus.on(PDF_VIEWER_EVENTS.STATE.CHANGED, listener);
+
+      stateManager.setMany({
+        currentFile: "/many.pdf",
+        totalPages: 11,
+        currentPage: 4,
+        zoomLevel: 1.3
+      });
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(listener).toHaveBeenCalledWith(
+        expect.objectContaining({
+          field: "batchUpdate",
+          state: expect.objectContaining({
+            currentFile: "/many.pdf",
+            totalPages: 11,
+            currentPage: 4,
+            zoomLevel: 1.3
+          })
+        })
+      );
+    });
+
+    test("非法入参必须 throw", () => {
+      stateManager = new StateManager(eventBus);
+      // @ts-ignore - intentional invalid param
+      expect(() => stateManager.setMany()).toThrow();
+      // @ts-ignore - intentional invalid param
+      expect(() => stateManager.setMany(null)).toThrow();
+      // @ts-ignore - intentional invalid param
+      expect(() => stateManager.setMany(123)).toThrow();
+      // @ts-ignore - intentional invalid param
+      expect(() => stateManager.setMany([])).toThrow();
+      expect(() => stateManager.setMany({ unknownField: 1 })).toThrow();
+    });
+
+    test("batchUpdate 内调用 setMany 不应触发嵌套 batchUpdate", () => {
+      stateManager = new StateManager(eventBus);
+
+      const listener = jest.fn();
+      eventBus.on(PDF_VIEWER_EVENTS.STATE.CHANGED, listener);
+
+      stateManager.batchUpdate((sm) => {
+        sm.setMany({ currentPage: 2, zoomLevel: 1.2 });
+        sm.setTotalPages(10);
+      });
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(listener).toHaveBeenCalledWith(expect.objectContaining({ field: "batchUpdate" }));
+    });
+  });
 });

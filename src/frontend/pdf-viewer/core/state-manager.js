@@ -185,6 +185,72 @@ export class StateManager {
   }
 
   /**
+   * 批量设置多个字段（更直观的批量更新入口）。
+   *
+   * 规则：
+   * - `setMany({ ... })` 会尽量合并为一次 STATE.CHANGED（通过 `batchUpdate`）；
+   * - 若当前已处于 batchUpdate，则不会再次嵌套 batchUpdate（避免抛错），而是直接逐个调用 set*；
+   * - updates 只能包含支持的字段，未知字段会 Fail‑Fast throw。
+   *
+   * @param {Record<string, any>} updates
+   */
+  setMany(updates) {
+    if (updates === null || typeof updates !== "object" || Array.isArray(updates)) {
+      throw new Error("[StateManager] setMany(updates) requires a plain object");
+    }
+
+    const proto = Object.getPrototypeOf(updates);
+    if (proto !== Object.prototype && proto !== null) {
+      throw new Error("[StateManager] setMany(updates) requires a plain object");
+    }
+
+    const fields = Object.keys(updates);
+    if (fields.length === 0) {
+      return;
+    }
+
+    const allowedFields = new Set(["initialized", "currentFile", "currentPage", "totalPages", "zoomLevel"]);
+    for (const field of fields) {
+      if (!allowedFields.has(field)) {
+        throw new Error(`[StateManager] setMany does not support field: ${field}`);
+      }
+    }
+
+    const applyUpdates = () => {
+      for (const field of fields) {
+        switch (field) {
+        case "initialized":
+          this.setInitialized(updates[field]);
+          break;
+        case "currentFile":
+          this.setCurrentFile(updates[field]);
+          break;
+        case "currentPage":
+          this.setCurrentPage(updates[field]);
+          break;
+        case "totalPages":
+          this.setTotalPages(updates[field]);
+          break;
+        case "zoomLevel":
+          this.setZoomLevel(updates[field]);
+          break;
+        default:
+          throw new Error(`[StateManager] setMany does not support field: ${field}`);
+        }
+      }
+    };
+
+    if (this.#isBatching) {
+      applyUpdates();
+      return;
+    }
+
+    this.batchUpdate(() => {
+      applyUpdates();
+    });
+  }
+
+  /**
    * 显式批量更新：将多个 set* 合并为一次 STATE.CHANGED 事件发射。
    *
    * 规则：
