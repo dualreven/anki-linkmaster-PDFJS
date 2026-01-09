@@ -68,6 +68,14 @@
 ## 2026-01-09（完成）F：infra-nav / pdf-url-loader 面条化扫描报告
 - **产出**：`docs/reports/20260109-infra-nav-url-loader-scan-F.md`
 
+## 2026-01-09：手工点检反馈（P0 仍存在）
+- **现象**：仅在“搜索栏打开 + 点击大纲跳转”组合场景仍出现 `Maximum call stack size exceeded`。
+- **初步定位**：报错来源不再是 tracing 序列化；疑似 `pdf-viewer:navigation:goto` 的同步事件环（subscriberId：`InfraUICoordinator.NavGoto`）。
+
+## 2026-01-09：A~F 第三轮任务下发（进行中）
+- **协作约定（本轮）**：各 worktree 不要改 `memory-bank`；只改任务范围 + 任务目录 `working-log.md`；main 侧验收合入时统一更新 `memory-bank`，避免冲突。
+- **任务目录**：见 `todo-and-doing/1 doing/`（D 仅修复上述 P0 bug，其余为互不干扰的小步重构/回归测试）。
+
 ## 2026-01-09：并行工作树扩展（A~F）
 - 新增 worktree：E / F（基于 main），用于 6 AI 并行。
 - 新一轮任务（A~F）已下发至 `todo-and-doing/1 doing/`（见各任务目录 `v001-spec.md`）。
