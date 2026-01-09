@@ -1,6 +1,5 @@
 import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
 import { WEBSOCKET_MESSAGE_TYPES } from "../../common/event/event-constants.js";
-import { getCurrentPdfIdFromWindow } from "../shared/url-context.js";
 
 export function handleViewerNavigateMessage({
   message,
@@ -8,7 +7,8 @@ export function handleViewerNavigateMessage({
   eventBus,
   wsClient,
   logger,
-  viewerInstanceId
+  viewerInstanceId,
+  pdfIdProvider
 }) {
   try {
     const to = message?.to || {};
@@ -47,7 +47,7 @@ export function handleViewerNavigateMessage({
         return;
       }
 
-      const currentPdf = getCurrentPdfIdFromWindow();
+      const currentPdf = pdfIdProvider();
       if (targetPdf && currentPdf && targetPdf !== currentPdf) {
         logger.warn("[Navigate] ignore message: pdf_uuid mismatch", { targetPdf, currentPdf });
         wsClient.send({
@@ -69,7 +69,7 @@ export function handleViewerNavigateMessage({
     const routingKey = to.routing_key || null;
 
     if (targetClientId) {
-      const currentPdf = getCurrentPdfIdFromWindow();
+      const currentPdf = pdfIdProvider();
       const currentClientId = currentPdf ? `pdf-viewer-${currentPdf}` : null;
 
       if (currentClientId && targetClientId !== currentClientId) {
@@ -157,7 +157,7 @@ export function handleViewerNavigateMessage({
         positionPercent = pos;
       }
       const req = { pageAt: pageNumber };
-      const pdfId = to?.pdf_uuid || getCurrentPdfIdFromWindow();
+      const pdfId = to?.pdf_uuid || pdfIdProvider();
       if (pdfId) {
         req.pdfId = pdfId;
       }

@@ -8,16 +8,15 @@
 
 import { getLogger } from "../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
-import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../common/event/event-constants.js";
-import { markEventFired, runWithGate } from "../utils/event-gate-runner.js";
+import { WEBSOCKET_EVENTS } from "../../common/event/event-constants.js";
+import { markEventFired } from "../utils/event-gate-runner.js";
 import { getWsGateStatusStore } from "../../common/ws/ws-gate-status-store.js";
 import { createSubscriptionBag } from "../../common/ws/ws-subscription-bag.js";
 import { createMessageQueue } from "../../common/ws/ws-message-queue.js";
 import { handleViewerWsInbound } from "./ws-inbound-bridge.js";
 import { installWebSocketAdapterOutgoingHandlers } from "./websocket-adapter-outgoing-handlers.js";
-import { handleLoadPdfFileMessage } from "./websocket-adapter-load-pdf-file.js";
-import { handleViewerNavigateMessage } from "./websocket-adapter-viewer-navigate.js";
-import { getCurrentPdfIdFromWindow } from "../shared/url-context.js";
+import { createPdfIdProvider } from "./pdf-id-provider.js";
+
 /**
  * WebSocket适配器类
  * @class WebSocketAdapter
@@ -29,7 +28,7 @@ import { getCurrentPdfIdFromWindow } from "../shared/url-context.js";
  * 4. 路由分发：根据消息类型分发到对应处理器
  *
  * @example
- * const adapter = new WebSocketAdapter(wsClient, eventBus);
+ * const adapter = new WebSocketAdapter(wsClient, eventBus, createPdfIdProvider());
  * adapter.setupMessageHandlers();
  * adapter.onInitialized(); // 在应用初始化完成后调用
  */
@@ -57,12 +56,16 @@ export class WebSocketAdapter {
   /** @type {{ events: Record<string, {fired:boolean,count:number,lastPayload:any,lastAt:number}> }} */
   #eventStatusStore;
 
+  /** @type {() => string | null} */
+  #pdfIdProvider;
+
   /**
    * 创建WebSocket适配器实例
    * @param {import('../../common/ws/ws-client.js').WSClient} wsClient - WebSocket客户端实例
    * @param {import('../../common/event/event-bus.js').EventBus} eventBus - 事件总线实例
+   * @param {() => string | null} [pdfIdProvider] - 提供当前PDF ID的函数。
    */
-  constructor(wsClient, eventBus) {
+  constructor(wsClient, eventBus, pdfIdProvider) {
     if (!wsClient) {
       throw new Error("WebSocketAdapter: wsClient is required");
     }
@@ -77,6 +80,7 @@ export class WebSocketAdapter {
     this.#eventStatusStore = getWsGateStatusStore();
     this.#messageQueue = createMessageQueue({ loggerName: "WebSocketAdapter" });
     this.#subscriptions = createSubscriptionBag({ loggerName: "WebSocketAdapter" });
+    this.#pdfIdProvider = createPdfIdProvider(pdfIdProvider);
     this.#logger.debug("WebSocketAdapter instance created");
   }
 
@@ -173,7 +177,8 @@ export class WebSocketAdapter {
       eventBus: this.#eventBus,
       wsClient: this.#wsClient,
       logger: this.#logger,
-      subscriptions: this.#subscriptions
+      subscriptions: this.#subscriptions,
+      pdfIdProvider: this.#pdfIdProvider
     });
   }
 
@@ -202,141 +207,13 @@ export class WebSocketAdapter {
    * @param {Object} message - WebSocket消息
    */
   #routeMessage(message) {
-    const { type, data } = message;
-
-    this.#logger.debug(`Routing WebSocket message: ${type}`, data);
-
-    switch (type) {
-    case "load_pdf_file":
-      this.#handleLoadPdfFile(data);
-      break;
-
-    case "navigate_page":
-      this.#handleNavigatePage(data);
-      break;
-
-    case "set_zoom":
-      this.#handleSetZoom(data);
-      break;
-
-    case WEBSOCKET_MESSAGE_TYPES.VIEWER_NAVIGATE_REQUESTED: {
-      const correlationId = message?.request_id || null;
-      // 使用 gate 协议控制导航执行时机（如等待 RENDER.READY）
-      void runWithGate({
-        eventBus: this.#eventBus,
-        store: this.#eventStatusStore,
-        rawGate: message?.gate,
-        run: async () => {
-          this.#handleViewerNavigate(message, correlationId);
-        }
-      }).catch((error) => {
-        try {
-          this.#logger.warn("[Navigate] gate execution failed", error);
-        } catch (e) {
-          void e;
-        }
-        try {
-          this.#wsClient.send({
-            type: WEBSOCKET_MESSAGE_TYPES.VIEWER_NAVIGATE_FAILED,
-            request_id: correlationId,
-            error: {
-              code: "GATE_FAILED",
-              message: error?.message || String(error)
-            },
-            data: { viewer_id: this.#viewerInstanceId }
-          });
-        } catch (e) {
-          this.#logger.warn("[Navigate] failed to send gate failure response", e);
-        }
-      });
-      break;
-    }
-
-    default:
-      this.#logger.warn(`Unhandled WebSocket message type: ${type}`, {
-        message_keys: Object.keys(message),
-        has_to: !!message?.to,
-        has_data: !!message?.data,
-        message_type: type
-      });
-    }
-  }
-
-  // 处理加载PDF文件消息
-  #handleLoadPdfFile(data) {
-    handleLoadPdfFileMessage({
-      data,
-      eventBus: this.#eventBus,
-      logger: this.#logger
-    });
-  }
-
-  /**
-   * 处理页面导航消息
-   *
-   * @private
-   * @param {Object} data - 导航数据
-   */
-  #handleNavigatePage(data) {
-    const { page_number } = data;
-
-    if (typeof page_number !== "number") {
-      this.#logger.warn("Invalid navigate_page message: page_number must be a number", data);
-      return;
-    }
-
-    // 📤 统一走导航事件入口（pdfId 仅用于标识当前文档，不再由 URL 控制导航语义）
-    const pdfId = getCurrentPdfIdFromWindow();
-    this.#eventBus.emit(
-      PDF_VIEWER_EVENTS.NAVIGATION.URL_PARAMS.REQUESTED,
-      { pdfId: pdfId || undefined, pageAt: page_number },
-      { actorId: "WebSocketAdapter" }
-    );
-  }
-
-  /**
-   * 处理设置缩放消息
-   *
-   * @private
-   * @param {Object} data - 缩放数据
-   */
-  #handleSetZoom(data) {
-    const { level, scale } = data;
-
-    if (level === undefined && scale === undefined) {
-      this.#logger.warn("Invalid set_zoom message: must provide either level or scale", data);
-      return;
-    }
-
-    // 📤 发射事件: pdf-viewer:zoom:changed
-    // 监听者: features/pdf or features/ui
-    this.#eventBus.emit(
-      PDF_VIEWER_EVENTS.ZOOM.CHANGED,
-      { level, scale },
-      { actorId: "WebSocketAdapter" }
-    );
-  }
-
-  /**
-   * 处理跨实例导航消息（支持按 viewer_id 或 pdf_uuid 定向）
-   * @private
-   * @param {Object} data
-   * @param {string} [correlationId]
-   */
-  /**
-   * 处理 PDF Viewer 导航请求（支持新路由协议）
-   *
-   * @private
-   * @param {Object} message - 完整的 WebSocket 消息对象
-   * @param {string} correlationId - 请求关联 ID
-   */
-  #handleViewerNavigate(message, correlationId) {
-    handleViewerNavigateMessage({
+    this.#logger.debug(`Routing WebSocket message: ${message.type}`);
+    handleViewerWsInbound({
       message,
-      correlationId,
       eventBus: this.#eventBus,
       wsClient: this.#wsClient,
       logger: this.#logger,
+      pdfIdProvider: this.#pdfIdProvider,
       viewerInstanceId: this.#viewerInstanceId
     });
   }
@@ -426,6 +303,6 @@ export class WebSocketAdapter {
  * const adapter = createWebSocketAdapter(wsClient, eventBus);
  * adapter.setupMessageHandlers();
  */
-export function createWebSocketAdapter(wsClient, eventBus) {
-  return new WebSocketAdapter(wsClient, eventBus);
+export function createWebSocketAdapter(wsClient, eventBus, pdfIdProvider) {
+  return new WebSocketAdapter(wsClient, eventBus, pdfIdProvider);
 }

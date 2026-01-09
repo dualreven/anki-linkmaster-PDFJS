@@ -1,8 +1,7 @@
 import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
 import { WEBSOCKET_MESSAGE_TYPES } from "../../common/event/event-constants.js";
-import { getCurrentPdfIdFromWindow } from "../shared/url-context.js";
 
-export function installWebSocketAdapterOutgoingHandlers({ eventBus, wsClient, logger, subscriptions }) {
+export function installWebSocketAdapterOutgoingHandlers({ eventBus, wsClient, logger, subscriptions, pdfIdProvider }) {
   const unsubscribe1 = eventBus.on(
     PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS,
     (data) => {
@@ -13,7 +12,7 @@ export function installWebSocketAdapterOutgoingHandlers({ eventBus, wsClient, lo
       });
 
       try {
-        const pdfId = getCurrentPdfIdFromWindow();
+        const pdfId = pdfIdProvider();
         if (pdfId && typeof pdfId === "string" && pdfId.trim()) {
           const now = Date.now();
           const reqId = `update_visited_${now}_${Math.random().toString(36).slice(2, 8)}`;
@@ -72,7 +71,7 @@ export function installWebSocketAdapterOutgoingHandlers({ eventBus, wsClient, lo
     { subscriberId: "WebSocketAdapter" }
   );
 
-  const getPdfId = () => getCurrentPdfIdFromWindow();
+  const getPdfId = pdfIdProvider;
 
   const unsubA1 = eventBus.on(
     PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD,

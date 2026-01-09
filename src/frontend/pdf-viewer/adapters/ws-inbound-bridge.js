@@ -9,8 +9,9 @@ import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
 import { WEBSOCKET_MESSAGE_TYPES } from "../../common/event/event-constants.js";
 import { runWsInboundHandlers } from "../../common/ws/ws-inbound-executor.js";
 import { shouldEmitWsInboundDomainEventOnce } from "./ws-inbound-bridge-contract.js";
+import { pdfViewerInboundHandlers } from "./ws-inbound-handlers.js";
 
-const inboundHandlers = [
+const domainInboundHandlers = [
   {
     match: ({ type }) => type.startsWith("pdf-viewer:outline-"),
     handle: ({ message, eventBus, wsClient, logger }) => {
@@ -156,13 +157,15 @@ const inboundHandlers = [
  * @param {import("../../common/event/event-bus.js").EventBus} params.eventBus
  * @param {import("../../common/ws/ws-client.js").WSClient} params.wsClient
  * @param {import("../../common/utils/logger.js").Logger} params.logger
+ * @param {() => string | null} params.pdfIdProvider
  */
-export function handleViewerWsInbound({ message, eventBus, wsClient, logger }) {
+export function handleViewerWsInbound({ message, eventBus, wsClient, logger, pdfIdProvider }) {
   runWsInboundHandlers({
     message,
-    handlers: inboundHandlers,
+    handlers: [...pdfViewerInboundHandlers, ...domainInboundHandlers],
     eventBus,
     wsClient,
-    logger
+    logger,
+    pdfIdProvider
   });
 }
