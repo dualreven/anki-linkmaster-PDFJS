@@ -69,7 +69,9 @@ export class PDFUrlLoaderFeature {
     this.#logger.info(`安装 ${this.name} Feature v${this.version}...`);
     this.#configureLogLevels();
     this.#container = this.#resolveContainer(context);
-    this.#resolveDependencies(context);
+    const { eventBus, navigationService } = this.#resolveDependencies(context);
+    this.#eventBus = eventBus;
+    this.#navigationService = navigationService;
 
     const parsedParams = this.#parseUrlParams();
     await this.#processUrlParams(parsedParams);
@@ -97,29 +99,36 @@ export class PDFUrlLoaderFeature {
   }
 
   #resolveDependencies(context) {
-    this.#eventBus = context?.globalEventBus || null;
-
-    if (!this.#eventBus && this.#container && typeof this.#container.get === "function") {
+    let eventBus = context?.globalEventBus || null;
+    if (!eventBus && this.#container && typeof this.#container.get === "function") {
       try {
-        this.#eventBus = this.#container.get("eventBus");
+        eventBus = this.#container.get("eventBus");
       } catch {
-        this.#eventBus = null;
+        eventBus = null;
       }
     }
 
-    if (!this.#eventBus) {
+    if (!eventBus) {
       throw new Error("EventBus未在容器或context中找到");
     }
 
-    try {
-      this.#navigationService = this.#container.get("navigationService");
-    } catch {
-      this.#navigationService = null;
+    let navigationService = null;
+    if (this.#container && typeof this.#container.get === "function") {
+      try {
+        navigationService = this.#container.get("navigationService");
+      } catch {
+        navigationService = null;
+      }
     }
 
-    if (!this.#navigationService) {
+    if (!navigationService) {
       throw new Error("[url-navigation] navigationService 未在容器中找到，请确保 core-navigation Feature 已安装");
     }
+
+    return {
+      eventBus,
+      navigationService
+    };
   }
 
   #parseUrlParams() {

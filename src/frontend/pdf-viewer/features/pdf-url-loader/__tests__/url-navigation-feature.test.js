@@ -76,6 +76,12 @@ describe("PDFUrlLoaderFeature", () => {
       await expect(feature.install(emptyContainer)).rejects.toThrow("EventBus未在容器或context中找到");
     });
 
+    test("安装时缺少NavigationService应该抛出错误", async () => {
+      const partialContainer = new DependencyContainer();
+      partialContainer.register("eventBus", mockEventBus);
+      await expect(feature.install(partialContainer)).rejects.toThrow("[url-navigation] navigationService 未在容器中找到");
+    });
+
     test("卸载后应清理所有监听器", async () => {
       const cleanupFns = [];
       mockEventBus.on.mockImplementation(() => {
