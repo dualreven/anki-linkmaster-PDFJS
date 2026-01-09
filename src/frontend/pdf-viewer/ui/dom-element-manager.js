@@ -7,6 +7,11 @@
 import { DOMUtils } from "../../common/utils/dom-utils.js";
 import { getLogger } from "../../common/utils/logger.js";
 
+const REQUIRED_ELEMENTS = [
+  { prop: "container", id: "pdf-container" },
+  { prop: "viewerContainer", id: "viewer-container" }
+];
+
 /**
  * DOM元素管理器类
  * 负责初始化、管理和清理所有DOM元素
@@ -66,7 +71,18 @@ export class DOMElementManager {
       this.#logger.info("Container element not found, will create one");
     }
 
-    // 新版：不再支持 legacy canvas/text/annotationLayer 的自动创建
+    this.#ensureRequiredElements();
+  }
+
+  #ensureRequiredElements() {
+    const missing = REQUIRED_ELEMENTS.filter(({ prop }) => !this.#elements[prop]);
+    if (missing.length === 0) {
+      return;
+    }
+
+    const message = `Missing required DOM elements: ${missing.map(entry => entry.id).join(", ")}`;
+    this.#logger.error(message);
+    throw new Error(message);
   }
 
   /**
