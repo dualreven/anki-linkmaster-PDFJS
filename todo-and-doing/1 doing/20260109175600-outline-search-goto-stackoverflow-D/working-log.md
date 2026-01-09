@@ -31,3 +31,6 @@
 ### 验证记录
 - [x] `pnpm -s run lint`
 - [x] `pnpm exec jest --runTestsByPath "src/frontend/pdf-viewer/features/infra-ui/__tests__/infra-ui-nav-goto.stackoverflow.regression.test.js" -i`
+
+### 交付信息
+- commit：`75936a2`
