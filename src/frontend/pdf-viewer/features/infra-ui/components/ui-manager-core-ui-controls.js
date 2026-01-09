@@ -6,6 +6,7 @@ export class UIControls {
   #pdfViewerManager;
   #zoomManager;
   #uiZoomControls;
+  #isGoToPageInProgress = false;
 
   constructor(
     logger,
@@ -76,6 +77,10 @@ export class UIControls {
     const targetPage = data?.pageNumber;
     const totalPages = this.#pdfViewerManager.pagesCount;
 
+    if (this.#isGoToPageInProgress) {
+      return;
+    }
+
     // 防止同步递归闭环：当上游已在目标页时，不应再次 set currentPageNumber
     // （某些环境下 set currentPageNumber 可能会触发同步事件链，再次 emit NAVIGATION.GOTO）
     try {
@@ -87,7 +92,12 @@ export class UIControls {
     }
 
     if (targetPage && targetPage >= 1 && targetPage <= totalPages) {
-      this.#pdfViewerManager.currentPageNumber = targetPage;
+      this.#isGoToPageInProgress = true;
+      try {
+        this.#pdfViewerManager.currentPageNumber = targetPage;
+      } finally {
+        this.#isGoToPageInProgress = false;
+      }
       this.#logger.info(`Navigate to page: ${targetPage}`);
     } else {
       this.#logger.warn(

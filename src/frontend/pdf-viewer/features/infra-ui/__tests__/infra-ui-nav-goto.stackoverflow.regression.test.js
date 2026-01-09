@@ -73,5 +73,65 @@ describe("InfraUI NAVIGATION.GOTO — prevent sync recursion (regression)", () =
     expect(hasCallbackErrorLog).toBe(false);
     expect(emitCount).toBe(1);
   });
-});
 
+  test("NAVIGATION.GOTO handler should ignore re-entrant GOTO even when page number differs", () => {
+    const logger = createLogger();
+    const eventBus = new EventBus({ enableValidation: false, enableTracing: false, logger, moduleName: "TestBus" });
+
+    let emitCount = 0;
+    let currentPageNumber = 1;
+    const pdfViewerManager = {
+      pagesCount: 999,
+    };
+
+    Object.defineProperty(pdfViewerManager, "currentPageNumber", {
+      configurable: true,
+      enumerable: true,
+      get: () => currentPageNumber,
+      set: (v) => {
+        currentPageNumber = v;
+        emitCount += 1;
+
+        // 模拟“翻页时触发另一个页码的 GOTO”导致的同步闭环（1↔2 来回）
+        if (emitCount > 10) {
+          throw new RangeError("Maximum call stack size exceeded");
+        }
+
+        const nextPage = v === 5 ? 6 : 5;
+        eventBus.emit(
+          PDF_VIEWER_EVENTS.NAVIGATION.GOTO,
+          { pageNumber: nextPage, positionPercent: null },
+          { actorId: "PdfViewerManagerStub" }
+        );
+      }
+    });
+
+    const uiControls = new UIControls(logger, pdfViewerManager, null, { updatePageInfo: jest.fn() });
+    const eventListeners = {
+      onZoomChanged: jest.fn(),
+      onFileLoadRequested: jest.fn(),
+      onFileLoadSuccess: jest.fn(),
+      onFileLoadFailed: jest.fn(),
+      onUrlParamsParsed: jest.fn(),
+      onWebSocketResponse: jest.fn(),
+      onWebSocketError: jest.fn(),
+    };
+
+    const coordinator = createInfraUICoordinator(eventBus, logger, uiControls, eventListeners);
+
+    eventBus.emit(
+      PDF_VIEWER_EVENTS.NAVIGATION.GOTO,
+      { pageNumber: 5, positionPercent: null },
+      { actorId: "Test" }
+    );
+
+    coordinator.destroy();
+
+    const hasStackOverflowLog = logger.error.mock.calls.some((args) => String(args?.[0] || "").includes("Maximum call stack size exceeded"));
+    const hasCallbackErrorLog = logger.error.mock.calls.some((args) => String(args?.[0] || "").includes("事件回调执行出错"));
+
+    expect(hasStackOverflowLog).toBe(false);
+    expect(hasCallbackErrorLog).toBe(false);
+    expect(emitCount).toBe(1);
+  });
+});
