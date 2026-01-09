@@ -206,15 +206,24 @@ export class StateManager {
     this.#batchChangesByField = new Map();
     this.#batchFieldOrder = [];
 
+    /** @type {any} */
+    let thrownError = null;
     try {
       fn(this);
+    } catch (e) {
+      thrownError = e;
     } finally {
       this.#isBatching = false;
 
       const changes = this.#drainBatchChanges();
-      if (changes.length > 0) {
+      // 约定：batchUpdate(fn) 内 throw 时，不发 STATE.CHANGED（避免发出“部分成功”的聚合事件）
+      if (!thrownError && changes.length > 0) {
         this.#emitBatchStateChanged(changes);
       }
+    }
+
+    if (thrownError) {
+      throw thrownError;
     }
   }
 

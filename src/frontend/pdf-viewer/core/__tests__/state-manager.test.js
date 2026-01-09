@@ -401,5 +401,30 @@ describe("StateManager", () => {
         });
       }).toThrow();
     });
+
+    test("fn throw 后必须恢复可用状态，且 throw 场景不发 STATE.CHANGED", () => {
+      stateManager = new StateManager(eventBus);
+
+      const listener = jest.fn();
+      eventBus.on(PDF_VIEWER_EVENTS.STATE.CHANGED, listener);
+
+      expect(() => {
+        stateManager.batchUpdate((sm) => {
+          sm.setCurrentPage(2);
+          throw new Error("boom");
+        });
+      }).toThrow("boom");
+
+      // throw 时不发 batchUpdate 的聚合事件
+      expect(listener).not.toHaveBeenCalled();
+
+      // 后续仍可继续 batchUpdate（不应误判为嵌套/坏状态）
+      stateManager.batchUpdate((sm) => {
+        sm.setCurrentPage(3);
+        sm.setZoomLevel(1.1);
+      });
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(listener).toHaveBeenCalledWith(expect.objectContaining({ field: "batchUpdate" }));
+    });
   });
 });
