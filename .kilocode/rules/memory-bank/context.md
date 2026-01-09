@@ -28,6 +28,10 @@
 - D：`todo-and-doing/1 doing/20260110014111-pdf-search-dom-manager-extract-D/`
 - E：`todo-and-doing/1 doing/20260110014111-ui-keyboard-handler-idempotent-cleanup-E/`
 
+## 2026-01-10：清理 ABCDE 旧任务目录（已归档）
+- 说明：`todo-and-doing/1 doing/202601092234**-*` 为旧一轮下发目录，未开始编码且无交付 commit；为避免继续误读为“当前任务”，已按约定移入 archive。
+- 归档位置：`todo-and-doing/4 archive/20260110022652-doing-archive/`
+
 ## 2026-01-10：Card Planner（F/G/H）合入 main（已通过门禁，待手工点检）
 - 合入内容：
   - F（MsgCenter 后端）：`annotation:bulk-get:requested` handler + 单测（`ba015ae`）
