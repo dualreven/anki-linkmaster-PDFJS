@@ -75,6 +75,7 @@
 ## 2026-01-09：A~F 第三轮任务下发（进行中）
 - **协作约定（本轮）**：各 worktree 不要改 `memory-bank`；只改任务范围 + 任务目录 `working-log.md`；main 侧验收合入时统一更新 `memory-bank`，避免冲突。
 - **任务目录**：见 `todo-and-doing/1 doing/`（D 仅修复上述 P0 bug，其余为互不干扰的小步重构/回归测试）。
+- **流程文档**：并行调度/验收合入的固定流程已沉淀到 `.kilocode/rules/memory-bank/workflow-parallel-worktrees.md`。
 
 ## 2026-01-09：并行工作树扩展（A~F）
 - 新增 worktree：E / F（基于 main），用于 6 AI 并行。
