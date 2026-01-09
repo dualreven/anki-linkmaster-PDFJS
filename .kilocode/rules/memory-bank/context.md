@@ -6,12 +6,15 @@
 - **目标**：把 `src/frontend/pdf-viewer/**` 中“事件驱动 + 状态驱动混杂、职责过载、订阅泄漏”等面条化热点拆分并加回归测试。
 - **并行扫描（已完成）**：
   - 已给 A/B/C/D 下发 `pdfviewer-spaghetti-scan-*` doing；各自输出扫描报告到各 worktree 的 `AItemp/reports/*-pdfviewer-scan-*.md`（注意：`AItemp/` 被 gitignore）。
-- **当前阻塞点**：扫描报告需要**复制到 repo 内可提交路径**（建议 `docs/reports/`）才能在 `main` 汇总、追踪与拆分重构任务。
-- **下一步（main 侧）**：
-  1) 收敛 A/B/C/D 扫描报告到 `docs/reports/`；
-  2) 生成一份 P0/P1 汇总与“下一轮并行重构拆分清单”（按模块边界拆任务，互不干扰）；
-  3) 归档旧 doing 并下发新 doing；
-  4) `pnpm -s run lint` + 必要 Jest 门禁通过后，同步到 A/B/C/D。
+- **扫描汇总（已完成）**：
+  - 扫描报告与汇总计划已入库：`docs/reports/PDFVIEWER_SPAGHETTI_REMEDIATION_PLAN_20260109.md`。
+- **第一轮并行重构（已合入 main，待手工点检）**：
+  - A(adapters)：`feat(pdf-viewer-adapters): converge inbound routing and decouple pdfId`
+  - B(infra-ui)：`refactor(infra-ui): introduce coordinator and slim ui-manager-core`
+  - C(pdf-annotation)：`refactor(pdf-annotation): make screenshot tool store-reactive`
+  - D(bootstrap/search/outline)：`fix(pdf-viewer): cleanup bootstrap zoom guard; tighten search/outline`
+  - 门禁：`pnpm -s run lint` + 关键 Jest 路径通过（由 main 侧统一跑）。
+- **下一步**：用户使用 `gui_launcher` 手工点检上述行为；如发现 bug，按责任模块下发新的 doing 并同步给对应 worktree。
 
 ## 近期关键事实（已完成/可复用）
 
@@ -33,4 +36,3 @@
 ### 2026-01-05：标注侧边栏空白兼容修复（已完成）
 - **根因**：历史 screenshot 数据仅含像素 `rect`，缺少 `rectPercent`；严格解析导致“一条坏数据拖垮整批”。
 - **修复策略**：兼容 legacy 字段并逐条解析跳过坏条，避免 UI 全空白。
-
