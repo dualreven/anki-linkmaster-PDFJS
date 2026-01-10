@@ -103,11 +103,13 @@
 
 ## 2026-01-10：Card Planner 手工测试能力补齐（F/G/H/I 新任务下发）
 - 背景：当前环境不具备“外部条件”注入/创建草稿卡与联调回执，需补齐可手工点检入口。
-- 任务目录（doing）：
-  - F（gui_launcher 一键注入样例草稿卡）：`todo-and-doing/1 doing/20260110105623-card-planner-gui-launcher-manual-test-F/`
-  - G（UI 直接创建空卡）：`todo-and-doing/1 doing/20260110105623-card-planner-create-empty-card-G/`
-  - H（final-output 回执 toast 可见性）：`todo-and-doing/1 doing/20260110105623-card-planner-final-output-ack-ui-H/`
-  - I（final-output completed 回显 payload 便于验收）：`todo-and-doing/1 doing/20260110105623-card-planner-final-output-echo-I/`
+- 已交付（但人工验收失败，已归档）：`todo-and-doing/4 archive/20260110125102-doing-archive/`
+  - 失败：MsgCenter 拒绝 `to="new-card-scheduler"`；且 new-card-scheduler 出现多窗口（应全局唯一）。
+- 当前任务目录（doing v002）：
+  - F（修复注入 to=forward list）：`todo-and-doing/1 doing/20260110125102-card-planner-gui-launcher-inject-fix-F/`
+  - G（便于反复测试：清空草稿卡）：`todo-and-doing/1 doing/20260110125102-card-planner-reset-draft-cards-G/`
+  - H（注入可视化反馈：toast + render，且不回写 ingest 回执）：`todo-and-doing/1 doing/20260110125102-card-planner-ingest-visual-feedback-H/`
+  - I（new-card-scheduler 全局唯一：ensure 单例激活）：`todo-and-doing/1 doing/20260110125102-card-planner-new-card-scheduler-singleton-I/`
 
 ### 2026-01-10：H(final-output 回执 toast)（worktree 交付）
 - 交付（`worker/feature-H`）：`ea673af`（发送补齐 `request_id/timestamp`；订阅 `final-output:completed/failed` 并 toast；dispose 解绑；新增 Jest 回归测试）
