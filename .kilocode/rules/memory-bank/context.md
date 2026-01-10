@@ -103,8 +103,7 @@
 - 说明：本节非 PDFViewer 面条化主线；为满足 `context.md` 行数门禁，仅保留摘要（细节以 working-log 为准）。
 - 当前状态：v004 修复已合入 main（2026-01-10），用于解决 Step3 注入“queued 但未生效”的链路缺口（客户端注册 + queued 自愈打开窗口 + ACK_META 可观测 + 注册状态可视）。
 - v004 人工验收：注入已成功；已归档：`todo-and-doing/4 archive/20260110212636-doing-archive/`。
-- 新问题（待修）：注入后出现 `标注元信息拉取失败：annotation:bulk-get 超时`（疑似重复 toast）。
-- v005 doing（已下发）：`todo-and-doing/1 doing/20260110212636-card-planner-*-F/G/H/I/`（修复 to 字段/failed 处理 + 后端 fail-fast + 可观测 + gui_launcher 自检）。
+- v005：已合入 main（2026-01-11），修复 `annotation:bulk-get` 超时（补 `to:"backend"` + 处理 `*:failed`）并补齐可观测/自检与回归测试；任务已归档：`todo-and-doing/4 archive/20260111000112-doing-archive/`。
 
 ## 2026-01-09：PDFViewer 面条化治理详细记录（已归档）
 - 说明：为满足 `context.md` 行数门禁（<200），已将 2026-01-09 的详细过程记录迁移到归档文件（不加载进上下文）。
