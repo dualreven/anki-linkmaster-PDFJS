@@ -232,6 +232,16 @@ class GUILauncher(QMainWindow):
         row_tools.addWidget(btn_custom_reviewer)
         lay.addLayout(row_tools)
 
+        row_ann_selftest = QHBoxLayout()
+        row_ann_selftest.addWidget(QLabel("ann_ids:"))
+        self.annotation_bulk_get_ann_ids_input = QLineEdit()
+        self.annotation_bulk_get_ann_ids_input.setText("ann_1,ann_2")
+        self.annotation_bulk_get_ann_ids_input.setPlaceholderText("ann_1,ann_2（逗号分隔）")
+        btn_ann_bulk_get_selftest = QPushButton("Annotation Bulk-Get 自检")
+        row_ann_selftest.addWidget(self.annotation_bulk_get_ann_ids_input)
+        row_ann_selftest.addWidget(btn_ann_bulk_get_selftest)
+        lay.addLayout(row_ann_selftest)
+
         # 绑定
         btn_backend.clicked.connect(self._start_backend_hosted)     # type: ignore[arg-type]
         btn_home.clicked.connect(self._start_pdf_home_hosted)       # type: ignore[arg-type]
@@ -241,6 +251,7 @@ class GUILauncher(QMainWindow):
         btn_card_planner.clicked.connect(self._start_new_card_scheduler_hosted)  # type: ignore[arg-type]
         btn_card_planner_manual_inject.clicked.connect(self._card_planner_manual_test_inject_sample_draft_cards)  # type: ignore[arg-type]
         btn_custom_reviewer.clicked.connect(self._start_custom_reviewer_hosted)  # type: ignore[arg-type]
+        btn_ann_bulk_get_selftest.clicked.connect(self._annotation_bulk_get_selftest)  # type: ignore[arg-type]
 
         self.setCentralWidget(root)
 
@@ -361,6 +372,65 @@ class GUILauncher(QMainWindow):
             except Exception: pass
 
         return ack["text"]
+
+    def _parse_ack_meta_or_throw(self, ack_obj: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        解析 ACK 的元信息字段（兼容顶层与 data 内层形态）。
+        返回字段：type/code/status/message/error_code
+        Fail-Fast：ack_obj 必须是 dict
+        """
+        if not isinstance(ack_obj, dict):
+            raise TypeError("ack_obj 必须是 dict")
+
+        ack_type = ack_obj.get("type")
+        ack_data = ack_obj.get("data") if isinstance(ack_obj.get("data"), dict) else {}
+
+        code = ack_obj.get("code")
+        status = ack_obj.get("status")
+        message = ack_obj.get("message")
+        error_code = ack_obj.get("error_code")
+
+        if code is None:
+            code = ack_data.get("code")
+        if status is None:
+            status = ack_data.get("status")
+        if message is None:
+            message = ack_data.get("message")
+        if error_code is None:
+            error_code = ack_data.get("error_code")
+        if error_code is None:
+            error_code = ack_obj.get("error") or ack_data.get("error")
+
+        return {
+            "type": ack_type,
+            "code": code,
+            "status": status,
+            "message": message,
+            "error_code": error_code,
+        }
+
+    def _log_ack_meta(self, ack_obj: Dict[str, Any]) -> Dict[str, Any]:
+        meta = self._parse_ack_meta_or_throw(ack_obj)
+        self._log(
+            "[ACK_META] "
+            f"type={meta.get('type')} "
+            f"code={meta.get('code')} "
+            f"status={meta.get('status')} "
+            f"message={meta.get('message')} "
+            f"error_code={meta.get('error_code')}"
+        )
+        missing = []
+        if meta.get("code") is None:
+            missing.append("code")
+        if meta.get("status") is None:
+            missing.append("status")
+        if meta.get("message") is None:
+            missing.append("message")
+        if meta.get("error_code") is None:
+            missing.append("error_code")
+        if missing:
+            self._log(f"[WARN] ACK_META 字段缺失（{','.join(missing)}）：{ack_obj}")
+        return meta
 
     def _resolved_paths_from_ui(self) -> Dict[str, str]:
         """
@@ -897,6 +967,94 @@ class GUILauncher(QMainWindow):
             self._log("✅ 已发送 Card Planner 样例草稿卡注入请求（请切到新卡片规划器窗口观察）")
         except Exception as e:
             self._log(f"[ERROR] Card Planner 注入样例草稿卡失败: {e}")
+
+    def _annotation_bulk_get_selftest(self) -> None:
+        """发送 annotation:bulk-get:requested 到后端，用于人工验收与排障。"""
+        try:
+            ports = self._runtime_ports() or {}
+            ws_port = int(ports.get("msgCenter_port") or (self.msgCenter_port_input.value() or 0) or 0)
+            if not ws_port:
+                self._log("[ERROR] 未能获取 MsgCenter 端口（runtime-ports.json 或 UI 均为空）")
+                return
+            if not self._is_port_listening("127.0.0.1", int(ws_port)):
+                QMessageBox.critical(self, "连接错误", f"MsgCenter 未监听端口 {ws_port}，请先启动后端")
+                self._log(f"[ERROR] MsgCenter 未监听端口 {ws_port}，请先启动后端")
+                return
+
+            if not hasattr(self, "annotation_bulk_get_ann_ids_input") or not self.annotation_bulk_get_ann_ids_input:
+                raise RuntimeError("缺少 ann_ids 输入框，无法执行自检")
+
+            raw = ""
+            try:
+                raw = str(self.annotation_bulk_get_ann_ids_input.text() or "")
+            except Exception:
+                raw = ""
+            raw = raw.strip()
+            if not raw:
+                QMessageBox.warning(self, "参数错误", "ann_ids 不能为空（示例：ann_1,ann_2）")
+                self._log("[ERROR] ann_ids 不能为空")
+                return
+
+            parts = [p.strip() for p in raw.split(",")]
+            ann_ids = [p for p in parts if p]
+            if not ann_ids:
+                QMessageBox.warning(self, "参数错误", "ann_ids 不能为空（示例：ann_1,ann_2）")
+                self._log(f"[ERROR] ann_ids 解析为空（raw={raw!r}）")
+                return
+            if len(ann_ids) != len(parts):
+                QMessageBox.warning(self, "参数错误", "ann_ids 中包含空值，请检查逗号分隔格式")
+                self._log(f"[ERROR] ann_ids 含空值（raw={raw!r}）")
+                return
+
+            from src.backend.msgCenter_server.standard_protocol import StandardMessageHandler as _SMH  # type: ignore
+            import time as _time
+            rid = _SMH.generate_request_id()
+            msg: Dict[str, Any] = {
+                "type": "annotation:bulk-get:requested",
+                "to": "backend",
+                "timestamp": int(_time.time() * 1000),
+                "request_id": rid,
+                "data": {"ann_ids": ann_ids},
+            }
+
+            payload_text = _SMH.serialize_message(msg)
+            self._log(f"[TRACE] → ws://127.0.0.1:{ws_port} annotation:bulk-get:requested rid={rid} ann_ids={ann_ids}")
+
+            start = time.perf_counter()
+            ack_text = self._send_ws_text_qt(
+                ws_port,
+                payload_text,
+                timeout_ms=2000,
+                expect_types=("annotation:bulk-get:completed", "annotation:bulk-get:failed"),
+                correlation_id=rid,
+            )
+            elapsed_ms = int((time.perf_counter() - start) * 1000)
+
+            if not ack_text:
+                self._log(f"[WARN] 超时未收到回执（elapsed_ms={elapsed_ms} rid={rid}）")
+                return
+
+            self._log(f"[ACK] {ack_text}")
+            self._log(f"[TIME] elapsed_ms={elapsed_ms} rid={rid}")
+            try:
+                ack_obj = json.loads(ack_text)
+                meta = self._log_ack_meta(ack_obj)
+                ack_type = meta.get("type")
+                if ack_type == "annotation:bulk-get:completed":
+                    data = ack_obj.get("data") if isinstance(ack_obj.get("data"), dict) else {}
+                    annotations = data.get("annotations") if isinstance(data, dict) else None
+                    if isinstance(annotations, list):
+                        self._log(f"[OK] annotations_count={len(annotations)}")
+                    else:
+                        self._log("[OK] annotation:bulk-get:completed")
+                elif ack_type == "annotation:bulk-get:failed":
+                    self._log(f"[ERROR] annotation:bulk-get:failed rid={rid}")
+                else:
+                    self._log(f"[WARN] 收到非预期回执 type={ack_type}")
+            except Exception as e:
+                self._log(f"[ERROR] ACK 解析失败: {e}")
+        except Exception as e:
+            self._log(f"[ERROR] Annotation Bulk-Get 自检失败: {e}")
 
     def _start_custom_reviewer_hosted(self) -> None:
         """通过 MsgCenter 请求启动/激活定制卡片复习器窗口（client_id 每次生成唯一值）。"""
