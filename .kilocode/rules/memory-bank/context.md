@@ -99,12 +99,13 @@
 - 说明：`todo-and-doing/1 doing/202601092234**-*` 为旧一轮下发目录，未开始编码且无交付 commit；为避免继续误读为“当前任务”，已按约定移入 archive。
 - 归档位置：`todo-and-doing/4 archive/20260110022652-doing-archive/`
 
-## 2026-01-10：Card Planner / New Card Scheduler（摘要）
+## 2026-01-11：Card Planner / New Card Scheduler（摘要）
 - 说明：本节非 PDFViewer 面条化主线；为满足 `context.md` 行数门禁，仅保留摘要（细节以 working-log 为准）。
 - 当前状态：v004 修复已合入 main（2026-01-10），用于解决 Step3 注入“queued 但未生效”的链路缺口（客户端注册 + queued 自愈打开窗口 + ACK_META 可观测 + 注册状态可视）。
-- v004 人工验收：注入已成功；已归档：`todo-and-doing/4 archive/20260110212636-doing-archive/`。
-- v005：已合入 main（2026-01-11），修复 `annotation:bulk-get` 超时（补 `to:"backend"` + 处理 `*:failed`）并补齐可观测/自检与回归测试；任务已归档：`todo-and-doing/4 archive/20260111000112-doing-archive/`。
-- v006：已合入 main（2026-01-11），对齐 new-card-scheduler 启动范式为 `index.js -> bootstrap runner -> feature/container`（参考 pdf-home/pdf-viewer）；任务已归档：`todo-and-doing/4 archive/20260111015251-doing-archive/`。
+- v004：注入链路修复已合入并归档：`todo-and-doing/4 archive/20260110212636-doing-archive/`。
+- v005：`annotation:bulk-get` 超时修复已合入并归档：`todo-and-doing/4 archive/20260111000112-doing-archive/`。
+- v006：NCS 启动范式对齐已合入并归档：`todo-and-doing/4 archive/20260111015251-doing-archive/`。
+- v007（doing）：修复 NCS 空白/未注册（入口需调用 bootstrap + WS 默认 host 统一 IPv4）：`todo-and-doing/1 doing/20260111021732-ncs-*-F/G/H/I/`。
 
 ## 2026-01-09：PDFViewer 面条化治理详细记录（已归档）
 - 说明：为满足 `context.md` 行数门禁（<200），已将 2026-01-09 的详细过程记录迁移到归档文件（不加载进上下文）。
