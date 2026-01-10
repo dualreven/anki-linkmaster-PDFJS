@@ -23,6 +23,20 @@ class WindowLifecycleManager:
 
     # -------- 核心操作 --------
 
+    def get_entry(self, client_id: str) -> Optional[Dict[str, Any]]:
+        """
+        只读查询窗口条目（用于 ensure_* 单例逻辑）。
+
+        - 返回内部 entry 的浅拷贝，避免外部修改污染内部状态；
+        - 未找到则返回 None；
+        - client_id 为空则抛 ValueError（Fail-Fast）。
+        """
+        cid = (client_id or "").strip()
+        if not cid:
+            raise ValueError("WindowLifecycleManager.get_entry: client_id 不能为空")
+        entry = self._entries.get(cid)
+        return dict(entry) if entry is not None else None
+
     def register_window(
         self,
         client_id: str,
@@ -252,4 +266,3 @@ class WindowLifecycleManager:
                     cid,
                     exc,
                 )
-
