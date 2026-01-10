@@ -219,9 +219,10 @@ export function createCardPlannerApp({ root, engine, wsClient, eventBus, logger,
     wsClient,
     engine,
     logger,
+    notification,
+    render: () => workspace.render(),
     onAfterIngestApplied: async (info) => {
       await onAfterIngestApplied(info);
-      workspace.render();
     }
   });
 
