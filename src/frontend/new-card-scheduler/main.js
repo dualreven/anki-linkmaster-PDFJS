@@ -8,6 +8,7 @@ import { createCardsEngine } from "./planner/cards-model.js";
 import { createCardPlannerApp } from "./planner/app.js";
 import { installPlannerSidebarControllerOrThrow } from "./planner/ui/planner-sidebar-controller.js";
 import { mountWsStatusPanelOrThrow } from "./ui/ws-status-panel.js";
+import { installWsRegistrationWiringOrThrow } from "./wiring/ws-registration.js";
 
 const logger = getLogger("NewCardSchedulerWindow");
 
@@ -93,6 +94,30 @@ async function bootstrap() {
   }
   const wsStatus = mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsClient });
   wsStatus.setConnecting();
+  wsStatus.setRegUnknown();
+
+  installWsRegistrationWiringOrThrow({
+    eventBus,
+    wsClient,
+    clientId,
+    logger,
+    notification: { showInfo, showError },
+    onStatus: ({ status, errorMessage }) => {
+      if (status === "registering") {
+        wsStatus.setRegRegistering();
+        return;
+      }
+      if (status === "ok") {
+        wsStatus.setRegOk();
+        return;
+      }
+      if (status === "failed") {
+        wsStatus.setRegFailed(errorMessage || "注册失败");
+        return;
+      }
+      wsStatus.setRegUnknown();
+    }
+  });
 
   try {
     wsClient.connect().catch(() => {

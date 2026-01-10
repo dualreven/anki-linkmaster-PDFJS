@@ -7,6 +7,13 @@ export const WS_STATUS = {
   FAILED: "failed",
 };
 
+export const REG_STATUS = {
+  UNKNOWN: "unknown",
+  REGISTERING: "registering",
+  OK: "ok",
+  FAILED: "failed",
+};
+
 function normalizeErrorMessage(err) {
   if (!err) {
     return "";
@@ -40,6 +47,14 @@ export function getWsStatusLabelOrThrow(status) {
     return "disconnected";
   }
   return "failed";
+}
+
+function getRegStatusLabelOrThrow(status) {
+  const s = String(status || "");
+  if (!Object.values(REG_STATUS).includes(s)) {
+    throw new Error(`REG_STATUS 无效：${String(status)}`);
+  }
+  return s;
 }
 
 export function mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsClient }) {
@@ -79,19 +94,36 @@ export function mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsCli
 
   const state = {
     status: WS_STATUS.DISCONNECTED,
-    errorMessage: "",
+    wsErrorMessage: "",
+    regStatus: REG_STATUS.UNKNOWN,
+    regErrorMessage: "",
   };
 
   const render = () => {
     const statusLabel = getWsStatusLabelOrThrow(state.status);
-    line1.textContent = `client_id=${clientId} | ws=${statusLabel}`;
-    line2.textContent = state.errorMessage ? `error=${state.errorMessage}` : "";
-    line2.style.display = state.errorMessage ? "block" : "none";
+    const regLabel = getRegStatusLabelOrThrow(state.regStatus);
+    line1.textContent = `client_id=${clientId} | ws=${statusLabel} | reg=${regLabel}`;
+
+    const parts = [];
+    if (state.wsErrorMessage) {
+      parts.push(`ws_error=${state.wsErrorMessage}`);
+    }
+    if (state.regErrorMessage) {
+      parts.push(`reg_error=${state.regErrorMessage}`);
+    }
+    line2.textContent = parts.join(" | ");
+    line2.style.display = parts.length > 0 ? "block" : "none";
   };
 
   const setStatus = (status, err = null) => {
     state.status = status;
-    state.errorMessage = normalizeErrorMessage(err);
+    state.wsErrorMessage = normalizeErrorMessage(err);
+    render();
+  };
+
+  const setRegistrationStatus = (regStatus, err = null) => {
+    state.regStatus = regStatus;
+    state.regErrorMessage = normalizeErrorMessage(err);
     render();
   };
 
@@ -125,6 +157,10 @@ export function mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsCli
     setConnecting: () => setStatus(WS_STATUS.CONNECTING, null),
     setDisconnected: () => setStatus(WS_STATUS.DISCONNECTED, null),
     setFailed: (err) => setStatus(WS_STATUS.FAILED, err),
+    setRegUnknown: () => setRegistrationStatus(REG_STATUS.UNKNOWN, null),
+    setRegRegistering: () => setRegistrationStatus(REG_STATUS.REGISTERING, null),
+    setRegOk: () => setRegistrationStatus(REG_STATUS.OK, null),
+    setRegFailed: (err) => setRegistrationStatus(REG_STATUS.FAILED, err),
     destroy() {
       try { unsubEstablished?.(); } catch { /* ignore */ }
       try { unsubClosed?.(); } catch { /* ignore */ }
@@ -134,4 +170,3 @@ export function mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsCli
     }
   };
 }
-
