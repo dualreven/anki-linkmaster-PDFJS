@@ -96,10 +96,10 @@
 
 ## 2026-01-10：Card Planner / New Card Scheduler（摘要）
 - 说明：本节非 PDFViewer 面条化主线；为满足 `context.md` 行数门禁，仅保留摘要（细节以 working-log 为准）。
-- 当前阻塞：手工验收 Step3 注入不生效（ACK `202 accepted queued`，pending-forward 未 flush）。
-- 初步定位：`new-card-scheduler` 建链未完成注册（缺少 `WebSocketAdapterBase` 注册逻辑）+ `gui_launcher` ACK_META 解析不兼容。
-- 现存 v004 doing：`todo-and-doing/1 doing/20260110185158-card-planner-*-F/G/H/I/`
-- 详细记录：`AItemp/20260110164032-AI-Working-log.md`、`AItemp/20260110171447-AI-Working-log.md`、`AItemp/20260110182016-AI-Working-log.md`、`AItemp/20260110185158-AI-Working-log.md`
+- 当前状态：v004 修复已合入 main（2026-01-10），用于解决 Step3 注入“queued 但未生效”的链路缺口（客户端注册 + queued 自愈打开窗口 + ACK_META 可观测 + 注册状态可视）。
+- doing（待手工验收后归档）：`todo-and-doing/1 doing/20260110185158-card-planner-*-F/G/H/I/`
+- 自动化（main 侧已通过）：`pnpm -s run lint` ✅；Jest（new-card-scheduler）✅；pytest（msgCenter/gui_launcher）✅。
+- 详细记录：`AItemp/20260110185158-AI-Working-log.md`、`AItemp/20260110194023-AI-Working-log.md`、`AItemp/20260110200940-AI-Working-log.md`
 
 ## 2026-01-09：PDFViewer 面条化治理详细记录（已归档）
 - 说明：为满足 `context.md` 行数门禁（<200），已将 2026-01-09 的详细过程记录迁移到归档文件（不加载进上下文）。
