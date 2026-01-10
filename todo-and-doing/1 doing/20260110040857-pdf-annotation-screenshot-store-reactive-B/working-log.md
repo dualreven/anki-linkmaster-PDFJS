@@ -37,4 +37,4 @@
 - `pnpm exec jest --runTestsByPath src/frontend/pdf-viewer/features/pdf-annotation/tools/screenshot/screenshot-tool.store-diff.regression.test.js src/frontend/pdf-viewer/features/pdf-annotation/tools/screenshot/screenshot-tool.test.js -i` ✅
 
 ### 下一步计划:
-- 提交 commit 并回报 hash
+- 已提交：`aafeeac`
