@@ -14,7 +14,7 @@ function createAdapter() {
     send: (msg) => { sent.push(msg); },
     request: jest.fn()
   };
-  const adapter = new WebSocketAdapter(wsClient, eventBus);
+  const adapter = new WebSocketAdapter(wsClient, eventBus, () => "pdf-test-001");
   adapter.setupMessageHandlers();
   adapter.onInitialized();
   return { adapter, eventBus, sent };

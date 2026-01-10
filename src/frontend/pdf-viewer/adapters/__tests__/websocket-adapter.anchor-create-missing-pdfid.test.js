@@ -4,23 +4,18 @@ import { describe, test, expect, beforeEach, afterEach, jest } from "@jest/globa
 import { WebSocketAdapter } from "../websocket-adapter.js";
 import { EventBus } from "../../../common/event/event-bus.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
+import { WEBSOCKET_MESSAGE_TYPES } from "../../../common/event/event-constants.js";
 
-describe("WebSocketAdapter — ANCHOR.CREATE 缺少 pdf_uuid 必须显式失败", () => {
+describe("WebSocketAdapter — pdfIdProvider 应被用于填充 pdf_uuid", () => {
   let eventBus;
   let wsClient;
   let adapter;
 
   beforeEach(() => {
-    try {
-      window.history.pushState({}, "", "http://localhost/pdf-viewer/?page-at=1");
-    } catch {
-      // ignore
-    }
-
     eventBus = new EventBus({ enableValidation: false });
     wsClient = { request: jest.fn(), send: jest.fn() };
 
-    adapter = new WebSocketAdapter(wsClient, eventBus);
+    adapter = new WebSocketAdapter(wsClient, eventBus, () => "pdf-test-001");
     adapter.setupMessageHandlers();
     adapter.onInitialized();
   });
@@ -30,10 +25,7 @@ describe("WebSocketAdapter — ANCHOR.CREATE 缺少 pdf_uuid 必须显式失败"
     try { eventBus?.destroy?.(); } catch { /* ignore */ }
   });
 
-  test("缺少 pdf_uuid 时应 emit ANCHOR.CREATE_FAILED，且不发送 WS 请求", () => {
-    const onFailed = jest.fn();
-    eventBus.on(PDF_VIEWER_EVENTS.ANCHOR.CREATE_FAILED, onFailed);
-
+  test("ANCHOR.CREATE 未提供 pdf_uuid 时，应使用 provider 补齐并发送 WS 请求", () => {
     eventBus.emit(
       PDF_VIEWER_EVENTS.ANCHOR.CREATE,
       {
@@ -48,35 +40,24 @@ describe("WebSocketAdapter — ANCHOR.CREATE 缺少 pdf_uuid 必须显式失败"
       { actorId: "test" }
     );
 
-    expect(wsClient.request).not.toHaveBeenCalled();
-    expect(onFailed).toHaveBeenCalledTimes(1);
-    expect(onFailed.mock.calls[0][0]).toEqual(
-      expect.objectContaining({
-        error: expect.objectContaining({
-          message: "缺少 pdf_uuid"
-        })
-      })
+    expect(wsClient.request).toHaveBeenCalledWith(
+      WEBSOCKET_MESSAGE_TYPES.ANCHOR_CREATE,
+      expect.objectContaining({ pdf_uuid: "pdf-test-001" }),
+      expect.any(Object)
     );
   });
 
-  test("ANCHOR.DATA.LOAD 缺少 pdf_uuid 时应 emit LOAD_FAILED，且不发送 WS 请求", () => {
-    const onLoadFailed = jest.fn();
-    eventBus.on(PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD_FAILED, onLoadFailed);
-
+  test("ANCHOR.DATA.LOAD 未提供 pdf_uuid 时，应使用 provider 补齐并发送 WS 请求", () => {
     eventBus.emit(
       PDF_VIEWER_EVENTS.ANCHOR.DATA.LOAD,
       { anchorId: "a1" },
       { actorId: "test" }
     );
 
-    expect(wsClient.request).not.toHaveBeenCalled();
-    expect(onLoadFailed).toHaveBeenCalledTimes(1);
-    expect(onLoadFailed.mock.calls[0][0]).toEqual(
-      expect.objectContaining({
-        error: expect.objectContaining({
-          message: "缺少 pdf_uuid"
-        })
-      })
+    expect(wsClient.request).toHaveBeenCalledWith(
+      WEBSOCKET_MESSAGE_TYPES.ANCHOR_GET,
+      expect.objectContaining({ pdf_uuid: "pdf-test-001", anchor_id: "a1" }),
+      expect.any(Object)
     );
   });
 });

@@ -15,7 +15,7 @@ import { setInboundDestroySignal } from "./ws-inbound-destroy-signal.js";
 const domainInboundHandlers = [
   {
     match: ({ type }) => type.startsWith("pdf-viewer:outline-"),
-    handle: ({ message, eventBus, wsClient, logger }) => {
+    handle: ({ message, eventBus, wsClient, logger, pdfIdProvider }) => {
       const type = String(message?.type || "");
       if (type === WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_COMPLETED) {
         try {
@@ -76,19 +76,14 @@ const domainInboundHandlers = [
         logger.error("[outline] delete failed", err, { toast: { type: "error", ms: 5000 } });
       } else if (type.endsWith(":complete")) {
         // 其他操作完成后主动拉取最新列表
-        try {
-          const params = new URLSearchParams(window.location.search);
-          const pdfId = params.get("pdf-id");
-          if (pdfId) {
-            wsClient.request(WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
-          }
-        } catch (e) { logger.warn("[outline] request list after completed failed", e); }
+        const pdfId = pdfIdProvider();
+        wsClient.request(WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
       }
     }
   },
   {
     match: ({ type }) => type.startsWith("anchor:"),
-    handle: ({ message, eventBus, wsClient, logger }) => {
+    handle: ({ message, eventBus, wsClient, logger, pdfIdProvider }) => {
       const type = String(message?.type || "");
       if (type.endsWith(":completed")) {
         if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_GET_COMPLETED || type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST_COMPLETED) {
@@ -103,13 +98,8 @@ const domainInboundHandlers = [
           try { eventBus.emit(PDF_VIEWER_EVENTS.ANCHOR.CREATED, { anchorId: id }, { actorId: "WebSocketAdapter" }); } catch (e) { logger.warn("[anchor] emit ANCHOR.CREATED failed", e); }
 
           // 创建成功后刷新列表
-          try {
-            const params = new URLSearchParams(window.location.search);
-            const pdfId = params.get("pdf-id");
-            if (pdfId) {
-              wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
-            }
-          } catch (e) { logger.warn("[anchor] request list after create completed failed", e); }
+          const pdfId = pdfIdProvider();
+          wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
         } else if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_ACTIVATE_COMPLETED) {
           // 更新当前项状态：仅通过 ANCHOR.ACTIVATED 通知前端，由特性层维护单选语义
           try {
@@ -127,13 +117,8 @@ const domainInboundHandlers = [
           }
         } else {
           // 其他完成事件后请求刷新列表（若可获取pdfId）
-          try {
-            const params = new URLSearchParams(window.location.search);
-            const pdfId = params.get("pdf-id");
-            if (pdfId) {
-              wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
-            }
-          } catch (e) { logger.warn("[anchor] request list after completed failed", e); }
+          const pdfId = pdfIdProvider();
+          wsClient.request(WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
         }
       } else if (type.endsWith(":failed")) {
         if (type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_GET_FAILED || type === WEBSOCKET_MESSAGE_TYPES.ANCHOR_LIST_FAILED) {

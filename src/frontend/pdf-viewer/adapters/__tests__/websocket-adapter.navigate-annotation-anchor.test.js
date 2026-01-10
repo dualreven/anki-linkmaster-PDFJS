@@ -37,7 +37,7 @@ describe("WebSocketAdapter navigate (annotation/anchor)", () => {
       send: jest.fn(),
       isConnected: jest.fn(() => true)
     };
-    adapter = new WebSocketAdapter(mockWSClient, eventBus);
+    adapter = new WebSocketAdapter(mockWSClient, eventBus, () => "deadbeefcafe");
     adapter.setupMessageHandlers();
     adapter.onInitialized();
   });
@@ -47,7 +47,7 @@ describe("WebSocketAdapter navigate (annotation/anchor)", () => {
     eventBus?.destroy();
   });
 
-  test("annotation 模式应发射 ANNOTATION.NAVIGATION.JUMP_REQUESTED（id）[NEW PROTOCOL]", () => {
+  test("annotation 模式应发射 ANNOTATION.NAVIGATION.JUMP_REQUESTED（id）[NEW PROTOCOL]", async () => {
     const spy = jest.fn();
     eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, spy);
 
@@ -56,9 +56,9 @@ describe("WebSocketAdapter navigate (annotation/anchor)", () => {
       type: "pdf-viewer:navigate:requested",
       request_id: "req-2",
       to: {
-        client_id: "pdf-viewer-sample",
+        client_id: "pdf-viewer-deadbeefcafe",
         target_type: "pdf-viewer",
-        routing_key: "pdf:sample"
+        routing_key: "pdf:deadbeefcafe"
       },
       data: {
         target: { type: "annotation", annotation_id: "ann-xyz" },
@@ -66,13 +66,14 @@ describe("WebSocketAdapter navigate (annotation/anchor)", () => {
       }
     });
 
+    await new Promise((r) => setTimeout(r, 0));
     expect(spy).toHaveBeenCalledWith(
       { id: "ann-xyz", highlight: true },
       expect.any(Object)
     );
   });
 
-  test("[DEPRECATED] annotation 旧协议仍然支持", () => {
+  test("[DEPRECATED] annotation 旧协议仍然支持", async () => {
     const spy = jest.fn();
     eventBus.on(PDF_VIEWER_EVENTS.ANNOTATION.NAVIGATION.JUMP_REQUESTED, spy);
 
@@ -81,7 +82,7 @@ describe("WebSocketAdapter navigate (annotation/anchor)", () => {
       type: "pdf-viewer:navigate:requested",
       request_id: "req-2-old",
       to: {
-        viewer_id: "vwr_x"  // 旧字段
+        pdf_uuid: "deadbeefcafe"  // 旧字段
       },
       data: {
         target: { type: "annotation", annotation_id: "ann-xyz" },
@@ -89,13 +90,14 @@ describe("WebSocketAdapter navigate (annotation/anchor)", () => {
       }
     });
 
+    await new Promise((r) => setTimeout(r, 0));
     expect(spy).toHaveBeenCalledWith(
       { id: "ann-xyz", highlight: true },
       expect.any(Object)
     );
   });
 
-  test("anchor 模式应发射 ANCHOR.NAVIGATE.REQUESTED（anchorId）[NEW PROTOCOL]", () => {
+  test("anchor 模式应发射 ANCHOR.NAVIGATE.REQUESTED（anchorId）[NEW PROTOCOL]", async () => {
     const spy = jest.fn();
     eventBus.on(PDF_VIEWER_EVENTS.ANCHOR.NAVIGATE.REQUESTED, spy);
 
@@ -113,13 +115,14 @@ describe("WebSocketAdapter navigate (annotation/anchor)", () => {
       }
     });
 
+    await new Promise((r) => setTimeout(r, 0));
     expect(spy).toHaveBeenCalledWith(
       { anchorId: "pdfanchor-aaaaaaaaaaaa" },
       expect.any(Object)
     );
   });
 
-  test("[DEPRECATED] anchor 旧协议仍然支持", () => {
+  test("[DEPRECATED] anchor 旧协议仍然支持", async () => {
     const spy = jest.fn();
     eventBus.on(PDF_VIEWER_EVENTS.ANCHOR.NAVIGATE.REQUESTED, spy);
 
@@ -135,10 +138,10 @@ describe("WebSocketAdapter navigate (annotation/anchor)", () => {
       }
     });
 
+    await new Promise((r) => setTimeout(r, 0));
     expect(spy).toHaveBeenCalledWith(
       { anchorId: "pdfanchor-aaaaaaaaaaaa" },
       expect.any(Object)
     );
   });
 });
-

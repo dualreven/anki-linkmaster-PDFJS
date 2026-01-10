@@ -13,15 +13,9 @@ describe("WebSocketAdapter visited_at 更新", () => {
   let adapter;
 
   beforeEach(() => {
-    // 模拟 URL 参数，包含有效的 pdf-id（12位hex）
-    // 注意：jsdom 不实现完整的导航（直接替换 window.location 会报错）
-    // 这里使用 history.pushState 来更新地址栏，避免触发 jsdom 的 navigation 限制
-    const path = "/pdf-viewer/?pdf-id=abc123def456&page-at=3";
-    window.history.pushState({}, "", path);
-
     eventBus = new EventBus({ enableValidation: false });
     mockWSClient = { send: jest.fn(), isConnected: jest.fn(() => true) };
-    adapter = new WebSocketAdapter(mockWSClient, eventBus);
+    adapter = new WebSocketAdapter(mockWSClient, eventBus, () => "abc123def456");
     adapter.setupMessageHandlers();
     adapter.onInitialized();
   });
@@ -58,4 +52,3 @@ describe("WebSocketAdapter visited_at 更新", () => {
     );
   });
 });
-

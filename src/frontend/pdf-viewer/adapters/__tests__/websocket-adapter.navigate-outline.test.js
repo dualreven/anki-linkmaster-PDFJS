@@ -32,7 +32,7 @@ describe("WebSocketAdapter navigate (outline)", () => {
       send: jest.fn(),
       isConnected: jest.fn(() => true)
     };
-    adapter = new WebSocketAdapter(mockWSClient, eventBus);
+    adapter = new WebSocketAdapter(mockWSClient, eventBus, () => "deadbeefcafe");
     adapter.setupMessageHandlers();
     adapter.onInitialized();
   });
@@ -42,7 +42,7 @@ describe("WebSocketAdapter navigate (outline)", () => {
     eventBus?.destroy();
   });
 
-  test("应当把 pdf-viewer:navigate:requested (outline) 转为 OUTLINE.NAVIGATE_BY_ID.REQUESTED [NEW PROTOCOL]", () => {
+  test("应当把 pdf-viewer:navigate:requested (outline) 转为 OUTLINE.NAVIGATE_BY_ID.REQUESTED [NEW PROTOCOL]", async () => {
     const spy = jest.fn();
     eventBus.on(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE_BY_ID.REQUESTED, spy);
 
@@ -61,13 +61,14 @@ describe("WebSocketAdapter navigate (outline)", () => {
       }
     });
 
+    await new Promise((r) => setTimeout(r, 0));
     expect(spy).toHaveBeenCalledWith(
       { outlineItemId: "outline-123" },
       expect.any(Object)
     );
   });
 
-  test("[DEPRECATED] 旧协议仍然支持 (backward compat)", () => {
+  test("[DEPRECATED] 旧协议仍然支持 (backward compat)", async () => {
     const spy = jest.fn();
     eventBus.on(PDF_VIEWER_EVENTS.OUTLINE.NAVIGATE_BY_ID.REQUESTED, spy);
 
@@ -84,10 +85,10 @@ describe("WebSocketAdapter navigate (outline)", () => {
       }
     });
 
+    await new Promise((r) => setTimeout(r, 0));
     expect(spy).toHaveBeenCalledWith(
       { outlineItemId: "outline-123" },
       expect.any(Object)
     );
   });
 });
-

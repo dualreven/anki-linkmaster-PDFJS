@@ -17,8 +17,9 @@ describe("WebSocketAdapter Anchor 入站消息契约", () => {
 
   beforeEach(() => {
     bus = new EventBus({ enableValidation: true, moduleName: "TestBus" });
-    adapter = new WebSocketAdapter(wsMock, bus);
+    adapter = new WebSocketAdapter(wsMock, bus, () => "pdf-test-001");
     adapter.setupMessageHandlers();
+    adapter.onInitialized();
   });
 
   afterEach(() => {
@@ -58,4 +59,3 @@ describe("WebSocketAdapter Anchor 入站消息契约", () => {
     expect(payload?.error?.message || "").toContain("boom");
   });
 });
-

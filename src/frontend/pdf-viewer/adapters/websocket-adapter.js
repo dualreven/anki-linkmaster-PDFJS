@@ -28,7 +28,7 @@ import { createPdfIdProvider } from "./pdf-id-provider.js";
  * 4. 路由分发：根据消息类型分发到对应处理器
  *
  * @example
- * const adapter = new WebSocketAdapter(wsClient, eventBus, createPdfIdProvider());
+ * const adapter = new WebSocketAdapter(wsClient, eventBus, () => "pdf-id-xxx");
  * adapter.setupMessageHandlers();
  * adapter.onInitialized(); // 在应用初始化完成后调用
  */
@@ -66,7 +66,7 @@ export class WebSocketAdapter {
    * 创建WebSocket适配器实例
    * @param {import('../../common/ws/ws-client.js').WSClient} wsClient - WebSocket客户端实例
    * @param {import('../../common/event/event-bus.js').EventBus} eventBus - 事件总线实例
-   * @param {() => string | null} [pdfIdProvider] - 提供当前PDF ID的函数。
+   * @param {() => string | null} pdfIdProvider - 提供当前PDF ID的函数（必须注入，适配器不再从 URL 解析）。
    */
   constructor(wsClient, eventBus, pdfIdProvider) {
     if (!wsClient) {
@@ -74,6 +74,9 @@ export class WebSocketAdapter {
     }
     if (!eventBus) {
       throw new Error("WebSocketAdapter: eventBus is required");
+    }
+    if (typeof pdfIdProvider !== "function") {
+      throw new Error("WebSocketAdapter: pdfIdProvider is required");
     }
 
     this.#logger = getLogger("WebSocketAdapter");
@@ -96,6 +99,9 @@ export class WebSocketAdapter {
    */
   setupMessageHandlers() {
     this.#logger.info("Setting up WebSocket message handlers");
+
+    // Fail-fast：适配器层不解析 URL，pdfId 必须由边界注入并可用
+    this.#pdfIdProvider();
 
     // 外部→内部：监听WebSocket消息事件
     this.#setupIncomingMessageHandlers();
@@ -299,6 +305,7 @@ export class WebSocketAdapter {
  *
  * @param {import('../../common/ws/ws-client.js').WSClient} wsClient - WebSocket客户端实例
  * @param {import('../../common/event/event-bus.js').EventBus} eventBus - 事件总线实例
+ * @param {() => string | null} pdfIdProvider - 提供当前PDF ID的函数（必须注入，适配器不再从 URL 解析）。
  * @returns {WebSocketAdapter} 适配器实例
  *
  * @example
@@ -306,7 +313,7 @@ export class WebSocketAdapter {
  * import wsClient from './common/ws/ws-client.js';
  * import eventBus from './common/event/event-bus.js';
  *
- * const adapter = createWebSocketAdapter(wsClient, eventBus);
+ * const adapter = createWebSocketAdapter(wsClient, eventBus, () => "pdf-id-xxx");
  * adapter.setupMessageHandlers();
  */
 export function createWebSocketAdapter(wsClient, eventBus, pdfIdProvider) {

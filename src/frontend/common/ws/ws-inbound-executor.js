@@ -15,9 +15,10 @@
  * @param {import("../ws/ws-client.js").WSClient} params.wsClient
  * @param {import("../utils/logger.js").Logger} params.logger
  */
-export function runWsInboundHandlers({ message, handlers, eventBus, wsClient, logger }) {
+export function runWsInboundHandlers(params = {}) {
+  const { message, handlers, eventBus, wsClient, logger, ...rest } = params || {};
   const type = String(message?.type || "");
-  const baseCtx = { type, message, eventBus, wsClient, logger };
+  const baseCtx = { type, message, eventBus, wsClient, logger, ...rest };
 
   for (const handler of handlers || []) {
     if (!handler || typeof handler.match !== "function" || typeof handler.handle !== "function") {
@@ -41,4 +42,3 @@ export function runWsInboundHandlers({ message, handlers, eventBus, wsClient, lo
     }
   }
 }
-

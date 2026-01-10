@@ -45,8 +45,9 @@ test("ANCHOR_CREATE_COMPLETED → emit ANCHOR.CREATED 失败时应记录 warn �
   const logger = globalThis.__WSA_TEST_LOGGER__;
   const warnCountBefore = logger.warn.mock.calls.length;
 
-  const adapter = new WebSocketAdapter(ws, eventBus);
+  const adapter = new WebSocketAdapter(ws, eventBus, () => "pdf-test-001");
   adapter.setupMessageHandlers();
+  adapter.onInitialized();
 
   // 触发 inbound 消息处理
   const handler = eventBus.handlers[WEBSOCKET_EVENTS.MESSAGE.RECEIVED];
