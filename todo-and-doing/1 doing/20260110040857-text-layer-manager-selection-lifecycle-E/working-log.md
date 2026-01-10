@@ -29,4 +29,4 @@
 - `pnpm -s run lint` ✅
 - `pnpm exec jest --runTestsByPath src/frontend/pdf-viewer/ui/__tests__/text-layer-manager.test.js -i` ✅
 ### 工作结果:
-- 已完成（待回填 commit hash）。
+- 已完成：`ba83122fd511b6e11639a52032ecb7e1c07b26a8`
