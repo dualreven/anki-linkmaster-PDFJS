@@ -1,4 +1,5 @@
 // 全局错误 → toast 展示（尽量早加载）
+// - 提供可安装/可卸载 API，避免残留全局监听器
 // - 依赖第三方 toast 适配器；若失败则使用最小降级 UI
 // - 提供简单去抖与速率限制，避免错误风暴
 
@@ -18,6 +19,13 @@ const RATE_WINDOW_MS = 3000;        // 速率窗口 3s
 const RATE_MAX_TOAST = 4;           // 每个窗口最多 4 条
 
 function now() { return Date.now(); }
+
+function resetState() {
+  STATE.lastText = null;
+  STATE.lastTime = 0;
+  STATE.countInWindow = 0;
+  STATE.windowStart = 0;
+}
 
 function fallbackToast(text) {
   try {
@@ -104,23 +112,84 @@ function formatOnRejection(ev) {
   return `[前端异常] ${msg}`;
 }
 
-window.addEventListener("error", (e) => {
-  try {
-    const text = formatOnError(e);
-    // 控制台保留
-    logger.error("[GlobalErrorToast]", text, e?.error?.stack || "");
-    if (shouldToast(text)) {showToast(text);}
-  } catch (err) {
-    void err; /* logger-guard */
-  }
-}, true);
+const CAPTURE = true;
+let installed = false;
+let onErrorHandler = null;
+let onRejectionHandler = null;
 
-window.addEventListener("unhandledrejection", (e) => {
-  try {
-    const text = formatOnRejection(e);
-    logger.error("[GlobalErrorToast]", text, e?.reason?.stack || "");
-    if (shouldToast(text)) {showToast(text);}
-  } catch (err) {
-    void err; /* logger-guard */
+/**
+ * 显式安装全局错误 toast（Fail-Fast，只允许安装一次）。
+ * @param {{ logger?: any, toast?: (text: string) => void }} [deps]
+ */
+export function installGlobalErrorToast(deps = {}) {
+  if (installed) {
+    throw new Error("[GlobalErrorToast] install called more than once");
   }
-}, true);
+
+  if (deps === null || typeof deps !== "object" || Array.isArray(deps)) {
+    throw new Error("[GlobalErrorToast] installGlobalErrorToast(deps) requires an object");
+  }
+
+  const customToast = deps.toast;
+  if (customToast !== undefined && typeof customToast !== "function") {
+    throw new Error("[GlobalErrorToast] deps.toast must be a function if provided");
+  }
+
+  const log = deps.logger || logger;
+  resetState();
+
+  onErrorHandler = (e) => {
+    try {
+      const text = formatOnError(e);
+      // 控制台保留
+      log?.error?.("[GlobalErrorToast]", text, e?.error?.stack || "");
+      if (shouldToast(text)) {
+        if (customToast) { customToast(text); }
+        else { showToast(text); }
+      }
+    } catch (err) {
+      void err; /* logger-guard */
+    }
+  };
+
+  onRejectionHandler = (e) => {
+    try {
+      const text = formatOnRejection(e);
+      log?.error?.("[GlobalErrorToast]", text, e?.reason?.stack || "");
+      if (shouldToast(text)) {
+        if (customToast) { customToast(text); }
+        else { showToast(text); }
+      }
+    } catch (err) {
+      void err; /* logger-guard */
+    }
+  };
+
+  window.addEventListener("error", onErrorHandler, CAPTURE);
+  window.addEventListener("unhandledrejection", onRejectionHandler, CAPTURE);
+
+  installed = true;
+}
+
+/**
+ * 显式卸载全局错误 toast（Fail-Fast，必须对称解绑）。
+ */
+export function uninstallGlobalErrorToast() {
+  if (!installed) {
+    throw new Error("[GlobalErrorToast] uninstall called before install");
+  }
+  if (typeof onErrorHandler !== "function" || typeof onRejectionHandler !== "function") {
+    throw new Error("[GlobalErrorToast] uninstall failed: handler references missing");
+  }
+
+  window.removeEventListener("error", onErrorHandler, CAPTURE);
+  window.removeEventListener("unhandledrejection", onRejectionHandler, CAPTURE);
+
+  onErrorHandler = null;
+  onRejectionHandler = null;
+  installed = false;
+  resetState();
+}
+
+// 保持原行为：作为早期脚本加载时自动安装。
+installGlobalErrorToast();
