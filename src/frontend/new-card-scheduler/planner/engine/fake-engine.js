@@ -224,6 +224,7 @@ export function createFakeEngine() {
     cards: [createCard({ tempId: "temp-1", title: "" })],
     selectedTempId: null
   };
+  let nextTempId = 2;
 
   const getState = () => ({
     draftCardTempIds: state.cards.map((c) => c.tempId),
@@ -277,6 +278,14 @@ export function createFakeEngine() {
     state = { ...state, cards };
   };
 
+  const createEmptyCardOrThrow = () => {
+    const tempId = `temp-${nextTempId}`;
+    nextTempId += 1;
+    const cards = [...cloneCards(state.cards), createCard({ tempId, title: "" })];
+    state = { ...state, cards, selectedTempId: tempId };
+    return tempId;
+  };
+
   const dispatchIngest = ({ op, annotationIds }) => {
     state = applyIngestOrThrow(state, { op, annotationIds });
   };
@@ -295,6 +304,7 @@ export function createFakeEngine() {
     getState,
     getCardsForView,
     getDraftCardsSnapshotOrThrow,
+    createEmptyCardOrThrow,
     dispatchIngest,
     setSelected,
     renameCard,

@@ -182,6 +182,12 @@ export class CardsEngine {
     return tempId;
   }
 
+  createEmptyCardOrThrow() {
+    const tempId = this.createCardOrThrow();
+    this.selectCardOrThrow(tempId);
+    return tempId;
+  }
+
   deleteCardOrThrow(tempId) {
     const index = this.#getCardIndexByTempIdOrThrow(tempId);
     this.#cards.splice(index, 1);
