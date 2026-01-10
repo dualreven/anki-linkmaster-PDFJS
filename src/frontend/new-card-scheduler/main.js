@@ -7,6 +7,7 @@ import { showInfo, showError } from "../common/utils/notification.js";
 import { createCardsEngine } from "./planner/cards-model.js";
 import { createCardPlannerApp } from "./planner/app.js";
 import { installPlannerSidebarControllerOrThrow } from "./planner/ui/planner-sidebar-controller.js";
+import { mountWsStatusPanelOrThrow } from "./ui/ws-status-panel.js";
 
 const logger = getLogger("NewCardSchedulerWindow");
 
@@ -86,9 +87,19 @@ async function bootstrap() {
   };
   const wsClient = new WSClient(wsUrl, eventBus, identity);
 
+  const toolbarEl = document.querySelector(".toolbar-controls");
+  if (!toolbarEl) {
+    throw new Error("缺少 .toolbar-controls，无法挂载 WS 状态");
+  }
+  const wsStatus = mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsClient });
+  wsStatus.setConnecting();
+
   try {
-    wsClient.connect();
+    wsClient.connect().catch(() => {
+      // 失败细节由 WSClient 通过 eventBus 发射；此处避免未处理的 promise rejection。
+    });
   } catch (e) {
+    wsStatus.setFailed(e);
     logger.error("[NewCardScheduler] wsClient.connect failed", e, {
       toast: { type: "error", ms: 4000 }
     });

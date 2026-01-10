@@ -1,0 +1,137 @@
+import { WEBSOCKET_EVENTS } from "../../common/event/event-constants.js";
+
+export const WS_STATUS = {
+  CONNECTING: "connecting",
+  CONNECTED: "connected",
+  DISCONNECTED: "disconnected",
+  FAILED: "failed",
+};
+
+function normalizeErrorMessage(err) {
+  if (!err) {
+    return "";
+  }
+  if (typeof err === "string") {
+    return err;
+  }
+  const msg = err?.message;
+  if (typeof msg === "string" && msg.trim()) {
+    return msg.trim();
+  }
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
+}
+
+export function getWsStatusLabelOrThrow(status) {
+  const s = String(status || "");
+  if (!Object.values(WS_STATUS).includes(s)) {
+    throw new Error(`WS_STATUS 无效：${String(status)}`);
+  }
+  if (s === WS_STATUS.CONNECTED) {
+    return "connected";
+  }
+  if (s === WS_STATUS.CONNECTING) {
+    return "connecting";
+  }
+  if (s === WS_STATUS.DISCONNECTED) {
+    return "disconnected";
+  }
+  return "failed";
+}
+
+export function mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsClient }) {
+  if (!toolbarEl) {
+    throw new Error("mountWsStatusPanelOrThrow: toolbarEl 必填");
+  }
+  if (!eventBus) {
+    throw new Error("mountWsStatusPanelOrThrow: eventBus 必填");
+  }
+  if (!wsClient) {
+    throw new Error("mountWsStatusPanelOrThrow: wsClient 必填");
+  }
+  if (typeof clientId !== "string" || !clientId.trim()) {
+    throw new Error("mountWsStatusPanelOrThrow: clientId 必须为非空字符串");
+  }
+
+  const wrap = document.createElement("div");
+  wrap.setAttribute("data-testid", "ncs-ws-status");
+  wrap.style.display = "flex";
+  wrap.style.flexDirection = "column";
+  wrap.style.alignItems = "flex-end";
+  wrap.style.gap = "2px";
+  wrap.style.marginLeft = "12px";
+  wrap.style.fontSize = "12px";
+  wrap.style.color = "#666";
+
+  const line1 = document.createElement("div");
+  const line2 = document.createElement("div");
+  line2.style.maxWidth = "520px";
+  line2.style.whiteSpace = "nowrap";
+  line2.style.overflow = "hidden";
+  line2.style.textOverflow = "ellipsis";
+
+  wrap.appendChild(line1);
+  wrap.appendChild(line2);
+  toolbarEl.appendChild(wrap);
+
+  const state = {
+    status: WS_STATUS.DISCONNECTED,
+    errorMessage: "",
+  };
+
+  const render = () => {
+    const statusLabel = getWsStatusLabelOrThrow(state.status);
+    line1.textContent = `client_id=${clientId} | ws=${statusLabel}`;
+    line2.textContent = state.errorMessage ? `error=${state.errorMessage}` : "";
+    line2.style.display = state.errorMessage ? "block" : "none";
+  };
+
+  const setStatus = (status, err = null) => {
+    state.status = status;
+    state.errorMessage = normalizeErrorMessage(err);
+    render();
+  };
+
+  const unsubEstablished = eventBus.on(
+    WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED,
+    () => setStatus(WS_STATUS.CONNECTED, null),
+    { subscriberId: "NewCardScheduler.WsStatus.Established" }
+  );
+  const unsubClosed = eventBus.on(
+    WEBSOCKET_EVENTS.CONNECTION.CLOSED,
+    () => setStatus(WS_STATUS.DISCONNECTED, null),
+    { subscriberId: "NewCardScheduler.WsStatus.Closed" }
+  );
+  const unsubFailed = eventBus.on(
+    WEBSOCKET_EVENTS.CONNECTION.FAILED,
+    (error) => setStatus(WS_STATUS.FAILED, error),
+    { subscriberId: "NewCardScheduler.WsStatus.Failed" }
+  );
+  const unsubError = eventBus.on(
+    WEBSOCKET_EVENTS.CONNECTION.ERROR,
+    (errorInfo) => setStatus(WS_STATUS.FAILED, errorInfo),
+    { subscriberId: "NewCardScheduler.WsStatus.Error" }
+  );
+
+  const initial = typeof wsClient.isConnected === "function" && wsClient.isConnected()
+    ? WS_STATUS.CONNECTED
+    : WS_STATUS.DISCONNECTED;
+  setStatus(initial, null);
+
+  return {
+    setConnecting: () => setStatus(WS_STATUS.CONNECTING, null),
+    setDisconnected: () => setStatus(WS_STATUS.DISCONNECTED, null),
+    setFailed: (err) => setStatus(WS_STATUS.FAILED, err),
+    destroy() {
+      try { unsubEstablished?.(); } catch { /* ignore */ }
+      try { unsubClosed?.(); } catch { /* ignore */ }
+      try { unsubFailed?.(); } catch { /* ignore */ }
+      try { unsubError?.(); } catch { /* ignore */ }
+      try { wrap.remove(); } catch { /* ignore */ }
+    }
+  };
+}
+
