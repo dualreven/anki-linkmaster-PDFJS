@@ -72,12 +72,14 @@ python ai_launcher.py start --module pdf-home --vite-port 3001 --logs-dir logs
 
 应用会根据模块和端口参数生成对应的URL：
 ```
-http://localhost:{port}/{module}/index.html
+http://127.0.0.1:{port}/{module}/index.html
 ```
 
 例如：
-- `--module pdf-home --vite-port 3000` → `http://localhost:3000/pdf-home/index.html`
-- `--module pdf-viewer --vite-port 3001` → `http://localhost:3001/pdf-viewer/index.html`
+- `--module pdf-home --vite-port 3000` → `http://127.0.0.1:3000/pdf-home/index.html`
+- `--module pdf-viewer --vite-port 3001` → `http://127.0.0.1:3001/pdf-viewer/index.html`
+
+> 背景：Windows + QtWebEngine 下 `localhost` 的 IPv4/IPv6 解析不稳定，可能导致“页面能打开但动态 import 拉取失败”。开发模式统一使用 `127.0.0.1` 规避该类问题。
 
 ## 注意事项
 
@@ -87,6 +89,34 @@ http://localhost:{port}/{module}/index.html
 4. **统一入口**：仅使用 `ai_launcher.py`，不要直接执行 `python app.py` / `npm run dev`
 
 ## 故障排除
+
+### Loopback Host 一致性检查（建议作为必做验收）
+
+当出现如下报错时优先执行本节：
+- `Failed to fetch dynamically imported module: http://localhost:<vite_port>/pdf-home/index.js`
+- 或前端日志出现类似：`[BOOT] import index.js failed`
+
+在 PowerShell 中执行（把端口替换为实际 `vite_port`/`url_port`）：
+
+```powershell
+# 1) 确认 Vite HMR 客户端可访问（200）
+curl.exe -I "http://127.0.0.1:3000/@vite/client"
+
+# 2) 确认模块入口 JS 可访问（200）
+curl.exe -I "http://127.0.0.1:3000/pdf-home/index.js"
+
+# 3) 可选：确认 index.html 可访问（200）
+curl.exe -I "http://127.0.0.1:3000/pdf-home/index.html"
+```
+
+若 `127.0.0.1` 访问失败但 `localhost` 访问成功，说明 Vite 可能监听在 `::1`（IPv6 loopback）。本项目 dev 默认使用 `127.0.0.1`，如需手工覆盖请设置环境变量：
+
+```powershell
+$env:VITE_HOST="127.0.0.1"
+pnpm -s run dev
+```
+
+并确认窗口侧加载的 URL 也是 `http://127.0.0.1:<port>/...`（以 `logs/runtime-ports.json` 与窗口日志为准）。
 
 ### 常见问题
 
@@ -105,4 +135,3 @@ python ai_launcher.py start --module pdf-home --logs-dir logs
 
 - **v1.1.0** (2025-11-03): 对齐统一入口 `ai_launcher.py`；移除 `app.py` 与短参示例
 - **v1.0.0** (2025-09-14): 初始版本，支持模块切换功能
-
