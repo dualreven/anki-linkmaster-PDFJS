@@ -150,6 +150,18 @@
   - `09d0fde feat(gui-launcher): improve card planner inject ACK observability`
 - 门禁：`pnpm -s run lint` ✅；定向 Jest/Pytest ✅（与上述路径对应）。
 
+## 2026-01-10：Card Planner v003 手工验收结果（Step3 仍失败）→ 归档 v003 并下发 v004
+- 用户反馈：Step1/2/4 正常；Step3 注入不生效；MsgCenter ACK 为 `202 accepted queued`（pending-forward 未 flush）。
+- 初步定位：
+  - `new-card-scheduler` 仅 WS 建链未注册（没有 `WebSocketAdapterBase` 注册逻辑），RouteRegistry 无 `client_id=new-card-scheduler`。
+  - `gui_launcher` 的 `[ACK_META]` 解析字段位置不兼容（顶层 vs `data`），导致 code/status/message 打印为 None。
+- v003 归档：`todo-and-doing/4 archive/20260110185158-doing-archive/`
+- v004 任务（doing）：
+  - G（P0：补注册）：`todo-and-doing/1 doing/20260110185158-card-planner-register-new-card-scheduler-G/`
+  - I（queued 时自愈 open）：`todo-and-doing/1 doing/20260110185158-card-planner-msgcenter-auto-open-on-queued-I/`
+  - F（ACK_META 解析修复）：`todo-and-doing/1 doing/20260110185158-card-planner-gui-launcher-ack-meta-parse-F/`
+  - H（注册状态可观测）：`todo-and-doing/1 doing/20260110185158-card-planner-registration-observability-H/`
+
 ## 2026-01-10：任务调整（删除非主线 G/H/I 任务，围绕 Card Planner 重新下发）
 - 已删除（不再维护）：
   - `todo-and-doing/1 doing/20260110024409-pdfviewer-adapters-gate-cancel-G/`
