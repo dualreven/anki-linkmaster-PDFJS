@@ -13,7 +13,7 @@ function assertStringArrayOrThrow(arr, name) {
 }
 
 function respond(wsClient, { type, request_id, data, error }) {
-  const msg = { type, request_id };
+  const msg = { type, request_id, to: "backend" };
   if (data !== undefined) {
     msg.data = data;
   }

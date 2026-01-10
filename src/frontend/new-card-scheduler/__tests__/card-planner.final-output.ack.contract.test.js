@@ -51,6 +51,7 @@ describe("card-planner final-output ack UI (H) - contract regression", () => {
         type: CARD_PLANNER_MESSAGE_TYPES.FINAL_OUTPUT_REQUESTED,
         request_id: expect.any(String),
         timestamp: expect.any(Number),
+        to: "backend",
         data: expect.objectContaining({
           cards: expect.any(Array)
         })

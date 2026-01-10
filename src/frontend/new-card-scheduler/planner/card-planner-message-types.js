@@ -8,5 +8,6 @@ export const CARD_PLANNER_MESSAGE_TYPES = Object.freeze({
   FINAL_OUTPUT_COMPLETED: "card-planner:final-output:completed",
   FINAL_OUTPUT_FAILED: "card-planner:final-output:failed",
   ANNOTATION_BULK_GET_REQUESTED: "annotation:bulk-get:requested",
-  ANNOTATION_BULK_GET_COMPLETED: "annotation:bulk-get:completed"
+  ANNOTATION_BULK_GET_COMPLETED: "annotation:bulk-get:completed",
+  ANNOTATION_BULK_GET_FAILED: "annotation:bulk-get:failed"
 });

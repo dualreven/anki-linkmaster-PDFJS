@@ -17,6 +17,15 @@ function createRequestId() {
   return `ncs_bulk_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function normalizeFailedMessage(msg) {
+  const m = msg;
+  const errMsg = m?.error?.message || m?.data?.message || m?.message;
+  if (typeof errMsg === "string" && errMsg.trim()) {
+    return errMsg.trim();
+  }
+  return "annotation:bulk-get 失败";
+}
+
 export function createAnnotationMetaAdapter({
   mode = "mock",
   wsClient,
@@ -52,6 +61,7 @@ export function createAnnotationMetaAdapter({
     const req = {
       type: CARD_PLANNER_MESSAGE_TYPES.ANNOTATION_BULK_GET_REQUESTED,
       request_id: rid,
+      to: "backend",
       data: { ann_ids: annIds }
     };
 
@@ -66,21 +76,28 @@ export function createAnnotationMetaAdapter({
         (msg) => {
           const type = String(msg?.type || "");
           const respRid = msg?.request_id;
-          if (type !== CARD_PLANNER_MESSAGE_TYPES.ANNOTATION_BULK_GET_COMPLETED) {
-            return;
-          }
           if (respRid !== rid) {
             return;
           }
 
-          clearTimeout(timer);
-          try { unsub(); } catch { /* ignore */ }
+          if (type === CARD_PLANNER_MESSAGE_TYPES.ANNOTATION_BULK_GET_FAILED) {
+            clearTimeout(timer);
+            try { unsub(); } catch { /* ignore */ }
+            reject(new Error(normalizeFailedMessage(msg)));
+            return;
+          }
+
+          if (type !== CARD_PLANNER_MESSAGE_TYPES.ANNOTATION_BULK_GET_COMPLETED) {
+            return;
+          }
 
           const annotations = msg?.data?.annotations;
           if (!Array.isArray(annotations)) {
             reject(new Error("annotation:bulk-get:completed 缺少 data.annotations 数组"));
             return;
           }
+          clearTimeout(timer);
+          try { unsub(); } catch { /* ignore */ }
           resolve(annotations);
         },
         { subscriberId: `CardPlanner.AnnotationBulkGet.${rid}` }

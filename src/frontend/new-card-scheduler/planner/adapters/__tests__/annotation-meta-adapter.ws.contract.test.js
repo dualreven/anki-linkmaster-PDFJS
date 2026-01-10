@@ -49,6 +49,7 @@ describe("annotation meta adapter (ws) - contract regression", () => {
     expect(wsClient.send).toHaveBeenCalledWith(
       expect.objectContaining({
         type: CARD_PLANNER_MESSAGE_TYPES.ANNOTATION_BULK_GET_REQUESTED,
+        to: "backend",
         data: { ann_ids: ["ann_1", "ann_2"] }
       })
     );
@@ -60,5 +61,39 @@ describe("annotation meta adapter (ws) - contract regression", () => {
 
     eventBus.destroy();
   });
-});
 
+  test("收到 annotation:bulk-get:failed 后立即 reject（不等 timeout）", async () => {
+    const eventBus = new EventBus({ moduleName: `ncs-test-${Date.now()}`, enableValidation: true });
+
+    const wsClient = {
+      send: jest.fn((req) => {
+        if (req?.type !== CARD_PLANNER_MESSAGE_TYPES.ANNOTATION_BULK_GET_REQUESTED) {
+          return;
+        }
+        const requestId = req?.request_id;
+        eventBus.emit(
+          WEBSOCKET_EVENTS.MESSAGE.RECEIVED,
+          {
+            type: CARD_PLANNER_MESSAGE_TYPES.ANNOTATION_BULK_GET_FAILED,
+            request_id: requestId,
+            error: { message: "INVALID_TO_FIELD" }
+          },
+          { actorId: "test" }
+        );
+      })
+    };
+
+    const adapter = createAnnotationMetaAdapter({
+      mode: "ws",
+      wsClient,
+      eventBus,
+      timeoutMs: 5000,
+      logger: { warn: jest.fn() }
+    });
+
+    const p = adapter.getBulkOrThrow(["ann_1"]);
+    await expect(p).rejects.toThrow("INVALID_TO_FIELD");
+
+    eventBus.destroy();
+  });
+});

@@ -75,6 +75,7 @@ function mountFinalOutputButton({ engine, wsClient, notification, onRequestSent 
         type: CARD_PLANNER_MESSAGE_TYPES.FINAL_OUTPUT_REQUESTED,
         request_id: rid,
         timestamp,
+        to: "backend",
         data: payload
       });
 
@@ -115,6 +116,10 @@ export function createCardPlannerApp({ root, engine, wsClient, eventBus, logger,
   });
 
   const metaByAnnId = new Map();
+  const metaErrorToast = {
+    lastMessage: null,
+    lastTs: 0
+  };
 
   const onAfterIngestApplied = async ({ annotationIds }) => {
     assertNonEmptyStringArrayOrThrow(annotationIds, "annotationIds");
@@ -130,7 +135,14 @@ export function createCardPlannerApp({ root, engine, wsClient, eventBus, logger,
       const msg = e instanceof Error ? e.message : String(e);
       logger?.warn?.("[CardPlanner] annotation meta fetch failed", e);
       try {
-        notification?.showError?.(`标注元信息拉取失败：${msg}`, 3500);
+        const now = Date.now();
+        const toastMsg = `标注元信息拉取失败：${msg}`;
+        const withinWindow = metaErrorToast.lastMessage === toastMsg && (now - metaErrorToast.lastTs) < 2000;
+        if (!withinWindow) {
+          metaErrorToast.lastMessage = toastMsg;
+          metaErrorToast.lastTs = now;
+          notification?.showError?.(toastMsg, 3500);
+        }
       } catch {
         // ignore
       }
