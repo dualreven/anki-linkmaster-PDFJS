@@ -1,4 +1,5 @@
 import { CommentTool } from "../index.js";
+import { ObservableState } from "../../../../../../common/utils/observable.js";
 
 function createStubEventBus() {
   const subs = new Map();
@@ -44,6 +45,7 @@ describe("CommentTool.destroy()", () => {
   test("destroy() 不抛异常，且会清理 eventBus 订阅", async () => {
     const eventBus = createStubEventBus();
     const pdfjsEventBus = createStubPdfjsEventBus();
+    const store = new ObservableState({ annotations: [] }, { name: "TestAnnotationStore" });
 
     const tool = new CommentTool();
     await tool.initialize({
@@ -59,7 +61,10 @@ describe("CommentTool.destroy()", () => {
       container: {
         get(name) {
           if (name === "annotationManager") {
-            return { getAnnotationsByPage() { return []; } };
+            return {
+              store,
+              getAnnotationsByPage() { return store.get().annotations; }
+            };
           }
           return null;
         }

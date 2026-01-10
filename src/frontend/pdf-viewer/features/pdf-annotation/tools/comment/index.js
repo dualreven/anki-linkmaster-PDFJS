@@ -13,7 +13,6 @@ import { CommentMarker } from "./comment-marker.js";
 import { createCommentAnnotationCard } from "./comment-tool-annotation-card.js";
 import { confirmCommentDeleteAsync } from "./comment-tool-confirm-dialog.js";
 import { installCommentToolPageRendering } from "./comment-tool-page-rendering.js";
-import { installCommentToolAnnotationEventListeners } from "./comment-tool-subscriptions.js";
 import {
   activateCommentTool,
   deactivateCommentTool,
@@ -29,6 +28,7 @@ import {
   restoreMarkersForPage,
 } from "./comment-tool-marker-restoration.js";
 import { createCommentAnnotation } from "./comment-annotation-factory.js";
+import { createCommentToolStoreReactiveSync } from "./comment-tool-store-reactive.js";
 
 /**
  * 批注工具类
@@ -85,8 +85,8 @@ export class CommentTool extends IAnnotationTool {
   /** @type {Map<number, Map<string, any>>} 待渲染队列（按页） */
   #pendingMarkersByPage = new Map();
 
-  /** @type {Function|null} 数据加载后的处理器 */
-  #onAnnotationDataLoadedHandler = null;
+  /** @type {{ handleAnnotationsChanged:(annotations:any)=>void, clear:()=>void }|null} */
+  #storeSync = null;
 
   /** @type {Function[]} 统一 unsubscribe 集合 */
   #unsubscribeFunctions = [];
@@ -111,7 +111,11 @@ export class CommentTool extends IAnnotationTool {
 
     this.#annotationManager = container?.get?.("annotationManager") || null;
     if (!this.#annotationManager) {
-      this.#logger.error("❌ AnnotationManager not found in container!");
+      throw new Error("[CommentTool] AnnotationManager not found in container");
+    }
+    const store = this.#annotationManager?.store || null;
+    if (!store || typeof store.subscribe !== "function") {
+      throw new Error("[CommentTool] annotationManager.store.subscribe not available");
     }
 
     this.#commentInput = new CommentInput();
@@ -119,29 +123,23 @@ export class CommentTool extends IAnnotationTool {
 
     this.#setupPageRenderingListener();
 
-    // 监听标注数据加载完成（用于补画/入队）
-    this.#onAnnotationDataLoadedHandler = (data) => {
-      try {
-        const anns = Array.isArray(data?.annotations) ? data.annotations : [];
-        const comments = anns.filter((a) => a?.type === "comment");
-        this.#logger.info(`📥 [DataLoaded] total=${anns.length}, comments=${comments.length}`);
-        comments.forEach((ann) => this.ensureOverlayFor(ann));
-      } catch (e) {
-        this.#logger?.warn?.("[CommentTool] handleAnnotationsLoaded failed", e);
-      }
-    };
-    const unsubLoaded = this.#eventBus.on(
-      PDF_VIEWER_EVENTS.ANNOTATION.DATA.LOADED,
-      this.#onAnnotationDataLoadedHandler,
-      { subscriberId: "CommentTool" }
+    // store-reactive：由 AnnotationManager.store 驱动 marker 恢复/更新（不依赖 DATA.LOADED）
+    this.#storeSync = createCommentToolStoreReactiveSync({
+      logger: this.#logger,
+      ensureOverlayFor: (annotation) => this.ensureOverlayFor(annotation),
+      commentMarker: this.#commentMarker,
+      pendingMarkersByPage: this.#pendingMarkersByPage,
+    });
+    const unsubStore = store.subscribe(
+      (state) => state?.annotations,
+      (annotations) => this.#storeSync.handleAnnotationsChanged(annotations),
+      { fireImmediately: true }
     );
-    if (typeof unsubLoaded !== "function") {
-      throw new Error("[CommentTool] eventBus.on must return an unsubscribe function");
+    if (typeof unsubStore !== "function") {
+      throw new Error("[CommentTool] annotationManager.store.subscribe must return an unsubscribe function");
     }
-    this.#unsubscribeFunctions.push(unsubLoaded);
+    this.#unsubscribeFunctions.push(unsubStore);
 
-    // 设置标注事件监听
-    this.#setupAnnotationEventListeners();
     this.#logger.info(`✅ CommentTool initialized (v${this.version})`);
   }
 
@@ -234,7 +232,7 @@ export class CommentTool extends IAnnotationTool {
     // 创建标注对象（同时包含 positionPercent + position，满足后端校验）
     const annotation = createCommentAnnotation({ pageNumber, xPercent, yPercent, content });
 
-    // 发布创建事件（标记渲染会在annotation:create:success事件中统一处理）
+    // 发布创建事件（marker 渲染由 store 驱动，不依赖 CREATED/DATA.LOADED 事件）
     this.#eventBus.emit(
       PDF_VIEWER_EVENTS.ANNOTATION.CREATE,
       { annotation },
@@ -271,26 +269,6 @@ export class CommentTool extends IAnnotationTool {
       commentMarker: this.#commentMarker,
       flushPendingForPage: (pn) => this.#flushPendingForPage(pn),
       restoreMarkersForPage: (pn) => this.#restoreMarkersForPage(pn),
-    });
-    this.#unsubscribeFunctions.push(...unsubs);
-  }
-
-  /**
-   * 设置标注事件监听
-   * @private
-   */
-  #setupAnnotationEventListeners() {
-    if (!this.#eventBus) {
-      this.#logger.error("❌ Cannot setup annotation event listeners: eventBus not available");
-      return;
-    }
-
-    const unsubs = installCommentToolAnnotationEventListeners({
-      eventBus: this.#eventBus,
-      logger: this.#logger,
-      ensureOverlayFor: (annotation) => this.ensureOverlayFor(annotation),
-      commentMarker: this.#commentMarker,
-      pendingMarkersByPage: this.#pendingMarkersByPage,
     });
     this.#unsubscribeFunctions.push(...unsubs);
   }
@@ -472,7 +450,8 @@ export class CommentTool extends IAnnotationTool {
     }
 
     this.#pendingMarkersByPage.clear();
-    this.#onAnnotationDataLoadedHandler = null;
+    try { this.#storeSync?.clear?.(); } catch (e) { void e; /* logger-guard */ }
+    this.#storeSync = null;
 
     this.#annotationManager = null;
     this.#pdfjsEventBus = null;
