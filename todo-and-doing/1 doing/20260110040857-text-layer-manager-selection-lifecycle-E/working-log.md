@@ -17,3 +17,16 @@
 ### 下一步计划:
 - 交付 commit hash
 
+## 工作记录2
+**时间**: 2026-01-10 12:06
+### 工作内容:
+- 采取 Fail-Fast：禁止 `TextLayerManager` 多实例并存，避免重复 `document.selectionchange` 监听叠加。
+- 新增回归测试：第二次构造必须 throw；destroy 后允许再次创建；并断言 `selectionchange` add/remove 对称。
+### 改动范围:
+- `src/frontend/pdf-viewer/ui/text-layer-manager.js`
+- `src/frontend/pdf-viewer/ui/__tests__/text-layer-manager.test.js`
+### 自验:
+- `pnpm -s run lint` ✅
+- `pnpm exec jest --runTestsByPath src/frontend/pdf-viewer/ui/__tests__/text-layer-manager.test.js -i` ✅
+### 工作结果:
+- 已完成（待回填 commit hash）。
