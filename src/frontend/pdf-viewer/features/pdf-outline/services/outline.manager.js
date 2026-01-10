@@ -12,6 +12,7 @@ export class OutlineManager {
 
     this.store = new ObservableState({
       items: [],
+      selectedOutlineItemId: null,
       isLoading: false,
       error: null
     }, {
@@ -245,6 +246,26 @@ export class OutlineManager {
   // Alias for compatibility
   getAllOutlineItems() {
     return this.getAllItems();
+  }
+
+  setSelectedOutlineItemId(outlineItemId) {
+    const current = this.store.get().selectedOutlineItemId;
+
+    if (outlineItemId === null) {
+      if (current === null) { return; }
+      this.store.set({ selectedOutlineItemId: null });
+      return;
+    }
+
+    if (typeof outlineItemId !== "string") {
+      throw new Error("[OutlineManager] selectedOutlineItemId must be a string or null");
+    }
+    const id = outlineItemId.trim();
+    if (!id) {
+      throw new Error("[OutlineManager] selectedOutlineItemId must not be empty");
+    }
+    if (current === id) { return; }
+    this.store.set({ selectedOutlineItemId: id });
   }
 
   setLoading(isLoading) {

@@ -24,6 +24,7 @@ describe("OutlineManager (Observable)", () => {
     expect(state.items).toEqual([]);
     expect(state.isLoading).toBe(false);
     expect(state.error).toBeNull();
+    expect(state.selectedOutlineItemId).toBeNull();
   });
 
   test("should replace items from remote", () => {
@@ -72,5 +73,15 @@ describe("OutlineManager (Observable)", () => {
     const newItems = manager.store.get().items;
     expect(newItems[0].id).toBe(id2);
     expect(newItems[1].id).toBe(id1);
+  });
+
+  test("should set and clear selectedOutlineItemId", () => {
+    expect(manager.store.get().selectedOutlineItemId).toBeNull();
+
+    manager.setSelectedOutlineItemId(" outlineItem-123 ");
+    expect(manager.store.get().selectedOutlineItemId).toBe("outlineItem-123");
+
+    manager.setSelectedOutlineItemId(null);
+    expect(manager.store.get().selectedOutlineItemId).toBeNull();
   });
 });

@@ -31,8 +31,17 @@ export class OutlineSidebarUI {
   #toolbarEl;
   #subscriptionBag;
   #initialized = false;
+  #destroyed = false;
 
   constructor(eventBus, outlineManager) {
+    if (!eventBus) { throw new Error("[OutlineSidebarUI] eventBus is required"); }
+    if (!outlineManager) { throw new Error("[OutlineSidebarUI] outlineManager is required"); }
+    if (!outlineManager.store || typeof outlineManager.store.subscribe !== "function") {
+      throw new Error("[OutlineSidebarUI] outlineManager.store.subscribe is required");
+    }
+    if (typeof outlineManager.setSelectedOutlineItemId !== "function") {
+      throw new Error("[OutlineSidebarUI] outlineManager.setSelectedOutlineItemId is required");
+    }
     this.#eventBus = eventBus;
     this.#outlineManager = outlineManager;
     this.#logger = getLogger("OutlineSidebarUI");
@@ -62,40 +71,25 @@ export class OutlineSidebarUI {
     this.#content.appendChild(this.#treeContainer);
 
     // 订阅 Manager 状态
-    if (this.#outlineManager) {
-        this.#subscriptionBag.add(this.#outlineManager.store.subscribe(
-            state => state.items,
-            (items) => {
-                this.#logger.info(`[OutlineUI] Received items: ${items?.length || 0}`);
-                this.#renderTree(items || []);
-            },
-            { fireImmediately: true }
-        ));
-    } else {
-        this.#logger.warn("[OutlineUI] No OutlineManager provided, cannot render tree");
-    }
-
-    // 监听来自其他模块的“选中改变”事件，用于外部导航时高亮并滚动到指定大纲项
-    const unsubOutlineSelectChanged = this.#eventBus.on(
-      PDF_VIEWER_EVENTS.OUTLINE.SELECT.CHANGED,
-      (data, metadata) => {
-        try {
-          const outlineItemId = data?.outlineItemId || data?.bookmarkId || null;
-          const actorId = metadata?.actorId || "";
-          // 避免自己触发的事件再次处理（只处理外部来源）
-          if (!outlineItemId || actorId === "OutlineSidebarUI") {
-            return;
-          }
-          this.#focusNodeById(String(outlineItemId));
-        } catch (e) {
-          this.#logger.warn("[OutlineUI] 处理外部选中事件失败", e);
-        }
+    this.#subscriptionBag.add(this.#outlineManager.store.subscribe(
+      state => state.items,
+      (items) => {
+        this.#logger.info(`[OutlineUI] Received items: ${items?.length || 0}`);
+        this.#renderTree(items || []);
       },
-      { subscriberId: "OutlineSidebarUI" }
-    );
-    if (this.#subscriptionBag) {
-      this.#subscriptionBag.add(unsubOutlineSelectChanged);
-    }
+      { fireImmediately: true }
+    ));
+    this.#subscriptionBag.add(this.#outlineManager.store.subscribe(
+      state => state.selectedOutlineItemId,
+      (selectedOutlineItemId) => {
+        if (selectedOutlineItemId === null) {
+          this.#deselectAllNodes();
+          return;
+        }
+        this.#focusNodeById(selectedOutlineItemId);
+      },
+      { fireImmediately: true }
+    ));
 
     this.#logger.info("[DEBUG] OutlineSidebarUI initialized successfully");
     this.#initialized = true;
@@ -103,6 +97,10 @@ export class OutlineSidebarUI {
 
   getContentElement() { return this.#content; }
   isInitialized() { return this.#initialized; }
+
+  focusByOutlineItemId(outlineItemId) {
+    this.#focusNodeById(outlineItemId);
+  }
 
   #focusNodeById(outlineItemId) {
     try {
@@ -127,6 +125,17 @@ export class OutlineSidebarUI {
       }
     } catch (e) {
       this.#logger.warn("[OutlineUI] focusNodeById failed", e);
+    }
+  }
+
+  #deselectAllNodes() {
+    try {
+      const $tree = $(this.#treeContainer);
+      const inst = $tree.jstree(true);
+      if (!inst) { return; }
+      inst.deselect_all(true);
+    } catch (e) {
+      this.#logger.warn("[OutlineUI] deselectAllNodes failed", e);
     }
   }
 
@@ -218,6 +227,10 @@ export class OutlineSidebarUI {
           // 启动时不默认选中任何节点，等待用户或外部导航显式指定
           inst.deselect_all(true);
         }
+        const selectedOutlineItemId = this.#outlineManager.store.get().selectedOutlineItemId;
+        if (selectedOutlineItemId) {
+          this.#focusNodeById(selectedOutlineItemId);
+        }
       } catch (err) {
         this.#logger.error("❌ Failed to expand outline tree: " + err.message);
       }
@@ -229,6 +242,7 @@ export class OutlineSidebarUI {
         const node = selected.node;
         const info = node?.data || {};
         const outlineItemId = node?.id || null;
+        if (outlineItemId) { this.#outlineManager.setSelectedOutlineItemId(outlineItemId); }
         // 先广播选择变化（供工具栏启用编辑/删除按钮等）
         try {
           this.#eventBus.emit(
@@ -314,6 +328,10 @@ export class OutlineSidebarUI {
   }
 
   destroy() {
+    if (this.#destroyed) {
+      return;
+    }
+    this.#destroyed = true;
     if (this.#subscriptionBag) {
       this.#subscriptionBag.clear();
     }

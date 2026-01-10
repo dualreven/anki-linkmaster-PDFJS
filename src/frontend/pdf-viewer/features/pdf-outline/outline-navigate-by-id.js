@@ -62,6 +62,10 @@ export async function handleOutlineNavigateById({
 
   // 让侧边栏像“用户点击一样”高亮并滚动到该项（避免 OutlineSidebarUI 自己触发造成循环）
   if (sourceActorId !== "OutlineSidebarUI") {
+    if (typeof outlineManager.setSelectedOutlineItemId !== "function") {
+      throw new Error("[OutlineNavigateById] outlineManager.setSelectedOutlineItemId must be a function");
+    }
+    outlineManager.setSelectedOutlineItemId(item.id);
     safeEmit(
       eventBus,
       PDF_VIEWER_EVENTS.OUTLINE.SELECT.CHANGED,
