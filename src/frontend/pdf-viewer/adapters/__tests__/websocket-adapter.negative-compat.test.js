@@ -29,7 +29,7 @@ describe("WebSocketAdapter — 旧字段/旧事件名应被拒绝", () => {
       send: () => {},
       request: () => {}
     };
-    const adapter = new WebSocketAdapter(mockWSClient, eventBus);
+    const adapter = new WebSocketAdapter(mockWSClient, eventBus, () => "pdf-test-001");
     adapter.setupMessageHandlers();
   });
 

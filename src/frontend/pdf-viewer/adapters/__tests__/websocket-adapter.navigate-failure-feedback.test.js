@@ -9,9 +9,7 @@ function createAdapterWith(wsUrlPdfId = "jest-pdf") {
   // minimal wsClient with send spy
   const sent = [];
   const wsClient = { send: (msg) => { sent.push(msg); } };
-  // set URL ?pdf-id=
-  try { window.history.pushState({}, "", `/?pdf-id=${wsUrlPdfId}`); } catch {}
-  const adapter = new WebSocketAdapter(wsClient, eventBus);
+  const adapter = new WebSocketAdapter(wsClient, eventBus, () => wsUrlPdfId);
   adapter.setupMessageHandlers();
   adapter.onInitialized();
   return { adapter, eventBus, sent };

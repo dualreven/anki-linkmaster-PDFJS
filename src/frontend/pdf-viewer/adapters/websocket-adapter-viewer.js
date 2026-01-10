@@ -7,7 +7,7 @@
 
 import { WebSocketAdapterBase } from "../../common/adapters/websocket-adapter-base.js";
 import { WEBSOCKET_MESSAGE_TYPES } from "../../common/event/event-constants.js";
-import { getCurrentPdfIdFromWindow } from "../shared/url-context.js";
+import { createPdfIdProvider } from "./pdf-id-provider.js";
 
 /**
  * PDF Viewer 专属 WebSocket适配器
@@ -18,14 +18,19 @@ export class WebSocketAdapterViewer extends WebSocketAdapterBase {
   /** @type {string} */
   #viewerInstanceId;
 
+  /** @type {() => string} */
+  #pdfIdProvider;
+
   /**
    * 创建 PDF Viewer WebSocket适配器实例
    * @param {import('../../common/ws/ws-client.js').WSClient} wsClient - WebSocket客户端实例
    * @param {import('../../common/event/event-bus.js').EventBus} eventBus - 事件总线实例
+   * @param {() => string | null} pdfIdProvider - 提供当前PDF ID的函数（必须注入，适配器不再从 URL 解析）。
    */
-  constructor(wsClient, eventBus) {
+  constructor(wsClient, eventBus, pdfIdProvider) {
     super(wsClient, eventBus, { loggerName: "WebSocketAdapterViewer" });
     this.#viewerInstanceId = WebSocketAdapterViewer.#resolveViewerInstanceId();
+    this.#pdfIdProvider = createPdfIdProvider(pdfIdProvider);
     this.logger.debug("PDF Viewer WebSocket适配器实例已创建", { viewerInstanceId: this.#viewerInstanceId });
   }
 
@@ -37,8 +42,8 @@ export class WebSocketAdapterViewer extends WebSocketAdapterBase {
    */
   _getRegistrationConfig() {
     try {
-      // 从 URL 参数获取 pdf-id
-      const pdfId = getCurrentPdfIdFromWindow();
+      // 从注入的 provider 获取 pdf-id（边界决定来源）
+      const pdfId = this.#pdfIdProvider();
 
       // 构造 client_id（标准格式：pdf-viewer-{pdf-id}）
       const clientId = pdfId

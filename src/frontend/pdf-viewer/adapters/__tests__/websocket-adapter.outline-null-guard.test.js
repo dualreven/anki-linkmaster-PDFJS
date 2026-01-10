@@ -12,31 +12,20 @@ describe("WebSocketAdapter — outline:list:completed(null) 不应桥接空态",
   let ws;
   let adapter;
 
-  let OriginalURLSearchParams;
   beforeEach(() => {
     try { eventBus.destroy(); } catch {}
-    // 固定 URL 参数返回 pdf-id
-    OriginalURLSearchParams = global.URLSearchParams;
-    // @ts-ignore
-    global.URLSearchParams = function () {
-      return { get: (k) => (k === "pdf-id" ? "c83c60c58ad2" : null) };
-    };
 
     ws = {
       request: jest.fn(),
       send: jest.fn()
     };
-    adapter = new WebSocketAdapter(ws, eventBus);
+    adapter = new WebSocketAdapter(ws, eventBus, () => "c83c60c58ad2");
     adapter.setupMessageHandlers();
     adapter.onInitialized();
   });
 
   afterEach(() => {
     try { adapter?.destroy?.(); } catch {}
-    if (OriginalURLSearchParams) {
-      // @ts-ignore
-      global.URLSearchParams = OriginalURLSearchParams;
-    }
   });
 
   test("outline_items === null 时不应发出 OUTLINE.LOAD.SUCCESS", () => {
@@ -52,4 +41,3 @@ describe("WebSocketAdapter — outline:list:completed(null) 不应桥接空态",
     expect(handler).not.toHaveBeenCalled();
   });
 });
-

@@ -7,6 +7,7 @@
 import { createPDFViewerContainer } from "../../container/app-container.js";
 import { createWebSocketAdapter } from "../../adapters/websocket-adapter.js";
 import { WebSocketAdapterViewer } from "../../adapters/websocket-adapter-viewer.js";  // 新增：注册适配器
+import { getCurrentPdfIdFromWindow } from "../../shared/url-context.js";
 import { setupWsInfra } from "../../../common/features/ws-infra/index.js";
 // 不再直接在此处创建 ConsoleWebSocketBridge（由容器层统一管理）
 import { showError } from "../../../common/utils/notification.js";
@@ -94,14 +95,20 @@ export class AppCoreFeature {
     try {
       const { eventBus } = this.#appContainer.getDependencies();
       if (this.#wsClient && eventBus) {
+        const pdfId = getCurrentPdfIdFromWindow();
+        if (!pdfId) {
+          throw new Error("[AppCoreFeature] missing required URL param: pdf-id");
+        }
+        const pdfIdProvider = () => pdfId;
+
         // 通过公共 WS 基础设施 helper 安装适配器
         this.#wsInfra = setupWsInfra({
           container,
           eventBus,
           logger,
           adapterFactories: [
-            (wsClient, ev) => createWebSocketAdapter(wsClient, ev),
-            (wsClient, ev) => new WebSocketAdapterViewer(wsClient, ev)
+            (wsClient, ev) => createWebSocketAdapter(wsClient, ev, pdfIdProvider),
+            (wsClient, ev) => new WebSocketAdapterViewer(wsClient, ev, pdfIdProvider)
           ]
         });
         logger.info("WebSocketAdapter and WebSocketAdapterViewer initialized via WsInfra helper");
@@ -209,4 +216,3 @@ export class AppCoreFeature {
     return this.#wsClient;
   }
 }
-

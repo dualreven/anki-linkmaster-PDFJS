@@ -26,7 +26,7 @@ describe("WebSocketAdapter - anchor navigate inbound", () => {
       send: (msg) => sent.push(msg),
       request: jest.fn(),
     };
-    const adapter = new WebSocketAdapter(wsClient, eventBus);
+    const adapter = new WebSocketAdapter(wsClient, eventBus, () => "pdf-test-001");
     adapter.setupMessageHandlers();
     adapter.onInitialized();
 
@@ -54,4 +54,3 @@ describe("WebSocketAdapter - anchor navigate inbound", () => {
     off1?.(); off2?.();
   });
 });
-
