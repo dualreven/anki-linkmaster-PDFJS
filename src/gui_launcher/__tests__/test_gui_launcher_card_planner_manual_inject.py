@@ -204,7 +204,8 @@ def test_card_planner_manual_inject_sends_two_ingest_messages(monkeypatch):
             return json.dumps(msg, ensure_ascii=False)
 
     std_mod.StandardMessageHandler = _SMH
-    sys.modules["src.backend.msgCenter_server.standard_protocol"] = std_mod
+    # 避免污染全局 sys.modules（影响其他 pytest 用例对真实模块的 import）
+    monkeypatch.setitem(sys.modules, "src.backend.msgCenter_server.standard_protocol", std_mod)
 
     # 跳过 UI 构建、状态刷新与监听绑定
     monkeypatch.setattr(mod.GUILauncher, "_init_ui", lambda self: None, raising=False)
@@ -297,7 +298,7 @@ def test_card_planner_inject_ack_observability_queued_202(monkeypatch):
             return json.dumps(msg, ensure_ascii=False)
 
     std_mod.StandardMessageHandler = _SMH
-    sys.modules["src.backend.msgCenter_server.standard_protocol"] = std_mod
+    monkeypatch.setitem(sys.modules, "src.backend.msgCenter_server.standard_protocol", std_mod)
 
     monkeypatch.setattr(mod.GUILauncher, "_init_ui", lambda self: None, raising=False)
     monkeypatch.setattr(mod.GUILauncher, "_init_status_watchers", lambda self: None, raising=False)
@@ -353,7 +354,7 @@ def test_card_planner_inject_ack_observability_no_target_found_404(monkeypatch):
             return json.dumps(msg, ensure_ascii=False)
 
     std_mod.StandardMessageHandler = _SMH
-    sys.modules["src.backend.msgCenter_server.standard_protocol"] = std_mod
+    monkeypatch.setitem(sys.modules, "src.backend.msgCenter_server.standard_protocol", std_mod)
 
     monkeypatch.setattr(mod.GUILauncher, "_init_ui", lambda self: None, raising=False)
     monkeypatch.setattr(mod.GUILauncher, "_init_status_watchers", lambda self: None, raising=False)
