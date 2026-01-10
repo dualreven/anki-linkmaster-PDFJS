@@ -276,3 +276,115 @@ def test_card_planner_manual_inject_sends_two_ingest_messages(monkeypatch):
     assert second["data"]["op"]["target"]["kind"] == "last"
     assert second["data"]["op"]["face"] == "A"
     assert second["data"]["annotation_ids"] == ["ann_3"]
+
+
+def test_card_planner_inject_ack_observability_queued_202(monkeypatch):
+    _install_pyqt_stubs()
+    mod = _load_gui_launcher_as("gui_launcher_mod_test_card_planner_inject_obs_202")
+
+    std_mod = types.ModuleType("src.backend.msgCenter_server.standard_protocol")
+
+    class _SMH:
+        _i = 0
+
+        @staticmethod
+        def generate_request_id() -> str:
+            _SMH._i += 1
+            return f"rid_test_{_SMH._i}"
+
+        @staticmethod
+        def serialize_message(msg) -> str:
+            return json.dumps(msg, ensure_ascii=False)
+
+    std_mod.StandardMessageHandler = _SMH
+    sys.modules["src.backend.msgCenter_server.standard_protocol"] = std_mod
+
+    monkeypatch.setattr(mod.GUILauncher, "_init_ui", lambda self: None, raising=False)
+    monkeypatch.setattr(mod.GUILauncher, "_init_status_watchers", lambda self: None, raising=False)
+    monkeypatch.setattr(mod.GUILauncher, "_update_status", lambda self: None, raising=False)
+    monkeypatch.setattr(mod.GUILauncher, "_runtime_ports", lambda self: {"msgCenter_port": 8765}, raising=False)
+    monkeypatch.setattr(mod.GUILauncher, "_is_port_listening", lambda self, host, port, timeout=0.6: True, raising=False)
+    monkeypatch.setattr(mod.GUILauncher, "_start_new_card_scheduler_hosted", lambda self: None, raising=False)
+
+    ack_text = json.dumps(
+        {
+            "type": "card-planner:ingest:completed",
+            "request_id": "rid_ack",
+            "timestamp": 0,
+            "data": {"code": 202, "status": "accepted", "message": "queued", "error_code": None},
+        },
+        ensure_ascii=False,
+    )
+
+    def fake_send_ws(self, port, text, timeout_ms=2000, *, expect_types=(), correlation_id=None):
+        return ack_text
+
+    monkeypatch.setattr(mod.GUILauncher, "_send_ws_text_qt", fake_send_ws, raising=False)
+
+    g = mod.GUILauncher()
+    g.msgCenter_port_input = types.SimpleNamespace(value=lambda: 8765)
+    logs = []
+    g._log = lambda m: logs.append(str(m))
+
+    g._card_planner_manual_test_inject_sample_draft_cards()
+
+    joined = "\n".join(logs)
+    assert "code=202" in joined
+    assert "已排队等待 new-card-scheduler 注册" in joined
+    assert "自动注入" in joined
+
+
+def test_card_planner_inject_ack_observability_no_target_found_404(monkeypatch):
+    _install_pyqt_stubs()
+    mod = _load_gui_launcher_as("gui_launcher_mod_test_card_planner_inject_obs_404")
+
+    std_mod = types.ModuleType("src.backend.msgCenter_server.standard_protocol")
+
+    class _SMH:
+        _i = 0
+
+        @staticmethod
+        def generate_request_id() -> str:
+            _SMH._i += 1
+            return f"rid_test_{_SMH._i}"
+
+        @staticmethod
+        def serialize_message(msg) -> str:
+            return json.dumps(msg, ensure_ascii=False)
+
+    std_mod.StandardMessageHandler = _SMH
+    sys.modules["src.backend.msgCenter_server.standard_protocol"] = std_mod
+
+    monkeypatch.setattr(mod.GUILauncher, "_init_ui", lambda self: None, raising=False)
+    monkeypatch.setattr(mod.GUILauncher, "_init_status_watchers", lambda self: None, raising=False)
+    monkeypatch.setattr(mod.GUILauncher, "_update_status", lambda self: None, raising=False)
+    monkeypatch.setattr(mod.GUILauncher, "_runtime_ports", lambda self: {"msgCenter_port": 8765}, raising=False)
+    monkeypatch.setattr(mod.GUILauncher, "_is_port_listening", lambda self, host, port, timeout=0.6: True, raising=False)
+    monkeypatch.setattr(mod.GUILauncher, "_start_new_card_scheduler_hosted", lambda self: None, raising=False)
+
+    ack_text = json.dumps(
+        {
+            "type": "card-planner:ingest:completed",
+            "request_id": "rid_ack",
+            "timestamp": 0,
+            "data": {"code": 404, "status": "error", "message": "no target", "error_code": "NO_TARGET_FOUND"},
+        },
+        ensure_ascii=False,
+    )
+
+    def fake_send_ws(self, port, text, timeout_ms=2000, *, expect_types=(), correlation_id=None):
+        return ack_text
+
+    monkeypatch.setattr(mod.GUILauncher, "_send_ws_text_qt", fake_send_ws, raising=False)
+
+    g = mod.GUILauncher()
+    g.msgCenter_port_input = types.SimpleNamespace(value=lambda: 8765)
+    logs = []
+    g._log = lambda m: logs.append(str(m))
+
+    g._card_planner_manual_test_inject_sample_draft_cards()
+
+    joined = "\n".join(logs)
+    assert "code=404" in joined
+    assert "NO_TARGET_FOUND" in joined
+    assert "不可路由" in joined or "未注册" in joined
