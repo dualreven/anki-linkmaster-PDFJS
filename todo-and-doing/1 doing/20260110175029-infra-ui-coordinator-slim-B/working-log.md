@@ -16,3 +16,15 @@
 ### 下一步计划:
 - 实现并提交（附测试路径）
 
+## 工作记录2
+**时间**: 2026-01-10 18:22:56
+### 工作内容:
+- coordinator 拆分为多个 subscriptions installer（按领域分组），coordinator 只负责编排与统一 cleanup。
+- 新增回归测试：destroy 后所有订阅的 unsubscribe 都被调用（覆盖 uninstall 清理）。
+
+### 验收:
+- `pnpm -s run lint` ✅
+- `pnpm exec jest --runTestsByPath src/frontend/pdf-viewer/features/infra-ui/__tests__/infra-ui-coordinator.uninstall-cleans-subscriptions.test.js -i` ✅
+
+### 下一步计划:
+- 提交 commit 并回报 hash
