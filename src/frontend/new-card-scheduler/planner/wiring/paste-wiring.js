@@ -40,7 +40,7 @@ export function installPasteWiring({ engine, getPasteFocus, render, notification
     }
   };
 
-  const onPaste = (e) => {
+  const onPaste = async (e) => {
     const { selectedTempId } = engine.getState();
     const focus = getPasteFocus();
     if (!selectedTempId || !focus || focus.tempId !== selectedTempId || !focus.face) {
@@ -71,13 +71,8 @@ export function installPasteWiring({ engine, getPasteFocus, render, notification
         },
         annotationIds
       });
+      await onAfterIngestApplied?.({ annotationIds });
       render();
-      try {
-        // eslint-disable-next-line no-use-before-define
-        onAfterIngestApplied?.({ tempId: selectedTempId, face: focus.face, annotationIds });
-      } catch {
-        // ignore
-      }
       try {
         notification?.showInfo?.(`已追加 ${annotationIds.length} 个标注到 ${focus.face}`, 1500);
       } catch {

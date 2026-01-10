@@ -135,6 +135,15 @@ export class CardsEngine {
     }));
   }
 
+  getDraftCardsSnapshotOrThrow() {
+    return this.#cards.map((c) => ({
+      tempId: c.tempId,
+      title: c.title,
+      Q: [...c.Q],
+      A: [...c.A]
+    }));
+  }
+
   dispatchIngest({ op, annotationIds }) {
     return this.ingestOrThrow({
       op,

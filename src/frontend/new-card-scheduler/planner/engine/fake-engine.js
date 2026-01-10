@@ -237,6 +237,13 @@ export function createFakeEngine() {
     ACount: c.A.length
   }));
 
+  const getDraftCardsSnapshotOrThrow = () => state.cards.map((c) => ({
+    tempId: c.tempId,
+    title: c.title,
+    Q: [...c.Q],
+    A: [...c.A]
+  }));
+
   const setSelected = (tempIdOrNull) => {
     if (tempIdOrNull === null) {
       state = { ...state, selectedTempId: null };
@@ -287,6 +294,7 @@ export function createFakeEngine() {
   return {
     getState,
     getCardsForView,
+    getDraftCardsSnapshotOrThrow,
     dispatchIngest,
     setSelected,
     renameCard,
@@ -295,4 +303,3 @@ export function createFakeEngine() {
     toFinalCards,
   };
 }
-

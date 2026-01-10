@@ -1,15 +1,18 @@
 import { getLogger } from "../common/utils/logger.js";
 import eventBus from "../common/event/event-bus.js";
 import WSClient from "../common/ws/ws-client.js";
-import { resolveWebSocketPortSync, DEFAULT_WS_PORT } from "../common/utils/ws-port-resolver.js";
 import { WindowControlsComponent } from "../common/components/window-controls/window-controls.js";
 import { showInfo, showError } from "../common/utils/notification.js";
 
-import { createFakeEngine } from "./planner/engine/fake-engine.js";
+import { createCardsEngine } from "./planner/cards-model.js";
 import { createCardPlannerApp } from "./planner/app.js";
 import { installPlannerSidebarControllerOrThrow } from "./planner/ui/planner-sidebar-controller.js";
 
 const logger = getLogger("NewCardSchedulerWindow");
+
+export function createPlannerEngineOrThrow() {
+  return createCardsEngine();
+}
 
 function resolveClientIdFromUrl() {
   try {
@@ -73,6 +76,7 @@ async function bootstrap() {
 
   const clientId = resolveClientIdFromUrl();
 
+  const { resolveWebSocketPortSync, DEFAULT_WS_PORT } = await import("../common/utils/ws-port-resolver.js");
   const wsPort = resolveWebSocketPortSync({ fallbackPort: DEFAULT_WS_PORT });
   const wsUrl = `ws://localhost:${wsPort}`;
   const identity = {
@@ -98,7 +102,7 @@ async function bootstrap() {
 
   mountPlannerSidebarToggleOrThrow();
 
-  const engine = createFakeEngine();
+  const engine = createPlannerEngineOrThrow();
   createCardPlannerApp({
     root,
     engine,
@@ -111,8 +115,10 @@ async function bootstrap() {
   showInfo("新卡片规划器窗口已启动", 1500);
 }
 
-bootstrap().catch((e) => {
-  logger.error("[NewCardScheduler] bootstrap failed", e, {
-    toast: { type: "error", ms: 4000 }
+if (globalThis.__NCS_DISABLE_AUTO_BOOTSTRAP__ !== true) {
+  bootstrap().catch((e) => {
+    logger.error("[NewCardScheduler] bootstrap failed", e, {
+      toast: { type: "error", ms: 4000 }
+    });
   });
-});
+}

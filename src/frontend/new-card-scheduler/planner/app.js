@@ -4,6 +4,21 @@ import { installPasteWiring } from "./wiring/paste-wiring.js";
 import { installMsgCenterWiring } from "./wiring/msgcenter-wiring.js";
 import { createAnnotationMetaAdapter } from "./adapters/annotation-meta-adapter.js";
 
+function assertNonEmptyStringArrayOrThrow(arr, name) {
+  if (!Array.isArray(arr)) {
+    throw new Error(`${name} 必须是数组`);
+  }
+  if (arr.length === 0) {
+    throw new Error(`${name} 不能为空数组`);
+  }
+  for (let i = 0; i < arr.length; i += 1) {
+    const v = arr[i];
+    if (typeof v !== "string" || !v.trim()) {
+      throw new Error(`${name}[${i}] 必须为非空字符串`);
+    }
+  }
+}
+
 function validateFinalOutputPayloadOrThrow(payload) {
   const cards = payload?.cards;
   if (!Array.isArray(cards)) {
@@ -88,31 +103,10 @@ export function createCardPlannerApp({ root, engine, wsClient, eventBus, logger,
     logger
   });
 
-  const shadowByTempId = new Map();
   const metaByAnnId = new Map();
 
-  const ensureShadow = (tempId) => {
-    if (!shadowByTempId.has(tempId)) {
-      shadowByTempId.set(tempId, { Q: [], A: [] });
-    }
-    return shadowByTempId.get(tempId);
-  };
-
-  const onAfterIngestApplied = async ({ tempId, face, annotationIds }) => {
-    if (typeof tempId !== "string" || !tempId.trim()) {
-      return;
-    }
-    const f = String(face || "").toUpperCase();
-    if (f !== "Q" && f !== "A") {
-      return;
-    }
-    if (!Array.isArray(annotationIds) || annotationIds.length === 0) {
-      return;
-    }
-
-    const shadow = ensureShadow(tempId);
-    shadow[f].push(...annotationIds);
-
+  const onAfterIngestApplied = async ({ annotationIds }) => {
+    assertNonEmptyStringArrayOrThrow(annotationIds, "annotationIds");
     try {
       const annotations = await metaAdapter.getBulkOrThrow(annotationIds);
       for (const a of annotations) {
@@ -133,9 +127,13 @@ export function createCardPlannerApp({ root, engine, wsClient, eventBus, logger,
   };
 
   const getCardMetaPreview = (tempId) => {
-    const shadow = shadowByTempId.get(tempId);
-    const q = Array.isArray(shadow?.Q) ? shadow.Q : [];
-    const a = Array.isArray(shadow?.A) ? shadow.A : [];
+    const snapshot = engine.getDraftCardsSnapshotOrThrow();
+    const card = snapshot.find((c) => c.tempId === tempId);
+    if (!card) {
+      throw new Error(`getCardMetaPreview: 未找到 tempId=${tempId} 的草稿卡`);
+    }
+    const q = Array.isArray(card.Q) ? card.Q : [];
+    const a = Array.isArray(card.A) ? card.A : [];
     return {
       Q: q.map((id) => metaByAnnId.get(id) || { id, title: id, type: "unknown" }),
       A: a.map((id) => metaByAnnId.get(id) || { id, title: id, type: "unknown" }),
@@ -160,8 +158,7 @@ export function createCardPlannerApp({ root, engine, wsClient, eventBus, logger,
     notification,
     onAfterIngestApplied: async (info) => {
       await onAfterIngestApplied(info);
-      workspace.render();
-    }
+    },
   });
 
   // Wiring：MsgCenter 消息收发（按契约第 7 节）

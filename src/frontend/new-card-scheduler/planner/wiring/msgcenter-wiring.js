@@ -39,7 +39,7 @@ export function installMsgCenterWiring({ eventBus, wsClient, engine, logger, onA
 
   const unsubscribe = eventBus.on(
     WEBSOCKET_EVENTS.MESSAGE.RECEIVED,
-    (message) => {
+    async (message) => {
       const type = String(message?.type || "");
       const rid = message?.request_id;
 
@@ -56,17 +56,7 @@ export function installMsgCenterWiring({ eventBus, wsClient, engine, logger, onA
             op,
             annotationIds
           });
-          try {
-            if (op?.kind === "all-to-one" && op?.target?.kind === "card-id") {
-              onAfterIngestApplied?.({
-                tempId: op?.target?.tempId,
-                face: op?.face,
-                annotationIds
-              });
-            }
-          } catch {
-            // ignore
-          }
+          await onAfterIngestApplied?.({ annotationIds });
 
           respond(wsClient, {
             type: CARD_PLANNER_MESSAGE_TYPES.INGEST_COMPLETED,
