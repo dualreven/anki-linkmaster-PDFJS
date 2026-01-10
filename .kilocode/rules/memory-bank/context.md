@@ -164,8 +164,18 @@
 
 ## 2026-01-10：PDFViewer 面条化治理新派工（A~E，20260110220446）
 - 说明：本批不升级 KI-20260110-01（爆栈）为必须修；E 的 CI gate 要求严格失败（无 allowlist 过渡）。
-- A（core）：LifecycleManager 全局错误监听器可卸载：`todo-and-doing/1 doing/20260110220446-pdfviewer-core-lifecycle-error-listeners-uninstall-A/`
-- B（infra-ui）：coordinator 迁移收尾 + 严格隔离订阅：`todo-and-doing/1 doing/20260110220446-pdfviewer-infra-ui-coordinator-hardening-B/`
-- C（pdf-annotation）：TextHighlightTool store-reactive 扩面：`todo-and-doing/1 doing/20260110220446-pdfviewer-annotation-tooling-store-reactive-expansion-C/`
-- D（assets）：GlobalErrorToast 可卸载（禁止残留全局监听）：`todo-and-doing/1 doing/20260110220446-pdfviewer-assets-global-error-toast-uninstall-D/`
-- E（CI）：禁止 components 直接 `eventBus.on(...)`（严格失败）：`todo-and-doing/1 doing/20260110220446-ci-pdfviewer-no-eventbus-on-in-components-E/`
+- A（core）：LifecycleManager 全局错误监听器可卸载（已验收归档）：`todo-and-doing/4 archive/20260111002542-doing-archive/20260110220446-pdfviewer-core-lifecycle-error-listeners-uninstall-A/`
+- B（infra-ui）：coordinator 迁移收尾 + 严格隔离订阅（已验收归档）：`todo-and-doing/4 archive/20260111002542-doing-archive/20260110220446-pdfviewer-infra-ui-coordinator-hardening-B/`
+- C（pdf-annotation）：TextHighlightTool store-reactive 扩面（已验收归档）：`todo-and-doing/4 archive/20260111002542-doing-archive/20260110220446-pdfviewer-annotation-tooling-store-reactive-expansion-C/`
+- D（assets）：GlobalErrorToast 可卸载（已验收归档）：`todo-and-doing/4 archive/20260111002542-doing-archive/20260110220446-pdfviewer-assets-global-error-toast-uninstall-D/`
+- E（CI）：禁止 components 直接 `eventBus.on(...)`（严格失败；已验收归档）：`todo-and-doing/4 archive/20260111002542-doing-archive/20260110220446-ci-pdfviewer-no-eventbus-on-in-components-E/`
+
+## 2026-01-11：验收合并 ABCDE（20260110220446 批次）✅
+- 合入（main，隔离提取合入）：
+  - A：`daa0cc05`（LifecycleManager 全局错误监听器可卸载 + 回归）
+  - B：`396d3505`（infra-ui subscriptions 强化 + 回归）
+  - C：`7df1766b`（TextHighlightTool：补回归，覆盖 store unsubscribe）
+  - D：`5a489bd4`（GlobalErrorToast 可安装/可卸载 + 回归）
+  - E：`863d7d99`（CI gate：禁止 components 直接 `eventBus.on(...)`，增量严格）
+- 门禁：`pnpm -s run lint` ✅；Jest（定向）✅
+- 归档：`todo-and-doing/4 archive/20260111002542-doing-archive/`
