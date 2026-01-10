@@ -94,87 +94,12 @@
 - 说明：`todo-and-doing/1 doing/202601092234**-*` 为旧一轮下发目录，未开始编码且无交付 commit；为避免继续误读为“当前任务”，已按约定移入 archive。
 - 归档位置：`todo-and-doing/4 archive/20260110022652-doing-archive/`
 
-## 2026-01-10：Card Planner（F/G/H）合入 main（已通过门禁，待手工点检）
-- 合入内容：
-  - F（MsgCenter 后端）：`annotation:bulk-get:requested` handler + 单测（`ba015ae`）
-  - F（todo 记录）：`todo-and-doing/...-bulk-get-F/working-log.md`（`d7b451a`）
-  - G（前端 core engine）：草稿卡引擎 + 契约回归测试（`68b3e6c`）
-  - G（todo 记录）：`todo-and-doing/...-core-engine-G/working-log.md`（`4497712`）
-  - H（前端 UI/wiring）：粘贴插入 + MsgCenter 收发 + UI 回归测试（`45883e1`）
-  - H（todo 记录）：`todo-and-doing/...-ui-and-wiring-H/working-log.md`（`308bb13`）
-- 门禁（main 侧）：
-  - `pnpm -s run lint` ✅
-  - `python -m pytest -q src/backend/msgCenter_server/handlers/__tests__/test_annotation_bulk_get_unit.py` ✅
-  - `pnpm exec jest --runTestsByPath src/frontend/new-card-scheduler/planner/__tests__/cards-engine.contract.test.js -i` ✅
-  - `pnpm exec jest --runTestsByPath src/frontend/new-card-scheduler/__tests__/card-planner.ui-and-wiring.contract.test.js -i` ✅
-- 备注：
-  - 说明：H 任务当时为并行解耦设计，历史上 UI 曾使用 `FakeEngine`；后续已完成“引擎接入 UI”（见下文交付记录），当前代码侧已可直接使用真实引擎。
-
-## 2026-01-10：new-card-scheduler 侧边栏遮挡修复（已合入 main，待手工验收）
-- 合入（main）：
-  - `8a88d90 feat(new-card-scheduler): sidebar push layout`
-  - `60b5a50 docs(todo): log sidebar push delivery`
-- 后续小改动（main）：
-  - `b24fbd4 fix(new-card-scheduler): keep small toggle button when collapsed`
-  - `3ff174e docs(todo): log sidebar toggle handle tweak`
-- 回归测试：`src/frontend/new-card-scheduler/__tests__/planner-sidebar-layout.push.contract.test.js`
-- 手工点检：打开 `http://localhost:3000/new-card-scheduler/`，折叠/展开时主区域随之收缩/扩张；折叠后仍保留可点击的小开关按钮用于再次展开。
-
-## 2026-01-10：Card Planner 手工测试能力补齐（F/G/H/I 新任务下发）
-- 背景：当前环境不具备“外部条件”注入/创建草稿卡与联调回执，需补齐可手工点检入口。
-- 已交付（但人工验收失败，已归档）：`todo-and-doing/4 archive/20260110125102-doing-archive/`
-  - 失败：MsgCenter 拒绝 `to="new-card-scheduler"`；且 new-card-scheduler 出现多窗口（应全局唯一）。
-- v002 修复（已合入 main；验收发现 Step4 竞态问题，已归档以便返工）：
-  - F（注入修复：forward 到窗口）：`1684a35`（docs：`9848040`）
-    - 注入消息必须用 `to=[{"client_id":"new-card-scheduler"}]`（`to` 字符串仅允许 `"backend"`）
-  - G（清空草稿卡）：`9a4c5e6`
-  - H（ingest 注入可视化反馈）：`563aa69`（docs：`906e7e3`）
-  - I（new-card-scheduler 全局唯一/单例激活）：`5fe678e`
-  - 归档：`todo-and-doing/4 archive/20260110172024-doing-archive/`
-
-## 2026-01-10：Card Planner 手工验收 Step4 失败（NO_TARGET_FOUND）→ 下发 v003
-- 现象：`card-planner:ingest:requested` 使用 forward `to=[{"client_id":"new-card-scheduler"}]`，但 MsgCenter 返回 `NO_TARGET_FOUND(404)`，窗口未新增卡片。
-- 初步定位：目标窗口 WS 尚未完成注册/不可路由时，MsgCenter forward 直接失败（仅 `pdf-viewer:navigate:requested` 有 pending-forward 特例）。
-- v003 任务（doing）：
-  - F（注入 ACK 可观测性增强）：`todo-and-doing/1 doing/20260110172214-card-planner-gui-launcher-inject-observability-F/`
-  - G（窗口侧 WS 状态展示）：`todo-and-doing/1 doing/20260110172214-card-planner-new-card-scheduler-ws-status-G/`
-  - H（Planner ingest completed/failed 回执）：`todo-and-doing/1 doing/20260110172214-card-planner-ingest-contract-ack-H/`
-  - I（MsgCenter pending-forward 支持 ingest）：`todo-and-doing/1 doing/20260110172214-card-planner-msgcenter-pending-forward-ingest-I/`
-
-## 2026-01-10：Card Planner v003（F/G/H/I）已合入 main（待用户手工验收后归档）
-- 合入（main）：
-  - `97c6598 feat(msgcenter): pending-forward card-planner ingest`（未命中目标时 queued 202，避免 NO_TARGET_FOUND）
-  - `3cd6b10 feat(new-card-scheduler): ingest completed/failed ack`
-  - `9da3b36 feat(new-card-scheduler): show ws status panel`
-  - `09d0fde feat(gui-launcher): improve card planner inject ACK observability`
-- 门禁：`pnpm -s run lint` ✅；定向 Jest/Pytest ✅（与上述路径对应）。
-
-## 2026-01-10：Card Planner v003 手工验收结果（Step3 仍失败）→ 归档 v003 并下发 v004
-- 用户反馈：Step1/2/4 正常；Step3 注入不生效；MsgCenter ACK 为 `202 accepted queued`（pending-forward 未 flush）。
-- 初步定位：
-  - `new-card-scheduler` 仅 WS 建链未注册（没有 `WebSocketAdapterBase` 注册逻辑），RouteRegistry 无 `client_id=new-card-scheduler`。
-  - `gui_launcher` 的 `[ACK_META]` 解析字段位置不兼容（顶层 vs `data`），导致 code/status/message 打印为 None。
-- v003 归档：`todo-and-doing/4 archive/20260110185158-doing-archive/`
-- v004 任务（doing）：
-  - G（P0：补注册）：`todo-and-doing/1 doing/20260110185158-card-planner-register-new-card-scheduler-G/`
-  - I（queued 时自愈 open）：`todo-and-doing/1 doing/20260110185158-card-planner-msgcenter-auto-open-on-queued-I/`
-  - F（ACK_META 解析修复）：`todo-and-doing/1 doing/20260110185158-card-planner-gui-launcher-ack-meta-parse-F/`
-  - H（注册状态可观测）：`todo-and-doing/1 doing/20260110185158-card-planner-registration-observability-H/`
-
-## 2026-01-10：任务调整（删除非主线 G/H/I 任务，围绕 Card Planner 重新下发）
-- 已删除（不再维护）：
-  - `todo-and-doing/1 doing/20260110024409-pdfviewer-adapters-gate-cancel-G/`
-  - `todo-and-doing/1 doing/20260110024410-pdf-search-dom-manager-extract-H/`
-  - `todo-and-doing/1 doing/20260110024411-infra-ui-event-subscriptions-lift-I/`
-- Card Planner（G/H/I）本轮交付（已合入 main 并归档）：
-  - G（引擎接入 UI）：`91e6984` + `3dbe243`
-  - H（标注元信息默认 WS）：`46da3e7`（docs：`3724914`）
-  - I（Final Output 后端 handler）：`d7cdd9b`
-  - 归档：`todo-and-doing/4 archive/20260110103959-doing-archive/`
-
-## 2026-01-10：归档（Card Planner F/G/H）
-- 用户确认后已将已完成的 Card Planner 三条任务从 `todo-and-doing/1 doing/` 归档到：
-  - `todo-and-doing/4 archive/20260110030722-doing-archive/`
+## 2026-01-10：Card Planner / New Card Scheduler（摘要）
+- 说明：本节非 PDFViewer 面条化主线；为满足 `context.md` 行数门禁，仅保留摘要（细节以 working-log 为准）。
+- 当前阻塞：手工验收 Step3 注入不生效（ACK `202 accepted queued`，pending-forward 未 flush）。
+- 初步定位：`new-card-scheduler` 建链未完成注册（缺少 `WebSocketAdapterBase` 注册逻辑）+ `gui_launcher` ACK_META 解析不兼容。
+- 现存 v004 doing：`todo-and-doing/1 doing/20260110185158-card-planner-*-F/G/H/I/`
+- 详细记录：`AItemp/20260110164032-AI-Working-log.md`、`AItemp/20260110171447-AI-Working-log.md`、`AItemp/20260110182016-AI-Working-log.md`、`AItemp/20260110185158-AI-Working-log.md`
 
 ## 2026-01-09：PDFViewer 面条化治理详细记录（已归档）
 - 说明：为满足 `context.md` 行数门禁（<200），已将 2026-01-09 的详细过程记录迁移到归档文件（不加载进上下文）。
@@ -198,3 +123,23 @@
   - E：`8535dfd`（KeyboardHandler 防重复监听 + 回归）
 - 门禁：`pnpm -s run lint` ✅；Jest（定向）✅
 - 归档：`todo-and-doing/4 archive/20260110185147-doing-archive/`
+
+## 2026-01-10：PDFViewer 面条化治理复评（补充：含 ABCDE 批次合入）
+- 粗评分：**约 4/10**（上一轮复评为 2~3/10；本轮合入进一步补齐了“可卸载/可测试”的硬门槛）。
+- P0-1（全局监听器缺少卸载）：✅ 已治理：`src/frontend/pdf-viewer/bootstrap/page-zoom-guard-feature.js:85`（install）/`:96`（uninstall）。
+- P1-A（adapters URL 依赖）：✅ 已治理（adapters 不再直接依赖 `window.location`/URL 来取 pdfId）。
+- P1-B（infra-ui 巨型订阅中心）：🟡 部分治理：已抽出 coordinator+subscriptions，但 `ui-manager-core-*` 旧壳仍在（需后续继续瘦身/迁移）。
+  - 证据：`src/frontend/pdf-viewer/features/infra-ui/infra-ui-coordinator.js:33`（destroy 清理订阅）。
+- P1-C（pdf-annotation tools store-reactive）：🟡 部分治理：sidebar 已 store-driven，但 comment tool 仍依赖 `DATA.LOADED` 来补画 overlay。
+  - 证据：`src/frontend/pdf-viewer/features/pdf-annotation/tools/comment/index.js:134`（订阅 `DATA.LOADED`）。
+- P1-D（search/outline 解耦）：🟡 基本治理：search DOM bindings 已收敛到 DOM manager 且带 cleanup 测试；outline UI 不再直连 WS 事件。
+  - 证据：`src/frontend/pdf-viewer/features/pdf-search/__tests__/search-box-dom-manager.bindings.cleanup.test.js:5`（init/cleanup 契约）。
+- P0 结构性债务提示（“标注模型重复真源”）：当前 `pdf-annotation` 侧为**复出口**而非重复实现：`src/frontend/pdf-viewer/features/pdf-annotation/models/annotation.js:4`（唯一真源说明）。
+
+## 2026-01-10：PDFViewer 面条化治理新派工（A~E）
+- 批次：`20260110195258`（已下发到 `todo-and-doing/1 doing/`，准备同步覆盖到 A~E worktree）。
+- A：Annotation 单真源防分叉门禁（lint）：`todo-and-doing/1 doing/20260110195258-pdfviewer-annotation-single-source-guard-A/`
+- B：infra-ui 移除 filename→pdfId 兜底 + 清理 setTimeout 竞态：`todo-and-doing/1 doing/20260110195258-pdfviewer-infra-ui-remove-fallback-timeouts-B/`
+- C：CommentTool store-reactive（去 DATA.LOADED 依赖）：`todo-and-doing/1 doing/20260110195258-pdfviewer-annotation-commenttool-store-reactive-C/`
+- D：pdf-search 移除旧 DOM bindings 壳（收敛到 DOMManager）：`todo-and-doing/1 doing/20260110195258-pdfviewer-pdf-search-remove-dom-bindings-shell-D/`
+- E：PDFViewerManager PDF.js EventBus bridge 可卸载（防监听泄漏）：`todo-and-doing/1 doing/20260110195258-pdfviewer-manager-pdfjs-bridge-uninstall-E/`
