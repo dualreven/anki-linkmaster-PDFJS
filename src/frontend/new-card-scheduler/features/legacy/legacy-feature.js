@@ -117,7 +117,7 @@ export class LegacyNewCardSchedulerFeature {
       }
       const { resolveWebSocketPortSync, DEFAULT_WS_PORT } = await import("../../../common/utils/ws-port-resolver.js");
       const wsPort = resolveWebSocketPortSync({ fallbackPort: DEFAULT_WS_PORT });
-      return `ws://localhost:${wsPort}`;
+      return `ws://127.0.0.1:${wsPort}`;
     })();
 
     const identity = {
@@ -217,4 +217,3 @@ export class LegacyNewCardSchedulerFeature {
     this.#wsClient = null;
   }
 }
-
