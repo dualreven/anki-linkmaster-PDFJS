@@ -255,7 +255,8 @@ def test_card_planner_manual_inject_sends_two_ingest_messages(monkeypatch):
 
         msg = json.loads(call["text"])
         assert msg["type"] == "card-planner:ingest:requested"
-        assert msg["to"] == "new-card-scheduler"
+        assert isinstance(msg["to"], list)
+        assert msg["to"][0]["client_id"] == "new-card-scheduler"
         assert isinstance(msg.get("request_id"), str) and msg["request_id"]
         assert isinstance(msg.get("timestamp"), int)
         assert "data" in msg and "op" in msg["data"]
