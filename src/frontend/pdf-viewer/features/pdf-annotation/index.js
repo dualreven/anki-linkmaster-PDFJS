@@ -417,6 +417,10 @@ export class AnnotationFeature {
     }
 
     if (this.#toggleButton) {
+      if (typeof this.#toggleButton.uninstall !== "function") {
+        throw new Error("[AnnotationFeature] toggleButton.uninstall is required for symmetric cleanup");
+      }
+      this.#toggleButton.uninstall();
       this.#toggleButton.remove();
       this.#toggleButton = null;
     }
