@@ -45,6 +45,7 @@
 - 2025-11-07 精简为索引版；详细内容迁移到 docs（见 todo-and-doing/1 doing/20251107-tech-md-minify-migration/plan.md）。
  - 2025-11-07 接口调整：HighlightRenderer 构造签名由 `(pdfViewerManager, logger)` → `(logger)`；ScreenshotCapturer 构造签名由 `(pdfViewerManager)` → `()`；调用点与测试已同步。
  - 2026-01-07 合入提速：新增 `scripts/merge-fastlane.ps1`（integration 分支批量 cherry-pick + lint + 指定测试 + 报告）。
+ - 2026-01-10 pdf-annotation：`Annotation` 模型收敛为单一真源（common），feature 侧仅保留复出口；新增 toBe 回归测试锁定“单真源”约束。
 
 ## AI开发易错点索引（精简版）
 
