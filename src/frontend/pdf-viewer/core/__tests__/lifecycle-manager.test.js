@@ -275,18 +275,44 @@ describe("LifecycleManager", () => {
       expect(lifecycleManager.isSetup()).toBe(false);
     });
 
-    test("cleanup后不应该捕获错误", () => {
+    test("cleanup 后不再响应 error/unhandledrejection（不再调用 ErrorHandler，也不再 emit 事件）", (done) => {
       lifecycleManager = new LifecycleManager(eventBus, errorHandler);
-      lifecycleManager.setupGlobalErrorHandling();
 
+      errorHandler.handleError = jest.fn();
+
+      const globalListener = jest.fn();
+      const rejectionListener = jest.fn();
+      eventBus.on(APP_EVENTS.ERROR.GLOBAL, globalListener);
+      eventBus.on(APP_EVENTS.ERROR.UNHANDLED_REJECTION, rejectionListener);
+
+      lifecycleManager.setupGlobalErrorHandling();
       expect(lifecycleManager.isSetup()).toBe(true);
 
       lifecycleManager.cleanup();
-
       expect(lifecycleManager.isSetup()).toBe(false);
 
-      // cleanup后，监听器应该被移除，不再捕获新错误
-      // 通过检查isSetup状态验证cleanup成功
+      // 触发全局 error
+      // 注意：在 jsdom 中 dispatch ErrorEvent 可能导致 error 被直接抛出（影响测试稳定性）
+      // 这里用普通 Event 并手动挂载 error 字段以触发同等监听签名。
+      // 不设置 error 字段，避免 jsdom 将 error 作为异常抛出
+      window.dispatchEvent(new Event("error"));
+
+      // 触发 unhandledrejection
+      const rejectionError = new Error("after-cleanup-rejection");
+      const rejectedPromise = Promise.reject(rejectionError);
+      const rejectionEvent = new PromiseRejectionEvent("unhandledrejection", {
+        reason: rejectionError,
+        promise: rejectedPromise
+      });
+      rejectedPromise.catch(() => {});
+      window.dispatchEvent(rejectionEvent);
+
+      setTimeout(() => {
+        expect(errorHandler.handleError).not.toHaveBeenCalled();
+        expect(globalListener).not.toHaveBeenCalled();
+        expect(rejectionListener).not.toHaveBeenCalled();
+        done();
+      }, 10);
     });
 
     test("未setup时cleanup不应该抛出错误", () => {

@@ -67,6 +67,13 @@ export class LifecycleManager {
   }
 
   /**
+   * 安装全局错误监听器（语义别名：等价于 setupGlobalErrorHandling）
+   */
+  installGlobalErrorListeners() {
+    this.setupGlobalErrorHandling();
+  }
+
+  /**
    * 处理未捕获的 Promise rejection
    *
    * @private
@@ -126,6 +133,13 @@ export class LifecycleManager {
 
     this.#errorHandlersSetup = false;
     this.#logger.debug("Global error handlers removed");
+  }
+
+  /**
+   * 卸载全局错误监听器（语义别名：等价于 cleanup）
+   */
+  uninstallGlobalErrorListeners() {
+    this.cleanup();
   }
 
   /**
