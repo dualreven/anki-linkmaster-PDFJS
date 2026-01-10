@@ -88,6 +88,14 @@
 - 回归测试：`src/frontend/new-card-scheduler/__tests__/planner-sidebar-layout.push.contract.test.js`
 - 手工点检：打开 `http://localhost:3000/new-card-scheduler/`，折叠/展开时主区域随之收缩/扩张；折叠后仍保留可点击的小开关按钮用于再次展开。
 
+## 2026-01-10：Card Planner 手工测试能力补齐（F/G/H/I 新任务下发）
+- 背景：当前环境不具备“外部条件”注入/创建草稿卡与联调回执，需补齐可手工点检入口。
+- 任务目录（doing）：
+  - F（gui_launcher 一键注入样例草稿卡）：`todo-and-doing/1 doing/20260110105623-card-planner-gui-launcher-manual-test-F/`
+  - G（UI 直接创建空卡）：`todo-and-doing/1 doing/20260110105623-card-planner-create-empty-card-G/`
+  - H（final-output 回执 toast 可见性）：`todo-and-doing/1 doing/20260110105623-card-planner-final-output-ack-ui-H/`
+  - I（final-output completed 回显 payload 便于验收）：`todo-and-doing/1 doing/20260110105623-card-planner-final-output-echo-I/`
+
 ## 2026-01-10：任务调整（删除非主线 G/H/I 任务，围绕 Card Planner 重新下发）
 - 已删除（不再维护）：
   - `todo-and-doing/1 doing/20260110024409-pdfviewer-adapters-gate-cancel-G/`
