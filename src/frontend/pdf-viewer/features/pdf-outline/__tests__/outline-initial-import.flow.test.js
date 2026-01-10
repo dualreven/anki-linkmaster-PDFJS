@@ -9,6 +9,7 @@ import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants
 import FeatureOutline from "../../pdf-outline/index.js";
 import { setCurrentPDFDocument } from "../../../pdf/current-document-registry.js";
 import { OutlineDataProvider } from "../../../outline/outline-data-provider.js";
+import { installWsInboundBridge, resetWsInboundBridgeContractForTests } from "./ws-inbound-bridge.testkit.js";
 
 class StubContainer {
   constructor(wsClient) { this._store = new Map([["wsClient", wsClient]]); }
@@ -21,6 +22,7 @@ class StubContainer {
 
 describe("数据库空时的初次导入持久化流程", () => {
   test("FILE.LOAD.SUCCESS → import native → bulk-save/create → outline-list", async () => {
+    resetWsInboundBridgeContractForTests();
     const calls = [];
     const wsClient = {
       request: jest.fn(async (type, data) => { calls.push({ type, data }); return { type: `${type.replace(":requested", "")}:completed` }; }),
@@ -41,6 +43,7 @@ describe("数据库空时的初次导入持久化流程", () => {
     global.window.__DISABLE_OUTLINE_UI = true;
     const feature = new FeatureOutline();
     await feature.install({ logger: getLogger("feature"), globalEventBus: eventBus, scopedEventBus: scoped, container });
+    installWsInboundBridge({ eventBus, wsClient, logger: getLogger("bridge"), pdfIdProvider: () => "jest-pdf" });
     // 触发 FILE.LOAD.SUCCESS
     eventBus.emit(PDF_VIEWER_EVENTS.FILE.LOAD.SUCCESS, {}, { actorId: "test" });
     // 首次列表回执（模拟后端无记录 → 触发导入逻辑）
@@ -48,6 +51,14 @@ describe("数据库空时的初次导入持久化流程", () => {
       type: WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_COMPLETED,
       status: "success",
       data: { outline_items: null }
+    }, { actorId: "test" });
+
+    // 最终列表回执（避免 init flow 永久 await）
+    await new Promise(r => setTimeout(r, 0));
+    eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, {
+      type: WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_COMPLETED,
+      status: "success",
+      data: { outline_items: [{ id: "outlineItem-FINAL", name: "Final", pageAt: 1, position: null, children: [] }] }
     }, { actorId: "test" });
     // 等待任务队列
     await new Promise(r => setTimeout(r, 0));

@@ -8,6 +8,7 @@ import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../../../common/ev
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 import FeatureOutline from "../../pdf-outline/index.js";
 import { OutlineDialog } from "../../../outline/components/outline-dialog.js";
+import { installWsInboundBridge, resetWsInboundBridgeContractForTests } from "./ws-inbound-bridge.testkit.js";
 
 class StubContainer {
   constructor(wsClient) { this._store = new Map([["wsClient", wsClient]]); }
@@ -25,6 +26,7 @@ describe("Outline CRUD 与排序 → WS 请求", () => {
   let wsCalls;
 
   beforeEach(async () => {
+    resetWsInboundBridgeContractForTests();
     wsCalls = [];
     const wsClient = { request: jest.fn(async (type, data) => { wsCalls.push({ type, data }); return { ok: true }; }) };
     eventBus = new EventBus({ moduleName: "TestBus", enableValidation: true, logger: getLogger("test") });
@@ -42,6 +44,7 @@ describe("Outline CRUD 与排序 → WS 请求", () => {
   test("CREATE：对话框确认后 → OUTLINE_CREATE + OUTLINE_LIST", async () => {
     const feature = new FeatureOutline();
     await feature.install({ logger: getLogger("feature"), globalEventBus: eventBus, scopedEventBus: scoped, container });
+    installWsInboundBridge({ eventBus, wsClient: container.getWSClient(), logger: getLogger("bridge"), pdfIdProvider: () => "jest-pdf" });
 
     // mock 对话框：立即调用 onConfirm
     const spy = jest.spyOn(OutlineDialog.prototype, "showAdd").mockImplementation(({ onConfirm }) => {
@@ -63,6 +66,7 @@ describe("Outline CRUD 与排序 → WS 请求", () => {
   test("UPDATE：编辑确认 → OUTLINE_UPDATE + OUTLINE_LIST", async () => {
     const feature = new FeatureOutline();
     await feature.install({ logger: getLogger("feature"), globalEventBus: eventBus, scopedEventBus: scoped, container });
+    installWsInboundBridge({ eventBus, wsClient: container.getWSClient(), logger: getLogger("bridge"), pdfIdProvider: () => "jest-pdf" });
 
     // 先同步一棵列表（含目标项）
     eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, {
@@ -89,6 +93,7 @@ describe("Outline CRUD 与排序 → WS 请求", () => {
   test("DELETE：确认删除 → OUTLINE_DELETE + OUTLINE_LIST", async () => {
     const feature = new FeatureOutline();
     await feature.install({ logger: getLogger("feature"), globalEventBus: eventBus, scopedEventBus: scoped, container });
+    installWsInboundBridge({ eventBus, wsClient: container.getWSClient(), logger: getLogger("bridge"), pdfIdProvider: () => "jest-pdf" });
 
     eventBus.emit(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, {
       type: WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_COMPLETED,
@@ -114,6 +119,7 @@ describe("Outline CRUD 与排序 → WS 请求", () => {
   test("REORDER：拖拽排序 → OUTLINE_REORDER + OUTLINE_LIST", async () => {
     const feature = new FeatureOutline();
     await feature.install({ logger: getLogger("feature"), globalEventBus: eventBus, scopedEventBus: scoped, container });
+    installWsInboundBridge({ eventBus, wsClient: container.getWSClient(), logger: getLogger("bridge"), pdfIdProvider: () => "jest-pdf" });
     eventBus.emit(PDF_VIEWER_EVENTS.OUTLINE.REORDER.REQUESTED, { outlineItemId: "outlineItem-A", newParentId: null, newIndex: 2 }, { actorId: "test" });
     await new Promise(r => setTimeout(r, 0));
 
@@ -124,4 +130,3 @@ describe("Outline CRUD 与排序 → WS 请求", () => {
     expect(reo.data).toEqual(expect.objectContaining({ outline_id: "outlineItem-A", new_parent_id: null, new_index: 2 }));
   });
 });
-

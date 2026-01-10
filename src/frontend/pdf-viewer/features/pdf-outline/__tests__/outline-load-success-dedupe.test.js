@@ -14,7 +14,7 @@ import { ScopedEventBus } from "../../../../common/event/scoped-event-bus.js";
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constants.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 import FeatureOutline from "../index.js";
-import { handleViewerWsInbound } from "../../../adapters/ws-inbound-bridge.js";
+import { installWsInboundBridge, resetWsInboundBridgeContractForTests } from "./ws-inbound-bridge.testkit.js";
 
 class StubContainer {
   constructor(wsClient) { this._store = new Map([["wsClient", wsClient]]); }
@@ -26,6 +26,10 @@ class StubContainer {
 }
 
 describe("OUTLINE.LOAD.SUCCESS 去重", () => {
+  beforeEach(() => {
+    resetWsInboundBridgeContractForTests();
+  });
+
   test("OUTLINE_LIST_COMPLETED 仅触发一次 OUTLINE.LOAD.SUCCESS", async () => {
     const logger = getLogger("test");
     const wsClient = { request: jest.fn(async () => ({ ok: true })) };
@@ -42,13 +46,7 @@ describe("OUTLINE.LOAD.SUCCESS 去重", () => {
     await feature.install({ logger, globalEventBus: eventBus, scopedEventBus: scoped, container });
 
     // 2) 安装“最小版 inbound bridge”（模拟 WebSocketAdapter#setupIncomingMessageHandlers 的行为）
-    eventBus.on(
-      WEBSOCKET_EVENTS.MESSAGE.RECEIVED,
-      (message) => {
-        handleViewerWsInbound({ message, eventBus, wsClient, logger });
-      },
-      { subscriberId: "Test.InboundBridge" }
-    );
+    installWsInboundBridge({ eventBus, wsClient, logger, pdfIdProvider: () => "jest-pdf" });
 
     // 3) 统计 OUTLINE.LOAD.SUCCESS
     let count = 0;
@@ -72,4 +70,3 @@ describe("OUTLINE.LOAD.SUCCESS 去重", () => {
     expect(count).toBe(1);
   });
 });
-

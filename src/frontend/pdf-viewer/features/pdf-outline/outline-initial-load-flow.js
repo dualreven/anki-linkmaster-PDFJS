@@ -1,6 +1,6 @@
 import { WEBSOCKET_MESSAGE_TYPES } from "../../../common/event/event-constants.js";
 import { getCurrentPDFDocument } from "../../pdf/current-document-registry.js";
-import { awaitOutlineWsMessage } from "./outline-await-message.js";
+import { awaitOutlineDomainEvent, OUTLINE_DOMAIN_EVENTS } from "./outline-await-message.js";
 
 export async function runOutlineInitialLoadFlowAfterFile({
   logger,
@@ -29,73 +29,65 @@ export async function runOutlineInitialLoadFlowAfterFile({
   if (!wsClient) { logger.warn("[Outline][init] wsClient missing"); return; }
 
   logger.info("[Outline][init] requesting outline-list from backend...", { pdf_uuid: pdfId });
-  const waitList1 = awaitOutlineWsMessage({
+  const waitList1 = awaitOutlineDomainEvent({
     eventBus,
-    types: [WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_COMPLETED, WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_FAILED],
+    types: [OUTLINE_DOMAIN_EVENTS.LOAD_SUCCESS, OUTLINE_DOMAIN_EVENTS.LOAD_EMPTY, OUTLINE_DOMAIN_EVENTS.LOAD_FAILED],
     subscriberId: "OutlineFeature.await.init1"
   });
   await wsClient.request(WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
   const list1 = await waitList1;
 
-  if (list1?.type === WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_FAILED) {
-    logger.warn("[Outline][init] outline-list failed", list1?.error || list1?.data, { toast: { type: "error", ms: 3500 } });
+  if (list1?.eventName === OUTLINE_DOMAIN_EVENTS.LOAD_FAILED) {
+    logger.warn("[Outline][init] outline-list failed", list1?.data?.error || list1?.data, { toast: { type: "error", ms: 3500 } });
     setListReady(true);
-    refreshList("backend");
     return;
   }
 
-  const first = Array.isArray(list1?.data?.outline_items) ? list1.data.outline_items : list1?.data?.outline_items;
-  if (first === null) {
+  if (list1?.eventName === OUTLINE_DOMAIN_EVENTS.LOAD_EMPTY) {
     logger.info("[Outline][init] backend returned outline_items=null (no records). Will import from PDF.");
-  } else if (Array.isArray(first)) {
-    logger.info(`[Outline][init] backend returned outline array (count=${first.length}). Will render without import.`);
+  } else if (list1?.eventName === OUTLINE_DOMAIN_EVENTS.LOAD_SUCCESS) {
+    const items = Array.isArray(list1?.data?.outlineItems) ? list1.data.outlineItems : [];
+    logger.info(`[Outline][init] backend returned outline array (count=${items.length}). Will render without import.`);
   } else {
     logger.warn("[Outline][init] unexpected outline_list payload; treating as empty");
   }
 
-  if (first === null) {
+  if (list1?.eventName === OUTLINE_DOMAIN_EVENTS.LOAD_EMPTY) {
     const pdfDoc = pdfDocument || getCurrentPDFDocument?.();
     if (!pdfDoc) {
       logger.warn("[Outline][init] pdfDocument missing after FILE.LOAD.SUCCESS");
       setListReady(true);
-      refreshList("backend");
       return;
     }
     logger.info("[Outline][init] extracting native outline via OutlineDataProvider.getOutline(...)");
     await importNativeOutlineIfEmpty(pdfDoc);
 
     logger.info("[Outline][init] re-requesting outline-list after bulk-save...");
-    const waitList2 = awaitOutlineWsMessage({
+    const waitList2 = awaitOutlineDomainEvent({
       eventBus,
-      types: [WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_COMPLETED, WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_FAILED],
+      types: [OUTLINE_DOMAIN_EVENTS.LOAD_SUCCESS, OUTLINE_DOMAIN_EVENTS.LOAD_FAILED],
       subscriberId: "OutlineFeature.await.init2"
     });
     await wsClient.request(WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });
     const list2 = await waitList2;
 
-    if (list2?.type === WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_COMPLETED) {
-      const items2 = Array.isArray(list2?.data?.outline_items) ? list2.data.outline_items : [];
+    if (list2?.eventName === OUTLINE_DOMAIN_EVENTS.LOAD_SUCCESS) {
+      const items2 = Array.isArray(list2?.data?.outlineItems) ? list2.data.outlineItems : [];
       logger.info(`[Outline][init] final outline-list returned count=${items2.length}`);
-      await outlineManager.replaceFromRemote(items2);
       setListReady(true);
-      refreshList("backend");
       tryPendingNavigate();
       return;
     }
     logger.warn("[Outline][init] final outline-list failed; rendering empty");
     setListReady(true);
-    refreshList("backend");
     return;
   }
 
-  if (Array.isArray(first)) {
-    await outlineManager.replaceFromRemote(first.length > 0 ? first : []);
+  if (list1?.eventName === OUTLINE_DOMAIN_EVENTS.LOAD_SUCCESS) {
     setListReady(true);
-    refreshList("backend");
     tryPendingNavigate();
     return;
   }
 
   setListReady(true);
-  refreshList("backend");
 }

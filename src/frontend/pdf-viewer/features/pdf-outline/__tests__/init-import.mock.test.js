@@ -7,6 +7,7 @@
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 import { WEBSOCKET_EVENTS } from "../../../../common/event/event-constants.js";
 import FeatureOutline from "../index.js";
+import { installWsInboundBridge, resetWsInboundBridgeContractForTests } from "./ws-inbound-bridge.testkit.js";
 
 function createEventBus() {
   const handlers = new Map();
@@ -68,6 +69,7 @@ async function waitForSent(ws, type, timeoutMs) {
 
 describe("integ:frontend:pdf-viewer:outline:init-import (pure-mock)", () => {
   test("首帧 null → bulk-save(items>0) → 二次 list 非空数组", async () => {
+    resetWsInboundBridgeContractForTests();
     global.window.__DISABLE_OUTLINE_UI = true;
     const eventBus = createEventBus();
     const ws = createWSClientDouble();
@@ -77,6 +79,7 @@ describe("integ:frontend:pdf-viewer:outline:init-import (pure-mock)", () => {
     const ctx = { logger: console, container, globalEventBus: eventBus, scopedEventBus: eventBus };
     const feature = new FeatureOutline();
     await feature.install(ctx);
+    installWsInboundBridge({ eventBus, wsClient: ws, logger: console, pdfIdProvider: () => "test-with-outline" });
 
     // 配置 URL 参数（同源），提供 pdf-id 与 file，满足 OutlineFeature.#getPdfId() 取值
     try {

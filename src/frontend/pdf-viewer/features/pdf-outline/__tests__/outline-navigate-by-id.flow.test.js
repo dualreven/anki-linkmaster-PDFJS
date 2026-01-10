@@ -6,6 +6,7 @@ import { getLogger } from "../../../../common/utils/logger.js";
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constants.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 import FeatureOutline from "../../pdf-outline/index.js";
+import { installWsInboundBridge, resetWsInboundBridgeContractForTests } from "./ws-inbound-bridge.testkit.js";
 
 class StubContainer {
   constructor(wsClient, navigationService) { this._store = new Map([["wsClient", wsClient], ["navigationService", navigationService]]); }
@@ -18,6 +19,7 @@ class StubContainer {
 
 describe("按ID导航：挂起等待与失败分支", () => {
   test("列表未就绪时先请求导航，收到列表后应调用导航服务兑现挂起请求", async () => {
+    resetWsInboundBridgeContractForTests();
     const wsClient = { request: jest.fn(async () => ({ ok: true })) };
     const navigationService = { navigateTo: jest.fn(async ({ pageAt, position }) => ({ success: true, actualPage: pageAt, actualPosition: position })) };
     const container = new StubContainer(wsClient, navigationService);
@@ -27,6 +29,7 @@ describe("按ID导航：挂起等待与失败分支", () => {
     global.window.__DISABLE_OUTLINE_UI = true;
     const feature = new FeatureOutline();
     await feature.install({ logger: getLogger("feature"), globalEventBus: eventBus, scopedEventBus: scoped, container });
+    installWsInboundBridge({ eventBus, wsClient, logger: getLogger("bridge"), pdfIdProvider: () => "jest-pdf" });
     try { window.history.pushState({}, "", "?pdf-id=jest-pdf"); } catch {}
 
     // 1) 列表未就绪先发导航
@@ -42,6 +45,7 @@ describe("按ID导航：挂起等待与失败分支", () => {
   });
 
   test("列表已就绪但未找到 ID，应发 FAILED(not_found) 且不调用导航", async () => {
+    resetWsInboundBridgeContractForTests();
     const wsClient = { request: jest.fn(async () => ({ ok: true })) };
     const navigationService = { navigateTo: jest.fn() };
     const container = new StubContainer(wsClient, navigationService);
@@ -51,6 +55,7 @@ describe("按ID导航：挂起等待与失败分支", () => {
     global.window.__DISABLE_OUTLINE_UI = true;
     const feature = new FeatureOutline();
     await feature.install({ logger: getLogger("feature"), globalEventBus: eventBus, scopedEventBus: scoped, container });
+    installWsInboundBridge({ eventBus, wsClient, logger: getLogger("bridge"), pdfIdProvider: () => "jest-pdf" });
     try { window.history.pushState({}, "", "?pdf-id=jest-pdf"); } catch {}
 
     // 先让列表就绪（但不包含目标 ID）

@@ -9,6 +9,7 @@ import { getLogger } from "../../../../common/utils/logger.js";
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constants.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 import FeatureOutline from "../../pdf-outline/index.js";
+import { installWsInboundBridge, resetWsInboundBridgeContractForTests } from "./ws-inbound-bridge.testkit.js";
 
 class StubContainer {
   constructor(wsClient) { this._store = new Map([["wsClient", wsClient]]); }
@@ -21,6 +22,7 @@ class StubContainer {
 
 describe("OUTLINE_LIST_COMPLETED → 列表归一化", () => {
   test("pageAt/position 正确归一化", async () => {
+    resetWsInboundBridgeContractForTests();
     const wsClient = { request: jest.fn(async () => ({ ok: true })) };
     const container = new StubContainer(wsClient);
     const eventBus = new EventBus({ moduleName: "TestBus", enableValidation: true, logger: getLogger("test") });
@@ -29,6 +31,7 @@ describe("OUTLINE_LIST_COMPLETED → 列表归一化", () => {
     global.window.__DISABLE_OUTLINE_UI = true;
     const feature = new FeatureOutline();
     await feature.install({ logger: getLogger("feature"), globalEventBus: eventBus, scopedEventBus: scoped, container });
+    installWsInboundBridge({ eventBus, wsClient, logger: getLogger("bridge"), pdfIdProvider: () => "jest-pdf" });
 
     let last = null;
     eventBus.on(PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS, (d) => { last = d; }, { subscriberId: "test" });
@@ -50,4 +53,3 @@ describe("OUTLINE_LIST_COMPLETED → 列表归一化", () => {
     expect(items[1]).toEqual(expect.objectContaining({ id: "outlineItem-XYZ", pageAt: 9, position: 100 }));
   });
 });
-
