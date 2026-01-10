@@ -145,8 +145,7 @@ async function bootstrap() {
     wsClient,
     eventBus,
     logger,
-    notification: { showInfo, showError },
-    wsStatusPanel: wsStatus
+    notification: { showInfo, showError }
   });
 
   showInfo("新卡片规划器窗口已启动", 1500);

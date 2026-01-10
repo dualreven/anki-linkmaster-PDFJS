@@ -22,15 +22,11 @@ export function createAnnotationMetaAdapter({
   wsClient,
   eventBus,
   timeoutMs = 2500,
-  logger,
-  onStatus = null
+  logger
 } = {}) {
   const m = String(mode || "mock");
   if (m !== "mock" && m !== "ws") {
     throw new Error(`AnnotationMetaAdapter.mode 仅支持 mock|ws，当前=${m}`);
-  }
-  if (onStatus !== null && typeof onStatus !== "function") {
-    throw new Error("AnnotationMetaAdapter.onStatus 必须为函数或 null");
   }
   if (m === "ws") {
     if (!wsClient || typeof wsClient.send !== "function") {
@@ -60,13 +56,9 @@ export function createAnnotationMetaAdapter({
     };
 
     return new Promise((resolve, reject) => {
-      try { onStatus?.({ status: "loading", requestId: rid }); } catch { /* ignore */ }
-
       const timer = setTimeout(() => {
         try { unsub(); } catch { /* ignore */ }
-        const e = new Error("annotation:bulk-get 超时");
-        try { onStatus?.({ status: "failed", requestId: rid, error: e }); } catch { /* ignore */ }
-        reject(e);
+        reject(new Error("annotation:bulk-get 超时"));
       }, timeoutMs);
 
       const unsub = eventBus.on(
@@ -86,12 +78,9 @@ export function createAnnotationMetaAdapter({
 
           const annotations = msg?.data?.annotations;
           if (!Array.isArray(annotations)) {
-            const e = new Error("annotation:bulk-get:completed 缺少 data.annotations 数组");
-            try { onStatus?.({ status: "failed", requestId: rid, error: e }); } catch { /* ignore */ }
-            reject(e);
+            reject(new Error("annotation:bulk-get:completed 缺少 data.annotations 数组"));
             return;
           }
-          try { onStatus?.({ status: "ok", requestId: rid }); } catch { /* ignore */ }
           resolve(annotations);
         },
         { subscriberId: `CardPlanner.AnnotationBulkGet.${rid}` }
@@ -103,9 +92,7 @@ export function createAnnotationMetaAdapter({
         clearTimeout(timer);
         try { unsub(); } catch { /* ignore */ }
         logger?.warn?.("[CardPlanner] annotation bulk-get send failed", err);
-        const e = err instanceof Error ? err : new Error(String(err));
-        try { onStatus?.({ status: "failed", requestId: rid, error: e }); } catch { /* ignore */ }
-        reject(e);
+        reject(err instanceof Error ? err : new Error(String(err)));
       }
     });
   }
