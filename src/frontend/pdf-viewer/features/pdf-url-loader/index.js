@@ -7,8 +7,15 @@
 
 import { getLogger, setModuleLogLevel, LogLevel } from "../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
-import { URLParamsParser } from "./components/url-params-parser.js";
 import { PDFUrlLoaderFeatureConfig } from "./feature.config.js";
+import { NavigationRequestGate } from "./components/navigation-request-gate.js";
+import { buildNavigationRequestKey } from "./components/nav-request-key.js";
+import { URLParamsParser } from "./components/url-params-parser.js";
+import {
+  parseAndValidateUrlParams,
+  resolveContainer,
+  resolveDependencies,
+} from "./components/install-helpers.js";
 
 /**
  * URL导航功能Feature
@@ -36,13 +43,7 @@ export class PDFUrlLoaderFeature {
 
   // 已不依赖渲染就绪门闸
 
-  /** @type {boolean} 导航进行中（用于抑制重复载荷二次触发） */
-  #navInProgress = false;
-  /** @type {string|null} 进行中载荷指纹 */
-  #inflightNavKey = null;
-
-  /** @type {{params: any, startTime: number}|null} 记录一次“因切换PDF而延迟执行”的手动导航请求（用于避免跳到第一页后丢失目标页） */
-  #pendingManualNav = null;
+  #navGate = new NavigationRequestGate();
 
   get name() {
     return PDFUrlLoaderFeatureConfig.name;
@@ -68,13 +69,13 @@ export class PDFUrlLoaderFeature {
   async install(context) {
     this.#logger.info(`安装 ${this.name} Feature v${this.version}...`);
     this.#configureLogLevels();
-    this.#container = this.#resolveContainer(context);
-    const { eventBus, navigationService } = this.#resolveDependencies(context);
+    this.#container = resolveContainer(context);
+    const { eventBus, navigationService } = resolveDependencies({ container: this.#container, context });
     this.#eventBus = eventBus;
     this.#navigationService = navigationService;
 
-    const parsedParams = this.#parseUrlParams();
-    await this.#processUrlParams(parsedParams);
+    const { parsedParams, validation } = parseAndValidateUrlParams();
+    await this.#processUrlParams(parsedParams, validation);
 
     this.#setupEventListeners();
     this.#logger.info(`${this.name} Feature安装完成（URL 参数跳转已禁用）`);
@@ -90,52 +91,7 @@ export class PDFUrlLoaderFeature {
     }
   }
 
-  #resolveContainer(context) {
-    const container = context?.container || context;
-    if (!container) {
-      throw new Error("PDFUrlLoaderFeature.install requires a dependency container or context");
-    }
-    return container;
-  }
-
-  #resolveDependencies(context) {
-    let eventBus = context?.globalEventBus || null;
-    if (!eventBus && this.#container && typeof this.#container.get === "function") {
-      try {
-        eventBus = this.#container.get("eventBus");
-      } catch {
-        eventBus = null;
-      }
-    }
-
-    if (!eventBus) {
-      throw new Error("EventBus未在容器或context中找到");
-    }
-
-    let navigationService = null;
-    if (this.#container && typeof this.#container.get === "function") {
-      try {
-        navigationService = this.#container.get("navigationService");
-      } catch {
-        navigationService = null;
-      }
-    }
-
-    if (!navigationService) {
-      throw new Error("[url-navigation] navigationService 未在容器中找到，请确保 core-navigation Feature 已安装");
-    }
-
-    return {
-      eventBus,
-      navigationService
-    };
-  }
-
-  #parseUrlParams() {
-    return URLParamsParser.parse();
-  }
-
-  async #processUrlParams(parsedParams) {
+  async #processUrlParams(parsedParams, validation) {
     if (!parsedParams?.hasParams) {
       this.#logger.debug("未检测到URL导航参数，Feature待命");
       return;
@@ -148,7 +104,6 @@ export class PDFUrlLoaderFeature {
       { actorId: "PDFUrlLoaderFeature" }
     );
 
-    const validation = URLParamsParser.validate(parsedParams);
     if (!validation.isValid) {
       const error = new Error(validation.errors.join("; ") || "URL参数验证失败");
       this.#logger.error("URL参数验证失败:", validation.errors);
@@ -261,9 +216,7 @@ export class PDFUrlLoaderFeature {
     this.#eventBus = null;
     this.#container = null;
     this.#hasProcessedParams = false;
-    this.#pendingManualNav = null;
-    this.#navInProgress = false;
-    this.#inflightNavKey = null;
+    this.#navGate.reset();
 
     this.#logger.info(`${this.name} Feature已卸载`);
   }
@@ -318,10 +271,10 @@ export class PDFUrlLoaderFeature {
 
   async #handlePDFLoadSuccess() {
     // 优先处理手动挂起的导航（pdfId 切换后自动恢复），避免仅渲染到第1页
-    if (this.#pendingManualNav) {
+    const pending = this.#navGate.consumePendingManualNav();
+    if (pending) {
       try {
-        const { params, startTime } = this.#pendingManualNav;
-        this.#pendingManualNav = null;
+        const { params, startTime } = pending;
         // 执行页内导航（此时已是目标文档）
         const result = await this.#navigationService.navigateTo({
           pageAt: params.pageAt,
@@ -342,6 +295,7 @@ export class PDFUrlLoaderFeature {
         this.#logger.error("[url-navigation] 恢复手动导航失败：", e, { toast: { type: "error", ms: 5000 } });
       }
       // 手动挂起场景已处理，直接返回，不再走启动门闸
+      this.#navGate.reset();
       return;
     }
 
@@ -351,6 +305,7 @@ export class PDFUrlLoaderFeature {
 
   #handlePDFLoadFailed(data) {
     if (this.#hasProcessedParams) {
+      this.#navGate.reset();
       return;
     }
 
@@ -360,6 +315,7 @@ export class PDFUrlLoaderFeature {
       "load"
     );
     this.#hasProcessedParams = true;
+    this.#navGate.reset();
   }
 
   async #handleNavigationRequested(params) {
@@ -391,27 +347,18 @@ export class PDFUrlLoaderFeature {
 
     const startTime = performance.now();
 
-    // 去重：若与进行中的载荷完全一致，则忽略（避免“正在进行中”错误与重复 toast）
-    try {
-      const key = JSON.stringify({
-        pdfId: params.pdfId || null,
-        anchorId: params.anchorId || null,
-        annotationId: params.annotationId || null,
-        outlineItemId: params.outlineItemId || null,
-        pageAt: params.pageAt,
-        position: (params.position ?? null)
-      });
-      if (this.#navInProgress && this.#inflightNavKey === key) {
-        this.#logger.warn("[url-navigation] 忽略重复导航请求（相同载荷且正在进行中）", { key });
+    const navKey = buildNavigationRequestKey(params);
+    const gate = this.#navGate.tryEnter(navKey);
+    if (!gate.accepted) {
+      if (gate.reason === "deduped") {
+        this.#logger.warn("[url-navigation] 忽略重复导航请求（相同载荷且正在进行中）", { navKey });
         return;
       }
-      this.#inflightNavKey = key;
-    } catch (e) {
-      void e; /* logger-guard */
+      this.#logger.warn("[url-navigation] 忽略导航请求（已有进行中的导航）", { navKey });
+      return;
     }
 
     try {
-      this.#navInProgress = true;
       // 如果指定了 pdfId：仅当与当前已打开的文档不同才触发重新加载；
       // 否则视为“同文档内导航”，直接执行页面跳转，避免刷新到第1页。
       if (params.pdfId) {
@@ -426,7 +373,7 @@ export class PDFUrlLoaderFeature {
             { actorId: "PDFUrlLoaderFeature" }
           );
           // 记录本次手动请求，待 FILE.LOAD.SUCCESS 后恢复执行
-          this.#pendingManualNav = { params: { ...params }, startTime };
+          this.#navGate.setPendingManualNav({ params: { ...params }, startTime });
           return;
         } else {
           this.#logger.info("[url-navigation] 目标 pdfId 与当前一致，直接页内导航（不重载）");
@@ -456,8 +403,7 @@ export class PDFUrlLoaderFeature {
       this.#logger.error("手动导航失败:", error);
       this.#emitNavigationFailed(error, "navigate");
     } finally {
-      this.#navInProgress = false;
-      this.#inflightNavKey = null;
+      this.#navGate.reset();
     }
   }
 
