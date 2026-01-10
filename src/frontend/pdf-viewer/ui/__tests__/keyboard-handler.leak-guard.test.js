@@ -102,4 +102,44 @@ describe("KeyboardHandler leak guard", () => {
     const keydownRemovesAfter = removeSpy.mock.calls.filter(([evt]) => evt === "keydown");
     expect(keydownRemovesAfter.length).toBe(2);
   });
+
+  test("install/uninstall（document 模式）必须幂等，且 uninstall 后不再处理 keydown", () => {
+    const bus = createBus();
+    const handler = new KeyboardHandler(bus);
+
+    handler.install();
+    handler.install();
+
+    const keydownAdds = addSpy.mock.calls.filter(([evt]) => evt === "keydown");
+    expect(keydownAdds.length).toBe(1);
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" }));
+    expect(bus.emit).toHaveBeenCalledTimes(1);
+
+    handler.uninstall();
+    handler.uninstall();
+
+    const keydownRemoves = removeSpy.mock.calls.filter(([evt]) => evt === "keydown");
+    expect(keydownRemoves.length).toBe(1);
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" }));
+    expect(bus.emit).toHaveBeenCalledTimes(1);
+  });
+
+  test("uninstall 必须释放全局监听所有权：uninstall 后允许新实例 install", () => {
+    const handler1 = new KeyboardHandler(createBus());
+    handler1.install();
+
+    handler1.uninstall();
+
+    const handler2 = new KeyboardHandler(createBus());
+    expect(() => handler2.install()).not.toThrow();
+
+    handler2.uninstall();
+
+    const keydownAdds = addSpy.mock.calls.filter(([evt]) => evt === "keydown");
+    const keydownRemoves = removeSpy.mock.calls.filter(([evt]) => evt === "keydown");
+    expect(keydownAdds.length).toBe(2);
+    expect(keydownRemoves.length).toBe(2);
+  });
 });

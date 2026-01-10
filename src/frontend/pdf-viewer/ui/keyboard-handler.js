@@ -33,6 +33,21 @@ export class KeyboardHandler {
   }
 
   /**
+   * 安装键盘监听（幂等）
+   * @param {object} [domEventHub] - 可选的 DOM 事件 Hub（需提供 onDocumentKeydown(fn)）
+   */
+  install(domEventHub) {
+    this.setupEventListener(domEventHub);
+  }
+
+  /**
+   * 卸载键盘监听（幂等）
+   */
+  uninstall() {
+    this.removeEventListener();
+  }
+
+  /**
    * 初始化默认键盘绑定
    * @private
    */
