@@ -1,22 +1,17 @@
 /** UI管理器核心（重构版）。拆分说明：`docs/standards/ui-manager-core.md` */
 
 import { getLogger } from "../../../../common/utils/logger.js";
-import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
 import { DOMElementManager } from "../../../ui/dom-element-manager.js";
 import { KeyboardHandler } from "../../../ui/keyboard-handler.js";
 import { TextLayerManager } from "../../../ui/text-layer-manager.js";
 import { DomEventHub } from "../../../shared/dom-event-hub.js";
 import { PDFViewerManager } from "./pdf-viewer-manager.js";
-import { installUIManagerCoreEventListeners } from "./ui-manager-core-event-listeners.js";
 import { initializeUIManagerControls } from "./ui-manager-core-ui-controls.js";
 import { installUIManagerCoreInteractions } from "./ui-manager-core-interactions.js";
-import { installCopyPdfIdButton } from "./ui-manager-core-copy-pdf-id.js";
-import { updateUIManagerHeaderTitle } from "./ui-manager-core-header-title.js";
 import { ViewerManager } from "./viewer.manager.js";
 import { ZoomManager } from "./zoom.manager.js";
 import { LayoutManager } from "./layout.manager.js";
-import { createInfraUICoordinator } from "../infra-ui-coordinator.js";
-import { requestPdfTitleFromDB } from "./pdf-title-requester.js";
+import { installUIManagerCoreInfraAssembly } from "./ui-manager-core-infra-assembly.js";
 
 /** UI管理器核心类：整合所有UI相关的子模块 */
 export class UIManagerCore {
@@ -32,13 +27,10 @@ export class UIManagerCore {
   #uiZoomControls;
   #uiLayoutControls;
   #uiControls;
-  #eventListeners;
-  #coordinator;
   #unsubscribeFunctions = [];
   #currentPdfId = null; // 当前 PDF 的ID
   #pendingDetailRequestId = null; // 等待中的详情请求ID（用于严格匹配回执）
   #domEventHub;
-  #updateCopyButtonVisibilityFn = () => {};
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
@@ -120,77 +112,33 @@ export class UIManagerCore {
       await this.#initializeUIControls();
 
       // Setup event listeners handler
-      const { eventListeners, unsubs: eventListenersUnsubs } =
-        installUIManagerCoreEventListeners({
-          eventBus: this.#eventBus,
-          logger: this.#logger,
-          viewerManager: this.#viewerManager,
-          zoomManager: this.#zoomManager,
-          layoutManager: this.#layoutManager,
-          domManager: this.#domManager,
-          getPdfViewerManager: () => this.#pdfViewerManager,
-          getUIZoomControls: () => this.#uiZoomControls,
-          getCurrentPdfId: () => this.#currentPdfId,
-          setCurrentPdfId: (pdfId) => {
-            this.#currentPdfId = pdfId;
-          },
-          getPendingDetailRequestId: () => this.#pendingDetailRequestId,
-          setPendingDetailRequestId: (rid) => {
-            this.#pendingDetailRequestId = rid;
-          },
-          updateCopyButtonVisibility: () => this.#updateCopyButtonVisibilityFn(),
-          requestPdfTitleFromDB: (pdfId) =>
-            requestPdfTitleFromDB({
-              eventBus: this.#eventBus,
-              logger: this.#logger,
-              pdfId,
-              setPendingDetailRequestId: (rid) => { this.#pendingDetailRequestId = rid; },
-            }),
-          updateHeaderTitle: (title) => updateUIManagerHeaderTitle({ logger: this.#logger, documentRef: document }, title),
-        });
-      this.#eventListeners = eventListeners;
-      this.#unsubscribeFunctions.push(...eventListenersUnsubs);
-
-      // Create coordinator
-      this.#coordinator = createInfraUICoordinator(
-        this.#eventBus,
-        this.#logger,
-        this.#uiControls,
-        this.#eventListeners,
-        this.#uiLayoutControls,
-        {
-          viewerManager: this.#viewerManager,
-          getPdfViewerManager: () => this.#pdfViewerManager,
-          getUIZoomControls: () => this.#uiZoomControls,
-        }
-      );
-      this.#unsubscribeFunctions.push(this.#coordinator.destroy);
-
-      const { updateCopyButtonVisibility, unsubs: copyUnsubs } =
-        installCopyPdfIdButton({
-          logger: this.#logger,
-          documentRef: document,
-          windowRef: window,
-          getCurrentPdfId: () => this.#currentPdfId,
-          setCurrentPdfId: (pdfId) => {
-            this.#currentPdfId = pdfId;
-          },
-        });
-      this.#updateCopyButtonVisibilityFn = updateCopyButtonVisibility;
-      this.#unsubscribeFunctions.push(...copyUnsubs);
+      const {
+        unsubs: infraAssemblyUnsubs,
+      } = installUIManagerCoreInfraAssembly({
+        eventBus: this.#eventBus,
+        logger: this.#logger,
+        viewerManager: this.#viewerManager,
+        zoomManager: this.#zoomManager,
+        layoutManager: this.#layoutManager,
+        domManager: this.#domManager,
+        getPdfViewerManager: () => this.#pdfViewerManager,
+        getUIZoomControls: () => this.#uiZoomControls,
+        uiControls: this.#uiControls,
+        uiLayoutControls: this.#uiLayoutControls,
+        getCurrentPdfId: () => this.#currentPdfId,
+        setCurrentPdfId: (pdfId) => {
+          this.#currentPdfId = pdfId;
+        },
+        getPendingDetailRequestId: () => this.#pendingDetailRequestId,
+        setPendingDetailRequestId: (rid) => {
+          this.#pendingDetailRequestId = rid;
+        },
+        documentRef: document,
+        windowRef: window,
+      });
+      this.#unsubscribeFunctions.push(...infraAssemblyUnsubs);
 
       this.#logger.info("UI Manager Core initialized successfully");
-
-      // 广播“UI初始化完成”，便于其它特性作为就绪门闸（零轮询/零延迟）
-      try {
-        this.#eventBus.emit(
-          PDF_VIEWER_EVENTS.STATE.INITIALIZED,
-          { module: "UIManagerCore" },
-          { actorId: "UIManagerCore" }
-        );
-      } catch (e) {
-        this.#logger.warn("[UIManagerCore] Failed to emit STATE.INITIALIZED", e);
-      }
     } catch (error) {
       this.#logger.error("Failed to initialize UI Manager Core:", error);
       throw error;
