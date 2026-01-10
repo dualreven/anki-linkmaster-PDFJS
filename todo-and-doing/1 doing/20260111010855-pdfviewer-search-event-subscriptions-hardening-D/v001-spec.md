@@ -21,6 +21,10 @@
 2) 补齐至少 2 条回归测试：
    - init/cleanup 对称（已有可扩充为更严格断言）
    - 订阅层在 cleanup 后不再触发 UI 行为（可用 spy/mock 验证）
+3) 新增约束（CI gate）：
+   - 通过 `pnpm -s run lint` 中的 `pdfviewer-no-eventbus-on-in-components` 门禁：
+     - **禁止**在 `src/frontend/pdf-viewer/features/**/components/**` 中直接 `eventBus.on(...)`；
+     - 若需要订阅，请将 `eventBus.on` 上移到 feature 装配层或 `services/**`（components 保持纯函数/无订阅）。
 
 ## 解决方案（建议方向）
 - 以“最小可交付”为先：必要时仅做轻量拆分或重命名/提取函数，避免大范围重构引发冲突。
@@ -43,4 +47,3 @@
   - `pnpm exec jest --runTestsByPath <测试文件1> <测试文件2> -i`
 - `pnpm -s run lint` 通过。
 - `working-log.md` 记录：职责边界、对外 API 变化（如有）与风险点。
-
