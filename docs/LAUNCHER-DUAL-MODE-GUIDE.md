@@ -242,6 +242,30 @@ def on_button_click(pdf_id: str):
 命令行参数 > 配置对象 > runtime-ports.json > 默认值
 ```
 
+### 1.1 Windows + QtWebEngine：loopback host 一致性（避免动态 import 拉取失败）
+
+现象（示例）：
+- `Failed to fetch dynamically imported module: http://localhost:3000/pdf-home/index.js`
+
+原因（高频）：
+- Windows 下 `localhost` 可能解析到 `::1`（IPv6 loopback），而 QtWebEngine/系统网络栈在某些链路里走 `127.0.0.1`（IPv4 loopback），导致“页面能打开但模块动态 import fetch 失败”。
+
+约定（开发模式）：
+- Vite dev server 默认监听 `127.0.0.1`（可用 `VITE_HOST` 覆盖）。
+- Launcher 侧生成的 dev URL 应统一使用 `http://127.0.0.1:<url_port>/...`。
+
+建议点检（PowerShell）：
+```powershell
+curl.exe -I "http://127.0.0.1:3000/@vite/client"
+curl.exe -I "http://127.0.0.1:3000/pdf-home/index.js"
+```
+
+如需手工覆盖 Vite 监听地址：
+```powershell
+$env:VITE_HOST="127.0.0.1"
+pnpm -s run dev
+```
+
 ### 2. 日志文件命名
 
 - **pdf-home**: `logs/pdf-home.log` 和 `logs/pdf-home-js.log`
