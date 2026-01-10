@@ -132,6 +132,11 @@
   - 证据：`src/frontend/pdf-viewer/features/infra-ui/infra-ui-coordinator.js:33`（destroy 清理订阅）。
 - P1-C（pdf-annotation tools store-reactive）：🟡 部分治理：sidebar 已 store-driven，但 comment tool 仍依赖 `DATA.LOADED` 来补画 overlay。
   - 证据：`src/frontend/pdf-viewer/features/pdf-annotation/tools/comment/index.js:134`（订阅 `DATA.LOADED`）。
+
+## 2026-01-10：CommentTool store-reactive（C）
+- 结论：CommentTool marker 渲染/恢复由 `annotationManager.store` 驱动，移除对 `ANNOTATION.DATA.LOADED` 的硬依赖（避免事件驱动补画导致分叉）。
+- 回归：`src/frontend/pdf-viewer/features/pdf-annotation/tools/comment/__tests__/comment-tool.store-reactive.test.js`
+- 交付：`504944f0`（`worker/refactor-C`）
 - P1-D（search/outline 解耦）：🟡 基本治理：search DOM bindings 已收敛到 DOM manager 且带 cleanup 测试；outline UI 不再直连 WS 事件。
   - 证据：`src/frontend/pdf-viewer/features/pdf-search/__tests__/search-box-dom-manager.bindings.cleanup.test.js:5`（init/cleanup 契约）。
 - P0 结构性债务提示（“标注模型重复真源”）：当前 `pdf-annotation` 侧为**复出口**而非重复实现：`src/frontend/pdf-viewer/features/pdf-annotation/models/annotation.js:4`（唯一真源说明）。
