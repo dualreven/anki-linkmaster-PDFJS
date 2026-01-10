@@ -1,4 +1,4 @@
-# 20260110105623-card-planner-final-output-echo-I 工作日志
+﻿# 20260110105623-card-planner-final-output-echo-I 工作日志
 **参考标准**: v001-spec.md
 
 ## 工作记录1
@@ -13,4 +13,11 @@
 - 待执行
 ### 下一步计划:
 - 完成交付并回填 commit hash
-
+## 工作记录2
+**时间**: 
+2026-01-10 12:20:15
+### 工作内容:
+- 扩展 `card-planner:final-output:completed` 回执：回显 cards payload 便于人工验收。
+- 扩展 pytest 覆盖：success 断言回显 cards 与输入一致；invalid 仍 failed+400。
+### 工作结果:
+- 已完成（待你按仓库流程提交/合并）。
