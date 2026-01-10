@@ -1,6 +1,15 @@
-import { WEBSOCKET_EVENTS } from "../../../common/event/event-constants.js";
+import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
 
-export function awaitOutlineWsMessage({ eventBus, types, subscriberId }) {
+/**
+ * 等待 Outline 领域事件（不依赖 WEBSOCKET_EVENTS）。
+ *
+ * @param {Object} params
+ * @param {any} params.eventBus - scoped/global eventBus（需支持 onGlobal 或 on）
+ * @param {Array<string>} params.types - 允许的事件名集合（例如 OUTLINE.LOAD.SUCCESS/EMPTY/FAILED）
+ * @param {string} [params.subscriberId]
+ * @returns {Promise<{ eventName: string, data: any }>}
+ */
+export function awaitOutlineDomainEvent({ eventBus, types, subscriberId }) {
   if (!eventBus) {
     throw new Error("[OutlineAwait] eventBus is required");
   }
@@ -11,12 +20,25 @@ export function awaitOutlineWsMessage({ eventBus, types, subscriberId }) {
   const sid = subscriberId || "OutlineFeature.await";
 
   return new Promise((resolve) => {
-    const unsub = eventBus.onGlobal(WEBSOCKET_EVENTS.MESSAGE.RECEIVED, (message) => {
-      const t = String(message?.type || "");
-      if (!allow.has(t)) { return; }
-      try { unsub(); } catch (e) { void e; /* logger-guard */ }
-      resolve(message);
-    }, { subscriberId: sid });
+    const on = typeof eventBus.onGlobal === "function" ? eventBus.onGlobal.bind(eventBus) : eventBus.on.bind(eventBus);
+    const unsubs = [];
+
+    const handlerFactory = (eventName) => (data) => {
+      try {
+        unsubs.forEach((u) => { try { u?.(); } catch (e) { void e; /* logger-guard */ } });
+      } catch (e) { void e; /* logger-guard */ }
+      resolve({ eventName, data });
+    };
+
+    for (const eventName of allow) {
+      if (typeof eventName !== "string" || !eventName) { continue; }
+      unsubs.push(on(eventName, handlerFactory(eventName), { subscriberId: sid }));
+    }
   });
 }
 
+export const OUTLINE_DOMAIN_EVENTS = {
+  LOAD_SUCCESS: PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS,
+  LOAD_EMPTY: PDF_VIEWER_EVENTS.OUTLINE.LOAD.EMPTY,
+  LOAD_FAILED: PDF_VIEWER_EVENTS.OUTLINE.LOAD.FAILED,
+};

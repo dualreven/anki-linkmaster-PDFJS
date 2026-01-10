@@ -34,9 +34,16 @@ const domainInboundHandlers = [
             logger.info(`[outline] inbound list (raw) outline_items_type=${rawType} preview=${rawPreview}`);
           } catch (e) { void e; }
 
-          // 若为 null（统一语义：数据库当前无大纲记录），不在适配器层桥接给 UI，交由 OutlineFeature 执行“从PDF导入→保存→再拉取”流程
+          // 若为 null（统一语义：数据库当前无大纲记录），桥接为 OUTLINE.LOAD.EMPTY，交由 OutlineFeature 执行“从PDF导入→保存→再拉取”流程
           if (data?.outline_items === null) {
-            logger.info("[outline] inbound list is null → skip bridging, defer to OutlineFeature");
+            logger.info("[outline] inbound list is null → emit OUTLINE.LOAD.EMPTY");
+            if (shouldEmitWsInboundDomainEventOnce({ message, eventName: PDF_VIEWER_EVENTS.OUTLINE.LOAD.EMPTY })) {
+              eventBus.emit(
+                PDF_VIEWER_EVENTS.OUTLINE.LOAD.EMPTY,
+                { source: "ws-backend" },
+                { actorId: "WebSocketAdapter" }
+              );
+            }
             return;
           }
 
@@ -44,12 +51,26 @@ const domainInboundHandlers = [
             : (Array.isArray(data?.items) ? data.items : []);
           const normalize = (nodes) => {
             if (!Array.isArray(nodes)) { return []; }
+            const clampInt = (value, min, max) => {
+              if (typeof value !== "number" || !Number.isFinite(value)) { return null; }
+              const v = Math.round(value);
+              return Math.max(min, Math.min(max, v));
+            };
+            const normalizePageAt = (value) => {
+              const v = Number(value);
+              if (!Number.isFinite(v)) { return 1; }
+              return Math.max(1, Math.trunc(v));
+            };
             return nodes.map((n) => ({
-              id: String(n.id ?? n.outline_id ?? ""),
-              name: String(n.name ?? n.title ?? "(Untitled)"),
-              pageAt: Number.isFinite(n.pageAt) ? n.pageAt : (Number.isFinite(n.page_at) ? n.page_at : null),
-              position: (typeof n.position === "number") ? n.position
-                : (typeof n.y_percent === "number" ? Math.max(0, Math.min(100, Math.round(n.y_percent))) : null),
+              id: String(n.id ?? n.outline_id ?? "").trim(),
+              name: String(n.name ?? n.title ?? "(Untitled)").trim(),
+              pageAt: normalizePageAt(n.pageAt ?? n.page_at ?? 1),
+              position: clampInt(
+                (typeof n.position === "number") ? n.position
+                  : (typeof n.y_percent === "number" ? n.y_percent : null),
+                0,
+                100
+              ),
               children: normalize(n.children || n.items || [])
             }));
           };
@@ -65,6 +86,16 @@ const domainInboundHandlers = [
         } catch {
           logger.warn("[outline] list completed handling failed");
         }
+      } else if (type === WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_FAILED) {
+        const err = message?.error || message?.data?.error || message?.data || { message: "unknown error" };
+        logger.warn("[outline] inbound list failed -> emit OUTLINE.LOAD.FAILED", { err: err?.message || err });
+        if (shouldEmitWsInboundDomainEventOnce({ message, eventName: PDF_VIEWER_EVENTS.OUTLINE.LOAD.FAILED })) {
+          eventBus.emit(
+            PDF_VIEWER_EVENTS.OUTLINE.LOAD.FAILED,
+            { error: err, type, source: "ws-backend" },
+            { actorId: "WebSocketAdapter" }
+          );
+        }
       } else if (type === WEBSOCKET_MESSAGE_TYPES.OUTLINE_UPDATE_FAILED) {
         const err = message?.error || message?.data || { message: "unknown" };
         logger.error("[outline] update failed", err, { toast: { type: "error", ms: 5000 } });
@@ -75,6 +106,10 @@ const domainInboundHandlers = [
         const err = message?.error || message?.data || { message: "unknown" };
         logger.error("[outline] delete failed", err, { toast: { type: "error", ms: 5000 } });
       } else if (type.endsWith(":complete")) {
+        // bulk-save 完成后由 OutlineFeature 的 init flow 主动拉取列表，避免重复请求
+        if (type === WEBSOCKET_MESSAGE_TYPES.OUTLINE_BULK_SAVE_COMPLETED) {
+          return;
+        }
         // 其他操作完成后主动拉取最新列表
         const pdfId = pdfIdProvider();
         wsClient.request(WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST, { pdf_uuid: pdfId }, { metadata: { version: "1.0.0" } });

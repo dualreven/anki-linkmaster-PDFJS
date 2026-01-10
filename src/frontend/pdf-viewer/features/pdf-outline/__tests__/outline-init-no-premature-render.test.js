@@ -15,6 +15,7 @@ import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constants.js";
 import FeatureOutline from "../index.js";
 import { setCurrentPDFDocument, clearCurrentPDFDocument } from "../../../pdf/current-document-registry.js";
+import { installWsInboundBridge, resetWsInboundBridgeContractForTests } from "./ws-inbound-bridge.testkit.js";
 
 function createContainer(stubs = {}) {
   const store = new Map(Object.entries(stubs));
@@ -36,6 +37,7 @@ describe("Outline 首次导入：不提前渲染，最终渲染后可导航", ()
   let navigationService;
 
   beforeEach(async () => {
+    resetWsInboundBridgeContractForTests();
     eventBus = new EventBus({ moduleName: "App", enableValidation: true, logger: console });
     scoped = new ScopedEventBus(eventBus, "pdf-viewer");
     // 设置 URL，提供 pdf-id（真实场景为 12hex）
@@ -50,6 +52,7 @@ describe("Outline 首次导入：不提前渲染，最终渲染后可导航", ()
 
     feature = new FeatureOutline();
     await feature.install({ logger: console, globalEventBus: eventBus, scopedEventBus: scoped, container });
+    installWsInboundBridge({ eventBus, wsClient, logger: console, pdfIdProvider: () => "abc123def456" });
   });
 
   afterEach(() => {

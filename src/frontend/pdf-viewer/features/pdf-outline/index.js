@@ -4,7 +4,7 @@
 
 import { getLogger } from "../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js";
-import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../../common/event/event-constants.js";
+import { WEBSOCKET_MESSAGE_TYPES } from "../../../common/event/event-constants.js";
 import { OutlineManager } from "./services/outline.manager.js"; // New Manager
 import { OutlineDialog } from "../../outline/components/outline-dialog.js";
 import { OutlineDataProvider } from "../../outline/outline-data-provider.js";
@@ -15,7 +15,6 @@ import { parseOutlineNormalizedDest as parseOutlineNormalizedDestImpl } from "./
 import { runOutlineInitialLoadFlowAfterFile } from "./outline-initial-load-flow.js";
 import { handleOutlineNavigateById, tryOutlinePendingNavigate } from "./outline-navigate-by-id.js";
 import { handleOutlineCreate, handleOutlineUpdate, handleOutlineDelete, handleOutlineReorder } from "./outline-crud-handlers.js";
-import { shouldEmitWsInboundDomainEventOnce } from "../../adapters/ws-inbound-bridge-contract.js";
 
 export class OutlineFeature {
   #logger;
@@ -31,7 +30,6 @@ export class OutlineFeature {
   #enabled = false;
   #pendingNavigateId = null;
   #listReady = false;
-  #initializing = false;
   #initialLoadStarted = false;
 
   get name() { return "pdf-outline"; }
@@ -223,7 +221,6 @@ export class OutlineFeature {
   async runInitialLoadFlowAfterFile({ pdfDocument } = {}) {
     if (this.#initialLoadStarted) { return; }
     this.#initialLoadStarted = true;
-    this.#initializing = true;
     try {
       await runOutlineInitialLoadFlowAfterFile({
         logger: this.#logger,
@@ -241,8 +238,6 @@ export class OutlineFeature {
       this.#logger.warn("[Outline][init] initial load flow failed", e);
       this.setListReady(true);
       this.refreshList("backend");
-    } finally {
-      this.#initializing = false;
     }
   }
 
@@ -387,48 +382,29 @@ export class OutlineFeature {
   setupEventListeners() {
     const onGlobal = this.eventBus.onGlobal.bind(this.eventBus);
 
-    // 消费后端返回的 outline 列表（非初始化阶段的普通刷新）
+    // WS 入站只进入 adapter/bridge；Feature 仅消费领域事件并同步 OutlineManager
     this.subscriptions.add(onGlobal(
-      WEBSOCKET_EVENTS.MESSAGE.RECEIVED,
-      async (message) => {
+      PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS,
+      async (data) => {
         try {
-          const t = String(message?.type || "");
-          if (t === WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_COMPLETED) {
-            // 初始化期间：仅在最终“数组回执”时渲染一次，避免空态/临时ID提前渲染
-            if (this.#initialLoadStarted && !this.#listReady) {
-              const items0 = message?.data?.outline_items;
-              if (Array.isArray(items0)) {
-                await this.outlineManager.replaceItems(items0); // Use replaceItems
-                this.setListReady(true);
-                // 不主动 refresh；依赖 WebSocketAdapter 的桥接已发出一次 SUCCESS，避免重复
-                this.tryPendingNavigate();
-                return;
-              }
-              return;
-            }
-            const items = message?.data?.outline_items || [];
-            const count = Array.isArray(items) ? items.length : 0;
-            // 空列表时不触发刷新（遵循“只渲染一次最终态”）
-            if (count === 0) { return; }
-            // 非初始化场景：正常刷新（toast 仅在有数据时传入，避免传 undefined 违反 lint 规则）
-            if (this.#initializing) { return; }
-            // 非初始化场景：正常刷新（toast 仅在有数据时传入，避免传 undefined 违反 lint 规则）
-            if (count > 0) {
-              this.#logger.info(`[Outline] 收到 OUTLINE_LIST_COMPLETED，items=${count}`, { toast: { type: "success", ms: 2500 } });
-            } else {
-              this.#logger.info(`[Outline] 收到 OUTLINE_LIST_COMPLETED，items=${count}`);
-            }
-            await this.outlineManager.replaceItems(items); // Use replaceItems
-            this.setListReady(true);
-            if (shouldEmitWsInboundDomainEventOnce({ message, eventName: PDF_VIEWER_EVENTS.OUTLINE.LOAD.SUCCESS })) {
-              this.refreshList("backend");
-            }
-            this.tryPendingNavigate();
-          } else if (t === WEBSOCKET_MESSAGE_TYPES.OUTLINE_LIST_FAILED) {
-            this.#logger.warn("[Outline] OUTLINE_LIST_FAILED", message?.error || message?.data);
-          }
+          const outlineItems = Array.isArray(data?.outlineItems) ? data.outlineItems : [];
+          await this.outlineManager.replaceItems(outlineItems);
+          this.setListReady(true);
+          this.tryPendingNavigate();
         } catch (e) {
-          this.#logger.warn("[Outline] handle WS message failed", e);
+          this.#logger.warn("[Outline] handle OUTLINE.LOAD.SUCCESS failed", e);
+        }
+      },
+      { subscriberId: "OutlineFeature" }
+    ));
+    this.subscriptions.add(onGlobal(
+      PDF_VIEWER_EVENTS.OUTLINE.LOAD.FAILED,
+      (data) => {
+        try {
+          this.setListReady(true);
+          this.#logger.warn("[Outline] OUTLINE.LOAD.FAILED", data?.error || data);
+        } catch (e) {
+          void e;
         }
       },
       { subscriberId: "OutlineFeature" }

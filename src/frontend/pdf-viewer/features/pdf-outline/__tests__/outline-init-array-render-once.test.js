@@ -14,6 +14,7 @@ import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants
 import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constants.js";
 import FeatureOutline from "../index.js";
 import { setCurrentPDFDocument, clearCurrentPDFDocument } from "../../../pdf/current-document-registry.js";
+import { installWsInboundBridge, resetWsInboundBridgeContractForTests } from "./ws-inbound-bridge.testkit.js";
 
 function createContainer(stubs = {}) {
   const store = new Map(Object.entries(stubs));
@@ -35,6 +36,7 @@ describe("Outline 首次列表为数组：只渲染一次并可导航", () => {
   let navigationService;
 
   beforeEach(async () => {
+    resetWsInboundBridgeContractForTests();
     eventBus = new EventBus({ moduleName: "App", enableValidation: true, logger: console });
     scoped = new ScopedEventBus(eventBus, "pdf-viewer");
     try { window.history.pushState({}, "", "http://localhost/pdf-viewer/?pdf-id=TESTPDF_ARRAY"); } catch {}
@@ -46,6 +48,7 @@ describe("Outline 首次列表为数组：只渲染一次并可导航", () => {
 
     feature = new FeatureOutline();
     await feature.install({ logger: console, globalEventBus: eventBus, scopedEventBus: scoped, container });
+    installWsInboundBridge({ eventBus, wsClient, logger: console, pdfIdProvider: () => "TESTPDF_ARRAY" });
   });
 
   afterEach(() => {

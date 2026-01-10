@@ -9,6 +9,7 @@ import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants
 import FeatureOutline from "../../pdf-outline/index.js";
 import { setCurrentPDFDocument } from "../../../pdf/current-document-registry.js";
 import { OutlineDataProvider } from "../../../outline/outline-data-provider.js";
+import { installWsInboundBridge, resetWsInboundBridgeContractForTests } from "./ws-inbound-bridge.testkit.js";
 
 class StubContainer {
   constructor() { this._store = new Map(); }
@@ -20,6 +21,10 @@ class StubContainer {
 }
 
 describe("Outline 与 WS 同步与持久化", () => {
+  beforeEach(() => {
+    resetWsInboundBridgeContractForTests();
+  });
+
   test("收到 OUTLINE_LIST_COMPLETED 后，内存刷新并发出一次渲染事件", async () => {
     const eventBus = new EventBus({ moduleName: "TestBus", enableValidation: true, logger: getLogger("test") });
     const { ScopedEventBus } = await import("../../../../common/event/scoped-event-bus.js");
@@ -28,6 +33,7 @@ describe("Outline 与 WS 同步与持久化", () => {
     global.window.__DISABLE_OUTLINE_UI = true;
     const feature = new FeatureOutline();
     await feature.install({ logger: getLogger("feature"), globalEventBus: eventBus, scopedEventBus: scoped, container });
+    installWsInboundBridge({ eventBus, wsClient: container.getWSClient(), logger: getLogger("bridge"), pdfIdProvider: () => "jest-pdf" });
     try { window.history.pushState({}, "", "?pdf-id=jest-pdf"); } catch {}
 
     // 监听 UI 刷新事件
@@ -70,6 +76,7 @@ describe("Outline 与 WS 同步与持久化", () => {
     global.window.__DISABLE_OUTLINE_UI = true;
     const feature = new FeatureOutline();
     await feature.install({ logger: getLogger("feature"), globalEventBus: eventBus, scopedEventBus: scoped, container });
+    installWsInboundBridge({ eventBus, wsClient: container.getWSClient(), logger: getLogger("bridge"), pdfIdProvider: () => "jest-pdf" });
 
     // 订阅渲染事件计数
     let successCount = 0;
