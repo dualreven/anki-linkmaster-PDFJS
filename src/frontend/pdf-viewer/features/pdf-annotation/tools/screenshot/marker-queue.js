@@ -39,6 +39,22 @@ export class ScreenshotMarkerQueue {
     this.#pendingMarkersByPage.clear();
   }
 
+  dropPending(annotationId) {
+    if (!annotationId) {
+      return;
+    }
+
+    this.#pendingMarkersByPage.forEach((pageMap, pageNumber) => {
+      if (!pageMap || typeof pageMap.delete !== "function") {
+        return;
+      }
+      pageMap.delete(annotationId);
+      if (pageMap.size === 0) {
+        this.#pendingMarkersByPage.delete(pageNumber);
+      }
+    });
+  }
+
   enqueueOrRender(annotation) {
     try {
       if (!annotation || annotation.type !== AnnotationType.SCREENSHOT) {return;}

@@ -20,6 +20,7 @@ import { createScreenshotAnnotationCard } from "./card-renderer.js";
 import { ScreenshotSelectionController } from "./selection-controller.js";
 import { ScreenshotCaptureFlow } from "./capture-flow.js";
 import { ScreenshotMarkerQueue } from "./marker-queue.js";
+import { ScreenshotStoreReactiveMarkers } from "./store-reactive-markers.js";
 
 const MARKER_COLOR_PRESETS = [
   { name: "orange", label: "橙色", value: "#ff9800" },
@@ -51,6 +52,7 @@ export class ScreenshotTool extends IAnnotationTool {
   #selectionController = null;
   #markerRenderer = null;
   #markerQueue = null;
+  #storeReactiveMarkers = null;
   #storeUnsubscribe = null;
   #renderPageCompletedUnsub = null;
   #pdfjsPageRenderedHandler = null;
@@ -133,6 +135,13 @@ export class ScreenshotTool extends IAnnotationTool {
       logger: this.#logger,
       logStep: this.#logStep.bind(this),
       renderMarker: (annotation) => this.renderScreenshotMarker(annotation)
+    });
+
+    this.#storeReactiveMarkers = new ScreenshotStoreReactiveMarkers({
+      markerQueue: this.#markerQueue,
+      ensureOverlayFor: (annotation) => this.ensureOverlayFor(annotation),
+      removeMarker: (annotationId) => this.removeScreenshotMarker(annotationId),
+      logger: this.#logger
     });
 
     // 订阅 AnnotationManager.store，响应式更新截图标记
@@ -340,6 +349,8 @@ export class ScreenshotTool extends IAnnotationTool {
     this.deactivate();
     this.clearAllMarkers();
     this.#markerQueue?.clear?.();
+    this.#storeReactiveMarkers?.destroy?.();
+    this.#storeReactiveMarkers = null;
 
     this.#capturer = null;
     this.#qwebChannelBridge = null;
@@ -354,18 +365,13 @@ export class ScreenshotTool extends IAnnotationTool {
   /**
    * 根据 store 中的截图标注列表更新页面上的 marker
    * @param {Array<Annotation>} currentScreenshots - 当前的截图标注列表
-   * @param {Array<Annotation>} oldScreenshots - 旧的截图标注列表
    * @private
    */
   #updateScreenshotMarkers(currentScreenshots) {
-    this.clearAllMarkers();
-    this.#markerQueue?.clear?.();
-
-    for (const ann of currentScreenshots) {
-      this.ensureOverlayFor(ann);
+    if (!this.#storeReactiveMarkers) {
+      throw new Error("[ScreenshotTool] storeReactiveMarkers is not initialized");
     }
-
-    this.#logger.debug(`[ScreenshotTool] Markers updated. Current: ${currentScreenshots.length}`);
+    this.#storeReactiveMarkers.apply(currentScreenshots);
   }
 
   /**
