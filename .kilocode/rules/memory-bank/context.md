@@ -63,7 +63,7 @@
   - 文档：`docs/bugs/pdf-viewer-known-issues.md`
   - todo：`todo-and-doing/2 todo/20260110014111-outline-search-callstack-overflow-deferred-D/`
 
-## 2026-01-10：新问题（待处理）— pdf-home 打开失败
+## 2026-01-10：pdf-home 打开失败（已修复）
 - 用户日志（2026-01-10 16:41）：
   - `js: [BOOT] import index.js failed TypeError: Failed to fetch dynamically imported module: http://localhost:3000/pdf-home/index.js`
 - 根因（已定位）：Windows + QtWebEngine 下 `localhost` 的 IPv4/IPv6 解析不稳定；Vite 可能仅监听 `::1`，导致 `127.0.0.1:<vite_port>` 连接被拒绝，从而出现“页面加载完成但动态 import 拉取失败”。
@@ -185,13 +185,12 @@
 ## 2026-01-10：已知但暂不升级的 bug（记录）
 - KI-20260110-01（爆栈）：仍未修复；用户确认“暂不重要/不升级为必须修”。后续如复现路径清晰，再单独下发专项任务。
 
-## 2026-01-10：pdf-home 打开失败（动态 import fetch 失败，待修）
-- 现象：`[BOOT] import index.js failed TypeError: Failed to fetch dynamically imported module: http://localhost:3000/pdf-home/index.js`（QtWebEngine/Windows 场景高度可疑与 localhost IPv4/IPv6 解析差异有关）。
-- 计划：E 修复 GUI 启动 Vite 走 `ensure_vite`（强制 `VITE_HOST=127.0.0.1`）以稳定 pdf-home；见 `todo-and-doing/1 doing/20260111010855-gui-launcher-vite-loopback-host-and-pdf-home-reliability-E/`。
+（用户确认已恢复正常打开；修复提交 commit hash 待补。）
 
 ## 2026-01-11：PDFViewer 面条化治理新派工（A~E，20260111010855）
 - A（ui）：KeyboardHandler 生命周期契约（install/uninstall 幂等）+ 回归：`todo-and-doing/1 doing/20260111010855-pdfviewer-ui-keyboard-handler-uninstall-A/`
 - B（infra-ui）：ui-manager-core 再瘦身（更接近装配层）+ 回归：`todo-and-doing/1 doing/20260111010855-pdfviewer-infra-ui-ui-manager-core-slim-B/`
 - C（pdf-annotation）：ToggleButton keydown 监听器可卸载化 + 回归：`todo-and-doing/1 doing/20260111010855-pdfviewer-annotation-toggle-button-uninstall-C/`
 - D（pdf-search）：订阅/DOM manager 边界与 cleanup 契约强化 + 回归：`todo-and-doing/1 doing/20260111010855-pdfviewer-search-event-subscriptions-hardening-D/`
-- E（gui）：Vite 启动 ensure_vite + 修复 pdf-home 动态 import 失败 + 回归：`todo-and-doing/1 doing/20260111010855-gui-launcher-vite-loopback-host-and-pdf-home-reliability-E/`
+- E（pdf-outline）：UI 解耦 WS + cleanup 契约回归：`todo-and-doing/1 doing/20260111010855-pdfviewer-outline-ui-decouple-and-cleanup-E/`
+  - 旧 E（pdf-home 修复，已过时）已归档：`todo-and-doing/4 archive/20260111013701-doing-archive/20260111010855-gui-launcher-vite-loopback-host-and-pdf-home-reliability-E/`
