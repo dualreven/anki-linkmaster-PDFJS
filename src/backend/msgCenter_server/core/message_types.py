@@ -119,6 +119,11 @@ class MessageType(Enum):
     ANNOTATION_BULK_GET_COMPLETED = "annotation:bulk-get:completed"
     ANNOTATION_BULK_GET_FAILED = "annotation:bulk-get:failed"
 
+    # === Card Planner（新卡片规划器） ===
+    CARD_PLANNER_FINAL_OUTPUT_REQUESTED = "card-planner:final-output:requested"
+    CARD_PLANNER_FINAL_OUTPUT_COMPLETED = "card-planner:final-output:completed"
+    CARD_PLANNER_FINAL_OUTPUT_FAILED = "card-planner:final-output:failed"
+
     # === Outline（大纲） ===
     # 2025-11-06: 统一为 pdf-viewer 前缀 + outline-* + request/complete/failed
     OUTLINE_LIST_REQUESTED = "pdf-viewer:outline-list:request"

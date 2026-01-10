@@ -38,6 +38,7 @@ def build_router(ctx: Any) -> Dict[str, RouteHandler]:
     from src.backend.msgCenter_server.handlers.infra.debug import read_debug_info
     from src.backend.msgCenter_server.handlers.misc import heartbeat, console_log
     from src.backend.msgCenter_server.handlers.pdf_viewer.pdf_pages import load_page, preload_pages, clear_cache
+    from src.backend.msgCenter_server.handlers.card_planner.final_output import card_planner_final_output
 
     def wrap(fn):
         return lambda request_id, data: fn(ctx, request_id, data)
@@ -69,6 +70,8 @@ def build_router(ctx: Any) -> Dict[str, RouteHandler]:
         "annotation:save:requested": wrap(save_annotation),
         "annotation:delete:requested": wrap(delete_annotation),
         "annotation:bulk-get:requested": wrap(annotation_bulk_get),
+        # card-planner
+        "card-planner:final-output:requested": wrap(card_planner_final_output),
         # anchor
         "anchor:get:requested": wrap(get_anchor),
         "anchor:list:requested": wrap(list_anchors),
