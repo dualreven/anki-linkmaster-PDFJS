@@ -4,6 +4,7 @@ import { pathToFileURL } from "url";
 import { runFeatureInternalEventbusGates } from "./feature-internal-eventbus-gates.js";
 import { runPdfviewerGlobalListenerGates } from "./pdfviewer-global-listener-gates.js";
 import { runPdfviewerAnnotationSingleSourceGuard } from "./pdfviewer-annotation-single-source-guard.js";
+import { runPdfviewerNoEventbusOnInComponentsGate } from "./pdfviewer-no-eventbus-on-in-components-gate.js";
 
 const DEFAULT_LIMIT = 500;
 const DEFAULT_ROOT_DIR = "src/frontend";
@@ -293,6 +294,27 @@ async function main() {
     } catch (e) {
       const msg = e instanceof Error ? e.stack ?? e.message : String(e);
       process.stderr.write(`[pdfviewer-annotation-single-source-guard] fatal: ${msg}\n`);
+      process.exitCode = 1;
+    }
+
+    // ✅ pdf-viewer：禁止 components/** 直接 eventBus.on（增量严格：仅扫描变更文件）
+    try {
+      const res = await runPdfviewerNoEventbusOnInComponentsGate();
+      process.stdout.write(
+        `[pdfviewer-no-eventbus-on-in-components] scanned=${res.scanned} baseRef=${res.baseRef} mergeBase=${res.mergeBase}\n`
+      );
+      if (!res.violations || res.violations.length === 0) {
+        process.stdout.write("[pdfviewer-no-eventbus-on-in-components] OK\n");
+      } else {
+        process.stdout.write(`[pdfviewer-no-eventbus-on-in-components] FAILED (${res.violations.length})\n`);
+        for (const v of res.violations) {
+          process.stdout.write(`- [${v.type}] ${v.path}\n`);
+        }
+        process.exitCode = 1;
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.stack ?? e.message : String(e);
+      process.stderr.write(`[pdfviewer-no-eventbus-on-in-components] fatal: ${msg}\n`);
       process.exitCode = 1;
     }
     return;
