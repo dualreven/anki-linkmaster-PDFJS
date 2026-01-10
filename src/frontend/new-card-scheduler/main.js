@@ -118,7 +118,7 @@ export async function createNewCardSchedulerAppOrThrow({
   if (!resolvedWsUrl) {
     const { resolveWebSocketPortSync, DEFAULT_WS_PORT } = await import("../common/utils/ws-port-resolver.js");
     const port = Number.isFinite(wsPort) ? Number(wsPort) : resolveWebSocketPortSync({ fallbackPort: DEFAULT_WS_PORT });
-    resolvedWsUrl = `ws://localhost:${port}`;
+    resolvedWsUrl = `ws://127.0.0.1:${port}`;
   }
 
   const identity = {
