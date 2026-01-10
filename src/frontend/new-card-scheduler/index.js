@@ -1,13 +1,16 @@
 import { getLogger } from "../common/utils/logger.js";
 import "../common/polyfills.js";
-import { showError } from "../common/utils/notification.js";
+import { showError, showInfo } from "../common/utils/notification.js";
+import { bootstrapNewCardSchedulerAppFeature } from "./bootstrap/app-bootstrap-feature.js";
 
 const logger = getLogger("new-card-scheduler.index");
 logger.info("[BOOT] new-card-scheduler index.js start");
 
 async function startApp() {
   try {
-    await import("./main.js");
+    await bootstrapNewCardSchedulerAppFeature({
+      notification: { showInfo, showError },
+    });
   } catch (error) {
     logger.error("[NewCardScheduler] bootstrap failed in index.js", error);
     try { showError("启动失败: " + (error && error.message ? error.message : String(error)), 5000); } catch (e) { void e; /* logger-guard */ }
