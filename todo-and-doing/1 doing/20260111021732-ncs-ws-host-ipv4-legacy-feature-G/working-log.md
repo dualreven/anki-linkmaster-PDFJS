@@ -4,7 +4,7 @@
 - legacy feature 默认 WS host 从 `localhost` 统一到 `127.0.0.1`，提升注册稳定性。
 
 ## 交付
-- Commit: `（待填写）`
+- Commit: `45705408`
 
 ## 自检
 - `pnpm -s run lint`：✅
