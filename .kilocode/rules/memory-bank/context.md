@@ -130,13 +130,12 @@
 - P1-A（adapters URL 依赖）：✅ 已治理（adapters 不再直接依赖 `window.location`/URL 来取 pdfId）。
 - P1-B（infra-ui 巨型订阅中心）：🟡 部分治理：已抽出 coordinator+subscriptions，但 `ui-manager-core-*` 旧壳仍在（需后续继续瘦身/迁移）。
   - 证据：`src/frontend/pdf-viewer/features/infra-ui/infra-ui-coordinator.js:33`（destroy 清理订阅）。
-- P1-C（pdf-annotation tools store-reactive）：🟡 部分治理：sidebar 已 store-driven，但 comment tool 仍依赖 `DATA.LOADED` 来补画 overlay。
-  - 证据：`src/frontend/pdf-viewer/features/pdf-annotation/tools/comment/index.js:134`（订阅 `DATA.LOADED`）。
+- P1-C（pdf-annotation tools store-reactive）：🟡 部分治理：sidebar 已 store-driven；CommentTool 已改为 store-reactive（去 `DATA.LOADED` 硬依赖），其余 tools 仍需持续推进。
 
 ## 2026-01-10：CommentTool store-reactive（C）
 - 结论：CommentTool marker 渲染/恢复由 `annotationManager.store` 驱动，移除对 `ANNOTATION.DATA.LOADED` 的硬依赖（避免事件驱动补画导致分叉）。
 - 回归：`src/frontend/pdf-viewer/features/pdf-annotation/tools/comment/__tests__/comment-tool.store-reactive.test.js`
-- 交付：`504944f0`（`worker/refactor-C`）
+- 交付（main）：`b3006488`
 - P1-D（search/outline 解耦）：🟡 基本治理：search DOM bindings 已收敛到 DOM manager 且带 cleanup 测试；outline UI 不再直连 WS 事件。
   - 证据：`src/frontend/pdf-viewer/features/pdf-search/__tests__/search-box-dom-manager.bindings.cleanup.test.js:5`（init/cleanup 契约）。
 - P0 结构性债务提示（“标注模型重复真源”）：当前 `pdf-annotation` 侧为**复出口**而非重复实现：`src/frontend/pdf-viewer/features/pdf-annotation/models/annotation.js:4`（唯一真源说明）。
@@ -148,3 +147,13 @@
 - C：CommentTool store-reactive（去 DATA.LOADED 依赖）：`todo-and-doing/1 doing/20260110195258-pdfviewer-annotation-commenttool-store-reactive-C/`
 - D：pdf-search 移除旧 DOM bindings 壳（收敛到 DOMManager）：`todo-and-doing/1 doing/20260110195258-pdfviewer-pdf-search-remove-dom-bindings-shell-D/`
 - E：PDFViewerManager PDF.js EventBus bridge 可卸载（防监听泄漏）：`todo-and-doing/1 doing/20260110195258-pdfviewer-manager-pdfjs-bridge-uninstall-E/`
+
+## 2026-01-10：验收合并 ABCDE（20260110195258 批次）✅
+- 合入（main）：
+  - A：`13fe160a`（annotation 单真源 lint 门禁）
+  - B：`7f77cba5`（移除兜底 + RENDER.READY 初始化 + 回归）
+  - C：`b3006488`（CommentTool store-reactive + 回归）
+  - D：`0c1d5df3`（移除 search DOM bindings 旧壳 + 回归）
+  - E：`3d016edf`（PDFViewerManager bridge 可卸载 + 回归）
+- 门禁：`pnpm -s run lint` ✅；Jest（定向）✅
+- 归档：`todo-and-doing/4 archive/20260110211119-doing-archive/`

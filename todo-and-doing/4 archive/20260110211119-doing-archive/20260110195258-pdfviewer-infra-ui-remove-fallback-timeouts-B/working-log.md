@@ -24,4 +24,4 @@
 - `pnpm exec jest --runTestsByPath src/frontend/pdf-viewer/features/infra-ui/__tests__/event-listeners.remove-fallback-and-init-with-render-ready.test.js -i` ✅
 
 ### 下一步计划:
-- 已提交：`da33fcc5`（代码+测试）、`1c674e23`（working-log）
+- 已合入 main：`7f77cba5`（代码+测试）、`e8eeeb01`（working-log）
