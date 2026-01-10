@@ -2,32 +2,34 @@ import { WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constant
 
 export class EventListeners {
   #ctx;
+  #pendingPageInfoInit = null; // { pdfDocument: any } | null
 
   constructor(ctx) {
     this.#ctx = ctx;
   }
 
   onZoomChanged(data) {
-    const { logger, zoomManager, getCurrentPdfId, setCurrentPdfId, updateCopyButtonVisibility } = this.#ctx;
+    const { logger, zoomManager, getCurrentPdfId } = this.#ctx;
     if (zoomManager && typeof data.scale === "number") {
       zoomManager.applyEngineScale(data.scale);
     }
     try {
       if (!getCurrentPdfId() && data && typeof data.filename === "string" && data.filename.trim()) {
-        const base = data.filename.replace(/\.[^.]+$/, "");
-        if (base) {
-          setCurrentPdfId(base);
-          updateCopyButtonVisibility();
-          logger.info(`[EventListeners] Fallback PDF ID from filename: ${base}`);
-        }
+        // 禁止兜底：filename→pdfId 的隐式推断会制造“悄悄吞错”的回潮点
+        logger.error(
+          "[EventListeners] Missing pdfId: filename fallback is forbidden",
+          { filename: data.filename },
+          { toast: { type: "error", ms: 6000 } }
+        );
       }
     } catch (e) {
-      logger.warn("[EventListeners] Fallback PDF ID from filename failed", e);
+      logger.warn("[EventListeners] Missing pdfId guard failed", e);
     }
   }
 
   onFileLoadRequested() {
     const { viewerManager, domManager } = this.#ctx;
+    this.#pendingPageInfoInit = null;
     if (viewerManager) {
       viewerManager.setLoading(true, false);
     }
@@ -35,7 +37,7 @@ export class EventListeners {
   }
 
   onFileLoadSuccess(payload) {
-    const { logger, viewerManager, domManager, getPdfViewerManager, getUIZoomControls } = this.#ctx;
+    const { logger, viewerManager, domManager, getPdfViewerManager } = this.#ctx;
     const pdfDocument = payload?.pdfDocument;
     if (viewerManager) {
       viewerManager.setLoading(false, true);
@@ -47,21 +49,8 @@ export class EventListeners {
       logger.info("Loading PDF document into PDFViewerManager");
       pdfViewerManager.load(pdfDocument);
 
-      setTimeout(() => {
-        const uiZoomControls = getUIZoomControls();
-        const mgr = getPdfViewerManager();
-        if (mgr) {
-          const totalPages = mgr.pagesCount || pdfDocument.numPages;
-          const currentPage = mgr.currentPageNumber || 1;
-          if (viewerManager) {
-            viewerManager.setPageInfo(currentPage, totalPages);
-          }
-          if (uiZoomControls) {
-            uiZoomControls.updatePageInfo(currentPage, totalPages);
-          }
-          logger.info(`Page info initialized: ${currentPage}/${totalPages}`);
-        }
-      }, 100);
+      // 基于明确事件进行一次性初始化（避免 setTimeout 竞态）
+      this.#pendingPageInfoInit = { pdfDocument };
     } else {
       logger.warn("Cannot load PDF: pdfViewerManager or pdfDocument is missing");
     }
@@ -69,10 +58,39 @@ export class EventListeners {
 
   onFileLoadFailed(data) {
     const { viewerManager, domManager } = this.#ctx;
+    this.#pendingPageInfoInit = null;
     if (viewerManager) {
       viewerManager.setError(data.error?.message || "Load Failed");
     }
     domManager.setLoadingState(false);
+  }
+
+  onRenderReady(data) {
+    const { logger, viewerManager, getPdfViewerManager, getUIZoomControls } = this.#ctx;
+    const pending = this.#pendingPageInfoInit;
+    if (!pending) {
+      return;
+    }
+    this.#pendingPageInfoInit = null;
+
+    const mgr = getPdfViewerManager();
+    if (!mgr) {
+      logger.error("[EventListeners] PDFViewerManager missing on RENDER.READY");
+      return;
+    }
+
+    const pdfDocument = pending.pdfDocument;
+    const totalPages = mgr.pagesCount || Number(data?.totalPages || 0) || pdfDocument?.numPages || 0;
+    const currentPage = mgr.currentPageNumber || Number(data?.firstPage || 0) || 1;
+
+    if (viewerManager) {
+      viewerManager.setPageInfo(currentPage, totalPages);
+    }
+    const uiZoomControls = getUIZoomControls();
+    if (uiZoomControls) {
+      uiZoomControls.updatePageInfo(currentPage, totalPages);
+    }
+    logger.info(`Page info initialized (RENDER.READY): ${currentPage}/${totalPages}`);
   }
 
   onUrlParamsParsed(data) {
