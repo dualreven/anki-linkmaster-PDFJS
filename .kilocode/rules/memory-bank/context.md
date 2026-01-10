@@ -172,3 +172,8 @@
 ## 2026-01-10：新卡片规划器实现复核（16:40）
 - 报告：`AItemp/reports/20260110164032-new-card-scheduler-implementation-check.md`
 - 结论：核心能力（engine/UI/paste/meta/final-output）已具备；与 MsgCenter `to` 新协议的关键点（forward 注入 + planner 侧仅 toast/render）已对齐；`state:get` 的回执路由仍需文档明确。
+
+## 2026-01-10：pdf-annotation Sidebar zombie cleanup（C）
+- 结论：`AnnotationSidebarUI` 列表渲染为 store 驱动；sidebar subscriptions 不订阅 CRUD 事件（避免双驱动回潮）。
+- 回归：`src/frontend/pdf-viewer/features/pdf-annotation/components/__tests__/annotation-sidebar-ui.store-driven.test.js`
+- 交付：`b115188`（`worker/refactor-C`）
