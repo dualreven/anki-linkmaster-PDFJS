@@ -67,7 +67,8 @@ describe("TextHighlightTool integration with action menu", () => {
           callback(selector(state));
         }
         return () => subs.delete(sub);
-      }
+      },
+      _subCount: () => subs.size,
     };
   };
 
@@ -318,5 +319,23 @@ describe("TextHighlightTool integration with action menu", () => {
     expect(mockHighlightRendererInstance.removeHighlight).toHaveBeenCalledWith(annotation.id);
     expect(mockHighlightActionMenuInstance.detach).toHaveBeenCalledWith(annotation.id);
     expect(mockHighlightRendererInstance.renderHighlight).not.toHaveBeenCalled();
+  });
+
+  it("unsubscribes from store on destroy (no further store-driven updates)", () => {
+    expect(mockAnnotationStore._subCount()).toBeGreaterThan(0);
+
+    // destroy should unsubscribe store subscription
+    tool.destroy();
+    expect(mockAnnotationStore._subCount()).toBe(0);
+
+    // even if store changes later, there should be no new render work triggered by this tool
+    mockHighlightRendererInstance.renderHighlight.mockClear();
+
+    const annotation = createAnnotation();
+    mockAnnotationStore.set({ annotations: [annotation] });
+    expect(mockHighlightRendererInstance.renderHighlight).not.toHaveBeenCalled();
+
+    // prevent afterEach double-destroy
+    tool = { destroy() {} };
   });
 });
