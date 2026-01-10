@@ -56,7 +56,11 @@ export default defineConfig(async () => {
   const vitePort = process.env.VITE_PORT ? parseInt(process.env.VITE_PORT, 10) : 3000
   const strictPort = process.env.VITE_STRICT_PORT === 'true'
 
-  console.log(`[Vite] Using port: ${vitePort}, strict mode: ${strictPort}`)
+  // Windows + QtWebEngine 场景：避免 localhost → IPv6/IPv4 解析差异导致“模块动态导入 fetch 失败”
+  // 统一使用 IPv4 loopback（由 Python 侧 URL 生成同步为 127.0.0.1）
+  const viteHost = process.env.VITE_HOST ? String(process.env.VITE_HOST) : '127.0.0.1'
+
+  console.log(`[Vite] Using host: ${viteHost}, port: ${vitePort}, strict mode: ${strictPort}`)
 
   // 读取仅构建目标（可选）：'pdf-home' | 'pdf-viewer'
   const buildOnly = process.env.VITE_BUILD_ONLY && String(process.env.VITE_BUILD_ONLY).toLowerCase();
@@ -83,6 +87,7 @@ export default defineConfig(async () => {
       exclude: []
     },
     server: {
+      host: viteHost,
       port: vitePort,
       strictPort: strictPort, // 如果端口被占用则直接失败，不自动选择其他端口
       proxy: {

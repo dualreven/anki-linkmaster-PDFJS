@@ -87,12 +87,12 @@ class SimpleWebWindowApp:
   def _build_frontend_url(self, url_port: int) -> str:
     """
     构建前端 URL：
-    - 基础路径：http://localhost:<url_port>/<entry_path>/
+    - 基础路径：http://127.0.0.1:<url_port>/<entry_path>/
     - 若 LaunchConfig.extra_params 中包含 client_id，则追加 ?client-id=<client_id>
     - 注意：禁止通过 URL query 传递业务参数（如 pdf-id）；业务初始化统一通过 MsgCenter 消息完成
     """
     base_path = self.entry_path or ""
-    url = f"http://localhost:{url_port}/{base_path}/"
+    url = f"http://127.0.0.1:{url_port}/{base_path}/"
 
     try:
       extra = getattr(self.config, "extra_params", {}) or {}

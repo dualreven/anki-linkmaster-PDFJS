@@ -5,6 +5,7 @@
   - 核心规则（立即执行）
   - UTF-8 + \n：所有读写显式 UTF-8，统一换行 \n。
   - Fail‑Fast：参数/事件/消息不合法一律失败，禁止兜底/静默回退。
+  - 前端 loopback host：统一使用 `127.0.0.1`（不要用 localhost），避免 Windows+QtWebEngine IPv4/IPv6 解析差异造成动态 import 失败；Vite host 默认 `VITE_HOST=127.0.0.1`。
   - Hosted 后端 dev/prod 判定：`url_port == pdfFile_port` 视为 prod（必须有 `dist/latest/static`）；否则视为 dev（前端走 Vite，后端不要求 `static_dir`，HTTP 文件服务可仅服务 pdfs）。
   - 事件三段式：`{module}:{action}:{status}`；事件名必须通过命名空间常量引用（`*_EVENTS`、`*_MESSAGE_TYPES`、`PDF_VIEWER_EVENTS`、`WEBSOCKET_EVENTS`）。
   - Viewer 导航自动启动：当发送 `pdf-viewer:navigate:requested` 且目标 viewer 未注册时（含 `handle_message(..., client_socket=None)` 路径），MsgCenter 会触发 `app-window:open:requested` 并缓存待转发，viewer 注册后自动转发（回执 `code=202`）。

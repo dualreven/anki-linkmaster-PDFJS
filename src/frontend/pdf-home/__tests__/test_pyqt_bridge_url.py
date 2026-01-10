@@ -19,7 +19,7 @@ def test_build_pdf_viewer_url_basic():
     mod = load_module()
     fn = getattr(mod, 'build_pdf_viewer_url')
     url = fn(3000, 8765, 8080, 'abc123')
-    assert url.startswith('http://localhost:3000/pdf-viewer/?')
+    assert url.startswith('http://127.0.0.1:3000/pdf-viewer/?')
     assert 'msgCenter=8765' in url
     assert 'pdfs=8080' in url
     assert 'pdf-id=abc123' in url
