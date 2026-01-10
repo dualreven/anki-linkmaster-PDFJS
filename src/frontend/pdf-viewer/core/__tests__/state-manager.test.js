@@ -484,4 +484,84 @@ describe("StateManager", () => {
       expect(listener).toHaveBeenCalledWith(expect.objectContaining({ field: "batchUpdate" }));
     });
   });
+
+  describe("batchUpdate(updates)", () => {
+    test("支持传入 plain object 批量更新（STATE.CHANGED 仍只触发一次）", () => {
+      stateManager = new StateManager(eventBus);
+
+      const listener = jest.fn();
+      eventBus.on(PDF_VIEWER_EVENTS.STATE.CHANGED, listener);
+
+      stateManager.batchUpdate({
+        currentFile: "/obj-batch.pdf",
+        totalPages: 22,
+        currentPage: 6,
+        zoomLevel: 1.4
+      });
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(listener).toHaveBeenCalledWith(
+        expect.objectContaining({
+          field: "batchUpdate",
+          state: expect.objectContaining({
+            currentFile: "/obj-batch.pdf",
+            totalPages: 22,
+            currentPage: 6,
+            zoomLevel: 1.4
+          })
+        })
+      );
+    });
+  });
+
+  describe("FIELD_CHANGED（更细粒度回调）", () => {
+    test("单字段变化会触发 field listener；相同值不触发；unsubscribe 后不再触发", () => {
+      stateManager = new StateManager(eventBus);
+
+      const onPage = jest.fn();
+      const unsubscribe = stateManager.onFieldChanged("currentPage", onPage);
+
+      stateManager.setCurrentPage(2);
+      expect(onPage).toHaveBeenCalledTimes(1);
+      expect(onPage).toHaveBeenCalledWith(expect.objectContaining({
+        field: "currentPage",
+        oldValue: 1,
+        newValue: 2,
+        state: expect.objectContaining({ currentPage: 2 })
+      }));
+
+      // no-op change should not notify
+      stateManager.setCurrentPage(2);
+      expect(onPage).toHaveBeenCalledTimes(1);
+
+      unsubscribe();
+      stateManager.setCurrentPage(3);
+      expect(onPage).toHaveBeenCalledTimes(1);
+    });
+
+    test("batchUpdate 内多字段变化会按字段各触发一次", () => {
+      stateManager = new StateManager(eventBus);
+
+      const onFile = jest.fn();
+      const onTotal = jest.fn();
+      stateManager.onFieldChanged("currentFile", onFile);
+      stateManager.onFieldChanged("totalPages", onTotal);
+
+      stateManager.batchUpdate((sm) => {
+        sm.setCurrentFile("/f.pdf");
+        sm.setTotalPages(9);
+      });
+
+      expect(onFile).toHaveBeenCalledTimes(1);
+      expect(onTotal).toHaveBeenCalledTimes(1);
+      expect(onFile).toHaveBeenCalledWith(expect.objectContaining({ field: "currentFile", newValue: "/f.pdf" }));
+      expect(onTotal).toHaveBeenCalledWith(expect.objectContaining({ field: "totalPages", newValue: 9 }));
+    });
+
+    test("非法字段必须 throw（Fail-Fast）", () => {
+      stateManager = new StateManager(eventBus);
+      // @ts-ignore - intentional invalid field
+      expect(() => stateManager.onFieldChanged("unknownField", () => {})).toThrow();
+    });
+  });
 });
