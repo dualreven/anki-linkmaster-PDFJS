@@ -72,23 +72,27 @@ describe("LifecycleManager", () => {
       expect(lifecycleManager.isSetup()).toBe(true);
     });
 
-    test("重复调用应该发出警告", () => {
+    test("重复调用应该抛出错误（Fail-Fast）", () => {
       lifecycleManager = new LifecycleManager(eventBus, errorHandler);
 
       lifecycleManager.setupGlobalErrorHandling();
-      lifecycleManager.setupGlobalErrorHandling();
+      expect(() => lifecycleManager.setupGlobalErrorHandling()).toThrow(
+        "LifecycleManager: global error handlers already setup"
+      );
 
       expect(lifecycleManager.isSetup()).toBe(true);
     });
 
-    test("重复调用不应重复注册 window 监听器（必须对称卸载）", () => {
+    test("重复调用应 fail-fast，且不应重复注册 window 监听器（必须对称卸载）", () => {
       lifecycleManager = new LifecycleManager(eventBus, errorHandler);
 
       const addSpy = jest.spyOn(window, "addEventListener");
       const removeSpy = jest.spyOn(window, "removeEventListener");
 
       lifecycleManager.setupGlobalErrorHandling();
-      lifecycleManager.setupGlobalErrorHandling();
+      expect(() => lifecycleManager.setupGlobalErrorHandling()).toThrow(
+        "LifecycleManager: global error handlers already setup"
+      );
 
       const errorAdds = addSpy.mock.calls.filter(([type]) => type === "error");
       const rejectionAdds = addSpy.mock.calls.filter(([type]) => type === "unhandledrejection");
@@ -106,6 +110,37 @@ describe("LifecycleManager", () => {
       expect(rejectionRemoves.length).toBe(1);
       expect(errorRemoves[0][1]).toBe(errorHandlerFn);
       expect(rejectionRemoves[0][1]).toBe(rejectionHandlerFn);
+
+      addSpy.mockRestore();
+      removeSpy.mockRestore();
+    });
+
+    test("cleanup 后允许再次 setup，且每轮 add/remove 必须对称", () => {
+      lifecycleManager = new LifecycleManager(eventBus, errorHandler);
+
+      const addSpy = jest.spyOn(window, "addEventListener");
+      const removeSpy = jest.spyOn(window, "removeEventListener");
+
+      lifecycleManager.setupGlobalErrorHandling();
+      lifecycleManager.cleanup();
+      lifecycleManager.setupGlobalErrorHandling();
+      lifecycleManager.cleanup();
+
+      const errorAdds = addSpy.mock.calls.filter(([type]) => type === "error");
+      const rejectionAdds = addSpy.mock.calls.filter(([type]) => type === "unhandledrejection");
+      const errorRemoves = removeSpy.mock.calls.filter(([type]) => type === "error");
+      const rejectionRemoves = removeSpy.mock.calls.filter(([type]) => type === "unhandledrejection");
+
+      expect(errorAdds.length).toBe(2);
+      expect(rejectionAdds.length).toBe(2);
+      expect(errorRemoves.length).toBe(2);
+      expect(rejectionRemoves.length).toBe(2);
+
+      // remove 必须使用与 add 相同的 handler 引用
+      expect(errorRemoves[0][1]).toBe(errorAdds[0][1]);
+      expect(rejectionRemoves[0][1]).toBe(rejectionAdds[0][1]);
+      expect(errorRemoves[1][1]).toBe(errorAdds[1][1]);
+      expect(rejectionRemoves[1][1]).toBe(rejectionAdds[1][1]);
 
       addSpy.mockRestore();
       removeSpy.mockRestore();

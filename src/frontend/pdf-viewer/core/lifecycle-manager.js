@@ -51,8 +51,7 @@ export class LifecycleManager {
    */
   setupGlobalErrorHandling() {
     if (this.#errorHandlersSetup) {
-      this.#logger.warn("Global error handlers already setup");
-      return;
+      throw new Error("LifecycleManager: global error handlers already setup");
     }
 
     this.#logger.info("Setting up global error handling");
