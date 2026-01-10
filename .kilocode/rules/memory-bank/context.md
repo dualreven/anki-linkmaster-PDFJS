@@ -160,7 +160,7 @@
   - I（queued 时自愈 open）：`todo-and-doing/1 doing/20260110185158-card-planner-msgcenter-auto-open-on-queued-I/`
   - F（ACK_META 解析修复）：`todo-and-doing/1 doing/20260110185158-card-planner-gui-launcher-ack-meta-parse-F/`
   - H（注册状态可观测）：`todo-and-doing/1 doing/20260110185158-card-planner-registration-observability-H/`
-
+- v004/H（注册状态可观测）交付（`worker/feature-H`）：`7f4e8afa`（面板显示 `reg=ok|failed`；监听 `client:register:*`）
 ## 2026-01-10：任务调整（删除非主线 G/H/I 任务，围绕 Card Planner 重新下发）
 - 已删除（不再维护）：
   - `todo-and-doing/1 doing/20260110024409-pdfviewer-adapters-gate-cancel-G/`
