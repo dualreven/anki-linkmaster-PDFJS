@@ -115,6 +115,9 @@
 ### 2026-01-10：H(final-output 回执 toast)（worktree 交付）
 - 交付（`worker/feature-H`）：`ea673af`（发送补齐 `request_id/timestamp`；订阅 `final-output:completed/failed` 并 toast；dispose 解绑；新增 Jest 回归测试）
 
+### 2026-01-10：H(ingest 注入 toast+render)（worktree 交付）
+- 交付（`worker/feature-H`）：`1e96921`（ingest 注入成功/失败 toast + render；移除 ingest 回执发送；新增/扩展 Jest 回归）
+
 ## 2026-01-10：任务调整（删除非主线 G/H/I 任务，围绕 Card Planner 重新下发）
 - 已删除（不再维护）：
   - `todo-and-doing/1 doing/20260110024409-pdfviewer-adapters-gate-cancel-G/`
