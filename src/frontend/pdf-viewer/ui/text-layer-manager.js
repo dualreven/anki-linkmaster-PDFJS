@@ -28,6 +28,8 @@ async function loadRenderTextLayer() {
 }
 
 export class TextLayerManager {
+  static #activeInstance = null;
+
   #logger;
   #textLayerContainer = null;
   #textLayerEnabled = false;
@@ -36,8 +38,13 @@ export class TextLayerManager {
   #textDivs = [];
   #selectionChangeHandler = null;
   #selectionContainerVersion = 0;
+  #destroyed = false;
 
   constructor(options = {}) {
+    if (TextLayerManager.#activeInstance) {
+      throw new Error("TextLayerManager does not support multiple live instances. Destroy the previous instance before creating a new one.");
+    }
+    TextLayerManager.#activeInstance = this;
     this.#logger = getLogger("TextLayerManager");
     this.#updateContainerReference(options.container || null);
     this.#logger.info("TextLayerManager initialized", {
@@ -449,6 +456,10 @@ export class TextLayerManager {
   destroy() {
     this.#logger.info("Destroying TextLayerManager");
 
+    if (this.#destroyed) {
+      throw new Error("TextLayerManager has already been destroyed.");
+    }
+
     if (this.#selectionChangeHandler) {
       document.removeEventListener("selectionchange", this.#selectionChangeHandler);
       this.#selectionChangeHandler = null;
@@ -457,6 +468,8 @@ export class TextLayerManager {
     this.cleanup();
 
     this.#updateContainerReference(null);
+    TextLayerManager.#activeInstance = null;
+    this.#destroyed = true;
 
     this.#logger.info("TextLayerManager destroyed");
   }
