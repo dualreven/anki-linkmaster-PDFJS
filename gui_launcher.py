@@ -225,8 +225,10 @@ class GUILauncher(QMainWindow):
 
         row_tools = QHBoxLayout()
         btn_card_planner = QPushButton("启动 新卡片规划器 (Hosted)")
+        btn_card_planner_manual_inject = QPushButton("Card Planner 测试：注入样例草稿卡")
         btn_custom_reviewer = QPushButton("启动 定制复习器 (Hosted)")
         row_tools.addWidget(btn_card_planner)
+        row_tools.addWidget(btn_card_planner_manual_inject)
         row_tools.addWidget(btn_custom_reviewer)
         lay.addLayout(row_tools)
 
@@ -237,6 +239,7 @@ class GUILauncher(QMainWindow):
         btn_viewer_nav.clicked.connect(self._send_viewer_navigate_via_msgcenter)  # type: ignore[arg-type]
         btn_stop_backend.clicked.connect(self._stop_backend_hosted) # type: ignore[arg-type]
         btn_card_planner.clicked.connect(self._start_new_card_scheduler_hosted)  # type: ignore[arg-type]
+        btn_card_planner_manual_inject.clicked.connect(self._card_planner_manual_test_inject_sample_draft_cards)  # type: ignore[arg-type]
         btn_custom_reviewer.clicked.connect(self._start_custom_reviewer_hosted)  # type: ignore[arg-type]
 
         self.setCentralWidget(root)
@@ -771,6 +774,69 @@ class GUILauncher(QMainWindow):
             self._log("✅ 已通过 MsgCenter 发送启动 新卡片规划器 请求（请查看后端日志与窗口）")
         except Exception as e:
             self._log(f"[ERROR] 通过 MsgCenter 启动 新卡片规划器 失败: {e}")
+
+    def _card_planner_manual_test_inject_sample_draft_cards(self) -> None:
+        """
+        一键构造可人工观察的 Card Planner 测试场景：
+        1) 启动/激活 new-card-scheduler；
+        2) 通过 MsgCenter 向 planner 注入一张草稿卡，并写入 Q/A 示例 annotation-id。
+        """
+        try:
+            ports = self._runtime_ports() or {}
+            ws_port = int(ports.get("msgCenter_port") or (self.msgCenter_port_input.value() or 0) or 0)
+            if not ws_port:
+                self._log("[ERROR] 未能获取 MsgCenter 端口（runtime-ports.json 或 UI 均为空）")
+                return
+            if not self._is_port_listening("127.0.0.1", int(ws_port)):
+                QMessageBox.critical(self, "连接错误", f"MsgCenter 未监听端口 {ws_port}，请先启动后端")
+                self._log(f"[ERROR] MsgCenter 未监听端口 {ws_port}，请先启动后端")
+                return
+
+            # 1) 先启动/激活窗口（复用已有 Hosted 启动逻辑）
+            self._start_new_card_scheduler_hosted()
+
+            from src.backend.msgCenter_server.standard_protocol import StandardMessageHandler as _SMH  # type: ignore
+            import time as _time
+
+            def _send_ingest_or_log(op: Dict[str, Any], ann_ids: list[str]) -> None:
+                rid = _SMH.generate_request_id()
+                msg: Dict[str, Any] = {
+                    "type": "card-planner:ingest:requested",
+                    "to": "new-card-scheduler",
+                    "timestamp": int(_time.time() * 1000),
+                    "request_id": rid,
+                    "data": {
+                        "op": op,
+                        "annotation_ids": list(ann_ids),
+                    },
+                }
+                payload_text = _SMH.serialize_message(msg)
+                self._log(f"[TRACE] → ws://127.0.0.1:{ws_port} 发送 Card Planner 注入请求: rid={rid} op={op}")
+                ack_text = self._send_ws_text_qt(
+                    ws_port,
+                    payload_text,
+                    timeout_ms=2000,
+                    expect_types=("card-planner:ingest:completed", "card-planner:ingest:failed"),
+                    correlation_id=rid,
+                )
+                if ack_text:
+                    self._log(f"[ACK] {ack_text}")
+                else:
+                    self._log("[WARN] 超时未收到回执（已发送 Card Planner 注入请求）")
+
+            # 2) 发送两条 ingest：先创建新卡写 Q，再写入 last 的 A（同一卡片）
+            _send_ingest_or_log(
+                op={"kind": "all-to-one", "target": {"kind": "new"}, "face": "Q"},
+                ann_ids=["ann_1", "ann_2"],
+            )
+            _send_ingest_or_log(
+                op={"kind": "all-to-one", "target": {"kind": "last"}, "face": "A"},
+                ann_ids=["ann_3"],
+            )
+
+            self._log("✅ 已发送 Card Planner 样例草稿卡注入请求（请切到新卡片规划器窗口观察）")
+        except Exception as e:
+            self._log(f"[ERROR] Card Planner 注入样例草稿卡失败: {e}")
 
     def _start_custom_reviewer_hosted(self) -> None:
         """通过 MsgCenter 请求启动/激活定制卡片复习器窗口（client_id 每次生成唯一值）。"""
