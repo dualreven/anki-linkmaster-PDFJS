@@ -802,7 +802,8 @@ class GUILauncher(QMainWindow):
                 rid = _SMH.generate_request_id()
                 msg: Dict[str, Any] = {
                     "type": "card-planner:ingest:requested",
-                    "to": "new-card-scheduler",
+                    # MsgCenter forward 路由：to 必须是 list（字符串仅允许 'backend'）
+                    "to": [{"client_id": "new-card-scheduler"}],
                     "timestamp": int(_time.time() * 1000),
                     "request_id": rid,
                     "data": {
@@ -821,6 +822,20 @@ class GUILauncher(QMainWindow):
                 )
                 if ack_text:
                     self._log(f"[ACK] {ack_text}")
+                    try:
+                        ack_obj = json.loads(ack_text)
+                        if ack_obj.get("type") == "card-planner:ingest:failed":
+                            QMessageBox.critical(self, "注入失败", f"Card Planner 注入失败：{ack_obj}")
+                            self._log(f"[ERROR] Card Planner 注入失败（ingest:failed）：{ack_obj}")
+                        else:
+                            data = ack_obj.get("data") or {}
+                            code = data.get("code") if isinstance(data, dict) else None
+                            error = data.get("error") if isinstance(data, dict) else None
+                            if code == 404 and error == "NO_TARGET_FOUND":
+                                QMessageBox.critical(self, "注入失败", "未找到目标客户端：new-card-scheduler（请先启动新卡片规划器）")
+                                self._log("[ERROR] MsgCenter forward 失败：NO_TARGET_FOUND（new-card-scheduler）")
+                    except Exception:
+                        pass
                 else:
                     self._log("[WARN] 超时未收到回执（已发送 Card Planner 注入请求）")
 
