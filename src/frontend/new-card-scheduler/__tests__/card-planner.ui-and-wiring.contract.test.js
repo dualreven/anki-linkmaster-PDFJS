@@ -223,7 +223,7 @@ describe("card-planner UI & MsgCenter wiring (H) - contract regression", () => {
     eventBus.destroy();
   });
 
-  test("收到 ingest requested：toast 成功且 UI 刷新；不发送 ingest 回执", () => {
+  test("收到 ingest requested：toast 成功且 UI 刷新；发送 ingest completed 回执", () => {
     const { root } = setupDom();
     const engine = createFakeEngine();
     const wsClient = { send: jest.fn() };
@@ -259,9 +259,16 @@ describe("card-planner UI & MsgCenter wiring (H) - contract regression", () => {
     expect(notification.showError).not.toHaveBeenCalled();
     expect(root.textContent).not.toBe(beforeText);
 
-    // 不应向 MsgCenter 回发 ingest completed/failed（避免 forward 路由污染）
-    expect(wsClient.send).not.toHaveBeenCalledWith(expect.objectContaining({ type: CARD_PLANNER_MESSAGE_TYPES.INGEST_COMPLETED }));
-    expect(wsClient.send).not.toHaveBeenCalledWith(expect.objectContaining({ type: CARD_PLANNER_MESSAGE_TYPES.INGEST_FAILED }));
+    expect(wsClient.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: CARD_PLANNER_MESSAGE_TYPES.INGEST_COMPLETED,
+        request_id: "rid_ingest_1",
+        data: expect.objectContaining({
+          draftCardTempIds: expect.any(Array),
+          selectedTempId: expect.anything()
+        })
+      })
+    );
 
     app.dispose();
     eventBus.destroy();
@@ -297,6 +304,13 @@ describe("card-planner UI & MsgCenter wiring (H) - contract regression", () => {
     }).not.toThrow();
 
     expect(notification.showError).toHaveBeenCalledWith(expect.stringContaining("注入失败"), expect.any(Number));
+    expect(wsClient.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: CARD_PLANNER_MESSAGE_TYPES.INGEST_FAILED,
+        request_id: "rid_ingest_bad_1",
+        error: expect.objectContaining({ message: expect.any(String) })
+      })
+    );
 
     app.dispose();
     eventBus.destroy();
