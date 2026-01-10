@@ -212,7 +212,20 @@ export function createPlannerWorkspaceUI({ root, engine, getCardMetaPreview, not
     }
   });
 
+  const btnCreateEmpty = createButton({
+    text: "新建空卡",
+    title: "创建一张空草稿卡并选中",
+    className: "btn",
+    onClick: () => {
+      const tempId = engine.createEmptyCardOrThrow();
+      state.pasteFocus = null;
+      render();
+      notification?.showInfo?.(`已创建空卡：tempId=${tempId}`, 1200);
+    }
+  });
+
   right.appendChild(btnSelectNone);
+  right.appendChild(btnCreateEmpty);
   header.appendChild(left);
   header.appendChild(right);
 

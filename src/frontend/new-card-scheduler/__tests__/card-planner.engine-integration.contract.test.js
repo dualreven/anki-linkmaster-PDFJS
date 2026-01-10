@@ -3,6 +3,7 @@ import { WEBSOCKET_EVENTS } from "../../common/event/event-constants.js";
 import { createCardsEngine } from "../planner/cards-model.js";
 import { createCardPlannerApp } from "../planner/app.js";
 import { CARD_PLANNER_MESSAGE_TYPES } from "../planner/card-planner-message-types.js";
+import { createFakeEngine } from "../planner/engine/fake-engine.js";
 
 describe("card-planner engine integration (G) - contract regression", () => {
   function setupDom() {
@@ -56,8 +57,49 @@ describe("card-planner engine integration (G) - contract regression", () => {
     const engine = mod.createPlannerEngineOrThrow();
 
     expect(typeof engine.getDraftCardsSnapshotOrThrow).toBe("function");
+    expect(typeof engine.createEmptyCardOrThrow).toBe("function");
 
     delete globalThis.__NCS_DISABLE_AUTO_BOOTSTRAP__;
+  });
+
+  test("引擎接口一致性：FakeEngine/CardsEngine 都支持 createEmptyCardOrThrow()", () => {
+    const fake = createFakeEngine();
+    const real = createCardsEngine();
+
+    expect(typeof fake.createEmptyCardOrThrow).toBe("function");
+    expect(typeof real.createEmptyCardOrThrow).toBe("function");
+  });
+
+  test("UI：点击“新建空卡”会新增卡片并选中，并 toast", () => {
+    const { root } = setupDom();
+    const engine = createCardsEngine();
+    engine.createCardOrThrow();
+
+    const wsClient = { send: jest.fn() };
+    const notification = { showInfo: jest.fn(), showError: jest.fn() };
+    const eventBus = new EventBus({ moduleName: `ncs-test-${Date.now()}`, enableValidation: true });
+
+    const app = createCardPlannerApp({
+      root,
+      engine,
+      wsClient,
+      eventBus,
+      logger: { info: jest.fn(), warn: jest.fn() },
+      notification
+    });
+
+    const before = engine.getState().draftCardTempIds.length;
+    const btn = Array.from(root.querySelectorAll("button")).find((b) => b.textContent === "新建空卡");
+    expect(btn).toBeTruthy();
+    btn.click();
+
+    const after = engine.getState().draftCardTempIds.length;
+    expect(after).toBe(before + 1);
+    expect(engine.getState().selectedTempId).toBeTruthy();
+    expect(notification.showInfo).toHaveBeenCalled();
+
+    app.dispose();
+    eventBus.destroy();
   });
 
   test("真实引擎：粘贴插入后 Q/A 计数与 meta 预览基于引擎数据同步更新", async () => {
