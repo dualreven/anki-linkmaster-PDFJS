@@ -57,7 +57,10 @@ describe("AnnotationSidebarUI（store 驱动）", () => {
     document.body.appendChild(ui.getContentElement());
 
     // 不应订阅 CRUD 事件（避免 event-driven UI）
-    const subscribedEvents = eventBus.on.mock.calls.map(([evt]) => evt);
+    const subscribedEvents = [
+      ...eventBus.on.mock.calls.map(([evt]) => evt),
+      ...eventBus.onGlobal.mock.calls.map(([evt]) => evt),
+    ];
     expect(subscribedEvents).not.toContain(PDF_VIEWER_EVENTS.ANNOTATION.CREATED);
     expect(subscribedEvents).not.toContain(PDF_VIEWER_EVENTS.ANNOTATION.UPDATED);
     expect(subscribedEvents).not.toContain(PDF_VIEWER_EVENTS.ANNOTATION.DELETED);
@@ -89,4 +92,3 @@ describe("AnnotationSidebarUI（store 驱动）", () => {
     expect(renderSpy).not.toHaveBeenCalled();
   });
 });
-
