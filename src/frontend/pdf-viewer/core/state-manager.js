@@ -14,6 +14,8 @@ import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
  * @class StateManager
  */
 export class StateManager {
+  static #ALLOWED_FIELDS = new Set(["initialized", "currentFile", "currentPage", "totalPages", "zoomLevel"]);
+
   /** @type {import('../../common/utils/logger.js').Logger} */
   #logger;
 
@@ -28,6 +30,9 @@ export class StateManager {
 
   /** @type {string[]|null} */
   #batchFieldOrder = null;
+
+  /** @type {Map<string, Set<(payload: { field: string, oldValue: any, newValue: any, state: any }) => void>>} */
+  #fieldSubscribers = new Map();
 
   /** @type {boolean} */
   #initialized = false;
@@ -185,6 +190,40 @@ export class StateManager {
   }
 
   /**
+   * 订阅单字段变化（更细粒度回调，避免依赖全量 STATE.CHANGED 自行 diff）。
+   *
+   * @param {"initialized"|"currentFile"|"currentPage"|"totalPages"|"zoomLevel"} field
+   * @param {(payload: { field: string, oldValue: any, newValue: any, state: any }) => void} handler
+   * @returns {() => void}
+   */
+  onFieldChanged(field, handler) {
+    if (typeof field !== "string" || !field) {
+      throw new Error("[StateManager] onFieldChanged(field, handler) requires a non-empty string field");
+    }
+    if (!StateManager.#ALLOWED_FIELDS.has(field)) {
+      throw new Error(`[StateManager] onFieldChanged does not support field: ${field}`);
+    }
+    if (typeof handler !== "function") {
+      throw new Error("[StateManager] onFieldChanged(field, handler) requires a function handler");
+    }
+
+    const set = this.#fieldSubscribers.get(field) || new Set();
+    set.add(handler);
+    this.#fieldSubscribers.set(field, set);
+
+    return () => {
+      const current = this.#fieldSubscribers.get(field);
+      if (!current) { return; }
+      current.delete(handler);
+      if (current.size === 0) {
+        this.#fieldSubscribers.delete(field);
+      } else {
+        this.#fieldSubscribers.set(field, current);
+      }
+    };
+  }
+
+  /**
    * 批量设置多个字段（更直观的批量更新入口）。
    *
    * 规则：
@@ -209,9 +248,8 @@ export class StateManager {
       return;
     }
 
-    const allowedFields = new Set(["initialized", "currentFile", "currentPage", "totalPages", "zoomLevel"]);
     for (const field of fields) {
-      if (!allowedFields.has(field)) {
+      if (!StateManager.#ALLOWED_FIELDS.has(field)) {
         throw new Error(`[StateManager] setMany does not support field: ${field}`);
       }
     }
@@ -262,8 +300,19 @@ export class StateManager {
    */
   batchUpdate(fn) {
     if (typeof fn !== "function") {
-      throw new Error("[StateManager] batchUpdate(fn) requires a function");
+      // 支持 batchUpdate({ ...updates }) 的便捷入口（复用 setMany 的字段验证与 batching 合并语义）。
+      if (fn === null || typeof fn !== "object" || Array.isArray(fn)) {
+        throw new Error("[StateManager] batchUpdate(fn|updates) requires a function or a plain object");
+      }
+      const proto = Object.getPrototypeOf(fn);
+      if (proto !== Object.prototype && proto !== null) {
+        throw new Error("[StateManager] batchUpdate(fn|updates) requires a function or a plain object");
+      }
+      return this.batchUpdate((sm) => {
+        sm.setMany(fn);
+      });
     }
+
     if (this.#isBatching) {
       throw new Error("[StateManager] batchUpdate does not support nesting");
     }
@@ -329,14 +378,18 @@ export class StateManager {
     }
 
     if (this.#eventBus) {
+      const state = this.getState();
+      this.#emitFieldChanged({ field, oldValue, newValue, state });
       this.#eventBus.emit(PDF_VIEWER_EVENTS.STATE.CHANGED, {
         field,
         oldValue,
         newValue,
-        state: this.getState()
+        state
       }, {
         actorId: "StateManager"
       });
+    } else {
+      this.#emitFieldChanged({ field, oldValue, newValue, state: this.getState() });
     }
   }
 
@@ -379,6 +432,13 @@ export class StateManager {
   #emitBatchStateChanged(changes) {
     this.#logger.debug("State batch changed", { changesCount: changes.length });
 
+    const state = this.getState();
+
+    // 先发细粒度回调（每字段一次），避免订阅者自行 diff。
+    for (const change of changes) {
+      this.#emitFieldChanged({ field: change.field, oldValue: change.oldValue, newValue: change.newValue, state });
+    }
+
     if (!this.#eventBus) { return; }
 
     this.#eventBus.emit(PDF_VIEWER_EVENTS.STATE.CHANGED, {
@@ -386,9 +446,19 @@ export class StateManager {
       oldValue: null,
       newValue: null,
       changes,
-      state: this.getState()
+      state
     }, {
       actorId: "StateManager"
     });
+  }
+
+  #emitFieldChanged(payload) {
+    const { field } = payload;
+    const subs = this.#fieldSubscribers.get(field) || null;
+    if (!subs || subs.size === 0) { return; }
+
+    for (const fn of subs) {
+      fn(payload);
+    }
   }
 }
