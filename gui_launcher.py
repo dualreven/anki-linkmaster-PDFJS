@@ -825,13 +825,24 @@ class GUILauncher(QMainWindow):
                     try:
                         ack_obj = json.loads(ack_text)
                         ack_type = ack_obj.get("type")
+                        # ACK_META 兼容两种形态：
+                        # 1) 顶层：ack.code/status/message/error_code
+                        # 2) 旧形态：ack.data.code/status/message/error_code
                         ack_data = ack_obj.get("data") if isinstance(ack_obj.get("data"), dict) else {}
-                        code = ack_data.get("code") if isinstance(ack_data, dict) else None
-                        status = ack_data.get("status") if isinstance(ack_data, dict) else None
-                        message = ack_data.get("message") if isinstance(ack_data, dict) else None
-                        error_code = None
-                        if isinstance(ack_data, dict):
-                            error_code = ack_data.get("error_code") or ack_data.get("error")
+                        code = ack_obj.get("code")
+                        status = ack_obj.get("status")
+                        message = ack_obj.get("message")
+                        error_code = ack_obj.get("error_code")
+                        if code is None:
+                            code = ack_data.get("code")
+                        if status is None:
+                            status = ack_data.get("status")
+                        if message is None:
+                            message = ack_data.get("message")
+                        if error_code is None:
+                            error_code = ack_data.get("error_code")
+                        if error_code is None:
+                            error_code = ack_obj.get("error") or ack_data.get("error")
                         self._log(
                             "[ACK_META] "
                             f"type={ack_type} "
@@ -840,6 +851,17 @@ class GUILauncher(QMainWindow):
                             f"message={message} "
                             f"error_code={error_code}"
                         )
+                        missing = []
+                        if code is None:
+                            missing.append("code")
+                        if status is None:
+                            missing.append("status")
+                        if message is None:
+                            missing.append("message")
+                        if error_code is None:
+                            missing.append("error_code")
+                        if missing:
+                            self._log(f"[WARN] ACK_META 字段缺失（{','.join(missing)}）：{ack_obj}")
 
                         if code == 202:
                             self._log(
@@ -850,17 +872,13 @@ class GUILauncher(QMainWindow):
                             QMessageBox.critical(self, "注入失败", f"Card Planner 注入失败：{ack_obj}")
                             self._log(f"[ERROR] Card Planner 注入失败（ingest:failed）：{ack_obj}")
                         else:
-                            data = ack_obj.get("data") or {}
-                            code = data.get("code") if isinstance(data, dict) else None
-                            error = None
-                            if isinstance(data, dict):
-                                error = data.get("error_code") or data.get("error")
-                            if code == 404 and error == "NO_TARGET_FOUND":
+                            err = error_code
+                            if code == 404 and err == "NO_TARGET_FOUND":
                                 QMessageBox.critical(self, "注入失败", "未找到目标客户端：new-card-scheduler（请先启动新卡片规划器）")
                                 self._log("[ERROR] 目标客户端未注册/不可路由：new-card-scheduler（NO_TARGET_FOUND）")
                             elif isinstance(code, int) and code >= 400:
-                                QMessageBox.critical(self, "注入失败", f"Card Planner 注入失败（code={code}）：{data}")
-                                self._log(f"[ERROR] Card Planner 注入失败（code={code}）：{data}")
+                                QMessageBox.critical(self, "注入失败", f"Card Planner 注入失败（code={code}）：{ack_obj}")
+                                self._log(f"[ERROR] Card Planner 注入失败（code={code}）：{ack_obj}")
                     except Exception:
                         pass
                 else:
