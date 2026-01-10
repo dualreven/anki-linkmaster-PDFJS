@@ -594,6 +594,27 @@ class StandardWebSocketServer(QObject, ServerAPIMixin):
 
                     self._queue_pending_forward(client_id=target_client_id, message=forward_msg, ttl_ms=15000)
 
+                    # queued(202) 时自愈：请求后端打开/激活 new-card-scheduler（去重节流）
+                    now_ms = int(time.time() * 1000)
+                    inflight_until = int(self._auto_open_window_inflight.get(target_client_id) or 0)
+                    if inflight_until < now_ms:
+                        self._auto_open_window_inflight[target_client_id] = now_ms + 15000
+                        open_msg = {
+                            "type": "app-window:open:requested",
+                            "to": "backend",
+                            "timestamp": now_ms,
+                            "request_id": StandardMessageHandler.generate_request_id(),
+                            "data": {
+                                "client_id": target_client_id,
+                                "window_type": "new-card-scheduler",
+                                "params": {},
+                            },
+                        }
+                        try:
+                            self.message_received.emit(client_socket, open_msg)
+                        except Exception as exc:
+                            logger.error("[AutoOpen] 发射 app-window:open:requested 失败: %s", exc, exc_info=True)
+
                     return StandardMessageHandler.build_response(
                         "card-planner:ingest:completed",
                         effective_rid,
@@ -672,6 +693,8 @@ class StandardWebSocketServer(QObject, ServerAPIMixin):
             self._pending_forward_by_client_id: Dict[str, List[Dict[str, Any]]] = {}
         if not hasattr(self, "_auto_open_viewer_inflight"):
             self._auto_open_viewer_inflight: Dict[str, int] = {}
+        if not hasattr(self, "_auto_open_window_inflight"):
+            self._auto_open_window_inflight: Dict[str, int] = {}
 
     def _queue_pending_forward(self, *, client_id: str, message: Dict[str, Any], ttl_ms: int) -> None:
         self._ensure_pending_forward_tables()
@@ -1646,8 +1669,6 @@ class StandardWebSocketServer(QObject, ServerAPIMixin):
         logger.info("PDF列表变更事件")
         _notify_broadcast_list(self)
     
-
-
 
 
 
