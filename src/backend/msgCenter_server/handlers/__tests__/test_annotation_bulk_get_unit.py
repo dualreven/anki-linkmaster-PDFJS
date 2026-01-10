@@ -66,3 +66,19 @@ def test_annotation_bulk_get_invalid_input():
     resp = annotation_bulk_get(ctx, "req-3", {"ann_ids": []})
     assert resp["type"] == "annotation:bulk-get:failed"
     assert "ann_ids" in resp["error"]["message"]
+
+
+def test_annotation_bulk_get_missing_pdf_library_api_failfast():
+    ctx = SimpleNamespace()
+    resp = annotation_bulk_get(ctx, "req-4", {"ann_ids": ["ann_1"]})
+    assert resp["type"] == "annotation:bulk-get:failed"
+    assert resp["code"] == 503
+    assert "依赖缺失" in resp["error"]["message"]
+
+
+def test_annotation_bulk_get_missing_annotation_plugin_failfast():
+    ctx = SimpleNamespace(pdf_library_api=SimpleNamespace(_annotation_plugin=None))
+    resp = annotation_bulk_get(ctx, "req-5", {"ann_ids": ["ann_1"]})
+    assert resp["type"] == "annotation:bulk-get:failed"
+    assert resp["code"] == 503
+    assert "依赖缺失" in resp["error"]["message"]

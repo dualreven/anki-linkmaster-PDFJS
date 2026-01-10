@@ -7,12 +7,22 @@ from src.backend.msgCenter_server.standard_protocol import StandardMessageHandle
 def annotation_bulk_get(ctx, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
     request_id = request_id or StandardMessageHandler.generate_request_id()
 
-    plugin = getattr(getattr(ctx, "pdf_library_api", None), "_annotation_plugin", None)
-    if not plugin:
+    api = getattr(ctx, "pdf_library_api", None)
+    if api is None:
         return StandardMessageHandler.build_error_response(
             request_id,
             "SERVICE_UNAVAILABLE",
-            "PDFLibraryAPI 未初始化",
+            "依赖缺失：pdf_library_api 未初始化",
+            message_type=MessageType.ANNOTATION_BULK_GET_FAILED,
+            code=503,
+        )
+
+    plugin = getattr(api, "_annotation_plugin", None)
+    if plugin is None:
+        return StandardMessageHandler.build_error_response(
+            request_id,
+            "SERVICE_UNAVAILABLE",
+            "依赖缺失：_annotation_plugin 未初始化",
             message_type=MessageType.ANNOTATION_BULK_GET_FAILED,
             code=503,
         )

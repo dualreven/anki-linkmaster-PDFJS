@@ -1,4 +1,4 @@
-# 20260110212636-card-planner-annotation-bulk-get-backend-failfast-I 工作日志
+﻿# 20260110212636-card-planner-annotation-bulk-get-backend-failfast-I 工作日志
 **参考标准**: v001-spec.md
 
 ## 工作记录1
@@ -15,4 +15,11 @@
 - （待记录）
 ### 下一步计划:
 - 提交功能 commit + 贴出 pytest 通过结论。
-
+## 工作记录2
+**时间**: 
+2026-01-10 22:03:49
+### 工作内容:
+- annotation:bulk-get handler 增加依赖缺失 fail-fast，返回稳定可读的 failed 响应。
+- 新增单测覆盖缺失 pdf_library_api / 缺失 _annotation_plugin。
+### 工作结果:
+- 已完成交付（待你按仓库流程提交/合并）。
