@@ -1,6 +1,6 @@
 # Doing Archive - 20260110110206
 
-- 已合并验收：A/B/C/D（E 未交付，仍在 `todo-and-doing/1 doing/20260110040857-text-layer-manager-selection-lifecycle-E/`）。
+- 已合并验收：A/B/C/D/E（用户人工验收通过：2026-01-10）。
 - main 合并提交（cherry-pick）：
   - A：`71de621` + `e851ffa`
   - B：`a816aaf` + `57ff907`
