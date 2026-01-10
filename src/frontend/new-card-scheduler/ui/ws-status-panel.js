@@ -14,6 +14,13 @@ export const REG_STATUS = {
   FAILED: "failed",
 };
 
+export const ANNO_META_STATUS = {
+  IDLE: "idle",
+  LOADING: "loading",
+  OK: "ok",
+  FAILED: "failed",
+};
+
 function normalizeErrorMessage(err) {
   if (!err) {
     return "";
@@ -53,6 +60,14 @@ function getRegStatusLabelOrThrow(status) {
   const s = String(status || "");
   if (!Object.values(REG_STATUS).includes(s)) {
     throw new Error(`REG_STATUS 无效：${String(status)}`);
+  }
+  return s;
+}
+
+function getAnnoMetaStatusLabelOrThrow(status) {
+  const s = String(status || "");
+  if (!Object.values(ANNO_META_STATUS).includes(s)) {
+    throw new Error(`ANNO_META_STATUS 无效：${String(status)}`);
   }
   return s;
 }
@@ -97,12 +112,16 @@ export function mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsCli
     wsErrorMessage: "",
     regStatus: REG_STATUS.UNKNOWN,
     regErrorMessage: "",
+    annoMetaStatus: ANNO_META_STATUS.IDLE,
+    annoMetaRid: "",
+    annoMetaErrorMessage: "",
   };
 
   const render = () => {
     const statusLabel = getWsStatusLabelOrThrow(state.status);
     const regLabel = getRegStatusLabelOrThrow(state.regStatus);
-    line1.textContent = `client_id=${clientId} | ws=${statusLabel} | reg=${regLabel}`;
+    const annoMetaLabel = getAnnoMetaStatusLabelOrThrow(state.annoMetaStatus);
+    line1.textContent = `client_id=${clientId} | ws=${statusLabel} | reg=${regLabel} | anno_meta=${annoMetaLabel}`;
 
     const parts = [];
     if (state.wsErrorMessage) {
@@ -110,6 +129,12 @@ export function mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsCli
     }
     if (state.regErrorMessage) {
       parts.push(`reg_error=${state.regErrorMessage}`);
+    }
+    if (state.annoMetaRid) {
+      parts.push(`anno_rid=${state.annoMetaRid}`);
+    }
+    if (state.annoMetaErrorMessage) {
+      parts.push(`anno_error=${state.annoMetaErrorMessage}`);
     }
     line2.textContent = parts.join(" | ");
     line2.style.display = parts.length > 0 ? "block" : "none";
@@ -128,6 +153,18 @@ export function mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsCli
     }
     state.regStatus = s;
     state.regErrorMessage = normalizeErrorMessage(err);
+    render();
+  };
+
+  const setAnnoMetaStatus = ({ status, requestId = "", err = null }) => {
+    const s = String(status || "");
+    if (!Object.values(ANNO_META_STATUS).includes(s)) {
+      throw new Error(`ANNO_META_STATUS 无效：${String(status)}`);
+    }
+
+    state.annoMetaStatus = s;
+    state.annoMetaRid = typeof requestId === "string" ? requestId : String(requestId || "");
+    state.annoMetaErrorMessage = normalizeErrorMessage(err);
     render();
   };
 
@@ -181,6 +218,7 @@ export function mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsCli
     : WS_STATUS.DISCONNECTED;
   setStatus(initial, null);
   setRegStatus(REG_STATUS.UNKNOWN, null);
+  setAnnoMetaStatus({ status: ANNO_META_STATUS.IDLE, requestId: "", err: null });
 
   return {
     setConnecting: () => setStatus(WS_STATUS.CONNECTING, null),
@@ -190,6 +228,10 @@ export function mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsCli
     setRegRegistering: () => setRegStatus(REG_STATUS.REGISTERING, null),
     setRegOk: () => setRegStatus(REG_STATUS.OK, null),
     setRegFailed: (err) => setRegStatus(REG_STATUS.FAILED, err),
+    setAnnoMetaIdle: () => setAnnoMetaStatus({ status: ANNO_META_STATUS.IDLE, requestId: "", err: null }),
+    setAnnoMetaLoading: (requestId) => setAnnoMetaStatus({ status: ANNO_META_STATUS.LOADING, requestId, err: null }),
+    setAnnoMetaOk: (requestId) => setAnnoMetaStatus({ status: ANNO_META_STATUS.OK, requestId, err: null }),
+    setAnnoMetaFailed: (requestId, err) => setAnnoMetaStatus({ status: ANNO_META_STATUS.FAILED, requestId, err }),
     destroy() {
       try { unsubEstablished?.(); } catch { /* ignore */ }
       try { unsubClosed?.(); } catch { /* ignore */ }

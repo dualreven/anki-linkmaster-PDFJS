@@ -5,6 +5,7 @@ import { createPlannerWorkspaceUI } from "./ui/workspace.js";
 import { installPasteWiring } from "./wiring/paste-wiring.js";
 import { installMsgCenterWiring } from "./wiring/msgcenter-wiring.js";
 import { createAnnotationMetaAdapter } from "./adapters/annotation-meta-adapter.js";
+import { createToastDedupeGate } from "./utils/toast-dedupe.js";
 
 function assertNonEmptyStringArrayOrThrow(arr, name) {
   if (!Array.isArray(arr)) {
@@ -90,7 +91,7 @@ function mountFinalOutputButton({ engine, wsClient, notification, onRequestSent 
   slot.appendChild(btn);
 }
 
-export function createCardPlannerApp({ root, engine, wsClient, eventBus, logger, notification }) {
+export function createCardPlannerApp({ root, engine, wsClient, eventBus, logger, notification, wsStatusPanel = null }) {
   if (!root) {
     throw new Error("createCardPlannerApp: root 必填");
   }
@@ -107,11 +108,36 @@ export function createCardPlannerApp({ root, engine, wsClient, eventBus, logger,
     throw new Error("createCardPlannerApp: notification.showInfo/showError 必填");
   }
 
+  const metaErrorToastDedupe = createToastDedupeGate({ windowMs: 2000 });
+
+  const onAnnoMetaStatus = (info) => {
+    const s = String(info?.status || "");
+    const rid = info?.requestId;
+    const err = info?.error || null;
+
+    if (!wsStatusPanel) {
+      return;
+    }
+    if (s === "loading") {
+      wsStatusPanel.setAnnoMetaLoading?.(rid);
+      return;
+    }
+    if (s === "ok") {
+      wsStatusPanel.setAnnoMetaOk?.(rid);
+      return;
+    }
+    if (s === "failed") {
+      wsStatusPanel.setAnnoMetaFailed?.(rid, err);
+      return;
+    }
+  };
+
   const metaAdapter = createAnnotationMetaAdapter({
     mode: "ws",
     wsClient,
     eventBus,
-    logger
+    logger,
+    onStatus: onAnnoMetaStatus
   });
 
   const metaByAnnId = new Map();
@@ -129,10 +155,12 @@ export function createCardPlannerApp({ root, engine, wsClient, eventBus, logger,
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       logger?.warn?.("[CardPlanner] annotation meta fetch failed", e);
-      try {
-        notification?.showError?.(`标注元信息拉取失败：${msg}`, 3500);
-      } catch {
-        // ignore
+      if (metaErrorToastDedupe.shouldToast(`annotation:bulk-get:${msg}`)) {
+        try {
+          notification?.showError?.(`标注元信息拉取失败：${msg}`, 3500);
+        } catch {
+          // ignore
+        }
       }
     }
   };
@@ -157,6 +185,8 @@ export function createCardPlannerApp({ root, engine, wsClient, eventBus, logger,
     getCardMetaPreview,
     notification
   });
+
+  try { wsStatusPanel?.setAnnoMetaIdle?.(); } catch { /* ignore */ }
 
   let lastFinalOutputRequestId = null;
   const unsubscribeFinalOutputAck = eventBus.on(

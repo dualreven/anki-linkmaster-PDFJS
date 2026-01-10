@@ -24,6 +24,7 @@ describe("new-card-scheduler ws status panel (G) - contract regression", () => {
     panel.setConnecting();
     expect(toolbarEl.textContent).toContain("ws=connecting");
     expect(toolbarEl.textContent).toContain("reg=unknown");
+    expect(toolbarEl.textContent).toContain("anno_meta=idle");
 
     eventBus.emit(WEBSOCKET_EVENTS.CONNECTION.ESTABLISHED, { ok: true }, { actorId: "test" });
     expect(toolbarEl.textContent).toContain("ws=connected");
@@ -51,6 +52,7 @@ describe("new-card-scheduler ws status panel (G) - contract regression", () => {
 
     expect(toolbarEl.textContent).toContain("ws=connected");
     expect(toolbarEl.textContent).toContain("reg=unknown");
+    expect(toolbarEl.textContent).toContain("anno_meta=idle");
 
     eventBus.emit(
       WEBSOCKET_EVENTS.MESSAGE.RECEIVED,
@@ -70,6 +72,33 @@ describe("new-card-scheduler ws status panel (G) - contract regression", () => {
     );
     expect(toolbarEl.textContent).toContain("reg=failed");
     expect(toolbarEl.textContent).toContain("reg_error=register boom");
+
+    panel.destroy();
+    eventBus.destroy();
+  });
+
+  test("panel: anno_meta idle→loading→failed 可观测", () => {
+    document.body.innerHTML = "<div class=\"toolbar-controls\"></div>";
+    const toolbarEl = document.querySelector(".toolbar-controls");
+    const eventBus = new EventBus({ moduleName: `ncs-test-${Date.now()}`, enableValidation: true });
+    const wsClient = { isConnected: () => true };
+
+    const panel = mountWsStatusPanelOrThrow({
+      toolbarEl,
+      clientId: "new-card-scheduler",
+      eventBus,
+      wsClient
+    });
+
+    expect(toolbarEl.textContent).toContain("anno_meta=idle");
+
+    panel.setAnnoMetaLoading("rid_1");
+    expect(toolbarEl.textContent).toContain("anno_meta=loading");
+    expect(toolbarEl.textContent).toContain("anno_rid=rid_1");
+
+    panel.setAnnoMetaFailed("rid_1", new Error("timeout"));
+    expect(toolbarEl.textContent).toContain("anno_meta=failed");
+    expect(toolbarEl.textContent).toContain("anno_error=timeout");
 
     panel.destroy();
     eventBus.destroy();

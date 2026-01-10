@@ -17,10 +17,20 @@ function createRequestId() {
   return `ncs_bulk_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
-export function createAnnotationMetaAdapter({ mode = "mock", wsClient, eventBus, timeoutMs = 2500, logger } = {}) {
+export function createAnnotationMetaAdapter({
+  mode = "mock",
+  wsClient,
+  eventBus,
+  timeoutMs = 2500,
+  logger,
+  onStatus = null
+} = {}) {
   const m = String(mode || "mock");
   if (m !== "mock" && m !== "ws") {
     throw new Error(`AnnotationMetaAdapter.mode 仅支持 mock|ws，当前=${m}`);
+  }
+  if (onStatus !== null && typeof onStatus !== "function") {
+    throw new Error("AnnotationMetaAdapter.onStatus 必须为函数或 null");
   }
   if (m === "ws") {
     if (!wsClient || typeof wsClient.send !== "function") {
@@ -50,9 +60,13 @@ export function createAnnotationMetaAdapter({ mode = "mock", wsClient, eventBus,
     };
 
     return new Promise((resolve, reject) => {
+      try { onStatus?.({ status: "loading", requestId: rid }); } catch { /* ignore */ }
+
       const timer = setTimeout(() => {
         try { unsub(); } catch { /* ignore */ }
-        reject(new Error("annotation:bulk-get 超时"));
+        const e = new Error("annotation:bulk-get 超时");
+        try { onStatus?.({ status: "failed", requestId: rid, error: e }); } catch { /* ignore */ }
+        reject(e);
       }, timeoutMs);
 
       const unsub = eventBus.on(
@@ -72,9 +86,12 @@ export function createAnnotationMetaAdapter({ mode = "mock", wsClient, eventBus,
 
           const annotations = msg?.data?.annotations;
           if (!Array.isArray(annotations)) {
-            reject(new Error("annotation:bulk-get:completed 缺少 data.annotations 数组"));
+            const e = new Error("annotation:bulk-get:completed 缺少 data.annotations 数组");
+            try { onStatus?.({ status: "failed", requestId: rid, error: e }); } catch { /* ignore */ }
+            reject(e);
             return;
           }
+          try { onStatus?.({ status: "ok", requestId: rid }); } catch { /* ignore */ }
           resolve(annotations);
         },
         { subscriberId: `CardPlanner.AnnotationBulkGet.${rid}` }
@@ -86,7 +103,9 @@ export function createAnnotationMetaAdapter({ mode = "mock", wsClient, eventBus,
         clearTimeout(timer);
         try { unsub(); } catch { /* ignore */ }
         logger?.warn?.("[CardPlanner] annotation bulk-get send failed", err);
-        reject(err instanceof Error ? err : new Error(String(err)));
+        const e = err instanceof Error ? err : new Error(String(err));
+        try { onStatus?.({ status: "failed", requestId: rid, error: e }); } catch { /* ignore */ }
+        reject(e);
       }
     });
   }
@@ -96,4 +115,3 @@ export function createAnnotationMetaAdapter({ mode = "mock", wsClient, eventBus,
     getBulkOrThrow
   };
 }
-
