@@ -93,10 +93,11 @@
   - `todo-and-doing/1 doing/20260110024409-pdfviewer-adapters-gate-cancel-G/`
   - `todo-and-doing/1 doing/20260110024410-pdf-search-dom-manager-extract-H/`
   - `todo-and-doing/1 doing/20260110024411-infra-ui-event-subscriptions-lift-I/`
-- 当前主线任务（Card Planner）：
-  - G（引擎接入 UI）：`todo-and-doing/1 doing/20260110033314-card-planner-engine-integration-G/`
-  - H（标注元信息改为 WS）：`todo-and-doing/1 doing/20260110033315-card-planner-annotation-meta-ws-H/`
-  - I（Final Output 后端验收 handler）：`todo-and-doing/1 doing/20260110033316-card-planner-final-output-handler-I/`
+- Card Planner（G/H/I）本轮交付（已合入 main 并归档）：
+  - G（引擎接入 UI）：`91e6984` + `3dbe243`
+  - H（标注元信息默认 WS）：`46da3e7`（docs：`3724914`）
+  - I（Final Output 后端 handler）：`d7cdd9b`
+  - 归档：`todo-and-doing/4 archive/20260110103959-doing-archive/`
 
 ## 2026-01-10：归档（Card Planner F/G/H）
 - 用户确认后已将已完成的 Card Planner 三条任务从 `todo-and-doing/1 doing/` 归档到：
