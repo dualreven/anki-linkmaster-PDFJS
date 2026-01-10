@@ -38,6 +38,8 @@ export class PDFViewerManager {
   #linkService = null;
   #pdfjsEventBus = null;  // PDF.js的EventBus实例
   #renderReadyEmitted = false; // 首次页面渲染完成后仅发一次 RENDER.READY
+  #bridgeSetup = false;
+  #bridgeHandlers = null;
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
@@ -304,6 +306,18 @@ export class PDFViewerManager {
   }
 
   /**
+   * 销毁（卸载桥接与引用清理）
+   */
+  destroy() {
+    this.#teardownEventBridge();
+    this.#pdfViewer = null;
+    this.#linkService = null;
+    this.#pdfjsEventBus = null;
+    this.#container = null;
+    this.#renderReadyEmitted = false;
+  }
+
+  /**
    * 获取PDFLinkService实例（用于SearchFeature等扩展功能）
    * @returns {PDFLinkService}
    */
@@ -346,8 +360,19 @@ export class PDFViewerManager {
    * @private
    */
   #setupEventBridge(pdfjsEventBus) {
-    // 监听页面变化事件
-    pdfjsEventBus.on(PDF_VIEWER_EVENTS.PDFJS_EVENTS.PAGE.CHANGING, (evt) => {
+    if (this.#bridgeSetup) {
+      throw new Error("PDFViewerManager: PDF.js event bridge already setup");
+    }
+
+    if (!pdfjsEventBus || typeof pdfjsEventBus.on !== "function") {
+      throw new Error("PDFViewerManager: pdfjsEventBus.on is required");
+    }
+
+    if (typeof pdfjsEventBus.off !== "function") {
+      throw new Error("PDFViewerManager: pdfjsEventBus.off is required for uninstallable bridge");
+    }
+
+    const onPageChanging = (evt) => {
       const pageNumber = evt.pageNumber;
       this.#logger.info(`PDFViewer page changing to ${pageNumber}`);
 
@@ -355,10 +380,9 @@ export class PDFViewerManager {
       if (this.#eventBus) {
         this.#eventBus.emit(PDF_VIEWER_EVENTS.PAGE.CHANGING, { pageNumber }, { actorId: "PDFViewerManager" });
       }
-    });
+    };
 
-    // 监听缩放变化事件
-    pdfjsEventBus.on(PDF_VIEWER_EVENTS.PDFJS_EVENTS.SCALE.CHANGING, (evt) => {
+    const onScaleChanging = (evt) => {
       const scale = evt.scale;
       this.#logger.info(`PDFViewer scale changing to ${scale}`);
 
@@ -366,34 +390,67 @@ export class PDFViewerManager {
       if (this.#eventBus) {
         this.#eventBus.emit(PDF_VIEWER_EVENTS.ZOOM.CHANGING, { scale }, { actorId: "PDFViewerManager" });
       }
-    });
+    };
+
+    const onPageRendered = (evt) => {
+      const pn = evt?.pageNumber;
+      if (!pn) { return; }
+      if (this.#eventBus) {
+        // 单页渲染完成事件
+        this.#eventBus.emit(PDF_VIEWER_EVENTS.RENDER.PAGE_COMPLETED, { pageNumber: pn }, { actorId: "PDFViewerManager" });
+
+        // 首次页面渲染完成时，发出全局渲染就绪事件（至少首页已渲染，可进行依赖 DOM 的操作）
+        if (!this.#renderReadyEmitted) {
+          this.#renderReadyEmitted = true;
+          const totalPages = this.pagesCount || 0;
+          this.#eventBus.emit(
+            PDF_VIEWER_EVENTS.RENDER.READY,
+            { firstPage: pn, totalPages },
+            { actorId: "PDFViewerManager" }
+          );
+          this.#logger.info("PDF render ready emitted", { firstPage: pn, totalPages });
+        }
+      }
+    };
+
+    this.#bridgeHandlers = {
+      onPageChanging,
+      onScaleChanging,
+      onPageRendered
+    };
+
+    // 监听页面变化事件
+    pdfjsEventBus.on(PDF_VIEWER_EVENTS.PDFJS_EVENTS.PAGE.CHANGING, onPageChanging);
+
+    // 监听缩放变化事件
+    pdfjsEventBus.on(PDF_VIEWER_EVENTS.PDFJS_EVENTS.SCALE.CHANGING, onScaleChanging);
 
     // 监听页面渲染完成（统一翻译为应用事件：RENDER.PAGE_COMPLETED）
-    try {
-      pdfjsEventBus.on(PDF_VIEWER_EVENTS.PDFJS_EVENTS.PAGE.RENDERED, (evt) => {
-        const pn = evt?.pageNumber;
-        if (!pn) { return; }
-        if (this.#eventBus) {
-          // 单页渲染完成事件
-          this.#eventBus.emit(PDF_VIEWER_EVENTS.RENDER.PAGE_COMPLETED, { pageNumber: pn }, { actorId: "PDFViewerManager" });
+    pdfjsEventBus.on(PDF_VIEWER_EVENTS.PDFJS_EVENTS.PAGE.RENDERED, onPageRendered);
 
-          // 首次页面渲染完成时，发出全局渲染就绪事件（至少首页已渲染，可进行依赖 DOM 的操作）
-          if (!this.#renderReadyEmitted) {
-            this.#renderReadyEmitted = true;
-            const totalPages = this.pagesCount || 0;
-            this.#eventBus.emit(
-              PDF_VIEWER_EVENTS.RENDER.READY,
-              { firstPage: pn, totalPages },
-              { actorId: "PDFViewerManager" }
-            );
-            this.#logger.info("PDF render ready emitted", { firstPage: pn, totalPages });
-          }
-        }
-      });
-    } catch (e) {
-      this.#logger.warn("Failed to bridge pagerendered to app event", e);
-    }
+    this.#bridgeSetup = true;
 
     this.#logger.info("PDFViewer event bridge setup complete");
+  }
+
+  #teardownEventBridge() {
+    if (!this.#bridgeSetup) {
+      return;
+    }
+
+    if (!this.#pdfjsEventBus || typeof this.#pdfjsEventBus.off !== "function") {
+      throw new Error("PDFViewerManager: cannot teardown event bridge without pdfjsEventBus.off");
+    }
+
+    if (!this.#bridgeHandlers) {
+      throw new Error("PDFViewerManager: bridge handlers missing");
+    }
+
+    this.#pdfjsEventBus.off(PDF_VIEWER_EVENTS.PDFJS_EVENTS.PAGE.CHANGING, this.#bridgeHandlers.onPageChanging);
+    this.#pdfjsEventBus.off(PDF_VIEWER_EVENTS.PDFJS_EVENTS.SCALE.CHANGING, this.#bridgeHandlers.onScaleChanging);
+    this.#pdfjsEventBus.off(PDF_VIEWER_EVENTS.PDFJS_EVENTS.PAGE.RENDERED, this.#bridgeHandlers.onPageRendered);
+
+    this.#bridgeHandlers = null;
+    this.#bridgeSetup = false;
   }
 }
