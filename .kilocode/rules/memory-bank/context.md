@@ -194,3 +194,13 @@
 - D（pdf-search）：订阅/DOM manager 边界与 cleanup 契约强化 + 回归：`todo-and-doing/1 doing/20260111010855-pdfviewer-search-event-subscriptions-hardening-D/`
 - E（pdf-outline）：UI 解耦 WS + cleanup 契约回归：`todo-and-doing/1 doing/20260111010855-pdfviewer-outline-ui-decouple-and-cleanup-E/`
   - 旧 E（pdf-home 修复，已过时）已归档：`todo-and-doing/4 archive/20260111013701-doing-archive/20260111010855-gui-launcher-vite-loopback-host-and-pdf-home-reliability-E/`
+
+## 2026-01-11：验收合并 ABC/E（20260111010855 批次）✅；D 退回
+- 合入（main）：
+  - A：`9736a77c`（KeyboardHandler lifecycle hardening + 回归增强）
+  - B：`c2a73537`（ui-manager-core assembly 抽离 + 装配/销毁回归）
+  - C：`566f9002`（annotation toggle button keydown 可卸载 + 回归）
+  - E：`157417e8`（outline store-driven selection + UI 边界/cleanup 回归）
+- 门禁：`pnpm -s run lint` ✅；Jest（定向）✅
+- 归档：`todo-and-doing/4 archive/20260111022704-doing-archive/`
+- D：❌ 触发门禁 `pdfviewer-no-eventbus-on-in-components`（禁止在 `components/**` 中 `eventBus.on(...)`），已在 main 侧回滚（`fe283a0e`）。需 D worktree 重新提交“合规实现”（把订阅上移到装配/服务层）。
