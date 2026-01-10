@@ -15,7 +15,6 @@
   - D(bootstrap/search/outline)：`fix(pdf-viewer): cleanup bootstrap zoom guard; tighten search/outline`
   - 门禁：`pnpm -s run lint` + 关键 Jest 路径通过（由 main 侧统一跑）。
 - **下一步**：用户使用 `gui_launcher` 手工点检上述行为；如发现 bug，按责任模块下发新的 doing 并同步给对应 worktree。
-
 ## 2026-01-10：前端面条化复评（完成）
 - 对比：`main@88998f5` → `main@045c42e`
 - 结论：整体仍偏低，粗评约 **2~3/10**；上一轮指出的 **P0（Annotation 模型重复真源）已修复为单一真源 + 防回归测试**。
