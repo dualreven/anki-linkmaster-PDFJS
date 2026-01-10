@@ -32,12 +32,7 @@
   - `docs/reports/20260109-infra-nav-url-loader-scan-F.md`
   - `docs/reports/20260109-pdfviewer-core-ui-scan-E.md`
   - `docs/reports/20260108-pdfviewer-scan-D.md`
-- 任务目录：
-  - A（P0：Annotation 模型单一真源，已合并归档）：`todo-and-doing/4 archive/20260110110206-doing-archive/20260110040857-annotation-model-single-source-A/`
-  - B（ScreenshotTool store-reactive，已合并归档）：`todo-and-doing/4 archive/20260110110206-doing-archive/20260110040857-pdf-annotation-screenshot-store-reactive-B/`
-  - C（adapters 去 URL pdfId 依赖，已合并归档）：`todo-and-doing/4 archive/20260110110206-doing-archive/20260110040857-adapters-pdfid-provider-C/`
-  - D（debounce/throttle 可取消，已合并归档）：`todo-and-doing/4 archive/20260110110206-doing-archive/20260110040857-pdf-search-debounce-cancel-D/`
-  - E（TextLayerManager 生命周期回归，已合并归档）：`todo-and-doing/4 archive/20260110110206-doing-archive/20260110040857-text-layer-manager-selection-lifecycle-E/`
+- 任务目录：A~E（首轮）均已合并并归档至 `todo-and-doing/4 archive/20260110110206-doing-archive/`。
 - 同步：已对 `anki-linkmaster-A/B/C/D/E` worktree 执行单向覆盖同步到 `main`（2026-01-10 03:45；`git reset --hard main` + `git clean -fd`）。
   - 说明：
     - 旧 A（`20260110033516-pdf-url-loader-install-split-A`）已归档到 `todo-and-doing/4 archive/20260110040857-doing-archive/`；
@@ -185,7 +180,6 @@
 ## 2026-01-10：已知但暂不升级的 bug（记录）
 - KI-20260110-01（爆栈）：仍未修复；用户确认“暂不重要/不升级为必须修”。后续如复现路径清晰，再单独下发专项任务。
 
-（用户确认已恢复正常打开；修复提交 commit hash 待补。）
 
 ## 2026-01-11：PDFViewer 面条化治理新派工（A~E，20260111010855）
 - A（ui）：KeyboardHandler 生命周期契约（install/uninstall 幂等）+ 回归：`todo-and-doing/1 doing/20260111010855-pdfviewer-ui-keyboard-handler-uninstall-A/`
