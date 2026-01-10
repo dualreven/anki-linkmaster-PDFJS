@@ -28,4 +28,4 @@
 - `pnpm exec jest --runTestsByPath src/frontend/pdf-viewer/features/pdf-url-loader/__tests__/navigation-request-gate.behavior.test.js src/frontend/pdf-viewer/features/pdf-url-loader/__tests__/nav-request-key.circular-payload.test.js src/frontend/pdf-viewer/features/pdf-url-loader/__tests__/url-loader.gate-reset.regression.test.js -i` ✅
 
 ### 下一步计划:
-- 提交 commit 并回报 hash
+- 已提交：`c6798b1`
