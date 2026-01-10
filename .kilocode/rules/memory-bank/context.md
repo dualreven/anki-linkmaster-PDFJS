@@ -58,6 +58,12 @@
   - `pnpm -s run lint` ✅
   - `pnpm exec jest --runTestsByPath <上述新增/改动测试路径集合> -i` ✅
 
+## 2026-01-10：标注模型单一真源（A / worktree）
+- 任务：`todo-and-doing/1 doing/20260110040857-annotation-model-single-source-A/v001-spec.md`
+- 决策：以 `src/frontend/common/models/annotation.js` 为唯一真源；feature 内 `models/annotation.js` 仅保留复出口。
+- 回归：新增 `src/frontend/pdf-viewer/features/pdf-annotation/models/__tests__/annotation.single-source.regression.test.js`（toBe 锁定“单真源”）。
+- 提交：`2a0abab`
+
 ## 2026-01-10：清理 ABCDE 旧任务目录（已归档）
 - 说明：`todo-and-doing/1 doing/202601092234**-*` 为旧一轮下发目录，未开始编码且无交付 commit；为避免继续误读为“当前任务”，已按约定移入 archive。
 - 归档位置：`todo-and-doing/4 archive/20260110022652-doing-archive/`
