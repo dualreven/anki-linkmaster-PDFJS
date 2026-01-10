@@ -41,11 +41,12 @@
   - `docs/reports/20260109-infra-nav-url-loader-scan-F.md`
   - `docs/reports/20260109-pdfviewer-core-ui-scan-E.md`
 - 任务目录（doing）：
-  - A（P0：NavigationService 卸载清理 + 可取消 waitForPageReady）：`todo-and-doing/1 doing/20260110123105-infra-nav-navigation-service-cleanup-A/`
-  - B（P1：PDFUrlLoaderFeature.install 拆分 + Gate 状态机收敛）：`todo-and-doing/1 doing/20260110123105-pdf-url-loader-install-split-B/`
-  - C（P1：pdf-outline UI 去 WS 直连耦合）：`todo-and-doing/1 doing/20260110123105-pdf-outline-ws-decouple-C/`
-  - D（P2：StateManager 事件粒度化 / batchUpdate）：`todo-and-doing/1 doing/20260110123105-core-state-manager-granular-events-D/`
-  - E（P2：LifecycleManager 全局 error handler 卸载对称）：`todo-and-doing/1 doing/20260110123105-core-lifecycle-error-scope-E/`
+  - A：`todo-and-doing/4 archive/20260110162925-doing-archive/20260110123105-infra-nav-navigation-service-cleanup-A/`
+  - B：`todo-and-doing/4 archive/20260110162925-doing-archive/20260110123105-pdf-url-loader-install-split-B/`
+  - C：`todo-and-doing/4 archive/20260110162925-doing-archive/20260110123105-pdf-outline-ws-decouple-C/`
+  - D：`todo-and-doing/4 archive/20260110162925-doing-archive/20260110123105-core-state-manager-granular-events-D/`
+  - E：`todo-and-doing/4 archive/20260110162925-doing-archive/20260110123105-core-lifecycle-error-scope-E/`
+  - 验收合入（2026-01-10）：已合并并通过 Jest+lint；用户确认人工验收通过。
 
 ## 2026-01-10：已知问题（延期）
 - KI-20260110-01：outline/search 组合操作偶发触发爆栈日志（`Maximum call stack size exceeded`），用户确认“不太重要”，暂不修复，仅文档化与建 todo。
