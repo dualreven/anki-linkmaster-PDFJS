@@ -567,6 +567,42 @@ class StandardWebSocketServer(QObject, ServerAPIMixin):
                         request_id=request_id,
                     )
 
+                # 特例：card-planner:ingest:requested 若未找到目标 planner，则进入 pending-forward 并返回 202
+                if original_type == "card-planner:ingest:requested":
+                    self._ensure_pending_forward_tables()
+
+                    target_client_id = None
+                    for t in routing_targets or []:
+                        cid = (t or {}).get("client_id")
+                        if isinstance(cid, str) and cid.strip():
+                            target_client_id = cid.strip()
+                            break
+
+                    if not target_client_id:
+                        return StandardMessageHandler.build_error_response(
+                            request_id or StandardMessageHandler.generate_request_id(),
+                            "INVALID_TARGET",
+                            "无法从路由目标中解析 client_id（无法进入 pending-forward）",
+                            message_type="card-planner:ingest:failed",
+                            error_details={"routing_targets": routing_targets},
+                            code=400,
+                        )
+
+                    effective_rid = request_id or StandardMessageHandler.generate_request_id()
+                    forward_msg = dict(message)
+                    forward_msg["request_id"] = effective_rid
+
+                    self._queue_pending_forward(client_id=target_client_id, message=forward_msg, ttl_ms=15000)
+
+                    return StandardMessageHandler.build_response(
+                        "card-planner:ingest:completed",
+                        effective_rid,
+                        status="accepted",
+                        code=202,
+                        message="未找到目标客户端，已进入 pending-forward 队列，待客户端注册后自动转发",
+                        data={"client_id": target_client_id},
+                    )
+
                 logger.warning(
                     f"[Route] 未找到目标客户端: routing_targets={routing_targets}"
                 )
@@ -1610,8 +1646,6 @@ class StandardWebSocketServer(QObject, ServerAPIMixin):
         logger.info("PDF列表变更事件")
         _notify_broadcast_list(self)
     
-
-
 
 
 
