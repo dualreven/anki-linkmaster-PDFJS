@@ -14,6 +14,6 @@
 - 门禁通过：
   - `pnpm -s run lint` ✅
   - `pnpm exec jest --runTestsByPath src/frontend/new-card-scheduler/__tests__/bootstrap-runner.contract.test.js -i` ✅
-- commit hash：`<TBD>`
+- commit hash：`a2454075`
 ### 下一步计划:
-- 将 `<TBD>` 替换为本任务最终 commit hash。
+- （已完成）
