@@ -11,7 +11,7 @@ import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants
 import { debounce } from "../utils/debounce.js";
 import { validateSearchQuery } from "../utils/search-validator.js";
 import { createSearchBoxDom } from "./search-box-dom.js";
-import { attachSearchBoxDomBindings } from "./search-box-dom-bindings.js";
+import { SearchBoxDOMManager } from "./search-box-dom-manager.js";
 import { subscribeSearchBoxEvents } from "./search-box-event-subscriptions.js";
 
 /**
@@ -107,20 +107,36 @@ export class SearchBox {
     this.#caseSensitiveCheckbox = elements.caseSensitiveCheckbox;
     this.#wholeWordsCheckbox = elements.wholeWordsCheckbox;
 
-    // DOM 事件绑定（可清理）
-    this.#cleanupFns.push(attachSearchBoxDomBindings({
-      elements,
-      logger: this.#logger,
-      onInput: (query) => {
+    // DOM 事件绑定（收敛到 SearchBoxDOMManager）
+    const onKeyDownHandler = (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (e.shiftKey) { this.#handlePrevClick(); }
+        else { this.#handleNextClick(); }
+        return;
+      }
+      if (e.key === "Escape") {
+        this.#handleCloseClick();
+      }
+    };
+
+    const domManager = new SearchBoxDOMManager(elements, {
+      onInput: (e) => {
+        const query = String(e?.target?.value ?? "");
         const options = this.#getCurrentOptions();
         this.#debouncedSearch(query, options);
       },
+      onKeyDown: onKeyDownHandler,
       onPrev: () => this.#handlePrevClick(),
       onNext: () => this.#handleNextClick(),
       onClose: () => this.#handleCloseClick(),
-      onOptionChanged: (name, value) => this.#handleOptionChange(name, value),
+      onCaseSensitiveChange: (e) => this.#handleOptionChange("caseSensitive", Boolean(e?.target?.checked)),
+      onWholeWordsChange: (e) => this.#handleOptionChange("wholeWords", Boolean(e?.target?.checked)),
       onToggle: () => this.toggle(),
-    }));
+    }, { logger: this.#logger });
+
+    domManager.init();
+    this.#cleanupFns.push(() => domManager.destroy());
 
     // Subscribe to Manager State
     this.#cleanupFns.push(this.#searchManager.store.subscribe((state, oldState) => {
