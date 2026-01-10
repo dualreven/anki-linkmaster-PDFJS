@@ -24,9 +24,19 @@
  * debouncedSearch('abc'); // 只有这次会真正执行
  */
 export function debounce(func, wait = 300, immediate = false) {
+  if (typeof func !== "function") {
+    throw new Error("[debounce] func must be a function");
+  }
+  if (typeof wait !== "number" || Number.isNaN(wait) || wait < 0) {
+    throw new Error("[debounce] wait must be a non-negative number");
+  }
+  if (typeof immediate !== "boolean") {
+    throw new Error("[debounce] immediate must be a boolean");
+  }
+
   let timeout;
 
-  return function debounced(...args) {
+  function debounced(...args) {
     const context = this;
 
     const later = () => {
@@ -44,7 +54,14 @@ export function debounce(func, wait = 300, immediate = false) {
     if (callNow) {
       func.apply(context, args);
     }
+  }
+
+  debounced.cancel = () => {
+    clearTimeout(timeout);
+    timeout = null;
   };
+
+  return debounced;
 }
 
 /**
@@ -64,18 +81,35 @@ export function debounce(func, wait = 300, immediate = false) {
  * window.addEventListener('scroll', throttledScroll);
  */
 export function throttle(func, limit = 100) {
-  let inThrottle;
+  if (typeof func !== "function") {
+    throw new Error("[throttle] func must be a function");
+  }
+  if (typeof limit !== "number" || Number.isNaN(limit) || limit < 0) {
+    throw new Error("[throttle] limit must be a non-negative number");
+  }
 
-  return function throttled(...args) {
+  let inThrottle;
+  let timeout;
+
+  function throttled(...args) {
     const context = this;
 
     if (!inThrottle) {
       func.apply(context, args);
       inThrottle = true;
 
-      setTimeout(() => {
+      timeout = setTimeout(() => {
+        timeout = null;
         inThrottle = false;
       }, limit);
     }
+  }
+
+  throttled.cancel = () => {
+    clearTimeout(timeout);
+    timeout = null;
+    inThrottle = false;
   };
+
+  return throttled;
 }
