@@ -62,8 +62,15 @@
 ## 2026-01-10：新问题（待处理）— pdf-home 打开失败
 - 用户日志（2026-01-10 16:41）：
   - `js: [BOOT] import index.js failed TypeError: Failed to fetch dynamically imported module: http://localhost:3000/pdf-home/index.js`
-- 初步判断：更像 dev server/端口/静态路由不一致导致 `index.js` 404 或连接失败（HTML 可 loadFinished，但 dynamic import 取模块失败）。
-- 后续动作（进行中）：追溯引入点（git log/blame 聚焦 launcher/ports/pyqtui），并明确责任 worktree 后下发修复任务；其余 worktree 下发互不影响的重构任务。
+- 根因（已定位）：Windows + QtWebEngine 下 `localhost` 的 IPv4/IPv6 解析不稳定；Vite 可能仅监听 `::1`，导致 `127.0.0.1:<vite_port>` 连接被拒绝，从而出现“页面加载完成但动态 import 拉取失败”。
+- 修复（已在 main 实施，待手工点检）：统一前端 loopback host 为 `127.0.0.1`；Vite 默认 `VITE_HOST=127.0.0.1`；`ensure_vite` 以 IPv4 可达为准并同步写入 `url_port=vite_port`；补回归测试覆盖（dev_server + URL 构建）。
+
+## 2026-01-10：新一轮并行重构任务下发（A~E，20260110175029 批次）
+- A：`todo-and-doing/1 doing/20260110175029-pdf-home-loopback-host-verify-A/`
+- B：`todo-and-doing/1 doing/20260110175029-infra-ui-coordinator-slim-B/`
+- C：`todo-and-doing/1 doing/20260110175029-pdf-annotation-sidebar-zombie-cleanup-C/`
+- D：`todo-and-doing/1 doing/20260110175029-pdf-search-dom-manager-extract-D/`
+- E：`todo-and-doing/1 doing/20260110175029-ui-keyboard-handler-singleton-E/`
 
 ## 2026-01-10：新一轮并行重构任务下发（A~E）
 - A：`todo-and-doing/1 doing/20260110014111-pdfviewer-adapters-gate-cancel-A/`
