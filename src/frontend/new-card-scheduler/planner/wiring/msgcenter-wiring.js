@@ -75,6 +75,17 @@ export function installMsgCenterWiring({
             op,
             annotationIds
           });
+
+          try {
+            respond(wsClient, {
+              type: CARD_PLANNER_MESSAGE_TYPES.INGEST_COMPLETED,
+              request_id: rid,
+              data: engine.getState()
+            });
+          } catch (e) {
+            logger?.warn?.("[CardPlanner] ingest completed ack send failed", e);
+          }
+
           try {
             const p = onAfterIngestApplied?.({ annotationIds, face: op?.face, op });
             if (p && typeof p.then === "function") {
@@ -92,6 +103,15 @@ export function installMsgCenterWiring({
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           logger?.warn?.("[CardPlanner] ingest failed", err);
+          try {
+            respond(wsClient, {
+              type: CARD_PLANNER_MESSAGE_TYPES.INGEST_FAILED,
+              request_id: rid,
+              error: { message: msg }
+            });
+          } catch (e) {
+            logger?.warn?.("[CardPlanner] ingest failed ack send failed", e);
+          }
           notification?.showError?.(`注入失败：${msg}`, 3500);
         }
         return;
