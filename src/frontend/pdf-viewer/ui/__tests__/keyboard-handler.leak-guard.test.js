@@ -81,4 +81,25 @@ describe("KeyboardHandler leak guard", () => {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" }));
     expect(bus.emit).toHaveBeenCalledTimes(1);
   });
+
+  test("不允许多实例并存：第二个实例 setupEventListener 必须 throw；destroy 后允许再次 setup", () => {
+    const handler1 = new KeyboardHandler(createBus());
+    handler1.setupEventListener();
+
+    const handler2 = new KeyboardHandler(createBus());
+    expect(() => handler2.setupEventListener()).toThrow(/KeyboardHandler/);
+
+    handler1.destroy();
+
+    handler2.setupEventListener();
+
+    const keydownAdds = addSpy.mock.calls.filter(([evt]) => evt === "keydown");
+    const keydownRemoves = removeSpy.mock.calls.filter(([evt]) => evt === "keydown");
+    expect(keydownAdds.length).toBe(2);
+    expect(keydownRemoves.length).toBe(1);
+
+    handler2.destroy();
+    const keydownRemovesAfter = removeSpy.mock.calls.filter(([evt]) => evt === "keydown");
+    expect(keydownRemovesAfter.length).toBe(2);
+  });
 });

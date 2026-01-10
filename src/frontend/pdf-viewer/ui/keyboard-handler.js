@@ -12,6 +12,8 @@ import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
  * 负责处理所有键盘快捷键和键盘导航
  */
 export class KeyboardHandler {
+  static #activeInstance = null;
+
   #logger;
   #eventBus;
   #enabled = true;
@@ -21,6 +23,7 @@ export class KeyboardHandler {
   #documentListenerAttached = false;
   #attachedDomEventHub = null;
   #handleKeyDownBound;
+  #destroyed = false;
 
   constructor(eventBus) {
     this.#eventBus = eventBus;
@@ -58,6 +61,15 @@ export class KeyboardHandler {
    * 设置键盘事件监听
    */
   setupEventListener(domEventHub) {
+    if (this.#destroyed) {
+      throw new Error("KeyboardHandler: instance has been destroyed");
+    }
+
+    if (KeyboardHandler.#activeInstance && KeyboardHandler.#activeInstance !== this) {
+      throw new Error("KeyboardHandler: global listener already owned by another instance");
+    }
+    KeyboardHandler.#activeInstance = this;
+
     if (domEventHub) {
       this.#domEventHub = domEventHub;
     }
@@ -117,6 +129,14 @@ export class KeyboardHandler {
       document.removeEventListener("keydown", this.#handleKeyDownBound);
       this.#documentListenerAttached = false;
       this.#logger.info("Keyboard event listener removed");
+    }
+
+    if (
+      KeyboardHandler.#activeInstance === this &&
+      !this.#keydownUnsubscribe &&
+      !this.#documentListenerAttached
+    ) {
+      KeyboardHandler.#activeInstance = null;
     }
   }
 
@@ -315,8 +335,13 @@ export class KeyboardHandler {
    * 销毁处理器
    */
   destroy() {
+    if (this.#destroyed) {
+      throw new Error("KeyboardHandler: already destroyed");
+    }
     this.removeEventListener();
     this.#keyBindings = {};
+    KeyboardHandler.#activeInstance = null;
+    this.#destroyed = true;
     this.#logger.info("Keyboard handler destroyed");
   }
 }
