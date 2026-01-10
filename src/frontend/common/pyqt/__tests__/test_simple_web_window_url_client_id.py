@@ -45,7 +45,7 @@ class SimpleWebWindowUrlClientIdTest(unittest.TestCase):
     cfg = LaunchConfig(is_prod=False)
     app = SimpleWebWindowApp(cfg, entry_path="new-card-scheduler", window_title="NCS")
     url = app._build_frontend_url(5173)
-    self.assertEqual(url, "http://localhost:5173/new-card-scheduler/")
+    self.assertEqual(url, "http://127.0.0.1:5173/new-card-scheduler/")
 
   def test_build_url_with_client_id(self) -> None:
     """提供 client_id 时应追加 ?client-id 参数。"""
@@ -57,7 +57,7 @@ class SimpleWebWindowUrlClientIdTest(unittest.TestCase):
     app = SimpleWebWindowApp(cfg, entry_path="custom-reviewer", window_title="CR")
     url = app._build_frontend_url(5173)
     self.assertTrue(
-      url.startswith("http://localhost:5173/custom-reviewer/"),
+      url.startswith("http://127.0.0.1:5173/custom-reviewer/"),
       msg=f"unexpected base url: {url}",
     )
     self.assertIn("client-id=custom-reviewer-xyz", url)
@@ -71,7 +71,7 @@ class SimpleWebWindowUrlClientIdTest(unittest.TestCase):
     cfg.extra_params = {"client_id": "new-card-scheduler", "pdf_id": "pdf_123"}
     app = SimpleWebWindowApp(cfg, entry_path="new-card-scheduler", window_title="NCS")
     url = app._build_frontend_url(5173)
-    self.assertTrue(url.startswith("http://localhost:5173/new-card-scheduler/"))
+    self.assertTrue(url.startswith("http://127.0.0.1:5173/new-card-scheduler/"))
     self.assertIn("client-id=new-card-scheduler", url)
     self.assertNotIn("pdf-id=", url)
 

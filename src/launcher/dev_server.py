@@ -53,6 +53,36 @@ def _is_listening(host: str, port: int, timeout: float = 0.8) -> bool:
     return False
 
 
+def _is_listening_exact(host: str, port: int, timeout: float = 0.8) -> bool:
+    """
+    严格检测：仅检测给定 host 是否可连通（不做 localhost/IPv6 回退）。
+
+    背景：QtWebEngine 在 Windows 上可能将 "localhost" 解析为 IPv4/IPv6 的不确定组合；
+    若 Vite 仅监听 ::1，而前端 URL 使用 127.0.0.1（或反之），会导致动态 import 失败。
+    """
+    try:
+        infos = socket.getaddrinfo(host, int(port), type=socket.SOCK_STREAM)
+    except Exception:
+        infos = []
+
+    for family, socktype, proto, _cn, sa in infos:
+        s = None
+        try:
+            s = socket.socket(family, socktype, proto)
+            s.settimeout(timeout)
+            s.connect(sa)
+            return True
+        except Exception:
+            pass
+        finally:
+            try:
+                if s:
+                    s.close()
+            except Exception:
+                pass
+    return False
+
+
 def _find_free_port(start: int, limit: int = 50) -> int:
     """
     从 start 起向上寻找一个未被占用的本地端口。
@@ -87,25 +117,29 @@ def ensure_vite(port: int, *, component_root: Path, logs_dir: Path, ai_module: O
     try:
         rp = read_runtime_ports(base)
         rp_vite = rp.get("vite_port") or rp.get("npm_port")
-        if rp_vite and _is_listening("127.0.0.1", int(rp_vite)):
+        # 注意：前端 URL 已统一为 127.0.0.1，因此这里必须做“IPv4 可达”校验
+        if rp_vite and _is_listening_exact("127.0.0.1", int(rp_vite)):
             update_dev_process_info(base, service="vite", pid=None, port=int(rp_vite), cmd=None)
-            merge_runtime_ports(base, {"vite_port": int(rp_vite), "npm_port": int(rp_vite)})
+            merge_runtime_ports(base, {"vite_port": int(rp_vite), "npm_port": int(rp_vite), "url_port": int(rp_vite)})
             return None, int(rp_vite)
     except Exception:
         # 读取失败不影响后续流程
         pass
 
-    if _is_listening('127.0.0.1', used_port):
+    # 若目标端口已有 Vite（且 IPv4 可达），直接记录状态并返回；避免误把 ::1-only 服务当作可用
+    if _is_listening_exact('127.0.0.1', used_port):
         # 端口已监听，直接记录状态并返回
         update_dev_process_info(base, service='vite', pid=None, port=used_port, cmd=None)
         # 合并写入，避免覆盖后端已写入的 ws/http 端口
-        merge_runtime_ports(base, {'vite_port': used_port, 'npm_port': used_port})
+        merge_runtime_ports(base, {'vite_port': used_port, 'npm_port': used_port, 'url_port': used_port})
         return None, used_port
 
     pid = None
     # 优先 ai_launcher._start_vite
     try:
         if ai_module is not None and hasattr(ai_module, '_start_vite'):
+            # 若目标端口已被占用（哪怕仅 ::1 可达），先选择一个空闲端口再启动，避免“启动即失败/端口冲突”
+            used_port = _find_free_port(used_port, limit=100)
             pid = ai_module._start_vite(used_port)
     except Exception:
         pid = None
@@ -126,11 +160,12 @@ def ensure_vite(port: int, *, component_root: Path, logs_dir: Path, ai_module: O
                         "npm run dev",
                         "yarn dev",
                     ]
-                    # 复制当前环境，注入 VITE_PORT/VITE_STRICT_PORT，以让 vite.config.js 正确读取
+                    # 复制当前环境，注入 VITE_HOST/VITE_PORT/VITE_STRICT_PORT，以让 vite.config.js 正确读取
                     env = dict(os.environ)
+                    env["VITE_HOST"] = "127.0.0.1"
                     env["VITE_PORT"] = str(int(port_to_use))
                     env["VITE_STRICT_PORT"] = "true"
-                    env_desc = f"VITE_PORT={env['VITE_PORT']} VITE_STRICT_PORT={env['VITE_STRICT_PORT']}"
+                    env_desc = f"VITE_HOST={env['VITE_HOST']} VITE_PORT={env['VITE_PORT']} VITE_STRICT_PORT={env['VITE_STRICT_PORT']}"
                     for cmd_str in candidates:
                         try:
                             log_fp.write(f"[LAUNCHER] try: {env_desc} {cmd_str}\n")
@@ -170,7 +205,7 @@ def ensure_vite(port: int, *, component_root: Path, logs_dir: Path, ai_module: O
             ready_quick = False
             t_deadline = _time.time() + 8.0
             while _time.time() < t_deadline:
-                if _is_listening('127.0.0.1', launch_port):
+                if _is_listening_exact('127.0.0.1', launch_port):
                     ready_quick = True
                     break
                 _time.sleep(0.4)
@@ -211,13 +246,13 @@ def ensure_vite(port: int, *, component_root: Path, logs_dir: Path, ai_module: O
         scan_max = None
 
     while _time.time() < deadline:
-        if _is_listening('127.0.0.1', wait_port):
+        if _is_listening_exact('127.0.0.1', wait_port):
             ready = True
             break
         # ai 路径的“端口漂移”处理：扫描一小段端口，若发现监听则采用该端口
         if scan_min is not None:
             for p in range(scan_min, scan_max + 1):
-                if _is_listening('127.0.0.1', p):
+                if _is_listening_exact('127.0.0.1', p):
                     wait_port = p
                     ready = True
                     break
@@ -232,10 +267,17 @@ def ensure_vite(port: int, *, component_root: Path, logs_dir: Path, ai_module: O
         update_dev_process_info(base, service='vite', pid=pid, port=(wait_port if ready else None), cmd=cmd_desc)
         if ready:
             # 合并写入，避免覆盖后端已写入的 ws/http 端口
-            merge_runtime_ports(base, {'vite_port': wait_port, 'npm_port': wait_port})
+            merge_runtime_ports(base, {'vite_port': wait_port, 'npm_port': wait_port, 'url_port': wait_port})
         else:
             # 清理陈旧 vite/npm 端口，避免误导后续流程
-            merge_runtime_ports(base, {'vite_port': None, 'npm_port': None})
+            try:
+                current = read_runtime_ports(base)
+                if (current.get('url_port') in (wait_port, used_port)) or (current.get('vite_port') in (wait_port, used_port)):
+                    merge_runtime_ports(base, {'vite_port': None, 'npm_port': None, 'url_port': None})
+                else:
+                    merge_runtime_ports(base, {'vite_port': None, 'npm_port': None})
+            except Exception:
+                merge_runtime_ports(base, {'vite_port': None, 'npm_port': None})
     except Exception:
         pass
 
@@ -275,7 +317,11 @@ def stop_vite(*, logs_dir: Path) -> bool:
         pass
     # 清理 vite/npm 端口（不影响 ws/http）
     try:
-        merge_runtime_ports(base, {"vite_port": None, "npm_port": None})
+        current = read_runtime_ports(base)
+        if current.get("url_port") in (current.get("vite_port"), current.get("npm_port")):
+            merge_runtime_ports(base, {"vite_port": None, "npm_port": None, "url_port": None})
+        else:
+            merge_runtime_ports(base, {"vite_port": None, "npm_port": None})
     except Exception:
         pass
     return bool(ok)

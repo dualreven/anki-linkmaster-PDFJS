@@ -395,8 +395,8 @@ class PdfHomeApp:
         # ✅ 统一使用 url_port 构建 URL（不再判断 is_prod）
         # 生产模式：url_port = pdfFile_port，从静态资源服务器加载
         # 开发模式：url_port = vite_port，从 Vite 开发服务器加载
-        # 使用 localhost 而不是 127.0.0.1，兼容 IPv4 和 IPv6
-        return f"http://localhost:{url_port}/pdf-home/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}&_={cache_buster}"
+        # Windows + QtWebEngine：避免 localhost 的 IPv4/IPv6 解析差异导致动态 import 拉取模块失败
+        return f"http://127.0.0.1:{url_port}/pdf-home/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}&_={cache_buster}"
 
     def _persist_ports(self, url_port, msgCenter_port, pdfFile_port, extras):
         """持久化端口配置

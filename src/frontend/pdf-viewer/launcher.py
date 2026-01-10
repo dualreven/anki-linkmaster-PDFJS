@@ -447,8 +447,8 @@ class PdfViewerApp:
             pdfFile_port: HTTP 文件服务器端口
         """
         # ✅ 统一使用 url_port 构建基础 URL（不再判断 is_prod）
-        # 使用 localhost 而不是 127.0.0.1，兼容 IPv4 和 IPv6
-        url = f"http://localhost:{url_port}/pdf-viewer/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"
+        # Windows + QtWebEngine：避免 localhost 的 IPv4/IPv6 解析差异导致动态 import 拉取模块失败
+        url = f"http://127.0.0.1:{url_port}/pdf-viewer/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"
 
         # 添加 file 参数（优先级：file_path > pdf_id）
         if self.file_path:
@@ -1018,7 +1018,7 @@ def main_legacy() -> int:
         logger.info("Production mode: loading from static files")
     else:
         # 开发模式：使用 Vite dev server
-        url = f"http://localhost:{vite_port}/pdf-viewer/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"
+        url = f"http://127.0.0.1:{vite_port}/pdf-viewer/?msgCenter={msgCenter_port}&pdfs={pdfFile_port}"
         if file_path:
             import urllib.parse
             file_param = urllib.parse.quote(file_path)
@@ -1186,5 +1186,4 @@ if __name__ == '__main__':
         import traceback
         traceback.print_exc()
         sys.exit(1)
-
 

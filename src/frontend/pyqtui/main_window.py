@@ -119,7 +119,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("就绪")
 
-    def load_frontend(self, url: str = "http://localhost:3000/pdf-home/index.html"):
+    def load_frontend(self, url: str = "http://127.0.0.1:3000/pdf-home/index.html"):
         try:
             if self.web_view:
                 self.web_view.load(QUrl(url))

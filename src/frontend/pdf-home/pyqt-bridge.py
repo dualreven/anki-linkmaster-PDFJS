@@ -731,7 +731,7 @@ def build_pdf_viewer_url(vite_port: int, msgCenter_port: int, pdfFile_port: int,
     if prod is True:
         base = f"http://127.0.0.1:{int(pdfFile_port)}/pdf-viewer/?msgCenter={int(msgCenter_port)}&pdfs={int(pdfFile_port)}"
     elif prod is False:
-        base = f"http://localhost:{int(vite_port)}/pdf-viewer/?msgCenter={int(msgCenter_port)}&pdfs={int(pdfFile_port)}"
+        base = f"http://127.0.0.1:{int(vite_port)}/pdf-viewer/?msgCenter={int(msgCenter_port)}&pdfs={int(pdfFile_port)}"
     else:
         try:
             project_root = _Path(__file__).parent.parent.parent.parent
@@ -742,7 +742,7 @@ def build_pdf_viewer_url(vite_port: int, msgCenter_port: int, pdfFile_port: int,
         base = (
             f"http://127.0.0.1:{int(pdfFile_port)}/pdf-viewer/?msgCenter={int(msgCenter_port)}&pdfs={int(pdfFile_port)}"
             if use_static else
-            f"http://localhost:{int(vite_port)}/pdf-viewer/?msgCenter={int(msgCenter_port)}&pdfs={int(pdfFile_port)}"
+            f"http://127.0.0.1:{int(vite_port)}/pdf-viewer/?msgCenter={int(msgCenter_port)}&pdfs={int(pdfFile_port)}"
         )
 
     if pdf_id:
