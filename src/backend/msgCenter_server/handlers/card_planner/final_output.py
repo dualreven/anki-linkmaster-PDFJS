@@ -12,6 +12,7 @@ def _validate_payload_or_raise(data: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(cards, list):
         raise ValueError("data.cards 必须为数组")
 
+    normalized_cards = []
     for idx, card in enumerate(cards):
         if not isinstance(card, dict):
             raise ValueError(f"data.cards[{idx}] 必须为对象")
@@ -34,7 +35,9 @@ def _validate_payload_or_raise(data: Dict[str, Any]) -> Dict[str, Any]:
             if not isinstance(t, str) or not t.strip():
                 raise ValueError(f"data.cards[{idx}].A 存在非法 annotation-id: {t!r}")
 
-    return {"cards": cards}
+        normalized_cards.append({"title": title, "Q": list(q), "A": list(a)})
+
+    return {"cards": normalized_cards}
 
 
 def card_planner_final_output(ctx: Any, request_id: Optional[str], data: Dict[str, Any]) -> Dict[str, Any]:
@@ -54,7 +57,7 @@ def card_planner_final_output(ctx: Any, request_id: Optional[str], data: Dict[st
             status="success",
             code=200,
             message=f"final-output 已接收并校验通过（cards={count}）",
-            data={"count": count},
+            data={"count": count, "cards": payload["cards"]},
         )
     except Exception as exc:
         return StandardMessageHandler.build_error_response(
@@ -64,4 +67,3 @@ def card_planner_final_output(ctx: Any, request_id: Optional[str], data: Dict[st
             message_type=MessageType.CARD_PLANNER_FINAL_OUTPUT_FAILED,
             code=400,
         )
-
