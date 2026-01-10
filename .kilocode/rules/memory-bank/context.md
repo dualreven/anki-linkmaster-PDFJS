@@ -16,6 +16,12 @@
   - 门禁：`pnpm -s run lint` + 关键 Jest 路径通过（由 main 侧统一跑）。
 - **下一步**：用户使用 `gui_launcher` 手工点检上述行为；如发现 bug，按责任模块下发新的 doing 并同步给对应 worktree。
 
+## 2026-01-10：前端面条化复评（完成）
+- 对比：`main@88998f5` → `main@045c42e`
+- 结论：整体仍偏低，粗评约 **2~3/10**；上一轮指出的 **P0（Annotation 模型重复真源）已修复为单一真源 + 防回归测试**。
+- 门禁（只读）：`pnpm -s run ci:frontend-line-limit` ✅（含 feature-internal-eventbus-gates / pdfviewer-global-listener-gates）。
+- 报告：`AItemp/reports/20260110170745-frontend-spaghetti-report.md`（本地；`AItemp/` gitignore）。
+
 ## 2026-01-10：PDFViewer 面条化治理继续推进（新一轮任务下发 A~E）
 - 依据：
   - `docs/reports/PDFVIEWER_SPAGHETTI_REMEDIATION_PLAN_20260109.md`
@@ -52,6 +58,12 @@
 - KI-20260110-01：outline/search 组合操作偶发触发爆栈日志（`Maximum call stack size exceeded`），用户确认“不太重要”，暂不修复，仅文档化与建 todo。
   - 文档：`docs/bugs/pdf-viewer-known-issues.md`
   - todo：`todo-and-doing/2 todo/20260110014111-outline-search-callstack-overflow-deferred-D/`
+
+## 2026-01-10：新问题（待处理）— pdf-home 打开失败
+- 用户日志（2026-01-10 16:41）：
+  - `js: [BOOT] import index.js failed TypeError: Failed to fetch dynamically imported module: http://localhost:3000/pdf-home/index.js`
+- 初步判断：更像 dev server/端口/静态路由不一致导致 `index.js` 404 或连接失败（HTML 可 loadFinished，但 dynamic import 取模块失败）。
+- 后续动作（进行中）：追溯引入点（git log/blame 聚焦 launcher/ports/pyqtui），并明确责任 worktree 后下发修复任务；其余 worktree 下发互不影响的重构任务。
 
 ## 2026-01-10：新一轮并行重构任务下发（A~E）
 - A：`todo-and-doing/1 doing/20260110014111-pdfviewer-adapters-gate-cancel-A/`
@@ -90,7 +102,7 @@
   - `pnpm exec jest --runTestsByPath src/frontend/new-card-scheduler/planner/__tests__/cards-engine.contract.test.js -i` ✅
   - `pnpm exec jest --runTestsByPath src/frontend/new-card-scheduler/__tests__/card-planner.ui-and-wiring.contract.test.js -i` ✅
 - 备注：
-  - 当前 `new-card-scheduler` UI 仍默认使用 `FakeEngine`（H 任务为并行解耦设计）；G 的真实引擎已合入并有回归测试，下一步可在不改 UI 的前提下切换到真实引擎。
+  - 说明：H 任务当时为并行解耦设计，历史上 UI 曾使用 `FakeEngine`；后续已完成“引擎接入 UI”（见下文交付记录），当前代码侧已可直接使用真实引擎。
 
 ## 2026-01-10：new-card-scheduler 侧边栏遮挡修复（已合入 main，待手工验收）
 - 合入（main）：
@@ -106,13 +118,22 @@
 - 背景：当前环境不具备“外部条件”注入/创建草稿卡与联调回执，需补齐可手工点检入口。
 - 已交付（但人工验收失败，已归档）：`todo-and-doing/4 archive/20260110125102-doing-archive/`
   - 失败：MsgCenter 拒绝 `to="new-card-scheduler"`；且 new-card-scheduler 出现多窗口（应全局唯一）。
-- v002 修复（已合入 main，待人工验收后归档）：
+- v002 修复（已合入 main；验收发现 Step4 竞态问题，已归档以便返工）：
   - F（注入修复：forward 到窗口）：`1684a35`（docs：`9848040`）
     - 注入消息必须用 `to=[{"client_id":"new-card-scheduler"}]`（`to` 字符串仅允许 `"backend"`）
   - G（清空草稿卡）：`9a4c5e6`
   - H（ingest 注入可视化反馈）：`563aa69`（docs：`906e7e3`）
   - I（new-card-scheduler 全局唯一/单例激活）：`5fe678e`
-  - doing 入口（尚未归档）：`todo-and-doing/1 doing/20260110125102-*-F/G/H/I/`
+  - 归档：`todo-and-doing/4 archive/20260110172024-doing-archive/`
+
+## 2026-01-10：Card Planner 手工验收 Step4 失败（NO_TARGET_FOUND）→ 下发 v003
+- 现象：`card-planner:ingest:requested` 使用 forward `to=[{"client_id":"new-card-scheduler"}]`，但 MsgCenter 返回 `NO_TARGET_FOUND(404)`，窗口未新增卡片。
+- 初步定位：目标窗口 WS 尚未完成注册/不可路由时，MsgCenter forward 直接失败（仅 `pdf-viewer:navigate:requested` 有 pending-forward 特例）。
+- v003 任务（doing）：
+  - F（注入 ACK 可观测性增强）：`todo-and-doing/1 doing/20260110172214-card-planner-gui-launcher-inject-observability-F/`
+  - G（窗口侧 WS 状态展示）：`todo-and-doing/1 doing/20260110172214-card-planner-new-card-scheduler-ws-status-G/`
+  - H（Planner ingest completed/failed 回执）：`todo-and-doing/1 doing/20260110172214-card-planner-ingest-contract-ack-H/`
+  - I（MsgCenter pending-forward 支持 ingest）：`todo-and-doing/1 doing/20260110172214-card-planner-msgcenter-pending-forward-ingest-I/`
 
 ## 2026-01-10：任务调整（删除非主线 G/H/I 任务，围绕 Card Planner 重新下发）
 - 已删除（不再维护）：
@@ -132,3 +153,7 @@
 ## 2026-01-09：PDFViewer 面条化治理详细记录（已归档）
 - 说明：为满足 `context.md` 行数门禁（<200），已将 2026-01-09 的详细过程记录迁移到归档文件（不加载进上下文）。
 - 归档：`docs/context-archive/2026-01/context-2026-01-week2.md`
+
+## 2026-01-10：新卡片规划器实现复核（16:40）
+- 报告：`AItemp/reports/20260110164032-new-card-scheduler-implementation-check.md`
+- 结论：核心能力（engine/UI/paste/meta/final-output）已具备；与 MsgCenter `to` 新协议的关键点（forward 注入 + planner 侧仅 toast/render）已对齐；`state:get` 的回执路由仍需文档明确。
