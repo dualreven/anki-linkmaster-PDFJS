@@ -1,7 +1,7 @@
 // @jest-environment jsdom
 /* eslint-env jest */
 
-import { Annotation, AnnotationType } from "../annotation.js";
+import { Annotation, AnnotationType } from "../index.js";
 
 describe("Annotation ID generation", () => {
   test("auto-generated ID matches base64url16 pattern", () => {

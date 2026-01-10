@@ -20,7 +20,7 @@ jest.mock("../../common/utils/notification.js", () => ({
 }));
 
 import { AnnotationSidebarUI } from "../features/pdf-annotation/components/annotation-sidebar-ui.js";
-import { Annotation, AnnotationType } from "../features/pdf-annotation/models/annotation.js";
+import { Annotation, AnnotationType } from "../features/pdf-annotation/models/index.js";
 import { PDF_VIEWER_EVENTS } from "../../common/event/pdf-viewer-constants.js";
 
 /**
@@ -38,7 +38,20 @@ describe("SMOKE: Annotation card jump", () => {
       onGlobal: jest.fn(() => () => {}),
     };
 
-    const ui = new AnnotationSidebarUI(eventBus);
+    const storeState = { annotations: [] };
+    const annotationManager = {
+      store: {
+        get: () => storeState,
+        subscribe: (selector, listener, options = {}) => {
+          if (options.fireImmediately) {
+            listener(selector(storeState));
+          }
+          return () => {};
+        },
+      },
+    };
+
+    const ui = new AnnotationSidebarUI(eventBus, { annotationManager });
     ui.initialize();
     document.body.appendChild(ui.getContentElement());
 
@@ -68,4 +81,3 @@ describe("SMOKE: Annotation card jump", () => {
     ui.destroy();
   });
 });
-
