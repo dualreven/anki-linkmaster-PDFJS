@@ -450,7 +450,40 @@ def ensure_new_card_scheduler_hosted(
     on_log: Optional[Callable[[str], None]] = None,
     window_lifecycle: Any = None,
 ) -> int:
-    """确保新卡片规划器窗口在 Hosted 模式下被打开。"""
+    """
+    确保新卡片规划器窗口在 Hosted 模式下被打开（全局单例）：
+    - 已存在且有效 → 激活窗口并返回 0
+    - 不存在/已失效 → 创建新实例并注册到 window_lifecycle
+    """
+    if window_lifecycle is not None:
+        try:
+            entry = None
+            if hasattr(window_lifecycle, "get_entry"):
+                entry = window_lifecycle.get_entry("new-card-scheduler")
+            if entry:
+                win = entry.get("window")
+                if win is not None and _is_qobject_alive(win):
+                    try:
+                        activate_window(win)
+                        if on_log:
+                            on_log("[Singleton] new-card-scheduler already running, activated window")
+                        return 0
+                    except Exception:
+                        # 激活失败：尝试清理注册表后继续创建
+                        try:
+                            window_lifecycle.on_window_closed(win)
+                        except Exception:
+                            pass
+                else:
+                    # 已注册但窗口已失效：清理条目后继续创建
+                    try:
+                        if win is not None:
+                            window_lifecycle.on_window_closed(win)
+                    except Exception:
+                        pass
+        except Exception:
+            # 单例检查不应阻断创建路径
+            pass
     root = resolve_component_root()
     import importlib.util as _il
     launcher_path = root / "src" / "frontend" / "tool-windows" / "launcher.py"
