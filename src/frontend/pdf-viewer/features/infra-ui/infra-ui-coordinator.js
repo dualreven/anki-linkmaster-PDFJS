@@ -1,4 +1,5 @@
 import { installEventListenersSubscriptions } from "./subscriptions/event-listeners.subscriptions.js";
+import { installPageInfoInitSubscriptions } from "./subscriptions/page-info-init.subscriptions.js";
 import { installUIControlsSubscriptions } from "./subscriptions/ui-controls.subscriptions.js";
 import { installUILayoutSubscriptions } from "./subscriptions/ui-layout.subscriptions.js";
 
@@ -7,7 +8,8 @@ export function createInfraUICoordinator(
   logger,
   uiControls,
   eventListeners,
-  uiLayoutControls
+  uiLayoutControls,
+  deps = {}
 ) {
   if (!eventBus) {
     throw new Error("[InfraUICoordinator] eventBus is required");
@@ -18,6 +20,18 @@ export function createInfraUICoordinator(
   if (!logger) {
     throw new Error("[InfraUICoordinator] logger is required");
   }
+  if (!deps || typeof deps !== "object") {
+    throw new Error("[InfraUICoordinator] deps is required");
+  }
+  if (!deps.viewerManager || typeof deps.viewerManager.setPageInfo !== "function") {
+    throw new Error("[InfraUICoordinator] deps.viewerManager.setPageInfo is required");
+  }
+  if (typeof deps.getPdfViewerManager !== "function") {
+    throw new Error("[InfraUICoordinator] deps.getPdfViewerManager is required");
+  }
+  if (typeof deps.getUIZoomControls !== "function") {
+    throw new Error("[InfraUICoordinator] deps.getUIZoomControls is required");
+  }
 
   const on = eventBus.on.bind(eventBus);
 
@@ -25,6 +39,13 @@ export function createInfraUICoordinator(
     ...installUIControlsSubscriptions({ on, uiControls }),
     ...installUILayoutSubscriptions({ on, uiLayoutControls }),
     ...installEventListenersSubscriptions({ on, eventListeners }),
+    ...installPageInfoInitSubscriptions({
+      on,
+      logger,
+      viewerManager: deps.viewerManager,
+      getPdfViewerManager: deps.getPdfViewerManager,
+      getUIZoomControls: deps.getUIZoomControls,
+    }),
   ];
 
   logger.info("InfraUICoordinator created and subscriptions are set up.");

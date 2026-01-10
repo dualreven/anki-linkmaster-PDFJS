@@ -1,10 +1,4 @@
-/**
- * @file UI管理器核心（重构版）
- * @module UIManagerCore
- * @description 协调DOM元素、键盘事件和UI状态的主管理器
- *
- * 详细拆分说明：`docs/standards/ui-manager-core.md`
- */
+/** UI管理器核心（重构版）。拆分说明：`docs/standards/ui-manager-core.md` */
 
 import { getLogger } from "../../../../common/utils/logger.js";
 import { PDF_VIEWER_EVENTS } from "../../../../common/event/pdf-viewer-constants.js";
@@ -24,10 +18,7 @@ import { LayoutManager } from "./layout.manager.js";
 import { createInfraUICoordinator } from "../infra-ui-coordinator.js";
 import { requestPdfTitleFromDB } from "./pdf-title-requester.js";
 
-/**
- * UI管理器核心类
- * 整合所有UI相关的子模块
- */
+/** UI管理器核心类：整合所有UI相关的子模块 */
 export class UIManagerCore {
   #eventBus;
   #logger;
@@ -161,7 +152,18 @@ export class UIManagerCore {
       this.#unsubscribeFunctions.push(...eventListenersUnsubs);
 
       // Create coordinator
-      this.#coordinator = createInfraUICoordinator(this.#eventBus, this.#logger, this.#uiControls, this.#eventListeners, this.#uiLayoutControls);
+      this.#coordinator = createInfraUICoordinator(
+        this.#eventBus,
+        this.#logger,
+        this.#uiControls,
+        this.#eventListeners,
+        this.#uiLayoutControls,
+        {
+          viewerManager: this.#viewerManager,
+          getPdfViewerManager: () => this.#pdfViewerManager,
+          getUIZoomControls: () => this.#uiZoomControls,
+        }
+      );
       this.#unsubscribeFunctions.push(this.#coordinator.destroy);
 
       const { updateCopyButtonVisibility, unsubs: copyUnsubs } =

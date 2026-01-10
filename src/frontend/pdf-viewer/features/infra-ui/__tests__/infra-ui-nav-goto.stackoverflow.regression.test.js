@@ -56,7 +56,11 @@ describe("InfraUI NAVIGATION.GOTO — prevent sync recursion (regression)", () =
       onWebSocketError: jest.fn(),
     };
 
-    const coordinator = createInfraUICoordinator(eventBus, logger, uiControls, eventListeners, null);
+    const coordinator = createInfraUICoordinator(eventBus, logger, uiControls, eventListeners, null, {
+      viewerManager: { setPageInfo: jest.fn() },
+      getPdfViewerManager: () => pdfViewerManager,
+      getUIZoomControls: () => ({ updatePageInfo: jest.fn() }),
+    });
 
     eventBus.emit(
       PDF_VIEWER_EVENTS.NAVIGATION.GOTO,
@@ -117,7 +121,11 @@ describe("InfraUI NAVIGATION.GOTO — prevent sync recursion (regression)", () =
       onWebSocketError: jest.fn(),
     };
 
-    const coordinator = createInfraUICoordinator(eventBus, logger, uiControls, eventListeners, null);
+    const coordinator = createInfraUICoordinator(eventBus, logger, uiControls, eventListeners, null, {
+      viewerManager: { setPageInfo: jest.fn() },
+      getPdfViewerManager: () => pdfViewerManager,
+      getUIZoomControls: () => ({ updatePageInfo: jest.fn() }),
+    });
 
     eventBus.emit(
       PDF_VIEWER_EVENTS.NAVIGATION.GOTO,

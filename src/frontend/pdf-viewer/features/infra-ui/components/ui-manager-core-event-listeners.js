@@ -2,7 +2,6 @@ import { WEBSOCKET_MESSAGE_TYPES } from "../../../../common/event/event-constant
 
 export class EventListeners {
   #ctx;
-  #pendingPageInfoInit = null; // { pdfDocument: any } | null
 
   constructor(ctx) {
     this.#ctx = ctx;
@@ -29,7 +28,6 @@ export class EventListeners {
 
   onFileLoadRequested() {
     const { viewerManager, domManager } = this.#ctx;
-    this.#pendingPageInfoInit = null;
     if (viewerManager) {
       viewerManager.setLoading(true, false);
     }
@@ -48,9 +46,6 @@ export class EventListeners {
     if (pdfViewerManager && pdfDocument) {
       logger.info("Loading PDF document into PDFViewerManager");
       pdfViewerManager.load(pdfDocument);
-
-      // 基于明确事件进行一次性初始化（避免 setTimeout 竞态）
-      this.#pendingPageInfoInit = { pdfDocument };
     } else {
       logger.warn("Cannot load PDF: pdfViewerManager or pdfDocument is missing");
     }
@@ -58,39 +53,10 @@ export class EventListeners {
 
   onFileLoadFailed(data) {
     const { viewerManager, domManager } = this.#ctx;
-    this.#pendingPageInfoInit = null;
     if (viewerManager) {
       viewerManager.setError(data.error?.message || "Load Failed");
     }
     domManager.setLoadingState(false);
-  }
-
-  onRenderReady(data) {
-    const { logger, viewerManager, getPdfViewerManager, getUIZoomControls } = this.#ctx;
-    const pending = this.#pendingPageInfoInit;
-    if (!pending) {
-      return;
-    }
-    this.#pendingPageInfoInit = null;
-
-    const mgr = getPdfViewerManager();
-    if (!mgr) {
-      logger.error("[EventListeners] PDFViewerManager missing on RENDER.READY");
-      return;
-    }
-
-    const pdfDocument = pending.pdfDocument;
-    const totalPages = mgr.pagesCount || Number(data?.totalPages || 0) || pdfDocument?.numPages || 0;
-    const currentPage = mgr.currentPageNumber || Number(data?.firstPage || 0) || 1;
-
-    if (viewerManager) {
-      viewerManager.setPageInfo(currentPage, totalPages);
-    }
-    const uiZoomControls = getUIZoomControls();
-    if (uiZoomControls) {
-      uiZoomControls.updatePageInfo(currentPage, totalPages);
-    }
-    logger.info(`Page info initialized (RENDER.READY): ${currentPage}/${totalPages}`);
   }
 
   onUrlParamsParsed(data) {

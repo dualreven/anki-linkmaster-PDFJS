@@ -54,7 +54,12 @@ describe("infra-ui: VIEW_MODE.RENDER_MODE_CHANGED subscription lift (regression)
       logger,
       uiControls,
       eventListeners,
-      uiLayoutControls
+      uiLayoutControls,
+      {
+        viewerManager: { setPageInfo: jest.fn() },
+        getPdfViewerManager: () => ({ pagesCount: 0, currentPageNumber: 1 }),
+        getUIZoomControls: () => ({ updatePageInfo: jest.fn() }),
+      }
     );
 
     const payload = { newMode: "pdfviewer" };
@@ -78,4 +83,3 @@ describe("infra-ui: VIEW_MODE.RENDER_MODE_CHANGED subscription lift (regression)
     expect(uiLayoutControls.onRenderModeChanged).toHaveBeenCalledTimes(1);
   });
 });
-
