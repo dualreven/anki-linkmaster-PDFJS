@@ -358,6 +358,9 @@ export class SearchBox {
   destroy() {
     this.#logger.info("Destroying SearchBox");
 
+    // Cancel pending debounced callbacks to avoid post-destroy side effects.
+    try { this.#debouncedSearch?.cancel?.(); } catch (e) { this.#logger.debug("SearchBox debounce cancel failed", e); }
+
     // 清理订阅与 DOM 事件绑定
     for (const fn of this.#cleanupFns.splice(0)) {
       try { fn?.(); } catch (e) { this.#logger.debug("SearchBox cleanup failed", e); }
