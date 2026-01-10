@@ -10,7 +10,10 @@
 2. 新增 `features/legacy/legacy-feature.js`（包装 H 任务提供的 main 导出）。
 3. 新增 Jest：`bootstrap-runner.contract.test.js`。
 ### 工作结果:
-- （待实现）
+- 已新增最小可用 bootstrap runner + legacy feature，并补齐最小契约回归测试。
+- 门禁通过：
+  - `pnpm -s run lint` ✅
+  - `pnpm exec jest --runTestsByPath src/frontend/new-card-scheduler/__tests__/bootstrap-runner.contract.test.js -i` ✅
+- commit hash：`<TBD>`
 ### 下一步计划:
-- 提交 commit hash + 贴出 lint/jest 通过结论。
-
+- 将 `<TBD>` 替换为本任务最终 commit hash。
