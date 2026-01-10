@@ -224,8 +224,21 @@ export function createPlannerWorkspaceUI({ root, engine, getCardMetaPreview, not
     }
   });
 
+  const btnResetDraftCards = createButton({
+    text: "清空草稿卡",
+    title: "清空所有草稿卡并清空选中/粘贴焦点",
+    className: "btn",
+    onClick: () => {
+      engine.resetDraftCardsOrThrow();
+      state.pasteFocus = null;
+      render();
+      notification?.showInfo?.("已清空草稿卡", 1200);
+    }
+  });
+
   right.appendChild(btnSelectNone);
   right.appendChild(btnCreateEmpty);
+  right.appendChild(btnResetDraftCards);
   header.appendChild(left);
   header.appendChild(right);
 

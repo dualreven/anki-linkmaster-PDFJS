@@ -68,6 +68,8 @@ describe("card-planner engine integration (G) - contract regression", () => {
 
     expect(typeof fake.createEmptyCardOrThrow).toBe("function");
     expect(typeof real.createEmptyCardOrThrow).toBe("function");
+    expect(typeof fake.resetDraftCardsOrThrow).toBe("function");
+    expect(typeof real.resetDraftCardsOrThrow).toBe("function");
   });
 
   test("UI：点击“新建空卡”会新增卡片并选中，并 toast", () => {
@@ -97,6 +99,48 @@ describe("card-planner engine integration (G) - contract regression", () => {
     expect(after).toBe(before + 1);
     expect(engine.getState().selectedTempId).toBeTruthy();
     expect(notification.showInfo).toHaveBeenCalled();
+
+    app.dispose();
+    eventBus.destroy();
+  });
+
+  test("UI：点击“清空草稿卡”后列表为空、selected=null、pasteFocus 被清空；再新建空卡仍可用", () => {
+    const { root } = setupDom();
+    const engine = createCardsEngine();
+    engine.createCardOrThrow();
+    engine.createCardOrThrow();
+
+    const wsClient = { send: jest.fn() };
+    const notification = { showInfo: jest.fn(), showError: jest.fn() };
+    const eventBus = new EventBus({ moduleName: `ncs-test-${Date.now()}`, enableValidation: true });
+
+    const app = createCardPlannerApp({
+      root,
+      engine,
+      wsClient,
+      eventBus,
+      logger: { info: jest.fn(), warn: jest.fn() },
+      notification
+    });
+
+    const btnReset = Array.from(root.querySelectorAll("button")).find((b) => b.textContent === "清空草稿卡");
+    expect(btnReset).toBeTruthy();
+    btnReset.click();
+
+    expect(engine.getState().draftCardTempIds).toEqual([]);
+    expect(engine.getState().selectedTempId).toBe(null);
+    expect(root.querySelectorAll("[data-temp-id]").length).toBe(0);
+    expect(notification.showInfo).toHaveBeenCalled();
+
+    const pasteAfterReset = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(pasteAfterReset, "clipboardData", { value: createClipboardData("ann_1") });
+    document.dispatchEvent(pasteAfterReset);
+    expect(notification.showError).toHaveBeenCalled();
+
+    const btnCreate = Array.from(root.querySelectorAll("button")).find((b) => b.textContent === "新建空卡");
+    btnCreate.click();
+    expect(engine.getState().draftCardTempIds.length).toBe(1);
+    expect(engine.getState().selectedTempId).toBeTruthy();
 
     app.dispose();
     eventBus.destroy();
