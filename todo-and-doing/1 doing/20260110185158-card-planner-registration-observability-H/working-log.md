@@ -16,3 +16,19 @@
 ### 下一步计划:
 -（待执行）提交 commit hash + 测试命令
 
+## 工作记录2
+**时间**: 2026-01-10 19:28:10
+### 工作内容:
+- 扩展窗口 WS 状态面板：新增注册状态可观测 `reg=ok|failed`，失败时显示简短错误。
+- 补齐 Jest 回归测试覆盖 register completed/failed 两条路径。
+### 工作步骤:
+1) 修改 `src/frontend/new-card-scheduler/ui/ws-status-panel.js`：
+   - 监听 `WEBSOCKET_EVENTS.MESSAGE.RECEIVED` 中的 `client:register:completed/failed`
+   - 面板显示 `reg=unknown|ok|failed`，并在失败时显示 `reg_error=...`
+2) 更新 `src/frontend/new-card-scheduler/__tests__/ws-status-panel.contract.test.js`：补齐 completed/failed 的断言。
+3) 验收：`pnpm -s run lint`；`pnpm exec jest --runTestsByPath src/frontend/new-card-scheduler/__tests__/ws-status-panel.contract.test.js -i`。
+### 工作结果:
+- Lint：通过（`pnpm -s run lint`）。
+- Jest：通过（`pnpm exec jest --runTestsByPath src/frontend/new-card-scheduler/__tests__/ws-status-panel.contract.test.js -i`）。
+### 交付信息:
+- commit：`7f4e8afa`
