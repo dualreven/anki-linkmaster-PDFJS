@@ -106,17 +106,13 @@
 - 背景：当前环境不具备“外部条件”注入/创建草稿卡与联调回执，需补齐可手工点检入口。
 - 已交付（但人工验收失败，已归档）：`todo-and-doing/4 archive/20260110125102-doing-archive/`
   - 失败：MsgCenter 拒绝 `to="new-card-scheduler"`；且 new-card-scheduler 出现多窗口（应全局唯一）。
-- 当前任务目录（doing v002）：
-  - F（修复注入 to=forward list）：`todo-and-doing/1 doing/20260110125102-card-planner-gui-launcher-inject-fix-F/`
-  - G（便于反复测试：清空草稿卡）：`todo-and-doing/1 doing/20260110125102-card-planner-reset-draft-cards-G/`
-  - H（注入可视化反馈：toast + render，且不回写 ingest 回执）：`todo-and-doing/1 doing/20260110125102-card-planner-ingest-visual-feedback-H/`
-  - I（new-card-scheduler 全局唯一：ensure 单例激活）：`todo-and-doing/1 doing/20260110125102-card-planner-new-card-scheduler-singleton-I/`
-
-### 2026-01-10：H(final-output 回执 toast)（worktree 交付）
-- 交付（`worker/feature-H`）：`ea673af`（发送补齐 `request_id/timestamp`；订阅 `final-output:completed/failed` 并 toast；dispose 解绑；新增 Jest 回归测试）
-
-### 2026-01-10：H(ingest 注入 toast+render)（worktree 交付）
-- 交付（`worker/feature-H`）：`1e96921`（ingest 注入成功/失败 toast + render；移除 ingest 回执发送；新增/扩展 Jest 回归）
+- v002 修复（已合入 main，待人工验收后归档）：
+  - F（注入修复：forward 到窗口）：`1684a35`（docs：`9848040`）
+    - 注入消息必须用 `to=[{"client_id":"new-card-scheduler"}]`（`to` 字符串仅允许 `"backend"`）
+  - G（清空草稿卡）：`9a4c5e6`
+  - H（ingest 注入可视化反馈）：`563aa69`（docs：`906e7e3`）
+  - I（new-card-scheduler 全局唯一/单例激活）：`5fe678e`
+  - doing 入口（尚未归档）：`todo-and-doing/1 doing/20260110125102-*-F/G/H/I/`
 
 ## 2026-01-10：任务调整（删除非主线 G/H/I 任务，围绕 Card Planner 重新下发）
 - 已删除（不再维护）：
