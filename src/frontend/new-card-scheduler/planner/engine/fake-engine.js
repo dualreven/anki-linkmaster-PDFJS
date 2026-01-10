@@ -286,6 +286,11 @@ export function createFakeEngine() {
     return tempId;
   };
 
+  const resetDraftCardsOrThrow = () => {
+    state = { ...state, cards: [], selectedTempId: null };
+    nextTempId = 1;
+  };
+
   const dispatchIngest = ({ op, annotationIds }) => {
     state = applyIngestOrThrow(state, { op, annotationIds });
   };
@@ -305,6 +310,7 @@ export function createFakeEngine() {
     getCardsForView,
     getDraftCardsSnapshotOrThrow,
     createEmptyCardOrThrow,
+    resetDraftCardsOrThrow,
     dispatchIngest,
     setSelected,
     renameCard,

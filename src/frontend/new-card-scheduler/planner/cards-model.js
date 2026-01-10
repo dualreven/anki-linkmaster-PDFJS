@@ -188,6 +188,14 @@ export class CardsEngine {
     return tempId;
   }
 
+  resetDraftCardsOrThrow() {
+    this.#cards = [];
+    this.#selectedTempId = null;
+    this.#createdSeqByTempId = new Map();
+    this.#nextCreatedSeq = 1;
+    this.#nextTempId = 1;
+  }
+
   deleteCardOrThrow(tempId) {
     const index = this.#getCardIndexByTempIdOrThrow(tempId);
     this.#cards.splice(index, 1);
