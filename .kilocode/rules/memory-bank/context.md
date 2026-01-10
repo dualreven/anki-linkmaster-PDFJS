@@ -1,6 +1,6 @@
 # Memory Bank - Context（近7日）
 
-最后更新：2026-01-10
+最后更新：2026-01-11
 
 ## 规划者（Planner）硬约束（必须遵守）
 - **任务发布必须可交付**：每个任务目录的 `v001-spec.md` 必须写明 DoD：最终需提交 git，并提供 **commit hash**（没有 commit hash 不算完成）。
@@ -104,8 +104,7 @@
 - 当前状态：v004 修复已合入 main（2026-01-10），用于解决 Step3 注入“queued 但未生效”的链路缺口（客户端注册 + queued 自愈打开窗口 + ACK_META 可观测 + 注册状态可视）。
 - v004 人工验收：注入已成功；已归档：`todo-and-doing/4 archive/20260110212636-doing-archive/`。
 - v005：已合入 main（2026-01-11），修复 `annotation:bulk-get` 超时（补 `to:"backend"` + 处理 `*:failed`）并补齐可观测/自检与回归测试；任务已归档：`todo-and-doing/4 archive/20260111000112-doing-archive/`。
-- v006（进行中，已下发到 doing）：对齐 new-card-scheduler 启动范式为 `index.js -> bootstrap runner -> feature/container`（参考 pdf-home/pdf-viewer）。
-  - doing：`todo-and-doing/1 doing/20260111005401-ncs-*-F/G/H/I/`
+- v006：已合入 main（2026-01-11），对齐 new-card-scheduler 启动范式为 `index.js -> bootstrap runner -> feature/container`（参考 pdf-home/pdf-viewer）；任务已归档：`todo-and-doing/4 archive/20260111015251-doing-archive/`。
 
 ## 2026-01-09：PDFViewer 面条化治理详细记录（已归档）
 - 说明：为满足 `context.md` 行数门禁（<200），已将 2026-01-09 的详细过程记录迁移到归档文件（不加载进上下文）。
