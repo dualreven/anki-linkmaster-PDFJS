@@ -3,6 +3,7 @@ import path from "path";
 import { pathToFileURL } from "url";
 import { runFeatureInternalEventbusGates } from "./feature-internal-eventbus-gates.js";
 import { runPdfviewerGlobalListenerGates } from "./pdfviewer-global-listener-gates.js";
+import { runPdfviewerAnnotationSingleSourceGuard } from "./pdfviewer-annotation-single-source-guard.js";
 
 const DEFAULT_LIMIT = 500;
 const DEFAULT_ROOT_DIR = "src/frontend";
@@ -267,6 +268,31 @@ async function main() {
     } catch (e) {
       const msg = e instanceof Error ? e.stack ?? e.message : String(e);
       process.stderr.write(`[pdfviewer-global-listener-gates] fatal: ${msg}\n`);
+      process.exitCode = 1;
+    }
+
+    // ✅ pdf-viewer Annotation 单真源门禁（禁止 feature 侧出现第二份实现）
+    try {
+      const res = await runPdfviewerAnnotationSingleSourceGuard();
+      process.stdout.write(
+        `[pdfviewer-annotation-single-source-guard] scanned=${res.scanned}\n`
+      );
+      if (!res.violations || res.violations.length === 0) {
+        process.stdout.write("[pdfviewer-annotation-single-source-guard] OK\n");
+      } else {
+        process.stdout.write(`[pdfviewer-annotation-single-source-guard] FAILED (${res.violations.length})\n`);
+        for (const v of res.violations) {
+          if (v.type === "invalid-export-source") {
+            process.stdout.write(`- [BAD SOURCE] ${v.path} from=${v.from} expected=${v.expected}\n`);
+            continue;
+          }
+          process.stdout.write(`- [${v.type}] ${v.path}\n`);
+        }
+        process.exitCode = 1;
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.stack ?? e.message : String(e);
+      process.stderr.write(`[pdfviewer-annotation-single-source-guard] fatal: ${msg}\n`);
       process.exitCode = 1;
     }
     return;
