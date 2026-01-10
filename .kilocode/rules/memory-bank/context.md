@@ -96,6 +96,9 @@
   - H（final-output 回执 toast 可见性）：`todo-and-doing/1 doing/20260110105623-card-planner-final-output-ack-ui-H/`
   - I（final-output completed 回显 payload 便于验收）：`todo-and-doing/1 doing/20260110105623-card-planner-final-output-echo-I/`
 
+### 2026-01-10：H(final-output 回执 toast)（worktree 交付）
+- 交付（`worker/feature-H`）：`ea673af`（发送补齐 `request_id/timestamp`；订阅 `final-output:completed/failed` 并 toast；dispose 解绑；新增 Jest 回归测试）
+
 ## 2026-01-10：任务调整（删除非主线 G/H/I 任务，围绕 Card Planner 重新下发）
 - 已删除（不再维护）：
   - `todo-and-doing/1 doing/20260110024409-pdfviewer-adapters-gate-cancel-G/`
