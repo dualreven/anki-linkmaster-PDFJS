@@ -1,9 +1,15 @@
-import { WEBSOCKET_EVENTS } from "../../common/event/event-constants.js";
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../common/event/event-constants.js";
 
 export const WS_STATUS = {
   CONNECTING: "connecting",
   CONNECTED: "connected",
   DISCONNECTED: "disconnected",
+  FAILED: "failed",
+};
+
+export const REG_STATUS = {
+  UNKNOWN: "unknown",
+  OK: "ok",
   FAILED: "failed",
 };
 
@@ -80,18 +86,39 @@ export function mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsCli
   const state = {
     status: WS_STATUS.DISCONNECTED,
     errorMessage: "",
+    regStatus: REG_STATUS.UNKNOWN,
+    regErrorMessage: "",
   };
 
   const render = () => {
     const statusLabel = getWsStatusLabelOrThrow(state.status);
-    line1.textContent = `client_id=${clientId} | ws=${statusLabel}`;
-    line2.textContent = state.errorMessage ? `error=${state.errorMessage}` : "";
-    line2.style.display = state.errorMessage ? "block" : "none";
+    const regLabel = state.regStatus;
+    line1.textContent = `client_id=${clientId} | ws=${statusLabel} | reg=${regLabel}`;
+
+    const parts = [];
+    if (state.errorMessage) {
+      parts.push(`ws_error=${state.errorMessage}`);
+    }
+    if (state.regErrorMessage) {
+      parts.push(`reg_error=${state.regErrorMessage}`);
+    }
+    line2.textContent = parts.join(" | ");
+    line2.style.display = parts.length > 0 ? "block" : "none";
   };
 
   const setStatus = (status, err = null) => {
     state.status = status;
     state.errorMessage = normalizeErrorMessage(err);
+    render();
+  };
+
+  const setRegStatus = (regStatus, err = null) => {
+    const s = String(regStatus || "");
+    if (!Object.values(REG_STATUS).includes(s)) {
+      throw new Error(`REG_STATUS 无效：${String(regStatus)}`);
+    }
+    state.regStatus = s;
+    state.regErrorMessage = normalizeErrorMessage(err);
     render();
   };
 
@@ -116,10 +143,35 @@ export function mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsCli
     { subscriberId: "NewCardScheduler.WsStatus.Error" }
   );
 
+  const unsubRegisterAck = eventBus.on(
+    WEBSOCKET_EVENTS.MESSAGE.RECEIVED,
+    (message) => {
+      const type = String(message?.type || "");
+      if (type !== WEBSOCKET_MESSAGE_TYPES.CLIENT_REGISTER_COMPLETED && type !== WEBSOCKET_MESSAGE_TYPES.CLIENT_REGISTER_FAILED) {
+        return;
+      }
+
+      const msgClientId = message?.data?.client_id;
+      if (typeof msgClientId === "string" && msgClientId.trim() && msgClientId.trim() !== clientId) {
+        return;
+      }
+
+      if (type === WEBSOCKET_MESSAGE_TYPES.CLIENT_REGISTER_COMPLETED) {
+        setRegStatus(REG_STATUS.OK, null);
+        return;
+      }
+
+      const errMsg = message?.error?.message || message?.error || message?.data?.message || message?.data || message;
+      setRegStatus(REG_STATUS.FAILED, errMsg);
+    },
+    { subscriberId: "NewCardScheduler.WsStatus.RegisterAck" }
+  );
+
   const initial = typeof wsClient.isConnected === "function" && wsClient.isConnected()
     ? WS_STATUS.CONNECTED
     : WS_STATUS.DISCONNECTED;
   setStatus(initial, null);
+  setRegStatus(REG_STATUS.UNKNOWN, null);
 
   return {
     setConnecting: () => setStatus(WS_STATUS.CONNECTING, null),
@@ -130,8 +182,8 @@ export function mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsCli
       try { unsubClosed?.(); } catch { /* ignore */ }
       try { unsubFailed?.(); } catch { /* ignore */ }
       try { unsubError?.(); } catch { /* ignore */ }
+      try { unsubRegisterAck?.(); } catch { /* ignore */ }
       try { wrap.remove(); } catch { /* ignore */ }
     }
   };
 }
-
