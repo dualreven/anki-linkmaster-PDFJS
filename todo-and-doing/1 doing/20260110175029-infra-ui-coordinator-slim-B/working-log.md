@@ -27,4 +27,4 @@
 - `pnpm exec jest --runTestsByPath src/frontend/pdf-viewer/features/infra-ui/__tests__/infra-ui-coordinator.uninstall-cleans-subscriptions.test.js -i` ✅
 
 ### 下一步计划:
-- 提交 commit 并回报 hash
+- 已提交：`ebefcba`（代码+测试）、`b4037e3`（working-log）
