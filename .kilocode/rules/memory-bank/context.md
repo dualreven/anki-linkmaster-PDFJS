@@ -142,6 +142,14 @@
   - H（Planner ingest completed/failed 回执）：`todo-and-doing/1 doing/20260110172214-card-planner-ingest-contract-ack-H/`
   - I（MsgCenter pending-forward 支持 ingest）：`todo-and-doing/1 doing/20260110172214-card-planner-msgcenter-pending-forward-ingest-I/`
 
+## 2026-01-10：Card Planner v003（F/G/H/I）已合入 main（待用户手工验收后归档）
+- 合入（main）：
+  - `97c6598 feat(msgcenter): pending-forward card-planner ingest`（未命中目标时 queued 202，避免 NO_TARGET_FOUND）
+  - `3cd6b10 feat(new-card-scheduler): ingest completed/failed ack`
+  - `9da3b36 feat(new-card-scheduler): show ws status panel`
+  - `09d0fde feat(gui-launcher): improve card planner inject ACK observability`
+- 门禁：`pnpm -s run lint` ✅；定向 Jest/Pytest ✅（与上述路径对应）。
+
 ## 2026-01-10：任务调整（删除非主线 G/H/I 任务，围绕 Card Planner 重新下发）
 - 已删除（不再维护）：
   - `todo-and-doing/1 doing/20260110024409-pdfviewer-adapters-gate-cancel-G/`
