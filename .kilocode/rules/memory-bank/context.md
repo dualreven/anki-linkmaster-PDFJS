@@ -177,3 +177,13 @@
 - 结论：`AnnotationSidebarUI` 列表渲染为 store 驱动；sidebar subscriptions 不订阅 CRUD 事件（避免双驱动回潮）。
 - 回归：`src/frontend/pdf-viewer/features/pdf-annotation/components/__tests__/annotation-sidebar-ui.store-driven.test.js`
 - 交付：`b115188`（`worker/refactor-C`）
+
+## 2026-01-10：验收合并 ABCDE（20260110175029 批次）✅
+- 合入（main）：
+  - A：`078578f`（pdf-home loopback host 验证/排障文档）
+  - B：`f9b963b`（infra-ui coordinator subscriptions 拆分 + uninstall 清理回归）
+  - C：`c286cae`（sidebar store-driven 契约回归测试强化）
+  - D：`56641fc`（任务重复关闭：本批无代码改动）
+  - E：`8535dfd`（KeyboardHandler 防重复监听 + 回归）
+- 门禁：`pnpm -s run lint` ✅；Jest（定向）✅
+- 归档：`todo-and-doing/4 archive/20260110185147-doing-archive/`
