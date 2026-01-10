@@ -222,4 +222,83 @@ describe("card-planner UI & MsgCenter wiring (H) - contract regression", () => {
     app.dispose();
     eventBus.destroy();
   });
+
+  test("收到 ingest requested：toast 成功且 UI 刷新；不发送 ingest 回执", () => {
+    const { root } = setupDom();
+    const engine = createFakeEngine();
+    const wsClient = { send: jest.fn() };
+    const notification = { showInfo: jest.fn(), showError: jest.fn() };
+    const eventBus = new EventBus({ moduleName: `ncs-test-${Date.now()}`, enableValidation: true });
+    installWsAutoReply({ wsClient, eventBus });
+
+    const app = createCardPlannerApp({
+      root,
+      engine,
+      wsClient,
+      eventBus,
+      logger: { info: jest.fn(), warn: jest.fn() },
+      notification
+    });
+
+    const beforeText = root.textContent;
+
+    eventBus.emit(
+      WEBSOCKET_EVENTS.MESSAGE.RECEIVED,
+      {
+        type: CARD_PLANNER_MESSAGE_TYPES.INGEST_REQUESTED,
+        request_id: "rid_ingest_1",
+        data: {
+          op: { kind: "all-to-one", target: { kind: "card-id", tempId: "temp-1" }, face: "Q" },
+          annotation_ids: ["ann_1", "ann_2"]
+        }
+      },
+      { actorId: "test" }
+    );
+
+    expect(notification.showInfo).toHaveBeenCalledWith(expect.stringContaining("已注入 2 个标注"), expect.any(Number));
+    expect(notification.showError).not.toHaveBeenCalled();
+    expect(root.textContent).not.toBe(beforeText);
+
+    // 不应向 MsgCenter 回发 ingest completed/failed（避免 forward 路由污染）
+    expect(wsClient.send).not.toHaveBeenCalledWith(expect.objectContaining({ type: CARD_PLANNER_MESSAGE_TYPES.INGEST_COMPLETED }));
+    expect(wsClient.send).not.toHaveBeenCalledWith(expect.objectContaining({ type: CARD_PLANNER_MESSAGE_TYPES.INGEST_FAILED }));
+
+    app.dispose();
+    eventBus.destroy();
+  });
+
+  test("收到 ingest requested（非法 payload）：toast 失败；不抛出到外层", () => {
+    const { root } = setupDom();
+    const engine = createFakeEngine();
+    const wsClient = { send: jest.fn() };
+    const notification = { showInfo: jest.fn(), showError: jest.fn() };
+    const eventBus = new EventBus({ moduleName: `ncs-test-${Date.now()}`, enableValidation: true });
+    installWsAutoReply({ wsClient, eventBus });
+
+    const app = createCardPlannerApp({
+      root,
+      engine,
+      wsClient,
+      eventBus,
+      logger: { info: jest.fn(), warn: jest.fn() },
+      notification
+    });
+
+    expect(() => {
+      eventBus.emit(
+        WEBSOCKET_EVENTS.MESSAGE.RECEIVED,
+        {
+          type: CARD_PLANNER_MESSAGE_TYPES.INGEST_REQUESTED,
+          request_id: "rid_ingest_bad_1",
+          data: { op: null, annotation_ids: "ann_1" }
+        },
+        { actorId: "test" }
+      );
+    }).not.toThrow();
+
+    expect(notification.showError).toHaveBeenCalledWith(expect.stringContaining("注入失败"), expect.any(Number));
+
+    app.dispose();
+    eventBus.destroy();
+  });
 });
