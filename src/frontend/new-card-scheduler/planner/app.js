@@ -1,4 +1,6 @@
 import { CARD_PLANNER_MESSAGE_TYPES } from "./card-planner-message-types.js";
+import { generateRequestId } from "../../common/ws/ws-client-requests.js";
+import { WEBSOCKET_EVENTS } from "../../common/event/event-constants.js";
 import { createPlannerWorkspaceUI } from "./ui/workspace.js";
 import { installPasteWiring } from "./wiring/paste-wiring.js";
 import { installMsgCenterWiring } from "./wiring/msgcenter-wiring.js";
@@ -48,7 +50,7 @@ function validateFinalOutputPayloadOrThrow(payload) {
   }
 }
 
-function mountFinalOutputButton({ engine, wsClient, notification }) {
+function mountFinalOutputButton({ engine, wsClient, notification, onRequestSent }) {
   const slot = document.getElementById("planner-layout-switcher");
   if (!slot) {
     throw new Error("缺少 #planner-layout-switcher，无法挂载操作按钮");
@@ -66,11 +68,17 @@ function mountFinalOutputButton({ engine, wsClient, notification }) {
       const payload = { cards };
       validateFinalOutputPayloadOrThrow(payload);
 
+      const rid = generateRequestId();
+      const timestamp = Date.now();
+
       wsClient.send({
         type: CARD_PLANNER_MESSAGE_TYPES.FINAL_OUTPUT_REQUESTED,
+        request_id: rid,
+        timestamp,
         data: payload
       });
 
+      try { onRequestSent?.({ requestId: rid, cardsCount: cards.length }); } catch { /* ignore */ }
       notification?.showInfo?.(`已发射最终制卡信息：${cards.length} 张`, 2000);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -94,6 +102,9 @@ export function createCardPlannerApp({ root, engine, wsClient, eventBus, logger,
   }
   if (!eventBus) {
     throw new Error("createCardPlannerApp: eventBus 必填");
+  }
+  if (!notification || typeof notification.showInfo !== "function" || typeof notification.showError !== "function") {
+    throw new Error("createCardPlannerApp: notification.showInfo/showError 必填");
   }
 
   const metaAdapter = createAnnotationMetaAdapter({
@@ -147,8 +158,49 @@ export function createCardPlannerApp({ root, engine, wsClient, eventBus, logger,
     notification
   });
 
+  let lastFinalOutputRequestId = null;
+  const unsubscribeFinalOutputAck = eventBus.on(
+    WEBSOCKET_EVENTS.MESSAGE.RECEIVED,
+    (msg) => {
+      const type = String(msg?.type || "");
+      const rid = msg?.request_id;
+      if (!lastFinalOutputRequestId) {
+        return;
+      }
+      if (rid !== lastFinalOutputRequestId) {
+        return;
+      }
+
+      if (type === CARD_PLANNER_MESSAGE_TYPES.FINAL_OUTPUT_COMPLETED) {
+        lastFinalOutputRequestId = null;
+        const count = Number.isFinite(msg?.data?.count)
+          ? Number(msg.data.count)
+          : (Array.isArray(msg?.data?.cards) ? msg.data.cards.length : null);
+        const text = typeof msg?.data?.message === "string" ? msg.data.message : "";
+        const suffix = count !== null ? `：${count} 张` : "";
+        const main = text.trim() ? text.trim() : `最终制卡信息已确认${suffix}`;
+        notification.showInfo(main, 2500);
+        return;
+      }
+
+      if (type === CARD_PLANNER_MESSAGE_TYPES.FINAL_OUTPUT_FAILED) {
+        lastFinalOutputRequestId = null;
+        const errMsg = msg?.error?.message || msg?.data?.message || "未知原因";
+        notification.showError(`最终制卡信息失败：${errMsg}`, 3500);
+      }
+    },
+    { subscriberId: "CardPlanner.FinalOutputAck" }
+  );
+
   // UI 按钮：发射最终制卡信息
-  mountFinalOutputButton({ engine, wsClient, notification });
+  mountFinalOutputButton({
+    engine,
+    wsClient,
+    notification,
+    onRequestSent: ({ requestId }) => {
+      lastFinalOutputRequestId = requestId;
+    }
+  });
 
   // Wiring：粘贴插入（Ctrl+V）
   const uninstallPaste = installPasteWiring({
@@ -177,6 +229,7 @@ export function createCardPlannerApp({ root, engine, wsClient, eventBus, logger,
 
   return {
     dispose() {
+      try { unsubscribeFinalOutputAck?.(); } catch { /* ignore */ }
       try { uninstallPaste?.(); } catch { /* ignore */ }
       try { uninstallMsgCenter?.(); } catch { /* ignore */ }
       try { workspace?.dispose?.(); } catch { /* ignore */ }
