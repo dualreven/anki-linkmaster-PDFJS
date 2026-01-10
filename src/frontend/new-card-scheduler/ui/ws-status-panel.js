@@ -1,4 +1,4 @@
-import { WEBSOCKET_EVENTS } from "../../common/event/event-constants.js";
+import { WEBSOCKET_EVENTS, WEBSOCKET_MESSAGE_TYPES } from "../../common/event/event-constants.js";
 
 export const WS_STATUS = {
   CONNECTING: "connecting",
@@ -121,8 +121,12 @@ export function mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsCli
     render();
   };
 
-  const setRegistrationStatus = (regStatus, err = null) => {
-    state.regStatus = regStatus;
+  const setRegStatus = (regStatus, err = null) => {
+    const s = String(regStatus || "");
+    if (!Object.values(REG_STATUS).includes(s)) {
+      throw new Error(`REG_STATUS 无效：${String(regStatus)}`);
+    }
+    state.regStatus = s;
     state.regErrorMessage = normalizeErrorMessage(err);
     render();
   };
@@ -148,24 +152,50 @@ export function mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsCli
     { subscriberId: "NewCardScheduler.WsStatus.Error" }
   );
 
+  const unsubRegisterAck = eventBus.on(
+    WEBSOCKET_EVENTS.MESSAGE.RECEIVED,
+    (message) => {
+      const type = String(message?.type || "");
+      if (type !== WEBSOCKET_MESSAGE_TYPES.CLIENT_REGISTER_COMPLETED && type !== WEBSOCKET_MESSAGE_TYPES.CLIENT_REGISTER_FAILED) {
+        return;
+      }
+
+      const msgClientId = message?.data?.client_id;
+      if (typeof msgClientId === "string" && msgClientId.trim() && msgClientId.trim() !== clientId) {
+        return;
+      }
+
+      if (type === WEBSOCKET_MESSAGE_TYPES.CLIENT_REGISTER_COMPLETED) {
+        setRegStatus(REG_STATUS.OK, null);
+        return;
+      }
+
+      const errMsg = message?.error?.message || message?.error || message?.data?.message || message?.data || message;
+      setRegStatus(REG_STATUS.FAILED, errMsg);
+    },
+    { subscriberId: "NewCardScheduler.WsStatus.RegisterAck" }
+  );
+
   const initial = typeof wsClient.isConnected === "function" && wsClient.isConnected()
     ? WS_STATUS.CONNECTED
     : WS_STATUS.DISCONNECTED;
   setStatus(initial, null);
+  setRegStatus(REG_STATUS.UNKNOWN, null);
 
   return {
     setConnecting: () => setStatus(WS_STATUS.CONNECTING, null),
     setDisconnected: () => setStatus(WS_STATUS.DISCONNECTED, null),
     setFailed: (err) => setStatus(WS_STATUS.FAILED, err),
-    setRegUnknown: () => setRegistrationStatus(REG_STATUS.UNKNOWN, null),
-    setRegRegistering: () => setRegistrationStatus(REG_STATUS.REGISTERING, null),
-    setRegOk: () => setRegistrationStatus(REG_STATUS.OK, null),
-    setRegFailed: (err) => setRegistrationStatus(REG_STATUS.FAILED, err),
+    setRegUnknown: () => setRegStatus(REG_STATUS.UNKNOWN, null),
+    setRegRegistering: () => setRegStatus(REG_STATUS.REGISTERING, null),
+    setRegOk: () => setRegStatus(REG_STATUS.OK, null),
+    setRegFailed: (err) => setRegStatus(REG_STATUS.FAILED, err),
     destroy() {
       try { unsubEstablished?.(); } catch { /* ignore */ }
       try { unsubClosed?.(); } catch { /* ignore */ }
       try { unsubFailed?.(); } catch { /* ignore */ }
       try { unsubError?.(); } catch { /* ignore */ }
+      try { unsubRegisterAck?.(); } catch { /* ignore */ }
       try { wrap.remove(); } catch { /* ignore */ }
     }
   };
