@@ -34,6 +34,18 @@
     - 旧 B/C/D/E（`20260110033517~20260110033520`）已归档到同一目录，并以 `20260110040857-*` 重新下发覆盖；
     - 本轮仅下发 A~E 五个任务目录。
   - 验收合入（2026-01-10）：A/B/C/D/E 已合并并通过 Jest+lint。
+  - 人工验收（2026-01-10）：用户确认已通过，相关任务已归档：`todo-and-doing/4 archive/20260110110206-doing-archive/`。
+
+## 2026-01-10：PDFViewer 面条化治理下一批任务（新下发 A~E）
+- 依据：
+  - `docs/reports/20260109-infra-nav-url-loader-scan-F.md`
+  - `docs/reports/20260109-pdfviewer-core-ui-scan-E.md`
+- 任务目录（doing）：
+  - A（P0：NavigationService 卸载清理 + 可取消 waitForPageReady）：`todo-and-doing/1 doing/20260110123105-infra-nav-navigation-service-cleanup-A/`
+  - B（P1：PDFUrlLoaderFeature.install 拆分 + Gate 状态机收敛）：`todo-and-doing/1 doing/20260110123105-pdf-url-loader-install-split-B/`
+  - C（P1：pdf-outline UI 去 WS 直连耦合）：`todo-and-doing/1 doing/20260110123105-pdf-outline-ws-decouple-C/`
+  - D（P2：StateManager 事件粒度化 / batchUpdate）：`todo-and-doing/1 doing/20260110123105-core-state-manager-granular-events-D/`
+  - E（P2：LifecycleManager 全局 error handler 卸载对称）：`todo-and-doing/1 doing/20260110123105-core-lifecycle-error-scope-E/`
 
 ## 2026-01-10：已知问题（延期）
 - KI-20260110-01：outline/search 组合操作偶发触发爆栈日志（`Maximum call stack size exceeded`），用户确认“不太重要”，暂不修复，仅文档化与建 todo。
