@@ -10,7 +10,6 @@ import { PDF_VIEWER_EVENTS } from "../../../common/event/pdf-viewer-constants.js
 import { PDFUrlLoaderFeatureConfig } from "./feature.config.js";
 import { NavigationRequestGate } from "./components/navigation-request-gate.js";
 import { buildNavigationRequestKey } from "./components/nav-request-key.js";
-import { URLParamsParser } from "./components/url-params-parser.js";
 import {
   parseAndValidateUrlParams,
   resolveContainer,
@@ -326,24 +325,12 @@ export class PDFUrlLoaderFeature {
       this.#logger.info("收到手动导航请求:", params);
     }
 
-    const validation = URLParamsParser.validate(params);
-    if (!validation.isValid) {
-      this.#logger.error("导航参数验证失败:", validation.errors);
-      this.#emitNavigationFailed(
-        new Error(validation.errors.join("; ")),
-        "parse"
-      );
+    const contract = this.#validateManualNavigationRequestParams(params);
+    if (!contract.isValid) {
+      this.#logger.error("[url-navigation] 手动导航请求契约校验失败:", contract.errors);
+      this.#emitNavigationFailed(new Error(contract.errors.join("; ")), "validate");
       return;
     }
-
-    // 不做任何 fallback：缺少 pageAt 直接失败
-    if (params.pageAt === null || params.pageAt === undefined) {
-      this.#logger.error("[url-navigation] 缺少 pageAt，拒绝导航（严格模式）");
-      this.#emitNavigationFailed(new Error("missing pageAt"), "parse");
-      return;
-    }
-
-    // 注：pageAt===1 是一个有效页码（第一页），不可拦截。仅缺少 pageAt 时由分发器拒绝执行。
 
     const startTime = performance.now();
 
@@ -405,6 +392,49 @@ export class PDFUrlLoaderFeature {
     } finally {
       this.#navGate.reset();
     }
+  }
+
+  #validateManualNavigationRequestParams(params) {
+    const errors = [];
+
+    if (!params || typeof params !== "object") {
+      return { isValid: false, errors: ["params must be an object"], warnings: [] };
+    }
+
+    const allowedKeys = new Set(["pdfId", "pageAt", "position"]);
+
+    for (const [key, value] of Object.entries(params)) {
+      if (allowedKeys.has(key)) { continue; }
+      if (value === null || value === undefined) { continue; }
+      errors.push(`unexpected field: ${key}`);
+    }
+
+    const pdfId = params.pdfId;
+    if (pdfId !== null && pdfId !== undefined) {
+      if (typeof pdfId !== "string" || !pdfId.trim()) {
+        errors.push("pdfId must be a non-empty string");
+      } else if (pdfId.includes("/") || pdfId.includes("\\")) {
+        errors.push("pdfId must not contain path separators");
+      }
+    }
+
+    const pageAt = params.pageAt;
+    if (pageAt === null || pageAt === undefined) {
+      errors.push("missing pageAt");
+    } else if (typeof pageAt !== "number" || Number.isNaN(pageAt) || !Number.isInteger(pageAt) || pageAt < 1) {
+      errors.push("pageAt must be an integer >= 1");
+    }
+
+    const position = params.position;
+    if (position !== null && position !== undefined) {
+      if (typeof position !== "number" || Number.isNaN(position)) {
+        errors.push("position must be a number or null");
+      } else if (position < 0 || position > 100) {
+        errors.push("position must be between 0 and 100");
+      }
+    }
+
+    return { isValid: errors.length === 0, errors, warnings: [] };
   }
 
   #emitNavigationSuccess(data) {
