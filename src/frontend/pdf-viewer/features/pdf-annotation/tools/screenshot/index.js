@@ -149,6 +149,10 @@ export class ScreenshotTool extends IAnnotationTool {
       this.#logger.error("[ScreenshotTool] AnnotationManager.store.subscribe not available");
       throw new Error("[ScreenshotTool] AnnotationManager.store is not correctly initialized.");
     }
+    if (typeof this.#annotationManager.store.get !== "function") {
+      this.#logger.error("[ScreenshotTool] AnnotationManager.store.get not available");
+      throw new Error("[ScreenshotTool] AnnotationManager.store.get is required.");
+    }
 
     this.#storeUnsubscribe = this.#annotationManager.store.subscribe(
       (state) => state?.annotations,
@@ -165,11 +169,11 @@ export class ScreenshotTool extends IAnnotationTool {
         try {
           const pn = evt?.pageNumber;
           if (!pn) {return;}
-          this.#markerQueue?.flushPendingForPage?.(pn);
+          try { this.#markerQueue?.clearPendingForPage?.(pn); } catch (e) { this.#logger?.debug?.("[ScreenshotTool] clearPendingForPage failed", e); }
           // 缩放或页面重绘后，主动按页恢复已渲染的截图标记（与 CommentTool 行为对齐）
-          this.#restoreScreenshotMarkersForPage(pn);
+          this.#refreshScreenshotMarkersForPage(pn);
         } catch (e) {
-          this.#logger?.warn?.("[ScreenshotTool] flush pending on pagerendered failed", e);
+          this.#logger?.warn?.("[ScreenshotTool] pagerendered handler failed", e);
         }
       };
 
@@ -178,6 +182,7 @@ export class ScreenshotTool extends IAnnotationTool {
       // 缩放阶段：先清除可见标记，避免旧像素矩形残留
       this.#pdfjsScaleChangingHandler = () => {
         try { this.clearAllMarkers(); } catch (e) { this.#logger?.debug?.("[ScreenshotTool] clearAllMarkers failed on scale changing", e); }
+        try { this.#storeReactiveMarkers?.invalidateAll?.(); } catch (e) { this.#logger?.debug?.("[ScreenshotTool] invalidateAll failed on scale changing", e); }
       };
 
       try { this.#pdfjsEventBus.on(PDF_VIEWER_EVENTS.PDFJS_EVENTS.SCALE.CHANGING, this.#pdfjsScaleChangingHandler); } catch (e) { this.#logger?.debug?.("[ScreenshotTool] register SCALE.CHANGING hook failed", e); }
@@ -187,7 +192,7 @@ export class ScreenshotTool extends IAnnotationTool {
         try {
           const pn = Number(this.#pdfViewerManager?.currentPageNumber || 0);
           if (pn) {
-            this.#restoreScreenshotMarkersForPage(pn);
+            this.#refreshScreenshotMarkersForPage(pn);
           }
         } catch (e) { this.#logger?.debug?.("[ScreenshotTool] scalechange restore failed", e); }
       };
@@ -375,34 +380,32 @@ export class ScreenshotTool extends IAnnotationTool {
   }
 
   /**
-   * 恢复指定页上的所有截图标记（在 pagerendered 后调用）
+   * 刷新指定页上的所有截图标记（事件仅作为“刷新信号”，渲染仍由 storeReactiveMarkers 统一驱动）
    * @param {number} pageNumber
    * @private
    */
-  #restoreScreenshotMarkersForPage(pageNumber) {
-    try {
-      const allAnnotations = this.#annotationManager?.store?.get()?.annotations || [];
-      const screenshots = allAnnotations.filter(
-        (a) => a && a.type === AnnotationType.SCREENSHOT && a.pageNumber === pageNumber
-      );
-      if (screenshots.length === 0) {
-        return;
-      }
-      this.#logStep("04.rest", "Restoring screenshot markers for page", {
-        page: pageNumber,
-        count: screenshots.length,
-      });
-      screenshots.forEach((ann) => {
-        try {
-          this.#logStep("04.rest.each", "Restore item", { id: ann.id, page: ann.pageNumber });
-          this.ensureOverlayFor(ann);
-        } catch (e) {
-          this.#logger?.debug?.("[ScreenshotTool] restore item failed", e);
-        }
-      });
-    } catch (e) {
-      this.#logger?.warn?.("[ScreenshotTool] restoreScreenshotMarkersForPage failed", e);
+  #refreshScreenshotMarkersForPage(pageNumber) {
+    const pn = Number(pageNumber || 0);
+    if (!pn) {
+      return;
     }
+
+    const store = this.#annotationManager?.store || null;
+    if (!store || typeof store.get !== "function") {
+      throw new Error("[ScreenshotTool] AnnotationManager.store.get is required for refresh");
+    }
+
+    const allAnnotations = store.get()?.annotations || [];
+    const screenshots = allAnnotations.filter((a) => a && a.type === AnnotationType.SCREENSHOT);
+
+    try { this.#storeReactiveMarkers?.invalidatePage?.(pn); } catch (e) { this.#logger?.debug?.("[ScreenshotTool] invalidatePage failed", e); }
+
+    this.#logStep("04.rest", "Refreshing screenshot markers for page", {
+      page: pn,
+      total: screenshots.length
+    });
+
+    this.#updateScreenshotMarkers(screenshots);
   }
 
   // ===== 辅助方法 =====
@@ -416,8 +419,8 @@ export class ScreenshotTool extends IAnnotationTool {
     const pn = Number(data?.pageNumber || 0);
     if (!pn) { return; }
     this.#logStep("04.bridge", "RENDER.PAGE_COMPLETED (app) received", { page: pn });
-    this.#markerQueue?.flushPendingForPage?.(pn);
-    this.#restoreScreenshotMarkersForPage(pn);
+    try { this.#markerQueue?.clearPendingForPage?.(pn); } catch (e) { this.#logger?.debug?.("[ScreenshotTool] clearPendingForPage failed", e); }
+    this.#refreshScreenshotMarkersForPage(pn);
   };
 
   /**

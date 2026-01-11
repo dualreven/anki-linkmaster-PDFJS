@@ -33,6 +33,27 @@ export class ScreenshotStoreReactiveMarkers {
     this.#lastSigById.clear();
   }
 
+  invalidateAll() {
+    this.#lastSigById.clear();
+  }
+
+  invalidatePage(pageNumber) {
+    const pn = Number(pageNumber || 0);
+    if (!pn) {
+      throw new Error("[ScreenshotStoreReactiveMarkers] pageNumber must be a positive number");
+    }
+
+    for (const [id, ann] of this.#lastById.entries()) {
+      if (!ann) {
+        continue;
+      }
+      if (Number(ann.pageNumber || 0) !== pn) {
+        continue;
+      }
+      this.#lastSigById.delete(id);
+    }
+  }
+
   apply(currentScreenshots) {
     if (!Array.isArray(currentScreenshots)) {
       throw new Error("[ScreenshotStoreReactiveMarkers] currentScreenshots must be an array");
@@ -87,4 +108,3 @@ export class ScreenshotStoreReactiveMarkers {
     return `p=${pageNumber}|x=${x}|y=${y}|w=${w}|h=${h}|c=${markerColor}`;
   }
 }
-

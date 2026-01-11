@@ -23,9 +23,13 @@ describe("ScreenshotTool store-diff (regression)", () => {
   let annotationManager;
   let viewerContainer;
   let pageDiv;
+  let pdfjsEventBus;
 
   let renderMarkerSpy;
   let removeMarkerSpy;
+  let storeUnsubCalled;
+  let storeSubscribeSpy;
+  let renderPageCompletedUnsubSpy;
 
   beforeEach(async () => {
     viewerContainer = document.createElement("div");
@@ -41,18 +45,38 @@ describe("ScreenshotTool store-diff (regression)", () => {
       emit: jest.fn(),
       emitGlobal: jest.fn(),
       on: jest.fn(() => () => {}),
-      onGlobal: jest.fn(() => () => {}),
+      onGlobal: jest.fn(),
       off: jest.fn(),
       offGlobal: jest.fn()
     };
 
+    renderPageCompletedUnsubSpy = jest.fn();
+    eventBus.onGlobal.mockImplementation(() => renderPageCompletedUnsubSpy);
+
+    pdfjsEventBus = {
+      on: jest.fn(),
+      off: jest.fn()
+    };
+
     pdfViewerManager = {
-      getPageView: jest.fn(() => ({ div: pageDiv }))
+      getPageView: jest.fn(() => ({ div: pageDiv })),
+      eventBus: pdfjsEventBus,
+      currentPageNumber: 3
     };
 
     annotationManager = {
       store: new ObservableState({ annotations: [] }, { name: "TestAnnotationStore" })
     };
+
+    storeUnsubCalled = jest.fn();
+    storeSubscribeSpy = jest.spyOn(annotationManager.store, "subscribe").mockImplementation((...args) => {
+      const originalSubscribe = ObservableState.prototype.subscribe.bind(annotationManager.store);
+      const unsub = originalSubscribe(...args);
+      return () => {
+        storeUnsubCalled();
+        return unsub();
+      };
+    });
 
     const logger = {
       info: jest.fn(),
@@ -70,12 +94,15 @@ describe("ScreenshotTool store-diff (regression)", () => {
 
     tool = new ScreenshotTool();
     await tool.initialize({ eventBus, logger, pdfViewerManager, annotationManager });
+
+    expect(pdfjsEventBus.on).toHaveBeenCalledTimes(3);
   });
 
   afterEach(() => {
     try { tool?.destroy?.(); } catch (e) { void e; }
     renderMarkerSpy.mockRestore();
     removeMarkerSpy.mockRestore();
+    storeSubscribeSpy?.mockRestore?.();
     if (viewerContainer?.parentNode) {
       viewerContainer.parentNode.removeChild(viewerContainer);
     }
@@ -110,6 +137,9 @@ describe("ScreenshotTool store-diff (regression)", () => {
     expect(removeMarkerSpy).toHaveBeenCalledWith("s-1");
 
     tool.destroy();
+    expect(storeUnsubCalled).toHaveBeenCalledTimes(1);
+    expect(renderPageCompletedUnsubSpy).toHaveBeenCalledTimes(1);
+    expect(pdfjsEventBus.off).toHaveBeenCalledTimes(3);
     annotationManager.store.set({ annotations: [screenshotAnnotation] });
     expect(renderMarkerSpy).toHaveBeenCalledTimes(1);
     expect(removeMarkerSpy).toHaveBeenCalledTimes(1);
@@ -139,4 +169,3 @@ describe("ScreenshotTool store-diff (regression)", () => {
     expect(renderMarkerSpy).toHaveBeenCalledTimes(1);
   });
 });
-

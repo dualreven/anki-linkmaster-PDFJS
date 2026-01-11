@@ -3,7 +3,7 @@ import { AnnotationType } from "../../../../../common/models/annotation.js";
 /**
  * ScreenshotTool 的 marker 队列（从 screenshot/index.js 抽离）
  * - 页面未就绪：入队
- * - pagerendered / RENDER.PAGE_COMPLETED：flush
+ * - 页面就绪信号到达：清空 pending（渲染由 storeReactiveMarkers 统一驱动）
  */
 export class ScreenshotMarkerQueue {
   #pdfViewerManager;
@@ -81,23 +81,18 @@ export class ScreenshotMarkerQueue {
     }
   }
 
-  flushPendingForPage(pageNumber) {
-    try {
-      const pageMap = this.#pendingMarkersByPage.get(pageNumber);
-      if (!pageMap || pageMap.size === 0) {return;}
-
-      const items = Array.from(pageMap.values());
-      this.#pendingMarkersByPage.delete(pageNumber);
-      this.#logStep("04", "pagerendered → flush pending", { page: pageNumber, count: items.length }, "info", 1800);
-      items.forEach((ann) => {
-        try {
-          this.#logStep("04.1", "Flushing item", { id: ann.id, page: pageNumber });
-          this.#renderMarker(ann);
-        } catch (e) { this.#logger?.debug?.("[ScreenshotTool] flush item failed", e); }
-      });
-      this.#logStep("04.done", "Flush completed", { page: pageNumber, count: items.length });
-    } catch (e) {
-      this.#logger?.warn?.("[ScreenshotTool] flushPendingForPage failed", e);
+  clearPendingForPage(pageNumber) {
+    const pn = Number(pageNumber || 0);
+    if (!pn) {
+      throw new Error("[ScreenshotMarkerQueue] pageNumber must be a positive number");
     }
+
+    const pageMap = this.#pendingMarkersByPage.get(pn);
+    const count = pageMap?.size || 0;
+    this.#pendingMarkersByPage.delete(pn);
+    if (count > 0) {
+      this.#logStep("04.qclr", "Page ready → clear pending queue", { page: pn, count }, "info", 1600);
+    }
+    return count;
   }
 }
