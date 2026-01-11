@@ -4,9 +4,8 @@
 - 新卡片规划器新增“创建空卡”按钮，并补回归测试。
 
 ## 交付
-- Commit: （必填）
+- Commit: `7f4d4812`
 
 ## 自检
-- `pnpm -s run lint`：
-- `pnpm exec jest --runTestsByPath src/frontend/new-card-scheduler/planner/__tests__/create-empty-card-button.contract.test.js -i`：
-
+- `pnpm -s run lint`：✅
+- `pnpm exec jest --runTestsByPath src/frontend/new-card-scheduler/planner/__tests__/create-empty-card-button.contract.test.js -i`：✅
