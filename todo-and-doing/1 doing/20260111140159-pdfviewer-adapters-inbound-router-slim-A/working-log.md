@@ -11,9 +11,10 @@
 3. 先写回归测试，再做重构与对称卸载
 4. 跑 `pnpm -s run lint` 与定向 Jest
 ### 工作结果:
-- [待填写]
+- 入站路由收敛：将 outline/anchor 域入站 handlers 从 `ws-inbound-bridge.js` 抽离到独立文件，bridge 保持单入口装配执行。
+- 生命周期对称：`WebSocketAdapter.destroy()` 增补清理 inbound destroySignal 绑定；并提供 `install()/uninstall()` 语义别名。
+- 防回归测试：新增 `destroy` 后不再处理 `WEBSOCKET_EVENTS.MESSAGE.RECEIVED` 的回归用例。
 ### 存在问题:
-- [待填写]
+- Jest 输出提示 `baseline-browser-mapping` 数据过旧（非本任务范围，不影响用例通过）。
 ### 下一步计划:
-- [待填写]
-
+- 无。
