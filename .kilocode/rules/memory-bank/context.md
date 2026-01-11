@@ -188,3 +188,8 @@
   - E：`260f764d`（pdf-url-loader 契约 Fail-Fast + 回归）`77604892`（report/log）
 - 门禁（main 侧）：`pnpm -s run lint` ✅（lines=179）；Jest（定向并集）✅（10 suites / 12 tests）
 - 手工点检：D 建议“快速关闭窗口/快速重开”观察是否有未捕获异常日志；用户确认后再归档 doing + 同步覆盖 A~E
+
+### 2026-01-11：20260111140159 批次已归档并同步
+- 用户已手工点检确认通过（2026-01-11）。
+- 归档：`todo-and-doing/4 archive/20260111155506-doing-archive/`
+- 同步覆盖：已对 `anki-linkmaster-A/B/C/D/E` 执行 `git reset --hard main` + `git clean -fd`（基线 `f464ef0c`）
