@@ -226,9 +226,11 @@ class GUILauncher(QMainWindow):
         row_tools = QHBoxLayout()
         btn_card_planner = QPushButton("启动 新卡片规划器 (Hosted)")
         btn_card_planner_manual_inject = QPushButton("Card Planner 测试：注入样例草稿卡")
+        btn_card_planner_open_wait_inject = QPushButton("Card Planner 测试：等待注册再注入")
         btn_custom_reviewer = QPushButton("启动 定制复习器 (Hosted)")
         row_tools.addWidget(btn_card_planner)
         row_tools.addWidget(btn_card_planner_manual_inject)
+        row_tools.addWidget(btn_card_planner_open_wait_inject)
         row_tools.addWidget(btn_custom_reviewer)
         lay.addLayout(row_tools)
 
@@ -250,6 +252,7 @@ class GUILauncher(QMainWindow):
         btn_stop_backend.clicked.connect(self._stop_backend_hosted) # type: ignore[arg-type]
         btn_card_planner.clicked.connect(self._start_new_card_scheduler_hosted)  # type: ignore[arg-type]
         btn_card_planner_manual_inject.clicked.connect(self._card_planner_manual_test_inject_sample_draft_cards)  # type: ignore[arg-type]
+        btn_card_planner_open_wait_inject.clicked.connect(self._card_planner_manual_test_open_wait_register_then_inject_sample_draft_cards)  # type: ignore[arg-type]
         btn_custom_reviewer.clicked.connect(self._start_custom_reviewer_hosted)  # type: ignore[arg-type]
         btn_ann_bulk_get_selftest.clicked.connect(self._annotation_bulk_get_selftest)  # type: ignore[arg-type]
 
@@ -865,108 +868,166 @@ class GUILauncher(QMainWindow):
             # 1) 先启动/激活窗口（复用已有 Hosted 启动逻辑）
             self._start_new_card_scheduler_hosted()
 
-            from src.backend.msgCenter_server.standard_protocol import StandardMessageHandler as _SMH  # type: ignore
-            import time as _time
-
-            def _send_ingest_or_log(op: Dict[str, Any], ann_ids: list[str]) -> None:
-                rid = _SMH.generate_request_id()
-                msg: Dict[str, Any] = {
-                    "type": "card-planner:ingest:requested",
-                    # MsgCenter forward 路由：to 必须是 list（字符串仅允许 'backend'）
-                    "to": [{"client_id": "new-card-scheduler"}],
-                    "timestamp": int(_time.time() * 1000),
-                    "request_id": rid,
-                    "data": {
-                        "op": op,
-                        "annotation_ids": list(ann_ids),
-                    },
-                }
-                payload_text = _SMH.serialize_message(msg)
-                self._log(f"[TRACE] → ws://127.0.0.1:{ws_port} 发送 Card Planner 注入请求: rid={rid} op={op}")
-                ack_text = self._send_ws_text_qt(
-                    ws_port,
-                    payload_text,
-                    timeout_ms=2000,
-                    expect_types=("card-planner:ingest:completed", "card-planner:ingest:failed"),
-                    correlation_id=rid,
-                )
-                if ack_text:
-                    self._log(f"[ACK] {ack_text}")
-                    try:
-                        ack_obj = json.loads(ack_text)
-                        ack_type = ack_obj.get("type")
-                        # ACK_META 兼容两种形态：
-                        # 1) 顶层：ack.code/status/message/error_code
-                        # 2) 旧形态：ack.data.code/status/message/error_code
-                        ack_data = ack_obj.get("data") if isinstance(ack_obj.get("data"), dict) else {}
-                        code = ack_obj.get("code")
-                        status = ack_obj.get("status")
-                        message = ack_obj.get("message")
-                        error_code = ack_obj.get("error_code")
-                        if code is None:
-                            code = ack_data.get("code")
-                        if status is None:
-                            status = ack_data.get("status")
-                        if message is None:
-                            message = ack_data.get("message")
-                        if error_code is None:
-                            error_code = ack_data.get("error_code")
-                        if error_code is None:
-                            error_code = ack_obj.get("error") or ack_data.get("error")
-                        self._log(
-                            "[ACK_META] "
-                            f"type={ack_type} "
-                            f"code={code} "
-                            f"status={status} "
-                            f"message={message} "
-                            f"error_code={error_code}"
-                        )
-                        missing = []
-                        if code is None:
-                            missing.append("code")
-                        if status is None:
-                            missing.append("status")
-                        if message is None:
-                            missing.append("message")
-                        if error_code is None:
-                            missing.append("error_code")
-                        if missing:
-                            self._log(f"[WARN] ACK_META 字段缺失（{','.join(missing)}）：{ack_obj}")
-
-                        if code == 202:
-                            self._log(
-                                "[INFO] 注入已排队等待 new-card-scheduler 注册，稍后会自动注入；建议切换窗口观察 toast/渲染。"
-                            )
-
-                        if ack_obj.get("type") == "card-planner:ingest:failed":
-                            QMessageBox.critical(self, "注入失败", f"Card Planner 注入失败：{ack_obj}")
-                            self._log(f"[ERROR] Card Planner 注入失败（ingest:failed）：{ack_obj}")
-                        else:
-                            err = error_code
-                            if code == 404 and err == "NO_TARGET_FOUND":
-                                QMessageBox.critical(self, "注入失败", "未找到目标客户端：new-card-scheduler（请先启动新卡片规划器）")
-                                self._log("[ERROR] 目标客户端未注册/不可路由：new-card-scheduler（NO_TARGET_FOUND）")
-                            elif isinstance(code, int) and code >= 400:
-                                QMessageBox.critical(self, "注入失败", f"Card Planner 注入失败（code={code}）：{ack_obj}")
-                                self._log(f"[ERROR] Card Planner 注入失败（code={code}）：{ack_obj}")
-                    except Exception:
-                        pass
-                else:
-                    self._log("[WARN] 超时未收到回执（已发送 Card Planner 注入请求）")
-
-            # 2) 发送两条 ingest：先创建新卡写 Q，再写入 last 的 A（同一卡片）
-            _send_ingest_or_log(
-                op={"kind": "all-to-one", "target": {"kind": "new"}, "face": "Q"},
-                ann_ids=["ann_1", "ann_2"],
-            )
-            _send_ingest_or_log(
-                op={"kind": "all-to-one", "target": {"kind": "last"}, "face": "A"},
-                ann_ids=["ann_3"],
-            )
+            self._card_planner_send_sample_ingests(ws_port)
 
             self._log("✅ 已发送 Card Planner 样例草稿卡注入请求（请切到新卡片规划器窗口观察）")
         except Exception as e:
             self._log(f"[ERROR] Card Planner 注入样例草稿卡失败: {e}")
+
+    def _wait_new_card_scheduler_registered_or_log(
+        self,
+        *,
+        ws_port: int,
+        timeout_ms: int = 3000,
+        poll_interval_ms: int = 120,
+    ) -> bool:
+        """
+        通过 forward `card-planner:state:get:requested` 轮询检测 new-card-scheduler 是否已注册可路由。
+        - 只把“未注册/不可路由”的 404 当作可重试；
+        - 其它错误直接返回 False（Fail-Fast）。
+        """
+        from src.backend.msgCenter_server.standard_protocol import StandardMessageHandler as _SMH  # type: ignore
+        deadline = time.perf_counter() + max(0, int(timeout_ms)) / 1000.0
+        attempt = 0
+        while time.perf_counter() < deadline:
+            attempt += 1
+            rid = _SMH.generate_request_id()
+            msg: Dict[str, Any] = {
+                "type": "card-planner:state:get:requested",
+                "to": [{"client_id": "new-card-scheduler"}],
+                "timestamp": int(time.time() * 1000),
+                "request_id": rid,
+                "data": {},
+            }
+            ack_text = self._send_ws_text_qt(
+                int(ws_port),
+                _SMH.serialize_message(msg),
+                timeout_ms=800,
+                expect_types=("card-planner:state:get:completed", "card-planner:state:get:failed"),
+                correlation_id=rid,
+            )
+            if ack_text:
+                try:
+                    ack_obj = json.loads(ack_text)
+                    code = ack_obj.get("code")
+                    err = ack_obj.get("error_code") or ack_obj.get("error")
+                    if code == 200:
+                        self._log(f"[OK] new-card-scheduler 已注册（attempt={attempt}）")
+                        return True
+                    if code == 404 and err == "NO_TARGET_FOUND":
+                        # 典型竞态：窗口已打开但尚未注册
+                        pass
+                    else:
+                        self._log(f"[ERROR] 等待注册失败（code={code} err={err}）：{ack_obj}")
+                        return False
+                except Exception:
+                    # ACK 无法解析：直接 fail-fast
+                    self._log(f"[ERROR] 等待注册 ACK 解析失败: {ack_text!r}")
+                    return False
+
+            # 继续重试
+            try:
+                time.sleep(max(0, int(poll_interval_ms)) / 1000.0)
+            except Exception:
+                pass
+
+        self._log("[WARN] 等待 new-card-scheduler 注册超时（将继续尝试注入，可能走 pending-forward）")
+        return False
+
+    def _card_planner_send_sample_ingests(self, ws_port: int) -> None:
+        """发送两条样例 ingest（不负责启动/等待注册）。"""
+        from src.backend.msgCenter_server.standard_protocol import StandardMessageHandler as _SMH  # type: ignore
+        import time as _time
+
+        def _send_ingest_or_log(op: Dict[str, Any], ann_ids: list[str]) -> None:
+            rid = _SMH.generate_request_id()
+            msg: Dict[str, Any] = {
+                "type": "card-planner:ingest:requested",
+                "to": [{"client_id": "new-card-scheduler"}],
+                "timestamp": int(_time.time() * 1000),
+                "request_id": rid,
+                "data": {"op": op, "annotation_ids": list(ann_ids)},
+            }
+            payload_text = _SMH.serialize_message(msg)
+            self._log(f"[TRACE] → ws://127.0.0.1:{ws_port} 发送 Card Planner 注入请求: rid={rid} op={op}")
+            ack_text = self._send_ws_text_qt(
+                int(ws_port),
+                payload_text,
+                timeout_ms=2000,
+                expect_types=("card-planner:ingest:completed", "card-planner:ingest:failed"),
+                correlation_id=rid,
+            )
+            if ack_text:
+                self._log(f"[ACK] {ack_text}")
+                try:
+                    ack_obj = json.loads(ack_text)
+                    ack_type = ack_obj.get("type")
+                    ack_data = ack_obj.get("data") if isinstance(ack_obj.get("data"), dict) else {}
+                    code = ack_obj.get("code")
+                    status = ack_obj.get("status")
+                    message = ack_obj.get("message")
+                    error_code = ack_obj.get("error_code")
+                    if code is None:
+                        code = ack_data.get("code")
+                    if status is None:
+                        status = ack_data.get("status")
+                    if message is None:
+                        message = ack_data.get("message")
+                    if error_code is None:
+                        error_code = ack_data.get("error_code")
+                    if error_code is None:
+                        error_code = ack_obj.get("error") or ack_data.get("error")
+                    self._log(
+                        "[ACK_META] "
+                        f"type={ack_type} "
+                        f"code={code} "
+                        f"status={status} "
+                        f"message={message} "
+                        f"error_code={error_code}"
+                    )
+                    if code == 202:
+                        self._log("[INFO] 注入已排队等待 new-card-scheduler 注册，稍后会自动注入；建议切换窗口观察 toast/渲染。")
+                        self._log("[INFO] 自动注入：待 new-card-scheduler 注册后 MsgCenter 会 flush pending-forward。")
+                    if code == 404 and error_code == "NO_TARGET_FOUND":
+                        self._log("[ERROR] 目标客户端未注册/不可路由：new-card-scheduler（NO_TARGET_FOUND）")
+                    if ack_type == "card-planner:ingest:failed":
+                        self._log(f"[ERROR] Card Planner 注入失败（ingest:failed）：{ack_obj}")
+                except Exception:
+                    pass
+            else:
+                self._log("[WARN] 超时未收到回执（已发送 Card Planner 注入请求）")
+
+        _send_ingest_or_log(
+            op={"kind": "all-to-one", "target": {"kind": "new"}, "face": "Q"},
+            ann_ids=["ann_1", "ann_2"],
+        )
+        _send_ingest_or_log(
+            op={"kind": "all-to-one", "target": {"kind": "last"}, "face": "A"},
+            ann_ids=["ann_3"],
+        )
+
+    def _card_planner_manual_test_open_wait_register_then_inject_sample_draft_cards(self) -> None:
+        """一键：打开/激活 NCS → 等待注册可路由 → 注入样例草稿卡。"""
+        try:
+            ports = self._runtime_ports() or {}
+            ws_port = int(ports.get("msgCenter_port") or (self.msgCenter_port_input.value() or 0) or 0)
+            if not ws_port:
+                self._log("[ERROR] 未能获取 MsgCenter 端口（runtime-ports.json 或 UI 均为空）")
+                return
+            if not self._is_port_listening("127.0.0.1", int(ws_port)):
+                QMessageBox.critical(self, "连接错误", f"MsgCenter 未监听端口 {ws_port}，请先启动后端")
+                self._log(f"[ERROR] MsgCenter 未监听端口 {ws_port}，请先启动后端")
+                return
+
+            self._start_new_card_scheduler_hosted()
+            ok = self._wait_new_card_scheduler_registered_or_log(ws_port=ws_port)
+            if not ok:
+                self._log("[WARN] 注册检测失败或超时，将继续注入（可能走 pending-forward）。")
+
+            self._card_planner_send_sample_ingests(ws_port)
+            self._log("✅ 已执行：open → wait-register → inject（请切到新卡片规划器窗口观察）")
+        except Exception as e:
+            self._log(f"[ERROR] open/wait/inject 失败: {e}")
 
     def _annotation_bulk_get_selftest(self) -> None:
         """发送 annotation:bulk-get:requested 到后端，用于人工验收与排障。"""

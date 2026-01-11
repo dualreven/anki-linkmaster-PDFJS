@@ -453,3 +453,96 @@ def test_card_planner_inject_ack_meta_parse_compat_data_shape(monkeypatch):
     assert "code=202" in joined
     assert "status=accepted" in joined
     assert "message=queued" in joined
+
+
+def test_card_planner_open_wait_register_then_inject(monkeypatch):
+    _install_pyqt_stubs()
+    mod = _load_gui_launcher_as("gui_launcher_mod_test_card_planner_open_wait_inject")
+
+    std_mod = types.ModuleType("src.backend.msgCenter_server.standard_protocol")
+
+    class _SMH:
+        _i = 0
+
+        @staticmethod
+        def generate_request_id() -> str:
+            _SMH._i += 1
+            return f"rid_test_{_SMH._i}"
+
+        @staticmethod
+        def serialize_message(msg) -> str:
+            return json.dumps(msg, ensure_ascii=False)
+
+    std_mod.StandardMessageHandler = _SMH
+    monkeypatch.setitem(sys.modules, "src.backend.msgCenter_server.standard_protocol", std_mod)
+
+    monkeypatch.setattr(mod.GUILauncher, "_init_ui", lambda self: None, raising=False)
+    monkeypatch.setattr(mod.GUILauncher, "_init_status_watchers", lambda self: None, raising=False)
+    monkeypatch.setattr(mod.GUILauncher, "_update_status", lambda self: None, raising=False)
+    monkeypatch.setattr(mod.GUILauncher, "_runtime_ports", lambda self: {"msgCenter_port": 8765}, raising=False)
+    monkeypatch.setattr(mod.GUILauncher, "_is_port_listening", lambda self, host, port, timeout=0.6: True, raising=False)
+
+    opened = {"count": 0}
+    monkeypatch.setattr(mod.GUILauncher, "_start_new_card_scheduler_hosted", lambda self: opened.__setitem__("count", opened["count"] + 1), raising=False)
+
+    calls = []
+    state_attempt = {"n": 0}
+
+    def fake_send_ws(self, port, text, timeout_ms=2000, *, expect_types=(), correlation_id=None):
+        calls.append({"port": port, "text": text, "expect_types": expect_types, "correlation_id": correlation_id})
+        msg = json.loads(text)
+        if msg.get("type") == "card-planner:state:get:requested":
+            state_attempt["n"] += 1
+            if state_attempt["n"] < 3:
+                return json.dumps(
+                    {
+                        "type": "card-planner:state:get:failed",
+                        "request_id": msg.get("request_id"),
+                        "timestamp": 0,
+                        "code": 404,
+                        "status": "error",
+                        "message": "no target",
+                        "error_code": "NO_TARGET_FOUND",
+                    },
+                    ensure_ascii=False,
+                )
+            return json.dumps(
+                {
+                    "type": "card-planner:state:get:completed",
+                    "request_id": msg.get("request_id"),
+                    "timestamp": 0,
+                    "code": 200,
+                    "status": "success",
+                    "message": "forwarded",
+                    "data": {},
+                },
+                ensure_ascii=False,
+            )
+
+        if msg.get("type") == "card-planner:ingest:requested":
+            return json.dumps(
+                {
+                    "type": "card-planner:ingest:completed",
+                    "request_id": msg.get("request_id"),
+                    "timestamp": 0,
+                    "code": 200,
+                    "status": "success",
+                    "message": "forwarded",
+                },
+                ensure_ascii=False,
+            )
+        return json.dumps({"type": "unknown", "request_id": msg.get("request_id")}, ensure_ascii=False)
+
+    monkeypatch.setattr(mod.GUILauncher, "_send_ws_text_qt", fake_send_ws, raising=False)
+    monkeypatch.setattr(mod.time, "sleep", lambda _s: None, raising=False)
+
+    g = mod.GUILauncher()
+    g.msgCenter_port_input = types.SimpleNamespace(value=lambda: 8765)
+    g._log = lambda _m: None
+
+    g._card_planner_manual_test_open_wait_register_then_inject_sample_draft_cards()
+
+    assert opened["count"] == 1
+    assert state_attempt["n"] >= 3
+    ingests = [json.loads(c["text"]) for c in calls if "card-planner:ingest:requested" in c["text"]]
+    assert len(ingests) == 2
