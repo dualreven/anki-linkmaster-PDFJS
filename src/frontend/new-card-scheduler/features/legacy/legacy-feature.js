@@ -95,10 +95,10 @@ export class LegacyNewCardSchedulerFeature {
   }
 
   async install(context) {
-    const eventBus = context?.eventBus;
+    const eventBus = context?.globalEventBus;
     const logger = context?.logger;
     if (!eventBus) {
-      throw new Error("LegacyNewCardSchedulerFeature.install: context.eventBus 缺失");
+      throw new Error("LegacyNewCardSchedulerFeature.install: context.globalEventBus 缺失");
     }
 
     const notification = this.#options.notification || { showInfo, showError };
