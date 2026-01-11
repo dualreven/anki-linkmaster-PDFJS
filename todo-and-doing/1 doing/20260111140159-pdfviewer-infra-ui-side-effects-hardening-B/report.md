@@ -2,17 +2,16 @@
 
 ## 交付信息
 - Owner: B
-- Commit: `<填写commit-hash>`
+- Commit: `5ad13af4`（代码/测试）
 - Scope: `src/frontend/pdf-viewer/features/infra-ui/**`
 
 ## 改动清单
-- `git show --name-only <commit>`
+- `git show --name-only 5ad13af4`
 
 ## 门禁与测试
-- Lint: `pnpm -s run lint`（结果：✅/❌，粘贴关键输出）
-- Jest: `pnpm exec jest --runTestsByPath <tests> -i`（结果：✅/❌，粘贴关键输出）
+- Lint: `pnpm -s run lint`（结果：✅）
+- Jest: `pnpm exec jest --runTestsByPath src/frontend/pdf-viewer/features/infra-ui/components/__tests__/ui-manager-core-copy-pdf-id.timeout-cleanup.test.js src/frontend/pdf-viewer/features/infra-ui/components/__tests__/ui-zoom-controls.timeout-cleanup.test.js src/frontend/pdf-viewer/features/infra-ui/components/__tests__/ui-zoom-controls.destroy.test.js src/frontend/pdf-viewer/features/infra-ui/__tests__/copy-pdf-id-button.test.js -i`（结果：✅）
 
 ## 说明
-- 是否需要手工点检：是/否（说明原因与路径）
-- 风险点：<如有>
-
+- 是否需要手工点检：否（纯副作用清理与单测覆盖）
+- 风险点：无
