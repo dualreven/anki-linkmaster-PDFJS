@@ -122,6 +122,7 @@
 
 ## 2026-01-11：PDFViewer 去面条化新派工（A~E，20260111160726）
 - 规划者进度粗评：当前 **7/10** → 本轮目标 **8/10**
+- 派工提交（main）：`4874e0d0`
 - 主攻方向：
   - 清除 `src/frontend/pdf-viewer/features/**/components/**` 内残留 `eventBus.on(...)`（收敛到装配层或 store 驱动）
   - 补齐 legacy 模块/管理器的 destroy/uninstall 契约（用回归测试锁死）
