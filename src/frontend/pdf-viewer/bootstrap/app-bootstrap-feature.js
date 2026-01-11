@@ -31,6 +31,35 @@ import { resolveWebSocketPortSync, DEFAULT_WS_PORT } from "../../common/utils/ws
 import { PageZoomGuardFeature } from "./page-zoom-guard-feature.js";
 const logger = getLogger("pdf-viewer.bootstrap");
 
+function createAbortError() {
+  const e = new Error("[Bootstrap] aborted");
+  e.name = "AbortError";
+  return e;
+}
+
+/**
+ * @param {AbortSignal} signal
+ */
+function assertNotAborted(signal) {
+  if (signal.aborted) {
+    throw createAbortError();
+  }
+}
+
+/**
+ * @param {AbortSignal} signal
+ * @returns {Promise<never>}
+ */
+function abortPromise(signal) {
+  return new Promise((_, reject) => {
+    if (signal.aborted) {
+      reject(createAbortError());
+      return;
+    }
+    signal.addEventListener("abort", () => reject(createAbortError()), { once: true });
+  });
+}
+
 /**
  * 解析PDF文件路径
  * @returns {string|null} PDF文件路径
@@ -59,6 +88,10 @@ function resolvePDFPath() {
 export async function bootstrapPDFViewerAppFeature() {
   logger.info("[Bootstrap] Starting PDF Viewer App initialization (Feature-based)...");
 
+  const abortController = new AbortController();
+  const signal = abortController.signal;
+  let destroyPromise = null;
+
   try {
     // 1. 解析配置
     const wsPort = resolveWebSocketPortSync({ fallbackPort: DEFAULT_WS_PORT });
@@ -82,6 +115,27 @@ export async function bootstrapPDFViewerAppFeature() {
       // Step 1：注入（当前为空映射，零行为变更）；Step 2 再填充别名
       aliases: FEATURE_ALIASES
     });
+
+    // 重要：提前暴露 destroy，用于“快速关闭窗口”场景中取消等待链路
+    // 注意：destroy 必须可重复调用（幂等），并且 abort 后 bootstrap 必须 Fail-Fast。
+    window.pdfViewerApp = {
+      destroy: () => {
+        if (destroyPromise) {
+          return destroyPromise;
+        }
+        destroyPromise = (async () => {
+          abortController.abort();
+          try {
+            await registry.uninstallAll?.();
+          } catch (e) {
+            logger.warn("[Bootstrap] destroy: uninstallAll failed", e);
+          }
+        })();
+        return destroyPromise;
+      }
+    };
+
+    assertNotAborted(signal);
 
     // Outline 相关模块默认降噪到 ERROR；必要时可通过 URL 参数临时提升
     try {
@@ -137,19 +191,29 @@ export async function bootstrapPDFViewerAppFeature() {
 
     // 5. 安装所有 Features（自动解析依赖顺序）
     logger.info("[Bootstrap] Installing features...");
-    await registry.installAll();
+    const installing = registry.installAll();
+    try {
+      await Promise.race([installing, abortPromise(signal)]);
+    } catch (e) {
+      if (signal.aborted || e?.name === "AbortError") {
+        // 避免 installAll 在 abort 后结束（reject）触发 unhandledRejection
+        void installing.catch((err) => {
+          logger.warn("[Bootstrap] installAll finished after abort", err);
+        });
+        throw createAbortError();
+      }
+      throw e;
+    }
+
+    assertNotAborted(signal);
 
     // 6. 设置全局引用（便于调试）
-    window.pdfViewerApp = {
+    Object.assign(window.pdfViewerApp, {
       registry,
       container,
       getFeature: (name) => {
         const record = registry.get(name);
         return record ? record.feature : null;
-      },
-      destroy: () => {
-        // 卸载所有 feature
-        registry.uninstallAll();
       },
       eventBus: eventBusSingleton,
       // 测试助手（仅测试使用）：通过 EventBus 触发导航
@@ -178,9 +242,10 @@ export async function bootstrapPDFViewerAppFeature() {
           }
         }
       }
-    };
+    });
 
     // 7. 如果有PDF路径，自动加载（但当URL已提供 pdf-id 时，避免与 PDFUrlLoaderFeature 重复触发）
+    assertNotAborted(signal);
     const hasPdfIdParam = (() => { try { return !!new URLSearchParams(window.location.search).get("pdf-id"); } catch { return false; } })();
     if (pdfPath && !hasPdfIdParam) {
       logger.info(`[Bootstrap] Auto-loading PDF: ${pdfPath}`);
@@ -218,6 +283,7 @@ export async function bootstrapPDFViewerAppFeature() {
     logger.info("[Bootstrap] PDF Viewer App started successfully");
 
     // 提示：当前为 Outline 模式（固定）
+    assertNotAborted(signal);
     try {
       showInfo("当前为 Outline 模式", 3000);
       logger.info("[Bootstrap] Outline mode is active (enforced)");
@@ -227,6 +293,10 @@ export async function bootstrapPDFViewerAppFeature() {
     return registry;
 
   } catch (error) {
+    // 若已取消，确保不会继续推进后续步骤
+    if (signal.aborted || error?.name === "AbortError") {
+      throw createAbortError();
+    }
     logger.error("[Bootstrap] Failed to start PDF Viewer App:", error);
     logger.error("[Bootstrap] Error message:", error?.message);
     logger.error("[Bootstrap] Error stack:", error?.stack);
