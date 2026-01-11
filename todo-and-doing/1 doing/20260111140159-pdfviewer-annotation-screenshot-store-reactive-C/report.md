@@ -2,17 +2,21 @@
 
 ## 交付信息
 - Owner: C
-- Commit: `<填写commit-hash>`
+- Commit: `f1189dee`
 - Scope: `src/frontend/pdf-viewer/features/pdf-annotation/**`
 
 ## 改动清单
-- `git show --name-only <commit>`
+- `src/frontend/pdf-viewer/features/pdf-annotation/tools/screenshot/index.js`
+- `src/frontend/pdf-viewer/features/pdf-annotation/tools/screenshot/marker-queue.js`
+- `src/frontend/pdf-viewer/features/pdf-annotation/tools/screenshot/store-reactive-markers.js`
+- `src/frontend/pdf-viewer/features/pdf-annotation/tools/screenshot/screenshot-tool.store-diff.regression.test.js`
 
 ## 门禁与测试
-- Lint: `pnpm -s run lint`（结果：✅/❌，粘贴关键输出）
-- Jest: `pnpm exec jest --runTestsByPath <tests> -i`（结果：✅/❌，粘贴关键输出）
+- Lint: `pnpm -s run lint`（结果：✅）
+- Jest: `pnpm exec jest --runTestsByPath src/frontend/pdf-viewer/features/pdf-annotation/tools/screenshot/screenshot-tool.store-diff.regression.test.js -i`（结果：✅）
 
 ## 说明
-- 是否需要手工点检：是/否（说明原因与路径）
-- 风险点：<如有>
+- 事件处理：保留 PDF.js/app 事件作为“刷新信号”，实际 marker 增删改渲染统一走 storeReactiveMarkers（避免绕过 store 的双驱动）。
+- 卸载清理：回归测试覆盖 destroy 后 store unsubscribe、eventBus unsubscribe、pdfjs off 均触发；destroy 后 store.set 不再渲染/移除 marker。
+- 环境提示：Jest 输出有 `baseline-browser-mapping` 过期提醒（非失败，不影响本任务门禁）。
 
