@@ -12,9 +12,13 @@
 4. 跑 `pnpm -s run lint` +（如有）python 测试
 5. 写 `report.md` 并 git 提交
 ### 工作结果:
-- [待填写]
+- ✅ 已完成：
+  - 已新增按钮：填充测试ID / 复制样例 token / 一键 bulk-get（测试ID）
+  - 已新增 pytest 回归：`src/gui_launcher/__tests__/test_gui_launcher_card_planner_testids.py`
+  - `pnpm -s run lint` ✅
+  - `python -m pytest -q src/gui_launcher/__tests__/test_gui_launcher_card_planner_testids.py` ✅
+  - Commit: `863ed851`（rebase 后 hash）
 ### 存在问题:
 - [待填写]
 ### 下一步计划:
-- [待填写]
-
+- 无
