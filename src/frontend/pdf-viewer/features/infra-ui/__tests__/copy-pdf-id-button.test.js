@@ -26,12 +26,15 @@ jest.mock("../components/ui-zoom-controls.js", () => ({
     async setupZoomControls() {}
     setScale() {}
     updatePageInfo() {}
+    destroy() {}
   }
 }));
 
 jest.mock("../components/ui-layout-controls.js", () => ({
   UILayoutControls: class {
     setup() {}
+    onRenderModeChanged() {}
+    destroy() {}
   }
 }));
 
@@ -70,6 +73,7 @@ function mountMinimalDOM() {
 describe("复制 PDF ID 按钮", () => {
   let originalClipboard;
   let eventBus;
+  let ui;
 
   beforeEach(() => {
     // 准备 jsdom DOM
@@ -84,9 +88,18 @@ describe("复制 PDF ID 按钮", () => {
 
     // 使用无需事件名校验的 EventBus
     eventBus = new EventBus({ enableValidation: true });
+    ui = null;
   });
 
   afterEach(() => {
+    if (ui) {
+      try {
+        ui.destroy();
+      } catch {
+        // ignore
+      }
+      ui = null;
+    }
     // 还原 clipboard
     global.navigator.clipboard = originalClipboard;
     document.body.innerHTML = "";
@@ -94,7 +107,7 @@ describe("复制 PDF ID 按钮", () => {
   });
 
   test("收到 URL_PARAMS.PARSED(pdfId=sample) 后按钮可见且可复制", async () => {
-    const ui = new UIManagerCore(eventBus);
+    ui = new UIManagerCore(eventBus);
     await ui.initialize();
 
     // 通过事件传入 pdfId（真实运行中由 URLNavigationFeature 触发）
@@ -118,7 +131,7 @@ describe("复制 PDF ID 按钮", () => {
   });
 
   test("无 pdf-id 时通过事件回填 id（doc）并可复制", async () => {
-    const ui = new UIManagerCore(eventBus);
+    ui = new UIManagerCore(eventBus);
     await ui.initialize();
 
     // 发送 FILE.LOAD.SUCCESS 事件（模拟加载完成）

@@ -32,6 +32,7 @@ export class UIZoomControls {
   #onPageInputKeydown = null;
   #onPageInputBlur = null;
   #onPageInputChange = null;
+  #pendingTimeouts = [];
 
   constructor(eventBus, zoomManager) {
     this.#eventBus = eventBus;
@@ -233,9 +234,7 @@ export class UIZoomControls {
   applyZoomAnimation(canvas) {
     if (canvas) {
       canvas.classList.add("zoom-animation");
-      setTimeout(() => {
-        canvas.classList.remove("zoom-animation");
-      }, 300);
+      this.#scheduleClassRemoval(canvas, "zoom-animation", 300);
     }
   }
 
@@ -246,10 +245,30 @@ export class UIZoomControls {
   applyPageTransitionAnimation(canvas) {
     if (canvas) {
       canvas.classList.add("page-transition");
-      setTimeout(() => {
-        canvas.classList.remove("page-transition");
-      }, 200);
+      this.#scheduleClassRemoval(canvas, "page-transition", 200);
     }
+  }
+
+  #scheduleClassRemoval(canvas, className, ms) {
+    const existing = this.#pendingTimeouts.filter(
+      (t) => t.canvas === canvas && t.className === className
+    );
+    existing.forEach((t) => {
+      clearTimeout(t.id);
+    });
+    this.#pendingTimeouts = this.#pendingTimeouts.filter(
+      (t) => !(t.canvas === canvas && t.className === className)
+    );
+
+    const id = setTimeout(() => {
+      try {
+        canvas.classList.remove(className);
+      } finally {
+        this.#pendingTimeouts = this.#pendingTimeouts.filter((t) => t.id !== id);
+      }
+    }, ms);
+
+    this.#pendingTimeouts.push({ id, canvas, className });
   }
 
   /**
@@ -298,6 +317,21 @@ export class UIZoomControls {
       this.#unsubscribeZoom();
       this.#unsubscribeZoom = null;
     }
+
+    // 清理动画 timeout（避免卸载后仍触碰 DOM）
+    this.#pendingTimeouts.forEach((t) => {
+      try {
+        clearTimeout(t.id);
+      } catch {
+        // ignore
+      }
+      try {
+        t.canvas.classList.remove(t.className);
+      } catch {
+        // ignore
+      }
+    });
+    this.#pendingTimeouts = [];
 
     // 移除事件监听器
     if (this.#zoomInBtn && this.#onZoomInClick) {

@@ -15,6 +15,17 @@ export function installCopyPdfIdButton(ctx) {
   } = ctx;
 
   const unsubs = [];
+  let resetTimeoutId = null;
+
+  const clearPendingReset = () => {
+    if (resetTimeoutId !== null) {
+      try {
+        windowRef.clearTimeout(resetTimeoutId);
+      } finally {
+        resetTimeoutId = null;
+      }
+    }
+  };
 
   const updateCopyButtonVisibility = () => {
     const copyBtn = documentRef.getElementById("copy-pdf-id-btn");
@@ -71,7 +82,8 @@ export function installCopyPdfIdButton(ctx) {
       copyBtn.title = `已复制: ${currentPdfId}`;
       showSuccess("✓ PDF ID 已复制", 2000);
       logger.info(`✅ PDF ID copied (execCommand): ${currentPdfId}`);
-      setTimeout(() => {
+      clearPendingReset();
+      resetTimeoutId = windowRef.setTimeout(() => {
         copyBtn.classList.remove("copied");
         copyBtn.title = "复制 PDF ID";
         logger.debug("Copy button state reset");
@@ -84,6 +96,13 @@ export function installCopyPdfIdButton(ctx) {
 
   copyBtn.addEventListener("click", onClick);
   unsubs.push(() => {
+    clearPendingReset();
+    try {
+      copyBtn.classList.remove("copied");
+      copyBtn.title = "复制 PDF ID";
+    } catch (e) {
+      logger.warn("[UIManagerCore] copy button reset failed", e);
+    }
     try {
       copyBtn.removeEventListener("click", onClick);
     } catch (e) {
@@ -95,4 +114,3 @@ export function installCopyPdfIdButton(ctx) {
 
   return { updateCopyButtonVisibility, unsubs };
 }
-
