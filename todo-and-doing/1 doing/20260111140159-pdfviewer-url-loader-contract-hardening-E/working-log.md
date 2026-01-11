@@ -11,9 +11,13 @@
 3. 先写回归测试，再做契约强化与清理
 4. 跑 `pnpm -s run lint` 与定向 Jest
 ### 工作结果:
-- [待填写]
+- 完成手动导航 payload 契约收敛：拒绝 legacy/未知字段（Fail-Fast），并新增回归测试固化行为。
+- 新增测试：
+  - `src/frontend/pdf-viewer/features/pdf-url-loader/__tests__/url-loader.manual-nav.disallow-legacy-fields.test.js`
+- 自验：
+  - `pnpm -s run lint` ✅
+  - `pnpm exec jest --runTestsByPath src/frontend/pdf-viewer/features/pdf-url-loader/__tests__/url-loader.manual-nav.disallow-legacy-fields.test.js -i` ✅
 ### 存在问题:
-- [待填写]
+- 无（本次变更不涉及事件白名单与跨模块改动）。
 ### 下一步计划:
-- [待填写]
-
+- 如后续需要更严格：可把 “unexpected field” 从 emit FAILED 升级为直接 throw（需同步调整上层调用方预期）。
