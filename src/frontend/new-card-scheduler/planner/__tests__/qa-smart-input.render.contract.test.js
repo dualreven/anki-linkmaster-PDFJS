@@ -34,5 +34,32 @@ describe("card-planner qa smart input (F) - render contract", () => {
     ui.dispose();
     document.body.innerHTML = "";
   });
-});
 
+  test("渲染时：[[ ]] 不应被识别为 token（避免高亮层宽度偏差导致光标错位）", () => {
+    document.body.innerHTML = `<div id="planner-workspace"></div>`;
+
+    const engine = createCardsEngine();
+    const tempId = engine.createEmptyCardOrThrow();
+
+    const root = document.getElementById("planner-workspace");
+    const ui = createPlannerWorkspaceUI({
+      root,
+      engine,
+      getCardMetaPreview: () => ({ Q: [], A: [] }),
+      notification: { showInfo: jest.fn(), showError: jest.fn() }
+    });
+
+    const row = root.querySelector(`[data-temp-id="${tempId}"]`);
+    expect(row).toBeTruthy();
+
+    const qTextarea = row.querySelector("[data-testid='qa-smart-textarea-Q']");
+    qTextarea.focus();
+    qTextarea.value = "[[ ]]x";
+    qTextarea.dispatchEvent(new Event("input", { bubbles: true }));
+
+    expect(row.querySelector("[data-anno-id]")).toBeFalsy();
+
+    ui.dispose();
+    document.body.innerHTML = "";
+  });
+});

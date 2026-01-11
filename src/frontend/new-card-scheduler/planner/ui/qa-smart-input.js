@@ -61,10 +61,10 @@ function ensureQASmartInputStyles() {
   color: #9ca3af;
 }
 .qa-smart-input__token {
-  display: inline-block;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: rgba(59, 130, 246, 0.15);
+  display: inline;
+  padding: 0;
+  border-radius: 6px;
+  background: rgba(59, 130, 246, 0.18);
   color: #1d4ed8;
 }
 .qa-smart-input__token--unknown {
@@ -136,7 +136,7 @@ function renderHighlightOrThrow({ highlightEl, text, knownAnnoIds }) {
     return;
   }
 
-  const tokenRe = /\[\[([^\[\]\r\n]+)\]\]/g;
+  const tokenRe = /\[\[([^\[\]\s\r\n]+)\]\]/g;
   let last = 0;
   let match = null;
 
