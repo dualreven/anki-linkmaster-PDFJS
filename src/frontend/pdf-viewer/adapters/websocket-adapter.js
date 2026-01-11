@@ -16,6 +16,7 @@ import { createMessageQueue } from "../../common/ws/ws-message-queue.js";
 import { handleViewerWsInbound } from "./ws-inbound-bridge.js";
 import { installWebSocketAdapterOutgoingHandlers } from "./websocket-adapter-outgoing-handlers.js";
 import { createPdfIdProvider } from "./pdf-id-provider.js";
+import { setInboundDestroySignal } from "./ws-inbound-destroy-signal.js";
 
 /**
  * WebSocket适配器类
@@ -113,6 +114,14 @@ export class WebSocketAdapter {
     this.#setupGateStatusObservers();
 
     this.#logger.debug("WebSocket message handlers setup complete");
+  }
+
+  /**
+   * 语义别名：安装（与 setupMessageHandlers 等价）。
+   * @public
+   */
+  install() {
+    this.setupMessageHandlers();
   }
 
   /**
@@ -277,12 +286,23 @@ export class WebSocketAdapter {
       void e;
     }
 
+    // 对称清理：解除 eventBus ↔ inbound destroySignal 绑定（WeakMap）
+    setInboundDestroySignal(this.#eventBus, null);
+
     // 取消所有事件订阅
     this.#subscriptions.clear();
     this.#messageQueue.clear();
     this.#initialized = false;
 
     this.#logger.debug("WebSocketAdapter destroyed");
+  }
+
+  /**
+   * 语义别名：卸载（与 destroy 等价）。
+   * @public
+   */
+  uninstall() {
+    this.destroy();
   }
 
   /**
