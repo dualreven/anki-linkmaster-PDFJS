@@ -103,4 +103,60 @@ describe("new-card-scheduler ws status panel (G) - contract regression", () => {
     panel.destroy();
     eventBus.destroy();
   });
+
+  test("panel: 自检按钮点击会 emit MSG_CENTER.STATUS.REQUEST", () => {
+    document.body.innerHTML = "<div class=\"toolbar-controls\"></div>";
+    const toolbarEl = document.querySelector(".toolbar-controls");
+    const eventBus = new EventBus({ moduleName: `ncs-test-${Date.now()}`, enableValidation: true });
+    const wsClient = { isConnected: () => true };
+
+    const emitSpy = jest.spyOn(eventBus, "emit");
+
+    const panel = mountWsStatusPanelOrThrow({
+      toolbarEl,
+      clientId: "new-card-scheduler",
+      eventBus,
+      wsClient
+    });
+
+    const btn = toolbarEl.querySelector("[data-testid=\"ncs-ws-selfcheck\"]");
+    expect(btn).toBeTruthy();
+    btn.click();
+
+    expect(emitSpy).toHaveBeenCalledWith(
+      WEBSOCKET_EVENTS.MSG_CENTER.STATUS.REQUEST,
+      expect.any(Object),
+      expect.any(Object)
+    );
+
+    panel.destroy();
+    eventBus.destroy();
+  });
+
+  test("panel: 收到 MSG_CENTER.STATUS.RESPONSE 后渲染 url/readyState/reconnectAttempts", () => {
+    document.body.innerHTML = "<div class=\"toolbar-controls\"></div>";
+    const toolbarEl = document.querySelector(".toolbar-controls");
+    const eventBus = new EventBus({ moduleName: `ncs-test-${Date.now()}`, enableValidation: true });
+    const wsClient = { isConnected: () => true };
+
+    const panel = mountWsStatusPanelOrThrow({
+      toolbarEl,
+      clientId: "new-card-scheduler",
+      eventBus,
+      wsClient
+    });
+
+    eventBus.emit(
+      WEBSOCKET_EVENTS.MSG_CENTER.STATUS.RESPONSE,
+      { url: "ws://127.0.0.1:12345", readyState: 1, reconnectAttempts: 2 },
+      { actorId: "test" }
+    );
+
+    expect(toolbarEl.textContent).toContain("ws_url=ws://127.0.0.1:12345");
+    expect(toolbarEl.textContent).toContain("ws_readyState=1");
+    expect(toolbarEl.textContent).toContain("ws_reconnectAttempts=2");
+
+    panel.destroy();
+    eventBus.destroy();
+  });
 });

@@ -72,6 +72,33 @@ function getAnnoMetaStatusLabelOrThrow(status) {
   return s;
 }
 
+function validateMsgCenterStatusResponsePayloadOrThrow(payload) {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("MSG_CENTER.STATUS.RESPONSE payload 必须是对象");
+  }
+
+  const url = payload.url;
+  if (typeof url !== "string" || !url.trim()) {
+    throw new Error("MSG_CENTER.STATUS.RESPONSE payload.url 必须为非空字符串");
+  }
+
+  const readyState = payload.readyState;
+  if (readyState !== null && !Number.isFinite(readyState)) {
+    throw new Error("MSG_CENTER.STATUS.RESPONSE payload.readyState 必须为 number 或 null");
+  }
+
+  const reconnectAttempts = payload.reconnectAttempts;
+  if (!Number.isFinite(reconnectAttempts)) {
+    throw new Error("MSG_CENTER.STATUS.RESPONSE payload.reconnectAttempts 必须为 number");
+  }
+
+  return {
+    url: url.trim(),
+    readyState,
+    reconnectAttempts,
+  };
+}
+
 export function mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsClient }) {
   if (!toolbarEl) {
     throw new Error("mountWsStatusPanelOrThrow: toolbarEl 必填");
@@ -96,6 +123,18 @@ export function mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsCli
   wrap.style.fontSize = "12px";
   wrap.style.color = "#666";
 
+  const selfCheckBtn = document.createElement("button");
+  selfCheckBtn.type = "button";
+  selfCheckBtn.setAttribute("data-testid", "ncs-ws-selfcheck");
+  selfCheckBtn.textContent = "自检";
+  selfCheckBtn.title = "请求 WSClient 状态（url/readyState/reconnectAttempts）";
+  selfCheckBtn.style.fontSize = "12px";
+  selfCheckBtn.style.padding = "0 6px";
+  selfCheckBtn.style.border = "1px solid #ccc";
+  selfCheckBtn.style.borderRadius = "4px";
+  selfCheckBtn.style.background = "#fff";
+  selfCheckBtn.style.cursor = "pointer";
+
   const line1 = document.createElement("div");
   const line2 = document.createElement("div");
   line2.style.maxWidth = "520px";
@@ -103,6 +142,7 @@ export function mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsCli
   line2.style.overflow = "hidden";
   line2.style.textOverflow = "ellipsis";
 
+  wrap.appendChild(selfCheckBtn);
   wrap.appendChild(line1);
   wrap.appendChild(line2);
   toolbarEl.appendChild(wrap);
@@ -115,6 +155,9 @@ export function mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsCli
     annoMetaStatus: ANNO_META_STATUS.IDLE,
     annoMetaRid: "",
     annoMetaErrorMessage: "",
+    msgCenterStatusUrl: "",
+    msgCenterReadyState: null,
+    msgCenterReconnectAttempts: null,
   };
 
   const render = () => {
@@ -135,6 +178,15 @@ export function mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsCli
     }
     if (state.annoMetaErrorMessage) {
       parts.push(`anno_error=${state.annoMetaErrorMessage}`);
+    }
+    if (state.msgCenterStatusUrl) {
+      parts.push(`ws_url=${state.msgCenterStatusUrl}`);
+    }
+    if (state.msgCenterReadyState !== null) {
+      parts.push(`ws_readyState=${state.msgCenterReadyState}`);
+    }
+    if (state.msgCenterReconnectAttempts !== null) {
+      parts.push(`ws_reconnectAttempts=${state.msgCenterReconnectAttempts}`);
     }
     line2.textContent = parts.join(" | ");
     line2.style.display = parts.length > 0 ? "block" : "none";
@@ -213,6 +265,27 @@ export function mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsCli
     { subscriberId: "NewCardScheduler.WsStatus.RegisterAck" }
   );
 
+  const onSelfCheckClick = () => {
+    eventBus.emit(
+      WEBSOCKET_EVENTS.MSG_CENTER.STATUS.REQUEST,
+      { source: "NewCardScheduler.WsStatusPanel", client_id: clientId },
+      { actorId: "NewCardScheduler.WsStatusPanel.SelfCheck" }
+    );
+  };
+  selfCheckBtn.addEventListener("click", onSelfCheckClick);
+
+  const unsubMsgCenterStatusResponse = eventBus.on(
+    WEBSOCKET_EVENTS.MSG_CENTER.STATUS.RESPONSE,
+    (payload) => {
+      const p = validateMsgCenterStatusResponsePayloadOrThrow(payload);
+      state.msgCenterStatusUrl = p.url;
+      state.msgCenterReadyState = p.readyState;
+      state.msgCenterReconnectAttempts = p.reconnectAttempts;
+      render();
+    },
+    { subscriberId: "NewCardScheduler.WsStatus.MsgCenterStatusResponse" }
+  );
+
   const initial = typeof wsClient.isConnected === "function" && wsClient.isConnected()
     ? WS_STATUS.CONNECTED
     : WS_STATUS.DISCONNECTED;
@@ -238,6 +311,8 @@ export function mountWsStatusPanelOrThrow({ toolbarEl, clientId, eventBus, wsCli
       try { unsubFailed?.(); } catch { /* ignore */ }
       try { unsubError?.(); } catch { /* ignore */ }
       try { unsubRegisterAck?.(); } catch { /* ignore */ }
+      try { unsubMsgCenterStatusResponse?.(); } catch { /* ignore */ }
+      try { selfCheckBtn.removeEventListener("click", onSelfCheckClick); } catch { /* ignore */ }
       try { wrap.remove(); } catch { /* ignore */ }
     }
   };

@@ -4,9 +4,8 @@
 - WS 状态面板增加自检/刷新能力与回归测试。
 
 ## 交付
-- Commit: （必填）
+- Commit: `（待填写）`
 
 ## 自检
-- `pnpm -s run lint`：
-- `pnpm exec jest --runTestsByPath src/frontend/new-card-scheduler/__tests__/ws-status-panel.contract.test.js -i`：
-
+- `pnpm -s run lint`：✅
+- `pnpm exec jest --runTestsByPath src/frontend/new-card-scheduler/__tests__/ws-status-panel.contract.test.js -i`：✅
