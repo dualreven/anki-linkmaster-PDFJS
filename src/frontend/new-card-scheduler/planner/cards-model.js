@@ -171,6 +171,16 @@ export class CardsEngine {
     return this.toFinalCardsOrThrow();
   }
 
+  replaceCardFaceAnnotationIdsOrThrow({ tempId, face, annotationIds }) {
+    if (!tempId || typeof tempId !== "string") {
+      throw new Error("replaceCardFaceAnnotationIdsOrThrow: tempId 必须为非空 string");
+    }
+    const f = normalizeFaceOrThrow(face);
+    const ids = normalizeAnnotationIdsOrThrow(annotationIds);
+    const index = this.#getCardIndexByTempIdOrThrow(tempId);
+    this.#cards[index][f] = [...ids];
+  }
+
   createCardOrThrow() {
     const tempId = createTempId(this.#nextTempId);
     this.#nextTempId += 1;

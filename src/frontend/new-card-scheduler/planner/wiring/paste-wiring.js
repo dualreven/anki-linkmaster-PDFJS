@@ -1,4 +1,37 @@
-import { parseAnnoIdsFromClipboardTextOrThrow } from "../clipboard-parse.js";
+import { isValidAnnoToken } from "../token-utils.js";
+
+function parseAnnoIdsFromClipboardTextOrThrow(text) {
+  if (typeof text !== "string") {
+    throw new Error("剪贴板内容必须是字符串");
+  }
+  const raw = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+  if (!raw) {
+    throw new Error("剪贴板内容为空，无法解析 annotation-id");
+  }
+
+  const parts = raw.split(/[;\s]+/g).filter(Boolean);
+  if (parts.length === 0) {
+    throw new Error("剪贴板内容为空，无法解析 annotation-id");
+  }
+
+  const out = [];
+  for (const part of parts) {
+    const s = String(part).trim();
+    if (!s) {
+      throw new Error("剪贴板内容包含空的 annotation-id 段");
+    }
+    if (s.startsWith("[[") || s.endsWith("]]")) {
+      if (!isValidAnnoToken(s)) {
+        throw new Error(`剪贴板包含非法 token：${JSON.stringify(s)}`);
+      }
+      out.push(s.slice(2, -2));
+      continue;
+    }
+    out.push(s);
+  }
+
+  return out;
+}
 
 function isCtrlV(e) {
   if (!e) {
@@ -31,7 +64,7 @@ export function installPasteWiring({ engine, getPasteFocus, render, notification
     const focus = getPasteFocus();
     if (!selectedTempId || !focus || focus.tempId !== selectedTempId || !focus.face) {
       try {
-        notification?.showError?.("粘贴无效：请先选中卡片，并点击该卡片的 Q 或 A 设置粘贴焦点", 2500);
+        notification?.showError?.("粘贴无效：请先选中卡片，并点击该卡片的 Q 或 A 输入框设置粘贴焦点", 2500);
       } catch {
         // ignore
       }
@@ -45,7 +78,7 @@ export function installPasteWiring({ engine, getPasteFocus, render, notification
     const focus = getPasteFocus();
     if (!selectedTempId || !focus || focus.tempId !== selectedTempId || !focus.face) {
       try {
-        notification?.showError?.("粘贴无效：请先选中卡片，并点击该卡片的 Q 或 A 设置粘贴焦点", 2500);
+        notification?.showError?.("粘贴无效：请先选中卡片，并点击该卡片的 Q 或 A 输入框设置粘贴焦点", 2500);
       } catch {
         // ignore
       }
@@ -53,6 +86,9 @@ export function installPasteWiring({ engine, getPasteFocus, render, notification
       e.stopPropagation();
       return;
     }
+
+    e.preventDefault();
+    e.stopPropagation();
 
     let text = "";
     try {

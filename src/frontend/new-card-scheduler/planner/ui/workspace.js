@@ -1,3 +1,5 @@
+import { buildSmartInputTextFromAnnoIdsOrThrow, createQASmartInput } from "./qa-smart-input.js";
+
 function createButton({ text, title = "", className = "", onClick }) {
   const btn = document.createElement("button");
   btn.type = "button";
@@ -14,7 +16,10 @@ function createButton({ text, title = "", className = "", onClick }) {
 }
 
 function createCardRow({
+  engine,
+  notification,
   card,
+  draftCard,
   index,
   selectedTempId,
   metaPreview,
@@ -23,6 +28,7 @@ function createCardRow({
   onDelete,
   onReorder,
   onSetPasteFocus,
+  onRender,
 }) {
   const row = document.createElement("div");
   row.className = "pdf-row";
@@ -113,6 +119,8 @@ function createCardRow({
   const facesRow = document.createElement("div");
   facesRow.style.display = "flex";
   facesRow.style.gap = "8px";
+  // 兼容旧测试：保留 Q/A 按钮节点，但不在 UI 上展示（用户不希望看到按钮）。
+  facesRow.style.display = "none";
 
   const qBtn = createButton({
     text: `Q (${card.QCount})`,
@@ -151,13 +159,13 @@ function createCardRow({
     return `${label} (${type.trim() ? type.trim() : "unknown"})`;
   };
 
-  const qText = qMeta.slice(0, 3).map(formatMeta).filter(Boolean).join(" / ");
-  const aText = aMeta.slice(0, 3).map(formatMeta).filter(Boolean).join(" / ");
+  const qMetaText = qMeta.slice(0, 3).map(formatMeta).filter(Boolean).join(" / ");
+  const aMetaText = aMeta.slice(0, 3).map(formatMeta).filter(Boolean).join(" / ");
 
   const qMetaEl = document.createElement("div");
-  qMetaEl.textContent = qText ? `Q: ${qText}` : "Q: （无元信息）";
+  qMetaEl.textContent = qMetaText ? `Q: ${qMetaText}` : "Q: （无元信息）";
   const aMetaEl = document.createElement("div");
-  aMetaEl.textContent = aText ? `A: ${aText}` : "A: （无元信息）";
+  aMetaEl.textContent = aMetaText ? `A: ${aMetaText}` : "A: （无元信息）";
 
   metaRow.appendChild(qMetaEl);
   metaRow.appendChild(aMetaEl);
@@ -165,6 +173,71 @@ function createCardRow({
   selectArea.appendChild(titleRow);
   selectArea.appendChild(facesRow);
   selectArea.appendChild(metaRow);
+
+  const editorRow = document.createElement("div");
+  editorRow.style.display = "flex";
+  editorRow.style.gap = "10px";
+  editorRow.style.marginTop = "6px";
+
+  const qKnown = Array.isArray(metaPreview?.Q)
+    ? metaPreview.Q.filter((m) => String(m?.type || "") !== "unknown").map((m) => String(m?.id || "")).filter(Boolean)
+    : [];
+  const aKnown = Array.isArray(metaPreview?.A)
+    ? metaPreview.A.filter((m) => String(m?.type || "") !== "unknown").map((m) => String(m?.id || "")).filter(Boolean)
+    : [];
+
+  const qText = buildSmartInputTextFromAnnoIdsOrThrow(Array.isArray(draftCard?.Q) ? draftCard.Q : []);
+  const aText = buildSmartInputTextFromAnnoIdsOrThrow(Array.isArray(draftCard?.A) ? draftCard.A : []);
+
+  const qInput = createQASmartInput({
+    label: "Q",
+    placeholder: "粘贴/输入：ann_1 ann_2 或 [[ann_1]]",
+    initialText: qText,
+    onFocus: () => {
+      onSetPasteFocus(card.tempId, "Q", { silent: true, noRender: true });
+    },
+    onCommitAnnoIds: (annotationIds) => {
+      if (!engine || typeof engine.replaceCardFaceAnnotationIdsOrThrow !== "function") {
+        throw new Error("Q 输入提交失败：engine.replaceCardFaceAnnotationIdsOrThrow 缺失");
+      }
+      engine.replaceCardFaceAnnotationIdsOrThrow({ tempId: card.tempId, face: "Q", annotationIds });
+      onRender?.();
+    },
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      notification?.showError?.(`Q 输入无效：${msg}`, 3000);
+    }
+  });
+  qInput.setKnownAnnoIds(qKnown);
+  qInput.textareaEl.setAttribute("data-face", "Q");
+  qInput.textareaEl.setAttribute("data-testid", "qa-smart-textarea-Q");
+
+  const aInput = createQASmartInput({
+    label: "A",
+    placeholder: "粘贴/输入：ann_1 ann_2 或 [[ann_1]]",
+    initialText: aText,
+    onFocus: () => {
+      onSetPasteFocus(card.tempId, "A", { silent: true, noRender: true });
+    },
+    onCommitAnnoIds: (annotationIds) => {
+      if (!engine || typeof engine.replaceCardFaceAnnotationIdsOrThrow !== "function") {
+        throw new Error("A 输入提交失败：engine.replaceCardFaceAnnotationIdsOrThrow 缺失");
+      }
+      engine.replaceCardFaceAnnotationIdsOrThrow({ tempId: card.tempId, face: "A", annotationIds });
+      onRender?.();
+    },
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      notification?.showError?.(`A 输入无效：${msg}`, 3000);
+    }
+  });
+  aInput.setKnownAnnoIds(aKnown);
+  aInput.textareaEl.setAttribute("data-face", "A");
+  aInput.textareaEl.setAttribute("data-testid", "qa-smart-textarea-A");
+
+  editorRow.appendChild(qInput.rootEl);
+  editorRow.appendChild(aInput.rootEl);
+  selectArea.appendChild(editorRow);
 
   const deleteBtn = createButton({
     text: "删除",
@@ -194,7 +267,7 @@ export function createPlannerWorkspaceUI({ root, engine, getCardMetaPreview, not
   header.style.marginBottom = "8px";
 
   const left = document.createElement("div");
-  left.textContent = "草稿卡列表（拖拽排序 / 点击 Q/A 后 Ctrl+V 粘贴）";
+  left.textContent = "草稿卡列表（拖拽排序 / 点击 Q/A 输入框后 Ctrl+V 粘贴）";
   left.style.fontWeight = "600";
 
   const right = document.createElement("div");
@@ -252,22 +325,21 @@ export function createPlannerWorkspaceUI({ root, engine, getCardMetaPreview, not
   root.appendChild(header);
   root.appendChild(list);
 
-  function setPasteFocus(tempId, face) {
+  function setPasteFocus(tempId, face, { silent = false, noRender = false } = {}) {
     if (state.disposed) {
       return;
     }
     engine.setSelected(tempId);
     state.pasteFocus = { tempId, face };
-    try {
-      notification?.showInfo?.(`已设置粘贴焦点：${face}（tempId=${tempId}）`, 1200);
-    } catch {
-      // ignore
+    if (!silent) {
+      try {
+        notification?.showInfo?.(`已设置粘贴焦点：${face}（tempId=${tempId}）`, 1200);
+      } catch {
+        // ignore
+      }
     }
-    render();
-    try {
-      onSetPasteFocus?.(state.pasteFocus);
-    } catch {
-      // ignore
+    if (!noRender) {
+      render();
     }
   }
 
@@ -276,6 +348,8 @@ export function createPlannerWorkspaceUI({ root, engine, getCardMetaPreview, not
       return;
     }
     const cards = engine.getCardsForView();
+    const snapshot = engine.getDraftCardsSnapshotOrThrow();
+    const byTempId = new Map(snapshot.map((c) => [c.tempId, c]));
     const { selectedTempId } = engine.getState();
     state.selectedTempId = selectedTempId;
 
@@ -283,11 +357,15 @@ export function createPlannerWorkspaceUI({ root, engine, getCardMetaPreview, not
 
     for (let i = 0; i < cards.length; i += 1) {
       const card = cards[i];
+      const draftCard = byTempId.get(card.tempId) || { tempId: card.tempId, title: card.title, Q: [], A: [] };
       const metaPreview = typeof getCardMetaPreview === "function"
         ? getCardMetaPreview(card.tempId)
         : null;
       const row = createCardRow({
+        engine,
+        notification,
         card,
+        draftCard,
         index: i,
         selectedTempId,
         metaPreview,
@@ -307,7 +385,8 @@ export function createPlannerWorkspaceUI({ root, engine, getCardMetaPreview, not
           engine.reorderCards(fromIndex, toIndex);
           render();
         },
-        onSetPasteFocus: setPasteFocus
+        onSetPasteFocus: setPasteFocus,
+        onRender: () => render(),
       });
       list.appendChild(row);
     }
