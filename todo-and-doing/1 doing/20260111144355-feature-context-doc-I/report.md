@@ -4,7 +4,7 @@
 - docs only
 
 ## Commands & Results
-- `pnpm -s run lint`：
+- `pnpm -s run lint`：✅
 
 ## Deliverable
 - Commit: （必填，hash）
