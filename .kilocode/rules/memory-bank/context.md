@@ -167,6 +167,7 @@
 
 ## 2026-01-11：PDFViewer 面条化治理新派工（A~E，20260111140159）
 - 治理进度（规划者粗评）：约 **6/10**（目标：继续把“订阅/副作用/等待竞态”收敛到可卸载 + 可测的装配层）
+- 派工提交（main）：`364cf885`
 - 执行者 DoD（硬要求）：`pnpm -s run lint` + 定向 `pnpm exec jest --runTestsByPath <tests> -i` ✅；更新各自 `report.md`（含命令与输出摘要、commit hash、改动文件清单）；最终必须 git 提交
 - 任务目录（doing）：
   - A：`todo-and-doing/1 doing/20260111140159-pdfviewer-adapters-inbound-router-slim-A/`
