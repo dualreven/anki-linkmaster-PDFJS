@@ -2,7 +2,7 @@
 
 ## 交付信息
 - Owner: D
-- Commit: `<填写commit-hash>`
+- Commit: `6cd089a2`
 - Scope: `src/frontend/pdf-viewer/bootstrap/**`
 
 ## 改动清单
