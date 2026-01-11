@@ -3,9 +3,10 @@
 最后更新：2026-01-11
 
 ## 规划者（Planner）硬约束（必须遵守）
-- **任务发布必须可交付**：每个任务目录的 `v001-spec.md` 必须写明 DoD：最终需提交 git，并提供 **commit hash**（没有 commit hash 不算完成）。
+- **worktree 必须自检并产出报告**：每个任务必须在 worktree 内跑 `pnpm -s run lint` + 定向测试（Jest/pytest 等），并在任务目录提交 `report.md`（含 scope、命令、结果、commit hash）。
+- **worktree 必须提交交付**：自检通过后必须 `git commit`（没有 commit hash 不算完成；禁止只改不提）。
 - **任务必须隔离**：每个任务必须写死 `scope`（允许修改的目录/文件列表），且不同任务的 `scope` **不允许重叠**；目标是 main 合并时不应产生冲突。
-- **规划者不得写业务代码**：规划者只负责：归档任务目录、下发新任务、单向覆盖同步 worktree、收集 commit 并组织 main 合并与验收；**禁止**规划者参与 `src/**` 等业务代码修改与实现细节排障（除非用户明确授权“由规划者直接修复”）。
+- **规划者职责与验收策略**：规划者仅负责派工/归档/同步/收集与合并验收（不写业务代码）；验收时优先阅读 worktree `report.md` 以减少重复跑 lint/test，但 main 侧仍需跑一次集成门禁；每批次需给出总体进度粗评（0~10）与下一步风险点并记录到 context。
 
 ## 当前主线：PDFViewer 面条代码整治（进行中）
 - **目标**：把 `src/frontend/pdf-viewer/**` 中“事件驱动 + 状态驱动混杂、职责过载、订阅泄漏”等面条化热点拆分并加回归测试。
@@ -41,17 +42,8 @@
   - 验收合入（2026-01-10）：A/B/C/D/E 已合并并通过 Jest+lint。
   - 人工验收（2026-01-10）：用户确认已通过，相关任务已归档：`todo-and-doing/4 archive/20260110110206-doing-archive/`。
 
-## 2026-01-10：PDFViewer 面条化治理下一批任务（新下发 A~E）
-- 依据：
-  - `docs/reports/20260109-infra-nav-url-loader-scan-F.md`
-  - `docs/reports/20260109-pdfviewer-core-ui-scan-E.md`
-- 任务目录（doing）：
-  - A：`todo-and-doing/4 archive/20260110162925-doing-archive/20260110123105-infra-nav-navigation-service-cleanup-A/`
-  - B：`todo-and-doing/4 archive/20260110162925-doing-archive/20260110123105-pdf-url-loader-install-split-B/`
-  - C：`todo-and-doing/4 archive/20260110162925-doing-archive/20260110123105-pdf-outline-ws-decouple-C/`
-  - D：`todo-and-doing/4 archive/20260110162925-doing-archive/20260110123105-core-state-manager-granular-events-D/`
-  - E：`todo-and-doing/4 archive/20260110162925-doing-archive/20260110123105-core-lifecycle-error-scope-E/`
-  - 验收合入（2026-01-10）：已合并并通过 Jest+lint；用户确认人工验收通过。
+## 2026-01-10：PDFViewer 近期批次索引（已归档）
+- 20260110123105 批次 A~E：`todo-and-doing/4 archive/20260110162925-doing-archive/`（已合入 main，Jest+lint ✅，用户已人工点检确认）
 
 ## 2026-01-10：已知问题（延期）
 - KI-20260110-01：outline/search 组合操作偶发触发爆栈日志（`Maximum call stack size exceeded`），用户确认“不太重要”，暂不修复，仅文档化与建 todo。
@@ -64,31 +56,9 @@
 - 根因（已定位）：Windows + QtWebEngine 下 `localhost` 的 IPv4/IPv6 解析不稳定；Vite 可能仅监听 `::1`，导致 `127.0.0.1:<vite_port>` 连接被拒绝，从而出现“页面加载完成但动态 import 拉取失败”。
 - 修复（已在 main 实施，待手工点检）：统一前端 loopback host 为 `127.0.0.1`；Vite 默认 `VITE_HOST=127.0.0.1`；`ensure_vite` 以 IPv4 可达为准并同步写入 `url_port=vite_port`；补回归测试覆盖（dev_server + URL 构建）。
 
-## 2026-01-10：新一轮并行重构任务下发（A~E，20260110175029 批次）
-- A：`todo-and-doing/1 doing/20260110175029-pdf-home-loopback-host-verify-A/`
-- B：`todo-and-doing/1 doing/20260110175029-infra-ui-coordinator-slim-B/`
-- C：`todo-and-doing/1 doing/20260110175029-pdf-annotation-sidebar-zombie-cleanup-C/`
-- D：`todo-and-doing/1 doing/20260110175029-pdf-search-dom-manager-extract-D/`
-- E：`todo-and-doing/1 doing/20260110175029-ui-keyboard-handler-singleton-E/`
-
-## 2026-01-10：新一轮并行重构任务下发（A~E）
-- A：`todo-and-doing/1 doing/20260110014111-pdfviewer-adapters-gate-cancel-A/`
-- B：`todo-and-doing/1 doing/20260110014111-infra-ui-event-subscriptions-lift-B/`
-- C：`todo-and-doing/1 doing/20260110014111-pdf-annotation-sidebar-timeout-zombie-cleanup-C/`
-- D：`todo-and-doing/1 doing/20260110014111-pdf-search-dom-manager-extract-D/`
-- E：`todo-and-doing/1 doing/20260110014111-ui-keyboard-handler-idempotent-cleanup-E/`
-  - 任务目录归档：`todo-and-doing/4 archive/20260110031204-doing-archive/`
-
-### 2026-01-10：A~E 验收合入 main（完成）
-- 合入：
-  - A：`8f56a12`（adapters gate 可取消 + 回归）
-  - B：`238e233`（infra-ui 订阅上移 + 回归）
-  - C：`db2cae3`（annotation sidebar timeout 清理 + 回归）
-  - D：`ab6a0f3`（search box DOMManager 集中绑定 + 回归）
-  - E：`1d921d2`（keyboard handler leak guard 回归）
-- 门禁（main 侧）：
-  - `pnpm -s run lint` ✅
-  - `pnpm exec jest --runTestsByPath <上述新增/改动测试路径集合> -i` ✅
+## 2026-01-10：近期批次索引补充（已归档）
+- 20260110014111 批次 A~E：`todo-and-doing/4 archive/20260110031204-doing-archive/`（已合入 main，Jest+lint ✅，用户已人工点检确认）
+- 20260110175029 批次 A~E：`todo-and-doing/4 archive/20260110185147-doing-archive/`（已合入 main，Jest+lint ✅，用户已人工点检确认）
 
 ## 2026-01-10：清理 ABCDE 旧任务目录（已归档）
 - 说明：`todo-and-doing/1 doing/202601092234**-*` 为旧一轮下发目录，未开始编码且无交付 commit；为避免继续误读为“当前任务”，已按约定移入 archive。
@@ -194,3 +164,13 @@
   - E：`157417e8`（outline store-driven selection + UI 边界/cleanup 回归）
 - 门禁：`pnpm -s run lint` ✅；Jest（定向）✅
 - 归档：`todo-and-doing/4 archive/20260111022704-doing-archive/`
+
+## 2026-01-11：PDFViewer 面条化治理新派工（A~E，20260111140159）
+- 治理进度（规划者粗评）：约 **6/10**（目标：继续把“订阅/副作用/等待竞态”收敛到可卸载 + 可测的装配层）
+- 执行者 DoD（硬要求）：`pnpm -s run lint` + 定向 `pnpm exec jest --runTestsByPath <tests> -i` ✅；更新各自 `report.md`（含命令与输出摘要、commit hash、改动文件清单）；最终必须 git 提交
+- 任务目录（doing）：
+  - A：`todo-and-doing/1 doing/20260111140159-pdfviewer-adapters-inbound-router-slim-A/`
+  - B：`todo-and-doing/1 doing/20260111140159-pdfviewer-infra-ui-side-effects-hardening-B/`
+  - C：`todo-and-doing/1 doing/20260111140159-pdfviewer-annotation-screenshot-store-reactive-C/`
+  - D：`todo-and-doing/1 doing/20260111140159-pdfviewer-bootstrap-cancellable-wait-D/`
+  - E：`todo-and-doing/1 doing/20260111140159-pdfviewer-url-loader-contract-hardening-E/`
