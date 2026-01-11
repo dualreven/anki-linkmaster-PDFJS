@@ -20,13 +20,27 @@ export async function createFeatureContext({ featureName, container, globalEvent
     scopedEventBus = new ScopedEventBus(globalEventBus, scopeId);
   }
 
-  return {
+  const context = {
     container: featureScope,
     globalEventBus,
     scopedEventBus,
     logger: featureLogger,
     config: {},
   };
+
+  if (globalEventBus) {
+    Object.defineProperty(context, "eventBus", {
+      enumerable: true,
+      get() {
+        return globalEventBus;
+      },
+      set() {
+        throw new Error("[FeatureRegistry] FeatureContext.eventBus is read-only (alias of globalEventBus)");
+      }
+    });
+  }
+
+  return context;
 }
 
 export function cleanupFeatureContext(context) {
@@ -40,4 +54,3 @@ export function cleanupFeatureContext(context) {
     context.container.dispose();
   }
 }
-
