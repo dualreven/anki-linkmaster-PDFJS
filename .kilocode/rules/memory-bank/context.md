@@ -177,3 +177,13 @@
   - C：`todo-and-doing/1 doing/20260111140159-pdfviewer-annotation-screenshot-store-reactive-C/`
   - D：`todo-and-doing/1 doing/20260111140159-pdfviewer-bootstrap-cancellable-wait-D/`
   - E：`todo-and-doing/1 doing/20260111140159-pdfviewer-url-loader-contract-hardening-E/`
+
+### 2026-01-11：验收合并 ABCDE（20260111140159 批次，已合入 main，待手工点检后归档）
+- 合入（main）：
+  - A：`3e05dc54`（adapters 入站路由瘦身 + 回归）`f93f8c89`（report/log）
+  - B：`f4cf4658`（infra-ui timeouts 清理 + 回归）`e6737571`（report/log）
+  - C：`72752296`（ScreenshotTool store-reactive 推进 + 回归）`fdbed5e5`（report/log）
+  - D：`53ee046b`（bootstrap 可取消等待 + 回归）`74aac2db` `43b63cfd`（report/log）
+  - E：`260f764d`（pdf-url-loader 契约 Fail-Fast + 回归）`77604892`（report/log）
+- 门禁（main 侧）：`pnpm -s run lint` ✅（lines=179）；Jest（定向并集）✅（10 suites / 12 tests）
+- 手工点检：D 建议“快速关闭窗口/快速重开”观察是否有未捕获异常日志；用户确认后再归档 doing + 同步覆盖 A~E
