@@ -73,6 +73,7 @@
  - v007：修复 NCS 空白/未注册已合入并归档：`todo-and-doing/4 archive/20260111125406-doing-archive/`；v008：修复 legacy feature 安装失败（eventBus 上下文字段对齐）+ 增强自检/创建空卡/等待注册注入 已合入并归档：`todo-and-doing/4 archive/20260111141035-doing-archive/`。
  - v009（done）：G/H/I 基础对齐 + F（Q/A 并列智能输入框）均已合入 main 并归档：`todo-and-doing/4 archive/20260111154617-doing-archive/`、`todo-and-doing/4 archive/20260111155855-doing-archive/`。
  - v010（doing）：`[[id]]` 仅在 DB 命中时胶囊化（A 方案）+ 2 个测试伪标注 id（`ann_test_1`/`ann_test_2`）+ gui/doc 支撑：`todo-and-doing/1 doing/20260111161611-*-F/G/H/I/`。
+ - 契约变更（待实现同步）：最终制卡输出 `Q/A` 从 `string[]` 改为 `string`（可嵌入 `[[annotation-id]]` token），文档已更新：`docs/contracts/card-planner.md`。
  - 进度粗评（NCS/Planner）：约 **7/10**（通信链路/启动范式已稳定；下一步主攻“可编辑体验与可观测性/回归”）。
 
 ## 2026-01-09：PDFViewer 面条化治理详细记录（已归档）
