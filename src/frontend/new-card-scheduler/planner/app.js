@@ -50,19 +50,24 @@ function validateFinalOutputPayloadOrThrow(payload) {
   }
 }
 
-function mountFinalOutputButton({ engine, wsClient, notification, onRequestSent }) {
+function mountFinalOutputButton({ engine, wsClient, notification, onRequestSent, render }) {
   const slot = document.getElementById("planner-layout-switcher");
   if (!slot) {
     throw new Error("缺少 #planner-layout-switcher，无法挂载操作按钮");
   }
 
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "btn";
-  btn.textContent = "发射最终制卡信息";
-  btn.title = "向 MsgCenter 发射 card-planner:final-output:requested";
+  const group = document.createElement("div");
+  group.style.display = "flex";
+  group.style.gap = "8px";
+  group.style.flexWrap = "wrap";
 
-  btn.addEventListener("click", () => {
+  const btnFinal = document.createElement("button");
+  btnFinal.type = "button";
+  btnFinal.className = "btn";
+  btnFinal.textContent = "发射最终制卡信息";
+  btnFinal.title = "向 MsgCenter 发射 card-planner:final-output:requested";
+
+  btnFinal.addEventListener("click", () => {
     try {
       const cards = engine.toFinalCards();
       const payload = { cards };
@@ -87,8 +92,25 @@ function mountFinalOutputButton({ engine, wsClient, notification, onRequestSent 
     }
   });
 
+  const btnCreateEmpty = document.createElement("button");
+  btnCreateEmpty.type = "button";
+  btnCreateEmpty.className = "btn";
+  btnCreateEmpty.textContent = "创建空卡";
+  btnCreateEmpty.title = "创建一张空草稿卡并选中";
+  btnCreateEmpty.addEventListener("click", () => {
+    try {
+      engine.createEmptyCardOrThrow();
+      render?.();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      notification?.showError?.(`创建空卡失败：${msg}`, 3500);
+    }
+  });
+
   slot.innerHTML = "";
-  slot.appendChild(btn);
+  group.appendChild(btnFinal);
+  group.appendChild(btnCreateEmpty);
+  slot.appendChild(group);
 }
 
 export function createCardPlannerApp({ root, engine, wsClient, eventBus, logger, notification }) {
@@ -209,6 +231,7 @@ export function createCardPlannerApp({ root, engine, wsClient, eventBus, logger,
     engine,
     wsClient,
     notification,
+    render: () => workspace.render(),
     onRequestSent: ({ requestId }) => {
       lastFinalOutputRequestId = requestId;
     }
