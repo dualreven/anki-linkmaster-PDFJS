@@ -113,8 +113,12 @@ export class SearchFeature {
       this.#searchManager = new SearchManager(this.#logger);
       this.#logger.info("SearchManager created");
 
-      // 3. 创建搜索引擎
-      this.#searchEngine = new SearchEngine(this.#eventBus);
+      // 3. 创建搜索引擎（结果更新直接写入 Manager，避免 Feature 内部闭环依赖 EventBus）
+      this.#searchEngine = new SearchEngine(this.#eventBus, {
+        onMatchesCount: ({ current, total }) => {
+          this.#searchManager.updateResults(current, total);
+        }
+      });
       this.#logger.info("SearchEngine created");
 
       // 4. 创建搜索框UI
@@ -236,11 +240,11 @@ export class SearchFeature {
       { subscriberId: "SearchFeature" }
     ));
 
-    // 监听搜索结果更新（从SearchEngine）
+    // 监听 SearchBox UI open（来自 KeyboardHandler / GlobalShortcut）
     this.#subscriptions.add(this.#eventBus.on(
-      PDF_VIEWER_EVENTS.SEARCH.RESULT.UPDATED,
-      ({ current, total, query }) => {
-        this.#handleSearchResultUpdated(current, total, query);
+      PDF_VIEWER_EVENTS.SEARCH.UI.OPEN,
+      () => {
+        this.#searchManager.setVisible(true);
       },
       { subscriberId: "SearchFeature" }
     ));
@@ -337,20 +341,6 @@ export class SearchFeature {
 
     // 更新搜索引擎选项
     this.#searchEngine.updateOptions({ [option]: value });
-  }
-
-  /**
-   * 处理搜索结果更新
-   * @private
-   * @param {number} current - 当前匹配索引
-   * @param {number} total - 总匹配数
-   * @param {string} query - 搜索关键词
-   */
-  #handleSearchResultUpdated(current, total, query) {
-    this.#logger.info(`Handling search result updated: ${current}/${total} for query "${query}"`);
-
-    // 更新SearchManager的结果数据
-    this.#searchManager.updateResults(current, total);
   }
 
   /**

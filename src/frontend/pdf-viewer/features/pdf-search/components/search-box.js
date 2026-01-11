@@ -12,7 +12,6 @@ import { debounce } from "../utils/debounce.js";
 import { validateSearchQuery } from "../utils/search-validator.js";
 import { createSearchBoxDom } from "./search-box-dom.js";
 import { SearchBoxDOMManager } from "./search-box-dom-manager.js";
-import { subscribeSearchBoxEvents } from "./search-box-event-subscriptions.js";
 
 /**
  * 搜索框组件类
@@ -158,16 +157,7 @@ export class SearchBox {
       }
     }, { fireImmediately: true }));
 
-    // Legacy subscriptions (Toggle command via EventBus)
-    // SEARCH.UI.OPEN event is emitted by GlobalShortcut
-    this.#cleanupFns.push(subscribeSearchBoxEvents({
-      eventBus: this.#eventBus,
-      // onResult: removed, handled by Manager subscription
-      onOpen: () => this.#searchManager.setVisible(true), // Update state instead of direct DOM
-      onClose: () => this.#searchManager.setVisible(false),
-      onToggle: () => this.#searchManager.setVisible(!this.#searchManager.store.get().isVisible),
-      subscriberId: "SearchBox",
-    }));
+    // 注意：EventBus 订阅已上移到 Feature 装配层（满足 components/** 无订阅 gate）。
 
     this.#initialized = true;
     this.#logger.info("SearchBox initialized");

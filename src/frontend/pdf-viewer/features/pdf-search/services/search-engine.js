@@ -48,16 +48,26 @@ export class SearchEngine {
   /** @type {Array<import('../../../types/events').SearchMatch>} 匹配结果缓存 */
   #matchesCache = [];
 
+  /** @type {((payload:{current:number,total:number,query:string})=>void)|null} */
+  #onMatchesCount = null;
+
   /**
    * 构造函数
    * @param {import('../../../types/events').EventBus} eventBus - 事件总线
+   * @param {{ onMatchesCount?: (payload:{current:number,total:number,query:string})=>void }} [options]
    */
-  constructor(eventBus) {
+  constructor(eventBus, options = {}) {
     if (!eventBus) {
       throw new Error("EventBus is required for SearchEngine");
     }
 
     this.#eventBus = eventBus;
+
+    if (typeof options?.onMatchesCount !== "undefined" && typeof options.onMatchesCount !== "function") {
+      throw new Error("SearchEngine: options.onMatchesCount must be a function");
+    }
+    this.#onMatchesCount = options.onMatchesCount || null;
+
     this.#logger.info("SearchEngine instance created");
   }
 
@@ -172,6 +182,7 @@ export class SearchEngine {
     this.#currentMatchIndex = matchesCount.current || 0;
 
     this.#logger.info(`Search matches updated: ${this.#currentMatchIndex}/${this.#totalMatches}`);
+    this.#onMatchesCount?.({ current: this.#currentMatchIndex, total: this.#totalMatches, query: this.#currentQuery });
 
     // 发出结果更新事件
     if (this.#totalMatches > 0) {
@@ -278,8 +289,6 @@ export class SearchEngine {
    */
   async executeSearch(query, options = {}) {
     this.#logger.info(`[SearchEngine] Executing search: "${query}"`, options);
-    this.#logger.info(`[SearchEngine] findController exists: ${!!this.#findController}`);
-    this.#logger.info(`[SearchEngine] pdfEventBus exists: ${!!this.#pdfEventBus}`);
 
     if (!this.#findController) {
       throw new Error("SearchEngine not initialized. Call initialize() first.");
