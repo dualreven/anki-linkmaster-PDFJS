@@ -227,10 +227,14 @@ class GUILauncher(QMainWindow):
         btn_card_planner = QPushButton("启动 新卡片规划器 (Hosted)")
         btn_card_planner_manual_inject = QPushButton("Card Planner 测试：注入样例草稿卡")
         btn_card_planner_open_wait_inject = QPushButton("Card Planner 测试：等待注册再注入")
+        btn_card_planner_fill_test_ids = QPushButton("Card Planner 测试：填充测试ID")
+        btn_card_planner_copy_sample_tokens = QPushButton("Card Planner 测试：复制样例 token")
         btn_custom_reviewer = QPushButton("启动 定制复习器 (Hosted)")
         row_tools.addWidget(btn_card_planner)
         row_tools.addWidget(btn_card_planner_manual_inject)
         row_tools.addWidget(btn_card_planner_open_wait_inject)
+        row_tools.addWidget(btn_card_planner_fill_test_ids)
+        row_tools.addWidget(btn_card_planner_copy_sample_tokens)
         row_tools.addWidget(btn_custom_reviewer)
         lay.addLayout(row_tools)
 
@@ -240,8 +244,12 @@ class GUILauncher(QMainWindow):
         self.annotation_bulk_get_ann_ids_input.setText("ann_1,ann_2")
         self.annotation_bulk_get_ann_ids_input.setPlaceholderText("ann_1,ann_2（逗号分隔）")
         btn_ann_bulk_get_selftest = QPushButton("Annotation Bulk-Get 自检")
+        btn_ann_bulk_get_selftest_test_ids = QPushButton("用测试ID Bulk-Get")
+        self.annotation_bulk_get_result_label = QLabel("bulk-get: (未运行)")
         row_ann_selftest.addWidget(self.annotation_bulk_get_ann_ids_input)
         row_ann_selftest.addWidget(btn_ann_bulk_get_selftest)
+        row_ann_selftest.addWidget(btn_ann_bulk_get_selftest_test_ids)
+        row_ann_selftest.addWidget(self.annotation_bulk_get_result_label)
         lay.addLayout(row_ann_selftest)
 
         # 绑定
@@ -253,8 +261,11 @@ class GUILauncher(QMainWindow):
         btn_card_planner.clicked.connect(self._start_new_card_scheduler_hosted)  # type: ignore[arg-type]
         btn_card_planner_manual_inject.clicked.connect(self._card_planner_manual_test_inject_sample_draft_cards)  # type: ignore[arg-type]
         btn_card_planner_open_wait_inject.clicked.connect(self._card_planner_manual_test_open_wait_register_then_inject_sample_draft_cards)  # type: ignore[arg-type]
+        btn_card_planner_fill_test_ids.clicked.connect(self._card_planner_fill_test_ids)  # type: ignore[arg-type]
+        btn_card_planner_copy_sample_tokens.clicked.connect(self._card_planner_copy_sample_tokens)  # type: ignore[arg-type]
         btn_custom_reviewer.clicked.connect(self._start_custom_reviewer_hosted)  # type: ignore[arg-type]
         btn_ann_bulk_get_selftest.clicked.connect(self._annotation_bulk_get_selftest)  # type: ignore[arg-type]
+        btn_ann_bulk_get_selftest_test_ids.clicked.connect(self._annotation_bulk_get_selftest_with_test_ids)  # type: ignore[arg-type]
 
         self.setCentralWidget(root)
 
@@ -269,6 +280,42 @@ class GUILauncher(QMainWindow):
                     fn(str(msg))
         except Exception:
             pass
+
+    def _set_clipboard_text_or_throw(self, text: str) -> None:
+        if not isinstance(text, str) or not text:
+            raise ValueError("clipboard text 必须为非空字符串")
+        cb = QApplication.clipboard()
+        if cb is None:
+            raise RuntimeError("QApplication.clipboard() 返回 None")
+        cb.setText(text)
+
+    def _card_planner_fill_test_ids(self) -> None:
+        """
+        将 annotation bulk-get 输入框填充为固定测试ID：
+        - ann_test_1,ann_test_2
+        """
+        if not hasattr(self, "annotation_bulk_get_ann_ids_input") or not self.annotation_bulk_get_ann_ids_input:
+            raise RuntimeError("缺少 ann_ids 输入框，无法填充测试ID")
+        self.annotation_bulk_get_ann_ids_input.setText("ann_test_1,ann_test_2")
+        self._log("[OK] 已填充测试ID：ann_test_1,ann_test_2")
+
+    def _card_planner_copy_sample_tokens(self) -> None:
+        """
+        复制样例 token 到剪贴板，便于粘贴到 Card Planner Q/A 输入框：
+        - [[ann_test_1]] [[ann_test_2]]
+        """
+        tokens = "[[ann_test_1]] [[ann_test_2]]"
+        self._set_clipboard_text_or_throw(tokens)
+        self._log(f"[OK] 已复制样例 token 到剪贴板：{tokens}")
+
+    def _annotation_bulk_get_selftest_with_test_ids(self) -> None:
+        """一键：填充测试ID → 执行 annotation bulk-get 自检，并更新 GUI 状态 label。"""
+        try:
+            self._card_planner_fill_test_ids()
+        except Exception as e:
+            self._log(f"[ERROR] 填充测试ID失败: {e}")
+            raise
+        self._annotation_bulk_get_selftest()
 
     def _send_ws_text_qt(self, port: int, text: str, timeout_ms: int = 2000, *, expect_types: tuple[str, ...] = (), correlation_id: str | None = None) -> str:
         """
@@ -1105,10 +1152,24 @@ class GUILauncher(QMainWindow):
                     data = ack_obj.get("data") if isinstance(ack_obj.get("data"), dict) else {}
                     annotations = data.get("annotations") if isinstance(data, dict) else None
                     if isinstance(annotations, list):
+                        try:
+                            ids = [a.get("id") for a in annotations if isinstance(a, dict) and isinstance(a.get("id"), str)]
+                            contains_test = ("ann_test_1" in ids) and ("ann_test_2" in ids)
+                            if hasattr(self, "annotation_bulk_get_result_label") and self.annotation_bulk_get_result_label:
+                                self.annotation_bulk_get_result_label.setText(
+                                    f"bulk-get: count={len(annotations)} contains_test_ids={contains_test}"
+                                )
+                        except Exception as _e:
+                            self._log(f"[WARN] bulk-get GUI label 更新失败: {_e}")
                         self._log(f"[OK] annotations_count={len(annotations)}")
                     else:
                         self._log("[OK] annotation:bulk-get:completed")
                 elif ack_type == "annotation:bulk-get:failed":
+                    try:
+                        if hasattr(self, "annotation_bulk_get_result_label") and self.annotation_bulk_get_result_label:
+                            self.annotation_bulk_get_result_label.setText("bulk-get: failed")
+                    except Exception as _e:
+                        self._log(f"[WARN] bulk-get GUI label 更新失败: {_e}")
                     self._log(f"[ERROR] annotation:bulk-get:failed rid={rid}")
                 else:
                     self._log(f"[WARN] 收到非预期回执 type={ack_type}")
