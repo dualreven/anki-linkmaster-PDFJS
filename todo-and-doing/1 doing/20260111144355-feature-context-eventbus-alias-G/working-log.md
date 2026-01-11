@@ -4,9 +4,8 @@
 - FeatureContext 增加 `eventBus` 别名（= `globalEventBus`），并补回归测试。
 
 ## 交付
-- Commit: （必填）
+- Commit: `92874a2d`
 
 ## 自检
-- `pnpm -s run lint`：
-- `pnpm exec jest --runTestsByPath <你的测试文件...> -i`：
-
+- `pnpm -s run lint`：✅
+- `pnpm exec jest --runTestsByPath src/frontend/common/micro-service/__tests__/feature-context.eventbus-alias.test.js -i`：✅
