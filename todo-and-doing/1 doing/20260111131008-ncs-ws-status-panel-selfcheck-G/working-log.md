@@ -4,7 +4,7 @@
 - WS 状态面板增加自检/刷新能力与回归测试。
 
 ## 交付
-- Commit: `（待填写）`
+- Commit: `a1875eb8`
 
 ## 自检
 - `pnpm -s run lint`：✅
