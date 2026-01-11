@@ -113,82 +113,25 @@
   - 证据：`src/frontend/pdf-viewer/features/pdf-search/__tests__/search-box-dom-manager.bindings.cleanup.test.js:5`（init/cleanup 契约）。
 - P0 结构性债务提示（“标注模型重复真源”）：当前 `pdf-annotation` 侧为**复出口**而非重复实现：`src/frontend/pdf-viewer/features/pdf-annotation/models/annotation.js:4`（唯一真源说明）。
 
-## 2026-01-10：PDFViewer 面条化治理新派工（A~E）
-- 批次：`20260110195258`（已下发到 `todo-and-doing/1 doing/`，准备同步覆盖到 A~E worktree）。
-- A：Annotation 单真源防分叉门禁（lint）：`todo-and-doing/1 doing/20260110195258-pdfviewer-annotation-single-source-guard-A/`
-- B：infra-ui 移除 filename→pdfId 兜底 + 清理 setTimeout 竞态：`todo-and-doing/1 doing/20260110195258-pdfviewer-infra-ui-remove-fallback-timeouts-B/`
-- C：CommentTool store-reactive（去 DATA.LOADED 依赖）：`todo-and-doing/1 doing/20260110195258-pdfviewer-annotation-commenttool-store-reactive-C/`
-- D：pdf-search 移除旧 DOM bindings 壳（收敛到 DOMManager）：`todo-and-doing/1 doing/20260110195258-pdfviewer-pdf-search-remove-dom-bindings-shell-D/`
-- E：PDFViewerManager PDF.js EventBus bridge 可卸载（防监听泄漏）：`todo-and-doing/1 doing/20260110195258-pdfviewer-manager-pdfjs-bridge-uninstall-E/`
+## 2026-01-10~2026-01-11：PDFViewer 面条化治理批次索引（已归档）
+- 总体计划：`docs/reports/PDFVIEWER_SPAGHETTI_REMEDIATION_PLAN_20260109.md`
+- 20260110195258：`todo-and-doing/4 archive/20260110211119-doing-archive/`（合入 main；lint+定向 Jest ✅）
+- 20260110220446：`todo-and-doing/4 archive/20260111002542-doing-archive/`（合入 main；lint+定向 Jest ✅；含 gate：禁止 components 直接 `eventBus.on(...)`）
+- 20260111010855：`todo-and-doing/4 archive/20260111022704-doing-archive/`（合入 main；lint+定向 Jest ✅）
+- 20260111140159：`todo-and-doing/4 archive/20260111155506-doing-archive/`（合入 main；lint+定向 Jest ✅；用户手工点检 ✅）
 
-## 2026-01-10：验收合并 ABCDE（20260110195258 批次）✅
-- 合入（main）：
-  - A：`13fe160a`（annotation 单真源 lint 门禁）
-  - B：`7f77cba5`（移除兜底 + RENDER.READY 初始化 + 回归）
-  - C：`b3006488`（CommentTool store-reactive + 回归）
-  - D：`0c1d5df3`（移除 search DOM bindings 旧壳 + 回归）
-  - E：`3d016edf`（PDFViewerManager bridge 可卸载 + 回归）
-- 门禁：`pnpm -s run lint` ✅；Jest（定向）✅
-- 归档：`todo-and-doing/4 archive/20260110211119-doing-archive/`
-
-## 2026-01-10：PDFViewer 面条化治理新派工（A~E，20260110220446）
-- 说明：本批不升级 KI-20260110-01（爆栈）为必须修；E 的 CI gate 要求严格失败（无 allowlist 过渡）。
-- A（core）：LifecycleManager 全局错误监听器可卸载（已验收归档）：`todo-and-doing/4 archive/20260111002542-doing-archive/20260110220446-pdfviewer-core-lifecycle-error-listeners-uninstall-A/`
-- B（infra-ui）：coordinator 迁移收尾 + 严格隔离订阅（已验收归档）：`todo-and-doing/4 archive/20260111002542-doing-archive/20260110220446-pdfviewer-infra-ui-coordinator-hardening-B/`
-- C（pdf-annotation）：TextHighlightTool store-reactive 扩面（已验收归档）：`todo-and-doing/4 archive/20260111002542-doing-archive/20260110220446-pdfviewer-annotation-tooling-store-reactive-expansion-C/`
-- D（assets）：GlobalErrorToast 可卸载（已验收归档）：`todo-and-doing/4 archive/20260111002542-doing-archive/20260110220446-pdfviewer-assets-global-error-toast-uninstall-D/`
-- E（CI）：禁止 components 直接 `eventBus.on(...)`（严格失败；已验收归档）：`todo-and-doing/4 archive/20260111002542-doing-archive/20260110220446-ci-pdfviewer-no-eventbus-on-in-components-E/`
-
-## 2026-01-11：验收合并 ABCDE（20260110220446 批次）✅
-- 合入（main，隔离提取合入）：
-  - A：`daa0cc05`（LifecycleManager 全局错误监听器可卸载 + 回归）
-  - B：`396d3505`（infra-ui subscriptions 强化 + 回归）
-  - C：`7df1766b`（TextHighlightTool：补回归，覆盖 store unsubscribe）
-  - D：`5a489bd4`（GlobalErrorToast 可安装/可卸载 + 回归）
-  - E：`863d7d99`（CI gate：禁止 components 直接 `eventBus.on(...)`，增量严格）
-- 门禁：`pnpm -s run lint` ✅；Jest（定向）✅
-- 归档：`todo-and-doing/4 archive/20260111002542-doing-archive/`
+## 2026-01-11：PDFViewer 去面条化新派工（A~E，20260111160726）
+- 规划者进度粗评：当前 **7/10** → 本轮目标 **8/10**
+- 主攻方向：
+  - 清除 `src/frontend/pdf-viewer/features/**/components/**` 内残留 `eventBus.on(...)`（收敛到装配层或 store 驱动）
+  - 补齐 legacy 模块/管理器的 destroy/uninstall 契约（用回归测试锁死）
+- 任务目录（doing）：
+  - A：`todo-and-doing/1 doing/20260111160726-pdfviewer-anchor-sidebar-no-eventbus-on-A/`
+  - B：`todo-and-doing/1 doing/20260111160726-pdfviewer-ai-assistant-sidebar-no-eventbus-on-B/`
+  - C：`todo-and-doing/1 doing/20260111160726-pdfviewer-annotation-sidebar-no-eventbus-on-C/`
+  - D：`todo-and-doing/1 doing/20260111160726-pdfviewer-outline-toolbar-uninstall-D/`
+  - E：`todo-and-doing/1 doing/20260111160726-pdfviewer-pdf-manager-uninstall-E/`
+- 执行者 DoD（硬要求）：必须提交 commit hash；`pnpm -s run lint` + 定向 `pnpm exec jest --runTestsByPath <tests> -i` ✅；填完并提交各自 `report.md`
 
 ## 2026-01-10：已知但暂不升级的 bug（记录）
 - KI-20260110-01（爆栈）：仍未修复；用户确认“暂不重要/不升级为必须修”。后续如复现路径清晰，再单独下发专项任务。
-
-
-## 2026-01-11：PDFViewer 面条化治理新派工（A~E，20260111010855）
-- 本批任务 A~E 已全部验收归档：`todo-and-doing/4 archive/20260111022704-doing-archive/`。
-  - 旧 E（pdf-home 修复，已过时）已归档：`todo-and-doing/4 archive/20260111013701-doing-archive/20260111010855-gui-launcher-vite-loopback-host-and-pdf-home-reliability-E/`。
-
-## 2026-01-11：验收合并 ABCDE（20260111010855 批次）✅
-- 合入（main）：
-  - A：`9736a77c`（KeyboardHandler lifecycle hardening + 回归增强）
-  - B：`c2a73537`（ui-manager-core assembly 抽离 + 装配/销毁回归）
-  - C：`566f9002`（annotation toggle button keydown 可卸载 + 回归）
-  - D：`1cab5375`（pdf-search：订阅从 components 上移，满足 `pdfviewer-no-eventbus-on-in-components` gate + 回归）
-  - E：`157417e8`（outline store-driven selection + UI 边界/cleanup 回归）
-- 门禁：`pnpm -s run lint` ✅；Jest（定向）✅
-- 归档：`todo-and-doing/4 archive/20260111022704-doing-archive/`
-
-## 2026-01-11：PDFViewer 面条化治理新派工（A~E，20260111140159）
-- 治理进度（规划者粗评）：约 **6/10**（目标：继续把“订阅/副作用/等待竞态”收敛到可卸载 + 可测的装配层）
-- 派工提交（main）：`364cf885`
-- 执行者 DoD（硬要求）：`pnpm -s run lint` + 定向 `pnpm exec jest --runTestsByPath <tests> -i` ✅；更新各自 `report.md`（含命令与输出摘要、commit hash、改动文件清单）；最终必须 git 提交
-- 任务目录（doing）：
-  - A：`todo-and-doing/1 doing/20260111140159-pdfviewer-adapters-inbound-router-slim-A/`
-  - B：`todo-and-doing/1 doing/20260111140159-pdfviewer-infra-ui-side-effects-hardening-B/`
-  - C：`todo-and-doing/1 doing/20260111140159-pdfviewer-annotation-screenshot-store-reactive-C/`
-  - D：`todo-and-doing/1 doing/20260111140159-pdfviewer-bootstrap-cancellable-wait-D/`
-  - E：`todo-and-doing/1 doing/20260111140159-pdfviewer-url-loader-contract-hardening-E/`
-
-### 2026-01-11：验收合并 ABCDE（20260111140159 批次，已合入 main，待手工点检后归档）
-- 合入（main）：
-  - A：`3e05dc54`（adapters 入站路由瘦身 + 回归）`f93f8c89`（report/log）
-  - B：`f4cf4658`（infra-ui timeouts 清理 + 回归）`e6737571`（report/log）
-  - C：`72752296`（ScreenshotTool store-reactive 推进 + 回归）`fdbed5e5`（report/log）
-  - D：`53ee046b`（bootstrap 可取消等待 + 回归）`74aac2db` `43b63cfd`（report/log）
-  - E：`260f764d`（pdf-url-loader 契约 Fail-Fast + 回归）`77604892`（report/log）
-- 门禁（main 侧）：`pnpm -s run lint` ✅（lines=179）；Jest（定向并集）✅（10 suites / 12 tests）
-- 手工点检：D 建议“快速关闭窗口/快速重开”观察是否有未捕获异常日志；用户确认后再归档 doing + 同步覆盖 A~E
-
-### 2026-01-11：20260111140159 批次已归档并同步
-- 用户已手工点检确认通过（2026-01-11）。
-- 归档：`todo-and-doing/4 archive/20260111155506-doing-archive/`
-- 同步覆盖：已对 `anki-linkmaster-A/B/C/D/E` 执行 `git reset --hard main` + `git clean -fd`（基线 `f464ef0c`）
