@@ -71,6 +71,7 @@
 - v005：`annotation:bulk-get` 超时修复已合入并归档：`todo-and-doing/4 archive/20260111000112-doing-archive/`。
 - v006：NCS 启动范式对齐已合入并归档：`todo-and-doing/4 archive/20260111015251-doing-archive/`。
 - v007：修复 NCS 空白/未注册已合入并归档：`todo-and-doing/4 archive/20260111125406-doing-archive/`；v008：修复 legacy feature 安装失败（eventBus 上下文字段对齐）+ 增强自检/创建空卡/等待注册注入 已合入并归档：`todo-and-doing/4 archive/20260111141035-doing-archive/`。
+- v009（done）：G/H/I 基础对齐（FeatureContext `eventBus` alias + NCS bootstrap summary + FeatureContext conventions）已合入 main 并归档：`todo-and-doing/4 archive/20260111154617-doing-archive/`。
 - v009（doing）：Card Planner UI 升级：Q/A 并列智能输入框（识别/高亮标注ID、支持粘贴、插入消息末尾追加 `[[id]]`）：`todo-and-doing/1 doing/20260111144355-card-planner-qa-smart-input-F/`。
 - 进度粗评（NCS/Planner）：约 **7/10**（通信链路/启动范式已稳定；下一步主攻“可编辑体验与可观测性/回归”）。
 
