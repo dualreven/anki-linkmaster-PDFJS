@@ -100,7 +100,7 @@
 - v004：注入链路修复已合入并归档：`todo-and-doing/4 archive/20260110212636-doing-archive/`。
 - v005：`annotation:bulk-get` 超时修复已合入并归档：`todo-and-doing/4 archive/20260111000112-doing-archive/`。
 - v006：NCS 启动范式对齐已合入并归档：`todo-and-doing/4 archive/20260111015251-doing-archive/`。
-- v007（doing）：修复 NCS 空白/未注册（入口需调用 bootstrap + WS 默认 host 统一 IPv4）：`todo-and-doing/1 doing/20260111021732-ncs-*-F/G/H/I/`。
+- v007：修复 NCS 空白/未注册（入口调用 bootstrap + WS 默认 host 统一 IPv4）已合入并归档：`todo-and-doing/4 archive/20260111125406-doing-archive/`。
 
 ## 2026-01-09：PDFViewer 面条化治理详细记录（已归档）
 - 说明：为满足 `context.md` 行数门禁（<200），已将 2026-01-09 的详细过程记录迁移到归档文件（不加载进上下文）。
